@@ -50,3 +50,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+config.mk
+target/
+src/lxa/tmp/
+src/rom/exec.library
+src/rom/my.rom
+
