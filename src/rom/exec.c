@@ -12,9 +12,15 @@
 
 #include "util.h"
 
+// memory map
+#define RAM_START 1024
+#define RAM_SIZE  10 * 1024 * 1024 - 1024
+#define RAM_END   RAM_START + RAM_SIZE - 1
+
 #define VERSION  1
 #define REVISION 1
 
+#if 0
 #define EXLIBNAME "exec"
 #define EXLIBVER  " 1.1 (2021/06/13)"
 
@@ -34,7 +40,7 @@ struct ExecBase * __saveds           OpenLib    ( register struct ExecBase  *Exe
 BPTR             __saveds            CloseLib   ( register struct ExecBase  *ExecBase __asm("a6"));
 BPTR             __saveds            ExpungeLib ( register struct ExecBase  *exb      __asm("a6"));
 ULONG                                ExtFuncLib ( void );
-ULONG                                f1         ( register ULONG             a        __asm("d0"));
+//ULONG                                f1         ( register ULONG             a        __asm("d0"));
 
 LONG LibStart(void)
 {
@@ -234,13 +240,6 @@ ULONG ExtFuncLib(void)
     return NULL;
 }
 
-//struct ExecBase *ExecBase = NULL;
-
-ULONG f1 ( register ULONG a __asm("d0"))
-{
-    return 0xdeadbeef;
-}
-
 /*
     // find ROMTAG structure
     uint32_t romtag_off = 0;
@@ -266,11 +265,33 @@ ULONG f1 ( register ULONG a __asm("d0"))
 */
 
 extern void handleTRAP3();
+#endif
+
+struct ExecBase *SysBase;
+
+#define NUM_EXEC_FUNCS 1
+
+static APTR g_ExecJumpTable[NUM_EXEC_FUNCS];
+static struct ExecBase g_ExecBase;
+
+static ULONG __saveds _exec_f1 ( register struct ExecBase  *exb __asm("a6"),
+                                 register ULONG a __asm("d0"))
+{
+    lprintf ("f1 called\n");
+    return 0xdeadbeef;
+}
+
+//LP2(offs, rt, name, t1, v1, r1, t2, v2, r2, bt, bn)
+
+#define AllocMem(___byteSize, ___requirements) \
+      LP2(0xc6, APTR, AllocMem , ULONG, ___byteSize, d0, ULONG, ___requirements, d1,\
+            , EXEC_BASE_NAME)
+
 
 void coldstart (void)
 {
-    uint32_t *p = (void*) 0x00008c;
-    *p = (uint32_t) handleTRAP3;
+    //uint32_t *p = (void*) 0x00008c;
+    //*p = (uint32_t) handleTRAP3;
 
     __asm("andi.w  #0xdfff, sr\n");
     __asm("move.l  #0x9fff99, a7\n");
@@ -282,6 +303,17 @@ void coldstart (void)
         lprintf ("coldstart: i=%d, i*i=%d\n", i, i*i);
     }
     lprintf ("coldstart: init (printf test) done.\n");
+
+    /* set up execbase */
+
+    *(APTR *)4L = &g_ExecBase;
+    SysBase = *(APTR *)4L;
+
+    g_ExecJumpTable[0] = f1;
+    SysBase->SoftVer = VERSION;
+
+    f1(42);
+
     emu_stop();
 }
 
