@@ -12,13 +12,38 @@
 
 #include "util.h"
 
+#define NUM_EXEC_FUNCS 1
+
 // memory map
-#define RAM_START 1024
-#define RAM_SIZE  10 * 1024 * 1024 - 1024
-#define RAM_END   RAM_START + RAM_SIZE - 1
+#define EXCEPTION_VECTORS_START 0
+#define EXCEPTION_VECTORS_SIZE  1024
+#define EXCEPTION_VECTORS_END   EXCEPTION_VECTORS_START + EXCEPTION_VECTORS_SIZE - 1
+
+#define EXEC_VECTORS_START      EXCEPTION_VECTORS_END + 1
+#define EXEC_VECTORS_SIZE       NUM_EXEC_FUNCS * 6
+#define EXEC_VECTORS_END        EXEC_VECTORS_START + EXEC_VECTORS_SIZE -1
+
+#define EXEC_BASE_START         EXEC_VECTORS_END + 1
+#define EXEC_BASE_SIZE          sizeof (struct ExecBase)
+#define EXEC_BASE_END           EXEC_BASE_START + EXEC_BASE_SIZE -1
+
+#define RAM_START               EXEC_BASE_END + 1
+#define RAM_SIZE                10 * 1024 * 1024
+#define RAM_END                 RAM_START + RAM_SIZE - 1
 
 #define VERSION  1
 #define REVISION 1
+
+struct JumpVec
+{
+    unsigned short jmp;
+    void *vec;
+};
+
+static struct JumpVec  *g_ExecJumpTable = (struct JumpVec *) ((uint8_t *)EXEC_VECTORS_START);
+struct ExecBase        *SysBase         = (struct ExecBase*) ((uint8_t *)EXEC_BASE_START);
+
+#define JMPINSTR 0x4ef9
 
 #if 0
 #define EXLIBNAME "exec"
@@ -267,28 +292,19 @@ ULONG ExtFuncLib(void)
 extern void handleTRAP3();
 #endif
 
-struct ExecBase *SysBase;
-
-#define NUM_EXEC_FUNCS 1
-
-static APTR g_ExecJumpTable[NUM_EXEC_FUNCS];
-static struct ExecBase g_ExecBase;
-
 static ULONG __saveds _exec_f1 ( register struct ExecBase  *exb __asm("a6"),
                                  register ULONG a __asm("d0"))
 {
-    lprintf ("f1 called\n");
-    return 0xdeadbeef;
+    lprintf ("f1 called, a=%d\n", a);
+    return a*a;
 }
 
 //LP2(offs, rt, name, t1, v1, r1, t2, v2, r2, bt, bn)
 
-#define AllocMem(___byteSize, ___requirements) \
-      LP2(0xc6, APTR, AllocMem , ULONG, ___byteSize, d0, ULONG, ___requirements, d1,\
-            , EXEC_BASE_NAME)
+#define f1(___a) \
+      LP1(0x6, ULONG, f1 , ULONG, ___a, d0, ,EXEC_BASE_NAME)
 
-
-void coldstart (void)
+void __saveds coldstart (void)
 {
     //uint32_t *p = (void*) 0x00008c;
     //*p = (uint32_t) handleTRAP3;
@@ -304,16 +320,31 @@ void coldstart (void)
     }
     lprintf ("coldstart: init (printf test) done.\n");
 
+    lprintf ("coldstart: EXEC_VECTORS_START=0x%08x, EXEC_BASE_START=0x%08x\n", EXEC_VECTORS_START, EXEC_BASE_START);
+
+    // coldstart is at 0x00f801be, &SysBase at 0x00f80c90, SysBase at 0x0009eed0, f1 at 0x00f80028
+    lprintf ("coldstart: locations in RAM: coldstart is at 0x%08x, &SysBase at 0x%08x, SysBase at 0x%08x, f1 at 0x%08x\n",
+             coldstart, &SysBase, SysBase, _exec_f1);
+    // g_ExecJumpTable at 0x00001800, &g_ExecJumpTable[0].vec at 0x00001802
+    lprintf ("coldstart: g_ExecJumpTable at 0x%08x, &g_ExecJumpTable[0].vec at 0x%08x\n", g_ExecJumpTable, &g_ExecJumpTable[0].vec);
+
     /* set up execbase */
 
-    *(APTR *)4L = &g_ExecBase;
-    SysBase = *(APTR *)4L;
+    lprintf ("coldstart: set up execbase 1\n");
+    *(APTR *)4L = SysBase;
+    //lprintf ("coldstart: set up execbase 1.1\n");
+    //SysBase = *(APTR *)4L;
 
-    g_ExecJumpTable[0] = f1;
+    lprintf ("coldstart: set up execbase 2\n");
+    g_ExecJumpTable[0].vec = _exec_f1;
+    g_ExecJumpTable[0].jmp = JMPINSTR;
+    lprintf ("coldstart: set up execbase 3\n");
     SysBase->SoftVer = VERSION;
 
-    f1(42);
+    lprintf ("coldstart: calling f1\n");
+    ULONG res = f1(42);
 
+    lprintf ("coldstart: returned from f1. res=%d\n", res);
     emu_stop();
 }
 

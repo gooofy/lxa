@@ -6,9 +6,9 @@
 
 #include "m68k.h"
 
-#define DEBUG false
+#define DEBUG       true
 
-#define dprintf(...) do { if (DEBUG) printf(__VA_ARGS__); } while (0)
+#define dprintf(...) do { if (DEBUG && g_debug) printf(__VA_ARGS__); } while (0)
 
 #define RAM_START   0x000000
 #define RAM_SIZE    10 * 1024 * 1024
@@ -21,6 +21,7 @@
 
 static uint8_t g_ram[RAM_SIZE];
 static uint8_t g_rom[ROM_SIZE];
+static bool    g_debug=false;
 
 #if 0
 #define CHIPMEM_ADDRESS 0x000000
@@ -87,43 +88,6 @@ static void hexdump (uint32_t offset, uint32_t num_bytes)
     dprintf ("\n");
 }
 
-static void print68kstate(uc_engine *uc)
-{
-    uint32_t d0,d1,d2,d3,d4,d5,d6,d7;
-    uc_reg_read(g_uc, UC_M68K_REG_D0, &d0);
-    uc_reg_read(g_uc, UC_M68K_REG_D1, &d1);
-    uc_reg_read(g_uc, UC_M68K_REG_D2, &d2);
-    uc_reg_read(g_uc, UC_M68K_REG_D3, &d3);
-    uc_reg_read(g_uc, UC_M68K_REG_D4, &d4);
-    uc_reg_read(g_uc, UC_M68K_REG_D5, &d5);
-    uc_reg_read(g_uc, UC_M68K_REG_D6, &d6);
-    uc_reg_read(g_uc, UC_M68K_REG_D7, &d7);
-    dprintf ("      d0=0x%08x d1=0x%08x d2=0x%08x d3=0x%08x d4=0x%08x d5=0x%08x d6=0x%08x d7=0x%08x\n", d0, d1, d2, d3, d4, d5, d6, d7);
-    uint32_t a0,a1,a2,a3,a4,a5,a6,a7;
-    uc_reg_read(g_uc, UC_M68K_REG_A0, &a0);
-    uc_reg_read(g_uc, UC_M68K_REG_A1, &a1);
-    uc_reg_read(g_uc, UC_M68K_REG_A2, &a2);
-    uc_reg_read(g_uc, UC_M68K_REG_A3, &a3);
-    uc_reg_read(g_uc, UC_M68K_REG_A4, &a4);
-    uc_reg_read(g_uc, UC_M68K_REG_A5, &a5);
-    uc_reg_read(g_uc, UC_M68K_REG_A6, &a6);
-    uc_reg_read(g_uc, UC_M68K_REG_A7, &a7);
-    dprintf ("      a0=0x%08x a1=0x%08x a2=0x%08x a3=0x%08x a4=0x%08x a5=0x%08x a6=0x%08x a7=0x%08x\n", a0, a1, a2, a3, a4, a5, a6, a7);
-    uint32_t sr, pc;
-    uc_reg_read(g_uc, UC_M68K_REG_SR, &sr);
-    uc_reg_read(g_uc, UC_M68K_REG_PC, &pc);
-    dprintf ("      sr = 0x%08x ", sr);
-    if (sr &     1) dprintf ("C") ; else dprintf (".");
-    if (sr &     2) dprintf ("V") ; else dprintf (".");
-    if (sr &     4) dprintf ("Z") ; else dprintf (".");
-    if (sr &     8) dprintf ("N") ; else dprintf (".");
-    if (sr &    16) dprintf ("X") ; else dprintf (".");
-    if (sr &  8192) dprintf ("S") ; else dprintf (".");
-    if (sr & 32768) dprintf ("T") ; else dprintf (".");
-    dprintf (" pc=0x%08x\n", pc);
-    sr &= 0xdfff;
-    uc_reg_write(g_uc, UC_M68K_REG_SR, &sr);
-}
 
 
 static void hook_lxcall(uc_engine *uc, uint32_t intno, void *user_data)
@@ -201,7 +165,7 @@ static inline uint8_t mread8 (uint32_t address)
         }
         else
         {
-            dprintf("ERROR: read at invalid address 0x%08x\n", address);
+            printf("ERROR: mread8 at invalid address 0x%08x\n", address);
             assert (false);
         }
     }
@@ -240,7 +204,7 @@ static inline void mwrite8 (uint32_t address, uint8_t value)
     }
     else
     {
-        dprintf("ERROR: write at invalid address 0x%08x\n", address);
+        printf("ERROR: mwrite8 at invalid address 0x%08x\n", address);
         assert (false);
     }
 }
@@ -291,9 +255,51 @@ void make_hex(char* buff, unsigned int pc, unsigned int length)
 	}
 }
 
+static void print68kstate(void)
+{
+    uint32_t d0,d1,d2,d3,d4,d5,d6,d7;
+
+    d0 = m68k_get_reg (NULL, M68K_REG_D0);
+    d1 = m68k_get_reg (NULL, M68K_REG_D1);
+    d2 = m68k_get_reg (NULL, M68K_REG_D2);
+    d3 = m68k_get_reg (NULL, M68K_REG_D3);
+    d4 = m68k_get_reg (NULL, M68K_REG_D4);
+    d5 = m68k_get_reg (NULL, M68K_REG_D5);
+    d6 = m68k_get_reg (NULL, M68K_REG_D6);
+    d7 = m68k_get_reg (NULL, M68K_REG_D7);
+
+    dprintf ("      d0=0x%08x d1=0x%08x d2=0x%08x d3=0x%08x d4=0x%08x d5=0x%08x d6=0x%08x d7=0x%08x\n", d0, d1, d2, d3, d4, d5, d6, d7);
+    uint32_t a0,a1,a2,a3,a4,a5,a6,a7;
+    a0 = m68k_get_reg (NULL, M68K_REG_A0);
+    a1 = m68k_get_reg (NULL, M68K_REG_A1);
+    a2 = m68k_get_reg (NULL, M68K_REG_A2);
+    a3 = m68k_get_reg (NULL, M68K_REG_A3);
+    a4 = m68k_get_reg (NULL, M68K_REG_A4);
+    a5 = m68k_get_reg (NULL, M68K_REG_A5);
+    a6 = m68k_get_reg (NULL, M68K_REG_A6);
+    a7 = m68k_get_reg (NULL, M68K_REG_A7);
+    dprintf ("      a0=0x%08x a1=0x%08x a2=0x%08x a3=0x%08x a4=0x%08x a5=0x%08x a6=0x%08x a7=0x%08x\n", a0, a1, a2, a3, a4, a5, a6, a7);
+#if 0
+    uint32_t sr, pc;
+    uc_reg_read(g_uc, UC_M68K_REG_SR, &sr);
+    uc_reg_read(g_uc, UC_M68K_REG_PC, &pc);
+    dprintf ("      sr = 0x%08x ", sr);
+    if (sr &     1) dprintf ("C") ; else dprintf (".");
+    if (sr &     2) dprintf ("V") ; else dprintf (".");
+    if (sr &     4) dprintf ("Z") ; else dprintf (".");
+    if (sr &     8) dprintf ("N") ; else dprintf (".");
+    if (sr &    16) dprintf ("X") ; else dprintf (".");
+    if (sr &  8192) dprintf ("S") ; else dprintf (".");
+    if (sr & 32768) dprintf ("T") ; else dprintf (".");
+    dprintf (" pc=0x%08x\n", pc);
+    sr &= 0xdfff;
+    uc_reg_write(g_uc, UC_M68K_REG_SR, &sr);
+#endif
+}
+
 void cpu_instr_callback(int pc)
 {
-    if (DEBUG)
+    if (DEBUG && g_debug)
     {
         static char buff[100];
         static char buff2[100];
@@ -303,6 +309,7 @@ void cpu_instr_callback(int pc)
         instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
         make_hex(buff2, pc, instr_size);
         printf("E %03x: %-20s: %s\n", pc, buff2, buff);
+        print68kstate();
         fflush(stdout);
     }
 }
@@ -353,8 +360,33 @@ int op_illg(int level)
 	//return M68K_INT_ACK_SPURIOUS;
 }
 
+static void print_usage(char *argv[])
+{
+    fprintf(stderr, "usage: %s [ options ]\n", argv[0]);
+    fprintf(stderr, "    -d enable debug output\n");
+}
+
 int main(int argc, char **argv, char **envp)
 {
+	int optind=0;
+    // argument parsing
+    for (optind = 1; optind < argc && argv[optind][0] == '-'; optind++)
+    {
+        switch (argv[optind][1])
+        {
+            case 'd':
+				g_debug = true;
+                break;
+			default:
+                print_usage(argv);
+                exit(EXIT_FAILURE);
+        }
+    }
+	if (argc != optind)
+	{
+		print_usage(argv);
+		exit(EXIT_FAILURE);
+	}
 
     // load rom code
     FILE *romf = fopen (ROM_PATH, "r");
