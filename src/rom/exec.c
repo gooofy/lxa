@@ -25,6 +25,7 @@
 //#include <inline/diskfont.h>
 
 #include "util.h"
+#include "lxa_dos.h"
 
 #define NUM_EXEC_FUNCS 130
 #define EXEC_FUNCTABLE_ENTRY(___off) (NUM_EXEC_FUNCS+(___off/6))
@@ -73,6 +74,12 @@ static struct Library* __saveds _exec_OpenLibrary ( register struct ExecBase  *e
 	return NULL;
 }
 
+static void registerBuiltInLib (struct Resident *romTAG)
+{
+    struct InitTable *initTab = romTAG->rt_Init;
+    MakeLibrary(initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, initTab->LibBaseSize, /* segList=*/NULL);
+}
+
 void __saveds coldstart (void)
 {
     //uint32_t *p = (void*) 0x00008c;
@@ -102,6 +109,9 @@ void __saveds coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-552)].vec = _exec_OpenLibrary;
 
     SysBase->SoftVer = VERSION;
+
+    // init and register built-in libraries
+    registerBuiltInLib (__lxa_dos_ROMTag);
 
 	OpenLibrary ("dos.library", 0);
 

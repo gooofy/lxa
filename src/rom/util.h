@@ -18,4 +18,12 @@ __stdargs void __assert_func (const char *file_name, int line_number, const char
 # define assert(__e) ((__e) ? (void)0 : __assert_func (__FILE__, __LINE__, #__e))
 #endif
 
+struct InitTable
+{
+    ULONG  LibBaseSize;
+    APTR  *FunctionTable;
+    APTR  *DataTable;
+    APTR   InitLibFn;
+};
+
 #endif
