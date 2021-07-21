@@ -8,11 +8,26 @@
 #include <exec/resident.h>
 #include <exec/initializers.h>
 
-#include <proto/exec.h>
+//#include <proto/exec.h>
+
+//#include <clib/alib_protos.h>
+#include <clib/exec_protos.h>
+//#include <clib/dos_protos.h>
+//#include <clib/intuition_protos.h>
+//#include <clib/graphics_protos.h>
+//#include <clib/console_protos.h>
+//#include <clib/diskfont_protos.h>
+
+#include <inline/exec.h>
+//#include <inline/dos.h>
+//#include <inline/intuition.h>
+//#include <inline/graphics.h>
+//#include <inline/diskfont.h>
 
 #include "util.h"
 
-#define NUM_EXEC_FUNCS 1
+#define NUM_EXEC_FUNCS 130
+#define EXEC_FUNCTABLE_ENTRY(___off) (NUM_EXEC_FUNCS+(___off/6))
 
 // memory map
 #define EXCEPTION_VECTORS_START 0
@@ -45,264 +60,18 @@ struct ExecBase        *SysBase         = (struct ExecBase*) ((uint8_t *)EXEC_BA
 
 #define JMPINSTR 0x4ef9
 
-#if 0
-#define EXLIBNAME "exec"
-#define EXLIBVER  " 1.1 (2021/06/13)"
-
-char __aligned ExLibName [] = EXLIBNAME ".library";
-char __aligned ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned Copyright [] = "(C)opyright 2021 by G. Bartsch. Licensed under the Apache License, Version 2.0.";
-
-char __aligned VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
-
-extern ULONG     __saveds __stdargs  L_OpenLibs ( struct ExecBase *execBase);
-extern void      __saveds __stdargs  L_CloseLibs( void);
-
-struct ExecBase * __saveds           InitLib    ( register struct ExecBase  *sysbase  __asm("a6"),
-                                                  register BPTR              seglist  __asm("a0"),
-                                                  register struct ExecBase  *exb      __asm("d0"));
-struct ExecBase * __saveds           OpenLib    ( register struct ExecBase  *ExecBase __asm("a6"));
-BPTR             __saveds            CloseLib   ( register struct ExecBase  *ExecBase __asm("a6"));
-BPTR             __saveds            ExpungeLib ( register struct ExecBase  *exb      __asm("a6"));
-ULONG                                ExtFuncLib ( void );
-//ULONG                                f1         ( register ULONG             a        __asm("d0"));
-
-LONG LibStart(void)
+static void __saveds _exec_unimplemented_call ( register struct ExecBase  *exb __asm("a6") )
 {
-    return -1;
+	assert (FALSE);
 }
 
-void __restore_a4(void)
+static struct Library* __saveds _exec_OpenLibrary ( register struct ExecBase  *exb __asm("a6"),
+                                                    register STRPTR libName __asm("a1"),
+                                                    register ULONG  version __asm("d0"))
 {
-    __asm volatile("\tlea ___a4_init, a4");
+    lprintf ("exec: OpenLibrary called: libName=%s, version=%d\n", libName, version);
+	return NULL;
 }
-
-struct InitTable
-{
-    ULONG              LibBaseSize;
-    APTR              *FunctionTable;
-    struct MyDataInit *DataTable;
-    APTR               InitLibTable;
-};
-
-struct MyDataInit
-{
-    UWORD ln_Type_Init     ; UWORD ln_Type_Offset     ; UWORD ln_Type_Content     ;
-    UBYTE ln_Name_Init     ; UBYTE ln_Name_Offset     ; ULONG ln_Name_Content     ;
-    UWORD lib_Flags_Init   ; UWORD lib_Flags_Offset   ; UWORD lib_Flags_Content   ;
-    UWORD lib_Version_Init ; UWORD lib_Version_Offset ; UWORD lib_Version_Content ;
-    UWORD lib_Revision_Init; UWORD lib_Revision_Offset; UWORD lib_Revision_Content;
-    UBYTE lib_IdString_Init; UBYTE lib_IdString_Offset; ULONG lib_IdString_Content;
-    ULONG ENDMARK;
-};
-
-extern APTR              FuncTab [];
-extern struct MyDataInit DataTab;
-extern struct InitTable  InitTab;
-extern APTR              EndResident;
-
-struct Resident __aligned ROMTag =
-{							//                               offset
-    RTC_MATCHWORD,			// UWORD rt_MatchWord;                0
-    &ROMTag,				// struct Resident *rt_MatchTag;      2
-    &EndResident,			// APTR  rt_EndSkip;                  6
-    RTF_AUTOINIT,			// UBYTE rt_Flags;                    7
-    VERSION,				// UBYTE rt_Version;                  8
-    NT_LIBRARY,             // UBYTE rt_Type;                     9
-    0,						// BYTE  rt_Pri;                     10
-    &ExLibName[0],			// char  *rt_Name;                   14
-    &ExLibID[0],			// char  *rt_IdString;               18
-    &InitTab				// APTR  rt_Init;                    22
-};
-
-APTR EndResident;
-
-struct InitTable InitTab =
-{
-    (ULONG)               sizeof(struct ExecBase),
-    (APTR              *) &FuncTab[0],
-    (struct MyDataInit *) &DataTab,
-    (APTR)                InitLib
-};
-
-APTR FuncTab [] =
-{
-    OpenLib,
-    CloseLib,
-    ExpungeLib,
-    ExtFuncLib,
-
-    f1,
-
-    (APTR) ((LONG)-1)
-};
-
-struct MyDataInit DataTab =
-{
-    /* ln_Type      */ INITBYTE(OFFSET(Node,         ln_Type),      NT_LIBRARY),
-    /* ln_Name      */ 0x80, (UBYTE) (ULONG) OFFSET(Node,    ln_Name), (ULONG) &ExLibName[0],
-    /* lib_Flags    */ INITBYTE(OFFSET(Library,      lib_Flags),    LIBF_SUMUSED|LIBF_CHANGED),
-    /* lib_Version  */ INITWORD(OFFSET(Library,      lib_Version),  VERSION),
-    /* lib_Revision */ INITWORD(OFFSET(Library,      lib_Revision), REVISION),
-    /* lib_IdString */ 0x80, (UBYTE) (ULONG) OFFSET(Library, lib_IdString), (ULONG) &ExLibID[0],
-    (ULONG) 0
-};
-//extern struct ExecBase *ExecBase;
-
-#if 0
-static void lputs (char *s)
-{
-    asm( "move.l    %0, a0\n\t"
-         "trap #3"
-        : /* no outputs */
-        : "r" (s)
-        : "cc", "a0"
-        );
-}
-#endif
-
-struct ExecBase * __saveds           InitLib    ( register struct ExecBase  *sysbase  __asm("a6"),
-                                                  register BPTR              seglist  __asm("a0"),
-                                                  register struct ExecBase  *exb      __asm("d0"))
-{
-#if 0
-    ExecBase = exb;
-
-    ExecBase->exb_ExecBase = sysbase;
-    ExecBase->exb_SegList = seglist;
-
-    if(L_OpenLibs(ExecBase)) return(ExecBase);
-
-    L_CloseLibs();
-
-    {
-      ULONG negsize, possize, fullsize;
-      UBYTE *negptr = (UBYTE *) ExecBase;
-
-      negsize  = ExecBase->exb_LibNode.lib_NegSize;
-      possize  = ExecBase->exb_LibNode.lib_PosSize;
-      fullsize = negsize + possize;
-      negptr  -= negsize;
-
-      FreeMem(negptr, fullsize);
-
-    }
-#endif
-
-
-//    lputs ("Hello from the 68k side!\n");
-
-//    asm("trap #3");
-
-    return NULL;
-}
-
-struct ExecBase * __saveds OpenLib ( register struct ExecBase  *ExecBase __asm("a6"))
-{
-#if 0
-    ExecBase->exb_LibNode.lib_OpenCnt++;
-    ExecBase->exb_LibNode.lib_Flags &= ~LIBF_DELEXP;
-    return ExecBase;
-#endif
-    return NULL;
-}
-
-BPTR __saveds CloseLib ( register struct ExecBase  *ExecBase __asm("a6"))
-{
-#if 0
- ExecBase->exb_LibNode.lib_OpenCnt--;
-
- if(!ExecBase->exb_LibNode.lib_OpenCnt)
-  {
-   if(ExecBase->exb_LibNode.lib_Flags & LIBF_DELEXP)
-    {
-     return( ExpungeLib(ExecBase) );
-    }
-  }
-#endif
-
-    return NULL;
-}
-
-BPTR __saveds ExpungeLib ( register struct ExecBase  *exb      __asm("a6"))
-{
-#if 0
- struct ExecBase *ExecBase = exb;
- BPTR seglist;
-
- if(!ExecBase->exb_LibNode.lib_OpenCnt)
-  {
-   ULONG negsize, possize, fullsize;
-   UBYTE *negptr = (UBYTE *) ExecBase;
-
-   seglist = ExecBase->exb_SegList;
-
-   Remove((struct Node *)ExecBase);
-
-   L_CloseLibs();
-
-   negsize  = ExecBase->exb_LibNode.lib_NegSize;
-   possize  = ExecBase->exb_LibNode.lib_PosSize;
-   fullsize = negsize + possize;
-   negptr  -= negsize;
-
-   FreeMem(negptr, fullsize);
-
-   #ifdef __MAXON__
-   CleanupModules();
-   #endif
-
-   return(seglist);
-  }
-
- ExecBase->exb_LibNode.lib_Flags |= LIBF_DELEXP;
-#endif
-    return NULL;
-}
-
-ULONG ExtFuncLib(void)
-{
-    return NULL;
-}
-
-/*
-    // find ROMTAG structure
-    uint32_t romtag_off = 0;
-    uint16_t *p = (uint16_t *) &rom[0];
-    while (true)
-    {
-        uint16_t w = ENDIAN_SWAP_16(*p);
-        //printf ("0x%08x: 0x%04x\n", romtag_off, w);
-        if (w == RTC_MATCHWORD)
-        {
-            break;
-        }
-        if (romtag_off >= ROM_SIZE)
-        {
-            fprintf (stderr, "failed to find romtag\n");
-            exit(3);
-        }
-        p++;
-        romtag_off += 2;
-    }
-    printf ("found RTC_MATCHWORD at offset %d\n", romtag_off);
-
-*/
-
-extern void handleTRAP3();
-#endif
-
-static ULONG __saveds _exec_f1 ( register struct ExecBase  *exb __asm("a6"),
-                                 register ULONG a __asm("d0"))
-{
-    lprintf ("f1 called, a=%d\n", a);
-    return a*a;
-}
-
-//LP2(offs, rt, name, t1, v1, r1, t2, v2, r2, bt, bn)
-
-#define f1(___a) \
-      LP1(0x6, ULONG, f1 , ULONG, ___a, d0, ,EXEC_BASE_NAME)
 
 void __saveds coldstart (void)
 {
@@ -312,39 +81,32 @@ void __saveds coldstart (void)
     __asm("andi.w  #0xdfff, sr\n");
     __asm("move.l  #0x9fff99, a7\n");
 
-    lputs ("coldstart: init (puts test)\n");
-    lprintf ("coldstart: init (printf test)\n");
-    for (int i = 0; i<10; i++)
-    {
-        lprintf ("coldstart: i=%d, i*i=%d\n", i, i*i);
-    }
-    lprintf ("coldstart: init (printf test) done.\n");
-
     lprintf ("coldstart: EXEC_VECTORS_START=0x%08x, EXEC_BASE_START=0x%08x\n", EXEC_VECTORS_START, EXEC_BASE_START);
 
     // coldstart is at 0x00f801be, &SysBase at 0x00f80c90, SysBase at 0x0009eed0, f1 at 0x00f80028
-    lprintf ("coldstart: locations in RAM: coldstart is at 0x%08x, &SysBase at 0x%08x, SysBase at 0x%08x, f1 at 0x%08x\n",
-             coldstart, &SysBase, SysBase, _exec_f1);
+    lprintf ("coldstart: locations in RAM: coldstart is at 0x%08x, &SysBase at 0x%08x, SysBase at 0x%08x\n",
+             coldstart, &SysBase, SysBase);
     // g_ExecJumpTable at 0x00001800, &g_ExecJumpTable[0].vec at 0x00001802
     lprintf ("coldstart: g_ExecJumpTable at 0x%08x, &g_ExecJumpTable[0].vec at 0x%08x\n", g_ExecJumpTable, &g_ExecJumpTable[0].vec);
 
     /* set up execbase */
 
-    lprintf ("coldstart: set up execbase 1\n");
     *(APTR *)4L = SysBase;
-    //lprintf ("coldstart: set up execbase 1.1\n");
-    //SysBase = *(APTR *)4L;
 
-    lprintf ("coldstart: set up execbase 2\n");
-    g_ExecJumpTable[0].vec = _exec_f1;
-    g_ExecJumpTable[0].jmp = JMPINSTR;
-    lprintf ("coldstart: set up execbase 3\n");
+	for (int i = 0; i<NUM_EXEC_FUNCS; i++)
+	{
+		g_ExecJumpTable[i].vec = _exec_unimplemented_call;
+		g_ExecJumpTable[i].jmp = JMPINSTR;
+	}
+
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-552)].vec = _exec_OpenLibrary;
+
     SysBase->SoftVer = VERSION;
 
-    lprintf ("coldstart: calling f1\n");
-    ULONG res = f1(42);
+	OpenLibrary ("dos.library", 0);
 
-    lprintf ("coldstart: returned from f1. res=%d\n", res);
+    assert(FALSE);
+
     emu_stop();
 }
 

@@ -364,3 +364,11 @@ void lprintf(const char *format, ...)
     vlprintf(format, args);
     va_end(args);
 }
+
+__stdargs void __assert_func (const char *file_name, int line_number, const char *e)
+{
+    lprintf ("*** assertion failed: %s:%d %s\n", file_name, line_number, e);
+    emu_stop();
+}
+
+
