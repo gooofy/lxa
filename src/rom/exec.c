@@ -134,6 +134,8 @@ static struct Library* __saveds _exec_MakeLibrary ( register struct ExecBase  *e
 	return library;
 }
 
+
+
 static void registerBuiltInLib (struct Resident *romTAG)
 {
     struct InitTable *initTab = romTAG->rt_Init;

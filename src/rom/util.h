@@ -1,6 +1,8 @@
 #ifndef HAVE_UTIL_H
 #define HAVE_UTIL_H
 
+#include <exec/types.h>
+
 int  isdigit(int c);
 void lputc (char c);
 void lputs (const char *s);
