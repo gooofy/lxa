@@ -71,7 +71,67 @@ static struct Library* __saveds _exec_OpenLibrary ( register struct ExecBase  *e
                                                     register ULONG  version __asm("d0"))
 {
     lprintf ("exec: OpenLibrary called: libName=%s, version=%d\n", libName, version);
+    // FIXME: implement
+    assert(FALSE);
 	return NULL;
+}
+
+static struct Library* __saveds _exec_MakeLibrary ( register struct ExecBase  *exb __asm("a6"),
+                                                    register APTR  funcInit   __asm("a0"),
+                                                    register APTR  structInit __asm("a1"),
+                                                    register APTR  libInit    __asm("a2"),
+                                                    register ULONG dataSize   __asm("d0"),
+                                                    register BPTR  segList    __asm("d1"))
+{
+    lprintf ("exec: MakeLibrary called, funcInit=0x%08x, structInit=0x%08x, dataSize=%d\n", funcInit, structInit, dataSize);
+
+    struct Library *library;
+    ULONG negsize;
+    ULONG count = 0;
+
+    if (*(WORD *)funcInit==-1)
+    {
+        WORD *fp=(WORD *)funcInit+1;
+        while (*fp++!=-1)
+            count++;
+    }
+    else
+    {
+        void **fp=(void **)funcInit;
+        while (*fp++!=(void *)-1)
+            count++;
+    }
+    lprintf ("exec: MakeLibrary count=%d\n", count);
+
+    negsize = count * 6;
+
+    char *mem = AllocMem (dataSize+negsize, MEMF_PUBLIC|MEMF_CLEAR);
+
+    if (mem)
+    {
+        library = (struct Library *)(mem+negsize);
+
+        if(*(WORD *)funcInit==-1)
+            MakeFunctions (library, (WORD *)funcInit+1, (WORD *)funcInit);
+        else
+            MakeFunctions (library, funcInit, NULL);
+
+        library->lib_NegSize = negsize;
+        library->lib_PosSize = dataSize;
+
+        if (structInit)
+            InitStruct (structInit, library, 0);
+
+        if (libInit)
+			assert (FALSE); // FIXME: implement
+    }
+	else
+	{
+		lprintf ("exec: MakeLibrary out of memory!\n");
+		assert(FALSE);
+	}
+
+	return library;
 }
 
 static void registerBuiltInLib (struct Resident *romTAG)
@@ -106,6 +166,7 @@ void __saveds coldstart (void)
 		g_ExecJumpTable[i].jmp = JMPINSTR;
 	}
 
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -84)].vec = _exec_MakeLibrary;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-552)].vec = _exec_OpenLibrary;
 
     SysBase->SoftVer = VERSION;
