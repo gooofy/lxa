@@ -5,6 +5,8 @@ import codecs
 import sys
 
 INPUTFN = "exec_mini.h"
+OUT_STUBS_FN = "exec_stubs.c"
+OUT_FUNCTABLE_FN = "exec_fns.c"
 
 LIBS = { 'EXEC_BASE_NAME': ('_exec', 'struct ExecBase *')  }
 
@@ -25,6 +27,7 @@ MACROS = {
 
     #            num_args,    rt, num_fp,    fr
     #define LP0(offs, rt, name, bt, bn)
+    'LP0'    : (        0,  True,      0, False),
     #define LP0FR(offs, rt, name, bt, bn, fpr)
     #define LP0NR(offs, name, bt, bn)
     'LP0NR'  : (        0, False,      0, False),
@@ -325,23 +328,24 @@ def parse_macro (num_args, rt, num_fp, fr):
     offset = sym_num
     nextsym()
 
-    if sym != SYM_COMMA:
-        __error (", expected.")
-        return None
-    nextsym()
-
     if rt:
+        if sym != SYM_COMMA:
+            __error (", expected.")
+            return None
+        nextsym()
+
         return_type = parse_type()
         if not return_type:
             __error ("return type expected.")
             return None
 
-        if sym != SYM_COMMA:
-            __error (", expected.")
-            return None
-        nextsym()
     else:
         return_type = "void"
+
+    if sym != SYM_COMMA:
+        __error (", expected.")
+        return None
+    nextsym()
 
     if sym != SYM_IDENT:
         __error ("identifier expected. [1]")
@@ -349,26 +353,19 @@ def parse_macro (num_args, rt, num_fp, fr):
     syscall_name = sym_str
     nextsym()
 
-    if sym != SYM_COMMA:
-        __error (", expected.")
-        return None
-    nextsym()
-
     args = []
 
     for i in range (num_args):
+
+        if sym != SYM_COMMA:
+            __error (", expected.")
+            return None
+        nextsym()
 
         a = parse_arg_triple()
         if not a:
             return None
         args.append(a)
-
-        if i < num_args-1:
-
-            if sym != SYM_COMMA:
-                __error (", expected.")
-                return None
-            nextsym()
 
     nextsym()
     if sym != SYM_COMMA:
@@ -433,21 +430,24 @@ def parse_pragma():
 
     args = []
 
-    while True:
-        if sym != SYM_IDENT:
-            __error ("identifier expected. [2]")
-            return None
-        args.append(sym_str)
+    if sym == SYM_RPAREN:
         nextsym()
-
-        if sym == SYM_RPAREN:
+    else:
+        while True:
+            if sym != SYM_IDENT:
+                __error ("identifier expected. [2]")
+                return None
+            args.append(sym_str)
             nextsym()
-            break
 
-        if sym != SYM_COMMA:
-            __error (", expected.")
-            return None
-        nextsym()
+            if sym == SYM_RPAREN:
+                nextsym()
+                break
+
+            if sym != SYM_COMMA:
+                __error (", expected.")
+                return None
+            nextsym()
 
     print()
     print ("pragma parse result: syscall_name=%s, args=%s" % (syscall_name, repr(args)))
@@ -459,7 +459,7 @@ def parse_pragma():
     nextsym()
 
     if not (macro_name in MACROS):
-        __ERROR ("unknown macro %s" % (macro_name))
+        __error ("unknown macro %s" % (macro_name))
         sys.exit(1)
 
     num_args, rt, num_fp, fr = MACROS[macro_name]
@@ -484,10 +484,11 @@ def gen_stub (syscall_name, offset, return_type, args, bn, out):
             else:
                 out.write (")\n")
     out.write ("{\n")
+    out.write ("    lprintf (\"%s: %s unimplemented STUB called.\");\n" % (lib_prefix, syscall_name));
     out.write ("    assert(FALSE);\n")
     out.write ("}\n\n")
 
-
+funcs = []
 
 with codecs.open (INPUTFN, 'r', 'utf8') as inf:
 
@@ -508,6 +509,7 @@ with codecs.open (INPUTFN, 'r', 'utf8') as inf:
                 if res:
                     print ("parse result: %s" % repr(res))
                     gen_stub (res[0], res[1], res[2], res[3], res[4], sys.stdout)
+                    funcs.append (res)
 
             while sym != SYM_ERR and sym != SYM_EOF:
                 nextsym()
@@ -516,4 +518,15 @@ with codecs.open (INPUTFN, 'r', 'utf8') as inf:
         else:
             buf = buf + line[:l-1]
 
+with codecs.open (OUT_STUBS_FN, 'w', 'utf8') as out:
+    for f in funcs:
+        gen_stub (f[0], f[1], f[2], f[3], f[4], out)
+
+print ("%s created." % OUT_STUBS_FN)
+
+with codecs.open (OUT_FUNCTABLE_FN, 'w', 'utf8') as out:
+    for f in funcs:
+        out.write("    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(%d)].vec = _exec_%s;\n" % (-f[1], f[0]))
+
+print ("%s created." % OUT_FUNCTABLE_FN)
 
