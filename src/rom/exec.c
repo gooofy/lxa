@@ -43,7 +43,11 @@
 #define EXEC_BASE_SIZE          sizeof (struct ExecBase)
 #define EXEC_BASE_END           EXEC_BASE_START + EXEC_BASE_SIZE -1
 
-#define RAM_START               EXEC_BASE_END + 1
+#define EXEC_MH_START           EXEC_BASE_END + 1
+#define EXEC_MH_SIZE            sizeof (struct MemHeader)
+#define EXEC_MH_END             EXEC_MH_START + EXEC_MH_SIZE -1
+
+#define RAM_START               EXEC_MH_END + 1
 #define RAM_SIZE                10 * 1024 * 1024
 #define RAM_END                 RAM_START + RAM_SIZE - 1
 
@@ -97,7 +101,7 @@ static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * 
                                                         register ULONG ___dataSize  __asm("d0"),
                                                         register ULONG ___segList  __asm("d1"))
 {
-        lprintf ("exec: MakeLibrary called, ___funcInit=0x%08x, ___structInit=0x%08x, ___dataSize=%d\n", ___funcInit, ___structInit, ___dataSize);
+    lprintf ("exec: MakeLibrary called, ___funcInit=0x%08x, ___structInit=0x%08x, ___dataSize=%d\n", ___funcInit, ___structInit, ___dataSize);
 
     struct Library *library;
     ULONG negsize;
@@ -203,8 +207,8 @@ static void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("
 
 static void __saveds _exec_Forbid ( register struct ExecBase * __libBase __asm("a6"))
 {
-    lprintf ("_exec: Forbid unimplemented STUB called.");
-    assert(FALSE);
+    lprintf ("_exec: WARNING: Forbid(): unimplemented STUB called.\n");
+    // FIXME
 }
 
 static void __saveds _exec_Permit ( register struct ExecBase * __libBase __asm("a6"))
@@ -286,7 +290,56 @@ static APTR __saveds _exec_AllocMem ( register struct ExecBase * __libBase __asm
                                       register ULONG ___byteSize  __asm("d0"),
                                       register ULONG ___requirements  __asm("d1"))
 {
-    lprintf ("_exec: AllocMem unimplemented STUB called.");
+    lprintf ("_exec: AllocMem called, byteSize=%ld, requirements=0x%08lx\n",
+             ___byteSize, ___requirements);
+
+	if (!___byteSize)
+		return NULL;
+
+//OldAllocMem:
+//	MOVEM.L D2/D3,-(SP)
+//	MOVE.L  D0,D3		;D3=Raw number of bytes to allocate
+//	BEQ.S	AllocMem_End	;Bozo case...
+//	MOVE.L  D1,D2		;D2=Flags
+//
+//	;------ find a free list that matches the requirements
+//	LEA	MemList(A6),A0
+//
+//	;---!!! protect whole func for now
+//	FORBID
+	Forbid();	
+
+	struct MemHeader *mhCur = (struct MemHeader *)SysBase->MemList.lh_Head;
+
+	while (mhCur->mh_Node.ln_Succ)
+	{
+		lprintf ("   MemHeader mh_Free=%d, mh_Attributes=0x%08lx\n",
+                 mhCur->mh_Free, mhCur->mh_Attributes);
+
+		UWORD req = (UWORD) ___requirements;
+		if ((mhCur->mh_Attributes & req) == req)
+		{
+			if (mhCur->mh_Free >= ___byteSize)
+			{
+				// FIXME: Allocate
+				assert (FALSE);
+			}
+			else
+			{
+				lprintf ("      *** too small ***");
+			}
+		}
+		else
+		{
+			lprintf ("      *** does not meet requirements ***");
+		}
+
+		mhCur = (struct MemHeader *)mhCur->mh_Node.ln_Succ;
+	}
+
+	Permit();
+
+	// FIXME: clear memory
     assert(FALSE);
 }
 
@@ -345,11 +398,16 @@ static void __saveds _exec_AddHead ( register struct ExecBase * __libBase __asm(
 }
 
 static void __saveds _exec_AddTail ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct List * ___list  __asm("a0"),
-                                                        register struct Node * ___node  __asm("a1"))
+                                     register struct List * ___list  __asm("a0"),
+                                     register struct Node * ___node  __asm("a1"))
 {
-    lprintf ("_exec: AddTail unimplemented STUB called.");
-    assert(FALSE);
+    lprintf ("_exec: AddTail called.");
+
+    ___node->ln_Succ              = (struct Node *)&___list->lh_Tail;
+    ___node->ln_Pred              = ___list->lh_TailPred;
+
+    ___list->lh_TailPred->ln_Succ = ___node;
+    ___list->lh_TailPred          = ___node;
 }
 
 static void __saveds _exec_Remove ( register struct ExecBase * __libBase __asm("a6"),
@@ -1110,6 +1168,25 @@ void __saveds coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-780)].vec = _exec_RemMemHandler;
 
     SysBase->SoftVer = VERSION;
+
+	// set up memory management
+
+	SysBase->MemList.lh_Head = NULL;
+	SysBase->MemList.lh_Tail = NULL;
+	SysBase->MemList.lh_TailPred = (struct Node *)&SysBase->MemList.lh_Head;
+	SysBase->MemList.lh_Type = NT_MEMORY;
+
+	struct MemHeader *myh = (struct MemHeader*) ((uint8_t *)EXEC_MH_START);
+    myh->mh_Node.ln_Type = NT_MEMORY;
+    myh->mh_Node.ln_Pri  = 0;
+    myh->mh_Node.ln_Name = NULL;
+	myh->mh_Attributes   = MEMF_CHIP | MEMF_PUBLIC;
+    myh->mh_First        = NULL;      // FIXME struct  MemChunk *
+    myh->mh_Lower        = (APTR) RAM_START;
+    myh->mh_Upper        = (APTR) (RAM_END + 1);
+    myh->mh_Free         = RAM_SIZE;
+
+	AddTail (&SysBase->MemList, &myh->mh_Node);
 
     // init and register built-in libraries
     registerBuiltInLib (__lxa_dos_ROMTag);
