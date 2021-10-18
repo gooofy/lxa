@@ -80,10 +80,10 @@ struct Resident *__lxa_dos_ROMTag = &ROMTag;
 
 struct InitTable __g_lxa_dos_InitTab =
 {
-    (ULONG)               sizeof(struct DosLibrary),
-    (APTR              *) &__g_lxa_dos_FuncTab[0],
-    (APTR)                &__g_lxa_dos_DataTab,
-    (APTR)                __g_lxa_dos_InitLib
+    (ULONG)               sizeof(struct DosLibrary), 	// LibBaseSize
+    (APTR              *) &__g_lxa_dos_FuncTab[0],		// FunctionTable
+    (APTR)                &__g_lxa_dos_DataTab,			// DataTable
+    (APTR)                __g_lxa_dos_InitLib			// InitLibFn
 };
 
 APTR __g_lxa_dos_FuncTab [] =
@@ -119,7 +119,7 @@ struct DosLibrary * __saveds __g_lxa_dos_InitLib    ( register struct DosLibrary
     ExecBase->exb_ExecBase = sysbase;
     ExecBase->exb_SegList = seglist;
 
-    if(L_OpenLibs(ExecBase)) return(ExecBase);
+    if (L_OpenLibs(ExecBase)) return(ExecBase);
 
     L_CloseLibs();
 
@@ -136,7 +136,7 @@ struct DosLibrary * __saveds __g_lxa_dos_InitLib    ( register struct DosLibrary
 
     }
 #endif
-    return NULL;
+    return dosb;
 }
 
 struct DosLibrary * __saveds __g_lxa_dos_OpenLib ( register struct DosLibrary  *DosLibrary __asm("a6"))

@@ -384,3 +384,55 @@ void *memset(void *dst, int c, ULONG n)
     return dst;
 }
 
+#define HEXDUMP_COLS 16
+
+BOOL isprintable (char c)
+{
+    return (c>=32) & (c<127);
+}
+ 
+void hexdump(void *mem, unsigned int len)
+{
+        unsigned int i, j;
+        
+        for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
+        {
+                /* print offset */
+                if(i % HEXDUMP_COLS == 0)
+                {
+                        lprintf("0x%06x: ", i);
+                }
+ 
+                /* print hex data */
+                if(i < len)
+                {
+                        lprintf("%02x ", 0xFF & ((char*)mem)[i]);
+                }
+                else /* end of block, just aligning for ASCII dump */
+                {
+                        lprintf("   ");
+                }
+                
+                /* print ASCII dump */
+                if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
+                {
+                        for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
+                        {
+                                if(j >= len) /* end of block, not really printing */
+                                {
+                                        lprintf(" ");
+                                }
+                                else if (isprintable((((char*)mem)[j]))) /* printable char */
+                                {
+                                        lprintf("%c", 0xFF & ((char*)mem)[j]);        
+                                }
+                                else /* other char */
+                                {
+                                        lprintf(".");
+                                }
+                        }
+                        lprintf("\n");
+                }
+        }
+}
+ 

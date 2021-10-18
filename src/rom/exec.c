@@ -86,22 +86,170 @@ static void __saveds _exec_InitCode ( register struct ExecBase * __libBase __asm
 }
 
 static void __saveds _exec_InitStruct ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register const APTR ___initTable  __asm("a1"),
-                                                        register APTR ___memory  __asm("a2"),
-                                                        register ULONG ___size  __asm("d0"))
+                                        register const APTR ___initTable  __asm("a1"),
+                                        register APTR ___memory  __asm("a2"),
+                                        register ULONG ___size  __asm("d0"))
 {
-    lprintf ("_exec: InitStruct unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: InitStruct called initTable=0x%08lx, memory=0x%08lx, size=%ld\n", ___initTable, ___memory, ___size);
+
+	hexdump (___initTable, 32);
+
+    ULONG size = ___size & 0xffff;
+
+    if (size)
+        memset (___memory, 0x00, size);
+
+    UBYTE *it  = (UBYTE *) ___initTable;
+    UBYTE *dst = (UBYTE *) ___memory;
+
+    ULONG off=0;
+    while (*it)
+    {
+        UBYTE action = *it>>6 & 3;
+
+        UBYTE elementSize = *it>>4 & 3;
+
+        BYTE cnt = *it & 15;
+
+        lprintf ("                  action=%d, elementSize=%d, cnt=%d\n", action, elementSize, cnt);
+
+        switch (action)
+        {
+            case 0:
+            case 1:
+                it++;
+                break;
+            case 2:
+                it++;
+                off = *it++;
+                break;
+            case 3: // 24 bit off
+                off = *(ULONG *)it & 0xffffff;
+                it += 4;
+                break;
+        }
+
+        // 68k alignment
+        switch (elementSize)
+        {
+            case 0: // LONG
+            case 1: // WORD
+                it  = (UBYTE*) ALIGN ((ULONG)it , 2);
+                dst = (UBYTE*) ALIGN ((ULONG)dst, 2);
+                break;
+            case 2: // BYTE
+                break;
+            case 3:
+                // FIXME: alert
+                assert(FALSE);
+                break;
+        }
+
+        switch (action)
+        {
+            case 2:
+            case 3:
+                dst = (BYTE *)___memory + off;
+
+                /* fall through */
+            case 0:
+                switch (elementSize)
+                {
+                    case 0: // LONG
+                        do
+                        {
+                            *(LONG *)dst = *(LONG *)it;
+                            dst += 4;
+                            it  += 4;
+                        } while (--cnt>=0);
+                        break;
+
+                    case 1: // WORD
+                        do
+                        {
+                            *(WORD *)dst = *(WORD *)it;
+                            dst += 2;
+                            it  += 2;
+                        } while (--cnt>=0);
+                        break;
+
+                    case 2: // BYTE
+                        do
+						{
+                            *dst++ = *it++;
+						}
+                        while (--cnt>=0);
+                        break;
+
+                    case 3:
+                        // FIXME: alert
+                        assert(FALSE);
+                        break;
+                }
+                break;
+
+            case 1:
+                switch (elementSize)
+                {
+                    case 0: // LONG
+                    {
+                        LONG src = *(LONG *)it;
+                        it += 4;
+
+                        do
+                        {
+                            *(LONG *)dst = src;
+                            dst += 4;
+                        } while (--cnt>=0);
+                        break;
+                    }
+
+                    case 1: // WORD
+                    {
+                        WORD src = *(WORD *)it;
+                        it += 2;
+                        do
+                        {
+                            *(WORD *)dst = src;
+                            dst += 2;
+                        } while (--cnt>=0);
+                        break;
+                    }
+
+                    case 2: // BYTE
+                    {
+                        UBYTE src = *it++;
+                        do
+                            *dst++ = src;
+                        while (--cnt>=0);
+                        break;
+                    }
+
+                    case 3:
+                        // FIXME: alert
+                        assert(FALSE);
+                        break;
+                }
+                break;
+        }
+
+        it  = (UBYTE*) ALIGN ((ULONG)it, 2);
+    }
+    lprintf ("_exec: InitStruct done.\n");
 }
 
+typedef struct Library * __saveds (*libInitFn_t) ( register struct Library    *lib     __asm("a6"),
+                                                   register BPTR               seglist __asm("a0"),
+                                                   register struct ExecBase   *sysb    __asm("d0"));
+
 static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register const APTR ___funcInit  __asm("a0"),
-                                                        register const APTR ___structInit  __asm("a1"),
-                                                        register VOID (*___libInit)()  __asm("a2"),
-                                                        register ULONG ___dataSize  __asm("d0"),
-                                                        register ULONG ___segList  __asm("d1"))
+                                                     register const APTR ___funcInit  __asm("a0"),
+                                                     register const APTR ___structInit  __asm("a1"),
+                                                     register libInitFn_t ___libInitFn  __asm("a2"),
+                                                     register ULONG ___dataSize  __asm("d0"),
+                                                     register BPTR ___segList  __asm("d1"))
 {
-    lprintf ("exec: MakeLibrary called, ___funcInit=0x%08x, ___structInit=0x%08x, ___dataSize=%d\n", ___funcInit, ___structInit, ___dataSize);
+    lprintf ("_exec: MakeLibrary called, ___funcInit=0x%08x, ___structInit=0x%08x, ___dataSize=%d\n", ___funcInit, ___structInit, ___dataSize);
 
     struct Library *library;
     ULONG negsize;
@@ -119,7 +267,7 @@ static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * 
         while (*fp++!=(void *)-1)
             count++;
     }
-    lprintf ("exec: MakeLibrary count=%d\n", count);
+    lprintf ("_exec: MakeLibrary count=%d\n", count);
 
     negsize = count * 6;
 
@@ -128,6 +276,8 @@ static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * 
     if (mem)
     {
         library = (struct Library *)(mem+negsize);
+
+		lprintf ("_exec: MakeLibrary mem=0x%08lx, library=0x%08lx\n", mem, library);
 
         if(*(WORD *)___funcInit==-1)
             MakeFunctions (library, (WORD *)___funcInit+1, (WORD *)___funcInit);
@@ -140,8 +290,13 @@ static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * 
         if (___structInit)
             InitStruct (___structInit, library, 0);
 
-        if (___libInit)
-			assert (FALSE); // FIXME: implement
+        if (___libInitFn)
+		{
+			lprintf ("_exec: calling ___libInitFn at 0x%08lx\n", ___libInitFn);
+
+            library = ___libInitFn(library, ___segList, SysBase);
+			lprintf ("_exec: ___libInitFn returned library=0x%08lx\n", library);
+		}
     }
 	else
 	{
@@ -152,16 +307,49 @@ static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * 
 	return library;
 }
 
+#define __AROS_GETJUMPVEC(lib,n)        (&(((struct JumpVec *)(lib))[-(n)]))
+
+#define __AROS_SETVECADDR(lib,n,addr)   (__AROS_SET_VEC(__AROS_GETJUMPVEC(lib,n),(APTR)(addr)))
+#define __AROS_INITVEC(lib,n)           __AROS_GETJUMPVEC(lib,n)->jmp = __AROS_ASMJMP, \
+                                        __AROS_SETVECADDR(lib,n,_aros_empty_vector | (n << 8) | 1)
 
 
 
 static void __saveds _exec_MakeFunctions ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register APTR ___target  __asm("a0"),
-                                                        register const APTR ___functionArray  __asm("a1"),
-                                                        register const APTR ___funcDispBase  __asm("a2"))
+                                           register APTR ___target  __asm("a0"),
+                                           register const APTR ___functionArray  __asm("a1"),
+                                           register const APTR ___funcDispBase  __asm("a2"))
 {
-    lprintf ("_exec: MakeFunctions unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: MakeFunctions called target=0x%08lx, functionArray=0x%08x, funcDispBase=0x%08x\n", ___target, ___functionArray, ___funcDispBase);
+
+    ULONG n = 1;
+    APTR lastvec;
+
+    if (___funcDispBase)
+    {
+        WORD *fp = (WORD *)___functionArray;
+
+        while (*fp != -1)
+        {
+			struct JumpVec  *jv = &(((struct JumpVec *)(___target))[-n]);
+			jv->jmp = JMPINSTR;
+			jv->vec = (APTR)((ULONG)___funcDispBase + *fp);
+            fp++; n++;
+        }
+    }
+    else
+    {
+        APTR *fp = (APTR *)___functionArray;
+
+        while (*fp != (APTR)-1)
+        {
+			struct JumpVec  *jv = &(((struct JumpVec *)(___target))[-n]);
+			jv->jmp = JMPINSTR;
+			jv->vec = *fp;
+            fp++; n++;
+        }
+    }
+    lprintf ("_exec: MakeFunctions done, %d entries set.\n", n);
 }
 
 static struct Resident * __saveds _exec_FindResident ( register struct ExecBase * __libBase __asm("a6"),
@@ -274,7 +462,7 @@ static APTR __saveds _exec_Allocate ( register struct ExecBase * __libBase __asm
 {
     lprintf ("_exec: Allocate called, ___freeList=0x%08lx, ___byteSize=%d\n", (ULONG)___freeList, ___byteSize);
 
-	ULONG byteSize = ___byteSize + ___byteSize % 2;
+	ULONG byteSize = ALIGN (___byteSize, 4);
 
     lprintf ("       rounded up byte size is %d\n", byteSize);
 
@@ -358,7 +546,7 @@ static APTR __saveds _exec_AllocMem ( register struct ExecBase * __libBase __asm
 
 	while (mhCur->mh_Node.ln_Succ)
 	{
-		lprintf ("   MemHeader mh_Free=%d, mh_Attributes=0x%08lx\n",
+		lprintf ("                MemHeader mh_Free=%d, mh_Attributes=0x%08lx\n",
                  mhCur->mh_Free, mhCur->mh_Attributes);
 
 		UWORD req = (UWORD) ___requirements;
@@ -451,7 +639,7 @@ static void __saveds _exec_AddTail ( register struct ExecBase * __libBase __asm(
                                      register struct List * ___list  __asm("a0"),
                                      register struct Node * ___node  __asm("a1"))
 {
-    lprintf ("_exec: AddTail called.");
+    lprintf ("_exec: AddTail called\n");
 
     ___node->ln_Succ              = (struct Node *)&___list->lh_Tail;
     ___node->ln_Pred              = ___list->lh_TailPred;
@@ -1073,6 +1261,7 @@ static void __saveds _exec_RemMemHandler ( register struct ExecBase * __libBase 
 
 static void registerBuiltInLib (struct Resident *romTAG)
 {
+    lprintf ("_exec: registerBuiltInLib romTAG rt_Name=%s rt_IdString=%s\n", romTAG->rt_Name, romTAG->rt_IdString);
     struct InitTable *initTab = romTAG->rt_Init;
     MakeLibrary(initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, initTab->LibBaseSize, /* segList=*/NULL);
 }
