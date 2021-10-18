@@ -28,4 +28,6 @@ struct InitTable
     APTR   InitLibFn;
 };
 
+void *memset(void *dst, int c, ULONG n);
+
 #endif

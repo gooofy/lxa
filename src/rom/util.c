@@ -371,4 +371,16 @@ __stdargs void __assert_func (const char *file_name, int line_number, const char
     emu_stop();
 }
 
+void *memset(void *dst, int c, ULONG n)
+{
+    if (n)
+    {
+        char *d = dst;
+
+        do
+            *d++ = c;
+        while (--n != 0);
+    }
+    return dst;
+}
 
