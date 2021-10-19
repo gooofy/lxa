@@ -639,7 +639,7 @@ static void __saveds _exec_AddTail ( register struct ExecBase * __libBase __asm(
                                      register struct List * ___list  __asm("a0"),
                                      register struct Node * ___node  __asm("a1"))
 {
-    lprintf ("_exec: AddTail called\n");
+    lprintf ("_exec: AddTail called ___list=0x%08lx ___node=0x%08lx\n", ___list, ___node);
 
     ___node->ln_Succ              = (struct Node *)&___list->lh_Tail;
     ___node->ln_Pred              = ___list->lh_TailPred;
@@ -678,11 +678,26 @@ static void __saveds _exec_Enqueue ( register struct ExecBase * __libBase __asm(
 }
 
 static struct Node * __saveds _exec_FindName ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct List * ___list  __asm("a0"),
-                                                        register CONST_STRPTR ___name  __asm("a1"))
+                                               register struct List * ___list  __asm("a0"),
+                                               register CONST_STRPTR ___name  __asm("a1"))
 {
-    lprintf ("_exec: FindName unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: FindName called ___list=0x%08lx, ___name=%s\n", ___list, ___name);
+
+    struct Node * node;
+    if (!___list)
+        ___list = &SysBase->PortList;
+
+    for (node=___list->lh_Head; node; node=node->ln_Succ)
+    {
+		lprintf ("_exec: FindName node=0x%08lx, node->ln_Name=%s\n", node, node->ln_Name);
+        if (node->ln_Name)
+        {
+            if (!strcmp (node->ln_Name, ___name))
+                break;
+        }
+    }
+
+    return node;
 }
 
 static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm("a6"),
@@ -999,8 +1014,18 @@ static struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase * 
                                                         register CONST_STRPTR ___libName  __asm("a1"),
                                                         register ULONG ___version  __asm("d0"))
 {
-    lprintf ("_exec: OpenLibrary unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: OpenLibrary called ___libName=%s, ___version=%ld\n", ___libName, ___version);
+
+	Forbid();
+
+	struct Library *lib = (struct Library *) FindName (&SysBase->LibList, ___libName);
+
+	Permit();
+
+	// FIXME: check version
+	assert(FALSE);
+
+	return lib;
 }
 
 static void __saveds _exec_InitSemaphore ( register struct ExecBase * __libBase __asm("a6"),
@@ -1263,7 +1288,8 @@ static void registerBuiltInLib (struct Resident *romTAG)
 {
     lprintf ("_exec: registerBuiltInLib romTAG rt_Name=%s rt_IdString=%s\n", romTAG->rt_Name, romTAG->rt_IdString);
     struct InitTable *initTab = romTAG->rt_Init;
-    MakeLibrary(initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, initTab->LibBaseSize, /* segList=*/NULL);
+    struct Library *lib = (struct Library*) MakeLibrary(initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, initTab->LibBaseSize, /* segList=*/NULL);
+	AddTail (&SysBase->LibList, (struct Node*) lib);
 }
 
 void __saveds coldstart (void)
@@ -1432,6 +1458,10 @@ void __saveds coldstart (void)
 	AddTail (&SysBase->MemList, &myh->mh_Node);
 
     // init and register built-in libraries
+	SysBase->LibList.lh_Head = NULL;
+	SysBase->LibList.lh_Tail = NULL;
+	SysBase->LibList.lh_TailPred = (struct Node *)&SysBase->LibList.lh_Head;
+	SysBase->LibList.lh_Type = NT_LIBRARY;
     registerBuiltInLib (__lxa_dos_ROMTag);
 
 	OpenLibrary ("dos.library", 0);

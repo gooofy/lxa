@@ -29,6 +29,7 @@ struct InitTable
 };
 
 void *memset(void *dst, int c, ULONG n);
+int strcmp(const char* s1, const char* s2);
 
 #define ALIGN(x,a)              __ALIGN_MASK(x,(typeof(x))(a)-1)
 #define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
