@@ -8,47 +8,17 @@
 #include <exec/resident.h>
 #include <exec/initializers.h>
 
-//#include <proto/exec.h>
-
-//#include <clib/alib_protos.h>
 #include <clib/exec_protos.h>
-//#include <clib/intuition_protos.h>
-//#include <clib/graphics_protos.h>
-//#include <clib/console_protos.h>
-//#include <clib/diskfont_protos.h>
-
 #include <inline/exec.h>
+
+#include <clib/dos_protos.h>
 #include <inline/dos.h>
-//#include <inline/intuition.h>
-//#include <inline/graphics.h>
-//#include <inline/diskfont.h>
 
 #include "util.h"
 #include "lxa_dos.h"
+#include "mem_map.h"
 
-#define NUM_EXEC_FUNCS 130
 #define EXEC_FUNCTABLE_ENTRY(___off) (NUM_EXEC_FUNCS+(___off/6))
-
-// memory map
-#define EXCEPTION_VECTORS_START 0
-#define EXCEPTION_VECTORS_SIZE  1024
-#define EXCEPTION_VECTORS_END   EXCEPTION_VECTORS_START + EXCEPTION_VECTORS_SIZE - 1
-
-#define EXEC_VECTORS_START      EXCEPTION_VECTORS_END + 1
-#define EXEC_VECTORS_SIZE       NUM_EXEC_FUNCS * 6
-#define EXEC_VECTORS_END        EXEC_VECTORS_START + EXEC_VECTORS_SIZE -1
-
-#define EXEC_BASE_START         EXEC_VECTORS_END + 1
-#define EXEC_BASE_SIZE          sizeof (struct ExecBase)
-#define EXEC_BASE_END           EXEC_BASE_START + EXEC_BASE_SIZE -1
-
-#define EXEC_MH_START           EXEC_BASE_END + 1
-#define EXEC_MH_SIZE            sizeof (struct MemHeader)
-#define EXEC_MH_END             EXEC_MH_START + EXEC_MH_SIZE -1
-
-#define RAM_START               EXEC_MH_END + 1
-#define RAM_SIZE                10 * 1024 * 1024
-#define RAM_END                 RAM_START + RAM_SIZE - 1
 
 #define VERSION  1
 #define REVISION 1
@@ -65,8 +35,9 @@ struct JumpVec
     void *vec;
 };
 
-static struct JumpVec  *g_ExecJumpTable = (struct JumpVec *) ((uint8_t *)EXEC_VECTORS_START);
-struct ExecBase        *SysBase         = (struct ExecBase*) ((uint8_t *)EXEC_BASE_START);
+static struct JumpVec  *g_ExecJumpTable = (struct JumpVec *)   ((uint8_t *)EXEC_VECTORS_START);
+struct ExecBase        *SysBase         = (struct ExecBase*)   ((uint8_t *)EXEC_BASE_START);
+struct DosLibrary      *DOSBase         = (struct DosLibrary*) ((uint8_t *)DOS_BASE_START);
 
 #define JMPINSTR 0x4ef9
 
@@ -243,6 +214,37 @@ static void __saveds _exec_InitStruct ( register struct ExecBase * __libBase __a
     lprintf ("_exec: InitStruct done.\n");
 }
 
+static void _makeLibrary ( struct Library *library,
+                           const APTR ___funcInit,
+                           const APTR ___structInit,
+                           libInitFn_t ___libInitFn,
+                           ULONG negsize,
+                           ULONG ___dataSize,
+                           BPTR ___segList)
+{
+    lprintf ("_exec: _makeLibrary library=0x%08lx, ___funcInit=0x%08lx, ___structInit=0x%08x, ___libInitFn=0x%08x, negsize=%ld, ___dataSize=%ld\n",
+             library, ___funcInit, ___structInit, ___libInitFn, negsize, ___dataSize);
+
+    if(*(WORD *)___funcInit==-1)
+        MakeFunctions (library, (WORD *)___funcInit+1, (WORD *)___funcInit);
+    else
+        MakeFunctions (library, ___funcInit, NULL);
+
+    library->lib_NegSize = negsize;
+    library->lib_PosSize = ___dataSize;
+
+    if (___structInit)
+        InitStruct (___structInit, library, 0);
+
+    if (___libInitFn)
+    {
+        lprintf ("_exec: calling ___libInitFn at 0x%08lx\n", ___libInitFn);
+
+        library = ___libInitFn(library, ___segList, SysBase);
+        lprintf ("_exec: ___libInitFn returned library=0x%08lx\n", library);
+    }
+}
+
 static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * __libBase __asm("a6"),
                                                      register const APTR ___funcInit  __asm("a0"),
                                                      register const APTR ___structInit  __asm("a1"),
@@ -280,24 +282,7 @@ static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * 
 
 		lprintf ("_exec: MakeLibrary mem=0x%08lx, library=0x%08lx\n", mem, library);
 
-        if(*(WORD *)___funcInit==-1)
-            MakeFunctions (library, (WORD *)___funcInit+1, (WORD *)___funcInit);
-        else
-            MakeFunctions (library, ___funcInit, NULL);
-
-        library->lib_NegSize = negsize;
-        library->lib_PosSize = ___dataSize;
-
-        if (___structInit)
-            InitStruct (___structInit, library, 0);
-
-        if (___libInitFn)
-		{
-			lprintf ("_exec: calling ___libInitFn at 0x%08lx\n", ___libInitFn);
-
-            library = ___libInitFn(library, ___segList, SysBase);
-			lprintf ("_exec: ___libInitFn returned library=0x%08lx\n", library);
-		}
+        _makeLibrary (library, ___funcInit, ___structInit, ___libInitFn, negsize, ___dataSize, ___segList);
     }
 	else
 	{
@@ -1301,12 +1286,12 @@ static void __saveds _exec_RemMemHandler ( register struct ExecBase * __libBase 
     assert(FALSE);
 }
 
-static void registerBuiltInLib (struct Resident *romTAG)
+static void registerBuiltInLib (struct Library *libBase, ULONG num_funcs, struct Resident *romTAG)
 {
-    lprintf ("_exec: registerBuiltInLib romTAG rt_Name=%s rt_IdString=%s\n", romTAG->rt_Name, romTAG->rt_IdString);
+    lprintf ("_exec: registerBuiltInLib libBase=0x%08lx, num_funcs=%ld, romTAG rt_Name=%s rt_IdString=%s\n", libBase, num_funcs, romTAG->rt_Name, romTAG->rt_IdString);
     struct InitTable *initTab = romTAG->rt_Init;
-    struct Library *lib = (struct Library*) MakeLibrary(initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, initTab->LibBaseSize, /* segList=*/NULL);
-	AddTail (&SysBase->LibList, (struct Node*) lib);
+    _makeLibrary(libBase, initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, num_funcs*6, initTab->LibBaseSize, /* segList=*/NULL);
+	AddTail (&SysBase->LibList, (struct Node*) libBase);
 }
 
 void __saveds coldstart (void)
@@ -1479,9 +1464,11 @@ void __saveds coldstart (void)
 	SysBase->LibList.lh_Tail = NULL;
 	SysBase->LibList.lh_TailPred = (struct Node *)&SysBase->LibList.lh_Head;
 	SysBase->LibList.lh_Type = NT_LIBRARY;
-    registerBuiltInLib (__lxa_dos_ROMTag);
+    registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS,__lxa_dos_ROMTag);
 
 	OpenLibrary ("dos.library", 0);
+
+    Output();
 
     assert(FALSE);
 
