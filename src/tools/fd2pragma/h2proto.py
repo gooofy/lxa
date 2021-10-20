@@ -4,11 +4,12 @@
 import codecs
 import sys
 
-INPUTFN = "exec_mini.h"
-OUT_STUBS_FN = "exec_stubs.c"
-OUT_FUNCTABLE_FN = "exec_fns.c"
+INPUTFN = "dos_mini.h"
+OUT_STUBS_FN = "dos_stubs.c"
+OUT_FUNCTABLE_FN = "dos_fns.c"
 
-LIBS = { 'EXEC_BASE_NAME': ('_exec', 'struct ExecBase *')  }
+LIBS = { 'EXEC_BASE_NAME': ('_exec', 'struct ExecBase *'),
+         'DOS_BASE_NAME': ('_dos', 'struct DOSBase *')}
 
 MACROS = {
 
@@ -484,7 +485,7 @@ def gen_stub (syscall_name, offset, return_type, args, bn, out):
             else:
                 out.write (")\n")
     out.write ("{\n")
-    out.write ("    lprintf (\"%s: %s unimplemented STUB called.\");\n" % (lib_prefix, syscall_name));
+    out.write ("    lprintf (\"%s: %s unimplemented STUB called.\\n\");\n" % (lib_prefix, syscall_name));
     out.write ("    assert(FALSE);\n")
     out.write ("}\n\n")
 

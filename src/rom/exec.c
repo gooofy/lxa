@@ -12,14 +12,13 @@
 
 //#include <clib/alib_protos.h>
 #include <clib/exec_protos.h>
-//#include <clib/dos_protos.h>
 //#include <clib/intuition_protos.h>
 //#include <clib/graphics_protos.h>
 //#include <clib/console_protos.h>
 //#include <clib/diskfont_protos.h>
 
 #include <inline/exec.h>
-//#include <inline/dos.h>
+#include <inline/dos.h>
 //#include <inline/intuition.h>
 //#include <inline/graphics.h>
 //#include <inline/diskfont.h>
