@@ -140,16 +140,12 @@ struct DosLibrary * __saveds __g_lxa_dos_InitLib    ( register struct DosLibrary
     return dosb;
 }
 
-struct DosLibrary * __saveds __g_lxa_dos_OpenLib ( register struct DosLibrary  *DosLibrary __asm("a6"))
+struct DosLibrary * __saveds __g_lxa_dos_OpenLib ( register struct DosLibrary  *DOSBase __asm("a6"))
 {
-    lprintf ("_dos: OpenLib() unimplemented STUB called.\n");
-#if 0
-    ExecBase->exb_LibNode.lib_OpenCnt++;
-    ExecBase->exb_LibNode.lib_Flags &= ~LIBF_DELEXP;
-    return ExecBase;
-#endif
-    assert(FALSE);
-    return NULL;
+    lprintf ("_dos: OpenLib() called\n");
+    DOSBase->dl_lib.lib_OpenCnt++;
+    DOSBase->dl_lib.lib_Flags &= ~LIBF_DELEXP;
+    return DOSBase;
 }
 
 BPTR __saveds __g_lxa_dos_CloseLib ( register struct DosLibrary  *dosb __asm("a6"))
