@@ -54,6 +54,12 @@
 #define VERSION  1
 #define REVISION 1
 
+typedef struct Library * __saveds (*libInitFn_t) ( register struct Library    *lib     __asm("a6"),
+                                                   register BPTR               seglist __asm("a0"),
+                                                   register struct ExecBase   *sysb    __asm("d0"));
+
+typedef struct Library * __saveds (*libOpenFn_t) ( register struct Library    *lib     __asm("a6"));
+
 struct JumpVec
 {
     unsigned short jmp;
@@ -109,7 +115,7 @@ static void __saveds _exec_InitStruct ( register struct ExecBase * __libBase __a
 
         UBYTE elementSize = *it>>4 & 3;
 
-        BYTE cnt = *it & 15;
+        WORD cnt = *it & 15; // BYTE is not enough here since it will run to -1 in the code below
 
         lprintf ("                  action=%d, elementSize=%d, cnt=%d\n", action, elementSize, cnt);
 
@@ -237,10 +243,6 @@ static void __saveds _exec_InitStruct ( register struct ExecBase * __libBase __a
     }
     lprintf ("_exec: InitStruct done.\n");
 }
-
-typedef struct Library * __saveds (*libInitFn_t) ( register struct Library    *lib     __asm("a6"),
-                                                   register BPTR               seglist __asm("a0"),
-                                                   register struct ExecBase   *sysb    __asm("d0"));
 
 static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * __libBase __asm("a6"),
                                                      register const APTR ___funcInit  __asm("a0"),
@@ -1022,8 +1024,24 @@ static struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase * 
 
 	Permit();
 
-	// FIXME: check version
-	assert(FALSE);
+    if (lib)
+    {
+        if (lib->lib_Version < ___version)
+        {
+            lprintf ("_exec: OpenLibrary version is too old: lib->lib_Version=%ld, ___version=%ld\n", lib->lib_Version, ___version);
+            return NULL;
+        }
+
+        struct JumpVec *jv = &(((struct JumpVec *)(lib))[-1]);
+        libOpenFn_t openfn = jv->vec;
+
+        lib = openfn(lib);
+
+    }
+    else
+    {
+        lprintf ("_exec: OpenLibrary: requested library was not found.\n");
+    }
 
 	return lib;
 }

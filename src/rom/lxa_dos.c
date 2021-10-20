@@ -113,6 +113,7 @@ struct DosLibrary * __saveds __g_lxa_dos_InitLib    ( register struct DosLibrary
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {
+    lprintf ("_dos: WARNING: InitLib() unimplemented STUB called.\n");
 #if 0
     ExecBase = exb;
 
@@ -141,11 +142,13 @@ struct DosLibrary * __saveds __g_lxa_dos_InitLib    ( register struct DosLibrary
 
 struct DosLibrary * __saveds __g_lxa_dos_OpenLib ( register struct DosLibrary  *DosLibrary __asm("a6"))
 {
+    lprintf ("_dos: OpenLib() unimplemented STUB called.\n");
 #if 0
     ExecBase->exb_LibNode.lib_OpenCnt++;
     ExecBase->exb_LibNode.lib_Flags &= ~LIBF_DELEXP;
     return ExecBase;
 #endif
+    assert(FALSE);
     return NULL;
 }
 
