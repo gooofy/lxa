@@ -33,6 +33,22 @@ uint32_t strlen(const char *string)
     return ~(string - s);
 }
 
+ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3)
+{
+    ULONG res;
+    asm( "move.l    %0, d0\n\t"
+         "move.l    %1, d1\n\t"
+         "move.l    %2, d2\n\t"
+         "move.l    %3, d3\n\t"
+         "illegal\n\t"
+         "move.l    d0, %0\n"
+        : "=r" (res)
+        : "r" (func), "r" (param1), "r" (param2), "r" (param3)
+        : "cc", "d0", "d1", "d2", "d3"
+        );
+    return res;
+}
+
 void emu_stop (void)
 {
     asm( "move.l    #2, d0\n\t"

@@ -4,11 +4,15 @@
 #include <exec/execbase.h>
 #include <exec/resident.h>
 #include <exec/initializers.h>
-
-#include <clib/dos_protos.h>
+#include <clib/exec_protos.h>
+#include <inline/exec.h>
 
 #include "dos/dos.h"
 #include "dos/dosextens.h"
+#include <clib/dos_protos.h>
+#include <inline/dos.h>
+
+
 
 #include "util.h"
 #include "lxa_dos.h"
@@ -20,9 +24,11 @@
 
 char __aligned ExLibName [] = EXLIBNAME ".library";
 char __aligned ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned Copyright [] = "(C)opyright 2021 by G. Bartsch. Licensed under the Apache License, Version 2.0.";
+char __aligned Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT license.";
 
 char __aligned VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
+
+extern struct ExecBase *SysBase;
 
 #if 0
 struct DosLibrary * __saveds __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("a6"),
@@ -131,12 +137,35 @@ ULONG __g_lxa_dos_ExtFuncLib(void)
     return NULL;
 }
 
-static BPTR __saveds _dos_Open ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register CONST_STRPTR ___name  __asm("d1"),
-                                                        register LONG ___accessMode  __asm("d2"))
+static BPTR __saveds _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
+                                 register CONST_STRPTR        ___name        __asm("d1"),
+                                 register LONG                ___accessMode  __asm("d2"))
 {
-    lprintf ("_dos: Open unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_dos: Open() ___name=%s, ___accessMode=%ld\n", ___name ? (char *)___name : "NULL", ___accessMode);
+
+    if (!___name) return 0;
+
+    struct FileHandle *fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
+
+    LONG error = ERROR_NO_FREE_STORE;
+    if (fh)
+    {
+
+        BOOL ok = emucall3 (EMU_CALL_DOS_OPEN, (ULONG) ___name, ___accessMode, (ULONG) fh);
+        if (ok)
+        {
+            return MKBADDR (fh);
+        }
+        else
+        {
+            error = IoErr();
+            FreeDosObject (DOS_FILEHANDLE, fh);
+        }
+    }
+
+    SetIoErr (error);
+
+    return 0;
 }
 
 static LONG __saveds _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
@@ -172,8 +201,15 @@ static BPTR __saveds _dos_Input ( register struct DosLibrary * __libBase __asm("
 
 static BPTR __saveds _dos_Output ( register struct DosLibrary * __libBase __asm("a6"))
 {
-    lprintf ("_dos: Output unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_dos: Output() called.\n");
+
+    struct Process *p = (struct Process *) FindTask (NULL);
+
+    BPTR o = p->pr_COS;
+
+    lprintf ("_dos: Output() p=0x%08lx, o=%ld\n", p, o);
+
+    return o;
 }
 
 static LONG __saveds _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
@@ -283,17 +319,54 @@ static void __saveds _dos_Exit ( register struct DosLibrary * __libBase __asm("a
     assert(FALSE);
 }
 
-static BPTR __saveds _dos_LoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register CONST_STRPTR ___name  __asm("d1"))
+static BPTR __saveds _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
+                                    register CONST_STRPTR        ___name   __asm("d1"))
 {
-    lprintf ("_dos: LoadSeg unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_dos: LoadSeg() called, name=%s\n", ___name);
+
+    BPTR f=0, segs=0;
+
+    f = Open (___name, MODE_OLDFILE);
+
+    if (f)
+    {
+		lprintf ("_dos: LoadSeg() Open() for name=%s worked\n", ___name);
+
+        //segs = InternalLoadSeg (f, NULL, FunctionArray, NULL);
+		assert(FALSE);
+
+        LONG err = IoErr();
+
+		if (!segs)
+			lprintf ("_dos: LoadSeg() failed to load %s, err=%ld\n", ___name, err);
+
+        Close (f);
+
+        SetIoErr (err);
+    }
+
+    return segs;
 }
 
 static void __saveds _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___seglist  __asm("d1"))
 {
     lprintf ("_dos: UnLoadSeg unimplemented STUB called.\n");
+    assert(FALSE);
+}
+
+static void __saveds  _dos_ClearVec (register struct DosLibrary * __libBase __asm("a6"),
+									 register BPTR ___bVector  __asm("d1"),
+									 register BPTR ___upb      __asm("d2"))
+{
+    lprintf ("_dos: ClearVec() unimplemented *PRIVATE* STUB called.\n");
+    assert(FALSE);
+}
+
+static void __saveds _dos_NoReqLoadSeg (register struct DosLibrary * __libBase __asm("a6"),
+                                        register BPTR ___bFileName             __asm("d1"))
+{
+    lprintf ("_dos: NoReqLoadSeg() unimplemented *PRIVATE* STUB called.\n");
     assert(FALSE);
 }
 
@@ -330,41 +403,81 @@ static struct DateStamp * __saveds _dos_DateStamp ( register struct DosLibrary *
 static void __saveds _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register LONG ___timeout  __asm("d1"))
 {
-    lprintf ("_dos: Delay unimplemented STUB called.\n");
+    lprintf ("_dos: Delay() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static LONG __saveds _dos_WaitForChar ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register BPTR ___file  __asm("d1"),
-                                                        register LONG ___timeout  __asm("d2"))
+                                        register BPTR ___file  __asm("d1"),
+                                        register LONG ___timeout  __asm("d2"))
 {
-    lprintf ("_dos: WaitForChar unimplemented STUB called.\n");
+    lprintf ("_dos: WaitForChar() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static BPTR __saveds _dos_ParentDir ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register BPTR ___lock  __asm("d1"))
+                                      register BPTR ___lock  __asm("d1"))
 {
-    lprintf ("_dos: ParentDir unimplemented STUB called.\n");
+    lprintf ("_dos: ParentDir() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static LONG __saveds _dos_IsInteractive ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register BPTR ___file  __asm("d1"))
+                                          register BPTR ___file  __asm("d1"))
 {
-    lprintf ("_dos: IsInteractive unimplemented STUB called.\n");
+    lprintf ("_dos: IsInteractive() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static LONG __saveds _dos_Execute ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register CONST_STRPTR ___string  __asm("d1"),
-                                                        register BPTR ___file  __asm("d2"),
-                                                        register BPTR ___file2  __asm("d3"))
+                                    register CONST_STRPTR ___string  __asm("d1"),
+                                    register BPTR ___file  __asm("d2"),
+                                    register BPTR ___file2  __asm("d3"))
 {
-    lprintf ("_dos: Execute unimplemented STUB called.\n");
+    lprintf ("_dos: Execute() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
+static void __saveds *_dos_AllocDosObject (register struct DosLibrary * DOSBase __asm("a6"),
+										   register ULONG               ___type __asm("d1"),
+										   register struct TagItem    * ___tags __asm("d2"))
+{
+	lprintf ("_dos: AllocDosObject() called type=%ld\n", ___type);
+
+    switch (___type)
+    {
+		case DOS_FILEHANDLE:
+		{
+			APTR m = AllocVec (sizeof(struct FileHandle), MEMF_CLEAR);
+
+			if (m)
+			{
+				struct FileHandle *fh = (struct FileHandle *) m;
+
+				// FIXME: initialize
+				//fh->fh_Pos = -1;
+				//fh->fh_End = -1;
+			}
+			return m;
+		}
+
+		default:
+			lprintf ("_dos: FIXME: AllocDosObject() type=%ld not implemented\n", ___type);
+			assert (FALSE);
+    }
+
+    SetIoErr (ERROR_BAD_NUMBER);
+
+    return NULL;
+}
+
+void __saveds _dos_FreeDosObject (register struct DosLibrary * DOSBase __asm("a6"),
+								  register ULONG               ___type __asm("d1"),
+								  register void              * ___ptr  __asm("d2"))
+{
+	lprintf ("_dos: FreeDosObject() unimplemented STUB called.\n");
+	assert (FALSE);
+}
 
 struct MyDataInit
 {
@@ -435,6 +548,8 @@ APTR __g_lxa_dos_FuncTab [] =
     _dos_Exit,
     _dos_LoadSeg,
     _dos_UnLoadSeg,
+    _dos_ClearVec,
+    _dos_NoReqLoadSeg,
     _dos_DeviceProc,
     _dos_SetComment,
     _dos_SetProtection,
@@ -444,6 +559,11 @@ APTR __g_lxa_dos_FuncTab [] =
     _dos_ParentDir,
     _dos_IsInteractive,
     _dos_Execute,
+
+	// V36
+
+	_dos_AllocDosObject,
+	_dos_FreeDosObject,
 
     (APTR) ((LONG)-1)
 };

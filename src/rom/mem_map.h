@@ -29,7 +29,7 @@
 
 // dos
 
-#define NUM_DOS_FUNCS           31
+#define NUM_DOS_FUNCS           (35+4)
 #define DOS_VECTORS_START       EXEC_MH_END + 1
 #define DOS_VECTORS_SIZE        NUM_DOS_FUNCS * 6
 #define DOS_VECTORS_END         DOS_VECTORS_START + DOS_VECTORS_SIZE -1

@@ -3,12 +3,16 @@
 
 #include <exec/types.h>
 
-int  isdigit(int c);
-void lputc (char c);
-void lputs (const char *s);
-void lprintf(const char *format, ...);
+#define EMU_CALL_DOS_OPEN   1000
 
-void emu_stop(void);
+ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3);
+
+int   isdigit  (int c);
+void  lputc    (char c);
+void  lputs    (const char *s);
+void  lprintf  (const char *format, ...);
+
+void  emu_stop (void);
 
 #undef assert
 

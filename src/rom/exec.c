@@ -235,7 +235,6 @@ static void _makeLibrary ( struct Library *library,
 
     if (___structInit)
         InitStruct (___structInit, library, 0);
-
     if (___libInitFn)
     {
         lprintf ("_exec: calling ___libInitFn at 0x%08lx\n", ___libInitFn);
@@ -320,6 +319,7 @@ static void __saveds _exec_MakeFunctions ( register struct ExecBase * __libBase 
 			struct JumpVec  *jv = &(((struct JumpVec *)(___target))[-n]);
 			jv->jmp = JMPINSTR;
 			jv->vec = (APTR)((ULONG)___funcDispBase + *fp);
+			lprintf ("                  I  n=%4d jv=0x%08lx jv->jmp=0x%04x jv->vec=0x%08lx\n", n, jv, jv->jmp, jv->vec);
             fp++; n++;
         }
     }
@@ -332,6 +332,7 @@ static void __saveds _exec_MakeFunctions ( register struct ExecBase * __libBase 
 			struct JumpVec  *jv = &(((struct JumpVec *)(___target))[-n]);
 			jv->jmp = JMPINSTR;
 			jv->vec = *fp;
+			lprintf ("                  II n=%4d jv=0x%08lx jv->jmp=0x%04x jv->vec=0x%08lx\n", n, jv, jv->jmp, jv->vec);
             fp++; n++;
         }
     }
@@ -387,7 +388,7 @@ static void __saveds _exec_Forbid ( register struct ExecBase * __libBase __asm("
 
 static void __saveds _exec_Permit ( register struct ExecBase * __libBase __asm("a6"))
 {
-    lprintf ("_exec: WANRING: Permit unimplemented STUB called.\n");
+    lprintf ("_exec: WARNING: Permit() unimplemented STUB called.\n");
 }
 
 static ULONG __saveds _exec_SetSR ( register struct ExecBase * __libBase __asm("a6"),
@@ -447,6 +448,8 @@ static APTR __saveds _exec_Allocate ( register struct ExecBase * __libBase __asm
                                       register ULONG ___byteSize  __asm("d0"))
 {
     lprintf ("_exec: Allocate called, ___freeList=0x%08lx, ___byteSize=%d\n", (ULONG)___freeList, ___byteSize);
+	lprintf ("       mh_First=0x%08lx, mh_Lower=0x%08lx, mh_Upper=0x%08lx, mh_Free=%ld, mh_Attributes=0x%08lx\n", 
+			 ___freeList->mh_First, ___freeList->mh_Lower, ___freeList->mh_Upper, ___freeList->mh_Free, ___freeList->mh_Attributes);
 
 	ULONG byteSize = ALIGN (___byteSize, 4);
 
@@ -455,6 +458,7 @@ static APTR __saveds _exec_Allocate ( register struct ExecBase * __libBase __asm
     if (!byteSize)
         return NULL;
 
+    lprintf ("       ___freeList->mh_Free=%ld\n", ___freeList->mh_Free);
     if (___freeList->mh_Free < byteSize)
         return NULL;
 
@@ -499,9 +503,13 @@ static APTR __saveds _exec_Allocate ( register struct ExecBase * __libBase __asm
 		}
 
 		___freeList->mh_Free -= byteSize;
+		lprintf ("       found a chunk at 0x%08lx\n", (ULONG)mc);
+	}
+	else
+	{
+		lprintf ("       no chunk found.\n");
 	}
 
-    lprintf ("       found a chunk at 0x%08lx\n", (ULONG)mc);
 	return mc;
 }
 
@@ -703,10 +711,40 @@ static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm(
 }
 
 static struct Task * __saveds _exec_FindTask ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register CONST_STRPTR ___name  __asm("a1"))
+                                               register CONST_STRPTR ___name  __asm("a1"))
 {
-    lprintf ("_exec: FindTask unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: FindTask() called ___name=%s\n", ___name ? (char*) ___name : "NULL");
+
+    struct Task *ret, *thisTask = SysBase->ThisTask;
+
+    if (!___name)
+        return thisTask;
+
+    Disable();
+
+    ret = (struct Task *) FindName (&SysBase->TaskReady, ___name);
+    if (!ret)
+    {
+        ret = (struct Task *) FindName (&SysBase->TaskWait, ___name);
+        if (!ret)
+        {
+            char       *s1 = thisTask->tc_Node.ln_Name;
+            const char *s2 = ___name;
+            while (*s1 == *s2)
+			{
+                if (!*s2)
+                {
+                    ret = thisTask;
+                    break;
+                }
+				s1++; s2++;
+			}
+        }
+    }
+
+    Enable();
+
+    return ret;
 }
 
 static BYTE __saveds _exec_SetTaskPri ( register struct ExecBase * __libBase __asm("a6"),
@@ -1186,12 +1224,22 @@ static void __saveds _exec_ObtainSemaphoreShared ( register struct ExecBase * __
     assert(FALSE);
 }
 
-static APTR __saveds _exec_AllocVec ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register ULONG ___byteSize  __asm("d0"),
-                                                        register ULONG ___requirements  __asm("d1"))
+static APTR __saveds _exec_AllocVec ( register struct ExecBase * __libBase        __asm("a6"),
+                                      register ULONG             ___byteSize      __asm("d0"),
+                                      register ULONG             ___requirements  __asm("d1"))
 {
-    lprintf ("_exec: AllocVec unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: AllocVec() called ___byteSize=%ld, ___requirements=0x%08lx\n", ___byteSize, ___requirements);
+
+	if (!___byteSize)
+		return NULL;
+
+	ULONG *m = (ULONG*) AllocMem (___byteSize+4, ___requirements);
+	if (!m)
+		return NULL;
+
+	*m++ = ___byteSize;
+
+	return m;
 }
 
 static void __saveds _exec_FreeVec ( register struct ExecBase * __libBase __asm("a6"),
@@ -1302,7 +1350,12 @@ void __saveds coldstart (void)
     __asm("andi.w  #0xdfff, sr\n");
     __asm("move.l  #0x9fff99, a7\n");
 
-    lprintf ("coldstart: EXEC_VECTORS_START=0x%08x, EXEC_BASE_START=0x%08x\n", EXEC_VECTORS_START, EXEC_BASE_START);
+    lprintf ("coldstart: EXEC_VECTORS_START = 0x%08lx\n", EXEC_VECTORS_START);
+    lprintf ("           EXEC_BASE_START    = 0x%08lx\n", EXEC_BASE_START   );
+	lprintf ("           EXEC_MH_START      = 0x%08lx\n", EXEC_MH_START     );
+	lprintf ("           DOS_VECTORS_START  = 0x%08lx\n", DOS_VECTORS_START );
+	lprintf ("           DOS_BASE_START     = 0x%08lx\n", DOS_BASE_START    );
+	lprintf ("           RAM_START          = 0x%08lx\n", RAM_START         );
 
     // coldstart is at 0x00f801be, &SysBase at 0x00f80c90, SysBase at 0x0009eed0, f1 at 0x00f80028
     lprintf ("coldstart: locations in RAM: coldstart is at 0x%08x, &SysBase at 0x%08x, SysBase at 0x%08x\n",
@@ -1457,6 +1510,10 @@ void __saveds coldstart (void)
     myh->mh_Upper        = (APTR) (RAM_END + 1);
     myh->mh_Free         = RAM_SIZE;
 
+	lprintf ("coldstart: setting up first struct MemHeader *myh at 0x%08lx:\n", myh);
+	lprintf ("           myh->mh_First=0x%08lx, myh->mh_Lower=0x%08lx, myh->mh_Upper=0x%08lx, myh->mh_Free=%ld, myh->mh_Attributes=0x%08lx\n", 
+			 myh->mh_First, myh->mh_Lower, myh->mh_Upper, myh->mh_Free, myh->mh_Attributes);
+
 	AddTail (&SysBase->MemList, &myh->mh_Node);
 
     // init and register built-in libraries
@@ -1464,9 +1521,12 @@ void __saveds coldstart (void)
 	SysBase->LibList.lh_Tail = NULL;
 	SysBase->LibList.lh_TailPred = (struct Node *)&SysBase->LibList.lh_Head;
 	SysBase->LibList.lh_Type = NT_LIBRARY;
+
     registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS,__lxa_dos_ROMTag);
 
 	OpenLibrary ("dos.library", 0);
+
+	BPTR segs = LoadSeg ("hello");
 
     Output();
 
