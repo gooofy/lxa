@@ -3,6 +3,10 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/limits.h>
 
 #include "m68k.h"
 
@@ -19,22 +23,17 @@
 #define ROM_START   0xf80000
 #define ROM_END     ROM_START + ROM_SIZE - 1
 
+#define EMU_CALL_DOS_OPEN   1000
+
+#define AMIGA_SYSROOT "/home/guenter/media/emu/amiga/FS-UAE/hdd/system/"
+
+#define MODE_OLDFILE        1005
+#define MODE_NEWFILE        1006
+#define MODE_READWRITE      1004
+
 static uint8_t g_ram[RAM_SIZE];
 static uint8_t g_rom[ROM_SIZE];
 static bool    g_debug=false;
-
-#if 0
-#define CHIPMEM_ADDRESS 0x000000
-#define CHIPMEM_SIZE    2 * 1024 * 1024
-#define FASTMEM_ADDRESS 0x200000
-#define FASTMEM_SIZE    8 * 1024 * 1024
-
-#define RTC_MATCHWORD 0x4AFC
-
-#define STACK_SIZE	64 * 1024
-
-// code to be emulated
-#define M68K_CODE "\x20\x3c\xde\xad\xbe\xef" // move.l #-559038737,d0
 
 #define ENDIAN_SWAP_16(data) ( (((data) >> 8) & 0x00FF) | (((data) << 8) & 0xFF00) )
 #define ENDIAN_SWAP_32(data) ( (((data) >> 24) & 0x000000FF) | (((data) >>  8) & 0x0000FF00) | \
@@ -47,32 +46,7 @@ static bool    g_debug=false;
                                (((data) & 0x0000ff0000000000LL) >> 24) | \
                                (((data) & 0x00ff000000000000LL) >> 40) | \
                                (((data) & 0xff00000000000000LL) >> 56))
-
-static uc_engine *g_uc;
-
 #if 0
-static uint8_t peek (uint32_t addr)
-{
-	uint8_t b;
-	uc_mem_read (g_uc, addr, &b, 1);
-	return b;
-}
-#endif
-
-static uint16_t dpeek (uint32_t addr)
-{
-	uint16_t w;
-	uc_mem_read (g_uc, addr, &w, 2);
-	return ENDIAN_SWAP_16(w);
-}
-
-static uint32_t lpeek (uint32_t addr)
-{
-	uint32_t l;
-	uc_mem_read (g_uc, addr, &l, 4);
-	return ENDIAN_SWAP_32(l);
-}
-
 static void hexdump (uint32_t offset, uint32_t num_bytes)
 {
     dprintf ("HEX: 0x%08x  ", offset);
@@ -88,65 +62,6 @@ static void hexdump (uint32_t offset, uint32_t num_bytes)
     dprintf ("\n");
 }
 
-
-
-static void hook_lxcall(uc_engine *uc, uint32_t intno, void *user_data)
-{
-	dprintf ("TRAP  intno=%d\n", intno);
-    if (intno == 35)
-	{
-		uint32_t fn, c;
-		uc_reg_read(g_uc, UC_M68K_REG_D0, &fn);
-
-        switch (fn)
-        {
-            case 1:
-            {
-                print68kstate(g_uc);
-                uc_reg_read(g_uc, UC_M68K_REG_D1, &c);
-                printf ("%c", c); fflush (stdout);
-
-                uint32_t r_pc = lpeek(0x00008c);
-                uc_reg_read (g_uc, UC_M68K_REG_PC, &r_pc);
-                r_pc += 2;
-                uc_reg_write(g_uc, UC_M68K_REG_PC, &r_pc);
-
-                break;
-            }
-            case 2:
-                printf ("*** emulator stop via lxcall.\n");
-                uc_emu_stop(uc);
-                break;
-            default:
-                printf ("*** error: undefinded lxcall #%d\n", fn);
-        }
-
-    }
-    if (intno == 61)
-    {
-        printf ("\n\n *** ERROR: unsupported exception was thrown!\n\n");
-        uc_emu_stop(uc);
-    }
-}
-
-static void hook_mem(uc_engine *uc, uc_mem_type type, uint64_t address, int size, int64_t value, void *user_data)
-{
-    switch(type) {
-        default: break;
-        case UC_MEM_READ:
-                 dprintf("READ  at 0x%08lx, data size = %u\n", address, size);
-                 break;
-        case UC_MEM_WRITE:
-                 dprintf("WRITE at 0x%08lx, data size = %u, data value = 0x%08lx\n", address, size, value);
-                 break;
-    }
-}
-
-static void hook_code(uc_engine *uc, uint64_t address, uint32_t size, void *user_data)
-{
-    dprintf("INSTR at 0x%08lx code=0x%04x\n", address, dpeek(address));
-    print68kstate(g_uc);
-}
 #endif
 
 static inline uint8_t mread8 (uint32_t address)
@@ -314,6 +229,72 @@ void cpu_instr_callback(int pc)
     }
 }
 
+static char *_mgetstr (uint32_t address)
+{
+    if ((address >= RAM_START) && (address <= RAM_END))
+    {
+        uint32_t addr = address - RAM_START;
+        return (char *) &g_ram[addr];
+    }
+    else
+    {
+        if ((address >= ROM_START) && (address <= ROM_END))
+        {
+            uint32_t addr = address - ROM_START;
+            return (char *) &g_rom[addr];
+        }
+        else
+        {
+            printf("ERROR: _mgetstr at invalid address 0x%08x\n", address);
+            assert (false);
+        }
+    }
+}
+
+static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_len)
+{
+    // FIXME: pretty hard coded, for now
+    snprintf (linux_path, buf_len, "%s/%s", AMIGA_SYSROOT, amiga_path);
+}
+
+static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
+{
+    char *amiga_path = _mgetstr(path68k);
+    char lxpath[PATH_MAX];
+
+    printf ("lxa: _dos_open(): amiga_path=%s\n", amiga_path);
+
+    _dos_path2linux (amiga_path, lxpath, PATH_MAX);
+    printf ("lxa: _dos_open(): lxpath=%s\n", lxpath);
+
+	int flags = 0;
+	mode_t mode = 0644;
+
+	switch (accessMode)
+	{
+        case MODE_NEWFILE:
+			flags = O_CREAT | O_TRUNC | O_RDWR;
+			break;
+        case MODE_OLDFILE:
+			flags = O_RDWR;
+			break;
+        case MODE_READWRITE:
+			flags = O_CREAT | O_RDWR;
+			break;
+		default:
+			assert(FALSE);
+	}
+
+	int fd = open (lxpath, flags, mode);
+	int err = errno;
+
+    printf ("lxa: _dos_open(): open() result: fd=%d, err=%d\n", fd, err);
+
+	m68k_write_memory_32 (fh68k+36, fd);
+
+	return err; // FIXME: map to AmigaDOS
+}
+
 int op_illg(int level)
 {
     uint32_t d0 = m68k_get_reg(NULL, M68K_REG_D0);
@@ -335,12 +316,29 @@ int op_illg(int level)
 
             break;
         }
+
         case 2:
             printf ("*** emulator stop via lxcall.\n");
             m68k_end_timeslice();
             break;
+
+        case EMU_CALL_DOS_OPEN:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+
+            printf ("lxa: op_illg(): EMU_CALL_DOS_OPEN name=0x%08x, accessMode=0x%08x, fh=0x%08x\n", d1, d2, d3);
+
+            uint32_t res = _dos_open (d1, d2, d3);
+
+            m68k_set_reg(M68K_REG_D0, res);
+
+            break;
+        }
+
         default:
-            printf ("*** error: undefinded lxcall #%d\n", d0);
+            printf ("*** error: undefined lxcall #%d\n", d0);
     }
 
     //if (intno == 35)

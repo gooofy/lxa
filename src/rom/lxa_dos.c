@@ -147,12 +147,17 @@ static BPTR __saveds _dos_Open ( register struct DosLibrary * DOSBase        __a
 
     struct FileHandle *fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
 
+    lprintf ("_dos: Open() fh=0x%08lx\n", fh);
+
     LONG error = ERROR_NO_FREE_STORE;
     if (fh)
     {
 
-        BOOL ok = emucall3 (EMU_CALL_DOS_OPEN, (ULONG) ___name, ___accessMode, (ULONG) fh);
-        if (ok)
+        int err = emucall3 (EMU_CALL_DOS_OPEN, (ULONG) ___name, ___accessMode, (ULONG) fh);
+
+        lprintf ("_dos: Open() result from emucall3: err=%d, fh->Args=%d\n", err, fh->fh_Args);
+
+        if (!err)
         {
             return MKBADDR (fh);
         }
@@ -458,6 +463,7 @@ static void __saveds *_dos_AllocDosObject (register struct DosLibrary * DOSBase 
 				//fh->fh_Pos = -1;
 				//fh->fh_End = -1;
 			}
+            lprintf ("_dos: AllocDosObject() allocated new DOS_FILEHANDLE object: 0x%08lx\n", m);
 			return m;
 		}
 

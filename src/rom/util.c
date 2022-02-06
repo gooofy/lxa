@@ -36,10 +36,10 @@ uint32_t strlen(const char *string)
 ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3)
 {
     ULONG res;
-    asm( "move.l    %0, d0\n\t"
-         "move.l    %1, d1\n\t"
-         "move.l    %2, d2\n\t"
-         "move.l    %3, d3\n\t"
+    asm( "move.l    %1, d0\n\t"
+         "move.l    %2, d1\n\t"
+         "move.l    %3, d2\n\t"
+         "move.l    %4, d3\n\t"
          "illegal\n\t"
          "move.l    d0, %0\n"
         : "=r" (res)

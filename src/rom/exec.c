@@ -1526,7 +1526,7 @@ void __saveds coldstart (void)
 
 	OpenLibrary ("dos.library", 0);
 
-	BPTR segs = LoadSeg ("hello");
+	BPTR segs = LoadSeg ("x/foo");
 
     Output();
 
