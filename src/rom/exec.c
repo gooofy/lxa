@@ -592,14 +592,14 @@ static void __saveds _exec_FreeMem ( register struct ExecBase * __libBase __asm(
 }
 
 static ULONG __saveds _exec_AvailMem ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register ULONG ___requirements  __asm("d1"))
+                                       register ULONG ___requirements  __asm("d1"))
 {
     lprintf ("_exec: AvailMem unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static struct MemList * __saveds _exec_AllocEntry ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct MemList * ___entry  __asm("a0"))
+                                                    register struct MemList * ___entry  __asm("a0"))
 {
     lprintf ("_exec: AllocEntry unimplemented STUB called.\n");
     assert(FALSE);
@@ -1342,6 +1342,68 @@ static void registerBuiltInLib (struct Library *libBase, ULONG num_funcs, struct
 	AddTail (&SysBase->LibList, (struct Node*) libBase);
 }
 
+struct newMemList {
+  struct Node     nml_Node;
+  UWORD           nml_NumEntries;
+  struct MemEntry nml_ME[2];
+};
+
+const struct newMemList MemTemplate = {
+  {0,},
+  2,
+  { {MEMF_CLEAR|MEMF_PUBLIC, sizeof(struct Task)},
+    {MEMF_CLEAR, 0} }
+};
+
+#define NEWLIST(l) ((l)->lh_Head = (struct Node *)&(l)->lh_Tail, \
+                    /*(l)->lh_Tail = NULL,*/ \
+                    (l)->lh_TailPred = (struct Node *)&(l)->lh_Head)
+
+static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
+{
+	struct newMemList  nml;
+	struct MemList    *ml;
+	struct Task       *newtask;
+	APTR               task2;
+
+	stacksize = (stacksize+3)&~3;
+
+	{
+		long *p1,*p2;
+	  	int i;
+
+	  	for (p1=(long *)&nml,p2=(long*)&MemTemplate,i=7; i; *p1++=*p2++,i--) ;
+	  	*p1=stacksize;
+	}
+
+	ml = AllocEntry ((struct MemList *)&nml);
+	if (!(((unsigned int)ml) & (1<<31)))
+	{
+	    newtask=ml->ml_ME[0].me_Addr;
+	    newtask->tc_Node.ln_Type = NT_TASK;
+	    newtask->tc_Node.ln_Pri  = pri;
+	    newtask->tc_Node.ln_Name = name;
+	    newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
+	    newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
+	    newtask->tc_SPUpper      = newtask->tc_SPReg;
+	    NEWLIST(&newtask->tc_MemEntry);
+	    AddHead(&newtask->tc_MemEntry,&ml->ml_Node);
+	    task2=AddTask(newtask,initpc,0);
+	    if (!task2)
+	    {
+	        FreeEntry (ml);
+			newtask = NULL;
+	    }
+	}
+	else
+	{
+	  newtask = NULL;
+	}
+
+	return newtask;
+}
+
+
 void __saveds coldstart (void)
 {
     //uint32_t *p = (void*) 0x00008c;
@@ -1523,6 +1585,12 @@ void __saveds coldstart (void)
 	SysBase->LibList.lh_Type = NT_LIBRARY;
 
     registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS,__lxa_dos_ROMTag);
+
+    // bootstrap our first task
+
+   	SysBase->ThisTask = _createTask ("exec bootstrap", 0, NULL, 8192); 
+
+    // run a little test program
 
 	OpenLibrary ("dos.library", 0);
 

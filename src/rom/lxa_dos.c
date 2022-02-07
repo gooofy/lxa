@@ -301,17 +301,20 @@ static BPTR __saveds _dos_CurrentDir ( register struct DosLibrary * __libBase __
     assert(FALSE);
 }
 
-static LONG __saveds _dos_IoErr ( register struct DosLibrary * __libBase __asm("a6"))
+static LONG __saveds _dos_IoErr ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    lprintf ("_dos: IoErr unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_dos: IoErr() called.\n");
+
+    struct Process *me = (struct Process *)FindTask(NULL);
+
+    return me->pr_Result2;
 }
 
 static struct MsgPort * __saveds _dos_CreateProc ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register CONST_STRPTR ___name  __asm("d1"),
-                                                        register LONG ___pri  __asm("d2"),
-                                                        register BPTR ___segList  __asm("d3"),
-                                                        register LONG ___stackSize  __asm("d4"))
+                                                   register CONST_STRPTR ___name  __asm("d1"),
+                                                   register LONG ___pri  __asm("d2"),
+                                                   register BPTR ___segList  __asm("d3"),
+                                                   register LONG ___stackSize  __asm("d4"))
 {
     lprintf ("_dos: CreateProc unimplemented STUB called.\n");
     assert(FALSE);
@@ -337,8 +340,40 @@ static BPTR __saveds _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("
     {
 		lprintf ("_dos: LoadSeg() Open() for name=%s worked\n", ___name);
 
-        //segs = InternalLoadSeg (f, NULL, FunctionArray, NULL);
-		assert(FALSE);
+#if 0
+        LI_segmentList sl = LI_SegmentList();
+
+        if (!LI_segmentListReadLoadFile (UP_runChild, sl, binfn, f))
+        {
+            return 0;
+        }
+
+        LI_relocate (sl, symbols);
+
+        // create AmigaDOS style seglist
+
+        for (LI_segmentListNode sln=sl->first; sln; sln=sln->next)
+        {
+            AS_segment seg = sln->seg;
+
+            uint32_t *ptr = (uint32_t *) seg->mem;
+            ptr -= 2;
+            ptr[0] = (uint32_t) seg->mem_pos+8;
+            if (sln->next)
+            {
+                ptr[1] = MKBADDR((uint32_t)sln->next->seg->mem - 4);
+            }
+            else
+            {
+                ptr[1] = 0;
+            }
+            lprintf ("_dos: LoadSeg(): creating seglist: kind=%d, hunk_id=%d, next=0x%08lx -> len=%6d next=0x%08lx code:0x%08lx...\n",
+                     seg->kind, seg->hunk_id, sln->next, ptr[0], ptr[1], ptr[2]);
+        }
+        lprintf ("_dos: LoadSeg(): creating seglist: done.\n");
+
+        CacheClearU();
+#endif
 
         LONG err = IoErr();
 
