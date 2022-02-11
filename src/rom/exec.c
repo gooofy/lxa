@@ -370,14 +370,14 @@ static void __saveds _exec_Debug ( register struct ExecBase * __libBase __asm("a
 
 static void __saveds _exec_Disable ( register struct ExecBase * __libBase __asm("a6"))
 {
-    lprintf ("_exec: Disable unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: WARNING: Disable() unimplemented STUB called.\n");
+	// FIXME
 }
 
 static void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("a6"))
 {
-    lprintf ("_exec: Enable unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: WARNING: Enable() unimplemented STUB called.\n");
+	// FIXME
 }
 
 static void __saveds _exec_Forbid ( register struct ExecBase * __libBase __asm("a6"))
@@ -599,10 +599,55 @@ static ULONG __saveds _exec_AvailMem ( register struct ExecBase * __libBase __as
 }
 
 static struct MemList * __saveds _exec_AllocEntry ( register struct ExecBase * __libBase __asm("a6"),
-                                                    register struct MemList * ___entry  __asm("a0"))
+                                                    register struct MemList * entry  __asm("a0"))
 {
-    lprintf ("_exec: AllocEntry unimplemented STUB called.\n");
-    assert(FALSE);
+
+    lprintf ("_exec: AllocEntry called, entry=0x%08lx, entry->ml_NumEntries=%d\n", entry, entry->ml_NumEntries);
+
+    for (int i = 0; i < entry->ml_NumEntries; i++)
+    {
+    	lprintf("       # %3d me_Reqs=0x%08lx me_Length=%d\n", i, entry->ml_ME[i].me_Reqs, entry->ml_ME[i].me_Length);
+    }
+
+	ULONG size = sizeof(struct MemList) + sizeof(struct MemEntry) * (entry->ml_NumEntries-1);
+    struct MemList *res = (struct MemList *) AllocMem (size, MEMF_PUBLIC);
+
+    if (!res)
+    {
+        res =  (struct MemList*) (0x80000000 | MEMF_PUBLIC);
+        return res;
+    }
+
+    res->ml_NumEntries   = entry->ml_NumEntries;
+    res->ml_Node.ln_Type = 0;
+    res->ml_Node.ln_Pri  = 0;
+    res->ml_Node.ln_Name = NULL;
+
+    for (int i = 0; i < entry->ml_NumEntries; i++)
+    {
+        if (entry->ml_ME[i].me_Length)
+        {
+            res->ml_ME[i].me_Addr = AllocMem(entry->ml_ME[i].me_Length, entry->ml_ME[i].me_Reqs);
+            if (!res->ml_ME[i].me_Addr)
+            {
+                for (int j=0; j<i; j++)
+                    FreeMem (res->ml_ME[j].me_Addr, res->ml_ME[j].me_Length);
+
+                FreeMem (res, size);
+
+				res =  (struct MemList*) (0x80000000 | entry->ml_ME[i].me_Reqs);
+                return res;
+            }
+        }
+        else
+        {
+            res->ml_ME[i].me_Addr = NULL;
+        }
+
+        res->ml_ME[i].me_Length = entry->ml_ME[i].me_Length;
+    }
+
+    return res;
 }
 
 static void __saveds _exec_FreeEntry ( register struct ExecBase * __libBase __asm("a6"),
@@ -622,11 +667,16 @@ static void __saveds _exec_Insert ( register struct ExecBase * __libBase __asm("
 }
 
 static void __saveds _exec_AddHead ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct List * ___list  __asm("a0"),
-                                                        register struct Node * ___node  __asm("a1"))
+                                     register struct List * list  __asm("a0"),
+                                     register struct Node * node  __asm("a1"))
 {
-    lprintf ("_exec: AddHead unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: AddHead called, list=0x%08lx, node=0x%08lx\n", list, node);
+
+    node->ln_Succ = list->lh_Head;
+    node->ln_Pred = (struct Node *) &list->lh_Head;
+
+    list->lh_Head->ln_Pred = node;
+    list->lh_Head          = node;
 }
 
 static void __saveds _exec_AddTail ( register struct ExecBase * __libBase __asm("a6"),
@@ -664,11 +714,23 @@ static struct Node * __saveds _exec_RemTail ( register struct ExecBase * __libBa
 }
 
 static void __saveds _exec_Enqueue ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct List * ___list  __asm("a0"),
-                                                        register struct Node * ___node  __asm("a1"))
+                                     register struct List * list  __asm("a0"),
+                                     register struct Node * node  __asm("a1"))
 {
-    lprintf ("_exec: Enqueue unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: Enqueue() called: list=0x%08lx, node=0x%08lx\n", list, node);
+
+    struct Node * next;
+
+	for ( next = list->lh_Head ; next->ln_Succ != NULL ; next = next->ln_Succ )
+	{
+        if (node->ln_Pri > next->ln_Pri)
+            break;
+	}
+
+    node->ln_Pred          = next->ln_Pred;
+    node->ln_Succ          = next;
+    next->ln_Pred->ln_Succ = node;
+    next->ln_Pred          = node;
 }
 
 static struct Node * __saveds _exec_FindName ( register struct ExecBase * __libBase __asm("a6"),
@@ -695,12 +757,65 @@ static struct Node * __saveds _exec_FindName ( register struct ExecBase * __libB
 }
 
 static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct Task * ___task  __asm("a1"),
-                                                        register const APTR ___initPC  __asm("a2"),
-                                                        register const APTR ___finalPC  __asm("a3"))
+                                     register struct Task *task     __asm("a1"),
+                                     register const APTR   initPC   __asm("a2"),
+                                     register const APTR   finalPC  __asm("a3"))
 {
-    lprintf ("_exec: AddTask unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_exec: AddTask called task=0x%08lx, initPC=0x%08lx, finalPC=0x%08lx\n", task, initPC, finalPC);
+
+	// prepare task structure
+
+    task->tc_IDNestCnt = -1;
+    task->tc_TDNestCnt = -1;
+
+    task->tc_State     = TS_ADDED;
+    task->tc_Flags     = 0;
+
+    task->tc_SigWait   = 0;
+    task->tc_SigRecvd  = 0;
+    task->tc_SigExcept = 0;
+
+    if (!task->tc_SigAlloc)
+        task->tc_SigAlloc = SysBase->TaskSigAlloc;
+
+    if (!task->tc_TrapCode)
+        task->tc_TrapCode = SysBase->TaskTrapCode;
+
+    if (!task->tc_ExceptCode)
+        task->tc_ExceptCode = SysBase->TaskExceptCode;
+
+    if (!task->tc_SPReg)
+        task->tc_SPReg = task->tc_SPUpper;
+
+	// setup stack
+
+	ULONG *sp = task->tc_SPReg;
+
+	// return address
+	if (finalPC)
+		*(--sp) = (ULONG) finalPC;
+	else
+		*(--sp) = (ULONG) SysBase->TaskExitCode;
+
+	// regs
+	for (int i = 0; i<15; i++)
+		*(--sp) = 0;
+
+	*(--sp) = 0;              // SR
+	*(--sp) = (ULONG) initPC; // PC
+
+	// launch it
+
+    struct Task *parent = SysBase->ThisTask;
+
+    Disable();
+
+    task->tc_State = TS_READY;
+    Enqueue (&SysBase->TaskReady, &task->tc_Node);
+
+    Enable();
+
+    return task;
 }
 
 static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm("a6"),
@@ -1342,7 +1457,8 @@ static void registerBuiltInLib (struct Library *libBase, ULONG num_funcs, struct
 	AddTail (&SysBase->LibList, (struct Node*) libBase);
 }
 
-struct newMemList {
+struct newMemList
+{
   struct Node     nml_Node;
   UWORD           nml_NumEntries;
   struct MemEntry nml_ME[2];
@@ -1379,16 +1495,16 @@ static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacks
 	ml = AllocEntry ((struct MemList *)&nml);
 	if (!(((unsigned int)ml) & (1<<31)))
 	{
-	    newtask=ml->ml_ME[0].me_Addr;
+	    newtask = ml->ml_ME[0].me_Addr;
 	    newtask->tc_Node.ln_Type = NT_TASK;
 	    newtask->tc_Node.ln_Pri  = pri;
 	    newtask->tc_Node.ln_Name = name;
 	    newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
 	    newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
 	    newtask->tc_SPUpper      = newtask->tc_SPReg;
-	    NEWLIST(&newtask->tc_MemEntry);
-	    AddHead(&newtask->tc_MemEntry,&ml->ml_Node);
-	    task2=AddTask(newtask,initpc,0);
+	    NEWLIST (&newtask->tc_MemEntry);
+	    AddHead (&newtask->tc_MemEntry,&ml->ml_Node);
+	    task2 = AddTask (newtask, initpc, 0);
 	    if (!task2)
 	    {
 	        FreeEntry (ml);
@@ -1403,6 +1519,12 @@ static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacks
 	return newtask;
 }
 
+static void _newList(struct List *_NewList_list)
+{
+    _NewList_list->lh_TailPred = (struct Node *) _NewList_list;
+    _NewList_list->lh_Head     = (struct Node *) &_NewList_list->lh_Tail;
+    _NewList_list->lh_Tail     = 0;
+}
 
 void __saveds coldstart (void)
 {
@@ -1553,9 +1675,7 @@ void __saveds coldstart (void)
 
 	// set up memory management
 
-	SysBase->MemList.lh_Head = NULL;
-	SysBase->MemList.lh_Tail = NULL;
-	SysBase->MemList.lh_TailPred = (struct Node *)&SysBase->MemList.lh_Head;
+	_newList (&SysBase->MemList);
 	SysBase->MemList.lh_Type = NT_MEMORY;
 
     struct MemChunk *myc = (struct MemChunk*)((uint8_t *)RAM_START);
@@ -1579,14 +1699,16 @@ void __saveds coldstart (void)
 	AddTail (&SysBase->MemList, &myh->mh_Node);
 
     // init and register built-in libraries
-	SysBase->LibList.lh_Head = NULL;
-	SysBase->LibList.lh_Tail = NULL;
-	SysBase->LibList.lh_TailPred = (struct Node *)&SysBase->LibList.lh_Head;
+	_newList (&SysBase->LibList);
 	SysBase->LibList.lh_Type = NT_LIBRARY;
 
     registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS,__lxa_dos_ROMTag);
 
     // bootstrap our first task
+	_newList (&SysBase->TaskReady);
+	SysBase->TaskReady.lh_Type = NT_TASK;
+	_newList (&SysBase->TaskWait);
+	SysBase->TaskWait.lh_Type = NT_TASK;
 
    	SysBase->ThisTask = _createTask ("exec bootstrap", 0, NULL, 8192); 
 

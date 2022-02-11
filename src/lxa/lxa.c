@@ -409,7 +409,7 @@ int main(int argc, char **argv, char **envp)
     m68k_set_cpu_type(M68K_CPU_TYPE_68000);
     m68k_pulse_reset();
 
-    m68k_execute(3000000);
+    m68k_execute(9000000);
 
 
 #if 0
