@@ -12,10 +12,20 @@
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
 
-
-
 #include "util.h"
 #include "lxa_dos.h"
+
+#define HUNK_TYPE_UNIT     0x03E7
+#define HUNK_TYPE_NAME     0x03E8
+#define HUNK_TYPE_CODE     0x03E9
+#define HUNK_TYPE_DATA     0x03EA
+#define HUNK_TYPE_BSS      0x03EB
+#define HUNK_TYPE_RELOC32  0x03EC
+#define HUNK_TYPE_EXT      0x03EF
+#define HUNK_TYPE_SYMBOL   0x03F0
+#define HUNK_TYPE_DEBUG    0x03F1
+#define HUNK_TYPE_END      0x03F2
+#define HUNK_TYPE_HEADER   0x03F3
 
 #define VERSION    1
 #define REVISION   1
@@ -181,12 +191,24 @@ static LONG __saveds _dos_Close ( register struct DosLibrary * __libBase __asm("
 }
 
 static LONG __saveds _dos_Read ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register BPTR ___file  __asm("d1"),
-                                                        register APTR ___buffer  __asm("d2"),
-                                                        register LONG ___length  __asm("d3"))
+                                 register BPTR file  __asm("d1"),
+                                 register APTR buffer  __asm("d2"),
+                                 register LONG length  __asm("d3"))
 {
-    lprintf ("_dos: Read unimplemented STUB called.\n");
-    assert(FALSE);
+    lprintf ("_dos: Read called: file=0x%08lx buffer=0x%08lx length=%ld\n", file, buffer, length);
+
+    struct FileHandle *fh = (struct FileHandle *) BADDR(file);
+    int l = emucall3 (EMU_CALL_DOS_READ, (ULONG) fh, (ULONG) buffer, length);
+
+    lprintf ("_dos: Read() result from emucall3: l=%ld\n", l);
+
+    if (l<0)
+    {
+        struct Process *me = (struct Process *)FindTask(NULL);
+        me->pr_Result2 = fh->fh_Arg2;
+    }
+
+    return l;
 }
 
 static LONG __saveds _dos_Write ( register struct DosLibrary * __libBase __asm("a6"),
@@ -340,49 +362,109 @@ static BPTR __saveds _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("
     {
 		lprintf ("_dos: LoadSeg() Open() for name=%s worked\n", ___name);
 
-#if 0
-        LI_segmentList sl = LI_SegmentList();
+        // read hunk HEADER
 
-        if (!LI_segmentListReadLoadFile (UP_runChild, sl, binfn, f))
+        ULONG ht;
+        if (Read (f, &ht, 4) != 4)
         {
-            return 0;
+            lprintf ("_dos: LoadSeg() failed to read header hunk type\n");
+            goto fail;
+        }
+        lprintf ("_dos: LoadSeg() header hunk type: 0x%08lx\n", ht);
+
+        if (ht != HUNK_TYPE_HEADER)
+        {
+            lprintf ("_dos: LoadSeg() invalid header hunk type\n");
+            goto fail;
         }
 
-        LI_relocate (sl, symbols);
-
-        // create AmigaDOS style seglist
-
-        for (LI_segmentListNode sln=sl->first; sln; sln=sln->next)
+        ULONG num_longs;
+        if (Read (f, &num_longs, 4) != 4)
+		{
+            lprintf ("_dos: LoadSeg() failed to read hunk table size\n");
+            goto fail;
+		}
+        if (num_longs)
         {
-            AS_segment seg = sln->seg;
-
-            uint32_t *ptr = (uint32_t *) seg->mem;
-            ptr -= 2;
-            ptr[0] = (uint32_t) seg->mem_pos+8;
-            if (sln->next)
-            {
-                ptr[1] = MKBADDR((uint32_t)sln->next->seg->mem - 4);
-            }
-            else
-            {
-                ptr[1] = 0;
-            }
-            lprintf ("_dos: LoadSeg(): creating seglist: kind=%d, hunk_id=%d, next=0x%08lx -> len=%6d next=0x%08lx code:0x%08lx...\n",
-                     seg->kind, seg->hunk_id, sln->next, ptr[0], ptr[1], ptr[2]);
+            // FIXME: implement
+            lprintf ("_dos: LoadSeg() sorry, library names are not implemented yet\n");
+            goto fail;
         }
-        lprintf ("_dos: LoadSeg(): creating seglist: done.\n");
 
-        CacheClearU();
-#endif
+        ULONG table_size;
+        ULONG first_hunk_slot;
+        ULONG last_hunk_slot;
 
-        LONG err = IoErr();
+        if (Read (f, &table_size, 4) != 4)
+            goto fail;
+        if (Read (f, &first_hunk_slot, 4) != 4)
+            goto fail;
+        if (Read (f, &last_hunk_slot, 4) != 4)
+            goto fail;
 
-		if (!segs)
-			lprintf ("_dos: LoadSeg() failed to load %s, err=%ld\n", ___name, err);
+        lprintf ("_dos: LoadSeg() reading hunk header, table_size=%d, first_hunk_slot=%d, last_hunk_slot=%d\n", table_size, first_hunk_slot, last_hunk_slot);
 
-        Close (f);
+    	ULONG *hunk_table = AllocVec ((table_size + 2)*4, MEMF_CLEAR);
+		if (!hunk_table)
+			goto fail;
 
-        SetIoErr (err);
+		ULONG prev_hunk = NULL;
+		ULONG first_hunk = NULL;
+        for (int i = first_hunk_slot; i <= last_hunk_slot; i++)
+		{
+			ULONG cnt;
+
+            if (Read(f, &cnt, 4) != 4)
+              goto fail;
+
+			ULONG mem_flags = (cnt & 0xC0000000) >> 29;
+			ULONG mem_size  = (cnt & 0x3FFFFFFF) * 4;
+
+            ULONG req = MEMF_CLEAR | MEMF_PUBLIC;
+            if (mem_flags == (MEMF_FAST | MEMF_CHIP))
+			{
+                if (Read(f, &req, 4) != 4)
+                    goto fail;
+            }
+			else
+			{
+                req |= mem_flags;
+            }
+
+			mem_size += 8; // we also room for the hunk length and the next hunk pointer
+            void *hunk_ptr = AllocVec (mem_size, req);
+            if (!hunk_ptr)
+				goto fail;
+            hunk_table[i] = MKBADDR(hunk_ptr);
+
+            lprintf ("_dos: LoadSeg() hunk %3d size=%d, flags=0x%08lx, req=0x%08lx -> 0x%08lx\n", i, mem_size, mem_flags, req, hunk_ptr);
+
+			// link hunks
+            if (!first_hunk)
+                first_hunk = hunk_table[i];
+            if (prev_hunk)
+                ((BPTR *)(BADDR(prev_hunk)))[0] = hunk_table[i];
+            prev_hunk = hunk_table[i];
+        }
+
+		// FIXME: read hunks
+		assert(FALSE);
+
+		// FIXME: relocate
+		assert(FALSE);
+
+
+fail:
+        {
+            LONG err = IoErr();
+
+            if (!segs)
+                lprintf ("_dos: LoadSeg() failed to load %s, err=%ld\n", ___name, err);
+
+            Close (f);
+
+            SetIoErr (err);
+        }
     }
 
     return segs;

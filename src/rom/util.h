@@ -4,6 +4,7 @@
 #include <exec/types.h>
 
 #define EMU_CALL_DOS_OPEN   1000
+#define EMU_CALL_DOS_READ   1001
 
 ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3);
 

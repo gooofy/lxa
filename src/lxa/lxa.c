@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include <linux/limits.h>
 
 #include "m68k.h"
@@ -24,6 +25,7 @@
 #define ROM_END     ROM_START + ROM_SIZE - 1
 
 #define EMU_CALL_DOS_OPEN   1000
+#define EMU_CALL_DOS_READ   1001
 
 #define AMIGA_SYSROOT "/home/guenter/media/emu/amiga/FS-UAE/hdd/system/"
 
@@ -33,7 +35,8 @@
 
 static uint8_t g_ram[RAM_SIZE];
 static uint8_t g_rom[ROM_SIZE];
-static bool    g_debug=false;
+static bool    g_debug   = false;
+static bool    g_running = true;
 
 #define ENDIAN_SWAP_16(data) ( (((data) >> 8) & 0x00FF) | (((data) << 8) & 0xFF00) )
 #define ENDIAN_SWAP_32(data) ( (((data) >> 24) & 0x000000FF) | (((data) >>  8) & 0x0000FF00) | \
@@ -61,7 +64,6 @@ static void hexdump (uint32_t offset, uint32_t num_bytes)
     }
     dprintf ("\n");
 }
-
 #endif
 
 static inline uint8_t mread8 (uint32_t address)
@@ -257,6 +259,12 @@ static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_l
     snprintf (linux_path, buf_len, "%s/%s", AMIGA_SYSROOT, amiga_path);
 }
 
+static int errno2Amiga (void)
+{
+    // FIXME: do actual mapping!
+    return errno;
+}
+
 static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 {
     char *amiga_path = _mgetstr(path68k);
@@ -290,9 +298,26 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 
     printf ("lxa: _dos_open(): open() result: fd=%d, err=%d\n", fd, err);
 
-	m68k_write_memory_32 (fh68k+36, fd);
+	m68k_write_memory_32 (fh68k+36, fd); // fh_Args
 
-	return err; // FIXME: map to AmigaDOS
+	return errno2Amiga();
+}
+
+static int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
+{
+    printf ("lxa: _dos_read(): fh=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
+
+	int fd = m68k_read_memory_32 (fh68k+36);
+    printf ("                  -> fd = %d\n", fd);
+
+    void *buf = _mgetstr (buf68k);
+
+    ssize_t l = read (fd, buf, len68k);
+
+    if (l<0)
+        m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+
+    return l;
 }
 
 int op_illg(int level)
@@ -320,6 +345,7 @@ int op_illg(int level)
         case 2:
             printf ("*** emulator stop via lxcall.\n");
             m68k_end_timeslice();
+            g_running = FALSE;
             break;
 
         case EMU_CALL_DOS_OPEN:
@@ -337,25 +363,26 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_DOS_READ:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+
+            printf ("lxa: op_illg(): EMU_CALL_DOS_READ file=0x%08x, buffer=0x%08x, len=%d\n", d1, d2, d3);
+
+            uint32_t res = _dos_read (d1, d2, d3);
+
+            m68k_set_reg(M68K_REG_D0, res);
+
+            break;
+        }
+
         default:
             printf ("*** error: undefined lxcall #%d\n", d0);
     }
 
-    //if (intno == 35)
-	//{
-	//	uint32_t fn, c;
-	//	uc_reg_read(g_uc, UC_M68K_REG_D0, &fn);
-
-
-    //}
-    //if (intno == 61)
-    //{
-    //    printf ("\n\n *** ERROR: unsupported exception was thrown!\n\n");
-    //    uc_emu_stop(uc);
-    //}
-
 	return M68K_INT_ACK_AUTOVECTOR;
-	//return M68K_INT_ACK_SPURIOUS;
 }
 
 static void print_usage(char *argv[])
@@ -409,68 +436,10 @@ int main(int argc, char **argv, char **envp)
     m68k_set_cpu_type(M68K_CPU_TYPE_68000);
     m68k_pulse_reset();
 
-    m68k_execute(9000000);
-
-
-#if 0
-	uc_err err;
-    static uint8_t rom[ROM_SIZE];
-    FILE *romf;
-
-	// Initialize emulator in 68k mode
-	err = uc_open(UC_ARCH_M68K, UC_MODE_BIG_ENDIAN, &g_uc);
-	if (err != UC_ERR_OK)
+    while (g_running)
     {
-	    printf("Failed on uc_open() with error returned: %u\n", err);
-	    return -1;
-	}
-
-    // set up memory map
-
-	uc_mem_map(g_uc, CHIPMEM_ADDRESS, CHIPMEM_SIZE, UC_PROT_ALL                );   // 0x000000 2MB   chip mem
-	uc_mem_map(g_uc, FASTMEM_ADDRESS, FASTMEM_SIZE, UC_PROT_ALL                );   // 0x200000 8MB   fast mem
-	uc_mem_map(g_uc, ROM_ADDRESS,     ROM_SIZE,     UC_PROT_READ | UC_PROT_EXEC);   // 0xf80000 256KB system rom
-
-
-	// write machine code to be emulated to memory
-	if (uc_mem_write(g_uc, ROM_ADDRESS, rom, ROM_SIZE))
-    {
-	    printf("Failed to write emulation code to memory, quit!\n");
-	    return -1;
-	}
-
-	// init stack pointer
-	uint32_t r_a7 = FASTMEM_ADDRESS; // 0x9FFF00;
-	uc_reg_write(g_uc, UC_M68K_REG_A7, &r_a7);
-
-    // no supervisor mode
-    uint32_t sr;
-    uc_reg_read(g_uc, UC_M68K_REG_SR, &sr);
-    sr &= 0xdfff;
-    uc_reg_write(g_uc, UC_M68K_REG_SR, &sr);
-	// coldstart
-	uint32_t coldstart = lpeek (ROM_ADDRESS+4);
-    printf ("coldstart = 0x%08x\n", coldstart);
-	hexdump (coldstart, 20);
-
-    // lxcall handler
-    uc_hook lxchook;
-	uc_hook_add (g_uc, &lxchook, UC_HOOK_INTR, hook_lxcall, NULL, 1, 0);
-
-	uc_hook hook1, hook2, hook3;
-	uc_hook_add (g_uc, &hook1, UC_HOOK_MEM_READ, hook_mem, NULL, 1, 0);
-	uc_hook_add (g_uc, &hook2, UC_HOOK_MEM_WRITE, hook_mem, NULL, 1, 0);
-	uc_hook_add (g_uc, &hook3, UC_HOOK_CODE, hook_code, NULL, 1, 0);
-
-	// emulate code in infinite time & unlimited instructions
-	err=uc_emu_start(g_uc, coldstart, ROM_ADDRESS + ROM_SIZE-1, 0, 0);
-	if (err)
-    {
-	    printf("Failed on uc_emu_start() with error returned %u: %s\n", err, uc_strerror(err));
-	}
-
-	uc_close(g_uc);
-    #endif
+        m68k_execute(1000000);
+    }
 
 	return 0;
 }
