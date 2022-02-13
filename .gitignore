@@ -60,3 +60,6 @@ src/lxa/tmp/
 src/rom/exec.library
 src/rom/my.rom
 old
+src/lxa/lxa.log
+src/tools/sfd2lib/dos.c
+src/tools/sfd2lib/dos_lib.sfd
