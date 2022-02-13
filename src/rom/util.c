@@ -33,6 +33,20 @@ uint32_t strlen(const char *string)
     return ~(string - s);
 }
 
+ULONG emucall1 (ULONG func, ULONG param1)
+{
+    ULONG res;
+    asm( "move.l    %1, d0\n\t"
+         "move.l    %2, d1\n\t"
+         "illegal\n\t"
+         "move.l    d0, %0\n"
+        : "=r" (res)
+        : "r" (func), "r" (param1)
+        : "cc", "d0", "d1"
+        );
+    return res;
+}
+
 ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3)
 {
     ULONG res;
@@ -59,22 +73,23 @@ void emu_stop (void)
         );
 }
 
-void lputc (char c)
+void lputc (int level, char c)
 {
-    asm( "move.l    #1, d0\n\t"
+    asm( "move.l    #1, d0\n /* EMU_CALL_LPUTC */  \t"
          "move.l    %0, d1\n\t"
+         "move.l    %1, d2\n\t"
          "illegal"
         : /* no outputs */
-        : "r" (c)
+        : "r" (level), "r" (c)
         : "cc", "d0", "d1"
         );
 }
 
-void lputs (const char *s)
+void lputs (int lvl, const char *s)
 {
     while (*s)
     {
-        lputc (*s);
+        lputc (lvl, *s);
         s++;
     }
 }
@@ -186,7 +201,7 @@ int isdigit(int c)
     return _ctype_[1+c]&4;
 }
 
-void vlprintf(const char *format, va_list args)
+static void vlprintf(int lvl, const char *format, va_list args)
 {
     //lputs("1\n");
 
@@ -343,33 +358,33 @@ void vlprintf(const char *format, va_list args)
 
 			if (flags & ZEROPADFLAG) /* print sign and that like */
 				for (i = 0; i < size1; i++)
-					lputc(buffer1[i]);
+					lputc(lvl, buffer1[i]);
 
 			if (!(flags & LALIGNFLAG)) /* Pad left */
 				for (i = 0; i < pad; i++)
-					lputc(flags&ZEROPADFLAG?'0':' ');
+					lputc(lvl, flags&ZEROPADFLAG?'0':' ');
 
 			if (!(flags & ZEROPADFLAG)) /* print sign if not zero padded */
 				for (i = 0; i < size1; i++)
-					lputc(buffer1[i]);
+					lputc(lvl, buffer1[i]);
 
 			for (i = size2; i < preci; i++) /* extend to precision */
-				lputc('0');
+				lputc(lvl, '0');
 
 			for (i = 0; i < size2; i++) /* print body */
-				lputc(buffer2[i]);
+				lputc(lvl, buffer2[i]);
 
 			if (flags & LALIGNFLAG) /* Pad right */
 				for (i = 0; i < pad; i++)
-					lputc(' ');
+					lputc(lvl, ' ');
 
 			format = ptr;
 		} else
-			lputc(*format++);
+			lputc(lvl, *format++);
 	}
 }
 
-void lprintf(const char *format, ...)
+void lprintf(int lvl, const char *format, ...)
 {
     va_list args;
 
@@ -377,13 +392,13 @@ void lprintf(const char *format, ...)
     //lputs(format);
 
     va_start(args, format);
-    vlprintf(format, args);
+    vlprintf(lvl, format, args);
     va_end(args);
 }
 
 __stdargs void __assert_func (const char *file_name, int line_number, const char *e)
 {
-    lprintf ("*** assertion failed: %s:%d %s\n", file_name, line_number, e);
+    lprintf (LOG_ERROR, "*** assertion failed: %s:%d %s\n", file_name, line_number, e);
     emu_stop();
 }
 
@@ -416,51 +431,48 @@ BOOL isprintable (char c)
 {
     return (c>=32) & (c<127);
 }
- 
-void hexdump(void *mem, unsigned int len)
+
+void hexdump (int lvl, void *mem, unsigned int len)
 {
-        unsigned int i, j;
-        
-        for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
+    unsigned int i, j;
+
+    for(i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
+    {
+        /* print offset */
+        if(i % HEXDUMP_COLS == 0)
         {
-                /* print offset */
-                if(i % HEXDUMP_COLS == 0)
-                {
-                        lprintf("0x%06x: ", i);
-                }
- 
-                /* print hex data */
-                if(i < len)
-                {
-                        lprintf("%02x ", 0xFF & ((char*)mem)[i]);
-                }
-                else /* end of block, just aligning for ASCII dump */
-                {
-                        lprintf("   ");
-                }
-                
-                /* print ASCII dump */
-                if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
-                {
-                        for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
-                        {
-                                if(j >= len) /* end of block, not really printing */
-                                {
-                                        lprintf(" ");
-                                }
-                                else if (isprintable((((char*)mem)[j]))) /* printable char */
-                                {
-                                        lprintf("%c", 0xFF & ((char*)mem)[j]);        
-                                }
-                                else /* other char */
-                                {
-                                        lprintf(".");
-                                }
-                        }
-                        lprintf("\n");
-                }
+            LPRINTF(lvl, "0x%06x: ", i);
         }
+
+        /* print hex data */
+        if(i < len)
+        {
+            LPRINTF(lvl, "%02x ", 0xFF & ((char*)mem)[i]);
+        }
+        else /* end of block, just aligning for ASCII dump */
+        {
+            LPRINTF(lvl, "   ");
+        }
+
+        /* print ASCII dump */
+        if(i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
+        {
+            for(j = i - (HEXDUMP_COLS - 1); j <= i; j++)
+            {
+                if(j >= len) /* end of block, not really printing */
+                {
+                    LPRINTF(lvl, " ");
+                }
+                else if (isprintable((((char*)mem)[j]))) /* printable char */
+                {
+                    LPRINTF(lvl, "%c", 0xFF & ((char*)mem)[j]);
+                }
+                else /* other char */
+                {
+                    LPRINTF(lvl, ".");
+                }
+            }
+            LPRINTF(lvl, "\n");
+        }
+    }
 }
-
-
- 

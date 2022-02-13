@@ -3,15 +3,35 @@
 
 #include <exec/types.h>
 
+
+#define EMU_CALL_LPUTC         1
+#define EMU_CALL_STOP          2
 #define EMU_CALL_DOS_OPEN   1000
 #define EMU_CALL_DOS_READ   1001
+#define EMU_CALL_DOS_SEEK   1002
+#define EMU_CALL_DOS_CLOSE  1003
 
+ULONG emucall1 (ULONG func, ULONG param1);
 ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3);
 
+/*
+ * debugging / logging
+ */
+
+#define LOG_DEBUG   0
+#define LOG_INFO    1
+#define LOG_WARNING 2
+#define LOG_ERROR   3
+
+#define LOG_LEVEL LOG_DEBUG
+//#define LOG_LEVEL LOG_INFO
+
 int   isdigit  (int c);
-void  lputc    (char c);
-void  lputs    (const char *s);
-void  lprintf  (const char *format, ...);
+void  lputc    (int level, char c);
+void  lputs    (int level, const char *s);
+void  lprintf  (int level, const char *format, ...);
+
+#define LPRINTF(lvl, ...) do { if (lvl >= LOG_LEVEL) lprintf(lvl, __VA_ARGS__); } while (0)
 
 void  emu_stop (void);
 
@@ -39,6 +59,6 @@ int strcmp(const char* s1, const char* s2);
 #define ALIGN(x,a)              __ALIGN_MASK(x,(typeof(x))(a)-1)
 #define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
 
-void hexdump(void *mem, unsigned int len);
+void hexdump(int lvl, void *mem, unsigned int len);
 
 #endif

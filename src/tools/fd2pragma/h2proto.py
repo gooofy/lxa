@@ -485,7 +485,7 @@ def gen_stub (syscall_name, offset, return_type, args, bn, out):
             else:
                 out.write (")\n")
     out.write ("{\n")
-    out.write ("    lprintf (\"%s: %s unimplemented STUB called.\\n\");\n" % (lib_prefix, syscall_name));
+    out.write ("    DPRINTF (LOG_ERROR, \"%s: %s() unimplemented STUB called.\\n\");\n" % (lib_prefix, syscall_name));
     out.write ("    assert(FALSE);\n")
     out.write ("}\n\n")
 

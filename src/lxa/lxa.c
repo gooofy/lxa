@@ -12,7 +12,7 @@
 #include "m68k.h"
 
 #define DEBUG       true
-
+#define LXA_LOG_FILENAME "lxa.log"
 #define dprintf(...) do { if (DEBUG && g_debug) printf(__VA_ARGS__); } while (0)
 
 #define RAM_START   0x000000
@@ -24,8 +24,12 @@
 #define ROM_START   0xf80000
 #define ROM_END     ROM_START + ROM_SIZE - 1
 
+#define EMU_CALL_LPUTC         1
+#define EMU_CALL_STOP          2
 #define EMU_CALL_DOS_OPEN   1000
 #define EMU_CALL_DOS_READ   1001
+#define EMU_CALL_DOS_SEEK   1002
+#define EMU_CALL_DOS_CLOSE  1003
 
 #define AMIGA_SYSROOT "/home/guenter/media/emu/amiga/FS-UAE/hdd/system/"
 
@@ -33,10 +37,15 @@
 #define MODE_NEWFILE        1006
 #define MODE_READWRITE      1004
 
+#define OFFSET_BEGINNING    -1
+#define OFFSET_CURRENT       0
+#define OFFSET_END           1
+
 static uint8_t g_ram[RAM_SIZE];
 static uint8_t g_rom[ROM_SIZE];
 static bool    g_debug   = false;
 static bool    g_running = true;
+static FILE   *g_logf    = NULL;
 
 #define ENDIAN_SWAP_16(data) ( (((data) >> 8) & 0x00FF) | (((data) << 8) & 0xFF00) )
 #define ENDIAN_SWAP_32(data) ( (((data) >> 24) & 0x000000FF) | (((data) >>  8) & 0x0000FF00) | \
@@ -91,7 +100,7 @@ static inline uint8_t mread8 (uint32_t address)
 unsigned int m68k_read_memory_8 (unsigned int address)
 {
     uint8_t b = mread8(address);
-    dprintf("READ8   at 0x%08x -> 0x%02x\n", address, b);
+    //dprintf("READ8   at 0x%08x -> 0x%02x\n", address, b);
     return b;
 }
 
@@ -101,14 +110,14 @@ unsigned int m68k_read_memory_16 (unsigned int address)
 
     //char buff[100];
     //m68k_disassemble(buff, address, M68K_CPU_TYPE_68000);
-    dprintf("READ16  at 0x%08x -> 0x%04x\n", address, w);
+    //dprintf("READ16  at 0x%08x -> 0x%04x\n", address, w);
     return w;
 }
 
 unsigned int m68k_read_memory_32 (unsigned int address)
 {
     uint32_t l = (mread8(address)<<24) | (mread8(address+1)<<16) | (mread8(address+2)<<8) | mread8(address+3);
-    dprintf("READ32  at 0x%08x -> 0x%08x\n", address, l);
+    //dprintf("READ32  at 0x%08x -> 0x%08x\n", address, l);
     return l;
 }
 
@@ -128,20 +137,20 @@ static inline void mwrite8 (uint32_t address, uint8_t value)
 
 void m68k_write_memory_8(unsigned int address, unsigned int value)
 {
-    dprintf("WRITE8  at 0x%08x -> 0x%02x\n", address, value);
+    //dprintf("WRITE8  at 0x%08x -> 0x%02x\n", address, value);
     mwrite8 (address, value);
 }
 
 void m68k_write_memory_16(unsigned int address, unsigned int value)
 {
-    dprintf("WRITE16 at 0x%08x -> 0x%04x\n", address, value);
+   // dprintf("WRITE16 at 0x%08x -> 0x%04x\n", address, value);
     mwrite8 (address  , (value >> 8) & 0xff);
     mwrite8 (address+1, value & 0xff);
 }
 
 void m68k_write_memory_32(unsigned int address, unsigned int value)
 {
-    dprintf("WRITE32 at 0x%08x -> 0x%08x\n", address, value);
+    //dprintf("WRITE32 at 0x%08x -> 0x%08x\n", address, value);
     mwrite8 (address  , (value >>24) & 0xff);
     mwrite8 (address+1, (value >>16) & 0xff);
     mwrite8 (address+2, (value >> 8) & 0xff);
@@ -172,6 +181,7 @@ void make_hex(char* buff, unsigned int pc, unsigned int length)
 	}
 }
 
+#if 0
 static void print68kstate(void)
 {
     uint32_t d0,d1,d2,d3,d4,d5,d6,d7;
@@ -213,6 +223,7 @@ static void print68kstate(void)
     uc_reg_write(g_uc, UC_M68K_REG_SR, &sr);
 #endif
 }
+#endif
 
 void cpu_instr_callback(int pc)
 {
@@ -225,9 +236,9 @@ void cpu_instr_callback(int pc)
         //pc = m68k_get_reg(NULL, M68K_REG_PC);
         instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
         make_hex(buff2, pc, instr_size);
-        printf("E %03x: %-20s: %s\n", pc, buff2, buff);
-        print68kstate();
-        fflush(stdout);
+        //printf("E %03x: %-20s: %s\n", pc, buff2, buff);
+        //print68kstate();
+        //fflush(stdout);
     }
 }
 
@@ -270,10 +281,10 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
     char *amiga_path = _mgetstr(path68k);
     char lxpath[PATH_MAX];
 
-    printf ("lxa: _dos_open(): amiga_path=%s\n", amiga_path);
+    dprintf ("lxa: _dos_open(): amiga_path=%s\n", amiga_path);
 
     _dos_path2linux (amiga_path, lxpath, PATH_MAX);
-    printf ("lxa: _dos_open(): lxpath=%s\n", lxpath);
+    dprintf ("lxa: _dos_open(): lxpath=%s\n", lxpath);
 
 	int flags = 0;
 	mode_t mode = 0644;
@@ -296,7 +307,7 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 	int fd = open (lxpath, flags, mode);
 	int err = errno;
 
-    printf ("lxa: _dos_open(): open() result: fd=%d, err=%d\n", fd, err);
+    dprintf ("lxa: _dos_open(): open() result: fd=%d, err=%d\n", fd, err);
 
 	m68k_write_memory_32 (fh68k+36, fd); // fh_Args
 
@@ -305,10 +316,10 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 
 static int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 {
-    printf ("lxa: _dos_read(): fh=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
+    dprintf ("lxa: _dos_read(): fh=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
 
 	int fd = m68k_read_memory_32 (fh68k+36);
-    printf ("                  -> fd = %d\n", fd);
+    dprintf ("                  -> fd = %d\n", fd);
 
     void *buf = _mgetstr (buf68k);
 
@@ -320,29 +331,65 @@ static int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
     return l;
 }
 
+static int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
+{
+    dprintf ("lxa: _dos_seek(): fh=0x%08x, position=0x%08x, mode=%d\n", fh68k, position, mode);
+
+	int fd = m68k_read_memory_32 (fh68k+36);
+
+    int whence = 0;
+    switch (mode)
+    {
+        case OFFSET_BEGINNING: whence = SEEK_SET; break;
+        case OFFSET_CURRENT  : whence = SEEK_CUR; break;
+        case OFFSET_END      : whence = SEEK_END; break;
+        default:
+            assert(FALSE);
+    }
+
+    off_t o = lseek (fd, position, whence);
+
+    if (o<0)
+        m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+
+    return o;
+}
+
+static int _dos_close (uint32_t fh68k)
+{
+    dprintf ("lxa: _dos_close(): fh=0x%08x\n", fh68k);
+
+	int fd = m68k_read_memory_32 (fh68k+36);
+
+    close(fd);
+
+    dprintf ("lxa: _dos_close(): fh=0x%08x done\n", fh68k);
+    return 1;
+}
+
 int op_illg(int level)
 {
     uint32_t d0 = m68k_get_reg(NULL, M68K_REG_D0);
-	dprintf ("ILLEGAL, d=%d\n", d0);
+	//dprintf ("ILLEGAL, d=%d\n", d0);
 
     switch (d0)
     {
-        case 1:
+        case EMU_CALL_LPUTC:
         {
-            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
-            //print68kstate(g_uc);
-            //uc_reg_read(g_uc, UC_M68K_REG_D1, &c);
-            printf ("%c", d1); fflush (stdout);
+            uint32_t lvl = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t ch  = m68k_get_reg(NULL, M68K_REG_D2);
 
-            //uint32_t r_pc = lpeek(0x00008c);
-            //uc_reg_read (g_uc, UC_M68K_REG_PC, &r_pc);
-            //r_pc += 2;
-            //uc_reg_write(g_uc, UC_M68K_REG_PC, &r_pc);
+            fprintf (g_logf, "%c", ch);
+
+            if (lvl || g_debug)
+            {
+                printf ("%c", ch); fflush (stdout);
+            }
 
             break;
         }
 
-        case 2:
+        case EMU_CALL_STOP:
             printf ("*** emulator stop via lxcall.\n");
             m68k_end_timeslice();
             g_running = FALSE;
@@ -354,7 +401,7 @@ int op_illg(int level)
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
 
-            printf ("lxa: op_illg(): EMU_CALL_DOS_OPEN name=0x%08x, accessMode=0x%08x, fh=0x%08x\n", d1, d2, d3);
+            dprintf ("lxa: op_illg(): EMU_CALL_DOS_OPEN name=0x%08x, accessMode=0x%08x, fh=0x%08x\n", d1, d2, d3);
 
             uint32_t res = _dos_open (d1, d2, d3);
 
@@ -369,7 +416,7 @@ int op_illg(int level)
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
 
-            printf ("lxa: op_illg(): EMU_CALL_DOS_READ file=0x%08x, buffer=0x%08x, len=%d\n", d1, d2, d3);
+            dprintf ("lxa: op_illg(): EMU_CALL_DOS_READ file=0x%08x, buffer=0x%08x, len=%d\n", d1, d2, d3);
 
             uint32_t res = _dos_read (d1, d2, d3);
 
@@ -378,8 +425,38 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_DOS_SEEK:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+
+            dprintf ("lxa: op_illg(): EMU_CALL_DOS_SEEK file=0x%08x, position=0x%08x, mode=%d\n", d1, d2, d3);
+
+            uint32_t res = _dos_seek (d1, d2, d3);
+
+            m68k_set_reg(M68K_REG_D0, res);
+
+            break;
+        }
+
+        case EMU_CALL_DOS_CLOSE:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+
+            dprintf ("lxa: op_illg(): EMU_CALL_DOS_CLOSE file=0x%08x\n", d1);
+
+            uint32_t res = _dos_close (d1);
+
+            m68k_set_reg(M68K_REG_D0, res);
+
+            break;
+        }
+
         default:
             printf ("*** error: undefined lxcall #%d\n", d0);
+            m68k_end_timeslice();
+            g_running = FALSE;
     }
 
 	return M68K_INT_ACK_AUTOVECTOR;
@@ -412,6 +489,10 @@ int main(int argc, char **argv, char **envp)
 		print_usage(argv);
 		exit(EXIT_FAILURE);
 	}
+
+    // logging
+    g_logf = fopen (LXA_LOG_FILENAME, "w");
+    assert (g_logf);
 
     // load rom code
     FILE *romf = fopen (ROM_PATH, "r");
