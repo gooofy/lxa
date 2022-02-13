@@ -57,8 +57,15 @@ static void __saveds _exec_unimplemented_call ( register struct ExecBase  *exb _
 static ULONG __saveds _exec_Supervisor ( register struct ExecBase * __libBase __asm("a6"),
                                                         register VOID (*__fpt)()  __asm("d7"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: Supervisor unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: Supervisor() unimplemented STUB called.\n");
     assert(FALSE);
+}
+
+#define Dispatch() LP0NR(0x3c, Dispatch, , EXEC_BASE_NAME)
+
+static ULONG __saveds _exec_Dispatch ( register struct ExecBase * __libBase __asm("a6"))
+{
+    DPRINTF (LOG_INFO, "_exec: Dispatch() unimplemented STUB called.\n");
 }
 
 static void __saveds _exec_InitCode ( register struct ExecBase * __libBase __asm("a6"),
@@ -769,7 +776,7 @@ static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm(
                                      register const APTR   initPC   __asm("a2"),
                                      register const APTR   finalPC  __asm("a3"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AddTask called task=0x%08lx, initPC=0x%08lx, finalPC=0x%08lx\n", task, initPC, finalPC);
+    DPRINTF (LOG_INFO, "_exec: AddTask called task=0x%08lx, initPC=0x%08lx, finalPC=0x%08lx\n", task, initPC, finalPC);
 
 	// prepare task structure
 
@@ -809,8 +816,12 @@ static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm(
 	for (int i = 0; i<15; i++)
 		*(--sp) = 0;
 
-	*(--sp) = 0;              // SR
+	UWORD *spw = (UWORD*) sp;
+	*(--spw) = 0;             // SR
+	sp = (ULONG*) spw;
 	*(--sp) = (ULONG) initPC; // PC
+
+	task->tc_SPReg = sp;
 
 	// launch it
 
@@ -974,9 +985,9 @@ static void __saveds _exec_ReplyMsg ( register struct ExecBase * __libBase __asm
 }
 
 static struct Message * __saveds _exec_WaitPort ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct MsgPort * ___port  __asm("a0"))
+                                                  register struct MsgPort * ___port  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: WaitPort unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: WaitPort() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
@@ -1510,18 +1521,24 @@ static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacks
 	    newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
 	    newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
 	    newtask->tc_SPUpper      = newtask->tc_SPReg;
+
+		DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx, initPC=0x%08lx\n",
+				 newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc); 
+
 	    NEWLIST (&newtask->tc_MemEntry);
 	    AddHead (&newtask->tc_MemEntry,&ml->ml_Node);
 	    task2 = AddTask (newtask, initpc, 0);
 	    if (!task2)
 	    {
+			DPRINTF (LOG_ERROR, "_exec: _createTask() AddTask() failed\n");
 	        FreeEntry (ml);
 			newtask = NULL;
 	    }
 	}
 	else
 	{
-	  newtask = NULL;
+		DPRINTF (LOG_ERROR, "_exec: _createTask() failed to allocate memory\n");
+	    newtask = NULL;
 	}
 
 	return newtask;
@@ -1534,13 +1551,36 @@ static void _newList(struct List *_NewList_list)
     _NewList_list->lh_Tail     = 0;
 }
 
+static void __saveds _bootstrap(void)
+{
+	DPRINTF (LOG_INFO, "_exec: _bootstrap() called\n");
+
+#if 1
+    // load our test program
+
+	OpenLibrary ("dos.library", 0);
+	BPTR segs = LoadSeg ("x/foo");
+
+    // inject initPC pointing to our loaded code into our task's stack
+
+    APTR initPC = BADDR(segs+1);
+
+    DPRINTF (LOG_INFO, "_exec: _bootstrap(): initPC is 0x%08lx\n", initPC);
+	hexdump (LOG_INFO, initPC, 32);
+
+    //*((APTR*) SysBase->ThisTask->tc_SPReg) = initPC;
+#endif
+
+    emu_stop();
+}
+
 void __saveds coldstart (void)
 {
     //uint32_t *p = (void*) 0x00008c;
     //*p = (uint32_t) handleTRAP3;
 
-    __asm("andi.w  #0xdfff, sr\n");
-    __asm("move.l  #0x9fff99, a7\n");
+    //__asm("andi.w  #0xdfff, sr\n");	// disable supervisor bit
+    //__asm("move.l  #0x9fff99, a7\n");	// setup initial stack
 
     DPRINTF (LOG_DEBUG, "coldstart: EXEC_VECTORS_START = 0x%08lx\n", EXEC_VECTORS_START);
     DPRINTF (LOG_DEBUG, "           EXEC_BASE_START    = 0x%08lx\n", EXEC_BASE_START   );
@@ -1566,6 +1606,12 @@ void __saveds coldstart (void)
 	}
 
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-30)].vec = _exec_Supervisor;
+    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-36)].vec = _exec_ExitIntr;
+    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-42)].vec = _exec_Schedule;
+    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-48)].vec = _exec_Reschedule;
+    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-54)].vec = _exec_Switch;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-60)].vec = _exec_Dispatch;
+    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-66)].vec = _exec_Exception;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-72)].vec = _exec_InitCode;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-78)].vec = _exec_InitStruct;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-84)].vec = _exec_MakeLibrary;
@@ -1712,23 +1758,42 @@ void __saveds coldstart (void)
 
     registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS,__lxa_dos_ROMTag);
 
-    // bootstrap our first task
+    // init task lists
 	_newList (&SysBase->TaskReady);
 	SysBase->TaskReady.lh_Type = NT_TASK;
 	_newList (&SysBase->TaskWait);
 	SysBase->TaskWait.lh_Type = NT_TASK;
 
-   	SysBase->ThisTask = _createTask ("exec bootstrap", 0, NULL, 8192);
+    // create a bootstrap task
+   	SysBase->ThisTask = _createTask ("exec bootstrap", 0, _bootstrap, 8192);
 
-    // run a little test program
+    // launch it
 
-	OpenLibrary ("dos.library", 0);
+    //__asm("andi.w  #0xdfff, sr\n");	// disable supervisor bit
+    //__asm("move.l  #0x9fff99, a7\n");	// setup initial stack
 
-	BPTR segs = LoadSeg ("x/foo");
+	DPRINTF (LOG_INFO, "coldstart: about to launch _bootstrap task, pc=0x%08lx\n",
+			 *((ULONG *)SysBase->ThisTask->tc_SPReg));
 
-    Output();
+    asm( "move.l    %0, a5\n\t"
 
-    assert(FALSE);
+	     // restore usp
+	     "lea.l     2+4*16(a5),a2\n\t" 
+	     "move.l    a2, usp\n\t"
+
+		 // prepare stack for for rte
+	     "move.l    (a5)+, -(a7)\n\t" // pc
+	     "move.w    (a5)+, -(a7)\n\t" // sr
+
+		 // restore registers
+	     "movem.l   (a5), d0-d7/a0-a6\n\t"
+
+		 // return from supervisor mode, jump into our task
+         "rte\n\t"
+        : /* no outputs */
+        : "r" (SysBase->ThisTask->tc_SPReg)
+        : "cc", "a5", "a2"                   // doesn't really matter since will never exit from these instructions anyway
+        );
 
     emu_stop();
 }

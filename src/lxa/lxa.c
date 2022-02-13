@@ -380,6 +380,8 @@ int op_illg(int level)
             uint32_t ch  = m68k_get_reg(NULL, M68K_REG_D2);
 
             fprintf (g_logf, "%c", ch);
+            if (ch==10)
+                fflush (g_logf);
 
             if (lvl || g_debug)
             {
