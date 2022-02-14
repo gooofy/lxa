@@ -40,6 +40,6 @@
 
 #define RAM_START               DOS_BASE_END + 1
 #define RAM_SIZE                10 * 1024 * 1024
-#define RAM_END                 RAM_START + RAM_SIZE - 1
+#define RAM_END                 RAM_SIZE - 1
 
 #endif

@@ -61,6 +61,14 @@ static ULONG __saveds _exec_Supervisor ( register struct ExecBase * __libBase __
     assert(FALSE);
 }
 
+#define Schedule() LP0NR(0x2a, Schedule, , EXEC_BASE_NAME)
+
+static ULONG __saveds _exec_Schedule ( register struct ExecBase * __libBase __asm("a6"))
+{
+    DPRINTF (LOG_DEBUG, "_exec: Schedule() unimplemented STUB called.\n");
+}
+
+
 #define Dispatch() LP0NR(0x3c, Dispatch, , EXEC_BASE_NAME)
 
 static ULONG __saveds _exec_Dispatch ( register struct ExecBase * __libBase __asm("a6"))
@@ -708,10 +716,14 @@ static void __saveds _exec_AddTail ( register struct ExecBase * __libBase __asm(
 }
 
 static void __saveds _exec_Remove ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct Node * ___node  __asm("a1"))
+                                    register struct Node * node  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: Remove unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: Remove called, node=0x%08lx\n", node);
+
+    assert (node);
+
+    node->ln_Pred->ln_Succ = node->ln_Succ;
+    node->ln_Succ->ln_Pred = node->ln_Pred;
 }
 
 static struct Node * __saveds _exec_RemHead ( register struct ExecBase * __libBase __asm("a6"),
@@ -777,6 +789,8 @@ static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm(
                                      register const APTR   finalPC  __asm("a3"))
 {
     DPRINTF (LOG_INFO, "_exec: AddTask called task=0x%08lx, initPC=0x%08lx, finalPC=0x%08lx\n", task, initPC, finalPC);
+
+    assert(task);
 
 	// prepare task structure
 
@@ -1457,14 +1471,14 @@ static void __saveds _exec_CachePostDMA ( register struct ExecBase * __libBase _
 static void __saveds _exec_AddMemHandler ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Interrupt * ___memhand  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AddMemHandler unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: AddMemHandler unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static void __saveds _exec_RemMemHandler ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Interrupt * ___memhand  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: RemMemHandler unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: RemMemHandler unimplemented STUB called.\n");
     assert(FALSE);
 }
 
@@ -1483,13 +1497,6 @@ struct newMemList
   struct MemEntry nml_ME[2];
 };
 
-const struct newMemList MemTemplate = {
-  {0,},
-  2,
-  { {MEMF_CLEAR|MEMF_PUBLIC, sizeof(struct Task)},
-    {MEMF_CLEAR, 0} }
-};
-
 #define NEWLIST(l) ((l)->lh_Head = (struct Node *)&(l)->lh_Tail, \
                     /*(l)->lh_Tail = NULL,*/ \
                     (l)->lh_TailPred = (struct Node *)&(l)->lh_Head)
@@ -1501,15 +1508,24 @@ static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacks
 	struct Task       *newtask;
 	APTR               task2;
 
+    DPRINTF (LOG_DEBUG, "_exec: _createTask() called, name=%s, pri=%ld, initpc=0x%08lx, stacksize=%ld\n",
+             name ? (char *) name : "NULL", pri, initpc, stacksize);
+
+
 	stacksize = (stacksize+3)&~3;
 
-	{
-		long *p1,*p2;
-	  	int i;
+    nml.nml_Node.ln_Succ = NULL;
+    nml.nml_Node.ln_Pred = NULL;
+    nml.nml_Node.ln_Type = NT_MEMORY;
+    nml.nml_Node.ln_Pri  = 0;
+    nml.nml_Node.ln_Name = NULL;
 
-	  	for (p1=(long *)&nml,p2=(long*)&MemTemplate,i=7; i; *p1++=*p2++,i--) ;
-	  	*p1=stacksize;
-	}
+    nml.nml_NumEntries = 2;
+
+    nml.nml_ME[0].me_Un.meu_Reqs = MEMF_CLEAR|MEMF_PUBLIC;
+    nml.nml_ME[0].me_Length      = sizeof(struct Task);
+    nml.nml_ME[1].me_Un.meu_Reqs = MEMF_CLEAR;
+    nml.nml_ME[1].me_Length      = stacksize;
 
 	ml = AllocEntry ((struct MemList *)&nml);
 	if (!(((unsigned int)ml) & (1<<31)))
@@ -1523,7 +1539,7 @@ static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacks
 	    newtask->tc_SPUpper      = newtask->tc_SPReg;
 
 		DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx, initPC=0x%08lx\n",
-				 newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc); 
+				 newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc);
 
 	    NEWLIST (&newtask->tc_MemEntry);
 	    AddHead (&newtask->tc_MemEntry,&ml->ml_Node);
@@ -1574,20 +1590,36 @@ static void __saveds _bootstrap(void)
     emu_stop();
 }
 
+void _handleIRQ3 (void);
+
+__asm("__handleIRQ3:\n"
+	  "    move.l   a6, -(a7);\n"
+	  "    move.l	4, a6;\n"
+	  "    jsr		-42(a6);\n" // Schedule()
+	  "    move.l   (a7)+, a6;\n"
+      "    rte;\n"
+);
+
+
 void __saveds coldstart (void)
 {
-    //uint32_t *p = (void*) 0x00008c;
-    //*p = (uint32_t) handleTRAP3;
 
+    uint32_t *p = (uint32_t*) 0x0000006c;
+	*p = (uint32_t) _handleIRQ3;
+
+    //__asm("    ori.w  #0x0700, sr;\n");	// disable interrupts
     //__asm("andi.w  #0xdfff, sr\n");	// disable supervisor bit
     //__asm("move.l  #0x9fff99, a7\n");	// setup initial stack
+    //__asm("andi.w  #0xdfff, sr\n");	// disable supervisor bit
+    __asm("move.l  #0x009ffff0, a7\n");	// setup initial stack
 
-    DPRINTF (LOG_DEBUG, "coldstart: EXEC_VECTORS_START = 0x%08lx\n", EXEC_VECTORS_START);
-    DPRINTF (LOG_DEBUG, "           EXEC_BASE_START    = 0x%08lx\n", EXEC_BASE_START   );
-	DPRINTF (LOG_DEBUG, "           EXEC_MH_START      = 0x%08lx\n", EXEC_MH_START     );
-	DPRINTF (LOG_DEBUG, "           DOS_VECTORS_START  = 0x%08lx\n", DOS_VECTORS_START );
-	DPRINTF (LOG_DEBUG, "           DOS_BASE_START     = 0x%08lx\n", DOS_BASE_START    );
-	DPRINTF (LOG_DEBUG, "           RAM_START          = 0x%08lx\n", RAM_START         );
+    DPRINTF (LOG_INFO, "coldstart: EXEC_VECTORS_START = 0x%08lx\n", EXEC_VECTORS_START);
+    DPRINTF (LOG_INFO, "           EXEC_BASE_START    = 0x%08lx\n", EXEC_BASE_START   );
+	DPRINTF (LOG_INFO, "           EXEC_MH_START      = 0x%08lx\n", EXEC_MH_START     );
+	DPRINTF (LOG_INFO, "           DOS_VECTORS_START  = 0x%08lx\n", DOS_VECTORS_START );
+	DPRINTF (LOG_INFO, "           DOS_BASE_START     = 0x%08lx\n", DOS_BASE_START    );
+	DPRINTF (LOG_INFO, "           RAM_START          = 0x%08lx\n", RAM_START         );
+	DPRINTF (LOG_INFO, "           RAM_END            = 0x%08lx\n", RAM_END           );
 
     // coldstart is at 0x00f801be, &SysBase at 0x00f80c90, SysBase at 0x0009eed0, f1 at 0x00f80028
     DPRINTF (LOG_DEBUG, "coldstart: locations in RAM: coldstart is at 0x%08x, &SysBase at 0x%08x, SysBase at 0x%08x\n",
@@ -1607,7 +1639,7 @@ void __saveds coldstart (void)
 
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-30)].vec = _exec_Supervisor;
     //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-36)].vec = _exec_ExitIntr;
-    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-42)].vec = _exec_Schedule;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-42)].vec = _exec_Schedule;
     //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-48)].vec = _exec_Reschedule;
     //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-54)].vec = _exec_Switch;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-60)].vec = _exec_Dispatch;
@@ -1758,6 +1790,8 @@ void __saveds coldstart (void)
 
     registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS,__lxa_dos_ROMTag);
 
+    //emucall1 (EMU_CALL_TRACE, TRUE);
+
     // init task lists
 	_newList (&SysBase->TaskReady);
 	SysBase->TaskReady.lh_Type = NT_TASK;
@@ -1769,11 +1803,13 @@ void __saveds coldstart (void)
 
     // launch it
 
-    //__asm("andi.w  #0xdfff, sr\n");	// disable supervisor bit
-    //__asm("move.l  #0x9fff99, a7\n");	// setup initial stack
-
 	DPRINTF (LOG_INFO, "coldstart: about to launch _bootstrap task, pc=0x%08lx\n",
 			 *((ULONG *)SysBase->ThisTask->tc_SPReg));
+
+	SysBase->ThisTask->tc_State = TS_RUN;
+	Remove (&SysBase->ThisTask->tc_Node);
+
+    //__asm("andi.w  #0xf8ff, sr;\n");	// enable interrupts
 
     asm( "move.l    %0, a5\n\t"
 
@@ -1794,6 +1830,8 @@ void __saveds coldstart (void)
         : "r" (SysBase->ThisTask->tc_SPReg)
         : "cc", "a5", "a2"                   // doesn't really matter since will never exit from these instructions anyway
         );
+
+	DPRINTF (LOG_ERROR, "coldstart: this shouldn't happen\n");
 
     emu_stop();
 }

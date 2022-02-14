@@ -6,6 +6,7 @@
 
 #define EMU_CALL_LPUTC         1
 #define EMU_CALL_STOP          2
+#define EMU_CALL_TRACE         3
 #define EMU_CALL_DOS_OPEN   1000
 #define EMU_CALL_DOS_READ   1001
 #define EMU_CALL_DOS_SEEK   1002

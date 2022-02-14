@@ -65,7 +65,7 @@ ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3)
 
 void emu_stop (void)
 {
-    asm( "move.l    #2, d0\n\t"
+    asm( "move.l    #2, d0 /* EMU_CALL_STOP */\n\t"
          "illegal"
         : /* no outputs */
         : /* no inputs  */
@@ -75,23 +75,26 @@ void emu_stop (void)
 
 void lputc (int level, char c)
 {
-    asm( "move.l    #1, d0\n /* EMU_CALL_LPUTC */  \t"
+    asm( "move.l    #1, d0 /* EMU_CALL_LPUTC */\n\t"
          "move.l    %0, d1\n\t"
          "move.l    %1, d2\n\t"
          "illegal"
         : /* no outputs */
         : "r" (level), "r" (c)
-        : "cc", "d0", "d1"
+        : "cc", "d0", "d1", "d2"
         );
 }
 
 void lputs (int lvl, const char *s)
 {
-    while (*s)
-    {
-        lputc (lvl, *s);
-        s++;
-    }
+    asm( "move.l    #4, d0 /* EMU_CALL_LPUTS */\n\t"
+         "move.l    %0, d1\n\t"
+         "move.l    %1, d2\n\t"
+         "illegal"
+        : /* no outputs */
+        : "r" (lvl), "r" (s)
+        : "cc", "d0", "d1", "d2"
+        );
 }
 
 #define CHAR_BIT 8
