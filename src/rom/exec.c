@@ -65,7 +65,7 @@ static ULONG __saveds _exec_Supervisor ( register struct ExecBase * __libBase __
 
 static ULONG __saveds _exec_Schedule ( register struct ExecBase * __libBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: Schedule() unimplemented STUB called.\n");
+    //DPRINTF (LOG_DEBUG, "_exec: Schedule() unimplemented STUB called.\n");
 }
 
 

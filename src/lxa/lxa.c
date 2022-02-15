@@ -80,9 +80,20 @@ static void hexdump (uint32_t offset, uint32_t num_bytes)
     dprintf ("\n");
 }
 #endif
+static void _debug(void);
 
 static inline uint8_t mread8 (uint32_t address)
 {
+    static bool startup = TRUE;
+
+    if (!address)
+    {
+        if (startup)
+            startup = FALSE;
+        else
+            _debug();
+    }
+
     if ((address >= RAM_START) && (address <= RAM_END))
     {
         uint32_t addr = address - RAM_START;
@@ -191,10 +202,11 @@ void make_hex(char* buff, unsigned int pc, unsigned int length)
 	}
 }
 
-static void print68kstate(void)
+static void print68kstate(int lvl)
 {
-    uint32_t d0,d1,d2,d3,d4,d5,d6,d7;
+    uint32_t sr, d0,d1,d2,d3,d4,d5,d6,d7;
 
+    sr = m68k_get_reg (NULL, M68K_REG_SR);
     d0 = m68k_get_reg (NULL, M68K_REG_D0);
     d1 = m68k_get_reg (NULL, M68K_REG_D1);
     d2 = m68k_get_reg (NULL, M68K_REG_D2);
@@ -204,7 +216,8 @@ static void print68kstate(void)
     d6 = m68k_get_reg (NULL, M68K_REG_D6);
     d7 = m68k_get_reg (NULL, M68K_REG_D7);
 
-    dprintf (LOG_DEBUG, "      d0=0x%08x d1=0x%08x d2=0x%08x d3=0x%08x d4=0x%08x d5=0x%08x d6=0x%08x d7=0x%08x\n", d0, d1, d2, d3, d4, d5, d6, d7);
+    dprintf (lvl, "      sr=0x%04x\n      d0=0x%08x d1=0x%08x d2=0x%08x d3=0x%08x d4=0x%08x d5=0x%08x d6=0x%08x d7=0x%08x\n",
+                  sr, d0, d1, d2, d3, d4, d5, d6, d7);
     uint32_t a0,a1,a2,a3,a4,a5,a6,a7,usp,isp,msp;
     a0 = m68k_get_reg (NULL, M68K_REG_A0);
     a1 = m68k_get_reg (NULL, M68K_REG_A1);
@@ -217,8 +230,8 @@ static void print68kstate(void)
     usp = m68k_get_reg (NULL, M68K_REG_USP);
     isp = m68k_get_reg (NULL, M68K_REG_ISP);
     msp = m68k_get_reg (NULL, M68K_REG_MSP);
-    dprintf (LOG_DEBUG, "      a0=0x%08x a1=0x%08x a2=0x%08x a3=0x%08x a4=0x%08x a5=0x%08x a6=0x%08x a7=0x%08x usp=0x%08x isp=0x%08x msp=0x%08x\n",
-                        a0, a1, a2, a3, a4, a5, a6, a7, usp, isp, msp);
+    dprintf (lvl, "      a0=0x%08x a1=0x%08x a2=0x%08x a3=0x%08x a4=0x%08x a5=0x%08x a6=0x%08x a7=0x%08x\n      usp=0x%08x isp=0x%08x msp=0x%08x\n",
+                  a0, a1, a2, a3, a4, a5, a6, a7, usp, isp, msp);
 }
 
 void cpu_instr_callback(int pc)
@@ -233,8 +246,23 @@ void cpu_instr_callback(int pc)
         instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
         make_hex(buff2, pc, instr_size);
         dprintf(LOG_DEBUG, "E %03x: %-20s: %s\n", pc, buff2, buff);
-        print68kstate();
+        print68kstate(LOG_DEBUG);
     }
+}
+
+static void _debug(void)
+{
+    static char buff[100];
+    static char buff2[100];
+    static unsigned int pc;
+    static unsigned int instr_size;
+    pc = m68k_get_reg(NULL, M68K_REG_PC);
+    instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
+    make_hex(buff2, pc, instr_size);
+    dprintf(LOG_INFO, "E pc=%08x: %-20s: %s\n", pc, buff2, buff);
+    print68kstate(LOG_INFO);
+
+    assert(FALSE);
 }
 
 static char *_mgetstr (uint32_t address)
@@ -475,6 +503,7 @@ int op_illg(int level)
 
         default:
             dprintf (LOG_INFO, "*** error: undefined lxcall #%d\n", d0);
+            _debug();
             m68k_end_timeslice();
             g_running = FALSE;
     }
