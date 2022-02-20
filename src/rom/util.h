@@ -7,6 +7,11 @@
 #define EMU_CALL_LPUTC         1
 #define EMU_CALL_STOP          2
 #define EMU_CALL_TRACE         3
+#define EMU_CALL_LPUTS         4
+#define EMU_CALL_EXCEPTION     5
+#define EMU_CALL_WAIT          6
+#define EMU_CALL_INTENA        7
+#define EMU_CALL_MONITOR       8
 #define EMU_CALL_DOS_OPEN   1000
 #define EMU_CALL_DOS_READ   1001
 #define EMU_CALL_DOS_SEEK   1002
@@ -33,6 +38,7 @@ void  lputs    (int level, const char *s);
 void  lprintf  (int level, const char *format, ...);
 
 #define LPRINTF(lvl, ...) do { if (lvl >= LOG_LEVEL) lprintf(lvl, __VA_ARGS__); } while (0)
+#define LPUTS(lvl, s) do { if (lvl >= LOG_LEVEL) lputs(lvl, s); } while (0)
 
 void  emu_stop (void);
 

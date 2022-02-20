@@ -17,13 +17,19 @@
 #include "util.h"
 #include "lxa_dos.h"
 #include "mem_map.h"
+#include "exceptions.h"
+
+// FIXME #define DEFAULT_SCHED_QUANTUM 4
+#define DEFAULT_SCHED_QUANTUM 1
 
 #define ENABLE_DEBUG
 
 #ifdef ENABLE_DEBUG
 #define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)
+#define DPUTS(lvl, s) LPUTS (lvl, s)
 #else
 #define DPRINTF(lvl, ...)
+#define DPUTS(lvl, s)
 #endif
 
 #define EXEC_FUNCTABLE_ENTRY(___off) (NUM_EXEC_FUNCS+(___off/6))
@@ -51,7 +57,7 @@ struct DosLibrary      *DOSBase         = (struct DosLibrary*) ((uint8_t *)DOS_B
 
 static void __saveds _exec_unimplemented_call ( register struct ExecBase  *exb __asm("a6") )
 {
-	assert (FALSE);
+    assert (FALSE);
 }
 
 static ULONG __saveds _exec_Supervisor ( register struct ExecBase * __libBase __asm("a6"),
@@ -59,21 +65,6 @@ static ULONG __saveds _exec_Supervisor ( register struct ExecBase * __libBase __
 {
     DPRINTF (LOG_ERROR, "_exec: Supervisor() unimplemented STUB called.\n");
     assert(FALSE);
-}
-
-#define Schedule() LP0NR(0x2a, Schedule, , EXEC_BASE_NAME)
-
-static ULONG __saveds _exec_Schedule ( register struct ExecBase * __libBase __asm("a6"))
-{
-    //DPRINTF (LOG_DEBUG, "_exec: Schedule() unimplemented STUB called.\n");
-}
-
-
-#define Dispatch() LP0NR(0x3c, Dispatch, , EXEC_BASE_NAME)
-
-static ULONG __saveds _exec_Dispatch ( register struct ExecBase * __libBase __asm("a6"))
-{
-    DPRINTF (LOG_INFO, "_exec: Dispatch() unimplemented STUB called.\n");
 }
 
 static void __saveds _exec_InitCode ( register struct ExecBase * __libBase __asm("a6"),
@@ -91,7 +82,7 @@ static void __saveds _exec_InitStruct ( register struct ExecBase * __libBase __a
 {
     DPRINTF (LOG_DEBUG, "_exec: InitStruct called initTable=0x%08lx, memory=0x%08lx, size=%ld\n", ___initTable, ___memory, ___size);
 
-	hexdump (LOG_DEBUG, ___initTable, 32);
+    hexdump (LOG_DEBUG, ___initTable, 32);
 
     ULONG size = ___size & 0xffff;
 
@@ -174,9 +165,9 @@ static void __saveds _exec_InitStruct ( register struct ExecBase * __libBase __a
 
                     case 2: // BYTE
                         do
-						{
+                        {
                             *dst++ = *it++;
-						}
+                        }
                         while (--cnt>=0);
                         break;
 
@@ -302,17 +293,17 @@ static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * 
     {
         library = (struct Library *)(mem+negsize);
 
-		DPRINTF (LOG_DEBUG, "_exec: MakeLibrary mem=0x%08lx, library=0x%08lx\n", mem, library);
+        DPRINTF (LOG_DEBUG, "_exec: MakeLibrary mem=0x%08lx, library=0x%08lx\n", mem, library);
 
         _makeLibrary (library, ___funcInit, ___structInit, ___libInitFn, negsize, ___dataSize, ___segList);
     }
-	else
-	{
-		DPRINTF (LOG_DEBUG, "exec: MakeLibrary out of memory!\n");
-		assert(FALSE);
-	}
+    else
+    {
+        DPRINTF (LOG_DEBUG, "exec: MakeLibrary out of memory!\n");
+        assert(FALSE);
+    }
 
-	return library;
+    return library;
 }
 
 #define __AROS_GETJUMPVEC(lib,n)        (&(((struct JumpVec *)(lib))[-(n)]))
@@ -339,10 +330,10 @@ static void __saveds _exec_MakeFunctions ( register struct ExecBase * __libBase 
 
         while (*fp != -1)
         {
-			struct JumpVec  *jv = &(((struct JumpVec *)(___target))[-n]);
-			jv->jmp = JMPINSTR;
-			jv->vec = (APTR)((ULONG)___funcDispBase + *fp);
-			DPRINTF (LOG_DEBUG, "                  I  n=%4d jv=0x%08lx jv->jmp=0x%04x jv->vec=0x%08lx\n", n, jv, jv->jmp, jv->vec);
+            struct JumpVec  *jv = &(((struct JumpVec *)(___target))[-n]);
+            jv->jmp = JMPINSTR;
+            jv->vec = (APTR)((ULONG)___funcDispBase + *fp);
+            DPRINTF (LOG_DEBUG, "                  I  n=%4d jv=0x%08lx jv->jmp=0x%04x jv->vec=0x%08lx\n", n, jv, jv->jmp, jv->vec);
             fp++; n++;
         }
     }
@@ -352,10 +343,10 @@ static void __saveds _exec_MakeFunctions ( register struct ExecBase * __libBase 
 
         while (*fp != (APTR)-1)
         {
-			struct JumpVec  *jv = &(((struct JumpVec *)(___target))[-n]);
-			jv->jmp = JMPINSTR;
-			jv->vec = *fp;
-			DPRINTF (LOG_DEBUG, "                  II n=%4d jv=0x%08lx jv->jmp=0x%04x jv->vec=0x%08lx\n", n, jv, jv->jmp, jv->vec);
+            struct JumpVec  *jv = &(((struct JumpVec *)(___target))[-n]);
+            jv->jmp = JMPINSTR;
+            jv->vec = *fp;
+            DPRINTF (LOG_DEBUG, "                  II n=%4d jv=0x%08lx jv->jmp=0x%04x jv->vec=0x%08lx\n", n, jv, jv->jmp, jv->vec);
             fp++; n++;
         }
     }
@@ -393,14 +384,14 @@ static void __saveds _exec_Debug ( register struct ExecBase * __libBase __asm("a
 
 static void __saveds _exec_Disable ( register struct ExecBase * __libBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: WARNING: Disable() unimplemented STUB called.\n");
-	// FIXME
+    DPRINTF (LOG_DEBUG, "_exec: Disable() called.\n");
+    emucall1 (EMU_CALL_INTENA, FALSE);
 }
 
 static void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: WARNING: Enable() unimplemented STUB called.\n");
-	// FIXME
+    DPRINTF (LOG_DEBUG, "_exec: Enable() called.\n");
+    emucall1 (EMU_CALL_INTENA, TRUE);
 }
 
 static void __saveds _exec_Forbid ( register struct ExecBase * __libBase __asm("a6"))
@@ -471,10 +462,10 @@ static APTR __saveds _exec_Allocate ( register struct ExecBase * __libBase __asm
                                       register ULONG ___byteSize  __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Allocate called, ___freeList=0x%08lx, ___byteSize=%d\n", (ULONG)___freeList, ___byteSize);
-	DPRINTF (LOG_DEBUG, "       mh_First=0x%08lx, mh_Lower=0x%08lx, mh_Upper=0x%08lx, mh_Free=%ld, mh_Attributes=0x%08lx\n", 
-			 ___freeList->mh_First, ___freeList->mh_Lower, ___freeList->mh_Upper, ___freeList->mh_Free, ___freeList->mh_Attributes);
+    DPRINTF (LOG_DEBUG, "       mh_First=0x%08lx, mh_Lower=0x%08lx, mh_Upper=0x%08lx, mh_Free=%ld, mh_Attributes=0x%08lx\n", 
+             ___freeList->mh_First, ___freeList->mh_Lower, ___freeList->mh_Upper, ___freeList->mh_Free, ___freeList->mh_Attributes);
 
-	ULONG byteSize = ALIGN (___byteSize, 4);
+    ULONG byteSize = ALIGN (___byteSize, 4);
 
     DPRINTF (LOG_DEBUG, "       rounded up byte size is %d\n", byteSize);
 
@@ -485,55 +476,55 @@ static APTR __saveds _exec_Allocate ( register struct ExecBase * __libBase __asm
     if (___freeList->mh_Free < byteSize)
         return NULL;
 
-	struct MemChunk *mc=NULL;
-	struct MemChunk *p1, *p2;
+    struct MemChunk *mc=NULL;
+    struct MemChunk *p1, *p2;
 
-	p1 = (struct MemChunk *)&___freeList->mh_First;
-	p2 = p1->mc_Next;
+    p1 = (struct MemChunk *)&___freeList->mh_First;
+    p2 = p1->mc_Next;
 
-	while (p2)
-	{
+    while (p2)
+    {
         DPRINTF (LOG_DEBUG, "       looking for mem chunk that is large enough, current chunk at 0x%08lx is %d bytes\n", (ULONG)p2, p2->mc_Bytes);
-		if (p2->mc_Bytes >= byteSize)
-		{
-			mc = p1;
-			break;
-		}
-		p1 = p2;
-		p2 = p1->mc_Next;
-	}
+        if (p2->mc_Bytes >= byteSize)
+        {
+            mc = p1;
+            break;
+        }
+        p1 = p2;
+        p2 = p1->mc_Next;
+    }
 
-	if (mc)
-	{
-		p1 = mc;
-		p2 = p1->mc_Next;
+    if (mc)
+    {
+        p1 = mc;
+        p2 = p1->mc_Next;
 
-		if (p2->mc_Bytes == byteSize)
-		{
-			p1->mc_Next = p2->mc_Next;
-			mc          = p2;
-		}
-		else
-		{
-			struct MemChunk *pp = p1;
+        if (p2->mc_Bytes == byteSize)
+        {
+            p1->mc_Next = p2->mc_Next;
+            mc          = p2;
+        }
+        else
+        {
+            struct MemChunk *pp = p1;
 
-			p1->mc_Next = (struct MemChunk *)((UBYTE *)p2+byteSize);
-			mc = p2;
+            p1->mc_Next = (struct MemChunk *)((UBYTE *)p2+byteSize);
+            mc = p2;
 
-			p1 = p1->mc_Next;
-			p1->mc_Next  = p2->mc_Next;
-			p1->mc_Bytes = p2->mc_Bytes-byteSize;
-		}
+            p1 = p1->mc_Next;
+            p1->mc_Next  = p2->mc_Next;
+            p1->mc_Bytes = p2->mc_Bytes-byteSize;
+        }
 
-		___freeList->mh_Free -= byteSize;
-		DPRINTF (LOG_DEBUG, "       found a chunk at 0x%08lx\n", (ULONG)mc);
-	}
-	else
-	{
-		DPRINTF (LOG_DEBUG, "       no chunk found.\n");
-	}
+        ___freeList->mh_Free -= byteSize;
+        DPRINTF (LOG_DEBUG, "       found a chunk at 0x%08lx\n", (ULONG)mc);
+    }
+    else
+    {
+        DPRINTF (LOG_DEBUG, "       no chunk found.\n");
+    }
 
-	return mc;
+    return mc;
 }
 
 static void __saveds _exec_Deallocate ( register struct ExecBase * __libBase __asm("a6"),
@@ -552,46 +543,46 @@ static APTR __saveds _exec_AllocMem ( register struct ExecBase * __libBase __asm
     DPRINTF (LOG_DEBUG, "_exec: AllocMem called, byteSize=%ld, requirements=0x%08lx\n",
              ___byteSize, ___requirements);
 
-	if (!___byteSize)
-		return NULL;
+    if (!___byteSize)
+        return NULL;
 
-	Forbid();
+    Forbid();
 
-	struct MemHeader *mhCur = (struct MemHeader *)SysBase->MemList.lh_Head;
+    struct MemHeader *mhCur = (struct MemHeader *)SysBase->MemList.lh_Head;
 
     APTR mem = NULL;
 
-	while (mhCur->mh_Node.ln_Succ)
-	{
-		DPRINTF (LOG_DEBUG, "                MemHeader mh_Free=%d, mh_Attributes=0x%08lx\n",
+    while (mhCur->mh_Node.ln_Succ)
+    {
+        DPRINTF (LOG_DEBUG, "                MemHeader mh_Free=%d, mh_Attributes=0x%08lx\n",
                  mhCur->mh_Free, mhCur->mh_Attributes);
 
-		UWORD req = (UWORD) ___requirements;
-		if ((mhCur->mh_Attributes & req) == req)
-		{
-			if (mhCur->mh_Free >= ___byteSize)
-			{
+        UWORD req = (UWORD) ___requirements;
+        if ((mhCur->mh_Attributes & req) == req)
+        {
+            if (mhCur->mh_Free >= ___byteSize)
+            {
                 mem = Allocate (mhCur, ___byteSize);
                 if (mem)
                     break;
-			}
-			else
-			{
-				DPRINTF (LOG_DEBUG, "      *** too small ***");
-			}
-		}
-		else
-		{
-			DPRINTF (LOG_DEBUG, "      *** does not meet requirements ***");
-		}
+            }
+            else
+            {
+                DPRINTF (LOG_DEBUG, "      *** too small ***");
+            }
+        }
+        else
+        {
+            DPRINTF (LOG_DEBUG, "      *** does not meet requirements ***");
+        }
 
-		mhCur = (struct MemHeader *)mhCur->mh_Node.ln_Succ;
-	}
+        mhCur = (struct MemHeader *)mhCur->mh_Node.ln_Succ;
+    }
 
-	Permit();
+    Permit();
 
-	if (___requirements & MEMF_CLEAR)
-		memset(mem, 0, ___byteSize);
+    if (___requirements & MEMF_CLEAR)
+        memset(mem, 0, ___byteSize);
 
     DPRINTF (LOG_DEBUG, "_exec: AllocMem returning with mem=0x%08lx\n", (ULONG)mem);
 
@@ -629,10 +620,10 @@ static struct MemList * __saveds _exec_AllocEntry ( register struct ExecBase * _
 
     for (int i = 0; i < entry->ml_NumEntries; i++)
     {
-    	DPRINTF (LOG_DEBUG, "       # %3d me_Reqs=0x%08lx me_Length=%d\n", i, entry->ml_ME[i].me_Reqs, entry->ml_ME[i].me_Length);
+        DPRINTF (LOG_DEBUG, "       # %3d me_Reqs=0x%08lx me_Length=%d\n", i, entry->ml_ME[i].me_Reqs, entry->ml_ME[i].me_Length);
     }
 
-	ULONG size = sizeof(struct MemList) + sizeof(struct MemEntry) * (entry->ml_NumEntries-1);
+    ULONG size = sizeof(struct MemList) + sizeof(struct MemEntry) * (entry->ml_NumEntries-1);
     struct MemList *res = (struct MemList *) AllocMem (size, MEMF_PUBLIC);
 
     if (!res)
@@ -658,7 +649,7 @@ static struct MemList * __saveds _exec_AllocEntry ( register struct ExecBase * _
 
                 FreeMem (res, size);
 
-				res =  (struct MemList*) (0x80000000 | entry->ml_ME[i].me_Reqs);
+                res =  (struct MemList*) (0x80000000 | entry->ml_ME[i].me_Reqs);
                 return res;
             }
         }
@@ -748,11 +739,11 @@ static void __saveds _exec_Enqueue ( register struct ExecBase * __libBase __asm(
 
     struct Node * next;
 
-	for ( next = list->lh_Head ; next->ln_Succ != NULL ; next = next->ln_Succ )
-	{
+    for ( next = list->lh_Head ; next->ln_Succ != NULL ; next = next->ln_Succ )
+    {
         if (node->ln_Pri > next->ln_Pri)
             break;
-	}
+    }
 
     node->ln_Pred          = next->ln_Pred;
     node->ln_Succ          = next;
@@ -772,7 +763,7 @@ static struct Node * __saveds _exec_FindName ( register struct ExecBase * __libB
 
     for (node=___list->lh_Head; node; node=node->ln_Succ)
     {
-		DPRINTF (LOG_DEBUG, "_exec: FindName node=0x%08lx, node->ln_Name=%s\n", node, node->ln_Name);
+        DPRINTF (LOG_DEBUG, "_exec: FindName node=0x%08lx, node->ln_Name=%s\n", node, node->ln_Name);
         if (node->ln_Name)
         {
             if (!strcmp (node->ln_Name, ___name))
@@ -792,7 +783,7 @@ static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm(
 
     assert(task);
 
-	// prepare task structure
+    // prepare task structure
 
     task->tc_IDNestCnt = -1;
     task->tc_TDNestCnt = -1;
@@ -816,28 +807,28 @@ static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm(
     if (!task->tc_SPReg)
         task->tc_SPReg = task->tc_SPUpper;
 
-	// setup stack
+    // setup stack
 
-	ULONG *sp = task->tc_SPReg;
+    ULONG *sp = task->tc_SPReg;
 
-	// return address
-	if (finalPC)
-		*(--sp) = (ULONG) finalPC;
-	else
-		*(--sp) = (ULONG) SysBase->TaskExitCode;
+    // return address
+    if (finalPC)
+        *(--sp) = (ULONG) finalPC;
+    else
+        *(--sp) = (ULONG) SysBase->TaskExitCode;
 
-	// regs
-	for (int i = 0; i<15; i++)
-		*(--sp) = 0;
+    // regs
+    for (int i = 0; i<15; i++)
+        *(--sp) = 0;
 
-	UWORD *spw = (UWORD*) sp;
-	*(--spw) = 0;             // SR
-	sp = (ULONG*) spw;
-	*(--sp) = (ULONG) initPC; // PC
+    UWORD *spw = (UWORD*) sp;
+    *(--spw) = 0;             // SR
+    sp = (ULONG*) spw;
+    *(--sp) = (ULONG) initPC; // PC
 
-	task->tc_SPReg = sp;
+    task->tc_SPReg = sp;
 
-	// launch it
+    // launch it
 
     struct Task *parent = SysBase->ThisTask;
 
@@ -879,14 +870,14 @@ static struct Task * __saveds _exec_FindTask ( register struct ExecBase * __libB
             char       *s1 = thisTask->tc_Node.ln_Name;
             const char *s2 = ___name;
             while (*s1 == *s2)
-			{
+            {
                 if (!*s2)
                 {
                     ret = thisTask;
                     break;
                 }
-				s1++; s2++;
-			}
+                s1++; s2++;
+            }
         }
     }
 
@@ -1188,11 +1179,11 @@ static struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase * 
 {
     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary called ___libName=%s, ___version=%ld\n", ___libName, ___version);
 
-	Forbid();
+    Forbid();
 
-	struct Library *lib = (struct Library *) FindName (&SysBase->LibList, ___libName);
+    struct Library *lib = (struct Library *) FindName (&SysBase->LibList, ___libName);
 
-	Permit();
+    Permit();
 
     if (lib)
     {
@@ -1213,7 +1204,7 @@ static struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase * 
         DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: requested library was not found.\n");
     }
 
-	return lib;
+    return lib;
 }
 
 static void __saveds _exec_InitSemaphore ( register struct ExecBase * __libBase __asm("a6"),
@@ -1378,16 +1369,16 @@ static APTR __saveds _exec_AllocVec ( register struct ExecBase * __libBase      
 {
     DPRINTF (LOG_DEBUG, "_exec: AllocVec() called ___byteSize=%ld, ___requirements=0x%08lx\n", ___byteSize, ___requirements);
 
-	if (!___byteSize)
-		return NULL;
+    if (!___byteSize)
+        return NULL;
 
-	ULONG *m = (ULONG*) AllocMem (___byteSize+4, ___requirements);
-	if (!m)
-		return NULL;
+    ULONG *m = (ULONG*) AllocMem (___byteSize+4, ___requirements);
+    if (!m)
+        return NULL;
 
-	*m++ = ___byteSize;
+    *m++ = ___byteSize;
 
-	return m;
+    return m;
 }
 
 static void __saveds _exec_FreeVec ( register struct ExecBase * __libBase __asm("a6"),
@@ -1487,7 +1478,7 @@ static void registerBuiltInLib (struct Library *libBase, ULONG num_funcs, struct
     DPRINTF (LOG_DEBUG, "_exec: registerBuiltInLib libBase=0x%08lx, num_funcs=%ld, romTAG rt_Name=%s rt_IdString=%s\n", libBase, num_funcs, romTAG->rt_Name, romTAG->rt_IdString);
     struct InitTable *initTab = romTAG->rt_Init;
     _makeLibrary(libBase, initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, num_funcs*6, initTab->LibBaseSize, /* segList=*/NULL);
-	AddTail (&SysBase->LibList, (struct Node*) libBase);
+    AddTail (&SysBase->LibList, (struct Node*) libBase);
 }
 
 struct newMemList
@@ -1503,16 +1494,16 @@ struct newMemList
 
 static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
 {
-	struct newMemList  nml;
-	struct MemList    *ml;
-	struct Task       *newtask;
-	APTR               task2;
+    struct newMemList  nml;
+    struct MemList    *ml;
+    struct Task       *newtask;
+    APTR               task2;
 
     DPRINTF (LOG_DEBUG, "_exec: _createTask() called, name=%s, pri=%ld, initpc=0x%08lx, stacksize=%ld\n",
              name ? (char *) name : "NULL", pri, initpc, stacksize);
 
 
-	stacksize = (stacksize+3)&~3;
+    stacksize = (stacksize+3)&~3;
 
     nml.nml_Node.ln_Succ = NULL;
     nml.nml_Node.ln_Pred = NULL;
@@ -1527,37 +1518,37 @@ static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacks
     nml.nml_ME[1].me_Un.meu_Reqs = MEMF_CLEAR;
     nml.nml_ME[1].me_Length      = stacksize;
 
-	ml = AllocEntry ((struct MemList *)&nml);
-	if (!(((unsigned int)ml) & (1<<31)))
-	{
-	    newtask = ml->ml_ME[0].me_Addr;
-	    newtask->tc_Node.ln_Type = NT_TASK;
-	    newtask->tc_Node.ln_Pri  = pri;
-	    newtask->tc_Node.ln_Name = name;
-	    newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
-	    newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
-	    newtask->tc_SPUpper      = newtask->tc_SPReg;
+    ml = AllocEntry ((struct MemList *)&nml);
+    if (!(((unsigned int)ml) & (1<<31)))
+    {
+        newtask = ml->ml_ME[0].me_Addr;
+        newtask->tc_Node.ln_Type = NT_TASK;
+        newtask->tc_Node.ln_Pri  = pri;
+        newtask->tc_Node.ln_Name = name;
+        newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
+        newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
+        newtask->tc_SPUpper      = newtask->tc_SPReg;
 
-		DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx, initPC=0x%08lx\n",
-				 newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc);
+        DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx, initPC=0x%08lx\n",
+                 newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc);
 
-	    NEWLIST (&newtask->tc_MemEntry);
-	    AddHead (&newtask->tc_MemEntry,&ml->ml_Node);
-	    task2 = AddTask (newtask, initpc, 0);
-	    if (!task2)
-	    {
-			DPRINTF (LOG_ERROR, "_exec: _createTask() AddTask() failed\n");
-	        FreeEntry (ml);
-			newtask = NULL;
-	    }
-	}
-	else
-	{
-		DPRINTF (LOG_ERROR, "_exec: _createTask() failed to allocate memory\n");
-	    newtask = NULL;
-	}
+        NEWLIST (&newtask->tc_MemEntry);
+        AddHead (&newtask->tc_MemEntry,&ml->ml_Node);
+        task2 = AddTask (newtask, initpc, 0);
+        if (!task2)
+        {
+            DPRINTF (LOG_ERROR, "_exec: _createTask() AddTask() failed\n");
+            FreeEntry (ml);
+            newtask = NULL;
+        }
+    }
+    else
+    {
+        DPRINTF (LOG_ERROR, "_exec: _createTask() failed to allocate memory\n");
+        newtask = NULL;
+    }
 
-	return newtask;
+    return newtask;
 }
 
 static void _newList(struct List *_NewList_list)
@@ -1567,36 +1558,144 @@ static void _newList(struct List *_NewList_list)
     _NewList_list->lh_Tail     = 0;
 }
 
+static void __saveds _myTestTask(void)
+{
+    while (TRUE)
+    {
+        DPUTS (LOG_DEBUG, "_exec: test task iter\n");
+    }
+}
+
 static void __saveds _bootstrap(void)
 {
-	DPRINTF (LOG_INFO, "_exec: _bootstrap() called\n");
+    DPRINTF (LOG_INFO, "_exec: _bootstrap() called\n");
+
+    // just for testing purposes add another task
+    _createTask ("exec test task", 0, _myTestTask, 8192);
+
+    //emucall1 (EMU_CALL_TRACE, TRUE);
 
 #if 1
     // load our test program
 
-	OpenLibrary ("dos.library", 0);
-	BPTR segs = LoadSeg ("x/foo");
+    OpenLibrary ("dos.library", 0);
+    BPTR segs = LoadSeg ("x/foo");
 
     // inject initPC pointing to our loaded code into our task's stack
 
     APTR initPC = BADDR(segs+1);
 
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): initPC is 0x%08lx\n", initPC);
-	hexdump (LOG_INFO, initPC, 32);
+    hexdump (LOG_INFO, initPC, 32);
 
     //*((APTR*) SysBase->ThisTask->tc_SPReg) = initPC;
 #endif
 
+    DPUTS (LOG_INFO, "_exec: _bootstrap() DONE -> endless loop\n");
+
+    while (TRUE);
+
     emu_stop();
 }
 
-void _handleIRQ3 (void);
+void _handleVec02 (void);
+void _handleVec03 (void);
+void _handleVec04 (void);
+void _handleVec05 (void);
+void _handleVec06 (void);
+void _handleVec07 (void);
+void _handleVec08 (void);
+void _handleVec09 (void);
+void _handleVec10 (void);
+void _handleVec11 (void);
 
-__asm("__handleIRQ3:\n"
-	  "    move.l   a6, -(a7);\n"
-	  "    move.l	4, a6;\n"
-	  "    jsr		-42(a6);\n" // Schedule()
-	  "    move.l   (a7)+, a6;\n"
+__asm("__handleVec02:\n"
+      "    movem.l  d0/d1, -(a7)          \n"
+      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
+      "    move.l   #2, d1                \n" // vector number
+      "    illegal                        \n" // emucall
+      "    movem.l  (a7)+, d0/d1;         \n"
+      "    rte;\n"
+);
+
+__asm("__handleVec03:\n"
+      "    movem.l  d0/d1, -(a7)          \n"
+      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
+      "    move.l   #3, d1                \n" // vector number
+      "    illegal                        \n" // emucall
+      "    movem.l  (a7)+, d0/d1;         \n"
+      "    rte;\n"
+);
+
+__asm("__handleVec04:\n"
+      "    movem.l  d0/d1, -(a7)          \n"
+      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
+      "    move.l   #4, d1                \n" // vector number
+      "    illegal                        \n" // emucall
+      "    movem.l  (a7)+, d0/d1;         \n"
+      "    rte;\n"
+);
+
+__asm("__handleVec05:\n"
+      "    movem.l  d0/d1, -(a7)          \n"
+      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
+      "    move.l   #5, d1                \n" // vector number
+      "    illegal                        \n" // emucall
+      "    movem.l  (a7)+, d0/d1;         \n"
+      "    rte;\n"
+);
+
+__asm("__handleVec06:\n"
+      "    movem.l  d0/d1, -(a7)          \n"
+      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
+      "    move.l   #6, d1                \n" // vector number
+      "    illegal                        \n" // emucall
+      "    movem.l  (a7)+, d0/d1;         \n"
+      "    rte;\n"
+);
+
+__asm("__handleVec07:\n"
+      "    movem.l  d0/d1, -(a7)          \n"
+      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
+      "    move.l   #7, d1                \n" // vector number
+      "    illegal                        \n" // emucall
+      "    movem.l  (a7)+, d0/d1;         \n"
+      "    rte;\n"
+);
+
+__asm("__handleVec08:\n"
+      "    movem.l  d0/d1, -(a7)          \n"
+      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
+      "    move.l   #8, d1                \n" // vector number
+      "    illegal                        \n" // emucall
+      "    movem.l  (a7)+, d0/d1;         \n"
+      "    rte;\n"
+);
+
+__asm("__handleVec09:\n"
+      "    movem.l  d0/d1, -(a7)          \n"
+      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
+      "    move.l   #9, d1                \n" // vector number
+      "    illegal                        \n" // emucall
+      "    movem.l  (a7)+, d0/d1;         \n"
+      "    rte;\n"
+);
+
+__asm("__handleVec10:\n"
+      "    movem.l  d0/d1, -(a7)          \n"
+      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
+      "    move.l   #10, d1               \n" // vector number
+      "    illegal                        \n" // emucall
+      "    movem.l  (a7)+, d0/d1;         \n"
+      "    rte;\n"
+);
+
+__asm("__handleVec11:\n"
+      "    movem.l  d0/d1, -(a7)          \n"
+      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
+      "    move.l   #11, d1               \n" // vector number
+      "    illegal                        \n" // emucall
+      "    movem.l  (a7)+, d0/d1;         \n"
       "    rte;\n"
 );
 
@@ -1604,22 +1703,34 @@ __asm("__handleIRQ3:\n"
 void __saveds coldstart (void)
 {
 
-    uint32_t *p = (uint32_t*) 0x0000006c;
-	*p = (uint32_t) _handleIRQ3;
+    // setup exceptions, traps, interrupts
+    uint32_t *p;
 
-    //__asm("    ori.w  #0x0700, sr;\n");	// disable interrupts
-    //__asm("andi.w  #0xdfff, sr\n");	// disable supervisor bit
-    //__asm("move.l  #0x9fff99, a7\n");	// setup initial stack
-    //__asm("andi.w  #0xdfff, sr\n");	// disable supervisor bit
-    __asm("move.l  #0x009ffff0, a7\n");	// setup initial stack
+    p = (uint32_t*) 0x00000008; *p = (uint32_t) _handleVec02; // bus error
+    p = (uint32_t*) 0x0000000c; *p = (uint32_t) _handleVec03; // address error
+    p = (uint32_t*) 0x00000010; *p = (uint32_t) _handleVec04; // illegal instruction
+    p = (uint32_t*) 0x00000014; *p = (uint32_t) _handleVec05; // divide by 0 
+    p = (uint32_t*) 0x00000018; *p = (uint32_t) _handleVec06; // chk
+    p = (uint32_t*) 0x0000001c; *p = (uint32_t) _handleVec07; // trap v
+    p = (uint32_t*) 0x00000020; *p = (uint32_t) _handleVec08; // privilege violation
+    p = (uint32_t*) 0x00000024; *p = (uint32_t) _handleVec09; // trace
+    p = (uint32_t*) 0x00000028; *p = (uint32_t) _handleVec10; // line 1010
+    p = (uint32_t*) 0x0000002c; *p = (uint32_t) _handleVec11; // line 1111
+
+    p = (uint32_t*) 0x0000006c; *p = (uint32_t) handleIRQ3;
+
+    //__asm("    ori.w  #0x0700, sr;\n");   // disable interrupts
+    //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit
+    //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit
+    __asm("move.l  #0x009ffff0, a7\n"); // setup initial stack
 
     DPRINTF (LOG_INFO, "coldstart: EXEC_VECTORS_START = 0x%08lx\n", EXEC_VECTORS_START);
     DPRINTF (LOG_INFO, "           EXEC_BASE_START    = 0x%08lx\n", EXEC_BASE_START   );
-	DPRINTF (LOG_INFO, "           EXEC_MH_START      = 0x%08lx\n", EXEC_MH_START     );
-	DPRINTF (LOG_INFO, "           DOS_VECTORS_START  = 0x%08lx\n", DOS_VECTORS_START );
-	DPRINTF (LOG_INFO, "           DOS_BASE_START     = 0x%08lx\n", DOS_BASE_START    );
-	DPRINTF (LOG_INFO, "           RAM_START          = 0x%08lx\n", RAM_START         );
-	DPRINTF (LOG_INFO, "           RAM_END            = 0x%08lx\n", RAM_END           );
+    DPRINTF (LOG_INFO, "           EXEC_MH_START      = 0x%08lx\n", EXEC_MH_START     );
+    DPRINTF (LOG_INFO, "           DOS_VECTORS_START  = 0x%08lx\n", DOS_VECTORS_START );
+    DPRINTF (LOG_INFO, "           DOS_BASE_START     = 0x%08lx\n", DOS_BASE_START    );
+    DPRINTF (LOG_INFO, "           RAM_START          = 0x%08lx\n", RAM_START         );
+    DPRINTF (LOG_INFO, "           RAM_END            = 0x%08lx\n", RAM_END           );
 
     // coldstart is at 0x00f801be, &SysBase at 0x00f80c90, SysBase at 0x0009eed0, f1 at 0x00f80028
     DPRINTF (LOG_DEBUG, "coldstart: locations in RAM: coldstart is at 0x%08x, &SysBase at 0x%08x, SysBase at 0x%08x\n",
@@ -1631,24 +1742,25 @@ void __saveds coldstart (void)
 
     *(APTR *)4L = SysBase;
 
-	for (int i = 0; i<NUM_EXEC_FUNCS; i++)
-	{
-		g_ExecJumpTable[i].vec = _exec_unimplemented_call;
-		g_ExecJumpTable[i].jmp = JMPINSTR;
-	}
+    for (int i = 0; i<NUM_EXEC_FUNCS; i++)
+    {
+        g_ExecJumpTable[i].vec = _exec_unimplemented_call;
+        g_ExecJumpTable[i].jmp = JMPINSTR;
+    }
 
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-30)].vec = _exec_Supervisor;
     //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-36)].vec = _exec_ExitIntr;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-42)].vec = _exec_Schedule;
     //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-48)].vec = _exec_Reschedule;
-    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-54)].vec = _exec_Switch;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-60)].vec = _exec_Dispatch;
     //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-66)].vec = _exec_Exception;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-72)].vec = _exec_InitCode;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-78)].vec = _exec_InitStruct;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-84)].vec = _exec_MakeLibrary;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-90)].vec = _exec_MakeFunctions;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-96)].vec = _exec_FindResident;
+
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -30)].vec = _exec_Supervisor;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -42)].vec = exec_Schedule;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -54)].vec = exec_Switch;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -60)].vec = exec_Dispatch;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -72)].vec = _exec_InitCode;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -78)].vec = _exec_InitStruct;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -84)].vec = _exec_MakeLibrary;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -90)].vec = _exec_MakeFunctions;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -96)].vec = _exec_FindResident;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-102)].vec = _exec_InitResident;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-108)].vec = _exec_Alert;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-114)].vec = _exec_Debug;
@@ -1759,79 +1871,83 @@ void __saveds coldstart (void)
 
     SysBase->SoftVer = VERSION;
 
-	// set up memory management
+    // set up memory management
 
-	_newList (&SysBase->MemList);
-	SysBase->MemList.lh_Type = NT_MEMORY;
+    _newList (&SysBase->MemList);
+    SysBase->MemList.lh_Type = NT_MEMORY;
 
     struct MemChunk *myc = (struct MemChunk*)((uint8_t *)RAM_START);
     myc->mc_Next  = NULL;
     myc->mc_Bytes = RAM_SIZE;
 
-	struct MemHeader *myh = (struct MemHeader*) ((uint8_t *)EXEC_MH_START);
+    struct MemHeader *myh = (struct MemHeader*) ((uint8_t *)EXEC_MH_START);
     myh->mh_Node.ln_Type = NT_MEMORY;
     myh->mh_Node.ln_Pri  = 0;
     myh->mh_Node.ln_Name = NULL;
-	myh->mh_Attributes   = MEMF_CHIP | MEMF_PUBLIC;
+    myh->mh_Attributes   = MEMF_CHIP | MEMF_PUBLIC;
     myh->mh_First        = myc;
     myh->mh_Lower        = (APTR) RAM_START;
     myh->mh_Upper        = (APTR) (RAM_END + 1);
     myh->mh_Free         = RAM_SIZE;
 
-	DPRINTF (LOG_DEBUG, "coldstart: setting up first struct MemHeader *myh at 0x%08lx:\n", myh);
-	DPRINTF (LOG_DEBUG, "           myh->mh_First=0x%08lx, myh->mh_Lower=0x%08lx, myh->mh_Upper=0x%08lx, myh->mh_Free=%ld, myh->mh_Attributes=0x%08lx\n", 
-			 myh->mh_First, myh->mh_Lower, myh->mh_Upper, myh->mh_Free, myh->mh_Attributes);
+    DPRINTF (LOG_DEBUG, "coldstart: setting up first struct MemHeader *myh at 0x%08lx:\n", myh);
+    DPRINTF (LOG_DEBUG, "           myh->mh_First=0x%08lx, myh->mh_Lower=0x%08lx, myh->mh_Upper=0x%08lx, myh->mh_Free=%ld, myh->mh_Attributes=0x%08lx\n", 
+             myh->mh_First, myh->mh_Lower, myh->mh_Upper, myh->mh_Free, myh->mh_Attributes);
 
-	AddTail (&SysBase->MemList, &myh->mh_Node);
+    AddTail (&SysBase->MemList, &myh->mh_Node);
 
     // init and register built-in libraries
-	_newList (&SysBase->LibList);
-	SysBase->LibList.lh_Type = NT_LIBRARY;
+    _newList (&SysBase->LibList);
+    SysBase->LibList.lh_Type = NT_LIBRARY;
 
     registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS,__lxa_dos_ROMTag);
 
-    //emucall1 (EMU_CALL_TRACE, TRUE);
+    // init multitasking
+    _newList (&SysBase->TaskReady);
+    SysBase->TaskReady.lh_Type = NT_TASK;
+    _newList (&SysBase->TaskWait);
+    SysBase->TaskWait.lh_Type = NT_TASK;
 
-    // init task lists
-	_newList (&SysBase->TaskReady);
-	SysBase->TaskReady.lh_Type = NT_TASK;
-	_newList (&SysBase->TaskWait);
-	SysBase->TaskWait.lh_Type = NT_TASK;
+    SysBase->Quantum   = DEFAULT_SCHED_QUANTUM;
+    SysBase->Elapsed   = DEFAULT_SCHED_QUANTUM;
+    SysBase->SysFlags  = 0;
+    SysBase->IDNestCnt = -1;
+    SysBase->TDNestCnt = -1;
 
     // create a bootstrap task
-   	SysBase->ThisTask = _createTask ("exec bootstrap", 0, _bootstrap, 8192);
+    SysBase->ThisTask = _createTask ("exec bootstrap", 0, _bootstrap, 8192);
 
     // launch it
 
-	DPRINTF (LOG_INFO, "coldstart: about to launch _bootstrap task, pc=0x%08lx\n",
-			 *((ULONG *)SysBase->ThisTask->tc_SPReg));
+    DPRINTF (LOG_INFO, "coldstart: about to launch _bootstrap task, pc=0x%08lx\n",
+             *((ULONG *)SysBase->ThisTask->tc_SPReg));
 
-	SysBase->ThisTask->tc_State = TS_RUN;
-	Remove (&SysBase->ThisTask->tc_Node);
+    SysBase->ThisTask->tc_State = TS_RUN;
+    Remove (&SysBase->ThisTask->tc_Node);
 
-    //__asm("andi.w  #0xf8ff, sr;\n");	// enable interrupts
+    //__asm("andi.w  #0xf8ff, sr;\n");  // enable interrupts
 
-    asm( "move.l    %0, a5\n\t"
+    asm( "    move.l    %0, a5            \n"
 
-	     // restore usp
-	     "lea.l     2+4*16(a5),a2\n\t" 
-	     "move.l    a2, usp\n\t"
+         // restore usp
+         "    lea.l     2+16*4(a5),a2     \n"
+         "    move.l    a2, usp           \n"
 
-		 // prepare stack for for rte
-	     "move.l    (a5)+, -(a7)\n\t" // pc
-	     "move.w    (a5)+, -(a7)\n\t" // sr
+         // prepare stack for for rte
+         "    move.l    (a5)+, -(a7)      \n" // pc
+         "    move.w    (a5)+, -(a7)      \n" // sr
 
-		 // restore registers
-	     "movem.l   (a5), d0-d7/a0-a6\n\t"
+         // restore registers
+         "    movem.l   (a5), d0-d7/a0-a6 \n"
 
-		 // return from supervisor mode, jump into our task
-         "rte\n\t"
+         // return from supervisor mode, jump into our task
+         "    rte                         \n"
         : /* no outputs */
         : "r" (SysBase->ThisTask->tc_SPReg)
         : "cc", "a5", "a2"                   // doesn't really matter since will never exit from these instructions anyway
         );
 
-	DPRINTF (LOG_ERROR, "coldstart: this shouldn't happen\n");
+    DPRINTF (LOG_ERROR, "coldstart: this shouldn't happen\n");
 
     emu_stop();
 }

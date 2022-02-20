@@ -1,7 +1,5 @@
 include ../../config.mk
 
-
-# CC	= gcc
 CFLAGS	= -march=68000 -mcpu=68000 -Werror -O2 -fstrength-reduce -fomit-frame-pointer -msmall-code -fbaserel -c
 ASFLAGS = -march=68000 -mcpu=68000 -I/home/guenter/projects/amiga/amiga-gcc/m68k-amigaos/ndk-include
 LDFLAGS	= -noixemul -nostartfiles -nostdlib -fbaserel -s
@@ -17,7 +15,7 @@ clean:
 diss:
 	$(OBJDUMP_AMIGAOS) -S -d -x exec.library
 
-OBJS	= romhdr.o exec.o util.o amath.o lxa_dos.o
+OBJS	= romhdr.o exec.o exceptions.o util.o amath.o lxa_dos.o
 
 exec.library: $(OBJS)
 	$(CC_AMIGAOS) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)

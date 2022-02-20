@@ -31,6 +31,10 @@
 #define EMU_CALL_STOP          2
 #define EMU_CALL_TRACE         3
 #define EMU_CALL_LPUTS         4
+#define EMU_CALL_EXCEPTION     5
+#define EMU_CALL_WAIT          6
+#define EMU_CALL_INTENA        7
+#define EMU_CALL_MONITOR       8
 #define EMU_CALL_DOS_OPEN   1000
 #define EMU_CALL_DOS_READ   1001
 #define EMU_CALL_DOS_SEEK   1002
@@ -48,10 +52,11 @@
 
 static uint8_t g_ram[RAM_SIZE];
 static uint8_t g_rom[ROM_SIZE];
-static bool    g_debug   = false;
-static bool    g_trace   = false;
-static bool    g_running = true;
+static bool    g_debug   = FALSE;
+static bool    g_trace   = FALSE;
+static bool    g_running = TRUE;
 static FILE   *g_logf    = NULL;
+static bool    g_intena  = TRUE;
 
 #define ENDIAN_SWAP_16(data) ( (((data) >> 8) & 0x00FF) | (((data) << 8) & 0xFF00) )
 #define ENDIAN_SWAP_32(data) ( (((data) >> 24) & 0x000000FF) | (((data) >>  8) & 0x0000FF00) | \
@@ -64,23 +69,8 @@ static FILE   *g_logf    = NULL;
                                (((data) & 0x0000ff0000000000LL) >> 24) | \
                                (((data) & 0x00ff000000000000LL) >> 40) | \
                                (((data) & 0xff00000000000000LL) >> 56))
-#if 0
-static void hexdump (uint32_t offset, uint32_t num_bytes)
-{
-    dprintf ("HEX: 0x%08x  ", offset);
-    uint32_t cnt=0;
-    uint32_t num_longs = num_bytes >> 2;
-    while (cnt<num_longs)
-    {
-        uint32_t l = lpeek(offset);
-        dprintf (" 0x%08x", l);
-		offset +=4;
-        cnt++;
-    }
-    dprintf ("\n");
-}
-#endif
-static void _debug(void);
+
+static void _debug(uint32_t pc);
 
 static inline uint8_t mread8 (uint32_t address)
 {
@@ -91,7 +81,7 @@ static inline uint8_t mread8 (uint32_t address)
         if (startup)
             startup = FALSE;
         else
-            _debug();
+            _debug(m68k_get_reg(NULL, M68K_REG_PC));
     }
 
     if ((address >= RAM_START) && (address <= RAM_END))
@@ -117,8 +107,8 @@ static inline uint8_t mread8 (uint32_t address)
 unsigned int m68k_read_memory_8 (unsigned int address)
 {
     uint8_t b = mread8(address);
-    if (g_trace)
-        dprintf(LOG_DEBUG, "READ8   at 0x%08x -> 0x%02x\n", address, b);
+    //if (g_trace)
+    //    dprintf(LOG_DEBUG, "READ8   at 0x%08x -> 0x%02x\n", address, b);
     return b;
 }
 
@@ -126,8 +116,8 @@ unsigned int m68k_read_memory_16 (unsigned int address)
 {
     uint16_t w= (mread8(address)<<8) | mread8(address+1);
 
-    if (g_trace)
-        dprintf(LOG_DEBUG, "READ16  at 0x%08x -> 0x%04x\n", address, w);
+    //if (g_trace)
+    //    dprintf(LOG_DEBUG, "READ16  at 0x%08x -> 0x%04x\n", address, w);
     return w;
 }
 
@@ -202,6 +192,21 @@ void make_hex(char* buff, unsigned int pc, unsigned int length)
 	}
 }
 
+static void hexdump (int lvl, uint32_t offset, uint32_t num_bytes)
+{
+    dprintf (lvl, "HEX: 0x%08x  ", offset);
+    uint32_t cnt=0;
+    uint32_t num_longs = num_bytes >> 2;
+    while (cnt<num_longs)
+    {
+        uint32_t l = m68k_read_memory_32 (offset);
+        dprintf (lvl, " 0x%08x", l);
+		offset +=4;
+        cnt++;
+    }
+    dprintf (lvl, "\n");
+}
+
 static void print68kstate(int lvl)
 {
     uint32_t sr, d0,d1,d2,d3,d4,d5,d6,d7;
@@ -240,23 +245,25 @@ void cpu_instr_callback(int pc)
     {
         static char buff[100];
         static char buff2[100];
-        //static unsigned int pc;
         static unsigned int instr_size;
-        //pc = m68k_get_reg(NULL, M68K_REG_PC);
+        print68kstate(LOG_DEBUG);
         instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
         make_hex(buff2, pc, instr_size);
-        dprintf(LOG_DEBUG, "E %03x: %-20s: %s\n", pc, buff2, buff);
-        print68kstate(LOG_DEBUG);
+        dprintf(LOG_DEBUG, "E %08x: %-20s: %s\n", pc, buff2, buff);
     }
 }
 
-static void _debug(void)
+static void _debug(uint32_t pc)
 {
     static char buff[100];
     static char buff2[100];
-    static unsigned int pc;
     static unsigned int instr_size;
-    pc = m68k_get_reg(NULL, M68K_REG_PC);
+    static bool in_debug = FALSE;
+
+    if (in_debug)
+        return;
+    in_debug = TRUE;
+
     instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
     make_hex(buff2, pc, instr_size);
     dprintf(LOG_INFO, "E pc=%08x: %-20s: %s\n", pc, buff2, buff);
@@ -443,6 +450,64 @@ int op_illg(int level)
             dprintf (LOG_DEBUG, "set emulator tracing to %d\n", g_trace);
             break;
 
+        case EMU_CALL_EXCEPTION:
+        {
+            uint32_t excn = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t isp  = m68k_get_reg(NULL, M68K_REG_ISP);
+
+            uint32_t d0 = m68k_read_memory_32 (isp);
+            uint32_t d1 = m68k_read_memory_32 (isp+4);
+            uint32_t pc = m68k_read_memory_32 (isp+10);
+
+            m68k_set_reg (M68K_REG_D0, d0);
+            m68k_set_reg (M68K_REG_D1, d1);
+
+            dprintf (LOG_INFO, "*** EXCEPTION CAUGHT: pc=0x%08x #%2d ", pc, excn);
+
+            switch (excn)
+            {
+                case  2: dprintf (LOG_INFO, "bus error\n"); break;
+                case  3: dprintf (LOG_INFO, "address error\n"); break;
+                case  4: dprintf (LOG_INFO, "illegal instruction\n"); break;
+                case  5: dprintf (LOG_INFO, "divide by zero\n"); break;
+                case  6: dprintf (LOG_INFO, "chk instruction\n"); break;
+                case  7: dprintf (LOG_INFO, "trapv instruction\n"); break;
+                case  8: dprintf (LOG_INFO, "privilege violation\n"); break;
+                case  9: dprintf (LOG_INFO, "trace\n"); break;
+                case 10: dprintf (LOG_INFO, "line 1010 emulator\n"); break;
+                case 11: dprintf (LOG_INFO, "line 1111 emulator\n"); break;
+                default: dprintf (LOG_INFO, "???\n"); break;
+            }
+
+            hexdump (LOG_INFO, isp, 16);
+
+            _debug(pc);
+
+            m68k_end_timeslice();
+            g_running = FALSE;
+            break;
+        }
+
+        case EMU_CALL_INTENA:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INTENA enable=%d\n", d1);
+
+            g_intena = d1;
+
+            break;
+        }
+
+        case EMU_CALL_MONITOR:
+        {
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_MONITOR\n");
+
+            _debug(m68k_get_reg(NULL, M68K_REG_PC));
+
+            break;
+        }
+
         case EMU_CALL_DOS_OPEN:
         {
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
@@ -503,7 +568,7 @@ int op_illg(int level)
 
         default:
             dprintf (LOG_INFO, "*** error: undefined lxcall #%d\n", d0);
-            _debug();
+            _debug(m68k_get_reg(NULL, M68K_REG_PC));
             m68k_end_timeslice();
             g_running = FALSE;
     }
@@ -575,8 +640,11 @@ int main(int argc, char **argv, char **envp)
     {
         m68k_set_irq(0);
         m68k_execute(100000);
-        // dprintf ("lxa: triggering IRQ #3...\n");
-        m68k_set_irq(3);
+        if (g_intena)
+        {
+            // dprintf ("lxa: triggering IRQ #3...\n");
+            m68k_set_irq(3);
+        }
         m68k_execute(100000);
     }
 

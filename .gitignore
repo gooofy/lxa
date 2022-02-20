@@ -61,5 +61,6 @@ src/rom/exec.library
 src/rom/my.rom
 old
 src/lxa/lxa.log
+src/lxa/.vscode
 src/tools/sfd2lib/dos.c
 src/tools/sfd2lib/dos_lib.sfd
