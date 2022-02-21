@@ -12,6 +12,7 @@
     .set Elapsed        , 290
     .set SysFlags       , 292
     .set IDNestCnt      , 294
+    .set TDNestCnt      , 295
     .set TaskReady      , 406
 
     /* emucalls */
@@ -200,8 +201,13 @@ _handleIRQ3:
 2:
     movem.l     (sp)+, d0/a6                        | restore registers
 
-    bra     _exec_Schedule                          | jump into our scheduler
+    tst.b       TDNestCnt(A6)                       | multitasking disabled?
+    bge.s       3f                                  | yes -> skip Schedule()
 
+    bra         _exec_Schedule                      | jump into our scheduler
+
+3:
+    rte
 
     .align 4
 __exec_Schedule_s1:

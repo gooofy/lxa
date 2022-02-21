@@ -396,13 +396,14 @@ static void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("
 
 static void __saveds _exec_Forbid ( register struct ExecBase * __libBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: WARNING: Forbid(): unimplemented STUB called.\n");
-    // FIXME
+    DPRINTF (LOG_DEBUG, "_exec: Forbid(): called.\n");
+    SysBase->TDNestCnt++;
 }
 
 static void __saveds _exec_Permit ( register struct ExecBase * __libBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: WARNING: Permit() unimplemented STUB called.\n");
+    DPRINTF (LOG_DEBUG, "_exec: Permit() called.\n");
+    SysBase->TDNestCnt--;
 }
 
 static ULONG __saveds _exec_SetSR ( register struct ExecBase * __libBase __asm("a6"),
@@ -842,10 +843,21 @@ static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm(
     return task;
 }
 
-static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct Task * ___task  __asm("a1"))
+static void __saveds _defaultTaskExit (void)
 {
-    DPRINTF (LOG_DEBUG, "_exec: RemTask unimplemented STUB called.\n");
+    DPUTS (LOG_INFO, "_exec: _defaultTaskExit() called\n");
+
+    asm(
+        "    move.l  4, a6      \n" // SysBase -> a6
+        "    suba.l  a1, a1     \n" // #0 -> a1
+        "    jsr    -288(a6)    \n" // RemTask(0)
+    );
+}
+
+static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm("a6"),
+                                     register struct Task * task  __asm("a1"))
+{
+    DPRINTF (LOG_INFO, "_exec: RemTask called, task=0x%08lx\n", task);
     assert(FALSE);
 }
 
@@ -1560,10 +1572,11 @@ static void _newList(struct List *_NewList_list)
 
 static void __saveds _myTestTask(void)
 {
-    while (TRUE)
+    for (int i = 0; i<10; i++)
     {
         DPUTS (LOG_DEBUG, "_exec: test task iter\n");
     }
+    DPUTS (LOG_DEBUG, "_exec: test task done\n");
 }
 
 static void __saveds _bootstrap(void)
@@ -1908,11 +1921,12 @@ void __saveds coldstart (void)
     _newList (&SysBase->TaskWait);
     SysBase->TaskWait.lh_Type = NT_TASK;
 
-    SysBase->Quantum   = DEFAULT_SCHED_QUANTUM;
-    SysBase->Elapsed   = DEFAULT_SCHED_QUANTUM;
-    SysBase->SysFlags  = 0;
-    SysBase->IDNestCnt = -1;
-    SysBase->TDNestCnt = -1;
+    SysBase->TaskExitCode = _defaultTaskExit;
+    SysBase->Quantum      = DEFAULT_SCHED_QUANTUM;
+    SysBase->Elapsed      = DEFAULT_SCHED_QUANTUM;
+    SysBase->SysFlags     = 0;
+    SysBase->IDNestCnt    = -1;
+    SysBase->TDNestCnt    = -1;
 
     // create a bootstrap task
     SysBase->ThisTask = _createTask ("exec bootstrap", 0, _bootstrap, 8192);
