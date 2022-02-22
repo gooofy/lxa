@@ -386,12 +386,15 @@ static void __saveds _exec_Disable ( register struct ExecBase * __libBase __asm(
 {
     DPRINTF (LOG_DEBUG, "_exec: Disable() called.\n");
     emucall1 (EMU_CALL_INTENA, FALSE);
+	SysBase->IDNestCnt++;
 }
 
 static void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Enable() called.\n");
-    emucall1 (EMU_CALL_INTENA, TRUE);
+	SysBase->IDNestCnt--;
+	if (SysBase->IDNestCnt<0)
+		emucall1 (EMU_CALL_INTENA, TRUE);
 }
 
 static void __saveds _exec_Forbid ( register struct ExecBase * __libBase __asm("a6"))
@@ -528,16 +531,74 @@ static APTR __saveds _exec_Allocate ( register struct ExecBase * __libBase __asm
     return mc;
 }
 
-static void __saveds _exec_Deallocate ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct MemHeader * ___freeList  __asm("a0"),
-                                                        register APTR ___memoryBlock  __asm("a1"),
-                                                        register ULONG ___byteSize  __asm("d0"))
+static void __saveds _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
+                                        register struct MemHeader *freeList    __asm("a0"),
+                                        register APTR              memoryBlock __asm("a1"),
+                                        register ULONG             byteSize    __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: Deallocate unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_exec: Deallocate called, freeList=0x%08lx, memoryBlock=0x%08lx, byteSize=%ld\n", freeList, memoryBlock, byteSize);
+
+	if(!byteSize || !memoryBlock)
+		return;
+
+	// alignment
+
+    byteSize = ALIGN (byteSize, 4);
+
+	struct MemChunk *pNext     = freeList->mh_First;
+	struct MemChunk *pPrev     = (struct MemChunk *)&freeList->mh_First;
+	struct MemChunk *pCurStart = (struct MemChunk *)memoryBlock;
+	struct MemChunk *pCurEnd   = (struct MemChunk *) ((UBYTE *)pCurStart + byteSize);
+
+	if (!pNext)	// empty list?
+	{
+		pCurStart->mc_Bytes = byteSize;
+		pCurStart->mc_Next  = NULL;
+		pPrev->mc_Next      = pCurStart;
+
+		freeList->mh_Free  += byteSize;
+
+		return;
+	}
+
+	// not empty -> find correct spot where to insert our block
+	do
+	{
+		if (pNext >= pCurStart)
+		{
+			break;
+		}
+		pPrev = pNext;
+		pNext = pNext->mc_Next;
+
+	} while (pNext);
+
+	// if we found a prev block, see if we can merge
+	if (pPrev != (struct MemChunk *)&freeList->mh_First)
+	{
+		if ((UBYTE *)pPrev + pPrev->mc_Bytes == (UBYTE *)pCurStart)
+			pCurStart = pPrev;
+		else
+			pPrev->mc_Next = pCurStart;
+	}
+	else
+	{
+		pPrev->mc_Next = pCurStart;
+	}
+
+	// if we have a next block, try to merge with it as well
+	if (pNext && (pCurEnd == pNext))
+	{
+		pCurEnd += pNext->mc_Bytes;
+		pNext = pNext->mc_Next;
+	}
+
+	pCurStart->mc_Next   = pNext;
+	pCurStart->mc_Bytes  = (UBYTE *)pCurEnd - (UBYTE *)pCurStart;
+	freeList->mh_Free  += byteSize;
 }
 
-static APTR __saveds _exec_AllocMem ( register struct ExecBase * __libBase __asm("a6"),
+static APTR __saveds _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
                                       register ULONG ___byteSize  __asm("d0"),
                                       register ULONG ___requirements  __asm("d1"))
 {
@@ -599,11 +660,31 @@ static APTR __saveds _exec_AllocAbs ( register struct ExecBase * __libBase __asm
 }
 
 static void __saveds _exec_FreeMem ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register APTR ___memoryBlock  __asm("a1"),
-                                                        register ULONG ___byteSize  __asm("d0"))
+                                     register APTR  memoryBlock  __asm("a1"),
+                                     register ULONG byteSize     __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: FreeMem unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_exec: FreeMem called, memoryBlock=0x%08lx, byteSize=%ld\n", memoryBlock, byteSize);
+
+    if (!byteSize || !memoryBlock)
+		return;
+
+
+    APTR blockEnd = memoryBlock + byteSize;
+
+	Forbid();
+
+	for ( struct Node *node = SysBase->MemList.lh_Head ; node->ln_Succ != NULL ; node = node->ln_Succ )
+    {
+		struct MemHeader *mh = (struct MemHeader *)node;
+
+		if (mh->mh_Lower > memoryBlock || mh->mh_Upper < blockEnd)
+			continue;
+
+		Deallocate(mh, memoryBlock, byteSize);
+		break;
+    }
+
+	Permit();
 }
 
 static ULONG __saveds _exec_AvailMem ( register struct ExecBase * __libBase __asm("a6"),
@@ -666,10 +747,14 @@ static struct MemList * __saveds _exec_AllocEntry ( register struct ExecBase * _
 }
 
 static void __saveds _exec_FreeEntry ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct MemList * ___entry  __asm("a0"))
+                                       register struct MemList * entry  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: FreeEntry unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_exec: FreeEntry called, entry=0x%08lx\n", entry);
+
+    for (ULONG i=0; i<entry->ml_NumEntries; i++)
+        FreeMem (entry->ml_ME[i].me_Addr, entry->ml_ME[i].me_Length);
+
+    FreeMem (entry, sizeof(struct MemList) - sizeof(struct MemEntry) + (sizeof(struct MemEntry)*entry->ml_NumEntries));
 }
 
 static void __saveds _exec_Insert ( register struct ExecBase * __libBase __asm("a6"),
@@ -718,11 +803,22 @@ static void __saveds _exec_Remove ( register struct ExecBase * __libBase __asm("
     node->ln_Succ->ln_Pred = node->ln_Pred;
 }
 
-static struct Node * __saveds _exec_RemHead ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct List * ___list  __asm("a0"))
+static struct Node * __saveds _exec_RemHead ( register struct ExecBase *__libBase __asm("a6"),
+                                              register struct List     *list  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: RemHead unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_exec: RemHead called, list=0x%08lx\n", list);
+
+    assert (list);
+
+    struct Node *node = list->lh_Head->ln_Succ;
+    if (node)
+    {
+        node->ln_Pred = (struct Node *)list;
+        node          = list->lh_Head;
+        list->lh_Head = node->ln_Succ;
+    }
+
+    return node;
 }
 
 static struct Node * __saveds _exec_RemTail ( register struct ExecBase * __libBase __asm("a6"),
@@ -851,6 +947,9 @@ static void __saveds _defaultTaskExit (void)
         "    move.l  4, a6      \n" // SysBase -> a6
         "    suba.l  a1, a1     \n" // #0 -> a1
         "    jsr    -288(a6)    \n" // RemTask(0)
+	    : /* no outputs */
+		: /* no inputs */
+		: "cc", "d0", "d1", "a0", "a1", "a6"
     );
 }
 
@@ -858,7 +957,39 @@ static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm(
                                      register struct Task * task  __asm("a1"))
 {
     DPRINTF (LOG_INFO, "_exec: RemTask called, task=0x%08lx\n", task);
-    assert(FALSE);
+
+    struct Task    *me = SysBase->ThisTask;
+
+    if (!task)
+        task = me;
+
+	if (task != me)
+	{
+		Disable();
+		Remove(&task->tc_Node);
+		Enable();
+	}
+
+	task->tc_State = TS_REMOVED;
+
+	if (task == me)
+		Forbid();
+
+    struct MemList *ml;
+	while ((ml = (struct MemList *) RemHead (&task->tc_MemEntry)) != NULL)
+		FreeEntry (ml);
+
+	if (task == me)
+	{
+		asm(
+            "   move.l  4, a6                   \n"     // SysBase -> a6
+			"	move.l	#_exec_Dispatch, a5		\n"		// #exec_Dispatch -> a5
+			"   jsr     -30(a6)					\n"		// Supervisor()
+			: /* no outputs */
+			: /* no inputs */
+			: "cc", "d0", "d1", "a0", "a1", "a5", "a6"
+		);
+	}
 }
 
 static struct Task * __saveds _exec_FindTask ( register struct ExecBase * __libBase __asm("a6"),
