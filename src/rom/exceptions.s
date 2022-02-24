@@ -209,6 +209,35 @@ _handleIRQ3:
 3:
     rte
 
+    .globl _exec_Supervisor
+_exec_Supervisor:
+    ori.w       #0x2000, sr                         | this will cause a priv viol exception if we're not in supervisor mode already
+
+    /* we were in supervisor mode already -> create a fake exception stack frame */
+    move.l      #1f, -(a7)                          | push return address on stack
+    move.w      sr, -(a7)                           | push sr on stack
+    jmp         (a5)                                | call user function to be executed in supervisor mode
+
+1:  rts
+
+    /* privilege violation (may be caused by Supervisor()) */
+    .globl _handleVec08
+_handleVec08:
+    cmp.l       #_exec_Supervisor, 2(a7)            | was this caused by a Supervisor() call?
+    bne.s       2f                                  | no -> regular exception handler
+    move.l      #1f, 2(a7)                          | fix return address in exception stack frame
+    jmp         (a5)                                | call user function to be executed in supervisor mode
+1:
+    rts
+
+2:
+    movem.l     d0/d1, -(a7)                        | save registers
+    move.l      #5, d0                              | EMU_CALL_EXCEPTION
+    move.l      #8, d1                              | vector number
+    illegal                                         | emucall
+    movem.l     (a7)+, d0/d1;                       | restore registers
+    rte
+
     .align 4
 __exec_Schedule_s1:
     .asciz  "\n\n_exec_Schedule: Switching tasks!\n\n"

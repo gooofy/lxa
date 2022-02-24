@@ -642,7 +642,7 @@ int main(int argc, char **argv, char **envp)
         m68k_execute(100000);
         if (g_intena)
         {
-            // dprintf ("lxa: triggering IRQ #3...\n");
+            dprintf (LOG_INFO, "lxa: triggering IRQ #3...\n");
             m68k_set_irq(3);
         }
         m68k_execute(100000);

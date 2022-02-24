@@ -60,13 +60,6 @@ static void __saveds _exec_unimplemented_call ( register struct ExecBase  *exb _
     assert (FALSE);
 }
 
-static ULONG __saveds _exec_Supervisor ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register VOID (*__fpt)()  __asm("d7"))
-{
-    DPRINTF (LOG_ERROR, "_exec: Supervisor() unimplemented STUB called.\n");
-    assert(FALSE);
-}
-
 static void __saveds _exec_InitCode ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___startClass  __asm("d0"),
                                                         register ULONG ___version  __asm("d1"))
@@ -981,6 +974,8 @@ static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm(
 
 	if (task == me)
 	{
+        emucall1 (EMU_CALL_TRACE, TRUE); // FIXME: remove/disable
+        DPUTS (LOG_INFO, "_exec: RemTask calling Dispatch() via Supervisor()\n");
 		asm(
             "   move.l  4, a6                   \n"     // SysBase -> a6
 			"	move.l	#_exec_Dispatch, a5		\n"		// #exec_Dispatch -> a5
@@ -1705,9 +1700,9 @@ static void __saveds _myTestTask(void)
 {
     for (int i = 0; i<10; i++)
     {
-        DPUTS (LOG_DEBUG, "_exec: test task iter\n");
+        DPUTS (LOG_INFO, "_exec: test task iter\n");
     }
-    DPUTS (LOG_DEBUG, "_exec: test task done\n");
+    DPUTS (LOG_INFO, "_exec: test task done\n");
 }
 
 static void __saveds _bootstrap(void)
@@ -1717,9 +1712,7 @@ static void __saveds _bootstrap(void)
     // just for testing purposes add another task
     _createTask ("exec test task", 0, _myTestTask, 8192);
 
-    //emucall1 (EMU_CALL_TRACE, TRUE);
-
-#if 1
+#if 0
     // load our test program
 
     OpenLibrary ("dos.library", 0);
@@ -1737,7 +1730,7 @@ static void __saveds _bootstrap(void)
 
     DPUTS (LOG_INFO, "_exec: _bootstrap() DONE -> endless loop\n");
 
-    while (TRUE);
+    while (TRUE) ;
 
     emu_stop();
 }
@@ -1748,7 +1741,6 @@ void _handleVec04 (void);
 void _handleVec05 (void);
 void _handleVec06 (void);
 void _handleVec07 (void);
-void _handleVec08 (void);
 void _handleVec09 (void);
 void _handleVec10 (void);
 void _handleVec11 (void);
@@ -1807,15 +1799,6 @@ __asm("__handleVec07:\n"
       "    rte;\n"
 );
 
-__asm("__handleVec08:\n"
-      "    movem.l  d0/d1, -(a7)          \n"
-      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
-      "    move.l   #8, d1                \n" // vector number
-      "    illegal                        \n" // emucall
-      "    movem.l  (a7)+, d0/d1;         \n"
-      "    rte;\n"
-);
-
 __asm("__handleVec09:\n"
       "    movem.l  d0/d1, -(a7)          \n"
       "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
@@ -1856,7 +1839,7 @@ void __saveds coldstart (void)
     p = (uint32_t*) 0x00000014; *p = (uint32_t) _handleVec05; // divide by 0 
     p = (uint32_t*) 0x00000018; *p = (uint32_t) _handleVec06; // chk
     p = (uint32_t*) 0x0000001c; *p = (uint32_t) _handleVec07; // trap v
-    p = (uint32_t*) 0x00000020; *p = (uint32_t) _handleVec08; // privilege violation
+    p = (uint32_t*) 0x00000020; *p = (uint32_t)  handleVec08; // privilege violation
     p = (uint32_t*) 0x00000024; *p = (uint32_t) _handleVec09; // trace
     p = (uint32_t*) 0x00000028; *p = (uint32_t) _handleVec10; // line 1010
     p = (uint32_t*) 0x0000002c; *p = (uint32_t) _handleVec11; // line 1111
@@ -1896,7 +1879,7 @@ void __saveds coldstart (void)
     //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-48)].vec = _exec_Reschedule;
     //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-66)].vec = _exec_Exception;
 
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -30)].vec = _exec_Supervisor;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -30)].vec = exec_Supervisor;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -42)].vec = exec_Schedule;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -54)].vec = exec_Switch;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -60)].vec = exec_Dispatch;
