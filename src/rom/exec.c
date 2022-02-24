@@ -378,7 +378,7 @@ static void __saveds _exec_Debug ( register struct ExecBase * __libBase __asm("a
 static void __saveds _exec_Disable ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Disable() called.\n");
-    emucall1 (EMU_CALL_INTENA, FALSE);
+    emucall1 (EMU_CALL_INTENA, 0x4000);
 	SysBase->IDNestCnt++;
 }
 
@@ -387,19 +387,21 @@ static void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("
     DPRINTF (LOG_DEBUG, "_exec: Enable() called.\n");
 	SysBase->IDNestCnt--;
 	if (SysBase->IDNestCnt<0)
-		emucall1 (EMU_CALL_INTENA, TRUE);
+		emucall1 (EMU_CALL_INTENA, 0xc000); // 1100 0000 0000 0000
 }
 
 static void __saveds _exec_Forbid ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Forbid(): called.\n");
     SysBase->TDNestCnt++;
+    DPRINTF (LOG_DEBUG, "_exec: Forbid() --> SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 }
 
 static void __saveds _exec_Permit ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Permit() called.\n");
     SysBase->TDNestCnt--;
+    DPRINTF (LOG_DEBUG, "_exec: Permit() --> SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 }
 
 static ULONG __saveds _exec_SetSR ( register struct ExecBase * __libBase __asm("a6"),
@@ -974,7 +976,7 @@ static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm(
 
 	if (task == me)
 	{
-        emucall1 (EMU_CALL_TRACE, TRUE); // FIXME: remove/disable
+        //emucall1 (EMU_CALL_TRACE, TRUE); // FIXME: remove/disable
         DPUTS (LOG_INFO, "_exec: RemTask calling Dispatch() via Supervisor()\n");
 		asm(
             "   move.l  4, a6                   \n"     // SysBase -> a6
@@ -1730,7 +1732,8 @@ static void __saveds _bootstrap(void)
 
     DPUTS (LOG_INFO, "_exec: _bootstrap() DONE -> endless loop\n");
 
-    while (TRUE) ;
+    while (TRUE)
+        DPRINTF (LOG_INFO, "bootstrap() loop, SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 
     emu_stop();
 }

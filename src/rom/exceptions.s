@@ -54,6 +54,8 @@ _exec_Schedule:
 
     movem.l     d0-d1/a0-a1/a5-a6, -(a7)            | save registers
 
+    DPUTS       __exec_Schedule_s2                  | "Schedule() called"
+
     move.l      4, a6                               | SysBase -> a6
 
     move.w      #0x2700, sr                         | disable interrupts
@@ -186,6 +188,8 @@ _handleIRQ3:
 
     movem.l     d0/a6, -(sp)                        | save registers
 
+    DPUTS       __exec_handleIRQ3_s1                | "_handleIRQ3() called"
+
     move.l      4, a6
 
     /* count down current task's time slice */
@@ -199,14 +203,15 @@ _handleIRQ3:
     bset        #SFF_QuantumOver, SysFlags(a6)      | set QuantumOver bit SysFlags(a6) for scheduler
 
 2:
-    movem.l     (sp)+, d0/a6                        | restore registers
-
-    tst.b       TDNestCnt(A6)                       | multitasking disabled?
+    tst.b       TDNestCnt(a6)                       | multitasking disabled?
     bge.s       3f                                  | yes -> skip Schedule()
 
+    DPUTS       __exec_handleIRQ3_s2                | "_handleIRQ3() -> Schedule()"
+    movem.l     (sp)+, d0/a6                        | restore registers
     bra         _exec_Schedule                      | jump into our scheduler
 
 3:
+    movem.l     (sp)+, d0/a6                        | restore registers
     rte
 
     .globl _exec_Supervisor
@@ -238,8 +243,21 @@ _handleVec08:
     movem.l     (a7)+, d0/d1;                       | restore registers
     rte
 
+    .data
+
     .align 4
 __exec_Schedule_s1:
     .asciz  "\n\n_exec_Schedule: Switching tasks!\n\n"
 
+    .align 4
+__exec_Schedule_s2:
+    .asciz  "_exec_Schedule: Schedule() called\n"
+
+    .align 4
+__exec_handleIRQ3_s1:
+    .asciz "_handleIRQ3() called\n"
+
+    .align 4
+__exec_handleIRQ3_s2:
+    .asciz "_handleIRQ3() -> Schedule()\n"
 

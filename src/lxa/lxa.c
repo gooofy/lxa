@@ -50,13 +50,18 @@
 #define OFFSET_CURRENT       0
 #define OFFSET_END           1
 
-static uint8_t g_ram[RAM_SIZE];
-static uint8_t g_rom[ROM_SIZE];
-static bool    g_debug   = FALSE;
-static bool    g_trace   = FALSE;
-static bool    g_running = TRUE;
-static FILE   *g_logf    = NULL;
-static bool    g_intena  = TRUE;
+static uint8_t  g_ram[RAM_SIZE];
+static uint8_t  g_rom[ROM_SIZE];
+static bool     g_debug   = FALSE;
+static bool     g_trace   = FALSE;
+static bool     g_running = TRUE;
+static FILE    *g_logf    = NULL;
+
+// interrupts
+#define INTENA_MASTER 0x4000
+#define INTENA_VBLANK 0x0020
+
+static uint16_t g_intena  = INTENA_MASTER | INTENA_VBLANK;
 
 #define ENDIAN_SWAP_16(data) ( (((data) >> 8) & 0x00FF) | (((data) << 8) & 0xFF00) )
 #define ENDIAN_SWAP_32(data) ( (((data) >> 24) & 0x000000FF) | (((data) >>  8) & 0x0000FF00) | \
@@ -492,9 +497,20 @@ int op_illg(int level)
         {
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
 
-            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INTENA enable=%d\n", d1);
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INTENA d1=0x%08x\n", d1);
 
-            g_intena = d1;
+            if (d1 & 0x8000)
+            {
+                // set
+                g_intena |= d1 &0x7fff;
+            }
+            else
+            {
+                // clear
+                g_intena &= ~(d1&0x7fff);
+            }
+
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INTENA -> INTENA=0x%08x\n", g_intena);
 
             break;
         }
@@ -640,9 +656,9 @@ int main(int argc, char **argv, char **envp)
     {
         m68k_set_irq(0);
         m68k_execute(100000);
-        if (g_intena)
+        if ( (g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK))
         {
-            dprintf (LOG_INFO, "lxa: triggering IRQ #3...\n");
+            dprintf (LOG_DEBUG, "lxa: triggering IRQ #3...\n");
             m68k_set_irq(3);
         }
         m68k_execute(100000);
