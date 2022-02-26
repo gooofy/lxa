@@ -1718,7 +1718,6 @@ static void __saveds _bootstrap(void)
     // just for testing purposes add another task
     _createTask ("exec test task", 0, _myTestTask, 8192);
 
-#if 0
     // load our test program
 
     OpenLibrary ("dos.library", 0);
@@ -1732,7 +1731,6 @@ static void __saveds _bootstrap(void)
     hexdump (LOG_INFO, initPC, 32);
 
     //*((APTR*) SysBase->ThisTask->tc_SPReg) = initPC;
-#endif
 
     DPUTS (LOG_INFO, "_exec: _bootstrap() DONE -> endless loop\n");
 
@@ -1742,114 +1740,22 @@ static void __saveds _bootstrap(void)
     emu_stop();
 }
 
-void _handleVec02 (void);
-void _handleVec03 (void);
-void _handleVec04 (void);
-void _handleVec05 (void);
-void _handleVec06 (void);
-void _handleVec07 (void);
-void _handleVec09 (void);
-void _handleVec10 (void);
-void _handleVec11 (void);
-
-__asm("__handleVec02:\n"
-      "    movem.l  d0/d1, -(a7)          \n"
-      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
-      "    move.l   #2, d1                \n" // vector number
-      "    illegal                        \n" // emucall
-      "    movem.l  (a7)+, d0/d1;         \n"
-      "    rte;\n"
-);
-
-__asm("__handleVec03:\n"
-      "    movem.l  d0/d1, -(a7)          \n"
-      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
-      "    move.l   #3, d1                \n" // vector number
-      "    illegal                        \n" // emucall
-      "    movem.l  (a7)+, d0/d1;         \n"
-      "    rte;\n"
-);
-
-__asm("__handleVec04:\n"
-      "    movem.l  d0/d1, -(a7)          \n"
-      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
-      "    move.l   #4, d1                \n" // vector number
-      "    illegal                        \n" // emucall
-      "    movem.l  (a7)+, d0/d1;         \n"
-      "    rte;\n"
-);
-
-__asm("__handleVec05:\n"
-      "    movem.l  d0/d1, -(a7)          \n"
-      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
-      "    move.l   #5, d1                \n" // vector number
-      "    illegal                        \n" // emucall
-      "    movem.l  (a7)+, d0/d1;         \n"
-      "    rte;\n"
-);
-
-__asm("__handleVec06:\n"
-      "    movem.l  d0/d1, -(a7)          \n"
-      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
-      "    move.l   #6, d1                \n" // vector number
-      "    illegal                        \n" // emucall
-      "    movem.l  (a7)+, d0/d1;         \n"
-      "    rte;\n"
-);
-
-__asm("__handleVec07:\n"
-      "    movem.l  d0/d1, -(a7)          \n"
-      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
-      "    move.l   #7, d1                \n" // vector number
-      "    illegal                        \n" // emucall
-      "    movem.l  (a7)+, d0/d1;         \n"
-      "    rte;\n"
-);
-
-__asm("__handleVec09:\n"
-      "    movem.l  d0/d1, -(a7)          \n"
-      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
-      "    move.l   #9, d1                \n" // vector number
-      "    illegal                        \n" // emucall
-      "    movem.l  (a7)+, d0/d1;         \n"
-      "    rte;\n"
-);
-
-__asm("__handleVec10:\n"
-      "    movem.l  d0/d1, -(a7)          \n"
-      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
-      "    move.l   #10, d1               \n" // vector number
-      "    illegal                        \n" // emucall
-      "    movem.l  (a7)+, d0/d1;         \n"
-      "    rte;\n"
-);
-
-__asm("__handleVec11:\n"
-      "    movem.l  d0/d1, -(a7)          \n"
-      "    move.l   #5, d0                \n" // EMU_CALL_EXCEPTION
-      "    move.l   #11, d1               \n" // vector number
-      "    illegal                        \n" // emucall
-      "    movem.l  (a7)+, d0/d1;         \n"
-      "    rte;\n"
-);
-
-
 void __saveds coldstart (void)
 {
 
     // setup exceptions, traps, interrupts
     uint32_t *p;
 
-    p = (uint32_t*) 0x00000008; *p = (uint32_t) _handleVec02; // bus error
-    p = (uint32_t*) 0x0000000c; *p = (uint32_t) _handleVec03; // address error
-    p = (uint32_t*) 0x00000010; *p = (uint32_t) _handleVec04; // illegal instruction
-    p = (uint32_t*) 0x00000014; *p = (uint32_t) _handleVec05; // divide by 0 
-    p = (uint32_t*) 0x00000018; *p = (uint32_t) _handleVec06; // chk
-    p = (uint32_t*) 0x0000001c; *p = (uint32_t) _handleVec07; // trap v
-    p = (uint32_t*) 0x00000020; *p = (uint32_t)  handleVec08; // privilege violation
-    p = (uint32_t*) 0x00000024; *p = (uint32_t) _handleVec09; // trace
-    p = (uint32_t*) 0x00000028; *p = (uint32_t) _handleVec10; // line 1010
-    p = (uint32_t*) 0x0000002c; *p = (uint32_t) _handleVec11; // line 1111
+    p = (uint32_t*) 0x00000008; *p = (uint32_t) handleVec02; // bus error
+    p = (uint32_t*) 0x0000000c; *p = (uint32_t) handleVec03; // address error
+    p = (uint32_t*) 0x00000010; *p = (uint32_t) handleVec04; // illegal instruction
+    p = (uint32_t*) 0x00000014; *p = (uint32_t) handleVec05; // divide by 0
+    p = (uint32_t*) 0x00000018; *p = (uint32_t) handleVec06; // chk
+    p = (uint32_t*) 0x0000001c; *p = (uint32_t) handleVec07; // trap v
+    p = (uint32_t*) 0x00000020; *p = (uint32_t) handleVec08; // privilege violation
+    p = (uint32_t*) 0x00000024; *p = (uint32_t) handleVec09; // trace
+    p = (uint32_t*) 0x00000028; *p = (uint32_t) handleVec10; // line 1010
+    p = (uint32_t*) 0x0000002c; *p = (uint32_t) handleVec11; // line 1111
 
     p = (uint32_t*) 0x0000006c; *p = (uint32_t) handleIRQ3;
 

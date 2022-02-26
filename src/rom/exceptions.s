@@ -225,6 +225,60 @@ _exec_Supervisor:
 
 1:  rts
 
+    .globl _handleVec02
+_handleVec02:
+    movem.l  d0/d1, -(a7)
+    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
+    move.l   #2, d1                                 | vector number
+    illegal                                         | emucall
+    movem.l  (a7)+, d0/d1
+    rte
+
+    .globl _handleVec03
+_handleVec03:
+    movem.l  d0/d1, -(a7)
+    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
+    move.l   #3, d1                                 | vector number
+    illegal                                         | emucall
+    movem.l  (a7)+, d0/d1;
+    rte
+
+    .globl _handleVec04
+_handleVec04:
+    movem.l  d0/d1, -(a7)          
+    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
+    move.l   #4, d1                                 | vector number
+    illegal                                         | emucall
+    movem.l  (a7)+, d0/d1
+    rte
+
+    .globl _handleVec05
+_handleVec05:
+    movem.l  d0/d1, -(a7)          
+    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
+    move.l   #5, d1                                 | vector number
+    illegal                                         | emucall
+    movem.l  (a7)+, d0/d1         
+    rte;
+
+    .globl _handleVec06
+_handleVec06:
+    movem.l  d0/d1, -(a7)          
+    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
+    move.l   #6, d1                                 | vector number
+    illegal                                         | emucall
+    movem.l  (a7)+, d0/d1         
+    rte;
+
+    .globl _handleVec07
+_handleVec07:
+    movem.l  d0/d1, -(a7)          
+    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
+    move.l   #7, d1                                 | vector number
+    illegal                                         | emucall
+    movem.l  (a7)+, d0/d1         
+    rte
+
     /* privilege violation (may be caused by Supervisor()) */
     .globl _handleVec08
 _handleVec08:
@@ -241,6 +295,33 @@ _handleVec08:
     move.l      #8, d1                              | vector number
     illegal                                         | emucall
     movem.l     (a7)+, d0/d1;                       | restore registers
+    rte
+
+    .globl _handleVec09
+_handleVec09:
+    movem.l  d0/d1, -(a7)          
+    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
+    move.l   #9, d1                                 | vector number
+    illegal                                         | emucall
+    movem.l  (a7)+, d0/d1
+    rte
+
+    .globl _handleVec10
+_handleVec10:
+    movem.l  d0/d1, -(a7)          
+    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
+    move.l   #10, d1                                | vector number
+    illegal                                         | emucall
+    movem.l  (a7)+, d0/d1
+    rte
+
+    .globl _handleVec11
+_handleVec11:
+    movem.l  d0/d1, -(a7)          
+    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
+    move.l   #11, d1                                | vector number
+    illegal                                         | emucall
+    movem.l  (a7)+, d0/d1
     rte
 
     .data
