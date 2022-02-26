@@ -21,8 +21,7 @@
 #include "mem_map.h"
 #include "exceptions.h"
 
-// FIXME #define DEFAULT_SCHED_QUANTUM 4
-#define DEFAULT_SCHED_QUANTUM 1
+#define DEFAULT_SCHED_QUANTUM 4
 
 #define ENABLE_DEBUG
 
@@ -1707,7 +1706,7 @@ static void __saveds _myTestTask(void)
 {
     for (int i = 0; i<10000; i++)
     {
-        DPUTS (LOG_INFO, "_exec: test task iter\n");
+        DPRINTF (LOG_INFO, "_exec: test task iter SysBase->Elapsed=%d, SysBase->Quantum=%d\n", SysBase->Elapsed, SysBase->Quantum);
     }
     DPUTS (LOG_INFO, "_exec: test task done\n");
 }

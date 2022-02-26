@@ -76,6 +76,8 @@ _exec_Schedule:
     cmp.b       9(a1), d1                           | > ThisTask->ln_Pri ?
     bgt.s       __do_switch                         | yes -> __do_switch
 
+    DPUTS       __exec_Schedule_s4                  | "Schedule() got another task that is ready"
+
     btst.b      #SFF_QuantumOver, SysFlags(a6)      | time slice expired? (bit #6 in SysBase->SysFlags)
     beq.s       __exec_Schedule_exit                | no -> exit
 
@@ -94,6 +96,8 @@ __do_switch:
     rts                                             | -> Switch()
 
 __exec_Schedule_exit:
+    DPUTS       __exec_Schedule_s3                  | "Schedule() exit"
+
     movem.l     (a7)+, d0-d1/a0-a1/a5-a6            | restore registers
     rte
 
@@ -248,6 +252,14 @@ __exec_Schedule_s1:
     .align 4
 __exec_Schedule_s2:
     .asciz  "_exec_Schedule: Schedule() called\n"
+
+    .align 4
+__exec_Schedule_s3:
+    .asciz  "_exec_Schedule: Schedule() exit\n"
+
+    .align 4
+__exec_Schedule_s4:
+    .asciz  "_exec_Schedule: Schedule() got another task that is ready\n"
 
     .align 4
 __exec_handleIRQ3_s1:
