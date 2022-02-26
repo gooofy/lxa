@@ -1,6 +1,8 @@
 
 #include <inttypes.h>
 
+#include <hardware/custom.h>
+
 #include <exec/types.h>
 #include <exec/memory.h>
 #include <exec/libraries.h>
@@ -52,6 +54,7 @@ struct JumpVec
 static struct JumpVec  *g_ExecJumpTable = (struct JumpVec *)   ((uint8_t *)EXEC_VECTORS_START);
 struct ExecBase        *SysBase         = (struct ExecBase*)   ((uint8_t *)EXEC_BASE_START);
 struct DosLibrary      *DOSBase         = (struct DosLibrary*) ((uint8_t *)DOS_BASE_START);
+static struct Custom   *custom          = (struct Custom*)     0xdff000;
 
 #define JMPINSTR 0x4ef9
 
@@ -378,7 +381,9 @@ static void __saveds _exec_Debug ( register struct ExecBase * __libBase __asm("a
 static void __saveds _exec_Disable ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Disable() called.\n");
-    emucall1 (EMU_CALL_INTENA, 0x4000);
+
+    custom->intena = 0x4000;
+
 	SysBase->IDNestCnt++;
 }
 
@@ -387,7 +392,7 @@ static void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("
     DPRINTF (LOG_DEBUG, "_exec: Enable() called.\n");
 	SysBase->IDNestCnt--;
 	if (SysBase->IDNestCnt<0)
-		emucall1 (EMU_CALL_INTENA, 0xc000); // 1100 0000 0000 0000
+        custom->intena = 0xc000; // 1100 0000 0000 0000
 }
 
 static void __saveds _exec_Forbid ( register struct ExecBase * __libBase __asm("a6"))
@@ -1700,7 +1705,7 @@ static void _newList(struct List *_NewList_list)
 
 static void __saveds _myTestTask(void)
 {
-    for (int i = 0; i<10; i++)
+    for (int i = 0; i<10000; i++)
     {
         DPUTS (LOG_INFO, "_exec: test task iter\n");
     }

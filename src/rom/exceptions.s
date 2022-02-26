@@ -18,8 +18,10 @@
     /* emucalls */
     .set EMU_CALL_TRACE   , 3
     .set EMU_CALL_WAIT    , 6
-    .set EMU_CALL_INTENA  , 7
-    .set EMU_CALL_MONITOR , 7
+    .set EMU_CALL_MONITOR , 8
+
+    /* custom chip registers */
+    .set INTENA           , 0xdff09a
 
     .macro TRACE
     movem.l  d0/d1, -(a7)                           | save d0/d1
@@ -111,9 +113,7 @@ _exec_Switch:
     move.w   IDNestCnt(a6), d0                      | SysBase->IDNestCnt -> d0
     move.w   0xffff, IDNestCnt(a6)                  | -1 -> SysBase->IDNestCnt
 
-    move.l   #EMU_CALL_INTENA, d0                   | #EMU_CALL_INTENA -> d0
-    move.l   #0x0000C000, d1                        | enable interrupts
-    illegal                                         | emucall
+    move.w   #0xC000, INTENA                        | enable interrupts
 
     move.l   (a7)+, 13*4(a5)                        | restore a5 in user stack
     move.w   (a7)+, -(a5)                           | push SR on user stack
@@ -132,9 +132,7 @@ _exec_Dispatch:
     /* FIXME lea.l   ... */
     move.w  #0xffff, IDNestCnt(a6)                  | -1 -> SysBase->IDNestCnt
 
-    move.l   #EMU_CALL_INTENA, d0                   | #EMU_CALL_INTENA -> d0
-    move.l   #0x0000C000, d1                        | enable interrupts
-    illegal                                         | emucall
+    move.w   #0xC000, INTENA                        | enable interrupts
 
 __dispatch:
     lea      TaskReady(a6), a0                      | &SysBase->TaskReady -> a0
@@ -165,9 +163,7 @@ __dispatch:
     tst.b    IDNestCnt(a6)                          | SysBase->IDNestCnt (disable) set?
     bmi.s    3f                                     | no -> skip
 
-    move.l   #EMU_CALL_INTENA, d0                   | #EMU_CALL_INTENA -> d0
-    move.l   #0x00004000, d1                        | disable INTENA interrupts
-    illegal                                         | emucall
+    move.w   #0x4000, INTENA                        | disable INTENA interrupts
 
 3:
     move     #0x2000, sr                            | enable cpu interrupts

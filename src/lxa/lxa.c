@@ -27,13 +27,17 @@
 #define ROM_START   0xf80000
 #define ROM_END     ROM_START + ROM_SIZE - 1
 
+#define CUSTOM_START 0xdff000
+#define CUSTOM_END   0xdfffff
+
+#define CUSTOM_REG_INTENA   0x09a
+
 #define EMU_CALL_LPUTC         1
 #define EMU_CALL_STOP          2
 #define EMU_CALL_TRACE         3
 #define EMU_CALL_LPUTS         4
 #define EMU_CALL_EXCEPTION     5
 #define EMU_CALL_WAIT          6
-#define EMU_CALL_INTENA        7
 #define EMU_CALL_MONITOR       8
 #define EMU_CALL_DOS_OPEN   1000
 #define EMU_CALL_DOS_READ   1001
@@ -134,6 +138,36 @@ unsigned int m68k_read_memory_32 (unsigned int address)
     return l;
 }
 
+static void _handle_custom_write (uint16_t reg, uint16_t value)
+{
+
+    switch (reg)
+    {
+        case CUSTOM_REG_INTENA:
+        {
+            dprintf (LOG_DEBUG, "lxa: _handle_custom_write: INTENA value=0x%04x\n", value);
+
+            if (value & 0x8000)
+            {
+                // set
+                g_intena |= value & 0x7fff;
+            }
+            else
+            {
+                // clear
+                g_intena &= ~(value & 0x7fff);
+            }
+
+            dprintf (LOG_DEBUG, "lxa: _handle_custom_write -> INTENA=0x%04x\n", g_intena);
+
+            break;
+        }
+        default:
+            printf("ERROR: _handle_custom_write: unsupport chip reg 0x%03x\n", reg);
+            assert (false);
+    }
+}
+
 static inline void mwrite8 (uint32_t address, uint8_t value)
 {
     if ((address >= RAM_START) && (address <= RAM_END))
@@ -157,10 +191,19 @@ void m68k_write_memory_8(unsigned int address, unsigned int value)
 
 void m68k_write_memory_16(unsigned int address, unsigned int value)
 {
+    if ((address >= CUSTOM_START) && (address <= CUSTOM_END))
+    {
+        _handle_custom_write (address & 0xfff, value);
+        return;
+    }
+
+
     // if (g_trace)
     //     dprintf("WRITE16 at 0x%08x -> 0x%04x\n", address, value);
     mwrite8 (address  , (value >> 8) & 0xff);
     mwrite8 (address+1, value & 0xff);
+
+
 }
 
 void m68k_write_memory_32(unsigned int address, unsigned int value)
@@ -490,28 +533,6 @@ int op_illg(int level)
 
             m68k_end_timeslice();
             g_running = FALSE;
-            break;
-        }
-
-        case EMU_CALL_INTENA:
-        {
-            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
-
-            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INTENA d1=0x%08x\n", d1);
-
-            if (d1 & 0x8000)
-            {
-                // set
-                g_intena |= d1 &0x7fff;
-            }
-            else
-            {
-                // clear
-                g_intena &= ~(d1&0x7fff);
-            }
-
-            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INTENA -> INTENA=0x%08x\n", g_intena);
-
             break;
         }
 
