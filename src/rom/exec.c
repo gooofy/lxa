@@ -13,6 +13,7 @@
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
+#include <dos/dostags.h>
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
 
@@ -22,6 +23,8 @@
 #include "exceptions.h"
 
 #define DEFAULT_SCHED_QUANTUM 4
+
+#define DEFAULT_STACKSIZE 1<<16
 
 #define ENABLE_DEBUG
 
@@ -1702,6 +1705,7 @@ static void _newList(struct List *_NewList_list)
     _NewList_list->lh_Tail     = 0;
 }
 
+#if 0
 static void __saveds _myTestTask(void)
 {
     for (int i = 0; i<10000; i++)
@@ -1710,18 +1714,22 @@ static void __saveds _myTestTask(void)
     }
     DPUTS (LOG_INFO, "_exec: test task done\n");
 }
+#endif
 
 static void __saveds _bootstrap(void)
 {
     DPRINTF (LOG_INFO, "_exec: _bootstrap() called\n");
 
     // just for testing purposes add another task
-    _createTask ("exec test task", 0, _myTestTask, 8192);
+    // FIXME: remove _createTask ("exec test task", 0, _myTestTask, 8192);
 
     // load our test program
 
+	char *binfn = "x/foo";
+	// FIXME char *homedir = "x";
+
     OpenLibrary ("dos.library", 0);
-    BPTR segs = LoadSeg ("x/foo");
+    BPTR segs = LoadSeg (binfn);
 
     // inject initPC pointing to our loaded code into our task's stack
 
@@ -1731,6 +1739,25 @@ static void __saveds _bootstrap(void)
     hexdump (LOG_INFO, initPC, 32);
 
     //*((APTR*) SysBase->ThisTask->tc_SPReg) = initPC;
+
+    DPRINTF (LOG_INFO, "_exec: about to launch a new process for %s ...\n", binfn);
+
+    // FIXME childHomeDirLock = Lock ((STRPTR)env->dirbuf, ACCESS_READ);
+
+    struct Process *child = CreateNewProcTags(NP_Seglist     , (ULONG) segs,
+                                              NP_FreeSeglist , FALSE,
+                                              NP_Input       , Input(),
+                                              NP_Output      , Output(),
+                                              NP_CloseInput  , FALSE,
+                                              NP_CloseOutput , FALSE,
+                                              NP_StackSize   , DEFAULT_STACKSIZE,
+                                              NP_Name        , (ULONG) binfn,
+                                              //NP_WindowPtr , 0l,
+                                              /* FIXME: NP_HomeDir,     env->childHomeDirLock, */
+                                              NP_CopyVars    , FALSE,
+                                              TAG_DONE);
+
+    DPRINTF (LOG_INFO, "_exec: new process for %s created: 0x%08lx\n", binfn, child);
 
     DPUTS (LOG_INFO, "_exec: _bootstrap() DONE -> endless loop\n");
 

@@ -239,18 +239,25 @@ static LONG __saveds _dos_Read ( register struct DosLibrary * __libBase __asm("a
 }
 
 static LONG __saveds _dos_Write ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register BPTR ___file  __asm("d1"),
-                                                        register CONST APTR ___buffer  __asm("d2"),
-                                                        register LONG ___length  __asm("d3"))
+                                  register BPTR ___file  __asm("d1"),
+                                  register CONST APTR ___buffer  __asm("d2"),
+                                  register LONG ___length  __asm("d3"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Write unimplemented STUB called.\n");
+    DPRINTF (LOG_INFO, "_dos: Write unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static BPTR __saveds _dos_Input ( register struct DosLibrary * __libBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Input unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: Input() called.\n");
+
+    struct Process *p = (struct Process *) FindTask (NULL);
+
+    BPTR i = p->pr_CIS;
+
+    DPRINTF (LOG_DEBUG, "_dos: Input() p=0x%08lx, o=%ld\n", p, i);
+
+    return i;
 }
 
 static BPTR __saveds _dos_Output ( register struct DosLibrary * __libBase __asm("a6"))
