@@ -56,7 +56,7 @@ _exec_Schedule:
 
     movem.l     d0-d1/a0-a1/a5-a6, -(a7)            | save registers
 
-    DPUTS       __exec_Schedule_s2                  | "Schedule() called"
+    | DPUTS       __exec_Schedule_s2                  | "Schedule() called"
 
     move.l      4, a6                               | SysBase -> a6
 
@@ -76,7 +76,7 @@ _exec_Schedule:
     cmp.b       9(a1), d1                           | > ThisTask->ln_Pri ?
     bgt.s       __do_switch                         | yes -> __do_switch
 
-    DPUTS       __exec_Schedule_s4                  | "Schedule() got another task that is ready"
+    | DPUTS       __exec_Schedule_s4                  | "Schedule() got another task that is ready"
 
     btst.b      #SFF_QuantumOver, SysFlags(a6)      | time slice expired? (bit #6 in SysBase->SysFlags)
     beq.s       __exec_Schedule_exit                | no -> exit
@@ -96,7 +96,7 @@ __do_switch:
     rts                                             | -> Switch()
 
 __exec_Schedule_exit:
-    DPUTS       __exec_Schedule_s3                  | "Schedule() exit"
+    | DPUTS       __exec_Schedule_s3                  | "Schedule() exit"
 
     movem.l     (a7)+, d0-d1/a0-a1/a5-a6            | restore registers
     rte
@@ -188,7 +188,7 @@ _handleIRQ3:
 
     movem.l     d0/a6, -(sp)                        | save registers
 
-    DPUTS       __exec_handleIRQ3_s1                | "_handleIRQ3() called"
+    | DPUTS       __exec_handleIRQ3_s1                | "_handleIRQ3() called"
 
     move.l      4, a6
 
@@ -206,7 +206,7 @@ _handleIRQ3:
     tst.b       TDNestCnt(a6)                       | multitasking disabled?
     bge.s       3f                                  | yes -> skip Schedule()
 
-    DPUTS       __exec_handleIRQ3_s2                | "_handleIRQ3() -> Schedule()"
+    | DPUTS       __exec_handleIRQ3_s2                | "_handleIRQ3() -> Schedule()"
     movem.l     (sp)+, d0/a6                        | restore registers
     bra         _exec_Schedule                      | jump into our scheduler
 
@@ -245,7 +245,7 @@ _handleVec03:
 
     .globl _handleVec04
 _handleVec04:
-    movem.l  d0/d1, -(a7)          
+    movem.l  d0/d1, -(a7)
     move.l   #5, d0                                 | EMU_CALL_EXCEPTION
     move.l   #4, d1                                 | vector number
     illegal                                         | emucall
@@ -254,29 +254,29 @@ _handleVec04:
 
     .globl _handleVec05
 _handleVec05:
-    movem.l  d0/d1, -(a7)          
+    movem.l  d0/d1, -(a7)
     move.l   #5, d0                                 | EMU_CALL_EXCEPTION
     move.l   #5, d1                                 | vector number
     illegal                                         | emucall
-    movem.l  (a7)+, d0/d1         
+    movem.l  (a7)+, d0/d1
     rte;
 
     .globl _handleVec06
 _handleVec06:
-    movem.l  d0/d1, -(a7)          
+    movem.l  d0/d1, -(a7)
     move.l   #5, d0                                 | EMU_CALL_EXCEPTION
     move.l   #6, d1                                 | vector number
     illegal                                         | emucall
-    movem.l  (a7)+, d0/d1         
+    movem.l  (a7)+, d0/d1
     rte;
 
     .globl _handleVec07
 _handleVec07:
-    movem.l  d0/d1, -(a7)          
+    movem.l  d0/d1, -(a7)
     move.l   #5, d0                                 | EMU_CALL_EXCEPTION
     move.l   #7, d1                                 | vector number
     illegal                                         | emucall
-    movem.l  (a7)+, d0/d1         
+    movem.l  (a7)+, d0/d1
     rte
 
     /* privilege violation (may be caused by Supervisor()) */
