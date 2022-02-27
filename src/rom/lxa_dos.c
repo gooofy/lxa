@@ -1159,6 +1159,65 @@ static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary
 {
     DPRINTF (LOG_ERROR, "_dos: CreateNewProc() unimplemented STUB called.\n");
     assert(FALSE);
+
+#if 0
+
+    struct newMemList  nml;
+    struct MemList    *ml;
+    struct Task       *newtask;
+    APTR               task2;
+
+    DPRINTF (LOG_DEBUG, "_exec: _createTask() called, name=%s, pri=%ld, initpc=0x%08lx, stacksize=%ld\n",
+             name ? (char *) name : "NULL", pri, initpc, stacksize);
+
+
+    stacksize = (stacksize+3)&~3;
+
+    nml.nml_Node.ln_Succ = NULL;
+    nml.nml_Node.ln_Pred = NULL;
+    nml.nml_Node.ln_Type = NT_MEMORY;
+    nml.nml_Node.ln_Pri  = 0;
+    nml.nml_Node.ln_Name = NULL;
+
+    nml.nml_NumEntries = 2;
+
+    nml.nml_ME[0].me_Un.meu_Reqs = MEMF_CLEAR|MEMF_PUBLIC;
+    nml.nml_ME[0].me_Length      = sizeof(struct Task);
+    nml.nml_ME[1].me_Un.meu_Reqs = MEMF_CLEAR;
+    nml.nml_ME[1].me_Length      = stacksize;
+
+    ml = AllocEntry ((struct MemList *)&nml);
+    if (!(((unsigned int)ml) & (1<<31)))
+    {
+        newtask = ml->ml_ME[0].me_Addr;
+        newtask->tc_Node.ln_Type = NT_TASK;
+        newtask->tc_Node.ln_Pri  = pri;
+        newtask->tc_Node.ln_Name = name;
+        newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
+        newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
+        newtask->tc_SPUpper      = newtask->tc_SPReg;
+
+        DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx, initPC=0x%08lx\n",
+                 newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc);
+
+        NEWLIST (&newtask->tc_MemEntry);
+        AddHead (&newtask->tc_MemEntry,&ml->ml_Node);
+        task2 = AddTask (newtask, initpc, 0);
+        if (!task2)
+        {
+            DPRINTF (LOG_ERROR, "_exec: _createTask() AddTask() failed\n");
+            FreeEntry (ml);
+            newtask = NULL;
+        }
+    }
+    else
+    {
+        DPRINTF (LOG_ERROR, "_exec: _createTask() failed to allocate memory\n");
+        newtask = NULL;
+    }
+
+    return newtask;
+    #endif
 }
 
 static LONG __saveds _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),

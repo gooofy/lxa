@@ -1635,10 +1635,6 @@ struct newMemList
   struct MemEntry nml_ME[2];
 };
 
-#define NEWLIST(l) ((l)->lh_Head = (struct Node *)&(l)->lh_Tail, \
-                    /*(l)->lh_Tail = NULL,*/ \
-                    (l)->lh_TailPred = (struct Node *)&(l)->lh_Head)
-
 static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
 {
     struct newMemList  nml;
@@ -1940,7 +1936,7 @@ void __saveds coldstart (void)
 
     // set up memory management
 
-    _newList (&SysBase->MemList);
+    NEWLIST (&SysBase->MemList);
     SysBase->MemList.lh_Type = NT_MEMORY;
 
     struct MemChunk *myc = (struct MemChunk*)((uint8_t *)RAM_START);
@@ -1964,15 +1960,15 @@ void __saveds coldstart (void)
     AddTail (&SysBase->MemList, &myh->mh_Node);
 
     // init and register built-in libraries
-    _newList (&SysBase->LibList);
+    NEWLIST (&SysBase->LibList);
     SysBase->LibList.lh_Type = NT_LIBRARY;
 
     registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS,__lxa_dos_ROMTag);
 
     // init multitasking
-    _newList (&SysBase->TaskReady);
+    NEWLIST (&SysBase->TaskReady);
     SysBase->TaskReady.lh_Type = NT_TASK;
-    _newList (&SysBase->TaskWait);
+    NEWLIST (&SysBase->TaskWait);
     SysBase->TaskWait.lh_Type = NT_TASK;
 
     SysBase->TaskExitCode = _defaultTaskExit;

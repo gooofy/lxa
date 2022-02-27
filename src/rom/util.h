@@ -65,6 +65,10 @@ int strcmp(const char* s1, const char* s2);
 #define ALIGN(x,a)              __ALIGN_MASK(x,(typeof(x))(a)-1)
 #define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
 
+#define NEWLIST(l) ((l)->lh_Head = (struct Node *)&(l)->lh_Tail, \
+                    (l)->lh_Tail = NULL, \
+                    (l)->lh_TailPred = (struct Node *)&(l)->lh_Head)
+
 void hexdump(int lvl, void *mem, unsigned int len);
 
 #endif
