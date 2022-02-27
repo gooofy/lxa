@@ -69,6 +69,12 @@ int strcmp(const char* s1, const char* s2);
                     (l)->lh_Tail = NULL, \
                     (l)->lh_TailPred = (struct Node *)&(l)->lh_Head)
 
-void hexdump(int lvl, void *mem, unsigned int len);
+void            U_hexdump      (int lvl, void *mem, unsigned int len);
+
+struct Task    *U_allocTask    (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);
+void            U_freeTask     (struct Task *task);
+struct Task    *U_createTask   (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);
+
+struct Process *U_allocProcess (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);
 
 #endif

@@ -1155,9 +1155,9 @@ static struct CommandLineInterface * __saveds _dos_Cli ( register struct DosLibr
 }
 
 static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                        register const struct TagItem * tags __asm("d1"))
+                                                      register const struct TagItem * tags __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_dos: CreateNewProc() unimplemented STUB called.\n");
+    DPRINTF (LOG_INFO, "_dos: CreateNewProc() called.\n");
     assert(FALSE);
 
 #if 0

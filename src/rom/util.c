@@ -3,14 +3,27 @@
 #include <stdint.h>
 #include <stdarg.h>
 
-#if 0
-#include <ctype.h>
-#include <stdlib.h>
-#include <limits.h>
-#include <math.h>
-#include <float.h>
-#include "stdio.h"
+#include <exec/types.h>
+#include <exec/memory.h>
+#include <exec/libraries.h>
+#include <exec/execbase.h>
+#include <exec/resident.h>
+#include <exec/initializers.h>
+
+#include <clib/exec_protos.h>
+#include <inline/exec.h>
+
+#define ENABLE_DEBUG
+
+#ifdef ENABLE_DEBUG
+#define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)
+#define DPUTS(lvl, s) LPUTS (lvl, s)
+#else
+#define DPRINTF(lvl, ...)
+#define DPUTS(lvl, s)
 #endif
+
+extern struct ExecBase *SysBase;
 
 // a union to handle the
 union _d_bits {
@@ -430,12 +443,12 @@ int strcmp(const char* s1, const char* s2)
 
 #define HEXDUMP_COLS 16
 
-BOOL isprintable (char c)
+static BOOL isprintable (char c)
 {
     return (c>=32) & (c<127);
 }
 
-void hexdump (int lvl, void *mem, unsigned int len)
+void U_hexdump (int lvl, void *mem, unsigned int len)
 {
     unsigned int i, j;
 
@@ -478,4 +491,144 @@ void hexdump (int lvl, void *mem, unsigned int len)
             LPRINTF(lvl, "\n");
         }
     }
+}
+
+struct newMemList
+{
+  struct Node     nml_Node;
+  UWORD           nml_NumEntries;
+  struct MemEntry nml_ME[2];
+};
+
+struct Task *U_allocTask (STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
+{
+    struct newMemList  nml;
+    struct MemList    *ml;
+    struct Task       *newtask;
+
+    DPRINTF (LOG_DEBUG, "_util: allocTask() called, name=%s, pri=%ld, initpc=0x%08lx, stacksize=%ld\n",
+             name ? (char *) name : "NULL", pri, initpc, stacksize);
+
+    stacksize = (stacksize+3)&~3;
+
+    nml.nml_Node.ln_Succ = NULL;
+    nml.nml_Node.ln_Pred = NULL;
+    nml.nml_Node.ln_Type = NT_MEMORY;
+    nml.nml_Node.ln_Pri  = 0;
+    nml.nml_Node.ln_Name = NULL;
+
+    nml.nml_NumEntries = 2;
+
+    nml.nml_ME[0].me_Un.meu_Reqs = MEMF_CLEAR|MEMF_PUBLIC;
+    nml.nml_ME[0].me_Length      = sizeof(struct Task);
+    nml.nml_ME[1].me_Un.meu_Reqs = MEMF_CLEAR;
+    nml.nml_ME[1].me_Length      = stacksize;
+
+    ml = AllocEntry ((struct MemList *)&nml);
+    if (((unsigned int)ml) & (1<<31))
+    {
+        DPRINTF (LOG_ERROR, "util: _allocTask() failed to allocate memory\n");
+        return NULL;
+    }
+
+    newtask = ml->ml_ME[0].me_Addr;
+    newtask->tc_Node.ln_Type = NT_TASK;
+    newtask->tc_Node.ln_Pri  = pri;
+    newtask->tc_Node.ln_Name = name;
+    newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
+    newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
+    newtask->tc_SPUpper      = newtask->tc_SPReg;
+
+    DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx, initPC=0x%08lx\n",
+             newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc);
+
+    NEWLIST (&newtask->tc_MemEntry);
+    AddHead (&newtask->tc_MemEntry, &ml->ml_Node);
+
+    return newtask;
+}
+
+void U_freeTask (struct Task *task)
+{
+    struct MemList *mb;
+
+    while ((mb = (struct MemList *) RemHead(&task->tc_MemEntry)) != NULL)
+        FreeEntry(mb);
+}
+
+struct Task *U_createTask (STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
+{
+    struct Task *newtask = U_allocTask (name, pri, initpc, stacksize);
+
+    if (!newtask)
+        return NULL;
+
+    APTR task2 = AddTask (newtask, initpc, 0);
+    if (!task2)
+    {
+        DPRINTF (LOG_ERROR, "util: createTask() AddTask() failed\n");
+        U_freeTask (newtask);
+        return NULL;
+    }
+
+    return newtask;
+}
+
+static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
+{
+    struct newMemList  nml;
+    struct MemList    *ml;
+    struct Task       *newtask;
+    APTR               task2;
+
+    DPRINTF (LOG_DEBUG, "_exec: _createTask() called, name=%s, pri=%ld, initpc=0x%08lx, stacksize=%ld\n",
+             name ? (char *) name : "NULL", pri, initpc, stacksize);
+
+
+    stacksize = (stacksize+3)&~3;
+
+    nml.nml_Node.ln_Succ = NULL;
+    nml.nml_Node.ln_Pred = NULL;
+    nml.nml_Node.ln_Type = NT_MEMORY;
+    nml.nml_Node.ln_Pri  = 0;
+    nml.nml_Node.ln_Name = NULL;
+
+    nml.nml_NumEntries = 2;
+
+    nml.nml_ME[0].me_Un.meu_Reqs = MEMF_CLEAR|MEMF_PUBLIC;
+    nml.nml_ME[0].me_Length      = sizeof(struct Task);
+    nml.nml_ME[1].me_Un.meu_Reqs = MEMF_CLEAR;
+    nml.nml_ME[1].me_Length      = stacksize;
+
+    ml = AllocEntry ((struct MemList *)&nml);
+    if (!(((unsigned int)ml) & (1<<31)))
+    {
+        newtask = ml->ml_ME[0].me_Addr;
+        newtask->tc_Node.ln_Type = NT_TASK;
+        newtask->tc_Node.ln_Pri  = pri;
+        newtask->tc_Node.ln_Name = name;
+        newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
+        newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
+        newtask->tc_SPUpper      = newtask->tc_SPReg;
+
+        DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx, initPC=0x%08lx\n",
+                 newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc);
+
+        NEWLIST (&newtask->tc_MemEntry);
+        AddHead (&newtask->tc_MemEntry, &ml->ml_Node);
+        task2 = AddTask (newtask, initpc, 0);
+        if (!task2)
+        {
+            DPRINTF (LOG_ERROR, "_exec: _createTask() AddTask() failed\n");
+            FreeEntry (ml);
+            newtask = NULL;
+        }
+    }
+    else
+    {
+        DPRINTF (LOG_ERROR, "_exec: _createTask() failed to allocate memory\n");
+        newtask = NULL;
+    }
+
+    return newtask;
 }
