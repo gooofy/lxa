@@ -1694,13 +1694,6 @@ static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacks
     return newtask;
 }
 
-static void _newList(struct List *_NewList_list)
-{
-    _NewList_list->lh_TailPred = (struct Node *) _NewList_list;
-    _NewList_list->lh_Head     = (struct Node *) &_NewList_list->lh_Tail;
-    _NewList_list->lh_Tail     = 0;
-}
-
 #if 0
 static void __saveds _myTestTask(void)
 {
