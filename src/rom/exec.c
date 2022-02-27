@@ -882,50 +882,7 @@ static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm(
 
     assert(task);
 
-    // prepare task structure
-
-    task->tc_IDNestCnt = -1;
-    task->tc_TDNestCnt = -1;
-
-    task->tc_State     = TS_ADDED;
-    task->tc_Flags     = 0;
-
-    task->tc_SigWait   = 0;
-    task->tc_SigRecvd  = 0;
-    task->tc_SigExcept = 0;
-
-    if (!task->tc_SigAlloc)
-        task->tc_SigAlloc = SysBase->TaskSigAlloc;
-
-    if (!task->tc_TrapCode)
-        task->tc_TrapCode = SysBase->TaskTrapCode;
-
-    if (!task->tc_ExceptCode)
-        task->tc_ExceptCode = SysBase->TaskExceptCode;
-
-    if (!task->tc_SPReg)
-        task->tc_SPReg = task->tc_SPUpper;
-
-    // setup stack
-
-    ULONG *sp = task->tc_SPReg;
-
-    // return address
-    if (finalPC)
-        *(--sp) = (ULONG) finalPC;
-    else
-        *(--sp) = (ULONG) SysBase->TaskExitCode;
-
-    // regs
-    for (int i = 0; i<15; i++)
-        *(--sp) = 0;
-
-    UWORD *spw = (UWORD*) sp;
-    *(--spw) = 0;             // SR
-    sp = (ULONG*) spw;
-    *(--sp) = (ULONG) initPC; // PC
-
-    task->tc_SPReg = sp;
+    U_prepareTask (task, initPC, finalPC);
 
     // launch it
 
@@ -1905,16 +1862,18 @@ void __saveds coldstart (void)
     SysBase->IDNestCnt    = -1;
     SysBase->TDNestCnt    = -1;
 
-    // create a bootstrap task
-    SysBase->ThisTask = U_createTask ("exec bootstrap", 0, _bootstrap, 8192);
+    // create a bootstrap process
+    struct Process *rootProc = (struct Process *) U_allocTask ("exec bootstrap", 0, 8192, /*isProcess=*/ TRUE);
+    U_prepareTask (&rootProc->pr_Task, _bootstrap, 0);
 
     // launch it
 
-    DPRINTF (LOG_INFO, "coldstart: about to launch _bootstrap task, pc=0x%08lx\n",
-             *((ULONG *)SysBase->ThisTask->tc_SPReg));
+    DPRINTF (LOG_INFO, "coldstart: about to launch _bootstrap process, pc=0x%08lx\n",
+             *((ULONG *)rootProc->pr_Task.tc_SPReg));
 
+    SysBase->ThisTask = &rootProc->pr_Task;
     SysBase->ThisTask->tc_State = TS_RUN;
-    Remove (&SysBase->ThisTask->tc_Node);
+    //Remove (&SysBase->ThisTask->tc_Node);
 
     //__asm("andi.w  #0xf8ff, sr;\n");  // enable interrupts
 

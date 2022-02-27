@@ -15,6 +15,7 @@
 #define LXA_LOG_FILENAME "lxa.log"
 #define LOG_DEBUG 0
 #define LOG_INFO  1
+#define LOG_ERROR 2
 
 #define dprintf(lvl, ...) do { if (lvl || (DEBUG && g_debug)) printf(__VA_ARGS__); fprintf (g_logf, __VA_ARGS__); fflush (g_logf);} while (0)
 
@@ -88,9 +89,14 @@ static inline uint8_t mread8 (uint32_t address)
     if (!address)
     {
         if (startup)
+        {
             startup = FALSE;
+        }
         else
+        {
+            dprintf (LOG_ERROR, "lxa: mread8 illegal read from addr 0 detected\n");
             _debug(m68k_get_reg(NULL, M68K_REG_PC));
+        }
     }
 
     if ((address >= RAM_START) && (address <= RAM_END))

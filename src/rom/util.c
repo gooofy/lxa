@@ -13,6 +13,11 @@
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
+#include "dos/dos.h"
+#include "dos/dosextens.h"
+#include <clib/dos_protos.h>
+#include <inline/dos.h>
+
 #define ENABLE_DEBUG
 
 #ifdef ENABLE_DEBUG
@@ -500,14 +505,14 @@ struct newMemList
   struct MemEntry nml_ME[2];
 };
 
-struct Task *U_allocTask (STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
+struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess)
 {
     struct newMemList  nml;
     struct MemList    *ml;
     struct Task       *newtask;
 
-    DPRINTF (LOG_DEBUG, "_util: allocTask() called, name=%s, pri=%ld, initpc=0x%08lx, stacksize=%ld\n",
-             name ? (char *) name : "NULL", pri, initpc, stacksize);
+    DPRINTF (LOG_DEBUG, "_util: allocTask() called, name=%s, pri=%ld, stacksize=%ld\n",
+             name ? (char *) name : "NULL", pri, stacksize);
 
     stacksize = (stacksize+3)&~3;
 
@@ -520,7 +525,7 @@ struct Task *U_allocTask (STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
     nml.nml_NumEntries = 2;
 
     nml.nml_ME[0].me_Un.meu_Reqs = MEMF_CLEAR|MEMF_PUBLIC;
-    nml.nml_ME[0].me_Length      = sizeof(struct Task);
+    nml.nml_ME[0].me_Length      = isProcess ? sizeof(struct Process) : sizeof (struct Task);
     nml.nml_ME[1].me_Un.meu_Reqs = MEMF_CLEAR;
     nml.nml_ME[1].me_Length      = stacksize;
 
@@ -539,14 +544,63 @@ struct Task *U_allocTask (STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
     newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
     newtask->tc_SPUpper      = newtask->tc_SPReg;
 
-    DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx, initPC=0x%08lx\n",
-             newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc);
+    DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx\n",
+             newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper);
 
     NEWLIST (&newtask->tc_MemEntry);
     AddHead (&newtask->tc_MemEntry, &ml->ml_Node);
 
     return newtask;
 }
+
+void U_prepareTask (struct Task *task, APTR initPC, APTR finalPC)
+{
+    // prepare task structure
+
+    task->tc_IDNestCnt = -1;
+    task->tc_TDNestCnt = -1;
+
+    task->tc_State     = TS_ADDED;
+    task->tc_Flags     = 0;
+
+    task->tc_SigWait   = 0;
+    task->tc_SigRecvd  = 0;
+    task->tc_SigExcept = 0;
+
+    if (!task->tc_SigAlloc)
+        task->tc_SigAlloc = SysBase->TaskSigAlloc;
+
+    if (!task->tc_TrapCode)
+        task->tc_TrapCode = SysBase->TaskTrapCode;
+
+    if (!task->tc_ExceptCode)
+        task->tc_ExceptCode = SysBase->TaskExceptCode;
+
+    if (!task->tc_SPReg)
+        task->tc_SPReg = task->tc_SPUpper;
+
+    // setup stack
+
+    ULONG *sp = task->tc_SPReg;
+
+    // return address
+    if (finalPC)
+        *(--sp) = (ULONG) finalPC;
+    else
+        *(--sp) = (ULONG) SysBase->TaskExitCode;
+
+    // regs
+    for (int i = 0; i<15; i++)
+        *(--sp) = 0;
+
+    UWORD *spw = (UWORD*) sp;
+    *(--spw) = 0;             // SR
+    sp = (ULONG*) spw;
+    *(--sp) = (ULONG) initPC; // PC
+
+    task->tc_SPReg = sp;
+}
+
 
 void U_freeTask (struct Task *task)
 {
@@ -558,7 +612,7 @@ void U_freeTask (struct Task *task)
 
 struct Task *U_createTask (STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
 {
-    struct Task *newtask = U_allocTask (name, pri, initpc, stacksize);
+    struct Task *newtask = U_allocTask (name, pri, stacksize, /*isProcess=*/ FALSE);
 
     if (!newtask)
         return NULL;
@@ -619,16 +673,17 @@ static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacks
         task2 = AddTask (newtask, initpc, 0);
         if (!task2)
         {
-            DPRINTF (LOG_ERROR, "_exec: _createTask() AddTask() failed\n");
+            DPRINTF (LOG_ERROR, "util: createTask() AddTask() failed\n");
             FreeEntry (ml);
             newtask = NULL;
         }
     }
     else
     {
-        DPRINTF (LOG_ERROR, "_exec: _createTask() failed to allocate memory\n");
+        DPRINTF (LOG_ERROR, "util: createTask() failed to allocate memory\n");
         newtask = NULL;
     }
 
     return newtask;
 }
+

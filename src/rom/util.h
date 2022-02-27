@@ -71,10 +71,9 @@ int strcmp(const char* s1, const char* s2);
 
 void            U_hexdump      (int lvl, void *mem, unsigned int len);
 
-struct Task    *U_allocTask    (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);
+struct Task    *U_allocTask    (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess);
+void            U_prepareTask  (struct Task *task, APTR initPC, APTR finalPC);
 void            U_freeTask     (struct Task *task);
 struct Task    *U_createTask   (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);
-
-struct Process *U_allocProcess (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);
 
 #endif
