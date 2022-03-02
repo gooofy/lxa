@@ -77,13 +77,16 @@ static struct TagItem * __saveds _utility_FindTagItem ( register struct UtilityB
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_GetTagData ( register struct UtilityBase * UtilityBase __asm("a6"),
-                                                        register Tag tagValue __asm("d0"),
-                                                        register ULONG defaultVal __asm("d1"),
-                                                        register const struct TagItem * tagList __asm("a0"))
+static ULONG __saveds _utility_GetTagData ( register struct UtilityBase   *UtilityBase __asm("a6"),
+                                            register Tag                   tagValue    __asm("d0"),
+                                            register ULONG                 defaultVal  __asm("d1"),
+                                            register const struct TagItem *tagList     __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: GetTagData() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_utility: GetTagData() called.\n");
+
+    struct TagItem *tag = FindTagItem (tagValue, tagList);
+
+    return tag ? tag->ti_Data : defaultVal;
 }
 
 static ULONG __saveds _utility_PackBoolTags ( register struct UtilityBase * UtilityBase __asm("a6"),
