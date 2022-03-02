@@ -15,7 +15,7 @@ clean:
 diss:
 	$(OBJDUMP_AMIGAOS) -S -d -x exec.library
 
-OBJS	= romhdr.o exec.o exceptions.o util.o amath.o lxa_dos.o
+OBJS	= romhdr.o exec.o exceptions.o util.o amath.o lxa_dos.o lxa_utility.o
 
 exec.library: $(OBJS)
 	$(CC_AMIGAOS) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)

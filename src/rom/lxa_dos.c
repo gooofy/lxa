@@ -7,8 +7,8 @@
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
-#include "dos/dos.h"
-#include "dos/dosextens.h"
+#include <dos/dos.h>
+#include <dos/dosextens.h>
 #include <dos/dostags.h>
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
@@ -17,7 +17,6 @@
 #include <inline/utility.h>
 
 #include "util.h"
-#include "lxa_dos.h"
 
 #define ENABLE_DEBUG
 
@@ -44,11 +43,11 @@
 #define EXLIBNAME  "dos"
 #define EXLIBVER   " 1.1 (2021/07/21)"
 
-char __aligned ExLibName [] = EXLIBNAME ".library";
-char __aligned ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_dos_ExLibName [] = EXLIBNAME ".library";
+char __aligned _g_dos_ExLibID   [] = EXLIBNAME EXLIBVER;
+char __aligned _g_dos_Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT license.";
 
-char __aligned VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
+char __aligned _g_dos_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase      *SysBase;
 extern struct UtilityBase   *UtilityBase;
@@ -1918,8 +1917,8 @@ static struct Resident __aligned ROMTag =
     VERSION,                    // UBYTE rt_Version;                  8
     NT_LIBRARY,                 // UBYTE rt_Type;                     9
     0,                          // BYTE  rt_Pri;                     10
-    &ExLibName[0],              // char  *rt_Name;                   14
-    &ExLibID[0],                // char  *rt_IdString;               18
+    &_g_dos_ExLibName[0],       // char  *rt_Name;                   14
+    &_g_dos_ExLibID[0],         // char  *rt_IdString;               18
     &__g_lxa_dos_InitTab        // APTR  rt_Init;                    22
 };
 
@@ -2108,11 +2107,11 @@ APTR __g_lxa_dos_FuncTab [] =
 struct MyDataInit __g_lxa_dos_DataTab =
 {
     /* ln_Type      */ INITBYTE(OFFSET(Node,         ln_Type),      NT_LIBRARY),
-    /* ln_Name      */ 0x80, (UBYTE) (ULONG) OFFSET(Node,    ln_Name), (ULONG) &ExLibName[0],
+    /* ln_Name      */ 0x80, (UBYTE) (ULONG) OFFSET(Node,    ln_Name), (ULONG) &_g_dos_ExLibName[0],
     /* lib_Flags    */ INITBYTE(OFFSET(Library,      lib_Flags),    LIBF_SUMUSED|LIBF_CHANGED),
     /* lib_Version  */ INITWORD(OFFSET(Library,      lib_Version),  VERSION),
     /* lib_Revision */ INITWORD(OFFSET(Library,      lib_Revision), REVISION),
-    /* lib_IdString */ 0x80, (UBYTE) (ULONG) OFFSET(Library, lib_IdString), (ULONG) &ExLibID[0],
+    /* lib_IdString */ 0x80, (UBYTE) (ULONG) OFFSET(Library, lib_IdString), (ULONG) &_g_dos_ExLibID[0],
     (ULONG) 0
 };
 

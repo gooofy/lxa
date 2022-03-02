@@ -18,7 +18,6 @@
 #include <inline/dos.h>
 
 #include "util.h"
-#include "lxa_dos.h"
 #include "mem_map.h"
 #include "exceptions.h"
 
@@ -53,10 +52,11 @@ struct JumpVec
     void *vec;
 };
 
-static struct JumpVec  *g_ExecJumpTable = (struct JumpVec *)   ((uint8_t *)EXEC_VECTORS_START);
-struct ExecBase        *SysBase         = (struct ExecBase*)   ((uint8_t *)EXEC_BASE_START);
-struct DosLibrary      *DOSBase         = (struct DosLibrary*) ((uint8_t *)DOS_BASE_START);
-static struct Custom   *custom          = (struct Custom*)     0xdff000;
+static struct JumpVec  *g_ExecJumpTable = (struct JumpVec *)    ((uint8_t *)EXEC_VECTORS_START);
+struct ExecBase        *SysBase         = (struct ExecBase*)    ((uint8_t *)EXEC_BASE_START);
+struct UtilityBase     *UtilityBase     = (struct UtilityBase*) ((uint8_t *)UTILITY_BASE_START);
+struct DosLibrary      *DOSBase         = (struct DosLibrary*)  ((uint8_t *)DOS_BASE_START);
+static struct Custom   *custom          = (struct Custom*)      0xdff000;
 
 #define JMPINSTR 0x4ef9
 
@@ -1614,7 +1614,10 @@ static void __saveds _bootstrap(void)
 	// FIXME char *homedir = "x";
 
     OpenLibrary ("dos.library", 0);
+    OpenLibrary ("utility.library", 0);
     BPTR segs = LoadSeg (binfn);
+
+    DPRINTF (LOG_INFO, "_exec: _bootstrap(): segs=0x%08lx\n", segs);
 
     // inject initPC pointing to our loaded code into our task's stack
 
@@ -1852,7 +1855,8 @@ void __saveds coldstart (void)
     NEWLIST (&SysBase->LibList);
     SysBase->LibList.lh_Type = NT_LIBRARY;
 
-    registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS,__lxa_dos_ROMTag);
+    registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS, __lxa_dos_ROMTag);
+    registerBuiltInLib ((struct Library *) UtilityBase, NUM_UTILITY_FUNCS, __lxa_utility_ROMTag);
 
     // init multitasking
     NEWLIST (&SysBase->TaskReady);

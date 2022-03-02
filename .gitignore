@@ -59,8 +59,16 @@ target/
 src/lxa/tmp/
 src/rom/exec.library
 src/rom/my.rom
+src/rom/amiga_rom.x
 old
 src/lxa/lxa.log
 src/lxa/.vscode
 src/tools/sfd2lib/dos.c
 src/tools/sfd2lib/dos_lib.sfd
+src/tools/fd2pragma/dos_fns.c
+src/tools/fd2pragma/dos_mini.h
+src/tools/fd2pragma/dos_stubs.c
+src/tools/fd2pragma/exec_lib.fd
+src/tools/fd2pragma/exec_lib.h
+src/tools/fd2pragma/exec_offs.txt
+src/tools/fd2pragma/offsets.txt
