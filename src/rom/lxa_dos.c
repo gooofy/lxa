@@ -9,8 +9,12 @@
 
 #include "dos/dos.h"
 #include "dos/dosextens.h"
+#include <dos/dostags.h>
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
+
+#include <clib/utility_protos.h>
+#include <inline/utility.h>
 
 #include "util.h"
 #include "lxa_dos.h"
@@ -46,7 +50,8 @@ char __aligned Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under th
 
 char __aligned VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
-extern struct ExecBase *SysBase;
+extern struct ExecBase      *SysBase;
+extern struct UtilityBase   *UtilityBase;
 
 #if 0
 struct DosLibrary * __saveds __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("a6"),
@@ -217,10 +222,10 @@ static LONG __saveds _dos_Close ( register struct DosLibrary * __libBase __asm("
     return l;
 }
 
-static LONG __saveds _dos_Read ( register struct DosLibrary * __libBase __asm("a6"),
-                                 register BPTR file  __asm("d1"),
-                                 register APTR buffer  __asm("d2"),
-                                 register LONG length  __asm("d3"))
+static LONG __saveds _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
+                                 register BPTR                file    __asm("d1"),
+                                 register APTR                buffer  __asm("d2"),
+                                 register LONG                length  __asm("d3"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Read called: file=0x%08lx buffer=0x%08lx length=%ld\n", file, buffer, length);
 
@@ -238,13 +243,25 @@ static LONG __saveds _dos_Read ( register struct DosLibrary * __libBase __asm("a
     return l;
 }
 
-static LONG __saveds _dos_Write ( register struct DosLibrary * __libBase __asm("a6"),
-                                  register BPTR ___file  __asm("d1"),
-                                  register CONST APTR ___buffer  __asm("d2"),
-                                  register LONG ___length  __asm("d3"))
+static LONG __saveds _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
+                                  register BPTR                file    __asm("d1"),
+                                  register CONST APTR          buffer  __asm("d2"),
+                                  register LONG                length  __asm("d3"))
 {
-    DPRINTF (LOG_INFO, "_dos: Write unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_dos: Write called, file=0x%08lx buffer=0x%08lx length=%ld\n\n", file, buffer, length);
+
+    struct FileHandle *fh = (struct FileHandle *) BADDR(file);
+    int l = emucall3 (EMU_CALL_DOS_WRITE, (ULONG) fh, (ULONG) buffer, length);
+
+    DPRINTF (LOG_INFO, "_dos: Write() result from emucall3: l=%ld\n", l);
+
+    if (l<0)
+    {
+        struct Process *me = (struct Process *)FindTask(NULL);
+        me->pr_Result2 = fh->fh_Arg2;
+    }
+
+    return l;
 }
 
 static BPTR __saveds _dos_Input ( register struct DosLibrary * __libBase __asm("a6"))
@@ -1158,6 +1175,28 @@ static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary
                                                       register const struct TagItem * tags __asm("d1"))
 {
     DPRINTF (LOG_INFO, "_dos: CreateNewProc() called.\n");
+
+    ULONG  stackSize =          GetTagData(NP_StackSize, 8192                 , tags);
+    LONG   pri       =          GetTagData(NP_Priority , 0                    , tags);
+    STRPTR name      = (STRPTR) GetTagData(NP_Name     , (ULONG) "new process", tags);
+    APTR   initpc    = (APTR)   GetTagData(NP_Entry    , 0                    , tags);
+
+    struct Process *process = (struct Process *) U_allocTask (name, pri, stackSize, /*isProcess=*/ TRUE);
+
+    if (!process)
+        return NULL;
+
+    U_prepareProcess (process, initpc, 0, stackSize);
+
+    struct Task *task2 = AddTask (&process->pr_Task, initpc, 0);
+    if (!task2)
+    {
+        DPRINTF (LOG_ERROR, "_dos: CreateNewProc() AddTask() failed\n");
+        // FIXME! FreeEntry (ml);
+        assert (FALSE);
+        return NULL;
+    }
+
     assert(FALSE);
 
 #if 0

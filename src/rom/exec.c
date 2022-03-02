@@ -1603,6 +1603,11 @@ static void __saveds _bootstrap(void)
     // just for testing purposes add another task
     // FIXME: remove _createTask ("exec test task", 0, _myTestTask, 8192);
 
+	// test Output() / Write()
+
+	BPTR out = Output();
+	Write (out, "\n\nHello, world!\n\n", 17);
+
     // load our test program
 
 	char *binfn = "x/foo";
@@ -1864,7 +1869,16 @@ void __saveds coldstart (void)
 
     // create a bootstrap process
     struct Process *rootProc = (struct Process *) U_allocTask ("exec bootstrap", 0, 8192, /*isProcess=*/ TRUE);
-    U_prepareTask (&rootProc->pr_Task, _bootstrap, 0);
+    U_prepareProcess (rootProc, _bootstrap, 0, 8192);
+
+    // stdin/stdout
+    struct FileHandle *fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
+    fh->fh_Args = emucall0 (EMU_CALL_DOS_INPUT);
+    rootProc->pr_CIS = MKBADDR (fh);
+
+    fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
+    fh->fh_Args = emucall0 (EMU_CALL_DOS_OUTPUT);
+    rootProc->pr_COS = MKBADDR (fh);
 
     // launch it
 
@@ -1873,9 +1887,6 @@ void __saveds coldstart (void)
 
     SysBase->ThisTask = &rootProc->pr_Task;
     SysBase->ThisTask->tc_State = TS_RUN;
-    //Remove (&SysBase->ThisTask->tc_Node);
-
-    //__asm("andi.w  #0xf8ff, sr;\n");  // enable interrupts
 
     asm( "    move.l    %0, a5            \n"
 

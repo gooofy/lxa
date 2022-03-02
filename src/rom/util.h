@@ -3,6 +3,8 @@
 
 #include <exec/types.h>
 
+#include "dos/dos.h"
+#include "dos/dosextens.h"
 
 #define EMU_CALL_LPUTC         1
 #define EMU_CALL_STOP          2
@@ -15,7 +17,11 @@
 #define EMU_CALL_DOS_READ   1001
 #define EMU_CALL_DOS_SEEK   1002
 #define EMU_CALL_DOS_CLOSE  1003
+#define EMU_CALL_DOS_INPUT  1004
+#define EMU_CALL_DOS_OUTPUT 1005
+#define EMU_CALL_DOS_WRITE  1006
 
+ULONG emucall0 (ULONG func);
 ULONG emucall1 (ULONG func, ULONG param1);
 ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3);
 
@@ -69,11 +75,13 @@ int strcmp(const char* s1, const char* s2);
                     (l)->lh_Tail = NULL, \
                     (l)->lh_TailPred = (struct Node *)&(l)->lh_Head)
 
-void            U_hexdump      (int lvl, void *mem, unsigned int len);
+void            U_hexdump        (int lvl, void *mem, unsigned int len);
 
-struct Task    *U_allocTask    (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess);
-void            U_prepareTask  (struct Task *task, APTR initPC, APTR finalPC);
-void            U_freeTask     (struct Task *task);
-struct Task    *U_createTask   (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);
+struct Task    *U_allocTask      (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess);
+void            U_prepareTask    (struct Task *task, APTR initPC, APTR finalPC);
+void            U_freeTask       (struct Task *task);
+struct Task    *U_createTask     (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);
+
+void            U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG stacksize);
 
 #endif

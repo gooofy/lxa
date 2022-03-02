@@ -44,6 +44,9 @@
 #define EMU_CALL_DOS_READ   1001
 #define EMU_CALL_DOS_SEEK   1002
 #define EMU_CALL_DOS_CLOSE  1003
+#define EMU_CALL_DOS_INPUT  1004
+#define EMU_CALL_DOS_OUTPUT 1005
+#define EMU_CALL_DOS_WRITE  1006
 
 #define AMIGA_SYSROOT "/home/guenter/media/emu/amiga/FS-UAE/hdd/system/"
 
@@ -439,6 +442,23 @@ static int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
     return o;
 }
 
+static int _dos_write (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
+{
+    dprintf (LOG_DEBUG, "lxa: _dos_write(): fh=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
+
+	int fd = m68k_read_memory_32 (fh68k+36);
+    dprintf (LOG_DEBUG, "                  -> fd = %d\n", fd);
+
+    void *buf = _mgetstr (buf68k);
+
+    ssize_t l = write (fd, buf, len68k);
+
+    if (l<0)
+        m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+
+    return l;
+}
+
 static int _dos_close (uint32_t fh68k)
 {
     dprintf (LOG_DEBUG, "lxa: _dos_close(): fh=0x%08x\n", fh68k);
@@ -603,6 +623,45 @@ int op_illg(int level)
             dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_CLOSE file=0x%08x\n", d1);
 
             uint32_t res = _dos_close (d1);
+
+            m68k_set_reg(M68K_REG_D0, res);
+
+            break;
+        }
+
+        case EMU_CALL_DOS_INPUT:
+        {
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_INPUT\n");
+
+            uint32_t res = STDIN_FILENO;
+
+            m68k_set_reg(M68K_REG_D0, res);
+
+            break;
+        }
+
+        case EMU_CALL_DOS_OUTPUT:
+        {
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_OUTPUT\n");
+
+            uint32_t res = STDOUT_FILENO;
+
+            m68k_set_reg(M68K_REG_D0, res);
+
+            break;
+        }
+
+        case EMU_CALL_DOS_WRITE:
+        {
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_WRITE\n");
+
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_WRITE file=0x%08x, buffer=0x%08x, len=%d\n", d1, d2, d3);
+
+            uint32_t res = _dos_write (d1, d2, d3);
 
             m68k_set_reg(M68K_REG_D0, res);
 

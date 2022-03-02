@@ -51,6 +51,19 @@ uint32_t strlen(const char *string)
     return ~(string - s);
 }
 
+ULONG emucall0 (ULONG func)
+{
+    ULONG res;
+    asm( "move.l    %1, d0\n\t"
+         "illegal\n\t"
+         "move.l    d0, %0\n"
+        : "=r" (res)
+        : "r" (func)
+        : "cc", "d0"
+        );
+    return res;
+}
+
 ULONG emucall1 (ULONG func, ULONG param1)
 {
     ULONG res;
@@ -537,7 +550,7 @@ struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess
     }
 
     newtask = ml->ml_ME[0].me_Addr;
-    newtask->tc_Node.ln_Type = NT_TASK;
+    newtask->tc_Node.ln_Type = isProcess ? NT_PROCESS : NT_TASK;
     newtask->tc_Node.ln_Pri  = pri;
     newtask->tc_Node.ln_Name = name;
     newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
@@ -628,62 +641,38 @@ struct Task *U_createTask (STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
     return newtask;
 }
 
-static struct Task *_createTask(STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
+void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG stacksize)
 {
-    struct newMemList  nml;
-    struct MemList    *ml;
-    struct Task       *newtask;
-    APTR               task2;
+    NEWLIST ((struct List *)&process->pr_LocalVars);
 
-    DPRINTF (LOG_DEBUG, "_exec: _createTask() called, name=%s, pri=%ld, initpc=0x%08lx, stacksize=%ld\n",
-             name ? (char *) name : "NULL", pri, initpc, stacksize);
+	U_prepareTask (&process->pr_Task, initPC, finalPC);
 
+    process->pr_MsgPort.mp_Node.ln_Type = NT_MSGPORT;
+    process->pr_MsgPort.mp_Flags        = PA_SIGNAL;
+    process->pr_MsgPort.mp_SigBit       = SIGB_DOS;
+    process->pr_MsgPort.mp_SigTask      = process;
 
-    stacksize = (stacksize+3)&~3;
-
-    nml.nml_Node.ln_Succ = NULL;
-    nml.nml_Node.ln_Pred = NULL;
-    nml.nml_Node.ln_Type = NT_MEMORY;
-    nml.nml_Node.ln_Pri  = 0;
-    nml.nml_Node.ln_Name = NULL;
-
-    nml.nml_NumEntries = 2;
-
-    nml.nml_ME[0].me_Un.meu_Reqs = MEMF_CLEAR|MEMF_PUBLIC;
-    nml.nml_ME[0].me_Length      = sizeof(struct Task);
-    nml.nml_ME[1].me_Un.meu_Reqs = MEMF_CLEAR;
-    nml.nml_ME[1].me_Length      = stacksize;
-
-    ml = AllocEntry ((struct MemList *)&nml);
-    if (!(((unsigned int)ml) & (1<<31)))
-    {
-        newtask = ml->ml_ME[0].me_Addr;
-        newtask->tc_Node.ln_Type = NT_TASK;
-        newtask->tc_Node.ln_Pri  = pri;
-        newtask->tc_Node.ln_Name = name;
-        newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
-        newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
-        newtask->tc_SPUpper      = newtask->tc_SPReg;
-
-        DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx, initPC=0x%08lx\n",
-                 newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc);
-
-        NEWLIST (&newtask->tc_MemEntry);
-        AddHead (&newtask->tc_MemEntry, &ml->ml_Node);
-        task2 = AddTask (newtask, initpc, 0);
-        if (!task2)
-        {
-            DPRINTF (LOG_ERROR, "util: createTask() AddTask() failed\n");
-            FreeEntry (ml);
-            newtask = NULL;
-        }
-    }
-    else
-    {
-        DPRINTF (LOG_ERROR, "util: createTask() failed to allocate memory\n");
-        newtask = NULL;
-    }
-
-    return newtask;
+    process->pr_SegList                 = 0; /* FIXME */
+    process->pr_StackSize               = stacksize;
+    process->pr_GlobVec					= 0; /* unsupported */
+    process->pr_TaskNum					= 0;
+    process->pr_StackBase				= MKBADDR(process->pr_Task.tc_SPUpper);
+    process->pr_Result2				    = 0;
+    process->pr_CurrentDir				= 0;
+    process->pr_CIS					    = 0;
+    process->pr_COS					    = 0;
+    process->pr_ConsoleTask			    = NULL; /* FIXME */
+    process->pr_FileSystemTask          = NULL; /* FIXME */
+    process->pr_CLI                     = 0;
+    process->pr_ReturnAddr				= 0;
+    process->pr_PktWait                 = NULL;
+    process->pr_WindowPtr			    = (APTR) -1;
+    process->pr_HomeDir                 = 0;
+    process->pr_Flags                   = 0;
+    process->pr_ExitCode                = NULL;
+    process->pr_ExitData                = NULL;
+    process->pr_Arguments               = NULL;
+    process->pr_ShellPrivate            = NULL;
+    process->pr_CES                     = 0;
 }
 
