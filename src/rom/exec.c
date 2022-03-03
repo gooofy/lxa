@@ -45,6 +45,7 @@ typedef struct Library * __saveds (*libInitFn_t) ( register struct Library    *l
                                                    register struct ExecBase   *sysb    __asm("d0"));
 
 typedef struct Library * __saveds (*libOpenFn_t) ( register struct Library    *lib     __asm("a6"));
+typedef struct Library * __saveds (*libCloseFn_t)( register struct Library    *lib     __asm("a6"));
 
 struct JumpVec
 {
@@ -1127,11 +1128,24 @@ static struct Library * __saveds _exec_OldOpenLibrary ( register struct ExecBase
     assert(FALSE);
 }
 
-static void __saveds _exec_CloseLibrary ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct Library * ___library  __asm("a1"))
+static void __saveds _exec_CloseLibrary ( register struct ExecBase *SysBase  __asm("a6"),
+                                          register struct Library  *library  __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_exec: CloseLibrary unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_exec: CloseLibrary() called, library = 0x%08lx\n", library);
+
+    BPTR seglist;
+
+    if (library)
+    {
+        Forbid();
+
+        struct JumpVec *jv = &(((struct JumpVec *)(library))[-2]);
+        libCloseFn_t closefn = jv->vec;
+
+        closefn(library);
+
+        Permit();
+    }
 }
 
 static APTR __saveds _exec_SetFunction ( register struct ExecBase * __libBase __asm("a6"),
@@ -1276,23 +1290,23 @@ static void __saveds _exec_Vacate ( register struct ExecBase * __libBase __asm("
     assert(FALSE);
 }
 
-static struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register CONST_STRPTR ___libName  __asm("a1"),
-                                                        register ULONG ___version  __asm("d0"))
+static struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6"),
+                                                     register CONST_STRPTR     libName  __asm("a1"),
+                                                     register ULONG            version  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: OpenLibrary called ___libName=%s, ___version=%ld\n", ___libName, ___version);
+    DPRINTF (LOG_DEBUG, "_exec: OpenLibrary called libName=%s, version=%ld\n", libName, version);
 
     Forbid();
 
-    struct Library *lib = (struct Library *) FindName (&SysBase->LibList, ___libName);
+    struct Library *lib = (struct Library *) FindName (&SysBase->LibList, libName);
 
     Permit();
 
     if (lib)
     {
-        if (lib->lib_Version < ___version)
+        if (lib->lib_Version < version)
         {
-            DPRINTF (LOG_DEBUG, "_exec: OpenLibrary version is too old: lib->lib_Version=%ld, ___version=%ld\n", lib->lib_Version, ___version);
+            DPRINTF (LOG_DEBUG, "_exec: OpenLibrary version is too old: lib->lib_Version=%ld, version=%ld\n", lib->lib_Version, version);
             return NULL;
         }
 
@@ -1304,7 +1318,7 @@ static struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase * 
     }
     else
     {
-        DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: requested library was not found.\n");
+        DPRINTF (LOG_ERROR, "\n_exec: OpenLibrary: *** ERROR: requested library %s was not found.\n\n", libName);
     }
 
     return lib;
