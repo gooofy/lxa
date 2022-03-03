@@ -69,12 +69,22 @@ ULONG __g_lxa_utility_ExtFuncLib(void)
     return NULL;
 }
 
-static struct TagItem * __saveds _utility_FindTagItem ( register struct UtilityBase * UtilityBase __asm("a6"),
-                                                        register Tag tagVal __asm("d0"),
-                                                        register const struct TagItem * tagList __asm("a0"))
+static struct TagItem * __saveds _utility_FindTagItem ( register struct UtilityBase   *UtilityBase __asm("a6"),
+                                                        register Tag                   tagVal      __asm("d0"),
+                                                        register const struct TagItem *tagList     __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: FindTagItem() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_utility: FindTagItem() called.\n");
+
+    struct TagItem *tstate = (struct TagItem *)tagList;
+    struct TagItem *tag;
+
+    while ((tag = NextTagItem (&tstate)))
+    {
+        if ((ULONG)tag->ti_Tag == (ULONG)tagVal)
+            return tag;
+    }
+
+    return NULL;
 }
 
 static ULONG __saveds _utility_GetTagData ( register struct UtilityBase   *UtilityBase __asm("a6"),
@@ -98,11 +108,40 @@ static ULONG __saveds _utility_PackBoolTags ( register struct UtilityBase * Util
     assert(FALSE);
 }
 
-static struct TagItem * __saveds _utility_NextTagItem ( register struct UtilityBase * UtilityBase __asm("a6"),
-                                                        register struct TagItem ** tagListPtr __asm("a0"))
+static struct TagItem * __saveds _utility_NextTagItem ( register struct UtilityBase *  UtilityBase __asm("a6"),
+                                                        register struct TagItem     ** tagListPtr  __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: NextTagItem() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_utility: NextTagItem() called.\n");
+
+    if (!(*tagListPtr))
+        return NULL;
+
+    while (TRUE)
+    {
+        switch (((*tagListPtr)->ti_Tag))
+        {
+            case TAG_MORE:
+                if (!((*tagListPtr) = (struct TagItem *)(*tagListPtr)->ti_Data))
+                    return NULL;
+                continue;
+
+            case TAG_END:
+                (*tagListPtr) = NULL;
+                return NULL;
+
+            case TAG_SKIP:
+                (*tagListPtr) += (*tagListPtr)->ti_Data + 1;
+                continue;
+
+            case TAG_IGNORE:
+                break;
+
+            default:
+                return (*tagListPtr)++;
+        }
+
+        (*tagListPtr)++;
+    }
 }
 
 static VOID __saveds _utility_FilterTagChanges ( register struct UtilityBase * UtilityBase __asm("a6"),

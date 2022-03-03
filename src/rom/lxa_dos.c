@@ -38,10 +38,12 @@
 #define HUNK_TYPE_END      0x03F2
 #define HUNK_TYPE_HEADER   0x03F3
 
-#define VERSION    1
-#define REVISION   1
+#define  IS_PROCESS(task)  (((struct Task *)task)->tc_Node.ln_Type == NT_PROCESS)
+
+#define VERSION    40
+#define REVISION   3
 #define EXLIBNAME  "dos"
-#define EXLIBVER   " 1.1 (2021/07/21)"
+#define EXLIBVER   " 40.3 (2021/07/21)"
 
 char __aligned _g_dos_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_dos_ExLibID   [] = EXLIBNAME EXLIBVER;
@@ -751,12 +753,12 @@ static LONG __saveds _dos_Execute ( register struct DosLibrary * __libBase __asm
 }
 
 static void __saveds *_dos_AllocDosObject (register struct DosLibrary * DOSBase __asm("a6"),
-                                           register ULONG               ___type __asm("d1"),
-                                           register struct TagItem    * ___tags __asm("d2"))
+                                           register ULONG               type    __asm("d1"),
+                                           register struct TagItem    * tags    __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: AllocDosObject() called type=%ld\n", ___type);
+    DPRINTF (LOG_DEBUG, "_dos: AllocDosObject() called type=%ld\n", type);
 
-    switch (___type)
+    switch (type)
     {
         case DOS_FILEHANDLE:
         {
@@ -774,8 +776,61 @@ static void __saveds *_dos_AllocDosObject (register struct DosLibrary * DOSBase 
             return m;
         }
 
+        case DOS_CLI:
+        {
+            ULONG   dirBufLen   = GetTagData (ADO_DirLen     , 255, tags);
+            ULONG   commNameLen = GetTagData (ADO_CommNameLen, 255, tags);
+            ULONG   commFileLen = GetTagData (ADO_CommFileLen, 255, tags);
+            ULONG   promptLen   = GetTagData (ADO_PromptLen  , 255, tags);
+
+            STRPTR  dirBuf      = NULL;
+            STRPTR  commandBuf  = NULL;
+            STRPTR  fileBuf     = NULL;
+            STRPTR  promptBuf   = NULL;
+
+            struct CommandLineInterface *cli = AllocVec (sizeof(struct CommandLineInterface), MEMF_CLEAR);
+            if (!cli) goto OOM;
+            
+            cli->cli_FailLevel  = RETURN_ERROR;
+            cli->cli_Background = DOSTRUE;
+            
+            dirBuf = AllocVec(dirBufLen + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            if (!dirBuf) goto OOM;
+            dirBuf[0] = 0;
+            cli->cli_SetName = MKBADDR(dirBuf);
+
+            commandBuf = AllocVec(commNameLen + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            if (!commandBuf) goto OOM;
+            commandBuf[0] = 0;
+            cli->cli_CommandName = MKBADDR(commandBuf);
+
+            fileBuf = AllocVec(commFileLen + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            if (!fileBuf) goto OOM;
+            fileBuf[0] = 0;
+            cli->cli_CommandFile = MKBADDR(fileBuf);
+
+            promptBuf = AllocVec(promptLen + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            if (!promptBuf) goto OOM;
+            promptBuf[0] = 0;
+            cli->cli_Prompt = MKBADDR(promptBuf);
+            
+            return cli;
+            
+OOM:
+            FreeVec(cli);
+            
+            FreeVec(dirBuf);
+            FreeVec(commandBuf);
+            FreeVec(fileBuf);
+            FreeVec(promptBuf);
+            
+            SetIoErr(ERROR_NO_FREE_STORE);
+
+            return NULL;
+        }
+
         default:
-            DPRINTF (LOG_DEBUG, "_dos: FIXME: AllocDosObject() type=%ld not implemented\n", ___type);
+            DPRINTF (LOG_DEBUG, "_dos: FIXME: AllocDosObject() type=%ld not implemented\n", type);
             assert (FALSE);
     }
 
@@ -1166,8 +1221,13 @@ static VOID __saveds _dos_private2 ( register struct DosLibrary * DOSBase __asm(
 
 static struct CommandLineInterface * __saveds _dos_Cli ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_dos: Cli() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: Cli() called.\n");
+
+    struct Process *me = (struct Process *) FindTask (NULL);
+    if (IS_PROCESS(me))
+        return (struct CommandLineInterface *) BADDR(me->pr_CLI);
+    else
+        return NULL;
 }
 
 static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1175,10 +1235,41 @@ static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary
 {
     DPRINTF (LOG_INFO, "_dos: CreateNewProc() called.\n");
 
-    ULONG  stackSize =          GetTagData(NP_StackSize, 8192                 , tags);
+    // FIXME: this is a _very_ incomplete implementation!
+
+    // determine stack size
+
+    ULONG           stackSize = 8192;
+    struct Process *me        = (struct Process *) FindTask (NULL);
+
+    if (IS_PROCESS(me))
+    {
+        struct CommandLineInterface *cli = Cli();
+
+        if (cli)
+        {
+            LONG parent_stackSize = cli->cli_DefaultStack * 4;
+            if (parent_stackSize > stackSize)
+                stackSize = parent_stackSize;
+        }
+    }
+
+    // examine tags
+
+           stackSize =          GetTagData(NP_StackSize, stackSize            , tags);
     LONG   pri       =          GetTagData(NP_Priority , 0                    , tags);
     STRPTR name      = (STRPTR) GetTagData(NP_Name     , (ULONG) "new process", tags);
     APTR   initpc    = (APTR)   GetTagData(NP_Entry    , 0                    , tags);
+    BPTR   seglist   =          GetTagData(NP_Seglist  , 0                    , tags);
+    BOOL   do_cli    =          GetTagData(NP_Cli      , 0                    , tags);
+
+    if (!initpc)
+    {
+        assert(seglist);
+        initpc = BADDR(seglist) + sizeof(BPTR);
+    }
+
+    // create process
 
     struct Process *process = (struct Process *) U_allocTask (name, pri, stackSize, /*isProcess=*/ TRUE);
 
@@ -1186,6 +1277,25 @@ static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary
         return NULL;
 
     U_prepareProcess (process, initpc, 0, stackSize);
+
+    if (do_cli)
+    {
+        process->pr_TaskNum = 1; // FIXME
+
+        BPTR oldpath = 0;
+
+        struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)tags);
+        assert(cli); // FIXME: implement proper error handling
+
+        cli->cli_DefaultStack = (process->pr_StackSize + 3) / 4;
+
+        // FIXME: copy prompt from parent's cli, if any
+        // FIXME: set cli_CommandDir
+
+        process->pr_CLI = MKBADDR(cli);
+    }
+
+    // launch it
 
     struct Task *task2 = AddTask (&process->pr_Task, initpc, 0);
     if (!task2)
@@ -1196,66 +1306,7 @@ static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary
         return NULL;
     }
 
-    assert(FALSE);
-
-#if 0
-
-    struct newMemList  nml;
-    struct MemList    *ml;
-    struct Task       *newtask;
-    APTR               task2;
-
-    DPRINTF (LOG_DEBUG, "_exec: _createTask() called, name=%s, pri=%ld, initpc=0x%08lx, stacksize=%ld\n",
-             name ? (char *) name : "NULL", pri, initpc, stacksize);
-
-
-    stacksize = (stacksize+3)&~3;
-
-    nml.nml_Node.ln_Succ = NULL;
-    nml.nml_Node.ln_Pred = NULL;
-    nml.nml_Node.ln_Type = NT_MEMORY;
-    nml.nml_Node.ln_Pri  = 0;
-    nml.nml_Node.ln_Name = NULL;
-
-    nml.nml_NumEntries = 2;
-
-    nml.nml_ME[0].me_Un.meu_Reqs = MEMF_CLEAR|MEMF_PUBLIC;
-    nml.nml_ME[0].me_Length      = sizeof(struct Task);
-    nml.nml_ME[1].me_Un.meu_Reqs = MEMF_CLEAR;
-    nml.nml_ME[1].me_Length      = stacksize;
-
-    ml = AllocEntry ((struct MemList *)&nml);
-    if (!(((unsigned int)ml) & (1<<31)))
-    {
-        newtask = ml->ml_ME[0].me_Addr;
-        newtask->tc_Node.ln_Type = NT_TASK;
-        newtask->tc_Node.ln_Pri  = pri;
-        newtask->tc_Node.ln_Name = name;
-        newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
-        newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
-        newtask->tc_SPUpper      = newtask->tc_SPReg;
-
-        DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx, initPC=0x%08lx\n",
-                 newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper, initpc);
-
-        NEWLIST (&newtask->tc_MemEntry);
-        AddHead (&newtask->tc_MemEntry,&ml->ml_Node);
-        task2 = AddTask (newtask, initpc, 0);
-        if (!task2)
-        {
-            DPRINTF (LOG_ERROR, "_exec: _createTask() AddTask() failed\n");
-            FreeEntry (ml);
-            newtask = NULL;
-        }
-    }
-    else
-    {
-        DPRINTF (LOG_ERROR, "_exec: _createTask() failed to allocate memory\n");
-        newtask = NULL;
-    }
-
-    return newtask;
-    #endif
+    return process;
 }
 
 static LONG __saveds _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),

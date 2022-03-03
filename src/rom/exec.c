@@ -1643,14 +1643,15 @@ static void __saveds _bootstrap(void)
                                               //NP_WindowPtr , 0l,
                                               /* FIXME: NP_HomeDir,     env->childHomeDirLock, */
                                               NP_CopyVars    , FALSE,
+                                              NP_Cli         , TRUE,
                                               TAG_DONE);
 
     DPRINTF (LOG_INFO, "_exec: new process for %s created: 0x%08lx\n", binfn, child);
 
     DPUTS (LOG_INFO, "_exec: _bootstrap() DONE -> endless loop\n");
 
-    while (TRUE)
-        DPRINTF (LOG_INFO, "bootstrap() loop, SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
+    while (TRUE);
+    //    DPRINTF (LOG_INFO, "bootstrap() loop, SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 
     emu_stop();
 }
