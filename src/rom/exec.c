@@ -856,22 +856,20 @@ static struct Node * __saveds _exec_FindName ( register struct ExecBase * __libB
 {
     DPRINTF (LOG_DEBUG, "_exec: FindName called list=0x%08lx, name=%s\n", list, name);
 
-    struct Node *node = NULL;
-
     if (!list)
         list = &SysBase->PortList;
 
-    for (node=list->lh_Head; node->ln_Succ; node=node->ln_Succ)
+    for (struct Node *node=list->lh_Head; node->ln_Succ; node=node->ln_Succ)
     {
         DPRINTF (LOG_DEBUG, "_exec: FindName node=0x%08lx, node->ln_Name=%s\n", node, node->ln_Name);
         if (node->ln_Name)
         {
             if (!strcmp (node->ln_Name, name))
-                break;
+                return node;
         }
     }
 
-    return node;
+    return NULL;
 }
 
 static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm("a6"),
