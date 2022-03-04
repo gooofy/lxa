@@ -40,7 +40,6 @@
 #define UTILITY_BASE_SIZE       sizeof (struct UtilityBase)
 #define UTILITY_BASE_END        UTILITY_BASE_START + UTILITY_BASE_SIZE -1
 
-
 // dos
 
 #define NUM_DOS_FUNCS           (162+4)
@@ -51,12 +50,23 @@
 #define DOS_BASE_START          DOS_VECTORS_END + 1
 #define DOS_BASE_SIZE           sizeof (struct DosLibrary)
 #define DOS_BASE_END            DOS_BASE_START + DOS_BASE_SIZE -1
+// mathffp
 
-#define RAM_START               DOS_BASE_END + 1
+#define NUM_MATHFFP_FUNCS       (12+4)
+#define MATHFFP_VECTORS_START   DOS_BASE_END + 1
+#define MATHFFP_VECTORS_SIZE    NUM_MATHFFP_FUNCS * 6
+#define MATHFFP_VECTORS_END     MATHFFP_VECTORS_START + MATHFFP_VECTORS_SIZE -1
+
+#define MATHFFP_BASE_START      MATHFFP_VECTORS_END + 1
+#define MATHFFP_BASE_SIZE       sizeof (struct UtilityBase)
+#define MATHFFP_BASE_END        MATHFFP_BASE_START + MATHFFP_BASE_SIZE -1
+
+#define RAM_START               MATHFFP_BASE_END + 1
 #define RAM_SIZE                10 * 1024 * 1024
 #define RAM_END                 RAM_SIZE - 1
 
 extern struct Resident *__lxa_dos_ROMTag;
 extern struct Resident *__lxa_utility_ROMTag;
+extern struct Resident *__lxa_mathffp_ROMTag;
 
 #endif

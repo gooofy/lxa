@@ -18,12 +18,14 @@
 #define DPRINTF(lvl, ...)
 #endif
 
+#if 0
 asm(
 "    .global ___restore_a4        \n"
 "___restore_a4:                   \n"
 "    _geta4:     lea ___a4_init,a4\n"
 "                rts              \n"
 );
+#endif
 
 #define VERSION    40
 #define REVISION   1
@@ -36,7 +38,8 @@ char __aligned _g_mathffp_Copyright [] = "(C)opyright 2022 by G. Bartsch. Licens
 
 char __aligned _g_mathffp_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
-struct ExecBase        *SysBase         = (struct ExecBase*)    ((UBYTE *)EXEC_BASE_START);
+//struct ExecBase        *SysBase         = (struct ExecBase*)    ((UBYTE *)EXEC_BASE_START);
+extern struct ExecBase      *SysBase;
 
 // libBase: MathBase
 // baseType: struct Library *

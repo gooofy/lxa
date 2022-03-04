@@ -17,6 +17,8 @@
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
 
+#include <libraries/mathffp.h>
+
 #include "util.h"
 #include "mem_map.h"
 #include "exceptions.h"
@@ -57,6 +59,7 @@ static struct JumpVec  *g_ExecJumpTable = (struct JumpVec *)    ((uint8_t *)EXEC
 struct ExecBase        *SysBase         = (struct ExecBase*)    ((uint8_t *)EXEC_BASE_START);
 struct UtilityBase     *UtilityBase     = (struct UtilityBase*) ((uint8_t *)UTILITY_BASE_START);
 struct DosLibrary      *DOSBase         = (struct DosLibrary*)  ((uint8_t *)DOS_BASE_START);
+struct Library         *MathBase        = (struct Library*)     ((uint8_t *)MATHFFP_BASE_START);
 static struct Custom   *custom          = (struct Custom*)      0xdff000;
 
 #define JMPINSTR 0x4ef9
@@ -1869,8 +1872,9 @@ void __saveds coldstart (void)
     NEWLIST (&SysBase->LibList);
     SysBase->LibList.lh_Type = NT_LIBRARY;
 
-    registerBuiltInLib ((struct Library *) DOSBase, NUM_DOS_FUNCS, __lxa_dos_ROMTag);
+    registerBuiltInLib ((struct Library *) DOSBase    , NUM_DOS_FUNCS    , __lxa_dos_ROMTag    );
     registerBuiltInLib ((struct Library *) UtilityBase, NUM_UTILITY_FUNCS, __lxa_utility_ROMTag);
+    registerBuiltInLib ((struct Library *) MathBase   , NUM_MATHFFP_FUNCS, __lxa_mathffp_ROMTag);
 
     // init multitasking
     NEWLIST (&SysBase->TaskReady);
