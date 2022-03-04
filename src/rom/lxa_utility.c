@@ -21,10 +21,10 @@
 #define DPRINTF(lvl, ...)
 #endif
 
-#define VERSION    1
+#define VERSION    40
 #define REVISION   1
 #define EXLIBNAME  "utility"
-#define EXLIBVER   " 1.1 (2022/03/02)"
+#define EXLIBVER   " 40.1 (2022/03/02)"
 
 char __aligned _g_utility_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_utility_ExLibID   [] = EXLIBNAME EXLIBVER;

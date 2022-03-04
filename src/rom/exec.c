@@ -60,6 +60,7 @@ struct ExecBase        *SysBase         = (struct ExecBase*)    ((uint8_t *)EXEC
 struct UtilityBase     *UtilityBase     = (struct UtilityBase*) ((uint8_t *)UTILITY_BASE_START);
 struct DosLibrary      *DOSBase         = (struct DosLibrary*)  ((uint8_t *)DOS_BASE_START);
 struct Library         *MathBase        = (struct Library*)     ((uint8_t *)MATHFFP_BASE_START);
+struct Library         *MathTransBase   = (struct Library*)     ((uint8_t *)MATHTRANS_BASE_START);
 static struct Custom   *custom          = (struct Custom*)      0xdff000;
 
 #define JMPINSTR 0x4ef9
@@ -1720,14 +1721,14 @@ void __saveds coldstart (void)
         g_ExecJumpTable[i].jmp = JMPINSTR;
     }
 
-    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-36)].vec = _exec_ExitIntr;
-    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-48)].vec = _exec_Reschedule;
-    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-66)].vec = _exec_Exception;
 
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -30)].vec = exec_Supervisor;
+    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-36)].vec = _exec_ExitIntr;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -42)].vec = exec_Schedule;
+    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-48)].vec = _exec_Reschedule;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -54)].vec = exec_Switch;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -60)].vec = exec_Dispatch;
+    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-66)].vec = _exec_Exception;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -72)].vec = _exec_InitCode;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -78)].vec = _exec_InitStruct;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -84)].vec = _exec_MakeLibrary;
@@ -1872,9 +1873,10 @@ void __saveds coldstart (void)
     NEWLIST (&SysBase->LibList);
     SysBase->LibList.lh_Type = NT_LIBRARY;
 
-    registerBuiltInLib ((struct Library *) DOSBase    , NUM_DOS_FUNCS    , __lxa_dos_ROMTag    );
-    registerBuiltInLib ((struct Library *) UtilityBase, NUM_UTILITY_FUNCS, __lxa_utility_ROMTag);
-    registerBuiltInLib ((struct Library *) MathBase   , NUM_MATHFFP_FUNCS, __lxa_mathffp_ROMTag);
+    registerBuiltInLib ((struct Library *) DOSBase      , NUM_DOS_FUNCS      , __lxa_dos_ROMTag      );
+    registerBuiltInLib ((struct Library *) UtilityBase  , NUM_UTILITY_FUNCS  , __lxa_utility_ROMTag  );
+    registerBuiltInLib ((struct Library *) MathBase     , NUM_MATHFFP_FUNCS  , __lxa_mathffp_ROMTag  );
+    registerBuiltInLib ((struct Library *) MathTransBase, NUM_MATHTRANS_FUNCS, __lxa_mathtrans_ROMTag);
 
     // init multitasking
     NEWLIST (&SysBase->TaskReady);

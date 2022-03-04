@@ -228,9 +228,9 @@ static LONG __saveds _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"
                                  register APTR                buffer  __asm("d2"),
                                  register LONG                length  __asm("d3"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Read called: file=0x%08lx buffer=0x%08lx length=%ld\n", file, buffer, length);
-
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
+    DPRINTF (LOG_DEBUG, "_dos: Read called: file=0x%08lx (APTR 0x%08lx) buffer=0x%08lx length=%ld\n", file, fh, buffer, length);
+
     int l = emucall3 (EMU_CALL_DOS_READ, (ULONG) fh, (ULONG) buffer, length);
 
     DPRINTF (LOG_DEBUG, "_dos: Read() result from emucall3: l=%ld\n", l);
@@ -427,7 +427,7 @@ static BPTR __saveds _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("
         return 0;
     }
 
-    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() Open() for name=%s worked\n", ___name);
+    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() Open() for name=%s worked, BPTR f=0x%08lx\n", ___name, f);
 
     // read hunk HEADER
 
@@ -790,10 +790,10 @@ static void __saveds *_dos_AllocDosObject (register struct DosLibrary * DOSBase 
 
             struct CommandLineInterface *cli = AllocVec (sizeof(struct CommandLineInterface), MEMF_CLEAR);
             if (!cli) goto OOM;
-            
+
             cli->cli_FailLevel  = RETURN_ERROR;
             cli->cli_Background = DOSTRUE;
-            
+
             dirBuf = AllocVec(dirBufLen + 1, MEMF_PUBLIC | MEMF_CLEAR);
             if (!dirBuf) goto OOM;
             dirBuf[0] = 0;
@@ -813,17 +813,17 @@ static void __saveds *_dos_AllocDosObject (register struct DosLibrary * DOSBase 
             if (!promptBuf) goto OOM;
             promptBuf[0] = 0;
             cli->cli_Prompt = MKBADDR(promptBuf);
-            
+
             return cli;
-            
+
 OOM:
             FreeVec(cli);
-            
+
             FreeVec(dirBuf);
             FreeVec(commandBuf);
             FreeVec(fileBuf);
             FreeVec(promptBuf);
-            
+
             SetIoErr(ERROR_NO_FREE_STORE);
 
             return NULL;
