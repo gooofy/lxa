@@ -7,7 +7,7 @@ LDLIBS	=
 
 .PHONY: clean all diss
 
-all:	exec.library my.rom
+all:	exec.library mathffp.library my.rom
 
 clean:
 		rm -f *.library *.o my.rom *.asm t.log
@@ -15,10 +15,11 @@ clean:
 diss:
 	$(OBJDUMP_AMIGAOS) -S -d -x exec.library
 
-OBJS	= romhdr.o exec.o exceptions.o util.o amath.o lxa_dos.o lxa_utility.o
+exec.library: romhdr.o exec.o exceptions.o util.o amath.o lxa_dos.o lxa_utility.o
+	$(CC_AMIGAOS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-exec.library: $(OBJS)
-	$(CC_AMIGAOS) $(LDFLAGS) -o $@ $(OBJS) $(LDLIBS)
+mathffp.library: lxa_mathffp.o util.o amath.o
+	$(CC_AMIGAOS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
 %.o : %.c
 	$(CC_AMIGAOS) -c $(CFLAGS) $< -o $@
@@ -29,5 +30,5 @@ exec.library: $(OBJS)
 %.asm : %.c
 	$(CC_AMIGAOS) -S $(CFLAGS) $< -o $@
 
-my.rom:	exec.library
-	$(ROMTOOL) build -o my.rom -t kick -s 256 exec.library
+my.rom:	exec.library mathffp.library
+	$(ROMTOOL) build -o my.rom -t kick -s 256 exec.library mathffp.library

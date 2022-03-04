@@ -57,14 +57,15 @@ dkms.conf
 config.mk
 target/
 src/lxa/tmp/
-src/rom/exec.library
+src/rom/*.library
 src/rom/my.rom
 src/rom/amiga_rom.x
 old
+others
 src/lxa/lxa.log
 src/lxa/.vscode
 src/tools/sfd2lib/dos.c
-src/tools/sfd2lib/dos_lib.sfd
+src/tools/sfd2lib/*.sfd
 src/tools/fd2pragma/dos_fns.c
 src/tools/fd2pragma/dos_mini.h
 src/tools/fd2pragma/dos_stubs.c
