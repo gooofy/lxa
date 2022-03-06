@@ -957,7 +957,7 @@ static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm(
 	}
 }
 
-static struct Task * __saveds _exec_FindTask ( register struct ExecBase * __libBase __asm("a6"),
+static struct Task * __saveds _exec_FindTask ( register struct ExecBase * SysBase __asm("a6"),
                                                register CONST_STRPTR ___name  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: FindTask() called ___name=%s\n", ___name ? (char*) ___name : "NULL");
@@ -998,30 +998,44 @@ static BYTE __saveds _exec_SetTaskPri ( register struct ExecBase * __libBase __a
                                                         register struct Task * ___task  __asm("a1"),
                                                         register LONG ___priority  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: SetTaskPri unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: SetTaskPri unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _exec_SetSignal ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register ULONG ___newSignals  __asm("d0"),
-                                                        register ULONG ___signalSet  __asm("d1"))
+static ULONG __saveds _exec_SetSignal ( register struct ExecBase *SysBase     __asm("a6"),
+                                        register ULONG            newSignals  __asm("d0"),
+                                        register ULONG            signalSet   __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: SetSignal unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_exec: SetSignal called, newSignals=0x%08lx, signalSet=0x%08lx\n", newSignals, signalSet);
+
+    struct Task *me = SysBase->ThisTask;
+    ULONG oldsigs = 0;
+
+    if (me)
+    {
+        Disable();
+
+        oldsigs = me->tc_SigRecvd;
+        me->tc_SigRecvd = (oldsigs & ~signalSet) | (newSignals & signalSet);
+
+        Enable();
+    }
+
+    return oldsigs;
 }
 
 static ULONG __saveds _exec_SetExcept ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___newSignals  __asm("d0"),
                                                         register ULONG ___signalSet  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: SetExcept unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: SetExcept unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static ULONG __saveds _exec_Wait ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___signalSet  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: Wait unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: Wait unimplemented STUB called.\n");
     assert(FALSE);
 }
 
@@ -1029,49 +1043,49 @@ static void __saveds _exec_Signal ( register struct ExecBase * __libBase __asm("
                                                         register struct Task * ___task  __asm("a1"),
                                                         register ULONG ___signalSet  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: Signal unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: Signal unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static BYTE __saveds _exec_AllocSignal ( register struct ExecBase * __libBase __asm("a6"),
                                                         register BYTE ___signalNum  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AllocSignal unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: AllocSignal unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static void __saveds _exec_FreeSignal ( register struct ExecBase * __libBase __asm("a6"),
                                                         register BYTE ___signalNum  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: FreeSignal unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: FreeSignal unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static LONG __saveds _exec_AllocTrap ( register struct ExecBase * __libBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AllocTrap unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: AllocTrap unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static void __saveds _exec_FreeTrap ( register struct ExecBase * __libBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: FreeTrap unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: FreeTrap unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static void __saveds _exec_AddPort ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AddPort unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: AddPort unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static void __saveds _exec_RemPort ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: RemPort unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: RemPort unimplemented STUB called.\n");
     assert(FALSE);
 }
 
@@ -1079,21 +1093,21 @@ static void __saveds _exec_PutMsg ( register struct ExecBase * __libBase __asm("
                                                         register struct MsgPort * ___port  __asm("a0"),
                                                         register struct Message * ___message  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: PutMsg unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: PutMsg unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static struct Message * __saveds _exec_GetMsg ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: GetMsg unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: GetMsg unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static void __saveds _exec_ReplyMsg ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Message * ___message  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: ReplyMsg unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: ReplyMsg unimplemented STUB called.\n");
     assert(FALSE);
 }
 

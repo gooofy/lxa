@@ -73,7 +73,7 @@ static struct TagItem * __saveds _utility_FindTagItem ( register struct UtilityB
                                                         register Tag                   tagVal      __asm("d0"),
                                                         register const struct TagItem *tagList     __asm("a0"))
 {
-    DPRINTF (LOG_INFO, "_utility: FindTagItem() called.\n");
+    DPRINTF (LOG_DEBUG, "_utility: FindTagItem() called.\n");
 
     struct TagItem *tstate = (struct TagItem *)tagList;
     struct TagItem *tag;
@@ -92,7 +92,7 @@ static ULONG __saveds _utility_GetTagData ( register struct UtilityBase   *Utili
                                             register ULONG                 defaultVal  __asm("d1"),
                                             register const struct TagItem *tagList     __asm("a0"))
 {
-    DPRINTF (LOG_INFO, "_utility: GetTagData() called.\n");
+    DPRINTF (LOG_DEBUG, "_utility: GetTagData() called.\n");
 
     struct TagItem *tag = FindTagItem (tagValue, tagList);
 
@@ -111,7 +111,7 @@ static ULONG __saveds _utility_PackBoolTags ( register struct UtilityBase * Util
 static struct TagItem * __saveds _utility_NextTagItem ( register struct UtilityBase *  UtilityBase __asm("a6"),
                                                         register struct TagItem     ** tagListPtr  __asm("a0"))
 {
-    DPRINTF (LOG_INFO, "_utility: NextTagItem() called.\n");
+    DPRINTF (LOG_DEBUG, "_utility: NextTagItem() called.\n");
 
     if (!(*tagListPtr))
         return NULL;
