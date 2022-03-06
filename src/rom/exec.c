@@ -1006,7 +1006,7 @@ static ULONG __saveds _exec_SetSignal ( register struct ExecBase *SysBase     __
                                         register ULONG            newSignals  __asm("d0"),
                                         register ULONG            signalSet   __asm("d1"))
 {
-    DPRINTF (LOG_INFO, "_exec: SetSignal called, newSignals=0x%08lx, signalSet=0x%08lx\n", newSignals, signalSet);
+    DPRINTF (LOG_DEBUG, "_exec: SetSignal called, newSignals=0x%08lx, signalSet=0x%08lx\n", newSignals, signalSet);
 
     struct Task *me = SysBase->ThisTask;
     ULONG oldsigs = 0;
@@ -1024,12 +1024,30 @@ static ULONG __saveds _exec_SetSignal ( register struct ExecBase *SysBase     __
     return oldsigs;
 }
 
-static ULONG __saveds _exec_SetExcept ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register ULONG ___newSignals  __asm("d0"),
-                                                        register ULONG ___signalSet  __asm("d1"))
+static ULONG __saveds _exec_SetExcept ( register struct ExecBase * SysBase    __asm("a6"),
+                                        register ULONG             newSignals __asm("d0"),
+                                        register ULONG             signalSet  __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_exec: SetExcept unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_exec: SetExcept called, newSignals=0x%08lx, signalSet=0x%08lx\n", newSignals, signalSet);
+
+    struct Task *me = SysBase->ThisTask;
+
+    Disable();
+
+    ULONG oldsigs = me->tc_SigExcept;
+
+    me->tc_SigExcept = (oldsigs & ~signalSet) | (newSignals & signalSet);
+
+    // FIXME
+    // if (me->tc_SigExcept & me->tc_SigRecvd)
+    // {
+    //     me->tc_Flags |= TF_EXCEPT;
+    //     Reschedule();
+    // }
+
+    Enable();
+
+    return oldsigs;
 }
 
 static ULONG __saveds _exec_Wait ( register struct ExecBase * __libBase __asm("a6"),
