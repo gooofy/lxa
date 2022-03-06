@@ -1028,7 +1028,7 @@ static ULONG __saveds _exec_SetExcept ( register struct ExecBase * SysBase    __
                                         register ULONG             newSignals __asm("d0"),
                                         register ULONG             signalSet  __asm("d1"))
 {
-    DPRINTF (LOG_INFO, "_exec: SetExcept called, newSignals=0x%08lx, signalSet=0x%08lx\n", newSignals, signalSet);
+    DPRINTF (LOG_DEBUG, "_exec: SetExcept called, newSignals=0x%08lx, signalSet=0x%08lx (STUB ONLY)\n", newSignals, signalSet);
 
     struct Task *me = SysBase->ThisTask;
 
@@ -1065,11 +1065,41 @@ static void __saveds _exec_Signal ( register struct ExecBase * __libBase __asm("
     assert(FALSE);
 }
 
-static BYTE __saveds _exec_AllocSignal ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register BYTE ___signalNum  __asm("d0"))
+static BYTE __saveds _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
+                                         register BYTE              signalNum  __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_exec: AllocSignal unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AllocSignal called, signalNum=%d\n", signalNum);
+
+    struct Task *me = SysBase->ThisTask;
+
+    ULONG oldmask = me->tc_SigAlloc;
+
+    if (signalNum < 0)
+    {
+		// find a free signal
+		signalNum = 31;
+		while (signalNum && ((1 << signalNum) & oldmask))
+			signalNum--;
+
+		if (!signalNum)
+			return -1;
+
+		DPRINTF (LOG_DEBUG, "_exec: AllocSignal -> auto selected signalNum=%d\n", signalNum);
+    }
+
+	ULONG newmask = 1 << signalNum;
+	if (me->tc_SigAlloc & newmask)
+		return -1;
+
+    me->tc_SigAlloc  |=  newmask;
+    me->tc_SigExcept &= ~newmask;
+    me->tc_SigWait   &= ~newmask;
+
+    Disable();
+    me->tc_SigRecvd  &= ~newmask;
+    Enable();
+
+    return signalNum;
 }
 
 static void __saveds _exec_FreeSignal ( register struct ExecBase * __libBase __asm("a6"),
