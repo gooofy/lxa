@@ -9,6 +9,7 @@
 #include <exec/execbase.h>
 #include <exec/resident.h>
 #include <exec/initializers.h>
+#include <exec/errors.h>
 
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
@@ -49,6 +50,13 @@ typedef struct Library * __saveds (*libInitFn_t) ( register struct Library    *l
 typedef struct Library * __saveds (*libOpenFn_t) ( register struct Library    *lib     __asm("a6"));
 typedef struct Library * __saveds (*libCloseFn_t)( register struct Library    *lib     __asm("a6"));
 
+typedef void             __saveds (*devOpenFn_t) ( register struct Library    *dev     __asm("a6"),
+                                                   register struct IORequest  *ioreq   __asm("a1"),
+                                                   register ULONG              unitn   __asm("d0"),
+                                                   register ULONG              flags   __asm("d1"));
+typedef void             __saveds (*devBeginIOFn_t) ( register struct Library    *dev     __asm("a6"),
+                                                      register struct IORequest  *ioreq   __asm("a1"));
+
 struct JumpVec
 {
     unsigned short jmp;
@@ -61,6 +69,7 @@ struct UtilityBase     *UtilityBase     = (struct UtilityBase*) ((uint8_t *)UTIL
 struct DosLibrary      *DOSBase         = (struct DosLibrary*)  ((uint8_t *)DOS_BASE_START);
 struct Library         *MathBase        = (struct Library*)     ((uint8_t *)MATHFFP_BASE_START);
 struct Library         *MathTransBase   = (struct Library*)     ((uint8_t *)MATHTRANS_BASE_START);
+struct Library         *DeviceInputBase = (struct Library*)     ((uint8_t *)DEVICE_INPUT_BASE_START);
 static struct Custom   *custom          = (struct Custom*)      0xdff000;
 
 #define JMPINSTR 0x4ef9
@@ -1244,14 +1253,40 @@ static void __saveds _exec_RemDevice ( register struct ExecBase * __libBase __as
     assert(FALSE);
 }
 
-static BYTE __saveds _exec_OpenDevice ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register CONST_STRPTR ___devName  __asm("a0"),
-                                                        register ULONG ___unit  __asm("d0"),
-                                                        register struct IORequest * ___ioRequest  __asm("a1"),
-                                                        register ULONG ___flags  __asm("d1"))
+static BYTE __saveds _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6"),
+                                        register CONST_STRPTR      devName    __asm("a0"),
+                                        register ULONG             unit       __asm("d0"),
+                                        register struct IORequest *ioRequest  __asm("a1"),
+                                        register ULONG             flags      __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_exec: OpenDevice unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: OpenDevice() called, devName=%s, unit=%d\n", devName, unit);
+
+	Forbid();
+
+    ioRequest->io_Unit   = NULL;
+    ioRequest->io_Device = (struct Device *)FindName (&SysBase->DeviceList, devName);
+
+    if (ioRequest->io_Device)
+    {
+        ioRequest->io_Error = 0;
+
+        struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-1]);
+        devOpenFn_t openfn = jv->vec;
+
+        openfn (&ioRequest->io_Device->dd_Library, ioRequest, unit, flags);
+
+        if (ioRequest->io_Error)
+            ioRequest->io_Device = NULL;
+    }
+    else
+	{
+        ioRequest->io_Error = IOERR_OPENFAIL;
+		DPRINTF (LOG_ERROR, "_exec: OpenDevice() couldn't find device '%s'\n", devName);
+	}
+
+    Permit();
+
+    return ioRequest->io_Error;
 }
 
 static void __saveds _exec_CloseDevice ( register struct ExecBase * __libBase __asm("a6"),
@@ -1261,11 +1296,26 @@ static void __saveds _exec_CloseDevice ( register struct ExecBase * __libBase __
     assert(FALSE);
 }
 
-static BYTE __saveds _exec_DoIO ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct IORequest * ___ioRequest  __asm("a1"))
+static BYTE __saveds _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
+                                  register struct IORequest *ioRequest  __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_exec: DoIO unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_exec: DoIO() called, ioRequest=0x%08lx, command: %d\n", ioRequest, ioRequest->io_Command);
+
+    if (!ioRequest || !ioRequest->io_Device)
+		return -1;
+
+    ioRequest->io_Flags                   = IOF_QUICK;
+    ioRequest->io_Message.mn_Node.ln_Type = 0;
+
+	struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-5]);
+	devBeginIOFn_t beginiofn = jv->vec;
+
+	beginiofn (&ioRequest->io_Device->dd_Library, ioRequest);
+
+    if (! (ioRequest->io_Flags & IOF_QUICK))
+        WaitIO(ioRequest);
+
+    return ioRequest->io_Error;
 }
 
 static void __saveds _exec_SendIO ( register struct ExecBase * __libBase __asm("a6"),
@@ -1664,6 +1714,14 @@ static void registerBuiltInLib (struct Library *libBase, ULONG num_funcs, struct
     AddTail (&SysBase->LibList, (struct Node*) libBase);
 }
 
+static void registerBuiltInDev (struct Library *libBase, ULONG num_funcs, struct Resident *romTAG)
+{
+    DPRINTF (LOG_DEBUG, "_exec: registerBuiltInDev libBase=0x%08lx, num_funcs=%ld, romTAG rt_Name=%s rt_IdString=%s\n", libBase, num_funcs, romTAG->rt_Name, romTAG->rt_IdString);
+    struct InitTable *initTab = romTAG->rt_Init;
+    _makeLibrary(libBase, initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, num_funcs*6, initTab->LibBaseSize, /* segList=*/NULL);
+    AddTail (&SysBase->DeviceList, (struct Node*) libBase);
+}
+
 #if 0
 static void __saveds _myTestTask(void)
 {
@@ -1939,6 +1997,12 @@ void __saveds coldstart (void)
     registerBuiltInLib ((struct Library *) UtilityBase  , NUM_UTILITY_FUNCS  , __lxa_utility_ROMTag  );
     registerBuiltInLib ((struct Library *) MathBase     , NUM_MATHFFP_FUNCS  , __lxa_mathffp_ROMTag  );
     registerBuiltInLib ((struct Library *) MathTransBase, NUM_MATHTRANS_FUNCS, __lxa_mathtrans_ROMTag);
+
+    // init and register built-in devices
+    NEWLIST (&SysBase->DeviceList);
+    SysBase->DeviceList.lh_Type = NT_DEVICE;
+
+    registerBuiltInDev ((struct Library *) DeviceInputBase, NUM_DEVICE_INPUT_FUNCS, __lxa_input_ROMTag);
 
     // init multitasking
     NEWLIST (&SysBase->TaskReady);

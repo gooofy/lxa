@@ -44,7 +44,7 @@ extern struct ExecBase      *SysBase;
 // libBase: MathBase
 // baseType: struct Library *
 // libname: mathffp.library
-struct MathBase * __saveds __g_lxa_mathffp_InitLib    ( register struct MathBase *mathffpb    __asm("a6"),
+struct MathBase * __saveds __g_lxa_mathffp_InitLib  ( register struct MathBase *mathffpb    __asm("a6"),
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {

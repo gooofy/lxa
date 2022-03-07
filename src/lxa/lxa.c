@@ -738,16 +738,20 @@ int main(int argc, char **argv, char **envp)
     m68k_set_cpu_type(M68K_CPU_TYPE_68000);
     m68k_pulse_reset();
 
-    while (g_running)
+    while (TRUE)
     {
         m68k_set_irq(0);
         m68k_execute(100000);
+        if (!g_running)
+            break;
         if ( (g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK))
         {
             dprintf (LOG_DEBUG, "lxa: triggering IRQ #3...\n");
             m68k_set_irq(3);
         }
         m68k_execute(100000);
+        if (!g_running)
+            break;
     }
 
 	return 0;
