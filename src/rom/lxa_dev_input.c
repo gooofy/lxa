@@ -5,6 +5,9 @@
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
+#include <devices/inputevent.h>
+#include <devices/input.h>
+
 #include "util.h"
 #include "mem_map.h"
 
@@ -61,8 +64,7 @@ static BPTR __saveds __g_lxa_input_Expunge ( register struct Library   *dev   __
 static BPTR __saveds __g_lxa_input_BeginIO ( register struct Library   *dev   __asm("a6"),
                                              register struct IORequest *ioreq __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_input: ERROR: BeginIO() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_INFO, "_input: WARNING: BeginIO() unimplemented STUB called, ioreq->io_Command=%d\n", ioreq->io_Command);
     return 0;
 }
 

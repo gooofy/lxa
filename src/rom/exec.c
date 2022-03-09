@@ -1298,7 +1298,7 @@ static void __saveds _exec_CloseDevice ( register struct ExecBase * __libBase __
 static BYTE __saveds _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
                                   register struct IORequest *ioRequest  __asm("a1"))
 {
-    DPRINTF (LOG_INFO, "_exec: DoIO() called, ioRequest=0x%08lx, command: %d\n", ioRequest, ioRequest->io_Command);
+    DPRINTF (LOG_DEBUG, "_exec: DoIO() called, ioRequest=0x%08lx, command: %d\n", ioRequest, ioRequest->io_Command);
 
     if (!ioRequest || !ioRequest->io_Device)
 		return -1;
