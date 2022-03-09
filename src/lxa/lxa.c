@@ -58,12 +58,16 @@
 #define OFFSET_CURRENT       0
 #define OFFSET_END           1
 
+#define TRACE_BUF_ENTRIES   32
+
 static uint8_t  g_ram[RAM_SIZE];
 static uint8_t  g_rom[ROM_SIZE];
-static bool     g_debug   = FALSE;
-static bool     g_trace   = FALSE;
-static bool     g_running = TRUE;
-static FILE    *g_logf    = NULL;
+static bool     g_debug                        = FALSE;
+static bool     g_trace                        = FALSE;
+static int      g_trace_buf[TRACE_BUF_ENTRIES];
+static int      g_trace_buf_idx                = 0;
+static bool     g_running                      = TRUE;
+static FILE    *g_logf                         = NULL;
 
 // interrupts
 #define INTENA_MASTER 0x4000
@@ -117,9 +121,11 @@ static inline uint8_t mread8 (uint32_t address)
         else
         {
             printf("ERROR: mread8 at invalid address 0x%08x\n", address);
-            assert (false);
+            _debug(m68k_get_reg(NULL, M68K_REG_PC));
         }
     }
+
+    return 0;
 }
 
 unsigned int m68k_read_memory_8 (unsigned int address)
@@ -211,8 +217,6 @@ void m68k_write_memory_16(unsigned int address, unsigned int value)
     //     dprintf("WRITE16 at 0x%08x -> 0x%04x\n", address, value);
     mwrite8 (address  , (value >> 8) & 0xff);
     mwrite8 (address+1, value & 0xff);
-
-
 }
 
 void m68k_write_memory_32(unsigned int address, unsigned int value)
@@ -298,6 +302,9 @@ static void print68kstate(int lvl)
 
 void cpu_instr_callback(int pc)
 {
+    g_trace_buf[g_trace_buf_idx] = pc;
+    g_trace_buf_idx = (g_trace_buf_idx+1) % TRACE_BUF_ENTRIES;
+
     if (g_trace)
     {
         static char buff[100];
@@ -310,7 +317,7 @@ void cpu_instr_callback(int pc)
     }
 }
 
-static void _debug(uint32_t pc)
+static void _debug(uint32_t pcFinal)
 {
     static char buff[100];
     static char buff2[100];
@@ -321,9 +328,25 @@ static void _debug(uint32_t pc)
         return;
     in_debug = TRUE;
 
+    uint32_t pc;
+
+    // dump last instructions from trace buf:
+    int idx = g_trace_buf_idx - 1 - TRACE_BUF_ENTRIES;
+    if (idx<0) idx += TRACE_BUF_ENTRIES;
+    for (int i = 0; i<TRACE_BUF_ENTRIES; i++)
+    {
+        pc = g_trace_buf[idx];
+        instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
+        make_hex(buff2, pc, instr_size);
+        dprintf(LOG_INFO, "E pc=0x%08x: %-20s: %s\n", pc, buff2, buff);
+        idx = (idx+1) % TRACE_BUF_ENTRIES;
+    }
+
+    pc = pcFinal;
     instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
     make_hex(buff2, pc, instr_size);
-    dprintf(LOG_INFO, "E pc=%08x: %-20s: %s\n", pc, buff2, buff);
+    dprintf(LOG_INFO, "E pc=0x%08x: %-20s: %s\n", pc, buff2, buff);
+
     print68kstate(LOG_INFO);
 
     assert(FALSE);

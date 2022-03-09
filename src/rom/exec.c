@@ -953,7 +953,6 @@ static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm(
 
 	if (task == me)
 	{
-        //emucall1 (EMU_CALL_TRACE, TRUE); // FIXME: remove/disable
         DPUTS (LOG_INFO, "_exec: RemTask calling Dispatch() via Supervisor()\n");
 		asm(
             "   move.l  4, a6                   \n"     // SysBase -> a6
@@ -966,26 +965,26 @@ static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm(
 	}
 }
 
-static struct Task * __saveds _exec_FindTask ( register struct ExecBase * SysBase __asm("a6"),
-                                               register CONST_STRPTR ___name  __asm("a1"))
+static struct Task * __saveds _exec_FindTask ( register struct ExecBase *SysBase __asm("a6"),
+                                               register CONST_STRPTR     name    __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: FindTask() called ___name=%s\n", ___name ? (char*) ___name : "NULL");
+    DPRINTF (LOG_DEBUG, "_exec: FindTask() called name=%s\n", name ? (char*) name : "NULL");
 
     struct Task *ret, *thisTask = SysBase->ThisTask;
 
-    if (!___name)
+    if (!name)
         return thisTask;
 
     Disable();
 
-    ret = (struct Task *) FindName (&SysBase->TaskReady, ___name);
+    ret = (struct Task *) FindName (&SysBase->TaskReady, name);
     if (!ret)
     {
-        ret = (struct Task *) FindName (&SysBase->TaskWait, ___name);
+        ret = (struct Task *) FindName (&SysBase->TaskWait, name);
         if (!ret)
         {
             char       *s1 = thisTask->tc_Node.ln_Name;
-            const char *s2 = ___name;
+            const char *s2 = name;
             while (*s1 == *s2)
             {
                 if (!*s2)
@@ -1748,6 +1747,8 @@ static void __saveds _bootstrap(void)
     // load our test program
 
 	char *binfn = "x/foo";
+	//char *binfn = "x/AmigaBASIC";
+	//char *binfn = "x/SysInfo";
 	// FIXME char *homedir = "x";
 
     OpenLibrary ("dos.library", 0);
@@ -1766,6 +1767,8 @@ static void __saveds _bootstrap(void)
     //*((APTR*) SysBase->ThisTask->tc_SPReg) = initPC;
 
     DPRINTF (LOG_INFO, "_exec: about to launch a new process for %s ...\n", binfn);
+
+    //emucall1 (EMU_CALL_TRACE, TRUE); // FIXME: remove/disable
 
     // FIXME childHomeDirLock = Lock ((STRPTR)env->dirbuf, ACCESS_READ);
 
