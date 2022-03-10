@@ -324,6 +324,23 @@ _handleVec11:
     movem.l  (a7)+, d0/d1
     rte
 
+	.globl _exec_SetSR
+_exec_SetSR:
+        move.l  a5, a0                              | save a5
+        lea     _super_SetSR(PC), a5                | writing to SR requires superuser privileges
+        jmp     -30(a6)                             | Supervisor()
+
+_super_SetSR:
+        move.l  a0, a5
+        move    (sp), a0                            | preserve oldSR
+        and     d1, d0                              | d0: bits to set
+        not     d1                                  | d1: inverted bit mask
+        and     d1, (sp)                            | clear bits about to be set
+        or      d0, (sp)                            | set them
+        clr.l   d0
+        move.w  a0, d0                              | result: oldSR -> d0
+        rte                                         | done
+
     .data
 
     .align 4

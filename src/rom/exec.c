@@ -425,14 +425,6 @@ static void __saveds _exec_Permit ( register struct ExecBase * __libBase __asm("
     DPRINTF (LOG_DEBUG, "_exec: Permit() --> SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 }
 
-static ULONG __saveds _exec_SetSR ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register ULONG ___newSR  __asm("d0"),
-                                                        register ULONG ___mask  __asm("d1"))
-{
-    DPRINTF (LOG_DEBUG, "_exec: SetSR unimplemented STUB called.\n");
-    assert(FALSE);
-}
-
 static APTR __saveds _exec_SuperState ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: SuperState unimplemented STUB called.\n");
@@ -1864,7 +1856,7 @@ void __saveds coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-126)].vec = _exec_Enable;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-132)].vec = _exec_Forbid;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-138)].vec = _exec_Permit;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-144)].vec = _exec_SetSR;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-144)].vec =  exec_SetSR;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-150)].vec = _exec_SuperState;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-156)].vec = _exec_UserState;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-162)].vec = _exec_SetIntVector;
