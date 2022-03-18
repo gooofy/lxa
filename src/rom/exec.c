@@ -1368,11 +1368,12 @@ static APTR __saveds _exec_RawDoFmt ( register struct ExecBase * __libBase __asm
     assert(FALSE);
 }
 
-static ULONG __saveds _exec_GetCC ( register struct ExecBase * __libBase __asm("a6"))
-{
-    DPRINTF (LOG_ERROR, "_exec: GetCC unimplemented STUB called.\n");
-    assert(FALSE);
-}
+ULONG __saveds exec_GetCC ( register struct ExecBase * __libBase __asm("a6"));
+
+asm(
+"_exec_GetCC:                    \n"
+"       move.w      sr, d0       \n"
+"       rts                      \n");
 
 static ULONG __saveds _exec_TypeOfMem ( register struct ExecBase * __libBase __asm("a6"),
                                                         register const APTR ___address  __asm("a1"))
@@ -1917,7 +1918,7 @@ void __saveds coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-492)].vec = _exec_RemResource;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-498)].vec = _exec_OpenResource;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-522)].vec = _exec_RawDoFmt;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-528)].vec = _exec_GetCC;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-528)].vec = exec_GetCC;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-534)].vec = _exec_TypeOfMem;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-540)].vec = _exec_Procure;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-546)].vec = _exec_Vacate;

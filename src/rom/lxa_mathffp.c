@@ -127,13 +127,52 @@ asm(
 );
 
 
-static LONG __saveds _mathffp_SPCmp ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT leftParm __asm("d1"),
-                                                        register FLOAT rightParm __asm("d0"))
-{
-    DPRINTF (LOG_ERROR, "_mathffp: SPCmp() unimplemented STUB called.\n");
-    assert(FALSE);
-}
+LONG __saveds mathffp_SPCmp ( register struct Library *MathBase __asm("a6"),
+                              register FLOAT           y        __asm("d1"),
+                              register FLOAT           x        __asm("d0"));
+
+asm(
+"_mathffp_SPCmp:                    |                             \n"
+"         tst.b     d0              | x negative?                 \n"
+"         bpl.s     1f              | no -> 1:                    \n"
+"         tst.b     d1              | y negative?                 \n"
+"         bpl.s     1f              | no -> 1:                    \n"
+"                                                                 \n"
+"         /* both negative -> compare x vs y reversed */          \n"
+"         cmp.b     d0, d1          | compare sign+exp            \n"
+"         bne.s     2f              | ne ? -> done, compute res   \n"
+"         cmp.l     d0, d1          | compare significands        \n"
+"         bra.s     2f              | done, compute res           \n"
+"                                                                 \n"
+"         /* at least one positive -> compare x vs y */           \n"
+"1:       cmp.b     d1, d0          | compare sign+exp            \n"
+"         bne.s     2f              | ne -> cone, compute res     \n"
+"         cmp.l     d1, d0          | compare significands        \n"
+"                                                                 \n"
+"2:                                                               \n"
+"         /* compute result, preserve ccr */                      \n"
+
+"         movem.l   a6, -(sp)       | save a6                     \n"
+"         move.l    4, a6           | SysBase -> a6               \n"
+"         jsr       -528(a6)        | GetCC()                     \n"
+"         move.l    (sp)+, a6       | restore a6                  \n"
+"         move.w    d0, d1          | ccr -> d1                   \n"
+"         and.w     #0xff, d1       |                             \n"
+"                                                                 \n"
+"         moveq.l   #0, d0          | clear result                \n"
+"         move.w    d1, ccr         | restore CCR                 \n"
+"         blt.s     3f              | y > x  -> +1                \n"
+"         bgt.s     4f              | y < x  -> -1                \n"
+"         bra.s     5f              | y == x -> 0                 \n"
+"3:                                                               \n"
+"         addq.l    #1, d0			| res := 1                    \n"
+"         bra.s     5f                                            \n"
+"4:                                                               \n"
+"         subq.l    #1, d0          | res := -1                   \n"
+"5:                                                               \n"
+"         move.w    d1, ccr         | restore ccr                 \n"
+"         rts                       |                             \n"
+);
 
 static LONG __saveds _mathffp_SPTst ( register struct Library * MathBase __asm("a6"),
                                                         register FLOAT parm __asm("d1"))
@@ -368,7 +407,7 @@ APTR __g_lxa_mathffp_FuncTab [] =
     __g_lxa_mathffp_ExtFuncLib,
     _mathffp_SPFix, // offset = -30
     _mathffp_SPFlt, // offset = -36
-    _mathffp_SPCmp, // offset = -42
+    mathffp_SPCmp,  // offset = -42
     _mathffp_SPTst, // offset = -48
     _mathffp_SPAbs, // offset = -54
     _mathffp_SPNeg, // offset = -60
