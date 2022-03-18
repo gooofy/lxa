@@ -10,13 +10,13 @@ LDLIBS	=
 all:	exec.library my.rom
 
 clean:
-		rm -f *.library *.o my.rom *.asm t.log
+		rm -f *.library *.o my.rom *.asm t.log *.map
 
 diss:
 	$(OBJDUMP_AMIGAOS) -S -d -x exec.library
 
 exec.library: romhdr.o exec.o exceptions.o util.o amath.o lxa_dos.o lxa_utility.o lxa_mathffp.o lxa_mathtrans.o lxa_dev_input.o
-	$(CC_AMIGAOS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
+	$(CC_AMIGAOS) $(LDFLAGS) -Xlinker -Map=exec.map -o $@ $^ $(LDLIBS)
 
 # mathffp.library: lxa_mathffp.o util.o amath.o
 # 	$(CC_AMIGAOS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
