@@ -1733,9 +1733,8 @@ static void __saveds _bootstrap(void)
     // FIXME: remove _createTask ("exec test task", 0, _myTestTask, 8192);
 
 	// test Output() / Write()
-
-	BPTR out = Output();
-	Write (out, "\n\nHello, world!\n\n", 17);
+	//BPTR out = Output();
+	//Write (out, "\n\nHello, world!\n\n", 17);
 
     // load our test program
 

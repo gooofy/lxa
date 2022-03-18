@@ -1237,10 +1237,12 @@ static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary
 
     // FIXME: this is a _very_ incomplete implementation!
 
-    // determine stack size
+    // determine stack size, input, output
 
     ULONG           stackSize = 8192;
     struct Process *me        = (struct Process *) FindTask (NULL);
+    BPTR            inp       = 0;
+    BPTR            outp      = 0;
 
     if (IS_PROCESS(me))
     {
@@ -1252,6 +1254,9 @@ static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary
             if (parent_stackSize > stackSize)
                 stackSize = parent_stackSize;
         }
+
+        inp  = me->pr_CIS;
+        outp = me->pr_COS;
     }
 
     // examine tags
@@ -1262,6 +1267,8 @@ static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary
     APTR   initpc    = (APTR)   GetTagData(NP_Entry    , 0                    , tags);
     BPTR   seglist   =          GetTagData(NP_Seglist  , 0                    , tags);
     BOOL   do_cli    =          GetTagData(NP_Cli      , 0                    , tags);
+           inp       =          GetTagData(NP_Input    , inp                  , tags);
+           outp      =          GetTagData(NP_Output   , outp                 , tags);
 
     if (!initpc)
     {
@@ -1294,6 +1301,9 @@ static struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary
 
         process->pr_CLI = MKBADDR(cli);
     }
+
+    process->pr_CIS = inp;
+    process->pr_COS = outp;
 
     // launch it
 
