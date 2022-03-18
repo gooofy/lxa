@@ -330,22 +330,24 @@ static void _debug(uint32_t pcFinal)
 
     uint32_t pc;
 
+    dprintf(LOG_INFO, "\n\n     *** LXA DEBUGGER ***\n\n");
+
     // dump last instructions from trace buf:
-    int idx = g_trace_buf_idx - 1 - TRACE_BUF_ENTRIES;
+    int idx = g_trace_buf_idx - TRACE_BUF_ENTRIES;
     if (idx<0) idx += TRACE_BUF_ENTRIES;
     for (int i = 0; i<TRACE_BUF_ENTRIES; i++)
     {
         pc = g_trace_buf[idx];
         instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
         make_hex(buff2, pc, instr_size);
-        dprintf(LOG_INFO, "E pc=0x%08x: %-20s: %s\n", pc, buff2, buff);
+        dprintf(LOG_INFO, "     0x%08x  %-20s: %s\n", pc, buff2, buff);
         idx = (idx+1) % TRACE_BUF_ENTRIES;
     }
 
     pc = pcFinal;
     instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
     make_hex(buff2, pc, instr_size);
-    dprintf(LOG_INFO, "E pc=0x%08x: %-20s: %s\n", pc, buff2, buff);
+    dprintf(LOG_INFO, "---> 0x%08x  %-20s: %s\n", pc, buff2, buff);
 
     print68kstate(LOG_INFO);
 
@@ -685,6 +687,8 @@ int op_illg(int level)
             dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_WRITE file=0x%08x, buffer=0x%08x, len=%d\n", d1, d2, d3);
 
             uint32_t res = _dos_write (d1, d2, d3);
+
+            //_debug(m68k_get_reg(NULL, M68K_REG_PC));
 
             m68k_set_reg(M68K_REG_D0, res);
 
