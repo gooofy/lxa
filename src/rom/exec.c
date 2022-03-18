@@ -1738,7 +1738,7 @@ static void __saveds _bootstrap(void)
 
     // load our test program
 
-	char *binfn = "x/foo";
+	char *binfn = "x/hello";
 	//char *binfn = "x/AmigaBASIC";
 	//char *binfn = "x/SysInfo";
 	// FIXME char *homedir = "x";

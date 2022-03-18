@@ -139,8 +139,8 @@ static FLOAT __saveds _mathtrans_SPPow ( register struct Library * MathTransBase
                                                         register FLOAT power __asm("d1"),
                                                         register FLOAT arg __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_mathtrans: SPPow() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_WARNING, "_mathtrans: SPPow() unimplemented STUB called.\n");
+    //assert(FALSE);
 }
 
 static FLOAT __saveds _mathtrans_SPSqrt ( register struct Library * MathTransBase __asm("a6"),

@@ -32,6 +32,8 @@ asm(
 #define EXLIBNAME  "mathffp"
 #define EXLIBVER   " 40.1 (2022/03/03)"
 
+union ULONG_FLOAT { ULONG ul; FLOAT f; };
+
 char __aligned _g_mathffp_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_mathffp_ExLibID   [] = EXLIBNAME EXLIBVER;
 char __aligned _g_mathffp_Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT license.";
@@ -179,13 +181,129 @@ static FLOAT __saveds _mathffp_SPMul ( register struct Library * MathBase __asm(
     assert(FALSE);
 }
 
-static FLOAT __saveds _mathffp_SPDiv ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT leftParm __asm("d1"),
-                                                        register FLOAT rightParm __asm("d0"))
-{
-    DPRINTF (LOG_ERROR, "_mathffp: SPDiv() unimplemented STUB called.\n");
-    assert(FALSE);
-}
+FLOAT __saveds mathffp_SPDiv ( register struct Library * MathBase  __asm("a6"),
+                               register FLOAT            fdivisor  __asm("d1"),
+                               register FLOAT            fdividend __asm("d0"));
+
+
+/* register usage:
+ *      d0 : dividend, x / result
+ *      d1 : divisor,  y
+ *      d2 : bitmask
+ *      d3 : sigY
+ *      d4 : sigX
+ *      d5 : expZ
+ *      d6 : scratch
+ *      d7 : sigZ
+ */
+
+asm(
+"_mathffp_SPDiv:                                                  \n"
+"       movem.l     d2-d7,-(sp)          | save registers         \n"
+"                                                                 \n"
+"       /* handle division by zero */                             \n"
+"       tst.l       d1                   | divisor zero ?         \n"
+"       bne         11f                  | not zero -> continue   \n"
+"       divu.w      #0, d0               | trigger exception      \n"
+"       tst.l       d1                   | is d1 fixed now?       \n"
+"       bne         11f                  | yes -> continue        \n"
+"       or.l        #0xffffff7f, d0      | min/max ffp            \n"
+"       tst.b       d0                   | set cond codes         \n"
+"       ori         #0x02, ccr           | set overflow cc        \n"
+"       movem.l     (sp)+, d2-d7         | restore registers      \n"
+"       rts                              |                        \n"
+"                                                                 \n"
+"       /* compute exponent expZ = expX - expY + 65 */            \n"
+"11:                                                              \n"
+"       move.b      d0, d5               | dividend -> d5         \n"
+"       beq         10f                  | zero ? -> done         \n"
+"     	andi.l      #0x7f, d5            | mask exponent          \n"
+"       move.b      d1, d2               | divisor -> d2          \n"
+"       andi.l      #0x7f, d2            | mask exponent          \n"
+"       sub.b       d2, d5               | subtract exponents     \n"
+"     	addi.b      #65, d5              | add bias               \n"
+"                                                                 \n"
+"       /* extract significands */                                \n"
+"       move.l      #0xffffff00, d4      | significand mask -> d4 \n"
+"      	and.l       d0, d4               | sigX -> d4             \n"
+"       move.l      #0xffffff00, d2      | significand mask -> d2 \n"
+"       move.l      d1, d3               | divisor -> d3          \n"
+"       and.l       d2, d3               | sigY -> d3             \n"
+"                                                                 \n"
+"       moveq       #0, d7               | sigZ = 0               \n"
+"                                                                 \n"
+"       /* division loop */                                       \n"
+"                                                                 \n"
+"       move.l      #0x80000000, d2      | bitmask -> d2          \n"
+"1:                                                               \n"
+"       tst.l       d4                   | sigX == 0?             \n"
+"       beq.s       5f                   | -> div loop done       \n"
+"                                                                 \n"
+"       moveq       #0x40, d6            | bitmask < 0x40 ?       \n"
+"       cmp.l       d2, d6               |                        \n"
+"       bcc.s       5f                   | -> div loop done       \n"
+"                                                                 \n"
+"       move.l      d4, d6               |                        \n"
+"       sub.l       d3, d6               | sigX - sigY -> d6      \n"
+"       bmi         4f                   | < 0 ? -> 4f            \n"
+"                                                                 \n"
+"       move.l      d6, d4               | sigX -= sigY           \n"
+"       or.l        d2, d7               | sigZ |= bitmask        \n"
+"                                                                 \n"
+"2:                                                               \n"
+"       tst.l       d4                   | sigX <= 0 ?            \n"
+"       ble         3f                   | yes -> 3f              \n"
+"       add.l       d4, d4               | sigX <<= 1             \n"
+"       lsr.l       #1, d2               | bitmask >>= 1          \n"
+"       bra.s       2b                   | -> inner loop          \n"
+"                                                                 \n"
+"3:                                                               \n"
+"       tst.l       d3                   | sigY <= 0 ?            \n"
+"       ble         1b                   | yes -> div loop        \n"
+"       add.l       d3, d3               | sigY <<= 1             \n"
+"       add.l       d2, d2               | bitmask <<= 1          \n"
+"       bra.s       3b                   | -> inner loop          \n"
+"                                                                 \n"
+"4:                                                               \n"
+"       lsr.l       #1, d3               | sigY >>= 1             \n"
+"       lsr.l       #1, d2               | bm >>= 1               \n"
+"       bra.s       1b                   | -> div loop            \n"
+"                                                                 \n"
+"       /* normalization loop */                                  \n"
+"5:                                                               \n"
+"       move.l      #0x40000000, d6                               \n"
+"6:                                                               \n"
+"       tst.l       d7                   | sigZ > 0 ?             \n"
+"       ble         8f                   | no -> done             \n"
+"       cmp.l       d7, d6               | sigZ >= 0x40000000 ?   \n"
+"       blt.s       7f                   | no -> 6:               \n"
+"       subi.l      #0x80000000, d7      | sigZ -= 0x80000000     \n"
+"7:                                                               \n"
+"       add.l       d7, d7               | sigZ <<= 1             \n"
+"       subq.b      #1, d5               | dZ--                   \n"
+"       bra.s       6b                   | norm loop              \n"
+"                                                                 \n"
+"       /* construct result */                                    \n"
+"8:                                                               \n"
+"       tst.b       d7                   | (byte) sigZ < 0 ?      \n"
+"       bge         9f                   | no                     \n"
+"       addi.l      #0x100, d7           | sigZ += 256            \n"
+"9:                                                               \n"
+"       move.l      #0xffffff00, d6      | significand mask       \n"
+"       and.l       d6, d7               | sigZ &= sig mask       \n"
+"                                                                 \n"
+"       /* compute sign */                                        \n"
+"       eor.l       d1, d0               | signZ = signX ^ signY  \n"
+"       move.l      #0x80, d6            | mask out sign bit      \n"
+"       and.l       d6, d0               | -> res                 \n"
+
+"       or.l        d5, d0               | res |= expZ            \n"
+"       or.l        d7, d0               | res |= sigZ            \n"
+"                                                                 \n"
+"10:                                                              \n"
+"       movem.l     (sp)+, d2-d7         | restore registers      \n"
+"       rts                              |                        \n"
+);
 
 static FLOAT __saveds _mathffp_SPFloor ( register struct Library * MathBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
@@ -257,7 +375,7 @@ APTR __g_lxa_mathffp_FuncTab [] =
     _mathffp_SPAdd, // offset = -66
     _mathffp_SPSub, // offset = -72
     _mathffp_SPMul, // offset = -78
-    _mathffp_SPDiv, // offset = -84
+    mathffp_SPDiv,  // offset = -84
     _mathffp_SPFloor, // offset = -90
     _mathffp_SPCeil, // offset = -96
     (APTR) ((LONG)-1)
