@@ -1732,16 +1732,11 @@ static void __saveds _bootstrap(void)
     // just for testing purposes add another task
     // FIXME: remove _createTask ("exec test task", 0, _myTestTask, 8192);
 
-	// test Output() / Write()
-	//BPTR out = Output();
-	//Write (out, "\n\nHello, world!\n\n", 17);
+    // load our program
 
-    // load our test program
-
-	char *binfn = "x/hello";
-	//char *binfn = "x/AmigaBASIC";
-	//char *binfn = "x/SysInfo";
-	// FIXME char *homedir = "x";
+    char binfn[1024];
+    emucall1 (EMU_CALL_LOADFILE, (ULONG) &binfn);
+    DPRINTF (LOG_INFO, "_exec: _bootstrap(): loadfile: %s\n", binfn);
 
     OpenLibrary ("dos.library", 0);
     OpenLibrary ("utility.library", 0);

@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <string.h>
 #include <linux/limits.h>
 
 #include "m68k.h"
@@ -40,6 +41,7 @@
 #define EMU_CALL_EXCEPTION     5
 #define EMU_CALL_WAIT          6
 #define EMU_CALL_MONITOR       8
+#define EMU_CALL_LOADFILE      9
 #define EMU_CALL_DOS_OPEN   1000
 #define EMU_CALL_DOS_READ   1001
 #define EMU_CALL_DOS_SEEK   1002
@@ -68,6 +70,7 @@ static int      g_trace_buf[TRACE_BUF_ENTRIES];
 static int      g_trace_buf_idx                = 0;
 static bool     g_running                      = TRUE;
 static FILE    *g_logf                         = NULL;
+static char    *g_loadfile                     = NULL;
 
 // interrupts
 #define INTENA_MASTER 0x4000
@@ -596,6 +599,17 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_LOADFILE:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_LOADFILE d1=0x%08x\n", d1);
+
+            for (int i=0; i<=strlen(g_loadfile); i++)
+                m68k_write_memory_8 (d1++, g_loadfile[i]);
+
+            break;
+        }
+
         case EMU_CALL_DOS_OPEN:
         {
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
@@ -707,7 +721,7 @@ int op_illg(int level)
 
 static void print_usage(char *argv[])
 {
-    fprintf(stderr, "usage: %s [ options ]\n", argv[0]);
+    fprintf(stderr, "usage: %s [ options ] <loadfile>\n", argv[0]);
     fprintf(stderr, "    -d enable debug output\n");
 }
 
@@ -727,11 +741,13 @@ int main(int argc, char **argv, char **envp)
                 exit(EXIT_FAILURE);
         }
     }
-	if (argc != optind)
+	if (argc != optind+1)
 	{
 		print_usage(argv);
 		exit(EXIT_FAILURE);
 	}
+
+    g_loadfile = argv[optind];
 
     // logging
     g_logf = fopen (LXA_LOG_FILENAME, "w");

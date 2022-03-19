@@ -13,6 +13,7 @@
 #define EMU_CALL_EXCEPTION     5
 #define EMU_CALL_WAIT          6
 #define EMU_CALL_MONITOR       8
+#define EMU_CALL_LOADFILE      9
 #define EMU_CALL_DOS_OPEN   1000
 #define EMU_CALL_DOS_READ   1001
 #define EMU_CALL_DOS_SEEK   1002
