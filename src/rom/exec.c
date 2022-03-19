@@ -1423,6 +1423,7 @@ static struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase *S
 
         lib = openfn(lib);
 
+        DPRINTF (LOG_DEBUG, "_exec: OpenLibrary done libName=%s, version=%ld -> lib=0x%08lx\n", libName, version, lib);
     }
     else
     {
