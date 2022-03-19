@@ -10,6 +10,9 @@
 #include <string.h>
 #include <linux/limits.h>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #include "m68k.h"
 
 #define DEBUG       true
@@ -60,7 +63,7 @@
 #define OFFSET_CURRENT       0
 #define OFFSET_END           1
 
-#define TRACE_BUF_ENTRIES   32
+#define TRACE_BUF_ENTRIES 100000
 
 static uint8_t  g_ram[RAM_SIZE];
 static uint8_t  g_rom[ROM_SIZE];
@@ -256,25 +259,66 @@ void make_hex(char* buff, unsigned int pc, unsigned int length)
 	}
 }
 
-static void hexdump (int lvl, uint32_t offset, uint32_t num_bytes)
+#define HEXDUMP_COLS 16
+
+static bool isprintable (char c)
 {
-    dprintf (lvl, "HEX: 0x%08x  ", offset);
-    uint32_t cnt=0;
-    uint32_t num_longs = num_bytes >> 2;
-    while (cnt<num_longs)
+    return (c>=32) & (c<127);
+}
+
+void hexdump (int lvl, uint32_t offset, uint32_t len)
+{
+    uint32_t i, j;
+
+    for (i = 0; i < len + ((len % HEXDUMP_COLS) ? (HEXDUMP_COLS - len % HEXDUMP_COLS) : 0); i++)
     {
-        uint32_t l = m68k_read_memory_32 (offset);
-        dprintf (lvl, " 0x%08x", l);
-		offset +=4;
-        cnt++;
+        /* print offset */
+        if (i % HEXDUMP_COLS == 0)
+        {
+            dprintf(lvl, "0x%06x: ", offset+i);
+        }
+
+        /* print hex data */
+        if (i < len)
+        {
+            char c = m68k_read_memory_8 (offset + i);
+            dprintf(lvl, "%02x ", 0xFF & c);
+        }
+        else /* end of block, just aligning for ASCII dump */
+        {
+            dprintf(lvl, "   ");
+        }
+
+        /* print ASCII dump */
+        if (i % HEXDUMP_COLS == (HEXDUMP_COLS - 1))
+        {
+            for (j = i - (HEXDUMP_COLS - 1); j <= i; j++)
+            {
+                char c = m68k_read_memory_8 (offset + j);
+
+                if (j >= len) /* end of block, not really printing */
+                {
+                    dprintf(lvl, " ");
+                }
+                else if (isprintable(c)) /* printable char */
+                {
+                    dprintf(lvl, "%c", c);
+                }
+                else /* other char */
+                {
+                    dprintf(lvl, ".");
+                }
+            }
+            dprintf(lvl, "\n");
+        }
     }
-    dprintf (lvl, "\n");
 }
 
 static void print68kstate(int lvl)
 {
-    uint32_t sr, d0,d1,d2,d3,d4,d5,d6,d7;
+    uint32_t pc, sr, d0,d1,d2,d3,d4,d5,d6,d7;
 
+    pc = m68k_get_reg (NULL, M68K_REG_PC);
     sr = m68k_get_reg (NULL, M68K_REG_SR);
     d0 = m68k_get_reg (NULL, M68K_REG_D0);
     d1 = m68k_get_reg (NULL, M68K_REG_D1);
@@ -285,8 +329,8 @@ static void print68kstate(int lvl)
     d6 = m68k_get_reg (NULL, M68K_REG_D6);
     d7 = m68k_get_reg (NULL, M68K_REG_D7);
 
-    dprintf (lvl, "      sr=0x%04x\n      d0=0x%08x d1=0x%08x d2=0x%08x d3=0x%08x d4=0x%08x d5=0x%08x d6=0x%08x d7=0x%08x\n",
-                  sr, d0, d1, d2, d3, d4, d5, d6, d7);
+    dprintf (lvl, "     pc=0x%08x sr=0x%04x\n     d0=0x%08x d1=0x%08x d2=0x%08x d3=0x%08x d4=0x%08x d5=0x%08x d6=0x%08x d7=0x%08x\n",
+                  pc, sr, d0, d1, d2, d3, d4, d5, d6, d7);
     uint32_t a0,a1,a2,a3,a4,a5,a6,a7,usp,isp,msp;
     a0 = m68k_get_reg (NULL, M68K_REG_A0);
     a1 = m68k_get_reg (NULL, M68K_REG_A1);
@@ -299,7 +343,7 @@ static void print68kstate(int lvl)
     usp = m68k_get_reg (NULL, M68K_REG_USP);
     isp = m68k_get_reg (NULL, M68K_REG_ISP);
     msp = m68k_get_reg (NULL, M68K_REG_MSP);
-    dprintf (lvl, "      a0=0x%08x a1=0x%08x a2=0x%08x a3=0x%08x a4=0x%08x a5=0x%08x a6=0x%08x a7=0x%08x\n      usp=0x%08x isp=0x%08x msp=0x%08x\n",
+    dprintf (lvl, "     a0=0x%08x a1=0x%08x a2=0x%08x a3=0x%08x a4=0x%08x a5=0x%08x a6=0x%08x a7=0x%08x\n     usp=0x%08x isp=0x%08x msp=0x%08x\n",
                   a0, a1, a2, a3, a4, a5, a6, a7, usp, isp, msp);
 }
 
@@ -318,43 +362,6 @@ void cpu_instr_callback(int pc)
         make_hex(buff2, pc, instr_size);
         dprintf(LOG_DEBUG, "E %08x: %-20s: %s\n", pc, buff2, buff);
     }
-}
-
-static void _debug(uint32_t pcFinal)
-{
-    static char buff[100];
-    static char buff2[100];
-    static unsigned int instr_size;
-    static bool in_debug = FALSE;
-
-    if (in_debug)
-        return;
-    in_debug = TRUE;
-
-    uint32_t pc;
-
-    dprintf(LOG_INFO, "\n\n     *** LXA DEBUGGER ***\n\n");
-
-    // dump last instructions from trace buf:
-    int idx = g_trace_buf_idx - TRACE_BUF_ENTRIES;
-    if (idx<0) idx += TRACE_BUF_ENTRIES;
-    for (int i = 0; i<TRACE_BUF_ENTRIES; i++)
-    {
-        pc = g_trace_buf[idx];
-        instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
-        make_hex(buff2, pc, instr_size);
-        dprintf(LOG_INFO, "     0x%08x  %-20s: %s\n", pc, buff2, buff);
-        idx = (idx+1) % TRACE_BUF_ENTRIES;
-    }
-
-    pc = pcFinal;
-    instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
-    make_hex(buff2, pc, instr_size);
-    dprintf(LOG_INFO, "---> 0x%08x  %-20s: %s\n", pc, buff2, buff);
-
-    print68kstate(LOG_INFO);
-
-    assert(FALSE);
 }
 
 static char *_mgetstr (uint32_t address)
@@ -717,6 +724,130 @@ int op_illg(int level)
     }
 
 	return M68K_INT_ACK_AUTOVECTOR;
+}
+
+static void _debug_traceback (int n, uint32_t pcFinal)
+{
+    // dump last n instructions from trace buf:
+    uint32_t pc;
+    unsigned int instr_size;
+    static char buff[100];
+    static char buff2[100];
+
+    dprintf (LOG_INFO, "Traceback:\n\n");
+
+    n--;
+
+    if (n>TRACE_BUF_ENTRIES)
+        n = TRACE_BUF_ENTRIES;
+
+    int idx = g_trace_buf_idx - n ;
+    if (idx<0) idx += TRACE_BUF_ENTRIES;
+    for (int i = 0; i<n; i++)
+    {
+        pc = g_trace_buf[idx];
+        instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
+        make_hex(buff2, pc, instr_size);
+        dprintf(LOG_INFO, "     0x%08x  %-20s: %s\n", pc, buff2, buff);
+        idx = (idx+1) % TRACE_BUF_ENTRIES;
+    }
+
+    pc = pcFinal;
+    instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
+    make_hex(buff2, pc, instr_size);
+    dprintf(LOG_INFO, "---> 0x%08x  %-20s: %s\n\n", pc, buff2, buff);
+}
+
+static void _debug_machine_state (void)
+{
+    dprintf (LOG_INFO, "Machine state:\n\n");
+    print68kstate(LOG_INFO);
+    dprintf (LOG_INFO, "\n");
+}
+
+static void _debug_memdump (uint32_t addr)
+{
+    dprintf (LOG_INFO, "Memory dump:\n\n");
+
+    hexdump (LOG_INFO, addr, 256);
+
+    dprintf (LOG_INFO, "\n");
+}
+
+static void _debug_help (void)
+{
+    dprintf (LOG_INFO, "Available commands:\n\n");
+    dprintf (LOG_INFO, "h        - this help screen\n");
+    dprintf (LOG_INFO, "c        - continue\n");
+    dprintf (LOG_INFO, "s        - machine state\n");
+    dprintf (LOG_INFO, "t <num>  - traceback\n");
+    dprintf (LOG_INFO, "m <addr> - memory dump\n");
+    dprintf (LOG_INFO, "\n");
+}
+
+static void _debug(uint32_t pcFinal)
+{
+    static bool in_debug = FALSE;
+
+    if (in_debug)
+        return;
+    in_debug = TRUE;
+
+    dprintf(LOG_INFO, "\n\n     *** LXA DEBUGGER ***\n\n");
+
+    _debug_traceback (5, pcFinal);
+
+    _debug_machine_state ();
+
+    // interactive debugger loop
+
+    char* buf;
+    while ((buf = readline(">> ")))
+    {
+        int l = strlen(buf);
+        if (!l)
+            continue;
+
+        add_history(buf);
+        dprintf (LOG_INFO, "\n");
+
+        switch (buf[0])
+        {
+            case 'h':
+            case '?':
+                _debug_help();
+                break;
+            case 'c':
+                in_debug = FALSE;
+                return;
+            case 's':
+                _debug_machine_state ();
+                break;
+            case 't':
+            {
+                int num;
+                int n = sscanf (buf, "t %d", &num);
+                if (n==1)
+                    _debug_traceback (num, pcFinal);
+                else
+                    dprintf (LOG_INFO, "???\n");
+                break;
+            }
+            case 'm':
+            {
+                uint32_t addr;
+                int n = sscanf (buf, "m %x", &addr);
+                if (n==1)
+                    _debug_memdump (addr);
+                else
+                    dprintf (LOG_INFO, "???\n");
+                break;
+            }
+        }
+
+        free(buf);
+    }
+    assert(FALSE);
 }
 
 static void print_usage(char *argv[])

@@ -15,7 +15,7 @@ $(OBJDIR_LINUX)/%.o : %.c $(DEPDIR_LINUX)/%.d | $(DEPDIR_LINUX)
 	$(CC_LINUX) -c $(CFLAGS_LINUX) $(DEPFLAGS_LINUX) $< -o $@
 
 ${BINDIR_LINUX}/lxa:	$(OBJS_LINUX)
-	$(CC_LINUX) $(CFLAGS_LINUX) $(LDFLAGS_LINUX) -pthread -o $@ $^
+	$(CC_LINUX) $(CFLAGS_LINUX) $(LDFLAGS_LINUX) -pthread -lreadline -o $@ $^
 
 $(DEPDIR_LINUX):
 	@mkdir -p $@
