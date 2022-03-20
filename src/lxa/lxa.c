@@ -64,6 +64,7 @@
 #define OFFSET_END           1
 
 #define TRACE_BUF_ENTRIES 100000
+#define MAX_BREAKPOINTS       16
 
 static uint8_t  g_ram[RAM_SIZE];
 static uint8_t  g_rom[ROM_SIZE];
@@ -74,6 +75,8 @@ static int      g_trace_buf_idx                = 0;
 static bool     g_running                      = TRUE;
 static FILE    *g_logf                         = NULL;
 static char    *g_loadfile                     = NULL;
+static uint32_t g_breakpoints[MAX_BREAKPOINTS];
+static int      g_num_breakpoints              = 0;
 
 // interrupts
 #define INTENA_MASTER 0x4000
@@ -361,6 +364,12 @@ void cpu_instr_callback(int pc)
         instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
         make_hex(buff2, pc, instr_size);
         dprintf(LOG_DEBUG, "E %08x: %-20s: %s\n", pc, buff2, buff);
+    }
+
+    for (int i = 0; i<g_num_breakpoints; i++)
+    {
+        if (g_breakpoints[i] == pc)
+            _debug(pc);
     }
 }
 
@@ -853,7 +862,8 @@ static void _debug(uint32_t pcFinal)
 static void print_usage(char *argv[])
 {
     fprintf(stderr, "usage: %s [ options ] <loadfile>\n", argv[0]);
-    fprintf(stderr, "    -d enable debug output\n");
+    fprintf(stderr, "    -b <addr>  add breakpoint\n");
+    fprintf(stderr, "    -d         enable debug output\n");
 }
 
 int main(int argc, char **argv, char **envp)
@@ -864,6 +874,19 @@ int main(int argc, char **argv, char **envp)
     {
         switch (argv[optind][1])
         {
+            case 'b':
+            {
+                uint32_t addr;
+                optind++;
+                if (sscanf (argv[optind], "%x", &addr) != 1)
+                {
+                    print_usage(argv);
+                    exit(EXIT_FAILURE);
+                }
+                if (g_num_breakpoints < MAX_BREAKPOINTS)
+                    g_breakpoints[g_num_breakpoints++] = addr;
+                break;
+            }
             case 'd':
 				g_debug = true;
                 break;
@@ -905,7 +928,7 @@ int main(int argc, char **argv, char **envp)
 
     // setup memory image
 
-    m68k_write_memory_32 (0, RAM_END-1);     // initial SP
+    m68k_write_memory_32 (0, RAM_END-1);   // initial SP
     m68k_write_memory_32 (4, ROM_START+2); // reset vector
 
     m68k_init();
