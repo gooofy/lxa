@@ -878,10 +878,10 @@ static struct Node * __saveds _exec_FindName ( register struct ExecBase * __libB
     return NULL;
 }
 
-static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm("a6"),
-                                     register struct Task *task     __asm("a1"),
-                                     register const APTR   initPC   __asm("a2"),
-                                     register const APTR   finalPC  __asm("a3"))
+static APTR __saveds _exec_AddTask ( register struct ExecBase *SysBase __asm("a6"),
+                                     register struct Task     *task    __asm("a1"),
+                                     register const APTR       initPC  __asm("a2"),
+                                     register const APTR       finalPC __asm("a3"))
 {
     DPRINTF (LOG_INFO, "_exec: AddTask called task=0x%08lx, initPC=0x%08lx, finalPC=0x%08lx\n", task, initPC, finalPC);
 
@@ -890,8 +890,6 @@ static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm(
     U_prepareTask (task, initPC, finalPC, /*args=*/NULL);
 
     // launch it
-
-    struct Task *parent = SysBase->ThisTask;
 
     Disable();
 

@@ -1318,14 +1318,14 @@ struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary * DOSB
 
     // launch it
 
-    struct Task *task2 = AddTask (&process->pr_Task, initpc, 0);
-    if (!task2)
-    {
-        DPRINTF (LOG_ERROR, "_dos: CreateNewProc() AddTask() failed\n");
-        // FIXME! FreeEntry (ml);
-        assert (FALSE);
-        return NULL;
-    }
+    Disable();
+
+    process->pr_Task.tc_State = TS_READY;
+    Enqueue (&SysBase->TaskReady, &process->pr_Task.tc_Node);
+
+    Enable();
+
+    DPRINTF (LOG_INFO, "_dos: CreateNewProc() done, process=0x%08lx\n", process);
 
     return process;
 }

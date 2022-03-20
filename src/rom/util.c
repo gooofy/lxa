@@ -524,7 +524,7 @@ struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess
     struct MemList    *ml;
     struct Task       *newtask;
 
-    DPRINTF (LOG_DEBUG, "_util: allocTask() called, name=%s, pri=%ld, stacksize=%ld\n",
+    DPRINTF (LOG_DEBUG, "_util: U_allocTask() called, name=%s, pri=%ld, stacksize=%ld\n",
              name ? (char *) name : "NULL", pri, stacksize);
 
     stacksize = (stacksize+3)&~3;
@@ -545,7 +545,7 @@ struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess
     ml = AllocEntry ((struct MemList *)&nml);
     if (((unsigned int)ml) & (1<<31))
     {
-        DPRINTF (LOG_ERROR, "util: _allocTask() failed to allocate memory\n");
+        DPRINTF (LOG_ERROR, "util: U_allocTask() failed to allocate memory\n");
         return NULL;
     }
 
@@ -557,7 +557,7 @@ struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess
     newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
     newtask->tc_SPUpper      = newtask->tc_SPReg;
 
-    DPRINTF (LOG_INFO, "_exec: _createTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx\n",
+    DPRINTF (LOG_INFO, "util: U_allocTask() newtask->tc_SPReg=0x%08lx, newtask->tc_SPLower=0x%08lx, newtask->tc_SPUpper=0x%08lx\n",
              newtask->tc_SPReg, newtask->tc_SPLower, newtask->tc_SPUpper);
 
     NEWLIST (&newtask->tc_MemEntry);
@@ -568,6 +568,8 @@ struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess
 
 void U_prepareTask (struct Task *task, APTR initPC, APTR finalPC, char *args)
 {
+    DPRINTF (LOG_INFO, "util: U_prepareTask() task=0x%08lx, initPC=0x%08lx, args=0x%08lx\n", task, initPC, args);
+
     // prepare task structure
 
     task->tc_IDNestCnt = -1;
@@ -605,12 +607,13 @@ void U_prepareTask (struct Task *task, APTR initPC, APTR finalPC, char *args)
     // regs
     for (int i = 0; i<15; i++)
     {
-        if (args && (i==7))
+        if (args && (i==6))
             *(--sp) = (ULONG) args;
-        else if (args && (i==15))
+        else if (args && (i==14))
             *(--sp) = strlen(args);
         else
             *(--sp) = 0;
+            //*(--sp) = 0xdead0000 + i;
     }
 
     UWORD *spw = (UWORD*) sp;
@@ -650,6 +653,8 @@ struct Task *U_createTask (STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
 
 void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG stacksize, char *args)
 {
+    DPRINTF (LOG_INFO, "util: U_prepareProcess() process=0x%08lx, initPC=0x%08lx, stacksize=%d, args=0x%08lx\n", process, initPC, stacksize, args);
+
     NEWLIST ((struct List *)&process->pr_LocalVars);
 
 	U_prepareTask (&process->pr_Task, initPC, finalPC, args);
