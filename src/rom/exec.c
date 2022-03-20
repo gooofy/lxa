@@ -1513,13 +1513,24 @@ static void __saveds _exec_AddMemList ( register struct ExecBase * __libBase __a
     assert(FALSE);
 }
 
-static void __saveds _exec_CopyMem ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register const APTR ___source  __asm("a0"),
-                                                        register APTR ___dest  __asm("a1"),
-                                                        register ULONG ___size  __asm("d0"))
+static void __saveds _exec_CopyMem ( register struct ExecBase *SysBase __asm("a6"),
+                                     register const APTR       source  __asm("a0"),
+                                     register APTR             dest    __asm("a1"),
+                                     register ULONG            size    __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_exec: CopyMem unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: CopyMem called source=0x%08lx, dest=0x%08lx, size=%d\n", source, dest, size);
+
+    if (!size)
+        return;
+
+    // FIXME: optimize for speed
+
+    UBYTE *src = (UBYTE *)source;
+    UBYTE *dst = (UBYTE *)dest;
+
+    for (ULONG i = 0; i<size; i++)
+        *dst++ = *src++;
+
 }
 
 static void __saveds _exec_CopyMemQuick ( register struct ExecBase * __libBase __asm("a6"),
