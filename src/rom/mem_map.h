@@ -73,10 +73,21 @@
 #define MATHTRANS_BASE_SIZE          sizeof (struct Library)
 #define MATHTRANS_BASE_END           MATHTRANS_BASE_START + MATHTRANS_BASE_SIZE -1
 
+// graphics
+
+#define NUM_GRAPHICS_FUNCS           (172+4)
+#define GRAPHICS_VECTORS_START       MATHTRANS_BASE_END + 1
+#define GRAPHICS_VECTORS_SIZE        NUM_GRAPHICS_FUNCS * 6
+#define GRAPHICS_VECTORS_END         GRAPHICS_VECTORS_START + GRAPHICS_VECTORS_SIZE -1
+
+#define GRAPHICS_BASE_START          GRAPHICS_VECTORS_END + 1
+#define GRAPHICS_BASE_SIZE           sizeof (struct Library)
+#define GRAPHICS_BASE_END            GRAPHICS_BASE_START + GRAPHICS_BASE_SIZE -1
+
 // input.device
 
 #define NUM_DEVICE_INPUT_FUNCS       (0+6)
-#define DEVICE_INPUT_VECTORS_START   MATHTRANS_BASE_END + 1
+#define DEVICE_INPUT_VECTORS_START   GRAPHICS_BASE_END + 1
 #define DEVICE_INPUT_VECTORS_SIZE    NUM_DEVICE_INPUT_FUNCS * 6
 #define DEVICE_INPUT_VECTORS_END     DEVICE_INPUT_VECTORS_START + DEVICE_INPUT_VECTORS_SIZE -1
 
@@ -94,6 +105,7 @@ extern struct Resident *__lxa_dos_ROMTag;
 extern struct Resident *__lxa_utility_ROMTag;
 extern struct Resident *__lxa_mathffp_ROMTag;
 extern struct Resident *__lxa_mathtrans_ROMTag;
+extern struct Resident *__lxa_graphics_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 
 #endif

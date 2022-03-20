@@ -15,7 +15,7 @@ clean:
 diss:
 	$(OBJDUMP_AMIGAOS) -S -d -x exec.library
 
-exec.library: romhdr.o exec.o exceptions.o util.o amath.o lxa_dos.o lxa_utility.o lxa_mathffp.o lxa_mathtrans.o lxa_dev_input.o
+exec.library: romhdr.o exec.o exceptions.o util.o amath.o lxa_dos.o lxa_utility.o lxa_mathffp.o lxa_mathtrans.o lxa_dev_input.o lxa_graphics.o
 	$(CC_AMIGAOS) $(LDFLAGS) -Xlinker -Map=exec.map -o $@ $^ $(LDLIBS)
 
 # mathffp.library: lxa_mathffp.o util.o amath.o
