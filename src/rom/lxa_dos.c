@@ -1271,11 +1271,20 @@ struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary * DOSB
     BOOL   do_cli    =          GetTagData(NP_Cli      , 0                    , tags);
            inp       =          GetTagData(NP_Input    , inp                  , tags);
            outp      =          GetTagData(NP_Output   , outp                 , tags);
+    char  *args      = (char*)  GetTagData(NP_Arguments, NULL                 , tags);
 
     if (!initpc)
     {
         assert(seglist);
         initpc = BADDR(seglist) + sizeof(BPTR);
+    }
+
+    if (args)
+    {
+        int l = strlen (args);
+        char *nargs = AllocVec (l+1, MEMF_PUBLIC);
+        CopyMem (args, nargs, l+1);
+        args = nargs;
     }
 
     // create process
@@ -1285,7 +1294,7 @@ struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary * DOSB
     if (!process)
         return NULL;
 
-    U_prepareProcess (process, initpc, 0, stackSize);
+    U_prepareProcess (process, initpc, 0, stackSize, args);
 
     if (do_cli)
     {

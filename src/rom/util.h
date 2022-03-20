@@ -68,6 +68,7 @@ struct InitTable
 
 void *memset(void *dst, int c, ULONG n);
 int strcmp(const char* s1, const char* s2);
+int strlen(const char *s);
 
 #define ALIGN(x,a)              __ALIGN_MASK(x,(typeof(x))(a)-1)
 #define __ALIGN_MASK(x,mask)    (((x)+(mask))&~(mask))
@@ -79,10 +80,10 @@ int strcmp(const char* s1, const char* s2);
 void            U_hexdump        (int lvl, void *mem, unsigned int len);
 
 struct Task    *U_allocTask      (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess);
-void            U_prepareTask    (struct Task *task, APTR initPC, APTR finalPC);
+void            U_prepareTask    (struct Task *task, APTR initPC, APTR finalPC, char *args);
 void            U_freeTask       (struct Task *task);
 struct Task    *U_createTask     (STRPTR name, LONG pri, APTR initpc, ULONG stacksize);
 
-void            U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG stacksize);
+void            U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG stacksize, char *args);
 
 #endif

@@ -887,7 +887,7 @@ static APTR __saveds _exec_AddTask ( register struct ExecBase * __libBase __asm(
 
     assert(task);
 
-    U_prepareTask (task, initPC, finalPC);
+    U_prepareTask (task, initPC, finalPC, /*args=*/NULL);
 
     // launch it
 
@@ -1509,7 +1509,7 @@ static void __saveds _exec_AddMemList ( register struct ExecBase * __libBase __a
                                                         register APTR ___base  __asm("a0"),
                                                         register CONST_STRPTR ___name  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AddMemList unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: AddMemList unimplemented STUB called.\n");
     assert(FALSE);
 }
 
@@ -1518,7 +1518,7 @@ static void __saveds _exec_CopyMem ( register struct ExecBase * __libBase __asm(
                                                         register APTR ___dest  __asm("a1"),
                                                         register ULONG ___size  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: CopyMem unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: CopyMem unimplemented STUB called.\n");
     assert(FALSE);
 }
 
@@ -1527,13 +1527,13 @@ static void __saveds _exec_CopyMemQuick ( register struct ExecBase * __libBase _
                                                         register APTR ___dest  __asm("a1"),
                                                         register ULONG ___size  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: CopyMemQuick unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: CopyMemQuick unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static void __saveds _exec_CacheClearU ( register struct ExecBase * __libBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: CacheClearU unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: CacheClearU unimplemented STUB called.\n");
     assert(FALSE);
 }
 
@@ -1542,7 +1542,7 @@ static void __saveds _exec_CacheClearE ( register struct ExecBase * __libBase __
                                                         register ULONG ___length  __asm("d0"),
                                                         register ULONG ___caches  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: CacheClearE unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: CacheClearE unimplemented STUB called.\n");
     assert(FALSE);
 }
 
@@ -1550,7 +1550,7 @@ static ULONG __saveds _exec_CacheControl ( register struct ExecBase * __libBase 
                                                         register ULONG ___cacheBits  __asm("d0"),
                                                         register ULONG ___cacheMask  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: CacheControl unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: CacheControl unimplemented STUB called.\n");
     assert(FALSE);
 }
 
@@ -1558,34 +1558,34 @@ static APTR __saveds _exec_CreateIORequest ( register struct ExecBase * __libBas
                                                         register const struct MsgPort * ___port  __asm("a0"),
                                                         register ULONG ___size  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: CreateIORequest unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: CreateIORequest unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static void __saveds _exec_DeleteIORequest ( register struct ExecBase * __libBase __asm("a6"),
                                                         register APTR ___iorequest  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: DeleteIORequest unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: DeleteIORequest unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static struct MsgPort * __saveds _exec_CreateMsgPort ( register struct ExecBase * __libBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: CreateMsgPort unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: CreateMsgPort unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static void __saveds _exec_DeleteMsgPort ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: DeleteMsgPort unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: DeleteMsgPort unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 static void __saveds _exec_ObtainSemaphoreShared ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: ObtainSemaphoreShared unimplemented STUB called.\n");
+    DPRINTF (LOG_ERROR, "_exec: ObtainSemaphoreShared unimplemented STUB called.\n");
     assert(FALSE);
 }
 
@@ -1772,6 +1772,7 @@ static void __saveds _bootstrap(void)
                                               /* FIXME: NP_HomeDir,     env->childHomeDirLock, */
                                               NP_CopyVars    , FALSE,
                                               NP_Cli         , TRUE,
+                                              NP_Arguments   , (ULONG) "\n",
                                               TAG_DONE);
 
     DPRINTF (LOG_INFO, "_exec: new process for %s created: 0x%08lx\n", binfn, child);
@@ -2010,7 +2011,7 @@ void __saveds coldstart (void)
 
     // create a bootstrap process
     struct Process *rootProc = (struct Process *) U_allocTask ("exec bootstrap", 0, 8192, /*isProcess=*/ TRUE);
-    U_prepareProcess (rootProc, _bootstrap, 0, 8192);
+    U_prepareProcess (rootProc, _bootstrap, 0, 8192, /*args=*/NULL);
 
     // stdin/stdout
     struct FileHandle *fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);

@@ -42,7 +42,7 @@ union _d_bits {
 	unsigned u;
 };
 
-uint32_t strlen(const char *string)
+int strlen(const char *string)
 {
     const char *s = string;
 
@@ -566,7 +566,7 @@ struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess
     return newtask;
 }
 
-void U_prepareTask (struct Task *task, APTR initPC, APTR finalPC)
+void U_prepareTask (struct Task *task, APTR initPC, APTR finalPC, char *args)
 {
     // prepare task structure
 
@@ -604,7 +604,14 @@ void U_prepareTask (struct Task *task, APTR initPC, APTR finalPC)
 
     // regs
     for (int i = 0; i<15; i++)
-        *(--sp) = 0;
+    {
+        if (args && (i==7))
+            *(--sp) = (ULONG) args;
+        else if (args && (i==15))
+            *(--sp) = strlen(args);
+        else
+            *(--sp) = 0;
+    }
 
     UWORD *spw = (UWORD*) sp;
     *(--spw) = 0;             // SR
@@ -641,11 +648,11 @@ struct Task *U_createTask (STRPTR name, LONG pri, APTR initpc, ULONG stacksize)
     return newtask;
 }
 
-void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG stacksize)
+void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG stacksize, char *args)
 {
     NEWLIST ((struct List *)&process->pr_LocalVars);
 
-	U_prepareTask (&process->pr_Task, initPC, finalPC);
+	U_prepareTask (&process->pr_Task, initPC, finalPC, args);
 
     process->pr_MsgPort.mp_Node.ln_Type = NT_MSGPORT;
     process->pr_MsgPort.mp_Flags        = PA_SIGNAL;
