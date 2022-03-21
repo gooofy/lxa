@@ -63,17 +63,18 @@ struct JumpVec
     void *vec;
 };
 
-static struct JumpVec  *g_ExecJumpTable = (struct JumpVec *)      ((uint8_t *)EXEC_VECTORS_START);
-struct ExecBase        *SysBase         = (struct ExecBase*)      ((uint8_t *)EXEC_BASE_START);
-struct UtilityBase     *UtilityBase     = (struct UtilityBase*)   ((uint8_t *)UTILITY_BASE_START);
-struct DosLibrary      *DOSBase         = (struct DosLibrary*)    ((uint8_t *)DOS_BASE_START);
-struct Library         *MathBase        = (struct Library*)       ((uint8_t *)MATHFFP_BASE_START);
-struct Library         *MathTransBase   = (struct Library*)       ((uint8_t *)MATHTRANS_BASE_START);
-struct GfxBase         *GfxBase         = (struct GfxBase*)       ((uint8_t *)GRAPHICS_BASE_START);
-struct IntuitionBase   *IntuitionBase   = (struct IntuitionBase*) ((uint8_t *)INTUITION_BASE_START);
-struct ExpansionBase   *ExpansionBase   = (struct ExpansionBase*) ((uint8_t *)EXPANSION_BASE_START);
-struct Library         *DeviceInputBase = (struct Library*)       ((uint8_t *)DEVICE_INPUT_BASE_START);
-static struct Custom   *custom          = (struct Custom*)        0xdff000;
+static struct JumpVec  *g_ExecJumpTable   = (struct JumpVec *)      ((uint8_t *)EXEC_VECTORS_START);
+struct ExecBase        *SysBase           = (struct ExecBase*)      ((uint8_t *)EXEC_BASE_START);
+struct UtilityBase     *UtilityBase       = (struct UtilityBase*)   ((uint8_t *)UTILITY_BASE_START);
+struct DosLibrary      *DOSBase           = (struct DosLibrary*)    ((uint8_t *)DOS_BASE_START);
+struct Library         *MathBase          = (struct Library*)       ((uint8_t *)MATHFFP_BASE_START);
+struct Library         *MathTransBase     = (struct Library*)       ((uint8_t *)MATHTRANS_BASE_START);
+struct GfxBase         *GfxBase           = (struct GfxBase*)       ((uint8_t *)GRAPHICS_BASE_START);
+struct IntuitionBase   *IntuitionBase     = (struct IntuitionBase*) ((uint8_t *)INTUITION_BASE_START);
+struct ExpansionBase   *ExpansionBase     = (struct ExpansionBase*) ((uint8_t *)EXPANSION_BASE_START);
+struct Library         *DeviceInputBase   = (struct Library*)       ((uint8_t *)DEVICE_INPUT_BASE_START);
+struct Library         *DeviceConsoleBase = (struct Library*)       ((uint8_t *)DEVICE_CONSOLE_BASE_START);
+static struct Custom   *custom            = (struct Custom*)        0xdff000;
 
 #define JMPINSTR 0x4ef9
 
@@ -2009,7 +2010,8 @@ void __saveds coldstart (void)
     NEWLIST (&SysBase->DeviceList);
     SysBase->DeviceList.lh_Type = NT_DEVICE;
 
-    registerBuiltInDev ((struct Library *) DeviceInputBase, NUM_DEVICE_INPUT_FUNCS, __lxa_input_ROMTag);
+    registerBuiltInDev ((struct Library *) DeviceInputBase  , NUM_DEVICE_INPUT_FUNCS  , __lxa_input_ROMTag  );
+    registerBuiltInDev ((struct Library *) DeviceConsoleBase, NUM_DEVICE_CONSOLE_FUNCS, __lxa_console_ROMTag);
 
     // init multitasking
     NEWLIST (&SysBase->TaskReady);

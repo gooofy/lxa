@@ -117,9 +117,20 @@
 #define DEVICE_INPUT_BASE_SIZE       sizeof (struct Library)
 #define DEVICE_INPUT_BASE_END        DEVICE_INPUT_BASE_START + DEVICE_INPUT_BASE_SIZE -1
 
+// console.device
+
+#define NUM_DEVICE_CONSOLE_FUNCS     (0+6)
+#define DEVICE_CONSOLE_VECTORS_START DEVICE_INPUT_BASE_END + 1
+#define DEVICE_CONSOLE_VECTORS_SIZE  NUM_DEVICE_CONSOLE_FUNCS * 6
+#define DEVICE_CONSOLE_VECTORS_END   DEVICE_CONSOLE_VECTORS_START + DEVICE_CONSOLE_VECTORS_SIZE -1
+
+#define DEVICE_CONSOLE_BASE_START    DEVICE_CONSOLE_VECTORS_END + 1
+#define DEVICE_CONSOLE_BASE_SIZE     sizeof (struct Library)
+#define DEVICE_CONSOLE_BASE_END      DEVICE_CONSOLE_BASE_START + DEVICE_CONSOLE_BASE_SIZE -1
+
 // RAM
 
-#define RAM_START                    ALIGN (DEVICE_INPUT_BASE_END + 1, 4)
+#define RAM_START                    ALIGN (DEVICE_CONSOLE_BASE_END + 1, 4)
 #define RAM_SIZE                     10 * 1024 * 1024
 #define RAM_END                      RAM_SIZE - 1
 
@@ -131,5 +142,6 @@ extern struct Resident *__lxa_graphics_ROMTag;
 extern struct Resident *__lxa_intuition_ROMTag;
 extern struct Resident *__lxa_expansion_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
+extern struct Resident *__lxa_console_ROMTag;
 
 #endif
