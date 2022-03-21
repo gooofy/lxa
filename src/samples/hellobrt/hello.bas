@@ -1,0 +1,9 @@
+OPTION EXPLICIT
+
+PRINT "Hello, World!"
+
+FOR i AS INTEGER = 1 TO 20
+    PRINT i*i
+NEXT i
+
+
