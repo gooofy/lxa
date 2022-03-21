@@ -16,7 +16,7 @@ def gen_stub (f, out):
     if not f['name']:
         return
 
-    out.write ("static %s __saveds %s_%s ( register %s %s __asm(\"a6\")" % (f['returnType'], libPrefix, f['name'], baseType, libBase))
+    out.write ("%s __saveds %s_%s ( register %s %s __asm(\"a6\")" % (f['returnType'], libPrefix, f['name'], baseType, libBase))
 
     n = len(f['args'])
     if not n:
