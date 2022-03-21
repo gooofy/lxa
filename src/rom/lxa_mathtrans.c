@@ -5,6 +5,12 @@
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
+#include <clib/mathffp_protos.h>
+#include <inline/mathffp.h>
+
+#include <clib/mathtrans_protos.h>
+#include <inline/mathtrans.h>
+
 #include "util.h"
 #include "mem_map.h"
 
@@ -15,6 +21,8 @@
 #else
 #define DPRINTF(lvl, ...)
 #endif
+
+union ULONG_FLOAT { ULONG ul; FLOAT f; };
 
 #define VERSION    40
 #define REVISION   1
@@ -29,6 +37,7 @@ char __aligned _g_mathtrans_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 //struct ExecBase        *SysBase         = (struct ExecBase*)    ((UBYTE *)EXEC_BASE_START);
 extern struct ExecBase      *SysBase;
+extern struct Library       *MathBase;
 
 // libBase: MathTransBase
 // baseType: struct Library *
@@ -135,12 +144,25 @@ static FLOAT __saveds _mathtrans_SPLog ( register struct Library * MathTransBase
     assert(FALSE);
 }
 
-static FLOAT __saveds _mathtrans_SPPow ( register struct Library * MathTransBase __asm("a6"),
-                                                        register FLOAT power __asm("d1"),
-                                                        register FLOAT arg __asm("d0"))
+static FLOAT __saveds _mathtrans_SPPow ( register struct Library *MathTransBase __asm("a6"),
+                                         register FLOAT           power         __asm("d1"),
+                                         register FLOAT           base          __asm("d0"))
 {
-    DPRINTF (LOG_WARNING, "_mathtrans: SPPow() unimplemented STUB called.\n");
-    //assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_mathtrans: SPPow() called.\n");
+
+	union ULONG_FLOAT ufbase;
+	ufbase.f = base;
+
+	ufbase.ul &= 0xffffff7f; // mask out sign bit
+
+    // base^power = e^(power * ln base)
+
+    FLOAT res;
+    res = SPLog (ufbase.f );
+    res = SPMul (res, power);
+    res = SPExp (res);
+
+    return res;
 }
 
 static FLOAT __saveds _mathtrans_SPSqrt ( register struct Library * MathTransBase __asm("a6"),
