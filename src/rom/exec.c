@@ -71,6 +71,7 @@ struct Library         *MathBase        = (struct Library*)       ((uint8_t *)MA
 struct Library         *MathTransBase   = (struct Library*)       ((uint8_t *)MATHTRANS_BASE_START);
 struct GfxBase         *GfxBase         = (struct GfxBase*)       ((uint8_t *)GRAPHICS_BASE_START);
 struct IntuitionBase   *IntuitionBase   = (struct IntuitionBase*) ((uint8_t *)INTUITION_BASE_START);
+struct ExpansionBase   *ExpansionBase   = (struct ExpansionBase*) ((uint8_t *)EXPANSION_BASE_START);
 struct Library         *DeviceInputBase = (struct Library*)       ((uint8_t *)DEVICE_INPUT_BASE_START);
 static struct Custom   *custom          = (struct Custom*)        0xdff000;
 
@@ -2002,6 +2003,7 @@ void __saveds coldstart (void)
     registerBuiltInLib ((struct Library *) MathTransBase, NUM_MATHTRANS_FUNCS , __lxa_mathtrans_ROMTag );
     registerBuiltInLib ((struct Library *) GfxBase      , NUM_GRAPHICS_FUNCS  , __lxa_graphics_ROMTag  );
     registerBuiltInLib ((struct Library *) IntuitionBase, NUM_INTUITION_FUNCS , __lxa_intuition_ROMTag );
+    registerBuiltInLib ((struct Library *) ExpansionBase, NUM_EXPANSION_FUNCS , __lxa_expansion_ROMTag );
 
     // init and register built-in devices
     NEWLIST (&SysBase->DeviceList);
