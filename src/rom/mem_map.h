@@ -84,10 +84,21 @@
 #define GRAPHICS_BASE_SIZE           sizeof (struct Library)
 #define GRAPHICS_BASE_END            GRAPHICS_BASE_START + GRAPHICS_BASE_SIZE -1
 
+// intuition
+
+#define NUM_INTUITION_FUNCS          (134+4)
+#define INTUITION_VECTORS_START      GRAPHICS_BASE_END + 1
+#define INTUITION_VECTORS_SIZE       NUM_INTUITION_FUNCS * 6
+#define INTUITION_VECTORS_END        INTUITION_VECTORS_START + INTUITION_VECTORS_SIZE -1
+
+#define INTUITION_BASE_START         INTUITION_VECTORS_END + 1
+#define INTUITION_BASE_SIZE          sizeof (struct Library)
+#define INTUITION_BASE_END           INTUITION_BASE_START + INTUITION_BASE_SIZE -1
+
 // input.device
 
 #define NUM_DEVICE_INPUT_FUNCS       (0+6)
-#define DEVICE_INPUT_VECTORS_START   GRAPHICS_BASE_END + 1
+#define DEVICE_INPUT_VECTORS_START   INTUITION_BASE_END + 1
 #define DEVICE_INPUT_VECTORS_SIZE    NUM_DEVICE_INPUT_FUNCS * 6
 #define DEVICE_INPUT_VECTORS_END     DEVICE_INPUT_VECTORS_START + DEVICE_INPUT_VECTORS_SIZE -1
 
@@ -106,6 +117,7 @@ extern struct Resident *__lxa_utility_ROMTag;
 extern struct Resident *__lxa_mathffp_ROMTag;
 extern struct Resident *__lxa_mathtrans_ROMTag;
 extern struct Resident *__lxa_graphics_ROMTag;
+extern struct Resident *__lxa_intuition_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 
 #endif

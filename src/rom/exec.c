@@ -63,15 +63,16 @@ struct JumpVec
     void *vec;
 };
 
-static struct JumpVec  *g_ExecJumpTable = (struct JumpVec *)    ((uint8_t *)EXEC_VECTORS_START);
-struct ExecBase        *SysBase         = (struct ExecBase*)    ((uint8_t *)EXEC_BASE_START);
-struct UtilityBase     *UtilityBase     = (struct UtilityBase*) ((uint8_t *)UTILITY_BASE_START);
-struct DosLibrary      *DOSBase         = (struct DosLibrary*)  ((uint8_t *)DOS_BASE_START);
-struct Library         *MathBase        = (struct Library*)     ((uint8_t *)MATHFFP_BASE_START);
-struct Library         *MathTransBase   = (struct Library*)     ((uint8_t *)MATHTRANS_BASE_START);
-struct GfxBase         *GfxBase         = (struct GfxBase*)     ((uint8_t *)GRAPHICS_BASE_START);
-struct Library         *DeviceInputBase = (struct Library*)     ((uint8_t *)DEVICE_INPUT_BASE_START);
-static struct Custom   *custom          = (struct Custom*)      0xdff000;
+static struct JumpVec  *g_ExecJumpTable = (struct JumpVec *)      ((uint8_t *)EXEC_VECTORS_START);
+struct ExecBase        *SysBase         = (struct ExecBase*)      ((uint8_t *)EXEC_BASE_START);
+struct UtilityBase     *UtilityBase     = (struct UtilityBase*)   ((uint8_t *)UTILITY_BASE_START);
+struct DosLibrary      *DOSBase         = (struct DosLibrary*)    ((uint8_t *)DOS_BASE_START);
+struct Library         *MathBase        = (struct Library*)       ((uint8_t *)MATHFFP_BASE_START);
+struct Library         *MathTransBase   = (struct Library*)       ((uint8_t *)MATHTRANS_BASE_START);
+struct GfxBase         *GfxBase         = (struct GfxBase*)       ((uint8_t *)GRAPHICS_BASE_START);
+struct IntuitionBase   *IntuitionBase   = (struct IntuitionBase*) ((uint8_t *)INTUITION_BASE_START);
+struct Library         *DeviceInputBase = (struct Library*)       ((uint8_t *)DEVICE_INPUT_BASE_START);
+static struct Custom   *custom          = (struct Custom*)        0xdff000;
 
 #define JMPINSTR 0x4ef9
 
@@ -1995,11 +1996,12 @@ void __saveds coldstart (void)
     NEWLIST (&SysBase->LibList);
     SysBase->LibList.lh_Type = NT_LIBRARY;
 
-    registerBuiltInLib ((struct Library *) DOSBase      , NUM_DOS_FUNCS      , __lxa_dos_ROMTag      );
-    registerBuiltInLib ((struct Library *) UtilityBase  , NUM_UTILITY_FUNCS  , __lxa_utility_ROMTag  );
-    registerBuiltInLib ((struct Library *) MathBase     , NUM_MATHFFP_FUNCS  , __lxa_mathffp_ROMTag  );
-    registerBuiltInLib ((struct Library *) MathTransBase, NUM_MATHTRANS_FUNCS, __lxa_mathtrans_ROMTag);
-    registerBuiltInLib ((struct Library *) GfxBase      , NUM_GRAPHICS_FUNCS , __lxa_graphics_ROMTag );
+    registerBuiltInLib ((struct Library *) DOSBase      , NUM_DOS_FUNCS       , __lxa_dos_ROMTag       );
+    registerBuiltInLib ((struct Library *) UtilityBase  , NUM_UTILITY_FUNCS   , __lxa_utility_ROMTag   );
+    registerBuiltInLib ((struct Library *) MathBase     , NUM_MATHFFP_FUNCS   , __lxa_mathffp_ROMTag   );
+    registerBuiltInLib ((struct Library *) MathTransBase, NUM_MATHTRANS_FUNCS , __lxa_mathtrans_ROMTag );
+    registerBuiltInLib ((struct Library *) GfxBase      , NUM_GRAPHICS_FUNCS  , __lxa_graphics_ROMTag  );
+    registerBuiltInLib ((struct Library *) IntuitionBase, NUM_INTUITION_FUNCS , __lxa_intuition_ROMTag );
 
     // init and register built-in devices
     NEWLIST (&SysBase->DeviceList);
