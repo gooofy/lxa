@@ -6,6 +6,7 @@
 #include <inline/exec.h>
 
 #include <libraries/mathffp.h>
+#include <inline/mathffp.h>
 
 #include "util.h"
 #include "mem_map.h"
@@ -32,7 +33,7 @@ asm(
 #define EXLIBNAME  "mathffp"
 #define EXLIBVER   " 40.1 (2022/03/03)"
 
-union ULONG_FLOAT { ULONG ul; FLOAT f; };
+union FFP_ULONG { ULONG ul; FLOAT f; };
 
 char __aligned _g_mathffp_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_mathffp_ExLibID   [] = EXLIBNAME EXLIBVER;
@@ -204,12 +205,20 @@ static FLOAT __saveds _mathffp_SPAdd ( register struct Library * MathBase __asm(
     assert(FALSE);
 }
 
-static FLOAT __saveds _mathffp_SPSub ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT leftParm __asm("d1"),
-                                                        register FLOAT rightParm __asm("d0"))
+static FLOAT __saveds _mathffp_SPSub ( register struct Library *MathBase __asm("a6"),
+                                       register FLOAT           y        __asm("d1"),
+                                       register FLOAT           x        __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_mathffp: SPSub() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_mathffp: SPSub() called.\n");
+
+    // compute z = x - y
+
+    union FFP_ULONG ufx = {.f = x};
+    union FFP_ULONG ufy = {.f = y};
+
+    ufy.ul ^= 0x00000080; // invert sign
+
+    return SPAdd(ufy.f, ufx.f);
 }
 
 static FLOAT __saveds _mathffp_SPMul ( register struct Library * MathBase __asm("a6"),
