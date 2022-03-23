@@ -1,3 +1,12 @@
+/*
+
+ * based (in part) on
+ * CORDIC Approximation of Elementary Functions
+ * The computer code and data files described and made available on this web page are distributed under the GNU LGPL license.
+ * https://people.math.sc.edu/Burkardt/c_src/cordic/cordic.html
+ */
+
+
 #include <exec/types.h>
 #include <exec/execbase.h>
 #include <exec/resident.h>
@@ -22,7 +31,20 @@
 #define DPRINTF(lvl, ...)
 #endif
 
-union ULONG_FLOAT { ULONG ul; FLOAT f; };
+union FFP_ULONG { FLOAT f; ULONG ul; } ;
+
+#define CCR_ZERO 0x00000004
+#define CCR_NEG  0x00000008
+#define CCR_OVF  0x00000002
+
+static const union FFP_ULONG fuZero       = { .ul = 0x00000000 /* 0.000000 */ };
+static const union FFP_ULONG fuE          = { .ul = 0xadf85442 /* 2.718282 */ };
+static const union FFP_ULONG fuOne        = { .ul = 0x80000041 /* 1.000000 */ };
+static const union FFP_ULONG fuOneHalf    = { .ul = 0x80000040 /* 0.500000 */ };
+static const union FFP_ULONG fuTwo        = { .ul = 0x80000042 /* 2.000000 */ };
+static const union FFP_ULONG fuThree      = { .ul = 0xc0000042 /* 3.000000 */ };
+static const union FFP_ULONG fuFour       = { .ul = 0x80000043 /* 4.000000 */ };
+static const union FFP_ULONG fuNInfinity  = { .ul = 0xffffffff /* - Infty  */ };
 
 #define VERSION    40
 #define REVISION   1
@@ -137,11 +159,80 @@ static FLOAT __saveds _mathtrans_SPExp ( register struct Library * MathTransBase
     assert(FALSE);
 }
 
-static FLOAT __saveds _mathtrans_SPLog ( register struct Library * MathTransBase __asm("a6"),
-                                                        register FLOAT parm __asm("d0"))
+static FLOAT __saveds _mathtrans_SPLog ( register struct Library *MathTransBase __asm("a6"),
+                                         register FLOAT           x             __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_mathtrans: SPLog() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_mathtrans: SPLog() called.\n");
+
+    static const ULONG aul[5] = {
+        0xd3094c41 /* 1.648721 */,
+        0xa45af241 /* 1.284025 */,
+        0x910b0241 /* 1.133148 */,
+        0x88415b41 /* 1.064494 */,
+        0x84102b41 /* 1.031743 */,
+    };
+    static const FLOAT *a = (FLOAT *) aul;
+
+    int c = SPCmp (x, fuZero.f);
+
+    if ( c < 0 )
+    {
+        // FIXME: does this really work?
+        SetSR (CCR_OVF, CCR_ZERO | CCR_NEG | CCR_OVF);
+        return fuZero.f;
+    }
+
+    if (c == 0)
+        return fuNInfinity.f;
+
+    int k = 0;
+
+    while ( SPCmp (fuE.f, x) <= 0 )
+    {
+        k = k + 1;
+        x = SPDiv(fuE.f, x);
+    }
+
+    while ( SPCmp(x, fuOne.f) < 0 )
+    {
+        k = k - 1;
+        x = SPMul(x, fuE.f);
+    }
+
+    /*
+     * Determine the weights.
+     */
+    FLOAT w[5];
+
+    for (int i = 0; i < 5; i++ )
+    {
+        w[i] = fuZero.f;
+
+        FLOAT ai = a[i];
+
+        if ( SPCmp(ai, x) < 0 )
+        {
+            w[i] = fuOne.f;
+            x = SPDiv (ai, x);
+        }
+    }
+
+    x = SPSub(fuOne.f, x);
+
+    x = SPMul(x, SPSub(SPMul(SPDiv(fuTwo.f,x), SPAdd(fuOne.f, SPMul(SPDiv(fuThree.f,x), SPSub(SPDiv(fuFour.f,x),fuOne.f)))),fuOne.f));
+
+    /*
+     * Assemble
+     */
+    FLOAT poweroftwo = fuOneHalf.f;
+
+    for ( int i = 0; i < 5; i++ )
+    {
+        x = SPAdd(x, SPMul(w[i], poweroftwo));
+        poweroftwo = SPDiv (fuTwo.f, poweroftwo);
+    }
+
+    return SPAdd(x, SPFlt(k));
 }
 
 static FLOAT __saveds _mathtrans_SPPow ( register struct Library *MathTransBase __asm("a6"),
@@ -150,7 +241,7 @@ static FLOAT __saveds _mathtrans_SPPow ( register struct Library *MathTransBase 
 {
     DPRINTF (LOG_DEBUG, "_mathtrans: SPPow() called.\n");
 
-	union ULONG_FLOAT ufbase;
+	union FFP_ULONG ufbase;
 	ufbase.f = base;
 
 	ufbase.ul &= 0xffffff7f; // mask out sign bit
