@@ -175,35 +175,197 @@ asm(
 "         rts                       |                             \n"
 );
 
-static LONG __saveds _mathffp_SPTst ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT parm __asm("d1"))
+LONG __saveds mathffp_SPTst ( register struct Library * MathBase __asm("a6"),
+                              register FLOAT parm __asm("d1"))
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPTst() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static FLOAT __saveds _mathffp_SPAbs ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT parm __asm("d0"))
+FLOAT __saveds mathffp_SPAbs ( register struct Library * MathBase __asm("a6"),
+                               register FLOAT parm __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPAbs() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
 
-static FLOAT __saveds _mathffp_SPNeg ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT parm __asm("d0"))
+FLOAT __saveds mathffp_SPNeg ( register struct Library * MathBase __asm("a6"),
+                               register FLOAT parm __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPNeg() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static FLOAT __saveds _mathffp_SPAdd ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT leftParm __asm("d1"),
-                                                        register FLOAT rightParm __asm("d0"))
-{
-    DPRINTF (LOG_ERROR, "_mathffp: SPAdd() unimplemented STUB called.\n");
-    assert(FALSE);
-}
+/* x+y */
+FLOAT __saveds mathffp_SPAdd ( register struct Library *MathBase __asm("a6"),
+                               register FLOAT           x __asm("d1"),
+                               register FLOAT           y __asm("d0"));
+asm(
+"_mathffp_SPAdd:                                                         \n"
+"         movem.l   d3-d5, -(sp)    | save registers                     \n"
+"         move.b    d1, d3          | x.Sexp -> d3                       \n"
+"         bmi.s     xneg            | x negative ? -> xneg               \n"
+"         bgt.s     xpos            | x positive ? -> xpos               \n"
+"         /* x == 0 -> return y */                                       \n"
+"         tst.b   d0                | set ccr for result                 \n"
+"         movem.l (sp)+,d3-d5       | restore registers                  \n"
+"         rts                       | done                               \n"
+"         /* x positive */                                               \n"
+"xpos:                                                                   \n"
+"         move.b    d0, d4          | y.Sexp -> d4                       \n"
+"         beq.s     1f              | y zero ?                           \n"
+"         bgt.s     samesign        | y positive -> samesign             \n"
+"         jmp       mixsign         | y negative -> mixed signs          \n"
+"1:                                                                      \n"
+"         /* y == 0 -> return x */                                       \n"
+"         move.l  d1, d0            | x -> result                        \n"
+"         tst.b   d0                | set ccr for result                 \n"
+"         movem.l (sp)+, d3-d5      | restore registers                  \n"
+"         rts                       | done                               \n"
+"                                                                        \n"
+"         /* -x, check y sign */                                         \n"
+"xneg:    move.b  d0, d4            | y.Sexp -> d4                       \n"
+"         bmi.s   samesign          | y negative ? -> same sign          \n"
+"         bgt.s   mixsign           | y positive ? -> mix sign           \n"
+"         /* y == 0 -> return x */                                       \n"
+"         move.l  d1, d0            | x -> result                        \n"
+"         tst.b   d0                | set ccr for result                 \n"
+"         movem.l (sp)+, d3-d5      | restore registers                  \n"
+"         rts                       | done                               \n"
+"                                                                        \n"
+"         /* x y same sign */                                            \n"
+"samesign:sub.b     d3, d4          | y.Sexp - x.Sexp                    \n"
+"         bmi.s     sxgty           | x>y ?                              \n"
+"         move.b    d0, d3          | y.Sexp -> d3                       \n"
+"                                   |                                    \n"
+"         /* x.exp <= y.exp  */                                          \n"
+"         cmp.b     #24, d4         | y too big for x to matter?         \n"
+"         bcs.s     2f              | no -> continue                     \n"
+"         /* return y */                                                 \n"
+"         tst.b   d0                | set ccr for result                 \n"
+"         movem.l (sp)+,d3-d5       | restore registers                  \n"
+"         rts                       | done                               \n"
+"2:                                                                      \n"
+"         move.l    d1, d5          | x -> d5                            \n"
+"         clr.b     d5              | 0 -> d5.Sexp                       \n"
+"         lsr.l     d4, d5          | shift x to match y's Sexp          \n"
+"         move.b    #0x80, d0       | trigger carry in y                 \n"
+"         add.l     d5, d0          | add mantissas                      \n"
+"         bcs.s     snorm           | carry? -> normalize                \n"
+"fini:    move.b    d3, d0          | restore Sexp                       \n"
+"         movem.l   (sp)+, d3-d5    | restore registers                  \n"
+"         rts                       | done                               \n"
+"                                                                        \n"
+"         /* same sign x.exp > y.exp */                                  \n"
+"sxgty:   cmp.b   #-24, d4          | y too small to matter?             \n"
+"         bgt.s   3f                | no -> continue                     \n"
+"         /* return x */                                                 \n"
+"         move.l  d1, d0            | x -> result                        \n"
+"         tst.b   d0                | set ccr for result                 \n"
+"         movem.l (sp)+, d3-d5      | restore registers                  \n"
+"         rts                       | done                               \n"
+"3:                                                                      \n"
+"         neg.b   d4                | positive exp difference            \n"
+"         move.l  d1, d5            | x -> d5                            \n"
+"         clr.b   d0                | y.Sexp = 0                         \n"
+"         lsr.l   d4, d0            | shift y to match x's Sexp          \n"
+"         move.b  #0x80, d5         | trigger carry in x                 \n"
+"         add.l   d5, d0            | add mantissas                      \n"
+"         bcs.s   snorm             | carry ? -> normalize               \n"
+"         move.b  d3, d0            | restore Sexp                       \n"
+"         movem.l (sp)+, d3-d5      | restore registers                  \n"
+"         rts                       | done                               \n"
+"                                                                        \n"
+"         /* same sign mantissa overflow normalization */                \n"
+"snorm:   roxr.l  #1, d0            | shift right, insert carry bit      \n"
+"         addq.b  #1, d3            | Sexp++                             \n"
+"         bvs.s   sexpovl           | Sexp overflow?                     \n"
+"         bra.s   fini              | finish otherwise                   \n"
+"sexpovl: moveq   #-1, d0           | 0xffffffff                         \n"
+"         subq.b  #1, d3            | create max pos Sexp in d3          \n"
+"         move.b  d3, d0            | inject into result                 \n"
+"         ori     #0x02, ccr        | set overflow bit in CCR            \n"
+"         movem.l (sp)+, d3-d5      | restore registers                  \n"
+"         rts                       | done                               \n"
+"                                                                        \n"
+"         /* x y mixed signs */                                          \n"
+"mixsign: moveq   #-128, d5         | FFP sign mask -> d5                \n"
+"         eor.b   d5, d4            | invert y.Sexp sign                 \n"
+"         sub.b   d3, d4            | y.Sexp - x.Sexp                    \n"
+"         beq.s   mxeqy             | x.Sexp == y.Sexp ?                 \n"
+"         bmi.s   mxgty             | x.Sexp > y.Sexp ?                  \n"
+"                                                                        \n"
+"         /* x.exp <= y.exp */                                           \n"
+"         cmp.b   #24, d4           | y too big for x to matter?         \n"
+"         bcs.s   4f                | no -> 4f                           \n"
+"         /* return y */                                                 \n"
+"         tst.b   d0                | set ccr for result                 \n"
+"         movem.l (sp)+,d3-d5       | restore registers                  \n"
+"         rts                       | done                               \n"
+"4:                                                                      \n"
+"         move.b  d0, d3            | y.Sexp -> d3                       \n"
+"         move.b  d5, d0            | trigger carry                      \n"
+"         move.l  d1, d5            | x -> d5                            \n"
+"mxadd:   clr.b   d5                | x.Sexp = 0                         \n"
+"         lsr.l   d4, d5            | shift x to match y's Sexp          \n"
+"         sub.l   d5, d0            | subtract mantissas                 \n"
+"         bmi.s   fini              | no overflow ? -> finish            \n"
+"                                                                        \n"
+"         /* mixed signs mantissa overflow normalization */              \n"
+"mnorm1:  move.b  d3, d4            | y.Sexp -> d3                       \n"
+"mnorm2:  clr.b   d0                | res.Sexp -> 0                      \n"
+"         subq.b  #1, d3            | adjust Sexp                        \n"
+"nshift:  add.l   d0, d0            | res <<= 1                          \n"
+"         dbmi    d3, nshift        | loop                               \n"
+"         eor.b   d3, d4            | test sign                          \n"
+"         bge.s   6f                | no underflow ? -> continue         \n"
+"         /* return 0 */                                                 \n"
+"         moveq   #0, d0            | 0 -> d0                            \n"
+"         movem.l (sp)+,d3-d5       | restore registers                  \n"
+"         rts                       | done                               \n"
+"6:                                                                      \n"
+"         move.b  d3, d0            | restore Sexp                       \n"
+"         bne.s   7f                | no exp underflow ? -> continue     \n"
+"         /* return 0 */                                                 \n"
+"         moveq   #0, d0            | 0 -> d0                            \n"
+"         movem.l (sp)+,d3-d5       | restore registers                  \n"
+"         rts                       | done                               \n"
+"7:                                                                      \n"
+"         movem.l (sp)+,d3-d5       | restore registers                  \n"
+"         rts                       | done                               \n"
+"                                                                        \n"
+"         /* mixed sign x.exp > y.exp */                                 \n"
+"mxgty:   cmp.b   #-24, d4          | y too small to matter?             \n"
+"         bgt     5f                | no -> 5f                           \n"
+"         /* return x */                                                 \n"
+"         move.l  d1, d0            | x -> result                        \n"
+"         tst.b   d0                | set ccr for result                 \n"
+"         movem.l (sp)+, d3-d5      | restore registers                  \n"
+"         rts                       | done                               \n"
+"5:                                                                      \n"
+"         neg.b   d4                | positive exp difference            \n"
+"         move.l  d0, d5            | y -> d5                            \n"
+"         move.l  d1, d0            | x -> d0                            \n"
+"         move.b  #0x80, d0         | trigger carry (rounding)           \n"
+"         bra.s   mxadd             | -> mixed sign mantissa addition    \n"
+"                                                                        \n"
+"         /* mixed sign x.exp == y.exp */                                \n"
+"mxeqy:   move.b  d0, d4            | save y.Sexp -> d4                  \n"
+"         exg     d4, d3            | exchange y.Sexp with x.Sexp        \n"
+"         move.b  d1, d0            | x.Sexp -> d0                       \n"
+"         sub.l   d1, d0            | subtract mantissas                 \n"
+"         bne.s   8f                | not equal ? -> continue            \n"
+"         /* return 0 */                                                 \n"
+"         moveq   #0, d0            | 0 -> d0                            \n"
+"         movem.l (sp)+,d3-d5       | restore registers                  \n"
+"         rts                       | done                               \n"
+"8:                                                                      \n"
+"         bpl.s   mnorm1            | positive? -> normalize             \n"
+"         neg.l   d0                | invert sign                        \n"
+"         move.b  d4, d3            | restore y.Sexp->d3                 \n"
+"         bra.s   mnorm2            | -> normalize                       \n"
+);
 
 static FLOAT __saveds _mathffp_SPSub ( register struct Library *MathBase __asm("a6"),
                                        register FLOAT           y        __asm("d1"),
@@ -417,10 +579,10 @@ APTR __g_lxa_mathffp_FuncTab [] =
     _mathffp_SPFix, // offset = -30
     _mathffp_SPFlt, // offset = -36
     mathffp_SPCmp,  // offset = -42
-    _mathffp_SPTst, // offset = -48
-    _mathffp_SPAbs, // offset = -54
-    _mathffp_SPNeg, // offset = -60
-    _mathffp_SPAdd, // offset = -66
+    mathffp_SPTst, // offset = -48
+    mathffp_SPAbs, // offset = -54
+    mathffp_SPNeg, // offset = -60
+    mathffp_SPAdd, // offset = -66
     _mathffp_SPSub, // offset = -72
     _mathffp_SPMul, // offset = -78
     mathffp_SPDiv,  // offset = -84
