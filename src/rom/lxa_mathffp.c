@@ -78,24 +78,24 @@ ULONG __g_lxa_mathffp_ExtFuncLib(void)
     return NULL;
 }
 
-static LONG __saveds _mathffp_SPFix ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT parm __asm("d0"))
+LONG __saveds mathffp_SPFix ( register struct Library * MathBase __asm("a6"),
+                              register FLOAT parm __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPFix() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds _mathffp_SPFlt ( register struct Library * MathBase __asm("a6"),
-                                register LONG integer __asm("d0"));
+FLOAT __saveds mathffp_SPFlt ( register struct Library * MathBase __asm("a6"),
+                               register LONG integer __asm("d0"));
 
 asm(
-"__mathffp_SPFlt:                                                                 \n"
+"_mathffp_SPFlt:                                                                  \n"
 
 "         tst.l   d0                | zero?                                       \n"
 "         beq     1f                | by convention FFP 0 == 0                    \n"
 
 "         bmi.b   5f                | negative?                                   \n"
-"         moveq   #95, d1           | set positive exponent  95 = 64+31 -> 2^31    \n"
+"         moveq   #95, d1           | set positive exponent  95 = 64+31 -> 2^31   \n"
 "         bra     2f                | begin conversion                            \n"
 
 "5:       neg.l   d0                | absolute value                              \n"
@@ -367,9 +367,9 @@ asm(
 "         bra.s   mnorm2            | -> normalize                       \n"
 );
 
-static FLOAT __saveds _mathffp_SPSub ( register struct Library *MathBase __asm("a6"),
-                                       register FLOAT           y        __asm("d1"),
-                                       register FLOAT           x        __asm("d0"))
+FLOAT __saveds mathffp_SPSub ( register struct Library *MathBase __asm("a6"),
+                               register FLOAT           y        __asm("d1"),
+                               register FLOAT           x        __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_mathffp: SPSub() called.\n");
 
@@ -383,13 +383,91 @@ static FLOAT __saveds _mathffp_SPSub ( register struct Library *MathBase __asm("
     return SPAdd(ufy.f, ufx.f);
 }
 
-static FLOAT __saveds _mathffp_SPMul ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT leftParm __asm("d1"),
-                                                        register FLOAT rightParm __asm("d0"))
-{
-    DPRINTF (LOG_ERROR, "_mathffp: SPMul() unimplemented STUB called.\n");
-    assert(FALSE);
-}
+FLOAT __saveds mathffp_SPMul ( register struct Library *MathBase __asm("a6"),
+                               register FLOAT           x        __asm("d1"),
+                               register FLOAT           y        __asm("d0"));
+
+asm(
+"_mathffp_SPMul:                                              \n"
+"	movem.l d3-d5,-(sp)     | save registers                  \n"
+"   move.b 	d0, d3          | y.Sexp -> d3                    \n"
+"   bne.s   1f              | not zero -> continue            \n"
+"   movem.l (sp)+,d3-d5     | zero -> restore registers       \n"
+"   rts                     | done                            \n"
+"1: move.b  d1, d4          | x.Sexp -> d4                    \n"
+"   bne.s   2f              | not zero -> continue            \n"
+"   moveq   #0, d0          | zero -> #0 -> res               \n"
+"   movem.l (sp)+, d3-d5    | restore registers               \n"
+"   rts                     | done                            \n"
+"2:                                                           \n"
+"   /* compute exponent eZ = eX + eY */                       \n"
+"   and.b  #127, d3         | mask out y sign bit             \n"
+"   add.b  #-64, d3         | remove bias                     \n"
+"   and.b  #127, d4         | mask out x sign bit             \n"
+"   add.b  d3, d4           | add exponents                   \n"
+"   cmp.b  #126, d4         | overflow ?                      \n"
+"   jls    3f               | no -> continue                  \n"
+"   /* exponent overflow/underflow */                         \n"
+"   bpl.s   return0         | underflow ? -> return 0         \n"
+"   eor.b   d1, d0          | x.S ^ y.S -> res.S              \n"
+"   or.l    #0xffffff7f, d0 | min/max value                   \n"
+"   tst.b   d0              | ccr x                           \n"
+"   ori     #0x02, ccr      | ccr overflow                    \n"
+"   movem.l (sp)+, d3-d5    | restore registers               \n"
+"   rts                     | return                          \n"
+"3: /* compute sign */                                        \n"
+"   move.b d0, d3           | y.Sexp -> d3                    \n"
+"   eor.b  d1, d3           | x.Sexp ^ y.Sexp -> d3           \n"
+"   and.b  #-128, d3        | mask out sign bit               \n"
+"   or.b   d4, d3           | d3 has z.Sexp now               \n"
+"                                                             \n"
+"   /* compute significand */                                 \n"
+"   clr.b   d0              | 0 -> y.Sexp                     \n"
+"   move.l  d0, d5          | y -> d5                         \n"
+"   swap.w  d5              | y[3-12] -> d5                   \n"
+"   move.l  d1, d4          | x -> d4                         \n"
+"   clr.b   d4              | 0 -> d4.Sexp                    \n"
+"   mulu.w  d4, d5          | y[3-] * x[12] -> d5             \n"
+"   swap.w  d4              | x[3-12] -> d4                   \n"
+"   mulu.w  d0, d4          | y[12] * x[3-] -> d4             \n"
+"   add.l   d5, d4          | partial sum result -> d4        \n"
+"   clr.w   d4              | 0 -> d4 low word                \n"
+"   addx.b  d4, d4          | shift by one, add carry         \n"
+"   swap.w  d1              | x[3-12] -> d1                   \n"
+"   swap.w  d0              | y[3-12] -> d0                   \n"
+"   swap.w  d4              | fix result word order           \n"
+"   mulu.w  d1, d0          | x[3-] * y[3-] -> d0             \n"
+"   swap.w  d1              | restore y                       \n"
+"   add.l   d4, d0          | sum up significand              \n"
+"   bpl.s   4f              | upper bit not set? -> normalize \n"
+"   add.l   #0x80, d0       | rounding                        \n"
+"   move.b  d3, d0          | d3 -> res.Sexp                  \n"
+"   beq.s   return0         | Sexp == 0 ? -> return true 0    \n"
+"                                                             \n"
+"   /* normalize res */                                       \n"
+"4:                                                           \n"
+"   subq.b  #1, d3          | res.Sexp--                      \n"
+"   bvs.s   return0         | underflow ? -> return 0         \n"
+"   bcs.s   return0         | carry ? -> return 0             \n"
+"   moveq   #0x40, d4       | rounding const                  \n"
+"   add.l   d4, d0          | round                           \n"
+"   add.l   d0, d0          | res <<= 1                       \n"
+"   bcc.s   5f              | no carry ? -> return result     \n"
+"   roxr.l  #1, d0          | rotate in carry bit             \n"
+"   addq.b  #1, d3          | adjust exponent accordingly     \n"
+"5:                                                           \n"
+"   move.b  d3, d0          | d3 -> res.Sexp                  \n"
+"   beq.s   return0         | zero ? -> return true 0         \n"
+"   movem.l (sp)+,d3-d5     | restore registers               \n"
+"   rts                     | done                            \n"
+"                                                             \n"
+"   /* return 0  */                                           \n"
+"return0:                                                     \n"
+"   moveq   #0, d0          | #0 -> res                       \n"
+"   movem.l (sp)+, d3-d5    | restore registers               \n"
+"   rts                     | done                            \n"
+"                                                             \n"
+);
 
 FLOAT __saveds mathffp_SPDiv ( register struct Library * MathBase  __asm("a6"),
                                register FLOAT            fdivisor  __asm("d1"),
@@ -515,15 +593,15 @@ asm(
 "       rts                              |                        \n"
 );
 
-static FLOAT __saveds _mathffp_SPFloor ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT parm __asm("d0"))
+FLOAT __saveds mathffp_SPFloor ( register struct Library * MathBase __asm("a6"),
+                                 register FLOAT parm __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPFloor() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static FLOAT __saveds _mathffp_SPCeil ( register struct Library * MathBase __asm("a6"),
-                                                        register FLOAT parm __asm("d0"))
+FLOAT __saveds mathffp_SPCeil ( register struct Library * MathBase __asm("a6"),
+                                register FLOAT parm __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPCeil() unimplemented STUB called.\n");
     assert(FALSE);
@@ -576,18 +654,18 @@ APTR __g_lxa_mathffp_FuncTab [] =
     __g_lxa_mathffp_CloseLib,
     __g_lxa_mathffp_ExpungeLib,
     __g_lxa_mathffp_ExtFuncLib,
-    _mathffp_SPFix, // offset = -30
-    _mathffp_SPFlt, // offset = -36
+    mathffp_SPFix,  // offset = -30
+    mathffp_SPFlt,  // offset = -36
     mathffp_SPCmp,  // offset = -42
-    mathffp_SPTst, // offset = -48
-    mathffp_SPAbs, // offset = -54
-    mathffp_SPNeg, // offset = -60
-    mathffp_SPAdd, // offset = -66
-    _mathffp_SPSub, // offset = -72
-    _mathffp_SPMul, // offset = -78
+    mathffp_SPTst,  // offset = -48
+    mathffp_SPAbs,  // offset = -54
+    mathffp_SPNeg,  // offset = -60
+    mathffp_SPAdd,  // offset = -66
+    mathffp_SPSub,  // offset = -72
+    mathffp_SPMul,  // offset = -78
     mathffp_SPDiv,  // offset = -84
-    _mathffp_SPFloor, // offset = -90
-    _mathffp_SPCeil, // offset = -96
+    mathffp_SPFloor,// offset = -90
+    mathffp_SPCeil, // offset = -96
     (APTR) ((LONG)-1)
 };
 
