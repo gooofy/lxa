@@ -152,11 +152,93 @@ static FLOAT __saveds _mathtrans_SPTanh ( register struct Library * MathTransBas
     assert(FALSE);
 }
 
-static FLOAT __saveds _mathtrans_SPExp ( register struct Library * MathTransBase __asm("a6"),
-                                                        register FLOAT parm __asm("d0"))
+FLOAT __saveds mathtrans_SPExp ( register struct Library *MathTransBase __asm("a6"),
+                                 register FLOAT           x             __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_mathtrans: SPExp() unimplemented STUB called.\n");
-    assert(FALSE);
+    static const ULONG aul[5] = {
+        0xd3094c41 /* 1.648721 */,
+        0xa45af241 /* 1.284025 */,
+        0x910b0241 /* 1.133148 */,
+        0x88415b41 /* 1.064494 */,
+        0x84102b41 /* 1.031743 */,
+    };
+    static const FLOAT *a = (FLOAT *) aul;
+
+    int x_int = (int) SPFix(SPFloor (x));
+
+    /*
+     * Determine the weights.
+     */
+    FLOAT poweroftwo = fuOneHalf.f;
+    FLOAT z = SPSub ( SPFlt(x_int), x);
+
+    // printf ("ffp  cordic x_int=%d, poweroftwo=%f, z=%f\n", x_int, decode_ffp(poweroftwo), decode_ffp(z));
+
+    FLOAT w[5];
+
+    for (int i=0; i<5; i++ )
+    {
+        w[i] = fuZero.f;
+        if (SPCmp(poweroftwo,z) < 0)
+        {
+            w[i] = fuOne.f;
+            z    = SPSub(poweroftwo, z);
+        }
+        poweroftwo = SPDiv (fuTwo.f, poweroftwo);
+    }
+
+    /*
+     * Calculate products.
+     */
+    FLOAT fx = fuOne.f;
+    // printf ("ffp  cordic fx [0]: %f\n", decode_ffp(fx));
+
+    for (int i=0; i<5; i++)
+    {
+        FLOAT ai;
+        if (i<5)
+        {
+            ai = a[i];
+        }
+        else
+        {
+            ai = SPAdd (fuOne.f, SPDiv(fuTwo.f, SPSub(fuOne.f, ai)));
+        }
+
+        // printf ("ffp  cordic fx [i=%d]: %f ai=%f w[i]=%f\n", i, decode_ffp(fx), decode_ffp(ai), decode_ffp(w[i]));
+
+        if (SPCmp(fuZero.f, w[i]) < 0 )
+        {
+            fx = SPMul(fx, ai);
+        }
+    }
+
+    /*
+     * Perform residual multiplication.
+     */
+    // printf ("ffp  cordic fx [1]: %f\n", decode_ffp(fx));
+    fx = SPMul(fx, SPAdd(fuOne.f, SPMul(z, SPAdd( fuOne.f, SPDiv (SPMul(fuTwo.f, SPAdd(fuOne.f, SPDiv(SPMul(fuThree.f, SPAdd(fuOne.f, SPDiv(fuFour.f, z))), z))), z)))));
+    // printf ("ffp  cordic fx [2]: %f\n", decode_ffp(fx));
+
+    /*
+      Account for factor EXP(X_INT).
+    */
+    if (x_int<0)
+    {
+        for (int i = 1; i <= -x_int; i++ )
+        {
+            fx = SPDiv (fuE.f, fx);
+        }
+    }
+    else
+    {
+        for (int i = 1; i <= x_int; i++ )
+        {
+            fx = SPMul (fuE.f, fx);
+        }
+    }
+
+    return fx;
 }
 
 static FLOAT __saveds _mathtrans_SPLog ( register struct Library *MathTransBase __asm("a6"),
@@ -353,7 +435,7 @@ APTR __g_lxa_mathtrans_FuncTab [] =
     _mathtrans_SPSinh, // offset = -60
     _mathtrans_SPCosh, // offset = -66
     _mathtrans_SPTanh, // offset = -72
-    _mathtrans_SPExp, // offset = -78
+    mathtrans_SPExp,  // offset = -78
     _mathtrans_SPLog, // offset = -84
     _mathtrans_SPPow, // offset = -90
     _mathtrans_SPSqrt, // offset = -96
