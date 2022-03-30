@@ -78,12 +78,46 @@ ULONG __g_lxa_mathffp_ExtFuncLib(void)
     return NULL;
 }
 
-LONG __saveds mathffp_SPFix ( register struct Library * MathBase __asm("a6"),
-                              register FLOAT parm __asm("d0"))
-{
-    DPRINTF (LOG_ERROR, "_mathffp: SPFix() unimplemented STUB called.\n");
-    assert(FALSE);
-}
+LONG __saveds mathffp_SPFix ( register struct Library *MathBase __asm("a6"),
+                              register FLOAT           y        __asm("d0"));
+asm(
+"_mathffp_SPFix:                                                                \n"
+"        move.b    d0, d1               | y.Sexp -> d1                          \n"
+"        bmi.s     2f                   | negative ? -> 2f                      \n"
+"        bne.s     3f                   | not zero ? -> continue                \n"
+"        rts                            | zero -> done                          \n"
+"3:                                                                             \n"
+"        sub.b     #65, d1              | exp: remove bias, subtract 1          \n"
+"        bpl.s     4f                   | >0 ? -> continue                      \n"
+"        moveq     #0, d0               | 0<y<1 -> return 0                     \n"
+"        rts                            | done                                  \n"
+"4:                                                                             \n"
+"        sub.b     #31, d1              | too large to fit in a LONG value?     \n"
+"        bmi.s     5f                   | no -> continue                        \n"
+"        move.l    #0x7fffffff, d0      | MAXLONG                               \n"
+"        ori       #0x02, CCR           | ccr overflow bit                      \n"
+"        rts                            | done                                  \n"
+"5:                                                                             \n"
+"        neg.b     d1                   | number of bits to shift               \n"
+"        lsr.l     d1, d0               | shift out fractional part             \n"
+"        rts                            | done                                  \n"
+"                                                                               \n"
+"        /* y < 0 */                                                            \n"
+"2:                                                                             \n"
+"        sub.b     #0x80+65, d1         | remove bias, sign, exp -= 1           \n"
+"        bpl.s     6f                   | anything left? -> continue            \n"
+"        moveq     #0, D0               | #0 -> ret                             \n"
+"        rts                            | done                                  \n"
+"6:      sub.b     #31, d1              | too large to fit in a LONG value?     \n"
+"        bmi.s     7f                   | no -> continue                        \n"
+"        move.l    #80000000, d0        | MINLONG -> d0                         \n"
+"        ori       #0x02, ccr           | overflow bit in ccr                   \n"
+"        rts                            | done                                  \n"
+"7:      neg.b     d1                   | # bits to shift                       \n"
+"        lsr.l     d1, d0               | shift out fractional part             \n"
+"        neg.l     d0                   | turn negative                         \n"
+"        rts                            | done                                  \n"
+);
 
 FLOAT __saveds mathffp_SPFlt ( register struct Library * MathBase __asm("a6"),
                                register LONG integer __asm("d0"));
