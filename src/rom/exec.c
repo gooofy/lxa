@@ -1761,6 +1761,8 @@ static void __saveds _myTestTask(void)
 }
 #endif
 
+typedef void  __saveds (*cliChildFn_t) ( register ULONG  arglen __asm("d0"),
+                                         register STRPTR args   __asm("a0"));
 static void __saveds _bootstrap(void)
 {
     DPRINTF (LOG_INFO, "_exec: _bootstrap() called\n");
@@ -1783,10 +1785,15 @@ static void __saveds _bootstrap(void)
     // inject initPC pointing to our loaded code into our task's stack
 
     APTR initPC = BADDR(segs+1);
-
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): initPC is 0x%08lx\n", initPC);
     U_hexdump (LOG_INFO, initPC, 32);
 
+    /* simply JSR() into our child process */
+
+    cliChildFn_t childfn = initPC;
+    childfn (/*arglen=*/0, /*args=*/(STRPTR)"\n");
+
+#if 0
     //*((APTR*) SysBase->ThisTask->tc_SPReg) = initPC;
 
     DPRINTF (LOG_INFO, "_exec: about to launch a new process for %s ...\n", binfn);
@@ -1816,6 +1823,7 @@ static void __saveds _bootstrap(void)
 
     while (TRUE);
     //    DPRINTF (LOG_INFO, "bootstrap() loop, SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
+#endif
 
     emu_stop();
 }
@@ -2049,8 +2057,8 @@ void __saveds coldstart (void)
     SysBase->TDNestCnt    = -1;
 
     // create a bootstrap process
-    struct Process *rootProc = (struct Process *) U_allocTask ("exec bootstrap", 0, 8192, /*isProcess=*/ TRUE);
-    U_prepareProcess (rootProc, _bootstrap, 0, 8192, /*args=*/NULL);
+    struct Process *rootProc = (struct Process *) U_allocTask ("exec bootstrap", 0, DEFAULT_STACKSIZE, /*isProcess=*/ TRUE);
+    U_prepareProcess (rootProc, _bootstrap, 0, DEFAULT_STACKSIZE, /*args=*/NULL);
 
     // stdin/stdout
     struct FileHandle *fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
@@ -2060,6 +2068,18 @@ void __saveds coldstart (void)
     fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
     fh->fh_Args = emucall0 (EMU_CALL_DOS_OUTPUT);
     rootProc->pr_COS = MKBADDR (fh);
+
+    // cli
+    rootProc->pr_TaskNum = 1; // FIXME
+
+    BPTR oldpath = 0;
+
+    struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
+    cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
+
+    // FIXME: set cli_CommandDir
+
+    rootProc->pr_CLI = MKBADDR(cli);
 
     // launch it
 
