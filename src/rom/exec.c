@@ -1106,11 +1106,16 @@ static BYTE __saveds _exec_AllocSignal ( register struct ExecBase * SysBase    _
     return signalNum;
 }
 
-static void __saveds _exec_FreeSignal ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register BYTE ___signalNum  __asm("d0"))
+static void __saveds _exec_FreeSignal ( register struct ExecBase *SysBase   __asm("a6"),
+                                        register BYTE             signalNum __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_exec: FreeSignal unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: FreeSignal() called.\n");
+
+    if (signalNum != -1)
+    {
+        struct Task *me = SysBase->ThisTask;
+        me->tc_SigAlloc &= ~(1 << signalNum);
+    }
 }
 
 static LONG __saveds _exec_AllocTrap ( register struct ExecBase * __libBase __asm("a6"),
