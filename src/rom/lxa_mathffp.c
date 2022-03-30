@@ -224,12 +224,15 @@ FLOAT __saveds mathffp_SPAbs ( register struct Library * MathBase __asm("a6"),
 }
 
 
-FLOAT __saveds mathffp_SPNeg ( register struct Library * MathBase __asm("a6"),
-                               register FLOAT parm __asm("d0"))
-{
-    DPRINTF (LOG_ERROR, "_mathffp: SPNeg() unimplemented STUB called.\n");
-    assert(FALSE);
-}
+FLOAT __saveds mathffp_SPNeg ( register struct Library *MathBase __asm("a6"),
+                               register FLOAT           y        __asm("d0"));
+asm(
+"_mathffp_SPNeg:                                                                \n"
+"         tst.b     d0        | y=0 ?                                           \n"
+"         beq.s     1f        | yes -> done                                     \n"
+"         eori.b    #0x80, d0 | flip sign bit                                   \n"
+"1:       rts                 | done                                            \n"
+);
 
 /* x+y */
 FLOAT __saveds mathffp_SPAdd ( register struct Library *MathBase __asm("a6"),
