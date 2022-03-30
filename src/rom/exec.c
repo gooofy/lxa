@@ -54,6 +54,8 @@ typedef void             __saveds (*devOpenFn_t) ( register struct Library    *d
                                                    register struct IORequest  *ioreq   __asm("a1"),
                                                    register ULONG              unitn   __asm("d0"),
                                                    register ULONG              flags   __asm("d1"));
+typedef void             __saveds (*devCloseFn_t) ( register struct Library    *dev     __asm("a6"),
+                                                    register struct IORequest  *ioreq   __asm("a1"));
 typedef void             __saveds (*devBeginIOFn_t) ( register struct Library    *dev     __asm("a6"),
                                                       register struct IORequest  *ioreq   __asm("a1"));
 
@@ -1282,11 +1284,26 @@ static BYTE __saveds _exec_OpenDevice ( register struct ExecBase  *SysBase    __
     return ioRequest->io_Error;
 }
 
-static void __saveds _exec_CloseDevice ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct IORequest * ___ioRequest  __asm("a1"))
+static void __saveds _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6"),
+                                         register struct IORequest *ioRequest __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_exec: CloseDevice unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: CloseDevice() called.\n");
+
+    Forbid();
+
+    if (ioRequest->io_Device)
+    {
+		struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-2]);
+		devCloseFn_t closefn = jv->vec;
+
+		closefn (&ioRequest->io_Device->dd_Library, ioRequest);
+
+		// FIXME: expunge
+
+        ioRequest->io_Device = NULL;
+    }
+
+    Permit();
 }
 
 static BYTE __saveds _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
