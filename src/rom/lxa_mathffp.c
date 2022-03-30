@@ -593,12 +593,53 @@ asm(
 "       rts                              |                        \n"
 );
 
-FLOAT __saveds mathffp_SPFloor ( register struct Library * MathBase __asm("a6"),
-                                 register FLOAT parm __asm("d0"))
-{
-    DPRINTF (LOG_ERROR, "_mathffp: SPFloor() unimplemented STUB called.\n");
-    assert(FALSE);
-}
+FLOAT __saveds mathffp_SPFloor ( register struct Library *MathBase __asm("a6"),
+                                 register FLOAT           x        __asm("d0"));
+asm(
+"_mathffp_SPFloor:                                                      \n"
+"   move.b      d0, d1                  | y.Sexp -> d1                  \n"
+"   bmi.s       1f                      | negative ? -> 1f              \n"
+"   bne.s       2f                      | not zero ? -> continue        \n"
+"   moveq       #0, d0                  | zero -> return true 0         \n"
+"   rts                                 | done                          \n"
+"2: /* y>0 */                                                           \n"
+"   sub.b       #65, d1                 | remove exp radix, -1, -> d1   \n"
+"   bpl.s       3f                      | >= 0 ? -> continue            \n"
+"   /* y>0 && y<1 -> return 0 */                                        \n"
+"   moveq       #0, d0                  | 0 -> res                      \n"
+"   rts                                 | done                          \n"
+"3: /* y >= 0 */                                                        \n"
+"   sub.b       #31, d1                 | subtract max exp              \n"
+"   bmi.s       4f                      | res negative ? -> continue    \n"
+"   rts                                 | exp too big -> done           \n"
+"4: /* remove fractional part */                                        \n"
+"   move.l      d2, -(sp)               | save d2                       \n"
+"   move.b      d0, d2                  | y.Sexp -> d2                  \n"
+"   neg.b       d1                      | d1: number of bits to shift   \n"
+"   lsr.l       d1, d0                  | get rid of fractional part    \n"
+"   lsl.l       d1, d0                  | shift sig back                \n"
+"   move.b      d2, d0                  | restore Sexp                  \n"
+"   move.l      (sp)+, d2               | restore d2                    \n"
+"   rts                                 | done                          \n"
+"1: /* y < 0 */                                                         \n"
+"   movem.l      d2-d3, -(sp)           | save registers                \n"
+"   jsr         -60(a6)                 | SPNeg(y)                      \n"
+"   move.l      d0, d2                  | -y -> d2                      \n"
+"   jsr         _mathffp_SPFloor        | call ourselves                \n"
+"   move.l      d0, d3                  | SPFloor(-y) -> d3             \n"
+"   move.l      d0, d1                  | SPFloor(-y) -> d0             \n"
+"   move.l      d2,  d0                 | -y -> d0                      \n"
+"   jsr         -72(a6)                 | SPSub (SPFloor(-y), -y)       \n"
+"   beq.s       5f                      | no fractional part ? -> 5f    \n"
+"   move.l      d3, d0                  | SPFloor(-y) -> d0             \n"
+"   move.l      #0x80000041, d1         | #1.0 -> d1                    \n"
+"   jsr         -66(a6)                 | SPAdd()                       \n"
+"5:                                                                     \n"
+"   movem.l     (sp)+, d2-d3            | restore registers             \n"
+"   jsr         -60(a6)                 | SPNeg()                       \n"
+"   rts                                 | done                          \n"
+
+);
 
 FLOAT __saveds mathffp_SPCeil ( register struct Library * MathBase __asm("a6"),
                                 register FLOAT parm __asm("d0"))
