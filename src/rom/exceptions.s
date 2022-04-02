@@ -299,7 +299,7 @@ _handleVec08:
 
     .globl _handleVec09
 _handleVec09:
-    movem.l  d0/d1, -(a7)          
+    movem.l  d0/d1, -(a7)
     move.l   #5, d0                                 | EMU_CALL_EXCEPTION
     move.l   #9, d1                                 | vector number
     illegal                                         | emucall
@@ -308,7 +308,7 @@ _handleVec09:
 
     .globl _handleVec10
 _handleVec10:
-    movem.l  d0/d1, -(a7)          
+    movem.l  d0/d1, -(a7)
     move.l   #5, d0                                 | EMU_CALL_EXCEPTION
     move.l   #10, d1                                | vector number
     illegal                                         | emucall

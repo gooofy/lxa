@@ -63,7 +63,7 @@
 #define OFFSET_CURRENT       0
 #define OFFSET_END           1
 
-#define TRACE_BUF_ENTRIES 100000
+#define TRACE_BUF_ENTRIES 1000000
 #define MAX_BREAKPOINTS       16
 
 static uint8_t  g_ram[RAM_SIZE];
@@ -71,6 +71,7 @@ static uint8_t  g_rom[ROM_SIZE];
 static bool     g_debug                        = FALSE;
 static bool     g_verbose                      = FALSE;
 static bool     g_trace                        = FALSE;
+static bool     g_stepping                     = FALSE;
 static int      g_trace_buf[TRACE_BUF_ENTRIES];
 static int      g_trace_buf_idx                = 0;
 static bool     g_running                      = TRUE;
@@ -367,10 +368,17 @@ void cpu_instr_callback(int pc)
         dprintf(LOG_DEBUG, "E %08x: %-20s: %s\n", pc, buff2, buff);
     }
 
-    for (int i = 0; i<g_num_breakpoints; i++)
+    if (g_stepping)
     {
-        if (g_breakpoints[i] == pc)
-            _debug(pc);
+        _debug(pc);
+    }
+    else
+    {
+        for (int i = 0; i<g_num_breakpoints; i++)
+        {
+            if (g_breakpoints[i] == pc)
+                _debug(pc);
+        }
     }
 }
 
@@ -795,7 +803,8 @@ static void _debug_help (void)
     dprintf (LOG_INFO, "Available commands:\n\n");
     dprintf (LOG_INFO, "h        - this help screen\n");
     dprintf (LOG_INFO, "c        - continue\n");
-    dprintf (LOG_INFO, "s        - machine state\n");
+    dprintf (LOG_INFO, "r        - registers\n");
+    dprintf (LOG_INFO, "s        - step\n");
     dprintf (LOG_INFO, "t <num>  - traceback\n");
     dprintf (LOG_INFO, "m <addr> - memory dump\n");
     dprintf (LOG_INFO, "\n");
@@ -835,8 +844,13 @@ static void _debug(uint32_t pcFinal)
                 break;
             case 'c':
                 in_debug = FALSE;
+                g_stepping = FALSE;
                 return;
             case 's':
+                in_debug = FALSE;
+                g_stepping = TRUE;
+                return;
+            case 'r':
                 _debug_machine_state ();
                 break;
             case 't':

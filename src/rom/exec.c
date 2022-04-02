@@ -70,12 +70,12 @@ static struct Custom   *custom            = (struct Custom*)        0xdff000;
 
 #define JMPINSTR 0x4ef9
 
-static void __saveds _exec_unimplemented_call ( register struct ExecBase  *exb __asm("a6") )
+void __saveds _exec_unimplemented_call ( register struct ExecBase  *exb __asm("a6") )
 {
     assert (FALSE);
 }
 
-static void __saveds _exec_InitCode ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_InitCode ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___startClass  __asm("d0"),
                                                         register ULONG ___version  __asm("d1"))
 {
@@ -83,7 +83,7 @@ static void __saveds _exec_InitCode ( register struct ExecBase * __libBase __asm
     assert(FALSE);
 }
 
-static void __saveds _exec_InitStruct ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_InitStruct ( register struct ExecBase * __libBase __asm("a6"),
                                         register const APTR ___initTable  __asm("a1"),
                                         register APTR ___memory  __asm("a2"),
                                         register ULONG ___size  __asm("d0"))
@@ -236,7 +236,7 @@ static void __saveds _exec_InitStruct ( register struct ExecBase * __libBase __a
     DPRINTF (LOG_DEBUG, "_exec: InitStruct done.\n");
 }
 
-static void _makeLibrary ( struct Library *library,
+void _makeLibrary ( struct Library *library,
                            const APTR ___funcInit,
                            const APTR ___structInit,
                            libInitFn_t ___libInitFn,
@@ -266,7 +266,7 @@ static void _makeLibrary ( struct Library *library,
     }
 }
 
-static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * __libBase __asm("a6"),
+struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * __libBase __asm("a6"),
                                                      register const APTR ___funcInit  __asm("a0"),
                                                      register const APTR ___structInit  __asm("a1"),
                                                      register libInitFn_t ___libInitFn  __asm("a2"),
@@ -322,7 +322,7 @@ static struct Library * __saveds _exec_MakeLibrary ( register struct ExecBase * 
 
 
 
-static void __saveds _exec_MakeFunctions ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_MakeFunctions ( register struct ExecBase * __libBase __asm("a6"),
                                            register APTR ___target  __asm("a0"),
                                            register const APTR ___functionArray  __asm("a1"),
                                            register const APTR ___funcDispBase  __asm("a2"))
@@ -361,14 +361,14 @@ static void __saveds _exec_MakeFunctions ( register struct ExecBase * __libBase 
     DPRINTF (LOG_DEBUG, "_exec: MakeFunctions done, %d entries set.\n", n);
 }
 
-static struct Resident * __saveds _exec_FindResident ( register struct ExecBase * __libBase __asm("a6"),
+struct Resident * __saveds _exec_FindResident ( register struct ExecBase * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: FindResident unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static APTR __saveds _exec_InitResident ( register struct ExecBase * __libBase __asm("a6"),
+APTR __saveds _exec_InitResident ( register struct ExecBase * __libBase __asm("a6"),
                                                         register const struct Resident * ___resident  __asm("a1"),
                                                         register ULONG ___segList  __asm("d1"))
 {
@@ -376,21 +376,21 @@ static APTR __saveds _exec_InitResident ( register struct ExecBase * __libBase _
     assert(FALSE);
 }
 
-static void __saveds _exec_Alert ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_Alert ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___alertNum  __asm("d7"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Alert unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_Debug ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_Debug ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___flags  __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Debug unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_Disable ( register struct ExecBase * __libBase __asm("a6"))
+void __saveds _exec_Disable ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Disable() called.\n");
 
@@ -399,7 +399,7 @@ static void __saveds _exec_Disable ( register struct ExecBase * __libBase __asm(
 	SysBase->IDNestCnt++;
 }
 
-static void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("a6"))
+void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Enable() called.\n");
 	SysBase->IDNestCnt--;
@@ -407,34 +407,34 @@ static void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("
         custom->intena = 0xc000; // 1100 0000 0000 0000
 }
 
-static void __saveds _exec_Forbid ( register struct ExecBase * __libBase __asm("a6"))
+void __saveds _exec_Forbid ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Forbid(): called.\n");
     SysBase->TDNestCnt++;
     DPRINTF (LOG_DEBUG, "_exec: Forbid() --> SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 }
 
-static void __saveds _exec_Permit ( register struct ExecBase * __libBase __asm("a6"))
+void __saveds _exec_Permit ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Permit() called.\n");
     SysBase->TDNestCnt--;
     DPRINTF (LOG_DEBUG, "_exec: Permit() --> SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 }
 
-static APTR __saveds _exec_SuperState ( register struct ExecBase * __libBase __asm("a6"))
+APTR __saveds _exec_SuperState ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: SuperState unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_UserState ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_UserState ( register struct ExecBase * __libBase __asm("a6"),
                                                         register APTR ___sysStack  __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: UserState unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct Interrupt * __saveds _exec_SetIntVector ( register struct ExecBase * __libBase __asm("a6"),
+struct Interrupt * __saveds _exec_SetIntVector ( register struct ExecBase * __libBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
                                                         register const struct Interrupt * ___interrupt  __asm("a1"))
 {
@@ -442,7 +442,7 @@ static struct Interrupt * __saveds _exec_SetIntVector ( register struct ExecBase
     assert(FALSE);
 }
 
-static void __saveds _exec_AddIntServer ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AddIntServer ( register struct ExecBase * __libBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
                                                         register struct Interrupt * ___interrupt  __asm("a1"))
 {
@@ -450,7 +450,7 @@ static void __saveds _exec_AddIntServer ( register struct ExecBase * __libBase _
     assert(FALSE);
 }
 
-static void __saveds _exec_RemIntServer ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_RemIntServer ( register struct ExecBase * __libBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
                                                         register struct Interrupt * ___interrupt  __asm("a1"))
 {
@@ -458,14 +458,14 @@ static void __saveds _exec_RemIntServer ( register struct ExecBase * __libBase _
     assert(FALSE);
 }
 
-static void __saveds _exec_Cause ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_Cause ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Interrupt * ___interrupt  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Cause unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static APTR __saveds _exec_Allocate ( register struct ExecBase * __libBase __asm("a6"),
+APTR __saveds _exec_Allocate ( register struct ExecBase * __libBase __asm("a6"),
                                       register struct MemHeader * ___freeList  __asm("a0"),
                                       register ULONG ___byteSize  __asm("d0"))
 {
@@ -535,7 +535,7 @@ static APTR __saveds _exec_Allocate ( register struct ExecBase * __libBase __asm
     return mc;
 }
 
-static void __saveds _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
+void __saveds _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
                                         register struct MemHeader *freeList    __asm("a0"),
                                         register APTR              memoryBlock __asm("a1"),
                                         register ULONG             byteSize    __asm("d0"))
@@ -602,7 +602,7 @@ static void __saveds _exec_Deallocate ( register struct ExecBase  *SysBase     _
 	freeList->mh_Free  += byteSize;
 }
 
-static APTR __saveds _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
+APTR __saveds _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
                                       register ULONG ___byteSize  __asm("d0"),
                                       register ULONG ___requirements  __asm("d1"))
 {
@@ -655,7 +655,7 @@ static APTR __saveds _exec_AllocMem ( register struct ExecBase *SysBase __asm("a
     return mem;
 }
 
-static APTR __saveds _exec_AllocAbs ( register struct ExecBase * __libBase __asm("a6"),
+APTR __saveds _exec_AllocAbs ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___byteSize  __asm("d0"),
                                                         register APTR ___location  __asm("a1"))
 {
@@ -663,7 +663,7 @@ static APTR __saveds _exec_AllocAbs ( register struct ExecBase * __libBase __asm
     assert(FALSE);
 }
 
-static void __saveds _exec_FreeMem ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_FreeMem ( register struct ExecBase * __libBase __asm("a6"),
                                      register APTR  memoryBlock  __asm("a1"),
                                      register ULONG byteSize     __asm("d0"))
 {
@@ -691,14 +691,14 @@ static void __saveds _exec_FreeMem ( register struct ExecBase * __libBase __asm(
 	Permit();
 }
 
-static ULONG __saveds _exec_AvailMem ( register struct ExecBase * __libBase __asm("a6"),
+ULONG __saveds _exec_AvailMem ( register struct ExecBase * __libBase __asm("a6"),
                                        register ULONG ___requirements  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: AvailMem unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct MemList * __saveds _exec_AllocEntry ( register struct ExecBase * __libBase __asm("a6"),
+struct MemList * __saveds _exec_AllocEntry ( register struct ExecBase * __libBase __asm("a6"),
                                                     register struct MemList * entry  __asm("a0"))
 {
 
@@ -750,7 +750,7 @@ static struct MemList * __saveds _exec_AllocEntry ( register struct ExecBase * _
     return res;
 }
 
-static void __saveds _exec_FreeEntry ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_FreeEntry ( register struct ExecBase * __libBase __asm("a6"),
                                        register struct MemList * entry  __asm("a0"))
 {
     DPRINTF (LOG_INFO, "_exec: FreeEntry called, entry=0x%08lx\n", entry);
@@ -761,7 +761,7 @@ static void __saveds _exec_FreeEntry ( register struct ExecBase * __libBase __as
     FreeMem (entry, sizeof(struct MemList) - sizeof(struct MemEntry) + (sizeof(struct MemEntry)*entry->ml_NumEntries));
 }
 
-static void __saveds _exec_Insert ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_Insert ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct List * ___list  __asm("a0"),
                                                         register struct Node * ___node  __asm("a1"),
                                                         register struct Node * ___pred  __asm("a2"))
@@ -770,7 +770,7 @@ static void __saveds _exec_Insert ( register struct ExecBase * __libBase __asm("
     assert(FALSE);
 }
 
-static void __saveds _exec_AddHead ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AddHead ( register struct ExecBase * __libBase __asm("a6"),
                                      register struct List * list  __asm("a0"),
                                      register struct Node * node  __asm("a1"))
 {
@@ -783,7 +783,7 @@ static void __saveds _exec_AddHead ( register struct ExecBase * __libBase __asm(
     list->lh_Head          = node;
 }
 
-static void __saveds _exec_AddTail ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AddTail ( register struct ExecBase * __libBase __asm("a6"),
                                      register struct List * ___list  __asm("a0"),
                                      register struct Node * ___node  __asm("a1"))
 {
@@ -796,7 +796,7 @@ static void __saveds _exec_AddTail ( register struct ExecBase * __libBase __asm(
     ___list->lh_TailPred          = ___node;
 }
 
-static void __saveds _exec_Remove ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_Remove ( register struct ExecBase * __libBase __asm("a6"),
                                     register struct Node * node  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Remove called, node=0x%08lx\n", node);
@@ -807,7 +807,7 @@ static void __saveds _exec_Remove ( register struct ExecBase * __libBase __asm("
     node->ln_Succ->ln_Pred = node->ln_Pred;
 }
 
-static struct Node * __saveds _exec_RemHead ( register struct ExecBase *__libBase __asm("a6"),
+struct Node * __saveds _exec_RemHead ( register struct ExecBase *__libBase __asm("a6"),
                                               register struct List     *list  __asm("a0"))
 {
     DPRINTF (LOG_INFO, "_exec: RemHead called, list=0x%08lx\n", list);
@@ -825,14 +825,14 @@ static struct Node * __saveds _exec_RemHead ( register struct ExecBase *__libBas
     return node;
 }
 
-static struct Node * __saveds _exec_RemTail ( register struct ExecBase * __libBase __asm("a6"),
+struct Node * __saveds _exec_RemTail ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct List * ___list  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: RemTail unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_Enqueue ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_Enqueue ( register struct ExecBase * __libBase __asm("a6"),
                                      register struct List * list  __asm("a0"),
                                      register struct Node * node  __asm("a1"))
 {
@@ -852,7 +852,7 @@ static void __saveds _exec_Enqueue ( register struct ExecBase * __libBase __asm(
     next->ln_Pred          = node;
 }
 
-static struct Node * __saveds _exec_FindName ( register struct ExecBase * __libBase __asm("a6"),
+struct Node * __saveds _exec_FindName ( register struct ExecBase * __libBase __asm("a6"),
                                                register struct List     * list      __asm("a0"),
                                                register CONST_STRPTR      name      __asm("a1"))
 {
@@ -874,7 +874,7 @@ static struct Node * __saveds _exec_FindName ( register struct ExecBase * __libB
     return NULL;
 }
 
-static APTR __saveds _exec_AddTask ( register struct ExecBase *SysBase __asm("a6"),
+APTR __saveds _exec_AddTask ( register struct ExecBase *SysBase __asm("a6"),
                                      register struct Task     *task    __asm("a1"),
                                      register const APTR       initPC  __asm("a2"),
                                      register const APTR       finalPC __asm("a3"))
@@ -897,7 +897,7 @@ static APTR __saveds _exec_AddTask ( register struct ExecBase *SysBase __asm("a6
     return task;
 }
 
-static void __saveds _defaultTaskExit (void)
+void __saveds _defaultTaskExit (void)
 {
     DPUTS (LOG_INFO, "_exec: _defaultTaskExit() called\n");
 
@@ -911,7 +911,7 @@ static void __saveds _defaultTaskExit (void)
     );
 }
 
-static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm("a6"),
                                      register struct Task * task  __asm("a1"))
 {
     DPRINTF (LOG_INFO, "_exec: RemTask called, task=0x%08lx\n", task);
@@ -951,7 +951,7 @@ static void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm(
 	}
 }
 
-static struct Task * __saveds _exec_FindTask ( register struct ExecBase *SysBase __asm("a6"),
+struct Task * __saveds _exec_FindTask ( register struct ExecBase *SysBase __asm("a6"),
                                                register CONST_STRPTR     name    __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: FindTask() called name=%s\n", name ? (char*) name : "NULL");
@@ -988,7 +988,7 @@ static struct Task * __saveds _exec_FindTask ( register struct ExecBase *SysBase
     return ret;
 }
 
-static BYTE __saveds _exec_SetTaskPri ( register struct ExecBase * __libBase __asm("a6"),
+BYTE __saveds _exec_SetTaskPri ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Task * ___task  __asm("a1"),
                                                         register LONG ___priority  __asm("d0"))
 {
@@ -996,7 +996,7 @@ static BYTE __saveds _exec_SetTaskPri ( register struct ExecBase * __libBase __a
     assert(FALSE);
 }
 
-static ULONG __saveds _exec_SetSignal ( register struct ExecBase *SysBase     __asm("a6"),
+ULONG __saveds _exec_SetSignal ( register struct ExecBase *SysBase     __asm("a6"),
                                         register ULONG            newSignals  __asm("d0"),
                                         register ULONG            signalSet   __asm("d1"))
 {
@@ -1018,7 +1018,7 @@ static ULONG __saveds _exec_SetSignal ( register struct ExecBase *SysBase     __
     return oldsigs;
 }
 
-static ULONG __saveds _exec_SetExcept ( register struct ExecBase * SysBase    __asm("a6"),
+ULONG __saveds _exec_SetExcept ( register struct ExecBase * SysBase    __asm("a6"),
                                         register ULONG             newSignals __asm("d0"),
                                         register ULONG             signalSet  __asm("d1"))
 {
@@ -1044,14 +1044,14 @@ static ULONG __saveds _exec_SetExcept ( register struct ExecBase * SysBase    __
     return oldsigs;
 }
 
-static ULONG __saveds _exec_Wait ( register struct ExecBase * __libBase __asm("a6"),
+ULONG __saveds _exec_Wait ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___signalSet  __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_exec: Wait unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_Signal ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_Signal ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Task * ___task  __asm("a1"),
                                                         register ULONG ___signalSet  __asm("d0"))
 {
@@ -1059,7 +1059,7 @@ static void __saveds _exec_Signal ( register struct ExecBase * __libBase __asm("
     assert(FALSE);
 }
 
-static BYTE __saveds _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
+BYTE __saveds _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
                                          register BYTE              signalNum  __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: AllocSignal called, signalNum=%d\n", signalNum);
@@ -1096,7 +1096,7 @@ static BYTE __saveds _exec_AllocSignal ( register struct ExecBase * SysBase    _
     return signalNum;
 }
 
-static void __saveds _exec_FreeSignal ( register struct ExecBase *SysBase   __asm("a6"),
+void __saveds _exec_FreeSignal ( register struct ExecBase *SysBase   __asm("a6"),
                                         register BYTE             signalNum __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: FreeSignal() called.\n");
@@ -1108,35 +1108,35 @@ static void __saveds _exec_FreeSignal ( register struct ExecBase *SysBase   __as
     }
 }
 
-static LONG __saveds _exec_AllocTrap ( register struct ExecBase * __libBase __asm("a6"),
+LONG __saveds _exec_AllocTrap ( register struct ExecBase * __libBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_exec: AllocTrap unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_FreeTrap ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_FreeTrap ( register struct ExecBase * __libBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_exec: FreeTrap unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_AddPort ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AddPort ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: AddPort unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_RemPort ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_RemPort ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: RemPort unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_PutMsg ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_PutMsg ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a0"),
                                                         register struct Message * ___message  __asm("a1"))
 {
@@ -1144,56 +1144,56 @@ static void __saveds _exec_PutMsg ( register struct ExecBase * __libBase __asm("
     assert(FALSE);
 }
 
-static struct Message * __saveds _exec_GetMsg ( register struct ExecBase * __libBase __asm("a6"),
+struct Message * __saveds _exec_GetMsg ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_exec: GetMsg unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_ReplyMsg ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_ReplyMsg ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Message * ___message  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: ReplyMsg unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct Message * __saveds _exec_WaitPort ( register struct ExecBase * __libBase __asm("a6"),
+struct Message * __saveds _exec_WaitPort ( register struct ExecBase * __libBase __asm("a6"),
                                                   register struct MsgPort * ___port  __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_exec: WaitPort() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct MsgPort * __saveds _exec_FindPort ( register struct ExecBase * __libBase __asm("a6"),
+struct MsgPort * __saveds _exec_FindPort ( register struct ExecBase * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: FindPort unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_AddLibrary ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AddLibrary ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Library * ___library  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: AddLibrary unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_RemLibrary ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_RemLibrary ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Library * ___library  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: RemLibrary unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct Library * __saveds _exec_OldOpenLibrary ( register struct ExecBase * __libBase __asm("a6"),
+struct Library * __saveds _exec_OldOpenLibrary ( register struct ExecBase * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___libName  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: OldOpenLibrary unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_CloseLibrary ( register struct ExecBase *SysBase  __asm("a6"),
+void __saveds _exec_CloseLibrary ( register struct ExecBase *SysBase  __asm("a6"),
                                           register struct Library  *library  __asm("a1"))
 {
     DPRINTF (LOG_INFO, "_exec: CloseLibrary() called, library = 0x%08lx\n", library);
@@ -1213,7 +1213,7 @@ static void __saveds _exec_CloseLibrary ( register struct ExecBase *SysBase  __a
     }
 }
 
-static APTR __saveds _exec_SetFunction ( register struct ExecBase * __libBase __asm("a6"),
+APTR __saveds _exec_SetFunction ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Library * ___library  __asm("a1"),
                                                         register LONG ___funcOffset  __asm("a0"),
                                                         register VOID (*___newFunction)()  __asm("d0"))
@@ -1222,28 +1222,28 @@ static APTR __saveds _exec_SetFunction ( register struct ExecBase * __libBase __
     assert(FALSE);
 }
 
-static void __saveds _exec_SumLibrary ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_SumLibrary ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Library * ___library  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: SumLibrary unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_AddDevice ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AddDevice ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Device * ___device  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: AddDevice unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_RemDevice ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_RemDevice ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Device * ___device  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: RemDevice unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static BYTE __saveds _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6"),
+BYTE __saveds _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6"),
                                         register CONST_STRPTR      devName    __asm("a0"),
                                         register ULONG             unit       __asm("d0"),
                                         register struct IORequest *ioRequest  __asm("a1"),
@@ -1279,7 +1279,7 @@ static BYTE __saveds _exec_OpenDevice ( register struct ExecBase  *SysBase    __
     return ioRequest->io_Error;
 }
 
-static void __saveds _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6"),
+void __saveds _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6"),
                                          register struct IORequest *ioRequest __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: CloseDevice() called.\n");
@@ -1301,7 +1301,7 @@ static void __saveds _exec_CloseDevice ( register struct ExecBase  *SysBase   __
     Permit();
 }
 
-static BYTE __saveds _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
+BYTE __saveds _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
                                   register struct IORequest *ioRequest  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: DoIO() called, ioRequest=0x%08lx, command: %d\n", ioRequest, ioRequest->io_Command);
@@ -1323,56 +1323,56 @@ static BYTE __saveds _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a
     return ioRequest->io_Error;
 }
 
-static void __saveds _exec_SendIO ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_SendIO ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct IORequest * ___ioRequest  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: SendIO unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct IORequest * __saveds _exec_CheckIO ( register struct ExecBase * __libBase __asm("a6"),
+struct IORequest * __saveds _exec_CheckIO ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct IORequest * ___ioRequest  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: CheckIO unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static BYTE __saveds _exec_WaitIO ( register struct ExecBase * __libBase __asm("a6"),
+BYTE __saveds _exec_WaitIO ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct IORequest * ___ioRequest  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: WaitIO unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_AbortIO ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AbortIO ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct IORequest * ___ioRequest  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: AbortIO unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_AddResource ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AddResource ( register struct ExecBase * __libBase __asm("a6"),
                                                         register APTR ___resource  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: AddResource unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_RemResource ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_RemResource ( register struct ExecBase * __libBase __asm("a6"),
                                                         register APTR ___resource  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: RemResource unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static APTR __saveds _exec_OpenResource ( register struct ExecBase * __libBase __asm("a6"),
+APTR __saveds _exec_OpenResource ( register struct ExecBase * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___resName  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: OpenResource unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static APTR __saveds _exec_RawDoFmt ( register struct ExecBase * __libBase __asm("a6"),
+APTR __saveds _exec_RawDoFmt ( register struct ExecBase * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___formatString  __asm("a0"),
                                                         register const APTR ___dataStream  __asm("a1"),
                                                         register VOID (*___putChProc)()  __asm("a2"),
@@ -1389,14 +1389,14 @@ asm(
 "       move.w      sr, d0       \n"
 "       rts                      \n");
 
-static ULONG __saveds _exec_TypeOfMem ( register struct ExecBase * __libBase __asm("a6"),
+ULONG __saveds _exec_TypeOfMem ( register struct ExecBase * __libBase __asm("a6"),
                                                         register const APTR ___address  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: TypeOfMem unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _exec_Procure ( register struct ExecBase * __libBase __asm("a6"),
+ULONG __saveds _exec_Procure ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"),
                                                         register struct SemaphoreMessage * ___bidMsg  __asm("a1"))
 {
@@ -1404,7 +1404,7 @@ static ULONG __saveds _exec_Procure ( register struct ExecBase * __libBase __asm
     assert(FALSE);
 }
 
-static void __saveds _exec_Vacate ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_Vacate ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"),
                                                         register struct SemaphoreMessage * ___bidMsg  __asm("a1"))
 {
@@ -1412,7 +1412,7 @@ static void __saveds _exec_Vacate ( register struct ExecBase * __libBase __asm("
     assert(FALSE);
 }
 
-static struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6"),
+struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6"),
                                                      register CONST_STRPTR     libName  __asm("a1"),
                                                      register ULONG            version  __asm("d0"))
 {
@@ -1447,76 +1447,76 @@ static struct Library * __saveds _exec_OpenLibrary ( register struct ExecBase *S
     return lib;
 }
 
-static void __saveds _exec_InitSemaphore ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_InitSemaphore ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: InitSemaphore unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_ObtainSemaphore ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_ObtainSemaphore ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: ObtainSemaphore unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_ReleaseSemaphore ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_ReleaseSemaphore ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: ReleaseSemaphore unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _exec_AttemptSemaphore ( register struct ExecBase * __libBase __asm("a6"),
+ULONG __saveds _exec_AttemptSemaphore ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: AttemptSemaphore unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_ObtainSemaphoreList ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_ObtainSemaphoreList ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct List * ___sigSem  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: ObtainSemaphoreList unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_ReleaseSemaphoreList ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_ReleaseSemaphoreList ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct List * ___sigSem  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: ReleaseSemaphoreList unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct SignalSemaphore * __saveds _exec_FindSemaphore ( register struct ExecBase * __libBase __asm("a6"),
+struct SignalSemaphore * __saveds _exec_FindSemaphore ( register struct ExecBase * __libBase __asm("a6"),
                                                         register STRPTR ___name  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: FindSemaphore unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_AddSemaphore ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AddSemaphore ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: AddSemaphore unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_RemSemaphore ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_RemSemaphore ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: RemSemaphore unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _exec_SumKickData ( register struct ExecBase * __libBase __asm("a6"))
+ULONG __saveds _exec_SumKickData ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: SumKickData unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_AddMemList ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AddMemList ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___size  __asm("d0"),
                                                         register ULONG ___attributes  __asm("d1"),
                                                         register LONG ___pri  __asm("d2"),
@@ -1527,7 +1527,7 @@ static void __saveds _exec_AddMemList ( register struct ExecBase * __libBase __a
     assert(FALSE);
 }
 
-static void __saveds _exec_CopyMem ( register struct ExecBase *SysBase __asm("a6"),
+void __saveds _exec_CopyMem ( register struct ExecBase *SysBase __asm("a6"),
                                      register const APTR       source  __asm("a0"),
                                      register APTR             dest    __asm("a1"),
                                      register ULONG            size    __asm("d0"))
@@ -1547,7 +1547,7 @@ static void __saveds _exec_CopyMem ( register struct ExecBase *SysBase __asm("a6
 
 }
 
-static void __saveds _exec_CopyMemQuick ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_CopyMemQuick ( register struct ExecBase * __libBase __asm("a6"),
                                                         register const APTR ___source  __asm("a0"),
                                                         register APTR ___dest  __asm("a1"),
                                                         register ULONG ___size  __asm("d0"))
@@ -1556,13 +1556,13 @@ static void __saveds _exec_CopyMemQuick ( register struct ExecBase * __libBase _
     assert(FALSE);
 }
 
-static void __saveds _exec_CacheClearU ( register struct ExecBase * __libBase __asm("a6"))
+void __saveds _exec_CacheClearU ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_exec: CacheClearU unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_CacheClearE ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_CacheClearE ( register struct ExecBase * __libBase __asm("a6"),
                                                         register APTR ___address  __asm("a0"),
                                                         register ULONG ___length  __asm("d0"),
                                                         register ULONG ___caches  __asm("d1"))
@@ -1571,7 +1571,7 @@ static void __saveds _exec_CacheClearE ( register struct ExecBase * __libBase __
     assert(FALSE);
 }
 
-static ULONG __saveds _exec_CacheControl ( register struct ExecBase * __libBase __asm("a6"),
+ULONG __saveds _exec_CacheControl ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___cacheBits  __asm("d0"),
                                                         register ULONG ___cacheMask  __asm("d1"))
 {
@@ -1579,7 +1579,7 @@ static ULONG __saveds _exec_CacheControl ( register struct ExecBase * __libBase 
     assert(FALSE);
 }
 
-static APTR __saveds _exec_CreateIORequest ( register struct ExecBase * __libBase __asm("a6"),
+APTR __saveds _exec_CreateIORequest ( register struct ExecBase * __libBase __asm("a6"),
                                                         register const struct MsgPort * ___port  __asm("a0"),
                                                         register ULONG ___size  __asm("d0"))
 {
@@ -1587,34 +1587,34 @@ static APTR __saveds _exec_CreateIORequest ( register struct ExecBase * __libBas
     assert(FALSE);
 }
 
-static void __saveds _exec_DeleteIORequest ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_DeleteIORequest ( register struct ExecBase * __libBase __asm("a6"),
                                                         register APTR ___iorequest  __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_exec: DeleteIORequest unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct MsgPort * __saveds _exec_CreateMsgPort ( register struct ExecBase * __libBase __asm("a6"))
+struct MsgPort * __saveds _exec_CreateMsgPort ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_exec: CreateMsgPort unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_DeleteMsgPort ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_DeleteMsgPort ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_exec: DeleteMsgPort unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_ObtainSemaphoreShared ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_ObtainSemaphoreShared ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_exec: ObtainSemaphoreShared unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static APTR __saveds _exec_AllocVec ( register struct ExecBase * __libBase        __asm("a6"),
+APTR __saveds _exec_AllocVec ( register struct ExecBase * __libBase        __asm("a6"),
                                       register ULONG             ___byteSize      __asm("d0"),
                                       register ULONG             ___requirements  __asm("d1"))
 {
@@ -1632,14 +1632,14 @@ static APTR __saveds _exec_AllocVec ( register struct ExecBase * __libBase      
     return m;
 }
 
-static void __saveds _exec_FreeVec ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_FreeVec ( register struct ExecBase * __libBase __asm("a6"),
                                                         register APTR ___memoryBlock  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: FreeVec unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static APTR __saveds _exec_CreatePool ( register struct ExecBase * __libBase __asm("a6"),
+APTR __saveds _exec_CreatePool ( register struct ExecBase * __libBase __asm("a6"),
                                                         register ULONG ___requirements  __asm("d0"),
                                                         register ULONG ___puddleSize  __asm("d1"),
                                                         register ULONG ___threshSize  __asm("d2"))
@@ -1648,14 +1648,14 @@ static APTR __saveds _exec_CreatePool ( register struct ExecBase * __libBase __a
     assert(FALSE);
 }
 
-static void __saveds _exec_DeletePool ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_DeletePool ( register struct ExecBase * __libBase __asm("a6"),
                                                         register APTR ___poolHeader  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: DeletePool unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static APTR __saveds _exec_AllocPooled ( register struct ExecBase * __libBase __asm("a6"),
+APTR __saveds _exec_AllocPooled ( register struct ExecBase * __libBase __asm("a6"),
                                                         register APTR ___poolHeader  __asm("a0"),
                                                         register ULONG ___memSize  __asm("d0"))
 {
@@ -1663,7 +1663,7 @@ static APTR __saveds _exec_AllocPooled ( register struct ExecBase * __libBase __
     assert(FALSE);
 }
 
-static void __saveds _exec_FreePooled ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_FreePooled ( register struct ExecBase * __libBase __asm("a6"),
                                                         register APTR ___poolHeader  __asm("a0"),
                                                         register APTR ___memory  __asm("a1"),
                                                         register ULONG ___memSize  __asm("d0"))
@@ -1672,27 +1672,27 @@ static void __saveds _exec_FreePooled ( register struct ExecBase * __libBase __a
     assert(FALSE);
 }
 
-static ULONG __saveds _exec_AttemptSemaphoreShared ( register struct ExecBase * __libBase __asm("a6"),
+ULONG __saveds _exec_AttemptSemaphoreShared ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: AttemptSemaphoreShared unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_ColdReboot ( register struct ExecBase * __libBase __asm("a6"))
+void __saveds _exec_ColdReboot ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: ColdReboot unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_StackSwap ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_StackSwap ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct StackSwapStruct * ___newStack  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: StackSwap unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static APTR __saveds _exec_CachePreDMA ( register struct ExecBase * __libBase __asm("a6"),
+APTR __saveds _exec_CachePreDMA ( register struct ExecBase * __libBase __asm("a6"),
                                                         register const APTR ___address  __asm("a0"),
                                                         register ULONG * ___length  __asm("a1"),
                                                         register ULONG ___flags  __asm("d0"))
@@ -1701,7 +1701,7 @@ static APTR __saveds _exec_CachePreDMA ( register struct ExecBase * __libBase __
     assert(FALSE);
 }
 
-static void __saveds _exec_CachePostDMA ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_CachePostDMA ( register struct ExecBase * __libBase __asm("a6"),
                                                         register const APTR ___address  __asm("a0"),
                                                         register ULONG * ___length  __asm("a1"),
                                                         register ULONG ___flags  __asm("d0"))
@@ -1710,14 +1710,14 @@ static void __saveds _exec_CachePostDMA ( register struct ExecBase * __libBase _
     assert(FALSE);
 }
 
-static void __saveds _exec_AddMemHandler ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_AddMemHandler ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Interrupt * ___memhand  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: AddMemHandler unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds _exec_RemMemHandler ( register struct ExecBase * __libBase __asm("a6"),
+void __saveds _exec_RemMemHandler ( register struct ExecBase * __libBase __asm("a6"),
                                                         register struct Interrupt * ___memhand  __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_exec: RemMemHandler unimplemented STUB called.\n");
@@ -1753,7 +1753,7 @@ static void __saveds _myTestTask(void)
 
 typedef ULONG __saveds (*cliChildFn_t) ( register ULONG  arglen __asm("d0"),
                                          register STRPTR args   __asm("a0"));
-static void __saveds _bootstrap(void)
+void __saveds _bootstrap(void)
 {
     DPRINTF (LOG_INFO, "_exec: _bootstrap() called\n");
 
@@ -1781,7 +1781,7 @@ static void __saveds _bootstrap(void)
     /* simply JSR() into our child process */
 
     cliChildFn_t childfn = initPC;
-    ULONG rv = childfn (/*arglen=*/0, /*args=*/(STRPTR)"\n");
+    ULONG rv = childfn (/*arglen=*/1, /*args=*/(STRPTR)"\n");
 
 #if 0
     //*((APTR*) SysBase->ThisTask->tc_SPReg) = initPC;
@@ -2068,6 +2068,9 @@ void __saveds coldstart (void)
     cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
 
     // FIXME: set cli_CommandDir
+    char *binfn = AllocVec (1024, MEMF_CLEAR);
+    emucall1 (EMU_CALL_LOADFILE, (ULONG) binfn);
+    cli->cli_CommandName = MKBADDR(binfn);
 
     rootProc->pr_CLI = MKBADDR(cli);
 
