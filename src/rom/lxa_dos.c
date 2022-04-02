@@ -18,14 +18,6 @@
 
 #include "util.h"
 
-#define ENABLE_DEBUG
-
-#ifdef ENABLE_DEBUG
-#define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)
-#else
-#define DPRINTF(lvl, ...)
-#endif
-
 #define HUNK_TYPE_UNIT     0x03E7
 #define HUNK_TYPE_NAME     0x03E8
 #define HUNK_TYPE_CODE     0x03E9

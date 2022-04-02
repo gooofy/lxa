@@ -28,16 +28,6 @@
 
 #define DEFAULT_STACKSIZE 1<<16
 
-#define ENABLE_DEBUG
-
-#ifdef ENABLE_DEBUG
-#define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)
-#define DPUTS(lvl, s) LPUTS (lvl, s)
-#else
-#define DPRINTF(lvl, ...)
-#define DPUTS(lvl, s)
-#endif
-
 #define EXEC_FUNCTABLE_ENTRY(___off) (NUM_EXEC_FUNCS+(___off/6))
 
 #define VERSION  1
@@ -1761,7 +1751,7 @@ static void __saveds _myTestTask(void)
 }
 #endif
 
-typedef void  __saveds (*cliChildFn_t) ( register ULONG  arglen __asm("d0"),
+typedef ULONG __saveds (*cliChildFn_t) ( register ULONG  arglen __asm("d0"),
                                          register STRPTR args   __asm("a0"));
 static void __saveds _bootstrap(void)
 {
@@ -1786,12 +1776,12 @@ static void __saveds _bootstrap(void)
 
     APTR initPC = BADDR(segs+1);
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): initPC is 0x%08lx\n", initPC);
-    U_hexdump (LOG_INFO, initPC, 32);
+    U_hexdump (LOG_DEBUG, initPC, 32);
 
     /* simply JSR() into our child process */
 
     cliChildFn_t childfn = initPC;
-    childfn (/*arglen=*/0, /*args=*/(STRPTR)"\n");
+    ULONG rv = childfn (/*arglen=*/0, /*args=*/(STRPTR)"\n");
 
 #if 0
     //*((APTR*) SysBase->ThisTask->tc_SPReg) = initPC;
@@ -1825,7 +1815,7 @@ static void __saveds _bootstrap(void)
     //    DPRINTF (LOG_INFO, "bootstrap() loop, SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 #endif
 
-    emu_stop();
+    emu_stop(rv);
 }
 
 void __saveds coldstart (void)
@@ -2111,6 +2101,6 @@ void __saveds coldstart (void)
 
     DPRINTF (LOG_ERROR, "coldstart: this shouldn't happen\n");
 
-    emu_stop();
+    emu_stop(255);
 }
 

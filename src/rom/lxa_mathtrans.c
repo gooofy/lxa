@@ -23,14 +23,6 @@
 #include "util.h"
 #include "mem_map.h"
 
-#define ENABLE_DEBUG
-
-#ifdef ENABLE_DEBUG
-#define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)
-#else
-#define DPRINTF(lvl, ...)
-#endif
-
 union FFP_ULONG { FLOAT f; ULONG ul; } ;
 
 #define CCR_ZERO 0x00000004

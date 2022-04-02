@@ -69,6 +69,7 @@
 static uint8_t  g_ram[RAM_SIZE];
 static uint8_t  g_rom[ROM_SIZE];
 static bool     g_debug                        = FALSE;
+static bool     g_verbose                      = FALSE;
 static bool     g_trace                        = FALSE;
 static int      g_trace_buf[TRACE_BUF_ENTRIES];
 static int      g_trace_buf_idx                = 0;
@@ -558,10 +559,16 @@ int op_illg(int level)
         }
 
         case EMU_CALL_STOP:
-            dprintf (LOG_INFO, "*** emulator stop via lxcall.\n");
+        {
+            uint32_t rv = m68k_get_reg(NULL, M68K_REG_D1);
+            if (rv)
+                dprintf (LOG_ERROR, "*** emulator stop via lxcall, rv=%d\n", rv);
+            else
+                dprintf (LOG_DEBUG, "*** emulator stop via lxcall.\n");
             m68k_end_timeslice();
             g_running = FALSE;
             break;
+        }
 
         case EMU_CALL_TRACE:
             g_trace = m68k_get_reg(NULL, M68K_REG_D1);
@@ -864,6 +871,7 @@ static void print_usage(char *argv[])
     fprintf(stderr, "usage: %s [ options ] <loadfile>\n", argv[0]);
     fprintf(stderr, "    -b <addr>  add breakpoint\n");
     fprintf(stderr, "    -d         enable debug output\n");
+    fprintf(stderr, "    -v         verbose\n");
 }
 
 int main(int argc, char **argv, char **envp)
@@ -890,6 +898,9 @@ int main(int argc, char **argv, char **envp)
             case 'd':
 				g_debug = true;
                 break;
+            case 'v':
+				g_verbose = true;
+                break;
 			default:
                 print_usage(argv);
                 exit(EXIT_FAILURE);
@@ -907,10 +918,10 @@ int main(int argc, char **argv, char **envp)
     g_logf = fopen (LXA_LOG_FILENAME, "w");
     assert (g_logf);
 
-    dprintf (LOG_INFO, "lxa:       ROM_START          = 0x%08x\n", ROM_START         );
-    dprintf (LOG_INFO, "lxa:       ROM_END            = 0x%08x\n", ROM_END           );
-    dprintf (LOG_INFO, "lxa:       RAM_START          = 0x%08x\n", RAM_START         );
-    dprintf (LOG_INFO, "lxa:       RAM_END            = 0x%08x\n", RAM_END           );
+    dprintf (g_verbose ? LOG_INFO : LOG_DEBUG, "lxa:       ROM_START          = 0x%08x\n", ROM_START         );
+    dprintf (g_verbose ? LOG_INFO : LOG_DEBUG, "lxa:       ROM_END            = 0x%08x\n", ROM_END           );
+    dprintf (g_verbose ? LOG_INFO : LOG_DEBUG, "lxa:       RAM_START          = 0x%08x\n", RAM_START         );
+    dprintf (g_verbose ? LOG_INFO : LOG_DEBUG, "lxa:       RAM_END            = 0x%08x\n", RAM_END           );
 
     // load rom code
     FILE *romf = fopen (ROM_PATH, "r");

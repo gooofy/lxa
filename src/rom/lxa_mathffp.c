@@ -11,14 +11,6 @@
 #include "util.h"
 #include "mem_map.h"
 
-#define ENABLE_DEBUG
-
-#ifdef ENABLE_DEBUG
-#define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)
-#else
-#define DPRINTF(lvl, ...)
-#endif
-
 #if 0
 asm(
 "    .global ___restore_a4        \n"

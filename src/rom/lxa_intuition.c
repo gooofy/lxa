@@ -11,14 +11,6 @@
 
 #include "util.h"
 
-#define ENABLE_DEBUG
-
-#ifdef ENABLE_DEBUG
-#define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)
-#else
-#define DPRINTF(lvl, ...)
-#endif
-
 #define VERSION    40
 #define REVISION   1
 #define EXLIBNAME  "intuition"

@@ -18,15 +18,7 @@
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
 
-#define ENABLE_DEBUG
-
-#ifdef ENABLE_DEBUG
-#define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)
-#define DPUTS(lvl, s) LPUTS (lvl, s)
-#else
-#define DPRINTF(lvl, ...)
-#define DPUTS(lvl, s)
-#endif
+#include "util.h"
 
 extern struct ExecBase *SysBase;
 
@@ -94,14 +86,9 @@ ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3)
     return res;
 }
 
-void emu_stop (void)
+void emu_stop (ULONG rv)
 {
-    asm( "move.l    #2, d0 /* EMU_CALL_STOP */\n\t"
-         "illegal"
-        : /* no outputs */
-        : /* no inputs  */
-        : "cc", "d0"
-        );
+    emucall1 (EMU_CALL_STOP, rv);
 }
 
 void lputc (int level, char c)
@@ -433,7 +420,7 @@ void lprintf(int lvl, const char *format, ...)
 __stdargs void __assert_func (const char *file_name, int line_number, const char *e)
 {
     lprintf (LOG_ERROR, "*** assertion failed: %s:%d %s\n", file_name, line_number, e);
-    emu_stop();
+    emu_stop(1);
 }
 
 void *memset(void *dst, int c, ULONG n)

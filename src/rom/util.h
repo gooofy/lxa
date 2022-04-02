@@ -46,7 +46,17 @@ void  lprintf  (int level, const char *format, ...);
 #define LPRINTF(lvl, ...) do { if (lvl >= LOG_LEVEL) lprintf(lvl, __VA_ARGS__); } while (0)
 #define LPUTS(lvl, s) do { if (lvl >= LOG_LEVEL) lputs(lvl, s); } while (0)
 
-void  emu_stop (void);
+//#define ENABLE_DEBUG
+
+#ifdef ENABLE_DEBUG
+#define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)
+#define DPUTS(lvl, s) LPUTS (lvl, s)
+#else
+#define DPRINTF(lvl, ...)
+#define DPUTS(lvl, s)
+#endif
+
+void  emu_stop (ULONG rv);
 
 #undef assert
 
