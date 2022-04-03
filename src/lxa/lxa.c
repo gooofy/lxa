@@ -424,6 +424,7 @@ static int errno2Amiga (void)
 
 static void _dos_stdinout_fh (uint32_t fh68k)
 {
+    dprintf (LOG_DEBUG, "lxa: _dos_stdinout_fh(): fh68k=0x%08x\n", fh68k);
     m68k_write_memory_32 (fh68k+36, STDOUT_FILENO);     // fh_Args
     m68k_write_memory_32 (fh68k+40, FILE_KIND_CONSOLE); // fh_Arg2
 }
@@ -496,7 +497,7 @@ static int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
 {
     dprintf (LOG_DEBUG, "lxa: _dos_seek(): fh=0x%08x, position=0x%08x, mode=%d\n", fh68k, position, mode);
 
-	int fd = m68k_read_memory_32 (fh68k+36);
+	int fd   = m68k_read_memory_32 (fh68k+36);
 
     int whence = 0;
     switch (mode)
@@ -518,10 +519,11 @@ static int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
 
 static int _dos_write (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 {
-    dprintf (LOG_DEBUG, "lxa: _dos_write(): fh=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
+    dprintf (LOG_DEBUG, "lxa: _dos_write(): fh68k=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
 
-	int fd = m68k_read_memory_32 (fh68k+36);
-    dprintf (LOG_DEBUG, "                  -> fd = %d\n", fd);
+	int fd   = m68k_read_memory_32 (fh68k+36);
+	int kind = m68k_read_memory_32 (fh68k+40);
+    dprintf (LOG_DEBUG, "                  -> fd=%d, kind=%d\n", fd, kind);
 
     void *buf = _mgetstr (buf68k);
 
