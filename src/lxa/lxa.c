@@ -63,6 +63,9 @@
 #define OFFSET_CURRENT       0
 #define OFFSET_END           1
 
+#define FILE_KIND_REGULAR    42
+#define FILE_KIND_CONSOLE    23
+
 #define TRACE_BUF_ENTRIES 1000000
 #define MAX_BREAKPOINTS       16
 
@@ -407,13 +410,22 @@ static char *_mgetstr (uint32_t address)
 static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_len)
 {
     // FIXME: pretty hard coded, for now
-    snprintf (linux_path, buf_len, "%s/%s", AMIGA_SYSROOT, amiga_path);
+    if (!strncasecmp (amiga_path, "NIL:", 4))
+        snprintf (linux_path, buf_len, "/dev/null");
+    else
+        snprintf (linux_path, buf_len, "%s/%s", AMIGA_SYSROOT, amiga_path);
 }
 
 static int errno2Amiga (void)
 {
     // FIXME: do actual mapping!
     return errno;
+}
+
+static void _dos_stdinout_fh (uint32_t fh68k)
+{
+    m68k_write_memory_32 (fh68k+36, STDOUT_FILENO);     // fh_Args
+    m68k_write_memory_32 (fh68k+40, FILE_KIND_CONSOLE); // fh_Arg2
 }
 
 static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
@@ -423,33 +435,42 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 
     dprintf (LOG_DEBUG, "lxa: _dos_open(): amiga_path=%s\n", amiga_path);
 
-    _dos_path2linux (amiga_path, lxpath, PATH_MAX);
-    dprintf (LOG_DEBUG, "lxa: _dos_open(): lxpath=%s\n", lxpath);
+    if (!strncasecmp (amiga_path, "CONSOLE:", 8) || (amiga_path[0]=='*'))
+    {
+        _dos_stdinout_fh (fh68k);
+    }
+    else
+    {
+        // FIXME: amiga paths are case insensitive!
+        _dos_path2linux (amiga_path, lxpath, PATH_MAX);
+        dprintf (LOG_DEBUG, "lxa: _dos_open(): lxpath=%s\n", lxpath);
 
-	int flags = 0;
-	mode_t mode = 0644;
+        int flags = 0;
+        mode_t mode = 0644;
 
-	switch (accessMode)
-	{
-        case MODE_NEWFILE:
-			flags = O_CREAT | O_TRUNC | O_RDWR;
-			break;
-        case MODE_OLDFILE:
-			flags = O_RDWR;
-			break;
-        case MODE_READWRITE:
-			flags = O_CREAT | O_RDWR;
-			break;
-		default:
-			assert(FALSE);
-	}
+        switch (accessMode)
+        {
+            case MODE_NEWFILE:
+                flags = O_CREAT | O_TRUNC | O_RDWR;
+                break;
+            case MODE_OLDFILE:
+                flags = O_RDWR;
+                break;
+            case MODE_READWRITE:
+                flags = O_CREAT | O_RDWR;
+                break;
+            default:
+                assert(FALSE);
+        }
 
-	int fd = open (lxpath, flags, mode);
-	int err = errno;
+        int fd = open (lxpath, flags, mode);
+        int err = errno;
 
-    dprintf (LOG_DEBUG, "lxa: _dos_open(): open() result: fd=%d, err=%d\n", fd, err);
+        dprintf (LOG_DEBUG, "lxa: _dos_open(): open() result: fd=%d, err=%d\n", fd, err);
 
-	m68k_write_memory_32 (fh68k+36, fd); // fh_Args
+        m68k_write_memory_32 (fh68k+36, fd);                // fh_Args
+        m68k_write_memory_32 (fh68k+40, FILE_KIND_REGULAR); // fh_Arg2
+    }
 
 	return errno2Amiga();
 }
@@ -701,23 +722,17 @@ int op_illg(int level)
 
         case EMU_CALL_DOS_INPUT:
         {
-            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_INPUT\n");
-
-            uint32_t res = STDIN_FILENO;
-
-            m68k_set_reg(M68K_REG_D0, res);
-
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_INPUT, fh=0x%08x\n", fh);
+            _dos_stdinout_fh (fh);
             break;
         }
 
         case EMU_CALL_DOS_OUTPUT:
         {
-            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_OUTPUT\n");
-
-            uint32_t res = STDOUT_FILENO;
-
-            m68k_set_reg(M68K_REG_D0, res);
-
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+            dprintf (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_OUTPUT, fh=0x%08x\n", fh);
+            _dos_stdinout_fh (fh);
             break;
         }
 

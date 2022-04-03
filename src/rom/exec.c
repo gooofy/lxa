@@ -2052,11 +2052,11 @@ void __saveds coldstart (void)
 
     // stdin/stdout
     struct FileHandle *fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
-    fh->fh_Args = emucall0 (EMU_CALL_DOS_INPUT);
+    emucall1 (EMU_CALL_DOS_INPUT, (ULONG) fh);
     rootProc->pr_CIS = MKBADDR (fh);
 
     fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
-    fh->fh_Args = emucall0 (EMU_CALL_DOS_OUTPUT);
+    emucall1 (EMU_CALL_DOS_OUTPUT, (ULONG) fh);
     rootProc->pr_COS = MKBADDR (fh);
 
     // cli
