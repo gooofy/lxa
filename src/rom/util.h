@@ -46,7 +46,7 @@ void  lprintf  (int level, const char *format, ...);
 #define LPRINTF(lvl, ...) do { if (lvl >= LOG_LEVEL) lprintf(lvl, __VA_ARGS__); } while (0)
 #define LPUTS(lvl, s) do { if (lvl >= LOG_LEVEL) lputs(lvl, s); } while (0)
 
-#define ENABLE_DEBUG
+//#define ENABLE_DEBUG
 
 #ifdef ENABLE_DEBUG
 #define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)

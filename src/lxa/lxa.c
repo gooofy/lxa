@@ -27,7 +27,8 @@
 #define RAM_SIZE    10 * 1024 * 1024
 #define RAM_END     RAM_START + RAM_SIZE - 1
 
-#define ROM_PATH    "../rom/my.rom"
+#define DEFAULT_ROM_PATH "../rom/my.rom"
+
 #define ROM_SIZE    256 * 1024
 #define ROM_START   0xf80000
 #define ROM_END     ROM_START + ROM_SIZE - 1
@@ -1011,11 +1012,13 @@ static void print_usage(char *argv[])
     fprintf(stderr, "usage: %s [ options ] <loadfile>\n", argv[0]);
     fprintf(stderr, "    -b <addr>  add breakpoint\n");
     fprintf(stderr, "    -d         enable debug output\n");
+    fprintf(stderr, "    -r <rom>   use kickstart <rom>, default: %s\n", DEFAULT_ROM_PATH);
     fprintf(stderr, "    -v         verbose\n");
 }
 
 int main(int argc, char **argv, char **envp)
 {
+    char *rom_path = DEFAULT_ROM_PATH;
     int optind=0;
     // argument parsing
     for (optind = 1; optind < argc && argv[optind][0] == '-'; optind++)
@@ -1038,6 +1041,12 @@ int main(int argc, char **argv, char **envp)
             case 'd':
                 g_debug = true;
                 break;
+            case 'r':
+            {
+                optind++;
+                rom_path = argv[optind];
+                break;
+            }
             case 'v':
                 g_verbose = true;
                 break;
@@ -1064,15 +1073,15 @@ int main(int argc, char **argv, char **envp)
     dprintf (g_verbose ? LOG_INFO : LOG_DEBUG, "lxa:       RAM_END            = 0x%08x\n", RAM_END           );
 
     // load rom code
-    FILE *romf = fopen (ROM_PATH, "r");
+    FILE *romf = fopen (rom_path, "r");
     if (!romf)
     {
-        fprintf (stderr, "failed to open %s\n", ROM_PATH);
+        fprintf (stderr, "failed to open %s\n", rom_path);
         exit(1);
     }
     if (fread (g_rom, ROM_SIZE, 1, romf) != 1)
     {
-        fprintf (stderr, "failed to read from %s\n", ROM_PATH);
+        fprintf (stderr, "failed to read from %s\n", rom_path);
         exit(2);
     }
     fclose(romf);
