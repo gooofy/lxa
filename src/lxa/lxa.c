@@ -71,17 +71,18 @@
 
 static uint8_t  g_ram[RAM_SIZE];
 static uint8_t  g_rom[ROM_SIZE];
-static bool     g_debug                        = FALSE;
-static bool     g_verbose                      = FALSE;
-static bool     g_trace                        = FALSE;
-static bool     g_stepping                     = FALSE;
+static bool     g_debug                         = FALSE;
+static bool     g_verbose                       = FALSE;
+static bool     g_trace                         = FALSE;
+static bool     g_stepping                      = FALSE;
 static int      g_trace_buf[TRACE_BUF_ENTRIES];
-static int      g_trace_buf_idx                = 0;
-static bool     g_running                      = TRUE;
-static FILE    *g_logf                         = NULL;
-static char    *g_loadfile                     = NULL;
+static int      g_trace_buf_idx                 = 0;
+static bool     g_running                       = TRUE;
+static FILE    *g_logf                          = NULL;
+static char    *g_loadfile                      = NULL;
 static uint32_t g_breakpoints[MAX_BREAKPOINTS];
-static int      g_num_breakpoints              = 0;
+static int      g_num_breakpoints               = 0;
+static int      g_rv                            = 0;
 
 // interrupts
 #define INTENA_MASTER 0x4000
@@ -699,9 +700,9 @@ int op_illg(int level)
 
         case EMU_CALL_STOP:
         {
-            uint32_t rv = m68k_get_reg(NULL, M68K_REG_D1);
-            if (rv)
-                dprintf (LOG_ERROR, "*** emulator stop via lxcall, rv=%d\n", rv);
+            g_rv = m68k_get_reg(NULL, M68K_REG_D1);
+            if (g_rv)
+                dprintf (LOG_ERROR, "*** emulator stop via lxcall, rv=%d\n", g_rv);
             else
                 dprintf (LOG_DEBUG, "*** emulator stop via lxcall.\n");
             m68k_end_timeslice();
@@ -1101,5 +1102,5 @@ int main(int argc, char **argv, char **envp)
             break;
     }
 
-    return 0;
+    return g_rv;
 }
