@@ -18,6 +18,9 @@
 
 #include "util.h"
 
+#define FILE_KIND_REGULAR    42
+#define FILE_KIND_CONSOLE    23
+
 #define HUNK_TYPE_UNIT     0x03E7
 #define HUNK_TYPE_NAME     0x03E8
 #define HUNK_TYPE_CODE     0x03E9
@@ -730,11 +733,13 @@ BPTR __saveds _dos_ParentDir ( register struct DosLibrary * __libBase __asm("a6"
     assert(FALSE);
 }
 
-LONG __saveds _dos_IsInteractive ( register struct DosLibrary * __libBase __asm("a6"),
-                                          register BPTR ___file  __asm("d1"))
+LONG __saveds _dos_IsInteractive ( register struct DosLibrary *DOSBase __asm("a6"),
+                                   register BPTR               file    __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: IsInteractive() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: IsInteractive() called, file=0x%08lx\n", file);
+    struct FileHandle *fh = (struct FileHandle *) BADDR(file);
+    ULONG kind = fh->fh_Func3;
+    return kind == FILE_KIND_CONSOLE;
 }
 
 LONG __saveds _dos_Execute ( register struct DosLibrary * __libBase __asm("a6"),
@@ -746,9 +751,9 @@ LONG __saveds _dos_Execute ( register struct DosLibrary * __libBase __asm("a6"),
     assert(FALSE);
 }
 
-void __saveds *_dos_AllocDosObject (register struct DosLibrary * DOSBase __asm("a6"),
-                                           register ULONG               type    __asm("d1"),
-                                           register struct TagItem    * tags    __asm("d2"))
+void __saveds *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
+                                    register ULONG              type    __asm("d1"),
+                                    register struct TagItem    *tags    __asm("d2"))
 {
     DPRINTF (LOG_DEBUG, "_dos: AllocDosObject() called type=%ld\n", type);
 
