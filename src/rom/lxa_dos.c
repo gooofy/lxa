@@ -833,12 +833,49 @@ OOM:
     return NULL;
 }
 
-void __saveds _dos_FreeDosObject (register struct DosLibrary * DOSBase __asm("a6"),
-                                  register ULONG               ___type __asm("d1"),
-                                  register void              * ___ptr  __asm("d2"))
+void __saveds _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"),
+                                  register ULONG              type    __asm("d1"),
+                                  register void              *ptr     __asm("d2"))
 {
-    DPRINTF (LOG_ERROR, "_dos: FreeDosObject() unimplemented STUB called.\n");
-    assert (FALSE);
+    DPRINTF (LOG_ERROR, "_dos: FreeDosObject() called, type=%d, ptr=0x%08lx\n", type, ptr);
+
+    if (!ptr)
+        return;
+
+    switch (type)
+    {
+        case DOS_FILEHANDLE:
+        {
+            struct FileHandle *fh = (struct FileHandle *)ptr;
+            FreeVec(fh);
+            break;
+        }
+
+        case DOS_CLI:
+        {
+            struct CommandLineInterface *cli = (struct CommandLineInterface *)ptr;
+
+            BPTR *cdir = (BPTR *)BADDR(cli->cli_CommandDir);
+
+            FreeVec(BADDR(cli->cli_SetName));
+            FreeVec(BADDR(cli->cli_CommandName));
+            FreeVec(BADDR(cli->cli_CommandFile));
+            FreeVec(BADDR(cli->cli_Prompt));
+            FreeVec(cli);
+
+            while (cdir)
+            {
+                BPTR *next = (BPTR *)BADDR(cdir[0]);
+                UnLock(cdir[1]);
+                FreeVec(cdir);
+                cdir = next;
+            }
+            break;
+
+    	}
+	default:
+		assert (FALSE); // FIXME: implement other dos obj types
+	}
 }
 
 LONG __saveds _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
