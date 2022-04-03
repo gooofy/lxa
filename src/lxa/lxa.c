@@ -255,16 +255,16 @@ unsigned int m68k_read_disassembler_32(unsigned int address)
 
 void make_hex(char* buff, unsigned int pc, unsigned int length)
 {
-	char* ptr = buff;
+    char* ptr = buff;
 
-	for(;length>0;length -= 2)
-	{
-		sprintf(ptr, "%04x", m68k_read_disassembler_16(pc));
-		pc += 2;
-		ptr += 4;
-		if(length > 2)
-			*ptr++ = ' ';
-	}
+    for(;length>0;length -= 2)
+    {
+        sprintf(ptr, "%04x", m68k_read_disassembler_16(pc));
+        pc += 2;
+        ptr += 4;
+        if(length > 2)
+            *ptr++ = ' ';
+    }
 }
 
 #define HEXDUMP_COLS 16
@@ -425,8 +425,8 @@ static int errno2Amiga (void)
 static void _dos_stdinout_fh (uint32_t fh68k)
 {
     dprintf (LOG_DEBUG, "lxa: _dos_stdinout_fh(): fh68k=0x%08x\n", fh68k);
+    m68k_write_memory_32 (fh68k+32, FILE_KIND_CONSOLE); // fh_Func3
     m68k_write_memory_32 (fh68k+36, STDOUT_FILENO);     // fh_Args
-    m68k_write_memory_32 (fh68k+40, FILE_KIND_CONSOLE); // fh_Arg2
 }
 
 static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
@@ -470,17 +470,17 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
         dprintf (LOG_DEBUG, "lxa: _dos_open(): open() result: fd=%d, err=%d\n", fd, err);
 
         m68k_write_memory_32 (fh68k+36, fd);                // fh_Args
-        m68k_write_memory_32 (fh68k+40, FILE_KIND_REGULAR); // fh_Arg2
+        m68k_write_memory_32 (fh68k+32, FILE_KIND_REGULAR); // fh_Func3
     }
 
-	return errno2Amiga();
+    return errno2Amiga();
 }
 
 static int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 {
     dprintf (LOG_DEBUG, "lxa: _dos_read(): fh=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
 
-	int fd = m68k_read_memory_32 (fh68k+36);
+    int fd = m68k_read_memory_32 (fh68k+36);
     dprintf (LOG_DEBUG, "                  -> fd = %d\n", fd);
 
     void *buf = _mgetstr (buf68k);
@@ -497,7 +497,7 @@ static int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
 {
     dprintf (LOG_DEBUG, "lxa: _dos_seek(): fh=0x%08x, position=0x%08x, mode=%d\n", fh68k, position, mode);
 
-	int fd   = m68k_read_memory_32 (fh68k+36);
+    int fd   = m68k_read_memory_32 (fh68k+36);
 
     int whence = 0;
     switch (mode)
@@ -517,20 +517,128 @@ static int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
     return o;
 }
 
+#define CSI_BUF_LEN 32
+#define CSI "\e["
+
 static int _dos_write (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 {
     dprintf (LOG_DEBUG, "lxa: _dos_write(): fh68k=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
 
-	int fd   = m68k_read_memory_32 (fh68k+36);
-	int kind = m68k_read_memory_32 (fh68k+40);
+    int fd   = m68k_read_memory_32 (fh68k+36);
+    int kind = m68k_read_memory_32 (fh68k+32);
     dprintf (LOG_DEBUG, "                  -> fd=%d, kind=%d\n", fd, kind);
 
-    void *buf = _mgetstr (buf68k);
+    char *buf = _mgetstr (buf68k);
+    ssize_t l = 0;
 
-    ssize_t l = write (fd, buf, len68k);
+    switch (kind)
+    {
+        case FILE_KIND_REGULAR:
+        {
+            l = write (fd, buf, len68k);
 
-    if (l<0)
-        m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+            if (l<0)
+                m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+
+            break;
+        }
+        case FILE_KIND_CONSOLE:
+        {
+            static bool     bCSI = FALSE;
+            static char     csiBuf[CSI_BUF_LEN];
+            static uint16_t csiBufLen=0;
+
+            l = len68k;
+
+            for (int i =0; i<l; i++)
+            {
+                char c = buf[i];
+
+                uint8_t uc = (uint8_t) c;
+                if (!bCSI)
+                {
+                    if (uc==0x9b)
+                    {
+                        bCSI = TRUE;
+                        continue;
+                    }
+                }
+                else
+                {
+                    /*
+                    0x30–0x3F (ASCII 0–9:;<=>?)                  parameter bytes
+                    0x20–0x2F (ASCII space and !\"#$%&'()*+,-./) intermediate bytes
+                    0x40–0x7E (ASCII @A–Z[\]^_`a–z{|}~)          final byte
+                    */
+                    if (uc>=0x40)
+                    {
+                        //printf ("CSI seq detected: %s%c csiBufLen=%d\n", csiBuf, c, csiBufLen);
+
+                        switch (c)
+                        {
+                            case 'p': // csr on/off
+                                if (csiBufLen == 2)
+                                {
+                                    switch (csiBuf[0])
+                                    {
+                                        case '0':
+                                            fputs(CSI "?25l", stdout); // cursor invisible
+                                            break;
+                                        case '1':
+                                            fputs(CSI "?25h", stdout);  // cursor visible
+                                            break;
+                                    }
+                                }
+                                break;
+                            case 'm': // presentation
+                                if (csiBufLen == 1)
+                                {
+                                    switch (csiBuf[0])
+                                    {
+                                        case '0': fputs(CSI "30m", stdout); /*s2 = UI_TEXT_STYLE_TEXT*/; break;
+                                    }
+                                }
+                                else
+                                {
+                                    if (csiBufLen == 2)
+                                    {
+                                        uint8_t color = (csiBuf[0]-'0')*10+(csiBuf[1]-'0');
+                                        //printf ("setting color %d\n", color);
+                                        switch (color)
+                                        {
+                                            case 30: fputs (CSI "30m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_0;*/ break;
+                                            case 31: fputs (CSI "31m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_1;*/ break;
+                                            case 32: fputs (CSI "32m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_2;*/ break;
+                                            case 33: fputs (CSI "33m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_3;*/ break;
+                                            case 34: fputs (CSI "34m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_4;*/ break;
+                                            case 35: fputs (CSI "35m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_5;*/ break;
+                                            case 36: fputs (CSI "36m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_6;*/ break;
+                                            case 37: fputs (CSI "37m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_7;*/ break;
+                                        }
+                                    }
+                                }
+                                break;
+                        }
+
+                        bCSI = FALSE;
+                        csiBufLen = 0;
+                    }
+                    else
+                    {
+                        if (csiBufLen<CSI_BUF_LEN)
+                            csiBuf[csiBufLen++] = c;
+                    }
+                    continue;
+                }
+                //printf ("non-CSI c=0x%02x\n", c);
+
+                fputc (c, stdout);
+            }
+            break;
+        }
+        default:
+            assert(FALSE);
+    }
 
     return l;
 }
@@ -539,7 +647,7 @@ static int _dos_close (uint32_t fh68k)
 {
     dprintf (LOG_DEBUG, "lxa: _dos_close(): fh=0x%08x\n", fh68k);
 
-	int fd = m68k_read_memory_32 (fh68k+36);
+    int fd = m68k_read_memory_32 (fh68k+36);
 
     close(fd);
 
@@ -550,7 +658,7 @@ static int _dos_close (uint32_t fh68k)
 int op_illg(int level)
 {
     uint32_t d0 = m68k_get_reg(NULL, M68K_REG_D0);
-	//dprintf ("ILLEGAL, d=%d\n", d0);
+    //dprintf ("ILLEGAL, d=%d\n", d0);
 
     switch (d0)
     {
@@ -764,7 +872,7 @@ int op_illg(int level)
             g_running = FALSE;
     }
 
-	return M68K_INT_ACK_AUTOVECTOR;
+    return M68K_INT_ACK_AUTOVECTOR;
 }
 
 static void _debug_traceback (int n, uint32_t pcFinal)
@@ -907,7 +1015,7 @@ static void print_usage(char *argv[])
 
 int main(int argc, char **argv, char **envp)
 {
-	int optind=0;
+    int optind=0;
     // argument parsing
     for (optind = 1; optind < argc && argv[optind][0] == '-'; optind++)
     {
@@ -927,21 +1035,21 @@ int main(int argc, char **argv, char **envp)
                 break;
             }
             case 'd':
-				g_debug = true;
+                g_debug = true;
                 break;
             case 'v':
-				g_verbose = true;
+                g_verbose = true;
                 break;
-			default:
+            default:
                 print_usage(argv);
                 exit(EXIT_FAILURE);
         }
     }
-	if (argc != optind+1)
-	{
-		print_usage(argv);
-		exit(EXIT_FAILURE);
-	}
+    if (argc != optind+1)
+    {
+        print_usage(argv);
+        exit(EXIT_FAILURE);
+    }
 
     g_loadfile = argv[optind];
 
@@ -993,5 +1101,5 @@ int main(int argc, char **argv, char **envp)
             break;
     }
 
-	return 0;
+    return 0;
 }
