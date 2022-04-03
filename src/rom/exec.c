@@ -1186,11 +1186,11 @@ void __saveds _exec_RemLibrary ( register struct ExecBase * __libBase __asm("a6"
     assert(FALSE);
 }
 
-struct Library * __saveds _exec_OldOpenLibrary ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register CONST_STRPTR ___libName  __asm("a1"))
+struct Library * __saveds _exec_OldOpenLibrary ( register struct ExecBase *SysBase __asm("a6"),
+                                                 register CONST_STRPTR     libName __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_exec: OldOpenLibrary unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: OldOpenLibrary called, liName=%s\n", libName);
+    return OpenLibrary (libName, 0);
 }
 
 void __saveds _exec_CloseLibrary ( register struct ExecBase *SysBase  __asm("a6"),
