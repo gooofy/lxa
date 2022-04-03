@@ -1632,11 +1632,16 @@ APTR __saveds _exec_AllocVec ( register struct ExecBase * __libBase        __asm
     return m;
 }
 
-void __saveds _exec_FreeVec ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register APTR ___memoryBlock  __asm("a1"))
+void __saveds _exec_FreeVec ( register struct ExecBase *SysBase     __asm("a6"),
+                              register APTR             memoryBlock __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: FreeVec unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: FreeVec called, memoryBlock=0x%08lx\n", memoryBlock);
+
+    if (!memoryBlock)
+        return;
+
+    memoryBlock -= 4;
+    FreeMem (memoryBlock, *((ULONG *) memoryBlock));
 }
 
 APTR __saveds _exec_CreatePool ( register struct ExecBase * __libBase __asm("a6"),
@@ -1771,6 +1776,12 @@ void __saveds _bootstrap(void)
     BPTR segs = LoadSeg (binfn);
 
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): segs=0x%08lx\n", segs);
+
+    if (!segs)
+    {
+        LPRINTF (LOG_ERROR, "_exec: _bootstrap(): failed to load %s\n", binfn);
+        emu_stop(1);
+    }
 
     // inject initPC pointing to our loaded code into our task's stack
 
