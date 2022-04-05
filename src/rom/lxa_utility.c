@@ -292,18 +292,29 @@ static LONG __saveds _utility_Strnicmp ( register struct UtilityBase * UtilityBa
     assert(FALSE);
 }
 
-static UBYTE __saveds _utility_ToUpper ( register struct UtilityBase * UtilityBase __asm("a6"),
-                                                        register UBYTE character __asm("d0"))
+static UBYTE __saveds _utility_ToUpper ( register struct UtilityBase *UtilityBase __asm("a6"),
+                                         register UBYTE               c           __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: ToUpper() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_utility: ToUpper() called.\n");
+
+    // FIXME: take locale into account
+
+    if ((c>96) && (c<123)) return c ^ 0x20;
+    if ((c >= 0xe0) && (c <= 0xee) && (c != 0xe7)) return c-0x20;
+
+    return c;
 }
 
-static UBYTE __saveds _utility_ToLower ( register struct UtilityBase * UtilityBase __asm("a6"),
-                                                        register UBYTE character __asm("d0"))
+static UBYTE __saveds _utility_ToLower ( register struct UtilityBase *UtilityBase __asm("a6"),
+                                         register UBYTE               c           __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: ToLower() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_utility: ToLower() called.\n");
+
+    // FIXME: take locale into account
+
+    if ((c>0x40) && (c<0x5b)) return c | 0x60;
+    if ((c>=0xc0) && (c<=0xde) && (c!=0xd7)) return c + 0x20;
+    return c;
 }
 
 static VOID __saveds _utility_ApplyTagChanges ( register struct UtilityBase * UtilityBase __asm("a6"),
