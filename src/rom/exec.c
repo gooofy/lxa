@@ -396,14 +396,14 @@ void __saveds _exec_Disable ( register struct ExecBase * __libBase __asm("a6"))
 
     custom->intena = 0x4000;
 
-	SysBase->IDNestCnt++;
+    SysBase->IDNestCnt++;
 }
 
 void __saveds _exec_Enable ( register struct ExecBase * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Enable() called.\n");
-	SysBase->IDNestCnt--;
-	if (SysBase->IDNestCnt<0)
+    SysBase->IDNestCnt--;
+    if (SysBase->IDNestCnt<0)
         custom->intena = 0xc000; // 1100 0000 0000 0000
 }
 
@@ -542,64 +542,64 @@ void __saveds _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a
 {
     DPRINTF (LOG_INFO, "_exec: Deallocate called, freeList=0x%08lx, memoryBlock=0x%08lx, byteSize=%ld\n", freeList, memoryBlock, byteSize);
 
-	if(!byteSize || !memoryBlock)
-		return;
+    if(!byteSize || !memoryBlock)
+        return;
 
-	// alignment
+    // alignment
 
     byteSize = ALIGN (byteSize, 4);
 
-	struct MemChunk *pNext     = freeList->mh_First;
-	struct MemChunk *pPrev     = (struct MemChunk *)&freeList->mh_First;
-	struct MemChunk *pCurStart = (struct MemChunk *)memoryBlock;
-	struct MemChunk *pCurEnd   = (struct MemChunk *) ((UBYTE *)pCurStart + byteSize);
+    struct MemChunk *pNext     = freeList->mh_First;
+    struct MemChunk *pPrev     = (struct MemChunk *)&freeList->mh_First;
+    struct MemChunk *pCurStart = (struct MemChunk *)memoryBlock;
+    struct MemChunk *pCurEnd   = (struct MemChunk *) ((UBYTE *)pCurStart + byteSize);
 
-	if (!pNext)	// empty list?
-	{
-		pCurStart->mc_Bytes = byteSize;
-		pCurStart->mc_Next  = NULL;
-		pPrev->mc_Next      = pCurStart;
+    if (!pNext) // empty list?
+    {
+        pCurStart->mc_Bytes = byteSize;
+        pCurStart->mc_Next  = NULL;
+        pPrev->mc_Next      = pCurStart;
 
-		freeList->mh_Free  += byteSize;
+        freeList->mh_Free  += byteSize;
 
-		return;
-	}
+        return;
+    }
 
-	// not empty -> find correct spot where to insert our block
-	do
-	{
-		if (pNext >= pCurStart)
-		{
-			break;
-		}
-		pPrev = pNext;
-		pNext = pNext->mc_Next;
+    // not empty -> find correct spot where to insert our block
+    do
+    {
+        if (pNext >= pCurStart)
+        {
+            break;
+        }
+        pPrev = pNext;
+        pNext = pNext->mc_Next;
 
-	} while (pNext);
+    } while (pNext);
 
-	// if we found a prev block, see if we can merge
-	if (pPrev != (struct MemChunk *)&freeList->mh_First)
-	{
-		if ((UBYTE *)pPrev + pPrev->mc_Bytes == (UBYTE *)pCurStart)
-			pCurStart = pPrev;
-		else
-			pPrev->mc_Next = pCurStart;
-	}
-	else
-	{
-		pPrev->mc_Next = pCurStart;
-	}
+    // if we found a prev block, see if we can merge
+    if (pPrev != (struct MemChunk *)&freeList->mh_First)
+    {
+        if ((UBYTE *)pPrev + pPrev->mc_Bytes == (UBYTE *)pCurStart)
+            pCurStart = pPrev;
+        else
+            pPrev->mc_Next = pCurStart;
+    }
+    else
+    {
+        pPrev->mc_Next = pCurStart;
+    }
 
-	// if we have a next block, try to merge with it as well
-	if (pNext && (pCurEnd == pNext))
-	{
-		pCurEnd += pNext->mc_Bytes;
-		pNext = pNext->mc_Next;
-	}
+    // if we have a next block, try to merge with it as well
+    if (pNext && (pCurEnd == pNext))
+    {
+        pCurEnd += pNext->mc_Bytes;
+        pNext = pNext->mc_Next;
+    }
 
-	pCurStart->mc_Next   = pNext;
-	pCurStart->mc_Bytes  = (UBYTE *)pCurEnd - (UBYTE *)pCurStart;
-	freeList->mh_Free  += byteSize;
+    pCurStart->mc_Next   = pNext;
+    pCurStart->mc_Bytes  = (UBYTE *)pCurEnd - (UBYTE *)pCurStart;
+    freeList->mh_Free  += byteSize;
 }
 
 APTR __saveds _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
@@ -670,25 +670,25 @@ void __saveds _exec_FreeMem ( register struct ExecBase * __libBase __asm("a6"),
     DPRINTF (LOG_INFO, "_exec: FreeMem called, memoryBlock=0x%08lx, byteSize=%ld\n", memoryBlock, byteSize);
 
     if (!byteSize || !memoryBlock)
-		return;
+        return;
 
 
     APTR blockEnd = memoryBlock + byteSize;
 
-	Forbid();
+    Forbid();
 
-	for ( struct Node *node = SysBase->MemList.lh_Head ; node->ln_Succ != NULL ; node = node->ln_Succ )
+    for ( struct Node *node = SysBase->MemList.lh_Head ; node->ln_Succ != NULL ; node = node->ln_Succ )
     {
-		struct MemHeader *mh = (struct MemHeader *)node;
+        struct MemHeader *mh = (struct MemHeader *)node;
 
-		if (mh->mh_Lower > memoryBlock || mh->mh_Upper < blockEnd)
-			continue;
+        if (mh->mh_Lower > memoryBlock || mh->mh_Upper < blockEnd)
+            continue;
 
-		Deallocate(mh, memoryBlock, byteSize);
-		break;
+        Deallocate(mh, memoryBlock, byteSize);
+        break;
     }
 
-	Permit();
+    Permit();
 }
 
 ULONG __saveds _exec_AvailMem ( register struct ExecBase * __libBase __asm("a6"),
@@ -905,9 +905,9 @@ void __saveds _defaultTaskExit (void)
         "    move.l  4, a6      \n" // SysBase -> a6
         "    suba.l  a1, a1     \n" // #0 -> a1
         "    jsr    -288(a6)    \n" // RemTask(0)
-	    : /* no outputs */
-		: /* no inputs */
-		: "cc", "d0", "d1", "a0", "a1", "a6"
+        : /* no outputs */
+        : /* no inputs */
+        : "cc", "d0", "d1", "a0", "a1", "a6"
     );
 }
 
@@ -921,34 +921,34 @@ void __saveds _exec_RemTask ( register struct ExecBase * __libBase __asm("a6"),
     if (!task)
         task = me;
 
-	if (task != me)
-	{
-		Disable();
-		Remove(&task->tc_Node);
-		Enable();
-	}
+    if (task != me)
+    {
+        Disable();
+        Remove(&task->tc_Node);
+        Enable();
+    }
 
-	task->tc_State = TS_REMOVED;
+    task->tc_State = TS_REMOVED;
 
-	if (task == me)
-		Forbid();
+    if (task == me)
+        Forbid();
 
     struct MemList *ml;
-	while ((ml = (struct MemList *) RemHead (&task->tc_MemEntry)) != NULL)
-		FreeEntry (ml);
+    while ((ml = (struct MemList *) RemHead (&task->tc_MemEntry)) != NULL)
+        FreeEntry (ml);
 
-	if (task == me)
-	{
+    if (task == me)
+    {
         DPUTS (LOG_INFO, "_exec: RemTask calling Dispatch() via Supervisor()\n");
-		asm(
+        asm(
             "   move.l  4, a6                   \n"     // SysBase -> a6
-			"	move.l	#_exec_Dispatch, a5		\n"		// #exec_Dispatch -> a5
-			"   jsr     -30(a6)					\n"		// Supervisor()
-			: /* no outputs */
-			: /* no inputs */
-			: "cc", "d0", "d1", "a0", "a1", "a5", "a6"
-		);
-	}
+            "   move.l  #_exec_Dispatch, a5     \n"     // #exec_Dispatch -> a5
+            "   jsr     -30(a6)                 \n"     // Supervisor()
+            : /* no outputs */
+            : /* no inputs */
+            : "cc", "d0", "d1", "a0", "a1", "a5", "a6"
+        );
+    }
 }
 
 struct Task * __saveds _exec_FindTask ( register struct ExecBase *SysBase __asm("a6"),
@@ -1070,20 +1070,20 @@ BYTE __saveds _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a
 
     if (signalNum < 0)
     {
-		// find a free signal
-		signalNum = 31;
-		while (signalNum && ((1 << signalNum) & oldmask))
-			signalNum--;
+        // find a free signal
+        signalNum = 31;
+        while (signalNum && ((1 << signalNum) & oldmask))
+            signalNum--;
 
-		if (!signalNum)
-			return -1;
+        if (!signalNum)
+            return -1;
 
-		DPRINTF (LOG_DEBUG, "_exec: AllocSignal -> auto selected signalNum=%d\n", signalNum);
+        DPRINTF (LOG_DEBUG, "_exec: AllocSignal -> auto selected signalNum=%d\n", signalNum);
     }
 
-	ULONG newmask = 1 << signalNum;
-	if (me->tc_SigAlloc & newmask)
-		return -1;
+    ULONG newmask = 1 << signalNum;
+    if (me->tc_SigAlloc & newmask)
+        return -1;
 
     me->tc_SigAlloc  |=  newmask;
     me->tc_SigExcept &= ~newmask;
@@ -1251,7 +1251,7 @@ BYTE __saveds _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6
 {
     DPRINTF (LOG_DEBUG, "_exec: OpenDevice() called, devName=%s, unit=%d\n", devName, unit);
 
-	Forbid();
+    Forbid();
 
     ioRequest->io_Unit   = NULL;
     ioRequest->io_Device = (struct Device *)FindName (&SysBase->DeviceList, devName);
@@ -1269,10 +1269,10 @@ BYTE __saveds _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6
             ioRequest->io_Device = NULL;
     }
     else
-	{
+    {
         ioRequest->io_Error = IOERR_OPENFAIL;
-		LPRINTF (LOG_ERROR, "_exec: OpenDevice() couldn't find device '%s'\n", devName);
-	}
+        LPRINTF (LOG_ERROR, "_exec: OpenDevice() couldn't find device '%s'\n", devName);
+    }
 
     Permit();
 
@@ -1288,12 +1288,12 @@ void __saveds _exec_CloseDevice ( register struct ExecBase  *SysBase   __asm("a6
 
     if (ioRequest->io_Device)
     {
-		struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-2]);
-		devCloseFn_t closefn = jv->vec;
+        struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-2]);
+        devCloseFn_t closefn = jv->vec;
 
-		closefn (&ioRequest->io_Device->dd_Library, ioRequest);
+        closefn (&ioRequest->io_Device->dd_Library, ioRequest);
 
-		// FIXME: expunge
+        // FIXME: expunge
 
         ioRequest->io_Device = NULL;
     }
@@ -1307,15 +1307,15 @@ BYTE __saveds _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: DoIO() called, ioRequest=0x%08lx, command: %d\n", ioRequest, ioRequest->io_Command);
 
     if (!ioRequest || !ioRequest->io_Device)
-		return -1;
+        return -1;
 
     ioRequest->io_Flags                   = IOF_QUICK;
     ioRequest->io_Message.mn_Node.ln_Type = 0;
 
-	struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-5]);
-	devBeginIOFn_t beginiofn = jv->vec;
+    struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-5]);
+    devBeginIOFn_t beginiofn = jv->vec;
 
-	beginiofn (&ioRequest->io_Device->dd_Library, ioRequest);
+    beginiofn (&ioRequest->io_Device->dd_Library, ioRequest);
 
     if (! (ioRequest->io_Flags & IOF_QUICK))
         WaitIO(ioRequest);
@@ -1690,12 +1690,38 @@ void __saveds _exec_ColdReboot ( register struct ExecBase * __libBase __asm("a6"
     assert(FALSE);
 }
 
-void __saveds _exec_StackSwap ( register struct ExecBase * __libBase __asm("a6"),
-                                                        register struct StackSwapStruct * ___newStack  __asm("a0"))
-{
-    DPRINTF (LOG_DEBUG, "_exec: StackSwap unimplemented STUB called.\n");
-    assert(FALSE);
-}
+void __saveds exec_StackSwap ( register struct ExecBase        *SysBase   __asm("a6"),
+                               register struct StackSwapStruct *newStack  __asm("a0"));
+
+asm(
+".set INTENA, 0xdff09a                                                                      \n"
+"_exec_StackSwap:                                                                           \n"
+"        move.l     276(a6), a1                     | ThisTask -> a1                        \n"
+"        move.w     #0x04000, INTENA                | disable interrupts                    \n"
+"        addq.b     #1, 294(A6)                     | IDNestCnt++                           \n"
+"        /* swap stk_Upper */                                                               \n"
+"        move.l     62(a1), d0                      | tc_SPUpper -> d0                      \n"
+"        move.l     4(a0), 62(a1)                   | newStack->stk_Upper -> tc_SPUpper     \n"
+"        move.l     d0, 4(a0)                       | d0 -> newStack->stk_Upper             \n"
+"        /* swap stk_Lower */                                                               \n"
+"        move.l     58(a1), d0                      | tc_SPLower -> d0                      \n"
+"        move.l     0(a0), 58(a1)                   | newStack->stk_SPLower -> tc_SPLower   \n"
+"        move.l     d0, 0(a0)                       | d0 -> newStack->stk_Lower             \n"
+"                                                                                           \n"
+"        move.l     8(a0), 54(a1)                   | newStack->stk_Pointer -> tc_SPReg     \n"
+"                                                                                           \n"
+"        /* actual stack swap */                                                            \n"
+"        move.l     8(a0), a1                       | newStack->stk_Pointer -> a1           \n"
+"        move.l     (sp)+, d0                       | old stack's return address -> d0      \n"
+"        move.l     sp, 8(a0)                       | old stack -> newStack->stk_Pointer    \n"
+"        move.l     d0, -(a1)                       | push return address onto new stack    \n"
+"        move.l     a1, sp                          | and switch to it                      \n"
+"        subq.b     #1, 294(A6)                     | IDNestCnt--                           \n"
+"        bge.s      1f                              | >=0 ?                                 \n"
+"        move.w     #0x0c000, INTENA                | enable                                \n"
+"1:      rts                                        | done                                  \n"
+);
+
 
 APTR __saveds _exec_CachePreDMA ( register struct ExecBase * __libBase __asm("a6"),
                                                         register const APTR ___address  __asm("a0"),
@@ -1992,7 +2018,7 @@ void __saveds coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-714)].vec = _exec_FreePooled;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-720)].vec = _exec_AttemptSemaphoreShared;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-726)].vec = _exec_ColdReboot;
-    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-732)].vec = _exec_StackSwap;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-732)].vec =  exec_StackSwap;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-762)].vec = _exec_CachePreDMA;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-768)].vec = _exec_CachePostDMA;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-774)].vec = _exec_AddMemHandler;
