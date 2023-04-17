@@ -237,18 +237,20 @@ void __saveds _exec_InitStruct ( register struct ExecBase * __libBase __asm("a6"
 }
 
 void _makeLibrary ( struct Library *library,
-                           const APTR ___funcInit,
-                           const APTR ___structInit,
-                           libInitFn_t ___libInitFn,
-                           ULONG negsize,
-                           ULONG ___dataSize,
-                           BPTR ___segList)
+                    const APTR ___funcInit,
+                    const APTR ___structInit,
+                    libInitFn_t ___libInitFn,
+                    ULONG negsize,
+                    ULONG ___dataSize,
+                    BPTR ___segList)
 {
     DPRINTF (LOG_DEBUG, "_exec: _makeLibrary library=0x%08lx, ___funcInit=0x%08lx, ___structInit=0x%08x, ___libInitFn=0x%08x, negsize=%ld, ___dataSize=%ld\n",
              library, ___funcInit, ___structInit, ___libInitFn, negsize, ___dataSize);
 
+    //VOID  __stdargs MakeFunctions( APTR target, CONST_APTR functionArray, ULONG funcDispBase );
+
     if(*(WORD *)___funcInit==-1)
-        MakeFunctions (library, (WORD *)___funcInit+1, (WORD *)___funcInit);
+        MakeFunctions (library, (CONST_APTR)___funcInit+1, (ULONG)___funcInit);
     else
         MakeFunctions (library, ___funcInit, NULL);
 
