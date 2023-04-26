@@ -30,7 +30,7 @@ extern struct ExecBase      *SysBase;
 // baseType: struct UtilityBase *
 // libname: utility.library
 
-struct UtilityBase * __saveds __g_lxa_utility_InitLib    ( register struct UtilityBase *utilityb    __asm("a6"),
+struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *utilityb    __asm("a6"),
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {
@@ -38,7 +38,7 @@ struct UtilityBase * __saveds __g_lxa_utility_InitLib    ( register struct Utili
     return utilityb;
 }
 
-struct UtilityBase * __saveds __g_lxa_utility_OpenLib ( register struct UtilityBase  *UtilityBase __asm("a6"))
+struct UtilityBase * __g_lxa_utility_OpenLib ( register struct UtilityBase  *UtilityBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_utility: OpenLib() called\n");
     // FIXME UtilityBase->dl_lib.lib_OpenCnt++;
@@ -46,12 +46,12 @@ struct UtilityBase * __saveds __g_lxa_utility_OpenLib ( register struct UtilityB
     return UtilityBase;
 }
 
-BPTR __saveds __g_lxa_utility_CloseLib ( register struct UtilityBase  *utilityb __asm("a6"))
+BPTR __g_lxa_utility_CloseLib ( register struct UtilityBase  *utilityb __asm("a6"))
 {
     return NULL;
 }
 
-BPTR __saveds __g_lxa_utility_ExpungeLib ( register struct UtilityBase  *utilityb      __asm("a6"))
+BPTR __g_lxa_utility_ExpungeLib ( register struct UtilityBase  *utilityb      __asm("a6"))
 {
     return NULL;
 }
@@ -61,7 +61,7 @@ ULONG __g_lxa_utility_ExtFuncLib(void)
     return NULL;
 }
 
-static struct TagItem * __saveds _utility_FindTagItem ( register struct UtilityBase   *UtilityBase __asm("a6"),
+static struct TagItem * _utility_FindTagItem ( register struct UtilityBase   *UtilityBase __asm("a6"),
                                                         register Tag                   tagVal      __asm("d0"),
                                                         register const struct TagItem *tagList     __asm("a0"))
 {
@@ -79,7 +79,7 @@ static struct TagItem * __saveds _utility_FindTagItem ( register struct UtilityB
     return NULL;
 }
 
-static ULONG __saveds _utility_GetTagData ( register struct UtilityBase   *UtilityBase __asm("a6"),
+static ULONG _utility_GetTagData ( register struct UtilityBase   *UtilityBase __asm("a6"),
                                             register Tag                   tagValue    __asm("d0"),
                                             register ULONG                 defaultVal  __asm("d1"),
                                             register const struct TagItem *tagList     __asm("a0"))
@@ -91,7 +91,7 @@ static ULONG __saveds _utility_GetTagData ( register struct UtilityBase   *Utili
     return tag ? tag->ti_Data : defaultVal;
 }
 
-static ULONG __saveds _utility_PackBoolTags ( register struct UtilityBase * UtilityBase __asm("a6"),
+static ULONG _utility_PackBoolTags ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register ULONG initialFlags __asm("d0"),
                                                         register const struct TagItem * tagList __asm("a0"),
                                                         register const struct TagItem * boolMap __asm("a1"))
@@ -100,7 +100,7 @@ static ULONG __saveds _utility_PackBoolTags ( register struct UtilityBase * Util
     assert(FALSE);
 }
 
-static struct TagItem * __saveds _utility_NextTagItem ( register struct UtilityBase *  UtilityBase __asm("a6"),
+static struct TagItem * _utility_NextTagItem ( register struct UtilityBase *  UtilityBase __asm("a6"),
                                                         register struct TagItem     ** tagListPtr  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_utility: NextTagItem() called.\n");
@@ -136,7 +136,7 @@ static struct TagItem * __saveds _utility_NextTagItem ( register struct UtilityB
     }
 }
 
-static VOID __saveds _utility_FilterTagChanges ( register struct UtilityBase * UtilityBase __asm("a6"),
+static VOID _utility_FilterTagChanges ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct TagItem * changeList __asm("a0"),
                                                         register struct TagItem * originalList __asm("a1"),
                                                         register ULONG apply __asm("d0"))
@@ -145,7 +145,7 @@ static VOID __saveds _utility_FilterTagChanges ( register struct UtilityBase * U
     assert(FALSE);
 }
 
-static VOID __saveds _utility_MapTags ( register struct UtilityBase * UtilityBase __asm("a6"),
+static VOID _utility_MapTags ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct TagItem * tagList __asm("a0"),
                                                         register const struct TagItem * mapList __asm("a1"),
                                                         register ULONG mapType __asm("d0"))
@@ -154,28 +154,28 @@ static VOID __saveds _utility_MapTags ( register struct UtilityBase * UtilityBas
     assert(FALSE);
 }
 
-static struct TagItem * __saveds _utility_AllocateTagItems ( register struct UtilityBase * UtilityBase __asm("a6"),
+static struct TagItem * _utility_AllocateTagItems ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register ULONG numTags __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_utility: AllocateTagItems() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct TagItem * __saveds _utility_CloneTagItems ( register struct UtilityBase * UtilityBase __asm("a6"),
+static struct TagItem * _utility_CloneTagItems ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register const struct TagItem * tagList __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_utility: CloneTagItems() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _utility_FreeTagItems ( register struct UtilityBase * UtilityBase __asm("a6"),
+static VOID _utility_FreeTagItems ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct TagItem * tagList __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_utility: FreeTagItems() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _utility_RefreshTagItemClones ( register struct UtilityBase * UtilityBase __asm("a6"),
+static VOID _utility_RefreshTagItemClones ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct TagItem * clone __asm("a0"),
                                                         register const struct TagItem * original __asm("a1"))
 {
@@ -183,7 +183,7 @@ static VOID __saveds _utility_RefreshTagItemClones ( register struct UtilityBase
     assert(FALSE);
 }
 
-static BOOL __saveds _utility_TagInArray ( register struct UtilityBase * UtilityBase __asm("a6"),
+static BOOL _utility_TagInArray ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register Tag tagValue __asm("d0"),
                                                         register const Tag * tagArray __asm("a0"))
 {
@@ -191,7 +191,7 @@ static BOOL __saveds _utility_TagInArray ( register struct UtilityBase * Utility
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_FilterTagItems ( register struct UtilityBase * UtilityBase __asm("a6"),
+static ULONG _utility_FilterTagItems ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct TagItem * tagList __asm("a0"),
                                                         register const Tag * filterArray __asm("a1"),
                                                         register ULONG logic __asm("d0"))
@@ -200,7 +200,7 @@ static ULONG __saveds _utility_FilterTagItems ( register struct UtilityBase * Ut
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_CallHookPkt ( register struct UtilityBase * UtilityBase __asm("a6"),
+static ULONG _utility_CallHookPkt ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct Hook * hook __asm("a0"),
                                                         register APTR object __asm("a2"),
                                                         register APTR paramPacket __asm("a1"))
@@ -209,19 +209,19 @@ static ULONG __saveds _utility_CallHookPkt ( register struct UtilityBase * Utili
     assert(FALSE);
 }
 
-static VOID __saveds _utility_private0 ( register struct UtilityBase * UtilityBase __asm("a6"))
+static VOID _utility_private0 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_utility: private0() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _utility_private1 ( register struct UtilityBase * UtilityBase __asm("a6"))
+static VOID _utility_private1 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_utility: private1() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _utility_Amiga2Date ( register struct UtilityBase * UtilityBase __asm("a6"),
+static VOID _utility_Amiga2Date ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register ULONG seconds __asm("d0"),
                                                         register struct ClockData * result __asm("a0"))
 {
@@ -229,21 +229,21 @@ static VOID __saveds _utility_Amiga2Date ( register struct UtilityBase * Utility
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_Date2Amiga ( register struct UtilityBase * UtilityBase __asm("a6"),
+static ULONG _utility_Date2Amiga ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register const struct ClockData * date __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_utility: Date2Amiga() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_CheckDate ( register struct UtilityBase * UtilityBase __asm("a6"),
+static ULONG _utility_CheckDate ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register const struct ClockData * date __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_utility: CheckDate() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static LONG __saveds _utility_SMult32 ( register struct UtilityBase * UtilityBase __asm("a6"),
+static LONG _utility_SMult32 ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register LONG arg1 __asm("d0"),
                                                         register LONG arg2 __asm("d1"))
 {
@@ -251,7 +251,7 @@ static LONG __saveds _utility_SMult32 ( register struct UtilityBase * UtilityBas
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_UMult32 ( register struct UtilityBase * UtilityBase __asm("a6"),
+static ULONG _utility_UMult32 ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register ULONG arg1 __asm("d0"),
                                                         register ULONG arg2 __asm("d1"))
 {
@@ -259,7 +259,7 @@ static ULONG __saveds _utility_UMult32 ( register struct UtilityBase * UtilityBa
     assert(FALSE);
 }
 
-static LONG __saveds _utility_SDivMod32 ( register struct UtilityBase * UtilityBase __asm("a6"),
+static LONG _utility_SDivMod32 ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register LONG dividend __asm("d0"),
                                                         register LONG divisor __asm("d1"))
 {
@@ -267,7 +267,7 @@ static LONG __saveds _utility_SDivMod32 ( register struct UtilityBase * UtilityB
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_UDivMod32 ( register struct UtilityBase * UtilityBase __asm("a6"),
+static ULONG _utility_UDivMod32 ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register ULONG dividend __asm("d0"),
                                                         register ULONG divisor __asm("d1"))
 {
@@ -275,7 +275,7 @@ static ULONG __saveds _utility_UDivMod32 ( register struct UtilityBase * Utility
     assert(FALSE);
 }
 
-static LONG __saveds _utility_Stricmp ( register struct UtilityBase * UtilityBase __asm("a6"),
+static LONG _utility_Stricmp ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register CONST_STRPTR string1 __asm("a0"),
                                                         register CONST_STRPTR string2 __asm("a1"))
 {
@@ -283,7 +283,7 @@ static LONG __saveds _utility_Stricmp ( register struct UtilityBase * UtilityBas
     assert(FALSE);
 }
 
-static LONG __saveds _utility_Strnicmp ( register struct UtilityBase * UtilityBase __asm("a6"),
+static LONG _utility_Strnicmp ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register CONST_STRPTR string1 __asm("a0"),
                                                         register CONST_STRPTR string2 __asm("a1"),
                                                         register LONG length __asm("d0"))
@@ -292,7 +292,7 @@ static LONG __saveds _utility_Strnicmp ( register struct UtilityBase * UtilityBa
     assert(FALSE);
 }
 
-static UBYTE __saveds _utility_ToUpper ( register struct UtilityBase *UtilityBase __asm("a6"),
+static UBYTE _utility_ToUpper ( register struct UtilityBase *UtilityBase __asm("a6"),
                                          register UBYTE               c           __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_utility: ToUpper() called.\n");
@@ -305,7 +305,7 @@ static UBYTE __saveds _utility_ToUpper ( register struct UtilityBase *UtilityBas
     return c;
 }
 
-static UBYTE __saveds _utility_ToLower ( register struct UtilityBase *UtilityBase __asm("a6"),
+static UBYTE _utility_ToLower ( register struct UtilityBase *UtilityBase __asm("a6"),
                                          register UBYTE               c           __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_utility: ToLower() called.\n");
@@ -317,7 +317,7 @@ static UBYTE __saveds _utility_ToLower ( register struct UtilityBase *UtilityBas
     return c;
 }
 
-static VOID __saveds _utility_ApplyTagChanges ( register struct UtilityBase * UtilityBase __asm("a6"),
+static VOID _utility_ApplyTagChanges ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct TagItem * list __asm("a0"),
                                                         register const struct TagItem * changeList __asm("a1"))
 {
@@ -325,13 +325,13 @@ static VOID __saveds _utility_ApplyTagChanges ( register struct UtilityBase * Ut
     assert(FALSE);
 }
 
-static VOID __saveds _utility_private2 ( register struct UtilityBase * UtilityBase __asm("a6"))
+static VOID _utility_private2 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_utility: private2() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static LONG __saveds _utility_SMult64 ( register struct UtilityBase * UtilityBase __asm("a6"),
+static LONG _utility_SMult64 ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register LONG arg1 __asm("d0"),
                                                         register LONG arg2 __asm("d1"))
 {
@@ -339,7 +339,7 @@ static LONG __saveds _utility_SMult64 ( register struct UtilityBase * UtilityBas
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_UMult64 ( register struct UtilityBase * UtilityBase __asm("a6"),
+static ULONG _utility_UMult64 ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register ULONG arg1 __asm("d0"),
                                                         register ULONG arg2 __asm("d1"))
 {
@@ -347,7 +347,7 @@ static ULONG __saveds _utility_UMult64 ( register struct UtilityBase * UtilityBa
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_PackStructureTags ( register struct UtilityBase * UtilityBase __asm("a6"),
+static ULONG _utility_PackStructureTags ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register APTR pack __asm("a0"),
                                                         register const ULONG * packTable __asm("a1"),
                                                         register const struct TagItem * tagList __asm("a2"))
@@ -356,7 +356,7 @@ static ULONG __saveds _utility_PackStructureTags ( register struct UtilityBase *
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_UnpackStructureTags ( register struct UtilityBase * UtilityBase __asm("a6"),
+static ULONG _utility_UnpackStructureTags ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register const APTR pack __asm("a0"),
                                                         register const ULONG * packTable __asm("a1"),
                                                         register struct TagItem * tagList __asm("a2"))
@@ -365,7 +365,7 @@ static ULONG __saveds _utility_UnpackStructureTags ( register struct UtilityBase
     assert(FALSE);
 }
 
-static BOOL __saveds _utility_AddNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
+static BOOL _utility_AddNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * nameSpace __asm("a0"),
                                                         register struct NamedObject * object __asm("a1"))
 {
@@ -373,7 +373,7 @@ static BOOL __saveds _utility_AddNamedObject ( register struct UtilityBase * Uti
     assert(FALSE);
 }
 
-static struct NamedObject * __saveds _utility_AllocNamedObjectA ( register struct UtilityBase * UtilityBase __asm("a6"),
+static struct NamedObject * _utility_AllocNamedObjectA ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
@@ -381,14 +381,14 @@ static struct NamedObject * __saveds _utility_AllocNamedObjectA ( register struc
     assert(FALSE);
 }
 
-static LONG __saveds _utility_AttemptRemNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
+static LONG _utility_AttemptRemNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * object __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_utility: AttemptRemNamedObject() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct NamedObject * __saveds _utility_FindNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
+static struct NamedObject * _utility_FindNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * nameSpace __asm("a0"),
                                                         register CONST_STRPTR name __asm("a1"),
                                                         register struct NamedObject * lastObject __asm("a2"))
@@ -397,28 +397,28 @@ static struct NamedObject * __saveds _utility_FindNamedObject ( register struct 
     assert(FALSE);
 }
 
-static VOID __saveds _utility_FreeNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
+static VOID _utility_FreeNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * object __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_utility: FreeNamedObject() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static STRPTR __saveds _utility_NamedObjectName ( register struct UtilityBase * UtilityBase __asm("a6"),
+static STRPTR _utility_NamedObjectName ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * object __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_utility: NamedObjectName() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _utility_ReleaseNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
+static VOID _utility_ReleaseNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * object __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_utility: ReleaseNamedObject() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _utility_RemNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
+static VOID _utility_RemNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * object __asm("a0"),
                                                         register struct Message * message __asm("a1"))
 {
@@ -426,31 +426,31 @@ static VOID __saveds _utility_RemNamedObject ( register struct UtilityBase * Uti
     assert(FALSE);
 }
 
-static ULONG __saveds _utility_GetUniqueID ( register struct UtilityBase * UtilityBase __asm("a6"))
+static ULONG _utility_GetUniqueID ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_utility: GetUniqueID() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _utility_private3 ( register struct UtilityBase * UtilityBase __asm("a6"))
+static VOID _utility_private3 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_utility: private3() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _utility_private4 ( register struct UtilityBase * UtilityBase __asm("a6"))
+static VOID _utility_private4 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_utility: private4() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _utility_private5 ( register struct UtilityBase * UtilityBase __asm("a6"))
+static VOID _utility_private5 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_utility: private5() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _utility_private6 ( register struct UtilityBase * UtilityBase __asm("a6"))
+static VOID _utility_private6 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_utility: private6() unimplemented STUB called.\n");
     assert(FALSE);

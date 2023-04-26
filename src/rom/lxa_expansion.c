@@ -28,7 +28,7 @@ extern struct ExecBase      *SysBase;
 // baseType: struct ExpansionBase *
 // libname: expansion.library
 
-struct ExpansionBase * __saveds __g_lxa_expansion_InitLib    ( register struct ExpansionBase *expansionb    __asm("a6"),
+struct ExpansionBase * __g_lxa_expansion_InitLib    ( register struct ExpansionBase *expansionb    __asm("a6"),
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {
@@ -36,7 +36,7 @@ struct ExpansionBase * __saveds __g_lxa_expansion_InitLib    ( register struct E
     return expansionb;
 }
 
-struct ExpansionBase * __saveds __g_lxa_expansion_OpenLib ( register struct ExpansionBase  *ExpansionBase __asm("a6"))
+struct ExpansionBase * __g_lxa_expansion_OpenLib ( register struct ExpansionBase  *ExpansionBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_expansion: OpenLib() called\n");
     // FIXME ExpansionBase->dl_lib.lib_OpenCnt++;
@@ -44,12 +44,12 @@ struct ExpansionBase * __saveds __g_lxa_expansion_OpenLib ( register struct Expa
     return ExpansionBase;
 }
 
-BPTR __saveds __g_lxa_expansion_CloseLib ( register struct ExpansionBase  *expansionb __asm("a6"))
+BPTR __g_lxa_expansion_CloseLib ( register struct ExpansionBase  *expansionb __asm("a6"))
 {
     return NULL;
 }
 
-BPTR __saveds __g_lxa_expansion_ExpungeLib ( register struct ExpansionBase  *expansionb      __asm("a6"))
+BPTR __g_lxa_expansion_ExpungeLib ( register struct ExpansionBase  *expansionb      __asm("a6"))
 {
     return NULL;
 }
@@ -59,14 +59,14 @@ ULONG __g_lxa_expansion_ExtFuncLib(void)
     return NULL;
 }
 
-VOID __saveds _expansion_AddConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_AddConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register struct ConfigDev * configDev __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_expansion: AddConfigDev() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _expansion_AddBootNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+BOOL _expansion_AddBootNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register LONG bootPri __asm("d0"),
                                                         register ULONG flags __asm("d1"),
                                                         register struct DeviceNode * deviceNode __asm("a0"),
@@ -76,20 +76,20 @@ BOOL __saveds _expansion_AddBootNode ( register struct ExpansionBase * Expansion
     assert(FALSE);
 }
 
-VOID __saveds _expansion_AllocBoardMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_AllocBoardMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register ULONG slotSpec __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_expansion: AllocBoardMem() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct ConfigDev * __saveds _expansion_AllocConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"))
+struct ConfigDev * _expansion_AllocConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_expansion: AllocConfigDev() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-APTR __saveds _expansion_AllocExpansionMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+APTR _expansion_AllocExpansionMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register ULONG numSlots __asm("d0"),
                                                         register ULONG slotAlign __asm("d1"))
 {
@@ -97,7 +97,7 @@ APTR __saveds _expansion_AllocExpansionMem ( register struct ExpansionBase * Exp
     assert(FALSE);
 }
 
-VOID __saveds _expansion_ConfigBoard ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_ConfigBoard ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register APTR board __asm("a0"),
                                                         register struct ConfigDev * configDev __asm("a1"))
 {
@@ -105,14 +105,14 @@ VOID __saveds _expansion_ConfigBoard ( register struct ExpansionBase * Expansion
     assert(FALSE);
 }
 
-VOID __saveds _expansion_ConfigChain ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_ConfigChain ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register APTR baseAddr __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_expansion: ConfigChain() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct ConfigDev * __saveds _expansion_FindConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+struct ConfigDev * _expansion_FindConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register const struct ConfigDev * oldConfigDev __asm("a0"),
                                                         register LONG manufacturer __asm("d0"),
                                                         register LONG product __asm("d1"))
@@ -121,7 +121,7 @@ struct ConfigDev * __saveds _expansion_FindConfigDev ( register struct Expansion
     assert(FALSE);
 }
 
-VOID __saveds _expansion_FreeBoardMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_FreeBoardMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register ULONG startSlot __asm("d0"),
                                                         register ULONG slotSpec __asm("d1"))
 {
@@ -129,14 +129,14 @@ VOID __saveds _expansion_FreeBoardMem ( register struct ExpansionBase * Expansio
     assert(FALSE);
 }
 
-VOID __saveds _expansion_FreeConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_FreeConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register struct ConfigDev * configDev __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_expansion: FreeConfigDev() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _expansion_FreeExpansionMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_FreeExpansionMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register ULONG startSlot __asm("d0"),
                                                         register ULONG numSlots __asm("d1"))
 {
@@ -144,7 +144,7 @@ VOID __saveds _expansion_FreeExpansionMem ( register struct ExpansionBase * Expa
     assert(FALSE);
 }
 
-UBYTE __saveds _expansion_ReadExpansionByte ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+UBYTE _expansion_ReadExpansionByte ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register const APTR board __asm("a0"),
                                                         register ULONG offset __asm("d0"))
 {
@@ -152,7 +152,7 @@ UBYTE __saveds _expansion_ReadExpansionByte ( register struct ExpansionBase * Ex
     assert(FALSE);
 }
 
-VOID __saveds _expansion_ReadExpansionRom ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_ReadExpansionRom ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register const APTR board __asm("a0"),
                                                         register struct ConfigDev * configDev __asm("a1"))
 {
@@ -160,14 +160,14 @@ VOID __saveds _expansion_ReadExpansionRom ( register struct ExpansionBase * Expa
     assert(FALSE);
 }
 
-VOID __saveds _expansion_RemConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_RemConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register struct ConfigDev * configDev __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_expansion: RemConfigDev() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _expansion_WriteExpansionByte ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_WriteExpansionByte ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register APTR board __asm("a0"),
                                                         register ULONG offset __asm("d0"),
                                                         register UBYTE byte __asm("d1"))
@@ -176,19 +176,19 @@ VOID __saveds _expansion_WriteExpansionByte ( register struct ExpansionBase * Ex
     assert(FALSE);
 }
 
-VOID __saveds _expansion_ObtainConfigBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"))
+VOID _expansion_ObtainConfigBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_expansion: ObtainConfigBinding() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _expansion_ReleaseConfigBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"))
+VOID _expansion_ReleaseConfigBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_expansion: ReleaseConfigBinding() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _expansion_SetCurrentBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+VOID _expansion_SetCurrentBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register struct CurrentBinding * currentBinding __asm("a0"),
                                                         register ULONG bindingSize __asm("d0"))
 {
@@ -196,7 +196,7 @@ VOID __saveds _expansion_SetCurrentBinding ( register struct ExpansionBase * Exp
     assert(FALSE);
 }
 
-ULONG __saveds _expansion_GetCurrentBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+ULONG _expansion_GetCurrentBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register const struct CurrentBinding * currentBinding __asm("a0"),
                                                         register ULONG bindingSize __asm("d0"))
 {
@@ -204,14 +204,14 @@ ULONG __saveds _expansion_GetCurrentBinding ( register struct ExpansionBase * Ex
     assert(FALSE);
 }
 
-struct DeviceNode * __saveds _expansion_MakeDosNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+struct DeviceNode * _expansion_MakeDosNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register const APTR parmPacket __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_expansion: MakeDosNode() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _expansion_AddDosNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+BOOL _expansion_AddDosNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register LONG bootPri __asm("d0"),
                                                         register ULONG flags __asm("d1"),
                                                         register struct DeviceNode * deviceNode __asm("a0"))

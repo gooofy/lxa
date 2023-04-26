@@ -28,7 +28,7 @@ extern struct ExecBase      *SysBase;
 // baseType: struct IntuitionBase *
 // libname: intuition.library
 
-struct IntuitionBase * __saveds __g_lxa_intuition_InitLib    ( register struct IntuitionBase *intuitionb    __asm("a6"),
+struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionBase *intuitionb    __asm("a6"),
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {
@@ -36,7 +36,7 @@ struct IntuitionBase * __saveds __g_lxa_intuition_InitLib    ( register struct I
     return intuitionb;
 }
 
-struct IntuitionBase * __saveds __g_lxa_intuition_OpenLib ( register struct IntuitionBase  *IntuitionBase __asm("a6"))
+struct IntuitionBase * __g_lxa_intuition_OpenLib ( register struct IntuitionBase  *IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_intuition: OpenLib() called\n");
     // FIXME IntuitionBase->dl_lib.lib_OpenCnt++;
@@ -44,12 +44,12 @@ struct IntuitionBase * __saveds __g_lxa_intuition_OpenLib ( register struct Intu
     return IntuitionBase;
 }
 
-BPTR __saveds __g_lxa_intuition_CloseLib ( register struct IntuitionBase  *intuitionb __asm("a6"))
+BPTR __g_lxa_intuition_CloseLib ( register struct IntuitionBase  *intuitionb __asm("a6"))
 {
     return NULL;
 }
 
-BPTR __saveds __g_lxa_intuition_ExpungeLib ( register struct IntuitionBase  *intuitionb      __asm("a6"))
+BPTR __g_lxa_intuition_ExpungeLib ( register struct IntuitionBase  *intuitionb      __asm("a6"))
 {
     return NULL;
 }
@@ -59,20 +59,20 @@ ULONG __g_lxa_intuition_ExtFuncLib(void)
     return NULL;
 }
 
-VOID __saveds _intuition_OpenIntuition ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_OpenIntuition ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: OpenIntuition() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_Intuition ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_Intuition ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct InputEvent * iEvent __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: Intuition() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-UWORD __saveds _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+UWORD _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Gadget * gadget __asm("a1"),
                                                         register UWORD position __asm("d0"))
@@ -81,48 +81,48 @@ UWORD __saveds _intuition_AddGadget ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_ClearDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_ClearDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ClearDMRequest() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ClearMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ClearMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ClearMenuStrip() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ClearPointer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ClearPointer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ClearPointer() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: CloseScreen() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: CloseWindow() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _intuition_CloseWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+LONG _intuition_CloseWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: CloseWorkBench() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_CurrentTime ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_CurrentTime ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG * seconds __asm("a0"),
                                                         register ULONG * micros __asm("a1"))
 {
@@ -130,7 +130,7 @@ VOID __saveds _intuition_CurrentTime ( register struct IntuitionBase * Intuition
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG alertNumber __asm("d0"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register UWORD height __asm("d1"))
@@ -139,14 +139,14 @@ BOOL __saveds _intuition_DisplayAlert ( register struct IntuitionBase * Intuitio
     assert(FALSE);
 }
 
-VOID __saveds _intuition_DisplayBeep ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_DisplayBeep ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: DisplayBeep() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG sSeconds __asm("d0"),
                                                         register ULONG sMicros __asm("d1"),
                                                         register ULONG cSeconds __asm("d2"),
@@ -156,7 +156,7 @@ BOOL __saveds _intuition_DoubleClick ( register struct IntuitionBase * Intuition
     assert(FALSE);
 }
 
-VOID __saveds _intuition_DrawBorder ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_DrawBorder ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register const struct Border * border __asm("a1"),
                                                         register WORD leftOffset __asm("d0"),
@@ -166,7 +166,7 @@ VOID __saveds _intuition_DrawBorder ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-VOID __saveds _intuition_DrawImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_DrawImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register struct Image * image __asm("a1"),
                                                         register WORD leftOffset __asm("d0"),
@@ -176,7 +176,7 @@ VOID __saveds _intuition_DrawImage ( register struct IntuitionBase * IntuitionBa
     assert(FALSE);
 }
 
-VOID __saveds _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Requester * requester __asm("a0"),
                                                         register struct Window * window __asm("a1"))
 {
@@ -184,7 +184,7 @@ VOID __saveds _intuition_EndRequest ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-struct Preferences * __saveds _intuition_GetDefPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Preferences * _intuition_GetDefPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Preferences * preferences __asm("a0"),
                                                         register WORD size __asm("d0"))
 {
@@ -192,7 +192,7 @@ struct Preferences * __saveds _intuition_GetDefPrefs ( register struct Intuition
     assert(FALSE);
 }
 
-struct Preferences * __saveds _intuition_GetPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Preferences * _intuition_GetPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Preferences * preferences __asm("a0"),
                                                         register WORD size __asm("d0"))
 {
@@ -200,14 +200,14 @@ struct Preferences * __saveds _intuition_GetPrefs ( register struct IntuitionBas
     assert(FALSE);
 }
 
-VOID __saveds _intuition_InitRequester ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_InitRequester ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Requester * requester __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: InitRequester() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct MenuItem * __saveds _intuition_ItemAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct MenuItem * _intuition_ItemAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct Menu * menuStrip __asm("a0"),
                                                         register UWORD menuNumber __asm("d0"))
 {
@@ -215,7 +215,7 @@ struct MenuItem * __saveds _intuition_ItemAddress ( register struct IntuitionBas
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register ULONG flags __asm("d0"))
 {
@@ -223,7 +223,7 @@ BOOL __saveds _intuition_ModifyIDCMP ( register struct IntuitionBase * Intuition
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ModifyProp ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ModifyProp ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadget __asm("a0"),
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"),
@@ -237,7 +237,7 @@ VOID __saveds _intuition_ModifyProp ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-VOID __saveds _intuition_MoveScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_MoveScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"),
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"))
@@ -246,7 +246,7 @@ VOID __saveds _intuition_MoveScreen ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-VOID __saveds _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"))
@@ -255,7 +255,7 @@ VOID __saveds _intuition_MoveWindow ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-VOID __saveds _intuition_OffGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_OffGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadget __asm("a0"),
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"))
@@ -264,7 +264,7 @@ VOID __saveds _intuition_OffGadget ( register struct IntuitionBase * IntuitionBa
     assert(FALSE);
 }
 
-VOID __saveds _intuition_OffMenu ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_OffMenu ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register UWORD menuNumber __asm("d0"))
 {
@@ -272,7 +272,7 @@ VOID __saveds _intuition_OffMenu ( register struct IntuitionBase * IntuitionBase
     assert(FALSE);
 }
 
-VOID __saveds _intuition_OnGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_OnGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadget __asm("a0"),
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"))
@@ -281,7 +281,7 @@ VOID __saveds _intuition_OnGadget ( register struct IntuitionBase * IntuitionBas
     assert(FALSE);
 }
 
-VOID __saveds _intuition_OnMenu ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_OnMenu ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register UWORD menuNumber __asm("d0"))
 {
@@ -289,27 +289,27 @@ VOID __saveds _intuition_OnMenu ( register struct IntuitionBase * IntuitionBase 
     assert(FALSE);
 }
 
-struct Screen * __saveds _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewScreen * newScreen __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: OpenScreen() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct Window * __saveds _intuition_OpenWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Window * _intuition_OpenWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewWindow * newWindow __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: OpenWindow() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-ULONG __saveds _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: OpenWorkBench() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register const struct IntuiText * iText __asm("a1"),
                                                         register WORD left __asm("d0"),
@@ -319,7 +319,7 @@ VOID __saveds _intuition_PrintIText ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-VOID __saveds _intuition_RefreshGadgets ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_RefreshGadgets ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadgets __asm("a0"),
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"))
@@ -328,7 +328,7 @@ VOID __saveds _intuition_RefreshGadgets ( register struct IntuitionBase * Intuit
     assert(FALSE);
 }
 
-UWORD __saveds _intuition_RemoveGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+UWORD _intuition_RemoveGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Gadget * gadget __asm("a1"))
 {
@@ -336,7 +336,7 @@ UWORD __saveds _intuition_RemoveGadget ( register struct IntuitionBase * Intuiti
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ReportMouse ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ReportMouse ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register BOOL flag __asm("d0"),
                                                         register struct Window * window __asm("a0"))
 {
@@ -344,7 +344,7 @@ VOID __saveds _intuition_ReportMouse ( register struct IntuitionBase * Intuition
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Requester * requester __asm("a0"),
                                                         register struct Window * window __asm("a1"))
 {
@@ -352,21 +352,21 @@ BOOL __saveds _intuition_Request ( register struct IntuitionBase * IntuitionBase
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ScreenToBack() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ScreenToFront() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Requester * requester __asm("a1"))
 {
@@ -374,7 +374,7 @@ BOOL __saveds _intuition_SetDMRequest ( register struct IntuitionBase * Intuitio
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_SetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_SetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Menu * menu __asm("a1"))
 {
@@ -382,7 +382,7 @@ BOOL __saveds _intuition_SetMenuStrip ( register struct IntuitionBase * Intuitio
     assert(FALSE);
 }
 
-VOID __saveds _intuition_SetPointer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_SetPointer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register UWORD * pointer __asm("a1"),
                                                         register WORD height __asm("d0"),
@@ -394,7 +394,7 @@ VOID __saveds _intuition_SetPointer ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-VOID __saveds _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register CONST_STRPTR windowTitle __asm("a1"),
                                                         register CONST_STRPTR screenTitle __asm("a2"))
@@ -403,7 +403,7 @@ VOID __saveds _intuition_SetWindowTitles ( register struct IntuitionBase * Intui
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ShowTitle ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ShowTitle ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"),
                                                         register BOOL showIt __asm("d0"))
 {
@@ -411,7 +411,7 @@ VOID __saveds _intuition_ShowTitle ( register struct IntuitionBase * IntuitionBa
     assert(FALSE);
 }
 
-VOID __saveds _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"))
@@ -420,34 +420,34 @@ VOID __saveds _intuition_SizeWindow ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-struct View * __saveds _intuition_ViewAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+struct View * _intuition_ViewAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ViewAddress() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct ViewPort * __saveds _intuition_ViewPortAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct ViewPort * _intuition_ViewPortAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ViewPortAddress() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_WindowToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_WindowToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: WindowToBack() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: WindowToFront() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register LONG widthMin __asm("d0"),
                                                         register LONG heightMin __asm("d1"),
@@ -458,7 +458,7 @@ BOOL __saveds _intuition_WindowLimits ( register struct IntuitionBase * Intuitio
     assert(FALSE);
 }
 
-struct Preferences  * __saveds _intuition_SetPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Preferences  * _intuition_SetPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct Preferences * preferences __asm("a0"),
                                                         register LONG size __asm("d0"),
                                                         register BOOL inform __asm("d1"))
@@ -467,26 +467,26 @@ struct Preferences  * __saveds _intuition_SetPrefs ( register struct IntuitionBa
     assert(FALSE);
 }
 
-LONG __saveds _intuition_IntuiTextLength ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_IntuiTextLength ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct IntuiText * iText __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: IntuiTextLength() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+BOOL _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: WBenchToBack() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+BOOL _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: WBenchToFront() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register const struct IntuiText * body __asm("a1"),
                                                         register const struct IntuiText * posText __asm("a2"),
@@ -500,14 +500,14 @@ BOOL __saveds _intuition_AutoRequest ( register struct IntuitionBase * Intuition
     assert(FALSE);
 }
 
-VOID __saveds _intuition_BeginRefresh ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_BeginRefresh ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: BeginRefresh() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct Window * __saveds _intuition_BuildSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register const struct IntuiText * body __asm("a1"),
                                                         register const struct IntuiText * posText __asm("a2"),
@@ -520,7 +520,7 @@ struct Window * __saveds _intuition_BuildSysRequest ( register struct IntuitionB
     assert(FALSE);
 }
 
-VOID __saveds _intuition_EndRefresh ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_EndRefresh ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register LONG complete __asm("d0"))
 {
@@ -528,33 +528,33 @@ VOID __saveds _intuition_EndRefresh ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-VOID __saveds _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: FreeSysRequest() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _intuition_MakeScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_MakeScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: MakeScreen() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _intuition_RemakeDisplay ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+LONG _intuition_RemakeDisplay ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: RemakeDisplay() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _intuition_RethinkDisplay ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+LONG _intuition_RethinkDisplay ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: RethinkDisplay() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-APTR __saveds _intuition_AllocRemember ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+APTR _intuition_AllocRemember ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Remember ** rememberKey __asm("a0"),
                                                         register ULONG size __asm("d0"),
                                                         register ULONG flags __asm("d1"))
@@ -563,13 +563,13 @@ APTR __saveds _intuition_AllocRemember ( register struct IntuitionBase * Intuiti
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private0 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private0 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private0() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_FreeRemember ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_FreeRemember ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Remember ** rememberKey __asm("a0"),
                                                         register BOOL reallyForget __asm("d0"))
 {
@@ -577,21 +577,21 @@ VOID __saveds _intuition_FreeRemember ( register struct IntuitionBase * Intuitio
     assert(FALSE);
 }
 
-ULONG __saveds _intuition_LockIBase ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+ULONG _intuition_LockIBase ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG dontknow __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: LockIBase() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_UnlockIBase ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_UnlockIBase ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG ibLock __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: UnlockIBase() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _intuition_GetScreenData ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_GetScreenData ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR buffer __asm("a0"),
                                                         register UWORD size __asm("d0"),
                                                         register UWORD type __asm("d1"),
@@ -601,7 +601,7 @@ LONG __saveds _intuition_GetScreenData ( register struct IntuitionBase * Intuiti
     assert(FALSE);
 }
 
-VOID __saveds _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadgets __asm("a0"),
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"),
@@ -611,7 +611,7 @@ VOID __saveds _intuition_RefreshGList ( register struct IntuitionBase * Intuitio
     assert(FALSE);
 }
 
-UWORD __saveds _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Gadget * gadget __asm("a1"),
                                                         register UWORD position __asm("d0"),
@@ -622,7 +622,7 @@ UWORD __saveds _intuition_AddGList ( register struct IntuitionBase * IntuitionBa
     assert(FALSE);
 }
 
-UWORD __saveds _intuition_RemoveGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+UWORD _intuition_RemoveGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * remPtr __asm("a0"),
                                                         register struct Gadget * gadget __asm("a1"),
                                                         register WORD numGad __asm("d0"))
@@ -631,21 +631,21 @@ UWORD __saveds _intuition_RemoveGList ( register struct IntuitionBase * Intuitio
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ActivateWindow() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_RefreshWindowFrame ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_RefreshWindowFrame ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: RefreshWindowFrame() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadgets __asm("a0"),
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"))
@@ -654,7 +654,7 @@ BOOL __saveds _intuition_ActivateGadget ( register struct IntuitionBase * Intuit
     assert(FALSE);
 }
 
-VOID __saveds _intuition_NewModifyProp ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_NewModifyProp ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadget __asm("a0"),
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"),
@@ -669,7 +669,7 @@ VOID __saveds _intuition_NewModifyProp ( register struct IntuitionBase * Intuiti
     assert(FALSE);
 }
 
-LONG __saveds _intuition_QueryOverscan ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_QueryOverscan ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG displayID __asm("a0"),
                                                         register struct Rectangle * rect __asm("a1"),
                                                         register WORD oScanType __asm("d0"))
@@ -678,7 +678,7 @@ LONG __saveds _intuition_QueryOverscan ( register struct IntuitionBase * Intuiti
     assert(FALSE);
 }
 
-VOID __saveds _intuition_MoveWindowInFrontOf ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_MoveWindowInFrontOf ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Window * behindWindow __asm("a1"))
 {
@@ -686,7 +686,7 @@ VOID __saveds _intuition_MoveWindowInFrontOf ( register struct IntuitionBase * I
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register WORD left __asm("d0"),
                                                         register WORD top __asm("d1"),
@@ -697,14 +697,14 @@ VOID __saveds _intuition_ChangeWindowBox ( register struct IntuitionBase * Intui
     assert(FALSE);
 }
 
-struct Hook * __saveds _intuition_SetEditHook ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Hook * _intuition_SetEditHook ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Hook * hook __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: SetEditHook() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _intuition_SetMouseQueue ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_SetMouseQueue ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register UWORD queueLength __asm("d0"))
 {
@@ -712,21 +712,21 @@ LONG __saveds _intuition_SetMouseQueue ( register struct IntuitionBase * Intuiti
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ZipWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ZipWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ZipWindow() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct Screen * __saveds _intuition_LockPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Screen * _intuition_LockPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: LockPubScreen() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_UnlockPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_UnlockPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("a0"),
                                                         register struct Screen * screen __asm("a1"))
 {
@@ -734,19 +734,19 @@ VOID __saveds _intuition_UnlockPubScreen ( register struct IntuitionBase * Intui
     assert(FALSE);
 }
 
-struct List * __saveds _intuition_LockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+struct List * _intuition_LockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: LockPubScreenList() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_UnlockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_UnlockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: UnlockPubScreenList() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-STRPTR __saveds _intuition_NextPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+STRPTR _intuition_NextPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct Screen * screen __asm("a0"),
                                                         register STRPTR namebuf __asm("a1"))
 {
@@ -754,21 +754,21 @@ STRPTR __saveds _intuition_NextPubScreen ( register struct IntuitionBase * Intui
     assert(FALSE);
 }
 
-VOID __saveds _intuition_SetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_SetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: SetDefaultPubScreen() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-UWORD __saveds _intuition_SetPubScreenModes ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+UWORD _intuition_SetPubScreenModes ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register UWORD modes __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: SetPubScreenModes() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-UWORD __saveds _intuition_PubScreenStatus ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+UWORD _intuition_PubScreenStatus ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"),
                                                         register UWORD statusFlags __asm("d0"))
 {
@@ -776,21 +776,21 @@ UWORD __saveds _intuition_PubScreenStatus ( register struct IntuitionBase * Intu
     assert(FALSE);
 }
 
-struct RastPort	* __saveds _intuition_ObtainGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct RastPort	* _intuition_ObtainGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct GadgetInfo * gInfo __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ObtainGIRPort() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ReleaseGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ReleaseGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: ReleaseGIRPort() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_GadgetMouse ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_GadgetMouse ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadget __asm("a0"),
                                                         register struct GadgetInfo * gInfo __asm("a1"),
                                                         register WORD * mousePoint __asm("a2"))
@@ -799,20 +799,20 @@ VOID __saveds _intuition_GadgetMouse ( register struct IntuitionBase * Intuition
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private1 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private1 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private1() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_GetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_GetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register STRPTR nameBuffer __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: GetDefaultPubScreen() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _intuition_EasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_EasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register const struct EasyStruct * easyStruct __asm("a1"),
                                                         register ULONG * idcmpPtr __asm("a2"),
@@ -822,7 +822,7 @@ LONG __saveds _intuition_EasyRequestArgs ( register struct IntuitionBase * Intui
     assert(FALSE);
 }
 
-struct Window * __saveds _intuition_BuildEasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register const struct EasyStruct * easyStruct __asm("a1"),
                                                         register ULONG idcmp __asm("d0"),
@@ -832,7 +832,7 @@ struct Window * __saveds _intuition_BuildEasyRequestArgs ( register struct Intui
     assert(FALSE);
 }
 
-LONG __saveds _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+LONG _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register ULONG * idcmpPtr __asm("a1"),
                                                         register BOOL waitInput __asm("d0"))
@@ -841,7 +841,7 @@ LONG __saveds _intuition_SysReqHandler ( register struct IntuitionBase * Intuiti
     assert(FALSE);
 }
 
-struct Window * __saveds _intuition_OpenWindowTagList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewWindow * newWindow __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
@@ -849,7 +849,7 @@ struct Window * __saveds _intuition_OpenWindowTagList ( register struct Intuitio
     assert(FALSE);
 }
 
-struct Screen * __saveds _intuition_OpenScreenTagList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewScreen * newScreen __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
@@ -857,7 +857,7 @@ struct Screen * __saveds _intuition_OpenScreenTagList ( register struct Intuitio
     assert(FALSE);
 }
 
-VOID __saveds _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register struct Image * image __asm("a1"),
                                                         register WORD leftOffset __asm("d0"),
@@ -869,7 +869,7 @@ VOID __saveds _intuition_DrawImageState ( register struct IntuitionBase * Intuit
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_PointInImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_PointInImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG point __asm("d0"),
                                                         register struct Image * image __asm("a0"))
 {
@@ -877,7 +877,7 @@ BOOL __saveds _intuition_PointInImage ( register struct IntuitionBase * Intuitio
     assert(FALSE);
 }
 
-VOID __saveds _intuition_EraseImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_EraseImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register struct Image * image __asm("a1"),
                                                         register WORD leftOffset __asm("d0"),
@@ -887,7 +887,7 @@ VOID __saveds _intuition_EraseImage ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-APTR __saveds _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct IClass * classPtr __asm("a0"),
                                                         register CONST_STRPTR classID __asm("a1"),
                                                         register const struct TagItem * tagList __asm("a2"))
@@ -896,14 +896,14 @@ APTR __saveds _intuition_NewObjectA ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-VOID __saveds _intuition_DisposeObject ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_DisposeObject ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR object __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: DisposeObject() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-ULONG __saveds _intuition_SetAttrsA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+ULONG _intuition_SetAttrsA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR object __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
@@ -911,7 +911,7 @@ ULONG __saveds _intuition_SetAttrsA ( register struct IntuitionBase * IntuitionB
     assert(FALSE);
 }
 
-ULONG __saveds _intuition_GetAttr ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+ULONG _intuition_GetAttr ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG attrID __asm("d0"),
                                                         register APTR object __asm("a0"),
                                                         register ULONG * storagePtr __asm("a1"))
@@ -920,7 +920,7 @@ ULONG __saveds _intuition_GetAttr ( register struct IntuitionBase * IntuitionBas
     assert(FALSE);
 }
 
-ULONG __saveds _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadget __asm("a0"),
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"),
@@ -930,20 +930,20 @@ ULONG __saveds _intuition_SetGadgetAttrsA ( register struct IntuitionBase * Intu
     assert(FALSE);
 }
 
-APTR __saveds _intuition_NextObject ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+APTR _intuition_NextObject ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR objectPtrPtr __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: NextObject() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private2 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private2 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private2() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct IClass * __saveds _intuition_MakeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct IClass * _intuition_MakeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register CONST_STRPTR classID __asm("a0"),
                                                         register CONST_STRPTR superClassID __asm("a1"),
                                                         register const struct IClass * superClassPtr __asm("a2"),
@@ -954,21 +954,21 @@ struct IClass * __saveds _intuition_MakeClass ( register struct IntuitionBase * 
     assert(FALSE);
 }
 
-VOID __saveds _intuition_AddClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_AddClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct IClass * classPtr __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: AddClass() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct DrawInfo * __saveds _intuition_GetScreenDrawInfo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct DrawInfo * _intuition_GetScreenDrawInfo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: GetScreenDrawInfo() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_FreeScreenDrawInfo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_FreeScreenDrawInfo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"),
                                                         register struct DrawInfo * drawInfo __asm("a1"))
 {
@@ -976,7 +976,7 @@ VOID __saveds _intuition_FreeScreenDrawInfo ( register struct IntuitionBase * In
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_ResetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_ResetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register struct Menu * menu __asm("a1"))
 {
@@ -984,69 +984,69 @@ BOOL __saveds _intuition_ResetMenuStrip ( register struct IntuitionBase * Intuit
     assert(FALSE);
 }
 
-VOID __saveds _intuition_RemoveClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_RemoveClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct IClass * classPtr __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: RemoveClass() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_FreeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_FreeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct IClass * classPtr __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_intuition: FreeClass() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private3 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private3 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private3() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private4 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private4 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private4() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private5 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private5 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private5() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private6 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private6 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private6() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private7 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private7 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private7() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private8 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private8 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private8() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private9 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private9 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private9() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _intuition_private10 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
+VOID _intuition_private10 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_intuition: private10() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct ScreenBuffer * __saveds _intuition_AllocScreenBuffer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+struct ScreenBuffer * _intuition_AllocScreenBuffer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * sc __asm("a0"),
                                                         register struct BitMap * bm __asm("a1"),
                                                         register ULONG flags __asm("d0"))
@@ -1055,7 +1055,7 @@ struct ScreenBuffer * __saveds _intuition_AllocScreenBuffer ( register struct In
     assert(FALSE);
 }
 
-VOID __saveds _intuition_FreeScreenBuffer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_FreeScreenBuffer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * sc __asm("a0"),
                                                         register struct ScreenBuffer * sb __asm("a1"))
 {
@@ -1063,7 +1063,7 @@ VOID __saveds _intuition_FreeScreenBuffer ( register struct IntuitionBase * Intu
     assert(FALSE);
 }
 
-ULONG __saveds _intuition_ChangeScreenBuffer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+ULONG _intuition_ChangeScreenBuffer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * sc __asm("a0"),
                                                         register struct ScreenBuffer * sb __asm("a1"))
 {
@@ -1071,7 +1071,7 @@ ULONG __saveds _intuition_ChangeScreenBuffer ( register struct IntuitionBase * I
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ScreenDepth ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ScreenDepth ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"),
                                                         register ULONG flags __asm("d0"),
                                                         register APTR reserved __asm("a1"))
@@ -1080,7 +1080,7 @@ VOID __saveds _intuition_ScreenDepth ( register struct IntuitionBase * Intuition
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ScreenPosition ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ScreenPosition ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"),
                                                         register ULONG flags __asm("d0"),
                                                         register LONG x1 __asm("d1"),
@@ -1092,7 +1092,7 @@ VOID __saveds _intuition_ScreenPosition ( register struct IntuitionBase * Intuit
     assert(FALSE);
 }
 
-VOID __saveds _intuition_ScrollWindowRaster ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_ScrollWindowRaster ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * win __asm("a1"),
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"),
@@ -1105,7 +1105,7 @@ VOID __saveds _intuition_ScrollWindowRaster ( register struct IntuitionBase * In
     assert(FALSE);
 }
 
-VOID __saveds _intuition_LendMenus ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_LendMenus ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * fromwindow __asm("a0"),
                                                         register struct Window * towindow __asm("a1"))
 {
@@ -1113,7 +1113,7 @@ VOID __saveds _intuition_LendMenus ( register struct IntuitionBase * IntuitionBa
     assert(FALSE);
 }
 
-ULONG __saveds _intuition_DoGadgetMethodA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+ULONG _intuition_DoGadgetMethodA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gad __asm("a0"),
                                                         register struct Window * win __asm("a1"),
                                                         register struct Requester * req __asm("a2"),
@@ -1123,7 +1123,7 @@ ULONG __saveds _intuition_DoGadgetMethodA ( register struct IntuitionBase * Intu
     assert(FALSE);
 }
 
-VOID __saveds _intuition_SetWindowPointerA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_SetWindowPointerA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * win __asm("a0"),
                                                         register const struct TagItem * taglist __asm("a1"))
 {
@@ -1131,7 +1131,7 @@ VOID __saveds _intuition_SetWindowPointerA ( register struct IntuitionBase * Int
     assert(FALSE);
 }
 
-BOOL __saveds _intuition_TimedDisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+BOOL _intuition_TimedDisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG alertNumber __asm("d0"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register UWORD height __asm("d1"),
@@ -1141,7 +1141,7 @@ BOOL __saveds _intuition_TimedDisplayAlert ( register struct IntuitionBase * Int
     assert(FALSE);
 }
 
-VOID __saveds _intuition_HelpControl ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+VOID _intuition_HelpControl ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * win __asm("a0"),
                                                         register ULONG flags __asm("d0"))
 {

@@ -50,16 +50,16 @@ extern struct ExecBase      *SysBase;
 extern struct UtilityBase   *UtilityBase;
 
 #if 0
-struct DosLibrary * __saveds __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("a6"),
+struct DosLibrary * __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("a6"),
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"));
-struct DosLibrary * __saveds __g_lxa_dos_OpenLib    ( register struct DosLibrary *dosb    __asm("a6"));
-BPTR                __saveds __g_lxa_dos_CloseLib   ( register struct DosLibrary *dosb    __asm("a6"));
-BPTR                __saveds __g_lxa_dos_ExpungeLib ( register struct DosLibrary *dosb    __asm("a6"));
+struct DosLibrary * __g_lxa_dos_OpenLib    ( register struct DosLibrary *dosb    __asm("a6"));
+BPTR                __g_lxa_dos_CloseLib   ( register struct DosLibrary *dosb    __asm("a6"));
+BPTR                __g_lxa_dos_ExpungeLib ( register struct DosLibrary *dosb    __asm("a6"));
 ULONG                        __g_lxa_dos_ExtFuncLib ( void );
 #endif
 
-struct DosLibrary * __saveds __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("a6"),
+struct DosLibrary * __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("a6"),
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {
@@ -90,7 +90,7 @@ struct DosLibrary * __saveds __g_lxa_dos_InitLib    ( register struct DosLibrary
     return dosb;
 }
 
-struct DosLibrary * __saveds __g_lxa_dos_OpenLib ( register struct DosLibrary  *DosLibrary __asm("a6"))
+struct DosLibrary * __g_lxa_dos_OpenLib ( register struct DosLibrary  *DosLibrary __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_dos: OpenLib() called\n");
     DosLibrary->dl_lib.lib_OpenCnt++;
@@ -98,7 +98,7 @@ struct DosLibrary * __saveds __g_lxa_dos_OpenLib ( register struct DosLibrary  *
     return DosLibrary;
 }
 
-BPTR __saveds __g_lxa_dos_CloseLib ( register struct DosLibrary  *dosb __asm("a6"))
+BPTR __g_lxa_dos_CloseLib ( register struct DosLibrary  *dosb __asm("a6"))
 {
 #if 0
  ExecBase->exb_LibNode.lib_OpenCnt--;
@@ -115,7 +115,7 @@ BPTR __saveds __g_lxa_dos_CloseLib ( register struct DosLibrary  *dosb __asm("a6
     return NULL;
 }
 
-BPTR __saveds __g_lxa_dos_ExpungeLib ( register struct DosLibrary  *dosb      __asm("a6"))
+BPTR __g_lxa_dos_ExpungeLib ( register struct DosLibrary  *dosb      __asm("a6"))
 {
 #if 0
  struct ExecBase *ExecBase = exb;
@@ -156,7 +156,7 @@ ULONG __g_lxa_dos_ExtFuncLib(void)
     return NULL;
 }
 
-BPTR __saveds _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
+BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
                                  register CONST_STRPTR        ___name        __asm("d1"),
                                  register LONG                ___accessMode  __asm("d2"))
 {
@@ -195,7 +195,7 @@ BPTR __saveds _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"
     return 0;
 }
 
-LONG __saveds _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
                                   register BPTR file  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Close called, file=0x%08lx\n", file);
@@ -218,7 +218,7 @@ LONG __saveds _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
     return l;
 }
 
-LONG __saveds _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
                                  register BPTR                file    __asm("d1"),
                                  register APTR                buffer  __asm("d2"),
                                  register LONG                length  __asm("d3"))
@@ -239,7 +239,7 @@ LONG __saveds _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
     return l;
 }
 
-LONG __saveds _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
                                   register BPTR                file    __asm("d1"),
                                   register CONST APTR          buffer  __asm("d2"),
                                   register LONG                length  __asm("d3"))
@@ -262,7 +262,7 @@ LONG __saveds _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
     return l;
 }
 
-BPTR __saveds _dos_Input ( register struct DosLibrary * __libBase __asm("a6"))
+BPTR _dos_Input ( register struct DosLibrary * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Input() called.\n");
 
@@ -275,7 +275,7 @@ BPTR __saveds _dos_Input ( register struct DosLibrary * __libBase __asm("a6"))
     return i;
 }
 
-BPTR __saveds _dos_Output ( register struct DosLibrary * __libBase __asm("a6"))
+BPTR _dos_Output ( register struct DosLibrary * __libBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Output() called.\n");
 
@@ -288,7 +288,7 @@ BPTR __saveds _dos_Output ( register struct DosLibrary * __libBase __asm("a6"))
     return o;
 }
 
-LONG __saveds _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
                                  register BPTR file      __asm("d1"),
                                  register LONG position  __asm("d2"),
                                  register LONG mode      __asm("d3"))
@@ -309,14 +309,14 @@ LONG __saveds _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
     return l;
 }
 
-LONG __saveds _dos_DeleteFile ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_DeleteFile ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: DeleteFile unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_Rename ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_Rename ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___oldName  __asm("d1"),
                                                         register CONST_STRPTR ___newName  __asm("d2"))
 {
@@ -324,7 +324,7 @@ LONG __saveds _dos_Rename ( register struct DosLibrary * __libBase __asm("a6"),
     assert(FALSE);
 }
 
-BPTR __saveds _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
+BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"),
                                                         register LONG ___type  __asm("d2"))
 {
@@ -332,21 +332,21 @@ BPTR __saveds _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
     assert(FALSE);
 }
 
-void __saveds _dos_UnLock ( register struct DosLibrary * __libBase __asm("a6"),
+void _dos_UnLock ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: UnLock unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BPTR __saveds _dos_DupLock ( register struct DosLibrary * __libBase __asm("a6"),
+BPTR _dos_DupLock ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: DupLock unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_Examine ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_Examine ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"),
                                                         register struct FileInfoBlock * ___fileInfoBlock  __asm("d2"))
 {
@@ -354,7 +354,7 @@ LONG __saveds _dos_Examine ( register struct DosLibrary * __libBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_ExNext ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_ExNext ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"),
                                                         register struct FileInfoBlock * ___fileInfoBlock  __asm("d2"))
 {
@@ -362,7 +362,7 @@ LONG __saveds _dos_ExNext ( register struct DosLibrary * __libBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_Info ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_Info ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"),
                                                         register struct InfoData * ___parameterBlock  __asm("d2"))
 {
@@ -370,21 +370,21 @@ LONG __saveds _dos_Info ( register struct DosLibrary * __libBase __asm("a6"),
     assert(FALSE);
 }
 
-BPTR __saveds _dos_CreateDir ( register struct DosLibrary * __libBase __asm("a6"),
+BPTR _dos_CreateDir ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: CreateDir unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BPTR __saveds _dos_CurrentDir ( register struct DosLibrary * __libBase __asm("a6"),
+BPTR _dos_CurrentDir ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: CurrentDir unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_IoErr ( register struct DosLibrary * DOSBase __asm("a6"))
+LONG _dos_IoErr ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_dos: IoErr() called.\n");
 
@@ -393,7 +393,7 @@ LONG __saveds _dos_IoErr ( register struct DosLibrary * DOSBase __asm("a6"))
     return me->pr_Result2;
 }
 
-struct MsgPort * __saveds _dos_CreateProc ( register struct DosLibrary * __libBase __asm("a6"),
+struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm("a6"),
                                                    register CONST_STRPTR ___name  __asm("d1"),
                                                    register LONG ___pri  __asm("d2"),
                                                    register BPTR ___segList  __asm("d3"),
@@ -403,14 +403,14 @@ struct MsgPort * __saveds _dos_CreateProc ( register struct DosLibrary * __libBa
     assert(FALSE);
 }
 
-void __saveds _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
+void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register LONG ___returnCode  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Exit unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BPTR __saveds _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register CONST_STRPTR        ___name   __asm("d1"))
 {
     DPRINTF (LOG_INFO, "_dos: LoadSeg() called, name=%s\n", ___name);
@@ -647,26 +647,26 @@ finish:
     return hunk_first;
 }
 
-void __saveds _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
+void _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___seglist  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: UnLoadSeg unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _dos_private0 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private0 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: private0() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _dos_private1 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private1 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: private1() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-void __saveds  _dos_ClearVec (register struct DosLibrary * __libBase __asm("a6"),
+void  _dos_ClearVec (register struct DosLibrary * __libBase __asm("a6"),
                                      register BPTR ___bVector  __asm("d1"),
                                      register BPTR ___upb      __asm("d2"))
 {
@@ -674,21 +674,21 @@ void __saveds  _dos_ClearVec (register struct DosLibrary * __libBase __asm("a6")
     assert(FALSE);
 }
 
-void __saveds _dos_NoReqLoadSeg (register struct DosLibrary * __libBase __asm("a6"),
+void _dos_NoReqLoadSeg (register struct DosLibrary * __libBase __asm("a6"),
                                         register BPTR ___bFileName             __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: NoReqLoadSeg() unimplemented *PRIVATE* STUB called.\n");
     assert(FALSE);
 }
 
-struct MsgPort * __saveds _dos_DeviceProc ( register struct DosLibrary * __libBase __asm("a6"),
+struct MsgPort * _dos_DeviceProc ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: DeviceProc unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_SetComment ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_SetComment ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"),
                                                         register CONST_STRPTR ___comment  __asm("d2"))
 {
@@ -696,7 +696,7 @@ LONG __saveds _dos_SetComment ( register struct DosLibrary * __libBase __asm("a6
     assert(FALSE);
 }
 
-LONG __saveds _dos_SetProtection ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_SetProtection ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"),
                                                         register LONG ___protect  __asm("d2"))
 {
@@ -704,21 +704,21 @@ LONG __saveds _dos_SetProtection ( register struct DosLibrary * __libBase __asm(
     assert(FALSE);
 }
 
-struct DateStamp * __saveds _dos_DateStamp ( register struct DosLibrary * __libBase __asm("a6"),
+struct DateStamp * _dos_DateStamp ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register struct DateStamp * ___date  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: DateStamp unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-void __saveds _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
+void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register LONG ___timeout  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Delay() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_WaitForChar ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_WaitForChar ( register struct DosLibrary * __libBase __asm("a6"),
                                         register BPTR ___file  __asm("d1"),
                                         register LONG ___timeout  __asm("d2"))
 {
@@ -726,14 +726,14 @@ LONG __saveds _dos_WaitForChar ( register struct DosLibrary * __libBase __asm("a
     assert(FALSE);
 }
 
-BPTR __saveds _dos_ParentDir ( register struct DosLibrary * __libBase __asm("a6"),
+BPTR _dos_ParentDir ( register struct DosLibrary * __libBase __asm("a6"),
                                       register BPTR ___lock  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: ParentDir() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_IsInteractive ( register struct DosLibrary *DOSBase __asm("a6"),
+LONG _dos_IsInteractive ( register struct DosLibrary *DOSBase __asm("a6"),
                                    register BPTR               file    __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: IsInteractive() called, file=0x%08lx\n", file);
@@ -742,7 +742,7 @@ LONG __saveds _dos_IsInteractive ( register struct DosLibrary *DOSBase __asm("a6
     return kind == FILE_KIND_CONSOLE;
 }
 
-LONG __saveds _dos_Execute ( register struct DosLibrary * __libBase __asm("a6"),
+LONG _dos_Execute ( register struct DosLibrary * __libBase __asm("a6"),
                                     register CONST_STRPTR ___string  __asm("d1"),
                                     register BPTR ___file  __asm("d2"),
                                     register BPTR ___file2  __asm("d3"))
@@ -751,7 +751,7 @@ LONG __saveds _dos_Execute ( register struct DosLibrary * __libBase __asm("a6"),
     assert(FALSE);
 }
 
-void __saveds *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
+void *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
                                     register ULONG              type    __asm("d1"),
                                     register struct TagItem    *tags    __asm("d2"))
 {
@@ -838,7 +838,7 @@ OOM:
     return NULL;
 }
 
-void __saveds _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"),
+void _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"),
                                   register ULONG              type    __asm("d1"),
                                   register void              *ptr     __asm("d2"))
 {
@@ -883,7 +883,7 @@ void __saveds _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"
 	}
 }
 
-LONG __saveds _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct MsgPort * port __asm("d1"),
                                                         register LONG action __asm("d2"),
                                                         register LONG arg1 __asm("d3"),
@@ -896,7 +896,7 @@ LONG __saveds _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-VOID __saveds _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosPacket * dp __asm("d1"),
                                                         register struct MsgPort * port __asm("d2"),
                                                         register struct MsgPort * replyport __asm("d3"))
@@ -905,13 +905,13 @@ VOID __saveds _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-struct DosPacket * __saveds _dos_WaitPkt ( register struct DosLibrary * DOSBase __asm("a6"))
+struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: WaitPkt() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosPacket * dp __asm("d1"),
                                                         register LONG res1 __asm("d2"),
                                                         register LONG res2 __asm("d3"))
@@ -920,7 +920,7 @@ VOID __saveds _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-VOID __saveds _dos_AbortPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_AbortPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct MsgPort * port __asm("d1"),
                                                         register struct DosPacket * pkt __asm("d2"))
 {
@@ -928,7 +928,7 @@ VOID __saveds _dos_AbortPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-BOOL __saveds _dos_LockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_LockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register ULONG offset __asm("d2"),
                                                         register ULONG length __asm("d3"),
@@ -939,7 +939,7 @@ BOOL __saveds _dos_LockRecord ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-BOOL __saveds _dos_LockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_LockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct RecordLock * recArray __asm("d1"),
                                                         register ULONG timeout __asm("d2"))
 {
@@ -947,7 +947,7 @@ BOOL __saveds _dos_LockRecords ( register struct DosLibrary * DOSBase __asm("a6"
     assert(FALSE);
 }
 
-BOOL __saveds _dos_UnLockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_UnLockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register ULONG offset __asm("d2"),
                                                         register ULONG length __asm("d3"))
@@ -956,35 +956,35 @@ BOOL __saveds _dos_UnLockRecord ( register struct DosLibrary * DOSBase __asm("a6
     assert(FALSE);
 }
 
-BOOL __saveds _dos_UnLockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_UnLockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct RecordLock * recArray __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: UnLockRecords() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BPTR __saveds _dos_SelectInput ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_SelectInput ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: SelectInput() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BPTR __saveds _dos_SelectOutput ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_SelectOutput ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: SelectOutput() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_FGetC ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FGetC ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: FGetC() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG ch __asm("d2"))
 {
@@ -992,7 +992,7 @@ LONG __saveds _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_UnGetC ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_UnGetC ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG character __asm("d2"))
 {
@@ -1000,7 +1000,7 @@ LONG __saveds _dos_UnGetC ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_FRead ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FRead ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register APTR block __asm("d2"),
                                                         register ULONG blocklen __asm("d3"),
@@ -1010,7 +1010,7 @@ LONG __saveds _dos_FRead ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_FWrite ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FWrite ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register const APTR block __asm("d2"),
                                                         register ULONG blocklen __asm("d3"),
@@ -1020,7 +1020,7 @@ LONG __saveds _dos_FWrite ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-STRPTR __saveds _dos_FGets ( register struct DosLibrary * DOSBase __asm("a6"),
+STRPTR _dos_FGets ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register STRPTR buf __asm("d2"),
                                                         register ULONG buflen __asm("d3"))
@@ -1029,7 +1029,7 @@ STRPTR __saveds _dos_FGets ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_FPuts ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FPuts ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register CONST_STRPTR str __asm("d2"))
 {
@@ -1037,7 +1037,7 @@ LONG __saveds _dos_FPuts ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-VOID __saveds _dos_VFWritef ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_VFWritef ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register CONST_STRPTR format __asm("d2"),
                                                         register const LONG * argarray __asm("d3"))
@@ -1046,7 +1046,7 @@ VOID __saveds _dos_VFWritef ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register CONST_STRPTR format __asm("d2"),
                                                         register const APTR argarray __asm("d3"))
@@ -1055,14 +1055,14 @@ LONG __saveds _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: Flush() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register STRPTR buff __asm("d2"),
                                                         register LONG type __asm("d3"),
@@ -1072,28 +1072,28 @@ LONG __saveds _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-BPTR __saveds _dos_DupLockFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_DupLockFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: DupLockFromFH() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BPTR __saveds _dos_OpenFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_OpenFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: OpenFromLock() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BPTR __saveds _dos_ParentOfFH ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_ParentOfFH ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: ParentOfFH() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_ExamineFH ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_ExamineFH ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register struct FileInfoBlock * fib __asm("d2"))
 {
@@ -1101,7 +1101,7 @@ BOOL __saveds _dos_ExamineFH ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_SetFileDate ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SetFileDate ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register const struct DateStamp * date __asm("d2"))
 {
@@ -1109,7 +1109,7 @@ LONG __saveds _dos_SetFileDate ( register struct DosLibrary * DOSBase __asm("a6"
     assert(FALSE);
 }
 
-LONG __saveds _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock __asm("d1"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG len __asm("d3"))
@@ -1118,7 +1118,7 @@ LONG __saveds _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6
     assert(FALSE);
 }
 
-LONG __saveds _dos_NameFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_NameFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG len __asm("d3"))
@@ -1127,7 +1127,7 @@ LONG __saveds _dos_NameFromFH ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-WORD __saveds _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
+WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register UBYTE separator __asm("d2"),
                                                         register STRPTR buf __asm("d3"),
@@ -1138,7 +1138,7 @@ WORD __saveds _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_SameLock ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SameLock ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock1 __asm("d1"),
                                                         register BPTR lock2 __asm("d2"))
 {
@@ -1146,7 +1146,7 @@ LONG __saveds _dos_SameLock ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_SetMode ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SetMode ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG mode __asm("d2"))
 {
@@ -1154,7 +1154,7 @@ LONG __saveds _dos_SetMode ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock __asm("d1"),
                                                         register struct ExAllData * buffer __asm("d2"),
                                                         register LONG size __asm("d3"),
@@ -1165,7 +1165,7 @@ LONG __saveds _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_ReadLink ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ReadLink ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct MsgPort * port __asm("d1"),
                                                         register BPTR lock __asm("d2"),
                                                         register CONST_STRPTR path __asm("d3"),
@@ -1176,7 +1176,7 @@ LONG __saveds _dos_ReadLink ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_MakeLink ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_MakeLink ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG dest __asm("d2"),
                                                         register LONG soft __asm("d3"))
@@ -1185,7 +1185,7 @@ LONG __saveds _dos_MakeLink ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_ChangeMode ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ChangeMode ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG type __asm("d1"),
                                                         register BPTR fh __asm("d2"),
                                                         register LONG newmode __asm("d3"))
@@ -1194,7 +1194,7 @@ LONG __saveds _dos_ChangeMode ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-LONG __saveds _dos_SetFileSize ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SetFileSize ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG pos __asm("d2"),
                                                         register LONG mode __asm("d3"))
@@ -1203,7 +1203,7 @@ LONG __saveds _dos_SetFileSize ( register struct DosLibrary * DOSBase __asm("a6"
     assert(FALSE);
 }
 
-LONG __saveds _dos_SetIoErr ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SetIoErr ( register struct DosLibrary * DOSBase __asm("a6"),
                                      register LONG result __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: SetIoErr() called, result=%ld\n", result);
@@ -1221,7 +1221,7 @@ LONG __saveds _dos_SetIoErr ( register struct DosLibrary * DOSBase __asm("a6"),
     return prevErrorCode;
 }
 
-BOOL __saveds _dos_Fault ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_Fault ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG code __asm("d1"),
                                                         register STRPTR header __asm("d2"),
                                                         register STRPTR buffer __asm("d3"),
@@ -1231,7 +1231,7 @@ BOOL __saveds _dos_Fault ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-BOOL __saveds _dos_PrintFault ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_PrintFault ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG code __asm("d1"),
                                                         register CONST_STRPTR header __asm("d2"))
 {
@@ -1239,7 +1239,7 @@ BOOL __saveds _dos_PrintFault ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-LONG __saveds _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG code __asm("d1"),
                                                         register LONG type __asm("d2"),
                                                         register ULONG arg1 __asm("d3"),
@@ -1249,13 +1249,13 @@ LONG __saveds _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"
     assert(FALSE);
 }
 
-VOID __saveds _dos_private2 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private2 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: private2() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct CommandLineInterface * __saveds _dos_Cli ( register struct DosLibrary * DOSBase __asm("a6"))
+struct CommandLineInterface * _dos_Cli ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Cli() called.\n");
 
@@ -1266,7 +1266,7 @@ struct CommandLineInterface * __saveds _dos_Cli ( register struct DosLibrary * D
         return NULL;
 }
 
-struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm("a6"),
+struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                       register const struct TagItem * tags __asm("d1"))
 {
     DPRINTF (LOG_INFO, "_dos: CreateNewProc() called.\n");
@@ -1364,7 +1364,7 @@ struct Process * __saveds _dos_CreateNewProc ( register struct DosLibrary * DOSB
     return process;
 }
 
-LONG __saveds _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR seg __asm("d1"),
                                                         register LONG stack __asm("d2"),
                                                         register CONST_STRPTR paramptr __asm("d3"),
@@ -1374,66 +1374,66 @@ LONG __saveds _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-struct MsgPort * __saveds _dos_GetConsoleTask ( register struct DosLibrary * DOSBase __asm("a6"))
+struct MsgPort * _dos_GetConsoleTask ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: GetConsoleTask() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct MsgPort * __saveds _dos_SetConsoleTask ( register struct DosLibrary * DOSBase __asm("a6"),
+struct MsgPort * _dos_SetConsoleTask ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register const struct MsgPort * task __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: SetConsoleTask() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct MsgPort * __saveds _dos_GetFileSysTask ( register struct DosLibrary * DOSBase __asm("a6"))
+struct MsgPort * _dos_GetFileSysTask ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: GetFileSysTask() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct MsgPort * __saveds _dos_SetFileSysTask ( register struct DosLibrary * DOSBase __asm("a6"),
+struct MsgPort * _dos_SetFileSysTask ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register const struct MsgPort * task __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: SetFileSysTask() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-STRPTR __saveds _dos_GetArgStr ( register struct DosLibrary * DOSBase __asm("a6"))
+STRPTR _dos_GetArgStr ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: GetArgStr() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_SetArgStr ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetArgStr ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR string __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: SetArgStr() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct Process * __saveds _dos_FindCliProc ( register struct DosLibrary * DOSBase __asm("a6"),
+struct Process * _dos_FindCliProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG num __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: FindCliProc() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-ULONG __saveds _dos_MaxCli ( register struct DosLibrary * DOSBase __asm("a6"))
+ULONG _dos_MaxCli ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: MaxCli() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_SetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: SetCurrentDirName() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_GetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_GetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buf __asm("d1"),
                                                         register LONG len __asm("d2"))
 {
@@ -1441,14 +1441,14 @@ BOOL __saveds _dos_GetCurrentDirName ( register struct DosLibrary * DOSBase __as
     assert(FALSE);
 }
 
-BOOL __saveds _dos_SetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: SetProgramName() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buf __asm("d1"),
                                                         register LONG len __asm("d2"))
 {
@@ -1456,14 +1456,14 @@ BOOL __saveds _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("
     assert(FALSE);
 }
 
-BOOL __saveds _dos_SetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: SetPrompt() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_GetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_GetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buf __asm("d1"),
                                                         register LONG len __asm("d2"))
 {
@@ -1471,20 +1471,20 @@ BOOL __saveds _dos_GetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-BPTR __saveds _dos_SetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_SetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: SetProgramDir() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BPTR __saveds _dos_GetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"))
+BPTR _dos_GetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: GetProgramDir() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR command __asm("d1"),
                                                         register const struct TagItem * tags __asm("d2"))
 {
@@ -1492,7 +1492,7 @@ LONG __saveds _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a
     assert(FALSE);
 }
 
-LONG __saveds _dos_AssignLock ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_AssignLock ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR lock __asm("d2"))
 {
@@ -1500,7 +1500,7 @@ LONG __saveds _dos_AssignLock ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-BOOL __saveds _dos_AssignLate ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_AssignLate ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register CONST_STRPTR path __asm("d2"))
 {
@@ -1508,7 +1508,7 @@ BOOL __saveds _dos_AssignLate ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-BOOL __saveds _dos_AssignPath ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_AssignPath ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register CONST_STRPTR path __asm("d2"))
 {
@@ -1516,7 +1516,7 @@ BOOL __saveds _dos_AssignPath ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-BOOL __saveds _dos_AssignAdd ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_AssignAdd ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR lock __asm("d2"))
 {
@@ -1524,7 +1524,7 @@ BOOL __saveds _dos_AssignAdd ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_RemAssignList ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_RemAssignList ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR lock __asm("d2"))
 {
@@ -1532,7 +1532,7 @@ LONG __saveds _dos_RemAssignList ( register struct DosLibrary * DOSBase __asm("a
     assert(FALSE);
 }
 
-struct DevProc * __saveds _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register struct DevProc * dp __asm("d2"))
 {
@@ -1540,49 +1540,49 @@ struct DevProc * __saveds _dos_GetDeviceProc ( register struct DosLibrary * DOSB
     assert(FALSE);
 }
 
-VOID __saveds _dos_FreeDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_FreeDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DevProc * dp __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: FreeDeviceProc() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct DosList * __saveds _dos_LockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DosList * _dos_LockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: LockDosList() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _dos_UnLockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_UnLockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: UnLockDosList() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct DosList * __saveds _dos_AttemptLockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DosList * _dos_AttemptLockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: AttemptLockDosList() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_RemDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_RemDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosList * dlist __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: RemDosEntry() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_AddDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_AddDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosList * dlist __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: AddDosEntry() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct DosList * __saveds _dos_FindDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DosList * _dos_FindDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register const struct DosList * dlist __asm("d1"),
                                                         register CONST_STRPTR name __asm("d2"),
                                                         register ULONG flags __asm("d3"))
@@ -1591,7 +1591,7 @@ struct DosList * __saveds _dos_FindDosEntry ( register struct DosLibrary * DOSBa
     assert(FALSE);
 }
 
-struct DosList * __saveds _dos_NextDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DosList * _dos_NextDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register const struct DosList * dlist __asm("d1"),
                                                         register ULONG flags __asm("d2"))
 {
@@ -1599,7 +1599,7 @@ struct DosList * __saveds _dos_NextDosEntry ( register struct DosLibrary * DOSBa
     assert(FALSE);
 }
 
-struct DosList * __saveds _dos_MakeDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG type __asm("d2"))
 {
@@ -1607,21 +1607,21 @@ struct DosList * __saveds _dos_MakeDosEntry ( register struct DosLibrary * DOSBa
     assert(FALSE);
 }
 
-VOID __saveds _dos_FreeDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_FreeDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosList * dlist __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: FreeDosEntry() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_IsFileSystem ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_IsFileSystem ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: IsFileSystem() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_Format ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_Format ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR filesystem __asm("d1"),
                                                         register CONST_STRPTR volumename __asm("d2"),
                                                         register ULONG dostype __asm("d3"))
@@ -1630,7 +1630,7 @@ BOOL __saveds _dos_Format ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_Relabel ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Relabel ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR drive __asm("d1"),
                                                         register CONST_STRPTR newname __asm("d2"))
 {
@@ -1638,7 +1638,7 @@ LONG __saveds _dos_Relabel ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_Inhibit ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_Inhibit ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG onoff __asm("d2"))
 {
@@ -1646,7 +1646,7 @@ LONG __saveds _dos_Inhibit ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_AddBuffers ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_AddBuffers ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG number __asm("d2"))
 {
@@ -1654,7 +1654,7 @@ LONG __saveds _dos_AddBuffers ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-LONG __saveds _dos_CompareDates ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_CompareDates ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register const struct DateStamp * date1 __asm("d1"),
                                                         register const struct DateStamp * date2 __asm("d2"))
 {
@@ -1662,21 +1662,21 @@ LONG __saveds _dos_CompareDates ( register struct DosLibrary * DOSBase __asm("a6
     assert(FALSE);
 }
 
-LONG __saveds _dos_DateToStr ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_DateToStr ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DateTime * datetime __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: DateToStr() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_StrToDate ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_StrToDate ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DateTime * datetime __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: StrToDate() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BPTR __saveds _dos_InternalLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_InternalLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d0"),
                                                         register BPTR table __asm("a0"),
                                                         register const LONG * funcarray __asm("a1"),
@@ -1686,7 +1686,7 @@ BPTR __saveds _dos_InternalLoadSeg ( register struct DosLibrary * DOSBase __asm(
     assert(FALSE);
 }
 
-BOOL __saveds _dos_InternalUnLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_InternalUnLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR seglist __asm("d1"),
                                                         register VOID (*freefunc)() __asm("a1"))
 {
@@ -1694,7 +1694,7 @@ BOOL __saveds _dos_InternalUnLoadSeg ( register struct DosLibrary * DOSBase __as
     assert(FALSE);
 }
 
-BPTR __saveds _dos_NewLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
+BPTR _dos_NewLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR file __asm("d1"),
                                                         register const struct TagItem * tags __asm("d2"))
 {
@@ -1702,7 +1702,7 @@ BPTR __saveds _dos_NewLoadSeg ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-LONG __saveds _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR seg __asm("d2"),
                                                         register LONG system __asm("d3"))
@@ -1711,7 +1711,7 @@ LONG __saveds _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-struct Segment * __saveds _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("a6"),
+struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register const struct Segment * seg __asm("d2"),
                                                         register LONG system __asm("d3"))
@@ -1720,21 +1720,21 @@ struct Segment * __saveds _dos_FindSegment ( register struct DosLibrary * DOSBas
     assert(FALSE);
 }
 
-LONG __saveds _dos_RemSegment ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_RemSegment ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct Segment * seg __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: RemSegment() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG mask __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: CheckSignal() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-struct RDArgs * __saveds _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6"),
+struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR arg_template __asm("d1"),
                                                         register LONG * array __asm("d2"),
                                                         register struct RDArgs * args __asm("d3"))
@@ -1743,7 +1743,7 @@ struct RDArgs * __saveds _dos_ReadArgs ( register struct DosLibrary * DOSBase __
     assert(FALSE);
 }
 
-LONG __saveds _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR keyword __asm("d1"),
                                                         register CONST_STRPTR arg_template __asm("d2"))
 {
@@ -1751,7 +1751,7 @@ LONG __saveds _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG maxchars __asm("d2"),
                                                         register struct CSource * cSource __asm("d3"))
@@ -1760,7 +1760,7 @@ LONG __saveds _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_StrToLong ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_StrToLong ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR string __asm("d1"),
                                                         register LONG * value __asm("d2"))
 {
@@ -1768,7 +1768,7 @@ LONG __saveds _dos_StrToLong ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_MatchFirst ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_MatchFirst ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register struct AnchorPath * anchor __asm("d2"))
 {
@@ -1776,21 +1776,21 @@ LONG __saveds _dos_MatchFirst ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-LONG __saveds _dos_MatchNext ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_MatchNext ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct AnchorPath * anchor __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: MatchNext() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _dos_MatchEnd ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_MatchEnd ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct AnchorPath * anchor __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: MatchEnd() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register STRPTR buf __asm("d2"),
                                                         register LONG buflen __asm("d3"))
@@ -1799,7 +1799,7 @@ LONG __saveds _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6
     assert(FALSE);
 }
 
-BOOL __saveds _dos_MatchPattern ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_MatchPattern ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register STRPTR str __asm("d2"))
 {
@@ -1807,40 +1807,40 @@ BOOL __saveds _dos_MatchPattern ( register struct DosLibrary * DOSBase __asm("a6
     assert(FALSE);
 }
 
-VOID __saveds _dos_private3 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private3 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: private3() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _dos_FreeArgs ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_FreeArgs ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct RDArgs * args __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: FreeArgs() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _dos_private4 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private4 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: private4() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-STRPTR __saveds _dos_FilePart ( register struct DosLibrary * DOSBase __asm("a6"),
+STRPTR _dos_FilePart ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR path __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: FilePart() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-STRPTR __saveds _dos_PathPart ( register struct DosLibrary * DOSBase __asm("a6"),
+STRPTR _dos_PathPart ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR path __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: PathPart() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR dirname __asm("d1"),
                                                         register CONST_STRPTR filename __asm("d2"),
                                                         register ULONG size __asm("d3"))
@@ -1849,21 +1849,21 @@ BOOL __saveds _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-BOOL __saveds _dos_StartNotify ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_StartNotify ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct NotifyRequest * notify __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: StartNotify() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-VOID __saveds _dos_EndNotify ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_EndNotify ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct NotifyRequest * notify __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: EndNotify() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register CONST_STRPTR buffer __asm("d2"),
                                                         register LONG size __asm("d3"),
@@ -1873,7 +1873,7 @@ BOOL __saveds _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_GetVar ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_GetVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG size __asm("d3"),
@@ -1883,7 +1883,7 @@ LONG __saveds _dos_GetVar ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG __saveds _dos_DeleteVar ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_DeleteVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register ULONG flags __asm("d2"))
 {
@@ -1891,7 +1891,7 @@ LONG __saveds _dos_DeleteVar ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-struct LocalVar * __saveds _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"),
+struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register ULONG type __asm("d2"))
 {
@@ -1899,27 +1899,27 @@ struct LocalVar * __saveds _dos_FindVar ( register struct DosLibrary * DOSBase _
     assert(FALSE);
 }
 
-VOID __saveds _dos_private5 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private5 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: private5() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_CliInitNewcli ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_CliInitNewcli ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosPacket * dp __asm("a0"))
 {
     LPRINTF (LOG_ERROR, "_dos: CliInitNewcli() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_CliInitRun ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_CliInitRun ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosPacket * dp __asm("a0"))
 {
     LPRINTF (LOG_ERROR, "_dos: CliInitRun() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_WriteChars ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_WriteChars ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR buf __asm("d1"),
                                                         register ULONG buflen __asm("d2"))
 {
@@ -1927,14 +1927,14 @@ LONG __saveds _dos_WriteChars ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-LONG __saveds _dos_PutStr ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_PutStr ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR str __asm("d1"))
 {
     LPRINTF (LOG_ERROR, "_dos: PutStr() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_VPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_VPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR format __asm("d1"),
                                                         register const APTR argarray __asm("d2"))
 {
@@ -1942,13 +1942,13 @@ LONG __saveds _dos_VPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-VOID __saveds _dos_private6 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private6 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: private6() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-LONG __saveds _dos_ParsePatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
+LONG _dos_ParsePatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register UBYTE * buf __asm("d2"),
                                                         register LONG buflen __asm("d3"))
@@ -1957,7 +1957,7 @@ LONG __saveds _dos_ParsePatternNoCase ( register struct DosLibrary * DOSBase __a
     assert(FALSE);
 }
 
-BOOL __saveds _dos_MatchPatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_MatchPatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register STRPTR str __asm("d2"))
 {
@@ -1965,13 +1965,13 @@ BOOL __saveds _dos_MatchPatternNoCase ( register struct DosLibrary * DOSBase __a
     assert(FALSE);
 }
 
-VOID __saveds _dos_private7 ( register struct DosLibrary * DOSBase __asm("a6"))
+VOID _dos_private7 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: private7() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-BOOL __saveds _dos_SameDevice ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SameDevice ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock1 __asm("d1"),
                                                         register BPTR lock2 __asm("d2"))
 {
@@ -1979,7 +1979,7 @@ BOOL __saveds _dos_SameDevice ( register struct DosLibrary * DOSBase __asm("a6")
     assert(FALSE);
 }
 
-VOID __saveds _dos_ExAllEnd ( register struct DosLibrary * DOSBase __asm("a6"),
+VOID _dos_ExAllEnd ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock __asm("d1"),
                                                         register struct ExAllData * buffer __asm("d2"),
                                                         register LONG size __asm("d3"),
@@ -1990,7 +1990,7 @@ VOID __saveds _dos_ExAllEnd ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-BOOL __saveds _dos_SetOwner ( register struct DosLibrary * DOSBase __asm("a6"),
+BOOL _dos_SetOwner ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG owner_info __asm("d2"))
 {

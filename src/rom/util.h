@@ -35,8 +35,8 @@ ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3);
 #define LOG_WARNING 2
 #define LOG_ERROR   3
 
-#define LOG_LEVEL LOG_DEBUG
-//#define LOG_LEVEL LOG_INFO
+//#define LOG_LEVEL LOG_DEBUG
+#define LOG_LEVEL LOG_INFO
 
 int   isdigit  (int c);
 void  lputc    (int level, char c);
@@ -57,6 +57,8 @@ void  lprintf  (int level, const char *format, ...);
 #endif
 
 void  emu_stop (ULONG rv);
+void  emu_trace (BOOL enable);
+void  emu_monitor (void);
 
 #undef assert
 

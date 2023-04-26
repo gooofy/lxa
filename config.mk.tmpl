@@ -12,7 +12,7 @@ OBJDIR_AMIGAOS = $(SELF_DIR)/target/m68k-amigaos/obj
 BINDIR_AMIGAOS = $(SELF_DIR)/target/m68k-amigaos/bin
 DEPDIR_AMIGAOS = $(SELF_DIR)/target/m68k-amigaos/.deps
 
-TOOLCHAIN_AMIGAOS_PREFIX = /home/guenter/projects/amiga/amiga-gcc
+TOOLCHAIN_AMIGAOS_PREFIX = /opt/amiga
 
 # CFLAGS_AMIGAOS   = -O3 -Wall -Werror -march=68000 -mcpu=68000 -mcrt=nix13 -I$(SELF_DIR)/src/include
 CFLAGS_AMIGAOS   = -O3 -Wall -Werror -march=68000 -mcpu=68000 -mcrt=nix20 -I$(SELF_DIR)/src/include
@@ -27,8 +27,9 @@ LD_AMIGAOS      = $(TOOLCHAIN_AMIGAOS_PREFIX)/bin/m68k-amigaos-ld
 AR_AMIGAOS      = $(TOOLCHAIN_AMIGAOS_PREFIX)/bin/m68k-amigaos-ar
 STRIP_AMIGAOS   = $(TOOLCHAIN_AMIGAOS_PREFIX)/bin/m68k-amigaos-strip
 OBJDUMP_AMIGAOS = $(TOOLCHAIN_AMIGAOS_PREFIX)/bin/m68k-amigaos-objdump
+OBJCOPY_AMIGAOS = $(TOOLCHAIN_AMIGAOS_PREFIX)/bin/m68k-amigaos-objcopy
 
-ROMTOOL         = /home/guenter/projects/amiga/vamos/bin/romtool
+ROMTOOL         = /home/guenter/projects/amiga/amitools/bin/romtool
 
 #
 # GNU/Linux toolchain related config

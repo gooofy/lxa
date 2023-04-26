@@ -27,10 +27,11 @@
 #define RAM_SIZE    10 * 1024 * 1024
 #define RAM_END     RAM_START + RAM_SIZE - 1
 
-#define DEFAULT_ROM_PATH "../rom/my.rom"
+//#define DEFAULT_ROM_PATH "../rom/my.rom"
+#define DEFAULT_ROM_PATH "../tinyrom/lxa.rom"
 
 #define ROM_SIZE    256 * 1024
-#define ROM_START   0xf80000
+#define ROM_START   0xfc0000
 #define ROM_END     ROM_START + ROM_SIZE - 1
 
 #define CUSTOM_START 0xdff000
@@ -660,7 +661,7 @@ static int _dos_close (uint32_t fh68k)
 int op_illg(int level)
 {
     uint32_t d0 = m68k_get_reg(NULL, M68K_REG_D0);
-    //dprintf ("ILLEGAL, d=%d\n", d0);
+    //dprintf (LOG_INFO, "ILLEGAL, d=%d\n", d0);
 
     switch (d0)
     {
@@ -753,6 +754,10 @@ int op_illg(int level)
             g_running = FALSE;
             break;
         }
+
+        case EMU_CALL_WAIT:
+            usleep (10000);
+            break;
 
         case EMU_CALL_MONITOR:
         {
@@ -1014,6 +1019,7 @@ static void print_usage(char *argv[])
     fprintf(stderr, "    -d         enable debug output\n");
     fprintf(stderr, "    -r <rom>   use kickstart <rom>, default: %s\n", DEFAULT_ROM_PATH);
     fprintf(stderr, "    -v         verbose\n");
+    fprintf(stderr, "    -t         trace\n");
 }
 
 int main(int argc, char **argv, char **envp)
@@ -1049,6 +1055,9 @@ int main(int argc, char **argv, char **envp)
             }
             case 'v':
                 g_verbose = true;
+                break;
+            case 't':
+                g_trace = true;
                 break;
             default:
                 print_usage(argv);
@@ -1088,8 +1097,16 @@ int main(int argc, char **argv, char **envp)
 
     // setup memory image
 
-    m68k_write_memory_32 (0, RAM_END-1);   // initial SP
-    m68k_write_memory_32 (4, ROM_START+2); // reset vector
+    uint32_t initial_sp   = RAM_END-1;
+    uint32_t reset_vector = ROM_START+2;
+
+    m68k_write_memory_32 (0, initial_sp);   // m68k initial SP
+    m68k_write_memory_32 (4, reset_vector); // m68k reset vector
+
+    uint32_t p = m68k_read_memory_32(ROM_START+4);
+
+    dprintf (g_verbose ? LOG_INFO : LOG_DEBUG, "lxa: initial_sp=0x%08x, reset_vector=0x%08x jumps to 0x%08x\n",
+             initial_sp, reset_vector, p);
 
     m68k_init();
     m68k_set_cpu_type(M68K_CPU_TYPE_68000);
@@ -1103,7 +1120,7 @@ int main(int argc, char **argv, char **envp)
             break;
         if ( (g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK))
         {
-            dprintf (LOG_DEBUG, "lxa: triggering IRQ #3...\n");
+            //dprintf (LOG_DEBUG, "lxa: triggering IRQ #3...\n");
             m68k_set_irq(3);
         }
         m68k_execute(100000);

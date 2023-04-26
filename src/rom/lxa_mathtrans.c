@@ -21,7 +21,6 @@
 #include <inline/mathtrans.h>
 
 #include "util.h"
-#include "mem_map.h"
 
 union FFP_ULONG { FLOAT f; ULONG ul; } ;
 
@@ -64,7 +63,7 @@ extern struct Library       *MathBase;
 // libBase: MathTransBase
 // baseType: struct Library *
 // libname: mathtrans.library
-struct Library * __saveds __g_lxa_mathtrans_InitLib    ( register struct Library *mathtransb    __asm("a6"),
+struct Library * __g_lxa_mathtrans_InitLib    ( register struct Library *mathtransb    __asm("a6"),
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {
@@ -72,7 +71,7 @@ struct Library * __saveds __g_lxa_mathtrans_InitLib    ( register struct Library
     return mathtransb;
 }
 
-struct Library * __saveds __g_lxa_mathtrans_OpenLib ( register struct Library  *Library __asm("a6"))
+struct Library * __g_lxa_mathtrans_OpenLib ( register struct Library  *Library __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_mathtrans: OpenLib() called\n");
     // FIXME Library->dl_lib.lib_OpenCnt++;
@@ -80,12 +79,12 @@ struct Library * __saveds __g_lxa_mathtrans_OpenLib ( register struct Library  *
     return Library;
 }
 
-BPTR __saveds __g_lxa_mathtrans_CloseLib ( register struct Library  *mathtransb __asm("a6"))
+BPTR __g_lxa_mathtrans_CloseLib ( register struct Library  *mathtransb __asm("a6"))
 {
     return NULL;
 }
 
-BPTR __saveds __g_lxa_mathtrans_ExpungeLib ( register struct Library  *mathtransb      __asm("a6"))
+BPTR __g_lxa_mathtrans_ExpungeLib ( register struct Library  *mathtransb      __asm("a6"))
 {
     return NULL;
 }
@@ -95,14 +94,14 @@ ULONG __g_lxa_mathtrans_ExtFuncLib(void)
     return NULL;
 }
 
-FLOAT __saveds _mathtrans_SPAtan ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPAtan ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPAtan() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static void __saveds cossin_cordic_ffp ( FLOAT beta, FLOAT *c, FLOAT *s )
+static void cossin_cordic_ffp ( FLOAT beta, FLOAT *c, FLOAT *s )
 {
 # define ANGLES_LENGTH 15
 # define KPROD_LENGTH 15
@@ -228,7 +227,7 @@ static void __saveds cossin_cordic_ffp ( FLOAT beta, FLOAT *c, FLOAT *s )
 # undef ANGLES_LENGTH
 }
 
-FLOAT __saveds _mathtrans_SPSin ( register struct Library *MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPSin ( register struct Library *MathTransBase __asm("a6"),
                                   register FLOAT           beta          __asm("d0"))
 {
     LPRINTF (LOG_DEBUG, "_mathtrans: SPSin() called.\n");
@@ -237,21 +236,21 @@ FLOAT __saveds _mathtrans_SPSin ( register struct Library *MathTransBase __asm("
     return s;
 }
 
-FLOAT __saveds _mathtrans_SPCos ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPCos ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPCos() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds _mathtrans_SPTan ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPTan ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPTan() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds _mathtrans_SPSincos ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPSincos ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT * cosResult __asm("d1"),
                                                         register FLOAT parm __asm("d0"))
 {
@@ -259,28 +258,28 @@ FLOAT __saveds _mathtrans_SPSincos ( register struct Library * MathTransBase __a
     assert(FALSE);
 }
 
-FLOAT __saveds _mathtrans_SPSinh ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPSinh ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPSinh() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds _mathtrans_SPCosh ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPCosh ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPCosh() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds _mathtrans_SPTanh ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPTanh ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPTanh() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds mathtrans_SPExp ( register struct Library *MathTransBase __asm("a6"),
+FLOAT mathtrans_SPExp ( register struct Library *MathTransBase __asm("a6"),
                                  register FLOAT           x             __asm("d0"))
 {
     static const ULONG aul[5] = {
@@ -369,7 +368,7 @@ FLOAT __saveds mathtrans_SPExp ( register struct Library *MathTransBase __asm("a
     return fx;
 }
 
-FLOAT __saveds _mathtrans_SPLog ( register struct Library *MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPLog ( register struct Library *MathTransBase __asm("a6"),
                                          register FLOAT           x             __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_mathtrans: SPLog() called.\n");
@@ -445,7 +444,7 @@ FLOAT __saveds _mathtrans_SPLog ( register struct Library *MathTransBase __asm("
     return SPAdd(x, SPFlt(k));
 }
 
-FLOAT __saveds _mathtrans_SPPow ( register struct Library *MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPPow ( register struct Library *MathTransBase __asm("a6"),
                                          register FLOAT           power         __asm("d1"),
                                          register FLOAT           base          __asm("d0"))
 {
@@ -466,42 +465,42 @@ FLOAT __saveds _mathtrans_SPPow ( register struct Library *MathTransBase __asm("
     return res;
 }
 
-FLOAT __saveds _mathtrans_SPSqrt ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPSqrt ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPSqrt() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds _mathtrans_SPTieee ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPTieee ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPTieee() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds _mathtrans_SPFieee ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPFieee ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPFieee() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds _mathtrans_SPAsin ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPAsin ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPAsin() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds _mathtrans_SPAcos ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPAcos ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPAcos() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds _mathtrans_SPLog10 ( register struct Library * MathTransBase __asm("a6"),
+FLOAT _mathtrans_SPLog10 ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
     LPRINTF (LOG_ERROR, "_mathtrans: SPLog10() unimplemented STUB called.\n");

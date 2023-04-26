@@ -9,7 +9,6 @@
 #include <devices/input.h>
 
 #include "util.h"
-#include "mem_map.h"
 
 #define VERSION    40
 #define REVISION   1
@@ -24,7 +23,7 @@ char __aligned _g_input_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 
 extern struct ExecBase      *SysBase;
 
-static struct Library * __saveds __g_lxa_input_InitDev  ( register struct Library    *dev     __asm("d0"),
+static struct Library * __g_lxa_input_InitDev  ( register struct Library    *dev     __asm("d0"),
                                                           register BPTR               seglist __asm("a0"),
                                                           register struct ExecBase   *SysBase __asm("a6"))
 {
@@ -32,7 +31,7 @@ static struct Library * __saveds __g_lxa_input_InitDev  ( register struct Librar
     return dev;
 }
 
-static void __saveds __g_lxa_input_Open ( register struct Library   *dev   __asm("a6"),
+static void __g_lxa_input_Open ( register struct Library   *dev   __asm("a6"),
                                           register struct IORequest *ioreq __asm("a1"),
                                           register ULONG            unitn  __asm("d0"),
                                           register ULONG            flags  __asm("d1"))
@@ -40,27 +39,27 @@ static void __saveds __g_lxa_input_Open ( register struct Library   *dev   __asm
     DPRINTF (LOG_DEBUG, "_input: WARNING: Open() unimplemented STUB called.\n");
 }
 
-static BPTR __saveds __g_lxa_input_Close( register struct Library   *dev   __asm("a6"),
+static BPTR __g_lxa_input_Close( register struct Library   *dev   __asm("a6"),
                                           register struct IORequest *ioreq __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_input: WARNING: Close() unimplemented STUB called.\n");
     return 0;
 }
 
-static BPTR __saveds __g_lxa_input_Expunge ( register struct Library   *dev   __asm("a6"))
+static BPTR __g_lxa_input_Expunge ( register struct Library   *dev   __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_input: WARNING: Expunge() unimplemented STUB called.\n");
     return 0;
 }
 
-static BPTR __saveds __g_lxa_input_BeginIO ( register struct Library   *dev   __asm("a6"),
+static BPTR __g_lxa_input_BeginIO ( register struct Library   *dev   __asm("a6"),
                                              register struct IORequest *ioreq __asm("a1"))
 {
     DPRINTF (LOG_INFO, "_input: WARNING: BeginIO() unimplemented STUB called, ioreq->io_Command=%d\n", ioreq->io_Command);
     return 0;
 }
 
-static ULONG __saveds __g_lxa_input_AbortIO ( register struct Library   *dev   __asm("a6"),
+static ULONG __g_lxa_input_AbortIO ( register struct Library   *dev   __asm("a6"),
                                               register struct IORequest *ioreq __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_input: ERROR: AbortIO() unimplemented STUB called.\n");

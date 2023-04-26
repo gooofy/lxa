@@ -58,8 +58,9 @@ config.mk
 target/
 src/lxa/tmp/
 src/rom/*.library
-src/rom/my.rom
-src/rom/amiga_rom.x
+src/rom/lxa.rom
+src/rom/lxa.rom.bin
+src/rom/lxa.rom.hunk
 old
 others
 src/lxa/lxa.log
@@ -73,3 +74,9 @@ src/tools/fd2pragma/exec_lib.fd
 src/tools/fd2pragma/exec_lib.h
 src/tools/fd2pragma/exec_offs.txt
 src/tools/fd2pragma/offsets.txt
+
+src/samples/cordic/
+src/samples/hellobrt/hello
+src/tinyrom/
+src/tools/ffpmath/
+

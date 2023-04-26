@@ -8,7 +8,6 @@
 #include <devices/console.h>
 
 #include "util.h"
-#include "mem_map.h"
 
 #define VERSION    40
 #define REVISION   1
@@ -23,7 +22,7 @@ char __aligned _g_console_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 
 extern struct ExecBase      *SysBase;
 
-static struct Library * __saveds __g_lxa_console_InitDev  ( register struct Library    *dev     __asm("d0"),
+static struct Library * __g_lxa_console_InitDev  ( register struct Library    *dev     __asm("d0"),
                                                           register BPTR               seglist __asm("a0"),
                                                           register struct ExecBase   *SysBase __asm("a6"))
 {
@@ -31,7 +30,7 @@ static struct Library * __saveds __g_lxa_console_InitDev  ( register struct Libr
     return dev;
 }
 
-static void __saveds __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
+static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
                                             register struct IORequest *ioreq __asm("a1"),
                                             register ULONG            unitn  __asm("d0"),
                                             register ULONG            flags  __asm("d1"))
@@ -40,7 +39,7 @@ static void __saveds __g_lxa_console_Open ( register struct Library   *dev   __a
     assert(FALSE);
 }
 
-static BPTR __saveds __g_lxa_console_Close( register struct Library   *dev   __asm("a6"),
+static BPTR __g_lxa_console_Close( register struct Library   *dev   __asm("a6"),
                                           register struct IORequest *ioreq __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_console: WARNING: Close() unimplemented STUB called.\n");
@@ -48,14 +47,14 @@ static BPTR __saveds __g_lxa_console_Close( register struct Library   *dev   __a
     return 0;
 }
 
-static BPTR __saveds __g_lxa_console_Expunge ( register struct Library   *dev   __asm("a6"))
+static BPTR __g_lxa_console_Expunge ( register struct Library   *dev   __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_console: WARNING: Expunge() unimplemented STUB called.\n");
     assert(FALSE);
     return 0;
 }
 
-static BPTR __saveds __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6"),
+static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6"),
                                              register struct IORequest *ioreq __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_console: WARNING: BeginIO() unimplemented STUB called, ioreq->io_Command=%d\n", ioreq->io_Command);
@@ -63,7 +62,7 @@ static BPTR __saveds __g_lxa_console_BeginIO ( register struct Library   *dev   
     return 0;
 }
 
-static ULONG __saveds __g_lxa_console_AbortIO ( register struct Library   *dev   __asm("a6"),
+static ULONG __g_lxa_console_AbortIO ( register struct Library   *dev   __asm("a6"),
                                               register struct IORequest *ioreq __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_console: ERROR: AbortIO() unimplemented STUB called.\n");

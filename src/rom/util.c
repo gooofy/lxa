@@ -46,12 +46,12 @@ int strlen(const char *string)
 ULONG emucall0 (ULONG func)
 {
     ULONG res;
-    asm( "move.l    %1, d0\n\t"
+    asm volatile ( "move.l    %1, d0\n\t"
          "illegal\n\t"
          "move.l    d0, %0\n"
         : "=r" (res)
         : "r" (func)
-        : "cc", "d0"
+        : "cc", "d0", "d1"
         );
     return res;
 }
@@ -59,7 +59,7 @@ ULONG emucall0 (ULONG func)
 ULONG emucall1 (ULONG func, ULONG param1)
 {
     ULONG res;
-    asm( "move.l    %1, d0\n\t"
+    asm volatile( "move.l    %1, d0\n\t"
          "move.l    %2, d1\n\t"
          "illegal\n\t"
          "move.l    d0, %0\n"
@@ -73,7 +73,7 @@ ULONG emucall1 (ULONG func, ULONG param1)
 ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3)
 {
     ULONG res;
-    asm( "move.l    %1, d0\n\t"
+    asm volatile( "move.l    %1, d0\n\t"
          "move.l    %2, d1\n\t"
          "move.l    %3, d2\n\t"
          "move.l    %4, d3\n\t"
@@ -89,6 +89,30 @@ ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3)
 void emu_stop (ULONG rv)
 {
     emucall1 (EMU_CALL_STOP, rv);
+    //asm( "move.l    #2, d0 /* EMU_CALL_STOP */\n\t"
+    //     "move.l    %0, d1\n\t"
+    //     "illegal\n\t"
+    //    : /* no outputs */
+    //    : "r" (rv)
+    //    : "cc", "d0", "d1", "d2"
+    //    );
+}
+
+void  emu_trace (BOOL enable)
+{
+    emucall1 (EMU_CALL_TRACE, (ULONG) enable);
+    //asm( "move.l    #3, d0 /* EMU_CALL_TRACE */\n\t"
+    //     "move.l    %0, d1\n\t"
+    //     "illegal\n\t"
+    //    : /* no outputs */
+    //    : "r" ((ULONG) enable)
+    //    : "cc", "d0", "d1", "d2"
+    //    );
+}
+
+void emu_monitor (void)
+{
+    emucall0 (EMU_CALL_MONITOR);
 }
 
 void lputc (int level, char c)

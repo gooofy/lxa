@@ -9,7 +9,6 @@
 #include <inline/mathffp.h>
 
 #include "util.h"
-#include "mem_map.h"
 
 #if 0
 asm(
@@ -39,7 +38,7 @@ extern struct ExecBase      *SysBase;
 // libBase: MathBase
 // baseType: struct Library *
 // libname: mathffp.library
-struct MathBase * __saveds __g_lxa_mathffp_InitLib  ( register struct MathBase *mathffpb    __asm("a6"),
+struct MathBase * __g_lxa_mathffp_InitLib  ( register struct MathBase *mathffpb    __asm("a6"),
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {
@@ -47,7 +46,7 @@ struct MathBase * __saveds __g_lxa_mathffp_InitLib  ( register struct MathBase *
     return mathffpb;
 }
 
-struct MathBase * __saveds __g_lxa_mathffp_OpenLib ( register struct MathBase  *MathBase __asm("a6"))
+struct MathBase * __g_lxa_mathffp_OpenLib ( register struct MathBase  *MathBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_mathffp: OpenLib() called\n");
     // FIXME MathBase->dl_lib.lib_OpenCnt++;
@@ -55,12 +54,12 @@ struct MathBase * __saveds __g_lxa_mathffp_OpenLib ( register struct MathBase  *
     return MathBase;
 }
 
-BPTR __saveds __g_lxa_mathffp_CloseLib ( register struct MathBase  *mathffpb __asm("a6"))
+BPTR __g_lxa_mathffp_CloseLib ( register struct MathBase  *mathffpb __asm("a6"))
 {
     return NULL;
 }
 
-BPTR __saveds __g_lxa_mathffp_ExpungeLib ( register struct MathBase  *mathffpb      __asm("a6"))
+BPTR __g_lxa_mathffp_ExpungeLib ( register struct MathBase  *mathffpb      __asm("a6"))
 {
     return NULL;
 }
@@ -70,7 +69,7 @@ ULONG __g_lxa_mathffp_ExtFuncLib(void)
     return NULL;
 }
 
-LONG __saveds mathffp_SPFix ( register struct Library *MathBase __asm("a6"),
+LONG mathffp_SPFix ( register struct Library *MathBase __asm("a6"),
                               register FLOAT           y        __asm("d0"));
 asm(
 "_mathffp_SPFix:                                                                \n"
@@ -111,7 +110,7 @@ asm(
 "        rts                            | done                                  \n"
 );
 
-FLOAT __saveds mathffp_SPFlt ( register struct Library * MathBase __asm("a6"),
+FLOAT mathffp_SPFlt ( register struct Library * MathBase __asm("a6"),
                                register LONG integer __asm("d0"));
 
 asm(
@@ -154,7 +153,7 @@ asm(
 );
 
 
-LONG __saveds mathffp_SPCmp ( register struct Library *MathBase __asm("a6"),
+LONG mathffp_SPCmp ( register struct Library *MathBase __asm("a6"),
                               register FLOAT           y        __asm("d1"),
                               register FLOAT           x        __asm("d0"));
 
@@ -201,14 +200,14 @@ asm(
 "         rts                       |                             \n"
 );
 
-LONG __saveds mathffp_SPTst ( register struct Library * MathBase __asm("a6"),
+LONG mathffp_SPTst ( register struct Library * MathBase __asm("a6"),
                               register FLOAT parm __asm("d1"))
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPTst() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-FLOAT __saveds mathffp_SPAbs ( register struct Library * MathBase __asm("a6"),
+FLOAT mathffp_SPAbs ( register struct Library * MathBase __asm("a6"),
                                register FLOAT parm __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPAbs() unimplemented STUB called.\n");
@@ -216,7 +215,7 @@ FLOAT __saveds mathffp_SPAbs ( register struct Library * MathBase __asm("a6"),
 }
 
 
-FLOAT __saveds mathffp_SPNeg ( register struct Library *MathBase __asm("a6"),
+FLOAT mathffp_SPNeg ( register struct Library *MathBase __asm("a6"),
                                register FLOAT           y        __asm("d0"));
 asm(
 "_mathffp_SPNeg:                                                                \n"
@@ -227,7 +226,7 @@ asm(
 );
 
 /* x+y */
-FLOAT __saveds mathffp_SPAdd ( register struct Library *MathBase __asm("a6"),
+FLOAT mathffp_SPAdd ( register struct Library *MathBase __asm("a6"),
                                register FLOAT           x __asm("d1"),
                                register FLOAT           y __asm("d0"));
 asm(
@@ -396,7 +395,7 @@ asm(
 "         bra.s   mnorm2            | -> normalize                       \n"
 );
 
-FLOAT __saveds mathffp_SPSub ( register struct Library *MathBase __asm("a6"),
+FLOAT mathffp_SPSub ( register struct Library *MathBase __asm("a6"),
                                register FLOAT           y        __asm("d1"),
                                register FLOAT           x        __asm("d0"))
 {
@@ -412,7 +411,7 @@ FLOAT __saveds mathffp_SPSub ( register struct Library *MathBase __asm("a6"),
     return SPAdd(ufy.f, ufx.f);
 }
 
-FLOAT __saveds mathffp_SPMul ( register struct Library *MathBase __asm("a6"),
+FLOAT mathffp_SPMul ( register struct Library *MathBase __asm("a6"),
                                register FLOAT           x        __asm("d1"),
                                register FLOAT           y        __asm("d0"));
 
@@ -498,7 +497,7 @@ asm(
 "                                                             \n"
 );
 
-FLOAT __saveds mathffp_SPDiv ( register struct Library * MathBase  __asm("a6"),
+FLOAT mathffp_SPDiv ( register struct Library * MathBase  __asm("a6"),
                                register FLOAT            fdivisor  __asm("d1"),
                                register FLOAT            fdividend __asm("d0"));
 
@@ -622,7 +621,7 @@ asm(
 "       rts                              |                        \n"
 );
 
-FLOAT __saveds mathffp_SPFloor ( register struct Library *MathBase __asm("a6"),
+FLOAT mathffp_SPFloor ( register struct Library *MathBase __asm("a6"),
                                  register FLOAT           x        __asm("d0"));
 asm(
 "_mathffp_SPFloor:                                                      \n"
@@ -670,7 +669,7 @@ asm(
 
 );
 
-FLOAT __saveds mathffp_SPCeil ( register struct Library * MathBase __asm("a6"),
+FLOAT mathffp_SPCeil ( register struct Library * MathBase __asm("a6"),
                                 register FLOAT parm __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPCeil() unimplemented STUB called.\n");

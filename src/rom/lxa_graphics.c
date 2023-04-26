@@ -30,7 +30,7 @@ extern struct ExecBase      *SysBase;
 // baseType: struct GfxBase *
 // libname: graphics.library
 
-struct GfxBase * __saveds __g_lxa_graphics_InitLib    ( register struct GfxBase *graphicsb    __asm("a6"),
+struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphicsb    __asm("a6"),
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {
@@ -38,7 +38,7 @@ struct GfxBase * __saveds __g_lxa_graphics_InitLib    ( register struct GfxBase 
     return graphicsb;
 }
 
-struct GfxBase * __saveds __g_lxa_graphics_OpenLib ( register struct GfxBase  *GfxBase __asm("a6"))
+struct GfxBase * __g_lxa_graphics_OpenLib ( register struct GfxBase  *GfxBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_graphics: OpenLib() called\n");
     // FIXME GfxBase->dl_lib.lib_OpenCnt++;
@@ -46,12 +46,12 @@ struct GfxBase * __saveds __g_lxa_graphics_OpenLib ( register struct GfxBase  *G
     return GfxBase;
 }
 
-BPTR __saveds __g_lxa_graphics_CloseLib ( register struct GfxBase  *graphicsb __asm("a6"))
+BPTR __g_lxa_graphics_CloseLib ( register struct GfxBase  *graphicsb __asm("a6"))
 {
     return NULL;
 }
 
-BPTR __saveds __g_lxa_graphics_ExpungeLib ( register struct GfxBase  *graphicsb      __asm("a6"))
+BPTR __g_lxa_graphics_ExpungeLib ( register struct GfxBase  *graphicsb      __asm("a6"))
 {
     return NULL;
 }
@@ -61,7 +61,7 @@ ULONG __g_lxa_graphics_ExtFuncLib(void)
     return NULL;
 }
 
-static LONG __saveds _graphics_BltBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_BltBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct BitMap * srcBitMap __asm("a0"),
                                                         register LONG xSrc __asm("d0"),
                                                         register LONG ySrc __asm("d1"),
@@ -78,7 +78,7 @@ static LONG __saveds _graphics_BltBitMap ( register struct GfxBase * GfxBase __a
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST PLANEPTR source __asm("a0"),
                                                         register LONG xSrc __asm("d0"),
                                                         register LONG srcMod __asm("d1"),
@@ -92,21 +92,21 @@ static VOID __saveds _graphics_BltTemplate ( register struct GfxBase * GfxBase _
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: ClearEOL() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_ClearScreen ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_ClearScreen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: ClearScreen() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static WORD __saveds _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6"),
+static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register ULONG count __asm("d0"))
@@ -115,7 +115,7 @@ static WORD __saveds _graphics_TextLength ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register ULONG count __asm("d0"))
@@ -124,7 +124,7 @@ static LONG __saveds _graphics_Text ( register struct GfxBase * GfxBase __asm("a
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_SetFont ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_SetFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST struct TextFont * textFont __asm("a0"))
 {
@@ -132,28 +132,28 @@ static LONG __saveds _graphics_SetFont ( register struct GfxBase * GfxBase __asm
     assert(FALSE);
 }
 
-static struct TextFont * __saveds _graphics_OpenFont ( register struct GfxBase * GfxBase __asm("a6"),
+static struct TextFont * _graphics_OpenFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextAttr * textAttr __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: OpenFont() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_CloseFont ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_CloseFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * textFont __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: CloseFont() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_AskSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_AskSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: AskSoftStyle() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_SetSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_SetSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG style __asm("d0"),
                                                         register ULONG enable __asm("d1"))
@@ -162,7 +162,7 @@ static ULONG __saveds _graphics_SetSoftStyle ( register struct GfxBase * GfxBase
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_AddBob ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_AddBob ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Bob * bob __asm("a0"),
                                                         register struct RastPort * rp __asm("a1"))
 {
@@ -170,7 +170,7 @@ static VOID __saveds _graphics_AddBob ( register struct GfxBase * GfxBase __asm(
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_AddVSprite ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_AddVSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct VSprite * vSprite __asm("a0"),
                                                         register struct RastPort * rp __asm("a1"))
 {
@@ -178,14 +178,14 @@ static VOID __saveds _graphics_AddVSprite ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_DoCollision ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_DoCollision ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: DoCollision() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
@@ -193,7 +193,7 @@ static VOID __saveds _graphics_DrawGList ( register struct GfxBase * GfxBase __a
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_InitGels ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_InitGels ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct VSprite * head __asm("a0"),
                                                         register struct VSprite * tail __asm("a1"),
                                                         register struct GelsInfo * gelsInfo __asm("a2"))
@@ -202,14 +202,14 @@ static VOID __saveds _graphics_InitGels ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_InitMasks ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_InitMasks ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct VSprite * vSprite __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: InitMasks() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_RemIBob ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_RemIBob ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Bob * bob __asm("a0"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register struct ViewPort * vp __asm("a2"))
@@ -218,14 +218,14 @@ static VOID __saveds _graphics_RemIBob ( register struct GfxBase * GfxBase __asm
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_RemVSprite ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_RemVSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct VSprite * vSprite __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: RemVSprite() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetCollision ( register struct GfxBase  *GfxBase   __asm("a6"),
+static VOID _graphics_SetCollision ( register struct GfxBase  *GfxBase   __asm("a6"),
                                               register void            (*routine) __asm("a0"),
                                               register struct GelsInfo *GInfo     __asm("a1"))
 {
@@ -233,14 +233,14 @@ static VOID __saveds _graphics_SetCollision ( register struct GfxBase  *GfxBase 
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SortGList ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SortGList ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: SortGList() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_AddAnimOb ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_AddAnimOb ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct AnimOb * anOb __asm("a0"),
                                                         register struct AnimOb ** anKey __asm("a1"),
                                                         register struct RastPort * rp __asm("a2"))
@@ -249,7 +249,7 @@ static VOID __saveds _graphics_AddAnimOb ( register struct GfxBase * GfxBase __a
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_Animate ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_Animate ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct AnimOb ** anKey __asm("a0"),
                                                         register struct RastPort * rp __asm("a1"))
 {
@@ -257,7 +257,7 @@ static VOID __saveds _graphics_Animate ( register struct GfxBase * GfxBase __asm
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_GetGBuffers ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_GetGBuffers ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct AnimOb * anOb __asm("a0"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG flag __asm("d0"))
@@ -266,14 +266,14 @@ static BOOL __saveds _graphics_GetGBuffers ( register struct GfxBase * GfxBase _
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_InitGMasks ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_InitGMasks ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct AnimOb * anOb __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: InitGMasks() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_DrawEllipse ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_DrawEllipse ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG xCenter __asm("d0"),
                                                         register LONG yCenter __asm("d1"),
@@ -284,7 +284,7 @@ static VOID __saveds _graphics_DrawEllipse ( register struct GfxBase * GfxBase _
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_AreaEllipse ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_AreaEllipse ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG xCenter __asm("d0"),
                                                         register LONG yCenter __asm("d1"),
@@ -295,7 +295,7 @@ static LONG __saveds _graphics_AreaEllipse ( register struct GfxBase * GfxBase _
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register CONST UWORD * colors __asm("a1"),
                                                         register LONG count __asm("d0"))
@@ -304,28 +304,28 @@ static VOID __saveds _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: InitRastPort() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_InitVPort ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_InitVPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: InitVPort() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_MrgCop ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_MrgCop ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: MrgCop() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_MakeVPort ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_MakeVPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
@@ -333,20 +333,20 @@ static ULONG __saveds _graphics_MakeVPort ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_LoadView ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_LoadView ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: LoadView() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_WaitBlit ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_WaitBlit ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: WaitBlit() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetRast ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetRast ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG pen __asm("d0"))
 {
@@ -354,7 +354,7 @@ static VOID __saveds _graphics_SetRast ( register struct GfxBase * GfxBase __asm
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_Move ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_Move ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
@@ -363,7 +363,7 @@ static VOID __saveds _graphics_Move ( register struct GfxBase * GfxBase __asm("a
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
@@ -372,7 +372,7 @@ static VOID __saveds _graphics_Draw ( register struct GfxBase * GfxBase __asm("a
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_AreaMove ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_AreaMove ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
@@ -381,7 +381,7 @@ static LONG __saveds _graphics_AreaMove ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
@@ -390,27 +390,27 @@ static LONG __saveds _graphics_AreaDraw ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: AreaEnd() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: WaitTOF() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_QBlit ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_QBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct bltnode * blit __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: QBlit() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_InitArea ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_InitArea ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct AreaInfo * areaInfo __asm("a0"),
                                                         register APTR vectorBuffer __asm("a1"),
                                                         register LONG maxVectors __asm("d0"))
@@ -419,7 +419,7 @@ static VOID __saveds _graphics_InitArea ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register LONG index __asm("d0"),
                                                         register ULONG red __asm("d1"),
@@ -430,14 +430,14 @@ static VOID __saveds _graphics_SetRGB4 ( register struct GfxBase * GfxBase __asm
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_QBSBlit ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_QBSBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct bltnode * blit __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: QBSBlit() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_BltClear ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_BltClear ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register PLANEPTR memBlock __asm("a1"),
                                                         register ULONG byteCount __asm("d0"),
                                                         register ULONG flags __asm("d1"))
@@ -446,7 +446,7 @@ static VOID __saveds _graphics_BltClear ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG xMin __asm("d0"),
                                                         register LONG yMin __asm("d1"),
@@ -457,7 +457,7 @@ static VOID __saveds _graphics_RectFill ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST PLANEPTR mask __asm("a0"),
                                                         register LONG xMin __asm("d0"),
@@ -470,7 +470,7 @@ static VOID __saveds _graphics_BltPattern ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
@@ -479,7 +479,7 @@ static ULONG __saveds _graphics_ReadPixel ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
@@ -488,7 +488,7 @@ static LONG __saveds _graphics_WritePixel ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG mode __asm("d2"),
                                                         register LONG x __asm("d0"),
@@ -498,7 +498,7 @@ static BOOL __saveds _graphics_Flood ( register struct GfxBase * GfxBase __asm("
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_PolyDraw ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_PolyDraw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG count __asm("d0"),
                                                         register CONST WORD * polyTable __asm("a0"))
@@ -507,7 +507,7 @@ static VOID __saveds _graphics_PolyDraw ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetAPen ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetAPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG pen __asm("d0"))
 {
@@ -515,7 +515,7 @@ static VOID __saveds _graphics_SetAPen ( register struct GfxBase * GfxBase __asm
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetBPen ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetBPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG pen __asm("d0"))
 {
@@ -523,7 +523,7 @@ static VOID __saveds _graphics_SetBPen ( register struct GfxBase * GfxBase __asm
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG drawMode __asm("d0"))
 {
@@ -531,21 +531,21 @@ static VOID __saveds _graphics_SetDrMd ( register struct GfxBase * GfxBase __asm
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_InitView ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_InitView ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: InitView() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_CBump ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_CBump ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct UCopList * copList __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: CBump() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_CMove ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_CMove ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct UCopList * copList __asm("a1"),
                                                         register APTR destination __asm("d0"),
                                                         register LONG data __asm("d1"))
@@ -554,7 +554,7 @@ static VOID __saveds _graphics_CMove ( register struct GfxBase * GfxBase __asm("
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_CWait ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_CWait ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct UCopList * copList __asm("a1"),
                                                         register LONG v __asm("d0"),
                                                         register LONG h __asm("d1"))
@@ -563,13 +563,13 @@ static VOID __saveds _graphics_CWait ( register struct GfxBase * GfxBase __asm("
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_VBeamPos ( register struct GfxBase * GfxBase __asm("a6"))
+static LONG _graphics_VBeamPos ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: VBeamPos() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct BitMap * bitMap __asm("a0"),
                                                         register LONG depth __asm("d0"),
                                                         register LONG width __asm("d1"),
@@ -579,7 +579,7 @@ static VOID __saveds _graphics_InitBitMap ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG dx __asm("d0"),
                                                         register LONG dy __asm("d1"),
@@ -592,14 +592,14 @@ static VOID __saveds _graphics_ScrollRaster ( register struct GfxBase * GfxBase 
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_WaitBOVP ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_WaitBOVP ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: WaitBOVP() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static WORD __saveds _graphics_GetSprite ( register struct GfxBase * GfxBase __asm("a6"),
+static WORD _graphics_GetSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct SimpleSprite * sprite __asm("a0"),
                                                         register LONG num __asm("d0"))
 {
@@ -607,14 +607,14 @@ static WORD __saveds _graphics_GetSprite ( register struct GfxBase * GfxBase __a
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FreeSprite ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FreeSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG num __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: FreeSprite() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_ChangeSprite ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_ChangeSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register struct SimpleSprite * sprite __asm("a1"),
                                                         register UWORD * newData __asm("a2"))
@@ -623,7 +623,7 @@ static VOID __saveds _graphics_ChangeSprite ( register struct GfxBase * GfxBase 
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_MoveSprite ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_MoveSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register struct SimpleSprite * sprite __asm("a1"),
                                                         register LONG x __asm("d0"),
@@ -633,47 +633,47 @@ static VOID __saveds _graphics_MoveSprite ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_LockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_LockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a5"))
 {
     DPRINTF (LOG_ERROR, "_graphics: LockLayerRom() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_UnlockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_UnlockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a5"))
 {
     DPRINTF (LOG_ERROR, "_graphics: UnlockLayerRom() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SyncSBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SyncSBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: SyncSBitMap() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_CopySBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_CopySBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: CopySBitMap() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_OwnBlitter ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_OwnBlitter ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: OwnBlitter() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_DisownBlitter ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_DisownBlitter ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: DisownBlitter() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct TmpRas * __saveds _graphics_InitTmpRas ( register struct GfxBase * GfxBase __asm("a6"),
+static struct TmpRas * _graphics_InitTmpRas ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TmpRas * tmpRas __asm("a0"),
                                                         register PLANEPTR buffer __asm("a1"),
                                                         register LONG size __asm("d0"))
@@ -682,7 +682,7 @@ static struct TmpRas * __saveds _graphics_InitTmpRas ( register struct GfxBase *
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_AskFont ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_AskFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register struct TextAttr * textAttr __asm("a0"))
 {
@@ -690,21 +690,21 @@ static VOID __saveds _graphics_AskFont ( register struct GfxBase * GfxBase __asm
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_AddFont ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_AddFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * textFont __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: AddFont() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_RemFont ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_RemFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * textFont __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: RemFont() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static PLANEPTR __saveds _graphics_AllocRaster ( register struct GfxBase * GfxBase __asm("a6"),
+static PLANEPTR _graphics_AllocRaster ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG width __asm("d0"),
                                                         register ULONG height __asm("d1"))
 {
@@ -712,7 +712,7 @@ static PLANEPTR __saveds _graphics_AllocRaster ( register struct GfxBase * GfxBa
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FreeRaster ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FreeRaster ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register PLANEPTR p __asm("a0"),
                                                         register ULONG width __asm("d0"),
                                                         register ULONG height __asm("d1"))
@@ -721,7 +721,7 @@ static VOID __saveds _graphics_FreeRaster ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_AndRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_AndRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Region * region __asm("a0"),
                                                         register CONST struct Rectangle * rectangle __asm("a1"))
 {
@@ -729,7 +729,7 @@ static VOID __saveds _graphics_AndRectRegion ( register struct GfxBase * GfxBase
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_OrRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_OrRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Region * region __asm("a0"),
                                                         register CONST struct Rectangle * rectangle __asm("a1"))
 {
@@ -737,13 +737,13 @@ static BOOL __saveds _graphics_OrRectRegion ( register struct GfxBase * GfxBase 
     assert(FALSE);
 }
 
-static struct Region * __saveds _graphics_NewRegion ( register struct GfxBase * GfxBase __asm("a6"))
+static struct Region * _graphics_NewRegion ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: NewRegion() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_ClearRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_ClearRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Region * region __asm("a0"),
                                                         register CONST struct Rectangle * rectangle __asm("a1"))
 {
@@ -751,35 +751,35 @@ static BOOL __saveds _graphics_ClearRectRegion ( register struct GfxBase * GfxBa
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_ClearRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_ClearRegion ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Region * region __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: ClearRegion() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_DisposeRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_DisposeRegion ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Region * region __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: DisposeRegion() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FreeVPortCopLists ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FreeVPortCopLists ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: FreeVPortCopLists() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FreeCopList ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FreeCopList ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct CopList * copList __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: FreeCopList() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * srcRP __asm("a0"),
                                                         register LONG xSrc __asm("d0"),
                                                         register LONG ySrc __asm("d1"),
@@ -794,7 +794,7 @@ static VOID __saveds _graphics_ClipBlit ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_XorRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_XorRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Region * region __asm("a0"),
                                                         register CONST struct Rectangle * rectangle __asm("a1"))
 {
@@ -802,28 +802,28 @@ static BOOL __saveds _graphics_XorRectRegion ( register struct GfxBase * GfxBase
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FreeCprList ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FreeCprList ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct cprlist * cprList __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: FreeCprList() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct ColorMap * __saveds _graphics_GetColorMap ( register struct GfxBase * GfxBase __asm("a6"),
+static struct ColorMap * _graphics_GetColorMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG entries __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: GetColorMap() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FreeColorMap ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FreeColorMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * colorMap __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: FreeColorMap() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_GetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_GetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * colorMap __asm("a0"),
                                                         register LONG entry __asm("d0"))
 {
@@ -831,14 +831,14 @@ static ULONG __saveds _graphics_GetRGB4 ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_ScrollVPort ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_ScrollVPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: ScrollVPort() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct CopList * __saveds _graphics_UCopperListInit ( register struct GfxBase * GfxBase __asm("a6"),
+static struct CopList * _graphics_UCopperListInit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct UCopList * uCopList __asm("a0"),
                                                         register LONG n __asm("d0"))
 {
@@ -846,7 +846,7 @@ static struct CopList * __saveds _graphics_UCopperListInit ( register struct Gfx
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FreeGBuffers ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FreeGBuffers ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct AnimOb * anOb __asm("a0"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG flag __asm("d0"))
@@ -855,7 +855,7 @@ static VOID __saveds _graphics_FreeGBuffers ( register struct GfxBase * GfxBase 
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct BitMap * srcBitMap __asm("a0"),
                                                         register LONG xSrc __asm("d0"),
                                                         register LONG ySrc __asm("d1"),
@@ -870,7 +870,7 @@ static VOID __saveds _graphics_BltBitMapRastPort ( register struct GfxBase * Gfx
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_OrRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_OrRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct Region * srcRegion __asm("a0"),
                                                         register struct Region * destRegion __asm("a1"))
 {
@@ -878,7 +878,7 @@ static BOOL __saveds _graphics_OrRegionRegion ( register struct GfxBase * GfxBas
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_XorRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_XorRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct Region * srcRegion __asm("a0"),
                                                         register struct Region * destRegion __asm("a1"))
 {
@@ -886,7 +886,7 @@ static BOOL __saveds _graphics_XorRegionRegion ( register struct GfxBase * GfxBa
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_AndRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_AndRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct Region * srcRegion __asm("a0"),
                                                         register struct Region * destRegion __asm("a1"))
 {
@@ -894,7 +894,7 @@ static BOOL __saveds _graphics_AndRegionRegion ( register struct GfxBase * GfxBa
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * colorMap __asm("a0"),
                                                         register LONG index __asm("d0"),
                                                         register ULONG red __asm("d1"),
@@ -905,7 +905,7 @@ static VOID __saveds _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __a
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct BitMap * srcBitMap __asm("a0"),
                                                         register LONG xSrc __asm("d0"),
                                                         register LONG ySrc __asm("d1"),
@@ -921,40 +921,40 @@ static VOID __saveds _graphics_BltMaskBitMapRastPort ( register struct GfxBase *
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_private0 ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_private0 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: private0() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_private1 ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_private1 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: private1() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a5"))
 {
     DPRINTF (LOG_ERROR, "_graphics: AttemptLockLayerRom() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static APTR __saveds _graphics_GfxNew ( register struct GfxBase * GfxBase __asm("a6"),
+static APTR _graphics_GfxNew ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG gfxNodeType __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: GfxNew() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_GfxFree ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_GfxFree ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register APTR gfxNodePtr __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: GfxFree() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_GfxAssociate ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_GfxAssociate ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST APTR associateNode __asm("a0"),
                                                         register APTR gfxNodePtr __asm("a1"))
 {
@@ -962,14 +962,14 @@ static VOID __saveds _graphics_GfxAssociate ( register struct GfxBase * GfxBase 
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct BitScaleArgs * bitScaleArgs __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: BitMapScale() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static UWORD __saveds _graphics_ScalerDiv ( register struct GfxBase * GfxBase __asm("a6"),
+static UWORD _graphics_ScalerDiv ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG factor __asm("d0"),
                                                         register ULONG numerator __asm("d1"),
                                                         register ULONG denominator __asm("d2"))
@@ -978,7 +978,7 @@ static UWORD __saveds _graphics_ScalerDiv ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static WORD __saveds _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6"),
+static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register LONG count __asm("d0"),
@@ -988,7 +988,7 @@ static WORD __saveds _graphics_TextExtent ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register ULONG strLen __asm("d0"),
@@ -1002,14 +1002,14 @@ static ULONG __saveds _graphics_TextFit ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static APTR __saveds _graphics_GfxLookUp ( register struct GfxBase * GfxBase __asm("a6"),
+static APTR _graphics_GfxLookUp ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST APTR associateNode __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: GfxLookUp() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * colorMap __asm("a0"),
                                                         register struct TagItem * tagarray __asm("a1"))
 {
@@ -1017,7 +1017,7 @@ static BOOL __saveds _graphics_VideoControl ( register struct GfxBase * GfxBase 
     assert(FALSE);
 }
 
-static struct MonitorSpec * __saveds _graphics_OpenMonitor ( register struct GfxBase * GfxBase __asm("a6"),
+static struct MonitorSpec * _graphics_OpenMonitor ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST_STRPTR monitorName __asm("a1"),
                                                         register ULONG displayID __asm("d0"))
 {
@@ -1025,46 +1025,46 @@ static struct MonitorSpec * __saveds _graphics_OpenMonitor ( register struct Gfx
     assert(FALSE);
 }
 
-static BOOL __saveds _graphics_CloseMonitor ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL _graphics_CloseMonitor ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct MonitorSpec * monitorSpec __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: CloseMonitor() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static DisplayInfoHandle __saveds _graphics_FindDisplayInfo ( register struct GfxBase * GfxBase __asm("a6"),
+static DisplayInfoHandle _graphics_FindDisplayInfo ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG displayID __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: FindDisplayInfo() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_NextDisplayInfo ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_NextDisplayInfo ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG displayID __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: NextDisplayInfo() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_private2 ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_private2 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: private2() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_private3 ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_private3 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: private3() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_private4 ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_private4 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: private4() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST DisplayInfoHandle handle __asm("a0"),
                                                         register APTR buf __asm("a1"),
                                                         register ULONG size __asm("d0"),
@@ -1075,7 +1075,7 @@ static ULONG __saveds _graphics_GetDisplayInfoData ( register struct GfxBase * G
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FontExtent ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FontExtent ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct TextFont * font __asm("a0"),
                                                         register struct TextExtent * fontExtent __asm("a1"))
 {
@@ -1083,7 +1083,7 @@ static VOID __saveds _graphics_FontExtent ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG xstart __asm("d0"),
                                                         register ULONG ystart __asm("d1"),
@@ -1095,7 +1095,7 @@ static LONG __saveds _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBas
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_WritePixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_WritePixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG xstart __asm("d0"),
                                                         register ULONG ystart __asm("d1"),
@@ -1107,7 +1107,7 @@ static LONG __saveds _graphics_WritePixelLine8 ( register struct GfxBase * GfxBa
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG xstart __asm("d0"),
                                                         register ULONG ystart __asm("d1"),
@@ -1120,7 +1120,7 @@ static LONG __saveds _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBa
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG xstart __asm("d0"),
                                                         register ULONG ystart __asm("d1"),
@@ -1133,27 +1133,27 @@ static LONG __saveds _graphics_WritePixelArray8 ( register struct GfxBase * GfxB
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_GetVPModeID ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_GetVPModeID ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct ViewPort * vp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: GetVPModeID() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_ModeNotAvailable ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_ModeNotAvailable ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG modeID __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: ModeNotAvailable() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_private5 ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_private5 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: private5() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG xMin __asm("d0"),
                                                         register LONG yMin __asm("d1"),
@@ -1164,7 +1164,7 @@ static VOID __saveds _graphics_EraseRect ( register struct GfxBase * GfxBase __a
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_ExtendFont ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_ExtendFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * font __asm("a0"),
                                                         register CONST struct TagItem * fontTags __asm("a1"))
 {
@@ -1172,14 +1172,14 @@ static ULONG __saveds _graphics_ExtendFont ( register struct GfxBase * GfxBase _
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_StripFont ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_StripFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * font __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: StripFont() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static UWORD __saveds _graphics_CalcIVG ( register struct GfxBase * GfxBase __asm("a6"),
+static UWORD _graphics_CalcIVG ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * v __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
@@ -1187,7 +1187,7 @@ static UWORD __saveds _graphics_CalcIVG ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * cm __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
@@ -1195,7 +1195,7 @@ static LONG __saveds _graphics_AttachPalExtra ( register struct GfxBase * GfxBas
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * cm __asm("a0"),
                                                         register ULONG r __asm("d1"),
                                                         register ULONG g __asm("d2"),
@@ -1206,13 +1206,13 @@ static LONG __saveds _graphics_ObtainBestPenA ( register struct GfxBase * GfxBas
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_private6 ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_private6 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: private6() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register ULONG n __asm("d0"),
                                                         register ULONG r __asm("d1"),
@@ -1223,35 +1223,35 @@ static VOID __saveds _graphics_SetRGB32 ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_GetAPen ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_GetAPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: GetAPen() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_GetBPen ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_GetBPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: GetBPen() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_GetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_GetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: GetDrMd() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_GetOutlinePen ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_GetOutlinePen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: GetOutlinePen() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register CONST ULONG * table __asm("a1"))
 {
@@ -1259,14 +1259,14 @@ static VOID __saveds _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __a
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_SetChipRev ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_SetChipRev ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG want __asm("d0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: SetChipRev() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetABPenDrMd ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetABPenDrMd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG apen __asm("d0"),
                                                         register ULONG bpen __asm("d1"),
@@ -1276,7 +1276,7 @@ static VOID __saveds _graphics_SetABPenDrMd ( register struct GfxBase * GfxBase 
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_GetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_GetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct ColorMap * cm __asm("a0"),
                                                         register ULONG firstcolor __asm("d0"),
                                                         register ULONG ncolors __asm("d1"),
@@ -1286,19 +1286,19 @@ static VOID __saveds _graphics_GetRGB32 ( register struct GfxBase * GfxBase __as
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_private7 ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_private7 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: private7() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_private8 ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_private8 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: private8() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct BitMap * __saveds _graphics_AllocBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG sizex __asm("d0"),
                                                         register ULONG sizey __asm("d1"),
                                                         register ULONG depth __asm("d2"),
@@ -1309,14 +1309,14 @@ static struct BitMap * __saveds _graphics_AllocBitMap ( register struct GfxBase 
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FreeBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FreeBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct BitMap * bm __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: FreeBitMap() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_GetExtSpriteA ( register struct GfxBase       *GfxBase __asm("a6"),
+static LONG _graphics_GetExtSpriteA ( register struct GfxBase       *GfxBase __asm("a6"),
                                                register struct ExtSprite     *ss      __asm("a2"),
                                                register CONST struct TagItem *tags    __asm("a1"))
 {
@@ -1324,7 +1324,7 @@ static LONG __saveds _graphics_GetExtSpriteA ( register struct GfxBase       *Gf
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_CoerceMode ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_CoerceMode ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register ULONG monitorid __asm("d0"),
                                                         register ULONG flags __asm("d1"))
@@ -1333,7 +1333,7 @@ static ULONG __saveds _graphics_CoerceMode ( register struct GfxBase * GfxBase _
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_ChangeVPBitMap ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_ChangeVPBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register struct BitMap * bm __asm("a1"),
                                                         register struct DBufInfo * db __asm("a2"))
@@ -1342,7 +1342,7 @@ static VOID __saveds _graphics_ChangeVPBitMap ( register struct GfxBase * GfxBas
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_ReleasePen ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_ReleasePen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * cm __asm("a0"),
                                                         register ULONG n __asm("d0"))
 {
@@ -1350,7 +1350,7 @@ static VOID __saveds _graphics_ReleasePen ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * cm __asm("a0"),
                                                         register ULONG n __asm("d0"),
                                                         register ULONG r __asm("d1"),
@@ -1362,7 +1362,7 @@ static ULONG __saveds _graphics_ObtainPen ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_GetBitMapAttr ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_GetBitMapAttr ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct BitMap * bm __asm("a0"),
                                                         register ULONG attrnum __asm("d1"))
 {
@@ -1370,21 +1370,21 @@ static ULONG __saveds _graphics_GetBitMapAttr ( register struct GfxBase * GfxBas
     assert(FALSE);
 }
 
-static struct DBufInfo * __saveds _graphics_AllocDBufInfo ( register struct GfxBase * GfxBase __asm("a6"),
+static struct DBufInfo * _graphics_AllocDBufInfo ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: AllocDBufInfo() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FreeDBufInfo ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FreeDBufInfo ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct DBufInfo * dbi __asm("a1"))
 {
     DPRINTF (LOG_ERROR, "_graphics: FreeDBufInfo() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_SetOutlinePen ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_SetOutlinePen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG pen __asm("d0"))
 {
@@ -1392,7 +1392,7 @@ static ULONG __saveds _graphics_SetOutlinePen ( register struct GfxBase * GfxBas
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_SetWriteMask ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_SetWriteMask ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG msk __asm("d0"))
 {
@@ -1400,7 +1400,7 @@ static ULONG __saveds _graphics_SetWriteMask ( register struct GfxBase * GfxBase
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetMaxPen ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetMaxPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG maxpen __asm("d0"))
 {
@@ -1408,7 +1408,7 @@ static VOID __saveds _graphics_SetMaxPen ( register struct GfxBase * GfxBase __a
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetRGB32CM ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetRGB32CM ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * cm __asm("a0"),
                                                         register ULONG n __asm("d0"),
                                                         register ULONG r __asm("d1"),
@@ -1419,7 +1419,7 @@ static VOID __saveds _graphics_SetRGB32CM ( register struct GfxBase * GfxBase __
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG dx __asm("d0"),
                                                         register LONG dy __asm("d1"),
@@ -1432,7 +1432,7 @@ static VOID __saveds _graphics_ScrollRasterBF ( register struct GfxBase * GfxBas
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_FindColor ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_FindColor ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * cm __asm("a3"),
                                                         register ULONG r __asm("d1"),
                                                         register ULONG g __asm("d2"),
@@ -1443,13 +1443,13 @@ static LONG __saveds _graphics_FindColor ( register struct GfxBase * GfxBase __a
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_private9 ( register struct GfxBase * GfxBase __asm("a6"))
+static VOID _graphics_private9 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_ERROR, "_graphics: private9() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static struct ExtSprite * __saveds _graphics_AllocSpriteDataA ( register struct GfxBase * GfxBase __asm("a6"),
+static struct ExtSprite * _graphics_AllocSpriteDataA ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct BitMap * bm __asm("a2"),
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
@@ -1457,7 +1457,7 @@ static struct ExtSprite * __saveds _graphics_AllocSpriteDataA ( register struct 
     assert(FALSE);
 }
 
-static LONG __saveds _graphics_ChangeExtSpriteA ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_ChangeExtSpriteA ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register struct ExtSprite * oldsprite __asm("a1"),
                                                         register struct ExtSprite * newsprite __asm("a2"),
@@ -1467,14 +1467,14 @@ static LONG __saveds _graphics_ChangeExtSpriteA ( register struct GfxBase * GfxB
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_FreeSpriteData ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_FreeSpriteData ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ExtSprite * sp __asm("a2"))
 {
     DPRINTF (LOG_ERROR, "_graphics: FreeSpriteData() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_SetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_SetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
@@ -1482,7 +1482,7 @@ static VOID __saveds _graphics_SetRPAttrsA ( register struct GfxBase * GfxBase _
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_GetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_GetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct RastPort * rp __asm("a0"),
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
@@ -1490,14 +1490,14 @@ static VOID __saveds _graphics_GetRPAttrsA ( register struct GfxBase * GfxBase _
     assert(FALSE);
 }
 
-static ULONG __saveds _graphics_BestModeIDA ( register struct GfxBase * GfxBase __asm("a6"),
+static ULONG _graphics_BestModeIDA ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct TagItem * tags __asm("a0"))
 {
     DPRINTF (LOG_ERROR, "_graphics: BestModeIDA() unimplemented STUB called.\n");
     assert(FALSE);
 }
 
-static VOID __saveds _graphics_WriteChunkyPixels ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID _graphics_WriteChunkyPixels ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG xstart __asm("d0"),
                                                         register ULONG ystart __asm("d1"),
