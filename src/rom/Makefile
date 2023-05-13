@@ -31,13 +31,13 @@ lxa.rom.bin: lxa.rom.hunk
 	$(OBJCOPY_AMIGAOS) -O binary --only-section=.text lxa.rom.hunk lxa.rom.bin
 
 %.o : %.c
-	$(CC_AMIGAOS) -c $(CFLAGS) $< -o $@
+	$(CC_AMIGAOS) -c $(CFLAGS_AMIGAOS) $< -o $@
 
 %.o : %.s
-	$(AS_AMIGAOS) $(ASFLAGS) $< -o $@
+	$(AS_AMIGAOS) $(ASFLAGS_AMIGAOS) $< -o $@
 
 %.asm : %.c
-	$(CC_AMIGAOS) -S $(CFLAGS) $< -o $@
+	$(CC_AMIGAOS) -S $(CFLAGS_AMIGAOS) $< -o $@
 
 lxa.rom: lxa.rom.bin
 	$(ROMTOOL) build -o lxa.rom -t kick -s 256 lxa.rom.bin

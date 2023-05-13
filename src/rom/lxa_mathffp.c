@@ -205,6 +205,7 @@ LONG mathffp_SPTst ( register struct Library * MathBase __asm("a6"),
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPTst() unimplemented STUB called.\n");
     assert(FALSE);
+    return 0;
 }
 
 FLOAT mathffp_SPAbs ( register struct Library * MathBase __asm("a6"),
@@ -212,6 +213,7 @@ FLOAT mathffp_SPAbs ( register struct Library * MathBase __asm("a6"),
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPAbs() unimplemented STUB called.\n");
     assert(FALSE);
+    return 0;
 }
 
 
@@ -674,6 +676,7 @@ FLOAT mathffp_SPCeil ( register struct Library * MathBase __asm("a6"),
 {
     DPRINTF (LOG_ERROR, "_mathffp: SPCeil() unimplemented STUB called.\n");
     assert(FALSE);
+    return 0;
 }
 
 struct MyDataInit

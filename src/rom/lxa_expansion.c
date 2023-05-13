@@ -74,6 +74,7 @@ BOOL _expansion_AddBootNode ( register struct ExpansionBase * ExpansionBase __as
 {
     DPRINTF (LOG_ERROR, "_expansion: AddBootNode() unimplemented STUB called.\n");
     assert(FALSE);
+    return FALSE;
 }
 
 VOID _expansion_AllocBoardMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -87,6 +88,7 @@ struct ConfigDev * _expansion_AllocConfigDev ( register struct ExpansionBase * E
 {
     DPRINTF (LOG_ERROR, "_expansion: AllocConfigDev() unimplemented STUB called.\n");
     assert(FALSE);
+    return NULL;
 }
 
 APTR _expansion_AllocExpansionMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -95,6 +97,7 @@ APTR _expansion_AllocExpansionMem ( register struct ExpansionBase * ExpansionBas
 {
     DPRINTF (LOG_ERROR, "_expansion: AllocExpansionMem() unimplemented STUB called.\n");
     assert(FALSE);
+    return NULL;
 }
 
 VOID _expansion_ConfigBoard ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -119,6 +122,7 @@ struct ConfigDev * _expansion_FindConfigDev ( register struct ExpansionBase * Ex
 {
     DPRINTF (LOG_ERROR, "_expansion: FindConfigDev() unimplemented STUB called.\n");
     assert(FALSE);
+    return NULL;
 }
 
 VOID _expansion_FreeBoardMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -150,6 +154,7 @@ UBYTE _expansion_ReadExpansionByte ( register struct ExpansionBase * ExpansionBa
 {
     DPRINTF (LOG_ERROR, "_expansion: ReadExpansionByte() unimplemented STUB called.\n");
     assert(FALSE);
+    return 0;
 }
 
 VOID _expansion_ReadExpansionRom ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -202,6 +207,7 @@ ULONG _expansion_GetCurrentBinding ( register struct ExpansionBase * ExpansionBa
 {
     DPRINTF (LOG_ERROR, "_expansion: GetCurrentBinding() unimplemented STUB called.\n");
     assert(FALSE);
+    return 0;
 }
 
 struct DeviceNode * _expansion_MakeDosNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -209,6 +215,7 @@ struct DeviceNode * _expansion_MakeDosNode ( register struct ExpansionBase * Exp
 {
     DPRINTF (LOG_ERROR, "_expansion: MakeDosNode() unimplemented STUB called.\n");
     assert(FALSE);
+    return NULL;
 }
 
 BOOL _expansion_AddDosNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -218,6 +225,7 @@ BOOL _expansion_AddDosNode ( register struct ExpansionBase * ExpansionBase __asm
 {
     DPRINTF (LOG_ERROR, "_expansion: AddDosNode() unimplemented STUB called.\n");
     assert(FALSE);
+    return FALSE;
 }
 
 struct MyDataInit

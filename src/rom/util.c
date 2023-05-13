@@ -563,7 +563,7 @@ struct Task *U_allocTask (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess
     newtask = ml->ml_ME[0].me_Addr;
     newtask->tc_Node.ln_Type = isProcess ? NT_PROCESS : NT_TASK;
     newtask->tc_Node.ln_Pri  = pri;
-    newtask->tc_Node.ln_Name = name;
+    newtask->tc_Node.ln_Name = (char *)name;
     newtask->tc_SPReg        = (APTR)((ULONG)ml->ml_ME[1].me_Addr+stacksize);
     newtask->tc_SPLower      = ml->ml_ME[1].me_Addr;
     newtask->tc_SPUpper      = newtask->tc_SPReg;
@@ -666,7 +666,9 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
 {
     DPRINTF (LOG_INFO, "util: U_prepareProcess() process=0x%08lx, initPC=0x%08lx, stacksize=%d, args=0x%08lx\n", process, initPC, stacksize, args);
 
-    NEWLIST ((struct List *)&process->pr_LocalVars);
+    struct List *l = (struct List *)&process->pr_LocalVars;
+
+    NEWLIST (l);
 
 	U_prepareTask (&process->pr_Task, initPC, finalPC, args);
 

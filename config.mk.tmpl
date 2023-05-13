@@ -39,7 +39,7 @@ OBJDIR_LINUX = $(SELF_DIR)/target/x86_64-linux/obj
 BINDIR_LINUX = $(SELF_DIR)/target/x86_64-linux/bin
 DEPDIR_LINUX = $(SELF_DIR)/target/x86_64-linux/.deps
 
-CFLAGS_LINUX = -Wall -Werror -g
+CFLAGS_LINUX = -Wall -Werror -g -I$(SELF_DIR)/src/include
 # CFLAGS_LINUX = -Wall -Werror -g -pg
 DEPFLAGS_LINUX = -MT $@ -MMD -MP -MF $(DEPDIR_LINUX)/$*.d
 LDFLAGS_LINUX = -lm

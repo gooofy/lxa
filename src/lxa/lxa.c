@@ -14,6 +14,7 @@
 #include <readline/history.h>
 
 #include "m68k.h"
+#include "emucalls.h"
 
 #define DEBUG       true
 #define LXA_LOG_FILENAME "lxa.log"
@@ -27,8 +28,8 @@
 #define RAM_SIZE    10 * 1024 * 1024
 #define RAM_END     RAM_START + RAM_SIZE - 1
 
-//#define DEFAULT_ROM_PATH "../rom/my.rom"
-#define DEFAULT_ROM_PATH "../tinyrom/lxa.rom"
+#define DEFAULT_ROM_PATH "../rom/lxa.rom"
+//#define DEFAULT_ROM_PATH "../tinyrom/lxa.rom"
 
 #define ROM_SIZE    256 * 1024
 #define ROM_START   0xfc0000
@@ -38,22 +39,6 @@
 #define CUSTOM_END   0xdfffff
 
 #define CUSTOM_REG_INTENA   0x09a
-
-#define EMU_CALL_LPUTC         1
-#define EMU_CALL_STOP          2
-#define EMU_CALL_TRACE         3
-#define EMU_CALL_LPUTS         4
-#define EMU_CALL_EXCEPTION     5
-#define EMU_CALL_WAIT          6
-#define EMU_CALL_MONITOR       8
-#define EMU_CALL_LOADFILE      9
-#define EMU_CALL_DOS_OPEN   1000
-#define EMU_CALL_DOS_READ   1001
-#define EMU_CALL_DOS_SEEK   1002
-#define EMU_CALL_DOS_CLOSE  1003
-#define EMU_CALL_DOS_INPUT  1004
-#define EMU_CALL_DOS_OUTPUT 1005
-#define EMU_CALL_DOS_WRITE  1006
 
 #define AMIGA_SYSROOT "/home/guenter/media/emu/amiga/FS-UAE/hdd/system/"
 
