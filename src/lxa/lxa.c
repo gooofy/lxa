@@ -873,13 +873,32 @@ static void _debug_machine_state (void)
     DPRINTF (LOG_INFO, "\n");
 }
 
-static void _debug_memdump (uint32_t addr)
+static uint32_t _debug_memdump (uint32_t addr)
 {
     CPRINTF ("Memory dump:\n\n");
 
     hexdump (LOG_INFO, addr, 256);
 
     CPRINTF ("\n");
+
+    return addr+256;
+}
+
+static uint32_t _debug_disassemble (int n, uint32_t pc)
+{
+    unsigned int instr_size;
+    static char buff[100];
+    static char buff2[100];
+
+    for (int i = 0; i<n; i++)
+    {
+        instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
+        make_hex(buff2, pc, instr_size);
+        CPRINTF("     0x%08x  %-20s: %s\n", pc, buff2, buff);
+        pc += instr_size;
+    }
+
+    return pc;
 }
 
 static void _debug_help (void)
@@ -891,6 +910,7 @@ static void _debug_help (void)
     CPRINTF ("s            - step\n");
     CPRINTF ("t <num>      - traceback\n");
     CPRINTF ("m <addr/reg> - memory dump\n");
+    CPRINTF ("d <addr/reg> - disassemble\n");
     CPRINTF ("\n");
 }
 
@@ -962,10 +982,11 @@ static void _debug(uint32_t pcFinal)
     // interactive debugger loop
 
     char* buf;
+    uint32_t caddr = pcFinal;
     while ((buf = readline(">> ")))
     {
         int l = strlen(buf);
-        CPRINTF ("buf l=%d (%s)\n", l, buf);
+        //CPRINTF ("buf l=%d (%s)\n", l, buf);
         if (!l)
             continue;
 
@@ -1001,9 +1022,26 @@ static void _debug(uint32_t pcFinal)
             }
             case 'm':
             {
-                uint32_t addr = _debug_parse_addr(&buf[2]);
+                uint32_t addr = caddr;
+                if (strlen(buf)>2)
+                    addr = _debug_parse_addr(&buf[2]);
                 if (addr)
-                    _debug_memdump (addr);
+                {
+                    caddr = _debug_memdump (addr);
+                }
+                else
+                {
+                    CPRINTF ("???\n");
+                }
+                break;
+            }
+            case 'd':
+            {
+                uint32_t addr = caddr;
+                if (strlen(buf)>2)
+                    addr = _debug_parse_addr(&buf[2]);
+                if (addr)
+                    caddr = _debug_disassemble (10, addr);
                 else
                     CPRINTF ("???\n");
                 break;
