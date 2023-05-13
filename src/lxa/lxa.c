@@ -70,7 +70,6 @@ static uint16_t g_intena  = INTENA_MASTER | INTENA_VBLANK;
 
 static void _debug(uint32_t pc);
 
-#ifdef ENABLE_DEBUG
 #define HEXDUMP_COLS 16
 
 static bool isprintable (char c)
@@ -87,18 +86,18 @@ void hexdump (int lvl, uint32_t offset, uint32_t len)
         /* print offset */
         if (i % HEXDUMP_COLS == 0)
         {
-            DPRINTF(lvl, "0x%06x: ", offset+i);
+            LPRINTF(lvl, "0x%06x: ", offset+i);
         }
 
         /* print hex data */
         if (i < len)
         {
             char c = m68k_read_memory_8 (offset + i);
-            DPRINTF(lvl, "%02x ", 0xFF & c);
+            LPRINTF(lvl, "%02x ", 0xFF & c);
         }
         else /* end of block, just aligning for ASCII dump */
         {
-            DPRINTF(lvl, "   ");
+            LPRINTF(lvl, "   ");
         }
 
         /* print ASCII dump */
@@ -110,30 +109,21 @@ void hexdump (int lvl, uint32_t offset, uint32_t len)
 
                 if (j >= len) /* end of block, not really printing */
                 {
-                    DPRINTF(lvl, " ");
+                    LPRINTF(lvl, " ");
                 }
                 else if (isprintable(c)) /* printable char */
                 {
-                    DPRINTF(lvl, "%c", c);
+                    LPRINTF(lvl, "%c", c);
                 }
                 else /* other char */
                 {
-                    DPRINTF(lvl, ".");
+                    LPRINTF(lvl, ".");
                 }
             }
-            DPRINTF(lvl, "\n");
+            LPRINTF(lvl, "\n");
         }
     }
 }
-
-#else // ENABLE_DEBUG
-
-void hexdump (int lvl, uint32_t offset, uint32_t len)
-{
-}
-
-#endif
-
 
 static inline uint8_t mread8 (uint32_t address)
 {
