@@ -229,6 +229,7 @@ static inline void mwrite8 (uint32_t address, uint8_t value)
     else
     {
         printf("ERROR: mwrite8 at invalid address 0x%08x\n", address);
+        _debug(m68k_get_reg(NULL, M68K_REG_PC));
         assert (false);
     }
 }
@@ -841,7 +842,7 @@ static void _debug_traceback (int n, uint32_t pcFinal)
     static char buff[100];
     static char buff2[100];
 
-    DPRINTF (LOG_INFO, "Traceback:\n\n");
+    CPRINTF ("Traceback:\n\n");
 
     n--;
 
@@ -855,14 +856,14 @@ static void _debug_traceback (int n, uint32_t pcFinal)
         pc = g_trace_buf[idx];
         instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
         make_hex(buff2, pc, instr_size);
-        DPRINTF(LOG_INFO, "     0x%08x  %-20s: %s\n", pc, buff2, buff);
+        CPRINTF("     0x%08x  %-20s: %s\n", pc, buff2, buff);
         idx = (idx+1) % TRACE_BUF_ENTRIES;
     }
 
     pc = pcFinal;
     instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
     make_hex(buff2, pc, instr_size);
-    DPRINTF(LOG_INFO, "---> 0x%08x  %-20s: %s\n\n", pc, buff2, buff);
+    CPRINTF("---> 0x%08x  %-20s: %s\n\n", pc, buff2, buff);
 }
 
 static void _debug_machine_state (void)
@@ -874,23 +875,74 @@ static void _debug_machine_state (void)
 
 static void _debug_memdump (uint32_t addr)
 {
-    DPRINTF (LOG_INFO, "Memory dump:\n\n");
+    CPRINTF ("Memory dump:\n\n");
 
     hexdump (LOG_INFO, addr, 256);
 
-    DPRINTF (LOG_INFO, "\n");
+    CPRINTF ("\n");
 }
 
 static void _debug_help (void)
 {
-    DPRINTF (LOG_INFO, "Available commands:\n\n");
-    DPRINTF (LOG_INFO, "h        - this help screen\n");
-    DPRINTF (LOG_INFO, "c        - continue\n");
-    DPRINTF (LOG_INFO, "r        - registers\n");
-    DPRINTF (LOG_INFO, "s        - step\n");
-    DPRINTF (LOG_INFO, "t <num>  - traceback\n");
-    DPRINTF (LOG_INFO, "m <addr> - memory dump\n");
-    DPRINTF (LOG_INFO, "\n");
+    CPRINTF ("Available commands:\n\n");
+    CPRINTF ("h            - this help screen\n");
+    CPRINTF ("c            - continue\n");
+    CPRINTF ("r            - registers\n");
+    CPRINTF ("s            - step\n");
+    CPRINTF ("t <num>      - traceback\n");
+    CPRINTF ("m <addr/reg> - memory dump\n");
+    CPRINTF ("\n");
+}
+
+#define NUM_M68K_REGS 27
+
+static char *_m68k_regnames[NUM_M68K_REGS] = {
+	"d0",
+	"d1",
+	"d2",
+	"d3",
+	"d4",
+	"d5",
+	"d6",
+	"d7",
+	"a0",
+	"a1",
+	"a2",
+	"a3",
+	"a4",
+	"a5",
+	"a6",
+	"a7",
+	"pc",
+	"sr",
+	"sp",
+	"usp",
+	"isp",
+	"msp",
+	"sfc",
+	"dfc",
+	"vbr",
+	"cacr",
+	"caar"
+};
+
+static uint32_t _debug_parse_addr(const char *buf)
+{
+    uint32_t addr;
+    int n = sscanf (buf, "m %x", &addr);
+    if (n==1)
+    {
+        return addr;
+    }
+    else
+    {
+        for (int i=0; i<NUM_M68K_REGS; i++)
+        {
+            if (!strcmp(buf, _m68k_regnames[i]))
+                return m68k_get_reg (NULL, i);
+        }
+    }
+    return 0;
 }
 
 static void _debug(uint32_t pcFinal)
@@ -901,7 +953,7 @@ static void _debug(uint32_t pcFinal)
         return;
     in_debug = TRUE;
 
-    DPRINTF(LOG_INFO, "\n\n     *** LXA DEBUGGER ***\n\n");
+    CPRINTF("\n\n     *** LXA DEBUGGER ***\n\n");
 
     _debug_traceback (5, pcFinal);
 
@@ -913,11 +965,12 @@ static void _debug(uint32_t pcFinal)
     while ((buf = readline(">> ")))
     {
         int l = strlen(buf);
+        CPRINTF ("buf l=%d (%s)\n", l, buf);
         if (!l)
             continue;
 
         add_history(buf);
-        DPRINTF (LOG_INFO, "\n");
+        CPRINTF ("\n");
 
         switch (buf[0])
         {
@@ -943,19 +996,20 @@ static void _debug(uint32_t pcFinal)
                 if (n==1)
                     _debug_traceback (num, pcFinal);
                 else
-                    DPRINTF (LOG_INFO, "???\n");
+                    CPRINTF ("???\n");
                 break;
             }
             case 'm':
             {
-                uint32_t addr;
-                int n = sscanf (buf, "m %x", &addr);
-                if (n==1)
+                uint32_t addr = _debug_parse_addr(&buf[2]);
+                if (addr)
                     _debug_memdump (addr);
                 else
-                    DPRINTF (LOG_INFO, "???\n");
+                    CPRINTF ("???\n");
                 break;
             }
+            default:
+                CPRINTF("*** unknown command error *** (%s)\n", buf);
         }
 
         free(buf);
