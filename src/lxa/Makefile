@@ -1,6 +1,6 @@
 include ../../config.mk
 
-SRCS = 	lxa.c m68kcpu.c  m68kdasm.c  m68kops.c softfloat.c
+SRCS = 	lxa.c m68kcpu.c  m68kdasm.c  m68kops.c softfloat.c util.c
 
 OBJS_LINUX   := $(patsubst %,${OBJDIR_LINUX}/%.o,$(basename $(SRCS)))
 
