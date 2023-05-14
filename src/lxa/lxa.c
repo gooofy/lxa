@@ -942,6 +942,8 @@ static uint32_t _debug_disassemble (int n, uint32_t pcCur)
         pc += instr_size;
     }
 
+    CPRINTF("\n");
+
     return pc;
 }
 
@@ -1017,9 +1019,11 @@ static void _debug(uint32_t pcFinal)
         return;
     in_debug = TRUE;
 
-    CPRINTF("\n\n     *** LXA DEBUGGER ***\n\n");
+    CPRINTF("\n     *** LXA DEBUGGER ***\n\n");
 
     _debug_traceback (5, pcFinal);
+
+    _debug_disassemble (5, pcFinal);
 
     _debug_machine_state ();
 
