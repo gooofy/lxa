@@ -55,6 +55,7 @@ static uint8_t  g_rom[ROM_SIZE];
 static bool     g_verbose                       = FALSE;
 static bool     g_trace                         = FALSE;
 static bool     g_stepping                      = FALSE;
+static uint32_t g_next_pc                       = 0;
 static int      g_trace_buf[TRACE_BUF_ENTRIES];
 static int      g_trace_buf_idx                 = 0;
 static bool     g_running                       = TRUE;
@@ -357,10 +358,18 @@ void cpu_instr_callback(int pc)
     }
     else
     {
-        for (int i = 0; i<g_num_breakpoints; i++)
+        if (g_next_pc == pc)
         {
-            if (g_breakpoints[i] == pc)
-                _debug(pc);
+            g_next_pc = 0;
+            _debug(pc);
+        }
+        else
+        {
+            for (int i = 0; i<g_num_breakpoints; i++)
+            {
+                if (g_breakpoints[i] == pc)
+                    _debug(pc);
+            }
         }
     }
 }
@@ -1055,6 +1064,15 @@ static void _debug(uint32_t pcFinal)
                 in_debug = FALSE;
                 g_stepping = TRUE;
                 return;
+            case 'n':
+            {
+                static char buff[100];
+                in_debug   = FALSE;
+                g_stepping = FALSE;
+                uint32_t instr_size = m68k_disassemble(buff, pcFinal, M68K_CPU_TYPE_68000);
+                g_next_pc = pcFinal+instr_size;
+                return;
+            }
             case 'r':
                 _debug_machine_state ();
                 break;
