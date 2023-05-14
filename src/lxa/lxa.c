@@ -913,14 +913,10 @@ static uint32_t _debug_memdump (uint32_t addr)
 static uint32_t _debug_disassemble (int n, uint32_t pc)
 {
     unsigned int instr_size;
-    static char buff[100];
-    static char buff2[100];
 
     for (int i = 0; i<n; i++)
     {
-        instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
-        make_hex(buff2, pc, instr_size);
-        CPRINTF("     0x%08x  %-20s: %s\n", pc, buff2, buff);
+        instr_size = _debug_print_diss(pc, "");
         pc += instr_size;
     }
 
