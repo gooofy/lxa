@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
+#include <regex.h>
 #include <linux/limits.h>
 
 #include <readline/readline.h>
@@ -61,6 +62,16 @@ static char    *g_loadfile                      = NULL;
 static uint32_t g_breakpoints[MAX_BREAKPOINTS];
 static int      g_num_breakpoints               = 0;
 static int      g_rv                            = 0;
+
+typedef struct map_sym_s map_sym_t;
+
+struct map_sym_s {
+    map_sym_t *next;
+    uint32_t   offset;
+    char      *name;
+};
+
+static map_sym_t *_g_map      = NULL;
 
 // interrupts
 #define INTENA_MASTER 0x4000
@@ -834,13 +845,31 @@ int op_illg(int level)
     return M68K_INT_ACK_AUTOVECTOR;
 }
 
+#define MAX_JITTER 1024
+
+static uint32_t _debug_print_diss (uint32_t pc, char *mark)
+{
+    static char buff[100];
+    static char buff2[100];
+
+    char *name="";
+    for (map_sym_t *m=_g_map; m; m=m->next)
+    {
+        int32_t diff = pc-m->offset;
+        if ( (diff>=0) && (diff<MAX_JITTER) )
+            name = m->name;
+    }
+
+    uint32_t instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
+    make_hex(buff2, pc, instr_size);
+    CPRINTF("%-5s0x%08x  %-20s: %-40s (%s)\n", mark, pc, buff2, buff, name);
+    return instr_size;
+}
+
 static void _debug_traceback (int n, uint32_t pcFinal)
 {
     // dump last n instructions from trace buf:
     uint32_t pc;
-    unsigned int instr_size;
-    static char buff[100];
-    static char buff2[100];
 
     CPRINTF ("Traceback:\n\n");
 
@@ -854,16 +883,13 @@ static void _debug_traceback (int n, uint32_t pcFinal)
     for (int i = 0; i<n; i++)
     {
         pc = g_trace_buf[idx];
-        instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
-        make_hex(buff2, pc, instr_size);
-        CPRINTF("     0x%08x  %-20s: %s\n", pc, buff2, buff);
+        _debug_print_diss(pc, "");
         idx = (idx+1) % TRACE_BUF_ENTRIES;
     }
 
     pc = pcFinal;
-    instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
-    make_hex(buff2, pc, instr_size);
-    CPRINTF("---> 0x%08x  %-20s: %s\n\n", pc, buff2, buff);
+    _debug_print_diss(pc, "---> ");
+    CPRINTF("\n");
 }
 
 static void _debug_machine_state (void)
@@ -1065,6 +1091,98 @@ static void print_usage(char *argv[])
     fprintf(stderr, "    -t         trace\n");
 }
 
+#define MAX_LINE_LEN 1024
+
+static bool _load_rom_map (const char *rom_path)
+{
+    char map_path[PATH_MAX];
+    char line_buf[MAX_LINE_LEN];
+
+    snprintf (map_path, PATH_MAX, "%s.map", rom_path);
+
+    FILE *mapf = fopen (map_path, "r");
+    if (!mapf)
+    {
+        fprintf (stderr, "failed to open %s\n", map_path);
+        return false;
+    }
+
+    regex_t reegex;
+    int value = regcomp (&reegex, "^[ ]*0x([0-9a-f]+)[ ]*([_a-zA-Z]+)", REG_EXTENDED);
+    if (value)
+    {
+        fprintf (stderr, "*** internal error: regcomp failed\n");
+        return false;
+    }
+
+    while (fgets (line_buf, MAX_LINE_LEN, mapf))
+    {
+        //printf("%s\n", line_buf);
+
+        regmatch_t matches[5];
+
+        value = regexec( &reegex, line_buf, 5, matches, 0);
+        if (!value)
+        {
+            //printf ("   *** MATCH *** %d-%d %d-%d %d-%d %d-%d\n",
+            //        (int)matches[0].rm_so, (int)matches[0].rm_eo,
+            //        (int)matches[1].rm_so, (int)matches[1].rm_eo,
+            //        (int)matches[2].rm_so, (int)matches[2].rm_eo,
+            //        (int)matches[3].rm_so, (int)matches[3].rm_eo);
+
+
+            uint32_t offset = 0;
+            sscanf(&line_buf[matches[1].rm_so], "%x", &offset);
+            int l = matches[2].rm_eo-matches[2].rm_so;
+            char *name = malloc(l+1);
+            if (!name)
+            {
+                fprintf (stderr, "OOM\n");
+                return false;
+            }
+            name = strncpy (name, &line_buf[matches[2].rm_so], l);
+            name[l]=0;
+            //printf ("%-20s at 0x%x\n", name, offset);
+
+            map_sym_t *m = malloc (sizeof (*m));
+            if (!m)
+            {
+                fprintf (stderr, "OOM\n");
+                return false;
+            }
+            m->next   = NULL;
+            m->offset = offset;
+            m->name   = name;
+
+            // add to sorted map list
+
+            map_sym_t *prev = _g_map;
+
+            while (prev && prev->next && prev->next->offset < offset)
+                prev = prev->next;
+
+            if (!prev || prev->offset > offset)
+            {
+                m->next = _g_map;
+                _g_map = m;
+            }
+            else
+            {
+                m->next = prev->next;
+                prev->next = m;
+            }
+        }
+    }
+
+    fclose (mapf);
+
+    //for (map_sym_t *sym = _g_map; sym; sym=sym->next)
+    //    printf ("0x%08x %s\n", sym->offset, sym->name);
+
+
+    return true;
+}
+
 int main(int argc, char **argv, char **envp)
 {
     char *rom_path = DEFAULT_ROM_PATH;
@@ -1135,6 +1253,10 @@ int main(int argc, char **argv, char **envp)
         exit(2);
     }
     fclose(romf);
+
+    if (!_load_rom_map(rom_path))
+        exit(3);
+
 
     // setup memory image
 
