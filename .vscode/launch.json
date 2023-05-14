@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/target/x86_64-linux/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/src/rom/lxa.rom", "-v", "-d", "x/foo.hunk"],
+            "args": ["-r", "${workspaceFolder}/src/rom/lxa.rom", "-v", "-d", "-m", "x/foo.hunk"],
             "stopAtEntry": false,
             "cwd": "/home/guenter/projects/amiga/tiger/aqb/tests/insights/debug",
             "environment": [],

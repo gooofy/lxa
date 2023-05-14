@@ -1932,6 +1932,10 @@ void _bootstrap(void)
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): initPC is 0x%08lx\n", initPC);
     U_hexdump (LOG_DEBUG, initPC, 32);
 
+    uint32_t opts = emucall0 (EMU_CALL_OPTIONS);
+    if (opts & EMU_OPT_BREAK_ON_MAIN)
+        emucall1 (EMU_CALL_ADD_BP, (uint32_t) initPC);
+
     /* simply JSR() into our child process */
 
     cliChildFn_t childfn = initPC;

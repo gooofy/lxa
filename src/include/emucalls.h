@@ -9,6 +9,8 @@
 #define EMU_CALL_WAIT          6
 #define EMU_CALL_MONITOR       8
 #define EMU_CALL_LOADFILE      9
+#define EMU_CALL_OPTIONS      10
+#define EMU_CALL_ADD_BP       11
 #define EMU_CALL_DOS_OPEN   1000
 #define EMU_CALL_DOS_READ   1001
 #define EMU_CALL_DOS_SEEK   1002
@@ -17,6 +19,7 @@
 #define EMU_CALL_DOS_OUTPUT 1005
 #define EMU_CALL_DOS_WRITE  1006
 
+#define EMU_OPT_BREAK_ON_MAIN   1
 
 #endif
 

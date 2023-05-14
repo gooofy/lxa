@@ -62,6 +62,7 @@ static char    *g_loadfile                      = NULL;
 static uint32_t g_breakpoints[MAX_BREAKPOINTS];
 static int      g_num_breakpoints               = 0;
 static int      g_rv                            = 0;
+static uint32_t g_emu_opts                      = 0;
 
 typedef struct map_sym_s map_sym_t;
 
@@ -742,6 +743,26 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_OPTIONS:
+        {
+            DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_OPTIONS\n");
+
+            m68k_set_reg(M68K_REG_D0, g_emu_opts);
+
+            break;
+        }
+
+        case EMU_CALL_ADD_BP:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_ADD_BP d1=0x%08lx\n", d1);
+
+            if (g_num_breakpoints < MAX_BREAKPOINTS)
+                g_breakpoints[g_num_breakpoints++] = d1;
+
+            break;
+        }
+
         case EMU_CALL_DOS_OPEN:
         {
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
@@ -836,7 +857,7 @@ int op_illg(int level)
         }
 
         default:
-            DPRINTF (LOG_INFO, "*** error: undefined lxcall #%d\n", d0);
+            CPRINTF ("*** error: undefined lxcall #%d\n", d0);
             _debug(m68k_get_reg(NULL, M68K_REG_PC));
             m68k_end_timeslice();
             g_running = FALSE;
@@ -1077,16 +1098,6 @@ static void _debug(uint32_t pcFinal)
     assert(FALSE);
 }
 
-static void print_usage(char *argv[])
-{
-    fprintf(stderr, "usage: %s [ options ] <loadfile>\n", argv[0]);
-    fprintf(stderr, "    -b <addr>  add breakpoint\n");
-    fprintf(stderr, "    -d         enable debug output\n");
-    fprintf(stderr, "    -r <rom>   use kickstart <rom>, default: %s\n", DEFAULT_ROM_PATH);
-    fprintf(stderr, "    -v         verbose\n");
-    fprintf(stderr, "    -t         trace\n");
-}
-
 #define MAX_LINE_LEN 1024
 
 static bool _load_rom_map (const char *rom_path)
@@ -1179,6 +1190,17 @@ static bool _load_rom_map (const char *rom_path)
     return true;
 }
 
+static void print_usage(char *argv[])
+{
+    fprintf(stderr, "usage: %s [ options ] <loadfile>\n", argv[0]);
+    fprintf(stderr, "    -b <addr>  add breakpoint\n");
+    fprintf(stderr, "    -d         enable debug output\n");
+    fprintf(stderr, "    -r <rom>   use kickstart <rom>, default: %s\n", DEFAULT_ROM_PATH);
+    fprintf(stderr, "    -v         verbose\n");
+    fprintf(stderr, "    -t         trace\n");
+    fprintf(stderr, "    -m         break on main entry\n");
+}
+
 int main(int argc, char **argv, char **envp)
 {
     char *rom_path = DEFAULT_ROM_PATH;
@@ -1215,6 +1237,9 @@ int main(int argc, char **argv, char **envp)
                 break;
             case 't':
                 g_trace = true;
+                break;
+            case 'm':
+                g_emu_opts |= EMU_OPT_BREAK_ON_MAIN;
                 break;
             default:
                 print_usage(argv);
