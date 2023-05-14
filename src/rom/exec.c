@@ -651,8 +651,8 @@ void _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
 }
 
 APTR _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
-                                      register ULONG ___byteSize  __asm("d0"),
-                                      register ULONG ___requirements  __asm("d1"))
+                      register ULONG ___byteSize  __asm("d0"),
+                      register ULONG ___requirements  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: AllocMem called, byteSize=%ld, requirements=0x%08lx\n",
              ___byteSize, ___requirements);
@@ -696,7 +696,10 @@ APTR _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
     Permit();
 
     if (___requirements & MEMF_CLEAR)
+    {
+        DPRINTF (LOG_DEBUG, "_exec: AllocMem -> memset %d bytes at 0x%08lx\n", ___byteSize, (ULONG)mem);
         memset(mem, 0, ___byteSize);
+    }
 
     DPRINTF (LOG_DEBUG, "_exec: AllocMem returning with mem=0x%08lx\n", (ULONG)mem);
 
