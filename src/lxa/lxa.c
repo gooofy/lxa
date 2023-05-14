@@ -868,7 +868,7 @@ int op_illg(int level)
 
 #define MAX_JITTER 1024
 
-static uint32_t _debug_print_diss (uint32_t pc, char *mark)
+static uint32_t _debug_print_diss (uint32_t pc, uint32_t curPC)
 {
     static char buff[100];
     static char buff2[100];
@@ -883,7 +883,7 @@ static uint32_t _debug_print_diss (uint32_t pc, char *mark)
 
     uint32_t instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
     make_hex(buff2, pc, instr_size);
-    CPRINTF("%-5s0x%08x  %-20s: %-40s (%s)\n", mark, pc, buff2, buff, name);
+    CPRINTF("%-5s0x%08x  %-20s: %-40s (%s)\n", pc==curPC ? "--->":"", pc, buff2, buff, name);
     return instr_size;
 }
 
@@ -904,12 +904,12 @@ static void _debug_traceback (int n, uint32_t pcFinal)
     for (int i = 0; i<n; i++)
     {
         pc = g_trace_buf[idx];
-        _debug_print_diss(pc, "");
+        _debug_print_diss(pc, pcFinal);
         idx = (idx+1) % TRACE_BUF_ENTRIES;
     }
 
-    pc = pcFinal;
-    _debug_print_diss(pc, "---> ");
+    //pc = pcFinal;
+    //_debug_print_diss(pc, "---> ");
     CPRINTF("\n");
 }
 
@@ -931,13 +931,14 @@ static uint32_t _debug_memdump (uint32_t addr)
     return addr+256;
 }
 
-static uint32_t _debug_disassemble (int n, uint32_t pc)
+static uint32_t _debug_disassemble (int n, uint32_t pcCur)
 {
     unsigned int instr_size;
+    uint32_t pc = pcCur;
 
     for (int i = 0; i<n; i++)
     {
-        instr_size = _debug_print_diss(pc, "");
+        instr_size = _debug_print_diss(pc, pcCur);
         pc += instr_size;
     }
 
