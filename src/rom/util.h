@@ -10,6 +10,7 @@
 
 ULONG emucall0 (ULONG func);
 ULONG emucall1 (ULONG func, ULONG param1);
+ULONG emucall2 (ULONG func, ULONG param1, ULONG param2);
 ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3);
 
 /*

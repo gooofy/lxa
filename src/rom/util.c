@@ -70,6 +70,21 @@ ULONG emucall1 (ULONG func, ULONG param1)
     return res;
 }
 
+ULONG emucall2 (ULONG func, ULONG param1, ULONG param2)
+{
+    ULONG res;
+    asm volatile( "move.l    %1, d0\n\t"
+         "move.l    %2, d1\n\t"
+         "move.l    %3, d2\n\t"
+         "illegal\n\t"
+         "move.l    d0, %0\n"
+        : "=r" (res)
+        : "r" (func), "r" (param1), "r" (param2)
+        : "cc", "d0", "d1", "d2"
+        );
+    return res;
+}
+
 ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3)
 {
     ULONG res;

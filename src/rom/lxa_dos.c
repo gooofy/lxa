@@ -16,6 +16,7 @@
 #include <clib/utility_protos.h>
 #include <inline/utility.h>
 
+//#define ENABLE_DEBUG
 #include "util.h"
 
 #define FILE_KIND_REGULAR    42
@@ -414,14 +415,38 @@ struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm(
 }
 
 void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register LONG ___returnCode  __asm("d1"))
+                 register LONG ___returnCode  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Exit unimplemented STUB called.\n");
     assert(FALSE);
 }
 
+BOOL _read_string (register struct DosLibrary * DOSBase __asm("a6"), BPTR f, char **res)
+{
+    ULONG num_longs;
+
+    if (Read(f, &num_longs, 4) != 4)
+        return FALSE;
+
+    DPRINTF (LOG_DEBUG, "_dos: _read_string() num_longs=%d\n", num_longs);
+    if (num_longs==0)
+    {
+        *res = NULL;
+        return TRUE;
+    }
+
+    ULONG l = num_longs*4;
+    char *str = AllocVec (l, MEMF_CLEAR);
+    DPRINTF (LOG_DEBUG, "_dos: _read_string() l=%d -> str=0x%08lx\n", l, str);
+    if (Read(f, str, l) != l)
+        return FALSE;
+
+    *res = str;
+    return TRUE;
+}
+
 BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
-                                    register CONST_STRPTR        ___name   __asm("d1"))
+                    register CONST_STRPTR        ___name   __asm("d1"))
 {
     DPRINTF (LOG_INFO, "_dos: LoadSeg() called, name=%s\n", ___name);
 
@@ -489,7 +514,7 @@ BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
         ULONG cnt;
 
         if (Read(f, &cnt, 4) != 4)
-          goto finish;
+            goto finish;
 
         ULONG mem_flags = (cnt & 0xC0000000) >> 29;
         ULONG mem_size  = (cnt & 0x3FFFFFFF) * 4;
@@ -595,12 +620,26 @@ BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
 
             case HUNK_TYPE_SYMBOL:
             {
-                // skip
-                ULONG cnt;
-                while( (Read(f, &cnt, 4)==4) && cnt)
+                //DPRINTF (LOG_DEBUG, "_dos: LoadSeg() HUNK_SYMBOL detected\n");
+                while (TRUE)
                 {
-                    if (Seek(f, (cnt+1)*4, OFFSET_CURRENT)<0)
-						goto finish;
+                    char *name;
+                    if (!_read_string (DOSBase, f, &name))
+                        goto finish;
+                    if (!name)
+                        break;
+
+                    //DPRINTF (LOG_DEBUG, "_dos: LoadSeg() SYMBOL name=%s\n", name);
+                    ULONG offset;
+                    if (Read(f, &offset, 4) != 4)
+                        goto finish;
+
+                    ULONG hunk_base = (intptr_t) BADDR(hunk_table[hunk_last]+1);
+                    ULONG addr = hunk_base + offset;
+                    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() SYMBOL %s at 0x%08lx of hunk at 0x%08lx -> 0x%08lx\n",
+                                        name, offset, hunk_base, addr);
+
+                    emucall2 (EMU_CALL_SYMBOL, addr, (intptr_t) name);
                 }
                 break;
             }

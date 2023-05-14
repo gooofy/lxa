@@ -63,17 +63,27 @@ static char    *g_loadfile                      = NULL;
 static uint32_t g_breakpoints[MAX_BREAKPOINTS];
 static int      g_num_breakpoints               = 0;
 static int      g_rv                            = 0;
-static uint32_t g_emu_opts                      = 0;
 
 typedef struct map_sym_s map_sym_t;
 
-struct map_sym_s {
+struct map_sym_s
+{
     map_sym_t *next;
     uint32_t   offset;
     char      *name;
 };
 
 static map_sym_t *_g_map      = NULL;
+
+typedef struct pending_bp_s pending_bp_t;
+
+struct pending_bp_s
+{
+    pending_bp_t *next;
+    char          name[256];
+};
+
+static pending_bp_t *_g_pending_bps = NULL;
 
 // interrupts
 #define INTENA_MASTER 0x4000
@@ -136,6 +146,49 @@ void hexdump (int lvl, uint32_t offset, uint32_t len)
             LPRINTF(lvl, "\n");
         }
     }
+}
+
+static bool _symtab_add (char *name, uint32_t offset)
+{
+    map_sym_t *m = malloc (sizeof (*m));
+    if (!m)
+    {
+        fprintf (stderr, "OOM\n");
+        return false;
+    }
+    m->next   = NULL;
+    m->offset = offset;
+    m->name   = name;
+
+    // add to sorted map list
+
+    map_sym_t *prev = _g_map;
+
+    while (prev && prev->next && prev->next->offset < offset)
+        prev = prev->next;
+
+    if (!prev || prev->offset > offset)
+    {
+        m->next = _g_map;
+        _g_map = m;
+    }
+    else
+    {
+        m->next = prev->next;
+        prev->next = m;
+    }
+    return true;
+}
+
+static uint32_t _find_symbol (const char *name)
+{
+    for (map_sym_t *sym = _g_map; sym; sym=sym->next)
+    {
+        if (!(strcmp(sym->name, name)))
+            return sym->offset;
+    }
+
+    return 0;
 }
 
 static inline uint8_t mread8 (uint32_t address)
@@ -644,6 +697,65 @@ static int _dos_close (uint32_t fh68k)
     return 1;
 }
 
+static void _debug_add_bp (uint32_t addr)
+{
+    if (g_num_breakpoints < MAX_BREAKPOINTS)
+        g_breakpoints[g_num_breakpoints++] = addr;
+}
+
+#define NUM_M68K_REGS 27
+
+static char *_m68k_regnames[NUM_M68K_REGS] = {
+	"d0",
+	"d1",
+	"d2",
+	"d3",
+	"d4",
+	"d5",
+	"d6",
+	"d7",
+	"a0",
+	"a1",
+	"a2",
+	"a3",
+	"a4",
+	"a5",
+	"a6",
+	"a7",
+	"pc",
+	"sr",
+	"sp",
+	"usp",
+	"isp",
+	"msp",
+	"sfc",
+	"dfc",
+	"vbr",
+	"cacr",
+	"caar"
+};
+
+static uint32_t _debug_parse_addr(const char *buf)
+{
+    uint32_t addr = _find_symbol (buf);
+    if (addr)
+        return addr;
+    int n = sscanf (buf, "m %x", &addr);
+    if (n==1)
+    {
+        return addr;
+    }
+    else
+    {
+        for (int i=0; i<NUM_M68K_REGS; i++)
+        {
+            if (!strcmp(buf, _m68k_regnames[i]))
+                return m68k_get_reg (NULL, i);
+        }
+    }
+    return 0;
+}
+
 int op_illg(int level)
 {
     uint32_t d0 = m68k_get_reg(NULL, M68K_REG_D0);
@@ -752,22 +864,31 @@ int op_illg(int level)
             break;
         }
 
-        case EMU_CALL_OPTIONS:
+        case EMU_CALL_LOADED:
         {
-            DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_OPTIONS\n");
-
-            m68k_set_reg(M68K_REG_D0, g_emu_opts);
-
+            for (pending_bp_t *pbp = _g_pending_bps; pbp; pbp=pbp->next)
+            {
+                uint32_t addr = _debug_parse_addr (pbp->name);
+                if (!addr)
+                {
+                    fprintf (stderr, "*** error: failed to resolve pending breakpoint '%s'\n", pbp->name);
+                    exit(23);
+                }
+                DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_LOADED pbp '%s' -> addr=0x%08lx\n", pbp->name, addr);
+                _debug_add_bp (addr);
+            }
             break;
         }
 
-        case EMU_CALL_ADD_BP:
+        case EMU_CALL_SYMBOL:
         {
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
-            DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_ADD_BP d1=0x%08lx\n", d1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
 
-            if (g_num_breakpoints < MAX_BREAKPOINTS)
-                g_breakpoints[g_num_breakpoints++] = d1;
+            char *name = _mgetstr(d2);
+
+            DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_SYMBOL name=%s, offset=0x%08lx\n", name, d1);
+            _symtab_add (name, d1);
 
             break;
         }
@@ -866,7 +987,7 @@ int op_illg(int level)
         }
 
         default:
-            CPRINTF ("*** error: undefined lxcall #%d\n", d0);
+            CPRINTF ("*** error: undefined EMU_CALL #%d\n", d0);
             _debug(m68k_get_reg(NULL, M68K_REG_PC));
             m68k_end_timeslice();
             g_running = FALSE;
@@ -966,59 +1087,17 @@ static void _debug_help (void)
     CPRINTF ("t <num>      - traceback\n");
     CPRINTF ("m <addr/reg> - memory dump\n");
     CPRINTF ("d <addr/reg> - disassemble\n");
+    CPRINTF ("S            - symboltable\n");
     CPRINTF ("\n");
 }
 
-#define NUM_M68K_REGS 27
-
-static char *_m68k_regnames[NUM_M68K_REGS] = {
-	"d0",
-	"d1",
-	"d2",
-	"d3",
-	"d4",
-	"d5",
-	"d6",
-	"d7",
-	"a0",
-	"a1",
-	"a2",
-	"a3",
-	"a4",
-	"a5",
-	"a6",
-	"a7",
-	"pc",
-	"sr",
-	"sp",
-	"usp",
-	"isp",
-	"msp",
-	"sfc",
-	"dfc",
-	"vbr",
-	"cacr",
-	"caar"
-};
-
-static uint32_t _debug_parse_addr(const char *buf)
+static void _debug_print_symtab (void)
 {
-    uint32_t addr;
-    int n = sscanf (buf, "m %x", &addr);
-    if (n==1)
-    {
-        return addr;
-    }
-    else
-    {
-        for (int i=0; i<NUM_M68K_REGS; i++)
-        {
-            if (!strcmp(buf, _m68k_regnames[i]))
-                return m68k_get_reg (NULL, i);
-        }
-    }
-    return 0;
+    for (map_sym_t *sym = _g_map; sym; sym=sym->next)
+        CPRINTF ("0x%08x %s\n", sym->offset, sym->name);
+    CPRINTF ("\n");
 }
+
 
 static void _debug(uint32_t pcFinal)
 {
@@ -1040,6 +1119,7 @@ static void _debug(uint32_t pcFinal)
 
     char* buf;
     uint32_t caddr = pcFinal;
+    fputs(CSI "?25h", stdout);  // cursor visible
     while ((buf = readline(">> ")))
     {
         int l = strlen(buf);
@@ -1112,6 +1192,9 @@ static void _debug(uint32_t pcFinal)
                     CPRINTF ("???\n");
                 break;
             }
+            case 'S':
+                _debug_print_symtab ();
+                break;
             default:
                 CPRINTF("*** unknown command error *** (%s)\n", buf);
         }
@@ -1174,41 +1257,13 @@ static bool _load_rom_map (const char *rom_path)
             name[l]=0;
             //printf ("%-20s at 0x%x\n", name, offset);
 
-            map_sym_t *m = malloc (sizeof (*m));
-            if (!m)
-            {
-                fprintf (stderr, "OOM\n");
+            if (!_symtab_add (name, offset))
                 return false;
-            }
-            m->next   = NULL;
-            m->offset = offset;
-            m->name   = name;
 
-            // add to sorted map list
-
-            map_sym_t *prev = _g_map;
-
-            while (prev && prev->next && prev->next->offset < offset)
-                prev = prev->next;
-
-            if (!prev || prev->offset > offset)
-            {
-                m->next = _g_map;
-                _g_map = m;
-            }
-            else
-            {
-                m->next = prev->next;
-                prev->next = m;
-            }
         }
     }
 
     fclose (mapf);
-
-    //for (map_sym_t *sym = _g_map; sym; sym=sym->next)
-    //    printf ("0x%08x %s\n", sym->offset, sym->name);
-
 
     return true;
 }
@@ -1216,12 +1271,14 @@ static bool _load_rom_map (const char *rom_path)
 static void print_usage(char *argv[])
 {
     fprintf(stderr, "usage: %s [ options ] <loadfile>\n", argv[0]);
-    fprintf(stderr, "    -b <addr>  add breakpoint\n");
-    fprintf(stderr, "    -d         enable debug output\n");
-    fprintf(stderr, "    -r <rom>   use kickstart <rom>, default: %s\n", DEFAULT_ROM_PATH);
-    fprintf(stderr, "    -v         verbose\n");
-    fprintf(stderr, "    -t         trace\n");
-    fprintf(stderr, "    -m         break on main entry\n");
+    fprintf(stderr, "    -b <addr|sym>  add breakpoint, examples:\n");
+    fprintf(stderr, "                     b _start\n");
+    fprintf(stderr, "                     b __aqb_main\n");
+    fprintf(stderr, "    -d             enable debug output\n");
+    fprintf(stderr, "    -r <rom>       use kickstart <rom>, default: %s\n", DEFAULT_ROM_PATH);
+    fprintf(stderr, "    -v             verbose\n");
+    fprintf(stderr, "    -t             trace\n");
+    //fprintf(stderr, "    -S             print symtab\n");
 }
 
 int main(int argc, char **argv, char **envp)
@@ -1235,15 +1292,11 @@ int main(int argc, char **argv, char **envp)
         {
             case 'b':
             {
-                uint32_t addr;
                 optind++;
-                if (sscanf (argv[optind], "%x", &addr) != 1)
-                {
-                    print_usage(argv);
-                    exit(EXIT_FAILURE);
-                }
-                if (g_num_breakpoints < MAX_BREAKPOINTS)
-                    g_breakpoints[g_num_breakpoints++] = addr;
+                pending_bp_t *pbp = malloc (sizeof (*pbp));
+                strncpy (pbp->name, argv[optind], 256);
+                pbp->next = _g_pending_bps;
+                _g_pending_bps = pbp;
                 break;
             }
             case 'd':
@@ -1260,9 +1313,6 @@ int main(int argc, char **argv, char **envp)
                 break;
             case 't':
                 g_trace = true;
-                break;
-            case 'm':
-                g_emu_opts |= EMU_OPT_BREAK_ON_MAIN;
                 break;
             default:
                 print_usage(argv);

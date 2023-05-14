@@ -29,7 +29,7 @@
 
 #include <utility/utility.h>
 
-#define ENABLE_DEBUG
+// #define ENABLE_DEBUG
 
 #include "util.h"
 #include "exceptions.h"
@@ -1900,7 +1900,7 @@ static void _myTestTask(void)
 #endif
 
 typedef ULONG (*cliChildFn_t) ( register ULONG  arglen __asm("d0"),
-                                         register STRPTR args   __asm("a0"));
+                                register STRPTR args   __asm("a0"));
 void _bootstrap(void)
 {
     DPRINTF (LOG_INFO, "_exec: _bootstrap() called\n");
@@ -1926,15 +1926,13 @@ void _bootstrap(void)
         emu_stop(1);
     }
 
+    emucall0 (EMU_CALL_LOADED);
+
     // inject initPC pointing to our loaded code into our task's stack
 
     APTR initPC = BADDR(segs+1);
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): initPC is 0x%08lx\n", initPC);
     U_hexdump (LOG_DEBUG, initPC, 32);
-
-    uint32_t opts = emucall0 (EMU_CALL_OPTIONS);
-    if (opts & EMU_OPT_BREAK_ON_MAIN)
-        emucall1 (EMU_CALL_ADD_BP, (uint32_t) initPC);
 
     /* simply JSR() into our child process */
 
