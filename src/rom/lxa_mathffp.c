@@ -201,12 +201,31 @@ asm(
 );
 
 LONG mathffp_SPTst ( register struct Library * MathBase __asm("a6"),
-                              register FLOAT parm __asm("d1"))
-{
-    DPRINTF (LOG_ERROR, "_mathffp: SPTst() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
-}
+                     register FLOAT parm __asm("d1"));
+
+asm(
+"_mathffp_SPTst:                                                                \n"
+"         tst.b     d1              | test d1 -> condition codes set            \n"
+"         movem.l   a6,-(sp)        | save MathBase                             \n"
+"         movea.l   4, a6           | exec base -> a6                           \n"
+"         jsr       -528(a6)        | _LVOGetCC(a6)                             \n"
+"         movem.l   (sp)+, a6       | restore MathBase                          \n"
+
+"         move.w    d0, d1          | cc -> d1                                  \n"
+"         move.w    d0, ccr         | restore cc                                \n"
+"         blt.s     1f              | <0 ? -> 1f                                \n"
+"         bgt.s     2f              | >0 ? -> 2f                                \n"
+"         move.l    #0, d0          | #0: equal                                 \n"
+"         bra.s     3f              | finish                                    \n"
+"1:                                                                             \n"
+"         move.l    #-1, d0         | #-1 : <0                                  \n"
+"         bra.s     3f              | finish                                    \n"
+"2:                                                                             \n"
+"         move.l    #1, d0          | #1 : >0                                   \n"
+"3:                                                                             \n"
+"         move.w    d1, ccr         | restore cc                                \n"
+"         rts                 | done                                            \n"
+);
 
 FLOAT mathffp_SPAbs ( register struct Library * MathBase __asm("a6"),
                                register FLOAT parm __asm("d0"))
