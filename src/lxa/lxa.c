@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <regex.h>
+#include <sys/time.h>
 #include <linux/limits.h>
 
 #include <readline/readline.h>
@@ -706,33 +707,33 @@ static void _debug_add_bp (uint32_t addr)
 #define NUM_M68K_REGS 27
 
 static char *_m68k_regnames[NUM_M68K_REGS] = {
-	"d0",
-	"d1",
-	"d2",
-	"d3",
-	"d4",
-	"d5",
-	"d6",
-	"d7",
-	"a0",
-	"a1",
-	"a2",
-	"a3",
-	"a4",
-	"a5",
-	"a6",
-	"a7",
-	"pc",
-	"sr",
-	"sp",
-	"usp",
-	"isp",
-	"msp",
-	"sfc",
-	"dfc",
-	"vbr",
-	"cacr",
-	"caar"
+    "d0",
+    "d1",
+    "d2",
+    "d3",
+    "d4",
+    "d5",
+    "d6",
+    "d7",
+    "a0",
+    "a1",
+    "a2",
+    "a3",
+    "a4",
+    "a5",
+    "a6",
+    "a7",
+    "pc",
+    "sr",
+    "sp",
+    "usp",
+    "isp",
+    "msp",
+    "sfc",
+    "dfc",
+    "vbr",
+    "cacr",
+    "caar"
 };
 
 static uint32_t _debug_parse_addr(const char *buf)
@@ -754,6 +755,23 @@ static uint32_t _debug_parse_addr(const char *buf)
         }
     }
     return 0;
+}
+
+/* stolen from newlib */
+
+#define YEAR_BASE    1900
+
+#define _DAYS_IN_MONTH(x) ((x == 1) ? days_in_feb : __month_lengths[0][x])
+
+static const int16_t _DAYS_BEFORE_MONTH[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+
+#define _DAYS_IN_YEAR(year) (isleap(year+YEAR_BASE) ? 366 : 365)
+
+static inline int isleap (int y)
+{
+    // This routine must return exactly 0 or 1, because the result is used to index on __month_lengths[].
+    // The order of checks below is the fastest for a random year.
+    return y % 4 == 0 && (y % 100 != 0 || y % 400 == 0);
 }
 
 int op_illg(int level)
@@ -889,6 +907,44 @@ int op_illg(int level)
 
             DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_SYMBOL name=%s, offset=0x%08lx\n", name, d1);
             _symtab_add (name, d1);
+
+            break;
+        }
+
+        case EMU_CALL_GETSYSTIME:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+
+            struct timeval tv;
+            gettimeofday(&tv, 0);
+            struct tm t;
+            localtime_r(&tv.tv_sec, &t);
+            DPRINTF (LOG_DEBUG, "lxa: lxa: op_illg(): EMU_CALL_GETSYSTIME %02ld:%02ld:%02ld\n",
+                     t.tm_hour, t.tm_min, t.tm_sec);
+
+            time_t tim = t.tm_sec + t.tm_min * 60 + t.tm_hour * 3600;
+
+            /* compute days in year */
+            long days = t.tm_mday - 1;
+            days += _DAYS_BEFORE_MONTH[t.tm_mon];
+            if (t.tm_mon > 1 && isleap (t.tm_year+YEAR_BASE))
+                days++;
+
+            /* compute day of the year */
+            t.tm_yday = days;
+
+            // amiga's epoch starts at Jan 1st, 1978
+            if (t.tm_year > 78)
+            {
+                for (int year = 78; year < t.tm_year; year++)
+                    days += _DAYS_IN_YEAR (year);
+            }
+
+            /* compute total seconds */
+            tim += (time_t) days * 24*60*60;
+
+            m68k_write_memory_32 (d1,   tim);        // ULONG tv_secs
+            m68k_write_memory_32 (d1+4, tv.tv_usec); // ULONG tv_micro
 
             break;
         }

@@ -11,6 +11,7 @@
 #include <clib/utility_protos.h>
 #include <inline/utility.h>
 
+//#define ENABLE_DEBUG
 #include "util.h"
 
 #define VERSION    40
@@ -20,7 +21,7 @@
 
 char __aligned _g_utility_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_utility_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_utility_Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_utility_Copyright [] = "(C)opyright 2022, 2023 by G. Bartsch. Licensed under the MIT license.";
 
 char __aligned _g_utility_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
@@ -30,9 +31,9 @@ extern struct ExecBase      *SysBase;
 // baseType: struct UtilityBase *
 // libname: utility.library
 
-struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *utilityb    __asm("a6"),
-                                                      register BPTR               seglist __asm("a0"),
-                                                      register struct ExecBase   *sysb    __asm("d0"))
+struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *utilityb __asm("a6"),
+                                                  register BPTR                seglist  __asm("a0"),
+                                                  register struct ExecBase    *sysb     __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_utility: WARNING: InitLib() unimplemented STUB called.\n");
     return utilityb;
@@ -227,12 +228,45 @@ static VOID _utility_private1 ( register struct UtilityBase * UtilityBase __asm(
     assert(FALSE);
 }
 
-static VOID _utility_Amiga2Date ( register struct UtilityBase * UtilityBase __asm("a6"),
-                                                        register ULONG seconds __asm("d0"),
-                                                        register struct ClockData * result __asm("a0"))
+static VOID _utility_Amiga2Date ( register struct UtilityBase *UtilityBase __asm("a6"),
+                                  register ULONG               seconds     __asm("d0"),
+                                  register struct ClockData   *result      __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: Amiga2Date() unimplemented STUB called.\n");
-    assert(FALSE);
+    LONG days;
+
+    days = seconds / 86400;
+    result->wday = days % 7;
+
+	LONG x = seconds;
+
+    result->sec = x % 60;
+    x /= 60;
+    result->min = x % 60;
+    x /= 60;
+    result->hour = x % 24;
+
+	// http://howardhinnant.github.io/date_algorithms.html#civil_from_days
+
+	LONG z = days;
+	z += 719468 + 2922;	// epoch adjustment 1/1/1970, 1/1/1978
+    LONG era = z / 146097;
+    LONG doe = z - era * 146097;                                 // [0, 146096]
+    LONG yoe = (doe - doe/1460 + doe/36524 - doe/146096) / 365;  // [0, 399]
+    UWORD y = yoe + era * 400;
+    UWORD doy = doe - (365*yoe + yoe/4 - yoe/100);                // [0, 365]
+    UWORD mp = (5*doy + 2)/153;                                   // [0, 11]
+	UWORD doff = (153*mp+2)/5 + 1;
+    UWORD day = doy - doff;                                       // [1, 31]
+    UWORD month = mp < 10 ? mp+3 : mp-9;                          // [1, 12]
+	UWORD year = y + (month <= 2);
+
+	DPRINTF (LOG_DEBUG, "_utility_Amiga2Date: seconds=%ld -> %02ld:%02ld:%02ld, %02ld-%02ld-%04ld doy=%d, mp=%d %d\n",
+             seconds, result->hour, result->min, result->sec,
+			 month, day, year, doy, mp, doff);
+
+    result->month = month;
+    result->mday  = day;
+    result->year  = year;
 }
 
 static ULONG _utility_Date2Amiga ( register struct UtilityBase * UtilityBase __asm("a6"),

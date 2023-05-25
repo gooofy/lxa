@@ -11,6 +11,7 @@
 #define EMU_CALL_MONITOR       8
 #define EMU_CALL_LOADFILE      9
 #define EMU_CALL_SYMBOL       10
+#define EMU_CALL_GETSYSTIME   11
 #define EMU_CALL_DOS_OPEN   1000
 #define EMU_CALL_DOS_READ   1001
 #define EMU_CALL_DOS_SEEK   1002

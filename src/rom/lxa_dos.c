@@ -756,12 +756,33 @@ LONG _dos_SetProtection ( register struct DosLibrary * __libBase __asm("a6"),
     return 0;
 }
 
-struct DateStamp * _dos_DateStamp ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register struct DateStamp * ___date  __asm("d1"))
+struct DateStamp * _dos_DateStamp ( register struct DosLibrary *DOSBase __asm("a6"),
+                                    register struct DateStamp  *ds      __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: DateStamp unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct timeval tv;
+
+    emucall1 (EMU_CALL_GETSYSTIME, (intptr_t) &tv);
+
+    DPRINTF (LOG_DEBUG, "_dos_DateStamp: EMU_CALL_GETSYSTIME -> tv.tv_secs=%ld, tv.tv_micro=%ld\n",
+             tv.tv_secs, tv.tv_micro);
+
+    ULONG s = tv.tv_secs;
+
+    // number of days since Jan. 1, 1978
+    ds->ds_Days = s / (3600 * 24);
+    s %= 3600*24;
+
+    // number of minutes past midnight
+    ds->ds_Minute = s / 60;
+    s %= 60;
+
+    // number of ticks past the minute
+    ds->ds_Tick = (tv.tv_micro + s * 1000000) / 20000;
+
+    DPRINTF (LOG_DEBUG, "_dos_DateStamp: -> ds->ds_Days=%ld, ds->ds_Minute=%ld, ds->ds_Tick=%ld\n",
+             ds->ds_Days, ds->ds_Minute, ds->ds_Tick);
+
+    return ds;
 }
 
 void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
