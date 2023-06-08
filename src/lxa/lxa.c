@@ -741,7 +741,7 @@ static uint32_t _debug_parse_addr(const char *buf)
     uint32_t addr = _find_symbol (buf);
     if (addr)
         return addr;
-    int n = sscanf (buf, "m %x", &addr);
+    int n = sscanf (buf, "%x", &addr);
     if (n==1)
     {
         return addr;
