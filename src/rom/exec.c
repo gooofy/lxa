@@ -29,7 +29,7 @@
 
 #include <utility/utility.h>
 
-// #define ENABLE_DEBUG
+//#define ENABLE_DEBUG
 
 #include "util.h"
 #include "exceptions.h"
@@ -43,21 +43,21 @@
 #define VERSION  1
 #define REVISION 1
 
-typedef struct Library * (*libInitFn_t) ( register struct Library    *lib     __asm("a6"),
-                                                   register BPTR               seglist __asm("a0"),
-                                                   register struct ExecBase   *sysb    __asm("d0"));
+typedef struct Library * (*libInitFn_t)   ( register struct Library    *lib     __asm("a6"),
+                                            register BPTR               seglist __asm("a0"),
+                                            register struct ExecBase   *sysb    __asm("d0"));
 
-typedef struct Library * (*libOpenFn_t) ( register struct Library    *lib     __asm("a6"));
-typedef struct Library * (*libCloseFn_t)( register struct Library    *lib     __asm("a6"));
+typedef struct Library * (*libOpenFn_t)   ( register struct Library    *lib     __asm("a6"));
+typedef struct Library * (*libCloseFn_t)  ( register struct Library    *lib     __asm("a6"));
 
-typedef void             (*devOpenFn_t) ( register struct Library    *dev     __asm("a6"),
-                                                   register struct IORequest  *ioreq   __asm("a1"),
-                                                   register ULONG              unitn   __asm("d0"),
-                                                   register ULONG              flags   __asm("d1"));
-typedef void             (*devCloseFn_t) ( register struct Library    *dev     __asm("a6"),
-                                                    register struct IORequest  *ioreq   __asm("a1"));
-typedef void             (*devBeginIOFn_t) ( register struct Library    *dev     __asm("a6"),
-                                                      register struct IORequest  *ioreq   __asm("a1"));
+typedef void             (*devOpenFn_t)   ( register struct Library    *dev     __asm("a6"),
+                                            register struct IORequest  *ioreq   __asm("a1"),
+                                            register ULONG              unitn   __asm("d0"),
+                                            register ULONG              flags   __asm("d1"));
+typedef void             (*devCloseFn_t)  ( register struct Library    *dev     __asm("a6"),
+                                            register struct IORequest  *ioreq   __asm("a1"));
+typedef void             (*devBeginIOFn_t) (register struct Library    *dev     __asm("a6"),
+                                            register struct IORequest  *ioreq   __asm("a1"));
 
 struct JumpVec
 {
@@ -91,7 +91,7 @@ extern struct Resident *__lxa_console_ROMTag;
 
 static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
 static struct ExecBase  g_SysBase;
-struct MemHeader        g_MemHeader;
+static struct MemHeader g_MemHeader;
 
 struct ExecBase        *SysBase;
 struct UtilityBase     *UtilityBase;
@@ -114,8 +114,8 @@ void _exec_unimplemented_call ( register struct ExecBase  *exb __asm("a6") )
 }
 
 void _exec_InitCode ( register struct ExecBase * SysBase __asm("a6"),
-                                                        register ULONG ___startClass  __asm("d0"),
-                                                        register ULONG ___version  __asm("d1"))
+                      register ULONG ___startClass  __asm("d0"),
+                      register ULONG ___version  __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: InitCode unimplemented STUB called.\n");
     assert(FALSE);
@@ -513,13 +513,38 @@ void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
     assert(FALSE);
 }
 
-APTR _exec_Allocate ( register struct ExecBase * SysBase __asm("a6"),
-                                      register struct MemHeader * ___freeList  __asm("a0"),
-                                      register ULONG ___byteSize  __asm("d0"))
+#ifdef ENABLE_DEBUG
+
+static void _exec_dump_memh (struct MemHeader * freeList)
 {
-    DPRINTF (LOG_DEBUG, "_exec: Allocate called, ___freeList=0x%08lx, ___byteSize=%d\n", (ULONG)___freeList, ___byteSize);
+    struct MemChunk *p1 = (struct MemChunk *)&freeList->mh_First;
+    struct MemChunk *p2 = p1->mc_Next;
+
+    while (p2)
+    {
+        DPRINTF (LOG_DEBUG, "       MEMH chunk at 0x%08lx-0x%08lx is %8d bytes, next=0x%08lx\n",
+                (ULONG)p2, (ULONG)p2+p2->mc_Bytes, p2->mc_Bytes, (ULONG)p2->mc_Next);
+        p1 = p2;
+        assert (p1 != p1->mc_Next);
+        p2 = p1->mc_Next;
+    }
+}
+
+#else
+
+static inline void _exec_dump_memh (struct MemHeader * freeList)
+{
+}
+
+#endif
+
+APTR _exec_Allocate ( register struct ExecBase * SysBase __asm("a6"),
+                      register struct MemHeader * freeList  __asm("a0"),
+                      register ULONG ___byteSize  __asm("d0"))
+{
+    DPRINTF (LOG_DEBUG, "_exec: Allocate called, freeList=0x%08lx, ___byteSize=%d\n", (ULONG)freeList, ___byteSize);
     DPRINTF (LOG_DEBUG, "       mh_First=0x%08lx, mh_Lower=0x%08lx, mh_Upper=0x%08lx, mh_Free=%ld, mh_Attributes=0x%08lx\n", 
-             ___freeList->mh_First, ___freeList->mh_Lower, ___freeList->mh_Upper, ___freeList->mh_Free, ___freeList->mh_Attributes);
+             freeList->mh_First, freeList->mh_Lower, freeList->mh_Upper, freeList->mh_Free, freeList->mh_Attributes);
 
     ULONG byteSize = ALIGN (___byteSize, 4);
 
@@ -528,70 +553,71 @@ APTR _exec_Allocate ( register struct ExecBase * SysBase __asm("a6"),
     if (!byteSize)
         return NULL;
 
-    DPRINTF (LOG_DEBUG, "       ___freeList->mh_Free=%ld\n", ___freeList->mh_Free);
-    if (___freeList->mh_Free < byteSize)
+    DPRINTF (LOG_DEBUG, "       freeList->mh_Free=%ld\n", freeList->mh_Free);
+    if (freeList->mh_Free < byteSize)
         return NULL;
 
-    struct MemChunk *mc=NULL;
-    struct MemChunk *p1, *p2;
+    _exec_dump_memh (freeList);
 
-    p1 = (struct MemChunk *)&___freeList->mh_First;
-    p2 = p1->mc_Next;
+    struct MemChunk *mc_prev = (struct MemChunk *)&freeList->mh_First;
+    struct MemChunk *mc_cur  = mc_prev->mc_Next;
 
-    while (p2)
+    while (mc_cur)
     {
-        DPRINTF (LOG_DEBUG, "       looking for mem chunk that is large enough, current chunk at 0x%08lx is %d bytes\n", (ULONG)p2, p2->mc_Bytes);
-        if (p2->mc_Bytes >= byteSize)
+        DPRINTF (LOG_DEBUG, "       looking for mem chunk that is large enough, current chunk at 0x%08lx is %d bytes\n",
+                 (ULONG)mc_cur, mc_cur->mc_Bytes);
+        if (mc_cur->mc_Bytes >= byteSize)
         {
-            mc = p1;
             break;
         }
-        p1 = p2;
-        p2 = p1->mc_Next;
+        mc_prev = mc_cur;
+        mc_cur  = mc_cur->mc_Next;
     }
 
-    if (mc)
+    if (mc_cur)
     {
-        p1 = mc;
-        p2 = p1->mc_Next;
+        DPRINTF (LOG_DEBUG, "       found a chunk at 0x%08lx, mc_Bytes=%ld, prev=0x%08lx\n",
+                 (ULONG)mc_cur, (ULONG)mc_cur->mc_Bytes, (ULONG)mc_prev);
 
-        if (p2->mc_Bytes == byteSize)
+        if (mc_cur->mc_Bytes == byteSize)
         {
-            p1->mc_Next = p2->mc_Next;
-            mc          = p2;
+            DPRINTF (LOG_DEBUG, "       *** EXACT MATCH ***\n");
+            mc_prev->mc_Next = mc_cur->mc_Next;
         }
         else
         {
-            //struct MemChunk *pp = p1;
+            struct MemChunk *mc_new = (struct MemChunk *)((UBYTE *)mc_cur+byteSize);
+            mc_new->mc_Next  = mc_cur->mc_Next;
+            mc_new->mc_Bytes = mc_cur->mc_Bytes-byteSize;
 
-            p1->mc_Next = (struct MemChunk *)((UBYTE *)p2+byteSize);
-            mc = p2;
+            mc_prev->mc_Next = mc_new;
 
-            p1 = p1->mc_Next;
-            p1->mc_Next  = p2->mc_Next;
-            p1->mc_Bytes = p2->mc_Bytes-byteSize;
+            DPRINTF (LOG_DEBUG, "       created a new chunk at 0x%08lx size=%ld\n", (ULONG)mc_new, mc_new->mc_Bytes);
         }
 
-        ___freeList->mh_Free -= byteSize;
-        DPRINTF (LOG_DEBUG, "       found a chunk at 0x%08lx\n", (ULONG)mc);
+        freeList->mh_Free -= byteSize;
     }
     else
     {
         DPRINTF (LOG_DEBUG, "       no chunk found.\n");
     }
 
-    return mc;
+    _exec_dump_memh (freeList);
+
+    return mc_cur;
 }
 
 void _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
-                                        register struct MemHeader *freeList    __asm("a0"),
-                                        register APTR              memoryBlock __asm("a1"),
-                                        register ULONG             byteSize    __asm("d0"))
+                        register struct MemHeader *freeList    __asm("a0"),
+                        register APTR              memoryBlock __asm("a1"),
+                        register ULONG             byteSize    __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Deallocate called, freeList=0x%08lx, memoryBlock=0x%08lx, byteSize=%ld\n", freeList, memoryBlock, byteSize);
 
     if(!byteSize || !memoryBlock)
         return;
+
+    _exec_dump_memh (freeList);
 
     // alignment
 
@@ -604,6 +630,7 @@ void _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
 
     if (!pNext) // empty list?
     {
+        DPRINTF (LOG_DEBUG, "       empty list\n");
         pCurStart->mc_Bytes = byteSize;
         pCurStart->mc_Next  = NULL;
         pPrev->mc_Next      = pCurStart;
@@ -625,13 +652,21 @@ void _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
 
     } while (pNext);
 
+    DPRINTF (LOG_DEBUG, "       will insert, pPrev=0x%08lx, pNext=0x%08lx, pCurStart=0x%08lx, pCurEnd=0x%08lx\n",
+                        pPrev, pNext, pCurStart, pCurEnd);
+
     // if we found a prev block, see if we can merge
     if (pPrev != (struct MemChunk *)&freeList->mh_First)
     {
         if ((UBYTE *)pPrev + pPrev->mc_Bytes == (UBYTE *)pCurStart)
+        {
+            DPRINTF (LOG_DEBUG, "       merge with prev\n");
             pCurStart = pPrev;
+        }
         else
+        {
             pPrev->mc_Next = pCurStart;
+        }
     }
     else
     {
@@ -641,13 +676,16 @@ void _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
     // if we have a next block, try to merge with it as well
     if (pNext && (pCurEnd == pNext))
     {
-        pCurEnd += pNext->mc_Bytes;
+        DPRINTF (LOG_DEBUG, "       merge with next\n");
+        pCurEnd = (struct MemChunk *) (((UBYTE*)pCurEnd) + pNext->mc_Bytes);
         pNext = pNext->mc_Next;
     }
 
     pCurStart->mc_Next   = pNext;
     pCurStart->mc_Bytes  = (UBYTE *)pCurEnd - (UBYTE *)pCurStart;
     freeList->mh_Free  += byteSize;
+
+    _exec_dump_memh (freeList);
 }
 
 APTR _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
@@ -2167,8 +2205,10 @@ void coldstart (void)
     g_MemHeader.mh_Free         = RAM_END-RAM_START+1;
 
     DPRINTF (LOG_DEBUG, "coldstart: setting up first struct MemHeader at 0x%08lx:\n", &g_MemHeader);
-    DPRINTF (LOG_DEBUG, "           g_MemHeader.mh_First=0x%08lx, g_MemHeader.mh_Lower=0x%08lx, g_MemHeader.mh_Upper=0x%08lx, g_MemHeader.mh_Free=%ld, g_MemHeader.mh_Attributes=0x%08lx\n", 
-             g_MemHeader.mh_First, g_MemHeader.mh_Lower, g_MemHeader.mh_Upper, g_MemHeader.mh_Free, g_MemHeader.mh_Attributes);
+    DPRINTF (LOG_DEBUG, "           g_MemHeader.mh_First=0x%08lx, g_MemHeader.mh_Lower=0x%08lx, g_MemHeader.mh_Upper=0x%08lx,\n",
+             g_MemHeader.mh_First, g_MemHeader.mh_Lower, g_MemHeader.mh_Upper);
+    DPRINTF (LOG_DEBUG, "           g_MemHeader.mh_Free=%ld, g_MemHeader.mh_Attributes=0x%08lx\n",
+             g_MemHeader.mh_Free, g_MemHeader.mh_Attributes);
 
     AddTail (&SysBase->MemList, &g_MemHeader.mh_Node);
 
