@@ -704,6 +704,24 @@ static void _debug_add_bp (uint32_t addr)
         g_breakpoints[g_num_breakpoints++] = addr;
 }
 
+static bool _debug_toggle_bp (uint32_t addr)
+{
+    for (int i=0; i<g_num_breakpoints; i++)
+    {
+        if (addr==g_breakpoints[i])
+        {
+            for (int j=i; j<g_num_breakpoints-1; j++)
+                g_breakpoints[j] = g_breakpoints[j+1];
+            g_num_breakpoints--;
+
+            return false;
+        }
+    }
+
+    _debug_add_bp (addr);
+    return true;
+}
+
 #define NUM_M68K_REGS 27
 
 static char *_m68k_regnames[NUM_M68K_REGS] = {
@@ -1058,6 +1076,20 @@ static uint32_t _debug_print_diss (uint32_t pc, uint32_t curPC)
 {
     static char buff[100];
     static char buff2[100];
+    char *prefix="";
+
+    if (pc==curPC)
+    {
+        prefix = "--->";
+    }
+    else
+    {
+        for (int i=0; i<g_num_breakpoints; i++)
+        {
+            if (pc==g_breakpoints[i])
+                prefix = "[BP]";
+        }
+    }
 
     char *name="";
     for (map_sym_t *m=_g_map; m; m=m->next)
@@ -1069,7 +1101,7 @@ static uint32_t _debug_print_diss (uint32_t pc, uint32_t curPC)
 
     uint32_t instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
     make_hex(buff2, pc, instr_size);
-    CPRINTF("%-5s0x%08x  %-20s: %-40s (%s)\n", pc==curPC ? "--->":"", pc, buff2, buff, name);
+    CPRINTF("%-5s0x%08x  %-20s: %-40s (%s)\n", prefix, pc, buff2, buff, name);
     return instr_size;
 }
 
@@ -1140,6 +1172,8 @@ static void _debug_help (void)
     CPRINTF ("c            - continue\n");
     CPRINTF ("r            - registers\n");
     CPRINTF ("s            - step\n");
+    CPRINTF ("n            - next\n");
+    CPRINTF ("b <addr/reg> - toggle breakpoint\n");
     CPRINTF ("t <num>      - traceback\n");
     CPRINTF ("m <addr/reg> - memory dump\n");
     CPRINTF ("d <addr/reg> - disassemble\n");
@@ -1208,6 +1242,24 @@ static void _debug(uint32_t pcFinal)
                 uint32_t instr_size = m68k_disassemble(buff, pcFinal, M68K_CPU_TYPE_68000);
                 g_next_pc = pcFinal+instr_size;
                 return;
+            }
+            case 'b':
+            {
+                uint32_t addr = 0;
+                if (strlen(buf)>2)
+                    addr = _debug_parse_addr (&buf[2]);
+                if (addr)
+                {
+                    if (_debug_toggle_bp (addr))
+                        CPRINTF ("   added breakpoint at 0x%08x\n", addr);
+                    else
+                        CPRINTF ("   removed breakpoint at 0x%08x\n", addr);
+                }
+                else
+                {
+                    CPRINTF ("   *** error: failed to parse/resolve breakpoint address\n");
+                }
+                break;
             }
             case 'r':
                 _debug_machine_state ();
@@ -1329,7 +1381,7 @@ static void print_usage(char *argv[])
     fprintf(stderr, "usage: %s [ options ] <loadfile>\n", argv[0]);
     fprintf(stderr, "    -b <addr|sym>  add breakpoint, examples:\n");
     fprintf(stderr, "                     b _start\n");
-    fprintf(stderr, "                     b __aqb_main\n");
+    fprintf(stderr, "                     b __acs_main\n");
     fprintf(stderr, "    -d             enable debug output\n");
     fprintf(stderr, "    -r <rom>       use kickstart <rom>, default: %s\n", DEFAULT_ROM_PATH);
     fprintf(stderr, "    -v             verbose\n");
