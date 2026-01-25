@@ -1145,7 +1145,7 @@ ULONG _exec_SetExcept ( register struct ExecBase * SysBase    __asm("a6"),
                                         register ULONG             newSignals __asm("d0"),
                                         register ULONG             signalSet  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: SetExcept called, newSignals=0x%08lx, signalSet=0x%08lx (STUB ONLY)\n", newSignals, signalSet);
+    DPRINTF (LOG_DEBUG, "_exec: SetExcept called, newSignals=0x%08lx, signalSet=0x%08lx\n", newSignals, signalSet);
 
     struct Task *me = SysBase->ThisTask;
 
@@ -1153,14 +1153,20 @@ ULONG _exec_SetExcept ( register struct ExecBase * SysBase    __asm("a6"),
 
     ULONG oldsigs = me->tc_SigExcept;
 
+    /* Update tc_SigExcept: clear bits in signalSet, then set bits from newSignals */
     me->tc_SigExcept = (oldsigs & ~signalSet) | (newSignals & signalSet);
 
-    // FIXME
-    // if (me->tc_SigExcept & me->tc_SigRecvd)
-    // {
-    //     me->tc_Flags |= TF_EXCEPT;
-    //     Reschedule();
-    // }
+    DPRINTF (LOG_DEBUG, "_exec: SetExcept: old=0x%08lx, new=0x%08lx\n", oldsigs, me->tc_SigExcept);
+
+    /* Check if any of the newly enabled exception signals are already received */
+    if (me->tc_SigExcept & me->tc_SigRecvd)
+    {
+        DPRINTF (LOG_DEBUG, "_exec: SetExcept: exception signals pending, setting TF_EXCEPT\n");
+        me->tc_Flags |= TF_EXCEPT;
+        /* Note: Exception processing will occur when the scheduler runs.
+         * We don't call Reschedule() here as it's not implemented and
+         * the exception will be processed on the next context switch. */
+    }
 
     Enable();
 
@@ -1170,17 +1176,144 @@ ULONG _exec_SetExcept ( register struct ExecBase * SysBase    __asm("a6"),
 ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___signalSet  __asm("d0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: Wait unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_exec: Wait() called, signalSet=0x%08lx\n", ___signalSet);
+
+    struct Task *thisTask = SysBase->ThisTask;
+    ULONG rcvd;
+
+    Disable();
+
+    /* If at least one of the signals is already set do not wait. */
+    while (!(thisTask->tc_SigRecvd & ___signalSet))
+    {
+        /* Set the wait signal mask */
+        thisTask->tc_SigWait = ___signalSet;
+
+        DPRINTF (LOG_DEBUG, "_exec: Wait() moving task '%s' @ 0x%08lx to TaskWait\n",
+                 thisTask->tc_Node.ln_Name, thisTask);
+
+        /*
+         * Clear TDNestCnt (because Switch() will not care about it),
+         * but memorize it first. IDNestCnt is handled by Switch().
+         */
+        thisTask->tc_TDNestCnt = SysBase->TDNestCnt;
+        SysBase->TDNestCnt = -1;
+
+        thisTask->tc_State = TS_WAIT;
+
+        /* Move current task to the waiting list. */
+        Enqueue(&SysBase->TaskWait, &thisTask->tc_Node);
+
+        /* And switch to the next ready task via Supervisor call */
+        asm volatile (
+            "   move.l  a5, -(a7)               \n"     // save a5
+            "   move.l  4, a6                   \n"     // SysBase -> a6
+            "   move.l  #_exec_Switch, a5       \n"     // #exec_Switch -> a5
+            "   jsr     -30(a6)                 \n"     // Supervisor()
+            "   move.l  (a7)+, a5               \n"     // restore a5
+            : /* no outputs */
+            : /* no inputs */
+            : "cc", "d0", "d1", "a0", "a1", "a6", "memory"
+        );
+
+        /*
+         * OK. Somebody awakened us. This means that either the
+         * signals are there or it's just a finished task exception.
+         * Test again to be sure (see above).
+         */
+        DPRINTF (LOG_DEBUG, "_exec: Wait() task '%s' awoken\n", thisTask->tc_Node.ln_Name);
+
+        /* Restore TDNestCnt. */
+        SysBase->TDNestCnt = thisTask->tc_TDNestCnt;
+    }
+
+    /* Get active signals. */
+    rcvd = (thisTask->tc_SigRecvd & ___signalSet);
+
+    /* And clear them. */
+    thisTask->tc_SigRecvd &= ~___signalSet;
+
+    Enable();
+
+    DPRINTF (LOG_DEBUG, "_exec: Wait() returning rcvd=0x%08lx\n", rcvd);
+
+    /* All done. */
+    return rcvd;
 }
 
 void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Task * ___task  __asm("a1"),
                                                         register ULONG ___signalSet  __asm("d0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: Signal unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: Signal() called, task=0x%08lx '%s', signalSet=0x%08lx\n",
+             ___task, ___task->tc_Node.ln_Name, ___signalSet);
+
+    struct Task *thisTask = SysBase->ThisTask;
+
+    Disable();
+
+    /* Set the signals in the task structure. */
+    ___task->tc_SigRecvd |= ___signalSet;
+
+    DPRINTF (LOG_DEBUG, "_exec: Signal() target task state=%d, SigRecvd=0x%08lx\n",
+             ___task->tc_State, ___task->tc_SigRecvd);
+
+    /* Do those bits raise exceptions? */
+    if (___task->tc_SigRecvd & ___task->tc_SigExcept)
+    {
+        /* Yes. Set the exception flag. */
+        ___task->tc_Flags |= TF_EXCEPT;
+        DPRINTF (LOG_DEBUG, "_exec: Signal() TF_EXCEPT set\n");
+
+        /*
+         * If the target task is running (called from within interrupt handler),
+         * we need to schedule a reschedule.
+         */
+        if (___task->tc_State == TS_RUN)
+        {
+            /* Order a reschedule - set SysFlags to trigger scheduler */
+            SysBase->SysFlags |= (1 << 6); /* SFF_QuantumOver */
+            Enable();
+            return;
+        }
+    }
+
+    /* Does the target task have signals to process? */
+    if (___task->tc_SigRecvd & (___task->tc_SigWait | ___task->tc_SigExcept))
+    {
+        if (___task->tc_State == TS_WAIT)
+        {
+            DPRINTF (LOG_DEBUG, "_exec: Signal() waking up WAIT task '%s'\n", ___task->tc_Node.ln_Name);
+
+            /* Yes. Move it to the ready list. */
+            Remove(&___task->tc_Node);
+            ___task->tc_State = TS_READY;
+            Enqueue(&SysBase->TaskReady, &___task->tc_Node);
+        }
+
+        if (___task->tc_State == TS_READY)
+        {
+            /* Has it a higher priority than the running task? */
+            if (___task->tc_Node.ln_Pri > thisTask->tc_Node.ln_Pri)
+            {
+                DPRINTF (LOG_DEBUG, "_exec: Signal() task has higher priority, rescheduling\n");
+
+                /*
+                 * Yes. A taskswitch is necessary. Prepare one if possible.
+                 * (If the current task is not running it is already moved)
+                 */
+                if (thisTask->tc_State == TS_RUN)
+                {
+                    /* Set SysFlags to trigger scheduler on next opportunity */
+                    SysBase->SysFlags |= (1 << 6); /* SFF_QuantumOver */
+                }
+            }
+        }
+    }
+
+    Enable();
+
+    DPRINTF (LOG_DEBUG, "_exec: Signal() done\n");
 }
 
 BYTE _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
@@ -1250,54 +1383,198 @@ void _exec_FreeTrap ( register struct ExecBase * SysBase __asm("a6"),
 void _exec_AddPort ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: AddPort unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AddPort() called, port=0x%08lx, name=%s\n",
+             ___port, ___port->mp_Node.ln_Name ? ___port->mp_Node.ln_Name : "NULL");
+
+    /* Arbitrate for the list of messageports. */
+    Forbid();
+
+    /* Yes, this is a messageport */
+    ___port->mp_Node.ln_Type = NT_MSGPORT;
+
+    /* Clear the list of messages */
+    NEWLIST(&___port->mp_MsgList);
+
+    /* And add the actual port */
+    Enqueue(&SysBase->PortList, &___port->mp_Node);
+
+    /* All done */
+    Permit();
 }
 
 void _exec_RemPort ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: RemPort unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: RemPort() called, port=0x%08lx\n", ___port);
+
+    /* Arbitrate for the list of message ports.*/
+    Forbid();
+
+    /* Remove the current port. */
+    Remove(&___port->mp_Node);
+
+    /* All done. */
+    Permit();
 }
 
 void _exec_PutMsg ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a0"),
                                                         register struct Message * ___message  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: PutMsg unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: PutMsg() called, port=0x%08lx, message=0x%08lx\n", ___port, ___message);
+
+    /* Set the node type to NT_MESSAGE == sent message. */
+    ___message->mn_Node.ln_Type = NT_MESSAGE;
+
+    /*
+     * Add a message to the ports list.
+     * NB: Messages may be sent from interrupts, therefore
+     * the message list of the message port must be protected
+     * with Disable().
+     */
+    Disable();
+    AddTail(&___port->mp_MsgList, &___message->mn_Node);
+    Enable();
+
+    if (___port->mp_SigTask)
+    {
+        /* And trigger the action. */
+        switch(___port->mp_Flags & PF_ACTION)
+        {
+            case PA_SIGNAL:
+                DPRINTF (LOG_DEBUG, "_exec: PutMsg() PA_SIGNAL -> Task 0x%08lx, Signal 0x%08lx\n",
+                         ___port->mp_SigTask, (1 << ___port->mp_SigBit));
+                /* Send the signal */
+                Signal((struct Task *)___port->mp_SigTask, (1 << ___port->mp_SigBit));
+                break;
+
+            case PA_SOFTINT:
+                DPRINTF (LOG_DEBUG, "_exec: PutMsg() PA_SOFTINT\n");
+                /* Raise a software interrupt */
+                Cause((struct Interrupt *)___port->mp_SoftInt);
+                break;
+
+            case PA_IGNORE:
+                /* Do nothing. */
+                break;
+        }
+    }
+
+    DPRINTF (LOG_DEBUG, "_exec: PutMsg() done\n");
 }
 
 struct Message * _exec_GetMsg ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: GetMsg unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: GetMsg() called, port=0x%08lx\n", ___port);
+
+    struct Message *msg;
+
+    /*
+     * Protect the message list, and get the first node.
+     */
+    Disable();
+    msg = (struct Message *)RemHead(&___port->mp_MsgList);
+    Enable();
+
+    DPRINTF (LOG_DEBUG, "_exec: GetMsg() returning msg=0x%08lx\n", msg);
+
+    /* All done. */
+    return msg;
 }
 
 void _exec_ReplyMsg ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Message * ___message  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: ReplyMsg unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: ReplyMsg() called, message=0x%08lx\n", ___message);
+
+    struct MsgPort *port;
+
+    /* Get replyport */
+    port = ___message->mn_ReplyPort;
+
+    /* Not set? Only mark the message as no longer sent. */
+    if (port == NULL)
+    {
+        ___message->mn_Node.ln_Type = NT_FREEMSG;
+    }
+    else
+    {
+        /* Mark the message as replied */
+        ___message->mn_Node.ln_Type = NT_REPLYMSG;
+
+        /* Send it back using the same logic as PutMsg */
+        Disable();
+        AddTail(&port->mp_MsgList, &___message->mn_Node);
+        Enable();
+
+        if (port->mp_SigTask)
+        {
+            /* And trigger the action. */
+            switch(port->mp_Flags & PF_ACTION)
+            {
+                case PA_SIGNAL:
+                    DPRINTF (LOG_DEBUG, "_exec: ReplyMsg() PA_SIGNAL -> Task 0x%08lx, Signal 0x%08lx\n",
+                             port->mp_SigTask, (1 << port->mp_SigBit));
+                    Signal((struct Task *)port->mp_SigTask, (1 << port->mp_SigBit));
+                    break;
+
+                case PA_SOFTINT:
+                    Cause((struct Interrupt *)port->mp_SoftInt);
+                    break;
+
+                case PA_IGNORE:
+                    break;
+            }
+        }
+    }
+
+    DPRINTF (LOG_DEBUG, "_exec: ReplyMsg() done\n");
 }
 
 struct Message * _exec_WaitPort ( register struct ExecBase * SysBase __asm("a6"),
                                                   register struct MsgPort * ___port  __asm("a0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: WaitPort() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: WaitPort() called, port=0x%08lx\n", ___port);
+
+    /*
+     * On uniprocessor systems, Disable() is not necessary since emptiness
+     * can be checked without it - and nobody is allowed to change the signal
+     * bit as soon as the current task entered WaitPort().
+     */
+
+    /* Is messageport empty? */
+    while (___port->mp_MsgList.lh_TailPred == (struct Node *)&___port->mp_MsgList)
+    {
+        DPRINTF (LOG_DEBUG, "_exec: WaitPort() msg list empty, waiting for signal...\n");
+
+        /*
+         * Yes. Wait for the signal to arrive. Remember that signals may
+         * arrive without a message so check again.
+         */
+        Wait(1 << ___port->mp_SigBit);
+
+        DPRINTF (LOG_DEBUG, "_exec: WaitPort() signal received\n");
+    }
+
+    DPRINTF (LOG_DEBUG, "_exec: WaitPort() returning first message 0x%08lx\n",
+             ___port->mp_MsgList.lh_Head);
+
+    /* Return the first node in the list. */
+    return (struct Message *)___port->mp_MsgList.lh_Head;
 }
 
 struct MsgPort * _exec_FindPort ( register struct ExecBase * SysBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: FindPort unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: FindPort() called, name=%s\n", ___name ? (char *)___name : "NULL");
+
+    /* Nothing spectacular - just look for that name. */
+    struct MsgPort *retVal = (struct MsgPort *)FindName(&SysBase->PortList, ___name);
+
+    DPRINTF (LOG_DEBUG, "_exec: FindPort() returning 0x%08lx\n", retVal);
+
+    return retVal;
 }
 
 void _exec_AddLibrary ( register struct ExecBase * SysBase __asm("a6"),
@@ -1722,30 +1999,101 @@ APTR _exec_CreateIORequest ( register struct ExecBase * SysBase __asm("a6"),
                                                         register const struct MsgPort * ___port  __asm("a0"),
                                                         register ULONG ___size  __asm("d0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: CreateIORequest unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: CreateIORequest() called, port=0x%08lx, size=%ld\n", ___port, ___size);
+
+    struct IORequest *ret = NULL;
+
+    /* A NULL ioReplyPort is legal but has no effect */
+    if (___port == NULL)
+        return NULL;
+
+    /* Allocate the memory */
+    ret = (struct IORequest *)AllocMem(___size, MEMF_PUBLIC|MEMF_CLEAR);
+
+    if (ret != NULL)
+    {
+        /* Initialize it. */
+        ret->io_Message.mn_ReplyPort = (struct MsgPort *)___port;
+
+        /* This size is needed to free the memory at DeleteIORequest() time. */
+        ret->io_Message.mn_Length = ___size;
+    }
+
+    DPRINTF (LOG_DEBUG, "_exec: CreateIORequest() returning 0x%08lx\n", ret);
+
+    /* All done. */
+    return ret;
 }
 
 void _exec_DeleteIORequest ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___iorequest  __asm("a0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: DeleteIORequest unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: DeleteIORequest() called, iorequest=0x%08lx\n", ___iorequest);
+
+    if (___iorequest != NULL)
+    {
+        /* Just free the memory */
+        FreeMem(___iorequest, ((struct Message *)___iorequest)->mn_Length);
+    }
 }
 
 struct MsgPort * _exec_CreateMsgPort ( register struct ExecBase * SysBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_exec: CreateMsgPort unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: CreateMsgPort() called\n");
+
+    struct MsgPort *ret;
+
+    /* Allocate memory for struct MsgPort */
+    ret = (struct MsgPort *)AllocMem(sizeof(struct MsgPort), MEMF_PUBLIC|MEMF_CLEAR);
+    if (ret != NULL)
+    {
+        BYTE sb;
+
+        /* Allocate a signal bit */
+        sb = AllocSignal(-1);
+        if (sb != -1)
+        {
+            /* Initialize messageport structure */
+            ret->mp_Node.ln_Type = NT_MSGPORT;
+            ret->mp_Flags        = PA_SIGNAL;
+            NEWLIST(&ret->mp_MsgList);
+
+            /* Set signal bit. */
+            ret->mp_SigBit = sb;
+
+            /* Set task to send the signal to. */
+            ret->mp_SigTask = SysBase->ThisTask;
+
+            DPRINTF (LOG_DEBUG, "_exec: CreateMsgPort() returning 0x%08lx, sigbit=%d\n", ret, sb);
+
+            /* Now the port is ready for use. */
+            return ret;
+        }
+
+        /* Couldn't get the signal bit. Free the memory. */
+        FreeMem(ret, sizeof(struct MsgPort));
+    }
+
+    DPRINTF (LOG_DEBUG, "_exec: CreateMsgPort() failed\n");
+
+    /* function failed */
     return NULL;
 }
 
 void _exec_DeleteMsgPort ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct MsgPort * ___port  __asm("a0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: DeleteMsgPort unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: DeleteMsgPort() called, port=0x%08lx\n", ___port);
+
+    /* Only if there is something to free */
+    if (___port != NULL)
+    {
+        /* Free signal bit */
+        FreeSignal(___port->mp_SigBit);
+
+        /* And memory */
+        FreeMem(___port, sizeof(struct MsgPort));
+    }
 }
 
 void _exec_ObtainSemaphoreShared ( register struct ExecBase * SysBase __asm("a6"),
@@ -2246,6 +2594,10 @@ void coldstart (void)
     SysBase->TaskReady.lh_Type = NT_TASK;
     NEWLIST (&SysBase->TaskWait);
     SysBase->TaskWait.lh_Type = NT_TASK;
+
+    // init port list for AddPort/RemPort/FindPort
+    NEWLIST (&SysBase->PortList);
+    SysBase->PortList.lh_Type = NT_MSGPORT;
 
     SysBase->TaskExitCode = _defaultTaskExit;
     SysBase->Quantum      = DEFAULT_SCHED_QUANTUM;

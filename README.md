@@ -77,15 +77,21 @@ lxa includes an integration test framework for validating AmigaOS library implem
 ```
 tests/
 ├── Makefile              # Master test runner
-├── Makefile.config        # Configuration (paths to lxa, ROM, toolchain)
+├── Makefile.config       # Configuration (paths to lxa, ROM, toolchain)
 ├── test_runner.sh        # Test execution script
 ├── common/
-│   └── test_assert.h  # Amiga-side assertion helpers
-└── dos/
-    └── helloworld/
-        ├── main.c         # Test program
-        ├── Makefile        # Test build file
-        └── expected.out    # Expected output
+│   └── test_assert.h     # Amiga-side assertion helpers
+├── dos/
+│   └── helloworld/       # Basic DOS I/O test
+│       ├── main.c
+│       ├── Makefile
+│       └── expected.out
+└── exec/
+    └── signal_pingpong/  # Signal/message passing test
+        ├── main.c        # Two-task message exchange
+        ├── Makefile
+        ├── run_test.sh   # Custom test runner
+        └── expected.out
 ```
 
 #### Running Tests
@@ -166,9 +172,9 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 ## Limitations
 
 - Only 68000 CPU mode currently supported
-- No图形 (graphics) or Intuition library support yet
+- No graphics or Intuition library support yet
 - Limited filesystem support (basic file I/O only)
-- No process spawning or multitasking support
+- Multitasking: Basic support implemented (signals, messages, processes) but child process cleanup has known issues
 
 ## License
 

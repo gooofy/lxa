@@ -3,7 +3,7 @@
 include Makefile.config
 
 # Test categories
-TEST_CATS := dos
+TEST_CATS := dos exec
 
 # Color output
 GREEN = \033[0;32m
@@ -15,11 +15,14 @@ RESET = \033[0m
 all:
 	@echo "Building all tests..."
 	@$(MAKE) -C dos/helloworld
+	@$(MAKE) -C exec/signal_pingpong
 
 clean:
 	@echo "Cleaning all tests..."
 	@$(MAKE) -C dos/helloworld clean
+	@$(MAKE) -C exec/signal_pingpong clean
 	rm -f dos/helloworld/actual.out
+	rm -f exec/signal_pingpong/actual.out
 
 test: all
 	@echo ""
@@ -29,6 +32,7 @@ test: all
 
 run-tests:
 	@$(MAKE) -C dos/helloworld run-test
+	@$(MAKE) -C exec/signal_pingpong run-test
 
 help:
 	@echo "Integration Test Suite"

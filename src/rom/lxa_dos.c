@@ -417,7 +417,63 @@ struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm(
 void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
                  register LONG ___returnCode  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Exit unimplemented STUB called.\n");
+    struct DosLibrary *DOSBase = __libBase;
+    (void)DOSBase; /* used by FreeDosObject macro */
+
+    DPRINTF (LOG_DEBUG, "_dos: Exit() called, returnCode=%ld\n", ___returnCode);
+
+    struct Process *me = (struct Process *)FindTask(NULL);
+
+    /* Store the return code */
+    me->pr_Result2 = ___returnCode;
+
+    /*
+     * On classic m68k Amiga, Exit() works by setting SP to
+     * (FindTask(NULL)->pr_ReturnAddr - 4) and performing an rts.
+     *
+     * For lxa, we use a simpler approach - we call RemTask(NULL) which
+     * will terminate the current task and switch to the next one.
+     * This is appropriate since lxa currently runs programs in a single-shot
+     * manner from _bootstrap().
+     *
+     * If the current task is the bootstrap task, this will terminate the
+     * emulation.
+     */
+
+    /* Close any open files */
+    if (me->pr_CIS)
+    {
+        DPRINTF (LOG_DEBUG, "_dos: Exit() closing pr_CIS\n");
+        /* Note: We don't actually close pr_CIS/pr_COS here because they
+         * are typically inherited from the parent and should remain open.
+         * Only close if we own them. */
+    }
+
+    /* Free CLI structure if we allocated it */
+    if (me->pr_CLI)
+    {
+        DPRINTF (LOG_DEBUG, "_dos: Exit() freeing CLI structure\n");
+        FreeDosObject(DOS_CLI, (APTR)BADDR(me->pr_CLI));
+        me->pr_CLI = 0;
+    }
+
+    /* Call pr_ExitCode callback if set */
+    if (me->pr_ExitCode)
+    {
+        DPRINTF (LOG_DEBUG, "_dos: Exit() calling pr_ExitCode callback\n");
+        /* Call the exit code function with the return code */
+        typedef void (*exitCodeFn_t)(LONG, LONG);
+        exitCodeFn_t exitFn = (exitCodeFn_t)me->pr_ExitCode;
+        exitFn(___returnCode, me->pr_ExitData);
+    }
+
+    DPRINTF (LOG_DEBUG, "_dos: Exit() calling RemTask(NULL)\n");
+
+    /* Remove ourselves from the task system. This will not return. */
+    RemTask(NULL);
+
+    /* Should never reach here */
+    LPRINTF (LOG_ERROR, "_dos: Exit() RemTask returned - this should not happen!\n");
     assert(FALSE);
 }
 
@@ -1379,12 +1435,16 @@ struct CommandLineInterface * _dos_Cli ( register struct DosLibrary * DOSBase __
         return NULL;
 }
 
+// Minimum stack size for AmigaOS processes (4KB is the standard minimum)
+#define MIN_STACK_SIZE 4096
+
+// Static task number counter - FIXME: should use RootNode->rn_TaskArray for proper CLI numbering
+static LONG g_nextTaskNum = 2; // Start at 2, 1 is reserved for boot CLI
+
 struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                       register const struct TagItem * tags __asm("d1"))
 {
     DPRINTF (LOG_INFO, "_dos: CreateNewProc() called.\n");
-
-    // FIXME: this is a _very_ incomplete implementation!
 
     // determine stack size, input, output
 
@@ -1420,9 +1480,21 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
            outp      =          GetTagData(NP_Output   , outp                 , tags);
     char  *args      = (char*)  GetTagData(NP_Arguments, NULL                 , tags);
 
+    // Enforce minimum stack size
+    if (stackSize < MIN_STACK_SIZE)
+    {
+        DPRINTF (LOG_WARN, "_dos: CreateNewProc() stack size %lu too small, using minimum %d\n",
+                 stackSize, MIN_STACK_SIZE);
+        stackSize = MIN_STACK_SIZE;
+    }
+
     if (!initpc)
     {
-        assert(seglist);
+        if (!seglist)
+        {
+            LPRINTF (LOG_ERROR, "_dos: CreateNewProc() called without NP_Entry or NP_Seglist!\n");
+            return NULL;
+        }
         initpc = BADDR(seglist) + sizeof(BPTR);
     }
 
@@ -1445,12 +1517,22 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
 
     if (do_cli)
     {
-        process->pr_TaskNum = 1; // FIXME
-
-        //BPTR oldpath = 0;
+        // Assign task number from global counter
+        // FIXME: should use RootNode->rn_TaskArray for proper CLI numbering and recycling
+        process->pr_TaskNum = g_nextTaskNum++;
 
         struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)tags);
-        assert(cli); // FIXME: implement proper error handling
+        if (!cli)
+        {
+            LPRINTF (LOG_ERROR, "_dos: CreateNewProc() failed to allocate CLI structure\n");
+            // Clean up and return NULL
+            // Note: process is on tc_MemEntry, will be cleaned up by RemTask eventually,
+            // but since we haven't added it to TaskReady yet, we need to free it manually
+            U_freeTask (&process->pr_Task);
+            if (args)
+                FreeVec (args);
+            return NULL;
+        }
 
         cli->cli_DefaultStack = (process->pr_StackSize + 3) / 4;
 
