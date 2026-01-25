@@ -19,6 +19,7 @@
 #define EMU_CALL_DOS_INPUT  1004
 #define EMU_CALL_DOS_OUTPUT 1005
 #define EMU_CALL_DOS_WRITE  1006
+#define EMU_CALL_EXIT      127
 
 #endif
 

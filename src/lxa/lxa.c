@@ -35,7 +35,7 @@
 
 #define CUSTOM_REG_INTENA   0x09a
 
-#define AMIGA_SYSROOT "/home/guenter/media/emu/amiga/FS-UAE/hdd/system/"
+#define DEFAULT_AMIGA_SYSROOT "/home/guenter/media/emu/amiga/FS-UAE/hdd/system/"
 
 #define MODE_OLDFILE        1005
 #define MODE_NEWFILE        1006
@@ -64,6 +64,7 @@ static char    *g_loadfile                      = NULL;
 static uint32_t g_breakpoints[MAX_BREAKPOINTS];
 static int      g_num_breakpoints               = 0;
 static int      g_rv                            = 0;
+static char    *g_sysroot                       = NULL;
 
 typedef struct map_sym_s map_sym_t;
 
@@ -452,11 +453,10 @@ static char *_mgetstr (uint32_t address)
 
 static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_len)
 {
-    // FIXME: pretty hard coded, for now
     if (!strncasecmp (amiga_path, "NIL:", 4))
         snprintf (linux_path, buf_len, "/dev/null");
     else
-        snprintf (linux_path, buf_len, "%s/%s", AMIGA_SYSROOT, amiga_path);
+        snprintf (linux_path, buf_len, "%s/%s", g_sysroot, amiga_path);
 }
 
 static int errno2Amiga (void)
@@ -828,6 +828,15 @@ int op_illg(int level)
                 DPRINTF (LOG_ERROR, "*** emulator stop via lxcall, rv=%d\n", g_rv);
             else
                 DPRINTF (LOG_DEBUG, "*** emulator stop via lxcall.\n");
+            m68k_end_timeslice();
+            g_running = FALSE;
+            break;
+        }
+
+        case EMU_CALL_EXIT:
+        {
+            g_rv = m68k_get_reg(NULL, M68K_REG_D1);
+            DPRINTF (LOG_DEBUG, "*** emulator exit via libnix, rv=%d\n", g_rv);
             m68k_end_timeslice();
             g_running = FALSE;
             break;
@@ -1384,6 +1393,7 @@ static void print_usage(char *argv[])
     fprintf(stderr, "                     b __acs_main\n");
     fprintf(stderr, "    -d             enable debug output\n");
     fprintf(stderr, "    -r <rom>       use kickstart <rom>, default: %s\n", DEFAULT_ROM_PATH);
+    fprintf(stderr, "    -s <sysroot>   set AmigaOS system root, default: %s\n", DEFAULT_AMIGA_SYSROOT);
     fprintf(stderr, "    -v             verbose\n");
     fprintf(stderr, "    -t             trace\n");
     //fprintf(stderr, "    -S             print symtab\n");
@@ -1392,6 +1402,7 @@ static void print_usage(char *argv[])
 int main(int argc, char **argv, char **envp)
 {
     char *rom_path = DEFAULT_ROM_PATH;
+    char *sysroot = DEFAULT_AMIGA_SYSROOT;
     int optind=0;
     // argument parsing
     for (optind = 1; optind < argc && argv[optind][0] == '-'; optind++)
@@ -1416,6 +1427,12 @@ int main(int argc, char **argv, char **envp)
                 rom_path = argv[optind];
                 break;
             }
+            case 's':
+            {
+                optind++;
+                sysroot = argv[optind];
+                break;
+            }
             case 'v':
                 g_verbose = true;
                 break;
@@ -1434,6 +1451,7 @@ int main(int argc, char **argv, char **envp)
     }
 
     g_loadfile = argv[optind];
+    g_sysroot = sysroot;
 
     util_init();
 

@@ -1577,9 +1577,18 @@ BOOL _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buf __asm("d1"),
                                                         register LONG len __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: GetProgramName() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_dos: GetProgramName() called.\n");
+
+    if (!buf || len <= 0)
+        return FALSE;
+
+    const char *src = "testprog";
+    LONG i;
+    for (i = 0; i < len - 1 && src[i] != '\0'; i++)
+        buf[i] = src[i];
+    buf[i] = '\0';
+
+    return TRUE;
 }
 
 BOOL _dos_SetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
