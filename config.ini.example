@@ -1,0 +1,36 @@
+# lxa configuration file example
+# Copy this to ~/.lxa/config.ini and customize
+
+[system]
+# Path to the lxa ROM image
+rom_path = ../rom/lxa.rom
+
+# RAM size in bytes (default: 10 MB)
+ram_size = 10485760
+
+[drives]
+# Map Amiga logical drives to Linux directories
+# Drive names are case-insensitive
+# Paths support tilde (~) expansion
+
+# System drive - typically contains AmigaOS system files
+SYS = ~/.lxa/drive_hd0
+
+# Work drive - for your projects
+Work = ~/amiga_work
+
+# Additional hard drives
+DH1 = ~/amiga_projects
+DH2 = /mnt/data/amiga
+
+[floppies]
+# Map floppy drives to directories
+# Like drives, these are just directories on Linux
+DF0 = ~/.lxa/floppy0
+DF1 = ~/.lxa/floppy1
+
+# Example: map to a directory containing game files
+# DF0 = ~/Downloads/amiga_game
+
+# Note: ADF (Amiga Disk File) support is not yet implemented
+# For now, floppies are simply directories like hard drives

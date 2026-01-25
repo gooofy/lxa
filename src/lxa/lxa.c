@@ -18,6 +18,8 @@
 #include "m68k.h"
 #include "emucalls.h"
 #include "util.h"
+#include "vfs.h"
+#include "config.h"
 
 #define RAM_START   0x000000
 #define RAM_SIZE    10 * 1024 * 1024
@@ -493,10 +495,20 @@ static char *_mgetstr (uint32_t address)
 
 static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_len)
 {
+    // First try VFS resolution
+    if (vfs_resolve_path (amiga_path, linux_path, buf_len))
+    {
+        DPRINTF (LOG_DEBUG, "lxa: _dos_path2linux: VFS resolved %s -> %s\n", amiga_path, linux_path);
+        return;
+    }
+    
+    // Fallback to legacy behavior for backward compatibility
     if (!strncasecmp (amiga_path, "NIL:", 4))
         snprintf (linux_path, buf_len, "/dev/null");
     else
         snprintf (linux_path, buf_len, "%s/%s", g_sysroot, amiga_path);
+    
+    DPRINTF (LOG_DEBUG, "lxa: _dos_path2linux: legacy resolved %s -> %s\n", amiga_path, linux_path);
 }
 
 static int errno2Amiga (void)
@@ -538,7 +550,7 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
                 flags = O_CREAT | O_TRUNC | O_RDWR;
                 break;
             case MODE_OLDFILE:
-                flags = O_RDWR;
+                flags = O_RDONLY;  // Read-only for existing files
                 break;
             case MODE_READWRITE:
                 flags = O_CREAT | O_RDWR;
@@ -552,11 +564,20 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 
         LPRINTF (LOG_DEBUG, "lxa: _dos_open(): open() result: fd=%d, err=%d\n", fd, err);
 
-        m68k_write_memory_32 (fh68k+36, fd);                // fh_Args
-        m68k_write_memory_32 (fh68k+32, FILE_KIND_REGULAR); // fh_Func3
+        if (fd >= 0)
+        {
+            m68k_write_memory_32 (fh68k+36, fd);                // fh_Args
+            m68k_write_memory_32 (fh68k+32, FILE_KIND_REGULAR); // fh_Func3
+            return 0;  // Success
+        }
+        else
+        {
+            m68k_write_memory_32 (fh68k+40, errno2Amiga());  // fh_Arg2 = error code
+            return errno2Amiga();
+        }
     }
 
-    return errno2Amiga();
+    return 0;
 }
 
 static int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
@@ -914,7 +935,7 @@ int op_illg(int level)
         case EMU_CALL_EXIT:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
-            CPRINTF ("*** emulator exit via libnix, rv=%d\n", g_rv);
+            DPRINTF (LOG_DEBUG, "*** emulator exit via libnix, rv=%d\n", g_rv);
             
             /*
              * Check if there are other tasks running. If so, we need to
@@ -1532,6 +1553,7 @@ static void print_usage(char *argv[])
     fprintf(stderr, "    -b <addr|sym>  add breakpoint, examples:\n");
     fprintf(stderr, "                     b _start\n");
     fprintf(stderr, "                     b __acs_main\n");
+    fprintf(stderr, "    -c <config>    use config file, default: ~/.lxa/config.ini\n");
     fprintf(stderr, "    -d             enable debug output\n");
     fprintf(stderr, "    -r <rom>       use kickstart <rom>, default: %s\n", DEFAULT_ROM_PATH);
     fprintf(stderr, "    -s <sysroot>   set AmigaOS system root, default: %s\n", DEFAULT_AMIGA_SYSROOT);
@@ -1542,9 +1564,13 @@ static void print_usage(char *argv[])
 
 int main(int argc, char **argv, char **envp)
 {
-    char *rom_path = DEFAULT_ROM_PATH;
-    char *sysroot = DEFAULT_AMIGA_SYSROOT;
+    char *rom_path = NULL;
+    char *sysroot = NULL;
+    char *config_path = NULL;
     int optind=0;
+
+    vfs_init();
+
     // argument parsing
     for (optind = 1; optind < argc && argv[optind][0] == '-'; optind++)
     {
@@ -1557,6 +1583,12 @@ int main(int argc, char **argv, char **envp)
                 strncpy (pbp->name, argv[optind], 256);
                 pbp->next = _g_pending_bps;
                 _g_pending_bps = pbp;
+                break;
+            }
+            case 'c':
+            {
+                optind++;
+                config_path = argv[optind];
                 break;
             }
             case 'd':
@@ -1585,6 +1617,28 @@ int main(int argc, char **argv, char **envp)
                 exit(EXIT_FAILURE);
         }
     }
+
+    if (config_path) {
+        config_load(config_path);
+    } else {
+        char default_cfg[PATH_MAX];
+        snprintf(default_cfg, PATH_MAX, "%s/.lxa/config.ini", getenv("HOME"));
+        config_load(default_cfg);
+    }
+
+    if (sysroot) {
+        vfs_add_drive("SYS", sysroot);
+    } else {
+        // if no sysroot and no SYS drive in config, use default
+        // FIXME: check if SYS already exists
+        vfs_add_drive("SYS", DEFAULT_AMIGA_SYSROOT);
+    }
+
+    if (!rom_path) {
+        rom_path = (char *)config_get_rom_path();
+        if (!rom_path) rom_path = DEFAULT_ROM_PATH;
+    }
+
     if (argc != optind+1)
     {
         print_usage(argv);
@@ -1592,7 +1646,7 @@ int main(int argc, char **argv, char **envp)
     }
 
     g_loadfile = argv[optind];
-    g_sysroot = sysroot;
+    g_sysroot = sysroot ? sysroot : DEFAULT_AMIGA_SYSROOT;
 
     util_init();
 
