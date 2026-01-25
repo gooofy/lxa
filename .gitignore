@@ -83,5 +83,5 @@ src/tools/ffpmath/
 tests/dos/helloworld/lxa.log
 tests/dos/helloworld/helloworld
 tests/exec/signal_pingpong/signal_pingpong
-
+attic
 lxa.log
