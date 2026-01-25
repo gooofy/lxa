@@ -82,3 +82,5 @@ src/tools/ffpmath/
 
 tests/dos/helloworld/lxa.log
 tests/dos/helloworld/helloworld
+
+lxa.log
