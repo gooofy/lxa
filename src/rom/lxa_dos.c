@@ -49,6 +49,147 @@ char __aligned _g_dos_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase      *SysBase;
 extern struct UtilityBase   *UtilityBase;
+extern struct DosLibrary    *DOSBase;
+
+/*
+ * RootNode and TaskArray implementation for proper CLI process numbering.
+ * 
+ * rn_TaskArray is a BPTR to an array of IPTRs (pointers):
+ *   [0] = maximum number of CLI slots (size of array - 1)
+ *   [1] = pointer to CLI process 1's MsgPort (or 0 if slot is free)
+ *   [2] = pointer to CLI process 2's MsgPort (or 0 if slot is free)
+ *   ...
+ * 
+ * When a CLI process is created, we find a free slot or expand the array.
+ * When a CLI process exits, we clear its slot so it can be reused.
+ */
+
+#define INITIAL_TASK_ARRAY_SIZE 8
+
+/* Static RootNode - will be initialized on first use */
+static struct RootNode g_RootNode;
+static BOOL g_RootNodeInitialized = FALSE;
+
+/* Initialize the RootNode and TaskArray if not already done */
+static void initRootNode(void)
+{
+    if (g_RootNodeInitialized)
+        return;
+    
+    DPRINTF(LOG_DEBUG, "_dos: initRootNode() initializing RootNode\n");
+    
+    /* Allocate initial TaskArray */
+    ULONG *taskArray = (ULONG *)AllocMem((INITIAL_TASK_ARRAY_SIZE + 1) * sizeof(ULONG), MEMF_CLEAR | MEMF_PUBLIC);
+    if (taskArray)
+    {
+        taskArray[0] = INITIAL_TASK_ARRAY_SIZE;  /* Max slots */
+        /* Slots 1..INITIAL_TASK_ARRAY_SIZE are already 0 (free) due to MEMF_CLEAR */
+    }
+    
+    g_RootNode.rn_TaskArray = MKBADDR(taskArray);
+    
+    /* Initialize the MinList for CLI processes */
+    g_RootNode.rn_CliList.mlh_Head = (struct MinNode *)&g_RootNode.rn_CliList.mlh_Tail;
+    g_RootNode.rn_CliList.mlh_Tail = NULL;
+    g_RootNode.rn_CliList.mlh_TailPred = (struct MinNode *)&g_RootNode.rn_CliList.mlh_Head;
+    
+    /* Link to DOSBase */
+    if (DOSBase)
+        DOSBase->dl_Root = &g_RootNode;
+    
+    g_RootNodeInitialized = TRUE;
+    
+    DPRINTF(LOG_DEBUG, "_dos: initRootNode() done, taskArray=0x%08lx\n", taskArray);
+}
+
+/*
+ * Allocate a CLI task number from the TaskArray.
+ * Returns the task number (1..n) or 0 on failure.
+ */
+static LONG allocTaskNum(struct Process *process)
+{
+    initRootNode();
+    
+    ULONG *taskArray = (ULONG *)BADDR(g_RootNode.rn_TaskArray);
+    if (!taskArray)
+        return 0;
+    
+    ULONG maxSlots = taskArray[0];
+    
+    Disable();
+    
+    /* Find a free slot */
+    for (ULONG i = 1; i <= maxSlots; i++)
+    {
+        if (taskArray[i] == 0)
+        {
+            /* Found a free slot */
+            taskArray[i] = (ULONG)&process->pr_MsgPort;
+            Enable();
+            DPRINTF(LOG_DEBUG, "_dos: allocTaskNum() assigned slot %lu to process 0x%08lx\n", i, process);
+            return (LONG)i;
+        }
+    }
+    
+    Enable();
+    
+    /* No free slot - need to expand the array */
+    DPRINTF(LOG_DEBUG, "_dos: allocTaskNum() no free slot, expanding from %lu\n", maxSlots);
+    
+    ULONG newMaxSlots = maxSlots + INITIAL_TASK_ARRAY_SIZE;
+    ULONG *newTaskArray = (ULONG *)AllocMem((newMaxSlots + 1) * sizeof(ULONG), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!newTaskArray)
+    {
+        LPRINTF(LOG_ERROR, "_dos: allocTaskNum() failed to allocate expanded TaskArray\n");
+        return 0;
+    }
+    
+    /* Copy old entries */
+    newTaskArray[0] = newMaxSlots;
+    for (ULONG i = 1; i <= maxSlots; i++)
+        newTaskArray[i] = taskArray[i];
+    
+    /* Assign the new slot */
+    ULONG newSlot = maxSlots + 1;
+    newTaskArray[newSlot] = (ULONG)&process->pr_MsgPort;
+    
+    /* Replace the array */
+    Disable();
+    g_RootNode.rn_TaskArray = MKBADDR(newTaskArray);
+    Enable();
+    
+    /* Free old array */
+    FreeMem(taskArray, (maxSlots + 1) * sizeof(ULONG));
+    
+    DPRINTF(LOG_DEBUG, "_dos: allocTaskNum() expanded to %lu slots, assigned slot %lu\n", newMaxSlots, newSlot);
+    return (LONG)newSlot;
+}
+
+/*
+ * Free a CLI task number, making it available for reuse.
+ */
+static void freeTaskNum(LONG taskNum)
+{
+    if (taskNum <= 0)
+        return;
+    
+    if (!g_RootNodeInitialized)
+        return;
+    
+    ULONG *taskArray = (ULONG *)BADDR(g_RootNode.rn_TaskArray);
+    if (!taskArray)
+        return;
+    
+    ULONG maxSlots = taskArray[0];
+    if ((ULONG)taskNum > maxSlots)
+        return;
+    
+    Disable();
+    taskArray[taskNum] = 0;  /* Mark slot as free */
+    Enable();
+    
+    DPRINTF(LOG_DEBUG, "_dos: freeTaskNum() freed slot %ld\n", taskNum);
+}
 
 #if 0
 struct DosLibrary * __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("a6"),
@@ -455,6 +596,14 @@ void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
         DPRINTF (LOG_DEBUG, "_dos: Exit() freeing CLI structure\n");
         FreeDosObject(DOS_CLI, (APTR)BADDR(me->pr_CLI));
         me->pr_CLI = 0;
+    }
+
+    /* Free task number so it can be reused by other processes */
+    if (me->pr_TaskNum > 0)
+    {
+        DPRINTF (LOG_DEBUG, "_dos: Exit() freeing task number %ld\n", me->pr_TaskNum);
+        freeTaskNum(me->pr_TaskNum);
+        me->pr_TaskNum = 0;
     }
 
     /* Call pr_ExitCode callback if set */
@@ -1438,9 +1587,6 @@ struct CommandLineInterface * _dos_Cli ( register struct DosLibrary * DOSBase __
 // Minimum stack size for AmigaOS processes (4KB is the standard minimum)
 #define MIN_STACK_SIZE 4096
 
-// Static task number counter - FIXME: should use RootNode->rn_TaskArray for proper CLI numbering
-static LONG g_nextTaskNum = 2; // Start at 2, 1 is reserved for boot CLI
-
 struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                       register const struct TagItem * tags __asm("d1"))
 {
@@ -1483,7 +1629,7 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     // Enforce minimum stack size
     if (stackSize < MIN_STACK_SIZE)
     {
-        DPRINTF (LOG_WARN, "_dos: CreateNewProc() stack size %lu too small, using minimum %d\n",
+        DPRINTF (LOG_WARNING, "_dos: CreateNewProc() stack size %lu too small, using minimum %d\n",
                  stackSize, MIN_STACK_SIZE);
         stackSize = MIN_STACK_SIZE;
     }
@@ -1517,9 +1663,8 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
 
     if (do_cli)
     {
-        // Assign task number from global counter
-        // FIXME: should use RootNode->rn_TaskArray for proper CLI numbering and recycling
-        process->pr_TaskNum = g_nextTaskNum++;
+        // Assign task number from RootNode TaskArray (supports recycling)
+        process->pr_TaskNum = allocTaskNum(process);
 
         struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)tags);
         if (!cli)

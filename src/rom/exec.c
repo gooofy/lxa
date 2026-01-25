@@ -2358,8 +2358,7 @@ void _bootstrap(void)
     //    DPRINTF (LOG_INFO, "bootstrap() loop, SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 #endif
 
-    DPRINTF (LOG_INFO, "_exec: _bootstrap(): emu_stop...\n");
-    //emu_monitor();
+    DPRINTF (LOG_INFO, "_exec: _bootstrap(): calling emu_stop(%ld)...\n", rv);
     emu_stop(rv);
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): emu_stop... done.\n");
 }

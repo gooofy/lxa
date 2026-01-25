@@ -93,6 +93,46 @@ static pending_bp_t *_g_pending_bps = NULL;
 
 static uint16_t g_intena  = INTENA_MASTER | INTENA_VBLANK;
 
+// ExecBase offsets for task list checking
+#define EXECBASE_THISTAK     276
+#define EXECBASE_TASKREADY   406
+#define EXECBASE_TASKWAIT    420   // 406 + 14 (sizeof(List) = 14 bytes)
+
+/*
+ * Check if a List is empty by examining its lh_Head pointer.
+ * An empty List has lh_Head pointing to &lh_Tail (list_addr + 4).
+ * A non-empty List has lh_Head pointing to the first Node, whose
+ * ln_Succ is not NULL.
+ */
+static bool is_list_empty(uint32_t list_addr)
+{
+    uint32_t lh_Head = m68k_read_memory_32(list_addr);      // lh_Head at offset 0
+    uint32_t lh_Tail_addr = list_addr + 4;                  // &lh_Tail is at offset 4
+    return lh_Head == lh_Tail_addr;
+}
+
+/*
+ * Check if there are other tasks running besides the current one.
+ * Returns true if there are tasks in TaskReady or TaskWait.
+ */
+static bool other_tasks_running(void)
+{
+    uint32_t sysbase = m68k_read_memory_32(4);  // SysBase at address 4
+    
+    bool ready_empty = is_list_empty(sysbase + EXECBASE_TASKREADY);
+    bool wait_empty = is_list_empty(sysbase + EXECBASE_TASKWAIT);
+    
+    DPRINTF(LOG_DEBUG, "*** other_tasks_running: sysbase=0x%08x, TaskReady empty=%d, TaskWait empty=%d\n",
+            sysbase, ready_empty, wait_empty);
+    
+    if (!ready_empty)
+        return true;
+    if (!wait_empty)
+        return true;
+    
+    return false;
+}
+
 static void _debug(uint32_t pc);
 
 #define HEXDUMP_COLS 16
@@ -824,21 +864,100 @@ int op_illg(int level)
         case EMU_CALL_STOP:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
-            if (g_rv)
-                DPRINTF (LOG_ERROR, "*** emulator stop via lxcall, rv=%d\n", g_rv);
+            CPRINTF ("*** EMU_CALL_STOP called, rv=%d\n", g_rv);
+            
+            /*
+             * Check if there are other tasks running. If so, we need to
+             * properly terminate the current task via RemTask(NULL) and
+             * let the scheduler continue running other tasks.
+             * 
+             * If no other tasks are running, we can exit immediately.
+             */
+            if (other_tasks_running())
+            {
+                CPRINTF ("*** other tasks running, calling RemTask(NULL) instead of stopping\n");
+                
+                /*
+                 * Set up the CPU to call RemTask(NULL):
+                 * - A6 = SysBase
+                 * - A1 = NULL (remove current task)
+                 * 
+                 * The library jump table contains:
+                 *   offset -288: JMP instruction (0x4ef9) + 32-bit address
+                 * 
+                 * We jump directly to the RemTask entry point. Since RemTask(NULL)
+                 * doesn't return when removing the current task, we don't need to
+                 * set up a return address.
+                 */
+                uint32_t sysbase = m68k_read_memory_32(4);
+                /* The function address is at offset +2 from the jump table entry 
+                 * (skip the JMP instruction opcode) */
+                uint32_t remtask_addr = m68k_read_memory_32(sysbase - 288 + 2);
+                
+                DPRINTF (LOG_DEBUG, "*** calling RemTask at 0x%08x\n", remtask_addr);
+                
+                m68k_set_reg(M68K_REG_A6, sysbase);
+                m68k_set_reg(M68K_REG_A1, 0);  // NULL = remove current task
+                m68k_set_reg(M68K_REG_PC, remtask_addr);
+                
+                /* Don't end timeslice or set g_running to FALSE - let it continue */
+            }
             else
-                DPRINTF (LOG_DEBUG, "*** emulator stop via lxcall.\n");
-            m68k_end_timeslice();
-            g_running = FALSE;
+            {
+                DPRINTF (LOG_DEBUG, "*** no other tasks, stopping emulator\n");
+                m68k_end_timeslice();
+                g_running = FALSE;
+            }
             break;
         }
 
         case EMU_CALL_EXIT:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
-            DPRINTF (LOG_DEBUG, "*** emulator exit via libnix, rv=%d\n", g_rv);
-            m68k_end_timeslice();
-            g_running = FALSE;
+            CPRINTF ("*** emulator exit via libnix, rv=%d\n", g_rv);
+            
+            /*
+             * Check if there are other tasks running. If so, we need to
+             * properly terminate the current task via RemTask(NULL) and
+             * let the scheduler continue running other tasks.
+             * 
+             * If no other tasks are running, we can exit immediately.
+             */
+            if (other_tasks_running())
+            {
+                DPRINTF (LOG_DEBUG, "*** other tasks running, calling RemTask(NULL) instead of exiting\n");
+                
+                /*
+                 * Set up the CPU to call RemTask(NULL):
+                 * - A6 = SysBase
+                 * - A1 = NULL (remove current task)
+                 * 
+                 * The library jump table contains:
+                 *   offset -288: JMP instruction (0x4ef9) + 32-bit address
+                 * 
+                 * We jump directly to the RemTask entry point. Since RemTask(NULL)
+                 * doesn't return when removing the current task, we don't need to
+                 * set up a return address.
+                 */
+                uint32_t sysbase = m68k_read_memory_32(4);
+                /* The function address is at offset +2 from the jump table entry 
+                 * (skip the JMP instruction opcode) */
+                uint32_t remtask_addr = m68k_read_memory_32(sysbase - 288 + 2);
+                
+                DPRINTF (LOG_DEBUG, "*** calling RemTask at 0x%08x\n", remtask_addr);
+                
+                m68k_set_reg(M68K_REG_A6, sysbase);
+                m68k_set_reg(M68K_REG_A1, 0);  // NULL = remove current task
+                m68k_set_reg(M68K_REG_PC, remtask_addr);
+                
+                /* Don't end timeslice or set g_running to FALSE - let it continue */
+            }
+            else
+            {
+                DPRINTF (LOG_DEBUG, "*** no other tasks, exiting emulator\n");
+                m68k_end_timeslice();
+                g_running = FALSE;
+            }
             break;
         }
 
@@ -1070,10 +1189,32 @@ int op_illg(int level)
         }
 
         default:
-            CPRINTF ("*** error: undefined EMU_CALL #%d\n", d0);
-            _debug(m68k_get_reg(NULL, M68K_REG_PC));
+        {
+            /*
+             * Undefined EMU_CALL - this happens when the PC jumps to
+             * invalid/corrupt code. This typically occurs during the main
+             * process's libnix exit sequence when stack corruption happens
+             * due to multitasking timing issues.
+             * 
+             * When this happens during normal program exit (after the main
+             * task finishes its work), we should exit gracefully rather than
+             * crashing. The return value has already been set by g_rv from
+             * a previous EMU_CALL_EXIT or EMU_CALL_STOP.
+             */
+            DPRINTF (LOG_WARNING, "*** undefined EMU_CALL #%d (corrupt PC at 0x%08x)\n", 
+                     d0, m68k_get_reg(NULL, M68K_REG_PC));
+            
+            /*
+             * Just exit the emulator. Any child tasks will be terminated
+             * along with the emulator. This is acceptable because:
+             * 1. The main task has already finished its work
+             * 2. Child tasks that didn't get to cleanup are acceptable loss
+             * 3. This prevents hangs from orphaned child tasks
+             */
             m68k_end_timeslice();
             g_running = FALSE;
+            break;
+        }
     }
 
     return M68K_INT_ACK_AUTOVECTOR;

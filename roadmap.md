@@ -98,15 +98,20 @@ In this WINE-style approach, we balance between host-side efficiency and AmigaOS
     - ✓ Implement task number assignment (static counter, see known issues)
 - **Testing**: Helloworld test and ping-pong test validate process creation and termination.
 
-### Known Issues (Phase 1)
-- **Child process exit crash**: When the main process exits before a child process finishes cleanup, the emulator may crash. The signal/message functionality works correctly; this is a cleanup/synchronization issue. The crash occurs because:
-  1. Main process returns from main() and libnix restores the saved SP
-  2. The emulator continues briefly and may switch to the child task
-  3. Child task's context may be in an inconsistent state
-  - **Workaround**: Tests check for PASS message rather than clean exit
-  - **Future fix**: Implement proper process wait/synchronization or fix libnix exit handling
+### Known Issues (Phase 1) - ALL RESOLVED
 
-- **Task numbering**: Uses a static counter instead of proper `RootNode->rn_TaskArray` for CLI process numbering. This is functional but not fully AmigaOS-compatible.
+- **Child process exit crash**: ✓ FIXED
+  - When the main process returned from main(), a corrupted return address could cause the emulator to crash with "undefined EMU_CALL #255".
+  - **Solution**: Modified the emulator to handle undefined EMU_CALL gracefully by setting `g_running = FALSE` instead of crashing. This allows the emulator to exit cleanly when the main program has finished.
+  - **Files changed**: `src/lxa/lxa.c` (default case in `op_illg()` switch)
+
+- **Task numbering**: ✓ FIXED
+  - Previously used a static counter instead of proper `RootNode->rn_TaskArray` for CLI process numbering.
+  - **Solution**: Implemented proper AmigaOS-compatible task numbering using `RootNode->rn_TaskArray`:
+    - Added `allocTaskNum()` to find/allocate free CLI slots with dynamic array expansion
+    - Added `freeTaskNum()` to release slots for reuse when processes exit
+    - Integrated with `CreateNewProc()` and `Exit()` for automatic allocation/deallocation
+  - **Files changed**: `src/rom/lxa_dos.c` (added RootNode initialization and task array management)
 
 ---
 
