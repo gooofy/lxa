@@ -1063,18 +1063,49 @@ LONG _dos_SetComment ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"),
                                                         register CONST_STRPTR ___comment  __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: SetComment unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: SetComment() called, name=%s, comment=%s\n", 
+             ___name ? (char *)___name : "NULL",
+             ___comment ? (char *)___comment : "NULL");
+
+    if (!___name) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    LONG result = emucall2(EMU_CALL_DOS_SETCOMMENT, (ULONG)___name, (ULONG)___comment);
+
+    DPRINTF (LOG_DEBUG, "_dos: SetComment() result: %ld\n", result);
+
+    if (!result) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 LONG _dos_SetProtection ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"),
                                                         register LONG ___protect  __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: SetProtection unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: SetProtection() called, name=%s, protect=0x%08lx\n", 
+             ___name ? (char *)___name : "NULL", ___protect);
+
+    if (!___name) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    LONG result = emucall2(EMU_CALL_DOS_SETPROTECTION, (ULONG)___name, (ULONG)___protect);
+
+    DPRINTF (LOG_DEBUG, "_dos: SetProtection() result: %ld\n", result);
+
+    if (!result) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 struct DateStamp * _dos_DateStamp ( register struct DosLibrary *DOSBase __asm("a6"),

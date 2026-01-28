@@ -1359,6 +1359,122 @@ static int _dos_namefromlock(uint32_t lock_id, uint32_t buf68k, uint32_t buflen)
     return 1;
 }
 
+/*
+ * Phase 4: Metadata operations
+ */
+
+/* Amiga protection bits (inverted logic - bit clear = protection enabled) */
+#define FIBB_OTR_READ     0   /* Other: read */
+#define FIBB_OTR_WRITE    1   /* Other: write */
+#define FIBB_OTR_EXECUTE  2   /* Other: execute */
+#define FIBB_OTR_DELETE   3   /* Other: delete */
+#define FIBB_GRP_READ     4   /* Group: read */
+#define FIBB_GRP_WRITE    5   /* Group: write */
+#define FIBB_GRP_EXECUTE  6   /* Group: execute */
+#define FIBB_GRP_DELETE   7   /* Group: delete */
+#define FIBB_OWN_READ     8   /* Owner: read */
+#define FIBB_OWN_WRITE    9   /* Owner: write */
+#define FIBB_OWN_EXECUTE  10  /* Owner: execute */
+#define FIBB_OWN_DELETE   11  /* Owner: delete */
+#define FIBB_ARCHIVE      12  /* Archived bit */
+#define FIBB_PURE         13  /* Pure bit (reentrant executable) */
+#define FIBB_SCRIPT       14  /* Script bit */
+
+/* Set file protection bits (Amiga -> Linux mapping) */
+static int _dos_setprotection(uint32_t name68k, uint32_t protect)
+{
+    char *amiga_path = _mgetstr(name68k);
+    char linux_path[PATH_MAX];
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_setprotection(): amiga_path=%s, protect=0x%08x\n", amiga_path, protect);
+    
+    if (!vfs_resolve_path(amiga_path, linux_path, sizeof(linux_path))) {
+        _dos_path2linux(amiga_path, linux_path, sizeof(linux_path));
+    }
+    
+    /* Amiga protection bits are inverted (0 = protected, 1 = allowed) 
+     * We'll map them to Unix permissions roughly as follows:
+     * - Owner bits map directly to user rwx
+     * - Group bits map to group rwx  
+     * - Other bits map to other rwx
+     * - Delete bit is handled by write permission
+     */
+    mode_t mode = 0;
+    
+    /* Owner permissions (inverted Amiga bits) */
+    if (!(protect & (1 << FIBB_OWN_READ)))    mode |= S_IRUSR;
+    if (!(protect & (1 << FIBB_OWN_WRITE)))   mode |= S_IWUSR;
+    if (!(protect & (1 << FIBB_OWN_EXECUTE))) mode |= S_IXUSR;
+    
+    /* Group permissions */
+    if (!(protect & (1 << FIBB_GRP_READ)))    mode |= S_IRGRP;
+    if (!(protect & (1 << FIBB_GRP_WRITE)))   mode |= S_IWGRP;
+    if (!(protect & (1 << FIBB_GRP_EXECUTE))) mode |= S_IXGRP;
+    
+    /* Other permissions */
+    if (!(protect & (1 << FIBB_OTR_READ)))    mode |= S_IROTH;
+    if (!(protect & (1 << FIBB_OTR_WRITE)))   mode |= S_IWOTH;
+    if (!(protect & (1 << FIBB_OTR_EXECUTE))) mode |= S_IXOTH;
+    
+    /* If no permissions set, default to rw-r--r-- */
+    if (mode == 0) mode = 0644;
+    
+    if (chmod(linux_path, mode) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_setprotection(): chmod failed: %s\n", strerror(errno));
+        return 0;
+    }
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_setprotection(): success, mode=0%03o\n", mode);
+    return 1;
+}
+
+/* Set file comment (stored as xattr or sidecar file) */
+static int _dos_setcomment(uint32_t name68k, uint32_t comment68k)
+{
+    char *amiga_path = _mgetstr(name68k);
+    char *comment = _mgetstr(comment68k);
+    char linux_path[PATH_MAX];
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_setcomment(): amiga_path=%s, comment=%s\n", amiga_path, comment);
+    
+    if (!vfs_resolve_path(amiga_path, linux_path, sizeof(linux_path))) {
+        _dos_path2linux(amiga_path, linux_path, sizeof(linux_path));
+    }
+    
+    /* Try to use extended attributes first (Linux native) */
+    #ifdef HAVE_XATTR
+    if (comment && strlen(comment) > 0) {
+        if (setxattr(linux_path, "user.amiga.comment", comment, strlen(comment), 0) == 0) {
+            DPRINTF(LOG_DEBUG, "lxa: _dos_setcomment(): set xattr success\n");
+            return 1;
+        }
+    } else {
+        /* Empty comment = remove xattr */
+        removexattr(linux_path, "user.amiga.comment");
+    }
+    #endif
+    
+    /* Fallback: use sidecar file (.comment extension) */
+    char sidecar_path[PATH_MAX + 10];
+    snprintf(sidecar_path, sizeof(sidecar_path), "%s.comment", linux_path);
+    
+    if (comment && strlen(comment) > 0) {
+        FILE *f = fopen(sidecar_path, "w");
+        if (!f) {
+            DPRINTF(LOG_DEBUG, "lxa: _dos_setcomment(): failed to create sidecar: %s\n", strerror(errno));
+            return 0;
+        }
+        fprintf(f, "%s", comment);
+        fclose(f);
+        DPRINTF(LOG_DEBUG, "lxa: _dos_setcomment(): sidecar created\n");
+    } else {
+        /* Empty comment = delete sidecar */
+        unlink(sidecar_path);
+    }
+    
+    return 1;
+}
+
 static void _debug_add_bp (uint32_t addr)
 {
     if (g_num_breakpoints < MAX_BREAKPOINTS)
@@ -1947,6 +2063,30 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_NAMEFROMLOCK lock_id=%d, buf=0x%08x, len=%d\n", lock_id, buf, len);
 
             uint32_t res = _dos_namefromlock(lock_id, buf, len);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_SETPROTECTION:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t protect = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_SETPROTECTION name=0x%08x, protect=0x%08x\n", name, protect);
+
+            uint32_t res = _dos_setprotection(name, protect);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_SETCOMMENT:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t comment = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_SETCOMMENT name=0x%08x, comment=0x%08x\n", name, comment);
+
+            uint32_t res = _dos_setcomment(name, comment);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }

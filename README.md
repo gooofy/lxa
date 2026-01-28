@@ -286,9 +286,35 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 - ParentDir/CurrentDir/CreateDir
 - DeleteFile/Rename/NameFromLock
 
-### 🚧 Phase 4+: Future Work
-- Basic userland commands (DIR, TYPE, MAKEDIR, DELETE)
-- Environment variables (GetVar/SetVar)
+### 🚧 Phase 4: Basic Userland & Metadata (IN PROGRESS)
+**Status**: Infrastructure complete, commands need Amiga-compatible syntax
+
+#### Completed:
+- **SetProtection/SetComment APIs** - File metadata operations implemented
+  - Maps Amiga protection bits to Linux permissions
+  - Stores comments via xattr or sidecar files
+- **SYS:C directory structure** - Created for userland commands
+- **Command skeletons created** (using Unix-style args, need Amiga syntax):
+  - `DIR`, `TYPE`, `MAKEDIR`, `DELETE`
+
+#### Critical Work Remaining:
+- **ReadArgs() Implementation** - AmigaDOS template-based command parser
+  - Template syntax: `/A` (required), `/M` (multiple), `/S` (switch), `/K` (keyword), `/N` (numeric)
+  - Pattern matching support (`#?` wildcards)
+- **Amiga-Compatible Command Syntax** (see `roadmap.md` for details):
+  - **DIR**: `DIR [dir|pattern] [ALL] [DIRS] [FILES] [INTER]` (not `-l`, `-a`)
+  - **TYPE**: `TYPE <file|pattern> [TO name] [HEX|NUMBER]` (not `-h`, `-n`)
+  - **DELETE**: `DELETE <file|pattern>... [ALL] [QUIET] [FORCE]` (not `-r`, `-f`)
+  - **MAKEDIR**: `MAKEDIR <name>...` (no options, multiple dirs supported)
+- **Pattern Matching** - `MatchPattern()` for `#?` wildcards
+- **Semaphore Support** - Required for C runtime (InitSemaphore, ObtainSemaphore)
+
+### 🚧 Phase 4b: Environment & Timestamps
+- Environment variables (GetVar/SetVar/DeleteVar/FindVar)
+- SetDate API for file timestamps
+- PROTECT, FILENOTE, RENAME commands
+
+### 📋 Phase 5-7: Future Work
 - Interactive shell with scripting
 - Device handlers and console improvements
 - Graphics/Intuition library support
@@ -296,10 +322,15 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 
 ## Current Limitations
 
-- Only 68000 CPU mode currently supported
-- No graphics or Intuition library support yet
-- No assign support beyond VFS drive mapping
-- ExAll() not yet implemented (use ExNext for directory enumeration)
+- **Command Syntax**: Commands use Unix-style flags (`-l`, `-a`) instead of AmigaDOS keywords (`ALL`, `DIRS`)
+  - Requires ReadArgs() implementation for template-based parsing
+  - See Phase 4 in roadmap.md for command syntax alignment plan
+- **Semaphore Support**: InitSemaphore/ObtainSemaphore not implemented (blocks C runtime)
+- **Pattern Matching**: `#?` wildcards not supported (requires MatchPattern())
+- **CPU Support**: Only 68000 mode currently supported
+- **Graphics**: No Intuition library support yet
+- **Assigns**: No assign support beyond VFS drive mapping
+- **ExAll()**: Not yet implemented (use ExNext for directory enumeration)
 
 ## Development Roadmap
 

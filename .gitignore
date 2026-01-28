@@ -85,3 +85,12 @@ tests/dos/helloworld/helloworld
 tests/exec/signal_pingpong/signal_pingpong
 attic
 lxa.log
+
+# Copyrighted reference material
+shell_spec.md
+
+# Compiled Amiga binaries (will be built from source)
+sys/C/dir
+sys/C/type
+sys/C/makedir
+sys/C/delete

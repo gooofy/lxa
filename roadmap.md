@@ -61,17 +61,82 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ## Phase 4: Basic Userland & Metadata
 **Goal**: Implement the first set of essential AmigaDOS commands.
 
-### Step 4.1: Essential Userland (C:)
-Implement basic commands as separate binaries in `SYS:C`:
-- **DIR / LIST**: Directory exploration.
-- **TYPE**: File viewing.
-- **MAKEDIR / DELETE**: Filesystem manipulation.
-- **INFO / DATE**: System information.
+**Status**: 🚧 PARTIAL - Core infrastructure in place, commands need Amiga-compatible behavior
 
-### Step 4.2: Metadata & Variables
-- **API Implementation**: `Rename()`, `SetProtection()`, `SetComment()`, `SetDate()`.
-- **Environment API**: `GetVar()`, `SetVar()`, `FindVar()`, `DeleteVar()` (Local/Global).
-- **Tools**: `RENAME`, `PROTECT`, `FILENOTE`, `SET`, `SETENV`, `GETENV`.
+### Step 4.1: Essential Userland (C:) - Infrastructure ✓ DONE
+- ✓ **SYS:C structure**: Directory created with build system
+- ✓ **Command binaries**: Initial versions compiled (DIR, TYPE, MAKEDIR, DELETE)
+
+### Step 4.1a: Amiga-Compatible Command Parser Framework 🚧 IN PROGRESS
+**Critical**: Commands currently use Unix-style arguments (`-l`, `-a`) but must use AmigaDOS template system
+
+**Implementation Plan**:
+1. **ReadArgs() Implementation** (dos.library)
+   - Parse command templates (e.g., `DIR,OPT/K,ALL/S,DIRS/S`)
+   - Support template modifiers: /A (required), /M (multiple), /S (switch), /K (keyword), /N (numeric), /F (final)
+   - Handle keyword arguments with/without equals sign
+   - Support pattern matching with #? wildcards
+   
+2. **Command Line Parser Library**
+   - Create reusable parser for C: commands
+   - Match Unix argv[] style to AmigaDOS template structure
+   - Generate template help on `?` argument
+
+### Step 4.1b: Command Behavioral Alignment 🚧 IN PROGRESS
+
+**DIR Command** (`sys/C/dir.c`)
+- Template: `DIR,OPT/K,ALL/S,DIRS/S,FILES/S,INTER/S`
+- Current: Unix flags `-l`, `-a`
+- Target: Amiga keywords `ALL`, `DIRS`, `FILES`, `INTER`
+- Features needed:
+  - Pattern matching support (`#?` wildcards)
+  - Two-column output format
+  - Interactive mode (INTER) with E/B/DEL/T/C/Q/? commands
+  - Recursive listing with ALL
+  - Sorted output (dirs first, then files alphabetically)
+
+**DELETE Command** (`sys/C/delete.c`)
+- Template: `FILE/M/A,ALL/S,QUIET/S,FORCE/S`
+- Current: Unix flags `-r`, `-f`
+- Target: Amiga keywords `ALL`, `QUIET`, `FORCE`
+- Features needed:
+  - Multiple file/pattern support (/M modifier)
+  - Pattern matching with wildcards
+  - Display filenames as deleted (unless QUIET)
+  - FORCE to override protection bits
+  - Recursive delete with ALL
+
+**TYPE Command** (`sys/C/type.c`)
+- Template: `FROM/A/M,TO/K,OPT/K,HEX/S,NUMBER/S`
+- Current: Unix flags `-h`, `-n`
+- Target: Amiga keywords `TO`, `HEX`, `NUMBER`
+- Features needed:
+  - Multiple file support (/M modifier)
+  - Output redirection with TO keyword
+  - HEX option (hex dump with ASCII column)
+  - NUMBER option (line numbering)
+  - Pause on Space, resume on Backspace/Return/Ctrl+X
+  - Ctrl+C break handling
+
+**MAKEDIR Command** (`sys/C/makedir.c`)
+- Template: `NAME/M`
+- Current: Unix flag `-p`
+- Target: No options, just directory names
+- Features needed:
+  - Multiple directory creation (/M modifier)
+  - No parent creation (unlike Unix mkdir -p)
+  - Work within single directory level only
+
+### Step 4.2: Metadata & Variables 🚧 PARTIAL
+
+**Completed**:
+- ✓ **SetProtection()**: Maps Amiga protection bits to Linux permissions
+- ✓ **SetComment()**: Stores comments via xattr or sidecar files
+
+**Pending**:
+- **SetDate()**: Set file modification times
+- **GetVar()/SetVar()/DeleteVar()/FindVar()**: Environment variables
+- **Tools**: RENAME, PROTECT, FILENOTE, SET, SETENV, GETENV
 
 ---
 
@@ -118,3 +183,26 @@ Implement basic commands as separate binaries in `SYS:C`:
 1. **Clean Room Approach**: AROS/Kickstart source is for architectural reference ONLY.
 2. **Host-First**: Prefer host-side (`emucall`) implementations for filesystem tasks.
 3. **Internal vs External**: Compiled-in Shell commands for speed, separate `C:` binaries for extensibility.
+4. **Amiga Authenticity**: Commands must use AmigaDOS argument syntax (templates, keywords, switches) not Unix-style flags.
+
+---
+
+## Current Blockers & Dependencies
+
+**To complete Phase 4 commands, the following dependencies must be resolved:**
+
+1. **Semaphore Support** (exec.library) - Required for C runtime
+   - `InitSemaphore()`, `ObtainSemaphore()`, `ReleaseSemaphore()`
+   - Currently causes assertion failures when running commands
+
+2. **ReadArgs() Implementation** (dos.library) - Required for command parsing
+   - Template parsing with /A, /M, /S, /K, /N, /F modifiers
+   - Pattern matching support for #? wildcards
+
+3. **Pattern Matching** (utility.library or dos.library)
+   - `MatchPattern()`, `ParsePattern()`
+   - Support for Amiga wildcards: `#?` (any string), `?` (single char), `#` (repeat)
+
+4. **Interactive I/O** (dos.library)
+   - Raw console input for interactive DIR mode
+   - Break signal handling (Ctrl+C)
