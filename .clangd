@@ -1,0 +1,50 @@
+# clangd configuration for lxa project
+# This file helps clangd understand the different compilation contexts
+
+# Suppress errors for files we can't fully analyze
+Diagnostics:
+  Suppress:
+    - "*"  # Suppress all diagnostics for ROM files that need Amiga cross-compiler
+
+# For best results with mixed host/cross-compiled projects, generate
+# compile_commands.json using bear or cmake. For now, we suppress
+# errors since the Amiga ROM files require the m68k-amigaos-gcc toolchain
+# which clangd doesn't support.
+
+CompileFlags:
+  # Remove flags that clangd doesn't understand
+  Remove:
+    - -m68000
+    - -noixemul
+    - -mcrt=nix20
+
+---
+
+# Configuration for host code (src/lxa/)
+If:
+  PathMatch: src/lxa/.*\.c
+CompileFlags:
+  Add:
+    - -I/home/guenter/projects/amiga/lxa/src/include
+    - -I/home/guenter/projects/amiga/lxa/src/lxa
+    - -std=c11
+Diagnostics:
+  Suppress: []
+
+---
+
+# Configuration for ROM code - suppress diagnostics since it needs Amiga cross-compiler
+If:
+  PathMatch: src/rom/.*\.c
+Diagnostics:
+  Suppress:
+    - "*"
+
+---
+
+# Configuration for test code - suppress diagnostics since it needs Amiga cross-compiler  
+If:
+  PathMatch: tests/.*\.c
+Diagnostics:
+  Suppress:
+    - "*"

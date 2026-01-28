@@ -1,16 +1,34 @@
 {
     "configurations": [
         {
-            "name": "Linux",
+            "name": "Linux (Host)",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/src/include",
+                "${workspaceFolder}/src/lxa"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/gcc",
             "cStandard": "c11",
             "cppStandard": "c++17",
-            "intelliSenseMode": "gcc-x64",
-            "configurationProvider": "ms-vscode.makefile-tools"
+            "intelliSenseMode": "gcc-x64"
+        },
+        {
+            "name": "Amiga (ROM)",
+            "includePath": [
+                "${workspaceFolder}/src/include",
+                "${workspaceFolder}/src/rom",
+                "/opt/amiga/m68k-amigaos/ndk-include",
+                "/opt/amiga/m68k-amigaos/libnix/include",
+                "/opt/amiga/lib/gcc/m68k-amigaos/6.5.0b/include"
+            ],
+            "defines": [
+                "__AMIGA__",
+                "_AMIGA",
+                "mc68000"
+            ],
+            "compilerPath": "/opt/amiga/bin/m68k-amigaos-gcc",
+            "cStandard": "c99",
+            "intelliSenseMode": "gcc-x86"
         }
     ],
     "version": 4
