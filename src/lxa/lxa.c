@@ -9,7 +9,10 @@
 #include <unistd.h>
 #include <string.h>
 #include <regex.h>
+#include <dirent.h>
 #include <sys/time.h>
+#include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <linux/limits.h>
 
 #include <readline/readline.h>
@@ -99,6 +102,97 @@ static uint16_t g_intena  = INTENA_MASTER | INTENA_VBLANK;
 #define EXECBASE_THISTAK     276
 #define EXECBASE_TASKREADY   406
 #define EXECBASE_TASKWAIT    420   // 406 + 14 (sizeof(List) = 14 bytes)
+
+/*
+ * Phase 3: Lock management
+ * 
+ * We maintain a table of open directory handles (DIR*) on the host side.
+ * Each lock has:
+ *   - A unique lock_id (used as BPTR on Amiga side)
+ *   - The resolved Linux path
+ *   - A DIR* handle for directory iteration (for ExNext)
+ *   - Reference count for DupLock
+ */
+#define MAX_LOCKS 256
+
+typedef struct lock_entry_s {
+    bool in_use;
+    char linux_path[PATH_MAX];
+    DIR *dir;           /* For directory iteration */
+    int refcount;       /* For DupLock */
+    bool is_dir;        /* True if lock is on a directory */
+} lock_entry_t;
+
+static lock_entry_t g_locks[MAX_LOCKS];
+
+/* Amiga DOS protection flag bits */
+#define FIBF_DELETE     (1<<0)  /* File is deletable */
+#define FIBF_EXECUTE    (1<<1)  /* File is executable */
+#define FIBF_WRITE      (1<<2)  /* File is writeable */
+#define FIBF_READ       (1<<3)  /* File is readable */
+#define FIBF_ARCHIVE    (1<<4)  /* File has been archived */
+#define FIBF_PURE       (1<<5)  /* Pure (re-entrant) */
+#define FIBF_SCRIPT     (1<<6)  /* Script file */
+
+/* Amiga DOS file types */
+#define ST_ROOT         1
+#define ST_USERDIR      2
+#define ST_SOFTLINK     3
+#define ST_LINKDIR      4
+#define ST_FILE        -3
+#define ST_LINKFILE    -4
+
+/* Amiga lock modes */
+#define ACCESS_READ    -2  /* SHARED_LOCK */
+#define ACCESS_WRITE   -1  /* EXCLUSIVE_LOCK */
+
+/* Amiga error codes */
+#define ERROR_NO_FREE_STORE      103
+#define ERROR_OBJECT_NOT_FOUND   205
+#define ERROR_OBJECT_EXISTS      203
+#define ERROR_DIR_NOT_FOUND      204
+#define ERROR_BAD_STREAM_NAME    206
+#define ERROR_OBJECT_IN_USE      202
+#define ERROR_DELETE_PROTECTED   222
+#define ERROR_WRITE_PROTECTED    223
+#define ERROR_NO_MORE_ENTRIES    232
+#define ERROR_NOT_A_DOS_DISK     225
+#define ERROR_DISK_NOT_VALIDATED 213
+
+/* Allocate a new lock entry */
+static int _lock_alloc(void)
+{
+    for (int i = 1; i < MAX_LOCKS; i++) {
+        if (!g_locks[i].in_use) {
+            memset(&g_locks[i], 0, sizeof(lock_entry_t));
+            g_locks[i].in_use = true;
+            g_locks[i].refcount = 1;
+            return i;
+        }
+    }
+    return 0; /* No free slot */
+}
+
+/* Free a lock entry */
+static void _lock_free(int lock_id)
+{
+    if (lock_id <= 0 || lock_id >= MAX_LOCKS) return;
+    if (!g_locks[lock_id].in_use) return;
+    
+    if (g_locks[lock_id].dir) {
+        closedir(g_locks[lock_id].dir);
+        g_locks[lock_id].dir = NULL;
+    }
+    g_locks[lock_id].in_use = false;
+}
+
+/* Get lock entry */
+static lock_entry_t *_lock_get(int lock_id)
+{
+    if (lock_id <= 0 || lock_id >= MAX_LOCKS) return NULL;
+    if (!g_locks[lock_id].in_use) return NULL;
+    return &g_locks[lock_id];
+}
 
 /*
  * Check if a List is empty by examining its lh_Head pointer.
@@ -759,6 +853,512 @@ static int _dos_close (uint32_t fh68k)
     return 1;
 }
 
+/*
+ * Phase 3: Lock and Examine API host-side implementation
+ */
+
+/* Convert Linux stat mode to Amiga protection bits */
+static uint32_t _unix_mode_to_amiga(mode_t mode)
+{
+    uint32_t prot = 0;
+    
+    /* Note: Amiga protection bits are inverted - 0 means permission granted */
+    /* We set the bit to 0 if permission is granted, 1 if denied */
+    
+    if (!(mode & S_IRUSR)) prot |= FIBF_READ;
+    if (!(mode & S_IWUSR)) prot |= FIBF_WRITE;
+    if (!(mode & S_IXUSR)) prot |= FIBF_EXECUTE;
+    
+    /* Amiga also has archive and script flags - leave them as 0 (granted) */
+    
+    return prot;
+}
+
+/* Convert Unix time_t to Amiga DateStamp */
+static void _unix_time_to_datestamp(time_t unix_time, uint32_t ds68k)
+{
+    /* Amiga epoch is Jan 1, 1978 */
+    /* Unix epoch is Jan 1, 1970 */
+    /* Difference is 8 years = 2922 days (including 2 leap years) */
+    #define AMIGA_EPOCH_OFFSET 252460800  /* seconds between 1970 and 1978 */
+    
+    time_t amiga_time = unix_time - AMIGA_EPOCH_OFFSET;
+    if (amiga_time < 0) amiga_time = 0;
+    
+    /* DateStamp format: days, minutes, ticks (50ths of a second) */
+    uint32_t days = amiga_time / (24 * 60 * 60);
+    uint32_t remaining = amiga_time % (24 * 60 * 60);
+    uint32_t minutes = remaining / 60;
+    uint32_t ticks = (remaining % 60) * 50;
+    
+    m68k_write_memory_32(ds68k + 0, days);
+    m68k_write_memory_32(ds68k + 4, minutes);
+    m68k_write_memory_32(ds68k + 8, ticks);
+}
+
+/* Lock a file or directory */
+static uint32_t _dos_lock(uint32_t name68k, int32_t mode)
+{
+    char *amiga_path = _mgetstr(name68k);
+    char linux_path[PATH_MAX];
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_lock(): amiga_path=%s, mode=%d\n", amiga_path, mode);
+    
+    /* Resolve the Amiga path to Linux path */
+    if (!vfs_resolve_path(amiga_path, linux_path, sizeof(linux_path))) {
+        /* Try legacy fallback */
+        _dos_path2linux(amiga_path, linux_path, sizeof(linux_path));
+    }
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_lock(): linux_path=%s\n", linux_path);
+    
+    /* Check if the path exists */
+    struct stat st;
+    if (stat(linux_path, &st) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_lock(): stat failed: %s\n", strerror(errno));
+        return 0; /* ERROR_OBJECT_NOT_FOUND will be set by caller */
+    }
+    
+    /* Allocate a lock entry */
+    int lock_id = _lock_alloc();
+    if (lock_id == 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_lock(): no free lock slots\n");
+        return 0;
+    }
+    
+    lock_entry_t *lock = &g_locks[lock_id];
+    strncpy(lock->linux_path, linux_path, sizeof(lock->linux_path) - 1);
+    lock->is_dir = S_ISDIR(st.st_mode);
+    lock->dir = NULL;
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_lock(): allocated lock_id=%d, is_dir=%d\n", lock_id, lock->is_dir);
+    
+    return lock_id;
+}
+
+/* Unlock a file or directory */
+static void _dos_unlock(uint32_t lock_id)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_unlock(): lock_id=%d\n", lock_id);
+    
+    lock_entry_t *lock = _lock_get(lock_id);
+    if (!lock) return;
+    
+    lock->refcount--;
+    if (lock->refcount <= 0) {
+        _lock_free(lock_id);
+    }
+}
+
+/* Duplicate a lock */
+static uint32_t _dos_duplock(uint32_t lock_id)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_duplock(): lock_id=%d\n", lock_id);
+    
+    if (lock_id == 0) return 0;
+    
+    lock_entry_t *lock = _lock_get(lock_id);
+    if (!lock) return 0;
+    
+    /* Create a new lock with the same path */
+    int new_lock_id = _lock_alloc();
+    if (new_lock_id == 0) return 0;
+    
+    lock_entry_t *new_lock = &g_locks[new_lock_id];
+    strncpy(new_lock->linux_path, lock->linux_path, sizeof(new_lock->linux_path) - 1);
+    new_lock->is_dir = lock->is_dir;
+    new_lock->dir = NULL;
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_duplock(): new_lock_id=%d\n", new_lock_id);
+    return new_lock_id;
+}
+
+/* FileInfoBlock offsets (from dos/dos.h) */
+#define FIB_fib_DiskKey      0   /* LONG */
+#define FIB_fib_DirEntryType 4   /* LONG */
+#define FIB_fib_FileName     8   /* char[108] */
+#define FIB_fib_Protection   116 /* LONG */
+#define FIB_fib_EntryType    120 /* LONG (obsolete) */
+#define FIB_fib_Size         124 /* LONG */
+#define FIB_fib_NumBlocks    128 /* LONG */
+#define FIB_fib_Date         132 /* struct DateStamp (12 bytes) */
+#define FIB_fib_Comment      144 /* char[80] */
+#define FIB_fib_OwnerUID     224 /* UWORD */
+#define FIB_fib_OwnerGID     226 /* UWORD */
+#define FIB_fib_Reserved     228 /* char[32] */
+#define FIB_SIZE             260
+
+/* Examine a lock (fill FileInfoBlock) */
+static int _dos_examine(uint32_t lock_id, uint32_t fib68k)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_examine(): lock_id=%d, fib68k=0x%08x\n", lock_id, fib68k);
+    
+    lock_entry_t *lock = _lock_get(lock_id);
+    if (!lock) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_examine(): invalid lock_id\n");
+        return 0;
+    }
+    
+    struct stat st;
+    if (stat(lock->linux_path, &st) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_examine(): stat failed: %s\n", strerror(errno));
+        return 0;
+    }
+    
+    /* Clear the FIB first */
+    for (int i = 0; i < FIB_SIZE; i++) {
+        m68k_write_memory_8(fib68k + i, 0);
+    }
+    
+    /* Get the filename from the path */
+    const char *filename = strrchr(lock->linux_path, '/');
+    filename = filename ? filename + 1 : lock->linux_path;
+    
+    /* Fill the FileInfoBlock */
+    m68k_write_memory_32(fib68k + FIB_fib_DiskKey, (uint32_t)st.st_ino);
+    
+    int32_t type = S_ISDIR(st.st_mode) ? ST_USERDIR : ST_FILE;
+    m68k_write_memory_32(fib68k + FIB_fib_DirEntryType, type);
+    m68k_write_memory_32(fib68k + FIB_fib_EntryType, type);
+    
+    /* Write filename (BSTR format - length byte followed by string) */
+    int namelen = strlen(filename);
+    if (namelen > 106) namelen = 106;
+    m68k_write_memory_8(fib68k + FIB_fib_FileName, namelen);
+    for (int i = 0; i < namelen; i++) {
+        m68k_write_memory_8(fib68k + FIB_fib_FileName + 1 + i, filename[i]);
+    }
+    
+    m68k_write_memory_32(fib68k + FIB_fib_Protection, _unix_mode_to_amiga(st.st_mode));
+    m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
+    m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
+    
+    _unix_time_to_datestamp(st.st_mtime, fib68k + FIB_fib_Date);
+    
+    /* No comment support on Linux filesystem */
+    m68k_write_memory_8(fib68k + FIB_fib_Comment, 0);
+    
+    /* Owner info */
+    m68k_write_memory_16(fib68k + FIB_fib_OwnerUID, st.st_uid);
+    m68k_write_memory_16(fib68k + FIB_fib_OwnerGID, st.st_gid);
+    
+    /* If this is a directory, open it for ExNext iteration */
+    if (S_ISDIR(st.st_mode) && !lock->dir) {
+        lock->dir = opendir(lock->linux_path);
+        DPRINTF(LOG_DEBUG, "lxa: _dos_examine(): opened dir handle for ExNext\n");
+    }
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_examine(): success, type=%d, size=%ld\n", type, st.st_size);
+    return 1;
+}
+
+/* Examine next entry in directory */
+static int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): lock_id=%d, fib68k=0x%08x\n", lock_id, fib68k);
+    
+    lock_entry_t *lock = _lock_get(lock_id);
+    if (!lock) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): invalid lock_id\n");
+        return 0;
+    }
+    
+    if (!lock->is_dir) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): not a directory\n");
+        return 0;
+    }
+    
+    /* Open directory if not already open */
+    if (!lock->dir) {
+        lock->dir = opendir(lock->linux_path);
+        if (!lock->dir) {
+            DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): opendir failed: %s\n", strerror(errno));
+            return 0;
+        }
+    }
+    
+    /* Read next entry, skipping . and .. */
+    struct dirent *de;
+    while ((de = readdir(lock->dir)) != NULL) {
+        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
+            continue;
+        break;
+    }
+    
+    if (!de) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): no more entries\n");
+        closedir(lock->dir);
+        lock->dir = NULL;
+        return 0; /* ERROR_NO_MORE_ENTRIES */
+    }
+    
+    /* Build full path to get stat info */
+    char fullpath[PATH_MAX];
+    int n = snprintf(fullpath, sizeof(fullpath), "%s/%s", lock->linux_path, de->d_name);
+    if (n >= (int)sizeof(fullpath)) {
+        /* Path too long, skip this entry */
+        DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): path too long, skipping\n");
+        return _dos_exnext(lock_id, fib68k);
+    }
+    
+    struct stat st;
+    if (stat(fullpath, &st) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): stat failed for %s: %s\n", fullpath, strerror(errno));
+        /* Skip this entry and try next */
+        return _dos_exnext(lock_id, fib68k);
+    }
+    
+    /* Clear the FIB first */
+    for (int i = 0; i < FIB_SIZE; i++) {
+        m68k_write_memory_8(fib68k + i, 0);
+    }
+    
+    /* Fill the FileInfoBlock */
+    m68k_write_memory_32(fib68k + FIB_fib_DiskKey, (uint32_t)st.st_ino);
+    
+    int32_t type = S_ISDIR(st.st_mode) ? ST_USERDIR : ST_FILE;
+    m68k_write_memory_32(fib68k + FIB_fib_DirEntryType, type);
+    m68k_write_memory_32(fib68k + FIB_fib_EntryType, type);
+    
+    /* Write filename (BSTR format) */
+    int namelen = strlen(de->d_name);
+    if (namelen > 106) namelen = 106;
+    m68k_write_memory_8(fib68k + FIB_fib_FileName, namelen);
+    for (int i = 0; i < namelen; i++) {
+        m68k_write_memory_8(fib68k + FIB_fib_FileName + 1 + i, de->d_name[i]);
+    }
+    
+    m68k_write_memory_32(fib68k + FIB_fib_Protection, _unix_mode_to_amiga(st.st_mode));
+    m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
+    m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
+    
+    _unix_time_to_datestamp(st.st_mtime, fib68k + FIB_fib_Date);
+    
+    m68k_write_memory_8(fib68k + FIB_fib_Comment, 0);
+    m68k_write_memory_16(fib68k + FIB_fib_OwnerUID, st.st_uid);
+    m68k_write_memory_16(fib68k + FIB_fib_OwnerGID, st.st_gid);
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): success, name=%s, type=%d\n", de->d_name, type);
+    return 1;
+}
+
+/* InfoData offsets (from dos/dos.h) */
+#define ID_id_NumSoftErrors   0   /* LONG */
+#define ID_id_UnitNumber      4   /* LONG */
+#define ID_id_DiskState       8   /* LONG */
+#define ID_id_NumBlocks       12  /* LONG */
+#define ID_id_NumBlocksUsed   16  /* LONG */
+#define ID_id_BytesPerBlock   20  /* LONG */
+#define ID_id_DiskType        24  /* LONG */
+#define ID_id_VolumeNode      28  /* BPTR */
+#define ID_id_InUse           32  /* LONG */
+#define ID_SIZE               36
+
+#define ID_VALIDATED        82   /* ID_VALIDATED */
+#define ID_DOS_DISK    0x444F5300  /* 'DOS\0' */
+
+/* Get volume info */
+static int _dos_info(uint32_t lock_id, uint32_t infodata68k)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_info(): lock_id=%d, infodata68k=0x%08x\n", lock_id, infodata68k);
+    
+    lock_entry_t *lock = _lock_get(lock_id);
+    if (!lock) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_info(): invalid lock_id\n");
+        return 0;
+    }
+    
+    struct statvfs vfs;
+    if (statvfs(lock->linux_path, &vfs) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_info(): statvfs failed: %s\n", strerror(errno));
+        return 0;
+    }
+    
+    /* Fill InfoData structure */
+    m68k_write_memory_32(infodata68k + ID_id_NumSoftErrors, 0);
+    m68k_write_memory_32(infodata68k + ID_id_UnitNumber, 0);
+    m68k_write_memory_32(infodata68k + ID_id_DiskState, ID_VALIDATED);
+    m68k_write_memory_32(infodata68k + ID_id_NumBlocks, vfs.f_blocks);
+    m68k_write_memory_32(infodata68k + ID_id_NumBlocksUsed, vfs.f_blocks - vfs.f_bfree);
+    m68k_write_memory_32(infodata68k + ID_id_BytesPerBlock, vfs.f_bsize);
+    m68k_write_memory_32(infodata68k + ID_id_DiskType, ID_DOS_DISK);
+    m68k_write_memory_32(infodata68k + ID_id_VolumeNode, 0);
+    m68k_write_memory_32(infodata68k + ID_id_InUse, 0);
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_info(): success, blocks=%lu, used=%lu\n", 
+            vfs.f_blocks, vfs.f_blocks - vfs.f_bfree);
+    return 1;
+}
+
+/* Check if two locks refer to the same object */
+static int _dos_samelock(uint32_t lock1_id, uint32_t lock2_id)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_samelock(): lock1=%d, lock2=%d\n", lock1_id, lock2_id);
+    
+    if (lock1_id == lock2_id) return 0; /* LOCK_SAME */
+    
+    lock_entry_t *lock1 = _lock_get(lock1_id);
+    lock_entry_t *lock2 = _lock_get(lock2_id);
+    
+    if (!lock1 || !lock2) return -1; /* LOCK_DIFFERENT */
+    
+    struct stat st1, st2;
+    if (stat(lock1->linux_path, &st1) != 0) return -1;
+    if (stat(lock2->linux_path, &st2) != 0) return -1;
+    
+    if (st1.st_dev == st2.st_dev && st1.st_ino == st2.st_ino) {
+        return 0; /* LOCK_SAME */
+    }
+    
+    if (st1.st_dev == st2.st_dev) {
+        return 1; /* LOCK_SAME_VOLUME */
+    }
+    
+    return -1; /* LOCK_DIFFERENT */
+}
+
+/* Get parent directory of a lock */
+static uint32_t _dos_parentdir(uint32_t lock_id)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_parentdir(): lock_id=%d\n", lock_id);
+    
+    lock_entry_t *lock = _lock_get(lock_id);
+    if (!lock) return 0;
+    
+    /* Find parent path */
+    char parent_path[PATH_MAX];
+    strncpy(parent_path, lock->linux_path, sizeof(parent_path) - 1);
+    
+    char *last_slash = strrchr(parent_path, '/');
+    if (!last_slash || last_slash == parent_path) {
+        /* Already at root */
+        return 0;
+    }
+    *last_slash = '\0';
+    
+    /* Create lock for parent */
+    int new_lock_id = _lock_alloc();
+    if (new_lock_id == 0) return 0;
+    
+    lock_entry_t *new_lock = &g_locks[new_lock_id];
+    strncpy(new_lock->linux_path, parent_path, sizeof(new_lock->linux_path) - 1);
+    new_lock->is_dir = true;
+    new_lock->dir = NULL;
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_parentdir(): parent=%s, new_lock_id=%d\n", parent_path, new_lock_id);
+    return new_lock_id;
+}
+
+/* Create a directory */
+static uint32_t _dos_createdir(uint32_t name68k)
+{
+    char *amiga_path = _mgetstr(name68k);
+    char linux_path[PATH_MAX];
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_createdir(): amiga_path=%s\n", amiga_path);
+    
+    if (!vfs_resolve_path(amiga_path, linux_path, sizeof(linux_path))) {
+        _dos_path2linux(amiga_path, linux_path, sizeof(linux_path));
+    }
+    
+    if (mkdir(linux_path, 0755) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_createdir(): mkdir failed: %s\n", strerror(errno));
+        return 0;
+    }
+    
+    /* Return a lock on the new directory */
+    int lock_id = _lock_alloc();
+    if (lock_id == 0) return 0;
+    
+    lock_entry_t *lock = &g_locks[lock_id];
+    strncpy(lock->linux_path, linux_path, sizeof(lock->linux_path) - 1);
+    lock->is_dir = true;
+    lock->dir = NULL;
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_createdir(): success, lock_id=%d\n", lock_id);
+    return lock_id;
+}
+
+/* Delete a file or directory */
+static int _dos_deletefile(uint32_t name68k)
+{
+    char *amiga_path = _mgetstr(name68k);
+    char linux_path[PATH_MAX];
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_deletefile(): amiga_path=%s\n", amiga_path);
+    
+    if (!vfs_resolve_path(amiga_path, linux_path, sizeof(linux_path))) {
+        _dos_path2linux(amiga_path, linux_path, sizeof(linux_path));
+    }
+    
+    struct stat st;
+    if (stat(linux_path, &st) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_deletefile(): stat failed: %s\n", strerror(errno));
+        return 0;
+    }
+    
+    int result;
+    if (S_ISDIR(st.st_mode)) {
+        result = rmdir(linux_path);
+    } else {
+        result = unlink(linux_path);
+    }
+    
+    if (result != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_deletefile(): delete failed: %s\n", strerror(errno));
+        return 0;
+    }
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_deletefile(): success\n");
+    return 1;
+}
+
+/* Rename a file or directory */
+static int _dos_rename(uint32_t old68k, uint32_t new68k)
+{
+    char *old_amiga = _mgetstr(old68k);
+    char *new_amiga = _mgetstr(new68k);
+    char old_linux[PATH_MAX], new_linux[PATH_MAX];
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_rename(): old=%s, new=%s\n", old_amiga, new_amiga);
+    
+    if (!vfs_resolve_path(old_amiga, old_linux, sizeof(old_linux))) {
+        _dos_path2linux(old_amiga, old_linux, sizeof(old_linux));
+    }
+    if (!vfs_resolve_path(new_amiga, new_linux, sizeof(new_linux))) {
+        _dos_path2linux(new_amiga, new_linux, sizeof(new_linux));
+    }
+    
+    if (rename(old_linux, new_linux) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_rename(): rename failed: %s\n", strerror(errno));
+        return 0;
+    }
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_rename(): success\n");
+    return 1;
+}
+
+/* Get path name from lock */
+static int _dos_namefromlock(uint32_t lock_id, uint32_t buf68k, uint32_t buflen)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_namefromlock(): lock_id=%d\n", lock_id);
+    
+    lock_entry_t *lock = _lock_get(lock_id);
+    if (!lock) return 0;
+    
+    /* For now, just return the linux path - ideally we'd convert back to Amiga format */
+    const char *path = lock->linux_path;
+    size_t len = strlen(path);
+    if (len >= buflen) len = buflen - 1;
+    
+    for (size_t i = 0; i < len; i++) {
+        m68k_write_memory_8(buf68k + i, path[i]);
+    }
+    m68k_write_memory_8(buf68k + len, '\0');
+    
+    return 1;
+}
+
 static void _debug_add_bp (uint32_t addr)
 {
     if (g_num_breakpoints < MAX_BREAKPOINTS)
@@ -1209,6 +1809,148 @@ int op_illg(int level)
             break;
         }
 
+        /*
+         * Phase 3: Lock and Examine API emucalls
+         */
+        case EMU_CALL_DOS_LOCK:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            int32_t mode = (int32_t)m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_LOCK name=0x%08x, mode=%d\n", name, mode);
+
+            uint32_t res = _dos_lock(name, mode);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_UNLOCK:
+        {
+            uint32_t lock_id = m68k_get_reg(NULL, M68K_REG_D1);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_UNLOCK lock_id=%d\n", lock_id);
+
+            _dos_unlock(lock_id);
+            break;
+        }
+
+        case EMU_CALL_DOS_DUPLOCK:
+        {
+            uint32_t lock_id = m68k_get_reg(NULL, M68K_REG_D1);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_DUPLOCK lock_id=%d\n", lock_id);
+
+            uint32_t res = _dos_duplock(lock_id);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_EXAMINE:
+        {
+            uint32_t lock_id = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t fib = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_EXAMINE lock_id=%d, fib=0x%08x\n", lock_id, fib);
+
+            uint32_t res = _dos_examine(lock_id, fib);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_EXNEXT:
+        {
+            uint32_t lock_id = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t fib = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_EXNEXT lock_id=%d, fib=0x%08x\n", lock_id, fib);
+
+            uint32_t res = _dos_exnext(lock_id, fib);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_INFO:
+        {
+            uint32_t lock_id = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t infodata = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_INFO lock_id=%d, infodata=0x%08x\n", lock_id, infodata);
+
+            uint32_t res = _dos_info(lock_id, infodata);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_SAMELOCK:
+        {
+            uint32_t lock1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t lock2 = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_SAMELOCK lock1=%d, lock2=%d\n", lock1, lock2);
+
+            int32_t res = _dos_samelock(lock1, lock2);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)res);
+            break;
+        }
+
+        case EMU_CALL_DOS_PARENTDIR:
+        {
+            uint32_t lock_id = m68k_get_reg(NULL, M68K_REG_D1);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_PARENTDIR lock_id=%d\n", lock_id);
+
+            uint32_t res = _dos_parentdir(lock_id);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_CREATEDIR:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_CREATEDIR name=0x%08x\n", name);
+
+            uint32_t res = _dos_createdir(name);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_DELETE:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_DELETE name=0x%08x\n", name);
+
+            uint32_t res = _dos_deletefile(name);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_RENAME:
+        {
+            uint32_t old_name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t new_name = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_RENAME old=0x%08x, new=0x%08x\n", old_name, new_name);
+
+            uint32_t res = _dos_rename(old_name, new_name);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_NAMEFROMLOCK:
+        {
+            uint32_t lock_id = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t buf = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t len = m68k_get_reg(NULL, M68K_REG_D3);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_NAMEFROMLOCK lock_id=%d, buf=0x%08x, len=%d\n", lock_id, buf, len);
+
+            uint32_t res = _dos_namefromlock(lock_id, buf, len);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
         default:
         {
             /*
@@ -1618,19 +2360,31 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
+    /*
+     * Phase 3: Automatic Environment Setup
+     * 
+     * If no config file is specified and no sysroot is set, check if
+     * ~/.lxa exists. If not, create it with the default structure.
+     */
+    if (!config_path && !sysroot) {
+        vfs_setup_environment();
+    }
+
     if (config_path) {
         config_load(config_path);
     } else {
-        char default_cfg[PATH_MAX];
-        snprintf(default_cfg, PATH_MAX, "%s/.lxa/config.ini", getenv("HOME"));
-        config_load(default_cfg);
+        const char *lxa_home = vfs_get_home_dir();
+        if (lxa_home) {
+            char default_cfg[PATH_MAX];
+            snprintf(default_cfg, PATH_MAX, "%s/config.ini", lxa_home);
+            config_load(default_cfg);
+        }
     }
 
     if (sysroot) {
         vfs_add_drive("SYS", sysroot);
-    } else {
-        // if no sysroot and no SYS drive in config, use default
-        // FIXME: check if SYS already exists
+    } else if (!vfs_has_sys_drive()) {
+        /* No SYS: drive configured - use default */
         vfs_add_drive("SYS", DEFAULT_AMIGA_SYSROOT);
     }
 

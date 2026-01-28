@@ -15,13 +15,16 @@ RESET = \033[0m
 all:
 	@echo "Building all tests..."
 	@$(MAKE) -C dos/helloworld
+	@$(MAKE) -C dos/lock_examine
 	@$(MAKE) -C exec/signal_pingpong
 
 clean:
 	@echo "Cleaning all tests..."
 	@$(MAKE) -C dos/helloworld clean
+	@$(MAKE) -C dos/lock_examine clean
 	@$(MAKE) -C exec/signal_pingpong clean
 	rm -f dos/helloworld/actual.out
+	rm -f dos/lock_examine/actual.out
 	rm -f exec/signal_pingpong/actual.out
 
 test: all
@@ -32,6 +35,7 @@ test: all
 
 run-tests:
 	@$(MAKE) -C dos/helloworld run-test
+	@$(MAKE) -C dos/lock_examine run-test
 	@$(MAKE) -C exec/signal_pingpong run-test
 
 help:

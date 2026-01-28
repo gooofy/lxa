@@ -4,7 +4,9 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <errno.h>
 #include <linux/limits.h>
+#include <pwd.h>
 #include "vfs.h"
 #include "util.h"
 
@@ -16,9 +18,25 @@ struct drive_map_s {
 };
 
 static drive_map_t *g_drive_maps = NULL;
+static char g_lxa_home[PATH_MAX] = "";
+
+/* Get the user's home directory */
+static const char *get_user_home(void)
+{
+    const char *home = getenv("HOME");
+    if (!home) {
+        struct passwd *pw = getpwuid(getuid());
+        if (pw) home = pw->pw_dir;
+    }
+    return home;
+}
 
 void vfs_init(void) {
-    // Initialization if needed
+    /* Compute the lxa home directory path */
+    const char *home = get_user_home();
+    if (home) {
+        snprintf(g_lxa_home, sizeof(g_lxa_home), "%s/.lxa", home);
+    }
 }
 
 bool vfs_add_drive(const char *amiga_name, const char *linux_path) {
@@ -27,17 +45,33 @@ bool vfs_add_drive(const char *amiga_name, const char *linux_path) {
 
     map->amiga_name = strdup(amiga_name);
     
+    char expanded_path[PATH_MAX];
+    const char *path_to_use = linux_path;
+
+    // Handle tilde expansion
+    if (linux_path[0] == '~') {
+        const char *home = getenv("HOME");
+        if (!home) {
+            struct passwd *pw = getpwuid(getuid());
+            if (pw) home = pw->pw_dir;
+        }
+        if (home) {
+            snprintf(expanded_path, sizeof(expanded_path), "%s%s", home, linux_path + 1);
+            path_to_use = expanded_path;
+        }
+    }
+
     // Convert to absolute path if needed
     char abs_path[PATH_MAX];
-    if (linux_path[0] != '/') {
-        if (!realpath(linux_path, abs_path)) {
+    if (path_to_use[0] != '/') {
+        if (!realpath(path_to_use, abs_path)) {
             // If realpath fails, just use the path as-is
-            map->linux_path = strdup(linux_path);
+            map->linux_path = strdup(path_to_use);
         } else {
             map->linux_path = strdup(abs_path);
         }
     } else {
-        map->linux_path = strdup(linux_path);
+        map->linux_path = strdup(path_to_use);
     }
     
     map->next = g_drive_maps;
@@ -164,5 +198,165 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
     if (error) return false;
 
     strncpy(linux_path, work_path, maxlen);
+    return true;
+}
+
+const char *vfs_get_home_dir(void)
+{
+    return g_lxa_home[0] ? g_lxa_home : NULL;
+}
+
+bool vfs_has_sys_drive(void)
+{
+    drive_map_t *map = g_drive_maps;
+    while (map) {
+        if (strcasecmp(map->amiga_name, "SYS") == 0) {
+            return true;
+        }
+        map = map->next;
+    }
+    return false;
+}
+
+/* Create a directory if it doesn't exist */
+static bool ensure_dir(const char *path)
+{
+    struct stat st;
+    if (stat(path, &st) == 0) {
+        return S_ISDIR(st.st_mode);
+    }
+    if (mkdir(path, 0755) == 0) {
+        DPRINTF(LOG_INFO, "vfs: created directory %s\n", path);
+        return true;
+    }
+    DPRINTF(LOG_ERROR, "vfs: failed to create directory %s: %s\n", path, strerror(errno));
+    return false;
+}
+
+/* Write a text file if it doesn't exist */
+static bool write_file_if_missing(const char *path, const char *content)
+{
+    struct stat st;
+    if (stat(path, &st) == 0) {
+        /* File already exists */
+        return true;
+    }
+    
+    FILE *f = fopen(path, "w");
+    if (!f) {
+        DPRINTF(LOG_ERROR, "vfs: failed to create %s: %s\n", path, strerror(errno));
+        return false;
+    }
+    
+    fputs(content, f);
+    fclose(f);
+    DPRINTF(LOG_INFO, "vfs: created %s\n", path);
+    return true;
+}
+
+/* Helper to safely create paths under g_lxa_home */
+static bool make_path(char *buf, size_t buflen, const char *subpath)
+{
+    size_t home_len = strlen(g_lxa_home);
+    size_t sub_len = strlen(subpath);
+    
+    if (home_len + sub_len + 1 >= buflen) {
+        DPRINTF(LOG_ERROR, "vfs: path too long: %s%s\n", g_lxa_home, subpath);
+        return false;
+    }
+    
+    memcpy(buf, g_lxa_home, home_len);
+    memcpy(buf + home_len, subpath, sub_len + 1);
+    return true;
+}
+
+bool vfs_setup_environment(void)
+{
+    if (!g_lxa_home[0]) {
+        DPRINTF(LOG_ERROR, "vfs: lxa home directory not set\n");
+        return false;
+    }
+    
+    /* Check if ~/.lxa already exists */
+    struct stat st;
+    if (stat(g_lxa_home, &st) == 0 && S_ISDIR(st.st_mode)) {
+        DPRINTF(LOG_DEBUG, "vfs: lxa home directory %s already exists\n", g_lxa_home);
+        return true;
+    }
+    
+    CPRINTF("lxa: First run detected - creating default environment at %s\n", g_lxa_home);
+    
+    /* Create the directory structure */
+    if (!ensure_dir(g_lxa_home)) return false;
+    
+    char path[PATH_MAX];
+    
+    /* Create System directory (SYS:) */
+    if (!make_path(path, sizeof(path), "/System")) return false;
+    if (!ensure_dir(path)) return false;
+    
+    /* Create standard AmigaOS directories */
+    if (!make_path(path, sizeof(path), "/System/S")) return false;
+    if (!ensure_dir(path)) return false;
+    
+    if (!make_path(path, sizeof(path), "/System/C")) return false;
+    if (!ensure_dir(path)) return false;
+    
+    if (!make_path(path, sizeof(path), "/System/Libs")) return false;
+    if (!ensure_dir(path)) return false;
+    
+    if (!make_path(path, sizeof(path), "/System/Devs")) return false;
+    if (!ensure_dir(path)) return false;
+    
+    if (!make_path(path, sizeof(path), "/System/T")) return false;
+    if (!ensure_dir(path)) return false;
+    
+    /* Create default config.ini */
+    if (!make_path(path, sizeof(path), "/config.ini")) return false;
+    
+    char config_content[2048];
+    size_t config_len = 0;
+    config_len += (size_t)snprintf(config_content + config_len, sizeof(config_content) - config_len,
+        "# lxa configuration file\n"
+        "# Generated automatically on first run\n"
+        "\n"
+        "[system]\n"
+        "# ROM and memory settings\n"
+        "# rom_path = /path/to/lxa.rom\n"
+        "# ram_size = 10485760\n"
+        "\n"
+        "[drives]\n"
+        "# Map Amiga drives to Linux directories\n"
+        "SYS = ");
+    config_len += (size_t)snprintf(config_content + config_len, sizeof(config_content) - config_len,
+        "%s/System\n"
+        "\n"
+        "[floppies]\n"
+        "# Map floppy drives to directories\n"
+        "# DF0 = ~/.lxa/floppy0\n",
+        g_lxa_home);
+    
+    if (!write_file_if_missing(path, config_content)) return false;
+    
+    /* Create default Startup-Sequence */
+    if (!make_path(path, sizeof(path), "/System/S/Startup-Sequence")) return false;
+    
+    const char *startup_content =
+        "; lxa Startup-Sequence\n"
+        "; Default startup script generated by lxa\n"
+        ";\n"
+        "; This file is executed when the system boots.\n"
+        "; Add your startup commands here.\n"
+        "\n"
+        "; Set up command search path\n"
+        "; Path SYS:C ADD\n"
+        "\n"
+        "; Display welcome message\n"
+        "; Echo \"Welcome to lxa - Linux Amiga Emulation Layer\"\n"
+        "; Echo \"\"\n";
+    
+    if (!write_file_if_missing(path, startup_content)) return false;
+    
+    CPRINTF("lxa: Environment created successfully.\n");
     return true;
 }

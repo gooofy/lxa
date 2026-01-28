@@ -454,85 +454,201 @@ LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
 LONG _dos_DeleteFile ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: DeleteFile unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: DeleteFile() called, name=%s\n", ___name ? (char *)___name : "NULL");
+
+    if (!___name) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    LONG result = emucall1(EMU_CALL_DOS_DELETE, (ULONG)___name);
+
+    DPRINTF (LOG_DEBUG, "_dos: DeleteFile() result: %ld\n", result);
+
+    if (!result) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 LONG _dos_Rename ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___oldName  __asm("d1"),
                                                         register CONST_STRPTR ___newName  __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Rename unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: Rename() called, old=%s, new=%s\n", 
+             ___oldName ? (char *)___oldName : "NULL",
+             ___newName ? (char *)___newName : "NULL");
+
+    if (!___oldName || !___newName) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    LONG result = emucall2(EMU_CALL_DOS_RENAME, (ULONG)___oldName, (ULONG)___newName);
+
+    DPRINTF (LOG_DEBUG, "_dos: Rename() result: %ld\n", result);
+
+    if (!result) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"),
                                                         register LONG ___type  __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Lock unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_dos: Lock() called, name=%s, type=%ld\n", ___name ? (char *)___name : "NULL", ___type);
+
+    if (!___name) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return NULL;
+    }
+
+    ULONG lock_id = emucall2(EMU_CALL_DOS_LOCK, (ULONG)___name, (ULONG)___type);
+
+    DPRINTF (LOG_DEBUG, "_dos: Lock() result: lock_id=%lu\n", lock_id);
+
+    if (lock_id == 0) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return NULL;
+    }
+
+    /* The lock_id from host is used directly as BPTR */
+    return (BPTR)lock_id;
 }
 
 void _dos_UnLock ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: UnLock unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: UnLock() called, lock=0x%08lx\n", ___lock);
+
+    if (!___lock) return;
+
+    emucall1(EMU_CALL_DOS_UNLOCK, (ULONG)___lock);
 }
 
 BPTR _dos_DupLock ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: DupLock unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_dos: DupLock() called, lock=0x%08lx\n", ___lock);
+
+    if (!___lock) return NULL;
+
+    ULONG lock_id = emucall1(EMU_CALL_DOS_DUPLOCK, (ULONG)___lock);
+
+    DPRINTF (LOG_DEBUG, "_dos: DupLock() result: lock_id=%lu\n", lock_id);
+
+    return (BPTR)lock_id;
 }
 
 LONG _dos_Examine ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"),
                                                         register struct FileInfoBlock * ___fileInfoBlock  __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Examine unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: Examine() called, lock=0x%08lx, fib=0x%08lx\n", ___lock, ___fileInfoBlock);
+
+    if (!___lock || !___fileInfoBlock) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    LONG result = emucall2(EMU_CALL_DOS_EXAMINE, (ULONG)___lock, (ULONG)___fileInfoBlock);
+
+    DPRINTF (LOG_DEBUG, "_dos: Examine() result: %ld\n", result);
+
+    if (!result) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 LONG _dos_ExNext ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"),
                                                         register struct FileInfoBlock * ___fileInfoBlock  __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: ExNext unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: ExNext() called, lock=0x%08lx, fib=0x%08lx\n", ___lock, ___fileInfoBlock);
+
+    if (!___lock || !___fileInfoBlock) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    LONG result = emucall2(EMU_CALL_DOS_EXNEXT, (ULONG)___lock, (ULONG)___fileInfoBlock);
+
+    DPRINTF (LOG_DEBUG, "_dos: ExNext() result: %ld\n", result);
+
+    if (!result) {
+        SetIoErr(ERROR_NO_MORE_ENTRIES);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 LONG _dos_Info ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"),
                                                         register struct InfoData * ___parameterBlock  __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Info unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: Info() called, lock=0x%08lx, infodata=0x%08lx\n", ___lock, ___parameterBlock);
+
+    if (!___lock || !___parameterBlock) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    LONG result = emucall2(EMU_CALL_DOS_INFO, (ULONG)___lock, (ULONG)___parameterBlock);
+
+    DPRINTF (LOG_DEBUG, "_dos: Info() result: %ld\n", result);
+
+    if (!result) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 BPTR _dos_CreateDir ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: CreateDir unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_dos: CreateDir() called, name=%s\n", ___name ? (char *)___name : "NULL");
+
+    if (!___name) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return NULL;
+    }
+
+    ULONG lock_id = emucall1(EMU_CALL_DOS_CREATEDIR, (ULONG)___name);
+
+    DPRINTF (LOG_DEBUG, "_dos: CreateDir() result: lock_id=%lu\n", lock_id);
+
+    if (lock_id == 0) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return NULL;
+    }
+
+    return (BPTR)lock_id;
 }
 
 BPTR _dos_CurrentDir ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register BPTR ___lock  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: CurrentDir unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_dos: CurrentDir() called, lock=0x%08lx\n", ___lock);
+
+    struct Process *me = (struct Process *)FindTask(NULL);
+    BPTR old_lock = me->pr_CurrentDir;
+    me->pr_CurrentDir = ___lock;
+
+    DPRINTF (LOG_DEBUG, "_dos: CurrentDir() old_lock=0x%08lx\n", old_lock);
+
+    return old_lock;
 }
 
 LONG _dos_IoErr ( register struct DosLibrary * DOSBase __asm("a6"))
@@ -1009,9 +1125,19 @@ LONG _dos_WaitForChar ( register struct DosLibrary * __libBase __asm("a6"),
 BPTR _dos_ParentDir ( register struct DosLibrary * __libBase __asm("a6"),
                                       register BPTR ___lock  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: ParentDir() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_dos: ParentDir() called, lock=0x%08lx\n", ___lock);
+
+    if (!___lock) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return NULL;
+    }
+
+    ULONG lock_id = emucall1(EMU_CALL_DOS_PARENTDIR, (ULONG)___lock);
+
+    DPRINTF (LOG_DEBUG, "_dos: ParentDir() result: lock_id=%lu\n", lock_id);
+
+    /* A return of 0 is valid - means we're at root */
+    return (BPTR)lock_id;
 }
 
 LONG _dos_IsInteractive ( register struct DosLibrary *DOSBase __asm("a6"),
@@ -1419,9 +1545,23 @@ LONG _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG len __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: NameFromLock() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: NameFromLock() called, lock=0x%08lx, buffer=0x%08lx, len=%ld\n", lock, buffer, len);
+
+    if (!lock || !buffer || len <= 0) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    LONG result = emucall3(EMU_CALL_DOS_NAMEFROMLOCK, (ULONG)lock, (ULONG)buffer, (ULONG)len);
+
+    DPRINTF (LOG_DEBUG, "_dos: NameFromLock() result: %ld\n", result);
+
+    if (!result) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 LONG _dos_NameFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1450,9 +1590,14 @@ LONG _dos_SameLock ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock1 __asm("d1"),
                                                         register BPTR lock2 __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SameLock() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: SameLock() called, lock1=0x%08lx, lock2=0x%08lx\n", lock1, lock2);
+
+    LONG result = emucall2(EMU_CALL_DOS_SAMELOCK, (ULONG)lock1, (ULONG)lock2);
+
+    DPRINTF (LOG_DEBUG, "_dos: SameLock() result: %ld\n", result);
+
+    /* Returns LOCK_SAME (0), LOCK_SAME_VOLUME (1), or LOCK_DIFFERENT (-1) */
+    return result;
 }
 
 LONG _dos_SetMode ( register struct DosLibrary * DOSBase __asm("a6"),

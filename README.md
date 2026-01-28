@@ -279,12 +279,17 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 - Special device support (`NIL:`)
 - Backward compatibility with legacy sysroot mode
 
-### 🚧 Phase 3: AmigaDOS File Management (PLANNED)
+### ✅ Phase 3: First-Run Experience & Filesystem API (COMPLETE)
+- Automatic `~/.lxa` environment bootstrap on first run
 - Lock/UnLock/DupLock/SameLock
-- Examine/ExNext/ExAll
-- Assigns and path management
+- Examine/ExNext/Info
+- ParentDir/CurrentDir/CreateDir
+- DeleteFile/Rename/NameFromLock
 
 ### 🚧 Phase 4+: Future Work
+- Basic userland commands (DIR, TYPE, MAKEDIR, DELETE)
+- Environment variables (GetVar/SetVar)
+- Interactive shell with scripting
 - Device handlers and console improvements
 - Graphics/Intuition library support
 - 68020+ CPU modes with FPU
@@ -293,8 +298,8 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 
 - Only 68000 CPU mode currently supported
 - No graphics or Intuition library support yet
-- File locking (Lock/Examine) not yet implemented
 - No assign support beyond VFS drive mapping
+- ExAll() not yet implemented (use ExNext for directory enumeration)
 
 ## Development Roadmap
 
@@ -302,9 +307,11 @@ See `roadmap.md` for the complete development plan. Key milestones:
 
 - **Phase 1** ✅ - Exec multitasking foundation
 - **Phase 2** ✅ - Configuration and VFS layer  
-- **Phase 3** 🚧 - DOS file management (locks, examine, assigns)
-- **Phase 4** 📋 - Device handlers and console
-- **Phase 5** 📋 - Finalization and AROS reference integration
+- **Phase 3** ✅ - First-run experience & filesystem API (locks, examine, directories)
+- **Phase 4** 🚧 - Basic userland & metadata
+- **Phase 5** 📋 - Interactive shell & scripting
+- **Phase 6** 📋 - System management & assignments
+- **Phase 7** 📋 - Advanced utilities & finalization
 
 ## License
 
@@ -313,7 +320,7 @@ MIT License
 ## Contributing
 
 This is experimental code. Contributions welcome, especially:
-- Phase 3 implementation (DOS file management)
+- Phase 4 implementation (basic userland commands)
 - Additional library implementations
 - CPU mode enhancements (68020+, FPU)
 - Graphics/Intuition support
