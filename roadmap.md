@@ -59,28 +59,33 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ---
 
 ## Phase 4: Basic Userland & Metadata
-**Goal**: Implement the first set of essential AmigaDOS commands.
+**Goal**: Implement the first set of essential AmigaDOS commands with AmigaDOS-compatible template parsing.
 
-**Status**: 🚧 PARTIAL - Core infrastructure in place, commands need Amiga-compatible behavior
+**Status**: 🚧 PARTIAL - Core infrastructure complete, command integration in progress
+
+### Completed Core Infrastructure:
+- ✅ **Semaphore Support**: `InitSemaphore()`, `ObtainSemaphore()`, `ReleaseSemaphore()` - C runtime compatibility
+- ✅ **ReadArgs()**: Template-based command parsing with /A, /K, /S, /N, /M, /F modifiers
+- ✅ **SetProtection()**: File permission mapping to Linux
+- ✅ **SetComment()**: File comments via xattr/sidecar files
 
 ### Step 4.1: Essential Userland (C:) - Infrastructure ✓ DONE
 - ✓ **SYS:C structure**: Directory created with build system
 - ✓ **Command binaries**: Initial versions compiled (DIR, TYPE, MAKEDIR, DELETE)
 
-### Step 4.1a: Amiga-Compatible Command Parser Framework 🚧 IN PROGRESS
-**Critical**: Commands currently use Unix-style arguments (`-l`, `-a`) but must use AmigaDOS template system
+### Step 4.1a: Amiga-Compatible Command Parser Framework ✓ DONE
+**Critical Blockers Resolved**: Commands can now use AmigaDOS template system
 
-**Implementation Plan**:
-1. **ReadArgs() Implementation** (dos.library)
-   - Parse command templates (e.g., `DIR,OPT/K,ALL/S,DIRS/S`)
-   - Support template modifiers: /A (required), /M (multiple), /S (switch), /K (keyword), /N (numeric), /F (final)
-   - Handle keyword arguments with/without equals sign
-   - Support pattern matching with #? wildcards
+1. **✓ ReadArgs() Implementation** (dos.library) - `src/rom/lxa_dos.c:2310-2515`
+   - ✓ Parse command templates (e.g., `DIR,OPT/K,ALL/S,DIRS/S`)
+   - ✓ Support template modifiers: /A (required), /M (multiple), /S (switch), /K (keyword), /N (numeric), /F (final)
+   - ✓ Handle keyword arguments with/without equals sign
+   - ✓ Support /? for template help
    
-2. **Command Line Parser Library**
-   - Create reusable parser for C: commands
-   - Match Unix argv[] style to AmigaDOS template structure
-   - Generate template help on `?` argument
+2. **✓ Semaphore Support** (exec.library) - `src/rom/exec.c:1862-1939`
+   - ✓ `InitSemaphore()`, `ObtainSemaphore()`, `ReleaseSemaphore()`
+   - ✓ `AttemptSemaphore()` for non-blocking acquisition
+   - Required for C runtime compatibility
 
 ### Step 4.1b: Command Behavioral Alignment 🚧 IN PROGRESS
 
@@ -130,12 +135,14 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### Step 4.2: Metadata & Variables 🚧 PARTIAL
 
 **Completed**:
-- ✓ **SetProtection()**: Maps Amiga protection bits to Linux permissions
-- ✓ **SetComment()**: Stores comments via xattr or sidecar files
+- ✓ **SetProtection()**: Maps Amiga protection bits to Linux permissions (`src/lxa/lxa.c:1350`)
+- ✓ **SetComment()**: Stores comments via xattr or sidecar files (`src/lxa/lxa.c:1395`)
+- ✓ **ReadArgs()**: Template-based command argument parsing (`src/rom/lxa_dos.c:2310`)
 
 **Pending**:
-- **SetDate()**: Set file modification times
+- **SetDate()**: Set file modification times (maps to `utimes()`)
 - **GetVar()/SetVar()/DeleteVar()/FindVar()**: Environment variables
+- **Pattern Matching**: `MatchPattern()`, `ParsePattern()` for wildcards
 - **Tools**: RENAME, PROTECT, FILENOTE, SET, SETENV, GETENV
 
 ---
@@ -184,25 +191,56 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 2. **Host-First**: Prefer host-side (`emucall`) implementations for filesystem tasks.
 3. **Internal vs External**: Compiled-in Shell commands for speed, separate `C:` binaries for extensibility.
 4. **Amiga Authenticity**: Commands must use AmigaDOS argument syntax (templates, keywords, switches) not Unix-style flags.
+   - Use `ReadArgs()` template parsing in all C: commands
+   - Templates: `DIR,OPT/K,ALL/S,DIRS/S` not `dir -la`
+   - Keywords: `ALL`, `DIRS`, `TO` not `-a`, `-d`, `-o`
+
+## Next Steps for Phase 4 Completion
+
+### Immediate (Next Session):
+1. **Pattern Matching Implementation**
+   - Add `MatchPattern()` and `ParsePattern()` to utility.library or dos.library
+   - Support wildcards: `#?` (any string), `?` (single char)
+   - Required for DIR and DELETE commands
+
+2. **Update C: Commands to Use Templates**
+   - Rewrite `sys/C/dir.c` using ReadArgs() with template `DIR,OPT/K,ALL/S,DIRS/S,FILES/S,INTER/S`
+   - Rewrite `sys/C/delete.c` with template `FILE/M/A,ALL/S,QUIET/S,FORCE/S`
+   - Rewrite `sys/C/type.c` with template `FROM/A/M,TO/K,OPT/K,HEX/S,NUMBER/S`
+
+### Medium Term:
+3. **SetDate() API** - File modification time support
+4. **Environment Variables** - GetVar/SetVar/DeleteVar implementation
+5. **Additional Commands** - RENAME, PROTECT, FILENOTE
+
+### Phase 4 Success Criteria:
+- [ ] DIR command uses AmigaDOS template syntax
+- [ ] DELETE supports pattern matching with wildcards
+- [ ] TYPE supports TO, HEX, and NUMBER keywords
+- [ ] Pattern matching works for `#?` wildcards
+- [ ] Commands can be invoked from shell using Amiga syntax
 
 ---
 
 ## Current Blockers & Dependencies
 
+**Phase 4 Core Infrastructure - ✓ RESOLVED:**
+
+1. **✓ Semaphore Support** (exec.library) - `src/rom/exec.c:1862-1939`
+   - Implemented: `InitSemaphore()`, `ObtainSemaphore()`, `ReleaseSemaphore()`, `AttemptSemaphore()`
+   - C runtime now works without assertion failures
+
+2. **✓ ReadArgs() Implementation** (dos.library) - `src/rom/lxa_dos.c:2310-2515`
+   - Implemented: Template parsing with /A, /M, /S, /K, /N, /F modifiers
+   - Helper functions: `FindArg()`, `FreeArgs()`, `StrToLong()`
+
 **To complete Phase 4 commands, the following dependencies must be resolved:**
 
-1. **Semaphore Support** (exec.library) - Required for C runtime
-   - `InitSemaphore()`, `ObtainSemaphore()`, `ReleaseSemaphore()`
-   - Currently causes assertion failures when running commands
-
-2. **ReadArgs() Implementation** (dos.library) - Required for command parsing
-   - Template parsing with /A, /M, /S, /K, /N, /F modifiers
-   - Pattern matching support for #? wildcards
-
-3. **Pattern Matching** (utility.library or dos.library)
+3. **Pattern Matching** (utility.library or dos.library) - HIGH PRIORITY
    - `MatchPattern()`, `ParsePattern()`
    - Support for Amiga wildcards: `#?` (any string), `?` (single char), `#` (repeat)
+   - Required for: DIR pattern matching, DELETE wildcards
 
-4. **Interactive I/O** (dos.library)
+4. **Interactive I/O** (dos.library) - MEDIUM PRIORITY
    - Raw console input for interactive DIR mode
    - Break signal handling (Ctrl+C)

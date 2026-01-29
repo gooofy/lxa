@@ -10,6 +10,7 @@
 #include <exec/resident.h>
 #include <exec/initializers.h>
 #include <exec/errors.h>
+#include <exec/semaphores.h>
 
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
@@ -1860,32 +1861,183 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
 }
 
 void _exec_InitSemaphore ( register struct ExecBase * SysBase __asm("a6"),
-                                                        register struct SignalSemaphore * ___sigSem  __asm("a0"))
+                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: InitSemaphore unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: InitSemaphore called, sigSem=0x%08lx\n", ___sigSem);
+
+    if (!___sigSem)
+        return;
+
+    /* Clear list of wait messages */
+    ___sigSem->ss_WaitQueue.mlh_Head     = (struct MinNode *)&___sigSem->ss_WaitQueue.mlh_Tail;
+    ___sigSem->ss_WaitQueue.mlh_Tail     = NULL;
+    ___sigSem->ss_WaitQueue.mlh_TailPred = (struct MinNode *)&___sigSem->ss_WaitQueue.mlh_Head;
+
+    /* Set type of Semaphore */
+    ___sigSem->ss_Link.ln_Type = NT_SIGNALSEM;
+
+    /* Semaphore is currently unused */
+    ___sigSem->ss_NestCount = 0;
+
+    /* Semaphore has no owner yet */
+    ___sigSem->ss_Owner = NULL;
+
+    /* Semaphore has no queue */
+    ___sigSem->ss_QueueCount = -1;
 }
 
 void _exec_ObtainSemaphore ( register struct ExecBase * SysBase __asm("a6"),
-                                                        register struct SignalSemaphore * ___sigSem  __asm("a0"))
+                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: ObtainSemaphore unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: ObtainSemaphore called, sigSem=0x%08lx\n", ___sigSem);
+
+    if (!___sigSem)
+        return;
+
+    struct Task *ThisTask = SysBase->ThisTask;
+
+    /* If there's no ThisTask, we're in single-threaded init code */
+    if (!ThisTask)
+        return;
+
+    /* If task is being removed, don't wait */
+    if (ThisTask->tc_State == TS_REMOVED)
+        return;
+
+    Forbid();
+
+    /* Increment queue count */
+    ___sigSem->ss_QueueCount++;
+
+    if (___sigSem->ss_QueueCount == 0)
+    {
+        /* We now own the semaphore */
+        ___sigSem->ss_Owner = ThisTask;
+        ___sigSem->ss_NestCount = 1;
+    }
+    else if (___sigSem->ss_Owner == ThisTask)
+    {
+        /* We already own it, increment nest count */
+        ___sigSem->ss_NestCount++;
+    }
+    else
+    {
+        /* Semaphore is owned by another task, we need to wait */
+        struct SemaphoreRequest sr;
+        sr.sr_Waiter = ThisTask;
+
+        /* Clear SIGF_SINGLE to ensure we wait */
+        ThisTask->tc_SigRecvd &= ~SIGF_SINGLE;
+
+        /* Add to wait queue */
+        AddTail((struct List *)&___sigSem->ss_WaitQueue, (struct Node *)&sr);
+
+        /* Wait for the semaphore */
+        Wait(SIGF_SINGLE);
+    }
+
+    Permit();
 }
 
 void _exec_ReleaseSemaphore ( register struct ExecBase * SysBase __asm("a6"),
-                                                        register struct SignalSemaphore * ___sigSem  __asm("a0"))
+                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: ReleaseSemaphore unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: ReleaseSemaphore called, sigSem=0x%08lx\n", ___sigSem);
+
+    if (!___sigSem)
+        return;
+
+    struct Task *ThisTask = SysBase->ThisTask;
+
+    /* Skip if no task context */
+    if (!ThisTask)
+        return;
+
+    if (ThisTask->tc_State == TS_REMOVED)
+        return;
+
+    Forbid();
+
+    /* Decrement nest count and queue count */
+    ___sigSem->ss_NestCount--;
+    ___sigSem->ss_QueueCount--;
+
+    if (___sigSem->ss_NestCount == 0)
+    {
+        /* Check if there are waiters */
+        if (___sigSem->ss_QueueCount >= 0 &&
+            ___sigSem->ss_WaitQueue.mlh_Head->mln_Succ != NULL)
+        {
+            struct SemaphoreRequest *sr;
+
+            /* Get first waiter */
+            sr = (struct SemaphoreRequest *)___sigSem->ss_WaitQueue.mlh_Head;
+
+            /* Remove from wait queue */
+            Remove((struct Node *)sr);
+
+            /* Set new owner */
+            ___sigSem->ss_NestCount = 1;
+            ___sigSem->ss_Owner = sr->sr_Waiter;
+
+            /* Signal the waiter */
+            if (sr->sr_Waiter)
+            {
+                Signal(sr->sr_Waiter, SIGF_SINGLE);
+            }
+        }
+        else
+        {
+            /* No waiters, clear owner */
+            ___sigSem->ss_Owner = NULL;
+            ___sigSem->ss_QueueCount = -1;
+        }
+    }
+
+    Permit();
 }
 
 ULONG _exec_AttemptSemaphore ( register struct ExecBase * SysBase __asm("a6"),
-                                                        register struct SignalSemaphore * ___sigSem  __asm("a0"))
+                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AttemptSemaphore unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_exec: AttemptSemaphore called, sigSem=0x%08lx\n", ___sigSem);
+
+    if (!___sigSem)
+        return FALSE;
+
+    struct Task *ThisTask = SysBase->ThisTask;
+    ULONG retval = TRUE;
+
+    /* If no task context, succeed */
+    if (!ThisTask)
+        return TRUE;
+
+    Forbid();
+
+    /* Increment queue count */
+    ___sigSem->ss_QueueCount++;
+
+    if (___sigSem->ss_QueueCount == 0)
+    {
+        /* Semaphore is free, take it */
+        ___sigSem->ss_Owner = ThisTask;
+        ___sigSem->ss_NestCount = 1;
+    }
+    else if (___sigSem->ss_Owner == ThisTask)
+    {
+        /* We already own it */
+        ___sigSem->ss_NestCount++;
+    }
+    else
+    {
+        /* Can't get it, decrement queue count and return FALSE */
+        ___sigSem->ss_QueueCount--;
+        retval = FALSE;
+    }
+
+    Permit();
+
+    return retval;
 }
 
 void _exec_ObtainSemaphoreList ( register struct ExecBase * SysBase __asm("a6"),

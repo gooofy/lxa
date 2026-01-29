@@ -2307,42 +2307,299 @@ LONG _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
     return 0;
 }
 
-struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                        register CONST_STRPTR arg_template __asm("d1"),
-                                                        register LONG * array __asm("d2"),
-                                                        register struct RDArgs * args __asm("d3"))
+/* Template item flags */
+#define TEMPLATE_REQUIRED  0x01  /* /A */
+#define TEMPLATE_KEYWORD   0x02  /* /K */
+#define TEMPLATE_SWITCH    0x04  /* /S */
+#define TEMPLATE_NUMERIC   0x08  /* /N */
+#define TEMPLATE_MULTIPLE  0x10  /* /M */
+#define TEMPLATE_REST      0x20  /* /F */
+
+#ifndef RDAF_ALLOCATED_BY_READARGS
+#define RDAF_ALLOCATED_BY_READARGS 0x80
+#endif
+
+typedef struct {
+    char name[64];
+    ULONG flags;
+    LONG index;
+} TemplateItem;
+
+static LONG _parse_template(CONST_STRPTR tmpl, TemplateItem *items)
 {
-    LPRINTF (LOG_ERROR, "_dos: ReadArgs() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    LONG num_items = 0;
+    CONST_STRPTR p = tmpl;
+
+    while (*p && num_items < 32) {
+        /* Skip whitespace and commas */
+        while (*p == ' ' || *p == '\t' || *p == ',') p++;
+        if (!*p) break;
+
+        /* Parse item name */
+        LONG i = 0;
+        while (*p && *p != ',' && *p != '/' && *p != ' ' && *p != '\t' && i < 63) {
+            items[num_items].name[i++] = *p++;
+        }
+        items[num_items].name[i] = '\0';
+        items[num_items].flags = 0;
+        items[num_items].index = num_items;
+
+        /* Parse modifiers */
+        while (*p == '/') {
+            p++;
+            switch (*p) {
+                case 'A': items[num_items].flags |= TEMPLATE_REQUIRED; break;
+                case 'K': items[num_items].flags |= TEMPLATE_KEYWORD; break;
+                case 'S': items[num_items].flags |= TEMPLATE_SWITCH; break;
+                case 'N': items[num_items].flags |= TEMPLATE_NUMERIC; break;
+                case 'M': items[num_items].flags |= TEMPLATE_MULTIPLE; break;
+                case 'F': items[num_items].flags |= TEMPLATE_REST; break;
+            }
+            if (*p) p++;
+        }
+
+        num_items++;
+
+        /* Skip to next item */
+        while (*p && *p != ',') p++;
+        if (*p == ',') p++;
+    }
+
+    return num_items;
 }
 
-LONG _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                        register CONST_STRPTR keyword __asm("d1"),
-                                                        register CONST_STRPTR arg_template __asm("d2"))
+static LONG _str_to_long(CONST_STRPTR str, LONG *val)
 {
-    LPRINTF (LOG_ERROR, "_dos: FindArg() unimplemented STUB called.\n");
-    assert(FALSE);
+    LONG v = 0;
+    BOOL negative = FALSE;
+    CONST_STRPTR p = str;
+
+    if (!p || !*p)
+        return -1;
+
+    if (*p == '-') {
+        negative = TRUE;
+        p++;
+    } else if (*p == '+') {
+        p++;
+    }
+
+    if (!*p || *p < '0' || *p > '9')
+        return -1;
+
+    while (*p >= '0' && *p <= '9') {
+        v = v * 10 + (*p - '0');
+        p++;
+    }
+
+    if (*p != '\0')
+        return -1;
+
+    *val = negative ? -v : v;
     return 0;
 }
 
-LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                        register CONST_STRPTR name __asm("d1"),
-                                                        register LONG maxchars __asm("d2"),
-                                                        register struct CSource * cSource __asm("d3"))
+/* Simple string comparison helper */
+static int _stricmp(const char *s1, const char *s2)
 {
-    LPRINTF (LOG_ERROR, "_dos: ReadItem() unimplemented STUB called.\n");
+    while (*s1 && *s2) {
+        char c1 = *s1;
+        char c2 = *s2;
+        /* Convert to lowercase */
+        if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
+        if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
+        if (c1 != c2)
+            return c1 - c2;
+        s1++;
+        s2++;
+    }
+    return *s1 - *s2;
+}
+
+struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                         register CONST_STRPTR arg_template __asm("d1"),
+                                                         register LONG * array __asm("d2"),
+                                                         register struct RDArgs * args __asm("d3"))
+{
+    DPRINTF (LOG_DEBUG, "_dos: ReadArgs() called, template='%s'\n", arg_template ? arg_template : "NULL");
+
+    if (!arg_template || !array) {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return NULL;
+    }
+
+    /* Get process and arguments */
+    struct Process *me = (struct Process *)FindTask(NULL);
+    if (!me || !me->pr_Arguments) {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return NULL;
+    }
+
+    /* Parse template */
+    TemplateItem items[32];
+    LONG num_items = _parse_template(arg_template, items);
+
+    if (num_items == 0) {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return NULL;
+    }
+
+    /* Get argument string from process */
+    STRPTR arg_str = BADDR(me->pr_Arguments);
+    if (!arg_str) {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return NULL;
+    }
+
+    /* Initialize array to 0/FALSE */
+    for (LONG i = 0; i < num_items; i++) {
+        array[i] = 0;
+    }
+
+    /* Parse arguments - simple whitespace tokenizer */
+    char token[256];
+    LONG token_pos = 0;
+    LONG current_item = -1;
+    BOOL in_token = FALSE;
+    CONST_STRPTR p = arg_str;
+
+    while (1) {
+        char c = *p;
+
+        if (c == ' ' || c == '\t' || c == '\0') {
+            if (in_token) {
+                /* End of token */
+                token[token_pos] = '\0';
+                in_token = FALSE;
+
+                /* Process the token */
+                BOOL found_keyword = FALSE;
+
+                /* Check if this is a keyword */
+                for (LONG i = 0; i < num_items; i++) {
+                    if (items[i].flags & TEMPLATE_KEYWORD || items[i].flags & TEMPLATE_SWITCH) {
+                        if (_stricmp(token, items[i].name) == 0) {
+                            if (items[i].flags & TEMPLATE_SWITCH) {
+                                /* Switch - just set to TRUE */
+                                array[items[i].index] = (LONG)TRUE;
+                            } else {
+                                /* Keyword - next token is the value */
+                                current_item = i;
+                            }
+                            found_keyword = TRUE;
+                            break;
+                        }
+                    }
+                }
+
+                if (!found_keyword && current_item >= 0) {
+                    /* This is a value for the current item */
+                    if (items[current_item].flags & TEMPLATE_NUMERIC) {
+                        LONG val;
+                        if (_str_to_long((CONST_STRPTR)token, &val) == 0) {
+                            array[items[current_item].index] = val;
+                        }
+                    } else {
+                        /* Store string pointer - use the original position in arg_str */
+                        array[items[current_item].index] = (LONG)(p - token_pos);
+                    }
+                    current_item = -1;
+                } else if (!found_keyword) {
+                    /* Not a keyword, try to match with non-keyword items */
+                    for (LONG i = 0; i < num_items; i++) {
+                        if (!(items[i].flags & TEMPLATE_KEYWORD) &&
+                            !(items[i].flags & TEMPLATE_SWITCH) &&
+                            array[items[i].index] == 0) {
+                            if (items[i].flags & TEMPLATE_NUMERIC) {
+                                LONG val;
+                                if (_str_to_long((CONST_STRPTR)token, &val) == 0) {
+                                    array[items[i].index] = val;
+                                }
+                            } else {
+                                array[items[i].index] = (LONG)(p - token_pos);
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                token_pos = 0;
+            }
+
+            if (c == '\0')
+                break;
+        } else {
+            if (token_pos < 255) {
+                token[token_pos++] = c;
+            }
+            in_token = TRUE;
+        }
+
+        p++;
+    }
+
+    /* Check required items */
+    for (LONG i = 0; i < num_items; i++) {
+        if (items[i].flags & TEMPLATE_REQUIRED && array[items[i].index] == 0) {
+            SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+            return NULL;
+        }
+    }
+
+    /* Allocate or return RDArgs structure */
+    struct RDArgs *result = args;
+    if (!result) {
+        result = (struct RDArgs *)AllocVec(sizeof(struct RDArgs), MEMF_ANY | MEMF_CLEAR);
+        if (result) {
+            result->RDA_Flags |= RDAF_ALLOCATED_BY_READARGS;
+        }
+    }
+
+    return result;
+}
+
+LONG _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                         register CONST_STRPTR keyword __asm("d1"),
+                                                         register CONST_STRPTR arg_template __asm("d2"))
+{
+    DPRINTF (LOG_DEBUG, "_dos: FindArg() called, keyword='%s', template='%s'\n",
+             keyword ? keyword : "NULL", arg_template ? arg_template : "NULL");
+
+    if (!keyword || !arg_template)
+        return -1;
+
+    TemplateItem items[32];
+    LONG num_items = _parse_template(arg_template, items);
+
+    for (LONG i = 0; i < num_items; i++) {
+        if (_stricmp(items[i].name, (char *)keyword) == 0) {
+            return items[i].index;
+        }
+    }
+
+    return -1;
+}
+
+LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                         register CONST_STRPTR name __asm("d1"),
+                                                         register LONG maxchars __asm("d2"),
+                                                         register struct CSource * cSource __asm("d3"))
+{
+    DPRINTF (LOG_DEBUG, "_dos: ReadItem() unimplemented STUB called.\n");
     assert(FALSE);
     return 0;
 }
 
 LONG _dos_StrToLong ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                        register CONST_STRPTR string __asm("d1"),
-                                                        register LONG * value __asm("d2"))
+                                                         register CONST_STRPTR string __asm("d1"),
+                                                         register LONG * value __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: StrToLong() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: StrToLong() called, string='%s'\n", string ? string : "NULL");
+
+    if (!string || !value)
+        return -1;
+
+    return _str_to_long(string, value);
 }
 
 LONG _dos_MatchFirst ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2395,10 +2652,17 @@ VOID _dos_private3 ( register struct DosLibrary * DOSBase __asm("a6"))
 }
 
 VOID _dos_FreeArgs ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                        register struct RDArgs * args __asm("d1"))
+                                                         register struct RDArgs * args __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FreeArgs() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: FreeArgs() called, args=0x%08lx\n", args);
+
+    if (!args)
+        return;
+
+    /* Free if allocated by ReadArgs */
+    if (args->RDA_Flags & RDAF_ALLOCATED_BY_READARGS) {
+        FreeVec(args);
+    }
 }
 
 VOID _dos_private4 ( register struct DosLibrary * DOSBase __asm("a6"))
