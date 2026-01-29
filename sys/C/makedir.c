@@ -1,6 +1,8 @@
 /*
  * MAKEDIR command - Create directories
  * Phase 4 implementation for lxa
+ * 
+ * Template: NAME/M/A
  */
 
 #include <exec/types.h>
@@ -17,74 +19,76 @@
 /* External reference to DOS library base */
 extern struct DosLibrary *DOSBase;
 
-/* Create a directory */
-static int make_directory(CONST_STRPTR path, BOOL create_parents)
+/* Command template */
+#define TEMPLATE "NAME/M/A"
+
+/* Argument array indices */
+#define ARG_NAME    0
+#define ARG_COUNT   1
+
+/* Create a single directory */
+static BOOL make_single_directory(CONST_STRPTR path)
 {
     BPTR lock;
     
-    if (create_parents) {
-        /* For parent creation, we'd need to parse path and create each component
-         * For simplicity, just try to create the lock directly */
-        lock = CreateDir((STRPTR)path);
-        if (!lock) {
-            printf("MAKEDIR: Failed to create '%s' - %ld\n", path, IoErr());
-            return 1;
+    /* Attempt to create the directory */
+    lock = CreateDir((STRPTR)path);
+    if (!lock) {
+        LONG err = IoErr();
+        if (err == ERROR_OBJECT_EXISTS) {
+            printf("MAKEDIR: '%s' already exists\n", path);
+        } else if (err == ERROR_OBJECT_NOT_FOUND) {
+            printf("MAKEDIR: Cannot create '%s' - parent directory does not exist\n", path);
+        } else {
+            printf("MAKEDIR: Failed to create '%s' - %ld\n", path, err);
         }
-        UnLock(lock);
-    } else {
-        /* Simple directory creation */
-        lock = CreateDir((STRPTR)path);
-        if (!lock) {
-            printf("MAKEDIR: Failed to create '%s' - %ld\n", path, IoErr());
-            return 1;
-        }
-        UnLock(lock);
+        return FALSE;
     }
     
-    return 0;
+    UnLock(lock);
+    printf("MAKEDIR: Created directory '%s'\n", path);
+    return TRUE;
 }
 
 int main(int argc, char **argv)
 {
-    CONST_STRPTR path = NULL;
-    BOOL create_parents = FALSE;
-    int i;
+    LONG args[ARG_COUNT] = {0};
+    struct RDArgs *rda;
     int errors = 0;
     
-    /* Parse arguments */
-    for (i = 1; i < argc; i++) {
-        if (argv[i][0] == '-') {
-            /* Option */
-            switch (argv[i][1]) {
-                case 'p':
-                    create_parents = TRUE;
-                    break;
-                case '?':
-                case 'h':
-                    printf("MAKEDIR - Create directories (v%s)\n", VERSION);
-                    printf("Usage: MAKEDIR [options] <directory>...\n");
-                    printf("Options:\n");
-                    printf("  -p      Create parent directories as needed\n");
-                    return 0;
-                default:
-                    printf("MAKEDIR: Unknown option '%s'\n", argv[i]);
-                    return 1;
-            }
-        } else {
-            /* Directory argument - process it */
-            path = (CONST_STRPTR)argv[i];
-            if (make_directory(path, create_parents) != 0) {
-                errors++;
-            }
-        }
-    }
+    (void)argc;
+    (void)argv;
     
-    /* Check for required argument */
-    if (!path) {
-        printf("MAKEDIR: Missing directory name\n");
-        printf("Usage: MAKEDIR [options] <directory>...\n");
+    /* Parse arguments using AmigaDOS template */
+    rda = ReadArgs(TEMPLATE, args, NULL);
+    if (!rda) {
+        LONG err = IoErr();
+        if (err == ERROR_REQUIRED_ARG_MISSING) {
+            printf("MAKEDIR: NAME argument is required\n");
+        } else {
+            printf("MAKEDIR: Error parsing arguments - %ld\n", err);
+        }
+        printf("Usage: MAKEDIR NAME/M/A\n");
+        printf("Template: %s\n", TEMPLATE);
         return 1;
     }
     
+    /* Extract arguments */
+    STRPTR *name_array = (STRPTR *)args[ARG_NAME];
+    
+    /* Process each directory name */
+    if (name_array) {
+        for (int i = 0; name_array[i] != NULL; i++) {
+            if (!make_single_directory(name_array[i])) {
+                errors++;
+            }
+        }
+    } else {
+        printf("MAKEDIR: No directory name specified\n");
+        FreeArgs(rda);
+        return 1;
+    }
+    
+    FreeArgs(rda);
     return errors > 0 ? 1 : 0;
 }

@@ -1,6 +1,8 @@
 /*
  * DIR command - List directory contents
  * Phase 4 implementation for lxa
+ * 
+ * Template: DIR,OPT/K,ALL/S,DIRS/S,FILES/S,INTER/S
  */
 
 #include <exec/types.h>
@@ -22,6 +24,18 @@ extern struct DosLibrary *DOSBase;
 
 /* Buffer for pattern matching */
 #define PATTERN_BUFFER_SIZE 256
+
+/* Command template */
+#define TEMPLATE "DIR,OPT/K,ALL/S,DIRS/S,FILES/S,INTER/S"
+
+/* Argument array indices */
+#define ARG_DIR     0
+#define ARG_OPT     1
+#define ARG_ALL     2
+#define ARG_DIRS    3
+#define ARG_FILES   4
+#define ARG_INTER   5
+#define ARG_COUNT   6
 
 /* Format size for human-readable output */
 static void format_size(LONG size, char *buf, int buf_len)
@@ -51,6 +65,29 @@ static void print_protection(LONG protection)
     if (!(protection & (1 << 6))) bits[1] = 's';  /* Script */
     
     printf("%s", bits);
+}
+
+/* Check if filename matches pattern using AmigaDOS wildcards */
+static BOOL match_filename(const char *filename, const char *pattern)
+{
+    if (!pattern || pattern[0] == '\0')
+        return TRUE;
+    
+    char parsed_pat[PATTERN_BUFFER_SIZE];
+    LONG result = ParsePattern(pattern, parsed_pat, sizeof(parsed_pat));
+    
+    if (result == 0) {
+        /* Parse error - treat as literal match */
+        return (strcmp(filename, pattern) == 0);
+    }
+    
+    if (result < 0) {
+        /* Literal string - exact match */
+        return (strcmp(filename, pattern) == 0);
+    }
+    
+    /* Wildcard pattern */
+    return MatchPattern(parsed_pat, (STRPTR)filename);
 }
 
 /* List a single directory entry */
@@ -87,8 +124,9 @@ static void list_entry(struct FileInfoBlock *fib, BOOL detailed)
     }
 }
 
-/* List directory contents */
-static int list_directory(CONST_STRPTR path, BOOL detailed, BOOL show_all)
+/* List directory contents with pattern matching */
+static int list_directory(CONST_STRPTR path, CONST_STRPTR pattern, BOOL detailed, 
+                          BOOL show_all, BOOL dirs_only, BOOL files_only)
 {
     BPTR lock;
     struct FileInfoBlock *fib;
@@ -121,7 +159,9 @@ static int list_directory(CONST_STRPTR path, BOOL detailed, BOOL show_all)
     
     if (fib->fib_DirEntryType <= 0) {
         /* It's a file, not a directory */
-        list_entry(fib, detailed);
+        if (match_filename(fib->fib_FileName, pattern)) {
+            list_entry(fib, detailed);
+        }
         count++;
         total_size += fib->fib_Size;
     } else {
@@ -131,8 +171,21 @@ static int list_directory(CONST_STRPTR path, BOOL detailed, BOOL show_all)
         }
         
         while (ExNext(lock, fib)) {
-            /* Skip hidden files unless -a flag */
+            /* Skip hidden files unless ALL switch */
             if (!show_all && fib->fib_FileName[0] == '.') {
+                continue;
+            }
+            
+            /* Check pattern match */
+            if (!match_filename(fib->fib_FileName, pattern)) {
+                continue;
+            }
+            
+            /* Filter by DIRS/FILES switches */
+            if (dirs_only && fib->fib_DirEntryType <= 0) {
+                continue;
+            }
+            if (files_only && fib->fib_DirEntryType > 0) {
                 continue;
             }
             
@@ -165,44 +218,57 @@ static int list_directory(CONST_STRPTR path, BOOL detailed, BOOL show_all)
 
 int main(int argc, char **argv)
 {
-    CONST_STRPTR path = "";
-    BOOL detailed = FALSE;
-    BOOL show_all = FALSE;
-    int i;
+    LONG args[ARG_COUNT] = {0};
+    struct RDArgs *rda;
+    int result;
     
-    /* Parse arguments */
-    for (i = 1; i < argc; i++) {
-        if (argv[i][0] == '-') {
-            /* Option */
-            switch (argv[i][1]) {
-                case 'l':
-                    detailed = TRUE;
-                    break;
-                case 'a':
-                    show_all = TRUE;
-                    break;
-                case '?':
-                case 'h':
-                    printf("DIR - List directory contents (v%s)\n", VERSION);
-                    printf("Usage: DIR [options] [path]\n");
-                    printf("Options:\n");
-                    printf("  -l    Long/detailed listing\n");
-                    printf("  -a    Show all files (including hidden)\n");
-                    return 0;
-                default:
-                    printf("DIR: Unknown option '%s'\n", argv[i]);
-                    return 1;
-            }
+    (void)argc;  /* Unused - we use ReadArgs instead */
+    (void)argv;
+    
+    /* Parse arguments using AmigaDOS template */
+    rda = ReadArgs(TEMPLATE, args, NULL);
+    if (!rda) {
+        LONG err = IoErr();
+        if (err == ERROR_REQUIRED_ARG_MISSING) {
+            printf("DIR: Required argument missing\n");
         } else {
-            /* Path argument */
-            path = (CONST_STRPTR)argv[i];
+            printf("DIR: Error parsing arguments - %ld\n", err);
+        }
+        printf("Usage: DIR [pattern] [OPT keywords] [ALL] [DIRS] [FILES] [INTER]\n");
+        printf("Template: %s\n", TEMPLATE);
+        return 1;
+    }
+    
+    /* Extract arguments */
+    CONST_STRPTR pattern = (CONST_STRPTR)args[ARG_DIR];
+    CONST_STRPTR opt_str = (CONST_STRPTR)args[ARG_OPT];
+    BOOL all_flag = args[ARG_ALL] ? TRUE : FALSE;
+    BOOL dirs_flag = args[ARG_DIRS] ? TRUE : FALSE;
+    BOOL files_flag = args[ARG_FILES] ? TRUE : FALSE;
+    BOOL inter_flag = args[ARG_INTER] ? TRUE : FALSE;
+    
+    /* Use default pattern if none specified */
+    if (!pattern || pattern[0] == '\0') {
+        pattern = DEFAULT_PATTERN;
+    }
+    
+    /* Handle OPT keyword for traditional options */
+    BOOL detailed = FALSE;
+    if (opt_str) {
+        /* Parse OPT string for legacy compatibility */
+        if (strstr(opt_str, "L") || strstr(opt_str, "l")) {
+            detailed = TRUE;
         }
     }
     
-    /* Use current directory if no path specified */
-    if (path[0] == '\0') {
-        path = "";  /* Empty string means current dir in AmigaDOS */
+    /* Interactive mode not yet implemented */
+    if (inter_flag) {
+        printf("DIR: Interactive mode not yet implemented\n");
     }
     
-    return list_directory(path, detailed, show_all);
+    /* List the directory */
+    result = list_directory("", pattern, detailed, all_flag, dirs_flag, files_flag);
+    
+    FreeArgs(rda);
+    return result;
 }

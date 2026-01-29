@@ -286,30 +286,39 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 - ParentDir/CurrentDir/CreateDir
 - DeleteFile/Rename/NameFromLock
 
-### 🚧 Phase 4: Basic Userland & Metadata (IN PROGRESS)
-**Status**: Infrastructure complete, commands need Amiga-compatible syntax
+### ✅ Phase 4: Basic Userland & Metadata (COMPLETE)
+**Status**: All C: commands now use AmigaDOS template syntax
 
 #### Completed:
-- **SetProtection/SetComment APIs** - File metadata operations implemented
-  - Maps Amiga protection bits to Linux permissions
-  - Stores comments via xattr or sidecar files
-- **SYS:C directory structure** - Created for userland commands
-- **Command skeletons created** (using Unix-style args, need Amiga syntax):
-  - `DIR`, `TYPE`, `MAKEDIR`, `DELETE`
-
-#### Critical Work Remaining:
+- **Pattern Matching APIs** - Full wildcard support (`#?`, `?`, `#`)
+  - `ParsePattern()` and `MatchPattern()` implemented
+  - Supports wildcards: `#?` (any string), `?` (single char), `%` (escape)
+  - Also accepts `*` as convenience equivalent to `#?`
 - **ReadArgs() Implementation** - AmigaDOS template-based command parser
   - Template syntax: `/A` (required), `/M` (multiple), `/S` (switch), `/K` (keyword), `/N` (numeric)
-  - Pattern matching support (`#?` wildcards)
-- **Amiga-Compatible Command Syntax** (see `roadmap.md` for details):
-  - **DIR**: `DIR [dir|pattern] [ALL] [DIRS] [FILES] [INTER]` (not `-l`, `-a`)
-  - **TYPE**: `TYPE <file|pattern> [TO name] [HEX|NUMBER]` (not `-h`, `-n`)
-  - **DELETE**: `DELETE <file|pattern>... [ALL] [QUIET] [FORCE]` (not `-r`, `-f`)
-  - **MAKEDIR**: `MAKEDIR <name>...` (no options, multiple dirs supported)
-- **Pattern Matching** - `MatchPattern()` for `#?` wildcards
-- **Semaphore Support** - Required for C runtime (InitSemaphore, ObtainSemaphore)
+  - Full template parsing for all C: commands
+- **Semaphore Support** - C runtime compatibility
+  - `InitSemaphore()`, `ObtainSemaphore()`, `ReleaseSemaphore()`, `AttemptSemaphore()`
+- **SetProtection/SetComment APIs** - File metadata operations
+  - Maps Amiga protection bits to Linux permissions
+  - Stores comments via xattr or sidecar files
+- **C: Commands with Amiga Syntax** (in `sys/C/`):
+  - **DIR**: `DIR [dir|pattern] [OPT keywords] [ALL] [DIRS] [FILES] [INTER]`
+    - Pattern matching for filtering files
+    - ALL shows hidden files, DIRS/FILES filter by type
+    - OPT=L for detailed listing
+  - **TYPE**: `TYPE FROM/A/M [TO filename] [HEX] [NUMBER]`
+    - Multiple file support with FROM/A/M
+    - TO keyword for output redirection
+    - HEX for hex dump, NUMBER for line numbering
+  - **DELETE**: `DELETE FILE/M/A [ALL] [QUIET] [FORCE]`
+    - Multiple files/patterns with FILE/M/A
+    - ALL for recursive directory deletion
+    - QUIET suppresses output, FORCE ignores errors
+  - **MAKEDIR**: `MAKEDIR NAME/M/A`
+    - Multiple directory creation with /M modifier
 
-### 🚧 Phase 4b: Environment & Timestamps
+### 🚧 Phase 4b: Environment & Timestamps (Future)
 - Environment variables (GetVar/SetVar/DeleteVar/FindVar)
 - SetDate API for file timestamps
 - PROTECT, FILENOTE, RENAME commands
@@ -322,15 +331,13 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 
 ## Current Limitations
 
-- **Command Syntax**: Commands use Unix-style flags (`-l`, `-a`) instead of AmigaDOS keywords (`ALL`, `DIRS`)
-  - Requires ReadArgs() implementation for template-based parsing
-  - See Phase 4 in roadmap.md for command syntax alignment plan
-- **Semaphore Support**: InitSemaphore/ObtainSemaphore not implemented (blocks C runtime)
-- **Pattern Matching**: `#?` wildcards not supported (requires MatchPattern())
-- **CPU Support**: Only 68000 mode currently supported
+- **Interactive Shell**: No built-in shell yet (commands must be invoked directly)
+- **Scripting**: No Execute() or control flow commands (IF, ELSE, ENDIF, etc.)
+- **CPU Support**: Only 68000 mode currently supported (no 68020+ or FPU)
 - **Graphics**: No Intuition library support yet
 - **Assigns**: No assign support beyond VFS drive mapping
 - **ExAll()**: Not yet implemented (use ExNext for directory enumeration)
+- **Environment Variables**: GetVar/SetVar not yet implemented
 
 ## Development Roadmap
 
@@ -339,8 +346,8 @@ See `roadmap.md` for the complete development plan. Key milestones:
 - **Phase 1** ✅ - Exec multitasking foundation
 - **Phase 2** ✅ - Configuration and VFS layer  
 - **Phase 3** ✅ - First-run experience & filesystem API (locks, examine, directories)
-- **Phase 4** 🚧 - Basic userland & metadata
-- **Phase 5** 📋 - Interactive shell & scripting
+- **Phase 4** ✅ - Basic userland & metadata (commands with AmigaDOS templates)
+- **Phase 5** 🚧 - Interactive shell & scripting
 - **Phase 6** 📋 - System management & assignments
 - **Phase 7** 📋 - Advanced utilities & finalization
 

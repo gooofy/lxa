@@ -2626,23 +2626,164 @@ VOID _dos_MatchEnd ( register struct DosLibrary * DOSBase __asm("a6"),
     assert(FALSE);
 }
 
-LONG _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                        register CONST_STRPTR pat __asm("d1"),
-                                                        register STRPTR buf __asm("d2"),
-                                                        register LONG buflen __asm("d3"))
+/*
+ * Pattern Matching Implementation for AmigaDOS compatibility
+ * 
+ * AmigaDOS pattern syntax:
+ *   ?      - matches any single character
+ *   #      - wildcard multiplier (zero or more of next char/wildcard)
+ *   #?     - matches any sequence of characters (like "*" in other systems)
+ *   %      - escape character (treat next char literally)
+ *   ''     - quote characters (treat everything inside literally)
+ */
+
+/* Internal recursive pattern matching function - uses UBYTE for Amiga compatibility */
+static BOOL _match_pattern_internal(const UBYTE *pat, const UBYTE *str)
 {
-    LPRINTF (LOG_ERROR, "_dos: ParsePattern() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    const UBYTE *p = pat;
+    const UBYTE *s = str;
+    
+    while (*p) {
+        switch (*p) {
+            case '?':
+                /* Match any single character */
+                if (*s == '\0')
+                    return FALSE;
+                p++;
+                s++;
+                break;
+                
+            case '#':
+                /* Multiplier - zero or more of following char/wildcard */
+                p++;
+                if (*p == '\0')
+                    return FALSE; /* # at end is an error */
+                
+                if (*p == '?') {
+                    /* #? - matches any string (like *) */
+                    p++;
+                    /* Try to match rest of pattern at each position */
+                    const UBYTE *try_s = s;
+                    while (1) {
+                        if (_match_pattern_internal(p, try_s))
+                            return TRUE;
+                        if (*try_s == '\0')
+                            break;
+                        try_s++;
+                    }
+                    return FALSE;
+                } else {
+                    /* #c - matches zero or more of character c */
+                    UBYTE c = *p++;
+                    /* Try to match rest of pattern with varying numbers of c */
+                    const UBYTE *try_s = s;
+                    while (1) {
+                        if (_match_pattern_internal(p, try_s))
+                            return TRUE;
+                        if (*try_s != c)
+                            break;
+                        try_s++;
+                    }
+                    return FALSE;
+                }
+                break;
+                
+            case '%':
+                /* Escape character - match literally */
+                p++;
+                if (*p == '\0')
+                    return FALSE; /* % at end is an error */
+                if (*s != *p)
+                    return FALSE;
+                p++;
+                s++;
+                break;
+                
+            case '*':
+                /* Treat * as equivalent to #? for convenience */
+                p++;
+                {
+                    const UBYTE *try_s = s;
+                    while (1) {
+                        if (_match_pattern_internal(p, try_s))
+                            return TRUE;
+                        if (*try_s == '\0')
+                            break;
+                        try_s++;
+                    }
+                }
+                return FALSE;
+                
+            default:
+                /* Literal character match */
+                if (*s != *p)
+                    return FALSE;
+                p++;
+                s++;
+                break;
+        }
+    }
+    
+    /* Pattern exhausted - match if string is also exhausted */
+    return (*s == '\0');
+}
+
+LONG _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                         register CONST_STRPTR pat __asm("d1"),
+                                                         register STRPTR buf __asm("d2"),
+                                                         register LONG buflen __asm("d3"))
+{
+    DPRINTF (LOG_DEBUG, "_dos: ParsePattern() called, pat='%s'\n", pat ? pat : (CONST_STRPTR)"NULL");
+    
+    if (!pat || !buf || buflen <= 0) {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return 0;
+    }
+    
+    /* Check if pattern contains any wildcards */
+    BOOL has_wildcard = FALSE;
+    const UBYTE *p = pat;
+    while (*p) {
+        if (*p == '?' || *p == '#' || *p == '*' || *p == '%') {
+            has_wildcard = TRUE;
+            break;
+        }
+        p++;
+    }
+    
+    /* Copy pattern to buffer (ParsePattern just copies it for our simple implementation) */
+    LONG len = 0;
+    while (pat[len] != '\0') len++;
+    
+    if (len >= buflen) {
+        SetIoErr(ERROR_LINE_TOO_LONG);
+        return 0;
+    }
+    
+    /* Copy manually to avoid strcpy type issues */
+    for (LONG i = 0; i <= len; i++) {
+        buf[i] = pat[i];
+    }
+    
+    /* Return -1 for literal string, positive for wildcard pattern */
+    return has_wildcard ? len : -1;
 }
 
 BOOL _dos_MatchPattern ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                        register CONST_STRPTR pat __asm("d1"),
-                                                        register STRPTR str __asm("d2"))
+                                                         register CONST_STRPTR pat __asm("d1"),
+                                                         register STRPTR str __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: MatchPattern() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_dos: MatchPattern() called, pat='%s', str='%s'\n", 
+             pat ? pat : (CONST_STRPTR)"NULL", str ? str : (STRPTR)"NULL");
+    
+    if (!pat || !str)
+        return FALSE;
+    
+    /* Empty pattern matches empty string only */
+    if (pat[0] == '\0')
+        return (str[0] == '\0');
+    
+    return _match_pattern_internal((const UBYTE *)pat, (const UBYTE *)str);
 }
 
 VOID _dos_private3 ( register struct DosLibrary * DOSBase __asm("a6"))
