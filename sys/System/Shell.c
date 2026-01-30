@@ -55,6 +55,7 @@ static int block_sp = 0;
 /* Helper function: Output a string */
 static void out_str(const char *str) {
     Write(Output(), (STRPTR)str, strlen(str));
+    Flush(Output());
 }
 
 /* Helper function: Output a string with newline */

@@ -1572,7 +1572,8 @@ LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
 														register BPTR fh __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Flush() called fh=%08lx\n", fh);
-    return emucall1(EMU_CALL_DOS_FLUSH, (ULONG)fh);
+    struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
+    return emucall1(EMU_CALL_DOS_FLUSH, (ULONG)fhp);
 }
 
 LONG _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2604,7 +2605,7 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
     }
 
     /* Get argument string from process */
-    STRPTR arg_str = BADDR(me->pr_Arguments);
+    STRPTR arg_str = me->pr_Arguments;
     if (!arg_str) {
         SetIoErr(ERROR_BAD_NUMBER);
         return NULL;

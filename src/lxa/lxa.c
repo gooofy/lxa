@@ -39,8 +39,8 @@
 
 #define CUSTOM_REG_INTENA   0x09a
 
-/* Default SYS: drive - use current directory as fallback */
-#define DEFAULT_AMIGA_SYSROOT "."
+/* Default SYS: drive - use sys/ subdirectory if present, otherwise current directory */
+#define DEFAULT_AMIGA_SYSROOT "sys"
 
 #define MODE_OLDFILE        1005
 #define MODE_NEWFILE        1006
@@ -2622,8 +2622,13 @@ int main(int argc, char **argv, char **envp)
     if (sysroot) {
         vfs_add_drive("SYS", sysroot);
     } else if (!vfs_has_sys_drive()) {
-        /* No SYS: drive configured - use default */
-        vfs_add_drive("SYS", DEFAULT_AMIGA_SYSROOT);
+        /* No SYS: drive configured - try sys/ subdirectory first, then current directory */
+        struct stat st;
+        if (stat(DEFAULT_AMIGA_SYSROOT, &st) == 0 && S_ISDIR(st.st_mode)) {
+            vfs_add_drive("SYS", DEFAULT_AMIGA_SYSROOT);
+        } else {
+            vfs_add_drive("SYS", ".");
+        }
     }
 
     if (!rom_path) {

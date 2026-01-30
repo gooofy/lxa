@@ -726,7 +726,7 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
     process->pr_Flags                   = 0;
     process->pr_ExitCode                = NULL;
     process->pr_ExitData                = NULL;
-    process->pr_Arguments               = NULL;
+    process->pr_Arguments               = (STRPTR) args;
     process->pr_ShellPrivate            = NULL;
     process->pr_CES                     = 0;
 }
