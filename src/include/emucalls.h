@@ -43,6 +43,7 @@
 #define EMU_CALL_DOS_SETPROTECTION 1019 /* SetProtection(name, mask) -> success */
 #define EMU_CALL_DOS_SETCOMMENT 1020 /* SetComment(name, comment) -> success */
 #define EMU_CALL_DOS_NAMEFROMLOCK 1021 /* NameFromLock(lock, buf, len) -> success */
+#define EMU_CALL_DOS_FLUSH     1022  /* Flush(fh) -> success */
 
 #endif
 

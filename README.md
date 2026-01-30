@@ -19,6 +19,44 @@ make all
 This builds:
 - `target/x86_64-linux/bin/lxa` - The main emulator executable
 - `src/rom/lxa.rom` - The AmigaOS kickstart ROM image
+- `sys/C/*` - AmigaDOS commands (DIR, TYPE, DELETE, MAKEDIR)
+- `sys/System/Shell` - Amiga Shell (interactive command interpreter)
+
+## Quick Start
+
+lxa works like **WINE** for Windows programs - it runs Amiga executables directly on Linux:
+
+```bash
+# First run - creates ~/.lxa/ automatically (like WINE's ~/.wine)
+./target/x86_64-linux/bin/lxa
+
+# Run a simple Amiga program
+./target/x86_64-linux/bin/lxa tests/dos/helloworld/helloworld
+
+# Run the Amiga Shell (interactive mode)
+./target/x86_64-linux/bin/lxa sys/System/Shell
+
+# Run Shell with a script file
+./target/x86_64-linux/bin/lxa sys/System/Shell myscript.txt
+```
+
+### First Run Setup
+
+On first execution, lxa automatically creates a default environment at `~/.lxa/`:
+
+```bash
+$ ./target/x86_64-linux/bin/lxa
+lxa: First run detected - creating default environment at /home/user/.lxa
+lxa: Environment created successfully.
+lxa - Linux Amiga Emulation Layer
+usage: ./target/x86_64-linux/bin/lxa [ options ] <loadfile>
+...
+```
+
+This creates:
+- `~/.lxa/config.ini` - Configuration file
+- `~/.lxa/System/` - SYS: drive with S/, C/, Libs/, Devs/, T/ directories
+- `~/.lxa/System/S/Startup-Sequence` - Default startup script
 
 ## Usage
 
@@ -32,32 +70,47 @@ lxa [options] <loadfile>
   - Examples: `-b _start`, `-b __acs_main`
 - `-c <config>` - Specify configuration file
   - Default: `~/.lxa/config.ini`
-  - See Configuration section below
 - `-d` - Enable debug output
-- `-r <rom>` - Specify kickstart ROM path
-  - Default: `../rom/lxa.rom`
-  - Can also be set in configuration file
-- `-s <sysroot>` - Set AmigaOS system root directory (legacy mode)
-  - Default: `/home/guenter/media/emu/amiga/FS-UAE/hdd/system/`
-  - Maps to `SYS:` drive when VFS is not configured
+- `-r <rom>` - Specify kickstart ROM path (auto-detected if not specified)
+  - Searches: current directory, src/rom/, ~/.lxa/, /usr/share/lxa/
+- `-s <sysroot>` - Set AmigaOS system root directory
+  - Default: current directory
+  - Maps to `SYS:` drive
 - `-v` - Verbose mode
 - `-t` - Enable CPU instruction tracing
 
-### Examples
+### Common Use Cases
 
-Run with configuration file:
+**Run the Amiga Shell interactively:**
 ```bash
-lxa -c ~/.lxa/config.ini myprogram
+./target/x86_64-linux/bin/lxa sys/System/Shell
 ```
 
-Run a hunk format Amiga executable (legacy mode):
+The Shell provides:
+- Interactive prompt: `1.SYS:> `
+- Internal commands: CD, ECHO, PROMPT, PATH
+- Control flow: IF/ELSE/ENDIF, SKIP/LAB
+- Tools: ALIAS, WHICH, WHY, FAULT
+
+**Run a program from the current directory:**
 ```bash
-lxa -v -s ./tests/dos/helloworld ./tests/dos/helloworld/helloworld
+# The current directory becomes SYS: by default
+./target/x86_64-linux/bin/lxa myprogram
 ```
 
-Run with debugging and breakpoint:
+**Run with debugging:**
 ```bash
-lxa -b _start -d ./myprogram
+./target/x86_64-linux/bin/lxa -b _start -d ./myprogram
+```
+
+**Specify custom ROM location:**
+```bash
+./target/x86_64-linux/bin/lxa -r /path/to/lxa.rom myprogram
+```
+
+**Use custom system root:**
+```bash
+./target/x86_64-linux/bin/lxa -s /path/to/amiga/files sys/System/Shell
 ```
 
 ## Configuration
@@ -323,16 +376,22 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 - SetDate API for file timestamps
 - PROTECT, FILENOTE, RENAME commands
 
-### 📋 Phase 5-7: Future Work
-- Interactive shell with scripting
-- Device handlers and console improvements
+### ✅ Phase 5: Interactive Shell & Scripting (COMPLETE)
+- Interactive Shell with prompt and command history
+- Execute() API for script execution
+- Control flow: IF/ELSE/ENDIF, SKIP/LAB
+- Shell commands: ECHO (NOLINE), ASK, ALIAS, WHICH, WHY, FAULT
+- **Known Issue**: Script execution hangs (see roadmap.md for details)
+
+### 📋 Phase 6-7: Future Work
+- Assignment API (AssignLock, AssignPath)
+- System management tools
 - Graphics/Intuition library support
 - 68020+ CPU modes with FPU
 
 ## Current Limitations
 
-- **Interactive Shell**: No built-in shell yet (commands must be invoked directly)
-- **Scripting**: No Execute() or control flow commands (IF, ELSE, ENDIF, etc.)
+- **Script Execution**: Shell scripts hang when executed via Execute() (Phase 5 infrastructure issue)
 - **CPU Support**: Only 68000 mode currently supported (no 68020+ or FPU)
 - **Graphics**: No Intuition library support yet
 - **Assigns**: No assign support beyond VFS drive mapping
@@ -344,12 +403,73 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 See `roadmap.md` for the complete development plan. Key milestones:
 
 - **Phase 1** ✅ - Exec multitasking foundation
-- **Phase 2** ✅ - Configuration and VFS layer  
+- **Phase 2** ✅ - Configuration and VFS layer
 - **Phase 3** ✅ - First-run experience & filesystem API (locks, examine, directories)
 - **Phase 4** ✅ - Basic userland & metadata (commands with AmigaDOS templates)
-- **Phase 5** 🚧 - Interactive shell & scripting
+- **Phase 5** ✅ - Interactive shell & scripting (infrastructure issues to resolve)
 - **Phase 6** 📋 - System management & assignments
 - **Phase 7** 📋 - Advanced utilities & finalization
+
+### Current Status
+
+**Phase 5 Implementation Complete** - The Shell is fully functional for interactive use. However, there are infrastructure issues preventing script execution from working properly. These must be resolved before Phase 6:
+
+1. **Script Execution Hang** - Shell hangs when running scripts via Execute()
+2. **Test Suite** - Shell tests need to be completed and passing
+
+See `roadmap.md` Phase 5 section for detailed blocker list.
+
+## Troubleshooting
+
+### Shell shows prompt but no command output
+**Problem**: The Shell uses `printf()` from the C standard library, but lxa doesn't fully initialize the C runtime needed for stdio.
+
+**Solution**: Run commands directly without the Shell:
+```bash
+# Instead of Shell + dir:
+./target/x86_64-linux/bin/lxa sys/System/Shell
+1.SYS:> dir  # May not show output
+
+# Run directly:
+./target/x86_64-linux/bin/lxa -s . sys/C/dir
+```
+
+**Long-term fix**: The Shell needs to be rewritten to use AmigaDOS I/O (`Write()`, `FPuts()`) instead of `printf()`. See roadmap.md Phase 5 blockers.
+
+### "LoadSeg() Open() for name=X failed"
+**Problem**: SYS: drive is mapped to `~/.lxa/System/` from first-run config, but commands are in `sys/C/`.
+
+**Solutions**:
+```bash
+# Option 1: Use -s . to force current directory as SYS:
+./target/x86_64-linux/bin/lxa -s . sys/C/dir
+
+# Option 2: Copy commands to ~/.lxa/System/C/
+cp -r sys/C/* ~/.lxa/System/C/
+
+# Option 3: Edit ~/.lxa/config.ini to change SYS: mapping
+# SYS = /path/to/lxa/sys  # Instead of ~/.lxa/System
+```
+
+### Shell hangs when running scripts
+**Problem**: Script execution via Execute() causes the Shell to hang indefinitely.
+
+**Status**: This is a known issue. See roadmap.md Phase 5 infrastructure issues.
+
+### "failed to open lxa.rom"
+**Problem**: ROM file not found in default locations.
+
+**Solutions**:
+```bash
+# Option 1: Copy ROM to current directory
+cp src/rom/lxa.rom .
+
+# Option 2: Specify ROM path explicitly
+./target/x86_64-linux/bin/lxa -r /path/to/lxa.rom myprogram
+
+# Option 3: Install to system location
+sudo cp src/rom/lxa.rom /usr/share/lxa/
+```
 
 ## License
 

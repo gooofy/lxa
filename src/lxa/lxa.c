@@ -29,7 +29,6 @@
 #define RAM_END     RAM_START + RAM_SIZE - 1
 
 #define DEFAULT_ROM_PATH "../rom/lxa.rom"
-//#define DEFAULT_ROM_PATH "../tinyrom/lxa.rom"
 
 #define ROM_SIZE    256 * 1024
 #define ROM_START   0xfc0000
@@ -40,7 +39,8 @@
 
 #define CUSTOM_REG_INTENA   0x09a
 
-#define DEFAULT_AMIGA_SYSROOT "/home/guenter/media/emu/amiga/FS-UAE/hdd/system/"
+/* Default SYS: drive - use current directory as fallback */
+#define DEFAULT_AMIGA_SYSROOT "."
 
 #define MODE_OLDFILE        1005
 #define MODE_NEWFILE        1006
@@ -565,6 +565,43 @@ void cpu_instr_callback(int pc)
     }
 }
 
+/* Auto-detect ROM path - tries multiple locations like Wine does */
+static const char *auto_detect_rom_path(void)
+{
+    static char path[PATH_MAX];
+    struct stat st;
+    const char *home = getenv("HOME");
+    
+    /* Try locations in order of preference */
+    const char *try_paths[] = {
+        "lxa.rom",                           /* Current directory */
+        "src/rom/lxa.rom",                   /* Project root */
+        "../rom/lxa.rom",                    /* Relative to binary in bin/ */
+    };
+    
+    for (size_t i = 0; i < sizeof(try_paths)/sizeof(try_paths[0]); i++) {
+        if (stat(try_paths[i], &st) == 0 && S_ISREG(st.st_mode)) {
+            realpath(try_paths[i], path);
+            return path;
+        }
+    }
+    
+    /* Try ~/.lxa/lxa.rom */
+    if (home) {
+        snprintf(path, sizeof(path), "%s/.lxa/lxa.rom", home);
+        if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+            return path;
+        }
+    }
+    
+    /* Try system-wide location */
+    if (stat("/usr/share/lxa/lxa.rom", &st) == 0 && S_ISREG(st.st_mode)) {
+        return "/usr/share/lxa/lxa.rom";
+    }
+    
+    return NULL;
+}
+
 static char *_mgetstr (uint32_t address)
 {
     if ((address >= RAM_START) && (address <= RAM_END))
@@ -839,6 +876,33 @@ static int _dos_write (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
     }
 
     return l;
+}
+
+static int _dos_flush (uint32_t fh68k)
+{
+    DPRINTF (LOG_DEBUG, "lxa: _dos_flush(): fh=0x%08x\n", fh68k);
+
+    int fd   = m68k_read_memory_32 (fh68k+36);
+    int kind = m68k_read_memory_32 (fh68k+32);
+
+    if (kind == FILE_KIND_REGULAR)
+    {
+        if (fsync(fd) == 0)
+            return 1;
+        else
+        {
+            m68k_write_memory_32 (fh68k+40, errno2Amiga());
+            return 0;
+        }
+    }
+    else if (kind == FILE_KIND_CONSOLE)
+    {
+        /* For console, just flush stdout */
+        fflush(stdout);
+        return 1;
+    }
+
+    return 0;
 }
 
 static int _dos_close (uint32_t fh68k)
@@ -2091,6 +2155,17 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_DOS_FLUSH:
+        {
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_FLUSH fh=0x%08x\n", fh);
+
+            uint32_t res = _dos_flush(fh);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
         default:
         {
             /*
@@ -2431,17 +2506,24 @@ static bool _load_rom_map (const char *rom_path)
 
 static void print_usage(char *argv[])
 {
+    fprintf(stderr, "lxa - Linux Amiga Emulation Layer\n");
     fprintf(stderr, "usage: %s [ options ] <loadfile>\n", argv[0]);
-    fprintf(stderr, "    -b <addr|sym>  add breakpoint, examples:\n");
-    fprintf(stderr, "                     b _start\n");
-    fprintf(stderr, "                     b __acs_main\n");
-    fprintf(stderr, "    -c <config>    use config file, default: ~/.lxa/config.ini\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "    -b <addr|sym>  add breakpoint, examples: -b _start\n");
+    fprintf(stderr, "    -c <config>    use config file (default: ~/.lxa/config.ini)\n");
     fprintf(stderr, "    -d             enable debug output\n");
-    fprintf(stderr, "    -r <rom>       use kickstart <rom>, default: %s\n", DEFAULT_ROM_PATH);
-    fprintf(stderr, "    -s <sysroot>   set AmigaOS system root, default: %s\n", DEFAULT_AMIGA_SYSROOT);
-    fprintf(stderr, "    -v             verbose\n");
-    fprintf(stderr, "    -t             trace\n");
-    //fprintf(stderr, "    -S             print symtab\n");
+    fprintf(stderr, "    -r <rom>       use kickstart ROM (auto-detected if not specified)\n");
+    fprintf(stderr, "    -s <sysroot>   set AmigaOS system root (default: current directory)\n");
+    fprintf(stderr, "    -v             verbose mode\n");
+    fprintf(stderr, "    -t             trace mode\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Examples:\n");
+    fprintf(stderr, "    %s hello.world              # Run a program\n", argv[0]);
+    fprintf(stderr, "    %s -s . sys/System/Shell    # Run the Shell\n", argv[0]);
+    fprintf(stderr, "    %s -r /path/to/lxa.rom prog # Specify ROM location\n", argv[0]);
+    fprintf(stderr, "\n");
+    fprintf(stderr, "First run: lxa will create ~/.lxa/ with default configuration\n");
 }
 
 int main(int argc, char **argv, char **envp)
@@ -2530,7 +2612,15 @@ int main(int argc, char **argv, char **envp)
 
     if (!rom_path) {
         rom_path = (char *)config_get_rom_path();
-        if (!rom_path) rom_path = DEFAULT_ROM_PATH;
+        if (!rom_path) {
+            rom_path = (char *)auto_detect_rom_path();
+            if (!rom_path) {
+                fprintf(stderr, "lxa: ERROR: Could not find lxa.rom\n");
+                fprintf(stderr, "lxa: Searched in: current directory, src/rom/, ~/.lxa/, /usr/share/lxa/\n");
+                fprintf(stderr, "lxa: Please specify ROM path with -r option or install lxa.rom\n");
+                exit(EXIT_FAILURE);
+            }
+        }
     }
 
     if (argc != optind+1)
@@ -2540,7 +2630,13 @@ int main(int argc, char **argv, char **envp)
     }
 
     g_loadfile = argv[optind];
-    g_sysroot = sysroot ? sysroot : DEFAULT_AMIGA_SYSROOT;
+    
+    /* Use current directory as sysroot if none specified and no config */
+    if (!sysroot && !vfs_has_sys_drive()) {
+        /* Default to current directory for SYS: */
+        vfs_add_drive("SYS", ".");
+    }
+    g_sysroot = sysroot ? sysroot : ".";
 
     util_init();
 

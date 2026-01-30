@@ -284,7 +284,7 @@ bool vfs_setup_environment(void)
         return true;
     }
     
-    CPRINTF("lxa: First run detected - creating default environment at %s\n", g_lxa_home);
+    fprintf(stderr, "lxa: First run detected - creating default environment at %s\n", g_lxa_home);
     
     /* Create the directory structure */
     if (!ensure_dir(g_lxa_home)) return false;
@@ -357,6 +357,6 @@ bool vfs_setup_environment(void)
     
     if (!write_file_if_missing(path, startup_content)) return false;
     
-    CPRINTF("lxa: Environment created successfully.\n");
+    fprintf(stderr, "lxa: Environment created successfully.\n");
     return true;
 }

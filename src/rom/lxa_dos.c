@@ -16,6 +16,8 @@
 #include <clib/utility_protos.h>
 #include <inline/utility.h>
 
+//#include <string.h>
+
 //#define ENABLE_DEBUG
 #include "util.h"
 
@@ -50,6 +52,10 @@ char __aligned _g_dos_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 extern struct ExecBase      *SysBase;
 extern struct UtilityBase   *UtilityBase;
 extern struct DosLibrary    *DOSBase;
+
+LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
+                                    register CONST_STRPTR command  __asm("d1"),
+                                    register const struct TagItem * tags __asm("d2"));
 
 /*
  * RootNode and TaskArray implementation for proper CLI process numbering.
@@ -254,7 +260,7 @@ BPTR __g_lxa_dos_CloseLib ( register struct DosLibrary  *dosb __asm("a6"))
   }
 #endif
 
-    return NULL;
+    return 0;
 }
 
 BPTR __g_lxa_dos_ExpungeLib ( register struct DosLibrary  *dosb      __asm("a6"))
@@ -290,12 +296,12 @@ BPTR __g_lxa_dos_ExpungeLib ( register struct DosLibrary  *dosb      __asm("a6")
 
  ExecBase->exb_LibNode.lib_Flags |= LIBF_DELEXP;
 #endif
-    return NULL;
+    return 0;
 }
 
 ULONG __g_lxa_dos_ExtFuncLib(void)
 {
-    return NULL;
+    return 0;
 }
 
 BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
@@ -506,7 +512,7 @@ BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
 
     if (!___name) {
         SetIoErr(ERROR_OBJECT_NOT_FOUND);
-        return NULL;
+        return 0;
     }
 
     ULONG lock_id = emucall2(EMU_CALL_DOS_LOCK, (ULONG)___name, (ULONG)___type);
@@ -515,7 +521,7 @@ BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
 
     if (lock_id == 0) {
         SetIoErr(ERROR_OBJECT_NOT_FOUND);
-        return NULL;
+        return 0;
     }
 
     /* The lock_id from host is used directly as BPTR */
@@ -537,7 +543,7 @@ BPTR _dos_DupLock ( register struct DosLibrary * __libBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_dos: DupLock() called, lock=0x%08lx\n", ___lock);
 
-    if (!___lock) return NULL;
+    if (!___lock) return 0;
 
     ULONG lock_id = emucall1(EMU_CALL_DOS_DUPLOCK, (ULONG)___lock);
 
@@ -622,7 +628,7 @@ BPTR _dos_CreateDir ( register struct DosLibrary * __libBase __asm("a6"),
 
     if (!___name) {
         SetIoErr(ERROR_OBJECT_NOT_FOUND);
-        return NULL;
+        return 0;
     }
 
     ULONG lock_id = emucall1(EMU_CALL_DOS_CREATEDIR, (ULONG)___name);
@@ -631,7 +637,7 @@ BPTR _dos_CreateDir ( register struct DosLibrary * __libBase __asm("a6"),
 
     if (lock_id == 0) {
         SetIoErr(ERROR_OBJECT_NOT_FOUND);
-        return NULL;
+        return 0;
     }
 
     return (BPTR)lock_id;
@@ -828,8 +834,8 @@ BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
     if (!hunk_table)
         goto finish;
 
-    ULONG hunk_prev = NULL;
-    ULONG hunk_first = NULL;
+    ULONG hunk_prev = 0;
+    ULONG hunk_first = 0;
     for (int i = hunk_first_slot; i <= last_hunk_slot; i++)
     {
         ULONG cnt;
@@ -1018,11 +1024,12 @@ finish:
 }
 
 void _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register BPTR ___seglist  __asm("d1"))
+                                    register BPTR ___seglist  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: UnLoadSeg unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: UnLoadSeg unimplemented STUB called for seglist 0x%08lx.\n", ___seglist);
+    /* FIXME: Implement memory freeing */
 }
+
 
 VOID _dos_private0 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
@@ -1137,13 +1144,6 @@ struct DateStamp * _dos_DateStamp ( register struct DosLibrary *DOSBase __asm("a
     return ds;
 }
 
-void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
-                                                        register LONG ___timeout  __asm("d1"))
-{
-    DPRINTF (LOG_DEBUG, "_dos: Delay() unimplemented STUB called.\n");
-    assert(FALSE);
-}
-
 LONG _dos_WaitForChar ( register struct DosLibrary * __libBase __asm("a6"),
                                         register BPTR ___file  __asm("d1"),
                                         register LONG ___timeout  __asm("d2"))
@@ -1160,7 +1160,7 @@ BPTR _dos_ParentDir ( register struct DosLibrary * __libBase __asm("a6"),
 
     if (!___lock) {
         SetIoErr(ERROR_OBJECT_NOT_FOUND);
-        return NULL;
+        return 0;
     }
 
     ULONG lock_id = emucall1(EMU_CALL_DOS_PARENTDIR, (ULONG)___lock);
@@ -1180,14 +1180,72 @@ LONG _dos_IsInteractive ( register struct DosLibrary *DOSBase __asm("a6"),
     return kind == FILE_KIND_CONSOLE;
 }
 
-LONG _dos_Execute ( register struct DosLibrary * __libBase __asm("a6"),
+void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
+                  register ULONG ticks __asm("d1"))
+{
+    /* 1 tick = 1/50 sec = 20ms
+     * EMU_CALL_WAIT = 10ms
+     * So 2 wait calls per tick.
+     */
+    DPRINTF (LOG_DEBUG, "_dos: Delay(%ld) called.\n", ticks);
+    
+    for (ULONG i = 0; i < ticks * 2; i++) {
+        emucall0(EMU_CALL_WAIT); 
+    }
+}
+
+LONG _dos_Execute ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register CONST_STRPTR ___string  __asm("d1"),
                                     register BPTR ___file  __asm("d2"),
                                     register BPTR ___file2  __asm("d3"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Execute() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: Execute('%s') called.\n", ___string);
+    
+    /* 
+     * Execute(command, input, output)
+     * If input is 0, command is used as input stream? No.
+     * If input is 0, command is the COMMAND LINE.
+     */
+     
+    /* Simple implementation: pass to System() */
+    /* If it's a script, System() should handle it via LoadSeg failure? */
+    /* Or we check here? */
+    
+    /* System(command) handles binary execution. 
+       If we want to run a script, we need to construct "Shell command".
+       
+       Let's try System first. If it fails (LoadSeg fails), we try to treat it as script.
+    */
+    
+    LONG rc = _dos_SystemTagList(DOSBase, ___string, NULL);
+    
+    if (rc == -1) { /* System failed to load */
+        /* Try as script: "SYS:System/Shell string" */
+        
+        STRPTR shellName = (STRPTR)"SYS:System/Shell";
+        
+        /* Allocate buffer for "Shell script args" */
+        /* We need space for "SYS:System/Shell " + string + null */
+        ULONG cmdLen = strlen((char *)shellName) + 1 + strlen((char *)___string) + 1;
+        STRPTR cmdBuf = AllocVec(cmdLen, MEMF_PUBLIC);
+        
+        if (cmdBuf) {
+            strcpy((char *)cmdBuf, (char *)shellName);
+            strcat((char *)cmdBuf, " ");
+            strcat((char *)cmdBuf, (char *)___string);
+            
+            DPRINTF(LOG_DEBUG, "_dos: Execute: System failed, trying as script: '%s'\n", cmdBuf);
+            
+            rc = _dos_SystemTagList(DOSBase, cmdBuf, NULL);
+            
+            FreeVec(cmdBuf);
+        } else {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            rc = RETURN_FAIL;
+        }
+    }
+    
+    return rc;
 }
 
 void *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
@@ -1413,7 +1471,7 @@ BPTR _dos_SelectInput ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     LPRINTF (LOG_ERROR, "_dos: SelectInput() unimplemented STUB called.\n");
     assert(FALSE);
-    return NULL;
+    return 0;
 }
 
 BPTR _dos_SelectOutput ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1421,7 +1479,7 @@ BPTR _dos_SelectOutput ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     LPRINTF (LOG_ERROR, "_dos: SelectOutput() unimplemented STUB called.\n");
     assert(FALSE);
-    return NULL;
+    return 0;
 }
 
 LONG _dos_FGetC ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1511,11 +1569,10 @@ LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
 }
 
 LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                        register BPTR fh __asm("d1"))
+														register BPTR fh __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: Flush() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: Flush() called fh=%08lx\n", fh);
+    return emucall1(EMU_CALL_DOS_FLUSH, (ULONG)fh);
 }
 
 LONG _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1534,7 +1591,7 @@ BPTR _dos_DupLockFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     LPRINTF (LOG_ERROR, "_dos: DupLockFromFH() unimplemented STUB called.\n");
     assert(FALSE);
-    return NULL;
+    return 0;
 }
 
 BPTR _dos_OpenFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1542,7 +1599,7 @@ BPTR _dos_OpenFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     LPRINTF (LOG_ERROR, "_dos: OpenFromLock() unimplemented STUB called.\n");
     assert(FALSE);
-    return NULL;
+    return 0;
 }
 
 BPTR _dos_ParentOfFH ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1550,7 +1607,7 @@ BPTR _dos_ParentOfFH ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     LPRINTF (LOG_ERROR, "_dos: ParentOfFH() unimplemented STUB called.\n");
     assert(FALSE);
-    return NULL;
+    return 0;
 }
 
 BOOL _dos_ExamineFH ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1800,7 +1857,7 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     BOOL   do_cli    =          GetTagData(NP_Cli      , 0                    , tags);
            inp       =          GetTagData(NP_Input    , inp                  , tags);
            outp      =          GetTagData(NP_Output   , outp                 , tags);
-    char  *args      = (char*)  GetTagData(NP_Arguments, NULL                 , tags);
+    char  *args      = (char*)  GetTagData(NP_Arguments, (ULONG)NULL          , tags);
 
     // Enforce minimum stack size
     if (stackSize < MIN_STACK_SIZE)
@@ -2016,23 +2073,125 @@ BPTR _dos_SetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     LPRINTF (LOG_ERROR, "_dos: SetProgramDir() unimplemented STUB called.\n");
     assert(FALSE);
-    return NULL;
+    return 0;
 }
 
 BPTR _dos_GetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     LPRINTF (LOG_ERROR, "_dos: GetProgramDir() unimplemented STUB called.\n");
     assert(FALSE);
-    return NULL;
+    return 0;
 }
 
 LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR command __asm("d1"),
                                                         register const struct TagItem * tags __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SystemTagList() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_INFO, "_dos: SystemTagList() called command='%s'\n", command);
+    
+    char bin_name[256];
+    char *args = NULL;
+    int i = 0;
+    
+    /* Skip leading spaces */
+    while (*command == ' ') command++;
+    
+    //const char *start = command;
+    while (*command && *command != ' ' && *command != '\n' && i < 255) {
+        bin_name[i++] = *command++;
+    }
+    bin_name[i] = '\0';
+    
+    /* Args start after the space/command */
+    if (*command) args = (char *)command; // Points to space or rest of string
+    // Usually arguments string passed to C startup includes the space? No, usually it's just args.
+    // If I pass " foo", the startup code sees " foo".
+    // If I pass "foo", it sees "foo".
+    // Let's pass the rest of the string as is.
+    
+    /* Try to load */
+    BPTR seglist = _dos_LoadSeg(DOSBase, (STRPTR)bin_name);
+    if (!seglist) {
+        /* Try C: prefix if no path component */
+        int has_colon = 0;
+        int has_slash = 0;
+        for(int j=0; bin_name[j]; j++) {
+            if(bin_name[j] == ':') has_colon=1;
+            if(bin_name[j] == '/') has_slash=1;
+        }
+        
+        if (!has_colon && !has_slash) {
+             char tmp[256];
+             // Simple strcpy/cat
+             char *s = "SYS:C/";
+             char *d = tmp;
+             while(*s) *d++ = *s++;
+             char *n = bin_name;
+             while(*n) *d++ = *n++;
+             *d = 0;
+             
+             seglist = _dos_LoadSeg(DOSBase, (STRPTR)tmp);
+        }
+    }
+    
+    if (!seglist) {
+        DPRINTF(LOG_ERROR, "_dos: SystemTagList() failed to load '%s'\n", bin_name);
+        return -1; // ERROR_OBJECT_NOT_FOUND
+    }
+    
+    /* Create Process */
+    BPTR input = GetTagData(SYS_Input, 0, tags);
+    BPTR output = GetTagData(SYS_Output, 0, tags);
+    
+    if (!input || !output) {
+         struct Process *me = (struct Process *)FindTask(NULL);
+         if (IS_PROCESS(me)) {
+             if (!input) input = me->pr_CIS;
+             if (!output) output = me->pr_COS;
+         }
+    }
+    
+    struct TagItem procTags[] = {
+        { NP_Seglist, (ULONG)seglist },
+        { NP_Name, (ULONG)bin_name },
+        { NP_StackSize, 4096 },
+        { NP_Cli, TRUE },
+        { NP_Input, input },
+        { NP_Output, output },
+        { NP_Arguments, (ULONG)args },
+        { TAG_DONE, 0 }
+    };
+    
+    struct Process *proc = _dos_CreateNewProc(DOSBase, procTags);
+    if (!proc) {
+        DPRINTF(LOG_ERROR, "_dos: SystemTagList() failed to create process\n");
+        _dos_UnLoadSeg(DOSBase, seglist);
+        return -1;
+    }
+    
+    /* Wait for completion - Poll TaskArray */
+    LONG taskNum = proc->pr_TaskNum;
+    struct RootNode *root = DOSBase->dl_Root;
+    
+    DPRINTF(LOG_INFO, "_dos: SystemTagList waiting for task %ld (proc 0x%08lx)\n", taskNum, proc);
+    
+    while (1) {
+        struct Task **tasks = (struct Task **)BADDR(root->rn_TaskArray);
+        if (!tasks) break; 
+        
+        struct Task *t = tasks[taskNum];
+        if (t != (struct Task *)proc) {
+            // Task gone (reused or cleared)
+            break;
+        }
+        
+        _dos_Delay(DOSBase, 10);
+    }
+    
+    DPRINTF(LOG_INFO, "_dos: SystemTagList task %ld finished\n", taskNum);
+    
+    _dos_UnLoadSeg(DOSBase, seglist);
+    return 0; // Success
 }
 
 LONG _dos_AssignLock ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2250,7 +2409,7 @@ BPTR _dos_InternalLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     LPRINTF (LOG_ERROR, "_dos: InternalLoadSeg() unimplemented STUB called.\n");
     assert(FALSE);
-    return NULL;
+    return 0;
 }
 
 BOOL _dos_InternalUnLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2268,7 +2427,7 @@ BPTR _dos_NewLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     LPRINTF (LOG_ERROR, "_dos: NewLoadSeg() unimplemented STUB called.\n");
     assert(FALSE);
-    return NULL;
+    return 0;
 }
 
 LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),

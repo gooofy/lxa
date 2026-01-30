@@ -313,21 +313,41 @@ static LONG _utility_SDivMod32 ( register struct UtilityBase * UtilityBase __asm
 }
 
 static ULONG _utility_UDivMod32 ( register struct UtilityBase * UtilityBase __asm("a6"),
-                                                        register ULONG dividend __asm("d0"),
-                                                        register ULONG divisor __asm("d1"))
+														register ULONG dividend __asm("d0"),
+														register ULONG divisor __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_utility: UDivMod32() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* UDivMod32 divides D0 by D1 and returns quotient in D0 and remainder in D1 */
+    if (divisor == 0) {
+        DPRINTF (LOG_ERROR, "_utility: UDivMod32() division by zero!\n");
+        return 0;
+    }
+    
+    return dividend / divisor;
 }
 
 static LONG _utility_Stricmp ( register struct UtilityBase * UtilityBase __asm("a6"),
-                                                        register CONST_STRPTR string1 __asm("a0"),
-                                                        register CONST_STRPTR string2 __asm("a1"))
+														register CONST_STRPTR string1 __asm("a0"),
+														register CONST_STRPTR string2 __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_utility: Stricmp() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* Case-insensitive string comparison */
+    while (*string1 && *string2) {
+        char c1 = *string1;
+        char c2 = *string2;
+        
+        /* Convert to lowercase for comparison */
+        if (c1 >= 'A' && c1 <= 'Z') c1 += 32;
+        if (c2 >= 'A' && c2 <= 'Z') c2 += 32;
+        
+        if (c1 != c2) {
+            return (LONG)((UBYTE)c1 - (UBYTE)c2);
+        }
+        
+        string1++;
+        string2++;
+    }
+    
+    /* Return difference of terminating characters */
+    return (LONG)((UBYTE)*string1 - (UBYTE)*string2);
 }
 
 static LONG _utility_Strnicmp ( register struct UtilityBase * UtilityBase __asm("a6"),

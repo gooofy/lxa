@@ -1,0 +1,3 @@
+ECHO Hello from script
+ECHO Second line
+ECHO Script complete NOLINE

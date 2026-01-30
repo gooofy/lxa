@@ -1,0 +1,4 @@
+* Test Shell Alias functionality
+ALIAS ll DIR
+ALIAS dir
+ALIAS
