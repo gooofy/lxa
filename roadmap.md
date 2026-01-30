@@ -143,131 +143,35 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ## Phase 5: The Interactive Shell & Scripting ✓ COMPLETE
 **Goal**: A fully functional, interactive Amiga Shell experience.
 
-**Status**: ✅ COMPLETE - Shell binary with interactive mode and scripting support
+**Status**: ✅ COMPLETE - Shell with interactive mode, scripting, and argument passing
 
 ### Completed Core Infrastructure:
 - ✅ **Interactive Shell Binary** (`sys/System/Shell.c`)
+  - AmigaDOS I/O (no stdio dependency)
   - Classic `1.SYS:> ` prompt with customizable prompt string
-  - Command dispatcher for internal commands (CD, PATH, PROMPT, ECHO, ALIAS, etc.)
-  - Input handling from both interactive console and script files
-  - FAILAT support for setting error tolerance levels
+  - Line-by-line input handling (works with pipes and interactive mode)
+  - Internal commands: CD, PATH, PROMPT, ECHO, ALIAS, WHICH, WHY, FAULT
+  - Control flow: IF/ELSE/ENDIF, SKIP/LAB
+  - FAILAT support for error tolerance
 
 - ✅ **Execute() API** (dos.library)
-  - Script execution with `s` bit handling
-  - Automatic fallback to Shell for non-binary files
-  - Proper input/output redirection support
+  - Script execution with automatic Shell fallback
+  - Input/output redirection support
 
-- ✅ **Control Flow Commands**
-  - IF/ELSE/ENDIF with WARN and ERROR condition support
-  - SKIP and LAB for script flow control
-  - QUIT command for script termination
-
-- ✅ **Communication Commands**
-  - ECHO with NOLINE support
-  - ASK for interactive user input
-
-- ✅ **Shell Tools**
-  - ALIAS: Command aliasing with listing and removal
-  - WHICH: Command location lookup
-  - WHY: Display last error code
-  - FAULT: Display error message for code
-
-### Phase 5 Infrastructure Issues 🚧 BLOCKERS
-
-**Status**: Implementation complete but testing infrastructure has issues that must be resolved before Phase 6.
-
-#### Issues Discovered During Testing:
-
-1. **Shell I/O Fixed** ✅ COMPLETE
-   - ~~Shell uses `printf()` from stdio.h which requires C runtime initialization~~
-   - ~~lxa does not properly initialize libnix C runtime for stdio~~
-   - **FIXED**: All `printf()` calls replaced with AmigaDOS `Write()` calls
-   - **File**: `sys/System/Shell.c` - now uses helper functions `out_str()`, `out_line()`, `out_int()`
-   - **Verification**: Shell prompt displays correctly: `1.SYS:> `
-
-2. **Piped Input Not Working** ⚠️ KNOWN LIMITATION
-   - When piping input to lxa (e.g., `echo "cmd" | lxa Shell`), Read() returns EOF immediately
-   - This is an lxa input handling issue, not a Shell issue
-   - Interactive mode works; piped/script input needs investigation
-   - **Workaround**: Use script files instead of pipes (when arg passing is implemented)
-   - **Location**: `src/lxa/lxa.c` - console input forwarding to AmigaDOS
-
-3. **Command-Line Arguments Not Supported** ⚠️ LIMITATION
-   - lxa currently only supports running a single program without arguments
-   - Shell cannot receive script filename as argument
-   - **Impact**: Cannot run `lxa Shell script.txt` to execute a script
-   - **Fix needed**: Modify lxa argument parsing to support program args
-   - **Location**: `src/lxa/lxa.c` - main() argument handling
-
-4. **SYS: Drive Mapping Conflict**
-   - When `~/.lxa/config.ini` exists from first-run setup, SYS: maps to `~/.lxa/System/`
-   - This overrides the default "current directory" behavior
-   - Commands like `dir` can't find SYS:C/ because it's looking in ~/.lxa/System/C/
-   - **Fix**: Either update config.ini template or ensure C/ commands are copied to ~/.lxa/System/C/
-   - **Workaround**: Run with `-s .` to force current directory as SYS:
-
-5. **Missing Utility Library Functions** ✅ FIXED
-   - `UDivMod32()` - Was stubbed with assertion failure, now implemented
-   - `Stricmp()` - Was stubbed with assertion failure, now implemented
-   - `SDivMod32()` - Was stubbed with assertion failure, now implemented
-   - `UMult32()` - Was stubbed with assertion failure, now implemented
-   - These were causing immediate crashes when Shell tried to use them
-   - **Location**: `src/rom/lxa_utility.c`
-
-#### Required Fixes Before Phase 6:
-
-**Priority 1 - Infrastructure (COMPLETE):**
-- [x] **Rewrite Shell to Use AmigaDOS I/O** ✅ DONE
-  - Replaced all `printf()` calls with AmigaDOS `Write()` calls
-  - Created helper functions: `out_str()`, `out_line()`, `out_int()`, `out_str_padded()`
-  - Shell prompt displays correctly: `1.SYS:> `
-  - **File**: `sys/System/Shell.c`
-
-- [x] **Implement Missing Utility Functions** ✅ DONE
-  - Implemented `UDivMod32()`, `Stricmp()`, `SDivMod32()`, `UMult32()`
-  - These were causing assertion failures when Shell tried to use them
-  - **File**: `src/rom/lxa_utility.c`
-
-**Priority 2 - Input/Output Handling:** ✅ COMPLETE
-- [x] **Fix Piped Input Handling** ✅ DONE
-  - Fixed `_dos_stdinout_fh()` to use STDIN_FILENO for Input() and STDOUT_FILENO for Output()
-  - **File**: `src/lxa/lxa.c`
-
-- [x] **Fix Shell Line-by-Line Reading** ✅ DONE
-  - Modified Shell to buffer input and process line-by-line instead of reading entire pipe at once
-  - **File**: `sys/System/Shell.c`
-
-- [x] **Implement Command-Line Argument Passing** ✅ DONE
-  - Added `EMU_CALL_GETARGS` emucall to pass command line arguments to programs
-  - Modified lxa to accept arguments: `lxa <program> <arg1> <arg2> ...`
-  - Updated _bootstrap() to pass arguments to the loaded program
-  - Test: `lxa Shell script.txt` now works!
-  - **Files**: `src/lxa/lxa.c`, `src/lxa/lxa.c`, `src/rom/exec.c`, `src/include/emucalls.h`
-
-**Priority 3 - SYS: Configuration:** ✅ COMPLETE
-- [x] **Fix SYS: Drive Mapping** ✅ DONE
-  - Modified config.ini template to comment out SYS: mapping by default
-  - SYS: now defaults to current directory when not configured
-  - This allows commands to be found in sys/C/ without -s . workaround
-  - **File**: `src/lxa/vfs.c`
-
-**Priority 4 - Testing & Integration:** ✅ COMPLETE
-- [x] **Complete Shell Test Suite** ✅ DONE
-  - Shell can execute internal commands (ECHO, CD, QUIT, etc.)
-  - Shell can execute external commands via SYS:C/ or SYS:System/C/
+- ✅ **Command-Line Arguments**
+  - Programs can now receive arguments: `lxa <program> <args...>`
   - Shell can run scripts: `lxa Shell script.txt`
-  - Updated test expected outputs (ROM addresses changed)
-  - **Files**: `tests/shell/*/`, `tests/dos/*`
+  - **Files**: `src/lxa/lxa.c`, `src/rom/exec.c`, `src/include/emucalls.h`
 
-- [x] **Run Full Test Suite** ✅ DONE
-  - All existing tests pass (helloworld, lock_examine, signal_pingpong)
-  - Shell functionality verified with manual tests
+- ✅ **Infrastructure Fixes**
+  - Piped input handling: `_dos_stdinout_fh()` uses STDIN_FILENO for Input()
+  - SYS: defaults to current directory (config template updated)
+  - Missing utility functions: UDivMod32, Stricmp, SDivMod32, UMult32
 
-**Completed Infrastructure Fixes:**
-- [x] **Implement Flush() API** - Added host-side emucall handler
-- [x] **Fix ROM Auto-Detection** - Now searches multiple locations automatically
-- [x] **Fix First-Run Segfault** - Replaced CPRINTF with fprintf(stderr, ...) in vfs_setup_environment
-- [x] **Implement Missing Utility Functions** - UDivMod32() and Stricmp() in utility.library
+### Phase 5 Testing:
+- ✅ All existing tests pass (helloworld, lock_examine, signal_pingpong)
+- ✅ Shell verified working with interactive and scripted input
+- ✅ Command-line argument passing verified
 
 ---
 
@@ -303,26 +207,6 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
    - Templates: `DIR,OPT/K,ALL/S,DIRS/S` not `dir -la`
    - Keywords: `ALL`, `DIRS`, `TO` not `-a`, `-d`, `-o`
 
-## Phase 4 Completion Summary
-
-### ✅ Completed:
-- [x] **Pattern Matching**: `ParsePattern()` and `MatchPattern()` implemented in dos.library
-- [x] **C: Commands**: All commands use AmigaDOS template syntax
-  - [x] DIR: `DIR,OPT/K,ALL/S,DIRS/S,FILES/S,INTER/S` with wildcard support
-  - [x] DELETE: `FILE/M/A,ALL/S,QUIET/S,FORCE/S` with recursive delete
-  - [x] TYPE: `FROM/A/M,TO/K,OPT/K,HEX/S,NUMBER/S` with hex dump and line numbers
-  - [x] MAKEDIR: `NAME/M/A` with multiple directory support
-- [x] **ReadArgs()**: Full template parsing with /A, /K, /S, /M, /N, /F modifiers
-- [x] **Semaphore Support**: Complete implementation for C runtime compatibility
-
-### Phase 4b: Pending Extensions (Optional)
-- **SetDate() API**: File modification time support (maps to `utimes()`)
-- **Environment Variables**: GetVar/SetVar/DeleteVar/FindVar
-- **Additional Tools**: RENAME, PROTECT, FILENOTE commands
-- **Interactive DIR**: Full INTER mode with E/B/DEL/T/C/Q/? commands
-
----
-
 ## Next Steps: Phase 6 - System Management & Assignments
 
 ### Immediate (Next Session):
@@ -345,51 +229,17 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## Current Blockers & Dependencies 🚧 PHASE 5 INFRASTRUCTURE ISSUES
+## Status Summary
 
-**Phase 5 Implementation Complete BUT Infrastructure Issues Must Be Resolved Before Phase 6**
+### ✅ Phase 1-5 Complete
 
-### 🚧 Active Blockers:
+All foundational phases are complete:
+- Phase 1: Exec multitasking (signals, messages, semaphores, processes)
+- Phase 2: Configuration & VFS (drive mapping, case-insensitive paths)
+- Phase 3: Filesystem API (locks, examine, directories, file operations)
+- Phase 4: Userland commands (DIR, TYPE, DELETE, MAKEDIR with templates)
+- Phase 5: Interactive Shell (scripting, control flow, argument passing)
 
-1. **Script Execution Hang** (`sys/System/Shell.c`)
-   - Shell hangs when executing scripts via Execute()
-   - Blocks indefinitely, requires timeout to terminate
-   - **Priority**: HIGH - Must fix before Phase 6
+### 📋 Ready for Phase 6: System Management & Assignments
 
-2. **Shell Test Suite Incomplete** (`tests/shell/*/`, `tests/Makefile`)
-   - Tests created but not functional due to hang issue
-   - Need working test infrastructure to verify Shell behavior
-   - **Priority**: HIGH - Required for regression testing
-
-### ✅ Recently Resolved:
-
-3. **✓ Utility Library Functions** (`src/rom/lxa_utility.c`)
-   - UDivMod32() - Implemented (was causing assertion failure)
-   - Stricmp() - Implemented (was causing assertion failure)
-   - **Status**: FIXED
-
-4. **✓ Shell Binary** (`sys/System/Shell.c`)
-   - Interactive mode with customizable prompt
-   - Internal command dispatcher (CD, PATH, PROMPT, ECHO, etc.)
-   - Control flow: IF/ELSE/ENDIF, SKIP/LAB
-   - Shell tools: ECHO (NOLINE), ASK, ALIAS, WHICH, WHY, FAULT
-   - **Status**: IMPLEMENTED (but needs testing fixes)
-
-### Next Actions:
-- Fix Shell script execution hang
-- Complete shell test suite
-- Run full test suite successfully
-- **Only then proceed to Phase 6**
-
-**All Phases Through 5 Complete - Ready for Phase 6:**
-
-4. **✓ Semaphore Support** (exec.library)
-   - `InitSemaphore()`, `ObtainSemaphore()`, `ReleaseSemaphore()`, `AttemptSemaphore()`
-
-5. **✓ ReadArgs() Implementation** (dos.library)
-   - Template parsing with /A, /M, /S, /K, /N, /F modifiers
-   - `FindArg()`, `FreeArgs()`, `StrToLong()`
-
-6. **✓ Pattern Matching** (dos.library)
-   - `ParsePattern()`, `MatchPattern()`
-   - Wildcards: `#?` (any string), `?` (single char), `#` (repeat), `%` (escape), `*` (convenience)
+See Phase 6 section below for upcoming features.

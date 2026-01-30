@@ -377,11 +377,12 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 - PROTECT, FILENOTE, RENAME commands
 
 ### ✅ Phase 5: Interactive Shell & Scripting (COMPLETE)
-- Interactive Shell with prompt and command history
+- Interactive Shell with AmigaDOS I/O (no stdio dependency)
 - Execute() API for script execution
 - Control flow: IF/ELSE/ENDIF, SKIP/LAB
 - Shell commands: ECHO (NOLINE), ASK, ALIAS, WHICH, WHY, FAULT
-- **Known Issue**: Script execution hangs (see roadmap.md for details)
+- Command-line argument passing: `lxa Shell script.txt`
+- Piped input support: `echo "dir" | lxa Shell`
 
 ### 📋 Phase 6-7: Future Work
 - Assignment API (AssignLock, AssignPath)
@@ -391,7 +392,6 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 
 ## Current Limitations
 
-- **Script Execution**: Shell scripts hang when executed via Execute() (Phase 5 infrastructure issue)
 - **CPU Support**: Only 68000 mode currently supported (no 68020+ or FPU)
 - **Graphics**: No Intuition library support yet
 - **Assigns**: No assign support beyond VFS drive mapping
@@ -412,49 +412,69 @@ See `roadmap.md` for the complete development plan. Key milestones:
 
 ### Current Status
 
-**Phase 5 Implementation Complete** - The Shell is fully functional for interactive use. However, there are infrastructure issues preventing script execution from working properly. These must be resolved before Phase 6:
+**Phase 5 Complete** - The Shell is fully functional:
+- Interactive mode with `1.SYS:> ` prompt
+- Script execution: `lxa Shell script.txt`
+- Piped input: `echo "dir" | lxa Shell`
+- All infrastructure blockers resolved
 
-1. **Script Execution Hang** - Shell hangs when running scripts via Execute()
-2. **Test Suite** - Shell tests need to be completed and passing
-
-See `roadmap.md` Phase 5 section for detailed blocker list.
+**Ready for Phase 6** - System Management & Assignments
+See `roadmap.md` for upcoming features.
 
 ## Troubleshooting
 
-### Shell shows prompt but no command output
-**Problem**: The Shell uses `printf()` from the C standard library, but lxa doesn't fully initialize the C runtime needed for stdio.
+### Script file not found when running `lxa Shell script.txt`
+**Problem**: The script path must be relative to the current directory or use SYS: prefix.
 
-**Solution**: Run commands directly without the Shell:
+**Solution**:
 ```bash
-# Instead of Shell + dir:
-./target/x86_64-linux/bin/lxa sys/System/Shell
-1.SYS:> dir  # May not show output
+# Create a script in the current directory
+cat > myscript.txt << 'EOF'
+echo Hello from script
+quit
+EOF
 
-# Run directly:
-./target/x86_64-linux/bin/lxa -s . sys/C/dir
+# Run with relative path
+./target/x86_64-linux/bin/lxa sys/System/Shell myscript.txt
+
+# Or use SYS: prefix if script is in the project root
+./target/x86_64-linux/bin/lxa -s . sys/System/Shell SYS:myscript.txt
 ```
 
-**Long-term fix**: The Shell needs to be rewritten to use AmigaDOS I/O (`Write()`, `FPuts()`) instead of `printf()`. See roadmap.md Phase 5 blockers.
-
 ### "LoadSeg() Open() for name=X failed"
-**Problem**: SYS: drive is mapped to `~/.lxa/System/` from first-run config, but commands are in `sys/C/`.
+**Problem**: The program file cannot be found. This usually means the path is incorrect or the file doesn't exist.
 
 **Solutions**:
 ```bash
-# Option 1: Use -s . to force current directory as SYS:
+# Option 1: Run from project root with commands in sys/C/
+cd /path/to/lxa
 ./target/x86_64-linux/bin/lxa -s . sys/C/dir
 
-# Option 2: Copy commands to ~/.lxa/System/C/
-cp -r sys/C/* ~/.lxa/System/C/
+# Option 2: Ensure commands are built
+make -C sys/C
 
-# Option 3: Edit ~/.lxa/config.ini to change SYS: mapping
-# SYS = /path/to/lxa/sys  # Instead of ~/.lxa/System
+# Option 3: Check the file exists
+ls -la sys/C/dir
+file sys/C/dir  # Should show "AmigaOS loadseg()ble executable/binary"
+
+# Option 4: Specify full path
+./target/x86_64-linux/bin/lxa /full/path/to/myprogram
 ```
 
-### Shell hangs when running scripts
-**Problem**: Script execution via Execute() causes the Shell to hang indefinitely.
+### Commands not found in Shell
+**Problem**: The Shell searches for commands in SYS:C/ and SYS:System/C/. If these directories don't exist or aren't on the search path, commands won't be found.
 
-**Status**: This is a known issue. See roadmap.md Phase 5 infrastructure issues.
+**Solution**:
+```bash
+# Ensure commands are built
+make -C sys/C
+
+# Use -s . to set current directory as SYS:
+./target/x86_64-linux/bin/lxa -s . sys/System/Shell
+
+# Or use explicit paths
+1.SYS:> SYS:System/C/dir
+```
 
 ### "failed to open lxa.rom"
 **Problem**: ROM file not found in default locations.
