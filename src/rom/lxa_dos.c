@@ -1918,6 +1918,7 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
            inp       =          GetTagData(NP_Input    , inp                  , tags);
            outp      =          GetTagData(NP_Output   , outp                 , tags);
     char  *args      = (char*)  GetTagData(NP_Arguments, (ULONG)NULL          , tags);
+    BPTR   curdir    =          GetTagData(NP_CurrentDir, 0                   , tags);
 
     // Enforce minimum stack size
     if (stackSize < MIN_STACK_SIZE)
@@ -1982,6 +1983,7 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
 
     process->pr_CIS = inp;
     process->pr_COS = outp;
+    process->pr_CurrentDir = curdir;
 
     // launch it
 
@@ -2202,13 +2204,16 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     /* Create Process */
     BPTR input = GetTagData(SYS_Input, 0, tags);
     BPTR output = GetTagData(SYS_Output, 0, tags);
+    BPTR curDir = 0;
     
-    if (!input || !output) {
-         struct Process *me = (struct Process *)FindTask(NULL);
-         if (IS_PROCESS(me)) {
-             if (!input) input = me->pr_CIS;
-             if (!output) output = me->pr_COS;
-         }
+    struct Process *me = (struct Process *)FindTask(NULL);
+    if (IS_PROCESS(me)) {
+        if (!input) input = me->pr_CIS;
+        if (!output) output = me->pr_COS;
+        /* Pass current directory to child if parent has one */
+        if (me->pr_CurrentDir) {
+            curDir = DupLock(me->pr_CurrentDir);
+        }
     }
     
     struct TagItem procTags[] = {
@@ -2219,6 +2224,7 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
         { NP_Input, input },
         { NP_Output, output },
         { NP_Arguments, (ULONG)args },
+        { NP_CurrentDir, (ULONG)curDir },
         { TAG_DONE, 0 }
     };
     
@@ -2239,7 +2245,6 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     /* We'll wait on a signal that gets set when the child exits */
     /* For now, use a polling approach but with proper task switch */
     
-    struct Process *me = (struct Process *)FindTask(NULL);
     ULONG oldSig = me->pr_Task.tc_SigWait;
     int loopCount = 0;
     

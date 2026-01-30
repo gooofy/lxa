@@ -75,35 +75,21 @@ int main(void)
     print("\n");
     
     print("  Name: ");
-    /* fib_FileName is BSTR format - first byte is length */
-    {
-        UBYTE len = fib->fib_FileName[0];
-        BPTR out = Output();
-        if (len > 0) {
-            Write(out, (CONST APTR)&fib->fib_FileName[1], len);
-        } else {
-            print("(empty)");
-        }
-    }
+    /* fib_FileName is a null-terminated C string (not BSTR despite historical confusion) */
+    print((char *)fib->fib_FileName);
     print("\n");
     print("  Examine: OK\n");
     
     /* Test 3: ExNext - iterate directory entries */
     print("\nTest 3: ExNext() - Directory listing:\n");
     while (ExNext(lock, fib)) {
-        UBYTE len = fib->fib_FileName[0];
         print("  ");
         if (fib->fib_DirEntryType > 0) {
             print("[DIR] ");
         } else {
             print("      ");
         }
-        {
-            BPTR out = Output();
-            if (len > 0) {
-                Write(out, (CONST APTR)&fib->fib_FileName[1], len);
-            }
-        }
+        print((char *)fib->fib_FileName);
         print("\n");
         count++;
         
@@ -136,11 +122,9 @@ int main(void)
         
         /* Examine the parent */
         if (Examine(parentLock, fib)) {
-            UBYTE len = fib->fib_FileName[0];
             print("  Parent name: ");
-            if (len > 0) {
-                BPTR out = Output();
-                Write(out, (CONST APTR)&fib->fib_FileName[1], len);
+            if (fib->fib_FileName[0]) {
+                print((char *)fib->fib_FileName);
             } else {
                 print("(root)");
             }

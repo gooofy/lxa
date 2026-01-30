@@ -148,6 +148,7 @@ static void sigalrm_handler(int sig)
 typedef struct lock_entry_s {
     bool in_use;
     char linux_path[PATH_MAX];
+    char amiga_path[PATH_MAX]; /* Original Amiga path for NameFromLock */
     DIR *dir;           /* For directory iteration */
     int refcount;       /* For DupLock */
     bool is_dir;        /* True if lock is on a directory */
@@ -1051,7 +1052,7 @@ static uint32_t _dos_lock(uint32_t name68k, int32_t mode)
     char *amiga_path = _mgetstr(name68k);
     char linux_path[PATH_MAX];
     
-    DPRINTF(LOG_DEBUG, "lxa: _dos_lock(): amiga_path=%s, mode=%d\n", amiga_path, mode);
+    DPRINTF(LOG_DEBUG, "lxa: _dos_lock: amiga_path='%s'\n", amiga_path);
     
     /* Resolve the Amiga path to Linux path */
     if (!vfs_resolve_path(amiga_path, linux_path, sizeof(linux_path))) {
@@ -1059,28 +1060,29 @@ static uint32_t _dos_lock(uint32_t name68k, int32_t mode)
         _dos_path2linux(amiga_path, linux_path, sizeof(linux_path));
     }
     
-    DPRINTF(LOG_DEBUG, "lxa: _dos_lock(): linux_path=%s\n", linux_path);
+    DPRINTF(LOG_DEBUG, "lxa: _dos_lock: linux_path='%s'\n", linux_path);
     
     /* Check if the path exists */
     struct stat st;
     if (stat(linux_path, &st) != 0) {
-        DPRINTF(LOG_DEBUG, "lxa: _dos_lock(): stat failed: %s\n", strerror(errno));
+        DPRINTF(LOG_DEBUG, "lxa: _dos_lock: stat failed: %s\n", strerror(errno));
         return 0; /* ERROR_OBJECT_NOT_FOUND will be set by caller */
     }
     
     /* Allocate a lock entry */
     int lock_id = _lock_alloc();
     if (lock_id == 0) {
-        DPRINTF(LOG_DEBUG, "lxa: _dos_lock(): no free lock slots\n");
+        DPRINTF(LOG_DEBUG, "lxa: _dos_lock: no free lock slots\n");
         return 0;
     }
     
     lock_entry_t *lock = &g_locks[lock_id];
     strncpy(lock->linux_path, linux_path, sizeof(lock->linux_path) - 1);
+    strncpy(lock->amiga_path, amiga_path, sizeof(lock->amiga_path) - 1);
     lock->is_dir = S_ISDIR(st.st_mode);
     lock->dir = NULL;
     
-    DPRINTF(LOG_DEBUG, "lxa: _dos_lock(): allocated lock_id=%d, is_dir=%d\n", lock_id, lock->is_dir);
+    DPRINTF(LOG_DEBUG, "lxa: _dos_lock: allocated lock_id=%d\n", lock_id);
     
     return lock_id;
 }
@@ -1115,6 +1117,7 @@ static uint32_t _dos_duplock(uint32_t lock_id)
     
     lock_entry_t *new_lock = &g_locks[new_lock_id];
     strncpy(new_lock->linux_path, lock->linux_path, sizeof(new_lock->linux_path) - 1);
+    strncpy(new_lock->amiga_path, lock->amiga_path, sizeof(new_lock->amiga_path) - 1);
     new_lock->is_dir = lock->is_dir;
     new_lock->dir = NULL;
     
@@ -1170,13 +1173,13 @@ static int _dos_examine(uint32_t lock_id, uint32_t fib68k)
     m68k_write_memory_32(fib68k + FIB_fib_DirEntryType, type);
     m68k_write_memory_32(fib68k + FIB_fib_EntryType, type);
     
-    /* Write filename (BSTR format - length byte followed by string) */
+    /* Write filename (null-terminated C string, NOT BSTR) */
     int namelen = strlen(filename);
-    if (namelen > 106) namelen = 106;
-    m68k_write_memory_8(fib68k + FIB_fib_FileName, namelen);
+    if (namelen > 107) namelen = 107;  /* Leave room for null terminator */
     for (int i = 0; i < namelen; i++) {
-        m68k_write_memory_8(fib68k + FIB_fib_FileName + 1 + i, filename[i]);
+        m68k_write_memory_8(fib68k + FIB_fib_FileName + i, filename[i]);
     }
+    m68k_write_memory_8(fib68k + FIB_fib_FileName + namelen, 0);  /* Null terminator */
     
     m68k_write_memory_32(fib68k + FIB_fib_Protection, _unix_mode_to_amiga(st.st_mode));
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
@@ -1269,13 +1272,13 @@ static int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
     m68k_write_memory_32(fib68k + FIB_fib_DirEntryType, type);
     m68k_write_memory_32(fib68k + FIB_fib_EntryType, type);
     
-    /* Write filename (BSTR format) */
+    /* Write filename (null-terminated C string, NOT BSTR) */
     int namelen = strlen(de->d_name);
-    if (namelen > 106) namelen = 106;
-    m68k_write_memory_8(fib68k + FIB_fib_FileName, namelen);
+    if (namelen > 107) namelen = 107;  /* Leave room for null terminator */
     for (int i = 0; i < namelen; i++) {
-        m68k_write_memory_8(fib68k + FIB_fib_FileName + 1 + i, de->d_name[i]);
+        m68k_write_memory_8(fib68k + FIB_fib_FileName + i, de->d_name[i]);
     }
+    m68k_write_memory_8(fib68k + FIB_fib_FileName + namelen, 0);  /* Null terminator */
     
     m68k_write_memory_32(fib68k + FIB_fib_Protection, _unix_mode_to_amiga(st.st_mode));
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
@@ -1374,7 +1377,7 @@ static uint32_t _dos_parentdir(uint32_t lock_id)
     lock_entry_t *lock = _lock_get(lock_id);
     if (!lock) return 0;
     
-    /* Find parent path */
+    /* Find parent path (linux) */
     char parent_path[PATH_MAX];
     strncpy(parent_path, lock->linux_path, sizeof(parent_path) - 1);
     
@@ -1385,16 +1388,31 @@ static uint32_t _dos_parentdir(uint32_t lock_id)
     }
     *last_slash = '\0';
     
+    /* Find parent path (amiga) */
+    char parent_amiga[PATH_MAX];
+    strncpy(parent_amiga, lock->amiga_path, sizeof(parent_amiga) - 1);
+    
+    /* Amiga paths use / or : as separators */
+    char *last_sep = strrchr(parent_amiga, '/');
+    char *colon = strchr(parent_amiga, ':');
+    if (last_sep) {
+        *last_sep = '\0';
+    } else if (colon && colon[1] != '\0') {
+        /* Path is like "SYS:dir" - parent is "SYS:" */
+        colon[1] = '\0';
+    }
+    
     /* Create lock for parent */
     int new_lock_id = _lock_alloc();
     if (new_lock_id == 0) return 0;
     
     lock_entry_t *new_lock = &g_locks[new_lock_id];
     strncpy(new_lock->linux_path, parent_path, sizeof(new_lock->linux_path) - 1);
+    strncpy(new_lock->amiga_path, parent_amiga, sizeof(new_lock->amiga_path) - 1);
     new_lock->is_dir = true;
     new_lock->dir = NULL;
     
-    DPRINTF(LOG_DEBUG, "lxa: _dos_parentdir(): parent=%s, new_lock_id=%d\n", parent_path, new_lock_id);
+    DPRINTF(LOG_DEBUG, "lxa: _dos_parentdir(): parent=%s, amiga=%s, new_lock_id=%d\n", parent_path, parent_amiga, new_lock_id);
     return new_lock_id;
 }
 
@@ -1421,6 +1439,7 @@ static uint32_t _dos_createdir(uint32_t name68k)
     
     lock_entry_t *lock = &g_locks[lock_id];
     strncpy(lock->linux_path, linux_path, sizeof(lock->linux_path) - 1);
+    strncpy(lock->amiga_path, amiga_path, sizeof(lock->amiga_path) - 1);
     lock->is_dir = true;
     lock->dir = NULL;
     
@@ -1495,10 +1514,12 @@ static int _dos_namefromlock(uint32_t lock_id, uint32_t buf68k, uint32_t buflen)
     lock_entry_t *lock = _lock_get(lock_id);
     if (!lock) return 0;
     
-    /* For now, just return the linux path - ideally we'd convert back to Amiga format */
-    const char *path = lock->linux_path;
+    /* Return the Amiga path stored in the lock */
+    const char *path = lock->amiga_path;
     size_t len = strlen(path);
     if (len >= buflen) len = buflen - 1;
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_namefromlock(): returning '%s'\n", path);
     
     for (size_t i = 0; i < len; i++) {
         m68k_write_memory_8(buf68k + i, path[i]);
