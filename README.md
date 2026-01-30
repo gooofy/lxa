@@ -442,7 +442,19 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 - Automatic ROM discovery in installation directories
 - System template copying from `share/lxa/System` on first run
 
-### 📋 Phase 7: Future Work
+### ✅ Phase 6.5: Preemptive Multitasking (COMPLETE)
+- 50Hz timer-driven interrupt system using `setitimer()`/SIGALRM
+- Level 3 interrupt triggers exec scheduler for task switching
+- Tasks preempt automatically without explicit `Wait()` calls
+- `Delay()` properly yields to scheduler when other tasks are ready
+- Shell commands output appears in correct order (DIR before prompt)
+
+### ✅ Phase 7.1: Assignment API (COMPLETE)
+- `AssignLock()`, `AssignPath()`, `AssignLate()`, `AssignAdd()` APIs
+- ASSIGN command with full AmigaDOS template support
+- VFS layer integration for assign resolution
+
+### 📋 Phase 7.2: System Tools (Future)
 - Assignment API (AssignLock, AssignPath)
 - System management tools
 - Graphics/Intuition library support
@@ -452,10 +464,9 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 
 - **CPU Support**: Only 68000 mode currently supported (no 68020+ or FPU)
 - **Graphics**: No Intuition library support yet
-- **Assigns**: No assign support beyond VFS drive mapping
 - **ExAll()**: Not yet implemented (use ExNext for directory enumeration)
 - **Environment Variables**: GetVar/SetVar not yet implemented
-- **Child Process Timing**: External command output may appear slightly delayed due to cooperative multitasking limitations (being addressed in Phase 6.5)
+- **timer.device**: Not yet implemented (Delay() uses host-side sleep with scheduler yielding)
 
 ## Development Roadmap
 
@@ -467,22 +478,26 @@ See `roadmap.md` for the complete development plan. Key milestones:
 - **Phase 4** ✅ - Basic userland & metadata (commands with AmigaDOS templates)
 - **Phase 5** ✅ - Interactive shell & scripting
 - **Phase 6** ✅ - Build system migration to CMake
-- **Phase 7** 📋 - System management & assignments
+- **Phase 6.5** ✅ - Preemptive multitasking (timer interrupts, scheduler)
+- **Phase 7.1** ✅ - Assignment API (ASSIGN command)
+- **Phase 7.2** 📋 - System management tools (STATUS, AVAIL, etc.)
 - **Phase 8** 📋 - Advanced utilities & finalization
 
 ### Current Status
 
-**Phase 6 Complete** - Modern CMake build system with:
-- Cross-compilation support for m68k-amigaos
-- FHS-compliant installation structure
-- `LXA_PREFIX` environment variable for custom environments
-- Automatic ROM discovery in system directories
-- System template copying on first run
+**Phase 6.5 Complete** - Preemptive multitasking with:
+- 50Hz timer interrupt via SIGALRM
+- Automatic task preemption (no manual Wait() required)
+- Proper command output ordering in Shell
+- All 6 integration tests passing
 
-**Phase 6.5 In Progress** - Fixing cooperative multitasking for proper child process synchronization.
+**Next: Phase 7.2** - System Tools
+- STATUS - Show running processes
+- AVAIL - Show memory availability
+- STACK - Show/check stack usage
+- RUN - Background process execution
 
-**Next: Phase 7** - System Management & Assignments
-See `roadmap.md` for upcoming features and detailed implementation plans.
+See `roadmap.md` for detailed implementation plans.
 
 ## Troubleshooting
 
