@@ -383,8 +383,8 @@ static bool copy_file(const char *src_path, const char *dst_path)
     return copy_file_ex(src_path, dst_path, false);
 }
 
-/* Check if source file is newer than destination file */
-static bool is_newer(const char *src_path, const char *dst_path)
+/* Check if source file is different from destination (needs update) */
+static bool needs_update(const char *src_path, const char *dst_path)
 {
     struct stat src_st, dst_st;
     
@@ -393,17 +393,26 @@ static bool is_newer(const char *src_path, const char *dst_path)
     }
     
     if (stat(dst_path, &dst_st) != 0) {
-        return true; /* Destination doesn't exist, source is "newer" */
+        return true; /* Destination doesn't exist */
     }
     
-    return src_st.st_mtime > dst_st.st_mtime;
+    /* Update if size differs or source is newer */
+    if (src_st.st_size != dst_st.st_size) {
+        return true;
+    }
+    
+    if (src_st.st_mtime > dst_st.st_mtime) {
+        return true;
+    }
+    
+    return false;
 }
 
-/* Update a file if the source is newer */
-static bool update_file_if_newer(const char *src_path, const char *dst_path)
+/* Update a file if the source is different (newer or different size) */
+static bool update_file_if_changed(const char *src_path, const char *dst_path)
 {
-    if (is_newer(src_path, dst_path)) {
-        DPRINTF(LOG_INFO, "vfs: updating %s (newer version available)\n", dst_path);
+    if (needs_update(src_path, dst_path)) {
+        DPRINTF(LOG_INFO, "vfs: updating %s\n", dst_path);
         return copy_file_ex(src_path, dst_path, true);
     }
     return true;
@@ -542,8 +551,8 @@ static int update_directory_files(const char *src_dir, const char *dst_dir)
         
         struct stat st;
         if (stat(src_file, &st) == 0 && S_ISREG(st.st_mode)) {
-            if (is_newer(src_file, dst_file)) {
-                if (update_file_if_newer(src_file, dst_file)) {
+            if (needs_update(src_file, dst_file)) {
+                if (update_file_if_changed(src_file, dst_file)) {
                     chmod(dst_file, 0755);
                     updated_count++;
                 }
