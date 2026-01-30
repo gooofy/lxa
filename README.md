@@ -12,7 +12,17 @@ lxa provides a Linux-based runtime environment for AmigaOS programs by combining
 
 ## Building
 
-### Using CMake (Recommended)
+### Quick Build (Recommended)
+
+```bash
+# Full build using convenience script
+./build.sh
+
+# Install to usr/ prefix
+make -C build install
+```
+
+### Manual CMake Build
 
 ```bash
 # Create build directory
@@ -34,34 +44,36 @@ This builds:
 - `build/target/sys/C/*` - AmigaDOS commands (DIR, TYPE, DELETE, MAKEDIR)
 - `build/target/sys/System/Shell` - Amiga Shell (interactive command interpreter)
 
-### Using Legacy Makefiles
-
-```bash
-make all
-```
-
-This builds:
-- `target/x86_64-linux/bin/lxa` - The main emulator executable
-- `src/rom/lxa.rom` - The AmigaOS kickstart ROM image
-- `sys/C/*` - AmigaDOS commands
-- `sys/System/Shell` - Amiga Shell
+After `make install`:
+- `usr/bin/lxa` - Installed emulator binary
+- `usr/share/lxa/` - ROM, system files, and config template
 
 ## Quick Start
 
 lxa works like **WINE** for Windows programs - it runs Amiga executables directly on Linux:
 
 ```bash
+# Build and install first
+./build.sh && make -C build install
+
 # First run - creates ~/.lxa/ automatically (like WINE's ~/.wine)
-./target/x86_64-linux/bin/lxa
+usr/bin/lxa
 
 # Run a simple Amiga program
-./target/x86_64-linux/bin/lxa tests/dos/helloworld/helloworld
+usr/bin/lxa tests/dos/helloworld/helloworld
 
 # Run the Amiga Shell (interactive mode)
-./target/x86_64-linux/bin/lxa sys/System/Shell
+usr/bin/lxa
+
+# Use DIR command in shell
+1.SYS:> dir
+S/
+C/
+Libs/
+...
 
 # Run Shell with a script file
-./target/x86_64-linux/bin/lxa sys/System/Shell myscript.txt
+usr/bin/lxa SYS:System/Shell myscript.txt
 ```
 
 ### First Run Setup
@@ -69,12 +81,13 @@ lxa works like **WINE** for Windows programs - it runs Amiga executables directl
 On first execution, lxa automatically creates a default environment at `~/.lxa/`:
 
 ```bash
-$ ./target/x86_64-linux/bin/lxa
+$ usr/bin/lxa
 lxa: First run detected - creating default environment at /home/user/.lxa
+lxa: Copying system files from /path/to/usr/share/lxa
 lxa: Environment created successfully.
-lxa - Linux Amiga Emulation Layer
-usage: ./target/x86_64-linux/bin/lxa [ options ] <loadfile>
+lxa Shell v1.0
 ...
+1./home/user/.lxa/System:>
 ```
 
 This creates:
@@ -442,6 +455,7 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 - **Assigns**: No assign support beyond VFS drive mapping
 - **ExAll()**: Not yet implemented (use ExNext for directory enumeration)
 - **Environment Variables**: GetVar/SetVar not yet implemented
+- **Child Process Timing**: External command output may appear slightly delayed due to cooperative multitasking limitations (being addressed in Phase 6.5)
 
 ## Development Roadmap
 
@@ -465,8 +479,10 @@ See `roadmap.md` for the complete development plan. Key milestones:
 - Automatic ROM discovery in system directories
 - System template copying on first run
 
-**Ready for Phase 7** - System Management & Assignments
-See `roadmap.md` for upcoming features.
+**Phase 6.5 In Progress** - Fixing cooperative multitasking for proper child process synchronization.
+
+**Next: Phase 7** - System Management & Assignments
+See `roadmap.md` for upcoming features and detailed implementation plans.
 
 ## Troubleshooting
 

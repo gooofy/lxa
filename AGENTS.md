@@ -56,19 +56,55 @@ If a task cannot be completed due to unforeseen technical blockers:
 
 ## 3. Build System
 
-### Commands
-- **Build All**: `make` (in project root).
-  - Builds `src/rom` (lxa.rom) and `src/lxa` (lxa executable).
-- **Clean**: `make clean`.
-- **Sub-projects**:
-  - `src/rom/Makefile`: Builds the ROM image.
-  - `src/lxa/Makefile`: Builds the host emulator.
-  - `sys/<Dir>/Makefile`: Builds system commands (e.g., `sys/C`, `sys/System`).
+The project uses **CMake** for building. A convenience script `build.sh` handles the full build process.
+
+### Quick Build
+```bash
+# Full build (recommended)
+./build.sh
+
+# Or manually with CMake
+mkdir -p build && cd build
+cmake ..
+make -j$(nproc)
+make install
+```
+
+### Build Outputs
+After building, artifacts are located at:
+- `build/host/bin/lxa` - Host emulator executable
+- `build/target/rom/lxa.rom` - AmigaOS ROM image
+- `build/target/sys/C/` - C: commands (dir, type, delete, makedir)
+- `build/target/sys/System/` - System tools (Shell)
+
+### Installation
+```bash
+make -C build install
+```
+Installs to `usr/` prefix by default:
+- `usr/bin/lxa` - Emulator binary
+- `usr/share/lxa/` - ROM, system files, config template
+
+### Running Tests
+```bash
+make -C tests test
+```
+Runs all integration tests. Individual tests can be run:
+```bash
+make -C tests/dos/helloworld run-test
+```
 
 ### Toolchains
-- **Host**: Standard `gcc` for Linux components.
-- **Amiga**: `m68k-amigaos-gcc` (libnix) for ROM and system tools.
-- **Paths**: Toolchain is typically located at `/opt/amiga`.
+- **Host**: Standard `gcc` for Linux components
+- **Amiga**: `m68k-amigaos-gcc` (libnix) for ROM and system tools
+- **Paths**: Cross-compiler typically at `/opt/amiga`
+
+### CMake Structure
+- `CMakeLists.txt` - Root build configuration
+- `cmake/m68k-amigaos.cmake` - Cross-compilation toolchain file
+- `host/CMakeLists.txt` - Host emulator build
+- `target/rom/CMakeLists.txt` - ROM build
+- `target/sys/CMakeLists.txt` - System commands build
 
 ## 4. Testing
 Integration tests are located in `tests/`.
@@ -95,6 +131,11 @@ Integration tests are located in `tests/`.
 - Create a `main.c` (m68k source) that performs the test.
 - Create `expected.out` with the expected output.
 - `make run-test` compiles the test, runs it via `lxa`, and diffs the output.
+
+### Current Test Categories
+- `tests/dos/` - DOS library tests (helloworld, lock_examine)
+- `tests/exec/` - Exec library tests (signal_pingpong)
+- `tests/shell/` - Shell functionality tests (alias, controlflow, script)
 
 ## 5. Code Style & Conventions
 

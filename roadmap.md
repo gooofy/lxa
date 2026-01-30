@@ -219,14 +219,111 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
+## Phase 6.5: Cooperative Multitasking Fix 🚧 PRIORITY
+**Goal**: Fix child process output timing issue where output appears after parent continues.
+
+### Problem Statement
+When a command like `DIR` is executed via the Shell's `System()` call, the output appears
+delayed or after subsequent commands. This is because:
+
+1. `SystemTagList()` creates a child process and adds it to `TaskReady`
+2. The parent polls using `Delay()` waiting for the child to finish
+3. `Delay()` uses `EMU_CALL_WAIT` which just does `usleep()` on the host
+4. The m68k emulator is single-threaded - no actual task switch occurs
+5. The child only runs when the parent eventually exits (triggering `RemTask`)
+
+### Root Cause
+The emulator lacks preemptive multitasking. On a real Amiga, the timer interrupt would
+trigger the scheduler to switch tasks. In `lxa`, there's no interrupt mechanism to force
+context switches during `Delay()` or other wait operations.
+
+### Solution Options
+
+#### Option A: Signal-Based Child Completion (Recommended)
+Modify `SystemTagList()` to use proper Exec signal/wait mechanism:
+
+1. **Parent Setup**:
+   - Allocate a signal bit before creating child
+   - Pass parent's task pointer and signal bit to child via `NP_ExitData`
+
+2. **Child Exit**:
+   - When child process exits, `RemTask()` or exit code signals the parent
+   - Requires modifying `_dos_Exit()` or adding exit hook
+
+3. **Parent Wait**:
+   - Replace `Delay()` polling with `Wait(childSignal)`
+   - `Wait()` properly yields to scheduler via `_exec_Switch()`
+
+**Files to modify**:
+- `src/rom/lxa_dos.c`: `_dos_SystemTagList()` - use Wait/Signal
+- `src/rom/lxa_dos.c`: Exit path to signal parent
+- `src/rom/exec.c`: Ensure `RemTask()` can signal a waiting parent
+
+#### Option B: EMU_CALL_WAIT Task Switch
+Make `EMU_CALL_WAIT` trigger actual m68k task switching:
+
+1. When `EMU_CALL_WAIT` is called and `TaskReady` is non-empty:
+   - Save current m68k CPU state
+   - Switch to next ready task
+   - Resume original task when it becomes ready again
+
+**Challenges**:
+- Complex state management in host code
+- May require significant emulator architecture changes
+- Risk of introducing race conditions
+
+#### Option C: Timer Interrupt Emulation
+Add a virtual timer interrupt that triggers scheduling:
+
+1. Configure a host-side timer (e.g., SIGALRM)
+2. On timer expiry, inject an interrupt into the m68k emulator
+3. Interrupt handler invokes the Amiga scheduler
+
+**Challenges**:
+- Significant complexity
+- May affect emulator determinism
+- Debugging becomes harder
+
+### Implementation Steps (Option A)
+
+- [ ] **Step 1**: Define child-exit signal protocol
+  - Choose signal bit (e.g., SIGF_SINGLE or allocate one)
+  - Document parent-child signal contract
+
+- [ ] **Step 2**: Modify `_dos_SystemTagList()`
+  - Allocate signal bit with `AllocSignal()`
+  - Store parent task in child's `pr_ExitData`
+  - Replace `Delay()` loop with `Wait(exitSignal)`
+  - Free signal bit after child completes
+
+- [ ] **Step 3**: Add child exit notification
+  - In `_dos_Exit()` or libnix exit path, signal parent if `pr_ExitData` is set
+  - Alternatively, hook into `RemTask()` for CLI processes
+
+- [ ] **Step 4**: Test with DIR and other commands
+  - Verify output appears before prompt
+  - Ensure no regressions in existing tests
+
+- [ ] **Step 5**: Update documentation
+  - Document the signal-based wait mechanism
+  - Add technical notes about cooperative vs preemptive multitasking
+
+### Acceptance Criteria
+- `DIR` output appears immediately before the next shell prompt
+- All existing tests continue to pass
+- No deadlocks when running multiple commands sequentially
+- Works with both interactive and scripted shell usage
+
+---
+
 ## Phase 7: System Management & Assignments
 **Goal**: Advanced system control and logical drive management.
 
-### Step 6.1: Assignment API
+### Step 7.1: Assignment API
 - **API Implementation**: `AssignLock()`, `AssignName()`, `AssignPath()`.
 - **Search Path**: Proper integration of `SYS:C` and user-defined paths into the Shell loader.
 
-### Step 6.2: System Tools
+### Step 7.2: System Tools
 - **Process Management**: `STATUS`, `BREAK`, `RUN`, `CHANGETASKPRI`.
 - **Memory & Stack**: `AVAIL`, `STACK`.
 - **Device Control**: `ASSIGN`, `MOUNT`, `RELABEL`, `LOCK`.
@@ -251,9 +348,19 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
    - Templates: `DIR,OPT/K,ALL/S,DIRS/S` not `dir -la`
    - Keywords: `ALL`, `DIRS`, `TO` not `-a`, `-d`, `-o`
 
-## Next Steps: Phase 7 - System Management & Assignments
+## Next Steps: Phase 6.5 - Cooperative Multitasking Fix
 
-### Immediate (Next Session):
+### Immediate Priority:
+The DIR command works but output appears delayed due to missing preemptive task switching.
+This must be fixed before proceeding to Phase 7.
+
+1. **Implement Signal-Based Child Wait** (see Phase 6.5 above)
+   - Modify `_dos_SystemTagList()` to use `Wait()` instead of `Delay()` polling
+   - Add child exit notification to signal parent
+   - Test with DIR and other external commands
+
+### After Phase 6.5: Phase 7 - System Management & Assignments
+
 1. **Assignment API**
    - Implement `AssignLock()`, `AssignName()`, `AssignPath()` APIs.
    - Add assign support to the VFS layer.
@@ -297,7 +404,15 @@ All Phase 6 tasks completed:
 - Automatic system template copying on first run
 - ROM discovery in multiple locations
 
-### 📋 Ready for Phase 7: System Management & Assignments
+### 🚧 Phase 6.5: Cooperative Multitasking Fix (PRIORITY)
+
+**Current Issue**: External commands (DIR, TYPE, etc.) work but their output may appear
+delayed due to missing preemptive task switching in the emulator.
+
+**Status**: Solution designed, implementation pending.
+See Phase 6.5 section for detailed implementation plan.
+
+### 📋 Ready for Phase 7 (after 6.5): System Management & Assignments
 
 See Phase 7 section below for upcoming features.
 
