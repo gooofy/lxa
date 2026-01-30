@@ -31,18 +31,77 @@ static const char *get_user_home(void)
     return home;
 }
 
+/* Static buffer for data directory path */
+static char g_data_dir[PATH_MAX] = "";
+
 /* Get the installation data directory */
 static const char *get_data_dir(void)
 {
+    /* Return cached result if already found */
+    if (g_data_dir[0]) return g_data_dir;
+    
     const char *data_dir = getenv("LXA_DATA_DIR");
-    if (data_dir) return data_dir;
+    if (data_dir) {
+        strncpy(g_data_dir, data_dir, PATH_MAX - 1);
+        g_data_dir[PATH_MAX - 1] = '\0';
+        return g_data_dir;
+    }
     
     /* Try standard locations */
-    if (access("/usr/share/lxa", F_OK) == 0) {
-        return "/usr/share/lxa";
+    if (access("/usr/share/lxa/System", F_OK) == 0) {
+        strcpy(g_data_dir, "/usr/share/lxa");
+        return g_data_dir;
     }
-    if (access("/usr/local/share/lxa", F_OK) == 0) {
-        return "/usr/local/share/lxa";
+    if (access("/usr/local/share/lxa/System", F_OK) == 0) {
+        strcpy(g_data_dir, "/usr/local/share/lxa");
+        return g_data_dir;
+    }
+    
+    /* Try to find data directory relative to executable */
+    /* lxa binary is typically at: <prefix>/bin/lxa or build/host/bin/lxa */
+    /* sys files are at: <prefix>/share/lxa or build/target/sys */
+    char exe_path[PATH_MAX];
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (len > 0) {
+        exe_path[len] = '\0';
+        
+        /* Find the directory containing the executable */
+        char *last_slash = strrchr(exe_path, '/');
+        if (last_slash) {
+            *last_slash = '\0';
+            
+            /* Try ../share/lxa (installed layout: bin/lxa -> share/lxa) */
+            char try_path[PATH_MAX];
+            int n = snprintf(try_path, sizeof(try_path), "%s/../share/lxa/System", exe_path);
+            if (n > 0 && (size_t)n < sizeof(try_path) && access(try_path, F_OK) == 0) {
+                n = snprintf(g_data_dir, sizeof(g_data_dir), "%s/../share/lxa", exe_path);
+                if (n > 0 && (size_t)n < sizeof(g_data_dir)) {
+                    /* Normalize the path */
+                    char *real = realpath(g_data_dir, NULL);
+                    if (real) {
+                        strncpy(g_data_dir, real, PATH_MAX - 1);
+                        g_data_dir[PATH_MAX - 1] = '\0';
+                        free(real);
+                        return g_data_dir;
+                    }
+                }
+            }
+            
+            /* Try ../../target/sys (build layout: build/host/bin/lxa -> build/target/sys) */
+            n = snprintf(try_path, sizeof(try_path), "%s/../../target/sys/System", exe_path);
+            if (n > 0 && (size_t)n < sizeof(try_path) && access(try_path, F_OK) == 0) {
+                n = snprintf(g_data_dir, sizeof(g_data_dir), "%s/../../target/sys", exe_path);
+                if (n > 0 && (size_t)n < sizeof(g_data_dir)) {
+                    char *real = realpath(g_data_dir, NULL);
+                    if (real) {
+                        strncpy(g_data_dir, real, PATH_MAX - 1);
+                        g_data_dir[PATH_MAX - 1] = '\0';
+                        free(real);
+                        return g_data_dir;
+                    }
+                }
+            }
+        }
     }
     
     return NULL;
@@ -610,11 +669,17 @@ bool vfs_setup_environment(void)
     if (!make_path(path, sizeof(path), "/System/L")) return false;
     if (!ensure_dir(path)) return false;
     
-    /* Try to copy system files from installation template */
+    /* Try to copy system files from installation or build directory */
     const char *data_dir = get_data_dir();
     if (data_dir) {
         fprintf(stderr, "lxa: Copying system files from %s\n", data_dir);
         copy_system_template(data_dir, path);
+        /* Also use update_system_binaries to copy any binaries not in the template */
+        update_system_binaries();
+    } else {
+        fprintf(stderr, "lxa: WARNING: No system files found to copy.\n");
+        fprintf(stderr, "lxa: Shell and commands will not be available.\n");
+        fprintf(stderr, "lxa: Set LXA_DATA_DIR or install lxa properly.\n");
     }
     
     /* Create default config.ini (only if not copied from template) */
@@ -633,12 +698,7 @@ bool vfs_setup_environment(void)
         "\n"
         "[drives]\n"
         "# Map Amiga drives to Linux directories\n"
-        "# SYS = /path/to/amiga/system\n"
-        "# Note: If SYS is not specified, it defaults to the current directory\n"
-        "# Uncomment the line below to use ~/.lxa/System as SYS:\n"
-        "# SYS = ");
-    config_len += (size_t)snprintf(config_content + config_len, sizeof(config_content) - config_len,
-        "%s/System\n"
+        "SYS = %s/System\n"
         "\n"
         "[floppies]\n"
         "# Map floppy drives to directories\n"
