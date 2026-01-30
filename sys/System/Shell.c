@@ -1,6 +1,7 @@
 /*
  * Shell - Interactive AmigaDOS Shell for lxa
  * Phase 5 implementation
+ * Rewritten to use AmigaDOS I/O instead of stdio
  */
 
 #include <exec/types.h>
@@ -13,7 +14,6 @@
 #include <inline/exec.h>
 
 #include <string.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 /* External reference to DOS library base */
@@ -51,6 +51,44 @@ typedef enum {
 
 static BlockState block_stack[MAX_NEST];
 static int block_sp = 0;
+
+/* Helper function: Output a string */
+static void out_str(const char *str) {
+    Write(Output(), (STRPTR)str, strlen(str));
+}
+
+/* Helper function: Output a string with newline */
+static void out_line(const char *str) {
+    out_str(str);
+    out_str("\n");
+}
+
+/* Helper function: Output an integer */
+static void out_int(int num) {
+    char buf[16];
+    char *p = buf + sizeof(buf) - 1;
+    *p = '\0';
+    int is_neg = (num < 0);
+    unsigned int n = is_neg ? -num : num;
+    
+    do {
+        *--p = '0' + (n % 10);
+        n /= 10;
+    } while (n);
+    
+    if (is_neg) *--p = '-';
+    out_str(p);
+}
+
+/* Helper function: Output string with width padding */
+static void out_str_padded(const char *str, int width) {
+    int len = strlen(str);
+    out_str(str);
+    while (len < width) {
+        out_str(" ");
+        len++;
+    }
+}
 
 static BOOL is_executing(void) {
     if (block_sp == 0) return TRUE;
@@ -92,10 +130,23 @@ static void show_prompt(void)
             i++;
             switch (prompt_str[i]) {
                 case 'N':
-                    j += snprintf(&expanded[j], MAX_PROMPT_LEN - j, "%d", cli_num);
+                    /* Convert number to string */
+                    {
+                        char numbuf[8];
+                        int k = 6;
+                        numbuf[7] = '\0';
+                        int n = cli_num;
+                        do {
+                            numbuf[--k] = '0' + (n % 10);
+                            n /= 10;
+                        } while (n);
+                        strcpy(&expanded[j], &numbuf[k]);
+                        j += strlen(&numbuf[k]);
+                    }
                     break;
                 case 'S':
-                    j += snprintf(&expanded[j], MAX_PROMPT_LEN - j, "%s", path);
+                    strcpy(&expanded[j], path);
+                    j += strlen(path);
                     break;
                 default:
                     expanded[j++] = prompt_str[i];
@@ -137,7 +188,9 @@ static int cmd_alias(char *args)
         /* List aliases */
         AliasNode *node = alias_list;
         while (node) {
-            printf("%-10s %s\n", node->name, node->value);
+            out_str_padded(node->name, 10);
+            out_str(" ");
+            out_line(node->value);
             node = node->next;
         }
         return 0;
@@ -151,7 +204,6 @@ static int cmd_alias(char *args)
         *space = '\0';
         value = space + 1;
         while (*value == ' ') value++;
-        /* Remove quotes if present? Simplified for now */
     }
     
     /* Find existing */
@@ -182,10 +234,9 @@ static int cmd_alias(char *args)
         if (node) {
              /* If we just typed "ALIAS foo", show it */
              if (!space) {
-                 printf("%s\n", node->value);
+                 out_line(node->value);
              } else {
                  /* ALIAS foo "" -> Delete */
-                 /* We treat empty value as delete request if space was found */
                  if (prev) prev->next = node->next;
                  else alias_list = node->next;
                  free(node->name);
@@ -193,7 +244,11 @@ static int cmd_alias(char *args)
                  free(node);
              }
         } else {
-            if (!space) printf("ALIAS: %s not found\n", name);
+            if (!space) {
+                out_str("ALIAS: ");
+                out_str(name);
+                out_line(" not found");
+            }
         }
     }
     return 0;
@@ -212,14 +267,16 @@ static char *find_alias(const char *name) {
 static int cmd_which(char *args)
 {
     if (!args || args[0] == '\0') {
-        printf("WHICH: Usage: WHICH <command>\n");
+        out_line("WHICH: Usage: WHICH <command>");
         return 5;
     }
     
     /* Check alias */
     char *alias = find_alias(args);
     if (alias) {
-        printf("%s is an alias for %s\n", args, alias);
+        out_str(args);
+        out_str(" is an alias for ");
+        out_line(alias);
         return 0;
     }
 
@@ -227,27 +284,34 @@ static int cmd_which(char *args)
     if (strcasecmp(args, "CD") == 0 || strcasecmp(args, "ECHO") == 0 || 
         strcasecmp(args, "QUIT") == 0 || strcasecmp(args, "EXIT") == 0 || 
         strcasecmp(args, "ALIAS") == 0 || strcasecmp(args, "IF") == 0) {
-        printf("%s is an internal command\n", args);
+        out_str(args);
+        out_line(" is an internal command");
         return 0;
     }
     
     BPTR lock = Lock((STRPTR)args, SHARED_LOCK);
     if (lock) {
         UnLock(lock);
-        printf("%s\n", args);
+        out_line(args);
         return 0;
     }
     
     char buf[MAX_PATH_LEN];
-    snprintf(buf, sizeof(buf), "SYS:C/%s", args);
+    /* Build path manually to avoid snprintf */
+    strcpy(buf, "SYS:C/");
+    strncat(buf, args, MAX_PATH_LEN - 7);
+    buf[MAX_PATH_LEN - 1] = '\0';
+    
     lock = Lock((STRPTR)buf, SHARED_LOCK);
     if (lock) {
         UnLock(lock);
-        printf("%s\n", buf);
+        out_line(buf);
         return 0;
     }
     
-    printf("WHICH: %s not found\n", args);
+    out_str("WHICH: ");
+    out_str(args);
+    out_line(" not found");
     return 5;
 }
 
@@ -255,7 +319,9 @@ static int cmd_which(char *args)
 static int cmd_why(char *args)
 {
     int err = IoErr();
-    printf("Last error: %d\n", err);
+    out_str("Last error: ");
+    out_int(err);
+    out_str("\n");
     return 0;
 }
 
@@ -264,7 +330,9 @@ static int cmd_fault(char *args)
 {
     if (args) {
         int err = atoi(args);
-        printf("Fault %d\n", err);
+        out_str("Fault ");
+        out_int(err);
+        out_str("\n");
     } else {
         cmd_why(NULL);
     }
@@ -277,7 +345,7 @@ static int cmd_cd(char *args)
     if (!args || args[0] == '\0') {
         char path[MAX_PATH_LEN];
         get_current_path_name(path, MAX_PATH_LEN);
-        printf("%s\n", path);
+        out_line(path);
         return 0;
     }
     
@@ -288,7 +356,7 @@ static int cmd_cd(char *args)
     
     BPTR lock = Lock((STRPTR)args, SHARED_LOCK);
     if (!lock) {
-        printf("CD: Object not found\n");
+        out_line("CD: Object not found");
         return 205; 
     }
     
@@ -323,18 +391,16 @@ static int cmd_echo(char *args)
             }
         }
         
-        printf("%s", args);
-        if (!noline) printf("\n");
-        /* Flush output? */
-        // fflush(stdout);
+        out_str(args);
+        if (!noline) out_str("\n");
     } else {
-        printf("\n");
+        out_str("\n");
     }
     return 0;
 }
 
 static int cmd_ask(char *args) {
-    if (args) printf("%s", args);
+    if (args) out_str(args);
     
     char buf[10];
     /* Read from *interactive* input? ASK usually interacts with user even if running from script? */
@@ -343,7 +409,7 @@ static int cmd_ask(char *args) {
     /* For simplicity, read from current Input() */
     
     /* We need to flush output first */
-    // Flush(Output());
+    Flush(Output());
     
     /* We use Read(Input()) */
     BPTR input = Input();
@@ -360,11 +426,59 @@ static int cmd_ask(char *args) {
 static int execute_command(char *cmd_name, char *args)
 {
     char full_cmd[MAX_CMD_LEN];
-    snprintf(full_cmd, MAX_CMD_LEN, "%s %s", cmd_name, args ? args : "");
+    static char cmd_path[MAX_PATH_LEN];  /* static to ensure it persists */
+    char *cmd_to_run = cmd_name;
+    BPTR lock = 0;
+    
+
+    
+    /* First try the command as-is (full path or in current dir) */
+    lock = Lock((STRPTR)cmd_name, SHARED_LOCK);
+    if (lock) {
+        cmd_to_run = cmd_name;
+    } else {
+        /* Try SYS:C/<cmd> */
+        strcpy(cmd_path, "SYS:C/");
+        strncat(cmd_path, cmd_name, MAX_PATH_LEN - 7);
+        cmd_path[MAX_PATH_LEN - 1] = '\0';
+        lock = Lock((STRPTR)cmd_path, SHARED_LOCK);
+        
+        if (lock) {
+            cmd_to_run = cmd_path;
+        } else {
+            /* Try SYS:System/C/<cmd> (for project structure) */
+            strcpy(cmd_path, "SYS:System/C/");
+            strncat(cmd_path, cmd_name, MAX_PATH_LEN - 14);
+            cmd_path[MAX_PATH_LEN - 1] = '\0';
+            lock = Lock((STRPTR)cmd_path, SHARED_LOCK);
+            
+            if (lock) {
+                cmd_to_run = cmd_path;
+            }
+        }
+    }
+    
+    if (!lock) {
+        out_str("Unknown command: ");
+        out_line(cmd_name);
+        return 10;
+    }
+    UnLock(lock);
+    
+    /* Build full command with args */
+    strncpy(full_cmd, cmd_to_run, MAX_CMD_LEN - 1);
+    full_cmd[MAX_CMD_LEN - 1] = '\0';
+    
+    if (args && args[0]) {
+        strncat(full_cmd, " ", MAX_CMD_LEN - strlen(full_cmd) - 1);
+        strncat(full_cmd, args, MAX_CMD_LEN - strlen(full_cmd) - 1);
+    }
     
     LONG rc = System((STRPTR)full_cmd, NULL);
+    
     if (rc == -1) {
-         printf("Unknown command: %s\n", cmd_name);
+         out_str("Unknown command: ");
+         out_line(cmd_name);
          return 10;
     }
     return rc;
@@ -374,13 +488,15 @@ static int cmd_failat(char *args) {
     if (args) {
         fail_at_level = atoi(args);
     }
-    printf("FAILAT %d\n", fail_at_level);
+    out_str("FAILAT ");
+    out_int(fail_at_level);
+    out_str("\n");
     return 0;
 }
 
 static int cmd_if(char *args) {
     if (block_sp >= MAX_NEST) {
-        printf("IF: Too many nested blocks\n");
+        out_line("IF: Too many nested blocks");
         return 20;
     }
     
@@ -419,7 +535,7 @@ static int cmd_if(char *args) {
 
 static int cmd_else(char *args) {
     if (block_sp == 0) {
-        printf("ELSE: No matching IF\n");
+        out_line("ELSE: No matching IF");
         return 20;
     }
     
@@ -439,7 +555,7 @@ static int cmd_else(char *args) {
 
 static int cmd_endif(char *args) {
     if (block_sp == 0) {
-        printf("ENDIF: No matching IF\n");
+        out_line("ENDIF: No matching IF");
         return 20;
     }
     block_sp--;
@@ -454,7 +570,7 @@ static int cmd_lab(char *args) {
 static int cmd_prompt(char *args) {
     if (!args || args[0] == '\0') {
         /* Show current prompt format */
-        printf("%s\n", prompt_str);
+        out_line(prompt_str);
         return 0;
     }
     
@@ -468,7 +584,7 @@ static int cmd_prompt(char *args) {
     
     /* Set new prompt */
     if (len >= MAX_PROMPT_LEN) {
-        printf("PROMPT: String too long\n");
+        out_line("PROMPT: String too long");
         return 5;
     }
     strncpy(prompt_str, args, MAX_PROMPT_LEN - 1);
@@ -481,11 +597,12 @@ static int cmd_path(char *args) {
     if (!args || args[0] == '\0') {
         /* Show current paths */
         if (num_paths == 0) {
-            printf("No paths defined\n");
+            out_line("No paths defined");
         } else {
-            printf("Current path:\n");
+            out_line("Current path:");
             for (int i = 0; i < num_paths; i++) {
-                printf("  %s\n", search_paths[i]);
+                out_str("  ");
+                out_line(search_paths[i]);
             }
         }
         return 0;
@@ -497,19 +614,20 @@ static int cmd_path(char *args) {
         while (*path == ' ') path++;
         
         if (!*path) {
-            printf("PATH: Missing path to add\n");
+            out_line("PATH: Missing path to add");
             return 5;
         }
         
         if (num_paths >= MAX_PATHS) {
-            printf("PATH: Too many paths\n");
+            out_line("PATH: Too many paths");
             return 5;
         }
         
         /* Verify path exists */
         BPTR lock = Lock((STRPTR)path, SHARED_LOCK);
         if (!lock) {
-            printf("PATH: Directory not found: %s\n", path);
+            out_str("PATH: Directory not found: ");
+            out_line(path);
             return 5;
         }
         UnLock(lock);
@@ -533,13 +651,14 @@ static int cmd_path(char *args) {
     
     /* Default: ADD */
     if (num_paths >= MAX_PATHS) {
-        printf("PATH: Too many paths\n");
+        out_line("PATH: Too many paths");
         return 5;
     }
     
     BPTR lock = Lock((STRPTR)args, SHARED_LOCK);
     if (!lock) {
-        printf("PATH: Directory not found: %s\n", args);
+        out_str("PATH: Directory not found: ");
+        out_line(args);
         return 5;
     }
     UnLock(lock);
@@ -551,18 +670,21 @@ static int cmd_path(char *args) {
 static int cmd_skip(char *args) {
     BPTR input = Input();
     if (IsInteractive(input)) {
-        printf("SKIP: Not supported in interactive mode\n");
+        out_line("SKIP: Not supported in interactive mode");
         return 20;
     }
     
     char buf[MAX_CMD_LEN];
     char label[64];
-    snprintf(label, sizeof(label), "LAB %s", args);
+    /* Build label string manually */
+    strcpy(label, "LAB ");
+    strncat(label, args, sizeof(label) - 5);
+    label[sizeof(label) - 1] = '\0';
     
     while (1) {
         long len = Read(input, (APTR)buf, MAX_CMD_LEN - 1);
         if (len <= 0) {
-            printf("SKIP: Label not found\n");
+            out_line("SKIP: Label not found");
             return 20;
         }
         buf[len] = 0;
@@ -575,20 +697,25 @@ static int cmd_skip(char *args) {
 
 int main(int argc, char **argv)
 {
+    char read_buf[MAX_CMD_LEN];
     char cmd_buf[MAX_CMD_LEN];
     BPTR input = Input();
     BPTR script_file = 0;
+    int buf_pos = 0;
+    int buf_len = 0;
     
     if (argc > 1) {
         script_file = Open((STRPTR)argv[1], MODE_OLDFILE);
         if (script_file) {
             input = script_file;
         } else {
-            printf("Shell: Could not open %s\n", argv[1]);
+            out_str("Shell: Could not open ");
+            out_line(argv[1]);
             return 20;
         }
     } else {
-        printf("lxa Shell v%s\n", "1.0");
+        out_str("lxa Shell v");
+        out_line("1.0");
     }
     
     /* Initialize default PATH with SYS:C */
@@ -602,21 +729,49 @@ int main(int argc, char **argv)
     while (running) {
         if (input == script_file || !IsInteractive(input)) {
              if (last_return_code >= fail_at_level) {
-                 printf("Shell: Command failed (rc=%d)\n", last_return_code);
+                 out_str("Shell: Command failed (rc=");
+                 out_int(last_return_code);
+                 out_line(")");
                  break;
              }
         }
         
         show_prompt();
         
-        long len = Read(input, (APTR)cmd_buf, MAX_CMD_LEN - 1);
+        /* Read line by line - handles both interactive and piped input */
+        int cmd_pos = 0;
+        BOOL got_line = FALSE;
         
-        if (len <= 0) {
-            break;
+        while (cmd_pos < MAX_CMD_LEN - 1 && !got_line) {
+            /* Refill buffer if needed */
+            if (buf_pos >= buf_len) {
+                buf_len = Read(input, (APTR)read_buf, MAX_CMD_LEN - 1);
+                if (buf_len <= 0) {
+                    /* EOF - process any partial line */
+                    if (cmd_pos > 0) {
+                        got_line = TRUE;
+                    }
+                    break;
+                }
+                buf_pos = 0;
+            }
+            
+            /* Copy until newline or buffer end */
+            while (buf_pos < buf_len && cmd_pos < MAX_CMD_LEN - 1) {
+                char c = read_buf[buf_pos++];
+                if (c == '\n') {
+                    got_line = TRUE;
+                    break;
+                }
+                cmd_buf[cmd_pos++] = c;
+            }
         }
         
-        cmd_buf[len] = '\0';
-        if (len > 0 && cmd_buf[len-1] == '\n') cmd_buf[len-1] = '\0';
+        if (!got_line && cmd_pos == 0) {
+            break;  /* EOF with no data */
+        }
+        
+        cmd_buf[cmd_pos] = '\0';
         if (cmd_buf[0] == '\0') continue;
         
         char *cmd_name = cmd_buf;
@@ -632,15 +787,16 @@ int main(int argc, char **argv)
         char *alias_val = find_alias(cmd_name);
         if (alias_val) {
             /* Simple alias replacement: execute alias value + args */
-            /* Note: this is recursive expansion unsafe and simplistic */
             char new_cmd[MAX_CMD_LEN];
-            snprintf(new_cmd, MAX_CMD_LEN, "%s %s", alias_val, cmd_args ? cmd_args : "");
+            strncpy(new_cmd, alias_val, MAX_CMD_LEN - 1);
+            new_cmd[MAX_CMD_LEN - 1] = '\0';
+            
+            if (cmd_args && cmd_args[0]) {
+                strncat(new_cmd, " ", MAX_CMD_LEN - strlen(new_cmd) - 1);
+                strncat(new_cmd, cmd_args, MAX_CMD_LEN - strlen(new_cmd) - 1);
+            }
             
             /* Reparse new command */
-            /* For now, just recurse or handle simply. 
-               Let's update cmd_name/args/buf pointers. */
-            
-            /* WATCH OUT: cmd_buf is the buffer. We need to handle this carefully. */
             strncpy(cmd_buf, new_cmd, MAX_CMD_LEN);
             cmd_buf[MAX_CMD_LEN-1] = '\0';
             

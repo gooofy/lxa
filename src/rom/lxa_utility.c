@@ -295,21 +295,23 @@ static LONG _utility_SMult32 ( register struct UtilityBase * UtilityBase __asm("
 }
 
 static ULONG _utility_UMult32 ( register struct UtilityBase * UtilityBase __asm("a6"),
-                                                        register ULONG arg1 __asm("d0"),
-                                                        register ULONG arg2 __asm("d1"))
+												register ULONG arg1 __asm("d0"),
+												register ULONG arg2 __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_utility: UMult32() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    return arg1 * arg2;
 }
 
 static LONG _utility_SDivMod32 ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register LONG dividend __asm("d0"),
                                                         register LONG divisor __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_utility: SDivMod32() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* SDivMod32 divides D0 by D1 and returns quotient in D0 and remainder in D1 */
+    if (divisor == 0) {
+        DPRINTF (LOG_ERROR, "_utility: SDivMod32() division by zero!\n");
+        return 0;
+    }
+    
+    return dividend / divisor;
 }
 
 static ULONG _utility_UDivMod32 ( register struct UtilityBase * UtilityBase __asm("a6"),

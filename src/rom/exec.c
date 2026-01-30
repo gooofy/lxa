@@ -2472,10 +2472,21 @@ void _bootstrap(void)
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): initPC is 0x%08lx\n", initPC);
     U_hexdump (LOG_DEBUG, initPC, 32);
 
+    /* Get command line arguments */
+    char args_buf[4096];
+    emucall1 (EMU_CALL_GETARGS, (ULONG) args_buf);
+    int args_len = strlen(args_buf);
+    if (args_len == 0) {
+        args_buf[0] = '\n';
+        args_buf[1] = '\0';
+        args_len = 1;
+    }
+    DPRINTF (LOG_INFO, "_exec: _bootstrap(): args='%s' len=%d\n", args_buf, args_len);
+
     /* simply JSR() into our child process */
 
     cliChildFn_t childfn = initPC;
-    ULONG rv = childfn (/*arglen=*/1, /*args=*/(STRPTR)"\n");
+    ULONG rv = childfn (args_len, (STRPTR)args_buf);
 
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): childfn() returned, rv=%ld\n", rv);
 #if 0
@@ -2782,6 +2793,11 @@ void coldstart (void)
     char *binfn = AllocVec (1024, MEMF_CLEAR);
     emucall1 (EMU_CALL_LOADFILE, (ULONG) binfn);
     cli->cli_CommandName = MKBADDR(binfn);
+
+    // Get command line arguments
+    char *args = AllocVec (4096, MEMF_CLEAR);
+    emucall1 (EMU_CALL_GETARGS, (ULONG) args);
+    cli->cli_CommandFile = MKBADDR(args);
 
     rootProc->pr_CLI = MKBADDR(cli);
 

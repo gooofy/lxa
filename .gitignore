@@ -94,3 +94,10 @@ sys/C/dir
 sys/C/type
 sys/C/makedir
 sys/C/delete
+sys/System/Shell
+C/delete
+C/dir
+C/makedir
+C/type
+
+

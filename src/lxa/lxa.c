@@ -66,6 +66,11 @@ static int      g_trace_buf[TRACE_BUF_ENTRIES];
 static int      g_trace_buf_idx                 = 0;
 static bool     g_running                       = TRUE;
 static char    *g_loadfile                      = NULL;
+
+#define MAX_ARGS_LEN 4096
+static char     g_args[MAX_ARGS_LEN]            = {0};
+static int      g_args_len                      = 0;
+
 static uint32_t g_breakpoints[MAX_BREAKPOINTS];
 static int      g_num_breakpoints               = 0;
 static int      g_rv                            = 0;
@@ -648,11 +653,11 @@ static int errno2Amiga (void)
     return errno;
 }
 
-static void _dos_stdinout_fh (uint32_t fh68k)
+static void _dos_stdinout_fh (uint32_t fh68k, int is_input)
 {
-    DPRINTF (LOG_DEBUG, "lxa: _dos_stdinout_fh(): fh68k=0x%08x\n", fh68k);
+    DPRINTF (LOG_DEBUG, "lxa: _dos_stdinout_fh(): fh68k=0x%08x, is_input=%d\n", fh68k, is_input);
     m68k_write_memory_32 (fh68k+32, FILE_KIND_CONSOLE); // fh_Func3
-    m68k_write_memory_32 (fh68k+36, STDOUT_FILENO);     // fh_Args
+    m68k_write_memory_32 (fh68k+36, is_input ? STDIN_FILENO : STDOUT_FILENO);     // fh_Args
 }
 
 static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
@@ -664,7 +669,7 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 
     if (!strncasecmp (amiga_path, "CONSOLE:", 8) || (amiga_path[0]=='*'))
     {
-        _dos_stdinout_fh (fh68k);
+        _dos_stdinout_fh (fh68k, 0);
     }
     else
     {
@@ -1829,6 +1834,17 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_GETARGS:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GETARGS d1=0x%08x, len=%d\n", d1, g_args_len);
+
+            for (int i=0; i<=g_args_len; i++)
+                m68k_write_memory_8 (d1++, g_args[i]);
+
+            break;
+        }
+
         case EMU_CALL_LOADED:
         {
             for (pending_bp_t *pbp = _g_pending_bps; pbp; pbp=pbp->next)
@@ -1958,7 +1974,7 @@ int op_illg(int level)
         {
             uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
             DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_INPUT, fh=0x%08x\n", fh);
-            _dos_stdinout_fh (fh);
+            _dos_stdinout_fh (fh, 1);
             break;
         }
 
@@ -1966,7 +1982,7 @@ int op_illg(int level)
         {
             uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
             DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_OUTPUT, fh=0x%08x\n", fh);
-            _dos_stdinout_fh (fh);
+            _dos_stdinout_fh (fh, 0);
             break;
         }
 
@@ -2623,13 +2639,32 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    if (argc != optind+1)
+    if (argc < optind+1)
     {
         print_usage(argv);
         exit(EXIT_FAILURE);
     }
 
     g_loadfile = argv[optind];
+    
+    /* Store remaining arguments for the program */
+    if (argc > optind + 1) {
+        /* Build argument string from remaining arguments */
+        g_args_len = 0;
+        for (int i = optind + 1; i < argc && g_args_len < MAX_ARGS_LEN - 1; i++) {
+            if (i > optind + 1) {
+                g_args[g_args_len++] = ' ';
+            }
+            int arg_len = strlen(argv[i]);
+            int copy_len = (g_args_len + arg_len < MAX_ARGS_LEN - 1) ? arg_len : (MAX_ARGS_LEN - 1 - g_args_len);
+            memcpy(g_args + g_args_len, argv[i], copy_len);
+            g_args_len += copy_len;
+        }
+        g_args[g_args_len] = '\0';
+    } else {
+        g_args[0] = '\0';
+        g_args_len = 0;
+    }
     
     /* Use current directory as sysroot if none specified and no config */
     if (!sysroot && !vfs_has_sys_drive()) {

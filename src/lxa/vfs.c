@@ -313,7 +313,7 @@ bool vfs_setup_environment(void)
     
     /* Create default config.ini */
     if (!make_path(path, sizeof(path), "/config.ini")) return false;
-    
+
     char config_content[2048];
     size_t config_len = 0;
     config_len += (size_t)snprintf(config_content + config_len, sizeof(config_content) - config_len,
@@ -327,7 +327,10 @@ bool vfs_setup_environment(void)
         "\n"
         "[drives]\n"
         "# Map Amiga drives to Linux directories\n"
-        "SYS = ");
+        "# SYS = /path/to/amiga/system\n"
+        "# Note: If SYS is not specified, it defaults to the current directory\n"
+        "# Uncomment the line below to use ~/.lxa/System as SYS:\n"
+        "# SYS = ");
     config_len += (size_t)snprintf(config_content + config_len, sizeof(config_content) - config_len,
         "%s/System\n"
         "\n"

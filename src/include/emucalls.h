@@ -12,6 +12,7 @@
 #define EMU_CALL_LOADFILE      9
 #define EMU_CALL_SYMBOL       10
 #define EMU_CALL_GETSYSTIME   11
+#define EMU_CALL_GETARGS      12
 #define EMU_CALL_EXIT        127
 
 /*
