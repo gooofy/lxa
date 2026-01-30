@@ -50,49 +50,348 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## Phase 8: New Commands & Advanced Utilities
-**Goal**: Reach Milestone 1.0 with a polished toolset.
+## Phase 8: Comprehensive Test Coverage & Quality Assurance
+**Goal**: Achieve robust, production-grade test coverage across all existing system components before expanding functionality. As a runtime/OS implementation, rock-solid stability is paramount.
 
-### Step 8.1: File Manipulation Commands
+### Step 8.1: Test Infrastructure Enhancement
+- [x] Basic integration test framework (test_runner.sh)
+- [ ] **Unit Testing Framework** - Integrate Unity or similar for ROM/host C code
+  - Setup CMocka or Unity test framework
+  - Configure CMake for unit test compilation
+  - Create `tests/unit/` directory structure
+  - Add `make test-unit` target
+- [ ] **Coverage Reporting** - Enable code coverage metrics
+  - Configure gcov/lcov for coverage analysis
+  - Add `make coverage` target
+  - Set up coverage reports (HTML output)
+  - Track coverage metrics per component
+- [ ] **Test Data Management** - Organize test fixtures
+  - Create `tests/fixtures/` for shared test data
+  - Standard directory structures for filesystem tests
+  - Sample files with various permissions/attributes
+- [ ] **Continuous Testing** - Automated test execution
+  - Pre-commit hook for running critical tests
+  - `make test-all` runs both unit and integration tests
+  - Test result reporting and tracking
+
+### Step 8.2: DOS Library Testing
+**Critical**: DOS is the foundation - every function must be bulletproof.
+
+#### Filesystem Operations (tests/dos/fs/)
+- [ ] **Lock/Unlock** - Lock acquisition and release
+  - Shared vs exclusive locks
+  - Lock hierarchy (parent/child)
+  - Error cases (non-existent paths, permission denied)
+  - Lock leak detection
+- [ ] **Examine/ExNext** - Directory enumeration
+  - Directory traversal with various patterns
+  - File metadata accuracy (size, date, protection)
+  - Large directory handling (>1000 entries)
+  - Empty directories, single file
+  - Special characters in filenames
+- [ ] **Open/Close/Read/Write** - File I/O
+  - MODE_OLDFILE, MODE_NEWFILE, MODE_READWRITE
+  - Read/write at various offsets
+  - Large file handling (>1MB)
+  - Append mode behavior
+  - Error handling (disk full, read-only)
+- [ ] **Seek** - File positioning
+  - OFFSET_BEGINNING, OFFSET_CURRENT, OFFSET_END
+  - Seek beyond EOF
+  - Seek on console handles
+- [ ] **Delete/Rename** - File manipulation
+  - Delete files with various permissions
+  - Delete non-empty directories (should fail)
+  - Rename across directories
+  - Rename with open handles
+- [ ] **CreateDir/ParentDir** - Directory operations
+  - Nested directory creation
+  - Permission inheritance
+  - ParentDir traversal to root
+
+#### Pattern Matching (tests/dos/patterns/)
+- [ ] **ParsePattern/MatchPattern** - Wildcard support
+  - Simple wildcards: `#?`, `*`, `?`
+  - Character classes: `[abc]`, `[a-z]`
+  - Complex patterns: `#?.c`, `test#?[0-9]`
+  - Case sensitivity (Amiga is case-insensitive)
+  - Pattern tokenization edge cases
+
+#### Argument Parsing (tests/dos/readargs/)
+- [ ] **ReadArgs** - Template parsing and validation
+  - Simple arguments: `/A`, `/K`, `/S`, `/N`
+  - Multiple arguments: `/M`, `/M/A`
+  - Keywords with values: `KEY=value`
+  - Numeric arguments: `/N` with validation
+  - Error cases: missing required args, invalid syntax
+  - Quoted strings with spaces
+  - Empty input, extremely long input
+  - Template parsing edge cases
+- [ ] **FreeArgs** - Memory cleanup validation
+
+#### Process Management (tests/dos/process/)
+- [ ] **SystemTagList** - Process spawning
+  - Spawn with various stack sizes
+  - Environment variable inheritance
+  - Input/output redirection
+  - Exit code propagation
+  - Background process cleanup
+- [ ] **Execute** - Script execution
+  - Multi-line scripts
+  - Error handling in scripts
+  - Break handling (Ctrl+C)
+
+### Step 8.3: Exec Library Testing
+**Critical**: Multitasking foundation must be rock-solid.
+
+#### Task Management (tests/exec/tasks/)
+- [x] Signal ping-pong (basic signal test)
+- [ ] **CreateTask/AddTask** - Task creation
+  - Task with various stack sizes
+  - Task priority levels
+  - Task naming and lookup
+- [ ] **FindTask** - Task lookup by name/NULL
+- [ ] **SetTaskPri** - Dynamic priority changes
+- [ ] **Wait/Signal** - Signal semantics
+  - Multiple signals simultaneously
+  - Signal mask handling
+  - Wait timeout behavior
+
+#### Memory Management (tests/exec/memory/)
+- [ ] **AllocMem/FreeMem** - Basic allocation
+  - Various memory types (MEMF_CHIP, MEMF_FAST, MEMF_PUBLIC)
+  - MEMF_CLEAR verification
+  - Boundary conditions (size 0, huge allocations)
+  - Memory leak detection
+- [ ] **AllocVec/FreeVec** - Vector allocation
+  - Size tracking verification
+  - Alignment requirements
+- [ ] **Memory Fragmentation** - Stress testing
+  - Allocate/free in various patterns
+  - Check for fragmentation issues
+
+#### Synchronization (tests/exec/sync/)
+- [ ] **Semaphores** - Mutual exclusion
+  - ObtainSemaphore/ReleaseSemaphore
+  - Shared vs exclusive access
+  - Nested semaphore acquisition
+  - Deadlock scenarios (should not hang)
+- [ ] **Message Ports** - Inter-task communication
+  - CreateMsgPort/DeleteMsgPort
+  - PutMsg/GetMsg/ReplyMsg
+  - Message queuing order
+  - Port naming and lookup
+
+#### Lists (tests/exec/lists/)
+- [ ] **List Manipulation** - Core data structures
+  - AddHead/AddTail/Remove
+  - Enqueue (priority ordering)
+  - FindName/RemHead/RemTail
+  - Empty list handling
+
+### Step 8.4: Command Testing (tests/commands/)
+**Every command must have comprehensive tests.**
+
+#### File Commands
+- [ ] **DIR** - Directory listing
+  - Default listing (current directory)
+  - Pattern matching: `dir #?.c`, `dir sys:c/#?`
+  - Recursive listing (ALL switch)
+  - DIRS/FILES filtering
+  - Interactive mode (INTER)
+  - Empty directories
+  - Large directories (>100 files)
+  - Ctrl+C handling
+- [ ] **DELETE** - File deletion
+  - Single file deletion
+  - Multiple files: `delete #?.bak`
+  - Recursive deletion (ALL)
+  - Protected files (with/without FORCE)
+  - QUIET mode
+  - Ctrl+C during deletion
+  - Error cases (read-only, in-use)
+- [ ] **TYPE** - File display
+  - Text file output
+  - Multiple files: `type file1 file2`
+  - HEX mode for binary files
+  - NUMBER mode (line numbers)
+  - TO redirection
+  - Large files (>100KB)
+  - Binary files with special characters
+- [ ] **MAKEDIR** - Directory creation
+  - Single directory creation
+  - Multiple directories: `makedir dir1 dir2 dir3`
+  - Nested paths: `makedir a/b/c` (should create all)
+  - Error cases (already exists, invalid chars)
+
+#### System Commands
+- [ ] **ASSIGN** - Drive assignments
+  - Simple assign: `assign FOO: dir`
+  - Multi-directory paths
+  - Deferred assigns
+  - Remove assignments
+  - List all assignments
+  - Circular assignment detection
+- [ ] **STATUS** - Process information
+  - List all processes
+  - Full detail mode
+  - TCB address display
+  - Filter by command name
+  - Priority and state display
+- [ ] **BREAK** - Process signaling
+  - Send break to specific CLI
+  - Break all processes
+  - Break non-existent process (error)
+- [ ] **RUN** - Background execution
+  - Simple command execution
+  - Command with arguments
+  - Multiple simultaneous background tasks
+
+#### Shell Features (tests/shell/)
+- [x] Control flow (IF/ELSE/ENDIF)
+- [x] Alias support
+- [x] Script execution
+- [ ] **Variables** - Shell variable handling
+  - SET/UNSET local variables
+  - Variable substitution in commands
+  - Numeric operations (EVAL)
+- [ ] **Redirection** - I/O redirection
+  - Output redirection: `cmd > file`
+  - Input redirection: `cmd < file`
+  - Append mode: `cmd >> file`
+  - Pipe support: `cmd1 | cmd2`
+- [ ] **Script Features** - Advanced scripting
+  - SKIP/LAB (goto labels)
+  - WHILE loops
+  - Command sequencing (`;`)
+  - Comment handling (`;` at line start)
+  - Error propagation
+
+### Step 8.5: Host/Emulation Testing (tests/host/)
+**Verify the emulation layer itself.**
+
+- [ ] **Memory Access** - m68k memory operations
+  - Read/write byte/word/long
+  - Alignment handling
+  - ROM vs RAM access enforcement
+  - Out-of-bounds detection
+- [ ] **VFS Layer** - Virtual filesystem
+  - Case-insensitive path resolution
+  - Drive mapping (SYS:, HOME:, CWD:)
+  - Path normalization
+  - Assign resolution
+  - Invalid path handling
+- [ ] **Emucall Interface** - Host/guest bridge
+  - All emucall handlers tested
+  - Parameter passing correctness
+  - Return value handling
+  - Error code propagation
+- [ ] **Configuration** - config.ini parsing
+  - Drive path configuration
+  - ROM path detection
+  - Invalid config handling
+  - Default value fallbacks
+
+### Step 8.6: Stress & Regression Testing
+
+- [ ] **Memory Stress** - Allocation patterns
+  - Allocate/free 1000s of blocks
+  - Verify no memory leaks
+  - Check fragmentation limits
+- [ ] **Task Stress** - Many concurrent tasks
+  - Spawn 50+ tasks simultaneously
+  - Verify scheduler fairness
+  - Check signal delivery under load
+- [ ] **Filesystem Stress** - High I/O load
+  - Create/delete 1000s of files
+  - Read/write large files concurrently
+  - Directory traversal stress
+- [ ] **Regression Suite** - Never break what works
+  - All previous tests must pass
+  - Automated regression detection
+  - Bisecting tool for finding breaking changes
+
+### Step 8.7: Documentation & Test Guidelines
+
+- [ ] **Testing Documentation** - Test writing guide
+  - Document test framework usage
+  - Examples of unit vs integration tests
+  - How to add new tests
+  - Coverage target enforcement (100%)
+- [ ] **Test Naming Conventions** - Consistency
+  - `test_<component>_<function>_<scenario>`
+  - Descriptive test names
+  - Organized directory structure
+- [ ] **CI/CD Integration** - Automation
+  - GitHub Actions or similar
+  - Run tests on every commit
+  - Block merges with failing tests
+  - Coverage regression detection
+
+---
+
+## Phase 9: New Commands & Advanced Utilities
+**Goal**: Reach Milestone 1.0 with a polished, well-tested toolset. All new features must have tests written first (TDD).
+
+### Step 9.1: File Manipulation Commands
 - [ ] **COPY** - Copy files/directories with recursive support
   - Template: `FROM/M/A,TO/A,ALL/S,CLONE/S,DATES/S,NOPRO/S,COM/S,QUIET/S`
+  - **Tests required**: Single file, multiple files, directories, ALL mode, error cases
 - [ ] **RENAME** - Rename/move files
   - Template: `FROM/A,TO/A,QUIET/S`
+  - **Tests required**: Same directory, across directories, open files, errors
 - [ ] **JOIN** - Concatenate files
   - Template: `FROM/A/M,AS=TO/A`
+  - **Tests required**: Multiple files, large files, binary files
 
-### Step 8.2: File Information Commands
+### Step 9.2: File Information Commands
 - [ ] **PROTECT** - Change file protection bits
   - Template: `FILE/A,FLAGS/K,ADD/S,SUB/S,ALL/S`
+  - **Tests required**: Set/clear bits, recursive, validation
 - [ ] **FILENOTE** - Set file comment
   - Template: `FILE/A,COMMENT,ALL/S`
+  - **Tests required**: Set/clear comments, long comments, special chars
 - [ ] **LIST** - Detailed directory listing
   - Template: `DIR/M,P=PAT/K,KEYS/S,DATES/S,NODATES/S,TO/K,SUB/S,SINCE/K,UPTO/K,QUICK/S,BLOCK/S,NOHEAD/S,FILES/S,DIRS/S,LFORMAT/K,ALL/S`
+  - **Tests required**: All switches, patterns, output redirection
 
-### Step 8.3: Search & Text Commands
+### Step 9.3: Search & Text Commands
 - [ ] **SEARCH** - Search for text in files
   - Template: `FROM/M/A,SEARCH/A,ALL/S,NONUM/S,QUIET/S,QUICK/S,FILE/S,PATTERN/S`
+  - **Tests required**: Text search, patterns, multiple files, binary files
 - [ ] **SORT** - Sort lines of text
   - Template: `FROM/A,TO/A,COLSTART/K/N,CASE/S,NUMERIC/S`
+  - **Tests required**: Various sort modes, large files, edge cases
 - [ ] **EVAL** - Evaluate arithmetic expressions
   - Template: `VALUE1/A,OP,VALUE2/M,TO/K,LFORMAT/K`
+  - **Tests required**: All operations, overflow, negative numbers
 
-### Step 8.4: Environment & Variables
+### Step 9.4: Environment & Variables
 - [ ] **SET** / **SETENV** - Manage local and global variables
+  - **Tests required**: Set/get, persistence, scope
 - [ ] **GETENV** - Retrieve environment variables
+  - **Tests required**: Existing/non-existing vars
 - [ ] **UNSET** / **UNSETENV** - Remove variables
+  - **Tests required**: Remove existing, remove non-existing
 
-### Step 8.5: System Commands
+### Step 9.5: System Commands
 - [ ] **VERSION** - Display version information
+  - **Tests required**: Output format, component versions
 - [ ] **WAIT** - Wait for time/event
+  - **Tests required**: Time delays, break handling
 - [ ] **INFO** - Display disk information
+  - **Tests required**: Various drives, unmounted drives
 - [ ] **DATE** - Display/set system date
+  - **Tests required**: Display, set, validation
 - [ ] **MAKELINK** - Create hard/soft links
+  - **Tests required**: Hard/soft links, errors
 
-### Step 8.6: Final Polish
-- Documentation update: `README.md` with all commands
-- AROS reference review for edge cases
-- 100% Test coverage for all commands
+### Step 9.6: Final Polish
+- [ ] Documentation update: `README.md` with all commands
+- [ ] AROS reference review for edge cases
+- [ ] 100% Test coverage verification for all new commands
+- [ ] Performance profiling and optimization
+- [ ] Milestone 1.0 release preparation
 
 ---
 
@@ -101,3 +400,4 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 2. **Host-First**: Prefer host-side (`emucall`) implementations for filesystem tasks.
 3. **Amiga Authenticity**: Commands must use AmigaDOS argument syntax (templates, keywords, switches).
 4. **Tooling**: Use `ReadArgs()` template parsing in all `C:` commands.
+5. **Test Everything**: Every function, every command, every edge case. 100% coverage is mandatory.

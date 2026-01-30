@@ -8,6 +8,21 @@ This document provides essential information for AI agents working on the `lxa` 
 - **`src/rom`**: The replacement Kickstart ROM (compiled for m68k).
 - **`sys/`**: AmigaDOS system commands and tools (compiled for m68k).
 
+### Quality & Stability Requirements
+**`lxa` is a runtime environment and operating system implementation. This demands exceptional stability and reliability.**
+
+- **Zero Tolerance for Instability**: Memory leaks, crashes, race conditions, and undefined behavior are unacceptable.
+- **Test-Driven Development**: Write tests BEFORE implementation whenever possible.
+- **100% Code Coverage**: Every line of code must be exercised by tests. No exceptions.
+- **Comprehensive Testing**: Unit tests for functions, integration tests for components, stress tests for robustness.
+- **Continuous Validation**: All tests must pass before committing. No broken builds.
+
+**Why This Matters:**
+- Users depend on `lxa` for running their software - crashes destroy productivity.
+- Debugging m68k/host interaction issues is extremely difficult - prevention is critical.
+- Edge cases in DOS/Exec can corrupt memory or filesystem state.
+- A single memory leak can make long-running sessions unusable.
+
 ## 2. Roadmap Driven Development
 
 ### Core Principles
@@ -106,8 +121,285 @@ make -C tests/dos/helloworld run-test
 - `target/rom/CMakeLists.txt` - ROM build
 - `target/sys/CMakeLists.txt` - System commands build
 
-## 4. Testing
-Integration tests are located in `tests/`.
+## 4. Testing Strategy & Requirements
+
+### Testing Philosophy
+**Every feature requires comprehensive test coverage before it can be considered complete.** As a runtime/OS, `lxa` must be rock-solid - a single bug can crash user applications or corrupt filesystem state.
+
+### Test Types
+
+#### Integration Tests (Required for All Features)
+Located in `tests/`, these test complete workflows from the m68k perspective.
+
+**Structure:**
+```
+tests/
+  ├── dos/          # DOS library functionality
+  ├── exec/         # Exec library functionality  
+  ├── shell/        # Shell features
+  └── commands/     # Command-line tool testing
+```
+
+**Creating Integration Tests:**
+1. Create directory: `tests/<category>/<testname>/`
+2. Add `Makefile` including `../../Makefile.config`
+3. Write `main.c` - m68k code that tests the feature
+4. Create `expected.out` - expected output
+5. Run with `make run-test` - compiles, runs via lxa, diffs output
+
+**Example:**
+```c
+// tests/dos/readargs_simple/main.c
+#include <dos/rdargs.h>
+
+int main(void) {
+    LONG args[2] = {0};
+    struct RDArgs *rda = ReadArgs("NAME/A,SIZE/N", args, NULL);
+    
+    if (rda) {
+        Printf("Name: %s\n", (STRPTR)args[0]);
+        Printf("Size: %ld\n", args[1]);
+        FreeArgs(rda);
+        return 0;
+    }
+    return 20;
+}
+```
+
+#### Unit Tests (Recommended for Complex Logic)
+For host code and ROM functions with complex logic, unit tests verify individual functions in isolation.
+
+**Future Setup:** (Phase 9.1)
+- Framework: CMocka or Unity
+- Location: `tests/unit/`
+- Target: `make test-unit`
+- Coverage: Track with gcov/lcov
+
+**When to Write Unit Tests:**
+- Complex parsing logic (e.g., ReadArgs template parsing)
+- Algorithm implementations (e.g., pattern matching)
+- Data structure operations (e.g., list manipulation)
+- Memory management functions
+- VFS path resolution logic
+
+#### Stress Tests (Required for Core Systems)
+Verify stability under heavy load and edge conditions.
+
+**Examples:**
+- **Memory stress**: Allocate/free thousands of blocks, verify no leaks
+- **Task stress**: Spawn 50+ concurrent tasks, check scheduler
+- **Filesystem stress**: Create/delete thousands of files
+- **Long-running stability**: 24-hour continuous operation
+
+### Coverage Requirements
+
+**Mandatory Coverage Targets:**
+- **Critical Functions**: 100% line and branch coverage
+  - All DOS functions (Open, Read, Lock, etc.)
+  - All Exec functions (Signal, AllocMem, etc.)
+  - ReadArgs and pattern matching
+  - VFS layer and emucalls
+- **Commands**: 100% of code paths tested
+  - All switches and options
+  - Error conditions
+  - Edge cases (empty input, max size, etc.)
+- **Overall Project**: Minimum 95% coverage
+
+**Coverage Verification:**
+```bash
+# Generate coverage report
+make coverage
+
+# View HTML report
+firefox coverage/index.html
+
+# Coverage gate - fail build if below threshold
+make coverage-check
+```
+
+### Test Requirements Checklist
+
+Before marking any task complete, verify:
+
+- [ ] **Functionality Tests** - Happy path works correctly
+- [ ] **Error Handling** - All error conditions tested
+  - Invalid parameters (NULL pointers, out of range)
+  - Resource exhaustion (out of memory, disk full)
+  - Permission denied, file not found, etc.
+- [ ] **Edge Cases** - Boundary conditions covered
+  - Empty input, zero-length files
+  - Maximum sizes (long filenames, large files)
+  - Special characters, unusual patterns
+- [ ] **Break Handling** - Ctrl+C interruption
+  - Long-running operations can be interrupted
+  - Resources cleaned up properly
+  - State left consistent
+- [ ] **Memory Safety** - No leaks or corruption
+  - All AllocMem/AllocVec paired with Free
+  - No buffer overflows
+  - Stack usage within limits (see §10)
+- [ ] **Concurrency** - Thread-safe if applicable
+  - Signal delivery under load
+  - Multiple tasks accessing same resources
+  - Race condition testing
+- [ ] **Documentation** - Test purpose and setup clear
+  - Test name describes what it validates
+  - Comments explain non-obvious checks
+  - Expected.out is correct and complete
+
+### Test-Driven Development Workflow
+
+**Recommended Approach:**
+
+1. **Read Roadmap** - Identify the next task
+2. **Plan Tests** - Before writing any code, outline:
+   - What needs to be tested?
+   - What are the edge cases?
+   - What could go wrong?
+3. **Write Test Skeleton** - Create test structure
+   - Set up test directory
+   - Write test harness
+   - Define expected.out
+4. **Implement Feature** - Write minimum code to pass tests
+   - Start simple (happy path)
+   - Add error handling
+   - Cover edge cases
+5. **Run Tests** - Verify all pass
+   ```bash
+   make -C tests/<category>/<test> run-test
+   ```
+6. **Measure Coverage** - Check if 100% achieved
+7. **Add More Tests** - If coverage gaps exist, add tests first, then fix code
+8. **Final Validation** - Full test suite passes
+   ```bash
+   make -C tests test
+   ```
+
+### Common Testing Patterns
+
+#### Testing DOS Functions
+```c
+// Test Lock/Examine
+BPTR lock = Lock("SYS:C", SHARED_LOCK);
+if (!lock) {
+    Printf("FAIL: Could not lock SYS:C\n");
+    return 20;
+}
+
+struct FileInfoBlock *fib = AllocDosObject(DOS_FIB, NULL);
+if (Examine(lock, fib)) {
+    Printf("OK: %s is directory: %s\n", 
+           fib->fib_FileName,
+           fib->fib_DirEntryType > 0 ? "YES" : "NO");
+} else {
+    Printf("FAIL: Examine failed\n");
+}
+
+FreeDosObject(DOS_FIB, fib);
+UnLock(lock);
+```
+
+#### Testing ReadArgs
+```c
+// Test with various input
+Process *me = (Process *)FindTask(NULL);
+me->pr_Arguments = "myfile SIZE=1024";
+
+LONG args[2] = {0};
+struct RDArgs *rda = ReadArgs("FILE/A,SIZE/K/N", args, NULL);
+
+if (!rda) {
+    Printf("FAIL: ReadArgs rejected valid input\n");
+    return 20;
+}
+
+Printf("File: %s, Size: %ld\n", (STRPTR)args[0], args[1]);
+FreeArgs(rda);
+```
+
+#### Testing Error Conditions
+```c
+// Verify proper error handling
+BPTR fh = Open("NONEXISTENT:FILE", MODE_OLDFILE);
+if (fh) {
+    Printf("FAIL: Open succeeded on invalid path\n");
+    Close(fh);
+    return 20;
+}
+
+LONG err = IoErr();
+if (err != ERROR_OBJECT_NOT_FOUND && err != ERROR_DEVICE_NOT_MOUNTED) {
+    Printf("FAIL: Wrong error code: %ld\n", err);
+    return 20;
+}
+
+Printf("OK: Correct error handling\n");
+```
+
+#### Testing Memory Management
+```c
+// Verify allocation and cleanup
+void *mem1 = AllocMem(1024, MEMF_PUBLIC);
+void *mem2 = AllocMem(2048, MEMF_CLEAR);
+
+if (!mem1 || !mem2) {
+    Printf("FAIL: Allocation failed\n");
+    return 20;
+}
+
+// Verify MEMF_CLEAR zeroed memory
+UBYTE *p = (UBYTE *)mem2;
+for (int i = 0; i < 2048; i++) {
+    if (p[i] != 0) {
+        Printf("FAIL: MEMF_CLEAR did not zero memory\n");
+        return 20;
+    }
+}
+
+FreeMem(mem1, 1024);
+FreeMem(mem2, 2048);
+Printf("OK: Memory operations correct\n");
+```
+
+### Debugging Failed Tests
+
+When a test fails:
+
+1. **Compare outputs:**
+   ```bash
+   diff expected.out actual.out
+   ```
+
+2. **Run with debug output:**
+   ```bash
+   ../../build/host/bin/lxa -d -r ../../build/target/rom/lxa.rom ./testprog
+   ```
+
+3. **Check for crashes:**
+   - Segmentation fault → memory access bug in host code
+   - Assertion failure → logic error in ROM code
+   - Silent failure → check error codes with IoErr()
+
+4. **Add debug prints:**
+   ```c
+   Printf("DEBUG: About to call Lock\n");
+   BPTR lock = Lock(path, SHARED_LOCK);
+   Printf("DEBUG: Lock returned %08lx, IoErr=%ld\n", 
+          (ULONG)lock, IoErr());
+   ```
+
+5. **Verify test expectations:**
+   - Is `expected.out` actually correct?
+   - Did requirements change?
+   - Is test setup correct (files present, permissions set)?
+
+### Test Maintenance
+
+- **Keep tests passing** - Never commit broken tests
+- **Update tests with features** - When behavior changes, update expected.out
+- **Delete obsolete tests** - If feature removed, remove test
+- **Run full suite regularly** - Catch regressions early
+- **Review test failures carefully** - Failed test = bug (usually)
 
 ### Running Tests
 - **Run All Tests**:
@@ -124,13 +416,6 @@ Integration tests are located in `tests/`.
   cd tests/dos/helloworld
   make run-test
   ```
-
-### Creating Tests
-- Create a new directory in `tests/<category>/<testname>`.
-- Add a `Makefile` that includes `../../Makefile.config`.
-- Create a `main.c` (m68k source) that performs the test.
-- Create `expected.out` with the expected output.
-- `make run-test` compiles the test, runs it via `lxa`, and diffs the output.
 
 ### Current Test Categories
 - `tests/dos/` - DOS library tests (helloworld, lock_examine)
