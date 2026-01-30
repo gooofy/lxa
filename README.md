@@ -12,6 +12,30 @@ lxa provides a Linux-based runtime environment for AmigaOS programs by combining
 
 ## Building
 
+### Using CMake (Recommended)
+
+```bash
+# Create build directory
+mkdir build && cd build
+
+# Configure the build
+cmake ..
+
+# Build everything
+make -j$(nproc)
+
+# Install (optional)
+make install
+```
+
+This builds:
+- `build/host/bin/lxa` - The main emulator executable
+- `build/target/rom/lxa.rom` - The AmigaOS kickstart ROM image
+- `build/target/sys/C/*` - AmigaDOS commands (DIR, TYPE, DELETE, MAKEDIR)
+- `build/target/sys/System/Shell` - Amiga Shell (interactive command interpreter)
+
+### Using Legacy Makefiles
+
 ```bash
 make all
 ```
@@ -19,8 +43,8 @@ make all
 This builds:
 - `target/x86_64-linux/bin/lxa` - The main emulator executable
 - `src/rom/lxa.rom` - The AmigaOS kickstart ROM image
-- `sys/C/*` - AmigaDOS commands (DIR, TYPE, DELETE, MAKEDIR)
-- `sys/System/Shell` - Amiga Shell (interactive command interpreter)
+- `sys/C/*` - AmigaDOS commands
+- `sys/System/Shell` - Amiga Shell
 
 ## Quick Start
 
@@ -57,6 +81,20 @@ This creates:
 - `~/.lxa/config.ini` - Configuration file
 - `~/.lxa/System/` - SYS: drive with S/, C/, Libs/, Devs/, T/ directories
 - `~/.lxa/System/S/Startup-Sequence` - Default startup script
+
+#### Environment Variables
+
+- `LXA_PREFIX` - Override the default prefix directory (default: `~/.lxa`)
+  ```bash
+  export LXA_PREFIX=/path/to/custom/lxa
+  ./target/x86_64-linux/bin/lxa myprogram
+  ```
+
+- `LXA_DATA_DIR` - Specify the system data directory (default: auto-detected)
+  ```bash
+  export LXA_DATA_DIR=/usr/share/lxa
+  ./target/x86_64-linux/bin/lxa myprogram
+  ```
 
 ## Usage
 
@@ -384,7 +422,14 @@ lxa defines custom emulator calls for AmigaOS libraries to communicate with the 
 - Command-line argument passing: `lxa Shell script.txt`
 - Piped input support: `echo "dir" | lxa Shell`
 
-### 📋 Phase 6-7: Future Work
+### ✅ Phase 6: Build System Migration (COMPLETE)
+- CMake-based build system with cross-compilation support
+- FHS-compliant installation structure (`bin/`, `share/lxa/`)
+- `LXA_PREFIX` environment variable support for custom user environments
+- Automatic ROM discovery in installation directories
+- System template copying from `share/lxa/System` on first run
+
+### 📋 Phase 7: Future Work
 - Assignment API (AssignLock, AssignPath)
 - System management tools
 - Graphics/Intuition library support
@@ -406,19 +451,21 @@ See `roadmap.md` for the complete development plan. Key milestones:
 - **Phase 2** ✅ - Configuration and VFS layer
 - **Phase 3** ✅ - First-run experience & filesystem API (locks, examine, directories)
 - **Phase 4** ✅ - Basic userland & metadata (commands with AmigaDOS templates)
-- **Phase 5** ✅ - Interactive shell & scripting (infrastructure issues to resolve)
-- **Phase 6** 📋 - System management & assignments
-- **Phase 7** 📋 - Advanced utilities & finalization
+- **Phase 5** ✅ - Interactive shell & scripting
+- **Phase 6** ✅ - Build system migration to CMake
+- **Phase 7** 📋 - System management & assignments
+- **Phase 8** 📋 - Advanced utilities & finalization
 
 ### Current Status
 
-**Phase 5 Complete** - The Shell is fully functional:
-- Interactive mode with `1.SYS:> ` prompt
-- Script execution: `lxa Shell script.txt`
-- Piped input: `echo "dir" | lxa Shell`
-- All infrastructure blockers resolved
+**Phase 6 Complete** - Modern CMake build system with:
+- Cross-compilation support for m68k-amigaos
+- FHS-compliant installation structure
+- `LXA_PREFIX` environment variable for custom environments
+- Automatic ROM discovery in system directories
+- System template copying on first run
 
-**Ready for Phase 6** - System Management & Assignments
+**Ready for Phase 7** - System Management & Assignments
 See `roadmap.md` for upcoming features.
 
 ## Troubleshooting

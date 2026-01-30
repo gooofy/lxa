@@ -86,6 +86,9 @@ tests/exec/signal_pingpong/signal_pingpong
 attic
 lxa.log
 
+# CMake build directory
+build/
+
 # Copyrighted reference material
 shell_spec.md
 

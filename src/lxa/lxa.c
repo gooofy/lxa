@@ -576,6 +576,7 @@ static const char *auto_detect_rom_path(void)
     static char path[PATH_MAX];
     struct stat st;
     const char *home = getenv("HOME");
+    const char *lxa_prefix = getenv("LXA_PREFIX");
     
     /* Try locations in order of preference */
     const char *try_paths[] = {
@@ -591,6 +592,14 @@ static const char *auto_detect_rom_path(void)
         }
     }
     
+    /* Try LXA_PREFIX/lxa.rom (if LXA_PREFIX is set) */
+    if (lxa_prefix) {
+        snprintf(path, sizeof(path), "%s/lxa.rom", lxa_prefix);
+        if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+            return path;
+        }
+    }
+    
     /* Try ~/.lxa/lxa.rom */
     if (home) {
         snprintf(path, sizeof(path), "%s/.lxa/lxa.rom", home);
@@ -599,9 +608,16 @@ static const char *auto_detect_rom_path(void)
         }
     }
     
-    /* Try system-wide location */
-    if (stat("/usr/share/lxa/lxa.rom", &st) == 0 && S_ISREG(st.st_mode)) {
-        return "/usr/share/lxa/lxa.rom";
+    /* Try system-wide locations */
+    const char *system_paths[] = {
+        "/usr/local/share/lxa/lxa.rom",
+        "/usr/share/lxa/lxa.rom",
+    };
+    
+    for (size_t i = 0; i < sizeof(system_paths)/sizeof(system_paths[0]); i++) {
+        if (stat(system_paths[i], &st) == 0 && S_ISREG(st.st_mode)) {
+            return system_paths[i];
+        }
     }
     
     return NULL;
@@ -2637,7 +2653,13 @@ int main(int argc, char **argv, char **envp)
             rom_path = (char *)auto_detect_rom_path();
             if (!rom_path) {
                 fprintf(stderr, "lxa: ERROR: Could not find lxa.rom\n");
-                fprintf(stderr, "lxa: Searched in: current directory, src/rom/, ~/.lxa/, /usr/share/lxa/\n");
+                fprintf(stderr, "lxa: Searched in:\n");
+                fprintf(stderr, "lxa:   - Current directory\n");
+                fprintf(stderr, "lxa:   - src/rom/ (relative to current)\n");
+                fprintf(stderr, "lxa:   - LXA_PREFIX/ (if LXA_PREFIX env var is set)\n");
+                fprintf(stderr, "lxa:   - ~/.lxa/\n");
+                fprintf(stderr, "lxa:   - /usr/local/share/lxa/\n");
+                fprintf(stderr, "lxa:   - /usr/share/lxa/\n");
                 fprintf(stderr, "lxa: Please specify ROM path with -r option or install lxa.rom\n");
                 exit(EXIT_FAILURE);
             }

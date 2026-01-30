@@ -1,0 +1,25 @@
+; lxa Startup-Sequence
+; Default startup script for lxa AmigaOS-compatible environment
+;
+; This file is executed when the system boots.
+; Uncomment and modify the commands below as needed.
+
+; Display welcome message
+Echo ""
+Echo "Welcome to lxa - Linux Amiga Emulation Layer"
+Echo "AmigaOS-compatible environment running on Linux"
+Echo ""
+
+; Set up command search path
+; This adds SYS:C to the command search path
+; Path SYS:C ADD
+
+; Display current directory
+; Echo "Current directory:"
+; CD
+
+; Run any additional startup commands here
+; For example:
+; Execute S:User-Startup
+
+; End of Startup-Sequence

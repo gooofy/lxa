@@ -177,26 +177,45 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## Phase 6: Build System Migration (CMake) 🚧 IN PROGRESS
+## Phase 6: Build System Migration (CMake) ✅ COMPLETE
 **Goal**: Modernize the build system, support proper installation, and automate environment setup.
 
 ### Step 6.1: CMake Infrastructure
-- [ ] **Cross-Compilation Support**: Implement `cmake/m68k-amigaos.cmake` toolchain file for `m68k-amigaos-gcc`.
-- [ ] **Unified Build System**: Create root `CMakeLists.txt` and component `CMakeLists.txt` for `lxa` (host), `lxa.rom` (target), and `sys/` (target).
-- [ ] **Build Optimization**: Replace manual Makefiles with CMake's dependency tracking and parallel build support.
+- ✅ **Cross-Compilation Support**: Implemented `cmake/m68k-amigaos.cmake` toolchain file for `m68k-amigaos-gcc`.
+- ✅ **Unified Build System**: Created root `CMakeLists.txt` and component `CMakeLists.txt` for `lxa` (host), `lxa.rom` (target), and `sys/` (target).
+- ✅ **Build Optimization**: CMake provides dependency tracking and parallel build support.
 
 ### Step 6.2: Installation & Layout
-- [ ] **Standardized Paths**: Implement `install` targets following FHS-like structure.
-- [ ] **Install Prefix**: Default prefix for testing: `~/projects/amiga/lxa/usr`.
-- [ ] **System Template**: Organize `share/lxa/System` as a master template for user environments.
+- ✅ **Standardized Paths**: Implemented `install` targets following FHS-like structure.
+  - Binaries: `${CMAKE_INSTALL_PREFIX}/bin/`
+  - Data files: `${CMAKE_INSTALL_PREFIX}/share/lxa/`
+- ✅ **Install Prefix**: Default prefix set to `~/projects/amiga/lxa/usr` for testing.
+- ✅ **System Template**: Created `share/lxa/System/` as a master template for user environments.
+  - Includes: `C/`, `S/`, `Libs/`, `Devs/`, `T/`, `L/` directories
+  - Default `config.ini` and `S/Startup-Sequence` templates
 
 ### Step 6.3: First-Run Automation
-- [ ] **LXA_PREFIX Support**: Add support for `LXA_PREFIX` environment variable (defaulting to `~/.lxa`).
-- [ ] **Auto-Initialization**: On startup, if `LXA_PREFIX` is missing, `lxa` will automatically:
-  - Create the directory structure.
-  - Copy system files from the installation's `share/lxa/System`.
-  - Deploy a default `config.ini`.
-- [ ] **ROM Discovery**: Automatically find `lxa.rom` in the installation's data directory.
+- ✅ **LXA_PREFIX Support**: Added support for `LXA_PREFIX` environment variable (defaulting to `~/.lxa`).
+  - `vfs_init()` checks for `LXA_PREFIX` env var
+  - Falls back to `~/.lxa` if not set
+- ✅ **Auto-Initialization**: On startup, if `LXA_PREFIX` is missing, `lxa` automatically:
+  - Creates the directory structure (SYS:, S:, C:, Libs:, Devs:, T:)
+  - Copies system files from the installation's `share/lxa/System` (via `copy_system_template()`)
+  - Deploys a default `config.ini`
+- ✅ **ROM Discovery**: `auto_detect_rom_path()` now searches in:
+  - Current directory
+  - `src/rom/` (relative paths for development)
+  - `LXA_PREFIX/` directory
+  - `~/.lxa/` directory
+  - `/usr/local/share/lxa/` (system location)
+  - `/usr/share/lxa/` (system location)
+
+**Lessons Learned**:
+- CMake's `ExternalProject` was not needed; using `add_subdirectory` with compiler checks works well for mixed host/target builds.
+- File copying during installation requires CMake's `install(CODE ...)` for post-build artifacts.
+- The toolchain file approach makes cross-compilation configuration clean and reusable.
+
+**Documentation Updated**: ✅ README.md and roadmap.md updated with new build instructions.
 
 ---
 
@@ -232,26 +251,34 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
    - Templates: `DIR,OPT/K,ALL/S,DIRS/S` not `dir -la`
    - Keywords: `ALL`, `DIRS`, `TO` not `-a`, `-d`, `-o`
 
-## Next Steps: Phase 6 - Build System Migration (CMake)
+## Next Steps: Phase 7 - System Management & Assignments
 
 ### Immediate (Next Session):
-1. **Toolchain Configuration**
-   - Create `cmake/m68k-amigaos.cmake` to wrap the m68k-amigaos-gcc toolchain.
-2. **Root CMakeLists.txt**
-   - Define project and handle host/target build split.
-3. **Host Build**
-   - Port `src/lxa` build to CMake.
+1. **Assignment API**
+   - Implement `AssignLock()`, `AssignName()`, `AssignPath()` APIs.
+   - Add assign support to the VFS layer.
+2. **Shell Integration**
+   - Update Shell to use assigns for command lookup.
+   - Implement ASSIGN command for runtime assign management.
+3. **ASSIGN Command**
+   - Create `sys/C/assign.c` with proper AmigaDOS template.
+   - Support: `ASSIGN <name> <path>`, `ASSIGN <name> SHOW`, `ASSIGN <name> REMOVE`
 
 ### Medium Term:
-4. **Target Build**: Port ROM and `sys/C` commands to CMake.
-5. **Installation Targets**: Implement `make install` functionality.
-6. **First-Run Logic**: Integrate prefix initialization into the `lxa` host process.
+4. **System Management Tools**
+   - STATUS - Show running processes
+   - AVAIL - Show memory availability
+   - STACK - Show/check stack usage
+5. **Process Control**
+   - BREAK - Send Ctrl-C to a process
+   - RUN - Background process execution
+   - CHANGETASKPRI - Modify task priority
 
 ---
 
 ## Status Summary
 
-### ✅ Phase 1-5 Complete
+### ✅ Phase 1-6 Complete
 
 All foundational phases are complete:
 - Phase 1: Exec multitasking (signals, messages, semaphores, processes)
@@ -259,8 +286,18 @@ All foundational phases are complete:
 - Phase 3: Filesystem API (locks, examine, directories, file operations)
 - Phase 4: Userland commands (DIR, TYPE, DELETE, MAKEDIR with templates)
 - Phase 5: Interactive Shell (scripting, control flow, argument passing)
+- Phase 6: Build System Migration (CMake, installation, LXA_PREFIX)
 
-### 📋 Ready for Phase 6: Build System Migration (CMake)
+### ✅ Phase 6 Complete: Build System Migration (CMake)
 
-See Phase 6 section below for upcoming features.
+All Phase 6 tasks completed:
+- CMake-based build system with m68k-amigaos toolchain support
+- FHS-compliant installation paths (bin/, share/lxa/)
+- LXA_PREFIX environment variable for custom environments
+- Automatic system template copying on first run
+- ROM discovery in multiple locations
+
+### 📋 Ready for Phase 7: System Management & Assignments
+
+See Phase 7 section below for upcoming features.
 

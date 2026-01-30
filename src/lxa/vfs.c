@@ -31,11 +31,36 @@ static const char *get_user_home(void)
     return home;
 }
 
+/* Get the installation data directory */
+static const char *get_data_dir(void)
+{
+    const char *data_dir = getenv("LXA_DATA_DIR");
+    if (data_dir) return data_dir;
+    
+    /* Try standard locations */
+    if (access("/usr/share/lxa", F_OK) == 0) {
+        return "/usr/share/lxa";
+    }
+    if (access("/usr/local/share/lxa", F_OK) == 0) {
+        return "/usr/local/share/lxa";
+    }
+    
+    return NULL;
+}
+
 void vfs_init(void) {
-    /* Compute the lxa home directory path */
-    const char *home = get_user_home();
-    if (home) {
-        snprintf(g_lxa_home, sizeof(g_lxa_home), "%s/.lxa", home);
+    /* Check for LXA_PREFIX environment variable first */
+    const char *prefix = getenv("LXA_PREFIX");
+    if (prefix) {
+        strncpy(g_lxa_home, prefix, PATH_MAX - 1);
+        g_lxa_home[PATH_MAX - 1] = '\0';
+        DPRINTF(LOG_INFO, "vfs: Using LXA_PREFIX=%s\n", g_lxa_home);
+    } else {
+        /* Fall back to ~/.lxa */
+        const char *home = get_user_home();
+        if (home) {
+            snprintf(g_lxa_home, sizeof(g_lxa_home), "%s/.lxa", home);
+        }
     }
 }
 
@@ -254,6 +279,119 @@ static bool write_file_if_missing(const char *path, const char *content)
     return true;
 }
 
+/* Copy a file from source to destination */
+static bool copy_file(const char *src_path, const char *dst_path)
+{
+    struct stat st;
+    if (stat(dst_path, &st) == 0) {
+        /* Destination already exists */
+        return true;
+    }
+    
+    FILE *src = fopen(src_path, "rb");
+    if (!src) {
+        DPRINTF(LOG_DEBUG, "vfs: source file not found: %s\n", src_path);
+        return false;
+    }
+    
+    FILE *dst = fopen(dst_path, "wb");
+    if (!dst) {
+        DPRINTF(LOG_ERROR, "vfs: failed to create %s: %s\n", dst_path, strerror(errno));
+        fclose(src);
+        return false;
+    }
+    
+    char buf[8192];
+    size_t n;
+    while ((n = fread(buf, 1, sizeof(buf), src)) > 0) {
+        if (fwrite(buf, 1, n, dst) != n) {
+            DPRINTF(LOG_ERROR, "vfs: failed to write to %s\n", dst_path);
+            fclose(src);
+            fclose(dst);
+            return false;
+        }
+    }
+    
+    fclose(src);
+    fclose(dst);
+    DPRINTF(LOG_INFO, "vfs: copied %s -> %s\n", src_path, dst_path);
+    return true;
+}
+
+/* Copy system template files from installation directory */
+static bool copy_system_template(const char *data_dir, const char *system_dir)
+{
+    (void)system_dir; /* unused parameter */
+    
+    if (!data_dir) return false;
+    
+    char src_path[PATH_MAX];
+    char dst_path[PATH_MAX];
+    int n;
+    
+    /* Copy config.ini if it exists in template */
+    n = snprintf(src_path, sizeof(src_path), "%s/config.ini", data_dir);
+    if (n < 0 || (size_t)n >= sizeof(src_path)) return false;
+    n = snprintf(dst_path, sizeof(dst_path), "%s/config.ini", g_lxa_home);
+    if (n < 0 || (size_t)n >= sizeof(dst_path)) return false;
+    copy_file(src_path, dst_path);
+    
+    /* Copy system files from template System directory */
+    n = snprintf(src_path, sizeof(src_path), "%s/System", data_dir);
+    if (n < 0 || (size_t)n >= sizeof(src_path)) return false;
+    
+    /* Try to copy C/ commands */
+    DIR *dir = opendir(src_path);
+    if (!dir) {
+        DPRINTF(LOG_DEBUG, "vfs: system template not found at %s\n", src_path);
+        return false;
+    }
+    
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') continue;
+        
+        /* Copy subdirectories (C, S, Libs, Devs, T) */
+        n = snprintf(src_path, sizeof(src_path), "%s/System/%s", data_dir, entry->d_name);
+        if (n < 0 || (size_t)n >= sizeof(src_path)) continue;
+        n = snprintf(dst_path, sizeof(dst_path), "%s/System/%s", g_lxa_home, entry->d_name);
+        if (n < 0 || (size_t)n >= sizeof(dst_path)) continue;
+        
+        struct stat st;
+        if (stat(src_path, &st) == 0 && S_ISDIR(st.st_mode)) {
+            /* Create destination directory */
+            ensure_dir(dst_path);
+            
+            /* Copy files in this directory */
+            DIR *subdir = opendir(src_path);
+            if (subdir) {
+                struct dirent *subentry;
+                while ((subentry = readdir(subdir)) != NULL) {
+                    if (subentry->d_name[0] == '.') continue;
+                    
+                    char src_file[PATH_MAX];
+                    char dst_file[PATH_MAX];
+                    n = snprintf(src_file, sizeof(src_file), "%s/%s", src_path, subentry->d_name);
+                    if (n < 0 || (size_t)n >= sizeof(src_file)) continue;
+                    n = snprintf(dst_file, sizeof(dst_file), "%s/%s", dst_path, subentry->d_name);
+                    if (n < 0 || (size_t)n >= sizeof(dst_file)) continue;
+                    
+                    struct stat fst;
+                    if (stat(src_file, &fst) == 0 && S_ISREG(fst.st_mode)) {
+                        copy_file(src_file, dst_file);
+                        /* Make executable if it's a command */
+                        chmod(dst_file, 0755);
+                    }
+                }
+                closedir(subdir);
+            }
+        }
+    }
+    
+    closedir(dir);
+    return true;
+}
+
 /* Helper to safely create paths under g_lxa_home */
 static bool make_path(char *buf, size_t buflen, const char *subpath)
 {
@@ -277,7 +415,7 @@ bool vfs_setup_environment(void)
         return false;
     }
     
-    /* Check if ~/.lxa already exists */
+    /* Check if LXA_PREFIX already exists */
     struct stat st;
     if (stat(g_lxa_home, &st) == 0 && S_ISDIR(st.st_mode)) {
         DPRINTF(LOG_DEBUG, "vfs: lxa home directory %s already exists\n", g_lxa_home);
@@ -311,7 +449,18 @@ bool vfs_setup_environment(void)
     if (!make_path(path, sizeof(path), "/System/T")) return false;
     if (!ensure_dir(path)) return false;
     
-    /* Create default config.ini */
+    /* Create L directory for localization */
+    if (!make_path(path, sizeof(path), "/System/L")) return false;
+    if (!ensure_dir(path)) return false;
+    
+    /* Try to copy system files from installation template */
+    const char *data_dir = get_data_dir();
+    if (data_dir) {
+        fprintf(stderr, "lxa: Copying system files from %s\n", data_dir);
+        copy_system_template(data_dir, path);
+    }
+    
+    /* Create default config.ini (only if not copied from template) */
     if (!make_path(path, sizeof(path), "/config.ini")) return false;
 
     char config_content[2048];
@@ -341,25 +490,31 @@ bool vfs_setup_environment(void)
     
     if (!write_file_if_missing(path, config_content)) return false;
     
-    /* Create default Startup-Sequence */
+    /* Create default Startup-Sequence (only if not copied from template) */
     if (!make_path(path, sizeof(path), "/System/S/Startup-Sequence")) return false;
     
     const char *startup_content =
         "; lxa Startup-Sequence\n"
-        "; Default startup script generated by lxa\n"
+        "; Default startup script for lxa AmigaOS-compatible environment\n"
         ";\n"
         "; This file is executed when the system boots.\n"
-        "; Add your startup commands here.\n"
+        "; Uncomment and modify the commands below as needed.\n"
+        "\n"
+        "; Display welcome message\n"
+        "Echo \"\"\n"
+        "Echo \"Welcome to lxa - Linux Amiga Emulation Layer\"\n"
+        "Echo \"AmigaOS-compatible environment running on Linux\"\n"
+        "Echo \"\"\n"
         "\n"
         "; Set up command search path\n"
         "; Path SYS:C ADD\n"
         "\n"
-        "; Display welcome message\n"
-        "; Echo \"Welcome to lxa - Linux Amiga Emulation Layer\"\n"
-        "; Echo \"\"\n";
+        "; Display current directory\n"
+        "; CD\n";
     
     if (!write_file_if_missing(path, startup_content)) return false;
     
     fprintf(stderr, "lxa: Environment created successfully.\n");
+    fprintf(stderr, "lxa: Edit %s/config.ini to customize your setup.\n", g_lxa_home);
     return true;
 }
