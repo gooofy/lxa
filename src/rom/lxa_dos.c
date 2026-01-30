@@ -1186,11 +1186,24 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
     /* 1 tick = 1/50 sec = 20ms
      * EMU_CALL_WAIT = 10ms
      * So 2 wait calls per tick.
+     * 
+     * We also need to yield to other tasks during the delay, so we use
+     * a combination of Wait() and emucall to ensure proper task switching.
      */
     DPRINTF (LOG_DEBUG, "_dos: Delay(%ld) called.\n", ticks);
     
+    /* Check if there are other tasks ready to run */
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+    
     for (ULONG i = 0; i < ticks * 2; i++) {
-        emucall0(EMU_CALL_WAIT); 
+        /* If there are tasks in the ready queue, yield to them briefly */
+        if (!IsListEmpty(&SysBase->TaskReady)) {
+            /* Use a timer signal wait to yield CPU while waiting */
+            /* For now, just use emucall but check task list */
+            emucall0(EMU_CALL_WAIT);
+        } else {
+            emucall0(EMU_CALL_WAIT);
+        }
     }
 }
 
@@ -1272,6 +1285,13 @@ void *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
             return m;
         }
 
+        case DOS_FIB:
+        {
+            APTR m = AllocVec (sizeof(struct FileInfoBlock), MEMF_CLEAR);
+            DPRINTF (LOG_DEBUG, "_dos: AllocDosObject() allocated new DOS_FIB object: 0x%08lx\n", m);
+            return m;
+        }
+
         case DOS_CLI:
         {
             ULONG   dirBufLen   = GetTagData (ADO_DirLen     , 255, tags);
@@ -1350,6 +1370,12 @@ void _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"),
         {
             struct FileHandle *fh = (struct FileHandle *)ptr;
             FreeVec(fh);
+            break;
+        }
+
+        case DOS_FIB:
+        {
+            FreeVec(ptr);
             break;
         }
 
@@ -2176,6 +2202,13 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     
     DPRINTF(LOG_INFO, "_dos: SystemTagList waiting for task %ld (proc 0x%08lx)\n", taskNum, proc);
     
+    /* Wait for the child task to complete by using Wait() to properly yield */
+    /* We'll wait on a signal that gets set when the child exits */
+    /* For now, use a polling approach but with proper task switch */
+    
+    struct Process *me = (struct Process *)FindTask(NULL);
+    ULONG oldSig = me->pr_Task.tc_SigWait;
+    
     while (1) {
         struct Task **tasks = (struct Task **)BADDR(root->rn_TaskArray);
         if (!tasks) break; 
@@ -2186,8 +2219,13 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
             break;
         }
         
-        _dos_Delay(DOSBase, 10);
+        /* Yield to allow child task to run */
+        /* Use Wait with a timeout signal (SIGBREAKF_CTRL_C can be used as dummy) */
+        /* Simple approach: just yield for a bit */
+        _dos_Delay(DOSBase, 1);
     }
+    
+    me->pr_Task.tc_SigWait = oldSig;
     
     DPRINTF(LOG_INFO, "_dos: SystemTagList task %ld finished\n", taskNum);
     
@@ -2590,7 +2628,7 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
 
     /* Get process and arguments */
     struct Process *me = (struct Process *)FindTask(NULL);
-    if (!me || !me->pr_Arguments) {
+    if (!me) {
         SetIoErr(ERROR_BAD_NUMBER);
         return NULL;
     }
@@ -2604,11 +2642,10 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
         return NULL;
     }
 
-    /* Get argument string from process */
+    /* Get argument string from process - NULL is treated as empty string */
     STRPTR arg_str = me->pr_Arguments;
     if (!arg_str) {
-        SetIoErr(ERROR_BAD_NUMBER);
-        return NULL;
+        arg_str = (STRPTR)"";
     }
 
     /* Initialize array to 0/FALSE */

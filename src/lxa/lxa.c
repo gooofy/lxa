@@ -927,6 +927,8 @@ static int _dos_write (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 
                 fputc (c, stdout);
             }
+            /* Flush stdout after each write to console to ensure output is visible immediately */
+            fflush(stdout);
             break;
         }
         default:
@@ -1864,7 +1866,7 @@ int op_illg(int level)
         }
 
         case EMU_CALL_WAIT:
-            usleep (10000);
+            usleep(10000);
             break;
 
         case EMU_CALL_MONITOR:
