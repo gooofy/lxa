@@ -219,100 +219,155 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## Phase 6.5: Cooperative Multitasking Fix 🚧 PRIORITY
-**Goal**: Fix child process output timing issue where output appears after parent continues.
+## Phase 6.5: Interrupt System & Preemptive Multitasking 🚧 PRIORITY
+**Goal**: Implement proper timer-driven preemptive multitasking to support professional Amiga software.
 
-### Problem Statement
-When a command like `DIR` is executed via the Shell's `System()` call, the output appears
-delayed or after subsequent commands. This is because:
+### Motivation
 
-1. `SystemTagList()` creates a child process and adds it to `TaskReady`
-2. The parent polls using `Delay()` waiting for the child to finish
-3. `Delay()` uses `EMU_CALL_WAIT` which just does `usleep()` on the host
-4. The m68k emulator is single-threaded - no actual task switch occurs
-5. The child only runs when the parent eventually exits (triggering `RemTask`)
+Professional Amiga applications (PageStream, FinalWriter, MaxonPascal, Reflections, etc.) were
+written assuming the full AmigaOS preemptive multitasking environment:
 
-### Root Cause
-The emulator lacks preemptive multitasking. On a real Amiga, the timer interrupt would
-trigger the scheduler to switch tasks. In `lxa`, there's no interrupt mechanism to force
-context switches during `Delay()` or other wait operations.
+- **Timer-driven scheduler**: CIA-B timer fires at 50/60Hz, triggering exec's scheduler
+- **Interrupt-driven I/O**: Devices use interrupts; apps `Wait()` on signals from interrupt handlers
+- **Real-time response**: timer.device for animations, cursor blink, auto-save
+- **Background processing**: Subtasks for printing, spell-checking run concurrently with UI
 
-### Solution Options
+The current implementation lacks interrupt support, causing tasks to only switch on explicit
+`Wait()` calls. This breaks most real-world software.
 
-#### Option A: Signal-Based Child Completion (Recommended)
-Modify `SystemTagList()` to use proper Exec signal/wait mechanism:
+### Current Problem
 
-1. **Parent Setup**:
-   - Allocate a signal bit before creating child
-   - Pass parent's task pointer and signal bit to child via `NP_ExitData`
+When `DIR` is executed via `System()`:
+1. Child process is created and added to `TaskReady`
+2. Parent polls with `Delay()` which uses `EMU_CALL_WAIT` (just `usleep()`)
+3. No m68k task switch occurs - child never runs until parent exits
+4. Output appears delayed or after subsequent commands
 
-2. **Child Exit**:
-   - When child process exits, `RemTask()` or exit code signals the parent
-   - Requires modifying `_dos_Exit()` or adding exit hook
+### Solution: Timer Interrupt Emulation
 
-3. **Parent Wait**:
-   - Replace `Delay()` polling with `Wait(childSignal)`
-   - `Wait()` properly yields to scheduler via `_exec_Switch()`
+Implement proper 68000 interrupt handling with a host-side timer driving the scheduler.
 
-**Files to modify**:
-- `src/rom/lxa_dos.c`: `_dos_SystemTagList()` - use Wait/Signal
-- `src/rom/lxa_dos.c`: Exit path to signal parent
-- `src/rom/exec.c`: Ensure `RemTask()` can signal a waiting parent
+**Architecture Overview**:
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Host (Linux)                         │
+│  ┌─────────────┐    ┌──────────────┐                   │
+│  │ setitimer   │───▶│ SIGALRM      │                   │
+│  │ (50Hz)      │    │ handler      │                   │
+│  └─────────────┘    └──────┬───────┘                   │
+│                            │ sets g_pending_irq = 3    │
+│  ┌─────────────────────────▼────────────────────────┐  │
+│  │              m68k_execute() loop                  │  │
+│  │  if (g_pending_irq && can_interrupt(SR)) {       │  │
+│  │      push_exception_frame(PC, SR);               │  │
+│  │      PC = read_vector(0x6C);  // Level 3         │  │
+│  │  }                                               │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────┐
+│                 m68k Memory (Amiga)                     │
+│  Vector 0x6C ──▶ exec Level 3 interrupt handler        │
+│                    │                                    │
+│                    ▼                                    │
+│  ┌──────────────────────────────────────┐              │
+│  │ Exec interrupt dispatcher            │              │
+│  │   - Walk IntVects[INTB_VERTB] chain  │              │
+│  │   - VBlank server checks quantum     │              │
+│  │   - Calls Schedule() if expired      │              │
+│  └──────────────────────────────────────┘              │
+└─────────────────────────────────────────────────────────┘
+```
 
-#### Option B: EMU_CALL_WAIT Task Switch
-Make `EMU_CALL_WAIT` trigger actual m68k task switching:
+### Implementation Plan
 
-1. When `EMU_CALL_WAIT` is called and `TaskReady` is non-empty:
-   - Save current m68k CPU state
-   - Switch to next ready task
-   - Resume original task when it becomes ready again
+#### Step 6.5.1: Basic Interrupt Infrastructure ✅ COMPLETE
+**Goal**: Add interrupt pending/dispatch mechanism to emulator
 
-**Challenges**:
-- Complex state management in host code
-- May require significant emulator architecture changes
-- Risk of introducing race conditions
+- [x] Add `g_pending_irq` flags (one per level 1-7) to emulator state
+- [x] Modify `m68k_execute()` loop to check for pending interrupts between instructions
+- [x] Implement interrupt acknowledge: compare pending level vs INTENA mask
+- [x] Musashi handles exception frame (PC, SR) and vector loading via `m68k_set_irq()`
+- [x] Test with timer interrupt injection
 
-#### Option C: Timer Interrupt Emulation
-Add a virtual timer interrupt that triggers scheduling:
+**Files**: `src/lxa/lxa.c`
 
-1. Configure a host-side timer (e.g., SIGALRM)
-2. On timer expiry, inject an interrupt into the m68k emulator
-3. Interrupt handler invokes the Amiga scheduler
+#### Step 6.5.2: Timer-Driven Scheduler (50Hz) ✅ COMPLETE
+**Goal**: Host timer triggers Level 3 interrupt for VBlank/scheduler
 
-**Challenges**:
-- Significant complexity
-- May affect emulator determinism
-- Debugging becomes harder
+- [x] Add host-side timer using `setitimer(ITIMER_REAL, ...)` at 50Hz
+- [x] SIGALRM handler sets `g_pending_irq |= (1 << 3)` for Level 3
+- [x] ROM Level 3 vector handler (`_handleIRQ3`) was already implemented
+- [x] Handler counts quantum and calls `_exec_Schedule()` when expired
+- [ ] Make timer frequency configurable (50Hz PAL / 60Hz NTSC) - future enhancement
 
-### Implementation Steps (Option A)
+**Files**: `src/lxa/lxa.c`, `src/rom/exceptions.s`
 
-- [ ] **Step 1**: Define child-exit signal protocol
-  - Choose signal bit (e.g., SIGF_SINGLE or allocate one)
-  - Document parent-child signal contract
+#### Step 6.5.3: Exec Interrupt Server Chains
+**Goal**: Proper AddIntServer/RemIntServer for extensibility
 
-- [ ] **Step 2**: Modify `_dos_SystemTagList()`
-  - Allocate signal bit with `AllocSignal()`
-  - Store parent task in child's `pr_ExitData`
-  - Replace `Delay()` loop with `Wait(exitSignal)`
-  - Free signal bit after child completes
+- [ ] Implement `IntVects[]` array in ExecBase for interrupt server chains
+- [ ] Implement `AddIntServer()` - add handler to chain for given interrupt
+- [ ] Implement `RemIntServer()` - remove handler from chain
+- [ ] Create VBlank server that decrements task quantum and requests reschedule
+- [ ] Move scheduler quantum logic from ad-hoc to proper VBlank server
 
-- [ ] **Step 3**: Add child exit notification
-  - In `_dos_Exit()` or libnix exit path, signal parent if `pr_ExitData` is set
-  - Alternatively, hook into `RemTask()` for CLI processes
+**Files**: `src/rom/exec.c`
 
-- [ ] **Step 4**: Test with DIR and other commands
-  - Verify output appears before prompt
-  - Ensure no regressions in existing tests
+#### Step 6.5.4: Interrupt Levels & CIA Emulation (Basic)
+**Goal**: Support standard Amiga interrupt levels
 
-- [ ] **Step 5**: Update documentation
-  - Document the signal-based wait mechanism
-  - Add technical notes about cooperative vs preemptive multitasking
+| Level | Vector | Use |
+|-------|--------|-----|
+| 1 | 0x64 | TBE (serial transmit buffer empty) |
+| 2 | 0x68 | CIA-A (keyboard, parallel, timer) |
+| 3 | 0x6C | CIA-B (VBlank, timer) - **scheduler lives here** |
+| 4 | 0x70 | Audio |
+| 5 | 0x74 | Disk |
+| 6 | 0x78 | External/CIA-A |
+| 7 | 0x7C | NMI (unused) |
+
+- [ ] Set up autovector table at 0x64-0x7C during ROM init
+- [ ] Implement basic CIA-B timer A for scheduler tick
+- [ ] Stub other levels to return (RTE) for now
+
+**Files**: `src/rom/exec.c`, `src/rom/romhdr.s`
+
+#### Step 6.5.5: timer.device (Basic)
+**Goal**: Apps can request timer events
+
+- [ ] Create timer.device skeleton in ROM
+- [ ] Implement `TR_ADDREQUEST` for one-shot timer events
+- [ ] Implement `TR_GETSYSTIME` for current system time
+- [ ] Timer requests use CIA timer and signal requesting task when complete
+- [ ] Test with `Delay()` implemented via timer.device
+
+**Files**: `src/rom/lxa_timer.c` (new), `src/rom/exec.c`
+
+### Testing Strategy
+
+1. **Unit test**: Manual interrupt injection triggers handler
+2. **Integration test**: signal_pingpong works without explicit `Wait()` hacks
+3. **Shell test**: `DIR` output appears immediately before next prompt
+4. **Stress test**: Rapid command execution doesn't deadlock or race
 
 ### Acceptance Criteria
-- `DIR` output appears immediately before the next shell prompt
-- All existing tests continue to pass
-- No deadlocks when running multiple commands sequentially
-- Works with both interactive and scripted shell usage
+
+- [x] 50Hz timer interrupt fires and triggers exec scheduler
+- [x] Tasks preempt automatically without explicit `Wait()` calls
+- [x] `DIR` and other commands output appears in correct order
+- [x] All existing tests pass (6/6)
+- [x] No measurable performance regression
+- [ ] `timer.device` basic requests work (future: Step 6.5.5)
+
+### Future Extensions (Not in 6.5)
+
+- Full CIA chip emulation (ICR registers, both timers)
+- Audio interrupts for sampled sound
+- Disk interrupts for trackdisk.device
+- Serial/parallel interrupts
+- 68020+ interrupt stack frame differences
 
 ---
 
@@ -348,16 +403,22 @@ Add a virtual timer interrupt that triggers scheduling:
    - Templates: `DIR,OPT/K,ALL/S,DIRS/S` not `dir -la`
    - Keywords: `ALL`, `DIRS`, `TO` not `-a`, `-d`, `-o`
 
-## Next Steps: Phase 6.5 - Cooperative Multitasking Fix
+## Next Steps: Phase 6.5 - Interrupt System & Preemptive Multitasking
 
 ### Immediate Priority:
-The DIR command works but output appears delayed due to missing preemptive task switching.
-This must be fixed before proceeding to Phase 7.
+Implement timer-driven preemptive multitasking to enable professional Amiga software.
 
-1. **Implement Signal-Based Child Wait** (see Phase 6.5 above)
-   - Modify `_dos_SystemTagList()` to use `Wait()` instead of `Delay()` polling
-   - Add child exit notification to signal parent
-   - Test with DIR and other external commands
+1. **Step 6.5.1**: Basic interrupt infrastructure in emulator
+   - Add pending interrupt flags and dispatch logic to m68k loop
+   - Test with manual interrupt injection
+
+2. **Step 6.5.2**: Timer-driven scheduler
+   - Host-side 50Hz timer via setitimer/SIGALRM
+   - Level 3 interrupt triggers exec scheduler
+
+3. **Step 6.5.3**: Exec interrupt server chains
+   - AddIntServer/RemIntServer APIs
+   - VBlank server for task quantum management
 
 ### After Phase 6.5: Phase 7 - System Management & Assignments
 
@@ -404,15 +465,28 @@ All Phase 6 tasks completed:
 - Automatic system template copying on first run
 - ROM discovery in multiple locations
 
-### 🚧 Phase 6.5: Cooperative Multitasking Fix (PRIORITY)
+### ✅ Phase 6.5: Timer-Driven Preemptive Multitasking COMPLETE
 
-**Current Issue**: External commands (DIR, TYPE, etc.) work but their output may appear
-delayed due to missing preemptive task switching in the emulator.
+**Implemented**: Timer-driven preemptive multitasking using host-side `setitimer()` at 50Hz.
 
-**Status**: Solution designed, implementation pending.
-See Phase 6.5 section for detailed implementation plan.
+**Key Changes** (commit pending):
+- Added `g_pending_irq` volatile flag for pending interrupt levels
+- SIGALRM handler sets Level 3 pending on each timer tick
+- Main loop checks pending interrupts and triggers via `m68k_set_irq(3)`
+- Reduced EMU_CALL_WAIT sleep from 10ms to 1ms for responsiveness
+- Execute loop batch size reduced to 1000 cycles for better interrupt response
 
-### 📋 Ready for Phase 7 (after 6.5): System Management & Assignments
+**Results**:
+- DIR command output appears immediately
+- All 6 tests pass
+- Multitasking works correctly (signal_pingpong test demonstrates this)
 
-See Phase 7 section below for upcoming features.
+**Remaining (Future)**:
+- Step 6.5.3: AddIntServer/RemIntServer APIs for extensibility
+- Step 6.5.4: Full CIA emulation
+- Step 6.5.5: timer.device implementation
+
+### 📋 Ready for Phase 7: System Management & Assignments
+
+See Phase 7 section for upcoming features.
 

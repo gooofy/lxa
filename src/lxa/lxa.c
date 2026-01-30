@@ -10,6 +10,7 @@
 #include <string.h>
 #include <regex.h>
 #include <dirent.h>
+#include <signal.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -102,6 +103,30 @@ static pending_bp_t *_g_pending_bps = NULL;
 #define INTENA_VBLANK 0x0020
 
 static uint16_t g_intena  = INTENA_MASTER | INTENA_VBLANK;
+
+/*
+ * Phase 6.5: Timer-driven preemptive multitasking
+ *
+ * We use a host-side timer (setitimer) to generate periodic interrupts
+ * at ~50Hz (PAL VBlank rate). The SIGALRM handler sets a pending interrupt
+ * flag which is checked in the main emulation loop.
+ *
+ * This allows tasks to be preempted even when they don't explicitly call
+ * Wait() or other blocking functions.
+ */
+
+/* Pending interrupt flags (one bit per level 1-7) */
+static volatile sig_atomic_t g_pending_irq = 0;
+
+/* Timer frequency in microseconds (50Hz = 20000us = 20ms) */
+#define TIMER_INTERVAL_US 20000
+
+/* SIGALRM handler - sets Level 3 interrupt pending */
+static void sigalrm_handler(int sig)
+{
+    (void)sig;
+    g_pending_irq |= (1 << 3);  /* Level 3 = VBlank */
+}
 
 // ExecBase offsets for task list checking
 #define EXECBASE_THISTAK     276
@@ -1866,7 +1891,20 @@ int op_illg(int level)
         }
 
         case EMU_CALL_WAIT:
-            usleep(10000);
+            /*
+             * Phase 6.5: Improved wait handling
+             *
+             * When the scheduler dispatch loop has no ready tasks, it calls
+             * EMU_CALL_WAIT. Instead of just sleeping, we now:
+             * 1. Sleep briefly to avoid busy-waiting
+             * 2. Signal that we're idle, allowing interrupts to fire
+             *
+             * The key insight is that we don't need a long sleep here - the
+             * timer interrupt will wake up waiting tasks when their time comes.
+             * A short sleep (1ms) is enough to avoid burning CPU while still
+             * being responsive to signals.
+             */
+            usleep(1000);  /* 1ms - short sleep to allow signals */
             break;
 
         case EMU_CALL_MONITOR:
@@ -2791,21 +2829,71 @@ int main(int argc, char **argv, char **envp)
     m68k_set_cpu_type(M68K_CPU_TYPE_68000);
     m68k_pulse_reset();
 
-    while (TRUE)
+    /*
+     * Phase 6.5: Set up timer-driven preemptive multitasking
+     *
+     * We use setitimer() to generate SIGALRM at ~50Hz (PAL VBlank rate).
+     * The signal handler sets g_pending_irq which is checked each iteration.
+     */
+    struct sigaction sa;
+    sa.sa_handler = sigalrm_handler;
+    sa.sa_flags = SA_RESTART;  /* Restart interrupted syscalls */
+    sigemptyset(&sa.sa_mask);
+    if (sigaction(SIGALRM, &sa, NULL) < 0)
     {
-        m68k_set_irq(0);
-        m68k_execute(100000);
-        if (!g_running)
-            break;
-        if ( (g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK))
-        {
-            //DPRINTF (LOG_DEBUG, "lxa: triggering IRQ #3...\n");
-            m68k_set_irq(3);
-        }
-        m68k_execute(100000);
-        if (!g_running)
-            break;
+        perror("sigaction");
+        exit(EXIT_FAILURE);
     }
+
+    struct itimerval timer;
+    timer.it_value.tv_sec = 0;
+    timer.it_value.tv_usec = TIMER_INTERVAL_US;
+    timer.it_interval.tv_sec = 0;
+    timer.it_interval.tv_usec = TIMER_INTERVAL_US;
+    if (setitimer(ITIMER_REAL, &timer, NULL) < 0)
+    {
+        perror("setitimer");
+        exit(EXIT_FAILURE);
+    }
+
+    DPRINTF(LOG_DEBUG, "lxa: Timer-driven scheduler enabled at %d Hz\n", 1000000 / TIMER_INTERVAL_US);
+
+    while (g_running)
+    {
+        /*
+         * Check for pending interrupts from the timer.
+         * If INTENA allows VBlank interrupts and we have a pending Level 3,
+         * trigger the interrupt.
+         */
+        if (g_pending_irq & (1 << 3))
+        {
+            if ((g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK))
+            {
+                /* Clear pending flag and trigger interrupt */
+                g_pending_irq &= ~(1 << 3);
+                m68k_set_irq(3);
+            }
+        }
+        else
+        {
+            /* No pending interrupt - clear IRQ line */
+            m68k_set_irq(0);
+        }
+
+        /*
+         * Execute a batch of instructions. The batch size is chosen to be
+         * small enough that we check for interrupts frequently (~1000 cycles
+         * gives reasonable responsiveness while keeping overhead low).
+         */
+        m68k_execute(1000);
+    }
+
+    /* Stop the timer */
+    timer.it_value.tv_sec = 0;
+    timer.it_value.tv_usec = 0;
+    timer.it_interval.tv_sec = 0;
+    timer.it_interval.tv_usec = 0;
+    setitimer(ITIMER_REAL, &timer, NULL);
 
     return g_rv;
 }
