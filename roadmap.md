@@ -93,22 +93,27 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
    - ✓ `AttemptSemaphore()` for non-blocking acquisition
    - Required for C runtime compatibility
 
-### Step 4.1b: Command Behavioral Alignment ✓ DONE
+### Step 4.1b: Command Behavioral Alignment ⚠️ PARTIAL (See Phase 7.5)
+
+**Note**: Commands have basic functionality but significant gaps remain. See **Phase 7.5** for detailed fix plan.
 
 **DIR Command** (`sys/C/dir.c`)
 - ✅ Template: `DIR,OPT/K,ALL/S,DIRS/S,FILES/S,INTER/S`
 - ✅ Pattern matching support (`#?` wildcards) for filtering
-- ✅ ALL switch to show hidden files
+- ❌ ALL switch **incorrectly** shows hidden files (should do recursive traversal)
 - ✅ DIRS/FILES switches for filtering
 - ✅ Detailed listing with OPT=L
-- ⚠️ Interactive mode (INTER) stubbed but not fully implemented
+- ❌ Interactive mode (INTER) not implemented
+- ❌ Two-column output not implemented
+- ❌ Entry sorting not implemented
 
 **DELETE Command** (`sys/C/delete.c`)
 - ✅ Template: `FILE/M/A,ALL/S,QUIET/S,FORCE/S`
 - ✅ Multiple file support (/M modifier)
 - ✅ ALL switch for recursive directory deletion
 - ✅ QUIET switch to suppress output
-- ✅ FORCE switch for error suppression
+- ⚠️ FORCE switch suppresses errors (should also override protection)
+- ❌ Pattern matching in FILE arguments not implemented
 
 **TYPE Command** (`sys/C/type.c`)
 - ✅ Template: `FROM/A/M,TO/K,OPT/K,HEX/S,NUMBER/S`
@@ -116,10 +121,13 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - ✅ TO keyword for output redirection
 - ✅ HEX switch for hex dump with ASCII column
 - ✅ NUMBER switch for line numbering
+- ❌ Pause/resume on keypress not implemented
+- ❌ Ctrl+C break handling not implemented
 
 **MAKEDIR Command** (`sys/C/makedir.c`)
 - ✅ Template: `NAME/M/A`
 - ✅ Multiple directory creation (/M modifier)
+- ✅ **COMPLETE** - matches AmigaDOS behavior
 
 ### Step 4.2: Pattern Matching ✓ DONE
 
@@ -135,7 +143,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - ✅ **SetComment()**: Stores comments via xattr or sidecar files (`src/lxa/lxa.c:1395`)
 - ✅ **ReadArgs()**: Template-based command argument parsing (`src/rom/lxa_dos.c:2310`)
 
-**Pending (Phase 4b)**:
+**Pending (Phase 8)**:
 - **SetDate()**: Set file modification times (maps to `utimes()`)
 - **GetVar()/SetVar()/DeleteVar()/FindVar()**: Environment variables
 - **Tools**: RENAME, PROTECT, FILENOTE, SET, SETENV, GETENV
@@ -442,12 +450,173 @@ for basic use cases. Full timer.device support would enable precise timing.
 
 ---
 
-## Phase 8: Advanced Utilities & Finalization
+## Phase 7.5: Command Feature Completeness 🚧 IN PROGRESS
+**Goal**: Complete the existing AmigaDOS commands to match their authentic behavior as specified in `AMIGA_COMMAND_GUIDE.md`.
+
+### Current State Analysis (January 2026)
+
+The following gaps have been identified between the current implementation and authentic AmigaDOS behavior:
+
+### Step 7.5.1: DIR Command Fixes ⚠️ CRITICAL
+
+**Template**: `DIR,OPT/K,ALL/S,DIRS/S,FILES/S,INTER/S`
+
+**File**: `sys/C/dir.c`
+
+| Feature | Status | Issue |
+|---------|--------|-------|
+| ALL/S | ❌ BROKEN | Currently shows hidden files (`.` prefix) instead of **recursive directory traversal** |
+| INTER/S | ❌ STUB | Prints "not yet implemented" message |
+| Two-column output | ❌ MISSING | Lists files in single column instead of two-column layout |
+| Sorting | ❌ MISSING | No sorting (dirs first alphabetically, then files alphabetically) |
+| Pattern in path | ⚠️ PARTIAL | Pattern matching works but path+pattern parsing incomplete |
+
+**Implementation Tasks**:
+- [ ] **Fix ALL/S behavior**: Implement recursive directory traversal
+  - Walk subdirectories and list their contents
+  - Indent or prefix to show directory depth
+  - Continue pattern matching in subdirectories
+- [ ] **Implement INTER (Interactive Mode)**: Full interactive navigation
+  - `?` - Display help
+  - `Return` - Next item
+  - `E` - Enter directory (descend)
+  - `B` - Back up one level
+  - `DEL` - Delete file/directory
+  - `T` - Type file contents
+  - `C cmd` - Execute command
+  - `Q` - Quit interactive mode
+- [ ] **Two-column output**: Files displayed in two columns for non-detailed listing
+- [ ] **Entry sorting**: Sort entries alphabetically (dirs first, then files)
+- [ ] **Ctrl+C handling**: Allow interrupt during long listings
+
+### Step 7.5.2: TYPE Command Fixes ⚠️
+
+**Template**: `FROM/A/M,TO/K,OPT/K,HEX/S,NUMBER/S`
+
+**File**: `sys/C/type.c`
+
+| Feature | Status | Issue |
+|---------|--------|-------|
+| FROM/M | ✅ DONE | Multiple files supported |
+| TO/K | ✅ DONE | Output redirection works |
+| HEX/S | ✅ DONE | Hex dump with ASCII column |
+| NUMBER/S | ✅ DONE | Line numbering works |
+| Pause/Resume | ❌ MISSING | Should pause on Space, resume on Backspace/Return/Ctrl+X |
+| Ctrl+C break | ❌ MISSING | Should allow interrupting long TYPE operations |
+| No header for single file | ⚠️ UX | Shows "------- filename ------" even for single file |
+
+**Implementation Tasks**:
+- [ ] **Pause/Resume on keypress**: 
+  - Space bar = pause display
+  - Backspace/Return/Ctrl+X = resume
+  - Requires raw console input (WaitForChar/Read with timeout)
+- [ ] **Ctrl+C break handling**: Check for break signal periodically
+- [ ] **Single-file header**: Suppress "------" header when only one file
+
+### Step 7.5.3: DELETE Command Review ✅ MOSTLY COMPLETE
+
+**Template**: `FILE/M/A,ALL/S,QUIET/S,FORCE/S`
+
+**File**: `sys/C/delete.c`
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| FILE/M/A | ✅ DONE | Multiple files supported |
+| ALL/S | ✅ DONE | Recursive delete implemented |
+| QUIET/S | ✅ DONE | Suppresses output |
+| FORCE/S | ⚠️ PARTIAL | Suppresses errors but doesn't check protection bits |
+| Pattern matching | ❌ MISSING | Should support `#?` patterns for file selection |
+| Ctrl+C handling | ❌ MISSING | Should abort but keep already-deleted files |
+
+**Implementation Tasks**:
+- [ ] **Pattern matching**: Support wildcards in FILE arguments (`DELETE #?.bak`)
+- [ ] **FORCE with protection**: Check protection bits before delete (unless FORCE)
+- [ ] **Ctrl+C handling**: Allow interrupt during multi-file operations
+
+### Step 7.5.4: MAKEDIR Command ✅ COMPLETE
+
+**Template**: `NAME/M/A`
+
+**File**: `sys/C/makedir.c`
+
+The MAKEDIR command implementation appears complete and matches AmigaDOS behavior:
+- Multiple directory creation
+- No parent creation (unlike Unix `mkdir -p`)
+- Proper error messages
+
+No changes needed.
+
+### Step 7.5.5: Common Infrastructure Improvements
+
+**Shared Requirements across Commands**:
+
+- [ ] **Ctrl+C Signal Handling**: Add `SetSignal()`/`CheckSignal()` pattern to all commands
+  ```c
+  if (SetSignal(0L, SIGBREAKF_CTRL_C) & SIGBREAKF_CTRL_C) {
+      /* User pressed Ctrl+C */
+      break;
+  }
+  ```
+- [ ] **Pattern Matching in File Args**: Helper function to expand `#?` patterns
+  - Use `MatchFirst()`/`MatchNext()` or custom implementation
+- [ ] **Console Raw Mode**: Support for interactive features (INTER, pause/resume)
+  - `SetMode(fh, 1)` for raw mode
+  - `WaitForChar()` for non-blocking read
+
+---
+
+## Phase 8: New Commands & Advanced Utilities
 **Goal**: Reach Milestone 1.0 with a polished toolset.
 
-- **Utilities**: `COPY` (recursive), `JOIN`, `SORT`, `EVAL`, `SEARCH`.
-- **Compatibility**: `VERSION`, `WAIT`, `MAKELINK`.
-- **Final Polish**: Documentation, `README.md` update, and AROS reference review for edge cases.
+### Step 8.1: File Manipulation Commands
+- [ ] **COPY** - Copy files/directories with recursive support
+  - Template: `FROM/M/A,TO/A,ALL/S,CLONE/S,DATES/S,NOPRO/S,COM/S,QUIET/S`
+- [ ] **RENAME** - Rename/move files
+  - Template: `FROM/A,TO/A,QUIET/S`
+- [ ] **JOIN** - Concatenate files
+  - Template: `FROM/A/M,AS=TO/A`
+
+### Step 8.2: File Information Commands
+- [ ] **PROTECT** - Change file protection bits
+  - Template: `FILE/A,FLAGS/K,ADD/S,SUB/S,ALL/S`
+- [ ] **FILENOTE** - Set file comment
+  - Template: `FILE/A,COMMENT,ALL/S`
+- [ ] **LIST** - Detailed directory listing
+  - Template: `DIR/M,P=PAT/K,KEYS/S,DATES/S,NODATES/S,TO/K,SUB/S,SINCE/K,UPTO/K,QUICK/S,BLOCK/S,NOHEAD/S,FILES/S,DIRS/S,LFORMAT/K,ALL/S`
+
+### Step 8.3: Search & Text Commands
+- [ ] **SEARCH** - Search for text in files
+  - Template: `FROM/M/A,SEARCH/A,ALL/S,NONUM/S,QUIET/S,QUICK/S,FILE/S,PATTERN/S`
+- [ ] **SORT** - Sort lines of text
+  - Template: `FROM/A,TO/A,COLSTART/K/N,CASE/S,NUMERIC/S`
+- [ ] **EVAL** - Evaluate arithmetic expressions
+  - Template: `VALUE1/A,OP,VALUE2/M,TO/K,LFORMAT/K`
+
+### Step 8.4: Environment & Variables
+- [ ] **SET** - Set local variable
+  - Template: `NAME,VALUE/F`
+- [ ] **SETENV** - Set global environment variable
+  - Template: `NAME,SAVE/S,VALUE/F`
+- [ ] **GETENV** - Get environment variable value
+  - Template: `NAME/A`
+- [ ] **UNSET** / **UNSETENV** - Remove variables
+
+### Step 8.5: System Commands
+- [ ] **VERSION** - Display version information
+  - Template: `NAME,VERSION/N,REVISION/N,FILE/S,FULL/S,RES/S`
+- [ ] **WAIT** - Wait for time/event
+  - Template: `TIME,SEC/S,MIN/S,UNTIL/S`
+- [ ] **INFO** - Display disk information
+  - Template: `DEVICE/M`
+- [ ] **DATE** - Display/set system date
+  - Template: `DAY,DATE,TIME,TO=VER/K`
+- [ ] **MAKELINK** - Create hard/soft links
+  - Template: `FROM/A,TO/A,HARD/S,FORCE/S`
+
+### Step 8.6: Final Polish
+- Documentation update: `README.md` with all commands
+- AROS reference review for edge cases
+- Test coverage for all commands
 
 ---
 
@@ -460,16 +629,24 @@ for basic use cases. Full timer.device support would enable precise timing.
    - Templates: `DIR,OPT/K,ALL/S,DIRS/S` not `dir -la`
    - Keywords: `ALL`, `DIRS`, `TO` not `-a`, `-d`, `-o`
 
-## Next Steps: Phase 8 - Advanced Utilities & Finalization
+## Next Steps: Phase 7.5 - Command Feature Completeness
 
 ### Immediate Priority:
-With Phase 7 (System Management) complete, focus shifts to advanced utilities and final polish.
+Before adding new commands (Phase 8), existing commands must match authentic AmigaDOS behavior.
+
+### Phase 7.5: Command Fixes (Current)
+Critical issues that need attention:
+1. **DIR ALL/S**: Currently shows hidden files instead of recursive traversal - **CRITICAL BUG**
+2. **DIR INTER**: Interactive mode not implemented
+3. **TYPE pause/resume**: Missing Space/Return keypress handling
+4. **DELETE patterns**: Wildcard file matching not supported
+5. **Ctrl+C handling**: All commands need break signal support
 
 ### Phase 8: Advanced Utilities (Next)
+After Phase 7.5 is complete:
 - **Utilities**: `COPY` (recursive), `JOIN`, `SORT`, `EVAL`, `SEARCH`
 - **Compatibility**: `VERSION`, `WAIT`, `MAKELINK`
 - **Device Control**: `MOUNT`, `RELABEL`, `LOCK` (deferred from Phase 7)
-- **Final Polish**: Documentation, `README.md` update, and AROS reference review
 
 ### Future Enhancements
 The following are optional improvements:
@@ -492,6 +669,22 @@ All foundational phases are complete:
 - **Phase 6**: Build System Migration (CMake, installation, LXA_PREFIX)
 - **Phase 6.5**: Preemptive Multitasking (50Hz timer, interrupt-driven scheduler)
 - **Phase 7**: System Management (Assignments, STATUS, AVAIL, STACK, RUN, BREAK, CHANGETASKPRI)
+
+### 🚧 Phase 7.5 In Progress: Command Feature Completeness (January 2026)
+
+**Issue**: Existing commands have gaps compared to authentic AmigaDOS behavior.
+
+**Critical Bugs Found**:
+| Command | Issue | Severity |
+|---------|-------|----------|
+| DIR | ALL/S shows hidden files instead of recursive traversal | 🔴 CRITICAL |
+| DIR | INTER (interactive mode) not implemented | 🟠 HIGH |
+| DIR | No two-column output, no sorting | 🟡 MEDIUM |
+| TYPE | No pause/resume on keypress | 🟡 MEDIUM |
+| DELETE | No pattern matching support | 🟡 MEDIUM |
+| ALL | No Ctrl+C break signal handling | 🟡 MEDIUM |
+
+**See Phase 7.5 section above for detailed implementation tasks.**
 
 ### ✅ Phase 7 Complete: System Management (January 2026)
 
@@ -536,7 +729,12 @@ All foundational phases are complete:
 - Step 6.5.4: Full CIA emulation
 - Step 6.5.5: timer.device for precise timing
 
-### 📋 Current Focus: Phase 8 - Advanced Utilities
+### 📋 Current Focus: Phase 7.5 - Fix Existing Commands
 
-With system management complete, the next milestone is advanced utilities:
-- COPY, JOIN, SORT, EVAL, SEARCH, VERSION, WAIT, MAKELINK
+Before adding new commands, the priority is fixing existing command behavior:
+1. Fix DIR ALL/S to do recursive traversal (not hidden files)
+2. Implement DIR INTER interactive mode
+3. Add two-column output and sorting to DIR
+4. Add pause/resume to TYPE
+5. Add pattern matching to DELETE
+6. Add Ctrl+C handling to all commands
