@@ -30,8 +30,8 @@ extern struct ExecBase *SysBase;
 #define strcasecmp stricmp
 #define strncasecmp strnicmp
 
-/* Default prompt */
-static char prompt_str[MAX_PROMPT_LEN] = "%N.%S:> ";
+/* Default prompt - %N=CLI number, %S=current path (includes trailing colon for volumes) */
+static char prompt_str[MAX_PROMPT_LEN] = "%N.%S> ";
 
 /* Search paths for commands */
 static char *search_paths[MAX_PATHS] = { NULL };
