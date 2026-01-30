@@ -429,12 +429,9 @@ static bool copy_system_template(const char *data_dir, const char *system_dir)
     char dst_path[PATH_MAX];
     int n;
     
-    /* Copy config.ini if it exists in template */
-    n = snprintf(src_path, sizeof(src_path), "%s/config.ini", data_dir);
-    if (n < 0 || (size_t)n >= sizeof(src_path)) return false;
-    n = snprintf(dst_path, sizeof(dst_path), "%s/config.ini", g_lxa_home);
-    if (n < 0 || (size_t)n >= sizeof(dst_path)) return false;
-    copy_file(src_path, dst_path);
+    /* NOTE: We don't copy config.ini from the template because we need
+     * to generate our own with SYS drive properly configured to point
+     * to ~/.lxa/System. The template config.ini has SYS commented out. */
     
     /* Copy system files from template System directory */
     n = snprintf(src_path, sizeof(src_path), "%s/System", data_dir);
