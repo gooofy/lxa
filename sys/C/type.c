@@ -37,7 +37,7 @@ extern struct DosLibrary *DOSBase;
 static void display_hex_dump(const UBYTE *buffer, LONG bytes_read, LONG offset)
 {
     for (int i = 0; i < bytes_read; i += 16) {
-        printf("%08lx  ", offset + i);
+        printf("%08x  ", (unsigned int)(offset + i));
         
         /* Hex bytes */
         for (int j = 0; j < 16; j++) {
@@ -82,7 +82,7 @@ static int type_single_file(CONST_STRPTR path, FILE *output, BOOL show_hex, BOOL
     /* Open the file */
     fh = Open(path, MODE_OLDFILE);
     if (!fh) {
-        fprintf(output, "TYPE: Can't open '%s' - %ld\n", path, IoErr());
+        fprintf(output, "TYPE: Can't open '%s' - %d\n", path, (int)IoErr());
         return 1;
     }
     
@@ -92,7 +92,7 @@ static int type_single_file(CONST_STRPTR path, FILE *output, BOOL show_hex, BOOL
     }
     
     if (show_line_numbers && !show_hex) {
-        fprintf(output, "%6ld  ", line_number);
+                        fprintf(output, "%6d  ", (int)line_number);
         in_line = TRUE;
     }
     
@@ -108,7 +108,7 @@ static int type_single_file(CONST_STRPTR path, FILE *output, BOOL show_hex, BOOL
                     if (buffer[i] == '\n') {
                         fputc('\n', output);
                         line_number++;
-                        fprintf(output, "%6ld  ", line_number);
+        fprintf(output, "%6d  ", (int)line_number);
                         in_line = TRUE;
                     } else {
                         fputc(buffer[i], output);
@@ -128,7 +128,7 @@ static int type_single_file(CONST_STRPTR path, FILE *output, BOOL show_hex, BOOL
     }
     
     if (bytes_read < 0) {
-        fprintf(output, "\nTYPE: Error reading '%s' - %ld\n", path, IoErr());
+        fprintf(output, "\nTYPE: Error reading '%s' - %d\n", path, (int)IoErr());
         Close(fh);
         return 1;
     }
@@ -136,7 +136,7 @@ static int type_single_file(CONST_STRPTR path, FILE *output, BOOL show_hex, BOOL
     Close(fh);
     
     if (show_hex) {
-        fprintf(output, "\nTotal: %ld bytes\n", total_bytes);
+        fprintf(output, "\nTotal: %d bytes\n", (int)total_bytes);
     }
     
     return 0;
@@ -152,13 +152,13 @@ int main(int argc, char **argv)
     (void)argv;
     
     /* Parse arguments using AmigaDOS template */
-    rda = ReadArgs(TEMPLATE, args, NULL);
+    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
     if (!rda) {
         LONG err = IoErr();
         if (err == ERROR_REQUIRED_ARG_MISSING) {
             printf("TYPE: FROM argument is required\n");
         } else {
-            printf("TYPE: Error parsing arguments - %ld\n", err);
+            printf("TYPE: Error parsing arguments - %d\n", (int)err);
         }
         printf("Usage: TYPE FROM/A/M [TO filename] [HEX] [NUMBER]\n");
         printf("Template: %s\n", TEMPLATE);
@@ -174,10 +174,10 @@ int main(int argc, char **argv)
     
     /* Handle OPT keyword for legacy compatibility */
     if (opt_str) {
-        if (strstr(opt_str, "H") || strstr(opt_str, "h")) {
+        if (strstr((char *)opt_str, "H") || strstr((char *)opt_str, "h")) {
             hex_flag = TRUE;
         }
-        if (strstr(opt_str, "N") || strstr(opt_str, "n")) {
+        if (strstr((char *)opt_str, "N") || strstr((char *)opt_str, "n")) {
             number_flag = TRUE;
         }
     }
@@ -186,9 +186,9 @@ int main(int argc, char **argv)
     FILE *output = stdout;
     FILE *outfile = NULL;
     if (to_path) {
-        outfile = fopen(to_path, "w");
+        outfile = fopen((char *)to_path, "w");
         if (!outfile) {
-            printf("TYPE: Can't create output file '%s'\n", to_path);
+            printf("TYPE: Can't create output file '%s'\n", (char *)to_path);
             FreeArgs(rda);
             return 1;
         }

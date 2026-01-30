@@ -40,7 +40,7 @@ static BOOL make_single_directory(CONST_STRPTR path)
         } else if (err == ERROR_OBJECT_NOT_FOUND) {
             printf("MAKEDIR: Cannot create '%s' - parent directory does not exist\n", path);
         } else {
-            printf("MAKEDIR: Failed to create '%s' - %ld\n", path, err);
+            printf("MAKEDIR: Failed to create '%s' - %d\n", path, (int)err);
         }
         return FALSE;
     }
@@ -60,13 +60,13 @@ int main(int argc, char **argv)
     (void)argv;
     
     /* Parse arguments using AmigaDOS template */
-    rda = ReadArgs(TEMPLATE, args, NULL);
+    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
     if (!rda) {
         LONG err = IoErr();
         if (err == ERROR_REQUIRED_ARG_MISSING) {
             printf("MAKEDIR: NAME argument is required\n");
         } else {
-            printf("MAKEDIR: Error parsing arguments - %ld\n", err);
+            printf("MAKEDIR: Error parsing arguments - %d\n", (int)err);
         }
         printf("Usage: MAKEDIR NAME/M/A\n");
         printf("Template: %s\n", TEMPLATE);

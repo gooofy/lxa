@@ -32,29 +32,6 @@ extern struct DosLibrary *DOSBase;
 /* Buffer for pattern matching */
 #define PATTERN_BUFFER_SIZE 256
 
-/* Check if filename matches pattern using AmigaDOS wildcards */
-static BOOL match_filename(const char *filename, const char *pattern)
-{
-    if (!pattern || pattern[0] == '\0')
-        return TRUE;
-    
-    char parsed_pat[PATTERN_BUFFER_SIZE];
-    LONG result = ParsePattern(pattern, parsed_pat, sizeof(parsed_pat));
-    
-    if (result == 0) {
-        /* Parse error - treat as literal match */
-        return (strcmp(filename, pattern) == 0);
-    }
-    
-    if (result < 0) {
-        /* Literal string - exact match */
-        return (strcmp(filename, pattern) == 0);
-    }
-    
-    /* Wildcard pattern */
-    return MatchPattern(parsed_pat, (STRPTR)filename);
-}
-
 /* Delete a single file */
 static BOOL delete_single_file(CONST_STRPTR path, BOOL force, BOOL quiet)
 {
@@ -62,7 +39,7 @@ static BOOL delete_single_file(CONST_STRPTR path, BOOL force, BOOL quiet)
     
     if (result == DOSFALSE) {
         if (!force && !quiet) {
-            printf("DELETE: Failed to delete '%s' - %ld\n", path, IoErr());
+            printf("DELETE: Failed to delete '%s' - %d\n", path, (int)IoErr());
         }
         return FALSE;
     }
@@ -84,10 +61,10 @@ static BOOL delete_directory(CONST_STRPTR path, BOOL recursive, BOOL force, BOOL
     
     if (recursive) {
         /* Recursive delete - first delete contents */
-        lock = Lock(path, SHARED_LOCK);
+        lock = Lock((STRPTR)path, SHARED_LOCK);
         if (!lock) {
             if (!force && !quiet) {
-                printf("DELETE: Cannot access '%s' - %ld\n", path, IoErr());
+                printf("DELETE: Cannot access '%s' - %d\n", path, (int)IoErr());
             }
             return FALSE;
         }
@@ -104,23 +81,23 @@ static BOOL delete_directory(CONST_STRPTR path, BOOL recursive, BOOL force, BOOL
         if (Examine(lock, fib)) {
             while (ExNext(lock, fib)) {
                 char full_path[512];
-                strcpy(full_path, path);
-                
+                strcpy(full_path, (char *)path);
+
                 /* Add separator if needed */
                 int len = strlen(full_path);
                 if (len > 0 && full_path[len - 1] != ':' && full_path[len - 1] != '/') {
                     strcat(full_path, "/");
                 }
-                strcat(full_path, fib->fib_FileName);
-                
+                strcat(full_path, (char *)fib->fib_FileName);
+
                 if (fib->fib_DirEntryType > 0) {
                     /* Subdirectory - recurse */
-                    if (!delete_directory(full_path, TRUE, force, quiet)) {
+                    if (!delete_directory((CONST_STRPTR)full_path, TRUE, force, quiet)) {
                         success = FALSE;
                     }
                 } else {
                     /* File */
-                    if (!delete_single_file(full_path, force, quiet)) {
+                    if (!delete_single_file((CONST_STRPTR)full_path, force, quiet)) {
                         success = FALSE;
                     }
                 }
@@ -135,7 +112,7 @@ static BOOL delete_directory(CONST_STRPTR path, BOOL recursive, BOOL force, BOOL
     result = DeleteFile((STRPTR)path);
     if (result == DOSFALSE) {
         if (!force && !quiet) {
-            printf("DELETE: Failed to delete directory '%s' - %ld\n", path, IoErr());
+            printf("DELETE: Failed to delete directory '%s' - %d\n", path, (int)IoErr());
         }
         return FALSE;
     }
@@ -180,7 +157,7 @@ static BOOL delete_object(CONST_STRPTR path, BOOL recursive, BOOL force, BOOL qu
         UnLock(lock);
         FreeDosObject(DOS_FIB, fib);
         if (!force && !quiet) {
-            printf("DELETE: Cannot examine '%s' - %ld\n", path, IoErr());
+            printf("DELETE: Cannot examine '%s' - %d\n", path, (int)IoErr());
         }
         return FALSE;
     }
@@ -191,7 +168,7 @@ static BOOL delete_object(CONST_STRPTR path, BOOL recursive, BOOL force, BOOL qu
         /* It's a file but we couldn't delete it */
         FreeDosObject(DOS_FIB, fib);
         if (!force && !quiet) {
-            printf("DELETE: Failed to delete '%s' - %ld\n", path, IoErr());
+            printf("DELETE: Failed to delete '%s' - %d\n", path, (int)IoErr());
         }
         return FALSE;
     }
@@ -219,13 +196,13 @@ int main(int argc, char **argv)
     (void)argv;
     
     /* Parse arguments using AmigaDOS template */
-    rda = ReadArgs(TEMPLATE, args, NULL);
+    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
     if (!rda) {
         LONG err = IoErr();
         if (err == ERROR_REQUIRED_ARG_MISSING) {
             printf("DELETE: FILE argument is required\n");
         } else {
-            printf("DELETE: Error parsing arguments - %ld\n", err);
+            printf("DELETE: Error parsing arguments - %d\n", (int)err);
         }
         printf("Usage: DELETE FILE/M/A [ALL] [QUIET] [FORCE]\n");
         printf("Template: %s\n", TEMPLATE);

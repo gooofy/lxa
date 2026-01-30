@@ -720,7 +720,7 @@ int main(int argc, char **argv)
     }
     
     /* Initialize default PATH with SYS:C */
-    BPTR c_lock = Lock("SYS:C", SHARED_LOCK);
+    BPTR c_lock = Lock((STRPTR)"SYS:C", SHARED_LOCK);
     if (c_lock) {
         UnLock(c_lock);
         search_paths[0] = strdup("SYS:C");

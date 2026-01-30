@@ -72,22 +72,22 @@ static BOOL match_filename(const char *filename, const char *pattern)
 {
     if (!pattern || pattern[0] == '\0')
         return TRUE;
-    
+
     char parsed_pat[PATTERN_BUFFER_SIZE];
-    LONG result = ParsePattern(pattern, parsed_pat, sizeof(parsed_pat));
-    
+    LONG result = ParsePattern((STRPTR)pattern, (STRPTR)parsed_pat, sizeof(parsed_pat));
+
     if (result == 0) {
         /* Parse error - treat as literal match */
         return (strcmp(filename, pattern) == 0);
     }
-    
+
     if (result < 0) {
         /* Literal string - exact match */
         return (strcmp(filename, pattern) == 0);
     }
-    
+
     /* Wildcard pattern */
-    return MatchPattern(parsed_pat, (STRPTR)filename);
+    return MatchPattern((STRPTR)parsed_pat, (STRPTR)filename);
 }
 
 /* List a single directory entry */
@@ -142,16 +142,16 @@ static int list_directory(CONST_STRPTR path, CONST_STRPTR pattern, BOOL detailed
     }
     
     /* Lock the directory */
-    lock = Lock(path, SHARED_LOCK);
+    lock = Lock((STRPTR)path, SHARED_LOCK);
     if (!lock) {
-        printf("DIR: Can't examine '%s' - %ld\n", path, IoErr());
+        printf("DIR: Can't examine '%s' - %d\n", path, (int)IoErr());
         FreeDosObject(DOS_FIB, fib);
         return 1;
     }
-    
+
     /* Check if it's a directory */
     if (!Examine(lock, fib)) {
-        printf("DIR: Can't examine '%s' - %ld\n", path, IoErr());
+        printf("DIR: Can't examine '%s' - %d\n", path, (int)IoErr());
         UnLock(lock);
         FreeDosObject(DOS_FIB, fib);
         return 1;
@@ -159,7 +159,7 @@ static int list_directory(CONST_STRPTR path, CONST_STRPTR pattern, BOOL detailed
     
     if (fib->fib_DirEntryType <= 0) {
         /* It's a file, not a directory */
-        if (match_filename(fib->fib_FileName, pattern)) {
+        if (match_filename((char *)fib->fib_FileName, (char *)pattern)) {
             list_entry(fib, detailed);
         }
         count++;
@@ -177,7 +177,7 @@ static int list_directory(CONST_STRPTR path, CONST_STRPTR pattern, BOOL detailed
             }
             
             /* Check pattern match */
-            if (!match_filename(fib->fib_FileName, pattern)) {
+            if (!match_filename((char *)fib->fib_FileName, (char *)pattern)) {
                 continue;
             }
             
@@ -201,11 +201,11 @@ static int list_directory(CONST_STRPTR path, CONST_STRPTR pattern, BOOL detailed
         
         /* Check for error vs end of directory */
         if (IoErr() != ERROR_NO_MORE_ENTRIES) {
-            printf("DIR: Error reading directory - %ld\n", IoErr());
+            printf("DIR: Error reading directory - %d\n", (int)IoErr());
         }
-        
+
         if (detailed) {
-            printf("\n%5d file(s)  %ld bytes\n", count - dir_count, total_size);
+            printf("\n%5d file(s)  %d bytes\n", count - dir_count, (int)total_size);
             printf("%5d dir(s)\n", dir_count);
         }
     }
@@ -226,13 +226,13 @@ int main(int argc, char **argv)
     (void)argv;
     
     /* Parse arguments using AmigaDOS template */
-    rda = ReadArgs(TEMPLATE, args, NULL);
+    rda = ReadArgs((STRPTR)TEMPLATE, args, NULL);
     if (!rda) {
         LONG err = IoErr();
         if (err == ERROR_REQUIRED_ARG_MISSING) {
             printf("DIR: Required argument missing\n");
         } else {
-            printf("DIR: Error parsing arguments - %ld\n", err);
+            printf("DIR: Error parsing arguments - %d\n", (int)err);
         }
         printf("Usage: DIR [pattern] [OPT keywords] [ALL] [DIRS] [FILES] [INTER]\n");
         printf("Template: %s\n", TEMPLATE);
@@ -247,16 +247,16 @@ int main(int argc, char **argv)
     BOOL files_flag = args[ARG_FILES] ? TRUE : FALSE;
     BOOL inter_flag = args[ARG_INTER] ? TRUE : FALSE;
     
-    /* Use default pattern if none specified */
+        /* Use default pattern if none specified */
     if (!pattern || pattern[0] == '\0') {
-        pattern = DEFAULT_PATTERN;
+        pattern = (CONST_STRPTR)DEFAULT_PATTERN;
     }
-    
+
     /* Handle OPT keyword for traditional options */
     BOOL detailed = FALSE;
     if (opt_str) {
         /* Parse OPT string for legacy compatibility */
-        if (strstr(opt_str, "L") || strstr(opt_str, "l")) {
+        if (strstr((char *)opt_str, "L") || strstr((char *)opt_str, "l")) {
             detailed = TRUE;
         }
     }
@@ -267,7 +267,7 @@ int main(int argc, char **argv)
     }
     
     /* List the directory */
-    result = list_directory("", pattern, detailed, all_flag, dirs_flag, files_flag);
+    result = list_directory((CONST_STRPTR)"", pattern, detailed, all_flag, dirs_flag, files_flag);
     
     FreeArgs(rda);
     return result;
