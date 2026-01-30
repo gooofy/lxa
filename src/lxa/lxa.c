@@ -2051,6 +2051,19 @@ int op_illg(int level)
             usleep(1000);  /* 1ms - short sleep to allow signals */
             break;
 
+        case EMU_CALL_DELAY:
+        {
+            /*
+             * EMU_CALL_DELAY: Simple delay for the specified milliseconds.
+             * Note: This is not used by the current Delay() implementation
+             * but kept for potential future use.
+             */
+            uint32_t ms = m68k_get_reg(NULL, M68K_REG_D1);
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_DELAY %u ms\n", ms);
+            usleep(ms * 1000);
+            break;
+        }
+
         case EMU_CALL_MONITOR:
         {
             DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_MONITOR\n");

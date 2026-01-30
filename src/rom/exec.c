@@ -1022,14 +1022,37 @@ void _defaultTaskExit (void)
 {
     DPUTS (LOG_DEBUG, "_exec: _defaultTaskExit() called\n");
 
-    asm(
-        "    move.l  4, a6      \n" // SysBase -> a6
-        "    suba.l  a1, a1     \n" // #0 -> a1
-        "    jsr    -288(a6)    \n" // RemTask(0)
-        : /* no outputs */
-        : /* no inputs */
-        : "cc", "d0", "d1", "a0", "a1", "a6"
-    );
+    /*
+     * Check if this is a Process (which needs to go through dos.library's Exit()
+     * to properly clean up CLI resources and TaskArray entries).
+     * If tc_Node.ln_Type == NT_PROCESS, call Exit(0) instead of RemTask(NULL).
+     */
+    struct Task *me = FindTask(NULL);
+    if (me->tc_Node.ln_Type == NT_PROCESS)
+    {
+        DPUTS(LOG_DEBUG, "_exec: _defaultTaskExit() -> calling Exit(0) for process\n");
+        /* Call Exit(0) via DOS library */
+        asm(
+            "    move.l  %0, a6     \n" // DOSBase -> a6
+            "    moveq   #0, d1     \n" // returnCode = 0
+            "    jsr    -144(a6)    \n" // Exit(0) - offset -144
+            : /* no outputs */
+            : "r" (DOSBase)
+            : "cc", "d0", "d1", "a0", "a1", "a6"
+        );
+    }
+    else
+    {
+        /* Regular task - use RemTask */
+        asm(
+            "    move.l  4, a6      \n" // SysBase -> a6
+            "    suba.l  a1, a1     \n" // #0 -> a1
+            "    jsr    -288(a6)    \n" // RemTask(0)
+            : /* no outputs */
+            : /* no inputs */
+            : "cc", "d0", "d1", "a0", "a1", "a6"
+        );
+    }
 }
 
 void _exec_RemTask ( register struct ExecBase * SysBase __asm("a6"),
@@ -1273,7 +1296,8 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
         if (___task->tc_State == TS_RUN)
         {
             /* Order a reschedule - set SysFlags to trigger scheduler */
-            SysBase->SysFlags |= (1 << 6); /* SFF_QuantumOver */
+            /* SFF_QuantumOver is bit 6 of high byte = bit 14 of word */
+            SysBase->SysFlags |= (1 << 14); /* SFF_QuantumOver */
             Enable();
             return;
         }
@@ -1306,7 +1330,8 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
                 if (thisTask->tc_State == TS_RUN)
                 {
                     /* Set SysFlags to trigger scheduler on next opportunity */
-                    SysBase->SysFlags |= (1 << 6); /* SFF_QuantumOver */
+                    /* SFF_QuantumOver is bit 6 of high byte = bit 14 of word */
+                    SysBase->SysFlags |= (1 << 14); /* SFF_QuantumOver */
                 }
             }
         }

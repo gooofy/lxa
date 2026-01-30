@@ -361,6 +361,23 @@ Implement proper 68000 interrupt handling with a host-side timer driving the sch
 - [x] No measurable performance regression
 - [ ] `timer.device` basic requests work (future: Step 6.5.5)
 
+### Critical Bug Fixes Applied (2024)
+
+1. **SFF_QuantumOver bit mismatch**: The C code was setting bit 6 of the SysFlags WORD,
+   but the assembly code tests bit 6 of the HIGH BYTE (which is bit 14 of the word on
+   big-endian m68k). Fixed by using `(1 << 14)` in C.
+   - Files: `src/rom/lxa_dos.c`, `src/rom/exec.c`
+
+2. **Process exit cleanup**: `_defaultTaskExit` was calling `RemTask()` directly, which
+   doesn't clean up CLI TaskArray entries. Fixed to detect NT_PROCESS tasks and call
+   `Exit()` instead, which properly calls `freeTaskNum()`.
+   - Files: `src/rom/exec.c`
+
+3. **Delay() scheduler integration**: Implemented proper scheduler yielding in `Delay()`
+   by setting SFF_QuantumOver and calling Schedule() via Supervisor() when TaskReady
+   list is non-empty.
+   - Files: `src/rom/lxa_dos.c`
+
 ### Future Extensions (Not in 6.5)
 
 - Full CIA chip emulation (ICR registers, both timers)

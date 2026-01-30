@@ -1183,25 +1183,58 @@ LONG _dos_IsInteractive ( register struct DosLibrary *DOSBase __asm("a6"),
 void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
                   register ULONG ticks __asm("d1"))
 {
-    /* 1 tick = 1/50 sec = 20ms
-     * EMU_CALL_WAIT = 10ms
-     * So 2 wait calls per tick.
-     * 
-     * We also need to yield to other tasks during the delay, so we use
-     * a combination of Wait() and emucall to ensure proper task switching.
+    /*
+     * Delay() - Wait for a specified number of ticks (1/50th second each)
+     *
+     * Without timer.device, we implement this by directly calling the
+     * scheduler via Supervisor mode. This forces a task switch if there
+     * are any ready tasks with equal or higher priority.
+     *
+     * Note: This is NOT an accurate delay, but it allows other tasks to run.
      */
     DPRINTF (LOG_DEBUG, "_dos: Delay(%ld) called.\n", ticks);
-    
-    /* Check if there are other tasks ready to run */
+
+    if (ticks == 0)
+        return;
+
     struct ExecBase *SysBase = *(struct ExecBase **)4;
-    
-    for (ULONG i = 0; i < ticks * 2; i++) {
-        /* If there are tasks in the ready queue, yield to them briefly */
-        if (!IsListEmpty(&SysBase->TaskReady)) {
-            /* Use a timer signal wait to yield CPU while waiting */
-            /* For now, just use emucall but check task list */
-            emucall0(EMU_CALL_WAIT);
-        } else {
+
+    /* For each tick, try to yield to other tasks */
+    for (ULONG i = 0; i < ticks; i++)
+    {
+        /*
+         * Force a task switch if there are ready tasks.
+         * We set the quantum-expired flag and call Schedule() directly
+         * via Supervisor mode.
+         */
+        if (!IsListEmpty(&SysBase->TaskReady))
+        {
+            Disable();
+            /*
+             * SFF_QuantumOver is bit 6 of the HIGH byte of SysFlags.
+             * Since SysFlags is a UWORD and m68k is big-endian, bit 6 of
+             * the high byte is bit 14 of the word value.
+             */
+            SysBase->SysFlags |= (1 << 14);  /* SFF_QuantumOver (bit 6 of high byte) */
+            SysBase->Elapsed = 0;  /* Force immediate reschedule */
+            Enable();
+
+            /* Call Schedule() via Supervisor mode */
+            /* Schedule() will check SysFlags and perform task switch if needed */
+            __asm__ volatile (
+                "   move.l  a5, -(sp)                   \n"
+                "   move.l  4, a6                       \n"  /* SysBase */
+                "   lea     _exec_Schedule, a5          \n"  /* Schedule routine */
+                "   jsr     -30(a6)                     \n"  /* Supervisor() */
+                "   move.l  (sp)+, a5                   \n"
+                :
+                :
+                : "d0", "d1", "a0", "a1", "a6", "cc", "memory"
+            );
+        }
+        else
+        {
+            /* No ready tasks - just use host-side sleep */
             emucall0(EMU_CALL_WAIT);
         }
     }
@@ -2208,20 +2241,30 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     
     struct Process *me = (struct Process *)FindTask(NULL);
     ULONG oldSig = me->pr_Task.tc_SigWait;
+    int loopCount = 0;
     
     while (1) {
         struct Task **tasks = (struct Task **)BADDR(root->rn_TaskArray);
-        if (!tasks) break; 
+        if (!tasks) {
+            break;
+        }
         
-        struct Task *t = tasks[taskNum];
-        if (t != (struct Task *)proc) {
-            // Task gone (reused or cleared)
+        /* TaskArray stores pointers to pr_MsgPort, not to Process */
+        struct MsgPort *storedPort = (struct MsgPort *)((ULONG *)tasks)[taskNum];
+        struct MsgPort *childPort = &proc->pr_MsgPort;
+        
+        if (storedPort != childPort) {
+            /* Task gone (slot reused or cleared) */
+            break;
+        }
+        
+        loopCount++;
+        if (loopCount > 1000) {
+            DPRINTF(LOG_WARNING, "_dos: SystemTagList wait loop exceeded 1000 iterations!\n");
             break;
         }
         
         /* Yield to allow child task to run */
-        /* Use Wait with a timeout signal (SIGBREAKF_CTRL_C can be used as dummy) */
-        /* Simple approach: just yield for a bit */
         _dos_Delay(DOSBase, 1);
     }
     
