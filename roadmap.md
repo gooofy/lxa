@@ -394,7 +394,7 @@ for basic use cases. Full timer.device support would enable precise timing.
 
 ---
 
-## Phase 7: System Management & Assignments 🚧 IN PROGRESS
+## Phase 7: System Management & Assignments ✅ COMPLETE
 **Goal**: Advanced system control and logical drive management.
 
 ### Step 7.1: Assignment API ✅ COMPLETE
@@ -414,10 +414,31 @@ for basic use cases. Full timer.device support would enable precise timing.
 - Assigns are session-specific (not persisted between lxa invocations)
 - System assigns (C:, S:, LIBS:, etc.) are configured via VFS drive mappings in config.ini
 
-### Step 7.2: System Tools 🚧 PENDING
-- **Process Management**: `STATUS`, `BREAK`, `RUN`, `CHANGETASKPRI`.
-- **Memory & Stack**: `AVAIL`, `STACK`.
-- **Device Control**: `MOUNT`, `RELABEL`, `LOCK`.
+### Step 7.2: System Tools ✅ COMPLETE
+**Process Management**:
+- ✅ **STATUS** (`sys/C/status.c`): List running processes with CLI number, priority, state, stack size, and name
+  - Template: `FULL/S,TCB/S,CLI=ALL/S,COM=COMMAND/K`
+  - Shows processes from TaskReady, TaskWait lists and current task
+- ✅ **BREAK** (`sys/C/break.c`): Send break signals to a process
+  - Template: `PROCESS/A/N,ALL/S,C/S,D/S,E/S,F/S`
+  - Supports Ctrl-C, Ctrl-D, Ctrl-E, Ctrl-F signals
+- ✅ **RUN** (`sys/C/run.c`): Run a command in the background
+  - Template: `COMMAND/F`
+  - Loads and executes program without waiting for completion
+- ✅ **CHANGETASKPRI** (`sys/C/changetaskpri.c`): Change task priority
+  - Template: `PRI=PRIORITY/A/N,PROCESS/K/N`
+  - Implemented `_exec_SetTaskPri()` properly with priority reordering
+
+**Memory & Stack**:
+- ✅ **AVAIL** (`sys/C/avail.c`): Show memory availability
+  - Template: `CHIP/S,FAST/S,TOTAL/S,FLUSH/S`
+  - Implemented `_exec_AvailMem()` with MEMF_LARGEST support
+- ✅ **STACK** (`sys/C/stack.c`): Show/set stack size
+  - Template: `SIZE/N`
+  - Shows stack size, usage, and free space
+
+**Not Implemented (Future Phase)**:
+- Device Control: `MOUNT`, `RELABEL`, `LOCK` - deferred to Phase 8+
 
 ---
 
@@ -439,27 +460,19 @@ for basic use cases. Full timer.device support would enable precise timing.
    - Templates: `DIR,OPT/K,ALL/S,DIRS/S` not `dir -la`
    - Keywords: `ALL`, `DIRS`, `TO` not `-a`, `-d`, `-o`
 
-## Next Steps: Phase 7.2 - System Tools
+## Next Steps: Phase 8 - Advanced Utilities & Finalization
 
 ### Immediate Priority:
-With Phase 6.5 (Preemptive Multitasking) complete, focus shifts to system management tools.
+With Phase 7 (System Management) complete, focus shifts to advanced utilities and final polish.
 
-### Phase 7.1: Assignment API ✅ COMPLETE
-- Implemented `AssignLock()`, `AssignPath()`, `AssignLate()`, `AssignAdd()` APIs
-- Added assign support to VFS layer with EMU_CALL bridge
-- Created ASSIGN command with full AmigaDOS template support
+### Phase 8: Advanced Utilities (Next)
+- **Utilities**: `COPY` (recursive), `JOIN`, `SORT`, `EVAL`, `SEARCH`
+- **Compatibility**: `VERSION`, `WAIT`, `MAKELINK`
+- **Device Control**: `MOUNT`, `RELABEL`, `LOCK` (deferred from Phase 7)
+- **Final Polish**: Documentation, `README.md` update, and AROS reference review
 
-### Phase 7.2: System Tools (Next)
-- **STATUS** - Show running processes
-- **AVAIL** - Show memory availability  
-- **STACK** - Show/check stack usage
-- **RUN** - Background process execution
-- **BREAK** - Send Ctrl-C to a process
-- **CHANGETASKPRI** - Modify task priority
-- **MOUNT**, **RELABEL**, **LOCK** - Device management
-
-### Future Enhancements (Phase 6.5)
-The following are optional improvements to the interrupt/timer system:
+### Future Enhancements
+The following are optional improvements:
 - Step 6.5.3: AddIntServer/RemIntServer APIs for extensibility
 - Step 6.5.4: Full CIA emulation  
 - Step 6.5.5: timer.device implementation for precise timing
@@ -468,7 +481,7 @@ The following are optional improvements to the interrupt/timer system:
 
 ## Status Summary
 
-### ✅ Phase 1-6.5 Complete
+### ✅ Phase 1-7 Complete
 
 All foundational phases are complete:
 - **Phase 1**: Exec multitasking (signals, messages, semaphores, processes)
@@ -478,7 +491,24 @@ All foundational phases are complete:
 - **Phase 5**: Interactive Shell (scripting, control flow, argument passing)
 - **Phase 6**: Build System Migration (CMake, installation, LXA_PREFIX)
 - **Phase 6.5**: Preemptive Multitasking (50Hz timer, interrupt-driven scheduler)
-- **Phase 7.1**: Assignment API (AssignLock, AssignPath, ASSIGN command)
+- **Phase 7**: System Management (Assignments, STATUS, AVAIL, STACK, RUN, BREAK, CHANGETASKPRI)
+
+### ✅ Phase 7 Complete: System Management (January 2026)
+
+**Implemented**: Full system management tools for process control and memory inspection.
+
+**System Commands Added**:
+- `STATUS` - List running processes with CLI number, priority, state, stack, name
+- `AVAIL` - Show memory availability (chip/fast/total with largest free block)
+- `STACK` - Show/set stack size for current process
+- `RUN` - Execute commands in background without waiting
+- `BREAK` - Send Ctrl-C/D/E/F signals to processes
+- `CHANGETASKPRI` - Change task priority (-128 to 127)
+- `ASSIGN` - Manage logical drive assignments
+
+**Exec APIs Implemented**:
+- `_exec_AvailMem()` - Query available memory with MEMF_LARGEST support
+- `_exec_SetTaskPri()` - Change task priority with proper queue reordering
 
 ### ✅ Phase 6.5 Complete: Preemptive Multitasking (January 2025)
 
@@ -506,8 +536,7 @@ All foundational phases are complete:
 - Step 6.5.4: Full CIA emulation
 - Step 6.5.5: timer.device for precise timing
 
-### 📋 Current Focus: Phase 7.2 - System Tools
+### 📋 Current Focus: Phase 8 - Advanced Utilities
 
-With multitasking complete, the next milestone is system management commands:
-- STATUS, AVAIL, STACK, RUN, BREAK, CHANGETASKPRI
-
+With system management complete, the next milestone is advanced utilities:
+- COPY, JOIN, SORT, EVAL, SEARCH, VERSION, WAIT, MAKELINK

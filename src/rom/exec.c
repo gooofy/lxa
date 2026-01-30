@@ -785,9 +785,48 @@ void _exec_FreeMem ( register struct ExecBase * SysBase __asm("a6"),
 ULONG _exec_AvailMem ( register struct ExecBase * SysBase __asm("a6"),
                                        register ULONG ___requirements  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AvailMem unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_exec: AvailMem called, requirements=0x%08lx\n", ___requirements);
+
+    ULONG total = 0;
+    ULONG largest = 0;
+
+    Forbid();
+
+    struct MemHeader *mhCur = (struct MemHeader *)SysBase->MemList.lh_Head;
+
+    while (mhCur->mh_Node.ln_Succ)
+    {
+        UWORD req = (UWORD)(___requirements & ~(MEMF_LARGEST | MEMF_TOTAL));
+
+        /* Check if this memory region matches the requirements */
+        if ((mhCur->mh_Attributes & req) == req)
+        {
+            if (___requirements & MEMF_LARGEST)
+            {
+                /* Find the largest free chunk */
+                struct MemChunk *mc = mhCur->mh_First;
+                while (mc)
+                {
+                    if (mc->mc_Bytes > largest)
+                        largest = mc->mc_Bytes;
+                    mc = mc->mc_Next;
+                }
+            }
+            else
+            {
+                /* Sum all free memory */
+                total += mhCur->mh_Free;
+            }
+        }
+
+        mhCur = (struct MemHeader *)mhCur->mh_Node.ln_Succ;
+    }
+
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: AvailMem returning total=%ld, largest=%ld\n", total, largest);
+
+    return (___requirements & MEMF_LARGEST) ? largest : total;
 }
 
 struct MemList * _exec_AllocEntry ( register struct ExecBase * SysBase __asm("a6"),
@@ -1138,9 +1177,47 @@ BYTE _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Task * ___task  __asm("a1"),
                                                         register LONG ___priority  __asm("d0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: SetTaskPri unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_exec: SetTaskPri() called, task=0x%08lx '%s', priority=%ld\n",
+             ___task, ___task ? ___task->tc_Node.ln_Name : "NULL", ___priority);
+
+    if (!___task) {
+        return 0;
+    }
+
+    Disable();
+
+    /* Get the old priority */
+    BYTE oldPri = ___task->tc_Node.ln_Pri;
+
+    /* Clamp priority to valid range (-128 to 127) */
+    if (___priority > 127) ___priority = 127;
+    if (___priority < -128) ___priority = -128;
+
+    /* Set the new priority */
+    ___task->tc_Node.ln_Pri = (BYTE)___priority;
+
+    /* If the task is in the ready queue, we need to requeue it
+     * to maintain priority ordering */
+    if (___task->tc_State == TS_READY) {
+        Remove(&___task->tc_Node);
+        Enqueue(&SysBase->TaskReady, &___task->tc_Node);
+    }
+
+    /* If the task is running (i.e., the current task), check if
+     * we need to reschedule due to a higher priority task being ready */
+    if (___task->tc_State == TS_RUN && ___priority < oldPri) {
+        /* Priority lowered - check if reschedule needed */
+        struct Node *highestReady = SysBase->TaskReady.lh_Head;
+        if (highestReady->ln_Succ && highestReady->ln_Pri > ___priority) {
+            /* A higher priority task is ready - set quantum expired flag */
+            SysBase->SysFlags |= (1 << 14); /* SFF_QuantumOver */
+        }
+    }
+
+    Enable();
+
+    DPRINTF (LOG_DEBUG, "_exec: SetTaskPri() returning old priority %d\n", oldPri);
+    return oldPri;
 }
 
 ULONG _exec_SetSignal ( register struct ExecBase *SysBase     __asm("a6"),
