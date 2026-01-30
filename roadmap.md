@@ -2,6 +2,8 @@
 
 This document outlines the strategic plan for expanding `lxa` into a more complete AmigaOS-compatible environment, focusing on **Exec**, **DOS**, and a functional **Userland**. We follow a "WINE-like" approach for DOS, where filesystem operations are efficiently bridged to the host Linux system.
 
+**IMPORTANT**: **Always** adhere to project and coding standards outlined in `AGENTS.md` ! Test coverage, roadmap updates and documentations are **mandatory** in this project!
+
 ---
 
 ## Core Philosophy & Boundaries
@@ -175,7 +177,30 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## Phase 6: System Management & Assignments
+## Phase 6: Build System Migration (CMake) 🚧 IN PROGRESS
+**Goal**: Modernize the build system, support proper installation, and automate environment setup.
+
+### Step 6.1: CMake Infrastructure
+- [ ] **Cross-Compilation Support**: Implement `cmake/m68k-amigaos.cmake` toolchain file for `m68k-amigaos-gcc`.
+- [ ] **Unified Build System**: Create root `CMakeLists.txt` and component `CMakeLists.txt` for `lxa` (host), `lxa.rom` (target), and `sys/` (target).
+- [ ] **Build Optimization**: Replace manual Makefiles with CMake's dependency tracking and parallel build support.
+
+### Step 6.2: Installation & Layout
+- [ ] **Standardized Paths**: Implement `install` targets following FHS-like structure.
+- [ ] **Install Prefix**: Default prefix for testing: `~/projects/amiga/lxa/usr`.
+- [ ] **System Template**: Organize `share/lxa/System` as a master template for user environments.
+
+### Step 6.3: First-Run Automation
+- [ ] **LXA_PREFIX Support**: Add support for `LXA_PREFIX` environment variable (defaulting to `~/.lxa`).
+- [ ] **Auto-Initialization**: On startup, if `LXA_PREFIX` is missing, `lxa` will automatically:
+  - Create the directory structure.
+  - Copy system files from the installation's `share/lxa/System`.
+  - Deploy a default `config.ini`.
+- [ ] **ROM Discovery**: Automatically find `lxa.rom` in the installation's data directory.
+
+---
+
+## Phase 7: System Management & Assignments
 **Goal**: Advanced system control and logical drive management.
 
 ### Step 6.1: Assignment API
@@ -189,7 +214,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## Phase 7: Advanced Utilities & Finalization
+## Phase 8: Advanced Utilities & Finalization
 **Goal**: Reach Milestone 1.0 with a polished toolset.
 
 - **Utilities**: `COPY` (recursive), `JOIN`, `SORT`, `EVAL`, `SEARCH`.
@@ -207,25 +232,20 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
    - Templates: `DIR,OPT/K,ALL/S,DIRS/S` not `dir -la`
    - Keywords: `ALL`, `DIRS`, `TO` not `-a`, `-d`, `-o`
 
-## Next Steps: Phase 6 - System Management & Assignments
+## Next Steps: Phase 6 - Build System Migration (CMake)
 
 ### Immediate (Next Session):
-1. **Assignment API**
-   - `AssignLock()`: Create drive assignments from locks
-   - `AssignName()`: Create late assignments
-   - `AssignPath()`: Multi-directory assignments (Paths)
-   - Proper integration with Shell command lookup
-
-2. **System Tools**
-   - STATUS: Process listing and management
-   - BREAK: Send signals to processes
-   - RUN: Background process execution
-   - CHANGETASKPRI: Adjust process priorities
+1. **Toolchain Configuration**
+   - Create `cmake/m68k-amigaos.cmake` to wrap the m68k-amigaos-gcc toolchain.
+2. **Root CMakeLists.txt**
+   - Define project and handle host/target build split.
+3. **Host Build**
+   - Port `src/lxa` build to CMake.
 
 ### Medium Term:
-3. **System Information Tools**: AVAIL, STACK
-4. **Device Control**: ASSIGN, MOUNT, RELABEL, LOCK
-5. **Advanced Utilities**: COPY (recursive), JOIN, SORT, EVAL, SEARCH
+4. **Target Build**: Port ROM and `sys/C` commands to CMake.
+5. **Installation Targets**: Implement `make install` functionality.
+6. **First-Run Logic**: Integrate prefix initialization into the `lxa` host process.
 
 ---
 
@@ -240,6 +260,7 @@ All foundational phases are complete:
 - Phase 4: Userland commands (DIR, TYPE, DELETE, MAKEDIR with templates)
 - Phase 5: Interactive Shell (scripting, control flow, argument passing)
 
-### 📋 Ready for Phase 6: System Management & Assignments
+### 📋 Ready for Phase 6: Build System Migration (CMake)
 
 See Phase 6 section below for upcoming features.
+
