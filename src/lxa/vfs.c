@@ -20,6 +20,33 @@ struct drive_map_s {
 static drive_map_t *g_drive_maps = NULL;
 static char g_lxa_home[PATH_MAX] = "";
 
+/*
+ * Phase 7: Assignment System
+ *
+ * Assigns are stored separately from drives. An assign can have multiple
+ * paths (for multi-assigns created with AssignAdd). We store them in a
+ * linked list of assign entries, each containing a linked list of paths.
+ */
+
+typedef struct assign_path_s assign_path_t;
+struct assign_path_s {
+    assign_path_t *next;
+    char *linux_path;
+};
+
+typedef struct assign_entry_s assign_entry_t;
+struct assign_entry_s {
+    assign_entry_t *next;
+    char *name;              /* Assign name (without colon) */
+    assign_type_t type;      /* Type of assign */
+    assign_path_t *paths;    /* List of paths (first is primary) */
+};
+
+static assign_entry_t *g_assigns = NULL;
+
+/* Forward declaration for find_assign (used by vfs_resolve_path) */
+static assign_entry_t *find_assign(const char *name);
+
 /* Get the user's home directory */
 static const char *get_user_home(void)
 {
@@ -199,13 +226,23 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
         strncpy(drive_name, amiga_path, name_len);
         drive_name[name_len] = '\0';
 
-        drive_map_t *map = g_drive_maps;
-        while (map) {
-            if (strcasecmp(map->amiga_name, drive_name) == 0) {
-                root = map->linux_path;
-                break;
+        /* Phase 7: Check assigns first (they take precedence over drives) */
+        assign_entry_t *assign = find_assign(drive_name);
+        if (assign && assign->paths) {
+            root = assign->paths->linux_path;
+            DPRINTF(LOG_DEBUG, "vfs: resolved assign %s: -> %s\n", drive_name, root);
+        }
+
+        /* Then check drives */
+        if (!root) {
+            drive_map_t *map = g_drive_maps;
+            while (map) {
+                if (strcasecmp(map->amiga_name, drive_name) == 0) {
+                    root = map->linux_path;
+                    break;
+                }
+                map = map->next;
             }
-            map = map->next;
         }
         if (!root) {
             // Drive not found in VFS mappings - this is not an error
@@ -740,4 +777,189 @@ bool vfs_setup_environment(void)
     fprintf(stderr, "lxa: Environment created successfully.\n");
     fprintf(stderr, "lxa: Edit %s/config.ini to customize your setup.\n", g_lxa_home);
     return true;
+}
+
+/*
+ * Phase 7: Assignment System Implementation
+ */
+
+/* Find an assign by name (case-insensitive) */
+static assign_entry_t *find_assign(const char *name)
+{
+    for (assign_entry_t *a = g_assigns; a; a = a->next) {
+        if (strcasecmp(a->name, name) == 0) {
+            return a;
+        }
+    }
+    return NULL;
+}
+
+bool vfs_assign_add(const char *name, const char *linux_path, assign_type_t type)
+{
+    DPRINTF(LOG_DEBUG, "vfs: vfs_assign_add(%s, %s, %d)\n", name, linux_path, type);
+    
+    /* Check if assign already exists */
+    assign_entry_t *existing = find_assign(name);
+    if (existing) {
+        /* Replace the existing assign */
+        /* Free old paths */
+        assign_path_t *p = existing->paths;
+        while (p) {
+            assign_path_t *next = p->next;
+            free(p->linux_path);
+            free(p);
+            p = next;
+        }
+        
+        /* Create new path entry */
+        assign_path_t *new_path = malloc(sizeof(assign_path_t));
+        if (!new_path) return false;
+        new_path->linux_path = strdup(linux_path);
+        new_path->next = NULL;
+        
+        existing->paths = new_path;
+        existing->type = type;
+        
+        DPRINTF(LOG_DEBUG, "vfs: replaced assign %s: -> %s\n", name, linux_path);
+        return true;
+    }
+    
+    /* Create new assign entry */
+    assign_entry_t *entry = malloc(sizeof(assign_entry_t));
+    if (!entry) return false;
+    
+    entry->name = strdup(name);
+    entry->type = type;
+    
+    assign_path_t *path_entry = malloc(sizeof(assign_path_t));
+    if (!path_entry) {
+        free(entry->name);
+        free(entry);
+        return false;
+    }
+    path_entry->linux_path = strdup(linux_path);
+    path_entry->next = NULL;
+    
+    entry->paths = path_entry;
+    entry->next = g_assigns;
+    g_assigns = entry;
+    
+    DPRINTF(LOG_DEBUG, "vfs: created assign %s: -> %s\n", name, linux_path);
+    return true;
+}
+
+bool vfs_assign_remove(const char *name)
+{
+    DPRINTF(LOG_DEBUG, "vfs: vfs_assign_remove(%s)\n", name);
+    
+    assign_entry_t *prev = NULL;
+    for (assign_entry_t *a = g_assigns; a; prev = a, a = a->next) {
+        if (strcasecmp(a->name, name) == 0) {
+            /* Remove from list */
+            if (prev) {
+                prev->next = a->next;
+            } else {
+                g_assigns = a->next;
+            }
+            
+            /* Free paths */
+            assign_path_t *p = a->paths;
+            while (p) {
+                assign_path_t *next = p->next;
+                free(p->linux_path);
+                free(p);
+                p = next;
+            }
+            
+            free(a->name);
+            free(a);
+            
+            DPRINTF(LOG_DEBUG, "vfs: removed assign %s:\n", name);
+            return true;
+        }
+    }
+    
+    return false; /* Not found */
+}
+
+bool vfs_assign_add_path(const char *name, const char *linux_path)
+{
+    DPRINTF(LOG_DEBUG, "vfs: vfs_assign_add_path(%s, %s)\n", name, linux_path);
+    
+    assign_entry_t *entry = find_assign(name);
+    if (!entry) {
+        /* Create new assign with this path */
+        return vfs_assign_add(name, linux_path, ASSIGN_LOCK);
+    }
+    
+    /* Add path to existing assign (at the end) */
+    assign_path_t *new_path = malloc(sizeof(assign_path_t));
+    if (!new_path) return false;
+    new_path->linux_path = strdup(linux_path);
+    new_path->next = NULL;
+    
+    /* Find end of path list */
+    assign_path_t *last = entry->paths;
+    if (!last) {
+        entry->paths = new_path;
+    } else {
+        while (last->next) last = last->next;
+        last->next = new_path;
+    }
+    
+    DPRINTF(LOG_DEBUG, "vfs: added path to assign %s: -> %s\n", name, linux_path);
+    return true;
+}
+
+bool vfs_assign_remove_path(const char *name, const char *linux_path)
+{
+    assign_entry_t *entry = find_assign(name);
+    if (!entry) return false;
+    
+    assign_path_t *prev = NULL;
+    for (assign_path_t *p = entry->paths; p; prev = p, p = p->next) {
+        if (strcmp(p->linux_path, linux_path) == 0) {
+            if (prev) {
+                prev->next = p->next;
+            } else {
+                entry->paths = p->next;
+            }
+            free(p->linux_path);
+            free(p);
+            
+            /* If no paths left, remove the assign entirely */
+            if (!entry->paths) {
+                vfs_assign_remove(name);
+            }
+            
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+int vfs_assign_list(const char **names, const char **paths, int max_count)
+{
+    int count = 0;
+    for (assign_entry_t *a = g_assigns; a && count < max_count; a = a->next) {
+        if (names) names[count] = a->name;
+        if (paths && a->paths) paths[count] = a->paths->linux_path;
+        count++;
+    }
+    return count;
+}
+
+bool vfs_assign_exists(const char *name)
+{
+    return find_assign(name) != NULL;
+}
+
+const char *vfs_assign_get_path(const char *name)
+{
+    assign_entry_t *entry = find_assign(name);
+    if (entry && entry->paths) {
+        return entry->paths->linux_path;
+    }
+    return NULL;
 }

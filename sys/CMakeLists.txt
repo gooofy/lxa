@@ -29,6 +29,7 @@ file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/System)
 
 # === SYS:C Commands ===
 set(C_COMMANDS
+    assign
     dir
     type
     makedir

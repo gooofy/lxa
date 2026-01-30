@@ -2798,6 +2798,9 @@ void coldstart (void)
     char *args = AllocVec (4096, MEMF_CLEAR);
     emucall1 (EMU_CALL_GETARGS, (ULONG) args);
     cli->cli_CommandFile = MKBADDR(args);
+    
+    /* Set pr_Arguments so ReadArgs() can find the command line */
+    rootProc->pr_Arguments = (STRPTR) args;
 
     rootProc->pr_CLI = MKBADDR(cli);
 

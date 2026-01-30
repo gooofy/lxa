@@ -371,17 +371,30 @@ Implement proper 68000 interrupt handling with a host-side timer driving the sch
 
 ---
 
-## Phase 7: System Management & Assignments
+## Phase 7: System Management & Assignments 🚧 IN PROGRESS
 **Goal**: Advanced system control and logical drive management.
 
-### Step 7.1: Assignment API
-- **API Implementation**: `AssignLock()`, `AssignName()`, `AssignPath()`.
-- **Search Path**: Proper integration of `SYS:C` and user-defined paths into the Shell loader.
+### Step 7.1: Assignment API ✅ COMPLETE
+- ✅ **API Implementation**: `AssignLock()`, `AssignPath()`, `AssignLate()`, `AssignAdd()`, `RemAssignList()` - `src/rom/lxa_dos.c`
+- ✅ **VFS Layer**: Assign storage and lookup integrated into VFS - `src/lxa/vfs.c`
+- ✅ **EMU_CALL Bridge**: `EMU_CALL_DOS_ASSIGN_ADD`, `EMU_CALL_DOS_ASSIGN_REMOVE`, `EMU_CALL_DOS_ASSIGN_LIST` - `src/lxa/lxa.c`
+- ✅ **ASSIGN Command**: `sys/C/assign.c` with AmigaDOS template `NAME,TARGET,LIST/S,EXISTS/S,DISMOUNT/S,DEFER/S,PATH/S,ADD/S,REMOVE/S`
+  - Create assigns: `ASSIGN TEST: SYS:C`
+  - Remove assigns: `ASSIGN TEST: REMOVE`
+  - List assigns: `ASSIGN LIST`
+  - Check existence: `ASSIGN SYS: EXISTS`
+  - Deferred assigns: `ASSIGN WORK: DH0:Work DEFER`
+  - Path assigns: `ASSIGN LIBS: SYS:Libs PATH`
 
-### Step 7.2: System Tools
+**Implementation Notes**:
+- `NameFromLock()` currently returns Linux paths; `_dos_assign_add()` detects and handles both Linux and Amiga paths
+- Assigns are session-specific (not persisted between lxa invocations)
+- System assigns (C:, S:, LIBS:, etc.) are configured via VFS drive mappings in config.ini
+
+### Step 7.2: System Tools 🚧 PENDING
 - **Process Management**: `STATUS`, `BREAK`, `RUN`, `CHANGETASKPRI`.
 - **Memory & Stack**: `AVAIL`, `STACK`.
-- **Device Control**: `ASSIGN`, `MOUNT`, `RELABEL`, `LOCK`.
+- **Device Control**: `MOUNT`, `RELABEL`, `LOCK`.
 
 ---
 
@@ -422,25 +435,19 @@ Implement timer-driven preemptive multitasking to enable professional Amiga soft
 
 ### After Phase 6.5: Phase 7 - System Management & Assignments
 
-1. **Assignment API**
-   - Implement `AssignLock()`, `AssignName()`, `AssignPath()` APIs.
-   - Add assign support to the VFS layer.
-2. **Shell Integration**
-   - Update Shell to use assigns for command lookup.
-   - Implement ASSIGN command for runtime assign management.
-3. **ASSIGN Command**
-   - Create `sys/C/assign.c` with proper AmigaDOS template.
-   - Support: `ASSIGN <name> <path>`, `ASSIGN <name> SHOW`, `ASSIGN <name> REMOVE`
+1. **Assignment API** ✅ COMPLETE
+   - Implemented `AssignLock()`, `AssignPath()`, `AssignLate()`, `AssignAdd()` APIs
+   - Added assign support to VFS layer with EMU_CALL bridge
+   - Created ASSIGN command with full AmigaDOS template support
 
-### Medium Term:
-4. **System Management Tools**
+2. **Next: System Tools (Phase 7.2)**
    - STATUS - Show running processes
-   - AVAIL - Show memory availability
+   - AVAIL - Show memory availability  
    - STACK - Show/check stack usage
-5. **Process Control**
-   - BREAK - Send Ctrl-C to a process
    - RUN - Background process execution
+   - BREAK - Send Ctrl-C to a process
    - CHANGETASKPRI - Modify task priority
+   - MOUNT, RELABEL, LOCK - Device management
 
 ---
 

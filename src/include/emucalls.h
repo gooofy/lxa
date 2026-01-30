@@ -46,5 +46,10 @@
 #define EMU_CALL_DOS_NAMEFROMLOCK 1021 /* NameFromLock(lock, buf, len) -> success */
 #define EMU_CALL_DOS_FLUSH     1022  /* Flush(fh) -> success */
 
+/* Phase 7: Assignment System */
+#define EMU_CALL_DOS_ASSIGN_ADD    1030  /* AssignAdd(name, path, type) -> success */
+#define EMU_CALL_DOS_ASSIGN_REMOVE 1031  /* AssignRemove(name) -> success */
+#define EMU_CALL_DOS_ASSIGN_LIST   1032  /* AssignList(buf, buflen) -> count */
+
 #endif
 

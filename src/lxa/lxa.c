@@ -1624,6 +1624,150 @@ static int _dos_setcomment(uint32_t name68k, uint32_t comment68k)
     return 1;
 }
 
+/*
+ * Phase 7: Assignment System
+ *
+ * These functions handle assign operations. Assigns are managed by the VFS
+ * layer, and these functions bridge the m68k emucalls to VFS.
+ */
+
+/* Add or replace an assign */
+static int _dos_assign_add(uint32_t name68k, uint32_t path68k, uint32_t type)
+{
+    char *name = _mgetstr(name68k);
+    char *path = _mgetstr(path68k);
+    char linux_path[PATH_MAX];
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): name=%s, path=%s, type=%d\n", 
+            name ? name : "NULL", path ? path : "NULL", type);
+    
+    if (!name || strlen(name) == 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): invalid name\n");
+        return 0;
+    }
+    
+    /* Determine if we received a Linux path or an Amiga path.
+     * Linux paths start with '/' while Amiga paths contain ':'
+     * Note: NameFromLock currently returns Linux paths, while
+     * AssignLate/AssignPath pass Amiga paths directly.
+     */
+    if (path && strlen(path) > 0) {
+        if (path[0] == '/') {
+            /* Already a Linux path - use it directly */
+            strncpy(linux_path, path, sizeof(linux_path));
+            linux_path[sizeof(linux_path) - 1] = '\0';
+            DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): using Linux path directly: %s\n", linux_path);
+        } else {
+            /* Amiga path - resolve to Linux */
+            if (!vfs_resolve_path(path, linux_path, sizeof(linux_path))) {
+                _dos_path2linux(path, linux_path, sizeof(linux_path));
+            }
+            DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): resolved Amiga path to: %s\n", linux_path);
+        }
+        
+        /* Verify the path exists */
+        struct stat st;
+        if (stat(linux_path, &st) != 0) {
+            DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): path not found: %s (errno=%d)\n", linux_path, errno);
+            return 0;
+        }
+        
+        /* For directory assigns, ensure it's actually a directory */
+        if (!S_ISDIR(st.st_mode)) {
+            DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): not a directory: %s\n", linux_path);
+            return 0;
+        }
+    } else {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): empty path\n");
+        linux_path[0] = '\0';
+    }
+    
+    /* type: 0 = ASSIGN_LOCK, 1 = ASSIGN_LATE, 2 = ASSIGN_PATH */
+    assign_type_t atype = (type <= 2) ? (assign_type_t)type : ASSIGN_LOCK;
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): calling vfs_assign_add(name=%s, linux_path=%s, atype=%d)\n",
+            name, linux_path, atype);
+    
+    if (vfs_assign_add(name, linux_path, atype)) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): success\n");
+        return 1;
+    }
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): vfs_assign_add failed\n");
+    return 0;
+}
+
+/* Remove an assign */
+static int _dos_assign_remove(uint32_t name68k)
+{
+    char *name = _mgetstr(name68k);
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_assign_remove(): name=%s\n", name ? name : "NULL");
+    
+    if (!name || strlen(name) == 0) {
+        return 0;
+    }
+    
+    if (vfs_assign_remove(name)) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_assign_remove(): success\n");
+        return 1;
+    }
+    
+    return 0;
+}
+
+/* List assigns - returns count and writes packed strings to buffer */
+static int _dos_assign_list(uint32_t buf68k, uint32_t buflen)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_assign_list(): buf=0x%08x, buflen=%d\n", buf68k, buflen);
+    
+    /* Get list of assigns from VFS */
+    const char *names[64];
+    const char *paths[64];
+    int count = vfs_assign_list(names, paths, 64);
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_assign_list(): got %d assigns\n", count);
+    
+    if (buf68k == 0 || buflen == 0) {
+        /* Just return the count */
+        return count;
+    }
+    
+    /* Write assigns to buffer as: name\0path\0name\0path\0...\0\0 */
+    uint32_t offset = 0;
+    int written = 0;
+    
+    for (int i = 0; i < count && offset < buflen - 2; i++) {
+        size_t name_len = strlen(names[i]);
+        size_t path_len = paths[i] ? strlen(paths[i]) : 0;
+        
+        if (offset + name_len + 1 + path_len + 1 >= buflen - 1) {
+            break; /* No more space */
+        }
+        
+        /* Write name */
+        for (size_t j = 0; j < name_len; j++) {
+            m68k_write_memory_8(buf68k + offset++, names[i][j]);
+        }
+        m68k_write_memory_8(buf68k + offset++, '\0');
+        
+        /* Write path */
+        if (paths[i]) {
+            for (size_t j = 0; j < path_len; j++) {
+                m68k_write_memory_8(buf68k + offset++, paths[i][j]);
+            }
+        }
+        m68k_write_memory_8(buf68k + offset++, '\0');
+        
+        written++;
+    }
+    
+    /* Terminate with extra NUL */
+    m68k_write_memory_8(buf68k + offset, '\0');
+    
+    return written;
+}
+
 static void _debug_add_bp (uint32_t addr)
 {
     if (g_num_breakpoints < MAX_BREAKPOINTS)
@@ -2271,6 +2415,43 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_FLUSH fh=0x%08x\n", fh);
 
             uint32_t res = _dos_flush(fh);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        /* Phase 7: Assignment System */
+        case EMU_CALL_DOS_ASSIGN_ADD:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t path = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t type = m68k_get_reg(NULL, M68K_REG_D3);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_ASSIGN_ADD name=0x%08x, path=0x%08x, type=%d\n", name, path, type);
+
+            uint32_t res = _dos_assign_add(name, path, type);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_ASSIGN_REMOVE:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_ASSIGN_REMOVE name=0x%08x\n", name);
+
+            uint32_t res = _dos_assign_remove(name);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_ASSIGN_LIST:
+        {
+            uint32_t buf = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t buflen = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_ASSIGN_LIST buf=0x%08x, buflen=%d\n", buf, buflen);
+
+            uint32_t res = _dos_assign_list(buf, buflen);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }

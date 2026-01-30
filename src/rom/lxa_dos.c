@@ -2233,21 +2233,77 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     return 0; // Success
 }
 
+/*
+ * Phase 7: Assignment System
+ *
+ * These functions manage logical name assignments (like C:, LIBS:, etc.)
+ * The actual assign storage is handled by the host VFS layer.
+ */
+
+/* Assign type constants for emucall */
+#define ASSIGN_TYPE_LOCK 0   /* Points to a specific directory (resolved once) */
+#define ASSIGN_TYPE_LATE 1   /* Late-binding: path resolved when accessed */
+#define ASSIGN_TYPE_PATH 2   /* Non-binding path (like AssignPath) */
+
 LONG _dos_AssignLock ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR lock __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: AssignLock() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: AssignLock() called, name=%s, lock=0x%08lx\n",
+             name ? (char *)name : "NULL", lock);
+    
+    if (!name || !lock)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+    
+    /* Get path from lock using NameFromLock */
+    char path[256];
+    if (!_dos_NameFromLock(DOSBase, lock, (STRPTR)path, sizeof(path)))
+    {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+    
+    DPRINTF (LOG_DEBUG, "_dos: AssignLock() path from lock: %s\n", path);
+    
+    /* Call host to create the assign (type 0 = ASSIGN_LOCK) */
+    LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path, ASSIGN_TYPE_LOCK);
+    
+    if (result)
+    {
+        /* On success, we consume the lock (AmigaOS behavior) */
+        _dos_UnLock(DOSBase, lock);
+        return DOSTRUE;
+    }
+    
+    SetIoErr(ERROR_OBJECT_EXISTS);
+    return DOSFALSE;
 }
 
 BOOL _dos_AssignLate ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register CONST_STRPTR path __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: AssignLate() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: AssignLate() called, name=%s, path=%s\n",
+             name ? (char *)name : "NULL", path ? (char *)path : "NULL");
+    
+    if (!name || !path)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return FALSE;
+    }
+    
+    /* Call host to create the assign (type 1 = ASSIGN_LATE) */
+    LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path, ASSIGN_TYPE_LATE);
+    
+    if (result)
+    {
+        return TRUE;
+    }
+    
+    SetIoErr(ERROR_OBJECT_EXISTS);
     return FALSE;
 }
 
@@ -2255,8 +2311,24 @@ BOOL _dos_AssignPath ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register CONST_STRPTR path __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: AssignPath() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: AssignPath() called, name=%s, path=%s\n",
+             name ? (char *)name : "NULL", path ? (char *)path : "NULL");
+    
+    if (!name || !path)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return FALSE;
+    }
+    
+    /* Call host to create the assign (type 2 = ASSIGN_PATH) */
+    LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path, ASSIGN_TYPE_PATH);
+    
+    if (result)
+    {
+        return TRUE;
+    }
+    
+    SetIoErr(ERROR_OBJECT_EXISTS);
     return FALSE;
 }
 
@@ -2264,8 +2336,36 @@ BOOL _dos_AssignAdd ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR lock __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: AssignAdd() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: AssignAdd() called, name=%s, lock=0x%08lx\n",
+             name ? (char *)name : "NULL", lock);
+    
+    if (!name || !lock)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return FALSE;
+    }
+    
+    /* Get path from lock using NameFromLock */
+    char path[256];
+    if (!_dos_NameFromLock(DOSBase, lock, (STRPTR)path, sizeof(path)))
+    {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return FALSE;
+    }
+    
+    DPRINTF (LOG_DEBUG, "_dos: AssignAdd() path from lock: %s\n", path);
+    
+    /* Call host to add to the assign (type 0 = ASSIGN_LOCK for adds) */
+    LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path, ASSIGN_TYPE_LOCK);
+    
+    if (result)
+    {
+        /* On success, we consume the lock (AmigaOS behavior) */
+        _dos_UnLock(DOSBase, lock);
+        return TRUE;
+    }
+    
+    SetIoErr(ERROR_OBJECT_EXISTS);
     return FALSE;
 }
 
@@ -2273,9 +2373,30 @@ LONG _dos_RemAssignList ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register BPTR lock __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: RemAssignList() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: RemAssignList() called, name=%s, lock=0x%08lx\n",
+             name ? (char *)name : "NULL", lock);
+    
+    if (!name)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+    
+    /* If lock is NULL, remove the entire assign; otherwise just that path */
+    /* For simplicity, we just remove the entire assign for now */
+    LONG result = emucall1(EMU_CALL_DOS_ASSIGN_REMOVE, (ULONG)name);
+    
+    if (result)
+    {
+        if (lock)
+        {
+            _dos_UnLock(DOSBase, lock);
+        }
+        return DOSTRUE;
+    }
+    
+    SetIoErr(ERROR_OBJECT_NOT_FOUND);
+    return DOSFALSE;
 }
 
 struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2653,20 +2774,25 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
         array[i] = 0;
     }
 
-    /* Parse arguments - simple whitespace tokenizer */
-    char token[256];
+    /* Parse arguments - simple whitespace tokenizer
+     * AmigaDOS modifies the argument string in-place, replacing delimiters with NULLs.
+     * We need to track token start positions and null-terminate in the original string.
+     */
     LONG token_pos = 0;
     LONG current_item = -1;
     BOOL in_token = FALSE;
-    CONST_STRPTR p = arg_str;
+    STRPTR p = arg_str;  /* Non-const because we modify in place */
+    STRPTR token_start = NULL;
 
     while (1) {
         char c = *p;
 
-        if (c == ' ' || c == '\t' || c == '\0') {
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\0') {
             if (in_token) {
-                /* End of token */
-                token[token_pos] = '\0';
+                /* End of token - null-terminate in place */
+                if (c != '\0') {
+                    *p = '\0';  /* Modify the string in place */
+                }
                 in_token = FALSE;
 
                 /* Process the token */
@@ -2675,7 +2801,7 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
                 /* Check if this is a keyword */
                 for (LONG i = 0; i < num_items; i++) {
                     if (items[i].flags & TEMPLATE_KEYWORD || items[i].flags & TEMPLATE_SWITCH) {
-                        if (_stricmp(token, items[i].name) == 0) {
+                        if (_stricmp((const char *)token_start, items[i].name) == 0) {
                             if (items[i].flags & TEMPLATE_SWITCH) {
                                 /* Switch - just set to TRUE */
                                 array[items[i].index] = (LONG)TRUE;
@@ -2693,12 +2819,12 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
                     /* This is a value for the current item */
                     if (items[current_item].flags & TEMPLATE_NUMERIC) {
                         LONG val;
-                        if (_str_to_long((CONST_STRPTR)token, &val) == 0) {
+                        if (_str_to_long((CONST_STRPTR)token_start, &val) == 0) {
                             array[items[current_item].index] = val;
                         }
                     } else {
-                        /* Store string pointer - use the original position in arg_str */
-                        array[items[current_item].index] = (LONG)(p - token_pos);
+                        /* Store pointer to the null-terminated token in arg_str */
+                        array[items[current_item].index] = (LONG)token_start;
                     }
                     current_item = -1;
                 } else if (!found_keyword) {
@@ -2709,26 +2835,27 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
                             array[items[i].index] == 0) {
                             if (items[i].flags & TEMPLATE_NUMERIC) {
                                 LONG val;
-                                if (_str_to_long((CONST_STRPTR)token, &val) == 0) {
+                                if (_str_to_long((CONST_STRPTR)token_start, &val) == 0) {
                                     array[items[i].index] = val;
                                 }
                             } else {
-                                array[items[i].index] = (LONG)(p - token_pos);
+                                array[items[i].index] = (LONG)token_start;
                             }
                             break;
                         }
                     }
                 }
 
-                token_pos = 0;
+                token_start = NULL;
             }
 
             if (c == '\0')
                 break;
         } else {
-            if (token_pos < 255) {
-                token[token_pos++] = c;
+            if (!in_token) {
+                token_start = p;  /* Remember start of this token */
             }
+            token_pos++;
             in_token = TRUE;
         }
 
