@@ -190,3 +190,111 @@ Integration tests are located in `tests/`.
 - **BPTR Conversion**: Use `BADDR(bptr)` to convert Amiga BPTR to host pointer, `MKBADDR(ptr)` for reverse.
 - **TagItems**: Use `GetTagData` for parsing tag lists in system calls.
 - **Libraries**: `DOSBase`, `SysBase` are usually passed in registers (`a6`) for ROM code, or available as globals in user commands.
+
+## 8. Debugging & Logging
+
+### DPRINTF vs LPRINTF
+ROM code (`src/rom/`) has two logging macros defined in `src/rom/util.h`:
+
+- **`LPRINTF(level, ...)`**: Always enabled. Use for errors and important info.
+- **`DPRINTF(level, ...)`**: Only enabled when `ENABLE_DEBUG` is defined. Use for verbose debug traces.
+
+```c
+// util.h
+#define LOG_DEBUG   0
+#define LOG_INFO    1
+#define LOG_WARNING 2
+#define LOG_ERROR   3
+
+// LPRINTF is always active
+#define LPRINTF(lvl, ...) do { if (lvl >= LOG_LEVEL) lprintf(lvl, __VA_ARGS__); } while (0)
+
+// DPRINTF requires ENABLE_DEBUG to be defined
+//#define ENABLE_DEBUG  // Uncomment to enable DPRINTF
+#ifdef ENABLE_DEBUG
+#define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)
+#else
+#define DPRINTF(lvl, ...) do { } while (0)  // No-op
+#endif
+```
+
+**When debugging ROM code:**
+1. For quick debugging, use `LPRINTF(LOG_INFO, ...)` - always visible
+2. For permanent debug traces, use `DPRINTF(LOG_DEBUG, ...)` and uncomment `ENABLE_DEBUG` in `util.h`
+3. Run with `-d` flag for additional host-side debug output
+
+## 9. ROM Code Constraints
+
+### No Writable Static Data
+ROM code is loaded into read-only memory. **Static variables with initial values or that need to be written will NOT work correctly.**
+
+```c
+// BAD - static arrays in ROM code don't work!
+static STRPTR my_array[16];  // This is in ROM - can't write to it!
+my_array[0] = some_ptr;      // Will silently fail or corrupt memory
+
+// GOOD - dynamically allocate writable storage
+STRPTR *my_array = AllocVec(16 * sizeof(STRPTR), MEMF_CLEAR);
+if (my_array) {
+    my_array[0] = some_ptr;  // Works - allocated in RAM
+    // ... use array ...
+    FreeVec(my_array);
+}
+```
+
+### Implications for ROM Functions
+- Use `AllocVec`/`AllocMem` for any data structures that need to be modified
+- Constants and lookup tables are fine as `static const`
+- Function-local variables on the stack are fine (but see stack size limits below)
+
+## 10. Stack Size Considerations
+
+### Process Stack Limits
+Processes created via `SystemTagList()` have a default stack size of **4096 bytes** (4KB). This is easily exhausted by large local arrays.
+
+```c
+// BAD - 4KB buffer on a 4KB stack = overflow!
+static int my_command(void) {
+    UBYTE buffer[4096];  // This alone exhausts the stack
+    // ... more local variables ...
+    // Stack overflow corrupts memory, causing mysterious crashes
+}
+
+// GOOD - use smaller buffers or heap allocation
+static int my_command(void) {
+    UBYTE buffer[512];   // Reasonable stack usage
+    // ... or ...
+    UBYTE *buffer = AllocVec(4096, MEMF_ANY);
+    if (!buffer) return ERROR_NO_FREE_STORE;
+    // ... use buffer ...
+    FreeVec(buffer);
+}
+```
+
+### Stack Overflow Symptoms
+- Function arguments appear corrupted
+- Pointers that were valid become garbage
+- Memory reads return wrong data
+- Crashes in seemingly unrelated code
+
+### Safe Stack Usage Guidelines
+- Keep local arrays under **256 bytes** in commands
+- For larger buffers, use `AllocVec()` from the heap
+- Consider that function call depth also consumes stack
+- If a command needs more stack, increase `NP_StackSize` in `SystemTagList()` call
+
+## 11. Memory Debugging Tips
+
+### Tracing Pointer Issues
+When a pointer appears corrupted:
+1. Print the pointer value at each stage of passing
+2. Check if the value is a valid m68k address (typically 0x20000-0x80000 range)
+3. Verify the memory at that address contains expected data
+4. Look for stack overflow (large local arrays)
+5. Look for ROM static data issues
+
+### Common Address Ranges
+- `0x00000-0x00400`: Exception vectors (don't touch)
+- `0x00400-0x20000`: System structures (ExecBase, DOSBase, etc.)
+- `0x20000-0x80000`: Typical user memory (AllocMem/AllocVec)
+- ROM addresses are much higher and read-only
