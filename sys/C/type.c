@@ -40,8 +40,8 @@ extern struct ExecBase *SysBase;
 #define ARG_NUMBER  4
 #define ARG_COUNT   5
 
-/* Buffer size for reading */
-#define BUFFER_SIZE 4096
+/* Buffer size for reading - use moderate size to avoid stack issues */
+#define BUFFER_SIZE 512
 
 /* Global state for break checking */
 static BOOL g_user_break = FALSE;
@@ -295,6 +295,7 @@ int main(int argc, char **argv)
     
     /* Extract arguments */
     STRPTR *from_array = (STRPTR *)args[ARG_FROM];
+    
     CONST_STRPTR to_path = (CONST_STRPTR)args[ARG_TO];
     CONST_STRPTR opt_str = (CONST_STRPTR)args[ARG_OPT];
     BOOL hex_flag = args[ARG_HEX] ? TRUE : FALSE;

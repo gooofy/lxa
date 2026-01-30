@@ -1942,6 +1942,10 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     {
         int l = strlen (args);
         char *nargs = AllocVec (l+1, MEMF_PUBLIC);
+        if (!nargs) {
+            LPRINTF(LOG_ERROR, "_dos: CreateNewProc failed to allocate args buffer!\n");
+            return NULL;
+        }
         CopyMem (args, nargs, l+1);
         args = nargs;
     }
@@ -2822,6 +2826,26 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
         array[i] = 0;
     }
 
+    /* For /M (multiple) arguments, we need to collect all values into a NULL-terminated
+     * array of pointers. Allocate storage dynamically (can't use static in ROM code).
+     * Limit: 16 values per /M argument
+     */
+    #define MAX_MULTI_VALUES 16
+    
+    /* Allocate multi_values as a 2D array: num_items * (MAX_MULTI_VALUES+1) pointers */
+    STRPTR *multi_values_flat = (STRPTR *)AllocVec(num_items * (MAX_MULTI_VALUES + 1) * sizeof(STRPTR), MEMF_CLEAR);
+    LONG *multi_counts = (LONG *)AllocVec(num_items * sizeof(LONG), MEMF_CLEAR);
+    
+    if (!multi_values_flat || !multi_counts) {
+        if (multi_values_flat) FreeVec(multi_values_flat);
+        if (multi_counts) FreeVec(multi_counts);
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
+    
+    /* Helper macros to access 2D array stored as flat array */
+    #define MULTI_VALUES(item, idx) multi_values_flat[(item) * (MAX_MULTI_VALUES + 1) + (idx)]
+
     /* Parse arguments - simple whitespace tokenizer
      * AmigaDOS modifies the argument string in-place, replacing delimiters with NULLs.
      * We need to track token start positions and null-terminate in the original string.
@@ -2865,31 +2889,47 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
 
                 if (!found_keyword && current_item >= 0) {
                     /* This is a value for the current item */
+                    LONG idx = items[current_item].index;
                     if (items[current_item].flags & TEMPLATE_NUMERIC) {
                         LONG val;
                         if (_str_to_long((CONST_STRPTR)token_start, &val) == 0) {
-                            array[items[current_item].index] = val;
+                            array[idx] = val;
+                        }
+                    } else if (items[current_item].flags & TEMPLATE_MULTIPLE) {
+                        /* /M argument - collect into multi_values array */
+                        if (multi_counts[idx] < MAX_MULTI_VALUES) {
+                            MULTI_VALUES(idx, multi_counts[idx]++) = token_start;
+                            MULTI_VALUES(idx, multi_counts[idx]) = NULL;
                         }
                     } else {
                         /* Store pointer to the null-terminated token in arg_str */
-                        array[items[current_item].index] = (LONG)token_start;
+                        array[idx] = (LONG)token_start;
                     }
                     current_item = -1;
                 } else if (!found_keyword) {
                     /* Not a keyword, try to match with non-keyword items */
                     for (LONG i = 0; i < num_items; i++) {
+                        LONG idx = items[i].index;
                         if (!(items[i].flags & TEMPLATE_KEYWORD) &&
-                            !(items[i].flags & TEMPLATE_SWITCH) &&
-                            array[items[i].index] == 0) {
-                            if (items[i].flags & TEMPLATE_NUMERIC) {
-                                LONG val;
-                                if (_str_to_long((CONST_STRPTR)token_start, &val) == 0) {
-                                    array[items[i].index] = val;
+                            !(items[i].flags & TEMPLATE_SWITCH)) {
+                            /* For /M items, always add to array; for others, only if empty */
+                            if (items[i].flags & TEMPLATE_MULTIPLE) {
+                                if (multi_counts[idx] < MAX_MULTI_VALUES) {
+                                    MULTI_VALUES(idx, multi_counts[idx]++) = token_start;
+                                    MULTI_VALUES(idx, multi_counts[idx]) = NULL;
                                 }
-                            } else {
-                                array[items[i].index] = (LONG)token_start;
+                                break;
+                            } else if (array[idx] == 0) {
+                                if (items[i].flags & TEMPLATE_NUMERIC) {
+                                    LONG val;
+                                    if (_str_to_long((CONST_STRPTR)token_start, &val) == 0) {
+                                        array[idx] = val;
+                                    }
+                                } else {
+                                    array[idx] = (LONG)token_start;
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
                 }
@@ -2910,13 +2950,51 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
         p++;
     }
 
-    /* Check required items */
+    /* Now allocate arrays for /M items and copy the collected pointers */
     for (LONG i = 0; i < num_items; i++) {
-        if (items[i].flags & TEMPLATE_REQUIRED && array[items[i].index] == 0) {
-            SetIoErr(ERROR_REQUIRED_ARG_MISSING);
-            return NULL;
+        if (items[i].flags & TEMPLATE_MULTIPLE) {
+            LONG idx = items[i].index;
+            LONG count = multi_counts[idx];
+            if (count > 0) {
+                /* Allocate array of (count+1) pointers (NULL-terminated) */
+                STRPTR *arr = (STRPTR *)AllocVec((count + 1) * sizeof(STRPTR), MEMF_ANY);
+                if (arr) {
+                    for (LONG j = 0; j < count; j++) {
+                        arr[j] = MULTI_VALUES(idx, j);
+                    }
+                    arr[count] = NULL;
+                    array[idx] = (LONG)arr;
+                }
+            }
         }
     }
+
+    /* Check required items - for /M items, check if count > 0 */
+    for (LONG i = 0; i < num_items; i++) {
+        if (items[i].flags & TEMPLATE_REQUIRED) {
+            LONG idx = items[i].index;
+            if (items[i].flags & TEMPLATE_MULTIPLE) {
+                if (multi_counts[idx] == 0) {
+                    FreeVec(multi_values_flat);
+                    FreeVec(multi_counts);
+                    SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+                    return NULL;
+                }
+            } else if (array[idx] == 0) {
+                FreeVec(multi_values_flat);
+                FreeVec(multi_counts);
+                SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+                return NULL;
+            }
+        }
+    }
+
+    /* Free temporary arrays */
+    FreeVec(multi_values_flat);
+    FreeVec(multi_counts);
+    
+    #undef MULTI_VALUES
+    #undef MAX_MULTI_VALUES
 
     /* Allocate or return RDArgs structure */
     struct RDArgs *result = args;
