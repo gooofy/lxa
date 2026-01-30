@@ -279,12 +279,12 @@ static bool write_file_if_missing(const char *path, const char *content)
     return true;
 }
 
-/* Copy a file from source to destination */
-static bool copy_file(const char *src_path, const char *dst_path)
+/* Copy a file from source to destination (optionally force overwrite) */
+static bool copy_file_ex(const char *src_path, const char *dst_path, bool force)
 {
     struct stat st;
-    if (stat(dst_path, &st) == 0) {
-        /* Destination already exists */
+    if (!force && stat(dst_path, &st) == 0) {
+        /* Destination already exists and we're not forcing */
         return true;
     }
     
@@ -315,6 +315,38 @@ static bool copy_file(const char *src_path, const char *dst_path)
     fclose(src);
     fclose(dst);
     DPRINTF(LOG_INFO, "vfs: copied %s -> %s\n", src_path, dst_path);
+    return true;
+}
+
+/* Copy a file from source to destination (don't overwrite existing) */
+static bool copy_file(const char *src_path, const char *dst_path)
+{
+    return copy_file_ex(src_path, dst_path, false);
+}
+
+/* Check if source file is newer than destination file */
+static bool is_newer(const char *src_path, const char *dst_path)
+{
+    struct stat src_st, dst_st;
+    
+    if (stat(src_path, &src_st) != 0) {
+        return false; /* Source doesn't exist */
+    }
+    
+    if (stat(dst_path, &dst_st) != 0) {
+        return true; /* Destination doesn't exist, source is "newer" */
+    }
+    
+    return src_st.st_mtime > dst_st.st_mtime;
+}
+
+/* Update a file if the source is newer */
+static bool update_file_if_newer(const char *src_path, const char *dst_path)
+{
+    if (is_newer(src_path, dst_path)) {
+        DPRINTF(LOG_INFO, "vfs: updating %s (newer version available)\n", dst_path);
+        return copy_file_ex(src_path, dst_path, true);
+    }
     return true;
 }
 
@@ -408,6 +440,129 @@ static bool make_path(char *buf, size_t buflen, const char *subpath)
     return true;
 }
 
+void vfs_setup_dynamic_drives(void)
+{
+    /* Set up HOME: drive pointing to user's home directory */
+    const char *home = get_user_home();
+    if (home) {
+        vfs_add_drive("HOME", home);
+        DPRINTF(LOG_INFO, "vfs: HOME: -> %s\n", home);
+    }
+
+    /* Set up CWD: drive pointing to current working directory */
+    char cwd[PATH_MAX];
+    if (getcwd(cwd, sizeof(cwd)) != NULL) {
+        vfs_add_drive("CWD", cwd);
+        DPRINTF(LOG_INFO, "vfs: CWD: -> %s\n", cwd);
+    }
+}
+
+/* Update files in a directory from source to destination */
+static int update_directory_files(const char *src_dir, const char *dst_dir)
+{
+    int updated_count = 0;
+    
+    DIR *dir = opendir(src_dir);
+    if (!dir) return 0;
+    
+    /* Ensure destination directory exists */
+    ensure_dir(dst_dir);
+    
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] == '.') continue;
+        
+        char src_file[PATH_MAX];
+        char dst_file[PATH_MAX];
+        int n;
+        
+        n = snprintf(src_file, sizeof(src_file), "%s/%s", src_dir, entry->d_name);
+        if (n < 0 || (size_t)n >= sizeof(src_file)) continue;
+        n = snprintf(dst_file, sizeof(dst_file), "%s/%s", dst_dir, entry->d_name);
+        if (n < 0 || (size_t)n >= sizeof(dst_file)) continue;
+        
+        struct stat st;
+        if (stat(src_file, &st) == 0 && S_ISREG(st.st_mode)) {
+            if (is_newer(src_file, dst_file)) {
+                if (update_file_if_newer(src_file, dst_file)) {
+                    chmod(dst_file, 0755);
+                    updated_count++;
+                }
+            }
+        }
+    }
+    closedir(dir);
+    
+    return updated_count;
+}
+
+/* Update system binaries from installation directory if newer versions exist */
+static void update_system_binaries(void)
+{
+    const char *data_dir = get_data_dir();
+    if (!data_dir) return;
+    
+    char src_path[PATH_MAX];
+    char dst_path[PATH_MAX];
+    int n;
+    int updated_count = 0;
+    
+    /*
+     * Handle two possible directory structures:
+     * 1. data_dir/System/{C,System,...}  (installed package structure)
+     * 2. data_dir/{C,System,...}         (build output structure)
+     * 
+     * User's structure is always: ~/.lxa/System/{C,System,...}
+     */
+    
+    /* First try: data_dir/System/... -> ~/.lxa/System/... */
+    n = snprintf(src_path, sizeof(src_path), "%s/System", data_dir);
+    if (n >= 0 && (size_t)n < sizeof(src_path)) {
+        struct stat st;
+        if (stat(src_path, &st) == 0 && S_ISDIR(st.st_mode)) {
+            DIR *dir = opendir(src_path);
+            if (dir) {
+                struct dirent *entry;
+                while ((entry = readdir(dir)) != NULL) {
+                    if (entry->d_name[0] == '.') continue;
+                    
+                    char sub_src[PATH_MAX];
+                    char sub_dst[PATH_MAX];
+                    n = snprintf(sub_src, sizeof(sub_src), "%s/System/%s", data_dir, entry->d_name);
+                    if (n < 0 || (size_t)n >= sizeof(sub_src)) continue;
+                    n = snprintf(sub_dst, sizeof(sub_dst), "%s/System/%s", g_lxa_home, entry->d_name);
+                    if (n < 0 || (size_t)n >= sizeof(sub_dst)) continue;
+                    
+                    struct stat subst;
+                    if (stat(sub_src, &subst) == 0 && S_ISDIR(subst.st_mode)) {
+                        updated_count += update_directory_files(sub_src, sub_dst);
+                    }
+                }
+                closedir(dir);
+            }
+        }
+    }
+    
+    /* Second try: data_dir/C -> ~/.lxa/System/C, data_dir/System -> ~/.lxa/System/System */
+    /* This handles the build output structure */
+    const char *subdirs[] = {"C", "System", "Libs", "Devs", "L", NULL};
+    for (int i = 0; subdirs[i]; i++) {
+        n = snprintf(src_path, sizeof(src_path), "%s/%s", data_dir, subdirs[i]);
+        if (n < 0 || (size_t)n >= sizeof(src_path)) continue;
+        n = snprintf(dst_path, sizeof(dst_path), "%s/System/%s", g_lxa_home, subdirs[i]);
+        if (n < 0 || (size_t)n >= sizeof(dst_path)) continue;
+        
+        struct stat st;
+        if (stat(src_path, &st) == 0 && S_ISDIR(st.st_mode)) {
+            updated_count += update_directory_files(src_path, dst_path);
+        }
+    }
+    
+    if (updated_count > 0) {
+        fprintf(stderr, "lxa: Updated %d system file(s) to latest version\n", updated_count);
+    }
+}
+
 bool vfs_setup_environment(void)
 {
     if (!g_lxa_home[0]) {
@@ -419,6 +574,8 @@ bool vfs_setup_environment(void)
     struct stat st;
     if (stat(g_lxa_home, &st) == 0 && S_ISDIR(st.st_mode)) {
         DPRINTF(LOG_DEBUG, "vfs: lxa home directory %s already exists\n", g_lxa_home);
+        /* Check for and apply any updates to system binaries */
+        update_system_binaries();
         return true;
     }
     

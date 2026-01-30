@@ -2576,29 +2576,35 @@ static bool _load_rom_map (const char *rom_path)
 static void print_usage(char *argv[])
 {
     fprintf(stderr, "lxa - Linux Amiga Emulation Layer\n");
-    fprintf(stderr, "usage: %s [ options ] <loadfile>\n", argv[0]);
+    fprintf(stderr, "usage: %s [ options ] [ program [ args... ] ]\n", argv[0]);
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "    -b <addr|sym>  add breakpoint, examples: -b _start\n");
     fprintf(stderr, "    -c <config>    use config file (default: ~/.lxa/config.ini)\n");
     fprintf(stderr, "    -d             enable debug output\n");
+    fprintf(stderr, "    -h, --help     display this help and exit\n");
     fprintf(stderr, "    -r <rom>       use kickstart ROM (auto-detected if not specified)\n");
-    fprintf(stderr, "    -s <sysroot>   set AmigaOS system root (default: current directory)\n");
     fprintf(stderr, "    -v             verbose mode\n");
     fprintf(stderr, "    -t             trace mode\n");
     fprintf(stderr, "\n");
+    fprintf(stderr, "If no program is specified, the interactive Amiga shell is launched.\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Drives:\n");
+    fprintf(stderr, "    SYS:   System drive (configured via config.ini)\n");
+    fprintf(stderr, "    HOME:  User's home directory (automatic)\n");
+    fprintf(stderr, "    CWD:   Current working directory (automatic)\n");
+    fprintf(stderr, "\n");
     fprintf(stderr, "Examples:\n");
+    fprintf(stderr, "    %s                          # Launch interactive shell\n", argv[0]);
     fprintf(stderr, "    %s hello.world              # Run a program\n", argv[0]);
-    fprintf(stderr, "    %s -s . sys/System/Shell    # Run the Shell\n", argv[0]);
     fprintf(stderr, "    %s -r /path/to/lxa.rom prog # Specify ROM location\n", argv[0]);
     fprintf(stderr, "\n");
-    fprintf(stderr, "First run: lxa will create ~/.lxa/ with default configuration\n");
+    fprintf(stderr, "Configuration: ~/.lxa/config.ini (created on first run)\n");
 }
 
 int main(int argc, char **argv, char **envp)
 {
     char *rom_path = NULL;
-    char *sysroot = NULL;
     char *config_path = NULL;
     int optind=0;
 
@@ -2607,6 +2613,13 @@ int main(int argc, char **argv, char **envp)
     // argument parsing
     for (optind = 1; optind < argc && argv[optind][0] == '-'; optind++)
     {
+        /* Handle --help first */
+        if (strcmp(argv[optind], "--help") == 0)
+        {
+            print_usage(argv);
+            exit(EXIT_SUCCESS);
+        }
+
         switch (argv[optind][1])
         {
             case 'b':
@@ -2627,16 +2640,13 @@ int main(int argc, char **argv, char **envp)
             case 'd':
                 g_debug = true;
                 break;
+            case 'h':
+                print_usage(argv);
+                exit(EXIT_SUCCESS);
             case 'r':
             {
                 optind++;
                 rom_path = argv[optind];
-                break;
-            }
-            case 's':
-            {
-                optind++;
-                sysroot = argv[optind];
                 break;
             }
             case 'v':
@@ -2654,10 +2664,9 @@ int main(int argc, char **argv, char **envp)
     /*
      * Phase 3: Automatic Environment Setup
      * 
-     * If no config file is specified and no sysroot is set, check if
-     * ~/.lxa exists. If not, create it with the default structure.
+     * Check if ~/.lxa exists. If not, create it with the default structure.
      */
-    if (!config_path && !sysroot) {
+    if (!config_path) {
         vfs_setup_environment();
     }
 
@@ -2672,9 +2681,7 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    if (sysroot) {
-        vfs_add_drive("SYS", sysroot);
-    } else if (!vfs_has_sys_drive()) {
+    if (!vfs_has_sys_drive()) {
         /* No SYS: drive configured - try sys/ subdirectory first, then current directory */
         struct stat st;
         if (stat(DEFAULT_AMIGA_SYSROOT, &st) == 0 && S_ISDIR(st.st_mode)) {
@@ -2683,6 +2690,9 @@ int main(int argc, char **argv, char **envp)
             vfs_add_drive("SYS", ".");
         }
     }
+
+    /* Set up automatic HOME: and CWD: drives */
+    vfs_setup_dynamic_drives();
 
     if (!rom_path) {
         rom_path = (char *)config_get_rom_path();
@@ -2704,39 +2714,38 @@ int main(int argc, char **argv, char **envp)
         }
     }
 
-    if (argc < optind+1)
+    /* Default to interactive shell if no program specified */
+    if (argc <= optind)
     {
-        print_usage(argv);
-        exit(EXIT_FAILURE);
-    }
-
-    g_loadfile = argv[optind];
-    
-    /* Store remaining arguments for the program */
-    if (argc > optind + 1) {
-        /* Build argument string from remaining arguments */
-        g_args_len = 0;
-        for (int i = optind + 1; i < argc && g_args_len < MAX_ARGS_LEN - 1; i++) {
-            if (i > optind + 1) {
-                g_args[g_args_len++] = ' ';
-            }
-            int arg_len = strlen(argv[i]);
-            int copy_len = (g_args_len + arg_len < MAX_ARGS_LEN - 1) ? arg_len : (MAX_ARGS_LEN - 1 - g_args_len);
-            memcpy(g_args + g_args_len, argv[i], copy_len);
-            g_args_len += copy_len;
-        }
-        g_args[g_args_len] = '\0';
-    } else {
+        g_loadfile = "SYS:System/Shell";
         g_args[0] = '\0';
         g_args_len = 0;
     }
+    else
+    {
+        g_loadfile = argv[optind];
     
-    /* Use current directory as sysroot if none specified and no config */
-    if (!sysroot && !vfs_has_sys_drive()) {
-        /* Default to current directory for SYS: */
-        vfs_add_drive("SYS", ".");
+        /* Store remaining arguments for the program */
+        if (argc > optind + 1) {
+            /* Build argument string from remaining arguments */
+            g_args_len = 0;
+            for (int i = optind + 1; i < argc && g_args_len < MAX_ARGS_LEN - 1; i++) {
+                if (i > optind + 1) {
+                    g_args[g_args_len++] = ' ';
+                }
+                int arg_len = strlen(argv[i]);
+                int copy_len = (g_args_len + arg_len < MAX_ARGS_LEN - 1) ? arg_len : (MAX_ARGS_LEN - 1 - g_args_len);
+                memcpy(g_args + g_args_len, argv[i], copy_len);
+                g_args_len += copy_len;
+            }
+            g_args[g_args_len] = '\0';
+        } else {
+            g_args[0] = '\0';
+            g_args_len = 0;
+        }
     }
-    g_sysroot = sysroot ? sysroot : ".";
+    
+    g_sysroot = ".";
 
     util_init();
 

@@ -33,4 +33,7 @@ const char *vfs_get_home_dir(void);
 /* Check if a SYS: drive is already configured */
 bool vfs_has_sys_drive(void);
 
+/* Set up automatic HOME: and CWD: drives */
+void vfs_setup_dynamic_drives(void);
+
 #endif

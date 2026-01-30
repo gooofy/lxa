@@ -111,11 +111,14 @@ static void get_current_path_name(char *buf, int len)
     }
 }
 
+/* Flag to indicate if we're running a script (startup-sequence or user script) */
+static BOOL g_running_script = FALSE;
+
 /* Parse and display prompt */
 static void show_prompt(void)
 {
-    /* Don't show prompt if not interactive or skipping */
-    if (!IsInteractive(Input())) return;
+    /* Don't show prompt if not interactive or running a script */
+    if (!IsInteractive(Input()) || g_running_script) return;
     
     char path[MAX_PATH_LEN];
     char expanded[MAX_PROMPT_LEN];
@@ -704,11 +707,20 @@ int main(int argc, char **argv)
     BPTR script_file = 0;
     int buf_pos = 0;
     int buf_len = 0;
+    BOOL run_startup = FALSE;
+    
+    /* Set current directory to SYS: at startup */
+    BPTR sys_lock = Lock((STRPTR)"SYS:", SHARED_LOCK);
+    if (sys_lock) {
+        BPTR old_lock = CurrentDir(sys_lock);
+        UnLock(old_lock);
+    }
     
     if (argc > 1) {
         script_file = Open((STRPTR)argv[1], MODE_OLDFILE);
         if (script_file) {
             input = script_file;
+            g_running_script = TRUE;
         } else {
             out_str("Shell: Could not open ");
             out_line(argv[1]);
@@ -717,6 +729,9 @@ int main(int argc, char **argv)
     } else {
         out_str("lxa Shell v");
         out_line("1.0");
+        
+        /* Run startup-sequence if it exists (only for interactive shell) */
+        run_startup = TRUE;
     }
     
     /* Initialize default PATH with SYS:C */
@@ -727,8 +742,22 @@ int main(int argc, char **argv)
         num_paths = 1;
     }
     
+    /* Execute startup-sequence if requested */
+    if (run_startup) {
+        BPTR startup = Lock((STRPTR)"SYS:S/Startup-Sequence", SHARED_LOCK);
+        if (startup) {
+            UnLock(startup);
+            script_file = Open((STRPTR)"SYS:S/Startup-Sequence", MODE_OLDFILE);
+            if (script_file) {
+                input = script_file;
+                g_running_script = TRUE;
+            }
+        }
+    }
+    
     while (running) {
-        if (input == script_file || !IsInteractive(input)) {
+        if (script_file && !run_startup) {
+             /* Only check failat for user-specified scripts, not startup-sequence */
              if (last_return_code >= fail_at_level) {
                  out_str("Shell: Command failed (rc=");
                  out_int(last_return_code);
@@ -769,15 +798,34 @@ int main(int argc, char **argv)
         }
         
         if (!got_line && cmd_pos == 0) {
+            /* EOF - if we were running startup-sequence, switch to interactive */
+            if (run_startup && script_file) {
+                Close(script_file);
+                script_file = 0;
+                input = Input();
+                buf_pos = 0;
+                buf_len = 0;
+                run_startup = FALSE;
+                g_running_script = FALSE;
+                continue;
+            }
             break;  /* EOF with no data */
         }
         
         cmd_buf[cmd_pos] = '\0';
         if (cmd_buf[0] == '\0') continue;
         
-        char *cmd_name = cmd_buf;
+        /* Skip leading whitespace */
+        char *line = cmd_buf;
+        while (*line == ' ' || *line == '\t') line++;
+        if (*line == '\0') continue;
+        
+        /* Skip comments (lines starting with ; or *) */
+        if (line[0] == ';' || line[0] == '*') continue;
+        
+        char *cmd_name = line;
         char *cmd_args = NULL;
-        char *space = strchr(cmd_buf, ' ');
+        char *space = strchr(line, ' ');
         if (space) {
             *space = '\0';
             cmd_args = space + 1;

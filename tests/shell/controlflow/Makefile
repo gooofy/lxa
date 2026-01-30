@@ -23,8 +23,8 @@ run-test: $(TARGET)
 	@echo "Running test: shell/controlflow..."
 	@rm -f actual.out
 	@cd "$(dir $(firstword $(MAKEFILE_LIST)))" && \
-	../../test_runner.sh "$(LXA_BIN)" "$(LXA_ROM)" "$(TARGET)" "expected.out" "actual.out" || \
-	../../test_runner.sh "$(LXA_BIN)" "$(LXA_ROM)" "$(TARGET)" "expected.out" "actual.out" || \
+	../../test_runner.sh "$(LXA_BIN)" "$(LXA_ROM)" "$(TARGET)" "expected.out" "actual.out" "$(LXA_SYS)" || \
+	../../test_runner.sh "$(LXA_BIN)" "$(LXA_ROM)" "$(TARGET)" "expected.out" "actual.out" "$(LXA_SYS)" || \
 	true
 	@diff -q expected.out actual.out && \
 		echo "$(GREEN)✓ PASS: shell/controlflow$(RESET)" || \

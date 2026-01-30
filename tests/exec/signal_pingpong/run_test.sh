@@ -4,8 +4,8 @@
 
 cd "$(dirname "$0")"
 
-LXA_BIN="../../../target/x86_64-linux/bin/lxa"
-LXA_ROM="../../../src/rom/lxa.rom"
+LXA_BIN="../../../build/host/bin/lxa"
+LXA_ROM="../../../build/target/rom/lxa.rom"
 TEST_BINARY="signal_pingpong"
 ACTUAL_OUTPUT="actual.out"
 
@@ -27,8 +27,20 @@ if [ ! -f "$TEST_BINARY" ]; then
     exit 1
 fi
 
+# Create a temporary config file for the test
+CONFIG_FILE=$(mktemp)
+trap "rm -f $CONFIG_FILE" EXIT
+
+cat > "$CONFIG_FILE" << EOF
+[system]
+rom_path = $LXA_ROM
+
+[drives]
+SYS = .
+EOF
+
 # Run test, ignoring exit code since it may crash during cleanup
-"$LXA_BIN" -s "." -r "$LXA_ROM" -v "$TEST_BINARY" > "$ACTUAL_OUTPUT" 2>&1 || true
+LXA_PREFIX="." "$LXA_BIN" -c "$CONFIG_FILE" "$TEST_BINARY" > "$ACTUAL_OUTPUT" 2>&1 || true
 
 # Check for PASS in output
 if grep -q "PASS: Ping-pong test" "$ACTUAL_OUTPUT"; then

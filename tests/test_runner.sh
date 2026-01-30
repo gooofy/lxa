@@ -9,18 +9,19 @@ LXA_ROM="$2"
 TEST_BINARY="$3"
 EXPECTED_OUTPUT="$4"
 ACTUAL_OUTPUT="$5"
+LXA_SYS="$6"
 
 # Check if lxa binary exists
 if [ ! -f "$LXA_BIN" ]; then
     echo "ERROR: LXA binary not found at $LXA_BIN"
-    echo "Please build project first: make all"
+    echo "Please build project first: make -C build"
     exit 1
 fi
 
 # Check if ROM exists
 if [ ! -f "$LXA_ROM" ]; then
     echo "ERROR: LXA ROM not found at $LXA_ROM"
-    echo "Please build project first: make all"
+    echo "Please build project first: make -C build"
     exit 1
 fi
 
@@ -35,9 +36,37 @@ fi
 TEST_DIR=$(dirname "$TEST_BINARY")
 TEST_NAME=$(basename "$TEST_BINARY")
 
-# Run test with test directory as sysroot
-"$LXA_BIN" -s "$TEST_DIR" -r "$LXA_ROM" -v "$TEST_NAME" > "$ACTUAL_OUTPUT" 2>&1
-EXIT_CODE=$?
+# Create a temporary config file for the test
+CONFIG_FILE=$(mktemp)
+trap "rm -f $CONFIG_FILE" EXIT
+
+cat > "$CONFIG_FILE" << EOF
+[system]
+rom_path = $LXA_ROM
+
+[drives]
+SYS = $TEST_DIR
+EOF
+
+# If LXA_SYS is provided and has System directory, use it for shell tests
+if [ -n "$LXA_SYS" ] && [ -d "$LXA_SYS/System" ]; then
+    # Check if test directory has its own System directory (shell tests)
+    if [ -d "$TEST_DIR/System" ]; then
+        # Copy shell from build to test's System directory
+        cp "$LXA_SYS/System/Shell" "$TEST_DIR/System/Shell" 2>/dev/null || true
+    fi
+fi
+
+# Check if this is a shell script test (has script.txt and System/Shell)
+if [ -f "$TEST_DIR/script.txt" ] && [ -f "$TEST_DIR/System/Shell" ]; then
+    # Run the shell directly with the script
+    LXA_PREFIX="$TEST_DIR" "$LXA_BIN" -c "$CONFIG_FILE" "SYS:System/Shell" "script.txt" > "$ACTUAL_OUTPUT" 2>&1
+    EXIT_CODE=$?
+else
+    # Run test binary with config file (use LXA_PREFIX to prevent ~/.lxa setup)
+    LXA_PREFIX="$TEST_DIR" "$LXA_BIN" -c "$CONFIG_FILE" "$TEST_NAME" > "$ACTUAL_OUTPUT" 2>&1
+    EXIT_CODE=$?
+fi
 
 # Compare exit code (0 = success)
 if [ $EXIT_CODE -ne 0 ]; then
