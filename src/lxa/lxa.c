@@ -570,19 +570,56 @@ void cpu_instr_callback(int pc)
     }
 }
 
+/* Get the directory containing the running binary */
+static bool get_binary_dir(char *buf, size_t buf_size)
+{
+    ssize_t len = readlink("/proc/self/exe", buf, buf_size - 1);
+    if (len == -1)
+        return false;
+    
+    buf[len] = '\0';
+    
+    /* Remove the binary name to get the directory */
+    char *last_slash = strrchr(buf, '/');
+    if (last_slash)
+        *last_slash = '\0';
+    
+    return true;
+}
+
 /* Auto-detect ROM path - tries multiple locations like Wine does */
 static const char *auto_detect_rom_path(void)
 {
     static char path[PATH_MAX];
+    static char binary_dir[PATH_MAX];
     struct stat st;
     const char *home = getenv("HOME");
     const char *lxa_prefix = getenv("LXA_PREFIX");
+    bool have_binary_dir = get_binary_dir(binary_dir, sizeof(binary_dir));
     
-    /* Try locations in order of preference */
+    /* Try paths relative to the binary directory first */
+    if (have_binary_dir)
+    {
+        static char resolved_path[PATH_MAX];
+        const char *rel_to_binary[] = {
+            "../share/lxa/lxa.rom",              /* FHS style: bin/lxa -> ../share/lxa/lxa.rom */
+            "../rom/lxa.rom",                    /* Legacy: bin/lxa -> ../rom/lxa.rom */
+            "../../target/rom/lxa.rom",          /* CMake build: host/bin/lxa -> ../../target/rom/lxa.rom */
+        };
+        
+        for (size_t i = 0; i < sizeof(rel_to_binary)/sizeof(rel_to_binary[0]); i++) {
+            snprintf(path, sizeof(path), "%s/%s", binary_dir, rel_to_binary[i]);
+            if (stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+                realpath(path, resolved_path);
+                return resolved_path;
+            }
+        }
+    }
+    
+    /* Try locations relative to current working directory */
     const char *try_paths[] = {
         "lxa.rom",                           /* Current directory */
-        "src/rom/lxa.rom",                   /* Project root */
-        "../rom/lxa.rom",                    /* Relative to binary in bin/ */
+        "src/rom/lxa.rom",                   /* Project root (dev mode) */
     };
     
     for (size_t i = 0; i < sizeof(try_paths)/sizeof(try_paths[0]); i++) {
@@ -2654,6 +2691,7 @@ int main(int argc, char **argv, char **envp)
             if (!rom_path) {
                 fprintf(stderr, "lxa: ERROR: Could not find lxa.rom\n");
                 fprintf(stderr, "lxa: Searched in:\n");
+                fprintf(stderr, "lxa:   - ../share/lxa/ (relative to binary)\n");
                 fprintf(stderr, "lxa:   - Current directory\n");
                 fprintf(stderr, "lxa:   - src/rom/ (relative to current)\n");
                 fprintf(stderr, "lxa:   - LXA_PREFIX/ (if LXA_PREFIX env var is set)\n");

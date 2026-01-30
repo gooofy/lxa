@@ -93,6 +93,11 @@ install(CODE "
             DESTINATION \"${CMAKE_INSTALL_PREFIX}/share/lxa/\"
         )
     endif()
+    if(EXISTS \"${CMAKE_BINARY_DIR}/target/rom/lxa.rom.map\")
+        file(COPY \"${CMAKE_BINARY_DIR}/target/rom/lxa.rom.map\" 
+            DESTINATION \"${CMAKE_INSTALL_PREFIX}/share/lxa/\"
+        )
+    endif()
 ")
 
 # Custom target to install system commands into the template
