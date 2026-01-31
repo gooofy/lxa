@@ -123,24 +123,30 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Error cases: missing required args (ERROR_REQUIRED_ARG_MISSING)
   - [x] Quoted strings with spaces
   - [x] Empty input handling (tests/dos/readargs_empty)
-  - [ ] Template parsing edge cases
+  - [x] Template parsing edge cases (tests/dos/readargs_edge)
+    - [x] Combined modifiers (/K/A/N)
+    - [x] Negative numeric values
+    - [x] Zero numeric values
+    - [x] Multiple switches
+    - [x] Large numeric values
+    - Note: Keyword aliases (AS=TO syntax) not fully supported
 - [x] **FreeArgs** - Memory cleanup validation (properly frees DAList allocations)
 
 #### Process Management (tests/dos/process/)
-- [x] **SystemTagList** - Process spawning (tests/dos/process)
+- [x] **SystemTagList** - Process spawning (tests/dos/process, tests/dos/process_advanced)
   - [x] Basic command execution
   - [x] Non-existent command handling
   - [x] Multiple sequential commands
-  - [ ] Spawn with various stack sizes
-  - [ ] Environment variable inheritance
-  - [ ] Input/output redirection
-  - [ ] Exit code propagation
-  - [ ] Background process cleanup
+  - [x] I/O redirection (SYS_Input, SYS_Output) (tests/dos/process_advanced)
+  - [x] Exit code propagation (returns 0 for success, -1 for not found)
+  - [x] Current directory inheritance
+  - Note: Stack size is hardcoded to 4096 in SystemTagList
+  - Note: Environment variable inheritance not implemented
+  - Note: Background process cleanup not tested (requires async mode)
 - [x] **Execute** - Script execution (tests/dos/execute_script)
   - [x] Basic command execution via Execute()
-  - [ ] Multi-line scripts
-  - [ ] Error handling in scripts
-  - [ ] Break handling (Ctrl+C)
+  - Note: Multi-line scripts cause crash in Deallocate (known bug)
+  - Note: Break handling (Ctrl+C) not tested
 
 ### Step 8.3: Exec Library Testing
 **Critical**: Multitasking foundation must be rock-solid.

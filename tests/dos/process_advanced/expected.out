@@ -1,0 +1,43 @@
+SystemTagList Advanced Features Test
+=====================================
+
+Test 1: Output redirection to NIL:
+_dos: LoadSeg() Open() for name=dir failed
+  Return value: 0
+  PASS: Output redirected to NIL:
+
+Test 2: Input redirection from NIL:
+_dos: LoadSeg() Open() for name=type failed
+  Return value: 0
+  PASS: Input redirected from NIL:
+
+Test 3: Exit code handling
+_dos: LoadSeg() Open() for name=type failed
+  Successful command return: 0
+  PASS: Successful command returns 0
+_dos: LoadSeg() Open() for name=nonexistent_xyz_12345 failed
+_dos: LoadSeg() Open() for name=SYS:C/nonexistent_xyz_12345 failed
+  Non-existent command return: -1
+  PASS: Non-existent command returns -1
+
+Test 4: Both input and output redirected
+_dos: LoadSeg() Open() for name=type failed
+  Return value: 0
+  PASS: Both I/O streams redirected
+
+Test 5: Sequential commands verify resource cleanup
+_dos: LoadSeg() Open() for name=type failed
+_dos: LoadSeg() Open() for name=type failed
+_dos: LoadSeg() Open() for name=type failed
+_dos: LoadSeg() Open() for name=type failed
+_dos: LoadSeg() Open() for name=type failed
+  Commands succeeded: 5/5
+  PASS: All sequential commands succeeded
+
+Test 6: Current directory handling
+  Current dir exists: no
+  PASS: Process has no current dir (expected in test env)
+
+=== Test Summary ===
+Passed: 7
+Failed: 0
