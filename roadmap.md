@@ -406,12 +406,19 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - **Tests required**: All operations, overflow, negative numbers
 
 ### Step 9.4: Environment & Variables
-- [ ] **SET** / **SETENV** - Manage local and global variables
+- [x] **SET** / **SETENV** - Manage local and global variables
+  - SET: Template `NAME,STRING/F` - local shell variables
+  - SETENV: Template `NAME,STRING/F,SAVE/S` - global ENV: variables
   - **Tests required**: Set/get, persistence, scope
-- [ ] **GETENV** - Retrieve environment variables
+- [x] **GETENV** - Retrieve environment variables
+  - Template: `NAME/A`
   - **Tests required**: Existing/non-existing vars
-- [ ] **UNSET** / **UNSETENV** - Remove variables
+- [x] **UNSET** / **UNSETENV** - Remove variables
+  - UNSET: Template `NAME/A` - remove local variables
+  - UNSETENV: Template `NAME/A,SAVE/S` - remove global variables
   - **Tests required**: Remove existing, remove non-existing
+- [x] **DOS Library Functions** - SetVar, GetVar, DeleteVar, FindVar implemented
+  - Fixed empty string handling in GetVar
 
 ### Step 9.5: System Commands
 - [ ] **VERSION** - Display version information

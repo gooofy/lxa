@@ -10,6 +10,7 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
+#include <dos/var.h>
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
 
@@ -56,6 +57,11 @@ extern struct DosLibrary    *DOSBase;
 LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register CONST_STRPTR command  __asm("d1"),
                                     register const struct TagItem * tags __asm("d2"));
+
+/* Forward declaration for variable functions */
+struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"),
+                                 register CONST_STRPTR name __asm("d1"),
+                                 register ULONG type __asm("d2"));
 
 /*
  * RootNode and TaskArray implementation for proper CLI process numbering.
@@ -3455,9 +3461,198 @@ BOOL _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG size __asm("d3"),
                                                         register LONG flags __asm("d4"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetVar() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF(LOG_DEBUG, "_dos: SetVar() name='%s', buffer=0x%08lx, size=%ld, flags=0x%lx\n", 
+            name, buffer, size, flags);
+    
+    /* If size is -1, treat buffer as null-terminated string */
+    if (size < 0)
+    {
+        size = 0;
+        if (buffer)
+        {
+            CONST_STRPTR p = buffer;
+            while (*p++) size++;
+        }
+    }
+    
+    /* Get the variable type */
+    UBYTE varType = flags & 0xFF;  /* LV_VAR or LV_ALIAS */
+    
+    /* Handle global variables (ENV:) */
+    if (!(flags & GVF_LOCAL_ONLY))
+    {
+        /* For global variables, create/update a file in ENV: */
+        char envPath[256];
+        char *p = envPath;
+        const char *src = "ENV:";
+        while (*src) *p++ = *src++;
+        src = (const char *)name;
+        while (*src && p < envPath + 250) *p++ = *src++;
+        *p = '\0';
+        
+        BPTR fh = Open((STRPTR)envPath, MODE_NEWFILE);
+        if (fh)
+        {
+            if (buffer && size > 0)
+            {
+                Write(fh, (APTR)buffer, size);
+            }
+            Close(fh);
+            DPRINTF(LOG_DEBUG, "_dos: SetVar() wrote to %s\n", envPath);
+            
+            /* Also save to ENVARC: if GVF_SAVE_VAR is set */
+            if (flags & GVF_SAVE_VAR)
+            {
+                p = envPath;
+                src = "ENVARC:";
+                while (*src) *p++ = *src++;
+                src = (const char *)name;
+                while (*src && p < envPath + 250) *p++ = *src++;
+                *p = '\0';
+                
+                fh = Open((STRPTR)envPath, MODE_NEWFILE);
+                if (fh)
+                {
+                    if (buffer && size > 0)
+                    {
+                        Write(fh, (APTR)buffer, size);
+                    }
+                    Close(fh);
+                    DPRINTF(LOG_DEBUG, "_dos: SetVar() wrote to %s\n", envPath);
+                }
+            }
+        }
+        else
+        {
+            DPRINTF(LOG_DEBUG, "_dos: SetVar() failed to open %s\n", envPath);
+        }
+        
+        /* If only global, we're done */
+        if (flags & GVF_GLOBAL_ONLY)
+            return TRUE;
+    }
+    
+    /* Handle local variables */
+    struct Process *proc = (struct Process *)FindTask(NULL);
+    if (!IS_PROCESS(proc))
+    {
+        DPRINTF(LOG_DEBUG, "_dos: SetVar() not a process\n");
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return FALSE;
+    }
+    
+    /* Find existing variable */
+    struct LocalVar *lv = _dos_FindVar(DOSBase, name, varType);
+    
+    if (lv)
+    {
+        /* Update existing variable - free old value */
+        if (lv->lv_Value && lv->lv_Len > 0)
+        {
+            FreeMem(lv->lv_Value, lv->lv_Len);
+        }
+    }
+    else
+    {
+        /* Create new variable */
+        LONG nameLen = 0;
+        CONST_STRPTR p = name;
+        while (*p++) nameLen++;
+        nameLen++;  /* Include null terminator */
+        
+        lv = (struct LocalVar *)AllocMem(sizeof(struct LocalVar), MEMF_CLEAR | MEMF_PUBLIC);
+        if (!lv)
+        {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return FALSE;
+        }
+        
+        lv->lv_Node.ln_Name = (char *)AllocMem(nameLen, MEMF_PUBLIC);
+        if (!lv->lv_Node.ln_Name)
+        {
+            FreeMem(lv, sizeof(struct LocalVar));
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return FALSE;
+        }
+        
+        /* Copy name */
+        char *dst = lv->lv_Node.ln_Name;
+        p = name;
+        while (*p) *dst++ = *p++;
+        *dst = '\0';
+        
+        lv->lv_Node.ln_Type = varType;
+        
+        /* Insert into list (alphabetically) */
+        struct MinList *list = &proc->pr_LocalVars;
+        struct LocalVar *insertAfter = NULL;
+        struct LocalVar *curr;
+        
+        for (curr = (struct LocalVar *)list->mlh_Head;
+             curr->lv_Node.ln_Succ != NULL;
+             curr = (struct LocalVar *)curr->lv_Node.ln_Succ)
+        {
+            /* Compare names for alphabetical ordering */
+            if (curr->lv_Node.ln_Name)
+            {
+                CONST_STRPTR a = name;
+                char *b = curr->lv_Node.ln_Name;
+                while (*a && *b)
+                {
+                    char ca = *a, cb = *b;
+                    if (ca >= 'A' && ca <= 'Z') ca += 32;
+                    if (cb >= 'A' && cb <= 'Z') cb += 32;
+                    if (ca < cb) break;
+                    if (ca > cb) { insertAfter = curr; break; }
+                    a++; b++;
+                }
+                if (*a == '\0' && *b != '\0') break;  /* name is shorter */
+                if (*a != '\0' && *b == '\0') insertAfter = curr;  /* name is longer */
+            }
+        }
+        
+        if (insertAfter)
+        {
+            Insert((struct List *)list, (struct Node *)lv, (struct Node *)insertAfter);
+        }
+        else
+        {
+            AddHead((struct List *)list, (struct Node *)lv);
+        }
+    }
+    
+    /* Set the new value */
+    if (size > 0 && buffer)
+    {
+        /* Allocate space for value (add 1 for null terminator unless DONT_NULL_TERM) */
+        LONG allocSize = (flags & GVF_DONT_NULL_TERM) ? size : size + 1;
+        lv->lv_Value = (STRPTR)AllocMem(allocSize, MEMF_PUBLIC);
+        if (!lv->lv_Value)
+        {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return FALSE;
+        }
+        
+        /* Copy value */
+        STRPTR dst = lv->lv_Value;
+        CONST_STRPTR src = buffer;
+        LONG i;
+        for (i = 0; i < size; i++)
+            *dst++ = *src++;
+        
+        if (!(flags & GVF_DONT_NULL_TERM))
+            *dst = '\0';
+        
+        lv->lv_Len = allocSize;
+    }
+    else
+    {
+        lv->lv_Value = NULL;
+        lv->lv_Len = 0;
+    }
+    
+    DPRINTF(LOG_DEBUG, "_dos: SetVar() success, lv=0x%08lx\n", lv);
+    return TRUE;
 }
 
 LONG _dos_GetVar ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -3466,26 +3661,248 @@ LONG _dos_GetVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG size __asm("d3"),
                                                         register LONG flags __asm("d4"))
 {
-    LPRINTF (LOG_ERROR, "_dos: GetVar() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF(LOG_DEBUG, "_dos: GetVar() name='%s', buffer=0x%08lx, size=%ld, flags=0x%lx\n", 
+            name, buffer, size, flags);
+    
+    /* Get the variable type */
+    UBYTE varType = flags & 0xFF;  /* LV_VAR or LV_ALIAS */
+    
+    /* Try local variables first (unless GLOBAL_ONLY) */
+    if (!(flags & GVF_GLOBAL_ONLY))
+    {
+        struct LocalVar *lv = _dos_FindVar(DOSBase, name, varType);
+        if (lv)
+        {
+            /* Handle empty string case (lv_Value is NULL, lv_Len is 0) */
+            if (!lv->lv_Value || lv->lv_Len == 0)
+            {
+                /* Empty value - just null-terminate and return 0 */
+                if (buffer && size > 0 && !(flags & GVF_DONT_NULL_TERM))
+                    buffer[0] = '\0';
+                DPRINTF(LOG_DEBUG, "_dos: GetVar() found local (empty), len=0\n");
+                return 0;
+            }
+            
+            /* Copy value to buffer */
+            LONG copyLen = lv->lv_Len;
+            if (!(flags & GVF_BINARY_VAR))
+            {
+                /* For text vars, don't count the null terminator in returned length */
+                if (copyLen > 0 && lv->lv_Value[copyLen - 1] == '\0')
+                    copyLen--;
+            }
+            
+            if (copyLen >= size)
+                copyLen = size - 1;
+            
+            STRPTR src = lv->lv_Value;
+            STRPTR dst = buffer;
+            LONG i;
+            for (i = 0; i < copyLen; i++)
+                *dst++ = *src++;
+            
+            /* Null-terminate unless DONT_NULL_TERM */
+            if (!(flags & GVF_DONT_NULL_TERM))
+                *dst = '\0';
+            
+            DPRINTF(LOG_DEBUG, "_dos: GetVar() found local, len=%ld\n", copyLen);
+            return copyLen;
+        }
+        
+        /* If LOCAL_ONLY and not found, return error */
+        if (flags & GVF_LOCAL_ONLY)
+        {
+            SetIoErr(ERROR_OBJECT_NOT_FOUND);
+            return -1;
+        }
+    }
+    
+    /* Try global variable (ENV: file) */
+    char envPath[256];
+    char *p = envPath;
+    const char *src = "ENV:";
+    while (*src) *p++ = *src++;
+    src = (const char *)name;
+    while (*src && p < envPath + 250) *p++ = *src++;
+    *p = '\0';
+    
+    BPTR fh = Open((STRPTR)envPath, MODE_OLDFILE);
+    if (fh)
+    {
+        /* Read the file content */
+        LONG bytesRead = Read(fh, buffer, size - 1);
+        Close(fh);
+        
+        if (bytesRead < 0)
+        {
+            DPRINTF(LOG_DEBUG, "_dos: GetVar() read error\n");
+            return -1;
+        }
+        
+        /* Strip trailing newlines for text variables */
+        if (!(flags & GVF_BINARY_VAR))
+        {
+            while (bytesRead > 0 && (buffer[bytesRead - 1] == '\n' || buffer[bytesRead - 1] == '\r'))
+                bytesRead--;
+        }
+        
+        /* Null-terminate unless DONT_NULL_TERM */
+        if (!(flags & GVF_DONT_NULL_TERM))
+            buffer[bytesRead] = '\0';
+        
+        DPRINTF(LOG_DEBUG, "_dos: GetVar() found global in %s, len=%ld\n", envPath, bytesRead);
+        return bytesRead;
+    }
+    
+    DPRINTF(LOG_DEBUG, "_dos: GetVar() not found\n");
+    SetIoErr(ERROR_OBJECT_NOT_FOUND);
+    return -1;
 }
 
 LONG _dos_DeleteVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register ULONG flags __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: DeleteVar() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF(LOG_DEBUG, "_dos: DeleteVar() name='%s', flags=0x%lx\n", name, flags);
+    
+    BOOL deleted = FALSE;
+    
+    /* Get the variable type */
+    UBYTE varType = flags & 0xFF;  /* LV_VAR or LV_ALIAS */
+    
+    /* Delete local variable (unless GLOBAL_ONLY) */
+    if (!(flags & GVF_GLOBAL_ONLY))
+    {
+        struct LocalVar *lv = _dos_FindVar(DOSBase, name, varType);
+        if (lv)
+        {
+            /* Remove from list */
+            Remove((struct Node *)lv);
+            
+            /* Free name */
+            if (lv->lv_Node.ln_Name)
+            {
+                LONG nameLen = 0;
+                char *p = lv->lv_Node.ln_Name;
+                while (*p++) nameLen++;
+                nameLen++;  /* Include null terminator */
+                FreeMem(lv->lv_Node.ln_Name, nameLen);
+            }
+            
+            /* Free value */
+            if (lv->lv_Value && lv->lv_Len > 0)
+            {
+                FreeMem(lv->lv_Value, lv->lv_Len);
+            }
+            
+            /* Free structure */
+            FreeMem(lv, sizeof(struct LocalVar));
+            
+            deleted = TRUE;
+            DPRINTF(LOG_DEBUG, "_dos: DeleteVar() deleted local var\n");
+        }
+    }
+    
+    /* Delete global variable (ENV: file) unless LOCAL_ONLY */
+    if (!(flags & GVF_LOCAL_ONLY))
+    {
+        char envPath[256];
+        char *p = envPath;
+        const char *src = "ENV:";
+        while (*src) *p++ = *src++;
+        src = (const char *)name;
+        while (*src && p < envPath + 250) *p++ = *src++;
+        *p = '\0';
+        
+        if (DeleteFile((STRPTR)envPath))
+        {
+            deleted = TRUE;
+            DPRINTF(LOG_DEBUG, "_dos: DeleteVar() deleted %s\n", envPath);
+        }
+        
+        /* Also delete from ENVARC: if GVF_SAVE_VAR */
+        if (flags & GVF_SAVE_VAR)
+        {
+            p = envPath;
+            src = "ENVARC:";
+            while (*src) *p++ = *src++;
+            src = (const char *)name;
+            while (*src && p < envPath + 250) *p++ = *src++;
+            *p = '\0';
+            
+            if (DeleteFile((STRPTR)envPath))
+            {
+                DPRINTF(LOG_DEBUG, "_dos: DeleteVar() deleted %s\n", envPath);
+            }
+        }
+    }
+    
+    if (!deleted)
+    {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+    }
+    
+    return deleted ? DOSTRUE : DOSFALSE;
 }
 
 struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register ULONG type __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FindVar() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF(LOG_DEBUG, "_dos: FindVar() name='%s', type=0x%lx\n", name, type);
+    
+    struct Process *proc = (struct Process *)FindTask(NULL);
+    if (!IS_PROCESS(proc))
+    {
+        DPRINTF(LOG_DEBUG, "_dos: FindVar() not a process\n");
+        return NULL;
+    }
+    
+    /* Get the type to search for (mask off the flags) */
+    UBYTE searchType = type & 0x7F;  /* LV_VAR or LV_ALIAS */
+    
+    /* Search the local variable list */
+    struct MinList *list = &proc->pr_LocalVars;
+    struct LocalVar *lv;
+    
+    for (lv = (struct LocalVar *)list->mlh_Head;
+         lv->lv_Node.ln_Succ != NULL;
+         lv = (struct LocalVar *)lv->lv_Node.ln_Succ)
+    {
+        /* Check type matches */
+        if ((lv->lv_Node.ln_Type & 0x7F) != searchType)
+            continue;
+        
+        /* Skip if LVF_IGNORE is set and we're not looking for ignored vars */
+        if ((lv->lv_Node.ln_Type & LVF_IGNORE) && !(type & LVF_IGNORE))
+            continue;
+        
+        /* Compare names (case-insensitive) */
+        if (lv->lv_Node.ln_Name && name)
+        {
+            CONST_STRPTR a = name;
+            char *b = lv->lv_Node.ln_Name;
+            BOOL match = TRUE;
+            
+            while (*a && *b)
+            {
+                char ca = *a, cb = *b;
+                if (ca >= 'A' && ca <= 'Z') ca += 32;
+                if (cb >= 'A' && cb <= 'Z') cb += 32;
+                if (ca != cb) { match = FALSE; break; }
+                a++; b++;
+            }
+            if (*a != *b) match = FALSE;
+            
+            if (match)
+            {
+                DPRINTF(LOG_DEBUG, "_dos: FindVar() found lv=0x%08lx\n", lv);
+                return lv;
+            }
+        }
+    }
+    
+    DPRINTF(LOG_DEBUG, "_dos: FindVar() not found\n");
     return NULL;
 }
 

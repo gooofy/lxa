@@ -1,0 +1,37 @@
+Environment Variable Test
+=========================
+
+Test Group 1: Local Variables (SetVar/GetVar with GVF_LOCAL_ONLY)
+  PASS: SetVar local TESTVAR1
+  PASS: GetVar local TESTVAR1 = hello world
+  PASS: SetVar local TESTVAR1 update
+  PASS: GetVar local TESTVAR1 = updated value
+  PASS: DeleteVar local TESTVAR1
+  PASS: GetVar TESTVAR1 after delete returns -1
+
+Test Group 2: Global Variables (SetVar/GetVar with GVF_GLOBAL_ONLY)
+  PASS: SetVar global TESTENV1
+  PASS: GetVar global TESTENV1 = global value
+  PASS: DeleteVar global TESTENV1
+  PASS: GetVar TESTENV1 after delete returns -1
+
+Test Group 3: Non-existent Variables
+  PASS: GetVar non-existent returns -1
+  PASS: DeleteVar non-existent does not crash
+
+Test Group 4: Edge Cases
+  PASS: SetVar empty string
+  PASS: GetVar empty string returns len=0
+  PASS: SetVar with path value
+  PASS: GetVar with path value
+
+Test Group 5: Multiple Variables
+  PASS: GetVar VAR_A
+  PASS: GetVar VAR_B
+  PASS: GetVar VAR_C
+  PASS: GetVar VAR_A after deleting VAR_B
+  PASS: GetVar VAR_C after deleting VAR_B
+
+=== Test Summary ===
+Passed: 21
+Failed: 0

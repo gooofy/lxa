@@ -38,6 +38,7 @@ set(C_COMMANDS
     dir
     eval
     filenote
+    getenv
     join
     list
     makedir
@@ -45,10 +46,14 @@ set(C_COMMANDS
     rename
     run
     search
+    set
+    setenv
     sort
     stack
     status
     type
+    unset
+    unsetenv
 )
 
 foreach(cmd ${C_COMMANDS})
