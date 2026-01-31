@@ -198,47 +198,56 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 #### Task Management (tests/exec/tasks/)
 - [x] Signal ping-pong (basic signal test)
-- [ ] **CreateTask/AddTask** - Task creation
-  - Task with various stack sizes
-  - Task priority levels
-  - Task naming and lookup
-- [ ] **FindTask** - Task lookup by name/NULL
-- [ ] **SetTaskPri** - Dynamic priority changes
-- [ ] **Wait/Signal** - Signal semantics
-  - Multiple signals simultaneously
-  - Signal mask handling
-  - Wait timeout behavior
+- [x] **FindTask** - Task lookup by name/NULL (tests/exec/tasks)
+- [x] **SetTaskPri** - Dynamic priority changes (tests/exec/tasks)
+- [x] Task state validation (tests/exec/tasks)
+
+#### Signal Operations (tests/exec/signals/)
+- [x] **AllocSignal/FreeSignal** - Signal allocation (tests/exec/signals)
+  - Auto-select signal (-1)
+  - Specific signal allocation
+  - Re-allocation of freed signals
+- [x] **SetSignal** - Signal manipulation (tests/exec/signals)
+  - Read signals without modification
+  - Set/clear individual signals
+  - Selective modification
+- [x] **SetExcept** - Exception mask (tests/exec/signals)
+  - Enable/disable exception bits
 
 #### Memory Management (tests/exec/memory/)
-- [ ] **AllocMem/FreeMem** - Basic allocation
-  - Various memory types (MEMF_CHIP, MEMF_FAST, MEMF_PUBLIC)
+- [x] **AllocMem/FreeMem** - Basic allocation (tests/exec/memory)
+  - Various memory types (MEMF_PUBLIC, MEMF_ANY)
   - MEMF_CLEAR verification
-  - Boundary conditions (size 0, huge allocations)
-  - Memory leak detection
-- [ ] **AllocVec/FreeVec** - Vector allocation
+  - Boundary conditions (size 0, small allocations)
+- [x] **AllocVec/FreeVec** - Vector allocation (tests/exec/memory)
   - Size tracking verification
-  - Alignment requirements
-- [ ] **Memory Fragmentation** - Stress testing
-  - Allocate/free in various patterns
-  - Check for fragmentation issues
+  - MEMF_CLEAR with AllocVec
+- [x] **AvailMem** - Memory availability (tests/exec/memory)
+  - MEMF_TOTAL and MEMF_LARGEST queries
+- [x] **Memory Alignment** - Even address verification (tests/exec/memory)
 
 #### Synchronization (tests/exec/sync/)
-- [ ] **Semaphores** - Mutual exclusion
+- [x] **Semaphores** - Mutual exclusion (tests/exec/sync)
+  - InitSemaphore
   - ObtainSemaphore/ReleaseSemaphore
-  - Shared vs exclusive access
+  - AttemptSemaphore (non-blocking)
   - Nested semaphore acquisition
-  - Deadlock scenarios (should not hang)
-- [ ] **Message Ports** - Inter-task communication
-  - CreateMsgPort/DeleteMsgPort
-  - PutMsg/GetMsg/ReplyMsg
-  - Message queuing order
-  - Port naming and lookup
+  - NestCount validation
+
+#### Message Ports (tests/exec/msgport/)
+- [x] **CreateMsgPort/DeleteMsgPort** - Port lifecycle (tests/exec/msgport)
+- [x] **AddPort/RemPort/FindPort** - Named port registry (tests/exec/msgport)
+- [x] **PutMsg/GetMsg** - Message queuing (tests/exec/msgport)
+- [x] **ReplyMsg** - Message reply (tests/exec/msgport)
 
 #### Lists (tests/exec/lists/)
-- [ ] **List Manipulation** - Core data structures
+- [x] **List Manipulation** - Core data structures (tests/exec/lists)
+  - NEWLIST/NewList initialization
   - AddHead/AddTail/Remove
+  - RemHead on empty list
   - Enqueue (priority ordering)
-  - FindName/RemHead/RemTail
+  - FindName
+  - Insert (middle, at head)
   - Empty list handling
 
 ### Step 8.4: Command Testing (tests/commands/)
