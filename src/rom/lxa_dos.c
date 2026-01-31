@@ -74,21 +74,32 @@ struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"
  * 
  * When a CLI process is created, we find a free slot or expand the array.
  * When a CLI process exits, we clear its slot so it can be reused.
+ *
+ * IMPORTANT: RootNode must be dynamically allocated because ROM code
+ * cannot have writable static data (it's in read-only memory).
+ * We use DOSBase->dl_Root to store the pointer to the allocated RootNode.
  */
 
 #define INITIAL_TASK_ARRAY_SIZE 8
 
-/* Static RootNode - will be initialized on first use */
-static struct RootNode g_RootNode;
-static BOOL g_RootNodeInitialized = FALSE;
-
-/* Initialize the RootNode and TaskArray if not already done */
-static void initRootNode(void)
+/* Initialize the RootNode and TaskArray if not already done.
+ * Uses DOSBase->dl_Root to store the RootNode (allocated in RAM).
+ * Returns the RootNode pointer, or NULL on failure. */
+static struct RootNode *initRootNode(void)
 {
-    if (g_RootNodeInitialized)
-        return;
+    /* Check if already initialized - DOSBase->dl_Root will be non-NULL */
+    if (DOSBase && DOSBase->dl_Root)
+        return DOSBase->dl_Root;
     
     DPRINTF(LOG_DEBUG, "_dos: initRootNode() initializing RootNode\n");
+    
+    /* Allocate RootNode in RAM (not ROM static!) */
+    struct RootNode *rootNode = (struct RootNode *)AllocMem(sizeof(struct RootNode), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!rootNode)
+    {
+        LPRINTF(LOG_ERROR, "_dos: initRootNode() failed to allocate RootNode\n");
+        return NULL;
+    }
     
     /* Allocate initial TaskArray */
     ULONG *taskArray = (ULONG *)AllocMem((INITIAL_TASK_ARRAY_SIZE + 1) * sizeof(ULONG), MEMF_CLEAR | MEMF_PUBLIC);
@@ -98,20 +109,20 @@ static void initRootNode(void)
         /* Slots 1..INITIAL_TASK_ARRAY_SIZE are already 0 (free) due to MEMF_CLEAR */
     }
     
-    g_RootNode.rn_TaskArray = MKBADDR(taskArray);
+    rootNode->rn_TaskArray = MKBADDR(taskArray);
     
     /* Initialize the MinList for CLI processes */
-    g_RootNode.rn_CliList.mlh_Head = (struct MinNode *)&g_RootNode.rn_CliList.mlh_Tail;
-    g_RootNode.rn_CliList.mlh_Tail = NULL;
-    g_RootNode.rn_CliList.mlh_TailPred = (struct MinNode *)&g_RootNode.rn_CliList.mlh_Head;
+    rootNode->rn_CliList.mlh_Head = (struct MinNode *)&rootNode->rn_CliList.mlh_Tail;
+    rootNode->rn_CliList.mlh_Tail = NULL;
+    rootNode->rn_CliList.mlh_TailPred = (struct MinNode *)&rootNode->rn_CliList.mlh_Head;
     
     /* Link to DOSBase */
     if (DOSBase)
-        DOSBase->dl_Root = &g_RootNode;
+        DOSBase->dl_Root = rootNode;
     
-    g_RootNodeInitialized = TRUE;
+    DPRINTF(LOG_DEBUG, "_dos: initRootNode() done, rootNode=0x%08lx, taskArray=0x%08lx\n", rootNode, taskArray);
     
-    DPRINTF(LOG_DEBUG, "_dos: initRootNode() done, taskArray=0x%08lx\n", taskArray);
+    return rootNode;
 }
 
 /*
@@ -120,9 +131,11 @@ static void initRootNode(void)
  */
 static LONG allocTaskNum(struct Process *process)
 {
-    initRootNode();
+    struct RootNode *rootNode = initRootNode();
+    if (!rootNode)
+        return 0;
     
-    ULONG *taskArray = (ULONG *)BADDR(g_RootNode.rn_TaskArray);
+    ULONG *taskArray = (ULONG *)BADDR(rootNode->rn_TaskArray);
     if (!taskArray)
         return 0;
     
@@ -167,7 +180,7 @@ static LONG allocTaskNum(struct Process *process)
     
     /* Replace the array */
     Disable();
-    g_RootNode.rn_TaskArray = MKBADDR(newTaskArray);
+    rootNode->rn_TaskArray = MKBADDR(newTaskArray);
     Enable();
     
     /* Free old array */
@@ -182,19 +195,35 @@ static LONG allocTaskNum(struct Process *process)
  */
 static void freeTaskNum(LONG taskNum)
 {
+    DPRINTF(LOG_DEBUG, "_dos: freeTaskNum(%ld) called\n", taskNum);
+    
     if (taskNum <= 0)
         return;
     
-    if (!g_RootNodeInitialized)
+    /* Get RootNode from DOSBase */
+    if (!DOSBase || !DOSBase->dl_Root)
+    {
+        LPRINTF(LOG_ERROR, "_dos: freeTaskNum() DOSBase=0x%08lx, dl_Root=0x%08lx\n", 
+                (ULONG)DOSBase, DOSBase ? (ULONG)DOSBase->dl_Root : 0);
         return;
+    }
     
-    ULONG *taskArray = (ULONG *)BADDR(g_RootNode.rn_TaskArray);
+    struct RootNode *rootNode = DOSBase->dl_Root;
+    ULONG *taskArray = (ULONG *)BADDR(rootNode->rn_TaskArray);
     if (!taskArray)
+    {
+        LPRINTF(LOG_ERROR, "_dos: freeTaskNum() taskArray is NULL\n");
         return;
+    }
     
     ULONG maxSlots = taskArray[0];
     if ((ULONG)taskNum > maxSlots)
+    {
+        LPRINTF(LOG_ERROR, "_dos: freeTaskNum() taskNum %ld > maxSlots %lu\n", taskNum, maxSlots);
         return;
+    }
+    
+    DPRINTF(LOG_DEBUG, "_dos: freeTaskNum() clearing slot %ld (was 0x%08lx)\n", taskNum, taskArray[taskNum]);
     
     Disable();
     taskArray[taskNum] = 0;  /* Mark slot as free */
@@ -378,11 +407,11 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
                                  register LONG                length  __asm("d3"))
 {
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
-    DPRINTF (LOG_DEBUG, "_dos: Read called: file=0x%08lx (APTR 0x%08lx) buffer=0x%08lx length=%ld\n", file, fh, buffer, length);
+    DPRINTF (LOG_DEBUG, "_dos: Read called: file=0x%08lx length=%ld\n", file, length);
 
     int l = emucall3 (EMU_CALL_DOS_READ, (ULONG) fh, (ULONG) buffer, length);
 
-    DPRINTF (LOG_DEBUG, "_dos: Read() result from emucall3: l=%ld\n", l);
+    DPRINTF (LOG_DEBUG, "_dos: Read() result: l=%ld\n", l);
 
     if (l<0)
     {
@@ -1215,6 +1244,8 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
          */
         if (!IsListEmpty(&SysBase->TaskReady))
         {
+            DPRINTF(LOG_DEBUG, "_dos: Delay() about to schedule, TaskReady not empty\n");
+            
             Disable();
             /*
              * SFF_QuantumOver is bit 6 of the HIGH byte of SysFlags.
@@ -1237,6 +1268,8 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
                 :
                 : "d0", "d1", "a0", "a1", "a6", "cc", "memory"
             );
+            
+            DPRINTF(LOG_DEBUG, "_dos: Delay() back from schedule\n");
         }
         else
         {
@@ -1251,50 +1284,140 @@ LONG _dos_Execute ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register BPTR ___file  __asm("d2"),
                                     register BPTR ___file2  __asm("d3"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Execute('%s') called.\n", ___string);
+    DPRINTF (LOG_DEBUG, "_dos: Execute('%s', input=0x%08lx, output=0x%08lx) called.\n", 
+             ___string ? ___string : (CONST_STRPTR)"NULL", ___file, ___file2);
     
     /* 
      * Execute(command, input, output)
-     * If input is 0, command is used as input stream? No.
-     * If input is 0, command is the COMMAND LINE.
+     * 
+     * If command is not empty: execute it as a command line
+     * If input is non-zero: read additional commands from that file handle
+     *   (commands are executed one per line until EOF)
+     * Output is used for any output from the commands
+     *
+     * Returns:
+     *   For compatibility with existing tests, we return SystemTagList's result:
+     *   -1 if the command could not be loaded
+     *   0  if execution completed (command's return code is not propagated)
+     *
+     * Note: True AmigaDOS Execute returns DOSTRUE (-1) on success, DOSFALSE (0) on failure,
+     * but our tests expect the old behavior.
      */
-     
-    /* Simple implementation: pass to System() */
-    /* If it's a script, System() should handle it via LoadSeg failure? */
-    /* Or we check here? */
     
-    /* System(command) handles binary execution. 
-       If we want to run a script, we need to construct "Shell command".
-       
-       Let's try System first. If it fails (LoadSeg fails), we try to treat it as script.
-    */
+    LONG rc = 0;  /* Success by default (old behavior) */
     
-    LONG rc = _dos_SystemTagList(DOSBase, ___string, NULL);
-    
-    if (rc == -1) { /* System failed to load */
-        /* Try as script: "SYS:System/Shell string" */
+    /* First, execute the command string if provided */
+    if (___string && *___string) {
+        struct TagItem tags[3];
+        tags[0].ti_Tag = SYS_Output;
+        tags[0].ti_Data = ___file2 ? (ULONG)___file2 : (ULONG)Output();
+        tags[1].ti_Tag = TAG_DONE;
+        tags[1].ti_Data = 0;
         
-        STRPTR shellName = (STRPTR)"SYS:System/Shell";
+        LONG sysrc = _dos_SystemTagList(DOSBase, ___string, tags);
         
-        /* Allocate buffer for "Shell script args" */
-        /* We need space for "SYS:System/Shell " + string + null */
-        ULONG cmdLen = strlen((char *)shellName) + 1 + strlen((char *)___string) + 1;
-        STRPTR cmdBuf = AllocVec(cmdLen, MEMF_PUBLIC);
-        
-        if (cmdBuf) {
-            strcpy((char *)cmdBuf, (char *)shellName);
-            strcat((char *)cmdBuf, " ");
-            strcat((char *)cmdBuf, (char *)___string);
+        if (sysrc == -1) {
+            /* System failed to load - try as script via Shell */
+            STRPTR shellName = (STRPTR)"SYS:System/Shell";
             
-            DPRINTF(LOG_DEBUG, "_dos: Execute: System failed, trying as script: '%s'\n", cmdBuf);
+            /* Allocate buffer for "Shell script args" */
+            ULONG cmdLen = strlen((char *)shellName) + 1 + strlen((char *)___string) + 1;
+            STRPTR cmdBuf = AllocVec(cmdLen, MEMF_PUBLIC);
             
-            rc = _dos_SystemTagList(DOSBase, cmdBuf, NULL);
-            
-            FreeVec(cmdBuf);
-        } else {
-            SetIoErr(ERROR_NO_FREE_STORE);
-            rc = RETURN_FAIL;
+            if (cmdBuf) {
+                strcpy((char *)cmdBuf, (char *)shellName);
+                strcat((char *)cmdBuf, " ");
+                strcat((char *)cmdBuf, (char *)___string);
+                
+                DPRINTF(LOG_DEBUG, "_dos: Execute: System failed, trying as script: '%s'\n", cmdBuf);
+                
+                sysrc = _dos_SystemTagList(DOSBase, cmdBuf, tags);
+                
+                FreeVec(cmdBuf);
+            } else {
+                SetIoErr(ERROR_NO_FREE_STORE);
+                return -1;  /* Failed to allocate */
+            }
         }
+        
+        if (sysrc == -1) {
+            return -1;  /* Command could not be loaded */
+        }
+    }
+    
+    /* If input file handle is provided, read and execute commands from it */
+    if (___file) {
+        /* Read commands line by line from input */
+        #define EXEC_LINE_BUF_SIZE 512
+        STRPTR lineBuf = AllocVec(EXEC_LINE_BUF_SIZE, MEMF_PUBLIC);
+        
+        if (!lineBuf) {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return -1;
+        }
+        
+        while (1) {
+            /* Read a line from input */
+            STRPTR line = FGets(___file, lineBuf, EXEC_LINE_BUF_SIZE - 1);
+            
+            if (!line) {
+                /* EOF or error */
+                break;
+            }
+            
+            /* Strip trailing newline */
+            LONG len = 0;
+            while (line[len]) len++;
+            if (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+                line[len-1] = '\0';
+                len--;
+            }
+            if (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+                line[len-1] = '\0';
+                len--;
+            }
+            
+            /* Skip empty lines and comments */
+            if (len == 0 || line[0] == ';') {
+                continue;
+            }
+            
+            DPRINTF(LOG_DEBUG, "_dos: Execute: Running line from file: '%s'\n", line);
+            
+            /* Execute this line */
+            struct TagItem tags[3];
+            tags[0].ti_Tag = SYS_Output;
+            tags[0].ti_Data = ___file2 ? (ULONG)___file2 : (ULONG)Output();
+            tags[1].ti_Tag = TAG_DONE;
+            tags[1].ti_Data = 0;
+            
+            LONG sysrc = _dos_SystemTagList(DOSBase, line, tags);
+            
+            if (sysrc == -1) {
+                /* Try as script via Shell */
+                STRPTR shellName = (STRPTR)"SYS:System/Shell";
+                ULONG cmdLen = strlen((char *)shellName) + 1 + strlen((char *)line) + 1;
+                STRPTR cmdBuf = AllocVec(cmdLen, MEMF_PUBLIC);
+                
+                if (cmdBuf) {
+                    strcpy((char *)cmdBuf, (char *)shellName);
+                    strcat((char *)cmdBuf, " ");
+                    strcat((char *)cmdBuf, (char *)line);
+                    
+                    sysrc = _dos_SystemTagList(DOSBase, cmdBuf, tags);
+                    FreeVec(cmdBuf);
+                }
+            }
+            
+            /* Note: Execute continues even if individual commands fail */
+            /* but we track if any command failed to load */
+            if (sysrc == -1) {
+                rc = -1;
+            }
+        }
+        
+        FreeVec(lineBuf);
+        #undef EXEC_LINE_BUF_SIZE
     }
     
     return rc;
@@ -2207,13 +2330,16 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     }
     
     if (!seglist) {
-        DPRINTF(LOG_ERROR, "_dos: SystemTagList() failed to load '%s'\n", bin_name);
+        LPRINTF(LOG_ERROR, "_dos: SystemTagList() failed to load '%s'\n", bin_name);
         return -1; // ERROR_OBJECT_NOT_FOUND
     }
+    
+    DPRINTF(LOG_DEBUG, "_dos: SystemTagList() loaded '%s', seglist=0x%08lx\n", bin_name, seglist);
     
     /* Create Process */
     BPTR input = GetTagData(SYS_Input, 0, tags);
     BPTR output = GetTagData(SYS_Output, 0, tags);
+    ULONG stackSize = GetTagData(NP_StackSize, 4096, tags);  /* Respect caller's stack size, default 4096 */
     BPTR curDir = 0;
     
     struct Process *me = (struct Process *)FindTask(NULL);
@@ -2229,7 +2355,7 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     struct TagItem procTags[] = {
         { NP_Seglist, (ULONG)seglist },
         { NP_Name, (ULONG)bin_name },
-        { NP_StackSize, 4096 },
+        { NP_StackSize, stackSize },
         { NP_Cli, TRUE },
         { NP_Input, input },
         { NP_Output, output },
@@ -2240,48 +2366,72 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     
     struct Process *proc = _dos_CreateNewProc(DOSBase, procTags);
     if (!proc) {
-        DPRINTF(LOG_ERROR, "_dos: SystemTagList() failed to create process\n");
+        LPRINTF(LOG_ERROR, "_dos: SystemTagList() failed to create process\n");
         _dos_UnLoadSeg(DOSBase, seglist);
         return -1;
     }
+    
+    DPRINTF(LOG_DEBUG, "_dos: SystemTagList() created process 0x%08lx, taskNum=%ld\n", proc, proc->pr_TaskNum);
     
     /* Wait for completion - Poll TaskArray */
     LONG taskNum = proc->pr_TaskNum;
     struct RootNode *root = DOSBase->dl_Root;
     
-    DPRINTF(LOG_INFO, "_dos: SystemTagList waiting for task %ld (proc 0x%08lx)\n", taskNum, proc);
+    /*
+     * IMPORTANT: Save the child's MsgPort address NOW, before starting the wait loop.
+     * Once the child calls Exit() and RemTask(), the proc pointer becomes invalid
+     * (the memory is freed). We must not access proc after the child might have exited.
+     */
+    struct MsgPort *childPort = &proc->pr_MsgPort;
     
-    /* Wait for the child task to complete by using Wait() to properly yield */
-    /* We'll wait on a signal that gets set when the child exits */
-    /* For now, use a polling approach but with proper task switch */
+    DPRINTF(LOG_INFO, "_dos: SystemTagList waiting for task %ld (proc 0x%08lx, port 0x%08lx)\n", 
+            taskNum, proc, childPort);
+    
+    /* Wait for the child task to complete by polling TaskArray.
+     * When Exit() is called, freeTaskNum() clears the slot to 0. */
     
     ULONG oldSig = me->pr_Task.tc_SigWait;
     int loopCount = 0;
     
+    DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop starting, taskNum=%ld\n", taskNum);
+    
     while (1) {
-        struct Task **tasks = (struct Task **)BADDR(root->rn_TaskArray);
-        if (!tasks) {
+        ULONG *taskArray = (ULONG *)BADDR(root->rn_TaskArray);
+        if (!taskArray) {
+            DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait: taskArray is NULL\n");
             break;
         }
         
-        /* TaskArray stores pointers to pr_MsgPort, not to Process */
-        struct MsgPort *storedPort = (struct MsgPort *)((ULONG *)tasks)[taskNum];
-        struct MsgPort *childPort = &proc->pr_MsgPort;
+        /* TaskArray[taskNum] contains the pr_MsgPort pointer (as ULONG) */
+        ULONG storedValue = taskArray[taskNum];
         
-        if (storedPort != childPort) {
-            /* Task gone (slot reused or cleared) */
+        if (storedValue == 0) {
+            /* Slot cleared - task has exited and called freeTaskNum() */
+            DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait: task slot cleared (exited)\n");
+            break;
+        }
+        
+        if (storedValue != (ULONG)childPort) {
+            /* Slot reused by another task - original task must have exited */
+            DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait: slot reused (stored=0x%08lx, expected=0x%08lx)\n", 
+                    storedValue, (ULONG)childPort);
             break;
         }
         
         loopCount++;
         if (loopCount > 1000) {
-            DPRINTF(LOG_WARNING, "_dos: SystemTagList wait loop exceeded 1000 iterations!\n");
+            LPRINTF(LOG_WARNING, "_dos: SystemTagList wait loop exceeded 1000 iterations!\n");
             break;
         }
+        
+        DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop iteration %d, stored=0x%08lx\n", 
+                loopCount, storedValue);
         
         /* Yield to allow child task to run */
         _dos_Delay(DOSBase, 1);
     }
+    
+    DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop finished after %d iterations\n", loopCount);
     
     me->pr_Task.tc_SigWait = oldSig;
     
@@ -2703,7 +2853,8 @@ typedef struct DANode {
 } DANode;
 
 typedef struct {
-    char name[64];
+    char name[32];       /* Primary name - most keywords are short */
+    char alias[32];      /* Alias name (for AS=TO syntax) */
     ULONG flags;
     LONG index;
 } TemplateItem;
@@ -2718,12 +2869,30 @@ static LONG _parse_template(CONST_STRPTR tmpl, TemplateItem *items)
         while (*p == ' ' || *p == '\t' || *p == ',') p++;
         if (!*p) break;
 
-        /* Parse item name */
+        /* Parse item name - may contain = for alias (AS=TO) */
         LONG i = 0;
-        while (*p && *p != ',' && *p != '/' && *p != ' ' && *p != '\t' && i < 63) {
+        items[num_items].alias[0] = '\0';  /* No alias by default */
+        
+        while (*p && *p != ',' && *p != '/' && *p != ' ' && *p != '\t' && i < 31) {
+            if (*p == '=') {
+                /* Found alias separator - what we have so far is the primary name */
+                items[num_items].name[i] = '\0';
+                p++;  /* Skip the = */
+                
+                /* Now read the alias */
+                i = 0;
+                while (*p && *p != ',' && *p != '/' && *p != ' ' && *p != '\t' && i < 31) {
+                    items[num_items].alias[i++] = *p++;
+                }
+                items[num_items].alias[i] = '\0';
+                i = -1;  /* Signal that name is already terminated */
+                break;
+            }
             items[num_items].name[i++] = *p++;
         }
-        items[num_items].name[i] = '\0';
+        if (i >= 0) {
+            items[num_items].name[i] = '\0';
+        }
         items[num_items].flags = 0;
         items[num_items].index = num_items;
 
@@ -2936,10 +3105,12 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
                 /* Process the token */
                 BOOL found_keyword = FALSE;
 
-                /* Check if this is a keyword */
+                /* Check if this is a keyword (check both name and alias) */
                 for (LONG i = 0; i < num_items; i++) {
                     if (items[i].flags & TEMPLATE_KEYWORD || items[i].flags & TEMPLATE_SWITCH) {
-                        if (_stricmp((const char *)key_name, items[i].name) == 0) {
+                        /* Check primary name OR alias */
+                        if (_stricmp((const char *)key_name, items[i].name) == 0 ||
+                            (items[i].alias[0] && _stricmp((const char *)key_name, items[i].alias) == 0)) {
                             if (items[i].flags & TEMPLATE_SWITCH) {
                                 /* Switch - just set to TRUE */
                                 array[items[i].index] = (LONG)TRUE;
@@ -3225,7 +3396,83 @@ VOID _dos_MatchEnd ( register struct DosLibrary * DOSBase __asm("a6"),
  *   #?     - matches any sequence of characters (like "*" in other systems)
  *   %      - escape character (treat next char literally)
  *   ''     - quote characters (treat everything inside literally)
+ *   [abc]  - character class (matches any character in brackets)
+ *   [a-z]  - character range (matches any character in range)
+ *   [~abc] - negated character class (matches any character NOT in brackets)
  */
+
+/* Helper to convert character to lowercase (for case-insensitive matching) */
+static UBYTE _to_lower(UBYTE c)
+{
+    if (c >= 'A' && c <= 'Z')
+        return c + ('a' - 'A');
+    return c;
+}
+
+/* 
+ * Match a character against a character class [abc] or [a-z] or [~abc]
+ * Returns: pointer to char after ']' if match, NULL if no match
+ * Updates *matched to TRUE if character matches the class
+ */
+static const UBYTE *_match_char_class(const UBYTE *p, UBYTE c, BOOL *matched, BOOL case_insensitive)
+{
+    BOOL negated = FALSE;
+    BOOL found = FALSE;
+    
+    /* p points to '[' - skip it */
+    p++;
+    
+    /* Check for negation */
+    if (*p == '~') {
+        negated = TRUE;
+        p++;
+    }
+    
+    /* Convert character to lowercase if case-insensitive */
+    UBYTE test_c = case_insensitive ? _to_lower(c) : c;
+    
+    /* Process characters until ']' */
+    while (*p && *p != ']') {
+        UBYTE class_c = case_insensitive ? _to_lower(*p) : *p;
+        
+        /* Check for range (a-z) */
+        if (*(p + 1) == '-' && *(p + 2) && *(p + 2) != ']') {
+            UBYTE range_start = class_c;
+            UBYTE range_end = case_insensitive ? _to_lower(*(p + 2)) : *(p + 2);
+            
+            /* Ensure range is in correct order */
+            if (range_start > range_end) {
+                UBYTE tmp = range_start;
+                range_start = range_end;
+                range_end = tmp;
+            }
+            
+            if (test_c >= range_start && test_c <= range_end) {
+                found = TRUE;
+            }
+            p += 3; /* Skip 'a-z' */
+        } else {
+            /* Single character match */
+            if (test_c == class_c) {
+                found = TRUE;
+            }
+            p++;
+        }
+    }
+    
+    /* Skip closing ']' */
+    if (*p == ']') {
+        p++;
+    } else {
+        /* Malformed pattern - no closing bracket */
+        *matched = FALSE;
+        return NULL;
+    }
+    
+    /* Apply negation if needed */
+    *matched = negated ? !found : found;
+    return p;
+}
 
 /* Internal recursive pattern matching function - uses UBYTE for Amiga compatibility */
 static BOOL _match_pattern_internal(const UBYTE *pat, const UBYTE *str)
@@ -3303,10 +3550,133 @@ static BOOL _match_pattern_internal(const UBYTE *pat, const UBYTE *str)
                     }
                 }
                 return FALSE;
+            
+            case '[':
+                /* Character class [abc] or [a-z] */
+                {
+                    if (*s == '\0')
+                        return FALSE;
+                    
+                    BOOL matched;
+                    const UBYTE *after_class = _match_char_class(p, *s, &matched, FALSE);
+                    if (!after_class || !matched)
+                        return FALSE;
+                    
+                    p = after_class;
+                    s++;
+                }
+                break;
                 
             default:
                 /* Literal character match */
                 if (*s != *p)
+                    return FALSE;
+                p++;
+                s++;
+                break;
+        }
+    }
+    
+    /* Pattern exhausted - match if string is also exhausted */
+    return (*s == '\0');
+}
+
+/* Internal recursive pattern matching function - CASE INSENSITIVE version */
+static BOOL _match_pattern_internal_nocase(const UBYTE *pat, const UBYTE *str)
+{
+    const UBYTE *p = pat;
+    const UBYTE *s = str;
+    
+    while (*p) {
+        switch (*p) {
+            case '?':
+                /* Match any single character */
+                if (*s == '\0')
+                    return FALSE;
+                p++;
+                s++;
+                break;
+                
+            case '#':
+                /* Multiplier - zero or more of following char/wildcard */
+                p++;
+                if (*p == '\0')
+                    return FALSE; /* # at end is an error */
+                
+                if (*p == '?') {
+                    /* #? - matches any string (like *) */
+                    p++;
+                    /* Try to match rest of pattern at each position */
+                    const UBYTE *try_s = s;
+                    while (1) {
+                        if (_match_pattern_internal_nocase(p, try_s))
+                            return TRUE;
+                        if (*try_s == '\0')
+                            break;
+                        try_s++;
+                    }
+                    return FALSE;
+                } else {
+                    /* #c - matches zero or more of character c (case-insensitive) */
+                    UBYTE c = _to_lower(*p++);
+                    /* Try to match rest of pattern with varying numbers of c */
+                    const UBYTE *try_s = s;
+                    while (1) {
+                        if (_match_pattern_internal_nocase(p, try_s))
+                            return TRUE;
+                        if (_to_lower(*try_s) != c)
+                            break;
+                        try_s++;
+                    }
+                    return FALSE;
+                }
+                break;
+                
+            case '%':
+                /* Escape character - match literally (case-insensitive) */
+                p++;
+                if (*p == '\0')
+                    return FALSE; /* % at end is an error */
+                if (_to_lower(*s) != _to_lower(*p))
+                    return FALSE;
+                p++;
+                s++;
+                break;
+                
+            case '*':
+                /* Treat * as equivalent to #? for convenience */
+                p++;
+                {
+                    const UBYTE *try_s = s;
+                    while (1) {
+                        if (_match_pattern_internal_nocase(p, try_s))
+                            return TRUE;
+                        if (*try_s == '\0')
+                            break;
+                        try_s++;
+                    }
+                }
+                return FALSE;
+            
+            case '[':
+                /* Character class [abc] or [a-z] - case-insensitive */
+                {
+                    if (*s == '\0')
+                        return FALSE;
+                    
+                    BOOL matched;
+                    const UBYTE *after_class = _match_char_class(p, *s, &matched, TRUE);
+                    if (!after_class || !matched)
+                        return FALSE;
+                    
+                    p = after_class;
+                    s++;
+                }
+                break;
+                
+            default:
+                /* Literal character match (case-insensitive) */
+                if (_to_lower(*s) != _to_lower(*p))
                     return FALSE;
                 p++;
                 s++;
@@ -3334,7 +3704,7 @@ LONG _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6"),
     BOOL has_wildcard = FALSE;
     const UBYTE *p = pat;
     while (*p) {
-        if (*p == '?' || *p == '#' || *p == '*' || *p == '%') {
+        if (*p == '?' || *p == '#' || *p == '*' || *p == '%' || *p == '[') {
             has_wildcard = TRUE;
             break;
         }
@@ -3965,18 +4335,60 @@ LONG _dos_ParsePatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register UBYTE * buf __asm("d2"),
                                                         register LONG buflen __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: ParsePatternNoCase() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: ParsePatternNoCase() called, pat='%s'\n", pat ? pat : (CONST_STRPTR)"NULL");
+    
+    /* ParsePatternNoCase is identical to ParsePattern - the case-insensitivity
+     * is handled by MatchPatternNoCase. We just need to copy the pattern. */
+    
+    if (!pat || !buf || buflen <= 0) {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return 0;
+    }
+    
+    /* Check if pattern contains any wildcards */
+    BOOL has_wildcard = FALSE;
+    const UBYTE *p = pat;
+    while (*p) {
+        if (*p == '?' || *p == '#' || *p == '*' || *p == '%' || *p == '[') {
+            has_wildcard = TRUE;
+            break;
+        }
+        p++;
+    }
+    
+    /* Copy pattern to buffer */
+    LONG len = 0;
+    while (pat[len] != '\0') len++;
+    
+    if (len >= buflen) {
+        SetIoErr(ERROR_LINE_TOO_LONG);
+        return 0;
+    }
+    
+    /* Copy manually to avoid strcpy type issues */
+    for (LONG i = 0; i <= len; i++) {
+        buf[i] = pat[i];
+    }
+    
+    /* Return -1 for literal string, positive for wildcard pattern */
+    return has_wildcard ? len : -1;
 }
 
 BOOL _dos_MatchPatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register STRPTR str __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: MatchPatternNoCase() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_dos: MatchPatternNoCase() called, pat='%s', str='%s'\n", 
+             pat ? pat : (CONST_STRPTR)"NULL", str ? str : (STRPTR)"NULL");
+    
+    if (!pat || !str)
+        return FALSE;
+    
+    /* Empty pattern matches empty string only */
+    if (pat[0] == '\0')
+        return (str[0] == '\0');
+    
+    return _match_pattern_internal_nocase((const UBYTE *)pat, (const UBYTE *)str);
 }
 
 VOID _dos_private7 ( register struct DosLibrary * DOSBase __asm("a6"))

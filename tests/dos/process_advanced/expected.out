@@ -17,6 +17,7 @@ _dos: LoadSeg() Open() for name=type failed
   PASS: Successful command returns 0
 _dos: LoadSeg() Open() for name=nonexistent_xyz_12345 failed
 _dos: LoadSeg() Open() for name=SYS:C/nonexistent_xyz_12345 failed
+_dos: SystemTagList() failed to load 'nonexistent_xyz_12345'
   Non-existent command return: -1
   PASS: Non-existent command returns -1
 

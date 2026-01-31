@@ -39,7 +39,8 @@ Test 11: Large numeric value
   PASS: Large number parsed
 
 Test 12: Keyword with primary name
-  PASS: Keyword alias not matched (expected behavior)
+  Value: output.txt
+  PASS: Keyword primary name worked
 
 === Test Summary ===
 Passed: 12

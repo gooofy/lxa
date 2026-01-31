@@ -9,7 +9,9 @@ _dos: LoadSeg() Open() for name=type failed
 Test 2: Execute non-existent command
 _dos: LoadSeg() Open() for name=nonexistent_command_xyz123 failed
 _dos: LoadSeg() Open() for name=SYS:C/nonexistent_command_xyz123 failed
+_dos: SystemTagList() failed to load 'nonexistent_command_xyz123'
 _dos: LoadSeg() Open() for name=SYS:System/Shell failed
+_dos: SystemTagList() failed to load 'SYS:System/Shell'
   Execute returned: -1
   PASS: Non-existent command correctly failed
 
