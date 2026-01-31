@@ -1,0 +1,10 @@
+; Control flow test script
+SET testvar 5
+
+IF $testvar GE 5
+  ECHO "testvar is >= 5"
+ELSE
+  ECHO "testvar is < 5"
+ENDIF
+
+ECHO "Script complete"

@@ -1,0 +1,3 @@
+; Simple shell script for testing
+ECHO "Hello from script"
+ECHO "This is line 2"

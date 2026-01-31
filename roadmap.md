@@ -55,91 +55,94 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ### Step 8.1: Test Infrastructure Enhancement
 - [x] Basic integration test framework (test_runner.sh)
-- [ ] **Unit Testing Framework** - Integrate Unity or similar for ROM/host C code
-  - Setup CMocka or Unity test framework
-  - Configure CMake for unit test compilation
-  - Create `tests/unit/` directory structure
-  - Add `make test-unit` target
-- [ ] **Coverage Reporting** - Enable code coverage metrics
-  - Configure gcov/lcov for coverage analysis
-  - Add `make coverage` target
-  - Set up coverage reports (HTML output)
-  - Track coverage metrics per component
-- [ ] **Test Data Management** - Organize test fixtures
-  - Create `tests/fixtures/` for shared test data
-  - Standard directory structures for filesystem tests
-  - Sample files with various permissions/attributes
+- [x] **Unit Testing Framework** - Integrate Unity or similar for ROM/host C code
+  - [x] Setup Unity test framework (tests/unit/unity/)
+  - [x] Configure CMake for unit test compilation
+  - [x] Create `tests/unit/` directory structure
+  - [x] Add `make test-unit` target
+- [x] **Coverage Reporting** - Enable code coverage metrics
+  - [x] Configure gcov/lcov for coverage analysis (via CMake COVERAGE option)
+  - [x] Add `make coverage` target
+  - [x] Set up coverage reports (HTML output)
+  - [ ] Track coverage metrics per component
+- [x] **Test Data Management** - Organize test fixtures
+  - [x] Create `tests/fixtures/` for shared test data
+  - [x] Standard directory structures for filesystem tests
+  - [x] Sample files with various permissions/attributes
 - [ ] **Continuous Testing** - Automated test execution
-  - Pre-commit hook for running critical tests
-  - `make test-all` runs both unit and integration tests
-  - Test result reporting and tracking
+  - [ ] Pre-commit hook for running critical tests
+  - [ ] `make test-all` runs both unit and integration tests
+  - [ ] Test result reporting and tracking
 
 ### Step 8.2: DOS Library Testing
 **Critical**: DOS is the foundation - every function must be bulletproof.
 
 #### Filesystem Operations (tests/dos/fs/)
-- [ ] **Lock/Unlock** - Lock acquisition and release
-  - Shared vs exclusive locks
-  - Lock hierarchy (parent/child)
-  - Error cases (non-existent paths, permission denied)
-  - Lock leak detection
-- [ ] **Examine/ExNext** - Directory enumeration
-  - Directory traversal with various patterns
-  - File metadata accuracy (size, date, protection)
-  - Large directory handling (>1000 entries)
-  - Empty directories, single file
-  - Special characters in filenames
-- [ ] **Open/Close/Read/Write** - File I/O
-  - MODE_OLDFILE, MODE_NEWFILE, MODE_READWRITE
-  - Read/write at various offsets
-  - Large file handling (>1MB)
-  - Append mode behavior
-  - Error handling (disk full, read-only)
-- [ ] **Seek** - File positioning
-  - OFFSET_BEGINNING, OFFSET_CURRENT, OFFSET_END
-  - Seek beyond EOF
-  - Seek on console handles
-- [ ] **Delete/Rename** - File manipulation
-  - Delete files with various permissions
-  - Delete non-empty directories (should fail)
-  - Rename across directories
-  - Rename with open handles
+- [x] **Lock/Unlock** - Lock acquisition and release
+  - [x] Shared vs exclusive locks (tests/dos/lock_shared)
+  - [x] Lock hierarchy (tests/dos/lock_examine)
+  - [x] Error cases (non-existent paths)
+  - [ ] Lock leak detection
+- [x] **Examine/ExNext** - Directory enumeration
+  - [x] Directory traversal (tests/dos/lock_examine)
+  - [x] File metadata accuracy
+  - [ ] Large directory handling (>1000 entries)
+  - [ ] Empty directories, single file
+  - [ ] Special characters in filenames
+- [x] **Open/Close/Read/Write** - File I/O (tests/dos/fileio)
+  - [x] MODE_OLDFILE, MODE_NEWFILE
+  - [x] Read/write operations
+  - [ ] Large file handling (>1MB)
+  - [ ] Append mode behavior
+  - [ ] Error handling (disk full, read-only)
+- [x] **Seek** - File positioning (tests/dos/fileio)
+  - [x] OFFSET_BEGINNING, OFFSET_CURRENT, OFFSET_END
+  - [x] Read at EOF
+  - [ ] Seek beyond EOF
+  - [ ] Seek on console handles
+- [x] **Delete/Rename** - File manipulation (tests/dos/fileio - DeleteFile tested)
+  - [ ] Delete files with various permissions
+  - [ ] Delete non-empty directories (should fail)
+  - [ ] Rename across directories
+  - [ ] Rename with open handles
 - [ ] **CreateDir/ParentDir** - Directory operations
-  - Nested directory creation
-  - Permission inheritance
-  - ParentDir traversal to root
+  - [ ] Nested directory creation
+  - [ ] Permission inheritance
+  - [x] ParentDir traversal (tests/dos/lock_examine)
 
 #### Pattern Matching (tests/dos/patterns/)
-- [ ] **ParsePattern/MatchPattern** - Wildcard support
-  - Simple wildcards: `#?`, `*`, `?`
-  - Character classes: `[abc]`, `[a-z]`
-  - Complex patterns: `#?.c`, `test#?[0-9]`
-  - Case sensitivity (Amiga is case-insensitive)
-  - Pattern tokenization edge cases
+- [x] **ParsePattern/MatchPattern** - Wildcard support (tests/dos/patterns - 54 tests)
+  - [x] Simple wildcards: `#?`, `*`, `?`
+  - [ ] Character classes: `[abc]`, `[a-z]` (not implemented)
+  - [x] Complex patterns: `#?.c`, `test#?`
+  - [ ] Case sensitivity (Amiga is case-insensitive) - current impl is case-sensitive
+  - [x] Pattern tokenization edge cases
 
 #### Argument Parsing (tests/dos/readargs/)
-- [ ] **ReadArgs** - Template parsing and validation
-  - Simple arguments: `/A`, `/K`, `/S`, `/N`
-  - Multiple arguments: `/M`, `/M/A`
-  - Keywords with values: `KEY=value`
-  - Numeric arguments: `/N` with validation
-  - Error cases: missing required args, invalid syntax
-  - Quoted strings with spaces
-  - Empty input, extremely long input
-  - Template parsing edge cases
+- [x] **ReadArgs** - Template parsing and validation (tests/dos/readargs)
+  - [x] Simple arguments: `/A` (required)
+  - [ ] Keyword arguments: `/K` (needs implementation work)
+  - [x] Switch arguments: `/S`
+  - [ ] Numeric arguments: `/N` (needs implementation work)
+  - [ ] Multiple arguments: `/M`, `/M/A`
+  - [ ] Keywords with values: `KEY=value` (needs implementation work)
+  - [ ] Error cases: missing required args
+  - [ ] Quoted strings with spaces
+  - [ ] Empty input handling
+  - [ ] Template parsing edge cases
 - [ ] **FreeArgs** - Memory cleanup validation
 
 #### Process Management (tests/dos/process/)
 - [ ] **SystemTagList** - Process spawning
-  - Spawn with various stack sizes
-  - Environment variable inheritance
-  - Input/output redirection
-  - Exit code propagation
-  - Background process cleanup
+  - [ ] Spawn with various stack sizes
+  - [ ] Environment variable inheritance
+  - [ ] Input/output redirection
+  - [ ] Exit code propagation
+  - [ ] Background process cleanup
 - [ ] **Execute** - Script execution
-  - Multi-line scripts
-  - Error handling in scripts
-  - Break handling (Ctrl+C)
+  - [ ] Multi-line scripts
+  - [ ] Error handling in scripts
+  - [ ] Break handling (Ctrl+C)
 
 ### Step 8.3: Exec Library Testing
 **Critical**: Multitasking foundation must be rock-solid.

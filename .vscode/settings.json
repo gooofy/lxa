@@ -2,6 +2,11 @@
     "chat.tools.terminal.autoApprove": {
         "make": true,
         "mkdir": true,
-        "build/host/bin/lxa": true
+        "build/host/bin/lxa": true,
+        "./test_vfs": true,
+        "./test_config": true,
+        "../../test_runner.sh": true,
+        "/home/guenter/projects/amiga/lxa/src/lxa/tests/test_runner.sh": true,
+        "cp": true
     }
 }

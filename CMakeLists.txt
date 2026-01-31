@@ -110,6 +110,14 @@ add_custom_target(install-rom
     COMMENT "Installing ROM to data directory"
 )
 
+# === Unit Tests ===
+# Add unit tests (host-side testing with Unity framework)
+option(BUILD_UNIT_TESTS "Build unit tests" ON)
+if(BUILD_UNIT_TESTS)
+    message(STATUS "Configuring unit tests...")
+    add_subdirectory(tests/unit)
+endif()
+
 # === Summary ===
 message(STATUS "")
 message(STATUS "LXA Configuration:")
@@ -118,4 +126,5 @@ message(STATUS "  Data directory:       ${LXA_DATA_DIR}")
 message(STATUS "  Default user prefix:  ${LXA_DEFAULT_PREFIX}")
 message(STATUS "  ROM tool:             ${ROMTOOL}")
 message(STATUS "  Cross-compiler:       ${M68K_GCC}")
+message(STATUS "  Unit tests:           ${BUILD_UNIT_TESTS}")
 message(STATUS "")
