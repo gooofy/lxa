@@ -459,7 +459,6 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [ ] AROS reference review for edge cases
 - [ ] 100% Test coverage verification for all new commands
 - [ ] Performance profiling and optimization
-- [ ] Milestone 1.0 release preparation
 
 ---
 
