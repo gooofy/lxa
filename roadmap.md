@@ -421,16 +421,30 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - Fixed empty string handling in GetVar
 
 ### Step 9.5: System Commands
-- [ ] **VERSION** - Display version information
+- [x] **VERSION** - Display version information
+  - Template: `NAME,VERSION/N,REVISION/N,FILE/S,FULL/S,RES/S`
+  - Shows lxa Kickstart version, can look up library versions
   - **Tests required**: Output format, component versions
-- [ ] **WAIT** - Wait for time/event
+- [x] **WAIT** - Wait for time/event
+  - Template: `TIME/N,SEC=SECS/S,MIN=MINS/S,UNTIL/K`
+  - Waits specified seconds/minutes using Delay()
+  - Note: UNTIL option not implemented
   - **Tests required**: Time delays, break handling
-- [ ] **INFO** - Display disk information
+- [x] **INFO** - Display disk information
+  - Template: `DEVICE,VOLS/S,GOODONLY/S,BLOCKS/S,DEVICES/S`
+  - Displays volume/device information using Info() DOS call
   - **Tests required**: Various drives, unmounted drives
-- [ ] **DATE** - Display/set system date
+- [x] **DATE** - Display/set system date
+  - Template: `DATE,TIME,TO=VER/K`
+  - Displays current date/time from DateStamp()
+  - Note: Setting date not supported (host time used)
   - **Tests required**: Display, set, validation
-- [ ] **MAKELINK** - Create hard/soft links
+- [x] **MAKELINK** - Create hard/soft links
+  - Template: `FROM/A,TO/A,HARD/S,SOFT/S,FORCE/S`
+  - Note: MakeLink() is stub in ROM - not functional yet
   - **Tests required**: Hard/soft links, errors
+- [x] **exec.library version info** - Fixed SysBase LibNode initialization
+- [x] **Test: commands/syscmd** - Tests DateStamp, library versions, Delay
 
 ### Step 9.6: Final Polish
 - [ ] Documentation update: `README.md` with all commands

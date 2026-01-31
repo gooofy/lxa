@@ -2797,6 +2797,13 @@ void coldstart (void)
 
     SysBase->SoftVer = VERSION;
 
+    // Initialize SysBase LibNode (exec.library version info)
+    SysBase->LibNode.lib_Node.ln_Type = NT_LIBRARY;
+    SysBase->LibNode.lib_Node.ln_Name = "exec.library";
+    SysBase->LibNode.lib_Version  = VERSION;
+    SysBase->LibNode.lib_Revision = REVISION;
+    SysBase->LibNode.lib_IdString = "exec 1.1 (2024/01/01)";
+
     // set up memory management
 
     NEWLIST (&SysBase->MemList);

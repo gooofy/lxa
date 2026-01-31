@@ -34,14 +34,17 @@ set(C_COMMANDS
     break
     changetaskpri
     copy
+    date
     delete
     dir
     eval
     filenote
     getenv
+    info
     join
     list
     makedir
+    makelink
     protect
     rename
     run
@@ -54,6 +57,8 @@ set(C_COMMANDS
     type
     unset
     unsetenv
+    version
+    wait
 )
 
 foreach(cmd ${C_COMMANDS})

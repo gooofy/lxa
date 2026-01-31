@@ -53,6 +53,7 @@ all:
 	@$(MAKE) -C commands/sort
 	@$(MAKE) -C commands/eval
 	@$(MAKE) -C commands/setenv
+	@$(MAKE) -C commands/syscmd
 
 clean:
 	@echo "Cleaning all tests..."
@@ -95,6 +96,7 @@ clean:
 	@$(MAKE) -C commands/sort clean
 	@$(MAKE) -C commands/eval clean
 	@$(MAKE) -C commands/setenv clean
+	@$(MAKE) -C commands/syscmd clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -134,6 +136,7 @@ clean:
 	rm -f commands/sort/actual.out
 	rm -f commands/eval/actual.out
 	rm -f commands/setenv/actual.out
+	rm -f commands/syscmd/actual.out
 
 test: all
 	@echo ""
@@ -181,6 +184,7 @@ run-tests:
 	@$(MAKE) -C commands/sort run-test
 	@$(MAKE) -C commands/eval run-test
 	@$(MAKE) -C commands/setenv run-test
+	@$(MAKE) -C commands/syscmd run-test
 
 help:
 	@echo "Integration Test Suite"
