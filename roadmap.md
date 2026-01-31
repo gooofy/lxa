@@ -375,23 +375,6 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Stress tests integrated into main test suite
   - [x] `make stress-tests` target for quick stress testing
 
-### Step 8.7: Documentation & Test Guidelines
-
-- [ ] **Testing Documentation** - Test writing guide
-  - Document test framework usage
-  - Examples of unit vs integration tests
-  - How to add new tests
-  - Coverage target enforcement (100%)
-- [ ] **Test Naming Conventions** - Consistency
-  - `test_<component>_<function>_<scenario>`
-  - Descriptive test names
-  - Organized directory structure
-- [ ] **CI/CD Integration** - Automation
-  - GitHub Actions or similar
-  - Run tests on every commit
-  - Block merges with failing tests
-  - Coverage regression detection
-
 ---
 
 ## Phase 9: New Commands & Advanced Utilities
