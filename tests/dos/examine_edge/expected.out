@@ -1,0 +1,42 @@
+Examine Edge Cases Test
+=======================
+
+Setup: Creating test structures
+  Created empty_dir
+  Created single_file_dir with one file
+  Created test_file.txt
+
+Test 1: Examine empty directory
+  Name: empty_dir
+  Type: 2 (>0 = dir)
+  PASS: Examine empty dir returns dir type
+
+Test 2: ExNext on empty directory
+  ExNext iterations: 0
+  Final IoErr: 232
+  PASS: ExNext empty dir returns NO_MORE_ENTRIES
+
+Test 3: ExNext on single-file directory
+  Found: only_file.txt
+  Total entries: 1
+  PASS: Single-file dir has exactly 1 entry
+  PASS: ExNext ends with NO_MORE_ENTRIES
+
+Test 4: Examine regular file
+  Name: test_file.txt
+  Type: -3 (<0 = file)
+  Size: 20 bytes
+  PASS: Examine file returns file type
+  PASS: File size correct
+
+Test 5: ExNext on file (edge case)
+  ExNext on file returned: FALSE
+  IoErr: 232
+  PASS: ExNext on file correctly fails
+
+Cleanup
+  Test structures removed
+
+=== Test Summary ===
+Passed: 7
+Failed: 0

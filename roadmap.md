@@ -337,13 +337,13 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 **Goal**: Reach Milestone 1.0 with a polished, well-tested toolset. All new features must have tests written first (TDD).
 
 ### Step 9.1: File Manipulation Commands
-- [ ] **COPY** - Copy files/directories with recursive support
+- [x] **COPY** - Copy files/directories with recursive support
   - Template: `FROM/M/A,TO/A,ALL/S,CLONE/S,DATES/S,NOPRO/S,COM/S,QUIET/S`
   - **Tests required**: Single file, multiple files, directories, ALL mode, error cases
-- [ ] **RENAME** - Rename/move files
+- [x] **RENAME** - Rename/move files
   - Template: `FROM/A,TO/A,QUIET/S`
   - **Tests required**: Same directory, across directories, open files, errors
-- [ ] **JOIN** - Concatenate files
+- [x] **JOIN** - Concatenate files
   - Template: `FROM/A/M,AS=TO/A`
   - **Tests required**: Multiple files, large files, binary files
 

@@ -34,6 +34,7 @@
 # Executables
 *.exe
 *.out
+!expected.out
 *.app
 *.i*86
 *.x86_64
@@ -105,3 +106,23 @@ C/type
 
 
 tests/dos/lock_examine/lock_examine
+
+# Test binaries (compiled m68k executables)
+tests/commands/copy/copy_test
+tests/commands/join/join_test
+tests/commands/rename/rename_test
+tests/dos/readargs_full/readargs_full
+tests/dos/createdir/createdir
+tests/dos/delete_rename/delete_rename
+tests/dos/dir_command/dir_command
+tests/dos/dir_enum/dir_enum
+tests/dos/examine_edge/examine_edge
+tests/dos/fileio/fileio
+tests/dos/fileio_advanced/fileio_advanced
+tests/dos/lock_shared/lock_shared
+tests/dos/patterns/patterns
+tests/dos/readargs/readargs
+tests/dos/special_chars/special_chars
+tests/shell/alias/alias
+tests/shell/controlflow/controlflow
+tests/shell/script/script

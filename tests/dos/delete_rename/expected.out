@@ -1,0 +1,43 @@
+Delete/Rename Test
+==================
+
+Setup: Creating test files and directories
+  Created testfile.txt
+  Created testdir_empty
+  Created testdir_nonempty
+  Created testdir_nonempty/child.txt
+  Created rename_dir
+
+Test 1: Delete regular file
+  PASS: DeleteFile on file
+
+Test 2: Delete non-existent file (should fail)
+  IoErr = 205
+  PASS: DeleteFile non-existent (correctly failed)
+
+Test 3: Delete non-empty directory (should fail)
+  IoErr = 205
+  PASS: DeleteFile non-empty dir (correctly failed)
+
+Test 4: Delete empty directory
+  PASS: DeleteFile empty dir
+
+Test 5: Rename file (same directory)
+  PASS: Rename same dir
+
+Test 6: Rename file to different directory
+  PASS: Rename across dirs
+
+Test 7: Rename non-existent file (should fail)
+  IoErr = 205
+  PASS: Rename non-existent (correctly failed)
+
+Test 8: Rename directory
+  PASS: Rename directory
+
+Cleanup: Removing test files and directories
+  Cleanup complete
+
+=== Test Summary ===
+Passed: 8
+Failed: 0

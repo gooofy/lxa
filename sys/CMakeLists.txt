@@ -33,9 +33,12 @@ set(C_COMMANDS
     avail
     break
     changetaskpri
+    copy
     delete
     dir
+    join
     makedir
+    rename
     run
     stack
     status

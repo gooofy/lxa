@@ -1,0 +1,33 @@
+Directory Enumeration Test
+==========================
+
+Test 1: Create directory with 10 files
+  Created 10 test files
+
+Test 2: Enumerate directory
+  1: file0.txt
+  2: file1.txt
+  3: file2.txt
+  4: file3.txt
+  5: file4.txt
+  6: file5.txt
+  7: file6.txt
+  8: file7.txt
+  9: file8.txt
+  10: file9.txt
+  Total entries: 10
+  Final IoErr: 232
+  PASS: Found all 10 files
+  PASS: Correct termination error
+
+Test 3: Mixed files and subdirectory
+  Created subdirectory
+  Total: 11 (10 files, 1 dirs)
+  PASS: Mixed enumeration correct
+
+Cleanup
+  Test files and directory removed
+
+=== Test Summary ===
+Passed: 3
+Failed: 0

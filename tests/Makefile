@@ -3,7 +3,7 @@
 include Makefile.config
 
 # Test categories
-TEST_CATS := dos exec shell
+TEST_CATS := dos exec shell commands
 
 # Color output
 GREEN = \033[0;32m
@@ -32,6 +32,9 @@ all:
 	@$(MAKE) -C shell/alias
 	@$(MAKE) -C shell/controlflow
 	@$(MAKE) -C shell/script
+	@$(MAKE) -C commands/copy
+	@$(MAKE) -C commands/rename
+	@$(MAKE) -C commands/join
 
 clean:
 	@echo "Cleaning all tests..."
@@ -53,6 +56,9 @@ clean:
 	@$(MAKE) -C shell/alias clean
 	@$(MAKE) -C shell/controlflow clean
 	@$(MAKE) -C shell/script clean
+	@$(MAKE) -C commands/copy clean
+	@$(MAKE) -C commands/rename clean
+	@$(MAKE) -C commands/join clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -71,6 +77,9 @@ clean:
 	rm -f shell/alias/actual.out
 	rm -f shell/controlflow/actual.out
 	rm -f shell/script/actual.out
+	rm -f commands/copy/actual.out
+	rm -f commands/rename/actual.out
+	rm -f commands/join/actual.out
 
 test: all
 	@echo ""
@@ -97,6 +106,9 @@ run-tests:
 	@$(MAKE) -C shell/alias run-test
 	@$(MAKE) -C shell/controlflow run-test
 	@$(MAKE) -C shell/script run-test
+	@$(MAKE) -C commands/copy run-test
+	@$(MAKE) -C commands/rename run-test
+	@$(MAKE) -C commands/join run-test
 
 help:
 	@echo "Integration Test Suite"

@@ -1,0 +1,32 @@
+Pattern Matching Test - Phase 7.5
+==================================
+
+Test 1: #? pattern (match anything)
+  Pattern '#?' vs 'hello.txt': MATCH (expected)
+  Pattern '#?' vs 'dir': MATCH (expected)
+  Pattern '#?' vs '': MATCH (expected)
+
+Test 2: Suffix patterns (#?.txt)
+  Pattern '#?.txt' vs 'hello.txt': MATCH (expected)
+  Pattern '#?.txt' vs 'readme.txt': MATCH (expected)
+  Pattern '#?.txt' vs 'hello.c': NO MATCH (expected)
+  Pattern '#?.txt' vs '.txt': MATCH (expected)
+
+Test 3: Prefix patterns (test#?)
+  Pattern 'test#?' vs 'testing': MATCH (expected)
+  Pattern 'test#?' vs 'test': MATCH (expected)
+  Pattern 'test#?' vs 'mytest': NO MATCH (expected)
+
+Test 4: Single character wildcard (?)
+  Pattern 'test?' vs 'test1': MATCH (expected)
+  Pattern 'test?' vs 'testA': MATCH (expected)
+  Pattern 'test?' vs 'test': NO MATCH (expected)
+  Pattern 'test?' vs 'test12': NO MATCH (expected)
+
+Test 5: Literal patterns
+  Pattern 'hello.txt' vs 'hello.txt': MATCH (expected)
+  Pattern 'hello.txt' vs 'HELLO.TXT': MATCH (expected)
+  Pattern 'hello.txt' vs 'hello.c': NO MATCH (expected)
+
+Results: 0 error(s)
+PASS

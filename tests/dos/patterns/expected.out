@@ -1,0 +1,76 @@
+=== Pattern Matching Tests ===
+
+--- ParsePattern Return Values ---
+PASS [literal string]: 'hello' parsed as literal
+PASS [literal with dot]: 'hello.txt' parsed as literal
+PASS [any string wildcard]: '#?' parsed as wildcard pattern
+PASS [star wildcard]: '*.c' parsed as wildcard pattern
+PASS [single char wildcard]: 'test?' parsed as wildcard pattern
+PASS [hash question wildcard]: 'file#?' parsed as wildcard pattern
+
+--- Exact Match (No Wildcards) ---
+PASS [exact match]: 'hello' matches 'hello'
+PASS [exact no match]: 'hello' doesn't match 'world'
+PASS [case sensitive]: 'hello' doesn't match 'HELLO'
+PASS [empty strings]: '' matches ''
+PASS [with dot]: 'test.txt' matches 'test.txt'
+
+--- Single Char Wildcard (?) ---
+PASS [? in middle]: 'h?llo' matches 'hello'
+PASS [? at start]: '?ello' matches 'hello'
+PASS [? at end]: 'hell?' matches 'hello'
+PASS [all ?]: '?????' matches 'hello'
+PASS [? needs char]: 'h?llo' doesn't match 'hllo'
+PASS [? only one char]: 'h?llo' doesn't match 'heello'
+
+--- #? Wildcard (Any String) ---
+PASS [#? matches empty]: '#?' matches ''
+PASS [#? matches single]: '#?' matches 'a'
+PASS [#? matches word]: '#?' matches 'hello'
+PASS [#? matches phrase]: '#?' matches 'hello world'
+PASS [#? matches zero chars]: 'file#?' matches 'file'
+PASS [#? matches extension]: 'file#?' matches 'file.txt'
+PASS [#? at start matches empty]: '#?.c' matches '.c'
+PASS [#? at start matches name]: '#?.c' matches 'test.c'
+PASS [#? respects suffix]: '#?.c' doesn't match 'test.txt'
+
+--- Star Wildcard (*) ---
+PASS [* matches empty]: '*' matches ''
+PASS [* matches word]: '*' matches 'hello'
+PASS [*.c matches]: '*.c' matches 'test.c'
+PASS [test* matches test]: 'test*' matches 'test'
+PASS [test* matches testing]: 'test*' matches 'testing'
+PASS [test*.c matches test.c]: 'test*.c' matches 'test.c'
+PASS [test*.c matches test123.c]: 'test*.c' matches 'test123.c'
+
+--- Repeated Char Wildcard (#c) ---
+PASS [#a matches zero a's]: '#a' matches ''
+PASS [#a matches one a]: '#a' matches 'a'
+PASS [#a matches multiple a's]: '#a' matches 'aaa'
+PASS [#a doesn't match b]: '#a' doesn't match 'b'
+PASS [#s matches zero s's]: 'te#st' matches 'tet'
+PASS [#s matches one s]: 'te#st' matches 'test'
+PASS [#s matches two s's]: 'te#st' matches 'tesst'
+
+--- Complex Patterns ---
+PASS [source file]: '#?.c' matches 'main.c'
+PASS [underscore in name]: '#?.c' matches 'test_utils.c'
+PASS [test prefix only]: 'test#?' matches 'test'
+PASS [test prefix with numbers]: 'test#?' matches 'test123'
+PASS [test prefix with letters]: 'test#?' matches 'testing'
+PASS [surrounded wildcard]: '#?test#?' matches 'test'
+PASS [prefix only match]: '#?test#?' matches 'mytest'
+PASS [suffix only match]: '#?test#?' matches 'testing'
+PASS [both prefix and suffix]: '#?test#?' matches 'mytesting'
+
+--- Edge Cases ---
+PASS [single ? single char]: '?' matches 'a'
+PASS [single ? empty string]: '?' doesn't match ''
+PASS [single ? two chars]: '?' doesn't match 'ab'
+PASS [double ? two chars]: '??' matches 'ab'
+PASS [double #? pattern]: '#?#?' matches 'hello'
+
+=== Test Summary ===
+Passed: 54
+Failed: 0
+Total:  54
