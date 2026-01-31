@@ -101,16 +101,17 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Rename with open handles (tests/dos/rename_open)
 - [x] **CreateDir/ParentDir** - Directory operations (tests/dos/createdir)
   - [x] Nested directory creation (tests/dos/createdir)
-  - [ ] Permission inheritance
+  - [x] Permission bits handling (tests/dos/createdir_perms)
   - [x] ParentDir traversal (tests/dos/createdir, tests/dos/lock_examine)
 
 #### Pattern Matching (tests/dos/patterns/)
 - [x] **ParsePattern/MatchPattern** - Wildcard support (tests/dos/patterns - 54 tests)
   - [x] Simple wildcards: `#?`, `*`, `?`
-  - [ ] Character classes: `[abc]`, `[a-z]` (not implemented)
   - [x] Complex patterns: `#?.c`, `test#?`
-  - [ ] Case sensitivity (Amiga is case-insensitive) - current impl is case-sensitive
   - [x] Pattern tokenization edge cases
+  - **Known Limitations:**
+    - [ ] Character classes: `[abc]`, `[a-z]` (not implemented - requires parser enhancement)
+    - [ ] Case-insensitive matching: `MatchPatternNoCase` is a stub (Amiga is case-insensitive)
 
 #### Argument Parsing (tests/dos/readargs/, tests/dos/readargs_full/)
 - [x] **ReadArgs** - Template parsing and validation (tests/dos/readargs, tests/dos/readargs_full)
@@ -147,6 +148,37 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Basic command execution via Execute()
   - Note: Multi-line scripts cause crash in Deallocate (known bug)
   - Note: Break handling (Ctrl+C) not tested
+
+### Step 8.2.1: Critical Bug Fixes (HIGH PRIORITY)
+**Issues discovered during Step 8.2 testing that must be addressed before proceeding.**
+
+#### Memory Management Bugs
+- [ ] **Execute() crash with file input** - Multi-line scripts cause crash in Deallocate
+  - Symptom: Memory corruption at address 0xFFFFFFF8 during deallocation
+  - Location: `_exec_Deallocate` in exec.c
+  - Trigger: `Execute("", script_fh, Output())` with file handle input
+  - Priority: HIGH - blocks script functionality
+
+#### DOS Library Enhancements
+- [ ] **SystemTagList stack size** - Currently hardcoded to 4096
+  - Should respect `NP_StackSize` tag from caller
+  - Location: `_dos_SystemTagList` in lxa_dos.c:2226
+  - Priority: MEDIUM - affects programs needing larger stack
+
+- [ ] **ReadArgs keyword aliases** - AS=TO syntax not working
+  - Template `AS=TO/K` should accept both "AS value" and "TO value"
+  - Location: `_dos_ReadArgs` in lxa_dos.c
+  - Priority: LOW - workaround: use primary keyword name
+
+#### Pattern Matching Enhancements
+- [ ] **Character classes `[abc]`, `[a-z]`** - Not implemented
+  - Requires enhancing `_match_pattern_internal` in lxa_dos.c:3225
+  - Priority: LOW - rarely used in practice
+
+- [ ] **Case-insensitive matching** - `MatchPatternNoCase` is a stub
+  - Currently just calls assert(FALSE)
+  - Location: `_dos_MatchPatternNoCase` in lxa_dos.c:3556
+  - Priority: MEDIUM - Amiga filesystem is case-insensitive
 
 ### Step 8.3: Exec Library Testing
 **Critical**: Multitasking foundation must be rock-solid.
