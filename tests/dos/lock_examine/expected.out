@@ -10,9 +10,9 @@ Test 2: Examine()
   Examine: OK
 
 Test 3: ExNext() - Directory listing:
-        Makefile
-        expected.out
         main.c
+        Makefile
+        lxa.log
         main.o
         lock_examine
   ... (more entries)

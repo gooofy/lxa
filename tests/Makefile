@@ -33,6 +33,9 @@ all:
 	@$(MAKE) -C dos/seek_console
 	@$(MAKE) -C dos/readargs_multi
 	@$(MAKE) -C dos/process
+	@$(MAKE) -C dos/rename_open
+	@$(MAKE) -C dos/readargs_empty
+	@$(MAKE) -C dos/execute_script
 	@$(MAKE) -C exec/signal_pingpong
 	@$(MAKE) -C shell/alias
 	@$(MAKE) -C shell/controlflow
@@ -62,6 +65,9 @@ clean:
 	@$(MAKE) -C dos/seek_console clean
 	@$(MAKE) -C dos/readargs_multi clean
 	@$(MAKE) -C dos/process clean
+	@$(MAKE) -C dos/rename_open clean
+	@$(MAKE) -C dos/readargs_empty clean
+	@$(MAKE) -C dos/execute_script clean
 	@$(MAKE) -C exec/signal_pingpong clean
 	@$(MAKE) -C shell/alias clean
 	@$(MAKE) -C shell/controlflow clean
@@ -88,6 +94,9 @@ clean:
 	rm -f dos/seek_console/actual.out
 	rm -f dos/readargs_multi/actual.out
 	rm -f dos/process/actual.out
+	rm -f dos/rename_open/actual.out
+	rm -f dos/readargs_empty/actual.out
+	rm -f dos/execute_script/actual.out
 	rm -f exec/signal_pingpong/actual.out
 	rm -f shell/alias/actual.out
 	rm -f shell/controlflow/actual.out
@@ -122,6 +131,9 @@ run-tests:
 	@$(MAKE) -C dos/seek_console run-test
 	@$(MAKE) -C dos/readargs_multi run-test
 	@$(MAKE) -C dos/process run-test
+	@$(MAKE) -C dos/rename_open run-test
+	@$(MAKE) -C dos/readargs_empty run-test
+	@$(MAKE) -C dos/execute_script run-test
 	@$(MAKE) -C exec/signal_pingpong run-test
 	@$(MAKE) -C shell/alias run-test
 	@$(MAKE) -C shell/controlflow run-test

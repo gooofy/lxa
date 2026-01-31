@@ -1,0 +1,29 @@
+Rename with Open Handles Test
+==============================
+
+Test 1: Rename file while open for reading
+  Created open_read_test.txt
+  Opened file for reading
+  Rename succeeded while file was open
+  PASS: File remains readable after rename
+  PASS: New filename exists
+  PASS: Old filename removed
+  Closed file handle
+
+Test 2: Rename file while open for writing
+  Created write_test.txt
+  Rename succeeded for file open for writing
+  PASS: Can still write to file after rename
+  Closed write handle
+
+Test 3: Rename directory with open file inside
+  Created dir_with_open/inner.txt and keeping it open
+  Directory rename succeeded
+  PASS: File in renamed dir still accessible
+
+Cleanup:
+  Cleanup complete
+
+=== Test Summary ===
+Passed: 5
+Failed: 0

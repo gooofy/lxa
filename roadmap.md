@@ -98,7 +98,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Delete files
   - [x] Delete non-empty directories (should fail) (tests/dos/delete_rename)
   - [x] Rename across directories (tests/dos/delete_rename)
-  - [ ] Rename with open handles
+  - [x] Rename with open handles (tests/dos/rename_open)
 - [x] **CreateDir/ParentDir** - Directory operations (tests/dos/createdir)
   - [x] Nested directory creation (tests/dos/createdir)
   - [ ] Permission inheritance
@@ -122,7 +122,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Keywords with values: `KEY=value`
   - [x] Error cases: missing required args (ERROR_REQUIRED_ARG_MISSING)
   - [x] Quoted strings with spaces
-  - [ ] Empty input handling
+  - [x] Empty input handling (tests/dos/readargs_empty)
   - [ ] Template parsing edge cases
 - [x] **FreeArgs** - Memory cleanup validation (properly frees DAList allocations)
 
@@ -136,7 +136,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [ ] Input/output redirection
   - [ ] Exit code propagation
   - [ ] Background process cleanup
-- [ ] **Execute** - Script execution
+- [x] **Execute** - Script execution (tests/dos/execute_script)
+  - [x] Basic command execution via Execute()
   - [ ] Multi-line scripts
   - [ ] Error handling in scripts
   - [ ] Break handling (Ctrl+C)

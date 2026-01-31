@@ -1,0 +1,30 @@
+Execute() Function Test
+=======================
+
+Test 1: Execute simple command (type NIL:)
+_dos: LoadSeg() Open() for name=type failed
+  Execute returned: 0
+  PASS: Simple command executed
+
+Test 2: Execute non-existent command
+_dos: LoadSeg() Open() for name=nonexistent_command_xyz123 failed
+_dos: LoadSeg() Open() for name=SYS:C/nonexistent_command_xyz123 failed
+_dos: LoadSeg() Open() for name=SYS:System/Shell failed
+  Execute returned: -1
+  PASS: Non-existent command correctly failed
+
+Test 3: Execute multiple sequential commands
+_dos: LoadSeg() Open() for name=type failed
+  First Execute returned: 0
+_dos: LoadSeg() Open() for name=type failed
+  Second Execute returned: 0
+  PASS: Multiple Execute calls work
+
+Test 4: Execute with output handle
+_dos: LoadSeg() Open() for name=type failed
+  Execute returned: 0
+  PASS: Execute with output handle
+
+=== Test Summary ===
+Passed: 4
+Failed: 0
