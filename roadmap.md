@@ -152,7 +152,22 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### Step 8.2.1: Critical Bug Fixes (HIGH PRIORITY)
 **Issues discovered during Step 8.2 testing that must be addressed before proceeding.**
 
-#### Memory Management Bugs
+#### Memory Management Bugs - FIXED
+- [x] **ROM static data bug** - RootNode and TaskArray corruption
+  - Problem: `g_RootNode` and `g_RootNodeInitialized` were static in ROM (read-only)
+  - Fix: Dynamic allocation via `AllocMem()`, stored in `DOSBase->dl_Root`
+  - Commit: 7bb4a14
+
+- [x] **SystemTagList use-after-free** - Crash/hang in wait loop
+  - Problem: Accessing `proc->pr_MsgPort` after child calls `Exit()`/`RemTask()`
+  - Fix: Save `childPort` pointer before wait loop begins
+  - Commit: 7bb4a14
+
+- [x] **ReadArgs stack overflow** - pr_TaskNum corruption
+  - Problem: TemplateItem[32] = 4352 bytes exceeded 4KB stack
+  - Fix: Reduced TemplateItem from 136 to 72 bytes (2304 bytes total)
+  - Commit: 7bb4a14
+
 - [ ] **Execute() crash with file input** - Multi-line scripts cause crash in Deallocate
   - Symptom: Memory corruption at address 0xFFFFFFF8 during deallocation
   - Location: `_exec_Deallocate` in exec.c
@@ -165,10 +180,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - Location: `_dos_SystemTagList` in lxa_dos.c:2226
   - Priority: MEDIUM - affects programs needing larger stack
 
-- [ ] **ReadArgs keyword aliases** - AS=TO syntax not working
-  - Template `AS=TO/K` should accept both "AS value" and "TO value"
-  - Location: `_dos_ReadArgs` in lxa_dos.c
-  - Priority: LOW - workaround: use primary keyword name
+- [x] **ReadArgs keyword aliases** - AS=TO syntax now working
+  - Template `AS=TO/K` accepts both "AS value" and "TO value"
+  - Fixed in TemplateItem size reduction commit
+  - Commit: 7bb4a14
 
 #### Pattern Matching Enhancements
 - [ ] **Character classes `[abc]`, `[a-z]`** - Not implemented
