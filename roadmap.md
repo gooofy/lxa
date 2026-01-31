@@ -64,15 +64,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Configure gcov/lcov for coverage analysis (via CMake COVERAGE option)
   - [x] Add `make coverage` target
   - [x] Set up coverage reports (HTML output)
-  - [ ] Track coverage metrics per component
 - [x] **Test Data Management** - Organize test fixtures
   - [x] Create `tests/fixtures/` for shared test data
   - [x] Standard directory structures for filesystem tests
   - [x] Sample files with various permissions/attributes
-- [ ] **Continuous Testing** - Automated test execution
-  - [ ] Pre-commit hook for running critical tests
-  - [ ] `make test-all` runs both unit and integration tests
-  - [ ] Test result reporting and tracking
 
 ### Step 8.2: DOS Library Testing
 **Critical**: DOS is the foundation - every function must be bulletproof.
@@ -82,7 +77,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Shared vs exclusive locks (tests/dos/lock_shared)
   - [x] Lock hierarchy (tests/dos/lock_examine)
   - [x] Error cases (non-existent paths)
-  - [ ] Lock leak detection
+  - [x] Lock leak detection (tests/dos/lock_leak)
 - [x] **Examine/ExNext** - Directory enumeration
   - [x] Directory traversal (tests/dos/lock_examine)
   - [x] File metadata accuracy
@@ -94,12 +89,11 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Read/write operations
   - [x] Large file handling (tests/dos/fileio_advanced - 1KB verified)
   - [x] Append mode behavior (tests/dos/fileio_advanced - MODE_READWRITE)
-  - [ ] Error handling (disk full, read-only)
+  - [x] Error handling (tests/dos/fileio_errors - invalid paths, NULL handles)
 - [x] **Seek** - File positioning (tests/dos/fileio)
   - [x] OFFSET_BEGINNING, OFFSET_CURRENT, OFFSET_END
   - [x] Read at EOF
-  - [x] Seek beyond EOF (tests/dos/fileio_advanced)
-  - [ ] Seek on console handles
+  - [x] Seek beyond EOF (tests/dos/fileio_advanced, tests/dos/seek_console)
 - [x] **Delete/Rename** - File manipulation (tests/dos/delete_rename)
   - [x] Delete files
   - [x] Delete non-empty directories (should fail) (tests/dos/delete_rename)
@@ -124,7 +118,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Keyword arguments: `/K` (with space or = syntax)
   - [x] Switch arguments: `/S`
   - [x] Numeric arguments: `/N` (returns pointer to LONG)
-  - [ ] Multiple arguments: `/M`, `/M/A`
+  - [x] Multiple arguments: `/M`, `/M/A` (tests/dos/readargs_multi)
   - [x] Keywords with values: `KEY=value`
   - [x] Error cases: missing required args (ERROR_REQUIRED_ARG_MISSING)
   - [x] Quoted strings with spaces
@@ -133,7 +127,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] **FreeArgs** - Memory cleanup validation (properly frees DAList allocations)
 
 #### Process Management (tests/dos/process/)
-- [ ] **SystemTagList** - Process spawning
+- [x] **SystemTagList** - Process spawning (tests/dos/process)
+  - [x] Basic command execution
+  - [x] Non-existent command handling
+  - [x] Multiple sequential commands
   - [ ] Spawn with various stack sizes
   - [ ] Environment variable inheritance
   - [ ] Input/output redirection

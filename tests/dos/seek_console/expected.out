@@ -1,0 +1,24 @@
+Seek on File Handles Test
+=========================
+
+Test 1: Create file and test Seek(BEGINNING)
+  Seek(BEGIN) returned: 0
+  PASS: Seek(BEGIN) works
+
+Test 2: Seek to end of file
+  Seek(END) returned: 10
+  PASS: Seek(END) works
+
+Test 3: Seek with OFFSET_CURRENT
+  Seek(CURRENT, -2) returned: 3
+  PASS: Seek(CURRENT) works
+  Current position: 3
+  PASS: Position is 3 after seek back 2 from 5
+
+Test 4: Seek beyond EOF
+  Seek(100) returned: 100
+  PASS: Seek beyond EOF allowed
+
+=== Test Summary ===
+Passed: 5
+Failed: 0

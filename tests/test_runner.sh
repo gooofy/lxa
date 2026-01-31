@@ -48,10 +48,15 @@ rom_path = $LXA_ROM
 SYS = $TEST_DIR
 EOF
 
-# If LXA_SYS is provided and has System directory, use it for shell tests
-if [ -n "$LXA_SYS" ] && [ -d "$LXA_SYS/System" ]; then
+# If LXA_SYS is provided, set up system directories
+if [ -n "$LXA_SYS" ]; then
+    # Link C: commands if test doesn't have its own C directory
+    if [ -d "$LXA_SYS/C" ] && [ ! -d "$TEST_DIR/C" ]; then
+        ln -sf "$LXA_SYS/C" "$TEST_DIR/C" 2>/dev/null || true
+    fi
+    
     # Check if test directory has its own System directory (shell tests)
-    if [ -d "$TEST_DIR/System" ]; then
+    if [ -d "$LXA_SYS/System" ] && [ -d "$TEST_DIR/System" ]; then
         # Copy shell from build to test's System directory
         cp "$LXA_SYS/System/Shell" "$TEST_DIR/System/Shell" 2>/dev/null || true
     fi

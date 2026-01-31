@@ -126,3 +126,12 @@ tests/dos/special_chars/special_chars
 tests/shell/alias/alias
 tests/shell/controlflow/controlflow
 tests/shell/script/script
+
+# Test symlinks created by test_runner.sh
+tests/*/C
+tests/*/*/C
+
+# Test build artifacts (but keep expected.out)
+tests/**/actual.out
+tests/**/lxa.log
+tests/**/*.o
