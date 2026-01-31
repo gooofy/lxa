@@ -109,6 +109,8 @@ Runs all integration tests. Individual tests can be run:
 make -C tests/dos/helloworld run-test
 ```
 
+**IMPORTANT**: **Always** use a timeout when running tests - OS tests may hang!
+
 ### Toolchains
 - **Host**: Standard `gcc` for Linux components
 - **Amiga**: `m68k-amigaos-gcc` (libnix) for ROM and system tools

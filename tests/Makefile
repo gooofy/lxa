@@ -20,6 +20,7 @@ all:
 	@$(MAKE) -C dos/fileio
 	@$(MAKE) -C dos/fileio_advanced
 	@$(MAKE) -C dos/readargs
+	@$(MAKE) -C dos/readargs_full
 	@$(MAKE) -C dos/patterns
 	@$(MAKE) -C dos/dir_command
 	@$(MAKE) -C dos/createdir
@@ -40,6 +41,7 @@ clean:
 	@$(MAKE) -C dos/fileio clean
 	@$(MAKE) -C dos/fileio_advanced clean
 	@$(MAKE) -C dos/readargs clean
+	@$(MAKE) -C dos/readargs_full clean
 	@$(MAKE) -C dos/patterns clean
 	@$(MAKE) -C dos/dir_command clean
 	@$(MAKE) -C dos/createdir clean
@@ -57,6 +59,7 @@ clean:
 	rm -f dos/fileio/actual.out
 	rm -f dos/fileio_advanced/actual.out
 	rm -f dos/readargs/actual.out
+	rm -f dos/readargs_full/actual.out
 	rm -f dos/patterns/actual.out
 	rm -f dos/dir_command/actual.out
 	rm -f dos/createdir/actual.out
@@ -82,6 +85,7 @@ run-tests:
 	@$(MAKE) -C dos/fileio run-test
 	@$(MAKE) -C dos/fileio_advanced run-test
 	@$(MAKE) -C dos/readargs run-test
+	@$(MAKE) -C dos/readargs_full run-test
 	@$(MAKE) -C dos/patterns run-test
 	@$(MAKE) -C dos/dir_command run-test
 	@$(MAKE) -C dos/createdir run-test

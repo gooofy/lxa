@@ -118,19 +118,19 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [ ] Case sensitivity (Amiga is case-insensitive) - current impl is case-sensitive
   - [x] Pattern tokenization edge cases
 
-#### Argument Parsing (tests/dos/readargs/)
-- [x] **ReadArgs** - Template parsing and validation (tests/dos/readargs)
+#### Argument Parsing (tests/dos/readargs/, tests/dos/readargs_full/)
+- [x] **ReadArgs** - Template parsing and validation (tests/dos/readargs, tests/dos/readargs_full)
   - [x] Simple arguments: `/A` (required)
-  - [ ] Keyword arguments: `/K` (needs implementation work)
+  - [x] Keyword arguments: `/K` (with space or = syntax)
   - [x] Switch arguments: `/S`
-  - [ ] Numeric arguments: `/N` (needs implementation work)
+  - [x] Numeric arguments: `/N` (returns pointer to LONG)
   - [ ] Multiple arguments: `/M`, `/M/A`
-  - [ ] Keywords with values: `KEY=value` (needs implementation work)
-  - [ ] Error cases: missing required args
-  - [ ] Quoted strings with spaces
+  - [x] Keywords with values: `KEY=value`
+  - [x] Error cases: missing required args (ERROR_REQUIRED_ARG_MISSING)
+  - [x] Quoted strings with spaces
   - [ ] Empty input handling
   - [ ] Template parsing edge cases
-- [ ] **FreeArgs** - Memory cleanup validation
+- [x] **FreeArgs** - Memory cleanup validation (properly frees DAList allocations)
 
 #### Process Management (tests/dos/process/)
 - [ ] **SystemTagList** - Process spawning

@@ -2690,6 +2690,12 @@ LONG _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
 #define RDAF_ALLOCATED_BY_READARGS 0x80
 #endif
 
+/* Internal structure for tracking allocations made by ReadArgs */
+typedef struct DANode {
+    struct DANode *next;
+    APTR memory;
+} DANode;
+
 typedef struct {
     char name[64];
     ULONG flags;
@@ -2836,9 +2842,13 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
     STRPTR *multi_values_flat = (STRPTR *)AllocVec(num_items * (MAX_MULTI_VALUES + 1) * sizeof(STRPTR), MEMF_CLEAR);
     LONG *multi_counts = (LONG *)AllocVec(num_items * sizeof(LONG), MEMF_CLEAR);
     
-    if (!multi_values_flat || !multi_counts) {
+    /* Allocate storage for /N numeric values (one LONG per item) */
+    LONG *numeric_storage = (LONG *)AllocVec(num_items * sizeof(LONG), MEMF_CLEAR);
+    
+    if (!multi_values_flat || !multi_counts || !numeric_storage) {
         if (multi_values_flat) FreeVec(multi_values_flat);
         if (multi_counts) FreeVec(multi_counts);
+        if (numeric_storage) FreeVec(numeric_storage);
         SetIoErr(ERROR_NO_FREE_STORE);
         return NULL;
     }
@@ -2846,18 +2856,49 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
     /* Helper macros to access 2D array stored as flat array */
     #define MULTI_VALUES(item, idx) multi_values_flat[(item) * (MAX_MULTI_VALUES + 1) + (idx)]
 
-    /* Parse arguments - simple whitespace tokenizer
+    /* Parse arguments - handle whitespace, quotes, and KEY=value syntax
      * AmigaDOS modifies the argument string in-place, replacing delimiters with NULLs.
-     * We need to track token start positions and null-terminate in the original string.
      */
-    LONG token_pos = 0;
     LONG current_item = -1;
     BOOL in_token = FALSE;
+    BOOL in_quotes = FALSE;
     STRPTR p = arg_str;  /* Non-const because we modify in place */
     STRPTR token_start = NULL;
 
     while (1) {
         char c = *p;
+
+        /* Handle quoted strings */
+        if (c == '"') {
+            if (!in_quotes) {
+                /* Start of quoted string */
+                in_quotes = TRUE;
+                if (!in_token) {
+                    token_start = p + 1;  /* Skip the opening quote */
+                    in_token = TRUE;
+                }
+                p++;
+                continue;
+            } else {
+                /* End of quoted string - null-terminate here */
+                in_quotes = FALSE;
+                *p = '\0';  /* Replace closing quote with NULL */
+                /* Continue to process end of token (fall through to whitespace handling) */
+                c = ' ';  /* Treat as whitespace to end token */
+            }
+        }
+
+        /* Inside quotes, everything except closing quote is part of token */
+        if (in_quotes) {
+            if (c == '\0') {
+                /* Unterminated quote - process as is */
+                break;
+            }
+            in_token = TRUE;
+            if (!token_start) token_start = p;
+            p++;
+            continue;
+        }
 
         if (c == ' ' || c == '\t' || c == '\n' || c == '\0') {
             if (in_token) {
@@ -2867,18 +2908,54 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
                 }
                 in_token = FALSE;
 
+                /* Check for KEY=value syntax */
+                STRPTR eq_pos = NULL;
+                STRPTR tp;
+                for (tp = token_start; *tp; tp++) {
+                    if (*tp == '=') {
+                        eq_pos = tp;
+                        break;
+                    }
+                }
+
+                STRPTR key_name = token_start;
+                STRPTR key_value = NULL;
+                
+                if (eq_pos) {
+                    /* Split at = sign */
+                    *eq_pos = '\0';
+                    key_value = eq_pos + 1;
+                }
+
                 /* Process the token */
                 BOOL found_keyword = FALSE;
 
                 /* Check if this is a keyword */
                 for (LONG i = 0; i < num_items; i++) {
                     if (items[i].flags & TEMPLATE_KEYWORD || items[i].flags & TEMPLATE_SWITCH) {
-                        if (_stricmp((const char *)token_start, items[i].name) == 0) {
+                        if (_stricmp((const char *)key_name, items[i].name) == 0) {
                             if (items[i].flags & TEMPLATE_SWITCH) {
                                 /* Switch - just set to TRUE */
                                 array[items[i].index] = (LONG)TRUE;
+                            } else if (key_value) {
+                                /* KEY=value syntax - process value immediately */
+                                LONG idx = items[i].index;
+                                if (items[i].flags & TEMPLATE_NUMERIC) {
+                                    LONG val;
+                                    if (_str_to_long((CONST_STRPTR)key_value, &val) == 0) {
+                                        numeric_storage[idx] = val;
+                                        array[idx] = (LONG)&numeric_storage[idx];
+                                    }
+                                } else if (items[i].flags & TEMPLATE_MULTIPLE) {
+                                    if (multi_counts[idx] < MAX_MULTI_VALUES) {
+                                        MULTI_VALUES(idx, multi_counts[idx]++) = key_value;
+                                        MULTI_VALUES(idx, multi_counts[idx]) = NULL;
+                                    }
+                                } else {
+                                    array[idx] = (LONG)key_value;
+                                }
                             } else {
-                                /* Keyword - next token is the value */
+                                /* Keyword without = - next token is the value */
                                 current_item = i;
                             }
                             found_keyword = TRUE;
@@ -2888,12 +2965,13 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
                 }
 
                 if (!found_keyword && current_item >= 0) {
-                    /* This is a value for the current item */
+                    /* This is a value for the current keyword item */
                     LONG idx = items[current_item].index;
                     if (items[current_item].flags & TEMPLATE_NUMERIC) {
                         LONG val;
                         if (_str_to_long((CONST_STRPTR)token_start, &val) == 0) {
-                            array[idx] = val;
+                            numeric_storage[idx] = val;
+                            array[idx] = (LONG)&numeric_storage[idx];
                         }
                     } else if (items[current_item].flags & TEMPLATE_MULTIPLE) {
                         /* /M argument - collect into multi_values array */
@@ -2923,7 +3001,8 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
                                 if (items[i].flags & TEMPLATE_NUMERIC) {
                                     LONG val;
                                     if (_str_to_long((CONST_STRPTR)token_start, &val) == 0) {
-                                        array[idx] = val;
+                                        numeric_storage[idx] = val;
+                                        array[idx] = (LONG)&numeric_storage[idx];
                                     }
                                 } else {
                                     array[idx] = (LONG)token_start;
@@ -2943,7 +3022,6 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
             if (!in_token) {
                 token_start = p;  /* Remember start of this token */
             }
-            token_pos++;
             in_token = TRUE;
         }
 
@@ -2951,6 +3029,9 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
     }
 
     /* Now allocate arrays for /M items and copy the collected pointers */
+    /* Store them in a temporary list that will be added to RDA_DAList after result is created */
+    DANode *multi_alloc_list = NULL;
+    
     for (LONG i = 0; i < num_items; i++) {
         if (items[i].flags & TEMPLATE_MULTIPLE) {
             LONG idx = items[i].index;
@@ -2964,6 +3045,14 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
                     }
                     arr[count] = NULL;
                     array[idx] = (LONG)arr;
+                    
+                    /* Track this allocation for FreeArgs */
+                    DANode *node = (DANode *)AllocVec(sizeof(DANode), MEMF_ANY);
+                    if (node) {
+                        node->memory = arr;
+                        node->next = multi_alloc_list;
+                        multi_alloc_list = node;
+                    }
                 }
             }
         }
@@ -2975,21 +3064,37 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
             LONG idx = items[i].index;
             if (items[i].flags & TEMPLATE_MULTIPLE) {
                 if (multi_counts[idx] == 0) {
+                    /* Clean up and return error */
+                    while (multi_alloc_list) {
+                        DANode *next = multi_alloc_list->next;
+                        if (multi_alloc_list->memory) FreeVec(multi_alloc_list->memory);
+                        FreeVec(multi_alloc_list);
+                        multi_alloc_list = next;
+                    }
                     FreeVec(multi_values_flat);
                     FreeVec(multi_counts);
+                    FreeVec(numeric_storage);
                     SetIoErr(ERROR_REQUIRED_ARG_MISSING);
                     return NULL;
                 }
             } else if (array[idx] == 0) {
+                /* Clean up and return error */
+                while (multi_alloc_list) {
+                    DANode *next = multi_alloc_list->next;
+                    if (multi_alloc_list->memory) FreeVec(multi_alloc_list->memory);
+                    FreeVec(multi_alloc_list);
+                    multi_alloc_list = next;
+                }
                 FreeVec(multi_values_flat);
                 FreeVec(multi_counts);
+                FreeVec(numeric_storage);
                 SetIoErr(ERROR_REQUIRED_ARG_MISSING);
                 return NULL;
             }
         }
     }
 
-    /* Free temporary arrays */
+    /* Free temporary arrays (but NOT numeric_storage - that's needed for /N results) */
     FreeVec(multi_values_flat);
     FreeVec(multi_counts);
     
@@ -3003,6 +3108,35 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
         if (result) {
             result->RDA_Flags |= RDAF_ALLOCATED_BY_READARGS;
         }
+    }
+    
+    /* Store allocations in RDA_DAList so FreeArgs can free them */
+    if (result) {
+        /* Create a node for the numeric storage */
+        DANode *node = (DANode *)AllocVec(sizeof(DANode), MEMF_ANY);
+        if (node) {
+            node->memory = numeric_storage;
+            node->next = (DANode *)result->RDA_DAList;
+            result->RDA_DAList = (LONG)node;
+        }
+        /* Also add any /M array allocations */
+        while (multi_alloc_list) {
+            DANode *next = multi_alloc_list->next;
+            multi_alloc_list->next = (DANode *)result->RDA_DAList;
+            result->RDA_DAList = (LONG)multi_alloc_list;
+            multi_alloc_list = next;
+        }
+    } else {
+        /* Allocation failed - clean up multi_alloc_list */
+        while (multi_alloc_list) {
+            DANode *next = multi_alloc_list->next;
+            if (multi_alloc_list->memory) {
+                FreeVec(multi_alloc_list->memory);
+            }
+            FreeVec(multi_alloc_list);
+            multi_alloc_list = next;
+        }
+        FreeVec(numeric_storage);
     }
 
     return result;
@@ -3249,6 +3383,18 @@ VOID _dos_FreeArgs ( register struct DosLibrary * DOSBase __asm("a6"),
 
     if (!args)
         return;
+
+    /* Free all allocations tracked in RDA_DAList */
+    DANode *node = (DANode *)args->RDA_DAList;
+    while (node) {
+        DANode *next = node->next;
+        if (node->memory) {
+            FreeVec(node->memory);
+        }
+        FreeVec(node);
+        node = next;
+    }
+    args->RDA_DAList = 0;
 
     /* Free if allocated by ReadArgs */
     if (args->RDA_Flags & RDAF_ALLOCATED_BY_READARGS) {
