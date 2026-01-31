@@ -1,0 +1,18 @@
+ECHO Testing Shell Variables
+ECHO =======================
+; Test SET command to create a variable
+SET TESTVAR Hello
+ECHO Test 1: SET variable created
+; Variables are local to shell process, verify SET command works
+; Test SETENV for global variables
+SETENV MYENV GlobalValue
+ECHO Test 2: SETENV variable created
+; Test GETENV to retrieve
+GETENV MYENV
+; Test UNSETENV
+UNSETENV MYENV
+ECHO Test 3: UNSETENV completed
+; GETENV should now return nothing or error
+ECHO Test 4: GETENV after unset
+GETENV MYENV
+ECHO Variable tests done

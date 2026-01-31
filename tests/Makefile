@@ -54,6 +54,15 @@ all:
 	@$(MAKE) -C commands/eval
 	@$(MAKE) -C commands/setenv
 	@$(MAKE) -C commands/syscmd
+	@$(MAKE) -C commands/dir
+	@$(MAKE) -C commands/delete
+	@$(MAKE) -C commands/type
+	@$(MAKE) -C commands/makedir
+	@$(MAKE) -C commands/assign
+	@$(MAKE) -C commands/status
+	@$(MAKE) -C commands/break_cmd
+	@$(MAKE) -C commands/run
+	@$(MAKE) -C shell/variables
 	@$(MAKE) -C stress/memory
 	@$(MAKE) -C stress/tasks
 	@$(MAKE) -C stress/filesystem
@@ -100,6 +109,15 @@ clean:
 	@$(MAKE) -C commands/eval clean
 	@$(MAKE) -C commands/setenv clean
 	@$(MAKE) -C commands/syscmd clean
+	@$(MAKE) -C commands/dir clean
+	@$(MAKE) -C commands/delete clean
+	@$(MAKE) -C commands/type clean
+	@$(MAKE) -C commands/makedir clean
+	@$(MAKE) -C commands/assign clean
+	@$(MAKE) -C commands/status clean
+	@$(MAKE) -C commands/break_cmd clean
+	@$(MAKE) -C commands/run clean
+	@$(MAKE) -C shell/variables clean
 	@$(MAKE) -C stress/memory clean
 	@$(MAKE) -C stress/tasks clean
 	@$(MAKE) -C stress/filesystem clean
@@ -143,6 +161,15 @@ clean:
 	rm -f commands/eval/actual.out
 	rm -f commands/setenv/actual.out
 	rm -f commands/syscmd/actual.out
+	rm -f commands/dir/actual.out
+	rm -f commands/delete/actual.out
+	rm -f commands/type/actual.out
+	rm -f commands/makedir/actual.out
+	rm -f commands/assign/actual.out
+	rm -f commands/status/actual.out
+	rm -f commands/break_cmd/actual.out
+	rm -f commands/run/actual.out
+	rm -f shell/variables/actual.out
 	rm -f stress/memory/actual.out
 	rm -f stress/tasks/actual.out
 	rm -f stress/filesystem/actual.out
@@ -194,6 +221,15 @@ run-tests:
 	@$(MAKE) -C commands/eval run-test
 	@$(MAKE) -C commands/setenv run-test
 	@$(MAKE) -C commands/syscmd run-test
+	@$(MAKE) -C commands/dir run-test
+	@$(MAKE) -C commands/delete run-test
+	@$(MAKE) -C commands/type run-test
+	@$(MAKE) -C commands/makedir run-test
+	@$(MAKE) -C commands/assign run-test
+	@$(MAKE) -C commands/status run-test
+	@$(MAKE) -C commands/break_cmd run-test
+	@$(MAKE) -C commands/run run-test
+	@$(MAKE) -C shell/variables run-test
 	@$(MAKE) -C stress/memory run-test
 	@$(MAKE) -C stress/tasks run-test
 	@$(MAKE) -C stress/filesystem run-test

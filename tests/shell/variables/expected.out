@@ -1,0 +1,8 @@
+Testing Shell Variables
+=======================
+Test 1: SET variable created
+Test 2: SETENV variable created
+GlobalValue
+Test 3: UNSETENV completed
+Test 4: GETENV after unset
+Variable tests done

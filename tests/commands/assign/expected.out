@@ -1,0 +1,27 @@
+ASSIGN Command Test
+===================
+
+Test 1: Verify SYS: assign exists
+  PASS: SYS: accessible
+
+Test 2: Verify C: assign exists
+  PASS: C: accessible
+
+Test 3: Create test directory for assign
+  PASS: Test directory created
+
+Test 4: Create assign using AssignLock
+  PASS: AssignLock succeeded
+
+Test 5: Verify new assign accessible
+  PASS: TESTASSIGN: accessible
+
+Test 6: Remove assign
+  PASS: Assign removed
+
+Cleanup: Removing test data
+  Cleanup complete
+
+=== Test Summary ===
+Passed: 6
+Failed: 0

@@ -1,0 +1,25 @@
+RUN Command Test
+================
+
+Test 1: LoadSeg for existing binary
+  PASS: LoadSeg returned seglist
+
+Test 2: LoadSeg fails for non-existent binary
+_dos: LoadSeg() Open() for name=SYS:nonexistent_command_xyz failed
+  PASS: LoadSeg returned NULL for invalid file
+
+Test 3: NP_ tag constants defined
+  PASS: NP_ tags are defined
+
+Test 4: Current process has CLI number
+  PASS: Process has CLI number > 0
+
+Test 5: NIL: device is available
+  PASS: NIL: device available
+
+Test 6: Input/Output handles available
+  PASS: Input/Output handles valid
+
+=== Test Summary ===
+Passed: 6
+Failed: 0
