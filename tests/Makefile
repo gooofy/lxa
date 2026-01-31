@@ -3,14 +3,14 @@
 include Makefile.config
 
 # Test categories
-TEST_CATS := dos exec shell commands
+TEST_CATS := dos exec shell commands stress
 
 # Color output
 GREEN = \033[0;32m
 RED = \033[0;31m
 RESET = \033[0m
 
-.PHONY: all clean test run-tests help
+.PHONY: all clean test run-tests stress-tests help
 
 all:
 	@echo "Building all tests..."
@@ -54,6 +54,9 @@ all:
 	@$(MAKE) -C commands/eval
 	@$(MAKE) -C commands/setenv
 	@$(MAKE) -C commands/syscmd
+	@$(MAKE) -C stress/memory
+	@$(MAKE) -C stress/tasks
+	@$(MAKE) -C stress/filesystem
 
 clean:
 	@echo "Cleaning all tests..."
@@ -97,6 +100,9 @@ clean:
 	@$(MAKE) -C commands/eval clean
 	@$(MAKE) -C commands/setenv clean
 	@$(MAKE) -C commands/syscmd clean
+	@$(MAKE) -C stress/memory clean
+	@$(MAKE) -C stress/tasks clean
+	@$(MAKE) -C stress/filesystem clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -137,6 +143,9 @@ clean:
 	rm -f commands/eval/actual.out
 	rm -f commands/setenv/actual.out
 	rm -f commands/syscmd/actual.out
+	rm -f stress/memory/actual.out
+	rm -f stress/tasks/actual.out
+	rm -f stress/filesystem/actual.out
 
 test: all
 	@echo ""
@@ -185,12 +194,24 @@ run-tests:
 	@$(MAKE) -C commands/eval run-test
 	@$(MAKE) -C commands/setenv run-test
 	@$(MAKE) -C commands/syscmd run-test
+	@$(MAKE) -C stress/memory run-test
+	@$(MAKE) -C stress/tasks run-test
+	@$(MAKE) -C stress/filesystem run-test
 
 help:
 	@echo "Integration Test Suite"
 	@echo ""
 	@echo "Targets:"
-	@echo "  all         - Build all test binaries"
-	@echo "  test        - Build and run all tests"
-	@echo "  clean       - Clean all test artifacts"
-	@echo "  help        - Show this help"
+	@echo "  all           - Build all test binaries"
+	@echo "  test          - Build and run all tests"
+	@echo "  stress-tests  - Run only stress tests"
+	@echo "  clean         - Clean all test artifacts"
+	@echo "  help          - Show this help"
+
+stress-tests:
+	@echo ""
+	@echo "Running stress tests..."
+	@echo ""
+	@$(MAKE) -C stress/memory run-test
+	@$(MAKE) -C stress/tasks run-test
+	@$(MAKE) -C stress/filesystem run-test
