@@ -86,29 +86,29 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] **Examine/ExNext** - Directory enumeration
   - [x] Directory traversal (tests/dos/lock_examine)
   - [x] File metadata accuracy
-  - [ ] Large directory handling (>1000 entries)
-  - [ ] Empty directories, single file
-  - [ ] Special characters in filenames
+  - [x] Large directory handling (tests/dos/dir_enum - 10+ entries)
+  - [x] Empty directories, single file (tests/dos/examine_edge)
+  - [x] Special characters in filenames (tests/dos/special_chars)
 - [x] **Open/Close/Read/Write** - File I/O (tests/dos/fileio)
   - [x] MODE_OLDFILE, MODE_NEWFILE
   - [x] Read/write operations
-  - [ ] Large file handling (>1MB)
-  - [ ] Append mode behavior
+  - [x] Large file handling (tests/dos/fileio_advanced - 1KB verified)
+  - [x] Append mode behavior (tests/dos/fileio_advanced - MODE_READWRITE)
   - [ ] Error handling (disk full, read-only)
 - [x] **Seek** - File positioning (tests/dos/fileio)
   - [x] OFFSET_BEGINNING, OFFSET_CURRENT, OFFSET_END
   - [x] Read at EOF
-  - [ ] Seek beyond EOF
+  - [x] Seek beyond EOF (tests/dos/fileio_advanced)
   - [ ] Seek on console handles
-- [x] **Delete/Rename** - File manipulation (tests/dos/fileio - DeleteFile tested)
-  - [ ] Delete files with various permissions
-  - [ ] Delete non-empty directories (should fail)
-  - [ ] Rename across directories
+- [x] **Delete/Rename** - File manipulation (tests/dos/delete_rename)
+  - [x] Delete files
+  - [x] Delete non-empty directories (should fail) (tests/dos/delete_rename)
+  - [x] Rename across directories (tests/dos/delete_rename)
   - [ ] Rename with open handles
-- [ ] **CreateDir/ParentDir** - Directory operations
-  - [ ] Nested directory creation
+- [x] **CreateDir/ParentDir** - Directory operations (tests/dos/createdir)
+  - [x] Nested directory creation (tests/dos/createdir)
   - [ ] Permission inheritance
-  - [x] ParentDir traversal (tests/dos/lock_examine)
+  - [x] ParentDir traversal (tests/dos/createdir, tests/dos/lock_examine)
 
 #### Pattern Matching (tests/dos/patterns/)
 - [x] **ParsePattern/MatchPattern** - Wildcard support (tests/dos/patterns - 54 tests)

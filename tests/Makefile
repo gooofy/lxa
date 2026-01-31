@@ -18,9 +18,15 @@ all:
 	@$(MAKE) -C dos/lock_examine
 	@$(MAKE) -C dos/lock_shared
 	@$(MAKE) -C dos/fileio
+	@$(MAKE) -C dos/fileio_advanced
 	@$(MAKE) -C dos/readargs
 	@$(MAKE) -C dos/patterns
 	@$(MAKE) -C dos/dir_command
+	@$(MAKE) -C dos/createdir
+	@$(MAKE) -C dos/delete_rename
+	@$(MAKE) -C dos/examine_edge
+	@$(MAKE) -C dos/special_chars
+	@$(MAKE) -C dos/dir_enum
 	@$(MAKE) -C exec/signal_pingpong
 	@$(MAKE) -C shell/alias
 	@$(MAKE) -C shell/controlflow
@@ -32,9 +38,15 @@ clean:
 	@$(MAKE) -C dos/lock_examine clean
 	@$(MAKE) -C dos/lock_shared clean
 	@$(MAKE) -C dos/fileio clean
+	@$(MAKE) -C dos/fileio_advanced clean
 	@$(MAKE) -C dos/readargs clean
 	@$(MAKE) -C dos/patterns clean
 	@$(MAKE) -C dos/dir_command clean
+	@$(MAKE) -C dos/createdir clean
+	@$(MAKE) -C dos/delete_rename clean
+	@$(MAKE) -C dos/examine_edge clean
+	@$(MAKE) -C dos/special_chars clean
+	@$(MAKE) -C dos/dir_enum clean
 	@$(MAKE) -C exec/signal_pingpong clean
 	@$(MAKE) -C shell/alias clean
 	@$(MAKE) -C shell/controlflow clean
@@ -43,9 +55,15 @@ clean:
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
 	rm -f dos/fileio/actual.out
+	rm -f dos/fileio_advanced/actual.out
 	rm -f dos/readargs/actual.out
 	rm -f dos/patterns/actual.out
 	rm -f dos/dir_command/actual.out
+	rm -f dos/createdir/actual.out
+	rm -f dos/delete_rename/actual.out
+	rm -f dos/examine_edge/actual.out
+	rm -f dos/special_chars/actual.out
+	rm -f dos/dir_enum/actual.out
 	rm -f exec/signal_pingpong/actual.out
 	rm -f shell/alias/actual.out
 	rm -f shell/controlflow/actual.out
@@ -62,9 +80,15 @@ run-tests:
 	@$(MAKE) -C dos/lock_examine run-test
 	@$(MAKE) -C dos/lock_shared run-test
 	@$(MAKE) -C dos/fileio run-test
+	@$(MAKE) -C dos/fileio_advanced run-test
 	@$(MAKE) -C dos/readargs run-test
 	@$(MAKE) -C dos/patterns run-test
 	@$(MAKE) -C dos/dir_command run-test
+	@$(MAKE) -C dos/createdir run-test
+	@$(MAKE) -C dos/delete_rename run-test
+	@$(MAKE) -C dos/examine_edge run-test
+	@$(MAKE) -C dos/special_chars run-test
+	@$(MAKE) -C dos/dir_enum run-test
 	@$(MAKE) -C exec/signal_pingpong run-test
 	@$(MAKE) -C shell/alias run-test
 	@$(MAKE) -C shell/controlflow run-test
