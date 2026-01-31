@@ -455,6 +455,490 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
+## Phase 10: DOS Library Completion
+
+**Goal**: Implement all HIGH and MEDIUM priority DOS functions to achieve ~80% AmigaOS compatibility.
+
+### Step 10.1: Path Utilities (Essential for All Programs)
+These are used by virtually every AmigaOS program for path manipulation.
+
+- [ ] **FilePart** - Extract filename from path
+  - Returns pointer to filename portion after last `/` or `:`
+  - Edge cases: just filename, trailing slash, just device
+  - **Tests**: `tests/dos/filepart/`
+
+- [ ] **PathPart** - Extract directory from path
+  - Returns pointer to character after last directory separator
+  - Or start of string if no directory
+  - **Tests**: `tests/dos/pathpart/`
+
+- [ ] **AddPart** - Concatenate path components
+  - Properly handles `/`, `:`, and buffer overflow
+  - Returns FALSE if buffer too small
+  - **Tests**: `tests/dos/addpart/`
+
+### Step 10.2: Character I/O Functions
+Essential for interactive programs and line-based input.
+
+- [ ] **FGetC** - Read single character from file
+  - Returns character or -1 on EOF/error
+  - Handles buffered I/O properly
+  - **Tests**: `tests/dos/fgetc/`
+
+- [ ] **FPutC** - Write single character to file
+  - Returns character written or -1 on error
+  - **Tests**: `tests/dos/fputc/`
+
+- [ ] **UnGetC** - Push character back to stream
+  - One character pushback per stream
+  - Returns pushed character or -1 on error
+  - **Tests**: `tests/dos/ungetc/`
+
+- [ ] **FGets** - Read line from file
+  - Reads up to length-1 characters or newline
+  - Returns buffer pointer or NULL on EOF
+  - **Tests**: `tests/dos/fgets/`
+
+- [ ] **FPuts** - Write string to file
+  - Returns 0 on success, -1 on error
+  - Does not append newline
+  - **Tests**: `tests/dos/fputs/`
+
+- [ ] **PutStr** - Write string to Output()
+  - Convenience wrapper for FPuts to stdout
+  - **Tests**: `tests/dos/putstr/`
+
+- [ ] **WriteChars** - Write N characters to Output()
+  - Returns characters written
+  - **Tests**: `tests/dos/writechars/`
+
+### Step 10.3: Formatted Output
+For `Printf`-style operations (many programs use these).
+
+- [ ] **VFPrintf** - Formatted output to file
+  - Format string with va_list arguments
+  - Returns characters written or -1
+  - Supports: %s, %ld, %lx, %lc, %-*, %0*
+  - **Tests**: `tests/dos/vfprintf/`
+
+- [ ] **VPrintf** - Formatted output to Output()
+  - Convenience wrapper for VFPrintf
+  - **Tests**: `tests/dos/vprintf/`
+
+### Step 10.4: Standard I/O Redirection
+Allow programs to redirect their I/O streams.
+
+- [ ] **SelectInput** - Redirect standard input
+  - Returns old input stream
+  - Used for script input redirection
+  - **Tests**: `tests/dos/selectinput/`
+
+- [ ] **SelectOutput** - Redirect standard output
+  - Returns old output stream
+  - Used for output capture
+  - **Tests**: `tests/dos/selectoutput/`
+
+### Step 10.5: File Handle Utilities
+Bridge between locks and file handles.
+
+- [ ] **DupLockFromFH** - Get lock from file handle
+  - Returns SHARED_LOCK from open file
+  - Useful for examining open files
+  - **Tests**: `tests/dos/duplockfromfh/`
+
+- [ ] **ExamineFH** - Examine from file handle
+  - Fill FileInfoBlock from open file
+  - No need for separate lock
+  - **Tests**: `tests/dos/examinefh/`
+
+- [ ] **NameFromFH** - Get filename from handle
+  - Returns full path of open file
+  - **Tests**: `tests/dos/namefromfh/`
+
+- [ ] **ParentOfFH** - Get parent directory from handle
+  - Returns lock on parent directory
+  - **Tests**: `tests/dos/parentoffh/`
+
+- [ ] **OpenFromLock** - Open file from lock
+  - Convert lock to file handle
+  - Lock is consumed (freed)
+  - **Tests**: `tests/dos/openfromlock/`
+
+### Step 10.6: Break Signal Handling
+Essential for Ctrl+C support in long-running operations.
+
+- [ ] **CheckSignal** - Check for break signals
+  - Returns and clears specified signals
+  - Used for Ctrl+C checking in loops
+  - **Tests**: `tests/dos/checksignal/`
+
+- [ ] **WaitForChar** - Check for pending input
+  - Returns TRUE if character available
+  - Timeout in microseconds
+  - **Tests**: `tests/dos/waitforchar/`
+
+### Step 10.7: Pattern Matching Enhancements
+Complete the pattern matching system.
+
+- [ ] **MatchPatternNoCase** - Case-insensitive matching
+  - Like MatchPattern but ignores case
+  - Essential for Amiga-like behavior
+  - **Tests**: `tests/dos/matchpatternnocase/`
+
+- [ ] **ParsePatternNoCase** - Case-insensitive pattern parse
+  - Companion to MatchPatternNoCase
+  - **Tests**: `tests/dos/parsepatternnocase/`
+
+- [ ] **MatchFirst** / **MatchNext** / **MatchEnd** - Directory pattern search
+  - High-level wildcard file finding
+  - Combines Lock + Examine + Pattern matching
+  - Handles multi-level patterns (#?/#?.c)
+  - **Tests**: `tests/dos/matchfirst/`
+
+### Step 10.8: Date/Time Functions
+For programs that display or manipulate dates.
+
+- [ ] **DateToStr** - Format date for display
+  - Converts DateStamp to string
+  - Supports various formats (FORMAT_DOS, FORMAT_INT, FORMAT_USA, etc.)
+  - **Tests**: `tests/dos/datetostr/`
+
+- [ ] **StrToDate** - Parse date string
+  - Converts formatted string to DateStamp
+  - **Tests**: `tests/dos/strtodate/`
+
+- [ ] **CompareDates** - Compare two DateStamps
+  - Returns <0, 0, >0 for comparison
+  - **Tests**: `tests/dos/comparedates/`
+
+### Step 10.9: Error Handling
+Provide human-readable error messages.
+
+- [ ] **Fault** - Get error message string
+  - Converts error code to message
+  - Fills buffer with error text
+  - **Tests**: `tests/dos/fault/`
+
+- [ ] **PrintFault** - Print error message
+  - Prints "header: error message"
+  - Convenience for error reporting
+  - **Tests**: `tests/dos/printfault/`
+
+### Step 10.10: DosList Access (For ASSIGN command and similar)
+Allow enumeration of mounted volumes and devices.
+
+- [ ] **LockDosList** - Lock DosList for access
+  - Flags: LDF_DEVICES, LDF_VOLUMES, LDF_ASSIGNS, LDF_READ, LDF_WRITE
+  - **Tests**: `tests/dos/lockdoslist/`
+
+- [ ] **UnLockDosList** - Release DosList lock
+  - Must match LockDosList flags
+  - **Tests**: Part of lockdoslist tests
+
+- [ ] **FindDosEntry** - Find specific entry
+  - Search by name and type
+  - **Tests**: `tests/dos/finddosentry/`
+
+- [ ] **NextDosEntry** - Iterate DosList
+  - Get next entry matching flags
+  - **Tests**: `tests/dos/nextdosentry/`
+
+- [ ] **GetDeviceProc** / **FreeDeviceProc** - Resolve device
+  - Get handler for path
+  - **Tests**: `tests/dos/getdeviceproc/`
+
+- [ ] **IsFileSystem** - Check if path is filesystem
+  - Returns TRUE for disk-like handlers
+  - **Tests**: `tests/dos/isfilesystem/`
+
+---
+
+## Phase 11: Exec Library Completion
+
+**Goal**: Implement remaining HIGH priority Exec functions for robust multitasking support.
+
+### Step 11.1: List Operations
+- [ ] **RemTail** - Remove node from list tail
+  - Returns removed node or NULL if empty
+  - **Tests**: `tests/exec/remtail/`
+
+### Step 11.2: Memory Functions
+- [ ] **TypeOfMem** - Identify memory type
+  - Returns MEMF_* flags for address
+  - **Tests**: `tests/exec/typeofmem/`
+
+- [ ] **CopyMemQuick** - Optimized memory copy
+  - Longword-aligned fast copy
+  - **Tests**: `tests/exec/copymemquick/`
+
+### Step 11.3: Memory Pools
+Efficient memory management for frequent allocations.
+
+- [ ] **CreatePool** - Create memory pool
+  - Parameters: memFlags, puddleSize, threshSize
+  - **Tests**: `tests/exec/createpool/`
+
+- [ ] **DeletePool** - Delete memory pool
+  - Frees all pool memory at once
+  - **Tests**: Part of createpool tests
+
+- [ ] **AllocPooled** - Allocate from pool
+  - Fast allocation from pool
+  - **Tests**: `tests/exec/allocpooled/`
+
+- [ ] **FreePooled** - Free to pool
+  - Return memory to pool
+  - **Tests**: Part of allocpooled tests
+
+### Step 11.4: Formatted Output
+- [ ] **RawDoFmt** - Format string to buffer/function
+  - Core formatting engine used by Printf, etc.
+  - DataStream is array of LONG values
+  - PutChProc called for each character
+  - **Tests**: `tests/exec/rawdofmt/`
+
+### Step 11.5: Asynchronous I/O
+For programs that don't want to block on I/O.
+
+- [ ] **SendIO** - Start asynchronous I/O
+  - Returns immediately, I/O continues
+  - **Tests**: `tests/exec/sendio/`
+
+- [ ] **WaitIO** - Wait for I/O completion
+  - Blocks until I/O done
+  - Returns error code
+  - **Tests**: `tests/exec/waitio/`
+
+- [ ] **CheckIO** - Check I/O status
+  - Returns NULL if still pending
+  - Returns request if complete
+  - **Tests**: `tests/exec/checkio/`
+
+- [ ] **AbortIO** - Cancel I/O request
+  - Attempts to abort pending I/O
+  - **Tests**: `tests/exec/abortio/`
+
+### Step 11.6: Software Interrupts
+- [ ] **Cause** - Trigger software interrupt
+  - Queues interrupt for execution
+  - Used for deferred processing
+  - **Tests**: `tests/exec/cause/`
+
+### Step 11.7: Shared Semaphores
+For read-heavy synchronization scenarios.
+
+- [ ] **ObtainSemaphoreShared** - Get shared lock
+  - Multiple readers allowed
+  - Blocks if writer holds lock
+  - **Tests**: `tests/exec/sharedsema/`
+
+- [ ] **AttemptSemaphoreShared** - Try shared lock
+  - Non-blocking shared lock attempt
+  - **Tests**: Part of sharedsema tests
+
+### Step 11.8: Named Semaphores
+- [ ] **AddSemaphore** - Register named semaphore
+  - Makes semaphore findable by name
+  - **Tests**: `tests/exec/namedsema/`
+
+- [ ] **RemSemaphore** - Unregister named semaphore
+  - **Tests**: Part of namedsema tests
+
+- [ ] **FindSemaphore** - Find semaphore by name
+  - **Tests**: Part of namedsema tests
+
+---
+
+## Phase 12: Utility Library Completion
+
+**Goal**: Implement remaining essential Utility functions.
+
+### Step 12.1: String Functions
+- [ ] **Strnicmp** - Length-limited case-insensitive compare
+  - Like Stricmp but with length limit
+  - **Tests**: `tests/utility/strnicmp/`
+
+### Step 12.2: Date Functions
+- [ ] **Date2Amiga** - ClockData to Amiga seconds
+  - Reverse of Amiga2Date
+  - **Tests**: `tests/utility/date2amiga/`
+
+- [ ] **CheckDate** - Validate ClockData structure
+  - Returns corrected day-of-week
+  - Returns 0 if date invalid
+  - **Tests**: `tests/utility/checkdate/`
+
+### Step 12.3: Tag Item Management
+- [ ] **AllocateTagItems** - Allocate tag array
+  - Returns zeroed TagItem array
+  - **Tests**: `tests/utility/alloctagitems/`
+
+- [ ] **FreeTagItems** - Free tag array
+  - Frees AllocateTagItems memory
+  - **Tests**: Part of alloctagitems tests
+
+- [ ] **CloneTagItems** - Duplicate tag list
+  - Creates independent copy
+  - **Tests**: `tests/utility/clonetagitems/`
+
+- [ ] **RefreshTagItemClones** - Update cloned tags
+  - Syncs cloned tags with original
+  - **Tests**: `tests/utility/refreshtagclones/`
+
+- [ ] **FilterTagItems** - Filter tags by array
+  - Remove/keep tags matching filter
+  - **Tests**: `tests/utility/filtertagitems/`
+
+- [ ] **TagInArray** - Check tag in array
+  - Returns TRUE if tag found
+  - **Tests**: `tests/utility/taginarray/`
+
+### Step 12.4: Hook Functions
+- [ ] **CallHookPkt** - Call hook function
+  - Invokes hook with object and message
+  - **Tests**: `tests/utility/callhookpkt/`
+
+### Step 12.5: 64-bit Math (Optional)
+- [ ] **SMult64** - Signed 64-bit multiply
+  - Returns 64-bit result
+  - **Tests**: `tests/utility/smult64/`
+
+- [ ] **UMult64** - Unsigned 64-bit multiply
+  - **Tests**: `tests/utility/umult64/`
+
+---
+
+## Phase 13: Console Device Enhancement
+
+**Goal**: Provide full ANSI/CSI escape sequence support for terminal applications.
+
+### Step 13.1: Cursor Control
+- [ ] **Cursor Positioning** - CSI row;col H
+  - Move cursor to absolute position
+  - Handle CSI H (home position)
+
+- [ ] **Relative Movement** - CSI n A/B/C/D
+  - Move cursor up/down/left/right
+  - Default n=1 if omitted
+
+- [ ] **Save/Restore Position** - CSI s / CSI u
+  - Save and restore cursor position
+
+### Step 13.2: Line/Screen Control
+- [ ] **Clear Line** - CSI K variants
+  - CSI 0 K - clear to end of line
+  - CSI 1 K - clear to start of line
+  - CSI 2 K - clear entire line
+
+- [ ] **Clear Screen** - CSI J variants
+  - CSI 0 J - clear to end of screen
+  - CSI 1 J - clear to start of screen
+  - CSI 2 J - clear entire screen
+
+- [ ] **Insert/Delete** - CSI @ / CSI P / CSI L / CSI M
+  - Insert/delete characters and lines
+  - Scroll affected regions
+
+### Step 13.3: Text Attributes
+- [ ] **SGR Attributes** - CSI n m
+  - Bold (1), underline (4), reverse (7)
+  - Normal (0), bold off (22), underline off (24)
+  - Foreground colors (30-37)
+  - Background colors (40-47)
+
+### Step 13.4: Window Queries
+- [ ] **Window Bounds** - CSI 0 q
+  - Report window dimensions
+  - Return CSI rows;cols r
+
+### Step 13.5: Raw Mode Support
+- [ ] **SetMode** - Raw/cooked mode switching
+  - MODE_RAW for character-at-a-time input
+  - MODE_COOKED for line-buffered input
+
+---
+
+## Phase 14: Additional Commands
+
+**Goal**: Expand command set to cover common AmigaOS utilities.
+
+### Step 14.1: File Management
+- [ ] **RELABEL** - Rename volume
+  - Template: `DRIVE/A,NAME/A`
+  - Note: May not apply to Linux-hosted volumes
+
+- [ ] **AVAIL** - Display memory information
+  - Template: `CHIP/S,FAST/S,TOTAL/S,FLUSH/S`
+  - Shows Exec memory status
+
+- [ ] **RESIDENT** - Manage resident commands
+  - Template: `NAME,FILE,REMOVE/S,ADD/S,REPLACE/S,PURE/S,SYSTEM/S`
+  - Note: Simplified for lxa context
+
+### Step 14.2: Script Support
+- [ ] **ASK** - Interactive prompt
+  - Template: `PROMPT/A`
+  - Returns WARN (5) for No, 0 for Yes
+
+- [ ] **REQUESTCHOICE** - Choice dialog (text-based)
+  - Template: `TITLE/A,BODY/A,GADGETS/A/M`
+  - Returns gadget number
+
+- [ ] **REQUESTFILE** - File requester (text-based)
+  - Simple text-based file browser
+
+### Step 14.3: System Information
+- [ ] **CPU** - Display CPU information
+  - Shows emulated 68000 info
+  - Note: Simplified for m68k emulation
+
+- [ ] **MOUNT** - Mount filesystem
+  - Template: `DEVICE/M,FROM/K`
+  - Add new drive mappings
+
+### Step 14.4: Shell Enhancements
+- [ ] **CD** with no args - Show current directory
+  - Currently requires argument
+
+- [ ] **WHICH** - Locate command
+  - Template: `NAME/A,NORES/S,RES/S,ALL/S`
+  - Search C:, resident list, path
+
+- [ ] **PATH** - Manage search path
+  - Template: `PATH/M,ADD/S,REMOVE/S,RESET/S,QUIET/S`
+  - Modify command search path
+
+---
+
+## Phase 15: Quality & Stability Hardening
+
+**Goal**: Ensure production-grade reliability.
+
+### Step 15.1: Memory Debugging
+- [ ] Add memory tracking to detect leaks
+- [ ] Implement double-free detection
+- [ ] Add buffer overflow guards
+- [ ] Memory usage reporting
+
+### Step 15.2: Stress Testing
+- [ ] 24-hour continuous operation test
+- [ ] 10,000 file operation stress test
+- [ ] 100 concurrent process stress test
+- [ ] Memory fragmentation analysis
+
+### Step 15.3: Compatibility Testing
+- [ ] Test with common Amiga software
+- [ ] Document compatibility issues
+- [ ] Create compatibility database
+
+### Step 15.4: Performance Optimization
+- [ ] Profile critical paths
+- [ ] Optimize VFS path resolution
+- [ ] Optimize memory allocation
+- [ ] Reduce emucall overhead
+
+---
+
 ## Implementation Rules
 1. **Clean Room Approach**: AROS/Kickstart source is for architectural reference ONLY.
 2. **Host-First**: Prefer host-side (`emucall`) implementations for filesystem tasks.
