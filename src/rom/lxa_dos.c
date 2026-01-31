@@ -1723,18 +1723,88 @@ STRPTR _dos_FGets ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buf __asm("d2"),
                                                         register ULONG buflen __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FGets() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_dos: FGets(fh=%08lx, buf=%08lx, buflen=%lu) called.\n", fh, buf, buflen);
+    
+    if (!fh || !buf || buflen < 2)
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return NULL;
+    }
+    
+    /* Read characters one at a time until newline, EOF, or buffer full */
+    ULONG pos = 0;
+    ULONG maxread = buflen - 1;  /* Leave room for null terminator */
+    
+    while (pos < maxread)
+    {
+        UBYTE ch;
+        LONG result = _dos_Read(DOSBase, fh, &ch, 1);
+        
+        if (result < 0)
+        {
+            /* Read error */
+            DPRINTF (LOG_DEBUG, "_dos: FGets: Read error at pos %lu\n", pos);
+            if (pos == 0)
+                return NULL;  /* Error before any data read */
+            break;  /* Return what we have */
+        }
+        
+        if (result == 0)
+        {
+            /* EOF */
+            DPRINTF (LOG_DEBUG, "_dos: FGets: EOF at pos %lu\n", pos);
+            if (pos == 0)
+                return NULL;  /* EOF before any data read */
+            break;  /* Return what we have */
+        }
+        
+        buf[pos++] = ch;
+        
+        if (ch == '\n')
+        {
+            /* End of line */
+            break;
+        }
+    }
+    
+    buf[pos] = '\0';  /* Null terminate */
+    
+    DPRINTF (LOG_DEBUG, "_dos: FGets: returning %lu chars\n", pos);
+    return buf;
 }
 
 LONG _dos_FPuts ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register CONST_STRPTR str __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FPuts() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: FPuts(fh=%08lx, str=%08lx) called.\n", fh, str);
+    
+    if (!fh)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+    
+    if (!str)
+    {
+        return 0;  /* Nothing to write, but not an error */
+    }
+    
+    /* Calculate string length */
+    ULONG len = 0;
+    const char *p = (const char *)str;
+    while (*p++) len++;
+    
+    if (len == 0)
+        return 0;  /* Empty string, success */
+    
+    /* Write the string (without null terminator) */
+    LONG result = _dos_Write(DOSBase, fh, (CONST APTR)str, len);
+    
+    if (result < 0)
+        return -1;  /* Error */
+    
+    return 0;  /* Success - FPuts returns 0 on success, -1 on error */
 }
 
 VOID _dos_VFWritef ( register struct DosLibrary * DOSBase __asm("a6"),

@@ -109,9 +109,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - [x] Simple wildcards: `#?`, `*`, `?`
   - [x] Complex patterns: `#?.c`, `test#?`
   - [x] Pattern tokenization edge cases
-  - **Known Limitations:**
-    - [ ] Character classes: `[abc]`, `[a-z]` (not implemented - requires parser enhancement)
-    - [ ] Case-insensitive matching: `MatchPatternNoCase` is a stub (Amiga is case-insensitive)
+  - [x] Character classes: `[abc]`, `[a-z]` (fully implemented)
+  - [x] Case-insensitive matching: `MatchPatternNoCase` (fully implemented)
 
 #### Argument Parsing (tests/dos/readargs/, tests/dos/readargs_full/)
 - [x] **ReadArgs** - Template parsing and validation (tests/dos/readargs, tests/dos/readargs_full)
@@ -149,8 +148,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - Note: Multi-line scripts cause crash in Deallocate (known bug)
   - Note: Break handling (Ctrl+C) not tested
 
-### Step 8.2.1: Critical Bug Fixes (HIGH PRIORITY)
-**Issues discovered during Step 8.2 testing that must be addressed before proceeding.**
+### Step 8.2.1: Critical Bug Fixes (COMPLETED)
+**Issues discovered during Step 8.2 testing - all addressed.**
 
 #### Memory Management Bugs - FIXED
 - [x] **ROM static data bug** - RootNode and TaskArray corruption
@@ -168,32 +167,31 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - Fix: Reduced TemplateItem from 136 to 72 bytes (2304 bytes total)
   - Commit: 7bb4a14
 
-- [ ] **Execute() crash with file input** - Multi-line scripts cause crash in Deallocate
-  - Symptom: Memory corruption at address 0xFFFFFFF8 during deallocation
-  - Location: `_exec_Deallocate` in exec.c
-  - Trigger: `Execute("", script_fh, Output())` with file handle input
-  - Priority: HIGH - blocks script functionality
+- [x] **Execute() crash with file input** - Multi-line scripts cause crash
+  - Problem: `FGets()` was a stub calling assert(FALSE)
+  - Fix: Implemented `FGets()` to read lines character-by-character using `Read()`
+  - Also implemented `FPuts()` for consistency
+  - Test: tests/dos/execute_file verifies multi-line script execution
 
-#### DOS Library Enhancements
-- [ ] **SystemTagList stack size** - Currently hardcoded to 4096
-  - Should respect `NP_StackSize` tag from caller
-  - Location: `_dos_SystemTagList` in lxa_dos.c:2226
-  - Priority: MEDIUM - affects programs needing larger stack
+#### DOS Library Enhancements - FIXED
+- [x] **SystemTagList stack size** - Now respects NP_StackSize tag
+  - Uses `GetTagData(NP_StackSize, 4096, tags)` for default with override
+  - Location: `_dos_SystemTagList` in lxa_dos.c:2412
 
 - [x] **ReadArgs keyword aliases** - AS=TO syntax now working
   - Template `AS=TO/K` accepts both "AS value" and "TO value"
   - Fixed in TemplateItem size reduction commit
   - Commit: 7bb4a14
 
-#### Pattern Matching Enhancements
-- [ ] **Character classes `[abc]`, `[a-z]`** - Not implemented
-  - Requires enhancing `_match_pattern_internal` in lxa_dos.c:3225
-  - Priority: LOW - rarely used in practice
+#### Pattern Matching Enhancements - FIXED
+- [x] **Character classes `[abc]`, `[a-z]`** - Fully implemented
+  - `_match_char_class()` handles character classes with ranges and negation
+  - Works in both `_match_pattern_internal()` and `_match_pattern_internal_nocase()`
+  - Location: lxa_dos.c:3487
 
-- [ ] **Case-insensitive matching** - `MatchPatternNoCase` is a stub
-  - Currently just calls assert(FALSE)
-  - Location: `_dos_MatchPatternNoCase` in lxa_dos.c:3556
-  - Priority: MEDIUM - Amiga filesystem is case-insensitive
+- [x] **Case-insensitive matching** - `MatchPatternNoCase` fully implemented
+  - Uses `_match_pattern_internal_nocase()` with `_to_lower()` comparisons
+  - Location: `_dos_MatchPatternNoCase` in lxa_dos.c:4447
 
 ### Step 8.3: Exec Library Testing
 **Critical**: Multitasking foundation must be rock-solid.
