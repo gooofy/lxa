@@ -289,9 +289,7 @@ static LONG _utility_SMult32 ( register struct UtilityBase * UtilityBase __asm("
                                                         register LONG arg1 __asm("d0"),
                                                         register LONG arg2 __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_utility: SMult32() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    return arg1 * arg2;
 }
 
 static ULONG _utility_UMult32 ( register struct UtilityBase * UtilityBase __asm("a6"),

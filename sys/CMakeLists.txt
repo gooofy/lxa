@@ -36,6 +36,7 @@ set(C_COMMANDS
     copy
     delete
     dir
+    eval
     filenote
     join
     list
@@ -43,6 +44,8 @@ set(C_COMMANDS
     protect
     rename
     run
+    search
+    sort
     stack
     status
     type

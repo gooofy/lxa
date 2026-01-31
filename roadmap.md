@@ -363,13 +363,13 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - **Tests required**: All switches, patterns, output redirection
 
 ### Step 9.3: Search & Text Commands
-- [ ] **SEARCH** - Search for text in files
+- [x] **SEARCH** - Search for text in files
   - Template: `FROM/M/A,SEARCH/A,ALL/S,NONUM/S,QUIET/S,QUICK/S,FILE/S,PATTERN/S`
   - **Tests required**: Text search, patterns, multiple files, binary files
-- [ ] **SORT** - Sort lines of text
+- [x] **SORT** - Sort lines of text
   - Template: `FROM/A,TO/A,COLSTART/K/N,CASE/S,NUMERIC/S`
   - **Tests required**: Various sort modes, large files, edge cases
-- [ ] **EVAL** - Evaluate arithmetic expressions
+- [x] **EVAL** - Evaluate arithmetic expressions
   - Template: `VALUE1/A,OP,VALUE2/M,TO/K,LFORMAT/K`
   - **Tests required**: All operations, overflow, negative numbers
 
