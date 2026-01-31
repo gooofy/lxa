@@ -77,10 +77,28 @@ target_compile_definitions(test_config PRIVATE
 
 add_test(NAME unit_config COMMAND test_config)
 
+# === Memory Access Unit Tests ===
+# Tests memory read/write operations, byte ordering, and region boundaries
+add_executable(test_memory
+    test_memory.c
+)
+target_include_directories(test_memory PRIVATE
+    ${UNITY_DIR}
+    ${LXA_SRC_DIR}
+    ${INCLUDE_DIR}
+)
+target_link_libraries(test_memory unity)
+target_compile_definitions(test_memory PRIVATE 
+    UNIT_TESTING=1
+    _GNU_SOURCE
+)
+
+add_test(NAME unit_memory COMMAND test_memory)
+
 # === Custom target to run all unit tests ===
 add_custom_target(test-unit
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_vfs test_config
+    DEPENDS test_vfs test_config test_memory
     COMMENT "Running unit tests..."
 )
 
