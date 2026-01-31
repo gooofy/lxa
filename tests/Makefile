@@ -43,6 +43,9 @@ all:
 	@$(MAKE) -C commands/copy
 	@$(MAKE) -C commands/rename
 	@$(MAKE) -C commands/join
+	@$(MAKE) -C commands/protect
+	@$(MAKE) -C commands/filenote
+	@$(MAKE) -C commands/list
 
 clean:
 	@echo "Cleaning all tests..."
@@ -75,6 +78,9 @@ clean:
 	@$(MAKE) -C commands/copy clean
 	@$(MAKE) -C commands/rename clean
 	@$(MAKE) -C commands/join clean
+	@$(MAKE) -C commands/protect clean
+	@$(MAKE) -C commands/filenote clean
+	@$(MAKE) -C commands/list clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -104,6 +110,9 @@ clean:
 	rm -f commands/copy/actual.out
 	rm -f commands/rename/actual.out
 	rm -f commands/join/actual.out
+	rm -f commands/protect/actual.out
+	rm -f commands/filenote/actual.out
+	rm -f commands/list/actual.out
 
 test: all
 	@echo ""
@@ -141,6 +150,9 @@ run-tests:
 	@$(MAKE) -C commands/copy run-test
 	@$(MAKE) -C commands/rename run-test
 	@$(MAKE) -C commands/join run-test
+	@$(MAKE) -C commands/protect run-test
+	@$(MAKE) -C commands/filenote run-test
+	@$(MAKE) -C commands/list run-test
 
 help:
 	@echo "Integration Test Suite"

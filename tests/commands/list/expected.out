@@ -1,0 +1,46 @@
+LIST/Directory Examine Test
+===========================
+
+Setup: Creating test structure
+  Created list_test/
+  Created file1.txt (9 bytes)
+  Created file2.txt (14 bytes)
+  Created readme.doc (23 bytes)
+  Created subdir/
+
+Test 1: Lock and Examine directory
+  PASS: Directory lock and examine
+
+Test 2: Count directory entries with ExNext
+  Found: file1.txt (9 bytes)
+  Found: file2.txt (14 bytes)
+  Found: readme.doc (23 bytes)
+  Found: subdir (DIR)
+  Total files: 3, dirs: 1
+  PASS: Correct entry count (3 files, 1 dir)
+
+Test 3: Count only files (like LIST FILES)
+  Found 3 files
+  PASS: FILES filter simulation
+
+Test 4: Count only directories (like LIST DIRS)
+  Found 1 directories
+  PASS: DIRS filter simulation
+
+Test 5: Pattern matching simulation (*.txt)
+  Found 2 .txt files
+  PASS: Pattern matching (2 .txt files)
+
+Test 6: Verify file size reading
+  PASS: file1.txt size correct (9 bytes)
+
+Test 7: Verify protection bits
+  Protection: 30466
+  PASS: Protection bits readable
+
+Cleanup: Removing test structure
+  Done
+
+=== Test Summary ===
+Passed: 7
+Failed: 0

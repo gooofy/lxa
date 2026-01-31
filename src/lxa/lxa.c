@@ -15,6 +15,10 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <linux/limits.h>
+#include <sys/xattr.h>
+
+/* Define HAVE_XATTR for Linux extended attribute support */
+#define HAVE_XATTR 1
 
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -1012,14 +1016,29 @@ static uint32_t _unix_mode_to_amiga(mode_t mode)
 {
     uint32_t prot = 0;
     
-    /* Note: Amiga protection bits are inverted - 0 means permission granted */
-    /* We set the bit to 0 if permission is granted, 1 if denied */
+    /* Note: Amiga protection bits are inverted - bit SET means permission denied */
+    /* We set the bit to 1 if permission is NOT granted, 0 if granted */
     
+    /* Owner/basic permissions (bits 0-3) */
     if (!(mode & S_IRUSR)) prot |= FIBF_READ;
     if (!(mode & S_IWUSR)) prot |= FIBF_WRITE;
     if (!(mode & S_IXUSR)) prot |= FIBF_EXECUTE;
+    /* Note: delete permission is tied to write permission */
+    if (!(mode & S_IWUSR)) prot |= FIBF_DELETE;
     
-    /* Amiga also has archive and script flags - leave them as 0 (granted) */
+    /* Group permissions (bits 8-11) */
+    if (!(mode & S_IRGRP)) prot |= (1 << 11);  /* FIBB_GRP_READ */
+    if (!(mode & S_IWGRP)) prot |= (1 << 10);  /* FIBB_GRP_WRITE */
+    if (!(mode & S_IXGRP)) prot |= (1 << 9);   /* FIBB_GRP_EXECUTE */
+    if (!(mode & S_IWGRP)) prot |= (1 << 8);   /* FIBB_GRP_DELETE */
+    
+    /* Other permissions (bits 12-15) */
+    if (!(mode & S_IROTH)) prot |= (1 << 15);  /* FIBB_OTR_READ */
+    if (!(mode & S_IWOTH)) prot |= (1 << 14);  /* FIBB_OTR_WRITE */
+    if (!(mode & S_IXOTH)) prot |= (1 << 13);  /* FIBB_OTR_EXECUTE */
+    if (!(mode & S_IWOTH)) prot |= (1 << 12);  /* FIBB_OTR_DELETE */
+    
+    /* Amiga also has archive and script flags - leave them as 0 (not set) */
     
     return prot;
 }
@@ -1140,6 +1159,51 @@ static uint32_t _dos_duplock(uint32_t lock_id)
 #define FIB_fib_Reserved     228 /* char[32] */
 #define FIB_SIZE             260
 
+/* Read file comment from xattr or sidecar file */
+static void _read_file_comment(const char *linux_path, uint32_t fib68k)
+{
+    char comment[80];
+    memset(comment, 0, sizeof(comment));
+    
+    #ifdef HAVE_XATTR
+    /* Try to read from extended attribute first */
+    ssize_t len = getxattr(linux_path, "user.amiga.comment", comment, sizeof(comment) - 1);
+    if (len > 0) {
+        comment[len] = '\0';
+        for (int i = 0; i < (int)len && i < 79; i++) {
+            m68k_write_memory_8(fib68k + FIB_fib_Comment + i, comment[i]);
+        }
+        m68k_write_memory_8(fib68k + FIB_fib_Comment + ((len < 79) ? len : 79), 0);
+        return;
+    }
+    #endif
+    
+    /* Fallback: try sidecar file */
+    char sidecar_path[PATH_MAX + 10];
+    snprintf(sidecar_path, sizeof(sidecar_path), "%s.comment", linux_path);
+    
+    FILE *f = fopen(sidecar_path, "r");
+    if (f) {
+        if (fgets(comment, sizeof(comment), f)) {
+            /* Remove trailing newline if present */
+            int clen = strlen(comment);
+            if (clen > 0 && comment[clen - 1] == '\n') {
+                comment[clen - 1] = '\0';
+                clen--;
+            }
+            for (int i = 0; i < clen && i < 79; i++) {
+                m68k_write_memory_8(fib68k + FIB_fib_Comment + i, comment[i]);
+            }
+            m68k_write_memory_8(fib68k + FIB_fib_Comment + ((clen < 79) ? clen : 79), 0);
+        }
+        fclose(f);
+        return;
+    }
+    
+    /* No comment found - already cleared to 0 by FIB clear */
+    m68k_write_memory_8(fib68k + FIB_fib_Comment, 0);
+}
+
 /* Examine a lock (fill FileInfoBlock) */
 static int _dos_examine(uint32_t lock_id, uint32_t fib68k)
 {
@@ -1187,8 +1251,8 @@ static int _dos_examine(uint32_t lock_id, uint32_t fib68k)
     
     _unix_time_to_datestamp(st.st_mtime, fib68k + FIB_fib_Date);
     
-    /* No comment support on Linux filesystem */
-    m68k_write_memory_8(fib68k + FIB_fib_Comment, 0);
+    /* Read file comment from xattr or sidecar */
+    _read_file_comment(lock->linux_path, fib68k);
     
     /* Owner info */
     m68k_write_memory_16(fib68k + FIB_fib_OwnerUID, st.st_uid);
@@ -1286,7 +1350,9 @@ static int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
     
     _unix_time_to_datestamp(st.st_mtime, fib68k + FIB_fib_Date);
     
-    m68k_write_memory_8(fib68k + FIB_fib_Comment, 0);
+    /* Read file comment from xattr or sidecar */
+    _read_file_comment(fullpath, fib68k);
+    
     m68k_write_memory_16(fib68k + FIB_fib_OwnerUID, st.st_uid);
     m68k_write_memory_16(fib68k + FIB_fib_OwnerGID, st.st_gid);
     
@@ -1533,22 +1599,30 @@ static int _dos_namefromlock(uint32_t lock_id, uint32_t buf68k, uint32_t buflen)
  * Phase 4: Metadata operations
  */
 
-/* Amiga protection bits (inverted logic - bit clear = protection enabled) */
-#define FIBB_OTR_READ     0   /* Other: read */
-#define FIBB_OTR_WRITE    1   /* Other: write */
-#define FIBB_OTR_EXECUTE  2   /* Other: execute */
-#define FIBB_OTR_DELETE   3   /* Other: delete */
-#define FIBB_GRP_READ     4   /* Group: read */
-#define FIBB_GRP_WRITE    5   /* Group: write */
-#define FIBB_GRP_EXECUTE  6   /* Group: execute */
-#define FIBB_GRP_DELETE   7   /* Group: delete */
-#define FIBB_OWN_READ     8   /* Owner: read */
-#define FIBB_OWN_WRITE    9   /* Owner: write */
-#define FIBB_OWN_EXECUTE  10  /* Owner: execute */
-#define FIBB_OWN_DELETE   11  /* Owner: delete */
-#define FIBB_ARCHIVE      12  /* Archived bit */
-#define FIBB_PURE         13  /* Pure bit (reentrant executable) */
-#define FIBB_SCRIPT       14  /* Script bit */
+/* Amiga protection bits from dos/dos.h (inverted logic - bit SET = protection denied) 
+ * 
+ * Layout:
+ *   Bits 0-3:  Basic owner RWED (Read, Write, Execute, Delete)
+ *   Bits 4-7:  Special flags (Archive, Pure, Script, Hold)
+ *   Bits 8-11: Group RWED
+ *   Bits 12-15: Other RWED
+ */
+#define FIBB_DELETE       0   /* Owner: delete */
+#define FIBB_EXECUTE      1   /* Owner: execute */
+#define FIBB_WRITE        2   /* Owner: write */
+#define FIBB_READ         3   /* Owner: read */
+#define FIBB_ARCHIVE      4   /* Archived bit */
+#define FIBB_PURE         5   /* Pure bit (reentrant executable) */
+#define FIBB_SCRIPT       6   /* Script bit */
+#define FIBB_HOLD         7   /* Hold bit */
+#define FIBB_GRP_DELETE   8   /* Group: delete */
+#define FIBB_GRP_EXECUTE  9   /* Group: execute */
+#define FIBB_GRP_WRITE    10  /* Group: write */
+#define FIBB_GRP_READ     11  /* Group: read */
+#define FIBB_OTR_DELETE   12  /* Other: delete */
+#define FIBB_OTR_EXECUTE  13  /* Other: execute */
+#define FIBB_OTR_WRITE    14  /* Other: write */
+#define FIBB_OTR_READ     15  /* Other: read */
 
 /* Set file protection bits (Amiga -> Linux mapping) */
 static int _dos_setprotection(uint32_t name68k, uint32_t protect)
@@ -1562,19 +1636,19 @@ static int _dos_setprotection(uint32_t name68k, uint32_t protect)
         _dos_path2linux(amiga_path, linux_path, sizeof(linux_path));
     }
     
-    /* Amiga protection bits are inverted (0 = protected, 1 = allowed) 
-     * We'll map them to Unix permissions roughly as follows:
-     * - Owner bits map directly to user rwx
-     * - Group bits map to group rwx  
-     * - Other bits map to other rwx
-     * - Delete bit is handled by write permission
+    /* Amiga protection bits are inverted (bit SET = permission denied)
+     * Map to Unix permissions:
+     * - Basic owner bits (0-3) map to user rwx
+     * - Group bits (8-11) map to group rwx  
+     * - Other bits (12-15) map to other rwx
+     * - Delete bit controls write permission
      */
     mode_t mode = 0;
     
-    /* Owner permissions (inverted Amiga bits) */
-    if (!(protect & (1 << FIBB_OWN_READ)))    mode |= S_IRUSR;
-    if (!(protect & (1 << FIBB_OWN_WRITE)))   mode |= S_IWUSR;
-    if (!(protect & (1 << FIBB_OWN_EXECUTE))) mode |= S_IXUSR;
+    /* Owner permissions (inverted Amiga bits - bit clear means permission granted) */
+    if (!(protect & (1 << FIBB_READ)))    mode |= S_IRUSR;
+    if (!(protect & (1 << FIBB_WRITE)))   mode |= S_IWUSR;
+    if (!(protect & (1 << FIBB_EXECUTE))) mode |= S_IXUSR;
     
     /* Group permissions */
     if (!(protect & (1 << FIBB_GRP_READ)))    mode |= S_IRGRP;
@@ -1611,6 +1685,13 @@ static int _dos_setcomment(uint32_t name68k, uint32_t comment68k)
         _dos_path2linux(amiga_path, linux_path, sizeof(linux_path));
     }
     
+    /* Check if file exists first */
+    struct stat st;
+    if (stat(linux_path, &st) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_setcomment(): file not found: %s\n", linux_path);
+        return 0;
+    }
+    
     /* Try to use extended attributes first (Linux native) */
     #ifdef HAVE_XATTR
     if (comment && strlen(comment) > 0) {
@@ -1621,6 +1702,7 @@ static int _dos_setcomment(uint32_t name68k, uint32_t comment68k)
     } else {
         /* Empty comment = remove xattr */
         removexattr(linux_path, "user.amiga.comment");
+        return 1;
     }
     #endif
     

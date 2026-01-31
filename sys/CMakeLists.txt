@@ -36,8 +36,11 @@ set(C_COMMANDS
     copy
     delete
     dir
+    filenote
     join
+    list
     makedir
+    protect
     rename
     run
     stack

@@ -346,13 +346,13 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - **Tests required**: Multiple files, large files, binary files
 
 ### Step 9.2: File Information Commands
-- [ ] **PROTECT** - Change file protection bits
+- [x] **PROTECT** - Change file protection bits
   - Template: `FILE/A,FLAGS/K,ADD/S,SUB/S,ALL/S`
   - **Tests required**: Set/clear bits, recursive, validation
-- [ ] **FILENOTE** - Set file comment
+- [x] **FILENOTE** - Set file comment
   - Template: `FILE/A,COMMENT,ALL/S`
   - **Tests required**: Set/clear comments, long comments, special chars
-- [ ] **LIST** - Detailed directory listing
+- [x] **LIST** - Detailed directory listing
   - Template: `DIR/M,P=PAT/K,KEYS/S,DATES/S,NODATES/S,TO/K,SUB/S,SINCE/K,UPTO/K,QUICK/S,BLOCK/S,NOHEAD/S,FILES/S,DIRS/S,LFORMAT/K,ALL/S`
   - **Tests required**: All switches, patterns, output redirection
 

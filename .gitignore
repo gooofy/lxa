@@ -111,6 +111,9 @@ tests/dos/lock_examine/lock_examine
 tests/commands/copy/copy_test
 tests/commands/join/join_test
 tests/commands/rename/rename_test
+tests/commands/protect/protect_test
+tests/commands/filenote/filenote_test
+tests/commands/list/list_test
 tests/dos/readargs_full/readargs_full
 tests/dos/createdir/createdir
 tests/dos/delete_rename/delete_rename
