@@ -268,9 +268,16 @@ Key implementations:
 
 **Goal**: Implement the "Big Three" libraries required by most Amiga GUI software.
 
-### Step 19.1: Layers & Clipping
-- [ ] **layers.library** - Full implementation of window clipping and refresh handling.
+### Step 19.1: Layers & Clipping (IN PROGRESS)
+- [x] **layers.library** - Core implementation with Layer_Info, Layer creation/deletion, locking.
+  - Implemented: NewLayerInfo, DisposeLayerInfo, InitLayers
+  - Implemented: CreateUpfrontLayer, CreateBehindLayer, DeleteLayer
+  - Implemented: LockLayer, UnlockLayer, LockLayers, UnlockLayers, LockLayerInfo, UnlockLayerInfo
+  - Implemented: BeginUpdate, EndUpdate, WhichLayer, InstallClipRegion
+  - Implemented: MoveLayer, SizeLayer, ScrollLayer, MoveSizeLayer
+  - Implemented: Hook layer variants, layer visibility (HideLayer, ShowLayer)
 - [ ] **Window Invalidation** - Handle damage regions and `BeginRefresh`/`EndRefresh`.
+- [ ] **ClipRect Splitting** - Full overlap handling for multiple layers.
 
 ### Step 19.2: GadTools & ASL
 - [ ] **gadtools.library** - Standard UI widgets (buttons, sliders, lists).

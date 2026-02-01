@@ -3,7 +3,7 @@
 include Makefile.config
 
 # Test categories
-TEST_CATS := dos exec shell commands stress graphics intuition console
+TEST_CATS := dos exec shell commands stress graphics intuition console layers
 
 # Color output
 GREEN = \033[0;32m
@@ -83,6 +83,7 @@ all:
 	@$(MAKE) -C intuition/idcmp
 	@$(MAKE) -C intuition/idcmp_input
 	@$(MAKE) -C console/csi_cursor
+	@$(MAKE) -C layers/layer_info
 
 clean:
 	@echo "Cleaning all tests..."
@@ -155,6 +156,7 @@ clean:
 	@$(MAKE) -C intuition/idcmp clean
 	@$(MAKE) -C intuition/idcmp_input clean
 	@$(MAKE) -C console/csi_cursor clean
+	@$(MAKE) -C layers/layer_info clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -224,6 +226,7 @@ clean:
 	rm -f intuition/idcmp/actual.out
 	rm -f intuition/idcmp_input/actual.out
 	rm -f console/csi_cursor/actual.out
+	rm -f layers/layer_info/actual.out
 
 test: all
 	@echo ""
@@ -301,6 +304,7 @@ run-tests:
 	@$(MAKE) -C intuition/idcmp run-test
 	@$(MAKE) -C intuition/idcmp_input run-test
 	@$(MAKE) -C console/csi_cursor run-test
+	@$(MAKE) -C layers/layer_info run-test
 
 help:
 	@echo "Integration Test Suite"

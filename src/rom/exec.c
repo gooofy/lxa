@@ -86,6 +86,7 @@ extern struct Resident *__lxa_mathffp_ROMTag;
 extern struct Resident *__lxa_mathtrans_ROMTag;
 extern struct Resident *__lxa_graphics_ROMTag;
 extern struct Resident *__lxa_intuition_ROMTag;
+extern struct Resident *__lxa_layers_ROMTag;
 extern struct Resident *__lxa_expansion_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 extern struct Resident *__lxa_console_ROMTag;
@@ -101,6 +102,7 @@ struct Library         *MathBase;
 struct Library         *MathTransBase;
 struct GfxBase         *GfxBase;
 struct IntuitionBase   *IntuitionBase;
+struct Library         *LayersBase;
 struct ExpansionBase   *ExpansionBase;
 struct Library         *DeviceInputBase;
 struct Library         *DeviceConsoleBase;
@@ -3837,6 +3839,7 @@ void coldstart (void)
     MathTransBase = (struct Library       *) registerBuiltInLib (sizeof(*MathTransBase) , __lxa_mathtrans_ROMTag );
     GfxBase       = (struct GfxBase       *) registerBuiltInLib (sizeof(*GfxBase)       , __lxa_graphics_ROMTag  );
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
+    LayersBase    = (struct Library       *) registerBuiltInLib (sizeof(*LayersBase)    , __lxa_layers_ROMTag    );
     ExpansionBase = (struct ExpansionBase *) registerBuiltInLib (sizeof(*ExpansionBase) , __lxa_expansion_ROMTag );
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in libraries\n");
