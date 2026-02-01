@@ -122,29 +122,31 @@ See `doc/graphics_testing.md` for detailed test specifications.
 
 ---
 
-## Phase 14: Intuition Basics
+## Phase 14: Intuition Basics (PARTIAL)
 
 **Goal**: Implement windowing and user input.
 
-### Step 14.1: Intuition Core
-- [ ] **Library Structure** - `intuition.library` initialization.
-- [ ] **Screen/Window** - `OpenWindow`, `CloseWindow` (Integrated Mode: rendering into Screen BitMap).
-- [ ] **Refresh** - Handle `BeginRefresh`, `EndRefresh`.
+### Step 14.1: Intuition Core (COMPLETE)
+- [x] **Library Structure** - `intuition.library` already initialized.
+- [x] **OpenWindow** - Allocates Window, links to Screen, sets up borders and RastPort.
+- [x] **CloseWindow** - Cleans up IDCMP port, unlinks from Screen, frees Window.
 
-### Step 14.2: Input Handling
+### Step 14.2: Input Handling (PARTIAL)
+- [x] **IDCMP Port Setup** - UserPort created/deleted based on IDCMPFlags.
+- [x] **ModifyIDCMP** - Dynamically add/remove IDCMP flags.
 - [ ] **Input Pipeline** - SDL Events -> Host Input Handler -> `input.device`.
-- [ ] **IDCMP** - Post `IntuiMessage` to Window ports (MOUSEBUTTONS, RAWKEY).
-- [ ] **Mouse** - Track mouse position, update `Window->MouseX/Y`.
+- [ ] **IDCMP Posting** - Post `IntuiMessage` to Window ports (MOUSEBUTTONS, RAWKEY).
+- [ ] **Mouse Tracking** - Track mouse position, update `Window->MouseX/Y`.
 
-### Step 14.3: Basic Gadgets
+### Step 14.3: Basic Gadgets (DEFERRED)
 - [ ] **System Gadgets** - Visual representation of Close/Depth/Drag gadgets.
 - [ ] **Gadget Interaction** - Hit testing and basic state changes.
 
-### Step 14.4: Intuition Test Coverage (REQUIRED)
-- [ ] **Test Suite** - Create `tests/intuition/` directory with comprehensive tests.
-- [ ] `screen_basic` - Verify OpenScreen() creates correct structures.
-- [ ] `window_basic` - Verify OpenWindow() and IDCMP setup.
-- [ ] `idcmp` - Test IDCMP message delivery and ModifyIDCMP.
+### Step 14.4: Intuition Test Coverage (COMPLETE)
+- [x] **Test Suite** - `tests/intuition/` directory with comprehensive tests.
+- [x] `screen_basic` - Verify OpenScreen() creates correct structures.
+- [x] `window_basic` - Verify OpenWindow() and window linkage.
+- [x] `idcmp` - Test ModifyIDCMP and port creation/deletion.
 
 See `doc/graphics_testing.md` for detailed test specifications.
 

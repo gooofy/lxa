@@ -161,8 +161,44 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
 VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: CloseWindow() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() window=0x%08lx\n", (ULONG)window);
+
+    if (!window)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: CloseWindow() called with NULL window\n");
+        return;
+    }
+
+    /* TODO: Reply to any pending IDCMP messages */
+
+    /* Free the IDCMP message port if we created it */
+    if (window->UserPort)
+    {
+        /* Remove and delete the port */
+        /* Note: caller should have already drained the messages */
+        DeleteMsgPort(window->UserPort);
+        window->UserPort = NULL;
+    }
+
+    /* Unlink window from screen's window list */
+    if (window->WScreen)
+    {
+        struct Window **wp = &window->WScreen->FirstWindow;
+        while (*wp)
+        {
+            if (*wp == window)
+            {
+                *wp = window->NextWindow;
+                break;
+            }
+            wp = &(*wp)->NextWindow;
+        }
+    }
+
+    /* Free the Window structure */
+    FreeMem(window, sizeof(struct Window));
+
+    DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() done\n");
 }
 
 LONG _intuition_CloseWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -274,9 +310,43 @@ BOOL _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __as
                                                         register struct Window * window __asm("a0"),
                                                         register ULONG flags __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ModifyIDCMP() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_intuition: ModifyIDCMP() window=0x%08lx flags=0x%08lx\n",
+             (ULONG)window, (ULONG)flags);
+
+    if (!window)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: ModifyIDCMP() called with NULL window\n");
+        return FALSE;
+    }
+
+    /* If flags are being cleared and we had IDCMP active, remove the port */
+    if (flags == 0 && window->UserPort)
+    {
+        /* Drain any pending messages first */
+        struct Message *msg;
+        while ((msg = GetMsg(window->UserPort)) != NULL)
+        {
+            ReplyMsg(msg);
+        }
+        
+        DeleteMsgPort(window->UserPort);
+        window->UserPort = NULL;
+    }
+    /* If we're setting flags and didn't have a port, create one */
+    else if (flags != 0 && !window->UserPort)
+    {
+        window->UserPort = CreateMsgPort();
+        if (!window->UserPort)
+        {
+            LPRINTF (LOG_ERROR, "_intuition: ModifyIDCMP() failed to create port\n");
+            return FALSE;
+        }
+    }
+
+    /* Update the flags */
+    window->IDCMPFlags = flags;
+
+    return TRUE;
 }
 
 VOID _intuition_ModifyProp ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -468,9 +538,118 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
 struct Window * _intuition_OpenWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewWindow * newWindow __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: OpenWindow() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct Window *window;
+    struct Screen *screen;
+    WORD width, height;
+
+    DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() newWindow=0x%08lx\n", (ULONG)newWindow);
+
+    if (!newWindow)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: OpenWindow() called with NULL newWindow\n");
+        return NULL;
+    }
+
+    /* Get the target screen */
+    screen = newWindow->Screen;
+    if (!screen)
+    {
+        /* TODO: Use default public screen (Workbench) if not specified */
+        LPRINTF (LOG_ERROR, "_intuition: OpenWindow() requires a screen (no Workbench yet)\n");
+        return NULL;
+    }
+
+    /* Calculate window dimensions */
+    width = newWindow->Width;
+    height = newWindow->Height;
+
+    /* Apply defaults if dimensions are zero */
+    if (width == 0)
+        width = screen->Width - newWindow->LeftEdge;
+    if (height == 0)
+        height = screen->Height - newWindow->TopEdge;
+
+    DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() %dx%d at (%d,%d)\n",
+             (int)width, (int)height, (int)newWindow->LeftEdge, (int)newWindow->TopEdge);
+
+    /* Allocate Window structure */
+    window = (struct Window *)AllocMem(sizeof(struct Window), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!window)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: OpenWindow() out of memory for Window\n");
+        return NULL;
+    }
+
+    /* Initialize window fields */
+    window->LeftEdge = newWindow->LeftEdge;
+    window->TopEdge = newWindow->TopEdge;
+    window->Width = width;
+    window->Height = height;
+    window->MinWidth = newWindow->MinWidth ? newWindow->MinWidth : width;
+    window->MinHeight = newWindow->MinHeight ? newWindow->MinHeight : height;
+    window->MaxWidth = newWindow->MaxWidth ? newWindow->MaxWidth : (UWORD)-1;
+    window->MaxHeight = newWindow->MaxHeight ? newWindow->MaxHeight : (UWORD)-1;
+    window->Flags = newWindow->Flags;
+    window->IDCMPFlags = newWindow->IDCMPFlags;
+    window->Title = newWindow->Title;
+    window->WScreen = screen;
+    window->DetailPen = newWindow->DetailPen;
+    window->BlockPen = newWindow->BlockPen;
+    window->FirstGadget = newWindow->FirstGadget;
+    window->CheckMark = newWindow->CheckMark;
+
+    /* Set up border dimensions based on flags */
+    if (newWindow->Flags & WFLG_BORDERLESS)
+    {
+        window->BorderLeft = 0;
+        window->BorderTop = 0;
+        window->BorderRight = 0;
+        window->BorderBottom = 0;
+    }
+    else
+    {
+        /* Standard window borders */
+        window->BorderLeft = 4;
+        window->BorderRight = 4;
+        window->BorderBottom = 2;
+        
+        /* Top border depends on whether we have a drag bar or title */
+        if ((newWindow->Flags & WFLG_DRAGBAR) || newWindow->Title)
+            window->BorderTop = 11;  /* Room for title bar */
+        else
+            window->BorderTop = 2;
+    }
+
+    /* Set up the RastPort - windows share the screen's BitMap */
+    window->RPort = &screen->RastPort;
+    /* Note: In a full implementation, we'd create a clipping layer here */
+
+    /* Create IDCMP message port if IDCMP flags are set */
+    if (newWindow->IDCMPFlags)
+    {
+        window->UserPort = CreateMsgPort();
+        if (!window->UserPort)
+        {
+            LPRINTF (LOG_ERROR, "_intuition: OpenWindow() failed to create IDCMP port\n");
+            FreeMem(window, sizeof(struct Window));
+            return NULL;
+        }
+    }
+
+    /* Link window into screen's window list */
+    window->NextWindow = screen->FirstWindow;
+    screen->FirstWindow = window;
+
+    /* Activate window if requested */
+    if (newWindow->Flags & WFLG_ACTIVATE)
+    {
+        window->Flags |= WFLG_WINDOWACTIVE;
+        /* TODO: Deactivate previous active window */
+    }
+
+    DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() -> 0x%08lx\n", (ULONG)window);
+
+    return window;
 }
 
 ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"))
