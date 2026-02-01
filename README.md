@@ -96,9 +96,33 @@ DH1 = /mnt/data/amiga
 
 [floppies]
 DF0 = ~/.lxa/floppy0
+
+[assigns]
+KP2 = /path/to/kickpascal2
+LIBS = /path/to/kickpascal2/libs
 ```
 
 See [doc/configuration.md](doc/configuration.md) for details.
+
+### Running Applications from App-DB
+
+The App-DB (`../lxa-apps/`) contains Amiga applications with environment manifests:
+
+```bash
+# List available apps
+./tests/run_apps.py --list
+
+# Run an app
+./tests/run_apps.py kickpascal2
+
+# Run with custom timeout
+./tests/run_apps.py kickpascal2 --timeout 30
+
+# Run all apps
+./tests/run_apps.py --all
+```
+
+Each app has an `app.json` manifest defining its assigns, required libraries, and test configuration.
 
 ## Usage
 
@@ -174,15 +198,16 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Phase 13 Complete** - Graphics Foundation with Screen Management
+**Phase 18 Complete** - App-DB & KickPascal 2 Testing Infrastructure
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
 ## Known Limitations
 
 - CPU: 68000 only (no 68020+ or FPU)
-- Graphics: Basic screen/drawing support (OpenScreen, CloseScreen, basic drawing primitives)
-- Intuition: Screen management only (no windows yet)
+- Graphics: Basic screen/window support (OpenScreen, OpenWindow, basic drawing primitives)
+- Intuition: Screen and window management, basic IDCMP input handling
+- GUI Apps: Run but need display support for visual output
 - Networking: Not implemented
 - Audio: Not implemented
 

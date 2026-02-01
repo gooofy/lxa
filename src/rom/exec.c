@@ -409,8 +409,36 @@ void _exec_MakeFunctions ( register struct ExecBase * SysBase __asm("a6"),
 struct Resident * _exec_FindResident ( register struct ExecBase * SysBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: FindResident unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: FindResident called, name=%s\n", ___name);
+    
+    /* Search through the ResModules array */
+    struct Resident **res = SysBase->ResModules;
+    if (res)
+    {
+        while (*res)
+        {
+            /* Handle both direct pointers and chained arrays */
+            if ((ULONG)*res & 0x80000000)
+            {
+                /* This is a pointer to another array (negative) */
+                res = (struct Resident **)((ULONG)*res & 0x7FFFFFFF);
+                continue;
+            }
+            
+            struct Resident *r = *res;
+            if (r->rt_MatchWord == RTC_MATCHWORD && r->rt_MatchTag == r)
+            {
+                if (strcmp(r->rt_Name, (const char *)___name) == 0)
+                {
+                    DPRINTF (LOG_DEBUG, "_exec: FindResident found %s at 0x%08lx\n", ___name, r);
+                    return r;
+                }
+            }
+            res++;
+        }
+    }
+    
+    DPRINTF (LOG_DEBUG, "_exec: FindResident: %s not found\n", ___name);
     return NULL;
 }
 
@@ -418,9 +446,76 @@ APTR _exec_InitResident ( register struct ExecBase * SysBase __asm("a6"),
                                                         register const struct Resident * ___resident  __asm("a1"),
                                                         register ULONG ___segList  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: InitResident unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: InitResident called, resident=0x%08lx segList=0x%08lx\n", ___resident, ___segList);
+    
+    if (!___resident)
+        return NULL;
+    
+    /* Verify the resident structure */
+    if (___resident->rt_MatchWord != RTC_MATCHWORD || ___resident->rt_MatchTag != ___resident)
+    {
+        LPRINTF (LOG_ERROR, "_exec: InitResident: invalid resident structure\n");
+        return NULL;
+    }
+    
+    DPRINTF (LOG_DEBUG, "_exec: InitResident: name=%s type=%d flags=0x%02x\n", 
+             ___resident->rt_Name, ___resident->rt_Type, ___resident->rt_Flags);
+    
+    APTR result = NULL;
+    
+    if (___resident->rt_Flags & RTF_AUTOINIT)
+    {
+        /* RTF_AUTOINIT: rt_Init points to an InitTable structure */
+        struct InitTable *initTab = (struct InitTable *)___resident->rt_Init;
+        
+        DPRINTF (LOG_DEBUG, "_exec: InitResident: AUTOINIT LibBaseSize=%ld\n", initTab->LibBaseSize);
+        
+        /* Create the library using MakeLibrary */
+        struct Library *libBase = MakeLibrary (
+            initTab->FunctionTable, 
+            initTab->DataTable, 
+            initTab->InitLibFn, 
+            initTab->LibBaseSize, 
+            ___segList
+        );
+        
+        if (libBase)
+        {
+            /* Add to appropriate list based on type */
+            switch (___resident->rt_Type)
+            {
+                case NT_LIBRARY:
+                    AddTail (&SysBase->LibList, (struct Node*) libBase);
+                    DPRINTF (LOG_DEBUG, "_exec: InitResident: added library %s to LibList\n", ___resident->rt_Name);
+                    break;
+                case NT_DEVICE:
+                    AddTail (&SysBase->DeviceList, (struct Node*) libBase);
+                    DPRINTF (LOG_DEBUG, "_exec: InitResident: added device %s to DeviceList\n", ___resident->rt_Name);
+                    break;
+                case NT_RESOURCE:
+                    AddTail (&SysBase->ResourceList, (struct Node*) libBase);
+                    DPRINTF (LOG_DEBUG, "_exec: InitResident: added resource %s to ResourceList\n", ___resident->rt_Name);
+                    break;
+                default:
+                    LPRINTF (LOG_WARNING, "_exec: InitResident: unknown type %d for %s\n", 
+                             ___resident->rt_Type, ___resident->rt_Name);
+                    break;
+            }
+            result = libBase;
+        }
+    }
+    else
+    {
+        /* Non-AUTOINIT: rt_Init is a function pointer to call directly */
+        typedef APTR (*initFn_t)(register BPTR segList __asm("a0"));
+        initFn_t initFn = (initFn_t)___resident->rt_Init;
+        
+        DPRINTF (LOG_DEBUG, "_exec: InitResident: calling init function at 0x%08lx\n", initFn);
+        result = initFn((BPTR)___segList);
+    }
+    
+    DPRINTF (LOG_DEBUG, "_exec: InitResident: done, result=0x%08lx\n", result);
+    return result;
 }
 
 void _exec_Alert ( register struct ExecBase *SysBase   __asm("a6"),
@@ -2536,7 +2631,107 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
     }
     else
     {
-        LPRINTF (LOG_ERROR, "\n_exec: OpenLibrary: *** ERROR: requested library %s was not found.\n\n", libName);
+        /* Library not found in resident list - try to load from disk */
+        DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: %s not resident, trying LIBS:\n", libName);
+        
+        /* Build path to library file */
+        char libPath[256];
+        libPath[0] = '\0';
+        
+        /* First try LIBS: */
+        strcpy(libPath, "LIBS:");
+        strcat(libPath, (const char *)libName);
+        
+        DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s\n", libPath);
+        
+        BPTR segList = LoadSeg((STRPTR)libPath);
+        
+        if (!segList)
+        {
+            /* Try with .library extension if not already present */
+            const char *dot = (const char *)libName;
+            while (*dot && *dot != '.') dot++;
+            if (!*dot)
+            {
+                strcpy(libPath, "LIBS:");
+                strcat(libPath, (const char *)libName);
+                strcat(libPath, ".library");
+                
+                DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s\n", libPath);
+                segList = LoadSeg((STRPTR)libPath);
+            }
+        }
+        
+        if (segList)
+        {
+            DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: loaded segList=0x%08lx from %s\n", segList, libPath);
+            
+            /* Search the loaded code for a Resident (RomTag) structure */
+            BPTR seg = segList;
+            struct Resident *res = NULL;
+            
+            while (seg && !res)
+            {
+                ULONG *hunk = BADDR(seg);
+                ULONG size = hunk[-1];  /* Size is stored before the hunk pointer */
+                UWORD *ptr = (UWORD *)(hunk + 1);  /* Skip the next-segment pointer */
+                UWORD *end = (UWORD *)((UBYTE *)ptr + size - 8);  /* Subtract header size */
+                
+                DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: scanning hunk at 0x%08lx size=%ld for RomTag\n", hunk, size);
+                
+                /* Search for RTC_MATCHWORD (0x4AFC - the ILLEGAL instruction) */
+                while (ptr < end)
+                {
+                    if (*ptr == RTC_MATCHWORD)
+                    {
+                        struct Resident *r = (struct Resident *)ptr;
+                        /* Verify it's a valid Resident structure */
+                        if (r->rt_MatchTag == r)
+                        {
+                            DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: found RomTag at 0x%08lx, name=%s\n", r, r->rt_Name);
+                            res = r;
+                            break;
+                        }
+                    }
+                    ptr++;
+                }
+                
+                /* Move to next segment */
+                seg = *((BPTR *)BADDR(seg));
+            }
+            
+            if (res)
+            {
+                /* Initialize the library using InitResident */
+                lib = (struct Library *)InitResident(res, segList);
+                
+                if (lib && lib->lib_Version >= version)
+                {
+                    /* Call the library's Open function */
+                    struct JumpVec *jv = &(((struct JumpVec *)(lib))[-1]);
+                    libOpenFn_t openfn = jv->vec;
+                    lib = openfn(lib);
+                    
+                    DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: successfully loaded %s from disk, lib=0x%08lx\n", libName, lib);
+                }
+                else if (lib && lib->lib_Version < version)
+                {
+                    DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: loaded library version %ld < requested %ld\n", 
+                             lib->lib_Version, version);
+                    /* FIXME: Should we unload and return NULL? For now just return the lib */
+                }
+            }
+            else
+            {
+                LPRINTF (LOG_ERROR, "_exec: OpenLibrary: no RomTag found in %s\n", libPath);
+                UnLoadSeg(segList);
+            }
+        }
+        
+        if (!lib)
+        {
+            LPRINTF (LOG_ERROR, "\n_exec: OpenLibrary: *** ERROR: requested library %s was not found.\n\n", libName);
+        }
     }
 
     return lib;

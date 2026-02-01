@@ -215,6 +215,14 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
         return true;
     }
 
+    /* Handle absolute Linux paths - pass through unchanged */
+    if (amiga_path[0] == '/') {
+        strncpy(linux_path, amiga_path, maxlen);
+        linux_path[maxlen - 1] = '\0';
+        DPRINTF(LOG_DEBUG, "vfs: absolute Linux path: %s\n", amiga_path);
+        return true;
+    }
+
     char work_path[PATH_MAX];
     const char *p = amiga_path;
     char *colon = strchr(amiga_path, ':');

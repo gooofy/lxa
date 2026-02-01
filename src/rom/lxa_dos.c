@@ -917,7 +917,9 @@ BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
     ULONG hunk_last = 0;
     while ( Read (f, &hunk_type, 4) == 4)
     {
-        DPRINTF (LOG_DEBUG, "_dos: LoadSeg() reading hunk #%3d type 0x%08lx\n", hunk_cur, hunk_type);
+        /* Mask off memory flags (upper 2 bits) and any extended flags */
+        DPRINTF (LOG_DEBUG, "_dos: LoadSeg() reading hunk #%3d type 0x%08lx (raw)\n", hunk_cur, hunk_type);
+        hunk_type = hunk_type & 0x3FFFFFFF;
 
         switch (hunk_type)
         {
@@ -1023,6 +1025,7 @@ BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
 			}
 
             default:
+                LPRINTF(LOG_ERROR, "_dos: LoadSeg() unknown hunk type 0x%08lx in file %s\n", hunk_type, ___name);
                 assert(FALSE);
         }
     }

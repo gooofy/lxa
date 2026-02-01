@@ -52,6 +52,9 @@ bool config_load(const char *path) {
                 }
             } else if (strcmp(section, "drives") == 0 || strcmp(section, "floppies") == 0) {
                 vfs_add_drive(key, val);
+            } else if (strcmp(section, "assigns") == 0) {
+                /* Phase 18: Support [assigns] section for library/device paths */
+                vfs_assign_add(key, val, ASSIGN_LOCK);
             } else if (strcmp(section, "display") == 0) {
                 if (strcmp(key, "rootless_mode") == 0) {
                     g_rootless_mode = (strcmp(val, "true") == 0 || strcmp(val, "1") == 0);
