@@ -52,5 +52,13 @@
 #define EMU_CALL_DOS_ASSIGN_REMOVE 1031  /* AssignRemove(name) -> success */
 #define EMU_CALL_DOS_ASSIGN_LIST   1032  /* AssignList(buf, buflen) -> count */
 
+/* Phase 10: File Handle Utilities */
+#define EMU_CALL_DOS_DUPLOCKFROMFH 1040  /* DupLockFromFH(fh) -> lock_id */
+#define EMU_CALL_DOS_EXAMINEFH     1041  /* ExamineFH(fh, fib68k) -> success */
+#define EMU_CALL_DOS_NAMEFROMFH    1042  /* NameFromFH(fh, buf, len) -> success */
+#define EMU_CALL_DOS_PARENTOFFH    1043  /* ParentOfFH(fh) -> lock_id */
+#define EMU_CALL_DOS_OPENFROMLOCK  1044  /* OpenFromLock(lock) -> fh */
+#define EMU_CALL_DOS_WAITFORCHAR   1045  /* WaitForChar(fh, timeout) -> success */
+
 #endif
 

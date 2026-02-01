@@ -10,6 +10,7 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
+#include <dos/dosasl.h>
 #include <dos/var.h>
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
@@ -1183,9 +1184,18 @@ LONG _dos_WaitForChar ( register struct DosLibrary * __libBase __asm("a6"),
                                         register BPTR ___file  __asm("d1"),
                                         register LONG ___timeout  __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: WaitForChar() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: WaitForChar() called, file=0x%08lx, timeout=%ld\n", ___file, ___timeout);
+
+    if (!___file) {
+        return DOSFALSE;
+    }
+
+    struct FileHandle *fh = (struct FileHandle *) BADDR(___file);
+    LONG result = emucall2(EMU_CALL_DOS_WAITFORCHAR, (ULONG)fh, (ULONG)___timeout);
+
+    DPRINTF (LOG_DEBUG, "_dos: WaitForChar() result: %ld\n", result);
+
+    return result ? DOSTRUE : DOSFALSE;
 }
 
 BPTR _dos_ParentDir ( register struct DosLibrary * __libBase __asm("a6"),
@@ -1657,43 +1667,159 @@ BOOL _dos_UnLockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
 BPTR _dos_SelectInput ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SelectInput() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: SelectInput(fh=%08lx) called.\n", fh);
+    
+    struct Process *me = (struct Process *) FindTask(NULL);
+    if (!IS_PROCESS(me))
+    {
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return 0;
+    }
+    
+    /* Save the old input stream */
+    BPTR old_input = me->pr_CIS;
+    
+    /* Set the new input stream */
+    me->pr_CIS = fh;
+    
+    DPRINTF (LOG_DEBUG, "_dos: SelectInput: old=%08lx, new=%08lx\n", old_input, fh);
+    return old_input;
 }
 
 BPTR _dos_SelectOutput ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SelectOutput() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: SelectOutput(fh=%08lx) called.\n", fh);
+    
+    struct Process *me = (struct Process *) FindTask(NULL);
+    if (!IS_PROCESS(me))
+    {
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return 0;
+    }
+    
+    /* Save the old output stream */
+    BPTR old_output = me->pr_COS;
+    
+    /* Set the new output stream */
+    me->pr_COS = fh;
+    
+    DPRINTF (LOG_DEBUG, "_dos: SelectOutput: old=%08lx, new=%08lx\n", old_output, fh);
+    return old_output;
 }
 
 LONG _dos_FGetC ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FGetC() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: FGetC(fh=%08lx) called.\n", fh);
+    
+    if (!fh)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+    
+    /* Check if there's an ungotten character */
+    struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
+    if (fhp->fh_Pos < 0)
+    {
+        /* fh_Pos is used to store ungotten char - negative value means valid */
+        LONG ch = -(fhp->fh_Pos + 1);  /* Retrieve the character */
+        fhp->fh_Pos = 0;  /* Clear the ungotten flag */
+        DPRINTF (LOG_DEBUG, "_dos: FGetC: returning ungotten char %ld\n", ch);
+        return ch;
+    }
+    
+    /* Read a single character */
+    UBYTE ch;
+    LONG result = _dos_Read(DOSBase, fh, &ch, 1);
+    
+    if (result < 0)
+    {
+        /* Read error */
+        return -1;
+    }
+    
+    if (result == 0)
+    {
+        /* EOF */
+        return -1;
+    }
+    
+    DPRINTF (LOG_DEBUG, "_dos: FGetC: returning char %ld ('%c')\n", (LONG)ch, ch > 31 ? ch : '?');
+    return (LONG)ch;
 }
 
 LONG _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG ch __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FPutC() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: FPutC(fh=%08lx, ch=%ld) called.\n", fh, ch);
+    
+    if (!fh)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+    
+    /* Write a single character */
+    UBYTE c = (UBYTE)ch;
+    LONG result = _dos_Write(DOSBase, fh, &c, 1);
+    
+    if (result < 0)
+    {
+        /* Write error */
+        return -1;
+    }
+    
+    if (result == 0)
+    {
+        /* Couldn't write - disk full? */
+        SetIoErr(ERROR_DISK_FULL);
+        return -1;
+    }
+    
+    DPRINTF (LOG_DEBUG, "_dos: FPutC: wrote char %ld\n", ch);
+    return ch;  /* Return the character on success */
 }
 
 LONG _dos_UnGetC ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG character __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: UnGetC() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: UnGetC(fh=%08lx, ch=%ld) called.\n", fh, character);
+    
+    if (!fh)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+    
+    /* Special case: character == -1 means "check if ungot char available" */
+    if (character == -1)
+    {
+        struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
+        /* If fh_Pos is negative, there's an ungotten char */
+        return (fhp->fh_Pos < 0) ? TRUE : FALSE;
+    }
+    
+    /* Store the character for the next FGetC */
+    /* We use fh_Pos as a flag - negative value means "has ungotten char"
+     * The actual character is stored as -(char + 1) so 0 can be stored */
+    struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
+    
+    /* Only one character can be pushed back */
+    if (fhp->fh_Pos < 0)
+    {
+        /* Already have an ungotten character */
+        SetIoErr(ERROR_SEEK_ERROR);
+        return -1;
+    }
+    
+    fhp->fh_Pos = -(character + 1);
+    
+    DPRINTF (LOG_DEBUG, "_dos: UnGetC: stored char %ld\n", character);
+    return character;
 }
 
 LONG _dos_FRead ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1821,9 +1947,318 @@ LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR format __asm("d2"),
                                                         register const APTR argarray __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: VFPrintf() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: VFPrintf(fh=%08lx, format='%s') called.\n", fh, format ? format : (CONST_STRPTR)"NULL");
+    
+    if (!fh || !format)
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return -1;
+    }
+    
+    /* AmigaDOS Printf format specifiers:
+     *   %s  - string (STRPTR)
+     *   %ld - long decimal (signed)
+     *   %lu - long unsigned decimal
+     *   %lx - long hex (lowercase)
+     *   %lX - long hex (uppercase)
+     *   %lc - long character
+     *   %d  - word decimal (16-bit, but we treat as long for simplicity)
+     *   %%  - literal %
+     *   %-  - left justify (followed by number)
+     *   %0  - zero-pad (followed by number)
+     *   Width and precision can be specified
+     */
+    
+    const LONG *args = (const LONG *)argarray;
+    LONG argidx = 0;
+    LONG chars_written = 0;
+    UBYTE outbuf[256];  /* Output buffer for formatted numbers */
+    
+    const UBYTE *p = (const UBYTE *)format;
+    while (*p)
+    {
+        if (*p != '%')
+        {
+            /* Regular character - write directly */
+            LONG result = _dos_FPutC(DOSBase, fh, *p);
+            if (result < 0)
+                return -1;
+            chars_written++;
+            p++;
+            continue;
+        }
+        
+        /* Format specifier */
+        p++;  /* Skip % */
+        
+        /* Handle %% */
+        if (*p == '%')
+        {
+            LONG result = _dos_FPutC(DOSBase, fh, '%');
+            if (result < 0)
+                return -1;
+            chars_written++;
+            p++;
+            continue;
+        }
+        
+        /* Parse flags */
+        BOOL left_justify = FALSE;
+        BOOL zero_pad = FALSE;
+        
+        while (*p == '-' || *p == '0')
+        {
+            if (*p == '-')
+                left_justify = TRUE;
+            if (*p == '0')
+                zero_pad = TRUE;
+            p++;
+        }
+        
+        /* Parse width */
+        LONG width = 0;
+        while (*p >= '0' && *p <= '9')
+        {
+            width = width * 10 + (*p - '0');
+            p++;
+        }
+        
+        /* Skip 'l' modifier (all AmigaDOS args are 32-bit) */
+        if (*p == 'l')
+            p++;
+        
+        /* Get format character */
+        UBYTE fmtchar = *p++;
+        
+        /* Format the value */
+        UBYTE *buf = outbuf;
+        LONG buflen = 0;
+        BOOL is_negative = FALSE;
+        
+        switch (fmtchar)
+        {
+            case 's':
+            {
+                /* String */
+                const UBYTE *str = (const UBYTE *)(args ? args[argidx++] : 0);
+                if (!str)
+                    str = (const UBYTE *)"(null)";
+                
+                /* Calculate length */
+                const UBYTE *s = str;
+                while (*s)
+                {
+                    s++;
+                    buflen++;
+                }
+                
+                /* Output with padding */
+                if (!left_justify && width > buflen)
+                {
+                    for (LONG i = 0; i < width - buflen; i++)
+                    {
+                        LONG result = _dos_FPutC(DOSBase, fh, ' ');
+                        if (result < 0)
+                            return -1;
+                        chars_written++;
+                    }
+                }
+                
+                /* Output string */
+                s = str;
+                while (*s)
+                {
+                    LONG result = _dos_FPutC(DOSBase, fh, *s++);
+                    if (result < 0)
+                        return -1;
+                    chars_written++;
+                }
+                
+                /* Right padding */
+                if (left_justify && width > buflen)
+                {
+                    for (LONG i = 0; i < width - buflen; i++)
+                    {
+                        LONG result = _dos_FPutC(DOSBase, fh, ' ');
+                        if (result < 0)
+                            return -1;
+                        chars_written++;
+                    }
+                }
+                continue;  /* Skip the common output code below */
+            }
+            
+            case 'd':
+            case 'D':
+            {
+                /* Signed decimal */
+                LONG val = args ? args[argidx++] : 0;
+                if (val < 0)
+                {
+                    is_negative = TRUE;
+                    val = -val;
+                }
+                
+                /* Convert to string (backwards) */
+                UBYTE tmpbuf[20];
+                LONG tmpidx = 0;
+                
+                if (val == 0)
+                {
+                    tmpbuf[tmpidx++] = '0';
+                }
+                else
+                {
+                    while (val > 0)
+                    {
+                        tmpbuf[tmpidx++] = '0' + (val % 10);
+                        val /= 10;
+                    }
+                }
+                
+                /* Reverse into output buffer */
+                if (is_negative)
+                    buf[buflen++] = '-';
+                while (tmpidx > 0)
+                    buf[buflen++] = tmpbuf[--tmpidx];
+                break;
+            }
+            
+            case 'u':
+            case 'U':
+            {
+                /* Unsigned decimal */
+                ULONG val = args ? (ULONG)args[argidx++] : 0;
+                
+                UBYTE tmpbuf[20];
+                LONG tmpidx = 0;
+                
+                if (val == 0)
+                {
+                    tmpbuf[tmpidx++] = '0';
+                }
+                else
+                {
+                    while (val > 0)
+                    {
+                        tmpbuf[tmpidx++] = '0' + (val % 10);
+                        val /= 10;
+                    }
+                }
+                
+                while (tmpidx > 0)
+                    buf[buflen++] = tmpbuf[--tmpidx];
+                break;
+            }
+            
+            case 'x':
+            {
+                /* Lowercase hex */
+                ULONG val = args ? (ULONG)args[argidx++] : 0;
+                
+                UBYTE tmpbuf[20];
+                LONG tmpidx = 0;
+                
+                if (val == 0)
+                {
+                    tmpbuf[tmpidx++] = '0';
+                }
+                else
+                {
+                    while (val > 0)
+                    {
+                        UBYTE digit = val & 0xF;
+                        tmpbuf[tmpidx++] = digit < 10 ? '0' + digit : 'a' + digit - 10;
+                        val >>= 4;
+                    }
+                }
+                
+                while (tmpidx > 0)
+                    buf[buflen++] = tmpbuf[--tmpidx];
+                break;
+            }
+            
+            case 'X':
+            {
+                /* Uppercase hex */
+                ULONG val = args ? (ULONG)args[argidx++] : 0;
+                
+                UBYTE tmpbuf[20];
+                LONG tmpidx = 0;
+                
+                if (val == 0)
+                {
+                    tmpbuf[tmpidx++] = '0';
+                }
+                else
+                {
+                    while (val > 0)
+                    {
+                        UBYTE digit = val & 0xF;
+                        tmpbuf[tmpidx++] = digit < 10 ? '0' + digit : 'A' + digit - 10;
+                        val >>= 4;
+                    }
+                }
+                
+                while (tmpidx > 0)
+                    buf[buflen++] = tmpbuf[--tmpidx];
+                break;
+            }
+            
+            case 'c':
+            case 'C':
+            {
+                /* Character */
+                LONG val = args ? args[argidx++] : 0;
+                buf[buflen++] = (UBYTE)val;
+                break;
+            }
+            
+            default:
+                /* Unknown format - output literally */
+                buf[buflen++] = '%';
+                if (fmtchar)
+                    buf[buflen++] = fmtchar;
+                break;
+        }
+        
+        /* Output the formatted buffer with padding */
+        if (!left_justify && width > buflen)
+        {
+            UBYTE pad_char = zero_pad ? '0' : ' ';
+            for (LONG i = 0; i < width - buflen; i++)
+            {
+                LONG result = _dos_FPutC(DOSBase, fh, pad_char);
+                if (result < 0)
+                    return -1;
+                chars_written++;
+            }
+        }
+        
+        /* Output the formatted value */
+        for (LONG i = 0; i < buflen; i++)
+        {
+            LONG result = _dos_FPutC(DOSBase, fh, buf[i]);
+            if (result < 0)
+                return -1;
+            chars_written++;
+        }
+        
+        /* Right padding */
+        if (left_justify && width > buflen)
+        {
+            for (LONG i = 0; i < width - buflen; i++)
+            {
+                LONG result = _dos_FPutC(DOSBase, fh, ' ');
+                if (result < 0)
+                    return -1;
+                chars_written++;
+            }
+        }
+    }
+    
+    DPRINTF (LOG_DEBUG, "_dos: VFPrintf: wrote %ld chars\n", chars_written);
+    return chars_written;
 }
 
 LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1848,34 +2283,102 @@ LONG _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
 BPTR _dos_DupLockFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: DupLockFromFH() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: DupLockFromFH() called, fh=0x%08lx\n", fh);
+
+    if (!fh) {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return 0;
+    }
+
+    struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
+    ULONG lock_id = emucall1(EMU_CALL_DOS_DUPLOCKFROMFH, (ULONG)fhp);
+
+    DPRINTF (LOG_DEBUG, "_dos: DupLockFromFH() result: lock_id=%lu\n", lock_id);
+
+    if (!lock_id) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return 0;
+    }
+
+    return (BPTR)lock_id;
 }
 
 BPTR _dos_OpenFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: OpenFromLock() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: OpenFromLock() called, lock=0x%08lx\n", lock);
+
+    if (!lock) {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return 0;
+    }
+
+    /* Allocate a FileHandle */
+    struct FileHandle *fh = (struct FileHandle *) AllocDosObject(DOS_FILEHANDLE, NULL);
+    if (!fh) {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return 0;
+    }
+
+    /* Call emucall with lock_id and fh pointer */
+    LONG result = emucall2(EMU_CALL_DOS_OPENFROMLOCK, (ULONG)lock, (ULONG)fh);
+
+    DPRINTF (LOG_DEBUG, "_dos: OpenFromLock() result: %ld\n", result);
+
+    if (!result) {
+        FreeDosObject(DOS_FILEHANDLE, fh);
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return 0;
+    }
+
+    return MKBADDR(fh);
 }
 
 BPTR _dos_ParentOfFH ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: ParentOfFH() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: ParentOfFH() called, fh=0x%08lx\n", fh);
+
+    if (!fh) {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return 0;
+    }
+
+    struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
+    ULONG lock_id = emucall1(EMU_CALL_DOS_PARENTOFFH, (ULONG)fhp);
+
+    DPRINTF (LOG_DEBUG, "_dos: ParentOfFH() result: lock_id=%lu\n", lock_id);
+
+    if (!lock_id) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return 0;
+    }
+
+    return (BPTR)lock_id;
 }
 
 BOOL _dos_ExamineFH ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register struct FileInfoBlock * fib __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: ExamineFH() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_dos: ExamineFH() called, fh=0x%08lx, fib=0x%08lx\n", fh, fib);
+
+    if (!fh || !fib) {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return FALSE;
+    }
+
+    struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
+    LONG result = emucall2(EMU_CALL_DOS_EXAMINEFH, (ULONG)fhp, (ULONG)fib);
+
+    DPRINTF (LOG_DEBUG, "_dos: ExamineFH() result: %ld\n", result);
+
+    if (!result) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 LONG _dos_SetFileDate ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -1916,9 +2419,24 @@ LONG _dos_NameFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG len __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: NameFromFH() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: NameFromFH() called, fh=0x%08lx, buffer=0x%08lx, len=%ld\n", fh, buffer, len);
+
+    if (!fh || !buffer || len <= 0) {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
+    LONG result = emucall3(EMU_CALL_DOS_NAMEFROMFH, (ULONG)fhp, (ULONG)buffer, (ULONG)len);
+
+    DPRINTF (LOG_DEBUG, "_dos: NameFromFH() result: %ld\n", result);
+
+    if (!result) {
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2899,9 +3417,18 @@ LONG _dos_RemSegment ( register struct DosLibrary * DOSBase __asm("a6"),
 LONG _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG mask __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: CheckSignal() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: CheckSignal() called, mask=0x%08lx\n", mask);
+
+    /* CheckSignal returns and clears the specified signals that are set */
+    struct Task *task = FindTask(NULL);
+    ULONG sigs = task->tc_SigRecvd & mask;
+
+    /* Clear the signals we're returning */
+    task->tc_SigRecvd &= ~sigs;
+
+    DPRINTF (LOG_DEBUG, "_dos: CheckSignal() returning 0x%08lx\n", sigs);
+
+    return sigs;
 }
 
 /* Template item flags */
@@ -3437,24 +3964,209 @@ LONG _dos_MatchFirst ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR pat __asm("d1"),
                                                         register struct AnchorPath * anchor __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: MatchFirst() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: MatchFirst() called, pat='%s', anchor=0x%08lx\n", 
+             pat ? (char *)pat : "NULL", anchor);
+    
+    if (!pat || !anchor) {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return ERROR_REQUIRED_ARG_MISSING;
+    }
+    
+    /* Initialize anchor fields */
+    anchor->ap_Base = NULL;
+    anchor->ap_Last = NULL;
+    anchor->ap_FoundBreak = 0;
+    
+    /* Parse the pattern to extract directory and filename pattern */
+    /* For simple patterns like "*.txt" or "dir/#?.c" */
+    
+    /* Find the last '/' or ':' to split directory from pattern */
+    CONST_STRPTR dir_end = pat;
+    CONST_STRPTR p = pat;
+    while (*p) {
+        if (*p == '/' || *p == ':') {
+            dir_end = p + 1;
+        }
+        p++;
+    }
+    
+    /* dir_end now points to the filename pattern part */
+    CONST_STRPTR name_pattern = dir_end;
+    
+    /* Determine if the pattern is wild */
+    if (ParsePatternNoCase(name_pattern, (STRPTR)anchor->ap_Info.fib_Reserved, 
+                           sizeof(anchor->ap_Info.fib_Reserved)) > 0) {
+        anchor->ap_Flags |= APF_ITSWILD;
+    }
+    
+    /* Get lock on directory */
+    BPTR lock;
+    if (dir_end == pat) {
+        /* No directory specified, use current dir */
+        lock = DupLock(((struct Process *)FindTask(NULL))->pr_CurrentDir);
+        if (!lock) {
+            lock = Lock((CONST_STRPTR)"", SHARED_LOCK);
+        }
+    } else {
+        /* Build directory path */
+        UBYTE dir_path[256];
+        LONG dir_len = dir_end - pat;
+        if (dir_len > 255) dir_len = 255;
+        CopyMem((APTR)pat, dir_path, dir_len);
+        dir_path[dir_len] = '\0';
+        
+        /* Remove trailing slash if not after colon */
+        if (dir_len > 1 && dir_path[dir_len-1] == '/' && dir_path[dir_len-2] != ':') {
+            dir_path[dir_len-1] = '\0';
+        }
+        
+        lock = Lock(dir_path, SHARED_LOCK);
+    }
+    
+    if (!lock) {
+        LONG err = IoErr();
+        DPRINTF (LOG_DEBUG, "_dos: MatchFirst() could not lock directory, err=%ld\n", err);
+        SetIoErr(err ? err : ERROR_OBJECT_NOT_FOUND);
+        return IoErr();
+    }
+    
+    /* Allocate AChain to hold state */
+    struct AChain *achain = (struct AChain *)AllocVec(sizeof(struct AChain) + 256, MEMF_CLEAR);
+    if (!achain) {
+        UnLock(lock);
+        SetIoErr(ERROR_NO_FREE_STORE);
+        anchor->ap_Flags |= APF_NOMEMERR;
+        return ERROR_NO_FREE_STORE;
+    }
+    
+    achain->an_Lock = lock;
+    achain->an_Child = NULL;
+    achain->an_Parent = NULL;
+    achain->an_Flags = 0;
+    
+    /* Copy the parsed pattern */
+    CopyMem((APTR)name_pattern, achain->an_String, 
+            strlen((char *)name_pattern) + 1);
+    
+    anchor->ap_Base = achain;
+    anchor->ap_Last = achain;
+    
+    /* Examine the directory to start iteration */
+    if (!Examine(lock, &achain->an_Info)) {
+        UnLock(lock);
+        FreeVec(achain);
+        anchor->ap_Base = NULL;
+        anchor->ap_Last = NULL;
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return ERROR_OBJECT_NOT_FOUND;
+    }
+    
+    achain->an_Flags |= DDF_ExaminedBit;
+    
+    /* Get first matching entry */
+    return MatchNext(anchor);
 }
 
 LONG _dos_MatchNext ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct AnchorPath * anchor __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: MatchNext() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: MatchNext() called, anchor=0x%08lx\n", anchor);
+    
+    if (!anchor || !anchor->ap_Last) {
+        SetIoErr(ERROR_NO_MORE_ENTRIES);
+        return ERROR_NO_MORE_ENTRIES;
+    }
+    
+    struct AChain *achain = anchor->ap_Last;
+    
+    /* Check for break signals */
+    if (anchor->ap_BreakBits) {
+        LONG sigs = CheckSignal(anchor->ap_BreakBits);
+        if (sigs) {
+            anchor->ap_FoundBreak = sigs;
+            SetIoErr(ERROR_BREAK);
+            return ERROR_BREAK;
+        }
+    }
+    
+    /* Iterate through directory entries */
+    while (ExNext(achain->an_Lock, &achain->an_Info)) {
+        STRPTR name = achain->an_Info.fib_FileName;
+        
+        DPRINTF (LOG_DEBUG, "_dos: MatchNext() checking '%s' against pattern\n", name);
+        
+        /* Check if name matches pattern */
+        BOOL matches;
+        if (anchor->ap_Flags & APF_ITSWILD) {
+            /* Use parsed pattern stored in fib_Reserved */
+            matches = MatchPatternNoCase((STRPTR)anchor->ap_Info.fib_Reserved, name);
+        } else {
+            /* Direct string compare for non-wild patterns */
+            matches = (Stricmp(name, (STRPTR)achain->an_String) == 0);
+        }
+        
+        if (matches) {
+            /* Save tokenized pattern before overwriting fib_Reserved */
+            UBYTE saved_pattern[36];
+            CopyMem((APTR)anchor->ap_Info.fib_Reserved, saved_pattern, sizeof(saved_pattern));
+            
+            /* Copy to anchor's FileInfoBlock */
+            CopyMem(&achain->an_Info, &anchor->ap_Info, sizeof(struct FileInfoBlock));
+            
+            /* Restore the tokenized pattern */
+            CopyMem(saved_pattern, (APTR)anchor->ap_Info.fib_Reserved, sizeof(saved_pattern));
+            
+            /* Build full path if buffer provided */
+            if (anchor->ap_Strlen > 0) {
+                /* Get path from lock */
+                NameFromLock(achain->an_Lock, anchor->ap_Buf, anchor->ap_Strlen);
+                /* Add filename */
+                AddPart(anchor->ap_Buf, name, anchor->ap_Strlen);
+            }
+            
+            /* Set DODIR flag for directories if user wants to recurse */
+            if (achain->an_Info.fib_DirEntryType > 0) {
+                anchor->ap_Flags |= APF_DODIR;
+            } else {
+                anchor->ap_Flags &= ~APF_DODIR;
+            }
+            
+            DPRINTF (LOG_DEBUG, "_dos: MatchNext() returning match: '%s'\n", name);
+            SetIoErr(0);
+            return 0;
+        }
+    }
+    
+    /* No more entries */
+    DPRINTF (LOG_DEBUG, "_dos: MatchNext() no more entries\n");
+    SetIoErr(ERROR_NO_MORE_ENTRIES);
+    return ERROR_NO_MORE_ENTRIES;
 }
 
 VOID _dos_MatchEnd ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct AnchorPath * anchor __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: MatchEnd() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: MatchEnd() called, anchor=0x%08lx\n", anchor);
+    
+    if (!anchor) {
+        return;
+    }
+    
+    /* Free all AChain nodes */
+    struct AChain *achain = anchor->ap_Base;
+    while (achain) {
+        struct AChain *next = achain->an_Child;
+        
+        if (achain->an_Lock) {
+            UnLock(achain->an_Lock);
+        }
+        FreeVec(achain);
+        
+        achain = next;
+    }
+    
+    anchor->ap_Base = NULL;
+    anchor->ap_Last = NULL;
 }
 
 /*
@@ -3857,17 +4569,70 @@ VOID _dos_private4 ( register struct DosLibrary * DOSBase __asm("a6"))
 STRPTR _dos_FilePart ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR path __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FilePart() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_dos: FilePart() called, path='%s'\n", path ? path : "NULL");
+    
+    if (!path)
+        return (STRPTR)path;  /* Return NULL for NULL input */
+    
+    /* Find the last separator ('/' or ':') */
+    CONST_STRPTR last_sep = NULL;
+    CONST_STRPTR p = path;
+    
+    while (*p)
+    {
+        if (*p == '/' || *p == ':')
+            last_sep = p;
+        p++;
+    }
+    
+    /* Return pointer to character after last separator, or start of path */
+    if (last_sep)
+        return (STRPTR)(last_sep + 1);
+    else
+        return (STRPTR)path;
 }
 
 STRPTR _dos_PathPart ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR path __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: PathPart() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_dos: PathPart() called, path='%s'\n", path ? path : "NULL");
+    
+    if (!path)
+        return (STRPTR)path;  /* Return NULL for NULL input */
+    
+    /* Find the end of the path portion (last '/' or ':') */
+    CONST_STRPTR last_sep = NULL;
+    CONST_STRPTR p = path;
+    
+    while (*p)
+    {
+        if (*p == '/')
+            last_sep = p;
+        else if (*p == ':')
+            last_sep = p;  /* ':' counts as directory separator */
+        p++;
+    }
+    
+    /* Return pointer to the character after the last directory separator
+     * For "foo/bar", returns pointer to "bar"
+     * For "foo:", returns pointer to the character after ':'
+     * For "foo", returns pointer to "foo" (start of string)
+     */
+    if (last_sep)
+    {
+        /* For '/', return pointer to the '/' itself (not after it)
+         * This is the AmigaDOS convention - PathPart returns pointer
+         * to where the filename starts, but the '/' is kept as part of path */
+        if (*last_sep == '/')
+            return (STRPTR)last_sep;
+        else  /* ':' */
+            return (STRPTR)(last_sep + 1);
+    }
+    else
+    {
+        /* No separator - whole string is filename, return pointer to start */
+        return (STRPTR)path;
+    }
 }
 
 BOOL _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -3875,9 +4640,68 @@ BOOL _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR filename __asm("d2"),
                                                         register ULONG size __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: AddPart() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_dos: AddPart() called, dirname='%s', filename='%s', size=%lu\n", 
+             dirname ? dirname : "NULL", filename ? filename : "NULL", size);
+    
+    if (!dirname || !filename || size == 0)
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return FALSE;
+    }
+    
+    /* Find end of dirname */
+    STRPTR p = dirname;
+    ULONG dirlen = 0;
+    while (*p)
+    {
+        p++;
+        dirlen++;
+    }
+    
+    /* Find length of filename */
+    CONST_STRPTR f = filename;
+    ULONG filelen = 0;
+    while (*f)
+    {
+        f++;
+        filelen++;
+    }
+    
+    /* Determine if we need to add a separator */
+    BOOL need_sep = FALSE;
+    if (dirlen > 0)
+    {
+        UBYTE last_char = dirname[dirlen - 1];
+        /* Don't add separator if dirname already ends with '/' or ':' */
+        if (last_char != '/' && last_char != ':')
+            need_sep = TRUE;
+    }
+    
+    /* Check if result fits in buffer */
+    ULONG total = dirlen + (need_sep ? 1 : 0) + filelen + 1;  /* +1 for null terminator */
+    if (total > size)
+    {
+        SetIoErr(ERROR_LINE_TOO_LONG);
+        return FALSE;
+    }
+    
+    /* Append separator if needed */
+    if (need_sep)
+    {
+        dirname[dirlen] = '/';
+        dirlen++;
+    }
+    
+    /* Append filename */
+    f = filename;
+    while (*f)
+    {
+        dirname[dirlen++] = *f++;
+    }
+    dirname[dirlen] = '\0';
+    
+    DPRINTF (LOG_DEBUG, "_dos: AddPart() result='%s'\n", dirname);
+    return TRUE;
 }
 
 BOOL _dos_StartNotify ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -4372,26 +5196,64 @@ LONG _dos_WriteChars ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR buf __asm("d1"),
                                                         register ULONG buflen __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: WriteChars() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: WriteChars(buf=%08lx, buflen=%lu) called.\n", buf, buflen);
+    
+    if (!buf || buflen == 0)
+        return 0;
+    
+    /* Get the current output stream */
+    BPTR out = _dos_Output(DOSBase);
+    if (!out)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+    
+    /* Write the specified number of characters */
+    LONG result = _dos_Write(DOSBase, out, (CONST APTR)buf, buflen);
+    
+    if (result < 0)
+        return -1;
+    
+    DPRINTF (LOG_DEBUG, "_dos: WriteChars: wrote %ld chars\n", result);
+    return result;
 }
 
 LONG _dos_PutStr ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR str __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: PutStr() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: PutStr(str=%08lx) called.\n", str);
+    
+    if (!str)
+        return 0;
+    
+    /* Get the current output stream */
+    BPTR out = _dos_Output(DOSBase);
+    if (!out)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+    
+    /* Write the string using FPuts */
+    return _dos_FPuts(DOSBase, out, str);
 }
 
 LONG _dos_VPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR format __asm("d1"),
                                                         register const APTR argarray __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: VPrintf() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_dos: VPrintf(format='%s') called.\n", format ? format : (CONST_STRPTR)"NULL");
+    
+    /* VPrintf writes to Output() */
+    BPTR out = _dos_Output(DOSBase);
+    if (!out)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+    
+    return _dos_VFPrintf(DOSBase, out, format, argarray);
 }
 
 VOID _dos_private6 ( register struct DosLibrary * DOSBase __asm("a6"))

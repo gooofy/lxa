@@ -1871,6 +1871,350 @@ static int _dos_assign_list(uint32_t buf68k, uint32_t buflen)
     return written;
 }
 
+/*
+ * Phase 10: File Handle Utilities
+ */
+
+/* Get Linux path from fd using /proc/self/fd symlink */
+static int _get_path_from_fd(int fd, char *buf, size_t bufsize)
+{
+    char proc_path[64];
+    snprintf(proc_path, sizeof(proc_path), "/proc/self/fd/%d", fd);
+    
+    ssize_t len = readlink(proc_path, buf, bufsize - 1);
+    if (len < 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _get_path_from_fd(): readlink failed for fd=%d: %s\n", fd, strerror(errno));
+        return 0;
+    }
+    buf[len] = '\0';
+    return 1;
+}
+
+/* Convert Linux path back to Amiga path (best effort) */
+static int _linux_path_to_amiga(const char *linux_path, char *amiga_buf, size_t bufsize)
+{
+    /* Try to find a matching drive mapping */
+    const char *names[64];
+    const char *paths[64];
+    int count = vfs_assign_list(names, paths, 64);
+    
+    for (int i = 0; i < count; i++) {
+        if (!paths[i]) continue;
+        size_t plen = strlen(paths[i]);
+        
+        /* Check if linux_path starts with this path */
+        if (strncmp(linux_path, paths[i], plen) == 0) {
+            const char *remainder = linux_path + plen;
+            
+            /* Skip leading slash in remainder */
+            if (*remainder == '/') remainder++;
+            
+            /* Build Amiga path: DRIVE:remainder */
+            int written = snprintf(amiga_buf, bufsize, "%s:%s", names[i], remainder);
+            if (written < 0 || (size_t)written >= bufsize) {
+                return 0;
+            }
+            
+            /* Convert slashes to Amiga style */
+            for (char *p = amiga_buf; *p; p++) {
+                if (*p == '/') *p = '/';  /* Actually Amiga uses / too */
+            }
+            
+            return 1;
+        }
+    }
+    
+    /* No matching assign found - use the Linux path as-is */
+    strncpy(amiga_buf, linux_path, bufsize - 1);
+    amiga_buf[bufsize - 1] = '\0';
+    return 1;
+}
+
+/* DupLockFromFH - Get a lock from an open file handle */
+static uint32_t _dos_duplockfromfh(uint32_t fh68k)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_duplockfromfh(): fh=0x%08x\n", fh68k);
+    
+    int fd = m68k_read_memory_32(fh68k + 36);   /* fh_Args */
+    int kind = m68k_read_memory_32(fh68k + 32); /* fh_Func3 */
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_duplockfromfh(): fd=%d, kind=%d\n", fd, kind);
+    
+    if (kind == FILE_KIND_CONSOLE) {
+        /* Console doesn't have a meaningful lock */
+        return 0;
+    }
+    
+    /* Get the path from the fd */
+    char linux_path[PATH_MAX];
+    if (!_get_path_from_fd(fd, linux_path, sizeof(linux_path))) {
+        return 0;
+    }
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_duplockfromfh(): linux_path='%s'\n", linux_path);
+    
+    /* Get the directory part of the path */
+    char *last_slash = strrchr(linux_path, '/');
+    if (last_slash && last_slash != linux_path) {
+        *last_slash = '\0';  /* Truncate to directory */
+    }
+    
+    /* Check if the path exists */
+    struct stat st;
+    if (stat(linux_path, &st) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_duplockfromfh(): stat failed: %s\n", strerror(errno));
+        return 0;
+    }
+    
+    /* Allocate a lock entry */
+    int lock_id = _lock_alloc();
+    if (lock_id == 0) {
+        return 0;
+    }
+    
+    lock_entry_t *lock = &g_locks[lock_id];
+    strncpy(lock->linux_path, linux_path, sizeof(lock->linux_path) - 1);
+    
+    /* Try to build an Amiga path */
+    char amiga_path[PATH_MAX];
+    _linux_path_to_amiga(linux_path, amiga_path, sizeof(amiga_path));
+    strncpy(lock->amiga_path, amiga_path, sizeof(lock->amiga_path) - 1);
+    
+    lock->is_dir = S_ISDIR(st.st_mode);
+    lock->dir = NULL;
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_duplockfromfh(): returning lock_id=%d\n", lock_id);
+    return lock_id;
+}
+
+/* ExamineFH - Examine an open file handle */
+static int _dos_examinefh(uint32_t fh68k, uint32_t fib68k)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_examinefh(): fh=0x%08x, fib=0x%08x\n", fh68k, fib68k);
+    
+    int fd = m68k_read_memory_32(fh68k + 36);   /* fh_Args */
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_examinefh(): fd=%d\n", fd);
+    
+    /* Get file info via fstat */
+    struct stat st;
+    if (fstat(fd, &st) != 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_examinefh(): fstat failed: %s\n", strerror(errno));
+        return 0;
+    }
+    
+    /* Clear the FIB first */
+    for (int i = 0; i < FIB_SIZE; i++) {
+        m68k_write_memory_8(fib68k + i, 0);
+    }
+    
+    /* Get the filename from the fd */
+    char linux_path[PATH_MAX];
+    const char *filename = "";
+    if (_get_path_from_fd(fd, linux_path, sizeof(linux_path))) {
+        const char *last_slash = strrchr(linux_path, '/');
+        filename = last_slash ? last_slash + 1 : linux_path;
+    }
+    
+    /* Fill the FileInfoBlock */
+    m68k_write_memory_32(fib68k + FIB_fib_DiskKey, (uint32_t)st.st_ino);
+    
+    int32_t type = S_ISDIR(st.st_mode) ? ST_USERDIR : ST_FILE;
+    m68k_write_memory_32(fib68k + FIB_fib_DirEntryType, type);
+    m68k_write_memory_32(fib68k + FIB_fib_EntryType, type);
+    
+    /* Write filename */
+    int namelen = strlen(filename);
+    if (namelen > 107) namelen = 107;
+    for (int i = 0; i < namelen; i++) {
+        m68k_write_memory_8(fib68k + FIB_fib_FileName + i, filename[i]);
+    }
+    m68k_write_memory_8(fib68k + FIB_fib_FileName + namelen, 0);
+    
+    m68k_write_memory_32(fib68k + FIB_fib_Protection, _unix_mode_to_amiga(st.st_mode));
+    m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
+    m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
+    
+    _unix_time_to_datestamp(st.st_mtime, fib68k + FIB_fib_Date);
+    
+    /* Read file comment from xattr or sidecar */
+    if (linux_path[0]) {
+        _read_file_comment(linux_path, fib68k);
+    }
+    
+    /* Owner info */
+    m68k_write_memory_16(fib68k + FIB_fib_OwnerUID, st.st_uid);
+    m68k_write_memory_16(fib68k + FIB_fib_OwnerGID, st.st_gid);
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_examinefh(): success, type=%d, size=%ld\n", type, (long)st.st_size);
+    return 1;
+}
+
+/* NameFromFH - Get the full path name from a file handle */
+static int _dos_namefromfh(uint32_t fh68k, uint32_t buf68k, uint32_t len)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_namefromfh(): fh=0x%08x, buf=0x%08x, len=%d\n", fh68k, buf68k, len);
+    
+    int fd = m68k_read_memory_32(fh68k + 36);   /* fh_Args */
+    int kind = m68k_read_memory_32(fh68k + 32); /* fh_Func3 */
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_namefromfh(): fd=%d, kind=%d\n", fd, kind);
+    
+    if (kind == FILE_KIND_CONSOLE) {
+        /* Console doesn't have a meaningful path */
+        const char *console = "CONSOLE:";
+        int clen = strlen(console);
+        if ((uint32_t)clen >= len) {
+            return 0;
+        }
+        for (int i = 0; i <= clen; i++) {
+            m68k_write_memory_8(buf68k + i, console[i]);
+        }
+        return 1;
+    }
+    
+    /* Get the Linux path from the fd */
+    char linux_path[PATH_MAX];
+    if (!_get_path_from_fd(fd, linux_path, sizeof(linux_path))) {
+        return 0;
+    }
+    
+    /* Convert to Amiga path */
+    char amiga_path[PATH_MAX];
+    if (!_linux_path_to_amiga(linux_path, amiga_path, sizeof(amiga_path))) {
+        return 0;
+    }
+    
+    /* Write to m68k buffer */
+    size_t path_len = strlen(amiga_path);
+    if (path_len >= len) {
+        return 0;  /* Buffer too small */
+    }
+    
+    for (size_t i = 0; i <= path_len; i++) {
+        m68k_write_memory_8(buf68k + i, amiga_path[i]);
+    }
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_namefromfh(): returning '%s'\n", amiga_path);
+    return 1;
+}
+
+/* ParentOfFH - Get a lock on the parent directory of an open file */
+static uint32_t _dos_parentoffh(uint32_t fh68k)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_parentoffh(): fh=0x%08x\n", fh68k);
+    
+    int fd = m68k_read_memory_32(fh68k + 36);   /* fh_Args */
+    int kind = m68k_read_memory_32(fh68k + 32); /* fh_Func3 */
+    
+    if (kind == FILE_KIND_CONSOLE) {
+        return 0;
+    }
+    
+    /* Get the Linux path from the fd */
+    char linux_path[PATH_MAX];
+    if (!_get_path_from_fd(fd, linux_path, sizeof(linux_path))) {
+        return 0;
+    }
+    
+    /* Get the parent directory */
+    char *last_slash = strrchr(linux_path, '/');
+    if (!last_slash) {
+        return 0;
+    }
+    
+    if (last_slash == linux_path) {
+        /* Parent is root */
+        linux_path[1] = '\0';
+    } else {
+        *last_slash = '\0';
+    }
+    
+    /* Check if parent exists */
+    struct stat st;
+    if (stat(linux_path, &st) != 0) {
+        return 0;
+    }
+    
+    /* Allocate a lock for the parent */
+    int lock_id = _lock_alloc();
+    if (lock_id == 0) {
+        return 0;
+    }
+    
+    lock_entry_t *lock = &g_locks[lock_id];
+    strncpy(lock->linux_path, linux_path, sizeof(lock->linux_path) - 1);
+    
+    char amiga_path[PATH_MAX];
+    _linux_path_to_amiga(linux_path, amiga_path, sizeof(amiga_path));
+    strncpy(lock->amiga_path, amiga_path, sizeof(lock->amiga_path) - 1);
+    
+    lock->is_dir = TRUE;
+    lock->dir = NULL;
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_parentoffh(): returning lock_id=%d\n", lock_id);
+    return lock_id;
+}
+
+/* OpenFromLock - Convert a lock to a file handle (lock is consumed) */
+static int _dos_openfromlock(uint32_t lock_id, uint32_t fh68k)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_openfromlock(): lock_id=%d, fh=0x%08x\n", lock_id, fh68k);
+    
+    lock_entry_t *lock = _lock_get(lock_id);
+    if (!lock) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_openfromlock(): invalid lock_id\n");
+        return 0;
+    }
+    
+    /* Can only open files, not directories */
+    if (lock->is_dir) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_openfromlock(): cannot open directory\n");
+        return 0;
+    }
+    
+    /* Open the file for reading */
+    int fd = open(lock->linux_path, O_RDONLY);
+    if (fd < 0) {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_openfromlock(): open failed: %s\n", strerror(errno));
+        m68k_write_memory_32(fh68k + 40, errno2Amiga());  /* fh_Arg2 */
+        return 0;
+    }
+    
+    /* Set up the file handle */
+    m68k_write_memory_32(fh68k + 36, fd);                /* fh_Args */
+    m68k_write_memory_32(fh68k + 32, FILE_KIND_REGULAR); /* fh_Func3 */
+    
+    /* Free the lock - it's consumed */
+    _lock_free(lock_id);
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_openfromlock(): success, fd=%d\n", fd);
+    return 1;
+}
+
+/* WaitForChar - Check if input is available on a file handle */
+static int _dos_waitforchar(uint32_t fh68k, uint32_t timeout_us)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_waitforchar(): fh=0x%08x, timeout=%u us\n", fh68k, timeout_us);
+    
+    int fd = m68k_read_memory_32(fh68k + 36);   /* fh_Args */
+    
+    /* Use select() to check for available input */
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(fd, &readfds);
+    
+    struct timeval tv;
+    tv.tv_sec = timeout_us / 1000000;
+    tv.tv_usec = timeout_us % 1000000;
+    
+    int result = select(fd + 1, &readfds, NULL, NULL, &tv);
+    
+    DPRINTF(LOG_DEBUG, "lxa: _dos_waitforchar(): select returned %d\n", result);
+    
+    return (result > 0) ? 1 : 0;
+}
+
 static void _debug_add_bp (uint32_t addr)
 {
     if (g_num_breakpoints < MAX_BREAKPOINTS)
@@ -2568,6 +2912,80 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_ASSIGN_LIST buf=0x%08x, buflen=%d\n", buf, buflen);
 
             uint32_t res = _dos_assign_list(buf, buflen);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        /*
+         * Phase 10: File Handle Utilities
+         */
+        case EMU_CALL_DOS_DUPLOCKFROMFH:
+        {
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_DUPLOCKFROMFH fh=0x%08x\n", fh);
+
+            uint32_t res = _dos_duplockfromfh(fh);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_EXAMINEFH:
+        {
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t fib = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_EXAMINEFH fh=0x%08x, fib=0x%08x\n", fh, fib);
+
+            uint32_t res = _dos_examinefh(fh, fib);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_NAMEFROMFH:
+        {
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t buf = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t len = m68k_get_reg(NULL, M68K_REG_D3);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_NAMEFROMFH fh=0x%08x, buf=0x%08x, len=%d\n", fh, buf, len);
+
+            uint32_t res = _dos_namefromfh(fh, buf, len);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_PARENTOFFH:
+        {
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_PARENTOFFH fh=0x%08x\n", fh);
+
+            uint32_t res = _dos_parentoffh(fh);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_OPENFROMLOCK:
+        {
+            uint32_t lock_id = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_OPENFROMLOCK lock_id=%d, fh=0x%08x\n", lock_id, fh);
+
+            uint32_t res = _dos_openfromlock(lock_id, fh);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_WAITFORCHAR:
+        {
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t timeout = m68k_get_reg(NULL, M68K_REG_D2);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_WAITFORCHAR fh=0x%08x, timeout=%u\n", fh, timeout);
+
+            uint32_t res = _dos_waitforchar(fh, timeout);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }
