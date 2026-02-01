@@ -507,11 +507,43 @@ void _exec_RemIntServer ( register struct ExecBase * SysBase __asm("a6"),
     assert(FALSE);
 }
 
+/*
+ * Cause - Trigger a software interrupt
+ *
+ * This queues the interrupt structure for later execution.
+ * In our simplified implementation, we execute it immediately
+ * since we don't have a real interrupt system.
+ */
 void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
-                                                        register struct Interrupt * ___interrupt  __asm("a1"))
+                   register struct Interrupt * ___interrupt  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: Cause unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: Cause called, interrupt=0x%08lx\n", ___interrupt);
+
+    if (!___interrupt)
+        return;
+
+    /*
+     * In a real Amiga, Cause() would queue the interrupt and it would
+     * be executed later by the interrupt system. Since we don't have
+     * a real interrupt system, we execute the handler directly.
+     *
+     * The handler is called with:
+     *   A1 = is_Data (custom data pointer)
+     *   A5 = is_Code (handler address, for self-reference)
+     *   A6 = ExecBase
+     *
+     * For our simplified implementation, we define a C-callable handler type.
+     * Most interrupt handlers written for C compilers expect this convention.
+     */
+    typedef void (*IntHandler)(register APTR data __asm("a1"),
+                               register APTR code __asm("a5"),
+                               register struct ExecBase *sysbase __asm("a6"));
+    IntHandler handler = (IntHandler)___interrupt->is_Code;
+
+    if (handler)
+    {
+        handler(___interrupt->is_Data, ___interrupt->is_Code, SysBase);
+    }
 }
 
 #ifdef ENABLE_DEBUG
@@ -1845,34 +1877,147 @@ BYTE _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
     return ioRequest->io_Error;
 }
 
+/*
+ * SendIO - Send an I/O request asynchronously
+ *
+ * Starts an I/O operation without waiting for completion.
+ * The I/O request's reply port will receive a message when done.
+ */
 void _exec_SendIO ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct IORequest * ___ioRequest  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: SendIO unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: SendIO called, ioRequest=0x%08lx, command=%d\n",
+             ___ioRequest, ___ioRequest ? ___ioRequest->io_Command : -1);
+
+    if (!___ioRequest || !___ioRequest->io_Device)
+        return;
+
+    /* Clear the quick flag - we want async completion */
+    ___ioRequest->io_Flags &= ~IOF_QUICK;
+
+    /* Mark as not yet replied */
+    ___ioRequest->io_Message.mn_Node.ln_Type = NT_MESSAGE;
+
+    /* Call the device's BeginIO vector */
+    struct JumpVec *jv = &(((struct JumpVec *)(___ioRequest->io_Device))[-5]);
+    devBeginIOFn_t beginiofn = jv->vec;
+
+    beginiofn(&___ioRequest->io_Device->dd_Library, ___ioRequest);
 }
 
+/*
+ * CheckIO - Check if an I/O request has completed
+ *
+ * Returns:
+ *   NULL if the I/O is still in progress
+ *   Pointer to the IORequest if completed (even if with error)
+ */
 struct IORequest * _exec_CheckIO ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct IORequest * ___ioRequest  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: CheckIO unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: CheckIO called, ioRequest=0x%08lx\n", ___ioRequest);
+
+    if (!___ioRequest)
+        return NULL;
+
+    /*
+     * Check if the request has been replied to.
+     * When a device completes an I/O, it calls ReplyMsg() which sets
+     * the node type to NT_REPLYMSG.
+     *
+     * Also check IOF_QUICK - if set, the operation completed synchronously
+     * in BeginIO and there's no reply message.
+     */
+    if (___ioRequest->io_Flags & IOF_QUICK)
+    {
+        /* Quick I/O completed synchronously */
+        return ___ioRequest;
+    }
+
+    if (___ioRequest->io_Message.mn_Node.ln_Type == NT_REPLYMSG)
+    {
+        /* I/O has been replied */
+        return ___ioRequest;
+    }
+
+    /* Still in progress */
     return NULL;
 }
 
+/*
+ * WaitIO - Wait for an I/O request to complete
+ *
+ * Waits for the I/O to complete and removes it from the reply port.
+ * Returns the io_Error field.
+ */
 BYTE _exec_WaitIO ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct IORequest * ___ioRequest  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: WaitIO unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_exec: WaitIO called, ioRequest=0x%08lx\n", ___ioRequest);
+
+    if (!___ioRequest)
+        return IOERR_BADADDRESS;
+
+    /*
+     * If IOF_QUICK is set, the I/O completed synchronously in BeginIO
+     * and there's nothing to wait for.
+     */
+    if (!(___ioRequest->io_Flags & IOF_QUICK))
+    {
+        /* Wait for the reply */
+        struct MsgPort *replyPort = ___ioRequest->io_Message.mn_ReplyPort;
+
+        if (replyPort)
+        {
+            /* Wait until the request is replied */
+            while (___ioRequest->io_Message.mn_Node.ln_Type != NT_REPLYMSG)
+            {
+                Wait(1 << replyPort->mp_SigBit);
+            }
+
+            /* Remove from the reply port's message list */
+            Disable();
+            Remove(&___ioRequest->io_Message.mn_Node);
+            Enable();
+        }
+    }
+
+    DPRINTF (LOG_DEBUG, "_exec: WaitIO returning error=%d\n", ___ioRequest->io_Error);
+    return ___ioRequest->io_Error;
 }
 
+/*
+ * AbortIO - Attempt to abort an in-progress I/O request
+ *
+ * Calls the device's AbortIO vector to try to cancel the request.
+ * The device may or may not support aborting.
+ */
 void _exec_AbortIO ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct IORequest * ___ioRequest  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: AbortIO unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AbortIO called, ioRequest=0x%08lx\n", ___ioRequest);
+
+    if (!___ioRequest || !___ioRequest->io_Device)
+        return;
+
+    /* If already completed, nothing to abort */
+    if ((___ioRequest->io_Flags & IOF_QUICK) ||
+        (___ioRequest->io_Message.mn_Node.ln_Type == NT_REPLYMSG))
+    {
+        return;
+    }
+
+    /*
+     * Call the device's AbortIO vector (offset -36 from library base)
+     * Note: Not all devices implement AbortIO meaningfully
+     */
+    struct JumpVec *jv = &(((struct JumpVec *)(___ioRequest->io_Device))[-6]);
+    void (*abortfn)(struct Library *, struct IORequest *) = jv->vec;
+
+    if (abortfn)
+    {
+        abortfn(&___ioRequest->io_Device->dd_Library, ___ioRequest);
+    }
 }
 
 void _exec_AddResource ( register struct ExecBase * SysBase __asm("a6"),
@@ -2591,26 +2736,74 @@ void _exec_ReleaseSemaphoreList ( register struct ExecBase * SysBase __asm("a6")
     assert(FALSE);
 }
 
+/*
+ * FindSemaphore - Find a named semaphore in the system list
+ *
+ * Returns the semaphore if found, NULL otherwise.
+ */
 struct SignalSemaphore * _exec_FindSemaphore ( register struct ExecBase * SysBase __asm("a6"),
                                                         register STRPTR ___name  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: FindSemaphore unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: FindSemaphore called, name=%s\n", ___name ? (char *)___name : "NULL");
+
+    if (!___name)
+        return NULL;
+
+    Forbid();
+
+    struct SignalSemaphore *sem = (struct SignalSemaphore *)FindName(&SysBase->SemaphoreList, (CONST_STRPTR)___name);
+
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: FindSemaphore returning 0x%08lx\n", sem);
+    return sem;
 }
 
+/*
+ * AddSemaphore - Add a semaphore to the system's public semaphore list
+ *
+ * The semaphore must have been initialized with InitSemaphore() and
+ * must have ss_Link.ln_Name set to the semaphore's name.
+ */
 void _exec_AddSemaphore ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AddSemaphore unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AddSemaphore called, sigSem=0x%08lx, name=%s\n",
+             ___sigSem, ___sigSem && ___sigSem->ss_Link.ln_Name ? ___sigSem->ss_Link.ln_Name : "NULL");
+
+    if (!___sigSem)
+        return;
+
+    Forbid();
+
+    /* Set the node type */
+    ___sigSem->ss_Link.ln_Type = NT_SIGNALSEM;
+
+    /* Add to the system semaphore list (sorted by priority via Enqueue) */
+    Enqueue(&SysBase->SemaphoreList, &___sigSem->ss_Link);
+
+    Permit();
 }
 
+/*
+ * RemSemaphore - Remove a semaphore from the system's public semaphore list
+ *
+ * The semaphore should not be in use when removed.
+ */
 void _exec_RemSemaphore ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: RemSemaphore unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: RemSemaphore called, sigSem=0x%08lx\n", ___sigSem);
+
+    if (!___sigSem)
+        return;
+
+    Forbid();
+
+    /* Remove from the system semaphore list */
+    Remove(&___sigSem->ss_Link);
+
+    Permit();
 }
 
 ULONG _exec_SumKickData ( register struct ExecBase * SysBase __asm("a6"))
@@ -2797,11 +2990,27 @@ void _exec_DeleteMsgPort ( register struct ExecBase * SysBase __asm("a6"),
     }
 }
 
+/*
+ * ObtainSemaphoreShared - Obtain a semaphore for shared (read) access
+ *
+ * Multiple tasks can hold a semaphore in shared mode simultaneously,
+ * but shared mode is mutually exclusive with exclusive mode.
+ *
+ * Our simplified implementation: since we don't have multi-reader
+ * tracking, we treat shared access as exclusive access.
+ * This is correct (never allows data races) but less concurrent.
+ */
 void _exec_ObtainSemaphoreShared ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: ObtainSemaphoreShared unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: ObtainSemaphoreShared called, sigSem=0x%08lx\n", ___sigSem);
+
+    /*
+     * For simplicity, we implement shared mode as exclusive mode.
+     * This is safe but reduces concurrency for read-heavy workloads.
+     * A proper implementation would track shared vs exclusive holders.
+     */
+    ObtainSemaphore(___sigSem);
 }
 
 APTR _exec_AllocVec ( register struct ExecBase * SysBase        __asm("a6"),
@@ -3001,12 +3210,22 @@ void _exec_FreePooled ( register struct ExecBase * SysBase __asm("a6"),
     (void)___memSize;
 }
 
+/*
+ * AttemptSemaphoreShared - Try to obtain a semaphore for shared access without blocking
+ *
+ * Returns TRUE if the semaphore was obtained, FALSE otherwise.
+ * Like ObtainSemaphoreShared, we implement this as exclusive access.
+ */
 ULONG _exec_AttemptSemaphoreShared ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AttemptSemaphoreShared unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_exec: AttemptSemaphoreShared called, sigSem=0x%08lx\n", ___sigSem);
+
+    /*
+     * For simplicity, we implement shared mode as exclusive mode.
+     * This is safe but reduces concurrency.
+     */
+    return AttemptSemaphore(___sigSem);
 }
 
 void _exec_ColdReboot ( register struct ExecBase * SysBase __asm("a6"))
@@ -3448,6 +3667,10 @@ void coldstart (void)
     // init port list for AddPort/RemPort/FindPort
     NEWLIST (&SysBase->PortList);
     SysBase->PortList.lh_Type = NT_MSGPORT;
+
+    // init semaphore list for AddSemaphore/RemSemaphore/FindSemaphore
+    NEWLIST (&SysBase->SemaphoreList);
+    SysBase->SemaphoreList.lh_Type = NT_SIGNALSEM;
 
     SysBase->TaskExitCode = _defaultTaskExit;
     SysBase->Quantum      = DEFAULT_SCHED_QUANTUM;
