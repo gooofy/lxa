@@ -264,9 +264,9 @@ Key implementations:
 
 ---
 
-## Phase 19: Standard Library Expansion
+## Phase 19: Graphics & Layers Completion
 
-**Goal**: Implement the "Big Three" libraries required by most Amiga GUI software.
+**Goal**: Implement the remaining core graphics components.
 
 ### Step 19.1: Layers & Clipping (IN PROGRESS)
 - [x] **layers.library** - Core implementation with Layer_Info, Layer creation/deletion, locking.
@@ -279,22 +279,17 @@ Key implementations:
 - [ ] **Window Invalidation** - Handle damage regions and `BeginRefresh`/`EndRefresh`.
 - [ ] **ClipRect Splitting** - Full overlap handling for multiple layers.
 
-### Step 19.2: GadTools & ASL
-- [ ] **gadtools.library** - Standard UI widgets (buttons, sliders, lists).
-- [ ] **asl.library** - File and Font requesters (bridged to host or native).
-
-### Step 19.3: BOOPSI Foundation
-- [ ] **Intuition Classes** - `imageclass`, `gadgetclass`, `rootclass`.
-- [ ] **NewObject / DisposeObject** - Object lifecycle management.
-
 ---
 
-## Phase 20: Font System & Preferences
+## Phase 20: Core System Libraries & Preferences
 
-**Goal**: Improve visual fidelity and system configuration.
+**Goal**: Improve visual fidelity, system configuration, and core library support.
 
-### Step 20.1: Font System
+### Step 20.1: Standard Libraries
 - [ ] **diskfont.library** - Full implementation for font loading.
+- [ ] **icon.library** - Support for .info files and icon management.
+- [ ] **expansion.library** - ConfigChain and board enumeration stubs.
+- [ ] **translator.library** - English text-to-phoneme translation.
 - [ ] **FONTS: Assign** - Automatic provisioning of font directories.
 - [ ] **Topaz Bundling** - Ensure a high-quality Topaz-8/9 replacement is available.
 
@@ -304,18 +299,32 @@ Key implementations:
 
 ---
 
-## Phase 21: Quality & Stability Hardening
+## Phase 21: Advanced UI Frameworks
+
+**Goal**: Implement standard Amiga UI widgets and object-oriented systems.
+
+### Step 21.1: GadTools & ASL
+- [ ] **gadtools.library** - Standard UI widgets (buttons, sliders, lists).
+- [ ] **asl.library** - File and Font requesters (bridged to host or native).
+
+### Step 21.2: BOOPSI Foundation
+- [ ] **Intuition Classes** - `imageclass`, `gadgetclass`, `rootclass`.
+- [ ] **NewObject / DisposeObject** - Object lifecycle management.
+
+---
+
+## Phase 22: Quality & Stability Hardening
 
 **Goal**: Ensure production-grade reliability.
 
-### Step 21.1: Memory Debugging
+### Step 22.1: Memory Debugging
 - [ ] Memory tracking, leak detection, double-free detection, buffer overflow guards
 - [ ] **Stress Testing** - 24-hour continuous operation, 10,000 file operations.
 
-### Step 21.2: Compatibility Testing
+### Step 22.2: Compatibility Testing
 - [ ] Test with common Amiga software, document issues, create compatibility database.
 
-### Step 21.3: Performance Optimization
+### Step 22.3: Performance Optimization
 - [ ] Profile critical paths, optimize VFS, memory allocation, emucall overhead.
 
 ## Known Limitations & Future Work
