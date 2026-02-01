@@ -1,0 +1,22 @@
+Testing console device input with injection...
+
+--- Setup: Opening screen, window, and console ---
+OK: Screen opened
+OK: Window opened
+OK: Message port created
+OK: Console device opened
+
+--- Test 1: Prompt with injected input ---
+OK: Wrote prompt 'Enter value: '
+Injecting '100' + Return...
+Reading console input...
+Read 4 bytes: '100\n'
+OK: Received expected numeric input '100'
+
+--- Cleanup ---
+OK: Console closed
+OK: Message port deleted
+OK: Window closed
+OK: Screen closed
+
+PASS: input_console all tests passed
