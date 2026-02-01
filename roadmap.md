@@ -308,21 +308,25 @@ Key implementations:
 
 **Result**: KP2 now opens with correct 640x244 window dimensions and loads config properly.
 
-### Step 20.2: Console Device Window Attachment (IN PROGRESS)
+### Step 20.2: Console Device Window Attachment (COMPLETE)
 **Problem**: KickPascal 2's console output (text, prompts) is not visible in the window. Console device currently only logs to debug output, doesn't render to Intuition windows.
 
-**Analysis**: Amiga's `console.device` supports attaching to an Intuition window via `CD_WINDOW` tag in the Open request. Console text should render using the window's RastPort with proper cursor positioning, scrolling, and ANSI/CSI support.
+**Fixes Implemented**:
+- [x] **LxaConUnit Structure** - Extended ConUnit with cursor position, character cell dimensions, raster area bounds, pen colors, and CSI parsing state.
+- [x] **Console Open** - Extract Window pointer from `io_Data` field, create ConUnit with `console_create_unit()`, calculate raster area from window borders.
+- [x] **Text Rendering** - CMD_WRITE processes characters via `console_process_char()`, renders using `Text()` at calculated pixel positions.
+- [x] **CSI Sequence Parsing** - Full support for Amiga's 0x9B and ANSI ESC[ sequences:
+  - H/f: Cursor Position (CUP/HVP)
+  - A/B/C/D: Cursor movement
+  - J: Erase in Display, K: Erase in Line
+  - m: Select Graphic Rendition (colors)
+  - p: Cursor visibility (Amiga-specific)
+  - {: Scroll region (Amiga-specific)
+- [x] **Control Characters** - LF, CR, TAB, BS, BEL, FF handling.
+- [x] **Scrolling** - `console_scroll_up()` using `ScrollRaster()`.
+- [x] **Display Refresh** - `WaitTOF()` called after writes to trigger screen update.
 
-- [ ] **Console Open Analysis** - Understand how KP2 opens console.device and attaches to window.
-- [ ] **CD_WINDOW Tag** - Parse console Open request tags to extract Window pointer.
-- [ ] **Console Context** - Store per-console state: attached window, cursor position, colors, attributes.
-- [ ] **Text Rendering** - Implement console write to render text to window's RastPort using Text() function.
-- [ ] **Cursor Management** - Track and display text cursor within window.
-- [ ] **Scrolling** - Implement scroll region when text exceeds window height.
-- [ ] **Input Integration** - Route keyboard input from IDCMP to console CMD_READ requests.
-- [ ] **Test** - Verify KP2's text output appears in window, keyboard input works in window.
-
-**Current State**: Console CMD_WRITE only logs to `lxa.log`, CMD_READ uses stdin emucall (Linux terminal, not window).
+**Result**: KP2's text output now renders correctly in the window. Console input still uses host stdin (window keyboard input deferred).
 
 ### Step 20.3: Window Layer Clipping (NOT STARTED)
 **Problem**: Drawing outside window bounds may render on screen instead of being clipped.
