@@ -39,6 +39,11 @@ char __aligned _g_intuition_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase      *SysBase;
 
+/* Forward declarations */
+ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"));
+struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                        register const struct NewScreen * newScreen __asm("a0"));
+
 // libBase: IntuitionBase
 // baseType: struct IntuitionBase *
 // libname: intuition.library
@@ -296,8 +301,69 @@ VOID _intuition_DrawImage ( register struct IntuitionBase * IntuitionBase __asm(
                                                         register WORD leftOffset __asm("d0"),
                                                         register WORD topOffset __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: DrawImage() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: DrawImage() rp=0x%08lx image=0x%08lx at %d,%d\n",
+             (ULONG)rp, (ULONG)image, (int)leftOffset, (int)topOffset);
+    
+    if (!rp || !image)
+        return;
+    
+    /* Walk the Image chain and render each image */
+    while (image)
+    {
+        WORD x = leftOffset + image->LeftEdge;
+        WORD y = topOffset + image->TopEdge;
+        
+        if (image->ImageData && image->Width > 0 && image->Height > 0)
+        {
+            /* Render image data using BltTemplate or pixel-by-pixel */
+            /* For now, use a simple blit approach */
+            
+            UWORD wordsPerRow = (image->Width + 15) / 16;
+            UBYTE planePick = image->PlanePick;
+            UBYTE planeOnOff = image->PlaneOnOff;
+            UWORD *data = image->ImageData;
+            
+            for (WORD py = 0; py < image->Height; py++)
+            {
+                for (WORD px = 0; px < image->Width; px++)
+                {
+                    UWORD wordIndex = px / 16;
+                    UWORD bitIndex = 15 - (px % 16);
+                    
+                    /* Build the color from all planes */
+                    UBYTE color = 0;
+                    UWORD *planeData = data;
+                    
+                    for (WORD plane = 0; plane < image->Depth && plane < 8; plane++)
+                    {
+                        if (planePick & (1 << plane))
+                        {
+                            /* This plane has data */
+                            UWORD word = planeData[py * wordsPerRow + wordIndex];
+                            if (word & (1 << bitIndex))
+                                color |= (1 << plane);
+                            planeData += wordsPerRow * image->Height;
+                        }
+                        else
+                        {
+                            /* Use PlaneOnOff for this plane */
+                            if (planeOnOff & (1 << plane))
+                                color |= (1 << plane);
+                        }
+                    }
+                    
+                    /* Only draw non-zero pixels (or all if depth is 0) */
+                    if (color != 0 || image->Depth == 0)
+                    {
+                        SetAPen(rp, color);
+                        WritePixel(rp, x + px, y + py);
+                    }
+                }
+            }
+        }
+        
+        image = image->NextImage;
+    }
 }
 
 VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -785,9 +851,42 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     screen = newWindow->Screen;
     if (!screen)
     {
-        /* TODO: Use default public screen (Workbench) if not specified */
-        LPRINTF (LOG_ERROR, "_intuition: OpenWindow() requires a screen (no Workbench yet)\n");
-        return NULL;
+        /* No screen specified - use the Workbench screen (open it if needed) */
+        DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() no screen specified, using Workbench\n");
+        
+        /* Try to find existing Workbench screen */
+        screen = IntuitionBase->FirstScreen;
+        while (screen)
+        {
+            if (screen->Flags & WBENCHSCREEN)
+                break;
+            screen = screen->NextScreen;
+        }
+        
+        /* If no Workbench screen, open one */
+        if (!screen)
+        {
+            DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() opening Workbench screen\n");
+            if (!_intuition_OpenWorkBench(IntuitionBase))
+            {
+                LPRINTF (LOG_ERROR, "_intuition: OpenWindow() failed to open Workbench screen\n");
+                return NULL;
+            }
+            /* Find the newly created Workbench screen */
+            screen = IntuitionBase->FirstScreen;
+            while (screen)
+            {
+                if (screen->Flags & WBENCHSCREEN)
+                    break;
+                screen = screen->NextScreen;
+            }
+        }
+        
+        if (!screen)
+        {
+            LPRINTF (LOG_ERROR, "_intuition: OpenWindow() Workbench screen not found after creation\n");
+            return NULL;
+        }
     }
 
     /* Calculate window dimensions */
@@ -919,8 +1018,44 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
 
 ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: OpenWorkBench() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct Screen *wbscreen;
+    struct NewScreen ns;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() called.\n");
+    
+    /* Check if Workbench screen already exists */
+    wbscreen = IntuitionBase->FirstScreen;
+    while (wbscreen)
+    {
+        if (wbscreen->Flags & WBENCHSCREEN)
+        {
+            DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - Workbench already open at 0x%08lx\n", (ULONG)wbscreen);
+            return (ULONG)wbscreen;
+        }
+        wbscreen = wbscreen->NextScreen;
+    }
+    
+    /* Create a new Workbench screen */
+    memset(&ns, 0, sizeof(ns));
+    ns.LeftEdge = 0;
+    ns.TopEdge = 0;
+    ns.Width = 640;
+    ns.Height = 256;
+    ns.Depth = 2;
+    ns.DetailPen = 0;
+    ns.BlockPen = 1;
+    ns.Type = WBENCHSCREEN;
+    ns.DefaultTitle = (UBYTE *)"Workbench Screen";
+    
+    wbscreen = _intuition_OpenScreen(IntuitionBase, &ns);
+    
+    if (wbscreen)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - opened at 0x%08lx\n", (ULONG)wbscreen);
+        return (ULONG)wbscreen;
+    }
+    
+    LPRINTF (LOG_ERROR, "_intuition: OpenWorkBench() failed to create screen\n");
     return 0;
 }
 
@@ -930,8 +1065,54 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD left __asm("d0"),
                                                         register WORD top __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: PrintIText() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: PrintIText() rp=0x%08lx iText=0x%08lx at %d,%d\n",
+             (ULONG)rp, (ULONG)iText, (int)left, (int)top);
+    
+    if (!rp || !iText)
+        return;
+    
+    /* Walk the IntuiText chain and render each text */
+    while (iText)
+    {
+        if (iText->IText)
+        {
+            BYTE oldAPen = rp->FgPen;
+            BYTE oldBPen = rp->BgPen;
+            BYTE oldDrMd = rp->DrawMode;
+            
+            /* Set colors and drawmode from IntuiText */
+            SetAPen(rp, iText->FrontPen);
+            SetBPen(rp, iText->BackPen);
+            SetDrMd(rp, iText->DrawMode);
+            
+            /* Calculate position */
+            WORD x = left + iText->LeftEdge;
+            WORD y = top + iText->TopEdge;
+            
+            /* If a font is specified, try to use it */
+            /* For now, just use the rastport's current font */
+            
+            /* Move to position and render text */
+            Move(rp, x, y + 6);  /* +6 for baseline adjustment with 8-pixel font */
+            
+            /* Calculate text length and render */
+            STRPTR txt = iText->IText;
+            UWORD len = 0;
+            while (txt[len]) len++;
+            
+            if (len > 0)
+            {
+                Text(rp, txt, len);
+            }
+            
+            /* Restore original colors/mode */
+            SetAPen(rp, oldAPen);
+            SetBPen(rp, oldBPen);
+            SetDrMd(rp, oldDrMd);
+        }
+        
+        iText = iText->NextText;
+    }
 }
 
 VOID _intuition_RefreshGadgets ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -939,8 +1120,8 @@ VOID _intuition_RefreshGadgets ( register struct IntuitionBase * IntuitionBase _
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: RefreshGadgets() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: RefreshGadgets() stub - no-op for now\n");
+    /* TODO: Implement gadget refresh when gadget system is implemented */
 }
 
 UWORD _intuition_RemoveGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -1100,16 +1281,14 @@ LONG _intuition_IntuiTextLength ( register struct IntuitionBase * IntuitionBase 
 
 BOOL _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: WBenchToBack() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_intuition: WBenchToBack() stub called - no-op.\n");
+    return TRUE;
 }
 
 BOOL _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: WBenchToFront() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_intuition: WBenchToFront() stub called - no-op.\n");
+    return TRUE;
 }
 
 BOOL _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
