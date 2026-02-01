@@ -293,17 +293,17 @@ Key implementations:
 
 **Goal**: Improve visual fidelity, system configuration, and core library support.
 
-### Step 20.1: Standard Libraries
-- [ ] **diskfont.library** - Full implementation for font loading.
-- [ ] **icon.library** - Support for .info files and icon management.
-- [ ] **expansion.library** - ConfigChain and board enumeration stubs.
-- [ ] **translator.library** - English text-to-phoneme translation.
+### Step 20.1: Standard Libraries (COMPLETE)
+- [x] **diskfont.library** - OpenDiskFont (falls back to ROM fonts), AvailFonts stub.
+- [x] **icon.library** - Fixed LVO table alignment, full function set implemented.
+- [x] **expansion.library** - ConfigChain and board enumeration stubs (existing).
+- [x] **translator.library** - Translate() stub (copies input to output).
+- [x] **locale.library** - Character classification (IsAlpha, IsDigit, etc.), ConvToLower/ConvToUpper, GetLocaleStr, OpenLocale with default English locale.
 - [ ] **FONTS: Assign** - Automatic provisioning of font directories.
 - [ ] **Topaz Bundling** - Ensure a high-quality Topaz-8/9 replacement is available.
 
 ### Step 20.2: Preferences & Environment
 - [ ] **ENVARC: Persistence** - Map `ENVARC:` to `~/.lxa/Prefs/Env` with persistence.
-- [ ] **Locale Basics** - `locale.library` stubs for system defaults.
 
 ---
 

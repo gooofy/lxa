@@ -88,6 +88,10 @@ extern struct Resident *__lxa_graphics_ROMTag;
 extern struct Resident *__lxa_intuition_ROMTag;
 extern struct Resident *__lxa_layers_ROMTag;
 extern struct Resident *__lxa_expansion_ROMTag;
+extern struct Resident *__lxa_icon_ROMTag;
+extern struct Resident *__lxa_diskfont_ROMTag;
+extern struct Resident *__lxa_translator_ROMTag;
+extern struct Resident *__lxa_locale_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 extern struct Resident *__lxa_console_ROMTag;
 
@@ -104,6 +108,10 @@ struct GfxBase         *GfxBase;
 struct IntuitionBase   *IntuitionBase;
 struct Library         *LayersBase;
 struct ExpansionBase   *ExpansionBase;
+struct Library         *IconBase;
+struct Library         *DiskfontBase;
+struct Library         *TranslatorBase;
+struct Library         *LocaleBase;
 struct Library         *DeviceInputBase;
 struct Library         *DeviceConsoleBase;
 
@@ -3841,6 +3849,10 @@ void coldstart (void)
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
     LayersBase    = (struct Library       *) registerBuiltInLib (sizeof(*LayersBase)    , __lxa_layers_ROMTag    );
     ExpansionBase = (struct ExpansionBase *) registerBuiltInLib (sizeof(*ExpansionBase) , __lxa_expansion_ROMTag );
+    IconBase      = (struct Library       *) registerBuiltInLib (sizeof(*IconBase)      , __lxa_icon_ROMTag      );
+    DiskfontBase  = (struct Library       *) registerBuiltInLib (sizeof(*DiskfontBase)  , __lxa_diskfont_ROMTag  );
+    TranslatorBase= (struct Library       *) registerBuiltInLib (sizeof(*TranslatorBase), __lxa_translator_ROMTag);
+    LocaleBase    = (struct Library       *) registerBuiltInLib (sizeof(*LocaleBase)    , __lxa_locale_ROMTag    );
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in libraries\n");
 

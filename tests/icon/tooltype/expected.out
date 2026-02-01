@@ -1,0 +1,68 @@
+Testing icon.library ToolType functions...
+OK: Opened icon.library
+
+Test 1: FindToolType() exact match (boolean)...
+OK: Found DONOTWAIT
+OK: Returns empty string for boolean
+
+Test 2: FindToolType() key=value...
+OK: Found PUBSCREEN, value='Workbench'
+
+Test 3: FindToolType() case insensitive...
+OK: Found pubscreen (lowercase)
+OK: Found PubScreen (mixed case)
+
+Test 4: FindToolType() not found...
+OK: NONEXISTENT correctly not found
+
+Test 5: FindToolType() skips comments...
+OK: Comment line correctly skipped
+
+Test 6: FindToolType() handles leading spaces...
+OK: Found SPACED despite leading spaces
+
+Test 7: FindToolType() NULL parameters...
+OK: NULL toolTypes returns NULL
+OK: NULL typeName returns NULL
+
+Test 8: MatchToolValue() single value...
+OK: TEXT matches TEXT
+
+Test 9: MatchToolValue() pipe-separated...
+OK: Found BINARY in TEXT|BINARY|SOURCE
+OK: Found SOURCE in TEXT|BINARY|SOURCE
+OK: Found TEXT in TEXT|BINARY|SOURCE
+
+Test 10: MatchToolValue() case insensitive...
+OK: text matches TEXT (case insensitive)
+
+Test 11: MatchToolValue() not found...
+OK: HEXDUMP correctly not found in TEXT|BINARY
+
+Test 12: MatchToolValue() NULL parameters...
+OK: NULL typeString returns FALSE
+OK: NULL value returns FALSE
+
+Test 13: BumpRevision() new copy...
+OK: BumpRevision returned 'copy_of_MyFile'
+OK: Result is correct
+
+Test 14: BumpRevision() first numbered...
+OK: BumpRevision returned 'copy_2_of_MyFile'
+OK: Result is correct
+
+Test 15: BumpRevision() increment number...
+OK: BumpRevision returned 'copy_6_of_MyFile'
+OK: Result is correct
+
+Test 16: GetDefDiskObject()...
+OK: GetDefDiskObject returned non-NULL
+OK: Magic number is correct
+OK: Type is WBPROJECT
+OK: FreeDiskObject completed
+
+Test 17: FreeDiskObject() NULL...
+OK: FreeDiskObject(NULL) didn't crash
+OK: Closed icon.library
+
+PASS: icon/tooltype all tests passed

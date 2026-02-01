@@ -44,6 +44,10 @@ set(ROM_C_SOURCES
     lxa_intuition.c
     lxa_layers.c
     lxa_expansion.c
+    lxa_icon.c
+    lxa_diskfont.c
+    lxa_translator.c
+    lxa_locale.c
     lxa_dev_console.c
     util.c
     amath.c
