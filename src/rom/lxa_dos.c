@@ -3269,6 +3269,17 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList() created process 0x%08lx, taskNum=%ld\n", proc, proc->pr_TaskNum);
     
+    /* Check for asynchronous execution */
+    BOOL asynch = GetTagData(SYS_Asynch, FALSE, tags);
+    if (asynch) {
+        /* SYS_Asynch: Don't wait for the child to complete, return immediately.
+         * The child will run independently and clean up after itself when done.
+         * This is used for launching GUI applications that don't exit immediately.
+         */
+        DPRINTF(LOG_INFO, "_dos: SystemTagList() running '%s' asynchronously\n", bin_name);
+        return 0;  /* Success - child launched but not waited for */
+    }
+    
     /* Wait for completion - Poll TaskArray */
     LONG taskNum = proc->pr_TaskNum;
     struct RootNode *root = DOSBase->dl_Root;

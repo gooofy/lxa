@@ -82,6 +82,11 @@ static LONG run_background(const char *command)
     /* Rest is arguments */
     if (*command) args = (char *)command;
     
+    /* If no args, provide at least a newline (Amiga startup convention) */
+    if (!args || !*args) {
+        args = "\n";
+    }
+    
     /* Try to load the program */
     BPTR seglist = LoadSeg((STRPTR)bin_name);
     if (!seglist) {

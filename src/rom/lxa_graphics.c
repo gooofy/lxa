@@ -274,6 +274,17 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
     bgpen = (UBYTE)destRP->BgPen;
     drawmode = destRP->DrawMode;
 
+    /* Handle INVERSVID - swap foreground and background colors */
+    if (drawmode & INVERSVID)
+    {
+        UBYTE tmp = fgpen;
+        fgpen = bgpen;
+        bgpen = tmp;
+    }
+
+    /* Mask out INVERSVID to get base draw mode */
+    UBYTE basemode = drawmode & ~INVERSVID;
+
     /* Process each row of the template */
     for (row = 0; row < ySize; row++)
     {
@@ -299,7 +310,7 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
             LONG destByteOffset = destX / 8;
             UBYTE destBitMask = (UBYTE)(0x80 >> (destX % 8));
 
-            if (drawmode == JAM1)
+            if (basemode == JAM1)
             {
                 /* JAM1: only draw where template is 1 */
                 if (templateBit)
@@ -314,7 +325,7 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
                     }
                 }
             }
-            else if (drawmode == JAM2)
+            else if (basemode == JAM2)
             {
                 /* JAM2: draw foreground where template is 1, background where 0 */
                 UBYTE pen = templateBit ? fgpen : bgpen;
@@ -327,7 +338,7 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
                         *destPlane &= ~destBitMask;
                 }
             }
-            else if (drawmode == COMPLEMENT)
+            else if (basemode == COMPLEMENT)
             {
                 /* COMPLEMENT: XOR where template is 1 */
                 if (templateBit)
@@ -475,6 +486,17 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
     bgpen = (UBYTE)rp->BgPen;
     drawmode = rp->DrawMode;
 
+    /* Handle INVERSVID - swap foreground and background colors */
+    if (drawmode & INVERSVID)
+    {
+        UBYTE tmp = fgpen;
+        fgpen = bgpen;
+        bgpen = tmp;
+    }
+
+    /* Mask out INVERSVID to get base draw mode */
+    UBYTE basemode = drawmode & ~INVERSVID;
+
     /* Draw each character */
     for (i = 0; i < count; i++)
     {
@@ -501,7 +523,7 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                     continue;
 
                 /* Determine what to draw based on draw mode */
-                if (drawmode == JAM1)
+                if (basemode == JAM1)
                 {
                     /* JAM1: Only draw foreground pixels */
                     if (pixel_set)
@@ -521,7 +543,7 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                         }
                     }
                 }
-                else if (drawmode == JAM2)
+                else if (basemode == JAM2)
                 {
                     /* JAM2: Draw both foreground and background */
                     WORD byte_idx = px / 8;
@@ -538,7 +560,7 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                             *plane_ptr &= ~bit_mask;
                     }
                 }
-                else if (drawmode == COMPLEMENT)
+                else if (basemode == COMPLEMENT)
                 {
                     /* COMPLEMENT: XOR with existing pixels */
                     if (pixel_set)
@@ -1231,6 +1253,16 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
 
     struct BitMap *bm = rp->BitMap;
     BYTE pen = rp->FgPen;
+    UBYTE drawmode = rp->DrawMode;
+
+    /* Handle INVERSVID - use BgPen instead of FgPen */
+    if (drawmode & INVERSVID)
+    {
+        pen = rp->BgPen;
+    }
+
+    /* Mask out INVERSVID to get base draw mode */
+    UBYTE basemode = drawmode & ~INVERSVID;
 
     /* Bounds check */
     if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
@@ -1244,7 +1276,7 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
     {
         if (bm->Planes[plane])
         {
-            if (rp->DrawMode == COMPLEMENT)
+            if (basemode == COMPLEMENT)
             {
                 /* In COMPLEMENT mode, only XOR planes where pen bit is set */
                 if (pen & (1 << plane))
