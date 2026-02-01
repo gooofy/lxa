@@ -60,9 +60,78 @@ Whenever a task is finished, you **must** perform the following:
     - Add any "lessons learned" or newly discovered technical debt as new bullet points in the current or future phases.
 2.  **Update `README.md`**:
     - Update usage instructions, API documentation, or project descriptions to match the new features.
-3.  **Final Validation**:
+3.  **Update Version Number** (see §2.1 Version Management below)
+4.  **Final Validation**:
     - Run the full test suite.
     - Generate a coverage report to verify the 100% coverage requirement.
+
+### 2.1 Version Management
+
+**MANDATORY**: The version number **must** be updated for every commit that changes functionality.
+
+#### Version File Location
+The single source of truth for version numbers is:
+```
+src/include/lxa_version.h
+```
+
+This file defines:
+```c
+#define LXA_VERSION_MAJOR   0
+#define LXA_VERSION_MINOR   1  
+#define LXA_VERSION_PATCH   0
+#define LXA_VERSION_STRING  "0.1.0"
+```
+
+#### Version Number Format: MAJOR.MINOR.PATCH
+
+| Component | When to Increment | Examples |
+|-----------|-------------------|----------|
+| **MAJOR** | Breaking changes, major milestones, API incompatibility | 0→1 when lxa reaches "production ready", incompatible config changes |
+| **MINOR** | New features, significant enhancements, new commands | New DOS function, new shell feature, new library support |
+| **PATCH** | Bug fixes, minor improvements, refactoring | Fix path resolution bug, improve error messages, code cleanup |
+
+#### Version Update Rules
+
+1. **Every functional commit MUST increment the version**
+   - Bug fix → increment PATCH
+   - New feature → increment MINOR (and reset PATCH to 0)
+   - Breaking change → increment MAJOR (and reset MINOR and PATCH to 0)
+
+2. **Documentation-only changes** do not require version increment
+
+3. **When incrementing MINOR**, reset PATCH to 0:
+   ```c
+   // Before: 0.1.5
+   // After adding new feature: 0.2.0
+   #define LXA_VERSION_MINOR   2
+   #define LXA_VERSION_PATCH   0
+   #define LXA_VERSION_STRING  "0.2.0"
+   ```
+
+4. **When incrementing MAJOR**, reset MINOR and PATCH to 0:
+   ```c
+   // Before: 0.15.3
+   // After major milestone: 1.0.0
+   #define LXA_VERSION_MAJOR   1
+   #define LXA_VERSION_MINOR   0
+   #define LXA_VERSION_PATCH   0
+   #define LXA_VERSION_STRING  "1.0.0"
+   ```
+
+5. **Keep VERSION_STRING in sync** with the numeric values
+
+#### Current Version Status
+- **0.x.x** - Pre-release development phase
+- **1.0.0** - Target for first stable release (all core AmigaOS 1.3 functionality working)
+
+#### Verification
+The shell displays version and build date on startup:
+```
+lxa Shell v0.1.0 (Feb  1 2026)
+```
+
+This helps users identify exactly which version they're running and when it was built.
 
 ### Error Handling
 If a task cannot be completed due to unforeseen technical blockers:

@@ -16,6 +16,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "lxa_version.h"
+
 /* External reference to DOS library base */
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
@@ -728,7 +730,10 @@ int main(int argc, char **argv)
         }
     } else {
         out_str("lxa Shell v");
-        out_line("1.0");
+        out_str(LXA_VERSION_STRING);
+        out_str(" (");
+        out_str(LXA_BUILD_DATE);
+        out_line(")");
         
         /* Run startup-sequence if it exists (only for interactive shell) */
         run_startup = TRUE;

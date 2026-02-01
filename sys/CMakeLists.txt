@@ -18,6 +18,7 @@ set(COMMAND_CFLAGS
     -Wall
     -I${M68K_PREFIX}/m68k-amigaos/include
     -I${M68K_PREFIX}/m68k-amigaos/sys-include
+    -I${CMAKE_CURRENT_SOURCE_DIR}/../src/include
 )
 
 # Common linker flags
