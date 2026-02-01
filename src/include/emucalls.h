@@ -106,5 +106,12 @@
 #define EMU_CALL_INT_CLOSE_SCREEN  3001  /* CloseScreen: (display_handle) -> success */
 #define EMU_CALL_INT_REFRESH_SCREEN 3002 /* RefreshScreen: (display_handle, planes_ptr, bpr, depth) */
 
+/* Input Handling (Phase 14) */
+#define EMU_CALL_INT_POLL_INPUT    3010  /* Poll for input: () -> event_type (0=none, 1=mouse, 2=key, 3=close) */
+#define EMU_CALL_INT_GET_MOUSE_POS 3011  /* Get mouse position: () -> (x << 16) | y */
+#define EMU_CALL_INT_GET_MOUSE_BTN 3012  /* Get mouse button state: () -> button_code (IECODE_LBUTTON, etc) */
+#define EMU_CALL_INT_GET_KEY       3013  /* Get key event: () -> rawkey | (qualifier << 16) */
+#define EMU_CALL_INT_GET_EVENT_WIN 3014  /* Get window for last event: () -> window_id (display_handle) */
+
 #endif
 

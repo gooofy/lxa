@@ -148,7 +148,29 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
         }
     }
 
-    /* TODO: Unlink screen from IntuitionBase screen list */
+    /* Unlink screen from IntuitionBase screen list */
+    if (IntuitionBase->FirstScreen == screen)
+    {
+        IntuitionBase->FirstScreen = screen->NextScreen;
+    }
+    else
+    {
+        struct Screen *prev = IntuitionBase->FirstScreen;
+        while (prev && prev->NextScreen != screen)
+        {
+            prev = prev->NextScreen;
+        }
+        if (prev)
+        {
+            prev->NextScreen = screen->NextScreen;
+        }
+    }
+    
+    /* Update active screen if necessary */
+    if (IntuitionBase->ActiveScreen == screen)
+    {
+        IntuitionBase->ActiveScreen = IntuitionBase->FirstScreen;
+    }
 
     /* Free the Screen structure */
     FreeMem(screen, sizeof(struct Screen));
@@ -349,6 +371,192 @@ BOOL _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __as
     return TRUE;
 }
 
+/*
+ * Internal function to post an IDCMP message to a window
+ * Returns TRUE if message was posted, FALSE if window not interested
+ */
+static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code, 
+                                 UWORD qualifier, APTR iaddress, WORD mouseX, WORD mouseY)
+{
+    struct IntuiMessage *imsg;
+    
+    if (!window || !window->UserPort)
+        return FALSE;
+    
+    /* Check if window is interested in this message class */
+    if (!(window->IDCMPFlags & class))
+        return FALSE;
+    
+    /* Allocate IntuiMessage */
+    imsg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!imsg)
+    {
+        LPRINTF(LOG_ERROR, "_intuition: _post_idcmp_message() out of memory\n");
+        return FALSE;
+    }
+    
+    /* Fill in the message */
+    imsg->ExecMessage.mn_Node.ln_Type = NT_MESSAGE;
+    imsg->ExecMessage.mn_Length = sizeof(struct IntuiMessage);
+    imsg->ExecMessage.mn_ReplyPort = NULL;  /* No reply expected for IDCMP */
+    
+    imsg->Class = class;
+    imsg->Code = code;
+    imsg->Qualifier = qualifier;
+    imsg->IAddress = iaddress;
+    imsg->MouseX = mouseX;
+    imsg->MouseY = mouseY;
+    imsg->IDCMPWindow = window;
+    
+    /* Get current time */
+    /* TODO: Use proper system time */
+    imsg->Seconds = 0;
+    imsg->Micros = 0;
+    
+    /* Update window's mouse position */
+    window->MouseX = mouseX;
+    window->MouseY = mouseY;
+    
+    /* Post the message to the window's UserPort */
+    PutMsg(window->UserPort, (struct Message *)imsg);
+    
+    DPRINTF(LOG_DEBUG, "_intuition: Posted IDCMP 0x%08lx to window 0x%08lx\n",
+            class, (ULONG)window);
+    
+    return TRUE;
+}
+
+/*
+ * Internal function: Process pending input events from the host
+ * This should be called periodically (e.g., from WaitTOF or the scheduler)
+ * 
+ * The function polls for SDL events via emucalls and posts appropriate
+ * IDCMP messages to windows that have requested them.
+ */
+VOID _intuition_ProcessInputEvents(struct Screen *screen)
+{
+    ULONG event_type;
+    ULONG mouse_pos;
+    ULONG button_code;
+    ULONG key_data;
+    WORD mouseX, mouseY;
+    struct Window *window;
+    
+    if (!screen)
+        return;
+    
+    /* Poll for input events */
+    while (1)
+    {
+        event_type = emucall0(EMU_CALL_INT_POLL_INPUT);
+        if (event_type == 0)
+            break;  /* No more events */
+        
+        /* Get mouse position for all events */
+        mouse_pos = emucall0(EMU_CALL_INT_GET_MOUSE_POS);
+        mouseX = (WORD)(mouse_pos >> 16);
+        mouseY = (WORD)(mouse_pos & 0xFFFF);
+        
+        /* Find the window that should receive this event */
+        /* For now, send to first window on screen */
+        /* TODO: Proper window hit-testing based on mouse position */
+        window = screen->FirstWindow;
+        
+        switch (event_type)
+        {
+            case 1:  /* Mouse button */
+            {
+                button_code = emucall0(EMU_CALL_INT_GET_MOUSE_BTN);
+                UWORD code = (UWORD)(button_code & 0xFF);
+                UWORD qualifier = (UWORD)((button_code >> 8) & 0xFFFF);
+                
+                /* Post IDCMP_MOUSEBUTTONS */
+                if (window)
+                {
+                    /* Convert to window-relative coordinates */
+                    WORD relX = mouseX - window->LeftEdge;
+                    WORD relY = mouseY - window->TopEdge;
+                    _post_idcmp_message(window, IDCMP_MOUSEBUTTONS, code, 
+                                       qualifier, NULL, relX, relY);
+                }
+                break;
+            }
+            
+            case 2:  /* Mouse move */
+            {
+                key_data = emucall0(EMU_CALL_INT_GET_KEY);  /* Get qualifier */
+                UWORD qualifier = (UWORD)(key_data >> 16);
+                
+                if (window)
+                {
+                    /* Update window mouse position */
+                    WORD relX = mouseX - window->LeftEdge;
+                    WORD relY = mouseY - window->TopEdge;
+                    window->MouseX = relX;
+                    window->MouseY = relY;
+                    
+                    /* Post IDCMP_MOUSEMOVE if requested */
+                    _post_idcmp_message(window, IDCMP_MOUSEMOVE, 0, 
+                                       qualifier, NULL, relX, relY);
+                }
+                break;
+            }
+            
+            case 3:  /* Key */
+            {
+                key_data = emucall0(EMU_CALL_INT_GET_KEY);
+                UWORD rawkey = (UWORD)(key_data & 0xFFFF);
+                UWORD qualifier = (UWORD)(key_data >> 16);
+                
+                if (window)
+                {
+                    /* Convert to window-relative coordinates */
+                    WORD relX = mouseX - window->LeftEdge;
+                    WORD relY = mouseY - window->TopEdge;
+                    _post_idcmp_message(window, IDCMP_RAWKEY, rawkey, 
+                                       qualifier, NULL, relX, relY);
+                }
+                break;
+            }
+            
+            case 4:  /* Close window request */
+            {
+                if (window)
+                {
+                    WORD relX = mouseX - window->LeftEdge;
+                    WORD relY = mouseY - window->TopEdge;
+                    _post_idcmp_message(window, IDCMP_CLOSEWINDOW, 0, 
+                                       0, NULL, relX, relY);
+                }
+                break;
+            }
+            
+            case 5:  /* Quit */
+            {
+                /* System quit requested - post close to all windows */
+                for (window = screen->FirstWindow; window; window = window->NextWindow)
+                {
+                    _post_idcmp_message(window, IDCMP_CLOSEWINDOW, 0, 0, NULL, 0, 0);
+                }
+                break;
+            }
+        }
+    }
+}
+
+/*
+ * ReplyIntuiMsg - Reply to an IntuiMessage and free it
+ * This is a convenience function for applications
+ */
+VOID _intuition_ReplyIntuiMsg(struct IntuiMessage *imsg)
+{
+    if (imsg)
+    {
+        /* Just free the message - we don't track them centrally */
+        FreeMem(imsg, sizeof(struct IntuiMessage));
+    }
+}
+
 VOID _intuition_ModifyProp ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadget __asm("a0"),
                                                         register struct Window * window __asm("a1"),
@@ -527,7 +735,15 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Clear the screen to color 0 */
     SetRast(&screen->RastPort, 0);
 
-    /* TODO: Link screen into IntuitionBase screen list */
+    /* Link screen into IntuitionBase screen list (at front) */
+    screen->NextScreen = IntuitionBase->FirstScreen;
+    IntuitionBase->FirstScreen = screen;
+    
+    /* If this is the first screen, make it the active screen */
+    if (!IntuitionBase->ActiveScreen)
+    {
+        IntuitionBase->ActiveScreen = screen;
+    }
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() -> 0x%08lx, display_handle=0x%08lx\n",
              (ULONG)screen, display_handle);

@@ -41,6 +41,7 @@ struct display_t
 /* Global state */
 static bool g_display_initialized = false;
 static bool g_sdl_available = false;
+static display_t *g_active_display = NULL;  /* Forward declaration for event routing */
 
 /*
  * Initialize the display subsystem.
@@ -243,6 +244,10 @@ display_t *display_open(int width, int height, int depth, const char *title)
 #endif
 
     display->dirty = true;
+    
+    /* Set this as the active display for event routing */
+    g_active_display = display;
+    
     return display;
 }
 
@@ -492,8 +497,170 @@ void display_get_size(display_t *display, int *width, int *height, int *depth)
 }
 
 /*
+ * Input event queue - simple circular buffer for pending events
+ */
+#define EVENT_QUEUE_SIZE 32
+static display_event_t g_event_queue[EVENT_QUEUE_SIZE];
+static int g_event_queue_head = 0;
+static int g_event_queue_tail = 0;
+static int g_mouse_x = 0;
+static int g_mouse_y = 0;
+
+/*
+ * Add an event to the queue
+ */
+static void queue_event(const display_event_t *event)
+{
+    int next_head = (g_event_queue_head + 1) % EVENT_QUEUE_SIZE;
+    if (next_head != g_event_queue_tail)  /* Don't overflow */
+    {
+        g_event_queue[g_event_queue_head] = *event;
+        g_event_queue_head = next_head;
+    }
+}
+
+/*
+ * Get the next event from the queue
+ */
+bool display_get_event(display_event_t *event)
+{
+    if (g_event_queue_tail == g_event_queue_head)
+    {
+        return false;  /* Queue empty */
+    }
+    
+    if (event)
+    {
+        *event = g_event_queue[g_event_queue_tail];
+    }
+    g_event_queue_tail = (g_event_queue_tail + 1) % EVENT_QUEUE_SIZE;
+    return true;
+}
+
+/*
+ * Get current mouse position
+ */
+void display_get_mouse_pos(int *x, int *y)
+{
+    if (x) *x = g_mouse_x;
+    if (y) *y = g_mouse_y;
+}
+
+/*
+ * Convert SDL keycode to Amiga rawkey code
+ * This is a simplified mapping for common keys
+ */
+#if HAS_SDL2
+static int sdl_key_to_rawkey(SDL_Keycode key)
+{
+    /* Amiga rawkey codes (from devices/rawkeycodes.h) */
+    switch (key)
+    {
+        /* Letters */
+        case SDLK_a: return 0x20;
+        case SDLK_b: return 0x35;
+        case SDLK_c: return 0x33;
+        case SDLK_d: return 0x22;
+        case SDLK_e: return 0x12;
+        case SDLK_f: return 0x23;
+        case SDLK_g: return 0x24;
+        case SDLK_h: return 0x25;
+        case SDLK_i: return 0x17;
+        case SDLK_j: return 0x26;
+        case SDLK_k: return 0x27;
+        case SDLK_l: return 0x28;
+        case SDLK_m: return 0x37;
+        case SDLK_n: return 0x36;
+        case SDLK_o: return 0x18;
+        case SDLK_p: return 0x19;
+        case SDLK_q: return 0x10;
+        case SDLK_r: return 0x13;
+        case SDLK_s: return 0x21;
+        case SDLK_t: return 0x14;
+        case SDLK_u: return 0x16;
+        case SDLK_v: return 0x34;
+        case SDLK_w: return 0x11;
+        case SDLK_x: return 0x32;
+        case SDLK_y: return 0x15;
+        case SDLK_z: return 0x31;
+        
+        /* Numbers */
+        case SDLK_0: return 0x0A;
+        case SDLK_1: return 0x01;
+        case SDLK_2: return 0x02;
+        case SDLK_3: return 0x03;
+        case SDLK_4: return 0x04;
+        case SDLK_5: return 0x05;
+        case SDLK_6: return 0x06;
+        case SDLK_7: return 0x07;
+        case SDLK_8: return 0x08;
+        case SDLK_9: return 0x09;
+        
+        /* Function keys */
+        case SDLK_F1: return 0x50;
+        case SDLK_F2: return 0x51;
+        case SDLK_F3: return 0x52;
+        case SDLK_F4: return 0x53;
+        case SDLK_F5: return 0x54;
+        case SDLK_F6: return 0x55;
+        case SDLK_F7: return 0x56;
+        case SDLK_F8: return 0x57;
+        case SDLK_F9: return 0x58;
+        case SDLK_F10: return 0x59;
+        
+        /* Special keys */
+        case SDLK_SPACE: return 0x40;
+        case SDLK_BACKSPACE: return 0x41;
+        case SDLK_TAB: return 0x42;
+        case SDLK_RETURN: return 0x44;
+        case SDLK_ESCAPE: return 0x45;
+        case SDLK_DELETE: return 0x46;
+        
+        /* Cursor keys */
+        case SDLK_UP: return 0x4C;
+        case SDLK_DOWN: return 0x4D;
+        case SDLK_RIGHT: return 0x4E;
+        case SDLK_LEFT: return 0x4F;
+        
+        /* Modifiers */
+        case SDLK_LSHIFT: return 0x60;
+        case SDLK_RSHIFT: return 0x61;
+        case SDLK_CAPSLOCK: return 0x62;
+        case SDLK_LCTRL: return 0x63;
+        case SDLK_LALT: return 0x64;
+        case SDLK_RALT: return 0x65;
+        case SDLK_LGUI: return 0x66;  /* Left Amiga */
+        case SDLK_RGUI: return 0x67;  /* Right Amiga */
+        
+        default: return 0xFF;  /* Unknown key */
+    }
+}
+
+/*
+ * Convert SDL key modifiers to Amiga qualifier bits
+ */
+static int sdl_mod_to_qualifier(uint16_t mod)
+{
+    int qual = 0;
+    
+    /* IEQUALIFIER bits from devices/inputevent.h */
+    if (mod & KMOD_LSHIFT) qual |= 0x0001;  /* IEQUALIFIER_LSHIFT */
+    if (mod & KMOD_RSHIFT) qual |= 0x0002;  /* IEQUALIFIER_RSHIFT */
+    if (mod & KMOD_CAPS)   qual |= 0x0004;  /* IEQUALIFIER_CAPSLOCK */
+    if (mod & KMOD_CTRL)   qual |= 0x0008;  /* IEQUALIFIER_CONTROL */
+    if (mod & KMOD_LALT)   qual |= 0x0010;  /* IEQUALIFIER_LALT */
+    if (mod & KMOD_RALT)   qual |= 0x0020;  /* IEQUALIFIER_RALT */
+    if (mod & KMOD_LGUI)   qual |= 0x0040;  /* IEQUALIFIER_LCOMMAND */
+    if (mod & KMOD_RGUI)   qual |= 0x0080;  /* IEQUALIFIER_RCOMMAND */
+    
+    return qual;
+}
+#endif
+
+/*
  * Process SDL events.
  * Returns true if quit was requested.
+ * Also queues events for IDCMP processing.
  */
 bool display_poll_events(void)
 {
@@ -506,22 +673,122 @@ bool display_poll_events(void)
     SDL_Event event;
     while (SDL_PollEvent(&event))
     {
+        display_event_t disp_event = {0};
+        disp_event.window = g_active_display;
+        
         switch (event.type)
         {
             case SDL_QUIT:
+                disp_event.type = DISPLAY_EVENT_QUIT;
+                queue_event(&disp_event);
                 return true;
 
-            case SDL_KEYDOWN:
-                if (event.key.keysym.sym == SDLK_ESCAPE)
+            case SDL_WINDOWEVENT:
+                if (event.window.event == SDL_WINDOWEVENT_CLOSE)
                 {
-                    return true;
+                    disp_event.type = DISPLAY_EVENT_CLOSEWINDOW;
+                    queue_event(&disp_event);
                 }
                 break;
 
-            /* TODO: Handle keyboard and mouse events for Intuition input */
+            case SDL_MOUSEMOTION:
+                g_mouse_x = event.motion.x;
+                g_mouse_y = event.motion.y;
+                disp_event.type = DISPLAY_EVENT_MOUSEMOVE;
+                disp_event.mouse_x = event.motion.x;
+                disp_event.mouse_y = event.motion.y;
+                disp_event.qualifier = sdl_mod_to_qualifier(SDL_GetModState());
+                queue_event(&disp_event);
+                break;
+
+            case SDL_MOUSEBUTTONDOWN:
+            case SDL_MOUSEBUTTONUP:
+                g_mouse_x = event.button.x;
+                g_mouse_y = event.button.y;
+                disp_event.type = DISPLAY_EVENT_MOUSEBUTTON;
+                disp_event.mouse_x = event.button.x;
+                disp_event.mouse_y = event.button.y;
+                disp_event.button_down = (event.type == SDL_MOUSEBUTTONDOWN);
+                disp_event.qualifier = sdl_mod_to_qualifier(SDL_GetModState());
+                
+                /* Map SDL button to Amiga IECODE */
+                /* IECODE_LBUTTON = 0x68, IECODE_RBUTTON = 0x69, IECODE_MBUTTON = 0x6A */
+                /* IECODE_UP_PREFIX = 0x80 (added when button released) */
+                switch (event.button.button)
+                {
+                    case SDL_BUTTON_LEFT:
+                        disp_event.button_code = 0x68;
+                        break;
+                    case SDL_BUTTON_RIGHT:
+                        disp_event.button_code = 0x69;
+                        break;
+                    case SDL_BUTTON_MIDDLE:
+                        disp_event.button_code = 0x6A;
+                        break;
+                    default:
+                        disp_event.button_code = 0x68;
+                        break;
+                }
+                if (!disp_event.button_down)
+                {
+                    disp_event.button_code |= 0x80;  /* IECODE_UP_PREFIX */
+                }
+                
+                /* Set qualifier bits for button state */
+                if (event.button.button == SDL_BUTTON_LEFT)
+                {
+                    if (disp_event.button_down)
+                        disp_event.qualifier |= 0x8000;  /* IEQUALIFIER_LEFTBUTTON */
+                }
+                else if (event.button.button == SDL_BUTTON_RIGHT)
+                {
+                    if (disp_event.button_down)
+                        disp_event.qualifier |= 0x4000;  /* IEQUALIFIER_RBUTTON */
+                }
+                else if (event.button.button == SDL_BUTTON_MIDDLE)
+                {
+                    if (disp_event.button_down)
+                        disp_event.qualifier |= 0x2000;  /* IEQUALIFIER_MIDBUTTON */
+                }
+                
+                queue_event(&disp_event);
+                break;
+
+            case SDL_KEYDOWN:
+            case SDL_KEYUP:
+                disp_event.type = DISPLAY_EVENT_KEY;
+                disp_event.rawkey = sdl_key_to_rawkey(event.key.keysym.sym);
+                disp_event.button_down = (event.type == SDL_KEYDOWN);
+                disp_event.qualifier = sdl_mod_to_qualifier(event.key.keysym.mod);
+                disp_event.mouse_x = g_mouse_x;
+                disp_event.mouse_y = g_mouse_y;
+                
+                /* Add IECODE_UP_PREFIX for key release */
+                if (!disp_event.button_down)
+                {
+                    disp_event.rawkey |= 0x80;
+                }
+                
+                /* Check for escape to quit */
+                if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
+                {
+                    return true;
+                }
+                
+                queue_event(&disp_event);
+                break;
         }
     }
 #endif
 
     return false;
+}
+
+/*
+ * Set the active display (for event routing)
+ * Called when a display is opened or focused
+ */
+void display_set_active(display_t *display)
+{
+    g_active_display = display;
 }

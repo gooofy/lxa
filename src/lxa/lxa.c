@@ -123,6 +123,9 @@ static uint16_t g_intena  = INTENA_MASTER | INTENA_VBLANK;
 /* Pending interrupt flags (one bit per level 1-7) */
 static volatile sig_atomic_t g_pending_irq = 0;
 
+/* Last input event for IDCMP handling (Phase 14) */
+static display_event_t g_last_event = {0};
+
 /* Timer frequency in microseconds (50Hz = 20000us = 20ms) */
 #define TIMER_INTERVAL_US 20000
 
@@ -3472,6 +3475,67 @@ int op_illg(int level)
             }
 
             m68k_set_reg(M68K_REG_D0, 1);  /* Success */
+            break;
+        }
+
+        /*
+         * Input handling emucalls (Phase 14)
+         */
+        
+        case EMU_CALL_INT_POLL_INPUT:
+        {
+            /* Poll for next input event
+             * Returns event type in D0:
+             *   0 = no event
+             *   1 = mouse button
+             *   2 = mouse move
+             *   3 = key
+             *   4 = close window
+             *   5 = quit
+             */
+            display_event_t event;
+            if (display_get_event(&event))
+            {
+                /* Store event data in static vars for subsequent GET calls */
+                g_last_event = event;
+                m68k_set_reg(M68K_REG_D0, (uint32_t)event.type);
+            }
+            else
+            {
+                m68k_set_reg(M68K_REG_D0, 0);
+            }
+            break;
+        }
+
+        case EMU_CALL_INT_GET_MOUSE_POS:
+        {
+            /* Returns (x << 16) | y */
+            int x, y;
+            display_get_mouse_pos(&x, &y);
+            m68k_set_reg(M68K_REG_D0, ((uint32_t)x << 16) | ((uint32_t)y & 0xFFFF));
+            break;
+        }
+
+        case EMU_CALL_INT_GET_MOUSE_BTN:
+        {
+            /* Returns button code from last event */
+            m68k_set_reg(M68K_REG_D0, (uint32_t)g_last_event.button_code);
+            break;
+        }
+
+        case EMU_CALL_INT_GET_KEY:
+        {
+            /* Returns rawkey | (qualifier << 16) from last event */
+            uint32_t result = ((uint32_t)g_last_event.qualifier << 16) | 
+                             ((uint32_t)g_last_event.rawkey & 0xFFFF);
+            m68k_set_reg(M68K_REG_D0, result);
+            break;
+        }
+
+        case EMU_CALL_INT_GET_EVENT_WIN:
+        {
+            /* Returns display handle for window that received the event */
+            m68k_set_reg(M68K_REG_D0, (uint32_t)(uintptr_t)g_last_event.window);
             break;
         }
 

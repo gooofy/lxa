@@ -79,6 +79,7 @@ all:
 	@$(MAKE) -C intuition/screen_basic
 	@$(MAKE) -C intuition/window_basic
 	@$(MAKE) -C intuition/idcmp
+	@$(MAKE) -C intuition/idcmp_input
 
 clean:
 	@echo "Cleaning all tests..."
@@ -147,6 +148,7 @@ clean:
 	@$(MAKE) -C intuition/screen_basic clean
 	@$(MAKE) -C intuition/window_basic clean
 	@$(MAKE) -C intuition/idcmp clean
+	@$(MAKE) -C intuition/idcmp_input clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -212,6 +214,7 @@ clean:
 	rm -f intuition/screen_basic/actual.out
 	rm -f intuition/window_basic/actual.out
 	rm -f intuition/idcmp/actual.out
+	rm -f intuition/idcmp_input/actual.out
 
 test: all
 	@echo ""
@@ -285,6 +288,7 @@ run-tests:
 	@$(MAKE) -C intuition/screen_basic run-test
 	@$(MAKE) -C intuition/window_basic run-test
 	@$(MAKE) -C intuition/idcmp run-test
+	@$(MAKE) -C intuition/idcmp_input run-test
 
 help:
 	@echo "Integration Test Suite"

@@ -122,7 +122,7 @@ See `doc/graphics_testing.md` for detailed test specifications.
 
 ---
 
-## Phase 14: Intuition Basics (PARTIAL)
+## Phase 14: Intuition Basics (COMPLETE)
 
 **Goal**: Implement windowing and user input.
 
@@ -131,12 +131,14 @@ See `doc/graphics_testing.md` for detailed test specifications.
 - [x] **OpenWindow** - Allocates Window, links to Screen, sets up borders and RastPort.
 - [x] **CloseWindow** - Cleans up IDCMP port, unlinks from Screen, frees Window.
 
-### Step 14.2: Input Handling (PARTIAL)
+### Step 14.2: Input Handling (COMPLETE)
 - [x] **IDCMP Port Setup** - UserPort created/deleted based on IDCMPFlags.
 - [x] **ModifyIDCMP** - Dynamically add/remove IDCMP flags.
-- [ ] **Input Pipeline** - SDL Events -> Host Input Handler -> `input.device`.
-- [ ] **IDCMP Posting** - Post `IntuiMessage` to Window ports (MOUSEBUTTONS, RAWKEY).
-- [ ] **Mouse Tracking** - Track mouse position, update `Window->MouseX/Y`.
+- [x] **Input Pipeline** - SDL Events -> Host emucalls (3010-3014) -> ROM processing.
+- [x] **IDCMP Posting** - Post `IntuiMessage` to Window ports (MOUSEBUTTONS, RAWKEY, CLOSEWINDOW).
+- [x] **Mouse Tracking** - Track mouse position, update `Window->MouseX/Y`.
+- [x] **Screen Linking** - Screens linked to IntuitionBase->FirstScreen/ActiveScreen.
+- [x] **WaitTOF Hook** - Input processing triggered from WaitTOF for all screens.
 
 ### Step 14.3: Basic Gadgets (DEFERRED)
 - [ ] **System Gadgets** - Visual representation of Close/Depth/Drag gadgets.
@@ -147,6 +149,7 @@ See `doc/graphics_testing.md` for detailed test specifications.
 - [x] `screen_basic` - Verify OpenScreen() creates correct structures.
 - [x] `window_basic` - Verify OpenWindow() and window linkage.
 - [x] `idcmp` - Test ModifyIDCMP and port creation/deletion.
+- [x] `idcmp_input` - Test screen linking, IDCMP setup, WaitTOF input processing hook.
 
 See `doc/graphics_testing.md` for detailed test specifications.
 

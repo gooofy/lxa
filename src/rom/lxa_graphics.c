@@ -13,7 +13,12 @@
 #include <graphics/rastport.h>
 #include <graphics/gfx.h>
 
+#include <intuition/intuitionbase.h>
+
 #include "util.h"
+
+/* Forward declaration for input processing (defined in lxa_intuition.c) */
+extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
 
 /* Drawing modes from rastport.h */
 #ifndef JAM1
@@ -547,8 +552,20 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    /* No-op: No real hardware to wait for */
-    DPRINTF (LOG_DEBUG, "_graphics: WaitTOF() (no-op)\n");
+    DPRINTF (LOG_DEBUG, "_graphics: WaitTOF()\n");
+    
+    /* Process input events for all Intuition screens */
+    /* This is a good hook point since WaitTOF is called in main loops */
+    struct IntuitionBase *IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
+    if (IntuitionBase)
+    {
+        struct Screen *screen;
+        for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
+        {
+            _intuition_ProcessInputEvents(screen);
+        }
+        CloseLibrary((struct Library *)IntuitionBase);
+    }
 }
 
 static VOID _graphics_QBlit ( register struct GfxBase * GfxBase __asm("a6"),

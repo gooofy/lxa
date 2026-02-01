@@ -142,4 +142,51 @@ bool display_poll_events(void);
  */
 bool display_available(void);
 
+/*
+ * Input Event Types (for IDCMP integration)
+ */
+typedef enum {
+    DISPLAY_EVENT_NONE = 0,
+    DISPLAY_EVENT_MOUSEBUTTON = 1,
+    DISPLAY_EVENT_MOUSEMOVE = 2,
+    DISPLAY_EVENT_KEY = 3,
+    DISPLAY_EVENT_CLOSEWINDOW = 4,
+    DISPLAY_EVENT_QUIT = 5
+} display_event_type_t;
+
+/*
+ * Input Event Structure
+ * Stores the most recent input event for IDCMP processing
+ */
+typedef struct {
+    display_event_type_t type;
+    int mouse_x;          /* Mouse X position (screen-relative) */
+    int mouse_y;          /* Mouse Y position (screen-relative) */
+    int button_code;      /* Button code (IECODE_LBUTTON, etc) - for mouse events */
+    int rawkey;           /* Raw key code - for key events */
+    int qualifier;        /* Key/mouse qualifier bits */
+    bool button_down;     /* true = pressed, false = released */
+    display_t *window;    /* Display that received the event */
+} display_event_t;
+
+/*
+ * Get the next pending input event.
+ * @param event   Output: event data (if return is true)
+ * @return true if an event was available, false if no events pending
+ */
+bool display_get_event(display_event_t *event);
+
+/*
+ * Get current mouse position.
+ * @param x   Output: mouse X (can be NULL)
+ * @param y   Output: mouse Y (can be NULL)
+ */
+void display_get_mouse_pos(int *x, int *y);
+
+/*
+ * Set the active display for event routing.
+ * @param display  Display to make active
+ */
+void display_set_active(display_t *display);
+
 #endif /* HAVE_DISPLAY_H */
