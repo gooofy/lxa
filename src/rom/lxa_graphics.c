@@ -96,20 +96,142 @@ ULONG __g_lxa_graphics_ExtFuncLib(void)
 
 static LONG _graphics_BltBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct BitMap * srcBitMap __asm("a0"),
-                                                        register LONG xSrc __asm("d0"),
-                                                        register LONG ySrc __asm("d1"),
+                                                        register WORD xSrc __asm("d0"),
+                                                        register WORD ySrc __asm("d1"),
                                                         register struct BitMap * destBitMap __asm("a1"),
-                                                        register LONG xDest __asm("d2"),
-                                                        register LONG yDest __asm("d3"),
-                                                        register LONG xSize __asm("d4"),
-                                                        register LONG ySize __asm("d5"),
-                                                        register ULONG minterm __asm("d6"),
-                                                        register ULONG mask __asm("d7"),
+                                                        register WORD xDest __asm("d2"),
+                                                        register WORD yDest __asm("d3"),
+                                                        register WORD xSize __asm("d4"),
+                                                        register WORD ySize __asm("d5"),
+                                                        register UBYTE minterm __asm("d6"),
+                                                        register UBYTE mask __asm("d7"),
                                                         register PLANEPTR tempA __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: BltBitMap() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    LONG row, col, plane;
+    LONG srcBytesPerRow, destBytesPerRow;
+    LONG srcDepth, destDepth, depth;
+    LONG srcWidth, srcHeight, destWidth, destHeight;
+    LONG actualWidth, actualHeight;
+    LONG lxSrc = xSrc, lySrc = ySrc, lxDest = xDest, lyDest = yDest;
+    LONG lxSize = xSize, lySize = ySize;
+
+    DPRINTF (LOG_DEBUG, "_graphics: BltBitMap() src=0x%08lx (%ld,%ld) dest=0x%08lx (%ld,%ld) size=%ldx%ld minterm=0x%02x mask=0x%02x\n",
+             (ULONG)srcBitMap, lxSrc, lySrc, (ULONG)destBitMap, lxDest, lyDest, lxSize, lySize, (unsigned)minterm, (unsigned)mask);
+
+    if (!srcBitMap || !destBitMap)
+    {
+        LPRINTF (LOG_ERROR, "_graphics: BltBitMap() NULL bitmap\n");
+        return 0;
+    }
+
+    if (lxSize <= 0 || lySize <= 0)
+    {
+        return 0;
+    }
+
+    /* Get bitmap dimensions */
+    srcBytesPerRow = srcBitMap->BytesPerRow;
+    destBytesPerRow = destBitMap->BytesPerRow;
+    srcDepth = srcBitMap->Depth;
+    destDepth = destBitMap->Depth;
+    srcWidth = srcBytesPerRow * 8;
+    srcHeight = srcBitMap->Rows;
+    destWidth = destBytesPerRow * 8;
+    destHeight = destBitMap->Rows;
+
+    /* Use minimum depth */
+    depth = (srcDepth < destDepth) ? srcDepth : destDepth;
+
+    /* Clip to source and destination bounds */
+    actualWidth = lxSize;
+    actualHeight = lySize;
+
+    if (lxSrc < 0) { lxDest -= lxSrc; actualWidth += lxSrc; lxSrc = 0; }
+    if (lySrc < 0) { lyDest -= lySrc; actualHeight += lySrc; lySrc = 0; }
+    if (lxDest < 0) { lxSrc -= lxDest; actualWidth += lxDest; lxDest = 0; }
+    if (lyDest < 0) { lySrc -= lyDest; actualHeight += lyDest; lyDest = 0; }
+
+    if (lxSrc + actualWidth > srcWidth) actualWidth = srcWidth - lxSrc;
+    if (lySrc + actualHeight > srcHeight) actualHeight = srcHeight - lySrc;
+    if (lxDest + actualWidth > destWidth) actualWidth = destWidth - lxDest;
+    if (lyDest + actualHeight > destHeight) actualHeight = destHeight - lyDest;
+
+    if (actualWidth <= 0 || actualHeight <= 0)
+    {
+        return 0;
+    }
+
+    /* Process each plane */
+    for (plane = 0; plane < depth; plane++)
+    {
+        UBYTE *srcPlane = srcBitMap->Planes[plane];
+        UBYTE *destPlane = destBitMap->Planes[plane];
+
+        /* Skip if plane is masked out */
+        if (!(mask & (1 << plane)))
+            continue;
+
+        if (!srcPlane || !destPlane)
+            continue;
+
+        /* Process each row */
+        for (row = 0; row < actualHeight; row++)
+        {
+            LONG srcRowStart = (lySrc + row) * srcBytesPerRow;
+            LONG destRowStart = (lyDest + row) * destBytesPerRow;
+
+            /* Process each pixel in the row */
+            for (col = 0; col < actualWidth; col++)
+            {
+                LONG srcPixelX = lxSrc + col;
+                LONG destPixelX = lxDest + col;
+                LONG srcByteOffset = srcRowStart + (srcPixelX / 8);
+                LONG destByteOffset = destRowStart + (destPixelX / 8);
+                UBYTE srcBitMask = (UBYTE)(0x80 >> (srcPixelX % 8));
+                UBYTE destBitMask = (UBYTE)(0x80 >> (destPixelX % 8));
+                UBYTE srcBit = (srcPlane[srcByteOffset] & srcBitMask) ? 1 : 0;
+                UBYTE destBit = (destPlane[destByteOffset] & destBitMask) ? 1 : 0;
+                UBYTE resultBit;
+
+                /* Apply minterm logic
+                 * Minterm is an 8-bit value that encodes all possible logic operations.
+                 * The Amiga blitter uses ABC notation where:
+                 *   A = Source bit
+                 *   B = Destination bit  
+                 *   C = Pattern bit (we assume C=1 since no pattern is provided)
+                 * 
+                 * Index into minterm:
+                 *   0 = !A & !B & !C
+                 *   1 = !A & !B & C
+                 *   2 = !A & B & !C
+                 *   3 = !A & B & C
+                 *   4 = A & !B & !C
+                 *   5 = A & !B & C
+                 *   6 = A & B & !C
+                 *   7 = A & B & C
+                 *
+                 * Common minterms:
+                 *   0xC0 = COPY: ABC + ABc = A (copy source)
+                 *   0xF0 = ALL: set all bits where src=1
+                 *   0x30 = INVERT: aBc (invert source)
+                 */
+                {
+                    /* Calculate index: A*4 + B*2 + C (C=1 assumed) */
+                    UBYTE idx = (srcBit << 2) | (destBit << 1) | 1;
+                    resultBit = (minterm >> idx) & 1;
+                }
+
+                /* Write result */
+                if (resultBit)
+                    destPlane[destByteOffset] |= destBitMask;
+                else
+                    destPlane[destByteOffset] &= ~destBitMask;
+            }
+        }
+    }
+
+    /* Return number of planes actually affected */
+    return depth;
 }
 
 static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"),
@@ -122,8 +244,102 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
                                                         register LONG xSize __asm("d4"),
                                                         register LONG ySize __asm("d5"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: BltTemplate() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct BitMap *bm;
+    LONG row, col, plane;
+    UBYTE fgpen, bgpen, drawmode;
+
+    DPRINTF (LOG_DEBUG, "_graphics: BltTemplate() source=0x%08lx xSrc=%ld srcMod=%ld dest=(%ld,%ld) size=%ldx%ld\n",
+             (ULONG)source, xSrc, srcMod, xDest, yDest, xSize, ySize);
+
+    if (!source || !destRP)
+    {
+        LPRINTF (LOG_ERROR, "_graphics: BltTemplate() NULL parameter\n");
+        return;
+    }
+
+    bm = destRP->BitMap;
+    if (!bm)
+    {
+        LPRINTF (LOG_ERROR, "_graphics: BltTemplate() RastPort has no BitMap\n");
+        return;
+    }
+
+    if (xSize <= 0 || ySize <= 0)
+    {
+        return;
+    }
+
+    fgpen = (UBYTE)destRP->FgPen;
+    bgpen = (UBYTE)destRP->BgPen;
+    drawmode = destRP->DrawMode;
+
+    /* Process each row of the template */
+    for (row = 0; row < ySize; row++)
+    {
+        LONG destY = yDest + row;
+        const UBYTE *srcRow = (const UBYTE *)source + row * srcMod;
+
+        /* Skip if outside bitmap */
+        if (destY < 0 || destY >= (LONG)bm->Rows)
+            continue;
+
+        for (col = 0; col < xSize; col++)
+        {
+            LONG destX = xDest + col;
+            LONG srcPixelX = xSrc + col;
+            LONG srcByteOffset = srcPixelX / 8;
+            UBYTE srcBitMask = (UBYTE)(0x80 >> (srcPixelX % 8));
+            BOOL templateBit = (srcRow[srcByteOffset] & srcBitMask) != 0;
+
+            /* Skip if outside bitmap */
+            if (destX < 0 || destX >= (LONG)(bm->BytesPerRow * 8))
+                continue;
+
+            LONG destByteOffset = destX / 8;
+            UBYTE destBitMask = (UBYTE)(0x80 >> (destX % 8));
+
+            if (drawmode == JAM1)
+            {
+                /* JAM1: only draw where template is 1 */
+                if (templateBit)
+                {
+                    for (plane = 0; plane < bm->Depth; plane++)
+                    {
+                        UBYTE *destPlane = bm->Planes[plane] + destY * bm->BytesPerRow + destByteOffset;
+                        if (fgpen & (1 << plane))
+                            *destPlane |= destBitMask;
+                        else
+                            *destPlane &= ~destBitMask;
+                    }
+                }
+            }
+            else if (drawmode == JAM2)
+            {
+                /* JAM2: draw foreground where template is 1, background where 0 */
+                UBYTE pen = templateBit ? fgpen : bgpen;
+                for (plane = 0; plane < bm->Depth; plane++)
+                {
+                    UBYTE *destPlane = bm->Planes[plane] + destY * bm->BytesPerRow + destByteOffset;
+                    if (pen & (1 << plane))
+                        *destPlane |= destBitMask;
+                    else
+                        *destPlane &= ~destBitMask;
+                }
+            }
+            else if (drawmode == COMPLEMENT)
+            {
+                /* COMPLEMENT: XOR where template is 1 */
+                if (templateBit)
+                {
+                    for (plane = 0; plane < bm->Depth; plane++)
+                    {
+                        UBYTE *destPlane = bm->Planes[plane] + destY * bm->BytesPerRow + destByteOffset;
+                        *destPlane ^= destBitMask;
+                    }
+                }
+            }
+        }
+    }
 }
 
 static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1471,8 +1687,21 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
                                                         register LONG ySize __asm("d5"),
                                                         register ULONG minterm __asm("d6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: BltBitMapRastPort() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: BltBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld minterm=0x%02lx\n",
+             (ULONG)srcBitMap, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm);
+
+    if (!srcBitMap || !destRP || !destRP->BitMap)
+    {
+        LPRINTF (LOG_ERROR, "_graphics: BltBitMapRastPort() NULL pointer\n");
+        return;
+    }
+
+    /* BltBitMapRastPort is a wrapper around BltBitMap.
+     * It blits from a source BitMap to the RastPort's BitMap.
+     * The mask is 0xFF (all planes) and tempA is NULL. */
+    _graphics_BltBitMap(GfxBase, srcBitMap, xSrc, ySrc,
+                        destRP->BitMap, xDest, yDest,
+                        xSize, ySize, minterm, 0xFF, NULL);
 }
 
 static BOOL _graphics_OrRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),

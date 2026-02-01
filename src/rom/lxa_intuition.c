@@ -1117,9 +1117,36 @@ BOOL _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __as
                                                         register UWORD width __asm("d2"),
                                                         register UWORD height __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: AutoRequest() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    /* AutoRequest() displays a modal requester with Yes/No buttons.
+     * For now, we just log the request and return TRUE (positive response).
+     * A full implementation would create a window and handle user input. */
+
+    DPRINTF (LOG_DEBUG, "_intuition: AutoRequest() window=0x%08lx pFlag=0x%08lx nFlag=0x%08lx %dx%d\n",
+             (ULONG)window, pFlag, nFlag, (int)width, (int)height);
+
+    /* Print the body text chain to debug output */
+    const struct IntuiText *it = body;
+    while (it)
+    {
+        if (it->IText)
+        {
+            DPRINTF (LOG_DEBUG, "_intuition: AutoRequest body: %s\n", (char *)it->IText);
+        }
+        it = it->NextText;
+    }
+
+    /* Print button texts if available */
+    if (posText && posText->IText)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: AutoRequest positive: %s\n", (char *)posText->IText);
+    }
+    if (negText && negText->IText)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: AutoRequest negative: %s\n", (char *)negText->IText);
+    }
+
+    /* Return TRUE (positive response) by default */
+    return TRUE;
 }
 
 VOID _intuition_BeginRefresh ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -1459,9 +1486,38 @@ LONG _intuition_EasyRequestArgs ( register struct IntuitionBase * IntuitionBase 
                                                         register ULONG * idcmpPtr __asm("a2"),
                                                         register const APTR args __asm("a3"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: EasyRequestArgs() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* EasyRequestArgs() displays a requester with formatted text.
+     * For now, we log the request and return 1 (first/rightmost gadget).
+     * A full implementation would create a window and handle user input.
+     *
+     * Return values:
+     *  0 = rightmost gadget (usually negative/cancel)
+     *  1 = leftmost gadget (usually positive/ok)
+     *  n = nth gadget from the right
+     * -1 = IDCMP message received (if idcmpPtr != NULL)
+     */
+
+    DPRINTF (LOG_DEBUG, "_intuition: EasyRequestArgs() window=0x%08lx easyStruct=0x%08lx\n",
+             (ULONG)window, (ULONG)easyStruct);
+
+    if (easyStruct)
+    {
+        if (easyStruct->es_Title)
+        {
+            DPRINTF (LOG_DEBUG, "_intuition: EasyRequest title: %s\n", (char *)easyStruct->es_Title);
+        }
+        if (easyStruct->es_TextFormat)
+        {
+            DPRINTF (LOG_DEBUG, "_intuition: EasyRequest text: %s\n", (char *)easyStruct->es_TextFormat);
+        }
+        if (easyStruct->es_GadgetFormat)
+        {
+            DPRINTF (LOG_DEBUG, "_intuition: EasyRequest gadgets: %s\n", (char *)easyStruct->es_GadgetFormat);
+        }
+    }
+
+    /* Return 1 (positive/first gadget response) by default */
+    return 1;
 }
 
 struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
