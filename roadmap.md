@@ -145,7 +145,7 @@ Full command set implemented:
 
 ---
 
-## Phase 16: Console Device Enhancement (Postponed)
+## Phase 16: Console Device Enhancement
 
 **Goal**: Provide full ANSI/CSI escape sequence support for terminal applications.
 
@@ -165,7 +165,7 @@ Full command set implemented:
 
 ---
 
-## Phase 17: Additional Commands (Postponed)
+## Phase 17: Additional Commands
 
 **Goal**: Expand command set to cover common AmigaOS utilities.
 
