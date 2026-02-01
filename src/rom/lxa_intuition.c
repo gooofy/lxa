@@ -464,12 +464,14 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
 {
     struct IntuiMessage *imsg;
     
-    if (!window || !window->UserPort)
+    if (!window || !window->UserPort) {
         return FALSE;
+    }
     
     /* Check if window is interested in this message class */
-    if (!(window->IDCMPFlags & class))
+    if (!(window->IDCMPFlags & class)) {
         return FALSE;
+    }
     
     /* Allocate IntuiMessage */
     imsg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);

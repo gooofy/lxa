@@ -13,6 +13,9 @@
 #include <devices/conunit.h>
 
 #include <intuition/intuition.h>
+#include <intuition/intuitionbase.h>
+#include <clib/intuition_protos.h>
+#include <inline/intuition.h>
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
 #include <graphics/text.h>
@@ -38,6 +41,9 @@ extern struct GfxBase       *GfxBase;
 /* CSI parsing state */
 #define CSI_BUF_LEN 64
 
+/* Input buffer size */
+#define INPUT_BUF_LEN 256
+
 /* Our extended ConUnit with additional state */
 struct LxaConUnit {
     struct ConUnit cu;           /* Standard ConUnit at the beginning */
@@ -46,7 +52,110 @@ struct LxaConUnit {
     BOOL   esc_active;
     char   csi_buf[CSI_BUF_LEN];
     UWORD  csi_len;
+    /* Input buffer */
+    char   input_buf[INPUT_BUF_LEN];
+    UWORD  input_head;           /* Write position */
+    UWORD  input_tail;           /* Read position */
+    BOOL   echo_enabled;         /* Echo typed characters */
+    BOOL   line_mode;            /* Line-buffered (cooked) vs raw mode */
 };
+
+/*
+ * Rawkey to ASCII conversion table (unshifted)
+ * Index by rawkey code (0x00-0x67), value is ASCII character
+ * 0 = no printable character
+ */
+static const char rawkey_to_ascii_unshifted[128] = {
+    /* 0x00-0x0F: top row (`, 1-9, 0, -, =, \, unassigned, KP0) */
+    '`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\\', 0, '0',
+    /* 0x10-0x1F: qwerty row (q-p, [, ], unassigned, KP1-3) */
+    'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', 0, '1', '2', '3',
+    /* 0x20-0x2F: asdf row (a-;, ', unassigned, unassigned, KP4-6) */
+    'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', 0, 0, '4', '5', '6',
+    /* 0x30-0x3F: zxcv row (unassigned, z-/, unassigned, KP., KP7-9) */
+    0, 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '.', '7', '8', '9',
+    /* 0x40-0x4F: space, backspace, tab, KP enter, return, esc, del, unassigned, up, down, right, left */
+    ' ', '\b', '\t', '\r', '\r', 0x1B, 0x7F, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    /* 0x50-0x5F: F1-F10, unassigned... */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    /* 0x60-0x6F: modifiers and more */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    /* 0x70-0x7F: unused */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+/*
+ * Rawkey to ASCII conversion table (shifted)
+ */
+static const char rawkey_to_ascii_shifted[128] = {
+    /* 0x00-0x0F: top row (~, !-), _, +, |, unassigned, KP0) */
+    '~', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '|', 0, '0',
+    /* 0x10-0x1F: qwerty row (Q-P, {, }, unassigned, KP1-3) */
+    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', 0, '1', '2', '3',
+    /* 0x20-0x2F: asdf row (A-:, ", unassigned, unassigned, KP4-6) */
+    'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', 0, 0, '4', '5', '6',
+    /* 0x30-0x3F: zxcv row (unassigned, Z-?, unassigned, KP., KP7-9) */
+    0, 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '.', '7', '8', '9',
+    /* 0x40-0x4F: space, backspace, tab, KP enter, return, esc, del */
+    ' ', '\b', '\t', '\r', '\r', 0x1B, 0x7F, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    /* 0x50-0x7F: rest unchanged */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+/*
+ * Convert Amiga rawkey + qualifier to ASCII character
+ * Returns 0 if no printable character
+ */
+static char rawkey_to_ascii(UWORD rawkey, UWORD qualifier)
+{
+    char c;
+    BOOL shifted;
+    
+    /* Ignore key-up events (high bit set) */
+    if (rawkey & 0x80) return 0;
+    
+    /* Bounds check */
+    if (rawkey >= 128) return 0;
+    
+    /* Check shift state */
+    shifted = (qualifier & (0x0001 | 0x0002)) != 0;  /* IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT */
+    
+    /* Check caps lock for letters */
+    if (qualifier & 0x0004) {  /* IEQUALIFIER_CAPSLOCK */
+        /* Caps lock only affects letters (a-z = 0x20-0x39) */
+        if ((rawkey >= 0x10 && rawkey <= 0x19) ||  /* qwerty row */
+            (rawkey >= 0x20 && rawkey <= 0x28) ||  /* asdf row */
+            (rawkey >= 0x31 && rawkey <= 0x3A))    /* zxcv row */
+        {
+            shifted = !shifted;
+        }
+    }
+    
+    c = shifted ? rawkey_to_ascii_shifted[rawkey] : rawkey_to_ascii_unshifted[rawkey];
+    
+    /* Handle Control key - convert to control character */
+    if (c && (qualifier & 0x0008)) {  /* IEQUALIFIER_CONTROL */
+        if (c >= 'a' && c <= 'z') {
+            c = c - 'a' + 1;  /* Ctrl+A = 0x01, etc. */
+        } else if (c >= 'A' && c <= 'Z') {
+            c = c - 'A' + 1;
+        } else if (c == '[') {
+            c = 0x1B;  /* ESC */
+        } else if (c == '\\') {
+            c = 0x1C;
+        } else if (c == ']') {
+            c = 0x1D;
+        } else if (c == '^' || c == '6') {
+            c = 0x1E;
+        } else if (c == '_' || c == '-') {
+            c = 0x1F;
+        }
+    }
+    
+    return c;
+}
 
 /*
  * Forward declarations
@@ -56,6 +165,7 @@ static void console_process_csi(struct LxaConUnit *unit, char final);
 static void console_scroll_up(struct LxaConUnit *unit);
 static void console_newline(struct LxaConUnit *unit);
 static void console_carriage_return(struct LxaConUnit *unit);
+static void console_process_char(struct LxaConUnit *unit, char c);
 
 /*
  * Initialize a ConUnit for a window
@@ -135,6 +245,12 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     unit->esc_active = FALSE;
     unit->csi_len = 0;
     
+    /* Initialize input buffer */
+    unit->input_head = 0;
+    unit->input_tail = 0;
+    unit->echo_enabled = TRUE;   /* Echo by default */
+    unit->line_mode = TRUE;      /* Line-buffered by default */
+    
     LPRINTF(LOG_INFO, "_console: Created ConUnit for window 0x%08lx: XMax=%d YMax=%d XRSize=%d YRSize=%d\n",
             (ULONG)window, unit->cu.cu_XMax, unit->cu.cu_YMax, unit->cu.cu_XRSize, unit->cu.cu_YRSize);
     LPRINTF(LOG_INFO, "_console:   Raster area: origin=(%d,%d) extant=(%d,%d)\n",
@@ -150,6 +266,142 @@ static void console_destroy_unit(struct LxaConUnit *unit)
 {
     if (unit) {
         FreeMem(unit, sizeof(struct LxaConUnit));
+    }
+}
+
+/*
+ * Input buffer management
+ */
+static BOOL input_buf_empty(struct LxaConUnit *unit)
+{
+    return unit->input_head == unit->input_tail;
+}
+
+static BOOL input_buf_full(struct LxaConUnit *unit)
+{
+    return ((unit->input_head + 1) % INPUT_BUF_LEN) == unit->input_tail;
+}
+
+static void input_buf_put(struct LxaConUnit *unit, char c)
+{
+    if (!input_buf_full(unit)) {
+        unit->input_buf[unit->input_head] = c;
+        unit->input_head = (unit->input_head + 1) % INPUT_BUF_LEN;
+    }
+}
+
+static char input_buf_get(struct LxaConUnit *unit)
+{
+    char c;
+    if (input_buf_empty(unit)) return 0;
+    c = unit->input_buf[unit->input_tail];
+    unit->input_tail = (unit->input_tail + 1) % INPUT_BUF_LEN;
+    return c;
+}
+
+static UWORD input_buf_count(struct LxaConUnit *unit) __attribute__((unused));
+static UWORD input_buf_count(struct LxaConUnit *unit)
+{
+    if (unit->input_head >= unit->input_tail) {
+        return unit->input_head - unit->input_tail;
+    } else {
+        return INPUT_BUF_LEN - unit->input_tail + unit->input_head;
+    }
+}
+
+/*
+ * Check if there's a complete line in the buffer (for line mode)
+ */
+static BOOL input_has_line(struct LxaConUnit *unit)
+{
+    UWORD i = unit->input_tail;
+    while (i != unit->input_head) {
+        if (unit->input_buf[i] == '\r' || unit->input_buf[i] == '\n') {
+            return TRUE;
+        }
+        i = (i + 1) % INPUT_BUF_LEN;
+    }
+    return FALSE;
+}
+
+/*
+ * Process keyboard input from IDCMP
+ * Called when reading from console to check for new input
+ */
+static void console_process_input(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct MsgPort *port;
+    struct IntuiMessage *imsg;
+    
+    if (!unit || !unit->cu.cu_Window) {
+        return;
+    }
+    
+    window = unit->cu.cu_Window;
+    port = window->UserPort;
+    
+    if (!port) {
+        return;
+    }
+    
+    /* Process all pending IDCMP messages */
+    while ((imsg = (struct IntuiMessage *)GetMsg(port)) != NULL) {
+        if (imsg->Class == IDCMP_RAWKEY) {
+            UWORD rawkey = imsg->Code;
+            UWORD qualifier = imsg->Qualifier;
+            
+            /* Only process key-down events */
+            if (!(rawkey & 0x80)) {
+                char c = rawkey_to_ascii(rawkey, qualifier);
+                
+                DPRINTF(LOG_DEBUG, "_console: RAWKEY 0x%02x qual=0x%04x -> '%c' (0x%02x)\n",
+                        rawkey, qualifier, (c >= 32 && c < 127) ? c : '.', (unsigned char)c);
+                
+                if (c) {
+                    /* Handle special characters */
+                    if (c == '\b') {
+                        /* Backspace - remove last character from buffer if possible */
+                        if (!input_buf_empty(unit)) {
+                            /* Check if we can remove (not past a newline) */
+                            UWORD prev = (unit->input_head + INPUT_BUF_LEN - 1) % INPUT_BUF_LEN;
+                            if (prev != unit->input_tail && 
+                                unit->input_buf[prev] != '\r' && 
+                                unit->input_buf[prev] != '\n') {
+                                unit->input_head = prev;
+                                if (unit->echo_enabled) {
+                                    /* Echo backspace: move cursor back, space, move back again */
+                                    console_process_char(unit, '\b');
+                                    console_process_char(unit, ' ');
+                                    console_process_char(unit, '\b');
+                                }
+                            }
+                        }
+                    } else {
+                        /* Add character to buffer */
+                        input_buf_put(unit, c);
+                        
+                        /* Echo if enabled */
+                        if (unit->echo_enabled) {
+                            if (c == '\r') {
+                                console_process_char(unit, '\r');
+                                console_process_char(unit, '\n');
+                            } else if (c >= 32 || c == '\t') {
+                                console_process_char(unit, c);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        /* Reply to the message (free it) */
+        ReplyMsg((struct Message *)imsg);
+    }
+    
+    /* Refresh display if we echoed anything */
+    if (unit->echo_enabled) {
+        WaitTOF();
     }
 }
 
@@ -572,6 +824,9 @@ static struct Library * __g_lxa_console_InitDev  ( register struct Library    *d
     return dev;
 }
 
+/* IDCMP_RAWKEY constant - 1<<10 = 0x400 */
+#define IDCMP_RAWKEY_FLAG 0x0400
+
 static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
                                             register struct IORequest *ioreq __asm("a1"),
                                             register ULONG            unitn  __asm("d0"),
@@ -591,6 +846,21 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
             ioreq->io_Error = IOERR_OPENFAIL;
             return;
         }
+        
+        /* Ensure the window has IDCMP_RAWKEY flag set so we receive keyboard events */
+        if (!(window->IDCMPFlags & IDCMP_RAWKEY_FLAG)) {
+            LPRINTF(LOG_INFO, "_console: Adding IDCMP_RAWKEY to window flags 0x%08lx\n",
+                    (ULONG)window->IDCMPFlags);
+            /* Use ModifyIDCMP to add the flag - this also ensures UserPort exists */
+            struct IntuitionBase *IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
+            if (IntuitionBase) {
+                ModifyIDCMP(window, window->IDCMPFlags | IDCMP_RAWKEY_FLAG);
+                CloseLibrary((struct Library *)IntuitionBase);
+            }
+        }
+        
+        LPRINTF(LOG_INFO, "_console: Window now has IDCMPFlags=0x%08lx, UserPort=0x%08lx\n",
+                (ULONG)window->IDCMPFlags, (ULONG)window->UserPort);
     }
     
     /* Accept the open request */
@@ -639,9 +909,43 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
     switch (ioreq->io_Command)
     {
         case CMD_READ:
-            /* Console read - use emucall to get input from host */
             DPRINTF (LOG_DEBUG, "_console: CMD_READ len=%ld\n", iostd->io_Length);
-            {
+            
+            if (unit && unit->cu.cu_Window) {
+                /* Read from window's IDCMP keyboard input */
+                char *data = (char *)iostd->io_Data;
+                LONG len = iostd->io_Length;
+                LONG count = 0;
+                
+                /* Process any pending input */
+                console_process_input(unit);
+                
+                /* In line mode, wait for a complete line */
+                if (unit->line_mode) {
+                    while (!input_has_line(unit) && !input_buf_full(unit)) {
+                        /* Wait for more input - yield to scheduler */
+                        WaitTOF();
+                        console_process_input(unit);
+                    }
+                }
+                
+                /* Copy available characters to buffer */
+                while (count < len && !input_buf_empty(unit)) {
+                    char c = input_buf_get(unit);
+                    data[count++] = c;
+                    
+                    /* In line mode, stop at newline */
+                    if (unit->line_mode && (c == '\r' || c == '\n')) {
+                        break;
+                    }
+                }
+                
+                iostd->io_Actual = count;
+                ioreq->io_Error = 0;
+                
+                DPRINTF(LOG_DEBUG, "_console: CMD_READ returned %ld bytes\n", count);
+            } else {
+                /* No window - fall back to host emucall */
                 LONG result = emucall2(EMU_CALL_CON_READ, (ULONG)iostd->io_Data, iostd->io_Length);
                 if (result >= 0)
                 {

@@ -3941,6 +3941,10 @@ int op_illg(int level)
              *   4 = close window
              *   5 = quit
              */
+            
+            /* First, poll SDL for new events (this populates the event queue) */
+            display_poll_events();
+            
             display_event_t event;
             if (display_get_event(&event))
             {
