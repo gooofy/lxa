@@ -28,6 +28,7 @@
 #include "util.h"
 #include "vfs.h"
 #include "config.h"
+#include "display.h"
 
 #define RAM_START   0x000000
 #define RAM_SIZE    10 * 1024 * 1024
@@ -2987,6 +2988,387 @@ int op_illg(int level)
 
             uint32_t res = _dos_waitforchar(fh, timeout);
             m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        /*
+         * Graphics Library emucalls (2000-2999)
+         * Phase 13: Graphics Foundation
+         */
+
+        case EMU_CALL_GFX_INIT:
+        {
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_INIT\n");
+            bool success = display_init();
+            m68k_set_reg(M68K_REG_D0, success ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_GFX_SHUTDOWN:
+        {
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_SHUTDOWN\n");
+            display_shutdown();
+            break;
+        }
+
+        case EMU_CALL_GFX_OPEN_DISPLAY:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            int width = (int)d1;
+            int height = (int)d2;
+            int depth = (int)d3;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_OPEN_DISPLAY %dx%dx%d\n",
+                    width, height, depth);
+
+            display_t *display = display_open(width, height, depth, "LXA Amiga Display");
+            /* Store display handle as a host pointer - we'll use the pointer address as a handle */
+            m68k_set_reg(M68K_REG_D0, (uint32_t)(uintptr_t)display);
+            break;
+        }
+
+        case EMU_CALL_GFX_CLOSE_DISPLAY:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            display_t *display = (display_t *)(uintptr_t)d1;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_CLOSE_DISPLAY handle=0x%08x\n", d1);
+
+            display_close(display);
+            break;
+        }
+
+        case EMU_CALL_GFX_REFRESH:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            display_t *display = (display_t *)(uintptr_t)d1;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_REFRESH handle=0x%08x\n", d1);
+
+            display_refresh(display);
+            break;
+        }
+
+        case EMU_CALL_GFX_SET_COLOR:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            display_t *display = (display_t *)(uintptr_t)d1;
+            int index = (int)(d2 & 0xFF);
+            uint8_t r = (d3 >> 16) & 0xFF;
+            uint8_t g = (d3 >> 8) & 0xFF;
+            uint8_t b = d3 & 0xFF;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_SET_COLOR handle=0x%08x, idx=%d, rgb=0x%06x\n",
+                    d1, index, d3 & 0xFFFFFF);
+
+            display_set_color(display, index, r, g, b);
+            break;
+        }
+
+        case EMU_CALL_GFX_SET_PALETTE4:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t a0 = m68k_get_reg(NULL, M68K_REG_A0);
+            display_t *display = (display_t *)(uintptr_t)d1;
+            int start = (int)d2;
+            int count = (int)d3;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_SET_PALETTE4 handle=0x%08x, start=%d, count=%d, colors=0x%08x\n",
+                    d1, start, count, a0);
+
+            if (a0 && count > 0)
+            {
+                /* Read RGB4 values from m68k memory */
+                uint16_t *colors = malloc(count * sizeof(uint16_t));
+                if (colors)
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        colors[i] = m68k_read_memory_16(a0 + i * 2);
+                    }
+                    display_set_palette_rgb4(display, start, count, colors);
+                    free(colors);
+                }
+            }
+            break;
+        }
+
+        case EMU_CALL_GFX_SET_PALETTE32:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t a0 = m68k_get_reg(NULL, M68K_REG_A0);
+            display_t *display = (display_t *)(uintptr_t)d1;
+            int start = (int)d2;
+            int count = (int)d3;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_SET_PALETTE32 handle=0x%08x, start=%d, count=%d, colors=0x%08x\n",
+                    d1, start, count, a0);
+
+            if (a0 && count > 0)
+            {
+                /* Read RGB32 values from m68k memory */
+                uint32_t *colors = malloc(count * sizeof(uint32_t));
+                if (colors)
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        colors[i] = m68k_read_memory_32(a0 + i * 4);
+                    }
+                    display_set_palette_rgb32(display, start, count, colors);
+                    free(colors);
+                }
+            }
+            break;
+        }
+
+        case EMU_CALL_GFX_WRITE_PIXEL:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
+            display_t *display = (display_t *)(uintptr_t)d1;
+            int x = (int)d2;
+            int y = (int)d3;
+            uint8_t pen = (uint8_t)d4;
+
+            /* Write pixel directly to display pixel buffer */
+            display_update_chunky(display, x, y, 1, 1, &pen, 1);
+            break;
+        }
+
+        case EMU_CALL_GFX_READ_PIXEL:
+        {
+            /* TODO: Implement pixel read - requires access to display internal buffer */
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_READ_PIXEL (not implemented)\n");
+            m68k_set_reg(M68K_REG_D0, 0);
+            break;
+        }
+
+        case EMU_CALL_GFX_RECT_FILL:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
+            uint32_t d5 = m68k_get_reg(NULL, M68K_REG_D5);
+            uint32_t d6 = m68k_get_reg(NULL, M68K_REG_D6);
+            display_t *display = (display_t *)(uintptr_t)d1;
+            int x1 = (int)d2;
+            int y1 = (int)d3;
+            int x2 = (int)d4;
+            int y2 = (int)d5;
+            uint8_t pen = (uint8_t)d6;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_RECT_FILL handle=0x%08x, (%d,%d)-(%d,%d), pen=%d\n",
+                    d1, x1, y1, x2, y2, pen);
+
+            /* Create filled rectangle in a temporary buffer and blit it */
+            int width = x2 - x1 + 1;
+            int height = y2 - y1 + 1;
+            if (width > 0 && height > 0)
+            {
+                uint8_t *pixels = malloc(width * height);
+                if (pixels)
+                {
+                    memset(pixels, pen, width * height);
+                    display_update_chunky(display, x1, y1, width, height, pixels, width);
+                    free(pixels);
+                }
+            }
+            break;
+        }
+
+        case EMU_CALL_GFX_DRAW_LINE:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
+            uint32_t d5 = m68k_get_reg(NULL, M68K_REG_D5);
+            uint32_t d6 = m68k_get_reg(NULL, M68K_REG_D6);
+            display_t *display = (display_t *)(uintptr_t)d1;
+            int x1 = (int)d2;
+            int y1 = (int)d3;
+            int x2 = (int)d4;
+            int y2 = (int)d5;
+            uint8_t pen = (uint8_t)d6;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_DRAW_LINE handle=0x%08x, (%d,%d)-(%d,%d), pen=%d\n",
+                    d1, x1, y1, x2, y2, pen);
+
+            /* Bresenham's line algorithm */
+            int dx = abs(x2 - x1);
+            int dy = -abs(y2 - y1);
+            int sx = x1 < x2 ? 1 : -1;
+            int sy = y1 < y2 ? 1 : -1;
+            int err = dx + dy;
+
+            while (1)
+            {
+                display_update_chunky(display, x1, y1, 1, 1, &pen, 1);
+                if (x1 == x2 && y1 == y2)
+                    break;
+                int e2 = 2 * err;
+                if (e2 >= dy)
+                {
+                    err += dy;
+                    x1 += sx;
+                }
+                if (e2 <= dx)
+                {
+                    err += dx;
+                    y1 += sy;
+                }
+            }
+            break;
+        }
+
+        case EMU_CALL_GFX_UPDATE_PLANAR:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
+            uint32_t d5 = m68k_get_reg(NULL, M68K_REG_D5);
+            uint32_t d6 = m68k_get_reg(NULL, M68K_REG_D6);
+            uint32_t d7 = m68k_get_reg(NULL, M68K_REG_D7);
+            uint32_t a0 = m68k_get_reg(NULL, M68K_REG_A0);
+            display_t *display = (display_t *)(uintptr_t)d1;
+            int x = (int)d2;
+            int y = (int)d3;
+            int width = (int)d4;
+            int height = (int)d5;
+            int bytes_per_row = (int)d6;
+            int depth = (int)d7;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_UPDATE_PLANAR handle=0x%08x, (%d,%d) %dx%d, bpr=%d, depth=%d, planes=0x%08x\n",
+                    d1, x, y, width, height, bytes_per_row, depth, a0);
+
+            if (a0 && depth > 0 && depth <= 8 && width > 0 && height > 0)
+            {
+                /* Read plane pointers from m68k memory */
+                const uint8_t *planes[8] = {NULL};
+                uint8_t *plane_data[8] = {NULL};
+                int valid_planes = 0;
+
+                for (int i = 0; i < depth; i++)
+                {
+                    uint32_t plane_ptr = m68k_read_memory_32(a0 + i * 4);
+                    if (plane_ptr)
+                    {
+                        /* Map m68k plane pointer to host memory */
+                        plane_data[i] = malloc(bytes_per_row * height);
+                        if (plane_data[i])
+                        {
+                            /* Copy plane data from m68k memory */
+                            for (int row = 0; row < height; row++)
+                            {
+                                for (int col = 0; col < bytes_per_row; col++)
+                                {
+                                    plane_data[i][row * bytes_per_row + col] =
+                                        m68k_read_memory_8(plane_ptr + row * bytes_per_row + col);
+                                }
+                            }
+                            planes[i] = plane_data[i];
+                            valid_planes++;
+                        }
+                    }
+                }
+
+                /* Update display with planar data */
+                if (valid_planes > 0)
+                {
+                    display_update_planar(display, x, y, width, height, planes, bytes_per_row, depth);
+                }
+
+                /* Free temporary plane buffers */
+                for (int i = 0; i < depth; i++)
+                {
+                    free(plane_data[i]);
+                }
+            }
+            break;
+        }
+
+        case EMU_CALL_GFX_UPDATE_CHUNKY:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
+            uint32_t d5 = m68k_get_reg(NULL, M68K_REG_D5);
+            uint32_t d6 = m68k_get_reg(NULL, M68K_REG_D6);
+            uint32_t a0 = m68k_get_reg(NULL, M68K_REG_A0);
+            display_t *display = (display_t *)(uintptr_t)d1;
+            int x = (int)d2;
+            int y = (int)d3;
+            int width = (int)d4;
+            int height = (int)d5;
+            int pitch = (int)d6;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_UPDATE_CHUNKY handle=0x%08x, (%d,%d) %dx%d, pitch=%d, pixels=0x%08x\n",
+                    d1, x, y, width, height, pitch, a0);
+
+            if (a0 && width > 0 && height > 0)
+            {
+                /* Read pixel data from m68k memory */
+                uint8_t *pixels = malloc(width * height);
+                if (pixels)
+                {
+                    for (int row = 0; row < height; row++)
+                    {
+                        for (int col = 0; col < width; col++)
+                        {
+                            pixels[row * width + col] = m68k_read_memory_8(a0 + row * pitch + col);
+                        }
+                    }
+                    display_update_chunky(display, x, y, width, height, pixels, width);
+                    free(pixels);
+                }
+            }
+            break;
+        }
+
+        case EMU_CALL_GFX_GET_SIZE:
+        {
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            display_t *display = (display_t *)(uintptr_t)d1;
+            int width, height, depth;
+
+            display_get_size(display, &width, &height, &depth);
+
+            /* Pack into D0: high word = width, low word = height; D1 = depth */
+            m68k_set_reg(M68K_REG_D0, ((uint32_t)width << 16) | (uint32_t)height);
+            m68k_set_reg(M68K_REG_D1, (uint32_t)depth);
+            break;
+        }
+
+        case EMU_CALL_GFX_AVAILABLE:
+        {
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_GFX_AVAILABLE\n");
+            m68k_set_reg(M68K_REG_D0, display_available() ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_GFX_POLL_EVENTS:
+        {
+            bool quit = display_poll_events();
+            m68k_set_reg(M68K_REG_D0, quit ? 1 : 0);
+            if (quit)
+            {
+                DPRINTF(LOG_INFO, "lxa: display quit requested\n");
+                m68k_end_timeslice();
+                g_running = FALSE;
+            }
             break;
         }
 

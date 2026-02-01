@@ -60,5 +60,39 @@
 #define EMU_CALL_DOS_OPENFROMLOCK  1044  /* OpenFromLock(lock) -> fh */
 #define EMU_CALL_DOS_WAITFORCHAR   1045  /* WaitForChar(fh, timeout) -> success */
 
+/*
+ * Graphics Library emucalls (2000-2999)
+ *
+ * Phase 13: Graphics Foundation
+ * These emucalls bridge the m68k graphics.library to host SDL2 display.
+ */
+
+/* Display Management */
+#define EMU_CALL_GFX_INIT          2000  /* Initialize display subsystem */
+#define EMU_CALL_GFX_SHUTDOWN      2001  /* Shutdown display subsystem */
+#define EMU_CALL_GFX_OPEN_DISPLAY  2002  /* Open display: (width, height, depth) -> handle */
+#define EMU_CALL_GFX_CLOSE_DISPLAY 2003  /* Close display: (handle) */
+#define EMU_CALL_GFX_REFRESH       2004  /* Refresh display: (handle) */
+
+/* Palette Management */
+#define EMU_CALL_GFX_SET_COLOR     2010  /* Set color: (handle, index, rgb) */
+#define EMU_CALL_GFX_SET_PALETTE4  2011  /* Set palette RGB4: (handle, start, count, colors_ptr) */
+#define EMU_CALL_GFX_SET_PALETTE32 2012  /* Set palette RGB32: (handle, start, count, colors_ptr) */
+
+/* Pixel/Rect Operations */
+#define EMU_CALL_GFX_WRITE_PIXEL   2020  /* Write pixel: (handle, x, y, pen) */
+#define EMU_CALL_GFX_READ_PIXEL    2021  /* Read pixel: (handle, x, y) -> pen */
+#define EMU_CALL_GFX_RECT_FILL     2022  /* Fill rect: (handle, x1, y1, x2, y2, pen) */
+#define EMU_CALL_GFX_DRAW_LINE     2023  /* Draw line: (handle, x1, y1, x2, y2, pen) */
+
+/* Bitmap Updates */
+#define EMU_CALL_GFX_UPDATE_PLANAR 2030  /* Update from planar: (handle, x, y, w, h, planes_ptr, bpr, depth) */
+#define EMU_CALL_GFX_UPDATE_CHUNKY 2031  /* Update from chunky: (handle, x, y, w, h, pixels_ptr, pitch) */
+
+/* Query Functions */
+#define EMU_CALL_GFX_GET_SIZE      2040  /* Get display size: (handle) -> packed w/h/d */
+#define EMU_CALL_GFX_AVAILABLE     2041  /* Check if SDL2 available: () -> bool */
+#define EMU_CALL_GFX_POLL_EVENTS   2042  /* Poll events: () -> quit_requested */
+
 #endif
 

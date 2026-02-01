@@ -10,8 +10,35 @@
 #include <graphics/sprite.h>
 #include <graphics/view.h>
 #include <graphics/gfxbase.h>
+#include <graphics/rastport.h>
+#include <graphics/gfx.h>
 
 #include "util.h"
+
+/* Drawing modes from rastport.h */
+#ifndef JAM1
+#define JAM1        0
+#define JAM2        1
+#define COMPLEMENT  2
+#define INVERSVID   4
+#endif
+
+/* RastPort flags */
+#ifndef FRST_DOT
+#define FRST_DOT    0x01
+#define ONE_DOT     0x02
+#define DBUFFER     0x04
+#define AREAOUTLINE 0x08
+#define NOCROSSFILL 0x20
+#endif
+
+/* Use lxa_memset instead of memset to avoid conflict with libnix string.h */
+static void lxa_memset(void *s, int c, ULONG n)
+{
+    UBYTE *p = (UBYTE *)s;
+    while (n--)
+        *p++ = (UBYTE)c;
+}
 
 #define VERSION    40
 #define REVISION   1
@@ -317,8 +344,24 @@ static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: InitRastPort() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: InitRastPort() rp=0x%08lx\n", (ULONG)rp);
+
+    if (!rp)
+        return;
+
+    /* Zero out the entire RastPort structure */
+    lxa_memset(rp, 0, sizeof(struct RastPort));
+
+    /* Set default values */
+    rp->Mask = 0xFF;           /* All planes enabled for writing */
+    rp->FgPen = 1;             /* Foreground pen = 1 (typically black) */
+    rp->BgPen = 0;             /* Background pen = 0 (typically white/gray) */
+    rp->AOlPen = 1;            /* Outline pen for area fills */
+    rp->DrawMode = JAM2;       /* Default drawing mode */
+    rp->LinePtrn = 0xFFFF;     /* Solid line pattern */
+    rp->Flags = FRST_DOT;      /* Draw first dot */
+    rp->PenWidth = 1;
+    rp->PenHeight = 1;
 }
 
 static VOID _graphics_InitVPort ( register struct GfxBase * GfxBase __asm("a6"),
@@ -354,16 +397,31 @@ static VOID _graphics_LoadView ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_WaitBlit ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: WaitBlit() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* No-op: No real blitter hardware to wait for */
+    DPRINTF (LOG_DEBUG, "_graphics: WaitBlit() (no-op)\n");
 }
 
 static VOID _graphics_SetRast ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG pen __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetRast() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: SetRast() rp=0x%08lx, pen=%lu\n", (ULONG)rp, pen);
+
+    if (!rp || !rp->BitMap)
+        return;
+
+    struct BitMap *bm = rp->BitMap;
+    ULONG planeSize = bm->BytesPerRow * bm->Rows;
+
+    /* Fill each plane with 0x00 or 0xFF depending on pen bit */
+    for (UBYTE plane = 0; plane < bm->Depth; plane++)
+    {
+        if (bm->Planes[plane])
+        {
+            UBYTE fillByte = (pen & (1 << plane)) ? 0xFF : 0x00;
+            lxa_memset(bm->Planes[plane], fillByte, planeSize);
+        }
+    }
 }
 
 static VOID _graphics_Move ( register struct GfxBase * GfxBase __asm("a6"),
@@ -371,8 +429,13 @@ static VOID _graphics_Move ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: Move() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: Move() rp=0x%08lx, x=%ld, y=%ld\n", (ULONG)rp, x, y);
+
+    if (rp)
+    {
+        rp->cp_x = (WORD)x;
+        rp->cp_y = (WORD)y;
+    }
 }
 
 static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
@@ -380,8 +443,78 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: Draw() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: Draw() rp=0x%08lx, from (%d,%d) to (%ld,%ld)\n",
+             (ULONG)rp, rp ? rp->cp_x : 0, rp ? rp->cp_y : 0, x, y);
+
+    if (!rp || !rp->BitMap)
+    {
+        /* No bitmap to draw to - just update position */
+        if (rp)
+        {
+            rp->cp_x = (WORD)x;
+            rp->cp_y = (WORD)y;
+        }
+        return;
+    }
+
+    /* Software line drawing using Bresenham's algorithm */
+    WORD x0 = rp->cp_x;
+    WORD y0 = rp->cp_y;
+    WORD x1 = (WORD)x;
+    WORD y1 = (WORD)y;
+    BYTE pen = rp->FgPen;
+    struct BitMap *bm = rp->BitMap;
+
+    WORD dx = x1 > x0 ? x1 - x0 : x0 - x1;
+    WORD dy = y1 > y0 ? y0 - y1 : y1 - y0;  /* Negative for Bresenham */
+    WORD sx = x0 < x1 ? 1 : -1;
+    WORD sy = y0 < y1 ? 1 : -1;
+    WORD err = dx + dy;
+
+    while (1)
+    {
+        /* Set pixel at (x0, y0) with the foreground pen */
+        if (x0 >= 0 && y0 >= 0 && x0 < (bm->BytesPerRow * 8) && y0 < bm->Rows)
+        {
+            UWORD byteOffset = y0 * bm->BytesPerRow + (x0 >> 3);
+            UBYTE bitMask = 0x80 >> (x0 & 7);
+
+            /* Set or clear bits in each plane based on pen color */
+            for (UBYTE plane = 0; plane < bm->Depth; plane++)
+            {
+                if (bm->Planes[plane])
+                {
+                    if (pen & (1 << plane))
+                    {
+                        bm->Planes[plane][byteOffset] |= bitMask;
+                    }
+                    else
+                    {
+                        bm->Planes[plane][byteOffset] &= ~bitMask;
+                    }
+                }
+            }
+        }
+
+        if (x0 == x1 && y0 == y1)
+            break;
+
+        WORD e2 = 2 * err;
+        if (e2 >= dy)
+        {
+            err += dy;
+            x0 += sx;
+        }
+        if (e2 <= dx)
+        {
+            err += dx;
+            y0 += sy;
+        }
+    }
+
+    /* Update current position */
+    rp->cp_x = (WORD)x;
+    rp->cp_y = (WORD)y;
 }
 
 static LONG _graphics_AreaMove ( register struct GfxBase * GfxBase __asm("a6"),
@@ -414,8 +547,8 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: WaitTOF() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* No-op: No real hardware to wait for */
+    DPRINTF (LOG_DEBUG, "_graphics: WaitTOF() (no-op)\n");
 }
 
 static VOID _graphics_QBlit ( register struct GfxBase * GfxBase __asm("a6"),
@@ -468,8 +601,57 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG xMax __asm("d2"),
                                                         register LONG yMax __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: RectFill() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: RectFill() rp=0x%08lx, (%ld,%ld)-(%ld,%ld)\n",
+             (ULONG)rp, xMin, yMin, xMax, yMax);
+
+    if (!rp || !rp->BitMap)
+        return;
+
+    struct BitMap *bm = rp->BitMap;
+    BYTE pen = rp->FgPen;
+    WORD maxX = bm->BytesPerRow * 8;
+    WORD maxY = bm->Rows;
+
+    /* Clamp to bitmap bounds */
+    if (xMin < 0) xMin = 0;
+    if (yMin < 0) yMin = 0;
+    if (xMax >= maxX) xMax = maxX - 1;
+    if (yMax >= maxY) yMax = maxY - 1;
+
+    if (xMin > xMax || yMin > yMax)
+        return;
+
+    /* Fill the rectangle */
+    for (WORD y = (WORD)yMin; y <= (WORD)yMax; y++)
+    {
+        for (WORD x = (WORD)xMin; x <= (WORD)xMax; x++)
+        {
+            UWORD byteOffset = y * bm->BytesPerRow + (x >> 3);
+            UBYTE bitMask = 0x80 >> (x & 7);
+
+            for (UBYTE plane = 0; plane < bm->Depth; plane++)
+            {
+                if (bm->Planes[plane])
+                {
+                    if (rp->DrawMode == COMPLEMENT)
+                    {
+                        bm->Planes[plane][byteOffset] ^= bitMask;
+                    }
+                    else
+                    {
+                        if (pen & (1 << plane))
+                        {
+                            bm->Planes[plane][byteOffset] |= bitMask;
+                        }
+                        else
+                        {
+                            bm->Planes[plane][byteOffset] &= ~bitMask;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 static VOID _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6"),
@@ -490,9 +672,31 @@ static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ReadPixel() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_graphics: ReadPixel() rp=0x%08lx, x=%ld, y=%ld\n", (ULONG)rp, x, y);
+
+    if (!rp || !rp->BitMap)
+        return (ULONG)-1;  /* Error */
+
+    struct BitMap *bm = rp->BitMap;
+
+    /* Bounds check */
+    if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
+        return (ULONG)-1;
+
+    UWORD byteOffset = y * bm->BytesPerRow + (x >> 3);
+    UBYTE bitMask = 0x80 >> (x & 7);
+    ULONG color = 0;
+
+    /* Read bits from each plane */
+    for (UBYTE plane = 0; plane < bm->Depth; plane++)
+    {
+        if (bm->Planes[plane] && (bm->Planes[plane][byteOffset] & bitMask))
+        {
+            color |= (1 << plane);
+        }
+    }
+
+    return color;
 }
 
 static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6"),
@@ -500,9 +704,47 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: WritePixel() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_graphics: WritePixel() rp=0x%08lx, x=%ld, y=%ld\n", (ULONG)rp, x, y);
+
+    if (!rp || !rp->BitMap)
+        return -1;  /* Error */
+
+    struct BitMap *bm = rp->BitMap;
+    BYTE pen = rp->FgPen;
+
+    /* Bounds check */
+    if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
+        return -1;
+
+    UWORD byteOffset = y * bm->BytesPerRow + (x >> 3);
+    UBYTE bitMask = 0x80 >> (x & 7);
+
+    /* Set or clear bits in each plane based on pen color and drawing mode */
+    for (UBYTE plane = 0; plane < bm->Depth; plane++)
+    {
+        if (bm->Planes[plane])
+        {
+            if (rp->DrawMode == COMPLEMENT)
+            {
+                /* XOR mode */
+                bm->Planes[plane][byteOffset] ^= bitMask;
+            }
+            else
+            {
+                /* JAM1 or JAM2 mode */
+                if (pen & (1 << plane))
+                {
+                    bm->Planes[plane][byteOffset] |= bitMask;
+                }
+                else
+                {
+                    bm->Planes[plane][byteOffset] &= ~bitMask;
+                }
+            }
+        }
+    }
+
+    return 0;  /* Success */
 }
 
 static BOOL _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
@@ -529,24 +771,36 @@ static VOID _graphics_SetAPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG pen __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetAPen() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: SetAPen() rp=0x%08lx, pen=%lu\n", (ULONG)rp, pen);
+
+    if (rp)
+    {
+        rp->FgPen = (BYTE)pen;
+    }
 }
 
 static VOID _graphics_SetBPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG pen __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetBPen() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: SetBPen() rp=0x%08lx, pen=%lu\n", (ULONG)rp, pen);
+
+    if (rp)
+    {
+        rp->BgPen = (BYTE)pen;
+    }
 }
 
 static VOID _graphics_SetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG drawMode __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetDrMd() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: SetDrMd() rp=0x%08lx, drawMode=%lu\n", (ULONG)rp, drawMode);
+
+    if (rp)
+    {
+        rp->DrawMode = (BYTE)drawMode;
+    }
 }
 
 static VOID _graphics_InitView ( register struct GfxBase * GfxBase __asm("a6"),
@@ -594,8 +848,26 @@ static VOID _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG width __asm("d1"),
                                                         register LONG height __asm("d2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: InitBitMap() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: InitBitMap() bm=0x%08lx, depth=%ld, width=%ld, height=%ld\n",
+             (ULONG)bitMap, depth, width, height);
+
+    if (!bitMap)
+        return;
+
+    /* Calculate bytes per row (word-aligned) */
+    UWORD bytesPerRow = ((width + 15) >> 4) << 1;  /* Round up to word boundary */
+
+    bitMap->BytesPerRow = bytesPerRow;
+    bitMap->Rows = (UWORD)height;
+    bitMap->Flags = 0;
+    bitMap->Depth = (UBYTE)depth;
+    bitMap->pad = 0;
+
+    /* Clear plane pointers - caller must allocate planes */
+    for (int i = 0; i < 8; i++)
+    {
+        bitMap->Planes[i] = NULL;
+    }
 }
 
 static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6"),
@@ -729,9 +1001,17 @@ static PLANEPTR _graphics_AllocRaster ( register struct GfxBase * GfxBase __asm(
                                                         register ULONG width __asm("d0"),
                                                         register ULONG height __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AllocRaster() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_graphics: AllocRaster() width=%lu, height=%lu\n", width, height);
+
+    /* Calculate size using RASSIZE macro formula */
+    ULONG size = height * (((width + 15) >> 3) & 0xFFFE);
+
+    /* Allocate chip memory (MEMF_CHIP) and clear it */
+    PLANEPTR raster = (PLANEPTR)AllocMem(size, MEMF_CHIP | MEMF_CLEAR);
+
+    DPRINTF (LOG_DEBUG, "_graphics: AllocRaster() -> 0x%08lx (size=%lu)\n", (ULONG)raster, size);
+
+    return raster;
 }
 
 static VOID _graphics_FreeRaster ( register struct GfxBase * GfxBase __asm("a6"),
@@ -739,8 +1019,16 @@ static VOID _graphics_FreeRaster ( register struct GfxBase * GfxBase __asm("a6")
                                                         register ULONG width __asm("d0"),
                                                         register ULONG height __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FreeRaster() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: FreeRaster() p=0x%08lx, width=%lu, height=%lu\n",
+             (ULONG)p, width, height);
+
+    if (!p)
+        return;
+
+    /* Calculate size using RASSIZE macro formula */
+    ULONG size = height * (((width + 15) >> 3) & 0xFFFE);
+
+    FreeMem(p, size);
 }
 
 static VOID _graphics_AndRectRegion ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1286,24 +1574,33 @@ static VOID _graphics_SetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
 static ULONG _graphics_GetAPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetAPen() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: GetAPen() rp=0x%08lx\n", (ULONG)rp);
+
+    if (rp)
+        return (ULONG)(UBYTE)rp->FgPen;
+
     return 0;
 }
 
 static ULONG _graphics_GetBPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetBPen() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: GetBPen() rp=0x%08lx\n", (ULONG)rp);
+
+    if (rp)
+        return (ULONG)(UBYTE)rp->BgPen;
+
     return 0;
 }
 
 static ULONG _graphics_GetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetDrMd() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: GetDrMd() rp=0x%08lx\n", (ULONG)rp);
+
+    if (rp)
+        return (ULONG)(UBYTE)rp->DrawMode;
+
     return 0;
 }
 
@@ -1337,8 +1634,15 @@ static VOID _graphics_SetABPenDrMd ( register struct GfxBase * GfxBase __asm("a6
                                                         register ULONG bpen __asm("d1"),
                                                         register ULONG drawmode __asm("d2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetABPenDrMd() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: SetABPenDrMd() rp=0x%08lx, apen=%lu, bpen=%lu, dm=%lu\n",
+             (ULONG)rp, apen, bpen, drawmode);
+
+    if (rp)
+    {
+        rp->FgPen = (BYTE)apen;
+        rp->BgPen = (BYTE)bpen;
+        rp->DrawMode = (BYTE)drawmode;
+    }
 }
 
 static VOID _graphics_GetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),

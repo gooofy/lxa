@@ -423,6 +423,8 @@ When a test fails:
 - `tests/dos/` - DOS library tests (helloworld, lock_examine)
 - `tests/exec/` - Exec library tests (signal_pingpong)
 - `tests/shell/` - Shell functionality tests (alias, controlflow, script)
+- `tests/graphics/` - Graphics library tests (see §12 for details)
+- `tests/intuition/` - Intuition library tests (see §12 for details)
 
 ## 5. Code Style & Conventions
 
@@ -585,3 +587,81 @@ When a pointer appears corrupted:
 - `0x00400-0x20000`: System structures (ExecBase, DOSBase, etc.)
 - `0x20000-0x80000`: Typical user memory (AllocMem/AllocVec)
 - ROM addresses are much higher and read-only
+
+## 12. Graphics and Intuition Testing
+
+Graphics and UI libraries require special testing approaches. See `doc/graphics_testing.md` for the comprehensive testing strategy.
+
+### Key Principles
+
+1. **Headless Testing**: All graphics tests run **without SDL2 display**. The graphics library performs software rendering to BitMaps that can be verified programmatically.
+
+2. **Verify BitMap Contents**: Instead of visual inspection, read pixels back using `ReadPixel()` and verify expected colors/patterns.
+
+3. **Test Drawing Operations**: Verify that drawing primitives produce correct results:
+   ```c
+   // Example: Test RectFill
+   SetAPen(&rp, 1);
+   RectFill(&rp, 10, 10, 30, 30);
+   
+   // Verify filled area
+   for (WORD y = 10; y <= 30; y++) {
+       for (WORD x = 10; x <= 30; x++) {
+           if (ReadPixel(&rp, x, y) != 1) {
+               Printf("FAIL: pixel (%d,%d) wrong color\n", x, y);
+               return 20;
+           }
+       }
+   }
+   ```
+
+### Graphics Test Categories
+
+| Category | Purpose |
+|----------|---------|
+| `init_rastport` | Verify `InitRastPort()` sets correct defaults |
+| `init_bitmap` | Verify `InitBitMap()` calculates BytesPerRow correctly |
+| `alloc_raster` | Test `AllocRaster()`/`FreeRaster()` memory handling |
+| `pen_state` | Test pen/mode functions (SetAPen, GetAPen, etc.) |
+| `pixel_ops` | Test `WritePixel()`/`ReadPixel()` for various colors |
+| `line_draw` | Test `Draw()` for horizontal, vertical, diagonal lines |
+| `rect_fill` | Test `RectFill()` including COMPLEMENT mode |
+| `set_rast` | Test `SetRast()` clears to correct color |
+
+### Creating Graphics Tests
+
+1. **Setup BitMap with allocated planes:**
+   ```c
+   struct BitMap bm;
+   struct RastPort rp;
+   InitBitMap(&bm, 2, 64, 64);  // 2 planes = 4 colors
+   bm.Planes[0] = AllocRaster(64, 64);
+   bm.Planes[1] = AllocRaster(64, 64);
+   InitRastPort(&rp);
+   rp.BitMap = &bm;
+   ```
+
+2. **Perform drawing operations**
+
+3. **Verify results using ReadPixel()**
+
+4. **Cleanup:**
+   ```c
+   FreeRaster(bm.Planes[0], 64, 64);
+   FreeRaster(bm.Planes[1], 64, 64);
+   ```
+
+### Intuition Test Categories
+
+| Category | Purpose |
+|----------|---------|
+| `screen_basic` | Verify `OpenScreen()` creates correct structures |
+| `window_basic` | Verify `OpenWindow()` and IDCMP setup |
+| `idcmp` | Test IDCMP message delivery and ModifyIDCMP |
+
+### Important Notes
+
+- **No host display required**: Graphics tests do NOT need SDL2 or a display
+- **All tests must be deterministic**: Same input → same output
+- **Complete quickly**: Each test should run in < 5 seconds
+- **Clean up resources**: Always free allocated planes and close screens/windows

@@ -4,6 +4,19 @@
 # Find required packages
 find_package(Threads REQUIRED)
 
+# Find SDL2 for graphics support
+find_package(PkgConfig)
+if(PkgConfig_FOUND)
+    pkg_check_modules(SDL2 sdl2)
+endif()
+
+if(NOT SDL2_FOUND)
+    message(WARNING "SDL2 not found. Graphics support will be disabled.")
+    message(STATUS "Install SDL2: sudo apt install libsdl2-dev")
+else()
+    message(STATUS "Found SDL2: ${SDL2_VERSION}")
+endif()
+
 # Find readline library manually
 find_library(READLINE_LIBRARY readline
     PATHS /usr/lib /usr/local/lib /usr/lib64
@@ -26,6 +39,7 @@ set(LXA_HOST_SOURCES
     util.c
     vfs.c
     config.c
+    display.c
 )
 
 # Define the lxa executable
@@ -39,6 +53,10 @@ target_include_directories(lxa PRIVATE
 
 if(READLINE_INCLUDE_DIR)
     target_include_directories(lxa PRIVATE ${READLINE_INCLUDE_DIR})
+endif()
+
+if(SDL2_FOUND)
+    target_include_directories(lxa PRIVATE ${SDL2_INCLUDE_DIRS})
 endif()
 
 # Compiler flags for host build
@@ -63,12 +81,21 @@ target_link_libraries(lxa PRIVATE
     m
 )
 
+if(SDL2_FOUND)
+    target_link_libraries(lxa PRIVATE ${SDL2_LIBRARIES})
+endif()
+
 # Define configuration macros
 target_compile_definitions(lxa PRIVATE
     LXA_VERSION=\"${PROJECT_VERSION}\"
     LXA_DATA_DIR=\"${LXA_DATA_DIR}\"
     LXA_DEFAULT_PREFIX=\"${LXA_DEFAULT_PREFIX}\"
 )
+
+# Add SDL2_FOUND definition if SDL2 is available
+if(SDL2_FOUND)
+    target_compile_definitions(lxa PRIVATE SDL2_FOUND)
+endif()
 
 # Set output directory
 set_target_properties(lxa PROPERTIES

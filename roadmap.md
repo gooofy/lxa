@@ -80,26 +80,41 @@ Full command set implemented:
 
 ---
 
-## Phase 13: Graphics Foundation
+## Phase 13: Graphics Foundation (IN PROGRESS)
 
 **Goal**: Establish the core graphics subsystem and host display integration.
 
-### Step 13.1: Host Display Subsystem
-- [ ] **SDL2 Integration** - Initialize SDL2 in host process, event loop integration.
-- [ ] **Surface Management** - Abstract API for creating/updating host surfaces.
-- [ ] **Emucalls** - Define emucalls for graphics operations (`GRAPHICS_INIT`, `UPDATE_RECT`, etc.).
+### Step 13.1: Host Display Subsystem (COMPLETE)
+- [x] **SDL2 Integration** - SDL2 detection in CMake, conditional compilation, display.h/display.c API.
+- [x] **Surface Management** - `display_t` abstraction with window/renderer/texture management, palette support.
+- [x] **Emucalls** - Graphics emucalls 2000-2999 range (INIT, SHUTDOWN, OPEN_DISPLAY, CLOSE_DISPLAY, REFRESH, SET_COLOR, SET_PALETTE4/32, WRITE_PIXEL, READ_PIXEL, RECT_FILL, DRAW_LINE, UPDATE_PLANAR, UPDATE_CHUNKY, GET_SIZE, AVAILABLE, POLL_EVENTS).
 
-### Step 13.2: Graphics Library Basics
-- [ ] **Library Structure** - `graphics.library` initialization, `GfxBase`.
-- [ ] **Data Structures** - Implement `BitMap`, `RastPort`, `ViewPort`, `View` structs.
-- [ ] **Memory** - Allocate "Video Memory" (RAM) for BitMaps.
+### Step 13.2: Graphics Library Basics (COMPLETE)
+- [x] **Library Structure** - `graphics.library` already initialized with `GfxBase`.
+- [x] **Data Structures** - `BitMap`, `RastPort` already defined in Amiga headers.
+- [x] **Memory** - `AllocRaster`/`FreeRaster` for plane memory, RASSIZE macro formula.
 
-### Step 13.3: Basic Rendering
-- [ ] **Pixel Ops** - `WritePixel`, `ReadPixel` (CPU implementation).
-- [ ] **Drawing** - `Draw` (Line), `RectFill` (Rectangle).
-- [ ] **State** - `SetAPen`, `SetBPen`, `SetDrMd`.
+### Step 13.3: Basic Rendering (COMPLETE)
+- [x] **Pixel Ops** - `WritePixel`, `ReadPixel` (software implementation with planar format).
+- [x] **Drawing** - `Draw` (Bresenham line algorithm), `RectFill` (software rectangle fill).
+- [x] **State** - `SetAPen`, `SetBPen`, `SetDrMd`, `GetAPen`, `GetBPen`, `GetDrMd`, `SetABPenDrMd`.
+- [x] **Bitmap Init** - `InitBitMap`, `InitRastPort`, `SetRast`, `Move`.
+- [x] **Timing** - `WaitTOF`, `WaitBlit` (no-ops, no real hardware).
 
-### Step 13.4: Screen Management
+### Step 13.4: Graphics Test Coverage (REQUIRED)
+- [ ] **Test Suite** - Create `tests/graphics/` directory with comprehensive tests.
+- [ ] `init_rastport` - Verify InitRastPort() sets correct defaults.
+- [ ] `init_bitmap` - Verify InitBitMap() calculates BytesPerRow correctly.
+- [ ] `alloc_raster` - Test AllocRaster()/FreeRaster() memory handling.
+- [ ] `pen_state` - Test pen/mode functions (SetAPen, GetAPen, etc.).
+- [ ] `pixel_ops` - Test WritePixel()/ReadPixel() for various colors.
+- [ ] `line_draw` - Test Draw() for horizontal, vertical, diagonal lines.
+- [ ] `rect_fill` - Test RectFill() including COMPLEMENT mode.
+- [ ] `set_rast` - Test SetRast() clears to correct color.
+
+See `doc/graphics_testing.md` for detailed test specifications.
+
+### Step 13.5: Screen Management
 - [ ] **OpenScreen** - Map `OpenScreen` to Host Window creation.
 - [ ] **Display Loop** - Blit Amiga BitMap to Host Window texture.
 
@@ -122,6 +137,14 @@ Full command set implemented:
 ### Step 14.3: Basic Gadgets
 - [ ] **System Gadgets** - Visual representation of Close/Depth/Drag gadgets.
 - [ ] **Gadget Interaction** - Hit testing and basic state changes.
+
+### Step 14.4: Intuition Test Coverage (REQUIRED)
+- [ ] **Test Suite** - Create `tests/intuition/` directory with comprehensive tests.
+- [ ] `screen_basic` - Verify OpenScreen() creates correct structures.
+- [ ] `window_basic` - Verify OpenWindow() and IDCMP setup.
+- [ ] `idcmp` - Test IDCMP message delivery and ModifyIDCMP.
+
+See `doc/graphics_testing.md` for detailed test specifications.
 
 ---
 
