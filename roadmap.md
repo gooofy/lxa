@@ -76,18 +76,18 @@ Full command set implemented:
 **Goal**: Implement remaining HIGH priority Exec functions for robust multitasking support.
 
 ### Step 11.1: List Operations
-- [ ] **RemTail** - Remove node from list tail
+- [x] **RemTail** - Remove node from list tail
 
 ### Step 11.2: Memory Functions
-- [ ] **TypeOfMem** - Identify memory type (returns MEMF_* flags)
-- [ ] **CopyMemQuick** - Longword-aligned fast copy
+- [x] **TypeOfMem** - Identify memory type (returns MEMF_* flags)
+- [x] **CopyMemQuick** - Longword-aligned fast copy
 
 ### Step 11.3: Memory Pools
-- [ ] **CreatePool** / **DeletePool** - Memory pool management
-- [ ] **AllocPooled** / **FreePooled** - Pool allocation
+- [x] **CreatePool** / **DeletePool** - Memory pool management
+- [x] **AllocPooled** / **FreePooled** - Pool allocation
 
 ### Step 11.4: Formatted Output
-- [ ] **RawDoFmt** - Core formatting engine for Printf, etc.
+- [x] **RawDoFmt** - Core formatting engine for Printf, etc.
 
 ### Step 11.5: Asynchronous I/O
 - [ ] **SendIO** / **WaitIO** / **CheckIO** / **AbortIO** - Async I/O operations

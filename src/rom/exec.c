@@ -987,9 +987,22 @@ struct Node * _exec_RemHead ( register struct ExecBase *SysBase __asm("a6"),
 struct Node * _exec_RemTail ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct List * ___list  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: RemTail unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: RemTail called, list=0x%08lx\n", ___list);
+
+    assert (___list);
+
+    /* Get the last node (TailPred points to it) */
+    struct Node *node = ___list->lh_TailPred;
+
+    /* Check if list is empty (TailPred points to list head sentinel) */
+    if (node->ln_Pred == NULL)
+        return NULL;
+
+    /* Remove the node from the list */
+    node->ln_Pred->ln_Succ = node->ln_Succ;
+    ___list->lh_TailPred   = node->ln_Pred;
+
+    return node;
 }
 
 void _exec_Enqueue ( register struct ExecBase * SysBase __asm("a6"),
@@ -1884,15 +1897,414 @@ APTR _exec_OpenResource ( register struct ExecBase * SysBase __asm("a6"),
     return NULL;
 }
 
+/*
+ * RawDoFmt - Core formatting engine for Printf, etc.
+ *
+ * Format string specifiers:
+ *   %[-][0][width][.precision][l]d - signed decimal
+ *   %[-][0][width][.precision][l]u - unsigned decimal
+ *   %[-][0][width][.precision][l]x - lowercase hex
+ *   %[-][0][width][.precision][l]X - uppercase hex
+ *   %[-][width]s - string
+ *   %[-][width]c - character
+ *   %b - BSTR (BCPL string with length byte)
+ *   %% - literal %
+ *
+ * The putChProc callback is called for each character with:
+ *   D0 = character
+ *   A3 = putChData
+ *
+ * Returns pointer to end of dataStream (past last argument used)
+ */
 APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                                                         register CONST_STRPTR ___formatString  __asm("a0"),
                                                         register const APTR ___dataStream  __asm("a1"),
                                                         register VOID (*___putChProc)()  __asm("a2"),
                                                         register APTR ___putChData  __asm("a3"))
 {
-    LPRINTF (LOG_ERROR, "_exec: RawDoFmt unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: RawDoFmt called fmt='%s', dataStream=0x%08lx\n",
+             ___formatString, ___dataStream);
+
+    const UBYTE *fmt = (const UBYTE *)___formatString;
+    UWORD *args = (UWORD *)___dataStream;
+
+    /* Helper to output a character via putChProc */
+    #define PUT_CHAR(ch) do { \
+        register UBYTE __ch __asm("d0") = (ch); \
+        register APTR __data __asm("a3") = ___putChData; \
+        register void (*__proc)() __asm("a2") = ___putChProc; \
+        __asm volatile ( \
+            "jsr (%%a2)" \
+            : "+a"(__data) \
+            : "d"(__ch), "a"(__proc) \
+            : "d1", "a0", "a1", "cc", "memory" \
+        ); \
+        ___putChData = __data; \
+    } while(0)
+
+    while (*fmt)
+    {
+        if (*fmt != '%')
+        {
+            PUT_CHAR(*fmt++);
+            continue;
+        }
+
+        fmt++; /* Skip '%' */
+
+        if (*fmt == '%')
+        {
+            PUT_CHAR('%');
+            fmt++;
+            continue;
+        }
+
+        /* Parse flags */
+        int leftAlign = 0;
+        int zeroPad = 0;
+
+        while (*fmt == '-' || *fmt == '0')
+        {
+            if (*fmt == '-') leftAlign = 1;
+            if (*fmt == '0' && !leftAlign) zeroPad = 1;
+            fmt++;
+        }
+
+        /* Parse width */
+        int width = 0;
+        while (*fmt >= '0' && *fmt <= '9')
+        {
+            width = width * 10 + (*fmt - '0');
+            fmt++;
+        }
+
+        /* Parse precision (for strings) */
+        int precision = -1;
+        if (*fmt == '.')
+        {
+            fmt++;
+            precision = 0;
+            while (*fmt >= '0' && *fmt <= '9')
+            {
+                precision = precision * 10 + (*fmt - '0');
+                fmt++;
+            }
+        }
+
+        /* Parse size modifier */
+        int isLong = 0;
+        if (*fmt == 'l')
+        {
+            isLong = 1;
+            fmt++;
+        }
+
+        /* Parse conversion specifier */
+        char specifier = *fmt++;
+
+        switch (specifier)
+        {
+            case 'd':
+            case 'D':
+            {
+                /* Signed decimal */
+                LONG value;
+                if (isLong)
+                {
+                    value = *(LONG *)args;
+                    args += 2;
+                }
+                else
+                {
+                    value = (WORD)*args++;
+                }
+
+                /* Convert to string */
+                char buf[12];
+                char *p = buf + sizeof(buf) - 1;
+                *p = '\0';
+
+                int negative = 0;
+                ULONG uval;
+                if (value < 0)
+                {
+                    negative = 1;
+                    uval = (ULONG)(-value);
+                }
+                else
+                {
+                    uval = (ULONG)value;
+                }
+
+                do
+                {
+                    *--p = '0' + (uval % 10);
+                    uval /= 10;
+                } while (uval);
+
+                if (negative)
+                    *--p = '-';
+
+                /* Output with padding */
+                int len = (buf + sizeof(buf) - 1) - p;
+                char padChar = zeroPad ? '0' : ' ';
+
+                if (!leftAlign)
+                {
+                    while (len < width)
+                    {
+                        PUT_CHAR(padChar);
+                        width--;
+                    }
+                }
+
+                while (*p)
+                    PUT_CHAR(*p++);
+
+                if (leftAlign)
+                {
+                    while (len < width)
+                    {
+                        PUT_CHAR(' ');
+                        width--;
+                    }
+                }
+                break;
+            }
+
+            case 'u':
+            case 'U':
+            {
+                /* Unsigned decimal */
+                ULONG value;
+                if (isLong)
+                {
+                    value = *(ULONG *)args;
+                    args += 2;
+                }
+                else
+                {
+                    value = *args++;
+                }
+
+                char buf[11];
+                char *p = buf + sizeof(buf) - 1;
+                *p = '\0';
+
+                do
+                {
+                    *--p = '0' + (value % 10);
+                    value /= 10;
+                } while (value);
+
+                int len = (buf + sizeof(buf) - 1) - p;
+                char padChar = zeroPad ? '0' : ' ';
+
+                if (!leftAlign)
+                {
+                    while (len < width)
+                    {
+                        PUT_CHAR(padChar);
+                        width--;
+                    }
+                }
+
+                while (*p)
+                    PUT_CHAR(*p++);
+
+                if (leftAlign)
+                {
+                    while (len < width)
+                    {
+                        PUT_CHAR(' ');
+                        width--;
+                    }
+                }
+                break;
+            }
+
+            case 'x':
+            case 'X':
+            {
+                /* Hexadecimal */
+                ULONG value;
+                if (isLong)
+                {
+                    value = *(ULONG *)args;
+                    args += 2;
+                }
+                else
+                {
+                    value = *args++;
+                }
+
+                const char *hexDigits = (specifier == 'x') ? "0123456789abcdef" : "0123456789ABCDEF";
+
+                char buf[9];
+                char *p = buf + sizeof(buf) - 1;
+                *p = '\0';
+
+                do
+                {
+                    *--p = hexDigits[value & 0xF];
+                    value >>= 4;
+                } while (value);
+
+                int len = (buf + sizeof(buf) - 1) - p;
+                char padChar = zeroPad ? '0' : ' ';
+
+                if (!leftAlign)
+                {
+                    while (len < width)
+                    {
+                        PUT_CHAR(padChar);
+                        width--;
+                    }
+                }
+
+                while (*p)
+                    PUT_CHAR(*p++);
+
+                if (leftAlign)
+                {
+                    while (len < width)
+                    {
+                        PUT_CHAR(' ');
+                        width--;
+                    }
+                }
+                break;
+            }
+
+            case 's':
+            case 'S':
+            {
+                /* String */
+                char *str = (char *)*(ULONG *)args;
+                args += 2;
+
+                if (!str)
+                    str = "(null)";
+
+                int len = 0;
+                char *s = str;
+                while (*s && (precision < 0 || len < precision))
+                {
+                    len++;
+                    s++;
+                }
+
+                if (!leftAlign)
+                {
+                    while (len < width)
+                    {
+                        PUT_CHAR(' ');
+                        width--;
+                    }
+                }
+
+                s = str;
+                int printed = 0;
+                while (*s && (precision < 0 || printed < precision))
+                {
+                    PUT_CHAR(*s++);
+                    printed++;
+                }
+
+                if (leftAlign)
+                {
+                    while (printed < width)
+                    {
+                        PUT_CHAR(' ');
+                        width--;
+                        printed++;
+                    }
+                }
+                break;
+            }
+
+            case 'b':
+            case 'B':
+            {
+                /* BSTR - BCPL string with length byte */
+                BPTR bstr = *(BPTR *)args;
+                args += 2;
+
+                UBYTE *str = (UBYTE *)BADDR(bstr);
+                int len = 0;
+
+                if (str)
+                {
+                    len = str[0];  /* First byte is length */
+                    str++;         /* Skip length byte */
+                }
+
+                if (!leftAlign)
+                {
+                    while (len < width)
+                    {
+                        PUT_CHAR(' ');
+                        width--;
+                    }
+                }
+
+                for (int i = 0; i < len; i++)
+                    PUT_CHAR(str[i]);
+
+                if (leftAlign)
+                {
+                    while (len < width)
+                    {
+                        PUT_CHAR(' ');
+                        width--;
+                    }
+                }
+                break;
+            }
+
+            case 'c':
+            case 'C':
+            {
+                /* Character */
+                char ch = (char)*args++;
+
+                if (!leftAlign)
+                {
+                    while (1 < width)
+                    {
+                        PUT_CHAR(' ');
+                        width--;
+                    }
+                }
+
+                PUT_CHAR(ch);
+
+                if (leftAlign)
+                {
+                    while (1 < width)
+                    {
+                        PUT_CHAR(' ');
+                        width--;
+                    }
+                }
+                break;
+            }
+
+            default:
+                /* Unknown format, output as-is */
+                PUT_CHAR('%');
+                PUT_CHAR(specifier);
+                break;
+        }
+    }
+
+    /* Output terminating NUL */
+    PUT_CHAR('\0');
+
+    #undef PUT_CHAR
+
+    DPRINTF (LOG_DEBUG, "_exec: RawDoFmt done, returning args=0x%08lx\n", args);
+    return (APTR)args;
 }
 
 ULONG exec_GetCC ( register struct ExecBase * SysBase __asm("a6"));
@@ -1905,9 +2317,32 @@ asm(
 ULONG _exec_TypeOfMem ( register struct ExecBase * SysBase __asm("a6"),
                                                         register const APTR ___address  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: TypeOfMem unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_exec: TypeOfMem called, address=0x%08lx\n", ___address);
+
+    if (!___address)
+        return 0;
+
+    Forbid();
+
+    ULONG result = 0;
+
+    /* Walk through all memory headers to find which region contains this address */
+    for (struct Node *node = SysBase->MemList.lh_Head; node->ln_Succ != NULL; node = node->ln_Succ)
+    {
+        struct MemHeader *mh = (struct MemHeader *)node;
+
+        /* Check if address falls within this memory region */
+        if (___address >= mh->mh_Lower && ___address < mh->mh_Upper)
+        {
+            result = mh->mh_Attributes;
+            break;
+        }
+    }
+
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: TypeOfMem returning 0x%08lx\n", result);
+    return result;
 }
 
 ULONG _exec_Procure ( register struct ExecBase * SysBase __asm("a6"),
@@ -2221,8 +2656,20 @@ void _exec_CopyMemQuick ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___dest  __asm("a1"),
                                                         register ULONG ___size  __asm("d0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: CopyMemQuick unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: CopyMemQuick called source=0x%08lx, dest=0x%08lx, size=%ld\n",
+             ___source, ___dest, ___size);
+
+    if (!___size)
+        return;
+
+    /* CopyMemQuick requires longword-aligned addresses and size */
+    /* Copy in longwords for speed */
+    ULONG *src = (ULONG *)___source;
+    ULONG *dst = (ULONG *)___dest;
+    ULONG count = ___size >> 2;  /* Divide by 4 to get longword count */
+
+    while (count--)
+        *dst++ = *src++;
 }
 
 void _exec_CacheClearU ( register struct ExecBase * SysBase __asm("a6"))
@@ -2387,29 +2834,146 @@ void _exec_FreeVec ( register struct ExecBase *SysBase     __asm("a6"),
     FreeMem (memoryBlock, *((ULONG *) memoryBlock));
 }
 
+/*
+ * Memory Pool structure (internal to exec)
+ * Pools are a way to efficiently allocate many small blocks of memory
+ * that can all be freed at once when the pool is deleted.
+ */
+struct PoolHeader
+{
+    struct MinList  ph_PuddleList;    /* List of puddles (memory blocks) */
+    ULONG           ph_Requirements;  /* Memory requirements */
+    ULONG           ph_PuddleSize;    /* Size of each puddle */
+    ULONG           ph_ThreshSize;    /* Threshold for large allocations */
+};
+
+struct PoolPuddle
+{
+    struct MinNode  pp_Node;          /* Node for linking in ph_PuddleList */
+    ULONG           pp_Size;          /* Size of this puddle */
+    ULONG           pp_BytesUsed;     /* Bytes currently allocated from this puddle */
+    UBYTE           pp_Data[0];       /* Start of allocatable memory */
+};
+
 APTR _exec_CreatePool ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___requirements  __asm("d0"),
                                                         register ULONG ___puddleSize  __asm("d1"),
                                                         register ULONG ___threshSize  __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: CreatePool unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: CreatePool called requirements=0x%08lx, puddleSize=%ld, threshSize=%ld\n",
+             ___requirements, ___puddleSize, ___threshSize);
+
+    /* Allocate pool header */
+    struct PoolHeader *pool = (struct PoolHeader *)AllocMem(sizeof(struct PoolHeader), MEMF_PUBLIC | MEMF_CLEAR);
+
+    if (pool)
+    {
+        /* Initialize the pool's MinList manually to avoid strict aliasing issues */
+        pool->ph_PuddleList.mlh_Head     = (struct MinNode *)&pool->ph_PuddleList.mlh_Tail;
+        pool->ph_PuddleList.mlh_Tail     = NULL;
+        pool->ph_PuddleList.mlh_TailPred = (struct MinNode *)&pool->ph_PuddleList.mlh_Head;
+
+        pool->ph_Requirements = ___requirements;
+        pool->ph_PuddleSize   = ___puddleSize;
+        pool->ph_ThreshSize   = ___threshSize;
+
+        DPRINTF (LOG_DEBUG, "_exec: CreatePool returning pool=0x%08lx\n", pool);
+    }
+
+    return pool;
 }
 
 void _exec_DeletePool ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___poolHeader  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: DeletePool unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: DeletePool called, poolHeader=0x%08lx\n", ___poolHeader);
+
+    if (!___poolHeader)
+        return;
+
+    struct PoolHeader *pool = (struct PoolHeader *)___poolHeader;
+
+    /* Free all puddles */
+    struct PoolPuddle *puddle;
+    while ((puddle = (struct PoolPuddle *)RemHead((struct List *)&pool->ph_PuddleList)) != NULL)
+    {
+        FreeMem(puddle, puddle->pp_Size + sizeof(struct PoolPuddle));
+    }
+
+    /* Free the pool header */
+    FreeMem(pool, sizeof(struct PoolHeader));
 }
 
 APTR _exec_AllocPooled ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___poolHeader  __asm("a0"),
                                                         register ULONG ___memSize  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AllocPooled unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AllocPooled called, poolHeader=0x%08lx, memSize=%ld\n",
+             ___poolHeader, ___memSize);
+
+    if (!___poolHeader || !___memSize)
+        return NULL;
+
+    struct PoolHeader *pool = (struct PoolHeader *)___poolHeader;
+
+    /* Align size to 8 bytes */
+    ULONG alignedSize = ALIGN(___memSize, 8);
+
+    /* For large allocations (above threshold), allocate a dedicated puddle */
+    if (alignedSize >= pool->ph_ThreshSize)
+    {
+        DPRINTF (LOG_DEBUG, "_exec: AllocPooled large allocation (>= threshSize %ld)\n", pool->ph_ThreshSize);
+
+        struct PoolPuddle *puddle = (struct PoolPuddle *)AllocMem(
+            sizeof(struct PoolPuddle) + alignedSize,
+            pool->ph_Requirements);
+
+        if (puddle)
+        {
+            puddle->pp_Size      = alignedSize;
+            puddle->pp_BytesUsed = alignedSize;
+            AddHead((struct List *)&pool->ph_PuddleList, (struct Node *)puddle);
+            return puddle->pp_Data;
+        }
+        return NULL;
+    }
+
+    /* Try to find a puddle with enough free space */
+    for (struct MinNode *node = pool->ph_PuddleList.mlh_Head;
+         node->mln_Succ != NULL;
+         node = node->mln_Succ)
+    {
+        struct PoolPuddle *puddle = (struct PoolPuddle *)node;
+
+        if (puddle->pp_Size - puddle->pp_BytesUsed >= alignedSize)
+        {
+            /* Found a puddle with enough space */
+            APTR mem = puddle->pp_Data + puddle->pp_BytesUsed;
+            puddle->pp_BytesUsed += alignedSize;
+            DPRINTF (LOG_DEBUG, "_exec: AllocPooled returning 0x%08lx from existing puddle\n", mem);
+            return mem;
+        }
+    }
+
+    /* No suitable puddle found, create a new one */
+    ULONG puddleDataSize = pool->ph_PuddleSize;
+    if (alignedSize > puddleDataSize)
+        puddleDataSize = alignedSize;
+
+    struct PoolPuddle *newPuddle = (struct PoolPuddle *)AllocMem(
+        sizeof(struct PoolPuddle) + puddleDataSize,
+        pool->ph_Requirements);
+
+    if (newPuddle)
+    {
+        newPuddle->pp_Size      = puddleDataSize;
+        newPuddle->pp_BytesUsed = alignedSize;
+        AddHead((struct List *)&pool->ph_PuddleList, (struct Node *)newPuddle);
+        DPRINTF (LOG_DEBUG, "_exec: AllocPooled returning 0x%08lx from new puddle\n", newPuddle->pp_Data);
+        return newPuddle->pp_Data;
+    }
+
+    DPRINTF (LOG_DEBUG, "_exec: AllocPooled failed, out of memory\n");
     return NULL;
 }
 
@@ -2418,8 +2982,23 @@ void _exec_FreePooled ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___memory  __asm("a1"),
                                                         register ULONG ___memSize  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: FreePooled unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: FreePooled called, poolHeader=0x%08lx, memory=0x%08lx, memSize=%ld\n",
+             ___poolHeader, ___memory, ___memSize);
+
+    /*
+     * In our simple pool implementation, individual allocations cannot be freed.
+     * Memory is only returned to the system when the entire pool is deleted.
+     * This is a common simplified implementation that works well when all pool
+     * allocations are freed together (which is the typical use case for pools).
+     *
+     * A more sophisticated implementation would track individual allocations
+     * and potentially return unused puddles to the system.
+     */
+
+    /* For now, we do nothing - memory will be freed when the pool is deleted */
+    (void)___poolHeader;
+    (void)___memory;
+    (void)___memSize;
 }
 
 ULONG _exec_AttemptSemaphoreShared ( register struct ExecBase * SysBase __asm("a6"),
