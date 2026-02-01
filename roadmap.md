@@ -311,7 +311,7 @@ Key implementations:
 ### Step 20.2: Console Device Window Attachment (COMPLETE)
 **Problem**: KickPascal 2's console output (text, prompts) is not visible in the window. Console device currently only logs to debug output, doesn't render to Intuition windows.
 
-**Fixes Implemented**:
+**Output Fixes Implemented**:
 - [x] **LxaConUnit Structure** - Extended ConUnit with cursor position, character cell dimensions, raster area bounds, pen colors, and CSI parsing state.
 - [x] **Console Open** - Extract Window pointer from `io_Data` field, create ConUnit with `console_create_unit()`, calculate raster area from window borders.
 - [x] **Text Rendering** - CMD_WRITE processes characters via `console_process_char()`, renders using `Text()` at calculated pixel positions.
@@ -326,7 +326,15 @@ Key implementations:
 - [x] **Scrolling** - `console_scroll_up()` using `ScrollRaster()`.
 - [x] **Display Refresh** - `WaitTOF()` called after writes to trigger screen update.
 
-**Result**: KP2's text output now renders correctly in the window. Console input still uses host stdin (window keyboard input deferred).
+**Input Fixes Implemented**:
+- [x] **SDL Event Polling Fix** - `EMU_CALL_INT_POLL_INPUT` now calls `display_poll_events()` before `display_get_event()` to ensure SDL events are dequeued.
+- [x] **Rawkey-to-ASCII Conversion** - Lookup tables for unshifted/shifted keys, support for Shift, Caps Lock, and Control modifiers.
+- [x] **Input Ring Buffer** - 256-byte circular buffer for console input with line-mode support.
+- [x] **IDCMP_RAWKEY Subscription** - Console Open() adds IDCMP_RAWKEY to window via ModifyIDCMP().
+- [x] **CMD_READ from Window** - Reads IDCMP_RAWKEY messages from window's UserPort instead of host stdin.
+- [x] **Character Echo** - Typed characters echoed to console output with backspace handling.
+
+**Result**: KP2's text output and keyboard input now work correctly in the window.
 
 ### Step 20.3: Window Layer Clipping (NOT STARTED)
 **Problem**: Drawing outside window bounds may render on screen instead of being clipped.
