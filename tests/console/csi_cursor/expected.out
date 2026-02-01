@@ -1,0 +1,59 @@
+Test 1: Cursor Home
+[H
+Test 2: Position 5;10
+[5;10H
+Test 3: Up 2
+[2A
+Test 4: Down 3
+[3B
+Test 5: Forward 5
+[5C
+Test 6: Backward 4
+[4D
+Test 7: Erase to end of line
+[K
+Test 8: Erase to end of display
+[J
+Test 9: Erase entire line
+[2K
+Test 10: Clear screen
+[2J
+Test 11: Insert line
+[1L
+Test 12: Delete line
+[1M
+Test 13: Insert 3 chars
+[3@
+Test 14: Delete 2 chars
+[2P
+Test 15: Scroll up 2
+[2S
+Test 16: Scroll down 1
+[1T
+Test 17: Reset attributes
+[0m
+Test 18: Bold
+[1mBOLD[0m
+Test 19: Underline
+[4mUNDERLINE[0m
+Test 20: Inverse
+[7mINVERSE[0m
+Test 21: Foreground color 31 (red)
+[31mRED[0m
+Test 22: Background color 44 (blue bg)
+[44mBLUE BG[0m
+Test 23: Combined 1;33;44 (bold yellow on blue)
+[1;33;44mBOLD YELLOW ON BLUE[0m
+Test 24: Hide cursor
+[?25l
+Test 25: Show cursor
+[?25h
+Test 26: Next line 2
+[2E
+Test 27: Prev line 1
+[1F
+Test 28: Form feed clear
+[2J[H
+Test 29: ESC[ cursor up
+[2A
+DONE

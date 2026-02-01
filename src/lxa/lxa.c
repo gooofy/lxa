@@ -844,122 +844,481 @@ static int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
     return o;
 }
 
-#define CSI_BUF_LEN 32
+/*
+ * Phase 16: Console Device Enhancement
+ *
+ * This implements Amiga console CSI (Control Sequence Introducer) escape sequence
+ * translation to ANSI terminal sequences. The Amiga uses 0x9B as CSI, while
+ * standard ANSI terminals use ESC[ (0x1B 0x5B).
+ *
+ * Supported sequences:
+ * - Cursor positioning: H (absolute), A/B/C/D (relative), E/F (line start)
+ * - Screen/line control: J (erase display), K (erase line), L/M (insert/delete line)
+ * - Character control: @ (insert), P (delete)
+ * - Scrolling: S (scroll up), T (scroll down)
+ * - Text attributes: m (SGR - colors, bold, underline, etc.)
+ * - Cursor visibility: p
+ * - Window queries: q (reports window size), n (cursor position)
+ */
+
+#define CSI_BUF_LEN 64
+#define CSI_MAX_PARAMS 8
 #define CSI "\e["
 
-static int _dos_write (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
+/* Console state for window size queries (used in DPRINTF when debug enabled) */
+static int g_console_rows __attribute__((unused)) = 24;
+static int g_console_cols __attribute__((unused)) = 80;
+
+/* Parse CSI parameters from buffer, returns number of parameters found */
+static int _csi_parse_params(const char *buf, int len, int *params, int max_params)
 {
-    DPRINTF (LOG_DEBUG, "lxa: _dos_write(): fh68k=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
+    int num_params = 0;
+    int current = 0;
+    bool has_digits = false;
 
-    int fd   = m68k_read_memory_32 (fh68k+36);
-    int kind = m68k_read_memory_32 (fh68k+32);
-    DPRINTF (LOG_DEBUG, "                  -> fd=%d, kind=%d\n", fd, kind);
+    for (int i = 0; i < len && num_params < max_params; i++) {
+        char c = buf[i];
+        if (c >= '0' && c <= '9') {
+            current = current * 10 + (c - '0');
+            has_digits = true;
+        } else if (c == ';') {
+            params[num_params++] = has_digits ? current : 1;
+            current = 0;
+            has_digits = false;
+        } else if (c == ' ' || c == '?' || c == '>') {
+            /* Skip intermediate characters */
+            continue;
+        }
+    }
+    /* Don't forget the last parameter */
+    if (has_digits || num_params > 0) {
+        params[num_params++] = has_digits ? current : 1;
+    }
+    return num_params;
+}
 
-    char *buf = _mgetstr (buf68k);
+/* Check if buffer contains a specific prefix (for sequences like "0 " in "0 p") */
+static bool _csi_has_prefix(const char *buf, int len, const char *prefix)
+{
+    int plen = strlen(prefix);
+    if (len < plen)
+        return false;
+    return strncmp(buf, prefix, plen) == 0;
+}
+
+/* Process a complete Amiga CSI sequence and emit ANSI equivalent */
+static void _csi_process(const char *buf, int len, char final_byte)
+{
+    int params[CSI_MAX_PARAMS] = {0};
+    int num_params = _csi_parse_params(buf, len, params, CSI_MAX_PARAMS);
+
+    /* Default parameter is 1 for most movement commands */
+    int p1 = (num_params >= 1 && params[0] > 0) ? params[0] : 1;
+    int p2 = (num_params >= 2 && params[1] > 0) ? params[1] : 1;
+
+    switch (final_byte) {
+        /*
+         * Cursor Movement
+         */
+        case 'H':  /* CUP - Cursor Position: CSI row;col H */
+        case 'f':  /* HVP - Horizontal/Vertical Position (same as H) */
+            if (num_params == 0) {
+                /* Home position */
+                fputs(CSI "H", stdout);
+            } else {
+                fprintf(stdout, CSI "%d;%dH", p1, p2);
+            }
+            break;
+
+        case 'A':  /* CUU - Cursor Up */
+            fprintf(stdout, CSI "%dA", p1);
+            break;
+
+        case 'B':  /* CUD - Cursor Down */
+            fprintf(stdout, CSI "%dB", p1);
+            break;
+
+        case 'C':  /* CUF - Cursor Forward (Right) */
+            fprintf(stdout, CSI "%dC", p1);
+            break;
+
+        case 'D':  /* CUB - Cursor Backward (Left) */
+            fprintf(stdout, CSI "%dD", p1);
+            break;
+
+        case 'E':  /* CNL - Cursor Next Line */
+            fprintf(stdout, CSI "%dE", p1);
+            break;
+
+        case 'F':  /* CPL - Cursor Preceding Line */
+            fprintf(stdout, CSI "%dF", p1);
+            break;
+
+        case 'G':  /* CHA - Cursor Horizontal Absolute (column) */
+            fprintf(stdout, CSI "%dG", p1);
+            break;
+
+        case 'I':  /* CHT - Cursor Horizontal Tab */
+            for (int i = 0; i < p1; i++)
+                fputc('\t', stdout);
+            break;
+
+        case 'Z':  /* CBT - Cursor Backward Tab */
+            /* ANSI supports this directly */
+            fprintf(stdout, CSI "%dZ", p1);
+            break;
+
+        /*
+         * Erase Functions
+         */
+        case 'J':  /* ED - Erase in Display */
+            /* 0 = cursor to end, 1 = start to cursor, 2 = entire display */
+            if (num_params == 0 || params[0] == 0) {
+                fputs(CSI "J", stdout);  /* Erase to end of display */
+            } else {
+                fprintf(stdout, CSI "%dJ", params[0]);
+            }
+            break;
+
+        case 'K':  /* EL - Erase in Line */
+            /* 0 = cursor to end, 1 = start to cursor, 2 = entire line */
+            if (num_params == 0 || params[0] == 0) {
+                fputs(CSI "K", stdout);  /* Erase to end of line */
+            } else {
+                fprintf(stdout, CSI "%dK", params[0]);
+            }
+            break;
+
+        /*
+         * Insert/Delete
+         */
+        case 'L':  /* IL - Insert Line(s) */
+            fprintf(stdout, CSI "%dL", p1);
+            break;
+
+        case 'M':  /* DL - Delete Line(s) */
+            fprintf(stdout, CSI "%dM", p1);
+            break;
+
+        case '@':  /* ICH - Insert Character(s) */
+            fprintf(stdout, CSI "%d@", p1);
+            break;
+
+        case 'P':  /* DCH - Delete Character(s) */
+            fprintf(stdout, CSI "%dP", p1);
+            break;
+
+        /*
+         * Scrolling
+         */
+        case 'S':  /* SU - Scroll Up */
+            fprintf(stdout, CSI "%dS", p1);
+            break;
+
+        case 'T':  /* SD - Scroll Down */
+            fprintf(stdout, CSI "%dT", p1);
+            break;
+
+        /*
+         * Text Attributes (SGR - Select Graphic Rendition)
+         */
+        case 'm':
+            if (num_params == 0) {
+                /* Reset all attributes */
+                fputs(CSI "0m", stdout);
+            } else {
+                /* Build ANSI SGR sequence from Amiga parameters */
+                fputs(CSI, stdout);
+                for (int i = 0; i < num_params; i++) {
+                    int attr = params[i];
+                    if (i > 0) fputc(';', stdout);
+
+                    switch (attr) {
+                        /* Reset */
+                        case 0:  fprintf(stdout, "0"); break;
+
+                        /* Styles */
+                        case 1:  fprintf(stdout, "1"); break;   /* Bold */
+                        case 2:  fprintf(stdout, "2"); break;   /* Faint/Dim */
+                        case 3:  fprintf(stdout, "3"); break;   /* Italic */
+                        case 4:  fprintf(stdout, "4"); break;   /* Underline */
+                        case 7:  fprintf(stdout, "7"); break;   /* Inverse/Reverse */
+                        case 8:  fprintf(stdout, "8"); break;   /* Concealed/Hidden */
+
+                        /* Style off (V36+) */
+                        case 22: fprintf(stdout, "22"); break;  /* Normal intensity */
+                        case 23: fprintf(stdout, "23"); break;  /* Italic off */
+                        case 24: fprintf(stdout, "24"); break;  /* Underline off */
+                        case 27: fprintf(stdout, "27"); break;  /* Inverse off */
+                        case 28: fprintf(stdout, "28"); break;  /* Concealed off */
+
+                        /* Foreground colors (30-37, 39=default) */
+                        case 30: case 31: case 32: case 33:
+                        case 34: case 35: case 36: case 37:
+                        case 39:
+                            fprintf(stdout, "%d", attr);
+                            break;
+
+                        /* Background colors (40-47, 49=default) */
+                        case 40: case 41: case 42: case 43:
+                        case 44: case 45: case 46: case 47:
+                        case 49:
+                            fprintf(stdout, "%d", attr);
+                            break;
+
+                        default:
+                            /* Pass through unknown attributes */
+                            fprintf(stdout, "%d", attr);
+                            break;
+                    }
+                }
+                fputs("m", stdout);
+            }
+            break;
+
+        /*
+         * Cursor Visibility
+         */
+        case 'p':
+            if (_csi_has_prefix(buf, len, "0 ")) {
+                /* Cursor invisible */
+                fputs(CSI "?25l", stdout);
+            } else if (_csi_has_prefix(buf, len, " ") || _csi_has_prefix(buf, len, "1 ")) {
+                /* Cursor visible */
+                fputs(CSI "?25h", stdout);
+            }
+            break;
+
+        /*
+         * Window Status/Queries
+         */
+        case 'q':
+            if (_csi_has_prefix(buf, len, "0 ")) {
+                /* Window Status Request - Amiga expects response:
+                 * CSI 1;1;<bottom>;<right> r
+                 * We can't inject input, so just log for now */
+                DPRINTF(LOG_DEBUG, "lxa: Console window status request (rows=%d, cols=%d)\n",
+                        g_console_rows, g_console_cols);
+            }
+            break;
+
+        case 'n':
+            if (num_params >= 1 && params[0] == 6) {
+                /* Device Status Report (cursor position query)
+                 * Amiga expects response: CSI row;col R
+                 * We can't inject input, so just log for now */
+                DPRINTF(LOG_DEBUG, "lxa: Console cursor position query\n");
+            }
+            break;
+
+        /*
+         * Tab Control
+         */
+        case 'W':
+            if (_csi_has_prefix(buf, len, "0")) {
+                /* Set tab at current position - not directly supported in ANSI */
+                DPRINTF(LOG_DEBUG, "lxa: Set tab stop (ignored)\n");
+            } else if (_csi_has_prefix(buf, len, "2")) {
+                /* Clear tab at current position */
+                fputs(CSI "0g", stdout);
+            } else if (_csi_has_prefix(buf, len, "5")) {
+                /* Clear all tabs */
+                fputs(CSI "3g", stdout);
+            }
+            break;
+
+        /*
+         * Mode Control
+         */
+        case 'h':  /* SM - Set Mode */
+            if (_csi_has_prefix(buf, len, "20")) {
+                /* Set LF mode (LF acts as CR+LF) - not directly translatable */
+                DPRINTF(LOG_DEBUG, "lxa: Set LF mode (ignored)\n");
+            } else if (_csi_has_prefix(buf, len, "?7")) {
+                /* Enable autowrap */
+                fputs(CSI "?7h", stdout);
+            }
+            break;
+
+        case 'l':  /* RM - Reset Mode */
+            if (_csi_has_prefix(buf, len, "20")) {
+                /* Reset LF mode */
+                DPRINTF(LOG_DEBUG, "lxa: Reset LF mode (ignored)\n");
+            } else if (_csi_has_prefix(buf, len, "?7")) {
+                /* Disable autowrap */
+                fputs(CSI "?7l", stdout);
+            }
+            break;
+
+        /*
+         * Raw Events (Amiga-specific, not translatable)
+         */
+        case '{':  /* Set Raw Events */
+            DPRINTF(LOG_DEBUG, "lxa: Set raw events %d (ignored)\n", p1);
+            break;
+
+        case '}':  /* Reset Raw Events */
+            DPRINTF(LOG_DEBUG, "lxa: Reset raw events %d (ignored)\n", p1);
+            break;
+
+        /*
+         * Page/Window Setup (Amiga-specific)
+         */
+        case 't':  /* Set page length */
+            DPRINTF(LOG_DEBUG, "lxa: Set page length %d (ignored)\n", p1);
+            break;
+
+        case 'u':  /* Set line length */
+            DPRINTF(LOG_DEBUG, "lxa: Set line length %d (ignored)\n", p1);
+            break;
+
+        case 'x':  /* Set left offset */
+            DPRINTF(LOG_DEBUG, "lxa: Set left offset %d (ignored)\n", p1);
+            break;
+
+        case 'y':  /* Set top offset */
+            DPRINTF(LOG_DEBUG, "lxa: Set top offset %d (ignored)\n", p1);
+            break;
+
+        default:
+            DPRINTF(LOG_DEBUG, "lxa: Unhandled CSI sequence: %.*s%c\n", len, buf, final_byte);
+            break;
+    }
+}
+
+/* Process special C0/C1 control characters */
+static void _console_control_char(uint8_t c)
+{
+    switch (c) {
+        case 0x07:  /* BEL - Bell */
+            fputc('\a', stdout);
+            break;
+        case 0x08:  /* BS - Backspace */
+            fputc('\b', stdout);
+            break;
+        case 0x09:  /* HT - Horizontal Tab */
+            fputc('\t', stdout);
+            break;
+        case 0x0A:  /* LF - Line Feed */
+            fputc('\n', stdout);
+            break;
+        case 0x0B:  /* VT - Vertical Tab (move up one line on Amiga) */
+            fputs(CSI "A", stdout);
+            break;
+        case 0x0C:  /* FF - Form Feed (clear screen on Amiga) */
+            fputs(CSI "2J" CSI "H", stdout);
+            break;
+        case 0x0D:  /* CR - Carriage Return */
+            fputc('\r', stdout);
+            break;
+        case 0x84:  /* IND - Index (move down one line) */
+            fputs(CSI "D", stdout);
+            break;
+        case 0x85:  /* NEL - Next Line (CR+LF) */
+            fputs("\r\n", stdout);
+            break;
+        case 0x8D:  /* RI - Reverse Index (move up one line) */
+            fputs(CSI "M", stdout);
+            break;
+        default:
+            /* Pass through printable characters */
+            if (c >= 0x20 && c < 0x7F) {
+                fputc(c, stdout);
+            } else if (c >= 0xA0) {
+                /* High ASCII / Latin-1 */
+                fputc(c, stdout);
+            }
+            break;
+    }
+}
+
+static int _dos_write(uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _dos_write(): fh68k=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
+
+    int fd   = m68k_read_memory_32(fh68k + 36);
+    int kind = m68k_read_memory_32(fh68k + 32);
+    DPRINTF(LOG_DEBUG, "                  -> fd=%d, kind=%d\n", fd, kind);
+
+    char *buf = _mgetstr(buf68k);
     ssize_t l = 0;
 
-    switch (kind)
-    {
+    switch (kind) {
         case FILE_KIND_REGULAR:
         {
-            l = write (fd, buf, len68k);
+            l = write(fd, buf, len68k);
 
-            if (l<0)
-                m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+            if (l < 0)
+                m68k_write_memory_32(fh68k + 40, errno2Amiga()); // fh_Arg2
 
             break;
         }
         case FILE_KIND_CONSOLE:
         {
             static bool     bCSI = FALSE;
+            static bool     bESC = FALSE;
             static char     csiBuf[CSI_BUF_LEN];
-            static uint16_t csiBufLen=0;
+            static uint16_t csiBufLen = 0;
 
             l = len68k;
 
-            for (int i =0; i<l; i++)
-            {
-                char c = buf[i];
+            for (int i = 0; i < l; i++) {
+                uint8_t uc = (uint8_t)buf[i];
 
-                uint8_t uc = (uint8_t) c;
-                if (!bCSI)
-                {
-                    if (uc==0x9b)
-                    {
+                if (!bCSI && !bESC) {
+                    if (uc == 0x9B) {
+                        /* Amiga CSI (single byte) */
                         bCSI = TRUE;
+                        csiBufLen = 0;
                         continue;
+                    } else if (uc == 0x1B) {
+                        /* ESC - might be start of ESC[ sequence */
+                        bESC = TRUE;
+                        continue;
+                    } else {
+                        /* Regular character or control code */
+                        _console_control_char(uc);
                     }
-                }
-                else
-                {
+                } else if (bESC) {
+                    if (uc == '[') {
+                        /* ESC[ is equivalent to 0x9B CSI */
+                        bESC = FALSE;
+                        bCSI = TRUE;
+                        csiBufLen = 0;
+                    } else if (uc == 'c') {
+                        /* ESC c - Reset to Initial State */
+                        fputs(CSI "!p" CSI "?3;4l" CSI "4l" CSI "0m", stdout);
+                        bESC = FALSE;
+                    } else {
+                        /* Unknown ESC sequence, output both */
+                        fputc(0x1B, stdout);
+                        fputc(uc, stdout);
+                        bESC = FALSE;
+                    }
+                } else if (bCSI) {
                     /*
-                    0x30–0x3F (ASCII 0–9:;<=>?)                  parameter bytes
-                    0x20–0x2F (ASCII space and !\"#$%&'()*+,-./) intermediate bytes
-                    0x40–0x7E (ASCII @A–Z[\]^_`a–z{|}~)          final byte
-                    */
-                    if (uc>=0x40)
-                    {
-                        //printf ("CSI seq detected: %s%c csiBufLen=%d\n", csiBuf, c, csiBufLen);
-
-                        switch (c)
-                        {
-                            case 'p': // csr on/off
-                                if (csiBufLen == 2)
-                                {
-                                    switch (csiBuf[0])
-                                    {
-                                        case '0':
-                                            fputs(CSI "?25l", stdout); // cursor invisible
-                                            break;
-                                        case '1':
-                                            fputs(CSI "?25h", stdout);  // cursor visible
-                                            break;
-                                    }
-                                }
-                                break;
-                            case 'm': // presentation
-                                if (csiBufLen == 1)
-                                {
-                                    switch (csiBuf[0])
-                                    {
-                                        case '0': fputs(CSI "30m", stdout); /*s2 = UI_TEXT_STYLE_TEXT*/; break;
-                                    }
-                                }
-                                else
-                                {
-                                    if (csiBufLen == 2)
-                                    {
-                                        uint8_t color = (csiBuf[0]-'0')*10+(csiBuf[1]-'0');
-                                        //printf ("setting color %d\n", color);
-                                        switch (color)
-                                        {
-                                            case 30: fputs (CSI "30m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_0;*/ break;
-                                            case 31: fputs (CSI "31m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_1;*/ break;
-                                            case 32: fputs (CSI "32m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_2;*/ break;
-                                            case 33: fputs (CSI "33m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_3;*/ break;
-                                            case 34: fputs (CSI "34m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_4;*/ break;
-                                            case 35: fputs (CSI "35m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_5;*/ break;
-                                            case 36: fputs (CSI "36m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_6;*/ break;
-                                            case 37: fputs (CSI "37m", stdout); /*s2 = UI_TEXT_STYLE_ANSI_7;*/ break;
-                                        }
-                                    }
-                                }
-                                break;
-                        }
-
+                     * CSI sequence parsing:
+                     * 0x30–0x3F (ASCII 0–9:;<=>?)                  parameter bytes
+                     * 0x20–0x2F (ASCII space and !"#$%&'()*+,-./)  intermediate bytes
+                     * 0x40–0x7E (ASCII @A–Z[\]^_`a–z{|}~)          final byte
+                     */
+                    if (uc >= 0x40 && uc <= 0x7E) {
+                        /* Final byte - process the sequence */
+                        csiBuf[csiBufLen] = '\0';
+                        _csi_process(csiBuf, csiBufLen, uc);
                         bCSI = FALSE;
                         csiBufLen = 0;
+                    } else if (uc >= 0x20 && uc <= 0x3F) {
+                        /* Parameter or intermediate byte */
+                        if (csiBufLen < CSI_BUF_LEN - 1)
+                            csiBuf[csiBufLen++] = uc;
+                    } else {
+                        /* Invalid byte in CSI sequence - abort */
+                        bCSI = FALSE;
+                        csiBufLen = 0;
+                        _console_control_char(uc);
                     }
-                    else
-                    {
-                        if (csiBufLen<CSI_BUF_LEN)
-                            csiBuf[csiBufLen++] = c;
-                    }
-                    continue;
                 }
-                //printf ("non-CSI c=0x%02x\n", c);
-
-                fputc (c, stdout);
             }
             /* Flush stdout after each write to console to ensure output is visible immediately */
             fflush(stdout);

@@ -184,23 +184,33 @@ See `doc/graphics_testing.md` for detailed test specifications.
 
 ---
 
-## Phase 16: Console Device Enhancement
+## Phase 16: Console Device Enhancement (COMPLETE)
 
 **Goal**: Provide full ANSI/CSI escape sequence support for terminal applications.
 
-### Step 16.1: Cursor Control
-- [ ] **Cursor Positioning** - CSI row;col H, relative movement (A/B/C/D), save/restore
+### Step 16.1: Cursor Control (COMPLETE)
+- [x] **Cursor Positioning** - CSI row;col H/f, relative movement (A/B/C/D/E/F/G)
+- [x] **Tab Control** - Horizontal tab (I), backward tab (Z)
 
-### Step 16.2: Line/Screen Control
-- [ ] **Clear Line/Screen** - CSI K and CSI J variants
-- [ ] **Insert/Delete** - Characters and lines with scrolling
+### Step 16.2: Line/Screen Control (COMPLETE)
+- [x] **Erase Functions** - CSI J (display), CSI K (line) with all variants (0/1/2)
+- [x] **Insert/Delete** - Lines (L/M), Characters (@/P)
+- [x] **Scrolling** - Scroll up (S), scroll down (T)
 
-### Step 16.3: Text Attributes
-- [ ] **SGR Attributes** - Bold, underline, reverse, colors (30-47)
+### Step 16.3: Text Attributes (COMPLETE)
+- [x] **SGR Attributes** - Bold (1), faint (2), italic (3), underline (4), inverse (7), concealed (8)
+- [x] **Colors** - Foreground (30-37, 39), background (40-47, 49)
+- [x] **Reset** - Attribute disable codes (22-28), full reset (0)
 
-### Step 16.4: Window Queries & Raw Mode
-- [ ] **Window Bounds** - Report dimensions
-- [ ] **SetMode** - Raw/cooked mode switching
+### Step 16.4: Window Queries & Raw Mode (COMPLETE)
+- [x] **Cursor Visibility** - Hide (CSI 0 p), show (CSI p / CSI 1 p)
+- [x] **Mode Control** - Autowrap enable/disable (CSI ?7 h/l)
+- [x] **Control Characters** - Form feed (clear), vertical tab (up), BEL, BS, HT, LF, CR
+- [x] **C1 Controls** - IND (84), NEL (85), RI (8D)
+- [x] **ESC Sequences** - ESC[ as alternative CSI, ESC c reset
+
+### Step 16.5: Console Test Coverage (COMPLETE)
+- [x] `csi_cursor` - Comprehensive test for all CSI sequence translations
 
 ---
 
