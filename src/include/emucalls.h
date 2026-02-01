@@ -94,5 +94,17 @@
 #define EMU_CALL_GFX_AVAILABLE     2041  /* Check if SDL2 available: () -> bool */
 #define EMU_CALL_GFX_POLL_EVENTS   2042  /* Poll events: () -> quit_requested */
 
+/*
+ * Intuition Library emucalls (3000-3999)
+ *
+ * Phase 13.5: Screen Management
+ * These emucalls bridge the m68k intuition.library to host display.
+ */
+
+/* Screen Management */
+#define EMU_CALL_INT_OPEN_SCREEN   3000  /* OpenScreen: (width, height, depth, title_ptr) -> display_handle */
+#define EMU_CALL_INT_CLOSE_SCREEN  3001  /* CloseScreen: (display_handle) -> success */
+#define EMU_CALL_INT_REFRESH_SCREEN 3002 /* RefreshScreen: (display_handle, planes_ptr, bpr, depth) */
+
 #endif
 

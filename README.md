@@ -137,6 +137,8 @@ lxa -d -v myprogram
 - **exec.library**: Memory management, multitasking, signals, messages
 - **dos.library**: File I/O, locks, directories, processes, pattern matching
 - **utility.library**: Tag lists, hooks, utility functions
+- **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill)
+- **intuition.library**: Screen management (OpenScreen, CloseScreen)
 
 ### System Commands
 
@@ -172,14 +174,15 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Phase 7.1 Complete** - Assignment API with ASSIGN command
+**Phase 13 Complete** - Graphics Foundation with Screen Management
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
 ## Known Limitations
 
 - CPU: 68000 only (no 68020+ or FPU)
-- Graphics: No Intuition/Graphics support yet
+- Graphics: Basic screen/drawing support (OpenScreen, CloseScreen, basic drawing primitives)
+- Intuition: Screen management only (no windows yet)
 - Networking: Not implemented
 - Audio: Not implemented
 

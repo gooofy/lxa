@@ -80,7 +80,7 @@ Full command set implemented:
 
 ---
 
-## Phase 13: Graphics Foundation (IN PROGRESS)
+## Phase 13: Graphics Foundation (COMPLETE)
 
 **Goal**: Establish the core graphics subsystem and host display integration.
 
@@ -114,9 +114,11 @@ Full command set implemented:
 
 See `doc/graphics_testing.md` for detailed test specifications.
 
-### Step 13.5: Screen Management
-- [ ] **OpenScreen** - Map `OpenScreen` to Host Window creation.
-- [ ] **Display Loop** - Blit Amiga BitMap to Host Window texture.
+### Step 13.5: Screen Management (COMPLETE)
+- [x] **OpenScreen** - Map `OpenScreen` to Host Window creation.
+- [x] **CloseScreen** - Free bitplanes and close Host Window.
+- [x] **Display Loop** - Blit Amiga BitMap to Host Window texture.
+- [x] **Test** - `tests/intuition/screen_basic` validates screen creation and drawing.
 
 ---
 

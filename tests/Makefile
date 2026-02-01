@@ -3,7 +3,7 @@
 include Makefile.config
 
 # Test categories
-TEST_CATS := dos exec shell commands stress graphics
+TEST_CATS := dos exec shell commands stress graphics intuition
 
 # Color output
 GREEN = \033[0;32m
@@ -76,6 +76,7 @@ all:
 	@$(MAKE) -C graphics/line_draw
 	@$(MAKE) -C graphics/rect_fill
 	@$(MAKE) -C graphics/set_rast
+	@$(MAKE) -C intuition/screen_basic
 
 clean:
 	@echo "Cleaning all tests..."
@@ -141,6 +142,7 @@ clean:
 	@$(MAKE) -C graphics/line_draw clean
 	@$(MAKE) -C graphics/rect_fill clean
 	@$(MAKE) -C graphics/set_rast clean
+	@$(MAKE) -C intuition/screen_basic clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -203,6 +205,7 @@ clean:
 	rm -f graphics/line_draw/actual.out
 	rm -f graphics/rect_fill/actual.out
 	rm -f graphics/set_rast/actual.out
+	rm -f intuition/screen_basic/actual.out
 
 test: all
 	@echo ""
@@ -273,6 +276,7 @@ run-tests:
 	@$(MAKE) -C graphics/line_draw run-test
 	@$(MAKE) -C graphics/rect_fill run-test
 	@$(MAKE) -C graphics/set_rast run-test
+	@$(MAKE) -C intuition/screen_basic run-test
 
 help:
 	@echo "Integration Test Suite"

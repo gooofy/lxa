@@ -1,5 +1,5 @@
 #include <exec/types.h>
-//#include <exec/memory.h>
+#include <exec/memory.h>
 //#include <exec/libraries.h>
 #include <exec/execbase.h>
 #include <exec/resident.h>
@@ -7,9 +7,19 @@
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
+#include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
+#include <intuition/screens.h>
+
+#include <graphics/gfx.h>
+#include <graphics/rastport.h>
+#include <graphics/view.h>
+#include <clib/graphics_protos.h>
+#include <inline/graphics.h>
 
 #include "util.h"
+
+extern struct GfxBase *GfxBase;
 
 #define VERSION    40
 #define REVISION   1
@@ -107,9 +117,45 @@ VOID _intuition_ClearPointer ( register struct IntuitionBase * IntuitionBase __a
 BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: CloseScreen() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    ULONG display_handle;
+    UBYTE i;
+
+    DPRINTF (LOG_DEBUG, "_intuition: CloseScreen() screen=0x%08lx\n", (ULONG)screen);
+
+    if (!screen)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: CloseScreen() called with NULL screen\n");
+        return FALSE;
+    }
+
+    /* TODO: Check if any windows are still open on this screen */
+
+    /* Get the display handle */
+    display_handle = (ULONG)screen->ExtData;
+
+    /* Close host display */
+    if (display_handle)
+    {
+        emucall1(EMU_CALL_INT_CLOSE_SCREEN, display_handle);
+    }
+
+    /* Free bitplanes */
+    for (i = 0; i < screen->BitMap.Depth; i++)
+    {
+        if (screen->BitMap.Planes[i])
+        {
+            FreeRaster(screen->BitMap.Planes[i], screen->Width, screen->Height);
+        }
+    }
+
+    /* TODO: Unlink screen from IntuitionBase screen list */
+
+    /* Free the Screen structure */
+    FreeMem(screen, sizeof(struct Screen));
+
+    DPRINTF (LOG_DEBUG, "_intuition: CloseScreen() done\n");
+
+    return TRUE;
 }
 
 VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -302,9 +348,121 @@ VOID _intuition_OnMenu ( register struct IntuitionBase * IntuitionBase __asm("a6
 struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewScreen * newScreen __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: OpenScreen() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct Screen *screen;
+    ULONG display_handle;
+    UWORD width, height;
+    UBYTE depth;
+    UBYTE i;
+
+    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() newScreen=0x%08lx\n", (ULONG)newScreen);
+
+    if (!newScreen)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: OpenScreen() called with NULL newScreen\n");
+        return NULL;
+    }
+
+    /* Get screen dimensions */
+    width = newScreen->Width;
+    height = newScreen->Height;
+    depth = (UBYTE)newScreen->Depth;
+
+    /* Use defaults if width/height are 0 (means use display defaults) */
+    if (width == 0 || width == (UWORD)-1)
+        width = 640;
+    if (height == 0 || height == (UWORD)-1)
+        height = 256;
+    if (depth == 0)
+        depth = 2;
+
+    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() %dx%dx%d\n",
+             (int)width, (int)height, (int)depth);
+
+    /* Allocate Screen structure */
+    screen = (struct Screen *)AllocMem(sizeof(struct Screen), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!screen)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: OpenScreen() out of memory for Screen\n");
+        return NULL;
+    }
+
+    /* Open host display via emucall */
+    /* Pack width/height into d1, depth into d2, title into d3 */
+    display_handle = emucall3(EMU_CALL_INT_OPEN_SCREEN,
+                              ((ULONG)width << 16) | (ULONG)height,
+                              (ULONG)depth,
+                              (ULONG)newScreen->DefaultTitle);
+
+    if (display_handle == 0)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: OpenScreen() host display_open failed\n");
+        FreeMem(screen, sizeof(struct Screen));
+        return NULL;
+    }
+
+    /* Store display handle in ExtData (we'll use this to identify the screen) */
+    screen->ExtData = (UBYTE *)display_handle;
+
+    /* Initialize screen fields */
+    screen->LeftEdge = newScreen->LeftEdge;
+    screen->TopEdge = newScreen->TopEdge;
+    screen->Width = width;
+    screen->Height = height;
+    screen->Flags = newScreen->Type;
+    screen->Title = newScreen->DefaultTitle;
+    screen->DefaultTitle = newScreen->DefaultTitle;
+    screen->DetailPen = newScreen->DetailPen;
+    screen->BlockPen = newScreen->BlockPen;
+
+    /* Initialize the embedded BitMap */
+    InitBitMap(&screen->BitMap, depth, width, height);
+
+    /* Allocate bitplanes */
+    for (i = 0; i < depth; i++)
+    {
+        screen->BitMap.Planes[i] = AllocRaster(width, height);
+        if (!screen->BitMap.Planes[i])
+        {
+            /* Cleanup on failure */
+            LPRINTF (LOG_ERROR, "_intuition: OpenScreen() out of memory for plane %d\n", (int)i);
+            while (i > 0)
+            {
+                i--;
+                FreeRaster(screen->BitMap.Planes[i], width, height);
+            }
+            emucall1(EMU_CALL_INT_CLOSE_SCREEN, display_handle);
+            FreeMem(screen, sizeof(struct Screen));
+            return NULL;
+        }
+    }
+
+    /* Initialize the embedded RastPort */
+    InitRastPort(&screen->RastPort);
+    screen->RastPort.BitMap = &screen->BitMap;
+
+    /* Initialize ViewPort (minimal) */
+    screen->ViewPort.DWidth = width;
+    screen->ViewPort.DHeight = height;
+    screen->ViewPort.RasInfo = NULL;
+
+    /* Set bar heights (simplified) */
+    screen->BarHeight = 10;
+    screen->BarVBorder = 1;
+    screen->BarHBorder = 5;
+    screen->WBorTop = 11;
+    screen->WBorLeft = 4;
+    screen->WBorRight = 4;
+    screen->WBorBottom = 2;
+
+    /* Clear the screen to color 0 */
+    SetRast(&screen->RastPort, 0);
+
+    /* TODO: Link screen into IntuitionBase screen list */
+
+    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() -> 0x%08lx, display_handle=0x%08lx\n",
+             (ULONG)screen, display_handle);
+
+    return screen;
 }
 
 struct Window * _intuition_OpenWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),

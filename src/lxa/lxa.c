@@ -3372,6 +3372,109 @@ int op_illg(int level)
             break;
         }
 
+        /*
+         * Intuition Library emucalls (3000-3999)
+         * Phase 13.5: Screen Management
+         */
+
+        case EMU_CALL_INT_OPEN_SCREEN:
+        {
+            /* d1: (width << 16) | height, d2: depth, d3: title_ptr */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t width = (d1 >> 16) & 0xFFFF;
+            uint32_t height = d1 & 0xFFFF;
+            uint32_t depth = d2;
+            uint32_t title_ptr = d3;
+
+            char title[128] = "LXA Screen";
+            if (title_ptr != 0)
+            {
+                /* Read title string from m68k memory */
+                int i;
+                for (i = 0; i < 127; i++)
+                {
+                    char c = (char)m68k_read_memory_8(title_ptr + i);
+                    if (c == 0)
+                        break;
+                    title[i] = c;
+                }
+                title[i] = 0;
+            }
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INT_OPEN_SCREEN %dx%dx%d '%s'\n",
+                    width, height, depth, title);
+
+            /* Initialize display subsystem if not already done */
+            display_init();
+
+            /* Open the display window */
+            display_t *disp = display_open(width, height, depth, title);
+
+            /* Return display handle (pointer cast to uint32_t) */
+            m68k_set_reg(M68K_REG_D0, (uint32_t)(uintptr_t)disp);
+            break;
+        }
+
+        case EMU_CALL_INT_CLOSE_SCREEN:
+        {
+            /* d1: display_handle */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            display_t *disp = (display_t *)(uintptr_t)d1;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INT_CLOSE_SCREEN handle=0x%08x\n", d1);
+
+            if (disp)
+            {
+                display_close(disp);
+            }
+
+            m68k_set_reg(M68K_REG_D0, 1);  /* Success */
+            break;
+        }
+
+        case EMU_CALL_INT_REFRESH_SCREEN:
+        {
+            /* d1: display_handle, d2: planes_ptr, d3: (bpr << 16) | depth */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            display_t *disp = (display_t *)(uintptr_t)d1;
+            uint32_t planes_ptr = d2;
+            uint32_t bpr = (d3 >> 16) & 0xFFFF;
+            uint32_t depth = d3 & 0xFFFF;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INT_REFRESH_SCREEN handle=0x%08x, planes=0x%08x, bpr=%d, depth=%d\n",
+                    d1, planes_ptr, bpr, depth);
+
+            if (disp && planes_ptr)
+            {
+                int w, h, d;
+                display_get_size(disp, &w, &h, &d);
+
+                /* Read plane pointers from m68k memory */
+                const uint8_t *planes[8] = {0};
+                for (uint32_t i = 0; i < depth && i < 8; i++)
+                {
+                    uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
+                    if (plane_addr)
+                    {
+                        planes[i] = (const uint8_t *)&g_ram[plane_addr];
+                    }
+                }
+
+                /* Update display from planar data */
+                display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
+
+                /* Refresh display */
+                display_refresh(disp);
+            }
+
+            m68k_set_reg(M68K_REG_D0, 1);  /* Success */
+            break;
+        }
+
         default:
         {
             /*

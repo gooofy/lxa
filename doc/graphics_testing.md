@@ -477,30 +477,30 @@ int main(void)
 
 ## 6. Test Implementation Plan
 
-### Phase 1: Immediate (Graphics Foundation Tests)
+### Phase 1: Immediate (Graphics Foundation Tests) - COMPLETE
 
-Create tests for all currently implemented functions:
-
-| # | Test | Priority | Status |
-|---|------|----------|--------|
-| 1 | `tests/graphics/init_rastport/` | High | TODO |
-| 2 | `tests/graphics/init_bitmap/` | High | TODO |
-| 3 | `tests/graphics/alloc_raster/` | High | TODO |
-| 4 | `tests/graphics/pen_state/` | High | TODO |
-| 5 | `tests/graphics/pixel_ops/` | High | TODO |
-| 6 | `tests/graphics/line_draw/` | High | TODO |
-| 7 | `tests/graphics/rect_fill/` | High | TODO |
-| 8 | `tests/graphics/set_rast/` | High | TODO |
-| 9 | `tests/graphics/sync/` | Low | TODO |
-
-### Phase 2: With Phase 13.4 (Screen Management)
+Tests for all currently implemented functions:
 
 | # | Test | Priority | Status |
 |---|------|----------|--------|
-| 1 | `tests/intuition/screen_basic/` | High | TODO |
-| 2 | `tests/intuition/screen_bitmap/` | High | TODO |
+| 1 | `tests/graphics/init_rastport/` | High | ✅ DONE |
+| 2 | `tests/graphics/init_bitmap/` | High | ✅ DONE |
+| 3 | `tests/graphics/alloc_raster/` | High | ✅ DONE |
+| 4 | `tests/graphics/pen_state/` | High | ✅ DONE |
+| 5 | `tests/graphics/pixel_ops/` | High | ✅ DONE |
+| 6 | `tests/graphics/line_draw/` | High | ✅ DONE |
+| 7 | `tests/graphics/rect_fill/` | High | ✅ DONE |
+| 8 | `tests/graphics/set_rast/` | High | ✅ DONE |
+| 9 | `tests/graphics/sync/` | Low | Skipped (no-ops) |
 
-### Phase 3: With Phase 14 (Intuition Basics)
+### Phase 2: Screen Management (Phase 13.5) - COMPLETE
+
+| # | Test | Priority | Status |
+|---|------|----------|--------|
+| 1 | `tests/intuition/screen_basic/` | High | ✅ DONE |
+| 2 | `tests/intuition/screen_bitmap/` | High | Covered in screen_basic |
+
+### Phase 3: With Phase 14 (Intuition Basics) - IN PROGRESS
 
 | # | Test | Priority | Status |
 |---|------|----------|--------|
