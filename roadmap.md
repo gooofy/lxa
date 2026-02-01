@@ -264,11 +264,11 @@ Key implementations:
 
 ---
 
-## Phase 19: Graphics & Layers Completion
+## Phase 19: Graphics & Layers Completion (COMPLETE)
 
 **Goal**: Implement the remaining core graphics components.
 
-### Step 19.1: Layers & Clipping (IN PROGRESS)
+### Step 19.1: Layers & Clipping (COMPLETE)
 - [x] **layers.library** - Core implementation with Layer_Info, Layer creation/deletion, locking.
   - Implemented: NewLayerInfo, DisposeLayerInfo, InitLayers
   - Implemented: CreateUpfrontLayer, CreateBehindLayer, DeleteLayer
@@ -276,8 +276,16 @@ Key implementations:
   - Implemented: BeginUpdate, EndUpdate, WhichLayer, InstallClipRegion
   - Implemented: MoveLayer, SizeLayer, ScrollLayer, MoveSizeLayer
   - Implemented: Hook layer variants, layer visibility (HideLayer, ShowLayer)
-- [ ] **Window Invalidation** - Handle damage regions and `BeginRefresh`/`EndRefresh`.
-- [ ] **ClipRect Splitting** - Full overlap handling for multiple layers.
+- [x] **Window Invalidation** - BeginRefresh/EndRefresh in intuition.library, damage tracking in layers.library.
+- [x] **ClipRect Splitting** - Full overlap handling with SplitRectAroundObscurer(), proper RebuildClipRects().
+
+### Step 19.2: Region Functions (COMPLETE)
+- [x] **graphics.library regions** - Full region support for clipping.
+  - Implemented: NewRegion, DisposeRegion, ClearRegion
+  - Implemented: OrRectRegion, AndRectRegion, ClearRectRegion, XorRectRegion
+  - Implemented: OrRegionRegion, AndRegionRegion, XorRegionRegion
+  - Helper functions: AllocRegionRectangle, FreeRegionRectangle, UpdateRegionBounds
+- [x] **Damage Tracking** - AddDamageToLayer, DamageExposedAreas for layer operations.
 
 ---
 

@@ -14,12 +14,17 @@
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
 #include <graphics/view.h>
+#include <graphics/clip.h>
+#include <graphics/layers.h>
 #include <clib/graphics_protos.h>
 #include <inline/graphics.h>
+#include <clib/layers_protos.h>
+#include <inline/layers.h>
 
 #include "util.h"
 
 extern struct GfxBase *GfxBase;
+extern struct Library *LayersBase;
 
 #define VERSION    40
 #define REVISION   1
@@ -1149,11 +1154,33 @@ BOOL _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __as
     return TRUE;
 }
 
+/*
+ * BeginRefresh - Begin refresh cycle for a WFLG_SIMPLE_REFRESH window
+ *
+ * This is called in response to an IDCMP_REFRESHWINDOW message.
+ * It sets up the layer for optimized refresh drawing (only damaged areas).
+ */
 VOID _intuition_BeginRefresh ( register struct IntuitionBase * IntuitionBase __asm("a6"),
-                                                        register struct Window * window __asm("a0"))
+                               register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: BeginRefresh() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF(LOG_DEBUG, "_intuition: BeginRefresh() window=0x%08lx\n", (ULONG)window);
+
+    if (!window)
+        return;
+
+    struct Layer *layer = window->WLayer;
+    if (!layer)
+    {
+        DPRINTF(LOG_DEBUG, "_intuition: BeginRefresh() window has no layer\n");
+        return;
+    }
+
+    /* Call the layers.library BeginUpdate which sets up clipping
+     * to only allow drawing in damaged regions */
+    BeginUpdate(layer);
+
+    /* Optionally: Clear the damaged areas to the background color
+     * For WFLG_SIMPLE_REFRESH windows, the app is responsible for redrawing */
 }
 
 struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -1170,12 +1197,39 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
     return NULL;
 }
 
+/*
+ * EndRefresh - End refresh cycle for a WFLG_SIMPLE_REFRESH window
+ *
+ * This is called after the application has redrawn damaged areas.
+ * If 'complete' is TRUE, the damage list is cleared. Otherwise,
+ * more IDCMP_REFRESHWINDOW messages may follow.
+ */
 VOID _intuition_EndRefresh ( register struct IntuitionBase * IntuitionBase __asm("a6"),
-                                                        register struct Window * window __asm("a0"),
-                                                        register LONG complete __asm("d0"))
+                             register struct Window * window __asm("a0"),
+                             register LONG complete __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: EndRefresh() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF(LOG_DEBUG, "_intuition: EndRefresh() window=0x%08lx complete=%ld\n",
+            (ULONG)window, complete);
+
+    if (!window)
+        return;
+
+    struct Layer *layer = window->WLayer;
+    if (!layer)
+    {
+        DPRINTF(LOG_DEBUG, "_intuition: EndRefresh() window has no layer\n");
+        return;
+    }
+
+    /* Call the layers.library EndUpdate to restore normal clipping.
+     * If complete is TRUE (non-zero), clear the damage list. */
+    EndUpdate(layer, complete ? TRUE : FALSE);
+
+    /* Clear the LAYERREFRESH flag if we're done */
+    if (complete && layer)
+    {
+        layer->Flags &= ~LAYERREFRESH;
+    }
 }
 
 VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),

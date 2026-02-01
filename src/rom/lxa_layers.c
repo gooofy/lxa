@@ -183,9 +183,146 @@ static struct ClipRect *CreateSimpleClipRect(struct Layer_Info *li, struct Layer
 }
 
 /*
+ * Check if rectangle A completely contains rectangle B
+ */
+static BOOL RectContainsRect(const struct Rectangle *outer, const struct Rectangle *inner)
+{
+    return (inner->MinX >= outer->MinX && inner->MaxX <= outer->MaxX &&
+            inner->MinY >= outer->MinY && inner->MaxY <= outer->MaxY);
+}
+
+/*
+ * Split a rectangle around an obscuring rectangle.
+ * This creates up to 4 new rectangles: top, bottom, left, right portions
+ * that are not covered by the obscuring rectangle.
+ * Returns a linked list of ClipRects.
+ */
+static struct ClipRect *SplitRectAroundObscurer(struct Layer_Info *li,
+                                                 struct Rectangle *rect,
+                                                 struct Rectangle *obscurer)
+{
+    struct ClipRect *head = NULL;
+    struct ClipRect *tail = NULL;
+    struct ClipRect *cr;
+
+    /* Calculate the intersection */
+    WORD isect_minx = (rect->MinX > obscurer->MinX) ? rect->MinX : obscurer->MinX;
+    WORD isect_miny = (rect->MinY > obscurer->MinY) ? rect->MinY : obscurer->MinY;
+    WORD isect_maxx = (rect->MaxX < obscurer->MaxX) ? rect->MaxX : obscurer->MaxX;
+    WORD isect_maxy = (rect->MaxY < obscurer->MaxY) ? rect->MaxY : obscurer->MaxY;
+
+    /* No intersection? Return NULL */
+    if (isect_minx > isect_maxx || isect_miny > isect_maxy)
+        return NULL;
+
+    /* Top strip: from rect top to obscurer top */
+    if (rect->MinY < isect_miny)
+    {
+        cr = AllocClipRect(li);
+        if (cr)
+        {
+            cr->bounds.MinX = rect->MinX;
+            cr->bounds.MinY = rect->MinY;
+            cr->bounds.MaxX = rect->MaxX;
+            cr->bounds.MaxY = isect_miny - 1;
+            cr->obscured = 0;
+            if (tail)
+            {
+                tail->Next = cr;
+                tail = cr;
+            }
+            else
+            {
+                head = tail = cr;
+            }
+        }
+    }
+
+    /* Bottom strip: from obscurer bottom to rect bottom */
+    if (rect->MaxY > isect_maxy)
+    {
+        cr = AllocClipRect(li);
+        if (cr)
+        {
+            cr->bounds.MinX = rect->MinX;
+            cr->bounds.MinY = isect_maxy + 1;
+            cr->bounds.MaxX = rect->MaxX;
+            cr->bounds.MaxY = rect->MaxY;
+            cr->obscured = 0;
+            if (tail)
+            {
+                tail->Next = cr;
+                tail = cr;
+            }
+            else
+            {
+                head = tail = cr;
+            }
+        }
+    }
+
+    /* Left strip: from rect left to obscurer left (only in intersection Y range) */
+    if (rect->MinX < isect_minx)
+    {
+        cr = AllocClipRect(li);
+        if (cr)
+        {
+            cr->bounds.MinX = rect->MinX;
+            cr->bounds.MinY = isect_miny;
+            cr->bounds.MaxX = isect_minx - 1;
+            cr->bounds.MaxY = isect_maxy;
+            cr->obscured = 0;
+            if (tail)
+            {
+                tail->Next = cr;
+                tail = cr;
+            }
+            else
+            {
+                head = tail = cr;
+            }
+        }
+    }
+
+    /* Right strip: from obscurer right to rect right (only in intersection Y range) */
+    if (rect->MaxX > isect_maxx)
+    {
+        cr = AllocClipRect(li);
+        if (cr)
+        {
+            cr->bounds.MinX = isect_maxx + 1;
+            cr->bounds.MinY = isect_miny;
+            cr->bounds.MaxX = rect->MaxX;
+            cr->bounds.MaxY = isect_maxy;
+            cr->obscured = 0;
+            if (tail)
+            {
+                tail->Next = cr;
+                tail = cr;
+            }
+            else
+            {
+                head = tail = cr;
+            }
+        }
+    }
+
+    return head;
+}
+
+/*
+ * Check if two rectangles overlap
+ */
+static BOOL RectsOverlap(const struct Rectangle *r1, const struct Rectangle *r2)
+{
+    return (r1->MinX <= r2->MaxX && r1->MaxX >= r2->MinX &&
+            r1->MinY <= r2->MaxY && r1->MaxY >= r2->MinY);
+}
+
+/*
  * Rebuild ClipRects for a layer based on overlapping layers.
- * For Phase 1, we just create a single ClipRect covering the whole layer.
- * Full implementation would split based on overlapping layers.
+ * This creates ClipRects for visible portions of the layer,
+ * split around any layers that are in front of this one.
  */
 static void RebuildClipRects(struct Layer *layer)
 {
@@ -195,12 +332,217 @@ static void RebuildClipRects(struct Layer *layer)
     FreeClipRectList(li, layer->ClipRect);
     layer->ClipRect = NULL;
 
-    /* For now, create a simple single ClipRect covering the whole layer */
-    layer->ClipRect = CreateSimpleClipRect(li, layer);
-
     DPRINTF(LOG_DEBUG, "_layers: RebuildClipRects() layer bounds [%d,%d]-[%d,%d]\n",
             layer->bounds.MinX, layer->bounds.MinY,
             layer->bounds.MaxX, layer->bounds.MaxY);
+
+    /* Start with a single ClipRect covering the whole layer */
+    struct ClipRect *initial = CreateSimpleClipRect(li, layer);
+    if (!initial)
+        return;
+
+    /* Build a list of visible ClipRects by splitting around obscuring layers */
+    struct ClipRect *visible = initial;
+
+    /* Check each layer in front of this one */
+    struct Layer *front_layer = layer->front;
+    while (front_layer)
+    {
+        /* Skip hidden layers */
+        if (front_layer->Flags & LAYERHIDDEN)
+        {
+            front_layer = front_layer->front;
+            continue;
+        }
+
+        /* For each visible cliprect, check if it overlaps with this front layer */
+        struct ClipRect *cr = visible;
+        struct ClipRect *new_visible = NULL;
+        struct ClipRect *new_tail = NULL;
+
+        while (cr)
+        {
+            struct ClipRect *next = cr->Next;
+
+            if (RectsOverlap(&cr->bounds, &front_layer->bounds))
+            {
+                /* This cliprect is partially or fully obscured */
+                
+                /* Check if fully obscured */
+                if (RectContainsRect(&front_layer->bounds, &cr->bounds))
+                {
+                    /* Completely obscured - remove this cliprect */
+                    FreeClipRect(li, cr);
+                }
+                else
+                {
+                    /* Partially obscured - split around the obscurer */
+                    struct ClipRect *split = SplitRectAroundObscurer(li, &cr->bounds, &front_layer->bounds);
+                    
+                    /* Free the original cliprect */
+                    FreeClipRect(li, cr);
+                    
+                    /* Add split pieces to new_visible */
+                    if (split)
+                    {
+                        if (new_tail)
+                        {
+                            new_tail->Next = split;
+                        }
+                        else
+                        {
+                            new_visible = split;
+                        }
+                        /* Find end of split list */
+                        while (split->Next)
+                            split = split->Next;
+                        new_tail = split;
+                    }
+                }
+            }
+            else
+            {
+                /* Not obscured by this layer - keep it */
+                if (new_tail)
+                {
+                    new_tail->Next = cr;
+                }
+                else
+                {
+                    new_visible = cr;
+                }
+                cr->Next = NULL;
+                new_tail = cr;
+            }
+
+            cr = next;
+        }
+
+        visible = new_visible;
+
+        front_layer = front_layer->front;
+    }
+
+    layer->ClipRect = visible;
+}
+
+/*
+ * Add a rectangle to a layer's damage list.
+ * This marks the area as needing to be refreshed.
+ * For SIMPLE_REFRESH layers, this will trigger an IDCMP_REFRESHWINDOW message.
+ */
+static void AddDamageToLayer(struct Layer *layer, struct Rectangle *rect)
+{
+    DPRINTF(LOG_DEBUG, "_layers: AddDamageToLayer() layer=0x%08lx rect=[%d,%d]-[%d,%d]\n",
+            (ULONG)layer, rect->MinX, rect->MinY, rect->MaxX, rect->MaxY);
+
+    if (!layer || !rect)
+        return;
+
+    /* Create damage list if it doesn't exist */
+    if (!layer->DamageList)
+    {
+        layer->DamageList = NewRegion();
+        if (!layer->DamageList)
+            return;
+    }
+
+    /* Add the rectangle to the damage region */
+    OrRectRegion(layer->DamageList, rect);
+
+    /* Set the LAYERREFRESH flag to indicate this layer needs refresh */
+    layer->Flags |= LAYERREFRESH;
+}
+
+/*
+ * Calculate the intersection of two rectangles.
+ * Returns TRUE if they intersect, FALSE otherwise.
+ * The intersection is stored in 'result'.
+ */
+static BOOL IntersectRectangles(const struct Rectangle *r1, const struct Rectangle *r2,
+                                struct Rectangle *result)
+{
+    if (r1->MinX > r2->MaxX || r1->MaxX < r2->MinX ||
+        r1->MinY > r2->MaxY || r1->MaxY < r2->MinY)
+    {
+        return FALSE;  /* No intersection */
+    }
+
+    /* Calculate intersection */
+    result->MinX = (r1->MinX > r2->MinX) ? r1->MinX : r2->MinX;
+    result->MinY = (r1->MinY > r2->MinY) ? r1->MinY : r2->MinY;
+    result->MaxX = (r1->MaxX < r2->MaxX) ? r1->MaxX : r2->MaxX;
+    result->MaxY = (r1->MaxY < r2->MaxY) ? r1->MaxY : r2->MaxY;
+
+    return TRUE;
+}
+
+/*
+ * Add damage to a layer for the areas that were previously obscured.
+ * This is called when a layer is moved/resized/deleted and exposes
+ * areas of layers behind it.
+ * 'old_bounds' is the previous position, 'new_bounds' is the new position.
+ * For deletion, pass NULL for new_bounds.
+ */
+static void DamageExposedAreas(struct Layer_Info *li, struct Layer *moved_layer,
+                               struct Rectangle *old_bounds, struct Rectangle *new_bounds)
+{
+    DPRINTF(LOG_DEBUG, "_layers: DamageExposedAreas() checking for exposed areas\n");
+
+    if (!li || !old_bounds)
+        return;
+
+    /* For each layer behind the moved layer, check if any of their area
+     * was previously obscured by old_bounds but is now exposed */
+    struct Layer *layer = li->top_layer;
+    while (layer)
+    {
+        /* Skip the moved layer itself and layers in front of it */
+        if (layer == moved_layer)
+        {
+            layer = layer->back;
+            continue;
+        }
+
+        /* Check if this layer's bounds intersect with the old position */
+        struct Rectangle intersection;
+        if (IntersectRectangles(&layer->bounds, old_bounds, &intersection))
+        {
+            /* There was an intersection with the old position.
+             * If new_bounds is NULL (layer deleted) or doesn't cover this area,
+             * add damage to the exposed layer. */
+            if (!new_bounds)
+            {
+                /* Layer was deleted - entire intersection is exposed */
+                AddDamageToLayer(layer, &intersection);
+            }
+            else
+            {
+                /* Check if the new position still covers this area */
+                struct Rectangle new_intersection;
+                if (!IntersectRectangles(&layer->bounds, new_bounds, &new_intersection))
+                {
+                    /* New position doesn't intersect at all - entire old area is exposed */
+                    AddDamageToLayer(layer, &intersection);
+                }
+                else
+                {
+                    /* Partial overlap - only damage the areas not covered by new position
+                     * This is complex, so for simplicity we damage the entire old intersection
+                     * TODO: Optimize to only damage truly exposed areas */
+                    if (intersection.MinX != new_intersection.MinX ||
+                        intersection.MinY != new_intersection.MinY ||
+                        intersection.MaxX != new_intersection.MaxX ||
+                        intersection.MaxY != new_intersection.MaxY)
+                    {
+                        AddDamageToLayer(layer, &intersection);
+                    }
+                }
+            }
+        }
+
+        layer = layer->back;
+    }
 }
 
 /* ========================================================================
@@ -466,6 +808,12 @@ static LONG _layers_DeleteLayer ( register struct LayersBase *LayersBase __asm("
 
     ObtainSemaphore(&li->Lock);
 
+    /* Save bounds for damage tracking before removing */
+    struct Rectangle old_bounds = layer->bounds;
+
+    /* Damage exposed areas on layers behind this one */
+    DamageExposedAreas(li, layer, &old_bounds, NULL);
+
     /* Remove from layer list */
     if (layer->front)
     {
@@ -486,6 +834,13 @@ static LONG _layers_DeleteLayer ( register struct LayersBase *LayersBase __asm("
     Remove((struct Node *)&layer->Lock);
 
     ReleaseSemaphore(&li->Lock);
+
+    /* Free DamageList if any */
+    if (layer->DamageList)
+    {
+        DisposeRegion(layer->DamageList);
+        layer->DamageList = NULL;
+    }
 
     /* Free ClipRects */
     FreeClipRectList(li, layer->ClipRect);
@@ -620,12 +975,24 @@ static LONG _layers_MoveLayer ( register struct LayersBase *LayersBase __asm("a6
     if (!layer)
         return FALSE;
 
+    struct Layer_Info *li = layer->LayerInfo;
+
     ObtainSemaphore(&layer->Lock);
 
+    /* Save old bounds for damage tracking */
+    struct Rectangle old_bounds = layer->bounds;
+
+    /* Update bounds */
     layer->bounds.MinX += dx;
     layer->bounds.MinY += dy;
     layer->bounds.MaxX += dx;
     layer->bounds.MaxY += dy;
+
+    /* Damage exposed areas on layers behind this one */
+    if (li)
+    {
+        DamageExposedAreas(li, layer, &old_bounds, &layer->bounds);
+    }
 
     /* Rebuild ClipRects */
     RebuildClipRects(layer);
@@ -649,12 +1016,24 @@ static LONG _layers_SizeLayer ( register struct LayersBase *LayersBase __asm("a6
     if (!layer)
         return FALSE;
 
+    struct Layer_Info *li = layer->LayerInfo;
+
     ObtainSemaphore(&layer->Lock);
 
+    /* Save old bounds for damage tracking */
+    struct Rectangle old_bounds = layer->bounds;
+
+    /* Update bounds */
     layer->bounds.MaxX += dx;
     layer->bounds.MaxY += dy;
     layer->Width = layer->bounds.MaxX - layer->bounds.MinX + 1;
     layer->Height = layer->bounds.MaxY - layer->bounds.MinY + 1;
+
+    /* If layer is shrinking, damage exposed areas on layers behind */
+    if (li && (dx < 0 || dy < 0))
+    {
+        DamageExposedAreas(li, layer, &old_bounds, &layer->bounds);
+    }
 
     /* Rebuild ClipRects */
     RebuildClipRects(layer);
@@ -1001,14 +1380,26 @@ static LONG _layers_MoveSizeLayer ( register struct LayersBase *LayersBase __asm
     if (!layer)
         return FALSE;
 
+    struct Layer_Info *li = layer->LayerInfo;
+
     ObtainSemaphore(&layer->Lock);
 
+    /* Save old bounds for damage tracking */
+    struct Rectangle old_bounds = layer->bounds;
+
+    /* Update bounds */
     layer->bounds.MinX += dx;
     layer->bounds.MinY += dy;
     layer->bounds.MaxX += dx + dw;
     layer->bounds.MaxY += dy + dh;
     layer->Width = layer->bounds.MaxX - layer->bounds.MinX + 1;
     layer->Height = layer->bounds.MaxY - layer->bounds.MinY + 1;
+
+    /* Damage exposed areas on layers behind */
+    if (li)
+    {
+        DamageExposedAreas(li, layer, &old_bounds, &layer->bounds);
+    }
 
     RebuildClipRects(layer);
 

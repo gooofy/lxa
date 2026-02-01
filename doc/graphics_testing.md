@@ -500,21 +500,29 @@ Tests for all currently implemented functions:
 | 1 | `tests/intuition/screen_basic/` | High | ✅ DONE |
 | 2 | `tests/intuition/screen_bitmap/` | High | Covered in screen_basic |
 
-### Phase 3: With Phase 14 (Intuition Basics) - IN PROGRESS
+### Phase 3: With Phase 14 (Intuition Basics) - COMPLETE
 
 | # | Test | Priority | Status |
 |---|------|----------|--------|
-| 1 | `tests/intuition/window_basic/` | High | TODO |
-| 2 | `tests/intuition/window_gadgets/` | Medium | TODO |
-| 3 | `tests/intuition/idcmp/` | High | TODO |
+| 1 | `tests/intuition/window_basic/` | High | ✅ DONE |
+| 2 | `tests/intuition/window_gadgets/` | Medium | Deferred |
+| 3 | `tests/intuition/idcmp/` | High | ✅ DONE |
+| 4 | `tests/intuition/idcmp_input/` | High | ✅ DONE |
 
-### Phase 4: With Phase 15 (Advanced Graphics)
+### Phase 4: With Phase 15 (Advanced Graphics) - COMPLETE
 
 | # | Test | Priority | Status |
 |---|------|----------|--------|
-| 1 | `tests/graphics/blt_bitmap/` | High | TODO |
-| 2 | `tests/graphics/text_render/` | High | TODO |
-| 3 | `tests/graphics/clip_blit/` | Medium | TODO |
+| 1 | `tests/graphics/blt_bitmap/` | High | ✅ DONE |
+| 2 | `tests/graphics/text_render/` | High | ✅ DONE |
+| 3 | `tests/graphics/clip_blit/` | Medium | Covered in blt_bitmap |
+
+### Phase 5: With Phase 19 (Layers & Regions) - COMPLETE
+
+| # | Test | Priority | Status |
+|---|------|----------|--------|
+| 1 | `tests/layers/layer_info/` | High | ✅ DONE |
+| 2 | `tests/graphics/regions/` | High | ✅ DONE |
 
 ## 7. Coverage Requirements
 
