@@ -3194,10 +3194,11 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     
     /* Args start after the space/command */
     if (*command) args = (char *)command; // Points to space or rest of string
-    // Usually arguments string passed to C startup includes the space? No, usually it's just args.
-    // If I pass " foo", the startup code sees " foo".
-    // If I pass "foo", it sees "foo".
-    // Let's pass the rest of the string as is.
+    
+    /* If no args, provide at least a newline (Amiga startup convention) */
+    if (!args || !*args) {
+        args = "\n";
+    }
     
     /* Try to load */
     BPTR seglist = _dos_LoadSeg(DOSBase, (STRPTR)bin_name);

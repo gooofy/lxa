@@ -258,7 +258,7 @@ static STRPTR ReadBCPLString(BPTR fh)
 struct DiskObject * _icon_GetDiskObject ( register struct IconBase *IconBase __asm("a6"),
                                           register CONST_STRPTR     name     __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: GetDiskObject() called name='%s'\n", name ? name : "(null)");
+    DPRINTF (LOG_DEBUG, "_icon: GetDiskObject() called name='%s'\n", name ? (char*)name : "(null)");
     
     if (!name)
         return NULL;
@@ -752,7 +752,7 @@ UBYTE * _icon_FindToolType ( register struct IconBase *IconBase      __asm("a6")
                              register CONST_STRPTR    *toolTypeArray __asm("a0"),
                              register CONST_STRPTR     typeName      __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: FindToolType() called typeName='%s'\n", typeName ? typeName : "(null)");
+    DPRINTF (LOG_DEBUG, "_icon: FindToolType() called toolTypeArray=0x%08lx typeName='%s'\n", toolTypeArray, typeName ? (char*)typeName : "(null)");
     
     if (!toolTypeArray || !typeName)
         return NULL;
