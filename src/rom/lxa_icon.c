@@ -437,7 +437,7 @@ struct DiskObject * _icon_GetDiskObject ( register struct IconBase *IconBase __a
 struct DiskObject * _icon_GetDiskObjectNew ( register struct IconBase *IconBase __asm("a6"),
                                              register CONST_STRPTR     name     __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: GetDiskObjectNew() called name='%s'\n", name ? name : "(null)");
+    DPRINTF (LOG_DEBUG, "_icon: GetDiskObjectNew() called name='%s'\n", STRORNULL(name));
     
     /* First try to get the actual icon */
     struct DiskObject *dobj = _icon_GetDiskObject(IconBase, name);
@@ -503,7 +503,7 @@ BOOL _icon_PutDiskObject ( register struct IconBase       *IconBase __asm("a6"),
                            register CONST struct DiskObject *dobj   __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_icon: PutDiskObject() called name='%s' dobj=0x%08lx\n", 
-             name ? name : "(null)", dobj);
+             STRORNULL(name), dobj);
     
     if (!name || !dobj)
         return FALSE;
@@ -648,7 +648,7 @@ BOOL _icon_PutDefDiskObject ( register struct IconBase       *IconBase  __asm("a
 BOOL _icon_DeleteDiskObject ( register struct IconBase *IconBase __asm("a6"),
                               register CONST_STRPTR     name     __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: DeleteDiskObject() called name='%s'\n", name ? name : "(null)");
+    DPRINTF (LOG_DEBUG, "_icon: DeleteDiskObject() called name='%s'\n", STRORNULL(name));
     
     if (!name)
         return FALSE;
@@ -801,7 +801,7 @@ BOOL _icon_MatchToolValue ( register struct IconBase *IconBase   __asm("a6"),
                             register CONST_STRPTR     value      __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_icon: MatchToolValue() called typeString='%s' value='%s'\n",
-             typeString ? typeString : "(null)", value ? value : "(null)");
+             STRORNULL(typeString), STRORNULL(value));
     
     if (!typeString || !value)
         return FALSE;
@@ -845,7 +845,7 @@ STRPTR _icon_BumpRevision ( register struct IconBase *IconBase __asm("a6"),
                             register STRPTR           newname  __asm("a0"),
                             register CONST_STRPTR     oldname  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: BumpRevision() called oldname='%s'\n", oldname ? oldname : "(null)");
+    DPRINTF (LOG_DEBUG, "_icon: BumpRevision() called oldname='%s'\n", STRORNULL(oldname));
     
     if (!newname || !oldname)
         return NULL;
@@ -1037,7 +1037,7 @@ struct DiskObject * _icon_GetIconTagList ( register struct IconBase      *IconBa
                                            register CONST_STRPTR          name     __asm("a0"),
                                            register CONST struct TagItem *tags     __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: GetIconTagList() called name='%s'\n", name ? name : "(null)");
+    DPRINTF (LOG_DEBUG, "_icon: GetIconTagList() called name='%s'\n", STRORNULL(name));
     /* For now, just call GetDiskObjectNew */
     return _icon_GetDiskObjectNew(IconBase, name);
 }

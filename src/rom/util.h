@@ -34,6 +34,12 @@ void  lprintf  (int level, const char *format, ...);
 #define LPRINTF(lvl, ...) do { if (lvl >= LOG_LEVEL) lprintf(lvl, __VA_ARGS__); } while (0)
 #define LPUTS(lvl, s) do { if (lvl >= LOG_LEVEL) lputs(lvl, s); } while (0)
 
+/*
+ * Helper macro for safe string printing in debug statements.
+ * Handles NULL pointers and CONST_STRPTR (UBYTE*) vs char* type mismatches.
+ */
+#define STRORNULL(s) ((s) ? (const char*)(s) : "(null)")
+
 //#define ENABLE_DEBUG
 
 #ifdef ENABLE_DEBUG

@@ -4515,7 +4515,7 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
                                                          register LONG * array __asm("d2"),
                                                          register struct RDArgs * args __asm("d3"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: ReadArgs() called, template='%s'\n", arg_template ? arg_template : "NULL");
+    DPRINTF (LOG_DEBUG, "_dos: ReadArgs() called, template='%s'\n", STRORNULL(arg_template));
 
     if (!arg_template || !array) {
         SetIoErr(ERROR_BAD_NUMBER);
@@ -4866,7 +4866,7 @@ LONG _dos_FindArg ( register struct DosLibrary * DOSBase __asm("a6"),
                                                          register CONST_STRPTR arg_template __asm("d2"))
 {
     DPRINTF (LOG_DEBUG, "_dos: FindArg() called, keyword='%s', template='%s'\n",
-             keyword ? keyword : "NULL", arg_template ? arg_template : "NULL");
+             STRORNULL(keyword), STRORNULL(arg_template));
 
     if (!keyword || !arg_template)
         return -1;
@@ -4897,7 +4897,7 @@ LONG _dos_StrToLong ( register struct DosLibrary * DOSBase __asm("a6"),
                                                          register CONST_STRPTR string __asm("d1"),
                                                          register LONG * value __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: StrToLong() called, string='%s'\n", string ? string : "NULL");
+    DPRINTF (LOG_DEBUG, "_dos: StrToLong() called, string='%s'\n", STRORNULL(string));
 
     if (!string || !value)
         return -1;
@@ -5514,7 +5514,7 @@ VOID _dos_private4 ( register struct DosLibrary * DOSBase __asm("a6"))
 STRPTR _dos_FilePart ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR path __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: FilePart() called, path='%s'\n", path ? path : "NULL");
+    DPRINTF (LOG_DEBUG, "_dos: FilePart() called, path='%s'\n", STRORNULL(path));
     
     if (!path)
         return (STRPTR)path;  /* Return NULL for NULL input */
@@ -5540,7 +5540,7 @@ STRPTR _dos_FilePart ( register struct DosLibrary * DOSBase __asm("a6"),
 STRPTR _dos_PathPart ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR path __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: PathPart() called, path='%s'\n", path ? path : "NULL");
+    DPRINTF (LOG_DEBUG, "_dos: PathPart() called, path='%s'\n", STRORNULL(path));
     
     if (!path)
         return (STRPTR)path;  /* Return NULL for NULL input */
@@ -5586,7 +5586,7 @@ BOOL _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG size __asm("d3"))
 {
     DPRINTF (LOG_DEBUG, "_dos: AddPart() called, dirname='%s', filename='%s', size=%lu\n", 
-             dirname ? dirname : "NULL", filename ? filename : "NULL", size);
+             STRORNULL(dirname), STRORNULL(filename), size);
     
     if (!dirname || !filename || size == 0)
     {

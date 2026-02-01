@@ -581,6 +581,31 @@ ROM code (`src/rom/`) has two logging macros defined in `src/rom/util.h`:
 2. For permanent debug traces, use `DPRINTF(LOG_DEBUG, ...)` and uncomment `ENABLE_DEBUG` in `util.h`
 3. Run with `-d` flag for additional host-side debug output
 
+### STRORNULL Helper Macro
+
+When printing string pointers that might be NULL or have Amiga type mismatches (e.g., `CONST_STRPTR` which is `const UBYTE*` vs `const char*`), use the `STRORNULL` macro:
+
+```c
+// util.h
+#define STRORNULL(s) ((s) ? (const char*)(s) : "(null)")
+```
+
+**Why this matters:**
+Amiga string types like `STRPTR` (`UBYTE*`) and `CONST_STRPTR` (`const UBYTE*`) are pointer-to-unsigned-char, while C string literals are `const char*`. A ternary expression like `name ? name : "(null)"` causes a type mismatch warning (treated as error with `-Werror`).
+
+```c
+// BAD - causes "pointer type mismatch in conditional expression" error
+DPRINTF(LOG_DEBUG, "name='%s'\n", name ? name : "(null)");
+
+// GOOD - use STRORNULL for safe, null-aware printing
+DPRINTF(LOG_DEBUG, "name='%s'\n", STRORNULL(name));
+```
+
+**When to use STRORNULL:**
+- Any `STRPTR`, `CONST_STRPTR`, or `UBYTE*` variable being printed with `%s`
+- When the pointer might be NULL and you want to see "(null)" instead of crashing
+- In all new DPRINTF/LPRINTF statements involving Amiga string pointers
+
 ## 9. ROM Code Constraints
 
 ### No Writable Static Data
