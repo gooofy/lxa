@@ -333,10 +333,16 @@ Key implementations:
 - [x] **IDCMP_RAWKEY Subscription** - Console Open() adds IDCMP_RAWKEY to window via ModifyIDCMP().
 - [x] **CMD_READ from Window** - Reads IDCMP_RAWKEY messages from window's UserPort instead of host stdin.
 - [x] **Character Echo** - Typed characters echoed to console output with backspace handling.
+- [x] **Cursor Display** - XOR block cursor shown during input, CSI 'p' controls visibility.
 
-**Result**: KP2's text output and keyboard input now work correctly in the window.
+**Result**: KP2's text output and keyboard input work in the window. Line editing has known issues (see Phase 22).
 
-### Step 20.3: Window Layer Clipping (NOT STARTED)
+**Known Issues**:
+- Line editing (backspace over program-output text) doesn't match real Amiga behavior
+- KP2's workspace size input field doesn't work correctly (works on real Amiga)
+- Needs proper testing infrastructure to debug (see Phase 21)
+
+### Step 20.3: Window Layer Clipping (DEFERRED)
 **Problem**: Drawing outside window bounds may render on screen instead of being clipped.
 
 - [ ] **Bounds Checking** - Implement pixel-level clipping in WritePixel, Draw, Text, etc.
@@ -347,11 +353,89 @@ Key implementations:
 
 ---
 
-## Phase 21: Core System Libraries & Preferences
+## Phase 21: UI Testing Infrastructure (NOT STARTED)
+
+**Goal**: Enable automated testing of graphical applications with input simulation and screen verification. This infrastructure is essential for debugging console.device and other UI issues.
+
+See `doc/ui_testing.md` for detailed specifications.
+
+### Step 21.1: Input Injection Infrastructure
+**Problem**: Need to inject keyboard/mouse events for automated UI testing without requiring a real display.
+
+**Tasks**:
+- [ ] **EMU_CALL_TEST_INJECT_KEY** - Inject rawkey + qualifier events into IDCMP queue
+- [ ] **EMU_CALL_TEST_INJECT_MOUSE** - Inject mouse position + button events
+- [ ] **EMU_CALL_TEST_INJECT_STRING** - Inject string as sequence of key events
+- [ ] **ROM Test Helpers** - Library functions for tests to call injection
+- [ ] **Python Bindings** - Control input injection from Python test scripts
+
+### Step 21.2: Screen Capture Infrastructure
+**Problem**: Need to capture and compare screen contents for visual regression testing.
+
+**Tasks**:
+- [ ] **Headless Rendering** - Render to memory buffer without display window
+- [ ] **EMU_CALL_TEST_CAPTURE_SCREEN** - Capture current screen to PNG file
+- [ ] **EMU_CALL_TEST_CAPTURE_WINDOW** - Capture specific window contents
+- [ ] **Image Comparison** - Compare captured vs reference images with tolerance
+- [ ] **Text Extraction** - Extract text from screen buffer (font-aware)
+
+### Step 21.3: Console Device Unit Tests
+**Tasks**:
+- [ ] `tests/console/input_basic/` - Basic keyboard input with injection
+- [ ] `tests/console/input_modifiers/` - Shift, Ctrl, Caps Lock handling
+- [ ] `tests/console/input_buffer/` - Buffer limits and overflow
+- [ ] `tests/console/line_mode/` - Cooked mode line editing
+- [ ] `tests/console/raw_mode/` - Raw mode character input
+- [ ] `tests/console/echo/` - Echo enable/disable behavior
+- [ ] `tests/console/backspace/` - Backspace behavior with program output
+
+### Step 21.4: Application Integration Tests
+**Tasks**:
+- [ ] **UI Test Runner** - Extend `run_apps.py` with UI test support
+- [ ] **Test Script Format** - Define UI test steps in `app.json`
+- [ ] **Wait Conditions** - Wait for text/screen state before next action
+- [ ] **Reference Screenshots** - Create baseline images for comparison
+- [ ] **CI Integration** - Run UI tests in continuous integration
+
+---
+
+## Phase 22: Console Device Completion & KP2 Compatibility (NOT STARTED)
+
+**Goal**: Fix console.device to match real Amiga behavior, using the testing infrastructure from Phase 21.
+
+### Step 22.1: Console Device Line Editing Investigation
+**Problem**: KickPascal 2's workspace size input works on real Amiga but not in LXA. Need to understand the exact difference.
+
+**Tasks**:
+- [ ] **Capture Real Amiga Behavior** - Document exact behavior on real hardware
+- [ ] **Create Regression Test** - Test case that reproduces the KP2 input issue
+- [ ] **Debug with Injection** - Use input injection to test specific scenarios
+- [ ] **Compare Screen Output** - Verify visual output matches real Amiga
+
+### Step 22.2: Console Device Fixes
+**Problem**: Implement correct line editing based on investigation findings.
+
+**Potential Areas**:
+- [ ] **CON: Handler vs console.device** - May need CON: handler layer
+- [ ] **Cooked Mode Buffer** - Proper line buffer management
+- [ ] **Raw Mode** - Character-at-a-time input mode
+- [ ] **Mode Switching** - ACTION_SCREEN_MODE packet support
+- [ ] **Input Buffer Semantics** - Exact handling of backspace/delete
+
+### Step 22.3: KickPascal 2 Validation
+**Tasks**:
+- [ ] **Automated Startup Test** - Launch KP2, verify window opens correctly
+- [ ] **Workspace Input Test** - Change workspace size, verify accepted
+- [ ] **Basic Editing Test** - Open editor, type text, verify display
+- [ ] **Reference Screenshots** - Compare against real Amiga captures
+
+---
+
+## Phase 23: Core System Libraries & Preferences
 
 **Goal**: Improve visual fidelity, system configuration, and core library support.
 
-### Step 20.1: Standard Libraries (COMPLETE)
+### Step 23.1: Standard Libraries (PARTIALLY COMPLETE)
 - [x] **diskfont.library** - OpenDiskFont (falls back to ROM fonts), AvailFonts stub.
 - [x] **icon.library** - Fixed LVO table alignment, full function set implemented.
 - [x] **expansion.library** - ConfigChain and board enumeration stubs (existing).
@@ -360,98 +444,37 @@ Key implementations:
 - [ ] **FONTS: Assign** - Automatic provisioning of font directories.
 - [ ] **Topaz Bundling** - Ensure a high-quality Topaz-8/9 replacement is available.
 
-### Step 20.2: Preferences & Environment
+### Step 23.2: Preferences & Environment
 - [ ] **ENVARC: Persistence** - Map `ENVARC:` to `~/.lxa/Prefs/Env` with persistence.
 
 ---
 
-## Phase 21: Advanced UI Frameworks
+## Phase 24: Advanced UI Frameworks
 
 **Goal**: Implement standard Amiga UI widgets and object-oriented systems.
 
-### Step 21.1: GadTools & ASL
+### Step 24.1: GadTools & ASL
 - [ ] **gadtools.library** - Standard UI widgets (buttons, sliders, lists).
 - [ ] **asl.library** - File and Font requesters (bridged to host or native).
 
-### Step 21.2: BOOPSI Foundation
+### Step 24.2: BOOPSI Foundation
 - [ ] **Intuition Classes** - `imageclass`, `gadgetclass`, `rootclass`.
 - [ ] **NewObject / DisposeObject** - Object lifecycle management.
 
 ---
 
-## Phase 22: UI Testing Infrastructure & Console Device Completion
-
-**Goal**: Enable automated testing of graphical applications with input simulation and screen verification. Complete console.device implementation with proper line editing.
-
-See `doc/ui_testing.md` for detailed specifications.
-
-### Step 22.1: Console Device Completion (NOT STARTED)
-**Problem**: Console.device input handling needs proper line editing behavior matching authentic Amiga.
-
-**Authentic Behavior (from research)**:
-- Cooked mode (default): Line-buffered, auto-echo, backspace only removes typed chars
-- Raw mode: Character-at-a-time, no echo, no filtering
-- Input buffer contains ONLY user-typed characters, not program output
-- User cannot backspace over characters output by the program before Read()
-
-**Tasks**:
-- [ ] **Cooked Mode** - Implement proper line buffering with echo
-- [ ] **Raw Mode** - Implement character-at-a-time input
-- [ ] **Mode Switching** - Support ACTION_SCREEN_MODE packet
-- [ ] **Backspace Limits** - Prevent backspace past Read() start position
-- [ ] **Unit Tests** - Comprehensive tests for all input behaviors
-
-### Step 22.2: Input Injection Infrastructure (NOT STARTED)
-**Problem**: Need to inject keyboard/mouse events for automated UI testing.
-
-**Tasks**:
-- [ ] **EMU_CALL_TEST_INJECT_KEY** - Inject rawkey + qualifier events
-- [ ] **EMU_CALL_TEST_INJECT_MOUSE** - Inject mouse position + button events
-- [ ] **EMU_CALL_TEST_INJECT_STRING** - Inject string as key sequence
-- [ ] **ROM Test Helpers** - Library for tests to call injection
-- [ ] **Python Bindings** - Control input from Python test scripts
-
-### Step 22.3: Screen Capture Infrastructure (NOT STARTED)
-**Problem**: Need to capture and compare screen contents for visual regression testing.
-
-**Tasks**:
-- [ ] **Headless Rendering** - Render to memory buffer without display
-- [ ] **EMU_CALL_TEST_CAPTURE_SCREEN** - Capture screen to PNG file
-- [ ] **EMU_CALL_TEST_CAPTURE_WINDOW** - Capture specific window
-- [ ] **Image Comparison** - Compare captured vs reference images
-- [ ] **Text Extraction** - Extract text from screen buffer (font-aware)
-
-### Step 22.4: Console Device Unit Tests (NOT STARTED)
-**Tasks**:
-- [ ] `tests/console/input_basic/` - Basic keyboard input
-- [ ] `tests/console/input_modifiers/` - Shift, Ctrl, Caps Lock handling
-- [ ] `tests/console/input_buffer/` - Buffer limits and overflow
-- [ ] `tests/console/line_mode/` - Cooked mode line editing
-- [ ] `tests/console/raw_mode/` - Raw mode character input
-- [ ] `tests/console/echo/` - Echo enable/disable behavior
-
-### Step 22.5: Application Integration Tests (NOT STARTED)
-**Tasks**:
-- [ ] **UI Test Runner** - Extend `run_apps.py` with UI test support
-- [ ] **Test Script Format** - Define UI test steps in `app.json`
-- [ ] **KickPascal 2 Tests** - Startup, workspace input, basic editing
-- [ ] **Reference Screenshots** - Create baseline images for comparison
-- [ ] **CI Integration** - Run UI tests in continuous integration
-
----
-
-## Phase 23: Quality & Stability Hardening
+## Phase 25: Quality & Stability Hardening
 
 **Goal**: Ensure production-grade reliability.
 
-### Step 23.1: Memory Debugging
+### Step 25.1: Memory Debugging
 - [ ] Memory tracking, leak detection, double-free detection, buffer overflow guards
 - [ ] **Stress Testing** - 24-hour continuous operation, 10,000 file operations.
 
-### Step 23.2: Compatibility Testing
+### Step 25.2: Compatibility Testing
 - [ ] Test with common Amiga software, document issues, create compatibility database.
 
-### Step 23.3: Performance Optimization
+### Step 25.3: Performance Optimization
 - [ ] Profile critical paths, optimize VFS, memory allocation, emucall overhead.
 
 ## Known Limitations & Future Work
