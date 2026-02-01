@@ -232,6 +232,54 @@ See `doc/graphics_testing.md` for detailed test specifications.
 
 ---
 
+---
+
+## Phase 19: App-DB & Compatibility Infrastructure
+
+**Goal**: Establish the infrastructure for running and testing real Amiga applications.
+
+### Step 19.1: App-DB Infrastructure
+- [ ] **Test Runner** - Implement `tests/run_apps.py` to execute applications from `../lxa-apps/`.
+- [ ] **Manifest Parser** - Support `app.json` for environment setup (assigns, libraries).
+- [ ] **Exclusion** - Update `.gitignore` to protect against accidental copyright commits.
+
+### Step 19.2: Font System Basics
+- [ ] **diskfont.library** - Initial implementation for font loading.
+- [ ] **FONTS: Assign** - Automatic provisioning of font directories.
+- [ ] **Topaz Bundling** - Ensure a high-quality Topaz-8/9 replacement is available.
+
+### Step 19.3: Preferences & Environment
+- [ ] **ENVARC: Persistence** - Map `ENVARC:` to `~/.lxa/Prefs/Env` with persistence.
+- [ ] **Locale Basics** - `locale.library` stubs for system defaults.
+
+## Phase 20: Standard Library Expansion
+
+**Goal**: Implement the "Big Three" libraries required by most Amiga GUI software.
+
+### Step 20.1: Layers & Clipping
+- [ ] **layers.library** - Full implementation of window clipping and refresh handling.
+- [ ] **Window Invalidation** - Handle damage regions and `BeginRefresh`/`EndRefresh`.
+
+### Step 20.2: GadTools & ASL
+- [ ] **gadtools.library** - Standard UI widgets (buttons, sliders, lists).
+- [ ] **asl.library** - File and Font requesters (bridged to host or native).
+
+### Step 20.3: BOOPSI Foundation
+- [ ] **Intuition Classes** - `imageclass`, `gadgetclass`, `rootclass`.
+- [ ] **NewObject / DisposeObject** - Object lifecycle management.
+
+## Phase 21: Real-World Application Targets
+
+**Goal**: Achieve "Wine-level" compatibility for specific high-value targets.
+
+### Step 21.1: Target - KickPascal
+- [ ] Verify `dos.library` semantics for complex compiler file access.
+- [ ] Implement any missing `utility.library` or `math` functions discovered.
+
+### Step 21.2: Target - Productivity Tools
+- [ ] Run early word processors or spreadsheet tools.
+- [ ] Fine-tune `timer.device` and `input.device` for smooth interaction.
+
 ## Known Limitations & Future Work
 
 ### Shell Features Not Implemented
