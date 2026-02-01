@@ -126,10 +126,33 @@
 #define EMU_CALL_INT_GET_ROOTLESS  3028  /* Get rootless mode: () -> bool */
 
 /*
- * Console Device emucalls (4000-4999)
+ * Console Device emucalls (4000-4099)
  */
 #define EMU_CALL_CON_READ          4000  /* Read from console: (buf, len) -> bytes_read (-1 if no data yet) */
 #define EMU_CALL_CON_INPUT_READY   4001  /* Check if input is ready: () -> bool */
+
+/*
+ * Test Infrastructure emucalls (4100-4199)
+ *
+ * Phase 21: UI Testing Infrastructure
+ * These emucalls allow automated testing by injecting input events
+ * and capturing screen output programmatically.
+ */
+
+/* Input Injection */
+#define EMU_CALL_TEST_INJECT_KEY     4100  /* Inject key: d1=rawkey, d2=qualifier, d3=down -> success */
+#define EMU_CALL_TEST_INJECT_STRING  4101  /* Inject string as keys: a0=string_ptr -> success */
+#define EMU_CALL_TEST_INJECT_MOUSE   4102  /* Inject mouse: d1=(x<<16)|y, d2=buttons, d3=event_type -> success */
+
+/* Screen Capture */
+#define EMU_CALL_TEST_CAPTURE_SCREEN 4110  /* Capture screen: a0=filename_ptr, d1=display_handle -> success */
+#define EMU_CALL_TEST_CAPTURE_WINDOW 4111  /* Capture window: a0=filename_ptr, d1=window_handle -> success */
+#define EMU_CALL_TEST_COMPARE_SCREEN 4112  /* Compare screen to PNG: a0=filename_ptr, d1=display_handle -> similarity (0-100) */
+
+/* Test Control */
+#define EMU_CALL_TEST_SET_HEADLESS   4120  /* Set headless mode: d1=enable -> previous_state */
+#define EMU_CALL_TEST_GET_HEADLESS   4121  /* Get headless mode: () -> is_headless */
+#define EMU_CALL_TEST_WAIT_IDLE      4122  /* Wait for event queue empty: d1=timeout_ms -> success */
 
 #endif
 

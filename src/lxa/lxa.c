@@ -4278,6 +4278,201 @@ int op_illg(int level)
             break;
         }
 
+        /*
+         * Test Infrastructure emucalls (4100-4199)
+         * These provide automated testing capabilities for UI and input handling.
+         */
+        case EMU_CALL_TEST_INJECT_KEY:
+        {
+            /* Inject a keyboard event into the event queue.
+             * Input:  d1 = rawkey code
+             *         d2 = qualifier bits
+             *         d3 = key down (1) or up (0)
+             * Output: d0 = 1 on success, 0 on failure
+             */
+            uint32_t rawkey = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t qualifier = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t down = m68k_get_reg(NULL, M68K_REG_D3);
+            
+            bool result = display_inject_key((int)rawkey, (int)qualifier, down != 0);
+            m68k_set_reg(M68K_REG_D0, result ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_TEST_INJECT_STRING:
+        {
+            /* Inject a string as a sequence of key events.
+             * Input:  a0 = pointer to null-terminated string
+             * Output: d0 = 1 on success, 0 on failure
+             */
+            uint32_t str_ptr = m68k_get_reg(NULL, M68K_REG_A0);
+            char str[1024];
+            
+            /* Copy string from 68k memory */
+            int i;
+            for (i = 0; i < (int)sizeof(str) - 1; i++)
+            {
+                char c = (char)m68k_read_memory_8(str_ptr + i);
+                if (c == '\0')
+                    break;
+                str[i] = c;
+            }
+            str[i] = '\0';
+            
+            bool result = display_inject_string(str);
+            m68k_set_reg(M68K_REG_D0, result ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_TEST_INJECT_MOUSE:
+        {
+            /* Inject a mouse event into the event queue.
+             * Input:  d1 = (x << 16) | y
+             *         d2 = button state (bit 0=left, bit 1=right, bit 2=middle)
+             *         d3 = event type (DISPLAY_EVENT_MOUSEMOVE=2, DISPLAY_EVENT_MOUSEBUTTON=3)
+             * Output: d0 = 1 on success, 0 on failure
+             */
+            uint32_t pos = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t buttons = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t event_type = m68k_get_reg(NULL, M68K_REG_D3);
+            
+            int x = (int)(pos >> 16);
+            int y = (int)(pos & 0xFFFF);
+            
+            bool result = display_inject_mouse(x, y, (int)buttons, (display_event_type_t)event_type);
+            m68k_set_reg(M68K_REG_D0, result ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_TEST_CAPTURE_SCREEN:
+        {
+            /* Capture the display to a file.
+             * Input:  a0 = pointer to filename string
+             *         d1 = display handle (0 for default)
+             * Output: d0 = 1 on success, 0 on failure
+             */
+            uint32_t filename_ptr = m68k_get_reg(NULL, M68K_REG_A0);
+            /* uint32_t display_handle = m68k_get_reg(NULL, M68K_REG_D1); */
+            char filename[256];
+            
+            /* Copy filename from 68k memory */
+            int i;
+            for (i = 0; i < (int)sizeof(filename) - 1; i++)
+            {
+                char c = (char)m68k_read_memory_8(filename_ptr + i);
+                if (c == '\0')
+                    break;
+                filename[i] = c;
+            }
+            filename[i] = '\0';
+            
+            /* Use default display for now */
+            bool result = display_capture_screen(NULL, filename);
+            m68k_set_reg(M68K_REG_D0, result ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_TEST_CAPTURE_WINDOW:
+        {
+            /* Capture a window to a file.
+             * Input:  a0 = pointer to filename string
+             *         d1 = window handle
+             * Output: d0 = 1 on success, 0 on failure
+             */
+            uint32_t filename_ptr = m68k_get_reg(NULL, M68K_REG_A0);
+            uint32_t window_handle = m68k_get_reg(NULL, M68K_REG_D1);
+            char filename[256];
+            
+            /* Copy filename from 68k memory */
+            int i;
+            for (i = 0; i < (int)sizeof(filename) - 1; i++)
+            {
+                char c = (char)m68k_read_memory_8(filename_ptr + i);
+                if (c == '\0')
+                    break;
+                filename[i] = c;
+            }
+            filename[i] = '\0';
+            
+            bool result = display_capture_window((display_window_t *)(uintptr_t)window_handle, filename);
+            m68k_set_reg(M68K_REG_D0, result ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_TEST_COMPARE_SCREEN:
+        {
+            /* Compare screen to a reference image (not yet implemented).
+             * Input:  a0 = pointer to reference filename
+             *         d1 = display handle (0 for default)
+             * Output: d0 = similarity percentage (0-100), or -1 on error
+             */
+            DPRINTF(LOG_WARNING, "EMU_CALL_TEST_COMPARE_SCREEN not yet implemented\n");
+            m68k_set_reg(M68K_REG_D0, (uint32_t)-1);
+            break;
+        }
+
+        case EMU_CALL_TEST_SET_HEADLESS:
+        {
+            /* Set headless mode (no window rendering).
+             * Input:  d1 = enable (1) or disable (0)
+             * Output: d0 = previous headless state
+             */
+            uint32_t enable = m68k_get_reg(NULL, M68K_REG_D1);
+            
+            bool previous = display_set_headless(enable != 0);
+            m68k_set_reg(M68K_REG_D0, previous ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_TEST_GET_HEADLESS:
+        {
+            /* Get current headless mode state.
+             * Output: d0 = 1 if headless, 0 if not
+             */
+            bool is_headless = display_get_headless();
+            m68k_set_reg(M68K_REG_D0, is_headless ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_TEST_WAIT_IDLE:
+        {
+            /* Wait for event queue to be empty.
+             * Input:  d1 = timeout in milliseconds (0 = just check, don't wait)
+             * Output: d0 = 1 if queue is empty, 0 if timeout
+             */
+            uint32_t timeout_ms = m68k_get_reg(NULL, M68K_REG_D1);
+            
+            if (timeout_ms == 0)
+            {
+                /* Just check, don't wait */
+                m68k_set_reg(M68K_REG_D0, display_event_queue_empty() ? 1 : 0);
+            }
+            else
+            {
+                /* Wait with timeout using gettimeofday */
+                struct timeval start_tv, now_tv;
+                gettimeofday(&start_tv, NULL);
+                
+                while (!display_event_queue_empty())
+                {
+                    gettimeofday(&now_tv, NULL);
+                    uint32_t elapsed_ms = (uint32_t)((now_tv.tv_sec - start_tv.tv_sec) * 1000 +
+                                                     (now_tv.tv_usec - start_tv.tv_usec) / 1000);
+                    if (elapsed_ms >= timeout_ms)
+                    {
+                        m68k_set_reg(M68K_REG_D0, 0);  /* Timeout */
+                        break;
+                    }
+                    usleep(1000);  /* 1ms delay to avoid busy-waiting */
+                }
+                if (display_event_queue_empty())
+                {
+                    m68k_set_reg(M68K_REG_D0, 1);  /* Success */
+                }
+            }
+            break;
+        }
+
         default:
         {
             /*

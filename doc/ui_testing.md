@@ -2,6 +2,21 @@
 
 This document describes the UI testing infrastructure for LXA, enabling automated testing of graphical applications including input simulation and screen verification.
 
+## Implementation Status
+
+### Completed (Phase 21.1)
+- **Host-side emucalls** - All input injection and screen capture emucalls implemented
+- **Event queue injection** - Keyboard and mouse events can be injected programmatically
+- **Screen capture** - Screens and windows can be captured to PPM files
+- **Headless mode** - Control flag for future headless rendering support
+
+### In Progress (Phase 21.2)
+- **ROM-side test helpers** - Wrappers for m68k programs to call test emucalls
+
+### Not Started
+- **Console device tests** - Unit tests for console input behavior
+- **KP2 investigation** - Use infrastructure to debug KickPascal 2 input issue
+
 ## Overview
 
 LXA requires a comprehensive testing approach that goes beyond simple unit tests to verify that graphical applications work correctly. This includes:
@@ -33,10 +48,15 @@ For automated testing, we need to inject input events without requiring a real d
 └─────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-New emucalls for input injection:
-- `EMU_CALL_TEST_INJECT_KEY` - Inject a keyboard event (rawkey + qualifiers)
-- `EMU_CALL_TEST_INJECT_MOUSE` - Inject a mouse event (x, y, buttons)
-- `EMU_CALL_TEST_INJECT_STRING` - Inject a string as keyboard events
+New emucalls for input injection (IMPLEMENTED):
+- `EMU_CALL_TEST_INJECT_KEY` (4100) - Inject a keyboard event (rawkey + qualifiers)
+- `EMU_CALL_TEST_INJECT_MOUSE` (4102) - Inject a mouse event (x, y, buttons)
+- `EMU_CALL_TEST_INJECT_STRING` (4101) - Inject a string as keyboard events
+
+Control emucalls (IMPLEMENTED):
+- `EMU_CALL_TEST_SET_HEADLESS` (4120) - Enable/disable headless mode
+- `EMU_CALL_TEST_GET_HEADLESS` (4121) - Query headless mode
+- `EMU_CALL_TEST_WAIT_IDLE` (4122) - Wait for event queue to empty
 
 ### Screen Capture
 
@@ -49,10 +69,10 @@ For visual verification:
 └─────────────────┘     └──────────────────┘     └─────────────────┘
 ```
 
-New emucalls for screen capture:
-- `EMU_CALL_TEST_CAPTURE_SCREEN` - Capture current screen to file
-- `EMU_CALL_TEST_CAPTURE_WINDOW` - Capture specific window to file
-- `EMU_CALL_TEST_COMPARE_SCREEN` - Compare screen against reference image
+New emucalls for screen capture (IMPLEMENTED):
+- `EMU_CALL_TEST_CAPTURE_SCREEN` (4110) - Capture current screen to PPM file
+- `EMU_CALL_TEST_CAPTURE_WINDOW` (4111) - Capture specific window to PPM file
+- `EMU_CALL_TEST_COMPARE_SCREEN` (4112) - Compare screen against reference (stub, returns -1)
 
 ## Console Device Testing
 
@@ -181,37 +201,43 @@ For visual regression testing:
 
 ## Implementation Phases
 
-### Phase 1: Console Device Unit Tests (Priority: HIGH)
+### Phase 1: Host-Side Infrastructure (COMPLETE)
+- [x] Add `EMU_CALL_TEST_INJECT_KEY` emucall
+- [x] Add `EMU_CALL_TEST_INJECT_STRING` emucall
+- [x] Add `EMU_CALL_TEST_INJECT_MOUSE` emucall
+- [x] Add `EMU_CALL_TEST_SET_HEADLESS` emucall
+- [x] Add `EMU_CALL_TEST_GET_HEADLESS` emucall
+- [x] Add `EMU_CALL_TEST_WAIT_IDLE` emucall
+- [x] Add `EMU_CALL_TEST_CAPTURE_SCREEN` emucall
+- [x] Add `EMU_CALL_TEST_CAPTURE_WINDOW` emucall
+- [x] Add `display_inject_key()` function
+- [x] Add `display_inject_string()` with ASCII-to-rawkey mapping
+- [x] Add `display_inject_mouse()` function
+- [x] Add `display_capture_screen()` function (PPM format)
+- [x] Add `display_capture_window()` function (PPM format)
+
+### Phase 2: ROM-Side Test Helpers (IN PROGRESS)
+- [ ] Add test helper library for ROM-side injection
+- [ ] Create `test_inject.h` header
+- [ ] Implement emucall wrappers for m68k code
+
+### Phase 3: Console Device Unit Tests (NOT STARTED)
+- [ ] Create `tests/console/input_inject/` - Verify injection works
 - [ ] Create `tests/console/input_basic/` - Basic keyboard input
 - [ ] Create `tests/console/input_modifiers/` - Shift, Ctrl, Caps Lock
-- [ ] Create `tests/console/input_buffer/` - Buffer limits and overflow
 - [ ] Create `tests/console/line_mode/` - Cooked mode line editing
-- [ ] Create `tests/console/raw_mode/` - Character-at-a-time input
-- [ ] Create `tests/console/echo/` - Echo enable/disable
+- [ ] Create `tests/console/backspace/` - Backspace behavior
 
-### Phase 2: Input Injection Infrastructure (Priority: HIGH)
-- [ ] Add `EMU_CALL_TEST_INJECT_KEY` emucall
-- [ ] Add `EMU_CALL_TEST_INJECT_STRING` emucall
-- [ ] Add test helper library for ROM-side injection
-- [ ] Add Python bindings for test scripts
-
-### Phase 3: Screen Capture Infrastructure (Priority: MEDIUM)
-- [ ] Add `EMU_CALL_TEST_CAPTURE_SCREEN` emucall
-- [ ] Implement headless rendering mode
-- [ ] Add PNG export for screen captures
-- [ ] Implement image comparison utilities
-
-### Phase 4: Application Integration Tests (Priority: MEDIUM)
+### Phase 4: Application Integration Tests (NOT STARTED)
 - [ ] Extend `run_apps.py` with UI test support
 - [ ] Create KickPascal 2 UI test suite
 - [ ] Create reference screenshots for comparison
 - [ ] Add CI integration for UI tests
 
-### Phase 5: Advanced Testing (Priority: LOW)
+### Phase 5: Advanced Testing (NOT STARTED)
+- [ ] Image comparison with tolerance
 - [ ] Text extraction from screen buffer
-- [ ] Fuzzy image comparison with tolerance
 - [ ] Performance benchmarking
-- [ ] Memory leak detection during UI tests
 
 ## Console Device Behavior Specification
 
@@ -248,20 +274,20 @@ Based on research of authentic Amiga console.device behavior:
 
 ## Files to Create/Modify
 
-### New Files
-- `doc/ui_testing.md` - This document
-- `src/lxa/test_inject.c` - Input injection emucalls
-- `src/lxa/test_capture.c` - Screen capture emucalls
+### New Files (Created)
+- `src/include/emucalls.h` - Added test emucall definitions (4100-4122)
+
+### Modified Files (Done)
+- `src/lxa/lxa.c` - Added test emucall handlers
+- `src/lxa/display.c` - Added injection and capture functions
+- `src/lxa/display.h` - Added function declarations
+
+### Files To Create
+- `src/rom/lxa_test_helpers.h` - ROM-side test utility declarations
 - `src/rom/lxa_test_helpers.c` - ROM-side test utilities
+- `tests/console/input_inject/main.c` - Basic injection test
 - `tests/console/input_basic/main.c` - Basic input tests
 - `tests/console/line_mode/main.c` - Line editing tests
-- `tests/ui/kp2_startup/test.py` - KP2 UI test
-
-### Modified Files
-- `src/lxa/lxa.c` - Add test emucalls
-- `src/lxa/display.c` - Add headless/capture modes
-- `tests/run_apps.py` - Add UI test runner
-- `roadmap.md` - Add UI testing phase
 
 ## Example Test Cases
 

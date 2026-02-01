@@ -353,49 +353,53 @@ Key implementations:
 
 ---
 
-## Phase 21: UI Testing Infrastructure (NOT STARTED)
+## Phase 21: UI Testing Infrastructure (IN PROGRESS)
 
 **Goal**: Enable automated testing of graphical applications with input simulation and screen verification. This infrastructure is essential for debugging console.device and other UI issues.
 
 See `doc/ui_testing.md` for detailed specifications.
 
-### Step 21.1: Input Injection Infrastructure
-**Problem**: Need to inject keyboard/mouse events for automated UI testing without requiring a real display.
+### Step 21.1: Host-Side Infrastructure (COMPLETE)
+**Emucalls for input injection and screen capture implemented in host.**
 
+**Implemented** (in `src/lxa/lxa.c` and `src/lxa/display.c`):
+- [x] **EMU_CALL_TEST_INJECT_KEY (4100)** - Inject rawkey + qualifier events into event queue
+- [x] **EMU_CALL_TEST_INJECT_STRING (4101)** - Inject string as sequence of key events
+- [x] **EMU_CALL_TEST_INJECT_MOUSE (4102)** - Inject mouse position + button events
+- [x] **EMU_CALL_TEST_SET_HEADLESS (4120)** - Enable/disable headless mode
+- [x] **EMU_CALL_TEST_GET_HEADLESS (4121)** - Query headless mode state
+- [x] **EMU_CALL_TEST_WAIT_IDLE (4122)** - Wait for event queue to drain
+- [x] **EMU_CALL_TEST_CAPTURE_SCREEN (4110)** - Capture screen to PPM file
+- [x] **EMU_CALL_TEST_CAPTURE_WINDOW (4111)** - Capture window to PPM file
+- [x] **EMU_CALL_TEST_COMPARE_SCREEN (4112)** - Stub (returns -1, not yet implemented)
+
+**Key functions in display.c**:
+- `display_inject_key()` - Queue synthetic keyboard events
+- `display_inject_string()` - Convert ASCII string to rawkey sequence
+- `display_inject_mouse()` - Queue synthetic mouse events
+- `display_set_headless()` / `display_get_headless()` - Headless mode control
+- `display_event_queue_empty()` - Check if events are pending
+- `display_capture_screen()` / `display_capture_window()` - Save to PPM format
+
+### Step 21.2: ROM-Side Test Helpers (IN PROGRESS)
 **Tasks**:
-- [ ] **EMU_CALL_TEST_INJECT_KEY** - Inject rawkey + qualifier events into IDCMP queue
-- [ ] **EMU_CALL_TEST_INJECT_MOUSE** - Inject mouse position + button events
-- [ ] **EMU_CALL_TEST_INJECT_STRING** - Inject string as sequence of key events
-- [ ] **ROM Test Helpers** - Library functions for tests to call injection
-- [ ] **Python Bindings** - Control input injection from Python test scripts
-
-### Step 21.2: Screen Capture Infrastructure
-**Problem**: Need to capture and compare screen contents for visual regression testing.
-
-**Tasks**:
-- [ ] **Headless Rendering** - Render to memory buffer without display window
-- [ ] **EMU_CALL_TEST_CAPTURE_SCREEN** - Capture current screen to PNG file
-- [ ] **EMU_CALL_TEST_CAPTURE_WINDOW** - Capture specific window contents
-- [ ] **Image Comparison** - Compare captured vs reference images with tolerance
-- [ ] **Text Extraction** - Extract text from screen buffer (font-aware)
+- [ ] **test_inject.h** - Header with emucall wrapper declarations
+- [ ] **test_inject.c** - ROM-side functions calling test emucalls
+- [ ] **CMake integration** - Build test helpers into ROM or as linkable library
 
 ### Step 21.3: Console Device Unit Tests
 **Tasks**:
+- [ ] `tests/console/input_inject/` - Test input injection infrastructure works
 - [ ] `tests/console/input_basic/` - Basic keyboard input with injection
 - [ ] `tests/console/input_modifiers/` - Shift, Ctrl, Caps Lock handling
-- [ ] `tests/console/input_buffer/` - Buffer limits and overflow
 - [ ] `tests/console/line_mode/` - Cooked mode line editing
-- [ ] `tests/console/raw_mode/` - Raw mode character input
-- [ ] `tests/console/echo/` - Echo enable/disable behavior
 - [ ] `tests/console/backspace/` - Backspace behavior with program output
 
-### Step 21.4: Application Integration Tests
+### Step 21.4: KickPascal 2 Investigation (NOT STARTED)
 **Tasks**:
-- [ ] **UI Test Runner** - Extend `run_apps.py` with UI test support
-- [ ] **Test Script Format** - Define UI test steps in `app.json`
-- [ ] **Wait Conditions** - Wait for text/screen state before next action
-- [ ] **Reference Screenshots** - Create baseline images for comparison
-- [ ] **CI Integration** - Run UI tests in continuous integration
+- [ ] **Reproduce issue** - Create test that shows KP2 workspace input bug
+- [ ] **Compare behavior** - Document expected vs actual behavior
+- [ ] **Debug with injection** - Use test infrastructure to isolate issue
 
 ---
 

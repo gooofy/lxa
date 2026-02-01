@@ -18,6 +18,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 /* SDL2 support is optional - check if available */
 #ifdef SDL2_FOUND
@@ -1433,5 +1434,344 @@ bool display_get_amiga_bitmap(display_t *display, uint32_t *planes_ptr, uint32_t
     if (planes_ptr) *planes_ptr = display->amiga_planes_ptr;
     if (bpr) *bpr = display->amiga_bpr;
     if (depth) *depth = display->amiga_depth;
+    return true;
+}
+
+/*
+ * ============================================================================
+ * Phase 21: UI Testing Infrastructure
+ * ============================================================================
+ */
+
+/* Headless mode state */
+static bool g_headless_mode = false;
+
+/*
+ * Convert ASCII character to Amiga rawkey code.
+ * Returns 0xFF if no mapping exists.
+ */
+static int ascii_to_rawkey(char c, bool *need_shift)
+{
+    *need_shift = false;
+    
+    /* Lowercase letters */
+    if (c >= 'a' && c <= 'z')
+    {
+        static const int letter_codes[] = {
+            0x20, /* a */ 0x35, /* b */ 0x33, /* c */ 0x22, /* d */
+            0x12, /* e */ 0x23, /* f */ 0x24, /* g */ 0x25, /* h */
+            0x17, /* i */ 0x26, /* j */ 0x27, /* k */ 0x28, /* l */
+            0x37, /* m */ 0x36, /* n */ 0x18, /* o */ 0x19, /* p */
+            0x10, /* q */ 0x13, /* r */ 0x21, /* s */ 0x14, /* t */
+            0x16, /* u */ 0x34, /* v */ 0x11, /* w */ 0x32, /* x */
+            0x15, /* y */ 0x31  /* z */
+        };
+        return letter_codes[c - 'a'];
+    }
+    
+    /* Uppercase letters (same codes, but need shift) */
+    if (c >= 'A' && c <= 'Z')
+    {
+        *need_shift = true;
+        static const int letter_codes[] = {
+            0x20, /* A */ 0x35, /* B */ 0x33, /* C */ 0x22, /* D */
+            0x12, /* E */ 0x23, /* F */ 0x24, /* G */ 0x25, /* H */
+            0x17, /* I */ 0x26, /* J */ 0x27, /* K */ 0x28, /* L */
+            0x37, /* M */ 0x36, /* N */ 0x18, /* O */ 0x19, /* P */
+            0x10, /* Q */ 0x13, /* R */ 0x21, /* S */ 0x14, /* T */
+            0x16, /* U */ 0x34, /* V */ 0x11, /* W */ 0x32, /* X */
+            0x15, /* Y */ 0x31  /* Z */
+        };
+        return letter_codes[c - 'A'];
+    }
+    
+    /* Numbers */
+    if (c >= '0' && c <= '9')
+    {
+        if (c == '0') return 0x0A;
+        return 0x01 + (c - '1');  /* '1' = 0x01, '2' = 0x02, etc. */
+    }
+    
+    /* Special characters */
+    switch (c)
+    {
+        case ' ':  return 0x40;  /* Space */
+        case '\n': return 0x44;  /* Return */
+        case '\r': return 0x44;  /* Return */
+        case '\t': return 0x42;  /* Tab */
+        case '\b': return 0x41;  /* Backspace */
+        case 0x7F: return 0x46;  /* Delete */
+        case '-':  return 0x0B;  /* Minus */
+        case '=':  return 0x0C;  /* Equals */
+        case '[':  return 0x1A;  /* Left bracket */
+        case ']':  return 0x1B;  /* Right bracket */
+        case ';':  return 0x29;  /* Semicolon */
+        case '\'': return 0x2A;  /* Apostrophe */
+        case '`':  return 0x00;  /* Backtick */
+        case '\\': return 0x0D;  /* Backslash */
+        case ',':  return 0x38;  /* Comma */
+        case '.':  return 0x39;  /* Period */
+        case '/':  return 0x3A;  /* Slash */
+        
+        /* Shifted characters */
+        case '!':  *need_shift = true; return 0x01;  /* Shift+1 */
+        case '@':  *need_shift = true; return 0x02;  /* Shift+2 */
+        case '#':  *need_shift = true; return 0x03;  /* Shift+3 */
+        case '$':  *need_shift = true; return 0x04;  /* Shift+4 */
+        case '%':  *need_shift = true; return 0x05;  /* Shift+5 */
+        case '^':  *need_shift = true; return 0x06;  /* Shift+6 */
+        case '&':  *need_shift = true; return 0x07;  /* Shift+7 */
+        case '*':  *need_shift = true; return 0x08;  /* Shift+8 */
+        case '(':  *need_shift = true; return 0x09;  /* Shift+9 */
+        case ')':  *need_shift = true; return 0x0A;  /* Shift+0 */
+        case '_':  *need_shift = true; return 0x0B;  /* Shift+- */
+        case '+':  *need_shift = true; return 0x0C;  /* Shift+= */
+        case '{':  *need_shift = true; return 0x1A;  /* Shift+[ */
+        case '}':  *need_shift = true; return 0x1B;  /* Shift+] */
+        case ':':  *need_shift = true; return 0x29;  /* Shift+; */
+        case '"':  *need_shift = true; return 0x2A;  /* Shift+' */
+        case '~':  *need_shift = true; return 0x00;  /* Shift+` */
+        case '|':  *need_shift = true; return 0x0D;  /* Shift+\ */
+        case '<':  *need_shift = true; return 0x38;  /* Shift+, */
+        case '>':  *need_shift = true; return 0x39;  /* Shift+. */
+        case '?':  *need_shift = true; return 0x3A;  /* Shift+/ */
+        
+        default:
+            return 0xFF;  /* No mapping */
+    }
+}
+
+/*
+ * Inject a keyboard event into the event queue.
+ */
+bool display_inject_key(int rawkey, int qualifier, bool down)
+{
+    display_event_t event = {0};
+    
+    event.type = DISPLAY_EVENT_KEY;
+    event.rawkey = down ? (rawkey & 0x7F) : (rawkey | 0x80);
+    event.qualifier = qualifier;
+    event.button_down = down;
+    event.window = g_active_display;
+    
+    /* Get current mouse position */
+    display_get_mouse_pos(&event.mouse_x, &event.mouse_y);
+    
+    /* Add to event queue */
+    queue_event(&event);
+    
+    LPRINTF(LOG_DEBUG, "display: inject_key rawkey=0x%02x qual=0x%04x down=%d\n",
+            rawkey, qualifier, down);
+    
+    return true;
+}
+
+/*
+ * Inject a string as a sequence of key events.
+ */
+bool display_inject_string(const char *str)
+{
+    if (!str)
+        return false;
+    
+    LPRINTF(LOG_DEBUG, "display: inject_string '%s'\n", str);
+    
+    for (const char *p = str; *p; p++)
+    {
+        bool need_shift = false;
+        int rawkey = ascii_to_rawkey(*p, &need_shift);
+        
+        if (rawkey == 0xFF)
+        {
+            LPRINTF(LOG_DEBUG, "display: inject_string: no mapping for '%c' (0x%02x)\n",
+                    *p, (unsigned char)*p);
+            continue;  /* Skip unmappable characters */
+        }
+        
+        int qualifier = need_shift ? 0x0001 : 0;  /* IEQUALIFIER_LSHIFT */
+        
+        /* Key down */
+        display_inject_key(rawkey, qualifier, true);
+        
+        /* Key up */
+        display_inject_key(rawkey, qualifier, false);
+    }
+    
+    return true;
+}
+
+/*
+ * Inject a mouse event into the event queue.
+ */
+bool display_inject_mouse(int x, int y, int buttons, display_event_type_t event_type)
+{
+    display_event_t event = {0};
+    
+    event.type = event_type;
+    event.mouse_x = x;
+    event.mouse_y = y;
+    event.window = g_active_display;
+    
+    if (event_type == DISPLAY_EVENT_MOUSEBUTTON)
+    {
+        /* Determine which button and state from buttons bitmask */
+        if (buttons & 0x01)
+        {
+            event.button_code = 0x68;  /* IECODE_LBUTTON */
+            event.qualifier = 0x8000;   /* IEQUALIFIER_LEFTBUTTON */
+        }
+        else if (buttons & 0x02)
+        {
+            event.button_code = 0x69;  /* IECODE_RBUTTON */
+            event.qualifier = 0x4000;   /* IEQUALIFIER_RBUTTON */
+        }
+        else if (buttons & 0x04)
+        {
+            event.button_code = 0x6A;  /* IECODE_MBUTTON */
+            event.qualifier = 0x2000;   /* IEQUALIFIER_MIDBUTTON */
+        }
+        event.button_down = true;
+    }
+    
+    queue_event(&event);
+    
+    /* Update internal mouse position */
+    g_mouse_x = x;
+    g_mouse_y = y;
+    
+    LPRINTF(LOG_DEBUG, "display: inject_mouse x=%d y=%d buttons=0x%x type=%d\n",
+            x, y, buttons, event_type);
+    
+    return true;
+}
+
+/*
+ * Set headless mode.
+ */
+bool display_set_headless(bool enable)
+{
+    bool previous = g_headless_mode;
+    g_headless_mode = enable;
+    
+    LPRINTF(LOG_INFO, "display: headless mode %s\n", enable ? "enabled" : "disabled");
+    
+    return previous;
+}
+
+/*
+ * Check if headless mode is enabled.
+ */
+bool display_get_headless(void)
+{
+    return g_headless_mode;
+}
+
+/*
+ * Check if the event queue is empty.
+ */
+bool display_event_queue_empty(void)
+{
+    return g_event_queue_tail == g_event_queue_head;
+}
+
+/*
+ * Capture the display to a PNG file.
+ * Note: This requires lodepng or similar PNG library.
+ * For now, we'll implement a simple PPM format which is easier.
+ */
+bool display_capture_screen(display_t *display, const char *filename)
+{
+    if (!display || !filename)
+        return false;
+    
+    LPRINTF(LOG_INFO, "display: capturing screen to '%s'\n", filename);
+    
+    /* For simplicity, save as PPM format which is easy to write
+     * PPM can be converted to PNG using ImageMagick: convert file.ppm file.png
+     */
+    FILE *f = fopen(filename, "wb");
+    if (!f)
+    {
+        LPRINTF(LOG_ERROR, "display: failed to open '%s' for writing\n", filename);
+        return false;
+    }
+    
+    /* PPM header */
+    fprintf(f, "P6\n%d %d\n255\n", display->width, display->height);
+    
+    /* Write pixels (convert indexed to RGB using palette) */
+    for (int y = 0; y < display->height; y++)
+    {
+        for (int x = 0; x < display->width; x++)
+        {
+            uint8_t idx = display->pixels[y * display->width + x];
+            uint32_t color = display->palette[idx];
+            uint8_t rgb[3];
+            rgb[0] = (color >> 16) & 0xFF;  /* R */
+            rgb[1] = (color >> 8) & 0xFF;   /* G */
+            rgb[2] = color & 0xFF;          /* B */
+            fwrite(rgb, 1, 3, f);
+        }
+    }
+    
+    fclose(f);
+    
+    LPRINTF(LOG_INFO, "display: captured %dx%d screen to '%s'\n",
+            display->width, display->height, filename);
+    
+    return true;
+}
+
+/*
+ * Capture a rootless window to a PNG file.
+ */
+bool display_capture_window(display_window_t *window, const char *filename)
+{
+    if (!window || !window->in_use || !filename)
+        return false;
+    
+    LPRINTF(LOG_INFO, "display: capturing window to '%s'\n", filename);
+    
+    /* Get the palette from screen or window */
+    const uint32_t *palette;
+    if (window->screen)
+    {
+        palette = window->screen->palette;
+    }
+    else
+    {
+        palette = window->palette;
+    }
+    
+    FILE *f = fopen(filename, "wb");
+    if (!f)
+    {
+        LPRINTF(LOG_ERROR, "display: failed to open '%s' for writing\n", filename);
+        return false;
+    }
+    
+    /* PPM header */
+    fprintf(f, "P6\n%d %d\n255\n", window->width, window->height);
+    
+    /* Write pixels */
+    for (int y = 0; y < window->height; y++)
+    {
+        for (int x = 0; x < window->width; x++)
+        {
+            uint8_t idx = window->pixels[y * window->width + x];
+            uint32_t color = palette[idx];
+            uint8_t rgb[3];
+            rgb[0] = (color >> 16) & 0xFF;  /* R */
+            rgb[1] = (color >> 8) & 0xFF;   /* G */
+            rgb[2] = color & 0xFF;          /* B */
+            fwrite(rgb, 1, 3, f);
+        }
+    }
+    
+    fclose(f);
+    
+    LPRINTF(LOG_INFO, "display: captured %dx%d window to '%s'\n",
+            window->width, window->height, filename);
+    
     return true;
 }

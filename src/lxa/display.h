@@ -346,4 +346,85 @@ display_window_t *display_window_from_sdl_id(uint32_t sdl_window_id);
  */
 uint32_t display_window_get_sdl_id(display_window_t *window);
 
+/*
+ * Phase 21: UI Testing Infrastructure
+ *
+ * These functions allow automated testing by injecting input events
+ * and capturing screen output programmatically.
+ */
+
+/*
+ * Inject a keyboard event into the event queue.
+ * This creates a synthetic key press or release event.
+ *
+ * @param rawkey     Amiga raw key code (0x00-0x7F for press, 0x80+ for release)
+ * @param qualifier  Amiga qualifier bits (shift, ctrl, alt, etc.)
+ * @param down       true for key press, false for key release
+ * @return true on success
+ */
+bool display_inject_key(int rawkey, int qualifier, bool down);
+
+/*
+ * Inject a string as a sequence of key events.
+ * Each character is converted to appropriate rawkey codes.
+ * Both key-down and key-up events are generated for each character.
+ *
+ * @param str  String to inject (ASCII characters)
+ * @return true on success
+ */
+bool display_inject_string(const char *str);
+
+/*
+ * Inject a mouse event into the event queue.
+ *
+ * @param x           Mouse X position
+ * @param y           Mouse Y position
+ * @param buttons     Button state (bit 0 = left, bit 1 = right, bit 2 = middle)
+ * @param event_type  DISPLAY_EVENT_MOUSEMOVE or DISPLAY_EVENT_MOUSEBUTTON
+ * @return true on success
+ */
+bool display_inject_mouse(int x, int y, int buttons, display_event_type_t event_type);
+
+/*
+ * Set headless mode (no actual window rendering).
+ * In headless mode, display operations succeed but no SDL window is shown.
+ * Useful for automated testing without a display.
+ *
+ * @param enable  true to enable headless mode, false to disable
+ * @return Previous headless state
+ */
+bool display_set_headless(bool enable);
+
+/*
+ * Check if headless mode is enabled.
+ * @return true if headless mode is active
+ */
+bool display_get_headless(void);
+
+/*
+ * Capture the display to a PNG file.
+ *
+ * @param display   Display handle
+ * @param filename  Output filename (PNG format)
+ * @return true on success
+ */
+bool display_capture_screen(display_t *display, const char *filename);
+
+/*
+ * Capture a rootless window to a PNG file.
+ *
+ * @param window    Window handle
+ * @param filename  Output filename (PNG format)
+ * @return true on success
+ */
+bool display_capture_window(display_window_t *window, const char *filename);
+
+/*
+ * Check if the event queue is empty.
+ * Useful for waiting until all injected events have been processed.
+ *
+ * @return true if no events are pending
+ */
+bool display_event_queue_empty(void);
+
 #endif /* HAVE_DISPLAY_H */
