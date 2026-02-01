@@ -1,6 +1,6 @@
 # Console escape sequence tests
 
-SUBDIRS = csi_cursor input_inject input_console
+SUBDIRS = csi_cursor input_inject input_console kp2_test
 
 .PHONY: all clean run-tests $(SUBDIRS)
 

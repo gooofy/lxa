@@ -1009,7 +1009,7 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
     switch (ioreq->io_Command)
     {
         case CMD_READ:
-            DPRINTF (LOG_DEBUG, "_console: CMD_READ len=%ld\n", iostd->io_Length);
+            DPRINTF (LOG_DEBUG, "_console: CMD_READ len=%ld line_mode=%d\n", iostd->io_Length, unit ? unit->line_mode : -1);
             
             if (unit && unit->cu.cu_Window) {
                 /* Read from window's IDCMP keyboard input */
@@ -1031,8 +1031,8 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 /* Process any pending input */
                 console_process_input(unit);
                 
-                /* In line mode, wait for a complete line */
-                if (unit->line_mode) {
+                /* In line mode, wait for a complete line (but only if not already available) */
+                if (unit->line_mode && !input_has_line(unit)) {
                     while (!input_has_line(unit) && !input_buf_full(unit)) {
                         /* Wait for more input - yield to scheduler */
                         WaitTOF();

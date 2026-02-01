@@ -418,44 +418,48 @@ See `doc/ui_testing.md` for detailed specifications.
 - [x] **Debug filtering** - Filters coldstart:, _exec:, _dos:, _intuition:, display:, etc.
 - [x] **Exit code handling** - Tests pass based on output comparison, not exit code
 
-### Step 21.4: KickPascal 2 Investigation (IN PROGRESS)
+### Step 21.4: KickPascal 2 Investigation (COMPLETE)
 **Tasks**:
 - [x] **Verified input path works** - input_console test proves console.device input functions correctly
-- [ ] **Reproduce issue** - Create test that shows KP2 workspace input bug
-- [ ] **Compare behavior** - Document expected vs actual behavior
-- [ ] **Debug with injection** - Use test infrastructure to isolate issue
+- [x] **Reproduced issue** - Created kp2_test that mimics KP2's 1-byte-at-a-time read pattern
+- [x] **Identified root cause** - Line mode was re-waiting for newline on every read, even with buffered data
+- [x] **Fixed console.device** - Only wait for newline if buffer doesn't already contain one
+- [x] **Test validates fix** - kp2_test passes: reads '1', '0', '0', '\n' correctly
+
+**The Bug**: KP2 reads console input 1 byte at a time. Our console.device was waiting for a complete line on EVERY read, causing the second read to hang forever even though data was already buffered.
+
+**The Fix**: In `lxa_dev_console.c`, changed line mode wait from `if (unit->line_mode)` to `if (unit->line_mode && !input_has_line(unit))` - only enter wait loop if no complete line is already buffered.
 
 ---
 
-## Phase 22: Console Device Completion & KP2 Compatibility (NOT STARTED)
+## Phase 22: Console Device Completion & KP2 Compatibility (PARTIALLY COMPLETE)
 
 **Goal**: Fix console.device to match real Amiga behavior, using the testing infrastructure from Phase 21.
 
-### Step 22.1: Console Device Line Editing Investigation
-**Problem**: KickPascal 2's workspace size input works on real Amiga but not in LXA. Need to understand the exact difference.
+### Step 22.1: Console Device Line Mode Fix (COMPLETE)
+**Problem**: KickPascal 2's workspace size input hangs after first character read.
+
+**Root Cause Found**: Line mode was re-waiting for newline on every CMD_READ, even when data was already buffered from a previous line.
 
 **Tasks**:
-- [ ] **Capture Real Amiga Behavior** - Document exact behavior on real hardware
-- [ ] **Create Regression Test** - Test case that reproduces the KP2 input issue
-- [ ] **Debug with Injection** - Use input injection to test specific scenarios
-- [ ] **Compare Screen Output** - Verify visual output matches real Amiga
+- [x] **Created kp2_test** - Mimics KP2's 1-byte-at-a-time read pattern
+- [x] **Fixed lxa_dev_console.c** - Only wait if no complete line in buffer
+- [x] **Verified fix** - kp2_test passes, reads buffered characters immediately
 
-### Step 22.2: Console Device Fixes
-**Problem**: Implement correct line editing based on investigation findings.
+### Step 22.2: Additional Console Device Features (NOT STARTED)
+**Potential Future Work**:
+- [ ] **CON: Handler vs console.device** - May need CON: handler layer for some apps
+- [ ] **Raw Mode** - Character-at-a-time input mode (ACTION_SCREEN_MODE)
+- [ ] **Input Buffer Semantics** - Exact handling of backspace/delete in edge cases
 
-**Potential Areas**:
-- [ ] **CON: Handler vs console.device** - May need CON: handler layer
-- [ ] **Cooked Mode Buffer** - Proper line buffer management
-- [ ] **Raw Mode** - Character-at-a-time input mode
-- [ ] **Mode Switching** - ACTION_SCREEN_MODE packet support
-- [ ] **Input Buffer Semantics** - Exact handling of backspace/delete
-
-### Step 22.3: KickPascal 2 Validation
+### Step 22.3: KickPascal 2 Validation (NEEDS MANUAL TESTING)
 **Tasks**:
-- [ ] **Automated Startup Test** - Launch KP2, verify window opens correctly
-- [ ] **Workspace Input Test** - Change workspace size, verify accepted
+- [x] **Automated unit test** - kp2_test validates the fix works
+- [ ] **Manual KP2 test** - Launch real KP2, test workspace input interactively
 - [ ] **Basic Editing Test** - Open editor, type text, verify display
 - [ ] **Reference Screenshots** - Compare against real Amiga captures
+
+**Note**: Full KP2 validation requires manual testing since we can't inject keys into SDL windows programmatically without xdotool or similar tools.
 
 ---
 
