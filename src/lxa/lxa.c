@@ -3448,6 +3448,9 @@ int main(int argc, char **argv, char **envp)
 
     /* Set up automatic HOME: and CWD: drives */
     vfs_setup_dynamic_drives();
+    
+    /* Set up default assigns (C:, S:, LIBS:, etc.) pointing to SYS: subdirectories */
+    vfs_setup_default_assigns();
 
     if (!rom_path) {
         rom_path = (char *)config_get_rom_path();

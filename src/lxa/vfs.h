@@ -36,6 +36,9 @@ bool vfs_has_sys_drive(void);
 /* Set up automatic HOME: and CWD: drives */
 void vfs_setup_dynamic_drives(void);
 
+/* Set up default assigns (C:, S:, LIBS:, etc.) pointing to SYS: subdirectories */
+void vfs_setup_default_assigns(void);
+
 /*
  * Phase 7: Assignment System
  *

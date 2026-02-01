@@ -559,6 +559,70 @@ void vfs_setup_dynamic_drives(void)
     }
 }
 
+void vfs_setup_default_assigns(void)
+{
+    /*
+     * Set up standard AmigaOS assigns pointing to SYS: subdirectories.
+     * These are the minimal set of assigns expected by the system.
+     *
+     * Note: We first resolve the SYS: path, then create assigns pointing
+     * to the Linux paths. This avoids needing special handling for
+     * "assign to assign" in the VFS layer.
+     */
+    
+    char sys_path[PATH_MAX];
+    char subdir_path[PATH_MAX];
+    
+    /* Get the resolved SYS: path */
+    if (!vfs_resolve_path("SYS:", sys_path, sizeof(sys_path))) {
+        DPRINTF(LOG_WARNING, "vfs: Cannot resolve SYS: for default assigns\n");
+        return;
+    }
+    
+    /* Standard AmigaOS assigns */
+    struct {
+        const char *name;
+        const char *subdir;
+    } default_assigns[] = {
+        {"C",    "C"},       /* Commands */
+        {"S",    "S"},       /* Startup scripts */
+        {"L",    "L"},       /* Loaders */
+        {"LIBS", "Libs"},    /* Libraries */
+        {"DEVS", "Devs"},    /* Devices */
+        {"T",    "T"},       /* Temporary files */
+        {"ENV",  "Prefs/Env-Archive"},  /* Environment variables */
+        {"ENVARC", "Prefs/Env-Archive"}, /* Environment archive */
+        {NULL, NULL}
+    };
+    
+    for (int i = 0; default_assigns[i].name != NULL; i++) {
+        /* Skip if assign already exists (user may have custom config) */
+        if (vfs_assign_exists(default_assigns[i].name)) {
+            DPRINTF(LOG_DEBUG, "vfs: %s: already assigned, skipping\n", default_assigns[i].name);
+            continue;
+        }
+        
+        /* Build path to subdirectory */
+        int n = snprintf(subdir_path, sizeof(subdir_path), "%s/%s", sys_path, default_assigns[i].subdir);
+        if (n < 0 || (size_t)n >= sizeof(subdir_path)) {
+            continue;
+        }
+        
+        /* Check if the directory exists (don't create assigns to non-existent dirs) */
+        struct stat st;
+        if (stat(subdir_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+            DPRINTF(LOG_DEBUG, "vfs: %s: subdirectory %s doesn't exist, skipping\n", 
+                    default_assigns[i].name, subdir_path);
+            continue;
+        }
+        
+        /* Create the assign */
+        if (vfs_assign_add(default_assigns[i].name, subdir_path, ASSIGN_LOCK)) {
+            DPRINTF(LOG_INFO, "vfs: %s: -> %s\n", default_assigns[i].name, subdir_path);
+        }
+    }
+}
+
 /* Update files in a directory from source to destination */
 static int update_directory_files(const char *src_dir, const char *dst_dir)
 {

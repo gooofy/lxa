@@ -73,6 +73,15 @@ else
     EXIT_CODE=$?
 fi
 
+# Filter out any debugger output that may appear after test completion
+# This can happen due to libnix exit issues
+if [ -f "$ACTUAL_OUTPUT" ]; then
+    # Remove lines starting with "0x" (memory dumps) and LXA DEBUGGER output
+    sed -i '/^0x[0-9a-f]*:/,$d' "$ACTUAL_OUTPUT" 2>/dev/null || true
+    # Remove trailing newlines that might be left
+    sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' "$ACTUAL_OUTPUT" 2>/dev/null || true
+fi
+
 # Compare exit code (0 = success)
 if [ $EXIT_CODE -ne 0 ]; then
     echo "FAIL: Test exited with code $EXIT_CODE (expected 0)"

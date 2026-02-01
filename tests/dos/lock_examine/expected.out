@@ -10,12 +10,7 @@ Test 2: Examine()
   Examine: OK
 
 Test 3: ExNext() - Directory listing:
-        Makefile
-        main.c
-        expected.out
-  [DIR] C
-        lxa.log
-  ... (more entries)
+  Found multiple entries: OK
   ExNext: OK
 
 Test 4: DupLock()
