@@ -184,9 +184,132 @@ bool display_get_event(display_event_t *event);
 void display_get_mouse_pos(int *x, int *y);
 
 /*
- * Set the active display for event routing.
+ * Set the active display (for event routing).
  * @param display  Display to make active
  */
 void display_set_active(display_t *display);
+
+/*
+ * Phase 15: Rootless Windowing Support
+ *
+ * In rootless mode, each Amiga window gets its own SDL window instead
+ * of all windows being rendered within a single screen surface.
+ * This allows integration with the host desktop's window manager.
+ */
+
+/* Window handle for rootless mode (opaque) */
+typedef struct display_window_t display_window_t;
+
+/*
+ * Check if rootless mode is enabled.
+ * @return true if rootless mode is active, false for traditional screen mode
+ */
+bool display_get_rootless_mode(void);
+
+/*
+ * Open a rootless window.
+ * Creates an independent SDL window for an Amiga window.
+ *
+ * @param screen   Parent screen display (for palette sharing, can be NULL)
+ * @param x        Initial X position on host desktop
+ * @param y        Initial Y position on host desktop  
+ * @param width    Window width in pixels
+ * @param height   Window height in pixels
+ * @param depth    Bit depth (uses screen palette if screen provided)
+ * @param title    Window title (can be NULL)
+ * @return Window handle, or NULL on failure
+ */
+display_window_t *display_window_open(display_t *screen, int x, int y,
+                                       int width, int height, int depth,
+                                       const char *title);
+
+/*
+ * Close a rootless window.
+ * @param window  Window handle from display_window_open()
+ */
+void display_window_close(display_window_t *window);
+
+/*
+ * Move a rootless window.
+ * @param window  Window handle
+ * @param x       New X position
+ * @param y       New Y position
+ * @return true on success
+ */
+bool display_window_move(display_window_t *window, int x, int y);
+
+/*
+ * Resize a rootless window.
+ * @param window  Window handle
+ * @param width   New width
+ * @param height  New height
+ * @return true on success
+ */
+bool display_window_size(display_window_t *window, int width, int height);
+
+/*
+ * Bring a rootless window to front.
+ * @param window  Window handle
+ * @return true on success
+ */
+bool display_window_to_front(display_window_t *window);
+
+/*
+ * Send a rootless window to back.
+ * @param window  Window handle
+ * @return true on success
+ */
+bool display_window_to_back(display_window_t *window);
+
+/*
+ * Set a rootless window title.
+ * @param window  Window handle
+ * @param title   New title
+ * @return true on success
+ */
+bool display_window_set_title(display_window_t *window, const char *title);
+
+/*
+ * Refresh a rootless window - update from its pixel buffer.
+ * @param window  Window handle
+ */
+void display_window_refresh(display_window_t *window);
+
+/*
+ * Update rootless window from planar bitmap data.
+ *
+ * @param window      Window handle
+ * @param x, y        Top-left corner of region
+ * @param width       Width of region
+ * @param height      Height of region
+ * @param planes      Array of plane pointers (depth planes)
+ * @param bytes_per_row  Bytes per row in each plane
+ * @param depth       Number of bit planes
+ */
+void display_window_update_planar(display_window_t *window, int x, int y, 
+                                   int width, int height,
+                                   const uint8_t **planes, int bytes_per_row, int depth);
+
+/*
+ * Get the screen associated with a rootless window.
+ * @param window  Window handle
+ * @return Parent screen, or NULL
+ */
+display_t *display_window_get_screen(display_window_t *window);
+
+/*
+ * Look up a window by its SDL window ID.
+ * Used for routing SDL events to the correct Amiga window.
+ * @param sdl_window_id  SDL window ID from event
+ * @return Window handle, or NULL if not found
+ */
+display_window_t *display_window_from_sdl_id(uint32_t sdl_window_id);
+
+/*
+ * Get the SDL window ID for a display window.
+ * @param window  Window handle
+ * @return SDL window ID, or 0 if invalid
+ */
+uint32_t display_window_get_sdl_id(display_window_t *window);
 
 #endif /* HAVE_DISPLAY_H */

@@ -101,6 +101,23 @@ ULONG emucall3 (ULONG func, ULONG param1, ULONG param2, ULONG param3)
     return res;
 }
 
+ULONG emucall4 (ULONG func, ULONG param1, ULONG param2, ULONG param3, ULONG param4)
+{
+    ULONG res;
+    asm volatile( "move.l    %1, d0\n\t"
+         "move.l    %2, d1\n\t"
+         "move.l    %3, d2\n\t"
+         "move.l    %4, d3\n\t"
+         "move.l    %5, d4\n\t"
+         "illegal\n\t"
+         "move.l    d0, %0\n"
+        : "=r" (res)
+        : "r" (func), "r" (param1), "r" (param2), "r" (param3), "r" (param4)
+        : "cc", "d0", "d1", "d2", "d3", "d4"
+        );
+    return res;
+}
+
 void emu_stop (ULONG rv)
 {
     emucall1 (EMU_CALL_STOP, rv);

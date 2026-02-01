@@ -191,6 +191,15 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
         return;
     }
 
+    /* Phase 15: Close the rootless host window if one exists */
+    if (window->UserData)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() closing rootless window_handle=0x%08lx\n",
+                 (ULONG)window->UserData);
+        emucall1(EMU_CALL_INT_CLOSE_WINDOW, (ULONG)window->UserData);
+        window->UserData = NULL;
+    }
+
     /* TODO: Reply to any pending IDCMP messages */
 
     /* Free the IDCMP message port if we created it */
@@ -757,6 +766,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     struct Window *window;
     struct Screen *screen;
     WORD width, height;
+    ULONG rootless_mode;
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() newWindow=0x%08lx\n", (ULONG)newWindow);
 
@@ -840,6 +850,36 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     window->RPort = &screen->RastPort;
     /* Note: In a full implementation, we'd create a clipping layer here */
 
+    /* Check if rootless mode is enabled */
+    rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
+
+    if (rootless_mode)
+    {
+        /* Phase 15: Create a separate host window for this Amiga window */
+        ULONG window_handle;
+        ULONG screen_handle = (ULONG)screen->ExtData;
+
+        window_handle = emucall4(EMU_CALL_INT_OPEN_WINDOW,
+                                 screen_handle,
+                                 ((ULONG)(WORD)newWindow->LeftEdge << 16) | ((ULONG)(WORD)newWindow->TopEdge & 0xFFFF),
+                                 ((ULONG)width << 16) | ((ULONG)height & 0xFFFF),
+                                 (ULONG)newWindow->Title);
+
+        if (window_handle == 0)
+        {
+            LPRINTF (LOG_WARNING, "_intuition: OpenWindow() rootless window creation failed, continuing without\n");
+        }
+
+        /* Store the host window handle in UserData */
+        window->UserData = (APTR)window_handle;
+
+        DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() rootless window_handle=0x%08lx\n", window_handle);
+    }
+    else
+    {
+        window->UserData = NULL;
+    }
+
     /* Create IDCMP message port if IDCMP flags are set */
     if (newWindow->IDCMPFlags)
     {
@@ -847,6 +887,10 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         if (!window->UserPort)
         {
             LPRINTF (LOG_ERROR, "_intuition: OpenWindow() failed to create IDCMP port\n");
+            if (window->UserData)
+            {
+                emucall1(EMU_CALL_INT_CLOSE_WINDOW, (ULONG)window->UserData);
+            }
             FreeMem(window, sizeof(struct Window));
             return NULL;
         }

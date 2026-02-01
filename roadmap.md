@@ -155,18 +155,20 @@ See `doc/graphics_testing.md` for detailed test specifications.
 
 ---
 
-## Phase 15: Rootless Mode & Advanced Graphics
+## Phase 15: Rootless Mode & Advanced Graphics (IN PROGRESS)
 
 **Goal**: seamless desktop integration and rich graphics.
 
-### Step 15.1: Rootless Windowing
-- [ ] **Mode Switch** - Configuration for Rootless vs Hosted.
-- [ ] **Window Mapping** - `OpenWindow` creates individual SDL windows in Rootless mode.
-- [ ] **Event Routing** - Route events to specific windows.
+### Step 15.1: Rootless Windowing (COMPLETE)
+- [x] **Mode Switch** - Configuration `rootless_mode` in `[display]` section.
+- [x] **Host Support** - `display_window_t` type with open/close/move/resize functions.
+- [x] **Emucalls** - Intuition emucalls 3020-3028 (OPEN_WINDOW, CLOSE_WINDOW, MOVE_WINDOW, SIZE_WINDOW, WINDOW_TOFRONT, WINDOW_TOBACK, SET_TITLE, REFRESH_WINDOW, GET_ROOTLESS).
+- [x] **Window Mapping** - `OpenWindow` creates individual SDL windows when rootless mode enabled.
+- [x] **Event Routing** - Window handles stored in `Window->UserData` for event routing.
 
-### Step 15.2: Advanced Rendering
+### Step 15.2: Advanced Rendering (PARTIAL)
 - [ ] **Blitter** - `BltBitMap`, `BltTemplate` (CPU emulation).
-- [ ] **Text** - `OpenFont`, `Text`, `SetFont` (Built-in Topaz-8 font).
+- [x] **Text** - `OpenFont`, `CloseFont`, `SetFont`, `Text`, `TextLength` with built-in Topaz-8 font.
 - [ ] **Layers** - Basic `layers.library` support for clipping.
 
 ### Step 15.3: UI Elements

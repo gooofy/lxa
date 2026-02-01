@@ -113,5 +113,16 @@
 #define EMU_CALL_INT_GET_KEY       3013  /* Get key event: () -> rawkey | (qualifier << 16) */
 #define EMU_CALL_INT_GET_EVENT_WIN 3014  /* Get window for last event: () -> window_id (display_handle) */
 
+/* Rootless Windowing (Phase 15) */
+#define EMU_CALL_INT_OPEN_WINDOW   3020  /* Open window: (screen_handle, x, y, w, h, title_ptr) -> window_handle */
+#define EMU_CALL_INT_CLOSE_WINDOW  3021  /* Close window: (window_handle) -> success */
+#define EMU_CALL_INT_MOVE_WINDOW   3022  /* Move window: (window_handle, x, y) -> success */
+#define EMU_CALL_INT_SIZE_WINDOW   3023  /* Resize window: (window_handle, w, h) -> success */
+#define EMU_CALL_INT_WINDOW_TOFRONT 3024 /* Bring window to front: (window_handle) -> success */
+#define EMU_CALL_INT_WINDOW_TOBACK  3025 /* Send window to back: (window_handle) -> success */
+#define EMU_CALL_INT_SET_TITLE     3026  /* Set window title: (window_handle, title_ptr) -> success */
+#define EMU_CALL_INT_REFRESH_WINDOW 3027 /* Refresh window: (window_handle, planes_ptr, bpr, depth) */
+#define EMU_CALL_INT_GET_ROOTLESS  3028  /* Get rootless mode: () -> bool */
+
 #endif
 

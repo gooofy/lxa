@@ -16,6 +16,7 @@
 #include <intuition/intuitionbase.h>
 
 #include "util.h"
+#include "topaz8_font.h"
 
 /* Forward declaration for input processing (defined in lxa_intuition.c) */
 extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
@@ -139,14 +140,80 @@ static VOID _graphics_ClearScreen ( register struct GfxBase * GfxBase __asm("a6"
     assert(FALSE);
 }
 
+/*
+ * Phase 15: Built-in Topaz 8x8 font
+ * This is a statically allocated TextFont structure for the built-in font.
+ * We store it here to avoid needing dynamic allocation for the default font.
+ *
+ * Note: The TextFont structure starts with a Message header which contains
+ * a Node. We initialize only the fields we need; the linker will zero the rest.
+ */
+static char g_topaz8_name[] = "topaz.font";
+
+static struct TextFont g_topaz8_font;  /* Initialized in init function */
+static BOOL g_topaz8_initialized = FALSE;
+
+static void init_topaz8_font(void)
+{
+    if (g_topaz8_initialized)
+        return;
+
+    /* Initialize the font structure */
+    lxa_memset(&g_topaz8_font, 0, sizeof(g_topaz8_font));
+
+    /* Message/Node header */
+    g_topaz8_font.tf_Message.mn_Node.ln_Type = NT_FONT;
+    g_topaz8_font.tf_Message.mn_Node.ln_Name = g_topaz8_name;
+
+    /* Font metrics */
+    g_topaz8_font.tf_YSize = TOPAZ8_HEIGHT;
+    g_topaz8_font.tf_Style = FS_NORMAL;
+    g_topaz8_font.tf_Flags = FPF_ROMFONT | FPF_DESIGNED;
+    g_topaz8_font.tf_XSize = TOPAZ8_WIDTH;
+    g_topaz8_font.tf_Baseline = TOPAZ8_BASELINE;
+    g_topaz8_font.tf_BoldSmear = 1;
+    g_topaz8_font.tf_Accessors = 0;
+    g_topaz8_font.tf_LoChar = TOPAZ8_FIRST;
+    g_topaz8_font.tf_HiChar = TOPAZ8_LAST;
+    g_topaz8_font.tf_CharData = (APTR)g_topaz8_data;
+    g_topaz8_font.tf_Modulo = TOPAZ8_HEIGHT;  /* Bytes per character in our data */
+
+    g_topaz8_initialized = TRUE;
+}
+
+static struct TextFont *get_default_font(void)
+{
+    init_topaz8_font();
+    return &g_topaz8_font;
+}
+
 static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register ULONG count __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: TextLength() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct TextFont *font;
+    WORD width;
+
+    DPRINTF (LOG_DEBUG, "_graphics: TextLength() rp=0x%08lx, string='%s', count=%lu\n",
+             (ULONG)rp, string ? (char *)string : "(null)", count);
+
+    if (!rp || !string || count == 0)
+    {
+        return 0;
+    }
+
+    /* Get the font from the RastPort, or use default */
+    font = rp->Font;
+    if (!font)
+    {
+        font = get_default_font();
+    }
+
+    /* For fixed-width fonts, it's simply count * XSize */
+    width = (WORD)(count * font->tf_XSize);
+
+    return width;
 }
 
 static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
@@ -154,34 +221,231 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register ULONG count __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: Text() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct TextFont *font;
+    struct BitMap *bm;
+    WORD x, y;
+    ULONG i, row, col;
+    UBYTE fgpen, bgpen;
+    const UBYTE *glyph;
+    UBYTE drawmode;
+
+    DPRINTF (LOG_DEBUG, "_graphics: Text() rp=0x%08lx, string='%s', count=%lu\n",
+             (ULONG)rp, string ? (char *)string : "(null)", count);
+
+    if (!rp || !string || count == 0)
+    {
+        return 0;
+    }
+
+    bm = rp->BitMap;
+    if (!bm)
+    {
+        LPRINTF (LOG_ERROR, "_graphics: Text() RastPort has no BitMap\n");
+        return 0;
+    }
+
+    /* Get the font from the RastPort, or use default */
+    font = rp->Font;
+    if (!font)
+    {
+        font = get_default_font();
+    }
+
+    /* Get drawing position and colors */
+    x = rp->cp_x;
+    y = rp->cp_y - font->tf_Baseline;  /* Adjust for baseline */
+    fgpen = (UBYTE)rp->FgPen;
+    bgpen = (UBYTE)rp->BgPen;
+    drawmode = rp->DrawMode;
+
+    /* Draw each character */
+    for (i = 0; i < count; i++)
+    {
+        UBYTE ch = (UBYTE)string[i];
+        glyph = topaz8_get_glyph(ch);
+
+        /* Draw the character glyph */
+        for (row = 0; row < (ULONG)font->tf_YSize; row++)
+        {
+            UBYTE bits = glyph[row];
+            WORD py = y + (WORD)row;
+
+            /* Skip if row is outside bitmap */
+            if (py < 0 || py >= (WORD)bm->Rows)
+                continue;
+
+            for (col = 0; col < (ULONG)font->tf_XSize; col++)
+            {
+                WORD px = x + (WORD)col;
+                BOOL pixel_set = (bits & (0x80 >> col)) != 0;
+
+                /* Skip if column is outside bitmap */
+                if (px < 0 || px >= (WORD)(bm->BytesPerRow * 8))
+                    continue;
+
+                /* Determine what to draw based on draw mode */
+                if (drawmode == JAM1)
+                {
+                    /* JAM1: Only draw foreground pixels */
+                    if (pixel_set)
+                    {
+                        /* Set pixel to FgPen */
+                        WORD byte_idx = px / 8;
+                        UBYTE bit_mask = (UBYTE)(0x80 >> (px % 8));
+                        ULONG plane;
+
+                        for (plane = 0; plane < (ULONG)bm->Depth; plane++)
+                        {
+                            UBYTE *plane_ptr = bm->Planes[plane] + py * bm->BytesPerRow + byte_idx;
+                            if (fgpen & (1 << plane))
+                                *plane_ptr |= bit_mask;
+                            else
+                                *plane_ptr &= ~bit_mask;
+                        }
+                    }
+                }
+                else if (drawmode == JAM2)
+                {
+                    /* JAM2: Draw both foreground and background */
+                    WORD byte_idx = px / 8;
+                    UBYTE bit_mask = (UBYTE)(0x80 >> (px % 8));
+                    UBYTE pen = pixel_set ? fgpen : bgpen;
+                    ULONG plane;
+
+                    for (plane = 0; plane < (ULONG)bm->Depth; plane++)
+                    {
+                        UBYTE *plane_ptr = bm->Planes[plane] + py * bm->BytesPerRow + byte_idx;
+                        if (pen & (1 << plane))
+                            *plane_ptr |= bit_mask;
+                        else
+                            *plane_ptr &= ~bit_mask;
+                    }
+                }
+                else if (drawmode == COMPLEMENT)
+                {
+                    /* COMPLEMENT: XOR with existing pixels */
+                    if (pixel_set)
+                    {
+                        WORD byte_idx = px / 8;
+                        UBYTE bit_mask = (UBYTE)(0x80 >> (px % 8));
+                        ULONG plane;
+
+                        for (plane = 0; plane < (ULONG)bm->Depth; plane++)
+                        {
+                            UBYTE *plane_ptr = bm->Planes[plane] + py * bm->BytesPerRow + byte_idx;
+                            *plane_ptr ^= bit_mask;
+                        }
+                    }
+                }
+            }
+        }
+
+        /* Advance position */
+        x += (WORD)font->tf_XSize;
+    }
+
+    /* Update RastPort cursor position */
+    rp->cp_x = x;
+
+    return (LONG)count;
 }
 
 static LONG _graphics_SetFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST struct TextFont * textFont __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetFont() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_graphics: SetFont() rp=0x%08lx, font=0x%08lx\n",
+             (ULONG)rp, (ULONG)textFont);
+
+    if (!rp)
+    {
+        return 0;
+    }
+
+    /* Allow NULL to reset to default font */
+    if (!textFont)
+    {
+        textFont = get_default_font();
+    }
+
+    rp->Font = (struct TextFont *)textFont;
+    
+    /* Update TxHeight and TxBaseline from the font */
+    rp->TxHeight = textFont->tf_YSize;
+    rp->TxBaseline = textFont->tf_Baseline;
+
+    return 1;  /* Success */
 }
 
 static struct TextFont * _graphics_OpenFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextAttr * textAttr __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: OpenFont() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct TextFont *font;
 
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_graphics: OpenFont() textAttr=0x%08lx\n", (ULONG)textAttr);
+
+    font = get_default_font();
+
+    if (!textAttr)
+    {
+        /* No attr specified, return default font */
+        font->tf_Accessors++;
+        return font;
+    }
+
+    DPRINTF (LOG_DEBUG, "_graphics: OpenFont() name='%s', size=%d\n",
+             textAttr->ta_Name ? (char *)textAttr->ta_Name : "(null)",
+             (int)textAttr->ta_YSize);
+
+    /* Check if this is a request for topaz */
+    if (textAttr->ta_Name)
+    {
+        /* Accept "topaz.font" or "topaz" with size 8 */
+        const char *name = (const char *)textAttr->ta_Name;
+        BOOL is_topaz = FALSE;
+
+        /* Simple string comparison */
+        if ((name[0] == 't' || name[0] == 'T') &&
+            (name[1] == 'o' || name[1] == 'O') &&
+            (name[2] == 'p' || name[2] == 'P') &&
+            (name[3] == 'a' || name[3] == 'A') &&
+            (name[4] == 'z' || name[4] == 'Z'))
+        {
+            is_topaz = TRUE;
+        }
+
+        if (is_topaz && (textAttr->ta_YSize == 0 || textAttr->ta_YSize == 8))
+        {
+            font->tf_Accessors++;
+            return font;
+        }
+    }
+
+    /* For any other font, just return the built-in topaz for now */
+    /* A full implementation would search diskfont.library */
+    DPRINTF (LOG_WARNING, "_graphics: OpenFont() font not found, using built-in topaz\n");
+    font->tf_Accessors++;
+    return font;
 }
 
 static VOID _graphics_CloseFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * textFont __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: CloseFont() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: CloseFont() font=0x%08lx\n", (ULONG)textFont);
+
+    if (!textFont)
+    {
+        return;
+    }
+
+    /* Decrease reference count */
+    if (textFont->tf_Accessors > 0)
+    {
+        textFont->tf_Accessors--;
+    }
+
+    /* For our built-in font, we never actually free it */
+    /* A full implementation would free dynamically loaded fonts when refcount hits 0 */
 }
 
 static ULONG _graphics_AskSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),

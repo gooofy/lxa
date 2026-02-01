@@ -2,13 +2,18 @@
  * display.c - Host display subsystem using SDL2
  *
  * Phase 13: Graphics Foundation
+ * Phase 15: Rootless Windowing Support
  *
  * This module provides the host-side display rendering for lxa.
  * It creates SDL2 windows and handles the conversion from Amiga
  * planar bitmap format to SDL surfaces.
+ *
+ * In rootless mode (Phase 15), each Amiga window gets its own SDL window,
+ * allowing integration with the host desktop window manager.
  */
 
 #include "display.h"
+#include "config.h"
 #include "util.h"
 
 #include <stdlib.h>
@@ -38,6 +43,35 @@ struct display_t
     bool          dirty;        /* Needs refresh */
 };
 
+/*
+ * Phase 15: Rootless window structure
+ * Each Amiga window gets its own SDL window in rootless mode.
+ */
+#define MAX_ROOTLESS_WINDOWS 64
+
+struct display_window_t
+{
+#if HAS_SDL2
+    SDL_Window   *window;
+    SDL_Renderer *renderer;
+    SDL_Texture  *texture;
+    uint32_t      sdl_window_id;  /* For event routing */
+#endif
+    display_t    *screen;         /* Parent screen (for palette) */
+    int           x, y;           /* Position on host desktop */
+    int           width;
+    int           height;
+    int           depth;
+    uint8_t      *pixels;         /* Chunky pixel buffer */
+    uint32_t      palette[DISPLAY_MAX_COLORS];  /* Local palette if no screen */
+    bool          dirty;
+    bool          in_use;         /* Slot is active */
+};
+
+/* Rootless window tracking */
+static display_window_t g_windows[MAX_ROOTLESS_WINDOWS];
+static bool g_rootless_mode = false;
+
 /* Global state */
 static bool g_display_initialized = false;
 static bool g_sdl_available = false;
@@ -52,6 +86,16 @@ bool display_init(void)
     {
         return true;
     }
+
+    /* Load rootless mode setting from config */
+    g_rootless_mode = config_get_rootless_mode();
+    if (g_rootless_mode)
+    {
+        LPRINTF(LOG_INFO, "display: Rootless mode enabled\n");
+    }
+
+    /* Initialize rootless window slots */
+    memset(g_windows, 0, sizeof(g_windows));
 
 #if HAS_SDL2
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
@@ -791,4 +835,534 @@ bool display_poll_events(void)
 void display_set_active(display_t *display)
 {
     g_active_display = display;
+}
+
+/*
+ * ============================================================================
+ * Phase 15: Rootless Windowing Implementation
+ * ============================================================================
+ */
+
+/*
+ * Check if rootless mode is enabled.
+ */
+bool display_get_rootless_mode(void)
+{
+    return g_rootless_mode;
+}
+
+/*
+ * Find a free window slot.
+ */
+static display_window_t *find_free_window_slot(void)
+{
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (!g_windows[i].in_use)
+        {
+            return &g_windows[i];
+        }
+    }
+    return NULL;
+}
+
+/*
+ * Open a rootless window.
+ */
+display_window_t *display_window_open(display_t *screen, int x, int y,
+                                       int width, int height, int depth,
+                                       const char *title)
+{
+    display_window_t *win;
+
+    if (!g_display_initialized)
+    {
+        LPRINTF(LOG_ERROR, "display: display_window_open called before display_init\n");
+        return NULL;
+    }
+
+    if (width <= 0 || width > DISPLAY_MAX_WIDTH ||
+        height <= 0 || height > DISPLAY_MAX_HEIGHT ||
+        depth <= 0 || depth > DISPLAY_MAX_DEPTH)
+    {
+        LPRINTF(LOG_ERROR, "display: invalid window dimensions %dx%dx%d\n",
+                width, height, depth);
+        return NULL;
+    }
+
+    win = find_free_window_slot();
+    if (!win)
+    {
+        LPRINTF(LOG_ERROR, "display: no free window slots (max %d)\n",
+                MAX_ROOTLESS_WINDOWS);
+        return NULL;
+    }
+
+    memset(win, 0, sizeof(*win));
+    win->screen = screen;
+    win->x = x;
+    win->y = y;
+    win->width = width;
+    win->height = height;
+    win->depth = depth;
+    win->in_use = true;
+
+    /* Allocate pixel buffer */
+    win->pixels = calloc(width * height, sizeof(uint8_t));
+    if (!win->pixels)
+    {
+        LPRINTF(LOG_ERROR, "display: out of memory for window pixel buffer\n");
+        win->in_use = false;
+        return NULL;
+    }
+
+    /* Copy palette from screen or initialize default */
+    if (screen)
+    {
+        memcpy(win->palette, screen->palette, sizeof(win->palette));
+    }
+    else
+    {
+        /* Initialize default grayscale palette */
+        for (int i = 0; i < DISPLAY_MAX_COLORS; i++)
+        {
+            uint8_t gray = (i * 255) / (DISPLAY_MAX_COLORS - 1);
+            win->palette[i] = 0xFF000000 | (gray << 16) | (gray << 8) | gray;
+        }
+        /* Set Amiga-style defaults */
+        if (depth <= 4)
+        {
+            win->palette[0] = 0xFF9999BB;  /* Background */
+            win->palette[1] = 0xFF000000;  /* Black */
+            win->palette[2] = 0xFFFFFFFF;  /* White */
+            win->palette[3] = 0xFF0055AA;  /* Blue */
+        }
+    }
+
+#if HAS_SDL2
+    if (g_sdl_available)
+    {
+        const char *window_title = title ? title : "LXA Window";
+
+        win->window = SDL_CreateWindow(
+            window_title,
+            (x >= 0) ? x : SDL_WINDOWPOS_CENTERED,
+            (y >= 0) ? y : SDL_WINDOWPOS_CENTERED,
+            width, height,
+            SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
+        );
+
+        if (!win->window)
+        {
+            LPRINTF(LOG_ERROR, "display: SDL_CreateWindow failed: %s\n",
+                    SDL_GetError());
+            free(win->pixels);
+            win->in_use = false;
+            return NULL;
+        }
+
+        win->sdl_window_id = SDL_GetWindowID(win->window);
+
+        win->renderer = SDL_CreateRenderer(
+            win->window, -1,
+            SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
+        );
+
+        if (!win->renderer)
+        {
+            /* Fall back to software renderer */
+            win->renderer = SDL_CreateRenderer(win->window, -1, 0);
+        }
+
+        if (!win->renderer)
+        {
+            LPRINTF(LOG_ERROR, "display: SDL_CreateRenderer failed: %s\n",
+                    SDL_GetError());
+            SDL_DestroyWindow(win->window);
+            free(win->pixels);
+            win->in_use = false;
+            return NULL;
+        }
+
+        /* Create streaming texture for pixel updates */
+        win->texture = SDL_CreateTexture(
+            win->renderer,
+            SDL_PIXELFORMAT_ARGB8888,
+            SDL_TEXTUREACCESS_STREAMING,
+            width, height
+        );
+
+        if (!win->texture)
+        {
+            LPRINTF(LOG_ERROR, "display: SDL_CreateTexture failed: %s\n",
+                    SDL_GetError());
+            SDL_DestroyRenderer(win->renderer);
+            SDL_DestroyWindow(win->window);
+            free(win->pixels);
+            win->in_use = false;
+            return NULL;
+        }
+
+        /* Set logical size for proper scaling */
+        SDL_RenderSetLogicalSize(win->renderer, width, height);
+
+        LPRINTF(LOG_INFO, "display: opened rootless window %dx%d '%s' (SDL ID %u)\n",
+                width, height, window_title, win->sdl_window_id);
+    }
+    else
+    {
+        LPRINTF(LOG_INFO, "display: opened virtual window %dx%d (no SDL2)\n",
+                width, height);
+    }
+#else
+    LPRINTF(LOG_INFO, "display: opened virtual window %dx%d (no SDL2)\n",
+            width, height);
+#endif
+
+    win->dirty = true;
+    return win;
+}
+
+/*
+ * Close a rootless window.
+ */
+void display_window_close(display_window_t *window)
+{
+    if (!window || !window->in_use)
+    {
+        return;
+    }
+
+#if HAS_SDL2
+    if (g_sdl_available)
+    {
+        if (window->texture)
+        {
+            SDL_DestroyTexture(window->texture);
+        }
+        if (window->renderer)
+        {
+            SDL_DestroyRenderer(window->renderer);
+        }
+        if (window->window)
+        {
+            SDL_DestroyWindow(window->window);
+        }
+    }
+#endif
+
+    free(window->pixels);
+    memset(window, 0, sizeof(*window));
+    /* in_use is already false from memset */
+}
+
+/*
+ * Move a rootless window.
+ */
+bool display_window_move(display_window_t *window, int x, int y)
+{
+    if (!window || !window->in_use)
+    {
+        return false;
+    }
+
+    window->x = x;
+    window->y = y;
+
+#if HAS_SDL2
+    if (g_sdl_available && window->window)
+    {
+        SDL_SetWindowPosition(window->window, x, y);
+    }
+#endif
+
+    return true;
+}
+
+/*
+ * Resize a rootless window.
+ */
+bool display_window_size(display_window_t *window, int width, int height)
+{
+    if (!window || !window->in_use)
+    {
+        return false;
+    }
+
+    if (width <= 0 || width > DISPLAY_MAX_WIDTH ||
+        height <= 0 || height > DISPLAY_MAX_HEIGHT)
+    {
+        return false;
+    }
+
+    /* Reallocate pixel buffer if size changed */
+    if (width != window->width || height != window->height)
+    {
+        uint8_t *new_pixels = calloc(width * height, sizeof(uint8_t));
+        if (!new_pixels)
+        {
+            LPRINTF(LOG_ERROR, "display: out of memory for resized window\n");
+            return false;
+        }
+
+        /* Copy old pixels (as much as fits) */
+        int copy_w = (width < window->width) ? width : window->width;
+        int copy_h = (height < window->height) ? height : window->height;
+        for (int row = 0; row < copy_h; row++)
+        {
+            memcpy(new_pixels + row * width,
+                   window->pixels + row * window->width,
+                   copy_w);
+        }
+
+        free(window->pixels);
+        window->pixels = new_pixels;
+        window->width = width;
+        window->height = height;
+
+#if HAS_SDL2
+        if (g_sdl_available && window->window)
+        {
+            SDL_SetWindowSize(window->window, width, height);
+
+            /* Recreate texture at new size */
+            if (window->texture)
+            {
+                SDL_DestroyTexture(window->texture);
+            }
+            window->texture = SDL_CreateTexture(
+                window->renderer,
+                SDL_PIXELFORMAT_ARGB8888,
+                SDL_TEXTUREACCESS_STREAMING,
+                width, height
+            );
+            SDL_RenderSetLogicalSize(window->renderer, width, height);
+        }
+#endif
+    }
+
+    window->dirty = true;
+    return true;
+}
+
+/*
+ * Bring a rootless window to front.
+ */
+bool display_window_to_front(display_window_t *window)
+{
+    if (!window || !window->in_use)
+    {
+        return false;
+    }
+
+#if HAS_SDL2
+    if (g_sdl_available && window->window)
+    {
+        SDL_RaiseWindow(window->window);
+    }
+#endif
+
+    return true;
+}
+
+/*
+ * Send a rootless window to back.
+ */
+bool display_window_to_back(display_window_t *window)
+{
+    if (!window || !window->in_use)
+    {
+        return false;
+    }
+
+    /* SDL doesn't have a direct "send to back" function,
+     * but we can minimize and restore, or just leave it */
+#if HAS_SDL2
+    if (g_sdl_available && window->window)
+    {
+        /* Lower the window in the stacking order */
+        /* Note: SDL2 doesn't have SDL_LowerWindow, so this is a no-op
+         * for now. In practice, clicking another window achieves this. */
+    }
+#endif
+
+    return true;
+}
+
+/*
+ * Set a rootless window title.
+ */
+bool display_window_set_title(display_window_t *window, const char *title)
+{
+    if (!window || !window->in_use)
+    {
+        return false;
+    }
+
+#if HAS_SDL2
+    if (g_sdl_available && window->window)
+    {
+        SDL_SetWindowTitle(window->window, title ? title : "LXA Window");
+    }
+#endif
+
+    return true;
+}
+
+/*
+ * Refresh a rootless window.
+ */
+void display_window_refresh(display_window_t *window)
+{
+    if (!window || !window->in_use)
+    {
+        return;
+    }
+
+#if HAS_SDL2
+    if (g_sdl_available && window->texture)
+    {
+        uint32_t *tex_pixels;
+        int tex_pitch;
+        const uint32_t *palette;
+
+        /* Use screen palette if available, otherwise local */
+        if (window->screen)
+        {
+            palette = window->screen->palette;
+        }
+        else
+        {
+            palette = window->palette;
+        }
+
+        if (SDL_LockTexture(window->texture, NULL, (void **)&tex_pixels, &tex_pitch) == 0)
+        {
+            /* Convert indexed pixels to ARGB using palette */
+            for (int y = 0; y < window->height; y++)
+            {
+                uint32_t *dst = (uint32_t *)((uint8_t *)tex_pixels + y * tex_pitch);
+                uint8_t *src = window->pixels + y * window->width;
+
+                for (int x = 0; x < window->width; x++)
+                {
+                    dst[x] = palette[src[x]];
+                }
+            }
+
+            SDL_UnlockTexture(window->texture);
+        }
+
+        SDL_RenderClear(window->renderer);
+        SDL_RenderCopy(window->renderer, window->texture, NULL, NULL);
+        SDL_RenderPresent(window->renderer);
+    }
+#endif
+
+    window->dirty = false;
+}
+
+/*
+ * Update rootless window from planar bitmap data.
+ */
+void display_window_update_planar(display_window_t *window, int x, int y,
+                                   int width, int height,
+                                   const uint8_t **planes, int bytes_per_row, int depth)
+{
+    if (!window || !window->in_use || !planes ||
+        x < 0 || y < 0 || width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    /* Clamp to window bounds */
+    if (x + width > window->width)
+    {
+        width = window->width - x;
+    }
+    if (y + height > window->height)
+    {
+        height = window->height - y;
+    }
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
+    /* Convert planar to chunky */
+    for (int row = 0; row < height; row++)
+    {
+        uint8_t *dst = window->pixels + (y + row) * window->width + x;
+        int src_row_offset = row * bytes_per_row;
+
+        for (int col = 0; col < width; col++)
+        {
+            int byte_idx = col / 8;
+            int bit_idx = 7 - (col % 8);  /* Amiga: MSB is leftmost pixel */
+            uint8_t pixel = 0;
+
+            /* Combine bits from all planes */
+            for (int plane = 0; plane < depth && plane < 8; plane++)
+            {
+                if (planes[plane])
+                {
+                    uint8_t plane_byte = planes[plane][src_row_offset + byte_idx];
+                    if (plane_byte & (1 << bit_idx))
+                    {
+                        pixel |= (1 << plane);
+                    }
+                }
+            }
+            dst[col] = pixel;
+        }
+    }
+
+    window->dirty = true;
+}
+
+/*
+ * Get the screen associated with a rootless window.
+ */
+display_t *display_window_get_screen(display_window_t *window)
+{
+    if (!window || !window->in_use)
+    {
+        return NULL;
+    }
+    return window->screen;
+}
+
+/*
+ * Look up a window by its SDL window ID.
+ */
+display_window_t *display_window_from_sdl_id(uint32_t sdl_window_id)
+{
+#if HAS_SDL2
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (g_windows[i].in_use && g_windows[i].sdl_window_id == sdl_window_id)
+        {
+            return &g_windows[i];
+        }
+    }
+#else
+    (void)sdl_window_id;
+#endif
+    return NULL;
+}
+
+/*
+ * Get the SDL window ID for a display window.
+ */
+uint32_t display_window_get_sdl_id(display_window_t *window)
+{
+    if (!window || !window->in_use)
+    {
+        return 0;
+    }
+#if HAS_SDL2
+    return window->sdl_window_id;
+#else
+    return 0;
+#endif
 }

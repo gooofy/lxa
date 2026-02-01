@@ -3539,6 +3539,209 @@ int op_illg(int level)
             break;
         }
 
+        /*
+         * Rootless windowing emucalls (Phase 15)
+         */
+
+        case EMU_CALL_INT_OPEN_WINDOW:
+        {
+            /* d1: screen_handle, d2: (x << 16) | y, d3: (w << 16) | h, d4: title_ptr */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
+            display_t *screen = (display_t *)(uintptr_t)d1;
+            int x = (int16_t)((d2 >> 16) & 0xFFFF);
+            int y = (int16_t)(d2 & 0xFFFF);
+            int w = (d3 >> 16) & 0xFFFF;
+            int h = d3 & 0xFFFF;
+            uint32_t title_ptr = d4;
+
+            char title[128] = "LXA Window";
+            if (title_ptr != 0)
+            {
+                int i;
+                for (i = 0; i < 127; i++)
+                {
+                    char c = (char)m68k_read_memory_8(title_ptr + i);
+                    if (c == 0)
+                        break;
+                    title[i] = c;
+                }
+                title[i] = 0;
+            }
+
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_OPEN_WINDOW x=%d, y=%d, w=%d, h=%d '%s'\n",
+                    x, y, w, h, title);
+
+            /* Get depth from screen if available */
+            int depth = 2;  /* Default */
+            if (screen)
+            {
+                int sw, sh, sd;
+                display_get_size(screen, &sw, &sh, &sd);
+                depth = sd;
+            }
+
+            display_window_t *win = display_window_open(screen, x, y, w, h, depth, title);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)(uintptr_t)win);
+            break;
+        }
+
+        case EMU_CALL_INT_CLOSE_WINDOW:
+        {
+            /* d1: window_handle */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_CLOSE_WINDOW handle=0x%08x\n", d1);
+
+            if (win)
+            {
+                display_window_close(win);
+            }
+            m68k_set_reg(M68K_REG_D0, 1);  /* Success */
+            break;
+        }
+
+        case EMU_CALL_INT_MOVE_WINDOW:
+        {
+            /* d1: window_handle, d2: (x << 16) | y */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            int x = (int16_t)((d2 >> 16) & 0xFFFF);
+            int y = (int16_t)(d2 & 0xFFFF);
+
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_MOVE_WINDOW handle=0x%08x, x=%d, y=%d\n",
+                    d1, x, y);
+
+            bool success = display_window_move(win, x, y);
+            m68k_set_reg(M68K_REG_D0, success ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_INT_SIZE_WINDOW:
+        {
+            /* d1: window_handle, d2: (w << 16) | h */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            int w = (d2 >> 16) & 0xFFFF;
+            int h = d2 & 0xFFFF;
+
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_SIZE_WINDOW handle=0x%08x, w=%d, h=%d\n",
+                    d1, w, h);
+
+            bool success = display_window_size(win, w, h);
+            m68k_set_reg(M68K_REG_D0, success ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_INT_WINDOW_TOFRONT:
+        {
+            /* d1: window_handle */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_WINDOW_TOFRONT handle=0x%08x\n", d1);
+
+            bool success = display_window_to_front(win);
+            m68k_set_reg(M68K_REG_D0, success ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_INT_WINDOW_TOBACK:
+        {
+            /* d1: window_handle */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_WINDOW_TOBACK handle=0x%08x\n", d1);
+
+            bool success = display_window_to_back(win);
+            m68k_set_reg(M68K_REG_D0, success ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_INT_SET_TITLE:
+        {
+            /* d1: window_handle, d2: title_ptr */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            uint32_t title_ptr = d2;
+
+            char title[128] = "";
+            if (title_ptr != 0)
+            {
+                int i;
+                for (i = 0; i < 127; i++)
+                {
+                    char c = (char)m68k_read_memory_8(title_ptr + i);
+                    if (c == 0)
+                        break;
+                    title[i] = c;
+                }
+                title[i] = 0;
+            }
+
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_SET_TITLE handle=0x%08x, title='%s'\n",
+                    d1, title);
+
+            bool success = display_window_set_title(win, title);
+            m68k_set_reg(M68K_REG_D0, success ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_INT_REFRESH_WINDOW:
+        {
+            /* d1: window_handle, d2: planes_ptr, d3: (bpr << 16) | depth */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+            uint32_t planes_ptr = d2;
+            uint32_t bpr = (d3 >> 16) & 0xFFFF;
+            uint32_t depth = d3 & 0xFFFF;
+
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_REFRESH_WINDOW handle=0x%08x, planes=0x%08x, bpr=%d, depth=%d\n",
+                    d1, planes_ptr, bpr, depth);
+
+            if (win && planes_ptr)
+            {
+                /* Read plane pointers from m68k memory */
+                const uint8_t *planes[8] = {0};
+                for (uint32_t i = 0; i < depth && i < 8; i++)
+                {
+                    uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
+                    if (plane_addr)
+                    {
+                        planes[i] = (const uint8_t *)&g_ram[plane_addr];
+                    }
+                }
+
+                /* Get window size - we need to figure out the dimensions somehow */
+                /* For now, use bpr * 8 as width estimate and read from window */
+                int w = bpr * 8;
+                int h = 200;  /* Default, ideally this would come from the window struct */
+
+                display_window_update_planar(win, 0, 0, w, h, planes, bpr, depth);
+                display_window_refresh(win);
+            }
+
+            m68k_set_reg(M68K_REG_D0, 1);  /* Success */
+            break;
+        }
+
+        case EMU_CALL_INT_GET_ROOTLESS:
+        {
+            /* Returns true if rootless mode is enabled */
+            bool rootless = display_get_rootless_mode();
+            m68k_set_reg(M68K_REG_D0, rootless ? 1 : 0);
+            break;
+        }
+
         default:
         {
             /*

@@ -8,6 +8,7 @@
 
 static char *g_rom_path = NULL;
 static int g_ram_size = 10 * 1024 * 1024;
+static bool g_rootless_mode = false;  /* Phase 15: Rootless windowing mode */
 
 static char *trim(char *str) {
     char *end;
@@ -51,6 +52,10 @@ bool config_load(const char *path) {
                 }
             } else if (strcmp(section, "drives") == 0 || strcmp(section, "floppies") == 0) {
                 vfs_add_drive(key, val);
+            } else if (strcmp(section, "display") == 0) {
+                if (strcmp(key, "rootless_mode") == 0) {
+                    g_rootless_mode = (strcmp(val, "true") == 0 || strcmp(val, "1") == 0);
+                }
             }
         }
     }
@@ -65,4 +70,8 @@ const char *config_get_rom_path(void) {
 
 int config_get_ram_size(void) {
     return g_ram_size;
+}
+
+bool config_get_rootless_mode(void) {
+    return g_rootless_mode;
 }
