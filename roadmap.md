@@ -236,71 +236,77 @@ See `doc/graphics_testing.md` for detailed test specifications.
 
 ---
 
-## Phase 18: Quality & Stability Hardening
+## Phase 18: App-DB & KickPascal 2 Testing
 
-**Goal**: Ensure production-grade reliability.
+**Goal**: Establish the infrastructure for running real Amiga applications, using KickPascal 2 as the first target.
 
-### Step 18.1: Memory Debugging
-- [ ] Memory tracking, leak detection, double-free detection, buffer overflow guards
+### Step 18.1: KickPascal 2 Analysis & Environment
+- [ ] **Dependency Analysis** - Identify required libraries, devices, and assigns for `KP` executable.
+- [ ] **Assign Setup** - Configure `KP2:`, `LIBS:`, `DEVS:`, `FONTS:`, `S:`, `T:` to point to the KickPascal 2 directory structure.
+- [ ] **Startup Script** - Create a `KP2-Startup` script to automate the environment setup.
 
-### Step 18.2: Stress Testing
-- [ ] 24-hour continuous operation, 10,000 file operations, 100 concurrent processes
+### Step 18.2: Initial Execution & Library Stubs
+- [ ] **Execution Trace** - Attempt to run `KP` and identify missing system calls or libraries (e.g., `mathieeedoub`, `diskfont`).
+- [ ] **Library Loading** - Ensure `lxa` can load and use the m68k libraries provided in the `KP2/libs` directory.
+- [ ] **Stubbing** - Implement necessary stubs for `diskfont.library`, `icon.library`, and `translator.library` if they block startup.
 
-### Step 18.3: Compatibility Testing
-- [ ] Test with common Amiga software, document issues, create compatibility database
+### Step 18.3: GUI & Resource Loading
+- [ ] **Resource Access** - Verify `KP` can load its configuration (`Pascal.config`) and UI resources.
+- [ ] **Intuition Support** - Ensure `OpenWindow` and `OpenScreen` parameters from `KP` are fully supported.
+- [ ] **Window Target** - Achieve successful display of the KickPascal 2 main IDE window.
 
-### Step 18.4: Performance Optimization
-- [ ] Profile critical paths, optimize VFS, memory allocation, emucall overhead
-
----
-
----
-
-## Phase 19: App-DB & Compatibility Infrastructure
-
-**Goal**: Establish the infrastructure for running and testing real Amiga applications.
-
-### Step 19.1: App-DB Infrastructure
+### Step 18.4: App-DB Infrastructure
 - [ ] **Test Runner** - Implement `tests/run_apps.py` to execute applications from `../lxa-apps/`.
 - [ ] **Manifest Parser** - Support `app.json` for environment setup (assigns, libraries).
-- [ ] **Exclusion** - Update `.gitignore` to protect against accidental copyright commits.
 
-### Step 19.2: Font System Basics
-- [ ] **diskfont.library** - Initial implementation for font loading.
-- [ ] **FONTS: Assign** - Automatic provisioning of font directories.
-- [ ] **Topaz Bundling** - Ensure a high-quality Topaz-8/9 replacement is available.
+---
 
-### Step 19.3: Preferences & Environment
-- [ ] **ENVARC: Persistence** - Map `ENVARC:` to `~/.lxa/Prefs/Env` with persistence.
-- [ ] **Locale Basics** - `locale.library` stubs for system defaults.
-
-## Phase 20: Standard Library Expansion
+## Phase 19: Standard Library Expansion
 
 **Goal**: Implement the "Big Three" libraries required by most Amiga GUI software.
 
-### Step 20.1: Layers & Clipping
+### Step 19.1: Layers & Clipping
 - [ ] **layers.library** - Full implementation of window clipping and refresh handling.
 - [ ] **Window Invalidation** - Handle damage regions and `BeginRefresh`/`EndRefresh`.
 
-### Step 20.2: GadTools & ASL
+### Step 19.2: GadTools & ASL
 - [ ] **gadtools.library** - Standard UI widgets (buttons, sliders, lists).
 - [ ] **asl.library** - File and Font requesters (bridged to host or native).
 
-### Step 20.3: BOOPSI Foundation
+### Step 19.3: BOOPSI Foundation
 - [ ] **Intuition Classes** - `imageclass`, `gadgetclass`, `rootclass`.
 - [ ] **NewObject / DisposeObject** - Object lifecycle management.
 
-## Phase 21: Real-World Application Targets
+---
 
-**Goal**: Achieve "Wine-level" compatibility for specific high-value targets.
+## Phase 20: Font System & Preferences
 
-### Step 21.1: Target - KickPascal
-- [ ] Verify `dos.library` semantics for complex compiler file access.
-- [ ] Implement any missing `utility.library` or `math` functions discovered.
+**Goal**: Improve visual fidelity and system configuration.
 
-### Step 21.2: Target - Productivity Tools
-- [ ] Run early word processors or spreadsheet tools.
-- [ ] Fine-tune `timer.device` and `input.device` for smooth interaction.
+### Step 20.1: Font System
+- [ ] **diskfont.library** - Full implementation for font loading.
+- [ ] **FONTS: Assign** - Automatic provisioning of font directories.
+- [ ] **Topaz Bundling** - Ensure a high-quality Topaz-8/9 replacement is available.
+
+### Step 20.2: Preferences & Environment
+- [ ] **ENVARC: Persistence** - Map `ENVARC:` to `~/.lxa/Prefs/Env` with persistence.
+- [ ] **Locale Basics** - `locale.library` stubs for system defaults.
+
+---
+
+## Phase 21: Quality & Stability Hardening
+
+**Goal**: Ensure production-grade reliability.
+
+### Step 21.1: Memory Debugging
+- [ ] Memory tracking, leak detection, double-free detection, buffer overflow guards
+- [ ] **Stress Testing** - 24-hour continuous operation, 10,000 file operations.
+
+### Step 21.2: Compatibility Testing
+- [ ] Test with common Amiga software, document issues, create compatibility database.
+
+### Step 21.3: Performance Optimization
+- [ ] Profile critical paths, optimize VFS, memory allocation, emucall overhead.
 
 ## Known Limitations & Future Work
 
