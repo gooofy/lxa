@@ -2917,6 +2917,7 @@ int op_illg(int level)
 
         case EMU_CALL_LOADED:
         {
+            /* Handle pending breakpoints */
             for (pending_bp_t *pbp = _g_pending_bps; pbp; pbp=pbp->next)
             {
                 uint32_t addr = _debug_parse_addr (pbp->name);
@@ -2928,6 +2929,55 @@ int op_illg(int level)
                 DPRINTF (LOG_DEBUG, "lxa: op_illg(): EMU_CALL_LOADED pbp '%s' -> addr=0x%08lx\n", pbp->name, addr);
                 _debug_add_bp (addr);
             }
+            
+            /*
+             * Set up program-local assigns: Add the program's subdirectories to
+             * standard assigns so programs can find their local config files.
+             * This simulates what users typically did on real Amigas via startup
+             * scripts: "Assign S: PROGDIR:S ADD"
+             */
+            {
+                char progdir[PATH_MAX];
+                char subdir[PATH_MAX];
+                struct stat st;
+                
+                /* Extract the directory containing the loaded program */
+                strncpy(progdir, g_loadfile, sizeof(progdir) - 1);
+                progdir[sizeof(progdir) - 1] = '\0';
+                
+                char *last_slash = strrchr(progdir, '/');
+                if (last_slash && last_slash != progdir) {
+                    *last_slash = '\0';
+                    
+                    /* Standard Amiga directories to add to assigns */
+                    struct {
+                        const char *dir;
+                        const char *assign;
+                    } subdirs[] = {
+                        {"s", "S"},
+                        {"S", "S"},
+                        {"libs", "LIBS"},
+                        {"Libs", "LIBS"},
+                        {"c", "C"},
+                        {"C", "C"},
+                        {"devs", "DEVS"},
+                        {"Devs", "DEVS"},
+                        {"l", "L"},
+                        {"L", "L"},
+                        {NULL, NULL}
+                    };
+                    
+                    for (int i = 0; subdirs[i].dir; i++) {
+                        snprintf(subdir, sizeof(subdir), "%s/%s", progdir, subdirs[i].dir);
+                        if (stat(subdir, &st) == 0 && S_ISDIR(st.st_mode)) {
+                            /* Prepend this path to the assign (so it's searched first) */
+                            vfs_assign_prepend_path(subdirs[i].assign, subdir);
+                            DPRINTF(LOG_DEBUG, "lxa: Added %s to %s: assign\n", subdir, subdirs[i].assign);
+                        }
+                    }
+                }
+            }
+            
             break;
         }
 

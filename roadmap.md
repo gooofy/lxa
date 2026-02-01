@@ -293,14 +293,22 @@ Key implementations:
 
 **Goal**: Address blocking issues preventing KickPascal 2 from running correctly.
 
-### Step 20.1: Window Size & Screen Resolution (IN PROGRESS)
-**Problem**: KickPascal 2 seems to request a 252x352 window, but Workbench screen is only 640x256, this seems very suspicious. On a real Amiga KickPascal 2 opens
-a window on a PAL workbench properly filling the screen so we need to investigate why this is not working in lxa.
+### Step 20.1: Window Size & Screen Resolution (COMPLETE)
+**Problem**: KickPascal 2 opened a 252x350 window instead of filling the 640x256 Workbench screen.
 
-* is there an issue with data structures or intuition library function signatures / registers (we had mixups in the past, check/veryif **all** of those agains SDK / autodocs)
-* PrintIText and DrawImage still draw at wrong (sometimes negative!) coordinates - once the window size has been debugged and fixed, if this issue still persists this also needs further investigation. Compare to AROS reference implementation and RKRM for reference.
+**Root Causes Found**:
+1. **Config file not found**: KP2 tried to open `S:Pascal.config` but S: pointed to system directory, not KP2's local `s/` directory.
+2. **WBenchToFront didn't open Workbench**: KP2 calls `WBenchToFront` (LVO -342) expecting it to open Workbench if not already open, but our implementation was a no-op stub. This caused `IntuitionBase->FirstScreen` to be NULL when KP2 tried to read screen dimensions.
 
-### Step 20.2: Console Device Window Attachment (NOT STARTED)
+**Fixes Implemented**:
+- [x] **Multi-assign support in VFS** - `vfs_assign_prepend_path()` adds paths to beginning of assigns, `vfs_resolve_path()` tries all paths until finding existing file.
+- [x] **Automatic program-local assigns** - On program load, add program's `s/`, `libs/`, `c/`, `devs/`, `l/` subdirectories to standard assigns (prepended for priority).
+- [x] **Set current directory on load** - Set `pr_CurrentDir` and `pr_HomeDir` to program's directory in `_bootstrap()`.
+- [x] **Fixed WBenchToFront** - Now opens Workbench screen if not already open (matches AmigaOS behavior).
+
+**Result**: KP2 now opens with correct 640x244 window dimensions and loads config properly.
+
+### Step 20.2: Console Device Window Attachment (IN PROGRESS)
 **Problem**: KickPascal 2's console output (text, prompts) is not visible in the window. Console device currently only logs to debug output, doesn't render to Intuition windows.
 
 **Analysis**: Amiga's `console.device` supports attaching to an Intuition window via `CD_WINDOW` tag in the Open request. Console text should render using the window's RastPort with proper cursor positioning, scrolling, and ANSI/CSI support.

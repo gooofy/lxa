@@ -40,7 +40,7 @@ void  lprintf  (int level, const char *format, ...);
  */
 #define STRORNULL(s) ((s) ? (const char*)(s) : "(null)")
 
-//#define ENABLE_DEBUG
+#define ENABLE_DEBUG
 
 #ifdef ENABLE_DEBUG
 #define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)

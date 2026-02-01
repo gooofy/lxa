@@ -745,7 +745,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     UBYTE depth;
     UBYTE i;
 
-    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() newScreen=0x%08lx\n", (ULONG)newScreen);
+    LPRINTF (LOG_INFO, "_intuition: OpenScreen() newScreen=0x%08lx\n", (ULONG)newScreen);
 
     if (!newScreen)
     {
@@ -884,12 +884,35 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     WORD width, height;
     ULONG rootless_mode;
 
-    DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() newWindow=0x%08lx\n", (ULONG)newWindow);
+    LPRINTF (LOG_INFO, "_intuition: OpenWindow() newWindow=0x%08lx\n", (ULONG)newWindow);
 
     if (!newWindow)
     {
         LPRINTF (LOG_ERROR, "_intuition: OpenWindow() called with NULL newWindow\n");
         return NULL;
+    }
+
+    /* Debug dump of NewWindow structure for KP2 investigation */
+    LPRINTF (LOG_INFO, "_intuition: OpenWindow() NewWindow dump:\n");
+    U_hexdump(LOG_INFO, (void *)newWindow, 48);
+    LPRINTF (LOG_INFO, "  LeftEdge=%d TopEdge=%d Width=%d Height=%d\n",
+             (int)newWindow->LeftEdge, (int)newWindow->TopEdge,
+             (int)newWindow->Width, (int)newWindow->Height);
+    LPRINTF (LOG_INFO, "  DetailPen=%d BlockPen=%d\n",
+             (int)newWindow->DetailPen, (int)newWindow->BlockPen);
+    LPRINTF (LOG_INFO, "  IDCMPFlags=0x%08lx Flags=0x%08lx\n",
+             (ULONG)newWindow->IDCMPFlags, (ULONG)newWindow->Flags);
+    LPRINTF (LOG_INFO, "  FirstGadget=0x%08lx CheckMark=0x%08lx\n",
+             (ULONG)newWindow->FirstGadget, (ULONG)newWindow->CheckMark);
+    LPRINTF (LOG_INFO, "  Title=0x%08lx Screen=0x%08lx BitMap=0x%08lx\n",
+             (ULONG)newWindow->Title, (ULONG)newWindow->Screen, (ULONG)newWindow->BitMap);
+    LPRINTF (LOG_INFO, "  MinWidth=%d MinHeight=%d MaxWidth=%u MaxHeight=%u Type=%u\n",
+             (int)newWindow->MinWidth, (int)newWindow->MinHeight,
+             (unsigned)newWindow->MaxWidth, (unsigned)newWindow->MaxHeight,
+             (unsigned)newWindow->Type);
+    if (newWindow->Title)
+    {
+        LPRINTF (LOG_INFO, "  Title string: '%s'\n", (char *)newWindow->Title);
     }
 
     /* Get the target screen */
@@ -911,7 +934,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         /* If no Workbench screen, open one */
         if (!screen)
         {
-            DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() opening Workbench screen\n");
+            LPRINTF (LOG_INFO, "_intuition: OpenWindow() opening Workbench screen (called from OpenWindow)\n");
             if (!_intuition_OpenWorkBench(IntuitionBase))
             {
                 LPRINTF (LOG_ERROR, "_intuition: OpenWindow() failed to open Workbench screen\n");
@@ -1089,7 +1112,8 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     struct Screen *wbscreen;
     struct NewScreen ns;
     
-    DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() called.\n");
+    LPRINTF (LOG_INFO, "_intuition: OpenWorkBench() called, FirstScreen=0x%08lx\n", 
+             (ULONG)IntuitionBase->FirstScreen);
     
     /* Check if Workbench screen already exists */
     wbscreen = IntuitionBase->FirstScreen;
@@ -1119,7 +1143,24 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     
     if (wbscreen)
     {
-        DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - opened at 0x%08lx\n", (ULONG)wbscreen);
+        LPRINTF (LOG_INFO, "_intuition: OpenWorkBench() - opened at 0x%08lx, Width=%d Height=%d\n", 
+                 (ULONG)wbscreen, (int)wbscreen->Width, (int)wbscreen->Height);
+        LPRINTF (LOG_INFO, "_intuition: OpenWorkBench() FirstScreen=0x%08lx, FirstScreen->Width=%d Height=%d\n",
+                 (ULONG)IntuitionBase->FirstScreen,
+                 IntuitionBase->FirstScreen ? (int)IntuitionBase->FirstScreen->Width : -1,
+                 IntuitionBase->FirstScreen ? (int)IntuitionBase->FirstScreen->Height : -1);
+        /* Dump raw bytes at screen structure offsets 8-16 to verify layout */
+        UBYTE *p = (UBYTE *)wbscreen;
+        LPRINTF (LOG_INFO, "_intuition: Screen raw bytes at offset 8-15: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                 p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]);
+        /* Also dump IntuitionBase offsets 56-64 to check FirstScreen pointer location */
+        UBYTE *ib = (UBYTE *)IntuitionBase;
+        LPRINTF (LOG_INFO, "_intuition: IntuitionBase raw at offset 56-63: %02x %02x %02x %02x %02x %02x %02x %02x\n",
+                 ib[56], ib[57], ib[58], ib[59], ib[60], ib[61], ib[62], ib[63]);
+        
+        /* Print IntuitionBase address (what a6 should be after this call) */
+        LPRINTF (LOG_INFO, "_intuition: OpenWorkBench() returning, IntuitionBase=0x%08lx\n", (ULONG)IntuitionBase);
+        
         return (ULONG)wbscreen;
     }
     
@@ -1362,7 +1403,37 @@ BOOL _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __a
 
 BOOL _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_intuition: WBenchToFront() stub called - no-op.\n");
+    struct Screen *wbscreen;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: WBenchToFront() called.\n");
+    
+    /* First, open the Workbench screen if it doesn't exist.
+     * According to AmigaOS behavior, WBenchToFront should open the
+     * Workbench if not already open (similar to OpenWorkBench but
+     * also brings it to front).
+     */
+    wbscreen = IntuitionBase->FirstScreen;
+    while (wbscreen)
+    {
+        if (wbscreen->Flags & WBENCHSCREEN)
+            break;
+        wbscreen = wbscreen->NextScreen;
+    }
+    
+    if (!wbscreen)
+    {
+        /* Workbench not open - open it */
+        DPRINTF (LOG_DEBUG, "_intuition: WBenchToFront() - Workbench not open, opening it.\n");
+        if (!_intuition_OpenWorkBench(IntuitionBase))
+        {
+            DPRINTF (LOG_ERROR, "_intuition: WBenchToFront() - failed to open Workbench.\n");
+            return FALSE;
+        }
+    }
+    
+    /* TODO: Bring Workbench to front (screen depth ordering) */
+    /* For now, since we typically only have one screen, this is a no-op */
+    
     return TRUE;
 }
 

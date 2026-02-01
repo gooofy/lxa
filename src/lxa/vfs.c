@@ -209,6 +209,66 @@ static bool resolve_case(const char *base, const char *component, char *resolved
     return found;
 }
 
+/* Helper function to resolve a path from a given root directory.
+ * Returns true if the path exists, false otherwise.
+ * If the last component doesn't exist but the parent does, still returns true
+ * (for file creation scenarios).
+ */
+static bool resolve_path_from_root(const char *root, const char *relative_path, 
+                                    char *linux_path, size_t maxlen) {
+    char work_path[PATH_MAX];
+    strncpy(work_path, root, sizeof(work_path));
+    work_path[sizeof(work_path) - 1] = '\0';
+    
+    char *path_copy = strdup(relative_path);
+    if (!path_copy) return false;
+    
+    char *saveptr;
+    char *comp = strtok_r(path_copy, "/", &saveptr);
+    
+    bool error = false;
+    while (comp) {
+        if (strlen(comp) == 0 || strcmp(comp, ".") == 0) {
+            // skip
+        } else if (strcmp(comp, "..") == 0) {
+            char *last_slash = strrchr(work_path, '/');
+            if (last_slash && last_slash != work_path) {
+                *last_slash = '\0';
+            }
+        } else {
+            char next_step[PATH_MAX];
+            if (resolve_case(work_path, comp, next_step, sizeof(next_step))) {
+                strncpy(work_path, next_step, sizeof(work_path));
+            } else {
+                /* Component not found - check if this is the last component */
+                char *next_comp = strtok_r(NULL, "/", &saveptr);
+                if (next_comp) {
+                    /* Not the last component - intermediate directory doesn't exist */
+                    error = true;
+                    break;
+                } else {
+                    /* Last component - append it and return (might be creating file) */
+                    int n = snprintf(next_step, sizeof(next_step), "%s/%s", work_path, comp);
+                    if (n >= (int)sizeof(next_step)) {
+                        error = true;
+                        break;
+                    }
+                    strncpy(work_path, next_step, sizeof(work_path));
+                }
+                break;
+            }
+        }
+        comp = strtok_r(NULL, "/", &saveptr);
+    }
+    
+    free(path_copy);
+    if (error) return false;
+    
+    strncpy(linux_path, work_path, maxlen);
+    linux_path[maxlen - 1] = '\0';
+    return true;
+}
+
 bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
     if (!strncasecmp(amiga_path, "NIL:", 4)) {
         strncpy(linux_path, "/dev/null", maxlen);
@@ -234,10 +294,10 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
         }
     }
 
-    char work_path[PATH_MAX];
     const char *p = amiga_path;
     char *colon = strchr(amiga_path, ':');
     const char *root = NULL;
+    assign_entry_t *assign = NULL;
 
     if (colon) {
         size_t name_len = colon - amiga_path;
@@ -246,10 +306,34 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
         drive_name[name_len] = '\0';
 
         /* Phase 7: Check assigns first (they take precedence over drives) */
-        assign_entry_t *assign = find_assign(drive_name);
+        assign = find_assign(drive_name);
         if (assign && assign->paths) {
+            /*
+             * Multi-assign support: Try each path in the assign until we find
+             * a file that exists. This is important for programs that expect
+             * their local directories to be added to standard assigns.
+             */
+            p = colon + 1;
+            
+            /* For multi-assigns, try each path */
+            for (assign_path_t *ap = assign->paths; ap; ap = ap->next) {
+                char candidate[PATH_MAX];
+                if (resolve_path_from_root(ap->linux_path, p, candidate, sizeof(candidate))) {
+                    struct stat st;
+                    if (stat(candidate, &st) == 0) {
+                        /* File exists in this assign path */
+                        strncpy(linux_path, candidate, maxlen);
+                        linux_path[maxlen - 1] = '\0';
+                        DPRINTF(LOG_DEBUG, "vfs: resolved multi-assign %s:%s -> %s\n", 
+                                drive_name, p, linux_path);
+                        return true;
+                    }
+                }
+            }
+            
+            /* If file not found in any path, use the first path (for file creation) */
             root = assign->paths->linux_path;
-            DPRINTF(LOG_DEBUG, "vfs: resolved assign %s: -> %s\n", drive_name, root);
+            DPRINTF(LOG_DEBUG, "vfs: resolved assign %s: -> %s (default)\n", drive_name, root);
         }
 
         /* Then check drives */
@@ -289,56 +373,8 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
         if (!root) return false;
     }
 
-    // Now resolve components case-insensitively
-    strncpy(work_path, root, sizeof(work_path));
-    
-    char *path_copy = strdup(p);
-    char *saveptr;
-    char *comp = strtok_r(path_copy, "/", &saveptr);
-    
-    bool error = false;
-    while (comp) {
-        if (strlen(comp) == 0 || strcmp(comp, ".") == 0) {
-            // skip
-        } else if (strcmp(comp, "..") == 0) {
-            // handle parent - though Amiga uses '/' for parent if it's multiple.
-            // But strtok handles '/' as separator.
-            char *last_slash = strrchr(work_path, '/');
-            if (last_slash && last_slash != work_path) {
-                *last_slash = '\0';
-            }
-        } else {
-            char next_step[PATH_MAX];
-            if (resolve_case(work_path, comp, next_step, sizeof(next_step))) {
-                strncpy(work_path, next_step, sizeof(work_path));
-            } else {
-                // If not found, we might be creating a file.
-                // For the last component, it's okay if it doesn't exist.
-                // But for intermediate directories, it's an error.
-                char *next_comp = strtok_r(NULL, "/", &saveptr);
-                if (next_comp) {
-                    error = true;
-                    break;
-                } else {
-                    // Last component
-                    int n = snprintf(next_step, sizeof(next_step), "%s/%s", work_path, comp);
-                    if (n >= (int)sizeof(next_step)) {
-                        error = true;
-                        break;
-                    }
-                    strncpy(work_path, next_step, sizeof(work_path));
-                }
-                break; 
-            }
-        }
-        comp = strtok_r(NULL, "/", &saveptr);
-    }
-
-    free(path_copy);
-    if (error) return false;
-
-    strncpy(linux_path, work_path, maxlen);
-    return true;
+    // Use the helper to resolve from root
+    return resolve_path_from_root(root, p, linux_path, maxlen);
 }
 
 const char *vfs_get_home_dir(void)
@@ -991,6 +1027,28 @@ bool vfs_assign_add_path(const char *name, const char *linux_path)
     }
     
     DPRINTF(LOG_DEBUG, "vfs: added path to assign %s: -> %s\n", name, linux_path);
+    return true;
+}
+
+/* Prepend a path to an existing assign (so it's searched first) */
+bool vfs_assign_prepend_path(const char *name, const char *linux_path)
+{
+    DPRINTF(LOG_DEBUG, "vfs: vfs_assign_prepend_path(%s, %s)\n", name, linux_path);
+    
+    assign_entry_t *entry = find_assign(name);
+    if (!entry) {
+        /* Create new assign with this path */
+        return vfs_assign_add(name, linux_path, ASSIGN_LOCK);
+    }
+    
+    /* Prepend path to existing assign (at the beginning) */
+    assign_path_t *new_path = malloc(sizeof(assign_path_t));
+    if (!new_path) return false;
+    new_path->linux_path = strdup(linux_path);
+    new_path->next = entry->paths;  /* Link to existing paths */
+    entry->paths = new_path;        /* Make this the first path */
+    
+    DPRINTF(LOG_DEBUG, "vfs: prepended path to assign %s: -> %s\n", name, linux_path);
     return true;
 }
 

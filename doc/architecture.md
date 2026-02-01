@@ -42,11 +42,14 @@ The host emulator runs as a native Linux process and provides:
 - **Case-Insensitive Resolution**: Handles Amiga's case-insensitive paths on case-sensitive Linux
 - **Path Translation**: Converts between Amiga notation (SYS:C/Dir) and Linux paths
 - **Special Devices**: NIL:, PIPE:, etc.
+- **Multi-Assign Support**: Assigns can have multiple paths, searched in order for file resolution
 
 Features:
 - Recursive case-insensitive directory search using `opendir()`/`readdir()`
-- Drive priority resolution (multi-directory assigns)
+- Multi-directory assigns with priority ordering (first path searched first)
+- `vfs_assign_prepend_path()` adds paths to beginning of assign for priority override
 - Automatic tilde expansion (~/.lxa)
+- Program-local assigns: On program load, automatically prepend program's subdirectories (s/, libs/, c/, devs/, l/) to standard assigns
 - Caching for performance
 
 #### Configuration System (config.c/config.h)

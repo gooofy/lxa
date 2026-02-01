@@ -3579,6 +3579,38 @@ void _bootstrap(void)
         emu_stop(1);
     }
 
+    /* Set current directory to the directory containing the loaded program.
+     * This is important for programs that expect to find files relative to their
+     * location (e.g., config files, data files). Extract the directory part
+     * of the path and lock it.
+     */
+    {
+        char dirbuf[1024];
+        int i, last_slash = -1;
+        
+        /* Copy path and find last slash */
+        for (i = 0; binfn[i] && i < 1023; i++) {
+            dirbuf[i] = binfn[i];
+            if (binfn[i] == '/') last_slash = i;
+        }
+        dirbuf[i] = '\0';
+        
+        if (last_slash > 0) {
+            dirbuf[last_slash] = '\0';  /* Truncate at last slash to get directory */
+            DPRINTF (LOG_INFO, "_exec: _bootstrap(): setting current dir to: %s\n", dirbuf);
+            
+            BPTR dirLock = Lock((STRPTR)dirbuf, ACCESS_READ);
+            if (dirLock) {
+                struct Process *me = (struct Process *)FindTask(NULL);
+                me->pr_CurrentDir = dirLock;
+                me->pr_HomeDir = DupLock(dirLock);  /* Also set HomeDir for PROGDIR: */
+                DPRINTF (LOG_INFO, "_exec: _bootstrap(): current dir lock=0x%08lx\n", dirLock);
+            } else {
+                DPRINTF (LOG_WARNING, "_exec: _bootstrap(): failed to lock dir: %s\n", dirbuf);
+            }
+        }
+    }
+
     emucall0 (EMU_CALL_LOADED);
 
     // inject initPC pointing to our loaded code into our task's stack
@@ -3856,6 +3888,13 @@ void coldstart (void)
     MathBase      = (struct Library       *) registerBuiltInLib (sizeof(*MathBase)      , __lxa_mathffp_ROMTag   );
     MathTransBase = (struct Library       *) registerBuiltInLib (sizeof(*MathTransBase) , __lxa_mathtrans_ROMTag );
     GfxBase       = (struct GfxBase       *) registerBuiltInLib (sizeof(*GfxBase)       , __lxa_graphics_ROMTag  );
+    
+    /* Initialize GfxBase display dimensions - default to PAL resolution */
+    GfxBase->NormalDisplayRows = 256;
+    GfxBase->NormalDisplayColumns = 640;
+    GfxBase->MaxDisplayRow = 312;     /* PAL max */
+    GfxBase->MaxDisplayColumn = 640;
+    
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
     LayersBase    = (struct Library       *) registerBuiltInLib (sizeof(*LayersBase)    , __lxa_layers_ROMTag    );
     ExpansionBase = (struct ExpansionBase *) registerBuiltInLib (sizeof(*ExpansionBase) , __lxa_expansion_ROMTag );

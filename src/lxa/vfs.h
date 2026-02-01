@@ -67,6 +67,9 @@ bool vfs_assign_remove(const char *name);
 /* Add a path to a multi-assign (creates if doesn't exist) */
 bool vfs_assign_add_path(const char *name, const char *linux_path);
 
+/* Prepend a path to a multi-assign (so it's searched first) */
+bool vfs_assign_prepend_path(const char *name, const char *linux_path);
+
 /* Remove a specific path from a multi-assign */
 bool vfs_assign_remove_path(const char *name, const char *linux_path);
 
