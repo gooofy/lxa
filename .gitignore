@@ -138,3 +138,19 @@ tests/*/*/C
 tests/**/actual.out
 tests/**/lxa.log
 tests/**/*.o
+
+# More test binaries
+tests/dos/chario/chario
+tests/dos/pathutils/pathutils
+tests/dos/vprintf/vprintf
+tests/dos/createdir_perms/createdir_perms
+tests/dos/process_advanced/process_advanced
+tests/dos/readargs_edge/readargs_edge
+tests/commands/makedir/makedir_test
+tests/commands/dir/dir_test
+tests/commands/delete/delete_test
+tests/commands/type/type_test
+tests/commands/assign/assign_test
+tests/commands/status/status_test
+tests/commands/break_cmd/break_test
+tests/commands/run/run_test

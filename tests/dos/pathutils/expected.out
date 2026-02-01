@@ -1,0 +1,27 @@
+=== FilePart Tests ===
+FilePart("foo") = "foo"
+FilePart("dir/file") = "file"
+FilePart("a/b/c/file.txt") = "file.txt"
+FilePart("SYS:C/dir") = "dir"
+FilePart("SYS:") = ""
+FilePart("SYS:file") = "file"
+FilePart("dir/subdir/") = ""
+FilePart("") = ""
+
+=== PathPart Tests ===
+PathPart("foo") = "foo"
+PathPart("dir/file") = "/file"
+PathPart("a/b/c/file.txt") = "/file.txt"
+PathPart("SYS:file") = "file"
+PathPart("SYS:C/dir/file") = "/file"
+PathPart("SYS:") = ""
+
+=== AddPart Tests ===
+AddPart("dir", "file") = TRUE, result="dir/file"
+AddPart("dir/", "file") = TRUE, result="dir/file"
+AddPart("SYS:", "file") = TRUE, result="SYS:file"
+AddPart("", "file") = TRUE, result="file"
+AddPart("SYS:C/Dir", "subfile.txt") = TRUE, result="SYS:C/Dir/subfile.txt"
+AddPart("path", "very_long...", 10) = FALSE (expected FALSE)
+
+Done.
