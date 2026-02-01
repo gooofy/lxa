@@ -3837,6 +3837,35 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_INT_SET_SCREEN_BITMAP:
+        {
+            /* d1: display_handle, d2: planes_ptr (address of BitMap.Planes[] array)
+             * d3: (bpr << 16) | depth
+             * 
+             * This tells the host where the Amiga screen's bitmap lives so that
+             * display_refresh_all() can automatically convert planar data to the
+             * SDL display at VBlank time.
+             */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            display_t *disp = (display_t *)(uintptr_t)d1;
+            uint32_t planes_ptr = d2;
+            uint32_t bpr = (d3 >> 16) & 0xFFFF;
+            uint32_t depth = d3 & 0xFFFF;
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INT_SET_SCREEN_BITMAP handle=0x%08x, planes=0x%08x, bpr=%d, depth=%d\n",
+                    d1, planes_ptr, bpr, depth);
+
+            if (disp)
+            {
+                display_set_amiga_bitmap(disp, planes_ptr, (bpr << 16) | depth);
+            }
+
+            m68k_set_reg(M68K_REG_D0, 1);  /* Success */
+            break;
+        }
+
         /*
          * Input handling emucalls (Phase 14)
          */
@@ -4696,6 +4725,46 @@ int main(int argc, char **argv, char **envp)
          */
         if (g_pending_irq & (1 << 3))
         {
+            /*
+             * VBlank time - refresh all displays and poll SDL events.
+             * This happens at 50Hz regardless of whether the Amiga has
+             * interrupts enabled, ensuring the display stays updated.
+             */
+            if (display_poll_events())
+            {
+                g_running = false;  /* Quit requested */
+                break;
+            }
+
+            /*
+             * Update display from Amiga's planar bitmap if configured.
+             * This converts the planar data in emulated RAM to chunky pixels
+             * so that display_refresh_all() can present them via SDL.
+             */
+            display_t *disp = display_get_active();
+            uint32_t planes_ptr, bpr, depth;
+            if (disp && display_get_amiga_bitmap(disp, &planes_ptr, &bpr, &depth))
+            {
+                int w, h, d;
+                display_get_size(disp, &w, &h, &d);
+
+                /* Read plane pointers from m68k memory */
+                const uint8_t *planes[8] = {0};
+                for (uint32_t i = 0; i < depth && i < 8; i++)
+                {
+                    uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
+                    if (plane_addr)
+                    {
+                        planes[i] = (const uint8_t *)&g_ram[plane_addr];
+                    }
+                }
+
+                /* Update display from planar data */
+                display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
+            }
+
+            display_refresh_all();
+
             if ((g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK))
             {
                 /* Clear pending flag and trigger interrupt */

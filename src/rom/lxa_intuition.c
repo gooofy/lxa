@@ -798,6 +798,14 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     InitRastPort(&screen->RastPort);
     screen->RastPort.BitMap = &screen->BitMap;
 
+    /* Tell the host where the screen's bitmap lives so it can auto-refresh
+     * from planar RAM at VBlank time.
+     * Pack bpr and depth into single parameter: (bpr << 16) | depth
+     */
+    ULONG bpr_depth = ((ULONG)screen->BitMap.BytesPerRow << 16) | (ULONG)depth;
+    emucall3(EMU_CALL_INT_SET_SCREEN_BITMAP, display_handle,
+             (ULONG)&screen->BitMap.Planes[0], bpr_depth);
+
     /* Initialize ViewPort (minimal) */
     screen->ViewPort.DWidth = width;
     screen->ViewPort.DHeight = height;

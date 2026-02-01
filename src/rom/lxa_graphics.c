@@ -1031,11 +1031,12 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
     return 0;
 }
 
+
 static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_graphics: WaitTOF()\n");
     
-    /* Process input events for all Intuition screens */
+    /* Process input events and refresh displays for all Intuition screens */
     /* This is a good hook point since WaitTOF is called in main loops */
     struct IntuitionBase *IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
     if (IntuitionBase)
@@ -1044,6 +1045,23 @@ static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
         for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
         {
             _intuition_ProcessInputEvents(screen);
+            
+            /* Refresh the screen's display from its planar bitmap */
+            ULONG display_handle = (ULONG)screen->ExtData;
+            if (display_handle)
+            {
+                /* Build planes pointer array for emucall */
+                /* The screen's BitMap.Planes[] array contains the plane addresses */
+                ULONG bpr = screen->BitMap.BytesPerRow;
+                ULONG depth = screen->BitMap.Depth;
+                
+                /* Pack bpr and depth into single parameter: (bpr << 16) | depth */
+                ULONG bpr_depth = (bpr << 16) | (depth & 0xFFFF);
+                
+                /* Pass the address of the Planes array */
+                emucall3(EMU_CALL_INT_REFRESH_SCREEN, display_handle, 
+                         (ULONG)&screen->BitMap.Planes[0], bpr_depth);
+            }
         }
         CloseLibrary((struct Library *)IntuitionBase);
     }

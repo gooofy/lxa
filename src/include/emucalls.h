@@ -105,6 +105,7 @@
 #define EMU_CALL_INT_OPEN_SCREEN   3000  /* OpenScreen: (width, height, depth, title_ptr) -> display_handle */
 #define EMU_CALL_INT_CLOSE_SCREEN  3001  /* CloseScreen: (display_handle) -> success */
 #define EMU_CALL_INT_REFRESH_SCREEN 3002 /* RefreshScreen: (display_handle, planes_ptr, bpr, depth) */
+#define EMU_CALL_INT_SET_SCREEN_BITMAP 3003 /* SetScreenBitmap: (display_handle, planes_ptr, bpr_depth) */
 
 /* Input Handling (Phase 14) */
 #define EMU_CALL_INT_POLL_INPUT    3010  /* Poll for input: () -> event_type (0=none, 1=mouse, 2=key, 3=close) */

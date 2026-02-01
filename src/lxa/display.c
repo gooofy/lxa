@@ -41,6 +41,11 @@ struct display_t
     uint8_t      *pixels;       /* Chunky pixel buffer (8-bit indexed) */
     uint32_t      palette[DISPLAY_MAX_COLORS];  /* ARGB format for SDL */
     bool          dirty;        /* Needs refresh */
+    
+    /* Amiga screen bitmap info - for auto-sync from planar RAM */
+    uint32_t      amiga_planes_ptr;  /* Pointer to BitMap.Planes[] array in emulated RAM */
+    uint32_t      amiga_bpr;         /* Bytes per row in bitmap */
+    uint32_t      amiga_depth;       /* Number of bitplanes */
 };
 
 /*
@@ -1365,4 +1370,68 @@ uint32_t display_window_get_sdl_id(display_window_t *window)
 #else
     return 0;
 #endif
+}
+
+/*
+ * Refresh all open displays and rootless windows.
+ * Called from main loop at VBlank time to ensure screen updates.
+ */
+void display_refresh_all(void)
+{
+    /* Refresh the active screen display */
+    if (g_active_display)
+    {
+        display_refresh(g_active_display);
+    }
+
+#if HAS_SDL2
+    /* Refresh all rootless windows */
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (g_windows[i].in_use)
+        {
+            display_window_refresh(&g_windows[i]);
+        }
+    }
+#endif
+}
+
+/*
+ * Set the Amiga bitmap info for automatic screen refresh.
+ * This stores the bitmap parameters for later use by display_refresh_all().
+ * 
+ * @param display     Display handle
+ * @param planes_ptr  Address of BitMap.Planes[] array in emulated RAM
+ * @param bpr_depth   Packed value: (bytes_per_row << 16) | depth
+ */
+void display_set_amiga_bitmap(display_t *display, uint32_t planes_ptr, uint32_t bpr_depth)
+{
+    if (!display)
+        return;
+    
+    display->amiga_planes_ptr = planes_ptr;
+    display->amiga_bpr = (bpr_depth >> 16) & 0xFFFF;
+    display->amiga_depth = bpr_depth & 0xFFFF;
+}
+
+/*
+ * Get the active display (for VBlank refresh).
+ */
+display_t *display_get_active(void)
+{
+    return g_active_display;
+}
+
+/*
+ * Get the Amiga bitmap info for a display.
+ */
+bool display_get_amiga_bitmap(display_t *display, uint32_t *planes_ptr, uint32_t *bpr, uint32_t *depth)
+{
+    if (!display || display->amiga_planes_ptr == 0)
+        return false;
+    
+    if (planes_ptr) *planes_ptr = display->amiga_planes_ptr;
+    if (bpr) *bpr = display->amiga_bpr;
+    if (depth) *depth = display->amiga_depth;
+    return true;
 }

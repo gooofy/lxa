@@ -120,6 +120,40 @@ void display_update_chunky(display_t *display, int x, int y, int width, int heig
 void display_refresh(display_t *display);
 
 /*
+ * Refresh all open displays.
+ * Called from main loop at VBlank time to update all screens and windows.
+ */
+void display_refresh_all(void);
+
+/*
+ * Set the Amiga bitmap info for automatic screen refresh.
+ * Called after opening a screen to enable auto-sync from planar RAM.
+ *
+ * @param display     Display handle
+ * @param planes_ptr  Address of BitMap.Planes[] array in emulated RAM
+ * @param bpr_depth   Packed value: (bytes_per_row << 16) | depth
+ */
+void display_set_amiga_bitmap(display_t *display, uint32_t planes_ptr, uint32_t bpr_depth);
+
+/*
+ * Get the active display (for VBlank refresh).
+ * @return Active display handle, or NULL if no display is open
+ */
+display_t *display_get_active(void);
+
+/*
+ * Get the Amiga bitmap info for a display.
+ * Returns false if no bitmap is configured.
+ *
+ * @param display     Display handle
+ * @param planes_ptr  Output: address of BitMap.Planes[] array
+ * @param bpr         Output: bytes per row
+ * @param depth       Output: number of bitplanes
+ * @return true if bitmap info is available, false otherwise
+ */
+bool display_get_amiga_bitmap(display_t *display, uint32_t *planes_ptr, uint32_t *bpr, uint32_t *depth);
+
+/*
  * Get display dimensions.
  *
  * @param display  Display handle
