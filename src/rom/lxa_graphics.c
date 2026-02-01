@@ -418,7 +418,7 @@ static struct TextFont *get_default_font(void)
 static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
-                                                        register ULONG count __asm("d0"))
+                                                        register UWORD count __asm("d0"))
 {
     struct TextFont *font;
     WORD width;
@@ -447,7 +447,7 @@ static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6")
 static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
-                                                        register ULONG count __asm("d0"))
+                                                        register UWORD count __asm("d0"))
 {
     struct TextFont *font;
     struct BitMap *bm;
@@ -457,8 +457,11 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
     const UBYTE *glyph;
     UBYTE drawmode;
 
-    DPRINTF (LOG_DEBUG, "_graphics: Text() rp=0x%08lx, string='%s', count=%lu\n",
-             (ULONG)rp, string ? (char *)string : "(null)", count);
+    DPRINTF (LOG_DEBUG, "_graphics: Text() string='%s' count=%u pos=(%d,%d) fg=%d bg=%d dm=%d\n",
+             string ? (char *)string : "(null)", (unsigned int)count,
+             rp ? (int)rp->cp_x : 0, rp ? (int)rp->cp_y : 0,
+             rp ? (int)rp->FgPen : 0, rp ? (int)rp->BgPen : 0,
+             rp ? (int)rp->DrawMode : 0);
 
     if (!rp || !string || count == 0)
     {
