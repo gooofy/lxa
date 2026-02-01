@@ -3507,11 +3507,17 @@ void _exec_RemMemHandler ( register struct ExecBase * SysBase __asm("a6"),
 
 struct Library *registerBuiltInLib (ULONG dSize, struct Resident *romTAG)
 {
-    DPRINTF (LOG_DEBUG, "_exec: registerBuiltInLib dSize=%ld, romTAG rt_Name=%s rt_IdString=%s\n",
-             dSize, romTAG->rt_Name, romTAG->rt_IdString);
-
     struct InitTable *initTab = romTAG->rt_Init;
-    struct Library *libBase = MakeLibrary (initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, dSize, initTab->LibBaseSize);
+
+    DPRINTF (LOG_DEBUG, "_exec: registerBuiltInLib dSize=%ld (unused), LibBaseSize=%ld, romTAG rt_Name=%s rt_IdString=%s\n",
+             dSize, initTab->LibBaseSize, romTAG->rt_Name, romTAG->rt_IdString);
+
+    /* Use LibBaseSize from the InitTable for the actual library base size.
+     * The dSize parameter passed by the caller is often incorrect (e.g., sizeof(*LibBase) 
+     * where LibBase is declared as struct Library* instead of the actual library type).
+     * The 5th parameter (segList) is 0 for ROM-based libraries.
+     */
+    struct Library *libBase = MakeLibrary (initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, initTab->LibBaseSize, 0);
 
     AddTail (&SysBase->LibList, (struct Node*) libBase);
 
@@ -3520,11 +3526,15 @@ struct Library *registerBuiltInLib (ULONG dSize, struct Resident *romTAG)
 
 struct Library *registerBuiltInDev (ULONG dSize, struct Resident *romTAG)
 {
-    DPRINTF (LOG_DEBUG, "_exec: registerBuiltInDev dSize=%ld, romTAG rt_Name=%s rt_IdString=%s\n",
-             dSize, romTAG->rt_Name, romTAG->rt_IdString);
-
     struct InitTable *initTab = romTAG->rt_Init;
-    struct Library *libBase = MakeLibrary (initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, dSize, initTab->LibBaseSize);
+
+    DPRINTF (LOG_DEBUG, "_exec: registerBuiltInDev dSize=%ld (unused), LibBaseSize=%ld, romTAG rt_Name=%s rt_IdString=%s\n",
+             dSize, initTab->LibBaseSize, romTAG->rt_Name, romTAG->rt_IdString);
+
+    /* Use LibBaseSize from the InitTable for the actual device base size.
+     * The 5th parameter (segList) is 0 for ROM-based devices.
+     */
+    struct Library *libBase = MakeLibrary (initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, initTab->LibBaseSize, 0);
 
     AddTail (&SysBase->DeviceList, (struct Node*) libBase);
 
