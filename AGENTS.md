@@ -16,7 +16,7 @@ This document provides essential information for AI agents working on the `lxa` 
 - **100% Code Coverage**: Every line of code must be exercised by tests. No exceptions.
 - **Comprehensive Testing**: Unit tests for functions, integration tests for components, stress tests for robustness.
 - **Continuous Validation**: All tests must pass before committing. No broken builds.
-- **We strive for 100% AmigaOS compatibility**: refer to NDK / autodocs at /opt/amiga/src/amiga-gcc/projects/NDK3.2 and RKRM at ~/projects/amiga/rkrm
+- **We strive for 100% AmigaOS compatibility**: refer to SDK / NDK / autodocs at /opt/amiga/src/amiga-gcc/projects/NDK3.2 and RKRM at ~/projects/amiga/rkrm
 
 **Why This Matters:**
 - Users depend on `lxa` for running their software - crashes destroy productivity.
