@@ -2849,16 +2849,26 @@ int op_illg(int level)
              * Phase 6.5: Improved wait handling
              *
              * When the scheduler dispatch loop has no ready tasks, it calls
-             * EMU_CALL_WAIT. Instead of just sleeping, we now:
-             * 1. Sleep briefly to avoid busy-waiting
-             * 2. Signal that we're idle, allowing interrupts to fire
-             *
-             * The key insight is that we don't need a long sleep here - the
-             * timer interrupt will wake up waiting tasks when their time comes.
-             * A short sleep (1ms) is enough to avoid burning CPU while still
-             * being responsive to signals.
+             * EMU_CALL_WAIT. We poll SDL events and sleep briefly.
+             * 
+             * We also ensure VBlank interrupt is set if pending, so that input
+             * processing can happen when we return to the dispatch loop.
              */
-            usleep(1000);  /* 1ms - short sleep to allow signals */
+            if (display_poll_events())
+            {
+                /* Quit requested via SDL */
+                g_running = false;
+            }
+            
+            /* If VBlank is pending, set the IRQ now so it fires after we return */
+            if ((g_pending_irq & (1 << 3)) && 
+                (g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK))
+            {
+                g_pending_irq &= ~(1 << 3);
+                m68k_set_irq(3);
+            }
+            
+            usleep(1000);  /* 1ms - avoid busy-waiting */
             break;
 
         case EMU_CALL_DELAY:
@@ -4127,6 +4137,90 @@ int op_illg(int level)
             /* Returns true if rootless mode is enabled */
             bool rootless = display_get_rootless_mode();
             m68k_set_reg(M68K_REG_D0, rootless ? 1 : 0);
+            break;
+        }
+
+        /*
+         * Console device emucalls
+         */
+        case EMU_CALL_CON_READ:
+        {
+            /* Read from console input.
+             * d1 = buffer address (68k memory)
+             * d2 = max bytes to read
+             * Returns: d0 = bytes read, or -1 if no data available yet
+             */
+            uint32_t buf68k = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t maxlen = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_CON_READ buf=0x%08x maxlen=%d\n", buf68k, maxlen);
+            
+            /* For now, read from stdin (non-blocking) */
+            /* Check if input is available using select() */
+            fd_set readfds;
+            struct timeval tv = {0, 0};  /* No timeout - non-blocking */
+            
+            FD_ZERO(&readfds);
+            FD_SET(STDIN_FILENO, &readfds);
+            
+            int ready = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
+            
+            if (ready > 0 && FD_ISSET(STDIN_FILENO, &readfds))
+            {
+                /* Input is available */
+                char buf[256];
+                int to_read = (maxlen > sizeof(buf)) ? sizeof(buf) : maxlen;
+                ssize_t n = read(STDIN_FILENO, buf, to_read);
+                
+                if (n > 0)
+                {
+                    /* Copy to 68k memory, converting LF to CR for Amiga compatibility */
+                    for (int i = 0; i < n; i++)
+                    {
+                        char c = buf[i];
+                        if (c == '\n')
+                            c = '\r';  /* Convert LF to CR */
+                        m68k_write_memory_8(buf68k + i, c);
+                    }
+                    /* Log what was read */
+                    DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_CON_READ -> %zd bytes: 0x%02x '%c'\n", 
+                            n, (unsigned char)buf[0], 
+                            (buf[0] >= 32 && buf[0] < 127) ? buf[0] : '.');
+                    m68k_set_reg(M68K_REG_D0, (uint32_t)n);
+                }
+                else if (n == 0)
+                {
+                    /* EOF */
+                    m68k_set_reg(M68K_REG_D0, 0);
+                }
+                else
+                {
+                    /* Error */
+                    m68k_set_reg(M68K_REG_D0, (uint32_t)-1);
+                }
+            }
+            else
+            {
+                /* No input available */
+                m68k_set_reg(M68K_REG_D0, (uint32_t)-1);
+            }
+            break;
+        }
+
+        case EMU_CALL_CON_INPUT_READY:
+        {
+            /* Check if console input is ready (non-blocking).
+             * Returns: d0 = 1 if input ready, 0 if not
+             */
+            fd_set readfds;
+            struct timeval tv = {0, 0};
+            
+            FD_ZERO(&readfds);
+            FD_SET(STDIN_FILENO, &readfds);
+            
+            int ready = select(STDIN_FILENO + 1, &readfds, NULL, NULL, &tv);
+            
+            m68k_set_reg(M68K_REG_D0, (ready > 0 && FD_ISSET(STDIN_FILENO, &readfds)) ? 1 : 0);
             break;
         }
 

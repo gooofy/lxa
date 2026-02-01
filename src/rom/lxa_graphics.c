@@ -489,6 +489,13 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
     bgpen = (UBYTE)rp->BgPen;
     drawmode = rp->DrawMode;
 
+    /* If RastPort has a Layer, add layer offset for coordinate translation */
+    if (rp->Layer)
+    {
+        x += rp->Layer->bounds.MinX;
+        y += rp->Layer->bounds.MinY;
+    }
+
     /* Handle INVERSVID - swap foreground and background colors */
     if (drawmode & INVERSVID)
     {
@@ -968,11 +975,19 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
         return;
     }
 
+    /* If RastPort has a Layer, calculate layer offset for coordinate translation */
+    WORD layerOffX = 0, layerOffY = 0;
+    if (rp->Layer)
+    {
+        layerOffX = rp->Layer->bounds.MinX;
+        layerOffY = rp->Layer->bounds.MinY;
+    }
+
     /* Software line drawing using Bresenham's algorithm */
-    WORD x0 = rp->cp_x;
-    WORD y0 = rp->cp_y;
-    WORD x1 = (WORD)x;
-    WORD y1 = (WORD)y;
+    WORD x0 = rp->cp_x + layerOffX;
+    WORD y0 = rp->cp_y + layerOffY;
+    WORD x1 = (WORD)x + layerOffX;
+    WORD y1 = (WORD)y + layerOffY;
     BYTE pen = rp->FgPen;
     struct BitMap *bm = rp->BitMap;
 
@@ -1148,6 +1163,15 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
     if (!rp || !rp->BitMap)
         return;
 
+    /* If RastPort has a Layer, add layer offset for coordinate translation */
+    if (rp->Layer)
+    {
+        xMin += rp->Layer->bounds.MinX;
+        yMin += rp->Layer->bounds.MinY;
+        xMax += rp->Layer->bounds.MinX;
+        yMax += rp->Layer->bounds.MinY;
+    }
+
     struct BitMap *bm = rp->BitMap;
     BYTE pen = rp->FgPen;
     WORD maxX = bm->BytesPerRow * 8;
@@ -1249,14 +1273,19 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
                                                         register WORD x __asm("d0"),
                                                         register WORD y __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: WritePixel() rp=0x%08lx, x=%d, y=%d\n", (ULONG)rp, (int)x, (int)y);
-
     if (!rp || !rp->BitMap)
         return -1;  /* Error */
 
     struct BitMap *bm = rp->BitMap;
     BYTE pen = rp->FgPen;
     UBYTE drawmode = rp->DrawMode;
+
+    /* If RastPort has a Layer, add layer offset for coordinate translation */
+    if (rp->Layer)
+    {
+        x += rp->Layer->bounds.MinX;
+        y += rp->Layer->bounds.MinY;
+    }
 
     /* Handle INVERSVID - use BgPen instead of FgPen */
     if (drawmode & INVERSVID)
@@ -2035,6 +2064,13 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
     {
         LPRINTF (LOG_ERROR, "_graphics: BltBitMapRastPort() NULL pointer\n");
         return;
+    }
+
+    /* If RastPort has a Layer, add layer offset for coordinate translation */
+    if (destRP->Layer)
+    {
+        xDest += destRP->Layer->bounds.MinX;
+        yDest += destRP->Layer->bounds.MinY;
     }
 
     /* BltBitMapRastPort is a wrapper around BltBitMap.

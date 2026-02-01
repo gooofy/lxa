@@ -146,6 +146,7 @@ __dispatch:
     move.l   (a3), d0                               | ->ln_Succ -> d0
     bne.s    2f                                     | not empty -> launch this task
 
+    move.w   #0x2000, sr                            | enable cpu interrupts to allow VBlank
     move.l   #EMU_CALL_WAIT, d0                     | #EMU_CALL_WAIT -> d0
     illegal                                         | emucall
 
@@ -186,11 +187,17 @@ __dispatch:
 
 _handleIRQ3:
 
-    movem.l     d0/a6, -(sp)                        | save registers
+    movem.l     d0-d2/a0-a2/a6, -(sp)           | save registers (more for C call)
 
     | DPUTS       __exec_handleIRQ3_s1                | "_handleIRQ3() called"
 
     move.l      4, a6
+
+    /* Process input events via Intuition hook */
+    /* This ensures IDCMP messages are delivered even when app doesn't use WaitTOF */
+    jsr         __intuition_VBlankInputHook
+
+    move.l      4, a6                               | restore a6 (C call may have changed it)
 
     /* count down current task's time slice */
     move.w      Elapsed(a6), d0                     | SysBase->Elapsed -> d0
@@ -207,11 +214,11 @@ _handleIRQ3:
     bge.s       3f                                  | yes -> skip Schedule()
 
     | DPUTS       __exec_handleIRQ3_s2                | "_handleIRQ3() -> Schedule()"
-    movem.l     (sp)+, d0/a6                        | restore registers
+    movem.l     (sp)+, d0-d2/a0-a2/a6               | restore registers
     bra         _exec_Schedule                      | jump into our scheduler
 
 3:
-    movem.l     (sp)+, d0/a6                        | restore registers
+    movem.l     (sp)+, d0-d2/a0-a2/a6               | restore registers
     rte
 
     .globl _exec_Supervisor

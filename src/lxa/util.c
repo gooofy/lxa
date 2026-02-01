@@ -11,9 +11,12 @@ bool     g_debug                         = false;
 
 void lputc (int lvl, char ch)
 {
-    fprintf (g_logf, "%c", ch);
-    if (ch==10)
-        fflush (g_logf);
+    if (g_logf)
+    {
+        fprintf (g_logf, "%c", ch);
+        if (ch==10)
+            fflush (g_logf);
+    }
 
     if (lvl || g_debug)
     {
@@ -23,8 +26,11 @@ void lputc (int lvl, char ch)
 
 void lputs (int lvl, const char *s)
 {
-    fprintf (g_logf, "%s", s);
-    fflush (g_logf);
+    if (g_logf)
+    {
+        fprintf (g_logf, "%s", s);
+        fflush (g_logf);
+    }
 
     if (lvl || g_debug)
     {

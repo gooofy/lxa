@@ -76,14 +76,47 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
     switch (ioreq->io_Command)
     {
         case CMD_READ:
-            /* Console read - for now, return EOF/no data */
+            /* Console read - use emucall to get input from host */
             DPRINTF (LOG_DEBUG, "_console: CMD_READ len=%ld\n", iostd->io_Length);
-            iostd->io_Actual = 0;  /* No data available */
+            {
+                LONG result = emucall2(EMU_CALL_CON_READ, (ULONG)iostd->io_Data, iostd->io_Length);
+                if (result >= 0)
+                {
+                    iostd->io_Actual = result;
+                    ioreq->io_Error = 0;
+                }
+                else
+                {
+                    /* No input available yet - for async I/O we should queue this request */
+                    /* For now, just return 0 bytes to avoid blocking */
+                    iostd->io_Actual = 0;
+                    ioreq->io_Error = 0;
+                }
+            }
             break;
             
         case CMD_WRITE:
-            /* Console write - for now, just accept and ignore */
+            /* Console write - dump the data being written */
             DPRINTF (LOG_DEBUG, "_console: CMD_WRITE len=%ld\n", iostd->io_Length);
+            /* Print the text being written */
+            {
+                char *data = (char *)iostd->io_Data;
+                LONG len = iostd->io_Length;
+                LPRINTF(LOG_INFO, "_console: WRITE: '");
+                for (LONG i = 0; i < len && i < 256; i++) {
+                    char c = data[i];
+                    if (c >= 32 && c < 127) {
+                        lputc(LOG_INFO, c);
+                    } else if (c == '\n') {
+                        lputs(LOG_INFO, "\\n");
+                    } else if (c == '\r') {
+                        lputs(LOG_INFO, "\\r");
+                    } else {
+                        LPRINTF(LOG_INFO, "\\x%02x", (unsigned char)c);
+                    }
+                }
+                LPRINTF(LOG_INFO, "'\n");
+            }
             /* In a full implementation, we would write to the window here */
             iostd->io_Actual = iostd->io_Length;  /* Pretend we wrote everything */
             break;

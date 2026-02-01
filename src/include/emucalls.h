@@ -125,5 +125,11 @@
 #define EMU_CALL_INT_REFRESH_WINDOW 3027 /* Refresh window: (window_handle, planes_ptr, bpr, depth) */
 #define EMU_CALL_INT_GET_ROOTLESS  3028  /* Get rootless mode: () -> bool */
 
+/*
+ * Console Device emucalls (4000-4999)
+ */
+#define EMU_CALL_CON_READ          4000  /* Read from console: (buf, len) -> bytes_read (-1 if no data yet) */
+#define EMU_CALL_CON_INPUT_READY   4001  /* Check if input is ready: () -> bool */
+
 #endif
 

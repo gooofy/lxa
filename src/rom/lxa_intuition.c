@@ -313,6 +313,10 @@ VOID _intuition_DrawImage ( register struct IntuitionBase * IntuitionBase __asm(
         WORD x = leftOffset + image->LeftEdge;
         WORD y = topOffset + image->TopEdge;
         
+        DPRINTF (LOG_DEBUG, "_intuition: DrawImage() rendering image: w=%d h=%d depth=%d leftEdge=%d topEdge=%d -> x=%d y=%d\n",
+                 (int)image->Width, (int)image->Height, (int)image->Depth,
+                 (int)image->LeftEdge, (int)image->TopEdge, (int)x, (int)y);
+        
         if (image->ImageData && image->Width > 0 && image->Height > 0)
         {
             /* Render image data using BltTemplate or pixel-by-pixel */
@@ -625,6 +629,35 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
 }
 
 /*
+ * VBlank hook for input processing.
+ * Called from the VBlank interrupt handler to ensure input events
+ * are processed even when the app doesn't call WaitTOF().
+ * 
+ * This function must be called from a context where interrupts are safe
+ * (e.g., at the end of VBlank processing before scheduling).
+ */
+VOID _intuition_VBlankInputHook(void)
+{
+    static int counter = 0;
+    counter++;
+    if (counter % 50 == 0)  /* Log every second (50Hz VBlank) */
+    {
+        DPRINTF(LOG_DEBUG, "_intuition: VBlankInputHook called (count=%d)\n", counter);
+    }
+    
+    struct IntuitionBase *IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
+    if (IntuitionBase)
+    {
+        struct Screen *screen;
+        for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
+        {
+            _intuition_ProcessInputEvents(screen);
+        }
+        CloseLibrary((struct Library *)IntuitionBase);
+    }
+}
+
+/*
  * ReplyIntuiMsg - Reply to an IntuiMessage and free it
  * This is a convenience function for applications
  */
@@ -823,6 +856,10 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Clear the screen to color 0 */
     SetRast(&screen->RastPort, 0);
 
+    /* Initialize Layer_Info for this screen */
+    InitLayers(&screen->LayerInfo);
+    screen->LayerInfo.top_layer = NULL;
+
     /* Link screen into IntuitionBase screen list (at front) */
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
@@ -907,8 +944,9 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     if (height == 0)
         height = screen->Height - newWindow->TopEdge;
 
-    DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() %dx%d at (%d,%d)\n",
-             (int)width, (int)height, (int)newWindow->LeftEdge, (int)newWindow->TopEdge);
+    DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() %dx%d at (%d,%d) flags=0x%08lx\n",
+             (int)width, (int)height, (int)newWindow->LeftEdge, (int)newWindow->TopEdge,
+             (ULONG)newWindow->Flags);
 
     /* Allocate Window structure */
     window = (struct Window *)AllocMem(sizeof(struct Window), MEMF_PUBLIC | MEMF_CLEAR);
@@ -958,9 +996,31 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
             window->BorderTop = 2;
     }
 
-    /* Set up the RastPort - windows share the screen's BitMap */
-    window->RPort = &screen->RastPort;
-    /* Note: In a full implementation, we'd create a clipping layer here */
+    /* Create a Layer for this window so graphics operations use proper coordinate offsets */
+    {
+        struct Layer *layer;
+        LONG x0 = newWindow->LeftEdge;
+        LONG y0 = newWindow->TopEdge;
+        LONG x1 = newWindow->LeftEdge + width - 1;
+        LONG y1 = newWindow->TopEdge + height - 1;
+        
+        layer = CreateUpfrontLayer(&screen->LayerInfo, &screen->BitMap,
+                                   x0, y0, x1, y1, LAYERSIMPLE, NULL);
+        if (layer)
+        {
+            window->WLayer = layer;
+            window->RPort = layer->rp;
+            DPRINTF(LOG_DEBUG, "_intuition: OpenWindow() created layer=0x%08lx rp=0x%08lx bounds=[%ld,%ld]-[%ld,%ld]\n",
+                    (ULONG)layer, (ULONG)layer->rp, x0, y0, x1, y1);
+        }
+        else
+        {
+            /* Fallback to screen's RastPort if layer creation fails */
+            DPRINTF(LOG_WARNING, "_intuition: OpenWindow() layer creation failed, using screen RastPort\n");
+            window->RPort = &screen->RastPort;
+            window->WLayer = NULL;
+        }
+    }
 
     /* Check if rootless mode is enabled */
     rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
@@ -1097,6 +1157,9 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
             WORD x = left + iText->LeftEdge;
             WORD y = top + iText->TopEdge;
             
+            DPRINTF (LOG_DEBUG, "_intuition: PrintIText() text='%s' leftEdge=%d topEdge=%d -> x=%d y=%d\n",
+                     (const char *)iText->IText, (int)iText->LeftEdge, (int)iText->TopEdge, (int)x, (int)y);
+            
             /* If a font is specified, try to use it */
             /* For now, just use the rastport's current font */
             
@@ -1185,9 +1248,13 @@ BOOL _intuition_SetMenuStrip ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Window * window __asm("a0"),
                                                         register struct Menu * menu __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetMenuStrip() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_intuition: SetMenuStrip() stub - storing menu pointer but not implementing menus yet\n");
+    /* Store the menu pointer for the window - actual menu handling not implemented */
+    if (window)
+    {
+        window->MenuStrip = menu;
+    }
+    return TRUE;  /* Pretend success */
 }
 
 VOID _intuition_SetPointer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
