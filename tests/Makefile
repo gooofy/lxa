@@ -64,6 +64,7 @@ all:
 	@$(MAKE) -C commands/status
 	@$(MAKE) -C commands/break_cmd
 	@$(MAKE) -C commands/run
+	@$(MAKE) -C commands/avail
 	@$(MAKE) -C shell/variables
 	@$(MAKE) -C stress/memory
 	@$(MAKE) -C stress/tasks
@@ -134,6 +135,7 @@ clean:
 	@$(MAKE) -C commands/status clean
 	@$(MAKE) -C commands/break_cmd clean
 	@$(MAKE) -C commands/run clean
+	@$(MAKE) -C commands/avail clean
 	@$(MAKE) -C shell/variables clean
 	@$(MAKE) -C stress/memory clean
 	@$(MAKE) -C stress/tasks clean
@@ -201,6 +203,7 @@ clean:
 	rm -f commands/status/actual.out
 	rm -f commands/break_cmd/actual.out
 	rm -f commands/run/actual.out
+	rm -f commands/avail/actual.out
 	rm -f shell/variables/actual.out
 	rm -f stress/memory/actual.out
 	rm -f stress/tasks/actual.out
@@ -276,6 +279,7 @@ run-tests:
 	@$(MAKE) -C commands/status run-test
 	@$(MAKE) -C commands/break_cmd run-test
 	@$(MAKE) -C commands/run run-test
+	@$(MAKE) -C commands/avail run-test
 	@$(MAKE) -C shell/variables run-test
 	@$(MAKE) -C stress/memory run-test
 	@$(MAKE) -C stress/tasks run-test

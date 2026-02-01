@@ -214,22 +214,25 @@ See `doc/graphics_testing.md` for detailed test specifications.
 
 ---
 
-## Phase 17: Additional Commands
+## Phase 17: Additional Commands (COMPLETE)
 
 **Goal**: Expand command set to cover common AmigaOS utilities.
 
-### Step 17.1: File Management
-- [ ] **AVAIL** - Display memory information
-- [ ] **RESIDENT** - Manage resident commands
+### Step 17.1: System Commands (COMPLETE)
+- [x] **AVAIL** - Display memory information (chip/fast/total/largest)
+- [x] **RESIDENT** - List libraries and devices (ADD/REMOVE stubbed)
 
-### Step 17.2: Script Support
-- [ ] **ASK** - Interactive yes/no prompt
-- [ ] **REQUESTCHOICE** - Text-based choice dialog
+### Step 17.2: Script Support (COMPLETE)
+- [x] **ASK** - Interactive yes/no prompt (Shell built-in)
+- [x] **REQUESTCHOICE** - Text-based choice dialog with numbered options
 
-### Step 17.3: Shell Enhancements
-- [ ] **CD** with no args - Show current directory
-- [ ] **WHICH** - Locate command in search path
-- [ ] **PATH** - Manage command search path
+### Step 17.3: Shell Enhancements (COMPLETE)
+- [x] **CD** with no args - Shows current directory (Shell built-in)
+- [x] **WHICH** - Locate command in search path (Shell built-in)
+- [x] **PATH** - Manage command search path with ADD/RESET/SHOW (Shell built-in)
+
+### Step 17.4: Test Coverage (COMPLETE)
+- [x] `commands/avail` - Tests AvailMem() functionality
 
 ---
 

@@ -47,6 +47,8 @@ set(C_COMMANDS
     makelink
     protect
     rename
+    requestchoice
+    resident
     run
     search
     set
