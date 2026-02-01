@@ -289,7 +289,45 @@ Key implementations:
 
 ---
 
-## Phase 20: Core System Libraries & Preferences
+## Phase 20: KickPascal 2 Compatibility - Critical Fixes (IN PROGRESS)
+
+**Goal**: Address blocking issues preventing KickPascal 2 from running correctly.
+
+### Step 20.1: Window Size & Screen Resolution (IN PROGRESS)
+**Problem**: KickPascal 2 seems to request a 252x352 window, but Workbench screen is only 640x256, this seems very suspicious. On a real Amiga KickPascal 2 opens
+a window on a PAL workbench properly filling the screen so we need to investigate why this is not working in lxa.
+
+* is there an issue with data structures or intuition library function signatures / registers (we had mixups in the past, check/veryif **all** of those agains SDK / autodocs)
+* PrintIText and DrawImage still draw at wrong (sometimes negative!) coordinates - once the window size has been debugged and fixed, if this issue still persists this also needs further investigation. Compare to AROS reference implementation and RKRM for reference.
+
+### Step 20.2: Console Device Window Attachment (NOT STARTED)
+**Problem**: KickPascal 2's console output (text, prompts) is not visible in the window. Console device currently only logs to debug output, doesn't render to Intuition windows.
+
+**Analysis**: Amiga's `console.device` supports attaching to an Intuition window via `CD_WINDOW` tag in the Open request. Console text should render using the window's RastPort with proper cursor positioning, scrolling, and ANSI/CSI support.
+
+- [ ] **Console Open Analysis** - Understand how KP2 opens console.device and attaches to window.
+- [ ] **CD_WINDOW Tag** - Parse console Open request tags to extract Window pointer.
+- [ ] **Console Context** - Store per-console state: attached window, cursor position, colors, attributes.
+- [ ] **Text Rendering** - Implement console write to render text to window's RastPort using Text() function.
+- [ ] **Cursor Management** - Track and display text cursor within window.
+- [ ] **Scrolling** - Implement scroll region when text exceeds window height.
+- [ ] **Input Integration** - Route keyboard input from IDCMP to console CMD_READ requests.
+- [ ] **Test** - Verify KP2's text output appears in window, keyboard input works in window.
+
+**Current State**: Console CMD_WRITE only logs to `lxa.log`, CMD_READ uses stdin emucall (Linux terminal, not window).
+
+### Step 20.3: Window Layer Clipping (NOT STARTED)
+**Problem**: Drawing outside window bounds may render on screen instead of being clipped.
+
+- [ ] **Bounds Checking** - Implement pixel-level clipping in WritePixel, Draw, Text, etc.
+- [ ] **Layer ClipRect** - Use layer's ClipRect list for proper clipping (already built by layers.library).
+- [ ] **Test** - Verify out-of-bounds drawing is properly clipped.
+
+**Current State**: Layer coordinate translation works, but no enforcement of window boundaries.
+
+---
+
+## Phase 21: Core System Libraries & Preferences
 
 **Goal**: Improve visual fidelity, system configuration, and core library support.
 
