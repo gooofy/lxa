@@ -1,0 +1,8 @@
+Testing SetRast()...
+OK: SetRast(0) clears bitmap to color 0
+OK: SetRast(1) fills bitmap with color 1
+OK: SetRast(2) fills bitmap with color 2
+OK: SetRast(3) fills bitmap with color 3
+OK: All four corners correct after SetRast
+OK: SetRast clears previously drawn content
+PASS: SetRast all tests passed

@@ -1,0 +1,12 @@
+Testing WritePixel()/ReadPixel()...
+OK: WritePixel/ReadPixel color 3 at (10,10)
+OK: WritePixel/ReadPixel color 1 at (20,20)
+OK: WritePixel/ReadPixel color 2 at (30,30)
+OK: WritePixel/ReadPixel color 0 at (40,40)
+OK: ReadPixel out of bounds X returns -1
+OK: ReadPixel out of bounds Y returns -1
+OK: WritePixel out of bounds returns -1
+OK: Corner pixel (0,0) works
+OK: Corner pixel (63,63) works
+OK: COMPLEMENT mode toggled pixel
+PASS: WritePixel/ReadPixel all tests passed

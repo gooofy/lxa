@@ -1,0 +1,11 @@
+Testing InitBitMap()...
+OK: 320 pixels -> BytesPerRow=40
+OK: Rows=200
+OK: Depth=4
+OK: 17 pixels -> BytesPerRow=4 (word aligned)
+OK: 16 pixels -> BytesPerRow=2
+OK: 640 pixels -> BytesPerRow=80
+OK: Depth=8
+OK: 1 pixel -> BytesPerRow=2 (minimum word)
+OK: All plane pointers are NULL
+PASS: InitBitMap() all tests passed

@@ -403,9 +403,9 @@ static VOID _graphics_WaitBlit ( register struct GfxBase * GfxBase __asm("a6"))
 
 static VOID _graphics_SetRast ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register ULONG pen __asm("d0"))
+                                                        register UBYTE pen __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: SetRast() rp=0x%08lx, pen=%lu\n", (ULONG)rp, pen);
+    DPRINTF (LOG_DEBUG, "_graphics: SetRast() rp=0x%08lx, pen=%u\n", (ULONG)rp, (unsigned)pen);
 
     if (!rp || !rp->BitMap)
         return;
@@ -426,10 +426,10 @@ static VOID _graphics_SetRast ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_Move ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register LONG x __asm("d0"),
-                                                        register LONG y __asm("d1"))
+                                                        register WORD x __asm("d0"),
+                                                        register WORD y __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: Move() rp=0x%08lx, x=%ld, y=%ld\n", (ULONG)rp, x, y);
+    DPRINTF (LOG_DEBUG, "_graphics: Move() rp=0x%08lx, x=%d, y=%d\n", (ULONG)rp, (int)x, (int)y);
 
     if (rp)
     {
@@ -440,11 +440,11 @@ static VOID _graphics_Move ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register LONG x __asm("d0"),
-                                                        register LONG y __asm("d1"))
+                                                        register WORD x __asm("d0"),
+                                                        register WORD y __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: Draw() rp=0x%08lx, from (%d,%d) to (%ld,%ld)\n",
-             (ULONG)rp, rp ? rp->cp_x : 0, rp ? rp->cp_y : 0, x, y);
+    DPRINTF (LOG_DEBUG, "_graphics: Draw() rp=0x%08lx, from (%d,%d) to (%d,%d)\n",
+             (ULONG)rp, rp ? rp->cp_x : 0, rp ? rp->cp_y : 0, (int)x, (int)y);
 
     if (!rp || !rp->BitMap)
     {
@@ -596,13 +596,13 @@ static VOID _graphics_BltClear ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register LONG xMin __asm("d0"),
-                                                        register LONG yMin __asm("d1"),
-                                                        register LONG xMax __asm("d2"),
-                                                        register LONG yMax __asm("d3"))
+                                                        register WORD xMin __asm("d0"),
+                                                        register WORD yMin __asm("d1"),
+                                                        register WORD xMax __asm("d2"),
+                                                        register WORD yMax __asm("d3"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: RectFill() rp=0x%08lx, (%ld,%ld)-(%ld,%ld)\n",
-             (ULONG)rp, xMin, yMin, xMax, yMax);
+    DPRINTF (LOG_DEBUG, "_graphics: RectFill() rp=0x%08lx, (%d,%d)-(%d,%d)\n",
+             (ULONG)rp, (int)xMin, (int)yMin, (int)xMax, (int)yMax);
 
     if (!rp || !rp->BitMap)
         return;
@@ -635,7 +635,11 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                 {
                     if (rp->DrawMode == COMPLEMENT)
                     {
-                        bm->Planes[plane][byteOffset] ^= bitMask;
+                        /* In COMPLEMENT mode, only XOR planes where pen bit is set */
+                        if (pen & (1 << plane))
+                        {
+                            bm->Planes[plane][byteOffset] ^= bitMask;
+                        }
                     }
                     else
                     {
@@ -669,10 +673,10 @@ static VOID _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6")
 
 static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register LONG x __asm("d0"),
-                                                        register LONG y __asm("d1"))
+                                                        register WORD x __asm("d0"),
+                                                        register WORD y __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: ReadPixel() rp=0x%08lx, x=%ld, y=%ld\n", (ULONG)rp, x, y);
+    DPRINTF (LOG_DEBUG, "_graphics: ReadPixel() rp=0x%08lx, x=%d, y=%d\n", (ULONG)rp, (int)x, (int)y);
 
     if (!rp || !rp->BitMap)
         return (ULONG)-1;  /* Error */
@@ -701,10 +705,10 @@ static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6")
 
 static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register LONG x __asm("d0"),
-                                                        register LONG y __asm("d1"))
+                                                        register WORD x __asm("d0"),
+                                                        register WORD y __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: WritePixel() rp=0x%08lx, x=%ld, y=%ld\n", (ULONG)rp, x, y);
+    DPRINTF (LOG_DEBUG, "_graphics: WritePixel() rp=0x%08lx, x=%d, y=%d\n", (ULONG)rp, (int)x, (int)y);
 
     if (!rp || !rp->BitMap)
         return -1;  /* Error */
@@ -726,8 +730,11 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
         {
             if (rp->DrawMode == COMPLEMENT)
             {
-                /* XOR mode */
-                bm->Planes[plane][byteOffset] ^= bitMask;
+                /* In COMPLEMENT mode, only XOR planes where pen bit is set */
+                if (pen & (1 << plane))
+                {
+                    bm->Planes[plane][byteOffset] ^= bitMask;
+                }
             }
             else
             {
@@ -769,9 +776,9 @@ static VOID _graphics_PolyDraw ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_SetAPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register ULONG pen __asm("d0"))
+                                                        register UBYTE pen __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: SetAPen() rp=0x%08lx, pen=%lu\n", (ULONG)rp, pen);
+    DPRINTF (LOG_DEBUG, "_graphics: SetAPen() rp=0x%08lx, pen=%u\n", (ULONG)rp, (unsigned)pen);
 
     if (rp)
     {
@@ -781,9 +788,9 @@ static VOID _graphics_SetAPen ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_SetBPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register ULONG pen __asm("d0"))
+                                                        register UBYTE pen __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: SetBPen() rp=0x%08lx, pen=%lu\n", (ULONG)rp, pen);
+    DPRINTF (LOG_DEBUG, "_graphics: SetBPen() rp=0x%08lx, pen=%u\n", (ULONG)rp, (unsigned)pen);
 
     if (rp)
     {
@@ -793,9 +800,9 @@ static VOID _graphics_SetBPen ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_SetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register ULONG drawMode __asm("d0"))
+                                                        register UBYTE drawMode __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: SetDrMd() rp=0x%08lx, drawMode=%lu\n", (ULONG)rp, drawMode);
+    DPRINTF (LOG_DEBUG, "_graphics: SetDrMd() rp=0x%08lx, drawMode=%u\n", (ULONG)rp, (unsigned)drawMode);
 
     if (rp)
     {
@@ -844,18 +851,18 @@ static LONG _graphics_VBeamPos ( register struct GfxBase * GfxBase __asm("a6"))
 
 static VOID _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct BitMap * bitMap __asm("a0"),
-                                                        register LONG depth __asm("d0"),
-                                                        register LONG width __asm("d1"),
-                                                        register LONG height __asm("d2"))
+                                                        register BYTE depth __asm("d0"),
+                                                        register WORD width __asm("d1"),
+                                                        register WORD height __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: InitBitMap() bm=0x%08lx, depth=%ld, width=%ld, height=%ld\n",
-             (ULONG)bitMap, depth, width, height);
+    DPRINTF (LOG_DEBUG, "_graphics: InitBitMap() bm=0x%08lx, depth=%d, width=%d, height=%d\n",
+             (ULONG)bitMap, (int)depth, (int)width, (int)height);
 
     if (!bitMap)
         return;
 
     /* Calculate bytes per row (word-aligned) */
-    UWORD bytesPerRow = ((width + 15) >> 4) << 1;  /* Round up to word boundary */
+    UWORD bytesPerRow = (((UWORD)width + 15) >> 4) << 1;  /* Round up to word boundary */
 
     bitMap->BytesPerRow = bytesPerRow;
     bitMap->Rows = (UWORD)height;
@@ -998,13 +1005,13 @@ static VOID _graphics_RemFont ( register struct GfxBase * GfxBase __asm("a6"),
 }
 
 static PLANEPTR _graphics_AllocRaster ( register struct GfxBase * GfxBase __asm("a6"),
-                                                        register ULONG width __asm("d0"),
-                                                        register ULONG height __asm("d1"))
+                                                        register UWORD width __asm("d0"),
+                                                        register UWORD height __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: AllocRaster() width=%lu, height=%lu\n", width, height);
+    DPRINTF (LOG_DEBUG, "_graphics: AllocRaster() width=%u, height=%u\n", (unsigned)width, (unsigned)height);
 
     /* Calculate size using RASSIZE macro formula */
-    ULONG size = height * (((width + 15) >> 3) & 0xFFFE);
+    ULONG size = (ULONG)height * ((((ULONG)width + 15) >> 3) & 0xFFFE);
 
     /* Allocate chip memory (MEMF_CHIP) and clear it */
     PLANEPTR raster = (PLANEPTR)AllocMem(size, MEMF_CHIP | MEMF_CLEAR);
@@ -1016,17 +1023,17 @@ static PLANEPTR _graphics_AllocRaster ( register struct GfxBase * GfxBase __asm(
 
 static VOID _graphics_FreeRaster ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register PLANEPTR p __asm("a0"),
-                                                        register ULONG width __asm("d0"),
-                                                        register ULONG height __asm("d1"))
+                                                        register UWORD width __asm("d0"),
+                                                        register UWORD height __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: FreeRaster() p=0x%08lx, width=%lu, height=%lu\n",
-             (ULONG)p, width, height);
+    DPRINTF (LOG_DEBUG, "_graphics: FreeRaster() p=0x%08lx, width=%u, height=%u\n",
+             (ULONG)p, (unsigned)width, (unsigned)height);
 
     if (!p)
         return;
 
     /* Calculate size using RASSIZE macro formula */
-    ULONG size = height * (((width + 15) >> 3) & 0xFFFE);
+    ULONG size = (ULONG)height * ((((ULONG)width + 15) >> 3) & 0xFFFE);
 
     FreeMem(p, size);
 }

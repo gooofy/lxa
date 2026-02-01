@@ -3,7 +3,7 @@
 include Makefile.config
 
 # Test categories
-TEST_CATS := dos exec shell commands stress
+TEST_CATS := dos exec shell commands stress graphics
 
 # Color output
 GREEN = \033[0;32m
@@ -68,6 +68,14 @@ all:
 	@$(MAKE) -C stress/memory
 	@$(MAKE) -C stress/tasks
 	@$(MAKE) -C stress/filesystem
+	@$(MAKE) -C graphics/init_rastport
+	@$(MAKE) -C graphics/init_bitmap
+	@$(MAKE) -C graphics/alloc_raster
+	@$(MAKE) -C graphics/pen_state
+	@$(MAKE) -C graphics/pixel_ops
+	@$(MAKE) -C graphics/line_draw
+	@$(MAKE) -C graphics/rect_fill
+	@$(MAKE) -C graphics/set_rast
 
 clean:
 	@echo "Cleaning all tests..."
@@ -125,6 +133,14 @@ clean:
 	@$(MAKE) -C stress/memory clean
 	@$(MAKE) -C stress/tasks clean
 	@$(MAKE) -C stress/filesystem clean
+	@$(MAKE) -C graphics/init_rastport clean
+	@$(MAKE) -C graphics/init_bitmap clean
+	@$(MAKE) -C graphics/alloc_raster clean
+	@$(MAKE) -C graphics/pen_state clean
+	@$(MAKE) -C graphics/pixel_ops clean
+	@$(MAKE) -C graphics/line_draw clean
+	@$(MAKE) -C graphics/rect_fill clean
+	@$(MAKE) -C graphics/set_rast clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -179,6 +195,14 @@ clean:
 	rm -f stress/memory/actual.out
 	rm -f stress/tasks/actual.out
 	rm -f stress/filesystem/actual.out
+	rm -f graphics/init_rastport/actual.out
+	rm -f graphics/init_bitmap/actual.out
+	rm -f graphics/alloc_raster/actual.out
+	rm -f graphics/pen_state/actual.out
+	rm -f graphics/pixel_ops/actual.out
+	rm -f graphics/line_draw/actual.out
+	rm -f graphics/rect_fill/actual.out
+	rm -f graphics/set_rast/actual.out
 
 test: all
 	@echo ""
@@ -241,6 +265,14 @@ run-tests:
 	@$(MAKE) -C stress/memory run-test
 	@$(MAKE) -C stress/tasks run-test
 	@$(MAKE) -C stress/filesystem run-test
+	@$(MAKE) -C graphics/init_rastport run-test
+	@$(MAKE) -C graphics/init_bitmap run-test
+	@$(MAKE) -C graphics/alloc_raster run-test
+	@$(MAKE) -C graphics/pen_state run-test
+	@$(MAKE) -C graphics/pixel_ops run-test
+	@$(MAKE) -C graphics/line_draw run-test
+	@$(MAKE) -C graphics/rect_fill run-test
+	@$(MAKE) -C graphics/set_rast run-test
 
 help:
 	@echo "Integration Test Suite"

@@ -1,0 +1,10 @@
+Testing RectFill()...
+OK: RectFill (10,10)-(30,30) filled with color 1
+OK: Outside rect area is clear
+OK: COMPLEMENT mode toggled inner area to 0
+OK: Outer area still has color 1
+OK: RectFill with color 3 works
+OK: Single pixel RectFill works
+OK: Single pixel rect neighbors are clear
+OK: RectFill at bitmap edge works
+PASS: RectFill all tests passed

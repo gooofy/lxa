@@ -101,16 +101,16 @@ Full command set implemented:
 - [x] **Bitmap Init** - `InitBitMap`, `InitRastPort`, `SetRast`, `Move`.
 - [x] **Timing** - `WaitTOF`, `WaitBlit` (no-ops, no real hardware).
 
-### Step 13.4: Graphics Test Coverage (REQUIRED)
-- [ ] **Test Suite** - Create `tests/graphics/` directory with comprehensive tests.
-- [ ] `init_rastport` - Verify InitRastPort() sets correct defaults.
-- [ ] `init_bitmap` - Verify InitBitMap() calculates BytesPerRow correctly.
-- [ ] `alloc_raster` - Test AllocRaster()/FreeRaster() memory handling.
-- [ ] `pen_state` - Test pen/mode functions (SetAPen, GetAPen, etc.).
-- [ ] `pixel_ops` - Test WritePixel()/ReadPixel() for various colors.
-- [ ] `line_draw` - Test Draw() for horizontal, vertical, diagonal lines.
-- [ ] `rect_fill` - Test RectFill() including COMPLEMENT mode.
-- [ ] `set_rast` - Test SetRast() clears to correct color.
+### Step 13.4: Graphics Test Coverage (COMPLETE)
+- [x] **Test Suite** - Create `tests/graphics/` directory with comprehensive tests.
+- [x] `init_rastport` - Verify InitRastPort() sets correct defaults.
+- [x] `init_bitmap` - Verify InitBitMap() calculates BytesPerRow correctly.
+- [x] `alloc_raster` - Test AllocRaster()/FreeRaster() memory handling.
+- [x] `pen_state` - Test pen/mode functions (SetAPen, GetAPen, etc.).
+- [x] `pixel_ops` - Test WritePixel()/ReadPixel() for various colors.
+- [x] `line_draw` - Test Draw() for horizontal, vertical, diagonal lines.
+- [x] `rect_fill` - Test RectFill() including COMPLEMENT mode.
+- [x] `set_rast` - Test SetRast() clears to correct color.
 
 See `doc/graphics_testing.md` for detailed test specifications.
 
