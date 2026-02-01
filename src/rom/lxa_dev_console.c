@@ -58,6 +58,12 @@ struct LxaConUnit {
     UWORD  input_tail;           /* Read position */
     BOOL   echo_enabled;         /* Echo typed characters */
     BOOL   line_mode;            /* Line-buffered (cooked) vs raw mode */
+    /* Cursor state */
+    BOOL   cursor_visible;       /* Whether cursor should be displayed */
+    BOOL   cursor_drawn;         /* Whether cursor is currently rendered */
+    /* Line editing state */
+    UWORD  line_start_x;         /* X position where current input line started */
+    UWORD  line_start_y;         /* Y position where current input line started */
 };
 
 /*
@@ -166,6 +172,8 @@ static void console_scroll_up(struct LxaConUnit *unit);
 static void console_newline(struct LxaConUnit *unit);
 static void console_carriage_return(struct LxaConUnit *unit);
 static void console_process_char(struct LxaConUnit *unit, char c);
+static void console_draw_cursor(struct LxaConUnit *unit);
+static void console_hide_cursor(struct LxaConUnit *unit);
 
 /*
  * Initialize a ConUnit for a window
@@ -251,6 +259,14 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     unit->echo_enabled = TRUE;   /* Echo by default */
     unit->line_mode = TRUE;      /* Line-buffered by default */
     
+    /* Initialize cursor state */
+    unit->cursor_visible = TRUE;  /* Cursor visible by default */
+    unit->cursor_drawn = FALSE;
+    
+    /* Initialize line editing state */
+    unit->line_start_x = 0;
+    unit->line_start_y = 0;
+    
     LPRINTF(LOG_INFO, "_console: Created ConUnit for window 0x%08lx: XMax=%d YMax=%d XRSize=%d YRSize=%d\n",
             (ULONG)window, unit->cu.cu_XMax, unit->cu.cu_YMax, unit->cu.cu_XRSize, unit->cu.cu_YRSize);
     LPRINTF(LOG_INFO, "_console:   Raster area: origin=(%d,%d) extant=(%d,%d)\n",
@@ -333,6 +349,7 @@ static void console_process_input(struct LxaConUnit *unit)
     struct Window *window;
     struct MsgPort *port;
     struct IntuiMessage *imsg;
+    BOOL redraw_cursor = FALSE;
     
     if (!unit || !unit->cu.cu_Window) {
         return;
@@ -344,6 +361,9 @@ static void console_process_input(struct LxaConUnit *unit)
     if (!port) {
         return;
     }
+    
+    /* Hide cursor while processing input */
+    console_hide_cursor(unit);
     
     /* Process all pending IDCMP messages */
     while ((imsg = (struct IntuiMessage *)GetMsg(port)) != NULL) {
@@ -359,23 +379,28 @@ static void console_process_input(struct LxaConUnit *unit)
                         rawkey, qualifier, (c >= 32 && c < 127) ? c : '.', (unsigned char)c);
                 
                 if (c) {
+                    redraw_cursor = TRUE;
+                    
                     /* Handle special characters */
                     if (c == '\b') {
                         /* Backspace - remove last character from buffer if possible */
+                        BOOL can_backspace = FALSE;
+                        
+                        /* Only allow backspace if we have characters in our input buffer */
                         if (!input_buf_empty(unit)) {
-                            /* Check if we can remove (not past a newline) */
                             UWORD prev = (unit->input_head + INPUT_BUF_LEN - 1) % INPUT_BUF_LEN;
-                            if (prev != unit->input_tail && 
-                                unit->input_buf[prev] != '\r' && 
+                            if (unit->input_buf[prev] != '\r' && 
                                 unit->input_buf[prev] != '\n') {
                                 unit->input_head = prev;
-                                if (unit->echo_enabled) {
-                                    /* Echo backspace: move cursor back, space, move back again */
-                                    console_process_char(unit, '\b');
-                                    console_process_char(unit, ' ');
-                                    console_process_char(unit, '\b');
-                                }
+                                can_backspace = TRUE;
                             }
+                        }
+                        
+                        if (can_backspace && unit->echo_enabled) {
+                            /* Echo backspace: move cursor back, space, move back again */
+                            console_process_char(unit, '\b');
+                            console_process_char(unit, ' ');
+                            console_process_char(unit, '\b');
                         }
                     } else {
                         /* Add character to buffer */
@@ -399,8 +424,9 @@ static void console_process_input(struct LxaConUnit *unit)
         ReplyMsg((struct Message *)imsg);
     }
     
-    /* Refresh display if we echoed anything */
-    if (unit->echo_enabled) {
+    /* Redraw cursor and refresh display */
+    if (redraw_cursor || unit->cursor_visible) {
+        console_draw_cursor(unit);
         WaitTOF();
     }
 }
@@ -422,6 +448,9 @@ static void console_write_char(struct LxaConUnit *unit, char c)
     if (!rp) {
         return;
     }
+    
+    /* Hide cursor before modifying the display */
+    console_hide_cursor(unit);
     
     /* Calculate pixel position from character position */
     x = unit->cu.cu_XROrigin + (unit->cu.cu_XCP * unit->cu.cu_XRSize);
@@ -543,6 +572,69 @@ static void console_clear_display(struct LxaConUnit *unit)
     /* Reset cursor to home */
     unit->cu.cu_XCP = 0;
     unit->cu.cu_YCP = 0;
+}
+
+/*
+ * Draw cursor at current position (XOR block cursor)
+ */
+static void console_draw_cursor(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    WORD x1, y1, x2, y2;
+    
+    if (!unit || !unit->cu.cu_Window) return;
+    if (!unit->cursor_visible) return;
+    if (unit->cursor_drawn) return;  /* Already drawn */
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp) return;
+    
+    /* Calculate pixel rectangle for cursor */
+    x1 = unit->cu.cu_XROrigin + (unit->cu.cu_XCP * unit->cu.cu_XRSize);
+    y1 = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize);
+    x2 = x1 + unit->cu.cu_XRSize - 1;
+    y2 = y1 + unit->cu.cu_YRSize - 1;
+    
+    /* Draw cursor as XOR block (COMPLEMENT mode) */
+    SetDrMd(rp, COMPLEMENT);
+    SetAPen(rp, 1);  /* Will be XORed */
+    RectFill(rp, x1, y1, x2, y2);
+    SetDrMd(rp, unit->cu.cu_DrawMode);  /* Restore draw mode */
+    
+    unit->cursor_drawn = TRUE;
+}
+
+/*
+ * Hide cursor (erase it from screen)
+ */
+static void console_hide_cursor(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    WORD x1, y1, x2, y2;
+    
+    if (!unit || !unit->cu.cu_Window) return;
+    if (!unit->cursor_drawn) return;  /* Not drawn */
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp) return;
+    
+    /* Calculate pixel rectangle for cursor */
+    x1 = unit->cu.cu_XROrigin + (unit->cu.cu_XCP * unit->cu.cu_XRSize);
+    y1 = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize);
+    x2 = x1 + unit->cu.cu_XRSize - 1;
+    y2 = y1 + unit->cu.cu_YRSize - 1;
+    
+    /* Erase cursor with XOR (same as draw) */
+    SetDrMd(rp, COMPLEMENT);
+    SetAPen(rp, 1);
+    RectFill(rp, x1, y1, x2, y2);
+    SetDrMd(rp, unit->cu.cu_DrawMode);
+    
+    unit->cursor_drawn = FALSE;
 }
 
 /*
@@ -708,7 +800,15 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
         case 'p':  /* Cursor visibility (Amiga-specific) */
         {
             /* CSI 0 p = hide cursor, CSI p or CSI 1 p = show cursor */
-            /* We don't have cursor rendering yet, so just ignore */
+            int mode = (nparams >= 1) ? params[0] : 1;
+            if (mode == 0) {
+                console_hide_cursor(unit);
+                unit->cursor_visible = FALSE;
+            } else {
+                unit->cursor_visible = TRUE;
+                /* Cursor will be drawn on next refresh */
+            }
+            DPRINTF(LOG_DEBUG, "_console: cursor visibility = %d\n", unit->cursor_visible);
             break;
         }
         
@@ -917,6 +1017,17 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 LONG len = iostd->io_Length;
                 LONG count = 0;
                 
+                /* Record line start position for backspace limits.
+                 * This is where the user's input starts - they cannot backspace
+                 * past this point. This matches authentic Amiga behavior where
+                 * you cannot backspace over program-output text. */
+                unit->line_start_x = unit->cu.cu_XCP;
+                unit->line_start_y = unit->cu.cu_YCP;
+                
+                /* Draw cursor to show we're ready for input */
+                console_draw_cursor(unit);
+                WaitTOF();
+                
                 /* Process any pending input */
                 console_process_input(unit);
                 
@@ -928,6 +1039,9 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                         console_process_input(unit);
                     }
                 }
+                
+                /* Hide cursor after reading is done */
+                console_hide_cursor(unit);
                 
                 /* Copy available characters to buffer */
                 while (count < len && !input_buf_empty(unit)) {

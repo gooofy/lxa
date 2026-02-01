@@ -379,18 +379,79 @@ Key implementations:
 
 ---
 
-## Phase 22: Quality & Stability Hardening
+## Phase 22: UI Testing Infrastructure & Console Device Completion
+
+**Goal**: Enable automated testing of graphical applications with input simulation and screen verification. Complete console.device implementation with proper line editing.
+
+See `doc/ui_testing.md` for detailed specifications.
+
+### Step 22.1: Console Device Completion (NOT STARTED)
+**Problem**: Console.device input handling needs proper line editing behavior matching authentic Amiga.
+
+**Authentic Behavior (from research)**:
+- Cooked mode (default): Line-buffered, auto-echo, backspace only removes typed chars
+- Raw mode: Character-at-a-time, no echo, no filtering
+- Input buffer contains ONLY user-typed characters, not program output
+- User cannot backspace over characters output by the program before Read()
+
+**Tasks**:
+- [ ] **Cooked Mode** - Implement proper line buffering with echo
+- [ ] **Raw Mode** - Implement character-at-a-time input
+- [ ] **Mode Switching** - Support ACTION_SCREEN_MODE packet
+- [ ] **Backspace Limits** - Prevent backspace past Read() start position
+- [ ] **Unit Tests** - Comprehensive tests for all input behaviors
+
+### Step 22.2: Input Injection Infrastructure (NOT STARTED)
+**Problem**: Need to inject keyboard/mouse events for automated UI testing.
+
+**Tasks**:
+- [ ] **EMU_CALL_TEST_INJECT_KEY** - Inject rawkey + qualifier events
+- [ ] **EMU_CALL_TEST_INJECT_MOUSE** - Inject mouse position + button events
+- [ ] **EMU_CALL_TEST_INJECT_STRING** - Inject string as key sequence
+- [ ] **ROM Test Helpers** - Library for tests to call injection
+- [ ] **Python Bindings** - Control input from Python test scripts
+
+### Step 22.3: Screen Capture Infrastructure (NOT STARTED)
+**Problem**: Need to capture and compare screen contents for visual regression testing.
+
+**Tasks**:
+- [ ] **Headless Rendering** - Render to memory buffer without display
+- [ ] **EMU_CALL_TEST_CAPTURE_SCREEN** - Capture screen to PNG file
+- [ ] **EMU_CALL_TEST_CAPTURE_WINDOW** - Capture specific window
+- [ ] **Image Comparison** - Compare captured vs reference images
+- [ ] **Text Extraction** - Extract text from screen buffer (font-aware)
+
+### Step 22.4: Console Device Unit Tests (NOT STARTED)
+**Tasks**:
+- [ ] `tests/console/input_basic/` - Basic keyboard input
+- [ ] `tests/console/input_modifiers/` - Shift, Ctrl, Caps Lock handling
+- [ ] `tests/console/input_buffer/` - Buffer limits and overflow
+- [ ] `tests/console/line_mode/` - Cooked mode line editing
+- [ ] `tests/console/raw_mode/` - Raw mode character input
+- [ ] `tests/console/echo/` - Echo enable/disable behavior
+
+### Step 22.5: Application Integration Tests (NOT STARTED)
+**Tasks**:
+- [ ] **UI Test Runner** - Extend `run_apps.py` with UI test support
+- [ ] **Test Script Format** - Define UI test steps in `app.json`
+- [ ] **KickPascal 2 Tests** - Startup, workspace input, basic editing
+- [ ] **Reference Screenshots** - Create baseline images for comparison
+- [ ] **CI Integration** - Run UI tests in continuous integration
+
+---
+
+## Phase 23: Quality & Stability Hardening
 
 **Goal**: Ensure production-grade reliability.
 
-### Step 22.1: Memory Debugging
+### Step 23.1: Memory Debugging
 - [ ] Memory tracking, leak detection, double-free detection, buffer overflow guards
 - [ ] **Stress Testing** - 24-hour continuous operation, 10,000 file operations.
 
-### Step 22.2: Compatibility Testing
+### Step 23.2: Compatibility Testing
 - [ ] Test with common Amiga software, document issues, create compatibility database.
 
-### Step 22.3: Performance Optimization
+### Step 23.3: Performance Optimization
 - [ ] Profile critical paths, optimize VFS, memory allocation, emucall overhead.
 
 ## Known Limitations & Future Work
