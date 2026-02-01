@@ -80,59 +80,124 @@ Full command set implemented:
 
 ---
 
-## Phase 13: Console Device Enhancement
+## Phase 13: Graphics Foundation
+
+**Goal**: Establish the core graphics subsystem and host display integration.
+
+### Step 13.1: Host Display Subsystem
+- [ ] **SDL2 Integration** - Initialize SDL2 in host process, event loop integration.
+- [ ] **Surface Management** - Abstract API for creating/updating host surfaces.
+- [ ] **Emucalls** - Define emucalls for graphics operations (`GRAPHICS_INIT`, `UPDATE_RECT`, etc.).
+
+### Step 13.2: Graphics Library Basics
+- [ ] **Library Structure** - `graphics.library` initialization, `GfxBase`.
+- [ ] **Data Structures** - Implement `BitMap`, `RastPort`, `ViewPort`, `View` structs.
+- [ ] **Memory** - Allocate "Video Memory" (RAM) for BitMaps.
+
+### Step 13.3: Basic Rendering
+- [ ] **Pixel Ops** - `WritePixel`, `ReadPixel` (CPU implementation).
+- [ ] **Drawing** - `Draw` (Line), `RectFill` (Rectangle).
+- [ ] **State** - `SetAPen`, `SetBPen`, `SetDrMd`.
+
+### Step 13.4: Screen Management
+- [ ] **OpenScreen** - Map `OpenScreen` to Host Window creation.
+- [ ] **Display Loop** - Blit Amiga BitMap to Host Window texture.
+
+---
+
+## Phase 14: Intuition Basics
+
+**Goal**: Implement windowing and user input.
+
+### Step 14.1: Intuition Core
+- [ ] **Library Structure** - `intuition.library` initialization.
+- [ ] **Screen/Window** - `OpenWindow`, `CloseWindow` (Integrated Mode: rendering into Screen BitMap).
+- [ ] **Refresh** - Handle `BeginRefresh`, `EndRefresh`.
+
+### Step 14.2: Input Handling
+- [ ] **Input Pipeline** - SDL Events -> Host Input Handler -> `input.device`.
+- [ ] **IDCMP** - Post `IntuiMessage` to Window ports (MOUSEBUTTONS, RAWKEY).
+- [ ] **Mouse** - Track mouse position, update `Window->MouseX/Y`.
+
+### Step 14.3: Basic Gadgets
+- [ ] **System Gadgets** - Visual representation of Close/Depth/Drag gadgets.
+- [ ] **Gadget Interaction** - Hit testing and basic state changes.
+
+---
+
+## Phase 15: Rootless Mode & Advanced Graphics
+
+**Goal**: seamless desktop integration and rich graphics.
+
+### Step 15.1: Rootless Windowing
+- [ ] **Mode Switch** - Configuration for Rootless vs Hosted.
+- [ ] **Window Mapping** - `OpenWindow` creates individual SDL windows in Rootless mode.
+- [ ] **Event Routing** - Route events to specific windows.
+
+### Step 15.2: Advanced Rendering
+- [ ] **Blitter** - `BltBitMap`, `BltTemplate` (CPU emulation).
+- [ ] **Text** - `OpenFont`, `Text`, `SetFont` (Built-in Topaz-8 font).
+- [ ] **Layers** - Basic `layers.library` support for clipping.
+
+### Step 15.3: UI Elements
+- [ ] **Menus** - Menu bar handling (global vs per-window).
+- [ ] **Requesters** - `AutoRequest`, `EasyRequest` as native or modal windows.
+
+---
+
+## Phase 16: Console Device Enhancement (Postponed)
 
 **Goal**: Provide full ANSI/CSI escape sequence support for terminal applications.
 
-### Step 13.1: Cursor Control
+### Step 16.1: Cursor Control
 - [ ] **Cursor Positioning** - CSI row;col H, relative movement (A/B/C/D), save/restore
 
-### Step 13.2: Line/Screen Control
+### Step 16.2: Line/Screen Control
 - [ ] **Clear Line/Screen** - CSI K and CSI J variants
 - [ ] **Insert/Delete** - Characters and lines with scrolling
 
-### Step 13.3: Text Attributes
+### Step 16.3: Text Attributes
 - [ ] **SGR Attributes** - Bold, underline, reverse, colors (30-47)
 
-### Step 13.4: Window Queries & Raw Mode
+### Step 16.4: Window Queries & Raw Mode
 - [ ] **Window Bounds** - Report dimensions
 - [ ] **SetMode** - Raw/cooked mode switching
 
 ---
 
-## Phase 14: Additional Commands
+## Phase 17: Additional Commands (Postponed)
 
 **Goal**: Expand command set to cover common AmigaOS utilities.
 
-### Step 14.1: File Management
+### Step 17.1: File Management
 - [ ] **AVAIL** - Display memory information
 - [ ] **RESIDENT** - Manage resident commands
 
-### Step 14.2: Script Support
+### Step 17.2: Script Support
 - [ ] **ASK** - Interactive yes/no prompt
 - [ ] **REQUESTCHOICE** - Text-based choice dialog
 
-### Step 14.3: Shell Enhancements
+### Step 17.3: Shell Enhancements
 - [ ] **CD** with no args - Show current directory
 - [ ] **WHICH** - Locate command in search path
 - [ ] **PATH** - Manage command search path
 
 ---
 
-## Phase 15: Quality & Stability Hardening
+## Phase 18: Quality & Stability Hardening
 
 **Goal**: Ensure production-grade reliability.
 
-### Step 15.1: Memory Debugging
+### Step 18.1: Memory Debugging
 - [ ] Memory tracking, leak detection, double-free detection, buffer overflow guards
 
-### Step 15.2: Stress Testing
+### Step 18.2: Stress Testing
 - [ ] 24-hour continuous operation, 10,000 file operations, 100 concurrent processes
 
-### Step 15.3: Compatibility Testing
+### Step 18.3: Compatibility Testing
 - [ ] Test with common Amiga software, document issues, create compatibility database
 
-### Step 15.4: Performance Optimization
+### Step 18.4: Performance Optimization
 - [ ] Profile critical paths, optimize VFS, memory allocation, emucall overhead
 
 ---
