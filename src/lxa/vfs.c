@@ -215,12 +215,23 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
         return true;
     }
 
-    /* Handle absolute Linux paths - pass through unchanged */
-    if (amiga_path[0] == '/') {
-        strncpy(linux_path, amiga_path, maxlen);
-        linux_path[maxlen - 1] = '\0';
-        DPRINTF(LOG_DEBUG, "vfs: absolute Linux path: %s\n", amiga_path);
-        return true;
+    /*
+     * Handle absolute Linux paths - pass through unchanged.
+     * BUT: In AmigaOS, a path starting with '/' means "parent directory",
+     * so we only treat it as a Linux absolute path if it looks like one:
+     * - Must start with '/' followed by an alphanumeric character
+     * - Paths like '//' or '/' followed by another '/' are Amiga parent paths
+     */
+    if (amiga_path[0] == '/' && amiga_path[1] != '\0' && amiga_path[1] != '/') {
+        /* Could be Linux absolute path - check if second char is alphanumeric */
+        if ((amiga_path[1] >= 'a' && amiga_path[1] <= 'z') ||
+            (amiga_path[1] >= 'A' && amiga_path[1] <= 'Z') ||
+            (amiga_path[1] >= '0' && amiga_path[1] <= '9')) {
+            strncpy(linux_path, amiga_path, maxlen);
+            linux_path[maxlen - 1] = '\0';
+            DPRINTF(LOG_DEBUG, "vfs: absolute Linux path: %s\n", amiga_path);
+            return true;
+        }
     }
 
     char work_path[PATH_MAX];

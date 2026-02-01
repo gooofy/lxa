@@ -84,6 +84,130 @@ struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"
 
 #define INITIAL_TASK_ARRAY_SIZE 8
 
+/*
+ * Helper function to resolve Amiga relative paths to absolute paths.
+ * 
+ * AmigaOS path resolution rules:
+ * - If path contains ':', it's absolute (e.g., "SYS:C/Dir") - no change needed
+ * - If path starts with '/', it's relative going UP from current dir (parent)
+ * - Otherwise it's relative going DOWN from current dir
+ *
+ * Parameters:
+ *   name - The input path (Amiga format)
+ *   resolved - Buffer to store the resolved absolute path (must be at least 256 bytes)
+ *
+ * Returns:
+ *   Pointer to the path to use (either the original name if absolute, or resolved if relative)
+ */
+static const char *resolve_amiga_path(const char *name, char *resolved)
+{
+    if (!name || !resolved) return name;
+    
+    /* Check if this is an absolute path (contains ':') */
+    const char *p = name;
+    while (*p) {
+        if (*p == ':') return name;  /* Absolute - use as-is */
+        p++;
+    }
+    
+    /* It's a relative path - need to resolve against current directory */
+    struct Process *me = (struct Process *)FindTask(NULL);
+    BPTR curdir = me->pr_CurrentDir;
+    
+    if (!curdir) {
+        /* No current directory - prefix with SYS: for paths that don't start with / */
+        if (name[0] != '/') {
+            int i = 0;
+            const char *prefix = "SYS:";
+            while (prefix[i] && i < 255) {
+                resolved[i] = prefix[i];
+                i++;
+            }
+            int j = 0;
+            while (name[j] && i < 255) {
+                resolved[i++] = name[j++];
+            }
+            resolved[i] = '\0';
+            DPRINTF(LOG_DEBUG, "_dos: resolve_amiga_path() no curdir, using SYS: prefix: '%s'\n", resolved);
+            return resolved;
+        }
+        return name;  /* Can't resolve / paths without current dir */
+    }
+    
+    /* Get current directory path */
+    char curdir_path[256];
+    if (!NameFromLock(curdir, (STRPTR)curdir_path, sizeof(curdir_path))) {
+        return name;  /* Can't get current dir path, use original */
+    }
+    
+    int cur_len;
+    for (cur_len = 0; curdir_path[cur_len]; cur_len++);
+    
+    /* Handle leading slashes - each '/' means "go up one level" */
+    int up_count = 0;
+    while (*name == '/') {
+        up_count++;
+        name++;
+    }
+    
+    if (up_count > 0) {
+        /* Go up 'up_count' levels from current directory */
+        for (int i = 0; i < up_count && cur_len > 0; i++) {
+            /* Find last '/' or position after ':' */
+            int last_slash = -1;
+            int colon_pos = -1;
+            for (int j = 0; j < cur_len; j++) {
+                if (curdir_path[j] == ':') colon_pos = j;
+                if (curdir_path[j] == '/') last_slash = j;
+            }
+            
+            if (last_slash > colon_pos && last_slash > 0) {
+                /* Remove last component */
+                curdir_path[last_slash] = '\0';
+                cur_len = last_slash;
+            } else if (colon_pos >= 0) {
+                /* At root already - just keep the volume: */
+                curdir_path[colon_pos + 1] = '\0';
+                cur_len = colon_pos + 1;
+                break;  /* Can't go higher than root */
+            }
+        }
+    }
+    
+    /* Now combine curdir_path with remaining name */
+    if (*name) {
+        /* There's more path after the slashes */
+        int i;
+        /* Check if curdir_path ends with ':' (root) */
+        BOOL ends_with_colon = (cur_len > 0 && curdir_path[cur_len - 1] == ':');
+        
+        /* Copy curdir_path */
+        for (i = 0; i < cur_len && i < 255; i++) {
+            resolved[i] = curdir_path[i];
+        }
+        
+        /* Add separator if needed */
+        if (!ends_with_colon && i < 255) {
+            resolved[i++] = '/';
+        }
+        
+        /* Copy remaining name */
+        for (int j = 0; name[j] && i < 255; j++) {
+            resolved[i++] = name[j];
+        }
+        resolved[i] = '\0';
+    } else {
+        /* Just the parent directory(ies) */
+        for (int i = 0; curdir_path[i] && i < 255; i++) {
+            resolved[i] = curdir_path[i];
+        }
+        resolved[cur_len < 255 ? cur_len : 255] = '\0';
+    }
+    
+    DPRINTF(LOG_DEBUG, "_dos: resolve_amiga_path() resolved: '%s' -> '%s'\n", name - up_count, resolved);
+    return resolved;
+}
+
 /* Initialize the RootNode and TaskArray if not already done.
  * Uses DOSBase->dl_Root to store the RootNode (allocated in RAM).
  * Returns the RootNode pointer, or NULL on failure. */
@@ -349,6 +473,10 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
 
     if (!___name) return 0;
 
+    /* Resolve relative paths */
+    char resolved_path[256];
+    const char *path_to_use = resolve_amiga_path((const char *)___name, resolved_path);
+    
     struct FileHandle *fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
 
     DPRINTF (LOG_DEBUG, "_dos: Open() fh=0x%08lx\n", fh);
@@ -357,7 +485,7 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
     if (fh)
     {
 
-        int err = emucall3 (EMU_CALL_DOS_OPEN, (ULONG) ___name, ___accessMode, (ULONG) fh);
+        int err = emucall3 (EMU_CALL_DOS_OPEN, (ULONG) path_to_use, ___accessMode, (ULONG) fh);
 
         DPRINTF (LOG_DEBUG, "_dos: Open() result from emucall3: err=%d, fh->Args=%d\n", err, fh->fh_Args);
 
@@ -504,7 +632,11 @@ LONG _dos_DeleteFile ( register struct DosLibrary * __libBase __asm("a6"),
         return DOSFALSE;
     }
 
-    LONG result = emucall1(EMU_CALL_DOS_DELETE, (ULONG)___name);
+    /* Resolve relative paths */
+    char resolved_path[256];
+    const char *path_to_use = resolve_amiga_path((const char *)___name, resolved_path);
+    
+    LONG result = emucall1(EMU_CALL_DOS_DELETE, (ULONG)path_to_use);
 
     DPRINTF (LOG_DEBUG, "_dos: DeleteFile() result: %ld\n", result);
 
@@ -529,7 +661,12 @@ LONG _dos_Rename ( register struct DosLibrary * __libBase __asm("a6"),
         return DOSFALSE;
     }
 
-    LONG result = emucall2(EMU_CALL_DOS_RENAME, (ULONG)___oldName, (ULONG)___newName);
+    /* Resolve relative paths */
+    char resolved_old[256], resolved_new[256];
+    const char *old_to_use = resolve_amiga_path((const char *)___oldName, resolved_old);
+    const char *new_to_use = resolve_amiga_path((const char *)___newName, resolved_new);
+    
+    LONG result = emucall2(EMU_CALL_DOS_RENAME, (ULONG)old_to_use, (ULONG)new_to_use);
 
     DPRINTF (LOG_DEBUG, "_dos: Rename() result: %ld\n", result);
 
@@ -552,7 +689,11 @@ BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
         return 0;
     }
 
-    ULONG lock_id = emucall2(EMU_CALL_DOS_LOCK, (ULONG)___name, (ULONG)___type);
+    /* Resolve relative paths */
+    char resolved_path[256];
+    const char *path_to_use = resolve_amiga_path((const char *)___name, resolved_path);
+
+    ULONG lock_id = emucall2(EMU_CALL_DOS_LOCK, (ULONG)path_to_use, (ULONG)___type);
 
     DPRINTF (LOG_DEBUG, "_dos: Lock() result: lock_id=%lu\n", lock_id);
 
@@ -668,7 +809,11 @@ BPTR _dos_CreateDir ( register struct DosLibrary * __libBase __asm("a6"),
         return 0;
     }
 
-    ULONG lock_id = emucall1(EMU_CALL_DOS_CREATEDIR, (ULONG)___name);
+    /* Resolve relative paths */
+    char resolved_path[256];
+    const char *path_to_use = resolve_amiga_path((const char *)___name, resolved_path);
+    
+    ULONG lock_id = emucall1(EMU_CALL_DOS_CREATEDIR, (ULONG)path_to_use);
 
     DPRINTF (LOG_DEBUG, "_dos: CreateDir() result: lock_id=%lu\n", lock_id);
 
@@ -1119,7 +1264,11 @@ LONG _dos_SetComment ( register struct DosLibrary * __libBase __asm("a6"),
         return DOSFALSE;
     }
 
-    LONG result = emucall2(EMU_CALL_DOS_SETCOMMENT, (ULONG)___name, (ULONG)___comment);
+    /* Resolve relative paths */
+    char resolved_path[256];
+    const char *path_to_use = resolve_amiga_path((const char *)___name, resolved_path);
+    
+    LONG result = emucall2(EMU_CALL_DOS_SETCOMMENT, (ULONG)path_to_use, (ULONG)___comment);
 
     DPRINTF (LOG_DEBUG, "_dos: SetComment() result: %ld\n", result);
 
@@ -1143,7 +1292,11 @@ LONG _dos_SetProtection ( register struct DosLibrary * __libBase __asm("a6"),
         return DOSFALSE;
     }
 
-    LONG result = emucall2(EMU_CALL_DOS_SETPROTECTION, (ULONG)___name, (ULONG)___protect);
+    /* Resolve relative paths */
+    char resolved_path2[256];
+    const char *path_to_use2 = resolve_amiga_path((const char *)___name, resolved_path2);
+    
+    LONG result = emucall2(EMU_CALL_DOS_SETPROTECTION, (ULONG)path_to_use2, (ULONG)___protect);
 
     DPRINTF (LOG_DEBUG, "_dos: SetProtection() result: %ld\n", result);
 

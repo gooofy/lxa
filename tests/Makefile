@@ -41,6 +41,7 @@ all:
 	@$(MAKE) -C dos/createdir_perms
 	@$(MAKE) -C dos/fhutils
 	@$(MAKE) -C dos/matchfirst
+	@$(MAKE) -C dos/path_navigation
 	@$(MAKE) -C exec/signal_pingpong
 	@$(MAKE) -C shell/alias
 	@$(MAKE) -C shell/controlflow
@@ -112,6 +113,7 @@ clean:
 	@$(MAKE) -C dos/createdir_perms clean
 	@$(MAKE) -C dos/fhutils clean
 	@$(MAKE) -C dos/matchfirst clean
+	@$(MAKE) -C dos/path_navigation clean
 	@$(MAKE) -C exec/signal_pingpong clean
 	@$(MAKE) -C shell/alias clean
 	@$(MAKE) -C shell/controlflow clean
@@ -180,6 +182,7 @@ clean:
 	rm -f dos/createdir_perms/actual.out
 	rm -f dos/fhutils/actual.out
 	rm -f dos/matchfirst/actual.out
+	rm -f dos/path_navigation/actual.out
 	rm -f exec/signal_pingpong/actual.out
 	rm -f shell/alias/actual.out
 	rm -f shell/controlflow/actual.out
@@ -256,6 +259,7 @@ run-tests:
 	@$(MAKE) -C dos/createdir_perms run-test
 	@$(MAKE) -C dos/fhutils run-test
 	@$(MAKE) -C dos/matchfirst run-test
+	@$(MAKE) -C dos/path_navigation run-test
 	@$(MAKE) -C exec/signal_pingpong run-test
 	@$(MAKE) -C shell/alias run-test
 	@$(MAKE) -C shell/controlflow run-test
