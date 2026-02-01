@@ -171,9 +171,12 @@ See `doc/graphics_testing.md` for detailed test specifications.
 - [x] **Text** - `OpenFont`, `CloseFont`, `SetFont`, `Text`, `TextLength` with built-in Topaz-8 font.
 - [x] **Layers** - Basic `LockLayerRom`, `UnlockLayerRom` stubs (no-ops for single-threaded).
 
-### Step 15.3: UI Elements (PARTIAL)
-- [ ] **Menus** - Menu bar handling (global vs per-window).
+### Step 15.3: UI Elements (COMPLETE)
 - [x] **Requesters** - `AutoRequest`, `EasyRequestArgs` implemented (console-based, return defaults).
+
+### Step 15.5: Menus (DEFERRED)
+- [ ] **Menu System** - Menu bar handling (global vs per-window), SetMenuStrip, ClearMenuStrip.
+- [ ] **Menu Events** - IDCMP_MENUPICK handling and ItemAddress.
 
 ### Step 15.4: Graphics Test Coverage (COMPLETE)
 - [x] `text_render` - Test OpenFont, SetFont, Text, TextLength with built-in Topaz font.
