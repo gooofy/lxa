@@ -127,6 +127,20 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 - [ ] **Screen Handling** - Audit `OpenScreen` tags, types (Custom vs Workbench), and depth handling.
 - [ ] **IntuitionBase** - Ensure library base structure is correct.
 
+### Step 25.3: System Gadgets (from Phase 14.3)
+- [ ] **Visual Representation** - Close/Depth/Drag gadget rendering
+- [ ] **Gadget Interaction** - Hit testing and basic state changes
+
+### Step 25.4: Menu System (from Phase 15.5)
+- [ ] **Menu Bar Handling** - Global vs per-window menus
+- [ ] **SetMenuStrip / ClearMenuStrip** - Menu management functions
+- [ ] **Menu Events** - IDCMP_MENUPICK handling and ItemAddress
+
+### Step 25.5: Window Layer Clipping (from Phase 20.3)
+- [ ] **Bounds Checking** - Implement pixel-level clipping in WritePixel, Draw, Text, etc.
+- [ ] **Layer ClipRect Usage** - Use layer's ClipRect list for proper clipping (already built by layers.library)
+- [ ] **Test** - Verify out-of-bounds drawing is properly clipped
+
 ---
 
 ## Future Phases
@@ -160,31 +174,11 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 
 ---
 
-## Phase 27: Deferred UI Features (was Phase 24)
-
-**Goal**: Complete deferred UI components from earlier phases.
-
-### Step 27.1: System Gadgets (from Phase 14.3)
-- [ ] **Visual Representation** - Close/Depth/Drag gadget rendering
-- [ ] **Gadget Interaction** - Hit testing and basic state changes
-
-### Step 27.2: Menu System (from Phase 15.5)
-- [ ] **Menu Bar Handling** - Global vs per-window menus
-- [ ] **SetMenuStrip / ClearMenuStrip** - Menu management functions
-- [ ] **Menu Events** - IDCMP_MENUPICK handling and ItemAddress
-
-### Step 27.3: Window Layer Clipping (from Phase 20.3)
-- [ ] **Bounds Checking** - Implement pixel-level clipping in WritePixel, Draw, Text, etc.
-- [ ] **Layer ClipRect Usage** - Use layer's ClipRect list for proper clipping (already built by layers.library)
-- [ ] **Test** - Verify out-of-bounds drawing is properly clipped
-
----
-
-## Phase 28: Core System Libraries & Preferences (was Phase 25)
+## Phase 27: Core System Libraries & Preferences (was Phase 25)
 
 **Goal**: Improve visual fidelity, system configuration, and core library support.
 
-### Step 28.1: Standard Libraries
+### Step 27.1: Standard Libraries
 - [x] **diskfont.library** - OpenDiskFont (falls back to ROM fonts), AvailFonts stub.
 - [x] **icon.library** - Fixed LVO table alignment, full function set implemented.
 - [x] **expansion.library** - ConfigChain and board enumeration stubs (existing).
@@ -193,24 +187,24 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 - [ ] **FONTS: Assign** - Automatic provisioning of font directories.
 - [ ] **Topaz Bundling** - Ensure a high-quality Topaz-8/9 replacement is available.
 
-### Step 28.2: Preferences & Environment
+### Step 27.2: Preferences & Environment
 - [ ] **ENVARC: Persistence** - Map `ENVARC:` to `~/.lxa/Prefs/Env` with persistence.
 
 ---
 
-## Phase 29: Advanced UI Frameworks (was Phase 26)
+## Phase 28: Advanced UI Frameworks (was Phase 26)
 
 **Goal**: Implement standard Amiga UI widgets, object-oriented systems, and advanced console features.
 
-### Step 29.1: GadTools & ASL
+### Step 28.1: GadTools & ASL
 - [ ] **gadtools.library** - Standard UI widgets (buttons, sliders, lists).
 - [ ] **asl.library** - File and Font requesters (bridged to host or native).
 
-### Step 29.2: BOOPSI Foundation
+### Step 28.2: BOOPSI Foundation
 - [ ] **Intuition Classes** - `imageclass`, `gadgetclass`, `rootclass`.
 - [ ] **NewObject / DisposeObject** - Object lifecycle management.
 
-### Step 29.3: Advanced Console Features (deferred from Phase 22)
+### Step 28.3: Advanced Console Features (deferred from Phase 22)
 - [ ] **CONU_CHARMAP/CONU_SNIPMAP** - Character-mapped console modes with copy/paste
 - [ ] **RawKeyConvert()** - Convert IECLASS_RAWKEY events to ANSI bytes
 - [ ] **CDInputHandler()** - Console device input event handler
@@ -223,18 +217,18 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 
 ---
 
-## Phase 30: Quality & Stability Hardening (was Phase 27)
+## Phase 29: Quality & Stability Hardening (was Phase 27)
 
 **Goal**: Ensure production-grade reliability.
 
-### Step 30.1: Memory Debugging
+### Step 29.1: Memory Debugging
 - [ ] Memory tracking, leak detection, double-free detection, buffer overflow guards
 - [ ] **Stress Testing** - 24-hour continuous operation, 10,000 file operations.
 
-### Step 30.2: Compatibility Testing
+### Step 29.2: Compatibility Testing
 - [ ] Test with common Amiga software, document issues, create compatibility database.
 
-### Step 30.3: Performance Optimization
+### Step 29.3: Performance Optimization
 - [ ] Profile critical paths, optimize VFS, memory allocation, emucall overhead.
 
 ## Known Limitations & Future Work
