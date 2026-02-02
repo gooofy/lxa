@@ -137,15 +137,15 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 
 **Note**: Full visual rendering for gadgets and ASL GUI requesters deferred to Phase 36.
 
-## Phase 29: Exec Devices (HIGH PRIORITY)
+## Phase 29: Exec Devices (IN PROGRESS - 1/5 COMPLETE)
 **Goal**: Implement common Exec devices needed by tested apps.
 
-### Step 29.1: Critical Devices
-- [ ] **timer.device** - Needed by ASM-One, AmigaBasic.
+### Step 29.1: Critical Devices (1/3 COMPLETE)
+- [x] **timer.device** - TR_GETSYSTIME, CMD_READ implemented (Phase 29 complete). TR_ADDREQUEST stubs (completes immediately; async deferred to Phase 37).
 - [ ] **clipboard.device** - Needed by EdWordPro (copy/paste).
 - [ ] **input.device** - Fix command 9 warning (GFA Basic).
 
-### Step 29.2: Stubbed Devices
+### Step 29.2: Stubbed Devices (0/2 COMPLETE)
 - [ ] **audio.device** - Stub open/cmd (AmigaBasic).
 - [ ] **gameport.device** - Stub joystick/mouse.
 
@@ -198,5 +198,11 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
   - String editing (insert, delete, cursor movement)
   - Proportional gadget dragging
   - Keyboard shortcuts and tab cycling
+
+### Phase 37: Async I/O & Timer Completion
+**Goal**: Implement proper asynchronous I/O for devices.
+- [ ] **timer.device Async** - TR_ADDREQUEST with proper delay queue and timeout handling.
+- [ ] **console.device Async** - Non-blocking reads with timeout support.
+- [ ] **Event Loop Integration** - Coordinate device async I/O with WaitPort/Wait().
 
 ---
