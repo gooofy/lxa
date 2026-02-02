@@ -1,13 +1,23 @@
 === KickPascal 2 Automated Compatibility Test ===
 
---- Test 1: Load KickPascal 2 ---
-OK: KP2 loaded successfully
-OK: KP2 segment loaded and entry point found
-Note: Full execution test skipped (requires background task support)
-OK: Segment unloaded
+--- Test 1: Load KickPascal 2 binary ---
+OK: KP2 binary loaded successfully
 
---- Test 2: Segment verification passed ---
-OK: KP2 binary is valid AmigaOS executable
+--- Test 2: Launch KP2 as background process ---
+  Initial window count: 0
+OK: KP2 process created
+  Process task number: 1
+
+--- Test 3: Wait for KP2 window ---
+  Waiting for window to open...
+OK: KickPascal window found!
+  Window count after launch: 1
+OK: KickPascal window opened successfully
+  Window title: Kickpascal
+
+--- Test 4: Close KP2 window ---
+Note: Window close test not yet implemented
+OK: Window verification complete
 
 === Test Results ===
-PASS: KickPascal 2 load test passed
+PASS: KickPascal 2 launch test passed

@@ -95,6 +95,13 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
         -e '^>> $' \
         -e '^\[?25h' \
         -e '^Traceback:' \
+        -e '^  LeftEdge=' \
+        -e '^  DetailPen=' \
+        -e '^  IDCMPFlags=' \
+        -e '^  FirstGadget=' \
+        -e '^  MinWidth=' \
+        -e '^  Title=0x' \
+        -e '^  Title string:' \
         "$ACTUAL_OUTPUT" > "$TEMP_OUTPUT" 2>/dev/null || true
     
     mv "$TEMP_OUTPUT" "$ACTUAL_OUTPUT"
