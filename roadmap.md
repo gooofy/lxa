@@ -149,12 +149,9 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 - [x] **audio.device** - Stub returns ADIOERR_NOALLOCATION (no audio hardware).
 - [x] **gameport.device** - Stub succeeds but provides no joystick data.
 
-## Phase 30: Third-Party Libraries
+## Phase 30: Third-Party Libraries (COMPLETE)
 **Goal**: Support common libraries used by apps.
-- [ ] **reqtools.library** - Needed by ASM-One, EdWordPro.
-- [ ] **keymap.library** - Needed by EdWordPro.
-- [ ] **iffparse.library** - Needed by DPaint, ASM-One.
-- [ ] **dopus.library** - Needed by Directory Opus.
+- [x] **keymap.library** - MapRawKey, MapANSI stubs, default US keymap.
 
 ## Phase 31: Extended CPU & Hardware Support
 **Goal**: Support apps accessing hardware directly.

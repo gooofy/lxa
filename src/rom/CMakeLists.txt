@@ -46,6 +46,7 @@ set(ROM_C_SOURCES
     lxa_expansion.c
     lxa_icon.c
     lxa_diskfont.c
+    lxa_keymap.c
     lxa_translator.c
     lxa_locale.c
     lxa_gadtools.c
