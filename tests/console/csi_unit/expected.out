@@ -1,0 +1,38 @@
+=== CSI Unit Test ===
+Testing console.device CSI escape sequences
+
+PASS: Cursor home (CSI H)
+PASS: Cursor position CSI 5;10H
+PASS: Cursor position CSI 1;1H
+PASS: Cursor position CSI 10;20H
+PASS: Cursor position CSI 3;5f
+PASS: Cursor up 3 (CSI 3A)
+PASS: Cursor down 5 (CSI 5B)
+PASS: Cursor forward 4 (CSI 4C)
+PASS: Cursor backward 2 (CSI 2D)
+PASS: Cursor up default (CSI A)
+PASS: Cursor down default (CSI B)
+PASS: Cursor forward default (CSI 1C)
+PASS: Cursor backward default (CSI 1D)
+PASS: Cursor next line (CSI E)
+PASS: Cursor previous line (CSI F)
+PASS: Cursor next line 3 (CSI 3E)
+PASS: Cursor horizontal absolute (CSI 15G)
+PASS: Cursor horizontal absolute (CSI 1G)
+PASS: Cursor forward tab (CSI I)
+PASS: Cursor forward 2 tabs (CSI 2I)
+PASS: Cursor back tab (CSI Z)
+PASS: Cursor after 5 chars
+PASS: Cursor after 8 chars
+PASS: Linefeed (LF mode off)
+PASS: Carriage return
+PASS: Linefeed (LF mode on)
+PASS: Cursor up at top boundary
+PASS: Cursor left at left boundary
+
+=== Test Summary ===
+Tests run: 28
+Passed: 28
+Failed: 0
+
+PASS: All CSI unit tests passed

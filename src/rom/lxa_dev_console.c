@@ -2094,8 +2094,12 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 /* Process any pending input */
                 console_process_input(unit);
                 
-                /* In line mode, wait for a complete line (but only if not already available) */
-                if (unit->line_mode && !input_has_line(unit)) {
+                /* In line mode, wait for a complete line (but only if not already available).
+                 * Exception: if the buffer already has data (e.g., from a DSR response
+                 * generated during a preceding write), return that data immediately
+                 * without waiting for a newline. This is needed because DSR responses
+                 * (CSI row;col R) don't contain newlines. */
+                if (unit->line_mode && !input_has_line(unit) && input_buf_empty(unit)) {
                     while (!input_has_line(unit) && !input_buf_full(unit)) {
                         /* Wait for more input - yield to scheduler */
                         WaitTOF();
@@ -2189,10 +2193,12 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
             break;
             
         case CMD_CLEAR:
-            /* Clear the console display */
-            DPRINTF(LOG_DEBUG, "_console: CMD_CLEAR\n");
+            /* Clear the input buffer (NOT the display!) */
+            DPRINTF(LOG_DEBUG, "_console: CMD_CLEAR (clearing input buffer)\n");
             if (unit) {
-                console_clear_display(unit);
+                /* Reset the input ring buffer */
+                unit->input_head = 0;
+                unit->input_tail = 0;
             }
             break;
             
