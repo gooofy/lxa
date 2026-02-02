@@ -3574,9 +3574,12 @@ BPTR _dos_SetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"),
 
 BPTR _dos_GetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: GetProgramDir() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct Process *pr = (struct Process *)FindTask(NULL);
+    
+    DPRINTF (LOG_DEBUG, "_dos: GetProgramDir() called, pr_HomeDir=0x%08lx\n", (ULONG)pr->pr_HomeDir);
+    
+    /* Return the home directory of the current process */
+    return pr->pr_HomeDir;
 }
 
 LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),

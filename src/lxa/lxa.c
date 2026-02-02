@@ -53,6 +53,13 @@
 #define ZORRO2_AUTOCONFIG_START 0xe80000
 #define ZORRO2_AUTOCONFIG_END   0xefffff
 
+/* CIA memory ranges
+ * CIA-A at 0xBFE001 (active on odd addresses): keyboard, mouse buttons, disk, parallel data
+ * CIA-B at 0xBFD000 (active on even addresses): serial, disk motor control
+ */
+#define CIA_START 0xbfd000
+#define CIA_END   0xbfffff
+
 #define CUSTOM_REG_INTENA   0x09a
 #define CUSTOM_REG_DMACON   0x096
 #define CUSTOM_REG_BLTCON0  0x040
@@ -425,6 +432,14 @@ static inline uint8_t mread8 (uint32_t address)
         /* Zorro-II autoconfig space - return 0 (no boards) */
         return 0;
     }
+    else if ((address >= CIA_START) && (address <= CIA_END))
+    {
+        /* CIA chip area - return sensible defaults
+         * 0xFF = all bits high = no buttons pressed, no keys, inactive signals
+         */
+        DPRINTF (LOG_DEBUG, "lxa: mread8 CIA area 0x%08x -> 0xFF\n", address);
+        return 0xff;
+    }
     else
     {
         printf("ERROR: mread8 at invalid address 0x%08x\n", address);
@@ -508,6 +523,16 @@ static inline void mwrite8 (uint32_t address, uint8_t value)
     {
         uint32_t addr = address - RAM_START;
         g_ram[addr] = value;
+    }
+    else if ((address >= CIA_START) && (address <= CIA_END))
+    {
+        /* CIA chip area - ignore writes, we don't emulate CIA hardware */
+        DPRINTF (LOG_DEBUG, "lxa: mwrite8 CIA area 0x%08x <- 0x%02x (ignored)\n", address, value);
+    }
+    else if ((address >= CUSTOM_START) && (address <= CUSTOM_END))
+    {
+        /* Custom chip area - handle via custom write handler (byte writes are rare but possible) */
+        DPRINTF (LOG_DEBUG, "lxa: mwrite8 custom area 0x%08x <- 0x%02x (ignored)\n", address, value);
     }
     else
     {

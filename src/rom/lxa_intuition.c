@@ -2936,9 +2936,38 @@ APTR _intuition_AllocRemember ( register struct IntuitionBase * IntuitionBase __
                                                         register ULONG size __asm("d0"),
                                                         register ULONG flags __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: AllocRemember() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct Remember *rem;
+    APTR mem;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: AllocRemember() rememberKey=0x%08lx, size=%ld, flags=0x%08lx\n",
+             (ULONG)rememberKey, size, flags);
+    
+    if (!rememberKey)
+        return NULL;
+    
+    /* Allocate the memory */
+    mem = AllocMem(size, flags);
+    if (!mem)
+        return NULL;
+    
+    /* Allocate a Remember node to track this allocation */
+    rem = AllocMem(sizeof(struct Remember), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!rem) {
+        FreeMem(mem, size);
+        return NULL;
+    }
+    
+    /* Set up the Remember node */
+    rem->Memory = mem;
+    rem->RememberSize = size;
+    
+    /* Link it into the list */
+    rem->NextRemember = *rememberKey;
+    *rememberKey = rem;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: AllocRemember() -> mem=0x%08lx\n", (ULONG)mem);
+    
+    return mem;
 }
 
 VOID _intuition_private0 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -2951,8 +2980,31 @@ VOID _intuition_FreeRemember ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Remember ** rememberKey __asm("a0"),
                                                         register BOOL reallyForget __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: FreeRemember() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct Remember *rem, *next;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: FreeRemember() rememberKey=0x%08lx, reallyForget=%d\n",
+             (ULONG)rememberKey, reallyForget);
+    
+    if (!rememberKey)
+        return;
+    
+    rem = *rememberKey;
+    
+    while (rem) {
+        next = rem->NextRemember;
+        
+        if (reallyForget && rem->Memory) {
+            /* Free the allocated memory */
+            FreeMem(rem->Memory, rem->RememberSize);
+        }
+        
+        /* Free the Remember node itself */
+        FreeMem(rem, sizeof(struct Remember));
+        
+        rem = next;
+    }
+    
+    *rememberKey = NULL;
 }
 
 ULONG _intuition_LockIBase ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3228,8 +3280,24 @@ VOID _intuition_ZipWindow ( register struct IntuitionBase * IntuitionBase __asm(
 struct Screen * _intuition_LockPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: LockPubScreen() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct Screen *screen;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() name='%s'\n", name ? (char *)name : "(null/default)");
+    
+    /* If name is NULL or "Workbench", return the default public screen (FirstScreen) */
+    if (!name || strcmp((const char *)name, "Workbench") == 0)
+    {
+        screen = IntuitionBase->FirstScreen;
+        if (screen)
+        {
+            /* Increment a visitor count (we don't actually track this, but apps expect it to work) */
+            DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() returning FirstScreen=0x%08lx\n", (ULONG)screen);
+            return screen;
+        }
+    }
+    
+    /* Named public screens not supported yet */
+    DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() screen not found\n");
     return NULL;
 }
 
@@ -3237,8 +3305,10 @@ VOID _intuition_UnlockPubScreen ( register struct IntuitionBase * IntuitionBase 
                                                         register CONST_STRPTR name __asm("a0"),
                                                         register struct Screen * screen __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: UnlockPubScreen() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: UnlockPubScreen() name='%s', screen=0x%08lx\n",
+             name ? (char *)name : "(null)", (ULONG)screen);
+    /* In a full implementation, we'd decrement a visitor count */
+    /* For now, this is a no-op since we don't track screen locks */
 }
 
 struct List * _intuition_LockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))

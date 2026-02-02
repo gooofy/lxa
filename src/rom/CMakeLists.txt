@@ -48,6 +48,9 @@ set(ROM_C_SOURCES
     lxa_diskfont.c
     lxa_translator.c
     lxa_locale.c
+    lxa_gadtools.c
+    lxa_workbench.c
+    lxa_asl.c
     lxa_dev_console.c
     util.c
     amath.c

@@ -92,6 +92,9 @@ extern struct Resident *__lxa_icon_ROMTag;
 extern struct Resident *__lxa_diskfont_ROMTag;
 extern struct Resident *__lxa_translator_ROMTag;
 extern struct Resident *__lxa_locale_ROMTag;
+extern struct Resident *__lxa_gadtools_ROMTag;
+extern struct Resident *__lxa_workbench_ROMTag;
+extern struct Resident *__lxa_asl_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 extern struct Resident *__lxa_console_ROMTag;
 
@@ -112,6 +115,9 @@ struct Library         *IconBase;
 struct Library         *DiskfontBase;
 struct Library         *TranslatorBase;
 struct Library         *LocaleBase;
+struct Library         *GadToolsBase;
+struct Library         *WorkbenchBase;
+struct Library         *AslBase;
 struct Library         *DeviceInputBase;
 struct Library         *DeviceConsoleBase;
 
@@ -3913,6 +3919,9 @@ void coldstart (void)
     DiskfontBase  = (struct Library       *) registerBuiltInLib (sizeof(*DiskfontBase)  , __lxa_diskfont_ROMTag  );
     TranslatorBase= (struct Library       *) registerBuiltInLib (sizeof(*TranslatorBase), __lxa_translator_ROMTag);
     LocaleBase    = (struct Library       *) registerBuiltInLib (sizeof(*LocaleBase)    , __lxa_locale_ROMTag    );
+    GadToolsBase  = (struct Library       *) registerBuiltInLib (sizeof(*GadToolsBase)  , __lxa_gadtools_ROMTag  );
+    WorkbenchBase = (struct Library       *) registerBuiltInLib (sizeof(*WorkbenchBase) , __lxa_workbench_ROMTag );
+    AslBase       = (struct Library       *) registerBuiltInLib (sizeof(*AslBase)       , __lxa_asl_ROMTag       );
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in libraries\n");
 

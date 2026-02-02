@@ -7,6 +7,35 @@
 - **Status**: Window opens, IDE loads successfully
 - **Test**: `tests/apps/kickpascal2`
 
+### GFA Basic 2 - ✅ WORKS
+- **Binary**: `APPS:GFABasic/gfabasic`
+- **Status**: Editor window opens, accepts input
+- **Functions Implemented**:
+  - GetScreenData() - returns screen info
+  - InitGels() - GEL system initialization (stub)
+  - IntuiTextLength() - text width calculation
+  - Expanded custom chip register handling (DMACON, colors)
+  - Expanded memory region handling (Zorro-II/III, autoconfig)
+- **Notes**:
+  - Uses input.device (BeginIO command 9 warning, non-fatal)
+  - Opens custom screen with editor window
+
+### MaxonBASIC - ⚠️ PARTIAL
+- **Binary**: `APPS:MaxonBASIC/MaxonBASIC`
+- **Status**: Loads libraries but fails to create menus
+- **Error Message**: "Konnte Menü nicht erzeugen" (Could not create menu)
+- **Libraries Added** (this session):
+  - gadtools.library (stub) - provides basic gadget/menu API
+  - workbench.library (stub) - provides Workbench integration API
+  - asl.library (stub) - provides file/font requesters
+- **Functions Implemented**:
+  - GetProgramDir() - returns current process pr_HomeDir
+  - AllocRemember() / FreeRemember() - Intuition memory tracking
+  - LockPubScreen() / UnlockPubScreen() - returns FirstScreen
+- **Fix Required**:
+  - CreateMenusA() currently returns NULL - needs real implementation
+  - Clipboard.device not found (non-fatal warning)
+
 ### SysInfo - ⚠️ PARTIAL
 - **Binary**: `APPS:SysInfo/SysInfo`
 - **Status**: Window opens briefly, then crashes
@@ -59,18 +88,47 @@
   - Implement stub audio.device and timer.device
   - OR make device open failures non-fatal for background tasks
 
-### GFA Basic 2 - ✅ WORKS
-- **Binary**: `APPS:GFABasic/gfabasic`
-- **Status**: Editor window opens, accepts input
-- **Functions Implemented**:
-  - GetScreenData() - returns screen info
-  - InitGels() - GEL system initialization (stub)
-  - IntuiTextLength() - text width calculation
-  - Expanded custom chip register handling (DMACON, colors)
-  - Expanded memory region handling (Zorro-II/III, autoconfig)
-- **Notes**:
-  - Uses input.device (BeginIO command 9 warning, non-fatal)
-  - Opens custom screen with editor window
+## New Libraries Implemented (Phase 26)
+
+### gadtools.library
+Basic stub implementation for AmigaOS 2.0+ GadTools API:
+- CreateGadgetA() - creates basic gadget structures
+- FreeGadgets() - frees gadget chains
+- CreateMenusA() - **returns NULL** (needs implementation)
+- FreeMenus() - stub
+- LayoutMenusA() / LayoutMenuItemsA() - returns TRUE
+- GT_GetIMsg() / GT_ReplyIMsg() - message handling
+- GT_RefreshWindow() / GT_BeginRefresh() / GT_EndRefresh() - stubs
+- CreateContext() - creates gadget list context
+- GetVisualInfoA() / FreeVisualInfo() - screen visual info
+- DrawBevelBoxA() - stub (no actual drawing)
+
+### workbench.library
+Basic stub implementation for Workbench integration:
+- UpdateWorkbench() - no-op
+- AddAppWindowA() / RemoveAppWindow() - returns dummy handle
+- AddAppIconA() / RemoveAppIcon() - returns dummy handle
+- AddAppMenuItemA() / RemoveAppMenuItem() - returns dummy handle
+- WBInfo() - returns 0
+- OpenWorkbenchObjectA() / CloseWorkbenchObjectA() - returns FALSE
+
+### asl.library
+Basic stub implementation for ASL requesters:
+- AllocFileRequest() / FreeFileRequest() - obsolete, supported
+- RequestFile() - returns FALSE (no GUI)
+- AllocAslRequest() / FreeAslRequest() - allocates request structure
+- AslRequest() - returns FALSE (no GUI for requesters)
+
+## Memory Regions Added (Phase 26)
+
+### CIA Area (0xBFD000-0xBFFFFF)
+- Reads return 0xFF (no buttons pressed, inactive signals)
+- Writes are ignored (logged in debug mode)
+
+### Custom Chip Writes
+- DMACON (0x096) - ignored
+- Color registers (0x180-0x1BF) - ignored
+- Byte writes to custom area - ignored
 
 ## Common Compatibility Issues
 
@@ -92,7 +150,14 @@ Applications using NewObjectA/DisposeObject for UI:
 - Currently stubbed (NewObjectA returns NULL)
 - Need full BOOPSI class system implementation
 
-### 4. Missing Libraries
+### 4. Missing Devices
+Some applications require:
+- clipboard.device - for copy/paste
+- timer.device - for timing operations  
+- audio.device - for sound
+These are not yet implemented.
+
+### 5. Missing Libraries
 Some applications require:
 - reqtools.library
 - xpk*.library (compression)
