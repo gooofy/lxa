@@ -140,9 +140,9 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 - [ ] **Menu Events** - IDCMP_MENUPICK handling (actual menu interaction not yet implemented)
 
 ### Step 25.5: Window Layer Clipping (from Phase 20.3)
-- [ ] **Bounds Checking** - Implement pixel-level clipping in WritePixel, Draw, Text, etc.
-- [ ] **Layer ClipRect Usage** - Use layer's ClipRect list for proper clipping (already built by layers.library)
-- [ ] **Test** - Verify out-of-bounds drawing is properly clipped
+- [x] **Bounds Checking** - Implemented pixel-level clipping in WritePixel, Draw, RectFill. ReadPixel also translates coordinates for layer-aware reads.
+- [x] **Layer ClipRect Usage** - Graphics primitives now iterate through layer's ClipRect list and only draw to non-obscured ClipRects.
+- [x] **Test** - New test `tests/graphics/layer_clipping/` verifies overlapping window clipping works correctly.
 
 ---
 

@@ -13,6 +13,8 @@
 #include <graphics/rastport.h>
 #include <graphics/gfx.h>
 #include <graphics/regions.h>
+#include <graphics/clip.h>
+#include <graphics/layers.h>
 
 #include <intuition/intuitionbase.h>
 
@@ -54,6 +56,122 @@ static void lxa_memset(void *s, int c, ULONG n)
     UBYTE *p = (UBYTE *)s;
     while (n--)
         *p++ = (UBYTE)c;
+}
+
+/*
+ * Helper: Calculate intersection of two rectangles (for clipping)
+ * Returns TRUE if intersection exists, FALSE otherwise
+ */
+static BOOL ClipIntersectRects(WORD minX1, WORD minY1, WORD maxX1, WORD maxY1,
+                                WORD minX2, WORD minY2, WORD maxX2, WORD maxY2,
+                                WORD *outMinX, WORD *outMinY, WORD *outMaxX, WORD *outMaxY)
+{
+    *outMinX = (minX1 > minX2) ? minX1 : minX2;
+    *outMinY = (minY1 > minY2) ? minY1 : minY2;
+    *outMaxX = (maxX1 < maxX2) ? maxX1 : maxX2;
+    *outMaxY = (maxY1 < maxY2) ? maxY1 : maxY2;
+
+    return (*outMinX <= *outMaxX && *outMinY <= *outMaxY);
+}
+
+/*
+ * Helper: Set a single pixel in a bitmap (no layer handling)
+ * Used by layer-aware drawing functions to set individual pixels
+ */
+static void SetPixelDirect(struct BitMap *bm, WORD x, WORD y, BYTE pen, UBYTE drawmode)
+{
+    UWORD byteOffset;
+    UBYTE bitMask;
+    UBYTE plane;
+    UBYTE basemode = drawmode & ~INVERSVID;
+
+    if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
+        return;
+
+    byteOffset = y * bm->BytesPerRow + (x >> 3);
+    bitMask = 0x80 >> (x & 7);
+
+    for (plane = 0; plane < bm->Depth; plane++)
+    {
+        if (bm->Planes[plane])
+        {
+            if (basemode == COMPLEMENT)
+            {
+                if (pen & (1 << plane))
+                {
+                    bm->Planes[plane][byteOffset] ^= bitMask;
+                }
+            }
+            else
+            {
+                if (pen & (1 << plane))
+                {
+                    bm->Planes[plane][byteOffset] |= bitMask;
+                }
+                else
+                {
+                    bm->Planes[plane][byteOffset] &= ~bitMask;
+                }
+            }
+        }
+    }
+}
+
+/*
+ * Helper: Fill a rectangle directly in a bitmap (no layer handling)
+ * Coordinates are already in absolute screen space, clipped to bitmap bounds
+ */
+static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, WORD yMax, 
+                           BYTE pen, UBYTE drawmode)
+{
+    WORD x, y;
+    WORD bmMaxX = bm->BytesPerRow * 8;
+    WORD bmMaxY = bm->Rows;
+
+    /* Clamp to bitmap bounds */
+    if (xMin < 0) xMin = 0;
+    if (yMin < 0) yMin = 0;
+    if (xMax >= bmMaxX) xMax = bmMaxX - 1;
+    if (yMax >= bmMaxY) yMax = bmMaxY - 1;
+
+    if (xMin > xMax || yMin > yMax)
+        return;
+
+    /* Fill the rectangle */
+    for (y = yMin; y <= yMax; y++)
+    {
+        for (x = xMin; x <= xMax; x++)
+        {
+            UWORD byteOffset = y * bm->BytesPerRow + (x >> 3);
+            UBYTE bitMask = 0x80 >> (x & 7);
+            UBYTE plane;
+
+            for (plane = 0; plane < bm->Depth; plane++)
+            {
+                if (bm->Planes[plane])
+                {
+                    if (drawmode == COMPLEMENT)
+                    {
+                        if (pen & (1 << plane))
+                        {
+                            bm->Planes[plane][byteOffset] ^= bitMask;
+                        }
+                    }
+                    else
+                    {
+                        if (pen & (1 << plane))
+                        {
+                            bm->Planes[plane][byteOffset] |= bitMask;
+                        }
+                        else
+                        {
+                            bm->Planes[plane][byteOffset] &= ~bitMask;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 #define VERSION    40
@@ -987,6 +1105,11 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register WORD x __asm("d0"),
                                                         register WORD y __asm("d1"))
 {
+    struct BitMap *bm;
+    BYTE pen;
+    WORD x0, y0, x1, y1;
+    WORD dx, dy, sx, sy, err;
+
     DPRINTF (LOG_DEBUG, "_graphics: Draw() rp=0x%08lx, from (%d,%d) to (%d,%d)\n",
              (ULONG)rp, rp ? rp->cp_x : 0, rp ? rp->cp_y : 0, (int)x, (int)y);
 
@@ -1001,66 +1124,107 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
         return;
     }
 
-    /* If RastPort has a Layer, calculate layer offset for coordinate translation */
-    WORD layerOffX = 0, layerOffY = 0;
+    bm = rp->BitMap;
+    pen = rp->FgPen;
+
+    /* If RastPort has a Layer, use ClipRect-aware drawing */
     if (rp->Layer)
     {
-        layerOffX = rp->Layer->bounds.MinX;
-        layerOffY = rp->Layer->bounds.MinY;
-    }
+        struct Layer *layer = rp->Layer;
+        WORD layerOffX = layer->bounds.MinX;
+        WORD layerOffY = layer->bounds.MinY;
 
-    /* Software line drawing using Bresenham's algorithm */
-    WORD x0 = rp->cp_x + layerOffX;
-    WORD y0 = rp->cp_y + layerOffY;
-    WORD x1 = (WORD)x + layerOffX;
-    WORD y1 = (WORD)y + layerOffY;
-    BYTE pen = rp->FgPen;
-    struct BitMap *bm = rp->BitMap;
+        /* Software line drawing using Bresenham's algorithm */
+        x0 = rp->cp_x + layerOffX;
+        y0 = rp->cp_y + layerOffY;
+        x1 = x + layerOffX;
+        y1 = y + layerOffY;
 
-    WORD dx = x1 > x0 ? x1 - x0 : x0 - x1;
-    WORD dy = y1 > y0 ? y0 - y1 : y1 - y0;  /* Negative for Bresenham */
-    WORD sx = x0 < x1 ? 1 : -1;
-    WORD sy = y0 < y1 ? 1 : -1;
-    WORD err = dx + dy;
+        dx = x1 > x0 ? x1 - x0 : x0 - x1;
+        dy = y1 > y0 ? y0 - y1 : y1 - y0;  /* Negative for Bresenham */
+        sx = x0 < x1 ? 1 : -1;
+        sy = y0 < y1 ? 1 : -1;
+        err = dx + dy;
 
-    while (1)
-    {
-        /* Set pixel at (x0, y0) with the foreground pen */
-        if (x0 >= 0 && y0 >= 0 && x0 < (bm->BytesPerRow * 8) && y0 < bm->Rows)
+        while (1)
         {
-            UWORD byteOffset = y0 * bm->BytesPerRow + (x0 >> 3);
-            UBYTE bitMask = 0x80 >> (x0 & 7);
-
-            /* Set or clear bits in each plane based on pen color */
-            for (UBYTE plane = 0; plane < bm->Depth; plane++)
+            /* For each pixel, check if it falls in a visible ClipRect */
+            if (x0 >= 0 && y0 >= 0 && x0 < (bm->BytesPerRow * 8) && y0 < bm->Rows)
             {
-                if (bm->Planes[plane])
+                struct ClipRect *cr;
+                for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
                 {
-                    if (pen & (1 << plane))
+                    if (cr->obscured)
+                        continue;
+
+                    if (x0 >= cr->bounds.MinX && x0 <= cr->bounds.MaxX &&
+                        y0 >= cr->bounds.MinY && y0 <= cr->bounds.MaxY)
                     {
-                        bm->Planes[plane][byteOffset] |= bitMask;
-                    }
-                    else
-                    {
-                        bm->Planes[plane][byteOffset] &= ~bitMask;
+                        /* Pixel is visible - draw it */
+                        SetPixelDirect(bm, x0, y0, pen, rp->DrawMode);
+                        break;
                     }
                 }
             }
+
+            if (x0 == x1 && y0 == y1)
+                break;
+
+            {
+                WORD e2 = 2 * err;
+                if (e2 >= dy)
+                {
+                    err += dy;
+                    x0 += sx;
+                }
+                if (e2 <= dx)
+                {
+                    err += dx;
+                    y0 += sy;
+                }
+            }
+        }
+
+        /* Update current position */
+        rp->cp_x = (WORD)x;
+        rp->cp_y = (WORD)y;
+        return;
+    }
+
+    /* No layer - simple drawing with just bitmap bounds check */
+    x0 = rp->cp_x;
+    y0 = rp->cp_y;
+    x1 = x;
+    y1 = y;
+
+    dx = x1 > x0 ? x1 - x0 : x0 - x1;
+    dy = y1 > y0 ? y0 - y1 : y1 - y0;
+    sx = x0 < x1 ? 1 : -1;
+    sy = y0 < y1 ? 1 : -1;
+    err = dx + dy;
+
+    while (1)
+    {
+        if (x0 >= 0 && y0 >= 0 && x0 < (bm->BytesPerRow * 8) && y0 < bm->Rows)
+        {
+            SetPixelDirect(bm, x0, y0, pen, rp->DrawMode);
         }
 
         if (x0 == x1 && y0 == y1)
             break;
 
-        WORD e2 = 2 * err;
-        if (e2 >= dy)
         {
-            err += dy;
-            x0 += sx;
-        }
-        if (e2 <= dx)
-        {
-            err += dx;
-            y0 += sy;
+            WORD e2 = 2 * err;
+            if (e2 >= dy)
+            {
+                err += dy;
+                x0 += sx;
+            }
+            if (e2 <= dx)
+            {
+                err += dx;
+                y0 += sy;
+            }
         }
     }
 
@@ -1183,70 +1347,57 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register WORD xMax __asm("d2"),
                                                         register WORD yMax __asm("d3"))
 {
+    struct BitMap *bm;
+    BYTE pen;
+    UBYTE drawmode;
+
     DPRINTF (LOG_DEBUG, "_graphics: RectFill() rp=0x%08lx, (%d,%d)-(%d,%d)\n",
              (ULONG)rp, (int)xMin, (int)yMin, (int)xMax, (int)yMax);
 
     if (!rp || !rp->BitMap)
         return;
 
-    /* If RastPort has a Layer, add layer offset for coordinate translation */
+    bm = rp->BitMap;
+    pen = rp->FgPen;
+    drawmode = rp->DrawMode;
+
+    /* If RastPort has a Layer, use ClipRect-aware drawing */
     if (rp->Layer)
     {
-        xMin += rp->Layer->bounds.MinX;
-        yMin += rp->Layer->bounds.MinY;
-        xMax += rp->Layer->bounds.MinX;
-        yMax += rp->Layer->bounds.MinY;
-    }
+        struct Layer *layer = rp->Layer;
+        struct ClipRect *cr;
+        WORD absXMin, absYMin, absXMax, absYMax;
 
-    struct BitMap *bm = rp->BitMap;
-    BYTE pen = rp->FgPen;
-    WORD maxX = bm->BytesPerRow * 8;
-    WORD maxY = bm->Rows;
+        /* Convert to absolute screen coordinates */
+        absXMin = xMin + layer->bounds.MinX;
+        absYMin = yMin + layer->bounds.MinY;
+        absXMax = xMax + layer->bounds.MinX;
+        absYMax = yMax + layer->bounds.MinY;
 
-    /* Clamp to bitmap bounds */
-    if (xMin < 0) xMin = 0;
-    if (yMin < 0) yMin = 0;
-    if (xMax >= maxX) xMax = maxX - 1;
-    if (yMax >= maxY) yMax = maxY - 1;
-
-    if (xMin > xMax || yMin > yMax)
-        return;
-
-    /* Fill the rectangle */
-    for (WORD y = (WORD)yMin; y <= (WORD)yMax; y++)
-    {
-        for (WORD x = (WORD)xMin; x <= (WORD)xMax; x++)
+        /* For each ClipRect, fill the intersection */
+        for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
         {
-            UWORD byteOffset = y * bm->BytesPerRow + (x >> 3);
-            UBYTE bitMask = 0x80 >> (x & 7);
+            WORD clipXMin, clipYMin, clipXMax, clipYMax;
 
-            for (UBYTE plane = 0; plane < bm->Depth; plane++)
+            /* Skip obscured ClipRects (for LAYERSIMPLE) */
+            if (cr->obscured)
+                continue;
+
+            /* Calculate intersection between fill rect and ClipRect */
+            if (ClipIntersectRects(absXMin, absYMin, absXMax, absYMax,
+                                   cr->bounds.MinX, cr->bounds.MinY,
+                                   cr->bounds.MaxX, cr->bounds.MaxY,
+                                   &clipXMin, &clipYMin, &clipXMax, &clipYMax))
             {
-                if (bm->Planes[plane])
-                {
-                    if (rp->DrawMode == COMPLEMENT)
-                    {
-                        /* In COMPLEMENT mode, only XOR planes where pen bit is set */
-                        if (pen & (1 << plane))
-                        {
-                            bm->Planes[plane][byteOffset] ^= bitMask;
-                        }
-                    }
-                    else
-                    {
-                        if (pen & (1 << plane))
-                        {
-                            bm->Planes[plane][byteOffset] |= bitMask;
-                        }
-                        else
-                        {
-                            bm->Planes[plane][byteOffset] &= ~bitMask;
-                        }
-                    }
-                }
+                /* Fill this clipped portion */
+                FillRectDirect(bm, clipXMin, clipYMin, clipXMax, clipYMax, pen, drawmode);
             }
         }
+        return;
     }
+
+    /* No layer - simple drawing with just bitmap bounds check */
+    FillRectDirect(bm, xMin, yMin, xMax, yMax, pen, drawmode);
 }
 
 static VOID _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1273,13 +1424,23 @@ static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6")
         return (ULONG)-1;  /* Error */
 
     struct BitMap *bm = rp->BitMap;
+    WORD absX = x;
+    WORD absY = y;
+
+    /* If RastPort has a Layer, translate coordinates */
+    if (rp->Layer)
+    {
+        struct Layer *layer = rp->Layer;
+        absX = x + layer->bounds.MinX;
+        absY = y + layer->bounds.MinY;
+    }
 
     /* Bounds check */
-    if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
+    if (absX < 0 || absY < 0 || absX >= (bm->BytesPerRow * 8) || absY >= bm->Rows)
         return (ULONG)-1;
 
-    UWORD byteOffset = y * bm->BytesPerRow + (x >> 3);
-    UBYTE bitMask = 0x80 >> (x & 7);
+    UWORD byteOffset = absY * bm->BytesPerRow + (absX >> 3);
+    UBYTE bitMask = 0x80 >> (absX & 7);
     ULONG color = 0;
 
     /* Read bits from each plane */
@@ -1299,19 +1460,17 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
                                                         register WORD x __asm("d0"),
                                                         register WORD y __asm("d1"))
 {
+    struct BitMap *bm;
+    BYTE pen;
+    UBYTE drawmode;
+    WORD absX, absY;
+
     if (!rp || !rp->BitMap)
         return -1;  /* Error */
 
-    struct BitMap *bm = rp->BitMap;
-    BYTE pen = rp->FgPen;
-    UBYTE drawmode = rp->DrawMode;
-
-    /* If RastPort has a Layer, add layer offset for coordinate translation */
-    if (rp->Layer)
-    {
-        x += rp->Layer->bounds.MinX;
-        y += rp->Layer->bounds.MinY;
-    }
+    bm = rp->BitMap;
+    pen = rp->FgPen;
+    drawmode = rp->DrawMode;
 
     /* Handle INVERSVID - use BgPen instead of FgPen */
     if (drawmode & INVERSVID)
@@ -1319,44 +1478,46 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
         pen = rp->BgPen;
     }
 
-    /* Mask out INVERSVID to get base draw mode */
-    UBYTE basemode = drawmode & ~INVERSVID;
+    /* If RastPort has a Layer, use ClipRect-aware drawing */
+    if (rp->Layer)
+    {
+        struct Layer *layer = rp->Layer;
+        struct ClipRect *cr;
 
-    /* Bounds check */
+        /* Convert to absolute screen coordinates */
+        absX = x + layer->bounds.MinX;
+        absY = y + layer->bounds.MinY;
+
+        /* Bounds check against bitmap */
+        if (absX < 0 || absY < 0 || absX >= (bm->BytesPerRow * 8) || absY >= bm->Rows)
+            return -1;
+
+        /* Check each ClipRect to see if the pixel is visible */
+        for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
+        {
+            /* Skip obscured ClipRects (for LAYERSIMPLE) */
+            if (cr->obscured)
+                continue;
+
+            /* Check if pixel falls within this ClipRect */
+            if (absX >= cr->bounds.MinX && absX <= cr->bounds.MaxX &&
+                absY >= cr->bounds.MinY && absY <= cr->bounds.MaxY)
+            {
+                /* Pixel is visible - draw it */
+                SetPixelDirect(bm, absX, absY, pen, drawmode);
+                return 0;  /* Success */
+            }
+        }
+
+        /* Pixel not in any visible ClipRect - don't draw */
+        return -1;
+    }
+
+    /* No layer - simple drawing with just bitmap bounds check */
     if (x < 0 || y < 0 || x >= (bm->BytesPerRow * 8) || y >= bm->Rows)
         return -1;
 
-    UWORD byteOffset = y * bm->BytesPerRow + (x >> 3);
-    UBYTE bitMask = 0x80 >> (x & 7);
-
-    /* Set or clear bits in each plane based on pen color and drawing mode */
-    for (UBYTE plane = 0; plane < bm->Depth; plane++)
-    {
-        if (bm->Planes[plane])
-        {
-            if (basemode == COMPLEMENT)
-            {
-                /* In COMPLEMENT mode, only XOR planes where pen bit is set */
-                if (pen & (1 << plane))
-                {
-                    bm->Planes[plane][byteOffset] ^= bitMask;
-                }
-            }
-            else
-            {
-                /* JAM1 or JAM2 mode */
-                if (pen & (1 << plane))
-                {
-                    bm->Planes[plane][byteOffset] |= bitMask;
-                }
-                else
-                {
-                    bm->Planes[plane][byteOffset] &= ~bitMask;
-                }
-            }
-        }
-    }
-
+    SetPixelDirect(bm, x, y, pen, drawmode);
     return 0;  /* Success */
 }
 

@@ -78,6 +78,7 @@ all:
 	@$(MAKE) -C graphics/line_draw
 	@$(MAKE) -C graphics/rect_fill
 	@$(MAKE) -C graphics/set_rast
+	@$(MAKE) -C graphics/layer_clipping
 	@$(MAKE) -C intuition/screen_basic
 	@$(MAKE) -C intuition/window_basic
 	@$(MAKE) -C intuition/idcmp
@@ -154,6 +155,7 @@ clean:
 	@$(MAKE) -C graphics/line_draw clean
 	@$(MAKE) -C graphics/rect_fill clean
 	@$(MAKE) -C graphics/set_rast clean
+	@$(MAKE) -C graphics/layer_clipping clean
 	@$(MAKE) -C intuition/screen_basic clean
 	@$(MAKE) -C intuition/window_basic clean
 	@$(MAKE) -C intuition/idcmp clean
@@ -227,6 +229,7 @@ clean:
 	rm -f graphics/line_draw/actual.out
 	rm -f graphics/rect_fill/actual.out
 	rm -f graphics/set_rast/actual.out
+	rm -f graphics/layer_clipping/actual.out
 	rm -f intuition/screen_basic/actual.out
 	rm -f intuition/window_basic/actual.out
 	rm -f intuition/idcmp/actual.out
@@ -308,6 +311,7 @@ run-tests:
 	@$(MAKE) -C graphics/line_draw run-test
 	@$(MAKE) -C graphics/rect_fill run-test
 	@$(MAKE) -C graphics/set_rast run-test
+	@$(MAKE) -C graphics/layer_clipping run-test
 	@$(MAKE) -C intuition/screen_basic run-test
 	@$(MAKE) -C intuition/window_basic run-test
 	@$(MAKE) -C intuition/idcmp run-test

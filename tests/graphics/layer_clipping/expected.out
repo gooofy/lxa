@@ -1,0 +1,34 @@
+Testing graphics layer clipping...
+OK: LayersBase available
+
+Setting up test environment...
+OK: NewLayerInfo() succeeded
+OK: BitMap allocated with 2 planes
+OK: BitMap cleared
+
+Test 1: Single layer drawing...
+OK: Layer1 created at [20,20]-[120,120]
+OK: WritePixel on single layer works
+OK: RectFill on single layer works
+
+Test 2: Overlapping layers clipping...
+OK: Layer2 created at [60,60]-[140,140] (overlaps layer1)
+OK: Filled layer2 with color 3
+OK: Attempted to fill layer1 with color 1
+OK: Visible part of layer1 has color 1
+OK: Obscured area preserved (layer2 color 3 intact)
+
+Test 3: Line clipping across visible/obscured regions...
+OK: Drew line from (5,50) to (95,50)
+OK: Line visible at (10,50)
+OK: Line clipped in obscured area (still color 3)
+
+Test 4: WritePixel clipping in obscured region...
+OK: WritePixel clipped in obscured region
+
+Cleaning up...
+OK: Deleted layer2
+OK: Deleted layer1
+OK: Cleanup complete
+
+PASS: graphics/layer_clipping all tests passed
