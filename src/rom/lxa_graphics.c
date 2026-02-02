@@ -211,7 +211,8 @@ struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphics
     /* Set the default font for the system */
     graphicsb->DefaultFont = &g_topaz8_font;
 
-    DPRINTF (LOG_DEBUG, "_graphics: InitLib() DefaultFont set to 0x%08lx\n", (ULONG)graphicsb->DefaultFont);
+    DPRINTF (LOG_DEBUG, "_graphics: InitLib() DefaultFont set to 0x%08lx (g_topaz8_font at 0x%08lx)\n", 
+             (ULONG)graphicsb->DefaultFont, (ULONG)&g_topaz8_font);
 
     return graphicsb;
 }
@@ -1074,6 +1075,12 @@ static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6
         rp->Font = GfxBase->DefaultFont;
         rp->TxHeight = GfxBase->DefaultFont->tf_YSize;
         rp->TxBaseline = GfxBase->DefaultFont->tf_Baseline;
+        DPRINTF (LOG_DEBUG, "_graphics: InitRastPort() Font set to 0x%08lx\n", (ULONG)rp->Font);
+    }
+    else
+    {
+        DPRINTF (LOG_DEBUG, "_graphics: InitRastPort() GfxBase=0x%08lx, DefaultFont=0x%08lx - no font set!\n",
+                 (ULONG)GfxBase, GfxBase ? (ULONG)GfxBase->DefaultFont : 0);
     }
 }
 
@@ -2765,16 +2772,35 @@ static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm
 static LONG _graphics_GetVPModeID ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct ViewPort * vp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetVPModeID() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    ULONG modeID = 0x00000000;  /* Default to LORES_KEY */
+    
+    DPRINTF (LOG_DEBUG, "_graphics: GetVPModeID() vp=0x%08lx\n", (ULONG)vp);
+    
+    if (!vp)
+        return INVALID_ID;
+    
+    /* Build mode ID from viewport modes */
+    if (vp->Modes & HIRES)
+        modeID |= 0x00008000;  /* HIRES_KEY */
+    if (vp->Modes & LACE)
+        modeID |= 0x00000004;  /* LACE bit */
+    if (vp->Modes & HAM)
+        modeID |= 0x00000800;  /* HAM bit */
+    if (vp->Modes & DUALPF)
+        modeID |= 0x00000400;  /* DUALPF bit */
+    
+    DPRINTF (LOG_DEBUG, "_graphics: GetVPModeID() -> 0x%08lx\n", modeID);
+    return modeID;
 }
 
 static LONG _graphics_ModeNotAvailable ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG modeID __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ModeNotAvailable() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: ModeNotAvailable() modeID=0x%08lx -> 0 (available)\n", modeID);
+    /* Return 0 = mode IS available (no error flags)
+     * Non-zero returns would be DI_AVAIL_* flags indicating why mode is not available.
+     * For our emulated display, we accept all modes.
+     */
     return 0;
 }
 
@@ -3034,9 +3060,24 @@ static ULONG _graphics_GetBitMapAttr ( register struct GfxBase * GfxBase __asm("
                                                         register CONST struct BitMap * bm __asm("a0"),
                                                         register ULONG attrnum __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetBitMapAttr() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_graphics: GetBitMapAttr() bm=0x%08lx attr=%ld\n", (ULONG)bm, attrnum);
+    
+    if (!bm)
+        return 0;
+    
+    switch (attrnum) {
+        case 0:  /* BMA_HEIGHT */
+            return bm->Rows;
+        case 4:  /* BMA_DEPTH */
+            return bm->Depth;
+        case 8:  /* BMA_WIDTH */
+            return bm->BytesPerRow * 8;  /* Convert bytes to pixels */
+        case 12: /* BMA_FLAGS */
+            return bm->Flags;
+        default:
+            DPRINTF (LOG_ERROR, "_graphics: GetBitMapAttr() unknown attr %ld\n", attrnum);
+            return 0;
+    }
 }
 
 static struct DBufInfo * _graphics_AllocDBufInfo ( register struct GfxBase * GfxBase __asm("a6"),

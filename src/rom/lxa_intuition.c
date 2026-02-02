@@ -3229,9 +3229,44 @@ LONG _intuition_QueryOverscan ( register struct IntuitionBase * IntuitionBase __
                                                         register struct Rectangle * rect __asm("a1"),
                                                         register WORD oScanType __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: QueryOverscan() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_intuition: QueryOverscan() displayID=0x%08lx oScanType=%d\n", 
+             displayID, oScanType);
+    
+    if (!rect)
+        return FALSE;
+    
+    /* Return standard PAL hires dimensions for all modes
+     * oScanType: 1=TEXT (visible), 2=STANDARD (past edges), 3=MAX, 4=VIDEO
+     */
+    switch (oScanType) {
+        case 1:  /* OSCAN_TEXT - entirely visible */
+            rect->MinX = 0;
+            rect->MinY = 0;
+            rect->MaxX = 639;
+            rect->MaxY = 255;
+            break;
+        case 2:  /* OSCAN_STANDARD - just past edges */
+            rect->MinX = 0;
+            rect->MinY = 0;
+            rect->MaxX = 703;
+            rect->MaxY = 283;
+            break;
+        case 3:  /* OSCAN_MAX - as much as possible */
+        case 4:  /* OSCAN_VIDEO - even more */
+            rect->MinX = 0;
+            rect->MinY = 0;
+            rect->MaxX = 719;
+            rect->MaxY = 283;
+            break;
+        default:
+            rect->MinX = 0;
+            rect->MinY = 0;
+            rect->MaxX = 639;
+            rect->MaxY = 255;
+            break;
+    }
+    
+    return TRUE;
 }
 
 VOID _intuition_MoveWindowInFrontOf ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3282,9 +3317,10 @@ struct Screen * _intuition_LockPubScreen ( register struct IntuitionBase * Intui
 {
     struct Screen *screen;
     
-    DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() name='%s'\n", name ? (char *)name : "(null/default)");
+    DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() name='%s', FirstScreen=0x%08lx\n", 
+             name ? (char *)name : "(null/default)", (ULONG)IntuitionBase->FirstScreen);
     
-    /* If name is NULL or "Workbench", return the default public screen (FirstScreen) */
+    /* If name is NULL or "Workbench", return the default public screen */
     if (!name || strcmp((const char *)name, "Workbench") == 0)
     {
         screen = IntuitionBase->FirstScreen;
@@ -3294,10 +3330,25 @@ struct Screen * _intuition_LockPubScreen ( register struct IntuitionBase * Intui
             DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() returning FirstScreen=0x%08lx\n", (ULONG)screen);
             return screen;
         }
+        
+        /* No screen exists - auto-open Workbench screen */
+        DPRINTF (LOG_INFO, "_intuition: LockPubScreen() no screen, auto-opening Workbench\n");
+        if (_intuition_OpenWorkBench(IntuitionBase))
+        {
+            screen = IntuitionBase->FirstScreen;
+            if (screen)
+            {
+                DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() returning new Workbench screen=0x%08lx\n", (ULONG)screen);
+                return screen;
+            }
+        }
+        DPRINTF (LOG_ERROR, "_intuition: LockPubScreen() failed to auto-open Workbench\n");
+        return NULL;
     }
     
-    /* Named public screens not supported yet */
-    DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() screen not found\n");
+    /* Named public screens not supported yet - return NULL
+     * (app should fall back to default screen) */
+    DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() named screen '%s' not found\n", (char *)name);
     return NULL;
 }
 
@@ -3913,6 +3964,9 @@ VOID _intuition_AddClass ( register struct IntuitionBase * IntuitionBase __asm("
 struct DrawInfo * _intuition_GetScreenDrawInfo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
+    struct DrawInfo *drawInfo;
+    UWORD *pens;
+    
     DPRINTF (LOG_DEBUG, "_intuition: GetScreenDrawInfo() screen=0x%08lx\n", (ULONG)screen);
 
     if (!screen)
@@ -3924,47 +3978,54 @@ struct DrawInfo * _intuition_GetScreenDrawInfo ( register struct IntuitionBase *
      * the screen's attributes.
      */
     
-    /* For now, return a static DrawInfo with default pens.
-     * TODO: Properly allocate and track DrawInfo per screen.
-     */
-    static UWORD defaultPens[NUMDRIPENS + 1] = {
-        0,    /* DETAILPEN */
-        1,    /* BLOCKPEN */
-        1,    /* TEXTPEN */
-        2,    /* SHINEPEN */
-        1,    /* SHADOWPEN */
-        3,    /* FILLPEN */
-        1,    /* FILLTEXTPEN */
-        0,    /* BACKGROUNDPEN */
-        2,    /* HIGHLIGHTTEXTPEN */
-        1,    /* BARDETAILPEN - V39 */
-        2,    /* BARBLOCKPEN - V39 */
-        1,    /* BARTRIMPEN - V39 */
-        (UWORD)~0  /* Terminator */
-    };
+    /* Allocate DrawInfo and pens array in RAM (not static - ROM is read-only!) */
+    drawInfo = AllocMem(sizeof(struct DrawInfo), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!drawInfo)
+        return NULL;
     
-    static struct DrawInfo drawInfo = {
-        .dri_Version = 2,           /* V39 compatible */
-        .dri_NumPens = NUMDRIPENS,
-        .dri_Pens = defaultPens,
-        .dri_Font = NULL,           /* Will be set below */
-        .dri_Depth = 2,             /* 4 colors */
-        .dri_Resolution = { 44, 44 },
-        .dri_Flags = DRIF_NEWLOOK,
-        .dri_CheckMark = NULL,
-        .dri_AmigaKey = NULL,
-        .dri_Reserved = { 0 }
-    };
+    pens = AllocMem((NUMDRIPENS + 2) * sizeof(UWORD), MEMF_PUBLIC);  /* +1 for terminator, +1 for safety */
+    if (!pens) {
+        FreeMem(drawInfo, sizeof(struct DrawInfo));
+        return NULL;
+    }
     
-    /* Set font from screen */
-    drawInfo.dri_Font = screen->RastPort.Font;
+    /* Initialize default pens (0-12, plus terminator at 13) */
+    pens[0] = 0;    /* DETAILPEN */
+    pens[1] = 1;    /* BLOCKPEN */
+    pens[2] = 1;    /* TEXTPEN */
+    pens[3] = 2;    /* SHINEPEN */
+    pens[4] = 1;    /* SHADOWPEN */
+    pens[5] = 3;    /* FILLPEN */
+    pens[6] = 1;    /* FILLTEXTPEN */
+    pens[7] = 0;    /* BACKGROUNDPEN */
+    pens[8] = 2;    /* HIGHLIGHTTEXTPEN */
+    pens[9] = 1;    /* BARDETAILPEN - V39 */
+    pens[10] = 2;   /* BARBLOCKPEN - V39 */
+    pens[11] = 1;   /* BARTRIMPEN - V39 */
+    pens[12] = 1;   /* BARCONTOURPEN - V39 */
+    pens[13] = (UWORD)~0;  /* Terminator */
+    
+    /* Initialize DrawInfo */
+    drawInfo->dri_Version = 2;           /* V39 compatible */
+    drawInfo->dri_NumPens = NUMDRIPENS;
+    drawInfo->dri_Pens = pens;
+    drawInfo->dri_Font = screen->RastPort.Font;
+    drawInfo->dri_Depth = 2;             /* Default 4 colors */
+    drawInfo->dri_Resolution.X = 44;
+    drawInfo->dri_Resolution.Y = 44;
+    drawInfo->dri_Flags = DRIF_NEWLOOK;
+    drawInfo->dri_CheckMark = NULL;
+    drawInfo->dri_AmigaKey = NULL;
     
     /* Set depth from screen bitmap if available */
     if (screen->RastPort.BitMap) {
-        drawInfo.dri_Depth = screen->RastPort.BitMap->Depth;
+        drawInfo->dri_Depth = screen->RastPort.BitMap->Depth;
     }
     
-    return &drawInfo;
+    DPRINTF (LOG_DEBUG, "_intuition: GetScreenDrawInfo() -> drawInfo=0x%08lx, Version=%d, NumPens=%d, Font=0x%08lx, Depth=%d, Pens=0x%08lx, Flags=0x%lx\n", 
+             (ULONG)drawInfo, drawInfo->dri_Version, drawInfo->dri_NumPens, 
+             (ULONG)drawInfo->dri_Font, drawInfo->dri_Depth, (ULONG)drawInfo->dri_Pens, drawInfo->dri_Flags);
+    return drawInfo;
 }
 
 VOID _intuition_FreeScreenDrawInfo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3975,9 +4036,12 @@ VOID _intuition_FreeScreenDrawInfo ( register struct IntuitionBase * IntuitionBa
              (ULONG)screen, (ULONG)drawInfo);
     /*
      * FreeScreenDrawInfo releases a DrawInfo obtained from GetScreenDrawInfo.
-     * Since we're using a static DrawInfo for now, this is a no-op.
-     * TODO: Free allocated DrawInfo when we properly allocate them.
      */
+    if (drawInfo) {
+        if (drawInfo->dri_Pens)
+            FreeMem(drawInfo->dri_Pens, (NUMDRIPENS + 2) * sizeof(UWORD));
+        FreeMem(drawInfo, sizeof(struct DrawInfo));
+    }
 }
 
 BOOL _intuition_ResetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),

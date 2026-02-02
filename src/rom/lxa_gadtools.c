@@ -206,14 +206,300 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
  * Menu Functions
  */
 
-/* CreateMenusA - Create menus from NewMenu array */
+/* Forward declaration */
+static void FreeMenuItems(struct MenuItem *item);
+void _gadtools_FreeMenus ( register struct GadToolsBase *GadToolsBase __asm("a6"),
+                           register struct Menu *menu __asm("a0") );
+
+/* CreateMenusA - Create menus from NewMenu array
+ *
+ * Parses the NewMenu array and creates the corresponding Menu and MenuItem
+ * structures. The menu hierarchy is:
+ *   Menu (title bar entry) -> MenuItem (dropdown item) -> SubItem (submenu item)
+ */
 struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                        register struct NewMenu *newmenu __asm("a0"),
                                        register struct TagItem *taglist __asm("a1") )
 {
+    struct Menu *firstMenu = NULL;
+    struct Menu *currentMenu = NULL;
+    struct Menu *lastMenu = NULL;
+    struct MenuItem *currentItem = NULL;
+    struct MenuItem *lastItem = NULL;
+    struct MenuItem *lastSubItem = NULL;
+    struct IntuiText *itext;
+    struct NewMenu *nm;
+    WORD menuLeft = 0;
+
     DPRINTF (LOG_DEBUG, "_gadtools: CreateMenusA() newmenu=0x%08lx\n", (ULONG)newmenu);
-    /* Stub - return NULL for now, apps should handle this gracefully */
-    return NULL;
+
+    if (!newmenu)
+        return NULL;
+
+    /* First pass: count entries and validate */
+    for (nm = newmenu; nm->nm_Type != NM_END; nm++) {
+        if (nm->nm_Type == NM_IGNORE)
+            continue;
+        /* Just validate we have at least one menu title */
+        if (nm->nm_Type == NM_TITLE && firstMenu == NULL) {
+            /* Will create first menu */
+        }
+    }
+
+    /* Second pass: create the menu structures */
+    for (nm = newmenu; nm->nm_Type != NM_END; nm++) {
+        UBYTE type = nm->nm_Type & ~MENU_IMAGE;  /* Strip image flag */
+
+        if (nm->nm_Type == NM_IGNORE)
+            continue;
+
+        DPRINTF (LOG_DEBUG, "_gadtools: CreateMenusA: type=%d label='%s'\n",
+                 type, nm->nm_Label ? (nm->nm_Label == (STRPTR)-1 ? "(bar)" : (char*)nm->nm_Label) : "(null)");
+
+        switch (type) {
+            case NM_TITLE: {
+                /* Create a new Menu structure */
+                struct Menu *menu = AllocMem(sizeof(struct Menu), MEMF_CLEAR | MEMF_PUBLIC);
+                if (!menu) {
+                    /* Out of memory - free what we have and return NULL */
+                    if (firstMenu)
+                        _gadtools_FreeMenus(GadToolsBase, firstMenu);
+                    return NULL;
+                }
+
+                menu->LeftEdge = menuLeft;
+                menu->TopEdge = 0;
+                menu->Width = 80;  /* Will be adjusted by LayoutMenusA */
+                menu->Height = 10;
+                menu->Flags = MENUENABLED;
+                menu->MenuName = nm->nm_Label;
+                menu->FirstItem = NULL;
+                menu->NextMenu = NULL;
+
+                /* Apply flags from NewMenu */
+                if (nm->nm_Flags & NM_MENUDISABLED)
+                    menu->Flags &= ~MENUENABLED;
+
+                /* Estimate width for next menu position */
+                if (nm->nm_Label) {
+                    int len = 0;
+                    CONST_STRPTR s = nm->nm_Label;
+                    while (*s++) len++;
+                    menu->Width = (len + 2) * 8;  /* Rough estimate */
+                }
+                menuLeft += menu->Width;
+
+                /* Link to menu chain */
+                if (!firstMenu) {
+                    firstMenu = menu;
+                } else if (lastMenu) {
+                    lastMenu->NextMenu = menu;
+                }
+                lastMenu = menu;
+                currentMenu = menu;
+                currentItem = NULL;
+                lastItem = NULL;
+                lastSubItem = NULL;
+                break;
+            }
+
+            case NM_ITEM: {
+                /* Create a MenuItem for the current menu */
+                struct MenuItem *item;
+
+                if (!currentMenu) {
+                    DPRINTF (LOG_ERROR, "_gadtools: CreateMenusA: NM_ITEM without NM_TITLE!\n");
+                    continue;
+                }
+
+                item = AllocMem(sizeof(struct MenuItem), MEMF_CLEAR | MEMF_PUBLIC);
+                if (!item) {
+                    if (firstMenu)
+                        _gadtools_FreeMenus(GadToolsBase, firstMenu);
+                    return NULL;
+                }
+
+                item->LeftEdge = 0;
+                item->TopEdge = lastItem ? (lastItem->TopEdge + lastItem->Height) : 0;
+                item->Width = 150;  /* Will be adjusted by LayoutMenuItemsA */
+                item->Height = 10;
+                item->Flags = ITEMTEXT | ITEMENABLED | HIGHCOMP;
+                item->MutualExclude = nm->nm_MutualExclude;
+                item->NextItem = NULL;
+                item->SubItem = NULL;
+                item->Command = 0;
+
+                /* Handle bar label (separator) */
+                if (nm->nm_Label == NM_BARLABEL) {
+                    /* Create a simple separator - we'll use a minimal IntuiText */
+                    itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
+                    if (itext) {
+                        itext->FrontPen = 1;
+                        itext->BackPen = 0;
+                        itext->DrawMode = JAM1;
+                        itext->LeftEdge = 0;
+                        itext->TopEdge = 0;
+                        itext->ITextFont = NULL;
+                        itext->IText = (STRPTR)"----------------";
+                        itext->NextText = NULL;
+                    }
+                    item->ItemFill = itext;
+                    item->Flags &= ~ITEMENABLED;  /* Separators are not selectable */
+                    item->Height = 6;  /* Shorter height for separators */
+                } else {
+                    /* Create IntuiText for the label */
+                    itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
+                    if (itext) {
+                        itext->FrontPen = 0;  /* Will use screen colors */
+                        itext->BackPen = 1;
+                        itext->DrawMode = JAM1;
+                        itext->LeftEdge = 2;
+                        itext->TopEdge = 1;
+                        itext->ITextFont = NULL;
+                        itext->IText = (STRPTR)nm->nm_Label;
+                        itext->NextText = NULL;
+                    }
+                    item->ItemFill = itext;
+                }
+
+                /* Handle command key */
+                if (nm->nm_CommKey && nm->nm_CommKey[0]) {
+                    item->Flags |= COMMSEQ;
+                    item->Command = nm->nm_CommKey[0];
+                }
+
+                /* Handle checkmark */
+                if (nm->nm_Flags & CHECKIT) {
+                    item->Flags |= CHECKIT;
+                    if (nm->nm_Flags & CHECKED)
+                        item->Flags |= CHECKED;
+                    if (nm->nm_Flags & MENUTOGGLE)
+                        item->Flags |= MENUTOGGLE;
+                }
+
+                /* Handle disabled items */
+                if (nm->nm_Flags & NM_ITEMDISABLED)
+                    item->Flags &= ~ITEMENABLED;
+
+                /* Store user data */
+                /* Note: On real AmigaOS, UserData is stored in an extended structure */
+
+                /* Link to menu */
+                if (!currentMenu->FirstItem) {
+                    currentMenu->FirstItem = item;
+                } else if (lastItem) {
+                    lastItem->NextItem = item;
+                }
+                lastItem = item;
+                currentItem = item;
+                lastSubItem = NULL;
+                break;
+            }
+
+            case NM_SUB: {
+                /* Create a sub-menu item for the current item */
+                struct MenuItem *subitem;
+
+                if (!currentItem) {
+                    DPRINTF (LOG_ERROR, "_gadtools: CreateMenusA: NM_SUB without NM_ITEM!\n");
+                    continue;
+                }
+
+                subitem = AllocMem(sizeof(struct MenuItem), MEMF_CLEAR | MEMF_PUBLIC);
+                if (!subitem) {
+                    if (firstMenu)
+                        _gadtools_FreeMenus(GadToolsBase, firstMenu);
+                    return NULL;
+                }
+
+                subitem->LeftEdge = currentItem->Width;
+                subitem->TopEdge = lastSubItem ? (lastSubItem->TopEdge + lastSubItem->Height) : 0;
+                subitem->Width = 120;
+                subitem->Height = 10;
+                subitem->Flags = ITEMTEXT | ITEMENABLED | HIGHCOMP;
+                subitem->MutualExclude = nm->nm_MutualExclude;
+                subitem->NextItem = NULL;
+                subitem->SubItem = NULL;
+                subitem->Command = 0;
+
+                /* Handle bar label (separator) */
+                if (nm->nm_Label == NM_BARLABEL) {
+                    itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
+                    if (itext) {
+                        itext->FrontPen = 1;
+                        itext->BackPen = 0;
+                        itext->DrawMode = JAM1;
+                        itext->IText = (STRPTR)"------------";
+                    }
+                    subitem->ItemFill = itext;
+                    subitem->Flags &= ~ITEMENABLED;
+                    subitem->Height = 6;
+                } else {
+                    itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
+                    if (itext) {
+                        itext->FrontPen = 0;
+                        itext->BackPen = 1;
+                        itext->DrawMode = JAM1;
+                        itext->LeftEdge = 2;
+                        itext->TopEdge = 1;
+                        itext->IText = (STRPTR)nm->nm_Label;
+                    }
+                    subitem->ItemFill = itext;
+                }
+
+                /* Handle command key */
+                if (nm->nm_CommKey && nm->nm_CommKey[0]) {
+                    subitem->Flags |= COMMSEQ;
+                    subitem->Command = nm->nm_CommKey[0];
+                }
+
+                /* Handle checkmark and flags */
+                if (nm->nm_Flags & CHECKIT) {
+                    subitem->Flags |= CHECKIT;
+                    if (nm->nm_Flags & CHECKED)
+                        subitem->Flags |= CHECKED;
+                    if (nm->nm_Flags & MENUTOGGLE)
+                        subitem->Flags |= MENUTOGGLE;
+                }
+
+                if (nm->nm_Flags & NM_ITEMDISABLED)
+                    subitem->Flags &= ~ITEMENABLED;
+
+                /* Link to parent item */
+                if (!currentItem->SubItem) {
+                    currentItem->SubItem = subitem;
+                } else if (lastSubItem) {
+                    lastSubItem->NextItem = subitem;
+                }
+                lastSubItem = subitem;
+                break;
+            }
+        }
+    }
+
+    DPRINTF (LOG_DEBUG, "_gadtools: CreateMenusA() -> 0x%08lx\n", (ULONG)firstMenu);
+    return firstMenu;
+}
+
+/* Helper: Free a chain of menu items recursively */
+static void FreeMenuItems(struct MenuItem *item)
+{
+    while (item) {
+        struct MenuItem *next = item->NextItem;
+
+        /* Free sub-items first */
+        if (item->SubItem) {
+            FreeMenuItems(item->SubItem);
+        }
+
+        /* Free the IntuiText if we created one */
+        if ((item->Flags & ITEMTEXT) && item->ItemFill) {
+            FreeMem(item->ItemFill, sizeof(struct IntuiText));
+        }
+
+        FreeMem(item, sizeof(struct MenuItem));
+        item = next;
+    }
 }
 
 /* FreeMenus - Free menus created by CreateMenusA */
@@ -221,7 +507,19 @@ void _gadtools_FreeMenus ( register struct GadToolsBase *GadToolsBase __asm("a6"
                            register struct Menu *menu __asm("a0") )
 {
     DPRINTF (LOG_DEBUG, "_gadtools: FreeMenus() menu=0x%08lx\n", (ULONG)menu);
-    /* Stub - nothing to free if CreateMenusA returns NULL */
+
+    while (menu) {
+        struct Menu *nextMenu = menu->NextMenu;
+
+        /* Free all items in this menu */
+        if (menu->FirstItem) {
+            FreeMenuItems(menu->FirstItem);
+        }
+
+        /* Free the menu itself */
+        FreeMem(menu, sizeof(struct Menu));
+        menu = nextMenu;
+    }
 }
 
 /* LayoutMenuItemsA - Layout menu items */
@@ -481,12 +779,12 @@ APTR __g_lxa_gadtools_FuncTab [] =
     _gadtools_DrawBevelBoxA,            // -120 DrawBevelBoxA
     _gadtools_GetVisualInfoA,           // -126 GetVisualInfoA
     _gadtools_FreeVisualInfo,           // -132 FreeVisualInfo
-    _gadtools_Private1,                 // -138 Private1
-    _gadtools_Private2,                 // -144 Private2
-    _gadtools_Private3,                 // -150 Private3
-    _gadtools_Private4,                 // -156 Private4
-    _gadtools_Private5,                 // -162 Private5
-    _gadtools_Private6,                 // -168 Private6
+    _gadtools_Private1,                 // -138 SetDesignFontA (V47) - stub
+    _gadtools_Private2,                 // -144 ScaleGadgetRectA (V47) - stub
+    _gadtools_Private3,                 // -150 gadtoolsPrivate1
+    _gadtools_Private4,                 // -156 gadtoolsPrivate2
+    _gadtools_Private5,                 // -162 gadtoolsPrivate3
+    _gadtools_Private6,                 // -168 gadtoolsPrivate4
     _gadtools_GT_GetGadgetAttrsA,       // -174 GT_GetGadgetAttrsA (V39)
     (APTR) ((LONG)-1)
 };
