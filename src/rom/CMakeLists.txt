@@ -53,6 +53,7 @@ set(ROM_C_SOURCES
     lxa_asl.c
     lxa_dev_console.c
     lxa_dev_timer.c
+    lxa_dev_clipboard.c
     util.c
     amath.c
 )
