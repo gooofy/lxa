@@ -54,6 +54,8 @@ set(ROM_C_SOURCES
     lxa_dev_console.c
     lxa_dev_timer.c
     lxa_dev_clipboard.c
+    lxa_dev_audio.c
+    lxa_dev_gameport.c
     util.c
     amath.c
 )

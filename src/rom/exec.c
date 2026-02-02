@@ -99,6 +99,8 @@ extern struct Resident *__lxa_input_ROMTag;
 extern struct Resident *__lxa_console_ROMTag;
 extern struct Resident *__lxa_timer_ROMTag;
 extern struct Resident *__lxa_clipboard_ROMTag;
+extern struct Resident *__lxa_audio_ROMTag;
+extern struct Resident *__lxa_gameport_ROMTag;
 
 static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
 static struct ExecBase  g_SysBase;
@@ -124,6 +126,8 @@ struct Library         *DeviceInputBase;
 struct Library         *DeviceConsoleBase;
 struct Library         *DeviceTimerBase;
 struct Library         *DeviceClipboardBase;
+struct Library         *DeviceAudioBase;
+struct Library         *DeviceGameportBase;
 
 static struct Custom   *custom            = (struct Custom*)        0xdff000;
 
@@ -3940,6 +3944,8 @@ void coldstart (void)
     DeviceConsoleBase   = (struct Library *) registerBuiltInDev (sizeof (*DeviceConsoleBase)  , __lxa_console_ROMTag  );
     DeviceTimerBase     = (struct Library *) registerBuiltInDev (sizeof (*DeviceTimerBase)    , __lxa_timer_ROMTag    );
     DeviceClipboardBase = (struct Library *) registerBuiltInDev (sizeof (*DeviceClipboardBase), __lxa_clipboard_ROMTag);
+    DeviceAudioBase     = (struct Library *) registerBuiltInDev (sizeof (*DeviceAudioBase)    , __lxa_audio_ROMTag    );
+    DeviceGameportBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceGameportBase) , __lxa_gameport_ROMTag );
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in devices\n");
 
