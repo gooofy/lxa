@@ -79,11 +79,14 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
     # Create a temporary file for filtered output
     TEMP_OUTPUT=$(mktemp)
     
+    # First, remove everything after "*** LXA DEBUGGER ***" line (including that line)
+    sed '/\*\*\* LXA DEBUGGER \*\*\*/,$d' "$ACTUAL_OUTPUT" > "$TEMP_OUTPUT"
+    
     # Filter out:
     # - Lines starting with "0x" followed by hex (memory dumps)
     # - Lines starting with known LXA debug prefixes
     # - Lines that are part of multiline debug output (indented with spaces)
-    # - LXA DEBUGGER output and everything after
+    # - Debugger trace lines
     grep -v \
         -e '^0x[0-9a-f]*:' \
         -e '^coldstart:' \
@@ -111,10 +114,20 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
         -e "^  MinWidth=" \
         -e "^' len=" \
         -e '^LXA DEBUGGER' \
-        "$ACTUAL_OUTPUT" > "$TEMP_OUTPUT" 2>/dev/null || true
+        -e '^     [0-9a-fx]' \
+        -e '^---> ' \
+        -e '^     pc=' \
+        -e '^     d[0-7]=' \
+        -e '^     a[0-7]=' \
+        -e '^     usp=' \
+        -e '^\[?25h' \
+        -e '^Traceback:' \
+        -e '^>> $' \
+        "$TEMP_OUTPUT" > "${TEMP_OUTPUT}.2" 2>/dev/null || true
     
     # Move filtered output back
-    mv "$TEMP_OUTPUT" "$ACTUAL_OUTPUT"
+    mv "${TEMP_OUTPUT}.2" "$ACTUAL_OUTPUT"
+    rm -f "$TEMP_OUTPUT"
     
     # Remove trailing newlines that might be left
     sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' "$ACTUAL_OUTPUT" 2>/dev/null || true

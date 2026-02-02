@@ -47,6 +47,10 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
 struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                         register const struct NewScreen * newScreen __asm("a0"));
 
+/* Forward declaration for internal helper */
+static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code, 
+                                 UWORD qualifier, APTR iaddress, WORD mouseX, WORD mouseY);
+
 // libBase: IntuitionBase
 // baseType: struct IntuitionBase *
 // libname: intuition.library
@@ -556,6 +560,180 @@ BOOL _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __as
 }
 
 /*
+ * Find the window at a given screen position
+ * Returns the topmost window containing the point, or NULL if none
+ */
+static struct Window * _find_window_at_pos(struct Screen *screen, WORD x, WORD y)
+{
+    struct Window *window;
+    struct Window *found = NULL;
+    
+    if (!screen)
+        return NULL;
+    
+    /* Walk through windows - first window is frontmost due to our list order */
+    for (window = screen->FirstWindow; window; window = window->NextWindow)
+    {
+        /* Check if point is inside window bounds */
+        if (x >= window->LeftEdge && 
+            x < window->LeftEdge + window->Width &&
+            y >= window->TopEdge &&
+            y < window->TopEdge + window->Height)
+        {
+            /* Found a window - since we iterate front-to-back, take the first match */
+            if (!found)
+                found = window;
+        }
+    }
+    
+    return found;
+}
+
+/*
+ * Find a gadget at a given position within a window
+ * Coordinates are window-relative
+ * Returns the gadget or NULL if none found
+ */
+static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WORD relY)
+{
+    struct Gadget *gad;
+    WORD gx0, gy0, gx1, gy1;
+    
+    if (!window)
+        return NULL;
+    
+    /* Walk through gadget list */
+    for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
+    {
+        /* Skip disabled gadgets */
+        if (gad->Flags & GFLG_DISABLED)
+            continue;
+        
+        /* Calculate gadget bounds (handling relative positioning) */
+        gx0 = gad->LeftEdge;
+        gy0 = gad->TopEdge;
+        gx1 = gx0 + gad->Width;
+        gy1 = gy0 + gad->Height;
+        
+        /* Handle GFLG_REL* flags for relative positioning */
+        if (gad->Flags & GFLG_RELRIGHT)
+            gx0 += window->Width - 1;
+        if (gad->Flags & GFLG_RELBOTTOM)
+            gy0 += window->Height - 1;
+        if (gad->Flags & GFLG_RELWIDTH)
+            gx1 = gx0 + gad->Width + window->Width;
+        if (gad->Flags & GFLG_RELHEIGHT)
+            gy1 = gy0 + gad->Height + window->Height;
+        
+        /* Update end coordinates if relative flags changed start */
+        if (gad->Flags & GFLG_RELRIGHT)
+            gx1 = gx0 + gad->Width;
+        if (gad->Flags & GFLG_RELBOTTOM)
+            gy1 = gy0 + gad->Height;
+        
+        /* Check if point is inside gadget bounds */
+        if (relX >= gx0 && relX < gx1 && relY >= gy0 && relY < gy1)
+        {
+            DPRINTF(LOG_DEBUG, "_intuition: _find_gadget_at_pos() hit gadget type=0x%04x at (%d,%d)\n",
+                    gad->GadgetType, (int)relX, (int)relY);
+            return gad;
+        }
+    }
+    
+    return NULL;
+}
+
+/*
+ * Check if a point is inside a gadget (for RELVERIFY validation)
+ * Used when mouse button is released to verify we're still inside the gadget
+ */
+static BOOL _point_in_gadget(struct Window *window, struct Gadget *gad, WORD relX, WORD relY)
+{
+    WORD gx0, gy0, gx1, gy1;
+    
+    if (!window || !gad)
+        return FALSE;
+    
+    /* Calculate gadget bounds */
+    gx0 = gad->LeftEdge;
+    gy0 = gad->TopEdge;
+    gx1 = gx0 + gad->Width;
+    gy1 = gy0 + gad->Height;
+    
+    /* Handle GFLG_REL* flags */
+    if (gad->Flags & GFLG_RELRIGHT)
+        gx0 += window->Width - 1;
+    if (gad->Flags & GFLG_RELBOTTOM)
+        gy0 += window->Height - 1;
+    if (gad->Flags & GFLG_RELWIDTH)
+        gx1 = gx0 + gad->Width + window->Width;
+    if (gad->Flags & GFLG_RELHEIGHT)
+        gy1 = gy0 + gad->Height + window->Height;
+    
+    if (gad->Flags & GFLG_RELRIGHT)
+        gx1 = gx0 + gad->Width;
+    if (gad->Flags & GFLG_RELBOTTOM)
+        gy1 = gy0 + gad->Height;
+    
+    return (relX >= gx0 && relX < gx1 && relY >= gy0 && relY < gy1);
+}
+
+/*
+ * Handle system gadget action when mouse is released inside the gadget
+ * This is called after RELVERIFY confirms the click
+ */
+static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadget)
+{
+    UWORD sysType;
+    
+    if (!window || !gadget)
+        return;
+    
+    /* Must be a system gadget */
+    if (!(gadget->GadgetType & GTYP_SYSGADGET))
+        return;
+    
+    sysType = gadget->GadgetType & GTYP_SYSTYPEMASK;
+    
+    DPRINTF(LOG_DEBUG, "_intuition: _handle_sys_gadget_verify() sysType=0x%04x\n", sysType);
+    
+    switch (sysType)
+    {
+        case GTYP_CLOSE:
+            /* Fire IDCMP_CLOSEWINDOW message */
+            DPRINTF(LOG_DEBUG, "_intuition: Close gadget clicked - posting IDCMP_CLOSEWINDOW\n");
+            _post_idcmp_message(window, IDCMP_CLOSEWINDOW, 0, 0, window, 
+                               window->MouseX, window->MouseY);
+            break;
+        
+        case GTYP_WDEPTH:
+            /* TODO: Implement WindowToBack/WindowToFront toggle */
+            DPRINTF(LOG_DEBUG, "_intuition: Depth gadget clicked - TODO: window depth change\n");
+            /* For now, post IDCMP_CHANGEWINDOW as a notification */
+            _post_idcmp_message(window, IDCMP_CHANGEWINDOW, 0, 0, window,
+                               window->MouseX, window->MouseY);
+            break;
+        
+        case GTYP_WDRAGGING:
+            /* Drag bar - handled separately during mouse move */
+            break;
+        
+        case GTYP_SIZING:
+            /* Resize gadget - handled separately during mouse move */
+            break;
+        
+        case GTYP_WZOOM:
+            /* Zoom gadget - TODO: implement ZipWindow behavior */
+            DPRINTF(LOG_DEBUG, "_intuition: Zoom gadget clicked - TODO: ZipWindow\n");
+            break;
+    }
+}
+
+/* State for tracking active gadget during mouse press */
+static struct Gadget *g_active_gadget = NULL;
+static struct Window *g_active_window = NULL;
+
+/*
  * Internal function to post an IDCMP message to a window
  * Returns TRUE if message was posted, FALSE if window not interested
  */
@@ -667,10 +845,16 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
             IBase->Micros = tv.tv_micro;
         }
         
-        /* Find the window that should receive this event */
-        /* For now, send to first window on screen */
-        /* TODO: Proper window hit-testing based on mouse position */
-        window = screen->FirstWindow;
+        /* Find the window at the mouse position */
+        window = _find_window_at_pos(screen, mouseX, mouseY);
+        
+        /* If no window under mouse but we have an active gadget, use that window */
+        if (!window && g_active_window)
+            window = g_active_window;
+        
+        /* Fallback to first window if still none found */
+        if (!window)
+            window = screen->FirstWindow;
         
         switch (event_type)
         {
@@ -680,12 +864,83 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 UWORD code = (UWORD)(button_code & 0xFF);
                 UWORD qualifier = (UWORD)((button_code >> 8) & 0xFFFF);
                 
-                /* Post IDCMP_MOUSEBUTTONS */
                 if (window)
                 {
                     /* Convert to window-relative coordinates */
                     WORD relX = mouseX - window->LeftEdge;
                     WORD relY = mouseY - window->TopEdge;
+                    
+                    /* Check for gadget hit on mouse down (SELECTDOWN) */
+                    if (code == SELECTDOWN)
+                    {
+                        struct Gadget *gad = _find_gadget_at_pos(window, relX, relY);
+                        if (gad)
+                        {
+                            DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN on gadget type=0x%04x\n",
+                                    gad->GadgetType);
+                            
+                            /* Set as active gadget for tracking */
+                            g_active_gadget = gad;
+                            g_active_window = window;
+                            
+                            /* Set gadget as selected */
+                            gad->Flags |= GFLG_SELECTED;
+                            
+                            /* Post IDCMP_GADGETDOWN if it's a GADGIMMEDIATE gadget */
+                            if (gad->Activation & GACT_IMMEDIATE)
+                            {
+                                _post_idcmp_message(window, IDCMP_GADGETDOWN, 0,
+                                                   qualifier, gad, relX, relY);
+                            }
+                            
+                            /* TODO: Render selected state (GADGHCOMP/GADGHBOX) */
+                        }
+                    }
+                    /* Check for gadget release on mouse up (SELECTUP) */
+                    else if (code == SELECTUP)
+                    {
+                        if (g_active_gadget && g_active_window)
+                        {
+                            struct Gadget *gad = g_active_gadget;
+                            struct Window *activeWin = g_active_window;
+                            
+                            /* Calculate relative position in the active window */
+                            WORD activeRelX = mouseX - activeWin->LeftEdge;
+                            WORD activeRelY = mouseY - activeWin->TopEdge;
+                            
+                            /* Check if still inside gadget (RELVERIFY) */
+                            BOOL inside = _point_in_gadget(activeWin, gad, activeRelX, activeRelY);
+                            
+                            DPRINTF(LOG_DEBUG, "_intuition: SELECTUP on gadget type=0x%04x inside=%d\n",
+                                    gad->GadgetType, inside);
+                            
+                            /* Clear selected state */
+                            gad->Flags &= ~GFLG_SELECTED;
+                            
+                            if (inside)
+                            {
+                                /* Handle system gadget verification */
+                                if (gad->GadgetType & GTYP_SYSGADGET)
+                                {
+                                    _handle_sys_gadget_verify(activeWin, gad);
+                                }
+                                /* Post IDCMP_GADGETUP for RELVERIFY gadgets */
+                                else if (gad->Activation & GACT_RELVERIFY)
+                                {
+                                    _post_idcmp_message(activeWin, IDCMP_GADGETUP, 0,
+                                                       qualifier, gad, activeRelX, activeRelY);
+                                }
+                            }
+                            
+                            /* TODO: Render normal state */
+                            
+                            /* Clear active gadget */
+                            g_active_gadget = NULL;
+                            g_active_window = NULL;
+                        }
+                    }
+                    
+                    /* Post IDCMP_MOUSEBUTTONS for general notification */
                     _post_idcmp_message(window, IDCMP_MOUSEBUTTONS, code, 
                                        qualifier, NULL, relX, relY);
                 }
@@ -729,14 +984,14 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 break;
             }
             
-            case 4:  /* Close window request */
+            case 4:  /* Close window request (from host window manager) */
             {
                 if (window)
                 {
                     WORD relX = mouseX - window->LeftEdge;
                     WORD relY = mouseY - window->TopEdge;
                     _post_idcmp_message(window, IDCMP_CLOSEWINDOW, 0, 
-                                       0, NULL, relX, relY);
+                                       0, window, relX, relY);
                 }
                 break;
             }
@@ -746,7 +1001,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 /* System quit requested - post close to all windows */
                 for (window = screen->FirstWindow; window; window = window->NextWindow)
                 {
-                    _post_idcmp_message(window, IDCMP_CLOSEWINDOW, 0, 0, NULL, 0, 0);
+                    _post_idcmp_message(window, IDCMP_CLOSEWINDOW, 0, 0, window, 0, 0);
                 }
                 break;
             }

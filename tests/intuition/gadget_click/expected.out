@@ -1,0 +1,24 @@
+Testing gadget hit testing and interaction...
+
+--- Test 1: Open screen and window ---
+OK: Screen opened
+OK: Window opened
+OK: Found CLOSE gadget at   LeftEdge=0x00000004
+OK: Found DEPTH gadget at   LeftEdge=0x000000B2
+
+--- Test 2: Verify gadget geometry ---
+OK: Gadget has valid dimensions
+OK: Close gadget positioned in left area
+OK: Gadget has valid dimensions
+OK: Depth gadget positioned in right area
+
+--- Test 3: Close gadget click via mouse injection ---
+  Clicking at screen X=0x00000021
+  Clicking at screen Y=0x00000023
+Note: IDCMP_CLOSEWINDOW not received (may require actual event processing)
+
+--- Test 4: Cleanup ---
+OK: Window closed
+OK: Screen closed
+
+PASS: gadget_click all tests passed

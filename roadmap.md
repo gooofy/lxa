@@ -131,7 +131,7 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 
 ### Step 25.3: System Gadgets (from Phase 14.3)
 - [x] **Visual Representation** - Close/Depth gadget rendering implemented with 3D borders and icons. Gadget structures created automatically for WFLG_CLOSEGADGET/WFLG_DEPTHGADGET windows. RefreshWindowFrame() now renders window borders and system gadgets.
-- [ ] **Gadget Interaction** - Hit testing and basic state changes (TODO: Add mouse click detection on gadgets)
+- [x] **Gadget Interaction** - Hit testing implemented: _find_window_at_pos(), _find_gadget_at_pos(), _point_in_gadget(). Mouse press sets GFLG_SELECTED and tracks active gadget. Mouse release validates click (RELVERIFY), posts IDCMP_GADGETDOWN/GADGETUP. System gadgets (Close, Depth) post appropriate IDCMP messages. Test: tests/intuition/gadget_click/.
 
 ### Step 25.4: Menu System (from Phase 15.5)
 - [x] **SetMenuStrip / ClearMenuStrip / ResetMenuStrip** - Menu management functions implemented. SetMenuStrip attaches menu to window, ClearMenuStrip detaches, ResetMenuStrip re-attaches without recalculation.

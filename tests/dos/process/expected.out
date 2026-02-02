@@ -2,21 +2,15 @@ SystemTagList Process Test
 ==========================
 
 Test 1: Execute simple command (type NIL:)
-_dos: LoadSeg() Open() for name=type failed
   SystemTagList returned: 0
   PASS: Simple command executed successfully
 
 Test 2: Execute non-existent command
-_dos: LoadSeg() Open() for name=nonexistent_command_xyz123 failed
-_dos: LoadSeg() Open() for name=SYS:C/nonexistent_command_xyz123 failed
-_dos: SystemTagList() failed to load 'nonexistent_command_xyz123'
   SystemTagList returned: -1
   PASS: Non-existent command returns -1
 
 Test 3: Multiple commands sequentially
-_dos: LoadSeg() Open() for name=type failed
   First command returned: 0
-_dos: LoadSeg() Open() for name=type failed
   Second command returned: 0
   PASS: Multiple sequential commands work
 
