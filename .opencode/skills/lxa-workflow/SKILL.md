@@ -16,6 +16,7 @@ This skill guides you through the project management, versioning, and build proc
    - Write tests first (TDD).
    - Implement minimum code.
    - Ensure no warnings.
+   - **Always** strive towards completing the phase you're working on. Create elaborate TODO lists to achieve that, do **not** stop early.
 3. **Finish**:
    - Update `roadmap.md` (`[x]`).
    - Update `README.md`.
