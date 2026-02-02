@@ -74,97 +74,115 @@ Multi-assign support in VFS, automatic program-local assigns, WBenchToFront open
 ### Phase 21: UI Testing Infrastructure (COMPLETE)
 Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen capture (CAPTURE_SCREEN, CAPTURE_WINDOW), headless mode, ROM-side test helpers (`test_inject.h`), console device unit tests, KickPascal 2 investigation and fix (line mode buffer handling).
 
+### Phase 22: Console Device Completion (COMPLETE)
+**Goal**: Achieve authentic AmigaOS console.device behavior through rigorous comparison with AROS implementation and RKRM documentation.
+**Summary**: Fully functional console.device with comprehensive CSI escape sequence support, SGR text attributes, input handling, and CON:/RAW: DOS handlers.
+
 ---
 
 ## Active Phases
 
-## Phase 22: Console Device Completion (COMPLETE)
+## Phase 23: Graphics Library Consolidation
 
-**Goal**: Achieve authentic AmigaOS console.device behavior through rigorous comparison with AROS implementation and RKRM documentation.
+**Goal**: Elevate `graphics.library` to authentic AmigaOS standards through rigorous audit against AROS and RKRM.
 
-**Summary**: Fully functional console.device with comprehensive CSI escape sequence support, SGR text attributes, input handling, and CON:/RAW: DOS handlers. Includes 58 test cases across 7 test programs. Advanced features (raw events, character-mapped modes, RawKeyConvert) deferred to Phase 26.
+### Step 23.1: Analysis & Gap Assessment
+- [ ] **State Comparison** - Compare `lxa` implementations of `BitMap`, `RastPort`, `View`, `ViewPort` against AROS/RKRM.
+- [ ] **LVO Verification** - Ensure all implemented functions match strict argument/return semantics.
+- [ ] **Visual Fidelity** - Audit drawing primitives (lines, fills, blits) for pixel-perfect matches where possible.
 
-**Key Achievements**:
-- Complete ANSI/CSI escape sequence support (cursor movement, erase, scroll, tabs)
-- Full SGR implementation (colors, bold, inverse, italic, underline)
-- Comprehensive input handling (function keys, arrows, special keys with shift variants)
-- CON:/RAW: DOS handler for DOS-level console window support
-- Device Status Report (CSI 6 n) for cursor position queries
-- ScrollRaster() graphics function for console scrolling
-- Full documentation in `doc/console_device.md`
+### Step 23.2: Implementation Alignment
+- [ ] **Structure Alignment** - Adjust public structures to match NDK definitions closer.
+- [ ] **GfxBase Review** - Ensure `GfxBase` fields are populated correctly.
+- [ ] **Raster Operations** - Verify Minterm logic and masking against documentation.
 
-**Test Coverage**:
-- 7 test programs with 58 total test cases
-- csi_unit (28 tests) - CSI sequence verification
-- sgr_unit (30 tests) - Text attribute and color tests
-- csi_cursor, input_inject, input_console, kp2_test, con_handler
+---
 
-**Deferred Items** (moved to Phase 26):
-- CONU_CHARMAP/CONU_SNIPMAP console modes
-- RawKeyConvert() and CDInputHandler() functions
-- Raw input events (CSI { } sequences)
-- Global background color (SGR >0-7)
-- Ctrl/Alt qualifier processing
-- cu_KeyMapStruct and advanced ConUnit fields
+## Phase 24: Layers Library Consolidation
+
+**Goal**: Ensure `layers.library` accurately implements AmigaOS clipping, locking, and damage semantics.
+
+### Step 24.1: Analysis & Gap Assessment
+- [ ] **Locking Semantics** - Audit `LockLayer`, `LockLayerInfo`, `LockLayers` against deadlock potential and RKRM rules.
+- [ ] **Region Operations** - Verify region algebra correctness compared to AROS.
+
+### Step 24.2: Implementation Alignment
+- [ ] **Structure Alignment** - Align `Layer` and `Layer_Info` structures with NDK.
+- [ ] **Clipping Fidelity** - Ensure `ClipRect` lists and damage regions behave identically to native AmigaOS.
+
+---
+
+## Phase 25: Intuition Library Consolidation
+
+**Goal**: Refine `intuition.library` to match authentic AmigaOS windowing, screen, and input behavior.
+
+### Step 25.1: Analysis & Gap Assessment
+- [ ] **Object Structure** - Audit `Window`, `Screen`, `Gadget` structures against NDK.
+- [ ] **Input Handling** - Verify IDCMP message generation, timing, and flags against RKRM.
+
+### Step 25.2: Implementation Alignment
+- [ ] **Window Management** - Align border calculation, title bar rendering, and flags with standards.
+- [ ] **Screen Handling** - Audit `OpenScreen` tags, types (Custom vs Workbench), and depth handling.
+- [ ] **IntuitionBase** - Ensure library base structure is correct.
 
 ---
 
 ## Future Phases
 
-## Phase 23: KickPascal 2 & Real-World Application Testing
+## Phase 26: KickPascal 2 & Real-World Application Testing (was Phase 23)
 
 **Goal**: Validate lxa compatibility with real Amiga applications, using KickPascal 2 as the primary test case.
 
-### Step 23.1: KickPascal 2 Full Compatibility
+### Step 26.1: KickPascal 2 Full Compatibility
 - [ ] **Complete IDE Launch** - Editor window opens correctly with menus
 - [ ] **File Operations** - Open, Save, New work with KP2 format
 - [ ] **Text Editing** - All editor features work (cursor, selection, scroll)
 - [ ] **Compilation** - KP2 can compile Pascal programs on lxa
 - [ ] **Documentation** - Document any KP2-specific workarounds needed
 
-### Step 23.2: Application Test Suite
+### Step 26.2: Application Test Suite
 - [ ] **Create app-tests/ directory** - Structured testing for real applications
 - [ ] **Test runner infrastructure** - Automated launch, screenshot, validation
 - [ ] **App manifest format** - Define expected behavior per application
 
-### Step 23.3: Additional Test Applications
+### Step 26.3: Additional Test Applications
 - [ ] **Text editors** - Test ED, other common editors
 - [ ] **File managers** - Directory Opus (if feasible), DiskMaster
 - [ ] **Development tools** - Assemblers, compilers that run on Amiga
 - [ ] **Utilities** - Common Amiga utilities and tools
 
-### Step 23.4: Compatibility Database
+### Step 26.4: Compatibility Database
 - [ ] **Track application status** - Working, partial, broken
 - [ ] **Document failures** - What breaks and why
 - [ ] **Prioritize fixes** - Based on application popularity
 
 ---
 
-## Phase 24: Deferred UI Features
+## Phase 27: Deferred UI Features (was Phase 24)
 
 **Goal**: Complete deferred UI components from earlier phases.
 
-### Step 24.1: System Gadgets (from Phase 14.3)
+### Step 27.1: System Gadgets (from Phase 14.3)
 - [ ] **Visual Representation** - Close/Depth/Drag gadget rendering
 - [ ] **Gadget Interaction** - Hit testing and basic state changes
 
-### Step 24.2: Menu System (from Phase 15.5)
+### Step 27.2: Menu System (from Phase 15.5)
 - [ ] **Menu Bar Handling** - Global vs per-window menus
 - [ ] **SetMenuStrip / ClearMenuStrip** - Menu management functions
 - [ ] **Menu Events** - IDCMP_MENUPICK handling and ItemAddress
 
-### Step 24.3: Window Layer Clipping (from Phase 20.3)
+### Step 27.3: Window Layer Clipping (from Phase 20.3)
 - [ ] **Bounds Checking** - Implement pixel-level clipping in WritePixel, Draw, Text, etc.
 - [ ] **Layer ClipRect Usage** - Use layer's ClipRect list for proper clipping (already built by layers.library)
 - [ ] **Test** - Verify out-of-bounds drawing is properly clipped
 
 ---
 
-## Phase 25: Core System Libraries & Preferences
+## Phase 28: Core System Libraries & Preferences (was Phase 25)
 
 **Goal**: Improve visual fidelity, system configuration, and core library support.
 
-### Step 25.1: Standard Libraries
+### Step 28.1: Standard Libraries
 - [x] **diskfont.library** - OpenDiskFont (falls back to ROM fonts), AvailFonts stub.
 - [x] **icon.library** - Fixed LVO table alignment, full function set implemented.
 - [x] **expansion.library** - ConfigChain and board enumeration stubs (existing).
@@ -173,24 +191,24 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 - [ ] **FONTS: Assign** - Automatic provisioning of font directories.
 - [ ] **Topaz Bundling** - Ensure a high-quality Topaz-8/9 replacement is available.
 
-### Step 25.2: Preferences & Environment
+### Step 28.2: Preferences & Environment
 - [ ] **ENVARC: Persistence** - Map `ENVARC:` to `~/.lxa/Prefs/Env` with persistence.
 
 ---
 
-## Phase 26: Advanced UI Frameworks
+## Phase 29: Advanced UI Frameworks (was Phase 26)
 
 **Goal**: Implement standard Amiga UI widgets, object-oriented systems, and advanced console features.
 
-### Step 26.1: GadTools & ASL
+### Step 29.1: GadTools & ASL
 - [ ] **gadtools.library** - Standard UI widgets (buttons, sliders, lists).
 - [ ] **asl.library** - File and Font requesters (bridged to host or native).
 
-### Step 26.2: BOOPSI Foundation
+### Step 29.2: BOOPSI Foundation
 - [ ] **Intuition Classes** - `imageclass`, `gadgetclass`, `rootclass`.
 - [ ] **NewObject / DisposeObject** - Object lifecycle management.
 
-### Step 26.3: Advanced Console Features (deferred from Phase 22)
+### Step 29.3: Advanced Console Features (deferred from Phase 22)
 - [ ] **CONU_CHARMAP/CONU_SNIPMAP** - Character-mapped console modes with copy/paste
 - [ ] **RawKeyConvert()** - Convert IECLASS_RAWKEY events to ANSI bytes
 - [ ] **CDInputHandler()** - Console device input event handler
@@ -203,18 +221,18 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 
 ---
 
-## Phase 27: Quality & Stability Hardening
+## Phase 30: Quality & Stability Hardening (was Phase 27)
 
 **Goal**: Ensure production-grade reliability.
 
-### Step 27.1: Memory Debugging
+### Step 30.1: Memory Debugging
 - [ ] Memory tracking, leak detection, double-free detection, buffer overflow guards
 - [ ] **Stress Testing** - 24-hour continuous operation, 10,000 file operations.
 
-### Step 27.2: Compatibility Testing
+### Step 30.2: Compatibility Testing
 - [ ] Test with common Amiga software, document issues, create compatibility database.
 
-### Step 27.3: Performance Optimization
+### Step 30.3: Performance Optimization
 - [ ] Profile critical paths, optimize VFS, memory allocation, emucall overhead.
 
 ## Known Limitations & Future Work
