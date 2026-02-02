@@ -22,6 +22,10 @@
 /* Forward declaration for input processing (defined in lxa_intuition.c) */
 extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
 
+/* Forward declarations for Topaz font (defined later in this file) */
+static struct TextFont g_topaz8_font;
+static void init_topaz8_font(void);
+
 /* Drawing modes from rastport.h */
 #ifndef JAM1
 #define JAM1        0
@@ -37,6 +41,11 @@ extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
 #define DBUFFER     0x04
 #define AREAOUTLINE 0x08
 #define NOCROSSFILL 0x20
+#endif
+
+/* BitMap flags */
+#ifndef BMF_STANDARD
+#define BMF_STANDARD (1L << 3)   /* BMB_STANDARD = 3 */
 #endif
 
 /* Use lxa_memset instead of memset to avoid conflict with libnix string.h */
@@ -68,7 +77,16 @@ struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphics
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_graphics: WARNING: InitLib() unimplemented STUB called.\n");
+    DPRINTF (LOG_DEBUG, "_graphics: InitLib() initializing GfxBase\n");
+
+    /* Initialize the built-in Topaz-8 font */
+    init_topaz8_font();
+
+    /* Set the default font for the system */
+    graphicsb->DefaultFont = &g_topaz8_font;
+
+    DPRINTF (LOG_DEBUG, "_graphics: InitLib() DefaultFont set to 0x%08lx\n", (ULONG)graphicsb->DefaultFont);
+
     return graphicsb;
 }
 
@@ -870,16 +888,24 @@ static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6
     /* Zero out the entire RastPort structure */
     lxa_memset(rp, 0, sizeof(struct RastPort));
 
-    /* Set default values */
+    /* Set default values per AROS/RKRM specification */
     rp->Mask = 0xFF;           /* All planes enabled for writing */
-    rp->FgPen = 1;             /* Foreground pen = 1 (typically black) */
-    rp->BgPen = 0;             /* Background pen = 0 (typically white/gray) */
-    rp->AOlPen = 1;            /* Outline pen for area fills */
+    rp->FgPen = -1;            /* Foreground pen = -1 (0xFF) per AROS */
+    rp->BgPen = 0;             /* Background pen = 0 */
+    rp->AOlPen = -1;           /* Outline pen = -1 per AROS */
     rp->DrawMode = JAM2;       /* Default drawing mode */
     rp->LinePtrn = 0xFFFF;     /* Solid line pattern */
     rp->Flags = FRST_DOT;      /* Draw first dot */
     rp->PenWidth = 1;
     rp->PenHeight = 1;
+
+    /* Set font to GfxBase->DefaultFont if available */
+    if (GfxBase && GfxBase->DefaultFont)
+    {
+        rp->Font = GfxBase->DefaultFont;
+        rp->TxHeight = GfxBase->DefaultFont->tf_YSize;
+        rp->TxBaseline = GfxBase->DefaultFont->tf_Baseline;
+    }
 }
 
 static VOID _graphics_InitVPort ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1441,20 +1467,18 @@ static VOID _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6")
     if (!bitMap)
         return;
 
-    /* Calculate bytes per row (word-aligned) */
-    UWORD bytesPerRow = (((UWORD)width + 15) >> 4) << 1;  /* Round up to word boundary */
+    /* Calculate bytes per row (word-aligned) per AROS:
+     * ((width + 15) >> 3) & ~0x1 is equivalent to ((width + 15) / 16) * 2 */
+    UWORD bytesPerRow = (((UWORD)width + 15) >> 3) & ~0x1;
 
     bitMap->BytesPerRow = bytesPerRow;
     bitMap->Rows = (UWORD)height;
-    bitMap->Flags = 0;
+    bitMap->Flags = BMF_STANDARD;  /* Set BMF_STANDARD per AROS (was 0) */
     bitMap->Depth = (UBYTE)depth;
     bitMap->pad = 0;
 
-    /* Clear plane pointers - caller must allocate planes */
-    for (int i = 0; i < 8; i++)
-    {
-        bitMap->Planes[i] = NULL;
-    }
+    /* Note: Planes[] are NOT cleared - caller must set them up.
+     * This matches AROS behavior where planes are left untouched. */
 }
 
 static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6"),

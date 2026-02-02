@@ -97,17 +97,21 @@ int main(void)
         print("OK: 1 pixel -> BytesPerRow=2 (minimum word)\n");
     }
 
-    /* Test that Planes are cleared */
+    /* Per AROS: InitBitMap() does NOT touch Planes[] - caller must set them.
+     * Verify this by pre-setting Planes to a known value and checking it's unchanged. */
+    for (i = 0; i < 8; i++) {
+        bm.Planes[i] = (PLANEPTR)(ULONG)(i + 1);  /* Set to non-NULL marker values */
+    }
     InitBitMap(&bm, 8, 64, 64);
     for (i = 0; i < 8; i++) {
-        if (bm.Planes[i] != NULL) {
-            print("FAIL: Planes not NULL after InitBitMap\n");
+        if (bm.Planes[i] != (PLANEPTR)(ULONG)(i + 1)) {
+            print("FAIL: Planes modified by InitBitMap\n");
             errors++;
             break;
         }
     }
     if (i == 8) {
-        print("OK: All plane pointers are NULL\n");
+        print("OK: Planes[] not touched by InitBitMap (correct)\n");
     }
 
     /* Final result */

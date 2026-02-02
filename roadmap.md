@@ -87,14 +87,16 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 **Goal**: Elevate `graphics.library` to authentic AmigaOS standards through rigorous audit against AROS and RKRM.
 
 ### Step 23.1: Analysis & Gap Assessment
-- [ ] **State Comparison** - Compare `lxa` implementations of `BitMap`, `RastPort`, `View`, `ViewPort` against AROS/RKRM.
-- [ ] **LVO Verification** - Ensure all implemented functions match strict argument/return semantics.
-- [ ] **Visual Fidelity** - Audit drawing primitives (lines, fills, blits) for pixel-perfect matches where possible.
+- [x] **State Comparison** - Compare `lxa` implementations of `BitMap`, `RastPort`, `View`, `ViewPort` against AROS/RKRM.
+- [x] **LVO Verification** - Ensure all implemented functions match strict argument/return semantics.
+- [x] **Visual Fidelity** - Audit drawing primitives (lines, fills, blits) for pixel-perfect matches where possible.
 
 ### Step 23.2: Implementation Alignment
-- [ ] **Structure Alignment** - Adjust public structures to match NDK definitions closer.
-- [ ] **GfxBase Review** - Ensure `GfxBase` fields are populated correctly.
-- [ ] **Raster Operations** - Verify Minterm logic and masking against documentation.
+- [x] **Structure Alignment** - Adjust public structures to match NDK definitions closer.
+- [x] **GfxBase Review** - Ensure `GfxBase` fields are populated correctly (DefaultFont initialized).
+- [x] **Raster Operations** - Verified Minterm logic and masking against documentation.
+- [x] **InitRastPort Fixes** - FgPen/AOlPen default to -1, Font defaults to GfxBase->DefaultFont.
+- [x] **InitBitMap Fixes** - Flags set to BMF_STANDARD, Planes[] not touched (per AROS).
 
 ---
 

@@ -1,6 +1,15 @@
 /*
  * Test: graphics/init_rastport
  * Tests InitRastPort() function to verify correct defaults
+ *
+ * Per AROS/RKRM specification:
+ * - Mask = 0xFF (all planes enabled)
+ * - FgPen = -1 (0xFF)
+ * - BgPen = 0
+ * - AOlPen = -1 (0xFF)
+ * - DrawMode = JAM2
+ * - LinePtrn = 0xFFFF (solid line)
+ * - Flags = FRST_DOT
  */
 
 #include <exec/types.h>
@@ -58,12 +67,12 @@ int main(void)
         print("OK: Mask = 0xFF\n");
     }
 
-    /* Test default FgPen (foreground pen) */
-    if (rp.FgPen != 1) {
-        print("FAIL: FgPen != 1\n");
+    /* Test default FgPen (foreground pen) - per AROS/RKRM should be -1 (0xFF) */
+    if (rp.FgPen != -1) {
+        print("FAIL: FgPen != -1\n");
         errors++;
     } else {
-        print("OK: FgPen = 1\n");
+        print("OK: FgPen = -1\n");
     }
 
     /* Test default BgPen (background pen) */
@@ -74,12 +83,12 @@ int main(void)
         print("OK: BgPen = 0\n");
     }
 
-    /* Test default AOlPen (outline pen for area fills) */
-    if (rp.AOlPen != 1) {
-        print("FAIL: AOlPen != 1\n");
+    /* Test default AOlPen (outline pen for area fills) - per AROS/RKRM should be -1 */
+    if (rp.AOlPen != -1) {
+        print("FAIL: AOlPen != -1\n");
         errors++;
     } else {
-        print("OK: AOlPen = 1\n");
+        print("OK: AOlPen = -1\n");
     }
 
     /* Test default DrawMode */

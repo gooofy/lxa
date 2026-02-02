@@ -7,5 +7,5 @@ OK: 16 pixels -> BytesPerRow=2
 OK: 640 pixels -> BytesPerRow=80
 OK: Depth=8
 OK: 1 pixel -> BytesPerRow=2 (minimum word)
-OK: All plane pointers are NULL
+OK: Planes[] not touched by InitBitMap (correct)
 PASS: InitBitMap() all tests passed

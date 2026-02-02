@@ -5,7 +5,6 @@ Test 1: LoadSeg for existing binary
   PASS: LoadSeg returned seglist
 
 Test 2: LoadSeg fails for non-existent binary
-_dos: LoadSeg() Open() for name=SYS:nonexistent_command_xyz failed
   PASS: LoadSeg returned NULL for invalid file
 
 Test 3: NP_ tag constants defined
