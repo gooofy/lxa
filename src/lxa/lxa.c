@@ -43,7 +43,21 @@
 #define CUSTOM_START 0xdff000
 #define CUSTOM_END   0xdfffff
 
+/* Extended ROM area (A3000/A4000 extended Kickstart) - return 0 for reads */
+#define EXTROM_START 0xf00000
+#define EXTROM_END   0xf7ffff
+
+/* Zorro-II expansion bus area - return 0 for reads */
+#define ZORRO2_START 0x200000
+#define ZORRO2_END   0x9fffff
+#define ZORRO2_AUTOCONFIG_START 0xe80000
+#define ZORRO2_AUTOCONFIG_END   0xefffff
+
 #define CUSTOM_REG_INTENA   0x09a
+#define CUSTOM_REG_DMACON   0x096
+#define CUSTOM_REG_BLTCON0  0x040
+#define CUSTOM_REG_BLTCON1  0x042
+#define CUSTOM_REG_COLOR00  0x180  /* Start of color registers */
 
 /* Default SYS: drive - use sys/ subdirectory if present, otherwise current directory */
 #define DEFAULT_AMIGA_SYSROOT "sys"
@@ -391,18 +405,30 @@ static inline uint8_t mread8 (uint32_t address)
         uint32_t addr = address - RAM_START;
         return g_ram[addr];
     }
+    else if ((address >= ROM_START) && (address <= ROM_END))
+    {
+        uint32_t addr = address - ROM_START;
+        return g_rom[addr];
+    }
+    else if ((address >= EXTROM_START) && (address <= EXTROM_END))
+    {
+        /* Extended ROM area (A3000/A4000) - return 0 to indicate no extended ROM */
+        return 0;
+    }
+    else if ((address >= 0x01000000) && (address <= 0x01FFFFFF))
+    {
+        /* 16MB-32MB range - Zorro-III expansion area, return 0xFF (no expansion) */
+        return 0xFF;
+    }
+    else if ((address >= ZORRO2_AUTOCONFIG_START) && (address <= ZORRO2_AUTOCONFIG_END))
+    {
+        /* Zorro-II autoconfig space - return 0 (no boards) */
+        return 0;
+    }
     else
     {
-        if ((address >= ROM_START) && (address <= ROM_END))
-        {
-            uint32_t addr = address - ROM_START;
-            return g_rom[addr];
-        }
-        else
-        {
-            printf("ERROR: mread8 at invalid address 0x%08x\n", address);
-            _debug(m68k_get_reg(NULL, M68K_REG_PC));
-        }
+        printf("ERROR: mread8 at invalid address 0x%08x\n", address);
+        _debug(m68k_get_reg(NULL, M68K_REG_PC));
     }
 
     return 0;
@@ -457,9 +483,22 @@ static void _handle_custom_write (uint16_t reg, uint16_t value)
 
             break;
         }
+        case CUSTOM_REG_DMACON:
+        {
+            /* DMA control - ignore for now, we don't do hardware DMA */
+            DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: DMACON value=0x%04x (ignored)\n", value);
+            break;
+        }
         default:
-            printf("ERROR: _handle_custom_write: unsupport chip reg 0x%03x\n", reg);
-            assert (false);
+            /* Many apps write to custom chip registers - just log and ignore */
+            if (reg >= CUSTOM_REG_COLOR00 && reg < CUSTOM_REG_COLOR00 + 64) {
+                /* Color register write - ignore for now */
+                DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: COLOR%02x value=0x%04x (ignored)\n",
+                        (reg - CUSTOM_REG_COLOR00) / 2, value);
+            } else {
+                DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: unknown reg 0x%03x value=0x%04x (ignored)\n",
+                        reg, value);
+            }
     }
 }
 
@@ -702,19 +741,17 @@ static char *_mgetstr (uint32_t address)
         uint32_t addr = address - RAM_START;
         return (char *) &g_ram[addr];
     }
+    else if ((address >= ROM_START) && (address <= ROM_END))
+    {
+        uint32_t addr = address - ROM_START;
+        return (char *) &g_rom[addr];
+    }
     else
     {
-        if ((address >= ROM_START) && (address <= ROM_END))
-        {
-            uint32_t addr = address - ROM_START;
-            return (char *) &g_rom[addr];
-        }
-        else
-        {
-            printf("ERROR: _mgetstr at invalid address 0x%08x\n", address);
-            assert (false);
-        }
+        printf("ERROR: _mgetstr at invalid address 0x%08x\n", address);
+        assert (false);
     }
+    return NULL;
 }
 
 static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_len)

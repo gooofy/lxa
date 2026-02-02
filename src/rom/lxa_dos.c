@@ -1227,9 +1227,42 @@ struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm(
                                                    register BPTR ___segList  __asm("d3"),
                                                    register LONG ___stackSize  __asm("d4"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: CreateProc unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct DosLibrary *DOSBase = __libBase;
+    (void)DOSBase;
+    
+    DPRINTF (LOG_DEBUG, "_dos: CreateProc() name='%s' pri=%ld seglist=0x%08lx stackSize=%ld\n",
+             ___name ? (const char*)___name : "(null)", ___pri, (ULONG)___segList, ___stackSize);
+
+    /*
+     * CreateProc() is the old-style (pre-V36) process creation function.
+     * It creates a process from a seglist and returns the process's MsgPort.
+     *
+     * We implement this using CreateNewProc() internally.
+     */
+    
+    if (!___segList) {
+        DPRINTF (LOG_ERROR, "_dos: CreateProc() called with NULL seglist\n");
+        return NULL;
+    }
+    
+    /* Build tags for CreateNewProc */
+    struct TagItem procTags[] = {
+        { NP_Seglist, (ULONG)___segList },
+        { NP_Name, (ULONG)(___name ? ___name : (CONST_STRPTR)"Background Process") },
+        { NP_Priority, (LONG)___pri },
+        { NP_StackSize, ___stackSize > 0 ? (ULONG)___stackSize : 4096 },
+        { NP_FreeSeglist, FALSE },  /* CreateProc does NOT free seglist on exit */
+        { TAG_DONE, 0 }
+    };
+    
+    struct Process *proc = CreateNewProc(procTags);
+    if (!proc) {
+        DPRINTF (LOG_ERROR, "_dos: CreateProc() - CreateNewProc failed\n");
+        return NULL;
+    }
+    
+    /* Return the process's MsgPort */
+    return &proc->pr_MsgPort;
 }
 
 void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),

@@ -164,15 +164,40 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 
 **Goal**: Implement standard Amiga UI widgets, object-oriented systems, and advanced console features.
 
-### Step 28.1: GadTools & ASL
-- [ ] **gadtools.library** - Standard UI widgets (buttons, sliders, lists).
-- [ ] **asl.library** - File and Font requesters (bridged to host or native).
+### Step 28.1: BOOPSI Foundation (HIGH PRIORITY - needed by many apps)
+- [ ] **rootclass** - Base class with OM_NEW, OM_DISPOSE, OM_SET, OM_GET, OM_UPDATE
+- [ ] **Class Registry** - MakeClass, AddClass, RemoveClass, FindClass, FreeClass
+- [ ] **NewObjectA / DisposeObject** - Full object lifecycle management
+- [ ] **SetAttrsA / GetAttr** - Attribute get/set with proper method dispatch
+- [ ] **DoMethodA / DoSuperMethodA** - Method invocation
+- [ ] **CoerceMethodA** - Forced class method dispatch
 
-### Step 28.2: BOOPSI Foundation
-- [ ] **Intuition Classes** - `imageclass`, `gadgetclass`, `rootclass`.
-- [ ] **NewObject / DisposeObject** - Object lifecycle management.
+### Step 28.2: BOOPSI System Classes
+- [ ] **imageclass** - Standard image rendering class
+- [ ] **frameiclass** - Frame/border rendering
+- [ ] **sysiclass** - System imagery (checkmarks, Amiga key, arrows)
+- [ ] **gadgetclass** - Base gadget class
+- [ ] **propgclass** - Proportional/slider gadget
+- [ ] **strgclass** - String gadget class
+- [ ] **buttongclass** - Button gadget class
+- [ ] **groupgclass** - Gadget grouping
 
-### Step 28.3: Advanced Console Features (deferred from Phase 22)
+### Step 28.3: GadTools Library
+- [ ] **CreateContext** - Gadget list context management
+- [ ] **CreateGadgetA** - Create standard gadgets (BUTTON_KIND, STRING_KIND, etc.)
+- [ ] **FreeGadgets** - Free gadget list
+- [ ] **GT_GetIMsg / GT_ReplyIMsg** - GadTools message handling
+- [ ] **GT_RefreshWindow** - Refresh gadtools gadgets
+- [ ] **DrawBevelBoxA** - 3D beveled box rendering
+- [ ] **GetVisualInfoA / FreeVisualInfo** - Screen visual information
+
+### Step 28.4: ASL Library
+- [ ] **AllocAslRequest / FreeAslRequest** - Request structure management
+- [ ] **AslRequest** - Display file/font/screen mode requester
+- [ ] **File Requester** - Bridge to host file dialog or native implementation
+- [ ] **Font Requester** - Font selection with preview
+
+### Step 28.5: Advanced Console Features (deferred from Phase 22)
 - [ ] **CONU_CHARMAP/CONU_SNIPMAP** - Character-mapped console modes with copy/paste
 - [ ] **RawKeyConvert()** - Convert IECLASS_RAWKEY events to ANSI bytes
 - [ ] **CDInputHandler()** - Console device input event handler
@@ -185,18 +210,52 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 
 ---
 
-## Phase 29: Quality & Stability Hardening (was Phase 27)
+## Phase 29: Extended CPU Support
+
+**Goal**: Support applications that use 68020/68030/68040 instructions for hardware detection.
+
+### Step 29.1: 68030 Instruction Emulation
+- [ ] **PMOVE** - MMU control register access (PMOVE CRP, PMOVE TC, etc.)
+- [ ] **MOVEC** - Control register moves (VBR, CACR, etc.)
+- [ ] **Cache Instructions** - CPUSHA, CINV (no-op on emulator)
+- [ ] **Trap Handling** - Graceful handling of privileged instructions
+
+### Step 29.2: CPU Detection Compatibility
+- [ ] **AttnFlags** - Report appropriate CPU type in ExecBase.AttnFlags
+- [ ] **SysInfo Compatibility** - Handle MMU probing without crash
+- [ ] **68040.library** - Stub for 68040-specific functions
+
+---
+
+## Phase 30: Hardware Register Emulation
+
+**Goal**: Support applications that access Amiga custom chip registers directly.
+
+### Step 30.1: Custom Chip Register Stubs
+- [ ] **CIA-A/CIA-B** (0xBFE001/0xBFD000) - Timer, keyboard, disk control stubs
+- [ ] **Denise** (0xDFF000-0xDFF03F) - Color registers, sprite pointers (stub/no-op)
+- [ ] **Agnus** (0xDFF040-0xDFF09F) - Blitter registers (stub or host-side impl)
+- [ ] **Paula** (0xDFF0A0-0xDFF0DF) - Audio registers (stub)
+
+### Step 30.2: Safe Hardware Access
+- [ ] **Memory Map Handler** - Intercept reads/writes to chip space
+- [ ] **No-op Mode** - Return sensible defaults for reads, ignore writes
+- [ ] **Logging Mode** - Log hardware access for debugging
+
+---
+
+## Phase 31: Quality & Stability Hardening (was Phase 29)
 
 **Goal**: Ensure production-grade reliability.
 
-### Step 29.1: Memory Debugging
+### Step 31.1: Memory Debugging
 - [ ] Memory tracking, leak detection, double-free detection, buffer overflow guards
 - [ ] **Stress Testing** - 24-hour continuous operation, 10,000 file operations.
 
-### Step 29.2: Compatibility Testing
+### Step 31.2: Compatibility Testing
 - [ ] Test with common Amiga software, document issues, create compatibility database.
 
-### Step 29.3: Performance Optimization
+### Step 31.3: Performance Optimization
 - [ ] Profile critical paths, optimize VFS, memory allocation, emucall overhead.
 
 ## Known Limitations & Future Work

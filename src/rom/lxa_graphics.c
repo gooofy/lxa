@@ -15,6 +15,7 @@
 #include <graphics/regions.h>
 #include <graphics/clip.h>
 #include <graphics/layers.h>
+#include <graphics/gels.h>
 
 #include <intuition/intuitionbase.h>
 
@@ -894,8 +895,42 @@ static VOID _graphics_InitGels ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct VSprite * tail __asm("a1"),
                                                         register struct GelsInfo * gelsInfo __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: InitGels() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * InitGels() initializes the GEL (Graphics ELement) system for a RastPort.
+     * This sets up the VSprite list with head/tail sentinels for sprite animation.
+     * Since we don't support hardware sprites/GELs, we just initialize the structure.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: InitGels() head=0x%08lx tail=0x%08lx gelsInfo=0x%08lx\n",
+             (ULONG)head, (ULONG)tail, (ULONG)gelsInfo);
+    
+    if (gelsInfo) {
+        /* Set up the VSprite list with sentinels */
+        gelsInfo->sprRsrvd = 0;
+        gelsInfo->Flags = 0;
+        gelsInfo->gelHead = head;
+        gelsInfo->gelTail = tail;
+        gelsInfo->nextLine = NULL;
+        gelsInfo->lastColor = NULL;
+        gelsInfo->collHandler = NULL;
+        gelsInfo->leftmost = 0;
+        gelsInfo->rightmost = 0;
+        gelsInfo->topmost = 0;
+        gelsInfo->bottommost = 0;
+        gelsInfo->firstBlissObj = NULL;
+        gelsInfo->lastBlissObj = NULL;
+        
+        /* Link the head and tail */
+        if (head) {
+            head->NextVSprite = tail;
+            head->PrevVSprite = NULL;
+            head->ClearPath = NULL;
+        }
+        if (tail) {
+            tail->PrevVSprite = head;
+            tail->NextVSprite = NULL;
+            tail->ClearPath = NULL;
+        }
+    }
 }
 
 static VOID _graphics_InitMasks ( register struct GfxBase * GfxBase __asm("a6"),

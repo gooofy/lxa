@@ -3072,8 +3072,11 @@ void _exec_CopyMemQuick ( register struct ExecBase * SysBase __asm("a6"),
 
 void _exec_CacheClearU ( register struct ExecBase * SysBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_exec: CacheClearU unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * CacheClearU() clears all CPU caches (user-callable version).
+     * On lxa, there's no hardware cache to clear, so this is a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_exec: CacheClearU() (no-op)\n");
 }
 
 void _exec_CacheClearE ( register struct ExecBase * SysBase __asm("a6"),
@@ -3081,16 +3084,24 @@ void _exec_CacheClearE ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___length  __asm("d0"),
                                                         register ULONG ___caches  __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: CacheClearE unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * CacheClearE() clears a specific memory range from caches.
+     * On lxa, there's no hardware cache to clear, so this is a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_exec: CacheClearE() addr=0x%08lx len=%ld caches=0x%08lx (no-op)\n",
+             (ULONG)___address, ___length, ___caches);
 }
 
 ULONG _exec_CacheControl ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___cacheBits  __asm("d0"),
                                                         register ULONG ___cacheMask  __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: CacheControl unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * CacheControl() sets CPU cache control bits.
+     * On lxa, there's no hardware cache, so we just return 0 (all caches disabled).
+     */
+    DPRINTF (LOG_DEBUG, "_exec: CacheControl() bits=0x%08lx mask=0x%08lx (no-op, returning 0)\n",
+             ___cacheBits, ___cacheMask);
     return 0;
 }
 

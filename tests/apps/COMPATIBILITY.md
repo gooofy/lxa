@@ -28,6 +28,50 @@
   - May need custom chip register emulation
 - **Test**: `tests/apps/devpac`
 
+### Directory Opus 4 - ⚠️ PARTIAL
+- **Binary**: `APPS:DOPUS/DirectoryOpus`
+- **Status**: Loads but fails to open due to missing library
+- **Issues**:
+  1. Requires dopus.library (included in APPS:DOPUS/libs but not in LIBS:)
+  2. Needs proper assign setup (LIBS: should include DOPUS/libs)
+  3. Uses extended ROM area (0x00F00000-0x00F7FFFF) - now returns 0
+- **Libraries Needed**:
+  - dopus.library (included)
+  - arp.library (included)
+  - May need others
+- **Fix Required**:
+  - Test infrastructure needs to add app-specific libs to LIBS: assign
+  - OR implement library search in application's directory
+- **Test**: `tests/apps/dopus`
+
+### AmigaBasic - ⚠️ PARTIAL
+- **Binary**: `APPS:AmigaBasic/AmigaBASIC`
+- **Status**: Window opens, then background tasks crash
+- **Issues**:
+  1. Requires audio.device (not implemented) - used for SOUND command
+  2. Requires timer.device for background task timing
+  3. Background tasks crash when devices fail
+- **Functions Implemented**:
+  - GetPrefs() - returns sensible defaults
+  - ViewPortAddress() - returns window's screen ViewPort
+  - OffMenu()/OnMenu() - menu enable/disable (no-op)
+- **Fix Required**:
+  - Implement stub audio.device and timer.device
+  - OR make device open failures non-fatal for background tasks
+
+### GFA Basic 2 - ✅ WORKS
+- **Binary**: `APPS:GFABasic/gfabasic`
+- **Status**: Editor window opens, accepts input
+- **Functions Implemented**:
+  - GetScreenData() - returns screen info
+  - InitGels() - GEL system initialization (stub)
+  - IntuiTextLength() - text width calculation
+  - Expanded custom chip register handling (DMACON, colors)
+  - Expanded memory region handling (Zorro-II/III, autoconfig)
+- **Notes**:
+  - Uses input.device (BeginIO command 9 warning, non-fatal)
+  - Opens custom screen with editor window
+
 ## Common Compatibility Issues
 
 ### 1. 68030/68040 Instructions

@@ -10,6 +10,7 @@
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
 #include <intuition/screens.h>
+#include <intuition/preferences.h>
 
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
@@ -331,16 +332,36 @@ BOOL _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __a
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register UWORD height __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: DisplayAlert() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    /*
+     * DisplayAlert() shows a hardware/software alert (Guru Meditation).
+     * We log the alert and return TRUE (user pressed left mouse = continue).
+     * The string format is: y_position, string_chars, continuation_byte...
+     */
+    DPRINTF (LOG_ERROR, "_intuition: DisplayAlert() alertNumber=0x%08lx string=0x%08lx height=%u\n",
+             alertNumber, (ULONG)string, (unsigned)height);
+    
+    /* Parse the alert string if possible */
+    if (string) {
+        /* Skip y position byte, print the text */
+        const char *p = (const char *)string;
+        if (*p) {
+            p++;  /* Skip y position */
+            DPRINTF (LOG_ERROR, "_intuition: DisplayAlert() message: %s\n", p);
+        }
+    }
+    
+    /* Return TRUE = left mouse button (continue), FALSE = right mouse (reboot) */
+    return TRUE;
 }
 
 VOID _intuition_DisplayBeep ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: DisplayBeep() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * DisplayBeep() flashes the screen colors as an audio/visual alert.
+     * We just log it as a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: DisplayBeep() screen=0x%08lx (no-op)\n", (ULONG)screen);
 }
 
 BOOL _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -460,9 +481,97 @@ struct Preferences * _intuition_GetPrefs ( register struct IntuitionBase * Intui
                                                         register struct Preferences * preferences __asm("a0"),
                                                         register WORD size __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: GetPrefs() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    /*
+     * GetPrefs() copies the current Intuition preferences into the user's buffer.
+     * We provide reasonable defaults for a standard PAL/NTSC Workbench setup.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: GetPrefs() preferences=0x%08lx size=%d\n", 
+             (ULONG)preferences, (int)size);
+    
+    if (!preferences || size <= 0) {
+        return NULL;
+    }
+    
+    /* Clear the buffer first */
+    char *p = (char *)preferences;
+    for (int i = 0; i < size && i < (int)sizeof(struct Preferences); i++) {
+        p[i] = 0;
+    }
+    
+    /* Fill in sensible defaults - only fill what fits in the provided buffer */
+    struct Preferences defaults;
+    char *d = (char *)&defaults;
+    for (int i = 0; i < (int)sizeof(defaults); i++) d[i] = 0;
+    
+    defaults.FontHeight = 8;          /* TOPAZ_EIGHTY - standard 80-col font */
+    defaults.PrinterPort = 0;         /* PARALLEL_PRINTER */
+    defaults.BaudRate = 5;            /* BAUD_9600 */
+    
+    /* Key repeat: ~500ms delay, ~100ms repeat */
+    defaults.KeyRptDelay.tv_secs = 0;
+    defaults.KeyRptDelay.tv_micro = 500000;
+    defaults.KeyRptSpeed.tv_secs = 0;
+    defaults.KeyRptSpeed.tv_micro = 100000;
+    
+    /* Double-click: ~500ms */
+    defaults.DoubleClick.tv_secs = 0;
+    defaults.DoubleClick.tv_micro = 500000;
+    
+    /* Pointer offsets */
+    defaults.XOffset = -1;
+    defaults.YOffset = -1;
+    defaults.PointerTicks = 1;
+    
+    /* Workbench colors (standard 4-color palette) */
+    defaults.color0 = 0x0AAA;         /* Grey background */
+    defaults.color1 = 0x0000;         /* Black */
+    defaults.color2 = 0x0FFF;         /* White */
+    defaults.color3 = 0x068B;         /* Blue */
+    
+    /* Pointer colors */
+    defaults.color17 = 0x0E44;        /* Orange-red */
+    defaults.color18 = 0x0000;        /* Black */
+    defaults.color19 = 0x0EEC;        /* Yellow */
+    
+    /* View offsets (PAL defaults) */
+    defaults.ViewXOffset = 0;
+    defaults.ViewYOffset = 0;
+    defaults.ViewInitX = 0x0081;      /* Standard HIRES offset */
+    defaults.ViewInitY = 0x002C;      /* Standard PAL offset */
+    
+    defaults.EnableCLI = TRUE | (1 << 14);  /* SCREEN_DRAG enabled */
+    
+    /* Printer defaults */
+    defaults.PrinterType = 0x07;      /* EPSON */
+    defaults.PrintPitch = 0;          /* PICA */
+    defaults.PrintQuality = 0;        /* DRAFT */
+    defaults.PrintSpacing = 0;        /* SIX_LPI */
+    defaults.PrintLeftMargin = 5;
+    defaults.PrintRightMargin = 75;
+    defaults.PrintImage = 0;          /* IMAGE_POSITIVE */
+    defaults.PrintAspect = 0;         /* ASPECT_HORIZ */
+    defaults.PrintShade = 1;          /* SHADE_GREYSCALE */
+    defaults.PrintThreshold = 7;
+    
+    /* Paper defaults */
+    defaults.PaperSize = 0;           /* US_LETTER */
+    defaults.PaperLength = 66;        /* 66 lines per page */
+    defaults.PaperType = 0;           /* FANFOLD */
+    
+    /* Serial defaults: 8N1 */
+    defaults.SerRWBits = 0;           /* 8 read, 8 write bits */
+    defaults.SerStopBuf = 0x01;       /* 1 stop bit, 1024 buf */
+    defaults.SerParShk = 0x02;        /* No parity, no handshake */
+    
+    defaults.LaceWB = 0;              /* No interlace */
+    
+    /* Copy to user buffer */
+    int copy_size = size < (int)sizeof(struct Preferences) ? size : (int)sizeof(struct Preferences);
+    for (int i = 0; i < copy_size; i++) {
+        p[i] = d[i];
+    }
+    
+    return preferences;
 }
 
 VOID _intuition_InitRequester ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -1639,8 +1748,14 @@ VOID _intuition_OffMenu ( register struct IntuitionBase * IntuitionBase __asm("a
                                                         register struct Window * window __asm("a0"),
                                                         register UWORD menuNumber __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: OffMenu() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * OffMenu() disables a menu, menu item, or sub-item.
+     * The menuNumber encodes: menu (bits 0-4), item (bits 5-10), subitem (bits 11-15).
+     * For now we just log it - menu rendering isn't implemented yet.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: OffMenu() window=0x%08lx menuNumber=0x%04x (no-op)\n",
+             (ULONG)window, (unsigned)menuNumber);
+    /* No-op - menu enable/disable is visual only */
 }
 
 VOID _intuition_OnGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -1656,8 +1771,14 @@ VOID _intuition_OnMenu ( register struct IntuitionBase * IntuitionBase __asm("a6
                                                         register struct Window * window __asm("a0"),
                                                         register UWORD menuNumber __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: OnMenu() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * OnMenu() enables a menu, menu item, or sub-item.
+     * The menuNumber encodes: menu (bits 0-4), item (bits 5-10), subitem (bits 11-15).
+     * For now we just log it - menu rendering isn't implemented yet.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: OnMenu() window=0x%08lx menuNumber=0x%04x (no-op)\n",
+             (ULONG)window, (unsigned)menuNumber);
+    /* No-op - menu enable/disable is visual only */
 }
 
 struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -2540,9 +2661,20 @@ struct View * _intuition_ViewAddress ( register struct IntuitionBase * Intuition
 struct ViewPort * _intuition_ViewPortAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ViewPortAddress() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    /*
+     * ViewPortAddress() returns a pointer to the ViewPort associated with
+     * the window's screen. This is used for graphics functions that need
+     * to work with the screen's color map and display settings.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: ViewPortAddress() window=0x%08lx\n", (ULONG)window);
+    
+    if (!window || !window->WScreen) {
+        DPRINTF (LOG_WARNING, "_intuition: ViewPortAddress() - invalid window or no screen\n");
+        return NULL;
+    }
+    
+    /* Return the ViewPort from the window's screen */
+    return &window->WScreen->ViewPort;
 }
 
 VOID _intuition_WindowToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -2584,9 +2716,28 @@ struct Preferences  * _intuition_SetPrefs ( register struct IntuitionBase * Intu
 LONG _intuition_IntuiTextLength ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct IntuiText * iText __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: IntuiTextLength() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * IntuiTextLength() returns the pixel width of an IntuiText string.
+     * This is used for layout calculations before rendering.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: IntuiTextLength() iText=0x%08lx\n", (ULONG)iText);
+    
+    if (!iText || !iText->IText) {
+        return 0;
+    }
+    
+    /* Count string length */
+    const char *s = (const char *)iText->IText;
+    int len = 0;
+    while (s[len]) len++;
+    
+    /* Default to 8 pixels per char (Topaz 8) - ITextFont is a TextAttr, not TextFont */
+    UWORD char_width = 8;
+    
+    /* Could look up font from TextAttr if needed, but for now use default */
+    (void)iText->ITextFont;  /* Unused - would need to open font to get metrics */
+    
+    return (LONG)(len * char_width);
 }
 
 BOOL _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -2825,9 +2976,43 @@ LONG _intuition_GetScreenData ( register struct IntuitionBase * IntuitionBase __
                                                         register UWORD type __asm("d1"),
                                                         register const struct Screen * screen __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: GetScreenData() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * GetScreenData() copies data from a screen into a buffer.
+     * If 'screen' is NULL, it uses the default screen based on 'type'.
+     * type: WBENCHSCREEN (1) = Workbench screen, CUSTOMSCREEN (15) = specific screen.
+     * Returns TRUE on success, FALSE on failure.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: GetScreenData() buffer=0x%08lx size=%u type=%u screen=0x%08lx\n",
+             (ULONG)buffer, (unsigned)size, (unsigned)type, (ULONG)screen);
+    
+    if (!buffer || size == 0) {
+        return FALSE;
+    }
+    
+    const struct Screen *src = screen;
+    
+    /* If screen is NULL, get screen based on type */
+    if (!src) {
+        if (type == 1) {  /* WBENCHSCREEN */
+            /* Use FirstScreen if available, otherwise let app open its own */
+            src = IntuitionBase->FirstScreen;
+        }
+    }
+    
+    if (!src) {
+        DPRINTF (LOG_WARNING, "_intuition: GetScreenData() - no screen available\n");
+        return FALSE;
+    }
+    
+    /* Copy screen data to buffer (limited by size) */
+    UWORD copy_size = size < sizeof(struct Screen) ? size : sizeof(struct Screen);
+    const char *sp = (const char *)src;
+    char *dp = (char *)buffer;
+    for (UWORD i = 0; i < copy_size; i++) {
+        dp[i] = sp[i];
+    }
+    
+    return TRUE;
 }
 
 VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
