@@ -1,3 +1,8 @@
+---
+name: develop-amiga
+description: AmigaOS implementation rules, code style, memory management, and debugging tips.
+---
+
 # AmigaOS Development Skill
 
 This skill covers the core principles, rules, and conventions for developing AmigaOS components in `lxa`.

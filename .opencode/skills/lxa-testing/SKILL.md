@@ -1,3 +1,8 @@
+---
+name: lxa-testing
+description: General TDD workflow, integration/unit testing strategies, and test requirements checklist.
+---
+
 # lxa Testing Skill
 
 This skill details the testing requirements and strategies for the lxa project.

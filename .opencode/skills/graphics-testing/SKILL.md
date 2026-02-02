@@ -1,3 +1,8 @@
+---
+name: graphics-testing
+description: Specific strategies for headless Graphics and Intuition library testing.
+---
+
 # Graphics Testing Skill
 
 Specialized testing strategies for `graphics.library` and `intuition.library`.

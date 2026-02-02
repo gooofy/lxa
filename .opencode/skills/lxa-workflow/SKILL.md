@@ -1,3 +1,8 @@
+---
+name: lxa-workflow
+description: Roadmap-driven development process, version management, and build system instructions.
+---
+
 # lxa Workflow Skill
 
 This skill guides you through the project management, versioning, and build processes.
