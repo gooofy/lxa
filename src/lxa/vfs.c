@@ -647,6 +647,7 @@ void vfs_setup_default_assigns(void)
         {"T",    "T"},       /* Temporary files */
         {"ENV",  "Prefs/Env-Archive"},  /* Environment variables */
         {"ENVARC", "Prefs/Env-Archive"}, /* Environment archive */
+        {"FONTS", "Fonts"},  /* Fonts */
         {NULL, NULL}
     };
     
@@ -795,6 +796,13 @@ bool vfs_setup_environment(void)
     struct stat st;
     if (stat(g_lxa_home, &st) == 0 && S_ISDIR(st.st_mode)) {
         DPRINTF(LOG_DEBUG, "vfs: lxa home directory %s already exists\n", g_lxa_home);
+        
+        /* Ensure new directories exist for existing installations */
+        char path[PATH_MAX];
+        if (make_path(path, sizeof(path), "/System/Fonts")) ensure_dir(path);
+        if (make_path(path, sizeof(path), "/System/Prefs")) ensure_dir(path);
+        if (make_path(path, sizeof(path), "/System/Prefs/Env-Archive")) ensure_dir(path);
+
         /* Check for and apply any updates to system binaries */
         update_system_binaries();
         return true;
@@ -829,6 +837,17 @@ bool vfs_setup_environment(void)
     
     /* Create L directory for localization */
     if (!make_path(path, sizeof(path), "/System/L")) return false;
+    if (!ensure_dir(path)) return false;
+    
+    /* Create Fonts directory */
+    if (!make_path(path, sizeof(path), "/System/Fonts")) return false;
+    if (!ensure_dir(path)) return false;
+
+    /* Create Prefs and Env-Archive */
+    if (!make_path(path, sizeof(path), "/System/Prefs")) return false;
+    if (!ensure_dir(path)) return false;
+
+    if (!make_path(path, sizeof(path), "/System/Prefs/Env-Archive")) return false;
     if (!ensure_dir(path)) return false;
     
     /* Try to copy system files from installation or build directory */

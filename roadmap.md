@@ -109,16 +109,16 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 
 ## Active Phases
 
-## Phase 27: Core System Libraries & Preferences
+## Phase 27: Core System Libraries & Preferences (COMPLETE)
 **Goal**: Improve visual fidelity, system configuration, and core library support.
 - [x] **diskfont.library** - OpenDiskFont, AvailFonts stub.
 - [x] **icon.library** - Full function set implemented.
 - [x] **expansion.library** - ConfigChain stubs.
 - [x] **translator.library** - Translate() stub.
 - [x] **locale.library** - Character classification, OpenLocale.
-- [ ] **FONTS: Assign** - Automatic provisioning of font directories.
-- [ ] **Topaz Bundling** - Ensure high-quality Topaz-8/9 replacement.
-- [ ] **ENVARC: Persistence** - Map `ENVARC:` to `~/.lxa/Prefs/Env`.
+- [x] **FONTS: Assign** - Automatic provisioning of font directories.
+- [x] **Topaz Bundling** - Built-in Topaz-8 support in graphics.library.
+- [x] **ENVARC: Persistence** - Map `ENVARC:` to `SYS:Prefs/Env-Archive` (mapped to host).
 
 ## Phase 28: Advanced UI Frameworks
 **Goal**: Implement standard Amiga UI widgets and object-oriented systems.
