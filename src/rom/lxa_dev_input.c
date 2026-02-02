@@ -36,13 +36,26 @@ static void __g_lxa_input_Open ( register struct Library   *dev   __asm("a6"),
                                           register ULONG            unitn  __asm("d0"),
                                           register ULONG            flags  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_input: WARNING: Open() unimplemented STUB called.\n");
+    DPRINTF (LOG_DEBUG, "_input: Open() stub called, unit=%lu flags=0x%08lx\n", unitn, flags);
+    
+    /* Stub implementation - just set up the IORequest */
+    ioreq->io_Error = 0;
+    ioreq->io_Device = (struct Device *)dev;
+    ioreq->io_Unit = NULL;  /* input.device has no units */
+    
+    /* Update device open count */
+    dev->lib_OpenCnt++;
+    dev->lib_Flags &= ~LIBF_DELEXP;
 }
 
 static BPTR __g_lxa_input_Close( register struct Library   *dev   __asm("a6"),
                                           register struct IORequest *ioreq __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_input: WARNING: Close() unimplemented STUB called.\n");
+    DPRINTF (LOG_DEBUG, "_input: Close() stub called\n");
+    
+    /* Update device open count */
+    dev->lib_OpenCnt--;
+    
     return 0;
 }
 
@@ -55,7 +68,16 @@ static BPTR __g_lxa_input_Expunge ( register struct Library   *dev   __asm("a6")
 static BPTR __g_lxa_input_BeginIO ( register struct Library   *dev   __asm("a6"),
                                              register struct IORequest *ioreq __asm("a1"))
 {
-    DPRINTF (LOG_INFO, "_input: WARNING: BeginIO() unimplemented STUB called, ioreq->io_Command=%d\n", ioreq->io_Command);
+    DPRINTF (LOG_DEBUG, "_input: BeginIO() stub called, ioreq->io_Command=%d\n", ioreq->io_Command);
+    
+    /* Stub implementation - just mark as completed successfully */
+    ioreq->io_Error = 0;
+    
+    /* Mark request as done if not QUICK */
+    if (!(ioreq->io_Flags & IOF_QUICK)) {
+        ReplyMsg(&ioreq->io_Message);
+    }
+    
     return 0;
 }
 
