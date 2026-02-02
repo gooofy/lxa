@@ -86,6 +86,8 @@ all:
 	@$(MAKE) -C intuition/menu_strip
 	@$(MAKE) -C console/csi_cursor
 	@$(MAKE) -C layers/layer_info
+	@$(MAKE) -C layers/cliprects
+	@$(MAKE) -C layers/locking
 	@$(MAKE) -C graphics/regions
 	@$(MAKE) -C icon/tooltype
 
@@ -163,6 +165,8 @@ clean:
 	@$(MAKE) -C intuition/menu_strip clean
 	@$(MAKE) -C console/csi_cursor clean
 	@$(MAKE) -C layers/layer_info clean
+	@$(MAKE) -C layers/cliprects clean
+	@$(MAKE) -C layers/locking clean
 	@$(MAKE) -C graphics/regions clean
 	@$(MAKE) -C icon/tooltype clean
 	rm -f dos/helloworld/actual.out
@@ -237,6 +241,8 @@ clean:
 	rm -f intuition/menu_strip/actual.out
 	rm -f console/csi_cursor/actual.out
 	rm -f layers/layer_info/actual.out
+	rm -f layers/cliprects/actual.out
+	rm -f layers/locking/actual.out
 	rm -f graphics/regions/actual.out
 	rm -f icon/tooltype/actual.out
 
@@ -319,6 +325,8 @@ run-tests:
 	@$(MAKE) -C intuition/menu_strip run-test
 	@$(MAKE) -C console/csi_cursor run-test
 	@$(MAKE) -C layers/layer_info run-test
+	@$(MAKE) -C layers/cliprects run-test
+	@$(MAKE) -C layers/locking run-test
 	@$(MAKE) -C graphics/regions run-test
 	@$(MAKE) -C icon/tooltype run-test
 

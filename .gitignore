@@ -155,3 +155,6 @@ tests/commands/status/status_test
 tests/commands/break_cmd/break_test
 tests/commands/run/run_test
 opencode.json
+tests/graphics/layer_clipping/layer_clipping
+tests/layers/cliprects/cliprects
+tests/layers/locking/locking
