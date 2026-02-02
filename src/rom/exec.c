@@ -2158,8 +2158,20 @@ void _exec_RemResource ( register struct ExecBase * SysBase __asm("a6"),
 APTR _exec_OpenResource ( register struct ExecBase * SysBase __asm("a6"),
                                                         register CONST_STRPTR ___resName  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: OpenResource unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Phase 31: Implement basic OpenResource functionality */
+    LPRINTF (LOG_DEBUG, "_exec: OpenResource(\"%s\")\n", (const char *)___resName);
+    
+    /* Search the resource list for the requested resource */
+    for (struct Node *node = SysBase->ResourceList.lh_Head; node->ln_Succ != NULL; node = node->ln_Succ)
+    {
+        if (strcmp((const char *)node->ln_Name, (const char *)___resName) == 0)
+        {
+            LPRINTF (LOG_DEBUG, "_exec: OpenResource found %s\n", (const char *)___resName);
+            return (APTR)node;
+        }
+    }
+    
+    LPRINTF (LOG_DEBUG, "_exec: OpenResource: %s not found\n", (const char *)___resName);
     return NULL;
 }
 
@@ -3951,6 +3963,34 @@ void coldstart (void)
     DeviceGameportBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceGameportBase) , __lxa_gameport_ROMTag );
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in devices\n");
+
+    /* Phase 31: Initialize ResourceList and add CIA resources */
+    DPRINTF (LOG_DEBUG, "coldstart: registering built-in resources\n");
+    
+    NEWLIST (&SysBase->ResourceList);
+    SysBase->ResourceList.lh_Type = NT_RESOURCE;
+    
+    /* Create simple stub CIA resources for timer access */
+    /* cia.resource is a simple Node-based structure */
+    struct Node *ciaAResource = AllocVec(sizeof(struct Node), MEMF_CLEAR | MEMF_PUBLIC);
+    if (ciaAResource) {
+        ciaAResource->ln_Type = NT_RESOURCE;
+        ciaAResource->ln_Pri = 0;
+        ciaAResource->ln_Name = "ciaa.resource";
+        AddTail(&SysBase->ResourceList, ciaAResource);
+        DPRINTF (LOG_DEBUG, "coldstart: registered ciaa.resource\n");
+    }
+    
+    struct Node *ciaBResource = AllocVec(sizeof(struct Node), MEMF_CLEAR | MEMF_PUBLIC);
+    if (ciaBResource) {
+        ciaBResource->ln_Type = NT_RESOURCE;
+        ciaBResource->ln_Pri = 0;
+        ciaBResource->ln_Name = "ciab.resource";
+        AddTail(&SysBase->ResourceList, ciaBResource);
+        DPRINTF (LOG_DEBUG, "coldstart: registered ciab.resource\n");
+    }
+    
+    DPRINTF (LOG_DEBUG, "coldstart: done registering built-in resources\n");
 
     // init multitasking
     NEWLIST (&SysBase->TaskReady);

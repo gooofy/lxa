@@ -105,11 +105,7 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
   - CIA/Custom chip register read/write stubs (0xBFxxxx, 0xDFFxxx)
 - **Documentation**: Comprehensive `COMPATIBILITY.md` created.
 
----
-
-## Active Phases
-
-## Phase 27: Core System Libraries & Preferences (COMPLETE)
+### Phase 27: Core System Libraries & Preferences (COMPLETE)
 **Goal**: Improve visual fidelity, system configuration, and core library support.
 - [x] **diskfont.library** - OpenDiskFont, AvailFonts stub.
 - [x] **icon.library** - Full function set implemented.
@@ -120,44 +116,41 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 - [x] **Topaz Bundling** - Built-in Topaz-8 support in graphics.library.
 - [x] **ENVARC: Persistence** - Map `ENVARC:` to `SYS:Prefs/Env-Archive` (mapped to host).
 
-## Phase 28: Advanced UI Frameworks (COMPLETE)
+### Phase 28: Advanced UI Frameworks (COMPLETE)
 **Goal**: Implement standard Amiga UI widgets and object-oriented systems.
-
-### Step 28.1: BOOPSI Foundation (COMPLETE)
 - [x] **sysiclass/imageclass** - Basic stubs implemented in Phase 26 (returns dummy images).
 - [x] **rootclass** - Base class with OM_NEW, OM_DISPOSE, OM_SET, OM_GET.
 - [x] **Class Registry** - MakeClass, AddClass, RemoveClass.
 - [x] **NewObjectA / DisposeObject** - Full object lifecycle.
 - [x] **Gadget Classes** - gadgetclass, propgclass, strgclass, buttongclass implemented with attribute handling.
-
-### Step 28.2: GadTools & ASL Enhancement (COMPLETE)
 - [x] **gadtools** - Mostly implemented in Phase 26.
 - [x] **Gadget Rendering** - Basic rendering stubs in place (GM_RENDER methods).
 - [x] **ASL Requesters** - Stub implementation returns FALSE (full GUI deferred to Phase 36).
 
 **Note**: Full visual rendering for gadgets and ASL GUI requesters deferred to Phase 36.
 
-## Phase 29: Exec Devices (COMPLETE)
+### Phase 29: Exec Devices (COMPLETE)
 **Goal**: Implement common Exec devices needed by tested apps.
-
-### Step 29.1: Critical Devices (3/3 COMPLETE)
 - [x] **timer.device** - TR_GETSYSTIME, CMD_READ implemented. TR_ADDREQUEST stubs (async deferred to Phase 37).
 - [x] **clipboard.device** - CMD_READ, CMD_WRITE, CMD_UPDATE implemented with in-memory storage (up to 256KB).
 - [x] **input.device** - Fixed command 9 warning (BeginIO properly handles all commands silently).
-
-### Step 29.2: Stubbed Devices (2/2 COMPLETE)
 - [x] **audio.device** - Stub returns ADIOERR_NOALLOCATION (no audio hardware).
 - [x] **gameport.device** - Stub succeeds but provides no joystick data.
 
-## Phase 30: Third-Party Libraries (COMPLETE)
+### Phase 30: Third-Party Libraries (COMPLETE)
 **Goal**: Support common libraries used by apps.
 - [x] **keymap.library** - MapRawKey, MapANSI stubs, default US keymap.
 
-## Phase 31: Extended CPU & Hardware Support
+### Phase 31: Extended CPU & Hardware Support (COMPLETE)
 **Goal**: Support apps accessing hardware directly.
-- [ ] **68030 Instructions** - MMU stubs (PMOVE) for SysInfo.
-- [ ] **Custom Chip Registers** - Logging/no-op for remaining registers (Denise, Agnus).
-- [ ] **CIA Resources** - cia.resource for timer access.
+- [x] **68030 Instructions** - Switched from 68000 to 68030 CPU emulation to support MMU instructions (PMOVE) for SysInfo.
+- [x] **Custom Chip Registers** - Added comprehensive logging for custom chip registers (Denise, Agnus, Paula) with register name lookup.
+- [x] **CIA Resources** - Implemented OpenResource() and added ciaa.resource/ciab.resource for timer access.
+- [x] **Tests** - Created exec/resources integration test to verify OpenResource() and CIA resource availability.
+
+---
+
+## Active Phases
 
 ## Phase 32: Re-visiting Application Testing
 **Goal**: Return to application testing after blocking issues are resolved.

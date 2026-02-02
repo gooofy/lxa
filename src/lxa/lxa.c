@@ -64,11 +64,28 @@
 #define CIA_START 0xbfd000
 #define CIA_END   0xbfffff
 
+/* Phase 31: Extended custom chip register definitions */
 #define CUSTOM_REG_INTENA   0x09a
+#define CUSTOM_REG_INTREQ   0x09c
 #define CUSTOM_REG_DMACON   0x096
+#define CUSTOM_REG_DMACONR  0x002
 #define CUSTOM_REG_BLTCON0  0x040
 #define CUSTOM_REG_BLTCON1  0x042
+#define CUSTOM_REG_BLTSIZE  0x058
+#define CUSTOM_REG_VPOSR    0x004  /* Read vertical position (Agnus) */
+#define CUSTOM_REG_VHPOSR   0x006  /* Read vert/horiz position */
+#define CUSTOM_REG_DENISEID 0x07c  /* Denise ID register */
+#define CUSTOM_REG_ADKCON   0x09e  /* Audio/disk control */
+#define CUSTOM_REG_ADKCONR  0x010  /* Audio/disk control read */
+#define CUSTOM_REG_POTGO    0x034  /* Pot port control */
+#define CUSTOM_REG_POTINP   0x016  /* Pot port read */
+#define CUSTOM_REG_JOY0DAT  0x00a  /* Joystick 0 data */
+#define CUSTOM_REG_JOY1DAT  0x00c  /* Joystick 1 data */
 #define CUSTOM_REG_COLOR00  0x180  /* Start of color registers */
+#define CUSTOM_REG_COP1LC   0x080  /* Copper 1 location */
+#define CUSTOM_REG_COP2LC   0x084  /* Copper 2 location */
+#define CUSTOM_REG_COPJMP1  0x088  /* Copper jump 1 */
+#define CUSTOM_REG_COPJMP2  0x08a  /* Copper jump 2 */
 
 /* Default SYS: drive - use sys/ subdirectory if present, otherwise current directory */
 #define DEFAULT_AMIGA_SYSROOT "sys"
@@ -394,6 +411,39 @@ static uint32_t _find_symbol (const char *name)
     return 0;
 }
 
+/* Phase 31: Helper function to get custom chip register name for logging */
+static const char *_custom_reg_name(uint16_t reg) __attribute__((unused));
+static const char *_custom_reg_name(uint16_t reg)
+{
+    switch (reg) {
+        case CUSTOM_REG_DMACONR: return "DMACONR";
+        case CUSTOM_REG_VPOSR: return "VPOSR";
+        case CUSTOM_REG_VHPOSR: return "VHPOSR";
+        case CUSTOM_REG_ADKCONR: return "ADKCONR";
+        case CUSTOM_REG_POTINP: return "POTINP";
+        case CUSTOM_REG_JOY0DAT: return "JOY0DAT";
+        case CUSTOM_REG_JOY1DAT: return "JOY1DAT";
+        case CUSTOM_REG_DENISEID: return "DENISEID";
+        case CUSTOM_REG_BLTCON0: return "BLTCON0";
+        case CUSTOM_REG_BLTCON1: return "BLTCON1";
+        case CUSTOM_REG_BLTSIZE: return "BLTSIZE";
+        case CUSTOM_REG_DMACON: return "DMACON";
+        case CUSTOM_REG_INTENA: return "INTENA";
+        case CUSTOM_REG_INTREQ: return "INTREQ";
+        case CUSTOM_REG_ADKCON: return "ADKCON";
+        case CUSTOM_REG_POTGO: return "POTGO";
+        case CUSTOM_REG_COP1LC: return "COP1LC";
+        case CUSTOM_REG_COP2LC: return "COP2LC";
+        case CUSTOM_REG_COPJMP1: return "COPJMP1";
+        case CUSTOM_REG_COPJMP2: return "COPJMP2";
+        default:
+            if (reg >= CUSTOM_REG_COLOR00 && reg < CUSTOM_REG_COLOR00 + 64) {
+                return "COLORxx";
+            }
+            return "UNKNOWN";
+    }
+}
+
 static inline uint8_t mread8 (uint32_t address)
 {
     static bool startup = TRUE;
@@ -448,6 +498,44 @@ static inline uint8_t mread8 (uint32_t address)
          */
         DPRINTF (LOG_DEBUG, "lxa: mread8 CIA area 0x%08x -> 0xFF\n", address);
         return 0xff;
+    }
+    else if ((address >= CUSTOM_START) && (address <= CUSTOM_END))
+    {
+        /* Phase 31: Custom chip area reads (Denise, Agnus, Paula) */
+        uint16_t reg = address - CUSTOM_START;
+        uint8_t result = 0;
+        
+        /* Return sensible defaults for common read registers */
+        switch (reg & ~1) {  /* Use even address for word-aligned registers */
+            case CUSTOM_REG_VPOSR:    /* Vertical position - return 0 (line 0, PAL long frame) */
+                result = (reg & 1) ? 0x00 : 0x00;
+                break;
+            case CUSTOM_REG_VHPOSR:   /* Horiz/vert position - return 0 */
+                result = 0;
+                break;
+            case CUSTOM_REG_JOY0DAT:  /* Joystick 0 - no movement */
+                result = 0;
+                break;
+            case CUSTOM_REG_JOY1DAT:  /* Joystick 1 - no movement */
+                result = 0;
+                break;
+            case CUSTOM_REG_DMACONR:  /* DMA control read - return 0 (no DMA) */
+                result = 0;
+                break;
+            case CUSTOM_REG_DENISEID: /* Denise ID - return 0xFC for ECS Denise */
+                result = (reg & 1) ? 0xFC : 0x00;
+                break;
+            case CUSTOM_REG_POTINP:   /* Pot port read - return 0xFF (no pots) */
+                result = 0xFF;
+                break;
+            default:
+                result = 0;
+                break;
+        }
+        
+        DPRINTF (LOG_DEBUG, "lxa: mread8 CUSTOM %s (0x%08x/0x%03x) -> 0x%02x\n",
+                _custom_reg_name(reg & ~1), address, reg, result);
+        return result;
     }
     else
     {
@@ -513,6 +601,14 @@ static void _handle_custom_write (uint16_t reg, uint16_t value)
             DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: DMACON value=0x%04x (ignored)\n", value);
             break;
         }
+        /* Phase 31: Additional custom chip registers (Denise, Agnus, Paula) - log and ignore */
+        case CUSTOM_REG_COPJMP1:
+        case CUSTOM_REG_COPJMP2:
+        case CUSTOM_REG_ADKCON:
+        case CUSTOM_REG_POTGO:
+            DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: %s value=0x%04x (ignored)\n",
+                    _custom_reg_name(reg), value);
+            break;
         default:
             /* Many apps write to custom chip registers - just log and ignore */
             if (reg >= CUSTOM_REG_COLOR00 && reg < CUSTOM_REG_COLOR00 + 64) {
@@ -520,8 +616,8 @@ static void _handle_custom_write (uint16_t reg, uint16_t value)
                 DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: COLOR%02x value=0x%04x (ignored)\n",
                         (reg - CUSTOM_REG_COLOR00) / 2, value);
             } else {
-                DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: unknown reg 0x%03x value=0x%04x (ignored)\n",
-                        reg, value);
+                DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: %s (0x%03x) value=0x%04x (ignored)\n",
+                        _custom_reg_name(reg), reg, value);
             }
     }
 }
@@ -651,7 +747,7 @@ void cpu_instr_callback(int pc)
         static char buff2[100];
         static unsigned int instr_size;
         print68kstate(LOG_DEBUG);
-        instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
+        instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68030);
         make_hex(buff2, pc, instr_size);
         DPRINTF(LOG_DEBUG, "E %08x: %-20s: %s\n", pc, buff2, buff);
     }
@@ -4616,7 +4712,7 @@ static uint32_t _debug_print_diss (uint32_t pc, uint32_t curPC)
             name = m->name;
     }
 
-    uint32_t instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68000);
+    uint32_t instr_size = m68k_disassemble(buff, pc, M68K_CPU_TYPE_68030);
     make_hex(buff2, pc, instr_size);
     CPRINTF("%-5s0x%08x  %-20s: %-40s (%s)\n", prefix, pc, buff2, buff, name);
     return instr_size;
@@ -4756,7 +4852,7 @@ static void _debug(uint32_t pcFinal)
                 static char buff[100];
                 in_debug   = FALSE;
                 g_stepping = FALSE;
-                uint32_t instr_size = m68k_disassemble(buff, pcFinal, M68K_CPU_TYPE_68000);
+                uint32_t instr_size = m68k_disassemble(buff, pcFinal, M68K_CPU_TYPE_68030);
                 g_next_pc = pcFinal+instr_size;
                 return;
             }
@@ -5109,7 +5205,7 @@ int main(int argc, char **argv, char **envp)
              initial_sp, reset_vector, p);
 
     m68k_init();
-    m68k_set_cpu_type(M68K_CPU_TYPE_68000);
+    m68k_set_cpu_type(M68K_CPU_TYPE_68030);  /* Phase 31: Support 68030 MMU instructions for SysInfo */
     m68k_pulse_reset();
 
     /*
