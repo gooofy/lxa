@@ -22,19 +22,30 @@
 
 ### MaxonBASIC - ⚠️ PARTIAL
 - **Binary**: `APPS:MaxonBASIC/MaxonBASIC`
-- **Status**: Loads libraries but fails to create menus
-- **Error Message**: "Konnte Menü nicht erzeugen" (Could not create menu)
-- **Libraries Added** (this session):
-  - gadtools.library (stub) - provides basic gadget/menu API
-  - workbench.library (stub) - provides Workbench integration API
-  - asl.library (stub) - provides file/font requesters
+- **Status**: Loads libraries, gets screen info, but fails at startup
+- **Error Message**: "Konnte keine Bildschirminformation erhalten" (Could not get screen information)
+- **Libraries Added**:
+  - gadtools.library - menu/gadget creation API
+  - workbench.library - Workbench integration API
+  - asl.library - file/font requesters
 - **Functions Implemented**:
+  - CreateMenusA() - full implementation creating Menu/MenuItem structures
+  - FreeMenus() - properly frees menu chains
   - GetProgramDir() - returns current process pr_HomeDir
   - AllocRemember() / FreeRemember() - Intuition memory tracking
-  - LockPubScreen() / UnlockPubScreen() - returns FirstScreen
-- **Fix Required**:
-  - CreateMenusA() currently returns NULL - needs real implementation
+  - LockPubScreen() / UnlockPubScreen() - returns FirstScreen, auto-opens Workbench
+  - GetScreenDrawInfo() - returns DrawInfo with pens and font info (dynamic allocation)
+  - FreeScreenDrawInfo() - properly frees DrawInfo
+  - QueryOverscan() - returns PAL dimensions
+  - GetVPModeID() - returns mode ID from viewport
+  - ModeNotAvailable() - returns 0 (mode available)
+  - GetBitMapAttr() - returns bitmap properties
+- **Known Issues**:
   - Clipboard.device not found (non-fatal warning)
+  - App checks something in DrawInfo and fails (possibly dri_CheckMark/dri_AmigaKey images)
+- **Fix Required**:
+  - May need Image structures for dri_CheckMark and dri_AmigaKey
+  - Need to debug exactly which DrawInfo field causes failure
 
 ### SysInfo - ⚠️ PARTIAL
 - **Binary**: `APPS:SysInfo/SysInfo`
@@ -56,6 +67,39 @@
   - Implement BOOPSI object system
   - May need custom chip register emulation
 - **Test**: `tests/apps/devpac`
+
+### ASM-One v1.48 - ⚠️ PARTIAL
+- **Binary**: `APPS:ASM-One/ASM-One_V1.48`
+- **Status**: Opens Workbench and editor screen, then crashes
+- **Progress**:
+  1. Opens gadtools.library ✓
+  2. Opens Workbench screen (640x256) ✓
+  3. Opens editor screen (800x600) ✓
+  4. Crashes accessing invalid ROM address (0x00FBEED1)
+- **Issues**:
+  1. iffparse.library not found (non-fatal)
+  2. reqtools.library not found (non-fatal)
+  3. timer.device not found
+  4. Crash appears to be from unimplemented ROM function
+- **Fix Required**:
+  - Identify which ROM function is at 0x00FBE* range
+  - Likely a graphics or intuition function returning bad pointer
+
+### DPaint V - ❌ FAILS
+- **Binary**: `APPS:DPaintV/DPaint`
+- **Status**: Exits immediately with error code 20
+- **Issues**:
+  1. Requires iffparse.library (not in LIBS:)
+- **Fix Required**:
+  - Add iffparse.library to system or implement it
+
+### Personal Paint - ❌ FAILS
+- **Binary**: `APPS:ppaint/ppaint`
+- **Status**: Exits immediately with error code 1
+- **Issues**:
+  - Unknown, no diagnostic output
+- **Fix Required**:
+  - Debug to find initialization failure
 
 ### Directory Opus 4 - ⚠️ PARTIAL
 - **Binary**: `APPS:DOPUS/DirectoryOpus`
@@ -91,11 +135,11 @@
 ## New Libraries Implemented (Phase 26)
 
 ### gadtools.library
-Basic stub implementation for AmigaOS 2.0+ GadTools API:
+Full implementation for AmigaOS 2.0+ GadTools API:
 - CreateGadgetA() - creates basic gadget structures
 - FreeGadgets() - frees gadget chains
-- CreateMenusA() - **returns NULL** (needs implementation)
-- FreeMenus() - stub
+- CreateMenusA() - creates Menu/MenuItem hierarchies from NewMenu arrays
+- FreeMenus() - properly frees menu chains with all items/subitems
 - LayoutMenusA() / LayoutMenuItemsA() - returns TRUE
 - GT_GetIMsg() / GT_ReplyIMsg() - message handling
 - GT_RefreshWindow() / GT_BeginRefresh() / GT_EndRefresh() - stubs
