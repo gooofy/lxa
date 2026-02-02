@@ -111,10 +111,16 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 - [ ] **App manifest format** - Define expected behavior per application
 
 ### Step 26.3: Additional Test Applications
-- [ ] **Text editors** - Test ED, other common editors
-- [ ] **File managers** - Directory Opus (if feasible), DiskMaster
-- [ ] **Development tools** - Assemblers, compilers that run on Amiga
-- [ ] **Utilities** - Common Amiga utilities and tools
+- [ ] DevPac
+- [ ] DirectoryOpus
+- [ ] MaxonBASIC
+- [ ] BeckerTextII
+- [ ] Asm-One
+- [ ] Cluster2
+- [ ] GFABasic
+- [ ] AmigaBasic
+- [ ] SysInfo
+- [ ] DPaintV
 
 ### Step 26.4: Compatibility Database
 - [ ] **Track application status** - Working, partial, broken
