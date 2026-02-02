@@ -137,17 +137,17 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 
 **Note**: Full visual rendering for gadgets and ASL GUI requesters deferred to Phase 36.
 
-## Phase 29: Exec Devices (IN PROGRESS - 3/5 COMPLETE)
+## Phase 29: Exec Devices (COMPLETE)
 **Goal**: Implement common Exec devices needed by tested apps.
 
 ### Step 29.1: Critical Devices (3/3 COMPLETE)
-- [x] **timer.device** - TR_GETSYSTIME, CMD_READ implemented (Phase 29 complete). TR_ADDREQUEST stubs (completes immediately; async deferred to Phase 37).
+- [x] **timer.device** - TR_GETSYSTIME, CMD_READ implemented. TR_ADDREQUEST stubs (async deferred to Phase 37).
 - [x] **clipboard.device** - CMD_READ, CMD_WRITE, CMD_UPDATE implemented with in-memory storage (up to 256KB).
-- [x] **input.device** - Fixed command 9 warning (BeginIO now properly handles all commands silently).
+- [x] **input.device** - Fixed command 9 warning (BeginIO properly handles all commands silently).
 
-### Step 29.2: Stubbed Devices (0/2 COMPLETE)
-- [ ] **audio.device** - Stub open/cmd (AmigaBasic).
-- [ ] **gameport.device** - Stub joystick/mouse.
+### Step 29.2: Stubbed Devices (2/2 COMPLETE)
+- [x] **audio.device** - Stub returns ADIOERR_NOALLOCATION (no audio hardware).
+- [x] **gameport.device** - Stub succeeds but provides no joystick data.
 
 ## Phase 30: Third-Party Libraries
 **Goal**: Support common libraries used by apps.
