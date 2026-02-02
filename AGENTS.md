@@ -18,6 +18,36 @@ This document provides essential information for AI agents working on the `lxa` 
 - **Continuous Validation**: All tests must pass before committing. No broken builds.
 - **We strive for 100% AmigaOS compatibility**: refer to SDK / NDK / autodocs at /opt/amiga/src/amiga-gcc/projects/NDK3.2 and RKRM at ~/projects/amiga/rkrm
 
+### Mandatory Reference Sources for AmigaOS Implementation
+
+**CRITICAL**: When implementing or modifying ANY Amiga library, device, or handler, you MUST consult the following reference sources in order of priority:
+
+1. **RKRM Documentation** (`~/projects/amiga/rkrm/`)
+   - Official behavior specification from Commodore
+   - Defines correct semantics, return values, error codes
+   - Example: `rkrm_console_device.md` for console.device behavior
+
+2. **RKRM Sample Code** (`~/projects/amiga/sample-code/rkm/`)
+   - Official Commodore example programs
+   - Shows correct API usage patterns
+   - Tests must pass with these examples
+
+3. **AROS Source Code** (`others/AROS-20231016-source/`)
+   - Open-source reference implementation
+   - Use for architectural guidance and edge case handling
+   - **Clean Room**: Reference for understanding, NOT copying code
+
+4. **NDK/SDK** (`/opt/amiga/src/amiga-gcc/projects/NDK3.2`)
+   - Official header files and autodocs
+   - Structure definitions and constants
+
+**Implementation Checklist:**
+- [ ] Read RKRM documentation for the component
+- [ ] Study RKRM sample code for usage patterns
+- [ ] Review AROS implementation for edge cases
+- [ ] Verify implementation matches RKRM-defined behavior
+- [ ] Ensure RKRM sample programs work correctly
+
 **Why This Matters:**
 - Users depend on `lxa` for running their software - crashes destroy productivity.
 - Debugging m68k/host interaction issues is extremely difficult - prevention is critical.
