@@ -744,6 +744,16 @@ static struct Layer * CreateLayerInternal ( struct LayersBase  *LayersBase,
     /* Build initial ClipRects */
     RebuildClipRects(layer);
 
+    /* Rebuild ClipRects for all layers behind this one (they may be obscured now) */
+    {
+        struct Layer *behind = layer->back;
+        while (behind)
+        {
+            RebuildClipRects(behind);
+            behind = behind->back;
+        }
+    }
+
     /* Add layer's semaphore to the gs_Head list */
     AddTail((struct List *)&li->gs_Head, (struct Node *)&layer->Lock);
 
@@ -897,8 +907,15 @@ static LONG _layers_UpfrontLayer ( register struct LayersBase *LayersBase __asm(
         li->top_layer->front = layer;
     li->top_layer = layer;
 
-    /* Rebuild ClipRects for affected layers */
-    /* TODO: In full implementation, rebuild all affected layers */
+    /* Rebuild ClipRects for all layers (z-order changed) */
+    {
+        struct Layer *l = li->top_layer;
+        while (l)
+        {
+            RebuildClipRects(l);
+            l = l->back;
+        }
+    }
 
     ReleaseSemaphore(&li->Lock);
 
@@ -956,6 +973,16 @@ static LONG _layers_BehindLayer ( register struct LayersBase *LayersBase __asm("
         layer->back = NULL;
     }
 
+    /* Rebuild ClipRects for all layers (z-order changed) */
+    {
+        struct Layer *l = li->top_layer;
+        while (l)
+        {
+            RebuildClipRects(l);
+            l = l->back;
+        }
+    }
+
     ReleaseSemaphore(&li->Lock);
 
     return TRUE;
@@ -994,8 +1021,19 @@ static LONG _layers_MoveLayer ( register struct LayersBase *LayersBase __asm("a6
         DamageExposedAreas(li, layer, &old_bounds, &layer->bounds);
     }
 
-    /* Rebuild ClipRects */
+    /* Rebuild ClipRects for this layer */
     RebuildClipRects(layer);
+
+    /* Rebuild ClipRects for all layers behind this one (they may be exposed now) */
+    if (li)
+    {
+        struct Layer *behind = layer->back;
+        while (behind)
+        {
+            RebuildClipRects(behind);
+            behind = behind->back;
+        }
+    }
 
     ReleaseSemaphore(&layer->Lock);
 
@@ -1029,14 +1067,25 @@ static LONG _layers_SizeLayer ( register struct LayersBase *LayersBase __asm("a6
     layer->Width = layer->bounds.MaxX - layer->bounds.MinX + 1;
     layer->Height = layer->bounds.MaxY - layer->bounds.MinY + 1;
 
-    /* If layer is shrinking, damage exposed areas on layers behind */
+    /* Damage exposed areas on layers behind if layer is shrinking */
     if (li && (dx < 0 || dy < 0))
     {
         DamageExposedAreas(li, layer, &old_bounds, &layer->bounds);
     }
 
-    /* Rebuild ClipRects */
+    /* Rebuild ClipRects for this layer */
     RebuildClipRects(layer);
+
+    /* Rebuild ClipRects for all layers behind this one */
+    if (li)
+    {
+        struct Layer *behind = layer->back;
+        while (behind)
+        {
+            RebuildClipRects(behind);
+            behind = behind->back;
+        }
+    }
 
     ReleaseSemaphore(&layer->Lock);
 
@@ -1401,7 +1450,19 @@ static LONG _layers_MoveSizeLayer ( register struct LayersBase *LayersBase __asm
         DamageExposedAreas(li, layer, &old_bounds, &layer->bounds);
     }
 
+    /* Rebuild ClipRects for this layer */
     RebuildClipRects(layer);
+
+    /* Rebuild ClipRects for all layers behind this one */
+    if (li)
+    {
+        struct Layer *behind = layer->back;
+        while (behind)
+        {
+            RebuildClipRects(behind);
+            behind = behind->back;
+        }
+    }
 
     ReleaseSemaphore(&layer->Lock);
 

@@ -20,11 +20,14 @@
 #include <inline/graphics.h>
 #include <clib/layers_protos.h>
 #include <inline/layers.h>
+#include <clib/utility_protos.h>
+#include <inline/utility.h>
 
 #include "util.h"
 
 extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
+extern struct UtilityBase *UtilityBase;
 
 #define VERSION    40
 #define REVISION   1
@@ -221,6 +224,23 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
         window->UserPort = NULL;
     }
 
+    /* Free system gadgets we created */
+    {
+        struct Gadget *gad = window->FirstGadget;
+        struct Gadget *next;
+        while (gad)
+        {
+            next = gad->NextGadget;
+            /* Only free gadgets we allocated (system gadgets) */
+            if (gad->GadgetType & GTYP_SYSGADGET)
+            {
+                FreeMem(gad, sizeof(struct Gadget));
+            }
+            gad = next;
+        }
+        window->FirstGadget = NULL;
+    }
+
     /* Unlink window from screen's window list */
     if (window->WScreen)
     {
@@ -253,8 +273,16 @@ VOID _intuition_CurrentTime ( register struct IntuitionBase * IntuitionBase __as
                                                         register ULONG * seconds __asm("a0"),
                                                         register ULONG * micros __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: CurrentTime() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct timeval tv;
+    emucall1(EMU_CALL_GETSYSTIME, (ULONG)&tv);
+    
+    if (seconds)
+        *seconds = tv.tv_secs;
+    if (micros)
+        *micros = tv.tv_micro;
+    
+    DPRINTF(LOG_DEBUG, "_intuition: CurrentTime() -> seconds=%lu, micros=%lu\n",
+            tv.tv_secs, tv.tv_micro);
 }
 
 BOOL _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -494,10 +522,11 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
     imsg->MouseY = mouseY;
     imsg->IDCMPWindow = window;
     
-    /* Get current time */
-    /* TODO: Use proper system time */
-    imsg->Seconds = 0;
-    imsg->Micros = 0;
+    /* Get current time via emucall */
+    struct timeval tv;
+    emucall1(EMU_CALL_GETSYSTIME, (ULONG)&tv);
+    imsg->Seconds = tv.tv_secs;
+    imsg->Micros = tv.tv_micro;
     
     /* Update window's mouse position */
     window->MouseX = mouseX;
@@ -530,6 +559,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
     ULONG key_data;
     WORD mouseX, mouseY;
     struct Window *window;
+    struct IntuitionBase *IBase;
     
     if (!screen)
         return;
@@ -538,6 +568,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
     if (g_processing_events)
         return;
     g_processing_events = TRUE;
+    
+    /* Get IntuitionBase for updating global state */
+    IBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
     
     /* Poll for input events */
     while (1)
@@ -550,6 +583,17 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
         mouse_pos = emucall0(EMU_CALL_INT_GET_MOUSE_POS);
         mouseX = (WORD)(mouse_pos >> 16);
         mouseY = (WORD)(mouse_pos & 0xFFFF);
+        
+        /* Update IntuitionBase with current mouse position and timestamp */
+        if (IBase)
+        {
+            struct timeval tv;
+            emucall1(EMU_CALL_GETSYSTIME, (ULONG)&tv);
+            IBase->MouseX = mouseX;
+            IBase->MouseY = mouseY;
+            IBase->Seconds = tv.tv_secs;
+            IBase->Micros = tv.tv_micro;
+        }
         
         /* Find the window that should receive this event */
         /* For now, send to first window on screen */
@@ -635,6 +679,12 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 break;
             }
         }
+    }
+    
+    /* Close IntuitionBase if we opened it */
+    if (IBase)
+    {
+        CloseLibrary((struct Library *)IBase);
     }
     
     /* Release re-entry guard */
@@ -889,6 +939,241 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     return screen;
 }
 
+/*
+ * System Gadget constants
+ * These define the standard sizes for Amiga window gadgets
+ */
+#define SYS_GADGET_WIDTH   18  /* Width of close/depth gadgets */
+#define SYS_GADGET_HEIGHT  10  /* Height of system gadgets (based on title bar) */
+
+/*
+ * Create a system gadget for a window
+ * Returns the allocated gadget or NULL on failure
+ */
+static struct Gadget * _create_sys_gadget(struct Window *window, UWORD type,
+                                           WORD left, WORD top, WORD width, WORD height)
+{
+    struct Gadget *gad;
+    
+    gad = (struct Gadget *)AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!gad)
+        return NULL;
+    
+    gad->LeftEdge = left;
+    gad->TopEdge = top;
+    gad->Width = width;
+    gad->Height = height;
+    gad->Flags = GFLG_GADGHCOMP;  /* Complement on select */
+    gad->Activation = GACT_RELVERIFY | GACT_TOPBORDER;
+    gad->GadgetType = GTYP_SYSGADGET | type | GTYP_BOOLGADGET;
+    gad->GadgetRender = NULL;
+    gad->SelectRender = NULL;
+    gad->GadgetText = NULL;
+    gad->SpecialInfo = NULL;
+    gad->GadgetID = type;
+    gad->UserData = (APTR)window;  /* Back-link to window */
+    
+    return gad;
+}
+
+/*
+ * Create system gadgets for a window based on its flags
+ * Links them into the window's gadget list
+ */
+static void _create_window_sys_gadgets(struct Window *window)
+{
+    struct Gadget *gad;
+    struct Gadget **lastPtr = &window->FirstGadget;
+    WORD gadWidth = SYS_GADGET_WIDTH;
+    WORD gadHeight = window->BorderTop > 0 ? window->BorderTop - 1 : SYS_GADGET_HEIGHT;
+    WORD rightX = window->Width - window->BorderRight - gadWidth;
+    
+    /* Skip to end of existing gadget list */
+    while (*lastPtr)
+        lastPtr = &(*lastPtr)->NextGadget;
+    
+    /* Create Close gadget (top-left) if requested */
+    if (window->Flags & WFLG_CLOSEGADGET)
+    {
+        gad = _create_sys_gadget(window, GTYP_CLOSE, 
+                                  window->BorderLeft, 0, 
+                                  gadWidth, gadHeight);
+        if (gad)
+        {
+            *lastPtr = gad;
+            lastPtr = &gad->NextGadget;
+            DPRINTF(LOG_DEBUG, "_intuition: Created CLOSE gadget at (%d,%d) %dx%d\n",
+                    (int)gad->LeftEdge, (int)gad->TopEdge, (int)gad->Width, (int)gad->Height);
+        }
+    }
+    
+    /* Create Depth gadget (top-right) if requested */
+    if (window->Flags & WFLG_DEPTHGADGET)
+    {
+        gad = _create_sys_gadget(window, GTYP_WDEPTH,
+                                  rightX, 0,
+                                  gadWidth, gadHeight);
+        if (gad)
+        {
+            *lastPtr = gad;
+            lastPtr = &gad->NextGadget;
+            DPRINTF(LOG_DEBUG, "_intuition: Created DEPTH gadget at (%d,%d) %dx%d\n",
+                    (int)gad->LeftEdge, (int)gad->TopEdge, (int)gad->Width, (int)gad->Height);
+            rightX -= gadWidth;  /* Next gadget goes to the left */
+        }
+    }
+    
+    /* Drag bar is handled via WFLG_DRAGBAR flag, not as a separate gadget */
+    /* It uses the entire title bar area not covered by other gadgets */
+}
+
+/*
+ * Render system gadgets for a window
+ * Draws the window frame, title bar, and gadget imagery
+ */
+static void _render_window_frame(struct Window *window)
+{
+    struct RastPort *rp;
+    WORD x0, y0, x1, y1;
+    WORD titleBarBottom;
+    struct Gadget *gad;
+    UBYTE detPen, blkPen, shiPen, shaPen;
+    
+    if (!window || !window->RPort)
+        return;
+    
+    rp = window->RPort;
+    
+    /* Get pens - use window pens or defaults */
+    detPen = window->DetailPen;
+    blkPen = window->BlockPen;
+    shiPen = 2;   /* Standard shine pen (white) */
+    shaPen = 1;   /* Standard shadow pen (black) */
+    
+    /* Window interior bounds */
+    x0 = 0;
+    y0 = 0;
+    x1 = window->Width - 1;
+    y1 = window->Height - 1;
+    titleBarBottom = window->BorderTop - 1;
+    
+    /* Skip if borderless */
+    if (window->Flags & WFLG_BORDERLESS)
+        return;
+    
+    /* Draw outer border (3D effect) */
+    /* Top-left bright edge */
+    SetAPen(rp, shiPen);
+    Move(rp, x0, y1 - 1);
+    Draw(rp, x0, y0);
+    Draw(rp, x1 - 1, y0);
+    
+    /* Bottom-right dark edge */
+    SetAPen(rp, shaPen);
+    Move(rp, x1, y0 + 1);
+    Draw(rp, x1, y1);
+    Draw(rp, x0 + 1, y1);
+    
+    /* Fill title bar background if we have one */
+    if (window->BorderTop > 1)
+    {
+        /* Fill title bar with block pen */
+        SetAPen(rp, (window->Flags & WFLG_WINDOWACTIVE) ? blkPen : detPen);
+        RectFill(rp, x0 + 1, y0 + 1, x1 - 1, titleBarBottom);
+        
+        /* Draw title bar bottom line */
+        SetAPen(rp, shaPen);
+        Move(rp, x0, titleBarBottom);
+        Draw(rp, x1, titleBarBottom);
+        
+        /* Draw title text if present */
+        if (window->Title)
+        {
+            WORD textX = window->BorderLeft;
+            WORD textY = 1;  /* One pixel from top */
+            
+            /* Adjust for close gadget */
+            if (window->Flags & WFLG_CLOSEGADGET)
+                textX += SYS_GADGET_WIDTH + 2;
+            
+            /* Draw title */
+            SetAPen(rp, (window->Flags & WFLG_WINDOWACTIVE) ? detPen : blkPen);
+            SetBPen(rp, (window->Flags & WFLG_WINDOWACTIVE) ? blkPen : detPen);
+            Move(rp, textX, textY + rp->TxBaseline);
+            Text(rp, (STRPTR)window->Title, strlen((char *)window->Title));
+        }
+    }
+    
+    /* Render system gadgets */
+    for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
+    {
+        UWORD sysType;
+        WORD gx0, gy0, gx1, gy1;
+        
+        /* Skip non-system gadgets */
+        if (!(gad->GadgetType & GTYP_SYSGADGET))
+            continue;
+        
+        sysType = gad->GadgetType & GTYP_SYSTYPEMASK;
+        gx0 = gad->LeftEdge;
+        gy0 = gad->TopEdge;
+        gx1 = gx0 + gad->Width - 1;
+        gy1 = gy0 + gad->Height - 1;
+        
+        /* Draw gadget frame */
+        SetAPen(rp, shiPen);
+        Move(rp, gx0, gy1 - 1);
+        Draw(rp, gx0, gy0);
+        Draw(rp, gx1 - 1, gy0);
+        SetAPen(rp, shaPen);
+        Move(rp, gx1, gy0);
+        Draw(rp, gx1, gy1);
+        Draw(rp, gx0, gy1);
+        
+        /* Draw gadget-specific imagery */
+        switch (sysType)
+        {
+            case GTYP_CLOSE:
+            {
+                /* Draw a small filled square in center (close icon) */
+                WORD cx = (gx0 + gx1) / 2;
+                WORD cy = (gy0 + gy1) / 2;
+                SetAPen(rp, shaPen);
+                RectFill(rp, cx - 2, cy - 2, cx + 2, cy + 2);
+                SetAPen(rp, shiPen);
+                RectFill(rp, cx - 1, cy - 1, cx + 1, cy + 1);
+                break;
+            }
+            
+            case GTYP_WDEPTH:
+            {
+                /* Draw overlapping rectangles (depth icon) */
+                WORD cx = (gx0 + gx1) / 2;
+                WORD cy = (gy0 + gy1) / 2;
+                /* Back rectangle */
+                SetAPen(rp, shaPen);
+                Move(rp, cx - 3, cy + 2);
+                Draw(rp, cx - 3, cy - 2);
+                Draw(rp, cx + 1, cy - 2);
+                Draw(rp, cx + 1, cy + 2);
+                Draw(rp, cx - 3, cy + 2);
+                /* Front rectangle */
+                SetAPen(rp, shiPen);
+                Move(rp, cx - 1, cy + 3);
+                Draw(rp, cx - 1, cy);
+                Draw(rp, cx + 3, cy);
+                Draw(rp, cx + 3, cy + 3);
+                Draw(rp, cx - 1, cy + 3);
+                break;
+            }
+            
+            case GTYP_WDRAGGING:
+                /* Drag gadget has no special imagery - just the frame */
+                break;
+        }
+    }
+}
+
 struct Window * _intuition_OpenWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewWindow * newWindow __asm("a0"))
 {
@@ -1020,16 +1305,26 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     }
     else
     {
-        /* Standard window borders */
-        window->BorderLeft = 4;
-        window->BorderRight = 4;
-        window->BorderBottom = 2;
+        /* Use the Screen's WBorXXX fields per NDK/AROS pattern */
+        window->BorderLeft = screen->WBorLeft;
+        window->BorderRight = screen->WBorRight;
+        window->BorderBottom = screen->WBorBottom;
         
-        /* Top border depends on whether we have a drag bar or title */
-        if ((newWindow->Flags & WFLG_DRAGBAR) || newWindow->Title)
-            window->BorderTop = 11;  /* Room for title bar */
+        /* Top border depends on whether we have a title bar */
+        if ((newWindow->Flags & (WFLG_DRAGBAR | WFLG_CLOSEGADGET | WFLG_DEPTHGADGET)) || newWindow->Title)
+        {
+            /* Title bar: WBorTop + font height + 1 (per AROS pattern)
+             * For now, use WBorTop which already includes space for title (11 pixels)
+             * TODO: Use actual font height when fonts are supported:
+             *   window->BorderTop = screen->WBorTop + GfxBase->DefaultFont->tf_YSize + 1;
+             */
+            window->BorderTop = screen->WBorTop;
+        }
         else
-            window->BorderTop = 2;
+        {
+            /* No title bar, just use basic border */
+            window->BorderTop = screen->WBorBottom;
+        }
     }
 
     /* Create a Layer for this window so graphics operations use proper coordinate offsets */
@@ -1113,6 +1408,15 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     {
         window->Flags |= WFLG_WINDOWACTIVE;
         /* TODO: Deactivate previous active window */
+    }
+
+    /* Create system gadgets based on window flags */
+    _create_window_sys_gadgets(window);
+    
+    /* Render the window frame and gadgets (in non-rootless mode) */
+    if (!rootless_mode)
+    {
+        _render_window_frame(window);
     }
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() -> 0x%08lx\n", (ULONG)window);
@@ -1691,8 +1995,12 @@ VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase _
 VOID _intuition_RefreshWindowFrame ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: RefreshWindowFrame() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: RefreshWindowFrame() window=0x%08lx\n", (ULONG)window);
+    
+    if (window)
+    {
+        _render_window_frame(window);
+    }
 }
 
 BOOL _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -1937,18 +2245,317 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                                                         register const struct NewWindow * newWindow __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: OpenWindowTagList() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct NewWindow nw;
+    struct TagItem *tstate;
+    struct TagItem *tag;
+    
+    DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() called, newWindow=0x%08lx, tagList=0x%08lx\n",
+            (ULONG)newWindow, (ULONG)tagList);
+    
+    /* Start with defaults from NewWindow if provided, else use sensible defaults */
+    if (newWindow)
+    {
+        /* Copy the NewWindow structure */
+        nw = *newWindow;
+    }
+    else
+    {
+        /* Initialize with defaults */
+        memset(&nw, 0, sizeof(nw));
+        nw.Width = 200;
+        nw.Height = 100;
+        nw.DetailPen = 0;
+        nw.BlockPen = 1;
+        nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET;
+        nw.Type = WBENCHSCREEN;  /* Default to opening on Workbench */
+    }
+    
+    /* Process tags to override NewWindow fields */
+    if (tagList)
+    {
+        tstate = (struct TagItem *)tagList;
+        while ((tag = NextTagItem(&tstate)))
+        {
+            switch (tag->ti_Tag)
+            {
+                case WA_Left:
+                    nw.LeftEdge = (WORD)tag->ti_Data;
+                    break;
+                case WA_Top:
+                    nw.TopEdge = (WORD)tag->ti_Data;
+                    break;
+                case WA_Width:
+                    nw.Width = (WORD)tag->ti_Data;
+                    break;
+                case WA_Height:
+                    nw.Height = (WORD)tag->ti_Data;
+                    break;
+                case WA_DetailPen:
+                    nw.DetailPen = (UBYTE)tag->ti_Data;
+                    break;
+                case WA_BlockPen:
+                    nw.BlockPen = (UBYTE)tag->ti_Data;
+                    break;
+                case WA_IDCMP:
+                    nw.IDCMPFlags = (ULONG)tag->ti_Data;
+                    break;
+                case WA_Flags:
+                    nw.Flags = (ULONG)tag->ti_Data;
+                    break;
+                case WA_Gadgets:
+                    nw.FirstGadget = (struct Gadget *)tag->ti_Data;
+                    break;
+                case WA_Title:
+                    nw.Title = (UBYTE *)tag->ti_Data;
+                    break;
+                case WA_CustomScreen:
+                    nw.Screen = (struct Screen *)tag->ti_Data;
+                    nw.Type = CUSTOMSCREEN;
+                    break;
+                case WA_MinWidth:
+                    nw.MinWidth = (WORD)tag->ti_Data;
+                    break;
+                case WA_MinHeight:
+                    nw.MinHeight = (WORD)tag->ti_Data;
+                    break;
+                case WA_MaxWidth:
+                    nw.MaxWidth = (UWORD)tag->ti_Data;
+                    break;
+                case WA_MaxHeight:
+                    nw.MaxHeight = (UWORD)tag->ti_Data;
+                    break;
+                /* Boolean flags - set or clear flags based on ti_Data */
+                case WA_SizeGadget:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_SIZEGADGET;
+                    else
+                        nw.Flags &= ~WFLG_SIZEGADGET;
+                    break;
+                case WA_DragBar:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_DRAGBAR;
+                    else
+                        nw.Flags &= ~WFLG_DRAGBAR;
+                    break;
+                case WA_DepthGadget:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_DEPTHGADGET;
+                    else
+                        nw.Flags &= ~WFLG_DEPTHGADGET;
+                    break;
+                case WA_CloseGadget:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_CLOSEGADGET;
+                    else
+                        nw.Flags &= ~WFLG_CLOSEGADGET;
+                    break;
+                case WA_Backdrop:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_BACKDROP;
+                    else
+                        nw.Flags &= ~WFLG_BACKDROP;
+                    break;
+                case WA_ReportMouse:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_REPORTMOUSE;
+                    else
+                        nw.Flags &= ~WFLG_REPORTMOUSE;
+                    break;
+                case WA_NoCareRefresh:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_NOCAREREFRESH;
+                    else
+                        nw.Flags &= ~WFLG_NOCAREREFRESH;
+                    break;
+                case WA_Borderless:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_BORDERLESS;
+                    else
+                        nw.Flags &= ~WFLG_BORDERLESS;
+                    break;
+                case WA_Activate:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_ACTIVATE;
+                    else
+                        nw.Flags &= ~WFLG_ACTIVATE;
+                    break;
+                case WA_RMBTrap:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_RMBTRAP;
+                    else
+                        nw.Flags &= ~WFLG_RMBTRAP;
+                    break;
+                case WA_SimpleRefresh:
+                    if (tag->ti_Data)
+                    {
+                        nw.Flags &= ~(WFLG_SMART_REFRESH | WFLG_SUPER_BITMAP);
+                        nw.Flags |= WFLG_SIMPLE_REFRESH;
+                    }
+                    break;
+                case WA_SmartRefresh:
+                    if (tag->ti_Data)
+                    {
+                        nw.Flags &= ~(WFLG_SIMPLE_REFRESH | WFLG_SUPER_BITMAP);
+                        nw.Flags |= WFLG_SMART_REFRESH;
+                    }
+                    break;
+                case WA_GimmeZeroZero:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_GIMMEZEROZERO;
+                    else
+                        nw.Flags &= ~WFLG_GIMMEZEROZERO;
+                    break;
+                /* Tags we recognize but don't fully implement yet */
+                case WA_PubScreenName:
+                case WA_PubScreen:
+                case WA_PubScreenFallBack:
+                case WA_InnerWidth:
+                case WA_InnerHeight:
+                case WA_Zoom:
+                case WA_MouseQueue:
+                case WA_BackFill:
+                case WA_RptQueue:
+                case WA_AutoAdjust:
+                case WA_ScreenTitle:
+                case WA_Checkmark:
+                case WA_SuperBitMap:
+                case WA_MenuHelp:
+                case WA_NewLookMenus:
+                case WA_NotifyDepth:
+                case WA_Pointer:
+                case WA_BusyPointer:
+                case WA_PointerDelay:
+                case WA_TabletMessages:
+                case WA_HelpGroup:
+                case WA_HelpGroupWindow:
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() ignoring tag 0x%08lx (not yet implemented)\n",
+                            tag->ti_Tag);
+                    break;
+                default:
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() unknown tag 0x%08lx\n",
+                            tag->ti_Tag);
+                    break;
+            }
+        }
+    }
+    
+    /* Call our existing OpenWindow with the assembled NewWindow */
+    return _intuition_OpenWindow(IntuitionBase, &nw);
 }
 
 struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewScreen * newScreen __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: OpenScreenTagList() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct NewScreen ns;
+    struct TagItem *tstate;
+    struct TagItem *tag;
+    
+    DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() called, newScreen=0x%08lx, tagList=0x%08lx\n",
+            (ULONG)newScreen, (ULONG)tagList);
+    
+    /* Start with defaults from NewScreen if provided, else use sensible defaults */
+    if (newScreen)
+    {
+        /* Copy the NewScreen structure */
+        ns = *newScreen;
+    }
+    else
+    {
+        /* Initialize with defaults */
+        memset(&ns, 0, sizeof(ns));
+        ns.Width = 640;
+        ns.Height = 256;
+        ns.Depth = 2;
+        ns.Type = CUSTOMSCREEN;
+        ns.DetailPen = 0;
+        ns.BlockPen = 1;
+    }
+    
+    /* Process tags to override NewScreen fields */
+    if (tagList)
+    {
+        tstate = (struct TagItem *)tagList;
+        while ((tag = NextTagItem(&tstate)))
+        {
+            switch (tag->ti_Tag)
+            {
+                case SA_Left:
+                    ns.LeftEdge = (WORD)tag->ti_Data;
+                    break;
+                case SA_Top:
+                    ns.TopEdge = (WORD)tag->ti_Data;
+                    break;
+                case SA_Width:
+                    ns.Width = (WORD)tag->ti_Data;
+                    break;
+                case SA_Height:
+                    ns.Height = (WORD)tag->ti_Data;
+                    break;
+                case SA_Depth:
+                    ns.Depth = (WORD)tag->ti_Data;
+                    break;
+                case SA_DetailPen:
+                    ns.DetailPen = (UBYTE)tag->ti_Data;
+                    break;
+                case SA_BlockPen:
+                    ns.BlockPen = (UBYTE)tag->ti_Data;
+                    break;
+                case SA_Title:
+                    ns.DefaultTitle = (UBYTE *)tag->ti_Data;
+                    break;
+                case SA_Type:
+                    ns.Type = (UWORD)tag->ti_Data;
+                    break;
+                case SA_Behind:
+                    if (tag->ti_Data)
+                        ns.Type |= SCREENBEHIND;
+                    break;
+                case SA_Quiet:
+                    if (tag->ti_Data)
+                        ns.Type |= SCREENQUIET;
+                    break;
+                case SA_ShowTitle:
+                    if (tag->ti_Data)
+                        ns.Type |= SHOWTITLE;
+                    break;
+                case SA_AutoScroll:
+                    if (tag->ti_Data)
+                        ns.Type |= AUTOSCROLL;
+                    break;
+                case SA_BitMap:
+                    ns.CustomBitMap = (struct BitMap *)tag->ti_Data;
+                    if (tag->ti_Data)
+                        ns.Type |= CUSTOMBITMAP;
+                    break;
+                case SA_Font:
+                    ns.Font = (struct TextAttr *)tag->ti_Data;
+                    break;
+                /* Tags we recognize but don't fully implement yet */
+                case SA_DisplayID:
+                case SA_DClip:
+                case SA_Overscan:
+                case SA_Colors:
+                case SA_Colors32:
+                case SA_Pens:
+                case SA_PubName:
+                case SA_PubSig:
+                case SA_PubTask:
+                case SA_SysFont:
+                case SA_ErrorCode:
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() ignoring tag 0x%08lx (not yet implemented)\n",
+                            tag->ti_Tag);
+                    break;
+                default:
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() unknown tag 0x%08lx\n",
+                            tag->ti_Tag);
+                    break;
+            }
+        }
+    }
+    
+    /* Call our existing OpenScreen with the assembled NewScreen */
+    return _intuition_OpenScreen(IntuitionBase, &ns);
 }
 
 VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase __asm("a6"),

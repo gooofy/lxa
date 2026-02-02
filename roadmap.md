@@ -100,36 +100,38 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 
 ---
 
-## Phase 24: Layers Library Consolidation
+## Phase 24: Layers Library Consolidation (COMPLETE)
 
 **Goal**: Ensure `layers.library` accurately implements AmigaOS clipping, locking, and damage semantics.
 
 ### Step 24.1: Analysis & Gap Assessment
-- [ ] **Locking Semantics** - Audit `LockLayer`, `LockLayerInfo`, `LockLayers` against deadlock potential and RKRM rules.
-- [ ] **Region Operations** - Verify region algebra correctness compared to AROS.
+- [x] **Locking Semantics** - Audited `LockLayer`, `LockLayerInfo`, `LockLayers` against RKRM rules. Implementation matches AROS/RKRM.
+- [x] **Region Operations** - Verified region algebra correctness. OrRectRegion, AndRectRegion, ClearRegion work correctly.
 
 ### Step 24.2: Implementation Alignment
-- [ ] **Structure Alignment** - Align `Layer` and `Layer_Info` structures with NDK.
-- [ ] **Clipping Fidelity** - Ensure `ClipRect` lists and damage regions behave identically to native AmigaOS.
+- [x] **Structure Alignment** - `Layer` and `Layer_Info` structures use NDK definitions. Fields properly initialized.
+- [x] **Clipping Fidelity** - Fixed ClipRect rebuilding: now properly rebuilds behind-layers when creating, moving, sizing layers. Tests verify correct splitting around obscuring layers.
 
 ---
+
+## Active Phases
 
 ## Phase 25: Intuition Library Consolidation
 
 **Goal**: Refine `intuition.library` to match authentic AmigaOS windowing, screen, and input behavior.
 
 ### Step 25.1: Analysis & Gap Assessment
-- [ ] **Object Structure** - Audit `Window`, `Screen`, `Gadget` structures against NDK.
-- [ ] **Input Handling** - Verify IDCMP message generation, timing, and flags against RKRM.
+- [x] **Object Structure** - Audit `Window`, `Screen`, `Gadget` structures against NDK.
+- [x] **Input Handling** - Verify IDCMP message generation, timing, and flags against RKRM. Fixed: Timestamp now uses real system time via EMU_CALL_GETSYSTIME; Implemented CurrentTime() function.
 
 ### Step 25.2: Implementation Alignment
-- [ ] **Window Management** - Align border calculation, title bar rendering, and flags with standards.
-- [ ] **Screen Handling** - Audit `OpenScreen` tags, types (Custom vs Workbench), and depth handling.
-- [ ] **IntuitionBase** - Ensure library base structure is correct.
+- [x] **Window Management** - Align border calculation, title bar rendering, and flags with standards. Now uses Screen's WBorXXX fields per AROS pattern; BorderTop correctly calculated based on title/gadget presence.
+- [x] **Screen Handling** - Implemented OpenScreenTagList() with full tag parsing (SA_Left, SA_Top, SA_Width, SA_Height, SA_Depth, SA_Title, SA_Type, SA_Behind, SA_Quiet, SA_ShowTitle, SA_AutoScroll, SA_BitMap, SA_Font). Also implemented OpenWindowTagList() with full tag parsing (WA_* tags).
+- [x] **IntuitionBase** - Ensure library base structure is correct. ProcessInputEvents now updates IntuitionBase->MouseX/MouseY and Seconds/Micros with each input event per NDK specification.
 
 ### Step 25.3: System Gadgets (from Phase 14.3)
-- [ ] **Visual Representation** - Close/Depth/Drag gadget rendering
-- [ ] **Gadget Interaction** - Hit testing and basic state changes
+- [x] **Visual Representation** - Close/Depth gadget rendering implemented with 3D borders and icons. Gadget structures created automatically for WFLG_CLOSEGADGET/WFLG_DEPTHGADGET windows. RefreshWindowFrame() now renders window borders and system gadgets.
+- [ ] **Gadget Interaction** - Hit testing and basic state changes (TODO: Add mouse click detection on gadgets)
 
 ### Step 25.4: Menu System (from Phase 15.5)
 - [ ] **Menu Bar Handling** - Global vs per-window menus
