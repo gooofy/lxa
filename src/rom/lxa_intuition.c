@@ -104,9 +104,39 @@ UWORD _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm
                                                         register struct Gadget * gadget __asm("a1"),
                                                         register UWORD position __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: AddGadget() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_intuition: AddGadget() window=0x%08lx gadget=0x%08lx pos=%d\n",
+             (ULONG)window, (ULONG)gadget, position);
+
+    if (!window || !gadget)
+        return 0;
+
+    /* Ensure gadget is not linked to another list */
+    gadget->NextGadget = NULL;
+
+    /* Count existing gadgets and find insertion point */
+    UWORD count = 0;
+    struct Gadget *prev = NULL;
+    struct Gadget *curr = window->FirstGadget;
+    
+    while (curr && count < position) {
+        count++;
+        prev = curr;
+        curr = curr->NextGadget;
+    }
+    
+    /* Insert the gadget */
+    if (!prev) {
+        /* Insert at beginning */
+        gadget->NextGadget = window->FirstGadget;
+        window->FirstGadget = gadget;
+    } else {
+        /* Insert after prev */
+        gadget->NextGadget = prev->NextGadget;
+        prev->NextGadget = gadget;
+    }
+    
+    /* Return the actual position where gadget was inserted */
+    return count;
 }
 
 BOOL _intuition_ClearDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -2413,15 +2443,23 @@ BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a
 VOID _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ScreenToBack() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * ScreenToBack() moves a screen to the back of the screen depth list.
+     * In lxa with a single screen model, this is a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: ScreenToBack() screen=0x%08lx (no-op)\n", (ULONG)screen);
+    /* No-op: single screen model */
 }
 
 VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ScreenToFront() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * ScreenToFront() moves a screen to the front of the screen depth list.
+     * In lxa with a single screen model, this is a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: ScreenToFront() screen=0x%08lx (no-op)\n", (ULONG)screen);
+    /* No-op: single screen model */
 }
 
 BOOL _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -2798,8 +2836,14 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Requester * requester __asm("a2"),
                                                         register WORD numGad __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: RefreshGList() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * RefreshGList() redraws a list of gadgets.
+     * For now, this is a stub - gadget rendering needs proper implementation.
+     * TODO: Implement gadget rendering
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: RefreshGList() gadgets=0x%08lx window=0x%08lx req=0x%08lx numGad=%d (stub)\n",
+             (ULONG)gadgets, (ULONG)window, (ULONG)requester, numGad);
+    /* TODO: Actually render the gadgets */
 }
 
 UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -2809,9 +2853,44 @@ UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm(
                                                         register WORD numGad __asm("d1"),
                                                         register struct Requester * requester __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: AddGList() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_intuition: AddGList() window=0x%08lx gadget=0x%08lx pos=%d numGad=%d req=0x%08lx\n",
+             (ULONG)window, (ULONG)gadget, position, numGad, (ULONG)requester);
+
+    if (!window || !gadget)
+        return 0;
+
+    /* Count the gadgets to add (or use numGad if specified) */
+    WORD count = 0;
+    struct Gadget *gad = gadget;
+    struct Gadget *last = gadget;
+    
+    while (gad && (numGad == -1 || count < numGad)) {
+        count++;
+        last = gad;
+        gad = gad->NextGadget;
+    }
+    
+    /* Insert at the specified position in window's gadget list */
+    if (position == 0 || position == (UWORD)~0 || !window->FirstGadget) {
+        /* Insert at beginning or first position */
+        last->NextGadget = window->FirstGadget;
+        window->FirstGadget = gadget;
+    } else {
+        /* Find the insertion point */
+        struct Gadget *prev = window->FirstGadget;
+        UWORD pos = 1;
+        
+        while (prev->NextGadget && pos < position) {
+            prev = prev->NextGadget;
+            pos++;
+        }
+        
+        /* Insert after prev */
+        last->NextGadget = prev->NextGadget;
+        prev->NextGadget = gadget;
+    }
+    
+    return (UWORD)count;
 }
 
 UWORD _intuition_RemoveGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -2819,16 +2898,57 @@ UWORD _intuition_RemoveGList ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Gadget * gadget __asm("a1"),
                                                         register WORD numGad __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: RemoveGList() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_intuition: RemoveGList() window=0x%08lx gadget=0x%08lx numGad=%d\n",
+             (ULONG)remPtr, (ULONG)gadget, numGad);
+
+    if (!remPtr || !gadget)
+        return 0;
+
+    /* Find the gadget in the window's list */
+    struct Gadget *prev = NULL;
+    struct Gadget *curr = remPtr->FirstGadget;
+    
+    while (curr && curr != gadget) {
+        prev = curr;
+        curr = curr->NextGadget;
+    }
+    
+    if (!curr)
+        return 0;  /* Not found */
+
+    /* Count gadgets to remove */
+    UWORD count = 0;
+    struct Gadget *last = gadget;
+    
+    while (last && (numGad == -1 || count < (UWORD)numGad)) {
+        count++;
+        if (!last->NextGadget || (numGad != -1 && count >= (UWORD)numGad))
+            break;
+        last = last->NextGadget;
+    }
+    
+    /* Remove the gadgets from the list */
+    if (prev)
+        prev->NextGadget = last->NextGadget;
+    else
+        remPtr->FirstGadget = last->NextGadget;
+    
+    return count;
 }
 
 VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ActivateWindow() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: ActivateWindow() window=0x%08lx\n", (ULONG)window);
+
+    if (!window)
+        return;
+
+    /* Set this window as the active window */
+    IntuitionBase->ActiveWindow = window;
+    
+    /* Set the WFLG_WINDOWACTIVE flag */
+    window->Flags |= WFLG_WINDOWACTIVE;
 }
 
 VOID _intuition_RefreshWindowFrame ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3433,24 +3553,37 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
                                                         register CONST_STRPTR classID __asm("a1"),
                                                         register const struct TagItem * tagList __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: NewObjectA() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * NewObjectA() creates a new BOOPSI object.
+     * For now, return NULL to indicate failure.
+     * TODO: Implement BOOPSI object system
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() classPtr=0x%08lx classID='%s' (stub, returning NULL)\n",
+             (ULONG)classPtr, classID ? (const char*)classID : "(null)");
     return NULL;
 }
 
 VOID _intuition_DisposeObject ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR object __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: DisposeObject() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * DisposeObject() disposes of a BOOPSI object.
+     * For now, this is a no-op stub.
+     * TODO: Implement BOOPSI object system
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: DisposeObject() object=0x%08lx (stub)\n", (ULONG)object);
 }
 
 ULONG _intuition_SetAttrsA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR object __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetAttrsA() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * SetAttrsA() sets attributes on a BOOPSI object.
+     * For now, return 0 (no attrs changed).
+     * TODO: Implement BOOPSI object system
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: SetAttrsA() object=0x%08lx (stub)\n", (ULONG)object);
     return 0;
 }
 
@@ -3459,9 +3592,14 @@ ULONG _intuition_GetAttr ( register struct IntuitionBase * IntuitionBase __asm("
                                                         register APTR object __asm("a0"),
                                                         register ULONG * storagePtr __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: GetAttr() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * GetAttr() gets an attribute from a BOOPSI object.
+     * For now, return FALSE (attribute not found).
+     * TODO: Implement BOOPSI object system
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: GetAttr() attrID=0x%08lx object=0x%08lx (stub)\n",
+             attrID, (ULONG)object);
+    return FALSE;
 }
 
 ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3470,16 +3608,25 @@ ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase
                                                         register struct Requester * requester __asm("a2"),
                                                         register const struct TagItem * tagList __asm("a3"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetGadgetAttrsA() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * SetGadgetAttrsA() sets attributes on a BOOPSI gadget.
+     * For now, return 0 (no attrs changed).
+     * TODO: Implement BOOPSI gadget system
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: SetGadgetAttrsA() gadget=0x%08lx window=0x%08lx (stub)\n",
+             (ULONG)gadget, (ULONG)window);
     return 0;
 }
 
 APTR _intuition_NextObject ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR objectPtrPtr __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: NextObject() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * NextObject() gets the next object from an iteration state.
+     * For now, return NULL (end of list).
+     * TODO: Implement BOOPSI object iteration
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: NextObject() objectPtrPtr=0x%08lx (stub)\n", (ULONG)objectPtrPtr);
     return NULL;
 }
 
@@ -3511,17 +3658,71 @@ VOID _intuition_AddClass ( register struct IntuitionBase * IntuitionBase __asm("
 struct DrawInfo * _intuition_GetScreenDrawInfo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: GetScreenDrawInfo() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_intuition: GetScreenDrawInfo() screen=0x%08lx\n", (ULONG)screen);
+
+    if (!screen)
+        return NULL;
+
+    /*
+     * GetScreenDrawInfo returns information about the screen's drawing pens
+     * and font. We allocate a DrawInfo structure and populate it with
+     * the screen's attributes.
+     */
+    
+    /* For now, return a static DrawInfo with default pens.
+     * TODO: Properly allocate and track DrawInfo per screen.
+     */
+    static UWORD defaultPens[NUMDRIPENS + 1] = {
+        0,    /* DETAILPEN */
+        1,    /* BLOCKPEN */
+        1,    /* TEXTPEN */
+        2,    /* SHINEPEN */
+        1,    /* SHADOWPEN */
+        3,    /* FILLPEN */
+        1,    /* FILLTEXTPEN */
+        0,    /* BACKGROUNDPEN */
+        2,    /* HIGHLIGHTTEXTPEN */
+        1,    /* BARDETAILPEN - V39 */
+        2,    /* BARBLOCKPEN - V39 */
+        1,    /* BARTRIMPEN - V39 */
+        (UWORD)~0  /* Terminator */
+    };
+    
+    static struct DrawInfo drawInfo = {
+        .dri_Version = 2,           /* V39 compatible */
+        .dri_NumPens = NUMDRIPENS,
+        .dri_Pens = defaultPens,
+        .dri_Font = NULL,           /* Will be set below */
+        .dri_Depth = 2,             /* 4 colors */
+        .dri_Resolution = { 44, 44 },
+        .dri_Flags = DRIF_NEWLOOK,
+        .dri_CheckMark = NULL,
+        .dri_AmigaKey = NULL,
+        .dri_Reserved = { 0 }
+    };
+    
+    /* Set font from screen */
+    drawInfo.dri_Font = screen->RastPort.Font;
+    
+    /* Set depth from screen bitmap if available */
+    if (screen->RastPort.BitMap) {
+        drawInfo.dri_Depth = screen->RastPort.BitMap->Depth;
+    }
+    
+    return &drawInfo;
 }
 
 VOID _intuition_FreeScreenDrawInfo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"),
                                                         register struct DrawInfo * drawInfo __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: FreeScreenDrawInfo() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: FreeScreenDrawInfo() screen=0x%08lx drawInfo=0x%08lx\n",
+             (ULONG)screen, (ULONG)drawInfo);
+    /*
+     * FreeScreenDrawInfo releases a DrawInfo obtained from GetScreenDrawInfo.
+     * Since we're using a static DrawInfo for now, this is a no-op.
+     * TODO: Free allocated DrawInfo when we properly allocate them.
+     */
 }
 
 BOOL _intuition_ResetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),

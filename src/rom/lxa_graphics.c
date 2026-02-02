@@ -998,8 +998,17 @@ static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST UWORD * colors __asm("a1"),
                                                         register LONG count __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: LoadRGB4() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * LoadRGB4 loads color palette entries from an array of 4-bit per gun colors.
+     * Each UWORD contains 0x0RGB format (4 bits per component).
+     *
+     * For lxa, we use the host display system which handles colors differently.
+     * We log the call but don't need to actually modify any palette since
+     * our rendering converts to 24-bit colors internally.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: LoadRGB4() vp=0x%08lx colors=0x%08lx count=%ld (no-op)\n",
+             (ULONG)vp, (ULONG)colors, count);
+    /* No-op: palette is handled by host display */
 }
 
 static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2859,8 +2868,16 @@ static VOID _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"),
                                                         register CONST ULONG * table __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: LoadRGB32() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * LoadRGB32 loads color palette entries from an array of 32-bit per gun colors.
+     * Format: count (high word), first (low word), then R,G,B ULONGs for each color.
+     *
+     * For lxa, we use the host display system which handles colors differently.
+     * We log the call but don't need to actually modify any palette.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: LoadRGB32() vp=0x%08lx table=0x%08lx (no-op)\n",
+             (ULONG)vp, (ULONG)table);
+    /* No-op: palette is handled by host display */
 }
 
 static ULONG _graphics_SetChipRev ( register struct GfxBase * GfxBase __asm("a6"),

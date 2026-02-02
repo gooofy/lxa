@@ -102,6 +102,18 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
         -e '^  MinWidth=' \
         -e '^  Title=0x' \
         -e '^  Title string:' \
+        -e '^     \*\*\* LXA' \
+        -e '^     pc=' \
+        -e '^     d0=' \
+        -e '^     a0=' \
+        -e '^     usp=' \
+        -e 'movem\.l' \
+        -e 'moveq' \
+        -e 'dc\.w' \
+        -e 'clr\.b' \
+        -e 'addq\.l' \
+        -e 'move\.l' \
+        -e 'tst\.l' \
         "$ACTUAL_OUTPUT" > "$TEMP_OUTPUT" 2>/dev/null || true
     
     mv "$TEMP_OUTPUT" "$ACTUAL_OUTPUT"

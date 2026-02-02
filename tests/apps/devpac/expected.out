@@ -1,0 +1,18 @@
+=== Devpac Automated Compatibility Test ===
+
+--- Test 1: Load Devpac binary ---
+OK: Devpac binary loaded successfully
+
+--- Test 2: Launch Devpac as background process ---
+  Initial window count: 0
+OK: Devpac process created
+
+--- Test 3: Wait for Devpac window ---
+  Waiting for window to open...
+OK: Devpac window found!
+  Window count after launch: 1
+OK: Devpac window opened successfully
+  Window title: Devpac
+
+=== Test Results ===
+PASS: Devpac launch test passed

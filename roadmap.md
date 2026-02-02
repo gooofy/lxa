@@ -111,7 +111,13 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 - [ ] **App manifest format** - Define expected behavior per application
 
 ### Step 26.3: Additional Test Applications
-- [ ] DevPac
+
+**Tested Apps:**
+- [x] **KickPascal 2** - Works! Opens window, IDE functional
+- [~] **SysInfo** - Partial: Window opens, but crashes due to 68030 MMU instructions (PMOVE CRP)
+- [~] **Devpac** - Partial: Uses BOOPSI (NewObjectA), accesses custom chip registers directly
+
+**Pending:**
 - [ ] DirectoryOpus
 - [ ] MaxonBASIC
 - [ ] BeckerTextII
@@ -119,7 +125,6 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 - [ ] Cluster2
 - [ ] GFABasic
 - [ ] AmigaBasic
-- [ ] SysInfo
 - [ ] DPaintV
 
 ### Step 26.4: Compatibility Database
