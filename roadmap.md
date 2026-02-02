@@ -113,19 +113,30 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 ### Step 26.3: Additional Test Applications
 
 **Tested Apps:**
-- [x] **KickPascal 2** - Works! Opens window, IDE functional
-- [~] **SysInfo** - Partial: Window opens, but crashes due to 68030 MMU instructions (PMOVE CRP)
-- [~] **Devpac** - Partial: Uses BOOPSI (NewObjectA), accesses custom chip registers directly
+- [x] **KickPascal 2** - ✅ Works! Opens window, IDE functional
+- [~] **SysInfo** - ⚠️ Partial: Window opens, but crashes due to 68030 MMU instructions (PMOVE CRP)
+- [~] **Devpac** - ⚠️ Partial: Uses BOOPSI (NewObjectA), accesses custom chip registers directly
+- [x] **GFA Basic 2** - ✅ Works! Editor window opens, accepts input
+- [~] **AmigaBasic** - ⚠️ Partial: Window opens but crashes (needs audio.device, timer.device)
+- [~] **Directory Opus 4** - ⚠️ Partial: Loads but needs dopus.library in LIBS: assign
+
+**Functions Implemented During Testing:**
+- Intuition: `GetPrefs()` - system preferences with sensible defaults
+- Intuition: `ViewPortAddress()` - returns window's screen ViewPort
+- Intuition: `OffMenu()/OnMenu()` - menu enable/disable (no-op)
+- Intuition: `GetScreenData()` - copies screen info to buffer
+- Intuition: `IntuiTextLength()` - calculates text pixel width
+- Graphics: `InitGels()` - GEL system initialization (stub)
+- Memory: Extended ROM (0xF00000), Zorro-II/III (0x01000000+), autoconfig areas
+- Custom chips: DMACON, color register writes now logged/ignored
 
 **Pending:**
-- [ ] DirectoryOpus
 - [ ] MaxonBASIC
 - [ ] BeckerTextII
 - [ ] Asm-One
 - [ ] Cluster2
-- [ ] GFABasic
-- [ ] AmigaBasic
 - [ ] DPaintV
+- [ ] PPaint
 
 ### Step 26.4: Compatibility Database
 - [ ] **Track application status** - Working, partial, broken
@@ -232,30 +243,84 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 **Goal**: Support applications that access Amiga custom chip registers directly.
 
 ### Step 30.1: Custom Chip Register Stubs
+- [x] **INTENA** (0xDFF09A) - Interrupt enable (implemented)
+- [x] **DMACON** (0xDFF096) - DMA control (no-op, logged)
+- [x] **COLOR registers** (0xDFF180+) - Color palette (no-op, logged)
 - [ ] **CIA-A/CIA-B** (0xBFE001/0xBFD000) - Timer, keyboard, disk control stubs
-- [ ] **Denise** (0xDFF000-0xDFF03F) - Color registers, sprite pointers (stub/no-op)
+- [ ] **Denise** (0xDFF000-0xDFF03F) - Sprite pointers, display control
 - [ ] **Agnus** (0xDFF040-0xDFF09F) - Blitter registers (stub or host-side impl)
 - [ ] **Paula** (0xDFF0A0-0xDFF0DF) - Audio registers (stub)
 
 ### Step 30.2: Safe Hardware Access
-- [ ] **Memory Map Handler** - Intercept reads/writes to chip space
-- [ ] **No-op Mode** - Return sensible defaults for reads, ignore writes
+- [x] **Memory Map Handler** - Intercept reads/writes to chip space (basic)
+- [x] **Extended ROM** (0xF00000-0xF7FFFF) - Returns 0 (no extended Kickstart)
+- [x] **Zorro-II/III** (0x01000000+) - Returns 0xFF (no expansion boards)
+- [x] **Autoconfig** (0xE80000-0xEFFFFF) - Returns 0 (no boards)
+- [ ] **No-op Mode** - Return sensible defaults for all reads
 - [ ] **Logging Mode** - Log hardware access for debugging
 
 ---
 
-## Phase 31: Quality & Stability Hardening (was Phase 29)
+## Phase 31: Exec Devices (HIGH PRIORITY - needed by many apps)
+
+**Goal**: Implement common Exec devices that applications depend on.
+
+### Step 31.1: timer.device
+- [ ] **Device Framework** - OpenDevice/CloseDevice/BeginIO/AbortIO
+- [ ] **UNIT_MICROHZ / UNIT_VBLANK** - Timer unit types
+- [ ] **TR_ADDREQUEST** - Add timed request (integrate with scheduler)
+- [ ] **TR_GETSYSTIME** - Get system time
+- [ ] **TR_SETSYSTIME** - Set system time (no-op or restricted)
+- [ ] **ReadEClock()** - High-resolution timer reading
+
+### Step 31.2: audio.device (Low Priority - stub only)
+- [ ] **Device Stubs** - OpenDevice returns error or minimal success
+- [ ] **CMD_WRITE** - Accept audio data (discard/no-op)
+- [ ] **ADCMD_ALLOCATE/FREE** - Channel allocation (stub)
+- [ ] **Note**: Full audio support is out of scope; stub allows apps to continue
+
+### Step 31.3: input.device Enhancement
+- [ ] **IND_ADDHANDLER** - Add input handler to chain
+- [ ] **IND_REMHANDLER** - Remove input handler
+- [ ] **IND_WRITEEVENT** - Inject input events
+- [ ] **BeginIO command 9** - Currently warned, needs investigation
+
+### Step 31.4: gameport.device (Low Priority)
+- [ ] **Joystick/Mouse Reading** - Basic port reading stubs
+- [ ] **Controller Types** - Report no controller connected
+
+---
+
+## Phase 32: Library Path Search Enhancement
+
+**Goal**: Support applications that bundle their own libraries.
+
+### Step 32.1: Library Search Order
+- [ ] **Program Directory** - Search for libs in app's own directory first
+- [ ] **PROGDIR:libs/** - Support program-local libs directory
+- [ ] **Multi-assign LIBS:** - Add app directories to LIBS: automatically
+- [ ] **Config-driven** - Allow apps.json to specify additional lib paths
+
+### Step 32.2: Shared Library Loading
+- [ ] **dopus.library** - Directory Opus support library
+- [ ] **arp.library** - AmigaRP compatibility library (stub or partial)
+- [ ] **reqtools.library** - Common requester library (stub)
+- [ ] **xpk libraries** - Compression libraries (stub)
+
+---
+
+## Phase 33: Quality & Stability Hardening (was Phase 31)
 
 **Goal**: Ensure production-grade reliability.
 
-### Step 31.1: Memory Debugging
+### Step 33.1: Memory Debugging
 - [ ] Memory tracking, leak detection, double-free detection, buffer overflow guards
 - [ ] **Stress Testing** - 24-hour continuous operation, 10,000 file operations.
 
-### Step 31.2: Compatibility Testing
+### Step 33.2: Compatibility Testing
 - [ ] Test with common Amiga software, document issues, create compatibility database.
 
-### Step 31.3: Performance Optimization
+### Step 33.3: Performance Optimization
 - [ ] Profile critical paths, optimize VFS, memory allocation, emucall overhead.
 
 ## Known Limitations & Future Work
