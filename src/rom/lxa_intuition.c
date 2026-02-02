@@ -11,6 +11,8 @@
 #include <intuition/intuitionbase.h>
 #include <intuition/screens.h>
 #include <intuition/preferences.h>
+#include <intuition/classusr.h>
+#include <intuition/imageclass.h>
 
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
@@ -165,8 +167,12 @@ VOID _intuition_ClearMenuStrip ( register struct IntuitionBase * IntuitionBase _
 VOID _intuition_ClearPointer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ClearPointer() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * ClearPointer() clears a custom pointer image and restores the default.
+     * Since we don't support custom pointers yet, this is a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: ClearPointer() window=0x%08lx (no-op)\n", (ULONG)window);
+    /* No-op - we use the system default pointer */
 }
 
 BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3861,11 +3867,57 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
 {
     /*
      * NewObjectA() creates a new BOOPSI object.
-     * For now, return NULL to indicate failure.
-     * TODO: Implement BOOPSI object system
+     * 
+     * We provide minimal support for sysiclass to allow apps that need
+     * system imagery (menu checkmarks, Amiga key, etc.) to continue.
      */
-    DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() classPtr=0x%08lx classID='%s' (stub, returning NULL)\n",
+    DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() classPtr=0x%08lx classID='%s'\n",
              (ULONG)classPtr, classID ? (const char*)classID : "(null)");
+    
+    /* Handle sysiclass - system imagery class */
+    if (classID && strcmp((const char*)classID, SYSICLASS) == 0) {
+        /* Create a minimal Image structure for system imagery */
+        struct Image *img = AllocMem(sizeof(struct Image), MEMF_CLEAR | MEMF_PUBLIC);
+        if (!img)
+            return NULL;
+        
+        /* Initialize with minimal data - a 1x1 transparent image */
+        img->LeftEdge = 0;
+        img->TopEdge = 0;
+        img->Width = 8;     /* Minimal size */
+        img->Height = 8;
+        img->Depth = 1;
+        img->ImageData = NULL;  /* No actual image data - will render as empty */
+        img->PlanePick = 0;     /* Don't pick any planes - essentially invisible */
+        img->PlaneOnOff = 0;
+        img->NextImage = NULL;
+        
+        DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() sysiclass -> Image at 0x%08lx\n", (ULONG)img);
+        return (APTR)img;
+    }
+    
+    /* Handle imageclass - generic image class */
+    if (classID && strcmp((const char*)classID, IMAGECLASS) == 0) {
+        struct Image *img = AllocMem(sizeof(struct Image), MEMF_CLEAR | MEMF_PUBLIC);
+        if (!img)
+            return NULL;
+        
+        img->LeftEdge = 0;
+        img->TopEdge = 0;
+        img->Width = 1;
+        img->Height = 1;
+        img->Depth = 1;
+        img->ImageData = NULL;
+        img->PlanePick = 0;
+        img->PlaneOnOff = 0;
+        img->NextImage = NULL;
+        
+        DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() imageclass -> Image at 0x%08lx\n", (ULONG)img);
+        return (APTR)img;
+    }
+    
+    /* Unknown class - return NULL */
+    DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() unknown class, returning NULL\n");
     return NULL;
 }
 
@@ -3874,10 +3926,14 @@ VOID _intuition_DisposeObject ( register struct IntuitionBase * IntuitionBase __
 {
     /*
      * DisposeObject() disposes of a BOOPSI object.
-     * For now, this is a no-op stub.
-     * TODO: Implement BOOPSI object system
+     * We free the memory allocated by NewObjectA for sysiclass/imageclass.
      */
-    DPRINTF (LOG_DEBUG, "_intuition: DisposeObject() object=0x%08lx (stub)\n", (ULONG)object);
+    DPRINTF (LOG_DEBUG, "_intuition: DisposeObject() object=0x%08lx\n", (ULONG)object);
+    
+    if (object) {
+        /* Assume it's an Image structure from our sysiclass/imageclass stub */
+        FreeMem(object, sizeof(struct Image));
+    }
 }
 
 ULONG _intuition_SetAttrsA ( register struct IntuitionBase * IntuitionBase __asm("a6"),

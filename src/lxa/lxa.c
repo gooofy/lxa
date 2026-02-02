@@ -47,6 +47,10 @@
 #define EXTROM_START 0xf00000
 #define EXTROM_END   0xf7ffff
 
+/* Pseudo-Kickstart ROM area (0xF80000-0xFBFFFF) - used by some Amigas for ROM overlay */
+#define PSEUDOROM_START 0xf80000
+#define PSEUDOROM_END   0xfbffff
+
 /* Zorro-II expansion bus area - return 0 for reads */
 #define ZORRO2_START 0x200000
 #define ZORRO2_END   0x9fffff
@@ -420,6 +424,11 @@ static inline uint8_t mread8 (uint32_t address)
     else if ((address >= EXTROM_START) && (address <= EXTROM_END))
     {
         /* Extended ROM area (A3000/A4000) - return 0 to indicate no extended ROM */
+        return 0;
+    }
+    else if ((address >= PSEUDOROM_START) && (address <= PSEUDOROM_END))
+    {
+        /* Pseudo-Kickstart ROM area - return 0 (no ROM overlay present) */
         return 0;
     }
     else if ((address >= 0x01000000) && (address <= 0x01FFFFFF))
