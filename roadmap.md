@@ -78,75 +78,18 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 **Goal**: Achieve authentic AmigaOS console.device behavior through rigorous comparison with AROS implementation and RKRM documentation.
 **Summary**: Fully functional console.device with comprehensive CSI escape sequence support, SGR text attributes, input handling, and CON:/RAW: DOS handlers.
 
----
+### Phase 23: Graphics Library Consolidation (COMPLETE)
+Elevated `graphics.library` to authentic AmigaOS standards: BitMap/RastPort/View/ViewPort structures aligned with NDK, LVO function semantics verified, GfxBase fields populated correctly (DefaultFont), InitRastPort/InitBitMap fixes per AROS.
 
-## Active Phases
+### Phase 24: Layers Library Consolidation (COMPLETE)
+Accurate AmigaOS clipping, locking, and damage semantics: LockLayer/LockLayerInfo/LockLayers match RKRM, region algebra (OrRectRegion, AndRectRegion, ClearRegion), ClipRect rebuilding for layer create/move/size operations.
 
-## Phase 23: Graphics Library Consolidation
-
-**Goal**: Elevate `graphics.library` to authentic AmigaOS standards through rigorous audit against AROS and RKRM.
-
-### Step 23.1: Analysis & Gap Assessment
-- [x] **State Comparison** - Compare `lxa` implementations of `BitMap`, `RastPort`, `View`, `ViewPort` against AROS/RKRM.
-- [x] **LVO Verification** - Ensure all implemented functions match strict argument/return semantics.
-- [x] **Visual Fidelity** - Audit drawing primitives (lines, fills, blits) for pixel-perfect matches where possible.
-
-### Step 23.2: Implementation Alignment
-- [x] **Structure Alignment** - Adjust public structures to match NDK definitions closer.
-- [x] **GfxBase Review** - Ensure `GfxBase` fields are populated correctly (DefaultFont initialized).
-- [x] **Raster Operations** - Verified Minterm logic and masking against documentation.
-- [x] **InitRastPort Fixes** - FgPen/AOlPen default to -1, Font defaults to GfxBase->DefaultFont.
-- [x] **InitBitMap Fixes** - Flags set to BMF_STANDARD, Planes[] not touched (per AROS).
-
----
-
-## Phase 24: Layers Library Consolidation (COMPLETE)
-
-**Goal**: Ensure `layers.library` accurately implements AmigaOS clipping, locking, and damage semantics.
-
-### Step 24.1: Analysis & Gap Assessment
-- [x] **Locking Semantics** - Audited `LockLayer`, `LockLayerInfo`, `LockLayers` against RKRM rules. Implementation matches AROS/RKRM.
-- [x] **Region Operations** - Verified region algebra correctness. OrRectRegion, AndRectRegion, ClearRegion work correctly.
-
-### Step 24.2: Implementation Alignment
-- [x] **Structure Alignment** - `Layer` and `Layer_Info` structures use NDK definitions. Fields properly initialized.
-- [x] **Clipping Fidelity** - Fixed ClipRect rebuilding: now properly rebuilds behind-layers when creating, moving, sizing layers. Tests verify correct splitting around obscuring layers.
+### Phase 25: Intuition Library Consolidation (COMPLETE)
+Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget structures aligned with NDK, IDCMP message generation with real timestamps (CurrentTime), OpenScreenTagList/OpenWindowTagList with full tag parsing, system gadgets (Close/Depth) with hit testing and IDCMP messages, menu system (SetMenuStrip, menu bar rendering, IDCMP_MENUPICK with FULLMENUNUM encoding), window layer clipping (pixel-level bounds checking, ClipRect iteration).
 
 ---
 
 ## Active Phases
-
-## Phase 25: Intuition Library Consolidation
-
-**Goal**: Refine `intuition.library` to match authentic AmigaOS windowing, screen, and input behavior.
-
-### Step 25.1: Analysis & Gap Assessment
-- [x] **Object Structure** - Audit `Window`, `Screen`, `Gadget` structures against NDK.
-- [x] **Input Handling** - Verify IDCMP message generation, timing, and flags against RKRM. Fixed: Timestamp now uses real system time via EMU_CALL_GETSYSTIME; Implemented CurrentTime() function.
-
-### Step 25.2: Implementation Alignment
-- [x] **Window Management** - Align border calculation, title bar rendering, and flags with standards. Now uses Screen's WBorXXX fields per AROS pattern; BorderTop correctly calculated based on title/gadget presence.
-- [x] **Screen Handling** - Implemented OpenScreenTagList() with full tag parsing (SA_Left, SA_Top, SA_Width, SA_Height, SA_Depth, SA_Title, SA_Type, SA_Behind, SA_Quiet, SA_ShowTitle, SA_AutoScroll, SA_BitMap, SA_Font). Also implemented OpenWindowTagList() with full tag parsing (WA_* tags).
-- [x] **IntuitionBase** - Ensure library base structure is correct. ProcessInputEvents now updates IntuitionBase->MouseX/MouseY and Seconds/Micros with each input event per NDK specification.
-
-### Step 25.3: System Gadgets (from Phase 14.3)
-- [x] **Visual Representation** - Close/Depth gadget rendering implemented with 3D borders and icons. Gadget structures created automatically for WFLG_CLOSEGADGET/WFLG_DEPTHGADGET windows. RefreshWindowFrame() now renders window borders and system gadgets.
-- [x] **Gadget Interaction** - Hit testing implemented: _find_window_at_pos(), _find_gadget_at_pos(), _point_in_gadget(). Mouse press sets GFLG_SELECTED and tracks active gadget. Mouse release validates click (RELVERIFY), posts IDCMP_GADGETDOWN/GADGETUP. System gadgets (Close, Depth) post appropriate IDCMP messages. Test: tests/intuition/gadget_click/.
-
-### Step 25.4: Menu System (from Phase 15.5)
-- [x] **SetMenuStrip / ClearMenuStrip / ResetMenuStrip** - Menu management functions implemented. SetMenuStrip attaches menu to window, ClearMenuStrip detaches, ResetMenuStrip re-attaches without recalculation.
-- [x] **ItemAddress** - Menu item lookup by encoded menu number (FULLMENUNUM). Navigates menu/item/subitem lists correctly.
-- [ ] **Menu Bar Handling** - Global vs per-window menus (visual rendering not yet implemented)
-- [ ] **Menu Events** - IDCMP_MENUPICK handling (actual menu interaction not yet implemented)
-
-### Step 25.5: Window Layer Clipping (from Phase 20.3)
-- [x] **Bounds Checking** - Implemented pixel-level clipping in WritePixel, Draw, RectFill. ReadPixel also translates coordinates for layer-aware reads.
-- [x] **Layer ClipRect Usage** - Graphics primitives now iterate through layer's ClipRect list and only draw to non-obscured ClipRects.
-- [x] **Test** - New test `tests/graphics/layer_clipping/` verifies overlapping window clipping works correctly.
-
----
-
-## Future Phases
 
 ## Phase 26: KickPascal 2 & Real-World Application Testing (was Phase 23)
 

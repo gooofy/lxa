@@ -27,9 +27,10 @@
 
 /*
  * Display event types for mouse injection
+ * Note: These must match display_event_type_t in display.h
  */
+#define DISPLAY_EVENT_MOUSEBUTTON 1
 #define DISPLAY_EVENT_MOUSEMOVE   2
-#define DISPLAY_EVENT_MOUSEBUTTON 3
 
 /*
  * Amiga rawkey codes (from devices/rawkeycodes.h style)

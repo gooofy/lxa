@@ -555,6 +555,7 @@ static int g_event_queue_head = 0;
 static int g_event_queue_tail = 0;
 static int g_mouse_x = 0;
 static int g_mouse_y = 0;
+static int g_last_buttons = 0;  /* Track button state for inject release detection */
 
 /*
  * Add an event to the queue
@@ -1614,23 +1615,57 @@ bool display_inject_mouse(int x, int y, int buttons, display_event_type_t event_
     
     if (event_type == DISPLAY_EVENT_MOUSEBUTTON)
     {
-        /* Determine which button and state from buttons bitmask */
-        if (buttons & 0x01)
+        /* Detect button changes by comparing with last state */
+        int pressed = buttons & ~g_last_buttons;   /* Newly pressed buttons */
+        int released = g_last_buttons & ~buttons;  /* Newly released buttons */
+        
+        LPRINTF(LOG_DEBUG, "display: inject_mouse button: last=0x%x cur=0x%x pressed=0x%x released=0x%x\n",
+                g_last_buttons, buttons, pressed, released);
+        
+        if (pressed)
         {
-            event.button_code = 0x68;  /* IECODE_LBUTTON */
-            event.qualifier = 0x8000;   /* IEQUALIFIER_LEFTBUTTON */
+            /* Button pressed */
+            if (pressed & 0x01)
+            {
+                event.button_code = 0x68;  /* IECODE_LBUTTON */
+                event.qualifier = 0x8000;   /* IEQUALIFIER_LEFTBUTTON */
+            }
+            else if (pressed & 0x02)
+            {
+                event.button_code = 0x69;  /* IECODE_RBUTTON */
+                event.qualifier = 0x4000;   /* IEQUALIFIER_RBUTTON */
+            }
+            else if (pressed & 0x04)
+            {
+                event.button_code = 0x6A;  /* IECODE_MBUTTON */
+                event.qualifier = 0x2000;   /* IEQUALIFIER_MIDBUTTON */
+            }
+            event.button_down = true;
         }
-        else if (buttons & 0x02)
+        else if (released)
         {
-            event.button_code = 0x69;  /* IECODE_RBUTTON */
-            event.qualifier = 0x4000;   /* IEQUALIFIER_RBUTTON */
+            /* Button released - add IECODE_UP_PREFIX (0x80) */
+            if (released & 0x01)
+            {
+                event.button_code = 0x68 | 0x80;  /* IECODE_LBUTTON | UP */
+            }
+            else if (released & 0x02)
+            {
+                event.button_code = 0x69 | 0x80;  /* IECODE_RBUTTON | UP */
+            }
+            else if (released & 0x04)
+            {
+                event.button_code = 0x6A | 0x80;  /* IECODE_MBUTTON | UP */
+            }
+            event.button_down = false;
+            /* Keep qualifier showing buttons still held */
+            if (buttons & 0x01) event.qualifier |= 0x8000;
+            if (buttons & 0x02) event.qualifier |= 0x4000;
+            if (buttons & 0x04) event.qualifier |= 0x2000;
         }
-        else if (buttons & 0x04)
-        {
-            event.button_code = 0x6A;  /* IECODE_MBUTTON */
-            event.qualifier = 0x2000;   /* IEQUALIFIER_MIDBUTTON */
-        }
-        event.button_down = true;
+        
+        /* Update button state tracking */
+        g_last_buttons = buttons;
     }
     
     queue_event(&event);
@@ -1639,8 +1674,8 @@ bool display_inject_mouse(int x, int y, int buttons, display_event_type_t event_
     g_mouse_x = x;
     g_mouse_y = y;
     
-    LPRINTF(LOG_DEBUG, "display: inject_mouse x=%d y=%d buttons=0x%x type=%d\n",
-            x, y, buttons, event_type);
+    LPRINTF(LOG_DEBUG, "display: inject_mouse x=%d y=%d buttons=0x%x type=%d code=0x%x\n",
+            x, y, buttons, event_type, event.button_code);
     
     return true;
 }

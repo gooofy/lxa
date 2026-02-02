@@ -128,6 +128,13 @@ static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, W
     WORD bmMaxX = bm->BytesPerRow * 8;
     WORD bmMaxY = bm->Rows;
 
+    DPRINTF(LOG_DEBUG, "_graphics: FillRectDirect() bm=%08lx bpr=%d rows=%d depth=%d\n",
+            (ULONG)bm, bm->BytesPerRow, bm->Rows, bm->Depth);
+    DPRINTF(LOG_DEBUG, "_graphics: FillRectDirect() rect (%d,%d)-(%d,%d) pen=%d dm=%d\n",
+            xMin, yMin, xMax, yMax, pen, drawmode);
+    DPRINTF(LOG_DEBUG, "_graphics: FillRectDirect() planes[0]=%08lx planes[1]=%08lx\n",
+            (ULONG)bm->Planes[0], (ULONG)bm->Planes[1]);
+
     /* Clamp to bitmap bounds */
     if (xMin < 0) xMin = 0;
     if (yMin < 0) yMin = 0;
@@ -515,7 +522,7 @@ static VOID _graphics_ClearScreen ( register struct GfxBase * GfxBase __asm("a6"
 static char g_topaz8_name[] = "topaz.font";
 
 static struct TextFont g_topaz8_font;  /* Initialized in init function */
-static BOOL g_topaz8_initialized = FALSE;
+static BOOL g_topaz8_initialized;     /* Starts as FALSE (BSS is zeroed) */
 
 static void init_topaz8_font(void)
 {

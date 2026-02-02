@@ -84,6 +84,8 @@ all:
 	@$(MAKE) -C intuition/idcmp
 	@$(MAKE) -C intuition/idcmp_input
 	@$(MAKE) -C intuition/menu_strip
+	@$(MAKE) -C intuition/menu_select
+	@$(MAKE) -C intuition/gadget_click
 	@$(MAKE) -C console/csi_cursor
 	@$(MAKE) -C layers/layer_info
 	@$(MAKE) -C layers/cliprects
@@ -163,6 +165,8 @@ clean:
 	@$(MAKE) -C intuition/idcmp clean
 	@$(MAKE) -C intuition/idcmp_input clean
 	@$(MAKE) -C intuition/menu_strip clean
+	@$(MAKE) -C intuition/menu_select clean
+	@$(MAKE) -C intuition/gadget_click clean
 	@$(MAKE) -C console/csi_cursor clean
 	@$(MAKE) -C layers/layer_info clean
 	@$(MAKE) -C layers/cliprects clean
@@ -239,6 +243,8 @@ clean:
 	rm -f intuition/idcmp/actual.out
 	rm -f intuition/idcmp_input/actual.out
 	rm -f intuition/menu_strip/actual.out
+	rm -f intuition/menu_select/actual.out
+	rm -f intuition/gadget_click/actual.out
 	rm -f console/csi_cursor/actual.out
 	rm -f layers/layer_info/actual.out
 	rm -f layers/cliprects/actual.out
@@ -323,6 +329,8 @@ run-tests:
 	@$(MAKE) -C intuition/idcmp run-test
 	@$(MAKE) -C intuition/idcmp_input run-test
 	@$(MAKE) -C intuition/menu_strip run-test
+	@$(MAKE) -C intuition/menu_select run-test
+	@$(MAKE) -C intuition/gadget_click run-test
 	@$(MAKE) -C console/csi_cursor run-test
 	@$(MAKE) -C layers/layer_info run-test
 	@$(MAKE) -C layers/cliprects run-test

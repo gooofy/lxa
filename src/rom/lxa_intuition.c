@@ -729,9 +729,424 @@ static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadg
     }
 }
 
-/* State for tracking active gadget during mouse press */
-static struct Gadget *g_active_gadget = NULL;
-static struct Window *g_active_window = NULL;
+/* State for tracking active gadget during mouse press
+ * Note: These MUST NOT have initializers - uninitialized statics go into .bss (RAM),
+ * while initialized statics go into .data which is in ROM (read-only). */
+static struct Gadget *g_active_gadget;
+static struct Window *g_active_window;
+
+/* State for menu bar handling
+ * Note: These MUST NOT have initializers because initialized static data goes
+ * into .data section which is placed in ROM (read-only). Uninitialized statics
+ * go into .bss which is in RAM. We initialize them in _enter_menu_mode(). */
+static BOOL g_menu_mode;                    /* TRUE when right mouse button held */
+static struct Window *g_menu_window;        /* Window whose menu is being shown */
+static struct Menu *g_active_menu;          /* Currently highlighted menu */
+static struct MenuItem *g_active_item;      /* Currently highlighted item */
+static UWORD g_menu_selection;              /* Encoded menu selection */
+
+/* Menu bar saved screen area (for restoration) - TODO: implement proper saving
+static PLANEPTR g_menu_save_buffer = NULL;
+static WORD g_menu_save_x = 0;
+static WORD g_menu_save_y = 0;
+static WORD g_menu_save_width = 0;
+static WORD g_menu_save_height = 0;
+*/
+
+/*
+ * Encode menu selection into FULLMENUNUM format
+ * menuNum: 0-31, itemNum: 0-63, subNum: 0-31
+ */
+static UWORD _encode_menu_selection(WORD menuNum, WORD itemNum, WORD subNum)
+{
+    if (menuNum == NOMENU || itemNum == NOITEM)
+        return MENUNULL;
+    
+    UWORD code = (menuNum & 0x1F);              /* Bits 0-4: menu number */
+    code |= ((itemNum & 0x3F) << 5);            /* Bits 5-10: item number */
+    if (subNum != NOSUB)
+        code |= ((subNum & 0x1F) << 11);        /* Bits 11-15: sub-item number */
+    
+    return code;
+}
+
+/*
+ * Find which menu title is at a given screen X position
+ * Returns the menu or NULL if no menu at that position
+ */
+static struct Menu * _find_menu_at_x(struct Window *window, WORD screenX)
+{
+    struct Menu *menu;
+    struct Screen *screen;
+    WORD barHBorder;
+    
+    if (!window || !window->MenuStrip || !window->WScreen)
+        return NULL;
+    
+    screen = window->WScreen;
+    barHBorder = screen->BarHBorder;
+    
+    for (menu = window->MenuStrip; menu; menu = menu->NextMenu)
+    {
+        /* Menu positions are stored relative to screen left edge */
+        WORD menuLeft = barHBorder + menu->LeftEdge;
+        WORD menuRight = menuLeft + menu->Width;
+        
+        if (screenX >= menuLeft && screenX < menuRight)
+            return menu;
+    }
+    
+    return NULL;
+}
+
+/*
+ * Find which menu item is at a given position within the menu drop-down
+ * x, y are relative to the menu drop-down origin
+ */
+static struct MenuItem * _find_item_at_pos(struct Menu *menu, WORD x, WORD y)
+{
+    struct MenuItem *item;
+    
+    if (!menu || !menu->FirstItem)
+        return NULL;
+    
+    for (item = menu->FirstItem; item; item = item->NextItem)
+    {
+        /* Skip disabled items */
+        if (!(item->Flags & ITEMENABLED))
+            continue;
+        
+        if (x >= item->LeftEdge && x < item->LeftEdge + item->Width &&
+            y >= item->TopEdge && y < item->TopEdge + item->Height)
+        {
+            return item;
+        }
+    }
+    
+    return NULL;
+}
+
+/*
+ * Get the index of a menu in the menu strip (0-based)
+ */
+static WORD _get_menu_index(struct Window *window, struct Menu *targetMenu)
+{
+    struct Menu *menu;
+    WORD index = 0;
+    
+    if (!window || !window->MenuStrip)
+        return NOMENU;
+    
+    for (menu = window->MenuStrip; menu; menu = menu->NextMenu, index++)
+    {
+        if (menu == targetMenu)
+            return index;
+    }
+    
+    return NOMENU;
+}
+
+/*
+ * Get the index of an item in a menu (0-based)
+ */
+static WORD _get_item_index(struct Menu *menu, struct MenuItem *targetItem)
+{
+    struct MenuItem *item;
+    WORD index = 0;
+    
+    if (!menu || !menu->FirstItem)
+        return NOITEM;
+    
+    for (item = menu->FirstItem; item; item = item->NextItem, index++)
+    {
+        if (item == targetItem)
+            return index;
+    }
+    
+    return NOITEM;
+}
+
+/*
+ * Render the menu bar background on the screen's title bar area
+ */
+static void _render_menu_bar(struct Window *window)
+{
+    struct Screen *screen;
+    struct RastPort *rp;
+    struct Menu *menu;
+    WORD barHeight, barHBorder, barVBorder;
+    WORD x, y;
+    
+    if (!window || !window->WScreen)
+        return;
+    
+    screen = window->WScreen;
+    rp = &screen->RastPort;
+    
+    /* Validate RastPort has a valid BitMap */
+    if (!rp->BitMap || !rp->BitMap->Planes[0])
+    {
+        DPRINTF(LOG_ERROR, "_intuition: _render_menu_bar() invalid RastPort BitMap\n");
+        return;
+    }
+    
+    DPRINTF(LOG_DEBUG, "_intuition: _render_menu_bar() screen=%08lx rp=%08lx bm=%08lx planes[0]=%08lx\n",
+            (ULONG)screen, (ULONG)rp, (ULONG)rp->BitMap, (ULONG)rp->BitMap->Planes[0]);
+    DPRINTF(LOG_DEBUG, "_intuition: _render_menu_bar() width=%d height=%d barHeight=%d\n",
+            screen->Width, screen->Height, screen->BarHeight + 1);
+    
+    barHeight = screen->BarHeight + 1;  /* BarHeight is one less than actual */
+    barHBorder = screen->BarHBorder;
+    barVBorder = screen->BarVBorder;
+    
+    /* Fill menu bar background with pen 1 (standard Amiga look) */
+    SetAPen(rp, 1);
+    RectFill(rp, 0, 0, screen->Width - 1, barHeight - 1);
+    
+    /* Draw bottom border line */
+    SetAPen(rp, 0);
+    Move(rp, 0, barHeight - 1);
+    Draw(rp, screen->Width - 1, barHeight - 1);
+    
+    /* Render menu titles */
+    if (window->MenuStrip)
+    {
+        SetAPen(rp, 0);    /* Text in black */
+        SetBPen(rp, 1);    /* Background */
+        SetDrMd(rp, JAM2);
+        
+        for (menu = window->MenuStrip; menu; menu = menu->NextMenu)
+        {
+            if (!menu->MenuName)
+                continue;
+            
+            x = barHBorder + menu->LeftEdge;
+            y = barVBorder;
+            
+            /* Highlight active menu */
+            if (menu == g_active_menu)
+            {
+                /* Draw highlighted background */
+                SetAPen(rp, 0);
+                RectFill(rp, x - 2, 0, x + menu->Width + 1, barHeight - 2);
+                SetAPen(rp, 1);
+                SetBPen(rp, 0);
+            }
+            else
+            {
+                SetAPen(rp, 0);
+                SetBPen(rp, 1);
+            }
+            
+            /* Draw menu title text */
+            Move(rp, x, y + rp->TxBaseline);
+            Text(rp, (STRPTR)menu->MenuName, strlen((const char *)menu->MenuName));
+        }
+    }
+}
+
+/*
+ * Render the drop-down menu for the active menu
+ */
+static void _render_menu_items(struct Window *window)
+{
+    struct Screen *screen;
+    struct RastPort *rp;
+    struct Menu *menu;
+    struct MenuItem *item;
+    struct IntuiText *it;
+    WORD barHeight;
+    WORD menuX, menuY, menuWidth, menuHeight;
+    WORD itemY;
+    
+    if (!window || !window->WScreen || !g_active_menu)
+        return;
+    
+    screen = window->WScreen;
+    rp = &screen->RastPort;
+    
+    /* Validate RastPort has a valid BitMap */
+    if (!rp->BitMap || !rp->BitMap->Planes[0])
+    {
+        DPRINTF(LOG_ERROR, "_intuition: _render_menu_items() invalid RastPort BitMap\n");
+        return;
+    }
+    
+    menu = g_active_menu;
+    
+    barHeight = screen->BarHeight + 1;
+    
+    /* Calculate menu drop-down position and size */
+    menuX = screen->BarHBorder + menu->LeftEdge;
+    menuY = barHeight;
+    
+    /* Calculate menu width/height from items */
+    menuWidth = 0;
+    menuHeight = 0;
+    for (item = menu->FirstItem; item; item = item->NextItem)
+    {
+        WORD w = item->LeftEdge + item->Width;
+        WORD h = item->TopEdge + item->Height;
+        if (w > menuWidth) menuWidth = w;
+        if (h > menuHeight) menuHeight = h;
+    }
+    menuWidth += 8;  /* Add some padding */
+    menuHeight += 4;
+    
+    /* Draw menu box background */
+    SetAPen(rp, 1);  /* Background color */
+    RectFill(rp, menuX, menuY, menuX + menuWidth - 1, menuY + menuHeight - 1);
+    
+    /* Draw menu box border (3D effect) */
+    SetAPen(rp, 2);  /* White/shine */
+    Move(rp, menuX, menuY + menuHeight - 2);
+    Draw(rp, menuX, menuY);
+    Draw(rp, menuX + menuWidth - 2, menuY);
+    
+    SetAPen(rp, 0);  /* Black/shadow */
+    Move(rp, menuX + menuWidth - 1, menuY);
+    Draw(rp, menuX + menuWidth - 1, menuY + menuHeight - 1);
+    Draw(rp, menuX, menuY + menuHeight - 1);
+    
+    /* Render menu items */
+    SetDrMd(rp, JAM2);
+    
+    for (item = menu->FirstItem; item; item = item->NextItem)
+    {
+        WORD itemX = menuX + item->LeftEdge + 4;
+        itemY = menuY + item->TopEdge + 2;
+        
+        /* Highlight selected item */
+        if (item == g_active_item && (item->Flags & ITEMENABLED))
+        {
+            SetAPen(rp, 0);  /* Highlighted background */
+            RectFill(rp, menuX + 2, itemY - 1, 
+                     menuX + menuWidth - 3, itemY + item->Height - 2);
+            SetAPen(rp, 1);
+            SetBPen(rp, 0);
+        }
+        else
+        {
+            SetAPen(rp, 0);
+            SetBPen(rp, 1);
+        }
+        
+        /* Draw item text (if IntuiText) */
+        it = (struct IntuiText *)item->ItemFill;
+        if (it && it->IText)
+        {
+            /* Disabled items shown in gray (pen 1 on pen 1 = gray effect) */
+            if (!(item->Flags & ITEMENABLED))
+            {
+                SetAPen(rp, 2);  /* Gray text for disabled */
+                SetBPen(rp, 1);
+            }
+            
+            Move(rp, itemX + it->LeftEdge, itemY + it->TopEdge + rp->TxBaseline);
+            Text(rp, (STRPTR)it->IText, strlen((const char *)it->IText));
+            
+            /* Draw checkmark if checked */
+            if (item->Flags & CHECKED)
+            {
+                Move(rp, menuX + 3, itemY + rp->TxBaseline);
+                Text(rp, (STRPTR)"\x9E", 1);  /* Amiga checkmark character */
+            }
+            
+            /* Draw command key if present */
+            if (item->Flags & COMMSEQ)
+            {
+                char cmdStr[4];
+                cmdStr[0] = 'A';  /* Amiga key symbol (simplified) */
+                cmdStr[1] = '-';
+                cmdStr[2] = item->Command;
+                cmdStr[3] = '\0';
+                Move(rp, menuX + menuWidth - 40, itemY + rp->TxBaseline);
+                Text(rp, (STRPTR)cmdStr, 3);
+            }
+        }
+    }
+}
+
+/*
+ * Enter menu mode - called on MENUDOWN
+ */
+static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD mouseX, WORD mouseY)
+{
+    if (!window || !window->MenuStrip || !screen)
+        return;
+    
+    /* Check if window has WFLG_RMBTRAP - if so, don't enter menu mode */
+    if (window->Flags & WFLG_RMBTRAP)
+        return;
+    
+    g_menu_mode = TRUE;
+    g_menu_window = window;
+    g_active_menu = NULL;
+    g_active_item = NULL;
+    g_menu_selection = MENUNULL;
+    
+    DPRINTF(LOG_DEBUG, "_intuition: Entering menu mode for window 0x%08lx\n", (ULONG)window);
+    
+    /* Render the menu bar */
+    _render_menu_bar(window);
+    
+    /* Check if mouse is already over a menu */
+    if (mouseY < screen->BarHeight + 1)
+    {
+        struct Menu *menu = _find_menu_at_x(window, mouseX);
+        if (menu && (menu->Flags & MENUENABLED))
+        {
+            g_active_menu = menu;
+            _render_menu_bar(window);
+            _render_menu_items(window);
+        }
+    }
+}
+
+/*
+ * Exit menu mode - called on MENUUP
+ */
+static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
+{
+    UWORD menuCode = MENUNULL;
+    
+    if (!g_menu_mode)
+        return;
+    
+    DPRINTF(LOG_DEBUG, "_intuition: Exiting menu mode, active_menu=0x%08lx active_item=0x%08lx\n",
+            (ULONG)g_active_menu, (ULONG)g_active_item);
+    
+    /* Calculate menu selection code if we have a valid selection */
+    if (g_active_menu && g_active_item && (g_active_item->Flags & ITEMENABLED))
+    {
+        WORD menuNum = _get_menu_index(g_menu_window, g_active_menu);
+        WORD itemNum = _get_item_index(g_active_menu, g_active_item);
+        menuCode = _encode_menu_selection(menuNum, itemNum, NOSUB);
+        
+        DPRINTF(LOG_DEBUG, "_intuition: Menu selection: menu=%d item=%d code=0x%04x\n",
+                (int)menuNum, (int)itemNum, menuCode);
+    }
+    
+    /* Post IDCMP_MENUPICK if we have a valid selection */
+    if (g_menu_window && menuCode != MENUNULL)
+    {
+        WORD relX = mouseX - g_menu_window->LeftEdge;
+        WORD relY = mouseY - g_menu_window->TopEdge;
+        _post_idcmp_message(g_menu_window, IDCMP_MENUPICK, menuCode,
+                           IEQUALIFIER_RBUTTON, NULL, relX, relY);
+    }
+    
+    /* Clear menu mode state */
+    g_menu_mode = FALSE;
+    g_menu_window = NULL;
+    g_active_menu = NULL;
+    g_active_item = NULL;
+    g_menu_selection = MENUNULL;
+    
+    /* Redraw screen to clear menu bar */
+    /* For now, we'll just let the next refresh handle it */
+    /* A proper implementation would restore saved screen area */
+}
 
 /*
  * Internal function to post an IDCMP message to a window
@@ -799,7 +1214,7 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
  * IDCMP messages to windows that have requested them.
  */
 /* Prevent re-entry to event processing (e.g., VBlank firing during WaitTOF) */
-static volatile BOOL g_processing_events = FALSE;
+static volatile BOOL g_processing_events;
 
 VOID _intuition_ProcessInputEvents(struct Screen *screen)
 {
@@ -939,6 +1354,38 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             g_active_window = NULL;
                         }
                     }
+                    /* Right mouse button press - enter menu mode */
+                    else if (code == MENUDOWN)
+                    {
+                        /* Find window with menu at this position (check title bar) */
+                        struct Window *menuWin = NULL;
+                        
+                        /* Check if we're in the screen's title bar area (where menus are displayed) */
+                        if (mouseY < screen->BarHeight)
+                        {
+                            /* Find the active window with a menu strip */
+                            menuWin = screen->FirstWindow;
+                            while (menuWin)
+                            {
+                                if (menuWin->MenuStrip && (menuWin->Flags & WFLG_MENUSTATE) == 0)
+                                    break;
+                                menuWin = menuWin->NextWindow;
+                            }
+                        }
+                        
+                        if (menuWin && menuWin->MenuStrip)
+                        {
+                            _enter_menu_mode(menuWin, screen, mouseX, mouseY);
+                        }
+                    }
+                    /* Right mouse button release - exit menu mode and select item */
+                    else if (code == MENUUP)
+                    {
+                        if (g_menu_mode && g_menu_window)
+                        {
+                            _exit_menu_mode(g_menu_window, mouseX, mouseY);
+                        }
+                    }
                     
                     /* Post IDCMP_MOUSEBUTTONS for general notification */
                     _post_idcmp_message(window, IDCMP_MOUSEBUTTONS, code, 
@@ -951,6 +1398,63 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
             {
                 key_data = emucall0(EMU_CALL_INT_GET_KEY);  /* Get qualifier */
                 UWORD qualifier = (UWORD)(key_data >> 16);
+                
+                /* Handle menu tracking when in menu mode */
+                if (g_menu_mode && g_menu_window)
+                {
+                    BOOL needRedraw = FALSE;
+                    struct Menu *oldMenu = g_active_menu;
+                    
+                    /* Check if mouse is in menu bar area */
+                    if (mouseY < screen->BarHeight + 1)
+                    {
+                        struct Menu *newMenu = _find_menu_at_x(g_menu_window, mouseX);
+                        if (newMenu != g_active_menu)
+                        {
+                            g_active_menu = newMenu;
+                            g_active_item = NULL;  /* Clear item when switching menus */
+                            needRedraw = TRUE;
+                        }
+                    }
+                    /* Check if mouse is in drop-down menu area */
+                    else if (g_active_menu && g_active_menu->FirstItem)
+                    {
+                        /* Calculate position relative to menu drop-down */
+                        WORD menuTop = screen->BarHeight + 1;
+                        WORD menuLeft = screen->BarHBorder + g_active_menu->LeftEdge + g_active_menu->BeatX;
+                        WORD itemX = mouseX - menuLeft;
+                        WORD itemY = mouseY - menuTop;
+                        
+                        struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
+                        if (newItem != g_active_item)
+                        {
+                            g_active_item = newItem;
+                            needRedraw = TRUE;
+                        }
+                    }
+                    else
+                    {
+                        /* Mouse outside menu areas */
+                        if (g_active_item)
+                        {
+                            g_active_item = NULL;
+                            needRedraw = TRUE;
+                        }
+                    }
+                    
+                    /* Redraw if selection changed */
+                    if (needRedraw)
+                    {
+                        if (oldMenu != g_active_menu)
+                        {
+                            _render_menu_bar(g_menu_window);
+                        }
+                        if (g_active_menu)
+                        {
+                            _render_menu_items(g_menu_window);
+                        }
+                    }
+                }
                 
                 if (window)
                 {
