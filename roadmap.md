@@ -137,13 +137,13 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 
 **Note**: Full visual rendering for gadgets and ASL GUI requesters deferred to Phase 36.
 
-## Phase 29: Exec Devices (IN PROGRESS - 1/5 COMPLETE)
+## Phase 29: Exec Devices (IN PROGRESS - 3/5 COMPLETE)
 **Goal**: Implement common Exec devices needed by tested apps.
 
-### Step 29.1: Critical Devices (1/3 COMPLETE)
+### Step 29.1: Critical Devices (3/3 COMPLETE)
 - [x] **timer.device** - TR_GETSYSTIME, CMD_READ implemented (Phase 29 complete). TR_ADDREQUEST stubs (completes immediately; async deferred to Phase 37).
-- [ ] **clipboard.device** - Needed by EdWordPro (copy/paste).
-- [ ] **input.device** - Fix command 9 warning (GFA Basic).
+- [x] **clipboard.device** - CMD_READ, CMD_WRITE, CMD_UPDATE implemented with in-memory storage (up to 256KB).
+- [x] **input.device** - Fixed command 9 warning (BeginIO now properly handles all commands silently).
 
 ### Step 29.2: Stubbed Devices (0/2 COMPLETE)
 - [ ] **audio.device** - Stub open/cmd (AmigaBasic).
