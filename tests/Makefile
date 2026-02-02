@@ -43,6 +43,7 @@ all:
 	@$(MAKE) -C dos/matchfirst
 	@$(MAKE) -C dos/path_navigation
 	@$(MAKE) -C exec/signal_pingpong
+	@$(MAKE) -C exec/multitask
 	@$(MAKE) -C shell/alias
 	@$(MAKE) -C shell/controlflow
 	@$(MAKE) -C shell/script
@@ -124,6 +125,7 @@ clean:
 	@$(MAKE) -C dos/matchfirst clean
 	@$(MAKE) -C dos/path_navigation clean
 	@$(MAKE) -C exec/signal_pingpong clean
+	@$(MAKE) -C exec/multitask clean
 	@$(MAKE) -C shell/alias clean
 	@$(MAKE) -C shell/controlflow clean
 	@$(MAKE) -C shell/script clean
@@ -288,6 +290,7 @@ run-tests:
 	@$(MAKE) -C dos/matchfirst run-test
 	@$(MAKE) -C dos/path_navigation run-test
 	@$(MAKE) -C exec/signal_pingpong run-test
+	@$(MAKE) -C exec/multitask run-test
 	@$(MAKE) -C shell/alias run-test
 	@$(MAKE) -C shell/controlflow run-test
 	@$(MAKE) -C shell/script run-test

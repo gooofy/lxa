@@ -1,0 +1,18 @@
+=== Multitasking Test ===
+
+--- Test 1: Create background counter task ---
+OK: Background task created
+
+--- Test 2: Wait for preemption ---
+  Waiting 25 ticks (0.5 seconds)...
+  Counter advanced significantly
+OK: Background task ran during Delay() - preemption works!
+
+--- Test 3: Verify dispatch count ---
+OK: Multiple task switches occurred
+
+--- Cleanup ---
+OK: Test complete (background task signaled to stop)
+
+=== Test Results ===
+PASS: Multitasking test passed

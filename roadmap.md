@@ -121,6 +121,14 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 - [ ] **Document failures** - What breaks and why
 - [ ] **Prioritize fixes** - Based on application popularity
 
+### Step 26.5: Multitasking Improvements (Blocker for Full App Testing)
+- [x] **Preemptive scheduling** - VBlank-driven task switching works correctly
+- [ ] **Non-blocking Delay()** - Current Delay() works but is not time-accurate
+- [ ] **Background task execution** - RUN command works, but main task must not exit early
+- [ ] **Test harness task communication** - Allow test code to interact with running applications
+
+**Note**: Preemptive multitasking is working (verified with exec/multitask test). The remaining issue is that when the main process exits, background tasks are not properly terminated, causing lxa to hang.
+
 ---
 
 ## Phase 27: Core System Libraries & Preferences (was Phase 25)
