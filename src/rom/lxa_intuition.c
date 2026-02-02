@@ -2627,8 +2627,12 @@ VOID _intuition_SetPointer ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD xOffset __asm("d2"),
                                                         register WORD yOffset __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetPointer() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * SetPointer() sets a custom mouse pointer image for the window.
+     * Since we use the system cursor, this is a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: SetPointer() window=0x%08lx pointer=0x%08lx %dx%d offset=(%d,%d) (no-op)\n",
+             (ULONG)window, (ULONG)pointer, width, height, xOffset, yOffset);
 }
 
 VOID _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -2636,16 +2640,39 @@ VOID _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase 
                                                         register CONST_STRPTR windowTitle __asm("a1"),
                                                         register CONST_STRPTR screenTitle __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetWindowTitles() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * SetWindowTitles() changes the window and/or screen title.
+     * A value of (UBYTE *)-1 means "don't change this title".
+     * For now we just log the request.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: SetWindowTitles() window=0x%08lx\n", (ULONG)window);
+
+    if (!window)
+        return;
+
+    /* Update window title if requested */
+    if (windowTitle != (CONST_STRPTR)-1) {
+        window->Title = (UBYTE *)windowTitle;
+        /* TODO: actually redraw the title bar */
+    }
+
+    /* Update screen title if requested */
+    if (screenTitle != (CONST_STRPTR)-1 && window->WScreen) {
+        window->WScreen->Title = (UBYTE *)screenTitle;
+        /* TODO: actually redraw the screen title */
+    }
 }
 
 VOID _intuition_ShowTitle ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"),
                                                         register BOOL showIt __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ShowTitle() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * ShowTitle() controls whether the screen title bar is shown in front of
+     * or behind backdrop windows. Since we don't have true screen layering,
+     * this is a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: ShowTitle() screen=0x%08lx showIt=%d\n", screen, showIt);
 }
 
 VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3016,16 +3043,22 @@ VOID _intuition_FreeRemember ( register struct IntuitionBase * IntuitionBase __a
 ULONG _intuition_LockIBase ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG dontknow __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: LockIBase() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * LockIBase() locks access to IntuitionBase for safe reading.
+     * Since we're single-threaded, we just return a dummy lock value.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: LockIBase() dontknow=0x%08lx\n", dontknow);
+    return 1;  /* Return non-zero "lock" value */
 }
 
 VOID _intuition_UnlockIBase ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG ibLock __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: UnlockIBase() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * UnlockIBase() releases the lock obtained from LockIBase().
+     * No-op since we don't actually lock anything.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: UnlockIBase() ibLock=0x%08lx\n", ibLock);
 }
 
 LONG _intuition_GetScreenData ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3409,9 +3442,15 @@ UWORD _intuition_PubScreenStatus ( register struct IntuitionBase * IntuitionBase
                                                         register struct Screen * screen __asm("a0"),
                                                         register UWORD statusFlags __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: PubScreenStatus() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * PubScreenStatus() changes the status of a public screen.
+     * Status flags include PSNF_PRIVATE (make private).
+     * Returns the old status, or 0 if screen has visitor windows (can't make private).
+     * We don't track public screens properly yet, so just return success.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: PubScreenStatus() screen=0x%08lx statusFlags=0x%04x\n",
+             (ULONG)screen, statusFlags);
+    return 1;  /* Success - old status was "public" */
 }
 
 struct RastPort	* _intuition_ObtainGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),

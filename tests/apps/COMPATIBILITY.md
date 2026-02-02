@@ -22,8 +22,8 @@
 
 ### MaxonBASIC - ⚠️ PARTIAL
 - **Binary**: `APPS:MaxonBASIC/MaxonBASIC`
-- **Status**: Loads libraries, gets screen info, but fails at startup
-- **Error Message**: "Konnte keine Bildschirminformation erhalten" (Could not get screen information)
+- **Status**: Opens main window, then crashes with divide-by-zero
+- **Progress**: Significant improvement - now gets past screen info check
 - **Libraries Added**:
   - gadtools.library - menu/gadget creation API
   - workbench.library - Workbench integration API
@@ -40,12 +40,15 @@
   - GetVPModeID() - returns mode ID from viewport
   - ModeNotAvailable() - returns 0 (mode available)
   - GetBitMapAttr() - returns bitmap properties
+  - NewObjectA(sysiclass) - returns dummy Image for system imagery
+  - ClearPointer() - no-op stub
 - **Known Issues**:
   - Clipboard.device not found (non-fatal warning)
-  - App checks something in DrawInfo and fails (possibly dri_CheckMark/dri_AmigaKey images)
-- **Fix Required**:
-  - May need Image structures for dri_CheckMark and dri_AmigaKey
-  - Need to debug exactly which DrawInfo field causes failure
+  - Divide-by-zero exception during display calculations (PC=0x00031E9A)
+- **What Worked**:
+  - Opens Workbench screen
+  - Opens main window titled "Unbenannt" (Untitled)
+  - sysiclass BOOPSI objects now return valid dummy Images
 
 ### SysInfo - ⚠️ PARTIAL
 - **Binary**: `APPS:SysInfo/SysInfo`
@@ -59,14 +62,42 @@
 
 ### Devpac (HiSoft) - ⚠️ PARTIAL
 - **Binary**: `APPS:Devpac/Devpac`
-- **Status**: Doesn't open window, accesses hardware directly
+- **Status**: Opens editor window "Untitled", then crashes
+- **Progress**:
+  - Opens Workbench screen ✓
+  - Opens editor window (640x245) titled "Untitled" ✓
+  - Crashes during further initialization
 - **Issues**:
-  1. Uses BOOPSI (NewObjectA) - stubbed but returns NULL
+  1. Uses BOOPSI (NewObjectA) - now returns dummy Image for sysiclass/imageclass
   2. Accesses custom chip registers (0x00DFF*** / 0x00FFF***) directly
+  3. amigaguide.library not found (non-fatal)
 - **Fix Required**:
-  - Implement BOOPSI object system
-  - May need custom chip register emulation
+  - Debug crash to find root cause
 - **Test**: `tests/apps/devpac`
+
+### EdWord Pro - ⚠️ PARTIAL (NEW)
+- **Binary**: `APPS:EdWordPro/EdWordPro`
+- **Status**: Opens custom screen with editor window, enters main event loop
+- **Progress**:
+  - Opens custom screen "EdWord Pro V6.0 - M.Reddy 1997" ✓
+  - Opens main editing window (640x243) ✓
+  - Opens message window "EdWord Pro Message" ✓
+  - Enters main event loop (waiting for input) ✓
+- **Functions Implemented (this session)**:
+  - LockIBase() / UnlockIBase() - Intuition base locking (stubs)
+  - ShowTitle() - screen title visibility (no-op)
+  - SetWindowTitles() - window/screen title update
+  - SetPointer() / ClearPointer() - custom mouse pointer (no-op)
+  - PubScreenStatus() - public screen status (stub)
+  - InitArea() - area fill initialization
+  - AskSoftStyle() / SetSoftStyle() - text style queries
+  - SetRGB4() - color register setting (no-op)
+- **Missing Libraries** (non-fatal):
+  - keymap.library - keyboard layout
+  - reqtools.library - file requesters
+  - rexxsyslib.library - ARexx support
+  - clipboard.device - copy/paste
+- **Status**: **Most functional app so far** - opens and runs until waiting for user input
 
 ### ASM-One v1.48 - ⚠️ PARTIAL
 - **Binary**: `APPS:ASM-One/ASM-One_V1.48`
@@ -191,8 +222,9 @@ Will fail without hardware emulation.
 
 ### 3. BOOPSI Objects
 Applications using NewObjectA/DisposeObject for UI:
-- Currently stubbed (NewObjectA returns NULL)
-- Need full BOOPSI class system implementation
+- sysiclass and imageclass now return dummy 8x8 Image structures
+- Other classes still return NULL
+- Full BOOPSI class system not yet implemented
 
 ### 4. Missing Devices
 Some applications require:

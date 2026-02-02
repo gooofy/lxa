@@ -845,9 +845,14 @@ static VOID _graphics_CloseFont ( register struct GfxBase * GfxBase __asm("a6"),
 static ULONG _graphics_AskSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AskSoftStyle() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * AskSoftStyle() returns a mask of font styles that can be algorithmically
+     * generated for the current font. Styles include:
+     *   FSF_UNDERLINED (0x01), FSF_BOLD (0x02), FSF_ITALIC (0x04), FSF_EXTENDED (0x08)
+     * We return that all styles can be software-rendered.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: AskSoftStyle() rp=0x%08lx\n", rp);
+    return 0x0F;  /* All basic styles available: underline, bold, italic, extended */
 }
 
 static ULONG _graphics_SetSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
@@ -855,9 +860,14 @@ static ULONG _graphics_SetSoftStyle ( register struct GfxBase * GfxBase __asm("a
                                                         register ULONG style __asm("d0"),
                                                         register ULONG enable __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetSoftStyle() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * SetSoftStyle() sets which styles should be algorithmically rendered.
+     * Returns the styles that were actually enabled.
+     * We just accept whatever is requested within the enable mask.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: SetSoftStyle() rp=0x%08lx style=0x%08lx enable=0x%08lx\n",
+             rp, style, enable);
+    return style & enable;
 }
 
 static VOID _graphics_AddBob ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1367,8 +1377,30 @@ static VOID _graphics_InitArea ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register APTR vectorBuffer __asm("a1"),
                                                         register LONG maxVectors __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: InitArea() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * InitArea() initializes an AreaInfo structure for area fill operations.
+     * The vectorBuffer must be maxVectors*5 bytes (each vertex takes 5 bytes:
+     * 2 WORDs for X,Y coords + 1 BYTE for flags).
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: InitArea() areaInfo=0x%08lx vectorBuffer=0x%08lx maxVectors=%ld\n",
+             areaInfo, vectorBuffer, maxVectors);
+
+    if (!areaInfo || !vectorBuffer)
+        return;
+
+    /* VctrTbl and VctrPtr point to the vertex coordinate storage */
+    areaInfo->VctrTbl = (WORD *)vectorBuffer;
+    areaInfo->VctrPtr = (WORD *)vectorBuffer;
+
+    /* FlagTbl and FlagPtr point to the flags portion (after coordinate data) */
+    /* Each vertex uses 2 WORDs (4 bytes), flags follow the coord data */
+    areaInfo->FlagTbl = (BYTE *)vectorBuffer + (maxVectors * 4);
+    areaInfo->FlagPtr = areaInfo->FlagTbl;
+
+    areaInfo->Count = 0;
+    areaInfo->MaxCount = (WORD)maxVectors;
+    areaInfo->FirstX = 0;
+    areaInfo->FirstY = 0;
 }
 
 static VOID _graphics_SetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1378,8 +1410,13 @@ static VOID _graphics_SetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG green __asm("d2"),
                                                         register ULONG blue __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetRGB4() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * SetRGB4() sets a color register in the viewport's colormap.
+     * Colors are 4-bit values (0-15) for old OCS/ECS machines.
+     * For now we just log and ignore - our display doesn't use the colormap directly.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: SetRGB4() vp=0x%08lx index=%ld RGB=(%lu,%lu,%lu)\n",
+             (ULONG)vp, index, red, green, blue);
 }
 
 static VOID _graphics_QBSBlit ( register struct GfxBase * GfxBase __asm("a6"),
