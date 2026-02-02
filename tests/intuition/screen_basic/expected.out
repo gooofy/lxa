@@ -1,6 +1,4 @@
 Testing OpenScreen()/CloseScreen()...
-display: SDL2 initialized
-display: opened 320x200x2 window 'Test Screen'
 OK: OpenScreen() succeeded
 OK: screen->Width = 320
 OK: screen->Height = 200

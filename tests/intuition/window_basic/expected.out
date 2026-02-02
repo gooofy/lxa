@@ -1,6 +1,4 @@
 Testing OpenWindow()/CloseWindow()...
-display: SDL2 initialized
-display: opened 320x200x2 window 'Test Screen'
 OK: Screen opened for window test
 OK: OpenWindow() succeeded
 OK: window->LeftEdge = 10

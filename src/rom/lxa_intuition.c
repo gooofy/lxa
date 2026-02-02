@@ -519,6 +519,9 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
  * The function polls for SDL events via emucalls and posts appropriate
  * IDCMP messages to windows that have requested them.
  */
+/* Prevent re-entry to event processing (e.g., VBlank firing during WaitTOF) */
+static volatile BOOL g_processing_events = FALSE;
+
 VOID _intuition_ProcessInputEvents(struct Screen *screen)
 {
     ULONG event_type;
@@ -530,6 +533,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
     
     if (!screen)
         return;
+    
+    /* Prevent re-entry - if already processing events, skip */
+    if (g_processing_events)
+        return;
+    g_processing_events = TRUE;
     
     /* Poll for input events */
     while (1)
@@ -628,6 +636,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
             }
         }
     }
+    
+    /* Release re-entry guard */
+    g_processing_events = FALSE;
 }
 
 /*

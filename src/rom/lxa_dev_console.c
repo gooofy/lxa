@@ -24,10 +24,24 @@
 
 #include "util.h"
 
+/* strlen is declared in util.h */
+
+/* Console device commands (from devices/console.h) */
+#ifndef CD_ASKKEYMAP
+#define CD_ASKKEYMAP        (CMD_NONSTD + 0)
+#define CD_SETKEYMAP        (CMD_NONSTD + 1)
+#define CD_ASKDEFAULTKEYMAP (CMD_NONSTD + 2)
+#define CD_SETDEFAULTKEYMAP (CMD_NONSTD + 3)
+#endif
+
+#ifndef CMD_CLEAR
+#define CMD_CLEAR           CMD_RESET   /* Clear console (same as CMD_RESET for console.device) */
+#endif
+
 #define VERSION    40
-#define REVISION   2
+#define REVISION   4
 #define EXDEVNAME  "console"
-#define EXDEVVER   " 40.2 (2025/01/15)"
+#define EXDEVVER   " 40.4 (2025/01/17)"
 
 char __aligned _g_console_ExDevName [] = EXDEVNAME ".device";
 char __aligned _g_console_ExDevID   [] = EXDEVNAME EXDEVVER;
@@ -64,6 +78,23 @@ struct LxaConUnit {
     /* Line editing state */
     UWORD  line_start_x;         /* X position where current input line started */
     UWORD  line_start_y;         /* Y position where current input line started */
+    /* Mode flags (LNM, ASM, AWM) */
+    BOOL   lf_mode;              /* LF mode: TRUE = LF acts as CR+LF */
+    BOOL   autowrap_mode;        /* Auto-wrap mode: TRUE = wrap at right edge */
+    BOOL   autoscroll_mode;      /* Auto-scroll mode: TRUE = scroll when at bottom */
+    BOOL   shift_out;            /* SHIFT OUT active: set MSB on output characters */
+    /* SGR (text attributes) state */
+    BOOL   sgr_bold;             /* Bold/bright text */
+    BOOL   sgr_faint;            /* Faint/dim text */
+    BOOL   sgr_italic;           /* Italic text (usually shown as inverse on Amiga) */
+    BOOL   sgr_underline;        /* Underline text */
+    BOOL   sgr_inverse;          /* Inverse video */
+    BOOL   sgr_concealed;        /* Concealed/hidden text */
+    /* Saved colors for inverse mode toggle */
+    BYTE   saved_fg;             /* Original foreground pen */
+    BYTE   saved_bg;             /* Original background pen */
+    /* Tab stops - 80 maximum (RKRM standard) */
+    UWORD  tab_stops[80];
 };
 
 /*
@@ -169,11 +200,22 @@ static char rawkey_to_ascii(UWORD rawkey, UWORD qualifier)
 static void console_write_char(struct LxaConUnit *unit, char c);
 static void console_process_csi(struct LxaConUnit *unit, char final);
 static void console_scroll_up(struct LxaConUnit *unit);
+static void console_scroll_down(struct LxaConUnit *unit);
 static void console_newline(struct LxaConUnit *unit);
 static void console_carriage_return(struct LxaConUnit *unit);
 static void console_process_char(struct LxaConUnit *unit, char c);
 static void console_draw_cursor(struct LxaConUnit *unit);
 static void console_hide_cursor(struct LxaConUnit *unit);
+static void console_clear_to_bol(struct LxaConUnit *unit);
+static void console_clear_line(struct LxaConUnit *unit);
+static void console_clear_to_bos(struct LxaConUnit *unit);
+static void console_insert_line(struct LxaConUnit *unit);
+static void console_delete_line(struct LxaConUnit *unit);
+static void console_insert_char(struct LxaConUnit *unit, int n);
+static void console_delete_char(struct LxaConUnit *unit, int n);
+static void console_cursor_up(struct LxaConUnit *unit);
+static void console_cursor_down(struct LxaConUnit *unit);
+static void console_init_tab_stops(struct LxaConUnit *unit);
 
 /*
  * Initialize a ConUnit for a window
@@ -267,6 +309,25 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     unit->line_start_x = 0;
     unit->line_start_y = 0;
     
+    /* Initialize mode flags */
+    unit->lf_mode = FALSE;        /* LF mode off by default */
+    unit->autowrap_mode = TRUE;   /* Auto-wrap on by default */
+    unit->autoscroll_mode = TRUE; /* Auto-scroll on by default */
+    unit->shift_out = FALSE;      /* SHIFT OUT off by default */
+    
+    /* Initialize SGR state */
+    unit->sgr_bold = FALSE;
+    unit->sgr_faint = FALSE;
+    unit->sgr_italic = FALSE;
+    unit->sgr_underline = FALSE;
+    unit->sgr_inverse = FALSE;
+    unit->sgr_concealed = FALSE;
+    unit->saved_fg = 1;
+    unit->saved_bg = 0;
+    
+    /* Initialize tab stops (every 8 columns) */
+    console_init_tab_stops(unit);
+    
     LPRINTF(LOG_INFO, "_console: Created ConUnit for window 0x%08lx: XMax=%d YMax=%d XRSize=%d YRSize=%d\n",
             (ULONG)window, unit->cu.cu_XMax, unit->cu.cu_YMax, unit->cu.cu_XRSize, unit->cu.cu_YRSize);
     LPRINTF(LOG_INFO, "_console:   Raster area: origin=(%d,%d) extant=(%d,%d)\n",
@@ -341,6 +402,288 @@ static BOOL input_has_line(struct LxaConUnit *unit)
 }
 
 /*
+ * Put a string into the input buffer
+ * Used for CSI sequences from special keys
+ */
+static void input_buf_put_string(struct LxaConUnit *unit, const char *str)
+{
+    while (*str) {
+        input_buf_put(unit, *str++);
+    }
+}
+
+/* Amiga rawkey codes for special keys */
+#define RAWKEY_UP       0x4C
+#define RAWKEY_DOWN     0x4D
+#define RAWKEY_RIGHT    0x4E
+#define RAWKEY_LEFT     0x4F
+#define RAWKEY_F1       0x50
+#define RAWKEY_F2       0x51
+#define RAWKEY_F3       0x52
+#define RAWKEY_F4       0x53
+#define RAWKEY_F5       0x54
+#define RAWKEY_F6       0x55
+#define RAWKEY_F7       0x56
+#define RAWKEY_F8       0x57
+#define RAWKEY_F9       0x58
+#define RAWKEY_F10      0x59
+#define RAWKEY_HELP     0x5F
+#define RAWKEY_DEL      0x46
+
+/* 101-key keyboard extended keys - use NDK definitions if available */
+#ifndef RAWKEY_F11
+#define RAWKEY_F11      0x4B  /* Not on classic keyboards */
+#endif
+#ifndef RAWKEY_F12
+#define RAWKEY_F12      0x6F  /* Not on classic keyboards */
+#endif
+#ifndef RAWKEY_INSERT
+#define RAWKEY_INSERT   0x47  /* Insert key */
+#endif
+#ifndef RAWKEY_PAGEUP
+#define RAWKEY_PAGEUP   0x48  /* Page Up */
+#endif
+#ifndef RAWKEY_PAGEDOWN
+#define RAWKEY_PAGEDOWN 0x49  /* Page Down */
+#endif
+#ifndef RAWKEY_HOME
+#define RAWKEY_HOME     0x70  /* Home key */
+#endif
+#ifndef RAWKEY_END
+#define RAWKEY_END      0x71  /* End key */
+#endif
+
+/* Qualifier masks */
+#define IEQUALIFIER_LSHIFT  0x0001
+#define IEQUALIFIER_RSHIFT  0x0002
+#define IEQUALIFIER_SHIFT   (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)
+
+/*
+ * Handle special key and generate CSI sequence
+ * Returns TRUE if the key was handled as a special key
+ */
+static BOOL handle_special_key(struct LxaConUnit *unit, UWORD rawkey, UWORD qualifier)
+{
+    BOOL shifted = (qualifier & IEQUALIFIER_SHIFT) != 0;
+    char seq[8];
+    
+    switch (rawkey) {
+        /* Arrow keys - RKRM documented sequences */
+        case RAWKEY_UP:
+            if (shifted) {
+                /* Shifted Up: CSI T (scroll up) */
+                seq[0] = 0x9B;
+                seq[1] = 'T';
+                seq[2] = '\0';
+            } else {
+                /* Unshifted Up: CSI A */
+                seq[0] = 0x9B;
+                seq[1] = 'A';
+                seq[2] = '\0';
+            }
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        case RAWKEY_DOWN:
+            if (shifted) {
+                /* Shifted Down: CSI S (scroll down) */
+                seq[0] = 0x9B;
+                seq[1] = 'S';
+                seq[2] = '\0';
+            } else {
+                /* Unshifted Down: CSI B */
+                seq[0] = 0x9B;
+                seq[1] = 'B';
+                seq[2] = '\0';
+            }
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        case RAWKEY_RIGHT:
+            if (shifted) {
+                /* Shifted Right: CSI <space>@ (word right) */
+                seq[0] = 0x9B;
+                seq[1] = ' ';
+                seq[2] = '@';
+                seq[3] = '\0';
+            } else {
+                /* Unshifted Right: CSI C */
+                seq[0] = 0x9B;
+                seq[1] = 'C';
+                seq[2] = '\0';
+            }
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        case RAWKEY_LEFT:
+            if (shifted) {
+                /* Shifted Left: CSI <space>A (word left) */
+                seq[0] = 0x9B;
+                seq[1] = ' ';
+                seq[2] = 'A';
+                seq[3] = '\0';
+            } else {
+                /* Unshifted Left: CSI D */
+                seq[0] = 0x9B;
+                seq[1] = 'D';
+                seq[2] = '\0';
+            }
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        /* Function keys F1-F10 */
+        case RAWKEY_F1:
+        case RAWKEY_F2:
+        case RAWKEY_F3:
+        case RAWKEY_F4:
+        case RAWKEY_F5:
+        case RAWKEY_F6:
+        case RAWKEY_F7:
+        case RAWKEY_F8:
+        case RAWKEY_F9:
+        case RAWKEY_F10:
+            {
+                /* F1 = 0~, F2 = 1~, ..., F10 = 9~ (unshifted)
+                   F1 = 10~, F2 = 11~, ..., F10 = 19~ (shifted) */
+                int fnum = rawkey - RAWKEY_F1;  /* 0-9 */
+                seq[0] = 0x9B;
+                if (shifted) {
+                    seq[1] = '1';
+                    seq[2] = '0' + fnum;
+                    seq[3] = '~';
+                    seq[4] = '\0';
+                } else {
+                    seq[1] = '0' + fnum;
+                    seq[2] = '~';
+                    seq[3] = '\0';
+                }
+                input_buf_put_string(unit, seq);
+            }
+            return TRUE;
+            
+        /* Help key */
+        case RAWKEY_HELP:
+            /* Help: CSI ?~ */
+            seq[0] = 0x9B;
+            seq[1] = '?';
+            seq[2] = '~';
+            seq[3] = '\0';
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        /* Delete key - outputs DEL character */
+        case RAWKEY_DEL:
+            input_buf_put(unit, 0x7F);
+            return TRUE;
+        
+        /* F11, F12 (101-key keyboards) */
+        case RAWKEY_F11:
+            /* F11 = 20~ (unshifted), 30~ (shifted) */
+            seq[0] = 0x9B;
+            if (shifted) {
+                seq[1] = '3';
+                seq[2] = '0';
+            } else {
+                seq[1] = '2';
+                seq[2] = '0';
+            }
+            seq[3] = '~';
+            seq[4] = '\0';
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        case RAWKEY_F12:
+            /* F12 = 21~ (unshifted), 31~ (shifted) */
+            seq[0] = 0x9B;
+            if (shifted) {
+                seq[1] = '3';
+                seq[2] = '1';
+            } else {
+                seq[1] = '2';
+                seq[2] = '1';
+            }
+            seq[3] = '~';
+            seq[4] = '\0';
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        /* 101-key extended keys */
+        case RAWKEY_INSERT:
+            /* Insert: CSI 40~ (unshifted), CSI 50~ (shifted) */
+            seq[0] = 0x9B;
+            if (shifted) {
+                seq[1] = '5';
+            } else {
+                seq[1] = '4';
+            }
+            seq[2] = '0';
+            seq[3] = '~';
+            seq[4] = '\0';
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        case RAWKEY_PAGEUP:
+            /* Page Up: CSI 41~ (unshifted), CSI 51~ (shifted) */
+            seq[0] = 0x9B;
+            if (shifted) {
+                seq[1] = '5';
+            } else {
+                seq[1] = '4';
+            }
+            seq[2] = '1';
+            seq[3] = '~';
+            seq[4] = '\0';
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        case RAWKEY_PAGEDOWN:
+            /* Page Down: CSI 42~ (unshifted), CSI 52~ (shifted) */
+            seq[0] = 0x9B;
+            if (shifted) {
+                seq[1] = '5';
+            } else {
+                seq[1] = '4';
+            }
+            seq[2] = '2';
+            seq[3] = '~';
+            seq[4] = '\0';
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        case RAWKEY_HOME:
+            /* Home: CSI 44~ (unshifted), CSI 54~ (shifted) */
+            seq[0] = 0x9B;
+            if (shifted) {
+                seq[1] = '5';
+            } else {
+                seq[1] = '4';
+            }
+            seq[2] = '4';
+            seq[3] = '~';
+            seq[4] = '\0';
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        case RAWKEY_END:
+            /* End: CSI 45~ (unshifted), CSI 55~ (shifted) */
+            seq[0] = 0x9B;
+            if (shifted) {
+                seq[1] = '5';
+            } else {
+                seq[1] = '4';
+            }
+            seq[2] = '5';
+            seq[3] = '~';
+            seq[4] = '\0';
+            input_buf_put_string(unit, seq);
+            return TRUE;
+            
+        default:
+            return FALSE;
+    }
+}
+
+/*
  * Process keyboard input from IDCMP
  * Called when reading from console to check for new input
  */
@@ -373,46 +716,59 @@ static void console_process_input(struct LxaConUnit *unit)
             
             /* Only process key-down events */
             if (!(rawkey & 0x80)) {
-                char c = rawkey_to_ascii(rawkey, qualifier);
+                DPRINTF(LOG_DEBUG, "_console: RAWKEY 0x%02x qual=0x%04x\n",
+                        rawkey, qualifier);
                 
-                DPRINTF(LOG_DEBUG, "_console: RAWKEY 0x%02x qual=0x%04x -> '%c' (0x%02x)\n",
-                        rawkey, qualifier, (c >= 32 && c < 127) ? c : '.', (unsigned char)c);
-                
-                if (c) {
+                /* First check for special keys (arrows, function keys, etc.)
+                 * that generate CSI sequences instead of ASCII characters */
+                if (handle_special_key(unit, rawkey, qualifier)) {
+                    /* Special key handled - CSI sequence added to input buffer */
                     redraw_cursor = TRUE;
+                    DPRINTF(LOG_DEBUG, "_console: Special key handled\n");
+                } else {
+                    /* Try normal ASCII conversion */
+                    char c = rawkey_to_ascii(rawkey, qualifier);
                     
-                    /* Handle special characters */
-                    if (c == '\b') {
-                        /* Backspace - remove last character from buffer if possible */
-                        BOOL can_backspace = FALSE;
+                    DPRINTF(LOG_DEBUG, "_console: ASCII conversion -> '%c' (0x%02x)\n",
+                            (c >= 32 && c < 127) ? c : '.', (unsigned char)c);
+                    
+                    if (c) {
+                        redraw_cursor = TRUE;
                         
-                        /* Only allow backspace if we have characters in our input buffer */
-                        if (!input_buf_empty(unit)) {
-                            UWORD prev = (unit->input_head + INPUT_BUF_LEN - 1) % INPUT_BUF_LEN;
-                            if (unit->input_buf[prev] != '\r' && 
-                                unit->input_buf[prev] != '\n') {
-                                unit->input_head = prev;
-                                can_backspace = TRUE;
+                        /* Handle special characters */
+                        if (c == '\b') {
+                            /* Backspace - remove last character from buffer if possible */
+                            BOOL can_backspace = FALSE;
+                            
+                            /* Only allow backspace if we have characters in our input buffer
+                             * that are part of the current line (not past a newline) */
+                            if (!input_buf_empty(unit)) {
+                                UWORD prev = (unit->input_head + INPUT_BUF_LEN - 1) % INPUT_BUF_LEN;
+                                if (unit->input_buf[prev] != '\r' && 
+                                    unit->input_buf[prev] != '\n') {
+                                    unit->input_head = prev;
+                                    can_backspace = TRUE;
+                                }
                             }
-                        }
-                        
-                        if (can_backspace && unit->echo_enabled) {
-                            /* Echo backspace: move cursor back, space, move back again */
-                            console_process_char(unit, '\b');
-                            console_process_char(unit, ' ');
-                            console_process_char(unit, '\b');
-                        }
-                    } else {
-                        /* Add character to buffer */
-                        input_buf_put(unit, c);
-                        
-                        /* Echo if enabled */
-                        if (unit->echo_enabled) {
-                            if (c == '\r') {
-                                console_process_char(unit, '\r');
-                                console_process_char(unit, '\n');
-                            } else if (c >= 32 || c == '\t') {
-                                console_process_char(unit, c);
+                            
+                            if (can_backspace && unit->echo_enabled) {
+                                /* Echo backspace: move cursor back, space, move back again */
+                                console_process_char(unit, '\b');
+                                console_process_char(unit, ' ');
+                                console_process_char(unit, '\b');
+                            }
+                        } else {
+                            /* Add character to buffer */
+                            input_buf_put(unit, c);
+                            
+                            /* Echo if enabled */
+                            if (unit->echo_enabled) {
+                                if (c == '\r') {
+                                    console_process_char(unit, '\r');
+                                    console_process_char(unit, '\n');
+                                } else if (c >= 32 || c == '\t') {
+                                    console_process_char(unit, c);
+                                }
                             }
                         }
                     }
@@ -528,6 +884,73 @@ static void console_scroll_up(struct LxaConUnit *unit)
 }
 
 /*
+ * Scroll the console down by one line
+ */
+static void console_scroll_down(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    WORD x1, y1, x2, y2;
+    
+    if (!unit || !unit->cu.cu_Window) return;
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp || !rp->BitMap) return;
+    
+    x1 = unit->cu.cu_XROrigin;
+    y1 = unit->cu.cu_YROrigin;
+    x2 = unit->cu.cu_XRExtant;
+    y2 = unit->cu.cu_YRExtant;
+    
+    /* Scroll down by one character height (negative dy) */
+    ScrollRaster(rp, 0, -unit->cu.cu_YRSize, x1, y1, x2, y2);
+    
+    DPRINTF(LOG_DEBUG, "_console: scroll_down() scrolled by %d pixels\n", unit->cu.cu_YRSize);
+}
+
+/*
+ * Move cursor up one line (INDEX reverse)
+ */
+static void console_cursor_up(struct LxaConUnit *unit)
+{
+    if (unit->cu.cu_YCP > 0) {
+        unit->cu.cu_YCP--;
+    } else {
+        /* At top, scroll down */
+        console_scroll_down(unit);
+    }
+}
+
+/*
+ * Move cursor down one line (INDEX)
+ */
+static void console_cursor_down(struct LxaConUnit *unit)
+{
+    if (unit->cu.cu_YCP < unit->cu.cu_YMax) {
+        unit->cu.cu_YCP++;
+    } else {
+        /* At bottom, scroll up */
+        console_scroll_up(unit);
+    }
+}
+
+/*
+ * Initialize tab stops (every 8 columns)
+ */
+static void console_init_tab_stops(struct LxaConUnit *unit)
+{
+    int i;
+    for (i = 0; i < 80 && (i * 8) <= unit->cu.cu_XMax; i++) {
+        unit->tab_stops[i] = i * 8;
+    }
+    /* Mark end of tab stops */
+    if (i < 80) {
+        unit->tab_stops[i] = (UWORD)-1;
+    }
+}
+
+/*
  * Clear from cursor to end of line
  */
 static void console_clear_to_eol(struct LxaConUnit *unit)
@@ -549,6 +972,212 @@ static void console_clear_to_eol(struct LxaConUnit *unit)
     
     SetAPen(rp, unit->cu.cu_BgPen);
     RectFill(rp, x1, y1, x2, y2);
+}
+
+/*
+ * Clear from start of line to cursor
+ */
+static void console_clear_to_bol(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    WORD x1, y1, x2, y2;
+    
+    if (!unit || !unit->cu.cu_Window) return;
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp) return;
+    
+    x1 = unit->cu.cu_XROrigin;
+    y1 = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize);
+    x2 = unit->cu.cu_XROrigin + ((unit->cu.cu_XCP + 1) * unit->cu.cu_XRSize) - 1;
+    y2 = y1 + unit->cu.cu_YRSize - 1;
+    
+    SetAPen(rp, unit->cu.cu_BgPen);
+    RectFill(rp, x1, y1, x2, y2);
+}
+
+/*
+ * Clear entire line
+ */
+static void console_clear_line(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    WORD x1, y1, x2, y2;
+    
+    if (!unit || !unit->cu.cu_Window) return;
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp) return;
+    
+    x1 = unit->cu.cu_XROrigin;
+    y1 = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize);
+    x2 = unit->cu.cu_XRExtant;
+    y2 = y1 + unit->cu.cu_YRSize - 1;
+    
+    SetAPen(rp, unit->cu.cu_BgPen);
+    RectFill(rp, x1, y1, x2, y2);
+}
+
+/*
+ * Clear from cursor to end of screen (mode 0)
+ */
+static void console_clear_to_eos(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    
+    if (!unit || !unit->cu.cu_Window) return;
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp) return;
+    
+    /* First clear from cursor to end of line */
+    console_clear_to_eol(unit);
+    
+    /* Then clear rest of display */
+    if (unit->cu.cu_YCP < unit->cu.cu_YMax) {
+        WORD x1 = unit->cu.cu_XROrigin;
+        WORD y1 = unit->cu.cu_YROrigin + ((unit->cu.cu_YCP + 1) * unit->cu.cu_YRSize);
+        WORD x2 = unit->cu.cu_XRExtant;
+        WORD y2 = unit->cu.cu_YRExtant;
+        
+        SetAPen(rp, unit->cu.cu_BgPen);
+        RectFill(rp, x1, y1, x2, y2);
+    }
+}
+
+/*
+ * Clear from start of screen to cursor (mode 1)
+ */
+static void console_clear_to_bos(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    
+    if (!unit || !unit->cu.cu_Window) return;
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp) return;
+    
+    /* First clear lines above cursor */
+    if (unit->cu.cu_YCP > 0) {
+        WORD x1 = unit->cu.cu_XROrigin;
+        WORD y1 = unit->cu.cu_YROrigin;
+        WORD x2 = unit->cu.cu_XRExtant;
+        WORD y2 = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize) - 1;
+        
+        SetAPen(rp, unit->cu.cu_BgPen);
+        RectFill(rp, x1, y1, x2, y2);
+    }
+    
+    /* Then clear from start of line to cursor */
+    console_clear_to_bol(unit);
+}
+
+/*
+ * Insert line - insert blank line at cursor, move lines below down
+ */
+static void console_insert_line(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    WORD x1, y1, x2, y2;
+    
+    if (!unit || !unit->cu.cu_Window) return;
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp || !rp->BitMap) return;
+    
+    x1 = unit->cu.cu_XROrigin;
+    y1 = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize);
+    x2 = unit->cu.cu_XRExtant;
+    y2 = unit->cu.cu_YRExtant;
+    
+    /* Scroll down from cursor position to bottom */
+    SetAPen(rp, unit->cu.cu_BgPen);
+    ScrollRaster(rp, 0, -unit->cu.cu_YRSize, x1, y1, x2, y2);
+}
+
+/*
+ * Delete line - remove line at cursor, move lines below up
+ */
+static void console_delete_line(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    WORD x1, y1, x2, y2;
+    
+    if (!unit || !unit->cu.cu_Window) return;
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp || !rp->BitMap) return;
+    
+    x1 = unit->cu.cu_XROrigin;
+    y1 = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize);
+    x2 = unit->cu.cu_XRExtant;
+    y2 = unit->cu.cu_YRExtant;
+    
+    /* Scroll up from cursor position to bottom */
+    SetAPen(rp, unit->cu.cu_BgPen);
+    ScrollRaster(rp, 0, unit->cu.cu_YRSize, x1, y1, x2, y2);
+}
+
+/*
+ * Insert characters - insert n blank spaces at cursor, shift rest of line right
+ */
+static void console_insert_char(struct LxaConUnit *unit, int n)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    WORD x1, y1, x2, y2;
+    
+    if (!unit || !unit->cu.cu_Window || n <= 0) return;
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp || !rp->BitMap) return;
+    
+    x1 = unit->cu.cu_XROrigin + (unit->cu.cu_XCP * unit->cu.cu_XRSize);
+    y1 = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize);
+    x2 = unit->cu.cu_XRExtant;
+    y2 = y1 + unit->cu.cu_YRSize - 1;
+    
+    /* Scroll right by n characters */
+    SetAPen(rp, unit->cu.cu_BgPen);
+    ScrollRaster(rp, -(n * unit->cu.cu_XRSize), 0, x1, y1, x2, y2);
+}
+
+/*
+ * Delete characters - delete n characters at cursor, shift rest of line left
+ */
+static void console_delete_char(struct LxaConUnit *unit, int n)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    WORD x1, y1, x2, y2;
+    
+    if (!unit || !unit->cu.cu_Window || n <= 0) return;
+    
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp || !rp->BitMap) return;
+    
+    x1 = unit->cu.cu_XROrigin + (unit->cu.cu_XCP * unit->cu.cu_XRSize);
+    y1 = unit->cu.cu_YROrigin + (unit->cu.cu_YCP * unit->cu.cu_YRSize);
+    x2 = unit->cu.cu_XRExtant;
+    y2 = y1 + unit->cu.cu_YRSize - 1;
+    
+    /* Scroll left by n characters */
+    SetAPen(rp, unit->cu.cu_BgPen);
+    ScrollRaster(rp, n * unit->cu.cu_XRSize, 0, x1, y1, x2, y2);
 }
 
 /*
@@ -731,27 +1360,337 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
             break;
         }
         
+        case 'E':  /* Cursor Next Line (CNL) - move cursor to beginning of line n lines down */
+        {
+            int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
+            unit->cu.cu_XCP = 0;
+            unit->cu.cu_YCP += n;
+            if (unit->cu.cu_YCP > unit->cu.cu_YMax) unit->cu.cu_YCP = unit->cu.cu_YMax;
+            break;
+        }
+        
+        case 'F':  /* Cursor Previous Line (CPL) - move cursor to beginning of line n lines up */
+        {
+            int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
+            unit->cu.cu_XCP = 0;
+            unit->cu.cu_YCP -= n;
+            if (unit->cu.cu_YCP < 0) unit->cu.cu_YCP = 0;
+            break;
+        }
+        
+        case 'G':  /* Cursor Horizontal Absolute (CHA) - move cursor to column n */
+        {
+            int col = (nparams >= 1 && params[0] > 0) ? params[0] - 1 : 0;
+            if (col > unit->cu.cu_XMax) col = unit->cu.cu_XMax;
+            if (col < 0) col = 0;
+            unit->cu.cu_XCP = col;
+            break;
+        }
+        
+        case 'I':  /* Cursor Horizontal Tab (CHT) - move cursor to next tab stop n times */
+        {
+            int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
+            for (int i = 0; i < n; i++) {
+                unit->cu.cu_XCP = ((unit->cu.cu_XCP / 8) + 1) * 8;
+                if (unit->cu.cu_XCP > unit->cu.cu_XMax) {
+                    unit->cu.cu_XCP = unit->cu.cu_XMax;
+                    break;
+                }
+            }
+            break;
+        }
+        
         case 'J':  /* Erase in Display (ED) */
         {
             int mode = (nparams >= 1) ? params[0] : 0;
-            if (mode == 2) {
-                /* Clear entire display */
-                console_clear_display(unit);
+            switch (mode) {
+                case 0:  /* Clear from cursor to end of screen */
+                    console_clear_to_eos(unit);
+                    break;
+                case 1:  /* Clear from start of screen to cursor */
+                    console_clear_to_bos(unit);
+                    break;
+                case 2:  /* Clear entire display */
+                    console_clear_display(unit);
+                    break;
             }
-            /* mode 0 = clear from cursor to end, mode 1 = clear from start to cursor */
-            /* TODO: implement modes 0 and 1 */
             break;
         }
         
         case 'K':  /* Erase in Line (EL) */
         {
             int mode = (nparams >= 1) ? params[0] : 0;
-            if (mode == 0) {
-                /* Clear from cursor to end of line */
-                console_clear_to_eol(unit);
+            switch (mode) {
+                case 0:  /* Clear from cursor to end of line */
+                    console_clear_to_eol(unit);
+                    break;
+                case 1:  /* Clear from start of line to cursor */
+                    console_clear_to_bol(unit);
+                    break;
+                case 2:  /* Clear entire line */
+                    console_clear_line(unit);
+                    break;
             }
-            /* mode 1 = clear from start to cursor, mode 2 = clear entire line */
-            /* TODO: implement modes 1 and 2 */
+            break;
+        }
+        
+        case 'L':  /* Insert Line (IL) - insert n blank lines at cursor */
+        {
+            int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
+            for (int i = 0; i < n; i++) {
+                console_insert_line(unit);
+            }
+            break;
+        }
+        
+        case 'M':  /* Delete Line (DL) - delete n lines at cursor */
+        {
+            int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
+            for (int i = 0; i < n; i++) {
+                console_delete_line(unit);
+            }
+            break;
+        }
+        
+        case '@':  /* Insert Character (ICH) - insert n blank characters at cursor */
+        {
+            int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
+            console_insert_char(unit, n);
+            break;
+        }
+        
+        case 'P':  /* Delete Character (DCH) - delete n characters at cursor */
+        {
+            int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
+            console_delete_char(unit, n);
+            break;
+        }
+        
+        case 'S':  /* Scroll Up (SU) - scroll display up n lines */
+        {
+            int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
+            for (int i = 0; i < n; i++) {
+                console_scroll_up(unit);
+            }
+            break;
+        }
+        
+        case 'T':  /* Scroll Down (SD) - scroll display down n lines */
+        {
+            int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
+            for (int i = 0; i < n; i++) {
+                console_scroll_down(unit);
+            }
+            break;
+        }
+        
+        case 'W':  /* Cursor Tab Control (CTC) */
+        {
+            int mode = (nparams >= 1) ? params[0] : 0;
+            switch (mode) {
+                case 0:  /* Set tab stop at current column */
+                    {
+                        int i;
+                        for (i = 0; i < 80 && unit->tab_stops[i] != (UWORD)-1; i++) {
+                            if (unit->tab_stops[i] == unit->cu.cu_XCP) break;  /* Already set */
+                            if (unit->tab_stops[i] > unit->cu.cu_XCP) {
+                                /* Insert here */
+                                int j;
+                                for (j = 78; j >= i; j--) {
+                                    unit->tab_stops[j + 1] = unit->tab_stops[j];
+                                }
+                                unit->tab_stops[i] = unit->cu.cu_XCP;
+                                break;
+                            }
+                        }
+                        if (i < 80 && unit->tab_stops[i] == (UWORD)-1) {
+                            unit->tab_stops[i] = unit->cu.cu_XCP;
+                            if (i + 1 < 80) unit->tab_stops[i + 1] = (UWORD)-1;
+                        }
+                    }
+                    break;
+                case 2:  /* Clear tab stop at current column */
+                    {
+                        int i;
+                        for (i = 0; i < 80 && unit->tab_stops[i] != (UWORD)-1; i++) {
+                            if (unit->tab_stops[i] == unit->cu.cu_XCP) {
+                                /* Remove this tab stop */
+                                for (; i < 79 && unit->tab_stops[i] != (UWORD)-1; i++) {
+                                    unit->tab_stops[i] = unit->tab_stops[i + 1];
+                                }
+                                break;
+                            }
+                        }
+                    }
+                    break;
+                case 5:  /* Clear all tab stops */
+                    unit->tab_stops[0] = (UWORD)-1;
+                    break;
+            }
+            break;
+        }
+        
+        case 'Z':  /* Cursor Backward Tab (CBT) - move cursor to previous tab stop n times */
+        {
+            int n = (nparams >= 1 && params[0] > 0) ? params[0] : 1;
+            for (int i = 0; i < n; i++) {
+                /* Move to previous tab stop (8 columns) */
+                if (unit->cu.cu_XCP > 0) {
+                    unit->cu.cu_XCP = ((unit->cu.cu_XCP - 1) / 8) * 8;
+                }
+            }
+            break;
+        }
+        
+        case 'n':  /* Device Status Report (DSR) */
+        {
+            int mode = (nparams >= 1) ? params[0] : 0;
+            if (mode == 6) {
+                /* Report cursor position - respond with CSI row;col R */
+                /* Put response in input buffer */
+                char response[16];
+                int len, j;
+                len = 0;
+                response[len++] = 0x9B;  /* CSI */
+                /* Convert row+1 to string */
+                if (unit->cu.cu_YCP + 1 >= 10) {
+                    response[len++] = '0' + ((unit->cu.cu_YCP + 1) / 10);
+                }
+                response[len++] = '0' + ((unit->cu.cu_YCP + 1) % 10);
+                response[len++] = ';';
+                /* Convert col+1 to string */
+                if (unit->cu.cu_XCP + 1 >= 10) {
+                    response[len++] = '0' + ((unit->cu.cu_XCP + 1) / 10);
+                }
+                response[len++] = '0' + ((unit->cu.cu_XCP + 1) % 10);
+                response[len++] = 'R';
+                /* Put in input buffer */
+                for (j = 0; j < len; j++) {
+                    input_buf_put(unit, response[j]);
+                }
+            }
+            break;
+        }
+        
+        case 'h':  /* Set Mode (SM) */
+        {
+            /* Check for private mode prefix '?' */
+            BOOL private_mode = (unit->csi_len > 0 && unit->csi_buf[0] == '?');
+            int mode = (nparams >= 1) ? params[0] : 0;
+            
+            if (private_mode) {
+                switch (mode) {
+                    case 7:  /* Auto-wrap mode (AWM) */
+                        unit->autowrap_mode = TRUE;
+                        break;
+                }
+            } else {
+                switch (mode) {
+                    case 20:  /* Line Feed/New Line Mode (LNM) */
+                        unit->lf_mode = TRUE;
+                        break;
+                }
+            }
+            /* ASM (Auto-scroll mode) - modes >1 are Amiga-specific */
+            if (mode > 1 && !private_mode) {
+                unit->autoscroll_mode = TRUE;
+            }
+            break;
+        }
+        
+        case 'l':  /* Reset Mode (RM) */
+        {
+            /* Check for private mode prefix '?' */
+            BOOL private_mode = (unit->csi_len > 0 && unit->csi_buf[0] == '?');
+            int mode = (nparams >= 1) ? params[0] : 0;
+            
+            if (private_mode) {
+                switch (mode) {
+                    case 7:  /* Auto-wrap mode (AWM) */
+                        unit->autowrap_mode = FALSE;
+                        break;
+                }
+            } else {
+                switch (mode) {
+                    case 20:  /* Line Feed/New Line Mode (LNM) */
+                        unit->lf_mode = FALSE;
+                        break;
+                }
+            }
+            /* ASM (Auto-scroll mode) - modes >1 are Amiga-specific */
+            if (mode > 1 && !private_mode) {
+                unit->autoscroll_mode = FALSE;
+            }
+            break;
+        }
+        
+        case 'q':  /* Window Status Request (Amiga-specific) */
+        {
+            /* Various window status queries */
+            int mode = (nparams >= 1) ? params[0] : 0;
+            char response[32];
+            int len = 0, j;
+            
+            response[len++] = 0x9B;  /* CSI */
+            
+            switch (mode) {
+                case 0:  /* Report window bounds in characters */
+                    /* Response: CSI 1;1;rows;cols r */
+                    response[len++] = '1';
+                    response[len++] = ';';
+                    response[len++] = '1';
+                    response[len++] = ';';
+                    /* rows */
+                    if (unit->cu.cu_YMax + 1 >= 10) {
+                        response[len++] = '0' + ((unit->cu.cu_YMax + 1) / 10);
+                    }
+                    response[len++] = '0' + ((unit->cu.cu_YMax + 1) % 10);
+                    response[len++] = ';';
+                    /* cols */
+                    if (unit->cu.cu_XMax + 1 >= 10) {
+                        response[len++] = '0' + ((unit->cu.cu_XMax + 1) / 10);
+                    }
+                    response[len++] = '0' + ((unit->cu.cu_XMax + 1) % 10);
+                    response[len++] = ' ';
+                    response[len++] = 'r';
+                    break;
+                default:
+                    len = 0;  /* Unknown query, no response */
+                    break;
+            }
+            
+            /* Put in input buffer */
+            for (j = 0; j < len; j++) {
+                input_buf_put(unit, response[j]);
+            }
+            break;
+        }
+        
+        case 't':  /* Set page length (Amiga-specific) */
+        {
+            /* CSI n t - set page length to n lines */
+            /* For now, we ignore this as we use the window size */
+            break;
+        }
+        
+        case 'u':  /* Set line length (Amiga-specific) */
+        {
+            /* CSI n u - set line length to n characters */
+            /* For now, we ignore this as we use the window size */
+            break;
+        }
+        
+        case 'x':  /* Set left offset (Amiga-specific) */
+        {
+            /* CSI n x - set left offset to n pixels */
+            /* For now, we ignore this */
+            break;
+        }
+        
+        case 'y':  /* Set top offset (Amiga-specific) */
+        {
+            /* CSI n y - set top offset to n pixels */
+            /* For now, we ignore this */
             break;
         }
         
@@ -760,36 +1699,102 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
             for (int i = 0; i < nparams || nparams == 0; i++) {
                 int p = (nparams > 0) ? params[i] : 0;
                 switch (p) {
-                    case 0:   /* Reset */
+                    case 0:   /* Reset all attributes */
                         unit->cu.cu_FgPen = 1;
                         unit->cu.cu_BgPen = 0;
                         unit->cu.cu_DrawMode = JAM2;
+                        unit->sgr_bold = FALSE;
+                        unit->sgr_faint = FALSE;
+                        unit->sgr_italic = FALSE;
+                        unit->sgr_underline = FALSE;
+                        unit->sgr_inverse = FALSE;
+                        unit->sgr_concealed = FALSE;
+                        unit->saved_fg = 1;
+                        unit->saved_bg = 0;
                         break;
-                    case 1:   /* Bold - use brighter color */
-                        /* For Amiga, we could use a different pen */
-                        break;
-                    case 7:   /* Inverse */
-                        {
-                            BYTE tmp = unit->cu.cu_FgPen;
-                            unit->cu.cu_FgPen = unit->cu.cu_BgPen;
-                            unit->cu.cu_BgPen = tmp;
+                    case 1:   /* Bold/bright */
+                        unit->sgr_bold = TRUE;
+                        unit->sgr_faint = FALSE;
+                        /* Amiga: bold often shown with pen 3 (bright color) */
+                        if (unit->cu.cu_FgPen < 4) {
+                            unit->cu.cu_FgPen |= 0x01;  /* Make it brighter */
                         }
+                        break;
+                    case 2:   /* Faint/dim */
+                        unit->sgr_faint = TRUE;
+                        unit->sgr_bold = FALSE;
+                        break;
+                    case 3:   /* Italic (Amiga shows as inverse or different style) */
+                        unit->sgr_italic = TRUE;
+                        break;
+                    case 4:   /* Underline */
+                        unit->sgr_underline = TRUE;
+                        /* Amiga: underline often shown with pen 3 */
+                        break;
+                    case 7:   /* Inverse video */
+                        if (!unit->sgr_inverse) {
+                            unit->sgr_inverse = TRUE;
+                            unit->saved_fg = unit->cu.cu_FgPen;
+                            unit->saved_bg = unit->cu.cu_BgPen;
+                            unit->cu.cu_FgPen = unit->saved_bg;
+                            unit->cu.cu_BgPen = unit->saved_fg;
+                        }
+                        break;
+                    case 8:   /* Concealed/hidden */
+                        unit->sgr_concealed = TRUE;
+                        break;
+                    case 21:  /* Not bold (double underline in some terminals) */
+                    case 22:  /* Normal intensity (not bold, not faint) */
+                        unit->sgr_bold = FALSE;
+                        unit->sgr_faint = FALSE;
+                        break;
+                    case 23:  /* Not italic */
+                        unit->sgr_italic = FALSE;
+                        break;
+                    case 24:  /* Not underlined */
+                        unit->sgr_underline = FALSE;
+                        break;
+                    case 27:  /* Not inverse */
+                        if (unit->sgr_inverse) {
+                            unit->sgr_inverse = FALSE;
+                            unit->cu.cu_FgPen = unit->saved_fg;
+                            unit->cu.cu_BgPen = unit->saved_bg;
+                        }
+                        break;
+                    case 28:  /* Not concealed */
+                        unit->sgr_concealed = FALSE;
                         break;
                     case 30: case 31: case 32: case 33:
                     case 34: case 35: case 36: case 37:
                         /* Foreground colors 0-7 */
                         unit->cu.cu_FgPen = p - 30;
+                        unit->saved_fg = unit->cu.cu_FgPen;
+                        if (unit->sgr_inverse) {
+                            unit->cu.cu_BgPen = p - 30;
+                        }
                         break;
                     case 39:  /* Default foreground */
                         unit->cu.cu_FgPen = 1;
+                        unit->saved_fg = 1;
+                        if (unit->sgr_inverse) {
+                            unit->cu.cu_BgPen = 1;
+                        }
                         break;
                     case 40: case 41: case 42: case 43:
                     case 44: case 45: case 46: case 47:
                         /* Background colors 0-7 */
                         unit->cu.cu_BgPen = p - 40;
+                        unit->saved_bg = unit->cu.cu_BgPen;
+                        if (unit->sgr_inverse) {
+                            unit->cu.cu_FgPen = p - 40;
+                        }
                         break;
                     case 49:  /* Default background */
                         unit->cu.cu_BgPen = 0;
+                        unit->saved_bg = 0;
+                        if (unit->sgr_inverse) {
+                            unit->cu.cu_FgPen = 0;
+                        }
                         break;
                 }
                 if (nparams == 0) break;  /* Exit after handling reset with no params */
@@ -847,34 +1852,92 @@ static void console_process_char(struct LxaConUnit *unit, char c)
         
         /* Regular character or control code */
         switch (uc) {
-            case '\n':  /* Line Feed */
-                console_newline(unit);
+            case '\n':  /* Line Feed (0x0A) */
+                if (unit->lf_mode) {
+                    /* LF mode: LF acts as CR+LF */
+                    console_carriage_return(unit);
+                }
+                console_cursor_down(unit);
                 break;
-            case '\r':  /* Carriage Return */
+            case '\r':  /* Carriage Return (0x0D) */
                 console_carriage_return(unit);
                 break;
-            case '\t':  /* Tab */
+            case '\t':  /* Tab (0x09) */
                 /* Move to next tab stop (every 8 characters) */
                 unit->cu.cu_XCP = ((unit->cu.cu_XCP / 8) + 1) * 8;
                 if (unit->cu.cu_XCP > unit->cu.cu_XMax) {
-                    console_newline(unit);
+                    if (unit->autowrap_mode) {
+                        console_newline(unit);
+                    } else {
+                        unit->cu.cu_XCP = unit->cu.cu_XMax;
+                    }
                 }
                 break;
-            case '\b':  /* Backspace */
+            case '\b':  /* Backspace (0x08) */
                 if (unit->cu.cu_XCP > 0) {
                     unit->cu.cu_XCP--;
                 }
                 break;
-            case '\a':  /* Bell */
+            case '\a':  /* Bell (0x07) */
                 /* TODO: Could trigger a visual or audio bell */
                 break;
-            case '\f':  /* Form Feed - clear screen */
+            case 0x0B:  /* Vertical Tab (VTAB) - move cursor up one line */
+                console_cursor_up(unit);
+                break;
+            case '\f':  /* Form Feed (0x0C) - clear screen */
                 console_clear_display(unit);
+                break;
+            case 0x0E:  /* SHIFT OUT - set MSB on output characters */
+                unit->shift_out = TRUE;
+                break;
+            case 0x0F:  /* SHIFT IN - clear MSB setting */
+                unit->shift_out = FALSE;
+                break;
+            case 0x84:  /* INDEX (IND) - move cursor down one line, scroll if needed */
+                console_cursor_down(unit);
+                break;
+            case 0x85:  /* NEXT LINE (NEL) - CR + LF */
+                console_carriage_return(unit);
+                console_cursor_down(unit);
+                break;
+            case 0x88:  /* Horizontal Tab Set (HTS) - set tab stop at cursor position */
+                {
+                    int i;
+                    /* Find a slot for this tab stop */
+                    for (i = 0; i < 80 && unit->tab_stops[i] != (UWORD)-1; i++) {
+                        if (unit->tab_stops[i] == unit->cu.cu_XCP) {
+                            /* Already set */
+                            break;
+                        }
+                        if (unit->tab_stops[i] > unit->cu.cu_XCP) {
+                            /* Insert here - shift rest down */
+                            int j;
+                            for (j = 78; j >= i; j--) {
+                                unit->tab_stops[j + 1] = unit->tab_stops[j];
+                            }
+                            unit->tab_stops[i] = unit->cu.cu_XCP;
+                            break;
+                        }
+                    }
+                    if (i < 80 && unit->tab_stops[i] == (UWORD)-1) {
+                        unit->tab_stops[i] = unit->cu.cu_XCP;
+                        if (i + 1 < 80) {
+                            unit->tab_stops[i + 1] = (UWORD)-1;
+                        }
+                    }
+                }
+                break;
+            case 0x8D:  /* Reverse Index (RI) - move cursor up one line, scroll if needed */
+                console_cursor_up(unit);
                 break;
             default:
                 if (uc >= 32 && uc != 127) {
                     /* Printable character (32-126 and 128-255) */
-                    console_write_char(unit, c);
+                    char ch = c;
+                    if (unit->shift_out) {
+                        ch = (char)(uc | 0x80);  /* Set MSB */
+                    }
+                    console_write_char(unit, ch);
                 }
                 /* Ignore other control characters (0-31 and 127/DEL) */
                 break;
@@ -1083,6 +2146,11 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 char *data = (char *)iostd->io_Data;
                 LONG len = iostd->io_Length;
                 
+                /* Handle io_Length == -1: null-terminated string */
+                if (len == -1) {
+                    len = strlen(data);
+                }
+                
                 /* Process each character */
                 for (LONG i = 0; i < len; i++) {
                     console_process_char(unit, data[i]);
@@ -1096,6 +2164,12 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 /* No window - just log to debug output */
                 char *data = (char *)iostd->io_Data;
                 LONG len = iostd->io_Length;
+                
+                /* Handle io_Length == -1: null-terminated string */
+                if (len == -1) {
+                    len = strlen(data);
+                }
+                
                 LPRINTF(LOG_INFO, "_console: WRITE (no window): '");
                 for (LONG i = 0; i < len && i < 256; i++) {
                     char c = data[i];
@@ -1112,6 +2186,42 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 LPRINTF(LOG_INFO, "'\n");
                 iostd->io_Actual = len;
             }
+            break;
+            
+        case CMD_CLEAR:
+            /* Clear the console display */
+            DPRINTF(LOG_DEBUG, "_console: CMD_CLEAR\n");
+            if (unit) {
+                console_clear_display(unit);
+            }
+            break;
+            
+        case CD_ASKKEYMAP:
+            /* Return the current keymap for this unit */
+            /* For now, just return success with no data - we use the default system keymap */
+            DPRINTF(LOG_DEBUG, "_console: CD_ASKKEYMAP\n");
+            ioreq->io_Error = 0;
+            break;
+            
+        case CD_SETKEYMAP:
+            /* Set the keymap for this unit */
+            /* For now, just accept and ignore - we use the default system keymap */
+            DPRINTF(LOG_DEBUG, "_console: CD_SETKEYMAP\n");
+            ioreq->io_Error = 0;
+            break;
+            
+        case CD_ASKDEFAULTKEYMAP:
+            /* Return the default keymap */
+            /* For now, just return success with no data */
+            DPRINTF(LOG_DEBUG, "_console: CD_ASKDEFAULTKEYMAP\n");
+            ioreq->io_Error = 0;
+            break;
+            
+        case CD_SETDEFAULTKEYMAP:
+            /* Set the default keymap */
+            /* For now, just accept and ignore */
+            DPRINTF(LOG_DEBUG, "_console: CD_SETDEFAULTKEYMAP\n");
+            ioreq->io_Error = 0;
             break;
             
         default:

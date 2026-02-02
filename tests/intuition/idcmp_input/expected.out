@@ -1,12 +1,9 @@
 Testing IDCMP input infrastructure...
 
 --- Test 1: Screen linking to IntuitionBase ---
-display: SDL2 initialized
-display: opened 320x200x2 window 'Screen 1'
 OK: Screen 1 opened
 OK: Screen 1 is FirstScreen
 OK: Screen 1 is ActiveScreen
-display: opened 320x200x2 window 'Screen 2'
 OK: Screen 2 opened
 OK: Screen 2 is FirstScreen
 OK: Screen 1 is NextScreen of Screen 2

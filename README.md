@@ -159,10 +159,11 @@ lxa -d -v myprogram
 ### AmigaOS Libraries
 
 - **exec.library**: Memory management, multitasking, signals, messages
-- **dos.library**: File I/O, locks, directories, processes, pattern matching
+- **dos.library**: File I/O, locks, directories, processes, pattern matching, CON:/RAW: handler
 - **utility.library**: Tag lists, hooks, utility functions
-- **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill)
-- **intuition.library**: Screen management (OpenScreen, CloseScreen)
+- **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill, ScrollRaster)
+- **intuition.library**: Screen/window management, IDCMP input, gadgets
+- **console.device**: Terminal I/O with CSI escape sequences, keyboard input
 
 ### System Commands
 
@@ -198,16 +199,17 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Phase 18 Complete** - App-DB & KickPascal 2 Testing Infrastructure
+**Phase 22 In Progress** - Console Device & Input Handling
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
 ## Known Limitations
 
 - CPU: 68000 only (no 68020+ or FPU)
-- Graphics: Basic screen/window support (OpenScreen, OpenWindow, basic drawing primitives)
+- Graphics: Basic screen/window support with drawing primitives
 - Intuition: Screen and window management, basic IDCMP input handling
-- GUI Apps: Run but need display support for visual output
+- Console: Full CSI escape sequence support, CON:/RAW: handlers
+- GUI Apps: Run but graphical output goes to SDL window
 - Networking: Not implemented
 - Audio: Not implemented
 

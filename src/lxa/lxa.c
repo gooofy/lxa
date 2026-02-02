@@ -58,6 +58,7 @@
 
 #define FILE_KIND_REGULAR    42
 #define FILE_KIND_CONSOLE    23
+#define FILE_KIND_CON        99   /* CON:/RAW: window (m68k-side handling) */
 
 #define TRACE_BUF_ENTRIES 1000000
 #define MAX_BREAKPOINTS       16
@@ -757,6 +758,16 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
     if (!strncasecmp (amiga_path, "CONSOLE:", 8) || (amiga_path[0]=='*'))
     {
         _dos_stdinout_fh (fh68k, 0);
+    }
+    else if (!strncasecmp (amiga_path, "CON:", 4) || !strncasecmp (amiga_path, "RAW:", 4))
+    {
+        /* CON:/RAW: window - mark as console, m68k side will handle the rest */
+        /* We set FILE_KIND_CON to indicate this needs special handling */
+        m68k_write_memory_32 (fh68k+32, FILE_KIND_CON);     // fh_Func3 = FILE_KIND_CON
+        m68k_write_memory_32 (fh68k+36, 0);                 // fh_Args = 0 (will be set later)
+        /* Store the raw mode flag: RAW: = 1, CON: = 0 */
+        m68k_write_memory_8 (fh68k+44, !strncasecmp(amiga_path, "RAW:", 4) ? 1 : 0);  // fh_Buf (unused field)
+        DPRINTF (LOG_DEBUG, "lxa: _dos_open(): CON:/RAW: window, path=%s\n", amiga_path);
     }
     else
     {

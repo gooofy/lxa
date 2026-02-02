@@ -1,6 +1,4 @@
 Testing ModifyIDCMP()...
-display: SDL2 initialized
-display: opened 320x200x2 window 'Test Screen'
 OK: Screen opened
 OK: Window opened without IDCMP
 OK: UserPort is NULL (no IDCMP requested)

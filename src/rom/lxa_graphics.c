@@ -1466,8 +1466,101 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
                                                         register LONG xMax __asm("d4"),
                                                         register LONG yMax __asm("d5"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ScrollRaster() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct BitMap *bm;
+    LONG srcX, srcY, destX, destY;
+    LONG width, height;
+    LONG clearX1, clearY1, clearX2, clearY2;
+    UBYTE savedAPen;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: ScrollRaster() rp=0x%08lx dx=%ld dy=%ld rect=(%ld,%ld)-(%ld,%ld)\n",
+             (ULONG)rp, dx, dy, xMin, yMin, xMax, yMax);
+    
+    if (!rp || !rp->BitMap) {
+        DPRINTF(LOG_ERROR, "_graphics: ScrollRaster() NULL rp or bitmap\n");
+        return;
+    }
+    
+    bm = rp->BitMap;
+    
+    /* Calculate the source and destination regions */
+    width = xMax - xMin + 1;
+    height = yMax - yMin + 1;
+    
+    /* If scroll amount exceeds the area, just clear the entire area */
+    if (dx >= width || dx <= -width || dy >= height || dy <= -height) {
+        /* Clear entire area */
+        savedAPen = rp->FgPen;
+        _graphics_SetAPen(GfxBase, rp, rp->BgPen);
+        _graphics_RectFill(GfxBase, rp, xMin, yMin, xMax, yMax);
+        _graphics_SetAPen(GfxBase, rp, savedAPen);
+        return;
+    }
+    
+    /* Calculate source and destination coordinates for the blit */
+    /* Positive dx = scroll right (content moves left), negative dx = scroll left */
+    /* Positive dy = scroll down (content moves up), negative dy = scroll up */
+    
+    if (dx > 0) {
+        /* Content moves left (we're scrolling right) */
+        srcX = xMin + dx;
+        destX = xMin;
+        width -= dx;
+        clearX1 = xMax - dx + 1;
+        clearX2 = xMax;
+    } else if (dx < 0) {
+        /* Content moves right (we're scrolling left) */
+        srcX = xMin;
+        destX = xMin - dx;
+        width += dx;
+        clearX1 = xMin;
+        clearX2 = xMin - dx - 1;
+    } else {
+        srcX = xMin;
+        destX = xMin;
+        clearX1 = clearX2 = -1;  /* No horizontal clear needed */
+    }
+    
+    if (dy > 0) {
+        /* Content moves up (we're scrolling down) */
+        srcY = yMin + dy;
+        destY = yMin;
+        height -= dy;
+        clearY1 = yMax - dy + 1;
+        clearY2 = yMax;
+    } else if (dy < 0) {
+        /* Content moves down (we're scrolling up) */
+        srcY = yMin;
+        destY = yMin - dy;
+        height += dy;
+        clearY1 = yMin;
+        clearY2 = yMin - dy - 1;
+    } else {
+        srcY = yMin;
+        destY = yMin;
+        clearY1 = clearY2 = -1;  /* No vertical clear needed */
+    }
+    
+    /* Perform the blit if there's any content to move */
+    if (width > 0 && height > 0) {
+        _graphics_BltBitMap(GfxBase, bm, srcX, srcY, bm, destX, destY, 
+                           width, height, 0xC0, 0xFF, NULL);  /* 0xC0 = copy minterm */
+    }
+    
+    /* Clear the exposed area with background pen */
+    savedAPen = rp->FgPen;
+    _graphics_SetAPen(GfxBase, rp, rp->BgPen);
+    
+    /* Clear horizontal strip if dx != 0 */
+    if (dx != 0 && clearX1 >= xMin && clearX2 <= xMax) {
+        _graphics_RectFill(GfxBase, rp, clearX1, yMin, clearX2, yMax);
+    }
+    
+    /* Clear vertical strip if dy != 0 */
+    if (dy != 0 && clearY1 >= yMin && clearY2 <= yMax) {
+        _graphics_RectFill(GfxBase, rp, xMin, clearY1, xMax, clearY2);
+    }
+    
+    _graphics_SetAPen(GfxBase, rp, savedAPen);
 }
 
 static VOID _graphics_WaitBOVP ( register struct GfxBase * GfxBase __asm("a6"),

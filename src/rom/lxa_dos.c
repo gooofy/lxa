@@ -4,6 +4,7 @@
 #include <exec/execbase.h>
 #include <exec/resident.h>
 #include <exec/initializers.h>
+#include <exec/io.h>
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
@@ -16,6 +17,13 @@
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
 
+#include <intuition/intuition.h>
+#include <clib/intuition_protos.h>
+#include <inline/intuition.h>
+
+#include <devices/console.h>
+#include <clib/alib_protos.h>
+
 #include <clib/utility_protos.h>
 #include <inline/utility.h>
 
@@ -26,6 +34,7 @@
 
 #define FILE_KIND_REGULAR    42
 #define FILE_KIND_CONSOLE    23
+#define FILE_KIND_CON        99   /* CON:/RAW: window (m68k-side handling) */
 
 #define HUNK_TYPE_UNIT     0x03E7
 #define HUNK_TYPE_NAME     0x03E8
@@ -465,6 +474,286 @@ ULONG __g_lxa_dos_ExtFuncLib(void)
     return 0;
 }
 
+/*
+ * CON:/RAW: handler support structures and functions
+ */
+
+/* Case-insensitive string prefix comparison (like strncasecmp but simpler) */
+static int _strnicmp_prefix(const char *s1, const char *s2, int n)
+{
+    for (int i = 0; i < n; i++) {
+        char c1 = s1[i];
+        char c2 = s2[i];
+        /* Convert to uppercase */
+        if (c1 >= 'a' && c1 <= 'z') c1 -= 32;
+        if (c2 >= 'a' && c2 <= 'z') c2 -= 32;
+        if (c1 != c2) return 1;
+        if (c1 == '\0') return 0;
+    }
+    return 0;
+}
+
+/* Structure to hold CON: window state - stored in fh_Arg1 */
+struct ConHandle {
+    struct Window    *ch_Window;      /* Intuition window */
+    struct IOStdReq  *ch_IORequest;   /* Console device IORequest */
+    struct MsgPort   *ch_MsgPort;     /* Reply port for console I/O */
+    BOOL              ch_RawMode;     /* TRUE for RAW:, FALSE for CON: */
+};
+
+/*
+ * Parse CON: path syntax: CON:x/y/w/h/title/options
+ * Returns TRUE on success, FALSE on error
+ */
+static BOOL parse_con_path(const char *path, WORD *x, WORD *y, WORD *w, WORD *h, 
+                           char *title, ULONG title_size, BOOL *is_raw)
+{
+    const char *p = path;
+    
+    /* Default values */
+    *x = 0;
+    *y = 11;  /* Below title bar */
+    *w = 640;
+    *h = 200;
+    title[0] = '\0';
+    *is_raw = FALSE;
+    
+    /* Skip CON: or RAW: prefix */
+    if (!_strnicmp_prefix(p, "RAW:", 4)) {
+        *is_raw = TRUE;
+        p += 4;
+    } else if (!_strnicmp_prefix(p, "CON:", 4)) {
+        p += 4;
+    } else {
+        return FALSE;
+    }
+    
+    /* Parse x/y/w/h/title - all optional */
+    if (*p && *p != '/') {
+        *x = 0;
+        while (*p >= '0' && *p <= '9') {
+            *x = *x * 10 + (*p - '0');
+            p++;
+        }
+    }
+    if (*p == '/') p++;
+    
+    if (*p && *p != '/') {
+        *y = 0;
+        while (*p >= '0' && *p <= '9') {
+            *y = *y * 10 + (*p - '0');
+            p++;
+        }
+    }
+    if (*p == '/') p++;
+    
+    if (*p && *p != '/') {
+        *w = 0;
+        while (*p >= '0' && *p <= '9') {
+            *w = *w * 10 + (*p - '0');
+            p++;
+        }
+    }
+    if (*p == '/') p++;
+    
+    if (*p && *p != '/') {
+        *h = 0;
+        while (*p >= '0' && *p <= '9') {
+            *h = *h * 10 + (*p - '0');
+            p++;
+        }
+    }
+    if (*p == '/') p++;
+    
+    /* Rest is title (until next / or end) */
+    if (*p && *p != '/') {
+        ULONG i = 0;
+        while (*p && *p != '/' && i < title_size - 1) {
+            title[i++] = *p++;
+        }
+        title[i] = '\0';
+    }
+    
+    /* Skip any options (we don't handle them yet) */
+    
+    DPRINTF(LOG_DEBUG, "_dos: parse_con_path: x=%d y=%d w=%d h=%d title='%s' raw=%d\n",
+            *x, *y, *w, *h, title, *is_raw);
+    
+    return TRUE;
+}
+
+/*
+ * Open a CON:/RAW: window and attach console.device
+ * Returns the ConHandle on success, NULL on failure
+ */
+static struct ConHandle *open_con_window(const char *path)
+{
+    struct IntuitionBase *IntuitionBase;
+    struct ConHandle *ch;
+    struct NewWindow nw;
+    WORD x, y, w, h;
+    char title[128];
+    BOOL is_raw;
+    
+    DPRINTF(LOG_DEBUG, "_dos: open_con_window: path='%s'\n", path);
+    
+    /* Parse the CON: path */
+    if (!parse_con_path(path, &x, &y, &w, &h, title, sizeof(title), &is_raw)) {
+        DPRINTF(LOG_DEBUG, "_dos: open_con_window: parse failed\n");
+        return NULL;
+    }
+    
+    /* Open Intuition */
+    IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
+    if (!IntuitionBase) {
+        DPRINTF(LOG_DEBUG, "_dos: open_con_window: can't open intuition\n");
+        return NULL;
+    }
+    
+    /* Allocate ConHandle */
+    ch = (struct ConHandle *)AllocMem(sizeof(struct ConHandle), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!ch) {
+        CloseLibrary((struct Library *)IntuitionBase);
+        return NULL;
+    }
+    ch->ch_RawMode = is_raw;
+    
+    /* Create message port */
+    ch->ch_MsgPort = CreateMsgPort();
+    if (!ch->ch_MsgPort) {
+        FreeMem(ch, sizeof(struct ConHandle));
+        CloseLibrary((struct Library *)IntuitionBase);
+        return NULL;
+    }
+    
+    /* Set up NewWindow structure */
+    nw.LeftEdge = x;
+    nw.TopEdge = y;
+    nw.Width = w > 0 ? w : 640;
+    nw.Height = h > 0 ? h : 200;
+    nw.DetailPen = 0;
+    nw.BlockPen = 1;
+    nw.IDCMPFlags = IDCMP_CLOSEWINDOW | IDCMP_RAWKEY;
+    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_DEPTHGADGET | 
+               WFLG_SIZEGADGET | WFLG_ACTIVATE | WFLG_SMART_REFRESH;
+    nw.FirstGadget = NULL;
+    nw.CheckMark = NULL;
+    nw.Title = (UBYTE *)(title[0] ? title : "CON:");
+    nw.Screen = NULL;  /* Use default public screen (Workbench) */
+    nw.BitMap = NULL;
+    nw.MinWidth = 80;
+    nw.MinHeight = 40;
+    nw.MaxWidth = (UWORD)~0;
+    nw.MaxHeight = (UWORD)~0;
+    nw.Type = WBENCHSCREEN;
+    
+    /* Open window */
+    ch->ch_Window = OpenWindow(&nw);
+    if (!ch->ch_Window) {
+        DPRINTF(LOG_DEBUG, "_dos: open_con_window: OpenWindow failed\n");
+        DeleteMsgPort(ch->ch_MsgPort);
+        FreeMem(ch, sizeof(struct ConHandle));
+        CloseLibrary((struct Library *)IntuitionBase);
+        return NULL;
+    }
+    
+    DPRINTF(LOG_DEBUG, "_dos: open_con_window: window opened at 0x%08lx\n", ch->ch_Window);
+    
+    /* Create IORequest for console device */
+    ch->ch_IORequest = (struct IOStdReq *)CreateIORequest(ch->ch_MsgPort, sizeof(struct IOStdReq));
+    if (!ch->ch_IORequest) {
+        CloseWindow(ch->ch_Window);
+        DeleteMsgPort(ch->ch_MsgPort);
+        FreeMem(ch, sizeof(struct ConHandle));
+        CloseLibrary((struct Library *)IntuitionBase);
+        return NULL;
+    }
+    
+    /* Open console.device attached to the window */
+    ch->ch_IORequest->io_Data = (APTR)ch->ch_Window;
+    ch->ch_IORequest->io_Length = sizeof(struct Window);
+    
+    if (OpenDevice((STRPTR)"console.device", 0, (struct IORequest *)ch->ch_IORequest, 0) != 0) {
+        DPRINTF(LOG_DEBUG, "_dos: open_con_window: OpenDevice console.device failed\n");
+        DeleteIORequest((struct IORequest *)ch->ch_IORequest);
+        CloseWindow(ch->ch_Window);
+        DeleteMsgPort(ch->ch_MsgPort);
+        FreeMem(ch, sizeof(struct ConHandle));
+        CloseLibrary((struct Library *)IntuitionBase);
+        return NULL;
+    }
+    
+    DPRINTF(LOG_DEBUG, "_dos: open_con_window: console.device opened, ch=0x%08lx\n", ch);
+    
+    CloseLibrary((struct Library *)IntuitionBase);
+    return ch;
+}
+
+/*
+ * Close a CON:/RAW: window
+ */
+static void close_con_window(struct ConHandle *ch)
+{
+    struct IntuitionBase *IntuitionBase;
+    
+    if (!ch) return;
+    
+    DPRINTF(LOG_DEBUG, "_dos: close_con_window: ch=0x%08lx\n", ch);
+    
+    IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
+    
+    if (ch->ch_IORequest) {
+        CloseDevice((struct IORequest *)ch->ch_IORequest);
+        DeleteIORequest((struct IORequest *)ch->ch_IORequest);
+    }
+    
+    if (ch->ch_Window && IntuitionBase) {
+        CloseWindow(ch->ch_Window);
+    }
+    
+    if (ch->ch_MsgPort) {
+        DeleteMsgPort(ch->ch_MsgPort);
+    }
+    
+    FreeMem(ch, sizeof(struct ConHandle));
+    
+    if (IntuitionBase) {
+        CloseLibrary((struct Library *)IntuitionBase);
+    }
+}
+
+/*
+ * Read from a CON: window using console.device
+ */
+static LONG con_read(struct ConHandle *ch, APTR buffer, LONG length)
+{
+    if (!ch || !ch->ch_IORequest) return -1;
+    
+    ch->ch_IORequest->io_Command = CMD_READ;
+    ch->ch_IORequest->io_Data = buffer;
+    ch->ch_IORequest->io_Length = length;
+    
+    DoIO((struct IORequest *)ch->ch_IORequest);
+    
+    return ch->ch_IORequest->io_Actual;
+}
+
+/*
+ * Write to a CON: window using console.device
+ */
+static LONG con_write(struct ConHandle *ch, CONST APTR buffer, LONG length)
+{
+    if (!ch || !ch->ch_IORequest) return -1;
+    
+    ch->ch_IORequest->io_Command = CMD_WRITE;
+    ch->ch_IORequest->io_Data = (APTR)buffer;
+    ch->ch_IORequest->io_Length = length;
+    
+    DoIO((struct IORequest *)ch->ch_IORequest);
+    
+    return ch->ch_IORequest->io_Actual;
+}
+
 BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
                                  register CONST_STRPTR        ___name        __asm("d1"),
                                  register LONG                ___accessMode  __asm("d2"))
@@ -491,6 +780,23 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
 
         if (!err)
         {
+            /* Check if this is a CON:/RAW: window that needs m68k-side setup */
+            if (fh->fh_Func3 == FILE_KIND_CON)
+            {
+                DPRINTF (LOG_DEBUG, "_dos: Open() FILE_KIND_CON detected, opening window for '%s'\n", ___name);
+                struct ConHandle *ch = open_con_window((const char *)___name);
+                if (!ch)
+                {
+                    DPRINTF (LOG_DEBUG, "_dos: Open() open_con_window failed\n");
+                    FreeDosObject (DOS_FILEHANDLE, fh);
+                    SetIoErr (ERROR_NO_FREE_STORE);
+                    return 0;
+                }
+                /* Store ConHandle pointer in fh_Arg1 for Read/Write/Close */
+                fh->fh_Arg1 = (LONG)ch;
+                DPRINTF (LOG_DEBUG, "_dos: Open() CON: window opened, ch=0x%08lx\n", ch);
+            }
+            
             BPTR f = MKBADDR (fh);
             DPRINTF (LOG_DEBUG, "_dos: Open() ___name=%s, ___accessMode=%ld -> BPTR 0x%08lx (APTR 0x%08lx)\n",
                      ___name ? (char *)___name : "NULL", ___accessMode, f, fh);
@@ -511,24 +817,47 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
 LONG _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
                                   register BPTR file  __asm("d1"))
 {
+    struct DosLibrary *DOSBase = __libBase;
+    (void)DOSBase; /* used by FreeDosObject macro */
+    
     DPRINTF (LOG_DEBUG, "_dos: Close called, file=0x%08lx\n", file);
 
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
 
-	if (!fh)
-		return 1;
+    if (!fh)
+        return 1;
 
-    int l = emucall1 (EMU_CALL_DOS_CLOSE, (ULONG) fh);
-
-    DPRINTF (LOG_DEBUG, "_dos: Close() result from emucall1: l=%ld\n", l);
-
-    if (l<0)
+    int l = 0;
+    
+    /* Check if this is a CON:/RAW: window */
+    if (fh->fh_Func3 == FILE_KIND_CON)
     {
-        struct Process *me = (struct Process *)FindTask(NULL);
-        me->pr_Result2 = fh->fh_Arg2;
+        DPRINTF (LOG_DEBUG, "_dos: Close() FILE_KIND_CON, closing window\n");
+        struct ConHandle *ch = (struct ConHandle *)fh->fh_Arg1;
+        if (ch)
+        {
+            close_con_window(ch);
+            fh->fh_Arg1 = 0;
+        }
+        /* Still call emucall to let host know the handle is closed */
+        emucall1 (EMU_CALL_DOS_CLOSE, (ULONG) fh);
     }
+    else
+    {
+        l = emucall1 (EMU_CALL_DOS_CLOSE, (ULONG) fh);
+        DPRINTF (LOG_DEBUG, "_dos: Close() result from emucall1: l=%ld\n", l);
 
-    return l;
+        if (l<0)
+        {
+            struct Process *me = (struct Process *)FindTask(NULL);
+            me->pr_Result2 = fh->fh_Arg2;
+        }
+    }
+    
+    /* Free the FileHandle */
+    FreeDosObject (DOS_FILEHANDLE, fh);
+
+    return l >= 0 ? 1 : l;
 }
 
 LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -539,14 +868,36 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
     DPRINTF (LOG_DEBUG, "_dos: Read called: file=0x%08lx length=%ld\n", file, length);
 
-    int l = emucall3 (EMU_CALL_DOS_READ, (ULONG) fh, (ULONG) buffer, length);
-
-    DPRINTF (LOG_DEBUG, "_dos: Read() result: l=%ld\n", l);
-
-    if (l<0)
+    int l;
+    
+    /* Check if this is a CON:/RAW: window */
+    if (fh->fh_Func3 == FILE_KIND_CON)
     {
-        struct Process *me = (struct Process *)FindTask(NULL);
-        me->pr_Result2 = fh->fh_Arg2;
+        struct ConHandle *ch = (struct ConHandle *)fh->fh_Arg1;
+        DPRINTF (LOG_DEBUG, "_dos: Read() FILE_KIND_CON, ch=0x%08lx\n", ch);
+        if (ch)
+        {
+            l = con_read(ch, buffer, length);
+            DPRINTF (LOG_DEBUG, "_dos: Read() con_read result: l=%ld\n", l);
+        }
+        else
+        {
+            l = -1;
+            struct Process *me = (struct Process *)FindTask(NULL);
+            me->pr_Result2 = ERROR_OBJECT_NOT_FOUND;
+        }
+    }
+    else
+    {
+        l = emucall3 (EMU_CALL_DOS_READ, (ULONG) fh, (ULONG) buffer, length);
+
+        DPRINTF (LOG_DEBUG, "_dos: Read() result: l=%ld\n", l);
+
+        if (l<0)
+        {
+            struct Process *me = (struct Process *)FindTask(NULL);
+            me->pr_Result2 = fh->fh_Arg2;
+        }
     }
 
     return l;
@@ -562,14 +913,36 @@ LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
     // U_hexdump (LOG_INFO, buffer, length);
 
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
-    int l = emucall3 (EMU_CALL_DOS_WRITE, (ULONG) fh, (ULONG) buffer, length);
-
-    DPRINTF (LOG_DEBUG, "_dos: Write() result from emucall3: l=%ld\n", l);
-
-    if (l<0)
+    int l;
+    
+    /* Check if this is a CON:/RAW: window */
+    if (fh->fh_Func3 == FILE_KIND_CON)
     {
-        struct Process *me = (struct Process *)FindTask(NULL);
-        me->pr_Result2 = fh->fh_Arg2;
+        struct ConHandle *ch = (struct ConHandle *)fh->fh_Arg1;
+        DPRINTF (LOG_DEBUG, "_dos: Write() FILE_KIND_CON, ch=0x%08lx\n", ch);
+        if (ch)
+        {
+            l = con_write(ch, buffer, length);
+            DPRINTF (LOG_DEBUG, "_dos: Write() con_write result: l=%ld\n", l);
+        }
+        else
+        {
+            l = -1;
+            struct Process *me = (struct Process *)FindTask(NULL);
+            me->pr_Result2 = ERROR_OBJECT_NOT_FOUND;
+        }
+    }
+    else
+    {
+        l = emucall3 (EMU_CALL_DOS_WRITE, (ULONG) fh, (ULONG) buffer, length);
+
+        DPRINTF (LOG_DEBUG, "_dos: Write() result from emucall3: l=%ld\n", l);
+
+        if (l<0)
+        {
+            struct Process *me = (struct Process *)FindTask(NULL);
+            me->pr_Result2 = fh->fh_Arg2;
+        }
     }
 
     return l;
