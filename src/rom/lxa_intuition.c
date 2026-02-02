@@ -116,8 +116,15 @@ BOOL _intuition_ClearDMRequest ( register struct IntuitionBase * IntuitionBase _
 VOID _intuition_ClearMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ClearMenuStrip() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: ClearMenuStrip() window=0x%08lx\n", (ULONG)window);
+
+    if (!window)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: ClearMenuStrip() called with NULL window\n");
+        return;
+    }
+
+    window->MenuStrip = NULL;
 }
 
 VOID _intuition_ClearPointer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -435,9 +442,74 @@ struct MenuItem * _intuition_ItemAddress ( register struct IntuitionBase * Intui
                                                         register const struct Menu * menuStrip __asm("a0"),
                                                         register UWORD menuNumber __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ItemAddress() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct Menu *menu;
+    struct MenuItem *item = NULL;
+    WORD i;
+    WORD menuNum;
+    WORD itemNum;
+    WORD subNum;
+
+    DPRINTF (LOG_DEBUG, "_intuition: ItemAddress() menuStrip=0x%08lx menuNumber=0x%04x\n",
+             (ULONG)menuStrip, (UWORD)menuNumber);
+
+    /* MENUNULL means no menu selected */
+    if (menuNumber == MENUNULL)
+    {
+        return NULL;
+    }
+
+    if (!menuStrip)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: ItemAddress() called with NULL menuStrip\n");
+        return NULL;
+    }
+
+    /* Extract menu, item, and sub-item numbers from packed value */
+    menuNum = MENUNUM(menuNumber);
+    itemNum = ITEMNUM(menuNumber);
+    subNum = SUBNUM(menuNumber);
+
+    DPRINTF (LOG_DEBUG, "_intuition: ItemAddress() menu=%d item=%d sub=%d\n",
+             menuNum, itemNum, subNum);
+
+    /* Navigate to the correct Menu */
+    menu = (struct Menu *)menuStrip;
+    for (i = 0; menu && i < menuNum; i++)
+    {
+        menu = menu->NextMenu;
+    }
+
+    if (!menu)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: ItemAddress() menu not found\n");
+        return NULL;
+    }
+
+    /* Navigate to the correct MenuItem */
+    item = menu->FirstItem;
+    for (i = 0; item && i < itemNum; i++)
+    {
+        item = item->NextItem;
+    }
+
+    if (!item)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: ItemAddress() item not found\n");
+        return NULL;
+    }
+
+    /* If there's a sub-item and it's specified, navigate to it */
+    if (subNum != NOSUB && item->SubItem)
+    {
+        item = item->SubItem;
+        for (i = 0; item && i < subNum; i++)
+        {
+            item = item->NextItem;
+        }
+    }
+
+    DPRINTF (LOG_DEBUG, "_intuition: ItemAddress() returning 0x%08lx\n", (ULONG)item);
+    return item;
 }
 
 BOOL _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -1606,13 +1678,21 @@ BOOL _intuition_SetMenuStrip ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Window * window __asm("a0"),
                                                         register struct Menu * menu __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_intuition: SetMenuStrip() stub - storing menu pointer but not implementing menus yet\n");
-    /* Store the menu pointer for the window - actual menu handling not implemented */
-    if (window)
+    DPRINTF (LOG_DEBUG, "_intuition: SetMenuStrip() window=0x%08lx menu=0x%08lx\n",
+             (ULONG)window, (ULONG)menu);
+
+    if (!window)
     {
-        window->MenuStrip = menu;
+        LPRINTF (LOG_ERROR, "_intuition: SetMenuStrip() called with NULL window\n");
+        return FALSE;
     }
-    return TRUE;  /* Pretend success */
+
+    /* Store the menu pointer for the window
+     * NOTE: Actual menu rendering/interaction not yet implemented
+     */
+    window->MenuStrip = menu;
+
+    return TRUE;
 }
 
 VOID _intuition_SetPointer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -2689,9 +2769,23 @@ BOOL _intuition_ResetMenuStrip ( register struct IntuitionBase * IntuitionBase _
                                                         register struct Window * window __asm("a0"),
                                                         register struct Menu * menu __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ResetMenuStrip() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_intuition: ResetMenuStrip() window=0x%08lx menu=0x%08lx\n",
+             (ULONG)window, (ULONG)menu);
+
+    if (!window)
+    {
+        LPRINTF (LOG_ERROR, "_intuition: ResetMenuStrip() called with NULL window\n");
+        return TRUE;  /* Always returns TRUE per RKRM */
+    }
+
+    /* ResetMenuStrip is a "fast" SetMenuStrip - it just re-attaches the menu
+     * without recalculating internal values. Use only when the menu was
+     * previously attached via SetMenuStrip and only CHECKED/ITEMENABLED
+     * flags have changed.
+     */
+    window->MenuStrip = menu;
+
+    return TRUE;
 }
 
 VOID _intuition_RemoveClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),

@@ -134,9 +134,10 @@ Input injection emucalls (INJECT_KEY, INJECT_STRING, INJECT_MOUSE), screen captu
 - [ ] **Gadget Interaction** - Hit testing and basic state changes (TODO: Add mouse click detection on gadgets)
 
 ### Step 25.4: Menu System (from Phase 15.5)
-- [ ] **Menu Bar Handling** - Global vs per-window menus
-- [ ] **SetMenuStrip / ClearMenuStrip** - Menu management functions
-- [ ] **Menu Events** - IDCMP_MENUPICK handling and ItemAddress
+- [x] **SetMenuStrip / ClearMenuStrip / ResetMenuStrip** - Menu management functions implemented. SetMenuStrip attaches menu to window, ClearMenuStrip detaches, ResetMenuStrip re-attaches without recalculation.
+- [x] **ItemAddress** - Menu item lookup by encoded menu number (FULLMENUNUM). Navigates menu/item/subitem lists correctly.
+- [ ] **Menu Bar Handling** - Global vs per-window menus (visual rendering not yet implemented)
+- [ ] **Menu Events** - IDCMP_MENUPICK handling (actual menu interaction not yet implemented)
 
 ### Step 25.5: Window Layer Clipping (from Phase 20.3)
 - [ ] **Bounds Checking** - Implement pixel-level clipping in WritePixel, Draw, Text, etc.
