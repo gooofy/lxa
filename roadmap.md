@@ -99,7 +99,7 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 
 ### Step 26.1: KickPascal 2 Full Compatibility
 - [x] **Binary Loading** - KP2 executable loads and validates successfully
-- [ ] **Complete IDE Launch** - Editor window opens correctly with menus
+- [x] **IDE Launch** - KP2 launches as background process, window opens
 - [ ] **File Operations** - Open, Save, New work with KP2 format
 - [ ] **Text Editing** - All editor features work (cursor, selection, scroll)
 - [ ] **Compilation** - KP2 can compile Pascal programs on lxa
