@@ -87,6 +87,8 @@ all:
 	@$(MAKE) -C intuition/menu_strip
 	@$(MAKE) -C intuition/menu_select
 	@$(MAKE) -C intuition/gadget_click
+	@$(MAKE) -C intuition/boopsi
+	@$(MAKE) -C intuition/gadgetclass
 	@$(MAKE) -C console/csi_cursor
 	@$(MAKE) -C layers/layer_info
 	@$(MAKE) -C layers/cliprects
@@ -169,6 +171,8 @@ clean:
 	@$(MAKE) -C intuition/menu_strip clean
 	@$(MAKE) -C intuition/menu_select clean
 	@$(MAKE) -C intuition/gadget_click clean
+	@$(MAKE) -C intuition/boopsi clean
+	@$(MAKE) -C intuition/gadgetclass clean
 	@$(MAKE) -C console/csi_cursor clean
 	@$(MAKE) -C layers/layer_info clean
 	@$(MAKE) -C layers/cliprects clean
@@ -247,6 +251,8 @@ clean:
 	rm -f intuition/menu_strip/actual.out
 	rm -f intuition/menu_select/actual.out
 	rm -f intuition/gadget_click/actual.out
+	rm -f intuition/boopsi/actual.out
+	rm -f intuition/gadgetclass/actual.out
 	rm -f console/csi_cursor/actual.out
 	rm -f layers/layer_info/actual.out
 	rm -f layers/cliprects/actual.out
@@ -334,6 +340,8 @@ run-tests:
 	@$(MAKE) -C intuition/menu_strip run-test
 	@$(MAKE) -C intuition/menu_select run-test
 	@$(MAKE) -C intuition/gadget_click run-test
+	@$(MAKE) -C intuition/boopsi run-test
+	@$(MAKE) -C intuition/gadgetclass run-test
 	@$(MAKE) -C console/csi_cursor run-test
 	@$(MAKE) -C layers/layer_info run-test
 	@$(MAKE) -C layers/cliprects run-test

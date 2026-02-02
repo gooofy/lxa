@@ -6,13 +6,16 @@
 #include <exec/initializers.h>
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
+#include <inline/alib.h>
 
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
 #include <intuition/screens.h>
 #include <intuition/preferences.h>
+#include <intuition/classes.h>
 #include <intuition/classusr.h>
 #include <intuition/imageclass.h>
+#include <intuition/gadgetclass.h>
 
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
@@ -31,6 +34,62 @@
 extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
 extern struct UtilityBase *UtilityBase;
+
+struct LXAIntuitionBase;
+struct LXAClassNode {
+    struct Node node;
+    struct IClass *class_ptr;
+};
+
+/* Extended IntuitionBase to hold private data */
+struct LXAIntuitionBase {
+    struct IntuitionBase ib;
+    struct List ClassList;      /* List of public classes */
+    struct IClass *RootClass;   /* Pointer to rootclass */
+    struct IClass *GadgetClass; /* Pointer to gadgetclass */
+    struct IClass *ButtonGClass;/* Pointer to buttongclass */
+    struct IClass *PropGClass;  /* Pointer to propgclass */
+    struct IClass *StrGClass;   /* Pointer to strgclass */
+};
+
+static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST_STRPTR classID);
+static ULONG _intuition_dispatch_method(struct IClass *cl, Object *obj, Msg msg);
+
+/* Rootclass dispatcher */
+static ULONG rootclass_dispatch(
+    register struct IClass *cl __asm("a0"),
+    register Object *obj __asm("a2"),
+    register Msg msg __asm("a1"))
+{
+    switch (msg->MethodID) {
+        case OM_NEW:
+            return (ULONG)obj;
+            
+        case OM_DISPOSE:
+            return 0;
+            
+        case OM_SET:
+        case OM_GET:
+        case OM_UPDATE:
+        case OM_NOTIFY:
+            return 0;
+    }
+    return 0;
+}
+
+/* Forward declarations for gadget class dispatchers */
+static ULONG gadgetclass_dispatch(register struct IClass *cl __asm("a0"),
+                                  register Object *obj __asm("a2"),
+                                  register Msg msg __asm("a1"));
+static ULONG buttongclass_dispatch(register struct IClass *cl __asm("a0"),
+                                   register Object *obj __asm("a2"),
+                                   register Msg msg __asm("a1"));
+static ULONG propgclass_dispatch(register struct IClass *cl __asm("a0"),
+                                 register Object *obj __asm("a2"),
+                                 register Msg msg __asm("a1"));
+static ULONG strgclass_dispatch(register struct IClass *cl __asm("a0"),
+                                register Object *obj __asm("a2"),
+                                register Msg msg __asm("a1"));
 
 #define VERSION    40
 #define REVISION   1
@@ -54,6 +113,374 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
 static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code, 
                                  UWORD qualifier, APTR iaddress, WORD mouseX, WORD mouseY);
 
+/******************************************************************************
+ * BOOPSI Gadget Class Dispatchers
+ ******************************************************************************/
+
+/* GadgetClass dispatcher - base class for all gadgets */
+static ULONG gadgetclass_dispatch(
+    register struct IClass *cl __asm("a0"),
+    register Object *obj __asm("a2"),
+    register Msg msg __asm("a1"))
+{
+    struct Gadget *gadget = (struct Gadget *)obj;
+    
+    switch (msg->MethodID) {
+        case OM_NEW: {
+            /* Call superclass first (rootclass) */
+            struct IClass *super = cl->cl_Super;
+            if (super && super->cl_Dispatcher.h_Entry) {
+                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
+                                               register Object *obj __asm("a2"),
+                                               register Msg msg __asm("a1"));
+                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
+                ULONG result = entry(super, obj, msg);
+                if (!result)
+                    return 0;
+            }
+            
+            /* Initialize gadget structure */
+            gadget->GadgetType = GTYP_CUSTOMGADGET;
+            gadget->Flags = GFLG_GADGHNONE;
+            gadget->Activation = 0;
+            gadget->GadgetID = 0;
+            gadget->UserData = NULL;
+            gadget->SpecialInfo = NULL;
+            gadget->NextGadget = NULL;
+            
+            /* Process tags from opSet */
+            struct opSet *ops = (struct opSet *)msg;
+            struct TagItem *tags = ops->ops_AttrList;
+            struct TagItem *tag;
+            
+            while ((tag = NextTagItem(&tags))) {
+                switch (tag->ti_Tag) {
+                    case GA_Left:
+                        gadget->LeftEdge = (WORD)tag->ti_Data;
+                        break;
+                    case GA_Top:
+                        gadget->TopEdge = (WORD)tag->ti_Data;
+                        break;
+                    case GA_Width:
+                        gadget->Width = (WORD)tag->ti_Data;
+                        break;
+                    case GA_Height:
+                        gadget->Height = (WORD)tag->ti_Data;
+                        break;
+                    case GA_ID:
+                        gadget->GadgetID = (UWORD)tag->ti_Data;
+                        break;
+                    case GA_UserData:
+                        gadget->UserData = (APTR)tag->ti_Data;
+                        break;
+                    case GA_Disabled:
+                        if (tag->ti_Data)
+                            gadget->Flags |= GFLG_DISABLED;
+                        else
+                            gadget->Flags &= ~GFLG_DISABLED;
+                        break;
+                    case GA_Immediate:
+                        if (tag->ti_Data)
+                            gadget->Activation |= GACT_IMMEDIATE;
+                        break;
+                    case GA_RelVerify:
+                        if (tag->ti_Data)
+                            gadget->Activation |= GACT_RELVERIFY;
+                        break;
+                    case GA_Selected:
+                        if (tag->ti_Data)
+                            gadget->Flags |= GFLG_SELECTED;
+                        else
+                            gadget->Flags &= ~GFLG_SELECTED;
+                        break;
+                }
+            }
+            
+            return (ULONG)obj;
+        }
+            
+        case OM_DISPOSE:
+            /* Call superclass */
+            {
+                struct IClass *super = cl->cl_Super;
+                if (super && super->cl_Dispatcher.h_Entry) {
+                    typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
+                                                   register Object *obj __asm("a2"),
+                                                   register Msg msg __asm("a1"));
+                    DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
+                    return entry(super, obj, msg);
+                }
+            }
+            return 0;
+            
+        case OM_SET:
+        case OM_UPDATE: {
+            struct opSet *ops = (struct opSet *)msg;
+            struct TagItem *tags = ops->ops_AttrList;
+            struct TagItem *tag;
+            ULONG changed = 0;
+            
+            while ((tag = NextTagItem(&tags))) {
+                switch (tag->ti_Tag) {
+                    case GA_Disabled:
+                        if (tag->ti_Data)
+                            gadget->Flags |= GFLG_DISABLED;
+                        else
+                            gadget->Flags &= ~GFLG_DISABLED;
+                        changed = 1;
+                        break;
+                    case GA_Selected:
+                        if (tag->ti_Data)
+                            gadget->Flags |= GFLG_SELECTED;
+                        else
+                            gadget->Flags &= ~GFLG_SELECTED;
+                        changed = 1;
+                        break;
+                }
+            }
+            return changed;
+        }
+            
+        case OM_GET: {
+            struct opGet *opg = (struct opGet *)msg;
+            switch (opg->opg_AttrID) {
+                case GA_ID:
+                    *(opg->opg_Storage) = gadget->GadgetID;
+                    return 1;
+                case GA_UserData:
+                    *(opg->opg_Storage) = (ULONG)gadget->UserData;
+                    return 1;
+                case GA_Disabled:
+                    *(opg->opg_Storage) = (gadget->Flags & GFLG_DISABLED) ? TRUE : FALSE;
+                    return 1;
+                case GA_Selected:
+                    *(opg->opg_Storage) = (gadget->Flags & GFLG_SELECTED) ? TRUE : FALSE;
+                    return 1;
+                default:
+                    return 0;
+            }
+        }
+        
+        case GM_RENDER:
+            /* Default: no rendering */
+            return 0;
+            
+        case GM_HITTEST:
+            /* Default: always hit if in bounds */
+            return GMR_GADGETHIT;
+            
+        case GM_GOACTIVE:
+            /* Default: become active immediately */
+            return GMR_MEACTIVE;
+            
+        case GM_HANDLEINPUT:
+            /* Default: stay active */
+            return GMR_MEACTIVE;
+            
+        case GM_GOINACTIVE:
+            /* Default: go inactive */
+            return 0;
+    }
+    
+    /* Call superclass for unhandled methods */
+    {
+        struct IClass *super = cl->cl_Super;
+        if (super && super->cl_Dispatcher.h_Entry) {
+            typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
+                                           register Object *obj __asm("a2"),
+                                           register Msg msg __asm("a1"));
+            DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
+            return entry(super, obj, msg);
+        }
+    }
+    
+    return 0;
+}
+
+/* ButtonGClass dispatcher - button gadget class */
+static ULONG buttongclass_dispatch(
+    register struct IClass *cl __asm("a0"),
+    register Object *obj __asm("a2"),
+    register Msg msg __asm("a1"))
+{
+    struct Gadget *gadget = (struct Gadget *)obj;
+    
+    switch (msg->MethodID) {
+        case OM_NEW: {
+            /* Call superclass first (gadgetclass) */
+            struct IClass *super = cl->cl_Super;
+            if (super && super->cl_Dispatcher.h_Entry) {
+                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
+                                               register Object *obj __asm("a2"),
+                                               register Msg msg __asm("a1"));
+                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
+                ULONG result = entry(super, obj, msg);
+                if (!result)
+                    return 0;
+            }
+            
+            /* Set button-specific defaults */
+            gadget->GadgetType = GTYP_BOOLGADGET;
+            gadget->Flags = GFLG_GADGHCOMP;
+            gadget->Activation = GACT_RELVERIFY;
+            
+            return (ULONG)obj;
+        }
+        
+        case GM_RENDER:
+            /* TODO: Implement button rendering */
+            DPRINTF(LOG_DEBUG, "_intuition: buttongclass GM_RENDER not yet implemented\n");
+            return 0;
+        
+        case GM_HANDLEINPUT: {
+            struct gpInput *gpi = (struct gpInput *)msg;
+            struct InputEvent *ie = gpi->gpi_IEvent;
+            
+            /* Simple button behavior: release to verify */
+            if (ie->ie_Class == IECLASS_RAWMOUSE) {
+                if (ie->ie_Code == SELECTUP) {
+                    if (gpi->gpi_Termination)
+                        *gpi->gpi_Termination = gadget->GadgetID;
+                    return GMR_NOREUSE | GMR_VERIFY;
+                }
+            }
+            return GMR_MEACTIVE;
+        }
+    }
+    
+    /* Call superclass */
+    {
+        struct IClass *super = cl->cl_Super;
+        if (super && super->cl_Dispatcher.h_Entry) {
+            typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
+                                           register Object *obj __asm("a2"),
+                                           register Msg msg __asm("a1"));
+            DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
+            return entry(super, obj, msg);
+        }
+    }
+    
+    return 0;
+}
+
+/* PropGClass dispatcher - proportional gadget class */
+static ULONG propgclass_dispatch(
+    register struct IClass *cl __asm("a0"),
+    register Object *obj __asm("a2"),
+    register Msg msg __asm("a1"))
+{
+    struct Gadget *gadget = (struct Gadget *)obj;
+    
+    switch (msg->MethodID) {
+        case OM_NEW: {
+            /* Call superclass first (gadgetclass) */
+            struct IClass *super = cl->cl_Super;
+            if (super && super->cl_Dispatcher.h_Entry) {
+                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
+                                               register Object *obj __asm("a2"),
+                                               register Msg msg __asm("a1"));
+                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
+                ULONG result = entry(super, obj, msg);
+                if (!result)
+                    return 0;
+            }
+            
+            /* Set proportional gadget-specific defaults */
+            gadget->GadgetType = GTYP_PROPGADGET;
+            gadget->Flags = GFLG_GADGHCOMP;
+            gadget->Activation = GACT_RELVERIFY | GACT_IMMEDIATE;
+            
+            /* TODO: Allocate and initialize PropInfo structure */
+            /* For now, just set basics */
+            
+            return (ULONG)obj;
+        }
+        
+        case GM_RENDER:
+            /* TODO: Implement proportional gadget rendering */
+            DPRINTF(LOG_DEBUG, "_intuition: propgclass GM_RENDER not yet implemented\n");
+            return 0;
+        
+        case GM_HANDLEINPUT:
+            /* TODO: Implement proportional gadget input handling */
+            DPRINTF(LOG_DEBUG, "_intuition: propgclass GM_HANDLEINPUT not yet implemented\n");
+            return GMR_MEACTIVE;
+    }
+    
+    /* Call superclass */
+    {
+        struct IClass *super = cl->cl_Super;
+        if (super && super->cl_Dispatcher.h_Entry) {
+            typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
+                                           register Object *obj __asm("a2"),
+                                           register Msg msg __asm("a1"));
+            DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
+            return entry(super, obj, msg);
+        }
+    }
+    
+    return 0;
+}
+
+/* StrGClass dispatcher - string gadget class */
+static ULONG strgclass_dispatch(
+    register struct IClass *cl __asm("a0"),
+    register Object *obj __asm("a2"),
+    register Msg msg __asm("a1"))
+{
+    struct Gadget *gadget = (struct Gadget *)obj;
+    
+    switch (msg->MethodID) {
+        case OM_NEW: {
+            /* Call superclass first (gadgetclass) */
+            struct IClass *super = cl->cl_Super;
+            if (super && super->cl_Dispatcher.h_Entry) {
+                typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
+                                               register Object *obj __asm("a2"),
+                                               register Msg msg __asm("a1"));
+                DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
+                ULONG result = entry(super, obj, msg);
+                if (!result)
+                    return 0;
+            }
+            
+            /* Set string gadget-specific defaults */
+            gadget->GadgetType = GTYP_STRGADGET;
+            gadget->Flags = GFLG_GADGHCOMP;
+            gadget->Activation = GACT_RELVERIFY;
+            
+            /* TODO: Allocate and initialize StringInfo structure */
+            /* For now, just set basics */
+            
+            return (ULONG)obj;
+        }
+        
+        case GM_RENDER:
+            /* TODO: Implement string gadget rendering */
+            DPRINTF(LOG_DEBUG, "_intuition: strgclass GM_RENDER not yet implemented\n");
+            return 0;
+        
+        case GM_HANDLEINPUT:
+            /* TODO: Implement string gadget input handling */
+            DPRINTF(LOG_DEBUG, "_intuition: strgclass GM_HANDLEINPUT not yet implemented\n");
+            return GMR_MEACTIVE;
+    }
+    
+    /* Call superclass */
+    {
+        struct IClass *super = cl->cl_Super;
+        if (super && super->cl_Dispatcher.h_Entry) {
+            typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
+                                           register Object *obj __asm("a2"),
+                                           register Msg msg __asm("a1"));
+            DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
+            return entry(super, obj, msg);
+        }
+    }
+    
+    return 0;
+}
+
 // libBase: IntuitionBase
 // baseType: struct IntuitionBase *
 // libname: intuition.library
@@ -62,7 +489,184 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_intuition: WARNING: InitLib() unimplemented STUB called.\n");
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)intuitionb;
+    DPRINTF (LOG_DEBUG, "_intuition: InitLib() called.\n");
+
+    /* Initialize ClassList (NewList inline) */
+    NewList(&base->ClassList);
+
+    /* Create rootclass */
+    struct IClass *root = AllocMem(sizeof(struct IClass) + sizeof("rootclass"), MEMF_PUBLIC | MEMF_CLEAR);
+    if (root) {
+        UBYTE *id = (UBYTE *)(root + 1);
+        strcpy((char *)id, "rootclass");
+        
+        root->cl_ID = (ClassID)id;
+        root->cl_Dispatcher.h_Entry = (ULONG (*)())rootclass_dispatch;
+        root->cl_Dispatcher.h_Data = NULL;
+        root->cl_Dispatcher.h_SubEntry = NULL; 
+        root->cl_Reserved = 0;
+        root->cl_InstOffset = 0;
+        root->cl_InstSize = 0;
+        
+        /* Add to ClassList so it can be found */
+        {
+            struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+            if (node) {
+                node->class_ptr = root;
+                node->node.ln_Type = NT_UNKNOWN;
+                node->node.ln_Name = (char *)id;
+                AddTail(&base->ClassList, &node->node);
+                root->cl_Flags |= CLF_INLIST;
+            }
+        }
+        
+        base->RootClass = root;
+        DPRINTF(LOG_DEBUG, "_intuition: rootclass created at 0x%08lx\n", (ULONG)root);
+    } else {
+        DPRINTF(LOG_ERROR, "_intuition: Failed to allocate rootclass!\n");
+    }
+
+    /* Create gadgetclass */
+    struct IClass *gadgetclass = AllocMem(sizeof(struct IClass) + sizeof("gadgetclass"), MEMF_PUBLIC | MEMF_CLEAR);
+    if (gadgetclass && base->RootClass) {
+        UBYTE *id = (UBYTE *)(gadgetclass + 1);
+        strcpy((char *)id, "gadgetclass");
+        
+        gadgetclass->cl_ID = (ClassID)id;
+        gadgetclass->cl_Super = base->RootClass;
+        gadgetclass->cl_Dispatcher.h_Entry = (ULONG (*)())gadgetclass_dispatch;
+        gadgetclass->cl_Dispatcher.h_Data = NULL;
+        gadgetclass->cl_Dispatcher.h_SubEntry = NULL;
+        gadgetclass->cl_Reserved = 0;
+        gadgetclass->cl_InstOffset = base->RootClass->cl_InstOffset + base->RootClass->cl_InstSize;
+        gadgetclass->cl_InstSize = sizeof(struct Gadget);
+        
+        base->RootClass->cl_SubclassCount++;
+        
+        /* Add to ClassList */
+        {
+            struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+            if (node) {
+                node->class_ptr = gadgetclass;
+                node->node.ln_Type = NT_UNKNOWN;
+                node->node.ln_Name = (char *)id;
+                AddTail(&base->ClassList, &node->node);
+                gadgetclass->cl_Flags |= CLF_INLIST;
+            }
+        }
+        
+        base->GadgetClass = gadgetclass;
+        DPRINTF(LOG_DEBUG, "_intuition: gadgetclass created at 0x%08lx\n", (ULONG)gadgetclass);
+    } else {
+        DPRINTF(LOG_ERROR, "_intuition: Failed to allocate gadgetclass!\n");
+    }
+
+    /* Create buttongclass */
+    struct IClass *buttongclass = AllocMem(sizeof(struct IClass) + sizeof("buttongclass"), MEMF_PUBLIC | MEMF_CLEAR);
+    if (buttongclass && base->GadgetClass) {
+        UBYTE *id = (UBYTE *)(buttongclass + 1);
+        strcpy((char *)id, "buttongclass");
+        
+        buttongclass->cl_ID = (ClassID)id;
+        buttongclass->cl_Super = base->GadgetClass;
+        buttongclass->cl_Dispatcher.h_Entry = (ULONG (*)())buttongclass_dispatch;
+        buttongclass->cl_Dispatcher.h_Data = NULL;
+        buttongclass->cl_Dispatcher.h_SubEntry = NULL;
+        buttongclass->cl_Reserved = 0;
+        buttongclass->cl_InstOffset = base->GadgetClass->cl_InstOffset + base->GadgetClass->cl_InstSize;
+        buttongclass->cl_InstSize = 0; /* No additional instance data beyond Gadget */
+        
+        base->GadgetClass->cl_SubclassCount++;
+        
+        /* Add to ClassList */
+        {
+            struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+            if (node) {
+                node->class_ptr = buttongclass;
+                node->node.ln_Type = NT_UNKNOWN;
+                node->node.ln_Name = (char *)id;
+                AddTail(&base->ClassList, &node->node);
+                buttongclass->cl_Flags |= CLF_INLIST;
+            }
+        }
+        
+        base->ButtonGClass = buttongclass;
+        DPRINTF(LOG_DEBUG, "_intuition: buttongclass created at 0x%08lx\n", (ULONG)buttongclass);
+    } else {
+        DPRINTF(LOG_ERROR, "_intuition: Failed to allocate buttongclass!\n");
+    }
+
+    /* Create propgclass */
+    struct IClass *propgclass = AllocMem(sizeof(struct IClass) + sizeof("propgclass"), MEMF_PUBLIC | MEMF_CLEAR);
+    if (propgclass && base->GadgetClass) {
+        UBYTE *id = (UBYTE *)(propgclass + 1);
+        strcpy((char *)id, "propgclass");
+        
+        propgclass->cl_ID = (ClassID)id;
+        propgclass->cl_Super = base->GadgetClass;
+        propgclass->cl_Dispatcher.h_Entry = (ULONG (*)())propgclass_dispatch;
+        propgclass->cl_Dispatcher.h_Data = NULL;
+        propgclass->cl_Dispatcher.h_SubEntry = NULL;
+        propgclass->cl_Reserved = 0;
+        propgclass->cl_InstOffset = base->GadgetClass->cl_InstOffset + base->GadgetClass->cl_InstSize;
+        propgclass->cl_InstSize = 0; /* TODO: Add PropInfo size */
+        
+        base->GadgetClass->cl_SubclassCount++;
+        
+        /* Add to ClassList */
+        {
+            struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+            if (node) {
+                node->class_ptr = propgclass;
+                node->node.ln_Type = NT_UNKNOWN;
+                node->node.ln_Name = (char *)id;
+                AddTail(&base->ClassList, &node->node);
+                propgclass->cl_Flags |= CLF_INLIST;
+            }
+        }
+        
+        base->PropGClass = propgclass;
+        DPRINTF(LOG_DEBUG, "_intuition: propgclass created at 0x%08lx\n", (ULONG)propgclass);
+    } else {
+        DPRINTF(LOG_ERROR, "_intuition: Failed to allocate propgclass!\n");
+    }
+
+    /* Create strgclass */
+    struct IClass *strgclass = AllocMem(sizeof(struct IClass) + sizeof("strgclass"), MEMF_PUBLIC | MEMF_CLEAR);
+    if (strgclass && base->GadgetClass) {
+        UBYTE *id = (UBYTE *)(strgclass + 1);
+        strcpy((char *)id, "strgclass");
+        
+        strgclass->cl_ID = (ClassID)id;
+        strgclass->cl_Super = base->GadgetClass;
+        strgclass->cl_Dispatcher.h_Entry = (ULONG (*)())strgclass_dispatch;
+        strgclass->cl_Dispatcher.h_Data = NULL;
+        strgclass->cl_Dispatcher.h_SubEntry = NULL;
+        strgclass->cl_Reserved = 0;
+        strgclass->cl_InstOffset = base->GadgetClass->cl_InstOffset + base->GadgetClass->cl_InstSize;
+        strgclass->cl_InstSize = 0; /* TODO: Add StringInfo size */
+        
+        base->GadgetClass->cl_SubclassCount++;
+        
+        /* Add to ClassList */
+        {
+            struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+            if (node) {
+                node->class_ptr = strgclass;
+                node->node.ln_Type = NT_UNKNOWN;
+                node->node.ln_Name = (char *)id;
+                AddTail(&base->ClassList, &node->node);
+                strgclass->cl_Flags |= CLF_INLIST;
+            }
+        }
+        
+        base->StrGClass = strgclass;
+        DPRINTF(LOG_DEBUG, "_intuition: strgclass created at 0x%08lx\n", (ULONG)strgclass);
+    } else {
+        DPRINTF(LOG_ERROR, "_intuition: Failed to allocate strgclass!\n");
+    }
+
     return intuitionb;
 }
 
@@ -76,17 +680,17 @@ struct IntuitionBase * __g_lxa_intuition_OpenLib ( register struct IntuitionBase
 
 BPTR __g_lxa_intuition_CloseLib ( register struct IntuitionBase  *intuitionb __asm("a6"))
 {
-    return NULL;
+    return (BPTR)0;
 }
 
 BPTR __g_lxa_intuition_ExpungeLib ( register struct IntuitionBase  *intuitionb      __asm("a6"))
 {
-    return NULL;
+    return (BPTR)0;
 }
 
 ULONG __g_lxa_intuition_ExtFuncLib(void)
 {
-    return NULL;
+    return 0;
 }
 
 VOID _intuition_OpenIntuition ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -3899,11 +4503,52 @@ VOID _intuition_EraseImage ( register struct IntuitionBase * IntuitionBase __asm
     assert(FALSE);
 }
 
+static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST_STRPTR classID)
+{
+    struct Node *node;
+
+    if (!base || !classID)
+        return NULL;
+
+    node = base->ClassList.lh_Head;
+    while (node && node->ln_Succ) {
+        struct LXAClassNode *entry = (struct LXAClassNode *)node;
+        if (entry->class_ptr && entry->class_ptr->cl_ID &&
+            strcmp((const char *)entry->class_ptr->cl_ID, (const char *)classID) == 0) {
+            return entry->class_ptr;
+        }
+        node = node->ln_Succ;
+    }
+
+    return NULL;
+}
+
+static ULONG _intuition_dispatch_method(struct IClass *cl, Object *obj, Msg msg)
+{
+    if (!cl || !cl->cl_Dispatcher.h_Entry)
+        return 0;
+
+    {
+        typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
+                                       register Object *obj __asm("a2"),
+                                       register Msg msg __asm("a1"));
+        DispatchEntry entry = (DispatchEntry)cl->cl_Dispatcher.h_Entry;
+        return entry(cl, obj, msg);
+    }
+}
+
 APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct IClass * classPtr __asm("a0"),
                                                         register CONST_STRPTR classID __asm("a1"),
                                                         register const struct TagItem * tagList __asm("a2"))
 {
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct IClass *use_class = classPtr;
+    ULONG size;
+    UBYTE *object_memory;
+    Object *public_obj;
+    struct opSet op;
+
     /*
      * NewObjectA() creates a new BOOPSI object.
      * 
@@ -3912,7 +4557,31 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
      */
     DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() classPtr=0x%08lx classID='%s'\n",
              (ULONG)classPtr, classID ? (const char*)classID : "(null)");
-    
+
+    if (!use_class && classID)
+        use_class = _intuition_find_class(base, classID);
+
+    if (use_class) {
+        size = SIZEOF_INSTANCE(use_class);
+        if (size < sizeof(struct _Object))
+            size = sizeof(struct _Object);
+
+        object_memory = AllocMem(size, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!object_memory)
+            return NULL;
+
+        public_obj = (Object *)(object_memory + sizeof(struct _Object));
+        _OBJECT(public_obj)->o_Class = use_class;
+        use_class->cl_ObjectCount++;
+
+        op.MethodID = OM_NEW;
+        op.ops_AttrList = (struct TagItem *)tagList;
+        op.ops_GInfo = NULL;
+        _intuition_dispatch_method(use_class, public_obj, (Msg)&op);
+
+        return (APTR)public_obj;
+    }
+
     /* Handle sysiclass - system imagery class */
     if (classID && strcmp((const char*)classID, SYSICLASS) == 0) {
         /* Create a minimal Image structure for system imagery */
@@ -3969,23 +4638,52 @@ VOID _intuition_DisposeObject ( register struct IntuitionBase * IntuitionBase __
      */
     DPRINTF (LOG_DEBUG, "_intuition: DisposeObject() object=0x%08lx\n", (ULONG)object);
     
-    if (object) {
-        /* Assume it's an Image structure from our sysiclass/imageclass stub */
-        FreeMem(object, sizeof(struct Image));
+    if (!object)
+        return;
+
+    {
+        struct _Object *obj_data = _OBJECT(object);
+        struct IClass *cl = obj_data->o_Class;
+
+        if (cl) {
+            ULONG size = SIZEOF_INSTANCE(cl);
+            struct { ULONG MethodID; } dispose_msg;
+            if (size < sizeof(struct _Object))
+                size = sizeof(struct _Object);
+            dispose_msg.MethodID = OM_DISPOSE;
+            _intuition_dispatch_method(cl, (Object *)object, (Msg)&dispose_msg);
+            if (cl->cl_ObjectCount > 0)
+                cl->cl_ObjectCount--;
+            FreeMem(obj_data, size);
+            return;
+        }
     }
+
+    /* Assume it's an Image structure from our sysiclass/imageclass stub */
+    FreeMem(object, sizeof(struct Image));
 }
 
 ULONG _intuition_SetAttrsA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR object __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
-    /*
-     * SetAttrsA() sets attributes on a BOOPSI object.
-     * For now, return 0 (no attrs changed).
-     * TODO: Implement BOOPSI object system
-     */
-    DPRINTF (LOG_DEBUG, "_intuition: SetAttrsA() object=0x%08lx (stub)\n", (ULONG)object);
-    return 0;
+    struct _Object *obj_data;
+    struct IClass *cl;
+    struct opSet op;
+
+    if (!object)
+        return 0;
+
+    obj_data = _OBJECT(object);
+    cl = obj_data->o_Class;
+    if (!cl)
+        return 0;
+
+    op.MethodID = OM_SET;
+    op.ops_AttrList = (struct TagItem *)tagList;
+    op.ops_GInfo = NULL;
+
+    return _intuition_dispatch_method(cl, (Object *)object, (Msg)&op);
 }
 
 ULONG _intuition_GetAttr ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3993,14 +4691,23 @@ ULONG _intuition_GetAttr ( register struct IntuitionBase * IntuitionBase __asm("
                                                         register APTR object __asm("a0"),
                                                         register ULONG * storagePtr __asm("a1"))
 {
-    /*
-     * GetAttr() gets an attribute from a BOOPSI object.
-     * For now, return FALSE (attribute not found).
-     * TODO: Implement BOOPSI object system
-     */
-    DPRINTF (LOG_DEBUG, "_intuition: GetAttr() attrID=0x%08lx object=0x%08lx (stub)\n",
-             attrID, (ULONG)object);
-    return FALSE;
+    struct _Object *obj_data;
+    struct IClass *cl;
+    struct opGet op;
+
+    if (!object || !storagePtr)
+        return FALSE;
+
+    obj_data = _OBJECT(object);
+    cl = obj_data->o_Class;
+    if (!cl)
+        return FALSE;
+
+    op.MethodID = OM_GET;
+    op.opg_AttrID = attrID;
+    op.opg_Storage = storagePtr;
+
+    return _intuition_dispatch_method(cl, (Object *)object, (Msg)&op);
 }
 
 ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -4022,11 +4729,6 @@ ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase
 APTR _intuition_NextObject ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR objectPtrPtr __asm("a0"))
 {
-    /*
-     * NextObject() gets the next object from an iteration state.
-     * For now, return NULL (end of list).
-     * TODO: Implement BOOPSI object iteration
-     */
     DPRINTF (LOG_DEBUG, "_intuition: NextObject() objectPtrPtr=0x%08lx (stub)\n", (ULONG)objectPtrPtr);
     return NULL;
 }
@@ -4038,22 +4740,79 @@ VOID _intuition_private2 ( register struct IntuitionBase * IntuitionBase __asm("
 }
 
 struct IClass * _intuition_MakeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
-                                                        register CONST_STRPTR classID __asm("a0"),
-                                                        register CONST_STRPTR superClassID __asm("a1"),
-                                                        register const struct IClass * superClassPtr __asm("a2"),
-                                                        register UWORD instanceSize __asm("d0"),
-                                                        register ULONG flags __asm("d1"))
+                                       register CONST_STRPTR classID __asm("a0"),
+                                       register CONST_STRPTR superClassID __asm("a1"),
+                                       register struct IClass * superClassPtr __asm("a2"),
+                                       register UWORD instanceSize __asm("d0"),
+                                       register ULONG flags __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: MakeClass() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct IClass *superClass = superClassPtr;
+    
+    DPRINTF(LOG_DEBUG, "_intuition: MakeClass('%s', superId='%s', super=0x%08lx, size=%d flags=0x%08lx)\n",
+            classID ? (char *)classID : "NULL",
+            superClassID ? (char *)superClassID : "NULL",
+            (ULONG)superClass, instanceSize, flags);
+
+    /* Determine superclass */
+    if (!superClass && superClassID)
+        superClass = _intuition_find_class(base, superClassID);
+    if (!superClass)
+        superClass = base->RootClass;
+    
+    /* Calculate allocation size */
+    /* We allocate: IClass + ClassID string */
+    ULONG nameLen = classID ? strlen((char *)classID) + 1 : 0;
+    struct IClass *cl = AllocMem(sizeof(struct IClass) + nameLen, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!cl) return NULL;
+    
+    /* Initialize class */
+    /* cl->cl_Next is NULL */
+    
+    if (classID) {
+        UBYTE *id = (UBYTE *)(cl + 1);
+        strcpy((char *)id, (char *)classID);
+        cl->cl_ID = (ClassID)id;
+    }
+    
+    cl->cl_Super = superClass;
+    cl->cl_Reserved = 0;
+    cl->cl_InstSize = instanceSize;
+    if (superClass)
+        cl->cl_InstOffset = superClass->cl_InstOffset + superClass->cl_InstSize;
+    else
+        cl->cl_InstOffset = 0;
+    
+    if (superClass)
+        superClass->cl_SubclassCount++;
+    
+    DPRINTF(LOG_DEBUG, "_intuition: MakeClass created 0x%08lx, instance size=%d\n", (ULONG)cl, cl->cl_InstSize);
+    return cl;
 }
+
 
 VOID _intuition_AddClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct IClass * classPtr __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: AddClass() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+
+    if (!classPtr)
+        return;
+
+    if (classPtr->cl_Flags & CLF_INLIST)
+        return;
+
+    {
+        struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!node)
+            return;
+
+        node->class_ptr = classPtr;
+        node->node.ln_Type = NT_UNKNOWN;
+        node->node.ln_Name = (char *)classPtr->cl_ID;
+        AddTail(&base->ClassList, &node->node);
+        classPtr->cl_Flags |= CLF_INLIST;
+    }
 }
 
 struct DrawInfo * _intuition_GetScreenDrawInfo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -4165,16 +4924,45 @@ BOOL _intuition_ResetMenuStrip ( register struct IntuitionBase * IntuitionBase _
 VOID _intuition_RemoveClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct IClass * classPtr __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: RemoveClass() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct Node *node;
+
+    if (!classPtr)
+        return;
+
+    node = base->ClassList.lh_Head;
+    while (node && node->ln_Succ) {
+        struct LXAClassNode *entry = (struct LXAClassNode *)node;
+        if (entry->class_ptr == classPtr) {
+            Remove(node);
+            FreeMem(entry, sizeof(struct LXAClassNode));
+            classPtr->cl_Flags &= ~CLF_INLIST;
+            return;
+        }
+        node = node->ln_Succ;
+    }
 }
 
 BOOL _intuition_FreeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct IClass * classPtr __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: FreeClass() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    if (!classPtr)
+        return FALSE;
+
+    if (classPtr->cl_SubclassCount != 0)
+        return FALSE;
+
+    if (classPtr->cl_ObjectCount != 0)
+        return FALSE;
+
+    if (classPtr->cl_Flags & CLF_INLIST)
+        _intuition_RemoveClass(IntuitionBase, classPtr);
+
+    if (classPtr->cl_Super && classPtr->cl_Super->cl_SubclassCount > 0)
+        classPtr->cl_Super->cl_SubclassCount--;
+
+    FreeMem(classPtr, sizeof(struct IClass) + (classPtr->cl_ID ? strlen((char *)classPtr->cl_ID) + 1 : 0));
+    return TRUE;
 }
 
 VOID _intuition_private3 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -4368,7 +5156,7 @@ struct Resident *__lxa_intuition_ROMTag = &ROMTag;
 
 struct InitTable __g_lxa_intuition_InitTab =
 {
-    (ULONG)               sizeof(struct IntuitionBase),        // LibBaseSize
+    (ULONG)               sizeof(struct LXAIntuitionBase),        // LibBaseSize
     (APTR              *) &__g_lxa_intuition_FuncTab[0],  // FunctionTable
     (APTR)                &__g_lxa_intuition_DataTab,     // DataTable
     (APTR)                __g_lxa_intuition_InitLib       // InitLibFn
@@ -4527,4 +5315,3 @@ struct MyDataInit __g_lxa_intuition_DataTab =
     /* lib_IdString */ 0x80, (UBYTE) (ULONG) OFFSET(Library, lib_IdString), (ULONG) &_g_intuition_ExLibID[0],
     (ULONG) 0
 };
-
