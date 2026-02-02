@@ -93,9 +93,12 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 
 ## Phase 26: KickPascal 2 & Real-World Application Testing (was Phase 23)
 
-**Goal**: Validate lxa compatibility with real Amiga applications, using KickPascal 2 as the primary test case.
+**Goal**: Validate lxa compatibility with real Amiga applications, using KickPascal 2 as the first test case.
+
+**IMPORTANT**: **all** testing needs to be fully automated, **no** manual testing required. If neccessary, expand the emulator capabilities so automated tests can generate UI events and observe application behavior (system calls made, file accesses, observe UI output, etc.)
 
 ### Step 26.1: KickPascal 2 Full Compatibility
+- [x] **Binary Loading** - KP2 executable loads and validates successfully
 - [ ] **Complete IDE Launch** - Editor window opens correctly with menus
 - [ ] **File Operations** - Open, Save, New work with KP2 format
 - [ ] **Text Editing** - All editor features work (cursor, selection, scroll)
@@ -103,8 +106,8 @@ Authentic AmigaOS windowing, screen, and input behavior: Window/Screen/Gadget st
 - [ ] **Documentation** - Document any KP2-specific workarounds needed
 
 ### Step 26.2: Application Test Suite
-- [ ] **Create app-tests/ directory** - Structured testing for real applications
-- [ ] **Test runner infrastructure** - Automated launch, screenshot, validation
+- [x] **Create tests/apps/ directory** - Structured testing for real applications
+- [x] **Test runner infrastructure** - app_test_runner.sh with APPS: assign setup
 - [ ] **App manifest format** - Define expected behavior per application
 
 ### Step 26.3: Additional Test Applications
