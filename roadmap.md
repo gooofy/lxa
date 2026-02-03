@@ -393,7 +393,7 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [x] **AROS Comparison** - Reviewed structure against AROS.
 - [x] **NDK Function List** - Verified stubs against NDK.
 
-**Implementation Strategy - Group 1: Window & Screen Manipulation (✅ COMPLETE)**
+**Implementation Strategy - Group 1: Window & Screen Manipulation (INCOMPLETE)**
 - [x] **MoveWindow** - Window movement logic with layer and rootless support
 - [x] **SizeWindow** - Window resizing logic with limits enforcement and IDCMP_NEWSIZE
 - [x] **WindowLimits** - Min/Max dimensions enforcement
@@ -404,6 +404,8 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [x] **MoveScreen** - Screen positioning (updates LeftEdge/TopEdge)
 - [x] **ScreenDepth** - Screen depth control via flags (SDEPTH_TOFRONT/TOBACK)
 - [x] **ScreenPosition** - Screen positioning with SPOS_ABSOLUTE/RELATIVE flags
+- [ ] **Review** - carefully compare each function implementation in this group agains AROS and RKRM
+- [ ] **Test coverage** - thoroughly check if all functions and corner cases are covered by tests
 
 **Implementation Strategy - Group 2: Requesters (System & Easy) (⚠️ MOSTLY COMPLETE)**
 - [x] **BuildSysRequest** - System requester window creation (basic, needs gadget creation)
@@ -413,6 +415,8 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [x] **InitRequester** - Requester initialization
 - [x] **Request** - Display requester
 - [x] **EndRequest** - Close requester
+- [ ] **Review** - carefully compare each function implementation in this group agains AROS and RKRM
+- [ ] **Test coverage** - thoroughly check if all functions and corner cases are covered by tests
 
 **Implementation Strategy - Group 3: Gadget Infrastructure (⚠️ MOSTLY COMPLETE)**
 - [x] **RefreshGList** - Render gadget list (calls _render_gadget)
@@ -421,6 +425,8 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [x] **ActivateGadget** - Set active gadget (basic implementation, needs full activation logic)
 - [x] **SetGadgetAttrsA** - Set gadget attributes (stub returning 0, no assert)
 - [ ] **DoGadgetMethodA** - Invoke gadget method (stub with assert)
+- [ ] **Review** - carefully compare each function implementation in this group agains AROS and RKRM
+- [ ] **Test coverage** - thoroughly check if all functions and corner cases are covered by tests
 
 **Implementation Strategy - Group 4: BOOPSI Visuals**
 - [x] **DrawImageState** - Draw image in specific state
@@ -428,23 +434,31 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [x] **GM_RENDER** - Implement visual rendering for `buttongclass`
 - [x] **GM_RENDER** - Implement visual rendering for `propgclass`
 - [x] **GM_RENDER** - Implement visual rendering for `strgclass`
+- [ ] **Review** - carefully compare each function implementation in this group agains AROS and RKRM
+- [ ] **Test coverage** - thoroughly check if all functions and corner cases are covered by tests
 
 **Implementation Strategy - Group 5: Double Buffering**
 - [x] **AllocScreenBuffer** - Allocate double buffer
 - [x] **FreeScreenBuffer** - Free double buffer
 - [x] **ChangeScreenBuffer** - Switch displayed buffer
+- [ ] **Review** - carefully compare each function implementation in this group agains AROS and RKRM
+- [ ] **Test coverage** - thoroughly check if all functions and corner cases are covered by tests
 
-**Implementation Strategy - Group 6: Public Screen Management (✅ COMPLETE)**
+**Implementation Strategy - Group 6: Public Screen Management (INCOMPLETE)**
 - [x] **LockPubScreenList** - Lock public screen list (simplified for emulation)
 - [x] **UnlockPubScreenList** - Unlock public screen list (simplified for emulation)
 - [x] **NextPubScreen** - Iterate public screens (simplified for emulation)
 - [x] **SetDefaultPubScreen** - Set default public screen (simplified for emulation)
+- [ ] **Review** - carefully compare each function implementation in this group agains AROS and RKRM
+- [ ] **Test coverage** - thoroughly check if all functions and corner cases are covered by tests
 
 **Implementation Strategy - Group 7: Preferences & Misc (✅ MOSTLY COMPLETE)**
 - [ ] **GetDefPrefs** - Get default preferences (stub)
 - [ ] **SetPrefs** - Set preferences (stub)
 - [x] **ScrollWindowRaster** - Scroll window content (wrapper calling graphics.ScrollRaster)
 - [x] **ViewAddress** - Get view address (implemented)
+- [ ] **Review** - carefully compare each function implementation in this group agains AROS and RKRM
+- [ ] **Test coverage** - thoroughly check if all functions and corner cases are covered by tests
 
 
 **v0.5.3 Progress - Phase 38:**
