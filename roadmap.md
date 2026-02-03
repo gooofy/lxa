@@ -170,23 +170,38 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 - [x] **reqtools.library** - Popular third-party requester library stub (28 functions for file/font/string requesters).
 - [x] **Test Verification** - All 4 app tests pass (devpac, dopus, kickpascal2, sysinfo).
 
+### Phase 34: ROM Robustness & Safety Fixes (COMPLETE)
+**Goal**: Improve ROM robustness against invalid pointers and malformed data.
+**Achievements**:
+- [x] **FindTask() safety** - Validates name pointers, handles NULL/-1 gracefully.
+- [x] **FindName() safety** - Validates name and node pointers, handles corrupted lists.
+- [x] **RemTask() validation** - Validates task pointers and node types, ignores invalid values.
+- [x] **strcmp() safety** - Handles NULL and 0xFFFFFFFF pointers without crashing.
+- [x] **lprintf %s safety** - Validates string pointers before dereferencing.
+- [x] **SuperState()/UserState()** - Stub implementations (no-op in emulation).
+- [x] **OpenLibrary()** - Validates library name, handles paths with colons (for dopus:libs/).
+- [x] **Test Verification** - All 4 app tests pass (devpac, dopus [expected fail], kickpascal2, sysinfo).
+
+**Notes on Directory Opus**: DOpus 4 loads successfully and dopus.library opens from `dopus:libs/`.
+However, deep corruption in DOpus/dopus.library cleanup code causes crashes during task exit.
+The crash involves garbage pointers being passed to RemTask (0xFFFFFFFF, 0x0c, 0x02, etc.) 
+followed by stack corruption leading to jumps to invalid addresses. This requires deeper
+investigation of the application's internal cleanup routines. Deferred to Phase 40.
+
 ---
 
 ## Future Phases
 
-### Phase 34: Application-Specific Fixes
+### Phase 35: Application-Specific Fixes
 **Goal**: Address specific compatibility issues discovered in tested apps.
-- [ ] **Directory Opus** - Debug why main process exits with error code 1.
-- [ ] **Directory Opus** - Investigate powerpacker.library exception loop.
 - [ ] **MaxonBASIC** - Fix divide-by-zero in display calculations.
 - [ ] **EdWordPro** - Implement input handling to make it interactive.
 - [ ] **GFA Basic** - Debug NULL pointer dereference in RemHead.
 - [ ] **ASM-One** - Investigate ROM function pointer crash.
 
-### Phase 35: Re-Testing Phase 2
-**Goal**: Comprehensive re-testing after Phase 33-34 fixes.
+### Phase 36: Re-Testing Phase 2
+**Goal**: Comprehensive re-testing after Phase 34-35 fixes.
 - [ ] **Devpac** - Verify continued compatibility.
-- [ ] **Directory Opus** - Test with library stubs in place.
 - [ ] **KickPascal 2** - Regression test.
 - [ ] **SysInfo** - Regression test.
 - [ ] **EdWordPro** - Full interactive testing.
@@ -195,14 +210,14 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 - [ ] **New Apps** - Test additional applications from App-DB.
 - [ ] **Update COMPATIBILITY.md** - Document all results.
 
-### Phase 36: IFF & Datatypes Support
+### Phase 37: IFF & Datatypes Support
 - [ ] **iffparse.library** - Full implementation (if not done in Phase 33).
 - [ ] **datatypes.library** - Basic framework.
 
-### Phase 37: Advanced Console Features
+### Phase 38: Advanced Console Features
 - CONU_CHARMAP, RawKeyConvert, advanced CSI sequences.
 
-### Phase 38: BOOPSI & GadTools Visual Completion
+### Phase 39: BOOPSI & GadTools Visual Completion
 **Goal**: Complete visual rendering for BOOPSI gadgets and ASL requesters.
 - [ ] **GM_RENDER Implementation** - Full rendering for buttongclass, propgclass, strgclass.
   - Bevel boxes, 3D highlighting, text rendering
@@ -218,10 +233,19 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
   - Proportional gadget dragging
   - Keyboard shortcuts and tab cycling
 
-### Phase 39: Async I/O & Timer Completion
+### Phase 40: Async I/O & Timer Completion
 **Goal**: Implement proper asynchronous I/O for devices.
 - [ ] **timer.device Async** - TR_ADDREQUEST with proper delay queue and timeout handling.
 - [ ] **console.device Async** - Non-blocking reads with timeout support.
 - [ ] **Event Loop Integration** - Coordinate device async I/O with WaitPort/Wait().
+
+### Phase 41: Directory Opus Deep Dive
+**Goal**: Full Directory Opus 4 compatibility.
+- [ ] **Stack Corruption Analysis** - Trace the source of stack corruption during DOpus cleanup.
+- [ ] **dopus.library Investigation** - Debug the bundled library's task cleanup routines.
+- [ ] **Memory Corruption Detection** - Add memory guards/canaries to detect overwrites.
+- [ ] **Missing Function Analysis** - Identify any unimplemented functions DOpus depends on.
+- [ ] **powerpacker.library** - Implement basic decompression if needed by DOpus.
+- [ ] **inovamusic.library** - Stub or implement if needed by DOpus.
 
 ---

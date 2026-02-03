@@ -136,6 +136,7 @@ int main(void)
     struct Process *proc = NULL;
     int initial_windows;
     int windows_after;
+    BPTR dopusLock = 0;
 
     print("=== Directory Opus Automated Compatibility Test ===\n\n");
 
@@ -152,8 +153,24 @@ int main(void)
         return 20;
     }
 
+    /* ========== Setup: Create dopus: assign ========== */
+    print("--- Setup: Create dopus: assign ---\n");
+    
+    dopusLock = Lock((STRPTR)"APPS:DOPUS", ACCESS_READ);
+    if (dopusLock) {
+        if (AssignLock((STRPTR)"dopus", dopusLock)) {
+            print("OK: Created dopus: assign pointing to APPS:DOPUS\n");
+            /* AssignLock consumes the lock on success */
+        } else {
+            print("WARNING: Failed to create dopus: assign\n");
+            UnLock(dopusLock);
+        }
+    } else {
+        print("WARNING: Cannot lock APPS:DOPUS directory\n");
+    }
+
     /* ========== Test 1: Load Directory Opus ========== */
-    print("--- Test 1: Load Directory Opus binary ---\n");
+    print("\n--- Test 1: Load Directory Opus binary ---\n");
 
     seg = LoadSeg((STRPTR)"APPS:DOPUS/DirectoryOpus");
     if (!seg) {

@@ -597,16 +597,17 @@ void _exec_Permit ( register struct ExecBase * SysBase __asm("a6"))
 
 APTR _exec_SuperState ( register struct ExecBase * SysBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: SuperState unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: SuperState() called.\n");
+    /* In emulation, we're always in "supervisor" mode effectively.
+     * Return NULL to indicate we're already in supervisor state. */
     return NULL;
 }
 
 void _exec_UserState ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___sysStack  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: UserState unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: UserState() called, sysStack=0x%08lx\n", ___sysStack);
+    /* In emulation, state switching is a no-op. */
 }
 
 struct Interrupt * _exec_SetIntVector ( register struct ExecBase * SysBase __asm("a6"),
@@ -1207,13 +1208,17 @@ struct Node * _exec_FindName ( register struct ExecBase * SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: FindName called list=0x%08lx, name=%s\n", list, name);
 
+    /* Validate name pointer */
+    if (!name || (ULONG)name == 0xFFFFFFFF)
+        return NULL;
+
     if (!list)
         list = &SysBase->PortList;
 
     for (struct Node *node=list->lh_Head; node->ln_Succ; node=node->ln_Succ)
     {
-        DPRINTF (LOG_DEBUG, "_exec: FindName node=0x%08lx, node->ln_Name=%s\n", node, node->ln_Name);
-        if (node->ln_Name)
+        DPRINTF (LOG_DEBUG, "_exec: FindName node=0x%08lx, node->ln_Name=%s\n", node, node->ln_Name ? node->ln_Name : "(null)");
+        if (node->ln_Name && (ULONG)node->ln_Name != 0xFFFFFFFF)
         {
             if (!strcmp (node->ln_Name, (char *) name))
                 return node;
@@ -1293,6 +1298,21 @@ void _exec_RemTask ( register struct ExecBase * SysBase __asm("a6"),
     if (!task)
         task = me;
 
+    /* Validate task pointer - it should be a reasonable memory address */
+    if ((ULONG)task < 0x1000 || (ULONG)task > 0x00FFFFFF)
+    {
+        LPRINTF (LOG_ERROR, "_exec: RemTask() called with invalid task pointer 0x%08lx - ignoring\n", task);
+        return;
+    }
+
+    /* Additional validation: check if this looks like a valid Task structure */
+    if (task->tc_Node.ln_Type != NT_TASK && task->tc_Node.ln_Type != NT_PROCESS)
+    {
+        LPRINTF (LOG_ERROR, "_exec: RemTask() task 0x%08lx has invalid type %d - ignoring\n", 
+                 task, task->tc_Node.ln_Type);
+        return;
+    }
+
     if (task != me)
     {
         Disable();
@@ -1332,8 +1352,16 @@ struct Task * _exec_FindTask ( register struct ExecBase *SysBase __asm("a6"),
 
     struct Task *ret, *thisTask = SysBase->ThisTask;
 
+    /* NULL means "return current task" */
     if (!name)
         return thisTask;
+    
+    /* Safety: invalid pointer (often error code -1) - treat as NULL and return current task */
+    if ((ULONG)name == 0xFFFFFFFF || (ULONG)name < 0x400)
+    {
+        DPRINTF (LOG_DEBUG, "_exec: FindTask() called with invalid name pointer 0x%08lx, returning current task\n", name);
+        return thisTask;
+    }
 
     Disable();
 
@@ -1343,16 +1371,21 @@ struct Task * _exec_FindTask ( register struct ExecBase *SysBase __asm("a6"),
         ret = (struct Task *) FindName (&SysBase->TaskWait, name);
         if (!ret)
         {
+            /* Also check if the name matches the current task */
             char       *s1 = thisTask->tc_Node.ln_Name;
             const char *s2 = (char *) name;
-            while (*s1 == *s2)
+            /* Only compare if current task has a valid name pointer */
+            if (s1 && (ULONG)s1 != 0xFFFFFFFF)
             {
-                if (!*s2)
+                while (*s1 == *s2)
                 {
-                    ret = thisTask;
-                    break;
+                    if (!*s2)
+                    {
+                        ret = thisTask;
+                        break;
+                    }
+                    s1++; s2++;
                 }
-                s1++; s2++;
             }
         }
     }
@@ -2667,6 +2700,13 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
                                                      register CONST_STRPTR     libName  __asm("a1"),
                                                      register ULONG            version  __asm("d0"))
 {
+    /* Validate library name - handle NULL or empty string gracefully */
+    if (!libName || !*libName)
+    {
+        DPRINTF (LOG_DEBUG, "_exec: OpenLibrary called with NULL or empty library name - returning NULL\n");
+        return NULL;
+    }
+
     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary called libName=%s, version=%ld\n", libName, version);
 
     Forbid();
@@ -2693,19 +2733,34 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
     else
     {
         /* Library not found in resident list - try to load from disk */
-        DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: %s not resident, trying LIBS:\n", libName);
+        DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: %s not resident, trying disk\n", libName);
         
         /* Build path to library file */
         char libPath[256];
         libPath[0] = '\0';
+        BPTR segList = 0;
         
-        /* First try LIBS: */
-        strcpy(libPath, "LIBS:");
-        strcat(libPath, (const char *)libName);
+        /* Check if library name already contains a path (has a colon) */
+        const char *colon = (const char *)libName;
+        while (*colon && *colon != ':') colon++;
+        int hasPath = (*colon == ':');
         
-        DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s\n", libPath);
-        
-        BPTR segList = LoadSeg((STRPTR)libPath);
+        if (hasPath)
+        {
+            /* Library name is already a full path - try it directly */
+            strcpy(libPath, (const char *)libName);
+            DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s (absolute path)\n", libPath);
+            segList = LoadSeg((STRPTR)libPath);
+        }
+        else
+        {
+            /* Try LIBS: directory first */
+            strcpy(libPath, "LIBS:");
+            strcat(libPath, (const char *)libName);
+            
+            DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s\n", libPath);
+            segList = LoadSeg((STRPTR)libPath);
+        }
         
         if (!segList)
         {
@@ -2714,9 +2769,17 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
             while (*dot && *dot != '.') dot++;
             if (!*dot)
             {
-                strcpy(libPath, "LIBS:");
-                strcat(libPath, (const char *)libName);
-                strcat(libPath, ".library");
+                if (hasPath)
+                {
+                    strcpy(libPath, (const char *)libName);
+                    strcat(libPath, ".library");
+                }
+                else
+                {
+                    strcpy(libPath, "LIBS:");
+                    strcat(libPath, (const char *)libName);
+                    strcat(libPath, ".library");
+                }
                 
                 DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s\n", libPath);
                 segList = LoadSeg((STRPTR)libPath);

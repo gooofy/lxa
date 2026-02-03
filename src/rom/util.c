@@ -411,6 +411,10 @@ static void vlprintf(int lvl, const char *format, va_list args)
 				break;
 			case 's':
 				buffer2 = va_arg(args, char *);
+				/* Safety check for NULL or obviously invalid pointers */
+				if (!buffer2 || (ULONG)buffer2 == 0xFFFFFFFF || (ULONG)buffer2 < 0x400) {
+					buffer2 = "(null)";
+				}
 				size2 = strlen(buffer2);
 				size2 = size2 <= preci ? size2 : preci;
 				preci = 0;
@@ -494,6 +498,13 @@ void *memset(void *dst, int c, ULONG n)
 
 int strcmp(const char* s1, const char* s2)
 {
+    /* Safety check for NULL or obviously invalid pointers (-1 often means error) */
+    if (!s1 || (ULONG)s1 == 0xFFFFFFFF) {
+        if (!s2 || (ULONG)s2 == 0xFFFFFFFF) return 0;
+        return -1;
+    }
+    if (!s2 || (ULONG)s2 == 0xFFFFFFFF) return 1;
+    
     while(*s1 && (*s1 == *s2))
     {
         s1++;

@@ -4766,16 +4766,19 @@ struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("
                                                         register const struct Segment * seg __asm("d2"),
                                                         register LONG system __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FindSegment() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: FindSegment() called, name=%s, seg=0x%08lx, system=%ld\n", 
+             name, seg, system);
+    /* Return NULL - segment not found. Full implementation would search 
+     * the resident segment list maintained by dos.library. */
     return NULL;
 }
 
 LONG _dos_RemSegment ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct Segment * seg __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: RemSegment() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_dos: RemSegment() called, seg=0x%08lx\n", seg);
+    /* Return 0 (FALSE) - segment not removed. Full implementation would
+     * remove segment from the resident list. */
     return 0;
 }
 

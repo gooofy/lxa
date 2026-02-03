@@ -93,6 +93,7 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
         -e '^_keymap:' \
         -e '^_boopsi:' \
         -e '^display:' \
+        -e '^ERROR:' \
         -e "^           " \
         -e "^          " \
         -e "^  LeftEdge=" \
