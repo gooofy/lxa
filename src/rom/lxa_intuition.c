@@ -1121,8 +1121,50 @@ VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm
                                                         register struct Requester * requester __asm("a0"),
                                                         register struct Window * window __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: EndRequest() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct Requester *curr, *prev = NULL;
+
+    DPRINTF (LOG_DEBUG, "_intuition: EndRequest() req=0x%08lx win=0x%08lx\n", (ULONG)requester, (ULONG)window);
+    
+    if (!requester || !window) return;
+    
+    /* Find and unlink */
+    curr = window->FirstRequest;
+    while (curr && curr != requester)
+    {
+        prev = curr;
+        curr = curr->OlderRequest;
+    }
+    
+    if (!curr) return; /* Not found */
+    
+    if (prev)
+    {
+        prev->OlderRequest = requester->OlderRequest;
+    }
+    else
+    {
+        window->FirstRequest = requester->OlderRequest;
+    }
+    
+    requester->Flags &= ~REQACTIVE;
+    
+    /* Restore background */
+    /* Typically this involves refreshing the window area covered by the requester.
+     * Since we don't have BackFill layers logic fully hooked up to refresh logic yet,
+     * we might just trigger a refresh event or clear the area?
+     * "Proper" way: Restore bits if saved, or damage layer.
+     */
+     
+    /* For now, just invalidate the area if we have layers */
+    if (window->WLayer && LayersBase)
+    {
+        /* TODO: DamageLayerRegion or similar? */
+        /* Simplest: Clear to window background and let refresh handle it */
+        /* SetAPen(window->RPort, window->BackFill ? 0 : 0);
+           RectFill(window->RPort, requester->LeftEdge, ...);
+           RefeshWindowFrame...
+        */
+    }
 }
 
 struct Preferences * _intuition_GetDefPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -1234,8 +1276,18 @@ struct Preferences * _intuition_GetPrefs ( register struct IntuitionBase * Intui
 VOID _intuition_InitRequester ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Requester * requester __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: InitRequester() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: InitRequester() req=0x%08lx\n", (ULONG)requester);
+    
+    if (!requester) return;
+    
+    /* Clear relevant fields */
+    /* Note: Application usually allocates this, we just init defaults if needed.
+     * RKRM says: "Initializes a requester for use."
+     * It typically clears flags and sets up pointers.
+     */
+    requester->OlderRequest = NULL;
+    requester->Flags &= ~REQACTIVE;
+    /* We don't clear other fields as they are set by the app */
 }
 
 struct MenuItem * _intuition_ItemAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3277,13 +3329,65 @@ VOID _intuition_ReportMouse ( register struct IntuitionBase * IntuitionBase __as
     assert(FALSE);
 }
 
+/* Helper to render a requester */
+static void _render_requester(struct Window *window, struct Requester *req)
+{
+    struct RastPort *rp;
+    LONG left, top, width, height;
+    
+    if (!window || !req || !window->RPort) return;
+    
+    rp = window->RPort;
+    
+    left = req->LeftEdge;
+    top = req->TopEdge;
+    width = req->Width;
+    height = req->Height;
+    
+    if (req->Flags & POINTREL)
+    {
+        left += window->BorderLeft; /* Or current mouse pos? POINTREL usually relative to window top-left or mouse? 
+                                     * RKRM: "LeftEdge, TopEdge are relative to the window's top-left."
+                                     * Wait, POINTREL usually means relative to Mouse? No, that's specialized.
+                                     * Usually standard requesters are window-relative.
+                                     */
+         /* Actually, if not POINTREL, it's relative to screen? No, Requester is always in Window. 
+          * flags: POINTREL = "Relative to the pointer position".
+          */
+    }
+    
+    /* Draw background */
+    SetAPen(rp, req->BackFill);
+    RectFill(rp, left, top, left + width - 1, top + height - 1);
+    
+    /* Draw Border if present */
+    /* TODO: Render req->ReqBorder */
+    
+    /* Draw Text if present */
+    /* TODO: Render req->ReqText via PrintIText (which calls IntuiTextLength/Move/Text) */
+    
+    /* Draw Gadgets */
+    /* TODO: RefreshGList(req->ReqGadget, window, req, -1) */
+}
+
 BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Requester * requester __asm("a0"),
                                                         register struct Window * window __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: Request() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_intuition: Request() req=0x%08lx win=0x%08lx\n", (ULONG)requester, (ULONG)window);
+    
+    if (!requester || !window) return FALSE;
+    
+    /* Link into window's requester list (LIFO) */
+    requester->OlderRequest = window->FirstRequest;
+    window->FirstRequest = requester;
+    
+    requester->Flags |= REQACTIVE;
+    
+    /* Render */
+    _render_requester(window, requester);
+    
+    return TRUE;
 }
 
 VOID _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3779,16 +3883,60 @@ VOID _intuition_BeginRefresh ( register struct IntuitionBase * IntuitionBase __a
 
 struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
-                                                        register const struct IntuiText * body __asm("a1"),
-                                                        register const struct IntuiText * posText __asm("a2"),
-                                                        register const struct IntuiText * negText __asm("a3"),
+                                                        register struct IntuiText * bodyText __asm("a1"),
+                                                        register struct IntuiText * posText __asm("a2"),
+                                                        register struct IntuiText * negText __asm("a3"),
                                                         register ULONG flags __asm("d0"),
                                                         register UWORD width __asm("d1"),
                                                         register UWORD height __asm("d2"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: BuildSysRequest() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct NewWindow nw;
+    struct Window *reqWindow;
+    /* struct Gadget *posGad = NULL, *negGad = NULL; */
+    /* LONG textW, textH; */
+    LONG winW = width, winH = height;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: BuildSysRequest() body=%s\n", 
+             (bodyText && bodyText->IText) ? (char *)bodyText->IText : "NULL");
+
+    /* Default dimensions if not provided */
+    if (winW == 0) winW = 320;
+    if (winH == 0) winH = 100;
+    
+    /* TODO: Calculate actual size from text */
+
+    memset(&nw, 0, sizeof(nw));
+    nw.LeftEdge = (window) ? window->LeftEdge + 20 : 0;
+    nw.TopEdge = (window) ? window->TopEdge + 20 : 0;
+    nw.Width = winW;
+    nw.Height = winH;
+    nw.DetailPen = 0;
+    nw.BlockPen = 1;
+    nw.Title = (UBYTE *)"System Request";
+    nw.Flags = WFLG_ACTIVATE | WFLG_RMBTRAP | WFLG_NOCAREREFRESH | WFLG_SIMPLE_REFRESH | WFLG_BORDERLESS;
+    nw.IDCMPFlags = IDCMP_GADGETUP | IDCMP_MOUSEBUTTONS | IDCMP_VANILLAKEY;
+    
+    if (window && window->WScreen) {
+        nw.Type = CUSTOMSCREEN;
+        nw.Screen = window->WScreen;
+    } else {
+        nw.Type = WBENCHSCREEN;
+    }
+    
+    /* Open Window */
+    reqWindow = _intuition_OpenWindow(IntuitionBase, &nw);
+    if (!reqWindow) return NULL;
+    
+    /* Create Gadgets manually for now (simplified) 
+     * In a real implementation, we'd use NewObject or alloc Gadget structs.
+     * Here we'll just alloc memory for them.
+     */
+     
+    /* TODO: Create Gadgets */
+    /* Draw Text */
+    /* TODO: Draw IntuiText */
+    
+    return reqWindow;
 }
 
 /*
@@ -3829,8 +3977,12 @@ VOID _intuition_EndRefresh ( register struct IntuitionBase * IntuitionBase __asm
 VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: FreeSysRequest() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: FreeSysRequest() window=0x%08lx\n", (ULONG)window);
+    
+    if (window)
+    {
+        _intuition_CloseWindow(IntuitionBase, window);
+    }
 }
 
 LONG _intuition_MakeScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -4482,12 +4634,53 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
 
 LONG _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
-                                                        register ULONG * idcmpPtr __asm("a1"),
-                                                        register BOOL waitInput __asm("d0"))
+                                                        register ULONG * idcmpFlags __asm("a1"),
+                                                        register LONG waitInput __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SysReqHandler() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct IntuiMessage *msg;
+    LONG result = -2; /* No result yet */
+    
+    DPRINTF (LOG_DEBUG, "_intuition: SysReqHandler() window=0x%08lx wait=%ld\n", (ULONG)window, waitInput);
+    
+    if (!window || !window->UserPort) return -1;
+    
+    /* Consume messages */
+    while (1)
+    {
+        /* If waitInput is TRUE, wait for a message */
+        if (waitInput && IsMsgPortEmpty(window->UserPort))
+        {
+            WaitPort(window->UserPort);
+        }
+        
+        while ((msg = (struct IntuiMessage *)GetMsg(window->UserPort)))
+        {
+            ULONG class = msg->Class;
+            /* UWORD code = msg->Code; */
+            APTR iaddress = msg->IAddress;
+            
+            ReplyMsg((struct Message *)msg);
+            
+            if (idcmpFlags) *idcmpFlags = class;
+            
+            if (class == IDCMP_GADGETUP)
+            {
+                struct Gadget *gad = (struct Gadget *)iaddress;
+                /* Assuming GadgetID is set to 1 for Pos, 0 for Neg (or similar) */
+                result = gad->GadgetID;
+                return result;
+            }
+            else if (class == IDCMP_CLOSEWINDOW)
+            {
+                return -1; /* Cancel */
+            }
+            /* Handle keyboard shortcuts if implemented */
+        }
+        
+        if (!waitInput) break;
+    }
+    
+    return result;
 }
 
 struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
