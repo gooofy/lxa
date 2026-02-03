@@ -35,6 +35,31 @@ extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
 extern struct UtilityBase *UtilityBase;
 
+/* Helper functions to bypass broken macros */
+static inline void _call_MoveLayer(struct Library *base, struct Layer *layer, LONG dx, LONG dy) {
+    register struct Library * _base __asm("a6") = base;
+    register struct Layer * _layer __asm("a0") = layer;
+    register LONG _dx __asm("d0") = dx;
+    register LONG _dy __asm("d1") = dy;
+    __asm volatile ("jsr -60(%%a6)"
+        :
+        : "r"(_base), "r"(_layer), "r"(_dx), "r"(_dy)
+        : "d0", "d1", "a0", "a1", "memory", "cc");
+}
+
+static inline LONG _call_SizeLayer(struct Library *base, struct Layer *layer, LONG dx, LONG dy) {
+    register struct Library * _base __asm("a6") = base;
+    register struct Layer * _layer __asm("a0") = layer;
+    register LONG _dx __asm("d0") = dx;
+    register LONG _dy __asm("d1") = dy;
+    register LONG _res __asm("d0");
+    __asm volatile ("jsr -66(%%a6)"
+        : "=r"(_res)
+        : "r"(_base), "r"(_layer), "r"(_dx), "r"(_dy)
+        : "d1", "a0", "a1", "memory", "cc");
+    return _res;
+}
+
 struct LXAIntuitionBase;
 struct LXAClassNode {
     struct Node node;
@@ -2376,8 +2401,35 @@ VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: MoveWindow() unimplemented STUB called.\n");
-    assert(FALSE);
+    LONG new_x, new_y;
+    BOOL rootless_mode;
+
+    DPRINTF(LOG_DEBUG, "_intuition: MoveWindow() window=0x%08lx dx=%d dy=%d\n", (ULONG)window, dx, dy);
+
+    if (!window) return;
+
+    /* Update internal coordinates */
+    new_x = window->LeftEdge + dx;
+    new_y = window->TopEdge + dy;
+    
+    /* Update Window structure */
+    window->LeftEdge = new_x;
+    window->TopEdge = new_y;
+
+    /* Update Layer if present */
+    if (window->WLayer && LayersBase)
+    {
+        _call_MoveLayer(LayersBase, window->WLayer, dx, dy);
+    }
+    
+    /* Check for rootless mode */
+    rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
+    
+    if (rootless_mode && window->UserData)
+    {
+        /* Update host window - emucall expects absolute coordinates */
+        emucall3(EMU_CALL_INT_MOVE_WINDOW, (ULONG)window->UserData, (ULONG)new_x, (ULONG)new_y);
+    }
 }
 
 VOID _intuition_OffGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3319,8 +3371,72 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SizeWindow() unimplemented STUB called.\n");
-    assert(FALSE);
+    LONG new_w, new_h;
+    BOOL rootless_mode;
+
+    DPRINTF(LOG_DEBUG, "_intuition: SizeWindow() window=0x%08lx dx=%d dy=%d\n", (ULONG)window, dx, dy);
+
+    if (!window) return;
+
+    new_w = window->Width + dx;
+    new_h = window->Height + dy;
+
+    /* Enforce limits */
+    if (new_w < window->MinWidth) new_w = window->MinWidth;
+    if (new_w > window->MaxWidth) new_w = window->MaxWidth;
+    if (new_h < window->MinHeight) new_h = window->MinHeight;
+    if (new_h > window->MaxHeight) new_h = window->MaxHeight;
+
+    /* Recalculate deltas in case limits were hit */
+    dx = new_w - window->Width;
+    dy = new_h - window->Height;
+
+    if (dx == 0 && dy == 0) return;
+
+    /* Update Window structure */
+    window->Width = new_w;
+    window->Height = new_h;
+
+    /* Update Layer if present */
+    if (window->WLayer && LayersBase)
+    {
+        _call_SizeLayer(LayersBase, window->WLayer, dx, dy);
+    }
+
+    /* Check for rootless mode */
+    rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
+    
+    if (rootless_mode && window->UserData)
+    {
+        /* Update host window - emucall expects absolute dimensions */
+        emucall3(EMU_CALL_INT_SIZE_WINDOW, (ULONG)window->UserData, (ULONG)new_w, (ULONG)new_h);
+    }
+
+    /* Send IDCMP_NEWSIZE */
+    if (window->IDCMPFlags & IDCMP_NEWSIZE)
+    {
+        struct IntuiMessage *msg;
+        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
+        if (msg)
+        {
+            msg->Class = IDCMP_NEWSIZE;
+            msg->Code = 0;
+            msg->Qualifier = 0;
+            msg->IAddress = window;
+            msg->IDCMPWindow = window;
+            msg->MouseX = window->MouseX;
+            msg->MouseY = window->MouseY; 
+            
+            if (window->UserPort)
+            {
+                PutMsg(window->UserPort, (struct Message *)msg);
+            }
+            else
+            {
+                FreeMem(msg, sizeof(struct IntuiMessage));
+            }
+        }
+    }
 }
 
 struct View * _intuition_ViewAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -3370,9 +3486,25 @@ BOOL _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __a
                                                         register ULONG widthMax __asm("d2"),
                                                         register ULONG heightMax __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: WindowLimits() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    WORD old_w, old_h;
+
+    DPRINTF(LOG_DEBUG, "_intuition: WindowLimits() window=0x%08lx min=%ldx%ld max=%ldx%ld\n", 
+            (ULONG)window, widthMin, heightMin, widthMax, heightMax);
+            
+    if (!window) return FALSE;
+
+    if (widthMin) window->MinWidth = widthMin;
+    if (heightMin) window->MinHeight = heightMin;
+    if (widthMax) window->MaxWidth = widthMax;
+    if (heightMax) window->MaxHeight = heightMax;
+
+    old_w = window->Width;
+    old_h = window->Height;
+
+    /* Calling SizeWindow with 0,0 will enforce new limits */
+    _intuition_SizeWindow(IntuitionBase, window, 0, 0);
+
+    return (window->Width != old_w || window->Height != old_h);
 }
 
 struct Preferences  * _intuition_SetPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3957,13 +4089,18 @@ VOID _intuition_MoveWindowInFrontOf ( register struct IntuitionBase * IntuitionB
 
 VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
-                                                        register WORD left __asm("d0"),
-                                                        register WORD top __asm("d1"),
-                                                        register WORD width __asm("d2"),
-                                                        register WORD height __asm("d3"))
+                                                        register LONG left __asm("d0"),
+                                                        register LONG top __asm("d1"),
+                                                        register LONG width __asm("d2"),
+                                                        register LONG height __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ChangeWindowBox() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF(LOG_DEBUG, "_intuition: ChangeWindowBox() window=0x%08lx pos=%ld,%ld size=%ldx%ld\n", 
+            (ULONG)window, left, top, width, height);
+
+    if (!window) return;
+
+    _intuition_MoveWindow(IntuitionBase, window, left - window->LeftEdge, top - window->TopEdge);
+    _intuition_SizeWindow(IntuitionBase, window, width - window->Width, height - window->Height);
 }
 
 struct Hook * _intuition_SetEditHook ( register struct IntuitionBase * IntuitionBase __asm("a6"),
