@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.5.8** | **42 Phases Complete** | **33 Integration Tests Passing**
+**Version: 0.5.9** | **43 Phases Complete** | **34 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -88,23 +88,22 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - AddDTObject, RemoveDTObject for window integration
   - RefreshDTObjectA, DoAsyncLayout, DoDTMethodA for rendering
   - GetDTMethods, GetDTTriggerMethods for method queries
+- ✅ **Phase 43**: console.device Advanced Features
+  - CONU_CHARMAP and CONU_SNIPMAP unit modes for character map binding
+  - RawKeyConvert() library function (wrapper around MapRawKey)
+  - CSI 'r' (DECSTBM) - Set Top and Bottom Margins for scrolling regions
+  - CSI '{' (Amiga-specific) - Set scrolling region from top
+  - Scrolling functions respect scroll_top and scroll_bottom boundaries
 
 ---
 
 ## Active Phase
 
-*No active phase. Ready for Phase 43.*
+*No active phase. Ready for Phase 44.*
 
 ---
 
 ## Future Phases
-
-### Phase 43: Advanced Console Features
-**Goal**: Complete console.device with remaining features.
-
-- [ ] CONU_CHARMAP mode support
-- [ ] RawKeyConvert implementation
-- [ ] Advanced CSI sequences (scrolling regions, etc.)
 
 ### Phase 44: BOOPSI & GadTools Visual Completion
 **Goal**: Complete visual rendering for BOOPSI gadgets and ASL requesters.
@@ -154,6 +153,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.5.9 | 43 | console.device advanced features (CONU_CHARMAP, RawKeyConvert, scrolling regions) |
 | 0.5.8 | 42 | datatypes.library basic framework |
 | 0.5.7 | 41 | iffparse.library full implementation |
 | 0.5.6 | 40 | GFA Basic height fix, Devpac rendering verified |

@@ -95,6 +95,12 @@ struct LxaConUnit {
     BYTE   saved_bg;             /* Original background pen */
     /* Tab stops - 80 maximum (RKRM standard) */
     UWORD  tab_stops[80];
+    /* Scrolling region (for DECSTBM and Amiga '{' sequence) */
+    WORD   scroll_top;           /* Top line of scrolling region (0-based) */
+    WORD   scroll_bottom;        /* Bottom line of scrolling region (0-based) */
+    /* Unit mode */
+    UWORD  unit_mode;            /* CONU_STANDARD, CONU_CHARMAP, or CONU_SNIPMAP */
+    BOOL   use_keymap;           /* TRUE if using custom keymap (CONU_CHARMAP/SNIPMAP) */
 };
 
 /*
@@ -327,6 +333,14 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     
     /* Initialize tab stops (every 8 columns) */
     console_init_tab_stops(unit);
+    
+    /* Initialize scrolling region (full screen by default) */
+    unit->scroll_top = 0;
+    unit->scroll_bottom = unit->cu.cu_YMax;
+    
+    /* Initialize unit mode (will be set in OpenDevice) */
+    unit->unit_mode = CONU_STANDARD;
+    unit->use_keymap = FALSE;
     
     LPRINTF(LOG_INFO, "_console: Created ConUnit for window 0x%08lx: XMax=%d YMax=%d XRSize=%d YRSize=%d\n",
             (ULONG)window, unit->cu.cu_XMax, unit->cu.cu_YMax, unit->cu.cu_XRSize, unit->cu.cu_YRSize);
@@ -869,18 +883,19 @@ static void console_scroll_up(struct LxaConUnit *unit)
     rp = window->RPort;
     if (!rp || !rp->BitMap) return;
     
-    /* Source rectangle (everything except top line) */
+    /* Calculate scrolling region bounds in pixels */
     x1 = unit->cu.cu_XROrigin;
-    y1 = unit->cu.cu_YROrigin;
+    y1 = unit->cu.cu_YROrigin + (unit->scroll_top * unit->cu.cu_YRSize);
     x2 = unit->cu.cu_XRExtant;
-    y2 = unit->cu.cu_YRExtant;
+    y2 = unit->cu.cu_YROrigin + ((unit->scroll_bottom + 1) * unit->cu.cu_YRSize) - 1;
     
-    /* Use ScrollRaster to scroll content up */
+    /* Use ScrollRaster to scroll content up within the scrolling region */
     /* ScrollRaster(rp, dx, dy, x1, y1, x2, y2) moves content by (dx, dy) pixels */
     /* We want to move up by one character height */
     ScrollRaster(rp, 0, unit->cu.cu_YRSize, x1, y1, x2, y2);
     
-    DPRINTF(LOG_DEBUG, "_console: scroll_up() scrolled by %d pixels\n", unit->cu.cu_YRSize);
+    DPRINTF(LOG_DEBUG, "_console: scroll_up() scrolled region [%d-%d] by %d pixels\n", 
+            unit->scroll_top, unit->scroll_bottom, unit->cu.cu_YRSize);
 }
 
 /*
@@ -898,15 +913,17 @@ static void console_scroll_down(struct LxaConUnit *unit)
     rp = window->RPort;
     if (!rp || !rp->BitMap) return;
     
+    /* Calculate scrolling region bounds in pixels */
     x1 = unit->cu.cu_XROrigin;
-    y1 = unit->cu.cu_YROrigin;
+    y1 = unit->cu.cu_YROrigin + (unit->scroll_top * unit->cu.cu_YRSize);
     x2 = unit->cu.cu_XRExtant;
-    y2 = unit->cu.cu_YRExtant;
+    y2 = unit->cu.cu_YROrigin + ((unit->scroll_bottom + 1) * unit->cu.cu_YRSize) - 1;
     
     /* Scroll down by one character height (negative dy) */
     ScrollRaster(rp, 0, -unit->cu.cu_YRSize, x1, y1, x2, y2);
     
-    DPRINTF(LOG_DEBUG, "_console: scroll_down() scrolled by %d pixels\n", unit->cu.cu_YRSize);
+    DPRINTF(LOG_DEBUG, "_console: scroll_down() scrolled region [%d-%d] by %d pixels\n",
+            unit->scroll_top, unit->scroll_bottom, unit->cu.cu_YRSize);
 }
 
 /*
@@ -914,11 +931,15 @@ static void console_scroll_down(struct LxaConUnit *unit)
  */
 static void console_cursor_up(struct LxaConUnit *unit)
 {
-    if (unit->cu.cu_YCP > 0) {
+    if (unit->cu.cu_YCP > unit->scroll_top) {
+        /* Within scrolling region, just move cursor up */
         unit->cu.cu_YCP--;
-    } else {
-        /* At top, scroll down */
+    } else if (unit->cu.cu_YCP == unit->scroll_top) {
+        /* At top of scrolling region, scroll down */
         console_scroll_down(unit);
+    } else if (unit->cu.cu_YCP > 0) {
+        /* Above scrolling region, just move cursor up */
+        unit->cu.cu_YCP--;
     }
 }
 
@@ -927,10 +948,19 @@ static void console_cursor_up(struct LxaConUnit *unit)
  */
 static void console_cursor_down(struct LxaConUnit *unit)
 {
-    if (unit->cu.cu_YCP < unit->cu.cu_YMax) {
+    if (unit->cu.cu_YCP < unit->scroll_bottom) {
+        /* Within scrolling region, just move cursor down */
         unit->cu.cu_YCP++;
-    } else {
-        /* At bottom, scroll up */
+    } else if (unit->cu.cu_YCP == unit->scroll_bottom) {
+        /* At bottom of scrolling region, scroll up if auto-scroll is enabled */
+        if (unit->autoscroll_mode) {
+            console_scroll_up(unit);
+        }
+    } else if (unit->cu.cu_YCP < unit->cu.cu_YMax) {
+        /* Below scrolling region, just move cursor down */
+        unit->cu.cu_YCP++;
+    } else if (unit->autoscroll_mode) {
+        /* At bottom of screen, scroll up */
         console_scroll_up(unit);
     }
 }
@@ -1817,10 +1847,51 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
             break;
         }
         
+        case 'r':  /* Set Top and Bottom Margins (DECSTBM) - CSI top;bottom r */
+        {
+            int top = (nparams >= 1 && params[0] > 0) ? params[0] - 1 : 0;
+            int bottom = (nparams >= 2 && params[1] > 0) ? params[1] - 1 : unit->cu.cu_YMax;
+            
+            /* Validate and clamp to screen boundaries */
+            if (top < 0) top = 0;
+            if (top > unit->cu.cu_YMax) top = unit->cu.cu_YMax;
+            if (bottom < 0) bottom = 0;
+            if (bottom > unit->cu.cu_YMax) bottom = unit->cu.cu_YMax;
+            
+            /* Top must be less than bottom */
+            if (top >= bottom) {
+                /* Invalid region, reset to full screen */
+                unit->scroll_top = 0;
+                unit->scroll_bottom = unit->cu.cu_YMax;
+            } else {
+                unit->scroll_top = top;
+                unit->scroll_bottom = bottom;
+            }
+            
+            /* Move cursor to home position (top-left of screen, not scrolling region) */
+            unit->cu.cu_XCP = 0;
+            unit->cu.cu_YCP = 0;
+            
+            DPRINTF(LOG_DEBUG, "_console: DECSTBM - set scrolling region to lines %d-%d\n", 
+                    unit->scroll_top, unit->scroll_bottom);
+            break;
+        }
+        
         case '{':  /* Set scrolling region (Amiga-specific) - CSI n { */
         {
-            /* This sets how many lines to use for the scrolling region */
-            /* For now, just ignore it */
+            /* This sets how many lines to use for the scrolling region from the top */
+            int lines = (nparams >= 1 && params[0] > 0) ? params[0] : unit->cu.cu_YMax + 1;
+            
+            /* Clamp to screen size */
+            if (lines < 1) lines = 1;
+            if (lines > unit->cu.cu_YMax + 1) lines = unit->cu.cu_YMax + 1;
+            
+            /* Set scrolling region from top to specified line */
+            unit->scroll_top = 0;
+            unit->scroll_bottom = lines - 1;
+            
+            DPRINTF(LOG_DEBUG, "_console: Amiga scrolling region - set to %d lines (0-%d)\n",
+                    lines, unit->scroll_bottom);
             break;
         }
         
@@ -2008,6 +2079,32 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
         if (!unit) {
             ioreq->io_Error = IOERR_OPENFAIL;
             return;
+        }
+        
+        /* Set unit mode based on unitn parameter */
+        switch (unitn) {
+            case CONU_STANDARD:
+                unit->unit_mode = CONU_STANDARD;
+                unit->use_keymap = FALSE;
+                LPRINTF(LOG_INFO, "_console: Opened as CONU_STANDARD (unmapped console)\n");
+                break;
+            case CONU_CHARMAP:
+                unit->unit_mode = CONU_CHARMAP;
+                unit->use_keymap = TRUE;
+                /* Copy keymap from cu_KeyMapStruct if provided, otherwise use default */
+                LPRINTF(LOG_INFO, "_console: Opened as CONU_CHARMAP (character map console)\n");
+                break;
+            case CONU_SNIPMAP:
+                unit->unit_mode = CONU_SNIPMAP;
+                unit->use_keymap = TRUE;
+                LPRINTF(LOG_INFO, "_console: Opened as CONU_SNIPMAP (snipmap console)\n");
+                break;
+            default:
+                /* Unknown unit number, default to CONU_STANDARD */
+                unit->unit_mode = CONU_STANDARD;
+                unit->use_keymap = FALSE;
+                LPRINTF(LOG_WARNING, "_console: Unknown unitn %ld, defaulting to CONU_STANDARD\n", unitn);
+                break;
         }
         
         /* Ensure the window has IDCMP_RAWKEY flag set so we receive keyboard events */
@@ -2254,6 +2351,70 @@ static ULONG __g_lxa_console_AbortIO ( register struct Library   *dev   __asm("a
     return 0;  /* No pending I/O to abort */
 }
 
+/*
+ * CDInputHandler - console input handler for input.device
+ * This function is called by input.device to process input events.
+ * For now, we just pass through the events unmodified.
+ */
+static struct InputEvent *__g_lxa_console_CDInputHandler (
+    register struct Library       *dev    __asm("a6"),
+    register struct InputEvent    *events __asm("a0"),
+    register struct Library       *cdihdata __asm("a1"))
+{
+    DPRINTF(LOG_DEBUG, "_console: CDInputHandler() called\n");
+    /* For now, just pass through events unmodified */
+    /* In a full implementation, this would handle console-specific input processing */
+    return events;
+}
+
+/*
+ * RawKeyConvert - convert raw key codes to ASCII
+ * This is essentially a wrapper around keymap.library's MapRawKey()
+ */
+static LONG __g_lxa_console_RawKeyConvert (
+    register struct Library       *dev    __asm("a6"),
+    register struct InputEvent    *events __asm("a0"),
+    register STRPTR               buffer  __asm("a1"),
+    register LONG                 length  __asm("d1"),
+    register struct KeyMap        *keyMap __asm("a2"))
+{
+    struct Library *KeymapBase;
+    LONG result = 0;
+    
+    DPRINTF(LOG_DEBUG, "_console: RawKeyConvert() called, length=%ld\n", length);
+    
+    /* Open keymap.library */
+    KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
+    if (KeymapBase) {
+        /* Call MapRawKey from keymap.library 
+         * MapRawKey is at LVO -42 (offset -42 from library base) 
+         * Signature: WORD MapRawKey(struct InputEvent *event, STRPTR buffer, LONG length, struct KeyMap *keyMap)
+         * Registers: A0=event, A1=buffer, D1=length, A2=keyMap, A6=KeymapBase
+         */
+        register LONG _result __asm("d0");
+        register struct Library *_a6 __asm("a6") = KeymapBase;
+        register struct InputEvent *_a0 __asm("a0") = events;
+        register STRPTR _a1 __asm("a1") = buffer;
+        register LONG _d1 __asm("d1") = length;
+        register struct KeyMap *_a2 __asm("a2") = keyMap;
+        
+        __asm volatile (
+            "jsr %1@(-42)"
+            : "=r" (_result)
+            : "a" (_a6), "r" (_a0), "r" (_a1), "r" (_d1), "r" (_a2)
+            : "cc", "memory"
+        );
+        
+        result = _result;
+        CloseLibrary(KeymapBase);
+    } else {
+        LPRINTF(LOG_WARNING, "_console: RawKeyConvert() - couldn't open keymap.library\n");
+    }
+    
+    DPRINTF(LOG_DEBUG, "_console: RawKeyConvert() returning %ld\n", result);
+    return result;
+}
+
 struct MyDataInit
 {
     UWORD ln_Type_Init     ; UWORD ln_Type_Offset     ; UWORD ln_Type_Content     ;
@@ -2297,12 +2458,14 @@ struct InitTable __g_lxa_console_InitTab =
 
 APTR __g_lxa_console_FuncTab [] =
 {
-    __g_lxa_console_Open,
-    __g_lxa_console_Close,
-    __g_lxa_console_Expunge,
-    NULL,
-    __g_lxa_console_BeginIO,
-    __g_lxa_console_AbortIO,
+    __g_lxa_console_Open,             // -30 (LVO_Open)
+    __g_lxa_console_Close,            // -36 (LVO_Close)
+    __g_lxa_console_Expunge,          // -42 (LVO_Expunge)
+    NULL,                             // -48 (Reserved)
+    __g_lxa_console_BeginIO,          // -54 (LVO_BeginIO)
+    __g_lxa_console_AbortIO,          // -60 (LVO_AbortIO)
+    __g_lxa_console_CDInputHandler,   // -66 (CDInputHandler)
+    __g_lxa_console_RawKeyConvert,    // -72 (RawKeyConvert)
     (APTR) ((LONG)-1)
 };
 

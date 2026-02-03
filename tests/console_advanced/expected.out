@@ -1,0 +1,17 @@
+console_advanced test: Testing advanced console features
+
+1. Testing CONU_STANDARD mode...
+OK: Opened console.device with CONU_STANDARD
+
+2. Testing CONU_CHARMAP mode...
+OK: Opened console.device with CONU_CHARMAP
+
+3. Testing RawKeyConvert...
+OK: RawKeyConvert returned 1 character(s): 'a'
+
+4. Testing scrolling region CSI sequences...
+   (Testing CSI 'r' (DECSTBM) and CSI '{' (Amiga) - write tests only)
+OK: Sent CSI 5;20 r (DECSTBM)
+OK: Sent CSI 15 { (Amiga scrolling region)
+
+All tests passed!
