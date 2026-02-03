@@ -167,3 +167,5 @@ tests/shell/alias/System/Shell
 tests/shell/controlflow/System/Shell
 tests/shell/script/System/Shell
 tests/shell/variables/System/Shell
+tests/asl/filerequest/filerequest
+tests/gadtools/drawbevelbox/drawbevelbox

@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.5.9** | **43 Phases Complete** | **34 Integration Tests Passing**
+**Version: 0.6.0** | **44 Phases Complete** | **36 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -94,33 +94,45 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - CSI 'r' (DECSTBM) - Set Top and Bottom Margins for scrolling regions
   - CSI '{' (Amiga-specific) - Set scrolling region from top
   - Scrolling functions respect scroll_top and scroll_bottom boundaries
+- ✅ **Phase 44**: BOOPSI & GadTools Visual Completion
+  - ROM size increased to 512KB to accommodate new functionality
+  - propgclass GM_HANDLEINPUT - proportional gadget dragging with mouse
+  - strgclass GM_RENDER - cursor display at BufferPos
+  - strgclass GM_HANDLEINPUT - full keyboard input (Return, Escape, Backspace, Delete, arrows, character input)
+  - DrawBevelBoxA - actual bevel box rendering with shine/shadow pens
+  - GTBB_Recessed, GT_VisualInfo, GTBB_FrameType tag support
+  - Frame types: BBFT_BUTTON, BBFT_RIDGE, BBFT_DISPLAY
+  - ASL FileRequester - full GUI implementation with window, gadgets, directory listing
+  - AllocAslRequest, FreeAslRequest, AslRequest functions
+  - ASLFR_* tag parsing for all requester options
 
 ---
 
 ## Active Phase
 
-*No active phase. Ready for Phase 44.*
+*No active phase. Ready for Phase 45.*
 
 ---
 
 ## Future Phases
 
-### Phase 44: BOOPSI & GadTools Visual Completion
-**Goal**: Complete visual rendering for BOOPSI gadgets and ASL requesters.
+### Phase 45: Async I/O & Timer Completion
+**Goal**: Implement proper asynchronous I/O for devices.
 
-- [ ] **GM_RENDER Implementation** - Full rendering for buttongclass, propgclass, strgclass
-  - Bevel boxes, 3D highlighting, text rendering
-  - Proportional gadget knobs and containers
-  - String gadget cursor and text display
-- [ ] **GadTools Rendering** - DrawBevelBoxA, gadget visual feedback
-- [ ] **ASL GUI Requesters** - Interactive file/font requesters
-  - File/directory browser with scrolling
-  - Pattern matching and filtering
-  - Font selection with preview
-- [ ] **Input Handling** - GM_HANDLEINPUT for all gadget types
-  - String editing, proportional dragging, keyboard shortcuts
+- [ ] **timer.device Async** - TR_ADDREQUEST with delay queue and timeouts
+- [ ] **console.device Async** - Non-blocking reads with timeout
+- [ ] **Event Loop Integration** - Coordinate async I/O with WaitPort/Wait()
 
-### Phase 45: Pixel Array Operations
+### Phase 46: Directory Opus Deep Dive
+**Goal**: Full Directory Opus 4 compatibility.
+
+- [ ] Stack corruption analysis during cleanup
+- [ ] dopus.library task cleanup debugging
+- [ ] Memory corruption detection (guards/canaries)
+- [ ] powerpacker.library - basic decompression
+- [ ] inovamusic.library - stub if needed
+
+### Phase 47: Pixel Array Operations
 **Goal**: Implement optimized pixel array functions using AROS-style blitting.
 
 **Background**: Simple WritePixel() loops caused crashes. AROS uses specialized `write_pixels_8()` helpers.
@@ -131,28 +143,13 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [ ] Handle BitMap formats (interleaved, standard)
 - [ ] Layer/clipping integration
 
-### Phase 46: Async I/O & Timer Completion
-**Goal**: Implement proper asynchronous I/O for devices.
-
-- [ ] **timer.device Async** - TR_ADDREQUEST with delay queue and timeouts
-- [ ] **console.device Async** - Non-blocking reads with timeout
-- [ ] **Event Loop Integration** - Coordinate async I/O with WaitPort/Wait()
-
-### Phase 47: Directory Opus Deep Dive
-**Goal**: Full Directory Opus 4 compatibility.
-
-- [ ] Stack corruption analysis during cleanup
-- [ ] dopus.library task cleanup debugging
-- [ ] Memory corruption detection (guards/canaries)
-- [ ] powerpacker.library - basic decompression
-- [ ] inovamusic.library - stub if needed
-
 ---
 
 ## Version History
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.0 | 44 | BOOPSI visual completion (propgclass, strgclass input), GadTools DrawBevelBoxA, ASL FileRequester GUI, ROM size 512KB |
 | 0.5.9 | 43 | console.device advanced features (CONU_CHARMAP, RawKeyConvert, scrolling regions) |
 | 0.5.8 | 42 | datatypes.library basic framework |
 | 0.5.7 | 41 | iffparse.library full implementation |

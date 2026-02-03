@@ -22,8 +22,8 @@
 #define RAM_SIZE    (10 * 1024 * 1024)  /* 10 MB */
 #define RAM_END     (RAM_START + RAM_SIZE - 1)
 
-#define ROM_START   0xfc0000
-#define ROM_SIZE    (256 * 1024)  /* 256 KB */
+#define ROM_START   0xf80000
+#define ROM_SIZE    (512 * 1024)  /* 512 KB */
 #define ROM_END     (ROM_START + ROM_SIZE - 1)
 
 /* Test memory arrays */
@@ -349,14 +349,14 @@ void test_ram_size_constant(void)
 
 void test_rom_size_constant(void)
 {
-    /* Verify ROM size is 256KB */
-    TEST_ASSERT_EQUAL_INT(256 * 1024, ROM_SIZE);
+    /* Verify ROM size is 512KB */
+    TEST_ASSERT_EQUAL_INT(512 * 1024, ROM_SIZE);
 }
 
 void test_rom_start_address(void)
 {
-    /* Verify ROM starts at 0xfc0000 (standard Amiga ROM address) */
-    TEST_ASSERT_EQUAL_HEX32(0xfc0000, ROM_START);
+    /* Verify ROM starts at 0xf80000 (standard Amiga 512KB ROM address) */
+    TEST_ASSERT_EQUAL_HEX32(0xf80000, ROM_START);
 }
 
 /*-------------------------------------------------------

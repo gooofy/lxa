@@ -8,6 +8,8 @@
 #include <inline/exec.h>
 #include <inline/alib.h>
 
+#include <devices/inputevent.h>
+
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
 #include <intuition/screens.h>
@@ -560,10 +562,83 @@ static ULONG propgclass_dispatch(
             return 0;
         }
         
-        case GM_HANDLEINPUT:
-            /* TODO: Implement proportional gadget input handling */
-            DPRINTF(LOG_DEBUG, "_intuition: propgclass GM_HANDLEINPUT not yet implemented\n");
+        case GM_HANDLEINPUT: {
+            struct gpInput *gpi = (struct gpInput *)msg;
+            struct InputEvent *ie = gpi->gpi_IEvent;
+            struct PropInfo *pi = (struct PropInfo *)gadget->SpecialInfo;
+            
+            if (!ie || !pi)
+                return GMR_MEACTIVE;
+            
+            DPRINTF(LOG_DEBUG, "_intuition: propgclass GM_HANDLEINPUT ie_Class=%d ie_Code=0x%x mouse=%d,%d\n",
+                    ie->ie_Class, ie->ie_Code, gpi->gpi_Mouse.X, gpi->gpi_Mouse.Y);
+            
+            /* Handle mouse button release */
+            if (ie->ie_Class == IECLASS_RAWMOUSE) {
+                if (ie->ie_Code == (IECODE_LBUTTON | IECODE_UP_PREFIX)) {
+                    /* Mouse released - end interaction */
+                    if (gpi->gpi_Termination)
+                        *gpi->gpi_Termination = gadget->GadgetID;
+                    return GMR_NOREUSE | GMR_VERIFY;
+                }
+            }
+            
+            /* Handle mouse movement while dragging */
+            if (ie->ie_Class == IECLASS_RAWMOUSE || ie->ie_Class == 0) {
+                /* Calculate the container dimensions */
+                WORD containerW = gadget->Width - 4;
+                WORD containerH = gadget->Height - 4;
+                WORD knobW, knobH;
+                WORD maxMoveX, maxMoveY;
+                WORD mouseX = gpi->gpi_Mouse.X - gadget->LeftEdge - 2;
+                WORD mouseY = gpi->gpi_Mouse.Y - gadget->TopEdge - 2;
+                
+                /* Calculate knob size */
+                if (pi->Flags & AUTOKNOB) {
+                    if (pi->Flags & FREEHORIZ)
+                        knobW = (containerW * (ULONG)pi->HorizBody) / 0xFFFF;
+                    else
+                        knobW = containerW;
+                        
+                    if (pi->Flags & FREEVERT)
+                        knobH = (containerH * (ULONG)pi->VertBody) / 0xFFFF;
+                    else
+                        knobH = containerH;
+                        
+                    if (knobW < 4) knobW = 4;
+                    if (knobH < 4) knobH = 4;
+                } else {
+                    knobW = containerW;
+                    knobH = containerH;
+                }
+                
+                /* Calculate max movement range */
+                maxMoveX = containerW - knobW;
+                maxMoveY = containerH - knobH;
+                
+                /* Update pot values based on mouse position */
+                if ((pi->Flags & FREEHORIZ) && maxMoveX > 0) {
+                    /* Clamp mouse position */
+                    if (mouseX < 0) mouseX = 0;
+                    if (mouseX > maxMoveX) mouseX = maxMoveX;
+                    
+                    pi->HorizPot = (mouseX * 0xFFFF) / maxMoveX;
+                }
+                
+                if ((pi->Flags & FREEVERT) && maxMoveY > 0) {
+                    /* Clamp mouse position */
+                    if (mouseY < 0) mouseY = 0;
+                    if (mouseY > maxMoveY) mouseY = maxMoveY;
+                    
+                    pi->VertPot = (mouseY * 0xFFFF) / maxMoveY;
+                }
+                
+                DPRINTF(LOG_DEBUG, "_intuition: propgclass updated HorizPot=%d VertPot=%d\n",
+                        pi->HorizPot, pi->VertPot);
+            }
+            
             return GMR_MEACTIVE;
+        }
     }
     
     /* Call superclass */
@@ -619,6 +694,9 @@ static ULONG strgclass_dispatch(
             struct RastPort *rp = gpr->gpr_RPort;
             struct DrawInfo *dri = gpr->gpr_GInfo ? gpr->gpr_GInfo->gi_DrInfo : NULL;
             struct StringInfo *si = (struct StringInfo *)gadget->SpecialInfo;
+            UBYTE bgColor = dri ? dri->dri_Pens[BACKGROUNDPEN] : 0;
+            UBYTE txtColor = dri ? dri->dri_Pens[TEXTPEN] : 1;
+            WORD textY;
             
             if (!rp) return 0;
             
@@ -626,25 +704,197 @@ static ULONG strgclass_dispatch(
             _draw_bevel_box(rp, gadget->LeftEdge, gadget->TopEdge, gadget->Width, gadget->Height, IDS_SELECTED, dri);
             
             /* Clear background inside */
-            SetAPen(rp, dri ? dri->dri_Pens[BACKGROUNDPEN] : 0);
+            SetAPen(rp, bgColor);
             RectFill(rp, gadget->LeftEdge + 2, gadget->TopEdge + 2, 
                          gadget->LeftEdge + gadget->Width - 3, gadget->TopEdge + gadget->Height - 3);
             
+            /* Calculate text Y position (vertically centered) */
+            textY = gadget->TopEdge + (gadget->Height / 2) + 3;
+            
             /* Draw Text */
             if (si && si->Buffer) {
-                SetAPen(rp, dri ? dri->dri_Pens[TEXTPEN] : 1);
-                SetBPen(rp, dri ? dri->dri_Pens[BACKGROUNDPEN] : 0);
+                LONG len = strlen((char *)si->Buffer);
                 
-                Move(rp, gadget->LeftEdge + 4, gadget->TopEdge + gadget->Height/2 + 2); // Center-ish
-                Text(rp, si->Buffer, strlen((char *)si->Buffer));
+                SetAPen(rp, txtColor);
+                SetBPen(rp, bgColor);
+                SetDrMd(rp, JAM2);
+                
+                Move(rp, gadget->LeftEdge + 4, textY);
+                if (len > 0) {
+                    Text(rp, si->Buffer, len);
+                }
+                
+                /* Draw cursor if gadget is selected (active) */
+                if (gadget->Flags & GFLG_SELECTED) {
+                    WORD cursorX;
+                    WORD cursorPos = si->BufferPos;
+                    
+                    /* Calculate cursor X position */
+                    if (cursorPos > 0 && rp->Font) {
+                        /* Position is after cursorPos characters */
+                        cursorX = gadget->LeftEdge + 4 + TextLength(rp, si->Buffer, cursorPos);
+                    } else {
+                        cursorX = gadget->LeftEdge + 4;
+                    }
+                    
+                    /* Draw cursor as a vertical bar (XOR mode) */
+                    SetAPen(rp, txtColor);
+                    SetDrMd(rp, COMPLEMENT);
+                    RectFill(rp, cursorX, gadget->TopEdge + 3, 
+                                 cursorX + 1, gadget->TopEdge + gadget->Height - 4);
+                    SetDrMd(rp, JAM2);
+                }
             }
             return 0;
         }
         
-        case GM_HANDLEINPUT:
-            /* TODO: Implement string gadget input handling */
-            DPRINTF(LOG_DEBUG, "_intuition: strgclass GM_HANDLEINPUT not yet implemented\n");
+        case GM_HANDLEINPUT: {
+            struct gpInput *gpi = (struct gpInput *)msg;
+            struct InputEvent *ie = gpi->gpi_IEvent;
+            struct StringInfo *si = (struct StringInfo *)gadget->SpecialInfo;
+            
+            if (!ie || !si || !si->Buffer)
+                return GMR_MEACTIVE;
+            
+            DPRINTF(LOG_DEBUG, "_intuition: strgclass GM_HANDLEINPUT ie_Class=%d ie_Code=0x%x\n",
+                    ie->ie_Class, ie->ie_Code);
+            
+            /* Handle mouse button release */
+            if (ie->ie_Class == IECLASS_RAWMOUSE) {
+                if (ie->ie_Code == (IECODE_LBUTTON | IECODE_UP_PREFIX)) {
+                    /* Click - don't deactivate, stay active for editing */
+                    return GMR_MEACTIVE;
+                }
+            }
+            
+            /* Handle keyboard input */
+            if (ie->ie_Class == IECLASS_RAWKEY) {
+                UWORD code = ie->ie_Code;
+                BOOL isUpKey = (code & IECODE_UP_PREFIX) != 0;
+                
+                if (isUpKey) {
+                    /* Key release - ignore */
+                    return GMR_MEACTIVE;
+                }
+                
+                code &= ~IECODE_UP_PREFIX;
+                
+                /* Check for special keys */
+                switch (code) {
+                    case 0x44: /* Return key */
+                        if (gpi->gpi_Termination)
+                            *gpi->gpi_Termination = gadget->GadgetID;
+                        gadget->Flags &= ~GFLG_SELECTED;
+                        return GMR_NOREUSE | GMR_VERIFY;
+                        
+                    case 0x45: /* Escape key */
+                        gadget->Flags &= ~GFLG_SELECTED;
+                        return GMR_NOREUSE;
+                        
+                    case 0x41: /* Backspace */
+                        if (si->BufferPos > 0 && si->NumChars > 0) {
+                            /* Delete character before cursor */
+                            WORD i;
+                            for (i = si->BufferPos - 1; i < si->NumChars - 1; i++) {
+                                si->Buffer[i] = si->Buffer[i + 1];
+                            }
+                            si->Buffer[si->NumChars - 1] = '\0';
+                            si->BufferPos--;
+                            si->NumChars--;
+                        }
+                        return GMR_MEACTIVE;
+                        
+                    case 0x46: /* Delete */
+                        if (si->BufferPos < si->NumChars) {
+                            /* Delete character at cursor */
+                            WORD i;
+                            for (i = si->BufferPos; i < si->NumChars - 1; i++) {
+                                si->Buffer[i] = si->Buffer[i + 1];
+                            }
+                            si->Buffer[si->NumChars - 1] = '\0';
+                            si->NumChars--;
+                        }
+                        return GMR_MEACTIVE;
+                        
+                    case 0x4F: /* Cursor Left */
+                        if (si->BufferPos > 0)
+                            si->BufferPos--;
+                        return GMR_MEACTIVE;
+                        
+                    case 0x4E: /* Cursor Right */
+                        if (si->BufferPos < si->NumChars)
+                            si->BufferPos++;
+                        return GMR_MEACTIVE;
+                        
+                    default:
+                        /* Check for regular character input via qualifier */
+                        if (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT |
+                                                 IEQUALIFIER_CAPSLOCK | IEQUALIFIER_CONTROL)) {
+                            /* Handled below with mapping */
+                        }
+                        break;
+                }
+                
+                /* Try to convert the raw key to ASCII */
+                /* For now, use simple mapping for common keys */
+                {
+                    UBYTE ch = 0;
+                    
+                    /* Simple ASCII mapping for unshifted keys */
+                    if (code >= 0x00 && code <= 0x09) {
+                        /* Numbers 1-0 on main keyboard */
+                        static const UBYTE numRow[] = "1234567890";
+                        static const UBYTE numRowShift[] = "!@#$%^&*()";
+                        if (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT))
+                            ch = numRowShift[code];
+                        else
+                            ch = numRow[code];
+                    } else if (code >= 0x10 && code <= 0x19) {
+                        /* QWERTYUIOP */
+                        static const UBYTE qRow[] = "qwertyuiop";
+                        ch = qRow[code - 0x10];
+                        if (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
+                            ch = ch - 'a' + 'A';
+                    } else if (code >= 0x20 && code <= 0x28) {
+                        /* ASDFGHJKL */
+                        static const UBYTE aRow[] = "asdfghjkl";
+                        ch = aRow[code - 0x20];
+                        if (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
+                            ch = ch - 'a' + 'A';
+                    } else if (code >= 0x31 && code <= 0x39) {
+                        /* ZXCVBNM,. */
+                        static const UBYTE zRow[] = "zxcvbnm,.";
+                        ch = zRow[code - 0x31];
+                        if (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
+                            ch = ch - 'a' + 'A';
+                    } else if (code == 0x40) {
+                        /* Space */
+                        ch = ' ';
+                    } else if (code == 0x0A) {
+                        /* Minus/Underscore */
+                        ch = (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '_' : '-';
+                    } else if (code == 0x0B) {
+                        /* Equals/Plus */
+                        ch = (ie->ie_Qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '+' : '=';
+                    }
+                    
+                    /* Insert character if we got one */
+                    if (ch != 0 && si->NumChars < si->MaxChars - 1) {
+                        /* Make room at cursor position */
+                        WORD i;
+                        for (i = si->NumChars; i > si->BufferPos; i--) {
+                            si->Buffer[i] = si->Buffer[i - 1];
+                        }
+                        si->Buffer[si->BufferPos] = ch;
+                        si->BufferPos++;
+                        si->NumChars++;
+                        si->Buffer[si->NumChars] = '\0';
+                    }
+                }
+            }
+            
             return GMR_MEACTIVE;
+        }
     }
     
     /* Call superclass */

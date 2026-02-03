@@ -16,10 +16,18 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 
+#include <graphics/gfx.h>
+#include <graphics/rastport.h>
+#include <clib/graphics_protos.h>
+#include <inline/graphics.h>
+
 #include <libraries/gadtools.h>
 #include <intuition/intuition.h>
 #include <intuition/gadgetclass.h>
+#include <intuition/screens.h>
 #include <utility/tagitem.h>
+#include <clib/utility_protos.h>
+#include <inline/utility.h>
 
 #include "util.h"
 
@@ -35,6 +43,7 @@ char __aligned _g_gadtools_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licen
 char __aligned _g_gadtools_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase *SysBase;
+extern struct GfxBase  *GfxBase;
 
 /* GadToolsBase structure */
 struct GadToolsBase {
@@ -637,7 +646,13 @@ struct Gadget * _gadtools_CreateContext ( register struct GadToolsBase *GadTools
  * Rendering Functions
  */
 
-/* DrawBevelBoxA - Draw a 3D beveled box */
+/* DrawBevelBoxA - Draw a 3D beveled box
+ *
+ * Supported tags:
+ *   GTBB_Recessed  - Draw recessed (sunken) instead of raised box
+ *   GT_VisualInfo  - VisualInfo for pen colors
+ *   GTBB_FrameType - Frame type (BBFT_BUTTON, BBFT_RIDGE, etc.)
+ */
 void _gadtools_DrawBevelBoxA ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                register struct RastPort *rport __asm("a0"),
                                register WORD left __asm("d0"),
@@ -646,9 +661,122 @@ void _gadtools_DrawBevelBoxA ( register struct GadToolsBase *GadToolsBase __asm(
                                register WORD height __asm("d3"),
                                register struct TagItem *taglist __asm("a1") )
 {
+    struct VisualInfo *vi = NULL;
+    BOOL recessed = FALSE;
+    ULONG frameType = BBFT_BUTTON;
+    UBYTE shiPen = 2;    /* Default shine pen */
+    UBYTE shaPen = 1;    /* Default shadow pen */
+    WORD x0, y0, x1, y1;
+    UBYTE topPen, botPen;
+    UBYTE savedAPen;
+    struct TagItem *tag;
+    
     DPRINTF (LOG_DEBUG, "_gadtools: DrawBevelBoxA() at %d,%d size %dx%d\n",
              left, top, width, height);
-    /* Stub - would draw a 3D box if we had proper rendering */
+    
+    if (!rport || width <= 0 || height <= 0)
+        return;
+    
+    /* Parse tags manually without NextTagItem to avoid UtilityBase dependency */
+    if (taglist) {
+        for (tag = taglist; tag->ti_Tag != TAG_DONE; tag++) {
+            if (tag->ti_Tag == TAG_SKIP) {
+                tag += tag->ti_Data;
+                continue;
+            }
+            if (tag->ti_Tag == TAG_IGNORE)
+                continue;
+            if (tag->ti_Tag == TAG_MORE) {
+                tag = (struct TagItem *)tag->ti_Data;
+                if (!tag) break;
+                tag--;  /* Will be incremented by loop */
+                continue;
+            }
+            
+            switch (tag->ti_Tag) {
+                case GTBB_Recessed:
+                    recessed = (BOOL)tag->ti_Data;
+                    break;
+                case GT_VisualInfo:
+                    vi = (struct VisualInfo *)tag->ti_Data;
+                    break;
+                case GTBB_FrameType:
+                    frameType = tag->ti_Data;
+                    break;
+            }
+        }
+    }
+    
+    /* Get pen colors from VisualInfo if available */
+    if (vi && vi->vi_DrawInfo && vi->vi_DrawInfo->dri_Pens) {
+        shiPen = vi->vi_DrawInfo->dri_Pens[SHINEPEN];
+        shaPen = vi->vi_DrawInfo->dri_Pens[SHADOWPEN];
+    }
+    
+    /* Save current pen */
+    savedAPen = rport->FgPen;
+    
+    /* Calculate corners */
+    x0 = left;
+    y0 = top;
+    x1 = left + width - 1;
+    y1 = top + height - 1;
+    
+    /* Determine which pen goes where based on recessed state */
+    topPen = recessed ? shaPen : shiPen;
+    botPen = recessed ? shiPen : shaPen;
+    
+    switch (frameType) {
+        case BBFT_RIDGE:
+            /* Double border: outer raised, inner recessed */
+            /* Outer frame - raised */
+            SetAPen(rport, shiPen);
+            Move(rport, x0, y1);
+            Draw(rport, x0, y0);
+            Draw(rport, x1, y0);
+            SetAPen(rport, shaPen);
+            Draw(rport, x1, y1);
+            Draw(rport, x0, y1);
+            
+            /* Inner frame - recessed (inset by 1 pixel) */
+            if (width > 2 && height > 2) {
+                SetAPen(rport, shaPen);
+                Move(rport, x0 + 1, y1 - 1);
+                Draw(rport, x0 + 1, y0 + 1);
+                Draw(rport, x1 - 1, y0 + 1);
+                SetAPen(rport, shiPen);
+                Draw(rport, x1 - 1, y1 - 1);
+                Draw(rport, x0 + 1, y1 - 1);
+            }
+            break;
+            
+        case BBFT_ICONDROPBOX:
+            /* Similar to ridge but with different appearance */
+            /* Fall through to default for now */
+        case BBFT_DISPLAY:
+            /* Display box - usually recessed */
+            topPen = shaPen;
+            botPen = shiPen;
+            /* Fall through */
+        case BBFT_BUTTON:
+        default:
+            /* Standard single bevel box */
+            /* Top and left edges (light or dark based on recessed) */
+            SetAPen(rport, topPen);
+            Move(rport, x0, y1 - 1);  /* Start at bottom-left, one pixel up */
+            Draw(rport, x0, y0);       /* Draw up to top-left */
+            Draw(rport, x1 - 1, y0);   /* Draw across to top-right (minus corner) */
+            
+            /* Bottom and right edges */
+            SetAPen(rport, botPen);
+            Move(rport, x1, y0);       /* Start at top-right */
+            Draw(rport, x1, y1);       /* Draw down to bottom-right */
+            Draw(rport, x0, y1);       /* Draw across to bottom-left */
+            break;
+    }
+    
+    /* Restore pen */
+    SetAPen(rport, savedAPen);
 }
 
 /*

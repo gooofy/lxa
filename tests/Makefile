@@ -3,7 +3,7 @@
 include Makefile.config
 
 # Test categories
-TEST_CATS := dos exec shell commands stress graphics intuition console layers icon iffparse
+TEST_CATS := dos exec shell commands stress graphics intuition console layers icon iffparse asl gadtools
 
 # Color output
 GREEN = \033[0;32m
@@ -96,6 +96,8 @@ all:
 	@$(MAKE) -C graphics/regions
 	@$(MAKE) -C icon/tooltype
 	@$(MAKE) -C iffparse/basic
+	@$(MAKE) -C asl/filerequest
+	@$(MAKE) -C gadtools/drawbevelbox
 
 clean:
 	@echo "Cleaning all tests..."
@@ -181,6 +183,8 @@ clean:
 	@$(MAKE) -C graphics/regions clean
 	@$(MAKE) -C icon/tooltype clean
 	@$(MAKE) -C iffparse/basic clean
+	@$(MAKE) -C asl/filerequest clean
+	@$(MAKE) -C gadtools/drawbevelbox clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -262,6 +266,8 @@ clean:
 	rm -f graphics/regions/actual.out
 	rm -f icon/tooltype/actual.out
 	rm -f iffparse/basic/actual.out
+	rm -f asl/filerequest/actual.out
+	rm -f gadtools/drawbevelbox/actual.out
 
 test: all
 	@echo ""
@@ -352,6 +358,8 @@ run-tests:
 	@$(MAKE) -C graphics/regions run-test
 	@$(MAKE) -C icon/tooltype run-test
 	@$(MAKE) -C iffparse/basic run-test
+	@$(MAKE) -C asl/filerequest run-test
+	@$(MAKE) -C gadtools/drawbevelbox run-test
 
 help:
 	@echo "Integration Test Suite"

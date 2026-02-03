@@ -123,31 +123,25 @@ add_custom_command(
     COMMENT "Converting ROM to binary"
 )
 
-# Build final ROM with romtool
-if(ROMTOOL)
-    add_custom_command(
-        OUTPUT ${ROM_FILE}
-        COMMAND ${ROMTOOL} build -o ${ROM_FILE} -t kick -s 256 ${ROM_BIN}
-        DEPENDS ${ROM_BIN}
-        COMMENT "Building ROM image"
-    )
-    
-    # Custom target to build the ROM
-    add_custom_target(lxa.rom ALL DEPENDS ${ROM_FILE})
-    
-    # Install the ROM
-    install(FILES ${ROM_FILE}
-        DESTINATION share/lxa
-        RENAME lxa.rom
-    )
-else()
-    # Without romtool, just create a custom target for the binary
-    add_custom_target(lxa.rom ALL DEPENDS ${ROM_BIN})
-    install(FILES ${ROM_BIN}
-        DESTINATION share/lxa
-        RENAME lxa.rom
-    )
-endif()
+# Build final ROM - pad the binary to 512KB
+# The lxa emulator loads raw binary ROM data and expects exactly ROM_SIZE bytes
+set(ROM_SIZE_BYTES 524288)  # 512 * 1024
+add_custom_command(
+    OUTPUT ${ROM_FILE}
+    COMMAND ${CMAKE_COMMAND} -E copy ${ROM_BIN} ${ROM_FILE}
+    COMMAND truncate -s ${ROM_SIZE_BYTES} ${ROM_FILE}
+    DEPENDS ${ROM_BIN}
+    COMMENT "Creating 512KB ROM image"
+)
+
+# Custom target to build the ROM
+add_custom_target(lxa.rom ALL DEPENDS ${ROM_FILE})
+
+# Install the ROM
+install(FILES ${ROM_FILE}
+    DESTINATION share/lxa
+    RENAME lxa.rom
+)
 
 # Disassembly target
 add_custom_target(rom-disasm

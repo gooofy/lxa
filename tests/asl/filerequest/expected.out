@@ -1,0 +1,22 @@
+ASL FileRequester Test
+======================
+
+Opened asl.library v39
+
+Test 1: AllocAslRequest(ASL_FileRequest)...
+  Allocated FileRequester
+  PASS: Basic allocation works
+
+Test 2: FreeAslRequest...
+  PASS: FreeAslRequest completed
+
+Test 3: AllocAslRequest with tags...
+  Allocated FileRequester with tags
+  Initial Drawer: SYS:
+  Initial File: test.txt
+  PASS: Allocation with tags works
+
+Test 4: Cleanup...
+  PASS: Cleanup completed
+
+PASS

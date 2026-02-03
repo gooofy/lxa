@@ -6,7 +6,7 @@
 MEMORY
 {
     ram (rwx) : ORIGIN = 0x00000400, LENGTH = 0xc00   /*  63 kB RAM at 0x400 (right behind the exception vectors) - 0x0400-0x0ffff */
-    rom (rx)  : ORIGIN = 0x00FC0000, LENGTH = 0x40000 /* 256 kB system ROM at 0x00fc0000-0x00ffffff */
+    rom (rx)  : ORIGIN = 0x00F80000, LENGTH = 0x80000 /* 512 kB system ROM at 0x00f80000-0x00ffffff */
     /*invalid (rwx) : org = 0xdead0000 , l = 0x100*/
 }
 
