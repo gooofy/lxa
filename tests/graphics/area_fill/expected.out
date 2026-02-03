@@ -1,0 +1,26 @@
+Testing AreaMove, AreaDraw, and AreaEnd...
+
+OK: Resources allocated
+
+Test 1: Draw a triangle with AreaMove/AreaDraw/AreaEnd...
+  OK: Triangle outline drawn
+
+Test 2: AreaInfo should be reset after AreaEnd...
+  OK: AreaInfo reset correctly
+
+Test 3: Multiple AreaMove should replace previous...
+  OK: Only one entry after two AreaMove calls
+
+Test 4: AreaDraw without AreaMove should work...
+  OK: AreaDraw without AreaMove succeeded
+
+Test 5: Draw two triangles in sequence...
+  OK: Two triangles drawn in sequence
+
+Test 6: AreaEnd with no TmpRas...
+  OK: AreaEnd handled missing TmpRas (returned 0)
+
+Test 7: Draw a rectangle...
+  OK: Rectangle drawn
+
+PASS: area_fill all tests passed

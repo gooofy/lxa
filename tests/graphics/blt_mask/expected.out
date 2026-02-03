@@ -1,0 +1,17 @@
+Testing BltMaskBitMapRastPort...
+
+OK: Resources allocated
+
+Test 1: Basic masked blit...
+  OK: BltMaskBitMapRastPort executed
+
+Test 2: Masked blit with NULL mask...
+  OK: BltMaskBitMapRastPort with NULL mask executed
+
+Test 3: Masked blit with minterm 0x50...
+  OK: BltMaskBitMapRastPort with minterm 0x50 executed
+
+Test 4: Partial blit at destination edge...
+  OK: Edge blit executed
+
+PASS: blt_mask all tests passed

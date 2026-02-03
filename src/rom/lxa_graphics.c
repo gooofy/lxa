@@ -1371,13 +1371,109 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
     rp->cp_y = (WORD)y;
 }
 
+/* AreaInfo flag constants (from AROS graphics_intern.h) */
+#ifndef AREAINFOFLAG_MOVE
+#define AREAINFOFLAG_MOVE      0x00
+#define AREAINFOFLAG_DRAW      0x01
+#define AREAINFOFLAG_CLOSEDRAW 0x02
+#endif
+
+/* Helper function to close a polygon (simplified version from AROS) */
+static void areaclosepolygon(struct AreaInfo *areainfo)
+{
+    /* Only close if last operation was a draw and we're not already at the start */
+    if (areainfo->Count > 0 && areainfo->FlagPtr[-1] == AREAINFOFLAG_DRAW)
+    {
+        if ((areainfo->VctrPtr[-1] != areainfo->FirstY) ||
+            (areainfo->VctrPtr[-2] != areainfo->FirstX))
+        {
+            /* Add closing vertex if there's room */
+            if (areainfo->Count < areainfo->MaxCount)
+            {
+                areainfo->Count++;
+                areainfo->VctrPtr[0] = areainfo->FirstX;
+                areainfo->VctrPtr[1] = areainfo->FirstY;
+                areainfo->FlagPtr[0] = AREAINFOFLAG_CLOSEDRAW;
+                areainfo->VctrPtr = &areainfo->VctrPtr[2];
+                areainfo->FlagPtr++;
+            }
+        }
+    }
+}
+
 static LONG _graphics_AreaMove ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AreaMove() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct AreaInfo *areainfo;
+    WORD wx = (WORD)x;
+    WORD wy = (WORD)y;
+
+    DPRINTF (LOG_DEBUG, "_graphics: AreaMove() rp=0x%08lx, x=%ld, y=%ld\n",
+             (ULONG)rp, x, y);
+
+    if (!rp || !rp->AreaInfo)
+    {
+        LPRINTF (LOG_ERROR, "_graphics: AreaMove() NULL RastPort or AreaInfo\n");
+        return -1;
+    }
+
+    areainfo = rp->AreaInfo;
+
+    /* Check if there's room for one entry */
+    if (areainfo->Count + 1 > areainfo->MaxCount)
+        return -1;
+
+    /* Is this the first entry? */
+    if (areainfo->Count == 0)
+    {
+        areainfo->FirstX = wx;
+        areainfo->FirstY = wy;
+
+        areainfo->VctrPtr[0] = wx;
+        areainfo->VctrPtr[1] = wy;
+        areainfo->VctrPtr = &areainfo->VctrPtr[2];
+
+        areainfo->FlagPtr[0] = AREAINFOFLAG_MOVE;
+        areainfo->FlagPtr++;
+
+        areainfo->Count++;
+    }
+    else
+    {
+        /* If previous command was also AreaMove, replace it */
+        if (areainfo->FlagPtr[-1] == AREAINFOFLAG_MOVE)
+        {
+            areainfo->FirstX = wx;
+            areainfo->FirstY = wy;
+
+            areainfo->VctrPtr[-2] = wx;
+            areainfo->VctrPtr[-1] = wy;
+        }
+        else
+        {
+            /* Close previous polygon if needed */
+            areaclosepolygon(areainfo);
+
+            /* Check again for room after potential close */
+            if (areainfo->Count + 1 > areainfo->MaxCount)
+                return -1;
+
+            areainfo->FirstX = wx;
+            areainfo->FirstY = wy;
+
+            areainfo->VctrPtr[0] = wx;
+            areainfo->VctrPtr[1] = wy;
+            areainfo->VctrPtr = &areainfo->VctrPtr[2];
+
+            areainfo->FlagPtr[0] = AREAINFOFLAG_MOVE;
+            areainfo->FlagPtr++;
+
+            areainfo->Count++;
+        }
+    }
+
     return 0;
 }
 
@@ -1386,16 +1482,109 @@ static LONG _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AreaDraw() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct AreaInfo *areainfo;
+    WORD wx = (WORD)x;
+    WORD wy = (WORD)y;
+
+    DPRINTF (LOG_DEBUG, "_graphics: AreaDraw() rp=0x%08lx, x=%ld, y=%ld\n",
+             (ULONG)rp, x, y);
+
+    if (!rp || !rp->AreaInfo)
+    {
+        LPRINTF (LOG_ERROR, "_graphics: AreaDraw() NULL RastPort or AreaInfo\n");
+        return -1;
+    }
+
+    areainfo = rp->AreaInfo;
+
+    /* Check if there's room for one entry */
+    if (areainfo->Count + 1 > areainfo->MaxCount)
+        return -1;
+
+    /* Add point to vector list */
+    areainfo->Count++;
+    areainfo->VctrPtr[0] = wx;
+    areainfo->VctrPtr[1] = wy;
+    areainfo->FlagPtr[0] = AREAINFOFLAG_DRAW;
+
+    areainfo->VctrPtr = &areainfo->VctrPtr[2];
+    areainfo->FlagPtr++;
+
     return 0;
 }
 
 static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AreaEnd() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct AreaInfo *areainfo;
+    WORD *CurVctr;
+    BYTE *CurFlag;
+    UWORD Count;
+    UWORD Rem_cp_x, Rem_cp_y;
+
+    DPRINTF (LOG_DEBUG, "_graphics: AreaEnd() rp=0x%08lx\n", (ULONG)rp);
+
+    if (!rp || !rp->AreaInfo)
+    {
+        LPRINTF (LOG_ERROR, "_graphics: AreaEnd() NULL RastPort or AreaInfo\n");
+        return -1;
+    }
+
+    areainfo = rp->AreaInfo;
+
+    /* Check if there's anything to draw and we have TmpRas */
+    if (areainfo->Count == 0 || !rp->TmpRas)
+    {
+        /* Reset AreaInfo for next polygon */
+        areainfo->VctrPtr = areainfo->VctrTbl;
+        areainfo->FlagPtr = areainfo->FlagTbl;
+        areainfo->Count = 0;
+        return (areainfo->Count == 0) ? 0 : -1;
+    }
+
+    /* Save cursor position */
+    Rem_cp_x = rp->cp_x;
+    Rem_cp_y = rp->cp_y;
+
+    /* Close the polygon if needed */
+    areaclosepolygon(areainfo);
+
+    Count = areainfo->Count;
+    CurVctr = areainfo->VctrTbl;
+    CurFlag = areainfo->FlagTbl;
+
+    /* Draw the polygon outline */
+    while (Count > 0)
+    {
+        switch ((unsigned char)CurFlag[0])
+        {
+            case AREAINFOFLAG_MOVE:
+                _graphics_Move(GfxBase, rp, CurVctr[0], CurVctr[1]);
+                break;
+
+            case AREAINFOFLAG_DRAW:
+            case AREAINFOFLAG_CLOSEDRAW:
+                _graphics_Draw(GfxBase, rp, CurVctr[0], CurVctr[1]);
+                break;
+        }
+
+        CurVctr = &CurVctr[2];
+        CurFlag = &CurFlag[1];
+        Count--;
+    }
+
+    /* TODO: Implement proper polygon filling using scan-line algorithm from AROS areafill.c */
+    /* For now, we just draw the outline */
+
+    /* Restore cursor position */
+    rp->cp_x = Rem_cp_x;
+    rp->cp_y = Rem_cp_y;
+
+    /* Reset AreaInfo for next polygon */
+    areainfo->VctrPtr = areainfo->VctrTbl;
+    areainfo->FlagPtr = areainfo->FlagTbl;
+    areainfo->Count = 0;
+
     return 0;
 }
 
@@ -2422,8 +2611,44 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG ySize __asm("d5"),
                                                         register ULONG minterm __asm("d6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ClipBlit() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: ClipBlit() srcRP=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld mt=0x%02lx\n",
+             (ULONG)srcRP, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm);
+
+    if (!srcRP || !destRP || !srcRP->BitMap || !destRP->BitMap)
+    {
+        LPRINTF (LOG_ERROR, "_graphics: ClipBlit() NULL pointer\n");
+        return;
+    }
+
+    /* Handle layer locking if needed */
+    if (srcRP->Layer)
+        _graphics_LockLayerRom(GfxBase, srcRP->Layer);
+    if (destRP->Layer && destRP->Layer != srcRP->Layer)
+        _graphics_LockLayerRom(GfxBase, destRP->Layer);
+
+    /* Simple implementation: just blit from source BitMap to dest BitMap */
+    /* Adjust coordinates for layers if present */
+    if (srcRP->Layer)
+    {
+        xSrc += srcRP->Layer->bounds.MinX;
+        ySrc += srcRP->Layer->bounds.MinY;
+    }
+    if (destRP->Layer)
+    {
+        xDest += destRP->Layer->bounds.MinX;
+        yDest += destRP->Layer->bounds.MinY;
+    }
+
+    /* Perform the blit */
+    _graphics_BltBitMap(GfxBase, srcRP->BitMap, xSrc, ySrc,
+                        destRP->BitMap, xDest, yDest,
+                        xSize, ySize, minterm, 0xFF, NULL);
+
+    /* Unlock layers */
+    if (destRP->Layer && destRP->Layer != srcRP->Layer)
+        _graphics_UnlockLayerRom(GfxBase, destRP->Layer);
+    if (srcRP->Layer)
+        _graphics_UnlockLayerRom(GfxBase, srcRP->Layer);
 }
 
 /*
@@ -2658,8 +2883,28 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                                                         register ULONG minterm __asm("d6"),
                                                         register CONST PLANEPTR bltMask __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: BltMaskBitMapRastPort() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: BltMaskBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld mt=0x%02lx mask=0x%08lx\n",
+             (ULONG)srcBitMap, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm, (ULONG)bltMask);
+
+    if (!srcBitMap || !destRP || !destRP->BitMap)
+    {
+        LPRINTF (LOG_ERROR, "_graphics: BltMaskBitMapRastPort() NULL pointer\n");
+        return;
+    }
+
+    /* Adjust destination coordinates for layer offset if present */
+    if (destRP->Layer)
+    {
+        xDest += destRP->Layer->bounds.MinX;
+        yDest += destRP->Layer->bounds.MinY;
+    }
+
+    /* BltMaskBitMapRastPort blits from a source BitMap to the RastPort's BitMap
+     * using a mask plane. The mask determines which pixels to blit.
+     * Pass the mask to BltBitMap which already supports masking. */
+    _graphics_BltBitMap(GfxBase, srcBitMap, xSrc, ySrc,
+                        destRP->BitMap, xDest, yDest,
+                        xSize, ySize, minterm, 0xFF, bltMask);
 }
 
 static VOID _graphics_private0 ( register struct GfxBase * GfxBase __asm("a6"))
@@ -2734,24 +2979,169 @@ static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG count __asm("d0"),
                                                         register struct TextExtent * textExtent __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: TextExtent() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct TextFont *tf;
+    WORD width;
+
+    DPRINTF (LOG_DEBUG, "_graphics: TextExtent() rp=0x%08lx, string='%s', count=%ld\n",
+             (ULONG)rp, string ? (char *)string : "(null)", count);
+
+    if (!rp || !textExtent)
+    {
+        return 0;
+    }
+
+    /* Get the font from the RastPort, or use default */
+    tf = rp->Font;
+    if (!tf)
+    {
+        tf = get_default_font();
+    }
+
+    /* Calculate text width using TextLength */
+    width = _graphics_TextLength(GfxBase, rp, string, (UWORD)count);
+    
+    textExtent->te_Width = width;
+    textExtent->te_Height = tf->tf_YSize;
+    textExtent->te_Extent.MinY = -tf->tf_Baseline;
+    textExtent->te_Extent.MaxY = textExtent->te_Height - 1 - tf->tf_Baseline;
+
+    /* For fixed-width fonts (like Topaz-8), MinX is 0 and MaxX is width-1 */
+    /* TODO: Handle proportional fonts with kerning/spacing tables */
+    textExtent->te_Extent.MinX = 0;
+    textExtent->te_Extent.MaxX = (width > 0) ? (width - 1) : 0;
+
+    /* Handle bold style - adds smear to right side */
+    if (rp->AlgoStyle & FSF_BOLD)
+    {
+        textExtent->te_Extent.MaxX += tf->tf_BoldSmear;
+    }
+
+    /* Handle italic style - shears the text */
+    if (rp->AlgoStyle & FSF_ITALIC)
+    {
+        /* Italic shifts top right and bottom left */
+        textExtent->te_Extent.MaxX += tf->tf_Baseline / 2;
+        textExtent->te_Extent.MinX -= (tf->tf_YSize - tf->tf_Baseline) / 2;
+    }
+
+    DPRINTF (LOG_DEBUG, "_graphics: TextExtent() -> width=%d height=%d extent=(%d,%d)-(%d,%d)\n",
+             textExtent->te_Width, textExtent->te_Height,
+             textExtent->te_Extent.MinX, textExtent->te_Extent.MinY,
+             textExtent->te_Extent.MaxX, textExtent->te_Extent.MaxY);
+
+    return width;
 }
 
 static ULONG _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
                                                         register ULONG strLen __asm("d0"),
-                                                        register CONST struct TextExtent * textExtent __asm("a2"),
+                                                        register struct TextExtent * textExtent __asm("a2"),
                                                         register CONST struct TextExtent * constrainingExtent __asm("a3"),
                                                         register LONG strDirection __asm("d1"),
                                                         register ULONG constrainingBitWidth __asm("d2"),
                                                         register ULONG constrainingBitHeight __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: TextFit() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct TextFont *tf;
+    ULONG retval = 0;
+
+    DPRINTF (LOG_DEBUG, "_graphics: TextFit() rp=0x%08lx, strLen=%lu, dir=%ld, w=%lu, h=%lu\n",
+             (ULONG)rp, strLen, strDirection, constrainingBitWidth, constrainingBitHeight);
+
+    if (!rp || !textExtent)
+    {
+        return 0;
+    }
+
+    /* Get the font from the RastPort, or use default */
+    tf = rp->Font;
+    if (!tf)
+    {
+        tf = get_default_font();
+    }
+
+    /* Check if height constraint allows at least one line of text */
+    if (strLen && (constrainingBitHeight >= tf->tf_YSize))
+    {
+        BOOL ok = TRUE;
+
+        /* Initialize textExtent with font metrics */
+        textExtent->te_Extent.MinX = 0;
+        textExtent->te_Extent.MinY = -tf->tf_Baseline;
+        textExtent->te_Extent.MaxX = 0;
+        textExtent->te_Extent.MaxY = tf->tf_YSize - tf->tf_Baseline - 1;
+        textExtent->te_Width       = 0;
+        textExtent->te_Height      = tf->tf_YSize;
+
+        /* Check if constrainingExtent allows our font height */
+        if (constrainingExtent)
+        {
+            if (constrainingExtent->te_Extent.MinY > textExtent->te_Extent.MinY ||
+                constrainingExtent->te_Extent.MaxY < textExtent->te_Extent.MaxY ||
+                constrainingExtent->te_Height < textExtent->te_Height)
+            {
+                ok = FALSE;
+            }
+        }
+
+        if (ok)
+        {
+            /* Try to fit characters one by one */
+            while (strLen--)
+            {
+                struct TextExtent char_extent;
+                WORD newwidth, newminx, newmaxx, minx, maxx;
+
+                /* Get extent for this single character */
+                _graphics_TextExtent(GfxBase, rp, string, 1, &char_extent);
+                string += strDirection;
+
+                /* Calculate new dimensions if we include this character */
+                newwidth = textExtent->te_Width + char_extent.te_Width;
+                minx = textExtent->te_Width + char_extent.te_Extent.MinX;
+                maxx = textExtent->te_Width + char_extent.te_Extent.MaxX;
+
+                newminx = (minx < textExtent->te_Extent.MinX) ?
+                    minx : textExtent->te_Extent.MinX;
+                newmaxx = (maxx > textExtent->te_Extent.MaxX) ?
+                    maxx : textExtent->te_Extent.MaxX;
+
+                /* Check if new character exceeds width constraint */
+                if ((ULONG)(newmaxx - newminx + 1) > constrainingBitWidth)
+                    break;
+
+                /* Check constrainingExtent constraints */
+                if (constrainingExtent)
+                {
+                    if (constrainingExtent->te_Extent.MinX > newminx) break;
+                    if (constrainingExtent->te_Extent.MaxX < newmaxx) break;
+                    if (constrainingExtent->te_Width < newwidth) break;
+                }
+
+                /* Character fits, update textExtent */
+                textExtent->te_Width = newwidth;
+                textExtent->te_Extent.MinX = newminx;
+                textExtent->te_Extent.MaxX = newmaxx;
+
+                retval++;
+            }
+        }
+    }
+
+    /* If no characters fit, zero out the extent */
+    if (retval == 0)
+    {
+        textExtent->te_Width = 0;
+        textExtent->te_Height = 0;
+        textExtent->te_Extent.MinX = 0;
+        textExtent->te_Extent.MinY = 0;
+        textExtent->te_Extent.MaxX = 0;
+        textExtent->te_Extent.MaxY = 0;
+    }
+
+    DPRINTF (LOG_DEBUG, "_graphics: TextFit() -> %lu chars fit\n", retval);
+
+    return retval;
 }
 
 static APTR _graphics_GfxLookUp ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3061,8 +3451,11 @@ static ULONG _graphics_GetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
 static ULONG _graphics_GetOutlinePen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetOutlinePen() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: GetOutlinePen() rp=0x%08lx\n", (ULONG)rp);
+
+    if (rp)
+        return (ULONG)(UBYTE)rp->AOlPen;
+
     return 0;
 }
 
@@ -3322,24 +3715,39 @@ static ULONG _graphics_SetOutlinePen ( register struct GfxBase * GfxBase __asm("
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG pen __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetOutlinePen() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    ULONG oldPen;
+
+    DPRINTF (LOG_DEBUG, "_graphics: SetOutlinePen(rp=0x%08lx, pen=%lu)\n",
+             (ULONG)rp, pen);
+
+    if (!rp)
+        return 0;
+
+    oldPen = (ULONG)(UBYTE)rp->AOlPen;
+    rp->AOlPen = (UBYTE)pen;
+    return oldPen;
 }
 
 static ULONG _graphics_SetWriteMask ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG msk __asm("d0"))
 {
+    ULONG oldMask;
+
     /*
      * SetWriteMask() - Set the bit plane write mask for a RastPort
      * 
      * This controls which bitplanes can be written to during drawing operations.
-     * In our emulation we don't track individual bitplanes, so this is a no-op.
      */
-    DPRINTF (LOG_DEBUG, "_graphics: SetWriteMask(rp=0x%08lx, msk=0x%08lx) - no-op\n", 
+    DPRINTF (LOG_DEBUG, "_graphics: SetWriteMask(rp=0x%08lx, msk=0x%08lx)\n", 
              (ULONG)rp, msk);
-    return -1;  /* Return TRUE (all ones) indicating success */
+
+    if (!rp)
+        return 0;
+
+    oldMask = (ULONG)rp->Mask;
+    rp->Mask = (UBYTE)msk;
+    return oldMask;
 }
 
 static VOID _graphics_SetMaxPen ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3423,16 +3831,156 @@ static VOID _graphics_SetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"
                                                         register struct RastPort * rp __asm("a0"),
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetRPAttrsA() unimplemented STUB called.\n");
-    assert(FALSE);
+    CONST struct TagItem *tag;
+
+    DPRINTF (LOG_DEBUG, "_graphics: SetRPAttrsA() rp=0x%08lx, tags=0x%08lx\n",
+             (ULONG)rp, (ULONG)tags);
+
+    if (!rp || !tags)
+        return;
+
+    /* Iterate through tags */
+    tag = tags;
+    while (tag->ti_Tag != TAG_DONE)
+    {
+        switch (tag->ti_Tag)
+        {
+            case TAG_IGNORE:
+                break;
+
+            case TAG_MORE:
+                tag = (CONST struct TagItem *)tag->ti_Data;
+                continue;
+
+            case TAG_SKIP:
+                tag += tag->ti_Data + 1;
+                continue;
+
+            case 0x80000000: /* RPTAG_Font */
+                _graphics_SetFont(GfxBase, rp, (struct TextFont *)tag->ti_Data);
+                break;
+
+            case 0x80000002: /* RPTAG_APen */
+                _graphics_SetAPen(GfxBase, rp, (UBYTE)tag->ti_Data);
+                break;
+
+            case 0x80000003: /* RPTAG_BPen */
+                _graphics_SetBPen(GfxBase, rp, (UBYTE)tag->ti_Data);
+                break;
+
+            case 0x80000004: /* RPTAG_DrMd */
+                _graphics_SetDrMd(GfxBase, rp, (UBYTE)tag->ti_Data);
+                break;
+
+            case 0x80000005: /* RPTAG_OutlinePen */
+                _graphics_SetOutlinePen(GfxBase, rp, (UBYTE)tag->ti_Data);
+                break;
+
+            case 0x80000006: /* RPTAG_WriteMask */
+                _graphics_SetWriteMask(GfxBase, rp, (ULONG)tag->ti_Data);
+                break;
+
+            case 0x80000007: /* RPTAG_MaxPen */
+                /* Read-only, ignore */
+                break;
+
+            case 0x80000008: /* RPTAG_DrawBounds */
+                /* Not implemented yet */
+                break;
+
+            default:
+                DPRINTF (LOG_DEBUG, "_graphics: SetRPAttrsA() unknown tag 0x%08lx\n",
+                         tag->ti_Tag);
+                break;
+        }
+        tag++;
+    }
 }
 
 static VOID _graphics_GetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct RastPort * rp __asm("a0"),
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetRPAttrsA() unimplemented STUB called.\n");
-    assert(FALSE);
+    CONST struct TagItem *tag;
+    ULONG MaxPen, z;
+
+    DPRINTF (LOG_DEBUG, "_graphics: GetRPAttrsA() rp=0x%08lx, tags=0x%08lx\n",
+             (ULONG)rp, (ULONG)tags);
+
+    if (!rp || !tags)
+        return;
+
+    /* Iterate through tags */
+    tag = tags;
+    while (tag->ti_Tag != TAG_DONE)
+    {
+        switch (tag->ti_Tag)
+        {
+            case TAG_IGNORE:
+                break;
+
+            case TAG_MORE:
+                tag = (CONST struct TagItem *)tag->ti_Data;
+                continue;
+
+            case TAG_SKIP:
+                tag += tag->ti_Data + 1;
+                continue;
+
+            case 0x80000000: /* RPTAG_Font */
+                *((ULONG *)tag->ti_Data) = (ULONG)rp->Font;
+                break;
+
+            case 0x80000002: /* RPTAG_APen */
+                *((ULONG *)tag->ti_Data) = (ULONG)_graphics_GetAPen(GfxBase, (struct RastPort *)rp);
+                break;
+
+            case 0x80000003: /* RPTAG_BPen */
+                *((ULONG *)tag->ti_Data) = (ULONG)_graphics_GetBPen(GfxBase, (struct RastPort *)rp);
+                break;
+
+            case 0x80000004: /* RPTAG_DrMd */
+                *((ULONG *)tag->ti_Data) = (ULONG)_graphics_GetDrMd(GfxBase, (struct RastPort *)rp);
+                break;
+
+            case 0x80000005: /* RPTAG_OutlinePen */
+                *((ULONG *)tag->ti_Data) = (ULONG)_graphics_GetOutlinePen(GfxBase, (struct RastPort *)rp);
+                break;
+
+            case 0x80000006: /* RPTAG_WriteMask */
+                *((ULONG *)tag->ti_Data) = (ULONG)rp->Mask;
+                break;
+
+            case 0x80000007: /* RPTAG_MaxPen */
+                /* Calculate MaxPen from write mask */
+                MaxPen = 0x01;
+                z = (LONG)rp->Mask;
+                if (z == 0)
+                    MaxPen = 0x100;
+                else
+                    while (z != 0)
+                    {
+                        z >>= 1;
+                        MaxPen <<= 1;
+                    }
+                *((ULONG *)tag->ti_Data) = MaxPen;
+                break;
+
+            case 0x80000008: /* RPTAG_DrawBounds */
+                /* Not implemented yet - return zero bounds */
+                ((struct Rectangle *)tag->ti_Data)->MinX = 0;
+                ((struct Rectangle *)tag->ti_Data)->MinY = 0;
+                ((struct Rectangle *)tag->ti_Data)->MaxX = 0;
+                ((struct Rectangle *)tag->ti_Data)->MaxY = 0;
+                break;
+
+            default:
+                DPRINTF (LOG_DEBUG, "_graphics: GetRPAttrsA() unknown tag 0x%08lx\n",
+                         tag->ti_Tag);
+                break;
+        }
+        tag++;
+    }
 }
 
 static ULONG _graphics_BestModeIDA ( register struct GfxBase * GfxBase __asm("a6"),
