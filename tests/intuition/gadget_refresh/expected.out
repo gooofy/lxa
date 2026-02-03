@@ -1,0 +1,21 @@
+Testing Gadget Refresh Functions...
+
+OK: Screen opened
+OK: Window opened with gadgets
+
+Test 1: RefreshGList(gadget1, window, NULL, -1)...
+  OK: RefreshGList called for all gadgets
+
+Test 2: RefreshGList(gadget2, window, NULL, 1)...
+  OK: RefreshGList called for one gadget
+
+Test 3: OffGadget(gadget1, window, NULL)...
+  OK: Gadget disabled flag set
+
+Test 4: OnGadget(gadget1, window, NULL)...
+  OK: Gadget enabled (disabled flag cleared)
+
+OK: Window closed
+OK: Screen closed
+
+PASS: gadget_refresh all tests completed

@@ -1,0 +1,19 @@
+Testing Requester Functions...
+
+OK: Screen opened
+OK: Window opened
+
+Test 1: InitRequester()...
+  OK: InitRequester called
+  OK: Requester initialized to zero
+
+Test 2: Request()...
+  OK: Request returned TRUE
+
+Test 3: EndRequest()...
+  OK: EndRequest called
+
+OK: Window closed
+OK: Screen closed
+
+PASS: requester_basic all tests completed

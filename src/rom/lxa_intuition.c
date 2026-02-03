@@ -39,47 +39,51 @@ extern struct UtilityBase *UtilityBase;
 /* Helper functions to bypass broken macros */
 static inline void _call_MoveLayer(struct Library *base, struct Layer *layer, LONG dx, LONG dy) {
     register struct Library * _base __asm("a6") = base;
-    register struct Layer * _layer __asm("a0") = layer;
+    register LONG _dummy __asm("a0") = 0;
+    register struct Layer * _layer __asm("a1") = layer;
     register LONG _dx __asm("d0") = dx;
     register LONG _dy __asm("d1") = dy;
     __asm volatile ("jsr -60(%%a6)"
         :
-        : "r"(_base), "r"(_layer), "r"(_dx), "r"(_dy)
+        : "r"(_base), "r"(_dummy), "r"(_layer), "r"(_dx), "r"(_dy)
         : "d0", "d1", "a0", "a1", "memory", "cc");
 }
 
 static inline LONG _call_SizeLayer(struct Library *base, struct Layer *layer, LONG dx, LONG dy) {
     register struct Library * _base __asm("a6") = base;
-    register struct Layer * _layer __asm("a0") = layer;
+    register LONG _dummy __asm("a0") = 0;
+    register struct Layer * _layer __asm("a1") = layer;
     register LONG _dx __asm("d0") = dx;
     register LONG _dy __asm("d1") = dy;
     register LONG _res __asm("d0");
     __asm volatile ("jsr -66(%%a6)"
         : "=r"(_res)
-        : "r"(_base), "r"(_layer), "r"(_dx), "r"(_dy)
+        : "r"(_base), "r"(_dummy), "r"(_layer), "r"(_dx), "r"(_dy)
         : "d1", "a0", "a1", "memory", "cc");
     return _res;
 }
 
 static inline LONG _call_UpfrontLayer(struct Library *base, struct Layer *layer) {
     register struct Library * _base __asm("a6") = base;
-    register struct Layer * _layer __asm("a0") = layer;
+    register LONG _dummy __asm("a0") = 0;
+    register struct Layer * _layer __asm("a1") = layer;
     register LONG _res __asm("d0");
     __asm volatile ("jsr -48(%%a6)"
         : "=r"(_res)
-        : "r"(_base), "r"(_layer)
-        : "d1", "a1", "memory", "cc");
+        : "r"(_base), "r"(_dummy), "r"(_layer)
+        : "d1", "a0", "a1", "memory", "cc");
     return _res;
 }
 
 static inline LONG _call_BehindLayer(struct Library *base, struct Layer *layer) {
     register struct Library * _base __asm("a6") = base;
-    register struct Layer * _layer __asm("a0") = layer;
+    register LONG _dummy __asm("a0") = 0;
+    register struct Layer * _layer __asm("a1") = layer;
     register LONG _res __asm("d0");
     __asm volatile ("jsr -54(%%a6)"
         : "=r"(_res)
-        : "r"(_base), "r"(_layer)
-        : "d1", "a1", "memory", "cc");
+        : "r"(_base), "r"(_dummy), "r"(_layer)
+        : "d1", "a0", "a1", "memory", "cc");
     return _res;
 }
 
@@ -3978,8 +3982,6 @@ BOOL _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __a
                                                         register ULONG widthMax __asm("d2"),
                                                         register ULONG heightMax __asm("d3"))
 {
-    WORD old_w, old_h;
-
     DPRINTF(LOG_DEBUG, "_intuition: WindowLimits() window=0x%08lx min=%ldx%ld max=%ldx%ld\n", 
             (ULONG)window, widthMin, heightMin, widthMax, heightMax);
             
@@ -3990,13 +3992,10 @@ BOOL _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __a
     if (widthMax) window->MaxWidth = widthMax;
     if (heightMax) window->MaxHeight = heightMax;
 
-    old_w = window->Width;
-    old_h = window->Height;
-
     /* Calling SizeWindow with 0,0 will enforce new limits */
     _intuition_SizeWindow(IntuitionBase, window, 0, 0);
 
-    return (window->Width != old_w || window->Height != old_h);
+    return TRUE;
 }
 
 struct Preferences  * _intuition_SetPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -6343,8 +6342,20 @@ VOID _intuition_ScrollWindowRaster ( register struct IntuitionBase * IntuitionBa
                                                         register WORD xMax __asm("d4"),
                                                         register WORD yMax __asm("d5"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ScrollWindowRaster() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: ScrollWindowRaster() win=0x%08lx dx=%d dy=%d rect=(%d,%d)-(%d,%d)\n",
+             (ULONG)win, dx, dy, xMin, yMin, xMax, yMax);
+    
+    if (!win || !win->RPort)
+    {
+        DPRINTF(LOG_ERROR, "_intuition: ScrollWindowRaster() NULL window or RPort\n");
+        return;
+    }
+    
+    /* Call graphics.library ScrollRaster to perform the actual scrolling */
+    if (GfxBase)
+    {
+        ScrollRaster(win->RPort, dx, dy, xMin, yMin, xMax, yMax);
+    }
 }
 
 VOID _intuition_LendMenus ( register struct IntuitionBase * IntuitionBase __asm("a6"),

@@ -1,0 +1,24 @@
+Testing Screen Manipulation Functions...
+
+OK: Screen 1 opened
+OK: Screen 2 opened
+
+Test 1: ScreenToBack(screen2)...
+  OK: ScreenToBack called
+
+Test 2: ScreenToFront(screen2)...
+  OK: ScreenToFront called
+
+Test 3: ScreenDepth(screen1, SDEPTH_TOBACK, NULL)...
+  OK: ScreenDepth TOBACK called
+
+Test 4: ScreenDepth(screen1, SDEPTH_TOFRONT, NULL)...
+  OK: ScreenDepth TOFRONT called
+
+Test 5: ScreenPosition(screen1, SPOS_RELATIVE, 10, 20, 0, 0)...
+  OK: ScreenPosition called
+
+OK: Screen 2 closed
+OK: Screen 1 closed
+
+PASS: screen_manipulation all tests completed
