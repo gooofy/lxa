@@ -88,6 +88,9 @@ static ULONG _graphics_GetOutlinePen ( register struct GfxBase * GfxBase __asm("
 static VOID _graphics_SetAPen ( register struct GfxBase * GfxBase __asm("a6"),
                                 register struct RastPort * rp __asm("a1"),
                                 register UBYTE pen __asm("d0"));
+static VOID _graphics_SetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
+                                register struct RastPort * rp __asm("a1"),
+                                register UBYTE drawMode __asm("d0"));
 
 /* Drawing modes from rastport.h */
 #ifndef JAM1
@@ -2001,8 +2004,45 @@ static VOID _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG yMax __asm("d3"),
                                                         register ULONG maskBPR __asm("d4"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: BltPattern() unimplemented STUB called.\n");
-    assert(FALSE);
+    UBYTE old_drawmode;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: BltPattern() rp=0x%08lx, mask=0x%08lx, rect=(%ld,%ld)-(%ld,%ld), bpr=%lu\n",
+             (ULONG)rp, (ULONG)mask, xMin, yMin, xMax, yMax, maskBPR);
+    
+    if (!rp)
+        return;
+    
+    /* For now, we don't support AreaPtrn patterns - just mask or solid fill */
+    if (rp->AreaPtrn)
+    {
+        DPRINTF(LOG_DEBUG, "_graphics: BltPattern() with AreaPtrn not yet fully supported\n");
+        /* Fall through to mask/solid handling */
+    }
+    
+    if (mask)
+    {
+        /* Use BltTemplate to blit the mask */
+        /* Save and restore draw mode if needed */
+        old_drawmode = (UBYTE)rp->DrawMode;
+        
+        /* If in JAM2 mode, switch to JAM1 for template blitting */
+        if ((old_drawmode & ~INVERSVID) == JAM2)
+        {
+            _graphics_SetDrMd(GfxBase, rp, JAM1 | (old_drawmode & INVERSVID));
+        }
+        
+        /* BltTemplate params: source, xSrc, srcMod, destRP, xDest, yDest, xSize, ySize */
+        _graphics_BltTemplate(GfxBase, (CONST PLANEPTR)mask, 0, maskBPR, rp,
+                             xMin, yMin, xMax - xMin + 1, yMax - yMin + 1);
+        
+        /* Restore original draw mode */
+        _graphics_SetDrMd(GfxBase, rp, old_drawmode);
+    }
+    else
+    {
+        /* No mask - just fill the rectangle */
+        _graphics_RectFill(GfxBase, rp, (WORD)xMin, (WORD)yMin, (WORD)xMax, (WORD)yMax);
+    }
 }
 
 static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6"),
