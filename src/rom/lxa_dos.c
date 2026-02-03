@@ -1516,7 +1516,7 @@ BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
                     if (Read(f, &hunk_id, 4) != 4)
                         goto finish;
 
-                    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() RELOC32 Hunk #%ld\n", hunk_id);
+                    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() RELOC32 Hunk #%ld, cnt=%ld entries\n", hunk_id, cnt);
                     while (cnt > 0)
                     {
                         ULONG offset;
@@ -1525,7 +1525,11 @@ BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
 
                         ULONG *addr = (ULONG *)(BADDR(hunk_table[hunk_last]+1) + offset);
 
-                        ULONG val = *addr + (ULONG)BADDR(hunk_table[hunk_id]+1);
+                        ULONG old_val = *addr;
+                        ULONG val = old_val + (ULONG)BADDR(hunk_table[hunk_id]+1);
+
+                        DPRINTF (LOG_DEBUG, "_dos: LoadSeg() RELOC32: hunk %ld offset 0x%lx: 0x%08lx + 0x%08lx -> 0x%08lx\n",
+                                 hunk_last, offset, old_val, (ULONG)BADDR(hunk_table[hunk_id]+1), val);
 
                         *addr = val;
 

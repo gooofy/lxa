@@ -727,7 +727,11 @@ APTR _exec_Allocate ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "       mh_First=0x%08lx, mh_Lower=0x%08lx, mh_Upper=0x%08lx, mh_Free=%ld, mh_Attributes=0x%08lx\n", 
              freeList->mh_First, freeList->mh_Lower, freeList->mh_Upper, freeList->mh_Free, freeList->mh_Attributes);
 
-    ULONG byteSize = ALIGN (___byteSize, 4);
+    /* AmigaOS allocates memory with 8-byte alignment (MEM_BLOCKSIZE).
+     * This is important for applications that assume BPTR calculations
+     * will work correctly (e.g., Directory Opus computing seglists).
+     */
+    ULONG byteSize = ALIGN (___byteSize, 8);
 
     DPRINTF (LOG_DEBUG, "       rounded up byte size is %d\n", byteSize);
 
@@ -800,9 +804,9 @@ void _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
 
     _exec_dump_memh (freeList);
 
-    // alignment
+    // alignment - must match Allocate (8 bytes for AmigaOS compatibility)
 
-    byteSize = ALIGN (byteSize, 4);
+    byteSize = ALIGN (byteSize, 8);
 
     struct MemChunk *pNext     = freeList->mh_First;
     struct MemChunk *pPrev     = (struct MemChunk *)&freeList->mh_First;
@@ -1444,12 +1448,42 @@ void _exec_RemTask ( register struct ExecBase * SysBase __asm("a6"),
     if (task == me)
         Forbid();
 
+    /*
+     * IMPORTANT: The task structure itself may be included in tc_MemEntry.
+     * We must collect ALL MemList entries BEFORE freeing any of them,
+     * otherwise we'd have a use-after-free when the task struct gets freed
+     * but we still try to access task->tc_MemEntry in the next loop iteration.
+     *
+     * We use a simple approach: collect pointers to a small array, then free.
+     * Most tasks have only 1-2 MemList entries (task struct + stack).
+     */
+    #define MAX_MEMLISTS 16
+    struct MemList *memLists[MAX_MEMLISTS];
+    int numMemLists = 0;
+    
     struct MemList *ml;
-    while ((ml = (struct MemList *) RemHead (&task->tc_MemEntry)) != NULL)
-        FreeEntry (ml);
+    while ((ml = (struct MemList *) RemHead (&task->tc_MemEntry)) != NULL && numMemLists < MAX_MEMLISTS)
+        memLists[numMemLists++] = ml;
+    
+    /* Now free all collected MemLists - safe because we're not accessing task anymore */
+    for (int i = 0; i < numMemLists; i++)
+        FreeEntry (memLists[i]);
 
     if (task == me)
     {
+        /*
+         * CRITICAL: Clear ThisTask before calling Dispatch!
+         * 
+         * If we don't clear ThisTask, the VBlank interrupt handler's Schedule()
+         * function will read the old (now freed!) ThisTask pointer and may try to
+         * re-add it to the TaskReady list via Enqueue(). This causes a "phantom task"
+         * to appear in the ready queue after all tasks have exited.
+         *
+         * Setting ThisTask to NULL tells Schedule() there's no current task to
+         * compare priorities with or to re-queue.
+         */
+        SysBase->ThisTask = NULL;
+        
         DPUTS (LOG_DEBUG, "_exec: RemTask calling Dispatch() via Supervisor()\n");
         asm(
             "   move.l  a5, -(a7)               \n"     // save a5
@@ -1688,7 +1722,39 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___signalSet  __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Signal() called, task=0x%08lx '%s', signalSet=0x%08lx\n",
-             ___task, ___task->tc_Node.ln_Name, ___signalSet);
+             ___task, ___task ? ___task->tc_Node.ln_Name : "(null)", ___signalSet);
+
+    /* Validate task pointer before doing anything */
+    if (!___task || (ULONG)___task < 0x400)
+    {
+        LPRINTF (LOG_ERROR, "_exec: Signal() called with invalid task pointer 0x%08lx - ignoring\n", ___task);
+        return;
+    }
+    
+    /* Check if this looks like a valid task structure */
+    UBYTE nodeType = ___task->tc_Node.ln_Type;
+    if (nodeType != NT_TASK && nodeType != NT_PROCESS)
+    {
+        LPRINTF (LOG_ERROR, "_exec: Signal() task 0x%08lx has invalid type %d (expected NT_TASK=%d or NT_PROCESS=%d) - ignoring\n",
+                 ___task, nodeType, NT_TASK, NT_PROCESS);
+        return;
+    }
+    
+    /* Check if task has been removed (freed) - its state would be TS_REMOVED or garbage */
+    if (___task->tc_State == TS_REMOVED)
+    {
+        LPRINTF (LOG_ERROR, "_exec: Signal() task 0x%08lx '%s' has state TS_REMOVED - ignoring (task likely freed)\n",
+                 ___task, ___task->tc_Node.ln_Name ? ___task->tc_Node.ln_Name : "(null)");
+        return;
+    }
+    
+    /* Check for valid state range (TS_ADDED=1 through TS_EXCEPT=5) */
+    if (___task->tc_State < TS_ADDED || ___task->tc_State > TS_EXCEPT)
+    {
+        LPRINTF (LOG_ERROR, "_exec: Signal() task 0x%08lx has invalid state %d - ignoring (possible freed memory)\n",
+                 ___task, ___task->tc_State);
+        return;
+    }
 
     struct Task *thisTask = SysBase->ThisTask;
 

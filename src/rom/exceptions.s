@@ -63,6 +63,11 @@ _exec_Schedule:
     move.w      #0x2700, sr                         | disable interrupts
     /* FIXME: Sysflags */
     move.l      ThisTask(a6), a1                    | SysBase->ThisTask -> a1
+    
+    /* If ThisTask is NULL (e.g., last task was removed), just exit */
+    /* No current task to switch from, Dispatch will pick the next ready task */
+    move.l      a1, d0                              | copy a1 to d0 for NULL test
+    beq.s       __exec_Schedule_exit                | ThisTask == NULL? -> exit
 
     /* FIXME: check for exception flags */
 

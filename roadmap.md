@@ -159,14 +159,33 @@ See detailed phase description below in "Application Deep Dive Phases".
 ### Phase 46: Directory Opus 4 Deep Dive
 **Goal**: Full Directory Opus 4 compatibility with automated testing.
 
-**Status**: ⚠️ PARTIAL - Main process exits immediately (error code 1), background process has exception loop
+**Status**: ⚠️ PARTIAL - Emulator exits cleanly (no infinite loop), DOpus behavior needs further analysis
+
+**Completed**:
+- [x] Fixed infinite loop after tasks exit - emulator now stops correctly
+- [x] Added Signal() validation to prevent signaling freed/invalid tasks
+- [x] Fixed RemTask() to clear ThisTask before Dispatch (prevents phantom tasks)
+- [x] Added Schedule() NULL check for ThisTask in assembly
+- [x] Added EMU_CALL_WAIT stop detection when all tasks have exited
+- [x] Fixed EXECBASE_THISTAK typo in lxa.c
+- [x] Cleaned up debug output in exec.c
+
+**Investigation Findings**:
+- DOpus main process returns exit code 1 by design (launcher pattern)
+- Main process spawns `dopus_task` background process then exits
+- `dopus_task` is created successfully but also exits immediately
+- Neither process opens dopus.library, graphics.library, or any other DOpus-specific libraries
+- No OpenScreen/OpenWindow calls are made
+- The issue occurs in very early initialization (before any library opens)
+- Only dos.library and utility.library are opened (C runtime startup)
 
 **Known Issues**:
-- [ ] Main process exits with error code 1 immediately after launch
-- [ ] Background process loads dopus.library but enters exception loop
-- [ ] powerpacker.library causes exception loop
-- [ ] commodities.library not found (non-fatal)
+- [ ] DOpus/dopus_task exit before opening application libraries
+- [ ] Root cause unknown - possibly C runtime startup check or early initialization failure  
+- [ ] May require instruction-level tracing to identify exact failure point
+- [ ] commodities.library not found (non-fatal, if DOpus gets further)
 - [ ] rexxsyslib.library not found (non-fatal)
+- [ ] signal_pingpong test times out (pre-existing race condition, not a blocker)
 
 **Testing Requirements**:
 - [ ] Extend test framework to capture multi-process failures
@@ -177,13 +196,12 @@ See detailed phase description below in "Application Deep Dive Phases".
 - [ ] Test directory navigation functionality
 
 **Implementation Tasks**:
-- [ ] Debug main process immediate exit - trace all library opens and initialization
-- [ ] Fix powerpacker.library exception - implement basic decompression stubs
+- [ ] Implement instruction-level tracing for dopus_task startup
+- [ ] Check if DOpus expects specific C runtime behavior (pre-V36 startup code?)
+- [ ] Verify CreateProc() properly initializes process context
+- [ ] Check for WBStartup vs CLI startup differences
+- [ ] Verify stack pointer and registers on process entry
 - [ ] Implement commodities.library stub (optional, for hotkey support)
-- [ ] Stack corruption analysis during cleanup
-- [ ] Memory corruption detection (guards/canaries)
-- [ ] Verify all window gadgets render correctly
-- [ ] Test file operations (copy, move, delete)
 
 **Success Criteria**: Directory Opus launches, displays file lists, allows basic file operations
 

@@ -176,7 +176,7 @@ static void sigalrm_handler(int sig)
 }
 
 // ExecBase offsets for task list checking
-#define EXECBASE_THISTAK     276
+#define EXECBASE_THISTASK    276
 #define EXECBASE_TASKREADY   406
 #define EXECBASE_TASKWAIT    420   // 406 + 14 (sizeof(List) = 14 bytes)
 
@@ -3178,6 +3178,27 @@ int op_illg(int level)
             {
                 /* Quit requested via SDL */
                 g_running = false;
+            }
+            
+            /*
+             * Check if ALL tasks have exited (no tasks ready, no tasks waiting,
+             * and no current task). If so, the emulator should stop.
+             * 
+             * This handles the case where the last task exits via Exit()/RemTask()
+             * rather than emu_stop(), leaving the Dispatch loop waiting forever.
+             */
+            if (!other_tasks_running())
+            {
+                uint32_t sysbase = m68k_read_memory_32(4);
+                uint32_t thisTask = m68k_read_memory_32(sysbase + EXECBASE_THISTASK);
+                
+                if (thisTask == 0)
+                {
+                    DPRINTF(LOG_DEBUG, "*** EMU_CALL_WAIT: no tasks left, stopping emulator\n");
+                    m68k_end_timeslice();
+                    g_running = false;
+                    break;
+                }
             }
             
             /* If VBlank is pending, set the IRQ now so it fires after we return */
