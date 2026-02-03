@@ -304,7 +304,7 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [x] **DrawEllipse** - Ellipse drawing using midpoint algorithm (IMPLEMENTED - tests needed)
 - [x] **AreaEllipse** - Ellipse for area fill operations (IMPLEMENTED - tests needed)
 - [x] **PolyDraw** - Polyline drawing (IMPLEMENTED) ✅ TESTED
-- [ ] **Flood** - Flood fill
+- [x] **Flood** - Flood fill (IMPLEMENTED) ✅ TESTED
 - [ ] **BltPattern** - Pattern blitting
 - [ ] **ScrollRasterBF** - Backfill scrolling
 - [ ] **BitMapScale/ScalerDiv** - Bitmap scaling
@@ -314,14 +314,17 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [ ] **Pixel array operations** - Deferred to Phase 43 (requires optimized blitting infrastructure)
 
 **Recent Progress (v0.5.1):**
-- ✅ Implemented 3 Priority 2 functions:
+- ✅ Implemented 4 Priority 2 functions:
   - **DrawEllipse** - Full midpoint ellipse algorithm with degenerate case handling (point, line, ellipse)
   - **AreaEllipse** - Ellipse outline tracing for area filling operations with four-quadrant support
   - **PolyDraw** - Connected polyline drawing from coordinate array
+  - **Flood** - Scan-line flood fill with two modes (outline/color), requires TmpRas, stack-based queue
 - ✅ Improved **InitRastPort** - Added explicit NULL initialization for all pointer fields (Layer, BitMap, Font, etc.)
-- ✅ New test: `tests/graphics/polydraw/` - Comprehensive PolyDraw() testing (squares, single points, zero count, closed polygons) ✅ PASSES
+- ✅ New tests:
+  - `tests/graphics/polydraw/` - PolyDraw() testing (squares, single points, zero count) ✅ PASSES
+  - `tests/graphics/flood/` - Flood() testing (empty fill, mode 1, boundary, error handling) ✅ PASSES
 - 📝 **Deferred pixel array functions to Phase 43** - ReadPixelLine8, WritePixelLine8, ReadPixelArray8, WritePixelArray8, WriteChunkyPixels require AROS-style optimized blitting infrastructure (not simple WritePixel loops)
-- **Stub count: 109** (was 115, added 6 stubs back after reverting pixel array functions to stubs)
+- **Stub count: 108** (was 115, removed 7 stubs: PolyDraw, Flood, DrawEllipse, AreaEllipse; added 6 back after reverting pixel array functions)
 - All existing tests continue to pass (50+ integration tests)
 
 **Implementation Strategy - Priority 3 (Hardware/rarely used - can remain stubs):**
@@ -331,14 +334,14 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 **Required Tests:**
 - [x] BitMap operations - AllocBitMap, FreeBitMap, depth, planes
 - [x] RastPort operations - all drawing primitives
-- [x] Area filling - AreaMove, AreaDraw, AreaEnd (flood fill pending)
+- [x] Area filling - AreaMove, AreaDraw, AreaEnd
 - [x] Text rendering - TextExtent, TextFit, different styles
 - [x] Clipping - ClipBlit, layer-aware drawing
 - [x] Rectangle operations - EraseRect, RectFill
 - [x] Pixel operations - ReadPixel, WritePixel
 - [x] Polyline operations - PolyDraw ✅ TESTED
+- [x] Flood fill - Flood() function ✅ TESTED
 - [ ] Ellipse operations - DrawEllipse, AreaEllipse (implemented, tests needed)
-- [ ] Flood fill - Flood() function
 - [ ] Pattern blitting - BltPattern() function
 - [ ] Pixel array operations - Deferred to Phase 43
 
