@@ -8,6 +8,7 @@
  *   - Memory types (MEMF_PUBLIC, MEMF_CHIP, MEMF_FAST)
  *   - Boundary conditions
  *   - AvailMem for checking free memory
+ *   - CopyMem/CopyMemQuick
  */
 
 #include <exec/types.h>
@@ -346,6 +347,122 @@ int main(void)
         test_fail_msg("Alignment test allocations failed");
         if (mem1) FreeMem(mem1, 10);
         if (mem2) FreeMem(mem2, 10);
+    }
+    
+    /* Test 12: CopyMem */
+    print("\nTest 12: CopyMem\n");
+    {
+        UBYTE src[64];
+        UBYTE dst[64];
+        BOOL copyOk = TRUE;
+        
+        /* Fill source with pattern */
+        for (i = 0; i < 64; i++) {
+            src[i] = (UBYTE)(i * 3 + 7);
+            dst[i] = 0;
+        }
+        
+        CopyMem(src, dst, 64);
+        
+        /* Verify copy */
+        for (i = 0; i < 64; i++) {
+            if (dst[i] != src[i]) {
+                copyOk = FALSE;
+                break;
+            }
+        }
+        
+        if (copyOk) {
+            test_ok("CopyMem copied 64 bytes correctly");
+        } else {
+            print("    Mismatch at offset ");
+            print_num(i);
+            print("\n");
+            test_fail_msg("CopyMem failed");
+        }
+        
+        /* Test partial copy */
+        for (i = 0; i < 64; i++) dst[i] = 0xFF;
+        
+        CopyMem(src + 10, dst + 5, 20);
+        
+        copyOk = TRUE;
+        /* Check that dst[0..4] is still 0xFF */
+        for (i = 0; i < 5; i++) {
+            if (dst[i] != 0xFF) {
+                copyOk = FALSE;
+                break;
+            }
+        }
+        /* Check that dst[5..24] matches src[10..29] */
+        for (i = 0; i < 20; i++) {
+            if (dst[5 + i] != src[10 + i]) {
+                copyOk = FALSE;
+                break;
+            }
+        }
+        /* Check that dst[25..63] is still 0xFF */
+        for (i = 25; i < 64; i++) {
+            if (dst[i] != 0xFF) {
+                copyOk = FALSE;
+                break;
+            }
+        }
+        
+        if (copyOk) {
+            test_ok("CopyMem partial copy works correctly");
+        } else {
+            test_fail_msg("CopyMem partial copy failed");
+        }
+    }
+    
+    /* Test 13: CopyMemQuick */
+    print("\nTest 13: CopyMemQuick\n");
+    {
+        /* CopyMemQuick requires longword alignment and sizes */
+        ULONG srcLong[16];
+        ULONG dstLong[16];
+        BOOL copyOk = TRUE;
+        
+        /* Fill source with pattern */
+        for (i = 0; i < 16; i++) {
+            srcLong[i] = i * 0x12345678 + 0xDEADBEEF;
+            dstLong[i] = 0;
+        }
+        
+        CopyMemQuick(srcLong, dstLong, 16 * sizeof(ULONG));
+        
+        /* Verify copy */
+        for (i = 0; i < 16; i++) {
+            if (dstLong[i] != srcLong[i]) {
+                copyOk = FALSE;
+                break;
+            }
+        }
+        
+        if (copyOk) {
+            test_ok("CopyMemQuick copied 64 bytes correctly");
+        } else {
+            print("    Mismatch at index ");
+            print_num(i);
+            print("\n");
+            test_fail_msg("CopyMemQuick failed");
+        }
+    }
+    
+    /* Test 14: CopyMem with zero size */
+    print("\nTest 14: CopyMem with zero size\n");
+    {
+        UBYTE src[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+        UBYTE dst[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+        
+        CopyMem(src, dst, 0);  /* Should do nothing */
+        
+        if (dst[0] == 0xFF) {
+            test_ok("CopyMem(0) did not modify destination");
+        } else {
+            test_fail_msg("CopyMem(0) modified destination");
+        }
     }
     
     /* Summary */

@@ -3,7 +3,7 @@
  *
  * Tests:
  *   - AddHead/AddTail
- *   - Remove/RemHead
+ *   - Remove/RemHead/RemTail
  *   - Enqueue (priority ordering)
  *   - FindName
  *   - Empty list handling
@@ -412,6 +412,67 @@ int main(void)
         test_ok("Insert with NULL pred added at head");
     } else {
         test_fail_msg("Insert with NULL pred should add at head");
+    }
+    
+    /* Test 13: RemTail */
+    print("\nTest 13: RemTail\n");
+    NEWLIST(&list);
+    
+    /* Add some nodes */
+    AddTail(&list, (struct Node *)&nodes[0]);
+    AddTail(&list, (struct Node *)&nodes[1]);
+    AddTail(&list, (struct Node *)&nodes[2]);
+    /* List: nodes[0] -> nodes[1] -> nodes[2] */
+    
+    node = RemTail(&list);
+    if (node == (struct Node *)&nodes[2]) {
+        test_ok("RemTail returned last node");
+    } else {
+        test_fail_msg("RemTail didn't return last node");
+    }
+    
+    if (count_nodes(&list) == 2) {
+        test_ok("List has 2 nodes after RemTail");
+    } else {
+        test_fail_msg("Node count incorrect after RemTail");
+    }
+    
+    if (list.lh_TailPred == (struct Node *)&nodes[1]) {
+        test_ok("TailPred updated correctly after RemTail");
+    } else {
+        test_fail_msg("TailPred not updated correctly");
+    }
+    
+    /* Test 14: RemTail until empty */
+    print("\nTest 14: RemTail until empty\n");
+    {
+        int removed = 0;
+        while ((node = RemTail(&list)) != NULL) {
+            removed++;
+            if (removed > 10) break;  /* Safety limit */
+        }
+        
+        if (removed == 2 && is_list_empty(&list)) {
+            test_ok("RemTail emptied list correctly");
+        } else {
+            print("    Removed: ");
+            print_num(removed);
+            print(", Empty: ");
+            print(is_list_empty(&list) ? "yes" : "no");
+            print("\n");
+            test_fail_msg("RemTail sequence failed");
+        }
+    }
+    
+    /* Test 15: RemTail on empty list */
+    print("\nTest 15: RemTail on empty list\n");
+    NEWLIST(&list);
+    node = RemTail(&list);
+    
+    if (node == NULL) {
+        test_ok("RemTail on empty list returns NULL");
+    } else {
+        test_fail_msg("RemTail should return NULL for empty list");
     }
     
     /* Summary */

@@ -68,7 +68,7 @@ struct JumpVec
     void *vec;
 };
 
-#define NUM_EXEC_FUNCS               130
+#define NUM_EXEC_FUNCS               172
 #define NUM_UTILITY_FUNCS            (45+4)
 #define NUM_DOS_FUNCS                (162+4)
 #define NUM_MATHFFP_FUNCS            (12+4)
@@ -3554,6 +3554,94 @@ void _exec_FreePooled ( register struct ExecBase * SysBase __asm("a6"),
 }
 
 /*
+ * NewMinList - Initialize a MinList (Exec V45+)
+ *
+ * LVO: -828
+ *
+ * This is a simple function that was added in Exec V45 to initialize
+ * a MinList. It's equivalent to using the NEWLIST macro.
+ */
+void _exec_NewMinList ( register struct ExecBase * SysBase __asm("a6"),
+                        register struct MinList * ___list __asm("a0"))
+{
+    DPRINTF (LOG_DEBUG, "_exec: NewMinList called, list=0x%08lx\n", ___list);
+
+    if (!___list)
+        return;
+
+    ___list->mlh_Head     = (struct MinNode *)&___list->mlh_Tail;
+    ___list->mlh_Tail     = NULL;
+    ___list->mlh_TailPred = (struct MinNode *)&___list->mlh_Head;
+}
+
+/*
+ * AllocVecPooled - Allocate memory from a pool with size tracking
+ *
+ * LVO: -1014
+ *
+ * Like AllocVec, but allocates from a memory pool instead of the system.
+ * The size is stored before the returned pointer so FreeVecPooled can free it.
+ */
+APTR _exec_AllocVecPooled ( register struct ExecBase * SysBase __asm("a6"),
+                            register APTR ___poolHeader __asm("a0"),
+                            register ULONG ___memSize __asm("d0"))
+{
+    DPRINTF (LOG_DEBUG, "_exec: AllocVecPooled called, poolHeader=0x%08lx, memSize=%ld\n",
+             ___poolHeader, ___memSize);
+
+    /* 0-sized allocation returns NULL (API guarantee) */
+    if (!___memSize)
+        return NULL;
+
+    if (!___poolHeader)
+        return NULL;
+
+    /* Allocate extra space for the size header (sizeof(IPTR) = 4 bytes on m68k) */
+    ULONG totalSize = ___memSize + sizeof(ULONG);
+
+    ULONG *mem = (ULONG *)AllocPooled(___poolHeader, totalSize);
+
+    if (mem)
+    {
+        /* Store the total size (including header) at the start */
+        *mem++ = totalSize;
+        DPRINTF (LOG_DEBUG, "_exec: AllocVecPooled returning 0x%08lx\n", mem);
+    }
+
+    return (APTR)mem;
+}
+
+/*
+ * FreeVecPooled - Free memory allocated with AllocVecPooled
+ *
+ * LVO: -1020
+ *
+ * Frees memory previously allocated with AllocVecPooled.
+ * The size is retrieved from the hidden header.
+ */
+void _exec_FreeVecPooled ( register struct ExecBase * SysBase __asm("a6"),
+                           register APTR ___poolHeader __asm("a0"),
+                           register APTR ___memory __asm("a1"))
+{
+    DPRINTF (LOG_DEBUG, "_exec: FreeVecPooled called, poolHeader=0x%08lx, memory=0x%08lx\n",
+             ___poolHeader, ___memory);
+
+    if (!___memory)
+        return;
+
+    if (!___poolHeader)
+        return;
+
+    /* Retrieve the size from the header before the returned pointer */
+    ULONG *real = (ULONG *)___memory;
+    ULONG size = *--real;
+
+    DPRINTF (LOG_DEBUG, "_exec: FreeVecPooled freeing %ld bytes at 0x%08lx\n", size, real);
+
+    FreePooled(___poolHeader, real, size);
+}
+
+/*
  * AttemptSemaphoreShared - Try to obtain a semaphore for shared access without blocking
  *
  * Returns TRUE if the semaphore was obtained, FALSE otherwise.
@@ -3977,6 +4065,9 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-768)].vec = _exec_CachePostDMA;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-774)].vec = _exec_AddMemHandler;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-780)].vec = _exec_RemMemHandler;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-828)].vec = _exec_NewMinList;        /* V45+ */
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-1014)].vec = _exec_AllocVecPooled;   /* V39+ */
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-1020)].vec = _exec_FreeVecPooled;    /* V39+ */
 
     SysBase->SoftVer = VERSION;
 

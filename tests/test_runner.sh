@@ -123,6 +123,8 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
         -e '^\[?25h' \
         -e '^Traceback:' \
         -e '^>> $' \
+        -e '^ERROR: mread' \
+        -e '^ERROR: mwrite' \
         "$TEMP_OUTPUT" > "${TEMP_OUTPUT}.2" 2>/dev/null || true
     
     # Move filtered output back

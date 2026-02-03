@@ -203,17 +203,26 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [ ] **ASM-One** - Pre-existing crash (jumps into ASCII data). Child process created by CreateNewProc crashes early. Deferred for future investigation.
 **Test Status**: All 4 app tests pass (devpac, dopus [expected fail], kickpascal2, sysinfo).
 
----
+### Phase 36: Exec Library Validation & AROS Comparison (IN PROGRESS)
+**Goal**: Ensure `exec.library` matches authentic behavior and AROS reference.
+- [x] **AROS Comparison** - Reviewed exec implementation against AROS sources. Identified 162 AROS exec source files.
+- [x] **Feature Gap Analysis** - Identified and implemented missing functions:
+  - `NewMinList()` - LVO -828, V45+ list initialization
+  - `AllocVecPooled()` - LVO -1014, V39+ pool-based vector allocation
+  - `FreeVecPooled()` - LVO -1020, V39+ pool-based vector deallocation
+- [x] **Test Infrastructure** - Added filter for spurious mread/mwrite errors in test_runner.sh
+- [x] **RemTail Tests** - Added comprehensive RemTail tests to exec/lists test suite
+- [x] **CopyMem Tests** - Added CopyMem/CopyMemQuick tests to exec/memory test suite
+- [ ] **Behavioral Fixes** - Correct any remaining differences in signal handling, memory allocation, or list management.
+- [ ] **RawDoFmt Tests** - Add comprehensive RawDoFmt formatting tests
+- [ ] **RKRM Integration Tests** - Implement integration tests based on RKRM Exec samples.
+
+**Technical Notes:**
+- NUM_EXEC_FUNCS increased from 130 to 172 to accommodate higher LVOs
+- Pool functions (AllocVecPooled/FreeVecPooled) store size in header for automatic size tracking
+- NewMinList is equivalent to the NEWLIST() macro but available as a function call
 
 ## Future Phases
-
-### Phase 36: Exec Library Validation & AROS Comparison
-**Goal**: Ensure `exec.library` matches authentic behavior and AROS reference.
-- [ ] **AROS Comparison** - Review `exec` implementation against AROS sources for parity.
-- [ ] **Feature Gap Analysis** - Implement any missing features identified during comparison.
-- [ ] **Behavioral Fixes** - Correct differences in signal handling, memory allocation, or list management.
-- [ ] **Comprehensive Unit Tests** - Expand test coverage for all `exec` functions.
-- [ ] **RKRM Integration Tests** - Implement integration tests based on RKRM Exec samples.
 
 ### Phase 37: Graphics Library Validation & AROS Comparison
 **Goal**: Ensure `graphics.library` matches authentic behavior and AROS reference.
