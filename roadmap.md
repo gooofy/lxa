@@ -207,7 +207,31 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 
 ## Future Phases
 
-### Phase 36: Re-Testing Phase 2
+### Phase 36: Exec Library Validation & AROS Comparison
+**Goal**: Ensure `exec.library` matches authentic behavior and AROS reference.
+- [ ] **AROS Comparison** - Review `exec` implementation against AROS sources for parity.
+- [ ] **Feature Gap Analysis** - Implement any missing features identified during comparison.
+- [ ] **Behavioral Fixes** - Correct differences in signal handling, memory allocation, or list management.
+- [ ] **Comprehensive Unit Tests** - Expand test coverage for all `exec` functions.
+- [ ] **RKRM Integration Tests** - Implement integration tests based on RKRM Exec samples.
+
+### Phase 37: Graphics Library Validation & AROS Comparison
+**Goal**: Ensure `graphics.library` matches authentic behavior and AROS reference.
+- [ ] **AROS Comparison** - Review `graphics` implementation against AROS sources for parity.
+- [ ] **Feature Gap Analysis** - Implement any missing features identified during comparison.
+- [ ] **Rendering Accuracy** - Fix differences in blitter, line, and area filling operations.
+- [ ] **Comprehensive Unit Tests** - Expand test coverage for all `graphics` functions.
+- [ ] **RKRM Integration Tests** - Implement integration tests based on RKRM Graphics samples.
+
+### Phase 38: Intuition Library Validation & AROS Comparison
+**Goal**: Ensure `intuition.library` matches authentic behavior and AROS reference.
+- [ ] **AROS Comparison** - Review `intuition` implementation against AROS sources for parity.
+- [ ] **Feature Gap Analysis** - Implement any missing features identified during comparison.
+- [ ] **Input & Windowing Fixes** - Correct differences in IDCMP, window/screen management, and gadget handling.
+- [ ] **Comprehensive Unit Tests** - Expand test coverage for all `intuition` functions.
+- [ ] **RKRM Integration Tests** - Implement integration tests based on RKRM Intuition samples.
+
+### Phase 39: Re-Testing Phase 2
 **Goal**: Comprehensive re-testing after Phase 34-35 fixes.
 - [ ] **Devpac** - Verify continued compatibility.
 - [ ] **KickPascal 2** - Regression test.
@@ -218,14 +242,14 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [ ] **New Apps** - Test additional applications from App-DB.
 - [ ] **Update COMPATIBILITY.md** - Document all results.
 
-### Phase 37: IFF & Datatypes Support
+### Phase 40: IFF & Datatypes Support
 - [ ] **iffparse.library** - Full implementation (if not done in Phase 33).
 - [ ] **datatypes.library** - Basic framework.
 
-### Phase 38: Advanced Console Features
+### Phase 41: Advanced Console Features
 - CONU_CHARMAP, RawKeyConvert, advanced CSI sequences.
 
-### Phase 39: BOOPSI & GadTools Visual Completion
+### Phase 42: BOOPSI & GadTools Visual Completion
 **Goal**: Complete visual rendering for BOOPSI gadgets and ASL requesters.
 - [ ] **GM_RENDER Implementation** - Full rendering for buttongclass, propgclass, strgclass.
   - Bevel boxes, 3D highlighting, text rendering
@@ -241,13 +265,13 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
   - Proportional gadget dragging
   - Keyboard shortcuts and tab cycling
 
-### Phase 40: Async I/O & Timer Completion
+### Phase 43: Async I/O & Timer Completion
 **Goal**: Implement proper asynchronous I/O for devices.
 - [ ] **timer.device Async** - TR_ADDREQUEST with proper delay queue and timeout handling.
 - [ ] **console.device Async** - Non-blocking reads with timeout support.
 - [ ] **Event Loop Integration** - Coordinate device async I/O with WaitPort/Wait().
 
-### Phase 41: Directory Opus Deep Dive
+### Phase 44: Directory Opus Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
 - [ ] **Stack Corruption Analysis** - Trace the source of stack corruption during DOpus cleanup.
 - [ ] **dopus.library Investigation** - Debug the bundled library's task cleanup routines.
