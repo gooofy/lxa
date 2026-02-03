@@ -92,6 +92,11 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Requester * requester __asm("a2"),
                                                         register WORD numGad __asm("d0"));
 
+UWORD _intuition_RemoveGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                        register struct Window * remPtr __asm("a0"),
+                                                        register struct Gadget * gadget __asm("a1"),
+                                                        register WORD numGad __asm("d0"));
+
 struct LXAClassNode {
     struct Node node;
     struct IClass *class_ptr;
@@ -1141,9 +1146,43 @@ BOOL _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __as
                                                         register ULONG cSeconds __asm("d2"),
                                                         register ULONG cMicros __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: DoubleClick() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    /* Check if two times are within the double-click interval.
+     * Based on AROS implementation.
+     * 
+     * sSeconds, sMicros = first (start) click time
+     * cSeconds, cMicros = second (current) click time
+     */
+    ULONG sTotal, cTotal;
+    ULONG diff;
+    ULONG doubleClickTime;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: DoubleClick(s=%lu.%06lu c=%lu.%06lu)\n",
+             sSeconds, sMicros, cSeconds, cMicros);
+    
+    /* If times are more than 4 seconds apart, definitely not a double-click */
+    if (sSeconds > cSeconds) {
+        if (sSeconds - cSeconds > 4)
+            return FALSE;
+    } else {
+        if (cSeconds - sSeconds > 4)
+            return FALSE;
+    }
+    
+    /* Convert to microseconds relative to the minimum second */
+    ULONG baseSeconds = (sSeconds < cSeconds) ? sSeconds : cSeconds;
+    sTotal = (sSeconds - baseSeconds) * 1000000 + sMicros;
+    cTotal = (cSeconds - baseSeconds) * 1000000 + cMicros;
+    
+    /* Calculate absolute difference */
+    diff = (sTotal > cTotal) ? (sTotal - cTotal) : (cTotal - sTotal);
+    
+    /* Default double-click time is 0.5 seconds (500000 microseconds) */
+    /* Use IntuitionBase preferences if available */
+    doubleClickTime = 500000;  /* Default: 0.5 seconds */
+    
+    DPRINTF (LOG_DEBUG, "_intuition: DoubleClick diff=%lu threshold=%lu\n", diff, doubleClickTime);
+    
+    return (diff <= doubleClickTime);
 }
 
 VOID _intuition_DrawBorder ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -1152,8 +1191,74 @@ VOID _intuition_DrawBorder ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD leftOffset __asm("d0"),
                                                         register WORD topOffset __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: DrawBorder() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Draw one or more borders in the specified RastPort.
+     * Based on AROS implementation.
+     */
+    UBYTE savedAPen, savedBPen, savedDrMd;
+    WORD *ptr;
+    WORD x, y;
+    int t;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: DrawBorder(rp=%p, border=%p, off=%d,%d)\n",
+             rp, border, (int)leftOffset, (int)topOffset);
+    
+    if (!rp || !border)
+        return;
+    
+    /* Save current RastPort state */
+    savedAPen = rp->FgPen;
+    savedBPen = rp->BgPen;
+    savedDrMd = rp->DrawMode;
+    
+    /* Lock layer if present */
+    if (rp->Layer)
+        LockLayerRom(rp->Layer);
+    
+    /* For all borders in the chain... */
+    for ( ; border; border = border->NextBorder)
+    {
+        /* Change RastPort to the colors/mode specified */
+        SetAPen(rp, border->FrontPen);
+        SetBPen(rp, border->BackPen);
+        SetDrMd(rp, border->DrawMode);
+        
+        /* Get base coords */
+        x = border->LeftEdge + leftOffset;
+        y = border->TopEdge + topOffset;
+        
+        /* Start of vector offsets */
+        ptr = border->XY;
+        
+        if (!ptr || border->Count <= 0)
+            continue;
+        
+        for (t = 0; t < border->Count; t++)
+        {
+            /* Get vector offset */
+            WORD xoff = *ptr++;
+            WORD yoff = *ptr++;
+            
+            if (t == 0)
+            {
+                /* First point - just move */
+                Move(rp, x + xoff, y + yoff);
+            }
+            else
+            {
+                /* Draw line to this point */
+                Draw(rp, x + xoff, y + yoff);
+            }
+        }
+    }
+    
+    /* Restore RastPort state */
+    SetAPen(rp, savedAPen);
+    SetBPen(rp, savedBPen);
+    SetDrMd(rp, savedDrMd);
+    
+    /* Unlock layer if present */
+    if (rp->Layer)
+        UnlockLayerRom(rp->Layer);
 }
 
 VOID _intuition_DrawImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3440,17 +3545,52 @@ UWORD _intuition_RemoveGadget ( register struct IntuitionBase * IntuitionBase __
                                                         register struct Window * window __asm("a0"),
                                                         register struct Gadget * gadget __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: RemoveGadget() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* Remove a single gadget from a window's gadget list.
+     * Returns the ordinal position or 0xFFFF if not found.
+     * Based on AROS implementation - simply calls RemoveGList with count=1.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: RemoveGadget(window=%p, gadget=%p)\n", window, gadget);
+    
+    if (!window || !gadget)
+        return 0xFFFF;
+    
+    /* Find the gadget's position first */
+    struct Gadget *curr = window->FirstGadget;
+    UWORD pos = 0;
+    
+    while (curr && curr != gadget)
+    {
+        pos++;
+        curr = curr->NextGadget;
+    }
+    
+    if (!curr)
+        return 0xFFFF;  /* Gadget not found */
+    
+    /* Remove it using RemoveGList */
+    _intuition_RemoveGList(IntuitionBase, window, gadget, 1);
+    
+    return pos;
 }
 
 VOID _intuition_ReportMouse ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register BOOL flag __asm("d0"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ReportMouse() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Enable or disable REPORTMOUSE flag for a window.
+     * When enabled, window receives mouse movement IDCMP events.
+     * Based on AROS implementation.
+     * Note: Arguments are twisted (flag in D0, window in A0).
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: ReportMouse(flag=%d, window=%p)\n", (int)flag, window);
+    
+    if (!window)
+        return;
+    
+    if (flag)
+        window->Flags |= WFLG_REPORTMOUSE;
+    else
+        window->Flags &= ~WFLG_REPORTMOUSE;
 }
 
 /* Helper to render a requester */
@@ -3755,9 +3895,13 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
 
 struct View * _intuition_ViewAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ViewAddress() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    /* Return a pointer to the Intuition View structure.
+     * This is the master View for all screens.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: ViewAddress() returning &IntuitionBase->ViewLord=%p\n",
+             &IntuitionBase->ViewLord);
+    
+    return &IntuitionBase->ViewLord;
 }
 
 struct ViewPort * _intuition_ViewPortAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -4766,39 +4910,85 @@ VOID _intuition_UnlockPubScreen ( register struct IntuitionBase * IntuitionBase 
 
 struct List * _intuition_LockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: LockPubScreenList() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Lock the list of public screens for reading.
+     * Returns a pointer to the list head.
+     * In our simplified implementation, we don't have a separate pub screen list,
+     * so we return NULL. Applications should handle this gracefully.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: LockPubScreenList() - returning NULL (no pub screen list)\n");
+    
+    /* In a full implementation, this would:
+     * 1. ObtainSemaphore on the pub screen list semaphore
+     * 2. Return pointer to IntuitionBase's internal pub screen list
+     * For now, return NULL since we don't track public screens separately.
+     */
     return NULL;
 }
 
 VOID _intuition_UnlockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: UnlockPubScreenList() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Unlock the public screen list after LockPubScreenList.
+     * In our simplified implementation, this is a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: UnlockPubScreenList()\n");
+    
+    /* In a full implementation, this would ReleaseSemaphore on the pub screen list. */
 }
 
 STRPTR _intuition_NextPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct Screen * screen __asm("a0"),
                                                         register STRPTR namebuf __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: NextPubScreen() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Return the name of the next public screen.
+     * If screen is NULL, returns the first public screen name.
+     * Returns NULL if there are no more public screens.
+     * 
+     * In our simplified implementation, we only have Workbench as public.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: NextPubScreen(screen=%p, namebuf=%p)\n", screen, namebuf);
+    
+    if (!namebuf)
+        return NULL;
+    
+    /* If screen is NULL, return "Workbench" as the first/only public screen */
+    if (screen == NULL)
+    {
+        strcpy((char *)namebuf, "Workbench");
+        return namebuf;
+    }
+    
+    /* No more public screens after Workbench */
     return NULL;
 }
 
 VOID _intuition_SetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetDefaultPubScreen() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Set the default public screen.
+     * If name is NULL, Workbench becomes the default.
+     * In our simplified implementation, this is a no-op since Workbench is always default.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: SetDefaultPubScreen(name='%s')\n",
+             name ? (const char *)name : "(null=Workbench)");
+    
+    /* No-op: Workbench is always the default in our implementation */
 }
 
 UWORD _intuition_SetPubScreenModes ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register UWORD modes __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetPubScreenModes() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* Set the public screen modes.
+     * Returns the old modes value.
+     * In our simplified implementation, we store but largely ignore modes.
+     */
+    static UWORD currentModes = 0;
+    UWORD oldModes = currentModes;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: SetPubScreenModes(modes=0x%04x) old=0x%04x\n",
+             (unsigned)modes, (unsigned)oldModes);
+    
+    currentModes = modes;
+    return oldModes;
 }
 
 UWORD _intuition_PubScreenStatus ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -4819,16 +5009,52 @@ UWORD _intuition_PubScreenStatus ( register struct IntuitionBase * IntuitionBase
 struct RastPort	* _intuition_ObtainGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct GadgetInfo * gInfo __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ObtainGIRPort() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Obtain a RastPort for rendering a gadget.
+     * Returns NULL if unsuccessful.
+     * The GadgetInfo contains screen/window/layer info.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: ObtainGIRPort(gInfo=%p)\n", gInfo);
+    
+    if (!gInfo)
+        return NULL;
+    
+    /* Return the RastPort from the GadgetInfo.
+     * In a full implementation, we'd clone and lock the rastport.
+     * For now, just return the one from gInfo.
+     */
+    if (gInfo->gi_RastPort)
+    {
+        /* Lock the layer if present */
+        if (gInfo->gi_Layer)
+            LockLayerRom(gInfo->gi_Layer);
+        
+        return gInfo->gi_RastPort;
+    }
+    
+    /* If no RastPort in gInfo, try to get one from window or screen */
+    if (gInfo->gi_Window && gInfo->gi_Window->RPort)
+        return gInfo->gi_Window->RPort;
+    
+    if (gInfo->gi_Screen)
+        return &gInfo->gi_Screen->RastPort;
+    
     return NULL;
 }
 
 VOID _intuition_ReleaseGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ReleaseGIRPort() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Release a RastPort obtained via ObtainGIRPort.
+     * This unlocks the layer if it was locked.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: ReleaseGIRPort(rp=%p)\n", rp);
+    
+    if (!rp)
+        return;
+    
+    /* Unlock the layer if present */
+    if (rp->Layer)
+        UnlockLayerRom(rp->Layer);
 }
 
 VOID _intuition_GadgetMouse ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -4836,8 +5062,35 @@ VOID _intuition_GadgetMouse ( register struct IntuitionBase * IntuitionBase __as
                                                         register struct GadgetInfo * gInfo __asm("a1"),
                                                         register WORD * mousePoint __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: GadgetMouse() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Get the current mouse position relative to the gadget.
+     * Stores the x,y coordinates in the mousePoint array.
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: GadgetMouse(gadget=%p, gInfo=%p, mousePoint=%p)\n",
+             gadget, gInfo, mousePoint);
+    
+    if (!mousePoint)
+        return;
+    
+    /* Get mouse position relative to gadget's domain */
+    if (gInfo && gInfo->gi_Window)
+    {
+        /* Get window-relative mouse position and adjust for domain/gadget offset */
+        mousePoint[0] = gInfo->gi_Window->MouseX - gInfo->gi_Domain.Left;
+        mousePoint[1] = gInfo->gi_Window->MouseY - gInfo->gi_Domain.Top;
+        
+        /* Further adjust for gadget position if gadget is provided */
+        if (gadget)
+        {
+            mousePoint[0] -= gadget->LeftEdge;
+            mousePoint[1] -= gadget->TopEdge;
+        }
+    }
+    else
+    {
+        /* No window context - return 0,0 */
+        mousePoint[0] = 0;
+        mousePoint[1] = 0;
+    }
 }
 
 VOID _intuition_private1 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -4849,8 +5102,16 @@ VOID _intuition_private1 ( register struct IntuitionBase * IntuitionBase __asm("
 VOID _intuition_GetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register STRPTR nameBuffer __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: GetDefaultPubScreen() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Get the name of the default public screen.
+     * Copies the name into nameBuffer (which must be at least MAXPUBSCREENNAME+1 bytes).
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: GetDefaultPubScreen(nameBuffer=%p)\n", nameBuffer);
+    
+    if (!nameBuffer)
+        return;
+    
+    /* In our simplified implementation, Workbench is always the default */
+    strcpy((char *)nameBuffer, "Workbench");
 }
 
 LONG _intuition_EasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
