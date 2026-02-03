@@ -201,6 +201,10 @@ _handleIRQ3:
     /* This calls ReplyMsg() for expired timers, properly waking up waiting tasks */
     jsr         __timer_VBlankHook
 
+    /* Process pending console reads via Console hook (Phase 45: async I/O) */
+    /* This completes async CMD_READ requests when input becomes available */
+    jsr         __console_VBlankHook
+
     move.l      4, a6                               | restore a6 (C call may have changed it)
 
     /* count down current task's time slice */

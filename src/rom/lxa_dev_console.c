@@ -26,6 +26,21 @@
 
 /* strlen is declared in util.h */
 
+/* Forward declaration of console unit structure */
+struct LxaConUnit;
+
+/*
+ * Console Device Base structure
+ * Extended from Library to hold device-specific state for async I/O (Phase 45)
+ */
+#define MAX_CONSOLE_UNITS 8  /* Maximum number of console units we can track */
+
+struct ConsoleDevBase {
+    struct Library   cdb_Library;           /* Standard library structure */
+    struct LxaConUnit *cdb_Units[MAX_CONSOLE_UNITS];  /* Active console units */
+    UWORD            cdb_NumUnits;          /* Number of active units */
+};
+
 /* Console device commands (from devices/console.h) */
 #ifndef CD_ASKKEYMAP
 #define CD_ASKKEYMAP        (CMD_NONSTD + 0)
@@ -101,6 +116,8 @@ struct LxaConUnit {
     /* Unit mode */
     UWORD  unit_mode;            /* CONU_STANDARD, CONU_CHARMAP, or CONU_SNIPMAP */
     BOOL   use_keymap;           /* TRUE if using custom keymap (CONU_CHARMAP/SNIPMAP) */
+    /* Pending async read request (Phase 45) */
+    struct IOStdReq *pending_read;  /* Currently pending async read, or NULL */
 };
 
 /*
@@ -222,6 +239,7 @@ static void console_delete_char(struct LxaConUnit *unit, int n);
 static void console_cursor_up(struct LxaConUnit *unit);
 static void console_cursor_down(struct LxaConUnit *unit);
 static void console_init_tab_stops(struct LxaConUnit *unit);
+static void console_try_complete_pending_read(struct LxaConUnit *unit);
 
 /*
  * Initialize a ConUnit for a window
@@ -341,6 +359,9 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     /* Initialize unit mode (will be set in OpenDevice) */
     unit->unit_mode = CONU_STANDARD;
     unit->use_keymap = FALSE;
+    
+    /* Initialize pending read (Phase 45: async I/O) */
+    unit->pending_read = NULL;
     
     LPRINTF(LOG_INFO, "_console: Created ConUnit for window 0x%08lx: XMax=%d YMax=%d XRSize=%d YRSize=%d\n",
             (ULONG)window, unit->cu.cu_XMax, unit->cu.cu_YMax, unit->cu.cu_XRSize, unit->cu.cu_YRSize);
@@ -794,10 +815,121 @@ static void console_process_input(struct LxaConUnit *unit)
         ReplyMsg((struct Message *)imsg);
     }
     
+    /* Try to complete any pending async read now that we have new input */
+    console_try_complete_pending_read(unit);
+    
     /* Redraw cursor and refresh display */
     if (redraw_cursor || unit->cursor_visible) {
         console_draw_cursor(unit);
         WaitTOF();
+    }
+}
+
+/*
+ * Try to complete a pending async read request (Phase 45: Async I/O)
+ * Called after input is processed to check if we can satisfy a pending read.
+ */
+static void console_try_complete_pending_read(struct LxaConUnit *unit)
+{
+    struct IOStdReq *iostd;
+    char *data;
+    LONG len;
+    LONG count = 0;
+    
+    if (!unit || !unit->pending_read) {
+        return;
+    }
+    
+    /* Check if we have enough data to satisfy the read */
+    if (unit->line_mode) {
+        /* In line mode, need a complete line */
+        if (!input_has_line(unit)) {
+            return;  /* Not ready yet */
+        }
+    } else {
+        /* In raw mode, any data is enough */
+        if (input_buf_empty(unit)) {
+            return;  /* Not ready yet */
+        }
+    }
+    
+    /* We have data - complete the pending read */
+    iostd = unit->pending_read;
+    unit->pending_read = NULL;  /* Clear before completing */
+    
+    DPRINTF(LOG_DEBUG, "_console: completing pending read, iostd=0x%08lx\n", (ULONG)iostd);
+    
+    /* Hide cursor after reading is done */
+    console_hide_cursor(unit);
+    
+    /* Copy available characters to buffer */
+    data = (char *)iostd->io_Data;
+    len = iostd->io_Length;
+    
+    while (count < len && !input_buf_empty(unit)) {
+        char c = input_buf_get(unit);
+        data[count++] = c;
+        
+        /* In line mode, stop at newline */
+        if (unit->line_mode && (c == '\r' || c == '\n')) {
+            break;
+        }
+    }
+    
+    iostd->io_Actual = count;
+    iostd->io_Error = 0;
+    
+    DPRINTF(LOG_DEBUG, "_console: async read completed, %ld bytes\n", count);
+    
+    /* Complete the request via ReplyMsg */
+    ReplyMsg(&iostd->io_Message);
+}
+
+/*
+ * VBlank Hook for Console Device (Phase 45: Async I/O)
+ * 
+ * Called from the VBlank interrupt handler to process pending console reads.
+ * This function:
+ * 1. Looks up the console device from the device list
+ * 2. Iterates through all registered console units
+ * 3. For units with pending async reads, calls console_process_input()
+ * 4. console_process_input() will call console_try_complete_pending_read()
+ *    to complete the request if data is available
+ * 
+ * This must be called from the m68k side (not host) so that ReplyMsg() properly
+ * signals the task through the Exec scheduler.
+ */
+VOID _console_VBlankHook(void)
+{
+    int i;
+    struct LxaConUnit *unit;
+    struct ConsoleDevBase *cdb = NULL;
+    struct Node *node;
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+    
+    /* Look up console device from device list via SysBase */
+    /* This avoids using static variables which don't work in ROM code */
+    Forbid();
+    for (node = SysBase->DeviceList.lh_Head; node->ln_Succ; node = node->ln_Succ) {
+        if (node->ln_Name && strcmp(node->ln_Name, "console.device") == 0) {
+            cdb = (struct ConsoleDevBase *)node;
+            break;
+        }
+    }
+    Permit();
+    
+    if (!cdb || cdb->cdb_NumUnits == 0) {
+        return;  /* Console device not found or no units open */
+    }
+    
+    /* Iterate through all registered units */
+    for (i = 0; i < MAX_CONSOLE_UNITS; i++) {
+        unit = cdb->cdb_Units[i];
+        if (unit && unit->pending_read) {
+            /* This unit has a pending async read - process input */
+            DPRINTF(LOG_DEBUG, "_console: VBlankHook: processing input for unit 0x%08lx\n", (ULONG)unit);
+            console_process_input(unit);
+        }
     }
 }
 
@@ -2054,7 +2186,17 @@ static struct Library * __g_lxa_console_InitDev  ( register struct Library    *d
                                                           register BPTR               seglist __asm("a0"),
                                                           register struct ExecBase   *SysBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_console: InitDev() called.\n");
+    struct ConsoleDevBase *cdb = (struct ConsoleDevBase *)dev;
+    int i;
+    
+    DPRINTF (LOG_DEBUG, "_console: InitDev() called, cdb=0x%08lx.\n", (ULONG)cdb);
+    
+    /* Initialize the unit tracking array (Phase 45: async I/O) */
+    for (i = 0; i < MAX_CONSOLE_UNITS; i++) {
+        cdb->cdb_Units[i] = NULL;
+    }
+    cdb->cdb_NumUnits = 0;
+    
     return dev;
 }
 
@@ -2066,9 +2208,11 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
                                             register ULONG            unitn  __asm("d0"),
                                             register ULONG            flags  __asm("d1"))
 {
+    struct ConsoleDevBase *cdb = (struct ConsoleDevBase *)dev;
     struct IOStdReq *iostd = (struct IOStdReq *)ioreq;
     struct Window *window = (struct Window *)iostd->io_Data;
     struct LxaConUnit *unit = NULL;
+    int i;
     
     LPRINTF (LOG_INFO, "_console: Open() called, unitn=%ld, flags=0x%08lx, io_Data(Window)=0x%08lx\n", 
              unitn, flags, (ULONG)window);
@@ -2121,6 +2265,19 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
         
         LPRINTF(LOG_INFO, "_console: Window now has IDCMPFlags=0x%08lx, UserPort=0x%08lx\n",
                 (ULONG)window->IDCMPFlags, (ULONG)window->UserPort);
+        
+        /* Register unit in tracking array for VBlank hook (Phase 45: async I/O) */
+        for (i = 0; i < MAX_CONSOLE_UNITS; i++) {
+            if (cdb->cdb_Units[i] == NULL) {
+                cdb->cdb_Units[i] = unit;
+                cdb->cdb_NumUnits++;
+                DPRINTF(LOG_DEBUG, "_console: Registered unit 0x%08lx in slot %d\n", (ULONG)unit, i);
+                break;
+            }
+        }
+        if (i >= MAX_CONSOLE_UNITS) {
+            LPRINTF(LOG_WARNING, "_console: No free slots for unit tracking (max %d)\n", MAX_CONSOLE_UNITS);
+        }
     }
     
     /* Accept the open request */
@@ -2136,11 +2293,23 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
 static BPTR __g_lxa_console_Close( register struct Library   *dev   __asm("a6"),
                                           register struct IORequest *ioreq __asm("a1"))
 {
+    struct ConsoleDevBase *cdb = (struct ConsoleDevBase *)dev;
     struct LxaConUnit *unit = (struct LxaConUnit *)ioreq->io_Unit;
+    int i;
     
     DPRINTF (LOG_DEBUG, "_console: Close() called, unit=0x%08lx\n", (ULONG)unit);
     
     if (unit) {
+        /* Unregister unit from tracking array (Phase 45: async I/O) */
+        for (i = 0; i < MAX_CONSOLE_UNITS; i++) {
+            if (cdb->cdb_Units[i] == unit) {
+                cdb->cdb_Units[i] = NULL;
+                cdb->cdb_NumUnits--;
+                DPRINTF(LOG_DEBUG, "_console: Unregistered unit 0x%08lx from slot %d\n", (ULONG)unit, i);
+                break;
+            }
+        }
+        
         console_destroy_unit(unit);
     }
     
@@ -2169,13 +2338,16 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
     switch (ioreq->io_Command)
     {
         case CMD_READ:
-            DPRINTF (LOG_DEBUG, "_console: CMD_READ len=%ld line_mode=%d\n", iostd->io_Length, unit ? unit->line_mode : -1);
+            DPRINTF (LOG_DEBUG, "_console: CMD_READ len=%ld line_mode=%d quick=%d\n", 
+                     iostd->io_Length, unit ? unit->line_mode : -1,
+                     (ioreq->io_Flags & IOF_QUICK) ? 1 : 0);
             
             if (unit && unit->cu.cu_Window) {
                 /* Read from window's IDCMP keyboard input */
                 char *data = (char *)iostd->io_Data;
                 LONG len = iostd->io_Length;
                 LONG count = 0;
+                BOOL data_available = FALSE;
                 
                 /* Record line start position for backspace limits.
                  * This is where the user's input starts - they cannot backspace
@@ -2186,42 +2358,58 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 
                 /* Draw cursor to show we're ready for input */
                 console_draw_cursor(unit);
-                WaitTOF();
                 
-                /* Process any pending input */
+                /* Process any pending IDCMP input first */
                 console_process_input(unit);
                 
-                /* In line mode, wait for a complete line (but only if not already available).
-                 * Exception: if the buffer already has data (e.g., from a DSR response
-                 * generated during a preceding write), return that data immediately
-                 * without waiting for a newline. This is needed because DSR responses
-                 * (CSI row;col R) don't contain newlines. */
-                if (unit->line_mode && !input_has_line(unit) && input_buf_empty(unit)) {
-                    while (!input_has_line(unit) && !input_buf_full(unit)) {
-                        /* Wait for more input - yield to scheduler */
-                        WaitTOF();
-                        console_process_input(unit);
-                    }
+                /* Check if we have enough data to satisfy the request immediately */
+                if (unit->line_mode) {
+                    /* In line mode, need a complete line OR existing buffer data */
+                    data_available = input_has_line(unit) || !input_buf_empty(unit);
+                } else {
+                    /* In raw mode, any data is enough */
+                    data_available = !input_buf_empty(unit);
                 }
                 
-                /* Hide cursor after reading is done */
-                console_hide_cursor(unit);
-                
-                /* Copy available characters to buffer */
-                while (count < len && !input_buf_empty(unit)) {
-                    char c = input_buf_get(unit);
-                    data[count++] = c;
+                if (data_available) {
+                    /* Data is available - complete immediately */
+                    console_hide_cursor(unit);
                     
-                    /* In line mode, stop at newline */
-                    if (unit->line_mode && (c == '\r' || c == '\n')) {
-                        break;
+                    /* Copy available characters to buffer */
+                    while (count < len && !input_buf_empty(unit)) {
+                        char c = input_buf_get(unit);
+                        data[count++] = c;
+                        
+                        /* In line mode, stop at newline */
+                        if (unit->line_mode && (c == '\r' || c == '\n')) {
+                            break;
+                        }
                     }
+                    
+                    iostd->io_Actual = count;
+                    ioreq->io_Error = 0;
+                    DPRINTF(LOG_DEBUG, "_console: CMD_READ completed immediately, %ld bytes\n", count);
+                } else {
+                    /* No data available yet - queue as async request */
+                    DPRINTF(LOG_DEBUG, "_console: CMD_READ queuing async read\n");
+                    
+                    /* Only one pending read at a time per unit */
+                    if (unit->pending_read != NULL) {
+                        LPRINTF(LOG_WARNING, "_console: CMD_READ already has pending read, aborting previous\n");
+                        /* Complete previous with 0 bytes */
+                        unit->pending_read->io_Actual = 0;
+                        unit->pending_read->io_Error = 0;
+                        ReplyMsg(&unit->pending_read->io_Message);
+                    }
+                    
+                    unit->pending_read = iostd;
+                    
+                    /* Clear IOF_QUICK to indicate we're going async */
+                    ioreq->io_Flags &= ~IOF_QUICK;
+                    
+                    /* Don't reply yet - will be completed when input arrives */
+                    return 0;
                 }
-                
-                iostd->io_Actual = count;
-                ioreq->io_Error = 0;
-                
-                DPRINTF(LOG_DEBUG, "_console: CMD_READ returned %ld bytes\n", count);
             } else {
                 /* No window - fall back to host emucall */
                 LONG result = emucall2(EMU_CALL_CON_READ, (ULONG)iostd->io_Data, iostd->io_Length);
@@ -2347,8 +2535,31 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
 static ULONG __g_lxa_console_AbortIO ( register struct Library   *dev   __asm("a6"),
                                               register struct IORequest *ioreq __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_console: AbortIO() called\n");
-    return 0;  /* No pending I/O to abort */
+    struct IOStdReq *iostd = (struct IOStdReq *)ioreq;
+    struct LxaConUnit *unit = (struct LxaConUnit *)ioreq->io_Unit;
+    
+    DPRINTF (LOG_DEBUG, "_console: AbortIO() called, ioreq=0x%08lx, unit=0x%08lx\n", (ULONG)ioreq, (ULONG)unit);
+    
+    /* Check if this is a pending async read we can abort */
+    if (unit && unit->pending_read == iostd) {
+        DPRINTF(LOG_DEBUG, "_console: AbortIO() aborting pending read\n");
+        
+        unit->pending_read = NULL;
+        
+        /* Hide cursor */
+        console_hide_cursor(unit);
+        
+        /* Mark as aborted */
+        ioreq->io_Error = IOERR_ABORTED;
+        iostd->io_Actual = 0;
+        
+        /* Complete the request */
+        ReplyMsg(&ioreq->io_Message);
+        
+        return 0;  /* Success */
+    }
+    
+    return IOERR_NOCMD;  /* Not a pending request we know about */
 }
 
 /*
@@ -2450,7 +2661,7 @@ struct Resident *__lxa_console_ROMTag = &ROMTag;
 
 struct InitTable __g_lxa_console_InitTab =
 {
-    (ULONG)               sizeof(struct Library),     // LibBaseSize
+    (ULONG)               sizeof(struct ConsoleDevBase),  // LibBaseSize (extended for Phase 45)
     (APTR              *) &__g_lxa_console_FuncTab[0],  // FunctionTable
     (APTR)                &__g_lxa_console_DataTab,     // DataTable
     (APTR)                __g_lxa_console_InitDev       // InitLibFn

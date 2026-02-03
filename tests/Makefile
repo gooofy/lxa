@@ -99,6 +99,7 @@ all:
 	@$(MAKE) -C asl/filerequest
 	@$(MAKE) -C gadtools/drawbevelbox
 	@$(MAKE) -C devices/timer_async
+	@$(MAKE) -C devices/console_async
 
 clean:
 	@echo "Cleaning all tests..."
@@ -187,6 +188,7 @@ clean:
 	@$(MAKE) -C asl/filerequest clean
 	@$(MAKE) -C gadtools/drawbevelbox clean
 	@$(MAKE) -C devices/timer_async clean
+	@$(MAKE) -C devices/console_async clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -271,6 +273,7 @@ clean:
 	rm -f asl/filerequest/actual.out
 	rm -f gadtools/drawbevelbox/actual.out
 	rm -f devices/timer_async/actual.out
+	rm -f devices/console_async/actual.out
 
 test: all
 	@echo ""
@@ -364,6 +367,7 @@ run-tests:
 	@$(MAKE) -C asl/filerequest run-test
 	@$(MAKE) -C gadtools/drawbevelbox run-test
 	@$(MAKE) -C devices/timer_async run-test
+	@$(MAKE) -C devices/console_async run-test
 
 help:
 	@echo "Integration Test Suite"

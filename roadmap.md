@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.1** | **45 Phases In Progress** | **37 Integration Tests Passing**
+**Version: 0.6.2** | **Phase 45 Complete** | **36 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -110,7 +110,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Active Phase
 
-### Phase 45: Async I/O & Timer Completion (In Progress)
+### Phase 45: Async I/O & Timer Completion (Complete)
 **Goal**: Implement proper asynchronous I/O for devices.
 
 - [x] **timer.device Async** - TR_ADDREQUEST with delay queue and VBlank-driven expiration
@@ -120,8 +120,14 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - Proper ReplyMsg() from m68k side to wake waiting tasks
   - AbortIO support for timer cancellation
   - Integration test: devices/timer_async
-- [ ] **console.device Async** - Non-blocking reads with pending queue
-- [ ] **Event Loop Integration** - Coordinate async I/O with WaitPort/Wait()
+- [x] **console.device Async** - Non-blocking reads with pending queue
+  - ConsoleDevBase structure for tracking open console units
+  - CMD_READ goes async when no input available (pending_read field)
+  - VBlank hook processes pending reads when input arrives
+  - AbortIO properly cancels pending reads with IOERR_ABORTED
+  - Fixed exec.c AbortIO to use proper register calling convention
+  - Integration test: devices/console_async
+- [x] **Event Loop Integration** - WaitPort/Wait() work correctly with async I/O
 
 ---
 
@@ -153,6 +159,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.2 | 45 | console.device async (CMD_READ pending queue, VBlank hook, AbortIO), exec.c AbortIO fix |
 | 0.6.1 | 45 | timer.device async (TR_ADDREQUEST delay queue, VBlank hook, AbortIO) |
 | 0.6.0 | 44 | BOOPSI visual completion (propgclass, strgclass input), GadTools DrawBevelBoxA, ASL FileRequester GUI, ROM size 512KB |
 | 0.5.9 | 43 | console.device advanced features (CONU_CHARMAP, RawKeyConvert, scrolling regions) |

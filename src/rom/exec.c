@@ -61,6 +61,8 @@ typedef void             (*devCloseFn_t)  ( register struct Library    *dev     
                                             register struct IORequest  *ioreq   __asm("a1"));
 typedef void             (*devBeginIOFn_t) (register struct Library    *dev     __asm("a6"),
                                             register struct IORequest  *ioreq   __asm("a1"));
+typedef ULONG            (*devAbortIOFn_t) (register struct Library    *dev     __asm("a6"),
+                                            register struct IORequest  *ioreq   __asm("a1"));
 
 struct JumpVec
 {
@@ -2498,11 +2500,11 @@ void _exec_AbortIO ( register struct ExecBase * SysBase __asm("a6"),
     }
 
     /*
-     * Call the device's AbortIO vector (offset -36 from library base)
+     * Call the device's AbortIO vector (LVO -36, entry index 6)
      * Note: Not all devices implement AbortIO meaningfully
      */
     struct JumpVec *jv = &(((struct JumpVec *)(___ioRequest->io_Device))[-6]);
-    void (*abortfn)(struct Library *, struct IORequest *) = jv->vec;
+    devAbortIOFn_t abortfn = (devAbortIOFn_t)jv->vec;
 
     if (abortfn)
     {
