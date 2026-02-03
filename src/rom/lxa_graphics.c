@@ -81,6 +81,13 @@ static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm
                                          register ULONG ystop __asm("d3"),
                                          register UBYTE * array __asm("a2"),
                                          register struct RastPort * temprp __asm("a1"));
+static ULONG _graphics_GetAPen ( register struct GfxBase * GfxBase __asm("a6"),
+                                 register struct RastPort * rp __asm("a1"));
+static ULONG _graphics_GetOutlinePen ( register struct GfxBase * GfxBase __asm("a6"),
+                                       register struct RastPort * rp __asm("a1"));
+static VOID _graphics_SetAPen ( register struct GfxBase * GfxBase __asm("a6"),
+                                register struct RastPort * rp __asm("a1"),
+                                register UBYTE pen __asm("d0"));
 
 /* Drawing modes from rastport.h */
 #ifndef JAM1
@@ -103,6 +110,11 @@ static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm
 #ifndef BMF_STANDARD
 #define BMF_STANDARD (1L << 3)   /* BMB_STANDARD = 3 */
 #endif
+
+/* Macros for flood fill tmpras access */
+#define WIDTH_TO_BYTES(w) ((((w) + 15) >> 4) << 1)
+#define COORD_TO_BYTEIDX(x, y, bpr) ((y) * (bpr) + ((x) >> 3))
+#define XCOORD_TO_MASK(x) (0x80 >> ((x) & 7))
 
 /* Use lxa_memset instead of memset to avoid conflict with libnix string.h */
 static void lxa_memset(void *s, int c, ULONG n)
@@ -2101,15 +2113,315 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
     return 0;  /* Success */
 }
 
+/* Flood fill helper structures and functions */
+struct FloodFillInfo
+{
+    struct GfxBase *gfxbase;
+    struct RastPort *rp;
+    BYTE *rasptr;        /* TmpRas buffer (PLANEPTR) */
+    ULONG bpr;           /* Bytes per row in tmpras */
+    ULONG fillpen;       /* Pen to compare against */
+    ULONG orig_apen;     /* Original APen */
+    UWORD rp_width;
+    UWORD rp_height;
+    BOOL (*is_fillable)(struct FloodFillInfo *, LONG, LONG);
+};
+
+#define FLOOD_STACK_SIZE 100
+
+struct FloodStack
+{
+    ULONG current;
+    struct {
+        LONG x, y;
+    } items[FLOOD_STACK_SIZE];
+};
+
+static void SetTmpRasPixel(BYTE *rasptr, LONG x, LONG y, ULONG bpr, BOOL state)
+{
+    ULONG idx = COORD_TO_BYTEIDX(x, y, bpr);
+    UBYTE mask = XCOORD_TO_MASK(x);
+    
+    if (state)
+        rasptr[idx] |= mask;
+    else
+        rasptr[idx] &= ~mask;
+}
+
+static BOOL GetTmpRasPixel(BYTE *rasptr, LONG x, LONG y, ULONG bpr)
+{
+    ULONG idx = COORD_TO_BYTEIDX(x, y, bpr);
+    UBYTE mask = XCOORD_TO_MASK(x);
+    return ((rasptr[idx] & mask) != 0);
+}
+
+static BOOL FloodIsFillable_Outline(struct FloodFillInfo *fi, LONG x, LONG y)
+{
+    /* mode 0: fill until we hit a pixel with the outline pen color */
+    if (x < 0 || y < 0 || x >= fi->rp_width || y >= fi->rp_height)
+        return FALSE;
+    
+    if (GetTmpRasPixel(fi->rasptr, x, y, fi->bpr))
+        return FALSE;  /* Already checked */
+    
+    return (fi->fillpen != _graphics_ReadPixel(fi->gfxbase, fi->rp, x, y));
+}
+
+static BOOL FloodIsFillable_Color(struct FloodFillInfo *fi, LONG x, LONG y)
+{
+    /* mode 1: fill while pixels have same color as starting pixel */
+    if (x < 0 || y < 0 || x >= fi->rp_width || y >= fi->rp_height)
+        return FALSE;
+    
+    if (GetTmpRasPixel(fi->rasptr, x, y, fi->bpr))
+        return FALSE;  /* Already checked */
+    
+    return (fi->fillpen == _graphics_ReadPixel(fi->gfxbase, fi->rp, x, y));
+}
+
+static void FloodPutPixel(struct FloodFillInfo *fi, LONG x, LONG y)
+{
+    /* Write pixel using current APen */
+    _graphics_WritePixel(fi->gfxbase, fi->rp, x, y);
+    
+    /* Mark as processed in tmpras */
+    SetTmpRasPixel(fi->rasptr, x, y, fi->bpr, TRUE);
+}
+
+static void FloodInitStack(struct FloodStack *s)
+{
+    s->current = 0;
+}
+
+static BOOL FloodPush(struct FloodStack *s, LONG x, LONG y)
+{
+    if (s->current >= FLOOD_STACK_SIZE)
+        return FALSE;
+    
+    s->items[s->current].x = x;
+    s->items[s->current].y = y;
+    s->current++;
+    return TRUE;
+}
+
+static BOOL FloodPop(struct FloodStack *s, LONG *x, LONG *y)
+{
+    if (s->current == 0)
+        return FALSE;
+    
+    s->current--;
+    *x = s->items[s->current].x;
+    *y = s->items[s->current].y;
+    return TRUE;
+}
+
+static BOOL FloodFillScanline(struct FloodFillInfo *fi, LONG start_x, LONG start_y)
+{
+    LONG x;
+    LONG rightmost_above, rightmost_below;
+    LONG leftmost_above, leftmost_below;
+    struct FloodStack stack;
+    
+    FloodInitStack(&stack);
+    
+    for (;;)
+    {
+        /* Scan right */
+        rightmost_above = start_x;
+        rightmost_below = start_x;
+        
+        for (x = start_x + 1; ; x++)
+        {
+            if (fi->is_fillable(fi, x, start_y))
+            {
+                FloodPutPixel(fi, x, start_y);
+                
+                /* Check above */
+                if (x > rightmost_above)
+                {
+                    if (fi->is_fillable(fi, x, start_y - 1))
+                    {
+                        /* Find rightmost fillable pixel above */
+                        for (rightmost_above = x; ; rightmost_above++)
+                        {
+                            if (!fi->is_fillable(fi, rightmost_above + 1, start_y - 1))
+                                break;
+                        }
+                        
+                        if (!FloodPush(&stack, rightmost_above, start_y - 1))
+                            return FALSE;  /* Stack full */
+                    }
+                }
+                
+                /* Check below */
+                if (x > rightmost_below)
+                {
+                    if (fi->is_fillable(fi, x, start_y + 1))
+                    {
+                        /* Find rightmost fillable pixel below */
+                        for (rightmost_below = x; ; rightmost_below++)
+                        {
+                            if (!fi->is_fillable(fi, rightmost_below + 1, start_y + 1))
+                                break;
+                        }
+                        
+                        if (!FloodPush(&stack, rightmost_below, start_y + 1))
+                            return FALSE;  /* Stack full */
+                    }
+                }
+            }
+            else
+                break;
+        }
+        
+        /* Scan left */
+        leftmost_above = start_x + 1;
+        leftmost_below = start_x + 1;
+        
+        for (x = start_x; ; x--)
+        {
+            if (fi->is_fillable(fi, x, start_y))
+            {
+                FloodPutPixel(fi, x, start_y);
+                
+                /* Check above */
+                if (x <= leftmost_above)
+                {
+                    if (fi->is_fillable(fi, x, start_y - 1))
+                    {
+                        /* Find leftmost fillable pixel above */
+                        for (leftmost_above = x; ; leftmost_above--)
+                        {
+                            if (!fi->is_fillable(fi, leftmost_above - 1, start_y - 1))
+                                break;
+                        }
+                        
+                        if (!FloodPush(&stack, leftmost_above, start_y - 1))
+                            return FALSE;  /* Stack full */
+                    }
+                }
+                
+                /* Check below */
+                if (x < leftmost_below)
+                {
+                    if (fi->is_fillable(fi, x, start_y + 1))
+                    {
+                        /* Find leftmost fillable pixel below */
+                        for (leftmost_below = x; ; leftmost_below--)
+                        {
+                            if (!fi->is_fillable(fi, leftmost_below - 1, start_y + 1))
+                                break;
+                        }
+                        
+                        if (!FloodPush(&stack, leftmost_below, start_y + 1))
+                            return FALSE;  /* Stack full */
+                    }
+                }
+            }
+            else
+                break;
+        }
+        
+        /* Pop next scanline from stack */
+        if (!FloodPop(&stack, &start_x, &start_y))
+            break;  /* Done */
+    }
+    
+    return TRUE;
+}
+
 static BOOL _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register ULONG mode __asm("d2"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: Flood() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct TmpRas *tmpras;
+    struct FloodFillInfo fi;
+    ULONG bpr, needed_size;
+    BOOL success;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: Flood() rp=0x%08lx, mode=%lu, x=%ld, y=%ld\n", 
+             (ULONG)rp, mode, x, y);
+    
+    if (!rp)
+        return FALSE;
+    
+    /* Require TmpRas for flood fill */
+    tmpras = rp->TmpRas;
+    if (!tmpras || !tmpras->RasPtr)
+    {
+        DPRINTF(LOG_ERROR, "_graphics: Flood() requires TmpRas\n");
+        return FALSE;
+    }
+    
+    /* Get rastport dimensions */
+    if (rp->Layer)
+    {
+        fi.rp_width = rp->Layer->Width;
+        fi.rp_height = rp->Layer->Height;
+    }
+    else if (rp->BitMap)
+    {
+        fi.rp_width = rp->BitMap->BytesPerRow * 8;
+        fi.rp_height = rp->BitMap->Rows;
+    }
+    else
+    {
+        DPRINTF(LOG_ERROR, "_graphics: Flood() no bitmap\n");
+        return FALSE;
+    }
+    
+    /* Check coordinates */
+    if (x < 0 || y < 0 || x >= fi.rp_width || y >= fi.rp_height)
+    {
+        DPRINTF(LOG_DEBUG, "_graphics: Flood() coordinates out of bounds\n");
+        return FALSE;
+    }
+    
+    /* Calculate tmpras requirements */
+    bpr = WIDTH_TO_BYTES(fi.rp_width);
+    needed_size = bpr * fi.rp_height;
+    
+    if (tmpras->Size < needed_size)
+    {
+        DPRINTF(LOG_ERROR, "_graphics: Flood() tmpras too small (%lu < %lu)\n", 
+                tmpras->Size, needed_size);
+        return FALSE;
+    }
+    
+    /* Clear tmpras */
+    lxa_memset(tmpras->RasPtr, 0, needed_size);
+    
+    /* Setup fill info */
+    fi.gfxbase = GfxBase;
+    fi.rp = rp;
+    fi.rasptr = tmpras->RasPtr;
+    fi.bpr = bpr;
+    fi.orig_apen = _graphics_GetAPen(GfxBase, rp);
+    
+    if (mode == 0)
+    {
+        /* Outline mode: fill until we hit outline pen */
+        fi.fillpen = _graphics_GetOutlinePen(GfxBase, rp);
+        fi.is_fillable = FloodIsFillable_Outline;
+    }
+    else
+    {
+        /* Color mode: fill while same color */
+        fi.fillpen = _graphics_ReadPixel(GfxBase, rp, x, y);
+        fi.is_fillable = FloodIsFillable_Color;
+    }
+    
+    /* Do the flood fill */
+    success = FloodFillScanline(&fi, x, y);
+    
+    /* Restore original APen */
+    _graphics_SetAPen(GfxBase, rp, (UBYTE)fi.orig_apen);
+    
+    DPRINTF(LOG_DEBUG, "_graphics: Flood() completed %s\n", success ? "successfully" : "with errors");
+    
+    return success;
 }
 
 static VOID _graphics_PolyDraw ( register struct GfxBase * GfxBase __asm("a6"),
