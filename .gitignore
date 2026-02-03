@@ -158,3 +158,12 @@ opencode.json
 tests/graphics/layer_clipping/layer_clipping
 tests/layers/cliprects/cliprects
 tests/layers/locking/locking
+tests/graphics/area_fill/area_fill
+tests/graphics/blt_mask/blt_mask
+tests/graphics/clipblit/clipblit
+tests/graphics/rpattrs/rpattrs
+tests/graphics/text_extent/text_extent
+tests/shell/alias/System/Shell
+tests/shell/controlflow/System/Shell
+tests/shell/script/System/Shell
+tests/shell/variables/System/Shell
