@@ -347,22 +347,68 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [ ] Ellipse operations - DrawEllipse, AreaEllipse (implemented, tests needed)
 - [ ] Pixel array operations - Deferred to Phase 43
 
-### Phase 38: Intuition Library Completion  
+### Phase 38: Intuition Library Completion (IN PROGRESS)
 **Goal**: Complete `intuition.library` implementation - all functions fully implemented with 100% test coverage.
 
 **Completion Criteria**: When this phase is complete, intuition.library will be **fully functional** with no stubs. Every function must have corresponding tests. Window/screen behavior must match authentic AmigaOS.
 
-**Analysis Tasks:**
-- [ ] **Audit intuition.c** - Identify all stubs, FIXMEs, and incomplete functions
-- [ ] **AROS Comparison** - Review against AROS sources for parity
-- [ ] **NDK Function List** - Verify all NDK functions are implemented
+**Audit Results:**
+- [x] **Audit intuition.c** - Identified missing implementation groups: Window/Screen manipulation, Requesters, Gadget infrastructure, BOOPSI visuals, Double buffering, and Preferences.
+- [x] **AROS Comparison** - Reviewed structure against AROS.
+- [x] **NDK Function List** - Verified stubs against NDK.
 
-**Implementation Tasks (to be detailed after audit):**
-- [ ] Implement all identified stubs
-- [ ] Fix all FIXMEs
-- [ ] Ensure IDCMP handling matches AmigaOS
-- [ ] Complete gadget support (system and custom)
-- [ ] Complete menu support
+**Implementation Strategy - Group 1: Window & Screen Manipulation**
+- [ ] **MoveWindow** - Window movement logic
+- [ ] **SizeWindow** - Window resizing logic
+- [ ] **WindowLimits** - Min/Max dimensions enforcement
+- [ ] **ChangeWindowBox** - Combined move/size operation
+- [ ] **ZipWindow** - Toggle between alternate sizes
+- [ ] **ScreenToBack/Front** - Screen depth arrangement
+- [ ] **WindowToBack/Front** - Window depth arrangement within screen
+- [ ] **MoveScreen** - Screen positioning
+- [ ] **ScreenDepth** - Screen depth information
+- [ ] **ScreenPosition** - Screen positioning helper
+
+**Implementation Strategy - Group 2: Requesters (System & Easy)**
+- [ ] **BuildSysRequest** - System requester window creation
+- [ ] **FreeSysRequest** - System requester cleanup
+- [ ] **SysReqHandler** - System requester event handling
+- [ ] **BuildEasyRequestArgs** - Easy request interactive window generation
+- [ ] **InitRequester** - Requester initialization
+- [ ] **Request** - Display requester
+- [ ] **EndRequest** - Close requester
+
+**Implementation Strategy - Group 3: Gadget Infrastructure**
+- [ ] **RefreshGList** - Render gadget list (currently stubbed)
+- [ ] **OnGadget** - Enable gadget
+- [ ] **OffGadget** - Disable gadget
+- [ ] **ActivateGadget** - Set active gadget
+- [ ] **SetGadgetAttrsA** - Set gadget attributes
+- [ ] **DoGadgetMethodA** - Invoke gadget method
+
+**Implementation Strategy - Group 4: BOOPSI Visuals**
+- [ ] **DrawImageState** - Draw image in specific state
+- [ ] **EraseImage** - Erase image
+- [ ] **GM_RENDER** - Implement visual rendering for `buttongclass`
+- [ ] **GM_RENDER** - Implement visual rendering for `propgclass`
+- [ ] **GM_RENDER** - Implement visual rendering for `strgclass`
+
+**Implementation Strategy - Group 5: Double Buffering**
+- [ ] **AllocScreenBuffer** - Allocate double buffer
+- [ ] **FreeScreenBuffer** - Free double buffer
+- [ ] **ChangeScreenBuffer** - Switch displayed buffer
+
+**Implementation Strategy - Group 6: Public Screen Management**
+- [ ] **LockPubScreenList** - Lock public screen list
+- [ ] **UnlockPubScreenList** - Unlock public screen list
+- [ ] **NextPubScreen** - Iterate public screens
+- [ ] **SetDefaultPubScreen** - Set default public screen
+
+**Implementation Strategy - Group 7: Preferences & Misc**
+- [ ] **GetDefPrefs** - Get default preferences
+- [ ] **SetPrefs** - Set preferences
+- [ ] **ScrollWindowRaster** - Scroll window content
+- [ ] **ViewAddress** - Get view address
 
 **Required Tests:**
 - [ ] Screen operations - open, close, depth arrange
