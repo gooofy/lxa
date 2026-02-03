@@ -60,6 +60,28 @@ static inline LONG _call_SizeLayer(struct Library *base, struct Layer *layer, LO
     return _res;
 }
 
+static inline LONG _call_UpfrontLayer(struct Library *base, struct Layer *layer) {
+    register struct Library * _base __asm("a6") = base;
+    register struct Layer * _layer __asm("a0") = layer;
+    register LONG _res __asm("d0");
+    __asm volatile ("jsr -48(%%a6)"
+        : "=r"(_res)
+        : "r"(_base), "r"(_layer)
+        : "d1", "a1", "memory", "cc");
+    return _res;
+}
+
+static inline LONG _call_BehindLayer(struct Library *base, struct Layer *layer) {
+    register struct Library * _base __asm("a6") = base;
+    register struct Layer * _layer __asm("a0") = layer;
+    register LONG _res __asm("d0");
+    __asm volatile ("jsr -54(%%a6)"
+        : "=r"(_res)
+        : "r"(_base), "r"(_layer)
+        : "d1", "a1", "memory", "cc");
+    return _res;
+}
+
 struct LXAIntuitionBase;
 struct LXAClassNode {
     struct Node node;
@@ -2392,8 +2414,14 @@ VOID _intuition_MoveScreen ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: MoveScreen() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: MoveScreen() screen=0x%08lx dx=%d dy=%d\n", (ULONG)screen, dx, dy);
+    
+    if (!screen) return;
+    
+    screen->LeftEdge += dx;
+    screen->TopEdge += dy;
+    
+    /* TODO: Update display hardware/host window if applicable */
 }
 
 VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3261,23 +3289,81 @@ BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a
 VOID _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
-    /*
-     * ScreenToBack() moves a screen to the back of the screen depth list.
-     * In lxa with a single screen model, this is a no-op.
-     */
-    DPRINTF (LOG_DEBUG, "_intuition: ScreenToBack() screen=0x%08lx (no-op)\n", (ULONG)screen);
-    /* No-op: single screen model */
+    struct Screen *curr, *prev = NULL;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: ScreenToBack() screen=0x%08lx\n", (ULONG)screen);
+    
+    if (!screen || !IntuitionBase->FirstScreen) return;
+    
+    /* Find screen in list */
+    curr = IntuitionBase->FirstScreen;
+    while (curr && curr != screen)
+    {
+        prev = curr;
+        curr = curr->NextScreen;
+    }
+    
+    if (!curr) return; /* Not found */
+    
+    if (!screen->NextScreen) return; /* Already at back */
+    
+    /* Unlink */
+    if (prev)
+    {
+        prev->NextScreen = screen->NextScreen;
+    }
+    else
+    {
+        /* Was first */
+        IntuitionBase->FirstScreen = screen->NextScreen;
+    }
+    
+    /* Find tail */
+    curr = IntuitionBase->FirstScreen;
+    while (curr->NextScreen)
+    {
+        curr = curr->NextScreen;
+    }
+    
+    /* Link at tail */
+    curr->NextScreen = screen;
+    screen->NextScreen = NULL;
+    
+    /* TODO: RethinkDisplay / Update View */
 }
 
 VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
-    /*
-     * ScreenToFront() moves a screen to the front of the screen depth list.
-     * In lxa with a single screen model, this is a no-op.
-     */
-    DPRINTF (LOG_DEBUG, "_intuition: ScreenToFront() screen=0x%08lx (no-op)\n", (ULONG)screen);
-    /* No-op: single screen model */
+    struct Screen *curr, *prev = NULL;
+
+    DPRINTF (LOG_DEBUG, "_intuition: ScreenToFront() screen=0x%08lx\n", (ULONG)screen);
+    
+    if (!screen || !IntuitionBase->FirstScreen) return;
+    
+    if (screen == IntuitionBase->FirstScreen) return; /* Already at front */
+
+    /* Find screen in list */
+    curr = IntuitionBase->FirstScreen;
+    while (curr && curr != screen)
+    {
+        prev = curr;
+        curr = curr->NextScreen;
+    }
+    
+    if (!curr) return; /* Not found */
+    
+    /* Unlink */
+    if (prev)
+    {
+        prev->NextScreen = screen->NextScreen;
+    }
+    
+    /* Link at front */
+    screen->NextScreen = IntuitionBase->FirstScreen;
+    IntuitionBase->FirstScreen = screen;
+    
+    /* TODO: RethinkDisplay / Update View */
 }
 
 BOOL _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3468,15 +3554,49 @@ struct ViewPort * _intuition_ViewPortAddress ( register struct IntuitionBase * I
 VOID _intuition_WindowToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: WindowToBack() unimplemented STUB called.\n");
-    assert(FALSE);
+    BOOL rootless_mode;
+
+    DPRINTF (LOG_DEBUG, "_intuition: WindowToBack() window=0x%08lx\n", (ULONG)window);
+    
+    if (!window) return;
+
+    /* Update internal structures */
+    if (window->WLayer && LayersBase)
+    {
+        _call_BehindLayer(LayersBase, window->WLayer);
+    }
+
+    /* Check for rootless mode */
+    rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
+    
+    if (rootless_mode && window->UserData)
+    {
+        emucall1(EMU_CALL_INT_WINDOW_TOBACK, (ULONG)window->UserData);
+    }
 }
 
 VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: WindowToFront() unimplemented STUB called.\n");
-    assert(FALSE);
+    BOOL rootless_mode;
+
+    DPRINTF (LOG_DEBUG, "_intuition: WindowToFront() window=0x%08lx\n", (ULONG)window);
+    
+    if (!window) return;
+
+    /* Update internal structures */
+    if (window->WLayer && LayersBase)
+    {
+        _call_UpfrontLayer(LayersBase, window->WLayer);
+    }
+
+    /* Check for rootless mode */
+    rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
+    
+    if (rootless_mode && window->UserData)
+    {
+        emucall1(EMU_CALL_INT_WINDOW_TOFRONT, (ULONG)window->UserData);
+    }
 }
 
 BOOL _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -4123,8 +4243,51 @@ LONG _intuition_SetMouseQueue ( register struct IntuitionBase * IntuitionBase __
 VOID _intuition_ZipWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ZipWindow() unimplemented STUB called.\n");
-    assert(FALSE);
+    WORD target_w, target_h;
+    WORD screen_w, screen_h;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: ZipWindow() window=0x%08lx\n", (ULONG)window);
+    
+    if (!window) return;
+    
+    /* Determine screen dimensions for clamping/max */
+    if (window->WScreen)
+    {
+        screen_w = window->WScreen->Width;
+        screen_h = window->WScreen->Height;
+    }
+    else
+    {
+        screen_w = 640; /* Fallback */
+        screen_h = 256;
+    }
+
+    /* Simple heuristic:
+     * If currently small (at min dimensions), toggle to max.
+     * Otherwise, toggle to min.
+     */
+    if (window->Width <= window->MinWidth && window->Height <= window->MinHeight)
+    {
+        /* Toggle to Max */
+        target_w = (window->MaxWidth != (UWORD)-1) ? window->MaxWidth : screen_w;
+        target_h = (window->MaxHeight != (UWORD)-1) ? window->MaxHeight : screen_h;
+        
+        /* Clamp to screen */
+        if (target_w > screen_w) target_w = screen_w;
+        if (target_h > screen_h) target_h = screen_h;
+    }
+    else
+    {
+        /* Toggle to Min */
+        target_w = window->MinWidth;
+        target_h = window->MinHeight;
+    }
+
+    /* Use ChangeWindowBox to effect the change (keeping Top/Left for now) 
+     * TODO: Adjust Top/Left to keep centered or anchored? 
+     * AmigaOS usually keeps Top/Left unless it would push window offscreen.
+     */
+    _intuition_ChangeWindowBox(IntuitionBase, window, window->LeftEdge, window->TopEdge, target_w, target_h);
 }
 
 struct Screen * _intuition_LockPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -5217,8 +5380,16 @@ VOID _intuition_ScreenDepth ( register struct IntuitionBase * IntuitionBase __as
                                                         register ULONG flags __asm("d0"),
                                                         register APTR reserved __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ScreenDepth() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: ScreenDepth() screen=0x%08lx flags=0x%08lx\n", (ULONG)screen, flags);
+
+    if (flags & SDEPTH_TOFRONT)
+    {
+        _intuition_ScreenToFront(IntuitionBase, screen);
+    }
+    else if (flags & SDEPTH_TOBACK)
+    {
+        _intuition_ScreenToBack(IntuitionBase, screen);
+    }
 }
 
 VOID _intuition_ScreenPosition ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -5229,8 +5400,26 @@ VOID _intuition_ScreenPosition ( register struct IntuitionBase * IntuitionBase _
                                                         register LONG x2 __asm("d3"),
                                                         register LONG y2 __asm("d4"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ScreenPosition() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: ScreenPosition() screen=0x%08lx flags=0x%08lx pos=(%ld,%ld)\n", 
+             (ULONG)screen, flags, x1, y1);
+             
+    if (!screen) return;
+    
+    if (flags & SPOS_ABSOLUTE)
+    {
+        /* x1, y1 are new coordinates */
+        screen->LeftEdge = x1;
+        screen->TopEdge = y1;
+    }
+    else /* SPOS_RELATIVE (default) */
+    {
+        /* x1, y1 are deltas */
+        screen->LeftEdge += x1;
+        screen->TopEdge += y1;
+    }
+    
+    /* TODO: SPOS_MAKEVISIBLE logic */
+    /* TODO: Update display */
 }
 
 VOID _intuition_ScrollWindowRaster ( register struct IntuitionBase * IntuitionBase __asm("a6"),
