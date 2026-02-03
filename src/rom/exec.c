@@ -926,8 +926,111 @@ APTR _exec_AllocAbs ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___byteSize  __asm("d0"),
                                                         register APTR ___location  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AllocAbs unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AllocAbs called, byteSize=%ld, location=0x%08lx\n", ___byteSize, (ULONG)___location);
+
+    if (!___byteSize)
+        return NULL;
+
+    /* Align size and location to 4-byte boundaries */
+    ULONG byteSize = ALIGN (___byteSize, 4);
+    APTR location  = (APTR)((ULONG)___location & ~3);
+    APTR endlocation = location + byteSize;
+
+    DPRINTF (LOG_DEBUG, "             aligned: byteSize=%ld, location=0x%08lx, endlocation=0x%08lx\n", 
+             byteSize, (ULONG)location, (ULONG)endlocation);
+
+    Forbid();
+
+    /* Search through all memory headers to find one containing the location */
+    struct MemHeader *mh = (struct MemHeader *)SysBase->MemList.lh_Head;
+    while (mh->mh_Node.ln_Succ)
+    {
+        DPRINTF (LOG_DEBUG, "             checking MemHeader 0x%08lx: lower=0x%08lx, upper=0x%08lx\n",
+                 (ULONG)mh, (ULONG)mh->mh_Lower, (ULONG)mh->mh_Upper);
+
+        /* Check if this memory header contains the requested range */
+        if (mh->mh_Lower <= location && mh->mh_Upper >= endlocation)
+        {
+            DPRINTF (LOG_DEBUG, "             found matching MemHeader\n");
+
+            /* Search through memory chunks to find one containing our location */
+            struct MemChunk *mc_prev = (struct MemChunk *)&mh->mh_First;
+            struct MemChunk *mc_cur  = mc_prev->mc_Next;
+
+            while (mc_cur)
+            {
+                APTR chunk_start = (APTR)mc_cur;
+                APTR chunk_end   = (APTR)((UBYTE *)mc_cur + mc_cur->mc_Bytes);
+
+                DPRINTF (LOG_DEBUG, "             checking chunk 0x%08lx: start=0x%08lx, end=0x%08lx, bytes=%ld\n",
+                         (ULONG)mc_cur, (ULONG)chunk_start, (ULONG)chunk_end, (ULONG)mc_cur->mc_Bytes);
+
+                /* Check if this chunk contains the requested range */
+                if (chunk_start <= location && chunk_end >= endlocation)
+                {
+                    DPRINTF (LOG_DEBUG, "             found matching chunk!\n");
+
+                    /* Calculate if there's free space before the requested location */
+                    ULONG size_before = (ULONG)location - (ULONG)chunk_start;
+                    /* Calculate if there's free space after the requested location */
+                    ULONG size_after  = (ULONG)chunk_end - (ULONG)endlocation;
+
+                    DPRINTF (LOG_DEBUG, "             size_before=%ld, size_after=%ld\n", size_before, size_after);
+
+                    if (size_before > 0 && size_after > 0)
+                    {
+                        /* Need to split into two chunks: one before, one after */
+                        DPRINTF (LOG_DEBUG, "             case 1: chunk before AND after\n");
+                        
+                        /* Keep the chunk before as-is */
+                        mc_cur->mc_Bytes = size_before;
+                        
+                        /* Create new chunk after */
+                        struct MemChunk *mc_after = (struct MemChunk *)endlocation;
+                        mc_after->mc_Next  = mc_cur->mc_Next;
+                        mc_after->mc_Bytes = size_after;
+                        mc_cur->mc_Next    = mc_after;
+                    }
+                    else if (size_before > 0)
+                    {
+                        /* Only space before, keep chunk but reduce size */
+                        DPRINTF (LOG_DEBUG, "             case 2: chunk before only\n");
+                        mc_cur->mc_Bytes = size_before;
+                    }
+                    else if (size_after > 0)
+                    {
+                        /* Only space after, create new chunk */
+                        DPRINTF (LOG_DEBUG, "             case 3: chunk after only\n");
+                        struct MemChunk *mc_after = (struct MemChunk *)endlocation;
+                        mc_after->mc_Next  = mc_cur->mc_Next;
+                        mc_after->mc_Bytes = size_after;
+                        mc_prev->mc_Next   = mc_after;
+                    }
+                    else
+                    {
+                        /* Exact match - remove chunk from list */
+                        DPRINTF (LOG_DEBUG, "             case 4: exact match\n");
+                        mc_prev->mc_Next = mc_cur->mc_Next;
+                    }
+
+                    /* Update free memory counter */
+                    mh->mh_Free -= byteSize;
+
+                    Permit();
+                    DPRINTF (LOG_DEBUG, "_exec: AllocAbs returning location=0x%08lx\n", (ULONG)location);
+                    return location;
+                }
+
+                mc_prev = mc_cur;
+                mc_cur  = mc_cur->mc_Next;
+            }
+        }
+
+        mh = (struct MemHeader *)mh->mh_Node.ln_Succ;
+    }
+
+    Permit();
+    DPRINTF (LOG_DEBUG, "_exec: AllocAbs failed - location not available\n");
     return NULL;
 }
 
@@ -1074,7 +1177,7 @@ void _exec_Insert ( register struct ExecBase * SysBase __asm("a6"),
                              register struct Node *node  __asm("a1"),
                              register struct Node *pred  __asm("a2"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: Insert unimplemented STUB called.\n");
+    DPRINTF (LOG_DEBUG, "_exec: Insert called, list=0x%08lx, node=0x%08lx, pred=0x%08lx\n", list, node, pred);
 
     if (pred)
     {
@@ -1706,16 +1809,20 @@ void _exec_FreeSignal ( register struct ExecBase *SysBase   __asm("a6"),
 LONG _exec_AllocTrap ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: AllocTrap unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_exec: AllocTrap called, trapNum=%ld\n", ___trapNum);
+    
+    /* In emulation, we don't support 68k trap vectors */
+    /* Return -1 to indicate no trap available */
+    return -1;
 }
 
 void _exec_FreeTrap ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: FreeTrap unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: FreeTrap called, trapNum=%ld\n", ___trapNum);
+    
+    /* In emulation, we don't support 68k trap vectors */
+    /* This is a no-op */
 }
 
 void _exec_AddPort ( register struct ExecBase * SysBase __asm("a6"),
@@ -1918,15 +2025,64 @@ struct MsgPort * _exec_FindPort ( register struct ExecBase * SysBase __asm("a6")
 void _exec_AddLibrary ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Library * ___library  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: AddLibrary unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AddLibrary called, library=0x%08lx name='%s'\n", 
+             (ULONG)___library, STRORNULL(___library ? ___library->lib_Node.ln_Name : NULL));
+
+    if (!___library)
+        return;
+
+    /* Set library type */
+    ___library->lib_Node.ln_Type = NT_LIBRARY;
+    /* Mark as changed so SumLibrary() will compute checksum */
+    ___library->lib_Flags |= LIBF_CHANGED;
+
+    /* Build checksum for library vectors */
+    SumLibrary(___library);
+
+    /* Add the library to the system list (Enqueue sorts by priority) */
+    Forbid();
+    Enqueue(&SysBase->LibList, &___library->lib_Node);
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: AddLibrary complete\n");
 }
 
 void _exec_RemLibrary ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Library * ___library  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: RemLibrary unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: RemLibrary called, library=0x%08lx name='%s'\n",
+             (ULONG)___library, STRORNULL(___library ? ___library->lib_Node.ln_Name : NULL));
+
+    if (!___library)
+        return;
+
+    /* Call the library's expunge vector (LVO -18, offset 3) */
+    /* This attempts to remove the library from memory */
+    Forbid();
+    
+    /* Get the function pointer from the jump table */
+    /* Libraries have negative offsets: LVO -6 (Open) at offset -6, etc. */
+    /* Expunge is at LVO -18 which is the 3rd function (after Open, Close) */
+    APTR *vectors = (APTR *)___library;
+    APTR expunge_fn = vectors[-3];  /* LVO -18 = offset -3 in pointer array */
+    
+    if (expunge_fn)
+    {
+        DPRINTF (LOG_DEBUG, "_exec: Calling library expunge vector at 0x%08lx\n", (ULONG)expunge_fn);
+        /* Call: BPTR Expunge(struct Library *lib __asm("d0")) */
+        register struct Library *lib_reg __asm("d0") = ___library;
+        BPTR seglist = ((BPTR (*)(void))expunge_fn)();
+        (void)lib_reg; /* Silence unused warning */
+        DPRINTF (LOG_DEBUG, "_exec: Expunge returned seglist=0x%08lx\n", (ULONG)seglist);
+    }
+    else
+    {
+        LPRINTF (LOG_ERROR, "_exec: RemLibrary - library has NULL expunge vector\n");
+    }
+    
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: RemLibrary complete\n");
 }
 
 struct Library * _exec_OldOpenLibrary ( register struct ExecBase *SysBase __asm("a6"),
@@ -1961,30 +2117,173 @@ APTR _exec_SetFunction ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___funcOffset  __asm("a0"),
                                                         register VOID (*___newFunction)()  __asm("d0"))
 {
-    LPRINTF (LOG_ERROR, "_exec: SetFunction unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: SetFunction called, library=0x%08lx name='%s', funcOffset=%ld, newFunction=0x%08lx\n",
+             (ULONG)___library, STRORNULL(___library ? ___library->lib_Node.ln_Name : NULL),
+             ___funcOffset, (ULONG)___newFunction);
+
+    if (!___library || !___newFunction)
+        return NULL;
+
+    /* funcOffset is negative (e.g., -6, -12, -18, ...) */
+    /* Each vector is 6 bytes on m68k (MOVE.W #x,-(SP); JMP addr) */
+    /* We store function pointers in a table, so divide by 6 to get index */
+    /* Actually in our implementation we use a JumpVec structure with a short and pointer */
+    
+    Forbid();
+
+    /* Mark library as changed */
+    ___library->lib_Flags |= LIBF_CHANGED;
+
+    /* Get pointer to the jump vector table (before library base) */
+    /* The jump table starts at (library - library->lib_NegSize) */
+    /* Each entry is sizeof(struct JumpVec) = 6 bytes (short + ptr) */
+    struct JumpVec *vectors = (struct JumpVec *)((UBYTE *)___library + ___funcOffset);
+    
+    /* Save old function pointer */
+    APTR old_function = vectors->vec;
+    
+    DPRINTF (LOG_DEBUG, "_exec: SetFunction old function=0x%08lx\n", (ULONG)old_function);
+
+    /* Set new function pointer */
+    vectors->vec = (void *)___newFunction;
+
+    Permit();
+
+    /* Recalculate library checksum */
+    SumLibrary(___library);
+
+    DPRINTF (LOG_DEBUG, "_exec: SetFunction complete, returning old function=0x%08lx\n", (ULONG)old_function);
+
+    return old_function;
 }
 
 void _exec_SumLibrary ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Library * ___library  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: SumLibrary unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: SumLibrary called, library=0x%08lx name='%s'\n",
+             (ULONG)___library, STRORNULL(___library ? ___library->lib_Node.ln_Name : NULL));
+
+    if (!___library)
+        return;
+
+    UBYTE oldflags;
+    ULONG sum;
+
+    Forbid();
+
+    /* Only checksum if LIBF_SUMUSED is set and LIBF_SUMMING is not in progress */
+    if ((___library->lib_Flags & LIBF_SUMUSED) && !(___library->lib_Flags & LIBF_SUMMING))
+    {
+        /* Loop while library is marked as changed */
+        do
+        {
+            ULONG *lp;
+
+            /* Memorize library flags */
+            oldflags = ___library->lib_Flags;
+
+            /* Mark summing in progress */
+            ___library->lib_Flags |= LIBF_SUMMING;
+            ___library->lib_Flags &= ~LIBF_CHANGED;
+
+            /* Multitasking allowed during summing */
+            Permit();
+
+            /* Build checksum over jump table */
+            sum = 0;
+            /* Get start of jump table (before library base) */
+            lp = (ULONG *)((UBYTE *)___library - ___library->lib_NegSize);
+            /* Sum up all longs in the jump table area */
+            while (lp < (ULONG *)___library)
+                sum += *lp++;
+
+            /* Summing complete, arbitrate again */
+            Forbid();
+
+            /* Remove summing flag */
+            ___library->lib_Flags &= ~LIBF_SUMMING;
+
+        } while (___library->lib_Flags & LIBF_CHANGED);
+
+        /* Alert if checksum mismatch (library wasn't changed but sum differs) */
+        if (!(oldflags & LIBF_CHANGED) && ___library->lib_Sum != sum)
+        {
+            LPRINTF (LOG_ERROR, "_exec: SumLibrary - checksum mismatch! lib=%s, expected=0x%08lx, actual=0x%08lx\n",
+                     STRORNULL(___library->lib_Node.ln_Name), ___library->lib_Sum, sum);
+            /* In real Amiga this would Alert(AT_DeadEnd|AN_LibChkSum) */
+        }
+
+        /* Set new checksum */
+        ___library->lib_Sum = sum;
+
+        DPRINTF (LOG_DEBUG, "_exec: SumLibrary computed checksum=0x%08lx\n", sum);
+    }
+    else
+    {
+        DPRINTF (LOG_DEBUG, "_exec: SumLibrary skipped (SUMUSED=%d, SUMMING=%d)\n",
+                 !!(___library->lib_Flags & LIBF_SUMUSED), !!(___library->lib_Flags & LIBF_SUMMING));
+    }
+
+    Permit();
 }
 
 void _exec_AddDevice ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Device * ___device  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: AddDevice unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AddDevice called, device=0x%08lx name='%s'\n",
+             (ULONG)___device, STRORNULL(___device ? ___device->dd_Library.lib_Node.ln_Name : NULL));
+
+    if (!___device)
+        return;
+
+    /* Set device type */
+    ___device->dd_Library.lib_Node.ln_Type = NT_DEVICE;
+    /* Mark as changed so SumLibrary() will compute checksum */
+    ___device->dd_Library.lib_Flags |= LIBF_CHANGED;
+
+    /* Build checksum for device vectors */
+    SumLibrary(&___device->dd_Library);
+
+    /* Add the device to the system list (Enqueue sorts by priority) */
+    Forbid();
+    Enqueue(&SysBase->DeviceList, &___device->dd_Library.lib_Node);
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: AddDevice complete\n");
 }
 
 void _exec_RemDevice ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Device * ___device  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: RemDevice unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: RemDevice called, device=0x%08lx name='%s'\n",
+             (ULONG)___device, STRORNULL(___device ? ___device->dd_Library.lib_Node.ln_Name : NULL));
+
+    if (!___device)
+        return;
+
+    /* Call the device's expunge vector (similar to RemLibrary) */
+    Forbid();
+    
+    /* Get the expunge function from the jump table (LVO -18, offset -3) */
+    APTR *vectors = (APTR *)&___device->dd_Library;
+    APTR expunge_fn = vectors[-3];
+    
+    if (expunge_fn)
+    {
+        DPRINTF (LOG_DEBUG, "_exec: Calling device expunge vector at 0x%08lx\n", (ULONG)expunge_fn);
+        register struct Library *lib_reg __asm("d0") = &___device->dd_Library;
+        BPTR seglist = ((BPTR (*)(void))expunge_fn)();
+        (void)lib_reg;
+        DPRINTF (LOG_DEBUG, "_exec: Expunge returned seglist=0x%08lx\n", (ULONG)seglist);
+    }
+    else
+    {
+        LPRINTF (LOG_ERROR, "_exec: RemDevice - device has NULL expunge vector\n");
+    }
+    
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: RemDevice complete\n");
 }
 
 BYTE _exec_OpenDevice ( register struct ExecBase  *SysBase    __asm("a6"),
@@ -2213,15 +2512,42 @@ void _exec_AbortIO ( register struct ExecBase * SysBase __asm("a6"),
 void _exec_AddResource ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___resource  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: AddResource unimplemented STUB called.\n");
-    assert(FALSE);
+    struct Node *res_node = (struct Node *)___resource;
+    
+    DPRINTF (LOG_DEBUG, "_exec: AddResource called, resource=0x%08lx name='%s'\n",
+             (ULONG)___resource, STRORNULL(res_node ? res_node->ln_Name : NULL));
+
+    if (!___resource)
+        return;
+
+    /* Set resource type */
+    res_node->ln_Type = NT_RESOURCE;
+
+    /* Add the resource to the system list (Enqueue sorts by priority) */
+    Forbid();
+    Enqueue(&SysBase->ResourceList, res_node);
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: AddResource complete\n");
 }
 
 void _exec_RemResource ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___resource  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: RemResource unimplemented STUB called.\n");
-    assert(FALSE);
+    struct Node *res_node = (struct Node *)___resource;
+    
+    DPRINTF (LOG_DEBUG, "_exec: RemResource called, resource=0x%08lx name='%s'\n",
+             (ULONG)___resource, STRORNULL(res_node ? res_node->ln_Name : NULL));
+
+    if (!___resource)
+        return;
+
+    /* Remove the resource from the system list */
+    Forbid();
+    Remove(res_node);
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: RemResource complete\n");
 }
 
 APTR _exec_OpenResource ( register struct ExecBase * SysBase __asm("a6"),
@@ -2695,8 +3021,57 @@ ULONG _exec_Procure ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"),
                                                         register struct SemaphoreMessage * ___bidMsg  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: Procure unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: Procure called, sigSem=0x%08lx, bidMsg=0x%08lx\n",
+             (ULONG)___sigSem, (ULONG)___bidMsg);
+
+    if (!___sigSem || !___bidMsg)
+        return 0;
+
+    /* Prepare the message */
+    ___bidMsg->ssm_Message.mn_Length = sizeof(struct SemaphoreMessage);
+
+    /* Determine if this is a shared semaphore request */
+    if ((ULONG)(___bidMsg->ssm_Message.mn_Node.ln_Name) == SM_SHARED)
+        ___bidMsg->ssm_Semaphore = NULL;
+    else
+        ___bidMsg->ssm_Semaphore = (struct SignalSemaphore *)FindTask(NULL);
+
+    Forbid();
+
+    ___sigSem->ss_QueueCount++;
+    
+    /* Check if semaphore is free */
+    if (___sigSem->ss_QueueCount == 0)
+    {
+        /* Free - claim it */
+        ___sigSem->ss_Owner = (struct Task *)___bidMsg->ssm_Semaphore;
+        ___sigSem->ss_NestCount++;
+        ___bidMsg->ssm_Semaphore = ___sigSem;
+        ReplyMsg(&___bidMsg->ssm_Message);
+    }
+    /* Check if we already own it */
+    else if (___sigSem->ss_Owner == (struct Task *)___bidMsg->ssm_Semaphore)
+    {
+        /* We own it - increment nest count */
+        ___sigSem->ss_NestCount++;
+        ___bidMsg->ssm_Semaphore = ___sigSem;
+        ReplyMsg(&___bidMsg->ssm_Message);
+    }
+    /* Owned by someone else - add to wait queue */
+    else
+    {
+        struct SemaphoreRequest *sr = (struct SemaphoreRequest *)___bidMsg;
+        if (___bidMsg->ssm_Semaphore != NULL)
+            sr->sr_Waiter = NULL;
+        else
+            sr->sr_Waiter = (APTR)SM_SHARED;
+        
+        AddTail((struct List *)&___sigSem->ss_WaitQueue, (struct Node *)___bidMsg);
+    }
+
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: Procure complete\n");
     return 0;
 }
 
@@ -2704,8 +3079,37 @@ void _exec_Vacate ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct SignalSemaphore * ___sigSem  __asm("a0"),
                                                         register struct SemaphoreMessage * ___bidMsg  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: Vacate unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: Vacate called, sigSem=0x%08lx, bidMsg=0x%08lx\n",
+             (ULONG)___sigSem, (ULONG)___bidMsg);
+
+    if (!___sigSem || !___bidMsg)
+        return;
+
+    Forbid();
+    ___bidMsg->ssm_Semaphore = NULL;
+
+    /* Check if request is still in the wait queue (not yet granted) */
+    for (struct MinNode *node = ___sigSem->ss_WaitQueue.mlh_Head;
+         node->mln_Succ;
+         node = node->mln_Succ)
+    {
+        if ((struct MinNode *)___bidMsg == node)
+        {
+            /* Found it - remove from queue */
+            Remove(&___bidMsg->ssm_Message.mn_Node);
+            ___sigSem->ss_QueueCount--;
+            ReplyMsg(&___bidMsg->ssm_Message);
+            Permit();
+            DPRINTF (LOG_DEBUG, "_exec: Vacate complete (removed from queue)\n");
+            return;
+        }
+    }
+
+    /* Not in queue - must have been granted, so release the semaphore */
+    ReleaseSemaphore(___sigSem);
+
+    Permit();
+    DPRINTF (LOG_DEBUG, "_exec: Vacate complete (released semaphore)\n");
 }
 
 struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6"),
@@ -3056,15 +3460,88 @@ ULONG _exec_AttemptSemaphore ( register struct ExecBase * SysBase __asm("a6"),
 void _exec_ObtainSemaphoreList ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct List * ___sigSem  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: ObtainSemaphoreList unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: ObtainSemaphoreList called, list=0x%08lx\n", (ULONG)___sigSem);
+
+    if (!___sigSem)
+        return;
+
+    struct SignalSemaphore *ss;
+    struct Task *ThisTask = FindTask(NULL);
+    WORD failedObtain = 0;
+
+    Forbid();
+
+    /* First pass - try to obtain all semaphores */
+    for (struct Node *node = ___sigSem->lh_Head; node->ln_Succ; node = node->ln_Succ)
+    {
+        ss = (struct SignalSemaphore *)node;
+        
+        ss->ss_QueueCount++;
+        if (ss->ss_QueueCount != 0)
+        {
+            /* Check if already owned by this task */
+            if (ss->ss_Owner != ThisTask)
+            {
+                /* Locked by someone else - post a wait request */
+                ss->ss_MultipleLink.sr_Waiter = ThisTask;
+                AddTail((struct List *)&ss->ss_WaitQueue, (struct Node *)&ss->ss_MultipleLink);
+                failedObtain++;
+            }
+            else
+            {
+                /* Already owned by us - increment nest count */
+                ss->ss_NestCount++;
+            }
+        }
+        else
+        {
+            /* Free - claim it */
+            ss->ss_NestCount++;
+            ss->ss_Owner = ThisTask;
+        }
+    }
+
+    /* Second pass - wait for any semaphores we didn't get */
+    if (failedObtain > 0)
+    {
+        ss = (struct SignalSemaphore *)___sigSem->lh_Head;
+
+        while (ss->ss_Link.ln_Succ != NULL)
+        {
+            if (ss->ss_Owner != ThisTask)
+            {
+                /* Wait for signal */
+                Wait(SIGF_SINGLE);
+            }
+            else
+            {
+                /* Got it - move to next */
+                ss = (struct SignalSemaphore *)ss->ss_Link.ln_Succ;
+                failedObtain--;
+            }
+        }
+    }
+
+    Permit();
+    DPRINTF (LOG_DEBUG, "_exec: ObtainSemaphoreList complete\n");
 }
 
 void _exec_ReleaseSemaphoreList ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct List * ___sigSem  __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: ReleaseSemaphoreList unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: ReleaseSemaphoreList called, list=0x%08lx\n", (ULONG)___sigSem);
+
+    if (!___sigSem)
+        return;
+
+    /* Release all semaphores in the list */
+    for (struct Node *node = ___sigSem->lh_Head; node->ln_Succ; node = node->ln_Succ)
+    {
+        struct SignalSemaphore *ss = (struct SignalSemaphore *)node;
+        ReleaseSemaphore(ss);
+    }
+
+    DPRINTF (LOG_DEBUG, "_exec: ReleaseSemaphoreList complete\n");
 }
 
 /*
@@ -3151,8 +3628,42 @@ void _exec_AddMemList ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___base  __asm("a0"),
                                                         register CONST_STRPTR ___name  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: AddMemList unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AddMemList called, size=%ld, attributes=0x%08lx, pri=%ld, base=0x%08lx, name='%s'\n",
+             ___size, ___attributes, ___pri, (ULONG)___base, STRORNULL(___name));
+
+    /* Calculate space needed for MemHeader (aligned to 8 bytes) */
+    #define MEMHEADER_TOTAL ((sizeof(struct MemHeader) + 7) & ~7)
+
+    if (!___base || ___size < MEMHEADER_TOTAL)
+    {
+        LPRINTF (LOG_ERROR, "_exec: AddMemList - invalid parameters\n");
+        return;
+    }
+
+    /* Initialize the MemHeader structure at the base of the memory region */
+    struct MemHeader *mh = (struct MemHeader *)___base;
+    mh->mh_Node.ln_Type = NT_MEMORY;
+    mh->mh_Node.ln_Pri  = ___pri;
+    mh->mh_Node.ln_Name = (char *)___name;
+    mh->mh_Attributes   = ___attributes;
+    
+    /* First chunk starts after the MemHeader */
+    mh->mh_First = (struct MemChunk *)((UBYTE *)mh + MEMHEADER_TOTAL);
+    mh->mh_First->mc_Next  = NULL;
+    mh->mh_First->mc_Bytes = ___size - MEMHEADER_TOTAL;
+    
+    mh->mh_Lower = mh->mh_First;
+    mh->mh_Upper = (APTR)((UBYTE *)___base + ___size);
+    mh->mh_Free  = mh->mh_First->mc_Bytes;
+
+    /* Add to system memory list */
+    Forbid();
+    Enqueue(&SysBase->MemList, &mh->mh_Node);
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: AddMemList complete - added %ld bytes of free memory\n", mh->mh_Free);
+    
+    #undef MEMHEADER_TOTAL
 }
 
 void _exec_CopyMem ( register struct ExecBase *SysBase __asm("a6"),
@@ -3719,15 +4230,34 @@ void _exec_CachePostDMA ( register struct ExecBase * SysBase __asm("a6"),
 void _exec_AddMemHandler ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Interrupt * ___memhand  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: AddMemHandler unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AddMemHandler called, memhand=0x%08lx\n", (ULONG)___memhand);
+
+    if (!___memhand)
+        return;
+
+    /* Memory handlers are Interrupt structures that get called when memory is low */
+    /* Add to the MemHandlers list sorted by priority */
+    Forbid();
+    Enqueue((struct List *)&SysBase->ex_MemHandlers, (struct Node *)___memhand);
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: AddMemHandler complete\n");
 }
 
 void _exec_RemMemHandler ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Interrupt * ___memhand  __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_exec: RemMemHandler unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: RemMemHandler called, memhand=0x%08lx\n", (ULONG)___memhand);
+
+    if (!___memhand)
+        return;
+
+    /* Remove from the MemHandlers list */
+    Forbid();
+    Remove((struct Node *)___memhand);
+    Permit();
+
+    DPRINTF (LOG_DEBUG, "_exec: RemMemHandler complete\n");
 }
 
 struct Library *registerBuiltInLib (ULONG dSize, struct Resident *romTAG)
