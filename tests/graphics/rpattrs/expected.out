@@ -1,0 +1,43 @@
+Testing SetRPAttrsA and GetRPAttrsA...
+OK: Resources allocated
+
+Test 1: Set and get Font...
+  OK: Font set and retrieved correctly
+
+Test 2: Set and get APen...
+  APen = 5 (expected 5)
+  OK
+
+Test 3: Set and get BPen...
+  BPen = 3 (expected 3)
+  OK
+
+Test 4: Set and get DrMd...
+  DrMd = 1 (expected 1)
+  OK
+
+Test 5: Set and get OutlinePen...
+  OutlinePen = 7 (expected 7)
+  OK
+
+Test 6: Set and get WriteMask...
+  WriteMask = 0xff (expected 0xff)
+  OK
+
+Test 7: Get MaxPen (read-only)...
+  MaxPen = 16 (expected 16 for WriteMask 0x0F)
+  OK
+
+Test 8: Get DrawBounds (not implemented)...
+  OK: DrawBounds returns zero rectangle
+
+Test 9: Set multiple attributes in one call...
+  OK: All attributes set correctly
+
+Test 10: TAG_IGNORE should skip attribute...
+  OK: TAG_IGNORE handled correctly
+
+Test 11: TAG_SKIP should skip next N tags...
+  OK: TAG_SKIP handled correctly
+
+PASS: rpattrs all tests passed
