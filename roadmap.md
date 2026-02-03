@@ -255,26 +255,54 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 
 **Completion Criteria**: When this phase is complete, graphics.library will be **fully functional** with no stubs. Every function must have corresponding tests. Rendering output must match authentic AmigaOS behavior.
 
-**Analysis Tasks:**
-- [ ] **Audit graphics.c** - Identify all stubs, FIXMEs, and incomplete functions
-- [ ] **AROS Comparison** - Review against AROS sources for parity
-- [ ] **NDK Function List** - Verify all NDK functions are implemented
+**Audit Results:**
+- [x] **Audit graphics.c** - Identified 124 stub functions with assert(FALSE), 2 FIXMEs
+- [x] **AROS Comparison** - Reviewed AROS sources (199 files in rom/graphics/)
+- [x] **NDK Function List** - Verified against NDK 3.2R4 clib/graphics_protos.h
 
-**Implementation Tasks (to be detailed after audit):**
-- [ ] Implement all identified stubs
-- [ ] Fix all FIXMEs
-- [ ] Ensure rendering accuracy (blitter, lines, areas, text)
+**Current Status:**
+- **Total Lines**: ~3,505 in lxa_graphics.c
+- **Unimplemented Stubs**: 124 functions
+- **FIXMEs**: 2 (library open count management in OpenLib)
+- **Implemented**: Core functions for basic rendering (BltBitMap, Text, Draw, etc.)
+
+**Implementation Strategy - Priority 1 (Critical for applications):**
+- [ ] **AllocBitMap/FreeBitMap** - Dynamic bitmap allocation (used by most apps)
+- [ ] **EraseRect** - Fast rectangle clearing
+- [ ] **TextExtent/TextFit** - Text measurement for layout
+- [ ] **AreaMove/AreaDraw/AreaEnd** - Polygon filling primitives
+- [ ] **ClipBlit** - Clipped blitting between RastPorts
+- [ ] **GetRPAttrsA/SetRPAttrsA** - RastPort attribute management
+- [ ] **BltMaskBitMapRastPort** - Masked bitmap blitting
+- [ ] **ClearEOL/ClearScreen** - Text console operations
+- [ ] **InitTmpRas** - Temporary raster for area operations
+- [ ] **LockLayerRom/UnlockLayerRom** - Layer synchronization
+
+**Implementation Strategy - Priority 2 (Nice to have):**
+- [ ] **DrawEllipse/AreaEllipse** - Ellipse drawing
+- [ ] **Flood** - Flood fill
+- [ ] **PolyDraw** - Polyline drawing
+- [ ] **BltPattern** - Pattern blitting
+- [ ] **BitMapScale/ScalerDiv** - Bitmap scaling
+- [ ] **ReadPixelLine8/WritePixelLine8** - Chunky pixel operations
+- [ ] **WriteChunkyPixels** - Fast chunky pixel writes
+- [ ] **ScrollRasterBF** - Backfill scrolling
+
+**Implementation Strategy - Priority 3 (Hardware/rarely used - can remain stubs):**
+- Copper functions (CBump, CMove, CWait, InitView, LoadView, MakeVPort, MrgCop, etc.) - hardware-specific
+- Hardware sprites (GetSprite, FreeSprite, ChangeSprite, MoveSprite, etc.) - not relevant for emulation
+- GELs system (AddBob, AddVSprite, Animate, etc.) - old animation system, rarely used
+- Display mode functions (OpenMonitor, FindDisplayInfo, BestModeIDA, etc.) - handled by host display
+- Blitter ownership (OwnBlitter, DisownBlitter, QBlit, QBSBlit) - no real blitter hardware
 
 **Required Tests:**
-- [ ] BitMap operations - allocation, depth, planes
+- [ ] BitMap operations - AllocBitMap, FreeBitMap, depth, planes
 - [ ] RastPort operations - all drawing primitives
-- [ ] Blitter operations - copy, fill, patterns
-- [ ] Line drawing - all modes, patterns
-- [ ] Area filling - flood fill, pattern fill
-- [ ] Text rendering - all fonts, styles
-- [ ] Color/palette management
-- [ ] View/ViewPort operations
-- [ ] Layer clipping integration
+- [ ] Area filling - AreaMove, AreaDraw, AreaEnd, flood fill
+- [ ] Text rendering - TextExtent, TextFit, different styles
+- [ ] Clipping - ClipBlit, layer-aware drawing
+- [ ] Rectangle operations - EraseRect, RectFill
+- [ ] Pixel operations - ReadPixel, WritePixel, ReadPixelLine8, WritePixelLine8
 
 ### Phase 38: Intuition Library Completion  
 **Goal**: Complete `intuition.library` implementation - all functions fully implemented with 100% test coverage.
