@@ -29,6 +29,23 @@ extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
 static struct TextFont g_topaz8_font;
 static void init_topaz8_font(void);
 
+/* Forward declarations for graphics functions */
+static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
+                                 register struct RastPort * rp __asm("a1"),
+                                 register WORD xMin __asm("d0"),
+                                 register WORD yMin __asm("d1"),
+                                 register WORD xMax __asm("d2"),
+                                 register WORD yMax __asm("d3"));
+static PLANEPTR _graphics_AllocRaster ( register struct GfxBase * GfxBase __asm("a6"),
+                                        register UWORD width __asm("d0"),
+                                        register UWORD height __asm("d1"));
+static VOID _graphics_FreeRaster ( register struct GfxBase * GfxBase __asm("a6"),
+                                   register PLANEPTR p __asm("a0"),
+                                   register UWORD width __asm("d0"),
+                                   register UWORD height __asm("d1"));
+static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
+                                 register struct RastPort * rp __asm("a1"));
+
 /* Drawing modes from rastport.h */
 #ifndef JAM1
 #define JAM1        0
@@ -502,15 +519,68 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
 static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ClearEOL() unimplemented STUB called.\n");
-    assert(FALSE);
+    UBYTE oldDrMd;
+    WORD width;
+    WORD ymin, ymax;
+
+    DPRINTF (LOG_DEBUG, "_graphics: ClearEOL() rp=0x%08lx\n", (ULONG)rp);
+
+    if (!rp || !rp->BitMap || !rp->Font)
+        return;
+
+    /* Get width of bitmap */
+    width = (WORD)(rp->BitMap->BytesPerRow * 8);
+
+    /* Calculate vertical range: from current position (minus baseline) to font height */
+    ymin = rp->cp_y - rp->TxBaseline;
+    ymax = ymin + rp->Font->tf_YSize - 1;
+
+    /* Save old draw mode and invert INVERSVID to draw with BgPen */
+    oldDrMd = rp->DrawMode;
+    rp->DrawMode ^= INVERSVID;
+
+    /* Fill from current x position to end of line */
+    _graphics_RectFill(GfxBase, rp, rp->cp_x, ymin, width - 1, ymax);
+
+    /* Restore draw mode */
+    rp->DrawMode = oldDrMd;
 }
 
 static VOID _graphics_ClearScreen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ClearScreen() unimplemented STUB called.\n");
-    assert(FALSE);
+    UBYTE oldDrMd;
+    WORD width, height;
+    WORD ymin;
+
+    DPRINTF (LOG_DEBUG, "_graphics: ClearScreen() rp=0x%08lx\n", (ULONG)rp);
+
+    if (!rp || !rp->BitMap || !rp->Font)
+        return;
+
+    /* Get bitmap dimensions */
+    width = (WORD)(rp->BitMap->BytesPerRow * 8);
+    height = rp->BitMap->Rows;
+
+    /* First clear end of current line */
+    _graphics_ClearEOL(GfxBase, rp);
+
+    /* Calculate where to start clearing (line after current text line) */
+    ymin = rp->cp_y - rp->TxBaseline + rp->Font->tf_YSize;
+
+    /* If there are more lines below, clear them */
+    if (height >= ymin)
+    {
+        /* Save old draw mode and invert INVERSVID to draw with BgPen */
+        oldDrMd = rp->DrawMode;
+        rp->DrawMode ^= INVERSVID;
+
+        /* Fill from beginning of next line to end of screen */
+        _graphics_RectFill(GfxBase, rp, 0, ymin, width - 1, height - 1);
+
+        /* Restore draw mode */
+        rp->DrawMode = oldDrMd;
+    }
 }
 
 /*
@@ -1888,15 +1958,27 @@ static VOID _graphics_MoveSprite ( register struct GfxBase * GfxBase __asm("a6")
 static VOID _graphics_LockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a5"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: LockLayerRom() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: LockLayerRom() layer=0x%08lx\n", (ULONG)layer);
+
+    /* LockLayerRom is a compatibility wrapper that calls layers.library LockLayer().
+     * In lxa, layers.library functions are internal and can be called directly via emucall.
+     * For now, we implement a simple no-op since layer locking is handled by layers.library
+     * functions that already lock when needed. */
+     
+    /* TODO: If actual locking is needed, open layers.library and call LockLayer() */
 }
 
 static VOID _graphics_UnlockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a5"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: UnlockLayerRom() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: UnlockLayerRom() layer=0x%08lx\n", (ULONG)layer);
+
+    /* UnlockLayerRom is a compatibility wrapper that calls layers.library UnlockLayer().
+     * In lxa, layers.library functions are internal and can be called directly via emucall.
+     * For now, we implement a simple no-op since layer locking is handled by layers.library
+     * functions that already lock when needed. */
+     
+    /* TODO: If actual locking is needed, open layers.library and call UnlockLayer() */
 }
 
 static VOID _graphics_SyncSBitMap ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1930,9 +2012,17 @@ static struct TmpRas * _graphics_InitTmpRas ( register struct GfxBase * GfxBase 
                                                         register PLANEPTR buffer __asm("a1"),
                                                         register LONG size __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: InitTmpRas() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_graphics: InitTmpRas() tmpRas=0x%08lx buffer=0x%08lx size=%ld\n",
+             (ULONG)tmpRas, (ULONG)buffer, size);
+
+    if (!tmpRas)
+        return NULL;
+
+    /* Initialize TmpRas structure */
+    tmpRas->RasPtr = (BYTE *)buffer;  /* Cast to BYTE * to match TmpRas.RasPtr type */
+    tmpRas->Size = (ULONG)size;
+
+    return tmpRas;
 }
 
 static VOID _graphics_AskFont ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2854,8 +2944,22 @@ static VOID _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG xMax __asm("d2"),
                                                         register LONG yMax __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: EraseRect() unimplemented STUB called.\n");
-    assert(FALSE);
+    UBYTE oldDrawMode;
+
+    DPRINTF (LOG_DEBUG, "_graphics: EraseRect() rp=0x%08lx, (%ld,%ld)-(%ld,%ld)\n",
+             (ULONG)rp, xMin, yMin, xMax, yMax);
+
+    if (!rp)
+        return;
+
+    /* EraseRect fills with background pen (BgPen) instead of foreground pen.
+     * We can achieve this by temporarily inverting INVERSVID flag and using RectFill */
+    oldDrawMode = rp->DrawMode;
+    rp->DrawMode ^= INVERSVID;  /* Toggle INVERSVID */
+
+    _graphics_RectFill(GfxBase, rp, (WORD)xMin, (WORD)yMin, (WORD)xMax, (WORD)yMax);
+
+    rp->DrawMode = oldDrawMode;  /* Restore original draw mode */
 }
 
 static ULONG _graphics_ExtendFont ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3032,16 +3136,98 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
                                                         register ULONG flags __asm("d3"),
                                                         register const struct BitMap * friend_bitmap __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AllocBitMap() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct BitMap *bm;
+    ULONG plane;
+    ULONG extraPlanes;
+
+    DPRINTF (LOG_DEBUG, "_graphics: AllocBitMap(%lu, %lu, %lu, 0x%08lx, 0x%08lx)\n",
+             sizex, sizey, depth, flags, (ULONG)friend_bitmap);
+
+    if (depth == 0 || depth > 8)
+    {
+        DPRINTF (LOG_WARNING, "_graphics: AllocBitMap() depth %lu out of range (1-8), clamping\n", depth);
+        if (depth == 0) depth = 1;
+        if (depth > 8) depth = 8;
+    }
+
+    /* Calculate extra plane pointers needed for depths > 8 */
+    extraPlanes = (depth > 8) ? (depth - 8) : 0;
+
+    /* Allocate BitMap structure with extra plane pointers if needed */
+    bm = (struct BitMap *)AllocMem(sizeof(struct BitMap) + extraPlanes * sizeof(PLANEPTR),
+                                    MEMF_PUBLIC | MEMF_CLEAR);
+
+    if (!bm)
+    {
+        DPRINTF (LOG_ERROR, "_graphics: AllocBitMap() failed to allocate BitMap structure\n");
+        return NULL;
+    }
+
+    /* Initialize BitMap structure */
+    bm->BytesPerRow = ((sizex + 15) >> 4) * 2;  /* Round up to nearest word boundary */
+    bm->Rows = (UWORD)sizey;
+    bm->Flags = (UBYTE)(flags | BMF_STANDARD);
+    bm->Depth = (UBYTE)depth;
+    bm->pad = 0;
+
+    /* Allocate plane data (AllocRaster already handles BMF_CLEAR via MEMF_CLEAR) */
+    for (plane = 0; plane < depth; plane++)
+    {
+        bm->Planes[plane] = _graphics_AllocRaster(GfxBase, (UWORD)sizex, (UWORD)sizey);
+
+        if (!bm->Planes[plane])
+        {
+            DPRINTF (LOG_ERROR, "_graphics: AllocBitMap() failed to allocate plane %lu\n", plane);
+
+            /* Free previously allocated planes */
+            for (ULONG p = 0; p < plane; p++)
+            {
+                if (bm->Planes[p])
+                    _graphics_FreeRaster(GfxBase, bm->Planes[p], (UWORD)sizex, (UWORD)sizey);
+            }
+
+            FreeMem(bm, sizeof(struct BitMap) + extraPlanes * sizeof(PLANEPTR));
+            return NULL;
+        }
+    }
+
+    DPRINTF (LOG_DEBUG, "_graphics: AllocBitMap() -> 0x%08lx\n", (ULONG)bm);
+    return bm;
 }
 
 static VOID _graphics_FreeBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct BitMap * bm __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FreeBitMap() unimplemented STUB called.\n");
-    assert(FALSE);
+    ULONG plane;
+    ULONG width;
+    ULONG extraPlanes;
+
+    DPRINTF (LOG_DEBUG, "_graphics: FreeBitMap(0x%08lx)\n", (ULONG)bm);
+
+    if (!bm)
+        return;
+
+    /* Calculate width from BytesPerRow */
+    width = bm->BytesPerRow * 8;
+
+    /* Free all plane data */
+    for (plane = 0; plane < bm->Depth; plane++)
+    {
+        /* Handle special plane pointer values:
+         * NULL = all 0's plane (no allocation)
+         * -1 = all 1's plane (no allocation)
+         */
+        if (bm->Planes[plane] && bm->Planes[plane] != (PLANEPTR)-1)
+        {
+            _graphics_FreeRaster(GfxBase, bm->Planes[plane], (UWORD)width, bm->Rows);
+        }
+    }
+
+    /* Calculate extra plane pointers for depths > 8 */
+    extraPlanes = (bm->Depth > 8) ? (bm->Depth - 8) : 0;
+
+    /* Free BitMap structure */
+    FreeMem(bm, sizeof(struct BitMap) + extraPlanes * sizeof(PLANEPTR));
 }
 
 static LONG _graphics_GetExtSpriteA ( register struct GfxBase       *GfxBase __asm("a6"),
