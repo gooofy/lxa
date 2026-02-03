@@ -203,45 +203,144 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [ ] **ASM-One** - Pre-existing crash (jumps into ASCII data). Child process created by CreateNewProc crashes early. Deferred for future investigation.
 **Test Status**: All 4 app tests pass (devpac, dopus [expected fail], kickpascal2, sysinfo).
 
-### Phase 36: Exec Library Validation & AROS Comparison (COMPLETE)
-**Goal**: Ensure `exec.library` matches authentic behavior and AROS reference.
-**Achievements**:
-- [x] **AROS Comparison** - Reviewed exec implementation against AROS sources. Identified 162 AROS exec source files.
-- [x] **Feature Gap Analysis** - Identified and implemented missing functions:
-  - `NewMinList()` - LVO -828, V45+ list initialization
-  - `AllocVecPooled()` - LVO -1014, V39+ pool-based vector allocation
-  - `FreeVecPooled()` - LVO -1020, V39+ pool-based vector deallocation
-- [x] **RawDoFmt Bug Fix** - Fixed left-alignment padding bug for strings (`%-8s`)
-- [x] **Test Infrastructure** - Added filter for spurious mread/mwrite errors in test_runner.sh
-- [x] **RemTail Tests** - Added comprehensive RemTail tests to exec/lists test suite (Tests 13-15)
-- [x] **CopyMem Tests** - Added CopyMem/CopyMemQuick tests to exec/memory test suite (Tests 12-14)
-- [x] **RawDoFmt Tests** - Comprehensive 24-test suite covering %d, %u, %x, %X, %ld, %s, %c, width, padding, alignment, precision, %%
-- [x] **RKRM Integration Tests** - Covered by existing tests: signal_pingpong (message passing), multitask (preemptive scheduling), lists (list operations), memory (allocation)
+### Phase 36: Exec Library Completion (IN PROGRESS)
+**Goal**: Complete `exec.library` implementation - all functions fully implemented with 100% test coverage.
+
+**Completion Criteria**: When this phase is complete, exec.library will be **fully functional** with no stubs remaining (except hardware-specific functions that cannot be emulated). Every function must have corresponding tests verifying correct behavior.
+
+**Progress So Far:**
+- [x] **AROS Comparison** - Reviewed exec implementation against AROS sources (162 files)
+- [x] **NewMinList()** - LVO -828, V45+ list initialization
+- [x] **AllocVecPooled()** - LVO -1014, V39+ pool-based vector allocation
+- [x] **FreeVecPooled()** - LVO -1020, V39+ pool-based vector deallocation
+- [x] **RawDoFmt Bug Fix** - Fixed left-alignment padding bug for strings
+- [x] **Test Infrastructure** - Added filter for spurious mread/mwrite errors
+- [x] **RawDoFmt Tests** - 24-test suite covering all format specifiers
+
+**Remaining Stubs to Implement:**
+
+*List Operations:*
+- [ ] **Insert()** (-234) - Insert node into list at specific position (currently stub)
+
+*Memory Management:*
+- [ ] **AllocAbs()** (-204) - Allocate memory at absolute address (currently returns NULL)
+- [ ] **AddMemList()** (-618) - Add memory region to system free pool
+- [ ] **AddMemHandler()** (-774) - Low memory warning handler
+- [ ] **RemMemHandler()** (-780) - Remove memory handler
+
+*Library/Device Management:*
+- [ ] **AddLibrary()** (-396) - Add library to system list
+- [ ] **RemLibrary()** (-402) - Remove library from system list
+- [ ] **SetFunction()** (-420) - Patch library function (returns NULL)
+- [ ] **SumLibrary()** (-426) - Compute library checksum
+- [ ] **AddDevice()** (-432) - Add device to system list
+- [ ] **RemDevice()** (-438) - Remove device from system list
+
+*Resource Management:*
+- [ ] **AddResource()** (-486) - Add resource to system list
+- [ ] **RemResource()** (-492) - Remove resource from system list
+
+*Semaphores:*
+- [ ] **Procure()** (-540) - Message-based semaphore obtain (returns 0)
+- [ ] **Vacate()** (-546) - Message-based semaphore release
+- [ ] **ObtainSemaphoreList()** (-582) - Lock multiple semaphores atomically
+- [ ] **ReleaseSemaphoreList()** (-588) - Unlock multiple semaphores
+
+*Traps:*
+- [ ] **AllocTrap()** (-342) - Allocate trap vector (returns 0)
+- [ ] **FreeTrap()** (-348) - Free trap vector
+
+*Interrupts (may remain stubs - no hardware):*
+- [ ] **SetIntVector()** (-162) - Set interrupt vector (stub acceptable)
+- [ ] **AddIntServer()** (-168) - Add interrupt server (stub acceptable)
+- [ ] **RemIntServer()** (-174) - Remove interrupt server (stub acceptable)
+
+*System/Diagnostics (may remain stubs):*
+- [ ] **InitCode()** (-72) - Initialize resident modules
+- [ ] **Debug()** (-114) - Enter debugger
+- [ ] **SumKickData()** (-612) - Compute kickstart checksum
+- [ ] **ColdReboot()** (-726) - Reboot system
+- [ ] **CachePreDMA()** (-762) - Pre-DMA cache flush (no-op acceptable)
+- [ ] **CachePostDMA()** (-768) - Post-DMA cache flush (no-op acceptable)
+
+*Missing Functions:*
+- [ ] **ObtainQuickVector()** (-786) - Obtain quick interrupt vector
+
+**Required Tests (ensure 100% coverage):**
+- [ ] Insert() test - verify node insertion at head, middle, tail
+- [ ] AllocAbs() test - verify absolute memory allocation
+- [ ] AddLibrary/RemLibrary test - library list management
+- [ ] AddDevice/RemDevice test - device list management  
+- [ ] SetFunction() test - function patching
+- [ ] ObtainSemaphoreList/ReleaseSemaphoreList test - multi-semaphore locking
+- [ ] Procure/Vacate test - message-based semaphores
+- [ ] AllocTrap/FreeTrap test - trap allocation
+- [ ] AddMemList test - memory region addition
+- [ ] Comprehensive signal test - all signal operations
+- [ ] Comprehensive task test - task creation, priorities, removal
 
 **Technical Notes:**
-- NUM_EXEC_FUNCS increased from 130 to 172 to accommodate higher LVOs
-- Pool functions (AllocVecPooled/FreeVecPooled) store size in header for automatic size tracking
-- NewMinList is equivalent to the NEWLIST() macro but available as a function call
+- NUM_EXEC_FUNCS = 172 to accommodate LVOs up to -1020
+- MinList variants (InsertMinNode, etc.) share LVOs with regular list functions
+- Hardware interrupt functions may remain stubs (no real hardware)
+- Cache functions are no-ops (no hardware cache)
 
 ---
 
 ## Future Phases
 
-### Phase 37: Graphics Library Validation & AROS Comparison
-**Goal**: Ensure `graphics.library` matches authentic behavior and AROS reference.
-- [ ] **AROS Comparison** - Review `graphics` implementation against AROS sources for parity.
-- [ ] **Feature Gap Analysis** - Implement any missing features identified during comparison.
-- [ ] **Rendering Accuracy** - Fix differences in blitter, line, and area filling operations.
-- [ ] **Comprehensive Unit Tests** - Expand test coverage for all `graphics` functions.
-- [ ] **RKRM Integration Tests** - Implement integration tests based on RKRM Graphics samples.
+### Phase 37: Graphics Library Completion
+**Goal**: Complete `graphics.library` implementation - all functions fully implemented with 100% test coverage.
 
-### Phase 38: Intuition Library Validation & AROS Comparison
-**Goal**: Ensure `intuition.library` matches authentic behavior and AROS reference.
-- [ ] **AROS Comparison** - Review `intuition` implementation against AROS sources for parity.
-- [ ] **Feature Gap Analysis** - Implement any missing features identified during comparison.
-- [ ] **Input & Windowing Fixes** - Correct differences in IDCMP, window/screen management, and gadget handling.
-- [ ] **Comprehensive Unit Tests** - Expand test coverage for all `intuition` functions.
-- [ ] **RKRM Integration Tests** - Implement integration tests based on RKRM Intuition samples.
+**Completion Criteria**: When this phase is complete, graphics.library will be **fully functional** with no stubs. Every function must have corresponding tests. Rendering output must match authentic AmigaOS behavior.
+
+**Analysis Tasks:**
+- [ ] **Audit graphics.c** - Identify all stubs, FIXMEs, and incomplete functions
+- [ ] **AROS Comparison** - Review against AROS sources for parity
+- [ ] **NDK Function List** - Verify all NDK functions are implemented
+
+**Implementation Tasks (to be detailed after audit):**
+- [ ] Implement all identified stubs
+- [ ] Fix all FIXMEs
+- [ ] Ensure rendering accuracy (blitter, lines, areas, text)
+
+**Required Tests:**
+- [ ] BitMap operations - allocation, depth, planes
+- [ ] RastPort operations - all drawing primitives
+- [ ] Blitter operations - copy, fill, patterns
+- [ ] Line drawing - all modes, patterns
+- [ ] Area filling - flood fill, pattern fill
+- [ ] Text rendering - all fonts, styles
+- [ ] Color/palette management
+- [ ] View/ViewPort operations
+- [ ] Layer clipping integration
+
+### Phase 38: Intuition Library Completion  
+**Goal**: Complete `intuition.library` implementation - all functions fully implemented with 100% test coverage.
+
+**Completion Criteria**: When this phase is complete, intuition.library will be **fully functional** with no stubs. Every function must have corresponding tests. Window/screen behavior must match authentic AmigaOS.
+
+**Analysis Tasks:**
+- [ ] **Audit intuition.c** - Identify all stubs, FIXMEs, and incomplete functions
+- [ ] **AROS Comparison** - Review against AROS sources for parity
+- [ ] **NDK Function List** - Verify all NDK functions are implemented
+
+**Implementation Tasks (to be detailed after audit):**
+- [ ] Implement all identified stubs
+- [ ] Fix all FIXMEs
+- [ ] Ensure IDCMP handling matches AmigaOS
+- [ ] Complete gadget support (system and custom)
+- [ ] Complete menu support
+
+**Required Tests:**
+- [ ] Screen operations - open, close, depth arrange
+- [ ] Window operations - open, close, resize, move, activate
+- [ ] IDCMP message handling - all message types
+- [ ] Gadget operations - create, add, remove, refresh
+- [ ] Menu operations - create, attach, handle selection
+- [ ] Requester operations - easy, auto, custom
+- [ ] Input handling - mouse, keyboard events
+- [ ] Refresh handling - simple, smart refresh
 
 ### Phase 39: Re-Testing Phase 2
 **Goal**: Comprehensive re-testing after Phase 34-35 fixes.
