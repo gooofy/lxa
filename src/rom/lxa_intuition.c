@@ -2313,6 +2313,15 @@ VOID _intuition_ReplyIntuiMsg(struct IntuiMessage *imsg)
     }
 }
 
+/*
+ * ModifyProp - Modify proportional gadget properties
+ *
+ * This function updates the values of a proportional gadget and optionally
+ * refreshes its visual appearance. Used for scrollbars and sliders.
+ *
+ * Current implementation is a stub that updates the PropInfo structure
+ * but doesn't refresh the visual.
+ */
 VOID _intuition_ModifyProp ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Gadget * gadget __asm("a0"),
                                                         register struct Window * window __asm("a1"),
@@ -2323,8 +2332,34 @@ VOID _intuition_ModifyProp ( register struct IntuitionBase * IntuitionBase __asm
                                                         register UWORD horizBody __asm("d3"),
                                                         register UWORD vertBody __asm("d4"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ModifyProp() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: ModifyProp() called, gadget=0x%08lx window=0x%08lx\n",
+             (ULONG)gadget, (ULONG)window);
+
+    if (!gadget)
+        return;
+
+    /* Check if this is a proportional gadget */
+    if ((gadget->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET) {
+        DPRINTF (LOG_WARNING, "_intuition: ModifyProp() called on non-prop gadget\n");
+        return;
+    }
+
+    /* Get the PropInfo structure from the gadget */
+    struct PropInfo *pi = (struct PropInfo *)gadget->SpecialInfo;
+    if (!pi)
+        return;
+
+    /* Update the PropInfo fields */
+    pi->Flags = flags;
+    pi->HorizPot = horizPot;
+    pi->VertPot = vertPot;
+    pi->HorizBody = horizBody;
+    pi->VertBody = vertBody;
+
+    DPRINTF (LOG_DEBUG, "_intuition: ModifyProp() updated: HorizPot=%u VertPot=%u HorizBody=%u VertBody=%u\n",
+             horizPot, vertPot, horizBody, vertBody);
+
+    /* TODO: Refresh the gadget visual (requires gadget rendering) */
 }
 
 VOID _intuition_MoveScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),

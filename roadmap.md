@@ -148,13 +148,8 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 - [x] **CIA Resources** - Implemented OpenResource() and added ciaa.resource/ciab.resource for timer access.
 - [x] **Tests** - Created exec/resources integration test to verify OpenResource() and CIA resource availability.
 
----
-
-## Active Phases
-
-## Phase 32: Application Testing Fixes (COMPLETE)
+### Phase 32: Application Testing Fixes (COMPLETE)
 **Goal**: Fix blocking issues discovered during application testing.
-**Achievements**:
 - [x] **Address 0 Read Fix** - Removed overly aggressive debugger trigger on reads from address 0 (valid chip RAM).
 - [x] **Exception Handling** - Made CPU exceptions non-fatal in multitasking scenarios (log and continue instead of halt).
 - [x] **SetWriteMask Stub** - Implemented no-op stub for graphics.library SetWriteMask() used by Devpac.
@@ -164,14 +159,20 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 
 ---
 
-## Future Phases
+## Active Phases
 
-### Phase 33: Missing Library Stubs
+### Phase 33: Missing Library Stubs (COMPLETE)
 **Goal**: Implement stub libraries commonly required by applications.
-- [ ] **commodities.library** - Commodities Exchange support (stub returns NULL for broker creation).
-- [ ] **rexxsyslib.library** - ARexx interface library (stub, returns failure for script execution).
-- [ ] **iffparse.library** - IFF file format parsing (basic stub or full implementation).
-- [ ] **reqtools.library** - Popular third-party requester library (stub returns FALSE).
+**Achievements**:
+- [x] **commodities.library** - Full stub implementation (30 functions including CreateCxObj, CxBroker, ActivateCxObj, etc.).
+- [x] **rexxsyslib.library** - ARexx interface library stub (80+ function slots, non-standard bias at 126).
+- [x] **iffparse.library** - IFF file format parsing stub (42 functions including AllocIFF, ParseIFF, ReadChunkBytes, etc.).
+- [x] **reqtools.library** - Popular third-party requester library stub (28 functions for file/font/string requesters).
+- [x] **Test Verification** - All 4 app tests pass (devpac, dopus, kickpascal2, sysinfo).
+
+---
+
+## Future Phases
 
 ### Phase 34: Application-Specific Fixes
 **Goal**: Address specific compatibility issues discovered in tested apps.

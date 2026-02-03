@@ -52,6 +52,10 @@ set(ROM_C_SOURCES
     lxa_gadtools.c
     lxa_workbench.c
     lxa_asl.c
+    lxa_commodities.c
+    lxa_rexxsyslib.c
+    lxa_iffparse.c
+    lxa_reqtools.c
     lxa_dev_console.c
     lxa_dev_timer.c
     lxa_dev_clipboard.c

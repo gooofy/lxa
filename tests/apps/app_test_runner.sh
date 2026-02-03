@@ -58,18 +58,20 @@ if [ -d "$LXA_SYS/C" ] && [ ! -d "$TEST_DIR/C" ]; then
     ln -sf "$LXA_SYS/C" "$TEST_DIR/C" 2>/dev/null || true
 fi
 
-# Run test binary with config file
-LXA_PREFIX="$TEST_DIR" "$LXA_BIN" -c "$CONFIG_FILE" "$TEST_NAME" > "$ACTUAL_OUTPUT" 2>&1
+# Run test binary with config file (with timeout)
+timeout 55 sh -c 'LXA_PREFIX="$1" "$2" -c "$3" "$4" > "$5" 2>&1' -- "$TEST_DIR" "$LXA_BIN" "$CONFIG_FILE" "$TEST_NAME" "$ACTUAL_OUTPUT"
 EXIT_CODE=$?
 
-# Filter debug output - very aggressive filtering
+# Filter debug output - aggressive filtering matching test_runner.sh
 if [ -f "$ACTUAL_OUTPUT" ]; then
     TEMP_OUTPUT=$(mktemp)
     
-    # Keep only lines that:
-    # - Don't start with debug prefixes
-    # - Don't contain internal debug patterns
+    # First, remove everything after "*** LXA DEBUGGER ***" line (including that line)
+    sed '/\*\*\* LXA DEBUGGER \*\*\*/,$d' "$ACTUAL_OUTPUT" > "$TEMP_OUTPUT"
+    
+    # Filter out debug output matching test_runner.sh patterns
     grep -v \
+        -e '^0x[0-9a-f]' \
         -e '^coldstart:' \
         -e '^util:' \
         -e '^_exec:' \
@@ -82,43 +84,40 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
         -e '^_timer:' \
         -e '^_input:' \
         -e '^_keyboard:' \
+        -e '^_gadtools:' \
+        -e '^_workbench:' \
+        -e '^_asl:' \
+        -e '^_icon:' \
+        -e '^_locale:' \
+        -e '^_expansion:' \
+        -e '^_keymap:' \
+        -e '^_boopsi:' \
         -e '^display:' \
         -e "^           " \
         -e "^          " \
-        -e "^        " \
-        -e "^0x[0-9a-f]" \
+        -e "^  LeftEdge=" \
+        -e "^  DetailPen=" \
+        -e "^  IDCMPFlags=" \
+        -e "^  FirstGadget=" \
+        -e "^  Title=" \
+        -e "^  Title string:" \
+        -e "^  MinWidth=" \
         -e "' len=" \
-        -e '^\[CLI ' \
-        -e '^\*\*\* LXA' \
         -e '^LXA DEBUGGER' \
         -e '^---> ' \
-        -e '^>> $' \
         -e '^\[?25h' \
         -e '^Traceback:' \
-        -e '^  LeftEdge=' \
-        -e '^  DetailPen=' \
-        -e '^  IDCMPFlags=' \
-        -e '^  FirstGadget=' \
-        -e '^  MinWidth=' \
-        -e '^  Title=0x' \
-        -e '^  Title string:' \
-        -e '^     \*\*\* LXA' \
-        -e '^     pc=' \
-        -e '^     d0=' \
-        -e '^     a0=' \
-        -e '^     usp=' \
-        -e 'movem\.l' \
-        -e 'moveq' \
-        -e 'dc\.w' \
-        -e 'clr\.b' \
-        -e 'addq\.l' \
-        -e 'move\.l' \
-        -e 'tst\.l' \
-        "$ACTUAL_OUTPUT" > "$TEMP_OUTPUT" 2>/dev/null || true
+        -e '^>> $' \
+        -e '^\[CLI ' \
+        -e '^\*\*\* ' \
+        "$TEMP_OUTPUT" > "${TEMP_OUTPUT}.2" 2>/dev/null || true
     
-    mv "$TEMP_OUTPUT" "$ACTUAL_OUTPUT"
+    # Move filtered output back
+    mv "${TEMP_OUTPUT}.2" "$ACTUAL_OUTPUT"
+    rm -f "$TEMP_OUTPUT"
     
-    # Remove blank lines at start of file
+    # Remove trailing newlines and leading blank lines
+    sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' "$ACTUAL_OUTPUT" 2>/dev/null || true
     sed -i '/./,$!d' "$ACTUAL_OUTPUT" 2>/dev/null || true
 fi
 

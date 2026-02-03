@@ -30,6 +30,8 @@
 
 #include <utility/utility.h>
 
+#include <rexx/rxslib.h>
+
 //#define ENABLE_DEBUG
 
 #include "util.h"
@@ -96,6 +98,10 @@ extern struct Resident *__lxa_locale_ROMTag;
 extern struct Resident *__lxa_gadtools_ROMTag;
 extern struct Resident *__lxa_workbench_ROMTag;
 extern struct Resident *__lxa_asl_ROMTag;
+extern struct Resident *__lxa_commodities_ROMTag;
+extern struct Resident *__lxa_rexxsyslib_ROMTag;
+extern struct Resident *__lxa_iffparse_ROMTag;
+extern struct Resident *__lxa_reqtools_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 extern struct Resident *__lxa_console_ROMTag;
 extern struct Resident *__lxa_timer_ROMTag;
@@ -3962,6 +3968,10 @@ void coldstart (void)
     GadToolsBase  = (struct Library       *) registerBuiltInLib (sizeof(*GadToolsBase)  , __lxa_gadtools_ROMTag  );
     WorkbenchBase = (struct Library       *) registerBuiltInLib (sizeof(*WorkbenchBase) , __lxa_workbench_ROMTag );
     AslBase       = (struct Library       *) registerBuiltInLib (sizeof(*AslBase)       , __lxa_asl_ROMTag       );
+                      registerBuiltInLib (sizeof(struct Library), __lxa_commodities_ROMTag);
+                      registerBuiltInLib (sizeof(struct RxsLib) , __lxa_rexxsyslib_ROMTag );
+                      registerBuiltInLib (sizeof(struct Library), __lxa_iffparse_ROMTag  );
+                      registerBuiltInLib (sizeof(struct Library), __lxa_reqtools_ROMTag  );
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in libraries\n");
 
