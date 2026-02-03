@@ -257,15 +257,24 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 
 **Completion Criteria**: intuition.library should be **fully functional** with no critical stubs. Every function must have corresponding tests. Window/screen behavior must match authentic AmigaOS.
 
-**Status**: ✅ **COMPLETE** - All 7 implementation groups reviewed, tested, and verified against AROS/RKRM. IDCMP notifications added. 95%+ functionality achieved (v0.5.4).
+**Status**: ✅ **COMPLETE** - All 7 implementation groups reviewed, tested, and verified against AROS/RKRM. IDCMP notifications added. 95%+ functionality achieved (v0.5.4). **Phase 38 FINISHED.**
 
 **Summary:**
 - ✅ All 7 function groups reviewed against AROS sources and RKRM documentation
-- ✅ IDCMP_CHANGEWINDOW notifications added to window manipulation functions
+- ✅ IDCMP_CHANGEWINDOW notifications added to window manipulation functions (MoveWindow, SizeWindow, WindowToFront, WindowToBack)
 - ✅ All 56+ integration tests pass including 10+ Intuition-specific tests
 - ✅ Window/Screen manipulation, Requesters, Gadgets, BOOPSI, Double buffering all functional
-- ⚠️ 2 complex stubs deferred: BuildEasyRequestArgs, DoGadgetMethodA
+- ✅ Comprehensive documentation updated in roadmap.md
+- ✅ Version incremented to 0.5.4 and committed
+- ⚠️ 2 complex stubs deferred to future phases: BuildEasyRequestArgs, DoGadgetMethodA
 - ⚠️ 2 low-priority stubs deferred: GetDefPrefs, SetPrefs
+
+**Achievements:**
+- Window manipulation functions now properly send IDCMP_CHANGEWINDOW events per RKRM specification
+- All window/screen depth arrangement functions send CWCODE_DEPTH notifications
+- All move/size functions send CWCODE_MOVESIZE notifications
+- SizeWindow sends both IDCMP_NEWSIZE (legacy) and IDCMP_CHANGEWINDOW (V36+) for maximum compatibility
+- Review confirmed implementation matches AROS and RKRM behavior for all critical functions
 
 ---
 
