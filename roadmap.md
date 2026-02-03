@@ -261,10 +261,10 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [x] **NDK Function List** - Verified against NDK 3.2R4 clib/graphics_protos.h
 
 **Current Status:**
-- **Total Lines**: ~3,800 in lxa_graphics.c (increased from ~3,505)
-- **Unimplemented Stubs**: 115 functions (down from 124)
+- **Total Lines**: ~4,200 in lxa_graphics.c (increased from ~3,800)
+- **Unimplemented Stubs**: 109 functions (down from 115)
 - **FIXMEs**: 2 (library open count management in OpenLib)
-- **Implemented**: Core functions + Priority 1 functions below
+- **Implemented**: Core functions + Priority 1 functions + Partial Priority 2 below
 
 **Implementation Strategy - Priority 1 (Critical for applications) - ✅ FULLY COMPLETE WITH 100% TEST COVERAGE:**
 - [x] **AllocBitMap/FreeBitMap** - Dynamic bitmap allocation (already implemented)
@@ -301,30 +301,46 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - ClipBlit() provides simplified implementation; advanced overlap detection deferred to Priority 2
 
 **Implementation Strategy - Priority 2 (Nice to have):**
-- [ ] **DrawEllipse/AreaEllipse** - Ellipse drawing
+- [x] **DrawEllipse** - Ellipse drawing using midpoint algorithm (IMPLEMENTED - tests needed)
+- [x] **AreaEllipse** - Ellipse for area fill operations (IMPLEMENTED - tests needed)
+- [x] **PolyDraw** - Polyline drawing (IMPLEMENTED) ✅ TESTED
 - [ ] **Flood** - Flood fill
-- [ ] **PolyDraw** - Polyline drawing
 - [ ] **BltPattern** - Pattern blitting
-- [ ] **BitMapScale/ScalerDiv** - Bitmap scaling
-- [ ] **ReadPixelLine8/WritePixelLine8** - Chunky pixel operations
-- [ ] **WriteChunkyPixels** - Fast chunky pixel writes
 - [ ] **ScrollRasterBF** - Backfill scrolling
+- [ ] **BitMapScale/ScalerDiv** - Bitmap scaling
 - [ ] **GELs system** - at least BOBs need to be emulated
 - [ ] **Display mode functions** (OpenMonitor, FindDisplayInfo, BestModeIDA)
 - [ ] **Blitter** (OwnBlitter, DisownBlitter, QBlit, QBSBlit) - software emulation or stubs as appropriate
+- [ ] **Pixel array operations** - Deferred to Phase 43 (requires optimized blitting infrastructure)
+
+**Recent Progress (v0.5.1):**
+- ✅ Implemented 3 Priority 2 functions:
+  - **DrawEllipse** - Full midpoint ellipse algorithm with degenerate case handling (point, line, ellipse)
+  - **AreaEllipse** - Ellipse outline tracing for area filling operations with four-quadrant support
+  - **PolyDraw** - Connected polyline drawing from coordinate array
+- ✅ Improved **InitRastPort** - Added explicit NULL initialization for all pointer fields (Layer, BitMap, Font, etc.)
+- ✅ New test: `tests/graphics/polydraw/` - Comprehensive PolyDraw() testing (squares, single points, zero count, closed polygons) ✅ PASSES
+- 📝 **Deferred pixel array functions to Phase 43** - ReadPixelLine8, WritePixelLine8, ReadPixelArray8, WritePixelArray8, WriteChunkyPixels require AROS-style optimized blitting infrastructure (not simple WritePixel loops)
+- **Stub count: 109** (was 115, added 6 stubs back after reverting pixel array functions to stubs)
+- All existing tests continue to pass (50+ integration tests)
 
 **Implementation Strategy - Priority 3 (Hardware/rarely used - can remain stubs):**
 - Copper functions (CBump, CMove, CWait, InitView, LoadView, MakeVPort, MrgCop, etc.) - hardware-specific
 - Hardware sprites (GetSprite, FreeSprite, ChangeSprite, MoveSprite, etc.) - not relevant for emulation
 
 **Required Tests:**
-- [ ] BitMap operations - AllocBitMap, FreeBitMap, depth, planes
-- [ ] RastPort operations - all drawing primitives
-- [ ] Area filling - AreaMove, AreaDraw, AreaEnd, flood fill
-- [ ] Text rendering - TextExtent, TextFit, different styles
-- [ ] Clipping - ClipBlit, layer-aware drawing
-- [ ] Rectangle operations - EraseRect, RectFill
-- [ ] Pixel operations - ReadPixel, WritePixel, ReadPixelLine8, WritePixelLine8
+- [x] BitMap operations - AllocBitMap, FreeBitMap, depth, planes
+- [x] RastPort operations - all drawing primitives
+- [x] Area filling - AreaMove, AreaDraw, AreaEnd (flood fill pending)
+- [x] Text rendering - TextExtent, TextFit, different styles
+- [x] Clipping - ClipBlit, layer-aware drawing
+- [x] Rectangle operations - EraseRect, RectFill
+- [x] Pixel operations - ReadPixel, WritePixel
+- [x] Polyline operations - PolyDraw ✅ TESTED
+- [ ] Ellipse operations - DrawEllipse, AreaEllipse (implemented, tests needed)
+- [ ] Flood fill - Flood() function
+- [ ] Pattern blitting - BltPattern() function
+- [ ] Pixel array operations - Deferred to Phase 43
 
 ### Phase 38: Intuition Library Completion  
 **Goal**: Complete `intuition.library` implementation - all functions fully implemented with 100% test coverage.
@@ -387,13 +403,42 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
   - Proportional gadget dragging
   - Keyboard shortcuts and tab cycling
 
-### Phase 43: Async I/O & Timer Completion
+### Phase 43: Pixel Array Operations
+**Goal**: Implement optimized pixel array functions using AROS-style blitting infrastructure.
+
+**Background**: These functions were initially implemented using simple WritePixel() loops but caused crashes and infinite loops. AROS uses specialized `write_pixels_8()` helpers with optimized blitting that handle BitMap formats, layer integration, and memory operations properly.
+
+**Analysis Tasks:**
+- [ ] Study AROS `write_pixels_8()` implementation in gfxfuncsupport.c
+- [ ] Study AROS pixel array implementations (writePixelLine8.c, writePixelArray8.c, etc.)
+- [ ] Understand BitMap format handling (interleaved vs. standard)
+- [ ] Understand TempRP handling for buffered operations
+
+**Implementation Tasks:**
+- [ ] **ReadPixelLine8** - Read horizontal line of chunky pixels
+- [ ] **WritePixelLine8** - Write horizontal line of chunky pixels  
+- [ ] **ReadPixelArray8** - Read rectangular array of chunky pixels
+- [ ] **WritePixelArray8** - Write rectangular array of chunky pixels
+- [ ] **WriteChunkyPixels** - Fast chunky pixel writes with bytesperrow support
+- [ ] Handle BitMap formats (interleaved, standard)
+- [ ] Integrate with layer/clipping system
+- [ ] Optimize memory operations (avoid per-pixel function calls)
+
+**Required Tests:**
+- [ ] ReadPixelLine8/WritePixelLine8 - horizontal lines
+- [ ] ReadPixelArray8/WritePixelArray8 - rectangular regions
+- [ ] WriteChunkyPixels - with various bytesperrow values
+- [ ] Test with different BitMap depths and formats
+- [ ] Test with layer clipping
+- [ ] Performance tests (ensure no infinite loops)
+
+### Phase 44: Async I/O & Timer Completion
 **Goal**: Implement proper asynchronous I/O for devices.
 - [ ] **timer.device Async** - TR_ADDREQUEST with proper delay queue and timeout handling.
 - [ ] **console.device Async** - Non-blocking reads with timeout support.
 - [ ] **Event Loop Integration** - Coordinate device async I/O with WaitPort/Wait().
 
-### Phase 44: Directory Opus Deep Dive
+### Phase 45: Directory Opus Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
 - [ ] **Stack Corruption Analysis** - Trace the source of stack corruption during DOpus cleanup.
 - [ ] **dopus.library Investigation** - Debug the bundled library's task cleanup routines.

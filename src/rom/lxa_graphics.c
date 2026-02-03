@@ -45,6 +45,42 @@ static VOID _graphics_FreeRaster ( register struct GfxBase * GfxBase __asm("a6")
                                    register UWORD height __asm("d1"));
 static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct RastPort * rp __asm("a1"));
+static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6"),
+                                   register struct RastPort * rp __asm("a1"),
+                                   register WORD x __asm("d0"),
+                                   register WORD y __asm("d1"));
+static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6"),
+                                   register struct RastPort * rp __asm("a1"),
+                                   register WORD x __asm("d0"),
+                                   register WORD y __asm("d1"));
+static LONG _graphics_AreaMove ( register struct GfxBase * GfxBase __asm("a6"),
+                                 register struct RastPort * rp __asm("a1"),
+                                 register LONG x __asm("d0"),
+                                 register LONG y __asm("d1"));
+static LONG _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
+                                 register struct RastPort * rp __asm("a1"),
+                                 register LONG x __asm("d0"),
+                                 register LONG y __asm("d1"));
+static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
+                             register struct RastPort * rp __asm("a1"),
+                             register WORD x __asm("d0"),
+                             register WORD y __asm("d1"));
+static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
+                                        register struct RastPort * rp __asm("a0"),
+                                        register ULONG xstart __asm("d0"),
+                                        register ULONG ystart __asm("d1"),
+                                        register ULONG xstop __asm("d2"),
+                                        register ULONG ystop __asm("d3"),
+                                        register UBYTE * array __asm("a2"),
+                                        register struct RastPort * temprp __asm("a1"));
+static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
+                                         register struct RastPort * rp __asm("a0"),
+                                         register ULONG xstart __asm("d0"),
+                                         register ULONG ystart __asm("d1"),
+                                         register ULONG xstop __asm("d2"),
+                                         register ULONG ystop __asm("d3"),
+                                         register UBYTE * array __asm("a2"),
+                                         register struct RastPort * temprp __asm("a1"));
 
 /* Drawing modes from rastport.h */
 #ifndef JAM1
@@ -1093,8 +1129,85 @@ static VOID _graphics_DrawEllipse ( register struct GfxBase * GfxBase __asm("a6"
                                                         register LONG a __asm("d2"),
                                                         register LONG b __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: DrawEllipse() unimplemented STUB called.\n");
-    assert(FALSE);
+    LONG x, y;
+    LONG a2, b2;
+    LONG fa2, fb2;
+    LONG sigma;
+
+    DPRINTF (LOG_DEBUG, "_graphics: DrawEllipse() rp=0x%08lx, center=(%ld,%ld), a=%ld, b=%ld\n",
+             (ULONG)rp, xCenter, yCenter, a, b);
+
+    if (!rp)
+        return;
+
+    /* Handle degenerate cases */
+    if (a == 0 && b == 0)
+    {
+        _graphics_WritePixel(GfxBase, rp, (WORD)xCenter, (WORD)yCenter);
+        return;
+    }
+    if (a == 0)
+    {
+        /* Vertical line */
+        LONG i;
+        for (i = -b; i <= b; i++)
+            _graphics_WritePixel(GfxBase, rp, (WORD)xCenter, (WORD)(yCenter + i));
+        return;
+    }
+    if (b == 0)
+    {
+        /* Horizontal line */
+        LONG i;
+        for (i = -a; i <= a; i++)
+            _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + i), (WORD)yCenter);
+        return;
+    }
+
+    /* Midpoint ellipse algorithm */
+    x = 0;
+    y = b;
+    a2 = a * a;
+    b2 = b * b;
+    fa2 = 4 * a2;
+    fb2 = 4 * b2;
+    sigma = 2 * b2 + a2 * (1 - 2 * b);
+
+    /* Region 1 */
+    while (b2 * x <= a2 * y)
+    {
+        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + x), (WORD)(yCenter + y));
+        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter - x), (WORD)(yCenter + y));
+        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + x), (WORD)(yCenter - y));
+        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter - x), (WORD)(yCenter - y));
+
+        if (sigma >= 0)
+        {
+            sigma += fa2 * (1 - y);
+            y--;
+        }
+        sigma += b2 * ((4 * x) + 6);
+        x++;
+    }
+
+    /* Region 2 */
+    sigma = 2 * a2 + b2 * (1 - 2 * a);
+    x = a;
+    y = 0;
+    while (a2 * y <= b2 * x)
+    {
+        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + x), (WORD)(yCenter + y));
+        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter - x), (WORD)(yCenter + y));
+        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + x), (WORD)(yCenter - y));
+        _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter - x), (WORD)(yCenter - y));
+
+        if (sigma >= 0)
+        {
+            sigma += fb2 * (1 - x);
+            x--;
+        }
+        sigma += a2 * ((4 * y) + 6);
+        y++;
+    }
 }
 
 static LONG _graphics_AreaEllipse ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1104,9 +1217,113 @@ static LONG _graphics_AreaEllipse ( register struct GfxBase * GfxBase __asm("a6"
                                                         register LONG a __asm("d2"),
                                                         register LONG b __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AreaEllipse() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    LONG x, y;
+    LONG a2, b2;
+    LONG fa2, fb2;
+    LONG sigma;
+    LONG result;
+
+    DPRINTF (LOG_DEBUG, "_graphics: AreaEllipse() rp=0x%08lx, center=(%ld,%ld), a=%ld, b=%ld\n",
+             (ULONG)rp, xCenter, yCenter, a, b);
+
+    if (!rp)
+        return -1;
+
+    /* Handle degenerate cases */
+    if (a == 0 && b == 0)
+    {
+        return _graphics_AreaMove(GfxBase, rp, xCenter, yCenter);
+    }
+
+    /* Start at the rightmost point of the ellipse */
+    result = _graphics_AreaMove(GfxBase, rp, xCenter + a, yCenter);
+    if (result != 0)
+        return result;
+
+    /* Midpoint ellipse algorithm - trace the upper right quadrant */
+    x = 0;
+    y = b;
+    a2 = a * a;
+    b2 = b * b;
+    fa2 = 4 * a2;
+    fb2 = 4 * b2;
+    sigma = 2 * b2 + a2 * (1 - 2 * b);
+
+    /* Region 1 - trace to the top */
+    while (b2 * x <= a2 * y)
+    {
+        result = _graphics_AreaDraw(GfxBase, rp, xCenter + x, yCenter - y);
+        if (result != 0)
+            return result;
+
+        if (sigma >= 0)
+        {
+            sigma += fa2 * (1 - y);
+            y--;
+        }
+        sigma += b2 * ((4 * x) + 6);
+        x++;
+    }
+
+    /* Region 2 - continue to the left */
+    sigma = 2 * a2 + b2 * (1 - 2 * a);
+    x = a;
+    y = 0;
+    while (a2 * y <= b2 * x)
+    {
+        result = _graphics_AreaDraw(GfxBase, rp, xCenter - x, yCenter - y);
+        if (result != 0)
+            return result;
+
+        if (sigma >= 0)
+        {
+            sigma += fb2 * (1 - x);
+            x--;
+        }
+        sigma += a2 * ((4 * y) + 6);
+        y++;
+    }
+
+    /* Continue to bottom left quadrant */
+    x = 0;
+    y = b;
+    sigma = 2 * b2 + a2 * (1 - 2 * b);
+    while (b2 * x <= a2 * y)
+    {
+        result = _graphics_AreaDraw(GfxBase, rp, xCenter - x, yCenter + y);
+        if (result != 0)
+            return result;
+
+        if (sigma >= 0)
+        {
+            sigma += fa2 * (1 - y);
+            y--;
+        }
+        sigma += b2 * ((4 * x) + 6);
+        x++;
+    }
+
+    /* Complete to bottom right quadrant */
+    sigma = 2 * a2 + b2 * (1 - 2 * a);
+    x = a;
+    y = 0;
+    while (a2 * y <= b2 * x)
+    {
+        result = _graphics_AreaDraw(GfxBase, rp, xCenter + x, yCenter + y);
+        if (result != 0)
+            return result;
+
+        if (sigma >= 0)
+        {
+            sigma += fb2 * (1 - x);
+            x--;
+        }
+        sigma += a2 * ((4 * y) + 6);
+        y++;
+    }
+
+    /* Close back to start */
+    return _graphics_AreaDraw(GfxBase, rp, xCenter + a, yCenter);
 }
 
 static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1137,6 +1354,15 @@ static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6
 
     /* Zero out the entire RastPort structure */
     lxa_memset(rp, 0, sizeof(struct RastPort));
+
+    /* Explicitly NULL critical pointers (belt and suspenders) */
+    rp->Layer = NULL;
+    rp->BitMap = NULL;
+    rp->Font = NULL;
+    rp->AreaPtrn = NULL;
+    rp->TmpRas = NULL;
+    rp->AreaInfo = NULL;
+    rp->GelsInfo = NULL;
 
     /* Set default values per AROS/RKRM specification */
     rp->Mask = 0xFF;           /* All planes enabled for writing */
@@ -1891,8 +2117,24 @@ static VOID _graphics_PolyDraw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG count __asm("d0"),
                                                         register CONST WORD * polyTable __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: PolyDraw() unimplemented STUB called.\n");
-    assert(FALSE);
+    UWORD i;
+    UWORD cnt;
+    WORD x, y;
+
+    DPRINTF (LOG_DEBUG, "_graphics: PolyDraw() rp=0x%08lx, count=%ld\n", (ULONG)rp, count);
+
+    if (!rp || !polyTable)
+        return;
+
+    /* Only use low 16 bits of count (official ROM behavior) */
+    cnt = (UWORD)count;
+
+    for (i = 0; i < cnt; i++)
+    {
+        x = *polyTable++;
+        y = *polyTable++;
+        _graphics_Draw(GfxBase, rp, x, y);
+    }
 }
 
 static VOID _graphics_SetAPen ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3234,26 +3476,14 @@ static VOID _graphics_FontExtent ( register struct GfxBase * GfxBase __asm("a6")
 
 static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
-                                                        register ULONG xstart __asm("d0"),
-                                                        register ULONG ystart __asm("d1"),
+                                                        register LONG xstart __asm("d0"),
+                                                        register LONG ystart __asm("d1"),
                                                         register ULONG width __asm("d2"),
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * tempRP __asm("a1"))
 {
+    /* TODO: See WritePixelLine8 comment */
     DPRINTF (LOG_ERROR, "_graphics: ReadPixelLine8() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
-}
-
-static LONG _graphics_WritePixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
-                                                        register struct RastPort * rp __asm("a0"),
-                                                        register ULONG xstart __asm("d0"),
-                                                        register ULONG ystart __asm("d1"),
-                                                        register ULONG width __asm("d2"),
-                                                        register UBYTE * array __asm("a2"),
-                                                        register struct RastPort * tempRP __asm("a1"))
-{
-    DPRINTF (LOG_ERROR, "_graphics: WritePixelLine8() unimplemented STUB called.\n");
     assert(FALSE);
     return 0;
 }
@@ -3267,6 +3497,7 @@ static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm(
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * temprp __asm("a1"))
 {
+    /* TODO: See WritePixelLine8 comment */
     DPRINTF (LOG_ERROR, "_graphics: ReadPixelArray8() unimplemented STUB called.\n");
     assert(FALSE);
     return 0;
@@ -3281,7 +3512,24 @@ static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * temprp __asm("a1"))
 {
+    /* TODO: See WritePixelLine8 comment */
     DPRINTF (LOG_ERROR, "_graphics: WritePixelArray8() unimplemented STUB called.\n");
+    assert(FALSE);
+    return 0;
+}
+
+static LONG _graphics_WritePixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
+                                                        register struct RastPort * rp __asm("a0"),
+                                                        register ULONG xstart __asm("d0"),
+                                                        register ULONG ystart __asm("d1"),
+                                                        register ULONG width __asm("d2"),
+                                                        register UBYTE * array __asm("a2"),
+                                                        register struct RastPort * tempRP __asm("a1"))
+{
+    /* TODO: Proper implementation requires optimized blitting, not just WritePixel() loops.
+     * See AROS write_pixels_8() in gfxfuncsupport.c for reference.
+     * For now, return stub to avoid crashes. */
+    DPRINTF (LOG_ERROR, "_graphics: WritePixelLine8() unimplemented STUB called.\n");
     assert(FALSE);
     return 0;
 }
@@ -4000,8 +4248,36 @@ static VOID _graphics_WriteChunkyPixels ( register struct GfxBase * GfxBase __as
                                                         register CONST UBYTE * array __asm("a2"),
                                                         register LONG bytesperrow __asm("d4"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: WriteChunkyPixels() unimplemented STUB called.\n");
-    assert(FALSE);
+    ULONG x, y;
+    CONST UBYTE *src;
+    BYTE oldPen;
+
+    DPRINTF (LOG_DEBUG, "_graphics: WriteChunkyPixels() rp=0x%08lx, (%ld,%ld)-(%ld,%ld), bpr=%ld\n",
+             (ULONG)rp, xstart, ystart, xstop, ystop, bytesperrow);
+
+    if (!rp || !array)
+        return;
+
+    /* Validate coordinates */
+    if (xstart > xstop || ystart > ystop)
+        return;
+
+    /* Save current pen */
+    oldPen = rp->FgPen;
+
+    /* Write pixels row by row */
+    for (y = ystart; y <= ystop; y++)
+    {
+        src = array + (y - ystart) * bytesperrow;
+        for (x = xstart; x <= xstop; x++)
+        {
+            rp->FgPen = (BYTE)src[x - xstart];
+            _graphics_WritePixel(GfxBase, rp, (WORD)x, (WORD)y);
+        }
+    }
+
+    /* Restore pen */
+    rp->FgPen = oldPen;
 }
 
 struct MyDataInit

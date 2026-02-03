@@ -1,0 +1,9 @@
+Testing PolyDraw()...
+OK: Corner (10,10) set
+OK: Corner (20,10) set
+OK: Corner (20,20) set
+OK: Corner (10,20) set
+OK: Current position at (10,10)
+OK: Single point at (35,35) set
+OK: Zero count preserved position
+PASS: PolyDraw() all tests passed
