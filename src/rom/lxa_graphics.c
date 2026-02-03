@@ -65,6 +65,10 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                              register struct RastPort * rp __asm("a1"),
                              register WORD x __asm("d0"),
                              register WORD y __asm("d1"));
+static VOID _graphics_Move ( register struct GfxBase * GfxBase __asm("a6"),
+                             register struct RastPort * rp __asm("a1"),
+                             register WORD x __asm("d0"),
+                             register WORD y __asm("d1"));
 static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
                                         register struct RastPort * rp __asm("a0"),
                                         register ULONG xstart __asm("d0"),
@@ -1139,18 +1143,15 @@ static VOID _graphics_InitGMasks ( register struct GfxBase * GfxBase __asm("a6")
 
 static VOID _graphics_DrawEllipse ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register LONG xCenter __asm("d0"),
-                                                        register LONG yCenter __asm("d1"),
-                                                        register LONG a __asm("d2"),
-                                                        register LONG b __asm("d3"))
+                                                        register WORD xCenter __asm("d0"),
+                                                        register WORD yCenter __asm("d1"),
+                                                        register WORD a __asm("d2"),
+                                                        register WORD b __asm("d3"))
 {
     LONG x, y;
     LONG a2, b2;
     LONG fa2, fb2;
     LONG sigma;
-
-    DPRINTF (LOG_DEBUG, "_graphics: DrawEllipse() rp=0x%08lx, center=(%ld,%ld), a=%ld, b=%ld\n",
-             (ULONG)rp, xCenter, yCenter, a, b);
 
     if (!rp)
         return;
@@ -1164,17 +1165,17 @@ static VOID _graphics_DrawEllipse ( register struct GfxBase * GfxBase __asm("a6"
     if (a == 0)
     {
         /* Vertical line */
-        LONG i;
-        for (i = -b; i <= b; i++)
-            _graphics_WritePixel(GfxBase, rp, (WORD)xCenter, (WORD)(yCenter + i));
+        WORD y_coord;
+        for (y_coord = yCenter - b; y_coord <= yCenter + b; y_coord++)
+            _graphics_WritePixel(GfxBase, rp, xCenter, y_coord);
         return;
     }
     if (b == 0)
     {
         /* Horizontal line */
-        LONG i;
-        for (i = -a; i <= a; i++)
-            _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + i), (WORD)yCenter);
+        WORD x_coord;
+        for (x_coord = xCenter - a; x_coord <= xCenter + a; x_coord++)
+            _graphics_WritePixel(GfxBase, rp, x_coord, yCenter);
         return;
     }
 
@@ -1208,7 +1209,7 @@ static VOID _graphics_DrawEllipse ( register struct GfxBase * GfxBase __asm("a6"
     sigma = 2 * a2 + b2 * (1 - 2 * a);
     x = a;
     y = 0;
-    while (a2 * y <= b2 * x)
+    while (x >= 0)
     {
         _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter + x), (WORD)(yCenter + y));
         _graphics_WritePixel(GfxBase, rp, (WORD)(xCenter - x), (WORD)(yCenter + y));
@@ -1227,10 +1228,10 @@ static VOID _graphics_DrawEllipse ( register struct GfxBase * GfxBase __asm("a6"
 
 static LONG _graphics_AreaEllipse ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
-                                                        register LONG xCenter __asm("d0"),
-                                                        register LONG yCenter __asm("d1"),
-                                                        register LONG a __asm("d2"),
-                                                        register LONG b __asm("d3"))
+                                                        register WORD xCenter __asm("d0"),
+                                                        register WORD yCenter __asm("d1"),
+                                                        register WORD a __asm("d2"),
+                                                        register WORD b __asm("d3"))
 {
     LONG x, y;
     LONG a2, b2;
