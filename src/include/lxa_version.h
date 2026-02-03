@@ -15,10 +15,10 @@
 
 #define LXA_VERSION_MAJOR   0
 #define LXA_VERSION_MINOR   5
-#define LXA_VERSION_PATCH   3
+#define LXA_VERSION_PATCH   4
 
 /* String versions for display */
-#define LXA_VERSION_STRING  "0.5.3"
+#define LXA_VERSION_STRING  "0.5.4"
 
 /* Build date - automatically set by compiler */
 #define LXA_BUILD_DATE      __DATE__

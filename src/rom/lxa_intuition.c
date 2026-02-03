@@ -2733,6 +2733,32 @@ VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm
         /* Update host window - emucall expects absolute coordinates */
         emucall3(EMU_CALL_INT_MOVE_WINDOW, (ULONG)window->UserData, (ULONG)new_x, (ULONG)new_y);
     }
+
+    /* Send IDCMP_CHANGEWINDOW notification */
+    if (window->IDCMPFlags & IDCMP_CHANGEWINDOW)
+    {
+        struct IntuiMessage *msg;
+        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
+        if (msg)
+        {
+            msg->Class = IDCMP_CHANGEWINDOW;
+            msg->Code = CWCODE_MOVESIZE;
+            msg->Qualifier = 0;
+            msg->IAddress = window;
+            msg->IDCMPWindow = window;
+            msg->MouseX = window->MouseX;
+            msg->MouseY = window->MouseY;
+            
+            if (window->UserPort)
+            {
+                PutMsg(window->UserPort, (struct Message *)msg);
+            }
+            else
+            {
+                FreeMem(msg, sizeof(struct IntuiMessage));
+            }
+        }
+    }
 }
 
 VOID _intuition_OffGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3895,6 +3921,32 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
             }
         }
     }
+
+    /* Send IDCMP_CHANGEWINDOW */
+    if (window->IDCMPFlags & IDCMP_CHANGEWINDOW)
+    {
+        struct IntuiMessage *msg;
+        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
+        if (msg)
+        {
+            msg->Class = IDCMP_CHANGEWINDOW;
+            msg->Code = CWCODE_MOVESIZE;
+            msg->Qualifier = 0;
+            msg->IAddress = window;
+            msg->IDCMPWindow = window;
+            msg->MouseX = window->MouseX;
+            msg->MouseY = window->MouseY;
+            
+            if (window->UserPort)
+            {
+                PutMsg(window->UserPort, (struct Message *)msg);
+            }
+            else
+            {
+                FreeMem(msg, sizeof(struct IntuiMessage));
+            }
+        }
+    }
 }
 
 struct View * _intuition_ViewAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -3949,6 +4001,32 @@ VOID _intuition_WindowToBack ( register struct IntuitionBase * IntuitionBase __a
     {
         emucall1(EMU_CALL_INT_WINDOW_TOBACK, (ULONG)window->UserData);
     }
+
+    /* Send IDCMP_CHANGEWINDOW notification */
+    if (window->IDCMPFlags & IDCMP_CHANGEWINDOW)
+    {
+        struct IntuiMessage *msg;
+        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
+        if (msg)
+        {
+            msg->Class = IDCMP_CHANGEWINDOW;
+            msg->Code = CWCODE_DEPTH;
+            msg->Qualifier = 0;
+            msg->IAddress = window;
+            msg->IDCMPWindow = window;
+            msg->MouseX = window->MouseX;
+            msg->MouseY = window->MouseY;
+            
+            if (window->UserPort)
+            {
+                PutMsg(window->UserPort, (struct Message *)msg);
+            }
+            else
+            {
+                FreeMem(msg, sizeof(struct IntuiMessage));
+            }
+        }
+    }
 }
 
 VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3972,6 +4050,32 @@ VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __
     if (rootless_mode && window->UserData)
     {
         emucall1(EMU_CALL_INT_WINDOW_TOFRONT, (ULONG)window->UserData);
+    }
+
+    /* Send IDCMP_CHANGEWINDOW notification */
+    if (window->IDCMPFlags & IDCMP_CHANGEWINDOW)
+    {
+        struct IntuiMessage *msg;
+        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
+        if (msg)
+        {
+            msg->Class = IDCMP_CHANGEWINDOW;
+            msg->Code = CWCODE_DEPTH;
+            msg->Qualifier = 0;
+            msg->IAddress = window;
+            msg->IDCMPWindow = window;
+            msg->MouseX = window->MouseX;
+            msg->MouseY = window->MouseY;
+            
+            if (window->UserPort)
+            {
+                PutMsg(window->UserPort, (struct Message *)msg);
+            }
+            else
+            {
+                FreeMem(msg, sizeof(struct IntuiMessage));
+            }
+        }
     }
 }
 
