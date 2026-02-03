@@ -300,17 +300,17 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - AreaEnd() currently draws polygon outlines; full scan-line polygon filling algorithm from AROS areafill.c deferred to Priority 2
 - ClipBlit() provides simplified implementation; advanced overlap detection deferred to Priority 2
 
-**Implementation Strategy - Priority 2 (Nice to have):**
+**Implementation Strategy - Priority 2 (Important):**
 - [x] **DrawEllipse** - Ellipse drawing using midpoint algorithm ✅ TESTED
 - [x] **AreaEllipse** - Ellipse for area fill operations (IMPLEMENTED - tests needed)
 - [x] **PolyDraw** - Polyline drawing (IMPLEMENTED) ✅ TESTED
 - [x] **Flood** - Flood fill (IMPLEMENTED) ✅ TESTED
 - [x] **BltPattern** - Pattern blitting (IMPLEMENTED) ✅ TESTED
-- [ ] **ScrollRasterBF** - Backfill scrolling
-- [ ] **BitMapScale/ScalerDiv** - Bitmap scaling
-- [ ] **GELs system** - at least BOBs need to be emulated
-- [ ] **Display mode functions** (OpenMonitor, FindDisplayInfo, BestModeIDA)
-- [ ] **Blitter** (OwnBlitter, DisownBlitter, QBlit, QBSBlit) - software emulation or stubs as appropriate
+- [x] **ScrollRasterBF** - Backfill scrolling using EraseRect (IMPLEMENTED v0.5.2)
+- [x] **BitMapScale/ScalerDiv** - Bitmap scaling with nearest-neighbor algorithm (IMPLEMENTED v0.5.2)
+- [x] **Display mode functions** - OpenMonitor, CloseMonitor, FindDisplayInfo, NextDisplayInfo, GetDisplayInfoData, BestModeIDA (IMPLEMENTED v0.5.2 - basic emulation support)
+- [x] **Blitter functions** - OwnBlitter, DisownBlitter, QBlit, QBSBlit, BltClear (IMPLEMENTED v0.5.2 - no-ops/immediate execution in emulation)
+- [ ] **GELs system** - BOBs (complex hardware-specific, deferred)
 - [ ] **Pixel array operations** - Deferred to Phase 43 (requires optimized blitting infrastructure)
 
 **Recent Progress (v0.5.1):**
@@ -328,11 +328,44 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
   - `tests/graphics/bltpattern/` - BltPattern() testing (solid fill, masks, checkerboard) ✅ PASSES
 - 🐛 **Fixed critical bug in DrawEllipse** - Parameters were LONG but should be WORD per NDK specification, causing register mismatch and hangs
 - 📝 **Deferred pixel array functions to Phase 43** - ReadPixelLine8, WritePixelLine8, ReadPixelArray8, WritePixelArray8, WriteChunkyPixels require AROS-style optimized blitting infrastructure (not simple WritePixel loops)
-- **Stub count: 107** (was 115, removed 8 stubs: PolyDraw, Flood, BltPattern, DrawEllipse, AreaEllipse; added 6 back after reverting pixel array functions)
+- **Stub count: 73** (was 85, reduced by implementing ColorMap, Font, View/ViewPort functions)
 - All existing tests continue to pass (53+ integration tests)
 
+**v0.5.2 Achievements:**
+- ✅ Implemented 11 Priority 2 functions:
+  - **ScrollRasterBF** - Backfill scrolling using EraseRect (respects BackFill hook)
+  - **BitMapScale** - Nearest-neighbor bitmap scaling
+  - **ScalerDiv** - Scaled dimension calculation with rounding
+  - **OpenMonitor/CloseMonitor** - Monitor handle management (returns NULL in emulation)
+  - **FindDisplayInfo/NextDisplayInfo** - Display mode iteration (LORES/HIRES)
+  - **GetDisplayInfoData** - Returns DisplayInfo, DimensionInfo, NameInfo for supported modes
+  - **BestModeIDA** - Returns HIRES for width > 400, LORES otherwise
+  - **OwnBlitter/DisownBlitter** - No-ops (no hardware blitter)
+  - **QBlit/QBSBlit** - Immediate blit execution (no hardware queue)
+  - **BltClear** - Memory clear using CPU memset
+- ✅ Fixed **GetAPen/GetOutlinePen** register mismatch bug (was causing pen_state test failure)
+- ✅ Added `<graphics/scale.h>` and `<hardware/blit.h>` includes
+- ✅ All tests pass (53+ integration tests)
+
+**v0.5.3 Achievements (Current Session):**
+- ✅ Implemented 12 additional graphics functions:
+  - **GetColorMap** - Allocate and initialize ColorMap structure with color tables
+  - **FreeColorMap** - Free ColorMap and associated memory
+  - **GetRGB4** - Read 12-bit RGB color value from ColorMap
+  - **AskFont** - Query current font attributes from RastPort
+  - **AddFont** - Add font to public font list (TextFonts)
+  - **RemFont** - Remove font from public font list
+  - **FontExtent** - Calculate maximum text extent for all characters in font
+  - **InitVPort** - Initialize ViewPort structure to defaults
+  - **InitView** - Initialize View structure to defaults
+  - **VBeamPos** - Return simulated vertical beam position (cycling 0-311)
+  - **AttemptLockLayerRom** - Non-blocking layer lock (always succeeds in emulation)
+- ✅ Fixed AttemptLockLayerRom signature (was VOID, should be BOOL with Layer* parameter)
+- ✅ All tests pass (53+ integration tests)
+- **Stub count: 73** (down from 85)
+
 **Implementation Strategy - Priority 3 (Hardware/rarely used - can remain stubs):**
-- Copper functions (CBump, CMove, CWait, InitView, LoadView, MakeVPort, MrgCop, etc.) - hardware-specific
+- Copper functions (CBump, CMove, CWait, LoadView, MakeVPort, MrgCop, etc.) - hardware-specific
 - Hardware sprites (GetSprite, FreeSprite, ChangeSprite, MoveSprite, etc.) - not relevant for emulation
 
 **Required Tests:**

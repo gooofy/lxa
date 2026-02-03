@@ -16,6 +16,8 @@
 #include <graphics/clip.h>
 #include <graphics/layers.h>
 #include <graphics/gels.h>
+#include <graphics/scale.h>
+#include <hardware/blit.h>
 
 #include <intuition/intuitionbase.h>
 
@@ -86,15 +88,25 @@ static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm
                                          register UBYTE * array __asm("a2"),
                                          register struct RastPort * temprp __asm("a1"));
 static ULONG _graphics_GetAPen ( register struct GfxBase * GfxBase __asm("a6"),
-                                 register struct RastPort * rp __asm("a1"));
+                                 register struct RastPort * rp __asm("a0"));
 static ULONG _graphics_GetOutlinePen ( register struct GfxBase * GfxBase __asm("a6"),
-                                       register struct RastPort * rp __asm("a1"));
+                                       register struct RastPort * rp __asm("a0"));
 static VOID _graphics_SetAPen ( register struct GfxBase * GfxBase __asm("a6"),
                                 register struct RastPort * rp __asm("a1"),
                                 register UBYTE pen __asm("d0"));
 static VOID _graphics_SetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
                                 register struct RastPort * rp __asm("a1"),
                                 register UBYTE drawMode __asm("d0"));
+static UWORD _graphics_ScalerDiv ( register struct GfxBase * GfxBase __asm("a6"),
+                                   register ULONG factor __asm("d0"),
+                                   register ULONG numerator __asm("d1"),
+                                   register ULONG denominator __asm("d2"));
+static VOID _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
+                                  register struct RastPort * rp __asm("a1"),
+                                  register LONG xMin __asm("d0"),
+                                  register LONG yMin __asm("d1"),
+                                  register LONG xMax __asm("d2"),
+                                  register LONG yMax __asm("d3"));
 
 /* Drawing modes from rastport.h */
 #ifndef JAM1
@@ -1409,8 +1421,28 @@ static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6
 static VOID _graphics_InitVPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: InitVPort() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Initialize a ViewPort structure to default values.
+     * Based on AROS implementation.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: InitVPort(vp=%p)\n", vp);
+    
+    if (!vp)
+        return;
+    
+    vp->Next = NULL;
+    vp->ColorMap = NULL;
+    vp->DspIns = NULL;
+    vp->SprIns = NULL;
+    vp->ClrIns = NULL;
+    vp->UCopIns = NULL;
+    vp->DWidth = 0;
+    vp->DHeight = 0;
+    vp->DxOffset = 0;
+    vp->DyOffset = 0;
+    vp->Modes = 0;
+    vp->SpritePriorities = 0x24;  /* Default sprite priorities */
+    vp->ExtendedModes = 0;
+    vp->RasInfo = NULL;
 }
 
 static ULONG _graphics_MrgCop ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1869,8 +1901,18 @@ static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
 static VOID _graphics_QBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct bltnode * blit __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: QBlit() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * QBlit() queues a blitter node for execution.
+     * In emulation we have no hardware blitter queue, so we just call
+     * the blit function directly if provided.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: QBlit() blit=0x%08lx - executing immediately (no queue)\n", (ULONG)blit);
+    
+    if (blit && blit->function) {
+        /* Execute the blit function directly */
+        /* Note: On real hardware this would be queued and executed by the blitter interrupt */
+        blit->function();
+    }
 }
 
 static VOID _graphics_InitArea ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1923,8 +1965,16 @@ static VOID _graphics_SetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_QBSBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct bltnode * blit __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: QBSBlit() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * QBSBlit() queues a bltnode for synchronized blitter execution.
+     * Similar to QBlit but with beam synchronization (waits for specific scanline).
+     * In emulation we execute immediately (no beam sync in software rendering).
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: QBSBlit() blit=0x%08lx - executing immediately (no queue/sync)\n", (ULONG)blit);
+    
+    if (blit && blit->function) {
+        blit->function();
+    }
 }
 
 static VOID _graphics_BltClear ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1932,8 +1982,40 @@ static VOID _graphics_BltClear ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG byteCount __asm("d0"),
                                                         register ULONG flags __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: BltClear() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * BltClear() clears a block of memory using the blitter.
+     * byteCount's format depends on flags:
+     *   If flags bit 1 set: high word = rows, low word = bytes per row
+     *   Otherwise: byteCount is total bytes
+     * flags bit 0: 0 = wait for completion, 1 = return immediately
+     * flags bit 2: 0 = clear to 0, 1 = fill with $FF (set)
+     * 
+     * In emulation we use CPU memset (no real blitter).
+     */
+    ULONG totalBytes;
+    UBYTE fillValue;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: BltClear() memBlock=0x%08lx byteCount=0x%08lx flags=0x%08lx\n",
+             (ULONG)memBlock, byteCount, flags);
+    
+    if (!memBlock)
+        return;
+    
+    /* Determine fill value */
+    fillValue = (flags & 0x04) ? 0xFF : 0x00;
+    
+    /* Calculate total bytes */
+    if (flags & 0x02) {
+        /* Row format: high word = rows, low word = bytes per row */
+        UWORD rows = (byteCount >> 16) & 0xFFFF;
+        UWORD bytesPerRow = byteCount & 0xFFFF;
+        totalBytes = (ULONG)rows * (ULONG)bytesPerRow;
+    } else {
+        totalBytes = byteCount;
+    }
+    
+    /* Clear the memory */
+    lxa_memset(memBlock, fillValue, totalBytes);
 }
 
 static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2529,8 +2611,20 @@ static VOID _graphics_SetDrMd ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_InitView ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: InitView() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Initialize a View structure to default values.
+     * Based on AROS implementation.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: InitView(view=%p)\n", view);
+    
+    if (!view)
+        return;
+    
+    view->ViewPort = NULL;
+    view->LOFCprList = NULL;
+    view->SHFCprList = NULL;
+    view->DyOffset = 0;
+    view->DxOffset = 0;
+    view->Modes = 0;
 }
 
 static VOID _graphics_CBump ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2560,9 +2654,17 @@ static VOID _graphics_CWait ( register struct GfxBase * GfxBase __asm("a6"),
 
 static LONG _graphics_VBeamPos ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: VBeamPos() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* Return vertical beam position.
+     * In emulation, we return a cycling value that simulates beam position.
+     * Most applications use this for timing/sync purposes.
+     */
+    static LONG beam_pos = 0;
+    
+    /* Simulate a PAL display: 312 lines total */
+    beam_pos = (beam_pos + 1) % 312;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: VBeamPos() returning %ld\n", beam_pos);
+    return beam_pos;
 }
 
 static VOID _graphics_InitBitMap ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2781,14 +2883,21 @@ static VOID _graphics_CopySBitMap ( register struct GfxBase * GfxBase __asm("a6"
 
 static VOID _graphics_OwnBlitter ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: OwnBlitter() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * OwnBlitter() grants exclusive blitter access to the calling task.
+     * In emulation we don't have real blitter hardware, so this is a no-op.
+     * Apps typically call OwnBlitter/DisownBlitter around BltBitMap sequences.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: OwnBlitter() - no-op (no hardware blitter)\n");
 }
 
 static VOID _graphics_DisownBlitter ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: DisownBlitter() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * DisownBlitter() releases exclusive blitter access.
+     * In emulation this is a no-op since we don't have real blitter hardware.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: DisownBlitter() - no-op (no hardware blitter)\n");
 }
 
 static struct TmpRas * _graphics_InitTmpRas ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2813,22 +2922,60 @@ static VOID _graphics_AskFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register struct TextAttr * textAttr __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AskFont() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Query the attributes of the current font in a RastPort.
+     * Based on AROS implementation.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: AskFont(rp=%p, textAttr=%p)\n", rp, textAttr);
+    
+    if (!rp || !textAttr || !rp->Font)
+        return;
+    
+    textAttr->ta_Name  = (STRPTR)rp->Font->tf_Message.mn_Node.ln_Name;
+    textAttr->ta_YSize = rp->Font->tf_YSize;
+    textAttr->ta_Style = rp->Font->tf_Style;
+    textAttr->ta_Flags = rp->Font->tf_Flags;
 }
 
 static VOID _graphics_AddFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * textFont __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AddFont() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Add a font to the list of public fonts.
+     * Based on AROS implementation.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: AddFont(textFont=%p)\n", textFont);
+    
+    if (!textFont)
+        return;
+    
+    textFont->tf_Message.mn_Node.ln_Type = NT_FONT;
+    textFont->tf_Accessors = 0;
+    textFont->tf_Flags &= ~FPF_REMOVED;
+    
+    Forbid();
+    AddHead(&GfxBase->TextFonts, (struct Node *)textFont);
+    Permit();
 }
 
 static VOID _graphics_RemFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * textFont __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: RemFont() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Remove a font from the list of public fonts.
+     * Based on AROS implementation.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: RemFont(textFont=%p)\n", textFont);
+    
+    if (!textFont)
+        return;
+    
+    Forbid();
+    
+    /* Only remove if not already removed */
+    if (!(textFont->tf_Flags & FPF_REMOVED)) {
+        textFont->tf_Flags |= FPF_REMOVED;
+        Remove(&textFont->tf_Message.mn_Node);
+    }
+    
+    Permit();
 }
 
 static PLANEPTR _graphics_AllocRaster ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3283,25 +3430,100 @@ static VOID _graphics_FreeCprList ( register struct GfxBase * GfxBase __asm("a6"
 static struct ColorMap * _graphics_GetColorMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG entries __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetColorMap() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    /* Allocate and initialize a ColorMap structure.
+     * Based on AROS implementation.
+     */
+    struct ColorMap *cm;
+    UWORD *colorTable, *lowColorBits;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: GetColorMap(entries=%ld)\n", entries);
+    
+    if (entries <= 0)
+        return NULL;
+    
+    /* Allocate the ColorMap structure */
+    cm = AllocMem(sizeof(struct ColorMap), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!cm)
+        return NULL;
+    
+    /* Allocate the ColorTable */
+    colorTable = AllocMem(entries * sizeof(UWORD), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!colorTable) {
+        FreeMem(cm, sizeof(struct ColorMap));
+        return NULL;
+    }
+    
+    /* Allocate LowColorBits */
+    lowColorBits = AllocMem(entries * sizeof(UWORD), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!lowColorBits) {
+        FreeMem(colorTable, entries * sizeof(UWORD));
+        FreeMem(cm, sizeof(struct ColorMap));
+        return NULL;
+    }
+    
+    /* Initialize the ColorMap */
+    cm->Type = COLORMAP_TYPE_V39;
+    cm->Count = entries;
+    cm->ColorTable = colorTable;
+    cm->LowColorBits = lowColorBits;
+    cm->SpriteResolution = SPRITERESN_DEFAULT;
+    cm->SpriteResDefault = SPRITERESN_ECS;
+    cm->VPModeID = (ULONG)-1;
+    cm->SpriteBase_Even = 0x0001;
+    cm->SpriteBase_Odd = 0x0001;
+    cm->Bp_1_base = 0x0008;
+    
+    /* Initialize with default Amiga Workbench colors for first 4 entries */
+    if (entries > 0) colorTable[0] = 0x0AAA;  /* Light gray background */
+    if (entries > 1) colorTable[1] = 0x0000;  /* Black text */
+    if (entries > 2) colorTable[2] = 0x0FFF;  /* White */
+    if (entries > 3) colorTable[3] = 0x068B;  /* Blue highlights */
+    
+    return cm;
 }
 
 static VOID _graphics_FreeColorMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * colorMap __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FreeColorMap() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Free a ColorMap structure and all associated memory.
+     * Based on AROS implementation.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: FreeColorMap(cm=%p)\n", colorMap);
+    
+    if (!colorMap)
+        return;
+    
+    /* Free the ColorTable */
+    if (colorMap->ColorTable)
+        FreeMem(colorMap->ColorTable, colorMap->Count * sizeof(UWORD));
+    
+    /* Free the LowColorBits */
+    if (colorMap->LowColorBits)
+        FreeMem(colorMap->LowColorBits, colorMap->Count * sizeof(UWORD));
+    
+    /* Free the ColorMap structure itself */
+    FreeMem(colorMap, sizeof(struct ColorMap));
 }
 
 static ULONG _graphics_GetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ColorMap * colorMap __asm("a0"),
                                                         register LONG entry __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetRGB4() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* Read a color value from the ColorMap.
+     * Returns 12-bit RGB (4 bits per gun).
+     * Based on AROS implementation.
+     */
+    UWORD *ct;
+    
+    /* Validate parameters */
+    if (!colorMap || entry < 0 || entry >= colorMap->Count)
+        return (ULONG)-1;
+    
+    ct = colorMap->ColorTable;
+    if (!ct)
+        return (ULONG)-1;
+    
+    return ct[entry];
 }
 
 static VOID _graphics_ScrollVPort ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3514,19 +3736,18 @@ static VOID _graphics_private1 ( register struct GfxBase * GfxBase __asm("a6"))
     assert(FALSE);
 }
 
-static VOID _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"))
+static BOOL _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
+                                            register struct Layer * layer __asm("a5"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: _graphics_AttemptLockLayerRom() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Attempt to lock a layer without blocking.
+     * In our single-threaded emulation, this always succeeds.
+     * Based on LockLayerRom which is already a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: AttemptLockLayerRom(layer=%p)\n", layer);
+    
+    /* No actual locking needed in emulation - always succeeds */
+    return TRUE;
 }
-
-//static BOOL _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
-//                                            register struct Layer * layer __asm("a5"))
-//{
-//    //DPRINTF (LOG_ERROR, "_graphics: AttemptLockLayerRom() unimplemented STUB called.\n");
-//    //assert(FALSE);
-//    return FALSE;
-//}
 
 static APTR _graphics_GfxNew ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG gfxNodeType __asm("d0"))
@@ -3552,10 +3773,117 @@ static VOID _graphics_GfxAssociate ( register struct GfxBase * GfxBase __asm("a6
 }
 
 static VOID _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"),
-                                                        register struct BitScaleArgs * bitScaleArgs __asm("a0"))
+                                                        register struct BitScaleArgs * bsa __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: BitMapScale() unimplemented STUB called.\n");
-    assert(FALSE);
+    UWORD *linePattern;
+    UWORD destWidth, destHeight;
+    UWORD srcX, srcY, destX, destY;
+    UWORD srcWidth, srcHeight;
+    struct BitMap *srcBM, *destBM;
+    UWORD y, x, plane;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: BitMapScale() bsa=0x%08lx\n", (ULONG)bsa);
+    
+    if (!bsa || !bsa->bsa_SrcBitMap || !bsa->bsa_DestBitMap)
+        return;
+    
+    srcBM = bsa->bsa_SrcBitMap;
+    destBM = bsa->bsa_DestBitMap;
+    srcX = bsa->bsa_SrcX;
+    srcY = bsa->bsa_SrcY;
+    srcWidth = bsa->bsa_SrcWidth;
+    srcHeight = bsa->bsa_SrcHeight;
+    destX = bsa->bsa_DestX;
+    destY = bsa->bsa_DestY;
+    
+    /* Calculate destination dimensions using scale factors */
+    destWidth = _graphics_ScalerDiv(GfxBase, srcWidth, 
+                                     bsa->bsa_XDestFactor, bsa->bsa_XSrcFactor);
+    destHeight = _graphics_ScalerDiv(GfxBase, srcHeight, 
+                                      bsa->bsa_YDestFactor, bsa->bsa_YSrcFactor);
+    
+    /* Store calculated results back in structure */
+    bsa->bsa_DestWidth = destWidth;
+    bsa->bsa_DestHeight = destHeight;
+    
+    if (destWidth == 0 || destHeight == 0)
+        return;
+    
+    /* Allocate line pattern buffer to precalculate Y mapping */
+    linePattern = (UWORD *)AllocMem(sizeof(UWORD) * destHeight, 0);
+    if (!linePattern)
+        return;
+    
+    /* Precalculate which source Y line maps to each destination Y line */
+    {
+        ULONG count = 0;
+        UWORD ys = srcY;
+        ULONG dyd = destHeight;
+        ULONG dys = srcHeight;
+        LONG accuys = dyd;
+        LONG accuyd = -(dys >> 1);
+        
+        while (count < destHeight) {
+            accuyd += dys;
+            while (accuyd > accuys) {
+                ys++;
+                accuys += dyd;
+            }
+            linePattern[count] = ys;
+            count++;
+        }
+    }
+    
+    /* Now perform the actual scaling, pixel by pixel */
+    /* Using simple nearest-neighbor algorithm */
+    {
+        UWORD minDepth = (srcBM->Depth < destBM->Depth) ? srcBM->Depth : destBM->Depth;
+        ULONG dxd = destWidth;
+        ULONG dxs = srcWidth;
+        
+        for (y = 0; y < destHeight; y++) {
+            UWORD sourceY = linePattern[y];
+            UWORD xs = srcX;
+            LONG accuxs = dxd;
+            LONG accuxd = -(dxs >> 1);
+            
+            for (x = 0; x < destWidth; x++) {
+                /* Calculate source X for this destination X */
+                accuxd += dxs;
+                while (accuxd > accuxs) {
+                    xs++;
+                    accuxs += dxd;
+                }
+                
+                /* Copy pixel from source to destination for each plane */
+                for (plane = 0; plane < minDepth; plane++) {
+                    UBYTE *srcPlane = srcBM->Planes[plane];
+                    UBYTE *destPlane = destBM->Planes[plane];
+                    ULONG srcByteIdx, destByteIdx;
+                    UBYTE srcBit, destBit;
+                    
+                    if (!srcPlane || !destPlane)
+                        continue;
+                    
+                    /* Calculate source byte and bit */
+                    srcByteIdx = sourceY * srcBM->BytesPerRow + (xs >> 3);
+                    srcBit = 0x80 >> (xs & 7);
+                    
+                    /* Calculate destination byte and bit */
+                    destByteIdx = (destY + y) * destBM->BytesPerRow + ((destX + x) >> 3);
+                    destBit = 0x80 >> ((destX + x) & 7);
+                    
+                    /* Copy the pixel value */
+                    if (srcPlane[srcByteIdx] & srcBit)
+                        destPlane[destByteIdx] |= destBit;
+                    else
+                        destPlane[destByteIdx] &= ~destBit;
+                }
+            }
+        }
+    }
+    
+    FreeMem(linePattern, sizeof(UWORD) * destHeight);
 }
 
 static UWORD _graphics_ScalerDiv ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3563,9 +3891,27 @@ static UWORD _graphics_ScalerDiv ( register struct GfxBase * GfxBase __asm("a6")
                                                         register ULONG numerator __asm("d1"),
                                                         register ULONG denominator __asm("d2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ScalerDiv() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    ULONG res;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: ScalerDiv() factor=%lu, num=%lu, denom=%lu\n",
+             factor, numerator, denominator);
+    
+    /* Handle edge cases */
+    if (factor == 0 || numerator == 0 || denominator == 0)
+        return 0;
+    
+    /* Calculate scaled result: (factor * numerator) / denominator */
+    res = (factor * numerator) / denominator;
+    
+    /* Minimum result is 1 if inputs were non-zero */
+    if (res == 0)
+        return 1;
+    
+    /* Round up if remainder >= half denominator */
+    if (((factor * numerator) % denominator) >= ((denominator + 1) >> 1))
+        res++;
+    
+    return (UWORD)res;
 }
 
 static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3760,33 +4106,70 @@ static struct MonitorSpec * _graphics_OpenMonitor ( register struct GfxBase * Gf
                                                         register CONST_STRPTR monitorName __asm("a1"),
                                                         register ULONG displayID __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: OpenMonitor() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* 
+     * OpenMonitor() opens a MonitorSpec for a given display mode.
+     * In lxa emulation, we don't have real hardware monitors, so we return NULL
+     * indicating the requested monitor is not available.
+     * Apps should handle NULL return gracefully.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: OpenMonitor() monitorName='%s' displayID=0x%08lx - returning NULL (not available)\n",
+             monitorName ? (char *)monitorName : "(null)", displayID);
     return NULL;
 }
 
 static BOOL _graphics_CloseMonitor ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct MonitorSpec * monitorSpec __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: CloseMonitor() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    /*
+     * CloseMonitor() closes a MonitorSpec opened by OpenMonitor().
+     * Since we never return real MonitorSpecs, just return TRUE.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: CloseMonitor() monitorSpec=0x%08lx\n", (ULONG)monitorSpec);
+    return TRUE;
 }
 
 static DisplayInfoHandle _graphics_FindDisplayInfo ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG displayID __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FindDisplayInfo() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * FindDisplayInfo() finds a display info handle for a given display ID.
+     * We return a simple non-NULL handle for common PAL/NTSC modes that 
+     * GetDisplayInfoData can recognize, NULL for unknown modes.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: FindDisplayInfo() displayID=0x%08lx\n", displayID);
+    
+    /* Return displayID+1 as handle for known modes (non-zero = valid handle) */
+    /* This allows GetDisplayInfoData to retrieve the displayID from handle-1 */
+    switch (displayID & 0xFFFF0000) {
+        case 0x00000000:  /* LORES/HIRES modes */
+        case 0x00010000:  /* NTSC monitors */
+        case 0x00020000:  /* PAL monitors */
+            return (DisplayInfoHandle)(displayID + 1);
+        default:
+            return (DisplayInfoHandle)0;  /* Unknown mode */
+    }
 }
 
 static ULONG _graphics_NextDisplayInfo ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG displayID __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: NextDisplayInfo() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * NextDisplayInfo() iterates through available display modes.
+     * Returns INVALID_ID (0xFFFFFFFF) when done.
+     * We just provide a minimal set: LORES and HIRES.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: NextDisplayInfo() displayID=0x%08lx\n", displayID);
+    
+    if (displayID == 0xFFFFFFFF) {
+        /* First call - return LORES */
+        return 0x00000000;  /* LORES_KEY */
+    } else if (displayID == 0x00000000) {
+        /* Return HIRES */
+        return 0x00008000;  /* HIRES_KEY */
+    }
+    
+    /* Done */
+    return 0xFFFFFFFF;
 }
 
 static VOID _graphics_private2 ( register struct GfxBase * GfxBase __asm("a6"))
@@ -3814,17 +4197,202 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
                                                         register ULONG tagID __asm("d1"),
                                                         register ULONG displayID __asm("d2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetDisplayInfoData() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * GetDisplayInfoData() retrieves information about a display mode.
+     * Returns the number of bytes copied, or 0 on failure.
+     * We provide basic info for LORES/HIRES modes.
+     */
+    ULONG actualDisplayID;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: GetDisplayInfoData() handle=0x%08lx buf=0x%08lx size=%lu tagID=0x%08lx displayID=0x%08lx\n",
+             (ULONG)handle, (ULONG)buf, size, tagID, displayID);
+    
+    if (!buf || size == 0)
+        return 0;
+    
+    /* Get actual display ID - either from parameter or from handle */
+    if (displayID != 0 && displayID != 0xFFFFFFFF) {
+        actualDisplayID = displayID;
+    } else if (handle) {
+        actualDisplayID = ((ULONG)handle) - 1;  /* Handle is displayID+1 */
+    } else {
+        return 0;
+    }
+    
+    /* Clear buffer */
+    lxa_memset(buf, 0, size);
+    
+    switch (tagID) {
+        case 0x80000000: /* DTAG_DISP - DisplayInfo */
+        {
+            /* Provide minimal DisplayInfo */
+            struct {
+                ULONG StructID;
+                ULONG DisplayID;
+                ULONG SkipID;
+                ULONG Length;
+                UWORD NotAvailable;
+                ULONG PropertyFlags;
+            } *di = (void *)buf;
+            
+            ULONG copySize = (size < 24) ? size : 24;
+            
+            di->StructID = tagID;
+            di->DisplayID = actualDisplayID;
+            di->SkipID = 0;
+            di->Length = 2;  /* 2 double-longwords after header */
+            di->NotAvailable = 0;  /* Available */
+            di->PropertyFlags = 0x00000340;  /* DIPF_IS_WB | DIPF_IS_DRAGGABLE | DIPF_IS_SPRITES */
+            
+            if (actualDisplayID & 0x00008000) {
+                /* HIRES mode */
+                di->PropertyFlags |= 0;  /* No extra flags for HIRES */
+            }
+            
+            return copySize;
+        }
+        
+        case 0x80001000: /* DTAG_DIMS - DimensionInfo */
+        {
+            /* Provide minimal DimensionInfo */
+            struct {
+                ULONG StructID;
+                ULONG DisplayID;
+                ULONG SkipID;
+                ULONG Length;
+                UWORD MaxDepth;
+                UWORD MinRasterWidth;
+                UWORD MinRasterHeight;
+                UWORD MaxRasterWidth;
+                UWORD MaxRasterHeight;
+            } *dims = (void *)buf;
+            
+            ULONG copySize = (size < 28) ? size : 28;
+            
+            dims->StructID = tagID;
+            dims->DisplayID = actualDisplayID;
+            dims->SkipID = 0;
+            dims->Length = 3;
+            dims->MaxDepth = 8;  /* 256 colors max */
+            
+            if (actualDisplayID & 0x00008000) {
+                /* HIRES mode */
+                dims->MinRasterWidth = 640;
+                dims->MinRasterHeight = 200;
+                dims->MaxRasterWidth = 1280;
+                dims->MaxRasterHeight = 512;
+            } else {
+                /* LORES mode */
+                dims->MinRasterWidth = 320;
+                dims->MinRasterHeight = 200;
+                dims->MaxRasterWidth = 704;
+                dims->MaxRasterHeight = 512;
+            }
+            
+            return copySize;
+        }
+        
+        case 0x80003000: /* DTAG_NAME - NameInfo */
+        {
+            /* Provide mode name */
+            struct {
+                ULONG StructID;
+                ULONG DisplayID;
+                ULONG SkipID;
+                ULONG Length;
+                char Name[32];
+            } *name = (void *)buf;
+            
+            ULONG copySize = (size < 48) ? size : 48;
+            const char *modeName;
+            int i;
+            
+            name->StructID = tagID;
+            name->DisplayID = actualDisplayID;
+            name->SkipID = 0;
+            name->Length = 4;
+            
+            modeName = (actualDisplayID & 0x00008000) ? "HIRES" : "LORES";
+            for (i = 0; modeName[i] && i < 31; i++)
+                name->Name[i] = modeName[i];
+            name->Name[i] = 0;
+            
+            return copySize;
+        }
+        
+        default:
+            DPRINTF (LOG_DEBUG, "_graphics: GetDisplayInfoData() unknown tagID=0x%08lx\n", tagID);
+            return 0;
+    }
 }
 
 static VOID _graphics_FontExtent ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct TextFont * font __asm("a0"),
                                                         register struct TextExtent * fontExtent __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FontExtent() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Fill out a TextExtent structure with the maximum extent of all characters
+     * in the font. Based on AROS implementation.
+     */
+    WORD i;
+    WORD maxwidth = -32767;
+    WORD minwidth = 32767;
+    WORD width = 0;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: FontExtent(font=%p, fontExtent=%p)\n", font, fontExtent);
+    
+    if (!font || !fontExtent)
+        return;
+    
+    /* Loop through all characters in the font */
+    for (i = 0; i <= font->tf_HiChar - font->tf_LoChar; i++) {
+        WORD kern = 0;
+        WORD wspace;
+        
+        /* Get kerning value if available */
+        if (font->tf_CharKern)
+            kern = ((WORD *)font->tf_CharKern)[i];
+        
+        /* Track minimum (leftmost) position */
+        if (kern < minwidth)
+            minwidth = kern;
+        
+        /* Get character bitmap width from CharLoc */
+        if (font->tf_CharLoc) {
+            /* CharLoc is an array of ULONG, low 16 bits is width */
+            WORD charWidth = ((ULONG *)font->tf_CharLoc)[i] & 0xFFFF;
+            WORD right = kern + charWidth;
+            if (right > maxwidth)
+                maxwidth = right;
+        }
+        
+        /* Calculate character spacing */
+        if (font->tf_CharSpace)
+            wspace = kern + ((WORD *)font->tf_CharSpace)[i];
+        else
+            wspace = kern + font->tf_XSize;
+        
+        /* Track width based on path direction */
+        if (font->tf_Flags & FPF_REVPATH) {
+            if (wspace < width)
+                width = wspace;
+        } else {
+            if (wspace > width)
+                width = wspace;
+        }
+    }
+    
+    /* Handle case where font has no characters or no CharLoc */
+    if (maxwidth == -32767)
+        maxwidth = font->tf_XSize;
+    if (minwidth == 32767)
+        minwidth = 0;
+    
+    fontExtent->te_Width = width;
+    fontExtent->te_Height = font->tf_YSize;
+    fontExtent->te_Extent.MinX = minwidth;
+    fontExtent->te_Extent.MaxX = maxwidth - 1;
+    fontExtent->te_Extent.MinY = -font->tf_Baseline;
+    fontExtent->te_Extent.MaxY = font->tf_YSize - font->tf_Baseline - 1;
 }
 
 static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4379,8 +4947,110 @@ static VOID _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("
                                                         register LONG xMax __asm("d4"),
                                                         register LONG yMax __asm("d5"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ScrollRasterBF() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct BitMap *bm;
+    LONG srcX, srcY, destX, destY;
+    LONG width, height;
+    LONG absdx, absdy;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: ScrollRasterBF() rp=0x%08lx dx=%ld dy=%ld rect=(%ld,%ld)-(%ld,%ld)\n",
+             (ULONG)rp, dx, dy, xMin, yMin, xMax, yMax);
+    
+    if (!rp || !rp->BitMap) {
+        DPRINTF(LOG_DEBUG, "_graphics: ScrollRasterBF() NULL rp or bitmap\n");
+        return;
+    }
+    
+    /* Validate bounds */
+    if (xMin > xMax || yMin > yMax)
+        return;
+    
+    bm = rp->BitMap;
+    
+    /* Adjust bounds based on layer or bitmap */
+    if (rp->Layer) {
+        struct Layer *L = rp->Layer;
+        LONG layerWidth = L->bounds.MaxX - L->bounds.MinX;
+        LONG layerHeight = L->bounds.MaxY - L->bounds.MinY;
+        
+        if (xMax > layerWidth)
+            xMax = layerWidth;
+        if (yMax > layerHeight)
+            yMax = layerHeight;
+    } else {
+        LONG bmWidth = bm->BytesPerRow * 8;
+        LONG bmHeight = bm->Rows;
+        
+        if (xMax >= bmWidth)
+            xMax = bmWidth - 1;
+        if (yMax >= bmHeight)
+            yMax = bmHeight - 1;
+    }
+    
+    width = xMax - xMin + 1;
+    height = yMax - yMin + 1;
+    
+    if (width < 1 || height < 1)
+        return;
+    
+    absdx = (dx >= 0) ? dx : -dx;
+    absdy = (dy >= 0) ? dy : -dy;
+    
+    /* If scroll amount exceeds the area, just erase the entire area */
+    if (absdx >= width || absdy >= height) {
+        _graphics_EraseRect(GfxBase, rp, xMin, yMin, xMax, yMax);
+        return;
+    }
+    
+    /* Calculate source and destination coordinates for the blit */
+    /* Positive dx = scroll right (content moves left), negative dx = scroll left */
+    /* Positive dy = scroll down (content moves up), negative dy = scroll up */
+    
+    srcX = xMin;
+    srcY = yMin;
+    destX = xMin;
+    destY = yMin;
+    
+    if (dx > 0) {
+        srcX = xMin + dx;
+        destX = xMin;
+    } else if (dx < 0) {
+        srcX = xMin;
+        destX = xMin - dx;
+    }
+    
+    if (dy > 0) {
+        srcY = yMin + dy;
+        destY = yMin;
+    } else if (dy < 0) {
+        srcY = yMin;
+        destY = yMin - dy;
+    }
+    
+    /* Perform the blit if there's any content to move */
+    if ((width - absdx) > 0 && (height - absdy) > 0) {
+        _graphics_BltBitMap(GfxBase, bm, srcX, srcY, bm, destX, destY, 
+                           width - absdx, height - absdy, 0xC0, 0xFF, NULL);
+    }
+    
+    /* Erase the exposed areas using EraseRect (respects BackFill hook) */
+    
+    /* Horizontal strip */
+    if (dx > 0) {
+        /* Scrolled towards left, clearing on the right */
+        _graphics_EraseRect(GfxBase, rp, xMax - dx + 1, yMin, xMax, yMax);
+    } else if (dx < 0) {
+        /* Scrolled towards right, clearing on the left */
+        _graphics_EraseRect(GfxBase, rp, xMin, yMin, xMin - dx - 1, yMax);
+    }
+    
+    /* Vertical strip */
+    if (dy > 0) {
+        /* Scrolled up, clearing on the bottom */
+        _graphics_EraseRect(GfxBase, rp, xMin, yMax - dy + 1, xMax, yMax);
+    } else if (dy < 0) {
+        /* Scrolled down, clearing on the top */
+        _graphics_EraseRect(GfxBase, rp, xMin, yMin, xMax, yMin - dy - 1);
+    }
 }
 
 static LONG _graphics_FindColor ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4587,9 +5257,58 @@ static VOID _graphics_GetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"
 static ULONG _graphics_BestModeIDA ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST struct TagItem * tags __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: BestModeIDA() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * BestModeIDA() finds the best display mode matching the given criteria.
+     * Returns the ModeID or INVALID_ID (0xFFFFFFFF) if no suitable mode found.
+     * 
+     * We provide simple matching: HIRES for width > 400, LORES otherwise.
+     */
+    ULONG desiredWidth = 640;
+    ULONG desiredHeight = 200;
+    ULONG depth = 4;
+    const struct TagItem *tag;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: BestModeIDA() tags=0x%08lx\n", (ULONG)tags);
+    
+    /* Parse tags */
+    if (tags) {
+        for (tag = tags; tag->ti_Tag != 0; tag++) {
+            switch (tag->ti_Tag) {
+                case 0x80000004: /* BIDTAG_NominalWidth */
+                case 0x80000006: /* BIDTAG_DesiredWidth */
+                    desiredWidth = tag->ti_Data;
+                    break;
+                case 0x80000005: /* BIDTAG_NominalHeight */
+                case 0x80000007: /* BIDTAG_DesiredHeight */
+                    desiredHeight = tag->ti_Data;
+                    break;
+                case 0x80000008: /* BIDTAG_Depth */
+                    depth = tag->ti_Data;
+                    break;
+                case 0x80000001: /* BIDTAG_DIPFMustHave */
+                case 0x80000002: /* BIDTAG_DIPFMustNotHave */
+                case 0x80000003: /* BIDTAG_ViewPort */
+                case 0x80000009: /* BIDTAG_MonitorID */
+                case 0x8000000a: /* BIDTAG_SourceID */
+                    /* Ignore these for now */
+                    break;
+            }
+            
+            /* Handle TAG_DONE, TAG_SKIP, TAG_IGNORE */
+            if (tag->ti_Tag == 0xFFFFFFFF) /* TAG_DONE */
+                break;
+        }
+    }
+    
+    (void)desiredHeight;  /* Unused for now */
+    (void)depth;          /* Unused for now */
+    
+    /* Return HIRES for wider screens, LORES otherwise */
+    if (desiredWidth > 400) {
+        return 0x00008000;  /* HIRES_KEY */
+    } else {
+        return 0x00000000;  /* LORES_KEY */
+    }
 }
 
 static VOID _graphics_WriteChunkyPixels ( register struct GfxBase * GfxBase __asm("a6"),
