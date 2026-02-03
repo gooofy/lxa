@@ -29,15 +29,16 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Completed Phases Summary
 
-**Phases 1-38** have established a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries. The system supports multitasking, filesystem operations, windowing, graphics rendering, and runs real Amiga applications successfully.
+**Phases 1-39** have established a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries. The system supports multitasking, filesystem operations, windowing, graphics rendering, and runs real Amiga applications successfully.
 
 **Key Milestones:**
 - ✅ **Core System** (Phases 1-12): Exec multitasking, DOS filesystem, interactive Shell, 100+ commands, utility libraries
 - ✅ **Graphics & UI** (Phases 13-28): SDL2 integration, graphics.library, intuition.library, layers.library, console.device, BOOPSI
 - ✅ **Application Support** (Phases 26-35): Real-world app testing, library stubs, compatibility fixes, 10+ applications tested
 - ✅ **Library Completion** (Phases 36-38): exec.library 100% complete, graphics.library 90%+ complete, intuition.library 95%+ complete
+- ✅ **Re-Testing & Validation** (Phase 39): 75% app success rate (6/8), improved stability, regression tests confirmed
 
-**Current Version: v0.5.4** - All core libraries functional, 100% test pass rate, ready for Phase 39+ continuation.
+**Current Version: v0.5.4** - All core libraries functional, 100% test pass rate, 75% real-world app compatibility.
 
 ---
 
@@ -108,22 +109,41 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Active Phases
 
-*No active phases currently. All work on Phases 1-38 is complete. See Future Phases below for next priorities.*
+*No active phases currently. All work on Phases 1-39 is complete. See Future Phases below for next priorities.*
+
+---
+
+## Completed Phases (Recent)
+
+### Phase 39: Re-Testing Phase 2 (COMPLETE)
+**Goal**: Comprehensive re-testing after Phase 34-38 library completion fixes.
+
+**Status**: ✅ **COMPLETE** - All 8 applications tested, compatibility document updated.
+
+**Test Results**:
+- ✅ **KickPascal 2** - PASS (regression test confirmed)
+- ✅ **GFA Basic** - PASS (opens screen/window, runs successfully)
+- ✅ **MaxonBASIC** - PASS (opens Workbench and main window)
+- ✅ **SysInfo** - PASS (previously failing, now fixed!)
+- ✅ **Devpac** - PASS (previously crashing, now stable!)
+- ✅ **EdWordPro** - PASS (fully functional, enters event loop)
+- ⚠️ **BeckerText II** - PARTIAL (exits cleanly but no window, may need Workbench)
+- ❌ **Oberon 2** - FAILS (NULL pointer crash at startup, new app)
+- ✅ **COMPATIBILITY.md** - Updated with all Phase 39 results
+
+**Success Rate**: 6/8 = 75% fully working, 7/8 = 87.5% stable (no crashes)
+
+**Key Achievements**:
+- SysInfo now works after Phase 36-38 fixes (previously crashed)
+- Devpac now stable after Phase 36-38 fixes (previously crashed)
+- Regression tests confirmed: KickPascal 2, GFA Basic, MaxonBASIC all still work
+- EdWordPro remains fully functional
+- Comprehensive compatibility documentation updated
+- Overall system stability greatly improved
 
 ---
 
 ## Future Phases
-
-### Phase 39: Re-Testing Phase 2
-**Goal**: Comprehensive re-testing after Phase 34-35 fixes.
-- [ ] **Devpac** - Verify continued compatibility.
-- [ ] **KickPascal 2** - Regression test.
-- [ ] **SysInfo** - Regression test.
-- [ ] **EdWordPro** - Full interactive testing.
-- [ ] **MaxonBASIC** - Test after divide-by-zero fix.
-- [ ] **GFA Basic** - Test after pointer fix.
-- [ ] **New Apps** - Test additional applications from App-DB.
-- [ ] **Update COMPATIBILITY.md** - Document all results.
 
 ### Phase 40: IFF & Datatypes Support
 - [ ] **iffparse.library** - Full implementation (if not done in Phase 33).
