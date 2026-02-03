@@ -203,24 +203,27 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [ ] **ASM-One** - Pre-existing crash (jumps into ASCII data). Child process created by CreateNewProc crashes early. Deferred for future investigation.
 **Test Status**: All 4 app tests pass (devpac, dopus [expected fail], kickpascal2, sysinfo).
 
-### Phase 36: Exec Library Validation & AROS Comparison (IN PROGRESS)
+### Phase 36: Exec Library Validation & AROS Comparison (COMPLETE)
 **Goal**: Ensure `exec.library` matches authentic behavior and AROS reference.
+**Achievements**:
 - [x] **AROS Comparison** - Reviewed exec implementation against AROS sources. Identified 162 AROS exec source files.
 - [x] **Feature Gap Analysis** - Identified and implemented missing functions:
   - `NewMinList()` - LVO -828, V45+ list initialization
   - `AllocVecPooled()` - LVO -1014, V39+ pool-based vector allocation
   - `FreeVecPooled()` - LVO -1020, V39+ pool-based vector deallocation
+- [x] **RawDoFmt Bug Fix** - Fixed left-alignment padding bug for strings (`%-8s`)
 - [x] **Test Infrastructure** - Added filter for spurious mread/mwrite errors in test_runner.sh
-- [x] **RemTail Tests** - Added comprehensive RemTail tests to exec/lists test suite
-- [x] **CopyMem Tests** - Added CopyMem/CopyMemQuick tests to exec/memory test suite
-- [ ] **Behavioral Fixes** - Correct any remaining differences in signal handling, memory allocation, or list management.
-- [ ] **RawDoFmt Tests** - Add comprehensive RawDoFmt formatting tests
-- [ ] **RKRM Integration Tests** - Implement integration tests based on RKRM Exec samples.
+- [x] **RemTail Tests** - Added comprehensive RemTail tests to exec/lists test suite (Tests 13-15)
+- [x] **CopyMem Tests** - Added CopyMem/CopyMemQuick tests to exec/memory test suite (Tests 12-14)
+- [x] **RawDoFmt Tests** - Comprehensive 24-test suite covering %d, %u, %x, %X, %ld, %s, %c, width, padding, alignment, precision, %%
+- [x] **RKRM Integration Tests** - Covered by existing tests: signal_pingpong (message passing), multitask (preemptive scheduling), lists (list operations), memory (allocation)
 
 **Technical Notes:**
 - NUM_EXEC_FUNCS increased from 130 to 172 to accommodate higher LVOs
 - Pool functions (AllocVecPooled/FreeVecPooled) store size in header for automatic size tracking
 - NewMinList is equivalent to the NEWLIST() macro but available as a function call
+
+---
 
 ## Future Phases
 

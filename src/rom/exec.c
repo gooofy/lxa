@@ -2563,7 +2563,6 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                     while (printed < width)
                     {
                         PUT_CHAR(' ');
-                        width--;
                         printed++;
                     }
                 }
