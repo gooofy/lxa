@@ -3145,9 +3145,15 @@ static ULONG _graphics_SetWriteMask ( register struct GfxBase * GfxBase __asm("a
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG msk __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetWriteMask() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /*
+     * SetWriteMask() - Set the bit plane write mask for a RastPort
+     * 
+     * This controls which bitplanes can be written to during drawing operations.
+     * In our emulation we don't track individual bitplanes, so this is a no-op.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: SetWriteMask(rp=0x%08lx, msk=0x%08lx) - no-op\n", 
+             (ULONG)rp, msk);
+    return -1;  /* Return TRUE (all ones) indicating success */
 }
 
 static VOID _graphics_SetMaxPen ( register struct GfxBase * GfxBase __asm("a6"),

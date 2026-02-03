@@ -242,6 +242,10 @@ int main(void)
         if (!app_window) {
             app_window = find_window_by_title("HiSoft");
         }
+        if (!app_window) {
+            /* Devpac opens with "Untitled" as default document title */
+            app_window = find_window_by_title("Untitled");
+        }
         
         if (app_window) {
             print("OK: Devpac window found!\n");

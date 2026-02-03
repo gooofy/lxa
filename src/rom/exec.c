@@ -612,20 +612,37 @@ struct Interrupt * _exec_SetIntVector ( register struct ExecBase * SysBase __asm
     return NULL;
 }
 
+/*
+ * AddIntServer - Add an interrupt server to a chain
+ *
+ * This is a stub implementation that does nothing. In a real Amiga,
+ * this would add the interrupt handler to the specified interrupt
+ * chain (e.g., INTB_VERTB for vertical blank).
+ *
+ * Since we don't have hardware interrupts, we silently accept the
+ * call but never actually call the handler.
+ */
 void _exec_AddIntServer ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
                                                         register struct Interrupt * ___interrupt  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AddIntServer unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: AddIntServer() stub called, intNumber=%ld interrupt=0x%08lx\n",
+             ___intNumber, (ULONG)___interrupt);
+    /* Silent stub - we don't have hardware interrupts */
 }
 
+/*
+ * RemIntServer - Remove an interrupt server from a chain
+ *
+ * Stub implementation - just silently accepts the call.
+ */
 void _exec_RemIntServer ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
                                                         register struct Interrupt * ___interrupt  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: RemIntServer unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: RemIntServer() stub called, intNumber=%ld interrupt=0x%08lx\n",
+             ___intNumber, (ULONG)___interrupt);
+    /* Silent stub - we don't have hardware interrupts */
 }
 
 /*
@@ -2768,7 +2785,7 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
         
         if (!lib)
         {
-            LPRINTF (LOG_ERROR, "\n_exec: OpenLibrary: *** ERROR: requested library %s was not found.\n\n", libName);
+            LPRINTF (LOG_ERROR, "_exec: OpenLibrary: *** ERROR: requested library %s was not found.\n", libName);
         }
     }
 

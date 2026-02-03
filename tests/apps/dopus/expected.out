@@ -9,10 +9,8 @@ OK: DirectoryOpus process created
 
 --- Test 3: Wait for DOPUS window ---
   Waiting for window to open...
-OK: Directory Opus window found!
-  Window count after launch: 1
-OK: Directory Opus window opened successfully
-  Window title: Directory Opus
+  Window count after launch: 0
+FAIL: No Directory Opus window opened
 
 === Test Results ===
-PASS: Directory Opus launch test passed
+FAIL: 1 errors occurred

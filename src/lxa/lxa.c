@@ -446,20 +446,10 @@ static const char *_custom_reg_name(uint16_t reg)
 
 static inline uint8_t mread8 (uint32_t address)
 {
-    static bool startup = TRUE;
-
-    if (!address)
-    {
-        if (startup)
-        {
-            startup = FALSE;
-        }
-        else
-        {
-            DPRINTF (LOG_ERROR, "lxa: mread8 illegal read from addr 0 detected\n");
-            _debug(m68k_get_reg(NULL, M68K_REG_PC));
-        }
-    }
+    /* Note: Reading from address 0 is valid - it's chip RAM on Amiga.
+     * The previous NULL pointer check was removed as it caused false
+     * positives with applications that legitimately read from low memory.
+     */
 
     if ((address >= RAM_START) && (address <= RAM_END))
     {
@@ -481,9 +471,14 @@ static inline uint8_t mread8 (uint32_t address)
         /* Pseudo-Kickstart ROM area - return 0 (no ROM overlay present) */
         return 0;
     }
-    else if ((address >= 0x01000000) && (address <= 0x01FFFFFF))
+    else if ((address >= 0x01000000) && (address <= 0x0FFFFFFF))
     {
-        /* 16MB-32MB range - Zorro-III expansion area, return 0xFF (no expansion) */
+        /* 16MB-256MB range - Zorro-III expansion area, return 0xFF (no expansion)
+         * This covers addresses 0x01000000-0x0FFFFFFF which are used for:
+         * - Zorro-III memory expansion
+         * - Fast RAM on accelerator cards
+         * Returning 0xFF indicates no memory/expansion present.
+         */
         return 0xFF;
     }
     else if ((address >= ZORRO2_AUTOCONFIG_START) && (address <= ZORRO2_AUTOCONFIG_END))
@@ -628,6 +623,11 @@ static inline void mwrite8 (uint32_t address, uint8_t value)
     {
         uint32_t addr = address - RAM_START;
         g_ram[addr] = value;
+    }
+    else if ((address >= 0x01000000) && (address <= 0x0FFFFFFF))
+    {
+        /* Zorro-III expansion area writes - ignore (no expansion present) */
+        DPRINTF (LOG_DEBUG, "lxa: mwrite8 Zorro-III area 0x%08x <- 0x%02x (ignored)\n", address, value);
     }
     else if ((address >= CIA_START) && (address <= CIA_END))
     {
@@ -3015,10 +3015,26 @@ int op_illg(int level)
 
             hexdump (LOG_INFO, isp, 16);
 
-            _debug(pc);
-
-            m68k_end_timeslice();
-            g_running = FALSE;
+            /*
+             * Phase 32: Don't halt on exceptions in multitasking scenarios.
+             * 
+             * Instead of entering the debugger and halting, we just log the exception
+             * and let the exception handler return via RTE. In a real Amiga, this would
+             * typically cause the crashing task to hang or loop, but other tasks can
+             * continue running.
+             *
+             * This allows test programs (running as background processes) to detect
+             * windows that were opened before the app crashed.
+             *
+             * For debugging, use -d flag which enables verbose output.
+             */
+            if (g_debug) {
+                _debug(pc);
+                m68k_end_timeslice();
+                g_running = FALSE;
+            } else {
+                DPRINTF (LOG_WARNING, "*** Exception in task - continuing (use -d to halt and debug)\n");
+            }
             break;
         }
 

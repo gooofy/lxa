@@ -134,19 +134,25 @@
 
 ### Directory Opus 4 - ⚠️ PARTIAL
 - **Binary**: `APPS:DOPUS/DirectoryOpus`
-- **Status**: Loads but fails to open due to missing library
+- **Status**: Loads libraries but fails to open window, enters exception loop
 - **Issues**:
-  1. Requires dopus.library (included in APPS:DOPUS/libs but not in LIBS:)
-  2. Needs proper assign setup (LIBS: should include DOPUS/libs)
-  3. Uses extended ROM area (0x00F00000-0x00F7FFFF) - now returns 0
-- **Libraries Needed**:
-  - dopus.library (included)
-  - arp.library (included)
-  - May need others
+  1. Main process exits with error code 1 immediately
+  2. Background process loads dopus.library successfully
+  3. commodities.library not found (non-fatal)
+  4. rexxsyslib.library not found (non-fatal)
+  5. powerpacker.library causes exception loop
+  6. Uses Zorro-III memory area (0x01000000-0x0FFFFFFF) - now handled, returns 0xFF
+- **Libraries Found**:
+  - dopus.library ✓
+  - powerpacker.library ✓
+- **Libraries Missing**:
+  - commodities.library (Commodities Exchange support)
+  - rexxsyslib.library (ARexx support)
 - **Fix Required**:
-  - Test infrastructure needs to add app-specific libs to LIBS: assign
-  - OR implement library search in application's directory
-- **Test**: `tests/apps/dopus`
+  - Debug why main process exits immediately
+  - Investigate powerpacker.library exception
+  - Consider implementing commodities.library stub
+- **Test**: `tests/apps/dopus` (currently expects failure)
 
 ### AmigaBasic - ⚠️ PARTIAL
 - **Binary**: `APPS:AmigaBasic/AmigaBASIC`

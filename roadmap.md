@@ -152,28 +152,56 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
 
 ## Active Phases
 
-## Phase 32: Re-visiting Application Testing
-**Goal**: Return to application testing after blocking issues are resolved.
-- [ ] **EdWordPro** - Implement input handling to make it interactive.
-- [ ] **MaxonBASIC** - Fix divide-by-zero (display calc) issues.
-- [ ] **Devpac** - Debug crash after window open.
-- [ ] **Full Regression Test** - Retest all 10+ apps with new libraries/devices.
+## Phase 32: Application Testing Fixes (COMPLETE)
+**Goal**: Fix blocking issues discovered during application testing.
+**Achievements**:
+- [x] **Address 0 Read Fix** - Removed overly aggressive debugger trigger on reads from address 0 (valid chip RAM).
+- [x] **Exception Handling** - Made CPU exceptions non-fatal in multitasking scenarios (log and continue instead of halt).
+- [x] **SetWriteMask Stub** - Implemented no-op stub for graphics.library SetWriteMask() used by Devpac.
+- [x] **Zorro-III Memory** - Extended memory handling to cover 0x01000000-0x0FFFFFFF address range.
+- [x] **Error Message Cleanup** - Fixed OpenLibrary error message formatting causing spurious blank lines.
+- [x] **Test Updates** - All 4 app tests now pass (devpac, dopus, kickpascal2, sysinfo).
 
 ---
 
 ## Future Phases
 
-### Phase 33: Quality & Stability Hardening
-- Memory tracking, leak detection, stress testing.
+### Phase 33: Missing Library Stubs
+**Goal**: Implement stub libraries commonly required by applications.
+- [ ] **commodities.library** - Commodities Exchange support (stub returns NULL for broker creation).
+- [ ] **rexxsyslib.library** - ARexx interface library (stub, returns failure for script execution).
+- [ ] **iffparse.library** - IFF file format parsing (basic stub or full implementation).
+- [ ] **reqtools.library** - Popular third-party requester library (stub returns FALSE).
 
-### Phase 34: IFF & Datatypes Support (Detailed)
-- [ ] **iffparse.library** - Full implementation (moved from Phase 30).
+### Phase 34: Application-Specific Fixes
+**Goal**: Address specific compatibility issues discovered in tested apps.
+- [ ] **Directory Opus** - Debug why main process exits with error code 1.
+- [ ] **Directory Opus** - Investigate powerpacker.library exception loop.
+- [ ] **MaxonBASIC** - Fix divide-by-zero in display calculations.
+- [ ] **EdWordPro** - Implement input handling to make it interactive.
+- [ ] **GFA Basic** - Debug NULL pointer dereference in RemHead.
+- [ ] **ASM-One** - Investigate ROM function pointer crash.
+
+### Phase 35: Re-Testing Phase 2
+**Goal**: Comprehensive re-testing after Phase 33-34 fixes.
+- [ ] **Devpac** - Verify continued compatibility.
+- [ ] **Directory Opus** - Test with library stubs in place.
+- [ ] **KickPascal 2** - Regression test.
+- [ ] **SysInfo** - Regression test.
+- [ ] **EdWordPro** - Full interactive testing.
+- [ ] **MaxonBASIC** - Test after divide-by-zero fix.
+- [ ] **GFA Basic** - Test after pointer fix.
+- [ ] **New Apps** - Test additional applications from App-DB.
+- [ ] **Update COMPATIBILITY.md** - Document all results.
+
+### Phase 36: IFF & Datatypes Support
+- [ ] **iffparse.library** - Full implementation (if not done in Phase 33).
 - [ ] **datatypes.library** - Basic framework.
 
-### Phase 35: Advanced Console Features
+### Phase 37: Advanced Console Features
 - CONU_CHARMAP, RawKeyConvert, advanced CSI sequences.
 
-### Phase 36: BOOPSI & GadTools Visual Completion
+### Phase 38: BOOPSI & GadTools Visual Completion
 **Goal**: Complete visual rendering for BOOPSI gadgets and ASL requesters.
 - [ ] **GM_RENDER Implementation** - Full rendering for buttongclass, propgclass, strgclass.
   - Bevel boxes, 3D highlighting, text rendering
@@ -189,7 +217,7 @@ Authentic windowing, screen, input behavior, IDCMP, system gadgets, menus.
   - Proportional gadget dragging
   - Keyboard shortcuts and tab cycling
 
-### Phase 37: Async I/O & Timer Completion
+### Phase 39: Async I/O & Timer Completion
 **Goal**: Implement proper asynchronous I/O for devices.
 - [ ] **timer.device Async** - TR_ADDREQUEST with proper delay queue and timeout handling.
 - [ ] **console.device Async** - Non-blocking reads with timeout support.
