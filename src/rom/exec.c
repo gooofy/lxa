@@ -4437,6 +4437,25 @@ void _bootstrap(void)
 
     emucall0 (EMU_CALL_LOADED);
 
+    /* Set pr_SegList on the current process so programs like BeckerText II
+     * can read their own seglist (e.g., to pass to CreateProc for child processes).
+     * Many old Amiga programs expect to find their seglist in pr_SegList.
+     * Also set cli_Module in the CLI structure - some programs read the seglist
+     * from there instead of pr_SegList.
+     */
+    {
+        struct Process *me = (struct Process *)FindTask(NULL);
+        me->pr_SegList = segs;
+        DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): set pr_SegList=0x%08lx on process 0x%08lx\n", segs, me);
+        
+        /* Also set cli_Module if we have a CLI structure */
+        if (me->pr_CLI) {
+            struct CommandLineInterface *cli = (struct CommandLineInterface *)BADDR(me->pr_CLI);
+            cli->cli_Module = segs;
+            DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): set cli_Module=0x%08lx on CLI 0x%08lx\n", segs, cli);
+        }
+    }
+
     // inject initPC pointing to our loaded code into our task's stack
 
     APTR initPC = BADDR(segs+1);
@@ -4454,10 +4473,28 @@ void _bootstrap(void)
     }
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): args='%s' len=%d\n", args_buf, args_len);
 
-    /* simply JSR() into our child process */
-
-    cliChildFn_t childfn = initPC;
-    ULONG rv = childfn (args_len, (STRPTR)args_buf);
+    /* simply JSR() into our child process
+     * 
+     * IMPORTANT: External programs (like BeckerText II) may not preserve the 
+     * callee-saved registers A2-A5 that gcc expects to be preserved across
+     * function calls. We use inline assembly with a register clobber list
+     * to tell gcc that these registers may be modified, forcing it to reload
+     * any cached values after the call.
+     */
+    ULONG rv;
+    {
+        cliChildFn_t childfn = initPC;
+        
+        /* Make the call with explicit register clobber list.
+         * This tells gcc that A2-A5 may be modified by the called function,
+         * so it should not rely on cached values in those registers after
+         * the call returns.
+         */
+        rv = childfn (args_len, (STRPTR)args_buf);
+        
+        /* Clobber all callee-saved registers to force gcc to reload them */
+        __asm__ __volatile__ ("" ::: "a2", "a3", "a4", "d2", "d3", "d4", "d5", "d6", "d7", "memory");
+    }
 
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): childfn() returned, rv=%ld\n", rv);
 #if 0

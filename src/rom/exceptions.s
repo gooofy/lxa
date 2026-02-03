@@ -120,7 +120,7 @@ _exec_Switch:
 
     move.l   4, a6                                  | SysBase -> a6
     move.w   IDNestCnt(a6), d0                      | SysBase->IDNestCnt -> d0
-    move.w   0xffff, IDNestCnt(a6)                  | -1 -> SysBase->IDNestCnt
+    move.w   #0xffff, IDNestCnt(a6)                 | -1 -> SysBase->IDNestCnt
 
     move.w   #0xC000, INTENA                        | enable interrupts
 

@@ -1256,13 +1256,25 @@ struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm(
     };
     
     struct Process *proc = CreateNewProc(procTags);
+    DPRINTF (LOG_DEBUG, "_dos: CreateNewProc() done, process=0x%08lx\n", (ULONG)proc);
     if (!proc) {
         DPRINTF (LOG_ERROR, "_dos: CreateProc() - CreateNewProc failed\n");
         return NULL;
     }
     
     /* Return the process's MsgPort */
-    return &proc->pr_MsgPort;
+    struct MsgPort *msgPort = &proc->pr_MsgPort;
+    DPRINTF (LOG_DEBUG, "_dos: CreateProc() returning MsgPort=0x%08lx\n", (ULONG)msgPort);
+    
+    /* Debug: Show A5 frame to find return address */
+    /* LINK A5 saves old A5 at (A5), return address is at 4(A5) */
+    {
+        register ULONG *a5 __asm("a5");
+        DPRINTF (LOG_DEBUG, "_dos: CreateProc() A5=0x%08lx, [A5]=0x%08lx, retaddr=[A5+4]=0x%08lx\n", 
+                 (ULONG)a5, a5[0], a5[1]);
+    }
+    
+    return msgPort;
 }
 
 void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),

@@ -8,9 +8,14 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.2** | **Phase 45 Complete** | **36 Integration Tests Passing**
+**Version: 0.6.3** | **Phase 46 In Progress** | **36 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
+
+**Recent Fix (BeckerText II Investigation)**:
+- Fixed critical bug where external programs (like BeckerText II) corrupted gcc's callee-saved registers (A2-A5) on return, causing crashes in _bootstrap
+- Fixed bootstrap to set pr_SegList and cli_Module for programs that read their own seglist
+- BeckerText II now opens its main window!
 
 ---
 
@@ -426,35 +431,35 @@ See detailed phase description below in "Application Deep Dive Phases".
 ### Phase 53: BeckerText II Deep Dive
 **Goal**: Determine why application exits immediately and enable functionality.
 
-**Status**: ⚠️ PARTIAL - Exits cleanly (code 0) but no window opens
+**Status**: ✅ SIGNIFICANT PROGRESS - Window opens, title "BECKERtext II" visible!
 
-**Known Issues**:
-- [ ] Repeatedly opens/closes intuition.library
-- [ ] All libraries load successfully but exits immediately
-- [ ] No windows open
-- [ ] May require Workbench environment
-- [ ] May need command-line arguments
-- [ ] May require configuration files
+**Ghidra decompiled source**: ~/.lxa/System/Apps/BTII/BT-II.c
+
+**Issues Fixed This Session**:
+- [x] **CreateProc/cli_Module bug**: BeckerText reads cli_Module from CLI structure to get its seglist for spawning child processes. Bootstrap wasn't setting pr_SegList or cli_Module before running loaded programs. Fixed in exec.c bootstrap.
+- [x] **Assembly bug in exceptions.s**: Line 123 had `move.w 0xffff, IDNestCnt(a6)` (reads from address 0xffff) instead of `move.w #0xffff, IDNestCnt(a6)` (immediate -1).
+- [x] **Register clobbering bug in _bootstrap**: GCC caches function pointers (like lprintf) in callee-saved registers A2-A5. External programs like BeckerText don't preserve these registers on return. Added `__asm__ __volatile__` register clobber after childfn() call to force GCC to reload registers.
+
+**Current Behavior**:
+- CreateProc successfully creates child process "BT-II" with seglist 0x00008f65
+- Child process MsgPort correctly returned
+- BeckerText main function returns rv=0
+- Application opens Workbench screen
+- Window titled "BECKERtext II" opens at position (170, 97) with size (300x62)
+- Window frame renders correctly
+
+**Remaining Issues**:
+- [ ] After main process exits, child process calls unimplemented exec function (assertion in _exec_unimplemented_call)
+- [ ] EMU_CALL_STOP sees other tasks running and calls RemTask(NULL) which may have issues
+- [ ] Memory access errors at 0xfffffffc area after task termination
 
 **Testing Requirements**:
-- [ ] Trace all library open/close sequences
-- [ ] Verify Workbench environment requirements
-- [ ] Test with various command-line arguments
-- [ ] Check for required configuration files
-- [ ] Test with different screen modes
-- [ ] Verify tooltypes/icon settings (if present)
+- [ ] Verify full window content renders (not just frame)
+- [ ] Test text editing functionality
+- [ ] Verify menu structure (if present)
+- [ ] Test file save/load operations
 
-**Implementation Tasks**:
-- [ ] Deep trace of initialization sequence
-- [ ] Identify why application decides to exit
-- [ ] Check for missing environment variables
-- [ ] Verify WBStartup vs CLI startup paths
-- [ ] Test with default Workbench screen open
-- [ ] Check for required assigns or paths
-- [ ] Verify icon.library integration
-- [ ] Test with various startup configurations
-
-**Success Criteria**: BeckerText II launches and displays text editor window
+**Success Criteria**: BeckerText II launches and displays fully functional text editor window
 
 ---
 
