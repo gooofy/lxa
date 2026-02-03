@@ -309,13 +309,13 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [ ] **ReadPixelLine8/WritePixelLine8** - Chunky pixel operations
 - [ ] **WriteChunkyPixels** - Fast chunky pixel writes
 - [ ] **ScrollRasterBF** - Backfill scrolling
+- [ ] **GELs system** - at least BOBs need to be emulated
+- [ ] **Display mode functions** (OpenMonitor, FindDisplayInfo, BestModeIDA)
+- [ ] **Blitter** (OwnBlitter, DisownBlitter, QBlit, QBSBlit) - software emulation or stubs as appropriate
 
 **Implementation Strategy - Priority 3 (Hardware/rarely used - can remain stubs):**
 - Copper functions (CBump, CMove, CWait, InitView, LoadView, MakeVPort, MrgCop, etc.) - hardware-specific
 - Hardware sprites (GetSprite, FreeSprite, ChangeSprite, MoveSprite, etc.) - not relevant for emulation
-- GELs system (AddBob, AddVSprite, Animate, etc.) - old animation system, rarely used
-- Display mode functions (OpenMonitor, FindDisplayInfo, BestModeIDA, etc.) - handled by host display
-- Blitter ownership (OwnBlitter, DisownBlitter, QBlit, QBSBlit) - no real blitter hardware
 
 **Required Tests:**
 - [ ] BitMap operations - AllocBitMap, FreeBitMap, depth, planes
