@@ -1148,9 +1148,16 @@ struct Node * _exec_RemHead ( register struct ExecBase *SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: RemHead called, list=0x%08lx\n", list);
 
-    assert (list);
+    /* Validate list pointer */
+    if (!list || (ULONG)list == 0xFFFFFFFF || (ULONG)list < 0x1000)
+        return NULL;
 
-    struct Node *node = list->lh_Head->ln_Succ;
+    /* Validate list head pointer - check for uninitialized/corrupt list */
+    struct Node *head = list->lh_Head;
+    if (!head || (ULONG)head == 0xFFFFFFFF || (ULONG)head < 0x400)
+        return NULL;
+
+    struct Node *node = head->ln_Succ;
     if (node)
     {
         node->ln_Pred = (struct Node *)list;
@@ -1166,10 +1173,16 @@ struct Node * _exec_RemTail ( register struct ExecBase * SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: RemTail called, list=0x%08lx\n", ___list);
 
-    assert (___list);
+    /* Validate list pointer */
+    if (!___list || (ULONG)___list == 0xFFFFFFFF || (ULONG)___list < 0x1000)
+        return NULL;
 
     /* Get the last node (TailPred points to it) */
     struct Node *node = ___list->lh_TailPred;
+
+    /* Validate node pointer - check for uninitialized/corrupt list */
+    if (!node || (ULONG)node == 0xFFFFFFFF || (ULONG)node < 0x400)
+        return NULL;
 
     /* Check if list is empty (TailPred points to list head sentinel) */
     if (node->ln_Pred == NULL)

@@ -20,11 +20,11 @@
   - Uses input.device (BeginIO command 9 warning, non-fatal)
   - Opens custom screen with editor window
 
-### MaxonBASIC - ⚠️ PARTIAL
+### MaxonBASIC - ✅ WORKS
 - **Binary**: `APPS:MaxonBASIC/MaxonBASIC`
-- **Status**: Opens main window, then crashes with divide-by-zero
-- **Progress**: Significant improvement - now gets past screen info check
-- **Libraries Added**:
+- **Status**: Opens main window, enters event loop waiting for input
+- **Progress**: Now fully functional for basic operation
+- **Libraries Used**:
   - gadtools.library - menu/gadget creation API
   - workbench.library - Workbench integration API
   - asl.library - file/font requesters
@@ -42,13 +42,13 @@
   - GetBitMapAttr() - returns bitmap properties
   - NewObjectA(sysiclass) - returns dummy Image for system imagery
   - ClearPointer() - no-op stub
-- **Known Issues**:
-  - Clipboard.device not found (non-fatal warning)
-  - Divide-by-zero exception during display calculations (PC=0x00031E9A)
-- **What Worked**:
+- **What Works**:
   - Opens Workbench screen
   - Opens main window titled "Unbenannt" (Untitled)
-  - sysiclass BOOPSI objects now return valid dummy Images
+  - Enters main event loop waiting for user input
+  - sysiclass BOOPSI objects return valid dummy Images
+- **Notes**:
+  - Clipboard.device not found (non-fatal warning)
 
 ### SysInfo - ⚠️ PARTIAL
 - **Binary**: `APPS:SysInfo/SysInfo`

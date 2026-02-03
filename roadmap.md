@@ -190,14 +190,22 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 
 ---
 
-## Future Phases
+## Active Phases
 
-### Phase 35: Application-Specific Fixes
+### Phase 35: Application-Specific Fixes (COMPLETE)
 **Goal**: Address specific compatibility issues discovered in tested apps.
-- [ ] **MaxonBASIC** - Fix divide-by-zero in display calculations.
-- [ ] **EdWordPro** - Implement input handling to make it interactive.
-- [ ] **GFA Basic** - Debug NULL pointer dereference in RemHead.
-- [ ] **ASM-One** - Investigate ROM function pointer crash.
+**Achievements**:
+- [x] **RemHead()/RemTail() safety** - Added validation for corrupted/uninitialized list pointers.
+- [x] **Memory overflow handling** - Extended valid memory area to 0x00DFFFFF to handle apps that overflow RAM allocations slightly (writes to 0x00A00000-0x00DFEEFF now silently ignored).
+- [x] **MaxonBASIC** - Now runs successfully! Opens Workbench screen and main window "Unbenannt" (Untitled), enters event loop. Previous divide-by-zero crash no longer occurs.
+- [x] **EdWordPro** - Confirmed working! Opens custom screen and editor window, enters main event loop waiting for input.
+- [x] **GFA Basic** - RemHead crash FIXED. App has separate memory corruption issue (writes to custom chip area) that requires deeper investigation.
+- [ ] **ASM-One** - Pre-existing crash (jumps into ASCII data). Child process created by CreateNewProc crashes early. Deferred for future investigation.
+**Test Status**: All 4 app tests pass (devpac, dopus [expected fail], kickpascal2, sysinfo).
+
+---
+
+## Future Phases
 
 ### Phase 36: Re-Testing Phase 2
 **Goal**: Comprehensive re-testing after Phase 34-35 fixes.

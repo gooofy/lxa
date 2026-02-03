@@ -471,6 +471,14 @@ static inline uint8_t mread8 (uint32_t address)
         /* Pseudo-Kickstart ROM area - return 0 (no ROM overlay present) */
         return 0;
     }
+    else if ((address >= 0x00A00000) && (address < CUSTOM_START))
+    {
+        /* RAM overflow area (10MB - just before custom chips at 0xDFF000) - some apps allocate
+         * to end of RAM and overflow into what would be expansion RAM, slow RAM, or CIA areas.
+         * Return 0 for reads in this area. */
+        DPRINTF (LOG_DEBUG, "lxa: mread8 RAM overflow area 0x%08x -> 0x00\n", address);
+        return 0;
+    }
     else if ((address >= 0x01000000) && (address <= 0x0FFFFFFF))
     {
         /* 16MB-256MB range - Zorro-III expansion area, return 0xFF (no expansion)
@@ -623,6 +631,13 @@ static inline void mwrite8 (uint32_t address, uint8_t value)
     {
         uint32_t addr = address - RAM_START;
         g_ram[addr] = value;
+    }
+    else if ((address >= 0x00A00000) && (address < CUSTOM_START))
+    {
+        /* RAM overflow area (10MB - just before custom chips at 0xDFF000) - some apps allocate
+         * to end of RAM and overflow into what would be expansion RAM, slow RAM, or CIA areas.
+         * Silently ignore these writes. */
+        DPRINTF (LOG_DEBUG, "lxa: mwrite8 RAM overflow area 0x%08x <- 0x%02x (ignored)\n", address, value);
     }
     else if ((address >= 0x01000000) && (address <= 0x0FFFFFFF))
     {
