@@ -29,16 +29,18 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Completed Phases Summary
 
-**Phases 1-39** have established a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries. The system supports multitasking, filesystem operations, windowing, graphics rendering, and runs real Amiga applications successfully.
+**Phases 1-39** have established a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries. The system supports multitasking, filesystem operations, windowing, graphics rendering, but **Phase 39 testing revealed serious rendering issues** that current tests don't catch.
 
 **Key Milestones:**
 - ✅ **Core System** (Phases 1-12): Exec multitasking, DOS filesystem, interactive Shell, 100+ commands, utility libraries
 - ✅ **Graphics & UI** (Phases 13-28): SDL2 integration, graphics.library, intuition.library, layers.library, console.device, BOOPSI
 - ✅ **Application Support** (Phases 26-35): Real-world app testing, library stubs, compatibility fixes, 10+ applications tested
 - ✅ **Library Completion** (Phases 36-38): exec.library 100% complete, graphics.library 90%+ complete, intuition.library 95%+ complete
-- ✅ **Re-Testing & Validation** (Phase 39): 75% app success rate (6/8), improved stability, regression tests confirmed
+- ⚠️ **Re-Testing & Validation** (Phase 39): Test infrastructure inadequate - manual testing reveals rendering bugs (GFA Basic 21px screen, Devpac empty window)
 
-**Current Version: v0.5.4** - All core libraries functional, 100% test pass rate, 75% real-world app compatibility.
+**Current Version: v0.5.4** - All core libraries functional, 100% integration test pass rate, but application rendering has critical issues.
+
+**CRITICAL**: Test infrastructure needs major upgrade (Phase 39b) before accurate compatibility assessment. Current "working" status is misleading.
 
 ---
 
@@ -115,44 +117,145 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Completed Phases (Recent)
 
-### Phase 39: Re-Testing Phase 2 (COMPLETE)
+### Phase 39: Re-Testing Phase 2 (COMPLETE - Issues Identified)
 **Goal**: Comprehensive re-testing after Phase 34-38 library completion fixes.
 
-**Status**: ✅ **COMPLETE** - All 8 applications tested, compatibility document updated.
+**Status**: ⚠️ **COMPLETE BUT FLAWED** - Testing infrastructure inadequate, superficial pass/fail insufficient.
 
-**Test Results**:
-- ✅ **KickPascal 2** - PASS (regression test confirmed)
-- ✅ **GFA Basic** - PASS (opens screen/window, runs successfully)
-- ✅ **MaxonBASIC** - PASS (opens Workbench and main window)
-- ✅ **SysInfo** - PASS (previously failing, now fixed!)
-- ✅ **Devpac** - PASS (previously crashing, now stable!)
-- ✅ **EdWordPro** - PASS (fully functional, enters event loop)
-- ⚠️ **BeckerText II** - PARTIAL (exits cleanly but no window, may need Workbench)
-- ❌ **Oberon 2** - FAILS (NULL pointer crash at startup, new app)
-- ✅ **COMPATIBILITY.md** - Updated with all Phase 39 results
+**Critical Finding**: Application tests only check for crashes, not correctness. Manual testing reveals serious issues:
+- **GFA Basic**: Opens screen but only **21 pixels tall** instead of full height (640x21 instead of 640x200+)
+- **Devpac**: Window opens but is **completely empty**, no title bar rendering, no content
+- **MaxonBASIC**: Opens Workbench (correct) but window functionality unknown
+- **EdWordPro**: Unknown if actually functional beyond opening windows
 
-**Success Rate**: 6/8 = 75% fully working, 7/8 = 87.5% stable (no crashes)
+**Test Infrastructure Problems**:
+1. No bitmap/screen content verification
+2. No visual rendering checks (titles, gadgets, text)
+3. No dimension validation (screen/window sizes)
+4. Only checks: does it crash? (insufficient)
+5. App tests use 60s timeout but don't verify what happened during that time
 
-**Key Achievements**:
-- SysInfo now works after Phase 36-38 fixes (previously crashed)
-- Devpac now stable after Phase 36-38 fixes (previously crashed)
-- Regression tests confirmed: KickPascal 2, GFA Basic, MaxonBASIC all still work
-- EdWordPro remains fully functional
-- Comprehensive compatibility documentation updated
-- Overall system stability greatly improved
+**Actual Status**:
+- ✅ **KickPascal 2** - No crash (actual functionality unknown)
+- ⚠️ **GFA Basic** - Opens but BROKEN (21px tall screen)
+- ⚠️ **Devpac** - Opens but BROKEN (empty window, no title rendering)
+- ✅ **SysInfo** - No crash (actual functionality unknown)
+- ⚠️ **MaxonBASIC** - Opens Workbench (window functionality unknown)
+- ⚠️ **EdWordPro** - Opens windows (actual functionality unknown)
+- ⚠️ **BeckerText II** - Exits cleanly but no window
+- ❌ **Oberon 2** - NULL pointer crash at startup
+
+**Required Follow-up**: Phases 39b (test infrastructure) and 40 (fix identified issues)
 
 ---
 
 ## Future Phases
 
-### Phase 40: IFF & Datatypes Support
+### Phase 39b: Enhanced Application Testing Infrastructure (NEW - CRITICAL)
+**Goal**: Build robust test infrastructure that validates actual application functionality, not just "doesn't crash".
+
+**Problem**: Current app tests are superficial - only check for crashes/timeouts. Manual testing revealed serious rendering and functionality issues that tests didn't catch (GFA Basic 21px screen, Devpac empty window).
+
+**Enhanced Test Infrastructure**:
+- [ ] **Bitmap Verification System**
+  - Capture screen/window bitmaps at key points during test
+  - Compare against expected bitmaps or verify dimensions/content
+  - Detect rendering failures (empty screens, missing titles, wrong sizes)
+  - Store reference images for regression testing
+  
+- [ ] **System Call Tracing**
+  - Log all OpenScreen/OpenWindow calls with full parameters
+  - Verify screen dimensions match expected values
+  - Verify window titles are set correctly
+  - Track Text() calls to verify content rendering
+  - Validate RastPort operations (drawing, text, colors)
+  
+- [ ] **State Validation**
+  - Check FirstScreen dimensions after OpenWorkBench
+  - Verify window structures have correct titles
+  - Validate gadget creation and attachment
+  - Check menu structures are properly built
+  
+- [ ] **Test Framework Updates**
+  - Add app_test_runner.sh validation hooks
+  - Create verification scripts for each app
+  - Define success criteria beyond "doesn't crash"
+  - Add screenshot comparison tools
+  - Generate detailed test reports
+
+**Implementation Tasks**:
+- [ ] Add bitmap capture to display.c (host side)
+- [ ] Create test validation library
+- [ ] Update app_test_runner.sh with validation support
+- [ ] Add screenshot comparison utility
+- [ ] Create test report generator
+
+### Phase 40: Fix Application Rendering Issues (NEW - HIGH PRIORITY)
+**Goal**: Fix the serious rendering and functionality issues identified in Phase 39 manual testing.
+
+**Critical Issues to Fix**:
+
+**1. GFA Basic - Screen Height Bug**
+- [ ] **Investigate**: Why OpenScreen creates 21px tall screen instead of full height
+  - Check NewScreen structure parsing in OpenScreen()
+  - Verify screen height calculation logic
+  - Check if GFA Basic expects different screen mode
+  - Review display mode handling for custom screens
+- [ ] **Fix**: Correct screen dimension calculation
+- [ ] **Test**: Verify GFA Basic screen is proper editor height (200+ pixels)
+- [ ] **Validate**: Check other apps don't break
+
+**2. Devpac - Window Rendering Bug**
+- [ ] **Investigate**: Why window opens but is completely empty
+  - Check if window title is being set correctly
+  - Verify window border/title bar rendering in display.c
+  - Check if text rendering to window is working
+  - Review gadget rendering (none visible)
+  - Check RastPort initialization for window
+- [ ] **Fix**: Ensure window title bar and borders render
+- [ ] **Fix**: Verify window content area is properly initialized
+- [ ] **Test**: Verify Devpac shows "Untitled" in title bar
+- [ ] **Test**: Check if window has visible borders and content area
+
+**3. MaxonBASIC - Verify Full Functionality**
+- [ ] **Test**: Check if menus are visible and clickable
+- [ ] **Test**: Verify window content renders correctly
+- [ ] **Test**: Check if gadgets are visible
+- [ ] **Investigate**: Any missing rendering or interaction
+
+**4. EdWordPro - Verify Full Functionality**
+- [ ] **Test**: Check if text can be entered
+- [ ] **Test**: Verify menus work
+- [ ] **Test**: Check if all windows render correctly
+- [ ] **Investigate**: Any missing functionality
+
+**5. KickPascal 2 - Deep Validation**
+- [ ] **Test**: Verify IDE interface is visible
+- [ ] **Test**: Check if menus and gadgets render
+- [ ] **Test**: Validate window content
+
+**Root Cause Analysis**:
+- [ ] Review OpenScreen() implementation for height calculation bugs
+- [ ] Review OpenWindow() for title bar rendering
+- [ ] Check display.c SDL rendering for window decorations
+- [ ] Verify RastPort initialization in window creation
+- [ ] Check Text() function for title bar rendering
+
+**Success Criteria**:
+- All applications render with correct screen dimensions
+- Window title bars visible and show correct titles
+- Window content areas properly initialized
+- All rendering issues identified and fixed
+- Enhanced tests catch these issues automatically
+
+### Phase 41: IFF & Datatypes Support
 - [ ] **iffparse.library** - Full implementation (if not done in Phase 33).
 - [ ] **datatypes.library** - Basic framework.
 
-### Phase 41: Advanced Console Features
+### Phase 42: Advanced Console Features
 - CONU_CHARMAP, RawKeyConvert, advanced CSI sequences.
 
-### Phase 42: BOOPSI & GadTools Visual Completion
+### Phase 43: BOOPSI & GadTools Visual Completion
 **Goal**: Complete visual rendering for BOOPSI gadgets and ASL requesters.
 - [ ] **GM_RENDER Implementation** - Full rendering for buttongclass, propgclass, strgclass.
   - Bevel boxes, 3D highlighting, text rendering
@@ -168,7 +271,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - Proportional gadget dragging
   - Keyboard shortcuts and tab cycling
 
-### Phase 43: Pixel Array Operations
+### Phase 44: Pixel Array Operations
 **Goal**: Implement optimized pixel array functions using AROS-style blitting infrastructure.
 
 **Background**: These functions were initially implemented using simple WritePixel() loops but caused crashes and infinite loops. AROS uses specialized `write_pixels_8()` helpers with optimized blitting that handle BitMap formats, layer integration, and memory operations properly.
@@ -197,13 +300,13 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [ ] Test with layer clipping
 - [ ] Performance tests (ensure no infinite loops)
 
-### Phase 44: Async I/O & Timer Completion
+### Phase 45: Async I/O & Timer Completion
 **Goal**: Implement proper asynchronous I/O for devices.
 - [ ] **timer.device Async** - TR_ADDREQUEST with proper delay queue and timeout handling.
 - [ ] **console.device Async** - Non-blocking reads with timeout support.
 - [ ] **Event Loop Integration** - Coordinate device async I/O with WaitPort/Wait().
 
-### Phase 45: Directory Opus Deep Dive
+### Phase 46: Directory Opus Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
 - [ ] **Stack Corruption Analysis** - Trace the source of stack corruption during DOpus cleanup.
 - [ ] **dopus.library Investigation** - Debug the bundled library's task cleanup routines.

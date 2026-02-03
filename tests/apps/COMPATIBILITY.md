@@ -2,42 +2,81 @@
 
 **Last Updated**: Phase 39 (February 2026) - Comprehensive re-testing after Phase 34-38 fixes
 
-## Phase 39 Test Results Summary
+**⚠️ CRITICAL**: Phase 39 testing was **superficial and inadequate**. Tests only checked for crashes, not actual functionality. Manual testing revealed serious rendering issues that automated tests didn't catch.
 
-Comprehensive re-testing of applications after Phase 34-38 library completion and fixes:
+## Phase 39 Test Results Summary - REVISED
 
-**✅ WORKING (6 apps):**
-- KickPascal 2 - PASS (regression test)
-- GFA Basic 2 - Opens screen/window successfully
-- MaxonBASIC - Opens Workbench and main window
-- SysInfo - PASS (previously failing, now fixed)
-- Devpac - PASS (previously crashing, now stable)
-- EdWordPro - Fully functional, opens windows and enters event loop
+**Initial automated assessment was WRONG.** Tests only verified "doesn't crash" which is insufficient.
+
+**Manual Testing Reveals Serious Issues**:
+
+**❌ BROKEN (2 apps with confirmed rendering bugs):**
+- GFA Basic - Opens screen but only **21 pixels tall** (640x21 instead of 640x200+)
+- Devpac - Window opens but **completely empty** (no title bar, no content)
+
+**⚠️ UNKNOWN (4 apps need deeper validation):**
+- KickPascal 2 - No crash but actual functionality unverified
+- MaxonBASIC - Opens Workbench but window rendering unverified
+- EdWordPro - Opens windows but actual functionality unverified  
+- SysInfo - No crash but actual functionality unverified
 
 **⚠️ PARTIAL (1 app):**
-- BeckerText II - Exits cleanly but no window opens (may need Workbench)
+- BeckerText II - Exits cleanly but no window opens
 
 **❌ FAILING (1 app):**
-- Oberon 2 - NULL pointer crash at startup (NEW)
+- Oberon 2 - NULL pointer crash at startup
 
-**Success Rate**: 6/8 = 75% fully working, 7/8 = 87.5% stable (no crashes)
+**Accurate Status**: Only 2/8 apps confirmed broken, 4/8 status genuinely unknown, 1/8 partial, 1/8 crash.
 
-**Key Improvements from Phase 34-38:**
-- SysInfo now works (previously crashed with 68030 instructions)
-- Devpac now stable (previously crashed during initialization)
-- All core libraries (exec, graphics, intuition) now feature-complete
-- Improved stability across all tested applications
+**Root Cause**: Test infrastructure only checks "exit code 0 or timeout" which is meaningless for GUI apps.
+
+**Required Actions**:
+1. **Phase 39b**: Build proper test infrastructure with bitmap/screen verification
+2. **Phase 40**: Fix identified rendering bugs (GFA screen height, Devpac window)
+3. Re-test ALL applications with enhanced verification
+
+## Test Infrastructure Issues (Discovered in Phase 39)
+
+**Current Problems**:
+1. ❌ No bitmap/screen content verification
+2. ❌ No visual rendering checks
+3. ❌ No dimension validation
+4. ❌ No title bar rendering checks
+5. ❌ Only checks: does it crash? (insufficient)
+6. ❌ 60s timeout doesn't verify what happened
+
+**What We Need** (Phase 39b):
+1. ✅ Bitmap capture and comparison
+2. ✅ Screen/window dimension validation
+3. ✅ Title text rendering verification
+4. ✅ System call tracing with parameter validation
+5. ✅ Success criteria beyond "doesn't crash"
+6. ✅ Screenshot-based regression testing
 
 ## Tested Applications
 
-### KickPascal 2 - ✅ WORKS
+### KickPascal 2 - ⚠️ UNKNOWN (Phase 39 - Needs Deeper Validation)
 - **Binary**: `APPS:KP2/KP`
-- **Status**: Window opens, IDE loads successfully
+- **Status**: No crash detected, but actual functionality unverified
 - **Test**: `tests/apps/kickpascal2`
+- **What We Know**: Test passes (no crash within timeout)
+- **What We Don't Know**: 
+  - Does IDE interface actually render?
+  - Are menus visible?
+  - Can user interact with it?
+  - Is window content displayed correctly?
+- **Required** (Phase 39b): Deep validation with screen verification
 
-### GFA Basic 2 - ✅ WORKS
+### GFA Basic 2 - ❌ BROKEN (Phase 39 - Rendering Bug Confirmed)
 - **Binary**: `APPS:GFABasic/gfabasic`
-- **Status**: Editor window opens, accepts input
+- **Status**: Opens screen but **WRONG DIMENSIONS** - only 21 pixels tall
+- **Critical Bug**: OpenScreen() creates 640x21 screen instead of proper editor height (640x200+)
+- **What Happens**:
+  - Application launches without crash
+  - Opens custom screen via OpenScreen()
+  - Screen is only **21 pixels tall** (unusable)
+  - Should be 200+ pixels for editor
+- **Why Tests Didn't Catch It**: Tests only check for crashes, not screen dimensions
 - **Functions Implemented**:
   - GetScreenData() - returns screen info
   - InitGels() - GEL system initialization (stub)
@@ -46,9 +85,12 @@ Comprehensive re-testing of applications after Phase 34-38 library completion an
   - Expanded memory region handling (Zorro-II/III, autoconfig)
 - **Notes**:
   - Uses input.device (BeginIO command 9 warning, non-fatal)
-  - Opens custom screen with editor window
   - Some custom chip register writes to 0x00FFFF* addresses (non-fatal)
-- **Phase 39 Results**: Opens screen and window successfully, continues running
+- **Fix Required** (Phase 40):
+  - Investigate OpenScreen() height calculation
+  - Check NewScreen structure parsing
+  - Verify display mode handling for custom screens
+  - Fix screen dimension calculation bug
 
 ### BeckerText II - ⚠️ PARTIAL (Phase 39 - NEW)
 - **Binary**: `APPS:BTII/BT-II`
@@ -74,10 +116,10 @@ Comprehensive re-testing of applications after Phase 34-38 library completion an
   - Debug to identify which library function is returning NULL
   - Likely missing or stubbed function that application expects to be valid
 
-### MaxonBASIC - ✅ WORKS
+### MaxonBASIC - ⚠️ UNKNOWN (Phase 39 - Needs Deeper Validation)
 - **Binary**: `APPS:MaxonBASIC/MaxonBASIC`
-- **Status**: Opens main window, enters event loop waiting for input
-- **Progress**: Now fully functional for basic operation
+- **Status**: Opens Workbench and window, but rendering/functionality unverified
+- **Progress**: Opens Workbench screen (640x256) and creates main window "Unbenannt"
 - **Libraries Used**:
   - gadtools.library - menu/gadget creation API
   - workbench.library - Workbench integration API
@@ -96,38 +138,61 @@ Comprehensive re-testing of applications after Phase 34-38 library completion an
   - GetBitMapAttr() - returns bitmap properties
   - NewObjectA(sysiclass) - returns dummy Image for system imagery
   - ClearPointer() - no-op stub
-- **What Works**:
-  - Opens Workbench screen
-  - Opens main window titled "Unbenannt" (Untitled)
-  - Enters main event loop waiting for user input
-  - sysiclass BOOPSI objects return valid dummy Images
-- **Notes**:
-  - Clipboard.device not found (non-fatal warning)
+- **What We Know**: 
+  - Opens Workbench correctly (640x256)
+  - Opens main window
+  - No crash detected
+- **What We Don't Know**:
+  - Are menus visible and functional?
+  - Does window content render?
+  - Are gadgets visible?
+  - Can user interact with it?
+- **Notes**: Clipboard.device not found (non-fatal warning)
+- **Required** (Phase 39b): Deep validation with screen/menu verification
 
-### SysInfo - ✅ WORKS (Phase 39)
+### SysInfo - ⚠️ UNKNOWN (Phase 39 - Needs Deeper Validation)
 - **Binary**: `APPS:SysInfo/SysInfo`
-- **Status**: Opens and runs successfully
+- **Status**: No crash detected, but actual functionality unverified
 - **Test**: `tests/apps/sysinfo`
-- **Phase 39 Results**: PASS - Application loads and executes without crashes
+- **What We Know**: Test passes (no crash, improved from earlier phases)
+- **What We Don't Know**:
+  - Does window render correctly?
+  - Is system information displayed?
+  - Are gadgets/buttons functional?
+- **Phase 39 Results**: No crash (improvement over previous phases)
+- **Required** (Phase 39b): Deep validation with content verification
 
-### Devpac (HiSoft) - ✅ WORKS (Phase 39)
+### Devpac (HiSoft) - ❌ BROKEN (Phase 39 - Rendering Bug Confirmed)
 - **Binary**: `APPS:Devpac/Devpac`
-- **Status**: Opens editor window "Untitled" and runs successfully
-- **Progress**:
-  - Opens Workbench screen ✓
-  - Opens editor window (640x245) titled "Untitled" ✓
-  - Runs without crashes ✓
+- **Status**: Opens window but **COMPLETELY EMPTY** - no title bar, no content
+- **Critical Bugs**:
+  - Window opens with correct dimensions (640x245)
+  - Window title "Untitled" is set but **NOT RENDERED**
+  - Window is **completely empty** - no visible title bar, borders, or content
+  - SDL window shows but is blank
+- **What Happens**:
+  - Opens Workbench screen (640x256) ✓
+  - Calls OpenWindow() with title="Untitled" ✓
+  - Window structure created correctly ✓
+  - But window appears empty on screen ✗
+- **Why Tests Didn't Catch It**: Tests only check for crashes, not window rendering
 - **Test**: `tests/apps/devpac`
-- **Phase 39 Results**: PASS - All previous issues resolved
+- **Fix Required** (Phase 40):
+  - Investigate window title bar rendering in display.c
+  - Check if Text() calls for title are executed
+  - Verify RastPort initialization for windows
+  - Check window border rendering
+  - Verify SDL rendering updates for window decorations
+- **Phase 39 Results**: Opens without crash but window is non-functional (empty)
 
-### EdWord Pro - ✅ WORKS (Phase 39)
+### EdWord Pro - ⚠️ UNKNOWN (Phase 39 - Needs Deeper Validation)
 - **Binary**: `APPS:EdWordPro/EdWordPro`
-- **Status**: Opens custom screen with editor window, enters main event loop
+- **Status**: Opens custom screen with windows, but functionality unverified
 - **Progress**:
   - Opens custom screen "EdWord Pro V6.0 - M.Reddy 1997" ✓
   - Opens main editing window (640x243) ✓
   - Opens message window "EdWord Pro Message" ✓
-  - Enters main event loop (waiting for input) ✓
+  - Enters event loop (no crash) ✓
 - **Functions Implemented**:
   - LockIBase() / UnlockIBase() - Intuition base locking (stubs)
   - ShowTitle() - screen title visibility (no-op)
@@ -142,7 +207,15 @@ Comprehensive re-testing of applications after Phase 34-38 library completion an
   - reqtools.library - file requesters
   - rexxsyslib.library - ARexx support
   - clipboard.device - copy/paste
-- **Phase 39 Results**: Fully functional - opens and runs until waiting for user input
+- **What We Know**:
+  - Opens screens and windows
+  - No crash detected
+- **What We Don't Know**:
+  - Can text be entered?
+  - Are menus functional?
+  - Does editing actually work?
+  - Are all windows rendering correctly?
+- **Required** (Phase 39b): Deep validation with interaction testing
 
 ### ASM-One v1.48 - ⚠️ PARTIAL
 - **Binary**: `APPS:ASM-One/ASM-One_V1.48`
