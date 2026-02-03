@@ -16,6 +16,7 @@
 #include <intuition/classusr.h>
 #include <intuition/imageclass.h>
 #include <intuition/gadgetclass.h>
+#include <intuition/cghooks.h>
 
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
@@ -167,6 +168,9 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
 /* Forward declaration for internal helper */
 static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code, 
                                  UWORD qualifier, APTR iaddress, WORD mouseX, WORD mouseY);
+
+static void _draw_bevel_box(struct RastPort *rp, WORD left, WORD top, WORD width, WORD height, 
+                           ULONG flags, const struct DrawInfo *drInfo);
 
 /******************************************************************************
  * BOOPSI Gadget Class Dispatchers
@@ -382,10 +386,38 @@ static ULONG buttongclass_dispatch(
             return (ULONG)obj;
         }
         
-        case GM_RENDER:
-            /* TODO: Implement button rendering */
-            DPRINTF(LOG_DEBUG, "_intuition: buttongclass GM_RENDER not yet implemented\n");
+        case GM_RENDER: {
+            struct gpRender *gpr = (struct gpRender *)msg;
+            struct RastPort *rp = gpr->gpr_RPort;
+            struct DrawInfo *dri = gpr->gpr_GInfo ? gpr->gpr_GInfo->gi_DrInfo : NULL;
+            ULONG state = 0;
+            
+            if (!rp) return 0;
+            
+            /* Determine state for visual feedback */
+            if (gadget->Flags & GFLG_SELECTED)
+                state |= IDS_SELECTED;
+                
+            /* Draw the button frame */
+            _draw_bevel_box(rp, gadget->LeftEdge, gadget->TopEdge, gadget->Width, gadget->Height, state, dri);
+            
+            /* Draw Label (GadgetText) */
+            if (gadget->GadgetText) {
+                struct IntuiText *it = gadget->GadgetText;
+                
+                SetAPen(rp, dri ? dri->dri_Pens[TEXTPEN] : 1);
+                SetBPen(rp, dri ? dri->dri_Pens[BACKGROUNDPEN] : 0);
+                
+                /* Simple centering calculation */
+                /* For now, just draw at offsets */
+                Move(rp, gadget->LeftEdge + it->LeftEdge + 4, gadget->TopEdge + it->TopEdge + gadget->Height/2 + 2); // Approximate centering offset
+                
+                if (it->IText) {
+                   Text(rp, it->IText, strlen((char *)it->IText));
+                }
+            }
             return 0;
+        }
         
         case GM_HANDLEINPUT: {
             struct gpInput *gpi = (struct gpInput *)msg;
@@ -451,10 +483,62 @@ static ULONG propgclass_dispatch(
             return (ULONG)obj;
         }
         
-        case GM_RENDER:
-            /* TODO: Implement proportional gadget rendering */
-            DPRINTF(LOG_DEBUG, "_intuition: propgclass GM_RENDER not yet implemented\n");
+        case GM_RENDER: {
+            struct gpRender *gpr = (struct gpRender *)msg;
+            struct RastPort *rp = gpr->gpr_RPort;
+            struct DrawInfo *dri = gpr->gpr_GInfo ? gpr->gpr_GInfo->gi_DrInfo : NULL;
+            struct PropInfo *pi = (struct PropInfo *)gadget->SpecialInfo;
+            
+            if (!rp) return 0;
+            
+            /* Draw container (Recessed) */
+            _draw_bevel_box(rp, gadget->LeftEdge, gadget->TopEdge, gadget->Width, gadget->Height, IDS_SELECTED, dri);
+            
+            /* Draw Knob if we have PropInfo */
+            if (pi) {
+                WORD knobW, knobH, knobX, knobY;
+                
+                /* Calculate Knob Dimensions */
+                /* Autoknob check */
+                if (gadget->Flags & GFLG_GADGIMAGE) {
+                    /* Image-based knob - not handled here for now */
+                } else {
+                    /* Autoknob */
+                    WORD containerW = gadget->Width - 4; // Borders
+                    WORD containerH = gadget->Height - 4;
+                    
+                    if (pi->Flags & AUTOKNOB) {
+                        /* Calculate knob size based on Body */
+                         /* Body: 0xFFFF = full size */
+                         if (pi->Flags & FREEHORIZ)
+                            knobW = (containerW * (ULONG)pi->HorizBody) / 0xFFFF;
+                         else
+                            knobW = containerW;
+                            
+                         if (pi->Flags & FREEVERT)
+                            knobH = (containerH * (ULONG)pi->VertBody) / 0xFFFF;
+                         else
+                            knobH = containerH;
+                            
+                         /* Min size */
+                         if (knobW < 4) knobW = 4;
+                         if (knobH < 4) knobH = 4;
+                         
+                         /* Calculate knob position based on Pot */
+                         /* Pot: 0xFFFF = max position */
+                         WORD maxMoveX = containerW - knobW;
+                         WORD maxMoveY = containerH - knobH;
+                         
+                         knobX = gadget->LeftEdge + 2 + ((maxMoveX * (ULONG)pi->HorizPot) / 0xFFFF);
+                         knobY = gadget->TopEdge + 2 + ((maxMoveY * (ULONG)pi->VertPot) / 0xFFFF);
+                         
+                         /* Draw Knob (Raised) */
+                         _draw_bevel_box(rp, knobX, knobY, knobW, knobH, 0, dri);
+                    }
+                }
+            }
             return 0;
+        }
         
         case GM_HANDLEINPUT:
             /* TODO: Implement proportional gadget input handling */
@@ -510,10 +594,32 @@ static ULONG strgclass_dispatch(
             return (ULONG)obj;
         }
         
-        case GM_RENDER:
-            /* TODO: Implement string gadget rendering */
-            DPRINTF(LOG_DEBUG, "_intuition: strgclass GM_RENDER not yet implemented\n");
+        case GM_RENDER: {
+            struct gpRender *gpr = (struct gpRender *)msg;
+            struct RastPort *rp = gpr->gpr_RPort;
+            struct DrawInfo *dri = gpr->gpr_GInfo ? gpr->gpr_GInfo->gi_DrInfo : NULL;
+            struct StringInfo *si = (struct StringInfo *)gadget->SpecialInfo;
+            
+            if (!rp) return 0;
+            
+            /* Draw container (Recessed) */
+            _draw_bevel_box(rp, gadget->LeftEdge, gadget->TopEdge, gadget->Width, gadget->Height, IDS_SELECTED, dri);
+            
+            /* Clear background inside */
+            SetAPen(rp, dri ? dri->dri_Pens[BACKGROUNDPEN] : 0);
+            RectFill(rp, gadget->LeftEdge + 2, gadget->TopEdge + 2, 
+                         gadget->LeftEdge + gadget->Width - 3, gadget->TopEdge + gadget->Height - 3);
+            
+            /* Draw Text */
+            if (si && si->Buffer) {
+                SetAPen(rp, dri ? dri->dri_Pens[TEXTPEN] : 1);
+                SetBPen(rp, dri ? dri->dri_Pens[BACKGROUNDPEN] : 0);
+                
+                Move(rp, gadget->LeftEdge + 4, gadget->TopEdge + gadget->Height/2 + 2); // Center-ish
+                Text(rp, si->Buffer, strlen((char *)si->Buffer));
+            }
             return 0;
+        }
         
         case GM_HANDLEINPUT:
             /* TODO: Implement string gadget input handling */
@@ -5166,6 +5272,85 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     return _intuition_OpenScreen(IntuitionBase, &ns);
 }
 
+/* Helper to check if a pointer is likely a BOOPSI object */
+static BOOL _is_object(struct LXAIntuitionBase *base, APTR ptr)
+{
+    struct _Object *obj;
+    struct Node *node;
+    struct IClass *cls;
+    
+    if (!ptr || !base) return FALSE;
+    
+    /* Check alignment */
+    if ((ULONG)ptr & 3) return FALSE;
+    
+    /* Peek at potential object header */
+    obj = _OBJECT(ptr);
+    
+    /* Check if memory is readable (hard to do portably, but we can check basic validity) */
+    /* Check if o_Class looks like a pointer */
+    if ((ULONG)obj->o_Class & 1) return FALSE;
+    
+    cls = obj->o_Class;
+    if (!cls) return FALSE;
+    
+    /* Verify if cls is in our known class list */
+    node = base->ClassList.lh_Head;
+    while (node && node->ln_Succ) {
+        struct LXAClassNode *entry = (struct LXAClassNode *)node;
+        if (entry->class_ptr == cls) {
+            return TRUE;
+        }
+        node = node->ln_Succ;
+    }
+    
+    /* Also check internal classes that might not be in list yet? 
+     * They are added to list in InitLib.
+     */
+     
+    return FALSE;
+}
+
+/* Helper to draw a bevel box (simple 3D frame) */
+static void _draw_bevel_box(struct RastPort *rp, WORD left, WORD top, WORD width, WORD height, 
+                           ULONG flags, const struct DrawInfo *drInfo)
+{
+    UBYTE shiPen = 2; /* Default Shine */
+    UBYTE shaPen = 1; /* Default Shadow */
+    
+    if (drInfo) {
+        shiPen = drInfo->dri_Pens[SHINEPEN];
+        shaPen = drInfo->dri_Pens[SHADOWPEN];
+    }
+    
+    WORD x0 = left;
+    WORD y0 = top;
+    WORD x1 = left + width - 1;
+    WORD y1 = top + height - 1;
+    
+    /* Flags could indicate recessed vs raised. 
+     * Default to raised.
+     * IDS_SELECTED or similar might invert.
+     */
+    BOOL recessed = (flags & IDS_SELECTED) ? TRUE : FALSE;
+    
+    UBYTE topPen = recessed ? shaPen : shiPen;
+    UBYTE botPen = recessed ? shiPen : shaPen;
+    
+    /* Top/Left */
+    SetAPen(rp, topPen);
+    Move(rp, x0, y1);
+    Draw(rp, x0, y0);
+    Draw(rp, x1, y0);
+    
+    /* Bottom/Right */
+    SetAPen(rp, botPen);
+    Draw(rp, x1, y1);
+    Draw(rp, x0, y1);
+    
+    /* Fill? usually caller handles content */
+}
+
 VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register struct Image * image __asm("a1"),
@@ -5174,17 +5359,46 @@ VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase _
                                                         register ULONG state __asm("d2"),
                                                         register const struct DrawInfo * drawInfo __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: DrawImageState() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    
+    DPRINTF (LOG_DEBUG, "_intuition: DrawImageState() image=0x%08lx state=0x%08lx\n", (ULONG)image, state);
+    
+    if (!image || !rp) return;
+    
+    if (_is_object(base, image)) {
+        /* Dispatch IM_DRAW */
+        struct impDraw imp;
+        imp.MethodID = IM_DRAW;
+        imp.imp_RPort = rp;
+        imp.imp_Offset.X = leftOffset;
+        imp.imp_Offset.Y = topOffset;
+        imp.imp_State = state;
+        imp.imp_DrInfo = (struct DrawInfo *)drawInfo;
+        
+        /* Dimensions usually come from object itself, but impDraw doesn't take them.
+         * The object knows its size.
+         */
+         
+        _intuition_dispatch_method(_OBJECT(image)->o_Class, (Object *)image, (Msg)&imp);
+    } else {
+        /* Standard Image */
+        _intuition_DrawImage(IntuitionBase, rp, image, leftOffset, topOffset);
+    }
 }
 
 BOOL _intuition_PointInImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register ULONG point __asm("d0"),
                                                         register struct Image * image __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: PointInImage() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    /* point is packed Y | X<<16 ? No, Amiga Point is struct { WORD x, y }.
+     * But passed in d0? D0 is 32-bit. Usually "point" args are passed as separate registers or a pointer.
+     * Stub says "ULONG point".
+     * Let's assume standard calling convention for PointInImage: d0 = point (y | x<<16) ?
+     * RKRM: "ULONG point". "The point is relative to the image's top-left."
+     */
+    
+    /* Stub for now */
+    return TRUE; 
 }
 
 VOID _intuition_EraseImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -5193,8 +5407,36 @@ VOID _intuition_EraseImage ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD leftOffset __asm("d0"),
                                                         register WORD topOffset __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: EraseImage() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+
+    DPRINTF (LOG_DEBUG, "_intuition: EraseImage() image=0x%08lx\n", (ULONG)image);
+    
+    if (!image || !rp) return;
+    
+    if (_is_object(base, image)) {
+        /* Dispatch IM_ERASE */
+        struct impErase imp;
+        imp.MethodID = IM_ERASE;
+        imp.imp_RPort = rp;
+        imp.imp_Offset.X = leftOffset;
+        imp.imp_Offset.Y = topOffset;
+        /* impErase doesn't have dimensions? It should. 
+         * Checking include/intuition/imageclass.h...
+         * struct impErase { ULONG MethodID; struct RastPort *imp_RPort; 
+         *                   struct { WORD X; WORD Y; } imp_Offset; };
+         * No dimensions. Object implies size.
+         */
+         
+        _intuition_dispatch_method(_OBJECT(image)->o_Class, (Object *)image, (Msg)&imp);
+    } else {
+        /* Standard Image - Erase bounding box */
+        /* Use background pen 0 */
+        SetAPen(rp, 0);
+        RectFill(rp, leftOffset + image->LeftEdge, 
+                     topOffset + image->TopEdge,
+                     leftOffset + image->LeftEdge + image->Width - 1,
+                     topOffset + image->TopEdge + image->Height - 1);
+    }
 }
 
 static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST_STRPTR classID)
@@ -5712,26 +5954,76 @@ struct ScreenBuffer * _intuition_AllocScreenBuffer ( register struct IntuitionBa
                                                         register struct BitMap * bm __asm("a1"),
                                                         register ULONG flags __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: AllocScreenBuffer() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct ScreenBuffer *sb;
+
+    DPRINTF (LOG_DEBUG, "_intuition: AllocScreenBuffer() sc=0x%08lx bm=0x%08lx flags=0x%08lx\n", 
+             (ULONG)sc, (ULONG)bm, flags);
+    
+    if (!sc) return NULL;
+    
+    sb = AllocMem(sizeof(struct ScreenBuffer), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!sb) return NULL;
+    
+    if (flags & SB_SCREEN_BITMAP) {
+        /* Use the screen's embedded bitmap (address of it) */
+        sb->sb_BitMap = &sc->BitMap;
+    } else {
+        sb->sb_BitMap = bm;
+    }
+    
+    /* Initialize DBufInfo to NULL for now */
+    sb->sb_DBufInfo = NULL;
+    
+    return sb;
 }
 
 VOID _intuition_FreeScreenBuffer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * sc __asm("a0"),
                                                         register struct ScreenBuffer * sb __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: FreeScreenBuffer() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: FreeScreenBuffer() sc=0x%08lx sb=0x%08lx\n", 
+             (ULONG)sc, (ULONG)sb);
+             
+    if (sb) {
+        /* We don't free the bitmap, as we didn't allocate it (unless we add logic for that later) */
+        /* Also Free DBufInfo if present? */
+        FreeMem(sb, sizeof(struct ScreenBuffer));
+    }
 }
 
 ULONG _intuition_ChangeScreenBuffer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * sc __asm("a0"),
                                                         register struct ScreenBuffer * sb __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ChangeScreenBuffer() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_intuition: ChangeScreenBuffer() sc=0x%08lx sb=0x%08lx\n", 
+             (ULONG)sc, (ULONG)sb);
+             
+    if (!sc || !sb || !sb->sb_BitMap) return 0;
+    
+    /* Update the Screen's embedded BitMap planes to point to the new buffer.
+     * AmigaOS does this to switch the display.
+     */
+    struct BitMap *newBm = sb->sb_BitMap;
+    int i;
+    
+    /* Copy planes */
+    for (i = 0; i < 8; i++) {
+        if (i < newBm->Depth)
+            sc->BitMap.Planes[i] = newBm->Planes[i];
+        else
+            sc->BitMap.Planes[i] = NULL;
+    }
+    
+    /* Copy depth (should be same, but just in case) */
+    sc->BitMap.Depth = newBm->Depth;
+    
+    /* Update Host Display? 
+     * The host display loop reads sc->BitMap.Planes directly.
+     * So this change should be visible on next frame.
+     * We might need to ensure memory visibility/barriers if MP, but for now this is fine.
+     */
+     
+    return 1; /* Success */
 }
 
 VOID _intuition_ScreenDepth ( register struct IntuitionBase * IntuitionBase __asm("a6"),

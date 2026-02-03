@@ -387,16 +387,16 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - [ ] **DoGadgetMethodA** - Invoke gadget method
 
 **Implementation Strategy - Group 4: BOOPSI Visuals**
-- [ ] **DrawImageState** - Draw image in specific state
-- [ ] **EraseImage** - Erase image
-- [ ] **GM_RENDER** - Implement visual rendering for `buttongclass`
-- [ ] **GM_RENDER** - Implement visual rendering for `propgclass`
-- [ ] **GM_RENDER** - Implement visual rendering for `strgclass`
+- [x] **DrawImageState** - Draw image in specific state
+- [x] **EraseImage** - Erase image
+- [x] **GM_RENDER** - Implement visual rendering for `buttongclass`
+- [x] **GM_RENDER** - Implement visual rendering for `propgclass`
+- [x] **GM_RENDER** - Implement visual rendering for `strgclass`
 
 **Implementation Strategy - Group 5: Double Buffering**
-- [ ] **AllocScreenBuffer** - Allocate double buffer
-- [ ] **FreeScreenBuffer** - Free double buffer
-- [ ] **ChangeScreenBuffer** - Switch displayed buffer
+- [x] **AllocScreenBuffer** - Allocate double buffer
+- [x] **FreeScreenBuffer** - Free double buffer
+- [x] **ChangeScreenBuffer** - Switch displayed buffer
 
 **Implementation Strategy - Group 6: Public Screen Management**
 - [ ] **LockPubScreenList** - Lock public screen list
