@@ -101,6 +101,7 @@ extern struct Resident *__lxa_asl_ROMTag;
 extern struct Resident *__lxa_commodities_ROMTag;
 extern struct Resident *__lxa_rexxsyslib_ROMTag;
 extern struct Resident *__lxa_iffparse_ROMTag;
+extern struct Resident *__lxa_datatypes_ROMTag;
 extern struct Resident *__lxa_reqtools_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 extern struct Resident *__lxa_console_ROMTag;
@@ -4667,6 +4668,7 @@ void coldstart (void)
                       registerBuiltInLib (sizeof(struct Library), __lxa_commodities_ROMTag);
                       registerBuiltInLib (sizeof(struct RxsLib) , __lxa_rexxsyslib_ROMTag );
                       registerBuiltInLib (sizeof(struct Library), __lxa_iffparse_ROMTag  );
+                      registerBuiltInLib (sizeof(struct Library), __lxa_datatypes_ROMTag );
                       registerBuiltInLib (sizeof(struct Library), __lxa_reqtools_ROMTag  );
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in libraries\n");

@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.5.7** | **41 Phases Complete** | **32 Integration Tests Passing**
+**Version: 0.5.8** | **42 Phases Complete** | **33 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -69,7 +69,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - ✅ **Phase 39b**: Enhanced test infrastructure (bitmap capture, validation API, screenshot comparison)
 - ✅ **Phase 40**: Fixed GFA Basic screen height bug (21px→256px), verified Devpac rendering pipeline
 
-### IFF & Datatypes (Phase 41)
+### IFF & Datatypes (Phases 41-42)
 - ✅ **Phase 41**: iffparse.library full implementation
   - AllocIFF, FreeIFF, InitIFFasDOS
   - OpenIFF, CloseIFF with read/write modes
@@ -78,24 +78,26 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
   - ParseIFF with IFFPARSE_SCAN and IFFPARSE_RAWSTEP
   - GoodID, GoodType, IDtoStr validation functions
   - CurrentChunk, ParentChunk navigation
+- ✅ **Phase 42**: datatypes.library (Basic Framework)
+  - NewDTObjectA, DisposeDTObject - create and destroy datatype objects
+  - GetDTAttrsA, SetDTAttrsA - get and set object attributes
+  - ObtainDataTypeA, ReleaseDataType - datatype descriptor management
+  - Basic datatypesclass BOOPSI class with OM_NEW, OM_DISPOSE, OM_SET, OM_GET
+  - Support for DTA_TopVert, DTA_TotalVert and other scroll attributes
+  - GetDTString for localized error messages
+  - AddDTObject, RemoveDTObject for window integration
+  - RefreshDTObjectA, DoAsyncLayout, DoDTMethodA for rendering
+  - GetDTMethods, GetDTTriggerMethods for method queries
 
 ---
 
 ## Active Phase
 
-*No active phase. Ready for Phase 42.*
+*No active phase. Ready for Phase 43.*
 
 ---
 
 ## Future Phases
-
-### Phase 42: Datatypes Library (Basic Framework)
-**Goal**: Implement basic datatypes framework for picture/text handling.
-
-- [ ] **datatypes.library** - Basic framework
-  - NewDTObjectA, DisposeDTObject
-  - GetDTAttrsA, SetDTAttrsA
-  - Basic picture datatype support
 
 ### Phase 43: Advanced Console Features
 **Goal**: Complete console.device with remaining features.
@@ -152,6 +154,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.5.8 | 42 | datatypes.library basic framework |
 | 0.5.7 | 41 | iffparse.library full implementation |
 | 0.5.6 | 40 | GFA Basic height fix, Devpac rendering verified |
 | 0.5.5 | 39b | Test validation infrastructure |

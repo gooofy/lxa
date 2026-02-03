@@ -1,0 +1,35 @@
+datatypes.library basic test
+PASS: Opened datatypes.library version 40.1
+
+Testing ObtainDataType...
+PASS: ObtainDataTypeA succeeded, dt=0x00024fb4
+PASS: DataType has header
+  GroupID: 0x70696374
+  Name: Picture
+  BaseName: picture
+
+Testing ReleaseDataType...
+PASS: ReleaseDataType succeeded
+
+Testing NewDTObjectA...
+PASS: NewDTObjectA succeeded, obj=0x00025068
+
+Testing GetDTAttrsA...
+PASS: GetDTAttrsA succeeded
+  TopVert: 0
+  TotalVert: 0
+
+Testing SetDTAttrsA...
+PASS: SetDTAttrsA succeeded
+PASS: Set attributes verified
+  TopVert: 10 (expected 10)
+  TotalVert: 100 (expected 100)
+
+Testing GetDTString...
+PASS: GetDTString succeeded
+  DTERROR_UNKNOWN_DATATYPE: Unknown data type
+
+Testing DisposeDTObject...
+PASS: DisposeDTObject succeeded
+
+All tests PASSED!
