@@ -424,6 +424,8 @@ static void RebuildClipRects(struct Layer *layer)
     }
 
     layer->ClipRect = visible;
+    
+    DPRINTF(LOG_DEBUG, "_layers: RebuildClipRects() done, ClipRect=0x%08lx\n", (ULONG)layer->ClipRect);
 }
 
 /*

@@ -4610,13 +4610,121 @@ int op_illg(int level)
 
         case EMU_CALL_TEST_COMPARE_SCREEN:
         {
-            /* Compare screen to a reference image (not yet implemented).
+            /* Compare screen to a reference image.
              * Input:  a0 = pointer to reference filename
-             *         d1 = display handle (0 for default)
              * Output: d0 = similarity percentage (0-100), or -1 on error
              */
-            DPRINTF(LOG_WARNING, "EMU_CALL_TEST_COMPARE_SCREEN not yet implemented\n");
-            m68k_set_reg(M68K_REG_D0, (uint32_t)-1);
+            uint32_t filename_ptr = m68k_get_reg(NULL, M68K_REG_A0);
+            char filename[256];
+            
+            /* Copy filename from 68k memory */
+            int i;
+            for (i = 0; i < (int)sizeof(filename) - 1; i++)
+            {
+                char c = (char)m68k_read_memory_8(filename_ptr + i);
+                if (c == '\0')
+                    break;
+                filename[i] = c;
+            }
+            filename[i] = '\0';
+            
+            int similarity = display_compare_to_reference(filename);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)similarity);
+            break;
+        }
+
+        /* Phase 39b: Validation emucalls */
+        case 4113:  /* EMU_CALL_TEST_GET_SCREEN_DIMS */
+        {
+            /* Get active screen dimensions.
+             * Output: d0 = (depth << 16) | 1 on success, 0 on failure
+             *         d1 = (width << 16) | height
+             */
+            int width, height, depth;
+            if (display_get_active_dimensions(&width, &height, &depth))
+            {
+                m68k_set_reg(M68K_REG_D0, ((uint32_t)depth << 16) | 1);
+                m68k_set_reg(M68K_REG_D1, ((uint32_t)width << 16) | (uint16_t)height);
+            }
+            else
+            {
+                m68k_set_reg(M68K_REG_D0, 0);
+                m68k_set_reg(M68K_REG_D1, 0);
+            }
+            break;
+        }
+
+        case 4114:  /* EMU_CALL_TEST_GET_CONTENT */
+        {
+            /* Get number of non-background pixels on active screen.
+             * Output: d0 = pixel count, or -1 if no screen
+             */
+            int content = display_get_content_pixels();
+            m68k_set_reg(M68K_REG_D0, (uint32_t)content);
+            break;
+        }
+
+        case 4115:  /* EMU_CALL_TEST_GET_REGION */
+        {
+            /* Get non-background pixels in a screen region.
+             * Input:  d1 = (x << 16) | y
+             *         d2 = (width << 16) | height
+             * Output: d0 = pixel count, or -1 on error
+             */
+            uint32_t pos = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t dims = m68k_get_reg(NULL, M68K_REG_D2);
+            int x = (int16_t)((pos >> 16) & 0xFFFF);
+            int y = (int16_t)(pos & 0xFFFF);
+            int width = (int16_t)((dims >> 16) & 0xFFFF);
+            int height = (int16_t)(dims & 0xFFFF);
+            
+            int content = display_get_region_content(x, y, width, height);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)content);
+            break;
+        }
+
+        case 4116:  /* EMU_CALL_TEST_GET_WIN_COUNT */
+        {
+            /* Get number of open windows.
+             * Output: d0 = window count
+             */
+            int count = display_get_window_count();
+            m68k_set_reg(M68K_REG_D0, (uint32_t)count);
+            break;
+        }
+
+        case 4117:  /* EMU_CALL_TEST_GET_WIN_DIMS */
+        {
+            /* Get window dimensions by index.
+             * Input:  d1 = window index
+             * Output: d0 = 1 on success, 0 on failure
+             *         d1 = (width << 16) | height
+             */
+            int index = (int)m68k_get_reg(NULL, M68K_REG_D1);
+            int width, height;
+            
+            if (display_get_window_dimensions(index, &width, &height))
+            {
+                m68k_set_reg(M68K_REG_D0, 1);
+                m68k_set_reg(M68K_REG_D1, ((uint32_t)width << 16) | (uint16_t)height);
+            }
+            else
+            {
+                m68k_set_reg(M68K_REG_D0, 0);
+                m68k_set_reg(M68K_REG_D1, 0);
+            }
+            break;
+        }
+
+        case 4118:  /* EMU_CALL_TEST_GET_WIN_CONTENT */
+        {
+            /* Get non-background pixels in a window.
+             * Input:  d1 = window index
+             * Output: d0 = pixel count, or -1 on error
+             */
+            int index = (int)m68k_get_reg(NULL, M68K_REG_D1);
+            int content = display_get_window_content(index);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)content);
             break;
         }
 
@@ -5305,7 +5413,7 @@ int main(int argc, char **argv, char **envp)
                 for (uint32_t i = 0; i < depth && i < 8; i++)
                 {
                     uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
-                    if (plane_addr)
+                    if (plane_addr && plane_addr < RAM_SIZE)
                     {
                         planes[i] = (const uint8_t *)&g_ram[plane_addr];
                     }

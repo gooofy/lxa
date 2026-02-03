@@ -1716,6 +1716,10 @@ bool display_event_queue_empty(void)
  */
 bool display_capture_screen(display_t *display, const char *filename)
 {
+    /* If no display specified, use the active display */
+    if (!display)
+        display = g_active_display;
+    
     if (!display || !filename)
         return false;
     
@@ -1809,4 +1813,253 @@ bool display_capture_window(display_window_t *window, const char *filename)
             window->width, window->height, filename);
     
     return true;
+}
+
+/*
+ * ============================================================================
+ * Phase 39b: Enhanced Application Testing Infrastructure
+ * ============================================================================
+ */
+
+/*
+ * Get the dimensions of the active display.
+ * Returns true if a display is active, false otherwise.
+ */
+bool display_get_active_dimensions(int *width, int *height, int *depth)
+{
+    if (!g_active_display)
+        return false;
+    
+    if (width)  *width  = g_active_display->width;
+    if (height) *height = g_active_display->height;
+    if (depth)  *depth  = g_active_display->depth;
+    
+    return true;
+}
+
+/*
+ * Check if the active display has non-empty content.
+ * Returns the number of pixels that differ from the background color (index 0).
+ * Returns -1 if no display is active.
+ */
+int display_get_content_pixels(void)
+{
+    if (!g_active_display || !g_active_display->pixels)
+        return -1;
+    
+    int count = 0;
+    int total = g_active_display->width * g_active_display->height;
+    
+    for (int i = 0; i < total; i++)
+    {
+        if (g_active_display->pixels[i] != 0)
+            count++;
+    }
+    
+    return count;
+}
+
+/*
+ * Check if a rectangular region of the display has content.
+ * Useful for validating that specific areas (like title bars) have been drawn.
+ *
+ * @param x, y        Top-left corner of region
+ * @param width       Width of region to check
+ * @param height      Height of region to check
+ * @return Number of non-background pixels in region, or -1 on error
+ */
+int display_get_region_content(int x, int y, int width, int height)
+{
+    if (!g_active_display || !g_active_display->pixels)
+        return -1;
+    
+    /* Clamp region to display bounds */
+    if (x < 0) { width += x; x = 0; }
+    if (y < 0) { height += y; y = 0; }
+    if (x + width > g_active_display->width)
+        width = g_active_display->width - x;
+    if (y + height > g_active_display->height)
+        height = g_active_display->height - y;
+    
+    if (width <= 0 || height <= 0)
+        return -1;
+    
+    int count = 0;
+    for (int row = y; row < y + height; row++)
+    {
+        for (int col = x; col < x + width; col++)
+        {
+            if (g_active_display->pixels[row * g_active_display->width + col] != 0)
+                count++;
+        }
+    }
+    
+    return count;
+}
+
+/*
+ * Get the number of open rootless windows.
+ */
+int display_get_window_count(void)
+{
+    int count = 0;
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (g_windows[i].in_use)
+            count++;
+    }
+    return count;
+}
+
+/*
+ * Get dimensions of a rootless window by index.
+ * @param index   Window index (0-based)
+ * @param width   Output: window width (can be NULL)
+ * @param height  Output: window height (can be NULL)
+ * @return true if window exists at index
+ */
+bool display_get_window_dimensions(int index, int *width, int *height)
+{
+    int found = 0;
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (g_windows[i].in_use)
+        {
+            if (found == index)
+            {
+                if (width)  *width  = g_windows[i].width;
+                if (height) *height = g_windows[i].height;
+                return true;
+            }
+            found++;
+        }
+    }
+    return false;
+}
+
+/*
+ * Check if a rootless window has content.
+ * @param index  Window index (0-based)
+ * @return Number of non-background pixels, or -1 if window not found
+ */
+int display_get_window_content(int index)
+{
+    int found = 0;
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (g_windows[i].in_use)
+        {
+            if (found == index)
+            {
+                display_window_t *win = &g_windows[i];
+                if (!win->pixels)
+                    return -1;
+                
+                int count = 0;
+                int total = win->width * win->height;
+                for (int j = 0; j < total; j++)
+                {
+                    if (win->pixels[j] != 0)
+                        count++;
+                }
+                return count;
+            }
+            found++;
+        }
+    }
+    return -1;
+}
+
+/*
+ * Compare the active display to a reference PPM file.
+ * Returns a similarity percentage (0-100), or -1 on error.
+ *
+ * @param reference_file  Path to reference PPM file
+ * @return Similarity percentage (0-100), or -1 on error
+ */
+int display_compare_to_reference(const char *reference_file)
+{
+    if (!g_active_display || !g_active_display->pixels || !reference_file)
+        return -1;
+    
+    FILE *f = fopen(reference_file, "rb");
+    if (!f)
+    {
+        LPRINTF(LOG_WARNING, "display: cannot open reference file '%s'\n", reference_file);
+        return -1;
+    }
+    
+    /* Read PPM header */
+    char magic[3];
+    int ref_width, ref_height, max_val;
+    if (fscanf(f, "%2s %d %d %d", magic, &ref_width, &ref_height, &max_val) != 4)
+    {
+        LPRINTF(LOG_WARNING, "display: invalid PPM header in '%s'\n", reference_file);
+        fclose(f);
+        return -1;
+    }
+    
+    if (magic[0] != 'P' || magic[1] != '6')
+    {
+        LPRINTF(LOG_WARNING, "display: reference file is not P6 PPM format\n");
+        fclose(f);
+        return -1;
+    }
+    
+    /* Skip single whitespace after header */
+    fgetc(f);
+    
+    /* Check dimensions match */
+    if (ref_width != g_active_display->width || ref_height != g_active_display->height)
+    {
+        LPRINTF(LOG_WARNING, "display: reference dimensions (%dx%d) don't match display (%dx%d)\n",
+                ref_width, ref_height, g_active_display->width, g_active_display->height);
+        fclose(f);
+        return -1;
+    }
+    
+    /* Compare pixels */
+    int matching_pixels = 0;
+    int total_pixels = ref_width * ref_height;
+    
+    for (int y = 0; y < ref_height; y++)
+    {
+        for (int x = 0; x < ref_width; x++)
+        {
+            uint8_t ref_rgb[3];
+            if (fread(ref_rgb, 1, 3, f) != 3)
+            {
+                LPRINTF(LOG_WARNING, "display: unexpected end of reference file\n");
+                fclose(f);
+                return -1;
+            }
+            
+            /* Get current display pixel */
+            uint8_t idx = g_active_display->pixels[y * ref_width + x];
+            uint32_t color = g_active_display->palette[idx];
+            uint8_t disp_r = (color >> 16) & 0xFF;
+            uint8_t disp_g = (color >> 8) & 0xFF;
+            uint8_t disp_b = color & 0xFF;
+            
+            /* Consider a match if colors are close (tolerance of 8) */
+            int dr = (int)ref_rgb[0] - (int)disp_r;
+            int dg = (int)ref_rgb[1] - (int)disp_g;
+            int db = (int)ref_rgb[2] - (int)disp_b;
+            
+            if (dr < 0) dr = -dr;
+            if (dg < 0) dg = -dg;
+            if (db < 0) db = -db;
+            
+            if (dr <= 8 && dg <= 8 && db <= 8)
+                matching_pixels++;
+        }
+    }
+    
+    fclose(f);
+    
+    int similarity = (matching_pixels * 100) / total_pixels;
+    LPRINTF(LOG_INFO, "display: comparison result: %d%% similarity (%d/%d pixels match)\n",
+            similarity, matching_pixels, total_pixels);
+    
+    return similarity;
 }

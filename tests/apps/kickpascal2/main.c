@@ -271,16 +271,39 @@ int main(void)
         print("\n");
     }
 
-    /* ========== Test 4: Close the window ========== */
-    print("\n--- Test 4: Close KP2 window ---\n");
+    /* ========== Test 4: Validate screen dimensions ========== */
+    print("\n--- Test 4: Validate screen dimensions ---\n");
     
-    if (kp_window || windows_after > initial_windows) {
-        /* TODO: Use INJECT_MOUSE to click close gadget */
-        /* For now, we just verify the window exists */
-        print("Note: Window close test not yet implemented\n");
-        print("OK: Window verification complete\n");
+    /* Use Phase 39b validation API to check screen */
+    {
+        WORD width, height, depth;
+        if (test_get_screen_dimensions(&width, &height, &depth)) {
+            print_num("  Screen width:  ", width, "\n");
+            print_num("  Screen height: ", height, "\n");
+            print_num("  Screen depth:  ", depth, "\n");
+            
+            /* Validate screen is reasonable size (catches GFA Basic 21px bug) */
+            if (height < 100) {
+                print("FAIL: Screen height too small (< 100)\n");
+                errors++;
+            } else if (width < 320) {
+                print("FAIL: Screen width too small (< 320)\n");
+                errors++;
+            } else {
+                print("OK: Screen dimensions are valid\n");
+            }
+        } else {
+            print("Note: No active screen found\n");
+        }
+    }
+
+    /* ========== Test 5: Capture screenshot ========== */
+    print("\n--- Test 5: Capture screenshot ---\n");
+    
+    if (test_capture_screen("/tmp/kickpascal2_test.ppm")) {
+        print("OK: Screenshot captured to /tmp/kickpascal2_test.ppm\n");
     } else {
-        print("SKIP: No window to close\n");
+        print("Note: Screenshot capture not available\n");
     }
 
 cleanup:

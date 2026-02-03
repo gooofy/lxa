@@ -199,7 +199,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Phase 22 In Progress** - Console Device & Input Handling
+**Version 0.5.6** - Phase 40 Complete (Application Rendering Fixes)
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

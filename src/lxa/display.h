@@ -427,4 +427,65 @@ bool display_capture_window(display_window_t *window, const char *filename);
  */
 bool display_event_queue_empty(void);
 
+/*
+ * Phase 39b: Enhanced Application Testing Infrastructure
+ *
+ * These functions provide validation capabilities for testing
+ * that applications render correctly, not just that they don't crash.
+ */
+
+/*
+ * Get the dimensions of the active display.
+ * @param width   Output: display width (can be NULL)
+ * @param height  Output: display height (can be NULL)
+ * @param depth   Output: display depth (can be NULL)
+ * @return true if a display is active
+ */
+bool display_get_active_dimensions(int *width, int *height, int *depth);
+
+/*
+ * Check if the active display has non-empty content.
+ * Returns the number of pixels that differ from the background color (index 0).
+ * @return Number of non-background pixels, or -1 if no display
+ */
+int display_get_content_pixels(void);
+
+/*
+ * Check if a rectangular region of the display has content.
+ * @param x, y        Top-left corner of region
+ * @param width       Width of region to check
+ * @param height      Height of region to check
+ * @return Number of non-background pixels in region, or -1 on error
+ */
+int display_get_region_content(int x, int y, int width, int height);
+
+/*
+ * Get the number of open rootless windows.
+ * @return Number of active windows
+ */
+int display_get_window_count(void);
+
+/*
+ * Get dimensions of a rootless window by index.
+ * @param index   Window index (0-based)
+ * @param width   Output: window width (can be NULL)
+ * @param height  Output: window height (can be NULL)
+ * @return true if window exists at index
+ */
+bool display_get_window_dimensions(int index, int *width, int *height);
+
+/*
+ * Check if a rootless window has content.
+ * @param index  Window index (0-based)
+ * @return Number of non-background pixels, or -1 if window not found
+ */
+int display_get_window_content(int index);
+
+/*
+ * Compare the active display to a reference PPM file.
+ * @param reference_file  Path to reference PPM file
+ * @return Similarity percentage (0-100), or -1 on error
+ */
+int display_compare_to_reference(const char *reference_file);
+
 #endif /* HAVE_DISPLAY_H */

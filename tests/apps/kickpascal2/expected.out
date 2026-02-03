@@ -15,9 +15,14 @@ OK: KickPascal window found!
 OK: KickPascal window opened successfully
   Window title: Kickpascal
 
---- Test 4: Close KP2 window ---
-Note: Window close test not yet implemented
-OK: Window verification complete
+--- Test 4: Validate screen dimensions ---
+  Screen width:  640
+  Screen height: 256
+  Screen depth:  2
+OK: Screen dimensions are valid
+
+--- Test 5: Capture screenshot ---
+OK: Screenshot captured to /tmp/kickpascal2_test.ppm
 
 === Test Results ===
 PASS: KickPascal 2 launch test passed

@@ -32,6 +32,17 @@
 
 #include "util.h"
 
+/*
+ * Minimum usable screen/window height threshold.
+ * When applications pass suspiciously small height values (< 50 pixels),
+ * we expand them to the display mode's default height. This handles older
+ * apps that relied on ViewModes-based height expansion (e.g., GFA Basic).
+ */
+#define MIN_USABLE_HEIGHT 50
+
+/* LACE flag for interlaced display modes */
+#define LACE_FLAG 0x0004
+
 extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
 extern struct UtilityBase *UtilityBase;
@@ -2846,6 +2857,41 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         height = 256;
     if (depth == 0)
         depth = 2;
+    
+    /*
+     * Handle ViewModes-based height expansion.
+     * 
+     * On real Amigas, when ViewModes specifies a display mode but the height
+     * is suspiciously small (less than MIN_USABLE_HEIGHT), the system would use
+     * the display mode's standard height instead.
+     * 
+     * Standard heights (PAL):
+     * - Non-interlaced: 256 lines
+     * - Interlaced (LACE): 512 lines
+     * 
+     * Many older applications relied on this behavior (e.g., GFA Basic).
+     */
+    if (height < MIN_USABLE_HEIGHT)
+    {
+        UWORD viewModes = newScreen->ViewModes;
+        UWORD defaultHeight;
+        
+        /* Determine standard height based on ViewModes */
+        if (viewModes & LACE_FLAG)
+        {
+            /* Interlaced mode: 512 lines (PAL) */
+            defaultHeight = 512;
+        }
+        else
+        {
+            /* Non-interlaced: 256 lines (PAL) */
+            defaultHeight = 256;
+        }
+        
+        LPRINTF(LOG_INFO, "_intuition: OpenScreen() height %d < %d, expanding to %d based on ViewModes 0x%04x\n",
+                (int)height, MIN_USABLE_HEIGHT, (int)defaultHeight, (unsigned)viewModes);
+        height = defaultHeight;
+    }
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() %dx%dx%d\n",
              (int)width, (int)height, (int)depth);
@@ -3057,8 +3103,14 @@ static void _render_window_frame(struct Window *window)
     struct Gadget *gad;
     UBYTE detPen, blkPen, shiPen, shaPen;
     
+    LPRINTF(LOG_INFO, "_intuition: _render_window_frame() window=0x%08lx RPort=0x%08lx\n", 
+            (ULONG)window, window ? (ULONG)window->RPort : 0);
+    
     if (!window || !window->RPort)
+    {
+        LPRINTF(LOG_WARNING, "_intuition: _render_window_frame() aborting - null window or RPort\n");
         return;
+    }
     
     rp = window->RPort;
     
@@ -3282,6 +3334,27 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         width = screen->Width - newWindow->LeftEdge;
     if (height == 0)
         height = screen->Height - newWindow->TopEdge;
+    
+    /*
+     * Expand windows that appear to be sized for an unreasonably small screen.
+     * 
+     * When a screen's height was expanded (see OpenScreen height expansion logic),
+     * windows that were sized to fill that small screen should also be expanded.
+     * This handles cases where apps like GFA Basic used very small NewScreen heights
+     * that got expanded, but the window dimensions still reference the old values.
+     *
+     * Heuristic: If the window is positioned at (0,y) and its height is very small
+     * while the screen height is normal, expand the window to fill the screen vertically.
+     */
+    if (newWindow->LeftEdge == 0 && 
+        width == screen->Width && height < MIN_USABLE_HEIGHT &&
+        screen->Height >= MIN_USABLE_HEIGHT)
+    {
+        WORD newHeight = screen->Height - newWindow->TopEdge;
+        LPRINTF(LOG_INFO, "_intuition: OpenWindow() window height %d < %d, expanding to %d\n",
+                (int)height, MIN_USABLE_HEIGHT, (int)newHeight);
+        height = newHeight;
+    }
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() %dx%d at (%d,%d) flags=0x%08lx\n",
              (int)width, (int)height, (int)newWindow->LeftEdge, (int)newWindow->TopEdge,

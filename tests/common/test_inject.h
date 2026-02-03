@@ -2,9 +2,11 @@
  * test_inject.h - UI Test Infrastructure Helpers
  *
  * Phase 21: UI Testing Infrastructure
+ * Phase 39b: Enhanced Application Testing Infrastructure
  *
  * This header provides functions for injecting input events and
- * capturing screen output from m68k test programs.
+ * capturing screen output from m68k test programs, as well as
+ * validation functions for testing application rendering.
  */
 
 #ifndef TEST_INJECT_H
@@ -15,15 +17,22 @@
 /*
  * Emucall definitions for test infrastructure (4100-4199 range)
  */
-#define EMU_CALL_TEST_INJECT_KEY     4100
-#define EMU_CALL_TEST_INJECT_STRING  4101
-#define EMU_CALL_TEST_INJECT_MOUSE   4102
-#define EMU_CALL_TEST_CAPTURE_SCREEN 4110
-#define EMU_CALL_TEST_CAPTURE_WINDOW 4111
-#define EMU_CALL_TEST_COMPARE_SCREEN 4112
-#define EMU_CALL_TEST_SET_HEADLESS   4120
-#define EMU_CALL_TEST_GET_HEADLESS   4121
-#define EMU_CALL_TEST_WAIT_IDLE      4122
+#define EMU_CALL_TEST_INJECT_KEY        4100
+#define EMU_CALL_TEST_INJECT_STRING     4101
+#define EMU_CALL_TEST_INJECT_MOUSE      4102
+#define EMU_CALL_TEST_CAPTURE_SCREEN    4110
+#define EMU_CALL_TEST_CAPTURE_WINDOW    4111
+#define EMU_CALL_TEST_COMPARE_SCREEN    4112
+/* Phase 39b: Validation emucalls */
+#define EMU_CALL_TEST_GET_SCREEN_DIMS   4113
+#define EMU_CALL_TEST_GET_CONTENT       4114
+#define EMU_CALL_TEST_GET_REGION        4115
+#define EMU_CALL_TEST_GET_WIN_COUNT     4116
+#define EMU_CALL_TEST_GET_WIN_DIMS      4117
+#define EMU_CALL_TEST_GET_WIN_CONTENT   4118
+#define EMU_CALL_TEST_SET_HEADLESS      4120
+#define EMU_CALL_TEST_GET_HEADLESS      4121
+#define EMU_CALL_TEST_WAIT_IDLE         4122
 
 /*
  * Display event types for mouse injection
@@ -297,6 +306,215 @@ static inline BOOL test_inject_return(void)
 static inline BOOL test_inject_backspace(void)
 {
     return test_inject_keypress(RAWKEY_BACKSPACE, 0);
+}
+
+/*
+ * ============================================================================
+ * Phase 39b: Validation Functions
+ * ============================================================================
+ */
+
+/*
+ * Get the dimensions of the active screen/display.
+ *
+ * @param width   Output: screen width (can be NULL)
+ * @param height  Output: screen height (can be NULL)
+ * @param depth   Output: screen depth (can be NULL)
+ * @return TRUE if screen is active, FALSE otherwise
+ */
+static inline BOOL test_get_screen_dimensions(WORD *width, WORD *height, WORD *depth)
+{
+    ULONG result;
+    ULONG dims_out;
+    __asm volatile (
+        "move.l %2, d0\n"
+        "illegal\n"
+        "move.l d0, %0\n"
+        "move.l d1, %1\n"
+        : "=r" (result), "=r" (dims_out)
+        : "i" (EMU_CALL_TEST_GET_SCREEN_DIMS)
+        : "d0", "d1"
+    );
+    if (result)
+    {
+        /* dims_out: high word = width, low word = height */
+        /* result: high word = depth (if >0) */
+        if (width)  *width  = (WORD)((dims_out >> 16) & 0xFFFF);
+        if (height) *height = (WORD)(dims_out & 0xFFFF);
+        if (depth)  *depth  = (WORD)((result >> 16) & 0xFFFF);
+    }
+    return (BOOL)(result != 0);
+}
+
+/*
+ * Get the number of non-background pixels on the active screen.
+ * Useful for detecting if anything has been rendered.
+ *
+ * @return Number of non-background pixels, or -1 if no screen
+ */
+static inline LONG test_get_content_pixels(void)
+{
+    LONG result;
+    __asm volatile (
+        "move.l %1, d0\n"
+        "illegal\n"
+        "move.l d0, %0\n"
+        : "=r" (result)
+        : "i" (EMU_CALL_TEST_GET_CONTENT)
+        : "d0"
+    );
+    return result;
+}
+
+/*
+ * Get the number of non-background pixels in a screen region.
+ *
+ * @param x, y        Top-left corner of region
+ * @param width       Width of region
+ * @param height      Height of region
+ * @return Number of non-background pixels in region, or -1 on error
+ */
+static inline LONG test_get_region_content(WORD x, WORD y, WORD width, WORD height)
+{
+    LONG result;
+    ULONG pos = ((ULONG)(UWORD)x << 16) | (ULONG)(UWORD)y;
+    ULONG dims = ((ULONG)(UWORD)width << 16) | (ULONG)(UWORD)height;
+    __asm volatile (
+        "move.l %1, d0\n"
+        "move.l %2, d1\n"
+        "move.l %3, d2\n"
+        "illegal\n"
+        "move.l d0, %0\n"
+        : "=r" (result)
+        : "i" (EMU_CALL_TEST_GET_REGION),
+          "r" (pos),
+          "r" (dims)
+        : "d0", "d1", "d2"
+    );
+    return result;
+}
+
+/*
+ * Get the number of open windows.
+ *
+ * @return Number of open windows
+ */
+static inline LONG test_get_window_count(void)
+{
+    LONG result;
+    __asm volatile (
+        "move.l %1, d0\n"
+        "illegal\n"
+        "move.l d0, %0\n"
+        : "=r" (result)
+        : "i" (EMU_CALL_TEST_GET_WIN_COUNT)
+        : "d0"
+    );
+    return result;
+}
+
+/*
+ * Get the dimensions of a window by index.
+ *
+ * @param index   Window index (0-based)
+ * @param width   Output: window width (can be NULL)
+ * @param height  Output: window height (can be NULL)
+ * @return TRUE if window exists, FALSE otherwise
+ */
+static inline BOOL test_get_window_dimensions(LONG index, WORD *width, WORD *height)
+{
+    ULONG result;
+    ULONG dims_out;
+    __asm volatile (
+        "move.l %2, d0\n"
+        "move.l %3, d1\n"
+        "illegal\n"
+        "move.l d0, %0\n"
+        "move.l d1, %1\n"
+        : "=r" (result), "=r" (dims_out)
+        : "i" (EMU_CALL_TEST_GET_WIN_DIMS),
+          "r" ((ULONG)index)
+        : "d0", "d1"
+    );
+    if (result)
+    {
+        if (width)  *width  = (WORD)((dims_out >> 16) & 0xFFFF);
+        if (height) *height = (WORD)(dims_out & 0xFFFF);
+    }
+    return (BOOL)(result != 0);
+}
+
+/*
+ * Get the number of non-background pixels in a window.
+ *
+ * @param index  Window index (0-based)
+ * @return Number of non-background pixels, or -1 if window not found
+ */
+static inline LONG test_get_window_content(LONG index)
+{
+    LONG result;
+    __asm volatile (
+        "move.l %1, d0\n"
+        "move.l %2, d1\n"
+        "illegal\n"
+        "move.l d0, %0\n"
+        : "=r" (result)
+        : "i" (EMU_CALL_TEST_GET_WIN_CONTENT),
+          "r" ((ULONG)index)
+        : "d0", "d1"
+    );
+    return result;
+}
+
+/*
+ * Compare the active screen to a reference PPM file.
+ *
+ * @param filename  Path to reference PPM file
+ * @return Similarity percentage (0-100), or -1 on error
+ */
+static inline LONG test_compare_screen(const char *filename)
+{
+    LONG result;
+    __asm volatile (
+        "move.l %1, d0\n"
+        "move.l %2, a0\n"
+        "illegal\n"
+        "move.l d0, %0\n"
+        : "=r" (result)
+        : "i" (EMU_CALL_TEST_COMPARE_SCREEN),
+          "r" (filename)
+        : "d0", "a0"
+    );
+    return result;
+}
+
+/*
+ * Validation helper: Check if screen dimensions are valid.
+ * Useful for detecting issues like the GFA Basic 21px screen bug.
+ *
+ * @param min_width   Minimum expected width
+ * @param min_height  Minimum expected height
+ * @return TRUE if dimensions meet requirements
+ */
+static inline BOOL test_validate_screen_size(WORD min_width, WORD min_height)
+{
+    WORD width, height, depth;
+    if (!test_get_screen_dimensions(&width, &height, &depth))
+        return FALSE;
+    return (width >= min_width && height >= min_height);
+}
+
+/*
+ * Validation helper: Check if screen has meaningful content.
+ * Returns FALSE if screen appears empty (< threshold pixels).
+ *
+ * @param min_pixels  Minimum non-background pixels to consider "has content"
+ * @return TRUE if screen has content above threshold
+ */
+static inline BOOL test_validate_screen_has_content(LONG min_pixels)
+{
+    LONG content = test_get_content_pixels();
+    return (content >= min_pixels);
 }
 
 #endif /* TEST_INJECT_H */
