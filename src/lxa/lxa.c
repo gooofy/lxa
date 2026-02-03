@@ -203,6 +203,126 @@ typedef struct lock_entry_s {
 
 static lock_entry_t g_locks[MAX_LOCKS];
 
+/*
+ * Phase 45: Async Timer Queue
+ *
+ * We maintain a list of pending timer requests from timer.device.
+ * Each entry stores the m68k IORequest pointer and the absolute wake time.
+ * The main loop checks this queue and completes requests when they expire.
+ */
+#define MAX_TIMER_REQUESTS 64
+
+typedef struct timer_request_s {
+    bool in_use;
+    bool expired;             /* Set to true when timer has expired */
+    uint32_t ioreq_ptr;       /* m68k pointer to IORequest */
+    uint64_t wake_time_us;    /* Absolute wake time in microseconds since epoch */
+} timer_request_t;
+
+static timer_request_t g_timer_queue[MAX_TIMER_REQUESTS];
+
+/* Get current time in microseconds since epoch */
+static uint64_t _timer_get_time_us(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec * 1000000ULL + (uint64_t)tv.tv_usec;
+}
+
+/* Add a timer request to the queue.
+ * The delay is specified as seconds + microseconds from NOW.
+ */
+static bool _timer_add_request(uint32_t ioreq_ptr, uint32_t delay_secs, uint32_t delay_micros)
+{
+    /* Compute absolute wake time by adding delay to current host time */
+    uint64_t now = _timer_get_time_us();
+    uint64_t delay_us = (uint64_t)delay_secs * 1000000ULL + (uint64_t)delay_micros;
+    uint64_t wake_time_us = now + delay_us;
+    
+    DPRINTF(LOG_DEBUG, "lxa: _timer_add_request: ioreq=0x%08x delay=%u.%06u now=%" PRIu64 " wake=%" PRIu64 "\n",
+            ioreq_ptr, delay_secs, delay_micros, now, wake_time_us);
+    
+    for (int i = 0; i < MAX_TIMER_REQUESTS; i++) {
+        if (!g_timer_queue[i].in_use) {
+            g_timer_queue[i].in_use = true;
+            g_timer_queue[i].expired = false;
+            g_timer_queue[i].ioreq_ptr = ioreq_ptr;
+            g_timer_queue[i].wake_time_us = wake_time_us;
+            return true;
+        }
+    }
+    
+    DPRINTF(LOG_ERROR, "lxa: _timer_add_request: queue full!\n");
+    return false;
+}
+
+/* Remove a timer request from the queue */
+static bool _timer_remove_request(uint32_t ioreq_ptr)
+{
+    DPRINTF(LOG_DEBUG, "lxa: _timer_remove_request: ioreq=0x%08x\n", ioreq_ptr);
+    
+    for (int i = 0; i < MAX_TIMER_REQUESTS; i++) {
+        if (g_timer_queue[i].in_use && g_timer_queue[i].ioreq_ptr == ioreq_ptr) {
+            g_timer_queue[i].in_use = false;
+            return true;
+        }
+    }
+    return false;
+}
+
+/* Check and mark expired timer requests
+ * This is called from the main emulation loop.
+ * It only marks timers as expired - the actual ReplyMsg() is done from the
+ * m68k side via the _timer_VBlankHook() function.
+ */
+static int _timer_check_expired(void)
+{
+    uint64_t now = _timer_get_time_us();
+    int expired_count = 0;
+    
+    for (int i = 0; i < MAX_TIMER_REQUESTS; i++) {
+        if (g_timer_queue[i].in_use && !g_timer_queue[i].expired) {
+            uint64_t wake_time = g_timer_queue[i].wake_time_us;
+            DPRINTF(LOG_DEBUG, "lxa: _timer_check_expired: [%d] now=%" PRIu64 " wake=%" PRIu64 " diff=%lld\n", 
+                    i, now, wake_time, (long long)(wake_time - now));
+            
+            if (wake_time <= now) {
+                DPRINTF(LOG_DEBUG, "lxa: _timer_check_expired: ioreq=0x%08x marking as expired\n", 
+                        g_timer_queue[i].ioreq_ptr);
+            
+                /* Mark as expired - it will be retrieved by EMU_CALL_TIMER_GET_EXPIRED */
+                g_timer_queue[i].expired = true;
+                expired_count++;
+            }
+        }
+    }
+    
+    return expired_count;
+}
+
+/* Get the next expired timer request.
+ * Returns the m68k IORequest pointer and marks the entry as no longer in use.
+ * Returns 0 if no expired timers are available.
+ */
+static uint32_t _timer_get_expired(void)
+{
+    for (int i = 0; i < MAX_TIMER_REQUESTS; i++) {
+        if (g_timer_queue[i].in_use && g_timer_queue[i].expired) {
+            uint32_t ioreq = g_timer_queue[i].ioreq_ptr;
+            
+            DPRINTF(LOG_DEBUG, "lxa: _timer_get_expired: returning ioreq=0x%08x\n", ioreq);
+            
+            /* Mark as no longer in use */
+            g_timer_queue[i].in_use = false;
+            g_timer_queue[i].expired = false;
+            
+            return ioreq;
+        }
+    }
+    
+    return 0;
+}
+
 /* Amiga DOS protection flag bits */
 #define FIBF_DELETE     (1<<0)  /* File is deletable */
 #define FIBF_EXECUTE    (1<<1)  /* File is executable */
@@ -4395,6 +4515,67 @@ int op_illg(int level)
         }
 
         /*
+         * Timer device emucalls (Phase 45)
+         * These manage the host-side timer queue for async TR_ADDREQUEST.
+         */
+        case EMU_CALL_TIMER_ADD:
+        {
+            /* Add a timer request to the host-side queue.
+             * d1 = ioreq pointer (68k)
+             * d2 = delay seconds
+             * d3 = delay microseconds
+             * Returns: d0 = 1 on success, 0 on failure
+             */
+            uint32_t ioreq = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t secs = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t micros = m68k_get_reg(NULL, M68K_REG_D3);
+            
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_TIMER_ADD ioreq=0x%08x delay=%u.%06u\n",
+                    ioreq, secs, micros);
+            
+            bool success = _timer_add_request(ioreq, secs, micros);
+            m68k_set_reg(M68K_REG_D0, success ? 1 : 0);
+            break;
+        }
+        
+        case EMU_CALL_TIMER_REMOVE:
+        {
+            /* Remove a timer request from the queue (for AbortIO).
+             * d1 = ioreq pointer (68k)
+             * Returns: d0 = 1 if found and removed, 0 if not found
+             */
+            uint32_t ioreq = m68k_get_reg(NULL, M68K_REG_D1);
+            
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_TIMER_REMOVE ioreq=0x%08x\n", ioreq);
+            
+            bool success = _timer_remove_request(ioreq);
+            m68k_set_reg(M68K_REG_D0, success ? 1 : 0);
+            break;
+        }
+        
+        case EMU_CALL_TIMER_CHECK:
+        {
+            /* Check for expired timers and mark them.
+             * This is called from the m68k side (e.g., in VBlank handler).
+             * Returns: d0 = number of expired timers marked
+             */
+            int count = _timer_check_expired();
+            m68k_set_reg(M68K_REG_D0, (uint32_t)count);
+            break;
+        }
+
+        case EMU_CALL_TIMER_GET_EXPIRED:
+        {
+            /* Get the next expired timer IORequest.
+             * Returns: d0 = ioreq pointer (m68k), or 0 if none available
+             */
+            uint32_t ioreq = _timer_get_expired();
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_TIMER_GET_EXPIRED -> 0x%08x\n", ioreq);
+            m68k_set_reg(M68K_REG_D0, ioreq);
+            break;
+        }
+
+        /*
          * Console device emucalls
          */
         case EMU_CALL_CON_READ:
@@ -5415,6 +5596,13 @@ int main(int argc, char **argv, char **envp)
             }
 
             display_refresh_all();
+
+            /*
+             * Phase 45: Check for expired timer requests.
+             * This processes the host-side timer queue and signals completion
+             * for any requests whose wake time has passed.
+             */
+            _timer_check_expired();
 
             if ((g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK))
             {

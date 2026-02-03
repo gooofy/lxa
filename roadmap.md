@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.0** | **44 Phases Complete** | **36 Integration Tests Passing**
+**Version: 0.6.1** | **45 Phases In Progress** | **37 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -110,18 +110,22 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Active Phase
 
-*No active phase. Ready for Phase 45.*
+### Phase 45: Async I/O & Timer Completion (In Progress)
+**Goal**: Implement proper asynchronous I/O for devices.
+
+- [x] **timer.device Async** - TR_ADDREQUEST with delay queue and VBlank-driven expiration
+  - Host-side timer queue (64 pending requests)
+  - EMU_CALL_TIMER_ADD/REMOVE/CHECK/GET_EXPIRED emucalls
+  - VBlank hook integration for timer checking
+  - Proper ReplyMsg() from m68k side to wake waiting tasks
+  - AbortIO support for timer cancellation
+  - Integration test: devices/timer_async
+- [ ] **console.device Async** - Non-blocking reads with pending queue
+- [ ] **Event Loop Integration** - Coordinate async I/O with WaitPort/Wait()
 
 ---
 
 ## Future Phases
-
-### Phase 45: Async I/O & Timer Completion
-**Goal**: Implement proper asynchronous I/O for devices.
-
-- [ ] **timer.device Async** - TR_ADDREQUEST with delay queue and timeouts
-- [ ] **console.device Async** - Non-blocking reads with timeout
-- [ ] **Event Loop Integration** - Coordinate async I/O with WaitPort/Wait()
 
 ### Phase 46: Directory Opus Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
@@ -149,6 +153,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.1 | 45 | timer.device async (TR_ADDREQUEST delay queue, VBlank hook, AbortIO) |
 | 0.6.0 | 44 | BOOPSI visual completion (propgclass, strgclass input), GadTools DrawBevelBoxA, ASL FileRequester GUI, ROM size 512KB |
 | 0.5.9 | 43 | console.device advanced features (CONU_CHARMAP, RawKeyConvert, scrolling regions) |
 | 0.5.8 | 42 | datatypes.library basic framework |

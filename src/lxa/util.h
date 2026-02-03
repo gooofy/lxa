@@ -39,7 +39,7 @@ void  vlprintf (int level, const char *format, va_list ap);
 
 #define CPRINTF(...) do { lprintf (LOG_INFO, __VA_ARGS__); } while (0)
 
-//#define ENABLE_DEBUG
+// #define ENABLE_DEBUG
 
 #ifdef ENABLE_DEBUG
 #define DPRINTF(lvl, ...) LPRINTF (lvl, __VA_ARGS__)

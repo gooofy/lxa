@@ -197,6 +197,10 @@ _handleIRQ3:
     /* This ensures IDCMP messages are delivered even when app doesn't use WaitTOF */
     jsr         __intuition_VBlankInputHook
 
+    /* Process expired timer requests via Timer hook */
+    /* This calls ReplyMsg() for expired timers, properly waking up waiting tasks */
+    jsr         __timer_VBlankHook
+
     move.l      4, a6                               | restore a6 (C call may have changed it)
 
     /* count down current task's time slice */

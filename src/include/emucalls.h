@@ -126,6 +126,17 @@
 #define EMU_CALL_INT_GET_ROOTLESS  3028  /* Get rootless mode: () -> bool */
 
 /*
+ * Timer Device emucalls (3500-3599)
+ *
+ * Phase 45: Async I/O & Timer Completion
+ * These emucalls manage the host-side timer queue for TR_ADDREQUEST.
+ */
+#define EMU_CALL_TIMER_ADD         3500  /* Add timer request: d1=ioreq_ptr, d2=delay_secs, d3=delay_micros -> success */
+#define EMU_CALL_TIMER_REMOVE      3501  /* Remove timer request: d1=ioreq_ptr -> success */
+#define EMU_CALL_TIMER_CHECK       3502  /* Check expired timers: () -> count */
+#define EMU_CALL_TIMER_GET_EXPIRED 3503  /* Get next expired timer: () -> ioreq_ptr or 0 */
+
+/*
  * Console Device emucalls (4000-4099)
  */
 #define EMU_CALL_CON_READ          4000  /* Read from console: (buf, len) -> bytes_read (-1 if no data yet) */
