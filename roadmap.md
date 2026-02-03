@@ -301,7 +301,7 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 - ClipBlit() provides simplified implementation; advanced overlap detection deferred to Priority 2
 
 **Implementation Strategy - Priority 2 (Nice to have):**
-- [x] **DrawEllipse** - Ellipse drawing using midpoint algorithm (IMPLEMENTED - tests needed)
+- [x] **DrawEllipse** - Ellipse drawing using midpoint algorithm ✅ TESTED
 - [x] **AreaEllipse** - Ellipse for area fill operations (IMPLEMENTED - tests needed)
 - [x] **PolyDraw** - Polyline drawing (IMPLEMENTED) ✅ TESTED
 - [x] **Flood** - Flood fill (IMPLEMENTED) ✅ TESTED
@@ -315,19 +315,21 @@ investigation of the application's internal cleanup routines. Deferred to Phase 
 
 **Recent Progress (v0.5.1):**
 - ✅ Implemented 5 Priority 2 functions:
-  - **DrawEllipse** - Full midpoint ellipse algorithm with degenerate case handling (point, line, ellipse)
+  - **DrawEllipse** - Full midpoint ellipse algorithm with degenerate case handling (point, line, ellipse) ✅ TESTED
   - **AreaEllipse** - Ellipse outline tracing for area filling operations with four-quadrant support
-  - **PolyDraw** - Connected polyline drawing from coordinate array
-  - **Flood** - Scan-line flood fill with two modes (outline/color), requires TmpRas, stack-based queue
-  - **BltPattern** - Pattern blitting with mask support using BltTemplate
+  - **PolyDraw** - Connected polyline drawing from coordinate array ✅ TESTED
+  - **Flood** - Scan-line flood fill with two modes (outline/color), requires TmpRas, stack-based queue ✅ TESTED
+  - **BltPattern** - Pattern blitting with mask support using BltTemplate ✅ TESTED
 - ✅ Improved **InitRastPort** - Added explicit NULL initialization for all pointer fields (Layer, BitMap, Font, etc.)
 - ✅ New tests:
+  - `tests/graphics/draw_ellipse/` - DrawEllipse() testing (circle, ellipse variants, degenerate cases) ✅ PASSES
   - `tests/graphics/polydraw/` - PolyDraw() testing (squares, single points, zero count) ✅ PASSES
   - `tests/graphics/flood/` - Flood() testing (empty fill, mode 1, boundary, error handling) ✅ PASSES
   - `tests/graphics/bltpattern/` - BltPattern() testing (solid fill, masks, checkerboard) ✅ PASSES
+- 🐛 **Fixed critical bug in DrawEllipse** - Parameters were LONG but should be WORD per NDK specification, causing register mismatch and hangs
 - 📝 **Deferred pixel array functions to Phase 43** - ReadPixelLine8, WritePixelLine8, ReadPixelArray8, WritePixelArray8, WriteChunkyPixels require AROS-style optimized blitting infrastructure (not simple WritePixel loops)
 - **Stub count: 107** (was 115, removed 8 stubs: PolyDraw, Flood, BltPattern, DrawEllipse, AreaEllipse; added 6 back after reverting pixel array functions)
-- All existing tests continue to pass (50+ integration tests)
+- All existing tests continue to pass (53+ integration tests)
 
 **Implementation Strategy - Priority 3 (Hardware/rarely used - can remain stubs):**
 - Copper functions (CBump, CMove, CWait, InitView, LoadView, MakeVPort, MrgCop, etc.) - hardware-specific
