@@ -3,7 +3,7 @@
 include Makefile.config
 
 # Test categories
-TEST_CATS := dos exec shell commands stress graphics intuition console layers icon
+TEST_CATS := dos exec shell commands stress graphics intuition console layers icon iffparse
 
 # Color output
 GREEN = \033[0;32m
@@ -95,6 +95,7 @@ all:
 	@$(MAKE) -C layers/locking
 	@$(MAKE) -C graphics/regions
 	@$(MAKE) -C icon/tooltype
+	@$(MAKE) -C iffparse/basic
 
 clean:
 	@echo "Cleaning all tests..."
@@ -179,6 +180,7 @@ clean:
 	@$(MAKE) -C layers/locking clean
 	@$(MAKE) -C graphics/regions clean
 	@$(MAKE) -C icon/tooltype clean
+	@$(MAKE) -C iffparse/basic clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -259,6 +261,7 @@ clean:
 	rm -f layers/locking/actual.out
 	rm -f graphics/regions/actual.out
 	rm -f icon/tooltype/actual.out
+	rm -f iffparse/basic/actual.out
 
 test: all
 	@echo ""
@@ -348,6 +351,7 @@ run-tests:
 	@$(MAKE) -C layers/locking run-test
 	@$(MAKE) -C graphics/regions run-test
 	@$(MAKE) -C icon/tooltype run-test
+	@$(MAKE) -C iffparse/basic run-test
 
 help:
 	@echo "Integration Test Suite"

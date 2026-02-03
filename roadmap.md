@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.5.6** | **40 Phases Complete** | **31 Integration Tests Passing**
+**Version: 0.5.7** | **41 Phases Complete** | **32 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -36,7 +36,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## Completed Phases (1-40)
+## Completed Phases (1-41)
 
 ### Foundation (Phases 1-12)
 - ✅ Exec multitasking with preemptive scheduling
@@ -69,37 +69,42 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - ✅ **Phase 39b**: Enhanced test infrastructure (bitmap capture, validation API, screenshot comparison)
 - ✅ **Phase 40**: Fixed GFA Basic screen height bug (21px→256px), verified Devpac rendering pipeline
 
+### IFF & Datatypes (Phase 41)
+- ✅ **Phase 41**: iffparse.library full implementation
+  - AllocIFF, FreeIFF, InitIFFasDOS
+  - OpenIFF, CloseIFF with read/write modes
+  - PushChunk, PopChunk with IFFSIZE_UNKNOWN support
+  - ReadChunkBytes, WriteChunkBytes
+  - ParseIFF with IFFPARSE_SCAN and IFFPARSE_RAWSTEP
+  - GoodID, GoodType, IDtoStr validation functions
+  - CurrentChunk, ParentChunk navigation
+
 ---
 
 ## Active Phase
 
-*No active phase. Ready for Phase 41.*
+*No active phase. Ready for Phase 42.*
 
 ---
 
 ## Future Phases
 
-### Phase 41: IFF & Datatypes Support
-**Goal**: Implement IFF file format parsing and basic datatypes framework.
+### Phase 42: Datatypes Library (Basic Framework)
+**Goal**: Implement basic datatypes framework for picture/text handling.
 
-- [ ] **iffparse.library** - Full implementation
-  - OpenIFF, CloseIFF, ParseIFF
-  - PushChunk, PopChunk, ReadChunkBytes, WriteChunkBytes
-  - FindProp, FindCollection, CollectionChunk
-  - StopChunk, StopOnExit, EntryHandler, ExitHandler
 - [ ] **datatypes.library** - Basic framework
   - NewDTObjectA, DisposeDTObject
   - GetDTAttrsA, SetDTAttrsA
   - Basic picture datatype support
 
-### Phase 42: Advanced Console Features
+### Phase 43: Advanced Console Features
 **Goal**: Complete console.device with remaining features.
 
 - [ ] CONU_CHARMAP mode support
 - [ ] RawKeyConvert implementation
 - [ ] Advanced CSI sequences (scrolling regions, etc.)
 
-### Phase 43: BOOPSI & GadTools Visual Completion
+### Phase 44: BOOPSI & GadTools Visual Completion
 **Goal**: Complete visual rendering for BOOPSI gadgets and ASL requesters.
 
 - [ ] **GM_RENDER Implementation** - Full rendering for buttongclass, propgclass, strgclass
@@ -114,7 +119,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [ ] **Input Handling** - GM_HANDLEINPUT for all gadget types
   - String editing, proportional dragging, keyboard shortcuts
 
-### Phase 44: Pixel Array Operations
+### Phase 45: Pixel Array Operations
 **Goal**: Implement optimized pixel array functions using AROS-style blitting.
 
 **Background**: Simple WritePixel() loops caused crashes. AROS uses specialized `write_pixels_8()` helpers.
@@ -125,14 +130,14 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [ ] Handle BitMap formats (interleaved, standard)
 - [ ] Layer/clipping integration
 
-### Phase 45: Async I/O & Timer Completion
+### Phase 46: Async I/O & Timer Completion
 **Goal**: Implement proper asynchronous I/O for devices.
 
 - [ ] **timer.device Async** - TR_ADDREQUEST with delay queue and timeouts
 - [ ] **console.device Async** - Non-blocking reads with timeout
 - [ ] **Event Loop Integration** - Coordinate async I/O with WaitPort/Wait()
 
-### Phase 46: Directory Opus Deep Dive
+### Phase 47: Directory Opus Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
 
 - [ ] Stack corruption analysis during cleanup
@@ -147,6 +152,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.5.7 | 41 | iffparse.library full implementation |
 | 0.5.6 | 40 | GFA Basic height fix, Devpac rendering verified |
 | 0.5.5 | 39b | Test validation infrastructure |
 | 0.5.4 | 38 | Intuition library completion |
