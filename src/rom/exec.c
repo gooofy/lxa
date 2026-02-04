@@ -146,6 +146,41 @@ static struct Custom   *custom            = (struct Custom*)        0xdff000;
 
 void _exec_unimplemented_call ( register struct ExecBase  *exb __asm("a6") )
 {
+    /* Get stack pointer to dump context */
+    ULONG *sp;
+    __asm__ __volatile__ ("move.l %%sp, %0" : "=r" (sp));
+    ULONG ret_addr = sp[0];  /* Return address is at top of stack after jsr */
+    
+    /* Get current task info */
+    struct Task *me = SysBase->ThisTask;
+    LPRINTF (LOG_ERROR, "_exec: UNIMPLEMENTED exec.library call!\n");
+    LPRINTF (LOG_ERROR, "_exec:   ThisTask = 0x%08lx (%s)\n", 
+             (ULONG)me, me ? (me->tc_Node.ln_Name ? me->tc_Node.ln_Name : "(no name)") : "(NULL)");
+    LPRINTF (LOG_ERROR, "_exec:   A6 (SysBase?) = 0x%08lx\n", (ULONG)exb);
+    LPRINTF (LOG_ERROR, "_exec:   return addr   = 0x%08lx\n", ret_addr);
+    LPRINTF (LOG_ERROR, "_exec:   stack dump:\n");
+    for (int i = 0; i < 8; i++) {
+        LPRINTF (LOG_ERROR, "_exec:     [SP+%d] = 0x%08lx\n", i*4, sp[i]);
+    }
+    
+    /* Try to figure out which LVO by looking at instruction before return addr */
+    /* The caller did: jsr -xxx(a6), which is 4 bytes (0x4eae xxxx) */
+    /* So at ret_addr-4 we should see the jsr instruction */
+    if (ret_addr >= 0x1000 && ret_addr < 0x01000000) {
+        UWORD *caller_insn = (UWORD *)(ret_addr - 4);
+        if (caller_insn[0] == 0x4eae) {
+            /* This is "jsr d16(a6)" - the offset is a signed 16-bit value */
+            WORD lvo_offset = (WORD)caller_insn[1];
+            LPRINTF (LOG_ERROR, "_exec:   LVO offset = %d (from jsr instruction at 0x%08lx)\n", 
+                     lvo_offset, (ULONG)caller_insn);
+        } else {
+            LPRINTF (LOG_ERROR, "_exec:   caller insn at 0x%08lx = 0x%04x (not jsr d16(a6))\n",
+                     (ULONG)caller_insn, caller_insn[0]);
+        }
+    } else {
+        LPRINTF (LOG_ERROR, "_exec:   return address 0x%08lx is invalid (can't check caller)\n", ret_addr);
+    }
+    
     assert (FALSE);
 }
 
@@ -4530,7 +4565,27 @@ void _bootstrap(void)
 #endif
 
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): calling emu_stop(%ld)...\n", rv);
-    emu_stop(rv);
+    
+    /*
+     * CRITICAL: We cannot use emu_stop(rv) here because GCC may have cached 
+     * the function pointer in the GOT (Global Offset Table) which could have 
+     * been corrupted by the external program (e.g., BeckerText II).
+     * 
+     * The A5-relative access `movea.l (-$1404,A5), A0` loads a corrupted NULL
+     * pointer if the external program wrote to that memory area.
+     * 
+     * Instead, we use direct inline assembly to emit the EMU_CALL_STOP
+     * instruction sequence, bypassing the GOT entirely.
+     */
+    __asm__ __volatile__ (
+        "move.l    %0, %%d0\n\t"   /* EMU_CALL_STOP = 2 */
+        "move.l    %1, %%d1\n\t"   /* return value */
+        "illegal"
+        : /* no outputs */
+        : "i" (2), "r" (rv)        /* EMU_CALL_STOP = 2 */
+        : "d0", "d1", "cc"
+    );
+    
     DPRINTF (LOG_INFO, "_exec: _bootstrap(): emu_stop... done.\n");
 }
 

@@ -164,6 +164,7 @@
 
 ### Devpac (HiSoft) - ❌ BROKEN (Phase 39 - Rendering Bug Confirmed)
 - **Binary**: `APPS:Devpac/Devpac`
+- **Source**: `~/.lxa/System/Apps/Devpac/Devpac.c` (ghidra decompile)
 - **Status**: Opens window but **COMPLETELY EMPTY** - no title bar, no content
 - **Critical Bugs**:
   - Window opens with correct dimensions (640x245)

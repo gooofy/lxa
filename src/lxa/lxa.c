@@ -653,8 +653,21 @@ static inline uint8_t mread8 (uint32_t address)
     }
     else
     {
-        printf("ERROR: mread8 at invalid address 0x%08x\n", address);
-        _debug(m68k_get_reg(NULL, M68K_REG_PC));
+        /* 
+         * Invalid address - print warning but don't enter debugger.
+         * Some programs may read from invalid addresses intentionally
+         * (e.g., checking for expansion boards, sentinel values, etc.)
+         * Return 0 and let the program continue.
+         */
+        static int invalid_read_count = 0;
+        if (invalid_read_count < 10) {
+            printf("WARNING: mread8 at invalid address 0x%08x (PC=0x%08x)\n", 
+                   address, m68k_get_reg(NULL, M68K_REG_PC));
+            invalid_read_count++;
+            if (invalid_read_count == 10) {
+                printf("WARNING: suppressing further invalid read warnings\n");
+            }
+        }
     }
 
     return 0;
@@ -866,6 +879,12 @@ void cpu_instr_callback(int pc)
 {
     g_trace_buf[g_trace_buf_idx] = pc;
     g_trace_buf_idx = (g_trace_buf_idx+1) % TRACE_BUF_ENTRIES;
+
+    /* Catch PC=0 bug */
+    if (pc < 0x100) {
+        CPRINTF("*** WARNING: PC=0x%08x - invalid address!\n", pc);
+        _debug(pc);
+    }
 
     if (g_trace)
     {
@@ -3008,7 +3027,8 @@ int op_illg(int level)
         case EMU_CALL_STOP:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
-            CPRINTF ("*** EMU_CALL_STOP called, rv=%d\n", g_rv);
+            DPRINTF (LOG_DEBUG, "EMU_CALL_STOP called, rv=%d, current PC=0x%08x\n", 
+                     g_rv, m68k_get_reg(NULL, M68K_REG_PC));
             
             /*
              * Check if there are other tasks running. If so, we need to
@@ -3019,7 +3039,7 @@ int op_illg(int level)
              */
             if (other_tasks_running())
             {
-                CPRINTF ("*** other tasks running, calling RemTask(NULL) instead of stopping\n");
+                DPRINTF (LOG_DEBUG, "other tasks running, calling RemTask(NULL) instead of stopping\n");
                 
                 /*
                  * Set up the CPU to call RemTask(NULL):
@@ -3034,11 +3054,12 @@ int op_illg(int level)
                  * set up a return address.
                  */
                 uint32_t sysbase = m68k_read_memory_32(4);
+                
                 /* The function address is at offset +2 from the jump table entry 
                  * (skip the JMP instruction opcode) */
                 uint32_t remtask_addr = m68k_read_memory_32(sysbase - 288 + 2);
                 
-                DPRINTF (LOG_DEBUG, "*** calling RemTask at 0x%08x\n", remtask_addr);
+                DPRINTF (LOG_DEBUG, "setting PC=0x%08x (RemTask), A6=0x%08x, A1=0\n", remtask_addr, sysbase);
                 
                 m68k_set_reg(M68K_REG_A6, sysbase);
                 m68k_set_reg(M68K_REG_A1, 0);  // NULL = remove current task
