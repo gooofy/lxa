@@ -1837,21 +1837,24 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
 
         if (___task->tc_State == TS_READY)
         {
-            /* Has it a higher priority than the running task? */
-            if (___task->tc_Node.ln_Pri > thisTask->tc_Node.ln_Pri)
+            /*
+             * Trigger reschedule if:
+             * 1. Signaled task has higher priority than current task, OR
+             * 2. Current task is not actually running (e.g., we're in dispatch idle loop
+             *    where ThisTask still points to a WAIT/READY task). This happens when
+             *    there's only one task and it called Wait().
+             */
+            if (___task->tc_Node.ln_Pri > thisTask->tc_Node.ln_Pri ||
+                thisTask->tc_State != TS_RUN)
             {
-                DPRINTF (LOG_DEBUG, "_exec: Signal() task has higher priority, rescheduling\n");
+                DPRINTF (LOG_DEBUG, "_exec: Signal() triggering reschedule\n");
 
                 /*
-                 * Yes. A taskswitch is necessary. Prepare one if possible.
-                 * (If the current task is not running it is already moved)
+                 * A taskswitch is necessary. Set SysFlags to trigger scheduler.
+                 * If we're in interrupt context (VBlank), the Schedule() call at the
+                 * end of the interrupt will pick up the newly ready task.
                  */
-                if (thisTask->tc_State == TS_RUN)
-                {
-                    /* Set SysFlags to trigger scheduler on next opportunity */
-                    /* SFF_QuantumOver is bit 6 of high byte = bit 14 of word */
-                    SysBase->SysFlags |= (1 << 14); /* SFF_QuantumOver */
-                }
+                SysBase->SysFlags |= (1 << 14); /* SFF_QuantumOver */
             }
         }
     }
@@ -1991,8 +1994,7 @@ void _exec_PutMsg ( register struct ExecBase * SysBase __asm("a6"),
         switch(___port->mp_Flags & PF_ACTION)
         {
             case PA_SIGNAL:
-                DPRINTF (LOG_DEBUG, "_exec: PutMsg() PA_SIGNAL -> Task 0x%08lx, Signal 0x%08lx\n",
-                         ___port->mp_SigTask, (1 << ___port->mp_SigBit));
+                DPRINTF (LOG_DEBUG, "_exec: PutMsg() PA_SIGNAL\n");
                 /* Send the signal */
                 Signal((struct Task *)___port->mp_SigTask, (1 << ___port->mp_SigBit));
                 break;

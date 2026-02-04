@@ -69,6 +69,16 @@ _exec_Schedule:
     move.l      a1, d0                              | copy a1 to d0 for NULL test
     beq.s       __exec_Schedule_exit                | ThisTask == NULL? -> exit
 
+    /*
+     * If ThisTask is NOT running (tc_State != TS_RUN), we're being called
+     * from the dispatch idle loop (after VBlank). In this case, don't try
+     * to switch - just exit and let the dispatch loop pick up any ready tasks.
+     * Trying to Enqueue a non-running task would corrupt the list.
+     * tc_State is at offset 15 (0xf) in the Task structure, TS_RUN = 2.
+     */
+    cmp.b       #2, 0xf(a1)                         | ThisTask->tc_State == TS_RUN?
+    bne.s       __exec_Schedule_exit                | no -> exit (let dispatch handle it)
+
     /* FIXME: check for exception flags */
 
     /* do we have another task that is ready? */

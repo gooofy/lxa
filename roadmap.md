@@ -8,14 +8,19 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.3** | **Phase 46 In Progress** | **36 Integration Tests Passing**
+**Version: 0.6.4** | **Phase 49 Complete** | **~70 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
-**Recent Fix (BeckerText II Investigation)**:
-- Fixed critical bug where external programs (like BeckerText II) corrupted gcc's callee-saved registers (A2-A5) on return, causing crashes in _bootstrap
-- Fixed bootstrap to set pr_SegList and cli_Module for programs that read their own seglist
-- BeckerText II now opens its main window!
+**Recent Fixes**:
+- Fixed critical Signal/Wait task scheduling bug: When a single task called Wait() and entered
+  the dispatch idle loop, Signal() would wake the task but Schedule() would fail to properly
+  switch to it because ThisTask still pointed to the waiting task. Fixed Schedule() to exit
+  early when ThisTask is not running, and Signal() to trigger reschedule in idle loop case.
+- Fixed signal_pingpong test: Child task logic bug caused orphaned task after main exited.
+- Fixed DetailPen/BlockPen 0xFF handling: Devpac now renders correctly.
+
+**Devpac Status**: Window renders AND responds to mouse/keyboard input!
 
 ---
 
@@ -190,7 +195,7 @@ See detailed phase description below in "Application Deep Dive Phases".
 - [ ] May require instruction-level tracing to identify exact failure point
 - [ ] commodities.library not found (non-fatal, if DOpus gets further)
 - [ ] rexxsyslib.library not found (non-fatal)
-- [ ] signal_pingpong test times out (pre-existing race condition, not a blocker)
+- [x] signal_pingpong test - Fixed (test logic bug caused orphaned child task)
 
 **Testing Requirements**:
 - [ ] Extend test framework to capture multi-process failures
@@ -284,12 +289,23 @@ See detailed phase description below in "Application Deep Dive Phases".
 ### Phase 49: Devpac (HiSoft) Deep Dive
 **Goal**: Fix window rendering bug and achieve full assembler IDE functionality.
 
-**Status**: ✅ FIXED - Window now renders correctly with title bar, borders, and content
+**Status**: ✅ FIXED - Window renders correctly AND responds to input
 
-**Root Cause Found & Fixed**:
-- Devpac passes `DetailPen=255` and `BlockPen=255` (0xFF) in its NewWindow structure
-- Per RKRM, when these values are ~0 (0xFF), the system should use screen defaults
-- Fixed in `_intuition_OpenWindow()` to map 0xFF pen values to screen defaults
+**Issues Fixed**:
+1. **DetailPen/BlockPen 0xFF Bug** (Commit 73621b2):
+   - Devpac passes `DetailPen=255` and `BlockPen=255` (0xFF) in its NewWindow structure
+   - Per RKRM, when these values are ~0 (0xFF), the system should use screen defaults
+   - Fixed in `_intuition_OpenWindow()` to map 0xFF pen values to screen defaults
+
+2. **Signal/Wait Task Scheduling Bug** (Current Session):
+   - Devpac's window rendered but wouldn't respond to mouse/keyboard input
+   - Root cause: When single task calls Wait() and enters dispatch idle loop,
+     VBlank interrupt's Signal() would wake the task, but Schedule() would
+     try to re-add ThisTask (which was still pointing to the waiting task)
+     to TaskReady, corrupting the list or preventing the task from running
+   - Fixed by:
+     a) Schedule() now exits early if ThisTask->tc_State != TS_RUN (let dispatch loop handle it)
+     b) Signal() now triggers reschedule when ThisTask is not running (idle loop case)
 
 **Ghidra decompiled source**: ~/.lxa/System/Apps/Devpac/Devpac.c
 
@@ -297,6 +313,7 @@ See detailed phase description below in "Application Deep Dive Phases".
 - [x] Fixed DetailPen/BlockPen 0xFF handling in OpenWindow()
 - [x] Window title bar now renders correctly
 - [x] Window borders render with proper 3D effect
+- [x] Fixed Signal/Wait scheduling bug - window now responds to input
 - [x] All integration tests pass
 
 **Remaining Tasks**:

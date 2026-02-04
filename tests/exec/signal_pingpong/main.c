@@ -94,10 +94,13 @@ void ChildTask(void)
         msg = (struct PingPongMsg *)GetMsg(myPort);
         if (msg)
         {
-            /* Check if we've completed enough exchanges */
-            if (msg->pp_Counter >= NUM_EXCHANGES * 2)
+            /* Check if we've completed enough exchanges.
+             * Main sends final pong with counter = NUM_EXCHANGES * 2 - 1 (9),
+             * then exits. So child should exit when counter reaches this value.
+             */
+            if (msg->pp_Counter >= NUM_EXCHANGES * 2 - 1)
             {
-                /* We're done, this was the last reply */
+                /* We're done, this was the last reply from main */
                 Write(out, (CONST APTR)"Child: Done, exiting\n", 21);
                 running = FALSE;
             }

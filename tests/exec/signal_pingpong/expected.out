@@ -20,3 +20,5 @@ Main: Received message
 Main: Sending final pong
 Main: Test complete!
 PASS: Ping-pong test
+Child: Done, exiting
+Child: Finished
