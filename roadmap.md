@@ -100,16 +100,51 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 **TODO**:
 - [x] Create `samples/` directory structure.
-- [x] Implement `simpletask` (Exec task creation).
-- [x] Implement `openwindowtags` (Intuition windowing).
-- [ ] Implement `RGBBoxes` (Graphics primitives).
-- [x] Implement `signals` (Exec signals).
-- [x] Implement `semaphore` (Exec semaphores).
-- [x] Implement `tag1` (Utility tags).
+- [x] Implement `SimpleTask` (Exec task creation).
+- [x] Implement `Signals` (Exec signals).
+- [x] Implement `Semaphore` (Exec semaphores).
+- [x] Implement `Tag1` (Utility tags).
+- [x] Implement `OpenWindowTags` (Intuition windowing).
 - [x] Update `lxa` bootstrap to auto-install samples to `SYS:Samples` in `~/.lxa/System`.
 - [x] Add integration tests that compile and run these samples.
-- [ ] Implement `port1`/`port2` (Exec messages).
-- [ ] Implement `availfonts` (Diskfont/Graphics).
+- [ ] **Exec Samples**:
+    - [ ] `Port1`/`Port2` (Message ports and IPC).
+    - [ ] `BuildList` (Exec list management).
+    - [ ] `Allocate`/`AllocEntry` (Exec memory allocation).
+    - [ ] `DeviceUse` (Exec device I/O basics).
+    - [ ] `VertB`/`TimerSoftInt` (Exec software interrupts).
+- [ ] **Intuition UI Samples**:
+    - [ ] `SimpleGad`/`UpdateStrGad` (Basic and string gadgets).
+    - [ ] `IntuiText`/`SimpleImage`/`ShadowBorder` (UI rendering primitives).
+    - [ ] `EasyIntuition` (Standard requester/UI setup).
+    - [ ] `SimpleMenu`/`MenuLayout` (Intuition menu systems).
+    - [ ] `MouseTest`/`RawKey`/`CustomPointer` (Input and cursor handling).
+    - [ ] `EasyRequest`/`BlockInput`/`DisplayAlert` (Requesters and alerts).
+    - [ ] `CloneScreen`/`PublicScreen`/`DoubleBuffer` (Advanced screen management).
+    - [ ] `VisibleWindow`/`WinPubScreen` (Window placement and public screens).
+- [ ] **Graphics Samples**:
+    - [ ] `RGBBoxes` (Graphics primitives and views).
+    - [ ] `Clipping`/`Layers` (Layer management and clipping regions).
+    - [ ] `AvailFonts`/`MeasureText` (Font handling and text measurement).
+    - [ ] `WBClone` (Workbench cloning and primitives).
+    - [ ] `SSprite`/`VSprite`/`Bob` (Sprite and animation system).
+- [ ] **Advanced UI Samples**:
+    - [ ] `GadToolsGadgets`/`GadToolsMenu` (GadTools library UI).
+    - [ ] `FileReq`/`FontReq` (ASL standard requesters).
+    - [ ] `Talk2Boopsi` (BOOPSI object-oriented UI).
+- [ ] **Utility & System Samples**:
+    - [ ] `Hooks1` (Callback hooks).
+    - [ ] `IStr` (Internal string handling).
+    - [ ] `Uptime` (System uptime calculation).
+    - [ ] `ClipFTXT`/`Sift` (IFF parsing and text clipboard).
+    - [ ] `Broker`/`HotKey` (Commodities system).
+    - [ ] `IconExample`/`AppIcon`/`AppWindow` (Workbench integration).
+    - [ ] `FFPExample`/`SPIEEE`/`DPIEEE` (Floating point math).
+- [ ] **Device Samples**:
+    - [ ] `Simple_Timer`/`Get_Systime` (Timer device).
+    - [ ] `ClipDemo`/`ChangeHook_Test` (Clipboard device).
+    - [ ] `AskKeymap` (Console/Keymap interaction).
+    - [ ] `V36_Device_Use` (Modern device I/O pattern).
 - [ ] Ensure all samples achieve 100% pass rate in CI.
 
 ---
