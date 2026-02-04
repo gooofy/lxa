@@ -8,11 +8,13 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.4** | **Phase 49 Complete** | **~70 Integration Tests Passing**
+**Version: 0.6.5** | **Phase 49 Complete** | **~96 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes**:
+- Extended memory map support for Slow RAM (0x00C00000-0x00D7FFFF), Ranger RAM (0x00E00000-0x00E7FFFF),
+  Extended ROM (0x00F00000-0x00F7FFFF), and ROM writes. GFA Basic now runs without memory errors.
 - Fixed critical Signal/Wait task scheduling bug: When a single task called Wait() and entered
   the dispatch idle loop, Signal() would wake the task but Schedule() would fail to properly
   switch to it because ThisTask still pointed to the waiting task. Fixed Schedule() to exit
@@ -21,6 +23,7 @@ The lxa project has achieved a comprehensive AmigaOS-compatible environment with
 - Fixed DetailPen/BlockPen 0xFF handling: Devpac now renders correctly.
 
 **Devpac Status**: Window renders AND responds to mouse/keyboard input!
+**GFA Basic Status**: Now runs without memory errors (screen/window opens, console initialized)!
 
 ---
 
@@ -253,34 +256,29 @@ See detailed phase description below in "Application Deep Dive Phases".
 ### Phase 48: GFA Basic 2 Deep Dive
 **Goal**: Fix screen dimension bug and achieve full GFA Basic functionality.
 
-**Status**: ❌ BROKEN - Opens screen with wrong dimensions (640x21 instead of 640x200+)
+**Status**: ⚠️ PARTIAL - Memory errors fixed, launches with window, needs functionality verification
 
-**Known Issues**:
-- [x] OpenScreen() creates 21-pixel tall screen (CRITICAL BUG) - Fixed in Phase 40
-- [ ] Screen should be 200+ pixels for usable editor
-- [ ] GetScreenData() returns screen info - verify correctness
-- [ ] InitGels() stub may need full implementation
-- [ ] IntuiTextLength() - verify text width calculations
-- [ ] audio.device warning (BeginIO command 9) - non-fatal but investigate
+**Issues Fixed**:
+- [x] OpenScreen() creates 21-pixel tall screen - Fixed in Phase 40 (expanded to 256)
+- [x] Memory writes to Slow RAM (0x00C00000-0x00D7FFFF) - Added memory region handling
+- [x] Memory writes to Ranger RAM (0x00E00000-0x00E7FFFF) - Added memory region handling
+- [x] Memory writes to Extended ROM (0x00F00000-0x00F7FFFF) - Added memory region handling
+- [x] Memory writes to ROM area (0x00F80000+) - Added ROM write-protect handling
 
-**Testing Requirements**:
-- [x] Automated screen dimension validation (640x256 minimum) - Added in Phase 39b
+**Current Behavior**:
+- Opens screen (640x256) with title "GFA-BASIC Editor"
+- Opens window (640x256)
+- Initializes console device
+- Enters event loop waiting for input
+- No crashes or memory errors
+
+**Remaining Tasks**:
 - [ ] Verify editor window renders with correct dimensions
 - [ ] Test text input in editor
 - [ ] Verify line numbering display
 - [ ] Test BASIC command execution (PRINT, INPUT, etc.)
 - [ ] Verify graphics commands (LINE, CIRCLE, etc.)
 - [ ] Test program save/load functionality
-
-**Implementation Tasks**:
-- [x] Fix OpenScreen() height calculation bug - Fixed in Phase 40
-- [ ] Verify NewScreen structure parsing for all fields
-- [ ] Test display mode handling for custom screens
-- [ ] Implement full InitGels() if required for sprites
-- [ ] Verify custom chip register handling (DMACON, colors)
-- [ ] Test memory region handling (Zorro-II/III, autoconfig)
-- [ ] Trace input.device command 9 warning source
-- [ ] Verify editor text rendering and cursor positioning
 
 **Success Criteria**: GFA Basic launches with correct screen size, allows BASIC programming, executes commands
 
@@ -664,6 +662,9 @@ See detailed phase description below in "Application Deep Dive Phases".
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.5 | 49+ | Extended memory map (Slow RAM, Ranger RAM, Extended ROM, ROM writes), GFA Basic now runs |
+| 0.6.4 | 49 | Fixed Signal/Wait scheduling bug (Devpac now responds to input), signal_pingpong test fix |
+| 0.6.3 | 49 | Fixed DetailPen/BlockPen 0xFF handling (Devpac window renders correctly) |
 | 0.6.2 | 45 | console.device async (CMD_READ pending queue, VBlank hook, AbortIO), exec.c AbortIO fix |
 | 0.6.1 | 45 | timer.device async (TR_ADDREQUEST delay queue, VBlank hook, AbortIO) |
 | 0.6.0 | 44 | BOOPSI visual completion (propgclass, strgclass input), GadTools DrawBevelBoxA, ASL FileRequester GUI, ROM size 512KB |

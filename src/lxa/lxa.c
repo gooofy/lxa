@@ -60,6 +60,17 @@
 #define CIA_START 0xbfd000
 #define CIA_END   0xbfffff
 
+/* Slow RAM / Ranger RAM area (A500 trapdoor, A2000 expansion)
+ * 0x00C00000-0x00D7FFFF: Main Slow RAM area (1.5MB)
+ * 0x00E00000-0x00E7FFFF: Additional Ranger/expansion RAM (512KB)
+ * Some applications (like GFA Basic) probe or use these memory areas.
+ * We treat them as non-existent (read returns 0, writes are ignored).
+ */
+#define SLOWRAM_START    0xc00000
+#define SLOWRAM_END      0xd7ffff
+#define RANGER_START     0xe00000
+#define RANGER_END       0xe7ffff
+
 /* Phase 31: Extended custom chip register definitions */
 #define CUSTOM_REG_INTENA   0x09a
 #define CUSTOM_REG_INTREQ   0x09c
@@ -605,6 +616,18 @@ static inline uint8_t mread8 (uint32_t address)
         /* Zorro-II autoconfig space - return 0 (no boards) */
         return 0;
     }
+    else if ((address >= SLOWRAM_START) && (address <= SLOWRAM_END))
+    {
+        /* Slow RAM / Ranger RAM area - return 0 (no expansion memory present) */
+        DPRINTF (LOG_DEBUG, "lxa: mread8 Slow RAM area 0x%08x -> 0x00\n", address);
+        return 0;
+    }
+    else if ((address >= RANGER_START) && (address <= RANGER_END))
+    {
+        /* Ranger/expansion RAM area - return 0 (no expansion memory present) */
+        DPRINTF (LOG_DEBUG, "lxa: mread8 Ranger RAM area 0x%08x -> 0x00\n", address);
+        return 0;
+    }
     else if ((address >= CIA_START) && (address <= CIA_END))
     {
         /* CIA chip area - return sensible defaults
@@ -767,6 +790,31 @@ static inline void mwrite8 (uint32_t address, uint8_t value)
     {
         /* Zorro-III expansion area writes - ignore (no expansion present) */
         DPRINTF (LOG_DEBUG, "lxa: mwrite8 Zorro-III area 0x%08x <- 0x%02x (ignored)\n", address, value);
+    }
+    else if ((address >= SLOWRAM_START) && (address <= SLOWRAM_END))
+    {
+        /* Slow RAM area writes - ignore (no expansion memory present) */
+        DPRINTF (LOG_DEBUG, "lxa: mwrite8 Slow RAM area 0x%08x <- 0x%02x (ignored)\n", address, value);
+    }
+    else if ((address >= RANGER_START) && (address <= RANGER_END))
+    {
+        /* Ranger/expansion RAM area writes - ignore (no expansion memory present) */
+        DPRINTF (LOG_DEBUG, "lxa: mwrite8 Ranger RAM area 0x%08x <- 0x%02x (ignored)\n", address, value);
+    }
+    else if ((address >= ZORRO2_AUTOCONFIG_START) && (address <= ZORRO2_AUTOCONFIG_END))
+    {
+        /* Zorro-II autoconfig area writes - ignore (no expansion boards) */
+        DPRINTF (LOG_DEBUG, "lxa: mwrite8 Zorro-II autoconfig area 0x%08x <- 0x%02x (ignored)\n", address, value);
+    }
+    else if ((address >= EXTROM_START) && (address <= EXTROM_END))
+    {
+        /* Extended ROM area writes - ignore (some apps probe this area) */
+        DPRINTF (LOG_DEBUG, "lxa: mwrite8 Extended ROM area 0x%08x <- 0x%02x (ignored)\n", address, value);
+    }
+    else if ((address >= ROM_START) && (address <= ROM_END))
+    {
+        /* ROM area writes - ignore (ROM is read-only, some apps try to write for various reasons) */
+        DPRINTF (LOG_DEBUG, "lxa: mwrite8 ROM area 0x%08x <- 0x%02x (ignored)\n", address, value);
     }
     else if ((address >= CIA_START) && (address <= CIA_END))
     {
