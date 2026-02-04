@@ -1,6 +1,6 @@
 include ../Makefile.config
 
-TESTS := SimpleTask Signals Semaphore Tag1 OpenWindowTags
+TESTS := SimpleTask Signals Semaphore Port1 Port2 BuildList Allocate DeviceUse TimerSoftInt Tag1 OpenWindowTags
 
 .PHONY: all clean run-test $(TESTS)
 

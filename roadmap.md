@@ -98,6 +98,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### Phase 56: RKM Samples Integration (Current)
 **Goal**: Add a `samples/` directory with RKM-based sample programs. Ensure they are auto-installed in `SYS:Samples` and integrated into the test suite.
 
+**IMPORTANT**: The point of adding these samples is mainly to identify gaps and bugs in lxa's libraries and kernel implementation. When you hit stubs or bugs, make sure to **fix the bug, do not try fix the sample**
+
 **TODO**:
 - [x] Create `samples/` directory structure.
 - [x] Implement `SimpleTask` (Exec task creation).
@@ -107,12 +109,12 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] Implement `OpenWindowTags` (Intuition windowing).
 - [x] Update `lxa` bootstrap to auto-install samples to `SYS:Samples` in `~/.lxa/System`.
 - [x] Add integration tests that compile and run these samples.
-- [ ] **Exec Samples**:
-    - [ ] `Port1`/`Port2` (Message ports and IPC).
-    - [ ] `BuildList` (Exec list management).
-    - [ ] `Allocate`/`AllocEntry` (Exec memory allocation).
-    - [ ] `DeviceUse` (Exec device I/O basics).
-    - [ ] `VertB`/`TimerSoftInt` (Exec software interrupts).
+- [x] **Exec Samples**:
+    - [x] `Port1`/`Port2` (Message ports and IPC).
+    - [x] `BuildList` (Exec list management).
+    - [x] `Allocate`/`AllocEntry` (Exec memory allocation).
+    - [x] `DeviceUse` (Exec device I/O basics).
+    - [ ] `VertB`/`TimerSoftInt` (Exec software interrupts) - **Basic version implemented, needs verification**.
 - [ ] **Intuition UI Samples**:
     - [ ] `SimpleGad`/`UpdateStrGad` (Basic and string gadgets).
     - [ ] `IntuiText`/`SimpleImage`/`ShadowBorder` (UI rendering primitives).
@@ -123,7 +125,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [ ] `CloneScreen`/`PublicScreen`/`DoubleBuffer` (Advanced screen management).
     - [ ] `VisibleWindow`/`WinPubScreen` (Window placement and public screens).
 - [ ] **Graphics Samples**:
-    - [ ] `RGBBoxes` (Graphics primitives and views).
+    - [x] `RGBBoxes` (Graphics primitives and views).
     - [ ] `Clipping`/`Layers` (Layer management and clipping regions).
     - [ ] `AvailFonts`/`MeasureText` (Font handling and text measurement).
     - [ ] `WBClone` (Workbench cloning and primitives).

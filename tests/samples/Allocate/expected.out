@@ -1,0 +1,38 @@
+Allocate: Demonstrating Exec memory allocation
+
+=== AllocMem Example ===
+Allocating 1024 bytes with MEMF_PUBLIC | MEMF_CLEAR...
+  Allocated at: 0x
+  Checking if memory is cleared...
+  OK: All 1024 bytes are zero
+  Writing test pattern...
+  Wrote pattern to memory
+  Available memory (MEMF_PUBLIC): 10309120 bytes
+  Available memory (MEMF_CHIP): 10309120 bytes
+  Available memory (MEMF_FAST): 0 bytes
+
+=== AllocVec Example ===
+Allocating 2048 bytes with MEMF_PUBLIC | MEMF_CLEAR...
+  Allocated at: 0x
+  (AllocVec stores size internally, so FreeVec doesn't need size)
+
+=== AllocEntry Example ===
+Allocating multiple memory blocks in one call...
+  AllocEntry succeeded!
+  Allocated 3 blocks:
+    Block 1: 512 bytes at 0x
+    Block 2: 1024 bytes at 0x
+    Block 3: 256 bytes at 0x
+
+=== TypeOfMem Example ===
+Checking memory types...
+  mem1 (AllocMem): 0x PUBLIC CHIP 
+  mem3 (AllocVec): 0x PUBLIC CHIP 
+
+=== Cleanup ===
+Freeing all allocated memory...
+  Freeing mem1 (AllocMem)...
+  Freeing mem3 (AllocVec)...
+  Freeing memlist (FreeEntry)...
+
+Allocate: Memory allocation demonstration complete.

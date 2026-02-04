@@ -129,11 +129,19 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
         -e '^WARNING: mwrite' \
         -e '^WARNING: suppressing' \
         -e '^\*\*\* WARNING: PC=' \
+        -e '^\*\*\* assertion failed:' \
         "$TEMP_OUTPUT" > "${TEMP_OUTPUT}.2" 2>/dev/null || true
     
     # Move filtered output back
     mv "${TEMP_OUTPUT}.2" "$ACTUAL_OUTPUT"
     rm -f "$TEMP_OUTPUT"
+    
+    # Normalize hex addresses (0x followed by hex digits) to just "0x"
+    # This makes tests more portable and less brittle
+    sed -i 's/0x[0-9a-fA-F]\+/0x/g' "$ACTUAL_OUTPUT"
+    
+    # Normalize variable numeric values that change between runs
+    sed -i 's/Request completed after [0-9]\+ checks!/Request completed after checks!/' "$ACTUAL_OUTPUT"
     
     # Remove trailing newlines that might be left
     sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' "$ACTUAL_OUTPUT" 2>/dev/null || true

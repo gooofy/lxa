@@ -1,0 +1,56 @@
+BuildList: Demonstrating Exec list management
+
+BuildList: Created and initialized list at 0x
+
+BuildList: Adding 5 nodes to the list...
+  Added: Node_1 (ID=100, Pri=1)
+  Added: Node_2 (ID=200, Pri=2)
+  Added: Node_3 (ID=300, Pri=3)
+  Added: Node_4 (ID=400, Pri=4)
+  Added: Node_5 (ID=500, Pri=5)
+
+BuildList: List contents after AddTail:
+  [1] Node_1 - ID=100, Pri=1, Addr=0x
+  [2] Node_2 - ID=200, Pri=2, Addr=0x
+  [3] Node_3 - ID=300, Pri=3, Addr=0x
+  [4] Node_4 - ID=400, Pri=4, Addr=0x
+  [5] Node_5 - ID=500, Pri=5, Addr=0x
+
+BuildList: Adding a high-priority node at the head...
+  Added: HighPriority (ID=999, Pri=100)
+
+BuildList: List contents after AddHead:
+  [1] HighPriority - ID=999, Pri=100, Addr=0x
+  [2] Node_1 - ID=100, Pri=1, Addr=0x
+  [3] Node_2 - ID=200, Pri=2, Addr=0x
+  [4] Node_3 - ID=300, Pri=3, Addr=0x
+  [5] Node_4 - ID=400, Pri=4, Addr=0x
+  [6] Node_5 - ID=500, Pri=5, Addr=0x
+
+BuildList: Removing head node...
+  Removed: HighPriority (ID=999)
+
+BuildList: List contents after RemHead:
+  [1] Node_1 - ID=100, Pri=1, Addr=0x
+  [2] Node_2 - ID=200, Pri=2, Addr=0x
+  [3] Node_3 - ID=300, Pri=3, Addr=0x
+  [4] Node_4 - ID=400, Pri=4, Addr=0x
+  [5] Node_5 - ID=500, Pri=5, Addr=0x
+
+BuildList: Finding node 'Node_3'...
+  Found: Node_3 (ID=300) at 0x
+  Removing 'Node_3'...
+
+BuildList: List contents after removing Node_3:
+  [1] Node_1 - ID=100, Pri=1, Addr=0x
+  [2] Node_2 - ID=200, Pri=2, Addr=0x
+  [3] Node_4 - ID=400, Pri=4, Addr=0x
+  [4] Node_5 - ID=500, Pri=5, Addr=0x
+
+BuildList: Cleaning up list...
+  Freeing: Node_1
+  Freeing: Node_2
+  Freeing: Node_4
+  Freeing: Node_5
+
+BuildList: Done.

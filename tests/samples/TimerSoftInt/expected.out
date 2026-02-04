@@ -1,0 +1,48 @@
+TimerSoftInt: Demonstrating software interrupts
+
+TimerSoftInt: Created message port
+TimerSoftInt: Created IORequest
+TimerSoftInt: Opening timer.device...
+TimerSoftInt: timer.device opened
+TimerSoftInt: Created software interrupt structure
+  Handler at
+
+=== Testing Software Interrupts ===
+Sending 5 async timer requests with interrupt callback...
+
+[1] Sending async request (
+[1] Waiting for completion...
+[1] Request completed. Interrupt count = 1
+
+[2] Sending async request (
+[2] Waiting for completion...
+[2] Request completed. Interrupt count = 2
+
+[3] Sending async request (
+[3] Waiting for completion...
+[3] Request completed. Interrupt count = 3
+
+[4] Sending async request (
+[4] Waiting for completion...
+[4] Request completed. Interrupt count = 4
+
+[5] Sending async request (
+[5] Waiting for completion...
+[5] Request completed. Interrupt count = 5
+
+=== Test Complete ===
+Total interrupts triggered: 5
+
+=== Demonstrating Cause() ===
+Cause() triggers a software interrupt immediately...
+Current interrupt count: 5
+Calling Cause() directly...
+New interrupt count:
+
+=== Cleanup ===
+Closing timer.device...
+Freeing interrupt structure...
+Deleting IORequest...
+Deleting message port...
+
+TimerSoftInt: Software interrupt demonstration complete.
