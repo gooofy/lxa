@@ -3,7 +3,7 @@
 include Makefile.config
 
 # Test categories
-TEST_CATS := dos exec shell commands stress graphics intuition console layers icon iffparse asl gadtools devices
+TEST_CATS := dos exec shell commands stress graphics intuition console layers icon iffparse asl gadtools devices samples
 
 # Color output
 GREEN = \033[0;32m
@@ -100,6 +100,7 @@ all:
 	@$(MAKE) -C gadtools/drawbevelbox
 	@$(MAKE) -C devices/timer_async
 	@$(MAKE) -C devices/console_async
+	@$(MAKE) -C samples
 
 clean:
 	@echo "Cleaning all tests..."
@@ -189,6 +190,7 @@ clean:
 	@$(MAKE) -C gadtools/drawbevelbox clean
 	@$(MAKE) -C devices/timer_async clean
 	@$(MAKE) -C devices/console_async clean
+	@$(MAKE) -C samples clean
 	rm -f dos/helloworld/actual.out
 	rm -f dos/lock_examine/actual.out
 	rm -f dos/lock_shared/actual.out
@@ -368,6 +370,7 @@ run-tests:
 	@$(MAKE) -C gadtools/drawbevelbox run-test
 	@$(MAKE) -C devices/timer_async run-test
 	@$(MAKE) -C devices/console_async run-test
+	@$(MAKE) -C samples run-test
 
 help:
 	@echo "Integration Test Suite"

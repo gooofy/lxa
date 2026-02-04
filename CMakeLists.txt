@@ -51,6 +51,9 @@ if(M68K_GCC)
     
     # Add system commands (cross-compiled)
     add_subdirectory(sys target/sys)
+    
+    # Add samples (cross-compiled)
+    add_subdirectory(samples target/samples)
 else()
     message(WARNING "m68k-amigaos-gcc not found. ROM and system commands will not be built.")
     message(STATUS "Install the Amiga cross-compiler from https://github.com/bebbo/amiga-gcc")
@@ -85,6 +88,12 @@ install(CODE "
     if(EXISTS \"${CMAKE_BINARY_DIR}/target/sys/System\")
         file(COPY \"${CMAKE_BINARY_DIR}/target/sys/System/\" 
             DESTINATION \"${CMAKE_INSTALL_PREFIX}/share/lxa/System/System\"
+            FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+        )
+    endif()
+    if(EXISTS \"${CMAKE_BINARY_DIR}/target/samples/Samples\")
+        file(COPY \"${CMAKE_BINARY_DIR}/target/samples/Samples/\" 
+            DESTINATION \"${CMAKE_INSTALL_PREFIX}/share/lxa/System/Samples\"
             FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
         )
     endif()

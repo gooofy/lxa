@@ -794,7 +794,7 @@ static void update_system_binaries(void)
     
     /* Second try: data_dir/C -> ~/.lxa/System/C, data_dir/System -> ~/.lxa/System/System */
     /* This handles the build output structure */
-    const char *subdirs[] = {"C", "System", "Libs", "Devs", "L", NULL};
+    const char *subdirs[] = {"C", "System", "Libs", "Devs", "L", "Samples", NULL};
     for (int i = 0; subdirs[i]; i++) {
         n = snprintf(src_path, sizeof(src_path), "%s/%s", data_dir, subdirs[i]);
         if (n < 0 || (size_t)n >= sizeof(src_path)) continue;

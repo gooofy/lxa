@@ -1,0 +1,4 @@
+Started a separate task which is incrementing a shared variable.
+Waiting for shared variable to reach 100000...
+The shared variable reached 100000
+Task deleted. Exiting.
