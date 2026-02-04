@@ -171,3 +171,4 @@ tests/asl/filerequest/filerequest
 tests/gadtools/drawbevelbox/drawbevelbox
 tests/devices/timer/timer_test
 tests/devices/clipboard/clipboard_test
+tests/intuition/gadget_click/gadget_click

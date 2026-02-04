@@ -3371,17 +3371,34 @@ int op_illg(int level)
              * scripts: "Assign S: PROGDIR:S ADD"
              */
             {
-                char progdir[PATH_MAX];
+                char amiga_progdir[PATH_MAX];
+                char linux_progdir[PATH_MAX];
                 char subdir[PATH_MAX];
                 struct stat st;
                 
-                /* Extract the directory containing the loaded program */
-                strncpy(progdir, g_loadfile, sizeof(progdir) - 1);
-                progdir[sizeof(progdir) - 1] = '\0';
+                /* Extract the directory containing the loaded program (Amiga path) */
+                strncpy(amiga_progdir, g_loadfile, sizeof(amiga_progdir) - 1);
+                amiga_progdir[sizeof(amiga_progdir) - 1] = '\0';
                 
-                char *last_slash = strrchr(progdir, '/');
-                if (last_slash && last_slash != progdir) {
+                /* Find the last path separator (either / or after :) */
+                char *last_slash = strrchr(amiga_progdir, '/');
+                char *colon = strrchr(amiga_progdir, ':');
+                
+                /* If no slash, or colon is after the last slash, the file is directly in the volume/assign */
+                if (last_slash && (!colon || last_slash > colon)) {
                     *last_slash = '\0';
+                } else if (colon) {
+                    /* Path is "VOLUME:filename" - directory is "VOLUME:" */
+                    *(colon + 1) = '\0';
+                } else {
+                    /* No separator found - shouldn't happen, but handle gracefully */
+                    amiga_progdir[0] = '\0';
+                }
+                
+                /* Resolve Amiga path to Linux path */
+                if (amiga_progdir[0] && vfs_resolve_path(amiga_progdir, linux_progdir, sizeof(linux_progdir))) {
+                    /* Set PROGDIR: for this program (using the Linux path) */
+                    vfs_set_progdir(linux_progdir);
                     
                     /* Standard Amiga directories to add to assigns */
                     struct {
@@ -3402,7 +3419,7 @@ int op_illg(int level)
                     };
                     
                     for (int i = 0; subdirs[i].dir; i++) {
-                        snprintf(subdir, sizeof(subdir), "%s/%s", progdir, subdirs[i].dir);
+                        snprintf(subdir, sizeof(subdir), "%s/%s", linux_progdir, subdirs[i].dir);
                         if (stat(subdir, &st) == 0 && S_ISDIR(st.st_mode)) {
                             /* Prepend this path to the assign (so it's searched first) */
                             vfs_assign_prepend_path(subdirs[i].assign, subdir);

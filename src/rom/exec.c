@@ -1455,7 +1455,7 @@ void _defaultTaskExit (void)
 void _exec_RemTask ( register struct ExecBase * SysBase __asm("a6"),
                                      register struct Task * task  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: RemTask called, task=0x%08lx\n", task);
+    LPRINTF (LOG_INFO, "_exec: RemTask called, task=0x%08lx\n", task);
 
     struct Task    *me = SysBase->ThisTask;
 
@@ -1475,6 +1475,47 @@ void _exec_RemTask ( register struct ExecBase * SysBase __asm("a6"),
         LPRINTF (LOG_ERROR, "_exec: RemTask() task 0x%08lx has invalid type %d - ignoring\n", 
                  task, task->tc_Node.ln_Type);
         return;
+    }
+
+    /*
+     * If this is a Process with a task number (CLI process), we need to free
+     * the task number BEFORE freeing the task memory. This is important for
+     * programs that directly call RemTask() instead of Exit().
+     * 
+     * SystemTagList() waits for the task number slot to be cleared, so we must
+     * clear it here to prevent infinite waiting.
+     */
+    if (task->tc_Node.ln_Type == NT_PROCESS)
+    {
+        struct Process *proc = (struct Process *)task;
+        if (proc->pr_TaskNum > 0)
+        {
+            DPRINTF (LOG_DEBUG, "_exec: RemTask() freeing task number %ld for process\n", proc->pr_TaskNum);
+            
+            /* Access DOSBase and free the task number */
+            struct Library *dosLib = (struct Library *)FindName(&SysBase->LibList, (CONST_STRPTR)"dos.library");
+            if (dosLib)
+            {
+                struct DosLibrary *DOSBase = (struct DosLibrary *)dosLib;
+                struct RootNode *rootNode = DOSBase->dl_Root;
+                if (rootNode)
+                {
+                    ULONG *taskArray = (ULONG *)BADDR(rootNode->rn_TaskArray);
+                    if (taskArray)
+                    {
+                        ULONG maxSlots = taskArray[0];
+                        if ((ULONG)proc->pr_TaskNum <= maxSlots)
+                        {
+                            Disable();
+                            taskArray[proc->pr_TaskNum] = 0;  /* Mark slot as free */
+                            Enable();
+                            DPRINTF (LOG_DEBUG, "_exec: RemTask() cleared task slot %ld\n", proc->pr_TaskNum);
+                        }
+                    }
+                }
+            }
+            proc->pr_TaskNum = 0;
+        }
     }
 
     if (task != me)

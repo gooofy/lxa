@@ -109,6 +109,10 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Requester * requester __asm("a2"),
                                                         register WORD numGad __asm("d0"));
 
+/* Forward declaration for internal string gadget key handling */
+static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window, 
+                                       UWORD rawkey, UWORD qualifier);
+
 UWORD _intuition_RemoveGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * remPtr __asm("a0"),
                                                         register struct Gadget * gadget __asm("a1"),
@@ -2481,6 +2485,186 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
 }
 
 /*
+ * Handle keyboard input for an active string gadget
+ * Returns TRUE if the gadget handled the input and remains active
+ * Returns FALSE if the gadget deactivated (Return/Escape pressed or focus lost)
+ */
+static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window, 
+                                       UWORD rawkey, UWORD qualifier)
+{
+    struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
+    struct IntuitionBase *IBase;
+    BOOL keyUp = (rawkey & IECODE_UP_PREFIX) != 0;
+    UWORD code = rawkey & ~IECODE_UP_PREFIX;
+    BOOL needsRefresh = FALSE;
+    
+    if (!si || !si->Buffer)
+        return TRUE;  /* No StringInfo, stay active anyway */
+    
+    if (keyUp)
+        return TRUE;  /* Ignore key release events */
+    
+    DPRINTF(LOG_DEBUG, "_intuition: _handle_string_gadget_key code=0x%02x qual=0x%04x\n",
+            code, qualifier);
+    
+    /* Get IntuitionBase for RefreshGList calls */
+    IBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
+    
+    /* Check for special keys */
+    switch (code) {
+        case 0x44: /* Return key */
+            gad->Flags &= ~GFLG_SELECTED;
+            /* Post IDCMP_GADGETUP */
+            if (gad->Activation & GACT_RELVERIFY) {
+                _post_idcmp_message(window, IDCMP_GADGETUP, 0, qualifier, gad,
+                                    window->MouseX, window->MouseY);
+            }
+            if (IBase) CloseLibrary((struct Library *)IBase);
+            return FALSE;  /* Deactivate gadget */
+            
+        case 0x45: /* Escape key */
+            gad->Flags &= ~GFLG_SELECTED;
+            if (IBase) CloseLibrary((struct Library *)IBase);
+            return FALSE;  /* Deactivate gadget */
+            
+        case 0x41: /* Backspace */
+            if (si->BufferPos > 0 && si->NumChars > 0) {
+                /* Delete character before cursor */
+                WORD i;
+                for (i = si->BufferPos - 1; i < si->NumChars - 1; i++) {
+                    si->Buffer[i] = si->Buffer[i + 1];
+                }
+                si->Buffer[si->NumChars - 1] = '\0';
+                si->BufferPos--;
+                si->NumChars--;
+                needsRefresh = TRUE;
+            }
+            break;
+            
+        case 0x46: /* Delete */
+            if (si->BufferPos < si->NumChars) {
+                /* Delete character at cursor */
+                WORD i;
+                for (i = si->BufferPos; i < si->NumChars - 1; i++) {
+                    si->Buffer[i] = si->Buffer[i + 1];
+                }
+                si->Buffer[si->NumChars - 1] = '\0';
+                si->NumChars--;
+                needsRefresh = TRUE;
+            }
+            break;
+            
+        case 0x4F: /* Cursor Left */
+            if (si->BufferPos > 0) {
+                si->BufferPos--;
+                needsRefresh = TRUE;
+            }
+            break;
+            
+        case 0x4E: /* Cursor Right */
+            if (si->BufferPos < si->NumChars) {
+                si->BufferPos++;
+                needsRefresh = TRUE;
+            }
+            break;
+            
+        default:
+            /* Try to convert raw key to ASCII character */
+            {
+                UBYTE ch = 0;
+                
+                /* Simple ASCII mapping for common keys */
+                if (code >= 0x00 && code <= 0x09) {
+                    /* Numbers 1-0 on main keyboard */
+                    static const UBYTE numRow[] = "1234567890";
+                    static const UBYTE numRowShift[] = "!@#$%^&*()";
+                    if (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT))
+                        ch = numRowShift[code];
+                    else
+                        ch = numRow[code];
+                } else if (code >= 0x10 && code <= 0x19) {
+                    /* QWERTYUIOP */
+                    static const UBYTE qRow[] = "qwertyuiop";
+                    ch = qRow[code - 0x10];
+                    if (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
+                        ch = ch - 'a' + 'A';
+                } else if (code >= 0x20 && code <= 0x28) {
+                    /* ASDFGHJKL */
+                    static const UBYTE aRow[] = "asdfghjkl";
+                    ch = aRow[code - 0x20];
+                    if (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
+                        ch = ch - 'a' + 'A';
+                } else if (code >= 0x31 && code <= 0x39) {
+                    /* ZXCVBNM,. */
+                    static const UBYTE zRow[] = "zxcvbnm,.";
+                    ch = zRow[code - 0x31];
+                    if (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
+                        ch = ch - 'a' + 'A';
+                } else if (code == 0x40) {
+                    /* Space */
+                    ch = ' ';
+                } else if (code == 0x0A) {
+                    /* Minus/Underscore */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '_' : '-';
+                } else if (code == 0x0B) {
+                    /* Equals/Plus */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '+' : '=';
+                } else if (code == 0x1A) {
+                    /* Left bracket */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '{' : '[';
+                } else if (code == 0x1B) {
+                    /* Right bracket */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '}' : ']';
+                } else if (code == 0x29) {
+                    /* Semicolon/colon */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? ':' : ';';
+                } else if (code == 0x2A) {
+                    /* Quote */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '"' : '\'';
+                } else if (code == 0x30) {
+                    /* Grave/tilde */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '~' : '`';
+                } else if (code == 0x2B) {
+                    /* Backslash/pipe */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '|' : '\\';
+                } else if (code == 0x38) {
+                    /* Comma/less-than */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '<' : ',';
+                } else if (code == 0x39) {
+                    /* Period/greater-than */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '>' : '.';
+                } else if (code == 0x3A) {
+                    /* Slash/question */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '?' : '/';
+                }
+                
+                /* Insert character if we got one and there's room */
+                if (ch != 0 && si->NumChars < si->MaxChars - 1) {
+                    /* Make room at cursor position */
+                    WORD i;
+                    for (i = si->NumChars; i > si->BufferPos; i--) {
+                        si->Buffer[i] = si->Buffer[i - 1];
+                    }
+                    si->Buffer[si->BufferPos] = ch;
+                    si->BufferPos++;
+                    si->NumChars++;
+                    si->Buffer[si->NumChars] = '\0';
+                    needsRefresh = TRUE;
+                }
+            }
+            break;
+    }
+    
+    /* Refresh the gadget display if needed */
+    if (needsRefresh && IBase) {
+        _intuition_RefreshGList(IBase, gad, window, NULL, 1);
+    }
+    
+    if (IBase) CloseLibrary((struct Library *)IBase);
+    return TRUE;  /* Stay active */
+}
+
+/*
  * Internal function to post an IDCMP message to a window
  * Returns TRUE if message was posted, FALSE if window not interested
  */
@@ -2661,29 +2845,50 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             DPRINTF(LOG_DEBUG, "_intuition: SELECTUP on gadget type=0x%04x inside=%d\n",
                                     gad->GadgetType, inside);
                             
-                            /* Clear selected state */
-                            gad->Flags &= ~GFLG_SELECTED;
-                            
-                            if (inside)
+                            /* For string gadgets, keep them active to receive keyboard input */
+                            if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
                             {
-                                /* Handle system gadget verification */
-                                if (gad->GadgetType & GTYP_SYSGADGET)
+                                /* String gadget stays active until Return/Escape */
+                                /* Keep GFLG_SELECTED set and g_active_gadget pointing to it */
+                                DPRINTF(LOG_DEBUG, "_intuition: String gadget remains active for keyboard input\n");
+                                
+                                if (inside)
                                 {
-                                    _handle_sys_gadget_verify(activeWin, gad);
+                                    /* Post GADGETDOWN if not already (it's now the active string gadget) */
+                                    if (gad->Activation & GACT_IMMEDIATE)
+                                    {
+                                        _post_idcmp_message(activeWin, IDCMP_GADGETDOWN, 0,
+                                                           qualifier, gad, activeRelX, activeRelY);
+                                    }
                                 }
-                                /* Post IDCMP_GADGETUP for RELVERIFY gadgets */
-                                else if (gad->Activation & GACT_RELVERIFY)
-                                {
-                                    _post_idcmp_message(activeWin, IDCMP_GADGETUP, 0,
-                                                       qualifier, gad, activeRelX, activeRelY);
-                                }
+                                /* Don't clear g_active_gadget or g_active_window */
                             }
-                            
-                            /* TODO: Render normal state */
-                            
-                            /* Clear active gadget */
-                            g_active_gadget = NULL;
-                            g_active_window = NULL;
+                            else
+                            {
+                                /* Non-string gadgets: clear selected state */
+                                gad->Flags &= ~GFLG_SELECTED;
+                                
+                                if (inside)
+                                {
+                                    /* Handle system gadget verification */
+                                    if (gad->GadgetType & GTYP_SYSGADGET)
+                                    {
+                                        _handle_sys_gadget_verify(activeWin, gad);
+                                    }
+                                    /* Post IDCMP_GADGETUP for RELVERIFY gadgets */
+                                    else if (gad->Activation & GACT_RELVERIFY)
+                                    {
+                                        _post_idcmp_message(activeWin, IDCMP_GADGETUP, 0,
+                                                           qualifier, gad, activeRelX, activeRelY);
+                                    }
+                                }
+                                
+                                /* TODO: Render normal state */
+                                
+                                /* Clear active gadget */
+                                g_active_gadget = NULL;
+                                g_active_window = NULL;
+                            }
                         }
                     }
                     /* Right mouse button press - enter menu mode */
@@ -2693,7 +2898,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                         struct Window *menuWin = NULL;
                         
                         /* Check if we're in the screen's title bar area (where menus are displayed) */
-                        if (mouseY < screen->BarHeight)
+                        if (mouseY < screen->BarHeight + 1)
                         {
                             /* Find the active window with a menu strip */
                             menuWin = screen->FirstWindow;
@@ -2809,9 +3014,23 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 UWORD rawkey = (UWORD)(key_data & 0xFFFF);
                 UWORD qualifier = (UWORD)(key_data >> 16);
                 
-                if (window)
+                /* Check if there's an active string gadget that should receive keyboard input */
+                if (g_active_gadget && g_active_window &&
+                    (g_active_gadget->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
                 {
-                    /* Convert to window-relative coordinates */
+                    /* Route keyboard input to the string gadget */
+                    BOOL stillActive = _handle_string_gadget_key(g_active_gadget, g_active_window, 
+                                                                  rawkey, qualifier);
+                    if (!stillActive)
+                    {
+                        /* Gadget deactivated (Return/Escape pressed) */
+                        g_active_gadget = NULL;
+                        g_active_window = NULL;
+                    }
+                }
+                else if (window)
+                {
+                    /* No active string gadget - post RAWKEY to window as normal */
                     WORD relX = mouseX - window->LeftEdge;
                     WORD relY = mouseY - window->TopEdge;
                     _post_idcmp_message(window, IDCMP_RAWKEY, rawkey, 

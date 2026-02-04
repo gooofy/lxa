@@ -82,4 +82,10 @@ bool vfs_assign_exists(const char *name);
 /* Get the path(s) for an assign (returns first path, or NULL if not found) */
 const char *vfs_assign_get_path(const char *name);
 
+/* Set the program directory for PROGDIR: resolution */
+void vfs_set_progdir(const char *path);
+
+/* Get the current program directory (for PROGDIR:) */
+const char *vfs_get_progdir(void);
+
 #endif

@@ -19,6 +19,7 @@ struct drive_map_s {
 
 static drive_map_t *g_drive_maps = NULL;
 static char g_lxa_home[PATH_MAX] = "";
+static char g_progdir[PATH_MAX] = "";  /* Program directory for PROGDIR: */
 
 /*
  * Phase 7: Assignment System
@@ -273,6 +274,32 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
     if (!strncasecmp(amiga_path, "NIL:", 4)) {
         strncpy(linux_path, "/dev/null", maxlen);
         return true;
+    }
+
+    /*
+     * Handle PROGDIR: - resolves relative to the program's directory.
+     * This is a dynamic pseudo-assign that changes based on the loaded program.
+     */
+    if (!strncasecmp(amiga_path, "PROGDIR:", 8)) {
+        if (g_progdir[0] != '\0') {
+            const char *relative = amiga_path + 8;
+            if (*relative == '\0') {
+                /* Just "PROGDIR:" - return the directory itself */
+                strncpy(linux_path, g_progdir, maxlen);
+            } else {
+                /* "PROGDIR:path" - use case-insensitive path resolution */
+                if (!resolve_path_from_root(g_progdir, relative, linux_path, maxlen)) {
+                    /* Fall back to direct path if resolution fails */
+                    snprintf(linux_path, maxlen, "%s/%s", g_progdir, relative);
+                }
+            }
+            linux_path[maxlen - 1] = '\0';
+            DPRINTF(LOG_DEBUG, "vfs: resolved PROGDIR:%s -> %s\n", relative, linux_path);
+            return true;
+        } else {
+            DPRINTF(LOG_WARNING, "vfs: PROGDIR: requested but no program directory set\n");
+            return false;
+        }
     }
 
     /*
@@ -1122,4 +1149,27 @@ const char *vfs_assign_get_path(const char *name)
         return entry->paths->linux_path;
     }
     return NULL;
+}
+
+/*
+ * Set the program directory for PROGDIR: resolution.
+ * This should be called with the directory containing the loaded program.
+ */
+void vfs_set_progdir(const char *path)
+{
+    if (path) {
+        strncpy(g_progdir, path, sizeof(g_progdir) - 1);
+        g_progdir[sizeof(g_progdir) - 1] = '\0';
+        DPRINTF(LOG_DEBUG, "vfs: set PROGDIR: to %s\n", g_progdir);
+    } else {
+        g_progdir[0] = '\0';
+    }
+}
+
+/*
+ * Get the current program directory (for PROGDIR:).
+ */
+const char *vfs_get_progdir(void)
+{
+    return g_progdir[0] ? g_progdir : NULL;
 }

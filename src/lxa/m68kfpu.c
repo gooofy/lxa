@@ -1725,34 +1725,79 @@ void m68040_fpu_op1()
 					}
 					break;
 
-				case 3:	// (An)+
-		    			addr = EA_AY_PI_32();
-					temp = m68ki_read_32(addr);
+			case 3:	// (An)+
+	    			addr = EA_AY_PI_32();
+				temp = m68ki_read_32(addr);
 
-					// check for NULL frame
-					if (temp & 0xff000000)
-					{
-						m68ki_cpu.fpu_just_reset = 0;
+				// check for NULL frame
+				if (temp & 0xff000000)
+				{
+					m68ki_cpu.fpu_just_reset = 0;
 
-						// how about an IDLE frame?
-						if ((temp & 0x00ff0000) == 0x00180000)
-						{
-							REG_A[reg] += 6*4;
-						} // check UNIMP
-						else if ((temp & 0x00ff0000) == 0x00380000)
-						{
-							REG_A[reg] += 14*4;
-						} // check BUSY
-						else if ((temp & 0x00ff0000) == 0x00b40000)
-						{
-							REG_A[reg] += 45*4;
-						}
-					}
-					else
+					// how about an IDLE frame?
+					if ((temp & 0x00ff0000) == 0x00180000)
 					{
-						do_frestore_null();
+						REG_A[reg] += 6*4;
+					} // check UNIMP
+					else if ((temp & 0x00ff0000) == 0x00380000)
+					{
+						REG_A[reg] += 14*4;
+					} // check BUSY
+					else if ((temp & 0x00ff0000) == 0x00b40000)
+					{
+						REG_A[reg] += 45*4;
 					}
-					break;
+				}
+				else
+				{
+					do_frestore_null();
+				}
+				break;
+
+			case 4:	// -(An) - unusual but handle it
+				addr = REG_A[reg];
+				temp = m68ki_read_32(addr);
+
+				// check for NULL frame
+				if (temp & 0xff000000)
+				{
+					m68ki_cpu.fpu_just_reset = 0;
+
+					// how about an IDLE frame?
+					if ((temp & 0x00ff0000) == 0x00180000)
+					{
+						// Don't modify An for predecrement mode
+					} // check UNIMP
+					else if ((temp & 0x00ff0000) == 0x00380000)
+					{
+						// Don't modify An for predecrement mode
+					} // check BUSY
+					else if ((temp & 0x00ff0000) == 0x00b40000)
+					{
+						// Don't modify An for predecrement mode
+					}
+				}
+				else
+				{
+					do_frestore_null();
+				}
+				break;
+
+			case 5:	// (d16,An)
+				addr = EA_AY_DI_32();
+				temp = m68ki_read_32(addr);
+
+				// check for NULL frame
+				if (temp & 0xff000000)
+				{
+					m68ki_cpu.fpu_just_reset = 0;
+					// No register modification for displacement addressing
+				}
+				else
+				{
+					do_frestore_null();
+				}
+				break;
 
 				default:
 					fatalerror("M68kFPU: FRESTORE unhandled mode %d reg %d at %x\n", mode, reg, REG_PC);

@@ -1283,7 +1283,7 @@ void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
     struct DosLibrary *DOSBase = __libBase;
     (void)DOSBase; /* used by FreeDosObject macro */
 
-    DPRINTF (LOG_DEBUG, "_dos: Exit() called, returnCode=%ld\n", ___returnCode);
+    LPRINTF (LOG_INFO, "_dos: Exit() called, returnCode=%ld\n", ___returnCode);
 
     struct Process *me = (struct Process *)FindTask(NULL);
 
@@ -1857,8 +1857,6 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
                 :
                 : "d0", "d1", "a0", "a1", "a6", "cc", "memory"
             );
-            
-            DPRINTF(LOG_DEBUG, "_dos: Delay() back from schedule\n");
         }
         else
         {
@@ -2096,8 +2094,23 @@ OOM:
             return NULL;
         }
 
+        case DOS_RDARGS:
+        {
+            /* Allocate an RDArgs structure for ReadArgs().
+             * This allows programs to customize argument parsing.
+             */
+            struct RDArgs *rdargs = AllocVec(sizeof(struct RDArgs), MEMF_PUBLIC | MEMF_CLEAR);
+            if (!rdargs)
+            {
+                SetIoErr(ERROR_NO_FREE_STORE);
+                return NULL;
+            }
+            DPRINTF(LOG_DEBUG, "_dos: AllocDosObject() allocated new DOS_RDARGS object: 0x%08lx\n", rdargs);
+            return rdargs;
+        }
+
         default:
-            DPRINTF (LOG_DEBUG, "_dos: FIXME: AllocDosObject() type=%ld not implemented\n", type);
+            DPRINTF (LOG_ERROR, "_dos: FIXME: AllocDosObject() type=%ld not implemented\n", type);
             assert (FALSE);
     }
 
@@ -2152,6 +2165,17 @@ void _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"),
             break;
 
     	}
+
+        case DOS_RDARGS:
+        {
+            /* Free an RDArgs structure.
+             * Note: FreeArgs() should be called first to free any allocations
+             * made by ReadArgs(), but the RDArgs structure itself can be freed here.
+             */
+            FreeVec(ptr);
+            break;
+        }
+
 	default:
 		assert (FALSE); // FIXME: implement other dos obj types
 	}
@@ -3692,6 +3716,12 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
         return -1;
     }
     
+    /* Enable instruction tracing for DPaint debugging */
+    /* Check if bin_name contains "DPaint" */
+    {
+        /* DPaint trace removed - was causing slowdown */
+    }
+    
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList() created process 0x%08lx, taskNum=%ld\n", proc, proc->pr_TaskNum);
     
     /* Check for asynchronous execution */
@@ -3716,7 +3746,7 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
      */
     struct MsgPort *childPort = &proc->pr_MsgPort;
     
-    DPRINTF(LOG_INFO, "_dos: SystemTagList waiting for task %ld (proc 0x%08lx, port 0x%08lx)\n", 
+    DPRINTF(LOG_DEBUG, "_dos: SystemTagList waiting for task %ld (proc 0x%08lx, port 0x%08lx)\n", 
             taskNum, proc, childPort);
     
     /* Wait for the child task to complete by polling TaskArray.

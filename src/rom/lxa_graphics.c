@@ -4686,8 +4686,62 @@ static VOID _graphics_GetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG ncolors __asm("d1"),
                                                         register ULONG * table __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetRGB32() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * GetRGB32 - Get 32-bit per gun color values from a ColorMap.
+     *
+     * This function retrieves color palette entries and stores them in the
+     * provided table array. Each color uses 3 ULONGs (R, G, B) with 32 bits
+     * per gun.
+     *
+     * The 4-bit color values (0-15) stored in ColorTable are expanded to
+     * 32-bit by replicating the 4-bit value across the entire 32-bit word.
+     * For example: 0xF -> 0xFFFFFFFF, 0x8 -> 0x88888888
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: GetRGB32() cm=0x%08lx, first=%lu, n=%lu, table=0x%08lx\n",
+             (ULONG)cm, firstcolor, ncolors, (ULONG)table);
+    
+    if (!cm || !table)
+        return;
+    
+    UWORD *ct = cm->ColorTable;
+    if (!ct)
+        return;
+    
+    for (ULONG i = 0; i < ncolors; i++) {
+        ULONG color_index = firstcolor + i;
+        ULONG rgb4;
+        
+        if (color_index < cm->Count) {
+            rgb4 = ct[color_index];
+        } else {
+            rgb4 = 0;  /* Out of range - return black */
+        }
+        
+        /* Extract 4-bit components from 0x0RGB format */
+        ULONG r4 = (rgb4 >> 8) & 0xF;
+        ULONG g4 = (rgb4 >> 4) & 0xF;
+        ULONG b4 = rgb4 & 0xF;
+        
+        /* Expand 4-bit to 32-bit by replicating bits
+         * 0xF -> 0xFFFFFFFF, 0x8 -> 0x88888888, etc.
+         */
+        ULONG r32 = r4 | (r4 << 4);
+        r32 = r32 | (r32 << 8);
+        r32 = r32 | (r32 << 16);
+        
+        ULONG g32 = g4 | (g4 << 4);
+        g32 = g32 | (g32 << 8);
+        g32 = g32 | (g32 << 16);
+        
+        ULONG b32 = b4 | (b4 << 4);
+        b32 = b32 | (b32 << 8);
+        b32 = b32 | (b32 << 16);
+        
+        /* Store in table: R, G, B for each color */
+        table[i * 3 + 0] = r32;
+        table[i * 3 + 1] = g32;
+        table[i * 3 + 2] = b32;
+    }
 }
 
 static VOID _graphics_private7 ( register struct GfxBase * GfxBase __asm("a6"))

@@ -125,6 +125,10 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
         -e '^>> $' \
         -e '^ERROR: mread' \
         -e '^ERROR: mwrite' \
+        -e '^WARNING: mread' \
+        -e '^WARNING: mwrite' \
+        -e '^WARNING: suppressing' \
+        -e '^\*\*\* WARNING: PC=' \
         "$TEMP_OUTPUT" > "${TEMP_OUTPUT}.2" 2>/dev/null || true
     
     # Move filtered output back

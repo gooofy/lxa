@@ -67,7 +67,10 @@ _exec_Schedule:
     /* If ThisTask is NULL (e.g., last task was removed), just exit */
     /* No current task to switch from, Dispatch will pick the next ready task */
     move.l      a1, d0                              | copy a1 to d0 for NULL test
-    beq.s       __exec_Schedule_exit                | ThisTask == NULL? -> exit
+    bne.s       1f                                  | ThisTask != NULL -> continue
+    | DPUTS       __exec_Schedule_s5                  | "ThisTask is NULL"
+    bra         __exec_Schedule_exit
+1:
 
     /*
      * If ThisTask is NOT running (tc_State != TS_RUN), we're being called
@@ -77,15 +80,20 @@ _exec_Schedule:
      * tc_State is at offset 15 (0xf) in the Task structure, TS_RUN = 2.
      */
     cmp.b       #2, 0xf(a1)                         | ThisTask->tc_State == TS_RUN?
-    bne.s       __exec_Schedule_exit                | no -> exit (let dispatch handle it)
+    beq.s       2f                                  | yes -> continue
+    | DPUTS       __exec_Schedule_s6                  | "ThisTask not running"
+    bra         __exec_Schedule_exit
+2:
 
     /* FIXME: check for exception flags */
 
     /* do we have another task that is ready? */
     lea.l       TaskReady(a6), a0                   | &SysBase->TaskReady -> a0
     cmp.l       8(a0), a0                           | list empty?
-    beq.s       __exec_Schedule_exit                | yes -> exit
-
+    bne.s       3f                                  | not empty -> continue
+    | DPUTS       __exec_Schedule_s7                  | "TaskReady empty"
+    bra         __exec_Schedule_exit
+3:
     move.l      (a0), a0                            | first task in ready list -> a0
     move.b      9(a0), d1                           | ln_Pri -> d1
     cmp.b       9(a1), d1                           | > ThisTask->ln_Pri ?
@@ -531,6 +539,18 @@ __exec_Schedule_s3:
     .align 4
 __exec_Schedule_s4:
     .asciz  "_exec_Schedule: Schedule() got another task that is ready\n"
+
+    .align 4
+__exec_Schedule_s5:
+    .asciz  "_exec_Schedule: ThisTask is NULL\n"
+
+    .align 4
+__exec_Schedule_s6:
+    .asciz  "_exec_Schedule: ThisTask not running\n"
+
+    .align 4
+__exec_Schedule_s7:
+    .asciz  "_exec_Schedule: TaskReady empty\n"
 
     .align 4
 __exec_handleIRQ3_s1:
