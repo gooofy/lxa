@@ -125,9 +125,9 @@ struct LXAFontRequester {
  * Library init/open/close/expunge
  */
 
-struct AslBase * __g_lxa_asl_InitLib ( register struct AslBase *aslb __asm("a6"),
+struct AslBase * __g_lxa_asl_InitLib ( register struct AslBase *aslb __asm("d0"),
                                        register BPTR           seglist __asm("a0"),
-                                       register struct ExecBase *sysb __asm("d0"))
+                                       register struct ExecBase *sysb __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_asl: InitLib() called\n");
     aslb->SegList = seglist;

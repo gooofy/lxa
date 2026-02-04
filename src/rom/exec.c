@@ -46,9 +46,14 @@
 #define VERSION  1
 #define REVISION 1
 
-typedef struct Library * (*libInitFn_t)   ( register struct Library    *lib     __asm("a6"),
+/* Library init calling convention per RKRM:
+ * D0 = Library pointer
+ * A0 = Segment list (BPTR)
+ * A6 = SysBase
+ */
+typedef struct Library * (*libInitFn_t)   ( register struct Library    *lib     __asm("d0"),
                                             register BPTR               seglist __asm("a0"),
-                                            register struct ExecBase   *sysb    __asm("d0"));
+                                            register struct ExecBase   *sysb    __asm("a6"));
 
 typedef struct Library * (*libOpenFn_t)   ( register struct Library    *lib     __asm("a6"));
 typedef struct Library * (*libCloseFn_t)  ( register struct Library    *lib     __asm("a6"));
@@ -359,7 +364,8 @@ void _makeLibrary ( struct Library *library,
     //VOID  __stdargs MakeFunctions( APTR target, CONST_APTR functionArray, ULONG funcDispBase );
 
     if(*(WORD *)___funcInit==-1)
-        MakeFunctions (library, (CONST_APTR)___funcInit+1, (ULONG)___funcInit);
+        /* Word-offset format: skip past the -1 marker (2 bytes) */
+        MakeFunctions (library, (WORD *)___funcInit+1, (ULONG)___funcInit);
     else
         MakeFunctions (library, ___funcInit, NULL);
 
@@ -4533,7 +4539,7 @@ void _bootstrap(void)
         __asm__ __volatile__ ("" ::: "a2", "a3", "a4", "d2", "d3", "d4", "d5", "d6", "d7", "memory");
     }
 
-    DPRINTF (LOG_INFO, "_exec: _bootstrap(): childfn() returned, rv=%ld\n", rv);
+    DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): childfn() returned, rv=%ld\n", rv);
 #if 0
     //*((APTR*) SysBase->ThisTask->tc_SPReg) = initPC;
 
@@ -4566,7 +4572,7 @@ void _bootstrap(void)
     //    DPRINTF (LOG_INFO, "bootstrap() loop, SysBase->TDNestCnt=%d\n", SysBase->TDNestCnt);
 #endif
 
-    DPRINTF (LOG_INFO, "_exec: _bootstrap(): calling emu_stop(%ld)...\n", rv);
+    DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): calling emu_stop(%ld)...\n", rv);
     
     /*
      * CRITICAL: We cannot use emu_stop(rv) here because GCC may have cached 

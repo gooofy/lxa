@@ -63,9 +63,9 @@ extern struct Library       *MathBase;
 // libBase: MathTransBase
 // baseType: struct Library *
 // libname: mathtrans.library
-struct Library * __g_lxa_mathtrans_InitLib    ( register struct Library *mathtransb    __asm("a6"),
+struct Library * __g_lxa_mathtrans_InitLib    ( register struct Library *mathtransb    __asm("d0"),
                                                       register BPTR               seglist __asm("a0"),
-                                                      register struct ExecBase   *sysb    __asm("d0"))
+                                                      register struct ExecBase   *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_mathtrans: WARNING: InitLib() unimplemented STUB called.\n");
     return mathtransb;

@@ -387,9 +387,9 @@ static BOOL GetKeyInfo(struct KeyInfo *ki, UWORD code, UWORD qual, struct KeyMap
 /* Library management functions                                              */
 /****************************************************************************/
 
-struct KeymapBase * __g_lxa_keymap_InitLib ( register struct KeymapBase *kmb    __asm("a6"),
+struct KeymapBase * __g_lxa_keymap_InitLib ( register struct KeymapBase *kmb    __asm("d0"),
                                               register BPTR               seglist __asm("a0"),
-                                              register struct ExecBase   *sysb    __asm("d0"))
+                                              register struct ExecBase   *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_keymap: InitLib() called\n");
     kmb->SegList = seglist;

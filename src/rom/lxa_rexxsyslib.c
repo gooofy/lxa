@@ -39,9 +39,9 @@ extern struct ExecBase *SysBase;
  * Library init/open/close/expunge
  */
 
-struct RxsLib * __g_lxa_rexxsyslib_InitLib ( register struct RxsLib    *rexxbase __asm("a6"),
+struct RxsLib * __g_lxa_rexxsyslib_InitLib ( register struct RxsLib    *rexxbase __asm("d0"),
                                              register BPTR              seglist __asm("a0"),
-                                             register struct ExecBase  *sysb __asm("d0"))
+                                             register struct ExecBase  *sysb __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_rexxsyslib: InitLib() called\n");
     rexxbase->rl_SegList = (LONG)seglist;

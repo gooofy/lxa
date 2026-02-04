@@ -8,11 +8,15 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.5** | **Phase 49 Complete** | **~96 Integration Tests Passing**
+**Version: 0.6.6** | **Phase 49 Complete** | **~96 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes**:
+- **Library init calling convention fix**: The `libInitFn_t` typedef had incorrect register 
+  assignments (D0 and A6 were swapped). Per RKRM, library init should receive D0=Library, 
+  A0=SegList, A6=SysBase. Fixed typedef and all 22 ROM library InitLib functions.
+- **MakeFunctions pointer arithmetic**: Word-offset format requires skipping 2 bytes (not 1).
 - Extended memory map support for Slow RAM (0x00C00000-0x00D7FFFF), Ranger RAM (0x00E00000-0x00E7FFFF),
   Extended ROM (0x00F00000-0x00F7FFFF), and ROM writes. GFA Basic now runs without memory errors.
 - Fixed critical Signal/Wait task scheduling bug: When a single task called Wait() and entered
@@ -287,7 +291,7 @@ See detailed phase description below in "Application Deep Dive Phases".
 ### Phase 49: Devpac (HiSoft) Deep Dive
 **Goal**: Fix window rendering bug and achieve full assembler IDE functionality.
 
-**Status**: ✅ FIXED - Window renders correctly AND responds to input
+**Status**: ✅ WORKING - Devpac window opens and responds to input!
 
 **Issues Fixed**:
 1. **DetailPen/BlockPen 0xFF Bug** (Commit 73621b2):
@@ -295,7 +299,7 @@ See detailed phase description below in "Application Deep Dive Phases".
    - Per RKRM, when these values are ~0 (0xFF), the system should use screen defaults
    - Fixed in `_intuition_OpenWindow()` to map 0xFF pen values to screen defaults
 
-2. **Signal/Wait Task Scheduling Bug** (Current Session):
+2. **Signal/Wait Task Scheduling Bug** (Commit 31f5918):
    - Devpac's window rendered but wouldn't respond to mouse/keyboard input
    - Root cause: When single task calls Wait() and enters dispatch idle loop,
      VBlank interrupt's Signal() would wake the task, but Schedule() would
@@ -305,6 +309,26 @@ See detailed phase description below in "Application Deep Dive Phases".
      a) Schedule() now exits early if ThisTask->tc_State != TS_RUN (let dispatch loop handle it)
      b) Signal() now triggers reschedule when ThisTask is not running (idle loop case)
 
+3. **Library Init Calling Convention Bug** (Current Session):
+   - When Devpac tries to load `amigaguide.library` from disk, the library's init 
+     function was called with wrong register convention
+   - The `libInitFn_t` typedef had D0 and A6 swapped. Per RKRM, library init should be:
+     - D0 = Library pointer
+     - A0 = Segment list (BPTR)  
+     - A6 = SysBase
+   - Fixed typedef and all 22 ROM library InitLib function signatures
+
+4. **MakeFunctions Pointer Arithmetic Bug**:
+   - `(CONST_APTR)___funcInit+1` only adds 1 byte, but word-offset format requires
+     skipping 2 bytes (the -1 marker)
+   - Fixed to `(WORD *)___funcInit+1`
+
+5. **GCC ICE Workaround**:
+   - Changing LOG_LEVEL to LOG_INFO triggered a GCC internal compiler error on
+     functions with a5/a6 register constraints (LockLayerRom, UnlockLayerRom, 
+     AttemptLockLayerRom)
+   - Fixed with `__attribute__((optimize("O0")))` on affected functions
+
 **Ghidra decompiled source**: ~/.lxa/System/Apps/Devpac/Devpac.c
 
 **Completed**:
@@ -312,6 +336,8 @@ See detailed phase description below in "Application Deep Dive Phases".
 - [x] Window title bar now renders correctly
 - [x] Window borders render with proper 3D effect
 - [x] Fixed Signal/Wait scheduling bug - window now responds to input
+- [x] Fixed library init calling convention - disk libraries now load properly
+- [x] amigaguide.library now loads (fails to open datatype, but gracefully)
 - [x] All integration tests pass
 
 **Remaining Tasks**:
@@ -662,6 +688,7 @@ See detailed phase description below in "Application Deep Dive Phases".
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.6 | 49 | Fixed library init calling convention (D0/A0/A6), MakeFunctions pointer fix, disk libraries now load |
 | 0.6.5 | 49+ | Extended memory map (Slow RAM, Ranger RAM, Extended ROM, ROM writes), GFA Basic now runs |
 | 0.6.4 | 49 | Fixed Signal/Wait scheduling bug (Devpac now responds to input), signal_pingpong test fix |
 | 0.6.3 | 49 | Fixed DetailPen/BlockPen 0xFF handling (Devpac window renders correctly) |

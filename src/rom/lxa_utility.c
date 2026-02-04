@@ -31,9 +31,9 @@ extern struct ExecBase      *SysBase;
 // baseType: struct UtilityBase *
 // libname: utility.library
 
-struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *utilityb __asm("a6"),
+struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *utilityb __asm("d0"),
                                                   register BPTR                seglist  __asm("a0"),
-                                                  register struct ExecBase    *sysb     __asm("d0"))
+                                                  register struct ExecBase    *sysb     __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_utility: WARNING: InitLib() unimplemented STUB called.\n");
     return utilityb;

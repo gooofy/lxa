@@ -170,3 +170,4 @@ tests/shell/variables/System/Shell
 tests/asl/filerequest/filerequest
 tests/gadtools/drawbevelbox/drawbevelbox
 tests/devices/timer/timer_test
+tests/devices/clipboard/clipboard_test

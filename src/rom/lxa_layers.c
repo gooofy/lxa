@@ -62,9 +62,9 @@ static struct LayersBase *LayersBase;
  * Library management functions
  * ======================================================================== */
 
-struct LayersBase * __g_lxa_layers_InitLib ( register struct LayersBase *layersb __asm("a6"),
+struct LayersBase * __g_lxa_layers_InitLib ( register struct LayersBase *layersb __asm("d0"),
                                               register BPTR               seglist __asm("a0"),
-                                              register struct ExecBase   *sysb    __asm("d0"))
+                                              register struct ExecBase   *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_layers: InitLib() called\n");
     LayersBase = layersb;

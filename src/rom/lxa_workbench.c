@@ -44,9 +44,9 @@ struct WorkbenchBase {
  * Library init/open/close/expunge
  */
 
-struct WorkbenchBase * __g_lxa_workbench_InitLib ( register struct WorkbenchBase *wbb __asm("a6"),
+struct WorkbenchBase * __g_lxa_workbench_InitLib ( register struct WorkbenchBase *wbb __asm("d0"),
                                                    register BPTR                seglist __asm("a0"),
-                                                   register struct ExecBase    *sysb    __asm("d0"))
+                                                   register struct ExecBase    *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_workbench: InitLib() called\n");
     wbb->SegList = seglist;

@@ -54,9 +54,9 @@ struct DiskfontBase {
 /* Library management functions                                              */
 /****************************************************************************/
 
-struct DiskfontBase * __g_lxa_diskfont_InitLib ( register struct DiskfontBase *dfb    __asm("a6"),
+struct DiskfontBase * __g_lxa_diskfont_InitLib ( register struct DiskfontBase *dfb    __asm("d0"),
                                                   register BPTR                seglist __asm("a0"),
-                                                  register struct ExecBase    *sysb    __asm("d0"))
+                                                  register struct ExecBase    *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_diskfont: InitLib() called\n");
     dfb->SegList = seglist;

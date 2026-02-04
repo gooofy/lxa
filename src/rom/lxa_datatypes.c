@@ -210,9 +210,9 @@ static ULONG DT_Dispatcher(register struct IClass *cl __asm("a0"),
 /*
  * Library init/open/close/expunge
  */
-struct DataTypesBase * __g_lxa_datatypes_InitLib ( register struct DataTypesBase *dtbase __asm("a6"),
+struct DataTypesBase * __g_lxa_datatypes_InitLib ( register struct DataTypesBase *dtbase __asm("d0"),
                                                    register BPTR                seglist __asm("a0"),
-                                                   register struct ExecBase    *sysb __asm("d0"))
+                                                   register struct ExecBase    *sysb __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_datatypes: InitLib() called\n");
     dtbase->SegList = seglist;

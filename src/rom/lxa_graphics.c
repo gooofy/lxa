@@ -283,9 +283,9 @@ extern struct ExecBase      *SysBase;
 // baseType: struct GfxBase *
 // libname: graphics.library
 
-struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphicsb    __asm("a6"),
+struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphicsb    __asm("d0"),
                                                       register BPTR               seglist __asm("a0"),
-                                                      register struct ExecBase   *sysb    __asm("d0"))
+                                                      register struct ExecBase   *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_graphics: InitLib() initializing GfxBase\n");
 
@@ -2841,7 +2841,11 @@ static VOID _graphics_MoveSprite ( register struct GfxBase * GfxBase __asm("a6")
     assert(FALSE);
 }
 
-static VOID _graphics_LockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
+/* NOTE: These functions use __attribute__((optimize("O0"))) to work around
+ * an internal compiler error in m68k-amigaos-gcc when DPRINTF is optimized out
+ * and the function becomes effectively empty with a5/a6 register constraints. */
+
+static VOID __attribute__((optimize("O0"))) _graphics_LockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a5"))
 {
     DPRINTF (LOG_DEBUG, "_graphics: LockLayerRom() layer=0x%08lx\n", (ULONG)layer);
@@ -2850,11 +2854,13 @@ static VOID _graphics_LockLayerRom ( register struct GfxBase * GfxBase __asm("a6
      * In lxa, layers.library functions are internal and can be called directly via emucall.
      * For now, we implement a simple no-op since layer locking is handled by layers.library
      * functions that already lock when needed. */
-     
-    /* TODO: If actual locking is needed, open layers.library and call LockLayer() */
+    
+    /* Prevent empty function body when DPRINTF is disabled (GCC ICE workaround) */
+    (void)GfxBase;
+    (void)layer;
 }
 
-static VOID _graphics_UnlockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
+static VOID __attribute__((optimize("O0"))) _graphics_UnlockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a5"))
 {
     DPRINTF (LOG_DEBUG, "_graphics: UnlockLayerRom() layer=0x%08lx\n", (ULONG)layer);
@@ -2863,6 +2869,10 @@ static VOID _graphics_UnlockLayerRom ( register struct GfxBase * GfxBase __asm("
      * In lxa, layers.library functions are internal and can be called directly via emucall.
      * For now, we implement a simple no-op since layer locking is handled by layers.library
      * functions that already lock when needed. */
+    
+    /* Prevent empty function body when DPRINTF is disabled (GCC ICE workaround) */
+    (void)GfxBase;
+    (void)layer;
      
     /* TODO: If actual locking is needed, open layers.library and call UnlockLayer() */
 }
@@ -3736,7 +3746,7 @@ static VOID _graphics_private1 ( register struct GfxBase * GfxBase __asm("a6"))
     assert(FALSE);
 }
 
-static BOOL _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
+static BOOL __attribute__((optimize("O0"))) _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                             register struct Layer * layer __asm("a5"))
 {
     /* Attempt to lock a layer without blocking.
@@ -3746,6 +3756,7 @@ static BOOL _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __
     DPRINTF (LOG_DEBUG, "_graphics: AttemptLockLayerRom(layer=%p)\n", layer);
     
     /* No actual locking needed in emulation - always succeeds */
+    (void)GfxBase;
     return TRUE;
 }
 

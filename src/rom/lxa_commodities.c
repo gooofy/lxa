@@ -47,9 +47,9 @@ struct CommoditiesBase
  * Library init/open/close/expunge
  */
 
-struct CommoditiesBase * __g_lxa_commodities_InitLib ( register struct CommoditiesBase *cxb __asm("a6"),
+struct CommoditiesBase * __g_lxa_commodities_InitLib ( register struct CommoditiesBase *cxb __asm("d0"),
                                                        register BPTR                   seglist __asm("a0"),
-                                                       register struct ExecBase        *sysb __asm("d0"))
+                                                       register struct ExecBase        *sysb __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_commodities: InitLib() called\n");
     cxb->SegList = seglist;

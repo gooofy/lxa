@@ -368,18 +368,18 @@ static void freeTaskNum(LONG taskNum)
 }
 
 #if 0
-struct DosLibrary * __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("a6"),
+struct DosLibrary * __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("d0"),
                                                       register BPTR               seglist __asm("a0"),
-                                                      register struct ExecBase   *sysb    __asm("d0"));
+                                                      register struct ExecBase   *sysb    __asm("a6"));
 struct DosLibrary * __g_lxa_dos_OpenLib    ( register struct DosLibrary *dosb    __asm("a6"));
 BPTR                __g_lxa_dos_CloseLib   ( register struct DosLibrary *dosb    __asm("a6"));
 BPTR                __g_lxa_dos_ExpungeLib ( register struct DosLibrary *dosb    __asm("a6"));
 ULONG                        __g_lxa_dos_ExtFuncLib ( void );
 #endif
 
-struct DosLibrary * __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("a6"),
+struct DosLibrary * __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb    __asm("d0"),
                                                       register BPTR               seglist __asm("a0"),
-                                                      register struct ExecBase   *sysb    __asm("d0"))
+                                                      register struct ExecBase   *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_dos: WARNING: InitLib() unimplemented STUB called.\n");
 #if 0

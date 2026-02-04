@@ -39,9 +39,9 @@ struct TranslatorBase {
 /* Library management functions                                              */
 /****************************************************************************/
 
-struct TranslatorBase * __g_lxa_translator_InitLib ( register struct TranslatorBase *trb     __asm("a6"),
+struct TranslatorBase * __g_lxa_translator_InitLib ( register struct TranslatorBase *trb     __asm("d0"),
                                                       register BPTR                  seglist __asm("a0"),
-                                                      register struct ExecBase       *sysb   __asm("d0"))
+                                                      register struct ExecBase       *sysb   __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_translator: InitLib() called\n");
     trb->SegList = seglist;

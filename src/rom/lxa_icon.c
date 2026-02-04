@@ -103,9 +103,9 @@ struct IconBase {
 /* Library management functions                                              */
 /****************************************************************************/
 
-struct IconBase * __g_lxa_icon_InitLib ( register struct IconBase *iconb    __asm("a6"),
+struct IconBase * __g_lxa_icon_InitLib ( register struct IconBase *iconb    __asm("d0"),
                                           register BPTR             seglist __asm("a0"),
-                                          register struct ExecBase *sysb    __asm("d0"))
+                                          register struct ExecBase *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_icon: InitLib() called\n");
     iconb->SegList = seglist;

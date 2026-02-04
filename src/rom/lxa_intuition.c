@@ -916,9 +916,9 @@ static ULONG strgclass_dispatch(
 // baseType: struct IntuitionBase *
 // libname: intuition.library
 
-struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionBase *intuitionb    __asm("a6"),
+struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionBase *intuitionb    __asm("d0"),
                                                       register BPTR               seglist __asm("a0"),
-                                                      register struct ExecBase   *sysb    __asm("d0"))
+                                                      register struct ExecBase   *sysb    __asm("a6"))
 {
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)intuitionb;
     DPRINTF (LOG_DEBUG, "_intuition: InitLib() called.\n");
@@ -3514,20 +3514,20 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     }
 
     /* Debug dump of NewWindow structure for KP2 investigation */
-    LPRINTF (LOG_INFO, "_intuition: OpenWindow() NewWindow dump:\n");
-    U_hexdump(LOG_INFO, (void *)newWindow, 48);
-    LPRINTF (LOG_INFO, "  LeftEdge=%d TopEdge=%d Width=%d Height=%d\n",
+    DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() NewWindow dump:\n");
+    U_hexdump(LOG_DEBUG, (void *)newWindow, 48);
+    DPRINTF (LOG_DEBUG, "  LeftEdge=%d TopEdge=%d Width=%d Height=%d\n",
              (int)newWindow->LeftEdge, (int)newWindow->TopEdge,
              (int)newWindow->Width, (int)newWindow->Height);
-    LPRINTF (LOG_INFO, "  DetailPen=%d BlockPen=%d\n",
+    DPRINTF (LOG_DEBUG, "  DetailPen=%d BlockPen=%d\n",
              (int)newWindow->DetailPen, (int)newWindow->BlockPen);
-    LPRINTF (LOG_INFO, "  IDCMPFlags=0x%08lx Flags=0x%08lx\n",
+    DPRINTF (LOG_DEBUG, "  IDCMPFlags=0x%08lx Flags=0x%08lx\n",
              (ULONG)newWindow->IDCMPFlags, (ULONG)newWindow->Flags);
-    LPRINTF (LOG_INFO, "  FirstGadget=0x%08lx CheckMark=0x%08lx\n",
+    DPRINTF (LOG_DEBUG, "  FirstGadget=0x%08lx CheckMark=0x%08lx\n",
              (ULONG)newWindow->FirstGadget, (ULONG)newWindow->CheckMark);
-    LPRINTF (LOG_INFO, "  Title=0x%08lx Screen=0x%08lx BitMap=0x%08lx\n",
+    DPRINTF (LOG_DEBUG, "  Title=0x%08lx Screen=0x%08lx BitMap=0x%08lx\n",
              (ULONG)newWindow->Title, (ULONG)newWindow->Screen, (ULONG)newWindow->BitMap);
-    LPRINTF (LOG_INFO, "  MinWidth=%d MinHeight=%d MaxWidth=%u MaxHeight=%u Type=%u\n",
+    DPRINTF (LOG_DEBUG, "  MinWidth=%d MinHeight=%d MaxWidth=%u MaxHeight=%u Type=%u\n",
              (int)newWindow->MinWidth, (int)newWindow->MinHeight,
              (unsigned)newWindow->MaxWidth, (unsigned)newWindow->MaxHeight,
              (unsigned)newWindow->Type);

@@ -53,9 +53,9 @@ struct ReqToolsBase
  * Library init/open/close/expunge
  */
 
-struct ReqToolsBase * __g_lxa_reqtools_InitLib ( register struct ReqToolsBase *rtbase __asm("a6"),
+struct ReqToolsBase * __g_lxa_reqtools_InitLib ( register struct ReqToolsBase *rtbase __asm("d0"),
                                                   register BPTR                 seglist __asm("a0"),
-                                                  register struct ExecBase     *sysb __asm("d0"))
+                                                  register struct ExecBase     *sysb __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_reqtools: InitLib() called\n");
     rtbase->SegList = seglist;

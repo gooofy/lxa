@@ -66,9 +66,9 @@ struct GadgetContext {
  * Library init/open/close/expunge
  */
 
-struct GadToolsBase * __g_lxa_gadtools_InitLib ( register struct GadToolsBase *gtb    __asm("a6"),
+struct GadToolsBase * __g_lxa_gadtools_InitLib ( register struct GadToolsBase *gtb    __asm("d0"),
                                                  register BPTR                seglist __asm("a0"),
-                                                 register struct ExecBase    *sysb    __asm("d0"))
+                                                 register struct ExecBase    *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_gadtools: InitLib() called\n");
     gtb->SegList = seglist;

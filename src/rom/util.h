@@ -23,8 +23,8 @@ ULONG emucall4 (ULONG func, ULONG param1, ULONG param2, ULONG param3, ULONG para
 #define LOG_WARNING 2
 #define LOG_ERROR   3
 
-#define LOG_LEVEL LOG_DEBUG
-//#define LOG_LEVEL LOG_INFO
+//#define LOG_LEVEL LOG_DEBUG
+#define LOG_LEVEL LOG_INFO
 
 int   isdigit  (int c);
 void  lputc    (int level, char c);

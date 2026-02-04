@@ -181,9 +181,9 @@ static struct Locale g_DefaultLocale = {
 /* Library management functions                                              */
 /****************************************************************************/
 
-struct MyLocaleBase * __g_lxa_locale_InitLib ( register struct MyLocaleBase *locb    __asm("a6"),
+struct MyLocaleBase * __g_lxa_locale_InitLib ( register struct MyLocaleBase *locb    __asm("d0"),
                                                 register BPTR                seglist __asm("a0"),
-                                                register struct ExecBase    *sysb    __asm("d0"))
+                                                register struct ExecBase    *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_locale: InitLib() called\n");
     locb->SegList = seglist;

@@ -2,36 +2,36 @@ Lock Leak Detection Test
 ========================
 
 Test 1: Basic lock/unlock cycle
-  Memory before: 10333076
-  Memory after: 10333076
+  Memory before: 10332824
+  Memory after: 10332824
   Potential leak: 0 bytes
   PASS: No significant leak in basic cycle
 
 Test 2: Multiple simultaneous locks
   Acquired 20 locks, released all
-  Memory before: 10333076
-  Memory after: 10333076
+  Memory before: 10332824
+  Memory after: 10332824
   Potential leak: 0 bytes
   PASS: No significant leak with multiple locks
 
 Test 3: Stress test (100 cycles)
   Completed 100 lock/unlock cycles
-  Memory before: 10333076
-  Memory after: 10333076
+  Memory before: 10332824
+  Memory after: 10332824
   Potential leak: 0 bytes
   PASS: No significant leak in stress test
 
 Test 4: DupLock and UnLock
   20 DupLock/UnLock cycles
-  Memory before: 10333076
-  Memory after: 10333076
+  Memory before: 10332824
+  Memory after: 10332824
   Potential leak: 0 bytes
   PASS: No significant leak with DupLock
 
 Test 5: ParentDir lock chain
   10 ParentDir cycles
-  Memory before: 10333076
-  Memory after: 10333076
+  Memory before: 10332824
+  Memory after: 10332824
   Potential leak: 0 bytes
   PASS: No significant leak with ParentDir
 

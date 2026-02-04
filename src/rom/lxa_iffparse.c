@@ -148,9 +148,9 @@ static LONG InvokeHandlers(struct IFFParseBase *IFFParseBase, struct IntIFFHandl
  * Library init/open/close/expunge
  */
 
-struct IFFParseBase * __g_lxa_iffparse_InitLib ( register struct IFFParseBase *iffbase __asm("a6"),
+struct IFFParseBase * __g_lxa_iffparse_InitLib ( register struct IFFParseBase *iffbase __asm("d0"),
                                                   register BPTR                seglist __asm("a0"),
-                                                  register struct ExecBase    *sysb __asm("d0"))
+                                                  register struct ExecBase    *sysb __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_iffparse: InitLib() called\n");
     iffbase->SegList = seglist;
