@@ -3370,6 +3370,9 @@ static void _render_window_frame(struct Window *window)
     shiPen = 2;   /* Standard shine pen (white) */
     shaPen = 1;   /* Standard shadow pen (black) */
     
+    DPRINTF (LOG_DEBUG, "_intuition: _render_window_frame() detPen=%d blkPen=%d shiPen=%d shaPen=%d\n",
+             (int)detPen, (int)blkPen, (int)shiPen, (int)shaPen);
+    
     /* Window interior bounds */
     x0 = 0;
     y0 = 0;
@@ -3631,8 +3634,11 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     window->IDCMPFlags = newWindow->IDCMPFlags;
     window->Title = newWindow->Title;
     window->WScreen = screen;
-    window->DetailPen = newWindow->DetailPen;
-    window->BlockPen = newWindow->BlockPen;
+    
+    /* Handle DetailPen and BlockPen: 0xFF (~0) means use screen defaults (per RKRM) */
+    window->DetailPen = (newWindow->DetailPen == 0xFF) ? screen->DetailPen : newWindow->DetailPen;
+    window->BlockPen = (newWindow->BlockPen == 0xFF) ? screen->BlockPen : newWindow->BlockPen;
+    
     window->FirstGadget = newWindow->FirstGadget;
     window->CheckMark = newWindow->CheckMark;
 
