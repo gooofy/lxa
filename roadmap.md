@@ -8,11 +8,15 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.6** | **Phase 49 Complete** | **~96 Integration Tests Passing**
+**Version: 0.6.7** | **Phase 54 In Progress** | **~96 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes**:
+- **Trap handler implementation**: Added trap vector handlers (trap #0 - trap #14) in exceptions.s.
+  Trap dispatcher checks tc_TrapCode and calls task's trap handler if set, otherwise calls
+  EMU_CALL_EXCEPTION. Trap exceptions are now fatal (stop emulator) since continuing after
+  traps like stack overflow causes undefined behavior.
 - **Library init calling convention fix**: The `libInitFn_t` typedef had incorrect register 
   assignments (D0 and A6 were swapped). Per RKRM, library init should receive D0=Library, 
   A0=SegList, A6=SysBase. Fixed typedef and all 22 ROM library InitLib functions.
@@ -498,34 +502,40 @@ See detailed phase description below in "Application Deep Dive Phases".
 ---
 
 ### Phase 54: Oberon 2 Deep Dive
-**Goal**: Fix NULL pointer crash and enable Oberon system.
+**Goal**: Fix trap handling and enable Oberon system.
 
-**Status**: ❌ FAILS - NULL pointer crash (PC=0x00000000) at startup
+**Status**: ⚠️ PARTIAL - Trap handlers now implemented, but Oberon has corrupt A5 register
 
-**Known Issues**:
-- [ ] All libraries open successfully
-- [ ] Crashes at PC=0x00000000 during initialization
-- [ ] NULL function pointer or corrupted return address
-- [ ] Likely missing or stubbed function returning NULL
+**Investigation Findings**:
+- Oberon runtime uses `trap #2` for stack overflow checking
+- Code pattern: `cmpa.l A7, A5; bls skip; trap #2`
+- A5 should contain stack limit, but is 0xffffffff (corrupt)
+- With A5=0xffffffff, stack check always fails triggering trap #2
 
-**Testing Requirements**:
-- [ ] Identify which library function returns NULL
-- [ ] Verify all function pointers before call
-- [ ] Test with detailed instruction trace around crash
-- [ ] Verify stack state at crash point
-- [ ] Test initialization sequence step-by-step
+**Completed**:
+- [x] Implemented trap vector handlers (trap #0 - trap #14) in exceptions.s
+- [x] Set up trap vectors in coldstart() at addresses 0x80-0xB8
+- [x] Trap dispatcher checks tc_TrapCode and calls task's handler if set
+- [x] Default trap handler calls EMU_CALL_EXCEPTION
+- [x] Trap exceptions (vectors 32-46) now halt emulator (fatal errors)
 
-**Implementation Tasks**:
-- [ ] Enable detailed trace logging for all library calls
-- [ ] Identify last successful library call before crash
-- [ ] Check for missing utility.library functions
-- [ ] Verify dos.library function implementations
-- [ ] Check graphics.library initialization functions
-- [ ] Verify intuition.library setup functions
-- [ ] Test workbench.library integration
-- [ ] Check icon.library function pointers
-- [ ] Add NULL pointer guards to all library function returns
-- [ ] Verify Oberon-specific requirements (if documented)
+**Root Cause Analysis**:
+- The Oberon runtime expects A5 to be set to the stack bottom/limit
+- A5 is used as a frame pointer or global base pointer
+- A5 is corrupt (0xffffffff) at the point of the stack check
+- This is likely a startup/initialization issue in how Oberon is launched
+
+**Remaining Tasks**:
+- [ ] Investigate why A5 is corrupt in Oberon runtime
+- [ ] Check if Oberon uses special WBStartup or tooltype handling
+- [ ] Verify process stack setup provides proper values for A5
+- [ ] Check if Oberon runtime expects specific register values on entry
+- [ ] May need decompilation/disassembly of Oberon to understand startup
+
+**Testing Command**:
+```bash
+cd ~/.lxa && echo "run SYS:Apps/Oberon/Oberon" | timeout 15 /home/guenter/projects/amiga/lxa/src/lxa/build/host/bin/lxa
+```
 
 **Success Criteria**: Oberon 2 launches without crashes and displays Oberon environment
 
@@ -688,6 +698,7 @@ See detailed phase description below in "Application Deep Dive Phases".
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.7 | 54 | Trap handler implementation (trap #0-#14), trap dispatch via tc_TrapCode, fatal trap handling |
 | 0.6.6 | 49 | Fixed library init calling convention (D0/A0/A6), MakeFunctions pointer fix, disk libraries now load |
 | 0.6.5 | 49+ | Extended memory map (Slow RAM, Ranger RAM, Extended ROM, ROM writes), GFA Basic now runs |
 | 0.6.4 | 49 | Fixed Signal/Wait scheduling bug (Devpac now responds to input), signal_pingpong test fix |

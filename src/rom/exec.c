@@ -4615,6 +4615,28 @@ void coldstart (void)
 
     p = (uint32_t*) 0x0000006c; *p = (uint32_t) handleIRQ3;
 
+    /* Setup trap vectors (trap #0 - trap #14)
+     * Trap vectors are at 0x80-0xBC (vectors 32-47)
+     * Note: trap #15 (vector 47, address 0xBC) is reserved for EMU_CALL
+     * Per RKRM, trap #2 is commonly used for stack overflow checking (Oberon uses this)
+     */
+    p = (uint32_t*) 0x00000080; *p = (uint32_t) handleTrap0;   // trap #0
+    p = (uint32_t*) 0x00000084; *p = (uint32_t) handleTrap1;   // trap #1
+    p = (uint32_t*) 0x00000088; *p = (uint32_t) handleTrap2;   // trap #2 - stack overflow
+    p = (uint32_t*) 0x0000008c; *p = (uint32_t) handleTrap3;   // trap #3
+    p = (uint32_t*) 0x00000090; *p = (uint32_t) handleTrap4;   // trap #4
+    p = (uint32_t*) 0x00000094; *p = (uint32_t) handleTrap5;   // trap #5
+    p = (uint32_t*) 0x00000098; *p = (uint32_t) handleTrap6;   // trap #6
+    p = (uint32_t*) 0x0000009c; *p = (uint32_t) handleTrap7;   // trap #7
+    p = (uint32_t*) 0x000000a0; *p = (uint32_t) handleTrap8;   // trap #8
+    p = (uint32_t*) 0x000000a4; *p = (uint32_t) handleTrap9;   // trap #9
+    p = (uint32_t*) 0x000000a8; *p = (uint32_t) handleTrap10;  // trap #10
+    p = (uint32_t*) 0x000000ac; *p = (uint32_t) handleTrap11;  // trap #11
+    p = (uint32_t*) 0x000000b0; *p = (uint32_t) handleTrap12;  // trap #12
+    p = (uint32_t*) 0x000000b4; *p = (uint32_t) handleTrap13;  // trap #13
+    p = (uint32_t*) 0x000000b8; *p = (uint32_t) handleTrap14;  // trap #14
+    /* trap #15 (0xBC) is reserved for EMU_CALL - don't set it here */
+
     //__asm("    ori.w  #0x0700, sr;\n");   // disable interrupts
     //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit
     //__asm("andi.w  #0xdfff, sr\n");   // disable supervisor bit

@@ -3205,6 +3205,21 @@ int op_illg(int level)
                 case  9: DPRINTF (LOG_INFO, "trace\n"); break;
                 case 10: DPRINTF (LOG_INFO, "line 1010 emulator\n"); break;
                 case 11: DPRINTF (LOG_INFO, "line 1111 emulator\n"); break;
+                case 32: DPRINTF (LOG_INFO, "trap #0\n"); break;
+                case 33: DPRINTF (LOG_INFO, "trap #1\n"); break;
+                case 34: DPRINTF (LOG_INFO, "trap #2 (stack overflow)\n"); break;
+                case 35: DPRINTF (LOG_INFO, "trap #3\n"); break;
+                case 36: DPRINTF (LOG_INFO, "trap #4\n"); break;
+                case 37: DPRINTF (LOG_INFO, "trap #5\n"); break;
+                case 38: DPRINTF (LOG_INFO, "trap #6\n"); break;
+                case 39: DPRINTF (LOG_INFO, "trap #7\n"); break;
+                case 40: DPRINTF (LOG_INFO, "trap #8\n"); break;
+                case 41: DPRINTF (LOG_INFO, "trap #9\n"); break;
+                case 42: DPRINTF (LOG_INFO, "trap #10\n"); break;
+                case 43: DPRINTF (LOG_INFO, "trap #11\n"); break;
+                case 44: DPRINTF (LOG_INFO, "trap #12\n"); break;
+                case 45: DPRINTF (LOG_INFO, "trap #13\n"); break;
+                case 46: DPRINTF (LOG_INFO, "trap #14\n"); break;
                 default: DPRINTF (LOG_INFO, "???\n"); break;
             }
 
@@ -3222,8 +3237,17 @@ int op_illg(int level)
              * windows that were opened before the app crashed.
              *
              * For debugging, use -d flag which enables verbose output.
+             *
+             * Phase 54: Trap exceptions (vectors 32-46) are always fatal.
+             * Traps like #2 (stack overflow) indicate the task cannot continue.
+             * We must halt the emulator since returning would cause undefined behavior.
              */
-            if (g_debug) {
+            bool is_trap = (excn >= 32 && excn <= 46);
+            
+            if (g_debug || is_trap) {
+                if (is_trap) {
+                    LPRINTF (LOG_ERROR, "*** FATAL: Trap #%d - task cannot continue\n", excn - 32);
+                }
                 _debug(pc);
                 m68k_end_timeslice();
                 g_running = FALSE;

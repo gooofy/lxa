@@ -354,6 +354,149 @@ _handleVec11:
     movem.l  (a7)+, d0/d1
     rte
 
+    /*
+     * Trap handler - dispatches to task's tc_TrapCode if set
+     *
+     * On entry from trap #N instruction:
+     *   Stack contains: [SR] [PC of instruction after trap]
+     *
+     * If tc_TrapCode is set, we call it with:
+     *   D0 = trap number (0-15)
+     *   D1 = pointer to exception frame on stack (not used by most handlers)
+     *   A6 = ExecBase
+     *
+     * The trap handler can:
+     *   - Handle the trap and return (RTE will continue after trap instruction)
+     *   - Not return (e.g., longjmp, exit task)
+     *
+     * Per RKRM, trap #2 is commonly used for stack overflow checking.
+     * The Oberon runtime uses trap #2 to check stack limits.
+     *
+     * Task structure offsets:
+     *   tc_TrapData = 46
+     *   tc_TrapCode = 50
+     *   tc_SPReg    = 54
+     */
+
+    .set tc_TrapData, 46
+    .set tc_TrapCode, 50
+
+    /* Generic trap dispatcher - called with trap number in D1 */
+_handleTrap:
+    movem.l  d0-d1/a0-a1/a6, -(a7)                  | save registers
+    move.l   d1, d0                                 | trap number -> d0
+
+    move.l   4, a6                                  | SysBase -> a6
+    move.l   ThisTask(a6), a0                       | SysBase->ThisTask -> a0
+    move.l   a0, d1                                 | copy to d1 for NULL test
+    beq.s    __handleTrap_default                   | ThisTask == NULL -> use default handler
+
+    move.l   tc_TrapCode(a0), a1                    | ThisTask->tc_TrapCode -> a1
+    move.l   a1, d1                                 | copy to d1 for NULL test
+    beq.s    __handleTrap_default                   | tc_TrapCode == NULL -> use default handler
+
+    /* Call the task's trap handler */
+    /* D0 = trap number, A1 = trap handler, A6 = SysBase */
+    move.l   tc_TrapData(a0), a0                    | ThisTask->tc_TrapData -> a0 (passed in a0)
+    movem.l  (a7)+, d0-d1/a0-a1/a6                  | restore registers
+    movem.l  d0-d1/a0-a1/a6, -(a7)                  | save them again for handler's use
+    move.l   d1, d0                                 | trap number -> d0 again
+    move.l   4, a6                                  | SysBase -> a6
+    move.l   ThisTask(a6), a0                       | ThisTask -> a0
+    move.l   tc_TrapCode(a0), a1                    | tc_TrapCode -> a1
+    move.l   tc_TrapData(a0), a0                    | tc_TrapData -> a0
+    jsr      (a1)                                   | call trap handler
+    movem.l  (a7)+, d0-d1/a0-a1/a6                  | restore registers
+    rte                                             | return from exception
+
+__handleTrap_default:
+    /* Default handler: call EMU_CALL_EXCEPTION with vector number 32+trap# */
+    move.l   d0, d1                                 | trap number -> d1
+    add.l    #32, d1                                | vector number = 32 + trap#
+    move.l   #5, d0                                 | EMU_CALL_EXCEPTION
+    illegal                                         | emucall
+    movem.l  (a7)+, d0-d1/a0-a1/a6                  | restore registers
+    rte
+
+    /* Individual trap handlers - each sets trap number and calls dispatcher */
+
+    .globl _handleTrap0
+_handleTrap0:
+    move.l   #0, d1
+    bra      _handleTrap
+
+    .globl _handleTrap1
+_handleTrap1:
+    move.l   #1, d1
+    bra      _handleTrap
+
+    .globl _handleTrap2
+_handleTrap2:
+    move.l   #2, d1
+    bra      _handleTrap
+
+    .globl _handleTrap3
+_handleTrap3:
+    move.l   #3, d1
+    bra      _handleTrap
+
+    .globl _handleTrap4
+_handleTrap4:
+    move.l   #4, d1
+    bra      _handleTrap
+
+    .globl _handleTrap5
+_handleTrap5:
+    move.l   #5, d1
+    bra      _handleTrap
+
+    .globl _handleTrap6
+_handleTrap6:
+    move.l   #6, d1
+    bra      _handleTrap
+
+    .globl _handleTrap7
+_handleTrap7:
+    move.l   #7, d1
+    bra      _handleTrap
+
+    .globl _handleTrap8
+_handleTrap8:
+    move.l   #8, d1
+    bra      _handleTrap
+
+    .globl _handleTrap9
+_handleTrap9:
+    move.l   #9, d1
+    bra      _handleTrap
+
+    .globl _handleTrap10
+_handleTrap10:
+    move.l   #10, d1
+    bra      _handleTrap
+
+    .globl _handleTrap11
+_handleTrap11:
+    move.l   #11, d1
+    bra      _handleTrap
+
+    .globl _handleTrap12
+_handleTrap12:
+    move.l   #12, d1
+    bra      _handleTrap
+
+    .globl _handleTrap13
+_handleTrap13:
+    move.l   #13, d1
+    bra      _handleTrap
+
+    .globl _handleTrap14
+_handleTrap14:
+    move.l   #14, d1
+    bra      _handleTrap
+
+    /* Note: trap #15 is used by lxa for EMU_CALL, don't override it */
+
 	.globl _exec_SetSR
 _exec_SetSR:
         move.l  a5, a0                              | save a5
