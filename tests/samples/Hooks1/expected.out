@@ -1,0 +1,5 @@
+Hooks1: Starting Hook callback example
+Hooks1: Calling CallHookPkt()...
+Hooks1: Inside MyFunction() - Hook callback working!
+Hooks1: CallHookPkt() returned
+Hooks1: Test completed successfully

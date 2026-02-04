@@ -8,12 +8,14 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.9** | **Phase 56 In Progress** | **36 Integration Tests Passing**
+**Version: 0.6.10** | **Phase 56 In Progress** | **37 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes (Phase 56)**:
 - **RKM Samples Infrastructure**: Initiated the samples integration phase.
+- **test_runner.sh hex normalization bug**: Fixed sed pattern that was too aggressive, replacing ALL hex values (including small constants like 0xFF, 0xF000) with "0x". Now only normalizes 5+ digit hex addresses.
+- **Hooks1 sample**: Successfully ported RKM Hooks1 sample demonstrating utility.library Hook callbacks.
 
 **DPaint V Status**: Libraries load successfully, Workbench screen opens, application initializes without crashes. Currently investigating hang during initialization after font loading.
 
@@ -135,7 +137,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [ ] `FileReq`/`FontReq` (ASL standard requesters).
     - [ ] `Talk2Boopsi` (BOOPSI object-oriented UI).
 - [ ] **Utility & System Samples**:
-    - [ ] `Hooks1` (Callback hooks).
+    - [x] `Hooks1` (Callback hooks).
     - [ ] `IStr` (Internal string handling).
     - [ ] `Uptime` (System uptime calculation).
     - [ ] `ClipFTXT`/`Sift` (IFF parsing and text clipboard).
@@ -205,6 +207,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.10 | 56 | Fixed test hex normalization, added Hooks1 sample |
 | 0.6.9 | 56 | Started RKM Samples Integration |
 | 0.6.8 | 55 | ASM-One V1.48 now working |
 | 0.6.7 | 54 | Trap handler implementation |

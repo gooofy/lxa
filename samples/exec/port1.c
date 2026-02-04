@@ -35,7 +35,7 @@ int main(int argc, char **argv)
         printf("Port1: Can't create reply port\n");
         return RETURN_FAIL;
     }
-    printf("Port1: Created reply port at 0x%lx\n", (ULONG)replyport);
+    printf("Port1: Created reply port\n");
 
     /* Wait a bit for Port2 to start and create its port */
     printf("Port1: Waiting for Port2 to create its message port...\n");

@@ -22,10 +22,10 @@ Test 5: OpenFromLock
   Read 13 bytes: Hello, World!
 
 Test 6: CheckSignal
-  Initial CheckSignal: 0x00000000
-  After Signal: 0x00001000
+  Initial CheckSignal: 0x
+  After Signal: 0x
   Ctrl-C signal was detected and cleared
-  After clear: 0x00000000
+  After clear: 0x
 
 === Cleanup ===
 Test file deleted

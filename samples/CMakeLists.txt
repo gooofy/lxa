@@ -42,6 +42,7 @@ set(SAMPLES_LIST
     "graphics|RGBBoxes|RGBBoxes"
     "intuition|openwindowtags|OpenWindowTags"
     "utility|tag1|Tag1"
+    "utility|hooks1|Hooks1"
 )
 
 foreach(sample_info ${SAMPLES_LIST})

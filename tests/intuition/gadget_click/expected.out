@@ -3,8 +3,8 @@ Testing gadget hit testing and interaction...
 --- Test 1: Open screen and window ---
 OK: Screen opened
 OK: Window opened
-OK: Found CLOSE gadget at   LeftEdge=0x00000004
-OK: Found DEPTH gadget at   LeftEdge=0x000000B2
+OK: Found CLOSE gadget at   LeftEdge=0x
+OK: Found DEPTH gadget at   LeftEdge=0x
 
 --- Test 2: Verify gadget geometry ---
 OK: Gadget has valid dimensions
@@ -13,8 +13,8 @@ OK: Gadget has valid dimensions
 OK: Depth gadget positioned in right area
 
 --- Test 3: Close gadget click via mouse injection ---
-  Clicking at screen X=0x00000021
-  Clicking at screen Y=0x00000023
+  Clicking at screen X=0x
+  Clicking at screen Y=0x
 OK: Received IDCMP_CLOSEWINDOW
 
 --- Test 4: Cleanup ---

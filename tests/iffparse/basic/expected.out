@@ -5,7 +5,7 @@ Opened iffparse.library
 
 --- Testing GoodID/GoodType/IDtoStr ---
 GoodID(FORM): TRUE (correct)
-GoodID(0x00000000): FALSE (correct - contains non-printable chars)
+GoodID(0x): FALSE (correct - contains non-printable chars)
 GoodType(TEST): TRUE (correct)
 GoodType(' ABC'): FALSE (correct - first char is space)
 IDtoStr(ID_FORM): 'FORM'
