@@ -8,11 +8,15 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.10** | **Phase 56 In Progress** | **37 Integration Tests Passing**
+**Version: 0.6.11** | **Phase 56 In Progress** | **40 Integration Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes (Phase 56)**:
+- **Intuition UI Samples**: Added SimpleGad, UpdateStrGad, IntuiText samples with full automated tests
+  - SimpleGad tests boolean gadgets with GACT_IMMEDIATE and GACT_RELVERIFY flags
+  - UpdateStrGad tests string gadget updates, RemoveGList/AddGList/RefreshGList, ActivateGadget
+  - IntuiText tests PrintIText with chained IntuiText structures, GetScreenDrawInfo, LockPubScreen
 - **RKM Samples Infrastructure**: Initiated the samples integration phase.
 - **test_runner.sh hex normalization bug**: Fixed sed pattern that was too aggressive, replacing ALL hex values (including small constants like 0xFF, 0xF000) with "0x". Now only normalizes 5+ digit hex addresses.
 - **Hooks1 sample**: Successfully ported RKM Hooks1 sample demonstrating utility.library Hook callbacks.
@@ -101,7 +105,17 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### Phase 56: RKM Samples Integration (Current)
 **Goal**: Add a `samples/` directory with RKM-based sample programs. Ensure they are auto-installed in `SYS:Samples` and integrated into the test suite.
 
-**IMPORTANT**: The point of adding these samples is mainly to identify gaps and bugs in lxa's libraries and kernel implementation. When you hit stubs or bugs, make sure to **fix the bug, do not try fix the sample**
+**CRITICAL PURPOSE**: These samples are **integration tests first, samples second**. Their primary purpose is to:
+1. **Identify gaps and bugs** in lxa's libraries and kernel implementation
+2. **Stress test** lxa with diverse real-world usage patterns from official RKM examples
+3. **Prevent future bugs** - Every issue found and fixed here is one we won't hit in production applications
+4. **Build confidence** - When DPaint, Devpac, etc. work, we know these foundational patterns are solid
+
+**IMPORTANT RULES**:
+- When you hit stubs or bugs: **FIX THE BUG IN LXA, DO NOT HACK THE SAMPLE**
+- Do not hesitate to **extend and enhance** samples to make them more challenging
+- Add **additional test cases** that stress edge conditions
+- Each sample should verify correctness, not just "run without crashing"
 
 **TODO**:
 - [x] Create `samples/` directory structure.
@@ -119,8 +133,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [x] `DeviceUse` (Exec device I/O basics).
     - [x] `TimerSoftInt` (Exec software interrupts) - **Sample exists but not in automated tests (complex m68k interrupt calling conventions)**.
 - [ ] **Intuition UI Samples**:
-    - [ ] `SimpleGad`/`UpdateStrGad` (Basic and string gadgets).
-    - [ ] `IntuiText`/`SimpleImage`/`ShadowBorder` (UI rendering primitives).
+    - [x] `SimpleGad` (Basic boolean gadgets with GACT_IMMEDIATE/RELVERIFY).
+    - [x] `UpdateStrGad` (String gadget updates, RemoveGList/AddGList/RefreshGList).
+    - [x] `IntuiText` (Text rendering with PrintIText, GetScreenDrawInfo).
+    - [ ] `SimpleImage`/`ShadowBorder` (UI rendering primitives).
     - [ ] `EasyIntuition` (Standard requester/UI setup).
     - [ ] `SimpleMenu`/`MenuLayout` (Intuition menu systems).
     - [ ] `MouseTest`/`RawKey`/`CustomPointer` (Input and cursor handling).
@@ -208,6 +224,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.11 | 56 | Added SimpleGad, UpdateStrGad, IntuiText samples |
 | 0.6.10 | 56 | Fixed test hex normalization, added Hooks1 sample |
 | 0.6.9 | 56 | Started RKM Samples Integration |
 | 0.6.8 | 55 | ASM-One V1.48 now working |

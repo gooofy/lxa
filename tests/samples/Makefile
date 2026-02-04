@@ -1,6 +1,6 @@
 include ../Makefile.config
 
-TESTS := SimpleTask Signals Semaphore BuildList Allocate DeviceUse Tag1 OpenWindowTags Hooks1
+TESTS := SimpleTask Signals Semaphore BuildList Allocate DeviceUse Tag1 OpenWindowTags Hooks1 SimpleGad UpdateStrGad IntuiText
 
 # NOTE: The following samples are NOT included in automated tests:
 # - Port1/Port2: Require concurrent execution (both programs must run 

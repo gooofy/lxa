@@ -41,6 +41,9 @@ set(SAMPLES_LIST
     "exec|timersoftint|TimerSoftInt"
     "graphics|RGBBoxes|RGBBoxes"
     "intuition|openwindowtags|OpenWindowTags"
+    "intuition|simplegad|SimpleGad"
+    "intuition|updatestrgad|UpdateStrGad"
+    "intuition|intuitext|IntuiText"
     "utility|tag1|Tag1"
     "utility|hooks1|Hooks1"
 )

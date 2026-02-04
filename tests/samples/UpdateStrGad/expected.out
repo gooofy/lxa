@@ -1,0 +1,16 @@
+UpdateStrGad: Window opened with string gadget
+UpdateStrGad: Initial value: 'START'
+UpdateStrGad: Waiting for ACTIVEWINDOW event...
+UpdateStrGad: Activating gadget...
+UpdateStrGad: Gadget activated successfully
+UpdateStrGad: Testing string gadget updates...
+UpdateStrGad: Updating to 'Try again'
+UpdateStrGad: Current value: 'Try again'
+UpdateStrGad: Updating to 'Sorry'
+UpdateStrGad: Current value: 'Sorry'
+UpdateStrGad: Updating to 'Perhaps'
+UpdateStrGad: Current value: 'Perhaps'
+UpdateStrGad: Updating to 'A Winner'
+UpdateStrGad: Current value: 'A Winner'
+UpdateStrGad: All updates completed successfully
+UpdateStrGad: Closing window
