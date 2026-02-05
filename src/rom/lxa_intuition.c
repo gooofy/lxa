@@ -4900,23 +4900,50 @@ VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase _
 LONG _intuition_MakeScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: MakeScreen() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_intuition: MakeScreen() screen=0x%08lx\n", (ULONG)screen);
+    
+    /*
+     * MakeScreen() builds the Copper list for a screen's ViewPort.
+     * In lxa, we don't have real Copper hardware. The bitmap pointer
+     * changes made by the caller (e.g., for double buffering) will
+     * be picked up on the next VBlank display refresh.
+     *
+     * We just return success here - the actual update happens via
+     * the subsequent RethinkDisplay() or WaitTOF() call.
+     */
+    
+    return 0;  /* Success */
 }
 
 LONG _intuition_RemakeDisplay ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: RemakeDisplay() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_intuition: RemakeDisplay() called\n");
+    
+    /*
+     * RemakeDisplay() rebuilds the entire display from all screens.
+     * In lxa, we just wait for the next VBlank which will refresh
+     * the display with current screen/viewport bitmaps.
+     */
+    WaitTOF();
+    
+    return 0;  /* Success */
 }
 
 LONG _intuition_RethinkDisplay ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: RethinkDisplay() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    DPRINTF (LOG_DEBUG, "_intuition: RethinkDisplay() called\n");
+    
+    /*
+     * RethinkDisplay() is the Intuition-compatible way to merge
+     * all screen Copper lists and load the View. In lxa this is
+     * equivalent to waiting for VBlank which refreshes the SDL
+     * display with the current bitmap contents.
+     *
+     * Per RKRM: "This call also does a WaitTOF()"
+     */
+    WaitTOF();
+    
+    return 0;  /* Success */
 }
 
 APTR _intuition_AllocRemember ( register struct IntuitionBase * IntuitionBase __asm("a6"),

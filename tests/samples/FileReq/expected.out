@@ -1,0 +1,9 @@
+FileReq: Starting ASL File Requester demo
+FileReq: Opened asl.library v39
+FileReq: AllocAslRequest() succeeded
+FileReq: Requester configured for dir='SYS:' file='test.txt'
+FileReq: Size: 320x200 at (0,0)
+FileReq: (Skipping interactive AslRequest for test)
+FileReq: FreeAslRequest() - requester freed
+FileReq: Closed asl.library
+FileReq: Done

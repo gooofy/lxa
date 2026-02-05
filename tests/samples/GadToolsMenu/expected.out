@@ -1,0 +1,17 @@
+GadToolsMenu: Starting GadTools menu demonstration
+GadToolsMenu: Opened intuition.library v40
+GadToolsMenu: Opened gadtools.library
+GadToolsMenu: Window opened at (0,0) size 400x100
+GadToolsMenu: GetVisualInfo() succeeded
+GadToolsMenu: CreateMenus() succeeded
+GadToolsMenu: LayoutMenus() succeeded
+GadToolsMenu: SetMenuStrip() succeeded
+GadToolsMenu: Menu structure:
+GadToolsMenu:   Project: Open, Save, ---, Print (Draft/NLQ), ---, Quit
+GadToolsMenu:   Edit: Cut, Copy, Paste, ---, Undo
+GadToolsMenu: Simulating menu test (delay 1 sec)
+GadToolsMenu: ClearMenuStrip() - menus cleared
+GadToolsMenu: FreeMenus() - menus freed
+GadToolsMenu: FreeVisualInfo() - visual info freed
+GadToolsMenu: Window closed
+GadToolsMenu: Done

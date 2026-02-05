@@ -1,0 +1,17 @@
+Talk2Boopsi: Starting BOOPSI inter-object communication demo
+Talk2Boopsi: Opened intuition.library v40
+Talk2Boopsi: Window opened at (0,0) size 200x150
+Talk2Boopsi: Created propgclass gadget (id=1)
+Talk2Boopsi:   PGA_Total=100 PGA_Top=25 PGA_Visible=10
+Talk2Boopsi: Created strgclass gadget (id=2)
+Talk2Boopsi:   STRINGA_LongVal=25 STRINGA_MaxChars=3
+Talk2Boopsi: Connected prop -> integer via ICA_TARGET
+Talk2Boopsi: Gadgets added and displayed
+Talk2Boopsi: BOOPSI connection established!
+Talk2Boopsi: Prop and integer gadgets will auto-update each other
+Talk2Boopsi: Simulating test (delay 1 sec)
+Talk2Boopsi: Gadgets removed from window
+Talk2Boopsi: Disposed strgclass gadget
+Talk2Boopsi: Disposed propgclass gadget
+Talk2Boopsi: Window closed
+Talk2Boopsi: Done

@@ -55,6 +55,7 @@ set(SAMPLES_LIST
     "intuition|simplemenu|SimpleMenu"
     "intuition|easyrequest|EasyRequest"
     "intuition|simplegtgadget|SimpleGTGadget"
+    "intuition|gadtoolsmenu|GadToolsMenu"
     "intuition|mousetest|MouseTest"
     "intuition|rawkey|RawKey"
     "intuition|custompointer|CustomPointer"
@@ -62,6 +63,8 @@ set(SAMPLES_LIST
     "intuition|publicscreen|PublicScreen"
     "intuition|visiblewindow|VisibleWindow"
     "intuition|winpubscreen|WinPubScreen"
+    "intuition|talk2boopsi|Talk2Boopsi"
+    # "intuition|doublebuffer|DoubleBuffer"  # DISABLED: Causes Line-A exception during VBlank - needs investigation
     "devices|simpletimer|SimpleTimer"
     "utility|tag1|Tag1"
     "utility|hooks1|Hooks1"
@@ -70,6 +73,8 @@ set(SAMPLES_LIST
     "math|ffpexample|FFPExample"
     "iffparse|sift|Sift"
     "expansion|findboards|FindBoards"
+    "asl|filereq|FileReq"
+    "asl|fontreq|FontReq"
 )
 
 foreach(sample_info ${SAMPLES_LIST})

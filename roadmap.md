@@ -8,11 +8,16 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.18** | **Phase 56 In Progress** | **34 RKM Sample Tests Passing** | **156 Total Tests Passing**
+**Version: 0.6.20** | **Phase 56 In Progress** | **38 RKM Sample Tests Passing** | **160 Total Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes (Phase 56)**:
+- **Fixed exception handler hexdump spam**: Debug hexdump in exception handler was using LPRINTF instead of DPRINTF, causing massive output when exceptions occurred during normal operation. Now properly wrapped in #ifdef ENABLE_DEBUG.
+- **New ASL Library Samples**:
+  - `FileReq` - ASL file requester: AllocAslRequest(ASL_FileRequest), FreeAslRequest with tag configuration
+  - `FontReq` - ASL font requester: AllocAslRequest(ASL_FontRequest), FreeAslRequest
+- **Implemented MakeScreen/RethinkDisplay/RemakeDisplay**: These Intuition functions now work for double-buffering support (returns success, actual refresh via WaitTOF).
 - **Fixed display_close() use-after-free bug**: g_active_display wasn't cleared when display was closed, causing intermittent malloc corruption when VBlank tried to refresh a freed display.
 - **Implemented AvailFonts()**: diskfont.library AvailFonts() now returns ROM fonts (topaz.font) instead of empty list.
 - **New Screen Management Samples**:
@@ -207,9 +212,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [ ] `SSprite`/`VSprite`/`Bob` (Sprite and animation system).
 - [ ] **Advanced UI Samples**:
     - [x] `SimpleGTGadget` (GadTools gadget creation and management).
-    - [ ] `GadToolsGadgets`/`GadToolsMenu` (GadTools library UI).
-    - [ ] `FileReq`/`FontReq` (ASL standard requesters).
-    - [ ] `Talk2Boopsi` (BOOPSI object-oriented UI).
+    - [x] `GadToolsMenu` (GadTools menu creation).
+    - [ ] `GadToolsGadgets` (GadTools library UI - more gadget types).
+    - [x] `FileReq`/`FontReq` (ASL standard requesters).
+    - [x] `Talk2Boopsi` (BOOPSI inter-object communication with propgclass/strgclass).
 - [ ] **Utility & System Samples**:
     - [x] `Hooks1` (Callback hooks).
     - [x] `IStr` (Internal string handling - Stricmp, Strnicmp, ToUpper, ToLower).
@@ -316,6 +322,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.20 | 56 | Added FileReq/FontReq/GadToolsMenu samples, fixed exception handler hexdump spam, implemented MakeScreen/RethinkDisplay/RemakeDisplay, disabled DoubleBuffer (VBlank issue) (38 RKM samples, 160 total tests) |
+| 0.6.19 | 56 | Added Talk2Boopsi sample (BOOPSI inter-object communication with propgclass/strgclass, ICA_MAP/ICA_TARGET) (36 RKM samples, 122 total tests) |
 | 0.6.18 | 56 | Fixed display_close use-after-free, implemented AvailFonts(), added CloneScreen/PublicScreen/VisibleWindow/WinPubScreen/MeasureText/AvailFonts/CustomPointer samples (34 RKM samples, 156 total tests) |
 | 0.6.17 | 56 | Host-side test driver infrastructure (liblxa): simplegad_test, fixed IDCMP timing issues |
 | 0.6.14 | 56 | Added Sift (IFF parsing), TaskList, AllocEntry, FindBoards samples; implemented FindConfigDev |

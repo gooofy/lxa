@@ -3236,7 +3236,9 @@ int op_illg(int level)
                 default: DPRINTF (LOG_INFO, "???\n"); break;
             }
 
+#ifdef ENABLE_DEBUG
             hexdump (LOG_INFO, isp, 16);
+#endif
 
             /*
              * Phase 32: Don't halt on exceptions in multitasking scenarios.
