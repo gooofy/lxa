@@ -236,10 +236,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [x] `FindBoards` (expansion.library board enumeration).
     - [x] `TaskList` (ExecBase task list enumeration with Disable/Enable).
     - [x] `AllocEntry` (Multi-block memory allocation with AllocEntry/FreeEntry).
-- [ ] **Device Samples**:
-    - [ ] `Simple_Timer`/`Get_Systime` (Timer device).
+- [x] **Device Samples**:
+    - [x] `SimpleTimer` (Timer device with TR_ADDREQUEST, TR_GETSYSTIME).
+    - [x] `AskKeymap` (Console/Keymap interaction with CD_ASKKEYMAP).
     - [ ] `ClipDemo`/`ChangeHook_Test` (Clipboard device).
-    - [ ] `AskKeymap` (Console/Keymap interaction).
     - [ ] `V36_Device_Use` (Modern device I/O pattern).
 - [ ] Ensure all samples achieve 100% pass rate in CI.
 

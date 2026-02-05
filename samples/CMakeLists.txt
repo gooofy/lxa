@@ -68,6 +68,7 @@ set(SAMPLES_LIST
     "intuition|talk2boopsi|Talk2Boopsi"
     "intuition|doublebuffer|DoubleBuffer"
     "devices|simpletimer|SimpleTimer"
+    "devices|askkeymap|AskKeymap"
     "utility|tag1|Tag1"
     "utility|hooks1|Hooks1"
     "utility|istr|IStr"

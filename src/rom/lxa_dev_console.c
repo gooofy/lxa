@@ -2487,23 +2487,56 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
             break;
             
         case CD_ASKKEYMAP:
-            /* Return the current keymap for this unit */
-            /* For now, just return success with no data - we use the default system keymap */
-            DPRINTF(LOG_DEBUG, "_console: CD_ASKKEYMAP\n");
-            ioreq->io_Error = 0;
+        case CD_ASKDEFAULTKEYMAP:
+            /* Return the current/default keymap */
+            /* Both commands return the same keymap since we don't support per-unit keymaps yet */
+            DPRINTF(LOG_DEBUG, "_console: CD_ASKKEYMAP/CD_ASKDEFAULTKEYMAP io_Data=0x%08lx io_Length=%ld\n",
+                    (ULONG)iostd->io_Data, (LONG)iostd->io_Length);
+            if (iostd->io_Data && iostd->io_Length >= (LONG)sizeof(struct KeyMap)) {
+                struct Library *KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
+                if (KeymapBase) {
+                    /* Call AskKeyMapDefault from keymap.library (LVO -36) */
+                    register struct KeyMap *_result __asm("d0");
+                    register struct Library *_a6 __asm("a6") = KeymapBase;
+                    __asm volatile (
+                        "jsr %1@(-36)"
+                        : "=r" (_result)
+                        : "a" (_a6)
+                        : "cc", "memory"
+                    );
+                    if (_result) {
+                        /* Copy the KeyMap structure to user's buffer */
+                        struct KeyMap *destMap = (struct KeyMap *)iostd->io_Data;
+                        destMap->km_LoKeyMapTypes = _result->km_LoKeyMapTypes;
+                        destMap->km_LoKeyMap = _result->km_LoKeyMap;
+                        destMap->km_LoCapsable = _result->km_LoCapsable;
+                        destMap->km_LoRepeatable = _result->km_LoRepeatable;
+                        destMap->km_HiKeyMapTypes = _result->km_HiKeyMapTypes;
+                        destMap->km_HiKeyMap = _result->km_HiKeyMap;
+                        destMap->km_HiCapsable = _result->km_HiCapsable;
+                        destMap->km_HiRepeatable = _result->km_HiRepeatable;
+                        ioreq->io_Error = 0;
+                        iostd->io_Actual = sizeof(struct KeyMap);
+                        DPRINTF(LOG_DEBUG, "_console: CD_ASKKEYMAP returned keymap at 0x%08lx\n", (ULONG)_result);
+                    } else {
+                        LPRINTF(LOG_WARNING, "_console: CD_ASKKEYMAP - AskKeyMapDefault returned NULL\n");
+                        ioreq->io_Error = IOERR_OPENFAIL;
+                    }
+                    CloseLibrary(KeymapBase);
+                } else {
+                    LPRINTF(LOG_WARNING, "_console: CD_ASKKEYMAP - couldn't open keymap.library\n");
+                    ioreq->io_Error = IOERR_OPENFAIL;
+                }
+            } else {
+                DPRINTF(LOG_DEBUG, "_console: CD_ASKKEYMAP - invalid buffer\n");
+                ioreq->io_Error = IOERR_BADLENGTH;
+            }
             break;
             
         case CD_SETKEYMAP:
             /* Set the keymap for this unit */
             /* For now, just accept and ignore - we use the default system keymap */
             DPRINTF(LOG_DEBUG, "_console: CD_SETKEYMAP\n");
-            ioreq->io_Error = 0;
-            break;
-            
-        case CD_ASKDEFAULTKEYMAP:
-            /* Return the default keymap */
-            /* For now, just return success with no data */
-            DPRINTF(LOG_DEBUG, "_console: CD_ASKDEFAULTKEYMAP\n");
             ioreq->io_Error = 0;
             break;
             
