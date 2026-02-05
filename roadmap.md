@@ -202,7 +202,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [ ] `MouseTest`/`RawKey` (Interactive input - requires host-side test drivers).
     - [x] `EasyRequest` (Requesters with variable substitution).
     - [x] `CloneScreen`/`PublicScreen` (Screen cloning and public screen pens).
-    - [ ] `DoubleBuffer` (Double-buffered screens).
+    - [x] `DoubleBuffer` (Double-buffered screens).
     - [x] `VisibleWindow`/`WinPubScreen` (Window placement and public screens).
 - [ ] **Graphics Samples**:
     - [x] `RGBBoxes` (Graphics primitives and views).
@@ -322,7 +322,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
-| 0.6.20 | 56 | Added FileReq/FontReq/GadToolsMenu samples, fixed exception handler hexdump spam, implemented MakeScreen/RethinkDisplay/RemakeDisplay, disabled DoubleBuffer (VBlank issue) (38 RKM samples, 160 total tests) |
+| 0.6.20 | 56 | Added FileReq/FontReq/GadToolsMenu samples, fixed exception handler hexdump spam, implemented MakeScreen/RethinkDisplay/RemakeDisplay, fixed DoubleBuffer VBlank reentrancy + RasInfo NULL bugs (38 RKM samples, 160 total tests) |
 | 0.6.19 | 56 | Added Talk2Boopsi sample (BOOPSI inter-object communication with propgclass/strgclass, ICA_MAP/ICA_TARGET) (36 RKM samples, 122 total tests) |
 | 0.6.18 | 56 | Fixed display_close use-after-free, implemented AvailFonts(), added CloneScreen/PublicScreen/VisibleWindow/WinPubScreen/MeasureText/AvailFonts/CustomPointer samples (34 RKM samples, 156 total tests) |
 | 0.6.17 | 56 | Host-side test driver infrastructure (liblxa): simplegad_test, fixed IDCMP timing issues |
