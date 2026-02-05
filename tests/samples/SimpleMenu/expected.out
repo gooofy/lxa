@@ -1,0 +1,34 @@
+SimpleMenu: Demonstrating Intuition menu system
+
+SimpleMenu: Opened graphics.library v40
+SimpleMenu: Opened intuition.library v40
+
+SimpleMenu: Opening window...
+SimpleMenu: Window opened at 40,40 size 300x100
+
+SimpleMenu: Setting up menu strip...
+  Menu 'Project': Left=2, Width=64
+
+SimpleMenu: Attaching menu strip with SetMenuStrip()...
+SimpleMenu: Menu strip attached successfully!
+
+SimpleMenu: Verifying menu structure...
+  Number of menus: 1
+  Menu 0 items: 4
+  Submenu items: 2
+  Window->MenuStrip: Correctly set
+
+SimpleMenu: Testing ItemAddress()...
+  Menu 0, Item 0: Open...
+  Menu 0, Item 3: Quit
+  Menu 0, Item 2, Sub 0: Draft
+  Menu 0, Item 2, Sub 1: NLQ
+
+SimpleMenu: Clearing menu strip...
+SimpleMenu: Menu strip cleared
+  Window->MenuStrip: Correctly cleared
+
+SimpleMenu: Closing window...
+SimpleMenu: Closing libraries...
+
+SimpleMenu: Demo complete.

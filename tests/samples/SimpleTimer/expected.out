@@ -1,0 +1,38 @@
+SimpleTimer: Demonstrating timer.device
+
+SimpleTimer: Test 1 - Creating timer (UNIT_VBLANK)...
+  TimerRequest created: 0x
+  Device: 0x
+  Unit: 0x
+  Timer deleted successfully
+
+SimpleTimer: Test 2 - Creating timer (UNIT_MICROHZ)...
+  TimerRequest created: 0x
+  TimerBase set to: 0x
+  Timer deleted successfully
+
+SimpleTimer: Test 3 - Getting system time (TR_GETSYSTIME)...
+  System time retrieved successfully
+  Seconds: TIME, Microseconds: TIME
+  Time: HH:MM:SS (Days: N)
+
+SimpleTimer: Test 4 - Multiple TR_GETSYSTIME calls...
+  (Microseconds should increase between calls)
+  First:  TIME.MICRO
+  Second: TIME.MICRO
+  Third:  TIME.MICRO
+  Time correctly increased by N microseconds
+
+SimpleTimer: Test 5 - Short delay (50ms using UNIT_MICROHZ)...
+  Before delay: TIME.MICRO
+  After delay:  TIME.MICRO
+  Actual delay: N microseconds (requested 50000)
+  Delay completed successfully
+
+SimpleTimer: Test 6 - Short delay (using UNIT_VBLANK)...
+  Before delay: TIME.MICRO
+  After delay:  TIME.MICRO
+  Actual delay: N microseconds
+  Delay completed successfully
+
+SimpleTimer: Demo complete.

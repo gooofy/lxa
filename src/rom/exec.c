@@ -697,7 +697,7 @@ void _exec_RemIntServer ( register struct ExecBase * SysBase __asm("a6"),
 }
 
 /*
- * Cause - Trigger a software interrupt
+ * Cause() - Trigger a software interrupt
  *
  * This queues the interrupt structure for later execution.
  * In our simplified implementation, we execute it immediately
@@ -721,17 +721,29 @@ void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
      *   A5 = is_Code (handler address, for self-reference)
      *   A6 = ExecBase
      *
-     * For our simplified implementation, we define a C-callable handler type.
-     * Most interrupt handlers written for C compilers expect this convention.
+     * We must use inline assembly to properly set up registers because
+     * the compiler uses A5 as the frame pointer. We save A5, set up the
+     * interrupt calling convention, call the handler, then restore A5.
      */
-    typedef void (*IntHandler)(register APTR data __asm("a1"),
-                               register APTR code __asm("a5"),
-                               register struct ExecBase *sysbase __asm("a6"));
-    IntHandler handler = (IntHandler)___interrupt->is_Code;
+    APTR handler = ___interrupt->is_Code;
+    APTR data = ___interrupt->is_Data;
 
     if (handler)
     {
-        handler(___interrupt->is_Data, ___interrupt->is_Code, SysBase);
+        /* Use inline assembly to call the handler with proper register setup.
+         * We need to save/restore A5 since the compiler uses it as frame pointer,
+         * and the AmigaOS interrupt convention requires A5 = is_Code.
+         */
+        __asm volatile (
+            "move.l  a5,-(sp)\n\t"      /* save frame pointer */
+            "move.l  %0,a5\n\t"         /* A5 = is_Code */
+            "move.l  %1,a1\n\t"         /* A1 = is_Data */
+            "jsr     (a5)\n\t"          /* call handler */
+            "move.l  (sp)+,a5"          /* restore frame pointer */
+            :
+            : "r" (handler), "r" (data)
+            : "a1", "d0", "d1", "memory"
+        );
     }
 }
 

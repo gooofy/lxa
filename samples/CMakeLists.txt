@@ -40,12 +40,21 @@ set(SAMPLES_LIST
     "exec|deviceuse|DeviceUse"
     "exec|timersoftint|TimerSoftInt"
     "graphics|RGBBoxes|RGBBoxes"
+    "graphics|clipping|Clipping"
     "intuition|openwindowtags|OpenWindowTags"
     "intuition|simplegad|SimpleGad"
     "intuition|updatestrgad|UpdateStrGad"
     "intuition|intuitext|IntuiText"
+    "intuition|simpleimage|SimpleImage"
+    "intuition|shadowborder|ShadowBorder"
+    "intuition|easyintuition|EasyIntuition"
+    "intuition|simplemenu|SimpleMenu"
+    "intuition|easyrequest|EasyRequest"
+    "intuition|simplegtgadget|SimpleGTGadget"
+    "devices|simpletimer|SimpleTimer"
     "utility|tag1|Tag1"
     "utility|hooks1|Hooks1"
+    "math|ffpexample|FFPExample"
 )
 
 foreach(sample_info ${SAMPLES_LIST})

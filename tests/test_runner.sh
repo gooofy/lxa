@@ -144,6 +144,14 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
     # Normalize variable numeric values that change between runs
     sed -i 's/Request completed after [0-9]\+ checks!/Request completed after checks!/' "$ACTUAL_OUTPUT"
     
+    # Normalize timer values (system time, microseconds, delays)
+    # These vary between runs and between different host systems
+    sed -i 's/Seconds: [0-9]\+, Microseconds: [0-9]\+/Seconds: TIME, Microseconds: TIME/g' "$ACTUAL_OUTPUT"
+    sed -i 's/Time: [0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\} (Days: [0-9]\+)/Time: HH:MM:SS (Days: N)/g' "$ACTUAL_OUTPUT"
+    sed -i 's/\([0-9]\{5,\}\)\.\([0-9]\{6\}\)/TIME.MICRO/g' "$ACTUAL_OUTPUT"
+    sed -i 's/Time correctly increased by [0-9]\+ microseconds/Time correctly increased by N microseconds/g' "$ACTUAL_OUTPUT"
+    sed -i 's/Actual delay: [0-9]\+ microseconds/Actual delay: N microseconds/g' "$ACTUAL_OUTPUT"
+    
     # Remove trailing newlines that might be left
     sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' "$ACTUAL_OUTPUT" 2>/dev/null || true
 fi

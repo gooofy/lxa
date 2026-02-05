@@ -153,6 +153,20 @@ asm(
 );
 
 
+/*
+ * SPCmp - Compare two FFP numbers
+ * 
+ * Input:  d0 = x (second argument)
+ *         d1 = y (first argument)
+ * 
+ * Output: d0 = -1 if y < x
+ *              0 if y == x
+ *             +1 if y > x
+ *         CCR set accordingly (N flag if y < x, Z flag if y == x)
+ * 
+ * Note: Cannot use GetCC() after jsr because condition codes are modified.
+ * Instead, use Scc instructions immediately after compare.
+ */
 LONG mathffp_SPCmp ( register struct Library *MathBase __asm("a6"),
                               register FLOAT           y        __asm("d1"),
                               register FLOAT           x        __asm("d0"));
@@ -172,68 +186,73 @@ asm(
 "                                                                 \n"
 "         /* at least one positive -> compare x vs y */           \n"
 "1:       cmp.b     d1, d0          | compare sign+exp            \n"
-"         bne.s     2f              | ne -> cone, compute res     \n"
+"         bne.s     2f              | ne -> done, compute res     \n"
 "         cmp.l     d1, d0          | compare significands        \n"
 "                                                                 \n"
 "2:                                                               \n"
-"         /* compute result, preserve ccr */                      \n"
-
-"         movem.l   a6, -(sp)       | save a6                     \n"
-"         move.l    4, a6           | SysBase -> a6               \n"
-"         jsr       -528(a6)        | GetCC()                     \n"
-"         move.l    (sp)+, a6       | restore a6                  \n"
-"         move.w    d0, d1          | ccr -> d1                   \n"
-"         and.w     #0xff, d1       |                             \n"
-"                                                                 \n"
-"         moveq.l   #0, d0          | clear result                \n"
-"         move.w    d1, ccr         | restore CCR                 \n"
-"         blt.s     3f              | y > x  -> +1                \n"
-"         bgt.s     4f              | y < x  -> -1                \n"
-"         bra.s     5f              | y == x -> 0                 \n"
-"3:                                                               \n"
-"         addq.l    #1, d0			| res := 1                    \n"
-"         bra.s     5f                                            \n"
-"4:                                                               \n"
-"         subq.l    #1, d0          | res := -1                   \n"
-"5:                                                               \n"
-"         move.w    d1, ccr         | restore ccr                 \n"
+"         /* Use Scc to capture result immediately after cmp */   \n"
+"         slt       d1              | d1 = 0xff if lt, 0 otherwise\n"
+"         sgt       d0              | d0 = 0xff if gt, 0 otherwise\n"
+"         ext.w     d1              | extend to word (-1 or 0)    \n"
+"         ext.l     d1              | extend to long (-1 or 0)    \n"
+"         ext.w     d0              | extend to word (-1 or 0)    \n"
+"         ext.l     d0              | extend to long (-1 or 0)    \n"
+"         sub.l     d1, d0          | d0 = gt - lt = result       \n"
+"         tst.l     d0              | set CCR for result          \n"
 "         rts                       |                             \n"
 );
 
+/*
+ * SPTst - Test an FFP number
+ * 
+ * Input:  d1 = parm (FFP number to test)
+ * 
+ * Output: d0 = -1 if parm < 0
+ *              0 if parm == 0
+ *             +1 if parm > 0
+ *         CCR set accordingly (N flag if negative, Z flag if zero)
+ * 
+ * Note: FFP format stores sign in bit 7 of low byte (same byte as exponent).
+ *       Zero is 0x00000000.
+ *       Positive has sign bit clear (0x00 - 0x7f in low byte, non-zero exponent).
+ *       Negative has sign bit set (0x80 - 0xff in low byte).
+ */
 LONG mathffp_SPTst ( register struct Library * MathBase __asm("a6"),
                      register FLOAT parm __asm("d1"));
 
 asm(
 "_mathffp_SPTst:                                                                \n"
-"         tst.b     d1              | test d1 -> condition codes set            \n"
-"         movem.l   a6,-(sp)        | save MathBase                             \n"
-"         movea.l   4, a6           | exec base -> a6                           \n"
-"         jsr       -528(a6)        | _LVOGetCC(a6)                             \n"
-"         movem.l   (sp)+, a6       | restore MathBase                          \n"
-
-"         move.w    d0, d1          | cc -> d1                                  \n"
-"         move.w    d0, ccr         | restore cc                                \n"
-"         blt.s     1f              | <0 ? -> 1f                                \n"
-"         bgt.s     2f              | >0 ? -> 2f                                \n"
-"         move.l    #0, d0          | #0: equal                                 \n"
-"         bra.s     3f              | finish                                    \n"
-"1:                                                                             \n"
-"         move.l    #-1, d0         | #-1 : <0                                  \n"
-"         bra.s     3f              | finish                                    \n"
-"2:                                                                             \n"
-"         move.l    #1, d0          | #1 : >0                                   \n"
-"3:                                                                             \n"
-"         move.w    d1, ccr         | restore cc                                \n"
-"         rts                 | done                                            \n"
+"         tst.b     d1              | test low byte (sign+exp)                 \n"
+"         beq.s     2f              | zero ? -> return 0                       \n"
+"         bmi.s     1f              | negative ? -> return -1                  \n"
+"         moveq.l   #1, d0          | positive -> return 1                     \n"
+"         rts                       |                                          \n"
+"1:       moveq.l   #-1, d0         | negative -> return -1                    \n"
+"         rts                       |                                          \n"
+"2:       moveq.l   #0, d0          | zero -> return 0                         \n"
+"         rts                       | done                                     \n"
 );
 
+/*
+ * SPAbs - Absolute value of an FFP number
+ * 
+ * Input:  d0 = parm (FFP number)
+ * 
+ * Output: d0 = |parm| (absolute value)
+ *         CCR set for result (Z if zero, else positive)
+ * 
+ * Note: FFP format has sign bit in bit 7 of the low byte (same byte as exponent)
+ */
 FLOAT mathffp_SPAbs ( register struct Library * MathBase __asm("a6"),
-                               register FLOAT parm __asm("d0"))
-{
-    DPRINTF (LOG_ERROR, "_mathffp: SPAbs() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
-}
+                               register FLOAT parm __asm("d0"));
+asm(
+"_mathffp_SPAbs:                                                                \n"
+"         tst.b     d0              | test sign+exp byte                       \n"
+"         beq.s     1f              | zero ? -> done                           \n"
+"         and.b     #0x7f, d0       | clear sign bit                           \n"
+"1:       tst.b     d0              | set CCR for result                       \n"
+"         rts                       | done                                     \n"
+);
 
 
 FLOAT mathffp_SPNeg ( register struct Library *MathBase __asm("a6"),
@@ -422,14 +441,15 @@ FLOAT mathffp_SPSub ( register struct Library *MathBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_mathffp: SPSub() called.\n");
 
-    // compute z = x - y
+    // compute z = y - x (d1 - d0)
+    // SPAdd(d1, d0) = d1 + d0
+    // So we need: SPAdd(y, -x) = y + (-x) = y - x
 
     union FFP_ULONG ufx = {.f = x};
-    union FFP_ULONG ufy = {.f = y};
 
-    ufy.ul ^= 0x00000080; // invert sign
+    ufx.ul ^= 0x00000080; // invert sign of x
 
-    return SPAdd(ufy.f, ufx.f);
+    return SPAdd(y, ufx.f);
 }
 
 FLOAT mathffp_SPMul ( register struct Library *MathBase __asm("a6"),

@@ -1,0 +1,47 @@
+EasyRequest: Demonstrating EasyRequestArgs()
+
+EasyRequest: Opened intuition.library v40
+
+EasyRequest: Test 1 - Simple request...
+  Title: 'Simple Requester'
+  Text: 'This is a simple request'
+  Gadgets: 'OK'
+  Result: 1
+
+EasyRequest: Test 2 - String variable...
+  Title: 'Text Variable Test'
+  Text format: 'Message with variable: %s'
+  Gadgets: 'OK'
+  Variable: 'Hello World'
+  Result: 1
+
+EasyRequest: Test 3 - Numeric variable...
+  Title: 'Number Variable Test'
+  Text format: 'The answer is %ld'
+  Gadgets: 'OK'
+  Variable: 42
+  Result: 1
+
+EasyRequest: Test 4 - Multiple buttons...
+  Title: 'Multi-Button Test'
+  Text: 'Choose an option:'
+  Gadgets: 'Yes|Maybe|No' (3 buttons)
+  Result: 1 (note: 0=rightmost, 1=leftmost, 2=middle)
+
+EasyRequest: Test 5 - Combined features...
+  Title: 'Combined Features'
+  Text format: 'Text for the request
+Second line of %s text
+Third line of text'
+  Gadgets: 'Yes|%ld|No'
+  String var: '(Variable)', Number var: 3125794
+  Result: 1
+
+EasyRequest: Verifying EasyStruct...
+  sizeof(struct EasyStruct): 20
+  simpleES.es_StructSize: 20
+  Structure size: CORRECT
+
+EasyRequest: Closing library...
+
+EasyRequest: Demo complete.

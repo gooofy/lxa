@@ -1,0 +1,21 @@
+SimpleImage: Demonstrating Intuition Image rendering
+
+SimpleImage: Opened intuition.library v40
+SimpleImage: Opened window at 0,0 size 200x100
+SimpleImage: Image structure initialized
+  Size: 24x10, Depth: 1
+  PlanePick: 0x01, PlaneOnOff: 0x00
+
+SimpleImage: Drawing image at position (10, 20)...
+SimpleImage: First DrawImage() complete
+SimpleImage: Drawing image at position (100, 20)...
+SimpleImage: Second DrawImage() complete
+SimpleImage: Drawing image at position (50, 50)...
+SimpleImage: Third DrawImage() complete
+
+SimpleImage: All images drawn successfully!
+
+SimpleImage: Closing window...
+SimpleImage: Closing library...
+
+SimpleImage: Demo complete.

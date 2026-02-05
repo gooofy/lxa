@@ -8,19 +8,33 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.11** | **Phase 56 In Progress** | **40 Integration Tests Passing**
+**Version: 0.6.13** | **Phase 56 In Progress** | **22 RKM Sample Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes (Phase 56)**:
-- **Intuition UI Samples**: Added SimpleGad, UpdateStrGad, IntuiText samples with full automated tests
-  - SimpleGad tests boolean gadgets with GACT_IMMEDIATE and GACT_RELVERIFY flags
-  - UpdateStrGad tests string gadget updates, RemoveGList/AddGList/RefreshGList, ActivateGadget
-  - IntuiText tests PrintIText with chained IntuiText structures, GetScreenDrawInfo, LockPubScreen
-- **RKM Samples Infrastructure**: Initiated the samples integration phase.
-- **test_runner.sh hex normalization bug**: Fixed sed pattern that was too aggressive, replacing ALL hex values (including small constants like 0xFF, 0xF000) with "0x". Now only normalizes 5+ digit hex addresses.
-- **Hooks1 sample**: Successfully ported RKM Hooks1 sample demonstrating utility.library Hook callbacks.
-- **Test suite cleanup**: Removed Port1/Port2 and TimerSoftInt from automated tests (require concurrent execution and complex m68k interrupt conventions respectively). Samples remain available for manual testing.
+- **Fixed mathffp.library bugs**:
+  - `SPSub`: Fixed argument handling - was computing x-y instead of y-x
+  - `SPCmp`: Fixed infinite loop caused by trying to preserve CCR across a function call (jsr clobbers CCR). Rewrote using Scc instructions.
+  - `SPTst`: Same fix as SPCmp - use direct byte test instead of GetCC()
+  - `SPAbs`: Implemented (was a stub) - clears sign bit in FFP format
+- **New Math Samples**:
+  - `FFPExample` - mathffp.library test: SPFlt, SPFix, SPAdd, SPSub, SPMul, SPDiv, SPCmp, SPNeg, SPAbs, SPTst
+- **New GadTools Samples**:
+  - `SimpleGTGadget` - CreateContext, CreateGadget (BUTTON_KIND, CHECKBOX_KIND, INTEGER_KIND, CYCLE_KIND), GetVisualInfo, GT_RefreshWindow, GT_SetGadgetAttrs
+- **Fixed Cause() A5 register bug**: The software interrupt handler in exec.c had an A5 register conflict. The compiler uses A5 as frame pointer but AmigaOS requires A5 to hold is_Code. Fixed with inline assembly that saves/restores A5 around handler invocation.
+- **Added TimerSoftInt to test suite**: Now passing after Cause() fix.
+- **New Intuition UI Samples**: 
+  - `SimpleImage` - DrawImage() with chip memory image data
+  - `ShadowBorder` - DrawBorder() with chained borders, GetScreenDrawInfo()
+  - `EasyIntuition` - OpenScreenTags(), OpenWindowTags() with WA_CustomScreen
+  - `SimpleMenu` - Menu strip creation, SetMenuStrip(), ItemAddress(), submenus
+  - `EasyRequest` - EasyRequestArgs() with variable substitution
+- **New Device Samples**:
+  - `SimpleTimer` - timer.device TR_ADDREQUEST, TR_GETSYSTIME, time delays
+- **New Graphics Samples**:
+  - `Clipping` - NewRegion(), OrRectRegion(), InstallClipRegion(), clip regions
+- **test_runner.sh**: Added timer value normalization for portable test output
 
 **DPaint V Status**: Libraries load successfully, Workbench screen opens, application initializes without crashes. Currently investigating hang during initialization after font loading.
 
@@ -136,20 +150,21 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [x] `SimpleGad` (Basic boolean gadgets with GACT_IMMEDIATE/RELVERIFY).
     - [x] `UpdateStrGad` (String gadget updates, RemoveGList/AddGList/RefreshGList).
     - [x] `IntuiText` (Text rendering with PrintIText, GetScreenDrawInfo).
-    - [ ] `SimpleImage`/`ShadowBorder` (UI rendering primitives).
-    - [ ] `EasyIntuition` (Standard requester/UI setup).
-    - [ ] `SimpleMenu`/`MenuLayout` (Intuition menu systems).
+    - [x] `SimpleImage`/`ShadowBorder` (UI rendering primitives).
+    - [x] `EasyIntuition` (Custom screens with OpenScreenTags/OpenWindowTags).
+    - [x] `SimpleMenu` (Intuition menu systems with submenus).
     - [ ] `MouseTest`/`RawKey`/`CustomPointer` (Input and cursor handling).
-    - [ ] `EasyRequest`/`BlockInput`/`DisplayAlert` (Requesters and alerts).
+    - [x] `EasyRequest` (Requesters with variable substitution).
     - [ ] `CloneScreen`/`PublicScreen`/`DoubleBuffer` (Advanced screen management).
     - [ ] `VisibleWindow`/`WinPubScreen` (Window placement and public screens).
 - [ ] **Graphics Samples**:
     - [x] `RGBBoxes` (Graphics primitives and views).
-    - [ ] `Clipping`/`Layers` (Layer management and clipping regions).
+    - [x] `Clipping` (Layer management and clipping regions).
     - [ ] `AvailFonts`/`MeasureText` (Font handling and text measurement).
     - [ ] `WBClone` (Workbench cloning and primitives).
     - [ ] `SSprite`/`VSprite`/`Bob` (Sprite and animation system).
 - [ ] **Advanced UI Samples**:
+    - [x] `SimpleGTGadget` (GadTools gadget creation and management).
     - [ ] `GadToolsGadgets`/`GadToolsMenu` (GadTools library UI).
     - [ ] `FileReq`/`FontReq` (ASL standard requesters).
     - [ ] `Talk2Boopsi` (BOOPSI object-oriented UI).
@@ -160,7 +175,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [ ] `ClipFTXT`/`Sift` (IFF parsing and text clipboard).
     - [ ] `Broker`/`HotKey` (Commodities system).
     - [ ] `IconExample`/`AppIcon`/`AppWindow` (Workbench integration).
-    - [ ] `FFPExample`/`SPIEEE`/`DPIEEE` (Floating point math).
+    - [x] `FFPExample` (Fast Floating Point math - SPFlt, SPFix, SPAdd, SPSub, SPMul, SPDiv, SPCmp, SPNeg, SPAbs, SPTst).
+    - [ ] `SPIEEE`/`DPIEEE` (IEEE floating point math).
 - [ ] **Device Samples**:
     - [ ] `Simple_Timer`/`Get_Systime` (Timer device).
     - [ ] `ClipDemo`/`ChangeHook_Test` (Clipboard device).
@@ -224,6 +240,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.13 | 56 | Fixed mathffp bugs (SPSub, SPCmp, SPTst, SPAbs), added FFPExample and SimpleGTGadget samples |
+| 0.6.12 | 56 | Added SimpleImage, ShadowBorder, EasyIntuition, SimpleMenu, EasyRequest, SimpleTimer, Clipping samples |
 | 0.6.11 | 56 | Added SimpleGad, UpdateStrGad, IntuiText samples |
 | 0.6.10 | 56 | Fixed test hex normalization, added Hooks1 sample |
 | 0.6.9 | 56 | Started RKM Samples Integration |

@@ -1,0 +1,39 @@
+SimpleGTGadget: GadTools gadget demonstration
+
+Libraries opened successfully
+Locked public screen: Workbench Screen
+Got visual info
+Created gadget context
+Created BUTTON_KIND gadget: OK
+Created CHECKBOX_KIND gadget: OK
+Created INTEGER_KIND gadget: OK
+Created CYCLE_KIND gadget: OK
+Window opened successfully
+GT_RefreshWindow called
+
+Testing gadget functionality:
+  Window has 7 gadgets (system + GadTools)
+  PASS: Gadget list populated
+  GT_SetGadgetAttrs: Set integer to 123
+  PASS: GT_SetGadgetAttrs executed
+  GT_SetGadgetAttrs: Checked checkbox
+  PASS: Checkbox modification
+  GT_SetGadgetAttrs: Set cycle to Option 3
+  PASS: Cycle modification
+  GT_BeginRefresh/GT_EndRefresh: OK
+  PASS: Refresh cycle
+
+Processing messages:
+  Processed 0 messages
+
+Cleaning up:
+  Window closed
+  Gadgets freed
+  Visual info freed
+  Screen unlocked
+  Libraries closed
+
+=== Test Summary ===
+Tests passed: 5/5
+
+SimpleGTGadget: ALL TESTS PASSED
