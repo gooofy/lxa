@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.21** | **Phase 56 In Progress** | **40 RKM Sample Tests Passing** | **162 Total Tests Passing**
+**Version: 0.6.21** | **Phase 56 In Progress** | **41 RKM Sample Tests Passing** | **162 Total Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -28,6 +28,7 @@ The lxa project has achieved a comprehensive AmigaOS-compatible environment with
 - **New Graphics/Font Samples**:
   - `AvailFonts` - Font enumeration with AvailFonts(), OpenDiskFont()
   - `MeasureText` - Text measurement with TextLength(), TextExtent(), TextFit()
+  - `WBClone` - Low-level graphics: LockPubScreen, GetVPModeID, LockIBase, InitBitMap, AllocRaster, InitRastPort, SetRast, GetRGB4
 - **New Input/Cursor Samples**:
   - `CustomPointer` - Custom mouse pointer with SetPointer(), ClearPointer(), Request(), EndRequest()
   - `MouseTest` - Mouse input handling (IDCMP_MOUSEMOVE, IDCMP_MOUSEBUTTONS, DoubleClick) - interactive

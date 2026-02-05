@@ -45,6 +45,7 @@ set(SAMPLES_LIST
     "graphics|clipping|Clipping"
     "graphics|availfonts|AvailFonts"
     "graphics|measuretext|MeasureText"
+    "graphics|wbclone|WBClone"
     "intuition|openwindowtags|OpenWindowTags"
     "intuition|simplegad|SimpleGad"
     "intuition|updatestrgad|UpdateStrGad"

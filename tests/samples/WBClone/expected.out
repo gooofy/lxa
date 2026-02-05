@@ -1,0 +1,49 @@
+WBClone: Workbench screen cloning demonstration
+
+WBClone: Opening intuition.library...
+WBClone: intuition.library v40 opened
+WBClone: Opening graphics.library...
+WBClone: graphics.library v40 opened
+
+WBClone: Locking Workbench screen...
+WBClone: Workbench screen locked at 0x
+WBClone: Screen dimensions: 640x256x2
+WBClone: Screen ModeID: 0x
+
+WBClone: Locking IntuitionBase...
+WBClone: IntuitionBase locked (lock=0x)
+WBClone: ViewLord at 0x
+WBClone: ViewLord.Modes: 0x0000
+WBClone: ViewLord.DxOffset: 0, DyOffset: 0
+WBClone: IntuitionBase unlocked
+
+WBClone: Reading Workbench ColorMap...
+WBClone: No ColorMap found
+
+WBClone: Creating matching BitMap...
+WBClone: Allocating BitMap (640x256x2)...
+WBClone: BitMap initialized at 0x
+WBClone: BytesPerRow=80, Rows=256, Depth=2
+WBClone: Plane 0 allocated at 0x
+WBClone: Plane 1 allocated at 0x
+
+WBClone: Creating RastPort for rendering...
+WBClone: RastPort initialized at 0x
+WBClone: Clearing bitmap with SetRast(0)...
+WBClone: BitMap cleared
+WBClone: Drawing border pattern...
+WBClone: Border drawn with pen 3
+WBClone: Diagonal lines drawn
+
+WBClone: Rendering complete (bitmap not displayed on screen)
+WBClone: In a full implementation, MakeVPort/MrgCop/LoadView would display this.
+
+WBClone: Cleaning up...
+WBClone: RastPort freed
+WBClone: Plane 0 freed
+WBClone: Plane 1 freed
+WBClone: BitMap freed
+WBClone: Workbench screen unlocked
+WBClone: Libraries closed
+
+WBClone: Demo complete.
