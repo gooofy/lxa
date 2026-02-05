@@ -8,22 +8,21 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.24** | **Phase 57 Complete** | **42 RKM Sample Tests Passing** | **12 Host-Side Test Drivers**
+**Version: 0.6.25** | **Phase 58 Complete** | **42 RKM Sample Tests Passing** | **12 Host-Side Test Drivers**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
-**Phase 56 Summary (Complete)**:
-- 42 RKM sample programs implemented (Exec, Intuition, Graphics, GadTools, BOOPSI, Math, Devices)
-- Host-side test driver infrastructure (liblxa) for automated UI testing
-- Fixed mathtrans.library (CORDIC, SPExp), mathffp.library (SPSub, SPCmp, SPTst, SPAbs)
-- Fixed Amiga2Date, Cause() A5 register, display_close() use-after-free, ColorMap init
-- Implemented AvailFonts(), FindConfigDev(), MakeScreen/RethinkDisplay/RemakeDisplay
-- 214 total tests passing
+**Phase 58 Summary (Complete)**:
+- Fixed critical display sync bug in lxa_api.c: `lxa_run_cycles()` was missing planar-to-chunky bitmap conversion, causing test drivers to see 0 content pixels even after applications drew their UI
+- Enhanced KickPascal test driver with visual verification and screenshot capture
+- Investigated cursor key handling: confirmed RAWKEY events are correctly delivered via IDCMP - KickPascal reads keys directly from IDCMP (not console.device), cursor keys work correctly
+- Improved test driver to drain pending events before cursor key tests
 
 **DPaint V Status**: Libraries load successfully, Workbench screen opens, application initializes without crashes. Currently investigating hang during initialization after font loading.
 
 **ASM-One Status**: ✅ WORKING - Opens screens, window, and editor! Ready for assembly coding!
 **Devpac Status**: Window renders AND responds to mouse/keyboard input!
+**KickPascal Status**: ✅ WORKING - Full editor functionality with text entry and cursor keys!
 
 ---
 
@@ -98,19 +97,27 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Active Phase
 
-### Phase 58: KickPascal 2 Deep Dive (Current)
+### Phase 59: Devpac (HiSoft) Deep Dive (Current)
+**Goal**: Verify editor content area and achieve full assembler functionality.
+**Status**: ✅ WORKING - Window opens and responds to input.
+**Driver**: ✅ `devpac_test.c` created and passing
+
+---
+
+## Completed Phases (Recent)
+
+### Phase 58: KickPascal 2 Deep Dive (Complete)
 **Goal**: Full KickPascal 2 IDE functionality with automated testing via host-side driver.
-**Status**: ⚠️ UI Issues (Screen clearing, repaint speed, cursor keys).
+**Status**: ✅ COMPLETE - All known issues resolved.
 **Driver**: ✅ `kickpascal_test.c` created and passing
+**Fixes**:
+- Fixed display sync bug in `lxa_api.c` - `lxa_run_cycles()` now performs planar-to-chunky conversion
+- Confirmed cursor key RAWKEY events (0x4C-0x4F) are correctly delivered via IDCMP
+- KickPascal handles cursor keys directly from IDCMP (not via console.device CSI sequences)
 
 ---
 
 ## High Priority Phases
-
-### Phase 59: Devpac (HiSoft) Deep Dive
-**Goal**: Verify editor content area and achieve full assembler functionality.
-**Status**: ✅ WORKING - Window opens and responds to input.
-**Driver**: ✅ `devpac_test.c` created and passing
 
 ### Phase 60: MaxonBASIC Deep Dive
 **Goal**: Verify and complete full MaxonBASIC IDE functionality.
@@ -182,6 +189,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.25 | 58 | Phase 58 complete: Fixed critical display sync bug in lxa_api.c (planar-to-chunky conversion in lxa_run_cycles). KickPascal 2 fully working with cursor key support. Enhanced kickpascal_test.c with visual verification. |
 | 0.6.24 | 57 | Phase 57 complete: 12 host-side test drivers, extended liblxa API (lxa_inject_rmb_click, lxa_inject_drag, lxa_get_screen_info, lxa_read_pixel, lxa_read_pixel_rgb). |
 | 0.6.23 | 57 | Added 11 host-side test drivers: simplegad, mousetest, rawkey, simplegtgadget, updatestrgad, simplemenu, asm_one, devpac, kickpascal, maxonbasic, dpaint. Deep dive app drivers for ASM-One, Devpac, KickPascal 2, MaxonBASIC, DPaint V. |
 | 0.6.22 | 56 | Fixed mathtrans.library CORDIC and SPExp bugs, added FFPTrans sample (42 RKM samples, 214 total tests) |
