@@ -64,7 +64,7 @@ set(SAMPLES_LIST
     "intuition|visiblewindow|VisibleWindow"
     "intuition|winpubscreen|WinPubScreen"
     "intuition|talk2boopsi|Talk2Boopsi"
-    # "intuition|doublebuffer|DoubleBuffer"  # DISABLED: Causes Line-A exception during VBlank - needs investigation
+    "intuition|doublebuffer|DoubleBuffer"
     "devices|simpletimer|SimpleTimer"
     "utility|tag1|Tag1"
     "utility|hooks1|Hooks1"

@@ -130,7 +130,6 @@ VOID _timer_VBlankHook(void)
     struct timerequest *tr;
     
     /* First, mark any newly expired timers */
-    DPRINTF(LOG_DEBUG, "_timer: VBlankHook: calling timer_check_expired()\n");
     timer_check_expired();
     
     /* Process all expired timers */

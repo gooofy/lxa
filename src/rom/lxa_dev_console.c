@@ -927,7 +927,6 @@ VOID _console_VBlankHook(void)
         unit = cdb->cdb_Units[i];
         if (unit && unit->pending_read) {
             /* This unit has a pending async read - process input */
-            DPRINTF(LOG_DEBUG, "_console: VBlankHook: processing input for unit 0x%08lx\n", (ULONG)unit);
             console_process_input(unit);
         }
     }

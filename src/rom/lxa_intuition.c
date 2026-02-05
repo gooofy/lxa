@@ -49,6 +49,9 @@ extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
 extern struct UtilityBase *UtilityBase;
 
+/* Global IntuitionBase (defined in exec.c) - used to avoid OpenLibrary from interrupt context */
+extern struct IntuitionBase *IntuitionBase;
+
 /* Helper functions to bypass broken macros */
 static inline void _call_MoveLayer(struct Library *base, struct Layer *layer, LONG dx, LONG dy) {
     register struct Library * _base __asm("a6") = base;
@@ -1271,6 +1274,12 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
     {
         IntuitionBase->ActiveScreen = IntuitionBase->FirstScreen;
     }
+    
+    /* Free the RasInfo if allocated */
+    if (screen->ViewPort.RasInfo)
+    {
+        FreeMem(screen->ViewPort.RasInfo, sizeof(struct RasInfo));
+    }
 
     /* Free the Screen structure */
     FreeMem(screen, sizeof(struct Screen));
@@ -2488,12 +2497,14 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
  * Handle keyboard input for an active string gadget
  * Returns TRUE if the gadget handled the input and remains active
  * Returns FALSE if the gadget deactivated (Return/Escape pressed or focus lost)
+ * 
+ * NOTE: This function may be called from interrupt context (via VBlank hook)
+ * so it uses the global IntuitionBase instead of calling OpenLibrary().
  */
 static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window, 
                                        UWORD rawkey, UWORD qualifier)
 {
     struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
-    struct IntuitionBase *IBase;
     BOOL keyUp = (rawkey & IECODE_UP_PREFIX) != 0;
     UWORD code = rawkey & ~IECODE_UP_PREFIX;
     BOOL needsRefresh = FALSE;
@@ -2507,9 +2518,6 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
     DPRINTF(LOG_DEBUG, "_intuition: _handle_string_gadget_key code=0x%02x qual=0x%04x\n",
             code, qualifier);
     
-    /* Get IntuitionBase for RefreshGList calls */
-    IBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
-    
     /* Check for special keys */
     switch (code) {
         case 0x44: /* Return key */
@@ -2519,12 +2527,10 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
                 _post_idcmp_message(window, IDCMP_GADGETUP, 0, qualifier, gad,
                                     window->MouseX, window->MouseY);
             }
-            if (IBase) CloseLibrary((struct Library *)IBase);
             return FALSE;  /* Deactivate gadget */
             
         case 0x45: /* Escape key */
             gad->Flags &= ~GFLG_SELECTED;
-            if (IBase) CloseLibrary((struct Library *)IBase);
             return FALSE;  /* Deactivate gadget */
             
         case 0x41: /* Backspace */
@@ -2656,11 +2662,10 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
     }
     
     /* Refresh the gadget display if needed */
-    if (needsRefresh && IBase) {
-        _intuition_RefreshGList(IBase, gad, window, NULL, 1);
+    if (needsRefresh && IntuitionBase) {
+        _intuition_RefreshGList(IntuitionBase, gad, window, NULL, 1);
     }
     
-    if (IBase) CloseLibrary((struct Library *)IBase);
     return TRUE;  /* Stay active */
 }
 
@@ -2740,7 +2745,6 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
     ULONG key_data;
     WORD mouseX, mouseY;
     struct Window *window;
-    struct IntuitionBase *IBase;
     
     if (!screen)
         return;
@@ -2750,8 +2754,12 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
         return;
     g_processing_events = TRUE;
     
-    /* Get IntuitionBase for updating global state */
-    IBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
+    /*
+     * Use the global IntuitionBase (defined in exec.c) instead of calling
+     * OpenLibrary(). This function can be called from VBlank interrupt
+     * context, where calling OpenLibrary/CloseLibrary causes reentrancy
+     * issues and crashes.
+     */
     
     /* Poll for input events */
     while (1)
@@ -2766,14 +2774,14 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
         mouseY = (WORD)(mouse_pos & 0xFFFF);
         
         /* Update IntuitionBase with current mouse position and timestamp */
-        if (IBase)
+        if (IntuitionBase)
         {
             struct timeval tv;
             emucall1(EMU_CALL_GETSYSTIME, (ULONG)&tv);
-            IBase->MouseX = mouseX;
-            IBase->MouseY = mouseY;
-            IBase->Seconds = tv.tv_secs;
-            IBase->Micros = tv.tv_micro;
+            IntuitionBase->MouseX = mouseX;
+            IntuitionBase->MouseY = mouseY;
+            IntuitionBase->Seconds = tv.tv_secs;
+            IntuitionBase->Micros = tv.tv_micro;
         }
         
         /* Find the window at the mouse position */
@@ -3063,12 +3071,6 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
         }
     }
     
-    /* Close IntuitionBase if we opened it */
-    if (IBase)
-    {
-        CloseLibrary((struct Library *)IBase);
-    }
-    
     /* Release re-entry guard */
     g_processing_events = FALSE;
 }
@@ -3080,18 +3082,25 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
  * 
  * This function must be called from a context where interrupts are safe
  * (e.g., at the end of VBlank processing before scheduling).
+ * 
+ * IMPORTANT: This function is called from interrupt context. It MUST NOT
+ * call OpenLibrary/CloseLibrary as this can cause reentrancy issues when
+ * the interrupted code is also doing library calls. Instead, we use the
+ * global IntuitionBase which is set up at ROM initialization time.
  */
 VOID _intuition_VBlankInputHook(void)
 {
-    struct IntuitionBase *IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
-    if (IntuitionBase)
+    struct Screen *screen;
+    
+    /* Use global IntuitionBase - no OpenLibrary calls from interrupt context! */
+    if (!IntuitionBase)
     {
-        struct Screen *screen;
-        for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
-        {
-            _intuition_ProcessInputEvents(screen);
-        }
-        CloseLibrary((struct Library *)IntuitionBase);
+        return;
+    }
+    
+    for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
+    {
+        _intuition_ProcessInputEvents(screen);
     }
 }
 
@@ -3431,7 +3440,21 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Initialize ViewPort (minimal) */
     screen->ViewPort.DWidth = width;
     screen->ViewPort.DHeight = height;
-    screen->ViewPort.RasInfo = NULL;
+    
+    /* Allocate and initialize RasInfo for the ViewPort.
+     * This is required for double-buffering and other ViewPort operations.
+     * Without a valid RasInfo, code like screen->ViewPort.RasInfo->BitMap = xxx
+     * would write to address 4 (NULL + 4) and corrupt SysBase!
+     */
+    struct RasInfo *rasinfo = (struct RasInfo *)AllocMem(sizeof(struct RasInfo), MEMF_PUBLIC | MEMF_CLEAR);
+    if (rasinfo)
+    {
+        rasinfo->Next = NULL;
+        rasinfo->BitMap = &screen->BitMap;
+        rasinfo->RxOffset = 0;
+        rasinfo->RyOffset = 0;
+    }
+    screen->ViewPort.RasInfo = rasinfo;
 
     /* Set bar heights (simplified) */
     screen->BarHeight = 10;
