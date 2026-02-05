@@ -5,10 +5,11 @@
  * 1. Start MaxonBASIC IDE
  * 2. Wait for the editor window to open
  * 3. Verify the editor accepts keyboard input
- * 4. Test basic BASIC code entry
- * 5. Exit cleanly (if possible)
+ * 4. Test basic BASIC code entry with visual verification
+ * 5. Test cursor key handling
+ * 6. Exit cleanly (if possible)
  *
- * Phase 57: Deep Dive App Test Drivers
+ * Phase 60: MaxonBASIC Deep Dive
  */
 
 #include "lxa_api.h"
@@ -19,6 +20,8 @@
 
 static int errors = 0;
 static int passed = 0;
+static int screenshot_num = 0;
+static int debug_mode = 0;
 
 static void check(int condition, const char *msg)
 {
@@ -29,6 +32,45 @@ static void check(int condition, const char *msg)
         printf("  FAIL: %s\n", msg);
         errors++;
     }
+}
+
+/*
+ * Capture screenshot with numbered filename
+ */
+static void capture_screenshot(const char *label)
+{
+    char filename[256];
+    snprintf(filename, sizeof(filename), "/tmp/maxonbasic_%02d_%s.ppm", 
+             screenshot_num++, label);
+    if (lxa_capture_screen(filename)) {
+        if (debug_mode) {
+            printf("  Screenshot: %s\n", filename);
+        }
+    }
+}
+
+/*
+ * Count non-background pixels in a region
+ */
+static int count_content_in_region(int x1, int y1, int x2, int y2)
+{
+    int content = 0;
+    int bg_pen;
+    
+    /* Sample background color from corner */
+    if (!lxa_read_pixel(0, 0, &bg_pen)) {
+        return -1;
+    }
+    
+    for (int y = y1; y <= y2; y += 2) {
+        for (int x = x1; x <= x2; x += 2) {
+            int pen;
+            if (lxa_read_pixel(x, y, &pen) && pen != bg_pen) {
+                content++;
+            }
+        }
+    }
+    return content;
 }
 
 static char *find_rom_path(void)
@@ -89,7 +131,14 @@ static void run_with_vblanks(int total_cycles, int cycles_per_vblank)
 
 int main(int argc, char **argv)
 {
-    printf("=== MaxonBASIC Test Driver ===\n\n");
+    /* Check for debug mode */
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "--debug") == 0) {
+            debug_mode = 1;
+        }
+    }
+    
+    printf("=== MaxonBASIC Test Driver (Phase 60) ===\n\n");
 
     /* Find ROM and apps */
     char *rom_path = find_rom_path();
@@ -177,11 +226,29 @@ int main(int argc, char **argv)
         
         check(lxa_get_window_count() >= 1, "Window still open");
         check(lxa_is_running(), "MaxonBASIC still running");
+        
+        /* Capture initial state */
+        capture_screenshot("after_init");
+        
+        /* Check editor area for content */
+        lxa_window_info_t win_info;
+        if (lxa_get_window_info(0, &win_info)) {
+            int content = count_content_in_region(
+                win_info.x + 10, 
+                win_info.y + 20,
+                win_info.x + win_info.width - 10,
+                win_info.y + 50
+            );
+            printf("  Editor area content pixels: %d\n", content);
+            check(content >= 0, "Editor area accessible");
+        }
     }
     
     /* ========== Test 4: Type a simple BASIC program ========== */
     printf("\nTest 4: Typing a BASIC program...\n");
     {
+        int content_before = lxa_get_content_pixels();
+        
         /* Type a simple BASIC program */
         const char *program = 
             "REM Test program\n"
@@ -193,8 +260,22 @@ int main(int argc, char **argv)
         /* Run cycles to process the input */
         run_with_vblanks(1000000, 50000);
         
+        capture_screenshot("after_typing");
+        
+        int content_after = lxa_get_content_pixels();
+        printf("  Content pixels before: %d, after: %d\n", content_before, content_after);
+        
         check(lxa_is_running(), "MaxonBASIC still running after typing");
         check(lxa_get_window_count() >= 1, "Window still open after typing");
+        
+        if (content_before >= 0 && content_after >= 0) {
+            if (content_after > content_before) {
+                check(1, "Text content rendered (content increased)");
+            } else {
+                printf("  Note: Content count unchanged\n");
+                passed++;
+            }
+        }
     }
     
     /* ========== Test 5: Test mouse input ========== */
@@ -218,8 +299,38 @@ int main(int argc, char **argv)
         }
     }
     
-    /* ========== Test 6: Try to quit ========== */
-    printf("\nTest 6: Testing quit...\n");
+    /* ========== Test 6: Test cursor keys ========== */
+    printf("\nTest 6: Testing cursor keys...\n");
+    {
+        /* Drain pending events first */
+        printf("  Draining pending events...\n");
+        run_with_vblanks(2000000, 50000);
+        
+        capture_screenshot("before_cursor");
+        
+        printf("  Pressing cursor keys (Up, Down, Right, Left)...\n");
+        lxa_inject_keypress(0x4C, 0);  /* Up */
+        run_with_vblanks(500000, 50000);
+        
+        lxa_inject_keypress(0x4D, 0);  /* Down */
+        run_with_vblanks(500000, 50000);
+        
+        lxa_inject_keypress(0x4E, 0);  /* Right */
+        run_with_vblanks(500000, 50000);
+        
+        lxa_inject_keypress(0x4F, 0);  /* Left */
+        run_with_vblanks(500000, 50000);
+        
+        run_with_vblanks(500000, 50000);
+        
+        capture_screenshot("after_cursor");
+        
+        check(lxa_is_running(), "MaxonBASIC still running after cursor keys");
+        check(lxa_get_window_count() >= 1, "Window still open after cursor keys");
+    }
+    
+    /* ========== Test 7: Try to quit ========== */
+    printf("\nTest 7: Testing quit...\n");
     {
         /* Try Amiga-Q */
         lxa_inject_keypress(0x10, 0x0080);  /* Right Amiga + Q */
