@@ -4510,17 +4510,37 @@ void _bootstrap(void)
      */
     {
         char dirbuf[1024];
-        int i, last_slash = -1;
+        int i, last_slash = -1, colon_pos = -1;
         
-        /* Copy path and find last slash */
+        /* Copy path and find last slash or colon */
         for (i = 0; binfn[i] && i < 1023; i++) {
             dirbuf[i] = binfn[i];
             if (binfn[i] == '/') last_slash = i;
+            if (binfn[i] == ':') colon_pos = i;
         }
         dirbuf[i] = '\0';
         
-        if (last_slash > 0) {
-            dirbuf[last_slash] = '\0';  /* Truncate at last slash to get directory */
+        /* For paths like SYS:subdir/program, last_slash gives us the dir.
+         * For paths like SYS:program, colon_pos gives us the volume root.
+         * For paths like /home/.../dir/program, last_slash gives us the dir.
+         */
+        int dir_end = last_slash;
+        if (dir_end < 0 && colon_pos >= 0) {
+            /* No slash found, but colon found: use volume root (e.g., "SYS:") */
+            dir_end = colon_pos;  /* Include the colon */
+        }
+        
+        if (dir_end >= 0) {
+            /* Truncate at the split point to get directory.
+             * For "SYS:Editor" with colon_pos=3, we want "SYS:"
+             * For "SYS:dir/prog" with last_slash=7, we want "SYS:dir"
+             * For "/home/path/prog" with last_slash=10, we want "/home/path"
+             */
+            if (dir_end == colon_pos) {
+                dirbuf[dir_end + 1] = '\0';  /* Include the colon for volume root */
+            } else {
+                dirbuf[dir_end] = '\0';  /* Truncate at last slash */
+            }
             DPRINTF (LOG_INFO, "_exec: _bootstrap(): setting current dir to: %s\n", dirbuf);
             
             BPTR dirLock = Lock((STRPTR)dirbuf, ACCESS_READ);

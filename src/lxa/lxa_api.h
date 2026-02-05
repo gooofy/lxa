@@ -114,6 +114,33 @@ int lxa_get_exit_code(void);
  */
 int lxa_run_until_exit(int timeout_ms);
 
+/* ========== VFS/Drive/Assign API ========== */
+
+/*
+ * Add an AmigaDOS assign.
+ * This creates a logical name that points to a directory.
+ * Must be called after lxa_init() but before lxa_load_program().
+ *
+ * Example: lxa_add_assign("Cluster", "/path/to/cluster") allows
+ * the program to access "Cluster:file" which resolves to /path/to/cluster/file
+ *
+ * @param name        Assign name (without colon, e.g. "Cluster")
+ * @param linux_path  Host filesystem path to map
+ * @return true on success
+ */
+bool lxa_add_assign(const char *name, const char *linux_path);
+
+/*
+ * Add an AmigaDOS drive.
+ * This creates a volume that points to a directory.
+ * Must be called after lxa_init() but before lxa_load_program().
+ *
+ * @param name        Drive name (without colon, e.g. "Work")
+ * @param linux_path  Host filesystem path to map
+ * @return true on success
+ */
+bool lxa_add_drive(const char *name, const char *linux_path);
+
 /* ========== Event Injection API ========== */
 
 /* Mouse button constants */

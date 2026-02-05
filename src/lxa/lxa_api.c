@@ -205,6 +205,23 @@ int lxa_load_program(const char *program, const char *args)
     return 0;
 }
 
+/* ========== VFS/Drive/Assign API ========== */
+
+bool lxa_add_assign(const char *name, const char *linux_path)
+{
+    if (!g_api_initialized) return false;
+    if (!name || !linux_path) return false;
+    return vfs_assign_add(name, linux_path, ASSIGN_LOCK);
+}
+
+bool lxa_add_drive(const char *name, const char *linux_path)
+{
+    if (!g_api_initialized) return false;
+    if (!name || !linux_path) return false;
+    vfs_add_drive(name, linux_path);
+    return true;
+}
+
 static int s_vblank_count = 0;
 
 int lxa_run_cycles(int cycles)
@@ -559,8 +576,18 @@ bool lxa_wait_windows(int count, int timeout_ms)
     struct timeval start, now;
     gettimeofday(&start, NULL);
 
+    int cycles_since_vblank = 0;
+    const int cycles_per_vblank = 50000;  /* Trigger VBlank every 50k cycles */
+
     while (lxa_get_window_count() < count && g_running) {
         lxa_run_cycles(10000);
+        cycles_since_vblank += 10000;
+        
+        /* Trigger VBlank periodically to process events and let Intuition work */
+        if (cycles_since_vblank >= cycles_per_vblank) {
+            lxa_trigger_vblank();
+            cycles_since_vblank = 0;
+        }
 
         if (timeout_ms > 0) {
             gettimeofday(&now, NULL);

@@ -87,6 +87,11 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dpaint_test.c)
     add_test_driver(dpaint_test)
 endif()
 
+# Cluster2 - Oberon-2 IDE test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cluster2_test.c)
+    add_test_driver(cluster2_test)
+endif()
+
 # ========== API Tests ==========
 
 # API test - tests new liblxa API functions

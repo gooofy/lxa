@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.27** | **Phase 61 Complete** | **42 RKM Sample Tests Passing** | **12 Host-Side Test Drivers**
+**Version: 0.6.28** | **Phase 62 Complete** | **42 RKM Sample Tests Passing** | **14 Host-Side Test Drivers**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -95,17 +95,18 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## Active Phase
-
-### Phase 62: Cluster2 Deep Dive (Current)
-**Goal**: Investigate and achieve full compatibility for Cluster2 IDE.
-**Status**: 🆕 READY TO START - mathieeedoubbas.library now available
-**Binary**: `lxa-apps/Cluster2/bin/Cluster2/Editor`
-**TODO**: Create host-side test driver for Cluster2
-
----
-
 ## Completed Phases (Recent)
+
+### Phase 62: Cluster2 Deep Dive (Complete)
+**Goal**: Investigate and achieve full compatibility for Cluster2 IDE.
+**Status**: ✅ COMPLETE
+**Binary**: `lxa-apps/Cluster2/bin/Cluster2/Editor`
+**Driver**: ✅ `cluster2_test.c` created (14 tests, all pass)
+**Root Cause**: Cluster2 was exiting immediately with error 205 (`ERROR_OBJECT_NOT_FOUND`) because it tried to open `Cluster:Projects/StdProject` - an AmigaDOS assign that wasn't configured.
+**Fixes**:
+- Added `lxa_add_assign()` and `lxa_add_drive()` API functions to liblxa
+- Fixed `_bootstrap()` in exec.c to parse colon in Amiga paths like `SYS:Editor` for current directory setting
+- Cluster2 now loads successfully, opens window, and responds to keyboard/mouse input
 
 ### Phase 61: mathieeedoubbas.library & mathieeedoubtrans.library (Complete)
 **Goal**: Implement IEEE double-precision math libraries required by Cluster2 and other apps.
@@ -152,12 +153,16 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## High Priority Phases
+## Active Phase
 
 ### Phase 63: DPaint V Deep Dive
 **Goal**: Fix hang during initialization after font loading.
 **Status**: ⚠️ PARTIAL - Libraries load, Workbench opens, but hangs during init.
 **Driver**: ✅ `dpaint_test.c` created (handles known hang gracefully)
+
+---
+
+## Upcoming Phases
 
 ### Phase 64: Directory Opus 4 Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
