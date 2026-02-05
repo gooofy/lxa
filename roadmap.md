@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.22** | **Phase 57 In Progress** | **42 RKM Sample Tests Passing** | **214 Total Tests Passing**
+**Version: 0.6.23** | **Phase 57 In Progress** | **42 RKM Sample Tests Passing** | **9 Host-Side Test Drivers**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -110,11 +110,11 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] `SimpleGTGadget` → `tests/drivers/simplegtgadget_test.c`
 
 **TODO - Create Deep Dive App Test Drivers**:
-- [ ] `tests/drivers/kickpascal_test.c` - KickPascal 2 automated testing
-- [ ] `tests/drivers/devpac_test.c` - Devpac/HiSoft assembler testing
+- [x] `tests/drivers/kickpascal_test.c` - KickPascal 2 automated testing
+- [x] `tests/drivers/devpac_test.c` - Devpac/HiSoft assembler testing
 - [ ] `tests/drivers/maxonbasic_test.c` - MaxonBASIC IDE testing
 - [ ] `tests/drivers/dpaint_test.c` - DPaint V testing
-- [ ] `tests/drivers/asm_one_test.c` - ASM-One testing
+- [x] `tests/drivers/asm_one_test.c` - ASM-One testing
 
 **TODO - Extend liblxa API**:
 - [ ] Add `lxa_inject_rmb_click()` for menu access
@@ -134,11 +134,12 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### Phase 58: KickPascal 2 Deep Dive
 **Goal**: Full KickPascal 2 IDE functionality with automated testing via host-side driver.
 **Status**: ⚠️ UI Issues (Screen clearing, repaint speed, cursor keys).
+**Driver**: ✅ `kickpascal_test.c` created and passing
 
 ### Phase 59: Devpac (HiSoft) Deep Dive
 **Goal**: Verify editor content area and achieve full assembler functionality.
 **Status**: ✅ WORKING - Window opens and responds to input.
-**TODO**: migrate to host-side driver, run deeper tests
+**Driver**: ✅ `devpac_test.c` created and passing
 
 ### Phase 60: MaxonBASIC Deep Dive
 **Goal**: Verify and complete full MaxonBASIC IDE functionality.
@@ -210,6 +211,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.23 | 57 | Added 9 host-side test drivers: simplegad, mousetest, rawkey, simplegtgadget, updatestrgad, simplemenu, asm_one, devpac, kickpascal. Deep dive app drivers for ASM-One, Devpac, KickPascal 2. |
 | 0.6.22 | 56 | Fixed mathtrans.library CORDIC and SPExp bugs, added FFPTrans sample (42 RKM samples, 214 total tests) |
 | 0.6.21 | 56 | Added Uptime, GadToolsGadgets samples, enhanced test_runner.sh with uptime/DateStamp normalization (40 RKM samples, 162 total tests) |
 | 0.6.20 | 56 | Added FileReq/FontReq/GadToolsMenu samples, fixed exception handler hexdump spam, implemented MakeScreen/RethinkDisplay/RemakeDisplay, fixed DoubleBuffer VBlank reentrancy + RasInfo NULL bugs (38 RKM samples, 160 total tests) |

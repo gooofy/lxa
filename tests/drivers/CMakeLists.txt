@@ -60,4 +60,21 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rawkey_test.c)
     add_test_driver(rawkey_test)
 endif()
 
+# ========== Deep Dive App Test Drivers ==========
+
+# ASM-One V1.48 - assembler/editor test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/asm_one_test.c)
+    add_test_driver(asm_one_test)
+endif()
+
+# Devpac - HiSoft assembler test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/devpac_test.c)
+    add_test_driver(devpac_test)
+endif()
+
+# KickPascal 2 - Pascal IDE test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/kickpascal_test.c)
+    add_test_driver(kickpascal_test)
+endif()
+
 message(STATUS "Test drivers configured")
