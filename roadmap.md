@@ -284,18 +284,22 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### Phase 59: Devpac (HiSoft) Deep Dive
 **Goal**: Verify editor content area and achieve full assembler functionality.
 **Status**: ✅ WORKING - Window opens and responds to input.
+**TODO**: migrate to host-side driver, run deeper tests
 
 ### Phase 60: MaxonBASIC Deep Dive
 **Goal**: Verify and complete full MaxonBASIC IDE functionality.
 **Status**: ⚠️ UNKNOWN - Opens Workbench and window.
+**TODO**: migrate to host-side driver, run deeper tests
 
 ### Phase 61: Oberon 2 Deep Dive
 **Goal**: Fix A5 register corruption and enable Oberon system.
 **Status**: ⚠️ PARTIAL - Trap handlers implemented.
+**TODO**: migrate to host-side driver, run deeper tests
 
 ### Phase 62: Cluster2 Deep Dive
 **Goal**: Investigate and achieve full compatibility for Cluster2.
 **Status**: 🆕 PLANNED
+**TODO**: migrate to host-side driver, run deeper tests
 
 ---
 
@@ -304,19 +308,24 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### Phase 63: DPaint V Deep Dive
 **Goal**: Fix hang during initialization after font loading.
 **Status**: ⚠️ PARTIAL - Libraries load, Workbench opens.
+**TODO**: migrate to host-side driver, run deeper tests
 
 ### Phase 64: Directory Opus 4 Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
 **Status**: ⚠️ PARTIAL - Exit code 1 investigation needed.
+**TODO**: migrate to host-side driver, run deeper tests
 
 ### Phase 65: SysInfo Deep Dive
 **Goal**: Verify SysInfo displays complete system information.
+**TODO**: migrate to host-side driver, run deeper tests
 
 ### Phase 66: EdWord Pro Deep Dive
 **Goal**: Verify and complete full word processor functionality.
+**TODO**: migrate to host-side driver, run deeper tests
 
 ### Phase 67: BeckerText II Deep Dive
 **Goal**: Verify full window content renders and text editing.
+**TODO**: migrate to host-side driver, run deeper tests
 
 ---
 
