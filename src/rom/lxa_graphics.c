@@ -3703,8 +3703,25 @@ static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
                                   register ULONG green __asm("d2"),
                                   register ULONG blue __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetRGB4CM() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* Set a color value in the ColorMap.
+     * Each color is stored as 12-bit RGB (4 bits per gun).
+     * Red, green, blue should be 0-15 (4-bit values).
+     */
+    UWORD *ct;
+    
+    DPRINTF(LOG_DEBUG, "_graphics: SetRGB4CM(cm=%p, index=%ld, r=%ld, g=%ld, b=%ld)\n",
+            colorMap, index, red, green, blue);
+    
+    /* Validate parameters */
+    if (!colorMap || index < 0 || index >= colorMap->Count)
+        return;
+    
+    ct = colorMap->ColorTable;
+    if (!ct)
+        return;
+    
+    /* Pack RGB into 12-bit format: 0x0RGB */
+    ct[index] = ((red & 0xF) << 8) | ((green & 0xF) << 4) | (blue & 0xF);
 }
 
 static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase __asm("a6"),

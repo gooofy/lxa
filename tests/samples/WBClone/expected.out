@@ -18,7 +18,11 @@ WBClone: ViewLord.DxOffset: 0, DyOffset: 0
 WBClone: IntuitionBase unlocked
 
 WBClone: Reading Workbench ColorMap...
-WBClone: No ColorMap found
+WBClone: ColorMap at 0x
+WBClone: Color 0: 0xaaa (R=10 G=10 B=10)
+WBClone: Color 1: 0x000 (R=0 G=0 B=0)
+WBClone: Color 2: 0xfff (R=15 G=15 B=15)
+WBClone: Color 3: 0x05a (R=0 G=5 B=10)
 
 WBClone: Creating matching BitMap...
 WBClone: Allocating BitMap (640x256x2)...

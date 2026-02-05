@@ -13,6 +13,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes (Phase 56)**:
+- **Fixed OpenScreen ColorMap initialization**: Screens now have a properly initialized ColorMap with standard Workbench colors. Also implemented SetRGB4CM() for setting ColorMap entries.
 - **Fixed exception handler hexdump spam**: Debug hexdump in exception handler was using LPRINTF instead of DPRINTF, causing massive output when exceptions occurred during normal operation. Now properly wrapped in #ifdef ENABLE_DEBUG.
 - **New ASL Library Samples**:
   - `FileReq` - ASL file requester: AllocAslRequest(ASL_FileRequest), FreeAslRequest with tag configuration

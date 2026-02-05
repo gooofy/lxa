@@ -3456,6 +3456,22 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     }
     screen->ViewPort.RasInfo = rasinfo;
 
+    /* Allocate and initialize ColorMap for the ViewPort.
+     * This is required for GetRGB4(), SetRGB4(), and other color operations.
+     * The number of entries is 2^depth (e.g., 4 for 2-bit depth, 32 for 5-bit depth).
+     */
+    ULONG num_colors = 1UL << depth;
+    screen->ViewPort.ColorMap = GetColorMap(num_colors);
+    if (screen->ViewPort.ColorMap)
+    {
+        /* Initialize default Workbench colors for first 4 entries */
+        /* These are the standard Amiga 2.0+ colors */
+        SetRGB4CM(screen->ViewPort.ColorMap, 0, 0xA, 0xA, 0xA);  /* Gray background */
+        SetRGB4CM(screen->ViewPort.ColorMap, 1, 0x0, 0x0, 0x0);  /* Black */
+        SetRGB4CM(screen->ViewPort.ColorMap, 2, 0xF, 0xF, 0xF);  /* White */
+        SetRGB4CM(screen->ViewPort.ColorMap, 3, 0x0, 0x5, 0xA);  /* Blue */
+    }
+
     /* Set bar heights (simplified) */
     screen->BarHeight = 10;
     screen->BarVBorder = 1;
