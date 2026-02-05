@@ -77,4 +77,14 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/kickpascal_test.c)
     add_test_driver(kickpascal_test)
 endif()
 
+# MaxonBASIC - BASIC IDE test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/maxonbasic_test.c)
+    add_test_driver(maxonbasic_test)
+endif()
+
+# DPaint V - Graphics editor test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dpaint_test.c)
+    add_test_driver(dpaint_test)
+endif()
+
 message(STATUS "Test drivers configured")

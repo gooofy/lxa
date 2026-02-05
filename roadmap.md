@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.23** | **Phase 57 In Progress** | **42 RKM Sample Tests Passing** | **9 Host-Side Test Drivers**
+**Version: 0.6.23** | **Phase 57 In Progress** | **42 RKM Sample Tests Passing** | **11 Host-Side Test Drivers**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -112,8 +112,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 **TODO - Create Deep Dive App Test Drivers**:
 - [x] `tests/drivers/kickpascal_test.c` - KickPascal 2 automated testing
 - [x] `tests/drivers/devpac_test.c` - Devpac/HiSoft assembler testing
-- [ ] `tests/drivers/maxonbasic_test.c` - MaxonBASIC IDE testing
-- [ ] `tests/drivers/dpaint_test.c` - DPaint V testing
+- [x] `tests/drivers/maxonbasic_test.c` - MaxonBASIC IDE testing
+- [x] `tests/drivers/dpaint_test.c` - DPaint V testing (known hang during init)
 - [x] `tests/drivers/asm_one_test.c` - ASM-One testing
 
 **TODO - Extend liblxa API**:
@@ -143,8 +143,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ### Phase 60: MaxonBASIC Deep Dive
 **Goal**: Verify and complete full MaxonBASIC IDE functionality.
-**Status**: ⚠️ UNKNOWN - Opens Workbench and window.
-**TODO**: migrate to host-side driver, run deeper tests
+**Status**: ✅ WORKING - Opens Workbench, window opens, accepts keyboard/mouse input.
+**Driver**: ✅ `maxonbasic_test.c` created and passing
 
 ### Phase 61: Oberon 2 Deep Dive
 **Goal**: Fix A5 register corruption and enable Oberon system.
@@ -162,8 +162,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ### Phase 63: DPaint V Deep Dive
 **Goal**: Fix hang during initialization after font loading.
-**Status**: ⚠️ PARTIAL - Libraries load, Workbench opens.
-**TODO**: migrate to host-side driver, run deeper tests
+**Status**: ⚠️ PARTIAL - Libraries load, Workbench opens, but hangs during init.
+**Driver**: ✅ `dpaint_test.c` created (handles known hang gracefully)
 
 ### Phase 64: Directory Opus 4 Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
@@ -211,7 +211,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
-| 0.6.23 | 57 | Added 9 host-side test drivers: simplegad, mousetest, rawkey, simplegtgadget, updatestrgad, simplemenu, asm_one, devpac, kickpascal. Deep dive app drivers for ASM-One, Devpac, KickPascal 2. |
+| 0.6.23 | 57 | Added 11 host-side test drivers: simplegad, mousetest, rawkey, simplegtgadget, updatestrgad, simplemenu, asm_one, devpac, kickpascal, maxonbasic, dpaint. Deep dive app drivers for ASM-One, Devpac, KickPascal 2, MaxonBASIC, DPaint V. |
 | 0.6.22 | 56 | Fixed mathtrans.library CORDIC and SPExp bugs, added FFPTrans sample (42 RKM samples, 214 total tests) |
 | 0.6.21 | 56 | Added Uptime, GadToolsGadgets samples, enhanced test_runner.sh with uptime/DateStamp normalization (40 RKM samples, 162 total tests) |
 | 0.6.20 | 56 | Added FileReq/FontReq/GadToolsMenu samples, fixed exception handler hexdump spam, implemented MakeScreen/RethinkDisplay/RemakeDisplay, fixed DoubleBuffer VBlank reentrancy + RasInfo NULL bugs (38 RKM samples, 160 total tests) |
