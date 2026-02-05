@@ -1980,6 +1980,32 @@ int display_get_window_content(int index)
 }
 
 /*
+ * Get window position by index.
+ * @param index  Window index (0-based)
+ * @param x      Output: window X position (can be NULL)
+ * @param y      Output: window Y position (can be NULL)
+ * @return true if window exists at index
+ */
+bool display_get_window_position(int index, int *x, int *y)
+{
+    int found = 0;
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (g_windows[i].in_use)
+        {
+            if (found == index)
+            {
+                if (x) *x = g_windows[i].x;
+                if (y) *y = g_windows[i].y;
+                return true;
+            }
+            found++;
+        }
+    }
+    return false;
+}
+
+/*
  * Compare the active display to a reference PPM file.
  * Returns a similarity percentage (0-100), or -1 on error.
  *

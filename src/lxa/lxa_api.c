@@ -373,13 +373,18 @@ bool lxa_get_window_info(int index, lxa_window_info_t *info)
 {
     if (!g_api_initialized || !info) return false;
 
-    int w, h;
+    int w, h, x, y;
     if (!display_get_window_dimensions(index, &w, &h))
         return false;
 
-    /* Get position - need to add this to display API */
-    info->x = 0;  /* TODO: implement position query */
-    info->y = 0;
+    /* Get position */
+    if (!display_get_window_position(index, &x, &y)) {
+        x = 0;
+        y = 0;
+    }
+
+    info->x = x;
+    info->y = y;
     info->width = w;
     info->height = h;
     info->title[0] = '\0';  /* TODO: implement title query */

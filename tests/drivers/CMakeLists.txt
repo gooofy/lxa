@@ -50,4 +50,14 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplegtgadget_test.c)
     add_test_driver(simplegtgadget_test)
 endif()
 
+# MouseTest - mouse input handling test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/mousetest_test.c)
+    add_test_driver(mousetest_test)
+endif()
+
+# RawKey - raw keyboard input test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rawkey_test.c)
+    add_test_driver(rawkey_test)
+endif()
+
 message(STATUS "Test drivers configured")

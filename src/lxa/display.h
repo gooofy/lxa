@@ -482,6 +482,15 @@ bool display_get_window_dimensions(int index, int *width, int *height);
 int display_get_window_content(int index);
 
 /*
+ * Get window position by index.
+ * @param index  Window index (0-based, in order of creation)
+ * @param x      Output: window X position (can be NULL)
+ * @param y      Output: window Y position (can be NULL)
+ * @return true if window exists at index
+ */
+bool display_get_window_position(int index, int *x, int *y);
+
+/*
  * Compare the active display to a reference PPM file.
  * @param reference_file  Path to reference PPM file
  * @return Similarity percentage (0-100), or -1 on error

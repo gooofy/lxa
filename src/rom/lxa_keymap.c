@@ -244,38 +244,61 @@ static struct KeyMap default_keymap =
 #define GetMapChar(key_mapping, idx) \
     ( ((key_mapping) >> ((3 - (idx)) * 8)) & 0x000000FF )
 
-/* Qualifier conversion table from KCF_xxx to index */
+/* Qualifier conversion table from KCF_xxx to index
+ * Index vertically: (keytype & KC_VANILLA)
+ * Index horizontally: KCF_xxx qualifier combination for keypress.
+ * Returns index of the byte describing the keypress.
+ * -1 means invalid key, -2 means Ctrl-c alike combination (clear bits 5 and 6)
+ *
+ * On the Amiga, if a keypress has qualifiers set which are not set in the
+ * keymap-type, those qualifiers are simply ignored.
+ */
 static const BYTE keymaptype_table[8][8] =
 {
-    /* KC_NOQUAL (0) */
-    { 0, -1, -1, -1, -1, -1, -1, -1 },
+    /* KCF_NOQUAL (0) */
+    { 3, 3, 3, 3, 3, 3, 3, 3 },
     /* KCF_SHIFT (1) */
-    { 0,  1, -1, -1, -1, -1, -1, -1 },
+    { 3, 2, 3, 2, 3, 2, 3, 2 },
     /* KCF_ALT (2) */
-    { 0, -1,  2, -1, -1, -1, -1, -1 },
+    { 3, 3, 2, 2, 3, 3, 2, 2 },
     /* KCF_SHIFT|KCF_ALT (3) */
-    { 0,  1,  2,  3, -1, -1, -1, -1 },
+    { 3, 2, 1, 0, 3, 2, 1, 0 },
     /* KCF_CONTROL (4) */
-    { 0, -2, -1, -1, -2, -1, -1, -1 },    /* -2 means use CTRL handling */
+    { 3, 3, 3, 3, 2, 2, 2, 2 },
     /* KCF_SHIFT|KCF_CONTROL (5) */
-    { 0,  1, -1, -1, -2, -1, -1, -1 },
+    { 3, 2, 3, 2, 1, 0, 1, 0 },
     /* KCF_ALT|KCF_CONTROL (6) */
-    { 0, -1,  2, -1, -2, -1, -1, -1 },
-    /* KCF_SHIFT|KCF_ALT|KCF_CONTROL (7) */
-    { 0,  1,  2,  3, -2, -1, -1, -1 }
+    { 3, 3, 2, 2, 1, 1, 0, 0 },
+    /* KCF_SHIFT|KCF_ALT|KCF_CONTROL (7) = KC_VANILLA */
+    { 3, 2, 1, 0, -2, -1, -1, -1 }
 };
 
-/* String table indices */
+/* String table indices
+ * Index vertically: (keytype & KC_VANILLA)
+ * Index horizontally: KCF_xxx qualifier combination for keypress.
+ * Returns the number of the string descriptor.
+ *
+ * On the Amiga, if a keypress has qualifiers set which are not set in the
+ * keymap-type, those qualifiers are simply ignored.
+ */
 static const BYTE keymapstr_table[8][8] =
 {
-    { 0, -1, -1, -1, -1, -1, -1, -1 },     /* KC_NOQUAL */
-    { 0,  1, -1, -1, -1, -1, -1, -1 },     /* KCF_SHIFT */
-    { 0, -1,  1, -1, -1, -1, -1, -1 },     /* KCF_ALT */
-    { 0,  1,  2,  3, -1, -1, -1, -1 },     /* KCF_SHIFT|KCF_ALT */
-    { 0, -1, -1, -1,  1, -1, -1, -1 },     /* KCF_CONTROL */
-    { 0,  1, -1, -1,  2, -1, -1, -1 },     /* KCF_SHIFT|KCF_CONTROL */
-    { 0, -1,  1, -1,  2, -1, -1, -1 },     /* KCF_ALT|KCF_CONTROL */
-    { 0,  1,  2,  3,  4,  5,  6,  7 }      /* ALL */
+    /* KCF_NOQUAL (0) */
+    { 0, 0, 0, 0, 0, 0, 0, 0 },
+    /* KCF_SHIFT (1) */
+    { 0, 1, 0, 1, 0, 1, 0, 1 },
+    /* KCF_ALT (2) */
+    { 0, 0, 1, 1, 0, 0, 1, 1 },
+    /* KCF_SHIFT|KCF_ALT (3) */
+    { 0, 1, 2, 3, 0, 1, 2, 3 },
+    /* KCF_CONTROL (4) */
+    { 0, 0, 0, 0, 1, 1, 1, 1 },
+    /* KCF_SHIFT|KCF_CONTROL (5) */
+    { 0, 1, 0, 1, 2, 3, 2, 3 },
+    /* KCF_ALT|KCF_CONTROL (6) */
+    { 0, 0, 1, 1, 2, 2, 3, 3 },
+    /* KCF_SHIFT|KCF_ALT|KCF_CONTROL (7) = KC_VANILLA */
+    { 0, 1, 2, 3, 4, 5, 6, 7 }
 };
 
 struct BufInfo

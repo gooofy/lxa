@@ -205,7 +205,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [x] `EasyIntuition` (Custom screens with OpenScreenTags/OpenWindowTags).
     - [x] `SimpleMenu` (Intuition menu systems with submenus).
     - [x] `CustomPointer` (Pointer with SetPointer/ClearPointer/Request/EndRequest).
-    - [ ] `MouseTest`/`RawKey` (Interactive input - requires host-side test drivers).
+    - [x] `MouseTest`/`RawKey` (Interactive input with host-side test drivers).
     - [x] `EasyRequest` (Requesters with variable substitution).
     - [x] `CloneScreen`/`PublicScreen` (Screen cloning and public screen pens).
     - [x] `DoubleBuffer` (Double-buffered screens).
@@ -276,6 +276,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 **Completed**:
 - [x] `simplegad_test.c` - SimpleGad gadget click testing
+- [x] `mousetest_test.c` - MouseTest mouse input testing
+- [x] `rawkey_test.c` - RawKey keyboard input testing
 
 ### Phase 58: KickPascal 2 Deep Dive
 **Goal**: Full KickPascal 2 IDE functionality with automated testing via host-side driver.

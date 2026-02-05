@@ -371,6 +371,26 @@ run-tests:
 	@$(MAKE) -C devices/timer_async run-test
 	@$(MAKE) -C devices/console_async run-test
 	@$(MAKE) -C samples run-test
+	@$(MAKE) run-driver-tests
+
+# Host-side driver tests (built with CMake, run from build directory)
+DRIVER_TESTS := simplegad_test mousetest_test rawkey_test
+DRIVER_BIN_DIR := $(BASEDIR)/build/tests/drivers
+
+.PHONY: run-driver-tests
+
+run-driver-tests:
+	@echo ""
+	@echo "Running host-side driver tests..."
+	@echo ""
+	@for driver in $(DRIVER_TESTS); do \
+		if [ -x "$(DRIVER_BIN_DIR)/$$driver" ]; then \
+			echo "Running $$driver..."; \
+			cd $(BASEDIR)/build && ./tests/drivers/$$driver > /dev/null 2>&1 && echo "PASS: $$driver" || { echo "FAIL: $$driver"; exit 1; }; \
+		else \
+			echo "SKIP: $$driver (not built)"; \
+		fi; \
+	done
 
 help:
 	@echo "Integration Test Suite"
