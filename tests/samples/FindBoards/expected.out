@@ -1,0 +1,12 @@
+FindBoards: Expansion board enumeration test
+
+Opening expansion.library...
+OK: expansion.library opened (version 40)
+
+Searching for expansion boards...
+
+Total expansion boards found: 0
+OK: No expansion boards (expected in emulator)
+OK: expansion.library closed
+
+PASS: FindBoards tests completed successfully

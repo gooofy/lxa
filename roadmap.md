@@ -8,11 +8,20 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.13** | **Phase 56 In Progress** | **22 RKM Sample Tests Passing**
+**Version: 0.6.14** | **Phase 56 In Progress** | **27 RKM Sample Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes (Phase 56)**:
+- **New IFF Parsing Samples**:
+  - `Sift` - iffparse.library test: AllocIFF, FreeIFF, OpenIFF, CloseIFF, ParseIFF, CurrentChunk, IDtoStr, InitIFFasDOS
+- **New Exec Samples**:
+  - `TaskList` - ExecBase task list walking: Disable/Enable, TaskWait/TaskReady lists, FindTask
+  - `AllocEntry` - Multi-block memory allocation: AllocEntry, FreeEntry with 4 memory blocks
+- **New Expansion Samples**:
+  - `FindBoards` - expansion.library test: FindConfigDev enumeration
+- **Implemented expansion.library FindConfigDev**: Changed from stub to proper implementation (returns NULL for no boards in emulator)
+- **Added test_runner_with_args.sh**: For tests that need command-line arguments
 - **Fixed mathffp.library bugs**:
   - `SPSub`: Fixed argument handling - was computing x-y instead of y-x
   - `SPCmp`: Fixed infinite loop caused by trying to preserve CCR across a function call (jsr clobbers CCR). Rewrote using Scc instructions.
@@ -172,11 +181,15 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [x] `Hooks1` (Callback hooks).
     - [ ] `IStr` (Internal string handling).
     - [ ] `Uptime` (System uptime calculation).
-    - [ ] `ClipFTXT`/`Sift` (IFF parsing and text clipboard).
+    - [x] `Sift` (IFF file structure viewer with iffparse.library).
+    - [ ] `ClipFTXT` (Clipboard IFF handling - requires clipboard.device).
     - [ ] `Broker`/`HotKey` (Commodities system).
     - [ ] `IconExample`/`AppIcon`/`AppWindow` (Workbench integration).
     - [x] `FFPExample` (Fast Floating Point math - SPFlt, SPFix, SPAdd, SPSub, SPMul, SPDiv, SPCmp, SPNeg, SPAbs, SPTst).
-    - [ ] `SPIEEE`/`DPIEEE` (IEEE floating point math).
+    - [ ] `SPIEEE`/`DPIEEE` (IEEE floating point math - requires mathieeesingbas.library).
+    - [x] `FindBoards` (expansion.library board enumeration).
+    - [x] `TaskList` (ExecBase task list enumeration with Disable/Enable).
+    - [x] `AllocEntry` (Multi-block memory allocation with AllocEntry/FreeEntry).
 - [ ] **Device Samples**:
     - [ ] `Simple_Timer`/`Get_Systime` (Timer device).
     - [ ] `ClipDemo`/`ChangeHook_Test` (Clipboard device).
@@ -240,6 +253,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.14 | 56 | Added Sift (IFF parsing), TaskList, AllocEntry, FindBoards samples; implemented FindConfigDev |
 | 0.6.13 | 56 | Fixed mathffp bugs (SPSub, SPCmp, SPTst, SPAbs), added FFPExample and SimpleGTGadget samples |
 | 0.6.12 | 56 | Added SimpleImage, ShadowBorder, EasyIntuition, SimpleMenu, EasyRequest, SimpleTimer, Clipping samples |
 | 0.6.11 | 56 | Added SimpleGad, UpdateStrGad, IntuiText samples |

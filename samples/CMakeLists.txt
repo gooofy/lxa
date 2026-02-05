@@ -37,8 +37,10 @@ set(SAMPLES_LIST
     "exec|port2|Port2"
     "exec|buildlist|BuildList"
     "exec|allocate|Allocate"
+    "exec|allocentry|AllocEntry"
     "exec|deviceuse|DeviceUse"
     "exec|timersoftint|TimerSoftInt"
+    "exec|tasklist|TaskList"
     "graphics|RGBBoxes|RGBBoxes"
     "graphics|clipping|Clipping"
     "intuition|openwindowtags|OpenWindowTags"
@@ -55,6 +57,8 @@ set(SAMPLES_LIST
     "utility|tag1|Tag1"
     "utility|hooks1|Hooks1"
     "math|ffpexample|FFPExample"
+    "iffparse|sift|Sift"
+    "expansion|findboards|FindBoards"
 )
 
 foreach(sample_info ${SAMPLES_LIST})

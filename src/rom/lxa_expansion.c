@@ -120,8 +120,13 @@ struct ConfigDev * _expansion_FindConfigDev ( register struct ExpansionBase * Ex
                                                         register LONG manufacturer __asm("d0"),
                                                         register LONG product __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: FindConfigDev() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_expansion: FindConfigDev(oldConfigDev=0x%08lx, manufacturer=%ld, product=%ld)\n",
+             (ULONG)oldConfigDev, manufacturer, product);
+    
+    /*
+     * In lxa, we don't emulate expansion hardware, so there are no ConfigDev
+     * entries in the list. Always return NULL to indicate no (more) boards.
+     */
     return NULL;
 }
 
