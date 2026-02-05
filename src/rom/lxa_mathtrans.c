@@ -165,6 +165,15 @@ static void cossin_cordic_ffp ( FLOAT beta, FLOAT *c, FLOAT *s )
     *c = fuOne.f;
     *s = fuZero.f;
 
+    /* Special case: if theta is exactly 0, return (1, 0) directly */
+    if (SPCmp(theta, fuZero.f) == 0)
+    {
+        /* Apply sign factor for quadrant adjustment */
+        *c = SPMul(sign_factor, *c);
+        *s = SPMul(sign_factor, *s);
+        return;
+    }
+
     FLOAT poweroftwo = fuOne.f;
     FLOAT angle = angles[0];
 
@@ -182,17 +191,24 @@ static void cossin_cordic_ffp ( FLOAT beta, FLOAT *c, FLOAT *s )
 
         FLOAT factor = SPMul(sigma, poweroftwo);
 
-        FLOAT c2 = SPSub(SPMul(factor, *s), *c);
-        FLOAT s2 = SPAdd(SPMul(factor, *c), *s);
+        /* CORDIC rotation:
+         * c' = c - sigma * poweroftwo * s
+         * s' = s + sigma * poweroftwo * c
+         * SPSub(a, b) = a - b, so: SPSub(c, factor*s) = c - factor*s
+         */
+        FLOAT c2 = SPSub(*c, SPMul(factor, *s));
+        FLOAT s2 = SPAdd(*s, SPMul(factor, *c));
 
         *c = c2;
         *s = s2;
 
         /*
           Update the remaining angle.
+          theta' = theta - sigma * angle
+          SPSub(a, b) = a - b, so: SPSub(theta, sigma*angle) = theta - sigma*angle
         */
 
-        theta = SPSub(SPMul(sigma, angle), theta);
+        theta = SPSub(theta, SPMul(sigma, angle));
 
         poweroftwo = SPDiv (fuTwo.f, poweroftwo);
 
@@ -240,9 +256,10 @@ FLOAT _mathtrans_SPSin ( register struct Library *MathTransBase __asm("a6"),
 FLOAT _mathtrans_SPCos ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
-    LPRINTF (LOG_ERROR, "_mathtrans: SPCos() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    LPRINTF (LOG_DEBUG, "_mathtrans: SPCos() called.\n");
+    FLOAT c, s;
+    cossin_cordic_ffp ( parm, &c, &s );
+    return c;
 }
 
 FLOAT _mathtrans_SPTan ( register struct Library * MathTransBase __asm("a6"),
@@ -302,9 +319,11 @@ FLOAT mathtrans_SPExp ( register struct Library *MathTransBase __asm("a6"),
 
     /*
      * Determine the weights.
+     * z = fractional part of x = x - floor(x)
+     * SPSub(a, b) = a - b, so: SPSub(x, x_int) = x - x_int
      */
     FLOAT poweroftwo = fuOneHalf.f;
-    FLOAT z = SPSub ( SPFlt(x_int), x);
+    FLOAT z = SPSub (x, SPFlt(x_int));
 
     // printf ("ffp  cordic x_int=%d, poweroftwo=%f, z=%f\n", x_int, decode_ffp(poweroftwo), decode_ffp(z));
 
@@ -316,7 +335,7 @@ FLOAT mathtrans_SPExp ( register struct Library *MathTransBase __asm("a6"),
         if (SPCmp(poweroftwo,z) < 0)
         {
             w[i] = fuOne.f;
-            z    = SPSub(poweroftwo, z);
+            z    = SPSub(z, poweroftwo);  /* z = z - poweroftwo */
         }
         poweroftwo = SPDiv (fuTwo.f, poweroftwo);
     }
@@ -475,9 +494,37 @@ FLOAT _mathtrans_SPPow ( register struct Library *MathTransBase __asm("a6"),
 FLOAT _mathtrans_SPSqrt ( register struct Library * MathTransBase __asm("a6"),
                                                         register FLOAT parm __asm("d0"))
 {
-    LPRINTF (LOG_ERROR, "_mathtrans: SPSqrt() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* SPSqrt - Square root using Newton-Raphson iteration.
+     * sqrt(x) converges via: y[n+1] = (y[n] + x/y[n]) / 2
+     * Starting with y[0] = x/2 (or 1 for small values).
+     */
+    DPRINTF (LOG_DEBUG, "_mathtrans: SPSqrt() called.\n");
+    
+    /* Handle special cases */
+    LONG cmp = SPCmp(parm, fuZero.f);
+    if (cmp == 0)
+        return fuZero.f;  /* sqrt(0) = 0 */
+    if (cmp < 0)
+        return fuNInfinity.f;  /* sqrt(negative) = -infinity (error) */
+    
+    /* Initial guess: x/2 or 1 for values < 2 */
+    FLOAT y;
+    if (SPCmp(parm, fuTwo.f) < 0)
+        y = fuOne.f;
+    else
+        y = SPDiv(fuTwo.f, parm);
+    
+    /* Newton-Raphson iteration: y = (y + x/y) / 2
+     * Run 15 iterations for FFP precision (about 24 bits mantissa).
+     */
+    for (int i = 0; i < 15; i++)
+    {
+        FLOAT quotient = SPDiv(y, parm);  /* x/y */
+        FLOAT sum = SPAdd(y, quotient);   /* y + x/y */
+        y = SPDiv(fuTwo.f, sum);          /* (y + x/y) / 2 */
+    }
+    
+    return y;
 }
 
 FLOAT _mathtrans_SPTieee ( register struct Library * MathTransBase __asm("a6"),

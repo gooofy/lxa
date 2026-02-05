@@ -74,6 +74,7 @@ set(SAMPLES_LIST
     "utility|a2d|A2D"
     "utility|uptime|Uptime"
     "math|ffpexample|FFPExample"
+    "math|ffptrans|FFPTrans"
     "iffparse|sift|Sift"
     "expansion|findboards|FindBoards"
     "asl|filereq|FileReq"

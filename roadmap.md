@@ -8,11 +8,15 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.21** | **Phase 56 In Progress** | **41 RKM Sample Tests Passing** | **162 Total Tests Passing**
+**Version: 0.6.22** | **Phase 56 In Progress** | **42 RKM Sample Tests Passing** | **214 Total Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes (Phase 56)**:
+- **Fixed mathtrans.library CORDIC algorithm**: Corrected SPSub argument order in cossin_cordic_ffp() rotation formula. cos() and sin() now work correctly for all angles.
+- **Fixed mathtrans.library SPExp**: Corrected fractional part computation (was computing x_int - x instead of x - x_int) and weight subtraction (z - poweroftwo instead of poweroftwo - z). exp(), pow() now work correctly.
+- **New Math Samples**:
+  - `FFPTrans` - mathtrans.library test: SPSin, SPCos, SPSqrt, SPExp, SPLog, SPPow (transcendental functions)
 - **Fixed OpenScreen ColorMap initialization**: Screens now have a properly initialized ColorMap with standard Workbench colors. Also implemented SetRGB4CM() for setting ColorMap entries.
 - **Fixed exception handler hexdump spam**: Debug hexdump in exception handler was using LPRINTF instead of DPRINTF, causing massive output when exceptions occurred during normal operation. Now properly wrapped in #ifdef ENABLE_DEBUG.
 - **New ASL Library Samples**:
@@ -210,7 +214,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [x] `RGBBoxes` (Graphics primitives and views).
     - [x] `Clipping` (Layer management and clipping regions).
     - [x] `AvailFonts`/`MeasureText` (Font handling and text measurement).
-    - [ ] `WBClone` (Workbench cloning and primitives).
+    - [x] `WBClone` (Workbench cloning and primitives).
     - [ ] `SSprite`/`VSprite`/`Bob` (Sprite and animation system).
 - [ ] **Advanced UI Samples**:
     - [x] `SimpleGTGadget` (GadTools gadget creation and management).
@@ -227,6 +231,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [ ] `Broker`/`HotKey` (Commodities system).
     - [ ] `IconExample`/`AppIcon`/`AppWindow` (Workbench integration).
     - [x] `FFPExample` (Fast Floating Point math - SPFlt, SPFix, SPAdd, SPSub, SPMul, SPDiv, SPCmp, SPNeg, SPAbs, SPTst).
+    - [x] `FFPTrans` (FFP Transcendental math - SPSin, SPCos, SPSqrt, SPExp, SPLog, SPPow).
     - [ ] `SPIEEE`/`DPIEEE` (IEEE floating point math - requires mathieeesingbas.library).
     - [x] `FindBoards` (expansion.library board enumeration).
     - [x] `TaskList` (ExecBase task list enumeration with Disable/Enable).
@@ -324,6 +329,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.22 | 56 | Fixed mathtrans.library CORDIC and SPExp bugs, added FFPTrans sample (42 RKM samples, 214 total tests) |
 | 0.6.21 | 56 | Added Uptime, GadToolsGadgets samples, enhanced test_runner.sh with uptime/DateStamp normalization (40 RKM samples, 162 total tests) |
 | 0.6.20 | 56 | Added FileReq/FontReq/GadToolsMenu samples, fixed exception handler hexdump spam, implemented MakeScreen/RethinkDisplay/RemakeDisplay, fixed DoubleBuffer VBlank reentrancy + RasInfo NULL bugs (38 RKM samples, 160 total tests) |
 | 0.6.19 | 56 | Added Talk2Boopsi sample (BOOPSI inter-object communication with propgclass/strgclass, ICA_MAP/ICA_TARGET) (36 RKM samples, 122 total tests) |
