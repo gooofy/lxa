@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.20** | **Phase 56 In Progress** | **38 RKM Sample Tests Passing** | **160 Total Tests Passing**
+**Version: 0.6.21** | **Phase 56 In Progress** | **40 RKM Sample Tests Passing** | **162 Total Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -213,13 +213,13 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [ ] **Advanced UI Samples**:
     - [x] `SimpleGTGadget` (GadTools gadget creation and management).
     - [x] `GadToolsMenu` (GadTools menu creation).
-    - [ ] `GadToolsGadgets` (GadTools library UI - more gadget types).
+    - [x] `GadToolsGadgets` (GadTools library UI - more gadget types).
     - [x] `FileReq`/`FontReq` (ASL standard requesters).
     - [x] `Talk2Boopsi` (BOOPSI inter-object communication with propgclass/strgclass).
 - [ ] **Utility & System Samples**:
     - [x] `Hooks1` (Callback hooks).
     - [x] `IStr` (Internal string handling - Stricmp, Strnicmp, ToUpper, ToLower).
-    - [ ] `Uptime` (System uptime calculation).
+    - [x] `Uptime` (System uptime calculation).
     - [x] `Sift` (IFF file structure viewer with iffparse.library).
     - [ ] `ClipFTXT` (Clipboard IFF handling - requires clipboard.device).
     - [ ] `Broker`/`HotKey` (Commodities system).
@@ -322,6 +322,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.21 | 56 | Added Uptime, GadToolsGadgets samples, enhanced test_runner.sh with uptime/DateStamp normalization (40 RKM samples, 162 total tests) |
 | 0.6.20 | 56 | Added FileReq/FontReq/GadToolsMenu samples, fixed exception handler hexdump spam, implemented MakeScreen/RethinkDisplay/RemakeDisplay, fixed DoubleBuffer VBlank reentrancy + RasInfo NULL bugs (38 RKM samples, 160 total tests) |
 | 0.6.19 | 56 | Added Talk2Boopsi sample (BOOPSI inter-object communication with propgclass/strgclass, ICA_MAP/ICA_TARGET) (36 RKM samples, 122 total tests) |
 | 0.6.18 | 56 | Fixed display_close use-after-free, implemented AvailFonts(), added CloneScreen/PublicScreen/VisibleWindow/WinPubScreen/MeasureText/AvailFonts/CustomPointer samples (34 RKM samples, 156 total tests) |

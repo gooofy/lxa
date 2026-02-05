@@ -161,6 +161,10 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
     sed -i 's/Time correctly increased by [0-9]\+ microseconds/Time correctly increased by N microseconds/g' "$ACTUAL_OUTPUT"
     sed -i 's/Actual delay: [0-9]\+ microseconds/Actual delay: N microseconds/g' "$ACTUAL_OUTPUT"
     
+    # Normalize uptime output (days, hours, minutes, seconds)
+    sed -i 's/has been up for [0-9]\+ days, [0-9]\+ hours, [0-9]\+ minutes, [0-9]\+ seconds/has been up for N days, N hours, N minutes, N seconds/g' "$ACTUAL_OUTPUT"
+    sed -i 's/DateStamp - Days=[0-9]\+, Minute=[0-9]\+, Tick=[0-9]\+/DateStamp - Days=N, Minute=N, Tick=N/g' "$ACTUAL_OUTPUT"
+    
     # Remove trailing newlines that might be left
     sed -i -e :a -e '/^\n*$/{$d;N;};/\n$/ba' "$ACTUAL_OUTPUT" 2>/dev/null || true
 fi
