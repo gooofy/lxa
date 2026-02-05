@@ -76,6 +76,7 @@ set(SAMPLES_LIST
     "utility|uptime|Uptime"
     "math|ffpexample|FFPExample"
     "math|ffptrans|FFPTrans"
+    "math|ieeedpexample|IEEEDPExample"
     "iffparse|sift|Sift"
     "expansion|findboards|FindBoards"
     "asl|filereq|FileReq"

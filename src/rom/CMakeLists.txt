@@ -39,6 +39,8 @@ set(ROM_C_SOURCES
     lxa_utility.c
     lxa_mathffp.c
     lxa_mathtrans.c
+    lxa_mathieeedoubbas.c
+    lxa_mathieeedoubtrans.c
     lxa_dev_input.c
     lxa_graphics.c
     lxa_intuition.c

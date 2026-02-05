@@ -93,6 +93,8 @@ extern struct Resident *__lxa_dos_ROMTag;
 extern struct Resident *__lxa_utility_ROMTag;
 extern struct Resident *__lxa_mathffp_ROMTag;
 extern struct Resident *__lxa_mathtrans_ROMTag;
+extern struct Resident *__lxa_mathieeedoubbas_ROMTag;
+extern struct Resident *__lxa_mathieeedoubtrans_ROMTag;
 extern struct Resident *__lxa_graphics_ROMTag;
 extern struct Resident *__lxa_intuition_ROMTag;
 extern struct Resident *__lxa_layers_ROMTag;
@@ -126,6 +128,8 @@ struct UtilityBase     *UtilityBase;
 struct DosLibrary      *DOSBase;
 struct Library         *MathBase;
 struct Library         *MathTransBase;
+struct Library         *MathIeeeDoubBasBase;
+struct Library         *MathIeeeDoubTransBase;
 struct GfxBase         *GfxBase;
 struct IntuitionBase   *IntuitionBase;
 struct Library         *LayersBase;
@@ -4889,6 +4893,8 @@ void coldstart (void)
     UtilityBase   = (struct UtilityBase   *) registerBuiltInLib (sizeof(*UtilityBase)   , __lxa_utility_ROMTag   );
     MathBase      = (struct Library       *) registerBuiltInLib (sizeof(*MathBase)      , __lxa_mathffp_ROMTag   );
     MathTransBase = (struct Library       *) registerBuiltInLib (sizeof(*MathTransBase) , __lxa_mathtrans_ROMTag );
+    MathIeeeDoubBasBase   = (struct Library *) registerBuiltInLib (sizeof(*MathIeeeDoubBasBase), __lxa_mathieeedoubbas_ROMTag);
+    MathIeeeDoubTransBase = (struct Library *) registerBuiltInLib (sizeof(*MathIeeeDoubTransBase), __lxa_mathieeedoubtrans_ROMTag);
     GfxBase       = (struct GfxBase       *) registerBuiltInLib (sizeof(*GfxBase)       , __lxa_graphics_ROMTag  );
     
     /* Initialize GfxBase display dimensions - default to PAL resolution */

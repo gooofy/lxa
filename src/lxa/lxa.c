@@ -11,6 +11,7 @@
 #include <regex.h>
 #include <dirent.h>
 #include <signal.h>
+#include <math.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -5106,6 +5107,590 @@ int op_illg(int level)
                     m68k_set_reg(M68K_REG_D0, 1);  /* Success */
                 }
             }
+            break;
+        }
+
+        /*
+         * Phase 61: IEEE Double Precision Math emucalls (5000-5011)
+         * 
+         * These handlers bridge the m68k mathieeedoubbas.library to host native double.
+         * Double values are passed as two 32-bit values (d1=hi, d2=lo).
+         * For two-operand functions: d1:d2=left, d3:d4=right.
+         * Results that are doubles are returned in d0:d1 (hi:lo).
+         */
+        
+        case EMU_CALL_IEEEDP_FIX:
+        {
+            /* IEEEDPFix: Convert double to integer (truncate toward zero)
+             * Input:  d1:d2 = IEEE double (hi:lo)
+             * Output: d0 = LONG integer
+             */
+            uint32_t hi = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = hi;
+            val.u.lo = lo;
+            
+            int32_t result;
+            if (val.d > 2147483647.0)
+                result = 0x7FFFFFFF;
+            else if (val.d < -2147483648.0)
+                result = (int32_t)0x80000000;
+            else
+                result = (int32_t)val.d;
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FIX(%f) = %d\n", val.d, result);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)result);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_FLT:
+        {
+            /* IEEEDPFlt: Convert integer to double
+             * Input:  d1 = LONG integer
+             * Output: d0:d1 = IEEE double (hi:lo)
+             */
+            int32_t integer = (int32_t)m68k_get_reg(NULL, M68K_REG_D1);
+            
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.d = (double)integer;
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FLT(%d) = %f\n", integer, val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_CMP:
+        {
+            /* IEEEDPCmp: Compare two doubles
+             * Input:  d1:d2 = left, d3:d4 = right
+             * Output: d0 = -1 (left < right), 0 (equal), +1 (left > right)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } left, right;
+            left.u.hi  = m68k_get_reg(NULL, M68K_REG_D1);
+            left.u.lo  = m68k_get_reg(NULL, M68K_REG_D2);
+            right.u.hi = m68k_get_reg(NULL, M68K_REG_D3);
+            right.u.lo = m68k_get_reg(NULL, M68K_REG_D4);
+            
+            int32_t result;
+            if (left.d < right.d)
+                result = -1;
+            else if (left.d > right.d)
+                result = 1;
+            else
+                result = 0;
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_CMP(%f, %f) = %d\n", left.d, right.d, result);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)result);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_TST:
+        {
+            /* IEEEDPTst: Test double against zero
+             * Input:  d1:d2 = IEEE double
+             * Output: d0 = -1 (negative), 0 (zero), +1 (positive)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            int32_t result;
+            if (val.d < 0.0)
+                result = -1;
+            else if (val.d > 0.0)
+                result = 1;
+            else
+                result = 0;
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TST(%f) = %d\n", val.d, result);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)result);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_ABS:
+        {
+            /* IEEEDPAbs: Absolute value
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = |input|
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = fabs(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ABS -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_NEG:
+        {
+            /* IEEEDPNeg: Negate
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = -input
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = -val.d;
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_NEG -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_ADD:
+        {
+            /* IEEEDPAdd: Addition
+             * Input:  d1:d2 = left, d3:d4 = right
+             * Output: d0:d1 = left + right
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } left, right, result;
+            left.u.hi  = m68k_get_reg(NULL, M68K_REG_D1);
+            left.u.lo  = m68k_get_reg(NULL, M68K_REG_D2);
+            right.u.hi = m68k_get_reg(NULL, M68K_REG_D3);
+            right.u.lo = m68k_get_reg(NULL, M68K_REG_D4);
+            
+            result.d = left.d + right.d;
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ADD(%f, %f) = %f\n", left.d, right.d, result.d);
+            m68k_set_reg(M68K_REG_D0, result.u.hi);
+            m68k_set_reg(M68K_REG_D1, result.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_SUB:
+        {
+            /* IEEEDPSub: Subtraction
+             * Input:  d1:d2 = left, d3:d4 = right
+             * Output: d0:d1 = left - right
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } left, right, result;
+            left.u.hi  = m68k_get_reg(NULL, M68K_REG_D1);
+            left.u.lo  = m68k_get_reg(NULL, M68K_REG_D2);
+            right.u.hi = m68k_get_reg(NULL, M68K_REG_D3);
+            right.u.lo = m68k_get_reg(NULL, M68K_REG_D4);
+            
+            result.d = left.d - right.d;
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SUB(%f, %f) = %f\n", left.d, right.d, result.d);
+            m68k_set_reg(M68K_REG_D0, result.u.hi);
+            m68k_set_reg(M68K_REG_D1, result.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_MUL:
+        {
+            /* IEEEDPMul: Multiplication
+             * Input:  d1:d2 = factor1, d3:d4 = factor2
+             * Output: d0:d1 = factor1 * factor2
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } f1, f2, result;
+            f1.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            f1.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            f2.u.hi = m68k_get_reg(NULL, M68K_REG_D3);
+            f2.u.lo = m68k_get_reg(NULL, M68K_REG_D4);
+            
+            result.d = f1.d * f2.d;
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_MUL(%f, %f) = %f\n", f1.d, f2.d, result.d);
+            m68k_set_reg(M68K_REG_D0, result.u.hi);
+            m68k_set_reg(M68K_REG_D1, result.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_DIV:
+        {
+            /* IEEEDPDiv: Division
+             * Input:  d1:d2 = dividend, d3:d4 = divisor
+             * Output: d0:d1 = dividend / divisor
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } dividend, divisor, result;
+            dividend.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            dividend.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            divisor.u.hi  = m68k_get_reg(NULL, M68K_REG_D3);
+            divisor.u.lo  = m68k_get_reg(NULL, M68K_REG_D4);
+            
+            if (divisor.d == 0.0)
+            {
+                if (dividend.d >= 0.0)
+                    result.d = HUGE_VAL;
+                else
+                    result.d = -HUGE_VAL;
+            }
+            else
+            {
+                result.d = dividend.d / divisor.d;
+            }
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_DIV(%f, %f) = %f\n", dividend.d, divisor.d, result.d);
+            m68k_set_reg(M68K_REG_D0, result.u.hi);
+            m68k_set_reg(M68K_REG_D1, result.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_FLOOR:
+        {
+            /* IEEEDPFloor: Largest integer not greater than input
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = floor(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = floor(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FLOOR -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_CEIL:
+        {
+            /* IEEEDPCeil: Smallest integer not less than input
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = ceil(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = ceil(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_CEIL -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+
+        /*
+         * Phase 61: IEEE Double Precision Transcendental Math (5020-5039)
+         * mathieeedoubtrans.library handlers
+         */
+        
+        case EMU_CALL_IEEEDP_ATAN:
+        {
+            /* IEEEDPAtan: Arc tangent
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = atan(input) in radians
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = atan(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ATAN(%f) -> %f\n", val.d, val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_SIN:
+        {
+            /* IEEEDPSin: Sine
+             * Input:  d1:d2 = IEEE double (radians)
+             * Output: d0:d1 = sin(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = sin(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SIN -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_COS:
+        {
+            /* IEEEDPCos: Cosine
+             * Input:  d1:d2 = IEEE double (radians)
+             * Output: d0:d1 = cos(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = cos(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_COS -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_TAN:
+        {
+            /* IEEEDPTan: Tangent
+             * Input:  d1:d2 = IEEE double (radians)
+             * Output: d0:d1 = tan(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = tan(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TAN -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_SINCOS:
+        {
+            /* IEEEDPSincos: Sine and Cosine
+             * Input:  d1:d2 = IEEE double (radians), a0 = pointer to store cos
+             * Output: d0:d1 = sin(input), *a0 = cos(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val, cos_val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t cos_ptr = m68k_get_reg(NULL, M68K_REG_A0);
+            
+            cos_val.d = cos(val.d);
+            val.d = sin(val.d);
+            
+            /* Store cos result to memory pointed by a0 */
+            if (cos_ptr != 0)
+            {
+                m68k_write_memory_32(cos_ptr, cos_val.u.hi);
+                m68k_write_memory_32(cos_ptr + 4, cos_val.u.lo);
+            }
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SINCOS -> sin=%f, cos=%f\n", val.d, cos_val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_SINH:
+        {
+            /* IEEEDPSinh: Hyperbolic sine
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = sinh(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = sinh(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SINH -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_COSH:
+        {
+            /* IEEEDPCosh: Hyperbolic cosine
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = cosh(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = cosh(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_COSH -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_TANH:
+        {
+            /* IEEEDPTanh: Hyperbolic tangent
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = tanh(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = tanh(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TANH -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_EXP:
+        {
+            /* IEEEDPExp: Natural exponential (e^x)
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = exp(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = exp(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_EXP -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_LOG:
+        {
+            /* IEEEDPLog: Natural logarithm
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = log(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = log(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_LOG -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_POW:
+        {
+            /* IEEEDPPow: Power function (arg^exp)
+             * Input:  d1:d2 = arg (base), d3:d4 = exp (exponent)
+             * Output: d0:d1 = arg^exp
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } base, exponent, result;
+            base.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            base.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            exponent.u.hi = m68k_get_reg(NULL, M68K_REG_D3);
+            exponent.u.lo = m68k_get_reg(NULL, M68K_REG_D4);
+            
+            result.d = pow(base.d, exponent.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_POW(%f, %f) = %f\n", base.d, exponent.d, result.d);
+            m68k_set_reg(M68K_REG_D0, result.u.hi);
+            m68k_set_reg(M68K_REG_D1, result.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_SQRT:
+        {
+            /* IEEEDPSqrt: Square root
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = sqrt(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = sqrt(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SQRT -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_TIEEE:
+        {
+            /* IEEEDPTieee: Convert double to IEEE single
+             * Input:  d1:d2 = IEEE double
+             * Output: d0 = IEEE single
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } dval;
+            union { float f; uint32_t u; } sval;
+            dval.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            dval.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            sval.f = (float)dval.d;
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TIEEE(%f) -> single\n", dval.d);
+            m68k_set_reg(M68K_REG_D0, sval.u);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_FIEEE:
+        {
+            /* IEEEDPFieee: Convert IEEE single to double
+             * Input:  d1 = IEEE single
+             * Output: d0:d1 = IEEE double
+             */
+            union { float f; uint32_t u; } sval;
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } dval;
+            sval.u = m68k_get_reg(NULL, M68K_REG_D1);
+            
+            dval.d = (double)sval.f;
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FIEEE(single) -> %f\n", dval.d);
+            m68k_set_reg(M68K_REG_D0, dval.u.hi);
+            m68k_set_reg(M68K_REG_D1, dval.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_ASIN:
+        {
+            /* IEEEDPAsin: Arc sine
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = asin(input) in radians
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = asin(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ASIN -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_ACOS:
+        {
+            /* IEEEDPAcos: Arc cosine
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = acos(input) in radians
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = acos(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ACOS -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            break;
+        }
+        
+        case EMU_CALL_IEEEDP_LOG10:
+        {
+            /* IEEEDPLog10: Base-10 logarithm
+             * Input:  d1:d2 = IEEE double
+             * Output: d0:d1 = log10(input)
+             */
+            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
+            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
+            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            
+            val.d = log10(val.d);
+            
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_LOG10 -> %f\n", val.d);
+            m68k_set_reg(M68K_REG_D0, val.u.hi);
+            m68k_set_reg(M68K_REG_D1, val.u.lo);
             break;
         }
 

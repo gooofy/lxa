@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.25** | **Phase 58 Complete** | **42 RKM Sample Tests Passing** | **12 Host-Side Test Drivers**
+**Version: 0.6.27** | **Phase 61 Complete** | **42 RKM Sample Tests Passing** | **12 Host-Side Test Drivers**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -97,14 +97,49 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Active Phase
 
-### Phase 59: Devpac (HiSoft) Deep Dive (Current)
-**Goal**: Verify editor content area and achieve full assembler functionality.
-**Status**: ✅ WORKING - Window opens and responds to input.
-**Driver**: ✅ `devpac_test.c` created and passing
+### Phase 62: Cluster2 Deep Dive (Current)
+**Goal**: Investigate and achieve full compatibility for Cluster2 IDE.
+**Status**: 🆕 READY TO START - mathieeedoubbas.library now available
+**Binary**: `lxa-apps/Cluster2/bin/Cluster2/Editor`
+**TODO**: Create host-side test driver for Cluster2
 
 ---
 
 ## Completed Phases (Recent)
+
+### Phase 61: mathieeedoubbas.library & mathieeedoubtrans.library (Complete)
+**Goal**: Implement IEEE double-precision math libraries required by Cluster2 and other apps.
+**Status**: ✅ COMPLETE
+**Implementation**:
+- Rewrote `mathieeedoubbas.library` (12 functions) using EMU_CALL pattern for host-side computation
+- Created `mathieeedoubtrans.library` (17 transcendental functions) using EMU_CALL pattern
+- Added 29 EMU_CALL handlers (5000-5011 basic, 5020-5036 transcendental) in `src/lxa/lxa.c`
+- Created `IEEEDPExample` test sample - all 8/8 tests pass
+- Cluster2 now loads successfully and opens a window
+
+**Functions Implemented**:
+- Basic (mathieeedoubbas): IEEEDPFix, IEEEDPFlt, IEEEDPCmp, IEEEDPTst, IEEEDPAbs, IEEEDPNeg, IEEEDPAdd, IEEEDPSub, IEEEDPMul, IEEEDPDiv, IEEEDPFloor, IEEEDPCeil
+- Transcendental (mathieeedoubtrans): IEEEDPAtan, IEEEDPSin, IEEEDPCos, IEEEDPTan, IEEEDPSincos, IEEEDPSinh, IEEEDPCosh, IEEEDPTanh, IEEEDPExp, IEEEDPLog, IEEEDPPow, IEEEDPSqrt, IEEEDPTieee, IEEEDPFieee, IEEEDPAsin, IEEEDPAcos, IEEEDPLog10
+
+### Phase 60: MaxonBASIC Deep Dive (Complete)
+**Goal**: Verify and complete full MaxonBASIC IDE functionality.
+**Status**: ✅ COMPLETE - All known issues resolved.
+**Driver**: ✅ `maxonbasic_test.c` enhanced with visual verification, cursor key testing
+**Enhancements**:
+- Added debug mode flag (-d)
+- Added screenshot capture function
+- Added count_content_in_region() for visual verification
+- Added Test 6: cursor key testing with event draining
+
+### Phase 59: Devpac (HiSoft) Deep Dive (Complete)
+**Goal**: Verify editor content area and achieve full assembler functionality.
+**Status**: ✅ COMPLETE - All known issues resolved.
+**Driver**: ✅ `devpac_test.c` enhanced with visual verification, cursor key testing
+**Enhancements**:
+- Added debug mode flag (-d)
+- Added screenshot capture function
+- Added count_content_in_region() for visual verification
+- Added Test 6: cursor key testing with event draining
 
 ### Phase 58: KickPascal 2 Deep Dive (Complete)
 **Goal**: Full KickPascal 2 IDE functionality with automated testing via host-side driver.
@@ -118,25 +153,6 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ---
 
 ## High Priority Phases
-
-### Phase 60: MaxonBASIC Deep Dive
-**Goal**: Verify and complete full MaxonBASIC IDE functionality.
-**Status**: ✅ WORKING - Opens Workbench, window opens, accepts keyboard/mouse input.
-**Driver**: ✅ `maxonbasic_test.c` created and passing
-
-### Phase 61: Oberon 2 Deep Dive
-**Goal**: Fix A5 register corruption and enable Oberon system.
-**Status**: ⚠️ PARTIAL - Trap handlers implemented.
-**TODO**: migrate to host-side driver, run deeper tests
-
-### Phase 62: Cluster2 Deep Dive
-**Goal**: Investigate and achieve full compatibility for Cluster2.
-**Status**: 🆕 PLANNED
-**TODO**: migrate to host-side driver, run deeper tests
-
----
-
-## Future Phases
 
 ### Phase 63: DPaint V Deep Dive
 **Goal**: Fix hang during initialization after font loading.
@@ -189,6 +205,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.27 | 61 | Phase 61 complete: Implemented mathieeedoubbas.library (12 functions) and mathieeedoubtrans.library (17 functions) using EMU_CALL pattern. 29 EMU_CALL handlers for IEEE double-precision math. IEEEDPExample test sample. Cluster2 now loads successfully. |
+| 0.6.26 | 59-60 | Phases 59-60 complete: Enhanced Devpac and MaxonBASIC test drivers with visual verification, screenshot capture, cursor key testing. Consistent structure with Phase 58 (KickPascal). |
 | 0.6.25 | 58 | Phase 58 complete: Fixed critical display sync bug in lxa_api.c (planar-to-chunky conversion in lxa_run_cycles). KickPascal 2 fully working with cursor key support. Enhanced kickpascal_test.c with visual verification. |
 | 0.6.24 | 57 | Phase 57 complete: 12 host-side test drivers, extended liblxa API (lxa_inject_rmb_click, lxa_inject_drag, lxa_get_screen_info, lxa_read_pixel, lxa_read_pixel_rgb). |
 | 0.6.23 | 57 | Added 11 host-side test drivers: simplegad, mousetest, rawkey, simplegtgadget, updatestrgad, simplemenu, asm_one, devpac, kickpascal, maxonbasic, dpaint. Deep dive app drivers for ASM-One, Devpac, KickPascal 2, MaxonBASIC, DPaint V. |

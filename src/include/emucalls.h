@@ -165,5 +165,50 @@
 #define EMU_CALL_TEST_GET_HEADLESS   4121  /* Get headless mode: () -> is_headless */
 #define EMU_CALL_TEST_WAIT_IDLE      4122  /* Wait for event queue empty: d1=timeout_ms -> success */
 
+/*
+ * IEEE Double Precision Math emucalls (5000-5099)
+ *
+ * Phase 61: mathieeedoubbas.library
+ * These emucalls bridge the m68k IEEE double math to host native double.
+ * Double values are passed/returned as two 32-bit values: d1=hi, d2=lo
+ * For two-operand functions: d1:d2=left, d3:d4=right
+ */
+#define EMU_CALL_IEEEDP_FIX          5000  /* IEEEDPFix: d1:d2=double -> d0=LONG */
+#define EMU_CALL_IEEEDP_FLT          5001  /* IEEEDPFlt: d1=LONG -> d0:d1=double */
+#define EMU_CALL_IEEEDP_CMP          5002  /* IEEEDPCmp: d1:d2=left, d3:d4=right -> d0=-1,0,1 */
+#define EMU_CALL_IEEEDP_TST          5003  /* IEEEDPTst: d1:d2=double -> d0=-1,0,1 */
+#define EMU_CALL_IEEEDP_ABS          5004  /* IEEEDPAbs: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_NEG          5005  /* IEEEDPNeg: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_ADD          5006  /* IEEEDPAdd: d1:d2=left, d3:d4=right -> d0:d1=double */
+#define EMU_CALL_IEEEDP_SUB          5007  /* IEEEDPSub: d1:d2=left, d3:d4=right -> d0:d1=double */
+#define EMU_CALL_IEEEDP_MUL          5008  /* IEEEDPMul: d1:d2=left, d3:d4=right -> d0:d1=double */
+#define EMU_CALL_IEEEDP_DIV          5009  /* IEEEDPDiv: d1:d2=dividend, d3:d4=divisor -> d0:d1=double */
+#define EMU_CALL_IEEEDP_FLOOR        5010  /* IEEEDPFloor: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_CEIL         5011  /* IEEEDPCeil: d1:d2=double -> d0:d1=double */
+
+/*
+ * IEEE Double Precision Transcendental Math emucalls (5020-5039)
+ *
+ * Phase 61: mathieeedoubtrans.library
+ * Transcendental functions (sin, cos, exp, log, etc.)
+ */
+#define EMU_CALL_IEEEDP_ATAN         5020  /* IEEEDPAtan: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_SIN          5021  /* IEEEDPSin: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_COS          5022  /* IEEEDPCos: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_TAN          5023  /* IEEEDPTan: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_SINCOS       5024  /* IEEEDPSincos: d1:d2=double, a0=cosptr -> d0:d1=sin */
+#define EMU_CALL_IEEEDP_SINH         5025  /* IEEEDPSinh: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_COSH         5026  /* IEEEDPCosh: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_TANH         5027  /* IEEEDPTanh: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_EXP          5028  /* IEEEDPExp: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_LOG          5029  /* IEEEDPLog: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_POW          5030  /* IEEEDPPow: d1:d2=base, d3:d4=exp -> d0:d1=double */
+#define EMU_CALL_IEEEDP_SQRT         5031  /* IEEEDPSqrt: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_TIEEE        5032  /* IEEEDPTieee: d1:d2=double -> d0=single */
+#define EMU_CALL_IEEEDP_FIEEE        5033  /* IEEEDPFieee: d1=single -> d0:d1=double */
+#define EMU_CALL_IEEEDP_ASIN         5034  /* IEEEDPAsin: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_ACOS         5035  /* IEEEDPAcos: d1:d2=double -> d0:d1=double */
+#define EMU_CALL_IEEEDP_LOG10        5036  /* IEEEDPLog10: d1:d2=double -> d0:d1=double */
+
 #endif
 
