@@ -312,6 +312,12 @@ void display_close(display_t *display)
         return;
     }
 
+    /* Clear active display if this is the one being closed */
+    if (g_active_display == display)
+    {
+        g_active_display = NULL;
+    }
+
 #if HAS_SDL2
     if (g_sdl_available)
     {

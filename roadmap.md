@@ -8,11 +8,25 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.17** | **Phase 56 In Progress** | **28 RKM Sample Tests Passing** | **150 Total Tests Passing**
+**Version: 0.6.18** | **Phase 56 In Progress** | **34 RKM Sample Tests Passing** | **156 Total Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes (Phase 56)**:
+- **Fixed display_close() use-after-free bug**: g_active_display wasn't cleared when display was closed, causing intermittent malloc corruption when VBlank tried to refresh a freed display.
+- **Implemented AvailFonts()**: diskfont.library AvailFonts() now returns ROM fonts (topaz.font) instead of empty list.
+- **New Screen Management Samples**:
+  - `CloneScreen` - Screen cloning with LockPubScreen, GetScreenDrawInfo, GetVPModeID, OpenScreenTags
+  - `PublicScreen` - Opening screens with inherited pens from public screens
+  - `VisibleWindow` - QueryOverscan() for proper full-screen window placement
+  - `WinPubScreen` - Opening windows on default public screen with WA_PubScreen
+- **New Graphics/Font Samples**:
+  - `AvailFonts` - Font enumeration with AvailFonts(), OpenDiskFont()
+  - `MeasureText` - Text measurement with TextLength(), TextExtent(), TextFit()
+- **New Input/Cursor Samples**:
+  - `CustomPointer` - Custom mouse pointer with SetPointer(), ClearPointer(), Request(), EndRequest()
+  - `MouseTest` - Mouse input handling (IDCMP_MOUSEMOVE, IDCMP_MOUSEBUTTONS, DoubleClick) - interactive
+  - `RawKey` - Raw keyboard input with RawKeyConvert() - interactive
 - **Host-side Test Driver Infrastructure (liblxa)**: Added simplegad_test driver that uses the liblxa API to:
   - Start the SimpleGad sample
   - Wait for window to open
@@ -179,14 +193,16 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [x] `SimpleImage`/`ShadowBorder` (UI rendering primitives).
     - [x] `EasyIntuition` (Custom screens with OpenScreenTags/OpenWindowTags).
     - [x] `SimpleMenu` (Intuition menu systems with submenus).
-    - [ ] `MouseTest`/`RawKey`/`CustomPointer` (Input and cursor handling).
+    - [x] `CustomPointer` (Pointer with SetPointer/ClearPointer/Request/EndRequest).
+    - [ ] `MouseTest`/`RawKey` (Interactive input - requires host-side test drivers).
     - [x] `EasyRequest` (Requesters with variable substitution).
-    - [ ] `CloneScreen`/`PublicScreen`/`DoubleBuffer` (Advanced screen management).
-    - [ ] `VisibleWindow`/`WinPubScreen` (Window placement and public screens).
+    - [x] `CloneScreen`/`PublicScreen` (Screen cloning and public screen pens).
+    - [ ] `DoubleBuffer` (Double-buffered screens).
+    - [x] `VisibleWindow`/`WinPubScreen` (Window placement and public screens).
 - [ ] **Graphics Samples**:
     - [x] `RGBBoxes` (Graphics primitives and views).
     - [x] `Clipping` (Layer management and clipping regions).
-    - [ ] `AvailFonts`/`MeasureText` (Font handling and text measurement).
+    - [x] `AvailFonts`/`MeasureText` (Font handling and text measurement).
     - [ ] `WBClone` (Workbench cloning and primitives).
     - [ ] `SSprite`/`VSprite`/`Bob` (Sprite and animation system).
 - [ ] **Advanced UI Samples**:
@@ -196,7 +212,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
     - [ ] `Talk2Boopsi` (BOOPSI object-oriented UI).
 - [ ] **Utility & System Samples**:
     - [x] `Hooks1` (Callback hooks).
-    - [ ] `IStr` (Internal string handling).
+    - [x] `IStr` (Internal string handling - Stricmp, Strnicmp, ToUpper, ToLower).
     - [ ] `Uptime` (System uptime calculation).
     - [x] `Sift` (IFF file structure viewer with iffparse.library).
     - [ ] `ClipFTXT` (Clipboard IFF handling - requires clipboard.device).
@@ -300,6 +316,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.18 | 56 | Fixed display_close use-after-free, implemented AvailFonts(), added CloneScreen/PublicScreen/VisibleWindow/WinPubScreen/MeasureText/AvailFonts/CustomPointer samples (34 RKM samples, 156 total tests) |
 | 0.6.17 | 56 | Host-side test driver infrastructure (liblxa): simplegad_test, fixed IDCMP timing issues |
 | 0.6.14 | 56 | Added Sift (IFF parsing), TaskList, AllocEntry, FindBoards samples; implemented FindConfigDev |
 | 0.6.13 | 56 | Fixed mathffp bugs (SPSub, SPCmp, SPTst, SPAbs), added FFPExample and SimpleGTGadget samples |

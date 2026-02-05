@@ -1,0 +1,24 @@
+MeasureText: Starting text measurement demonstration
+MeasureText: Opened graphics.library
+MeasureText: Opened intuition.library
+MeasureText: Window opened successfully
+MeasureText: Test 1 - TextLength()
+MeasureText: String 'Hello, Amiga World!'
+MeasureText: TextLength() = 152 pixels
+MeasureText: Test 2 - TextExtent()
+MeasureText: TextExtent results:
+MeasureText:   Width = 152, Height = 8
+MeasureText:   Extent MinX=0 MinY=-6 MaxX=151 MaxY=1
+MeasureText: Test 3 - TextFit()
+MeasureText: Testing how much of 'This is a longer string that might not fit in the given space.' fits in 150 pixels
+MeasureText: TextFit() = 18 characters fit
+MeasureText: Resulting extent width = 144
+MeasureText: Test 4 - Font Metrics
+MeasureText: Current font:
+MeasureText:   Name = 'topaz.font'
+MeasureText:   YSize = 8
+MeasureText:   XSize = 8
+MeasureText:   Baseline = 6
+MeasureText: Displayed (delay 2 sec)
+MeasureText: Window closed
+MeasureText: Done

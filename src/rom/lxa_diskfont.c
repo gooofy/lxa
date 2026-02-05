@@ -129,24 +129,51 @@ LONG _diskfont_AvailFonts ( register struct DiskfontBase    *DiskfontBase __asm(
                             register LONG                    bufBytes     __asm("d0"),
                             register ULONG                   flags        __asm("d1"))
 {
+    LONG bytesNeeded;
+    UWORD numEntries = 0;
+    struct AvailFonts *af;
+    
     DPRINTF (LOG_DEBUG, "_diskfont: AvailFonts() called buffer=0x%08lx bufBytes=%ld flags=0x%08lx\n",
-             buffer, bufBytes, flags);
+             (ULONG)buffer, bufBytes, flags);
     
-    if (!buffer || bufBytes < (LONG)sizeof(struct AvailFontsHeader))
-        return bufBytes; /* Return bytes still needed */
+    /* Count how many fonts we will return */
+    /* We have one ROM font: topaz.font size 8 */
+    if (flags & AFF_MEMORY)
+    {
+        numEntries = 1; /* topaz.font */
+    }
     
-    /* Initialize header */
-    buffer->afh_NumEntries = 0;
+    /* Calculate bytes needed */
+    bytesNeeded = sizeof(struct AvailFontsHeader) + 
+                  numEntries * sizeof(struct AvailFonts);
     
-    /* TODO: Enumerate ROM fonts and/or disk fonts based on flags:
-     * AFF_MEMORY - include fonts in memory (ROM fonts)
-     * AFF_DISK - include fonts on disk
-     * AFF_SCALED - include scaled fonts
-     * AFF_BITMAP - include bitmap fonts
-     * AFF_TAGGED - use tagged format
-     *
-     * For now, return empty list
-     */
+    DPRINTF (LOG_DEBUG, "_diskfont: AvailFonts() numEntries=%d bytesNeeded=%ld\n",
+             numEntries, bytesNeeded);
+    
+    /* If buffer is NULL or too small, return bytes still needed */
+    if (!buffer || bufBytes < bytesNeeded)
+    {
+        return bytesNeeded;
+    }
+    
+    /* Fill in the header */
+    buffer->afh_NumEntries = numEntries;
+    
+    /* Fill in font entries */
+    af = (struct AvailFonts *)(buffer + 1);  /* Points after header */
+    
+    if (flags & AFF_MEMORY)
+    {
+        /* Entry for topaz.font size 8 (ROM font) */
+        af->af_Type = AFF_MEMORY;
+        af->af_Attr.ta_Name = (STRPTR)"topaz.font";
+        af->af_Attr.ta_YSize = 8;
+        af->af_Attr.ta_Style = 0;  /* FS_NORMAL */
+        af->af_Attr.ta_Flags = FPF_ROMFONT | FPF_DESIGNED;
+        af++;
+    }
+    
+    DPRINTF (LOG_DEBUG, "_diskfont: AvailFonts() returning 0 (success)\n");
     
     return 0; /* 0 = success, all fonts fit in buffer */
 }
