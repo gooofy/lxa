@@ -147,6 +147,15 @@ if [ -f "$ACTUAL_OUTPUT" ]; then
     # Normalize timer values (system time, microseconds, delays)
     # These vary between runs and between different host systems
     sed -i 's/Seconds: [0-9]\+, Microseconds: [0-9]\+/Seconds: TIME, Microseconds: TIME/g' "$ACTUAL_OUTPUT"
+    sed -i 's/Seconds=[0-9]\+, Microseconds=[0-9]\+/Seconds=TIME, Microseconds=TIME/g' "$ACTUAL_OUTPUT"
+    sed -i 's/Seconds=[0-9]\+/Seconds=TIME/g' "$ACTUAL_OUTPUT"
+    sed -i 's/Result=[0-9]\{5,\}/Result=TIME/g' "$ACTUAL_OUTPUT"
+    sed -i 's/Amiga2Date([0-9]\+)/Amiga2Date(TIME)/g' "$ACTUAL_OUTPUT"
+    sed -i 's/Date2Amiga(): Seconds=TIME$/Date2Amiga(): Seconds=TIME/g' "$ACTUAL_OUTPUT"
+    sed -i 's/CheckDate returned [0-9]\+ seconds/CheckDate returned TIME seconds/g' "$ACTUAL_OUTPUT"
+    sed -i 's/(seconds=[0-9]\+)/(seconds=TIME)/g' "$ACTUAL_OUTPUT"
+    sed -i 's/  sec=[0-9]\+, min=[0-9]\+, hour=[0-9]\+/  sec=SS, min=MM, hour=HH/g' "$ACTUAL_OUTPUT"
+    sed -i 's/  mday=[0-9]\+, month=[0-9]\+, year=[0-9]\+, wday=[0-9]\+/  mday=DD, month=MM, year=YYYY, wday=WD/g' "$ACTUAL_OUTPUT"
     sed -i 's/Time: [0-9]\{2\}:[0-9]\{2\}:[0-9]\{2\} (Days: [0-9]\+)/Time: HH:MM:SS (Days: N)/g' "$ACTUAL_OUTPUT"
     sed -i 's/\([0-9]\{5,\}\)\.\([0-9]\{6\}\)/TIME.MICRO/g' "$ACTUAL_OUTPUT"
     sed -i 's/Time correctly increased by [0-9]\+ microseconds/Time correctly increased by N microseconds/g' "$ACTUAL_OUTPUT"

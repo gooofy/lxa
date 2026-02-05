@@ -446,14 +446,14 @@ static VOID _utility_Amiga2Date ( register struct UtilityBase *UtilityBase __asm
     UWORD y = yoe + era * 400;
     UWORD doy = doe - (365*yoe + yoe/4 - yoe/100);                // [0, 365]
     UWORD mp = (5*doy + 2)/153;                                   // [0, 11]
-	UWORD doff = (153*mp+2)/5 + 1;
-    UWORD day = doy - doff;                                       // [1, 31]
+    UWORD mp_offset = (153*mp+2)/5;
+    UWORD day = doy - mp_offset + 1;                              // [1, 31]
     UWORD month = mp < 10 ? mp+3 : mp-9;                          // [1, 12]
-	UWORD year = y + (month <= 2);
+    UWORD year = y + (month <= 2);
 
-	DPRINTF (LOG_DEBUG, "_utility_Amiga2Date: seconds=%ld -> %02ld:%02ld:%02ld, %02ld-%02ld-%04ld doy=%d, mp=%d %d\n",
-             seconds, result->hour, result->min, result->sec,
-			 month, day, year, doy, mp, doff);
+	DPRINTF (LOG_DEBUG, "_utility_Amiga2Date: seconds=%ld -> %02ld:%02ld:%02ld, doy=%d, mp=%d, mp_offset=%d\n",
+             seconds, result->hour, result->min, result->sec, doy, mp, mp_offset);
+	DPRINTF (LOG_DEBUG, "_utility_Amiga2Date: result: %02d-%02d-%04d\n", month, day, year);
 
     result->month = month;
     result->mday  = day;
@@ -485,8 +485,16 @@ static ULONG _utility_Date2Amiga ( register struct UtilityBase * UtilityBase __a
     LONG era = y / 400;
     LONG yoe = y - era * 400;                                   /* [0, 399] */
     LONG doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;  /* [0, 365] */
-    LONG doe = yoe * 365 + yoe/4 - yoe/100 + doy;               /* [0, 146096] */
+    LONG yoe365 = yoe * 365;
+    LONG yoe4 = yoe/4;
+    LONG yoe100 = yoe/100;
+    LONG doe = yoe365 + yoe4 - yoe100 + doy;               /* [0, 146096] */
     LONG days = era * 146097 + doe - 719468 - 2922;             /* Days since 1978-01-01 */
+
+    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga intermediate: y(adj)=%ld, m=%ld, d=%ld\n", y, m, d);
+    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga intermediate: era=%ld, yoe=%ld, doy=%ld\n", era, yoe, doy);
+    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga intermediate: yoe365=%ld, yoe4=%ld, yoe100=%ld\n", yoe365, yoe4, yoe100);
+    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga intermediate: doe=%ld, days=%ld\n", doe, days);
 
     /* Convert to seconds and add time components */
     ULONG seconds = (ULONG)days * 86400UL;

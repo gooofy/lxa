@@ -8,11 +8,16 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.14** | **Phase 56 In Progress** | **27 RKM Sample Tests Passing**
+**Version: 0.6.15** | **Phase 56 In Progress** | **29 RKM Sample Tests Passing** | **150 Total Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes (Phase 56)**:
+- **Fixed critical Amiga2Date bug**: Day-of-month calculation was off by 1, causing incorrect date conversions. Fixed formula to match Hinnant's civil_from_days algorithm.
+- **New Utility Library Samples**:
+  - `IStr` - String comparison and case conversion: Stricmp, Strnicmp, ToUpper, ToLower
+  - `A2D` - Date conversion functions: Amiga2Date, CheckDate, Date2Amiga, GetSysTime
+- **Enhanced test_runner.sh**: Added normalization for date/time values (Seconds=, sec/min/hour, mday/month/year) for portable test output
 - **New IFF Parsing Samples**:
   - `Sift` - iffparse.library test: AllocIFF, FreeIFF, OpenIFF, CloseIFF, ParseIFF, CurrentChunk, IDtoStr, InitIFFasDOS
 - **New Exec Samples**:

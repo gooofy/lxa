@@ -56,6 +56,8 @@ set(SAMPLES_LIST
     "devices|simpletimer|SimpleTimer"
     "utility|tag1|Tag1"
     "utility|hooks1|Hooks1"
+    "utility|istr|IStr"
+    "utility|a2d|A2D"
     "math|ffpexample|FFPExample"
     "iffparse|sift|Sift"
     "expansion|findboards|FindBoards"
