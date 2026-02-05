@@ -2098,3 +2098,67 @@ int display_compare_to_reference(const char *reference_file)
     
     return similarity;
 }
+
+/*
+ * Phase 57: Extended Screen and Pixel Query API
+ */
+
+/*
+ * Read a pixel at screen coordinates.
+ * Returns the palette index (pen) at the given position.
+ */
+bool display_read_pixel(int x, int y, int *pen)
+{
+    if (!g_active_display || !g_active_display->pixels || !pen)
+        return false;
+    
+    if (x < 0 || x >= g_active_display->width ||
+        y < 0 || y >= g_active_display->height)
+        return false;
+    
+    *pen = g_active_display->pixels[y * g_active_display->width + x];
+    return true;
+}
+
+/*
+ * Read pixel RGB value at screen coordinates.
+ * Looks up the palette color for the pixel.
+ */
+bool display_read_pixel_rgb(int x, int y, uint8_t *r, uint8_t *g, uint8_t *b)
+{
+    if (!g_active_display || !g_active_display->pixels)
+        return false;
+    
+    if (x < 0 || x >= g_active_display->width ||
+        y < 0 || y >= g_active_display->height)
+        return false;
+    
+    if (!r || !g || !b)
+        return false;
+    
+    int idx = g_active_display->pixels[y * g_active_display->width + x];
+    uint32_t argb = g_active_display->palette[idx];
+    
+    /* ARGB format: 0xAARRGGBB */
+    *r = (argb >> 16) & 0xFF;
+    *g = (argb >> 8) & 0xFF;
+    *b = argb & 0xFF;
+    
+    return true;
+}
+
+/*
+ * Get extended screen information.
+ */
+bool display_get_screen_info(int *width, int *height, int *depth, int *num_colors)
+{
+    if (!g_active_display)
+        return false;
+    
+    if (width)  *width = g_active_display->width;
+    if (height) *height = g_active_display->height;
+    if (depth)  *depth = g_active_display->depth;
+    if (num_colors) *num_colors = 1 << g_active_display->depth;
+    
+    return true;
+}

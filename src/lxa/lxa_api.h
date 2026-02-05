@@ -149,6 +149,30 @@ bool lxa_inject_mouse(int x, int y, int buttons, int event_type);
 bool lxa_inject_mouse_click(int x, int y, int button);
 
 /*
+ * Inject a right mouse button click (for menu access).
+ * This is a convenience wrapper for lxa_inject_mouse_click with LXA_MOUSE_RIGHT.
+ *
+ * @param x  Screen X coordinate
+ * @param y  Screen Y coordinate
+ * @return true on success
+ */
+bool lxa_inject_rmb_click(int x, int y);
+
+/*
+ * Inject a mouse drag operation.
+ * Moves from (start_x, start_y) to (end_x, end_y) while holding button down.
+ *
+ * @param start_x  Starting X coordinate
+ * @param start_y  Starting Y coordinate
+ * @param end_x    Ending X coordinate
+ * @param end_y    Ending Y coordinate
+ * @param button   Button to hold (LXA_MOUSE_LEFT, etc.)
+ * @param steps    Number of intermediate steps (0 = direct, higher = smoother)
+ * @return true on success
+ */
+bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button, int steps);
+
+/*
  * Inject a keyboard event.
  *
  * @param rawkey     Amiga raw key code
@@ -220,6 +244,50 @@ bool lxa_click_close_gadget(int window_index);
  * @return true if screen is active
  */
 bool lxa_get_screen_dimensions(int *width, int *height, int *depth);
+
+/*
+ * Screen information structure (extended info beyond dimensions)
+ */
+typedef struct lxa_screen_info {
+    int width;            /* Screen width in pixels */
+    int height;           /* Screen height in pixels */
+    int depth;            /* Screen bit depth */
+    int view_modes;       /* View mode flags (interlace, hires, etc.) */
+    char title[256];      /* Screen title */
+    int num_colors;       /* Number of palette entries */
+} lxa_screen_info_t;
+
+/*
+ * Get extended screen information.
+ *
+ * @param info  Output: screen information structure
+ * @return true if screen is active
+ */
+bool lxa_get_screen_info(lxa_screen_info_t *info);
+
+/*
+ * Read a pixel color at screen coordinates.
+ * Returns the palette index (pen) at the given position.
+ *
+ * @param x      Screen X coordinate
+ * @param y      Screen Y coordinate
+ * @param pen    Output: palette index (0-255)
+ * @return true on success, false if coordinates out of bounds or no screen
+ */
+bool lxa_read_pixel(int x, int y, int *pen);
+
+/*
+ * Read pixel RGB color at screen coordinates.
+ * Returns the actual RGB color after palette lookup.
+ *
+ * @param x      Screen X coordinate
+ * @param y      Screen Y coordinate
+ * @param r      Output: red component (0-255)
+ * @param g      Output: green component (0-255)
+ * @param b      Output: blue component (0-255)
+ * @return true on success
+ */
+bool lxa_read_pixel_rgb(int x, int y, uint8_t *r, uint8_t *g, uint8_t *b);
 
 /*
  * Check if the screen has content (non-background pixels).

@@ -497,4 +497,43 @@ bool display_get_window_position(int index, int *x, int *y);
  */
 int display_compare_to_reference(const char *reference_file);
 
+/*
+ * Phase 57: Extended Screen and Pixel Query API
+ */
+
+/*
+ * Read a pixel at screen coordinates.
+ * Returns the palette index (pen) at the given position.
+ *
+ * @param x    X coordinate
+ * @param y    Y coordinate
+ * @param pen  Output: palette index (0-255)
+ * @return true on success, false if out of bounds or no display
+ */
+bool display_read_pixel(int x, int y, int *pen);
+
+/*
+ * Read pixel RGB value at screen coordinates.
+ * Looks up the palette color for the pixel.
+ *
+ * @param x    X coordinate
+ * @param y    Y coordinate
+ * @param r    Output: red component (0-255)
+ * @param g    Output: green component (0-255)
+ * @param b    Output: blue component (0-255)
+ * @return true on success
+ */
+bool display_read_pixel_rgb(int x, int y, uint8_t *r, uint8_t *g, uint8_t *b);
+
+/*
+ * Get extended screen information.
+ *
+ * @param width      Output: screen width (can be NULL)
+ * @param height     Output: screen height (can be NULL)
+ * @param depth      Output: screen depth (can be NULL)
+ * @param num_colors Output: number of palette entries (can be NULL)
+ * @return true if screen is active
+ */
+bool display_get_screen_info(int *width, int *height, int *depth, int *num_colors);
+
 #endif /* HAVE_DISPLAY_H */

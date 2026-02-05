@@ -341,6 +341,57 @@ bool lxa_inject_mouse_click(int x, int y, int button)
     return true;
 }
 
+bool lxa_inject_rmb_click(int x, int y)
+{
+    return lxa_inject_mouse_click(x, y, LXA_MOUSE_RIGHT);
+}
+
+bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button, int steps)
+{
+    if (!g_api_initialized) return false;
+
+    /* Move to start position */
+    if (!display_inject_mouse(start_x, start_y, 0, DISPLAY_EVENT_MOUSEMOVE))
+        return false;
+    
+    lxa_trigger_vblank();
+    lxa_run_cycles(50000);
+
+    /* Press button */
+    if (!display_inject_mouse(start_x, start_y, button, DISPLAY_EVENT_MOUSEBUTTON))
+        return false;
+    
+    for (int i = 0; i < 3; i++) {
+        lxa_trigger_vblank();
+        lxa_run_cycles(50000);
+    }
+
+    /* Interpolate movement */
+    if (steps < 1) steps = 1;
+    
+    for (int step = 1; step <= steps; step++) {
+        int x = start_x + (end_x - start_x) * step / steps;
+        int y = start_y + (end_y - start_y) * step / steps;
+        
+        if (!display_inject_mouse(x, y, button, DISPLAY_EVENT_MOUSEMOVE))
+            return false;
+        
+        lxa_trigger_vblank();
+        lxa_run_cycles(50000);
+    }
+
+    /* Release button at end position */
+    if (!display_inject_mouse(end_x, end_y, 0, DISPLAY_EVENT_MOUSEBUTTON))
+        return false;
+    
+    for (int i = 0; i < 3; i++) {
+        lxa_trigger_vblank();
+        lxa_run_cycles(50000);
+    }
+
+    return true;
+}
+
 bool lxa_inject_key(int rawkey, int qualifier, bool down)
 {
     if (!g_api_initialized) return false;
@@ -412,6 +463,33 @@ bool lxa_get_screen_dimensions(int *width, int *height, int *depth)
 {
     if (!g_api_initialized) return false;
     return display_get_active_dimensions(width, height, depth);
+}
+
+bool lxa_get_screen_info(lxa_screen_info_t *info)
+{
+    if (!g_api_initialized || !info) return false;
+    
+    int num_colors;
+    if (!display_get_screen_info(&info->width, &info->height, &info->depth, &num_colors))
+        return false;
+    
+    info->num_colors = num_colors;
+    info->view_modes = 0;  /* TODO: implement view mode flags */
+    info->title[0] = '\0';  /* TODO: implement screen title query */
+    
+    return true;
+}
+
+bool lxa_read_pixel(int x, int y, int *pen)
+{
+    if (!g_api_initialized) return false;
+    return display_read_pixel(x, y, pen);
+}
+
+bool lxa_read_pixel_rgb(int x, int y, uint8_t *r, uint8_t *g, uint8_t *b)
+{
+    if (!g_api_initialized) return false;
+    return display_read_pixel_rgb(x, y, r, g, b);
 }
 
 int lxa_get_content_pixels(void)

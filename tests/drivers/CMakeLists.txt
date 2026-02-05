@@ -87,4 +87,11 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dpaint_test.c)
     add_test_driver(dpaint_test)
 endif()
 
+# ========== API Tests ==========
+
+# API test - tests new liblxa API functions
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/api_test.c)
+    add_test_driver(api_test)
+endif()
+
 message(STATUS "Test drivers configured")

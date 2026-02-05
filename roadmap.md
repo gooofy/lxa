@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.23** | **Phase 57 In Progress** | **42 RKM Sample Tests Passing** | **11 Host-Side Test Drivers**
+**Version: 0.6.24** | **Phase 57 Complete** | **42 RKM Sample Tests Passing** | **12 Host-Side Test Drivers**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -91,50 +91,21 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### RKM Samples & Test Infrastructure (Phases 46-56)
 - ✅ **Phase 56**: RKM Samples Integration - 42 sample programs covering Exec, Intuition, Graphics, GadTools, BOOPSI, Math, Devices. Fixed mathtrans.library CORDIC/SPExp bugs, mathffp.library bugs (SPSub, SPCmp, SPTst, SPAbs), Amiga2Date bug. Host-side test driver infrastructure (liblxa). 214 total tests passing.
 
+### Host-Side Test Driver Migration (Phase 57)
+- ✅ **Phase 57**: Complete host-side test driver migration with 12 test drivers. Extended liblxa API with `lxa_inject_rmb_click()`, `lxa_inject_drag()`, `lxa_get_screen_info()`, `lxa_read_pixel()`, `lxa_read_pixel_rgb()`. Deep dive app drivers for ASM-One, Devpac, KickPascal 2, MaxonBASIC, DPaint V.
+
 ---
 
 ## Active Phase
 
-### Phase 57: Host-Side Test Driver Migration (Current)
-**Goal**: Migrate all interactive UI tests and deep dive app tests to use the liblxa host-side driver infrastructure.
-
-**Why This Matters**:
-- Host-side drivers provide full control over timing and event injection
-- Better debugging capabilities (host-side breakpoints)
-- More reliable than in-ROM test_inject.h approach
-- Enables automated testing of complex interactive applications
-
-**TODO - Migrate test_inject.h Samples**:
-- [x] `SimpleMenu` → `tests/drivers/simplemenu_test.c`
-- [x] `UpdateStrGad` → `tests/drivers/updatestrgad_test.c`
-- [x] `SimpleGTGadget` → `tests/drivers/simplegtgadget_test.c`
-
-**TODO - Create Deep Dive App Test Drivers**:
-- [x] `tests/drivers/kickpascal_test.c` - KickPascal 2 automated testing
-- [x] `tests/drivers/devpac_test.c` - Devpac/HiSoft assembler testing
-- [x] `tests/drivers/maxonbasic_test.c` - MaxonBASIC IDE testing
-- [x] `tests/drivers/dpaint_test.c` - DPaint V testing (known hang during init)
-- [x] `tests/drivers/asm_one_test.c` - ASM-One testing
-
-**TODO - Extend liblxa API**:
-- [ ] Add `lxa_inject_rmb_click()` for menu access
-- [ ] Add `lxa_inject_drag()` for drag operations
-- [ ] Add `lxa_get_screen_info()` for screen queries
-- [ ] Add `lxa_read_pixel()` for visual verification
-
-**Completed**:
-- [x] `simplegad_test.c` - SimpleGad gadget click testing
-- [x] `mousetest_test.c` - MouseTest mouse input testing
-- [x] `rawkey_test.c` - RawKey keyboard input testing
+### Phase 58: KickPascal 2 Deep Dive (Current)
+**Goal**: Full KickPascal 2 IDE functionality with automated testing via host-side driver.
+**Status**: ⚠️ UI Issues (Screen clearing, repaint speed, cursor keys).
+**Driver**: ✅ `kickpascal_test.c` created and passing
 
 ---
 
 ## High Priority Phases
-
-### Phase 58: KickPascal 2 Deep Dive
-**Goal**: Full KickPascal 2 IDE functionality with automated testing via host-side driver.
-**Status**: ⚠️ UI Issues (Screen clearing, repaint speed, cursor keys).
-**Driver**: ✅ `kickpascal_test.c` created and passing
 
 ### Phase 59: Devpac (HiSoft) Deep Dive
 **Goal**: Verify editor content area and achieve full assembler functionality.
@@ -211,6 +182,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.24 | 57 | Phase 57 complete: 12 host-side test drivers, extended liblxa API (lxa_inject_rmb_click, lxa_inject_drag, lxa_get_screen_info, lxa_read_pixel, lxa_read_pixel_rgb). |
 | 0.6.23 | 57 | Added 11 host-side test drivers: simplegad, mousetest, rawkey, simplegtgadget, updatestrgad, simplemenu, asm_one, devpac, kickpascal, maxonbasic, dpaint. Deep dive app drivers for ASM-One, Devpac, KickPascal 2, MaxonBASIC, DPaint V. |
 | 0.6.22 | 56 | Fixed mathtrans.library CORDIC and SPExp bugs, added FFPTrans sample (42 RKM samples, 214 total tests) |
 | 0.6.21 | 56 | Added Uptime, GadToolsGadgets samples, enhanced test_runner.sh with uptime/DateStamp normalization (40 RKM samples, 162 total tests) |
