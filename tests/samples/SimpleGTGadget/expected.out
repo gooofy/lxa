@@ -26,6 +26,18 @@ Testing gadget functionality:
 Processing messages:
   Processed 0 messages
 
+Starting interactive testing...
+
+Test 6 - Clicking BUTTON_KIND gadget...
+  Click coordinates: (80, 39)
+  OK: GADGETUP received for button (ID=1)
+
+Test 7 - Clicking CYCLE_KIND gadget...
+  Click coordinates: (80, 99)
+  OK: GADGETUP received for cycle (ID=4, Code=0)
+
+Interactive testing complete.
+
 Cleaning up:
   Window closed
   Gadgets freed
@@ -34,6 +46,6 @@ Cleaning up:
   Libraries closed
 
 === Test Summary ===
-Tests passed: 5/5
+Tests passed: 7/7
 
 SimpleGTGadget: ALL TESTS PASSED

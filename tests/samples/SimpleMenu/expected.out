@@ -24,6 +24,20 @@ SimpleMenu: Testing ItemAddress()...
   Menu 0, Item 2, Sub 0: Draft
   Menu 0, Item 2, Sub 1: NLQ
 
+SimpleMenu: Starting interactive menu testing...
+
+SimpleMenu: Test 1 - Selecting 'Open...' menu item...
+  Menu bar: (39, 5), Item: (39, 16)
+  OK: MENUPICK received - menu=0, item=0
+  OK: Correct menu item 'Open...' selected
+
+SimpleMenu: Test 2 - Selecting 'Quit' menu item...
+  Menu bar: (39, 5), Item: (39, 46)
+  OK: MENUPICK received - menu=0, item=3
+  OK: Correct menu item 'Quit' selected
+
+SimpleMenu: Interactive testing complete.
+
 SimpleMenu: Clearing menu strip...
 SimpleMenu: Menu strip cleared
   Window->MenuStrip: Correctly cleared

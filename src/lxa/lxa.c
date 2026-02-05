@@ -112,24 +112,28 @@
 #define TRACE_BUF_ENTRIES 1000000
 #define MAX_BREAKPOINTS       16
 
-static uint8_t  g_ram[RAM_SIZE];
-static uint8_t  g_rom[ROM_SIZE];
-static bool     g_verbose                       = FALSE;
+/* Core emulator state - exported for lxa_api.c */
+uint8_t  g_ram[RAM_SIZE];
+uint8_t  g_rom[ROM_SIZE];
+bool     g_verbose                       = FALSE;
 static bool     g_trace                         = FALSE;
 static bool     g_stepping                      = FALSE;
 static uint32_t g_next_pc                       = 0;
 static int      g_trace_buf[TRACE_BUF_ENTRIES];
 static int      g_trace_buf_idx                 = 0;
-static bool     g_running                       = TRUE;
-static char    *g_loadfile                      = NULL;
+bool     g_running                       = TRUE;
+char    *g_loadfile                      = NULL;
+
+/* Output capture callback for test drivers */
+static void (*g_console_output_hook)(const char *data, int len) = NULL;
 
 #define MAX_ARGS_LEN 4096
-static char     g_args[MAX_ARGS_LEN]            = {0};
-static int      g_args_len                      = 0;
+char     g_args[MAX_ARGS_LEN]            = {0};
+int      g_args_len                      = 0;
 
 static uint32_t g_breakpoints[MAX_BREAKPOINTS];
 static int      g_num_breakpoints               = 0;
-static int      g_rv                            = 0;
+int      g_rv                            = 0;
 static char    *g_sysroot                       = NULL;
 
 typedef struct map_sym_s map_sym_t;
@@ -157,7 +161,7 @@ static pending_bp_t *_g_pending_bps = NULL;
 #define INTENA_MASTER 0x4000
 #define INTENA_VBLANK 0x0020
 
-static uint16_t g_intena  = INTENA_MASTER | INTENA_VBLANK;
+uint16_t g_intena  = INTENA_MASTER | INTENA_VBLANK;
 
 /*
  * Phase 6.5: Timer-driven preemptive multitasking
@@ -170,8 +174,8 @@ static uint16_t g_intena  = INTENA_MASTER | INTENA_VBLANK;
  * Wait() or other blocking functions.
  */
 
-/* Pending interrupt flags (one bit per level 1-7) */
-static volatile sig_atomic_t g_pending_irq = 0;
+/* Pending interrupt flags (one bit per level 1-7) - exported for lxa_api.c */
+volatile sig_atomic_t g_pending_irq = 0;
 
 /* Last input event for IDCMP handling (Phase 14) */
 static display_event_t g_last_event = {0};
@@ -179,8 +183,8 @@ static display_event_t g_last_event = {0};
 /* Timer frequency in microseconds (50Hz = 20000us = 20ms) */
 #define TIMER_INTERVAL_US 20000
 
-/* SIGALRM handler - sets Level 3 interrupt pending */
-static void sigalrm_handler(int sig)
+/* SIGALRM handler - sets Level 3 interrupt pending - exported for lxa_api.c */
+void sigalrm_handler(int sig)
 {
     (void)sig;
     g_pending_irq |= (1 << 3);  /* Level 3 = VBlank */
@@ -281,12 +285,12 @@ static bool _timer_remove_request(uint32_t ioreq_ptr)
     return false;
 }
 
-/* Check and mark expired timer requests
+/* Check and mark expired timer requests - exported for lxa_api.c
  * This is called from the main emulation loop.
  * It only marks timers as expired - the actual ReplyMsg() is done from the
  * m68k side via the _timer_VBlankHook() function.
  */
-static int _timer_check_expired(void)
+int _timer_check_expired(void)
 {
     uint64_t now = _timer_get_time_us();
     int expired_count = 0;
@@ -967,6 +971,8 @@ void cpu_instr_callback(int pc)
     }
 }
 
+/* Functions used only by main() - excluded from library build */
+#ifndef LXA_LIBRARY_BUILD
 /* Get the directory containing the running binary */
 static bool get_binary_dir(char *buf, size_t buf_size)
 {
@@ -1056,6 +1062,7 @@ static const char *auto_detect_rom_path(void)
     
     return NULL;
 }
+#endif /* !LXA_LIBRARY_BUILD (get_binary_dir, auto_detect_rom_path) */
 
 static char *_mgetstr (uint32_t address)
 {
@@ -1560,6 +1567,12 @@ static void _csi_process(const char *buf, int len, char final_byte)
 /* Process special C0/C1 control characters */
 static void _console_control_char(uint8_t c)
 {
+    /* Capture output for test drivers */
+    if (g_console_output_hook) {
+        char ch = (char)c;
+        g_console_output_hook(&ch, 1);
+    }
+
     switch (c) {
         case 0x07:  /* BEL - Bell */
             fputc('\a', stdout);
@@ -4402,6 +4415,7 @@ int op_illg(int level)
                 /* Store event data in static vars for subsequent GET calls */
                 g_last_event = event;
                 m68k_set_reg(M68K_REG_D0, (uint32_t)event.type);
+                DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_POLL_INPUT: got event type=%d\n", event.type);
             }
             else
             {
@@ -5369,7 +5383,8 @@ static void _debug(uint32_t pcFinal)
 
 #define MAX_LINE_LEN 1024
 
-static bool _load_rom_map (const char *rom_path)
+/* Load ROM symbol map - exported for lxa_api.c */
+bool _load_rom_map (const char *rom_path)
 {
     char map_path[PATH_MAX];
     char line_buf[MAX_LINE_LEN];
@@ -5431,6 +5446,17 @@ static bool _load_rom_map (const char *rom_path)
     return true;
 }
 
+/*
+ * Set console output capture hook for test drivers.
+ * When set, all console output will be passed to this callback.
+ */
+void lxa_set_console_output_hook(void (*hook)(const char *data, int len))
+{
+    g_console_output_hook = hook;
+}
+
+/* When building liblxa as a library, we don't include main() or print_usage() */
+#ifndef LXA_LIBRARY_BUILD
 static void print_usage(char *argv[])
 {
     fprintf(stderr, "lxa - Linux Amiga Emulation Layer\n");
@@ -5765,3 +5791,4 @@ int main(int argc, char **argv, char **envp)
 
     return g_rv;
 }
+#endif /* !LXA_LIBRARY_BUILD */

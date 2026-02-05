@@ -1,8 +1,16 @@
 /*
- * simplegad.c - Integration test for boolean gadgets
- * 
- * Based on RKM sample code, enhanced for automated testing.
- * Tests: GACT_RELVERIFY, GACT_IMMEDIATE, IDCMP_GADGETUP/DOWN events
+ * simplegad.c - Boolean Gadgets Example
+ *
+ * This is an RKM-style sample demonstrating boolean gadgets in Intuition.
+ * It creates a window with three buttons:
+ *   - Button 1: Uses both GACT_IMMEDIATE and GACT_RELVERIFY
+ *   - Button 2: Uses only GACT_RELVERIFY
+ *   - Exit: Closes the window when clicked
+ *
+ * The sample has a proper IDCMP event loop and runs until the user
+ * clicks the close gadget or the Exit button.
+ *
+ * Based on RKM Intuition sample code.
  */
 
 #define INTUI_V36_NAMES_ONLY
@@ -10,14 +18,16 @@
 #include <exec/types.h>
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
+#include <graphics/gfxbase.h>
 
 #include <clib/exec_protos.h>
 #include <clib/intuition_protos.h>
-#include <clib/dos_protos.h>
+#include <clib/graphics_protos.h>
 
 #include <stdio.h>
 
 struct Library *IntuitionBase;
+struct Library *GfxBase;
 
 #define BUTTON_GAD_NUM   (3)
 #define BUTTON2_GAD_NUM  (4)
@@ -94,65 +104,99 @@ VOID main(int argc, char **argv)
 {
     struct Window *win;
     struct IntuiMessage *msg;
-    ULONG  class;
-    BOOL done;
+    ULONG class;
+    struct Gadget *gad;
+    UWORD gadgetID;
+    BOOL done = FALSE;
 
     IntuitionBase = OpenLibrary("intuition.library", 37);
-    if (IntuitionBase)
+    if (!IntuitionBase)
     {
-        win = OpenWindowTags(NULL,
-                            WA_Width, 400,
-                            WA_Height, 250,
-                            WA_Gadgets, &buttonGad,
-                            WA_Title, (ULONG)"Boolean Gadget Test",
-                            WA_Activate, TRUE,
-                            WA_CloseGadget, TRUE,
-                            WA_DragBar, TRUE,
-                            WA_DepthGadget, TRUE,
-                            WA_IDCMP, IDCMP_GADGETDOWN | IDCMP_GADGETUP |
-                                      IDCMP_CLOSEWINDOW,
-                            TAG_END);
-        if (win)
+        printf("SimpleGad: Failed to open intuition.library v37+\n");
+        return;
+    }
+
+    GfxBase = OpenLibrary("graphics.library", 37);
+    if (!GfxBase)
+    {
+        printf("SimpleGad: Failed to open graphics.library v37+\n");
+        CloseLibrary(IntuitionBase);
+        return;
+    }
+
+    win = OpenWindowTags(NULL,
+                        WA_Width, 400,
+                        WA_Height, 250,
+                        WA_Gadgets, &buttonGad,
+                        WA_Title, (ULONG)"Boolean Gadget Demo",
+                        WA_Activate, TRUE,
+                        WA_CloseGadget, TRUE,
+                        WA_DragBar, TRUE,
+                        WA_DepthGadget, TRUE,
+                        WA_IDCMP, IDCMP_GADGETDOWN | IDCMP_GADGETUP |
+                                  IDCMP_CLOSEWINDOW,
+                        TAG_END);
+    if (!win)
+    {
+        printf("SimpleGad: Failed to open window\n");
+        CloseLibrary(GfxBase);
+        CloseLibrary(IntuitionBase);
+        return;
+    }
+
+    printf("SimpleGad: Window opened with 3 boolean gadgets\n");
+    printf("SimpleGad: Button 1 has IMMEDIATE+RELVERIFY (reports both down and up)\n");
+    printf("SimpleGad: Button 2 has RELVERIFY only (reports only up)\n");
+    printf("SimpleGad: Exit button closes the window\n");
+    printf("SimpleGad: Click the close gadget or Exit button to quit\n");
+
+    /* Main event loop */
+    while (!done)
+    {
+        /* Wait for a message */
+        WaitPort(win->UserPort);
+        
+        /* Process all pending messages */
+        while ((msg = (struct IntuiMessage *)GetMsg(win->UserPort)) != NULL)
         {
-            printf("SimpleGad: Window opened with 3 boolean gadgets\n");
-            printf("SimpleGad: - Button 1: GACT_IMMEDIATE | GACT_RELVERIFY\n");
-            printf("SimpleGad: - Button 2: GACT_RELVERIFY only\n");
-            printf("SimpleGad: - Exit: GACT_RELVERIFY only\n");
-            printf("SimpleGad: Gadgets visible in window: %s\n",
-                   win->FirstGadget ? "YES" : "NO");
+            class = msg->Class;
+            gad = (struct Gadget *)msg->IAddress;
             
-            /* Verify gadget chain */
-            printf("SimpleGad: Verifying gadget chain...\n");
-            
-            struct Gadget *gad = win->FirstGadget;
-            LONG gadget_count = 0;
-            while (gad)
+            /* Extract gadget ID if this is a gadget event */
+            if (class == IDCMP_GADGETDOWN || class == IDCMP_GADGETUP)
             {
-                gadget_count++;
-                printf("SimpleGad:   Gadget %ld: ID=%ld, Flags=0x%04lx, Activation=0x%04lx\n",
-                       gadget_count, (LONG)gad->GadgetID, 
-                       (LONG)gad->Flags, (LONG)gad->Activation);
-                gad = gad->NextGadget;
+                gadgetID = gad ? gad->GadgetID : 0;
             }
             
-            printf("SimpleGad: Found %ld gadgets (expected 5: 3 custom + close + depth)\n", 
-                   gadget_count);
+            /* Reply to the message before processing */
+            ReplyMsg((struct Message *)msg);
             
-            /* Auto-close after 2 seconds for automated testing */
-            printf("SimpleGad: Waiting 2 seconds before auto-close...\n");
-            Delay(100);  /* 100 ticks = 2 seconds */
-            
-            printf("SimpleGad: Closing window\n");
-            CloseWindow(win);
+            /* Handle the message */
+            switch (class)
+            {
+                case IDCMP_CLOSEWINDOW:
+                    printf("SimpleGad: Close gadget clicked - exiting\n");
+                    done = TRUE;
+                    break;
+                    
+                case IDCMP_GADGETDOWN:
+                    printf("SimpleGad: GADGETDOWN - Gadget ID %d pressed\n", gadgetID);
+                    break;
+                    
+                case IDCMP_GADGETUP:
+                    printf("SimpleGad: GADGETUP - Gadget ID %d released\n", gadgetID);
+                    if (gadgetID == BUTTON3_GAD_NUM)
+                    {
+                        printf("SimpleGad: Exit button clicked - exiting\n");
+                        done = TRUE;
+                    }
+                    break;
+            }
         }
-        else
-        {
-            printf("SimpleGad: ERROR - Failed to open window\n");
-        }
-        CloseLibrary(IntuitionBase);
     }
-    else
-    {
-        printf("SimpleGad: ERROR - Failed to open intuition.library v37+\n");
-    }
+
+    printf("SimpleGad: Closing window\n");
+    CloseWindow(win);
+    CloseLibrary(GfxBase);
+    CloseLibrary(IntuitionBase);
 }

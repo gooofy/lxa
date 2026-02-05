@@ -517,4 +517,195 @@ static inline BOOL test_validate_screen_has_content(LONG min_pixels)
     return (content >= min_pixels);
 }
 
+/*
+ * ============================================================================
+ * Phase 56+: Interactive Testing Helpers
+ * ============================================================================
+ */
+
+/*
+ * Helper: Perform a complete mouse click (press + release) at a position.
+ * Waits for event processing between press and release.
+ *
+ * @param x, y       Screen coordinates to click
+ * @param button     MOUSE_LEFTBUTTON, MOUSE_RIGHTBUTTON, or MOUSE_MIDDLEBUTTON
+ * @return TRUE on success
+ */
+static inline BOOL test_mouse_click(WORD x, WORD y, UWORD button)
+{
+    /* Move to position first */
+    if (!test_inject_mouse(x, y, 0, DISPLAY_EVENT_MOUSEMOVE))
+        return FALSE;
+    
+    /* Wait for move to be processed */
+    /* We use a simple delay since WaitTOF would require graphics.library */
+    {
+        volatile LONG i;
+        for (i = 0; i < 10000; i++) ;  /* Short spin delay */
+    }
+    
+    /* Press button */
+    if (!test_inject_mouse(x, y, button, DISPLAY_EVENT_MOUSEBUTTON))
+        return FALSE;
+    
+    /* Wait for press to be processed */
+    {
+        volatile LONG i;
+        for (i = 0; i < 50000; i++) ;  /* Longer delay for button press */
+    }
+    
+    /* Release button */
+    if (!test_inject_mouse(x, y, 0, DISPLAY_EVENT_MOUSEBUTTON))
+        return FALSE;
+    
+    /* Wait for release to be processed */
+    {
+        volatile LONG i;
+        for (i = 0; i < 10000; i++) ;
+    }
+    
+    return TRUE;
+}
+
+/*
+ * Helper: Perform a right-click menu drag operation.
+ * Press RMB at start position, move to end position, release.
+ * This is how Amiga menus work - hold RMB, drag to item, release.
+ *
+ * @param startX, startY  Where to press RMB (menu bar area)
+ * @param endX, endY      Where to release RMB (menu item)
+ * @return TRUE on success
+ */
+static inline BOOL test_menu_select(WORD startX, WORD startY, WORD endX, WORD endY)
+{
+    /* Move to menu bar */
+    if (!test_inject_mouse(startX, startY, 0, DISPLAY_EVENT_MOUSEMOVE))
+        return FALSE;
+    
+    /* Short delay */
+    {
+        volatile LONG i;
+        for (i = 0; i < 10000; i++) ;
+    }
+    
+    /* Press right mouse button (enters menu mode) */
+    if (!test_inject_mouse(startX, startY, MOUSE_RIGHTBUTTON, DISPLAY_EVENT_MOUSEBUTTON))
+        return FALSE;
+    
+    /* Wait for menu to appear */
+    {
+        volatile LONG i;
+        for (i = 0; i < 100000; i++) ;  /* Longer delay for menu rendering */
+    }
+    
+    /* Move to menu item (while RMB still held) */
+    if (!test_inject_mouse(endX, endY, MOUSE_RIGHTBUTTON, DISPLAY_EVENT_MOUSEMOVE))
+        return FALSE;
+    
+    /* Wait for item to highlight */
+    {
+        volatile LONG i;
+        for (i = 0; i < 50000; i++) ;
+    }
+    
+    /* Release right mouse button (selects item) */
+    if (!test_inject_mouse(endX, endY, 0, DISPLAY_EVENT_MOUSEBUTTON))
+        return FALSE;
+    
+    /* Wait for selection to be processed */
+    {
+        volatile LONG i;
+        for (i = 0; i < 20000; i++) ;
+    }
+    
+    return TRUE;
+}
+
+/*
+ * Helper: Check if a region has changed by comparing pixel counts.
+ * Saves the current pixel count for a region, useful for detecting UI updates.
+ *
+ * @param x, y, w, h  Region to check
+ * @param baseline    Previous pixel count to compare against
+ * @param threshold   Minimum difference to consider "changed"
+ * @return TRUE if region has changed (|current - baseline| >= threshold)
+ */
+static inline BOOL test_region_changed(WORD x, WORD y, WORD w, WORD h, 
+                                        LONG baseline, LONG threshold)
+{
+    LONG current = test_get_region_content(x, y, w, h);
+    if (current < 0)
+        return FALSE;  /* Error getting region content */
+    
+    LONG diff = current - baseline;
+    if (diff < 0) diff = -diff;  /* abs() */
+    
+    return (diff >= threshold);
+}
+
+/*
+ * Helper: Wait for a region to have content (with timeout).
+ * Useful for waiting for windows/menus to appear.
+ *
+ * @param x, y, w, h   Region to check
+ * @param min_pixels   Minimum pixels to consider "has content"
+ * @param max_loops    Maximum spin loops to wait (0 = no limit)
+ * @return TRUE if region has content, FALSE if timeout
+ */
+static inline BOOL test_wait_for_region_content(WORD x, WORD y, WORD w, WORD h,
+                                                 LONG min_pixels, ULONG max_loops)
+{
+    ULONG loops = 0;
+    
+    while (max_loops == 0 || loops < max_loops)
+    {
+        LONG content = test_get_region_content(x, y, w, h);
+        if (content >= min_pixels)
+            return TRUE;
+        
+        /* Small spin delay */
+        {
+            volatile LONG i;
+            for (i = 0; i < 1000; i++) ;
+        }
+        
+        loops++;
+    }
+    
+    return FALSE;
+}
+
+/*
+ * Helper: Get the approximate center of a gadget given its geometry.
+ * Useful for calculating click coordinates.
+ */
+static inline void test_gadget_center(WORD gadX, WORD gadY, WORD gadW, WORD gadH,
+                                       WORD winX, WORD winY,
+                                       WORD *outX, WORD *outY)
+{
+    /* Convert gadget-relative coordinates to screen coordinates */
+    *outX = winX + gadX + (gadW / 2);
+    *outY = winY + gadY + (gadH / 2);
+}
+
+/*
+ * Helper: Drain all pending IDCMP messages from a port.
+ * Useful for clearing the queue before testing specific interactions.
+ *
+ * @param port  The message port to drain
+ * @return Number of messages drained
+ *
+ * Note: This requires the caller to have exec.library available.
+ * Caller should #include <clib/exec_protos.h> and use their SysBase.
+ */
+#define TEST_DRAIN_PORT(port, count) \
+    do { \
+        struct Message *_msg; \
+        (count) = 0; \
+        while ((_msg = GetMsg(port)) != NULL) { \
+            ReplyMsg(_msg); \
+            (count)++; \
+        } \
+    } while(0)
+
 #endif /* TEST_INJECT_H */

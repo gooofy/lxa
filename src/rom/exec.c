@@ -1759,8 +1759,8 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
         /* Set the wait signal mask */
         thisTask->tc_SigWait = ___signalSet;
 
-        DPRINTF (LOG_DEBUG, "_exec: Wait() moving task '%s' @ 0x%08lx to TaskWait\n",
-                 thisTask->tc_Node.ln_Name, thisTask);
+        DPRINTF (LOG_DEBUG, "_exec: Wait() moving task '%s' @ 0x%08lx to TaskWait, SigWait=0x%08lx\n",
+                 thisTask->tc_Node.ln_Name, thisTask, thisTask->tc_SigWait);
 
         /*
          * Clear TDNestCnt (because Switch() will not care about it),
@@ -1857,8 +1857,8 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
     /* Set the signals in the task structure. */
     ___task->tc_SigRecvd |= ___signalSet;
 
-    DPRINTF (LOG_DEBUG, "_exec: Signal() target task state=%d, SigRecvd=0x%08lx\n",
-             ___task->tc_State, ___task->tc_SigRecvd);
+    DPRINTF (LOG_DEBUG, "_exec: Signal() target task state=%d, SigRecvd=0x%08lx, SigWait=0x%08lx\n",
+             ___task->tc_State, ___task->tc_SigRecvd, ___task->tc_SigWait);
 
     /* Do those bits raise exceptions? */
     if (___task->tc_SigRecvd & ___task->tc_SigExcept)

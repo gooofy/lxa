@@ -1,14 +1,5 @@
 SimpleGad: Window opened with 3 boolean gadgets
-SimpleGad: - Button 1: GACT_IMMEDIATE | GACT_RELVERIFY
-SimpleGad: - Button 2: GACT_RELVERIFY only
-SimpleGad: - Exit: GACT_RELVERIFY only
-SimpleGad: Gadgets visible in window: YES
-SimpleGad: Verifying gadget chain...
-SimpleGad:   Gadget 1: ID=3, Flags=0x0000, Activation=0x0003
-SimpleGad:   Gadget 2: ID=4, Flags=0x0000, Activation=0x0001
-SimpleGad:   Gadget 3: ID=5, Flags=0x0000, Activation=0x0001
-SimpleGad:   Gadget 4: ID=128, Flags=0x0000, Activation=0x0041
-SimpleGad:   Gadget 5: ID=64, Flags=0x0000, Activation=0x0041
-SimpleGad: Found 5 gadgets (expected 5: 3 custom + close + depth)
-SimpleGad: Waiting 2 seconds before auto-close...
-SimpleGad: Closing window
+SimpleGad: Button 1 has IMMEDIATE+RELVERIFY (reports both down and up)
+SimpleGad: Button 2 has RELVERIFY only (reports only up)
+SimpleGad: Exit button closes the window
+SimpleGad: Click the close gadget or Exit button to quit

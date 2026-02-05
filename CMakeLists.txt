@@ -127,6 +127,14 @@ if(BUILD_UNIT_TESTS)
     add_subdirectory(tests/unit)
 endif()
 
+# === Test Drivers ===
+# Add test drivers (host-side C programs that use liblxa API)
+option(BUILD_TEST_DRIVERS "Build test drivers" ON)
+if(BUILD_TEST_DRIVERS)
+    message(STATUS "Configuring test drivers...")
+    add_subdirectory(tests/drivers)
+endif()
+
 # === Summary ===
 message(STATUS "")
 message(STATUS "LXA Configuration:")
@@ -136,4 +144,5 @@ message(STATUS "  Default user prefix:  ${LXA_DEFAULT_PREFIX}")
 message(STATUS "  ROM tool:             ${ROMTOOL}")
 message(STATUS "  Cross-compiler:       ${M68K_GCC}")
 message(STATUS "  Unit tests:           ${BUILD_UNIT_TESTS}")
+message(STATUS "  Test drivers:         ${BUILD_TEST_DRIVERS}")
 message(STATUS "")

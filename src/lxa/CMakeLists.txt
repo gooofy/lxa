@@ -29,8 +29,8 @@ if(NOT READLINE_LIBRARY)
     message(FATAL_ERROR "readline library not found. Please install readline development package.")
 endif()
 
-# Source files for the host emulator
-set(LXA_HOST_SOURCES
+# Core source files (shared between library and executable)
+set(LXA_CORE_SOURCES
     lxa.c
     m68kcpu.c
     m68kdasm.c
@@ -42,10 +42,70 @@ set(LXA_HOST_SOURCES
     display.c
 )
 
-# Define the lxa executable
-add_executable(lxa ${LXA_HOST_SOURCES})
+# Common compile options
+set(LXA_COMPILE_OPTIONS
+    -Wall
+    -Werror
+    -g
+    -O2
+    -Wno-format-truncation
+    -Wno-stringop-truncation
+    -Wno-format-overflow
+    -Wno-return-type
+)
 
-# Include directories
+# Common compile definitions
+set(LXA_COMPILE_DEFINITIONS
+    LXA_VERSION=\"${PROJECT_VERSION}\"
+    LXA_DATA_DIR=\"${LXA_DATA_DIR}\"
+    LXA_DEFAULT_PREFIX=\"${LXA_DEFAULT_PREFIX}\"
+)
+
+if(SDL2_FOUND)
+    list(APPEND LXA_COMPILE_DEFINITIONS SDL2_FOUND)
+endif()
+
+# === liblxa static library ===
+# This is used by test drivers to control the emulator programmatically
+add_library(liblxa STATIC
+    ${LXA_CORE_SOURCES}
+    lxa_api.c
+)
+
+target_include_directories(liblxa PUBLIC
+    ${CMAKE_SOURCE_DIR}/src/include
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+if(READLINE_INCLUDE_DIR)
+    target_include_directories(liblxa PRIVATE ${READLINE_INCLUDE_DIR})
+endif()
+
+if(SDL2_FOUND)
+    target_include_directories(liblxa PRIVATE ${SDL2_INCLUDE_DIRS})
+endif()
+
+target_compile_options(liblxa PRIVATE ${LXA_COMPILE_OPTIONS})
+target_compile_definitions(liblxa PRIVATE ${LXA_COMPILE_DEFINITIONS} LXA_LIBRARY_BUILD)
+
+target_link_libraries(liblxa PUBLIC
+    Threads::Threads
+    ${READLINE_LIBRARY}
+    m
+)
+
+if(SDL2_FOUND)
+    target_link_libraries(liblxa PUBLIC ${SDL2_LIBRARIES})
+endif()
+
+set_target_properties(liblxa PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY ${HOST_BINARY_DIR}/lib
+    OUTPUT_NAME lxa
+)
+
+# === lxa executable ===
+add_executable(lxa ${LXA_CORE_SOURCES})
+
 target_include_directories(lxa PRIVATE
     ${CMAKE_SOURCE_DIR}/src/include
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -59,22 +119,9 @@ if(SDL2_FOUND)
     target_include_directories(lxa PRIVATE ${SDL2_INCLUDE_DIRS})
 endif()
 
-# Compiler flags for host build
-# Note: Using same flags as legacy Makefile, with additional suppressions
-# for warnings that appear with newer GCC versions but not with the older
-# compiler configuration used in the legacy Makefile
-target_compile_options(lxa PRIVATE
-    -Wall
-    -Werror
-    -g
-    -O2
-    -Wno-format-truncation
-    -Wno-stringop-truncation
-    -Wno-format-overflow
-    -Wno-return-type
-)
+target_compile_options(lxa PRIVATE ${LXA_COMPILE_OPTIONS})
+target_compile_definitions(lxa PRIVATE ${LXA_COMPILE_DEFINITIONS})
 
-# Link libraries
 target_link_libraries(lxa PRIVATE
     Threads::Threads
     ${READLINE_LIBRARY}
@@ -85,19 +132,6 @@ if(SDL2_FOUND)
     target_link_libraries(lxa PRIVATE ${SDL2_LIBRARIES})
 endif()
 
-# Define configuration macros
-target_compile_definitions(lxa PRIVATE
-    LXA_VERSION=\"${PROJECT_VERSION}\"
-    LXA_DATA_DIR=\"${LXA_DATA_DIR}\"
-    LXA_DEFAULT_PREFIX=\"${LXA_DEFAULT_PREFIX}\"
-)
-
-# Add SDL2_FOUND definition if SDL2 is available
-if(SDL2_FOUND)
-    target_compile_definitions(lxa PRIVATE SDL2_FOUND)
-endif()
-
-# Set output directory
 set_target_properties(lxa PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${HOST_BINARY_DIR}/bin
 )
@@ -105,4 +139,12 @@ set_target_properties(lxa PROPERTIES
 # Installation
 install(TARGETS lxa
     RUNTIME DESTINATION bin
+)
+
+install(TARGETS liblxa
+    ARCHIVE DESTINATION lib
+)
+
+install(FILES lxa_api.h
+    DESTINATION include
 )

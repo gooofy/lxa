@@ -81,6 +81,7 @@ static bool g_rootless_mode = false;
 /* Global state */
 static bool g_display_initialized = false;
 static bool g_sdl_available = false;
+static bool g_headless_mode = false;  /* Skip SDL window creation for automated testing */
 static display_t *g_active_display = NULL;  /* Forward declaration for event routing */
 
 /*
@@ -216,7 +217,7 @@ display_t *display_open(int width, int height, int depth, const char *title)
     }
 
 #if HAS_SDL2
-    if (g_sdl_available)
+    if (g_sdl_available && !g_headless_mode)
     {
         const char *window_title = title ? title : "LXA Display";
 
@@ -567,6 +568,8 @@ static void queue_event(const display_event_t *event)
     {
         g_event_queue[g_event_queue_head] = *event;
         g_event_queue_head = next_head;
+        DPRINTF(LOG_DEBUG, "display: queue_event type=%d, head=%d tail=%d\n", 
+                event->type, g_event_queue_head, g_event_queue_tail);
     }
 }
 
@@ -584,6 +587,8 @@ bool display_get_event(display_event_t *event)
     {
         *event = g_event_queue[g_event_queue_tail];
     }
+    DPRINTF(LOG_DEBUG, "display: get_event type=%d, head=%d tail=%d\n", 
+            g_event_queue[g_event_queue_tail].type, g_event_queue_head, g_event_queue_tail);
     g_event_queue_tail = (g_event_queue_tail + 1) % EVENT_QUEUE_SIZE;
     return true;
 }
@@ -716,10 +721,10 @@ static int sdl_mod_to_qualifier(uint16_t mod)
 bool display_poll_events(void)
 {
 #if HAS_SDL2
-    if (!g_sdl_available)
+    /* In headless mode, skip SDL event polling but don't return early -
+     * there may be injected events in the queue that need to be processed */
+    if (g_sdl_available && !g_headless_mode)
     {
-        return false;
-    }
 
     SDL_Event event;
     while (SDL_PollEvent(&event))
@@ -830,6 +835,7 @@ bool display_poll_events(void)
                 break;
         }
     }
+    }  /* end if (g_sdl_available && !g_headless_mode) */
 #endif
 
     return false;
@@ -947,7 +953,7 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
     }
 
 #if HAS_SDL2
-    if (g_sdl_available)
+    if (g_sdl_available && !g_headless_mode)
     {
         const char *window_title = title ? title : "LXA Window";
 
@@ -1443,9 +1449,6 @@ bool display_get_amiga_bitmap(display_t *display, uint32_t *planes_ptr, uint32_t
  * Phase 21: UI Testing Infrastructure
  * ============================================================================
  */
-
-/* Headless mode state */
-static bool g_headless_mode = false;
 
 /*
  * Convert ASCII character to Amiga rawkey code.

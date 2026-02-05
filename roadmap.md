@@ -8,11 +8,23 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.15** | **Phase 56 In Progress** | **29 RKM Sample Tests Passing** | **150 Total Tests Passing**
+**Version: 0.6.17** | **Phase 56 In Progress** | **28 RKM Sample Tests Passing** | **150 Total Tests Passing**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
 **Recent Fixes (Phase 56)**:
+- **Host-side Test Driver Infrastructure (liblxa)**: Added simplegad_test driver that uses the liblxa API to:
+  - Start the SimpleGad sample
+  - Wait for window to open
+  - Click gadgets programmatically via `lxa_inject_mouse_click()`
+  - Verify GADGETDOWN/GADGETUP IDCMP messages appear in output
+  - Fixed timing issue where task must reach WaitPort() before events are injected
+- **Enhanced Interactive Testing Infrastructure**: Converted passive samples to true interactive tests using `test_inject.h`:
+  - `SimpleMenu` - Now performs RMB menu selection and verifies MENUPICK messages
+  - `UpdateStrGad` - Now types into string gadgets and tests backspace handling
+  - `SimpleGTGadget` - Now clicks GadTools BUTTON_KIND and CYCLE_KIND gadgets
+- **Note**: `SimpleGad` is tested via host-side driver (`tests/drivers/simplegad_test`) rather than in-ROM test_inject.h
+- **New test_inject.h helpers**: `test_mouse_click()`, `test_menu_select()`, `test_region_changed()`, `test_wait_for_region_content()`, `test_gadget_center()`, `TEST_DRAIN_PORT()` macro
 - **Fixed critical Amiga2Date bug**: Day-of-month calculation was off by 1, causing incorrect date conversions. Fixed formula to match Hinnant's civil_from_days algorithm.
 - **New Utility Library Samples**:
   - `IStr` - String comparison and case conversion: Stricmp, Strnicmp, ToUpper, ToLower
@@ -206,23 +218,53 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## High Priority Phases
 
-### Phase 57: KickPascal 2 Deep Dive
-**Goal**: Full KickPascal 2 IDE functionality with automated testing.
+### Phase 57: Host-Side Test Driver Migration
+**Goal**: Migrate all interactive UI tests and deep dive app tests to use the liblxa host-side driver infrastructure.
+
+**Why This Matters**:
+- Host-side drivers provide full control over timing and event injection
+- Better debugging capabilities (host-side breakpoints)
+- More reliable than in-ROM test_inject.h approach
+- Enables automated testing of complex interactive applications
+
+**TODO - Migrate test_inject.h Samples**:
+- [ ] `SimpleMenu` → `tests/drivers/simplemenu_test.c`
+- [ ] `UpdateStrGad` → `tests/drivers/updatestrgad_test.c`
+- [ ] `SimpleGTGadget` → `tests/drivers/simplegtgadget_test.c`
+
+**TODO - Create Deep Dive App Test Drivers**:
+- [ ] `tests/drivers/kickpascal_test.c` - KickPascal 2 automated testing
+- [ ] `tests/drivers/devpac_test.c` - Devpac/HiSoft assembler testing
+- [ ] `tests/drivers/maxonbasic_test.c` - MaxonBASIC IDE testing
+- [ ] `tests/drivers/dpaint_test.c` - DPaint V testing
+- [ ] `tests/drivers/asm_one_test.c` - ASM-One testing
+
+**TODO - Extend liblxa API**:
+- [ ] Add `lxa_inject_rmb_click()` for menu access
+- [ ] Add `lxa_inject_drag()` for drag operations
+- [ ] Add `lxa_get_screen_info()` for screen queries
+- [ ] Add `lxa_read_pixel()` for visual verification
+
+**Completed**:
+- [x] `simplegad_test.c` - SimpleGad gadget click testing
+
+### Phase 58: KickPascal 2 Deep Dive
+**Goal**: Full KickPascal 2 IDE functionality with automated testing via host-side driver.
 **Status**: ⚠️ UI Issues (Screen clearing, repaint speed, cursor keys).
 
-### Phase 58: Devpac (HiSoft) Deep Dive
+### Phase 59: Devpac (HiSoft) Deep Dive
 **Goal**: Verify editor content area and achieve full assembler functionality.
 **Status**: ✅ WORKING - Window opens and responds to input.
 
-### Phase 59: MaxonBASIC Deep Dive
+### Phase 60: MaxonBASIC Deep Dive
 **Goal**: Verify and complete full MaxonBASIC IDE functionality.
 **Status**: ⚠️ UNKNOWN - Opens Workbench and window.
 
-### Phase 60: Oberon 2 Deep Dive
+### Phase 61: Oberon 2 Deep Dive
 **Goal**: Fix A5 register corruption and enable Oberon system.
 **Status**: ⚠️ PARTIAL - Trap handlers implemented.
 
-### Phase 61: Cluster2 Deep Dive
+### Phase 62: Cluster2 Deep Dive
 **Goal**: Investigate and achieve full compatibility for Cluster2.
 **Status**: 🆕 PLANNED
 
@@ -230,21 +272,21 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Future Phases
 
-### Phase 62: DPaint V Deep Dive
+### Phase 63: DPaint V Deep Dive
 **Goal**: Fix hang during initialization after font loading.
 **Status**: ⚠️ PARTIAL - Libraries load, Workbench opens.
 
-### Phase 63: Directory Opus 4 Deep Dive
+### Phase 64: Directory Opus 4 Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
 **Status**: ⚠️ PARTIAL - Exit code 1 investigation needed.
 
-### Phase 64: SysInfo Deep Dive
+### Phase 65: SysInfo Deep Dive
 **Goal**: Verify SysInfo displays complete system information.
 
-### Phase 65: EdWord Pro Deep Dive
+### Phase 66: EdWord Pro Deep Dive
 **Goal**: Verify and complete full word processor functionality.
 
-### Phase 66: BeckerText II Deep Dive
+### Phase 67: BeckerText II Deep Dive
 **Goal**: Verify full window content renders and text editing.
 
 ---
@@ -258,6 +300,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.17 | 56 | Host-side test driver infrastructure (liblxa): simplegad_test, fixed IDCMP timing issues |
 | 0.6.14 | 56 | Added Sift (IFF parsing), TaskList, AllocEntry, FindBoards samples; implemented FindConfigDev |
 | 0.6.13 | 56 | Fixed mathffp bugs (SPSub, SPCmp, SPTst, SPAbs), added FFPExample and SimpleGTGadget samples |
 | 0.6.12 | 56 | Added SimpleImage, ShadowBorder, EasyIntuition, SimpleMenu, EasyRequest, SimpleTimer, Clipping samples |

@@ -78,3 +78,7 @@ int config_get_ram_size(void) {
 bool config_get_rootless_mode(void) {
     return g_rootless_mode;
 }
+
+void config_set_rootless_mode(bool enable) {
+    g_rootless_mode = enable;
+}

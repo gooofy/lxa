@@ -2716,7 +2716,7 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
     /* Post the message to the window's UserPort */
     PutMsg(window->UserPort, (struct Message *)imsg);
     
-    DPRINTF(LOG_DEBUG, "_intuition: Posted IDCMP 0x%08lx to window 0x%08lx\n",
+    LPRINTF(LOG_INFO, "_intuition: Posted IDCMP 0x%08lx to window 0x%08lx\n",
             class, (ULONG)window);
     
     return TRUE;
@@ -3083,13 +3083,6 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
  */
 VOID _intuition_VBlankInputHook(void)
 {
-    static int counter = 0;
-    counter++;
-    if (counter % 50 == 0)  /* Log every second (50Hz VBlank) */
-    {
-        DPRINTF(LOG_DEBUG, "_intuition: VBlankInputHook called (count=%d)\n", counter);
-    }
-    
     struct IntuitionBase *IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
     if (IntuitionBase)
     {

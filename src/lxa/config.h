@@ -13,5 +13,6 @@ int config_get_ram_size(void);
  * all windows being rendered on a single screen surface.
  */
 bool config_get_rootless_mode(void);
+void config_set_rootless_mode(bool enable);
 
 #endif
