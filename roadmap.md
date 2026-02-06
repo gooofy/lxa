@@ -162,9 +162,9 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 **Requirement**: All tests are REQUIRED to have host-side drivers (liblxa based). No more shell scripting / output diffing / `test_inject.h`.
 
 **TODO**:
-- [ ] **Google Test Installation**: install necessary libraries and headers on this workstation (Fedora 42 / dnf)
-- [ ] **Setup**: Integrate Google Test into the project build system (`CMakeLists.txt`).
-- [ ] **Infrastructure**: Create `LxaTest` GTest base class to handle `liblxa` initialization/shutdown and common assertions.
+- [x] **Google Test Installation**: install necessary libraries and headers on this workstation (Fedora 42 / dnf)
+- [x] **Setup**: Integrate Google Test into the project build system (`CMakeLists.txt`).
+- [x] **Infrastructure**: Create `LxaTest` GTest base class to handle `liblxa` initialization/shutdown and common assertions.
 - [x] **Porting - Exec**: Port all `tests/exec/` tests to GTest + host-side drivers.
 - [x] **Porting - DOS**: Port all `tests/dos/` tests to GTest + host-side drivers.
 - [x] **Porting - Commands**: Port all `tests/commands/` tests to GTest + host-side drivers.
@@ -172,10 +172,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] **Porting - Intuition**: Port all `tests/intuition/` tests to GTest + host-side drivers.
 - [x] **Porting - Layers**: Port all `tests/layers/` tests to GTest + host-side drivers.
 - [x] **Porting - Devices**: Port all `tests/devices/` (timer, clipboard, console) to GTest.
-- [ ] **Porting - Shell**: Port all `tests/shell/` tests to GTest.
+- [x] **Porting - Shell**: Port all `tests/shell/` tests to GTest.
 - [x] **Porting - Samples**: Port most `tests/samples/` to GTest.
-- [ ] **Porting - Apps**: Integrate existing `tests/drivers/` app tests (KickPascal, etc.) into GTest suite.
-- [ ] **Porting - Misc**: Port `asl`, `icon`, `iffparse`, `gadtools`, `datatypes`, `stress` tests.
+- [x] **Porting - Apps**: Integrate existing `tests/drivers/` app tests (KickPascal, etc.) into GTest suite.
+- [x] **Porting - Misc**: Port `asl`, `icon`, `iffparse`, `gadtools`, `datatypes`, `stress` tests.
 - [ ] **Cleanup**: Remove `test_runner.sh`, `test_inject.h`, and legacy `expected.out` files.
 - [ ] **AGENTS.md/Skills/Documentation**: adapt AGENTS.md, skills and all documentation to reflect the new test infrastructure and requirements
 

@@ -214,6 +214,13 @@ bool lxa_add_assign(const char *name, const char *linux_path)
     return vfs_assign_add(name, linux_path, ASSIGN_LOCK);
 }
 
+bool lxa_add_assign_path(const char *name, const char *linux_path)
+{
+    if (!g_api_initialized) return false;
+    if (!name || !linux_path) return false;
+    return vfs_assign_add_path(name, linux_path);
+}
+
 bool lxa_add_drive(const char *name, const char *linux_path)
 {
     if (!g_api_initialized) return false;

@@ -711,13 +711,6 @@ int main(int argc, char **argv)
     int buf_len = 0;
     BOOL run_startup = FALSE;
     
-    /* Set current directory to SYS: at startup */
-    BPTR sys_lock = Lock((STRPTR)"SYS:", SHARED_LOCK);
-    if (sys_lock) {
-        BPTR old_lock = CurrentDir(sys_lock);
-        UnLock(old_lock);
-    }
-    
     if (argc > 1) {
         script_file = Open((STRPTR)argv[1], MODE_OLDFILE);
         if (script_file) {

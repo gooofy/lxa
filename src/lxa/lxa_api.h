@@ -130,6 +130,16 @@ int lxa_run_until_exit(int timeout_ms);
  */
 bool lxa_add_assign(const char *name, const char *linux_path);
 
+/**
+ * Add a path to an existing AmigaDOS assign (multi-assign).
+ * If the assign doesn't exist, it is created.
+ *
+ * @param name        Assign name (without colon)
+ * @param linux_path  Host filesystem path to add
+ * @return true on success
+ */
+bool lxa_add_assign_path(const char *name, const char *linux_path);
+
 /*
  * Add an AmigaDOS drive.
  * This creates a volume that points to a directory.

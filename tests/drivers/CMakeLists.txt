@@ -246,6 +246,21 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(devices_gtest)
     endif()
 
+    # Shell tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/shell_gtest.cpp)
+        add_gtest_driver(shell_gtest)
+    endif()
+
+    # Misc tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/misc_gtest.cpp)
+        add_gtest_driver(misc_gtest)
+    endif()
+
+    # Misc Apps tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/apps_misc_gtest.cpp)
+        add_gtest_driver(apps_misc_gtest)
+    endif()
+
     # Layers tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/layers_gtest.cpp)
         add_gtest_driver(layers_gtest)

@@ -96,6 +96,76 @@ inline const char* FindCommandsPath() {
 }
 
 /**
+ * Helper function to find system commands path (System/Shell).
+ */
+inline const char* FindSystemPath() {
+    static std::string system_path;
+    const char* locations[] = {
+        "target/sys/System",
+        "../target/sys/System",
+        "../../target/sys/System",
+        "build/target/sys/System",
+        nullptr
+    };
+    
+    for (int i = 0; locations[i]; i++) {
+        if (access(locations[i], F_OK) == 0) {
+            system_path = locations[i];
+            return system_path.c_str();
+        }
+    }
+    
+    return nullptr;
+}
+
+/**
+ * Helper function to find system base path (containing System/ directory).
+ */
+inline const char* FindSystemBasePath() {
+    static std::string system_base_path;
+    const char* locations[] = {
+        "target/sys",
+        "../target/sys",
+        "../../target/sys",
+        "build/target/sys",
+        nullptr
+    };
+    
+    for (int i = 0; locations[i]; i++) {
+        std::string check_path = std::string(locations[i]) + "/System";
+        if (access(check_path.c_str(), F_OK) == 0) {
+            system_base_path = locations[i];
+            return system_base_path.c_str();
+        }
+    }
+    
+    return nullptr;
+}
+
+/**
+ * Helper function to find lxa-apps directory.
+ */
+inline const char* FindAppsPath() {
+    static std::string apps_path;
+    const char* locations[] = {
+        "../lxa-apps",
+        "../../lxa-apps",
+        "../../../lxa-apps",
+        "lxa-apps",
+        nullptr
+    };
+    
+    for (int i = 0; locations[i]; i++) {
+        if (access(locations[i], F_OK) == 0) {
+            apps_path = locations[i];
+            return apps_path.c_str();
+        }
+    }
+    
+    return nullptr;
+}
+
+/**
  * Base test fixture for all lxa tests.
  * Provides automatic setup/teardown of the lxa emulator.
  */
@@ -105,6 +175,7 @@ protected:
     bool initialized;
     std::string t_dir_path;
     std::string env_dir_path;
+    std::string ram_dir_path;
     
     LxaTest() : initialized(false) {
         // Default configuration
@@ -129,21 +200,48 @@ protected:
                 FAIL() << "Could not find lxa.rom in standard locations";
             }
         }
-        if (config.sys_drive == nullptr) {
-            config.sys_drive = FindSamplesPath();
-            if (config.sys_drive == nullptr) {
-                FAIL() << "Could not find samples directory in standard locations";
-            }
-        }
         
-        // Initialize lxa
+        // Initialize lxa (without setting sys_drive in config to avoid drive/assign conflict)
         int result = lxa_init(&config);
         ASSERT_EQ(result, 0) << "Failed to initialize lxa emulator";
         
+        // Map SYS: as a multi-assign
+        const char* samples_path = FindSamplesPath();
+        if (samples_path) {
+            lxa_add_assign("SYS", samples_path);
+        } else {
+            FAIL() << "Could not find samples directory in standard locations";
+        }
+
+        // Add system base to SYS: multi-assign if found
+        const char* system_base = FindSystemBasePath();
+        if (system_base) {
+            lxa_add_assign_path("SYS", system_base);
+        }
+
+        // Map RAM: to a temporary directory
+        char ram_dir[] = "/tmp/lxa_test_RAM_XXXXXX";
+        if (mkdtemp(ram_dir)) {
+            ram_dir_path = ram_dir;
+            lxa_add_drive("RAM", ram_dir);
+        }
+
+        // Map APPS: to lxa-apps directory if found
+        const char* apps_path = FindAppsPath();
+        if (apps_path) {
+            lxa_add_assign("APPS", apps_path);
+        }
+
         // Map C: to system commands if found
         const char* commands_path = FindCommandsPath();
         if (commands_path) {
             lxa_add_assign("C", commands_path);
+        }
+
+        // Map System: to system binaries if found
+        const char* system_path = FindSystemPath();
+        if (system_path) {
+            lxa_add_assign("System", system_path);
         }
 
         // Map T: to a temporary directory
@@ -176,6 +274,11 @@ protected:
         }
 
         // Cleanup temporary directories
+        if (!ram_dir_path.empty()) {
+            std::string cmd = "rm -rf " + ram_dir_path;
+            system(cmd.c_str());
+            ram_dir_path.clear();
+        }
         if (!t_dir_path.empty()) {
             std::string cmd = "rm -rf " + t_dir_path;
             system(cmd.c_str());

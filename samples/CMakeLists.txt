@@ -165,8 +165,26 @@ set(TESTS_LIST
     "../tests/layers/cliprects|main|Tests/Layers/ClipRects"
     "../tests/layers/layer_info|main|Tests/Layers/LayerInfo"
     "../tests/layers/locking|main|Tests/Layers/Locking"
-
+    "../tests/shell/alias|main|Tests/Shell/Alias/Test"
+    "../tests/shell/controlflow|main|Tests/Shell/ControlFlow/Test"
+    "../tests/shell/script|main|Tests/Shell/Script/Test"
+    "../tests/shell/variables|main|Tests/Shell/Variables/Test"
+    "../tests/icon/tooltype|main|Tests/Icon/ToolType"
+    "../tests/iffparse/basic|main|Tests/IffParse/Basic"
+    "../tests/datatypes/test_basic|main|Tests/DataTypes/Basic"
+    "../tests/stress/filesystem|main|Tests/Stress/Filesystem"
+    "../tests/stress/memory|main|Tests/Stress/Memory"
+    "../tests/stress/tasks|main|Tests/Stress/Tasks"
+    "../tests/apps/dopus|main|Tests/Apps/Dopus"
+    "../tests/apps/sysinfo|main|Tests/Apps/SysInfo"
 )
+
+# === Copy Test Data Files ===
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/../tests/iffparse/basic/T:test.iff" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/IffParse")
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/../tests/shell/alias/script.txt" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Shell/Alias")
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/../tests/shell/controlflow/script.txt" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Shell/ControlFlow")
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/../tests/shell/script/script.txt" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Shell/Script")
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/../tests/shell/variables/script.txt" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/Samples/Tests/Shell/Variables")
 
 foreach(sample_info ${SAMPLES_LIST})
     string(REPLACE "|" ";" args ${sample_info})
