@@ -8,21 +8,15 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.31** | **Phase 63 Complete** | **Google Test Transition**
+**Version: 0.6.32** | **Phase 63 Complete** | **Google Test Transition**
 
-The lxa project is transitioning to a modern testing infrastructure based on Google Test and VS Code C++ TestMate.
+The lxa project has successfully transitioned to a unified testing infrastructure based on Google Test and liblxa host-side drivers.
 
-**Phase 58 Summary (Complete)**:
-- Fixed critical display sync bug in lxa_api.c: `lxa_run_cycles()` was missing planar-to-chunky bitmap conversion, causing test drivers to see 0 content pixels even after applications drew their UI
-- Enhanced KickPascal test driver with visual verification and screenshot capture
-- Investigated cursor key handling: confirmed RAWKEY events are correctly delivered via IDCMP - KickPascal reads keys directly from IDCMP (not console.device), cursor keys work correctly
-- Improved test driver to drain pending events before cursor key tests
-
-**DPaint V Status**: Libraries load successfully, Workbench screen opens, application initializes without crashes. Currently investigating hang during initialization after font loading.
-
-**ASM-One Status**: ✅ WORKING - Opens screens, window, and editor! Ready for assembly coding!
-**Devpac Status**: Window renders AND responds to mouse/keyboard input!
-**KickPascal Status**: ✅ WORKING - Full editor functionality with text entry and cursor keys!
+**Phase 63 Summary (Complete)**:
+- Successfully transitioned the core test suite (Exec, DOS, Intuition, Graphics, etc.) to Google Test.
+- Integrated host-side drivers for major applications including ASM-One, Devpac, KickPascal, MaxonBASIC, Cluster2, and DPaint V.
+- Replaced legacy `test_inject.h` approach with robust, automated verification using `liblxa`.
+- Standardized the development workflow around GTest and automated integration testing.
 
 ---
 
@@ -48,209 +42,77 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## Completed Phases (1-41)
+## Completed Phases (1-63)
 
-### Foundation (Phases 1-12)
-- ✅ Exec multitasking with preemptive scheduling
-- ✅ DOS filesystem with case-insensitive VFS
-- ✅ Interactive Shell with scripting support
-- ✅ 100+ built-in commands (DIR, TYPE, COPY, etc.)
-- ✅ utility.library, mathffp.library, mathtrans.library
-
-### Graphics & UI (Phases 13-25)
-- ✅ SDL2 integration for display output
-- ✅ graphics.library - drawing primitives, blitting, text
-- ✅ intuition.library - screens, windows, gadgets, IDCMP
-- ✅ layers.library - clipping, layer management
-- ✅ console.device - full ANSI/CSI escape sequences
-
-### Application Support (Phases 26-35)
-- ✅ Real-world app testing: KickPascal 2, Devpac, MaxonBASIC, EdWordPro, SysInfo
-- ✅ Library stubs: gadtools, workbench, asl, commodities, rexxsyslib, iffparse, reqtools, diskfont, icon, expansion, translator, locale, keymap
-- ✅ 68030 CPU support, custom chip registers, CIA resources
-- ✅ ROM robustness: pointer validation, crash recovery
-
-### Library Completion (Phases 36-38)
-- ✅ **exec.library** - 100% complete (172 functions)
-- ✅ **graphics.library** - 90%+ complete
-- ✅ **intuition.library** - 95%+ complete
-
-### Testing & Fixes (Phases 39-40)
-- ✅ **Phase 39**: Re-testing identified rendering issues in applications
-- ✅ **Phase 39b**: Enhanced test infrastructure
-- ✅ **Phase 40**: Fixed GFA Basic screen height bug
-
-### IFF, Datatypes & Async I/O (Phases 41-45)
-- ✅ **Phase 41**: iffparse.library full implementation
-- ✅ **Phase 42**: datatypes.library (Basic Framework)
-- ✅ **Phase 43**: console.device Advanced Features
-- ✅ **Phase 44**: BOOPSI & GadTools Visual Completion
-- ✅ **Phase 45**: Async I/O & Timer Completion
-
-### RKM Samples & Test Infrastructure (Phases 46-56)
-- ✅ **Phase 56**: RKM Samples Integration - 42 sample programs covering Exec, Intuition, Graphics, GadTools, BOOPSI, Math, Devices. Fixed mathtrans.library CORDIC/SPExp bugs, mathffp.library bugs (SPSub, SPCmp, SPTst, SPAbs), Amiga2Date bug. Host-side test driver infrastructure (liblxa). 214 total tests passing.
-
-### Host-Side Test Driver Migration (Phase 57)
-- ✅ **Phase 57**: Complete host-side test driver migration with 12 test drivers. Extended liblxa API with `lxa_inject_rmb_click()`, `lxa_inject_drag()`, `lxa_get_screen_info()`, `lxa_read_pixel()`, `lxa_read_pixel_rgb()`. Deep dive app drivers for ASM-One, Devpac, KickPascal 2, MaxonBASIC, DPaint V.
+### Foundation & Transitions (Phases 1-63)
+- ✅ **Phases 1-62**: Core Exec, DOS, Graphics, Intuition, and Application support implementation.
+- ✅ **Phase 63**: **Google Test & liblxa Transition** - Successfully migrated the core test suite to Google Test and integrated host-side drivers for major applications (ASM-One, Devpac, KickPascal, MaxonBASIC, Cluster2, DPaint V). Replaced legacy `test_inject.h` with robust, automated verification using `liblxa`.
 
 ---
 
-## Completed Phases (Recent)
+## Active Goal: 100% Passing Test Suite
 
-### Phase 62: Cluster2 Deep Dive (Complete)
-**Goal**: Investigate and achieve full compatibility for Cluster2 IDE.
-**Status**: ✅ COMPLETE
-**Binary**: `lxa-apps/Cluster2/bin/Cluster2/Editor`
-**Driver**: ✅ `cluster2_test.c` created (14 tests, all pass)
-**Root Cause**: Cluster2 was exiting immediately with error 205 (`ERROR_OBJECT_NOT_FOUND`) because it tried to open `Cluster:Projects/StdProject` - an AmigaDOS assign that wasn't configured.
-**Fixes**:
-- Added `lxa_add_assign()` and `lxa_add_drive()` API functions to liblxa
-- Fixed `_bootstrap()` in exec.c to parse colon in Amiga paths like `SYS:Editor` for current directory setting
-- Cluster2 now loads successfully, opens window, and responds to keyboard/mouse input
+The current test suite identifies several regressions and environment issues that must be resolved to achieve a stable 0.7.0 release. **We shall not hesitate to extend the test suite to identify more bugs on the way.**
 
-### Phase 61: mathieeedoubbas.library & mathieeedoubtrans.library (Complete)
-**Goal**: Implement IEEE double-precision math libraries required by Cluster2 and other apps.
-**Status**: ✅ COMPLETE
-**Implementation**:
-- Rewrote `mathieeedoubbas.library` (12 functions) using EMU_CALL pattern for host-side computation
-- Created `mathieeedoubtrans.library` (17 transcendental functions) using EMU_CALL pattern
-- Added 29 EMU_CALL handlers (5000-5011 basic, 5020-5036 transcendental) in `src/lxa/lxa.c`
-- Created `IEEEDPExample` test sample - all 8/8 tests pass
-- Cluster2 now loads successfully and opens a window
-
-**Functions Implemented**:
-- Basic (mathieeedoubbas): IEEEDPFix, IEEEDPFlt, IEEEDPCmp, IEEEDPTst, IEEEDPAbs, IEEEDPNeg, IEEEDPAdd, IEEEDPSub, IEEEDPMul, IEEEDPDiv, IEEEDPFloor, IEEEDPCeil
-- Transcendental (mathieeedoubtrans): IEEEDPAtan, IEEEDPSin, IEEEDPCos, IEEEDPTan, IEEEDPSincos, IEEEDPSinh, IEEEDPCosh, IEEEDPTanh, IEEEDPExp, IEEEDPLog, IEEEDPPow, IEEEDPSqrt, IEEEDPTieee, IEEEDPFieee, IEEEDPAsin, IEEEDPAcos, IEEEDPLog10
-
-### Phase 60: MaxonBASIC Deep Dive (Complete)
-**Goal**: Verify and complete full MaxonBASIC IDE functionality.
-**Status**: ✅ COMPLETE - All known issues resolved.
-**Driver**: ✅ `maxonbasic_test.c` enhanced with visual verification, cursor key testing
-**Enhancements**:
-- Added debug mode flag (-d)
-- Added screenshot capture function
-- Added count_content_in_region() for visual verification
-- Added Test 6: cursor key testing with event draining
-
-### Phase 59: Devpac (HiSoft) Deep Dive (Complete)
-**Goal**: Verify editor content area and achieve full assembler functionality.
-**Status**: ✅ COMPLETE - All known issues resolved.
-**Driver**: ✅ `devpac_test.c` enhanced with visual verification, cursor key testing
-**Enhancements**:
-- Added debug mode flag (-d)
-- Added screenshot capture function
-- Added count_content_in_region() for visual verification
-- Added Test 6: cursor key testing with event draining
-
-### Phase 58: KickPascal 2 Deep Dive (Complete)
-**Goal**: Full KickPascal 2 IDE functionality with automated testing via host-side driver.
-**Status**: ✅ COMPLETE - All known issues resolved.
-**Driver**: ✅ `kickpascal_test.c` created and passing
-**Fixes**:
-- Fixed display sync bug in `lxa_api.c` - `lxa_run_cycles()` now performs planar-to-chunky conversion
-- Confirmed cursor key RAWKEY events (0x4C-0x4F) are correctly delivered via IDCMP
-- KickPascal handles cursor keys directly from IDCMP (not via console.device CSI sequences)
-
----
-
-## Active Phase
-
-### Phase 63: Google Test & VS Code C++ TestMate Transition
-
-**Goal**: Transition all integration tests to Google Test / VS Code C++ TestMate for unified, robust testing.
-
-**Requirement**: All tests are REQUIRED to have host-side drivers (liblxa based). No more shell scripting / output diffing / `test_inject.h`.
-
+### Phase 64: Fix Failing Samples (Standalone Drivers)
+**Goal**: Align standalone test drivers with restored RKM sample code.
+**Status**: 🔴 FAILING
 **TODO**:
-- [x] **Google Test Installation**: install necessary libraries and headers on this workstation (Fedora 42 / dnf)
-- [x] **Setup**: Integrate Google Test into the project build system (`CMakeLists.txt`).
-- [x] **Infrastructure**: Create `LxaTest` GTest base class to handle `liblxa` initialization/shutdown and common assertions.
-- [x] **Porting - Exec**: Port all `tests/exec/` tests to GTest + host-side drivers.
-- [x] **Porting - DOS**: Port all `tests/dos/` tests to GTest + host-side drivers.
-- [x] **Porting - Commands**: Port all `tests/commands/` tests to GTest + host-side drivers.
-- [x] **Porting - Graphics**: Port all `tests/graphics/` tests to GTest + host-side drivers.
-- [x] **Porting - Intuition**: Port all `tests/intuition/` tests to GTest + host-side drivers.
-- [x] **Porting - Layers**: Port all `tests/layers/` tests to GTest + host-side drivers.
-- [x] **Porting - Devices**: Port all `tests/devices/` (timer, clipboard, console) to GTest.
-- [x] **Porting - Shell**: Port all `tests/shell/` tests to GTest.
-- [x] **Porting - Samples**: Port most `tests/samples/` to GTest.
-- [x] **Porting - Apps**: Integrate existing `tests/drivers/` app tests (KickPascal, etc.) into GTest suite.
-- [x] **Porting - Misc**: Port `asl`, `icon`, `iffparse`, `gadtools`, `datatypes`, `stress` tests.
-- [x] **Cleanup**: Remove `test_runner.sh`, `test_inject.h`, and legacy `expected.out` files.
-- [x] **AGENTS.md/Skills/Documentation**: adapt AGENTS.md, skills and all documentation to reflect the new test infrastructure and requirements
+- [ ] Update `tests/drivers/updatestrgad_test.c` to use interactive input/output matching (current: timeout waiting for debug strings).
+- [ ] Update `tests/drivers/simplegtgadget_test.c` to use interactive input/output matching (current: timeout waiting for debug strings).
+- [ ] Verify both standalone drivers pass.
 
-### Phase 64: RKM Sample Collection Fixes
+### Phase 65: Fix RawKey & Input Handling
+**Goal**: Investigate and fix why keyboard/mouse events are not consistently processed in tests.
+**Status**: 🔴 FAILING (`rawkey_gtest`)
+**TODO**:
+- [ ] Debug `samples/intuition/RawKey.c` execution in GTest environment.
+- [ ] Verify IDCMP RAWKEY event delivery and conversion (Current: "Key Down"/"Key Up" not found in output).
+- [ ] Ensure shifted key and space key events are correctly captured.
 
-**Goal**: Fix samples that were modified from their RKM originals and restore them to match RKM behavior.
+### Phase 66: Fix Intuition & Console Regressions
+**Goal**: Resolve functional failures in Intuition and console.device.
+**Status**: 🔴 FAILING (`intuition_gtest`, `console_gtest`)
+**TODO**:
+- [ ] Resolve `IntuitionTest.Validation` failure (window/screen info mismatches).
+- [ ] Fix `ConsoleTest.CSICursor` and `ConsoleTest.ConHandler` failures.
+- [ ] Fix `ConsoleTest.InputConsole` interaction issues.
+- [ ] Verify BitMap content verification (`lxa_get_content_pixels()`) across all tests.
 
-**Root Cause Identified**: Several samples had been heavily modified with debug output and `test_inject.h` self-testing code. The originals are simple, interactive programs.
+### Phase 67: Fix Test Environment & App Paths
+**Goal**: Ensure all "Deep Dive" app tests can find their binaries and data.
+**Status**: 🔴 FAILING (Binary not found errors in `asm_one_gtest`, `devpac_gtest`, etc.)
+**TODO**:
+- [ ] Update `LxaTest::FindAppsPath()` in `lxa_test.h` to include `src/lxa-apps` in search locations.
+- [ ] Fix hardcoded absolute paths in `asm_one_gtest.cpp`, `devpac_gtest.cpp`, etc.
+- [ ] Verify all app tests can successfully load their binaries in the build environment.
 
-**Completed**:
-- [x] **SystemTagList timeout FIXED** - Removed the arbitrary 1000 iteration limit in `_dos_SystemTagList()`. The wait loop now runs indefinitely (as real AmigaDOS System() does), exiting only when the child task actually finishes. GUI programs now stay open for user interaction when run via Shell.
-- [x] **RGBBoxes crash FIXED** - Implemented no-op stubs for `FreeVPortCopLists()`, `FreeCopList()`, and `FreeCprList()` in `src/rom/lxa_graphics.c`. Also added stubs for `MakeVPort()`, `MrgCop()`, and `LoadView()`. RGBBoxes now runs to completion.
-- [x] **Menu activation FIXED** - Right-click now activates menus from anywhere on the screen (not just title bar), matching real AmigaOS behavior.
-- [x] **Menu clearing FIXED** - Menus now properly disappear when releasing RMB or selecting an item. Added `_render_screen_title_bar()` function to restore the screen title bar.
-- [x] **Window dragging FIXED** - Added window drag support: clicking and dragging in the title bar of a DRAGBAR window now moves the window. Added state variables (`g_dragging_window`, `g_drag_window`, etc.) and proper handling in mouse down/move/up.
-- [x] **simplegad.c** - Rewritten to match RKM exactly (1 button, Wait loop, no debug output)
-- [x] **simplemenu.c** - Rewritten to match RKM exactly (removed test_inject.h, uses handleWindow())
-- [x] **custompointer.c** - Rewritten to match RKM exactly (just Delay calls, no printf)
-- [x] **gadtoolsmenu.c** - Rewritten to match RKM exactly (interactive event loop)
-- [x] **filereq.c** - Rewritten to match RKM exactly (calls AslRequest interactively)
-- [x] **simplegad_test.c** - Updated host-side driver for RKM version - PASSING
-- [x] **simplemenu_test.c** - Updated host-side driver for RKM version - PASSING (menu selection works)
-- [x] **custompointer_test.c** - Created host-side driver - PASSING
-- [x] **gadtoolsmenu_test.c** - Created host-side driver - PASSING
-- [x] **filereq_test.c** - Created host-side driver - PASSING (Cancel button works)
-- [x] **Menu selection timing FIXED** - Increased CPU cycle allocation in `lxa_inject_drag()` from 50k to 500k cycles per step. The VBlank IRQ handler needs sufficient cycles to complete menu rendering before returning. Without enough cycles, the handler would be interrupted mid-rendering, leaving the CPU at IPL=3 (interrupts masked) for subsequent VBlanks.
+### Phase 68: Extend Samples Tests
+- [ ] RGBBoxesTest: measure runtime: the test application has a 5 second delay, currently it exits nearly immediately. Extend the test so it measures the time the app took, if less then 5 seconds: fail, debug, iterate
+- [ ] Gadget/Intuition related tests: take screenshots of the application and analyze them: are window, gadget and menu borders where you expect them to be? Sample pixels at various places: do they have the color they should have?
 
-**Remaining**:
-- [x] Create host-side driver for RGBBoxes
-- [ ] Audit remaining samples against RKM originals in `/home/guenter/projects/amiga/sample-code/rkm/`
+### Phase 69: Application Deep Dive Fixes
+**Goal**: Resolve functional failures in real-world applications.
+**Status**: 🔴 FAILING (`apps_misc_gtest`, etc.)
+**TODO**:
+- [ ] Fix Directory Opus 4 "Cannot load DirectoryOpus" error (Post-path fix).
+- [ ] Fix KickPascal 2 automated test failures in `apps_misc_gtest`.
+- [ ] Resolve any initialization hangs or rendering bugs identified by the app test suite.
+- [ ] Ensure ASM-One, Devpac, and Cluster2 are fully responsive to automated input.
 
+### Phase 70: Stress Tests & Misc Libraries
+**Goal**: Ensure system stability under load.
+**Status**: 🔴 FAILING (`misc_gtest`)
+**TODO**:
+- [ ] Resolve `misc_gtest` failures in Icon, IffParse, and DataTypes tests.
+- [ ] Tune stress test parameters (Filesystem, Memory, Tasks) for reliable execution in CI.
 
----
-
-## Upcoming Phases
-
-### Phase 65a: DPaint V Deep Dive
-**Goal**: Fix hang during initialization after font loading.
-**Status**: ⚠️ PARTIAL - Libraries load, Workbench opens, but hangs during init.
-**Driver**: ✅ `dpaint_test.c` created (handles known hang gracefully)
-
-### Phase 65b: Directory Opus 4 Deep Dive
-**Goal**: Full Directory Opus 4 compatibility.
-**Status**: ⚠️ PARTIAL - Exit code 1 investigation needed.
-**TODO**: migrate to host-side driver, run deeper tests
-
-### Phase 66: SysInfo Deep Dive
-**Goal**: Verify SysInfo displays complete system information.
-**TODO**: migrate to host-side driver, run deeper tests
-
-### Phase 67: EdWord Pro Deep Dive
-**Goal**: Verify and complete full word processor functionality.
-**TODO**: migrate to host-side driver, run deeper tests
-
-### Phase 68: BeckerText II Deep Dive
-**Goal**: Verify full window content renders and text editing.
-**TODO**: migrate to host-side driver, run deeper tests
-
-### Phase 69: Remaining RKM Samples
-**Goal**: Complete the remaining RKM samples that weren't finished in Phase 56.
-
-**TODO - Graphics Samples**:
-- [ ] `SSprite`/`VSprite`/`Bob` (Sprite and animation system).
-
-**TODO - Utility & System Samples**:
-- [ ] `ClipFTXT` (Clipboard IFF handling - requires clipboard.device).
-- [ ] `Broker`/`HotKey` (Commodities system).
-- [ ] `IconExample`/`AppIcon`/`AppWindow` (Workbench integration).
-- [ ] `SPIEEE`/`DPIEEE` (IEEE floating point math - requires mathieeesingbas.library).
-
-**TODO - Device Samples**:
-- [ ] `ClipDemo`/`ChangeHook_Test` (Clipboard device).
-- [ ] `V36_Device_Use` (Modern device I/O pattern).
-
-- [ ] Ensure all samples achieve 100% pass rate in CI.
+### Phase 71: Test Suite Expansion
+**Goal**: Proactively identify more bugs by extending coverage.
+**TODO**:
+- [ ] Add more complex Graphics/Layers clipping tests.
+- [ ] Extend DOS tests with more VFS corner cases (locking, seeking, large files).
+- [ ] Implement TDD: add failing tests for every new bug report before fixing.
 
 ---
 
@@ -263,6 +125,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.32 | 63 | Phase 63 complete: Transitioned to Google Test & liblxa host-side drivers. Identified failures in samples and apps. |
 | 0.6.30 | 63 | Started Phase 63: Transition to Google Test & VS Code C++ TestMate. Roadmap update. |
 | 0.6.29 | 63 | Phase 63 (RKM fixes) - fixed SystemTagList, RGBBoxes, menu activation/clearing, window dragging. |
 | 0.6.28 | 63 | Phase 63 (RKM fixes) - rewritten simplegad, simplemenu, custompointer, gadtoolsmenu, filereq. |
