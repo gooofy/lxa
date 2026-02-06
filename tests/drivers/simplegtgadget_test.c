@@ -8,7 +8,6 @@
  * 4. Click the BUTTON_KIND gadget and verify GADGETUP
  * 5. Click the CYCLE_KIND gadget and verify cycle advances
  *
- * Phase 57: Host-side driver migration from test_inject.h
  */
 
 #include "lxa_api.h"

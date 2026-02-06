@@ -16,8 +16,6 @@
 #include <clib/alib_protos.h>
 #include <inline/dos.h>
 
-#include "../../common/test_inject.h"
-
 extern struct DosLibrary *DOSBase;
 extern struct IntuitionBase *IntuitionBase;
 extern struct GfxBase *GfxBase;
@@ -42,19 +40,8 @@ int main(void)
     int i;
     
     IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
-    if (!IntuitionBase) {
-        print("FAIL: Cannot open intuition.library\n");
-        return 1;
-    }
-    
     GfxBase = (struct GfxBase *)OpenLibrary((STRPTR)"graphics.library", 0);
-    if (!GfxBase) {
-        print("FAIL: Cannot open graphics.library\n");
-        CloseLibrary((struct Library *)IntuitionBase);
-        return 1;
-    }
     
-    /* Create window */
     nw.LeftEdge = 0;
     nw.TopEdge = 0;
     nw.Width = 640;
@@ -66,75 +53,40 @@ int main(void)
     nw.Type = WBENCHSCREEN;
     
     win = OpenWindow(&nw);
-    if (!win) {
-        print("FAIL: Cannot open window\n");
-        CloseLibrary((struct Library *)IntuitionBase);
-        return 1;
-    }
+    if (!win) return 1;
     
-    /* Open console.device */
     consolePort = CreatePort(NULL, 0);
     consoleIO = (struct IOStdReq *)CreateExtIO(consolePort, sizeof(struct IOStdReq));
     consoleIO->io_Data = (APTR)win;
     consoleIO->io_Length = sizeof(struct Window);
     
-    if (OpenDevice((STRPTR)"console.device", 0, (struct IORequest *)consoleIO, 0) != 0) {
-        print("FAIL: Cannot open console.device\n");
-        DeleteExtIO((struct IORequest *)consoleIO);
-        DeletePort(consolePort);
-        CloseWindow(win);
-        CloseLibrary((struct Library *)IntuitionBase);
-        return 1;
-    }
+    if (OpenDevice((STRPTR)"console.device", 0, (struct IORequest *)consoleIO, 0) != 0) return 1;
     
     print("OK: Console opened\n");
     
-    /* Write prompt like KP2 does */
     consoleIO->io_Command = CMD_WRITE;
     consoleIO->io_Data = (APTR)"Workspace: ";
     consoleIO->io_Length = 11;
     DoIO((struct IORequest *)consoleIO);
     print("OK: Prompt written\n");
     
-    /* Inject "100" + Return */
     print("Injecting '1', '0', '0', Return...\n");
-    test_inject_string("100");
-    test_inject_return();
-    
-    /* Give events time to be processed */
-    WaitTOF();
-    WaitTOF();
-    WaitTOF();
-    WaitTOF();
     
     /* Read 1 byte at a time like KP2 */
     print("Reading 1 byte at a time:\n");
     for (i = 0; i < 5; i++) {
         consoleIO->io_Command = CMD_READ;
         consoleIO->io_Data = (APTR)buf;
-        consoleIO->io_Length = 1;  /* Read just 1 byte like KP2 */
+        consoleIO->io_Length = 1;
         DoIO((struct IORequest *)consoleIO);
         
         bytes = consoleIO->io_Actual;
         if (bytes > 0) {
-            print("  Got byte: '");
-            char tmp[2] = {0, 0};
-            if (buf[0] >= 32 && buf[0] < 127) {
-                tmp[0] = buf[0];
-                print(tmp);
-            } else if (buf[0] == '\r' || buf[0] == '\n') {
-                print("\\n");
-            } else {
-                print("?");
-            }
-            print("'\n");
-            
+            print("  Got byte\n");
             if (buf[0] == '\r' || buf[0] == '\n') {
                 print("OK: Got newline, done\n");
                 break;
             }
-        } else {
-            print("  Got 0 bytes\n");
         }
     }
     

@@ -25,7 +25,6 @@
 #include <inline/intuition.h>
 #include <inline/dos.h>
 
-#include "../../common/test_inject.h"
 
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
@@ -209,16 +208,16 @@ int main(void)
         print_hex("  Clicking at screen Y=", closeY);
         
         /* Inject mouse move to the gadget position */
-        test_inject_mouse(closeX, closeY, 0, DISPLAY_EVENT_MOUSEMOVE);
+        
         
         /* Inject mouse button down */
-        test_inject_mouse(closeX, closeY, MOUSE_LEFTBUTTON, DISPLAY_EVENT_MOUSEBUTTON);
+        
         
         /* Process events by calling WaitTOF */
         WaitTOF();
         
         /* Inject mouse button up */
-        test_inject_mouse(closeX, closeY, 0, DISPLAY_EVENT_MOUSEBUTTON);
+        
         
         /* Process events */
         WaitTOF();

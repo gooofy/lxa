@@ -1,9 +1,0 @@
-=== AVAIL Command Test ===
-
-PASS: Any memory available
-PASS: Largest block valid
-PASS: Chip memory valid
-PASS: Fast memory valid
-PASS: Largest chip valid
-
-All AVAIL tests passed.

@@ -1,9 +1,0 @@
-Testing timer.device
-OK: Message port created
-OK: IO request created
-OK: timer.device opened
-OK: TR_GETSYSTIME succeeded
-OK: CMD_READ succeeded
-OK: timer.device closed
-OK: Cleanup complete
-PASS: timer.device test complete

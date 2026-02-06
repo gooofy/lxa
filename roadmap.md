@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.30** | **Phase 63 In Progress** | **Google Test Transition**
+**Version: 0.6.31** | **Phase 63 Complete** | **Google Test Transition**
 
 The lxa project is transitioning to a modern testing infrastructure based on Google Test and VS Code C++ TestMate.
 
@@ -176,10 +176,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] **Porting - Samples**: Port most `tests/samples/` to GTest.
 - [x] **Porting - Apps**: Integrate existing `tests/drivers/` app tests (KickPascal, etc.) into GTest suite.
 - [x] **Porting - Misc**: Port `asl`, `icon`, `iffparse`, `gadtools`, `datatypes`, `stress` tests.
-- [ ] **Cleanup**: Remove `test_runner.sh`, `test_inject.h`, and legacy `expected.out` files.
-- [ ] **AGENTS.md/Skills/Documentation**: adapt AGENTS.md, skills and all documentation to reflect the new test infrastructure and requirements
+- [x] **Cleanup**: Remove `test_runner.sh`, `test_inject.h`, and legacy `expected.out` files.
+- [x] **AGENTS.md/Skills/Documentation**: adapt AGENTS.md, skills and all documentation to reflect the new test infrastructure and requirements
 
-### Phase 64: RKM Sample Collection Fixes (Postponed)
+### Phase 64: RKM Sample Collection Fixes
 
 **Goal**: Fix samples that were modified from their RKM originals and restore them to match RKM behavior.
 
@@ -204,7 +204,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] **Menu selection timing FIXED** - Increased CPU cycle allocation in `lxa_inject_drag()` from 50k to 500k cycles per step. The VBlank IRQ handler needs sufficient cycles to complete menu rendering before returning. Without enough cycles, the handler would be interrupted mid-rendering, leaving the CPU at IPL=3 (interrupts masked) for subsequent VBlanks.
 
 **Remaining**:
-- [ ] Create host-side driver for RGBBoxes
+- [x] Create host-side driver for RGBBoxes
 - [ ] Audit remaining samples against RKM originals in `/home/guenter/projects/amiga/sample-code/rkm/`
 
 

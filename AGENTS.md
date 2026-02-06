@@ -8,7 +8,7 @@ This document is the entry point for AI agents working on the `lxa` codebase. Th
 - **Reference**: ALWAYS consult RKRM and NDK.
 - **Complete Phases if possible**: When working on a phase of the roadmap, plan ahead and make sure you create all the TODO items needed to **successfully complete** the phase. Do not stop early, but strive towards reaching the goal of finishing a phase.
 - **Keep the roadmap.md file updated**: Whenever you complete a task or finish work, make sure you update the `roadmap.md` file accordingly. Keep it nice, clean and tidy so we always know where we stand and what the next steps are. Summarize, re-organize, create new phases as needed.
-- **Host-Side Test Drivers for UI Tests**: All interactive UI tests (gadget clicks, menu selection, keyboard input) MUST use the host-side driver infrastructure (`tests/drivers/` with liblxa). This is the preferred approach going forward. Existing `test_inject.h` samples should be migrated to host-side drivers.
+- **Host-Side Test Drivers for UI Tests**: All interactive UI tests (gadget clicks, menu selection, keyboard input) MUST use the host-side driver infrastructure (`tests/drivers/` with liblxa) and Google Test. The legacy `test_inject.h` approach has been removed. All tests are integrated into the unified GTest suite.
 
 ## 2. Available Skills
 Load the specific skill relevant to your task:

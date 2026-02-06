@@ -236,6 +236,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(graphics_gtest)
     endif()
 
+    # RGBBoxes test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rgbboxes_gtest.cpp)
+        add_gtest_driver(rgbboxes_gtest)
+    endif()
+
     # Intuition tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/intuition_gtest.cpp)
         add_gtest_driver(intuition_gtest)
@@ -244,6 +249,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # Devices tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/devices_gtest.cpp)
         add_gtest_driver(devices_gtest)
+    endif()
+
+    # Console tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/console_gtest.cpp)
+        add_gtest_driver(console_gtest)
     endif()
 
     # Shell tests

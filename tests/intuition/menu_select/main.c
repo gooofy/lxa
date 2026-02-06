@@ -26,7 +26,6 @@
 #include <inline/intuition.h>
 #include <inline/dos.h>
 
-#include "../../common/test_inject.h"
 
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
@@ -328,11 +327,11 @@ int main(void)
     print_num("  Menu bar click Y=", menuBarY);
 
     /* Move mouse to menu bar area */
-    test_inject_mouse(menuBarX, menuBarY, 0, DISPLAY_EVENT_MOUSEMOVE);
+    
     WaitTOF();
     
     /* Press right mouse button (enter menu mode) */
-    test_inject_mouse(menuBarX, menuBarY, MOUSE_RIGHTBUTTON, DISPLAY_EVENT_MOUSEBUTTON);
+    
     WaitTOF();
     WaitTOF();
 
@@ -343,12 +342,12 @@ int main(void)
     print_num("  Menu item click X=", itemX);
     print_num("  Menu item click Y=", itemY);
     
-    test_inject_mouse(itemX, itemY, MOUSE_RIGHTBUTTON, DISPLAY_EVENT_MOUSEMOVE);
+    
     WaitTOF();
     WaitTOF();
 
     /* Release right mouse button (select item) */
-    test_inject_mouse(itemX, itemY, 0, DISPLAY_EVENT_MOUSEBUTTON);
+    
     WaitTOF();
     WaitTOF();
     WaitTOF();

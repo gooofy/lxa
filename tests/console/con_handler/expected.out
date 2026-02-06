@@ -1,7 +1,0 @@
-Testing CON: handler via Open()
-OK: CON: window opened
-OK: Write succeeded
-Injecting 'test' + Return...
-OK: Read 5 bytes
-OK: CON: window closed
-PASS: con_handler test complete

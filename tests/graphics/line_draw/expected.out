@@ -1,9 +1,0 @@
-Testing Draw()...
-OK: Horizontal line (0,10)-(63,10) all pixels set
-OK: Current position updated to (63,10)
-OK: Vertical line (32,0)-(32,63) all pixels set
-OK: Diagonal line (0,0)-(31,31) all pixels set
-OK: Anti-diagonal line (31,0)-(0,31) all pixels set
-OK: Single point Draw at (20,20) works
-OK: Short horizontal line (10,5)-(12,5) works
-PASS: Draw() all tests passed

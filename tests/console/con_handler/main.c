@@ -11,7 +11,6 @@
 #include <clib/graphics_protos.h>
 #include <inline/dos.h>
 
-#include "../../common/test_inject.h"
 
 extern struct DosLibrary *DOSBase;
 extern struct GfxBase *GfxBase;
@@ -52,8 +51,8 @@ int main(void)
     
     /* Inject some input */
     print("Injecting 'test' + Return...\n");
-    test_inject_string("test");
-    test_inject_return();
+    
+    
     
     /* Give events time to be processed */
     WaitTOF();

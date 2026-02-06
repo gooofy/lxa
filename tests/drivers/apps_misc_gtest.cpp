@@ -36,6 +36,13 @@ TEST_F(AppsMiscTest, DirectoryOpus) {
     RunAppsMiscTest("Dopus", 20000);
 }
 
+TEST_F(AppsMiscTest, KickPascal2) {
+    if (FindAppsPath() == nullptr) {
+        GTEST_SKIP() << "lxa-apps directory not found";
+    }
+    RunAppsMiscTest("KickPascal2", 20000);
+}
+
 TEST_F(AppsMiscTest, SysInfo) {
     if (FindAppsPath() == nullptr) {
         GTEST_SKIP() << "lxa-apps directory not found";

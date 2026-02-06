@@ -1,8 +1,0 @@
-FontReq: Starting ASL Font Requester demo
-FontReq: Opened asl.library v39
-FontReq: AllocAslRequest(ASL_FontRequest) succeeded
-FontReq: Font requester configured
-FontReq: (Skipping interactive AslRequest - not yet implemented for fonts)
-FontReq: FreeAslRequest() - requester freed
-FontReq: Closed asl.library
-FontReq: Done

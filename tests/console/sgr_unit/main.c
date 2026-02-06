@@ -22,7 +22,6 @@
 #include <clib/intuition_protos.h>
 #include <clib/graphics_protos.h>
 
-#include "../../common/test_inject.h"
 
 #define CSI "\x9b"   /* Amiga CSI (single byte) */
 

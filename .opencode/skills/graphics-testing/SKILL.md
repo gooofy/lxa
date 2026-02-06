@@ -9,104 +9,56 @@ Specialized testing strategies for `graphics.library` and `intuition.library`.
 
 ## 1. Core Principles
 1. **Headless Testing**: No SDL2 display required.
-2. **Host-Side Drivers**: Preferred for interactive UI testing.
+2. **Host-Side Drivers**: Mandatory for interactive UI testing via Google Test.
 3. **Verify BitMap**: Read pixels programmatically (`ReadPixel`).
 4. **Deterministic**: Same input = same output.
 
-## 2. Host-Side Test Drivers (PREFERRED)
+## 2. Google Test Host-Side Drivers (MANDATORY)
 
-For any test involving user interaction (mouse clicks, keyboard input, menu selection), use the **liblxa host-side driver infrastructure**.
+For any test involving user interaction (mouse clicks, keyboard input, menu selection), use the **Google Test host-side driver infrastructure**.
 
 ### Location
-`tests/drivers/` - Host-side C programs using liblxa API
+`tests/drivers/` - GTest suites using `LxaUITest` base class.
 
 ### Example: Gadget Click Test
-```c
-#include "lxa_api.h"
+```cpp
+#include "lxa_test.h"
 
-int main(void) {
-    lxa_config_t config = {
-        .rom_path = "target/rom/lxa.rom",
-        .sys_drive = "target/samples/Samples",
-        .headless = true,
-    };
-    
-    lxa_init(&config);
-    lxa_load_program("SYS:SimpleGad", "");
-    
-    // Wait for window
-    lxa_wait_windows(1, 5000);
-    lxa_window_info_t info;
-    lxa_get_window_info(0, &info);
-    
-    // CRITICAL: Let task reach WaitPort() before injecting events
-    for (int i = 0; i < 200; i++) {
-        lxa_run_cycles(10000);
+using namespace lxa::testing;
+
+class GadgetTest : public LxaUITest {
+protected:
+    void SetUp() override {
+        LxaUITest::SetUp();
+        ASSERT_EQ(lxa_load_program("SYS:SimpleGad", ""), 0);
+        ASSERT_TRUE(WaitForWindows(1, 5000));
+        ASSERT_TRUE(GetWindowInfo(0, &window_info));
+        
+        // Let task reach event loop
+        RunCyclesWithVBlank(20);
     }
-    lxa_clear_output();
+};
+
+TEST_F(GadgetTest, ClickButton) {
+    ClearOutput();
+    Click(window_info.x + 50, window_info.y + 40);
+    RunCyclesWithVBlank(20);
     
-    // Click gadget at center
-    int x = info.x + 70;  // gadget center
-    int y = info.y + 56;  // including title bar
-    lxa_inject_mouse_click(x, y, LXA_MOUSE_LEFT);
-    
-    // Process events through VBlank
-    for (int i = 0; i < 20; i++) {
-        lxa_trigger_vblank();
-        lxa_run_cycles(50000);
-    }
-    
-    // Let task produce output
-    for (int i = 0; i < 100; i++) {
-        lxa_run_cycles(10000);
-    }
-    
-    // Verify output
-    char output[4096];
-    lxa_get_output(output, sizeof(output));
-    assert(strstr(output, "GADGETDOWN") != NULL);
-    
-    lxa_shutdown();
-    return 0;
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("GADGETUP"), std::string::npos);
 }
 ```
 
-### Critical Timing Pattern
-```
-1. lxa_load_program() → task starts running
-2. lxa_wait_windows() → wait for UI to appear
-3. Run cycles WITHOUT VBlanks → task reaches WaitPort()
-4. lxa_clear_output() → clear initialization messages
-5. lxa_inject_mouse_click() → queue event
-6. VBlanks + cycles → Intuition processes event, posts IDCMP
-7. More cycles WITHOUT VBlanks → task processes message, prints output
-8. lxa_get_output() → verify results
-```
-
 ### Why This Pattern?
-- The Amiga task must be in `TS_WAIT` state (inside `WaitPort()`) before events are injected
-- VBlanks trigger `_intuition_VBlankInputHook()` which polls events and posts IDCMP messages
-- After `Signal()` wakes the task, it needs CPU cycles to run `GetMsg()` and `printf()`
+- The Amiga task must be in `TS_WAIT` state (inside `WaitPort()`) before events are injected.
+- `RunCyclesWithVBlank()` triggers the VBlank interrupt which processes input through Intuition.
+- After `Signal()` wakes the task, it needs CPU cycles to run `GetMsg()` and `printf()`.
 
 ## 3. Graphics Library (`tests/graphics/`)
 - **Init**: `InitRastPort`, `InitBitMap`.
 - **Memory**: `AllocRaster`, `FreeRaster`.
 - **Drawing**: `WritePixel`, `Draw` (lines), `RectFill`.
-- **Verification**: Loop through BitMap area and assert colors via `ReadPixel`.
-
-### Setup Example
-```c
-struct BitMap bm;
-struct RastPort rp;
-InitBitMap(&bm, 2, 64, 64);
-bm.Planes[0] = AllocRaster(64, 64);
-bm.Planes[1] = AllocRaster(64, 64);
-InitRastPort(&rp);
-rp.BitMap = &bm;
-// ... Test ...
-FreeRaster(bm.Planes[0], 64, 64);
-FreeRaster(bm.Planes[1], 64, 64);
-```
+- **Verification**: Assert colors via `ReadPixel(x, y)` in the GTest driver.
 
 ## 4. Intuition Library (`tests/intuition/`)
 
@@ -121,47 +73,31 @@ For tests requiring:
 - Mouse clicks on gadgets
 - Keyboard input to string gadgets
 - Menu selection (RMB)
-- Any user interaction
+- Window dragging or resizing
 
-**MUST use host-side driver infrastructure** (`tests/drivers/`)
+**MUST use Google Test host-side driver infrastructure** (`tests/drivers/`)
 
-## 5. Migration: test_inject.h → Host Drivers
+## 5. Migration: test_inject.h
+The legacy `test_inject.h` approach (in-ROM self-testing) has been removed. All tests must be driven from the host side via Google Test.
 
-The legacy `test_inject.h` approach (in-ROM self-testing) is being phased out.
+## 6. liblxa Event Injection API (C++ via lxa_test.h)
 
-**Current test_inject.h samples** (to be migrated):
-- `SimpleMenu` - RMB menu selection
-- `UpdateStrGad` - Keyboard input to string gadgets  
-- `SimpleGTGadget` - GadTools gadget clicks
-
-**Already using host drivers**:
-- `SimpleGad` - tested via `tests/drivers/simplegad_test`
-
-**Migration Priority**:
-1. Remaining test_inject.h samples
-2. Deep dive app tests (KickPascal, Devpac, etc.)
-3. All new interactive tests
-
-## 6. liblxa Event Injection API
-
-```c
+```cpp
 // Mouse
-bool lxa_inject_mouse_click(int x, int y, int button);
-bool lxa_inject_mouse(int x, int y, int buttons, int type);
+void Click(int x, int y, int button = LXA_MOUSE_LEFT);
 
 // Keyboard  
-bool lxa_inject_key(int rawkey, int qualifier, bool down);
-bool lxa_inject_keypress(int rawkey, int qualifier);
-bool lxa_inject_string(const char *str);
+void PressKey(int rawkey, int qualifier = 0);
+void TypeString(const char *str);
 
-// Constants
-#define LXA_MOUSE_LEFT   1
-#define LXA_MOUSE_RIGHT  2
-#define LXA_MOUSE_MIDDLE 4
+// Screen Info
+int ReadPixel(int x, int y);
+bool ReadPixelRGB(int x, int y, uint8_t* r, uint8_t* g, uint8_t* b);
+int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0);
 ```
 
 ## 7. Notes
-- Tests must run in < 30 seconds (interactive tests may need more cycles).
+- Tests must run in < 30 seconds.
 - Always clean up resources (close screens/windows).
-- Use `lxa_clear_output()` before the section you want to verify.
-- Check for specific strings with `strstr()`, don't compare entire output.
+- Use `ClearOutput()` before the section you want to verify.
+- Check for specific strings with `output.find()`, don't compare entire output.

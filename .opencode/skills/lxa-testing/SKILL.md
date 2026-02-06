@@ -11,112 +11,65 @@ This skill details the testing requirements and strategies for the lxa project.
 - **Rock-solid stability**: No crashes allowed.
 - **TDD**: Write tests first.
 - **100% Coverage**: Mandatory.
+- **Unified Infrastructure**: All tests run through Google Test.
 
 ## 2. Test Types
 
-### 2.1 Host-Side Test Drivers (PREFERRED for UI tests)
+### 2.1 Google Test Host-Side Drivers (MANDATORY for UI tests)
 **Location**: `tests/drivers/`
 
-Host-side test drivers use the `liblxa` API to control the emulator from C code running on the host. This is the **preferred approach for all interactive UI testing**.
+Host-side test drivers use the `liblxa` API and Google Test framework. This is the **standard approach for all interactive UI testing**.
 
 **Key Features**:
-- Full control over timing and event injection
+- Full control over timing and event injection via `LxaUITest` base class
 - Can inject mouse clicks, key presses, and menu selections
 - Can query window state and capture program output
 - Runs headlessly without SDL2 display
+- Standard GTest assertions and reporting
 
-**Example**: `tests/drivers/simplegad_test.c`
-```c
-#include "lxa_api.h"
+**Example**: `tests/drivers/simplegad_gtest.cpp`
+```cpp
+#include "lxa_test.h"
 
-int main(void) {
-    lxa_config_t config = {
-        .rom_path = "path/to/lxa.rom",
-        .sys_drive = "path/to/samples",
-        .headless = true,
-    };
-    
-    lxa_init(&config);
-    lxa_load_program("SYS:MyProgram", "");
-    lxa_wait_windows(1, 5000);  // Wait for window to open
-    
-    // CRITICAL: Run cycles to let task reach WaitPort()
-    for (int i = 0; i < 200; i++) {
-        lxa_run_cycles(10000);
+using namespace lxa::testing;
+
+class SimpleGadgetTest : public LxaUITest {
+protected:
+    void SetUp() override {
+        LxaUITest::SetUp();
+        ASSERT_EQ(lxa_load_program("SYS:SimpleGad", ""), 0);
+        ASSERT_TRUE(WaitForWindows(1, 5000));
+        ASSERT_TRUE(GetWindowInfo(0, &window_info));
+        
+        // Let task reach event loop
+        RunCyclesWithVBlank(20);
     }
+};
+
+TEST_F(SimpleGadgetTest, ClickButton) {
+    ClearOutput();
+    Click(window_info.x + 50, window_info.y + 40);
+    RunCyclesWithVBlank(20);
     
-    // Inject mouse click
-    lxa_inject_mouse_click(100, 50, LXA_MOUSE_LEFT);
-    
-    // Run cycles with VBlanks to process event
-    for (int i = 0; i < 20; i++) {
-        lxa_trigger_vblank();
-        lxa_run_cycles(50000);
-    }
-    
-    // Run additional cycles to let task produce output
-    for (int i = 0; i < 100; i++) {
-        lxa_run_cycles(10000);
-    }
-    
-    // Check output
-    char output[4096];
-    lxa_get_output(output, sizeof(output));
-    assert(strstr(output, "Expected message") != NULL);
-    
-    lxa_shutdown();
-    return 0;
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("GADGETUP"), std::string::npos);
 }
 ```
 
-**Critical Timing Notes**:
-1. After initialization, run many cycles WITHOUT VBlanks to let task reach `WaitPort()`
-2. After injecting events, trigger VBlanks to process input through Intuition
-3. After VBlanks, run additional cycles WITHOUT VBlanks to let task print output
-4. Only then check the output buffer
-
-**Build**: Add to `tests/drivers/CMakeLists.txt`, link against `liblxa`
-
-### 2.2 In-ROM Self-Testing (Legacy)
-**Location**: `samples/` with `test_inject.h`
-
-Some samples use `test_inject.h` to perform self-testing within the m68k code. This approach is being phased out in favor of host-side drivers.
-
-**Still using test_inject.h**: SimpleMenu, UpdateStrGad, SimpleGTGadget
-
-### 2.3 Integration Tests
+### 2.2 Integration Tests
 **Location**: `tests/dos/`, `tests/exec/`, etc.
 
 - m68k code testing complete workflows.
-- Run with `make run-test` (compiles, runs, diffs `expected.out`).
+- Wrapped in GTest drivers (e.g., `exec_gtest.cpp`, `dos_gtest.cpp`).
 - Good for non-interactive functionality testing.
 
-### 2.4 Unit Tests
+### 2.3 Unit Tests
 **Location**: `tests/unit/`
 
 - For complex logic (parsing, algorithms).
-- Host-side C code testing specific functions.
+- Host-side C code using Google Test.
 
-### 2.5 Stress Tests
-- For stability (memory leaks, concurrency).
-
-## 3. Migration Plan: Host-Side Drivers
-
-**Goal**: All interactive UI tests should use host-side drivers.
-
-**Priority Migration**:
-1. Existing in-ROM `test_inject.h` samples → host-side drivers
-2. Deep dive app tests (KickPascal, Devpac, etc.) → host-side drivers
-3. Any new UI tests → MUST use host-side drivers
-
-**Why Host-Side Drivers are Better**:
-- Full control from host code (no m68k limitations)
-- Better debugging (can add breakpoints in host code)
-- More flexible timing control
-- Can query any internal state via liblxa API
-- Tests are portable and don't require m68k compilation
-
-## 4. Checklist
+## 3. Checklist
 Before completing a task:
 - [ ] Functionality (Happy Path)
 - [ ] Error Handling (NULLs, resources, permissions)
@@ -126,56 +79,39 @@ Before completing a task:
 - [ ] Concurrency
 - [ ] Documentation (Clear test purpose)
 
-## 5. TDD Workflow
+## 4. TDD Workflow
 1. Read Roadmap.
 2. Plan Tests (Edge cases, errors).
-3. Write Test Skeleton (for UI: host-side driver; for logic: integration test).
+3. Write GTest Driver.
 4. Implement Feature.
-5. Run Tests.
+5. Run Tests via `ctest` or `make lxa_tests`.
 6. Measure Coverage.
 7. Iterate until 100% coverage and passing.
 
-## 6. liblxa API Reference
-
-**Initialization**:
-- `lxa_init(config)` - Initialize emulator
-- `lxa_load_program(path, args)` - Load Amiga program
-- `lxa_shutdown()` - Clean up
+## 5. liblxa API Reference (C++ via lxa_test.h)
 
 **Execution**:
-- `lxa_run_cycles(n)` - Run n CPU cycles
-- `lxa_trigger_vblank()` - Set VBlank pending flag
-- `lxa_wait_exit(timeout_ms)` - Run until program exits
+- `RunProgram(path, args)` - Load and run program until exit
+- `RunCycles(n)` - Run n CPU cycles
+- `RunCyclesWithVBlank(iterations, cycles_per_iteration)` - Run cycles with VBlank interrupts
+- `WaitForWindows(count, timeout_ms)` - Wait for windows to open
+- `GetWindowInfo(index, info)` - Get window position/size
 
 **Event Injection**:
-- `lxa_inject_mouse_click(x, y, button)` - Click at position
-- `lxa_inject_mouse(x, y, buttons, type)` - Raw mouse event
-- `lxa_inject_key(rawkey, qualifier, down)` - Key event
-- `lxa_inject_keypress(rawkey, qualifier)` - Key down+up
-- `lxa_inject_string(str)` - Type string
-
-**State Query**:
-- `lxa_get_window_count()` - Number of open windows
-- `lxa_get_window_info(index, info)` - Window position/size
-- `lxa_wait_windows(count, timeout_ms)` - Wait for windows
+- `Click(x, y, button)` - Click at position
+- `PressKey(rawkey, qualifier)` - Key press
+- `TypeString(str)` - Type string
 
 **Output Capture**:
-- `lxa_get_output(buffer, size)` - Get program stdout
-- `lxa_clear_output()` - Clear output buffer
+- `GetOutput()` - Get program output as string
+- `ClearOutput()` - Clear output buffer
 
-## 7. Common Patterns
-- **DOS**: `Lock`, `Examine`, `Open`, `IoErr`.
-- **ReadArgs**: Verify parsing with `RDArgs`.
-- **Memory**: `AllocMem` (check NULL), `MEMF_CLEAR` (check zeros), `FreeMem`.
+## 6. Debugging Failures
+1. **GTest Output**: Check failure messages and stack traces.
+2. **Debug Log**: Run with `-v` (verbose).
+3. **Crashes**: Check host-side core dumps or ROM assertions.
+4. **Screenshots**: Some drivers capture screenshots on failure.
 
-## 8. Debugging Failures
-1. **Diff**: `diff expected.out actual.out`
-2. **Debug Log**: Run with `-d`.
-3. **Crashes**: Check segfaults (host) or assertions (ROM).
-4. **Print**: Add `Printf` ("DEBUG: ...").
-5. **Host Driver Debug**: Add printf in driver, check lxa_get_output()
-
-## 9. Running Tests
-- All samples: `cd tests/samples && make run-test`
-- Single sample: `make -C tests/samples/SimpleTask run-test`
-- Host drivers: `./build/tests/drivers/simplegad_test`
+## 7. Running Tests
+- All tests: `cd build && ctest`
+- Specific suite: `./build/tests/drivers/lxa_tests --gtest_filter=SimpleGadgetTest.*`

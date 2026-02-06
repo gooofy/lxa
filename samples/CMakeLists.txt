@@ -158,6 +158,14 @@ set(TESTS_LIST
     "../tests/intuition/validation_test|main|Tests/Intuition/Validation"
     "../tests/intuition/window_basic|main|Tests/Intuition/WindowBasic"
     "../tests/intuition/window_manipulation|main|Tests/Intuition/WindowManipulation"
+    "../tests/console/csi_cursor|main|Tests/Console/csi_cursor"
+    "../tests/console/csi_unit|main|Tests/Console/csi_unit"
+    "../tests/console/sgr_unit|main|Tests/Console/sgr_unit"
+    "../tests/console/con_handler|main|Tests/Console/con_handler"
+    "../tests/console/kp2_test|main|Tests/Console/kp2_test"
+    "../tests/console/input_inject|main|Tests/Console/input_inject"
+    "../tests/console/input_console|main|Tests/Console/input_console"
+    "../tests/console_advanced|main|Tests/ConsoleAdvanced/console_advanced"
     "../tests/devices/clipboard|main|Tests/Devices/Clipboard"
     "../tests/devices/console_async|main|Tests/Devices/ConsoleAsync"
     "../tests/devices/timer|main|Tests/Devices/Timer"
@@ -177,6 +185,7 @@ set(TESTS_LIST
     "../tests/stress/tasks|main|Tests/Stress/Tasks"
     "../tests/apps/dopus|main|Tests/Apps/Dopus"
     "../tests/apps/sysinfo|main|Tests/Apps/SysInfo"
+    "../tests/apps/kickpascal2|main|Tests/Apps/KickPascal2"
 )
 
 # === Copy Test Data Files ===

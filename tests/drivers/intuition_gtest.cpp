@@ -6,15 +6,88 @@
 
 using namespace lxa::testing;
 
-class IntuitionTest : public LxaTest {
+class IntuitionTest : public LxaUITest {
 protected:
     void SetUp() override {
-        LxaTest::SetUp();
+        LxaUITest::SetUp();
     }
 
     void RunIntuitionTest(const char* name, int timeout_ms = 5000) {
         std::string path = "SYS:Tests/Intuition/" + std::string(name);
-        int result = RunProgram(path.c_str(), "", timeout_ms);
+        int result = lxa_load_program(path.c_str(), "");
+        ASSERT_EQ(result, 0) << "Failed to load program " << path;
+        
+        // Some tests are interactive and need clicks
+        if (strcmp(name, "GadgetClick") == 0) {
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+            ASSERT_TRUE(GetWindowInfo(0, &window_info));
+            
+            // Wait for program to reach Test 3
+            char buffer[16384];
+            while (true) {
+                lxa_run_cycles(10000);
+                lxa_get_output(buffer, sizeof(buffer));
+                if (strstr(buffer, "--- Test 3: Close gadget click")) break;
+            }
+            
+            // Click the close gadget
+            // Close gadget is at (0, 0) in window, approx (10, 5) center
+            Click(window_info.x + 10, window_info.y + 5);
+            RunCyclesWithVBlank(20);
+        } else if (strcmp(name, "MenuSelect") == 0) {
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+            ASSERT_TRUE(GetWindowInfo(0, &window_info));
+            
+            // Wait for program to reach Test 3
+            char buffer[16384];
+            while (true) {
+                lxa_run_cycles(10000);
+                lxa_get_output(buffer, sizeof(buffer));
+                if (strstr(buffer, "--- Test 3: Simulate menu selection")) break;
+            }
+            
+            // Menu bar is at the top of the screen
+            // File menu title is at LeftEdge=5, Width=50. BeatX=0.
+            // On custom screen, BarHBorder is usually 0 if not specified.
+            int barX = 5 + 25; 
+            int barY = 5;
+            
+            // RMB Down
+            lxa_inject_mouse(barX, barY, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEBUTTON);
+            RunCyclesWithVBlank(20);
+            
+            // Move to Open item (menu 0, item 0)
+            // BarHeight is usually 11. Item 1 is at TopEdge=0, Height=10.
+            int itemX = 5 + 40; // BeatX+Width/2
+            int itemY = 11 + 1 + 5; // BarHeight + 1 + TopEdge + Height/2
+            lxa_inject_mouse(itemX, itemY, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEMOVE);
+            RunCyclesWithVBlank(20);
+            
+            // RMB Up (Selects item)
+            lxa_inject_mouse(itemX, itemY, 0, LXA_EVENT_MOUSEBUTTON);
+            RunCyclesWithVBlank(20);
+        } else if (strcmp(name, "Validation") == 0) {
+            // Wait for window
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+            ASSERT_TRUE(GetWindowInfo(0, &window_info));
+            
+            // Check window size
+            EXPECT_EQ(window_info.width, 300);
+            EXPECT_EQ(window_info.height, 150);
+            
+            // Check screen info
+            lxa_screen_info_t screen_info;
+            ASSERT_TRUE(lxa_get_screen_info(&screen_info));
+            EXPECT_EQ(screen_info.width, 640);
+            EXPECT_EQ(screen_info.height, 200);
+            EXPECT_EQ(screen_info.depth, 2);
+            
+            // Check for content (non-zero pixels)
+            RunCyclesWithVBlank(10);
+            EXPECT_GT(lxa_get_content_pixels(), 100);
+        }
+        
+        lxa_run_until_exit(timeout_ms);
         
         std::string output = GetOutput();
         

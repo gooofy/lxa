@@ -8,10 +8,8 @@
  * 4. Verify the sample's internal interactive tests run
  * 5. Verify the program completes cleanly
  *
- * Note: The UpdateStrGad sample already contains test_inject.h based interactive
  * testing. This driver verifies the sample runs and completes successfully.
  *
- * Phase 57: Host-side driver migration from test_inject.h
  */
 
 #include "lxa_api.h"
