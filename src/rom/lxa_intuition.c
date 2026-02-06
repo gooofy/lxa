@@ -121,6 +121,11 @@ UWORD _intuition_RemoveGList ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Gadget * gadget __asm("a1"),
                                                         register WORD numGad __asm("d0"));
 
+VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                        register struct Window * window __asm("a0"),
+                                                        register WORD dx __asm("d0"),
+                                                        register WORD dy __asm("d1"));
+
 struct LXAClassNode {
     struct Node node;
     struct IClass *class_ptr;
@@ -2090,6 +2095,16 @@ static struct Menu *g_active_menu;          /* Currently highlighted menu */
 static struct MenuItem *g_active_item;      /* Currently highlighted item */
 static UWORD g_menu_selection;              /* Encoded menu selection */
 
+/* State for window dragging
+ * Note: These MUST NOT have initializers - uninitialized statics go into .bss (RAM),
+ * while initialized statics go into .data which is in ROM (read-only). */
+static BOOL g_dragging_window;              /* TRUE when dragging a window */
+static struct Window *g_drag_window;        /* Window being dragged */
+static WORD g_drag_start_x;                 /* Mouse X when drag started */
+static WORD g_drag_start_y;                 /* Mouse Y when drag started */
+static WORD g_drag_window_x;                /* Window X when drag started */
+static WORD g_drag_window_y;                /* Window Y when drag started */
+
 /* Menu bar saved screen area (for restoration) - TODO: implement proper saving
 static PLANEPTR g_menu_save_buffer = NULL;
 static WORD g_menu_save_x = 0;
@@ -2209,6 +2224,52 @@ static WORD _get_item_index(struct Menu *menu, struct MenuItem *targetItem)
     }
     
     return NOITEM;
+}
+
+/*
+ * Render the screen title bar (shown when not in menu mode)
+ * This restores the title bar after menu mode ends
+ */
+static void _render_screen_title_bar(struct Screen *screen)
+{
+    struct RastPort *rp;
+    WORD barHeight;
+    
+    if (!screen)
+        return;
+    
+    rp = &screen->RastPort;
+    
+    /* Validate RastPort has a valid BitMap */
+    if (!rp->BitMap || !rp->BitMap->Planes[0])
+        return;
+    
+    barHeight = screen->BarHeight + 1;
+    
+    /* Fill the title bar area with the screen title bar color (pen 1) */
+    SetAPen(rp, 1);
+    RectFill(rp, 0, 0, screen->Width - 1, barHeight - 1);
+    
+    /* Draw bottom border line */
+    SetAPen(rp, 0);
+    Move(rp, 0, barHeight - 1);
+    Draw(rp, screen->Width - 1, barHeight - 1);
+    
+    /* Draw screen title if present */
+    if (screen->Title)
+    {
+        SetAPen(rp, 0);    /* Text in black */
+        SetBPen(rp, 1);    /* Background */
+        SetDrMd(rp, JAM2);
+        
+        /* Draw title centered or left-aligned, after any screen gadgets */
+        /* Standard position is a few pixels from the left */
+        Move(rp, screen->BarHBorder, screen->BarVBorder + rp->TxBaseline);
+        Text(rp, (STRPTR)screen->Title, strlen((const char *)screen->Title));
+    }
+    
+    DPRINTF(LOG_DEBUG, "_intuition: _render_screen_title_bar() screen=0x%08lx title='%s'\n",
+            (ULONG)screen, screen->Title ? (const char *)screen->Title : "(none)");
 }
 
 /*
@@ -2454,9 +2515,14 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
 static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
 {
     UWORD menuCode = MENUNULL;
+    struct Screen *screen = NULL;
     
     if (!g_menu_mode)
         return;
+    
+    /* Save screen pointer before we clear g_menu_window */
+    if (g_menu_window)
+        screen = g_menu_window->WScreen;
     
     DPRINTF(LOG_DEBUG, "_intuition: Exiting menu mode, active_menu=0x%08lx active_item=0x%08lx\n",
             (ULONG)g_active_menu, (ULONG)g_active_item);
@@ -2467,6 +2533,12 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
         WORD menuNum = _get_menu_index(g_menu_window, g_active_menu);
         WORD itemNum = _get_item_index(g_active_menu, g_active_item);
         menuCode = _encode_menu_selection(menuNum, itemNum, NOSUB);
+        
+        /* Set NextSelect to MENUNULL to indicate this is the only/last selection.
+         * On real Amiga, Intuition sets this for single selections. For shift-click
+         * multi-select, it would chain to additional selected items. We only
+         * support single selections for now. */
+        g_active_item->NextSelect = MENUNULL;
         
         DPRINTF(LOG_DEBUG, "_intuition: Menu selection: menu=%d item=%d code=0x%04x\n",
                 (int)menuNum, (int)itemNum, menuCode);
@@ -2488,9 +2560,11 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
     g_active_item = NULL;
     g_menu_selection = MENUNULL;
     
-    /* Redraw screen to clear menu bar */
-    /* For now, we'll just let the next refresh handle it */
-    /* A proper implementation would restore saved screen area */
+    /* Redraw screen title bar to clear menu graphics */
+    if (screen)
+    {
+        _render_screen_title_bar(screen);
+    }
 }
 
 /*
@@ -2803,6 +2877,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 UWORD code = (UWORD)(button_code & 0xFF);
                 UWORD qualifier = (UWORD)((button_code >> 8) & 0xFFFF);
                 
+                LPRINTF(LOG_INFO, "_intuition: MouseButton code=0x%02x qual=0x%04x at (%d,%d)\n",
+                        code, qualifier, mouseX, mouseY);
+                
                 if (window)
                 {
                     /* Convert to window-relative coordinates */
@@ -2833,6 +2910,24 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             }
                             
                             /* TODO: Render selected state (GADGHCOMP/GADGHBOX) */
+                        }
+                        else
+                        {
+                            /* No gadget hit - check for title bar drag */
+                            if ((window->Flags & WFLG_DRAGBAR) && 
+                                relY >= 0 && relY < window->BorderTop &&
+                                relX >= 0 && relX < window->Width)
+                            {
+                                /* Click is in title bar area - start dragging */
+                                DPRINTF(LOG_DEBUG, "_intuition: Starting window drag: window=0x%08lx at (%d,%d)\n",
+                                        (ULONG)window, window->LeftEdge, window->TopEdge);
+                                g_dragging_window = TRUE;
+                                g_drag_window = window;
+                                g_drag_start_x = mouseX;
+                                g_drag_start_y = mouseY;
+                                g_drag_window_x = window->LeftEdge;
+                                g_drag_window_y = window->TopEdge;
+                            }
                         }
                     }
                     /* Check for gadget release on mouse up (SELECTUP) */
@@ -2898,21 +2993,39 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                 g_active_window = NULL;
                             }
                         }
+                        
+                        /* Stop window dragging on mouse up */
+                        if (g_dragging_window)
+                        {
+                            DPRINTF(LOG_DEBUG, "_intuition: Stopping window drag\n");
+                            g_dragging_window = FALSE;
+                            g_drag_window = NULL;
+                        }
                     }
                     /* Right mouse button press - enter menu mode */
                     else if (code == MENUDOWN)
                     {
-                        /* Find window with menu at this position (check title bar) */
+                        LPRINTF(LOG_INFO, "_intuition: MENUDOWN at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
+                                mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
+                        /* 
+                         * On real AmigaOS, right-clicking ANYWHERE on the screen activates the
+                         * menu bar. The window that receives the menu is the currently active
+                         * window with a menu strip, or the window under the mouse if it has a menu.
+                         */
                         struct Window *menuWin = NULL;
                         
-                        /* Check if we're in the screen's title bar area (where menus are displayed) */
-                        if (mouseY < screen->BarHeight + 1)
+                        /* First, check the window under the mouse */
+                        if (window && window->MenuStrip && !(window->Flags & WFLG_RMBTRAP))
                         {
-                            /* Find the active window with a menu strip */
+                            menuWin = window;
+                        }
+                        else
+                        {
+                            /* Otherwise, find the first window with a menu strip on this screen */
                             menuWin = screen->FirstWindow;
                             while (menuWin)
                             {
-                                if (menuWin->MenuStrip && (menuWin->Flags & WFLG_MENUSTATE) == 0)
+                                if (menuWin->MenuStrip && !(menuWin->Flags & WFLG_RMBTRAP))
                                     break;
                                 menuWin = menuWin->NextWindow;
                             }
@@ -2920,12 +3033,15 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                         
                         if (menuWin && menuWin->MenuStrip)
                         {
+                            LPRINTF(LOG_INFO, "_intuition: Entering menu mode for menuWin=0x%08lx\n", (ULONG)menuWin);
                             _enter_menu_mode(menuWin, screen, mouseX, mouseY);
                         }
                     }
                     /* Right mouse button release - exit menu mode and select item */
                     else if (code == MENUUP)
                     {
+                        LPRINTF(LOG_INFO, "_intuition: MENUUP at (%d,%d), g_menu_mode=%d, g_active_menu=0x%08lx, g_active_item=0x%08lx\n",
+                                mouseX, mouseY, g_menu_mode, (ULONG)g_active_menu, (ULONG)g_active_item);
                         if (g_menu_mode && g_menu_window)
                         {
                             _exit_menu_mode(g_menu_window, mouseX, mouseY);
@@ -2964,9 +3080,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                     /* Check if mouse is in drop-down menu area */
                     else if (g_active_menu && g_active_menu->FirstItem)
                     {
-                        /* Calculate position relative to menu drop-down */
+                        /* Calculate position relative to menu drop-down
+                         * Must match the position used in _render_menu_items */
                         WORD menuTop = screen->BarHeight + 1;
-                        WORD menuLeft = screen->BarHBorder + g_active_menu->LeftEdge + g_active_menu->BeatX;
+                        WORD menuLeft = screen->BarHBorder + g_active_menu->LeftEdge;
                         WORD itemX = mouseX - menuLeft;
                         WORD itemY = mouseY - menuTop;
                         
@@ -2998,6 +3115,44 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                         {
                             _render_menu_items(g_menu_window);
                         }
+                    }
+                }
+                
+                /* Handle window dragging */
+                if (g_dragging_window && g_drag_window)
+                {
+                    /* Calculate new window position based on mouse delta */
+                    WORD dx = mouseX - g_drag_start_x;
+                    WORD dy = mouseY - g_drag_start_y;
+                    WORD newX = g_drag_window_x + dx;
+                    WORD newY = g_drag_window_y + dy;
+                    
+                    /* Clamp to screen bounds */
+                    struct Screen *wscreen = g_drag_window->WScreen;
+                    if (wscreen)
+                    {
+                        /* Ensure at least part of the window title bar remains visible */
+                        if (newX < -g_drag_window->Width + 20)
+                            newX = -g_drag_window->Width + 20;
+                        if (newX > wscreen->Width - 20)
+                            newX = wscreen->Width - 20;
+                        if (newY < 0)
+                            newY = 0;
+                        if (newY > wscreen->Height - g_drag_window->BorderTop)
+                            newY = wscreen->Height - g_drag_window->BorderTop;
+                    }
+                    
+                    /* Move window to new position */
+                    if (newX != g_drag_window->LeftEdge || newY != g_drag_window->TopEdge)
+                    {
+                        WORD move_dx = newX - g_drag_window->LeftEdge;
+                        WORD move_dy = newY - g_drag_window->TopEdge;
+                        
+                        DPRINTF(LOG_DEBUG, "_intuition: Dragging window to (%d,%d) delta=(%d,%d)\n",
+                                newX, newY, move_dx, move_dy);
+                        
+                        /* Use MoveWindow for proper layer handling */
+                        _intuition_MoveWindow(IntuitionBase, g_drag_window, move_dx, move_dy);
                     }
                 }
                 
@@ -3094,9 +3249,7 @@ VOID _intuition_VBlankInputHook(void)
     
     /* Use global IntuitionBase - no OpenLibrary calls from interrupt context! */
     if (!IntuitionBase)
-    {
         return;
-    }
     
     for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
     {
@@ -3491,6 +3644,13 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Link screen into IntuitionBase screen list (at front) */
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
+    
+    /* Debug: print offset of FirstScreen */
+    LPRINTF(LOG_INFO, "[ROM] OpenScreen: offsetof(FirstScreen)=%d, sizeof(IntuitionBase)=%d, sizeof(Library)=%d, sizeof(View)=%d\n",
+            (int)((char*)&IntuitionBase->FirstScreen - (char*)IntuitionBase),
+            (int)sizeof(struct IntuitionBase), (int)sizeof(struct Library), (int)sizeof(struct View));
+    LPRINTF(LOG_INFO, "[ROM] OpenScreen: IntuitionBase=0x%08lx, FirstScreen set to 0x%08lx\n",
+            (ULONG)IntuitionBase, (ULONG)screen);
     
     /* If this is the first screen, make it the active screen */
     if (!IntuitionBase->ActiveScreen)

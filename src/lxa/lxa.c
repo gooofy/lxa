@@ -4413,7 +4413,8 @@ int op_illg(int level)
             display_poll_events();
             
             display_event_t event;
-            if (display_get_event(&event))
+            bool got_event = display_get_event(&event);
+            if (got_event)
             {
                 /* Store event data in static vars for subsequent GET calls */
                 g_last_event = event;
@@ -4429,9 +4430,12 @@ int op_illg(int level)
 
         case EMU_CALL_INT_GET_MOUSE_POS:
         {
-            /* Returns (x << 16) | y */
-            int x, y;
-            display_get_mouse_pos(&x, &y);
+            /* Returns (x << 16) | y from the last polled event.
+             * We use g_last_event.mouse_x/y rather than display_get_mouse_pos()
+             * to ensure the position corresponds to the event that was dequeued,
+             * not the current mouse position (which may have changed). */
+            int x = g_last_event.mouse_x;
+            int y = g_last_event.mouse_y;
             m68k_set_reg(M68K_REG_D0, ((uint32_t)x << 16) | ((uint32_t)y & 0xFFFF));
             break;
         }

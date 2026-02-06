@@ -1,23 +1,34 @@
 /*
- * gadtoolsmenu.c - GadTools Menu Sample
- *
- * This is an RKM-style sample demonstrating menu creation using GadTools.
- * Unlike the simplemenu.c sample which builds menus manually, this uses
- * the GadTools functions for easier menu construction:
- *   - CreateMenus() / FreeMenus()
- *   - LayoutMenus()
- *   - GetVisualInfo() / FreeVisualInfo()
- *
- * Key Functions Demonstrated:
- *   - GetVisualInfo() / FreeVisualInfo()
- *   - CreateMenus() / FreeMenus()
- *   - LayoutMenus()
- *   - SetMenuStrip() / ClearMenuStrip()
- *   - ItemAddress()
- *
- * Based on RKM GadTools sample code.
- * Copyright (c) 1992 Commodore-Amiga, Inc.
- */
+Copyright (c) 1992 Commodore-Amiga, Inc.
+
+This example is provided in electronic form by Commodore-Amiga, Inc. for
+use with the "Amiga ROM Kernel Reference Manual: Libraries", 3rd Edition,
+published by Addison-Wesley (ISBN 0-201-56774-1).
+
+The "Amiga ROM Kernel Reference Manual: Libraries" contains additional
+information on the correct usage of the techniques and operating system
+functions presented in these examples.  The source and executable code
+of these examples may only be distributed in free electronic form, via
+bulletin board or as part of a fully non-commercial and freely
+redistributable diskette.  Both the source and executable code (including
+comments) must be included, without modification, in any copy.  This
+example may not be published in printed form or distributed with any
+commercial product.  However, the programming techniques and support
+routines set forth in these examples may be used in the development
+of original executable software products for Commodore Amiga computers.
+
+All other rights reserved.
+
+This example is provided "as-is" and is subject to change; no
+warranties are made.  All use is at your own risk. No liability or
+responsibility is assumed.
+*/
+
+/* gadtoolsmenu.c
+** Example showing the basic usage of the menu system with a window.
+** Menu layout is done with GadTools, as is recommended for applications.
+**
+*/
 
 #define INTUI_V36_NAMES_ONLY
 
@@ -35,221 +46,129 @@
 struct Library *GadToolsBase;
 struct IntuitionBase *IntuitionBase;
 
-/* Menu definition using NewMenu structure */
 struct NewMenu mynewmenu[] =
-{
-    { NM_TITLE, "Project",    0 , 0, 0, 0,},
-    {  NM_ITEM, "Open...",   "O", 0, 0, 0,},
-    {  NM_ITEM, "Save",      "S", 0, 0, 0,},
-    {  NM_ITEM, NM_BARLABEL,  0 , 0, 0, 0,},
-    {  NM_ITEM, "Print",      0 , 0, 0, 0,},
-    {   NM_SUB, "Draft",      0 , 0, 0, 0,},
-    {   NM_SUB, "NLQ",        0 , 0, 0, 0,},
-    {  NM_ITEM, NM_BARLABEL,  0 , 0, 0, 0,},
-    {  NM_ITEM, "Quit...",   "Q", 0, 0, 0,},
+    {
+        { NM_TITLE, "Project",    0 , 0, 0, 0,},
+        {  NM_ITEM, "Open...",   "O", 0, 0, 0,},
+        {  NM_ITEM, "Save",      "S", 0, 0, 0,},
+        {  NM_ITEM, NM_BARLABEL,  0 , 0, 0, 0,},
+        {  NM_ITEM, "Print",      0 , 0, 0, 0,},
+        {   NM_SUB, "Draft",      0 , 0, 0, 0,},
+        {   NM_SUB, "NLQ",        0 , 0, 0, 0,},
+        {  NM_ITEM, NM_BARLABEL,  0 , 0, 0, 0,},
+        {  NM_ITEM, "Quit...",   "Q", 0, 0, 0,},
 
-    { NM_TITLE, "Edit",       0 , 0, 0, 0,},
-    {  NM_ITEM, "Cut",       "X", 0, 0, 0,},
-    {  NM_ITEM, "Copy",      "C", 0, 0, 0,},
-    {  NM_ITEM, "Paste",     "V", 0, 0, 0,},
-    {  NM_ITEM, NM_BARLABEL,  0 , 0, 0, 0,},
-    {  NM_ITEM, "Undo",      "Z", 0, 0, 0,},
+        { NM_TITLE, "Edit",       0 , 0, 0, 0,},
+        {  NM_ITEM, "Cut",       "X", 0, 0, 0,},
+        {  NM_ITEM, "Copy",      "C", 0, 0, 0,},
+        {  NM_ITEM, "Paste",     "V", 0, 0, 0,},
+        {  NM_ITEM, NM_BARLABEL,  0 , 0, 0, 0,},
+        {  NM_ITEM, "Undo",      "Z", 0, 0, 0,},
 
-    {   NM_END, NULL,         0 , 0, 0, 0,},
-};
+        {   NM_END, NULL,         0 , 0, 0, 0,},
+    };
+
 
 /*
-** Process menu events and count selections.
-** Auto-exits after processing a few menu selections for testing.
+** Watch the menus and wait for the user to select the close gadget
+** or quit from the menus.
 */
 VOID handle_window_events(struct Window *win, struct Menu *menuStrip)
 {
-    struct IntuiMessage *msg;
-    SHORT done;
-    UWORD menuNumber;
-    UWORD menuNum;
-    UWORD itemNum;
-    UWORD subNum;
-    struct MenuItem *item;
-    int selectionCount = 0;
-    int maxSelections = 3;  /* Auto-exit after 3 selections for testing */
+struct IntuiMessage *msg;
+SHORT done;
+UWORD menuNumber;
+UWORD menuNum;
+UWORD itemNum;
+UWORD subNum;
+struct MenuItem *item;
 
-    done = FALSE;
-    printf("GadToolsMenu: Waiting for menu selections (or close gadget)\n");
-    printf("GadToolsMenu: Will auto-exit after %d selections\n", maxSelections);
-
-    while (FALSE == done)
+done = FALSE;
+while (FALSE == done)
     {
-        /* Wait for messages */
-        Wait(1L << win->UserPort->mp_SigBit);
+    /* we only have one signal bit, so we do not have to check which
+    ** bit broke the Wait().
+    */
+    Wait(1L << win->UserPort->mp_SigBit);
 
-        while ((FALSE == done) &&
-               (NULL != (msg = (struct IntuiMessage *)GetMsg(win->UserPort))))
+    while ( (FALSE == done) &&
+            (NULL != (msg = (struct IntuiMessage *)GetMsg(win->UserPort))))
         {
-            switch (msg->Class)
+        switch (msg->Class)
             {
-                case IDCMP_CLOSEWINDOW:
-                    printf("GadToolsMenu: IDCMP_CLOSEWINDOW received\n");
-                    done = TRUE;
-                    break;
-
-                case IDCMP_MENUPICK:
-                    menuNumber = msg->Code;
-                    while ((menuNumber != MENUNULL) && (!done))
+            case IDCMP_CLOSEWINDOW:
+                done = TRUE;
+                break;
+            case IDCMP_MENUPICK:
+                menuNumber = msg->Code;
+                while ((menuNumber != MENUNULL) && (!done))
                     {
-                        item = ItemAddress(menuStrip, menuNumber);
+                    item = ItemAddress(menuStrip, menuNumber);
 
-                        /* Extract menu, item, and sub numbers */
-                        menuNum = MENUNUM(menuNumber);
-                        itemNum = ITEMNUM(menuNumber);
-                        subNum  = SUBNUM(menuNumber);
+                    /* process the item here! */
+                    menuNum = MENUNUM(menuNumber);
+                    itemNum = ITEMNUM(menuNumber);
+                    subNum  = SUBNUM(menuNumber);
 
-                        printf("GadToolsMenu: MENUPICK menu=%d item=%d sub=%d\n",
-                               menuNum, itemNum, subNum);
+                    /* stop if quit is selected. */
+                    if ((menuNum == 0) && (itemNum == 5))
+                        done = TRUE;
 
-                        selectionCount++;
-
-                        /* Check for Quit (Project menu, item 5) */
-                        if ((menuNum == 0) && (itemNum == 5))
-                        {
-                            printf("GadToolsMenu: Quit selected\n");
-                            done = TRUE;
-                        }
-
-                        /* Auto-exit after enough selections for testing */
-                        if (selectionCount >= maxSelections)
-                        {
-                            printf("GadToolsMenu: Auto-exit after %d selections\n", 
-                                   selectionCount);
-                            done = TRUE;
-                        }
-
-                        /* Get next selection in case of multi-select */
-                        menuNumber = item->NextSelect;
+                    menuNumber = item->NextSelect;
                     }
-                    break;
+                break;
             }
-            ReplyMsg((struct Message *)msg);
+        ReplyMsg((struct Message *)msg);
         }
     }
 }
+
 
 /*
 ** Open all of the required libraries and set-up the menus.
 */
 VOID main(int argc, char *argv[])
 {
-    struct Window *win;
-    APTR my_VisualInfo;
-    struct Menu *menuStrip;
+struct Window *win;
+APTR *my_VisualInfo;
+struct Menu *menuStrip;
 
-    printf("GadToolsMenu: Starting GadTools menu demonstration\n");
-
-    /* Open the Intuition Library */
-    IntuitionBase = (struct IntuitionBase *)OpenLibrary("intuition.library", 37);
-    if (IntuitionBase != NULL)
+/* Open the Intuition Library */
+IntuitionBase = (struct IntuitionBase *)OpenLibrary("intuition.library", 37);
+if (IntuitionBase != NULL)
     {
-        printf("GadToolsMenu: Opened intuition.library v%d\n", 
-               IntuitionBase->LibNode.lib_Version);
-
-        /* Open the gadtools Library */
-        GadToolsBase = OpenLibrary("gadtools.library", 37);
-        if (GadToolsBase != NULL)
+    /* Open the gadtools Library */
+    GadToolsBase = OpenLibrary("gadtools.library", 37);
+    if (GadToolsBase != NULL)
         {
-            printf("GadToolsMenu: Opened gadtools.library\n");
-
-            win = OpenWindowTags(NULL,
-                        WA_Width,       400,
-                        WA_Height,      100,
-                        WA_Activate,    TRUE,
-                        WA_CloseGadget, TRUE,
-                        WA_DragBar,     TRUE,
-                        WA_DepthGadget, TRUE,
-                        WA_Title,       "GadTools Menu Test",
-                        WA_IDCMP,       IDCMP_CLOSEWINDOW | IDCMP_MENUPICK,
-                        TAG_END);
-
-            if (win != NULL)
+        if (NULL != (win = OpenWindowTags(NULL,
+                            WA_Width,  400,       WA_Activate,    TRUE,
+                            WA_Height, 100,       WA_CloseGadget, TRUE,
+                            WA_Title,  "Menu Test Window",
+                            WA_IDCMP,  IDCMP_CLOSEWINDOW | IDCMP_MENUPICK,
+                            TAG_END)))
             {
-                printf("GadToolsMenu: Window opened at (%d,%d) size %dx%d\n",
-                       win->LeftEdge, win->TopEdge, win->Width, win->Height);
-
-                my_VisualInfo = GetVisualInfo(win->WScreen, TAG_END);
-                if (my_VisualInfo != NULL)
+            if (NULL != (my_VisualInfo = GetVisualInfo(win->WScreen, TAG_END)))
                 {
-                    printf("GadToolsMenu: GetVisualInfo() succeeded\n");
-
-                    menuStrip = CreateMenus(mynewmenu, TAG_END);
-                    if (menuStrip != NULL)
+                if (NULL != (menuStrip = CreateMenus(mynewmenu, TAG_END)))
                     {
-                        printf("GadToolsMenu: CreateMenus() succeeded\n");
-
-                        if (LayoutMenus(menuStrip, my_VisualInfo, TAG_END))
+                    if (LayoutMenus(menuStrip, my_VisualInfo, TAG_END))
                         {
-                            printf("GadToolsMenu: LayoutMenus() succeeded\n");
-
-                            if (SetMenuStrip(win, menuStrip))
+                        if (SetMenuStrip(win, menuStrip))
                             {
-                                printf("GadToolsMenu: SetMenuStrip() succeeded\n");
-                                printf("GadToolsMenu: Menu structure:\n");
-                                printf("GadToolsMenu:   Project: Open, Save, ---, Print (Draft/NLQ), ---, Quit\n");
-                                printf("GadToolsMenu:   Edit: Cut, Copy, Paste, ---, Undo\n");
+                            handle_window_events(win,menuStrip);
 
-                                /* For automated testing, simulate menu selection */
-                                /* In real use, this would be handle_window_events(win, menuStrip) */
-                                printf("GadToolsMenu: Simulating menu test (delay 1 sec)\n");
-                                Delay(50);
-
-                                ClearMenuStrip(win);
-                                printf("GadToolsMenu: ClearMenuStrip() - menus cleared\n");
+                            ClearMenuStrip(win);
                             }
-                            else
-                            {
-                                printf("GadToolsMenu: SetMenuStrip() failed\n");
-                            }
-                        }
-                        else
-                        {
-                            printf("GadToolsMenu: LayoutMenus() failed\n");
-                        }
-
                         FreeMenus(menuStrip);
-                        printf("GadToolsMenu: FreeMenus() - menus freed\n");
+                        }
                     }
-                    else
-                    {
-                        printf("GadToolsMenu: CreateMenus() failed\n");
-                    }
-
-                    FreeVisualInfo(my_VisualInfo);
-                    printf("GadToolsMenu: FreeVisualInfo() - visual info freed\n");
+                FreeVisualInfo(my_VisualInfo);
                 }
-                else
-                {
-                    printf("GadToolsMenu: GetVisualInfo() failed\n");
-                }
-
-                CloseWindow(win);
-                printf("GadToolsMenu: Window closed\n");
+            CloseWindow(win);
             }
-            else
-            {
-                printf("GadToolsMenu: Failed to open window\n");
-            }
-
-            CloseLibrary((struct Library *)GadToolsBase);
+        CloseLibrary((struct Library *)GadToolsBase);
         }
-        else
-        {
-            printf("GadToolsMenu: Failed to open gadtools.library v37\n");
-        }
-
-        CloseLibrary((struct Library *)IntuitionBase);
+    CloseLibrary((struct Library *)IntuitionBase);
     }
-    else
-    {
-        printf("GadToolsMenu: Failed to open intuition.library v37\n");
-    }
-
-    printf("GadToolsMenu: Done\n");
 }

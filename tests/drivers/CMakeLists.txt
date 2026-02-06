@@ -40,6 +40,21 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplemenu_test.c)
     add_test_driver(simplemenu_test)
 endif()
 
+# CustomPointer - custom pointer test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/custompointer_test.c)
+    add_test_driver(custompointer_test)
+endif()
+
+# GadToolsMenu - GadTools menu test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsmenu_test.c)
+    add_test_driver(gadtoolsmenu_test)
+endif()
+
+# FileReq - ASL file requester test
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/filereq_test.c)
+    add_test_driver(filereq_test)
+endif()
+
 # UpdateStrGad - string gadget test
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/updatestrgad_test.c)
     add_test_driver(updatestrgad_test)

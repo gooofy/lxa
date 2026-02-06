@@ -1,90 +1,76 @@
 /*
- * filereq.c - ASL File Requester Sample
- *
- * This is an RKM-style sample demonstrating the ASL file requester.
- * It creates a file requester, displays it briefly for testing,
- * and shows the returned path and file.
- *
- * Key Functions Demonstrated:
- *   - AllocAslRequest() - Create a file requester
- *   - FreeAslRequest() - Free a file requester
- *   - AslRequest() - Display the requester (interactive)
- *
- * Based on RKM ASL sample code.
- * Copyright (c) 1992 Commodore-Amiga, Inc.
- */
+Copyright (c) 1992 Commodore-Amiga, Inc.
+
+This example is provided in electronic form by Commodore-Amiga, Inc. for
+use with the "Amiga ROM Kernel Reference Manual: Libraries", 3rd Edition,
+published by Addison-Wesley (ISBN 0-201-56774-1).
+
+The "Amiga ROM Kernel Reference Manual: Libraries" contains additional
+information on the correct usage of the techniques and operating system
+functions presented in these examples.  The source and executable code
+of these examples may only be distributed in free electronic form, via
+bulletin board or as part of a fully non-commercial and freely
+redistributable diskette.  Both the source and executable code (including
+comments) must be included, without modification, in any copy.  This
+example may not be published in printed form or distributed with any
+commercial product.  However, the programming techniques and support
+routines set forth in these examples may be used in the development
+of original executable software products for Commodore Amiga computers.
+
+All other rights reserved.
+
+This example is provided "as-is" and is subject to change; no
+warranties are made.  All use is at your own risk. No liability or
+responsibility is assumed.
+*/
 
 #include <exec/types.h>
 #include <exec/libraries.h>
 #include <libraries/asl.h>
-#include <utility/tagitem.h>
-
 #include <clib/exec_protos.h>
 #include <clib/asl_protos.h>
-
 #include <stdio.h>
+
+#define MYLEFTEDGE 0
+#define MYTOPEDGE  0
+#define MYWIDTH    320
+#define MYHEIGHT   400
 
 struct Library *AslBase = NULL;
 
-/* Tag list for the file requester */
 struct TagItem frtags[] =
 {
-    {ASL_Hail,       (ULONG)"LXA File Requester Test"},
-    {ASL_Height,     200},
-    {ASL_Width,      320},
-    {ASL_LeftEdge,   0},
-    {ASL_TopEdge,    0},
-    {ASL_OKText,     (ULONG)"Open"},
-    {ASL_CancelText, (ULONG)"Cancel"},
-    {ASL_File,       (ULONG)"test.txt"},
-    {ASL_Dir,        (ULONG)"SYS:"},
-    {TAG_END,        0}
+    ASL_Hail,       (ULONG)"The RKM file requester",
+    ASL_Height,     MYHEIGHT,
+    ASL_Width,      MYWIDTH,
+    ASL_LeftEdge,   MYLEFTEDGE,
+    ASL_TopEdge,    MYTOPEDGE,
+    ASL_OKText,     (ULONG)"O KAY",
+    ASL_CancelText, (ULONG)"not OK",
+    ASL_File,       (ULONG)"asl.library",
+    ASL_Dir,        (ULONG)"libs:",
+    TAG_DONE
 };
 
-void main(void)
+void main(int argc, char **argv)
 {
     struct FileRequester *fr;
-    
-    printf("FileReq: Starting ASL File Requester demo\n");
-    
-    AslBase = OpenLibrary("asl.library", 37L);
-    if (AslBase != NULL)
+
+    if (AslBase = OpenLibrary("asl.library", 37L))
     {
-        printf("FileReq: Opened asl.library v%d\n", AslBase->lib_Version);
-        
-        /* Allocate the file requester */
-        fr = (struct FileRequester *)AllocAslRequest(ASL_FileRequest, frtags);
-        if (fr != NULL)
+        if (fr = (struct FileRequester *)
+            AllocAslRequest(ASL_FileRequest, frtags))
         {
-            printf("FileReq: AllocAslRequest() succeeded\n");
-            printf("FileReq: Requester configured for dir='%s' file='%s'\n",
-                   fr->fr_Drawer ? (char*)fr->fr_Drawer : "(null)",
-                   fr->fr_File ? (char*)fr->fr_File : "(null)");
-            
-            printf("FileReq: Size: %dx%d at (%d,%d)\n",
-                   fr->fr_Width, fr->fr_Height,
-                   fr->fr_LeftEdge, fr->fr_TopEdge);
-            
-            /* For automated testing, we show info but don't wait for user */
-            /* In real use, AslRequest() would be called here interactively */
-            printf("FileReq: (Skipping interactive AslRequest for test)\n");
-            
-            /* Free the requester */
+            if (AslRequest(fr, NULL))
+            {
+                printf("PATH=%s  FILE=%s\n", fr->rf_Dir, fr->rf_File);
+                printf("To combine the path and filename, copy the path\n");
+                printf("to a buffer, add the filename with Dos AddPart().\n");
+            }
             FreeAslRequest(fr);
-            printf("FileReq: FreeAslRequest() - requester freed\n");
         }
-        else
-        {
-            printf("FileReq: AllocAslRequest() failed\n");
-        }
-        
+        else printf("User Cancelled\n");
+
         CloseLibrary(AslBase);
-        printf("FileReq: Closed asl.library\n");
     }
-    else
-    {
-        printf("FileReq: Failed to open asl.library v37\n");
-    }
-    
-    printf("FileReq: Done\n");
 }

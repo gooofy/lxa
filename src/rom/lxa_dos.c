@@ -3781,9 +3781,16 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
         }
         
         loopCount++;
-        if (loopCount > 1000) {
-            LPRINTF(LOG_WARNING, "_dos: SystemTagList wait loop exceeded 1000 iterations!\n");
-            break;
+        /* 
+         * No iteration limit - real AmigaDOS System() waits forever for the child.
+         * The loop will exit when:
+         * 1. The task slot is cleared (task exited and called freeTaskNum)
+         * 2. The task slot is reused by another task
+         * 
+         * Input events are processed by the host via EMU_CALL_WAIT during Delay().
+         */
+        if ((loopCount % 1000) == 0) {
+            DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop iteration %d (still waiting)\n", loopCount);
         }
         
         DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop iteration %d, stored=0x%08lx\n", 

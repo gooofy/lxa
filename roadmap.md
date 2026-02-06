@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.28** | **Phase 62 Complete** | **42 RKM Sample Tests Passing** | **14 Host-Side Test Drivers**
+**Version: 0.6.29** | **Phase 63 In Progress** | **42 RKM Sample Tests Passing** | **16 Host-Side Test Drivers**
 
 The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
 
@@ -155,16 +155,45 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Active Phase
 
-### Phase 63: DPaint V Deep Dive
-**Goal**: Fix hang during initialization after font loading.
-**Status**: ⚠️ PARTIAL - Libraries load, Workbench opens, but hangs during init.
-**Driver**: ✅ `dpaint_test.c` created (handles known hang gracefully)
+### Phase 63: RKM Sample Collection Fixes (In Progress)
+
+**Goal**: Fix samples that were modified from their RKM originals and restore them to match RKM behavior.
+
+**Root Cause Identified**: Several samples had been heavily modified with debug output and `test_inject.h` self-testing code. The originals are simple, interactive programs.
+
+**Completed**:
+- [x] **SystemTagList timeout FIXED** - Removed the arbitrary 1000 iteration limit in `_dos_SystemTagList()`. The wait loop now runs indefinitely (as real AmigaDOS System() does), exiting only when the child task actually finishes. GUI programs now stay open for user interaction when run via Shell.
+- [x] **RGBBoxes crash FIXED** - Implemented no-op stubs for `FreeVPortCopLists()`, `FreeCopList()`, and `FreeCprList()` in `src/rom/lxa_graphics.c`. Also added stubs for `MakeVPort()`, `MrgCop()`, and `LoadView()`. RGBBoxes now runs to completion.
+- [x] **Menu activation FIXED** - Right-click now activates menus from anywhere on the screen (not just title bar), matching real AmigaOS behavior.
+- [x] **Menu clearing FIXED** - Menus now properly disappear when releasing RMB or selecting an item. Added `_render_screen_title_bar()` function to restore the screen title bar.
+- [x] **Window dragging FIXED** - Added window drag support: clicking and dragging in the title bar of a DRAGBAR window now moves the window. Added state variables (`g_dragging_window`, `g_drag_window`, etc.) and proper handling in mouse down/move/up.
+- [x] **simplegad.c** - Rewritten to match RKM exactly (1 button, Wait loop, no debug output)
+- [x] **simplemenu.c** - Rewritten to match RKM exactly (removed test_inject.h, uses handleWindow())
+- [x] **custompointer.c** - Rewritten to match RKM exactly (just Delay calls, no printf)
+- [x] **gadtoolsmenu.c** - Rewritten to match RKM exactly (interactive event loop)
+- [x] **filereq.c** - Rewritten to match RKM exactly (calls AslRequest interactively)
+- [x] **simplegad_test.c** - Updated host-side driver for RKM version - PASSING
+- [x] **simplemenu_test.c** - Updated host-side driver for RKM version - PASSING (menu selection works)
+- [x] **custompointer_test.c** - Created host-side driver - PASSING
+- [x] **gadtoolsmenu_test.c** - Created host-side driver - PASSING
+- [x] **filereq_test.c** - Created host-side driver - PASSING (Cancel button works)
+- [x] **Menu selection timing FIXED** - Increased CPU cycle allocation in `lxa_inject_drag()` from 50k to 500k cycles per step. The VBlank IRQ handler needs sufficient cycles to complete menu rendering before returning. Without enough cycles, the handler would be interrupted mid-rendering, leaving the CPU at IPL=3 (interrupts masked) for subsequent VBlanks.
+
+**Remaining**:
+- [ ] Create host-side driver for RGBBoxes
+- [ ] Audit remaining samples against RKM originals in `/home/guenter/projects/amiga/sample-code/rkm/`
+
 
 ---
 
 ## Upcoming Phases
 
-### Phase 64: Directory Opus 4 Deep Dive
+### Phase 64a: DPaint V Deep Dive
+**Goal**: Fix hang during initialization after font loading.
+**Status**: ⚠️ PARTIAL - Libraries load, Workbench opens, but hangs during init.
+**Driver**: ✅ `dpaint_test.c` created (handles known hang gracefully)
+
+### Phase 64b: Directory Opus 4 Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
 **Status**: ⚠️ PARTIAL - Exit code 1 investigation needed.
 **TODO**: migrate to host-side driver, run deeper tests

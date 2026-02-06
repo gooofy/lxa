@@ -403,7 +403,7 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
         return false;
     
     lxa_trigger_vblank();
-    lxa_run_cycles(50000);
+    lxa_run_cycles(500000);  /* Need enough cycles for IRQ handler to complete menu rendering */
 
     /* Press button */
     if (!display_inject_mouse(start_x, start_y, button, DISPLAY_EVENT_MOUSEBUTTON))
@@ -411,7 +411,7 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
     
     for (int i = 0; i < 3; i++) {
         lxa_trigger_vblank();
-        lxa_run_cycles(50000);
+        lxa_run_cycles(500000);
     }
 
     /* Interpolate movement */
@@ -425,7 +425,7 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
             return false;
         
         lxa_trigger_vblank();
-        lxa_run_cycles(50000);
+        lxa_run_cycles(500000);
     }
 
     /* Release button at end position */
@@ -434,7 +434,7 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
     
     for (int i = 0; i < 3; i++) {
         lxa_trigger_vblank();
-        lxa_run_cycles(50000);
+        lxa_run_cycles(500000);
     }
 
     return true;

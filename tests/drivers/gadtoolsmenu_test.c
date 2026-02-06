@@ -1,15 +1,15 @@
 /*
- * simplegad_test.c - Host-side test driver for SimpleGad sample
+ * gadtoolsmenu_test.c - Host-side test driver for GadToolsMenu sample
  *
  * This test driver uses liblxa to:
- * 1. Start the SimpleGad sample (RKM original)
+ * 1. Start the GadToolsMenu sample (RKM original)
  * 2. Wait for the window to open
- * 3. Click the button and verify GADGETDOWN + GADGETUP (ID 3)
- * 4. Click the close gadget to close the window
- * 5. Verify the program exits cleanly
+ * 3. Click the close gadget to exit
+ * 4. Verify the program exits cleanly
  *
- * The RKM SimpleGad sample has a single button with GACT_IMMEDIATE | GACT_RELVERIFY
- * which reports both GADGETDOWN (immediate) and GADGETUP (relverify).
+ * The RKM GadToolsMenu sample demonstrates creating menus using GadTools.
+ * It has "Project" and "Edit" menus with standard items.
+ * Quit is Project menu item 5 (after Open, Save, barlabel, Print, barlabel, Quit).
  */
 
 #include "lxa_api.h"
@@ -17,15 +17,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-/* Gadget positions (from simplegad.c RKM original) */
-#define BUTTON_LEFT  20
-#define BUTTON_TOP   20
-#define BUTTON_WIDTH  100
-#define BUTTON_HEIGHT 50
-
-/* Window title bar height (approximate) */
-#define TITLE_BAR_HEIGHT 11
 
 static int errors = 0;
 
@@ -41,7 +32,6 @@ static void check(int condition, const char *msg)
 
 static char *find_rom_path(void)
 {
-    /* Try common locations */
     static char path[256];
     const char *locations[] = {
         "host/rom/lxa.rom",
@@ -62,7 +52,6 @@ static char *find_rom_path(void)
 
 static char *find_samples_path(void)
 {
-    /* Try common locations */
     static char path[256];
     const char *locations[] = {
         "target/samples/Samples",
@@ -82,7 +71,7 @@ static char *find_samples_path(void)
 
 int main(int argc, char **argv)
 {
-    printf("=== SimpleGad Test Driver ===\n\n");
+    printf("=== GadToolsMenu Test Driver ===\n\n");
 
     /* Find ROM and samples */
     char *rom_path = find_rom_path();
@@ -115,10 +104,10 @@ int main(int argc, char **argv)
         return 1;
     }
     
-    /* Load the SimpleGad program */
-    printf("Loading SimpleGad...\n");
-    if (lxa_load_program("SYS:SimpleGad", "") != 0) {
-        fprintf(stderr, "ERROR: Failed to load SimpleGad\n");
+    /* Load the GadToolsMenu program */
+    printf("Loading GadToolsMenu...\n");
+    if (lxa_load_program("SYS:GadToolsMenu", "") != 0) {
+        fprintf(stderr, "ERROR: Failed to load GadToolsMenu\n");
         lxa_shutdown();
         return 1;
     }
@@ -144,67 +133,41 @@ int main(int argc, char **argv)
     printf("Window at (%d, %d), size %dx%d\n\n", 
            win_info.x, win_info.y, win_info.width, win_info.height);
     
-    /* CRITICAL: Run many cycles WITHOUT VBlanks to let task reach WaitPort() */
-    printf("Letting task reach WaitPort()...\n");
+    check(win_info.width == 400, "Window width is 400");
+    check(win_info.height == 100, "Window height is 100");
+    
+    /* CRITICAL: Run cycles to let task reach Wait() */
+    printf("Letting task reach Wait()...\n");
     for (int i = 0; i < 200; i++) {
-        lxa_run_cycles(10000);  /* 200 * 10000 = 2M cycles */
+        lxa_run_cycles(10000);
     }
     lxa_clear_output();
     
-    /* ========== Test 1: Click the button ========== */
-    printf("Test 1: Clicking Button (ID=3, IMMEDIATE+RELVERIFY)...\n");
+    /* ========== Test: Click close gadget to exit ========== */
+    printf("\nTest: Clicking close gadget...\n");
     {
-        int btn_x = win_info.x + BUTTON_LEFT + (BUTTON_WIDTH / 2);
-        int btn_y = win_info.y + TITLE_BAR_HEIGHT + BUTTON_TOP + (BUTTON_HEIGHT / 2);
-        
-        printf("  Clicking at (%d, %d)\n", btn_x, btn_y);
-        
-        /* Inject mouse click */
-        lxa_inject_mouse_click(btn_x, btn_y, LXA_MOUSE_LEFT);
-        
-        /* Run more cycles with VBlanks to ensure task processes the event */
-        for (int i = 0; i < 20; i++) {
-            lxa_trigger_vblank();
-            lxa_run_cycles(50000);
-        }
-        
-        /* Run additional cycles WITHOUT VBlanks for output */
-        for (int i = 0; i < 100; i++) {
-            lxa_run_cycles(10000);
-        }
-        
-        /* Check output for expected messages */
-        char output[4096];
-        lxa_get_output(output, sizeof(output));
-        
-        check(strstr(output, "IDCMP_GADGETDOWN") != NULL, "GADGETDOWN received");
-        check(strstr(output, "IDCMP_GADGETUP") != NULL, "GADGETUP received");
-        check(strstr(output, "gadget number 3") != NULL, "Correct gadget ID (3)");
-    }
-    
-    /* ========== Test 2: Click close gadget ========== */
-    printf("\nTest 2: Clicking close gadget...\n");
-    {
-        lxa_clear_output();
-        
         /* Close gadget is typically at top-left of window */
-        int close_x = win_info.x + 10;  /* Close gadget area */
-        int close_y = win_info.y + 5;   /* In title bar */
+        int close_x = win_info.x + 10;
+        int close_y = win_info.y + 5;
         
         printf("  Clicking close gadget at (%d, %d)\n", close_x, close_y);
         
         lxa_inject_mouse_click(close_x, close_y, LXA_MOUSE_LEFT);
         
-        /* Run until exit */
+        /* Run cycles */
+        for (int i = 0; i < 20; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(50000);
+        }
+        
+        /* Wait for exit */
         printf("  Waiting for program to exit...\n");
         if (!lxa_wait_exit(5000)) {
             printf("  WARNING: Program did not exit within 5 seconds\n");
+            errors++;
+        } else {
+            check(1, "Program exited cleanly via close gadget");
         }
-        
-        char output[4096];
-        lxa_get_output(output, sizeof(output));
-        
-        check(strstr(output, "IDCMP_CLOSEWINDOW") != NULL, "CLOSEWINDOW received");
     }
     
     /* ========== Results ========== */

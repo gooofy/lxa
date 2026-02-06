@@ -4924,6 +4924,11 @@ void coldstart (void)
     GfxBase->MaxDisplayColumn = 640;
     
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
+    /* Debug: print offset of FirstScreen from exec.c perspective */
+    LPRINTF(LOG_INFO, "[DEBUG-exec] IntuitionBase=0x%08lx, offsetof(FirstScreen)=%d, sizeof(IntuitionBase)=%d, sizeof(Library)=%d, sizeof(View)=%d\n",
+            (ULONG)IntuitionBase,
+            (int)((char*)&IntuitionBase->FirstScreen - (char*)IntuitionBase),
+            (int)sizeof(struct IntuitionBase), (int)sizeof(struct Library), (int)sizeof(struct View));
     LayersBase    = (struct Library       *) registerBuiltInLib (sizeof(*LayersBase)    , __lxa_layers_ROMTag    );
     ExpansionBase = (struct ExpansionBase *) registerBuiltInLib (sizeof(*ExpansionBase) , __lxa_expansion_ROMTag );
     IconBase      = (struct Library       *) registerBuiltInLib (sizeof(*IconBase)      , __lxa_icon_ROMTag      );

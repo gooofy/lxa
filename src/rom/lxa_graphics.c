@@ -1451,25 +1451,40 @@ static VOID _graphics_InitVPort ( register struct GfxBase * GfxBase __asm("a6"),
 static ULONG _graphics_MrgCop ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: MrgCop() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* MrgCop() merges the copper lists from all ViewPorts into a single list.
+     * In lxa, we use SDL-based rendering through Intuition, so we don't need
+     * actual copper lists. This stub returns success (0) to allow RKM samples
+     * like RGBBoxes to run without crashing.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: MrgCop() view=0x%08lx (stub - no-op)\n", (ULONG)view);
+    return 0;  /* MVP_OK - success */
 }
 
 static ULONG _graphics_MakeVPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: MakeVPort() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    /* MakeVPort() builds the copper list for a ViewPort.
+     * In lxa, we use SDL-based rendering, so copper lists are not needed.
+     * This stub returns success to allow RKM samples like RGBBoxes to run.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: MakeVPort() view=0x%08lx, vp=0x%08lx (stub - no-op)\n", (ULONG)view, (ULONG)vp);
+    return 0;  /* MVP_OK - success */
 }
 
 static VOID _graphics_LoadView ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: LoadView() unimplemented STUB called.\n");
-    assert(FALSE);
+    /* LoadView() loads the View's copper list into the hardware.
+     * In lxa, we use SDL-based rendering through Intuition screens/windows.
+     * For direct View manipulation (like RGBBoxes sample), we update GfxBase->ActiView
+     * but actual display is handled by Intuition's screen system.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: LoadView() view=0x%08lx (stub - updates ActiView only)\n", (ULONG)view);
+    
+    if (GfxBase) {
+        GfxBase->ActiView = view;
+    }
 }
 
 static VOID _graphics_WaitBlit ( register struct GfxBase * GfxBase __asm("a6"))
@@ -1869,8 +1884,25 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
 {
     struct Screen *screen;
+    int i;
     
     DPRINTF (LOG_DEBUG, "_graphics: WaitTOF()\n");
+    
+    /*
+     * WaitTOF() waits for the next vertical blank (top of frame).
+     * This is approximately 1/50th of a second (20ms for PAL).
+     * 
+     * We implement this by:
+     * 1. Calling EMU_CALL_WAIT multiple times to wait ~20ms total
+     * 2. Processing input events
+     * 3. Refreshing displays
+     * 
+     * EMU_CALL_WAIT sleeps for 1ms, so we call it ~20 times.
+     */
+    for (i = 0; i < 20; i++)
+    {
+        emucall0(EMU_CALL_WAIT);
+    }
     
     /* Process input events and refresh displays for all Intuition screens.
      * This is a good hook point since WaitTOF is called in main loops.
@@ -3350,15 +3382,32 @@ static BOOL _graphics_ClearRectRegion ( register struct GfxBase * GfxBase __asm(
 static VOID _graphics_FreeVPortCopLists ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FreeVPortCopLists() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * FreeVPortCopLists() frees intermediate copper lists for a ViewPort.
+     * In lxa we don't use real copper lists (SDL-based rendering), so this is a no-op.
+     * We just need to clear the pointers to indicate lists are freed.
+     */
+    DPRINTF(LOG_DEBUG, "_graphics: FreeVPortCopLists(vp=0x%08lx)\n", (ULONG)vp);
+    
+    if (vp)
+    {
+        /* Clear copper list pointers - they weren't really allocated */
+        vp->DspIns = NULL;
+        vp->SprIns = NULL;
+        vp->ClrIns = NULL;
+        vp->UCopIns = NULL;
+    }
 }
 
 static VOID _graphics_FreeCopList ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct CopList * copList __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FreeCopList() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * FreeCopList() frees a CopList structure.
+     * In lxa we don't use real copper lists (SDL-based rendering), so this is a no-op.
+     */
+    DPRINTF(LOG_DEBUG, "_graphics: FreeCopList(copList=0x%08lx) - no-op\n", (ULONG)copList);
+    /* Nothing to free - we never allocated real copper lists */
 }
 
 static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3442,8 +3491,12 @@ static BOOL _graphics_XorRectRegion ( register struct GfxBase * GfxBase __asm("a
 static VOID _graphics_FreeCprList ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct cprlist * cprList __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FreeCprList() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * FreeCprList() frees a cprlist structure (compiled copper list).
+     * In lxa we don't use real copper lists (SDL-based rendering), so this is a no-op.
+     */
+    DPRINTF(LOG_DEBUG, "_graphics: FreeCprList(cprList=0x%08lx) - no-op\n", (ULONG)cprList);
+    /* Nothing to free - we never allocated real copper lists */
 }
 
 static struct ColorMap * _graphics_GetColorMap ( register struct GfxBase * GfxBase __asm("a6"),
