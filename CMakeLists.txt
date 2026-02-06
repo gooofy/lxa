@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(lxa VERSION 0.1.0 LANGUAGES C ASM)
+project(lxa VERSION 0.1.0 LANGUAGES C CXX ASM)
 
 # Option to set installation prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -127,6 +127,25 @@ if(BUILD_UNIT_TESTS)
     add_subdirectory(tests/unit)
 endif()
 
+# === Google Test Integration ===
+# Enable Google Test for modern C++ testing
+option(BUILD_GTESTS "Build Google Test suites" ON)
+if(BUILD_GTESTS)
+    find_package(PkgConfig)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(GTEST gtest)
+        pkg_check_modules(GMOCK gmock)
+    endif()
+    
+    if(GTEST_FOUND)
+        message(STATUS "Found Google Test: ${GTEST_VERSION}")
+        enable_testing()
+    else()
+        message(WARNING "Google Test not found. Install with: sudo dnf install gtest-devel gmock-devel")
+        set(BUILD_GTESTS OFF)
+    endif()
+endif()
+
 # === Test Drivers ===
 # Add test drivers (host-side C programs that use liblxa API)
 option(BUILD_TEST_DRIVERS "Build test drivers" ON)
@@ -144,5 +163,6 @@ message(STATUS "  Default user prefix:  ${LXA_DEFAULT_PREFIX}")
 message(STATUS "  ROM tool:             ${ROMTOOL}")
 message(STATUS "  Cross-compiler:       ${M68K_GCC}")
 message(STATUS "  Unit tests:           ${BUILD_UNIT_TESTS}")
+message(STATUS "  Google Tests:         ${BUILD_GTESTS}")
 message(STATUS "  Test drivers:         ${BUILD_TEST_DRIVERS}")
 message(STATUS "")

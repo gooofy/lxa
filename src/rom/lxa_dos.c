@@ -3660,18 +3660,19 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
             if(bin_name[j] == '/') has_slash=1;
         }
         
-        if (!has_colon && !has_slash) {
-             char tmp[256];
-             // Simple strcpy/cat
-             char *s = "SYS:C/";
-             char *d = tmp;
-             while(*s) *d++ = *s++;
-             char *n = bin_name;
-             while(*n) *d++ = *n++;
-             *d = 0;
-             
-             seglist = _dos_LoadSeg(DOSBase, (STRPTR)tmp);
-        }
+         if (!has_colon && !has_slash) {
+              char tmp[256];
+              // Simple strcpy/cat
+              char *s = "C:";
+              char *d = tmp;
+              while(*s) *d++ = *s++;
+              char *n = bin_name;
+              while(*n) *d++ = *n++;
+              *d = 0;
+              
+              seglist = _dos_LoadSeg(DOSBase, (STRPTR)tmp);
+         }
+
     }
     
     if (!seglist) {

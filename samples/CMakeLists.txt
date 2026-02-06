@@ -83,6 +83,91 @@ set(SAMPLES_LIST
     "asl|fontreq|FontReq"
 )
 
+# === Tests ===
+# format: directory|filename|output_name
+set(TESTS_LIST
+    "../tests/exec/lists|main|Tests/Exec/Lists"
+    "../tests/exec/memory|main|Tests/Exec/Memory"
+    "../tests/exec/msgport|main|Tests/Exec/MsgPort"
+    "../tests/exec/multitask|main|Tests/Exec/Multitask"
+    "../tests/exec/rawdofmt|main|Tests/Exec/RawDoFmt"
+    "../tests/exec/resources|main|Tests/Exec/Resources"
+    "../tests/exec/signal_pingpong|main|Tests/Exec/SignalPingPong"
+    "../tests/exec/signals|main|Tests/Exec/Signals"
+    "../tests/exec/sync|main|Tests/Exec/Sync"
+    "../tests/exec/tasks|main|Tests/Exec/Tasks"
+    "../tests/dos/chario|main|Tests/Dos/CharIO"
+    "../tests/dos/createdir|main|Tests/Dos/CreateDir"
+    "../tests/dos/fhutils|main|Tests/Dos/FHUtils"
+    "../tests/dos/fileio|main|Tests/Dos/FileIO"
+    "../tests/dos/helloworld|main|Tests/Dos/HelloWorld"
+    "../tests/dos/lock_shared|main|Tests/Dos/LockShared"
+    "../tests/dos/matchfirst|main|Tests/Dos/MatchFirst"
+    "../tests/dos/path_navigation|main|Tests/Dos/PathNavigation"
+    "../tests/dos/pathutils|main|Tests/Dos/PathUtils"
+    "../tests/dos/patterns|main|Tests/Dos/Patterns"
+    "../tests/dos/process_advanced|main|Tests/Dos/ProcessAdvanced"
+    "../tests/dos/readargs_empty|main|Tests/Dos/ReadArgsEmpty"
+    "../tests/dos/readargs_full|main|Tests/Dos/ReadArgsFull"
+    "../tests/dos/vprintf|main|Tests/Dos/VPrintf"
+    "../tests/commands/assign|main|Tests/Commands/Assign"
+    "../tests/commands/avail|main|Tests/Commands/Avail"
+    "../tests/commands/break_cmd|main|Tests/Commands/Break"
+    "../tests/commands/copy|main|Tests/Commands/Copy"
+    "../tests/commands/delete|main|Tests/Commands/Delete"
+    "../tests/commands/dir|main|Tests/Commands/Dir"
+    "../tests/commands/eval|main|Tests/Commands/Eval"
+    "../tests/commands/filenote|main|Tests/Commands/FileNote"
+    "../tests/commands/join|main|Tests/Commands/Join"
+    "../tests/commands/list|main|Tests/Commands/List"
+    "../tests/commands/makedir|main|Tests/Commands/MakeDir"
+    "../tests/commands/protect|main|Tests/Commands/Protect"
+    "../tests/commands/rename|main|Tests/Commands/Rename"
+    "../tests/commands/run|main|Tests/Commands/run_test"
+    "../tests/commands/search|main|Tests/Commands/Search"
+    "../tests/commands/setenv|main|Tests/Commands/SetEnv"
+    "../tests/commands/sort|main|Tests/Commands/Sort"
+    "../tests/commands/status|main|Tests/Commands/Status"
+    "../tests/commands/syscmd|main|Tests/Commands/SysCmd"
+    "../tests/commands/type|main|Tests/Commands/Type"
+    "../tests/graphics/area_ellipse|main|Tests/Graphics/AreaEllipse"
+    "../tests/graphics/blt_bitmap|main|Tests/Graphics/BltBitMap"
+    "../tests/graphics/bltpattern|main|Tests/Graphics/BltPattern"
+    "../tests/graphics/draw_ellipse|main|Tests/Graphics/DrawEllipse"
+    "../tests/graphics/init_bitmap|main|Tests/Graphics/InitBitMap"
+    "../tests/graphics/init_rastport|main|Tests/Graphics/InitRastPort"
+    "../tests/graphics/line_draw|main|Tests/Graphics/LineDraw"
+    "../tests/graphics/pen_state|main|Tests/Graphics/PenState"
+    "../tests/graphics/pixel_ops|main|Tests/Graphics/PixelOps"
+    "../tests/graphics/rect_fill|main|Tests/Graphics/RectFill"
+    "../tests/graphics/regions|main|Tests/Graphics/Regions"
+    "../tests/graphics/rpattrs|main|Tests/Graphics/RPAttrs"
+    "../tests/graphics/text_extent|main|Tests/Graphics/TextExtent"
+    "../tests/graphics/text_render|main|Tests/Graphics/TextRender"
+    "../tests/intuition/boopsi|main|Tests/Intuition/BOOPSI"
+    "../tests/intuition/gadget_click|main|Tests/Intuition/GadgetClick"
+    "../tests/intuition/gadget_refresh|main|Tests/Intuition/GadgetRefresh"
+    "../tests/intuition/gadgetclass|main|Tests/Intuition/GadgetClass"
+    "../tests/intuition/idcmp|main|Tests/Intuition/IDCMP"
+    "../tests/intuition/idcmp_input|main|Tests/Intuition/IDCMPInput"
+    "../tests/intuition/menu_select|main|Tests/Intuition/MenuSelect"
+    "../tests/intuition/menu_strip|main|Tests/Intuition/MenuStrip"
+    "../tests/intuition/requester_basic|main|Tests/Intuition/RequesterBasic"
+    "../tests/intuition/screen_basic|main|Tests/Intuition/ScreenBasic"
+    "../tests/intuition/screen_manipulation|main|Tests/Intuition/ScreenManipulation"
+    "../tests/intuition/validation_test|main|Tests/Intuition/Validation"
+    "../tests/intuition/window_basic|main|Tests/Intuition/WindowBasic"
+    "../tests/intuition/window_manipulation|main|Tests/Intuition/WindowManipulation"
+    "../tests/devices/clipboard|main|Tests/Devices/Clipboard"
+    "../tests/devices/console_async|main|Tests/Devices/ConsoleAsync"
+    "../tests/devices/timer|main|Tests/Devices/Timer"
+    "../tests/devices/timer_async|main|Tests/Devices/TimerAsync"
+    "../tests/layers/cliprects|main|Tests/Layers/ClipRects"
+    "../tests/layers/layer_info|main|Tests/Layers/LayerInfo"
+    "../tests/layers/locking|main|Tests/Layers/Locking"
+
+)
+
 foreach(sample_info ${SAMPLES_LIST})
     string(REPLACE "|" ";" args ${sample_info})
     list(GET args 0 dir)
@@ -104,6 +189,36 @@ foreach(sample_info ${SAMPLES_LIST})
     # Install to system template
     install(FILES ${output}
         DESTINATION share/lxa/System/Samples
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+    )
+endforeach()
+
+foreach(test_info ${TESTS_LIST})
+    string(REPLACE "|" ";" args ${test_info})
+    list(GET args 0 dir)
+    list(GET args 1 filename)
+    list(GET args 2 output_name)
+
+    set(src "${CMAKE_CURRENT_SOURCE_DIR}/${dir}/${filename}.c")
+    set(output "${CMAKE_CURRENT_BINARY_DIR}/Samples/${output_name}")
+    
+    # Ensure directory exists for output
+    get_filename_component(output_dir ${output} DIRECTORY)
+    file(MAKE_DIRECTORY ${output_dir})
+
+    add_custom_command(
+        OUTPUT ${output}
+        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -o ${output} ${src}
+        DEPENDS ${src}
+        COMMENT "Building Test: ${output_name}"
+    )
+    
+    list(APPEND ALL_SAMPLES ${output})
+    
+    # Install to system template
+    get_filename_component(rel_dir ${output_name} DIRECTORY)
+    install(FILES ${output}
+        DESTINATION share/lxa/System/Samples/${rel_dir}
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
     )
 endforeach()

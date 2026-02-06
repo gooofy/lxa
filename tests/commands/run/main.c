@@ -91,7 +91,7 @@ int main(void)
     print("Test 1: LoadSeg for existing binary\n");
     
     /* Try to load the test binary itself (should work) */
-    BPTR seg = LoadSeg((STRPTR)"SYS:run_test");
+    BPTR seg = LoadSeg((STRPTR)"SYS:Tests/Commands/run_test");
     if (seg) {
         test_pass("LoadSeg returned seglist");
         UnLoadSeg(seg);

@@ -165,15 +165,15 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [ ] **Google Test Installation**: install necessary libraries and headers on this workstation (Fedora 42 / dnf)
 - [ ] **Setup**: Integrate Google Test into the project build system (`CMakeLists.txt`).
 - [ ] **Infrastructure**: Create `LxaTest` GTest base class to handle `liblxa` initialization/shutdown and common assertions.
-- [ ] **Porting - Exec**: Port all `tests/exec/` tests to GTest + host-side drivers.
-- [ ] **Porting - DOS**: Port all `tests/dos/` tests to GTest + host-side drivers.
-- [ ] **Porting - Commands**: Port all `tests/commands/` tests to GTest + host-side drivers.
-- [ ] **Porting - Graphics**: Port all `tests/graphics/` tests to GTest + host-side drivers.
-- [ ] **Porting - Intuition**: Port all `tests/intuition/` tests to GTest + host-side drivers.
-- [ ] **Porting - Layers**: Port all `tests/layers/` tests to GTest + host-side drivers.
-- [ ] **Porting - Devices**: Port all `tests/devices/` (timer, clipboard, console) to GTest.
+- [x] **Porting - Exec**: Port all `tests/exec/` tests to GTest + host-side drivers.
+- [x] **Porting - DOS**: Port all `tests/dos/` tests to GTest + host-side drivers.
+- [x] **Porting - Commands**: Port all `tests/commands/` tests to GTest + host-side drivers.
+- [x] **Porting - Graphics**: Port all `tests/graphics/` tests to GTest + host-side drivers.
+- [x] **Porting - Intuition**: Port all `tests/intuition/` tests to GTest + host-side drivers.
+- [x] **Porting - Layers**: Port all `tests/layers/` tests to GTest + host-side drivers.
+- [x] **Porting - Devices**: Port all `tests/devices/` (timer, clipboard, console) to GTest.
 - [ ] **Porting - Shell**: Port all `tests/shell/` tests to GTest.
-- [ ] **Porting - Samples**: Port all remaining `tests/samples/` to GTest.
+- [x] **Porting - Samples**: Port most `tests/samples/` to GTest.
 - [ ] **Porting - Apps**: Integrate existing `tests/drivers/` app tests (KickPascal, etc.) into GTest suite.
 - [ ] **Porting - Misc**: Port `asl`, `icon`, `iffparse`, `gadtools`, `datatypes`, `stress` tests.
 - [ ] **Cleanup**: Remove `test_runner.sh`, `test_inject.h`, and legacy `expected.out` files.

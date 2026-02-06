@@ -171,12 +171,13 @@ int main(void)
     g_stop = TRUE;
     Delay(5);  /* Give it time to see the stop flag */
     
-    /* Note: We don't call RemTask() here because the task may have already
-     * exited (Wait(0) never returns). The memory will be cleaned up when
-     * the process exits. This is acceptable for a test. */
-    (void)bgTask;  /* Suppress unused warning */
-    (void)stack;   /* Suppress unused warning */
-    print("OK: Test complete (background task signaled to stop)\n");
+    /* Remove the task to let the emulator stop */
+    if (bgTask) {
+        RemTask(bgTask);
+        print("OK: Background task removed\n");
+    }
+    
+    print("OK: Test complete\n");
     
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

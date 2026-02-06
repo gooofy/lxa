@@ -9,7 +9,7 @@ if(NOT TARGET liblxa)
     return()
 endif()
 
-# Common settings for all test drivers
+# Common settings for all test drivers (legacy standalone drivers)
 function(add_test_driver NAME)
     add_executable(${NAME} ${NAME}.c)
     target_link_libraries(${NAME} PRIVATE liblxa)
@@ -24,6 +24,37 @@ function(add_test_driver NAME)
     add_test(NAME ${NAME}
         COMMAND ${NAME}
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+endfunction()
+
+# Common settings for Google Test drivers
+function(add_gtest_driver NAME)
+    add_executable(${NAME} ${NAME}.cpp)
+    target_link_libraries(${NAME} PRIVATE 
+        liblxa
+        ${GTEST_LIBRARIES}
+        pthread
+    )
+    target_include_directories(${NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}/src/lxa
+        ${GTEST_INCLUDE_DIRS}
+    )
+    target_compile_options(${NAME} PRIVATE ${GTEST_CFLAGS})
+    set_target_properties(${NAME} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/drivers
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+    )
+    
+    # Add as a CTest
+    add_test(NAME ${NAME}
+        COMMAND ${NAME}
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    )
+    
+    # Set test properties for Google Test
+    set_tests_properties(${NAME} PROPERTIES
+        LABELS "gtest"
     )
 endfunction()
 
@@ -115,3 +146,141 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/api_test.c)
 endif()
 
 message(STATUS "Test drivers configured")
+
+# ========== Google Test Drivers ==========
+# Google Test based test drivers (new testing infrastructure)
+
+if(BUILD_GTESTS AND GTEST_FOUND)
+    message(STATUS "Configuring Google Test drivers...")
+    
+    # ========== RKM Sample Tests ==========
+    
+    # SimpleGad - boolean gadgets test (GTest version)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplegad_gtest.cpp)
+        add_gtest_driver(simplegad_gtest)
+    endif()
+    
+    # SimpleMenu - menu system test (GTest version)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplemenu_gtest.cpp)
+        add_gtest_driver(simplemenu_gtest)
+    endif()
+    
+    # CustomPointer - custom pointer test (GTest version)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/custompointer_gtest.cpp)
+        add_gtest_driver(custompointer_gtest)
+    endif()
+    
+    # GadToolsMenu - GadTools menu test (GTest version)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsmenu_gtest.cpp)
+        add_gtest_driver(gadtoolsmenu_gtest)
+    endif()
+    
+    # FileReq - ASL file requester test (GTest version)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/filereq_gtest.cpp)
+        add_gtest_driver(filereq_gtest)
+    endif()
+    
+    # ========== Input Tests ==========
+    
+    # MouseTest - mouse input handling test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/mousetest_gtest.cpp)
+        add_gtest_driver(mousetest_gtest)
+    endif()
+    
+    # RawKey - raw keyboard input test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rawkey_gtest.cpp)
+        add_gtest_driver(rawkey_gtest)
+    endif()
+    
+    # SimpleGTGadget - GadTools gadget test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplegtgadget_gtest.cpp)
+        add_gtest_driver(simplegtgadget_gtest)
+    endif()
+    
+    # UpdateStrGad - string gadget test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/updatestrgad_gtest.cpp)
+        add_gtest_driver(updatestrgad_gtest)
+    endif()
+    
+    # ========== API Tests ==========
+    
+    # API test - tests liblxa API functions
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/api_gtest.cpp)
+        add_gtest_driver(api_gtest)
+    endif()
+    
+    # Samples tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/samples_gtest.cpp)
+        add_gtest_driver(samples_gtest)
+    endif()
+
+    # ========== Deep Dive App Tests ==========
+    
+    # Exec library tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/exec_gtest.cpp)
+        add_gtest_driver(exec_gtest)
+    endif()
+
+    # DOS library tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dos_gtest.cpp)
+        add_gtest_driver(dos_gtest)
+    endif()
+
+    # Commands tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/commands_gtest.cpp)
+        add_gtest_driver(commands_gtest)
+    endif()
+
+    # Graphics tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/graphics_gtest.cpp)
+        add_gtest_driver(graphics_gtest)
+    endif()
+
+    # Intuition tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/intuition_gtest.cpp)
+        add_gtest_driver(intuition_gtest)
+    endif()
+
+    # Devices tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/devices_gtest.cpp)
+        add_gtest_driver(devices_gtest)
+    endif()
+
+    # Layers tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/layers_gtest.cpp)
+        add_gtest_driver(layers_gtest)
+    endif()
+
+    # ASM-One - assembler/editor test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/asm_one_gtest.cpp)
+        add_gtest_driver(asm_one_gtest)
+    endif()
+    
+    # Devpac - HiSoft assembler test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/devpac_gtest.cpp)
+        add_gtest_driver(devpac_gtest)
+    endif()
+    
+    # KickPascal - Pascal IDE test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/kickpascal_gtest.cpp)
+        add_gtest_driver(kickpascal_gtest)
+    endif()
+    
+    # MaxonBASIC - BASIC IDE test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/maxonbasic_gtest.cpp)
+        add_gtest_driver(maxonbasic_gtest)
+    endif()
+    
+    # Cluster2 - Oberon-2 IDE test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cluster2_gtest.cpp)
+        add_gtest_driver(cluster2_gtest)
+    endif()
+    
+    # DPaint V - Graphics editor test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dpaint_gtest.cpp)
+        add_gtest_driver(dpaint_gtest)
+    endif()
+    
+    message(STATUS "Google Test drivers configured")
+endif()
+
