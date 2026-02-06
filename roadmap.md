@@ -8,9 +8,9 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.29** | **Phase 63 In Progress** | **42 RKM Sample Tests Passing** | **16 Host-Side Test Drivers**
+**Version: 0.6.30** | **Phase 63 In Progress** | **Google Test Transition**
 
-The lxa project has achieved a comprehensive AmigaOS-compatible environment with 95%+ library compatibility across Exec, DOS, Graphics, Intuition, and system libraries.
+The lxa project is transitioning to a modern testing infrastructure based on Google Test and VS Code C++ TestMate.
 
 **Phase 58 Summary (Complete)**:
 - Fixed critical display sync bug in lxa_api.c: `lxa_run_cycles()` was missing planar-to-chunky bitmap conversion, causing test drivers to see 0 content pixels even after applications drew their UI
@@ -155,7 +155,31 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Active Phase
 
-### Phase 63: RKM Sample Collection Fixes (In Progress)
+### Phase 63: Google Test & VS Code C++ TestMate Transition
+
+**Goal**: Transition all integration tests to Google Test / VS Code C++ TestMate for unified, robust testing.
+
+**Requirement**: All tests are REQUIRED to have host-side drivers (liblxa based). No more shell scripting / output diffing / `test_inject.h`.
+
+**TODO**:
+- [ ] **Google Test Installation**: install necessary libraries and headers on this workstation (Fedora 42 / dnf)
+- [ ] **Setup**: Integrate Google Test into the project build system (`CMakeLists.txt`).
+- [ ] **Infrastructure**: Create `LxaTest` GTest base class to handle `liblxa` initialization/shutdown and common assertions.
+- [ ] **Porting - Exec**: Port all `tests/exec/` tests to GTest + host-side drivers.
+- [ ] **Porting - DOS**: Port all `tests/dos/` tests to GTest + host-side drivers.
+- [ ] **Porting - Commands**: Port all `tests/commands/` tests to GTest + host-side drivers.
+- [ ] **Porting - Graphics**: Port all `tests/graphics/` tests to GTest + host-side drivers.
+- [ ] **Porting - Intuition**: Port all `tests/intuition/` tests to GTest + host-side drivers.
+- [ ] **Porting - Layers**: Port all `tests/layers/` tests to GTest + host-side drivers.
+- [ ] **Porting - Devices**: Port all `tests/devices/` (timer, clipboard, console) to GTest.
+- [ ] **Porting - Shell**: Port all `tests/shell/` tests to GTest.
+- [ ] **Porting - Samples**: Port all remaining `tests/samples/` to GTest.
+- [ ] **Porting - Apps**: Integrate existing `tests/drivers/` app tests (KickPascal, etc.) into GTest suite.
+- [ ] **Porting - Misc**: Port `asl`, `icon`, `iffparse`, `gadtools`, `datatypes`, `stress` tests.
+- [ ] **Cleanup**: Remove `test_runner.sh`, `test_inject.h`, and legacy `expected.out` files.
+- [ ] **AGENTS.md/Skills/Documentation**: adapt AGENTS.md, skills and all documentation to reflect the new test infrastructure and requirements
+
+### Phase 64: RKM Sample Collection Fixes (Postponed)
 
 **Goal**: Fix samples that were modified from their RKM originals and restore them to match RKM behavior.
 
@@ -188,29 +212,29 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Upcoming Phases
 
-### Phase 64a: DPaint V Deep Dive
+### Phase 65a: DPaint V Deep Dive
 **Goal**: Fix hang during initialization after font loading.
 **Status**: ⚠️ PARTIAL - Libraries load, Workbench opens, but hangs during init.
 **Driver**: ✅ `dpaint_test.c` created (handles known hang gracefully)
 
-### Phase 64b: Directory Opus 4 Deep Dive
+### Phase 65b: Directory Opus 4 Deep Dive
 **Goal**: Full Directory Opus 4 compatibility.
 **Status**: ⚠️ PARTIAL - Exit code 1 investigation needed.
 **TODO**: migrate to host-side driver, run deeper tests
 
-### Phase 65: SysInfo Deep Dive
+### Phase 66: SysInfo Deep Dive
 **Goal**: Verify SysInfo displays complete system information.
 **TODO**: migrate to host-side driver, run deeper tests
 
-### Phase 66: EdWord Pro Deep Dive
+### Phase 67: EdWord Pro Deep Dive
 **Goal**: Verify and complete full word processor functionality.
 **TODO**: migrate to host-side driver, run deeper tests
 
-### Phase 67: BeckerText II Deep Dive
+### Phase 68: BeckerText II Deep Dive
 **Goal**: Verify full window content renders and text editing.
 **TODO**: migrate to host-side driver, run deeper tests
 
-### Phase 68: Remaining RKM Samples
+### Phase 69: Remaining RKM Samples
 **Goal**: Complete the remaining RKM samples that weren't finished in Phase 56.
 
 **TODO - Graphics Samples**:
@@ -239,6 +263,9 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.30 | 63 | Started Phase 63: Transition to Google Test & VS Code C++ TestMate. Roadmap update. |
+| 0.6.29 | 63 | Phase 63 (RKM fixes) - fixed SystemTagList, RGBBoxes, menu activation/clearing, window dragging. |
+| 0.6.28 | 63 | Phase 63 (RKM fixes) - rewritten simplegad, simplemenu, custompointer, gadtoolsmenu, filereq. |
 | 0.6.27 | 61 | Phase 61 complete: Implemented mathieeedoubbas.library (12 functions) and mathieeedoubtrans.library (17 functions) using EMU_CALL pattern. 29 EMU_CALL handlers for IEEE double-precision math. IEEEDPExample test sample. Cluster2 now loads successfully. |
 | 0.6.26 | 59-60 | Phases 59-60 complete: Enhanced Devpac and MaxonBASIC test drivers with visual verification, screenshot capture, cursor key testing. Consistent structure with Phase 58 (KickPascal). |
 | 0.6.25 | 58 | Phase 58 complete: Fixed critical display sync bug in lxa_api.c (planar-to-chunky conversion in lxa_run_cycles). KickPascal 2 fully working with cursor key support. Enhanced kickpascal_test.c with visual verification. |
