@@ -44,6 +44,7 @@ char __aligned _g_gadtools_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase *SysBase;
 extern struct GfxBase  *GfxBase;
+extern struct UtilityBase *UtilityBase;
 
 /* GadToolsBase structure */
 struct GadToolsBase {
@@ -146,10 +147,114 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             break;
         case STRING_KIND:
         case INTEGER_KIND:
+        {
+            struct StringInfo *si;
+            STRPTR buf;
+            ULONG maxchars;
+            STRPTR initstr;
+            WORD len;
+
             newgad->GadgetType = GTYP_STRGADGET;
             newgad->Activation = GACT_RELVERIFY;
             newgad->Flags = GFLG_GADGHCOMP;
+
+            /* Determine max chars from tags (default 128 per GadTools convention) */
+            if (kind == INTEGER_KIND)
+                maxchars = GetTagData(GTIN_MaxChars, 10, taglist);
+            else
+                maxchars = GetTagData(GTST_MaxChars, 128, taglist);
+
+            /* Allocate StringInfo structure */
+            si = (struct StringInfo *)AllocMem(sizeof(struct StringInfo), MEMF_CLEAR | MEMF_PUBLIC);
+            if (!si)
+            {
+                FreeMem(newgad, sizeof(struct Gadget));
+                return NULL;
+            }
+
+            /* Allocate buffer (+1 for NUL already included in MaxChars convention) */
+            buf = (STRPTR)AllocMem(maxchars, MEMF_CLEAR | MEMF_PUBLIC);
+            if (!buf)
+            {
+                FreeMem(si, sizeof(struct StringInfo));
+                FreeMem(newgad, sizeof(struct Gadget));
+                return NULL;
+            }
+
+            si->Buffer = buf;
+            si->MaxChars = (WORD)maxchars;
+
+            /* Copy initial string into buffer */
+            if (kind == INTEGER_KIND)
+            {
+                LONG num = (LONG)GetTagData(GTIN_Number, 0, taglist);
+                si->LongInt = num;
+                /* Convert number to string in buffer */
+                {
+                    LONG n = num;
+                    WORD i = 0;
+                    WORD start, end;
+                    if (n < 0)
+                    {
+                        buf[i++] = '-';
+                        n = -n;
+                    }
+                    if (n == 0)
+                    {
+                        buf[i++] = '0';
+                    }
+                    else
+                    {
+                        /* Write digits in reverse, then reverse them */
+                        start = i;
+                        while (n > 0 && i < maxchars - 1)
+                        {
+                            buf[i++] = '0' + (UBYTE)(n % 10);
+                            n /= 10;
+                        }
+                        /* Reverse the digit portion */
+                        end = i - 1;
+                        while (start < end)
+                        {
+                            UBYTE tmp = buf[start];
+                            buf[start] = buf[end];
+                            buf[end] = tmp;
+                            start++;
+                            end--;
+                        }
+                    }
+                    buf[i] = '\0';
+                    si->NumChars = i;
+                }
+            }
+            else
+            {
+                initstr = (STRPTR)GetTagData(GTST_String, 0, taglist);
+                if (initstr)
+                {
+                    len = 0;
+                    while (initstr[len] != '\0' && len < maxchars - 1)
+                    {
+                        buf[len] = initstr[len];
+                        len++;
+                    }
+                    buf[len] = '\0';
+                    si->NumChars = len;
+                }
+                else
+                {
+                    buf[0] = '\0';
+                    si->NumChars = 0;
+                }
+            }
+
+            si->BufferPos = si->NumChars;
+            newgad->SpecialInfo = (APTR)si;
+
+            DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() STRING/INTEGER: si=0x%08lx, buf='%s', maxchars=%ld\n",
+                     (ULONG)si, STRORNULL(buf), maxchars);
             break;
+        }
         case CHECKBOX_KIND:
             newgad->GadgetType = GTYP_BOOLGADGET;
             newgad->Activation = GACT_RELVERIFY | GACT_TOGGLESELECT;
@@ -195,6 +300,16 @@ void _gadtools_FreeGadgets ( register struct GadToolsBase *GadToolsBase __asm("a
 
     while (gad) {
         next = gad->NextGadget;
+
+        /* Free StringInfo and buffer for string gadgets */
+        if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET && gad->SpecialInfo)
+        {
+            struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
+            if (si->Buffer)
+                FreeMem(si->Buffer, si->MaxChars);
+            FreeMem(si, sizeof(struct StringInfo));
+        }
+
         FreeMem(gad, sizeof(struct Gadget));
         gad = next;
     }

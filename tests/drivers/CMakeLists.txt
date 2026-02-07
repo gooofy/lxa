@@ -203,6 +203,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(updatestrgad_gtest)
     endif()
     
+    # GadToolsGadgets - GadTools gadget creation test (STRING_KIND, SLIDER_KIND, BUTTON_KIND)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsgadgets_gtest.cpp)
+        add_gtest_driver(gadtoolsgadgets_gtest)
+    endif()
+    
     # ========== API Tests ==========
     
     # API test - tests liblxa API functions

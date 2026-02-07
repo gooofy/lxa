@@ -8,12 +8,15 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.35** | **Phase 70 In Progress** | **48/48 Tests Passing**
+**Version: 0.6.36** | **Phase 70 In Progress** | **49/49 Tests Passing**
 
-Phase 70 focus: test hardening, gadget interaction fixes, and pixel-level verification. Fixed ActivateGadget implementation, string gadget NumChars initialization, and simplemenu test timing.
+Phase 70 focus: test hardening, gadget interaction fixes, and pixel-level verification. Fixed ActivateGadget implementation, string gadget NumChars initialization, GadTools STRING_KIND/INTEGER_KIND gadgets, and simplemenu test timing.
 
 **Current Status**:
-- 48/48 tests passing (all pre-existing failures fixed!)
+- 49/49 tests passing (including new gadtoolsgadgets_gtest)
+- CreateGadgetA() now properly allocates StringInfo + buffer for STRING_KIND/INTEGER_KIND gadgets
+- FreeGadgets() correctly frees StringInfo and buffer memory
+- GadToolsGadgets sample runs to completion (all 5 gadgets created, window opens, clean shutdown)
 - ActivateGadget() fully implemented (string gadget activation, deactivation)
 - String gadget NumChars initialization in OpenWindow() per RKRM spec
 - New pixel verification tests for window/gadget border rendering
@@ -75,13 +78,16 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] String gadget `NumChars` initialization in `OpenWindow()` — per RKRM, Intuition initializes `NumChars` when gadgets are added to a window. Added `_init_string_gadget_info()` helper.
 - [x] Fixed simplemenu_test — added VBlank interrupts in init phase so m68k task has time to call `SetMenuStrip()` before menu interaction.
 - [x] Fixed all pre-existing test failures — 48/48 tests now passing (updatestrgad_test, updatestrgad_gtest, simplemenu_test all fixed).
+- [x] Implemented `CreateGadgetA()` StringInfo allocation for STRING_KIND/INTEGER_KIND — allocates `StringInfo` struct and buffer from `GTST_String`/`GTST_MaxChars`/`GTIN_Number`/`GTIN_MaxChars` tags. `FreeGadgets()` updated to free StringInfo and buffer.
+- [x] Created `gadtoolsgadgets_gtest` test driver — verifies GadToolsGadgets sample runs to completion (context, slider, 3 string gadgets, button, window open/close, clean shutdown). 49/49 tests.
 **TODO**:
 - [ ] RGBBoxesTest: measure runtime — the test application has a 5 second delay, currently exits nearly immediately. Extend so it measures elapsed time
 - [ ] SimpleGad: Gadget does not respond to mouse clicks
 - [ ] SimpleGad: Window Frame has an extra gadget in the top right corner
 - [ ] UpdateStrGad: Window is empty, no string gadget rendered
 - [ ] UpdateStrGad: Window is empty initially (string gadget gets rendered eventually after clicking/focus lost+regained on "Workbench Screen Window"), Window title only partially rendered, dynamic window titles do not appear, no gadget reaction to mouse clicks or input events
-- [ ] GadToolsGadgets: Empty window, no gadgets get rendered, application quits immediately
+- [ ] GadToolsGadgets: Gadgets not rendered visually (string gadgets need border/text rendering in GadTools)
+- [ ] GadToolsGadgets: application quits immediately, does not get interactive
 - [ ] Add more complex Graphics/Layers clipping tests
 - [ ] Extend DOS tests with more VFS corner cases (locking, seeking, large files)
 - [ ] Implement TDD: add failing tests for every new bug report before fixing
@@ -112,6 +118,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.36 | 70 | **49/49 tests passing!** `CreateGadgetA()` STRING_KIND/INTEGER_KIND: allocates StringInfo + buffer from tags. `FreeGadgets()` frees StringInfo memory. New `gadtoolsgadgets_gtest` test driver. |
 | 0.6.35 | 70 | **48/48 tests passing!** Implemented ActivateGadget(). String gadget NumChars init in OpenWindow() per RKRM. Fixed simplemenu_test timing. All pre-existing test failures resolved. |
 | 0.6.34 | 70 | Pixel verification tests for gadget/window borders. User gadget rendering in `_render_window_frame()`. Fixed `_render_gadget()` for border-based gadgets. Implemented `RefreshGadgets()`. Permanent exception logging improvement. Fixed flaky simplegad_gtest (CPU cycle budget). |
 | 0.6.33 | 69 | **48/48 tests passing!** Fixed apps_misc_gtest (DOpus, KP2, SysInfo). Rewrote Delay() with timer.device. Optimized stress tests. Console timing fixes. |
