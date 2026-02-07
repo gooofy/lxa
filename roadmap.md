@@ -71,6 +71,11 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] Set simplegad_gtest ctest timeout to 60s (pixel tests need ~39s due to rendering cycle cost).
 **TODO**:
 - [ ] RGBBoxesTest: measure runtime — the test application has a 5 second delay, currently exits nearly immediately. Extend so it measures elapsed time
+- [ ] SimpleGad: Gadget does not respond to mouse clicks
+- [ ] SimpleGad: Window Frame has an extra gadget in the top right corner
+- [ ] UpdateStrGad: Window is empty, no string gadget rendered
+- [ ] UpdateStrGad: Window is empty initially (string gadget gets rendered eventually after clicking/focus lost+regained on "Workbench Screen Window"), Window title only partially rendered, dynamic window titles do not appear, no gadget reaction to mouse clicks or input events
+- [ ] GadToolsGadgets: Empty window, no gadgets get rendered, application quits immediately
 - [ ] Add more complex Graphics/Layers clipping tests
 - [ ] Extend DOS tests with more VFS corner cases (locking, seeking, large files)
 - [ ] Implement TDD: add failing tests for every new bug report before fixing

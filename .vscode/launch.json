@@ -1,17 +1,1134 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "debug",
+            "name": "Sample: SimpleTask",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/target/x86_64-linux/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/src/rom/lxa.rom", "-v", "-d", "-m", "x/foo.hunk"],
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleTask"],
             "stopAtEntry": false,
-            "cwd": "/home/guenter/projects/amiga/tiger/aqb/tests/insights/debug",
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Signals",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Signals"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Semaphore",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Semaphore"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Port1",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Port1"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Port2",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Port2"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: BuildList",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/BuildList"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Allocate",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Allocate"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: AllocEntry",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/AllocEntry"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: DeviceUse",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/DeviceUse"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: TimerSoftInt",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/TimerSoftInt"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: TaskList",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/TaskList"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: RGBBoxes",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/RGBBoxes"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Clipping",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Clipping"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: AvailFonts",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/AvailFonts"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: MeasureText",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/MeasureText"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: WBClone",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/WBClone"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: OpenWindowTags",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/OpenWindowTags"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: SimpleGad",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleGad"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: UpdateStrGad",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/UpdateStrGad"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: IntuiText",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/IntuiText"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: SimpleImage",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleImage"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: ShadowBorder",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/ShadowBorder"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: EasyIntuition",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/EasyIntuition"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: SimpleMenu",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleMenu"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: EasyRequest",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/EasyRequest"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: SimpleGTGadget",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleGTGadget"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: GadToolsMenu",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/GadToolsMenu"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: GadToolsGadgets",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/GadToolsGadgets"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: MouseTest",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/MouseTest"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: RawKey",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/RawKey"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: CustomPointer",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/CustomPointer"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: CloneScreen",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/CloneScreen"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: PublicScreen",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/PublicScreen"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: VisibleWindow",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/VisibleWindow"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: WinPubScreen",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/WinPubScreen"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Talk2Boopsi",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Talk2Boopsi"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: DoubleBuffer",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/DoubleBuffer"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: SimpleTimer",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleTimer"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: AskKeymap",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/AskKeymap"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Tag1",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Tag1"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Hooks1",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Hooks1"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: IStr",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/IStr"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: A2D",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/A2D"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Uptime",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Uptime"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: FFPExample",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/FFPExample"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: FFPTrans",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/FFPTrans"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: IEEEDPExample",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/IEEEDPExample"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: Sift",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Sift"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: FindBoards",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/FindBoards"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: FileReq",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/FileReq"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: FontReq",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/FontReq"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: ASM-One",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/Asm-One/bin/ASM-One/ASM-One_V1.48"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: Devpac",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/DevPac/bin/Devpac/Devpac"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: KickPascal",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/kickpascal2/bin/KP2/KP"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: MaxonBASIC",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/MaxonBASIC/bin/MaxonBASIC/MaxonBASIC"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: DPaint V",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/DeluxePaint/DeluxePaintV/DPaintV"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: Cluster2",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/Cluster2/bin/Cluster2/Editor"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
