@@ -1981,6 +1981,9 @@ static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WOR
         if (gad->Flags & GFLG_RELBOTTOM)
             gy1 = gy0 + gad->Height;
         
+        DPRINTF(LOG_DEBUG, "_intuition: _find_gadget_at_pos() checking gad=0x%08lx type=0x%04x bounds=(%d,%d)-(%d,%d) point=(%d,%d)\n",
+                (ULONG)gad, gad->GadgetType, gx0, gy0, gx1, gy1, relX, relY);
+        
         /* Check if point is inside gadget bounds */
         if (relX >= gx0 && relX < gx1 && relY >= gy0 && relY < gy1)
         {
@@ -2821,7 +2824,7 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
     /* Post the message to the window's UserPort */
     PutMsg(window->UserPort, (struct Message *)imsg);
     
-    LPRINTF(LOG_INFO, "_intuition: Posted IDCMP 0x%08lx to window 0x%08lx\n",
+    DPRINTF(LOG_DEBUG, "_intuition: Posted IDCMP 0x%08lx to window 0x%08lx\n",
             class, (ULONG)window);
     
     return TRUE;
@@ -2903,7 +2906,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 UWORD code = (UWORD)(button_code & 0xFF);
                 UWORD qualifier = (UWORD)((button_code >> 8) & 0xFFFF);
                 
-                LPRINTF(LOG_INFO, "_intuition: MouseButton code=0x%02x qual=0x%04x at (%d,%d)\n",
+                DPRINTF(LOG_DEBUG, "_intuition: MouseButton code=0x%02x qual=0x%04x at (%d,%d)\n",
                         code, qualifier, mouseX, mouseY);
                 
                 if (window)
@@ -2911,6 +2914,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                     /* Convert to window-relative coordinates */
                     WORD relX = mouseX - window->LeftEdge;
                     WORD relY = mouseY - window->TopEdge;
+                    
+                    DPRINTF(LOG_DEBUG, "_intuition: MouseButton: window=0x%08lx at (%d,%d) size=(%d,%d) rel=(%d,%d)\n",
+                            (ULONG)window, window->LeftEdge, window->TopEdge, window->Width, window->Height, relX, relY);
                     
                     /* Check for gadget hit on mouse down (SELECTDOWN) */
                     if (code == SELECTDOWN)
@@ -3042,7 +3048,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                     /* Right mouse button press - enter menu mode */
                     else if (code == MENUDOWN)
                     {
-                        LPRINTF(LOG_INFO, "_intuition: MENUDOWN at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
+                        DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
                                 mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
                         /* 
                          * On real AmigaOS, right-clicking ANYWHERE on the screen activates the
@@ -3070,14 +3076,14 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                         
                         if (menuWin && menuWin->MenuStrip)
                         {
-                            LPRINTF(LOG_INFO, "_intuition: Entering menu mode for menuWin=0x%08lx\n", (ULONG)menuWin);
+                            DPRINTF(LOG_DEBUG, "_intuition: Entering menu mode for menuWin=0x%08lx\n", (ULONG)menuWin);
                             _enter_menu_mode(menuWin, screen, mouseX, mouseY);
                         }
                     }
                     /* Right mouse button release - exit menu mode and select item */
                     else if (code == MENUUP)
                     {
-                        LPRINTF(LOG_INFO, "_intuition: MENUUP at (%d,%d), g_menu_mode=%d, g_active_menu=0x%08lx, g_active_item=0x%08lx\n",
+                        DPRINTF(LOG_DEBUG, "_intuition: MENUUP at (%d,%d), g_menu_mode=%d, g_active_menu=0x%08lx, g_active_item=0x%08lx\n",
                                 mouseX, mouseY, g_menu_mode, (ULONG)g_active_menu, (ULONG)g_active_item);
                         if (g_menu_mode && g_menu_window)
                         {
@@ -3660,6 +3666,15 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         SetRGB4CM(screen->ViewPort.ColorMap, 1, 0x0, 0x0, 0x0);  /* Black */
         SetRGB4CM(screen->ViewPort.ColorMap, 2, 0xF, 0xF, 0xF);  /* White */
         SetRGB4CM(screen->ViewPort.ColorMap, 3, 0x0, 0x5, 0xA);  /* Blue */
+        
+        /* Propagate initial palette to host display.
+         * We do this directly via emucall because the screen isn't linked
+         * into IntuitionBase->FirstScreen yet at this point.
+         */
+        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, 0, 0x00AAAAAA);  /* Gray */
+        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, 1, 0x00000000);  /* Black */
+        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, 2, 0x00FFFFFF);  /* White */
+        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, 3, 0x000055AA);  /* Blue */
     }
 
     /* Set bar heights (simplified) */
@@ -3804,7 +3819,7 @@ static void _render_window_frame(struct Window *window)
     struct Gadget *gad;
     UBYTE detPen, blkPen, shiPen, shaPen;
     
-    LPRINTF(LOG_INFO, "_intuition: _render_window_frame() window=0x%08lx RPort=0x%08lx\n", 
+    DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() window=0x%08lx RPort=0x%08lx\n", 
             (ULONG)window, window ? (ULONG)window->RPort : 0);
     
     if (!window || !window->RPort)
@@ -5462,6 +5477,86 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             SetBPen(rp, it->BackPen);
             Move(rp, tx, ty);
             Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
+        }
+    }
+    
+    /* Render string gadget buffer contents.
+     * Per RKRM, Intuition renders the string contents inside the gadget area.
+     * The border/image (GadgetRender) provides the visual frame, and Intuition
+     * draws the actual editable text buffer on top.
+     */
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+    {
+        struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
+        if (si && si->Buffer)
+        {
+            LONG len = (LONG)si->NumChars;
+            WORD textY;
+            WORD textX;
+            
+            /* Clear gadget interior with background pen */
+            SetAPen(rp, 0);
+            RectFill(rp, left, top, left + width - 1, top + height - 1);
+            
+            /* Calculate text Y position (vertically centered).
+             * Text() uses baseline: y - tf_Baseline for actual rendering.
+             * Default topaz font: tf_Baseline = 6, tf_YSize = 8.
+             * For vertical centering: textY = top + (height / 2) + 3
+             * gives good baseline alignment.
+             */
+            textY = top + (height / 2) + 3;
+            textX = left + 2;  /* Small left margin */
+            
+            /* Handle GACT_STRINGCENTER: center text horizontally */
+            if (gad->Activation & GACT_STRINGCENTER)
+            {
+                WORD textWidth = len * 8;  /* topaz 8: 8px per character */
+                textX = left + (width - textWidth) / 2;
+                if (textX < left + 2)
+                    textX = left + 2;
+            }
+            
+            /* Handle GACT_STRINGRIGHT: right-align text */
+            if (gad->Activation & GACT_STRINGRIGHT)
+            {
+                WORD textWidth = len * 8;
+                textX = left + width - textWidth - 2;
+                if (textX < left + 2)
+                    textX = left + 2;
+            }
+            
+            /* Draw buffer text */
+            SetAPen(rp, 1);  /* Text pen */
+            SetBPen(rp, 0);  /* Background pen */
+            SetDrMd(rp, JAM2);
+            
+            Move(rp, textX, textY);
+            if (len > 0)
+            {
+                Text(rp, si->Buffer, len);
+            }
+            
+            /* Draw cursor if gadget is active (selected) */
+            if (gad->Flags & GFLG_SELECTED)
+            {
+                WORD cursorX;
+                WORD cursorPos = si->BufferPos;
+                
+                if (cursorPos > 0)
+                {
+                    cursorX = textX + TextLength(rp, si->Buffer, cursorPos);
+                }
+                else
+                {
+                    cursorX = textX;
+                }
+                
+                /* Draw cursor as vertical bar in COMPLEMENT mode */
+                SetAPen(rp, 1);
+                SetDrMd(rp, COMPLEMENT);
+                RectFill(rp, cursorX, top + 1, cursorX + 1, top + height - 2);
+                SetDrMd(rp, JAM2);
+            }
         }
     }
 }

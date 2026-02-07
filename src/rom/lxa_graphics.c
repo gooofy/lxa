@@ -35,6 +35,13 @@ static struct TextFont g_topaz8_font;
 static void init_topaz8_font(void);
 
 /* Forward declarations for graphics functions */
+static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
+                                  register struct ColorMap * colorMap __asm("a0"),
+                                  register LONG index __asm("d0"),
+                                  register ULONG red __asm("d1"),
+                                  register ULONG green __asm("d2"),
+                                  register ULONG blue __asm("d3"));
+
 static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct RastPort * rp __asm("a1"),
                                  register WORD xMin __asm("d0"),
@@ -144,6 +151,32 @@ static void lxa_memset(void *s, int c, ULONG n)
     UBYTE *p = (UBYTE *)s;
     while (n--)
         *p++ = (UBYTE)c;
+}
+
+/*
+ * Helper: Find the display handle for a ViewPort.
+ *
+ * On AmigaOS, ViewPort is embedded in struct Screen. We navigate from
+ * ViewPort → Screen by searching IntuitionBase->FirstScreen list.
+ * The display handle is stored in screen->ExtData.
+ *
+ * Returns 0 if no matching screen found.
+ */
+static ULONG _find_display_handle_for_vp(struct ViewPort *vp)
+{
+    struct Screen *screen;
+
+    if (!vp || !IntuitionBase)
+        return 0;
+
+    /* Search the screen list for a screen whose ViewPort matches */
+    for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
+    {
+        if (&screen->ViewPort == vp)
+            return (ULONG)screen->ExtData;
+    }
+
+    return 0;
 }
 
 /*
@@ -1365,14 +1398,43 @@ static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
     /*
      * LoadRGB4 loads color palette entries from an array of 4-bit per gun colors.
      * Each UWORD contains 0x0RGB format (4 bits per component).
-     *
-     * For lxa, we use the host display system which handles colors differently.
-     * We log the call but don't need to actually modify any palette since
-     * our rendering converts to 24-bit colors internally.
+     * Per RKRM: Loads 'count' colors starting from register 0.
      */
-    DPRINTF (LOG_DEBUG, "_graphics: LoadRGB4() vp=0x%08lx colors=0x%08lx count=%ld (no-op)\n",
+    LONG i;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: LoadRGB4() vp=0x%08lx colors=0x%08lx count=%ld\n",
              (ULONG)vp, (ULONG)colors, count);
-    /* No-op: palette is handled by host display */
+
+    if (!vp || !colors || count <= 0)
+        return;
+
+    /* Update ColorMap entries */
+    if (vp->ColorMap)
+    {
+        for (i = 0; i < count && i < vp->ColorMap->Count; i++)
+        {
+            UWORD c = colors[i];
+            ULONG r = (c >> 8) & 0xF;
+            ULONG g = (c >> 4) & 0xF;
+            ULONG b = c & 0xF;
+            _graphics_SetRGB4CM(GfxBase, vp->ColorMap, i, r, g, b);
+        }
+    }
+
+    /* Propagate to host display */
+    ULONG handle = _find_display_handle_for_vp(vp);
+    if (handle)
+    {
+        for (i = 0; i < count; i++)
+        {
+            UWORD c = colors[i];
+            ULONG r8 = ((c >> 8) & 0xF) * 17;
+            ULONG g8 = ((c >> 4) & 0xF) * 17;
+            ULONG b8 = (c & 0xF) * 17;
+            ULONG rgb = (r8 << 16) | (g8 << 8) | b8;
+            emucall3(EMU_CALL_GFX_SET_COLOR, handle, (ULONG)i, rgb);
+        }
+    }
 }
 
 static VOID _graphics_InitRastPort ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1996,11 +2058,32 @@ static VOID _graphics_SetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
 {
     /*
      * SetRGB4() sets a color register in the viewport's colormap.
-     * Colors are 4-bit values (0-15) for old OCS/ECS machines.
-     * For now we just log and ignore - our display doesn't use the colormap directly.
+     * Colors are 4-bit values (0-15) for OCS/ECS machines.
+     * Per RKRM: Updates the ColorMap AND makes the change visible.
      */
     DPRINTF (LOG_DEBUG, "_graphics: SetRGB4() vp=0x%08lx index=%ld RGB=(%lu,%lu,%lu)\n",
              (ULONG)vp, index, red, green, blue);
+
+    if (!vp)
+        return;
+
+    /* Update ColorMap if present */
+    if (vp->ColorMap)
+    {
+        _graphics_SetRGB4CM(GfxBase, vp->ColorMap, index, red, green, blue);
+    }
+
+    /* Propagate to host display */
+    ULONG handle = _find_display_handle_for_vp(vp);
+    if (handle)
+    {
+        /* Convert 4-bit to 8-bit (multiply by 17 = 0x11) and pack as 0x00RRGGBB */
+        ULONG r8 = (red & 0xF) * 17;
+        ULONG g8 = (green & 0xF) * 17;
+        ULONG b8 = (blue & 0xF) * 17;
+        ULONG rgb = (r8 << 16) | (g8 << 8) | b8;
+        emucall3(EMU_CALL_GFX_SET_COLOR, handle, (ULONG)index, rgb);
+    }
 }
 
 static VOID _graphics_QBSBlit ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4670,8 +4753,36 @@ static VOID _graphics_SetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG g __asm("d2"),
                                                         register ULONG b __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetRGB32() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * SetRGB32() sets a color register using 32-bit per gun resolution.
+     * Per RKRM: r, g, b are full 32-bit values (left-justified, 0x00000000 to 0xFFFFFFFF).
+     * The high 4 bits are the same as the 4-bit value for SetRGB4.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: SetRGB32() vp=0x%08lx n=%lu r=0x%08lx g=0x%08lx b=0x%08lx\n",
+             (ULONG)vp, n, r, g, b);
+
+    if (!vp)
+        return;
+
+    /* Update ColorMap (store as 4-bit for compatibility) */
+    if (vp->ColorMap && n < (ULONG)vp->ColorMap->Count)
+    {
+        ULONG r4 = (r >> 28) & 0xF;
+        ULONG g4 = (g >> 28) & 0xF;
+        ULONG b4 = (b >> 28) & 0xF;
+        _graphics_SetRGB4CM(GfxBase, vp->ColorMap, (LONG)n, r4, g4, b4);
+    }
+
+    /* Propagate to host display using full 8-bit precision */
+    ULONG handle = _find_display_handle_for_vp(vp);
+    if (handle)
+    {
+        ULONG r8 = (r >> 24) & 0xFF;
+        ULONG g8 = (g >> 24) & 0xFF;
+        ULONG b8 = (b >> 24) & 0xFF;
+        ULONG rgb = (r8 << 16) | (g8 << 8) | b8;
+        emucall3(EMU_CALL_GFX_SET_COLOR, handle, n, rgb);
+    }
 }
 
 static ULONG _graphics_GetAPen ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4724,14 +4835,57 @@ static VOID _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
 {
     /*
      * LoadRGB32 loads color palette entries from an array of 32-bit per gun colors.
-     * Format: count (high word), first (low word), then R,G,B ULONGs for each color.
-     *
-     * For lxa, we use the host display system which handles colors differently.
-     * We log the call but don't need to actually modify any palette.
+     * Format: Repeating groups of:
+     *   ULONG[0]: count (high word), first color index (low word)
+     *   Then count * 3 ULONGs: R, G, B values (32-bit left-justified)
+     * Terminated by a count word of 0.
      */
-    DPRINTF (LOG_DEBUG, "_graphics: LoadRGB32() vp=0x%08lx table=0x%08lx (no-op)\n",
+    ULONG handle;
+    
+    DPRINTF (LOG_DEBUG, "_graphics: LoadRGB32() vp=0x%08lx table=0x%08lx\n",
              (ULONG)vp, (ULONG)table);
-    /* No-op: palette is handled by host display */
+
+    if (!vp || !table)
+        return;
+
+    handle = _find_display_handle_for_vp(vp);
+
+    /* Parse the table structure */
+    while (*table)
+    {
+        UWORD count = (UWORD)(*table >> 16);
+        UWORD first = (UWORD)(*table & 0xFFFF);
+        ULONG i;
+        table++;
+
+        for (i = 0; i < count; i++)
+        {
+            ULONG r = *table++;
+            ULONG g = *table++;
+            ULONG b = *table++;
+
+            ULONG index = first + i;
+
+            /* Update ColorMap (store as 4-bit) */
+            if (vp->ColorMap && index < (ULONG)vp->ColorMap->Count)
+            {
+                ULONG r4 = (r >> 28) & 0xF;
+                ULONG g4 = (g >> 28) & 0xF;
+                ULONG b4 = (b >> 28) & 0xF;
+                _graphics_SetRGB4CM(GfxBase, vp->ColorMap, (LONG)index, r4, g4, b4);
+            }
+
+            /* Propagate to host display using 8-bit precision */
+            if (handle)
+            {
+                ULONG r8 = (r >> 24) & 0xFF;
+                ULONG g8 = (g >> 24) & 0xFF;
+                ULONG b8 = (b >> 24) & 0xFF;
+                ULONG rgb = (r8 << 16) | (g8 << 8) | b8;
+                emucall3(EMU_CALL_GFX_SET_COLOR, handle, index, rgb);
+            }
+        }
+    }
 }
 
 static ULONG _graphics_SetChipRev ( register struct GfxBase * GfxBase __asm("a6"),
@@ -5078,8 +5232,22 @@ static VOID _graphics_SetRGB32CM ( register struct GfxBase * GfxBase __asm("a6")
                                                         register ULONG g __asm("d2"),
                                                         register ULONG b __asm("d3"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetRGB32CM() unimplemented STUB called.\n");
-    assert(FALSE);
+    /*
+     * SetRGB32CM() stores a 32-bit color value in the ColorMap.
+     * The values are left-justified 32-bit (0x00000000 to 0xFFFFFFFF).
+     * We store them as 4-bit values in the existing ColorTable format.
+     */
+    DPRINTF (LOG_DEBUG, "_graphics: SetRGB32CM() cm=0x%08lx n=%lu r=0x%08lx g=0x%08lx b=0x%08lx\n",
+             (ULONG)cm, n, r, g, b);
+
+    if (!cm || n >= (ULONG)cm->Count)
+        return;
+
+    /* Store as 4-bit values in ColorTable (0x0RGB format) */
+    ULONG r4 = (r >> 28) & 0xF;
+    ULONG g4 = (g >> 28) & 0xF;
+    ULONG b4 = (b >> 28) & 0xF;
+    _graphics_SetRGB4CM(GfxBase, cm, (LONG)n, r4, g4, b4);
 }
 
 static VOID _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("a6"),

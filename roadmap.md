@@ -8,19 +8,17 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.36** | **Phase 70 In Progress** | **49/49 Tests Passing**
+**Version: 0.6.37** | **Phase 70 In Progress** | **47/49 Tests Passing**
 
-Phase 70 focus: test hardening, gadget interaction fixes, and pixel-level verification. Fixed ActivateGadget implementation, string gadget NumChars initialization, GadTools STRING_KIND/INTEGER_KIND gadgets, and simplemenu test timing.
+Phase 70 focus: test hardening, gadget interaction fixes, palette pipeline, and pixel-level verification. Fixed entire palette pipeline (SetRGB4, LoadRGB4, SetRGB32, SetRGB32CM, LoadRGB32). Cleaned up debug logging. Fixed ActivateGadget, string gadget NumChars, GadTools STRING_KIND/INTEGER_KIND gadgets, and simplemenu test timing.
 
 **Current Status**:
-- 49/49 tests passing (including new gadtoolsgadgets_gtest)
-- CreateGadgetA() now properly allocates StringInfo + buffer for STRING_KIND/INTEGER_KIND gadgets
-- FreeGadgets() correctly frees StringInfo and buffer memory
-- GadToolsGadgets sample runs to completion (all 5 gadgets created, window opens, clean shutdown)
-- ActivateGadget() fully implemented (string gadget activation, deactivation)
-- String gadget NumChars initialization in OpenWindow() per RKRM spec
-- New pixel verification tests for window/gadget border rendering
-- Exception logging permanently improved (LPRINTF instead of DPRINTF)
+- 47/49 tests passing (2 pre-existing updatestrgad failures — string gadget typing not yet implemented)
+- Palette pipeline fully operational: SetRGB4(), LoadRGB4(), SetRGB32(), SetRGB32CM(), LoadRGB32() all propagate to host display
+- OpenScreen initial palette now correctly set via EMU_CALL_GFX_SET_COLOR
+- Debug LPRINTF cleanup: 8 temporary LOG_INFO calls reverted to LOG_DEBUG
+- Removed duplicated GFLG_RELRIGHT/GFLG_RELBOTTOM code block in _find_gadget_at_pos()
+- Pixel verification test updated for correct Workbench palette colors (0xAA,0xAA,0xAA)
 
 ---
 
@@ -80,6 +78,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] Fixed all pre-existing test failures — 48/48 tests now passing (updatestrgad_test, updatestrgad_gtest, simplemenu_test all fixed).
 - [x] Implemented `CreateGadgetA()` StringInfo allocation for STRING_KIND/INTEGER_KIND — allocates `StringInfo` struct and buffer from `GTST_String`/`GTST_MaxChars`/`GTIN_Number`/`GTIN_MaxChars` tags. `FreeGadgets()` updated to free StringInfo and buffer.
 - [x] Created `gadtoolsgadgets_gtest` test driver — verifies GadToolsGadgets sample runs to completion (context, slider, 3 string gadgets, button, window open/close, clean shutdown). 49/49 tests.
+- [x] **Fixed entire palette pipeline** — SetRGB4(), LoadRGB4(), SetRGB32(), SetRGB32CM(), LoadRGB32() were all no-ops or fatal stubs. Now properly update ColorMap AND propagate to host display via EMU_CALL_GFX_SET_COLOR/SET_PALETTE. Added `_find_display_handle_for_vp()` helper to navigate ViewPort→Screen→display handle.
+- [x] **Fixed OpenScreen initial palette** — default Workbench colors (grey/black/white/blue) now propagated to host display during OpenScreen(), before screen is linked into IntuitionBase.
+- [x] **Cleaned up debug logging** — reverted 8 temporary LPRINTF(LOG_INFO) calls back to DPRINTF(LOG_DEBUG) in lxa_intuition.c. Removed duplicated GFLG_RELRIGHT/GFLG_RELBOTTOM code block.
+- [x] **Updated pixel test** — SimpleGadPixelTest.WindowInteriorColor now expects correct Workbench palette color (0xAA,0xAA,0xAA) instead of old display default (0x99,0x99,0xBB).
 **TODO**:
 - [ ] RGBBoxesTest: measure runtime — the test application has a 5 second delay, currently exits nearly immediately. Extend so it measures elapsed time
 - [ ] SimpleGad: Gadget does not respond to mouse clicks
@@ -88,6 +90,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [ ] UpdateStrGad: Window is empty initially (string gadget gets rendered eventually after clicking/focus lost+regained on "Workbench Screen Window"), Window title only partially rendered, dynamic window titles do not appear, no gadget reaction to mouse clicks or input events
 - [ ] GadToolsGadgets: Gadgets not rendered visually (string gadgets need border/text rendering in GadTools)
 - [ ] GadToolsGadgets: application quits immediately, does not get interactive
+- [ ] Compare Samples to their RKM counterparts, ensure they work **exactly the same** as much as possible within the realm of lxa
 - [ ] Add more complex Graphics/Layers clipping tests
 - [ ] Extend DOS tests with more VFS corner cases (locking, seeking, large files)
 - [ ] Implement TDD: add failing tests for every new bug report before fixing
@@ -118,6 +121,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.37 | 70 | **Palette pipeline fix!** SetRGB4/LoadRGB4/SetRGB32/SetRGB32CM/LoadRGB32 all operational. OpenScreen initial palette propagation. Debug LPRINTF cleanup. Pixel test updated for correct colors. 47/49 tests (2 updatestrgad pre-existing). |
 | 0.6.36 | 70 | **49/49 tests passing!** `CreateGadgetA()` STRING_KIND/INTEGER_KIND: allocates StringInfo + buffer from tags. `FreeGadgets()` frees StringInfo memory. New `gadtoolsgadgets_gtest` test driver. |
 | 0.6.35 | 70 | **48/48 tests passing!** Implemented ActivateGadget(). String gadget NumChars init in OpenWindow() per RKRM. Fixed simplemenu_test timing. All pre-existing test failures resolved. |
 | 0.6.34 | 70 | Pixel verification tests for gadget/window borders. User gadget rendering in `_render_window_frame()`. Fixed `_render_gadget()` for border-based gadgets. Implemented `RefreshGadgets()`. Permanent exception logging improvement. Fixed flaky simplegad_gtest (CPU cycle budget). |

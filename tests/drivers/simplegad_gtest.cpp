@@ -236,16 +236,15 @@ TEST_F(SimpleGadPixelTest, WindowInteriorColor) {
             << "Window interior (away from gadgets) should be grey background (pen 0)";
     }
     
-    // Verify the RGB value of the grey background using the display palette
-    // The display palette pen 0 is 0xFF9999BB (blueish grey), not the Amiga
-    // palette 0xAAAAAA. The pixel buffer stores pen indices and
-    // display_read_pixel_rgb() uses the display palette for lookup.
+    // Verify the RGB value of the grey background using the display palette.
+    // Workbench pen 0 is 0x0AAA (4-bit RGB), which converts to 0xAAAAAA
+    // (8-bit RGB) via the palette pipeline (SetRGB4 -> display_set_color).
     uint8_t r, g, b;
     if (ReadPixelRGB(check_x, check_y, &r, &g, &b)) {
-        // Display palette pen 0 = 0xFF9999BB -> R=0x99, G=0x99, B=0xBB
-        EXPECT_EQ(r, 0x99) << "Background red component should be 0x99 (display palette)";
-        EXPECT_EQ(g, 0x99) << "Background green component should be 0x99 (display palette)";
-        EXPECT_EQ(b, 0xBB) << "Background blue component should be 0xBB (display palette)";
+        // Amiga Workbench pen 0 = 0x0AAA -> R=0xAA, G=0xAA, B=0xAA
+        EXPECT_EQ(r, 0xAA) << "Background red component should be 0xAA (Workbench grey)";
+        EXPECT_EQ(g, 0xAA) << "Background green component should be 0xAA (Workbench grey)";
+        EXPECT_EQ(b, 0xAA) << "Background blue component should be 0xAA (Workbench grey)";
     }
 }
 
