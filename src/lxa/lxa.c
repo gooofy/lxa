@@ -3205,41 +3205,39 @@ int op_illg(int level)
             m68k_set_reg (M68K_REG_D0, d0);
             m68k_set_reg (M68K_REG_D1, d1);
 
-            DPRINTF (LOG_INFO, "*** EXCEPTION CAUGHT: pc=0x%08x #%2d ", pc, excn);
+            LPRINTF (LOG_WARNING, "*** EXCEPTION CAUGHT: pc=0x%08x #%2d ", pc, excn);
 
             switch (excn)
             {
-                case  2: DPRINTF (LOG_INFO, "bus error\n"); break;
-                case  3: DPRINTF (LOG_INFO, "address error\n"); break;
-                case  4: DPRINTF (LOG_INFO, "illegal instruction\n"); break;
-                case  5: DPRINTF (LOG_INFO, "divide by zero\n"); break;
-                case  6: DPRINTF (LOG_INFO, "chk instruction\n"); break;
-                case  7: DPRINTF (LOG_INFO, "trapv instruction\n"); break;
-                case  8: DPRINTF (LOG_INFO, "privilege violation\n"); break;
-                case  9: DPRINTF (LOG_INFO, "trace\n"); break;
-                case 10: DPRINTF (LOG_INFO, "line 1010 emulator\n"); break;
-                case 11: DPRINTF (LOG_INFO, "line 1111 emulator\n"); break;
-                case 32: DPRINTF (LOG_INFO, "trap #0\n"); break;
-                case 33: DPRINTF (LOG_INFO, "trap #1\n"); break;
-                case 34: DPRINTF (LOG_INFO, "trap #2 (stack overflow)\n"); break;
-                case 35: DPRINTF (LOG_INFO, "trap #3\n"); break;
-                case 36: DPRINTF (LOG_INFO, "trap #4\n"); break;
-                case 37: DPRINTF (LOG_INFO, "trap #5\n"); break;
-                case 38: DPRINTF (LOG_INFO, "trap #6\n"); break;
-                case 39: DPRINTF (LOG_INFO, "trap #7\n"); break;
-                case 40: DPRINTF (LOG_INFO, "trap #8\n"); break;
-                case 41: DPRINTF (LOG_INFO, "trap #9\n"); break;
-                case 42: DPRINTF (LOG_INFO, "trap #10\n"); break;
-                case 43: DPRINTF (LOG_INFO, "trap #11\n"); break;
-                case 44: DPRINTF (LOG_INFO, "trap #12\n"); break;
-                case 45: DPRINTF (LOG_INFO, "trap #13\n"); break;
-                case 46: DPRINTF (LOG_INFO, "trap #14\n"); break;
-                default: DPRINTF (LOG_INFO, "???\n"); break;
+                case  2: LPRINTF (LOG_WARNING, "bus error\n"); break;
+                case  3: LPRINTF (LOG_WARNING, "address error\n"); break;
+                case  4: LPRINTF (LOG_WARNING, "illegal instruction\n"); break;
+                case  5: LPRINTF (LOG_WARNING, "divide by zero\n"); break;
+                case  6: LPRINTF (LOG_WARNING, "chk instruction\n"); break;
+                case  7: LPRINTF (LOG_WARNING, "trapv instruction\n"); break;
+                case  8: LPRINTF (LOG_WARNING, "privilege violation\n"); break;
+                case  9: LPRINTF (LOG_WARNING, "trace\n"); break;
+                case 10: LPRINTF (LOG_WARNING, "line 1010 emulator\n"); break;
+                case 11: LPRINTF (LOG_WARNING, "line 1111 emulator\n"); break;
+                case 32: LPRINTF (LOG_WARNING, "trap #0\n"); break;
+                case 33: LPRINTF (LOG_WARNING, "trap #1\n"); break;
+                case 34: LPRINTF (LOG_WARNING, "trap #2 (stack overflow)\n"); break;
+                case 35: LPRINTF (LOG_WARNING, "trap #3\n"); break;
+                case 36: LPRINTF (LOG_WARNING, "trap #4\n"); break;
+                case 37: LPRINTF (LOG_WARNING, "trap #5\n"); break;
+                case 38: LPRINTF (LOG_WARNING, "trap #6\n"); break;
+                case 39: LPRINTF (LOG_WARNING, "trap #7\n"); break;
+                case 40: LPRINTF (LOG_WARNING, "trap #8\n"); break;
+                case 41: LPRINTF (LOG_WARNING, "trap #9\n"); break;
+                case 42: LPRINTF (LOG_WARNING, "trap #10\n"); break;
+                case 43: LPRINTF (LOG_WARNING, "trap #11\n"); break;
+                case 44: LPRINTF (LOG_WARNING, "trap #12\n"); break;
+                case 45: LPRINTF (LOG_WARNING, "trap #13\n"); break;
+                case 46: LPRINTF (LOG_WARNING, "trap #14\n"); break;
+                default: LPRINTF (LOG_WARNING, "???\n"); break;
             }
 
-#ifdef ENABLE_DEBUG
-            hexdump (LOG_INFO, isp, 16);
-#endif
+            hexdump (LOG_WARNING, isp, 16);
 
             /*
              * Phase 32: Don't halt on exceptions in multitasking scenarios.
@@ -3268,7 +3266,7 @@ int op_illg(int level)
                 m68k_end_timeslice();
                 g_running = FALSE;
             } else {
-                DPRINTF (LOG_WARNING, "*** Exception in task - continuing (use -d to halt and debug)\n");
+                LPRINTF (LOG_WARNING, "*** Exception in task - continuing (use -d to halt and debug)\n");
             }
             break;
         }

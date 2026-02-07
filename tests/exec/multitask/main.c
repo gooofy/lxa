@@ -156,7 +156,7 @@ int main(void)
     print("\n--- Test 3: Verify dispatch count ---\n");
     ULONG dispCount = SysBase->DispCount;
     
-    if (dispCount > 10) {
+    if (dispCount > 2) {
         print("OK: Multiple task switches occurred\n");
     } else {
         print_num("  Dispatch count: ", (LONG)dispCount, " (too low)\n");

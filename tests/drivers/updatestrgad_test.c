@@ -4,11 +4,9 @@
  * This test driver uses liblxa to:
  * 1. Start the UpdateStrGad sample
  * 2. Wait for the window to open
- * 3. Verify programmatic string gadget updates work
- * 4. Verify the sample's internal interactive tests run
- * 5. Verify the program completes cleanly
- *
- * testing. This driver verifies the sample runs and completes successfully.
+ * 3. Verify the window opened and initial string value is correct
+ * 4. Type into the string gadget and verify GADGETUP
+ * 5. Close the window and verify clean exit
  *
  */
 
@@ -70,12 +68,13 @@ static char *find_samples_path(void)
 }
 
 /*
- * Helper: run cycles without VBlanks for output processing
+ * Helper: run cycles with VBlanks for event processing
  */
-static void run_cycles_only(int iterations, int cycles_per_iteration)
+static void run_with_vblanks(int vblank_count, int cycles_per_vblank)
 {
-    for (int i = 0; i < iterations; i++) {
-        lxa_run_cycles(cycles_per_iteration);
+    for (int i = 0; i < vblank_count; i++) {
+        lxa_trigger_vblank();
+        lxa_run_cycles(cycles_per_vblank);
     }
 }
 
@@ -142,94 +141,53 @@ int main(int argc, char **argv)
     
     printf("Window at (%d, %d), size %dx%d\n\n", 
            win_info.x, win_info.y, win_info.width, win_info.height);
-    
-    /* Wait for program to finish its programmatic tests */
-    printf("Waiting for programmatic update tests to complete...\n");
-    {
-        char output[8192];
-        int timeout = 0;
-        while (timeout < 1000) {
-            lxa_run_cycles(10000);
-            lxa_get_output(output, sizeof(output));
-            if (strstr(output, "Programmatic updates completed") != NULL) {
-                break;
-            }
-            timeout++;
-        }
-        
-        if (timeout >= 1000) {
-            fprintf(stderr, "ERROR: Programmatic tests did not complete\n");
-            lxa_shutdown();
-            return 1;
-        }
-    }
-    
-    /* Verify programmatic update tests passed */
-    printf("Test 1: Verifying programmatic string gadget updates...\n");
+
+    /* Let the program initialize fully - need many VBlank cycles for Printf to flush */
+    run_with_vblanks(50, 50000);
+
+    /* ========== Test 1: Verify initial output ========== */
+    printf("Test 1: Verifying window opened with correct initial state...\n");
     {
         char output[8192];
         lxa_get_output(output, sizeof(output));
         
-        check(strstr(output, "Initial value: 'START'") != NULL, 
-              "Initial value was 'START'");
-        check(strstr(output, "Gadget activated successfully") != NULL,
-              "ActivateGadget() succeeded");
-        check(strstr(output, "Updating to 'Try again'") != NULL,
-              "First update executed");
-        check(strstr(output, "Updating to 'A Winner'") != NULL,
-              "Last update executed");
-        check(strstr(output, "Programmatic updates completed") != NULL,
-              "Programmatic updates completed");
+        check(strstr(output, "Window opened with string gadget") != NULL, 
+              "Window opened message present");
+        check(strstr(output, "Initial value: 'START'") != NULL,
+              "Initial string gadget value is 'START'");
     }
     
-    /* Let task reach its main loop for interactive testing */
-    printf("\nLetting task reach interactive testing phase...\n");
-    run_cycles_only(200, 10000);
-    
-    /* ========== Test 2: Wait for interactive testing to start ========== */
-    printf("\nTest 2: Waiting for interactive string gadget tests...\n");
+    /* ========== Test 2: Type into the string gadget ========== */
+    printf("\nTest 2: Typing into string gadget...\n");
     {
-        /* Wait for the sample to print "Starting interactive testing" */
-        char output[8192];
-        int timeout = 0;
-        while (timeout < 500) {
-            lxa_run_cycles(10000);
-            lxa_get_output(output, sizeof(output));
-            if (strstr(output, "Starting interactive testing") != NULL) {
-                break;
-            }
-            timeout++;
-        }
+        /* Click in the string gadget to activate it using convenience wrapper */
+        int clickX = win_info.x + 20 + 100;
+        int clickY = win_info.y + 20 + 4;
         
-        check(strstr(output, "Starting interactive testing") != NULL,
-              "Interactive testing phase started");
-    }
-    
-    /* ========== Test 3: Wait for program completion ========== */
-    printf("\nTest 3: Wait for program to complete...\n");
-    {
-        /* Let the sample run its remaining tests */
-        for (int i = 0; i < 500; i++) {
-            lxa_run_cycles(10000);
-            
-            char output[8192];
-            lxa_get_output(output, sizeof(output));
-            if (strstr(output, "Closing window") != NULL) {
-                break;
-            }
-        }
+        lxa_inject_mouse_click(clickX, clickY, LXA_MOUSE_LEFT);
+        run_with_vblanks(10, 50000);
         
-        /* Run more cycles to let it finish */
-        run_cycles_only(100, 10000);
+        /* Clear output and type "Hello" followed by Return */
+        lxa_clear_output();
+        lxa_inject_string("Hello\n");
+        run_with_vblanks(50, 50000);
         
         char output[8192];
         lxa_get_output(output, sizeof(output));
         
-        check(strstr(output, "Interactive testing complete") != NULL ||
-              strstr(output, "updates completed") != NULL,
-              "Testing phase completed");
-        check(strstr(output, "Closing window") != NULL,
-              "Window closed cleanly");
+        check(strstr(output, "IDCMP_GADGETUP") != NULL,
+              "GADGETUP received after typing");
+        check(strstr(output, "string is 'Hello'") != NULL,
+              "String gadget contains 'Hello'");
+    }
+    
+    /* ========== Test 3: Close the window ========== */
+    printf("\nTest 3: Closing window...\n");
+    {
+        lxa_click_close_gadget(0);
+        run_with_vblanks(20, 50000);
+        
+        check(lxa_wait_exit(3000), "Program exited cleanly after close window");
     }
     
     /* ========== Results ========== */

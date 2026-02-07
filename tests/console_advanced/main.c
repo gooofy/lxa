@@ -144,9 +144,10 @@ int main(void)
     char buffer[16];
     LONG result;
     
-    /* Call RawKeyConvert via library vector at -72 (LVO) */
-    /* RawKeyConvert(events, buffer, length, keyMap) */
-    /* For now, pass NULL for keyMap to use default keymap */
+    /* Call RawKeyConvert via library vector at -48 (LVO)
+     * console.device bias=42: CDInputHandler=-42, RawKeyConvert=-48
+     * RawKeyConvert(events, buffer, length, keyMap) (a0/a1,d1/a2)
+     * Pass NULL for keyMap to use default keymap */
     {
         register LONG _result __asm("d0");
         register struct Library *_a6 __asm("a6") = ConsoleDevice;
@@ -156,7 +157,7 @@ int main(void)
         register struct KeyMap *_a2 __asm("a2") = NULL;
         
         __asm volatile (
-            "jsr %1@(-72)"
+            "jsr %1@(-48)"
             : "=r" (_result)
             : "a" (_a6), "r" (_a0), "r" (_a1), "r" (_d1), "r" (_a2)
             : "cc", "memory"
@@ -225,7 +226,7 @@ int main(void)
     DeleteIORequest((struct IORequest *)consoleReq);
     DeleteMsgPort(consolePort);
     
-    print("\nAll tests passed!\n");
+    print("\nPASS: All console_advanced tests passed!\n");
     
     return 0;
 }

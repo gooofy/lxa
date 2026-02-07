@@ -13,10 +13,14 @@ protected:
     void SetUp() override {
         LxaUITest::SetUp();
         
-        const char* kickpascal_path = "/home/guenter/projects/amiga/lxa-apps/KickPascal/KickPascal2";
+        const char* apps = FindAppsPath();
+        if (!apps) {
+            GTEST_SKIP() << "lxa-apps directory not found";
+        }
         
-        ASSERT_EQ(lxa_load_program(kickpascal_path, ""), 0) 
-            << "Failed to load KickPascal";
+        // Load via APPS: assign (mapped to lxa-apps directory in LxaTest::SetUp)
+        ASSERT_EQ(lxa_load_program("APPS:kickpascal2/bin/KP2/KP", ""), 0) 
+            << "Failed to load KickPascal via APPS: assign";
         
         ASSERT_TRUE(WaitForWindows(1, 10000)) 
             << "KickPascal window did not open";

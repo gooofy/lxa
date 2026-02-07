@@ -13,13 +13,18 @@ protected:
     void SetUp() override {
         LxaUITest::SetUp();
         
-        // Set up Cluster assign
-        lxa_add_assign("Cluster", "/home/guenter/projects/amiga/lxa-apps/Cluster2");
+        const char* apps = FindAppsPath();
+        if (!apps) {
+            GTEST_SKIP() << "lxa-apps directory not found";
+        }
         
-        const char* cluster2_path = "/home/guenter/projects/amiga/lxa-apps/Cluster2/bin/Cluster2/Editor";
+        // Set up Cluster assign (host path needed for assign)
+        std::string cluster_base = std::string(apps) + "/Cluster2/bin/Cluster2";
+        lxa_add_assign("Cluster", cluster_base.c_str());
         
-        ASSERT_EQ(lxa_load_program(cluster2_path, ""), 0) 
-            << "Failed to load Cluster2";
+        // Load via APPS: assign (mapped to lxa-apps directory in LxaTest::SetUp)
+        ASSERT_EQ(lxa_load_program("APPS:Cluster2/bin/Cluster2/Editor", ""), 0) 
+            << "Failed to load Cluster2 via APPS: assign";
         
         ASSERT_TRUE(WaitForWindows(1, 10000)) 
             << "Cluster2 window did not open";

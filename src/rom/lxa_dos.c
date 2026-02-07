@@ -22,6 +22,7 @@
 #include <inline/intuition.h>
 
 #include <devices/console.h>
+#include <devices/timer.h>
 #include <clib/alib_protos.h>
 
 #include <clib/utility_protos.h>
@@ -1810,11 +1811,9 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
     /*
      * Delay() - Wait for a specified number of ticks (1/50th second each)
      *
-     * Without timer.device, we implement this by directly calling the
-     * scheduler via Supervisor mode. This forces a task switch if there
-     * are any ready tasks with equal or higher priority.
-     *
-     * Note: This is NOT an accurate delay, but it allows other tasks to run.
+     * Uses timer.device with UNIT_MICROHZ and DoIO() to block
+     * for the specified duration. This gives proper real-time delays
+     * and allows other tasks to run via the scheduler.
      */
     DPRINTF (LOG_DEBUG, "_dos: Delay(%ld) called.\n", ticks);
 
@@ -1823,47 +1822,47 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
 
     struct ExecBase *SysBase = *(struct ExecBase **)4;
 
-    /* For each tick, try to yield to other tasks */
-    for (ULONG i = 0; i < ticks; i++)
+    /* Create a MsgPort for the timer reply */
+    struct MsgPort *port = CreateMsgPort();
+    if (!port)
     {
-        /*
-         * Force a task switch if there are ready tasks.
-         * We set the quantum-expired flag and call Schedule() directly
-         * via Supervisor mode.
-         */
-        if (!IsListEmpty(&SysBase->TaskReady))
-        {
-            DPRINTF(LOG_DEBUG, "_dos: Delay() about to schedule, TaskReady not empty\n");
-            
-            Disable();
-            /*
-             * SFF_QuantumOver is bit 6 of the HIGH byte of SysFlags.
-             * Since SysFlags is a UWORD and m68k is big-endian, bit 6 of
-             * the high byte is bit 14 of the word value.
-             */
-            SysBase->SysFlags |= (1 << 14);  /* SFF_QuantumOver (bit 6 of high byte) */
-            SysBase->Elapsed = 0;  /* Force immediate reschedule */
-            Enable();
-
-            /* Call Schedule() via Supervisor mode */
-            /* Schedule() will check SysFlags and perform task switch if needed */
-            __asm__ volatile (
-                "   move.l  a5, -(sp)                   \n"
-                "   move.l  4, a6                       \n"  /* SysBase */
-                "   lea     _exec_Schedule, a5          \n"  /* Schedule routine */
-                "   jsr     -30(a6)                     \n"  /* Supervisor() */
-                "   move.l  (sp)+, a5                   \n"
-                :
-                :
-                : "d0", "d1", "a0", "a1", "a6", "cc", "memory"
-            );
-        }
-        else
-        {
-            /* No ready tasks - just use host-side sleep */
-            emucall0(EMU_CALL_WAIT);
-        }
+        LPRINTF(LOG_ERROR, "_dos: Delay() - CreateMsgPort() failed\n");
+        return;
     }
+
+    /* Create an IORequest for the timer */
+    struct timerequest *tr = (struct timerequest *)CreateIORequest(port, sizeof(struct timerequest));
+    if (!tr)
+    {
+        LPRINTF(LOG_ERROR, "_dos: Delay() - CreateIORequest() failed\n");
+        DeleteMsgPort(port);
+        return;
+    }
+
+    /* Open timer.device UNIT_MICROHZ */
+    if (OpenDevice((CONST_STRPTR)"timer.device", UNIT_MICROHZ, (struct IORequest *)tr, 0) != 0)
+    {
+        LPRINTF(LOG_ERROR, "_dos: Delay() - OpenDevice(timer.device) failed\n");
+        DeleteIORequest((struct IORequest *)tr);
+        DeleteMsgPort(port);
+        return;
+    }
+
+    /* Convert ticks (1/50th second) to seconds + microseconds */
+    tr->tr_node.io_Command = TR_ADDREQUEST;
+    tr->tr_time.tv_secs    = ticks / 50;
+    tr->tr_time.tv_micro   = (ticks % 50) * 20000;
+
+    DPRINTF(LOG_DEBUG, "_dos: Delay() - DoIO with %lu.%06lu secs\n",
+            tr->tr_time.tv_secs, tr->tr_time.tv_micro);
+
+    /* DoIO blocks until the timer expires */
+    DoIO((struct IORequest *)tr);
+
+    /* Cleanup */
+    CloseDevice((struct IORequest *)tr);
+    DeleteIORequest((struct IORequest *)tr);
+    DeleteMsgPort(port);
 }
 
 LONG _dos_Execute ( register struct DosLibrary * DOSBase __asm("a6"),

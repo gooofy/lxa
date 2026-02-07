@@ -51,13 +51,13 @@ int main(void)
 
     LoadView(&view);
     
-    printf("Custom view loaded. Waiting 5 seconds...\n");
+    printf("Custom view loaded. Waiting for 250 frames...\n");
     
     /* Draw something manually in the bitplanes? 
      * RKM sample does that, but let's just wait for now to verify display switching.
      */
     
-    for (i = 0; i < 50; i++) {
+    for (i = 0; i < 250; i++) {
         WaitTOF();
     }
 

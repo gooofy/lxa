@@ -6,7 +6,7 @@
  * 2. Wait for the window to open
  * 3. Verify GadTools gadgets are created correctly
  * 4. Click the BUTTON_KIND gadget and verify GADGETUP
- * 5. Click the CYCLE_KIND gadget and verify cycle advances
+ * 5. Close the window and verify clean exit
  *
  */
 
@@ -15,21 +15,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-/* Gadget positions (from simplegtgadget.c)
- * Note: These are relative to window content area.
- * The actual Y positions depend on screen font height.
- */
-#define BUTTON_LEFT    20
-#define BUTTON_WIDTH   120
-#define BUTTON_HEIGHT  14
-
-/* Window title bar height (approximate) */
-#define TITLE_BAR_HEIGHT 11
-
-/* Screen bar height for calculating gadget Y positions */
-#define SCREEN_FONT_SIZE 8
-#define BUTTON_TOP_OFFSET (20 + TITLE_BAR_HEIGHT + SCREEN_FONT_SIZE + 1)
 
 static int errors = 0;
 
@@ -90,16 +75,6 @@ static void run_with_vblanks(int vblank_count, int cycles_per_vblank)
     for (int i = 0; i < vblank_count; i++) {
         lxa_trigger_vblank();
         lxa_run_cycles(cycles_per_vblank);
-    }
-}
-
-/*
- * Helper: run cycles without VBlanks for output processing
- */
-static void run_cycles_only(int iterations, int cycles_per_iteration)
-{
-    for (int i = 0; i < iterations; i++) {
-        lxa_run_cycles(cycles_per_iteration);
     }
 }
 
@@ -166,107 +141,61 @@ int main(int argc, char **argv)
     
     printf("Window at (%d, %d), size %dx%d\n\n", 
            win_info.x, win_info.y, win_info.width, win_info.height);
-    
-    /* Wait for program to complete its programmatic tests */
-    printf("Waiting for programmatic tests to complete...\n");
-    {
-        char output[16384];
-        int timeout = 0;
-        while (timeout < 1000) {
-            lxa_run_cycles(10000);
-            lxa_get_output(output, sizeof(output));
-            if (strstr(output, "Starting interactive testing") != NULL) {
-                break;
-            }
-            timeout++;
-        }
-        
-        if (timeout >= 1000) {
-            /* Check for error output */
-            lxa_get_output(output, sizeof(output));
-            fprintf(stderr, "ERROR: Programmatic tests did not complete\nOutput: %s\n", output);
-            lxa_shutdown();
-            return 1;
-        }
-    }
-    
-    /* Verify programmatic test results */
+
+    /* Let the program initialize fully - need many VBlank cycles for Printf to flush */
+    run_with_vblanks(50, 50000);
+
+    /* ========== Test 1: Verify gadget creation output ========== */
     printf("Test 1: Verifying GadTools gadget creation...\n");
     {
         char output[16384];
         lxa_get_output(output, sizeof(output));
         
-        check(strstr(output, "Created BUTTON_KIND gadget: OK") != NULL,
+        check(strstr(output, "SimpleGTGadget: GadTools gadget demonstration") != NULL,
+              "Program banner printed");
+        check(strstr(output, "Created BUTTON_KIND gadget") != NULL,
               "BUTTON_KIND gadget created");
-        check(strstr(output, "Created CHECKBOX_KIND gadget: OK") != NULL,
+        check(strstr(output, "Created CHECKBOX_KIND gadget") != NULL,
               "CHECKBOX_KIND gadget created");
-        check(strstr(output, "Created INTEGER_KIND gadget: OK") != NULL,
+        check(strstr(output, "Created INTEGER_KIND gadget") != NULL,
               "INTEGER_KIND gadget created");
-        check(strstr(output, "Created CYCLE_KIND gadget: OK") != NULL,
+        check(strstr(output, "Created CYCLE_KIND gadget") != NULL,
               "CYCLE_KIND gadget created");
-        check(strstr(output, "GT_RefreshWindow called") != NULL,
-              "GT_RefreshWindow called");
-        check(strstr(output, "PASS: Gadget list populated") != NULL,
-              "Gadget list populated in window");
-        check(strstr(output, "PASS: GT_SetGadgetAttrs executed") != NULL,
-              "GT_SetGadgetAttrs works");
     }
     
-    /* Let task reach interactive testing phase and complete */
-    printf("\nLetting task complete interactive testing phase...\n");
-    run_cycles_only(500, 10000);
-    
-    /* Check if the sample's own interactive tests ran */
-    printf("\nTest 2: Verifying sample's interactive tests ran...\n");
+    /* ========== Test 2: Click button gadget ========== */
+    printf("\nTest 2: Clicking BUTTON_KIND gadget...\n");
     {
-        char output[16384];
-        lxa_get_output(output, sizeof(output));
+        /* Button is at approx (20, 32) in window content area.
+         * Try a few Y positions to account for title bar height variation. */
+        int found = 0;
+        int y_offsets[] = {35, 38, 41, 44};
         
-        check(strstr(output, "Test 6 - Clicking BUTTON_KIND") != NULL,
-              "Button click test started");
-        check(strstr(output, "Test 7 - Clicking CYCLE_KIND") != NULL,
-              "Cycle click test started");
-    }
-    
-    /* Wait for program to complete naturally */
-    printf("\nWaiting for program to complete...\n");
-    {
-        char output[16384];
-        int timeout = 0;
-        while (timeout < 1000) {
-            lxa_run_cycles(10000);
+        for (int i = 0; i < 4 && !found; i++) {
+            int clickX = win_info.x + 20 + 60;
+            int clickY = win_info.y + y_offsets[i];
+            
+            lxa_clear_output();
+            lxa_inject_mouse_click(clickX, clickY, LXA_MOUSE_LEFT);
+            run_with_vblanks(20, 50000);
+            
+            char output[16384];
             lxa_get_output(output, sizeof(output));
-            if (strstr(output, "Test Summary") != NULL) {
-                break;
+            if (strstr(output, "IDCMP_GADGETUP: gadget ID 1") != NULL) {
+                found = 1;
             }
-            timeout++;
         }
         
-        /* Let it finish cleanup */
-        run_cycles_only(100, 10000);
+        check(found, "GADGETUP received for button (gadget ID 1)");
     }
     
-    /* Verify final test results */
-    printf("\nTest 3: Verifying test completion...\n");
+    /* ========== Test 3: Close the window ========== */
+    printf("\nTest 3: Closing window...\n");
     {
-        char output[16384];
-        lxa_get_output(output, sizeof(output));
+        lxa_click_close_gadget(0);
+        run_with_vblanks(20, 50000);
         
-        check(strstr(output, "Interactive testing complete") != NULL,
-              "Interactive testing completed");
-        check(strstr(output, "Window closed") != NULL,
-              "Window closed cleanly");
-        check(strstr(output, "Gadgets freed") != NULL,
-              "Gadgets properly freed");
-        check(strstr(output, "Libraries closed") != NULL,
-              "Libraries properly closed");
-        
-        /* Check overall result */
-        if (strstr(output, "ALL TESTS PASSED") != NULL) {
-            printf("  OK: Sample reported ALL TESTS PASSED\n");
-        } else if (strstr(output, "Tests passed:") != NULL) {
-            printf("  Note: Sample completed with some tests\n");
-        }
+        check(lxa_wait_exit(3000), "Program exited cleanly after close window");
     }
     
     /* ========== Results ========== */

@@ -3752,6 +3752,9 @@ static void _create_window_sys_gadgets(struct Window *window)
     /* It uses the entire title bar area not covered by other gadgets */
 }
 
+/* Forward declaration - _render_gadget() is defined later but called from OpenWindow */
+static void _render_gadget(struct Window *window, struct Requester *req, struct Gadget *gad);
+
 /*
  * Render system gadgets for a window
  * Draws the window frame, title bar, and gadget imagery
@@ -3904,6 +3907,18 @@ static void _render_window_frame(struct Window *window)
             case GTYP_WDRAGGING:
                 /* Drag gadget has no special imagery - just the frame */
                 break;
+        }
+    }
+    
+    /* Render user gadgets (borders, images, text).
+     * The loop above only draws system gadgets. User gadgets with
+     * Border/Image rendering need a separate pass.
+     */
+    for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
+    {
+        if (!(gad->GadgetType & GTYP_SYSGADGET))
+        {
+            _render_gadget(window, NULL, gad);
         }
     }
 }
@@ -4114,9 +4129,10 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     /* Check if rootless mode is enabled */
     rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
 
-    if (rootless_mode)
     {
-        /* Phase 15: Create a separate host window for this Amiga window */
+        /* Always register window with host for tracking (window count, info queries).
+         * In rootless mode this also creates a separate host window with pixel buffer.
+         * In non-rootless mode the slot is used for tracking only. */
         ULONG window_handle;
         ULONG screen_handle = (ULONG)screen->ExtData;
 
@@ -4128,17 +4144,14 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
 
         if (window_handle == 0)
         {
-            LPRINTF (LOG_WARNING, "_intuition: OpenWindow() rootless window creation failed, continuing without\n");
+            LPRINTF (LOG_WARNING, "_intuition: OpenWindow() window registration failed, continuing without\n");
         }
 
         /* Store the host window handle in UserData */
         window->UserData = (APTR)window_handle;
 
-        DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() rootless window_handle=0x%08lx\n", window_handle);
-    }
-    else
-    {
-        window->UserData = NULL;
+        DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() window_handle=0x%08lx rootless=%d\n",
+                 window_handle, (int)rootless_mode);
     }
 
     /* Create IDCMP message port if IDCMP flags are set */
@@ -4307,8 +4320,15 @@ VOID _intuition_RefreshGadgets ( register struct IntuitionBase * IntuitionBase _
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"))
 {
-    DPRINTF (LOG_DEBUG, "_intuition: RefreshGadgets() stub - no-op for now\n");
-    /* TODO: Implement gadget refresh when gadget system is implemented */
+    /* RefreshGadgets() refreshes all gadgets from 'gadgets' to the end of the list.
+     * Per RKRM: "This routine refreshes (redraws) the imagery of every gadget in
+     * the gadget list starting from and including the specified gadget."
+     * Implemented by calling RefreshGList with numGad=-1 (all gadgets).
+     */
+    DPRINTF (LOG_DEBUG, "_intuition: RefreshGadgets(gadgets=%p, window=%p, req=%p)\n",
+             gadgets, window, requester);
+    
+    _intuition_RefreshGList(IntuitionBase, gadgets, window, requester, -1);
 }
 
 UWORD _intuition_RemoveGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -5295,6 +5315,9 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     
     if (!window || !gad || !window->RPort) return;
     
+    DPRINTF(LOG_DEBUG, "_intuition: _render_gadget() gad=0x%08lx type=0x%04x flags=0x%04x GadgetRender=0x%08lx\n",
+            (ULONG)gad, (unsigned)gad->GadgetType, (unsigned)gad->Flags, (ULONG)gad->GadgetRender);
+    
     rp = window->RPort;
     
     /* Calculate base position */
@@ -5345,40 +5368,35 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
      * So we don't need to add `BorderLeft/Top` unless we are drawing into screen RP.
      */
      
-    /* Draw Image */
+    /* Draw gadget imagery.
+     * Per RKRM: GadgetRender determines the gadget's visual appearance.
+     * - If GFLG_GADGIMAGE is set, GadgetRender points to an Image.
+     * - If GFLG_GADGIMAGE is NOT set, GadgetRender points to a Border.
+     * The highlight flags (GFLG_GADGHCOMP, GFLG_GADGHBOX, GFLG_GADGHIMAGE)
+     * control how the gadget looks when SELECTED, not the initial rendering.
+     */
     if (gad->Flags & GFLG_GADGIMAGE)
     {
         if (gad->GadgetRender)
         {
-            /* If selected and GFLG_SELECTED, use SelectRender if available?
-             * Or if GFLG_GADGHIMAGE is set, use SelectRender.
-             */
-             struct Image *img = (struct Image *)gad->GadgetRender;
-             if ((gad->Flags & GFLG_SELECTED) && (gad->Flags & GFLG_GADGHIMAGE) && gad->SelectRender)
-             {
-                 img = (struct Image *)gad->SelectRender;
-             }
+            /* Use SelectRender if selected and GFLG_GADGHIMAGE highlight mode */
+            struct Image *img = (struct Image *)gad->GadgetRender;
+            if ((gad->Flags & GFLG_SELECTED) && (gad->Flags & GFLG_GADGHIMAGE) && gad->SelectRender)
+            {
+                img = (struct Image *)gad->SelectRender;
+            }
              
-             _intuition_DrawImage((struct IntuitionBase *)NULL, rp, img, left, top);
+            _intuition_DrawImage((struct IntuitionBase *)NULL, rp, img, left, top);
         }
     }
-    else if (gad->Flags & GFLG_GADGHBOX)
+    else
     {
-        /* Draw Border - use border pen */
-        /* _intuition_DrawBorder(...) */
-        /* For now simple rect */
-        SetAPen(rp, window->BlockPen);
-        Move(rp, left, top);
-        Draw(rp, left + width - 1, top);
-        Draw(rp, left + width - 1, top + height - 1);
-        Draw(rp, left, top + height - 1);
-        Draw(rp, left, top);
-    }
-    else if (gad->Flags & GFLG_GADGHCOMP)
-    {
-        /* Complement mode - usually inverts on selection, but initially draws normally? 
-         * Or just a box?
-         */
+        /* GFLG_GADGIMAGE is NOT set: GadgetRender is a Border* */
+        if (gad->GadgetRender)
+        {
+            _intuition_DrawBorder((struct IntuitionBase *)NULL, rp,
+                                  (struct Border *)gad->GadgetRender, left, top);
+        }
     }
     
     /* Draw Text */

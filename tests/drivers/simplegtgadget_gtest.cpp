@@ -17,8 +17,8 @@ protected:
         ASSERT_TRUE(WaitForWindows(1, 5000));
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
         
-        // Wait for program to initialize and render
-        RunCyclesWithVBlank(10);
+        // Wait for program to initialize, render, and reach event loop
+        WaitForEventLoop(50, 10000);
     }
 };
 

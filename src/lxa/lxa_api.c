@@ -129,7 +129,8 @@ int lxa_init(const lxa_config_t *config)
 
     /* Enable rootless mode for window tracking (default true for test drivers) */
     /* This allows lxa_get_window_count() to track individual Amiga windows */
-    config_set_rootless_mode(config->rootless || config->headless);
+    /* Note: headless does NOT force rootless - tests can opt out for pixel verification */
+    config_set_rootless_mode(config->rootless);
 
     /* Initialize display subsystem */
     if (!display_init()) {
@@ -331,7 +332,16 @@ int lxa_run_until_exit(int timeout_ms)
     struct timeval start, now;
     gettimeofday(&start, NULL);
 
+    int cycle_count = 0;
+
     while (g_running) {
+        /* Periodically trigger VBlank to ensure input events and timer
+         * callbacks are processed even when SIGALRM doesn't fire fast
+         * enough (common in test/headless mode). */
+        if (++cycle_count % 50 == 0) {
+            lxa_trigger_vblank();
+        }
+
         if (lxa_run_cycles(10000) != 0) break;
 
         if (timeout_ms > 0) {
@@ -562,8 +572,18 @@ bool lxa_wait_idle(int timeout_ms)
     struct timeval start, now;
     gettimeofday(&start, NULL);
 
+    int cycles_since_vblank = 0;
+    const int cycles_per_vblank = 50000;  /* Trigger VBlank every 50k cycles */
+
     while (!display_event_queue_empty()) {
         lxa_run_cycles(1000);
+        cycles_since_vblank += 1000;
+
+        /* Trigger VBlank periodically to process queued events */
+        if (cycles_since_vblank >= cycles_per_vblank) {
+            lxa_trigger_vblank();
+            cycles_since_vblank = 0;
+        }
 
         if (timeout_ms > 0) {
             gettimeofday(&now, NULL);
@@ -614,8 +634,19 @@ bool lxa_wait_exit(int timeout_ms)
     struct timeval start, now;
     gettimeofday(&start, NULL);
 
+    int cycles_since_vblank = 0;
+    const int cycles_per_vblank = 50000;  /* Trigger VBlank every 50k cycles */
+
     while (g_running) {
         lxa_run_cycles(10000);
+        cycles_since_vblank += 10000;
+
+        /* Trigger VBlank periodically - needed for timer.device processing,
+         * Intuition event delivery, and task scheduling during exit */
+        if (cycles_since_vblank >= cycles_per_vblank) {
+            lxa_trigger_vblank();
+            cycles_since_vblank = 0;
+        }
 
         if (timeout_ms > 0) {
             gettimeofday(&now, NULL);

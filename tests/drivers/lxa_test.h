@@ -152,6 +152,8 @@ inline const char* FindAppsPath() {
         "../../lxa-apps",
         "../../../lxa-apps",
         "lxa-apps",
+        "../src/lxa-apps",
+        "../../src/lxa-apps",
         nullptr
     };
     

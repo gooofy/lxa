@@ -2701,14 +2701,14 @@ struct InitTable __g_lxa_console_InitTab =
 
 APTR __g_lxa_console_FuncTab [] =
 {
-    __g_lxa_console_Open,             // -30 (LVO_Open)
-    __g_lxa_console_Close,            // -36 (LVO_Close)
-    __g_lxa_console_Expunge,          // -42 (LVO_Expunge)
-    NULL,                             // -48 (Reserved)
-    __g_lxa_console_BeginIO,          // -54 (LVO_BeginIO)
-    __g_lxa_console_AbortIO,          // -60 (LVO_AbortIO)
-    __g_lxa_console_CDInputHandler,   // -66 (CDInputHandler)
-    __g_lxa_console_RawKeyConvert,    // -72 (RawKeyConvert)
+    __g_lxa_console_Open,             // -6  (LVO_Open)
+    __g_lxa_console_Close,            // -12 (LVO_Close)
+    __g_lxa_console_Expunge,          // -18 (LVO_Expunge)
+    NULL,                             // -24 (Reserved)
+    __g_lxa_console_BeginIO,          // -30 (LVO_BeginIO)
+    __g_lxa_console_AbortIO,          // -36 (LVO_AbortIO)
+    __g_lxa_console_CDInputHandler,   // -42 (CDInputHandler, bias=42)
+    __g_lxa_console_RawKeyConvert,    // -48 (RawKeyConvert, bias=42+6)
     (APTR) ((LONG)-1)
 };
 

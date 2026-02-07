@@ -3,6 +3,7 @@
  */
 
 #include "lxa_test.h"
+#include <sys/time.h>
 
 using namespace lxa::testing;
 
@@ -34,8 +35,45 @@ protected:
             RunCyclesWithVBlank(20);
         } else if (strcmp(name, "input_inject") == 0 || strcmp(name, "input_console") == 0) {
             ASSERT_TRUE(WaitForWindows(1, 5000));
-            RunCyclesWithVBlank(10);
+            
+            /* Wait for the program to print its "Waiting for..." message, which means
+             * the window is set up with IDCMP_RAWKEY and the program is ready for input.
+             * input_inject prints: "Waiting for RAWKEY events..."
+             * input_console prints: "Waiting for input..." */
+            const char* wait_marker = (strcmp(name, "input_inject") == 0)
+                ? "Waiting for RAWKEY" : "Waiting for input";
+            {
+                char buffer[16384];
+                struct timeval start, now;
+                gettimeofday(&start, NULL);
+                bool ready = false;
+                while (!ready) {
+                    RunCyclesWithVBlank(1);
+                    lxa_get_output(buffer, sizeof(buffer));
+                    if (strstr(buffer, wait_marker)) {
+                        ready = true;
+                        break;
+                    }
+                    gettimeofday(&now, NULL);
+                    long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
+                                  (now.tv_usec - start.tv_usec) / 1000;
+                    if (elapsed >= 5000) break;
+                }
+                ASSERT_TRUE(ready) << "Program did not print '" << wait_marker << "' within timeout";
+            }
+            
+            /* Give extra cycles for the program to enter its Wait() / DoIO(CMD_READ) */
+            RunCyclesWithVBlank(5);
+            
             TypeString("ABC\n");
+            RunCyclesWithVBlank(20);
+        } else if (strcmp(name, "con_handler") == 0) {
+            // con_handler opens a CON: window and does Read() which blocks.
+            // We need to wait for the CON: window to open, then inject input.
+            // Wait for 2 windows: the first is the standard screen, the CON: is additional.
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+            RunCyclesWithVBlank(20);
+            TypeString("test\n");
             RunCyclesWithVBlank(20);
         }
         

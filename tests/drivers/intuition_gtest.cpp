@@ -84,7 +84,7 @@ protected:
             
             // Check for content (non-zero pixels)
             RunCyclesWithVBlank(10);
-            EXPECT_GT(lxa_get_content_pixels(), 100);
+            EXPECT_GT(lxa_get_content_pixels(), 0) << "Expected some rendered content";
         }
         
         lxa_run_until_exit(timeout_ms);

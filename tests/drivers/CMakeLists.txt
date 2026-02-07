@@ -158,6 +158,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # SimpleGad - boolean gadgets test (GTest version)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplegad_gtest.cpp)
         add_gtest_driver(simplegad_gtest)
+        set_tests_properties(simplegad_gtest PROPERTIES TIMEOUT 60)
     endif()
     
     # SimpleMenu - menu system test (GTest version)

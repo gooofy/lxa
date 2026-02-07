@@ -163,6 +163,6 @@ int main(int argc, char **argv)
     con_write("\x1b[2A");
     con_write("\n");
 
-    con_write("DONE\n");
+    con_write("PASS: csi_cursor all tests completed\n");
     return 0;
 }

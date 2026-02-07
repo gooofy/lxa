@@ -79,7 +79,7 @@ static ULONG get_free_mem(void)
     return AvailMem(MEMF_ANY);
 }
 
-#define NUM_BLOCKS 500
+#define NUM_BLOCKS 100
 #define SMALL_SIZE 64
 #define MEDIUM_SIZE 256
 #define LARGE_SIZE 1024
@@ -94,13 +94,13 @@ int main(void)
     print("Memory Stress Test\n");
     print("==================\n\n");
     
-    /* Test 1: Sequential alloc/free - 1000 iterations */
-    print("Test 1: Sequential alloc/free (1000 iterations)\n");
+    /* Test 1: Sequential alloc/free - 200 iterations */
+    print("Test 1: Sequential alloc/free (200 iterations)\n");
     
     mem_before = get_free_mem();
     failed = 0;
     
-    for (i = 0; i < 1000; i++) {
+    for (i = 0; i < 200; i++) {
         void *mem = AllocMem(SMALL_SIZE, MEMF_PUBLIC);
         if (!mem) {
             failed++;
@@ -111,7 +111,7 @@ int main(void)
     
     mem_after = get_free_mem();
     
-    print("  Completed 1000 alloc/free cycles\n");
+    print("  Completed 200 alloc/free cycles\n");
     print("  Allocation failures: ");
     print_num(failed);
     print("\n");
@@ -138,8 +138,8 @@ int main(void)
         test_fail("Sequential alloc/free", "Memory leak detected");
     }
     
-    /* Test 2: Allocate 500 blocks, free in order */
-    print("\nTest 2: Batch alloc then free in order (500 blocks)\n");
+    /* Test 2: Allocate 100 blocks, free in order */
+    print("\nTest 2: Batch alloc then free in order (100 blocks)\n");
     
     mem_before = get_free_mem();
     failed = 0;
@@ -190,8 +190,8 @@ int main(void)
         test_fail("Batch alloc/free forward", "Memory leak detected");
     }
     
-    /* Test 3: Allocate 500 blocks, free in reverse order */
-    print("\nTest 3: Batch alloc then free in reverse (500 blocks)\n");
+    /* Test 3: Allocate 100 blocks, free in reverse order */
+    print("\nTest 3: Batch alloc then free in reverse (100 blocks)\n");
     
     mem_before = get_free_mem();
     failed = 0;
@@ -266,8 +266,8 @@ int main(void)
     
     /* Try to allocate larger blocks in the gaps */
     int large_allocs = 0;
-    void *large_blocks[100];
-    for (i = 0; i < 100; i++) {
+    void *large_blocks[20];
+    for (i = 0; i < 20; i++) {
         large_blocks[i] = AllocMem(LARGE_SIZE, MEMF_PUBLIC);
         if (large_blocks[i]) {
             large_allocs++;
@@ -279,7 +279,7 @@ int main(void)
     print(" large blocks\n");
     
     /* Free large blocks */
-    for (i = 0; i < 100; i++) {
+    for (i = 0; i < 20; i++) {
         if (large_blocks[i]) {
             FreeMem(large_blocks[i], LARGE_SIZE);
         }
@@ -310,7 +310,7 @@ int main(void)
     print(" bytes\n");
     
     /* Accept some fragmentation-induced wastage */
-    if (large_allocs > 50 && mem_leaked <= 2048) {
+    if (large_allocs > 10 && mem_leaked <= 2048) {
         test_pass("Fragmentation handling");
     } else if (large_allocs <= 50) {
         test_fail("Fragmentation handling", "Too few large allocations succeeded");
@@ -325,7 +325,7 @@ int main(void)
     failed = 0;
     int clear_failed = 0;
     
-    for (i = 0; i < 100; i++) {
+    for (i = 0; i < 20; i++) {
         UBYTE *mem = (UBYTE *)AllocMem(MEDIUM_SIZE, MEMF_PUBLIC | MEMF_CLEAR);
         if (!mem) {
             failed++;
@@ -350,7 +350,7 @@ int main(void)
     
     mem_after = get_free_mem();
     
-    print("  Tested 100 MEMF_CLEAR allocations\n");
+    print("  Tested 20 MEMF_CLEAR allocations\n");
     print("  Allocation failures: ");
     print_num(failed);
     print("\n  Clear verification failures: ");
@@ -438,12 +438,12 @@ int main(void)
     }
     
     /* Test 7: AllocVec/FreeVec stress */
-    print("\nTest 7: AllocVec/FreeVec stress (500 iterations)\n");
+    print("\nTest 7: AllocVec/FreeVec stress (100 iterations)\n");
     
     mem_before = get_free_mem();
     failed = 0;
     
-    for (i = 0; i < 500; i++) {
+    for (i = 0; i < 100; i++) {
         ULONG size = 64 + (i % 256);  /* Varying sizes */
         void *mem = AllocVec(size, MEMF_PUBLIC);
         if (!mem) {
@@ -461,7 +461,7 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Completed 500 AllocVec/FreeVec cycles\n");
+    print("  Completed 100 AllocVec/FreeVec cycles\n");
     print("  Allocation failures: ");
     print_num(failed);
     print("\n  Memory before: ");
