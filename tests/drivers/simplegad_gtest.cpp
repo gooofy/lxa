@@ -248,6 +248,80 @@ TEST_F(SimpleGadPixelTest, WindowInteriorColor) {
     }
 }
 
+TEST_F(SimpleGadPixelTest, NoDepthGadgetInTopRight) {
+    // SimpleGad uses WA_CloseGadget but NOT WA_DepthGadget.
+    // Verify the top-right corner of the title bar does NOT contain a gadget frame.
+    //
+    // System gadgets are 18px wide (SYS_GADGET_WIDTH). If a depth gadget existed,
+    // it would be at (Width - BorderRight - 18, 0) and have a 3D frame with
+    // pen 2 (shine/white) on top/left edges and pen 1 (shadow/black) on bottom/right.
+    //
+    // The title bar area (excluding the outer border) should be a flat fill
+    // in the top-right corner with NO vertical separator lines.
+    
+    constexpr int SYS_GADGET_WIDTH = 18;
+    constexpr int BORDER_RIGHT = 2;  // Standard Amiga window right border
+    
+    // The area where a depth gadget WOULD be: 
+    // x from (width - borderRight - gadgetWidth) to (width - borderRight - 1)
+    // y from 1 to titleBarBottom (around 10)
+    int gadget_area_x0 = window_info.width - BORDER_RIGHT - SYS_GADGET_WIDTH;
+    int gadget_area_x1 = window_info.width - BORDER_RIGHT - 1;
+    int gadget_area_y0 = 1;  // Just inside the top border
+    int gadget_area_y1 = TITLE_BAR_HEIGHT - 1;  // Just above title bar bottom line
+    
+    // In the potential depth gadget area, scan for vertical separator lines.
+    // A gadget frame would have a vertical shine (pen 2) line at gadget_area_x0
+    // and a vertical shadow (pen 1) line at gadget_area_x1.
+    // Without a depth gadget, the left edge of this area should just be
+    // the title bar fill color — NOT a vertical pen 2 (shine) line.
+    
+    // Check the vertical line at where the depth gadget's left edge would be.
+    // If no depth gadget exists, this column should be the title bar fill color
+    // (active window = blkPen which is pen 1 for standard screen pens).
+    // A gadget frame would have a distinct shine (pen 2) vertical line here.
+    int shine_count = 0;
+    int shadow_count = 0;
+    for (int y = gadget_area_y0; y <= gadget_area_y1; y++) {
+        int pen = ReadPixel(window_info.x + gadget_area_x0, window_info.y + y);
+        if (pen == PEN_WHITE) shine_count++;
+        if (pen == PEN_BLACK) shadow_count++;
+    }
+    
+    // A depth gadget 3D frame would have a full vertical shine line (pen 2) on the left edge.
+    // Without a depth gadget, we should NOT see a full column of pen 2 here.
+    // The title bar interior should be filled with the fill pen (pen 1 for active window).
+    // We allow some tolerance (e.g., the very top pixel could be border-related).
+    int gadget_height = gadget_area_y1 - gadget_area_y0 + 1;
+    EXPECT_LT(shine_count, gadget_height - 1)
+        << "Left edge of potential depth gadget area should NOT have a full vertical "
+           "shine line (pen 2). This would indicate a gadget frame is being drawn. "
+           "shine_count=" << shine_count << " out of " << gadget_height << " pixels";
+    
+    // Also check right edge — a gadget frame would have a vertical shadow (pen 1) line
+    // at the right edge. But since the title bar fill is ALSO pen 1 (active window),
+    // we need a different approach: check for pen 2 (shine) at the TOP of the gadget area.
+    // A gadget frame draws: shine on top-left corner going right, then shadow on right.
+    // The top-left corner of a gadget frame would be pen 2 (shine).
+    // Without a gadget, this area is just title bar fill.
+    
+    // More definitive check: scan the top row of the potential gadget area.
+    // A gadget 3D frame draws a horizontal shine (pen 2) line along the top.
+    // Without a gadget, there's no such horizontal line — just the fill color.
+    int top_row_shine = 0;
+    for (int x = gadget_area_x0; x <= gadget_area_x1; x++) {
+        int pen = ReadPixel(window_info.x + x, window_info.y + gadget_area_y0);
+        if (pen == PEN_WHITE) top_row_shine++;
+    }
+    
+    // A gadget frame would have nearly all pixels in the top row as pen 2 (shine).
+    // Without it, at most a few stray pixels might match. Threshold: less than half.
+    EXPECT_LT(top_row_shine, SYS_GADGET_WIDTH / 2)
+        << "Top row of potential depth gadget area should NOT have a shine line. "
+           "This would indicate a gadget frame is drawn in the top-right corner. "
+           "top_row_shine=" << top_row_shine << " out of " << SYS_GADGET_WIDTH;
+}
+
 // Main function for Google Test
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

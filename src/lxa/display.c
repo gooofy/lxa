@@ -577,6 +577,11 @@ static void queue_event(const display_event_t *event)
         DPRINTF(LOG_DEBUG, "display: queue_event type=%d, head=%d tail=%d\n", 
                 event->type, g_event_queue_head, g_event_queue_tail);
     }
+    else
+    {
+        LPRINTF(LOG_WARNING, "display: queue_event OVERFLOW! type=%d rawkey=0x%02x head=%d tail=%d\n",
+                event->type, event->rawkey, g_event_queue_head, g_event_queue_tail);
+    }
 }
 
 /*
@@ -593,8 +598,9 @@ bool display_get_event(display_event_t *event)
     {
         *event = g_event_queue[g_event_queue_tail];
     }
-    DPRINTF(LOG_DEBUG, "display: get_event type=%d, head=%d tail=%d\n", 
-            g_event_queue[g_event_queue_tail].type, g_event_queue_head, g_event_queue_tail);
+    DPRINTF(LOG_DEBUG, "display: get_event type=%d rawkey=0x%02x head=%d tail=%d\n",
+            g_event_queue[g_event_queue_tail].type, g_event_queue[g_event_queue_tail].rawkey,
+            g_event_queue_head, g_event_queue_tail);
     g_event_queue_tail = (g_event_queue_tail + 1) % EVENT_QUEUE_SIZE;
     return true;
 }
@@ -1460,7 +1466,7 @@ bool display_get_amiga_bitmap(display_t *display, uint32_t *planes_ptr, uint32_t
  * Convert ASCII character to Amiga rawkey code.
  * Returns 0xFF if no mapping exists.
  */
-static int ascii_to_rawkey(char c, bool *need_shift)
+int ascii_to_rawkey(char c, bool *need_shift)
 {
     *need_shift = false;
     
@@ -1599,6 +1605,9 @@ bool display_inject_string(const char *str)
         }
         
         int qualifier = need_shift ? 0x0001 : 0;  /* IEQUALIFIER_LSHIFT */
+        
+        DPRINTF(LOG_DEBUG, "display: inject_string: char='%c' rawkey=0x%02x qual=0x%04x head=%d tail=%d\n",
+                *p, rawkey, qualifier, g_event_queue_head, g_event_queue_tail);
         
         /* Key down */
         display_inject_key(rawkey, qualifier, true);

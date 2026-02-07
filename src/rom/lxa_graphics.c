@@ -911,8 +911,14 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
         x += (WORD)font->tf_XSize;
     }
 
-    /* Update RastPort cursor position */
-    rp->cp_x = x;
+    /* Update RastPort cursor position.
+     * If we added a layer offset above, subtract it back so cp_x
+     * remains in layer-relative coordinates. Otherwise subsequent
+     * Text() calls would double-apply the offset. */
+    if (rp->Layer)
+        rp->cp_x = x - rp->Layer->bounds.MinX;
+    else
+        rp->cp_x = x;
 
     return (LONG)count;
 }

@@ -2682,15 +2682,31 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
             {
                 UBYTE ch = 0;
                 
-                /* Simple ASCII mapping for common keys */
-                if (code >= 0x00 && code <= 0x09) {
-                    /* Numbers 1-0 on main keyboard */
-                    static const UBYTE numRow[] = "1234567890";
-                    static const UBYTE numRowShift[] = "!@#$%^&*()";
+                /* Simple ASCII mapping for common keys
+                 * Based on the authoritative rawkey table in lxa_dev_console.c */
+                if (code == 0x00) {
+                    /* Grave accent / tilde */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '~' : '`';
+                } else if (code >= 0x01 && code <= 0x09) {
+                    /* Numbers 1-9 on main keyboard */
+                    static const UBYTE numRow[] = "123456789";
+                    static const UBYTE numRowShift[] = "!@#$%^&*(";
                     if (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT))
-                        ch = numRowShift[code];
+                        ch = numRowShift[code - 0x01];
                     else
-                        ch = numRow[code];
+                        ch = numRow[code - 0x01];
+                } else if (code == 0x0A) {
+                    /* 0 / ) */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? ')' : '0';
+                } else if (code == 0x0B) {
+                    /* Minus / underscore */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '_' : '-';
+                } else if (code == 0x0C) {
+                    /* Equals / plus */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '+' : '=';
+                } else if (code == 0x0D) {
+                    /* Backslash / pipe */
+                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '|' : '\\';
                 } else if (code >= 0x10 && code <= 0x19) {
                     /* QWERTYUIOP */
                     static const UBYTE qRow[] = "qwertyuiop";
@@ -2703,21 +2719,15 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
                     ch = aRow[code - 0x20];
                     if (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
                         ch = ch - 'a' + 'A';
-                } else if (code >= 0x31 && code <= 0x39) {
-                    /* ZXCVBNM,. */
-                    static const UBYTE zRow[] = "zxcvbnm,.";
+                } else if (code >= 0x31 && code <= 0x37) {
+                    /* ZXCVBNM (letters only, not punctuation) */
+                    static const UBYTE zRow[] = "zxcvbnm";
                     ch = zRow[code - 0x31];
                     if (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | IEQUALIFIER_CAPSLOCK))
                         ch = ch - 'a' + 'A';
                 } else if (code == 0x40) {
                     /* Space */
                     ch = ' ';
-                } else if (code == 0x0A) {
-                    /* Minus/Underscore */
-                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '_' : '-';
-                } else if (code == 0x0B) {
-                    /* Equals/Plus */
-                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '+' : '=';
                 } else if (code == 0x1A) {
                     /* Left bracket */
                     ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '{' : '[';
@@ -2730,12 +2740,6 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
                 } else if (code == 0x2A) {
                     /* Quote */
                     ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '"' : '\'';
-                } else if (code == 0x30) {
-                    /* Grave/tilde */
-                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '~' : '`';
-                } else if (code == 0x2B) {
-                    /* Backslash/pipe */
-                    ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '|' : '\\';
                 } else if (code == 0x38) {
                     /* Comma/less-than */
                     ch = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) ? '<' : ',';
@@ -2766,7 +2770,10 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
     
     /* Refresh the gadget display if needed */
     if (needsRefresh && IntuitionBase) {
+        DPRINTF(LOG_DEBUG, "_intuition: _handle_string_gadget_key: about to refresh buf='%s' numch=%d pos=%d\n",
+                si->Buffer ? (char*)si->Buffer : "(null)", (int)si->NumChars, (int)si->BufferPos);
         _intuition_RefreshGList(IntuitionBase, gad, window, NULL, 1);
+        DPRINTF(LOG_DEBUG, "_intuition: _handle_string_gadget_key: refresh done\n");
     }
     
     return TRUE;  /* Stay active */
@@ -2871,6 +2878,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
         if (event_type == 0)
             break;  /* No more events */
         
+        DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: got event type=%ld screen=0x%08lx\n",
+                event_type, (ULONG)screen);
+        
         /* Get mouse position for all events */
         mouse_pos = emucall0(EMU_CALL_INT_GET_MOUSE_POS);
         mouseX = (WORD)(mouse_pos >> 16);
@@ -2889,6 +2899,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
         
         /* Find the window at the mouse position */
         window = _find_window_at_pos(screen, mouseX, mouseY);
+        
+        DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: mouse=(%d,%d) window=0x%08lx firstWin=0x%08lx\n",
+                mouseX, mouseY, (ULONG)window, (ULONG)screen->FirstWindow);
         
         /* If no window under mouse but we have an active gadget, use that window */
         if (!window && g_active_window)
@@ -2922,6 +2935,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                     if (code == SELECTDOWN)
                     {
                         struct Gadget *gad = _find_gadget_at_pos(window, relX, relY);
+                        DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN relX=%d relY=%d gad=0x%08lx firstGad=0x%08lx type=0x%04x\n",
+                                relX, relY, (ULONG)gad, (ULONG)window->FirstGadget,
+                                gad ? gad->GadgetType : 0xFFFF);
                         if (gad)
                         {
                             DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN on gadget type=0x%04x\n",
@@ -2987,6 +3003,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             
                             /* Check if still inside gadget (RELVERIFY) */
                             BOOL inside = _point_in_gadget(activeWin, gad, activeRelX, activeRelY);
+                            
+                            DPRINTF(LOG_DEBUG, "_intuition: SELECTUP gadtype=0x%04x inside=%d isSys=%d isStr=%d\n",
+                                    gad->GadgetType, inside,
+                                    (gad->GadgetType & GTYP_SYSGADGET) ? 1 : 0,
+                                    ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET) ? 1 : 0);
                             
                             DPRINTF(LOG_DEBUG, "_intuition: SELECTUP on gadget type=0x%04x inside=%d\n",
                                     gad->GadgetType, inside);
@@ -3292,9 +3313,18 @@ VOID _intuition_VBlankInputHook(void)
     
     /* Use global IntuitionBase - no OpenLibrary calls from interrupt context! */
     if (!IntuitionBase)
+    {
+        LPRINTF(LOG_WARNING, "_intuition: VBlankInputHook: IntuitionBase is NULL!\n");
         return;
+    }
     
-    for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
+    screen = IntuitionBase->FirstScreen;
+    if (!screen)
+    {
+        /* No screen yet - this is normal during startup */
+    }
+    
+    for (; screen; screen = screen->NextScreen)
     {
         _intuition_ProcessInputEvents(screen);
     }
@@ -5494,9 +5524,14 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             WORD textY;
             WORD textX;
             
+            DPRINTF(LOG_DEBUG, "_render_gadget: strgad clear interior left=%ld top=%ld w=%ld h=%ld\n",
+                    left, top, width, height);
+            
             /* Clear gadget interior with background pen */
             SetAPen(rp, 0);
             RectFill(rp, left, top, left + width - 1, top + height - 1);
+            
+            DPRINTF(LOG_DEBUG, "_render_gadget: strgad RectFill done\n");
             
             /* Calculate text Y position (vertically centered).
              * Text() uses baseline: y - tf_Baseline for actual rendering.
@@ -5530,11 +5565,16 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             SetBPen(rp, 0);  /* Background pen */
             SetDrMd(rp, JAM2);
             
+            DPRINTF(LOG_DEBUG, "_render_gadget: strgad Text textX=%d textY=%d len=%ld\n",
+                    textX, textY, len);
+            
             Move(rp, textX, textY);
             if (len > 0)
             {
                 Text(rp, si->Buffer, len);
             }
+            
+            DPRINTF(LOG_DEBUG, "_render_gadget: strgad Text done\n");
             
             /* Draw cursor if gadget is active (selected) */
             if (gad->Flags & GFLG_SELECTED)
@@ -5544,7 +5584,9 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
                 
                 if (cursorPos > 0)
                 {
+                    DPRINTF(LOG_DEBUG, "_render_gadget: strgad TextLength pos=%d\n", cursorPos);
                     cursorX = textX + TextLength(rp, si->Buffer, cursorPos);
+                    DPRINTF(LOG_DEBUG, "_render_gadget: strgad TextLength done cursorX=%d\n", cursorX);
                 }
                 else
                 {
@@ -5556,7 +5598,9 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
                 SetDrMd(rp, COMPLEMENT);
                 RectFill(rp, cursorX, top + 1, cursorX + 1, top + height - 2);
                 SetDrMd(rp, JAM2);
+                DPRINTF(LOG_DEBUG, "_render_gadget: strgad cursor done\n");
             }
+            DPRINTF(LOG_DEBUG, "_render_gadget: strgad rendering complete\n");
         }
     }
 }

@@ -157,7 +157,6 @@ TEST_F(UpdateStrGadPixelTest, StringGadgetTextCentered) {
 // Interactive tests (rootless mode - default)
 //
 // These tests verify string gadget keyboard interaction.
-// NOTE: These currently fail because mouse click activation doesn't work.
 // ============================================================================
 
 class UpdateStrGadTest : public LxaUITest {
@@ -169,40 +168,55 @@ protected:
         ASSERT_TRUE(WaitForWindows(1, 5000));
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
         
-        RunCyclesWithVBlank(10);
+        // Let task reach WaitPort() - CRITICAL for event handling
+        WaitForEventLoop(200, 10000);
+        ClearOutput();
     }
 };
 
 TEST_F(UpdateStrGadTest, TypeIntoGadget) {
-    // String gadget is at (20, 20) in the window
-    // Buffer starts with "START" (initialized in sample code)
-    int clickX = window_info.x + 20 + (200 / 2);
-    int clickY = window_info.y + 20 + (8 / 2);
+    // String gadget is at (20, 20) in the window, 200x8
+    // Click center of string gadget to activate it
+    int clickX = window_info.x + STRGAD_LEFT + (STRGAD_WIDTH / 2);
+    int clickY = window_info.y + STRGAD_TOP + (STRGAD_HEIGHT / 2);
     
-    // Click to activate - cursor goes to end of existing text ("START")
+    // Click to activate the string gadget - cursor goes to end of existing text ("START")
     Click(clickX, clickY);
-    RunCyclesWithVBlank(10);
+    RunCyclesWithVBlank(20, 50000);
     
     // Type "Hello" and Return - appends to existing "START" text
     ClearOutput();
     TypeString("Hello\n");
-    RunCyclesWithVBlank(50);
     
-    // Need additional cycles for the m68k program to wake up, GetMsg(), and printf()
-    RunCyclesWithVBlank(30);
+    // Need enough cycles for:
+    // 1. Each keystroke to be processed through input.device -> Intuition
+    // 2. String gadget key handler to insert characters
+    // 3. Return key to trigger GADGETUP IDCMP
+    // 4. Task to wake from Wait(), GetMsg(), and printf()
+    RunCyclesWithVBlank(80, 50000);
     
     std::string output = GetOutput();
     EXPECT_NE(output.find("IDCMP_GADGETUP: string is 'STARTHello'"), std::string::npos)
-        << "Expected GADGETUP with typed string 'STARTHello' (START from initial buffer + Hello typed)";
+        << "Expected GADGETUP with typed string 'STARTHello' (START from initial buffer + Hello typed). Output was: " << output;
 }
 
 TEST_F(UpdateStrGadTest, CloseWindow) {
-    // Click close gadget
-    Click(window_info.x + 5, window_info.y + 5);
-    RunCyclesWithVBlank(20);
+    // Click close gadget (top-left of window, matching SimpleGad's pattern)
+    int close_x = window_info.x + 10;
+    int close_y = window_info.y + 5;
+    
+    Click(close_x, close_y);
+    
+    // Give VBlanks for the close event to propagate through Intuition
+    RunCyclesWithVBlank(10, 50000);
     
     // Program should exit now
-    EXPECT_TRUE(lxa_wait_exit(2000)) << "Program should exit after closing window";
+    EXPECT_TRUE(lxa_wait_exit(5000)) << "Program should exit after closing window";
+    
+    // Verify CLOSEWINDOW event in output
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("IDCMP_CLOSEWINDOW"), std::string::npos)
+        << "Expected CLOSEWINDOW event. Output was: " << output;
 }
 
 int main(int argc, char **argv) {

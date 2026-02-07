@@ -4417,7 +4417,7 @@ int op_illg(int level)
                 /* Store event data in static vars for subsequent GET calls */
                 g_last_event = event;
                 m68k_set_reg(M68K_REG_D0, (uint32_t)event.type);
-                DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_POLL_INPUT: got event type=%d rawkey=0x%02x\n", event.type, event.rawkey);
+                DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_POLL_INPUT: got event type=%d rawkey=0x%02x btn=0x%02x pos=(%d,%d)\n", event.type, event.rawkey, event.button_code, event.mouse_x, event.mouse_y);
             }
             else
             {

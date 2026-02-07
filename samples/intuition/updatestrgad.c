@@ -129,6 +129,7 @@ int main(int argc, char **argv)
         {
             if (msg->Class == IDCMP_CLOSEWINDOW)
             {
+                printf("IDCMP_CLOSEWINDOW\n");
                 done = TRUE;
             }
             else if (msg->Class == IDCMP_GADGETUP)

@@ -474,7 +474,41 @@ bool lxa_inject_keypress(int rawkey, int qualifier)
 bool lxa_inject_string(const char *str)
 {
     if (!g_api_initialized) return false;
-    return display_inject_string(str);
+    if (!str) return false;
+    
+    /* Inject each character as a separate keypress with VBlank + cycles
+     * between each one. This is necessary because each keystroke in a
+     * string gadget triggers a full gadget re-render (Text() with per-pixel
+     * rendering), which consumes many CPU cycles. Without VBlanks between
+     * keystrokes, events pile up in the queue and the emulator runs out
+     * of cycles to process them all. */
+    for (const char *p = str; *p; p++)
+    {
+        bool need_shift = false;
+        int rawkey = ascii_to_rawkey(*p, &need_shift);
+        if (rawkey == 0xFF) continue;
+        
+        int qualifier = need_shift ? 0x0001 : 0;
+        
+        /* Key down */
+        display_inject_key(rawkey, qualifier, true);
+        
+        /* Trigger VBlank + run cycles so the key-down event is processed
+         * and any gadget rendering completes.
+         * 500000 cycles is needed because Text() does per-pixel rendering
+         * (e.g. 10 chars * 8x8 pixels * 2 planes = ~12800 plane writes). */
+        lxa_trigger_vblank();
+        lxa_run_cycles(500000);
+        
+        /* Key up */
+        display_inject_key(rawkey, qualifier, false);
+        
+        /* Run cycles for key-up processing */
+        lxa_trigger_vblank();
+        lxa_run_cycles(500000);
+    }
+    
+    return true;
 }
 
 /* ========== State Query API ========== */

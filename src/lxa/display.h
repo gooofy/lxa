@@ -365,6 +365,12 @@ uint32_t display_window_get_sdl_id(display_window_t *window);
 bool display_inject_key(int rawkey, int qualifier, bool down);
 
 /*
+ * Convert an ASCII character to an Amiga rawkey code.
+ * Returns 0xFF if no mapping exists.
+ */
+int ascii_to_rawkey(char c, bool *need_shift);
+
+/*
  * Inject a string as a sequence of key events.
  * Each character is converted to appropriate rawkey codes.
  * Both key-down and key-up events are generated for each character.
