@@ -143,6 +143,9 @@ int main(int argc, char **argv)
            win_info.x, win_info.y, win_info.width, win_info.height);
 
     /* Let the program initialize fully - need many VBlank cycles for Printf to flush */
+    run_with_vblanks(100, 50000);
+    
+    /* Additional cycles for the m68k program to process messages and produce output */
     run_with_vblanks(50, 50000);
 
     /* ========== Test 1: Verify initial output ========== */
@@ -172,13 +175,16 @@ int main(int argc, char **argv)
         lxa_inject_string("Hello\n");
         run_with_vblanks(50, 50000);
         
+        /* Additional cycles for the m68k program to wake up, GetMsg(), and printf() */
+        run_with_vblanks(30, 50000);
+        
         char output[8192];
         lxa_get_output(output, sizeof(output));
         
         check(strstr(output, "IDCMP_GADGETUP") != NULL,
               "GADGETUP received after typing");
-        check(strstr(output, "string is 'Hello'") != NULL,
-              "String gadget contains 'Hello'");
+        check(strstr(output, "string is 'STARTHello'") != NULL,
+              "String gadget contains 'STARTHello' (START from initial buffer + Hello typed)");
     }
     
     /* ========== Test 3: Close the window ========== */

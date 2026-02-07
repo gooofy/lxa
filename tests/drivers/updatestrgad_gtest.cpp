@@ -23,21 +23,25 @@ protected:
 
 TEST_F(UpdateStrGadTest, TypeIntoGadget) {
     // String gadget is at (20, 20) in the window
+    // Buffer starts with "START" (initialized in sample code)
     int clickX = window_info.x + 20 + (200 / 2);
     int clickY = window_info.y + 20 + (8 / 2);
     
-    // Click to activate
+    // Click to activate - cursor goes to end of existing text ("START")
     Click(clickX, clickY);
     RunCyclesWithVBlank(10);
     
-    // Type "Hello" and Return
+    // Type "Hello" and Return - appends to existing "START" text
     ClearOutput();
     TypeString("Hello\n");
-    RunCyclesWithVBlank(20);
+    RunCyclesWithVBlank(50);
+    
+    // Need additional cycles for the m68k program to wake up, GetMsg(), and printf()
+    RunCyclesWithVBlank(30);
     
     std::string output = GetOutput();
-    EXPECT_NE(output.find("IDCMP_GADGETUP: string is 'Hello'"), std::string::npos)
-        << "Expected GADGETUP with typed string 'Hello'";
+    EXPECT_NE(output.find("IDCMP_GADGETUP: string is 'STARTHello'"), std::string::npos)
+        << "Expected GADGETUP with typed string 'STARTHello' (START from initial buffer + Hello typed)";
 }
 
 TEST_F(UpdateStrGadTest, CloseWindow) {

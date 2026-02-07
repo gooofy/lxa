@@ -2114,6 +2114,32 @@ static WORD g_menu_save_height = 0;
 */
 
 /*
+ * Initialize StringInfo fields for string gadgets in a gadget list.
+ * Per RKRM, Intuition initializes NumChars when the gadget is added to a window.
+ * This must be called when gadgets are first linked to a window (OpenWindow, AddGList).
+ */
+static VOID _init_string_gadget_info(struct Gadget *gadget)
+{
+    if (!gadget)
+        return;
+    
+    if ((gadget->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+    {
+        struct StringInfo *si = (struct StringInfo *)gadget->SpecialInfo;
+        if (si && si->Buffer)
+        {
+            /* Compute NumChars from buffer contents */
+            WORD len = 0;
+            while (si->Buffer[len] != '\0' && len < si->MaxChars)
+                len++;
+            si->NumChars = len;
+            /* Position cursor at end of existing text */
+            si->BufferPos = len;
+        }
+    }
+}
+
+/*
  * Encode menu selection into FULLMENUNUM format
  * menuNum: 0-31, itemNum: 0-63, subNum: 0-31
  */
@@ -2589,8 +2615,8 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
     if (keyUp)
         return TRUE;  /* Ignore key release events */
     
-    DPRINTF(LOG_DEBUG, "_intuition: _handle_string_gadget_key code=0x%02x qual=0x%04x\n",
-            code, qualifier);
+    DPRINTF(LOG_DEBUG, "_intuition: _handle_string_gadget_key code=0x%02x qual=0x%04x buf='%s' pos=%d numch=%d\n",
+            code, qualifier, si->Buffer ? (char*)si->Buffer : "(null)", (int)si->BufferPos, (int)si->NumChars);
     
     /* Check for special keys */
     switch (code) {
@@ -2901,6 +2927,17 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             
                             /* Set gadget as selected */
                             gad->Flags |= GFLG_SELECTED;
+                            
+                            /* For string gadgets, position cursor at end of text on click */
+                            if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+                            {
+                                struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
+                                if (si && si->Buffer)
+                                {
+                                    /* Position cursor at end of text */
+                                    si->BufferPos = si->NumChars;
+                                }
+                            }
                             
                             /* Post IDCMP_GADGETDOWN if it's a GADGIMMEDIATE gadget */
                             if (gad->Activation & GACT_IMMEDIATE)
@@ -4183,6 +4220,16 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
 
     /* Create system gadgets based on window flags */
     _create_window_sys_gadgets(window);
+    
+    /* Initialize string gadget NumChars for user gadgets (per RKRM, Intuition does this) */
+    {
+        struct Gadget *gad = window->FirstGadget;
+        while (gad)
+        {
+            _init_string_gadget_info(gad);
+            gad = gad->NextGadget;
+        }
+    }
     
     /* Render the window frame and gadgets (in non-rootless mode) */
     if (!rootless_mode)
@@ -5572,26 +5619,45 @@ BOOL _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase _
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"))
 {
-    DPRINTF (LOG_DEBUG, "_intuition: ActivateGadget() gad=0x%08lx\n", (ULONG)gadget);
+    DPRINTF (LOG_DEBUG, "_intuition: ActivateGadget() gad=0x%08lx win=0x%08lx type=0x%04x\n",
+             (ULONG)gadget, (ULONG)window, gadget ? gadget->GadgetType : 0);
     
     if (!gadget || !window) return FALSE;
     
-    /* Typically this is for string gadgets or proprietary gadgets that accept input.
-     * We should set the active gadget field in the window.
-     * Note: Does not handle full activation logic (QWERTY, cursor, etc.) yet, just state.
+    /* Per RKRM, ActivateGadget() is primarily used for string gadgets.
+     * It makes the gadget the active input gadget so it receives keyboard input.
+     * If there's already an active gadget, deactivate it first.
      */
-     
-    /* Deactivate old if any (TODO: Send IDCMP_GADGETUP/DOWN if needed?) */
     
-    /* Set new */
-    /* window->ActiveGadget = gadget; ? No standard field exposed like this in simple Window struct?
-     * Actually `Window` has `ActiveGadget`?
-     * Let's check struct definition again via our logic.
-     * No, standard struct Window does not have ActiveGadget directly.
-     * It's usually tracked internally by Intuition.
-     */
-     
-    /* For now, just return TRUE to pretend success. */
+    /* Deactivate previous active gadget if any */
+    if (g_active_gadget && g_active_gadget != gadget)
+    {
+        g_active_gadget->Flags &= ~GFLG_SELECTED;
+    }
+    
+    /* Set the new active gadget */
+    g_active_gadget = gadget;
+    g_active_window = window;
+    
+    /* Mark gadget as selected (active) */
+    gadget->Flags |= GFLG_SELECTED;
+    
+    /* For string gadgets, recompute NumChars from current buffer contents.
+     * The caller may have modified the buffer (e.g., updateStrGad pattern:
+     * RemoveGList + strcpy + AddGList + ActivateGadget). We don't touch
+     * BufferPos since the caller may have set it intentionally. */
+    if ((gadget->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+    {
+        struct StringInfo *si = (struct StringInfo *)gadget->SpecialInfo;
+        if (si && si->Buffer)
+        {
+            WORD len = 0;
+            while (si->Buffer[len] != '\0' && len < si->MaxChars)
+                len++;
+            si->NumChars = len;
+        }
+    }
+    
     return TRUE;
 }
 
@@ -6123,13 +6189,18 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
     }
     else
     {
-        /* Initialize with defaults */
+        /* Initialize with defaults matching AmigaOS/AROS behavior:
+         * When newWindow is NULL, Flags start at 0.
+         * Only the WA_* tags should set flags.
+         * Width/Height default to ~0 (auto-adjust).
+         * DetailPen/BlockPen default to 0xFF (use screen defaults).
+         */
         memset(&nw, 0, sizeof(nw));
         nw.Width = 200;
         nw.Height = 100;
         nw.DetailPen = 0;
         nw.BlockPen = 1;
-        nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET;
+        nw.Flags = 0;  /* Tags will set the flags */
         nw.Type = WBENCHSCREEN;  /* Default to opening on Workbench */
     }
     

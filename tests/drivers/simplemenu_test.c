@@ -147,10 +147,13 @@ int main(int argc, char **argv)
     printf("Window at (%d, %d), size %dx%d\n\n", 
            win_info.x, win_info.y, win_info.width, win_info.height);
     
-    /* CRITICAL: Run cycles to let task reach Wait() */
+    /* CRITICAL: Run cycles with VBlanks to let task reach Wait().
+     * The program calls OpenWindow(), then SetMenuStrip(), then enters its Wait() loop.
+     * We need VBlanks so the m68k scheduler can run the task. */
     printf("Letting task reach Wait()...\n");
     for (int i = 0; i < 200; i++) {
-        lxa_run_cycles(10000);
+        lxa_trigger_vblank();
+        lxa_run_cycles(50000);
     }
     lxa_clear_output();
     

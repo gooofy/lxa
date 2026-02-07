@@ -8,12 +8,14 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.34** | **Phase 70 In Progress** | **45/48 Tests Passing (3 pre-existing failures)**
+**Version: 0.6.35** | **Phase 70 In Progress** | **48/48 Tests Passing**
 
-Phase 70 focus: test hardening and pixel-level verification. Added gadget rendering in `_render_window_frame()`, fixed `_render_gadget()` for border-based gadgets, implemented `RefreshGadgets()`, and created pixel-level screenshot tests for window borders and gadget borders.
+Phase 70 focus: test hardening, gadget interaction fixes, and pixel-level verification. Fixed ActivateGadget implementation, string gadget NumChars initialization, and simplemenu test timing.
 
 **Current Status**:
-- 45/48 tests passing (3 pre-existing failures: updatestrgad_test, updatestrgad_gtest, simplemenu_test)
+- 48/48 tests passing (all pre-existing failures fixed!)
+- ActivateGadget() fully implemented (string gadget activation, deactivation)
+- String gadget NumChars initialization in OpenWindow() per RKRM spec
 - New pixel verification tests for window/gadget border rendering
 - Exception logging permanently improved (LPRINTF instead of DPRINTF)
 
@@ -69,6 +71,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] Implemented `RefreshGadgets()` — was a stub/no-op, now calls `_intuition_RefreshGList()`.
 - [x] Permanently improved exception logging — changed from `DPRINTF` to `LPRINTF` in host-side exception handler so m68k exceptions are never silently swallowed.
 - [x] Set simplegad_gtest ctest timeout to 60s (pixel tests need ~39s due to rendering cycle cost).
+- [x] Implemented `ActivateGadget()` — properly activates string gadgets for keyboard input, deactivates previous active gadget. NumChars recomputed from buffer.
+- [x] String gadget `NumChars` initialization in `OpenWindow()` — per RKRM, Intuition initializes `NumChars` when gadgets are added to a window. Added `_init_string_gadget_info()` helper.
+- [x] Fixed simplemenu_test — added VBlank interrupts in init phase so m68k task has time to call `SetMenuStrip()` before menu interaction.
+- [x] Fixed all pre-existing test failures — 48/48 tests now passing (updatestrgad_test, updatestrgad_gtest, simplemenu_test all fixed).
 **TODO**:
 - [ ] RGBBoxesTest: measure runtime — the test application has a 5 second delay, currently exits nearly immediately. Extend so it measures elapsed time
 - [ ] SimpleGad: Gadget does not respond to mouse clicks
@@ -79,7 +85,6 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [ ] Add more complex Graphics/Layers clipping tests
 - [ ] Extend DOS tests with more VFS corner cases (locking, seeking, large files)
 - [ ] Implement TDD: add failing tests for every new bug report before fixing
-- [ ] Fix pre-existing test failures: updatestrgad_test, updatestrgad_gtest, simplemenu_test
 
 ### Phase 71: Performance & Infrastructure
 **Goal**: Improve emulator performance and test infrastructure.
@@ -107,6 +112,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.35 | 70 | **48/48 tests passing!** Implemented ActivateGadget(). String gadget NumChars init in OpenWindow() per RKRM. Fixed simplemenu_test timing. All pre-existing test failures resolved. |
 | 0.6.34 | 70 | Pixel verification tests for gadget/window borders. User gadget rendering in `_render_window_frame()`. Fixed `_render_gadget()` for border-based gadgets. Implemented `RefreshGadgets()`. Permanent exception logging improvement. Fixed flaky simplegad_gtest (CPU cycle budget). |
 | 0.6.33 | 69 | **48/48 tests passing!** Fixed apps_misc_gtest (DOpus, KP2, SysInfo). Rewrote Delay() with timer.device. Optimized stress tests. Console timing fixes. |
 | 0.6.32 | 63 | Phase 63 complete: Transitioned to Google Test & liblxa host-side drivers. Identified failures in samples and apps. |
