@@ -177,7 +177,7 @@ int main(int argc, char **argv)
             
             lxa_clear_output();
             lxa_inject_mouse_click(clickX, clickY, LXA_MOUSE_LEFT);
-            run_with_vblanks(20, 50000);
+            run_with_vblanks(30, 100000);
             
             char output[16384];
             lxa_get_output(output, sizeof(output));

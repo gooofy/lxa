@@ -262,7 +262,43 @@ void gadtoolsWindow(void)
     printf("GadToolsGadgets: String gadget 2 at 0x%08lx\n", (ULONG)my_gads[MYGAD_STRING2]);
     printf("GadToolsGadgets: String gadget 3 at 0x%08lx\n", (ULONG)my_gads[MYGAD_STRING3]);
 
-    printf("\nGadToolsGadgets: Demo setup complete, closing...\n");
+    printf("\nGadToolsGadgets: Entering event loop...\n");
+
+    /* Event loop */
+    {
+        struct IntuiMessage *imsg;
+        ULONG msgClass;
+        BOOL done = FALSE;
+
+        while (!done)
+        {
+            Wait(1L << mywin->UserPort->mp_SigBit);
+
+            while ((imsg = GT_GetIMsg(mywin->UserPort)) != NULL)
+            {
+                msgClass = imsg->Class;
+
+                if (msgClass == IDCMP_CLOSEWINDOW)
+                {
+                    printf("GadToolsGadgets: IDCMP_CLOSEWINDOW\n");
+                    done = TRUE;
+                }
+                else if (msgClass == IDCMP_REFRESHWINDOW)
+                {
+                    GT_BeginRefresh(mywin);
+                    GT_EndRefresh(mywin, TRUE);
+                }
+                else if (msgClass == IDCMP_GADGETUP)
+                {
+                    struct Gadget *g = (struct Gadget *)imsg->IAddress;
+                    printf("GadToolsGadgets: IDCMP_GADGETUP: gadget ID %d, code %d\n",
+                           g->GadgetID, imsg->Code);
+                }
+
+                GT_ReplyIMsg(imsg);
+            }
+        }
+    }
 
     CloseWindow(mywin);
     printf("GadToolsGadgets: Window closed\n");

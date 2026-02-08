@@ -6316,6 +6316,8 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
     struct NewWindow nw;
     struct TagItem *tstate;
     struct TagItem *tag;
+    LONG inner_width = -1;
+    LONG inner_height = -1;
     
     DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() called, newWindow=0x%08lx, tagList=0x%08lx\n",
             (ULONG)newWindow, (ULONG)tagList);
@@ -6478,12 +6480,16 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                     else
                         nw.Flags &= ~WFLG_GIMMEZEROZERO;
                     break;
+                case WA_InnerWidth:
+                    inner_width = (LONG)tag->ti_Data;
+                    break;
+                case WA_InnerHeight:
+                    inner_height = (LONG)tag->ti_Data;
+                    break;
                 /* Tags we recognize but don't fully implement yet */
                 case WA_PubScreenName:
                 case WA_PubScreen:
                 case WA_PubScreenFallBack:
-                case WA_InnerWidth:
-                case WA_InnerHeight:
                 case WA_Zoom:
                 case WA_MouseQueue:
                 case WA_BackFill:
@@ -6512,6 +6518,69 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
         }
     }
     
+    /* Handle WA_InnerWidth / WA_InnerHeight:
+     * Convert inner dimensions to outer dimensions by adding border sizes.
+     * We pre-compute borders using the same logic as _intuition_OpenWindow().
+     */
+    if (inner_width >= 0 || inner_height >= 0)
+    {
+        struct Screen *screen;
+        WORD border_left, border_right, border_top, border_bottom;
+
+        /* Find the screen to get WBor* values */
+        screen = nw.Screen;
+        if (!screen)
+        {
+            /* Default to Workbench screen */
+            screen = IntuitionBase->FirstScreen;
+            while (screen)
+            {
+                if (screen->Flags & WBENCHSCREEN)
+                    break;
+                screen = screen->NextScreen;
+            }
+        }
+
+        if (screen)
+        {
+            if (nw.Flags & WFLG_BORDERLESS)
+            {
+                border_left = 0;
+                border_right = 0;
+                border_top = 0;
+                border_bottom = 0;
+            }
+            else
+            {
+                border_left = screen->WBorLeft;
+                border_right = screen->WBorRight;
+                border_bottom = screen->WBorBottom;
+
+                if ((nw.Flags & (WFLG_DRAGBAR | WFLG_CLOSEGADGET | WFLG_DEPTHGADGET)) || nw.Title)
+                    border_top = screen->WBorTop;
+                else
+                    border_top = screen->WBorBottom;
+            }
+
+            if (inner_width >= 0)
+            {
+                nw.Width = (WORD)(inner_width + border_left + border_right);
+                DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_InnerWidth=%ld -> Width=%d (borders: %d+%d)\n",
+                        inner_width, (int)nw.Width, (int)border_left, (int)border_right);
+            }
+            if (inner_height >= 0)
+            {
+                nw.Height = (WORD)(inner_height + border_top + border_bottom);
+                DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_InnerHeight=%ld -> Height=%d (borders: %d+%d)\n",
+                        inner_height, (int)nw.Height, (int)border_top, (int)border_bottom);
+            }
+        }
+        else
+        {
+            LPRINTF(LOG_WARNING, "_intuition: OpenWindowTagList() WA_InnerWidth/Height ignored - no screen found\n");
+        }
+    }
+
     /* Call our existing OpenWindow with the assembled NewWindow */
     return _intuition_OpenWindow(IntuitionBase, &nw);
 }
