@@ -105,6 +105,46 @@ TEST_F(DosTest, VPrintf) {
     RunDosTest("VPrintf");
 }
 
+TEST_F(DosTest, DeleteRename) {
+    RunDosTest("DeleteRename");
+}
+
+TEST_F(DosTest, DirEnum) {
+    RunDosTest("DirEnum");
+}
+
+TEST_F(DosTest, ExamineEdge) {
+    RunDosTest("ExamineEdge");
+}
+
+TEST_F(DosTest, FileIOAdvanced) {
+    RunDosTest("FileIOAdvanced");
+}
+
+TEST_F(DosTest, FileIOErrors) {
+    RunDosTest("FileIOErrors");
+}
+
+TEST_F(DosTest, LockExamine) {
+    RunDosTest("LockExamine");
+}
+
+TEST_F(DosTest, LockLeak) {
+    RunDosTest("LockLeak");
+}
+
+TEST_F(DosTest, RenameOpen) {
+    RunDosTest("RenameOpen");
+}
+
+TEST_F(DosTest, SeekConsole) {
+    RunDosTest("SeekConsole");
+}
+
+TEST_F(DosTest, SpecialChars) {
+    RunDosTest("SpecialChars");
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

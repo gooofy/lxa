@@ -6,7 +6,13 @@
  * - GT_SetGadgetAttrs to modify gadgets
  * - Keyboard shortcuts with GT_Underscore
  * 
- * Modified for automated testing (auto-exits after setup verification).
+ * Keyboard shortcuts:
+ * - v: increase slider level
+ * - V: decrease slider level
+ * - c/C: reset slider to 10 (same as button)
+ * - f/F: activate First string gadget
+ * - s/S: activate Second string gadget
+ * - t/T: activate Third string gadget
  */
 
 #define INTUI_V36_NAMES_ONLY
@@ -40,6 +46,110 @@ struct TextAttr Topaz80 = { "topaz.font", 8, 0, 0 };
 struct Library *IntuitionBase = NULL;
 struct Library *GfxBase = NULL;
 struct Library *GadToolsBase = NULL;
+
+/* Function prototypes */
+VOID handleGadgetEvent(struct Window *win, struct Gadget *gad, UWORD code,
+    WORD *slider_level, struct Gadget *my_gads[]);
+VOID handleVanillaKey(struct Window *win, UWORD code,
+    WORD *slider_level, struct Gadget *my_gads[]);
+VOID process_window_events(struct Window *mywin,
+    WORD *slider_level, struct Gadget *my_gads[]);
+
+/*
+** Function to handle a GADGETUP or GADGETDOWN event.  For GadTools gadgets,
+** it is possible to use this function to handle MOUSEMOVEs as well, with
+** little or no work.
+*/
+VOID handleGadgetEvent(struct Window *win, struct Gadget *gad, UWORD code,
+    WORD *slider_level, struct Gadget *my_gads[])
+{
+    switch (gad->GadgetID)
+    {
+        case MYGAD_SLIDER:
+            /* Sliders report their level in the IntuiMessage Code field: */
+            printf("Slider at level %ld\n", (LONG)code);
+            *slider_level = code;
+            break;
+        case MYGAD_STRING1:
+            /* String gadgets report GADGETUP's */
+            printf("String gadget 1: '%s'.\n",
+                    ((struct StringInfo *)gad->SpecialInfo)->Buffer);
+            break;
+        case MYGAD_STRING2:
+            /* String gadgets report GADGETUP's */
+            printf("String gadget 2: '%s'.\n",
+                    ((struct StringInfo *)gad->SpecialInfo)->Buffer);
+            break;
+        case MYGAD_STRING3:
+            /* String gadgets report GADGETUP's */
+            printf("String gadget 3: '%s'.\n",
+                    ((struct StringInfo *)gad->SpecialInfo)->Buffer);
+            break;
+        case MYGAD_BUTTON:
+            /* Buttons report GADGETUP's (button resets slider to 10) */
+            printf("Button was pressed, slider reset to 10.\n");
+            *slider_level = 10;
+            GT_SetGadgetAttrs(my_gads[MYGAD_SLIDER], win, NULL,
+                                GTSL_Level, *slider_level,
+                                TAG_END);
+            break;
+    }
+}
+
+
+/*
+** Function to handle vanilla keys.
+*/
+VOID handleVanillaKey(struct Window *win, UWORD code,
+    WORD *slider_level, struct Gadget *my_gads[])
+{
+    switch (code)
+    {
+        case 'v':
+            /* increase slider level, but not past maximum */
+            if (++*slider_level > SLIDER_MAX)
+                *slider_level = SLIDER_MAX;
+            printf("VANILLAKEY 'v': slider level now %ld\n", (LONG)*slider_level);
+            GT_SetGadgetAttrs(my_gads[MYGAD_SLIDER], win, NULL,
+                                GTSL_Level, *slider_level,
+                                TAG_END);
+            break;
+        case 'V':
+            /* decrease slider level, but not past minimum */
+            if (--*slider_level < SLIDER_MIN)
+                *slider_level = SLIDER_MIN;
+            printf("VANILLAKEY 'V': slider level now %ld\n", (LONG)*slider_level);
+            GT_SetGadgetAttrs(my_gads[MYGAD_SLIDER], win, NULL,
+                                GTSL_Level, *slider_level,
+                                TAG_END);
+            break;
+        case 'c':
+        case 'C':
+            /* button resets slider to 10 */
+            *slider_level = 10;
+            printf("VANILLAKEY 'c/C': slider reset to 10\n");
+            GT_SetGadgetAttrs(my_gads[MYGAD_SLIDER], win, NULL,
+                                GTSL_Level, *slider_level,
+                                TAG_END);
+            break;
+        case 'f':
+        case 'F':
+            printf("VANILLAKEY 'f/F': activating First string gadget\n");
+            ActivateGadget(my_gads[MYGAD_STRING1], win, NULL);
+            break;
+        case 's':
+        case 'S':
+            printf("VANILLAKEY 's/S': activating Second string gadget\n");
+            ActivateGadget(my_gads[MYGAD_STRING2], win, NULL);
+            break;
+        case 't':
+        case 'T':
+            printf("VANILLAKEY 't/T': activating Third string gadget\n");
+            ActivateGadget(my_gads[MYGAD_STRING3], win, NULL);
+            break;
+    }
+}
+
 
 /* Create all gadgets */
 struct Gadget *createAllGadgets(struct Gadget **glistptr, void *vi,
@@ -163,6 +273,77 @@ struct Gadget *createAllGadgets(struct Gadget **glistptr, void *vi,
     return gad;
 }
 
+
+/*
+** Standard message handling loop with GadTools message handling functions
+** used (GT_GetIMsg() and GT_ReplyIMsg()).
+*/
+VOID process_window_events(struct Window *mywin,
+    WORD *slider_level, struct Gadget *my_gads[])
+{
+    struct IntuiMessage *imsg;
+    ULONG imsgClass;
+    UWORD imsgCode;
+    struct Gadget *gad;
+    BOOL terminated = FALSE;
+
+    printf("GadToolsGadgets: Entering event loop...\n");
+    
+    while (!terminated)
+    {
+        Wait(1L << mywin->UserPort->mp_SigBit);
+
+        /* GT_GetIMsg() returns an IntuiMessage with more friendly information for
+        ** complex gadget classes.  Use it wherever you get IntuiMessages where
+        ** using GadTools gadgets.
+        */
+        while ((!terminated) &&
+               (imsg = GT_GetIMsg(mywin->UserPort)))
+        {
+            /* Presuming a gadget, of course, but no harm...
+            ** Only dereference this value (gad) where the Class specifies
+            ** that it is a gadget event.
+            */
+            gad = (struct Gadget *)imsg->IAddress;
+
+            imsgClass = imsg->Class;
+            imsgCode = imsg->Code;
+
+            /* Use the toolkit message-replying function here... */
+            GT_ReplyIMsg(imsg);
+
+            switch (imsgClass)
+            {
+                /*  --- WARNING --- WARNING --- WARNING --- WARNING --- WARNING ---
+                ** GadTools puts the gadget address into IAddress of IDCMP_MOUSEMOVE
+                ** messages.  This is NOT true for standard Intuition messages,
+                ** but is an added feature of GadTools.
+                */
+                case IDCMP_GADGETDOWN:
+                case IDCMP_MOUSEMOVE:
+                case IDCMP_GADGETUP:
+                    handleGadgetEvent(mywin, gad, imsgCode, slider_level, my_gads);
+                    break;
+                case IDCMP_VANILLAKEY:
+                    handleVanillaKey(mywin, imsgCode, slider_level, my_gads);
+                    break;
+                case IDCMP_CLOSEWINDOW:
+                    printf("GadToolsGadgets: IDCMP_CLOSEWINDOW\n");
+                    terminated = TRUE;
+                    break;
+                case IDCMP_REFRESHWINDOW:
+                    /* With GadTools, the application must use GT_BeginRefresh()
+                    ** where it would normally have used BeginRefresh()
+                    */
+                    GT_BeginRefresh(mywin);
+                    GT_EndRefresh(mywin, TRUE);
+                    break;
+            }
+        }
+    }
+}
+
+
 /* Main GadTools window function */
 void gadtoolsWindow(void)
 {
@@ -230,8 +411,8 @@ void gadtoolsWindow(void)
             WA_SizeGadget,  TRUE,
             WA_SimpleRefresh, TRUE,
             WA_IDCMP, IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW |
-                      IDCMP_VANILLAKEY | SLIDERIDCMP | STRINGIDCMP |
-                      BUTTONIDCMP,
+                      IDCMP_VANILLAKEY | IDCMP_MOUSEMOVE |
+                      SLIDERIDCMP | STRINGIDCMP | BUTTONIDCMP,
             WA_PubScreen, mysc,
             TAG_END);
 
@@ -246,59 +427,10 @@ void gadtoolsWindow(void)
     /* Refresh gadgets after window opens */
     printf("GadToolsGadgets: Refreshing window gadgets...\n");
     GT_RefreshWindow(mywin, NULL);
-    printf("GadToolsGadgets: Gadgets refreshed\n");
+    printf("GadToolsGadgets: Gadgets refreshed\n\n");
 
-    /* Test GT_SetGadgetAttrs - modify slider level */
-    printf("\nGadToolsGadgets: Testing GT_SetGadgetAttrs...\n");
-    slider_level = 15;
-    GT_SetGadgetAttrs(my_gads[MYGAD_SLIDER], mywin, NULL,
-                      GTSL_Level, slider_level,
-                      TAG_END);
-    printf("GadToolsGadgets: Slider level set to %ld\n", (LONG)slider_level);
-
-    /* Verify string gadget presence */
-    printf("\nGadToolsGadgets: Verifying string gadgets...\n");
-    printf("GadToolsGadgets: String gadget 1 at 0x%08lx\n", (ULONG)my_gads[MYGAD_STRING1]);
-    printf("GadToolsGadgets: String gadget 2 at 0x%08lx\n", (ULONG)my_gads[MYGAD_STRING2]);
-    printf("GadToolsGadgets: String gadget 3 at 0x%08lx\n", (ULONG)my_gads[MYGAD_STRING3]);
-
-    printf("\nGadToolsGadgets: Entering event loop...\n");
-
-    /* Event loop */
-    {
-        struct IntuiMessage *imsg;
-        ULONG msgClass;
-        BOOL done = FALSE;
-
-        while (!done)
-        {
-            Wait(1L << mywin->UserPort->mp_SigBit);
-
-            while ((imsg = GT_GetIMsg(mywin->UserPort)) != NULL)
-            {
-                msgClass = imsg->Class;
-
-                if (msgClass == IDCMP_CLOSEWINDOW)
-                {
-                    printf("GadToolsGadgets: IDCMP_CLOSEWINDOW\n");
-                    done = TRUE;
-                }
-                else if (msgClass == IDCMP_REFRESHWINDOW)
-                {
-                    GT_BeginRefresh(mywin);
-                    GT_EndRefresh(mywin, TRUE);
-                }
-                else if (msgClass == IDCMP_GADGETUP)
-                {
-                    struct Gadget *g = (struct Gadget *)imsg->IAddress;
-                    printf("GadToolsGadgets: IDCMP_GADGETUP: gadget ID %d, code %d\n",
-                           g->GadgetID, imsg->Code);
-                }
-
-                GT_ReplyIMsg(imsg);
-            }
-        }
-    }
+    /* Process events until close */
+    process_window_events(mywin, &slider_level, my_gads);
 
     CloseWindow(mywin);
     printf("GadToolsGadgets: Window closed\n");

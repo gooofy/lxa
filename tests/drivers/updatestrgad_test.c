@@ -183,7 +183,7 @@ int main(int argc, char **argv)
         
         check(strstr(output, "IDCMP_GADGETUP") != NULL,
               "GADGETUP received after typing");
-        check(strstr(output, "string is 'STARTHello'") != NULL,
+        check(strstr(output, "string was 'STARTHello'") != NULL,
               "String gadget contains 'STARTHello' (START from initial buffer + Hello typed)");
     }
     

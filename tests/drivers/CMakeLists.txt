@@ -206,6 +206,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # GadToolsGadgets - GadTools gadget creation test (STRING_KIND, SLIDER_KIND, BUTTON_KIND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsgadgets_gtest.cpp)
         add_gtest_driver(gadtoolsgadgets_gtest)
+        set_tests_properties(gadtoolsgadgets_gtest PROPERTIES TIMEOUT 150)
     endif()
     
     # ========== API Tests ==========
@@ -245,6 +246,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # RGBBoxes test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rgbboxes_gtest.cpp)
         add_gtest_driver(rgbboxes_gtest)
+        set_tests_properties(rgbboxes_gtest PROPERTIES TIMEOUT 25)
     endif()
 
     # Intuition tests

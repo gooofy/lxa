@@ -196,8 +196,11 @@ TEST_F(UpdateStrGadTest, TypeIntoGadget) {
     RunCyclesWithVBlank(80, 50000);
     
     std::string output = GetOutput();
-    EXPECT_NE(output.find("IDCMP_GADGETUP: string is 'STARTHello'"), std::string::npos)
+    // The sample now shows "string was '...', changing to '...'" and cycles through answers
+    EXPECT_NE(output.find("IDCMP_GADGETUP: string was 'STARTHello'"), std::string::npos)
         << "Expected GADGETUP with typed string 'STARTHello' (START from initial buffer + Hello typed). Output was: " << output;
+    EXPECT_NE(output.find("changing to 'Try again'"), std::string::npos)
+        << "Expected cycling answer 'Try again'. Output was: " << output;
 }
 
 TEST_F(UpdateStrGadTest, CloseWindow) {

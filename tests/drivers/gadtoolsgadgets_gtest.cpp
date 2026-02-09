@@ -29,6 +29,7 @@ constexpr int GT_BEVEL_TOP  = 2;
 class GadToolsGadgetsTest : public LxaUITest {
 protected:
     std::string output;
+    bool program_exited = false;
 
     void SetUp() override {
         LxaUITest::SetUp();
@@ -51,10 +52,12 @@ protected:
     }
 
     void TearDown() override {
-        /* Close the window to let the program exit cleanly */
-        lxa_click_close_gadget(0);
-        RunCyclesWithVBlank(20, 50000);
-        lxa_wait_exit(3000);
+        if (!program_exited) {
+            /* Close the window to let the program exit cleanly */
+            lxa_click_close_gadget(0);
+            RunCyclesWithVBlank(20, 50000);
+            lxa_wait_exit(3000);
+        }
 
         LxaUITest::TearDown();
     }
@@ -102,30 +105,6 @@ TEST_F(GadToolsGadgetsTest, GadgetsRefreshed) {
         << "GT_RefreshWindow should complete";
 }
 
-TEST_F(GadToolsGadgetsTest, SetGadgetAttrs) {
-    /* Verify GT_SetGadgetAttrs was called to set slider level */
-    EXPECT_NE(output.find("Slider level set to 15"), std::string::npos)
-        << "GT_SetGadgetAttrs should set slider to level 15";
-}
-
-TEST_F(GadToolsGadgetsTest, StringGadgetsVerified) {
-    /* Verify all 3 string gadgets are reported in verification */
-    EXPECT_NE(output.find("String gadget 1 at"), std::string::npos)
-        << "String gadget 1 should be verified";
-    EXPECT_NE(output.find("String gadget 2 at"), std::string::npos)
-        << "String gadget 2 should be verified";
-    EXPECT_NE(output.find("String gadget 3 at"), std::string::npos)
-        << "String gadget 3 should be verified";
-
-    /* Verify that the string gadget addresses are non-zero (not NULL) */
-    EXPECT_EQ(output.find("String gadget 1 at 0x00000000"), std::string::npos)
-        << "String gadget 1 should not be NULL";
-    EXPECT_EQ(output.find("String gadget 2 at 0x00000000"), std::string::npos)
-        << "String gadget 2 should not be NULL";
-    EXPECT_EQ(output.find("String gadget 3 at 0x00000000"), std::string::npos)
-        << "String gadget 3 should not be NULL";
-}
-
 TEST_F(GadToolsGadgetsTest, EventLoopEntered) {
     /* Verify the program entered its event loop (interactive mode) */
     EXPECT_NE(output.find("Entering event loop"), std::string::npos)
@@ -146,8 +125,8 @@ TEST_F(GadToolsGadgetsTest, ButtonClick) {
     RunCyclesWithVBlank(30, 100000);
 
     std::string click_output = GetOutput();
-    EXPECT_NE(click_output.find("IDCMP_GADGETUP: gadget ID 4"), std::string::npos)
-        << "Button click should produce GADGETUP for gadget ID 4 (MYGAD_BUTTON)";
+    EXPECT_NE(click_output.find("Button was pressed, slider reset to 10"), std::string::npos)
+        << "Button click should trigger handleGadgetEvent and reset slider. Output: " << click_output;
 }
 
 TEST_F(GadToolsGadgetsTest, CloseWindow) {
@@ -159,6 +138,7 @@ TEST_F(GadToolsGadgetsTest, CloseWindow) {
     /* Wait for program exit */
     EXPECT_TRUE(lxa_wait_exit(3000))
         << "Program should exit after close window";
+    program_exited = true;
 
     std::string close_output = GetOutput();
     EXPECT_NE(close_output.find("IDCMP_CLOSEWINDOW"), std::string::npos)
