@@ -172,3 +172,8 @@ tests/gadtools/drawbevelbox/drawbevelbox
 tests/devices/timer/timer_test
 tests/devices/clipboard/clipboard_test
 tests/intuition/gadget_click/gadget_click
+tests/commands/run/run_test
+tests/stress/memory/memory_stress
+tests/intuition/menu_select/menu_select
+tests/exec/multitask/multitask
+tests/console/csi_cursor/csi_cursor
