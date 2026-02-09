@@ -60,6 +60,55 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ## Next Steps
 
+### Phase 70a: Fix Issues Identified by Manual Tests
+
+Issues identified by comparing some of the sample programs to running the original RKM samples on a real Amiga.
+
+**IMPORTANT**: Test-driven approach is **mandatory** when fixing these:
+  * Make sure to reproduce each one of them first as part of the integration test.
+  * Once the issue is reproducible, fix it and verify the fix by re-running the test.
+
+* GadToolsGadgets
+  * `_` keyboard shortcut indicator not rendered correctly
+  * Volume slider knob not visible after startup
+  * Initial volume value (5) not visible
+  * Text entry widgets have wrong border style
+  * Window lacks resize gadget
+  * Window is not draggable
+  * Window has distorted depth gadget
+  * Window lacks minimize gadget
+  * Button does not react to mouse clicks
+  * TAB/Shift-TAB doesn't do anything
+  * Volume slider does not react to mouse clicks
+  * Window close gadget does not work
+* SimpleGTGadget
+  * Button does not react to mouse clicks
+  * Checkbox invisible
+  * Gadget labels extend beyond left window border
+  * Close gadget does not work
+* SimpleGad
+  * Button does not react to mouse clciks
+* UpdateStrGad
+  * Application does not react to mouse clicks
+* IntuiText
+  * Window is not full-screen
+  * Window has wrong broder type
+  * `Hello World ;)` text collides with window border
+* SimpleImage
+  * Shows 3 images instead of 2
+  * Closes way too quickly
+* EasyRequest
+  * No requester is displayed, application outputs a bunch of text on the console and then simply exits
+* simplemenu
+  * Lots of `_handleIRQ3() called` debug output obscures view of actual application output
+  * Menus stay on screen even after a menu item is selected
+* menulayout sample is missing: important samples, please port 1:1 from RKM!
+* FileReq
+  * Window placed too low - bottom off screen
+  * extra `Drawer libs:` label
+* FontReq   
+  * No requester appears, application simply exits
+
 ### Phase 71: Performance & Infrastructure
 **Goal**: Improve emulator performance and test infrastructure.
 **TODO**:
