@@ -68,14 +68,15 @@ VOID main(int argc, char **argv)
                 printf("IntuiText: Opening window...\n");
                 win = OpenWindowTags(NULL,
                                     WA_PubScreen, screen,
-                                    WA_Width, 300,
-                                    WA_Height, 100,
-                                    WA_Title, (ULONG)"IntuiText Test",
                                     WA_RMBTrap, TRUE,
                                     TAG_END);
                 if (win)
                 {
-                    printf("IntuiText: Window opened\n");
+                    printf("IntuiText: Window opened (%ldx%ld at %ld,%ld)\n",
+                           (LONG)win->Width, (LONG)win->Height,
+                           (LONG)win->LeftEdge, (LONG)win->TopEdge);
+                    printf("IntuiText: BorderTop=%ld BorderLeft=%ld\n",
+                           (LONG)win->BorderTop, (LONG)win->BorderLeft);
                     
                     /* Set up IntuiText */
                     myIText.FrontPen    = myTEXTPEN;
@@ -84,7 +85,7 @@ VOID main(int argc, char **argv)
                     myIText.LeftEdge    = MYTEXT_LEFT;
                     myIText.TopEdge     = MYTEXT_TOP;
                     myIText.ITextFont   = &myTextAttr;
-                    myIText.IText       = (UBYTE *)"Hello, World. ;-)";
+                    myIText.IText       = (UBYTE *)"Hello, World.  ;-)";
                     myIText.NextText    = NULL;
                     
                     /* Draw text at position 10,10 */

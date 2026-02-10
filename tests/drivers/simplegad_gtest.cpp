@@ -322,6 +322,101 @@ TEST_F(SimpleGadPixelTest, NoDepthGadgetInTopRight) {
            "top_row_shine=" << top_row_shine << " out of " << SYS_GADGET_WIDTH;
 }
 
+TEST_F(SimpleGadPixelTest, GadghcompHighlightOnClick) {
+    // Test GADGHCOMP: clicking a button should complement (XOR) its interior.
+    // SimpleGad's button uses GADGHCOMP (default highlight mode, flags bits 0-1 = 00).
+    //
+    // 1. Read pixels inside button before click (should be pen 0 = grey background)
+    // 2. Inject mouse-down (no release yet)
+    // 3. Verify pixels changed (complement = XOR inverts all bitplanes)
+    // 4. Inject mouse-up
+    // 5. Verify pixels restored to original
+    
+    // Sample points inside the button interior (avoiding border)
+    struct { int x; int y; } sample_points[] = {
+        { BUTTON_LEFT + 10, BUTTON_TOP + 10 },
+        { BUTTON_LEFT + 50, BUTTON_TOP + 25 },
+        { BUTTON_LEFT + 80, BUTTON_TOP + 40 },
+    };
+    constexpr int NUM_SAMPLES = sizeof(sample_points) / sizeof(sample_points[0]);
+    
+    // 1. Capture pre-click pen values
+    int pre_click_pens[NUM_SAMPLES];
+    for (int i = 0; i < NUM_SAMPLES; i++) {
+        pre_click_pens[i] = ReadPixel(window_info.x + sample_points[i].x,
+                                       window_info.y + sample_points[i].y);
+        ASSERT_NE(pre_click_pens[i], -1) 
+            << "Should be able to read pixel at sample point " << i;
+    }
+    
+    // 2. Inject mouse-down only (move to position, then press)
+    int btn_x = window_info.x + BUTTON_LEFT + (BUTTON_WIDTH / 2);
+    int btn_y = window_info.y + BUTTON_TOP + (BUTTON_HEIGHT / 2);
+    
+    // Move to position first
+    lxa_inject_mouse(btn_x, btn_y, 0, LXA_EVENT_MOUSEMOVE);
+    lxa_trigger_vblank();
+    lxa_run_cycles(50000);
+    
+    // Press button down
+    lxa_inject_mouse(btn_x, btn_y, LXA_MOUSE_LEFT, LXA_EVENT_MOUSEBUTTON);
+    
+    // Process events — need enough VBlanks for the full Intuition pipeline
+    for (int i = 0; i < 10; i++) {
+        lxa_trigger_vblank();
+        lxa_run_cycles(100000);
+    }
+    // Flush planar→chunky so display_read_pixel() returns current data
+    lxa_flush_display();
+    
+    // 3. Read pixels while button is held — should be complemented
+    int pressed_pens[NUM_SAMPLES];
+    int changed_count = 0;
+    for (int i = 0; i < NUM_SAMPLES; i++) {
+        pressed_pens[i] = ReadPixel(window_info.x + sample_points[i].x,
+                                     window_info.y + sample_points[i].y);
+        ASSERT_NE(pressed_pens[i], -1)
+            << "Should be able to read pixel at sample point " << i << " while pressed";
+        if (pressed_pens[i] != pre_click_pens[i]) {
+            changed_count++;
+        }
+    }
+    
+    // All interior pixels should have changed (GADGHCOMP XOR inverts all planes)
+    EXPECT_EQ(changed_count, NUM_SAMPLES)
+        << "GADGHCOMP: All interior pixels should change when button is pressed. "
+           "Pre-click pens: " << pre_click_pens[0] << "," << pre_click_pens[1] << "," << pre_click_pens[2]
+        << " Pressed pens: " << pressed_pens[0] << "," << pressed_pens[1] << "," << pressed_pens[2];
+    
+    // 4. Release button
+    lxa_inject_mouse(btn_x, btn_y, 0, LXA_EVENT_MOUSEBUTTON);
+    
+    // Process events
+    for (int i = 0; i < 10; i++) {
+        lxa_trigger_vblank();
+        lxa_run_cycles(100000);
+    }
+    // Flush planar→chunky so display_read_pixel() returns current data
+    lxa_flush_display();
+    
+    // 5. Read pixels after release — should be restored to pre-click values
+    int released_pens[NUM_SAMPLES];
+    int restored_count = 0;
+    for (int i = 0; i < NUM_SAMPLES; i++) {
+        released_pens[i] = ReadPixel(window_info.x + sample_points[i].x,
+                                      window_info.y + sample_points[i].y);
+        if (released_pens[i] == pre_click_pens[i]) {
+            restored_count++;
+        }
+    }
+    
+    // All pixels should be restored after release (XOR is self-inverting)
+    EXPECT_EQ(restored_count, NUM_SAMPLES)
+        << "GADGHCOMP: All pixels should be restored after button release. "
+           "Pre: " << pre_click_pens[0] << "," << pre_click_pens[1] << "," << pre_click_pens[2]
+        << " Released: " << released_pens[0] << "," << released_pens[1] << "," << released_pens[2];
+}
+
 // Main function for Google Test
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

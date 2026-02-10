@@ -315,6 +315,35 @@ void lxa_trigger_vblank(void)
     g_pending_irq |= (1 << 3);  /* Level 3 = VBlank */
 }
 
+void lxa_flush_display(void)
+{
+    /* Force an immediate planar-to-chunky conversion so that
+     * display_read_pixel() returns current data.
+     *
+     * This duplicates the conversion logic from lxa_run_cycles()
+     * but can be called at any time (e.g. after event processing
+     * has modified the screen bitmap). */
+    display_t *disp = display_get_active();
+    uint32_t planes_ptr, bpr, depth;
+    if (disp && display_get_amiga_bitmap(disp, &planes_ptr, &bpr, &depth))
+    {
+        int w, h, d;
+        display_get_size(disp, &w, &h, &d);
+
+        const uint8_t *planes[8] = {0};
+        for (uint32_t i = 0; i < depth && i < 8; i++)
+        {
+            uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
+            if (plane_addr && plane_addr < RAM_SIZE)
+            {
+                planes[i] = (const uint8_t *)&g_ram[plane_addr];
+            }
+        }
+
+        display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
+    }
+}
+
 bool lxa_is_running(void)
 {
     return g_api_initialized && g_running;

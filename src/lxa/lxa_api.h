@@ -92,6 +92,20 @@ int lxa_load_program(const char *program, const char *args);
 int lxa_run_cycles(int cycles);
 
 /*
+ * Flush the display by converting Amiga planar bitmap data to chunky pixels.
+ *
+ * This forces an immediate planar-to-chunky conversion so that
+ * display_read_pixel() returns up-to-date values reflecting the
+ * current state of the Amiga screen bitmap.
+ *
+ * Normally, this conversion happens at the start of each VBlank in
+ * lxa_run_cycles().  After modifying the planar bitmap (e.g. via
+ * RectFill/complement), call this before reading pixels to avoid
+ * stale data.
+ */
+void lxa_flush_display(void);
+
+/*
  * Check if the emulator is still running a program.
  *
  * @return true if a program is running, false if exited

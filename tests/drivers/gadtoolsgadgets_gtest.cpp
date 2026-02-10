@@ -113,12 +113,12 @@ TEST_F(GadToolsGadgetsTest, EventLoopEntered) {
 
 TEST_F(GadToolsGadgetsTest, ButtonClick) {
     /* The button is the last gadget: ng_LeftEdge=140+50=190, at the bottom.
-     * topborder = WBorTop(11) + FontYSize(0) + 1 = 12
-     * Gadget TopEdge progression: 20+12=32, +20=52, +20=72, +20=92, +20=112
-     * Button TopEdge = 112, Width=100, Height=12
+     * topborder = WBorTop(11) + FontYSize(8) + 1 = 20
+     * Gadget TopEdge progression: 20+20=40, +20=60, +20=80, +20=100, +20=120
+     * Button TopEdge = 120, Width=100, Height=12
      * Click center of button. */
     int btn_x = window_info.x + 190 + 50;  /* center of 100px wide button */
-    int btn_y = window_info.y + 112 + 6;   /* center of 12px tall button */
+    int btn_y = window_info.y + 120 + 6;   /* center of 12px tall button */
 
     ClearOutput();
     Click(btn_x, btn_y);
@@ -200,13 +200,13 @@ TEST_F(GadToolsGadgetsPixelTest, WindowTitleBarRendered) {
 
 TEST_F(GadToolsGadgetsPixelTest, ButtonBevelBorderRendered) {
     /* Button gadget: ng_LeftEdge = 140+50 = 190, ng_Width = 100, ng_Height = 12.
-     * topborder = WBorTop(11) + FontYSize(0) + 1 = 12
-     * Gadget TopEdge progression: 20+12=32, +20=52, +20=72, +20=92, +20=112
+     * topborder = WBorTop(11) + FontYSize(8) + 1 = 20
+     * Gadget TopEdge progression: 20+20=40, +20=60, +20=80, +20=100, +20=120
      * The bevel border is drawn at the gadget position:
      *   Raised bevel: shine(2) top-left L, shadow(1) bottom-right L
      */
     int btn_left = 190;
-    int btn_top  = 112;
+    int btn_top  = 120;
     int btn_w = 100;
     int btn_h = 12;
 
@@ -249,9 +249,9 @@ TEST_F(GadToolsGadgetsPixelTest, ButtonBevelBorderRendered) {
 
 TEST_F(GadToolsGadgetsPixelTest, StringGadgetBevelBorderRendered) {
     /* First string gadget: ng_LeftEdge = 140, ng_Width = 200, ng_Height = 14.
-     * topborder = WBorTop(11) + FontYSize(0) + 1 = 12
-     * Gadget TopEdge progression: 20+12=32 (slider), +20=52 (string 1)
-     * String 1 TopEdge = 52 (relative to window top)
+     * topborder = WBorTop(11) + FontYSize(8) + 1 = 20
+     * Gadget TopEdge progression: 20+20=40 (slider), +20=60 (string 1)
+     * String 1 TopEdge = 60 (relative to window top)
      * The bevel border is the full ng_Width x ng_Height, drawn at negative
      * offsets from the shrunk gadget hitbox.
      * Recessed bevel: shadow(1) top-left L, shine(2) bottom-right L
@@ -260,7 +260,7 @@ TEST_F(GadToolsGadgetsPixelTest, StringGadgetBevelBorderRendered) {
      * the full ng_Width x ng_Height.
      */
     int str1_left = 140;                     /* ng_LeftEdge */
-    int str1_top  = 52;                      /* first string gadget TopEdge */
+    int str1_top  = 60;                      /* first string gadget TopEdge */
     int str1_w = 200;                        /* ng_Width */
     int str1_h = 14;                         /* ng_Height */
 
@@ -287,10 +287,10 @@ TEST_F(GadToolsGadgetsPixelTest, StringGadgetTextRendered) {
     /* First string gadget at ng_LeftEdge=140, the text area is inset by GT_BEVEL_LEFT.
      * The initial text is "Try pressing" which should produce non-background pixels
      * in the text area.
-     * topborder = 12, string 1 TopEdge = 52
+     * topborder = 20, string 1 TopEdge = 60
      */
     int str1_left = 140 + GT_BEVEL_LEFT;     /* text area starts after bevel inset */
-    int str1_top  = 52 + GT_BEVEL_TOP;
+    int str1_top  = 60 + GT_BEVEL_TOP;
     int str1_w = 200 - 2 * GT_BEVEL_LEFT;
     int str1_h = 14 - 2 * GT_BEVEL_TOP;
 
@@ -308,12 +308,12 @@ TEST_F(GadToolsGadgetsPixelTest, StringGadgetTextRendered) {
 
 TEST_F(GadToolsGadgetsPixelTest, ButtonLabelRendered) {
     /* Button label "Click Here" (with underscore stripped) is centered inside.
-     * The button is at (190, 112) with size 100x12.
+     * The button is at (190, 120) with size 100x12.
      * PLACETEXT_IN centers the text both horizontally and vertically.
      * Check that the interior of the button has non-background pixels (the text).
      */
     int btn_left = 190;
-    int btn_top  = 112;
+    int btn_top  = 120;
     int btn_w = 100;
     int btn_h = 12;
 

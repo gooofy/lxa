@@ -212,7 +212,7 @@ _handleIRQ3:
 
     movem.l     d0-d2/a0-a2/a6, -(sp)           | save registers (more for C call)
 
-    DPUTS       __exec_handleIRQ3_s1                | "_handleIRQ3() called"
+    | DPUTS       __exec_handleIRQ3_s1                | "_handleIRQ3() called"
 
     move.l      4, a6
 

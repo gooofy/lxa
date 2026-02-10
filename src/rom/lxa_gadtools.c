@@ -495,6 +495,9 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             newgad->Activation = GACT_RELVERIFY | GACT_TOGGLESELECT;
             newgad->Flags = GFLG_GADGHCOMP;
 
+            /* Create recessed bevel box border for the checkbox frame */
+            newgad->GadgetRender = (APTR)gt_create_bevel(ng->ng_Width, ng->ng_Height, TRUE);
+
             /* Create text label — default placement is PLACETEXT_LEFT */
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,

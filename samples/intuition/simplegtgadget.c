@@ -134,6 +134,7 @@ int main(void)
     if (gad) printf("Created CHECKBOX_KIND gadget\n");
 
     /* Create an integer gadget */
+    ng.ng_LeftEdge = 80;  /* Leave room for PLACETEXT_LEFT label */
     ng.ng_TopEdge += 20;
     ng.ng_Width = 80;
     ng.ng_Height = 14;
@@ -147,6 +148,7 @@ int main(void)
     if (gad) printf("Created INTEGER_KIND gadget\n");
 
     /* Create a cycle gadget */
+    ng.ng_LeftEdge = 80;  /* Leave room for PLACETEXT_LEFT label */
     ng.ng_TopEdge += 20;
     ng.ng_Width = 120;
     ng.ng_Height = 14;

@@ -206,6 +206,40 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
 static void _draw_bevel_box(struct RastPort *rp, WORD left, WORD top, WORD width, WORD height, 
                            ULONG flags, const struct DrawInfo *drInfo);
 
+/* Forward declarations for gadget rendering helpers */
+static void _complement_gadget_area(struct Window *window, struct Requester *req, struct Gadget *gad);
+static void _render_gadget(struct Window *window, struct Requester *req, struct Gadget *gad);
+
+/* Forward declarations for EasyRequest infrastructure */
+struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                  register struct Window * window __asm("a0"),
+                                                  register const struct EasyStruct * easyStruct __asm("a1"),
+                                                  register ULONG idcmp __asm("d0"),
+                                                  register const APTR args __asm("a3"));
+LONG _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                register struct Window * window __asm("a0"),
+                                register ULONG * idcmpFlags __asm("a1"),
+                                register LONG waitInput __asm("d0"));
+VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                 register struct Window * window __asm("a0"));
+
+/* Data stored in window->UserData for cleanup by FreeSysRequest */
+struct EasyReqData {
+    APTR   gadget_mem;
+    LONG   gadget_mem_size;
+    APTR   text_mem;
+    LONG   text_mem_size;
+    APTR   gadget_text_mem;
+    LONG   gadget_text_mem_size;
+    APTR   border_mem;
+    LONG   border_mem_size;
+    APTR   itext_mem;
+    LONG   itext_mem_size;
+    APTR   border_xy_mem;
+    LONG   border_xy_mem_size;
+    WORD   num_gadgets;
+};
+
 /******************************************************************************
  * BOOPSI Gadget Class Dispatchers
  ******************************************************************************/
@@ -2108,13 +2142,16 @@ static WORD g_drag_start_y;                 /* Mouse Y when drag started */
 static WORD g_drag_window_x;                /* Window X when drag started */
 static WORD g_drag_window_y;                /* Window Y when drag started */
 
-/* Menu bar saved screen area (for restoration) - TODO: implement proper saving
-static PLANEPTR g_menu_save_buffer = NULL;
-static WORD g_menu_save_x = 0;
-static WORD g_menu_save_y = 0;
-static WORD g_menu_save_width = 0;
-static WORD g_menu_save_height = 0;
-*/
+/* Menu drop-down save-behind buffer.
+ * When a menu drop-down is rendered, the screen area beneath it is saved here
+ * so it can be restored when the menu closes or switches to a different menu.
+ * NOTE: No initializers — .bss must be in RAM, not ROM .data section. */
+static UBYTE *g_menu_save_buffer;           /* Saved planar data (all planes concatenated) */
+static ULONG  g_menu_save_size;             /* Size of allocated buffer in bytes */
+static WORD   g_menu_save_x;               /* Left edge of saved area */
+static WORD   g_menu_save_y;               /* Top edge of saved area */
+static WORD   g_menu_save_w;               /* Width of saved area in pixels */
+static WORD   g_menu_save_h;               /* Height of saved area in pixels */
 
 /*
  * Initialize StringInfo fields for string gadgets in a gadget list.
@@ -2151,10 +2188,15 @@ static UWORD _encode_menu_selection(WORD menuNum, WORD itemNum, WORD subNum)
     if (menuNum == NOMENU || itemNum == NOITEM)
         return MENUNULL;
     
+    /* Encode using the same layout as FULLMENUNUM():
+     * Bits 0-4:   menu number (SHIFTMENU)
+     * Bits 5-10:  item number (SHIFTITEM)
+     * Bits 11-15: sub-item number (SHIFTSUB)
+     * When subNum is NOSUB (0x1F), bits 11-15 are all 1s.
+     */
     UWORD code = (menuNum & 0x1F);              /* Bits 0-4: menu number */
     code |= ((itemNum & 0x3F) << 5);            /* Bits 5-10: item number */
-    if (subNum != NOSUB)
-        code |= ((subNum & 0x1F) << 11);        /* Bits 11-15: sub-item number */
+    code |= ((subNum & 0x1F) << 11);            /* Bits 11-15: sub-item number */
     
     return code;
 }
@@ -2253,6 +2295,142 @@ static WORD _get_item_index(struct Menu *menu, struct MenuItem *targetItem)
     }
     
     return NOITEM;
+}
+
+/*
+ * Save a rectangular area of the screen's BitMap into g_menu_save_buffer.
+ * This is used to save the area under a menu drop-down before drawing it,
+ * so it can be restored when the menu closes.
+ * Saves raw planar data (all bitplanes concatenated).
+ */
+static void _save_menu_dropdown_area(struct Screen *screen, WORD x, WORD y, WORD w, WORD h)
+{
+    struct BitMap *bm;
+    WORD bpr;           /* bytes per row in screen bitmap */
+    WORD depth;
+    WORD startByte, endByte, saveBytes;
+    ULONG totalSize;
+    WORD plane, row;
+    
+    if (!screen)
+        return;
+    
+    bm = &screen->BitMap;
+    if (!bm->Planes[0])
+        return;
+    
+    /* Clamp to screen bounds */
+    if (x < 0) { w += x; x = 0; }
+    if (y < 0) { h += y; y = 0; }
+    if (x + w > screen->Width) w = screen->Width - x;
+    if (y + h > screen->Height) h = screen->Height - y;
+    if (w <= 0 || h <= 0)
+        return;
+    
+    /* Free any previous save buffer */
+    if (g_menu_save_buffer && g_menu_save_size > 0)
+    {
+        FreeMem(g_menu_save_buffer, g_menu_save_size);
+        g_menu_save_buffer = NULL;
+        g_menu_save_size = 0;
+    }
+    
+    bpr = bm->BytesPerRow;
+    depth = bm->Depth;
+    
+    /* Calculate byte range we need to save for each row */
+    startByte = x / 8;
+    endByte = (x + w + 7) / 8;
+    saveBytes = endByte - startByte;
+    
+    /* Total size: saveBytes * h * depth */
+    totalSize = (ULONG)saveBytes * (ULONG)h * (ULONG)depth;
+    if (totalSize == 0 || totalSize > 65536)  /* Sanity limit */
+        return;
+    
+    g_menu_save_buffer = (UBYTE *)AllocMem(totalSize, MEMF_PUBLIC);
+    if (!g_menu_save_buffer)
+        return;
+    
+    g_menu_save_size = totalSize;
+    g_menu_save_x = x;
+    g_menu_save_y = y;
+    g_menu_save_w = w;
+    g_menu_save_h = h;
+    
+    /* Copy planar data: for each plane, for each row, copy the relevant bytes */
+    {
+        UBYTE *dst = g_menu_save_buffer;
+        for (plane = 0; plane < depth; plane++)
+        {
+            UBYTE *planeBase = (UBYTE *)bm->Planes[plane];
+            if (!planeBase) continue;
+            for (row = 0; row < h; row++)
+            {
+                UBYTE *src = planeBase + (ULONG)(y + row) * (ULONG)bpr + startByte;
+                WORD i;
+                for (i = 0; i < saveBytes; i++)
+                    *dst++ = src[i];
+            }
+        }
+    }
+    
+    DPRINTF(LOG_DEBUG, "_intuition: _save_menu_dropdown_area() saved %ldx%ld at (%d,%d), %ld bytes\n",
+            (LONG)w, (LONG)h, (int)x, (int)y, (LONG)totalSize);
+}
+
+/*
+ * Restore the previously saved menu drop-down area to the screen's BitMap.
+ * Called when the menu closes or switches to a different menu.
+ */
+static void _restore_menu_dropdown_area(struct Screen *screen)
+{
+    struct BitMap *bm;
+    WORD bpr;
+    WORD depth;
+    WORD startByte, endByte, saveBytes;
+    WORD plane, row;
+    
+    if (!screen || !g_menu_save_buffer || g_menu_save_size == 0)
+        return;
+    
+    bm = &screen->BitMap;
+    if (!bm->Planes[0])
+        return;
+    
+    bpr = bm->BytesPerRow;
+    depth = bm->Depth;
+    
+    startByte = g_menu_save_x / 8;
+    endByte = (g_menu_save_x + g_menu_save_w + 7) / 8;
+    saveBytes = endByte - startByte;
+    
+    /* Restore planar data */
+    {
+        UBYTE *src = g_menu_save_buffer;
+        for (plane = 0; plane < depth; plane++)
+        {
+            UBYTE *planeBase = (UBYTE *)bm->Planes[plane];
+            if (!planeBase) continue;
+            for (row = 0; row < g_menu_save_h; row++)
+            {
+                UBYTE *dst = planeBase + (ULONG)(g_menu_save_y + row) * (ULONG)bpr + startByte;
+                WORD i;
+                for (i = 0; i < saveBytes; i++)
+                    dst[i] = *src++;
+            }
+        }
+    }
+    
+    DPRINTF(LOG_DEBUG, "_intuition: _restore_menu_dropdown_area() restored %ldx%ld at (%d,%d)\n",
+            (LONG)g_menu_save_w, (LONG)g_menu_save_h, (int)g_menu_save_x, (int)g_menu_save_y);
+    
+    /* Free the save buffer */
+    FreeMem(g_menu_save_buffer, g_menu_save_size);
+    g_menu_save_buffer = NULL;
+    g_menu_save_size = 0;
+    g_menu_save_w = 0;
+    g_menu_save_h = 0;
 }
 
 /*
@@ -2378,6 +2556,41 @@ static void _render_menu_bar(struct Window *window)
             Text(rp, (STRPTR)menu->MenuName, strlen((const char *)menu->MenuName));
         }
     }
+}
+
+/*
+ * Save the screen area that would be covered by the drop-down for the given menu.
+ * Must be called BEFORE _render_menu_items() when opening a new drop-down.
+ */
+static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu)
+{
+    struct Screen *screen;
+    struct MenuItem *item;
+    WORD barHeight, menuX, menuY, menuWidth, menuHeight;
+    
+    if (!window || !window->WScreen || !menu || !menu->FirstItem)
+        return;
+    
+    screen = window->WScreen;
+    barHeight = screen->BarHeight + 1;
+    
+    menuX = screen->BarHBorder + menu->LeftEdge;
+    menuY = barHeight;
+    
+    /* Calculate menu dimensions from items (same logic as _render_menu_items) */
+    menuWidth = 0;
+    menuHeight = 0;
+    for (item = menu->FirstItem; item; item = item->NextItem)
+    {
+        WORD w = item->LeftEdge + item->Width;
+        WORD h = item->TopEdge + item->Height;
+        if (w > menuWidth) menuWidth = w;
+        if (h > menuHeight) menuHeight = h;
+    }
+    menuWidth += 8;    /* padding, matching _render_menu_items */
+    menuHeight += 4;
+    
+    _save_menu_dropdown_area(screen, menuX, menuY, menuWidth, menuHeight);
 }
 
 /*
@@ -2520,8 +2733,6 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
     g_active_item = NULL;
     g_menu_selection = MENUNULL;
     
-    DPRINTF(LOG_DEBUG, "_intuition: Entering menu mode for window 0x%08lx\n", (ULONG)window);
-    
     /* Render the menu bar */
     _render_menu_bar(window);
     
@@ -2533,6 +2744,7 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
         {
             g_active_menu = menu;
             _render_menu_bar(window);
+            _save_dropdown_for_menu(window, menu);
             _render_menu_items(window);
         }
     }
@@ -2589,10 +2801,15 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
     g_active_item = NULL;
     g_menu_selection = MENUNULL;
     
-    /* Redraw screen title bar to clear menu graphics */
+    /* Restore the menu drop-down area and redraw screen title bar */
     if (screen)
     {
+        _restore_menu_dropdown_area(screen);
         _render_screen_title_bar(screen);
+    }
+    else
+    {
+        LPRINTF(LOG_WARNING, "_intuition: NO screen to restore menu area!\n");
     }
 }
 
@@ -2861,7 +3078,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
     
     /* Prevent re-entry - if already processing events, skip */
     if (g_processing_events)
+    {
+        DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents SKIPPED (re-entry)\n");
         return;
+    }
     g_processing_events = TRUE;
     
     /*
@@ -2968,7 +3188,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                                    qualifier, gad, relX, relY);
                             }
                             
-                            /* TODO: Render selected state (GADGHCOMP/GADGHBOX) */
+                            /* Render selected state highlight */
+                            if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP)
+                            {
+                                _complement_gadget_area(window, NULL, gad);
+                            }
                         }
                         else
                         {
@@ -3032,8 +3256,17 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             }
                             else
                             {
-                                /* Non-string gadgets: clear selected state */
-                                gad->Flags &= ~GFLG_SELECTED;
+                                /* Non-string gadgets: update selected state */
+                                if ((gad->Activation & GACT_TOGGLESELECT) && inside)
+                                {
+                                    /* Toggle gadgets: flip SELECTED state on release inside gadget */
+                                    gad->Flags ^= GFLG_SELECTED;
+                                }
+                                else
+                                {
+                                    /* Normal gadgets: clear selected state */
+                                    gad->Flags &= ~GFLG_SELECTED;
+                                }
                                 
                                 if (inside)
                                 {
@@ -3050,7 +3283,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                     }
                                 }
                                 
-                                /* TODO: Render normal state */
+                                /* Render normal state - undo GADGHCOMP highlight */
+                                if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP)
+                                {
+                                    _complement_gadget_area(activeWin, NULL, gad);
+                                }
                                 
                                 /* Clear active gadget */
                                 g_active_gadget = NULL;
@@ -3173,10 +3410,20 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                     {
                         if (oldMenu != g_active_menu)
                         {
+                            /* Menu changed: restore old drop-down, redraw bar, save & draw new */
+                            if (oldMenu)
+                            {
+                                _restore_menu_dropdown_area(g_menu_window->WScreen);
+                            }
                             _render_menu_bar(g_menu_window);
                         }
                         if (g_active_menu)
                         {
+                            if (oldMenu != g_active_menu)
+                            {
+                                /* Save area for the new drop-down */
+                                _save_dropdown_for_menu(g_menu_window, g_active_menu);
+                            }
                             _render_menu_items(g_menu_window);
                         }
                     }
@@ -3307,6 +3554,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
  * the interrupted code is also doing library calls. Instead, we use the
  * global IntuitionBase which is set up at ROM initialization time.
  */
+
 VOID _intuition_VBlankInputHook(void)
 {
     struct Screen *screen;
@@ -3716,6 +3964,31 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->WBorRight = 4;
     screen->WBorBottom = 2;
 
+    /* Set screen font (TextAttr pointer).
+     * Per RKRM, screen->Font describes the default font for this screen.
+     * If the caller supplied a font via NewScreen.Font (or SA_Font tag),
+     * use that; otherwise, allocate a TextAttr describing the default
+     * system font (Topaz 8).
+     */
+    if (newScreen->Font)
+    {
+        screen->Font = newScreen->Font;
+    }
+    else
+    {
+        /* Allocate a persistent TextAttr for the default font */
+        struct TextAttr *ta;
+        ta = (struct TextAttr *)AllocMem(sizeof(struct TextAttr), MEMF_PUBLIC | MEMF_CLEAR);
+        if (ta)
+        {
+            ta->ta_Name = (STRPTR)"topaz.font";
+            ta->ta_YSize = 8;
+            ta->ta_Style = 0;
+            ta->ta_Flags = 0;
+        }
+        screen->Font = ta;
+    }
+
     /* Clear the screen to color 0 */
     SetRast(&screen->RastPort, 0);
 
@@ -3833,9 +4106,6 @@ static void _create_window_sys_gadgets(struct Window *window)
     /* Drag bar is handled via WFLG_DRAGBAR flag, not as a separate gadget */
     /* It uses the entire title bar area not covered by other gadgets */
 }
-
-/* Forward declaration - _render_gadget() is defined later but called from OpenWindow */
-static void _render_gadget(struct Window *window, struct Requester *req, struct Gadget *gad);
 
 /*
  * Render system gadgets for a window
@@ -4090,10 +4360,10 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     width = newWindow->Width;
     height = newWindow->Height;
 
-    /* Apply defaults if dimensions are zero */
-    if (width == 0)
+    /* Apply defaults if dimensions are zero or ~0 (sentinel from OpenWindowTagList with NULL newWindow) */
+    if (width == 0 || width == (WORD)~0)
         width = screen->Width - newWindow->LeftEdge;
-    if (height == 0)
+    if (height == 0 || height == (WORD)~0)
         height = screen->Height - newWindow->TopEdge;
     
     /*
@@ -5204,6 +5474,28 @@ VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase _
     
     if (window)
     {
+        /* Free EasyReqData allocations if present */
+        struct EasyReqData *erd = (struct EasyReqData *)window->UserData;
+        if (erd)
+        {
+            /* Clear UserData before freeing to avoid double-free */
+            window->UserData = NULL;
+
+            if (erd->gadget_mem)
+                FreeMem(erd->gadget_mem, erd->gadget_mem_size);
+            if (erd->text_mem)
+                FreeMem(erd->text_mem, erd->text_mem_size);
+            if (erd->gadget_text_mem)
+                FreeMem(erd->gadget_text_mem, erd->gadget_text_mem_size);
+            if (erd->border_mem)
+                FreeMem(erd->border_mem, erd->border_mem_size);
+            if (erd->itext_mem)
+                FreeMem(erd->itext_mem, erd->itext_mem_size);
+            if (erd->border_xy_mem)
+                FreeMem(erd->border_xy_mem, erd->border_xy_mem_size);
+            FreeMem(erd, sizeof(struct EasyReqData));
+        }
+
         _intuition_CloseWindow(IntuitionBase, window);
     }
 }
@@ -5397,6 +5689,64 @@ LONG _intuition_GetScreenData ( register struct IntuitionBase * IntuitionBase __
     }
     
     return TRUE;
+}
+
+/*
+ * Helper to complement (XOR) a gadget's area for GADGHCOMP highlight.
+ * Per RKRM: When GFLG_GADGHCOMP is set, Intuition highlights the gadget
+ * by complementing (XOR'ing) the select box area. Since XOR is self-inverting,
+ * calling this twice restores the original appearance.
+ */
+static void _complement_gadget_area(struct Window *window, struct Requester *req, struct Gadget *gad)
+{
+    struct RastPort *rp;
+    LONG left, top, width, height;
+    
+    if (!window || !gad || !window->RPort) return;
+    
+    rp = window->RPort;
+    
+    /* Calculate gadget position (same logic as _render_gadget) */
+    left = gad->LeftEdge;
+    top = gad->TopEdge;
+    width = gad->Width;
+    height = gad->Height;
+    
+    if (req)
+    {
+        left += req->LeftEdge;
+        top += req->TopEdge;
+    }
+    
+    if (gad->Flags & GFLG_RELRIGHT)
+    {
+        LONG containerW = (req) ? req->Width : window->Width;
+        left += containerW;
+    }
+    if (gad->Flags & GFLG_RELBOTTOM)
+    {
+        LONG containerH = (req) ? req->Height : window->Height;
+        top += containerH;
+    }
+    if (gad->Flags & GFLG_RELWIDTH)
+    {
+        LONG containerW = (req) ? req->Width : window->Width;
+        width += containerW;
+    }
+    if (gad->Flags & GFLG_RELHEIGHT)
+    {
+        LONG containerH = (req) ? req->Height : window->Height;
+        height += containerH;
+    }
+    
+    DPRINTF(LOG_DEBUG, "_intuition: _complement_gadget_area() gad=0x%08lx at (%ld,%ld) %ldx%ld flags=0x%04x\n",
+            (ULONG)gad, left, top, width, height, (unsigned)gad->Flags);
+    
+    /* Complement the gadget select box area using XOR draw mode */
+    SetDrMd(rp, COMPLEMENT);
+    SetAPen(rp, 0xFF);  /* All planes */
+    RectFill(rp, left, top, left + width - 1, top + height - 1);
+    SetDrMd(rp, JAM2);  /* Restore normal draw mode */
 }
 
 /* Helper to render a single gadget */
@@ -5603,6 +5953,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             DPRINTF(LOG_DEBUG, "_render_gadget: strgad rendering complete\n");
         }
     }
+    
 }
 
 VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -6207,44 +6558,248 @@ VOID _intuition_GetDefaultPubScreen ( register struct IntuitionBase * IntuitionB
     strcpy((char *)nameBuffer, "Workbench");
 }
 
+/* ============================================================================
+ * EasyRequest implementation
+ *
+ * This implements the three-function pattern:
+ *   BuildEasyRequestArgs() - builds the requester window
+ *   SysReqHandler()        - event loop (already implemented)
+ *   FreeSysRequest()       - cleanup (already implemented)
+ *   EasyRequestArgs()      - blocking wrapper using the above three
+ *
+ * The implementation formats text using a simple % substitution engine,
+ * splits gadget labels on '|', calculates layout, creates gadgets,
+ * and opens a centered window on the reference window's screen.
+ * ============================================================================ */
+
+/* Simple format string processor for Amiga %s, %ld, %lu, %lx patterns.
+ * Returns length of formatted output (not counting NUL).
+ * If buf is NULL, just counts the length.
+ */
+static LONG _easy_format_string(const char *fmt, const UWORD *args, char *buf, LONG bufsize,
+                                const UWORD **next_args)
+{
+    LONG pos = 0;
+    const UWORD *ap = args;
+
+    if (!fmt)
+    {
+        if (buf && bufsize > 0) buf[0] = '\0';
+        if (next_args) *next_args = ap;
+        return 0;
+    }
+
+    while (*fmt)
+    {
+        if (*fmt != '%')
+        {
+            if (buf && pos < bufsize - 1) buf[pos] = *fmt;
+            pos++;
+            fmt++;
+            continue;
+        }
+
+        fmt++; /* skip '%' */
+
+        if (*fmt == '%')
+        {
+            if (buf && pos < bufsize - 1) buf[pos] = '%';
+            pos++;
+            fmt++;
+            continue;
+        }
+
+        /* Parse optional 'l' modifier */
+        int is_long = 0;
+        if (*fmt == 'l')
+        {
+            is_long = 1;
+            fmt++;
+        }
+
+        if (*fmt == 's')
+        {
+            /* String: 32-bit pointer on stack */
+            ULONG ptr_val = ((ULONG)ap[0] << 16) | ap[1];
+            ap += 2;
+            const char *s = (const char *)ptr_val;
+            if (!s) s = "(null)";
+            while (*s)
+            {
+                if (buf && pos < bufsize - 1) buf[pos] = *s;
+                pos++;
+                s++;
+            }
+            fmt++;
+        }
+        else if (*fmt == 'd' || *fmt == 'u' || *fmt == 'x' || *fmt == 'X')
+        {
+            char specifier = *fmt;
+            fmt++;
+
+            LONG val;
+            if (is_long)
+            {
+                /* 32-bit value */
+                val = (LONG)(((ULONG)ap[0] << 16) | ap[1]);
+                ap += 2;
+            }
+            else
+            {
+                /* 16-bit value */
+                val = (WORD)ap[0];
+                ap += 1;
+            }
+
+            /* Convert number to string */
+            char numbuf[20];
+            int ni = 0;
+            ULONG uval;
+
+            if (specifier == 'x' || specifier == 'X')
+            {
+                uval = (ULONG)val;
+                if (uval == 0)
+                {
+                    numbuf[ni++] = '0';
+                }
+                else
+                {
+                    char hexbuf[16];
+                    int hi = 0;
+                    while (uval > 0)
+                    {
+                        int digit = uval & 0xF;
+                        hexbuf[hi++] = (digit < 10) ? ('0' + digit) : 
+                                       ((specifier == 'X') ? ('A' + digit - 10) : ('a' + digit - 10));
+                        uval >>= 4;
+                    }
+                    while (hi > 0) numbuf[ni++] = hexbuf[--hi];
+                }
+            }
+            else if (specifier == 'u')
+            {
+                uval = (ULONG)val;
+                if (uval == 0)
+                {
+                    numbuf[ni++] = '0';
+                }
+                else
+                {
+                    char revbuf[16];
+                    int ri = 0;
+                    while (uval > 0)
+                    {
+                        revbuf[ri++] = '0' + (uval % 10);
+                        uval /= 10;
+                    }
+                    while (ri > 0) numbuf[ni++] = revbuf[--ri];
+                }
+            }
+            else /* 'd' */
+            {
+                if (val < 0)
+                {
+                    if (buf && pos < bufsize - 1) buf[pos] = '-';
+                    pos++;
+                    val = -val;
+                }
+                uval = (ULONG)val;
+                if (uval == 0)
+                {
+                    numbuf[ni++] = '0';
+                }
+                else
+                {
+                    char revbuf[16];
+                    int ri = 0;
+                    while (uval > 0)
+                    {
+                        revbuf[ri++] = '0' + (uval % 10);
+                        uval /= 10;
+                    }
+                    while (ri > 0) numbuf[ni++] = revbuf[--ri];
+                }
+            }
+
+            int j;
+            for (j = 0; j < ni; j++)
+            {
+                if (buf && pos < bufsize - 1) buf[pos] = numbuf[j];
+                pos++;
+            }
+        }
+        else
+        {
+            /* Unknown format spec — output literal */
+            if (buf && pos < bufsize - 1) buf[pos] = '%';
+            pos++;
+            if (is_long)
+            {
+                if (buf && pos < bufsize - 1) buf[pos] = 'l';
+                pos++;
+            }
+            if (*fmt)
+            {
+                if (buf && pos < bufsize - 1) buf[pos] = *fmt;
+                pos++;
+                fmt++;
+            }
+        }
+    }
+
+    if (buf)
+    {
+        if (pos < bufsize)
+            buf[pos] = '\0';
+        else if (bufsize > 0)
+            buf[bufsize - 1] = '\0';
+    }
+
+    if (next_args) *next_args = ap;
+    return pos;
+}
+
 LONG _intuition_EasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register const struct EasyStruct * easyStruct __asm("a1"),
                                                         register ULONG * idcmpPtr __asm("a2"),
                                                         register const APTR args __asm("a3"))
 {
-    /* EasyRequestArgs() displays a requester with formatted text.
-     * For now, we log the request and return 1 (first/rightmost gadget).
-     * A full implementation would create a window and handle user input.
+    /* EasyRequestArgs() - blocking requester using BuildEasyRequestArgs / SysReqHandler / FreeSysRequest.
      *
      * Return values:
-     *  0 = rightmost gadget (usually negative/cancel)
-     *  1 = leftmost gadget (usually positive/ok)
-     *  n = nth gadget from the right
+     *  0 = rightmost gadget (negative/cancel)
+     *  1 = leftmost gadget (positive/ok)
+     *  n = nth gadget from left
      * -1 = IDCMP message received (if idcmpPtr != NULL)
      */
+    struct Window *req;
+    LONG result;
+    ULONG idcmp_user = idcmpPtr ? *idcmpPtr : 0;
 
-    DPRINTF (LOG_DEBUG, "_intuition: EasyRequestArgs() window=0x%08lx easyStruct=0x%08lx\n",
-             (ULONG)window, (ULONG)easyStruct);
+    DPRINTF (LOG_DEBUG, "_intuition: EasyRequestArgs() window=0x%08lx easyStruct=0x%08lx args=0x%08lx\n",
+             (ULONG)window, (ULONG)easyStruct, (ULONG)args);
 
-    if (easyStruct)
-    {
-        if (easyStruct->es_Title)
-        {
-            DPRINTF (LOG_DEBUG, "_intuition: EasyRequest title: %s\n", (char *)easyStruct->es_Title);
-        }
-        if (easyStruct->es_TextFormat)
-        {
-            DPRINTF (LOG_DEBUG, "_intuition: EasyRequest text: %s\n", (char *)easyStruct->es_TextFormat);
-        }
-        if (easyStruct->es_GadgetFormat)
-        {
-            DPRINTF (LOG_DEBUG, "_intuition: EasyRequest gadgets: %s\n", (char *)easyStruct->es_GadgetFormat);
-        }
-    }
+    req = _intuition_BuildEasyRequestArgs(IntuitionBase, window, easyStruct, idcmp_user, args);
 
-    /* Return 1 (positive/first gadget response) by default */
-    return 1;
+    /* BuildEasyRequestArgs may return special values:
+     *  0 -> out of memory, treat as if rightmost gadget was selected
+     *  1 -> could not open window, treat as if leftmost gadget was selected
+     */
+    if (req == NULL || req == (struct Window *)0)
+        return 0;
+    if (req == (struct Window *)1)
+        return 1;
+
+    /* Event loop: keep calling SysReqHandler until we get a result */
+    do {
+        result = _intuition_SysReqHandler(IntuitionBase, req, idcmpPtr, TRUE);
+    } while (result == -2);
+
+    _intuition_FreeSysRequest(IntuitionBase, req);
+
+    return result;
 }
 
 struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -6253,9 +6808,379 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
                                                         register ULONG idcmp __asm("d0"),
                                                         register const APTR args __asm("a3"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: BuildEasyRequestArgs() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct NewWindow nw;
+    struct Window *reqWindow;
+    struct EasyReqData *erd;
+    const UWORD *ap = (const UWORD *)args;
+    const UWORD *next_ap;
+    LONG body_len, gad_len;
+    char *body_buf, *gad_buf;
+    WORD num_gadgets;
+    WORD i;
+
+    DPRINTF(LOG_DEBUG, "_intuition: BuildEasyRequestArgs() window=0x%08lx easyStruct=0x%08lx args=0x%08lx\n",
+            (ULONG)window, (ULONG)easyStruct, (ULONG)args);
+
+    if (!easyStruct)
+        return NULL;
+
+    /* ---- Step 1: Format body text (two-pass: measure, then fill) ---- */
+    body_len = _easy_format_string((const char *)easyStruct->es_TextFormat, ap, NULL, 0, &next_ap);
+    body_buf = (char *)AllocMem(body_len + 1, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!body_buf)
+        return NULL; /* 0 = out of memory */
+    _easy_format_string((const char *)easyStruct->es_TextFormat, ap, body_buf, body_len + 1, &next_ap);
+
+    /* ---- Step 2: Format gadget text (chained from body args) ---- */
+    gad_len = _easy_format_string((const char *)easyStruct->es_GadgetFormat, next_ap, NULL, 0, NULL);
+    gad_buf = (char *)AllocMem(gad_len + 1, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!gad_buf)
+    {
+        FreeMem(body_buf, body_len + 1);
+        return NULL;
+    }
+    _easy_format_string((const char *)easyStruct->es_GadgetFormat, next_ap, gad_buf, gad_len + 1, NULL);
+
+    /* ---- Step 3: Split gadget labels on '|', count gadgets ---- */
+    num_gadgets = 1;
+    for (i = 0; gad_buf[i]; i++)
+    {
+        if (gad_buf[i] == '|')
+        {
+            gad_buf[i] = '\0';
+            num_gadgets++;
+        }
+    }
+
+    DPRINTF(LOG_DEBUG, "_intuition: BuildEasyRequestArgs() body='%s' gadgets=%d\n",
+            body_buf, num_gadgets);
+
+    /* Build array of pointers to each gadget label */
+    /* Use a small local array — max 10 gadgets is safe on stack */
+    char *gad_labels[10];
+    {
+        char *p = gad_buf;
+        WORD gi = 0;
+        for (gi = 0; gi < num_gadgets && gi < 10; gi++)
+        {
+            gad_labels[gi] = p;
+            while (*p) p++;
+            p++; /* skip NUL separator */
+        }
+    }
+
+    /* ---- Step 4: Calculate layout ---- */
+    /* Font is fixed 8x8 topaz */
+    WORD char_w = 8;
+    WORD char_h = 8;
+    WORD font_baseline = 6;
+
+    /* Measure body text: split on \n, find max width and line count */
+    WORD body_lines = 1;
+    WORD max_body_width = 0;
+    {
+        WORD cur_width = 0;
+        char *p = body_buf;
+        while (*p)
+        {
+            if (*p == '\n')
+            {
+                if (cur_width > max_body_width) max_body_width = cur_width;
+                cur_width = 0;
+                body_lines++;
+            }
+            else
+            {
+                cur_width++;
+            }
+            p++;
+        }
+        if (cur_width > max_body_width) max_body_width = cur_width;
+    }
+    WORD body_pixel_w = max_body_width * char_w;
+    WORD body_pixel_h = body_lines * (char_h + 2); /* 2px line spacing */
+
+    /* Measure gadget labels and calculate button sizes */
+    WORD gad_padding_x = 16;  /* horizontal padding inside button */
+    WORD gad_padding_y = 4;   /* vertical padding inside button */
+    WORD gad_spacing = 8;     /* spacing between buttons */
+    WORD gad_height = char_h + gad_padding_y * 2; /* button height */
+    WORD total_gad_width = 0;
+    WORD gad_widths[10];
+
+    for (i = 0; i < num_gadgets && i < 10; i++)
+    {
+        WORD label_len = 0;
+        char *lp = gad_labels[i];
+        while (*lp) { label_len++; lp++; }
+        gad_widths[i] = label_len * char_w + gad_padding_x;
+        if (gad_widths[i] < 60) gad_widths[i] = 60; /* minimum button width */
+        total_gad_width += gad_widths[i];
+    }
+    total_gad_width += (num_gadgets - 1) * gad_spacing;
+
+    /* Window dimensions */
+    WORD border_left = 4;
+    WORD border_right = 4;
+    WORD border_top = 11; /* title bar */
+    WORD border_bottom = 2;
+    WORD text_margin = 16;  /* margin around text area */
+    WORD gad_margin = 12;   /* margin around gadget row */
+
+    WORD content_w = body_pixel_w + text_margin * 2;
+    if (total_gad_width + gad_margin * 2 > content_w)
+        content_w = total_gad_width + gad_margin * 2;
+
+    WORD win_w = content_w + border_left + border_right;
+    WORD win_h = border_top + text_margin + body_pixel_h + text_margin
+                 + gad_height + gad_margin + border_bottom;
+
+    /* Minimum window size */
+    if (win_w < 150) win_w = 150;
+    if (win_h < 60) win_h = 60;
+
+    /* ---- Step 5: Determine screen and center window ---- */
+    struct Screen *scr = NULL;
+    if (window && window->WScreen)
+        scr = window->WScreen;
+    /* If no screen, we'll use the Workbench screen (default) */
+
+    WORD scr_w = scr ? scr->Width : 640;
+    WORD scr_h = scr ? scr->Height : 256;
+    WORD win_x = (scr_w - win_w) / 2;
+    WORD win_y = (scr_h - win_h) / 2;
+    if (win_x < 0) win_x = 0;
+    if (win_y < 0) win_y = 0;
+
+    /* ---- Step 6: Resolve title ---- */
+    const char *title = (const char *)easyStruct->es_Title;
+    if (!title)
+    {
+        if (window && window->Title)
+            title = (const char *)window->Title;
+        else
+            title = "System Request";
+    }
+
+    /* ---- Step 7: Allocate gadgets, borders, and IntuiText ---- */
+    /* Each gadget needs: struct Gadget + 2 Borders (raised bevel = top+bottom lines) + IntuiText for label */
+    LONG gadget_alloc = num_gadgets * sizeof(struct Gadget);
+    LONG border_alloc = num_gadgets * 2 * sizeof(struct Border); /* 2 borders per gadget (shine + shadow) */
+    LONG itext_alloc = num_gadgets * sizeof(struct IntuiText);
+    /* Border XY data: each border needs 10 SHORTs (5 points x 2 coords) */
+    LONG border_xy_alloc = num_gadgets * 2 * 10 * sizeof(SHORT);
+
+    struct Gadget *gadgets = (struct Gadget *)AllocMem(gadget_alloc, MEMF_PUBLIC | MEMF_CLEAR);
+    struct Border *borders = (struct Border *)AllocMem(border_alloc, MEMF_PUBLIC | MEMF_CLEAR);
+    struct IntuiText *itexts = (struct IntuiText *)AllocMem(itext_alloc, MEMF_PUBLIC | MEMF_CLEAR);
+    SHORT *border_xy = (SHORT *)AllocMem(border_xy_alloc, MEMF_PUBLIC | MEMF_CLEAR);
+
+    if (!gadgets || !borders || !itexts || !border_xy)
+    {
+        if (gadgets) FreeMem(gadgets, gadget_alloc);
+        if (borders) FreeMem(borders, border_alloc);
+        if (itexts) FreeMem(itexts, itext_alloc);
+        if (border_xy) FreeMem(border_xy, border_xy_alloc);
+        FreeMem(body_buf, body_len + 1);
+        FreeMem(gad_buf, gad_len + 1);
+        return NULL;
+    }
+
+    /* ---- Step 8: Set up gadgets ---- */
+    /* Gadget IDs: rightmost (last) = 0, others = 1,2,3... from left */
+    /* Center gadgets in the gadget row */
+    WORD gad_row_y = border_top + text_margin + body_pixel_h + text_margin;
+    WORD gad_start_x = border_left + (content_w - total_gad_width) / 2;
+    WORD gad_x = gad_start_x;
+
+    for (i = 0; i < num_gadgets; i++)
+    {
+        struct Gadget *g = &gadgets[i];
+        struct Border *b_shine = &borders[i * 2];
+        struct Border *b_shadow = &borders[i * 2 + 1];
+        struct IntuiText *it = &itexts[i];
+        SHORT *xy_shine = &border_xy[i * 2 * 10];
+        SHORT *xy_shadow = &border_xy[(i * 2 + 1) * 10];
+        WORD bw = gad_widths[i];
+        WORD bh = gad_height;
+
+        /* Gadget ID: last gadget = 0, others count from 1 left-to-right */
+        if (i == num_gadgets - 1)
+            g->GadgetID = 0;
+        else
+            g->GadgetID = i + 1;
+
+        g->LeftEdge = gad_x;
+        g->TopEdge = gad_row_y;
+        g->Width = bw;
+        g->Height = bh;
+        g->Flags = GFLG_GADGHCOMP;   /* complement highlight */
+        g->Activation = GACT_RELVERIFY;
+        g->GadgetType = GTYP_BOOLGADGET;
+        g->GadgetRender = (APTR)b_shine;
+        g->GadgetText = it;
+        g->NextGadget = (i < num_gadgets - 1) ? &gadgets[i + 1] : NULL;
+
+        /* Shine border (top-left): pen 2 */
+        /* Points: bottom-left -> top-left -> top-right */
+        xy_shine[0] = 0;        xy_shine[1] = bh - 1;
+        xy_shine[2] = 0;        xy_shine[3] = 0;
+        xy_shine[4] = bw - 1;   xy_shine[5] = 0;
+        xy_shine[6] = bw - 1;   xy_shine[7] = 1;
+        xy_shine[8] = 1;        xy_shine[9] = bh - 2;
+
+        b_shine->LeftEdge = 0;
+        b_shine->TopEdge = 0;
+        b_shine->FrontPen = 2; /* SHINEPEN */
+        b_shine->DrawMode = JAM1;
+        b_shine->Count = 5;
+        b_shine->XY = xy_shine;
+        b_shine->NextBorder = b_shadow;
+
+        /* Shadow border (bottom-right): pen 1 */
+        /* Points: top-right -> bottom-right -> bottom-left */
+        xy_shadow[0] = bw - 1;  xy_shadow[1] = 0;
+        xy_shadow[2] = bw - 1;  xy_shadow[3] = bh - 1;
+        xy_shadow[4] = 0;       xy_shadow[5] = bh - 1;
+        xy_shadow[6] = 0;       xy_shadow[7] = bh - 2;
+        xy_shadow[8] = bw - 2;  xy_shadow[9] = 1;
+
+        b_shadow->LeftEdge = 0;
+        b_shadow->TopEdge = 0;
+        b_shadow->FrontPen = 1; /* SHADOWPEN */
+        b_shadow->DrawMode = JAM1;
+        b_shadow->Count = 5;
+        b_shadow->XY = xy_shadow;
+        b_shadow->NextBorder = NULL;
+
+        /* IntuiText for label: centered in gadget */
+        WORD label_len = 0;
+        {
+            char *lp = gad_labels[i];
+            while (*lp) { label_len++; lp++; }
+        }
+        WORD text_x = (bw - label_len * char_w) / 2;
+        WORD text_y = (bh - char_h) / 2;
+
+        it->FrontPen = 1;
+        it->BackPen = 0;
+        it->DrawMode = JAM1;
+        it->LeftEdge = text_x;
+        it->TopEdge = text_y;
+        it->ITextFont = NULL; /* use default screen font */
+        it->IText = (UBYTE *)gad_labels[i];
+        it->NextText = NULL;
+
+        gad_x += bw + gad_spacing;
+    }
+
+    /* ---- Step 9: Allocate EasyReqData for cleanup ---- */
+    erd = (struct EasyReqData *)AllocMem(sizeof(struct EasyReqData), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!erd)
+    {
+        FreeMem(gadgets, gadget_alloc);
+        FreeMem(borders, border_alloc);
+        FreeMem(itexts, itext_alloc);
+        FreeMem(border_xy, border_xy_alloc);
+        FreeMem(body_buf, body_len + 1);
+        FreeMem(gad_buf, gad_len + 1);
+        return NULL;
+    }
+    erd->gadget_mem = gadgets;
+    erd->gadget_mem_size = gadget_alloc;
+    erd->text_mem = body_buf;
+    erd->text_mem_size = body_len + 1;
+    erd->gadget_text_mem = gad_buf;
+    erd->gadget_text_mem_size = gad_len + 1;
+    erd->border_mem = borders;
+    erd->border_mem_size = border_alloc;
+    erd->itext_mem = itexts;
+    erd->itext_mem_size = itext_alloc;
+    erd->border_xy_mem = border_xy;
+    erd->border_xy_mem_size = border_xy_alloc;
+    erd->num_gadgets = num_gadgets;
+
+    /* ---- Step 10: Open the requester window ---- */
+    memset(&nw, 0, sizeof(nw));
+    nw.LeftEdge = win_x;
+    nw.TopEdge = win_y;
+    nw.Width = win_w;
+    nw.Height = win_h;
+    nw.DetailPen = 0;
+    nw.BlockPen = 1;
+    nw.Title = (UBYTE *)title;
+    nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_ACTIVATE | WFLG_RMBTRAP;
+    nw.IDCMPFlags = IDCMP_GADGETUP | idcmp;
+    nw.FirstGadget = gadgets;
+
+    if (scr)
+    {
+        nw.Type = CUSTOMSCREEN;
+        nw.Screen = scr;
+    }
+    else
+    {
+        nw.Type = WBENCHSCREEN;
+    }
+
+    reqWindow = _intuition_OpenWindow(IntuitionBase, &nw);
+    if (!reqWindow)
+    {
+        FreeMem(erd, sizeof(struct EasyReqData));
+        FreeMem(gadgets, gadget_alloc);
+        FreeMem(borders, border_alloc);
+        FreeMem(itexts, itext_alloc);
+        FreeMem(border_xy, border_xy_alloc);
+        FreeMem(body_buf, body_len + 1);
+        FreeMem(gad_buf, gad_len + 1);
+        return (struct Window *)1; /* 1 = could not open window */
+    }
+
+    /* Store cleanup data in UserData */
+    reqWindow->UserData = (BYTE *)erd;
+
+    /* ---- Step 11: Render body text ---- */
+    {
+        struct RastPort *rp = reqWindow->RPort;
+        WORD text_x = border_left + text_margin;
+        WORD text_y = border_top + text_margin;
+        char *p = body_buf;
+        WORD line = 0;
+
+        SetAPen(rp, 1); /* TEXTPEN */
+        SetBPen(rp, 0); /* BACKGROUNDPEN */
+        SetDrMd(rp, JAM1);
+
+        while (*p)
+        {
+            /* Find end of line */
+            char *line_start = p;
+            WORD line_len = 0;
+            while (*p && *p != '\n')
+            {
+                line_len++;
+                p++;
+            }
+
+            if (line_len > 0)
+            {
+                WORD y = text_y + line * (char_h + 2) + font_baseline;
+                Move(rp, text_x, y);
+                Text(rp, (STRPTR)line_start, line_len);
+            }
+
+            if (*p == '\n') p++;
+            line++;
+        }
+    }
+
+    /* ---- Step 12: Render gadgets (borders + text) ---- */
+    _intuition_RefreshGList(IntuitionBase, gadgets, reqWindow, NULL, -1);
+
+    DPRINTF(LOG_DEBUG, "_intuition: BuildEasyRequestArgs() created window 0x%08lx (%dx%d) with %d gadgets\n",
+            (ULONG)reqWindow, win_w, win_h, num_gadgets);
+
+    return reqWindow;
 }
 
 LONG _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -6333,12 +7258,13 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
         /* Initialize with defaults matching AmigaOS/AROS behavior:
          * When newWindow is NULL, Flags start at 0.
          * Only the WA_* tags should set flags.
-         * Width/Height default to ~0 (auto-adjust).
-         * DetailPen/BlockPen default to 0xFF (use screen defaults).
+         * Width/Height default to ~0 (sentinel meaning "use screen dimensions").
+         * DetailPen/BlockPen default to 0xFF (use screen defaults) per AROS,
+         * but we use 0/1 for backward compatibility.
          */
         memset(&nw, 0, sizeof(nw));
-        nw.Width = 200;
-        nw.Height = 100;
+        nw.Width = (WORD)~0;
+        nw.Height = (WORD)~0;
         nw.DetailPen = 0;
         nw.BlockPen = 1;
         nw.Flags = 0;  /* Tags will set the flags */

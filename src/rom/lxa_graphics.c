@@ -245,16 +245,17 @@ static void SetPixelDirect(struct BitMap *bm, WORD x, WORD y, BYTE pen, UBYTE dr
 static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, WORD yMax, 
                            BYTE pen, UBYTE drawmode)
 {
-    WORD x, y;
+    WORD y;
     WORD bmMaxX = bm->BytesPerRow * 8;
     WORD bmMaxY = bm->Rows;
+    UWORD bpr = bm->BytesPerRow;
+    UBYTE plane;
+    UBYTE basemode = drawmode & ~INVERSVID;
 
     DPRINTF(LOG_DEBUG, "_graphics: FillRectDirect() bm=%08lx bpr=%d rows=%d depth=%d\n",
             (ULONG)bm, bm->BytesPerRow, bm->Rows, bm->Depth);
     DPRINTF(LOG_DEBUG, "_graphics: FillRectDirect() rect (%d,%d)-(%d,%d) pen=%d dm=%d\n",
             xMin, yMin, xMax, yMax, pen, drawmode);
-    DPRINTF(LOG_DEBUG, "_graphics: FillRectDirect() planes[0]=%08lx planes[1]=%08lx\n",
-            (ULONG)bm->Planes[0], (ULONG)bm->Planes[1]);
 
     /* Clamp to bitmap bounds */
     if (xMin < 0) xMin = 0;
@@ -265,35 +266,111 @@ static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, W
     if (xMin > xMax || yMin > yMax)
         return;
 
-    /* Fill the rectangle */
-    for (y = yMin; y <= yMax; y++)
+    /*
+     * Byte-optimized fill: process full bytes at a time for the middle
+     * portion of each scanline, with partial byte handling at the edges.
+     *
+     * For a row from xMin to xMax:
+     *   - Left partial byte: bits from (xMin & 7) to bit 0 (or to xMax if same byte)
+     *   - Full middle bytes: all 8 bits set/cleared/XORed at once
+     *   - Right partial byte: bits from bit 7 to (xMax & 7)
+     */
     {
-        for (x = xMin; x <= xMax; x++)
-        {
-            UWORD byteOffset = y * bm->BytesPerRow + (x >> 3);
-            UBYTE bitMask = 0x80 >> (x & 7);
-            UBYTE plane;
+        WORD firstByte = xMin >> 3;
+        WORD lastByte  = xMax >> 3;
+        UBYTE leftMask, rightMask;
 
-            for (plane = 0; plane < bm->Depth; plane++)
+        /* Left edge mask: bits from xMin's bit position to LSB */
+        leftMask = 0xFF >> (xMin & 7);
+
+        /* Right edge mask: bits from MSB to xMax's bit position */
+        rightMask = 0xFF << (7 - (xMax & 7));
+
+        for (plane = 0; plane < bm->Depth; plane++)
+        {
+            UBYTE *planeData;
+            BOOL planeBit;
+
+            if (!bm->Planes[plane])
+                continue;
+
+            planeData = bm->Planes[plane];
+            planeBit = (pen & (1 << plane)) ? 1 : 0;
+
+            for (y = yMin; y <= yMax; y++)
             {
-                if (bm->Planes[plane])
+                UWORD rowOffset = (UWORD)y * bpr;
+
+                if (firstByte == lastByte)
                 {
-                    if (drawmode == COMPLEMENT)
+                    /* Single byte spans the entire fill width */
+                    UBYTE mask = leftMask & rightMask;
+                    UWORD off = rowOffset + firstByte;
+
+                    if (basemode == COMPLEMENT)
                     {
-                        if (pen & (1 << plane))
+                        if (planeBit)
+                            planeData[off] ^= mask;
+                    }
+                    else
+                    {
+                        if (planeBit)
+                            planeData[off] |= mask;
+                        else
+                            planeData[off] &= ~mask;
+                    }
+                }
+                else
+                {
+                    WORD b;
+
+                    /* Left partial byte */
+                    {
+                        UWORD off = rowOffset + firstByte;
+                        if (basemode == COMPLEMENT)
                         {
-                            bm->Planes[plane][byteOffset] ^= bitMask;
+                            if (planeBit)
+                                planeData[off] ^= leftMask;
+                        }
+                        else
+                        {
+                            if (planeBit)
+                                planeData[off] |= leftMask;
+                            else
+                                planeData[off] &= ~leftMask;
+                        }
+                    }
+
+                    /* Full middle bytes */
+                    if (basemode == COMPLEMENT)
+                    {
+                        if (planeBit)
+                        {
+                            for (b = firstByte + 1; b < lastByte; b++)
+                                planeData[rowOffset + b] ^= 0xFF;
                         }
                     }
                     else
                     {
-                        if (pen & (1 << plane))
+                        UBYTE fillVal = planeBit ? 0xFF : 0x00;
+                        for (b = firstByte + 1; b < lastByte; b++)
+                            planeData[rowOffset + b] = fillVal;
+                    }
+
+                    /* Right partial byte */
+                    {
+                        UWORD off = rowOffset + lastByte;
+                        if (basemode == COMPLEMENT)
                         {
-                            bm->Planes[plane][byteOffset] |= bitMask;
+                            if (planeBit)
+                                planeData[off] ^= rightMask;
                         }
                         else
                         {
-                            bm->Planes[plane][byteOffset] &= ~bitMask;
+                            if (planeBit)
+                                planeData[off] |= rightMask;
+                            else
+                                planeData[off] &= ~rightMask;
                         }
                     }
                 }

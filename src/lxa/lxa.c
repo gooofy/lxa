@@ -737,12 +737,32 @@ static void _handle_custom_write (uint16_t reg, uint16_t value)
 
             if (value & 0x8000)
             {
-                // set
+                /* Set bits */
                 g_intena |= value & 0x7fff;
+
+                /*
+                 * When INTENA is re-enabled (especially MASTER bit), check if
+                 * a VBlank interrupt is pending and arm it now.  This emulates
+                 * real Amiga hardware behavior: when INTENA re-enables and an
+                 * interrupt is already pending on Paula, it propagates to the
+                 * CPU immediately.
+                 *
+                 * This fixes a timing issue where lxa_run_cycles sets
+                 * g_pending_irq while INTENA MASTER is temporarily off
+                 * (e.g. during Disable()/Enable() around Wait()), and the
+                 * pending VBlank never gets armed because subsequent checks
+                 * also find INTENA disabled at the wrong moment.
+                 */
+                if ((g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK) &&
+                    (g_pending_irq & (1 << 3)))
+                {
+                    g_pending_irq &= ~(1 << 3);
+                    m68k_set_irq(3);
+                }
             }
             else
             {
-                // clear
+                /* Clear bits */
                 g_intena &= ~(value & 0x7fff);
             }
 
@@ -3272,6 +3292,7 @@ int op_illg(int level)
         }
 
         case EMU_CALL_WAIT:
+        {
             /*
              * Phase 6.5: Improved wait handling
              *
@@ -3318,6 +3339,7 @@ int op_illg(int level)
             
             usleep(1000);  /* 1ms - avoid busy-waiting */
             break;
+        }
 
         case EMU_CALL_DELAY:
         {
@@ -6357,11 +6379,12 @@ int main(int argc, char **argv, char **envp)
                 m68k_set_irq(3);
             }
         }
-        else
-        {
-            /* No pending interrupt - clear IRQ line */
-            m68k_set_irq(0);
-        }
+        /* Note: We intentionally do NOT call m68k_set_irq(0) when there is no
+         * pending VBlank. Musashi's auto-clear (CPU_INT_LEVEL = 0 after interrupt
+         * acknowledgement) handles the normal case. If a previous m68k_set_irq(3)
+         * was not yet taken because the CPU was inside an ISR (FLAG_INT_MASK >= 3),
+         * we must keep CPU_INT_LEVEL armed so the interrupt fires when the ISR
+         * completes its RTE and the mask is lowered. */
 
         /*
          * Execute a batch of instructions. The batch size is chosen to be

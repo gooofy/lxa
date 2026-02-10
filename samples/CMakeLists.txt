@@ -56,6 +56,7 @@ set(SAMPLES_LIST
     "intuition|simplemenu|SimpleMenu"
     "intuition|easyrequest|EasyRequest"
     "intuition|simplegtgadget|SimpleGTGadget"
+    "intuition|menulayout|MenuLayout"
     "intuition|gadtoolsmenu|GadToolsMenu"
     "intuition|gadtoolsgadgets|GadToolsGadgets"
     "intuition|mousetest|MouseTest"

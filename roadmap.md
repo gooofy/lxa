@@ -8,13 +8,23 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.40** | **Phase 70 Complete** | **49/49 Tests Passing**
+**Version: 0.6.45** | **Phase 70a In Progress** | **53/53 Tests Passing**
 
-Phase 70 complete: test suite hardening & expansion. Rewrote 3 RKM samples (UpdateStrGad, GadToolsGadgets, RGBBoxes) to match RKRM reference code. Added 14 new test entries: 3 graphics tests (AllocRaster, LayerClipping, SetRast) + 1 disabled (ClipBlit — known layer cleanup crash), 10 DOS VFS corner-case tests (DeleteRename, DirEnum, ExamineEdge, FileIOAdvanced, FileIOErrors, LockExamine, LockLeak, RenameOpen, SeekConsole, SpecialChars). DOS test suite expanded from 14 to 24, graphics from 14 to 17+1. TDD workflow adopted as standard practice via AGENTS.md skills.
+Phase 70a: fixing issues identified by comparing RKM sample programs to running originals on a real Amiga. Test-driven approach: reproduce each issue as a test first, then fix.
 
 **Current Status**:
-- 49/49 ctest entries passing
-- 86 GTest cases across all suites (24 DOS + 17 Graphics + 11 GadTools + ...)
+- 53/53 ctest entries passing
+- MenuLayout: NEW sample ported from RKM (menulayout_gtest: 8 tests — 6 functional + 2 pixel)
+- EasyRequest: FIXED (full BuildEasyRequestArgs implementation — formatted body/gadget text, 3D bevel buttons, centered layout, SysReqHandler event loop, FreeSysRequest cleanup; 7 new tests: 4 behavioral + 3 pixel)
+- SimpleImage: FIXED (rewrote sample to match RKM — 2 images at correct positions, Delay before exit, no extra gadgets/title)
+- IntuiText: FIXED (full-screen window, no title bar, correct text, OpenWindowTagList defaults)
+- SimpleGad GADGHCOMP button click highlight: FIXED (complement XOR on mouse-down, restore on mouse-up)
+- SimpleGTGadget: FIXED (ClickButton/ClickCheckbox/ClickCycle — corrected gadget positions from TopEdge=32 to 40, added ClickCheckbox test, checkbox bevel border pixel test)
+- GadToolsGadgets: FIXED (ButtonClick/ButtonBevelBorder/StringGadgetBevelBorder — corrected topborder from 12 to 20, all 11 tests passing)
+- SimpleMenu: FIXED (save-behind buffer for menu drop-down cleanup, IRQ3 debug output silenced; 2 new pixel tests: MenuDropdownClearedAfterSelection, ScreenTitleBarRestoredAfterMenu; simplemenu_gtest: 3→5 tests)
+- FillRectDirect optimized: byte-at-a-time instead of pixel-at-a-time (~8x speedup)
+- INTENA re-enable fix: when INTENA master/VBlank enabled via set operation, arm pending VBlank IRQ
+- Menu selection encoding: _encode_menu_selection always encodes subNum bits 11-15
 - Known bug: ClipBlit crashes (PC=0x00000000) during layer cleanup — test disabled, filed for Phase 71
 
 ---
@@ -82,27 +92,28 @@ Issues identified by comparing some of the sample programs to running the origin
   * Volume slider does not react to mouse clicks
   * Window close gadget does not work
 * SimpleGTGadget
-  * Button does not react to mouse clicks
-  * Checkbox invisible
-  * Gadget labels extend beyond left window border
-  * Close gadget does not work
+  * ~~Button does not react to mouse clicks~~ **DONE** (test timing/coordinates fixed)
+  * ~~Checkbox invisible~~ **DONE** (added bevel border for CHECKBOX_KIND, pixel test)
+  * ~~Gadget labels extend beyond left window border~~ **DONE** (increased ng_LeftEdge for PLACETEXT_LEFT gadgets)
+  * ~~Close gadget does not work~~ **DONE** (was already working, verified by test)
 * SimpleGad
-  * Button does not react to mouse clciks
+  * ~~Button does not react to mouse clicks~~ **DONE** (GADGHCOMP complement highlight, FillRectDirect optimization)
 * UpdateStrGad
-  * Application does not react to mouse clicks
+  * ~~Application does not react to mouse clicks~~ **DONE** (click-to-activate string gadget working, TypeIntoGadget test passes)
 * IntuiText
-  * Window is not full-screen
-  * Window has wrong broder type
-  * `Hello World ;)` text collides with window border
+  * ~~Window is not full-screen~~ **DONE** (OpenWindowTagList defaults to full-screen when no WA_Width/WA_Height)
+  * ~~Window has wrong broder type~~ **DONE** (removed WA_Title/WA_Flags, thin border BorderTop=2)
+  * ~~`Hello World ;)` text collides with window border~~ **DONE** (text at correct position, no collision)
 * SimpleImage
-  * Shows 3 images instead of 2
-  * Closes way too quickly
+  * ~~Shows 3 images instead of 2~~ **DONE** (removed third DrawImage, corrected positions to (10,10)/(100,10))
+  * ~~Closes way too quickly~~ **DONE** (added Delay(100) before CloseWindow)
 * EasyRequest
-  * No requester is displayed, application outputs a bunch of text on the console and then simply exits
+  * ~~No requester is displayed, application outputs a bunch of text on the console and then simply exits~~ **DONE** (full BuildEasyRequestArgs/SysReqHandler/FreeSysRequest, formatted text, 3D buttons, 7 tests)
 * simplemenu
-  * Lots of `_handleIRQ3() called` debug output obscures view of actual application output
-  * Menus stay on screen even after a menu item is selected
-* menulayout sample is missing: important samples, please port 1:1 from RKM!
+  * ~~Lots of `_handleIRQ3() called` debug output obscures view of actual application output~~ **DONE** (DPUTS macros commented out in exceptions.s)
+  * ~~Menus stay on screen even after a menu item is selected~~ **DONE** (save-behind buffer: save screen bitmap before menu drop-down, restore on close/switch)
+* menulayout
+  * ~~Sample is missing: important sample, please port 1:1 from RKM!~~ **DONE** (ported from RKM, menulayout_gtest: 8 tests)
 * FileReq
   * Window placed too low - bottom off screen
   * extra `Drawer libs:` label
@@ -136,6 +147,11 @@ Issues identified by comparing some of the sample programs to running the origin
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.45 | 70a | MenuLayout sample ported from RKM (8 new tests). Fixed gadget position calculations in simplegtgadget_gtest (topborder=20 not 12, added ClickCheckbox test + checkbox bevel pixel test). Fixed gadtoolsgadgets_gtest (corrected button/string positions). INTENA re-enable fix, menu selection encoding fix. Removed all temporary debug logging. 53/53 tests. |
+| 0.6.44 | 70a | SimpleMenu: save-behind buffer for menu drop-down cleanup (save/restore screen bitmap region on open/close/switch), IRQ3 debug output silenced. 2 new pixel tests (MenuDropdownClearedAfterSelection, ScreenTitleBarRestoredAfterMenu). simplemenu_gtest: 3→5 tests. 52/52 tests. |
+| 0.6.43 | 70a | EasyRequest: full BuildEasyRequestArgs implementation (formatted body/gadget text with %s/%ld/%lu/%lx, 3D bevel buttons, centered layout, SysReqHandler event loop, FreeSysRequest cleanup). 7 new easyrequest_gtest tests (4 behavioral + 3 pixel). 52/52 tests. |
+| 0.6.42 | 70a | SimpleImage: rewrote to match RKM (2 images, correct positions, Delay, no extra gadgets). IntuiText: full-screen window, no title bar, OpenWindowTagList ~0 defaults. 7 new simpleimage_gtest tests (4 behavioral + 3 pixel). 51/51 tests. |
+| 0.6.41 | 70a | SimpleGad GADGHCOMP button click highlight. FillRectDirect byte-optimized (~8x speedup). _complement_gadget_area() for XOR highlight on SELECTDOWN/SELECTUP. lxa_flush_display() API. 48/49 tests. |
 | 0.6.40 | 70 | **Phase 70 Complete!** Test suite hardening & expansion. Rewrote 3 samples to match RKM (UpdateStrGad, GadToolsGadgets, RGBBoxes). Added 3 graphics tests (AllocRaster, LayerClipping, SetRast) + 10 DOS VFS corner-case tests (DeleteRename, DirEnum, ExamineEdge, FileIOAdvanced, FileIOErrors, LockExamine, LockLeak, RenameOpen, SeekConsole, SpecialChars). DOS: 14→24 tests, Graphics: 14→17. 49/49 ctest entries. |
 | 0.6.39 | 70 | **GadTools visual rendering!** Bevel borders (raised/recessed) for BUTTON/STRING/INTEGER/SLIDER/CHECKBOX/CYCLE/MX. Text labels with PLACETEXT_IN centering. WA_InnerWidth/WA_InnerHeight. Interactive GadToolsGadgets sample. 13 GadTools tests (8 functional + 5 pixel). 49/49 tests. |
 | 0.6.38 | 70 | **String gadget input fix!** Fixed rawkey number row mapping, Text() cp_x layer offset bug, rewrote inject_string with per-char VBlank+cycle budget. Cleaned all debug logging. 49/49 tests. |

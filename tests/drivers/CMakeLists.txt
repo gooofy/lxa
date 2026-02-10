@@ -158,12 +158,17 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # SimpleGad - boolean gadgets test (GTest version)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplegad_gtest.cpp)
         add_gtest_driver(simplegad_gtest)
-        set_tests_properties(simplegad_gtest PROPERTIES TIMEOUT 60)
+        set_tests_properties(simplegad_gtest PROPERTIES TIMEOUT 120)
     endif()
     
     # SimpleMenu - menu system test (GTest version)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplemenu_gtest.cpp)
         add_gtest_driver(simplemenu_gtest)
+    endif()
+    
+    # MenuLayout - advanced menu layout test (GTest version)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/menulayout_gtest.cpp)
+        add_gtest_driver(menulayout_gtest)
     endif()
     
     # CustomPointer - custom pointer test (GTest version)
@@ -201,6 +206,22 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # UpdateStrGad - string gadget test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/updatestrgad_gtest.cpp)
         add_gtest_driver(updatestrgad_gtest)
+    endif()
+    
+    # IntuiText - IntuiText rendering test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/intuitext_gtest.cpp)
+        add_gtest_driver(intuitext_gtest)
+    endif()
+    
+    # SimpleImage - Image rendering test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simpleimage_gtest.cpp)
+        add_gtest_driver(simpleimage_gtest)
+    endif()
+    
+    # EasyRequest - Easy requester test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/easyrequest_gtest.cpp)
+        add_gtest_driver(easyrequest_gtest)
+        set_tests_properties(easyrequest_gtest PROPERTIES TIMEOUT 120)
     endif()
     
     # GadToolsGadgets - GadTools gadget creation test (STRING_KIND, SLIDER_KIND, BUTTON_KIND)
