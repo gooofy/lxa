@@ -394,6 +394,68 @@ TEST_F(GadToolsGadgetsPixelTest, StringGadgetBevelBorderRendered) {
         << "String gadget bottom edge should have shine pixels (pen 2, recessed), got " << shine_bottom;
 }
 
+TEST_F(GadToolsGadgetsPixelTest, StringGadgetDoubleBevelRendered) {
+    /* STRING_KIND gadgets should use a double-bevel (ridge/groove) border style,
+     * like FRAME_RIDGE in AROS frameiclass.c:
+     *
+     * Outer bevel (row 0, last row, col 0, last col) - RECESSED:
+     *   top/left = SHADOWPEN (1), bottom/right = SHINEPEN (2)
+     *
+     * Inner bevel (row 1, second-to-last row, col 1, second-to-last col) - RAISED:
+     *   top/left = SHINEPEN (2), bottom/right = SHADOWPEN (1)
+     *
+     * This creates a groove effect: dark-light-content-dark-light
+     *
+     * First string gadget: ng_LeftEdge=140, ng_TopEdge=60, ng_Width=200, ng_Height=14
+     */
+    int str1_left = 140;
+    int str1_top  = 60;
+    int str1_w = 200;
+    int str1_h = 14;
+
+    /* Inner bevel row 1 (y = str1_top + 1): should have SHINE (pen 2) pixels (raised) */
+    int inner_shine_top = 0;
+    for (int x = str1_left + 1; x < str1_left + str1_w - 1; x++) {
+        int pen = ReadPixel(window_info.x + x, window_info.y + str1_top + 1);
+        if (pen == PEN_WHITE) inner_shine_top++;
+    }
+    EXPECT_GT(inner_shine_top, (str1_w - 2) / 2)
+        << "Inner bevel row 1 should have shine (pen 2) pixels (raised), got "
+        << inner_shine_top;
+
+    /* Inner bevel second-to-last row (y = str1_top + str1_h - 2):
+     * should have SHADOW (pen 1) pixels (raised) */
+    int inner_shadow_bot = 0;
+    for (int x = str1_left + 1; x < str1_left + str1_w - 1; x++) {
+        int pen = ReadPixel(window_info.x + x, window_info.y + str1_top + str1_h - 2);
+        if (pen == PEN_BLACK) inner_shadow_bot++;
+    }
+    EXPECT_GT(inner_shadow_bot, (str1_w - 2) / 2)
+        << "Inner bevel second-to-last row should have shadow (pen 1) pixels (raised), got "
+        << inner_shadow_bot;
+
+    /* Inner bevel col 1 (x = str1_left + 1): should have SHINE (pen 2) pixels (raised) */
+    int inner_shine_left = 0;
+    for (int y = str1_top + 1; y < str1_top + str1_h - 1; y++) {
+        int pen = ReadPixel(window_info.x + str1_left + 1, window_info.y + y);
+        if (pen == PEN_WHITE) inner_shine_left++;
+    }
+    EXPECT_GT(inner_shine_left, (str1_h - 2) / 2)
+        << "Inner bevel col 1 should have shine (pen 2) pixels (raised), got "
+        << inner_shine_left;
+
+    /* Inner bevel second-to-last col (x = str1_left + str1_w - 2):
+     * should have SHADOW (pen 1) pixels (raised) */
+    int inner_shadow_right = 0;
+    for (int y = str1_top + 1; y < str1_top + str1_h - 1; y++) {
+        int pen = ReadPixel(window_info.x + str1_left + str1_w - 2, window_info.y + y);
+        if (pen == PEN_BLACK) inner_shadow_right++;
+    }
+    EXPECT_GT(inner_shadow_right, (str1_h - 2) / 2)
+        << "Inner bevel second-to-last col should have shadow (pen 1) pixels (raised), got "
+        << inner_shadow_right;
+}
+
 TEST_F(GadToolsGadgetsPixelTest, StringGadgetTextRendered) {
     /* First string gadget at ng_LeftEdge=140, the text area is inset by GT_BEVEL_LEFT.
      * The initial text is "Try pressing" which should produce non-background pixels
@@ -504,6 +566,83 @@ TEST_F(GadToolsGadgetsPixelTest, SliderBevelBorderRendered) {
     }
     EXPECT_GT(shine_bottom, slider_w / 2)
         << "Slider bottom edge should have shine pixels (pen 2, recessed), got " << shine_bottom;
+}
+
+TEST_F(GadToolsGadgetsPixelTest, UnderscoreLabelRendered) {
+    /* Verify that GT_Underscore labels are rendered correctly:
+     * - The underscore prefix character '_' is stripped from the displayed text
+     * - The shortcut character has an underline drawn beneath it
+     *
+     * The slider label "_Volume:   " should display as "Volume:   " with
+     * 'V' underlined. The label is positioned to the left of the slider gadget.
+     *
+     * Slider gadget: LeftEdge=140, TopEdge=40, Width=200, Height=12.
+     * Label: "Volume:   " = 10 chars = 80px wide
+     * PLACETEXT_LEFT with NG_HIGHLABEL:
+     *   LeftEdge = -80 - 4 = -84 (relative to gadget)
+     *   TopEdge  = (12 - 8) / 2 + 6 = 8 (relative to gadget, baseline position)
+     *
+     * So the label text starts at screen position:
+     *   x = window_x + 140 + (-84) = window_x + 56
+     *   baseline y = window_y + 40 + 8 = window_y + 48
+     *   character top = baseline_y - 6 = window_y + 42
+     *   character bottom = baseline_y + 1 = window_y + 49
+     *
+     * The underline '_' character is drawn at ul_pos=0 (under 'V'),
+     * at the same position as the 'V' character.
+     */
+    int label_x = 56;   /* Label text starts here (relative to window) */
+    int char_top = 42;  /* Top of character cell (baseline - 6) */
+    int char_h = 8;     /* Character height in topaz 8 */
+
+    /* Check that label area has non-background pixels (the "Volume:" text) */
+    int label_content = CountContentPixels(
+        window_info.x + label_x,
+        window_info.y + char_top,
+        window_info.x + label_x + 79,  /* 10 chars * 8px */
+        window_info.y + char_top + char_h - 1,
+        PEN_GREY
+    );
+    EXPECT_GT(label_content, 20)
+        << "Slider label area should contain text pixels ('Volume:')";
+
+    /* Check for underline pixels under the 'V' character.
+     * The underscore '_' glyph in topaz 8 occupies the bottom row(s) of the cell.
+     * Check the bottom 2 rows of the first character cell (where 'V' is),
+     * which is where the underline '_' should add pixels.
+     * Row 7 (the last row) of the cell should have the underscore bar.
+     */
+    int underline_pixels = 0;
+    for (int x = label_x; x < label_x + 8; x++) {
+        /* Check bottom row of the character cell (row 7 = char_top + 7) */
+        int pen = ReadPixel(window_info.x + x, window_info.y + char_top + 7);
+        if (pen != PEN_GREY) underline_pixels++;
+    }
+    EXPECT_GT(underline_pixels, 0)
+        << "Bottom row of 'V' cell should have underline pixels from '_' glyph";
+
+    /* Also verify the button label "_Click Here" has its underscore rendered.
+     * Button: LeftEdge=190, TopEdge=120, Width=100, Height=12
+     * Label: "Click Here" = 10 chars = 80px, PLACETEXT_IN
+     *   LeftEdge = (100 - 80) / 2 = 10 (relative to gadget)
+     *   TopEdge  = (12 - 8) / 2 + 6 = 8 (relative to gadget, baseline)
+     *
+     * Button label screen position:
+     *   x = window_x + 190 + 10 = window_x + 200
+     *   baseline y = window_y + 120 + 8 = window_y + 128
+     *   char_top = window_y + 122
+     */
+    int btn_label_x = 200;      /* Button label text starts here */
+    int btn_char_top = 122;     /* Top of character cell */
+
+    /* Check bottom row of the 'C' cell for underline */
+    int btn_underline = 0;
+    for (int x = btn_label_x; x < btn_label_x + 8; x++) {
+        int pen = ReadPixel(window_info.x + x, window_info.y + btn_char_top + 7);
+        if (pen != PEN_GREY) btn_underline++;
+    }
+    EXPECT_GT(btn_underline, 0)
+        << "Bottom row of 'C' cell in button label should have underline pixels";
 }
 
 int main(int argc, char **argv) {

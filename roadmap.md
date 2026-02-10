@@ -8,12 +8,14 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.46** | **Phase 70a In Progress** | **53/53 Tests Passing**
+**Version: 0.6.48** | **Phase 70a In Progress** | **53/53 Tests Passing**
 
 Phase 70a: fixing issues identified by comparing RKM sample programs to running originals on a real Amiga. Test-driven approach: reproduce each issue as a test first, then fix.
 
 **Current Status**:
-- 53/53 ctest entries passing (16 gadtoolsgadgets_gtest tests: 9 functional + 7 pixel)
+- 53/53 ctest entries passing (18 gadtoolsgadgets_gtest tests: 9 functional + 9 pixel)
+- STRING_KIND double-bevel border: Implemented `gt_create_ridge_bevel()` for FRAME_RIDGE style groove border (outer recessed + inner raised, 4 Border structs). `gt_free_ridge_bevel()` for proper memory cleanup. 1 new pixel test (StringGadgetDoubleBevelRendered).
+- GT_Underscore: Keyboard shortcut indicator rendering — underscore prefix stripped from labels, underline drawn under shortcut character via NextText IntuiText chain. _render_gadget() fixed to walk IntuiText NextText chain.
 - SLIDER_KIND: Full prop gadget implementation — knob rendering (raised bevel), mouse click/drag interaction, IDCMP_MOUSEMOVE/GADGETUP with level as Code, GT_SetGadgetAttrs(GTSL_Level)
 - MenuLayout: NEW sample ported from RKM (menulayout_gtest: 8 tests — 6 functional + 2 pixel)
 - EasyRequest: FIXED (full BuildEasyRequestArgs implementation — formatted body/gadget text, 3D bevel buttons, centered layout, SysReqHandler event loop, FreeSysRequest cleanup; 7 new tests: 4 behavioral + 3 pixel)
@@ -80,10 +82,10 @@ Issues identified by comparing some of the sample programs to running the origin
   * Once the issue is reproducible, fix it and verify the fix by re-running the test.
 
 * GadToolsGadgets
-  * `_` keyboard shortcut indicator not rendered correctly
+  * ~~`_` keyboard shortcut indicator not rendered correctly~~ **DONE** (GT_Underscore tag parsed, gt_strip_underscore() strips prefix, underline IntuiText via NextText chain, _render_gadget() walks NextText; 1 new pixel test)
   * ~~Volume slider knob not visible after startup~~ **DONE** (PropInfo with AUTOKNOB|FREEHORIZ|PROPNEWLOOK, knob rendering with raised bevel)
   * ~~Initial volume value (5) not visible~~ **DONE** (HorizPot computed from GTSL_Level, knob positioned correctly)
-  * Text entry widgets have wrong border style
+  * ~~Text entry widgets have wrong border style~~ **DONE** (gt_create_ridge_bevel() implements FRAME_RIDGE style double-bevel: outer recessed + inner raised, matching real Amiga; 1 new pixel test)
   * Window lacks resize gadget
   * ~~Window is not draggable~~ **DONE** (was already working via WA_DragBar)
   * Window has distorted depth gadget
@@ -148,6 +150,8 @@ Issues identified by comparing some of the sample programs to running the origin
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.48 | 70a | STRING_KIND double-bevel border: gt_create_ridge_bevel() implements FRAME_RIDGE style groove border (outer recessed: shadow top-left/shine bottom-right, inner raised: shine top-left/shadow bottom-right). 4 Border structs with proper memory management via gt_free_ridge_bevel(). FreeGadgets detects GTYP_STRGADGET for correct free. 1 new pixel test (StringGadgetDoubleBevelRendered). gadtoolsgadgets_gtest: 17→18 tests. 53/53 tests. |
+| 0.6.47 | 70a | GT_Underscore keyboard shortcut indicator: gt_strip_underscore() strips prefix character from displayed labels, underline IntuiText linked via NextText chain draws '_' glyph under shortcut character. Fixed _render_gadget() to walk IntuiText NextText chain (was only rendering first IntuiText). gt_create_label() always allocates IText copy, gt_free_label() frees NextText + IText + IntuiText. 1 new pixel test (UnderscoreLabelRendered). gadtoolsgadgets_gtest: 16→17 tests. 53/53 tests. |
 | 0.6.46 | 70a | SLIDER_KIND prop gadget: knob rendering (raised bevel, AUTOKNOB|FREEHORIZ|PROPNEWLOOK), mouse click/drag interaction (click-on-knob drag with offset tracking, click-outside-knob jump), IDCMP_MOUSEMOVE/GADGETUP with level as Code, GT_SetGadgetAttrs(GTSL_Level). PropInfo allocation/freeing in CreateGadgetA/FreeGadgets. 5 new slider tests (SliderClick, SliderDrag, ButtonResetsSlider, SliderKnobVisible, SliderBevelBorderRendered). gadtoolsgadgets_gtest: 11→16 tests. 53/53 tests. |
 | 0.6.45 | 70a | MenuLayout sample ported from RKM (8 new tests). Fixed gadget position calculations in simplegtgadget_gtest (topborder=20 not 12, added ClickCheckbox test + checkbox bevel pixel test). Fixed gadtoolsgadgets_gtest (corrected button/string positions). INTENA re-enable fix, menu selection encoding fix. Removed all temporary debug logging. 53/53 tests. |
 | 0.6.44 | 70a | SimpleMenu: save-behind buffer for menu drop-down cleanup (save/restore screen bitmap region on open/close/switch), IRQ3 debug output silenced. 2 new pixel tests (MenuDropdownClearedAfterSelection, ScreenTitleBarRestoredAfterMenu). simplemenu_gtest: 3→5 tests. 52/52 tests. |

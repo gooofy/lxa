@@ -5998,22 +5998,23 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
         }
     }
     
-    /* Draw Text */
+    /* Draw Text — walk the IntuiText chain (NextText) so that
+     * GT_Underscore underline IntuiTexts are rendered too. */
     if (gad->GadgetText)
     {
         struct IntuiText *it = gad->GadgetText;
-        /* Calculate text position */
-        LONG tx = left + it->LeftEdge;
-        LONG ty = top + it->TopEdge;
-        /* _intuition_PrintIText(..., rp, it, tx, ty); */
-        /* Stub for PrintIText inside module? */
-        /* We can use the text routines directly if needed */
-        if (it->IText)
+        while (it)
         {
-            SetAPen(rp, it->FrontPen);
-            SetBPen(rp, it->BackPen);
-            Move(rp, tx, ty);
-            Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
+            if (it->IText)
+            {
+                LONG tx = left + it->LeftEdge;
+                LONG ty = top + it->TopEdge;
+                SetAPen(rp, it->FrontPen);
+                SetBPen(rp, it->BackPen);
+                Move(rp, tx, ty);
+                Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
+            }
+            it = it->NextText;
         }
     }
     

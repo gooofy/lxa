@@ -127,24 +127,22 @@ static WORD gt_strlen(CONST_STRPTR s)
     return len;
 }
 
-/* Helper: strip leading underscores from label for display length.
- * GT_Underscore makes one character underlined; we just skip the '_' prefix
- * character when measuring the text for positioning purposes.
+/* Helper: compute display width of a label, accounting for GT_Underscore.
+ * The underscore prefix character marks the next character for underlining
+ * and is NOT displayed. For width calculation, subtract 8px per underscore.
+ * 'us' is the underscore character (usually '_'), or 0 for none.
  */
-static WORD gt_label_width(CONST_STRPTR label)
+static WORD gt_label_width(CONST_STRPTR label, UBYTE us)
 {
     WORD len;
     if (!label) return 0;
     len = gt_strlen(label);
-    /* Scan for underscore prefix character — each '_' in label means
-     * the next character is underlined, so the '_' itself is not displayed.
-     * For width calculation, subtract 8px per underscore found.
-     */
+    if (us)
     {
         CONST_STRPTR s = label;
         while (*s)
         {
-            if (*s == '_')
+            if (*s == us)
                 len--;
             s++;
         }
@@ -152,11 +150,50 @@ static WORD gt_label_width(CONST_STRPTR label)
     return len * 8;  /* topaz 8: 8px per character */
 }
 
+/* Helper: create a stripped copy of a label string.
+ * Removes all occurrences of the underscore prefix character 'us'.
+ * Returns allocated string or NULL. Also returns the character index
+ * (in the stripped string) of the first underlined character via *ul_pos.
+ * *ul_pos is set to -1 if no underscore is found.
+ */
+static STRPTR gt_strip_underscore(CONST_STRPTR label, UBYTE us, WORD *ul_pos)
+{
+    STRPTR stripped;
+    WORD src, dst, slen;
+
+    *ul_pos = -1;
+    if (!label) return NULL;
+
+    slen = gt_strlen(label);
+    stripped = (STRPTR)AllocMem(slen + 1, MEMF_PUBLIC);
+    if (!stripped) return NULL;
+
+    dst = 0;
+    for (src = 0; label[src]; src++)
+    {
+        if (label[src] == us)
+        {
+            /* Mark next character as underlined (first occurrence only) */
+            if (*ul_pos < 0 && label[src + 1])
+                *ul_pos = dst;
+            /* Skip the underscore prefix itself */
+            continue;
+        }
+        stripped[dst++] = label[src];
+    }
+    stripped[dst] = '\0';
+    return stripped;
+}
+
 /* Helper: create an IntuiText label from ng_GadgetText with positioning
  * based on ng_Flags and the gadget dimensions.
  *
  * Returns allocated IntuiText or NULL.
  * LeftEdge/TopEdge are set relative to the gadget's (LeftEdge, TopEdge).
+ *
+ * 'us' is the GT_Underscore character (e.g. '_'), or 0 if not set.
+ * When 'us' is set, the underscore prefix is stripped from the displayed text
+ * and an underline is drawn under the shortcut character.
  *
  * Per v40 source (textsupp.c):
  * - PLACETEXT_LEFT:  text right-aligned to left of gadget
@@ -168,23 +205,54 @@ static WORD gt_label_width(CONST_STRPTR label)
  */
 static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
                                            ULONG defaultPlace,
-                                           WORD gadWidth, WORD gadHeight)
+                                           WORD gadWidth, WORD gadHeight,
+                                           UBYTE us)
 {
     struct IntuiText *it;
     ULONG place;
     WORD textWidth, textHeight;
+    STRPTR displayText;
+    WORD ul_pos;
 
     if (!text) return NULL;
 
     it = (struct IntuiText *)AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
     if (!it) return NULL;
 
+    /* If GT_Underscore is set, create a stripped copy of the label.
+     * Otherwise, create a plain copy of the label.
+     * We always allocate a copy so FreeGadgets can always free it. */
+    if (us)
+    {
+        displayText = gt_strip_underscore(text, us, &ul_pos);
+        if (!displayText)
+        {
+            FreeMem(it, sizeof(struct IntuiText));
+            return NULL;
+        }
+    }
+    else
+    {
+        WORD slen = gt_strlen(text);
+        WORD i;
+        displayText = (STRPTR)AllocMem(slen + 1, MEMF_PUBLIC);
+        if (!displayText)
+        {
+            FreeMem(it, sizeof(struct IntuiText));
+            return NULL;
+        }
+        for (i = 0; i < slen; i++)
+            displayText[i] = text[i];
+        displayText[slen] = '\0';
+        ul_pos = -1;
+    }
+
     /* Use TEXTPEN (1) normally, HIGHLIGHTTEXTPEN (2) for NG_HIGHLABEL */
     it->FrontPen  = (flags & NG_HIGHLABEL) ? 2 : 1;
     it->BackPen   = 0;
     it->DrawMode  = JAM1;
     it->ITextFont = NULL;    /* Use default font */
-    it->IText     = (STRPTR)text;
+    it->IText     = displayText;
     it->NextText  = NULL;
 
     /* Determine placement */
@@ -193,7 +261,7 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     if (!place)
         place = defaultPlace;
 
-    textWidth  = gt_label_width(text);
+    textWidth  = gt_label_width(text, us);
     textHeight = GT_FONT_HEIGHT;
 
     if (place & PLACETEXT_LEFT)
@@ -220,6 +288,32 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     {
         it->LeftEdge = (gadWidth - textWidth) / 2;
         it->TopEdge  = (gadHeight - textHeight) / 2 + GT_FONT_BASELINE;
+    }
+
+    /* If we have an underline position, create a second IntuiText linked via
+     * NextText to draw an underline under the shortcut character.
+     * The underline is a horizontal line 1 pixel below the baseline. */
+    if (ul_pos >= 0)
+    {
+        struct IntuiText *ulText;
+        /* We use a single underscore character '_' drawn at the position of
+         * the shortcut character. The '_' glyph in topaz 8 provides the underline. */
+        static const char ul_char[] = "_";
+
+        ulText = (struct IntuiText *)AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
+        if (ulText)
+        {
+            ulText->FrontPen  = it->FrontPen;
+            ulText->BackPen   = it->BackPen;
+            ulText->DrawMode  = JAM1;
+            ulText->ITextFont = NULL;
+            ulText->IText     = (STRPTR)ul_char;
+            ulText->NextText  = NULL;
+            /* Position relative to the main text: offset by ul_pos characters */
+            ulText->LeftEdge  = it->LeftEdge + ul_pos * 8;
+            ulText->TopEdge   = it->TopEdge;
+            it->NextText = ulText;
+        }
     }
 
     return it;
@@ -283,14 +377,124 @@ static struct Border * gt_create_bevel(WORD width, WORD height, BOOL recessed)
     return b1;
 }
 
-/* Helper: free bevel box Border allocated by gt_create_bevel */
-static void gt_free_bevel(struct Border *b)
+/* Helper: create a double-bevel (ridge/groove) border for STRING_KIND gadgets.
+ *
+ * On a real Amiga, GadTools string gadgets use a FRAME_RIDGE style border:
+ *   Outer bevel (recessed): SHADOWPEN top-left, SHINEPEN bottom-right
+ *   Inner bevel (raised):   SHINEPEN top-left, SHADOWPEN bottom-right
+ * This creates a groove effect: dark-light-content-dark-light
+ *
+ * Memory layout: 4 Border structs + 4 sets of 6 WORD coords (3 points each)
+ */
+static struct Border * gt_create_ridge_bevel(WORD width, WORD height)
+{
+    struct Border *b1, *b2, *b3, *b4;
+    WORD *xy1, *xy2, *xy3, *xy4;
+    APTR mem;
+    ULONG size;
+    ULONG border_plus_xy = sizeof(struct Border) + 6 * sizeof(WORD);
+
+    /* We need: 4 Border structs + 4 sets of 6 WORD coords */
+    size = 4 * border_plus_xy;
+    mem = AllocMem(size, MEMF_CLEAR | MEMF_PUBLIC);
+    if (!mem) return NULL;
+
+    b1  = (struct Border *)mem;
+    xy1 = (WORD *)((UBYTE *)b1 + sizeof(struct Border));
+    b2  = (struct Border *)((UBYTE *)b1 + border_plus_xy);
+    xy2 = (WORD *)((UBYTE *)b2 + sizeof(struct Border));
+    b3  = (struct Border *)((UBYTE *)b2 + border_plus_xy);
+    xy3 = (WORD *)((UBYTE *)b3 + sizeof(struct Border));
+    b4  = (struct Border *)((UBYTE *)b3 + border_plus_xy);
+    xy4 = (WORD *)((UBYTE *)b4 + sizeof(struct Border));
+
+    /* Outer top-left L (recessed = SHADOWPEN) */
+    xy1[0] = 0;           xy1[1] = height - 1;
+    xy1[2] = 0;           xy1[3] = 0;
+    xy1[4] = width - 1;   xy1[5] = 0;
+
+    b1->FrontPen   = 1;  /* SHADOWPEN */
+    b1->DrawMode   = JAM1;
+    b1->Count      = 3;
+    b1->XY         = xy1;
+    b1->NextBorder = b2;
+
+    /* Outer bottom-right L (recessed = SHINEPEN) */
+    xy2[0] = width - 1;   xy2[1] = 0;
+    xy2[2] = width - 1;   xy2[3] = height - 1;
+    xy2[4] = 0;           xy2[5] = height - 1;
+
+    b2->FrontPen   = 2;  /* SHINEPEN */
+    b2->DrawMode   = JAM1;
+    b2->Count      = 3;
+    b2->XY         = xy2;
+    b2->NextBorder = b3;
+
+    /* Inner top-left L (raised = SHINEPEN), inset by 1 pixel */
+    xy3[0] = 1;               xy3[1] = height - 2;
+    xy3[2] = 1;               xy3[3] = 1;
+    xy3[4] = width - 2;       xy3[5] = 1;
+
+    b3->FrontPen   = 2;  /* SHINEPEN */
+    b3->DrawMode   = JAM1;
+    b3->Count      = 3;
+    b3->XY         = xy3;
+    b3->NextBorder = b4;
+
+    /* Inner bottom-right L (raised = SHADOWPEN), inset by 1 pixel */
+    xy4[0] = width - 2;       xy4[1] = 1;
+    xy4[2] = width - 2;       xy4[3] = height - 2;
+    xy4[4] = 1;               xy4[5] = height - 2;
+
+    b4->FrontPen   = 1;  /* SHADOWPEN */
+    b4->DrawMode   = JAM1;
+    b4->Count      = 3;
+    b4->XY         = xy4;
+    b4->NextBorder = NULL;
+
+    return b1;
+}
+
+/* Helper: free bevel box Border chain.
+ * count=2 for single bevel (gt_create_bevel), count=4 for ridge bevel. */
+static void gt_free_bevel_n(struct Border *b, ULONG count)
 {
     if (b)
     {
-        ULONG size = 2 * sizeof(struct Border) + 2 * (6 * sizeof(WORD));
-        FreeMem(b, size);
+        ULONG border_plus_xy = sizeof(struct Border) + 6 * sizeof(WORD);
+        FreeMem(b, count * border_plus_xy);
     }
+}
+
+/* Helper: free single bevel box Border allocated by gt_create_bevel */
+static void gt_free_bevel(struct Border *b)
+{
+    gt_free_bevel_n(b, 2);
+}
+
+/* Helper: free ridge bevel box Border allocated by gt_create_ridge_bevel */
+static void gt_free_ridge_bevel(struct Border *b)
+{
+    gt_free_bevel_n(b, 4);
+}
+
+/* Helper: free an IntuiText label allocated by gt_create_label.
+ * This frees the allocated IText copy, any NextText underline IntuiText,
+ * and the IntuiText struct itself. */
+static void gt_free_label(struct IntuiText *it)
+{
+    if (!it) return;
+
+    /* Free underline IntuiText if present (NextText).
+     * Note: underline IText points to static data, no need to free it. */
+    if (it->NextText)
+        FreeMem(it->NextText, sizeof(struct IntuiText));
+
+    /* Free the allocated IText string copy */
+    if (it->IText)
+        FreeMem(it->IText, gt_strlen(it->IText) + 1);
+
+    FreeMem(it, sizeof(struct IntuiText));
 }
 
 /* CreateGadgetA - Create a GadTools gadget
@@ -306,12 +510,16 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
                                           register struct TagItem *taglist __asm("a2") )
 {
     struct Gadget *newgad;
+    UBYTE us;  /* GT_Underscore character, or 0 if not set */
 
     DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() kind=%ld, prevgad=0x%08lx, ng=0x%08lx\n",
              kind, (ULONG)gad, (ULONG)ng);
 
     if (!ng)
         return NULL;
+
+    /* Parse GT_Underscore tag — this is common to all gadget kinds */
+    us = (UBYTE)GetTagData(GT_Underscore, 0, taglist);
 
     /* Allocate gadget structure */
     newgad = AllocMem(sizeof(struct Gadget), MEMF_CLEAR | MEMF_PUBLIC);
@@ -340,7 +548,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             /* Create text label — default placement is PLACETEXT_IN (centered inside button) */
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_IN,
-                                                  ng->ng_Width, ng->ng_Height);
+                                                  ng->ng_Width, ng->ng_Height, us);
 
             DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() BUTTON: bevel=0x%08lx text=0x%08lx\n",
                      (ULONG)newgad->GadgetRender, (ULONG)newgad->GadgetText);
@@ -367,19 +575,23 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             newgad->Width     = ng->ng_Width - 2 * GT_BEVEL_LEFT;
             newgad->Height    = ng->ng_Height - 2 * GT_BEVEL_TOP;
 
-            /* Create recessed bevel box border around the string gadget.
+            /* Create recessed ridge (groove) bevel box border around the string gadget.
+             * On a real Amiga, STRING_KIND uses a double-bevel (FRAME_RIDGE style):
+             *   Outer bevel: recessed (shadow top-left, shine bottom-right)
+             *   Inner bevel: raised (shine top-left, shadow bottom-right)
              * The border is positioned at negative offsets so it draws around
              * the (smaller) text editing area. */
             {
-                struct Border *bevel = gt_create_bevel(ng->ng_Width, ng->ng_Height, TRUE);
+                struct Border *bevel = gt_create_ridge_bevel(ng->ng_Width, ng->ng_Height);
                 if (bevel)
                 {
-                    bevel->LeftEdge = -GT_BEVEL_LEFT;
-                    bevel->TopEdge  = -GT_BEVEL_TOP;
-                    if (bevel->NextBorder)
+                    /* Set negative offsets on all 4 Border structs */
+                    struct Border *b = bevel;
+                    while (b)
                     {
-                        bevel->NextBorder->LeftEdge = -GT_BEVEL_LEFT;
-                        bevel->NextBorder->TopEdge  = -GT_BEVEL_TOP;
+                        b->LeftEdge = -GT_BEVEL_LEFT;
+                        b->TopEdge  = -GT_BEVEL_TOP;
+                        b = b->NextBorder;
                     }
                 }
                 newgad->GadgetRender = (APTR)bevel;
@@ -388,7 +600,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             /* Create text label — default placement is PLACETEXT_LEFT */
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,
-                                                  ng->ng_Width, ng->ng_Height);
+                                                  ng->ng_Width, ng->ng_Height, us);
 
             /* Determine max chars from tags (default 128 per GadTools convention) */
             if (kind == INTEGER_KIND)
@@ -400,9 +612,8 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             si = (struct StringInfo *)AllocMem(sizeof(struct StringInfo), MEMF_CLEAR | MEMF_PUBLIC);
             if (!si)
             {
-                if (newgad->GadgetText)
-                    FreeMem(newgad->GadgetText, sizeof(struct IntuiText));
-                gt_free_bevel((struct Border *)newgad->GadgetRender);
+                gt_free_label(newgad->GadgetText);
+                gt_free_ridge_bevel((struct Border *)newgad->GadgetRender);
                 FreeMem(newgad, sizeof(struct Gadget));
                 return NULL;
             }
@@ -412,9 +623,8 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             if (!buf)
             {
                 FreeMem(si, sizeof(struct StringInfo));
-                if (newgad->GadgetText)
-                    FreeMem(newgad->GadgetText, sizeof(struct IntuiText));
-                gt_free_bevel((struct Border *)newgad->GadgetRender);
+                gt_free_label(newgad->GadgetText);
+                gt_free_ridge_bevel((struct Border *)newgad->GadgetRender);
                 FreeMem(newgad, sizeof(struct Gadget));
                 return NULL;
             }
@@ -504,7 +714,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             /* Create text label — default placement is PLACETEXT_LEFT */
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,
-                                                  ng->ng_Width, ng->ng_Height);
+                                                  ng->ng_Width, ng->ng_Height, us);
             break;
         case SLIDER_KIND:
         {
@@ -543,8 +753,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             pi = (struct PropInfo *)AllocMem(sizeof(struct PropInfo), MEMF_CLEAR | MEMF_PUBLIC);
             if (!pi)
             {
-                if (newgad->GadgetText)
-                    FreeMem(newgad->GadgetText, sizeof(struct IntuiText));
+                gt_free_label(newgad->GadgetText);
                 FreeMem(newgad, sizeof(struct Gadget));
                 return NULL;
             }
@@ -567,7 +776,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             /* Create text label — default placement is PLACETEXT_LEFT */
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,
-                                                  ng->ng_Width, ng->ng_Height);
+                                                  ng->ng_Width, ng->ng_Height, us);
 
             DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() SLIDER: pi=0x%08lx min=%ld max=%ld level=%ld pot=%u body=%u bevel=0x%08lx text=0x%08lx\n",
                      (ULONG)pi, sl_min, sl_max, sl_level, horizPot, horizBody,
@@ -586,7 +795,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             /* Create text label — default placement is PLACETEXT_LEFT */
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,
-                                                  ng->ng_Width, ng->ng_Height);
+                                                  ng->ng_Width, ng->ng_Height, us);
             break;
         case TEXT_KIND:
         case NUMBER_KIND:
@@ -596,7 +805,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             /* Create text label — default placement is PLACETEXT_LEFT */
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,
-                                                  ng->ng_Width, ng->ng_Height);
+                                                  ng->ng_Width, ng->ng_Height, us);
             break;
         default:
             newgad->GadgetType = GTYP_BOOLGADGET;
@@ -639,17 +848,20 @@ void _gadtools_FreeGadgets ( register struct GadToolsBase *GadToolsBase __asm("a
             FreeMem(gad->SpecialInfo, sizeof(struct PropInfo));
         }
 
-        /* Free GadgetText (IntuiText) if we allocated one */
-        if (gad->GadgetText)
-        {
-            FreeMem(gad->GadgetText, sizeof(struct IntuiText));
-        }
+        /* Free GadgetText (IntuiText) if we allocated one.
+         * gt_create_label always allocates a copy of IText, and may
+         * also create a NextText IntuiText for underscore underlines. */
+        gt_free_label(gad->GadgetText);
 
         /* Free GadgetRender (bevel Border) if we allocated one.
-         * We only free if it's NOT GFLG_GADGIMAGE (our borders are Border, not Image). */
+         * We only free if it's NOT GFLG_GADGIMAGE (our borders are Border, not Image).
+         * STRING_KIND uses a ridge bevel (4 borders), others use single bevel (2 borders). */
         if (gad->GadgetRender && !(gad->Flags & GFLG_GADGIMAGE))
         {
-            gt_free_bevel((struct Border *)gad->GadgetRender);
+            if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+                gt_free_ridge_bevel((struct Border *)gad->GadgetRender);
+            else
+                gt_free_bevel((struct Border *)gad->GadgetRender);
         }
 
         FreeMem(gad, sizeof(struct Gadget));
