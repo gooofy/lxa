@@ -19,7 +19,7 @@ The m68k-amigaos-gcc toolchain is required for building ROM and system component
 
 ```bash
 # Install from amiga-gcc repository
-git clone https://github.com/bebbo/amiga-gcc
+git clone https://codeberg.org/bebbo/amiga-gcc
 cd amiga-gcc
 make update
 make all -j$(nproc)
@@ -242,7 +242,7 @@ cmake -DAMIGA_TOOLCHAIN_PREFIX=/path/to/amiga ..
 
 # Option 3: Install toolchain
 cd /tmp
-git clone https://github.com/bebbo/amiga-gcc
+git clone https://codeberg.org/bebbo/amiga-gcc
 cd amiga-gcc
 make update
 make all -j$(nproc)

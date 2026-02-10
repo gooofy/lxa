@@ -25,6 +25,8 @@
 #include <intuition/intuition.h>
 #include <intuition/gadgetclass.h>
 #include <intuition/screens.h>
+#include <clib/intuition_protos.h>
+#include <inline/intuition.h>
 #include <utility/tagitem.h>
 #include <clib/utility_protos.h>
 #include <inline/utility.h>
@@ -45,6 +47,7 @@ char __aligned _g_gadtools_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 extern struct ExecBase *SysBase;
 extern struct GfxBase  *GfxBase;
 extern struct UtilityBase *UtilityBase;
+extern struct IntuitionBase *IntuitionBase;
 
 /* GadToolsBase structure */
 struct GadToolsBase {
@@ -505,19 +508,69 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             break;
         case SLIDER_KIND:
         {
+            struct PropInfo *pi;
+            LONG sl_min, sl_max, sl_level;
+            UWORD horizPot, horizBody;
+
             newgad->GadgetType = GTYP_PROPGADGET;
-            newgad->Activation = GACT_RELVERIFY;
+            newgad->Activation = GACT_RELVERIFY | GACT_IMMEDIATE;
             newgad->Flags = GFLG_GADGHCOMP;
 
-            /* Create raised bevel box border around the slider */
-            newgad->GadgetRender = (APTR)gt_create_bevel(ng->ng_Width, ng->ng_Height, FALSE);
+            /* Read SLIDER tags */
+            sl_min   = (LONG)GetTagData(GTSL_Min,   0,  taglist);
+            sl_max   = (LONG)GetTagData(GTSL_Max,   15, taglist);
+            sl_level = (LONG)GetTagData(GTSL_Level, 0,  taglist);
+
+            /* Clamp level to range */
+            if (sl_level < sl_min) sl_level = sl_min;
+            if (sl_level > sl_max) sl_level = sl_max;
+
+            /* Compute HorizPot from level:
+             * Pot = ((level - min) * MAXPOT) / (max - min) */
+            if (sl_max > sl_min)
+                horizPot = (UWORD)(((sl_level - sl_min) * (LONG)0xFFFF) / (sl_max - sl_min));
+            else
+                horizPot = 0;
+
+            /* Compute HorizBody: one position out of the total range.
+             * Body = MAXBODY / (max - min + 1), but at least 1 */
+            if (sl_max > sl_min)
+                horizBody = (UWORD)((LONG)0xFFFF / (sl_max - sl_min + 1));
+            else
+                horizBody = 0xFFFF;
+
+            /* Allocate PropInfo */
+            pi = (struct PropInfo *)AllocMem(sizeof(struct PropInfo), MEMF_CLEAR | MEMF_PUBLIC);
+            if (!pi)
+            {
+                if (newgad->GadgetText)
+                    FreeMem(newgad->GadgetText, sizeof(struct IntuiText));
+                FreeMem(newgad, sizeof(struct Gadget));
+                return NULL;
+            }
+
+            pi->Flags     = AUTOKNOB | FREEHORIZ | PROPNEWLOOK;
+            pi->HorizPot  = horizPot;
+            pi->VertPot   = 0;
+            pi->HorizBody = horizBody;
+            pi->VertBody  = 0xFFFF;  /* No vertical movement */
+            /* Store min/max in unused PropInfo fields for GT_SetGadgetAttrs */
+            pi->CWidth    = (UWORD)sl_min;
+            pi->CHeight   = (UWORD)sl_max;
+
+            newgad->SpecialInfo = (APTR)pi;
+
+            /* Create recessed bevel box border around the slider container
+             * (real GadTools uses recessed for slider trough) */
+            newgad->GadgetRender = (APTR)gt_create_bevel(ng->ng_Width, ng->ng_Height, TRUE);
 
             /* Create text label — default placement is PLACETEXT_LEFT */
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,
                                                   ng->ng_Width, ng->ng_Height);
 
-            DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() SLIDER: bevel=0x%08lx text=0x%08lx\n",
+            DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() SLIDER: pi=0x%08lx min=%ld max=%ld level=%ld pot=%u body=%u bevel=0x%08lx text=0x%08lx\n",
+                     (ULONG)pi, sl_min, sl_max, sl_level, horizPot, horizBody,
                      (ULONG)newgad->GadgetRender, (ULONG)newgad->GadgetText);
             break;
         }
@@ -580,6 +633,12 @@ void _gadtools_FreeGadgets ( register struct GadToolsBase *GadToolsBase __asm("a
             FreeMem(si, sizeof(struct StringInfo));
         }
 
+        /* Free PropInfo for proportional gadgets (SLIDER_KIND) */
+        if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET && gad->SpecialInfo)
+        {
+            FreeMem(gad->SpecialInfo, sizeof(struct PropInfo));
+        }
+
         /* Free GadgetText (IntuiText) if we allocated one */
         if (gad->GadgetText)
         {
@@ -606,7 +665,43 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
                                     register struct TagItem *taglist __asm("a3") )
 {
     DPRINTF (LOG_DEBUG, "_gadtools: GT_SetGadgetAttrsA() gad=0x%08lx\n", (ULONG)gad);
-    /* Stub - would need to update gadget based on tags */
+
+    if (!gad || !taglist)
+        return;
+
+    /* Handle prop gadgets (SLIDER_KIND) */
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
+    {
+        struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+        if (pi)
+        {
+            LONG level = (LONG)GetTagData(GTSL_Level, -1, taglist);
+            if (level != -1)
+            {
+                /* min/max stored in CWidth/CHeight */
+                LONG sl_min = (LONG)(WORD)pi->CWidth;
+                LONG sl_max = (LONG)(WORD)pi->CHeight;
+
+                if (level < sl_min) level = sl_min;
+                if (level > sl_max) level = sl_max;
+
+                /* Recompute HorizPot from new level */
+                if (sl_max > sl_min)
+                    pi->HorizPot = (UWORD)(((level - sl_min) * (LONG)0xFFFF) / (sl_max - sl_min));
+                else
+                    pi->HorizPot = 0;
+
+                DPRINTF (LOG_DEBUG, "_gadtools: GT_SetGadgetAttrsA() SLIDER level=%ld -> pot=%u\n",
+                         level, pi->HorizPot);
+
+                /* Refresh the gadget visual if we have a window */
+                if (win)
+                {
+                    RefreshGList(gad, win, req, 1);
+                }
+            }
+        }
+    }
 }
 
 /*

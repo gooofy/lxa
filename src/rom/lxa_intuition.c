@@ -2122,6 +2122,10 @@ static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadg
 static struct Gadget *g_active_gadget;
 static struct Window *g_active_window;
 
+/* State for prop gadget dragging
+ * Note: These MUST NOT have initializers - .bss goes to RAM. */
+static WORD g_prop_click_offset;            /* Mouse offset within knob on click */
+
 /* State for menu bar handling
  * Note: These MUST NOT have initializers because initialized static data goes
  * into .data section which is placed in ROM (read-only). Uninitialized statics
@@ -3181,6 +3185,59 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                 }
                             }
                             
+                            /* For prop gadgets, compute drag offset for smooth knob tracking */
+                            if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
+                            {
+                                struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+                                if (pi && (pi->Flags & AUTOKNOB))
+                                {
+                                    /* Compute the knob position to determine click offset.
+                                     * Container is inset 1px from the gadget border. */
+                                    WORD gadAbsL = gad->LeftEdge + window->LeftEdge;
+                                    WORD containerL = gadAbsL + 1;
+                                    WORD containerW = gad->Width - 2;
+                                    WORD knobW;
+                                    WORD maxMoveX;
+                                    WORD knobX;
+
+                                    if (pi->Flags & FREEHORIZ)
+                                        knobW = (WORD)(((ULONG)containerW * (ULONG)pi->HorizBody) / 0xFFFF);
+                                    else
+                                        knobW = containerW;
+                                    if (knobW < 6) knobW = 6;
+                                    if (knobW > containerW) knobW = containerW;
+
+                                    maxMoveX = containerW - knobW;
+                                    if (maxMoveX < 0) maxMoveX = 0;
+                                    knobX = containerL + (WORD)(((ULONG)maxMoveX * (ULONG)pi->HorizPot) / 0xFFFF);
+
+                                    /* Store offset of click from knob left edge.
+                                     * If click is outside knob, center the knob on click. */
+                                    if (mouseX >= knobX && mouseX < knobX + knobW)
+                                    {
+                                        g_prop_click_offset = mouseX - knobX;
+                                    }
+                                    else
+                                    {
+                                        /* Click outside knob: jump knob center to click position */
+                                        g_prop_click_offset = knobW / 2;
+                                        WORD newKnobL = mouseX - g_prop_click_offset;
+                                        if (newKnobL < containerL) newKnobL = containerL;
+                                        if (newKnobL > containerL + maxMoveX)
+                                            newKnobL = containerL + maxMoveX;
+                                        if (maxMoveX > 0)
+                                            pi->HorizPot = (UWORD)(((ULONG)(newKnobL - containerL) * 0xFFFF) / (ULONG)maxMoveX);
+                                        else
+                                            pi->HorizPot = 0;
+                                        /* Redraw the gadget with new knob position */
+                                        _render_gadget(window, NULL, gad);
+                                    }
+
+                                    DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTDOWN: knobX=%d knobW=%d maxMove=%d offset=%d pot=%u\n",
+                                            knobX, knobW, maxMoveX, g_prop_click_offset, pi->HorizPot);
+                                }
+                            }
+                            
                             /* Post IDCMP_GADGETDOWN if it's a GADGIMMEDIATE gadget */
                             if (gad->Activation & GACT_IMMEDIATE)
                             {
@@ -3188,8 +3245,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                                    qualifier, gad, relX, relY);
                             }
                             
-                            /* Render selected state highlight */
-                            if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP)
+                            /* Render selected state highlight (but not for prop gadgets - they draw their own knob) */
+                            if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP &&
+                                (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET)
                             {
                                 _complement_gadget_area(window, NULL, gad);
                             }
@@ -3253,6 +3311,43 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                     }
                                 }
                                 /* Don't clear g_active_gadget or g_active_window */
+                            }
+                            /* For prop gadgets: finalize pot, compute level, post GADGETUP */
+                            else if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
+                            {
+                                struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+                                UWORD level_code = 0;
+
+                                gad->Flags &= ~GFLG_SELECTED;
+
+                                if (pi)
+                                {
+                                    /* Recover min/max stored in CWidth/CHeight by CreateGadgetA */
+                                    WORD sl_min = (WORD)pi->CWidth;
+                                    WORD sl_max = (WORD)pi->CHeight;
+                                    LONG range = sl_max - sl_min;
+                                    LONG level;
+
+                                    if (range > 0)
+                                        level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                                    else
+                                        level = sl_min;
+                                    level_code = (UWORD)level;
+
+                                    DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTUP: pot=%u min=%d max=%d level=%ld\n",
+                                            pi->HorizPot, sl_min, sl_max, level);
+                                }
+
+                                /* Post IDCMP_GADGETUP with level as Code, gadget as IAddress */
+                                if (gad->Activation & GACT_RELVERIFY)
+                                {
+                                    _post_idcmp_message(activeWin, IDCMP_GADGETUP, level_code,
+                                                       qualifier, gad, activeRelX, activeRelY);
+                                }
+
+                                /* Clear active gadget */
+                                g_active_gadget = NULL;
+                                g_active_window = NULL;
                             }
                             else
                             {
@@ -3464,6 +3559,68 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                         
                         /* Use MoveWindow for proper layer handling */
                         _intuition_MoveWindow(IntuitionBase, g_drag_window, move_dx, move_dy);
+                    }
+                }
+                
+                /* Handle prop gadget dragging */
+                if (g_active_gadget && g_active_window &&
+                    (g_active_gadget->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
+                {
+                    struct Gadget *gad = g_active_gadget;
+                    struct Window *activeWin = g_active_window;
+                    struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+
+                    if (pi && (pi->Flags & AUTOKNOB) && (pi->Flags & FREEHORIZ))
+                    {
+                        WORD gadAbsL = gad->LeftEdge + activeWin->LeftEdge;
+                        WORD containerL = gadAbsL + 1;
+                        WORD containerW = gad->Width - 2;
+                        WORD knobW;
+                        WORD maxMoveX;
+                        WORD newKnobL;
+                        UWORD old_pot = pi->HorizPot;
+
+                        knobW = (WORD)(((ULONG)containerW * (ULONG)pi->HorizBody) / 0xFFFF);
+                        if (knobW < 6) knobW = 6;
+                        if (knobW > containerW) knobW = containerW;
+
+                        maxMoveX = containerW - knobW;
+                        if (maxMoveX < 0) maxMoveX = 0;
+
+                        /* Calculate new knob position based on mouse position and drag offset */
+                        newKnobL = mouseX - g_prop_click_offset;
+                        if (newKnobL < containerL) newKnobL = containerL;
+                        if (newKnobL > containerL + maxMoveX)
+                            newKnobL = containerL + maxMoveX;
+
+                        if (maxMoveX > 0)
+                            pi->HorizPot = (UWORD)(((ULONG)(newKnobL - containerL) * 0xFFFF) / (ULONG)maxMoveX);
+                        else
+                            pi->HorizPot = 0;
+
+                        /* Only re-render and post message if pot actually changed */
+                        if (pi->HorizPot != old_pot)
+                        {
+                            /* Redraw the gadget with updated knob position */
+                            _render_gadget(activeWin, NULL, gad);
+
+                            /* Compute current level for the MOUSEMOVE message Code field.
+                             * GadTools convention: MOUSEMOVE for sliders carries the
+                             * gadget pointer in IAddress and the level in Code. */
+                            WORD sl_min = (WORD)pi->CWidth;
+                            WORD sl_max = (WORD)pi->CHeight;
+                            LONG range = sl_max - sl_min;
+                            LONG level;
+                            if (range > 0)
+                                level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                            else
+                                level = sl_min;
+
+                            WORD relX = mouseX - activeWin->LeftEdge;
+                            WORD relY = mouseY - activeWin->TopEdge;
+                            _post_idcmp_message(activeWin, IDCMP_MOUSEMOVE, (UWORD)level,
+                                               qualifier, gad, relX, relY);
+                        }
                     }
                 }
                 
@@ -5857,6 +6014,73 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             SetBPen(rp, it->BackPen);
             Move(rp, tx, ty);
             Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
+        }
+    }
+    
+    /* Render proportional gadget knob (SLIDER_KIND and other prop gadgets) */
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
+    {
+        struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+        if (pi && (pi->Flags & AUTOKNOB))
+        {
+            /* Clear the interior of the prop container */
+            WORD containerL = left + 1;
+            WORD containerT = top + 1;
+            WORD containerW = width - 2;
+            WORD containerH = height - 2;
+            WORD knobW, knobH, knobX, knobY;
+
+            SetAPen(rp, 0);  /* Background pen */
+            RectFill(rp, containerL, containerT,
+                     containerL + containerW - 1, containerT + containerH - 1);
+
+            /* Calculate knob size from Body */
+            if (pi->Flags & FREEHORIZ)
+                knobW = (WORD)(((ULONG)containerW * (ULONG)pi->HorizBody) / 0xFFFF);
+            else
+                knobW = containerW;
+
+            if (pi->Flags & FREEVERT)
+                knobH = (WORD)(((ULONG)containerH * (ULONG)pi->VertBody) / 0xFFFF);
+            else
+                knobH = containerH;
+
+            /* Minimum knob size */
+            if (knobW < 6) knobW = 6;
+            if (knobH < 4) knobH = 4;
+            if (knobW > containerW) knobW = containerW;
+            if (knobH > containerH) knobH = containerH;
+
+            /* Calculate knob position from Pot */
+            {
+                WORD maxMoveX = containerW - knobW;
+                WORD maxMoveY = containerH - knobH;
+                if (maxMoveX < 0) maxMoveX = 0;
+                if (maxMoveY < 0) maxMoveY = 0;
+
+                knobX = containerL + (WORD)(((ULONG)maxMoveX * (ULONG)pi->HorizPot) / 0xFFFF);
+                knobY = containerT + (WORD)(((ULONG)maxMoveY * (ULONG)pi->VertPot) / 0xFFFF);
+            }
+
+            /* Draw knob as raised bevel box */
+            /* Knob interior */
+            SetAPen(rp, 0);  /* Grey background for knob interior */
+            RectFill(rp, knobX, knobY, knobX + knobW - 1, knobY + knobH - 1);
+
+            /* Knob top/left edge = shine (pen 2) */
+            SetAPen(rp, 2);
+            Move(rp, knobX, knobY + knobH - 2);
+            Draw(rp, knobX, knobY);
+            Draw(rp, knobX + knobW - 2, knobY);
+
+            /* Knob bottom/right edge = shadow (pen 1) */
+            SetAPen(rp, 1);
+            Move(rp, knobX + knobW - 1, knobY);
+            Draw(rp, knobX + knobW - 1, knobY + knobH - 1);
+            Draw(rp, knobX, knobY + knobH - 1);
+
+            DPRINTF(LOG_DEBUG, "_render_gadget: prop knob at (%d,%d) size %dx%d pot=%u body=%u\n",
+                    knobX, knobY, knobW, knobH, pi->HorizPot, pi->HorizBody);
         }
     }
     

@@ -25,7 +25,7 @@ This guide provides essential information for developers working on lxa.
    sudo apt-get install build-essential cmake
 
    # Amiga cross-compiler
-   git clone https://github.com/bebbo/amiga-gcc
+   git clone https://codeberg.org/bebbo/amiga-gcc
    cd amiga-gcc
    make update
    make all -j$(nproc)

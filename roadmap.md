@@ -8,19 +8,20 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.45** | **Phase 70a In Progress** | **53/53 Tests Passing**
+**Version: 0.6.46** | **Phase 70a In Progress** | **53/53 Tests Passing**
 
 Phase 70a: fixing issues identified by comparing RKM sample programs to running originals on a real Amiga. Test-driven approach: reproduce each issue as a test first, then fix.
 
 **Current Status**:
-- 53/53 ctest entries passing
+- 53/53 ctest entries passing (16 gadtoolsgadgets_gtest tests: 9 functional + 7 pixel)
+- SLIDER_KIND: Full prop gadget implementation — knob rendering (raised bevel), mouse click/drag interaction, IDCMP_MOUSEMOVE/GADGETUP with level as Code, GT_SetGadgetAttrs(GTSL_Level)
 - MenuLayout: NEW sample ported from RKM (menulayout_gtest: 8 tests — 6 functional + 2 pixel)
 - EasyRequest: FIXED (full BuildEasyRequestArgs implementation — formatted body/gadget text, 3D bevel buttons, centered layout, SysReqHandler event loop, FreeSysRequest cleanup; 7 new tests: 4 behavioral + 3 pixel)
 - SimpleImage: FIXED (rewrote sample to match RKM — 2 images at correct positions, Delay before exit, no extra gadgets/title)
 - IntuiText: FIXED (full-screen window, no title bar, correct text, OpenWindowTagList defaults)
 - SimpleGad GADGHCOMP button click highlight: FIXED (complement XOR on mouse-down, restore on mouse-up)
 - SimpleGTGadget: FIXED (ClickButton/ClickCheckbox/ClickCycle — corrected gadget positions from TopEdge=32 to 40, added ClickCheckbox test, checkbox bevel border pixel test)
-- GadToolsGadgets: FIXED (ButtonClick/ButtonBevelBorder/StringGadgetBevelBorder — corrected topborder from 12 to 20, all 11 tests passing)
+- GadToolsGadgets: FIXED (ButtonClick/ButtonBevelBorder/StringGadgetBevelBorder — corrected topborder from 12 to 20, all 16 tests passing)
 - SimpleMenu: FIXED (save-behind buffer for menu drop-down cleanup, IRQ3 debug output silenced; 2 new pixel tests: MenuDropdownClearedAfterSelection, ScreenTitleBarRestoredAfterMenu; simplemenu_gtest: 3→5 tests)
 - FillRectDirect optimized: byte-at-a-time instead of pixel-at-a-time (~8x speedup)
 - INTENA re-enable fix: when INTENA master/VBlank enabled via set operation, arm pending VBlank IRQ
@@ -80,17 +81,17 @@ Issues identified by comparing some of the sample programs to running the origin
 
 * GadToolsGadgets
   * `_` keyboard shortcut indicator not rendered correctly
-  * Volume slider knob not visible after startup
-  * Initial volume value (5) not visible
+  * ~~Volume slider knob not visible after startup~~ **DONE** (PropInfo with AUTOKNOB|FREEHORIZ|PROPNEWLOOK, knob rendering with raised bevel)
+  * ~~Initial volume value (5) not visible~~ **DONE** (HorizPot computed from GTSL_Level, knob positioned correctly)
   * Text entry widgets have wrong border style
   * Window lacks resize gadget
-  * Window is not draggable
+  * ~~Window is not draggable~~ **DONE** (was already working via WA_DragBar)
   * Window has distorted depth gadget
   * Window lacks minimize gadget
-  * Button does not react to mouse clicks
+  * ~~Button does not react to mouse clicks~~ **DONE** (GADGETUP handling for GTYP_BOOLGADGET)
   * TAB/Shift-TAB doesn't do anything
-  * Volume slider does not react to mouse clicks
-  * Window close gadget does not work
+  * ~~Volume slider does not react to mouse clicks~~ **DONE** (full prop gadget mouse interaction: click-on-knob drag, click-outside-knob jump, MOUSEMOVE with level, GADGETUP with level, GT_SetGadgetAttrs GTSL_Level)
+  * ~~Window close gadget does not work~~ **DONE** (was already working via IDCMP_CLOSEWINDOW)
 * SimpleGTGadget
   * ~~Button does not react to mouse clicks~~ **DONE** (test timing/coordinates fixed)
   * ~~Checkbox invisible~~ **DONE** (added bevel border for CHECKBOX_KIND, pixel test)
@@ -147,6 +148,7 @@ Issues identified by comparing some of the sample programs to running the origin
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.46 | 70a | SLIDER_KIND prop gadget: knob rendering (raised bevel, AUTOKNOB|FREEHORIZ|PROPNEWLOOK), mouse click/drag interaction (click-on-knob drag with offset tracking, click-outside-knob jump), IDCMP_MOUSEMOVE/GADGETUP with level as Code, GT_SetGadgetAttrs(GTSL_Level). PropInfo allocation/freeing in CreateGadgetA/FreeGadgets. 5 new slider tests (SliderClick, SliderDrag, ButtonResetsSlider, SliderKnobVisible, SliderBevelBorderRendered). gadtoolsgadgets_gtest: 11→16 tests. 53/53 tests. |
 | 0.6.45 | 70a | MenuLayout sample ported from RKM (8 new tests). Fixed gadget position calculations in simplegtgadget_gtest (topborder=20 not 12, added ClickCheckbox test + checkbox bevel pixel test). Fixed gadtoolsgadgets_gtest (corrected button/string positions). INTENA re-enable fix, menu selection encoding fix. Removed all temporary debug logging. 53/53 tests. |
 | 0.6.44 | 70a | SimpleMenu: save-behind buffer for menu drop-down cleanup (save/restore screen bitmap region on open/close/switch), IRQ3 debug output silenced. 2 new pixel tests (MenuDropdownClearedAfterSelection, ScreenTitleBarRestoredAfterMenu). simplemenu_gtest: 3→5 tests. 52/52 tests. |
 | 0.6.43 | 70a | EasyRequest: full BuildEasyRequestArgs implementation (formatted body/gadget text with %s/%ld/%lu/%lx, 3D bevel buttons, centered layout, SysReqHandler event loop, FreeSysRequest cleanup). 7 new easyrequest_gtest tests (4 behavioral + 3 pixel). 52/52 tests. |

@@ -45,7 +45,7 @@ protected:
             << "Could not get window info";
 
         /* Let task reach event loop and flush Printf output */
-        RunCyclesWithVBlank(50, 100000);
+        RunCyclesWithVBlank(30, 100000);
 
         /* Capture the startup output */
         output = GetOutput();
@@ -149,6 +149,117 @@ TEST_F(GadToolsGadgetsTest, CloseWindow) {
         << "Demo should complete successfully";
 }
 
+TEST_F(GadToolsGadgetsTest, SliderClick) {
+    /* The slider is the first gadget: ng_LeftEdge=140, TopEdge=40, Width=200, Height=12.
+     * Initial level is 5, min=1, max=20.
+     * Click on the right side of the slider to set a higher level,
+     * which should generate GADGETDOWN + GADGETUP with the level as Code.
+     */
+    int slider_left = 140;
+    int slider_top  = 40;
+    int slider_w    = 200;
+    int slider_h    = 12;
+
+    /* Click at 80% of the slider width (expect level around 16-17) */
+    int click_x = window_info.x + slider_left + (int)(slider_w * 0.8);
+    int click_y = window_info.y + slider_top + slider_h / 2;
+
+    ClearOutput();
+    Click(click_x, click_y);
+    RunCyclesWithVBlank(30, 100000);
+
+    std::string click_output = GetOutput();
+    /* The sample program prints "Slider at level <N>" for GADGETDOWN/MOUSEMOVE/GADGETUP */
+    EXPECT_NE(click_output.find("Slider at level"), std::string::npos)
+        << "Slider click should report slider level. Output: " << click_output;
+}
+
+TEST_F(GadToolsGadgetsTest, SliderDrag) {
+    /* Drag the slider from left side to right side.
+     * This should generate MOUSEMOVE messages with changing level values.
+     * The slider: LeftEdge=140, TopEdge=40, Width=200, Height=12.
+     *
+     * Note: Printf output from the Amiga program may be buffered in the
+     * DOS file handle and only flushed when the program calls WaitPort().
+     * We capture all output (including startup) and count "Slider at level"
+     * occurrences: the startup output has none, so any we find came from
+     * the drag interaction.
+     */
+    int slider_left = 140;
+    int slider_top  = 40;
+    int slider_w    = 200;
+    int slider_h    = 12;
+
+    int start_x = window_info.x + slider_left + slider_w / 4;
+    int start_y = window_info.y + slider_top + slider_h / 2;
+    int end_x   = window_info.x + slider_left + (int)(slider_w * 0.9);
+    int end_y   = start_y;
+
+    /* Record how many "Slider at level" lines exist before the drag */
+    std::string before = GetOutput();
+    int before_count = 0;
+    {
+        size_t pos = 0;
+        while ((pos = before.find("Slider at level", pos)) != std::string::npos) {
+            before_count++;
+            pos += 15;
+        }
+    }
+
+    lxa_inject_drag(start_x, start_y, end_x, end_y, LXA_MOUSE_LEFT, 5);
+    RunCyclesWithVBlank(60, 200000);
+
+    std::string after = GetOutput();
+    int after_count = 0;
+    {
+        size_t pos = 0;
+        while ((pos = after.find("Slider at level", pos)) != std::string::npos) {
+            after_count++;
+            pos += 15;
+        }
+    }
+
+    int drag_messages = after_count - before_count;
+    EXPECT_GE(drag_messages, 1)
+        << "Slider drag should produce at least one 'Slider at level' message. "
+        << "Before: " << before_count << ", After: " << after_count
+        << ". Output: " << after;
+
+    EXPECT_GE(drag_messages, 2)
+        << "Slider drag should produce multiple 'Slider at level' messages (MOUSEMOVE). "
+        << "Before: " << before_count << ", After: " << after_count;
+}
+
+TEST_F(GadToolsGadgetsTest, ButtonResetsSlider) {
+    /* First click slider to change its level, then click button to reset to 10.
+     * The sample program prints "Button was pressed, slider reset to 10."
+     * and calls GT_SetGadgetAttrs to update the slider.
+     */
+    int slider_left = 140;
+    int slider_top  = 40;
+    int slider_w    = 200;
+    int slider_h    = 12;
+
+    /* Click slider at right side to set a high level */
+    int slider_click_x = window_info.x + slider_left + (int)(slider_w * 0.9);
+    int slider_click_y = window_info.y + slider_top + slider_h / 2;
+
+    Click(slider_click_x, slider_click_y);
+    RunCyclesWithVBlank(20, 100000);
+
+    /* Now click the button to reset slider to 10 */
+    int btn_x = window_info.x + 190 + 50;   /* center of 100px wide button */
+    int btn_y = window_info.y + 120 + 6;    /* center of 12px tall button */
+
+    ClearOutput();
+    Click(btn_x, btn_y);
+    RunCyclesWithVBlank(30, 100000);
+
+    std::string btn_output = GetOutput();
+    EXPECT_NE(btn_output.find("Button was pressed, slider reset to 10"), std::string::npos)
+        << "Button click should reset slider. Output: " << btn_output;
+}
+
 // ============================================================================
 // Pixel Tests - verify bevel borders and text labels are rendered
 // ============================================================================
@@ -172,7 +283,7 @@ protected:
          * GadTools creates 6 gadgets; rendering all of them via
          * _render_window_frame() can span multiple VBlank cycles.
          * Use a generous budget so every gadget is fully drawn. */
-        RunCyclesWithVBlank(100, 200000);
+        RunCyclesWithVBlank(70, 200000);
     }
 
     void TearDown() override {
@@ -327,6 +438,72 @@ TEST_F(GadToolsGadgetsPixelTest, ButtonLabelRendered) {
     );
     EXPECT_GT(interior_content, 0)
         << "Button interior should contain text label pixels";
+}
+
+TEST_F(GadToolsGadgetsPixelTest, SliderKnobVisible) {
+    /* Slider gadget: ng_LeftEdge=140, TopEdge=40, Width=200, Height=12.
+     * The slider has a recessed bevel border (1px), so the container
+     * interior is at (141, 41) with size 198x10.
+     * The knob should be rendered with non-background pixels (bevel edges).
+     * Initial level is 5, min=1, max=20.
+     */
+    int slider_left = 140;
+    int slider_top  = 40;
+    int slider_w    = 200;
+    int slider_h    = 12;
+
+    /* Check for non-background pixels inside the slider container.
+     * The knob is drawn with pen 2 (shine) and pen 1 (shadow) edges.
+     * The container interior (after 1px border) should have these pixels. */
+    int knob_pixels = CountContentPixels(
+        window_info.x + slider_left + 2,
+        window_info.y + slider_top + 2,
+        window_info.x + slider_left + slider_w - 3,
+        window_info.y + slider_top + slider_h - 3,
+        PEN_GREY
+    );
+    EXPECT_GT(knob_pixels, 0)
+        << "Slider knob should contain non-background pixels (bevel edges)";
+
+    /* Additionally check for shine pixels (pen 2) in the knob area,
+     * which indicates the raised bevel knob top/left edge */
+    int shine_pixels = 0;
+    for (int x = slider_left + 2; x < slider_left + slider_w - 2; x++) {
+        for (int y = slider_top + 2; y < slider_top + slider_h - 2; y++) {
+            int pen = ReadPixel(window_info.x + x, window_info.y + y);
+            if (pen == PEN_WHITE) shine_pixels++;
+        }
+    }
+    EXPECT_GT(shine_pixels, 0)
+        << "Slider knob should have shine (pen 2) pixels from raised bevel";
+}
+
+TEST_F(GadToolsGadgetsPixelTest, SliderBevelBorderRendered) {
+    /* Slider gadget: ng_LeftEdge=140, TopEdge=40, Width=200, Height=12.
+     * The slider uses a RECESSED bevel (shadow top-left, shine bottom-right).
+     */
+    int slider_left = 140;
+    int slider_top  = 40;
+    int slider_w    = 200;
+    int slider_h    = 12;
+
+    /* Check top edge for shadow (pen 1) - recessed bevel */
+    int shadow_top = 0;
+    for (int x = slider_left; x < slider_left + slider_w; x++) {
+        int pen = ReadPixel(window_info.x + x, window_info.y + slider_top);
+        if (pen == PEN_BLACK) shadow_top++;
+    }
+    EXPECT_GT(shadow_top, slider_w / 2)
+        << "Slider top edge should have shadow pixels (pen 1, recessed), got " << shadow_top;
+
+    /* Check bottom edge for shine (pen 2) - recessed bevel */
+    int shine_bottom = 0;
+    for (int x = slider_left; x < slider_left + slider_w; x++) {
+        int pen = ReadPixel(window_info.x + x, window_info.y + slider_top + slider_h - 1);
+        if (pen == PEN_WHITE) shine_bottom++;
+    }
+    EXPECT_GT(shine_bottom, slider_w / 2)
+        << "Slider bottom edge should have shine pixels (pen 2, recessed), got " << shine_bottom;
 }
 
 int main(int argc, char **argv) {

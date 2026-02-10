@@ -61,7 +61,7 @@ echo "Welcome to lxa!"
 
 - CMake 3.10+
 - GCC or Clang
-- **m68k-amigaos-gcc** cross-compiler ([bebbo/amiga-gcc](https://github.com/bebbo/amiga-gcc))
+- **m68k-amigaos-gcc** cross-compiler ([bebbo/amiga-gcc](https://codeberg.org/bebbo/amiga-gcc))
 
 ### Build Steps
 

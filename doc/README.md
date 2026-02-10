@@ -78,7 +78,7 @@ Comprehensive testing documentation:
 - **[AMIGA_COMMAND_GUIDE.md](../AMIGA_COMMAND_GUIDE.md)** - Reference for Amiga commands
 
 ### External Resources
-- [bebbo/amiga-gcc](https://github.com/bebbo/amiga-gcc) - m68k cross-compiler
+- [bebbo/amiga-gcc](https://codeberg.org/bebbo/amiga-gcc) - m68k cross-compiler
 - [AROS](http://aros.sourceforge.net/) - Open-source AmigaOS
 - [AmigaOS Developer Docs](http://amigadev.elowar.com/) - Official documentation
 - [Musashi](https://github.com/kstenerud/Musashi) - 68000 CPU emulator

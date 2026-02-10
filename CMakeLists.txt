@@ -56,7 +56,7 @@ if(M68K_GCC)
     add_subdirectory(samples target/samples)
 else()
     message(WARNING "m68k-amigaos-gcc not found. ROM and system commands will not be built.")
-    message(STATUS "Install the Amiga cross-compiler from https://github.com/bebbo/amiga-gcc")
+    message(STATUS "Install the Amiga cross-compiler from https://codeberg.org/bebbo/amiga-gcc")
 endif()
 
 # === Installation Configuration ===
