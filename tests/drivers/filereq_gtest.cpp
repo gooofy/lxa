@@ -35,12 +35,26 @@ TEST_F(FileReqTest, RequesterOpens) {
     EXPECT_GE(window_info.height, 100) << "File requester should have reasonable height";
 }
 
+TEST_F(FileReqTest, WindowPositionAndSize) {
+    // FileReq sample sets LeftEdge=0, TopEdge=0, Width=320, Height=400
+    // After fix: LeftEdge=0 accepted (was defaulting to 50 due to > 0 check)
+    //            TopEdge=0 accepted (was defaulting to 30 due to > 0 check)
+    //            Height clamped from 400 to 256 (screen height)
+    //            Width=320 fits within 640, so unchanged
+    EXPECT_EQ(window_info.x, 0) << "LeftEdge=0 should be honored, not defaulted to 50";
+    EXPECT_EQ(window_info.y, 0) << "TopEdge=0 should be honored, not defaulted to 30";
+    EXPECT_LE(window_info.y + window_info.height, 256) 
+        << "Window bottom should not extend below screen (256 lines)";
+    EXPECT_EQ(window_info.width, 320) << "Width=320 should be preserved";
+}
+
 TEST_F(FileReqTest, CancelButton) {
-    // Cancel button position (from lxa_asl.c):
-    //   X = 252 + 30 = 282 (window relative)
-    //   Y = 366 + 7 = 373 (window relative)
-    int cancel_x = window_info.x + 282;
-    int cancel_y = window_info.y + 373;
+    // Cancel button position relative to window:
+    //   margin=8, btnWidth=60, btnHeight=14
+    //   X = winWidth - margin - btnWidth + btnWidth/2 = width - 8 - 60 + 30
+    //   Y = winHeight - 20 - btnHeight + btnHeight/2 = height - 20 - 14 + 7
+    int cancel_x = window_info.x + window_info.width - 8 - 60 + 30;
+    int cancel_y = window_info.y + window_info.height - 20 - 14 + 7;
     
     Click(cancel_x, cancel_y);
     

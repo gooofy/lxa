@@ -186,6 +186,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(filereq_gtest)
     endif()
     
+    # FontReq - ASL font requester test (GTest version)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/fontreq_gtest.cpp)
+        add_gtest_driver(fontreq_gtest)
+    endif()
+    
     # ========== Input Tests ==========
     
     # MouseTest - mouse input handling test

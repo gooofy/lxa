@@ -1,15 +1,13 @@
 /*
  * fontreq.c - ASL Font Requester Sample
  *
- * This is an RKM-style sample demonstrating the ASL font requester.
- * It creates a font requester structure and tests the allocation.
+ * Based on RKM Libraries, Chapter 16: ASL Library
+ * Demonstrates the ASL font requester with full interactive usage.
  *
  * Key Functions Demonstrated:
  *   - AllocAslRequest() with ASL_FontRequest
- *   - FreeAslRequest() - Free a font requester
- *
- * Note: The interactive AslRequest() for fonts is not yet fully
- * implemented in lxa, so we test the allocation/deallocation only.
+ *   - AslRequest() - Display font requester
+ *   - FreeAslRequest() - Free font requester
  *
  * Based on RKM ASL sample code.
  * Copyright (c) 1992 Commodore-Amiga, Inc.
@@ -26,53 +24,56 @@
 
 struct Library *AslBase = NULL;
 
-/* Tag list for the font requester */
-struct TagItem fotags[] =
+void main(int argc, char **argv)
 {
-    {ASL_FontName,    (ULONG)"topaz.font"},
-    {ASL_FontHeight,  8},
-    {ASL_MinHeight,   6},
-    {ASL_MaxHeight,   24},
-    {TAG_END,         0}
-};
+    struct FontRequester *fr;
 
-void main(void)
-{
-    struct FontRequester *fo;
-    
     printf("FontReq: Starting ASL Font Requester demo\n");
-    
+
     AslBase = OpenLibrary("asl.library", 37L);
     if (AslBase != NULL)
     {
         printf("FontReq: Opened asl.library v%d\n", AslBase->lib_Version);
-        
-        /* Allocate the font requester */
-        fo = (struct FontRequester *)AllocAslRequest(ASL_FontRequest, fotags);
-        if (fo != NULL)
+
+        fr = (struct FontRequester *)
+            AllocAslRequestTags(ASL_FontRequest,
+                ASL_FontName,   (ULONG)"topaz.font",
+                ASL_FontHeight, 8L,
+                ASL_MinHeight,  6L,
+                ASL_MaxHeight,  24L,
+                TAG_DONE);
+
+        if (fr != NULL)
         {
-            printf("FontReq: AllocAslRequest(ASL_FontRequest) succeeded\n");
-            
-            /* Access font attributes if they're set */
-            printf("FontReq: Font requester configured\n");
-            printf("FontReq: (Skipping interactive AslRequest - not yet implemented for fonts)\n");
-            
-            /* Free the requester */
-            FreeAslRequest(fo);
-            printf("FontReq: FreeAslRequest() - requester freed\n");
+            printf("FontReq: AllocAslRequest succeeded\n");
+
+            if (AslRequest(fr, NULL))
+            {
+                printf("FontReq: User selected font\n");
+                printf("FontReq: Name=%s\n", fr->fo_Attr.ta_Name);
+                printf("FontReq: YSize=%d\n", fr->fo_Attr.ta_YSize);
+                printf("FontReq: Style=0x%x\n", fr->fo_Attr.ta_Style);
+                printf("FontReq: Flags=0x%x\n", fr->fo_Attr.ta_Flags);
+            }
+            else
+            {
+                printf("FontReq: User cancelled\n");
+            }
+
+            FreeAslRequest(fr);
+            printf("FontReq: Requester freed\n");
         }
         else
         {
-            printf("FontReq: AllocAslRequest(ASL_FontRequest) failed\n");
+            printf("FontReq: AllocAslRequest failed\n");
         }
-        
+
         CloseLibrary(AslBase);
-        printf("FontReq: Closed asl.library\n");
     }
     else
     {
         printf("FontReq: Failed to open asl.library v37\n");
     }
-    
+
     printf("FontReq: Done\n");
 }

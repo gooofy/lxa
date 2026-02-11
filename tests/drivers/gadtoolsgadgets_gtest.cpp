@@ -352,6 +352,65 @@ TEST_F(GadToolsGadgetsTest, ShiftTabCyclesBackward) {
         << "Typed text should appear in string gadget 1. Output: " << output1;
 }
 
+TEST_F(GadToolsGadgetsTest, VanillaKeySliderIncrease) {
+    /* Test IDCMP_VANILLAKEY: pressing 'v' should increase slider level.
+     * The GadToolsGadgets sample opens its window with IDCMP_VANILLAKEY.
+     * handleVanillaKey() maps 'v' to slider increment.
+     * Initial slider level is 5, so pressing 'v' should make it 6. */
+
+    constexpr int RAWKEY_V = 0x34;
+
+    ClearOutput();
+    PressKey(RAWKEY_V, 0);  /* lowercase 'v' */
+    RunCyclesWithVBlank(60, 200000);
+
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("VANILLAKEY 'v'"), std::string::npos)
+        << "Pressing 'v' should trigger VANILLAKEY handler. Output: " << output;
+    EXPECT_NE(output.find("slider level now 6"), std::string::npos)
+        << "Slider should increase from 5 to 6. Output: " << output;
+}
+
+TEST_F(GadToolsGadgetsTest, VanillaKeySliderDecrease) {
+    /* Test IDCMP_VANILLAKEY: pressing 'V' (Shift+v) should decrease slider level.
+     * Initial slider level is 5, so pressing 'V' should make it 4. */
+
+    constexpr int RAWKEY_V = 0x34;
+    constexpr int IEQUALIFIER_LSHIFT = 0x0001;
+
+    ClearOutput();
+    PressKey(RAWKEY_V, IEQUALIFIER_LSHIFT);  /* uppercase 'V' */
+    RunCyclesWithVBlank(60, 200000);
+
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("VANILLAKEY 'V'"), std::string::npos)
+        << "Pressing Shift+V should trigger VANILLAKEY handler. Output: " << output;
+    EXPECT_NE(output.find("slider level now 4"), std::string::npos)
+        << "Slider should decrease from 5 to 4. Output: " << output;
+}
+
+TEST_F(GadToolsGadgetsTest, VanillaKeyActivateGadget) {
+    /* Test IDCMP_VANILLAKEY: pressing 'f' should activate string gadget 1.
+     * Then typing text + Return should report it from string gadget 1. */
+
+    constexpr int RAWKEY_F = 0x23;
+
+    /* Press 'f' to activate string gadget 1 via VANILLAKEY */
+    PressKey(RAWKEY_F, 0);
+    RunCyclesWithVBlank(20, 200000);
+
+    /* Type into the now-active string gadget 1 */
+    ClearOutput();
+    TypeString("HELLO\n");
+    RunCyclesWithVBlank(60, 200000);
+
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("String gadget 1:"), std::string::npos)
+        << "Pressing 'f' should activate string gadget 1 via VANILLAKEY. Output: " << output;
+    EXPECT_NE(output.find("HELLO"), std::string::npos)
+        << "Typed text should appear in string gadget 1. Output: " << output;
+}
+
 // ============================================================================
 // Pixel Tests - verify bevel borders and text labels are rendered
 // ============================================================================

@@ -3228,6 +3228,114 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
 }
 
 /*
+ * Rawkey-to-ASCII conversion tables for IDCMP_VANILLAKEY
+ * These are static const (read-only, safe for ROM).
+ */
+static const char _vanillakey_unshifted[128] = {
+    /* 0x00-0x0F: top row (`, 1-9, 0, -, =, \, unassigned, KP0) */
+    '`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\\', 0, '0',
+    /* 0x10-0x1F: qwerty row (q-p, [, ], unassigned, KP1-3) */
+    'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', 0, '1', '2', '3',
+    /* 0x20-0x2F: asdf row (a-;, ', unassigned, unassigned, KP4-6) */
+    'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', 0, 0, '4', '5', '6',
+    /* 0x30-0x3F: zxcv row (unassigned, z-/, unassigned, KP., KP7-9) */
+    0, 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '.', '7', '8', '9',
+    /* 0x40-0x4F: space, backspace, tab, KP enter, return, esc, del */
+    ' ', '\b', '\t', '\r', '\r', 0x1B, 0x7F, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    /* 0x50-0x5F: F1-F10, unassigned... */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    /* 0x60-0x6F: modifiers and more */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    /* 0x70-0x7F: unused */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+static const char _vanillakey_shifted[128] = {
+    /* 0x00-0x0F: top row (~, !-), _, +, |, unassigned, KP0) */
+    '~', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '|', 0, '0',
+    /* 0x10-0x1F: qwerty row (Q-P, {, }, unassigned, KP1-3) */
+    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', 0, '1', '2', '3',
+    /* 0x20-0x2F: asdf row (A-:, ", unassigned, unassigned, KP4-6) */
+    'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', 0, 0, '4', '5', '6',
+    /* 0x30-0x3F: zxcv row (unassigned, Z-?, unassigned, KP., KP7-9) */
+    0, 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '.', '7', '8', '9',
+    /* 0x40-0x4F: space, backspace, tab, KP enter, return, esc, del */
+    ' ', '\b', '\t', '\r', '\r', 0x1B, 0x7F, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    /* 0x50-0x7F: rest unchanged */
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+
+/*
+ * Convert Amiga rawkey + qualifier to ASCII character for VANILLAKEY
+ * Returns 0 if no printable character (non-vanilla key)
+ */
+static char _rawkey_to_vanilla(UWORD rawkey, UWORD qualifier)
+{
+    char c;
+    BOOL shifted;
+
+    /* Ignore key-up events (high bit set) */
+    if (rawkey & 0x80) return 0;
+
+    /* Bounds check */
+    if (rawkey >= 128) return 0;
+
+    /* Check shift state */
+    shifted = (qualifier & (0x0001 | 0x0002)) != 0;  /* IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT */
+
+    /* Check caps lock for letters */
+    if (qualifier & 0x0004)  /* IEQUALIFIER_CAPSLOCK */
+    {
+        /* Caps lock only affects letters */
+        if ((rawkey >= 0x10 && rawkey <= 0x19) ||  /* qwerty row */
+            (rawkey >= 0x20 && rawkey <= 0x28) ||  /* asdf row */
+            (rawkey >= 0x31 && rawkey <= 0x3A))    /* zxcv row */
+        {
+            shifted = !shifted;
+        }
+    }
+
+    c = shifted ? _vanillakey_shifted[rawkey] : _vanillakey_unshifted[rawkey];
+
+    /* Handle Control key - convert to control character */
+    if (c && (qualifier & 0x0008))  /* IEQUALIFIER_CONTROL */
+    {
+        if (c >= 'a' && c <= 'z')
+        {
+            c = c - 'a' + 1;  /* Ctrl+A = 0x01, etc. */
+        }
+        else if (c >= 'A' && c <= 'Z')
+        {
+            c = c - 'A' + 1;
+        }
+        else if (c == '[')
+        {
+            c = 0x1B;  /* ESC */
+        }
+        else if (c == '\\')
+        {
+            c = 0x1C;
+        }
+        else if (c == ']')
+        {
+            c = 0x1D;
+        }
+        else if (c == '^' || c == '6')
+        {
+            c = 0x1E;
+        }
+        else if (c == '_' || c == '-')
+        {
+            c = 0x1F;
+        }
+    }
+
+    return c;
+}
+
+/*
  * Internal function: Process pending input events from the host
  * This should be called periodically (e.g., from WaitTOF or the scheduler)
  * 
@@ -3879,11 +3987,27 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 }
                 else if (window)
                 {
-                    /* No active string gadget - post RAWKEY to window as normal */
                     WORD relX = mouseX - window->LeftEdge;
                     WORD relY = mouseY - window->TopEdge;
-                    _post_idcmp_message(window, IDCMP_RAWKEY, rawkey, 
-                                       qualifier, NULL, relX, relY);
+                    BOOL posted = FALSE;
+
+                    /* If window wants VANILLAKEY, try to convert rawkey to ASCII */
+                    if (window->IDCMPFlags & IDCMP_VANILLAKEY)
+                    {
+                        char ascii = _rawkey_to_vanilla(rawkey, qualifier);
+                        if (ascii)
+                        {
+                            posted = _post_idcmp_message(window, IDCMP_VANILLAKEY,
+                                         (UWORD)ascii, qualifier, NULL, relX, relY);
+                        }
+                    }
+
+                    /* Fall through to RAWKEY if no VANILLAKEY posted */
+                    if (!posted)
+                    {
+                        _post_idcmp_message(window, IDCMP_RAWKEY, rawkey,
+                                           qualifier, NULL, relX, relY);
+                    }
                 }
                 break;
             }

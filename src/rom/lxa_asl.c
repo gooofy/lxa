@@ -56,9 +56,12 @@ struct AslBase {
     BPTR           SegList;
 };
 
-/* Internal FileRequester structure - maps to public FileRequester structure */
+/* Internal FileRequester structure - maps to public FileRequester structure
+ * NOTE: fr_Type MUST be at offset 0 (overlaps fr_Reserved0) so that
+ * AslRequest() can determine the requester type regardless of which
+ * struct type the pointer actually refers to. */
 struct LXAFileRequester {
-    UBYTE         fr_Reserved0[4];
+    ULONG         fr_Type;          /* Requester type (at offset 0) */
     STRPTR        fr_File;          /* Contents of File gadget on exit */
     STRPTR        fr_Drawer;        /* Contents of Drawer gadget on exit */
     UBYTE         fr_Reserved1[10];
@@ -74,7 +77,6 @@ struct LXAFileRequester {
     STRPTR        fr_Pattern;       /* Contents of Pattern gadget on exit */
     
     /* Private fields */
-    ULONG         fr_Type;          /* Requester type */
     STRPTR        fr_Title;         /* Window title */
     STRPTR        fr_OkText;        /* OK button text */
     STRPTR        fr_CancelText;    /* Cancel button text */
@@ -85,28 +87,37 @@ struct LXAFileRequester {
     BOOL          fr_DrawersOnly;   /* Only show drawers? */
 };
 
-/* Internal FontRequester structure */
+/* Internal FontRequester structure
+ * Layout MUST match NDK FontRequester: fo_Reserved0[8] then fo_Attr at offset 8.
+ * We store fo_Type inside the first 4 bytes of the reserved area so that
+ * AslRequest() can determine the requester type from a generic pointer. */
 struct LXAFontRequester {
-    UBYTE         fo_Reserved0[4];
-    struct TextAttr fo_Attr;        /* Font attributes on exit */
-    UBYTE         fo_Reserved1[4];
+    ULONG         fo_Type;          /* Requester type (at offset 0, inside reserved area) */
+    UBYTE         fo_Reserved0b[4]; /* Remaining 4 bytes of fo_Reserved0[8] */
+    struct TextAttr fo_Attr;        /* Font attributes on exit (offset 8, matches NDK) */
+    UBYTE         fo_FrontPen;      /* Returned front pen */
+    UBYTE         fo_BackPen;       /* Returned back pen */
+    UBYTE         fo_DrawMode;      /* Returned draw mode */
+    UBYTE         fo_Pad;
+    APTR          fo_UserData;
     WORD          fo_LeftEdge;
     WORD          fo_TopEdge;
     WORD          fo_Width;
     WORD          fo_Height;
-    UBYTE         fo_Reserved2[2];
-    APTR          fo_UserData;
     
-    /* Private fields */
-    ULONG         fo_Type;
+    /* Private fields (after public NDK-compatible area) */
     STRPTR        fo_Title;
     STRPTR        fo_OkText;
     STRPTR        fo_CancelText;
     struct Window *fo_Window;
     struct Screen *fo_Screen;
+    UWORD         fo_MinHeight;     /* Minimum font height to display */
+    UWORD         fo_MaxHeight;     /* Maximum font height to display */
+    STRPTR        fo_InitialName;   /* Initial font name from tags */
+    UWORD         fo_InitialSize;   /* Initial font size from tags */
 };
 
-/* Gadget IDs */
+/* Gadget IDs - File Requester */
 #define GID_DRAWER_STR   1
 #define GID_FILE_STR     2
 #define GID_PATTERN_STR  3
@@ -115,6 +126,11 @@ struct LXAFontRequester {
 #define GID_PARENT       6
 #define GID_VOLUMES      7
 #define GID_LISTVIEW     8
+
+/* Gadget IDs - Font Requester */
+#define GID_FONT_OK      10
+#define GID_FONT_CANCEL  11
+#define GID_FONT_LIST    12
 
 /* Maximum entries in file list */
 #define MAX_FILE_ENTRIES 100
@@ -273,6 +289,79 @@ static void parse_fr_tags(struct LXAFileRequester *fr, struct TagItem *tagList)
     }
 }
 
+/* Parse tags for font requester */
+static void parse_fo_tags(struct LXAFontRequester *fo, struct TagItem *tagList)
+{
+    struct TagItem *tag;
+    
+    if (!tagList)
+        return;
+    
+    for (tag = tagList; tag->ti_Tag != TAG_DONE; tag++)
+    {
+        if (tag->ti_Tag == TAG_SKIP)
+        {
+            tag += tag->ti_Data;
+            continue;
+        }
+        if (tag->ti_Tag == TAG_IGNORE)
+            continue;
+        if (tag->ti_Tag == TAG_MORE)
+        {
+            tag = (struct TagItem *)tag->ti_Data;
+            if (!tag) break;
+            tag--;
+            continue;
+        }
+        
+        switch (tag->ti_Tag)
+        {
+            case ASLFO_TitleText:
+                fo->fo_Title = (STRPTR)tag->ti_Data;
+                break;
+            case ASLFO_PositiveText:
+                fo->fo_OkText = (STRPTR)tag->ti_Data;
+                break;
+            case ASLFO_NegativeText:
+                fo->fo_CancelText = (STRPTR)tag->ti_Data;
+                break;
+            case ASLFO_InitialLeftEdge:
+                fo->fo_LeftEdge = (WORD)tag->ti_Data;
+                break;
+            case ASLFO_InitialTopEdge:
+                fo->fo_TopEdge = (WORD)tag->ti_Data;
+                break;
+            case ASLFO_InitialWidth:
+                fo->fo_Width = (WORD)tag->ti_Data;
+                break;
+            case ASLFO_InitialHeight:
+                fo->fo_Height = (WORD)tag->ti_Data;
+                break;
+            case ASLFO_InitialName:
+                fo->fo_InitialName = (STRPTR)tag->ti_Data;
+                break;
+            case ASLFO_InitialSize:
+                fo->fo_InitialSize = (UWORD)tag->ti_Data;
+                break;
+            case ASLFO_MinHeight:
+                fo->fo_MinHeight = (UWORD)tag->ti_Data;
+                break;
+            case ASLFO_MaxHeight:
+                fo->fo_MaxHeight = (UWORD)tag->ti_Data;
+                break;
+            case ASLFO_Window:
+                fo->fo_Window = (struct Window *)tag->ti_Data;
+                break;
+            case ASLFO_Screen:
+                fo->fo_Screen = (struct Screen *)tag->ti_Data;
+                break;
+            case ASLFO_UserData:
+                fo->fo_UserData = (APTR)tag->ti_Data;
+                break;
+        }
+    }
+}
+
 /* Display the file requester window and handle interaction */
 static BOOL do_file_request(struct LXAFileRequester *fr)
 {
@@ -314,6 +403,30 @@ static BOOL do_file_request(struct LXAFileRequester *fr)
     /* Set defaults */
     winWidth = fr->fr_Width > 0 ? fr->fr_Width : 300;
     winHeight = fr->fr_Height > 0 ? fr->fr_Height : 200;
+    
+    /* Determine window position and clamp to screen bounds */
+    {
+        WORD scrWidth = 640, scrHeight = 256;
+        WORD winLeft, winTop;
+        
+        if (scr)
+        {
+            scrWidth = scr->Width;
+            scrHeight = scr->Height;
+        }
+        
+        winLeft = fr->fr_LeftEdge >= 0 ? fr->fr_LeftEdge : 50;
+        winTop = fr->fr_TopEdge >= 0 ? fr->fr_TopEdge : 30;
+        
+        if (winHeight > scrHeight - winTop)
+            winHeight = scrHeight - winTop;
+        if (winWidth > scrWidth - winLeft)
+            winWidth = scrWidth - winLeft;
+        if (winHeight < 100)
+            winHeight = 100;
+        if (winWidth < 200)
+            winWidth = 200;
+    }
     
     /* Initialize buffers */
     if (fr->fr_Drawer) {
@@ -357,9 +470,9 @@ static BOOL do_file_request(struct LXAFileRequester *fr)
     gadList = gad;
     lastGad = gad;
     
-    gad->LeftEdge = margin + 50;
+    gad->LeftEdge = margin + 60;
     gad->TopEdge = 20;
-    gad->Width = winWidth - margin*2 - 50;
+    gad->Width = winWidth - margin*2 - 60;
     gad->Height = strHeight;
     gad->GadgetID = GID_DRAWER_STR;
     gad->GadgetType = GTYP_STRGADGET;
@@ -373,9 +486,9 @@ static BOOL do_file_request(struct LXAFileRequester *fr)
     lastGad->NextGadget = gad;
     lastGad = gad;
     
-    gad->LeftEdge = margin + 50;
+    gad->LeftEdge = margin + 60;
     gad->TopEdge = winHeight - 20 - strHeight - btnHeight - margin;
-    gad->Width = winWidth - margin*2 - 50;
+    gad->Width = winWidth - margin*2 - 60;
     gad->Height = strHeight;
     gad->GadgetID = GID_FILE_STR;
     gad->GadgetType = GTYP_STRGADGET;
@@ -414,8 +527,8 @@ static BOOL do_file_request(struct LXAFileRequester *fr)
     gad->Activation = GACT_RELVERIFY;
     
     /* Open window */
-    nw.LeftEdge = fr->fr_LeftEdge > 0 ? fr->fr_LeftEdge : 50;
-    nw.TopEdge = fr->fr_TopEdge > 0 ? fr->fr_TopEdge : 30;
+    nw.LeftEdge = fr->fr_LeftEdge >= 0 ? fr->fr_LeftEdge : 50;
+    nw.TopEdge = fr->fr_TopEdge >= 0 ? fr->fr_TopEdge : 30;
     nw.Width = winWidth;
     nw.Height = winHeight;
     nw.DetailPen = 0;
@@ -572,6 +685,277 @@ cleanup:
     return result;
 }
 
+/* Display the font requester window and handle interaction */
+static BOOL do_font_request(struct LXAFontRequester *fo)
+{
+    struct NewWindow nw;
+    struct Window *win;
+    struct Screen *scr;
+    struct IntuiMessage *imsg;
+    struct Gadget *gadList = NULL, *gad, *lastGad = NULL;
+    struct RastPort *rp;
+    BOOL result = FALSE;
+    BOOL done = FALSE;
+    WORD winWidth, winHeight;
+    WORD btnWidth = 60, btnHeight = 14;
+    WORD margin = 8;
+    WORD listTop, listHeight;
+    WORD entryY;
+    WORD fontCount = 0;
+    
+    DPRINTF(LOG_DEBUG, "_asl: do_font_request()\n");
+    
+    /* Get screen to open on */
+    if (fo->fo_Window)
+    {
+        scr = fo->fo_Window->WScreen;
+    }
+    else if (fo->fo_Screen)
+    {
+        scr = fo->fo_Screen;
+    }
+    else
+    {
+        scr = NULL;
+    }
+    
+    /* Set defaults */
+    winWidth = fo->fo_Width > 0 ? fo->fo_Width : 300;
+    winHeight = fo->fo_Height > 0 ? fo->fo_Height : 200;
+    
+    /* Determine window position and clamp to screen bounds */
+    {
+        WORD scrWidth = 640, scrHeight = 256;
+        WORD winLeft, winTop;
+        
+        if (scr)
+        {
+            scrWidth = scr->Width;
+            scrHeight = scr->Height;
+        }
+        
+        winLeft = fo->fo_LeftEdge >= 0 ? fo->fo_LeftEdge : 50;
+        winTop = fo->fo_TopEdge >= 0 ? fo->fo_TopEdge : 30;
+        
+        if (winHeight > scrHeight - winTop)
+            winHeight = scrHeight - winTop;
+        if (winWidth > scrWidth - winLeft)
+            winWidth = scrWidth - winLeft;
+        if (winHeight < 100)
+            winHeight = 100;
+        if (winWidth < 200)
+            winWidth = 200;
+    }
+    
+    /* Create OK button */
+    gad = AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!gad) goto cleanup;
+    gadList = gad;
+    lastGad = gad;
+    
+    gad->LeftEdge = margin;
+    gad->TopEdge = winHeight - 20 - btnHeight;
+    gad->Width = btnWidth;
+    gad->Height = btnHeight;
+    gad->GadgetID = GID_FONT_OK;
+    gad->GadgetType = GTYP_BOOLGADGET;
+    gad->Flags = GFLG_GADGHCOMP;
+    gad->Activation = GACT_RELVERIFY;
+    
+    /* Create Cancel button */
+    gad = AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!gad) goto cleanup;
+    lastGad->NextGadget = gad;
+    lastGad = gad;
+    
+    gad->LeftEdge = winWidth - margin - btnWidth;
+    gad->TopEdge = winHeight - 20 - btnHeight;
+    gad->Width = btnWidth;
+    gad->Height = btnHeight;
+    gad->GadgetID = GID_FONT_CANCEL;
+    gad->GadgetType = GTYP_BOOLGADGET;
+    gad->Flags = GFLG_GADGHCOMP;
+    gad->Activation = GACT_RELVERIFY;
+    
+    /* Open window */
+    nw.LeftEdge = fo->fo_LeftEdge >= 0 ? fo->fo_LeftEdge : 50;
+    nw.TopEdge = fo->fo_TopEdge >= 0 ? fo->fo_TopEdge : 30;
+    nw.Width = winWidth;
+    nw.Height = winHeight;
+    nw.DetailPen = 0;
+    nw.BlockPen = 1;
+    nw.IDCMPFlags = IDCMP_GADGETUP | IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW;
+    nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET | WFLG_ACTIVATE | WFLG_SMART_REFRESH;
+    nw.FirstGadget = gadList;
+    nw.CheckMark = NULL;
+    nw.Title = fo->fo_Title ? fo->fo_Title : (UBYTE *)"Select Font";
+    nw.Screen = scr;
+    nw.BitMap = NULL;
+    nw.MinWidth = 200;
+    nw.MinHeight = 100;
+    nw.MaxWidth = 640;
+    nw.MaxHeight = 480;
+    nw.Type = scr ? CUSTOMSCREEN : WBENCHSCREEN;
+    
+    win = OpenWindow(&nw);
+    if (!win)
+    {
+        DPRINTF(LOG_ERROR, "_asl: Failed to open font requester window\n");
+        goto cleanup;
+    }
+    
+    rp = win->RPort;
+    
+    /* Draw button labels */
+    SetAPen(rp, 1);
+    {
+        STRPTR okText = fo->fo_OkText ? fo->fo_OkText : (STRPTR)"OK";
+        STRPTR cancelText = fo->fo_CancelText ? fo->fo_CancelText : (STRPTR)"Cancel";
+        LONG okLen = 0, cancelLen = 0;
+        
+        while (okText[okLen]) okLen++;
+        while (cancelText[cancelLen]) cancelLen++;
+        
+        Move(rp, margin + (btnWidth - okLen * 8) / 2, winHeight - 20 - btnHeight + 10);
+        Text(rp, okText, okLen);
+        Move(rp, winWidth - margin - btnWidth + (btnWidth - cancelLen * 8) / 2, winHeight - 20 - btnHeight + 10);
+        Text(rp, cancelText, cancelLen);
+    }
+    
+    /* Draw font list area */
+    listTop = 20 + margin;
+    listHeight = winHeight - listTop - btnHeight - margin * 2 - 20;
+    
+    SetAPen(rp, 2);
+    Move(rp, margin, listTop);
+    Draw(rp, margin, listTop + listHeight);
+    Draw(rp, winWidth - margin, listTop + listHeight);
+    SetAPen(rp, 1);
+    Draw(rp, winWidth - margin, listTop);
+    Draw(rp, margin, listTop);
+    
+    /* Display available fonts */
+    {
+        STRPTR fontName = (STRPTR)"topaz.font";
+        WORD fontSize = 8;
+        LONG nameLen = 10;  /* strlen("topaz.font") */
+        
+        entryY = listTop + 10;
+        fontCount = 0;
+        
+        /* Display the ROM font */
+        if (entryY + 10 < listTop + listHeight)
+        {
+            SetAPen(rp, 1);
+            Move(rp, margin + 4, entryY);
+            Text(rp, fontName, nameLen);
+            
+            /* Display size next to name */
+            {
+                UBYTE sizeBuf[8];
+                WORD sz = fontSize;
+                WORD pos = 0;
+                
+                if (sz >= 10)
+                {
+                    sizeBuf[pos++] = '0' + (sz / 10);
+                }
+                sizeBuf[pos++] = '0' + (sz % 10);
+                sizeBuf[pos] = 0;
+                
+                Move(rp, winWidth - margin - 30, entryY);
+                Text(rp, sizeBuf, pos);
+            }
+            
+            fontCount++;
+            entryY += 10;
+        }
+    }
+    
+    /* Draw "Font:" label above the list */
+    SetAPen(rp, 1);
+    Move(rp, margin, listTop - 2);
+    Text(rp, (STRPTR)"Font:", 5);
+    
+    /* Draw current selection info */
+    {
+        STRPTR curName = fo->fo_InitialName ? fo->fo_InitialName : (STRPTR)"topaz.font";
+        LONG curLen = 0;
+        
+        while (curName[curLen]) curLen++;
+        
+        Move(rp, margin + 48, listTop - 2);
+        Text(rp, curName, curLen);
+    }
+    
+    /* Event loop */
+    while (!done)
+    {
+        WaitPort(win->UserPort);
+        
+        while ((imsg = (struct IntuiMessage *)GetMsg(win->UserPort)) != NULL)
+        {
+            ULONG class_id = imsg->Class;
+            struct Gadget *igad = (struct Gadget *)imsg->IAddress;
+            
+            ReplyMsg((struct Message *)imsg);
+            
+            switch (class_id)
+            {
+                case IDCMP_GADGETUP:
+                    if (igad->GadgetID == GID_FONT_OK)
+                    {
+                        /* Set the output font attributes */
+                        fo->fo_Attr.ta_Name = asl_strdup(
+                            fo->fo_InitialName ? fo->fo_InitialName : (CONST_STRPTR)"topaz.font");
+                        fo->fo_Attr.ta_YSize = fo->fo_InitialSize > 0 ? fo->fo_InitialSize : 8;
+                        fo->fo_Attr.ta_Style = 0;  /* FS_NORMAL */
+                        fo->fo_Attr.ta_Flags = FPF_ROMFONT | FPF_DESIGNED;
+                        result = TRUE;
+                        done = TRUE;
+                    }
+                    else if (igad->GadgetID == GID_FONT_CANCEL)
+                    {
+                        result = FALSE;
+                        done = TRUE;
+                    }
+                    break;
+                    
+                case IDCMP_CLOSEWINDOW:
+                    result = FALSE;
+                    done = TRUE;
+                    break;
+                    
+                case IDCMP_REFRESHWINDOW:
+                    BeginRefresh(win);
+                    EndRefresh(win, TRUE);
+                    break;
+            }
+        }
+    }
+    
+    /* Store window position/size for next invocation */
+    fo->fo_LeftEdge = win->LeftEdge;
+    fo->fo_TopEdge = win->TopEdge;
+    fo->fo_Width = win->Width;
+    fo->fo_Height = win->Height;
+    
+    CloseWindow(win);
+    win = NULL;
+    
+cleanup:
+    /* Free gadgets */
+    gad = gadList;
+    while (gad)
+    {
+        struct Gadget *next = gad->NextGadget;
+        FreeMem(gad, sizeof(struct Gadget));
+        gad = next;
+    }
+    
+    return result;
+}
+
 /*
  * ASL Functions (V36+)
  */
@@ -632,6 +1016,8 @@ APTR _asl_AllocAslRequest ( register struct AslBase *AslBase __asm("a6"),
             struct LXAFileRequester *fr = AllocMem(sizeof(struct LXAFileRequester), MEMF_CLEAR | MEMF_PUBLIC);
             if (fr) {
                 fr->fr_Type = ASL_FileRequest;
+                fr->fr_LeftEdge = -1;  /* Sentinel: not set by app */
+                fr->fr_TopEdge = -1;   /* Sentinel: not set by app */
                 fr->fr_Width = 300;
                 fr->fr_Height = 200;
                 parse_fr_tags(fr, tagList);
@@ -643,8 +1029,14 @@ APTR _asl_AllocAslRequest ( register struct AslBase *AslBase __asm("a6"),
             struct LXAFontRequester *fo = AllocMem(sizeof(struct LXAFontRequester), MEMF_CLEAR | MEMF_PUBLIC);
             if (fo) {
                 fo->fo_Type = ASL_FontRequest;
+                fo->fo_LeftEdge = -1;   /* Sentinel: not set by app */
+                fo->fo_TopEdge = -1;    /* Sentinel: not set by app */
                 fo->fo_Width = 300;
                 fo->fo_Height = 200;
+                fo->fo_MinHeight = 5;   /* Default per RKRM */
+                fo->fo_MaxHeight = 24;  /* Default per RKRM */
+                fo->fo_InitialSize = 8; /* Default font size */
+                parse_fo_tags(fo, tagList);
             }
             return fo;
         }
@@ -674,6 +1066,8 @@ void _asl_FreeAslRequest ( register struct AslBase *AslBase __asm("a6"),
         if (fr->fr_Pattern) asl_strfree(fr->fr_Pattern);
         FreeMem(fr, sizeof(struct LXAFileRequester));
     } else if (fr->fr_Type == ASL_FontRequest) {
+        struct LXAFontRequester *fo = (struct LXAFontRequester *)requester;
+        if (fo->fo_Attr.ta_Name) asl_strfree(fo->fo_Attr.ta_Name);
         FreeMem(requester, sizeof(struct LXAFontRequester));
     } else {
         /* Unknown type - try to free as file requester size */
@@ -698,9 +1092,9 @@ BOOL _asl_AslRequest ( register struct AslBase *AslBase __asm("a6"),
         parse_fr_tags(fr, tagList);
         return do_file_request(fr);
     } else if (fr->fr_Type == ASL_FontRequest) {
-        /* Font requester not fully implemented yet */
-        DPRINTF(LOG_DEBUG, "_asl: Font requester not yet fully implemented\n");
-        return FALSE;
+        struct LXAFontRequester *fo = (struct LXAFontRequester *)requester;
+        parse_fo_tags(fo, tagList);
+        return do_font_request(fo);
     }
     
     return FALSE;

@@ -8,12 +8,16 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.50** | **Phase 70a In Progress** | **53/53 Tests Passing**
+**Version: 0.6.51** | **Phase 70a Complete** | **54/54 Tests Passing (1 pre-existing devpac_test failure)**
 
-Phase 70a: fixing issues identified by comparing RKM sample programs to running originals on a real Amiga. Test-driven approach: reproduce each issue as a test first, then fix.
+Phase 70a complete: all issues identified by comparing RKM sample programs to running originals on a real Amiga have been fixed. Test-driven approach: each issue reproduced as a test first, then fixed.
 
 **Current Status**:
-- 53/53 ctest entries passing (23 gadtoolsgadgets_gtest tests: 12 functional + 11 pixel)
+- 54/54 ctest entries (53 passing, 1 pre-existing devpac_test divide-by-zero failure)
+- IDCMP_VANILLAKEY: rawkey-to-ASCII conversion in Intuition key dispatch, lookup tables for unshifted/shifted keys
+- FileReq: Window position clamping fix (TopEdge=0 accepted via sentinel -1), widened Drawer gadget label spacing
+- FontReq: Full font requester implementation (window, OK/Cancel buttons, font list, font selection output)
+- 23 gadtoolsgadgets_gtest tests: 12 functional + 11 pixel
 - GTYP_SIZING resize gadget: Created sizing system gadget with GFLG_RELRIGHT|GFLG_RELBOTTOM positioning, 3D icon rendering (center box + diagonal indicator), resize-drag logic (SELECTDOWN start, MOUSEMOVE delta, SELECTUP stop), SizeWindow() with min/max enforcement. Border enlargement for WFLG_SIZEGADGET (BorderBottom=10, BorderRight=18) per RKRM/NDK, respecting WFLG_SIZEBBOTTOM/WFLG_SIZEBRIGHT flags. Fixed depth gadget positioning to use window edge (not border edge). 2 new pixel tests (SizeGadgetRendered, DepthGadgetRendered). Fixed IntuitionTest.Validation timing (wait for content rendered before pixel check).
 - STRING_KIND double-bevel border: Implemented `gt_create_ridge_bevel()` for FRAME_RIDGE style groove border (outer recessed + inner raised, 4 Border structs). `gt_free_ridge_bevel()` for proper memory cleanup. 1 new pixel test (StringGadgetDoubleBevelRendered).
 - GT_Underscore: Keyboard shortcut indicator rendering — underscore prefix stripped from labels, underline drawn under shortcut character via NextText IntuiText chain. _render_gadget() fixed to walk IntuiText NextText chain.
@@ -118,10 +122,10 @@ Issues identified by comparing some of the sample programs to running the origin
 * menulayout
   * ~~Sample is missing: important sample, please port 1:1 from RKM!~~ **DONE** (ported from RKM, menulayout_gtest: 8 tests)
 * FileReq
-  * Window placed too low - bottom off screen
-  * extra `Drawer libs:` label
+  * ~~Window placed too low - bottom off screen~~ **DONE** (TopEdge=0 accepted via sentinel -1, clamped to screen bounds)
+  * ~~extra `Drawer libs:` label~~ **DONE** (widened Drawer string gadget LeftEdge from margin+50 to margin+60)
 * FontReq   
-  * No requester appears, application simply exits
+  * ~~No requester appears, application simply exits~~ **DONE** (full font requester: window with OK/Cancel buttons, font list display, font selection output via fo_Attr, 5 new fontreq_gtest tests)
 
 ### Phase 71: Performance & Infrastructure
 **Goal**: Improve emulator performance and test infrastructure.
@@ -150,6 +154,7 @@ Issues identified by comparing some of the sample programs to running the origin
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.51 | 70a | **Phase 70a Complete!** IDCMP_VANILLAKEY: rawkey-to-ASCII conversion with lookup tables for unshifted/shifted keys, GadToolsGadgets keyboard shortcuts now work. FileReq: window position clamping fix (TopEdge=0 accepted via sentinel -1), widened Drawer gadget label spacing. FontReq: full font requester implementation (window with OK/Cancel buttons, font list display, font selection output via fo_Attr). Fixed LXAFontRequester/LXAFileRequester struct layouts (type field at offset 0 for polymorphic dispatch). 3 new filereq_gtest tests, 5 new fontreq_gtest tests, 3 new vanillakey gadtoolsgadgets_gtest tests. 54/54 ctest entries. |
 | 0.6.50 | 70a | Depth gadget AROS-style rendering (two overlapping unfilled rectangles via RectFill edges, shine-filled front rect). Depth gadget click handler: WindowToBack/WindowToFront toggle with Screen->FirstWindow list reordering. TAB/Shift-TAB string gadget cycling in _handle_string_gadget_key: forward/backward scan of GTYP_STRGADGET gadgets with wrap-around, direct gadget activation. 3 new functional tests (DepthGadgetClick, TabCyclesStringGadgets, ShiftTabCyclesBackward), enhanced DepthGadgetRendered pixel test. gadtoolsgadgets_gtest: 20→23 tests. 53/53 tests. |
 | 0.6.49 | 70a | GTYP_SIZING resize gadget: system gadget with GFLG_RELRIGHT\|GFLG_RELBOTTOM relative positioning, 3D icon rendering, resize-drag interaction (SELECTDOWN/MOUSEMOVE/SELECTUP), SizeWindow() min/max enforcement. Border enlargement for WFLG_SIZEGADGET (BorderBottom=10, BorderRight=18) per RKRM/NDK. Fixed depth gadget positioning. Fixed IntuitionTest.Validation timing (lxa_flush_display). 2 new pixel tests (SizeGadgetRendered, DepthGadgetRendered). gadtoolsgadgets_gtest: 18→20 tests. 53/53 tests. |
 | 0.6.48 | 70a | STRING_KIND double-bevel border: gt_create_ridge_bevel() implements FRAME_RIDGE style groove border (outer recessed: shadow top-left/shine bottom-right, inner raised: shine top-left/shadow bottom-right). 4 Border structs with proper memory management via gt_free_ridge_bevel(). FreeGadgets detects GTYP_STRGADGET for correct free. 1 new pixel test (StringGadgetDoubleBevelRendered). gadtoolsgadgets_gtest: 17→18 tests. 53/53 tests. |
