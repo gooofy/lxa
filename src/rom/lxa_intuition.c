@@ -2065,6 +2065,12 @@ static BOOL _point_in_gadget(struct Window *window, struct Gadget *gad, WORD rel
     return (relX >= gx0 && relX < gx1 && relY >= gy0 && relY < gy1);
 }
 
+/* Forward declarations for WindowToBack/WindowToFront (used by depth gadget handler) */
+VOID _intuition_WindowToBack(register struct IntuitionBase *IntuitionBase __asm("a6"),
+                             register struct Window *window __asm("a0"));
+VOID _intuition_WindowToFront(register struct IntuitionBase *IntuitionBase __asm("a6"),
+                              register struct Window *window __asm("a0"));
+
 /*
  * Handle system gadget action when mouse is released inside the gadget
  * This is called after RELVERIFY confirms the click
@@ -2094,12 +2100,52 @@ static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadg
             break;
         
         case GTYP_WDEPTH:
-            /* TODO: Implement WindowToBack/WindowToFront toggle */
-            DPRINTF(LOG_DEBUG, "_intuition: Depth gadget clicked - TODO: window depth change\n");
-            /* For now, post IDCMP_CHANGEWINDOW as a notification */
-            _post_idcmp_message(window, IDCMP_CHANGEWINDOW, 0, 0, window,
-                               window->MouseX, window->MouseY);
+        {
+            /* Toggle window depth: if frontmost, send to back; else bring to front.
+             * Per RKRM, clicking the depth gadget cycles the window z-order.
+             * WindowToBack/WindowToFront handle layers, rootless, and IDCMP. */
+            struct Screen *scr = window->WScreen;
+            if (scr && scr->FirstWindow == window && window->NextWindow)
+            {
+                /* Window is frontmost and there are others — send to back */
+                struct Window *last;
+
+                /* Unlink from front of list */
+                scr->FirstWindow = window->NextWindow;
+
+                /* Append to end of list */
+                for (last = scr->FirstWindow; last->NextWindow; last = last->NextWindow)
+                    ;
+                last->NextWindow = window;
+                window->NextWindow = NULL;
+
+                _intuition_WindowToBack(IntuitionBase, window);
+                DPRINTF(LOG_DEBUG, "_intuition: Depth gadget - WindowToBack()\n");
+            }
+            else if (scr)
+            {
+                /* Window is not frontmost — bring to front */
+                struct Window **wp;
+
+                /* Unlink from current position */
+                for (wp = &scr->FirstWindow; *wp; wp = &(*wp)->NextWindow)
+                {
+                    if (*wp == window)
+                    {
+                        *wp = window->NextWindow;
+                        break;
+                    }
+                }
+
+                /* Prepend to front of list */
+                window->NextWindow = scr->FirstWindow;
+                scr->FirstWindow = window;
+
+                _intuition_WindowToFront(IntuitionBase, window);
+                DPRINTF(LOG_DEBUG, "_intuition: Depth gadget - WindowToFront()\n");
+            }
             break;
+        }
         
         case GTYP_WDRAGGING:
             /* Drag bar - handled separately during mouse move */
@@ -2169,8 +2215,8 @@ static WORD   g_menu_save_h;               /* Height of saved area in pixels */
 /* Forward declarations for functions used by the input event handler */
 static void _render_window_frame(struct Window *window);
 VOID _intuition_SizeWindow(register struct IntuitionBase *IntuitionBase __asm("a6"),
-                            register struct Window *window __asm("a0"),
-                            register WORD dx __asm("d0"),
+                           register struct Window *window __asm("a0"),
+                           register WORD dx __asm("d0"),
                             register WORD dy __asm("d1"));
 
 /*
@@ -2913,6 +2959,113 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
                 needsRefresh = TRUE;
             }
             break;
+            
+        case 0x42: /* TAB - cycle to next/previous string gadget */
+        {
+            /* Per RKRM, TAB cycles forward and Shift-TAB cycles backward
+             * through the string gadgets in the window's gadget list. */
+            struct Gadget *nextStr;
+            struct Gadget *firstStr;
+            struct Gadget *lastStr;
+            struct Gadget *g;
+            BOOL forward;
+
+            forward = !(qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT));
+            nextStr = NULL;
+            firstStr = NULL;
+            lastStr = NULL;
+
+            /* Scan all string gadgets in the window list */
+            for (g = window->FirstGadget; g; g = g->NextGadget)
+            {
+                if ((g->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET && g != gad)
+                {
+                    if (!firstStr)
+                        firstStr = g;
+                    lastStr = g;
+                }
+            }
+
+            if (forward)
+            {
+                /* Find the next string gadget after the current one */
+                BOOL found_current;
+
+                found_current = FALSE;
+                for (g = window->FirstGadget; g; g = g->NextGadget)
+                {
+                    if (g == gad)
+                    {
+                        found_current = TRUE;
+                        continue;
+                    }
+                    if (found_current &&
+                        (g->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+                    {
+                        nextStr = g;
+                        break;
+                    }
+                }
+                /* Wrap around to first string gadget */
+                if (!nextStr)
+                    nextStr = firstStr;
+            }
+            else
+            {
+                /* Shift-TAB: find the previous string gadget */
+                struct Gadget *prev;
+
+                prev = NULL;
+                for (g = window->FirstGadget; g; g = g->NextGadget)
+                {
+                    if (g == gad)
+                        break;
+                    if ((g->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+                        prev = g;
+                }
+                nextStr = prev;
+                /* Wrap around to last string gadget */
+                if (!nextStr)
+                    nextStr = lastStr;
+            }
+
+            if (nextStr)
+            {
+                /* Deactivate current gadget */
+                gad->Flags &= ~GFLG_SELECTED;
+                needsRefresh = TRUE;
+
+                /* Activate the new string gadget.
+                 * Set globals directly (ActivateGadget is defined later in file). */
+                nextStr->Flags |= GFLG_SELECTED;
+                g_active_gadget = nextStr;
+                g_active_window = window;
+
+                /* Recompute NumChars and position cursor at end */
+                {
+                    struct StringInfo *nsi = (struct StringInfo *)nextStr->SpecialInfo;
+                    if (nsi && nsi->Buffer)
+                    {
+                        WORD len = 0;
+                        while (nsi->Buffer[len] != '\0' && len < nsi->MaxChars)
+                            len++;
+                        nsi->NumChars = len;
+                        nsi->BufferPos = len;
+                    }
+                }
+
+                /* Refresh both gadgets to update cursor display */
+                if (IntuitionBase)
+                {
+                    _intuition_RefreshGList(IntuitionBase, gad, window, NULL, 1);
+                    _intuition_RefreshGList(IntuitionBase, nextStr, window, NULL, 1);
+                }
+
+                DPRINTF(LOG_DEBUG, "_intuition: TAB cycling to gadget 0x%08lx\n", (ULONG)nextStr);
+                return TRUE;  /* New gadget is now active */
+            }
+            break;
+        }
             
         default:
             /* Try to convert raw key to ASCII character */
@@ -4499,23 +4652,54 @@ static void _render_window_frame(struct Window *window)
             
             case GTYP_WDEPTH:
             {
-                /* Draw overlapping rectangles (depth icon) */
-                WORD cx = (gx0 + gx1) / 2;
-                WORD cy = (gy0 + gy1) / 2;
-                /* Back rectangle */
+                /* Draw two overlapping window-outline rectangles (depth icon).
+                 * Matches AROS/AmigaOS classic look:
+                 * - Back rect (top-left) drawn in shadow pen, filled with bg pen
+                 * - Front rect (bottom-right) drawn in shadow pen, filled with shine pen
+                 * This gives the visual of two overlapping window frames. */
+                WORD il = gx0 + 1;     /* inner left (inside 3D frame) */
+                WORD it = gy0 + 1;     /* inner top */
+                WORD ir = gx1 - 1;     /* inner right */
+                WORD ib = gy1 - 1;     /* inner bottom */
+                WORD iw = ir - il + 1;
+                WORD ih = ib - it + 1;
+                WORD hs = iw / 6;      /* horizontal spacing */
+                WORD vs = ih / 6;      /* vertical spacing */
+                WORD dl, dt, dr, db, dw, dh;
+
+                /* Fill gadget interior with background */
+                SetAPen(rp, 0);  /* BACKGROUNDPEN */
+                RectFill(rp, il, it, ir, ib);
+
+                /* Apply spacing */
+                dl = il + hs;
+                dt = it + vs;
+                dw = iw - hs * 2;
+                dh = ih - vs * 2;
+                dr = dl + dw - 1;
+                db = dt + dh - 1;
+
+                /* Back rectangle (top-left): outline in shadow pen */
                 SetAPen(rp, shaPen);
-                Move(rp, cx - 3, cy + 2);
-                Draw(rp, cx - 3, cy - 2);
-                Draw(rp, cx + 1, cy - 2);
-                Draw(rp, cx + 1, cy + 2);
-                Draw(rp, cx - 3, cy + 2);
-                /* Front rectangle */
+                RectFill(rp, dl, dt, dr - dw / 3, dt);             /* top edge */
+                RectFill(rp, dl, dt, dl, db - dh / 3);             /* left edge */
+                RectFill(rp, dr - dw / 3, dt, dr - dw / 3, db - dh / 3); /* right edge */
+                RectFill(rp, dl, db - dh / 3, dr - dw / 3, db - dh / 3); /* bottom edge */
+
+                /* Front rectangle (bottom-right): outline in shadow pen */
+                SetAPen(rp, shaPen);
+                RectFill(rp, dl + dw / 3, dt + dh / 3, dr, dt + dh / 3);  /* top edge */
+                RectFill(rp, dl + dw / 3, dt + dh / 3, dl + dw / 3, db);  /* left edge */
+                RectFill(rp, dr, dt + dh / 3, dr, db);                     /* right edge */
+                RectFill(rp, dl + dw / 3, db, dr, db);                     /* bottom edge */
+
+                /* Fill front rectangle interior with shine pen */
                 SetAPen(rp, shiPen);
-                Move(rp, cx - 1, cy + 3);
-                Draw(rp, cx - 1, cy);
-                Draw(rp, cx + 3, cy);
-                Draw(rp, cx + 3, cy + 3);
-                Draw(rp, cx - 1, cy + 3);
+                if (dl + dw / 3 + 1 <= dr - 1 && dt + dh / 3 + 1 <= db - 1)
+                {
+                    RectFill(rp, dl + dw / 3 + 1, dt + dh / 3 + 1,
+                             dr - 1, db - 1);
+                }
                 break;
             }
             

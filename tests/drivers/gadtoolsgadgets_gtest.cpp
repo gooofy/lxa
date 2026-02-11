@@ -260,6 +260,98 @@ TEST_F(GadToolsGadgetsTest, ButtonResetsSlider) {
         << "Button click should reset slider. Output: " << btn_output;
 }
 
+TEST_F(GadToolsGadgetsTest, DepthGadgetClick) {
+    /* Click the depth gadget (top-right of window) and verify the window
+     * still works afterward.  With only one window, WindowToBack has no
+     * visible effect, but we verify: no crash, no hang, window still
+     * responds to the close gadget afterward.
+     * Depth gadget: rightmost 18px of title bar. */
+    int gadWidth = 18;
+    int depth_cx = window_info.x + window_info.width - gadWidth / 2;
+    int depth_cy = window_info.y + TITLE_BAR_HEIGHT / 2;
+
+    Click(depth_cx, depth_cy);
+    RunCyclesWithVBlank(20, 100000);
+
+    /* Window should still be responsive — close it */
+    ClearOutput();
+    lxa_click_close_gadget(0);
+    RunCyclesWithVBlank(20, 50000);
+    EXPECT_TRUE(lxa_wait_exit(3000))
+        << "Program should exit after close window (depth gadget did not break it)";
+    program_exited = true;
+
+    std::string close_output = GetOutput();
+    EXPECT_NE(close_output.find("IDCMP_CLOSEWINDOW"), std::string::npos)
+        << "IDCMP_CLOSEWINDOW should still be delivered after depth gadget click";
+}
+
+TEST_F(GadToolsGadgetsTest, TabCyclesStringGadgets) {
+    /* Test TAB cycling between string gadgets.
+     * Per RKRM, TAB moves focus forward to next string gadget, Shift-TAB backward.
+     * String gadget 1: at TopEdge=60 (LeftEdge=140, Width=200, Height=14)
+     * String gadget 2: at TopEdge=80
+     * String gadget 3: at TopEdge=100
+     * Initial contents: "Try pressing", "TAB or Shift-TAB", "To see what happens!" */
+
+    constexpr int RAWKEY_TAB = 0x42;
+    constexpr int IEQUALIFIER_LSHIFT = 0x0001;
+
+    /* Click on string gadget 1 to activate it */
+    int str1_x = window_info.x + 140 + 100;  /* center of 200px wide */
+    int str1_y = window_info.y + 60 + 7;     /* center of 14px tall */
+    Click(str1_x, str1_y);
+    RunCyclesWithVBlank(20, 100000);
+
+    /* Press TAB to cycle to string gadget 2 */
+    PressKey(RAWKEY_TAB, 0);
+    RunCyclesWithVBlank(10, 100000);
+
+    /* Type "XYZ" into string gadget 2, then press Return to get GADGETUP */
+    ClearOutput();
+    TypeString("XYZ\n");
+    RunCyclesWithVBlank(60, 200000);
+
+    std::string output2 = GetOutput();
+    /* The GADGETUP should report string gadget 2's contents.
+     * Original text was "TAB or Shift-TAB", cursor goes to end, so we typed "XYZ" + Return.
+     * Result: "TAB or Shift-TABXYZ" */
+    EXPECT_NE(output2.find("String gadget 2:"), std::string::npos)
+        << "TAB should cycle focus from string 1 to string 2. Output: " << output2;
+    EXPECT_NE(output2.find("XYZ"), std::string::npos)
+        << "Typed text should appear in string gadget 2. Output: " << output2;
+}
+
+TEST_F(GadToolsGadgetsTest, ShiftTabCyclesBackward) {
+    /* Test Shift-TAB cycling backward between string gadgets.
+     * Start by activating string gadget 2, then Shift-TAB should go to string gadget 1. */
+
+    constexpr int RAWKEY_TAB = 0x42;
+    constexpr int IEQUALIFIER_LSHIFT = 0x0001;
+
+    /* Click on string gadget 2 to activate it */
+    int str2_x = window_info.x + 140 + 100;
+    int str2_y = window_info.y + 80 + 7;
+    Click(str2_x, str2_y);
+    RunCyclesWithVBlank(20, 100000);
+
+    /* Press Shift-TAB to cycle backward to string gadget 1 */
+    PressKey(RAWKEY_TAB, IEQUALIFIER_LSHIFT);
+    RunCyclesWithVBlank(10, 100000);
+
+    /* Type "ABC" into string gadget 1, then press Return */
+    ClearOutput();
+    TypeString("ABC\n");
+    RunCyclesWithVBlank(60, 200000);
+
+    std::string output1 = GetOutput();
+    /* Should report string gadget 1's contents */
+    EXPECT_NE(output1.find("String gadget 1:"), std::string::npos)
+        << "Shift-TAB should cycle focus from string 2 to string 1. Output: " << output1;
+    EXPECT_NE(output1.find("ABC"), std::string::npos)
+        << "Typed text should appear in string gadget 1. Output: " << output1;
+}
+
 // ============================================================================
 // Pixel Tests - verify bevel borders and text labels are rendered
 // ============================================================================
@@ -697,11 +789,11 @@ TEST_F(GadToolsGadgetsPixelTest, SizeGadgetRendered) {
 
 TEST_F(GadToolsGadgetsPixelTest, DepthGadgetRendered) {
     /* The depth gadget is in the top-right corner of the window title bar.
-     * It should show overlapping rectangles icon.
+     * It should show two overlapping window-outline rectangles (AROS style):
+     * - Back rectangle (top-left): outline in shadow pen (pen 1)
+     * - Front rectangle (bottom-right): outline in shadow pen, filled with shine pen (pen 2)
+     * - Background (pen 0) fills the rest of the gadget interior
      * Gadget position: rightX = Width - gadWidth (at far right of title bar)
-     *
-     * The gadget area should contain both shine (pen 2) and shadow (pen 1) pixels
-     * forming the overlapping rectangles depth icon.
      */
     int gadWidth = 18;
     int gadHeight = TITLE_BAR_HEIGHT - 1;  /* 10 */
@@ -710,27 +802,31 @@ TEST_F(GadToolsGadgetsPixelTest, DepthGadgetRendered) {
     int depth_left = window_info.x + window_info.width - gadWidth;
     int depth_top = window_info.y;
 
-    /* Count shadow pixels (pen 1) in the depth gadget interior - these form the back rectangle */
+    /* Count shadow pixels (pen 1) in the depth gadget interior.
+     * Both the back and front rectangle outlines are drawn in shadow pen,
+     * so there should be a significant number. */
     int shadow_count = 0;
+    int shine_count = 0;
+    int bg_count = 0;
     for (int x = depth_left + 2; x < depth_left + gadWidth - 1; x++) {
         for (int y = depth_top + 2; y < depth_top + gadHeight - 1; y++) {
             int pen = ReadPixel(x, y);
             if (pen == PEN_BLACK) shadow_count++;
+            else if (pen == PEN_WHITE) shine_count++;
+            else if (pen == 0) bg_count++;
         }
     }
-    EXPECT_GT(shadow_count, 0)
-        << "Depth gadget should have shadow (pen 1) pixels for back rectangle";
+    /* Shadow pixels form rectangle outlines - expect multiple edges worth */
+    EXPECT_GT(shadow_count, 8)
+        << "Depth gadget should have shadow (pen 1) pixels for rectangle outlines";
 
-    /* Count shine pixels (pen 2) in the depth gadget interior - these form the front rectangle */
-    int shine_count = 0;
-    for (int x = depth_left + 2; x < depth_left + gadWidth - 1; x++) {
-        for (int y = depth_top + 2; y < depth_top + gadHeight - 1; y++) {
-            int pen = ReadPixel(x, y);
-            if (pen == PEN_WHITE) shine_count++;
-        }
-    }
-    EXPECT_GT(shine_count, 0)
-        << "Depth gadget should have shine (pen 2) pixels for front rectangle";
+    /* Shine pixels fill the front rectangle interior */
+    EXPECT_GT(shine_count, 2)
+        << "Depth gadget should have shine (pen 2) pixels for front rectangle fill";
+
+    /* Background pixels fill the back rectangle interior and margins */
+    EXPECT_GT(bg_count, 2)
+        << "Depth gadget should have background (pen 0) pixels in margins/back rect";
 }
 
 int main(int argc, char **argv) {
