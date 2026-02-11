@@ -37,10 +37,7 @@ TEST_F(GraphicsTest, AllocRaster) { RunGraphicsTest("AllocRaster"); }
 TEST_F(GraphicsTest, AreaEllipse) { RunGraphicsTest("AreaEllipse"); }
 TEST_F(GraphicsTest, BltBitMap) { RunGraphicsTest("BltBitMap"); }
 TEST_F(GraphicsTest, BltPattern) { RunGraphicsTest("BltPattern"); }
-// DISABLED: ClipBlit crashes (PC=0x00000000) during layer cleanup in test 2.
-// Known bug: SetRast() or DeleteLayer() corrupts stack when called on a
-// layer-backed RastPort after ClipBlit. Filed for future investigation.
-TEST_F(GraphicsTest, DISABLED_ClipBlit) { RunGraphicsTest("ClipBlit"); }
+TEST_F(GraphicsTest, ClipBlit) { RunGraphicsTest("ClipBlit"); }
 TEST_F(GraphicsTest, DrawEllipse) { RunGraphicsTest("DrawEllipse"); }
 TEST_F(GraphicsTest, InitBitMap) { RunGraphicsTest("InitBitMap"); }
 TEST_F(GraphicsTest, InitRastPort) { RunGraphicsTest("InitRastPort"); }

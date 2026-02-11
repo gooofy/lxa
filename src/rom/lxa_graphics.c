@@ -3596,13 +3596,15 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
         return;
     }
 
-    /* Handle layer locking if needed */
-    if (srcRP->Layer)
-        _graphics_LockLayerRom(GfxBase, srcRP->Layer);
-    if (destRP->Layer && destRP->Layer != srcRP->Layer)
-        _graphics_LockLayerRom(GfxBase, destRP->Layer);
+    /* NOTE: Do NOT call _graphics_LockLayerRom/_graphics_UnlockLayerRom
+     * directly from here.  Those functions take the layer pointer in A5
+     * (per AmigaOS ABI), but GCC uses A5 as the frame pointer.  A direct
+     * call clobbers the frame pointer and corrupts the stack, causing an
+     * RTS to address 0.  Since layer locking is currently a no-op in lxa,
+     * we simply skip the calls.  If real layer locking is ever needed,
+     * use the library-vector LockLayerRom() macro (which goes through
+     * EMU_CALL and properly saves/restores registers). */
 
-    /* Simple implementation: just blit from source BitMap to dest BitMap */
     /* Adjust coordinates for layers if present */
     if (srcRP->Layer)
     {
@@ -3619,12 +3621,6 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
     _graphics_BltBitMap(GfxBase, srcRP->BitMap, xSrc, ySrc,
                         destRP->BitMap, xDest, yDest,
                         xSize, ySize, minterm, 0xFF, NULL);
-
-    /* Unlock layers */
-    if (destRP->Layer && destRP->Layer != srcRP->Layer)
-        _graphics_UnlockLayerRom(GfxBase, destRP->Layer);
-    if (srcRP->Layer)
-        _graphics_UnlockLayerRom(GfxBase, srcRP->Layer);
 }
 
 /*

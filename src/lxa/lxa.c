@@ -122,6 +122,14 @@ static bool     g_stepping                      = FALSE;
 static uint32_t g_next_pc                       = 0;
 static int      g_trace_buf[TRACE_BUF_ENTRIES];
 static int      g_trace_buf_idx                 = 0;
+
+/*
+ * g_debug_active: fast-path gate for cpu_instr_callback().
+ * When FALSE, the callback only checks for PC=0 (safety net).
+ * When TRUE, full debugging (trace buffer, breakpoints, tracing, stepping).
+ * Updated by _update_debug_active() whenever debug state changes.
+ */
+static bool     g_debug_active                  = FALSE;
 bool     g_running                       = TRUE;
 char    *g_loadfile                      = NULL;
 
@@ -948,8 +956,43 @@ static void print68kstate(int lvl)
                   a0, a1, a2, a3, a4, a5, a6, a7, usp, isp, msp);
 }
 
+/*
+ * _update_debug_active() - recalculate the g_debug_active fast-path flag.
+ * Must be called whenever g_trace, g_stepping, g_next_pc, or
+ * g_num_breakpoints changes.
+ */
+static void _update_debug_active(void)
+{
+    g_debug_active = g_trace || g_stepping || g_next_pc || g_num_breakpoints > 0;
+}
+
+/*
+ * cpu_instr_callback() - called by Musashi before every M68K instruction.
+ *
+ * Performance-critical: when no debugging is active (g_debug_active==FALSE),
+ * this reduces to a single branch + PC safety check.  The trace buffer,
+ * breakpoint scanning, and full tracing are only performed when debugging
+ * is explicitly enabled.
+ */
 void cpu_instr_callback(int pc)
 {
+    /* Always record PC in trace buffer for post-mortem debugging */
+    g_trace_buf[g_trace_buf_idx] = pc;
+    g_trace_buf_idx = (g_trace_buf_idx+1) % TRACE_BUF_ENTRIES;
+
+    /* Fast path: no debugging active — just check for PC=0 crash */
+    if (__builtin_expect(!g_debug_active, 1))
+    {
+        if (__builtin_expect(pc < 0x100, 0))
+        {
+            CPRINTF("*** WARNING: PC=0x%08x - invalid address!\n", pc);
+            _debug(pc);
+        }
+        return;
+    }
+
+    /* Slow path: full debugging active */
+
     g_trace_buf[g_trace_buf_idx] = pc;
     g_trace_buf_idx = (g_trace_buf_idx+1) % TRACE_BUF_ENTRIES;
 
@@ -979,6 +1022,7 @@ void cpu_instr_callback(int pc)
         if (g_next_pc == pc)
         {
             g_next_pc = 0;
+            _update_debug_active();
             _debug(pc);
         }
         else
@@ -2986,7 +3030,10 @@ static int _dos_waitforchar(uint32_t fh68k, uint32_t timeout_us)
 static void _debug_add_bp (uint32_t addr)
 {
     if (g_num_breakpoints < MAX_BREAKPOINTS)
+    {
         g_breakpoints[g_num_breakpoints++] = addr;
+        _update_debug_active();
+    }
 }
 
 static bool _debug_toggle_bp (uint32_t addr)
@@ -2998,6 +3045,7 @@ static bool _debug_toggle_bp (uint32_t addr)
             for (int j=i; j<g_num_breakpoints-1; j++)
                 g_breakpoints[j] = g_breakpoints[j+1];
             g_num_breakpoints--;
+            _update_debug_active();
 
             return false;
         }
@@ -3210,6 +3258,7 @@ int op_illg(int level)
 
         case EMU_CALL_TRACE:
             g_trace = m68k_get_reg(NULL, M68K_REG_D1);
+            _update_debug_active();
             DPRINTF (LOG_DEBUG, "set emulator tracing to %d\n", g_trace);
             break;
 
@@ -5909,10 +5958,12 @@ static void _debug(uint32_t pcFinal)
             case 'c':
                 in_debug = FALSE;
                 g_stepping = FALSE;
+                _update_debug_active();
                 return;
             case 's':
                 in_debug = FALSE;
                 g_stepping = TRUE;
+                _update_debug_active();
                 return;
             case 'n':
             {
@@ -5921,6 +5972,7 @@ static void _debug(uint32_t pcFinal)
                 g_stepping = FALSE;
                 uint32_t instr_size = m68k_disassemble(buff, pcFinal, M68K_CPU_TYPE_68030);
                 g_next_pc = pcFinal+instr_size;
+                _update_debug_active();
                 return;
             }
             case 'b':
@@ -6149,6 +6201,7 @@ int main(int argc, char **argv, char **envp)
                 break;
             case 't':
                 g_trace = true;
+                _update_debug_active();
                 break;
             default:
                 print_usage(argv);

@@ -8,32 +8,14 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.51** | **Phase 70a Complete** | **54/54 Tests Passing (1 pre-existing devpac_test failure)**
+**Version: 0.6.52** | **Phase 71 In Progress** | **54/54 Tests Passing (1 pre-existing devpac_test failure)**
 
-Phase 70a complete: all issues identified by comparing RKM sample programs to running originals on a real Amiga have been fixed. Test-driven approach: each issue reproduced as a test first, then fixed.
+Phase 71: Performance & Infrastructure improvements.
 
 **Current Status**:
 - 54/54 ctest entries (53 passing, 1 pre-existing devpac_test divide-by-zero failure)
-- IDCMP_VANILLAKEY: rawkey-to-ASCII conversion in Intuition key dispatch, lookup tables for unshifted/shifted keys
-- FileReq: Window position clamping fix (TopEdge=0 accepted via sentinel -1), widened Drawer gadget label spacing
-- FontReq: Full font requester implementation (window, OK/Cancel buttons, font list, font selection output)
-- 23 gadtoolsgadgets_gtest tests: 12 functional + 11 pixel
-- GTYP_SIZING resize gadget: Created sizing system gadget with GFLG_RELRIGHT|GFLG_RELBOTTOM positioning, 3D icon rendering (center box + diagonal indicator), resize-drag logic (SELECTDOWN start, MOUSEMOVE delta, SELECTUP stop), SizeWindow() with min/max enforcement. Border enlargement for WFLG_SIZEGADGET (BorderBottom=10, BorderRight=18) per RKRM/NDK, respecting WFLG_SIZEBBOTTOM/WFLG_SIZEBRIGHT flags. Fixed depth gadget positioning to use window edge (not border edge). 2 new pixel tests (SizeGadgetRendered, DepthGadgetRendered). Fixed IntuitionTest.Validation timing (wait for content rendered before pixel check).
-- STRING_KIND double-bevel border: Implemented `gt_create_ridge_bevel()` for FRAME_RIDGE style groove border (outer recessed + inner raised, 4 Border structs). `gt_free_ridge_bevel()` for proper memory cleanup. 1 new pixel test (StringGadgetDoubleBevelRendered).
-- GT_Underscore: Keyboard shortcut indicator rendering — underscore prefix stripped from labels, underline drawn under shortcut character via NextText IntuiText chain. _render_gadget() fixed to walk IntuiText NextText chain.
-- SLIDER_KIND: Full prop gadget implementation — knob rendering (raised bevel), mouse click/drag interaction, IDCMP_MOUSEMOVE/GADGETUP with level as Code, GT_SetGadgetAttrs(GTSL_Level)
-- MenuLayout: NEW sample ported from RKM (menulayout_gtest: 8 tests — 6 functional + 2 pixel)
-- EasyRequest: FIXED (full BuildEasyRequestArgs implementation — formatted body/gadget text, 3D bevel buttons, centered layout, SysReqHandler event loop, FreeSysRequest cleanup; 7 new tests: 4 behavioral + 3 pixel)
-- SimpleImage: FIXED (rewrote sample to match RKM — 2 images at correct positions, Delay before exit, no extra gadgets/title)
-- IntuiText: FIXED (full-screen window, no title bar, correct text, OpenWindowTagList defaults)
-- SimpleGad GADGHCOMP button click highlight: FIXED (complement XOR on mouse-down, restore on mouse-up)
-- SimpleGTGadget: FIXED (ClickButton/ClickCheckbox/ClickCycle — corrected gadget positions from TopEdge=32 to 40, added ClickCheckbox test, checkbox bevel border pixel test)
-- GadToolsGadgets: FIXED (ButtonClick/ButtonBevelBorder/StringGadgetBevelBorder — corrected topborder from 12 to 20, all 16 tests passing)
-- SimpleMenu: FIXED (save-behind buffer for menu drop-down cleanup, IRQ3 debug output silenced; 2 new pixel tests: MenuDropdownClearedAfterSelection, ScreenTitleBarRestoredAfterMenu; simplemenu_gtest: 3→5 tests)
-- FillRectDirect optimized: byte-at-a-time instead of pixel-at-a-time (~8x speedup)
-- INTENA re-enable fix: when INTENA master/VBlank enabled via set operation, arm pending VBlank IRQ
-- Menu selection encoding: _encode_menu_selection always encodes subNum bits 11-15
-- Known bug: ClipBlit crashes (PC=0x00000000) during layer cleanup — test disabled, filed for Phase 71
+- **cpu_instr_callback ~80x speedup**: Added `g_debug_active` fast-path flag — when no debugging is active, the per-instruction callback only writes the trace buffer and checks PC < 0x100 safety net (skips breakpoint scanning, tracing, stepping). `dpaint_gtest` went from ~25s to 0.47s.
+- **ClipBlit crash fixed**: Root cause was GCC using A5 as frame pointer while `LockLayerRom`/`UnlockLayerRom` ABI requires layer pointer in A5 — direct calls from ClipBlit clobbered the stack frame, causing `rts` to address 0. Fix: removed no-op Lock/Unlock direct calls from ClipBlit (they're no-ops in lxa). ClipBlit test re-enabled and passing.
 
 ---
 
@@ -65,7 +47,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - ✅ **Phases 1-62**: Core Exec, DOS, Graphics, Intuition, and Application support implementation.
 - ✅ **Phase 63**: **Google Test & liblxa Transition** - Successfully migrated the core test suite to Google Test and integrated host-side drivers for major applications (ASM-One, Devpac, KickPascal, MaxonBASIC, Cluster2, DPaint V). Replaced legacy `test_inject.h` with robust, automated verification using `liblxa`.
 
-### Test Suite Stabilization & Hardening (Phases 64-70)
+### Test Suite Stabilization & Hardening (Phases 64-70a)
 - ✅ **Phase 64**: Fixed standalone test drivers (updatestrgad_test, simplegtgadget_test) with interactive input/output matching.
 - ✅ **Phase 65**: Fixed RawKey & input handling — IDCMP RAWKEY events now correctly delivered in GTest environment.
 - ✅ **Phase 66**: Fixed Intuition & Console regressions — console.device timing, InputConsole/InputInject wait-for-marker logic, ConsoleAdvanced output.
@@ -73,67 +55,18 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - ✅ **Phase 68**: Rewrote `Delay()` to use `timer.device` (UNIT_MICROHZ) instead of busy-yield loop. Optimized stress test parameters for reliable CI execution. Fixed ExecTest.Multitask timing.
 - ✅ **Phase 69**: Fixed apps_misc_gtest — restructured DirectoryOpus test to handle missing dopus.library gracefully, converted KickPascal2 to load-only test (interactive testing via kickpascal_gtest), fixed SysInfo background-process timeout handling. All 3 app tests now pass.
 - ✅ **Phase 70**: **Test Suite Hardening & Expansion** — GadTools visual rendering (bevel borders, text labels, 13 pixel/functional tests), palette pipeline fix (SetRGB4/LoadRGB4/SetRGB32/SetRGB32CM/LoadRGB32), string gadget rawkey/input fixes, rewrote 3 RKM samples, added 3 graphics clipping tests + 10 DOS VFS corner-case tests. DOS: 14→24, Graphics: 14→17. 49/49 ctest entries.
+- ✅ **Phase 70a**: **Fix Issues Identified by Manual Tests** — All issues found by comparing RKM sample programs to running originals on a real Amiga have been fixed. GadToolsGadgets (underscore labels, slider, resize/depth/close gadgets, double-bevel borders, TAB cycling), SimpleGTGadget, SimpleGad, UpdateStrGad, IntuiText, SimpleImage, EasyRequest, SimpleMenu, MenuLayout, FileReq, FontReq. 54/54 ctest entries.
 
 ---
 
 ## Next Steps
 
-### Phase 70a: Fix Issues Identified by Manual Tests
-
-Issues identified by comparing some of the sample programs to running the original RKM samples on a real Amiga.
-
-**IMPORTANT**: Test-driven approach is **mandatory** when fixing these:
-  * Make sure to reproduce each one of them first as part of the integration test.
-  * Once the issue is reproducible, fix it and verify the fix by re-running the test.
-
-* GadToolsGadgets
-  * ~~`_` keyboard shortcut indicator not rendered correctly~~ **DONE** (GT_Underscore tag parsed, gt_strip_underscore() strips prefix, underline IntuiText via NextText chain, _render_gadget() walks NextText; 1 new pixel test)
-  * ~~Volume slider knob not visible after startup~~ **DONE** (PropInfo with AUTOKNOB|FREEHORIZ|PROPNEWLOOK, knob rendering with raised bevel)
-  * ~~Initial volume value (5) not visible~~ **DONE** (HorizPot computed from GTSL_Level, knob positioned correctly)
-  * ~~Text entry widgets have wrong border style~~ **DONE** (gt_create_ridge_bevel() implements FRAME_RIDGE style double-bevel: outer recessed + inner raised, matching real Amiga; 1 new pixel test)
-  * ~~Window lacks resize gadget~~ **DONE** (GTYP_SIZING system gadget: GFLG_RELRIGHT|GFLG_RELBOTTOM, 3D icon, resize-drag, border enlargement per RKRM/NDK; 2 new pixel tests)
-  * ~~Window is not draggable~~ **DONE** (was already working via WA_DragBar)
-  * ~~Window has distorted depth gadget~~ **DONE** (AROS-style depth gadget rendering: two overlapping unfilled rectangles with RectFill edges, shine-filled front rect; click handler toggles WindowToBack/WindowToFront with proper Screen->FirstWindow list reordering; 1 new functional test DepthGadgetClick, enhanced DepthGadgetRendered pixel test)
-  * ~~Window lacks minimize gadget~~ **N/A** (RKM sample does not use WA_Zoom — confirmed against original source)
-  * ~~TAB/Shift-TAB doesn't do anything~~ **DONE** (TAB key handler in _handle_string_gadget_key: scans window gadget list for GTYP_STRGADGET, forward/backward cycling with wrap-around, direct gadget activation with cursor-at-end positioning; 2 new functional tests TabCyclesStringGadgets, ShiftTabCyclesBackward)
-  * ~~Volume slider does not react to mouse clicks~~ **DONE** (full prop gadget mouse interaction: click-on-knob drag, click-outside-knob jump, MOUSEMOVE with level, GADGETUP with level, GT_SetGadgetAttrs GTSL_Level)
-  * ~~Window close gadget does not work~~ **DONE** (was already working via IDCMP_CLOSEWINDOW)
-* SimpleGTGadget
-  * ~~Button does not react to mouse clicks~~ **DONE** (test timing/coordinates fixed)
-  * ~~Checkbox invisible~~ **DONE** (added bevel border for CHECKBOX_KIND, pixel test)
-  * ~~Gadget labels extend beyond left window border~~ **DONE** (increased ng_LeftEdge for PLACETEXT_LEFT gadgets)
-  * ~~Close gadget does not work~~ **DONE** (was already working, verified by test)
-* SimpleGad
-  * ~~Button does not react to mouse clicks~~ **DONE** (GADGHCOMP complement highlight, FillRectDirect optimization)
-* UpdateStrGad
-  * ~~Application does not react to mouse clicks~~ **DONE** (click-to-activate string gadget working, TypeIntoGadget test passes)
-* IntuiText
-  * ~~Window is not full-screen~~ **DONE** (OpenWindowTagList defaults to full-screen when no WA_Width/WA_Height)
-  * ~~Window has wrong broder type~~ **DONE** (removed WA_Title/WA_Flags, thin border BorderTop=2)
-  * ~~`Hello World ;)` text collides with window border~~ **DONE** (text at correct position, no collision)
-* SimpleImage
-  * ~~Shows 3 images instead of 2~~ **DONE** (removed third DrawImage, corrected positions to (10,10)/(100,10))
-  * ~~Closes way too quickly~~ **DONE** (added Delay(100) before CloseWindow)
-* EasyRequest
-  * ~~No requester is displayed, application outputs a bunch of text on the console and then simply exits~~ **DONE** (full BuildEasyRequestArgs/SysReqHandler/FreeSysRequest, formatted text, 3D buttons, 7 tests)
-* simplemenu
-  * ~~Lots of `_handleIRQ3() called` debug output obscures view of actual application output~~ **DONE** (DPUTS macros commented out in exceptions.s)
-  * ~~Menus stay on screen even after a menu item is selected~~ **DONE** (save-behind buffer: save screen bitmap before menu drop-down, restore on close/switch)
-* menulayout
-  * ~~Sample is missing: important sample, please port 1:1 from RKM!~~ **DONE** (ported from RKM, menulayout_gtest: 8 tests)
-* FileReq
-  * ~~Window placed too low - bottom off screen~~ **DONE** (TopEdge=0 accepted via sentinel -1, clamped to screen bounds)
-  * ~~extra `Drawer libs:` label~~ **DONE** (widened Drawer string gadget LeftEdge from margin+50 to margin+60)
-* FontReq   
-  * ~~No requester appears, application simply exits~~ **DONE** (full font requester: window with OK/Cancel buttons, font list display, font selection output via fo_Attr, 5 new fontreq_gtest tests)
-
 ### Phase 71: Performance & Infrastructure
 **Goal**: Improve emulator performance and test infrastructure.
-**TODO**:
-- [ ] Fix ClipBlit layer cleanup crash (PC=0x00000000 in DeleteLayer/SetRast after ClipBlit with layer-backed RastPort) — test disabled in graphics_gtest
-- [ ] Investigate per-instruction callback overhead (`M68K_INSTRUCTION_CALLBACK` in `m68kconf.h`) — causes 5-10x slowdown for CPU-intensive tests
-- [ ] Consider conditional callback enabling (only when debugger/breakpoints active)
-- [ ] Optimize `dpaint_test` runtime (~25s is the slowest test)
+**STATUS**: In progress.
+- [x] Fix ClipBlit layer cleanup crash — root cause: direct call to `LockLayerRom`/`UnlockLayerRom` from ClipBlit clobbers A5 frame pointer (AmigaOS ABI uses A5 for layer parameter). Fix: removed no-op direct calls. ClipBlit test re-enabled.
+- [x] Optimize per-instruction callback (`cpu_instr_callback`) — added `g_debug_active` fast-path flag. When no debugging active, callback only writes trace buffer + PC safety check. ~80x speedup (dpaint_gtest: 25s → 0.47s).
+- [ ] Optimize `dpaint_test` legacy C driver runtime (~25s due to DPaint's genuine initialization time, not callback overhead)
 
 ### Phase 72: Application Compatibility
 **Goal**: Deeper application testing and compatibility improvements.
@@ -154,6 +87,7 @@ Issues identified by comparing some of the sample programs to running the origin
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.52 | 71 | **Performance & ClipBlit fix!** `cpu_instr_callback` ~80x speedup via `g_debug_active` fast-path flag (skips breakpoint scanning/tracing when no debugging active; `dpaint_gtest`: 25s → 0.47s). Fixed ClipBlit crash (PC=0 on `rts`): root cause was direct call to `LockLayerRom`/`UnlockLayerRom` clobbering A5 frame pointer (AmigaOS ABI uses A5 for layer parameter, conflicting with GCC frame pointer). Removed no-op direct calls, ClipBlit test re-enabled. 54/54 ctest entries. |
 | 0.6.51 | 70a | **Phase 70a Complete!** IDCMP_VANILLAKEY: rawkey-to-ASCII conversion with lookup tables for unshifted/shifted keys, GadToolsGadgets keyboard shortcuts now work. FileReq: window position clamping fix (TopEdge=0 accepted via sentinel -1), widened Drawer gadget label spacing. FontReq: full font requester implementation (window with OK/Cancel buttons, font list display, font selection output via fo_Attr). Fixed LXAFontRequester/LXAFileRequester struct layouts (type field at offset 0 for polymorphic dispatch). 3 new filereq_gtest tests, 5 new fontreq_gtest tests, 3 new vanillakey gadtoolsgadgets_gtest tests. 54/54 ctest entries. |
 | 0.6.50 | 70a | Depth gadget AROS-style rendering (two overlapping unfilled rectangles via RectFill edges, shine-filled front rect). Depth gadget click handler: WindowToBack/WindowToFront toggle with Screen->FirstWindow list reordering. TAB/Shift-TAB string gadget cycling in _handle_string_gadget_key: forward/backward scan of GTYP_STRGADGET gadgets with wrap-around, direct gadget activation. 3 new functional tests (DepthGadgetClick, TabCyclesStringGadgets, ShiftTabCyclesBackward), enhanced DepthGadgetRendered pixel test. gadtoolsgadgets_gtest: 20→23 tests. 53/53 tests. |
 | 0.6.49 | 70a | GTYP_SIZING resize gadget: system gadget with GFLG_RELRIGHT\|GFLG_RELBOTTOM relative positioning, 3D icon rendering, resize-drag interaction (SELECTDOWN/MOUSEMOVE/SELECTUP), SizeWindow() min/max enforcement. Border enlargement for WFLG_SIZEGADGET (BorderBottom=10, BorderRight=18) per RKRM/NDK. Fixed depth gadget positioning. Fixed IntuitionTest.Validation timing (lxa_flush_display). 2 new pixel tests (SizeGadgetRendered, DepthGadgetRendered). gadtoolsgadgets_gtest: 18→20 tests. 53/53 tests. |
