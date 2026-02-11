@@ -2146,6 +2146,15 @@ static WORD g_drag_start_y;                 /* Mouse Y when drag started */
 static WORD g_drag_window_x;                /* Window X when drag started */
 static WORD g_drag_window_y;                /* Window Y when drag started */
 
+/* State for window resizing via sizing gadget
+ * Note: These MUST NOT have initializers - .bss goes to RAM. */
+static BOOL g_sizing_window;                /* TRUE when sizing a window */
+static struct Window *g_size_window;        /* Window being resized */
+static WORD g_size_start_x;                 /* Mouse X when sizing started */
+static WORD g_size_start_y;                 /* Mouse Y when sizing started */
+static WORD g_size_orig_w;                  /* Window width when sizing started */
+static WORD g_size_orig_h;                  /* Window height when sizing started */
+
 /* Menu drop-down save-behind buffer.
  * When a menu drop-down is rendered, the screen area beneath it is saved here
  * so it can be restored when the menu closes or switches to a different menu.
@@ -2156,6 +2165,13 @@ static WORD   g_menu_save_x;               /* Left edge of saved area */
 static WORD   g_menu_save_y;               /* Top edge of saved area */
 static WORD   g_menu_save_w;               /* Width of saved area in pixels */
 static WORD   g_menu_save_h;               /* Height of saved area in pixels */
+
+/* Forward declarations for functions used by the input event handler */
+static void _render_window_frame(struct Window *window);
+VOID _intuition_SizeWindow(register struct IntuitionBase *IntuitionBase __asm("a6"),
+                            register struct Window *window __asm("a0"),
+                            register WORD dx __asm("d0"),
+                            register WORD dy __asm("d1"));
 
 /*
  * Initialize StringInfo fields for string gadgets in a gadget list.
@@ -3174,6 +3190,20 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             /* Set gadget as selected */
                             gad->Flags |= GFLG_SELECTED;
                             
+                            /* For sizing system gadget, start resize drag immediately */
+                            if ((gad->GadgetType & GTYP_SYSGADGET) &&
+                                (gad->GadgetType & GTYP_SYSTYPEMASK) == GTYP_SIZING)
+                            {
+                                DPRINTF(LOG_DEBUG, "_intuition: Starting window resize: window=0x%08lx size=(%d,%d)\n",
+                                        (ULONG)window, window->Width, window->Height);
+                                g_sizing_window = TRUE;
+                                g_size_window = window;
+                                g_size_start_x = mouseX;
+                                g_size_start_y = mouseY;
+                                g_size_orig_w = window->Width;
+                                g_size_orig_h = window->Height;
+                            }
+                            
                             /* For string gadgets, position cursor at end of text on click */
                             if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
                             {
@@ -3397,6 +3427,16 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             g_dragging_window = FALSE;
                             g_drag_window = NULL;
                         }
+                        
+                        /* Stop window sizing on mouse up */
+                        if (g_sizing_window)
+                        {
+                            DPRINTF(LOG_DEBUG, "_intuition: Stopping window resize: final size=(%d,%d)\n",
+                                    g_size_window ? g_size_window->Width : 0,
+                                    g_size_window ? g_size_window->Height : 0);
+                            g_sizing_window = FALSE;
+                            g_size_window = NULL;
+                        }
                     }
                     /* Right mouse button press - enter menu mode */
                     else if (code == MENUDOWN)
@@ -3559,6 +3599,31 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                         
                         /* Use MoveWindow for proper layer handling */
                         _intuition_MoveWindow(IntuitionBase, g_drag_window, move_dx, move_dy);
+                    }
+                }
+                
+                /* Handle window sizing */
+                if (g_sizing_window && g_size_window)
+                {
+                    /* Calculate new window size based on mouse delta from start */
+                    WORD dx = mouseX - g_size_start_x;
+                    WORD dy = mouseY - g_size_start_y;
+                    WORD newW = g_size_orig_w + dx;
+                    WORD newH = g_size_orig_h + dy;
+                    
+                    /* SizeWindow will enforce min/max limits */
+                    WORD size_dx = newW - g_size_window->Width;
+                    WORD size_dy = newH - g_size_window->Height;
+                    
+                    if (size_dx != 0 || size_dy != 0)
+                    {
+                        DPRINTF(LOG_DEBUG, "_intuition: Sizing window: delta=(%d,%d) target=(%d,%d)\n",
+                                size_dx, size_dy, newW, newH);
+                        
+                        _intuition_SizeWindow(IntuitionBase, g_size_window, size_dx, size_dy);
+                        
+                        /* Re-render the window frame after resize */
+                        _render_window_frame(g_size_window);
                     }
                 }
                 
@@ -4223,7 +4288,9 @@ static void _create_window_sys_gadgets(struct Window *window)
     struct Gadget **lastPtr = &window->FirstGadget;
     WORD gadWidth = SYS_GADGET_WIDTH;
     WORD gadHeight = window->BorderTop > 0 ? window->BorderTop - 1 : SYS_GADGET_HEIGHT;
-    WORD rightX = window->Width - window->BorderRight - gadWidth;
+    /* Title bar system gadgets (close, depth, zoom) are positioned relative to the
+     * window edges, not the border area. The depth gadget goes at the far right. */
+    WORD rightX = window->Width - gadWidth;
     
     /* Skip to end of existing gadget list */
     while (*lastPtr)
@@ -4257,6 +4324,37 @@ static void _create_window_sys_gadgets(struct Window *window)
             DPRINTF(LOG_DEBUG, "_intuition: Created DEPTH gadget at (%d,%d) %dx%d\n",
                     (int)gad->LeftEdge, (int)gad->TopEdge, (int)gad->Width, (int)gad->Height);
             rightX -= gadWidth;  /* Next gadget goes to the left */
+        }
+    }
+    
+    /* Create Sizing gadget (bottom-right) if requested.
+     * Per RKRM/NDK, the sizing gadget uses GFLG_RELRIGHT | GFLG_RELBOTTOM
+     * so it tracks the window's bottom-right corner as the window is resized.
+     * LeftEdge and TopEdge are negative offsets from the corner.
+     * Activation uses GACT_RIGHTBORDER | GACT_BOTTOMBORDER (not TOPBORDER). */
+    if (window->Flags & WFLG_SIZEGADGET)
+    {
+        gad = (struct Gadget *)AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
+        if (gad)
+        {
+            gad->LeftEdge = -(gadWidth - 1);     /* Offset from right edge */
+            gad->TopEdge = -(SYS_GADGET_HEIGHT - 1);  /* Offset from bottom edge */
+            gad->Width = gadWidth;
+            gad->Height = SYS_GADGET_HEIGHT;
+            gad->Flags = GFLG_GADGHCOMP | GFLG_RELRIGHT | GFLG_RELBOTTOM;
+            gad->Activation = GACT_RELVERIFY | GACT_RIGHTBORDER | GACT_BOTTOMBORDER;
+            gad->GadgetType = GTYP_SYSGADGET | GTYP_SIZING | GTYP_BOOLGADGET;
+            gad->GadgetRender = NULL;
+            gad->SelectRender = NULL;
+            gad->GadgetText = NULL;
+            gad->SpecialInfo = NULL;
+            gad->GadgetID = GTYP_SIZING;
+            gad->UserData = (APTR)window;
+
+            *lastPtr = gad;
+            lastPtr = &gad->NextGadget;
+            DPRINTF(LOG_DEBUG, "_intuition: Created SIZING gadget at (%d,%d) %dx%d (relative)\n",
+                    (int)gad->LeftEdge, (int)gad->TopEdge, (int)gad->Width, (int)gad->Height);
         }
     }
     
@@ -4363,6 +4461,14 @@ static void _render_window_frame(struct Window *window)
         sysType = gad->GadgetType & GTYP_SYSTYPEMASK;
         gx0 = gad->LeftEdge;
         gy0 = gad->TopEdge;
+        
+        /* Handle GFLG_RELRIGHT / GFLG_RELBOTTOM for system gadgets
+         * (e.g. the sizing gadget uses relative positioning) */
+        if (gad->Flags & GFLG_RELRIGHT)
+            gx0 += window->Width - 1;
+        if (gad->Flags & GFLG_RELBOTTOM)
+            gy0 += window->Height - 1;
+        
         gx1 = gx0 + gad->Width - 1;
         gy1 = gy0 + gad->Height - 1;
         
@@ -4416,6 +4522,30 @@ static void _render_window_frame(struct Window *window)
             case GTYP_WDRAGGING:
                 /* Drag gadget has no special imagery - just the frame */
                 break;
+            
+            case GTYP_SIZING:
+            {
+                /* Draw sizing icon: small nested L-shapes in bottom-right corner.
+                 * Classic Amiga style: two right-angle marks suggesting resize.
+                 * Use 3D lines: shine on top-left, shadow on bottom-right. */
+                WORD cx = (gx0 + gx1) / 2;
+                WORD cy = (gy0 + gy1) / 2;
+                
+                /* Draw a small 3D box in the center (like a window thumbnail) */
+                SetAPen(rp, shiPen);
+                Move(rp, cx - 2, cy + 2);
+                Draw(rp, cx - 2, cy - 2);
+                Draw(rp, cx + 2, cy - 2);
+                SetAPen(rp, shaPen);
+                Draw(rp, cx + 2, cy + 2);
+                Draw(rp, cx - 2, cy + 2);
+                
+                /* Draw a diagonal indicator */
+                SetAPen(rp, shaPen);
+                Move(rp, gx1 - 3, gy1 - 1);
+                Draw(rp, gx1 - 1, gy1 - 3);
+                break;
+            }
         }
     }
     
@@ -4606,6 +4736,24 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         {
             /* No title bar, just use basic border */
             window->BorderTop = screen->WBorBottom;
+        }
+        
+        /* Enlarge borders for sizing gadget per RKRM/NDK.
+         * When WFLG_SIZEGADGET is set, the bottom and/or right border
+         * must be large enough to contain the sizing gadget.
+         * WFLG_SIZEBBOTTOM and WFLG_SIZEBRIGHT control which borders
+         * are enlarged; if neither is set, both are enlarged by default. */
+        if (newWindow->Flags & WFLG_SIZEGADGET)
+        {
+            BOOL sizeBBottom = (newWindow->Flags & WFLG_SIZEBBOTTOM) || 
+                               !(newWindow->Flags & WFLG_SIZEBRIGHT);
+            BOOL sizeBRight = (newWindow->Flags & WFLG_SIZEBRIGHT) ||
+                              !(newWindow->Flags & WFLG_SIZEBBOTTOM);
+            
+            if (sizeBBottom && window->BorderBottom < SYS_GADGET_HEIGHT)
+                window->BorderBottom = SYS_GADGET_HEIGHT;
+            if (sizeBRight && window->BorderRight < SYS_GADGET_WIDTH)
+                window->BorderRight = SYS_GADGET_WIDTH;
         }
     }
 

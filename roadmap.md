@@ -8,12 +8,13 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.48** | **Phase 70a In Progress** | **53/53 Tests Passing**
+**Version: 0.6.49** | **Phase 70a In Progress** | **53/53 Tests Passing**
 
 Phase 70a: fixing issues identified by comparing RKM sample programs to running originals on a real Amiga. Test-driven approach: reproduce each issue as a test first, then fix.
 
 **Current Status**:
-- 53/53 ctest entries passing (18 gadtoolsgadgets_gtest tests: 9 functional + 9 pixel)
+- 53/53 ctest entries passing (20 gadtoolsgadgets_gtest tests: 9 functional + 11 pixel)
+- GTYP_SIZING resize gadget: Created sizing system gadget with GFLG_RELRIGHT|GFLG_RELBOTTOM positioning, 3D icon rendering (center box + diagonal indicator), resize-drag logic (SELECTDOWN start, MOUSEMOVE delta, SELECTUP stop), SizeWindow() with min/max enforcement. Border enlargement for WFLG_SIZEGADGET (BorderBottom=10, BorderRight=18) per RKRM/NDK, respecting WFLG_SIZEBBOTTOM/WFLG_SIZEBRIGHT flags. Fixed depth gadget positioning to use window edge (not border edge). 2 new pixel tests (SizeGadgetRendered, DepthGadgetRendered). Fixed IntuitionTest.Validation timing (wait for content rendered before pixel check).
 - STRING_KIND double-bevel border: Implemented `gt_create_ridge_bevel()` for FRAME_RIDGE style groove border (outer recessed + inner raised, 4 Border structs). `gt_free_ridge_bevel()` for proper memory cleanup. 1 new pixel test (StringGadgetDoubleBevelRendered).
 - GT_Underscore: Keyboard shortcut indicator rendering — underscore prefix stripped from labels, underline drawn under shortcut character via NextText IntuiText chain. _render_gadget() fixed to walk IntuiText NextText chain.
 - SLIDER_KIND: Full prop gadget implementation — knob rendering (raised bevel), mouse click/drag interaction, IDCMP_MOUSEMOVE/GADGETUP with level as Code, GT_SetGadgetAttrs(GTSL_Level)
@@ -86,7 +87,7 @@ Issues identified by comparing some of the sample programs to running the origin
   * ~~Volume slider knob not visible after startup~~ **DONE** (PropInfo with AUTOKNOB|FREEHORIZ|PROPNEWLOOK, knob rendering with raised bevel)
   * ~~Initial volume value (5) not visible~~ **DONE** (HorizPot computed from GTSL_Level, knob positioned correctly)
   * ~~Text entry widgets have wrong border style~~ **DONE** (gt_create_ridge_bevel() implements FRAME_RIDGE style double-bevel: outer recessed + inner raised, matching real Amiga; 1 new pixel test)
-  * Window lacks resize gadget
+  * ~~Window lacks resize gadget~~ **DONE** (GTYP_SIZING system gadget: GFLG_RELRIGHT|GFLG_RELBOTTOM, 3D icon, resize-drag, border enlargement per RKRM/NDK; 2 new pixel tests)
   * ~~Window is not draggable~~ **DONE** (was already working via WA_DragBar)
   * Window has distorted depth gadget
   * Window lacks minimize gadget
@@ -150,6 +151,7 @@ Issues identified by comparing some of the sample programs to running the origin
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.49 | 70a | GTYP_SIZING resize gadget: system gadget with GFLG_RELRIGHT\|GFLG_RELBOTTOM relative positioning, 3D icon rendering, resize-drag interaction (SELECTDOWN/MOUSEMOVE/SELECTUP), SizeWindow() min/max enforcement. Border enlargement for WFLG_SIZEGADGET (BorderBottom=10, BorderRight=18) per RKRM/NDK. Fixed depth gadget positioning. Fixed IntuitionTest.Validation timing (lxa_flush_display). 2 new pixel tests (SizeGadgetRendered, DepthGadgetRendered). gadtoolsgadgets_gtest: 18→20 tests. 53/53 tests. |
 | 0.6.48 | 70a | STRING_KIND double-bevel border: gt_create_ridge_bevel() implements FRAME_RIDGE style groove border (outer recessed: shadow top-left/shine bottom-right, inner raised: shine top-left/shadow bottom-right). 4 Border structs with proper memory management via gt_free_ridge_bevel(). FreeGadgets detects GTYP_STRGADGET for correct free. 1 new pixel test (StringGadgetDoubleBevelRendered). gadtoolsgadgets_gtest: 17→18 tests. 53/53 tests. |
 | 0.6.47 | 70a | GT_Underscore keyboard shortcut indicator: gt_strip_underscore() strips prefix character from displayed labels, underline IntuiText linked via NextText chain draws '_' glyph under shortcut character. Fixed _render_gadget() to walk IntuiText NextText chain (was only rendering first IntuiText). gt_create_label() always allocates IText copy, gt_free_label() frees NextText + IText + IntuiText. 1 new pixel test (UnderscoreLabelRendered). gadtoolsgadgets_gtest: 16→17 tests. 53/53 tests. |
 | 0.6.46 | 70a | SLIDER_KIND prop gadget: knob rendering (raised bevel, AUTOKNOB|FREEHORIZ|PROPNEWLOOK), mouse click/drag interaction (click-on-knob drag with offset tracking, click-outside-knob jump), IDCMP_MOUSEMOVE/GADGETUP with level as Code, GT_SetGadgetAttrs(GTSL_Level). PropInfo allocation/freeing in CreateGadgetA/FreeGadgets. 5 new slider tests (SliderClick, SliderDrag, ButtonResetsSlider, SliderKnobVisible, SliderBevelBorderRendered). gadtoolsgadgets_gtest: 11→16 tests. 53/53 tests. |

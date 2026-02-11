@@ -82,8 +82,21 @@ protected:
             EXPECT_EQ(screen_info.height, 200);
             EXPECT_EQ(screen_info.depth, 2);
             
-            // Check for content (non-zero pixels)
-            RunCyclesWithVBlank(10);
+            // Wait for the Amiga program to finish drawing content.
+            // The program prints "OK: Content rendered" after RectFill/Text.
+            // We must wait for this before checking pixels, because OpenWindow()
+            // may take variable amounts of CPU cycles (e.g. creating system gadgets).
+            char buffer[16384];
+            while (true) {
+                lxa_run_cycles(10000);
+                lxa_get_output(buffer, sizeof(buffer));
+                if (strstr(buffer, "OK: Content rendered")) break;
+            }
+            
+            // Flush display to convert planar bitmap to chunky pixels WITHOUT
+            // running more Amiga cycles (which would let the program close the
+            // screen before we can check the pixels).
+            lxa_flush_display();
             EXPECT_GT(lxa_get_content_pixels(), 0) << "Expected some rendered content";
         }
         

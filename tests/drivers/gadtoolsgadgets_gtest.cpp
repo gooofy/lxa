@@ -645,6 +645,94 @@ TEST_F(GadToolsGadgetsPixelTest, UnderscoreLabelRendered) {
         << "Bottom row of 'C' cell in button label should have underline pixels";
 }
 
+TEST_F(GadToolsGadgetsPixelTest, SizeGadgetRendered) {
+    /* When WA_SizeGadget=TRUE, a sizing gadget should be created in the
+     * bottom-right corner of the window. The sizing gadget has a 3D frame
+     * and a sizing icon drawn inside it.
+     *
+     * When WFLG_SIZEGADGET is set, the window's BorderBottom should be
+     * enlarged to accommodate the sizing gadget (from 2 to at least 10).
+     *
+     * The sizing gadget's 3D frame should have:
+     * - Shine (pen 2) pixels on the top-left edges
+     * - Shadow (pen 1) pixels on the bottom-right edges
+     *
+     * Check that the interior of the sizing gadget area (not just the outer
+     * border) contains shine pixels from the 3D gadget frame.
+     */
+    int win_w = window_info.width;
+    int win_h = window_info.height;
+
+    /* The sizing gadget area is 18x10 in the bottom-right corner.
+     * Check the interior (inset 2px from edges to avoid outer window border)
+     * for shine (pen 2) pixels that come from the sizing gadget's 3D frame. */
+    int size_area_left = window_info.x + win_w - 16;
+    int size_area_top  = window_info.y + win_h - 8;
+    int size_area_right = window_info.x + win_w - 3;
+    int size_area_bottom = window_info.y + win_h - 3;
+
+    int shine_count = 0;
+    for (int x = size_area_left; x <= size_area_right; x++) {
+        for (int y = size_area_top; y <= size_area_bottom; y++) {
+            int pen = ReadPixel(x, y);
+            if (pen == PEN_WHITE) shine_count++;
+        }
+    }
+    EXPECT_GT(shine_count, 3)
+        << "Sizing gadget interior should have shine (pen 2) pixels from 3D frame, got "
+        << shine_count;
+
+    /* Also verify that shadow (pen 1) pixels exist in the sizing area */
+    int shadow_count = 0;
+    for (int x = size_area_left; x <= size_area_right; x++) {
+        for (int y = size_area_top; y <= size_area_bottom; y++) {
+            int pen = ReadPixel(x, y);
+            if (pen == PEN_BLACK) shadow_count++;
+        }
+    }
+    EXPECT_GT(shadow_count, 3)
+        << "Sizing gadget interior should have shadow (pen 1) pixels from 3D frame, got "
+        << shadow_count;
+}
+
+TEST_F(GadToolsGadgetsPixelTest, DepthGadgetRendered) {
+    /* The depth gadget is in the top-right corner of the window title bar.
+     * It should show overlapping rectangles icon.
+     * Gadget position: rightX = Width - gadWidth (at far right of title bar)
+     *
+     * The gadget area should contain both shine (pen 2) and shadow (pen 1) pixels
+     * forming the overlapping rectangles depth icon.
+     */
+    int gadWidth = 18;
+    int gadHeight = TITLE_BAR_HEIGHT - 1;  /* 10 */
+
+    /* Depth gadget is at the far right of the window, inside the title bar */
+    int depth_left = window_info.x + window_info.width - gadWidth;
+    int depth_top = window_info.y;
+
+    /* Count shadow pixels (pen 1) in the depth gadget interior - these form the back rectangle */
+    int shadow_count = 0;
+    for (int x = depth_left + 2; x < depth_left + gadWidth - 1; x++) {
+        for (int y = depth_top + 2; y < depth_top + gadHeight - 1; y++) {
+            int pen = ReadPixel(x, y);
+            if (pen == PEN_BLACK) shadow_count++;
+        }
+    }
+    EXPECT_GT(shadow_count, 0)
+        << "Depth gadget should have shadow (pen 1) pixels for back rectangle";
+
+    /* Count shine pixels (pen 2) in the depth gadget interior - these form the front rectangle */
+    int shine_count = 0;
+    for (int x = depth_left + 2; x < depth_left + gadWidth - 1; x++) {
+        for (int y = depth_top + 2; y < depth_top + gadHeight - 1; y++) {
+            int pen = ReadPixel(x, y);
+            if (pen == PEN_WHITE) shine_count++;
+        }
+    }
+    EXPECT_GT(shine_count, 0)
+        << "Depth gadget should have shine (pen 2) pixels for front rectangle";
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
