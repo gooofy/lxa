@@ -39,13 +39,14 @@ struct ExpansionBase * __g_lxa_expansion_InitLib    ( register struct ExpansionB
 struct ExpansionBase * __g_lxa_expansion_OpenLib ( register struct ExpansionBase  *ExpansionBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_expansion: OpenLib() called\n");
-    // FIXME ExpansionBase->dl_lib.lib_OpenCnt++;
-    // FIXME ExpansionBase->dl_lib.lib_Flags &= ~LIBF_DELEXP;
+    ExpansionBase->LibNode.lib_OpenCnt++;
+    ExpansionBase->LibNode.lib_Flags &= ~LIBF_DELEXP;
     return ExpansionBase;
 }
 
 BPTR __g_lxa_expansion_CloseLib ( register struct ExpansionBase  *expansionb __asm("a6"))
 {
+    expansionb->LibNode.lib_OpenCnt--;
     return NULL;
 }
 

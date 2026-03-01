@@ -1150,13 +1150,14 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
 struct IntuitionBase * __g_lxa_intuition_OpenLib ( register struct IntuitionBase  *IntuitionBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_intuition: OpenLib() called\n");
-    // FIXME IntuitionBase->dl_lib.lib_OpenCnt++;
-    // FIXME IntuitionBase->dl_lib.lib_Flags &= ~LIBF_DELEXP;
+    IntuitionBase->LibNode.lib_OpenCnt++;
+    IntuitionBase->LibNode.lib_Flags &= ~LIBF_DELEXP;
     return IntuitionBase;
 }
 
 BPTR __g_lxa_intuition_CloseLib ( register struct IntuitionBase  *intuitionb __asm("a6"))
 {
+    intuitionb->LibNode.lib_OpenCnt--;
     return (BPTR)0;
 }
 

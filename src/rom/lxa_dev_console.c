@@ -2216,6 +2216,20 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
     LPRINTF (LOG_INFO, "_console: Open() called, unitn=%ld, flags=0x%08lx, io_Data(Window)=0x%08lx\n", 
              unitn, flags, (ULONG)window);
     
+    /* CONU_LIBRARY (-1 / 0xFFFFFFFF): Library mode only, no window/unit needed.
+     * Per RKRM/NDK: "no unit, just fill in IO_DEVICE field".
+     * Used by programs that only need RawKeyConvert() access. */
+    if (unitn == (ULONG)-1)
+    {
+        LPRINTF(LOG_INFO, "_console: Opened as CONU_LIBRARY (library mode only, no unit)\n");
+        ioreq->io_Error = 0;
+        ioreq->io_Device = (struct Device *)dev;
+        ioreq->io_Unit = NULL;
+        dev->lib_OpenCnt++;
+        dev->lib_Flags &= ~LIBF_DELEXP;
+        return;
+    }
+    
     /* Create a ConUnit for this console if a window was provided */
     if (window != NULL) {
         unit = console_create_unit(window);

@@ -74,13 +74,14 @@ struct Library * __g_lxa_mathtrans_InitLib    ( register struct Library *mathtra
 struct Library * __g_lxa_mathtrans_OpenLib ( register struct Library  *Library __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_mathtrans: OpenLib() called\n");
-    // FIXME Library->dl_lib.lib_OpenCnt++;
-    // FIXME Library->dl_lib.lib_Flags &= ~LIBF_DELEXP;
+    Library->lib_OpenCnt++;
+    Library->lib_Flags &= ~LIBF_DELEXP;
     return Library;
 }
 
 BPTR __g_lxa_mathtrans_CloseLib ( register struct Library  *mathtransb __asm("a6"))
 {
+    mathtransb->lib_OpenCnt--;
     return NULL;
 }
 

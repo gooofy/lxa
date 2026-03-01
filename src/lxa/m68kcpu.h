@@ -979,11 +979,21 @@ typedef struct
 	uint virq_state;
 	uint nmi_pending;
 
-	/* PMMU registers */
+	/* PMMU registers (68030) */
 	uint mmu_crp_aptr, mmu_crp_limit;
 	uint mmu_srp_aptr, mmu_srp_limit;
 	uint mmu_tc;
 	uint16 mmu_sr;
+
+	/* 68040 MMU registers */
+	uint mmu_tc_040;     /* Translation Control (040) */
+	uint mmu_itt0;       /* Instruction Transparent Translation 0 */
+	uint mmu_itt1;       /* Instruction Transparent Translation 1 */
+	uint mmu_dtt0;       /* Data Transparent Translation 0 */
+	uint mmu_dtt1;       /* Data Transparent Translation 1 */
+	uint mmu_mmusr;      /* MMU Status Register (040) */
+	uint mmu_urp;        /* User Root Pointer */
+	uint mmu_srp_040;    /* Supervisor Root Pointer (040) */
 
 	const uint8* cyc_instruction;
 	const uint8* cyc_exception;

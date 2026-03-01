@@ -49,13 +49,14 @@ struct MathBase * __g_lxa_mathffp_InitLib  ( register struct MathBase *mathffpb 
 struct MathBase * __g_lxa_mathffp_OpenLib ( register struct MathBase  *MathBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_mathffp: OpenLib() called\n");
-    // FIXME MathBase->dl_lib.lib_OpenCnt++;
-    // FIXME MathBase->dl_lib.lib_Flags &= ~LIBF_DELEXP;
+    ((struct Library *)MathBase)->lib_OpenCnt++;
+    ((struct Library *)MathBase)->lib_Flags &= ~LIBF_DELEXP;
     return MathBase;
 }
 
 BPTR __g_lxa_mathffp_CloseLib ( register struct MathBase  *mathffpb __asm("a6"))
 {
+    ((struct Library *)mathffpb)->lib_OpenCnt--;
     return NULL;
 }
 

@@ -417,13 +417,14 @@ struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphics
 struct GfxBase * __g_lxa_graphics_OpenLib ( register struct GfxBase  *GfxBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_graphics: OpenLib() called\n");
-    // FIXME GfxBase->dl_lib.lib_OpenCnt++;
-    // FIXME GfxBase->dl_lib.lib_Flags &= ~LIBF_DELEXP;
+    GfxBase->LibNode.lib_OpenCnt++;
+    GfxBase->LibNode.lib_Flags &= ~LIBF_DELEXP;
     return GfxBase;
 }
 
 BPTR __g_lxa_graphics_CloseLib ( register struct GfxBase  *graphicsb __asm("a6"))
 {
+    graphicsb->LibNode.lib_OpenCnt--;
     return NULL;
 }
 

@@ -77,6 +77,10 @@ TEST_F(ExecTest, Tasks) {
     RunExecTest("Tasks");
 }
 
+TEST_F(ExecTest, Library) {
+    RunExecTest("Library");
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

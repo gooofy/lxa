@@ -3428,6 +3428,10 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
 
     U_prepareProcess (process, initpc, 0, stackSize, args);
 
+    /* Set pr_SegList from the NP_Seglist tag */
+    if (seglist)
+        process->pr_SegList = seglist;
+
     if (do_cli)
     {
         // Assign task number from RootNode TaskArray (supports recycling)
@@ -3448,8 +3452,30 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
 
         cli->cli_DefaultStack = (process->pr_StackSize + 3) / 4;
 
-        // FIXME: copy prompt from parent's cli, if any
-        // FIXME: set cli_CommandDir
+        /*
+         * Inherit prompt from parent's CLI, if any.
+         * Per RKRM, child CLI processes should inherit the parent's prompt string.
+         */
+        if (IS_PROCESS(me) && me->pr_CLI)
+        {
+            struct CommandLineInterface *parentCli = (struct CommandLineInterface *)BADDR(me->pr_CLI);
+
+            /* Copy prompt from parent CLI */
+            if (parentCli->cli_Prompt)
+            {
+                STRPTR parentPrompt = (STRPTR)BADDR(parentCli->cli_Prompt);
+                LONG promptLen = strlen((const char *)parentPrompt);
+                STRPTR promptBuf = AllocVec(promptLen + 1, MEMF_PUBLIC);
+                if (promptBuf)
+                {
+                    CopyMem(parentPrompt, promptBuf, promptLen + 1);
+                    cli->cli_Prompt = MKBADDR(promptBuf);
+                }
+            }
+
+            /* Inherit cli_CommandDir (path list) from parent CLI */
+            cli->cli_CommandDir = parentCli->cli_CommandDir;
+        }
 
         process->pr_CLI = MKBADDR(cli);
     }

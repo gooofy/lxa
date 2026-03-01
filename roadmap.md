@@ -8,15 +8,16 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.53** | **Phase 71 Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.55** | **Phase 73 Complete** | **38/38 Tests Passing (GTest-only)**
 
-Phase 71: Performance & Infrastructure improvements — complete.
+Phase 73: Core Library Resource Management & Stability — complete.
 
 **Current Status**:
-- 38/38 ctest entries (all GTest — legacy C test drivers removed)
-- **GTest migration finalized**: Removed all 16 legacy C test drivers, ported missing coverage to GTest equivalents. 8 GTest drivers enhanced with checks from legacy versions (mousetest, rawkey, asm_one, devpac, kickpascal, maxonbasic, dpaint, cluster2). CMakeLists.txt cleaned — only `add_gtest_driver()` remains.
-- **cpu_instr_callback ~80x speedup**: Added `g_debug_active` fast-path flag — when no debugging is active, the per-instruction callback only writes the trace buffer and checks PC < 0x100 safety net (skips breakpoint scanning, tracing, stepping). `dpaint_gtest` went from ~25s to 0.47s.
-- **ClipBlit crash fixed**: Root cause was GCC using A5 as frame pointer while `LockLayerRom`/`UnlockLayerRom` ABI requires layer pointer in A5 — direct calls from ClipBlit clobbered the stack frame, causing `rts` to address 0. Fix: removed no-op Lock/Unlock direct calls from ClipBlit (they're no-ops in lxa). ClipBlit test re-enabled and passing.
+- 38/38 ctest entries (all GTest), plus new Library ref counting test
+- **Library reference counting**: Fixed `lib_OpenCnt++` and `LIBF_DELEXP` clearing in all 6 library Open handlers (graphics, intuition, utility, mathtrans, mathffp, expansion). Fixed `lib_OpenCnt--` in all Close handlers.
+- **Exception handling**: Implemented `Exception()` (LVO -66) with full tc_ExceptCode dispatch loop. Fixed `exceptions.s`: tc_Switch/tc_Launch callbacks, TF_EXCEPT handling in Schedule/Dispatch.
+- **Process initialization**: `CreateNewProc()` now sets pr_SegList, inherits cli_Prompt and cli_CommandDir from parent CLI. `U_prepareProcess()` inherits pr_ConsoleTask/pr_FileSystemTask from parent process.
+- **Bootstrap cleanup**: Cleaned all FIXME comments in exec.c bootstrap code (pr_TaskNum, cli_CommandDir, dead code block).
 
 ---
 
@@ -42,7 +43,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ---
 
-## Completed Phases (1-69)
+## Completed Phases (1-72)
 
 ### Foundation & Transitions (Phases 1-63)
 - ✅ **Phases 1-62**: Core Exec, DOS, Graphics, Intuition, and Application support implementation.
@@ -58,46 +59,59 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - ✅ **Phase 70**: **Test Suite Hardening & Expansion** — GadTools visual rendering (bevel borders, text labels, 13 pixel/functional tests), palette pipeline fix (SetRGB4/LoadRGB4/SetRGB32/SetRGB32CM/LoadRGB32), string gadget rawkey/input fixes, rewrote 3 RKM samples, added 3 graphics clipping tests + 10 DOS VFS corner-case tests. DOS: 14→24, Graphics: 14→17. 49/49 ctest entries.
 - ✅ **Phase 70a**: **Fix Issues Identified by Manual Tests** — All issues found by comparing RKM sample programs to running originals on a real Amiga have been fixed. GadToolsGadgets (underscore labels, slider, resize/depth/close gadgets, double-bevel borders, TAB cycling), SimpleGTGadget, SimpleGad, UpdateStrGad, IntuiText, SimpleImage, EasyRequest, SimpleMenu, MenuLayout, FileReq, FontReq. 54/54 ctest entries.
 
+### Performance & Infrastructure (Phase 71)
+- ✅ **Phase 71**: Fix ClipBlit layer cleanup crash (A5 frame pointer clobbering). `cpu_instr_callback` ~80x speedup via `g_debug_active` fast-path. Finalized GTest migration (removed 16 legacy C test drivers, 54→38 tests). 38/38 tests passing.
+
+### Application Compatibility & Analysis (Phase 72)
+- ✅ **Phase 72**: Implemented `dopus.library` stub (97 API functions). Extended KickPascal2 test to verify window opening. Fixed `console.device` CONU_LIBRARY handling. Added 68040 MMU register stubs (TC, ITT0/1, DTT0/1, MMUSR, URP, SRP in MOVEC handlers). Silenced PFLUSH stderr output. Comprehensive codebase audit: 93 FIXME/TODO markers catalogued (see audit below). 38/38 tests passing.
+
+### Core Library Resource Management & Stability (Phase 73)
+- ✅ **Phase 73**: Fixed library reference counting in all 6 libraries (graphics, intuition, utility, mathtrans, mathffp, expansion) — `lib_OpenCnt++` in Open, `lib_OpenCnt--` in Close, `LIBF_DELEXP` clearing. Implemented `Exception()` (LVO -66) with full tc_ExceptCode signal dispatch loop. Fixed `exceptions.s`: tc_Switch/tc_Launch callbacks, TF_EXCEPT handling in Schedule/Dispatch. Process initialization: pr_SegList, pr_ConsoleTask, pr_FileSystemTask inheritance, cli_Prompt/cli_CommandDir inheritance from parent CLI. Bootstrap FIXME cleanup. New Library ref counting test. 38/38 tests passing.
+
+---
+
+## Codebase Audit Results (Phase 72.5)
+
+**93 markers total**: 83 in ROM code (`src/rom/`), 10 in host code (`src/lxa/`).
+
+### Top Issues by Priority
+
+1. ~~**Library Reference Counting Broken** (8 FIXMEs across 6 libraries)~~ — **Fixed in Phase 73**. `lib_OpenCnt` incremented/decremented, `LIBF_DELEXP` cleared in Open handlers.
+2. **Intuition Heavily Stubbed** (29 markers) — BOOPSI gadgets, PropGadget/StringGadget allocation, AutoRequest rendering, ZipWindow, requesters. → Phase 76.
+3. **Layers Library Stubbed** (10 TODOs) — ScrollLayer, ClipRects, damage tracking, LAYERSMART all unimplemented. → Phase 75.
+4. ~~**Exception/Task Switching Incomplete** (5 FIXMEs in exceptions.s)~~ — **Fixed in Phase 73**. tc_Switch, tc_Launch, TF_EXCEPT, Exception() all implemented.
+5. **DOS Memory Leaks** (7 FIXMEs) — UnLoadSeg doesn't free memory, AllocDosObject/FreeDosObject incomplete. → Phase 74.
+6. ~~**Process/CLI Initialization Gaps** (5 FIXMEs)~~ — **Fixed in Phase 73**. cli_CommandDir, pr_ConsoleTask, pr_FileSystemTask, pr_SegList, prompt inheritance all implemented.
+7. **Case-Insensitive Paths Missing** (1 FIXME in lxa.c) — Amiga paths are case-insensitive but host I/O is case-sensitive. → Phase 74.
+8. **Graphics Pixel Array Stubs** (4 TODOs) — ReadPixelLine8, ReadPixelArray8, WritePixelLine8 are stubs/assert(FALSE). → Phase 75.
+
 ---
 
 ## Next Steps
 
-### Phase 71: Performance & Infrastructure
-**Goal**: Improve emulator performance and test infrastructure.
-**STATUS**: Complete.
-- [x] Fix ClipBlit layer cleanup crash — root cause: direct call to `LockLayerRom`/`UnlockLayerRom` from ClipBlit clobbers A5 frame pointer (AmigaOS ABI uses A5 for layer parameter). Fix: removed no-op direct calls. ClipBlit test re-enabled.
-- [x] Optimize per-instruction callback (`cpu_instr_callback`) — added `g_debug_active` fast-path flag. When no debugging active, callback only writes trace buffer + PC safety check. ~80x speedup (dpaint_gtest: 25s → 0.47s).
-- [x] Transition/Remove legacy C test drivers to finalize GTest migration. Ported missing coverage from 16 legacy C drivers to GTest equivalents (8 enhanced: mousetest, rawkey, asm_one, devpac, kickpascal, maxonbasic, dpaint, cluster2). Removed all 16 `*_test.c` files and `add_test_driver()` from CMakeLists.txt. Test count: 54 → 38 (16 duplicates removed). All 38 GTest tests passing.
-
-### Phase 72: Application Compatibility & Analysis
-**Goal**: Deeper application testing and compatibility improvements.
-**TODO**:
-- [ ] Implement `dopus.library` stub for Directory Opus window-open testing.
-- [ ] Extend KickPascal2 apps_misc test to verify window opening (currently load-only).
-- [ ] SysInfo deeper testing — hardware detection without MMU crashes.
-- [ ] In-depth Analysis: Systematically audit unsupported packets, API functions returning `NULL`/`FALSE`, and log warnings generated by our test suite applications.
-
-### Phase 73: Core Library Resource Management & Stability
-**Goal**: Fix critical library and process lifecycle issues identified in the codebase.
-**TODO**:
-- [ ] Address `dl_lib.lib_OpenCnt` and `lib_Flags` FIXMEs in all libraries (`exec`, `graphics`, `intuition`, `dos`, `expansion`, `mathtrans`, `utility`, `mathffp`). Ensure proper open/close reference counting and delayed expunge.
-- [ ] Fix `exceptions.s` FIXMEs: properly handle `tc_Flags`, `Sysflags`, and task launch exceptions.
-- [ ] Fix `process->pr_SegList`, `pr_ConsoleTask`, `pr_FileSystemTask` initialization FIXMEs in `util.c`.
+### Phase 73: Core Library Resource Management & Stability ✅
+**Goal**: Fix critical library and process lifecycle issues identified in the codebase audit.
+**DONE**:
+- [x] Fix `lib_OpenCnt++` and `LIBF_DELEXP` flag clearing in all 6 affected library Open handlers (graphics, intuition, utility, mathtrans, mathffp, expansion). Implement proper `CloseLibrary` reference counting and delayed expunge.
+- [x] Fix `exceptions.s` FIXMEs: properly handle `tc_Flags`, `Sysflags`, `tc_Switch` callback, and task launch exceptions. Implemented `Exception()` (LVO -66) with full signal dispatch loop.
+- [x] Fix process initialization in `util.c`: set `pr_SegList`, `pr_ConsoleTask`, `pr_FileSystemTask`. Also inherits `cli_Prompt` and `cli_CommandDir` from parent CLI.
+- [x] Fix `exec.c` bootstrap FIXMEs: `NP_HomeDir`, `pr_TaskNum`, `cli_CommandDir`. Cleaned dead code block comments.
 
 ### Phase 74: DOS & VFS Hardening
 **Goal**: Complete missing DOS/VFS features for 100% application compatibility.
 **TODO**:
-- [ ] Implement missing `AllocDosObject` types (currently only basic types supported).
+- [ ] Fix `UnLoadSeg` to properly free hunk memory (currently leaks all loaded segments).
+- [ ] Implement missing `AllocDosObject` types and fix `FreeDosObject` for unknown types.
 - [ ] Fix case-insensitive path mapping in `lxa.c` (Amiga paths are case-insensitive, Linux is not).
-- [ ] Properly inherit prompt and `cli_CommandDir` from parent's CLI during process creation.
+- [ ] Fix errno-to-AmigaOS error code mapping in host I/O.
 
 ### Phase 75: Advanced Graphics & Layers
 **Goal**: Fill in missing graphical operations and layer functions.
 **TODO**:
-- [ ] Implement proper polygon filling using scan-line algorithm (currently missing in `lxa_graphics.c`).
-- [ ] Optimize `WritePixelLine8/16/32` blitting routines.
-- [ ] Implement `ScrollRaster` to actually scroll the bitmap contents.
-- [ ] Implement DamageList tracking, ClipRects rebuilds, and `LAYERSMART` support.
+- [ ] Implement proper polygon filling using scan-line algorithm (`AreaFill` in `lxa_graphics.c`).
+- [ ] Implement `ReadPixelLine8`, `ReadPixelArray8`, `WritePixelLine8` (currently stubs/asserts).
+- [ ] Implement `ScrollRaster`/`ScrollLayer` to actually scroll bitmap contents.
+- [ ] Implement DamageList tracking, ClipRects rebuilds, and `LAYERSMART` support (10 TODOs in `lxa_layers.c`).
 
 ### Phase 76: Intuition & BOOPSI Enhancements
 **Goal**: Complete Intuition elements and finalize BOOPSI support.
@@ -105,14 +119,16 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [ ] Implement BOOPSI gadget system and Inter-Object Communication (ICA_MAP/ICA_TARGET).
 - [ ] Fix Zoom gadget (`ZipWindow` behavior).
 - [ ] Implement dynamic resizing and proper visual rendering of Requester borders/text.
+- [ ] Implement `ActivateWindow` deactivation of previous window.
+- [ ] Implement `AutoRequest` with proper text measurement, gadget creation, and IntuiText rendering.
 
 ### Phase 77: Missing Libraries & Devices
 **Goal**: Implement essential missing libraries and devices required for full userland.
 **TODO**:
-- [ ] Implement `diskfont.library` (e.g., loading from `FONTS:` directory).
+- [ ] Implement `diskfont.library` (font loading from `FONTS:` directory).
 - [ ] Implement `audio.device` (stub or minimal ALSA/SDL audio bridge).
 - [ ] Implement `trackdisk.device` (stub/basic support) to unblock disk utility applications.
-- [ ] Fully support `mathieeesingbas` and locale formatting.
+- [ ] Fully support `mathieeesingbas` and locale formatting/date formatting.
 
 ### Phase 78: AROS Compatibility Verification
 **Goal**: Compare and verify `lxa` implementation against AROS.
@@ -127,6 +143,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.55 | 73 | **Phase 73 Complete — Core Library Resource Management & Stability!** Fixed library reference counting (`lib_OpenCnt++/--`, `LIBF_DELEXP` clearing) in all 6 libraries (graphics, intuition, utility, mathtrans, mathffp, expansion). Implemented `Exception()` (LVO -66) with full tc_ExceptCode signal dispatch loop. Fixed `exceptions.s`: tc_Switch/tc_Launch callbacks, TF_EXCEPT handling in Schedule/Dispatch, Dispatch entry a6 load. Process initialization: pr_SegList set from NP_Seglist, pr_ConsoleTask/pr_FileSystemTask inherited from parent, cli_Prompt/cli_CommandDir inherited from parent CLI. Bootstrap FIXME cleanup. New Library ref counting test. 38/38 tests passing. |
+| 0.6.54 | 72 | **Phase 72 Complete — Application Compatibility & Analysis!** Implemented `dopus.library` stub (97 functions). Extended KickPascal2 test to verify window opening (background process + window count polling). Fixed `console.device` CONU_LIBRARY handling (early return for unit -1). Added 68040 MMU registers (TC, ITT0/1, DTT0/1, MMUSR, URP, SRP) to CPU struct with MOVEC read/write handlers. Silenced PFLUSH stderr output. Comprehensive codebase audit: 93 FIXME/TODO markers catalogued across 15 files. Identified top 8 priority areas for future phases. 38/38 tests passing. |
 | 0.6.53 | 71 | **Phase 71 Complete — GTest migration finalized!** Removed all 16 legacy C test drivers (`*_test.c`), ported missing coverage to GTest equivalents. 8 GTest drivers enhanced with checks from legacy versions (mousetest: button up/down/close, rawkey: key mapping/qualifiers/close, asm_one/devpac/maxonbasic: screen dims/mouse/cursor, kickpascal: screen dims/mouse, dpaint: full rewrite from no-op, cluster2: screen dims/editor/mouse/cursor/RMB). Cleaned CMakeLists.txt — `add_test_driver()` removed, only `add_gtest_driver()` remains. Test count: 54 → 38 (16 duplicates removed). 38/38 tests passing. |
 | 0.6.52 | 71 | **Performance & ClipBlit fix!** `cpu_instr_callback` ~80x speedup via `g_debug_active` fast-path flag (skips breakpoint scanning/tracing when no debugging active; `dpaint_gtest`: 25s → 0.47s). Fixed ClipBlit crash (PC=0 on `rts`): root cause was direct call to `LockLayerRom`/`UnlockLayerRom` clobbering A5 frame pointer (AmigaOS ABI uses A5 for layer parameter, conflicting with GCC frame pointer). Removed no-op direct calls, ClipBlit test re-enabled. 54/54 ctest entries. |
 | 0.6.51 | 70a | **Phase 70a Complete!** IDCMP_VANILLAKEY: rawkey-to-ASCII conversion with lookup tables for unshifted/shifted keys, GadToolsGadgets keyboard shortcuts now work. FileReq: window position clamping fix (TopEdge=0 accepted via sentinel -1), widened Drawer gadget label spacing. FontReq: full font requester implementation (window with OK/Cancel buttons, font list display, font selection output via fo_Attr). Fixed LXAFontRequester/LXAFileRequester struct layouts (type field at offset 0 for polymorphic dispatch). 3 new filereq_gtest tests, 5 new fontreq_gtest tests, 3 new vanillakey gadtoolsgadgets_gtest tests. 54/54 ctest entries. |

@@ -22184,7 +22184,7 @@ static void m68k_op_movec_32_cr(void)
 			case 0x003:				/* TC */
 				if(CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					REG_DA[(word2 >> 12) & 15] = m68ki_cpu.mmu_tc_040;
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22192,7 +22192,7 @@ static void m68k_op_movec_32_cr(void)
 			case 0x004:				/* ITT0 */
 				if(CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					REG_DA[(word2 >> 12) & 15] = m68ki_cpu.mmu_itt0;
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22200,7 +22200,7 @@ static void m68k_op_movec_32_cr(void)
 			case 0x005:				/* ITT1 */
 				if(CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					REG_DA[(word2 >> 12) & 15] = m68ki_cpu.mmu_itt1;
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22208,7 +22208,7 @@ static void m68k_op_movec_32_cr(void)
 			case 0x006:				/* DTT0 */
 				if(CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					REG_DA[(word2 >> 12) & 15] = m68ki_cpu.mmu_dtt0;
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22216,7 +22216,7 @@ static void m68k_op_movec_32_cr(void)
 			case 0x007:				/* DTT1 */
 				if(CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					REG_DA[(word2 >> 12) & 15] = m68ki_cpu.mmu_dtt1;
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22224,7 +22224,7 @@ static void m68k_op_movec_32_cr(void)
 			case 0x805:				/* MMUSR */
 				if(CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					REG_DA[(word2 >> 12) & 15] = m68ki_cpu.mmu_mmusr;
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22232,7 +22232,7 @@ static void m68k_op_movec_32_cr(void)
 			case 0x806:				/* URP */
 				if(CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					REG_DA[(word2 >> 12) & 15] = m68ki_cpu.mmu_urp;
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22240,7 +22240,7 @@ static void m68k_op_movec_32_cr(void)
 			case 0x807:				/* SRP */
 				if(CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					REG_DA[(word2 >> 12) & 15] = m68ki_cpu.mmu_srp_040;
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22339,7 +22339,7 @@ static void m68k_op_movec_32_rc(void)
 			case 0x003:			/* TC */
 				if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					m68ki_cpu.mmu_tc_040 = REG_DA[(word2 >> 12) & 15];
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22347,7 +22347,7 @@ static void m68k_op_movec_32_rc(void)
 			case 0x004:			/* ITT0 */
 				if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					m68ki_cpu.mmu_itt0 = REG_DA[(word2 >> 12) & 15];
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22355,7 +22355,7 @@ static void m68k_op_movec_32_rc(void)
 			case 0x005:			/* ITT1 */
 				if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					m68ki_cpu.mmu_itt1 = REG_DA[(word2 >> 12) & 15];
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22363,7 +22363,7 @@ static void m68k_op_movec_32_rc(void)
 			case 0x006:			/* DTT0 */
 				if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					m68ki_cpu.mmu_dtt0 = REG_DA[(word2 >> 12) & 15];
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22371,7 +22371,7 @@ static void m68k_op_movec_32_rc(void)
 			case 0x007:			/* DTT1 */
 				if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					m68ki_cpu.mmu_dtt1 = REG_DA[(word2 >> 12) & 15];
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22379,7 +22379,7 @@ static void m68k_op_movec_32_rc(void)
 			case 0x805:			/* MMUSR */
 				if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					m68ki_cpu.mmu_mmusr = REG_DA[(word2 >> 12) & 15];
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22387,7 +22387,7 @@ static void m68k_op_movec_32_rc(void)
 			case 0x806:			/* URP */
 				if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					m68ki_cpu.mmu_urp = REG_DA[(word2 >> 12) & 15];
 					return;
 				}
 				m68ki_exception_illegal();
@@ -22395,7 +22395,7 @@ static void m68k_op_movec_32_rc(void)
 			case 0x807:			/* SRP */
 				if (CPU_TYPE_IS_040_PLUS(CPU_TYPE))
 				{
-					/* TODO */
+					m68ki_cpu.mmu_srp_040 = REG_DA[(word2 >> 12) & 15];
 					return;
 				}
 				m68ki_exception_illegal();
@@ -28228,7 +28228,7 @@ static void m68k_op_pflush_32(void)
 {
 	if ((CPU_TYPE_IS_EC020_PLUS(CPU_TYPE)) && (HAS_PMMU))
 	{
-		fprintf(stderr,"68040: unhandled PFLUSH\n");
+		/* 68040 PFLUSH — flush all ATC entries (no-op in emulation) */
 		return;
 	}
 	m68ki_exception_1111();

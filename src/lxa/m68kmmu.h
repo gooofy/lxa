@@ -208,7 +208,7 @@ void m68881_mmu_ops()
 				}
 				else if ((modes & 0xe200) == 0x2000)	// PFLUSH
 				{
-					fprintf(stderr,"680x0: unhandled PFLUSH PC=%x\n", REG_PC);
+					/* PFLUSH — flush ATC entries (no-op in emulation) */
 					return;
 				}
 				else if (modes == 0xa000)	// PFLUSHR

@@ -4,21 +4,18 @@
  * Automated test for Directory Opus file manager compatibility.
  *
  * Directory Opus is a popular file manager that uses custom libraries
- * (dopus.library, arp.library) and provides a two-pane file browser.
- *
- * Since lxa does not currently provide dopus.library, DOpus will exit
- * immediately after launch. This test validates that the complex
- * binary can be loaded via LoadSeg and launched via CreateNewProc,
- * exercising the hunk loader, relocation, and overlay handling.
+ * (dopus.library) and provides a two-pane file browser.
  *
  * This test:
- * 1. Creates the dopus: assign
- * 2. Loads DirectoryOpus binary via LoadSeg
- * 3. Launches DOPUS as a background process (it will exit due to missing library)
+ * 1. Verifies that dopus.library can be opened (ROM-based stub)
+ * 2. Creates the dopus: assign
+ * 3. Loads DirectoryOpus binary via LoadSeg
+ * 4. Launches DOPUS as a background process
  */
 
 #include <exec/types.h>
 #include <exec/memory.h>
+#include <exec/libraries.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
@@ -76,11 +73,27 @@ int main(void)
     BPTR seg = 0;
     struct Process *proc = NULL;
     BPTR dopusLock = 0;
+    struct Library *DOpusBase = NULL;
 
     print("=== Directory Opus Automated Compatibility Test ===\n\n");
 
+    /* ========== Test 1: Open dopus.library ========== */
+    print("--- Test 1: Open dopus.library ---\n");
+
+    DOpusBase = OpenLibrary((STRPTR)"dopus.library", 0);
+    if (DOpusBase) {
+        print("OK: dopus.library opened successfully\n");
+        print_num("  Version: ", (LONG)DOpusBase->lib_Version, "\n");
+        print_num("  Revision: ", (LONG)DOpusBase->lib_Revision, "\n");
+        CloseLibrary(DOpusBase);
+        DOpusBase = NULL;
+    } else {
+        print("FAIL: Cannot open dopus.library\n");
+        errors++;
+    }
+
     /* ========== Setup: Create dopus: assign ========== */
-    print("--- Setup: Create dopus: assign ---\n");
+    print("\n--- Setup: Create dopus: assign ---\n");
     
     dopusLock = Lock((STRPTR)"APPS:DOPUS", ACCESS_READ);
     if (dopusLock) {
@@ -95,8 +108,8 @@ int main(void)
         print("WARNING: Cannot lock APPS:DOPUS directory\n");
     }
 
-    /* ========== Test 1: Load Directory Opus ========== */
-    print("\n--- Test 1: Load Directory Opus binary ---\n");
+    /* ========== Test 2: Load Directory Opus ========== */
+    print("\n--- Test 2: Load Directory Opus binary ---\n");
 
     seg = LoadSeg((STRPTR)"APPS:DOPUS/DirectoryOpus");
     if (!seg) {
@@ -106,16 +119,9 @@ int main(void)
     }
     print("OK: DirectoryOpus binary loaded successfully\n");
 
-    /* ========== Test 2: Verify binary can be launched ========== */
-    print("\n--- Test 2: Verify binary can be launched ---\n");
+    /* ========== Test 3: Verify binary can be launched ========== */
+    print("\n--- Test 3: Verify binary can be launched ---\n");
 
-    /*
-     * Directory Opus requires dopus.library to function. Since lxa does
-     * not currently provide dopus.library, DOpus will exit immediately
-     * after launch. We test that the binary loads and the process can
-     * be created - this validates LoadSeg, CreateNewProc, and the
-     * overlay/seglist handling for a complex real-world application.
-     */
     {
         BPTR nilIn = Open((STRPTR)"NIL:", MODE_OLDFILE);
         BPTR nilOut = Open((STRPTR)"NIL:", MODE_NEWFILE);
@@ -155,15 +161,15 @@ int main(void)
         print("OK: DirectoryOpus process created successfully\n");
     }
 
-    /* Give DOpus a moment to run and exit (it will fail to open dopus.library) */
+    /* Give DOpus a moment to run */
     Delay(25);
 
-    print("OK: Process launch and exit completed\n");
+    print("OK: Process launch completed\n");
 
 cleanup:
     print("\n=== Test Results ===\n");
     if (errors == 0) {
-        print("PASS: Directory Opus launch test passed\n");
+        print("PASS: Directory Opus compatibility test passed\n");
         return 0;
     } else {
         print_num("FAIL: ", errors, " errors occurred\n");

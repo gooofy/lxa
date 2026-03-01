@@ -735,7 +735,7 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
     process->pr_MsgPort.mp_SigBit       = SIGB_DOS;
     process->pr_MsgPort.mp_SigTask      = process;
 
-    process->pr_SegList                 = 0; /* FIXME */
+    process->pr_SegList                 = 0;
     process->pr_StackSize               = stacksize;
     process->pr_GlobVec					= 0; /* unsupported */
     process->pr_TaskNum					= 0;
@@ -744,8 +744,23 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
     process->pr_CurrentDir				= 0;
     process->pr_CIS					    = 0;
     process->pr_COS					    = 0;
-    process->pr_ConsoleTask			    = NULL; /* FIXME */
-    process->pr_FileSystemTask          = NULL; /* FIXME */
+
+    /*
+     * Inherit pr_ConsoleTask and pr_FileSystemTask from the parent process,
+     * per RKRM: "A process inherits these fields from its parent."
+     */
+    struct Process *parent = (struct Process *) FindTask(NULL);
+    if (parent && parent->pr_Task.tc_Node.ln_Type == NT_PROCESS)
+    {
+        process->pr_ConsoleTask    = parent->pr_ConsoleTask;
+        process->pr_FileSystemTask = parent->pr_FileSystemTask;
+    }
+    else
+    {
+        process->pr_ConsoleTask    = NULL;
+        process->pr_FileSystemTask = NULL;
+    }
+
     process->pr_CLI                     = 0;
     process->pr_ReturnAddr				= 0;
     process->pr_PktWait                 = NULL;

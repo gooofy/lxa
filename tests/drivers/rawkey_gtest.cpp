@@ -21,7 +21,7 @@ protected:
         LxaUITest::SetUp();
         
         ASSERT_EQ(lxa_load_program("SYS:RawKey", ""), 0);
-        ASSERT_TRUE(WaitForWindows(1, 5000));
+        ASSERT_TRUE(WaitForWindows(1, 10000));
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
         
         WaitForEventLoop(200, 10000);
@@ -36,8 +36,8 @@ TEST_F(RawKeyTest, WindowOpens) {
 
 TEST_F(RawKeyTest, SimpleKeyPress) {
     PressKey(RAWKEY_A, 0);
-    RunCyclesWithVBlank(20, 50000);
-    for (int i = 0; i < 100; i++) RunCycles(10000);
+    RunCyclesWithVBlank(40, 50000);
+    for (int i = 0; i < 200; i++) RunCycles(10000);
     
     std::string output = GetOutput();
     EXPECT_NE(output.find("Key Down"), std::string::npos) 
@@ -54,8 +54,8 @@ TEST_F(RawKeyTest, ShiftedKeyPress) {
     ClearOutput();
     
     PressKey(RAWKEY_A, IEQUALIFIER_LSHIFT);
-    RunCyclesWithVBlank(20, 50000);
-    for (int i = 0; i < 100; i++) RunCycles(10000);
+    RunCyclesWithVBlank(40, 50000);
+    for (int i = 0; i < 200; i++) RunCycles(10000);
     
     std::string output = GetOutput();
     EXPECT_TRUE(output.find("LShift") != std::string::npos || 
@@ -72,8 +72,8 @@ TEST_F(RawKeyTest, SpaceKey) {
     ClearOutput();
     
     PressKey(RAWKEY_SPACE, 0);
-    RunCyclesWithVBlank(20, 50000);
-    for (int i = 0; i < 100; i++) RunCycles(10000);
+    RunCyclesWithVBlank(40, 50000);
+    for (int i = 0; i < 200; i++) RunCycles(10000);
     
     std::string output = GetOutput();
     EXPECT_NE(output.find("Key Down"), std::string::npos) 

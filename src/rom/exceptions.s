@@ -4,6 +4,7 @@
 
     .set _LVOEnqueue    , -270
     .set _LVOSwitch     , -54
+    .set _LVOException  , -66
 
     /* ExecBase */
     .set ThisTask       , 276
@@ -14,6 +15,18 @@
     .set IDNestCnt      , 294
     .set TDNestCnt      , 295
     .set TaskReady      , 406
+
+    /* Task structure offsets */
+    .set tc_Flags       , 14
+    .set tc_State       , 15
+    .set tc_SPReg       , 54
+    .set tc_Switch      , 66
+    .set tc_Launch      , 70
+
+    /* Task flag bits (for btst/bset/bclr on tc_Flags byte) */
+    .set TB_EXCEPT      , 5
+    .set TB_SWITCH      , 6
+    .set TB_LAUNCH      , 7
 
     /* emucalls */
     .set EMU_CALL_TRACE   , 3
@@ -61,7 +74,6 @@ _exec_Schedule:
     move.l      4, a6                               | SysBase -> a6
 
     move.w      #0x2700, sr                         | disable interrupts
-    /* FIXME: Sysflags */
     move.l      ThisTask(a6), a1                    | SysBase->ThisTask -> a1
     
     /* If ThisTask is NULL (e.g., last task was removed), just exit */
@@ -85,7 +97,9 @@ _exec_Schedule:
     bra         __exec_Schedule_exit
 2:
 
-    /* FIXME: check for exception flags */
+    /* If TF_EXCEPT is set, force a reschedule so exceptions are processed */
+    btst.b      #TB_EXCEPT, tc_Flags(a1)            | ThisTask->tc_Flags & TF_EXCEPT?
+    bne.s       __do_switch                         | yes -> force switch
 
     /* do we have another task that is ready? */
     lea.l       TaskReady(a6), a0                   | &SysBase->TaskReady -> a0
@@ -150,13 +164,15 @@ _exec_Switch:
     move.w   d0, 16(a3)                             | IDNestCnt -> ThisTask->tc_IDNestCnt
     move.l   a5, 54(a3)                             | user stack -> ThisTask->tc_SPReg
 
-    /* FIXME: call ThisTask->tc_Switch() if set */
-
-    bra.s   __dispatch
+    /* Call ThisTask->tc_Switch() if TF_SWITCH is set */
+    btst.b   #TB_SWITCH, tc_Flags(a3)               | ThisTask->tc_Flags & TF_SWITCH?
+    beq.s    __dispatch                             | no -> skip to dispatch
+    move.l   tc_Switch(a3), a5                      | ThisTask->tc_Switch -> a5
+    jsr      (a5)                                   | call tc_Switch callback (a6=SysBase)
 
     .globl _exec_Dispatch
 _exec_Dispatch:
-    /* FIXME lea.l   ... */
+    move.l  4, a6                                   | SysBase -> a6
     move.w  #0xffff, IDNestCnt(a6)                  | -1 -> SysBase->IDNestCnt
 
     move.w   #0xC000, INTENA                        | enable interrupts
@@ -196,7 +212,17 @@ __dispatch:
 3:
     move     #0x2000, sr                            | enable cpu interrupts
 
-    /* FIXME: handle task launch / exception (check tc_Flags) */
+    /* Call ThisTask->tc_Launch() if TF_LAUNCH is set */
+    btst.b   #TB_LAUNCH, tc_Flags(a3)               | ThisTask->tc_Flags & TF_LAUNCH?
+    beq.s    4f                                     | no -> skip
+    move.l   tc_Launch(a3), a5                      | ThisTask->tc_Launch -> a5
+    jsr      (a5)                                   | call tc_Launch callback (a6=SysBase)
+4:
+    /* Handle TF_EXCEPT: if exception flag is set, call Exception() */
+    btst.b   #TB_EXCEPT, tc_Flags(a3)               | ThisTask->tc_Flags & TF_EXCEPT?
+    beq.s    5f                                     | no -> skip
+    jsr      _LVOException(a6)                      | call Exception() (LVO -66)
+5:
 
     move.l   54(a3), a5                             | ThisTask->tc_SPReg -> a5
     lea      2+16*4(a5), a2                         | setup return address -> a2

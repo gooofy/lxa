@@ -112,6 +112,7 @@ extern struct Resident *__lxa_rexxsyslib_ROMTag;
 extern struct Resident *__lxa_iffparse_ROMTag;
 extern struct Resident *__lxa_datatypes_ROMTag;
 extern struct Resident *__lxa_reqtools_ROMTag;
+extern struct Resident *__lxa_dopus_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 extern struct Resident *__lxa_console_ROMTag;
 extern struct Resident *__lxa_timer_ROMTag;
@@ -1745,6 +1746,89 @@ ULONG _exec_SetExcept ( register struct ExecBase * SysBase    __asm("a6"),
     Enable();
 
     return oldsigs;
+}
+
+/*
+ * Exception() - LVO -66
+ *
+ * Process pending task exceptions. Called by the scheduler (from Dispatch
+ * in exceptions.s) when TF_EXCEPT is set on a task that is about to resume.
+ *
+ * Per RKRM/AROS:
+ * 1. Clear TF_EXCEPT flag
+ * 2. Save and reset IDNestCnt to -1 (enable interrupts)
+ * 3. Loop while there are exception signals (tc_SigRecvd & tc_SigExcept):
+ *    a. Clear matching bits from both tc_SigExcept and tc_SigRecvd
+ *    b. Enable() interrupts
+ *    c. Call tc_ExceptCode with D0=flags, A1=tc_ExceptData, A6=SysBase
+ *    d. Return value is OR'd back into tc_SigExcept (re-enable those exceptions)
+ *    e. Disable() interrupts
+ * 4. Restore IDNestCnt
+ */
+void _exec_Exception ( register struct ExecBase *SysBase __asm("a6"))
+{
+    struct Task *task = SysBase->ThisTask;
+
+    DPRINTF (LOG_DEBUG, "_exec: Exception() called for task '%s'\n",
+             task->tc_Node.ln_Name ? task->tc_Node.ln_Name : "(null)");
+
+    Disable();
+
+    /* Clear the exception flag */
+    task->tc_Flags &= ~TF_EXCEPT;
+
+    /* Save and reset IDNestCnt */
+    BYTE nestCnt = SysBase->IDNestCnt;
+    SysBase->IDNestCnt = -1;
+
+    ULONG flags;
+
+    /* Loop while there are pending exception signals */
+    while ((flags = (task->tc_SigExcept & task->tc_SigRecvd)))
+    {
+        /* Clear the exception and received bits we're about to handle */
+        task->tc_SigExcept ^= flags;
+        task->tc_SigRecvd  ^= flags;
+
+        Enable();
+
+        /* Call the user's exception handler if set */
+        if (task->tc_ExceptCode)
+        {
+            DPRINTF (LOG_DEBUG, "_exec: Exception() calling tc_ExceptCode=0x%08lx, flags=0x%08lx\n",
+                     task->tc_ExceptCode, flags);
+
+            /*
+             * Call tc_ExceptCode with:
+             *   D0 = exception signal mask
+             *   A1 = tc_ExceptData
+             *   A6 = SysBase
+             * Return value (in D0) is OR'd back into tc_SigExcept
+             * to re-enable those exception signals.
+             */
+            register ULONG d0_flags __asm("d0") = flags;
+            register APTR a1_data __asm("a1") = task->tc_ExceptData;
+            register struct ExecBase *a6_sysbase __asm("a6") = SysBase;
+
+            __asm volatile (
+                "   move.l  %3, %%a4    \n"
+                "   jsr     (%%a4)      \n"
+                : "+d" (d0_flags)
+                : "a" (a1_data), "a" (a6_sysbase), "g" (task->tc_ExceptCode)
+                : "d1", "a0", "a1", "a4", "memory"
+            );
+
+            /* Re-enable exception signals returned by the handler */
+            task->tc_SigExcept |= d0_flags;
+        }
+
+        Disable();
+    }
+
+    /* Restore IDNestCnt */
+    SysBase->IDNestCnt = nestCnt;
+
+    Enable();
 }
 
 ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
@@ -4618,13 +4702,10 @@ void _bootstrap(void)
 
     DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): childfn() returned, rv=%ld\n", rv);
 #if 0
+    /* Dead code: alternate bootstrap approach using CreateNewProc (kept for reference) */
     //*((APTR*) SysBase->ThisTask->tc_SPReg) = initPC;
 
     DPRINTF (LOG_INFO, "_exec: about to launch a new process for %s ...\n", binfn);
-
-    //emucall1 (EMU_CALL_TRACE, TRUE); // FIXME: remove/disable
-
-    // FIXME childHomeDirLock = Lock ((STRPTR)env->dirbuf, ACCESS_READ);
 
     struct Process *child = CreateNewProcTags(NP_Seglist     , (ULONG) segs,
                                               NP_FreeSeglist , FALSE,
@@ -4634,8 +4715,6 @@ void _bootstrap(void)
                                               NP_CloseOutput , FALSE,
                                               NP_StackSize   , DEFAULT_STACKSIZE,
                                               NP_Name        , (ULONG) binfn,
-                                              //NP_WindowPtr , 0l,
-                                              /* FIXME: NP_HomeDir,     env->childHomeDirLock, */
                                               NP_CopyVars    , FALSE,
                                               NP_Cli         , TRUE,
                                               NP_Arguments   , (ULONG) "\n",
@@ -4749,7 +4828,7 @@ void coldstart (void)
     //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-48)].vec = _exec_Reschedule;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -54)].vec = exec_Switch;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -60)].vec = exec_Dispatch;
-    //g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-66)].vec = _exec_Exception;
+    g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -66)].vec = _exec_Exception;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -72)].vec = _exec_InitCode;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -78)].vec = _exec_InitStruct;
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY( -84)].vec = _exec_MakeLibrary;
@@ -4944,6 +5023,7 @@ void coldstart (void)
                       registerBuiltInLib (sizeof(struct Library), __lxa_iffparse_ROMTag  );
                       registerBuiltInLib (sizeof(struct Library), __lxa_datatypes_ROMTag );
                       registerBuiltInLib (sizeof(struct Library), __lxa_reqtools_ROMTag  );
+                      registerBuiltInLib (sizeof(struct Library), __lxa_dopus_ROMTag    );
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in libraries\n");
 
@@ -5026,14 +5106,16 @@ void coldstart (void)
     rootProc->pr_COS = MKBADDR (fh);
 
     // cli
-    rootProc->pr_TaskNum = 1; // FIXME
+    rootProc->pr_TaskNum = 1; /* Bootstrap is always CLI #1 */
 
     //BPTR oldpath = 0;
 
     struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
     cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
 
-    // FIXME: set cli_CommandDir
+    /* cli_CommandDir is left at 0 (NULL) — command path is managed by the shell
+     * via the Path command and DOS path list. The initial bootstrap process
+     * doesn't need a pre-populated command directory path. */
     char *binfn = AllocVec (1024, MEMF_CLEAR);
     emucall1 (EMU_CALL_LOADFILE, (ULONG) binfn);
     cli->cli_CommandName = MKBADDR(binfn);

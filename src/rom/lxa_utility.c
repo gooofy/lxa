@@ -42,13 +42,14 @@ struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *u
 struct UtilityBase * __g_lxa_utility_OpenLib ( register struct UtilityBase  *UtilityBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_utility: OpenLib() called\n");
-    // FIXME UtilityBase->dl_lib.lib_OpenCnt++;
-    // FIXME UtilityBase->dl_lib.lib_Flags &= ~LIBF_DELEXP;
+    UtilityBase->ub_LibNode.lib_OpenCnt++;
+    UtilityBase->ub_LibNode.lib_Flags &= ~LIBF_DELEXP;
     return UtilityBase;
 }
 
 BPTR __g_lxa_utility_CloseLib ( register struct UtilityBase  *utilityb __asm("a6"))
 {
+    utilityb->ub_LibNode.lib_OpenCnt--;
     return NULL;
 }
 

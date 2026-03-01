@@ -97,6 +97,7 @@ set(TESTS_LIST
     "../tests/exec/signals|main|Tests/Exec/Signals"
     "../tests/exec/sync|main|Tests/Exec/Sync"
     "../tests/exec/tasks|main|Tests/Exec/Tasks"
+    "../tests/exec/library|main|Tests/Exec/Library"
     "../tests/dos/chario|main|Tests/Dos/CharIO"
     "../tests/dos/createdir|main|Tests/Dos/CreateDir"
     "../tests/dos/fhutils|main|Tests/Dos/FHUtils"
