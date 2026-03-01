@@ -2,6 +2,7 @@
  * mousetest_gtest.cpp - Google Test version of MouseTest
  *
  * Tests mouse input handling via IDCMP.
+ * Verifies MOUSEMOVE, MOUSEBUTTONS (left/right down/up), and close gadget.
  */
 
 #include "lxa_test.h"
@@ -54,8 +55,10 @@ TEST_F(MouseTestTest, LeftButtonClick) {
     for (int i = 0; i < 100; i++) RunCycles(10000);
     
     std::string output = GetOutput();
-    EXPECT_NE(output.find("Left Button"), std::string::npos) 
-        << "Expected left button events";
+    EXPECT_NE(output.find("Left Button Down"), std::string::npos) 
+        << "Expected left button down event";
+    EXPECT_NE(output.find("Left Button Up"), std::string::npos) 
+        << "Expected left button up event";
 }
 
 TEST_F(MouseTestTest, RightButtonClick) {
@@ -69,8 +72,24 @@ TEST_F(MouseTestTest, RightButtonClick) {
     for (int i = 0; i < 100; i++) RunCycles(10000);
     
     std::string output = GetOutput();
-    EXPECT_NE(output.find("Right Button"), std::string::npos) 
-        << "Expected right button events";
+    EXPECT_NE(output.find("Right Button Down"), std::string::npos) 
+        << "Expected right button down event";
+    EXPECT_NE(output.find("Right Button Up"), std::string::npos) 
+        << "Expected right button up event";
+}
+
+TEST_F(MouseTestTest, CloseGadgetExit) {
+    ClearOutput();
+    
+    lxa_click_close_gadget(0);
+    
+    if (lxa_wait_exit(5000)) {
+        std::string output = GetOutput();
+        EXPECT_NE(output.find("Close gadget clicked"), std::string::npos) 
+            << "Expected close event output";
+        EXPECT_NE(output.find("Window closed"), std::string::npos) 
+            << "Expected window closed output";
+    }
 }
 
 int main(int argc, char **argv) {

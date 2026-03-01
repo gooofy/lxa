@@ -8,12 +8,13 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.52** | **Phase 71 In Progress** | **54/54 Tests Passing (1 pre-existing devpac_test failure)**
+**Version: 0.6.53** | **Phase 71 Complete** | **38/38 Tests Passing (GTest-only)**
 
-Phase 71: Performance & Infrastructure improvements.
+Phase 71: Performance & Infrastructure improvements — complete.
 
 **Current Status**:
-- 54/54 ctest entries (53 passing, 1 pre-existing devpac_test divide-by-zero failure)
+- 38/38 ctest entries (all GTest — legacy C test drivers removed)
+- **GTest migration finalized**: Removed all 16 legacy C test drivers, ported missing coverage to GTest equivalents. 8 GTest drivers enhanced with checks from legacy versions (mousetest, rawkey, asm_one, devpac, kickpascal, maxonbasic, dpaint, cluster2). CMakeLists.txt cleaned — only `add_gtest_driver()` remains.
 - **cpu_instr_callback ~80x speedup**: Added `g_debug_active` fast-path flag — when no debugging is active, the per-instruction callback only writes the trace buffer and checks PC < 0x100 safety net (skips breakpoint scanning, tracing, stepping). `dpaint_gtest` went from ~25s to 0.47s.
 - **ClipBlit crash fixed**: Root cause was GCC using A5 as frame pointer while `LockLayerRom`/`UnlockLayerRom` ABI requires layer pointer in A5 — direct calls from ClipBlit clobbered the stack frame, causing `rts` to address 0. Fix: removed no-op Lock/Unlock direct calls from ClipBlit (they're no-ops in lxa). ClipBlit test re-enabled and passing.
 
@@ -63,10 +64,10 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ### Phase 71: Performance & Infrastructure
 **Goal**: Improve emulator performance and test infrastructure.
-**STATUS**: In progress.
+**STATUS**: Complete.
 - [x] Fix ClipBlit layer cleanup crash — root cause: direct call to `LockLayerRom`/`UnlockLayerRom` from ClipBlit clobbers A5 frame pointer (AmigaOS ABI uses A5 for layer parameter). Fix: removed no-op direct calls. ClipBlit test re-enabled.
 - [x] Optimize per-instruction callback (`cpu_instr_callback`) — added `g_debug_active` fast-path flag. When no debugging active, callback only writes trace buffer + PC safety check. ~80x speedup (dpaint_gtest: 25s → 0.47s).
-- [ ] Transition/Remove legacy C test drivers (`dpaint_test`, `maxonbasic_test`, `simplegad_test`, etc.) to finalize GTest migration. Ensure no coverage is lost, then remove duplicate tests.
+- [x] Transition/Remove legacy C test drivers to finalize GTest migration. Ported missing coverage from 16 legacy C drivers to GTest equivalents (8 enhanced: mousetest, rawkey, asm_one, devpac, kickpascal, maxonbasic, dpaint, cluster2). Removed all 16 `*_test.c` files and `add_test_driver()` from CMakeLists.txt. Test count: 54 → 38 (16 duplicates removed). All 38 GTest tests passing.
 
 ### Phase 72: Application Compatibility & Analysis
 **Goal**: Deeper application testing and compatibility improvements.
@@ -126,6 +127,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.53 | 71 | **Phase 71 Complete — GTest migration finalized!** Removed all 16 legacy C test drivers (`*_test.c`), ported missing coverage to GTest equivalents. 8 GTest drivers enhanced with checks from legacy versions (mousetest: button up/down/close, rawkey: key mapping/qualifiers/close, asm_one/devpac/maxonbasic: screen dims/mouse/cursor, kickpascal: screen dims/mouse, dpaint: full rewrite from no-op, cluster2: screen dims/editor/mouse/cursor/RMB). Cleaned CMakeLists.txt — `add_test_driver()` removed, only `add_gtest_driver()` remains. Test count: 54 → 38 (16 duplicates removed). 38/38 tests passing. |
 | 0.6.52 | 71 | **Performance & ClipBlit fix!** `cpu_instr_callback` ~80x speedup via `g_debug_active` fast-path flag (skips breakpoint scanning/tracing when no debugging active; `dpaint_gtest`: 25s → 0.47s). Fixed ClipBlit crash (PC=0 on `rts`): root cause was direct call to `LockLayerRom`/`UnlockLayerRom` clobbering A5 frame pointer (AmigaOS ABI uses A5 for layer parameter, conflicting with GCC frame pointer). Removed no-op direct calls, ClipBlit test re-enabled. 54/54 ctest entries. |
 | 0.6.51 | 70a | **Phase 70a Complete!** IDCMP_VANILLAKEY: rawkey-to-ASCII conversion with lookup tables for unshifted/shifted keys, GadToolsGadgets keyboard shortcuts now work. FileReq: window position clamping fix (TopEdge=0 accepted via sentinel -1), widened Drawer gadget label spacing. FontReq: full font requester implementation (window with OK/Cancel buttons, font list display, font selection output via fo_Attr). Fixed LXAFontRequester/LXAFileRequester struct layouts (type field at offset 0 for polymorphic dispatch). 3 new filereq_gtest tests, 5 new fontreq_gtest tests, 3 new vanillakey gadtoolsgadgets_gtest tests. 54/54 ctest entries. |
 | 0.6.50 | 70a | Depth gadget AROS-style rendering (two overlapping unfilled rectangles via RectFill edges, shine-filled front rect). Depth gadget click handler: WindowToBack/WindowToFront toggle with Screen->FirstWindow list reordering. TAB/Shift-TAB string gadget cycling in _handle_string_gadget_key: forward/backward scan of GTYP_STRGADGET gadgets with wrap-around, direct gadget activation. 3 new functional tests (DepthGadgetClick, TabCyclesStringGadgets, ShiftTabCyclesBackward), enhanced DepthGadgetRendered pixel test. gadtoolsgadgets_gtest: 20→23 tests. 53/53 tests. |
