@@ -88,4 +88,9 @@ void vfs_set_progdir(const char *path);
 /* Get the current program directory (for PROGDIR:) */
 const char *vfs_get_progdir(void);
 
+/* Resolve a relative path from a root directory with case-insensitive matching.
+ * Returns true if the path (or its parent for the last component) exists. */
+bool vfs_resolve_case_path(const char *root, const char *relative_path,
+                           char *linux_path, size_t maxlen);
+
 #endif

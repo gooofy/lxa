@@ -8,16 +8,16 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.55** | **Phase 73 Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.56** | **Phase 74 Complete** | **35/35 Tests Passing (GTest-only)**
 
-Phase 73: Core Library Resource Management & Stability — complete.
+Phase 74: DOS & VFS Hardening — complete.
 
 **Current Status**:
-- 38/38 ctest entries (all GTest), plus new Library ref counting test
-- **Library reference counting**: Fixed `lib_OpenCnt++` and `LIBF_DELEXP` clearing in all 6 library Open handlers (graphics, intuition, utility, mathtrans, mathffp, expansion). Fixed `lib_OpenCnt--` in all Close handlers.
-- **Exception handling**: Implemented `Exception()` (LVO -66) with full tc_ExceptCode dispatch loop. Fixed `exceptions.s`: tc_Switch/tc_Launch callbacks, TF_EXCEPT handling in Schedule/Dispatch.
-- **Process initialization**: `CreateNewProc()` now sets pr_SegList, inherits cli_Prompt and cli_CommandDir from parent CLI. `U_prepareProcess()` inherits pr_ConsoleTask/pr_FileSystemTask from parent process.
-- **Bootstrap cleanup**: Cleaned all FIXME comments in exec.c bootstrap code (pr_TaskNum, cli_CommandDir, dead code block).
+- 35/35 ctest entries (all GTest), plus 3 new DOS tests (UnLoadSeg, DosObject, CasePath)
+- **UnLoadSeg**: Implemented full seglist chain walking with `FreeVec(BADDR(seg))`. Also implemented `InternalUnLoadSeg` with custom freefunc support.
+- **AllocDosObject/FreeDosObject**: Added `DOS_EXALLCONTROL` and `DOS_STDPKT` types with proper initialization (StandardPacket msg/pkt linkage per RKRM). Changed default from `assert(FALSE)` to graceful error handling (`LPRINTF` + `SetIoErr` + return NULL / `FreeVec`).
+- **errno2Amiga**: Full switch/case mapping from Linux errno to AmigaOS error codes (ENOENT→205, EACCES→224, EEXIST→203, EISDIR→212, ENOSPC→221, etc.). Fixed double-call bug in `_dos_open`.
+- **Case-insensitive paths**: Added `vfs_resolve_case_path()` wrapper in VFS layer. Legacy fallback in `_dos_path2linux` now uses case-insensitive resolution. Fixed `g_sysroot` NULL crash.
 
 ---
 
@@ -68,6 +68,9 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### Core Library Resource Management & Stability (Phase 73)
 - ✅ **Phase 73**: Fixed library reference counting in all 6 libraries (graphics, intuition, utility, mathtrans, mathffp, expansion) — `lib_OpenCnt++` in Open, `lib_OpenCnt--` in Close, `LIBF_DELEXP` clearing. Implemented `Exception()` (LVO -66) with full tc_ExceptCode signal dispatch loop. Fixed `exceptions.s`: tc_Switch/tc_Launch callbacks, TF_EXCEPT handling in Schedule/Dispatch. Process initialization: pr_SegList, pr_ConsoleTask, pr_FileSystemTask inheritance, cli_Prompt/cli_CommandDir inheritance from parent CLI. Bootstrap FIXME cleanup. New Library ref counting test. 38/38 tests passing.
 
+### DOS & VFS Hardening (Phase 74)
+- ✅ **Phase 74**: Implemented `UnLoadSeg` (seglist chain walking with `FreeVec`) and `InternalUnLoadSeg` (custom freefunc). Added `DOS_EXALLCONTROL` and `DOS_STDPKT` to `AllocDosObject`/`FreeDosObject`. Full `errno2Amiga` mapping (12+ errno→AmigaOS codes). Case-insensitive path resolution via `vfs_resolve_case_path()`. 3 new m68k test programs. 35/35 tests passing.
+
 ---
 
 ## Codebase Audit Results (Phase 72.5)
@@ -80,9 +83,9 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 2. **Intuition Heavily Stubbed** (29 markers) — BOOPSI gadgets, PropGadget/StringGadget allocation, AutoRequest rendering, ZipWindow, requesters. → Phase 76.
 3. **Layers Library Stubbed** (10 TODOs) — ScrollLayer, ClipRects, damage tracking, LAYERSMART all unimplemented. → Phase 75.
 4. ~~**Exception/Task Switching Incomplete** (5 FIXMEs in exceptions.s)~~ — **Fixed in Phase 73**. tc_Switch, tc_Launch, TF_EXCEPT, Exception() all implemented.
-5. **DOS Memory Leaks** (7 FIXMEs) — UnLoadSeg doesn't free memory, AllocDosObject/FreeDosObject incomplete. → Phase 74.
+5. ~~**DOS Memory Leaks** (7 FIXMEs) — UnLoadSeg doesn't free memory, AllocDosObject/FreeDosObject incomplete.~~ — **Fixed in Phase 74**. UnLoadSeg frees seglist chain, AllocDosObject/FreeDosObject complete for all 6 types.
 6. ~~**Process/CLI Initialization Gaps** (5 FIXMEs)~~ — **Fixed in Phase 73**. cli_CommandDir, pr_ConsoleTask, pr_FileSystemTask, pr_SegList, prompt inheritance all implemented.
-7. **Case-Insensitive Paths Missing** (1 FIXME in lxa.c) — Amiga paths are case-insensitive but host I/O is case-sensitive. → Phase 74.
+7. ~~**Case-Insensitive Paths Missing** (1 FIXME in lxa.c) — Amiga paths are case-insensitive but host I/O is case-sensitive.~~ — **Fixed in Phase 74**. Legacy fallback path uses `vfs_resolve_case_path()` for case-insensitive resolution.
 8. **Graphics Pixel Array Stubs** (4 TODOs) — ReadPixelLine8, ReadPixelArray8, WritePixelLine8 are stubs/assert(FALSE). → Phase 75.
 
 ---
@@ -97,13 +100,13 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] Fix process initialization in `util.c`: set `pr_SegList`, `pr_ConsoleTask`, `pr_FileSystemTask`. Also inherits `cli_Prompt` and `cli_CommandDir` from parent CLI.
 - [x] Fix `exec.c` bootstrap FIXMEs: `NP_HomeDir`, `pr_TaskNum`, `cli_CommandDir`. Cleaned dead code block comments.
 
-### Phase 74: DOS & VFS Hardening
+### Phase 74: DOS & VFS Hardening ✅
 **Goal**: Complete missing DOS/VFS features for 100% application compatibility.
-**TODO**:
-- [ ] Fix `UnLoadSeg` to properly free hunk memory (currently leaks all loaded segments).
-- [ ] Implement missing `AllocDosObject` types and fix `FreeDosObject` for unknown types.
-- [ ] Fix case-insensitive path mapping in `lxa.c` (Amiga paths are case-insensitive, Linux is not).
-- [ ] Fix errno-to-AmigaOS error code mapping in host I/O.
+**DONE**:
+- [x] Fix `UnLoadSeg` to properly free hunk memory (walks seglist chain, `FreeVec` each hunk). Also implemented `InternalUnLoadSeg` with custom freefunc support.
+- [x] Implement missing `AllocDosObject` types (`DOS_EXALLCONTROL`, `DOS_STDPKT` with msg/pkt linkage) and fix `FreeDosObject` for unknown types (graceful error instead of `assert(FALSE)`).
+- [x] Fix case-insensitive path mapping in `lxa.c` — added `vfs_resolve_case_path()` wrapper, legacy fallback uses case-insensitive resolution, fixed `g_sysroot` NULL crash.
+- [x] Fix errno-to-AmigaOS error code mapping in host I/O — full switch/case mapping (12+ errno→AmigaOS error codes), fixed double-call bug in `_dos_open`.
 
 ### Phase 75: Advanced Graphics & Layers
 **Goal**: Fill in missing graphical operations and layer functions.
@@ -143,6 +146,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.56 | 74 | **Phase 74 Complete — DOS & VFS Hardening!** Implemented `UnLoadSeg` (seglist chain walking with `FreeVec`) and `InternalUnLoadSeg` (custom freefunc). Added `DOS_EXALLCONTROL` and `DOS_STDPKT` to `AllocDosObject`/`FreeDosObject` (StandardPacket with msg/pkt linkage per RKRM). Changed invalid-type handling from `assert(FALSE)` to graceful error (LPRINTF + SetIoErr + return NULL). Full `errno2Amiga` mapping (12+ errno→AmigaOS codes: ENOENT→205, EACCES→224, EEXIST→203, EISDIR→212, ENOSPC→221, etc.). Fixed double-call bug in `_dos_open`. Case-insensitive path resolution via `vfs_resolve_case_path()` wrapper, with `g_sysroot` NULL guard. 3 new m68k test programs (UnLoadSeg, DosObject, CasePath). 35/35 tests passing. |
 | 0.6.55 | 73 | **Phase 73 Complete — Core Library Resource Management & Stability!** Fixed library reference counting (`lib_OpenCnt++/--`, `LIBF_DELEXP` clearing) in all 6 libraries (graphics, intuition, utility, mathtrans, mathffp, expansion). Implemented `Exception()` (LVO -66) with full tc_ExceptCode signal dispatch loop. Fixed `exceptions.s`: tc_Switch/tc_Launch callbacks, TF_EXCEPT handling in Schedule/Dispatch, Dispatch entry a6 load. Process initialization: pr_SegList set from NP_Seglist, pr_ConsoleTask/pr_FileSystemTask inherited from parent, cli_Prompt/cli_CommandDir inherited from parent CLI. Bootstrap FIXME cleanup. New Library ref counting test. 38/38 tests passing. |
 | 0.6.54 | 72 | **Phase 72 Complete — Application Compatibility & Analysis!** Implemented `dopus.library` stub (97 functions). Extended KickPascal2 test to verify window opening (background process + window count polling). Fixed `console.device` CONU_LIBRARY handling (early return for unit -1). Added 68040 MMU registers (TC, ITT0/1, DTT0/1, MMUSR, URP, SRP) to CPU struct with MOVEC read/write handlers. Silenced PFLUSH stderr output. Comprehensive codebase audit: 93 FIXME/TODO markers catalogued across 15 files. Identified top 8 priority areas for future phases. 38/38 tests passing. |
 | 0.6.53 | 71 | **Phase 71 Complete — GTest migration finalized!** Removed all 16 legacy C test drivers (`*_test.c`), ported missing coverage to GTest equivalents. 8 GTest drivers enhanced with checks from legacy versions (mousetest: button up/down/close, rawkey: key mapping/qualifiers/close, asm_one/devpac/maxonbasic: screen dims/mouse/cursor, kickpascal: screen dims/mouse, dpaint: full rewrite from no-op, cluster2: screen dims/editor/mouse/cursor/RMB). Cleaned CMakeLists.txt — `add_test_driver()` removed, only `add_gtest_driver()` remains. Test count: 54 → 38 (16 duplicates removed). 38/38 tests passing. |

@@ -370,16 +370,27 @@ static uint32_t _timer_get_expired(void)
 
 /* Amiga error codes */
 #define ERROR_NO_FREE_STORE      103
-#define ERROR_OBJECT_NOT_FOUND   205
+#define ERROR_OBJECT_IN_USE      202
 #define ERROR_OBJECT_EXISTS      203
 #define ERROR_DIR_NOT_FOUND      204
+#define ERROR_OBJECT_NOT_FOUND   205
 #define ERROR_BAD_STREAM_NAME    206
-#define ERROR_OBJECT_IN_USE      202
+#define ERROR_OBJECT_TOO_LARGE   207
+#define ERROR_ACTION_NOT_KNOWN   209
+#define ERROR_INVALID_LOCK       211
+#define ERROR_OBJECT_WRONG_TYPE  212
+#define ERROR_DISK_NOT_VALIDATED 213
+#define ERROR_DISK_WRITE_PROTECTED 214
+#define ERROR_RENAME_ACROSS_DEVICES 215
+#define ERROR_DIRECTORY_NOT_EMPTY 216
+#define ERROR_TOO_MANY_LEVELS    217
+#define ERROR_SEEK_ERROR         219
+#define ERROR_DISK_FULL          221
 #define ERROR_DELETE_PROTECTED   222
 #define ERROR_WRITE_PROTECTED    223
-#define ERROR_NO_MORE_ENTRIES    232
+#define ERROR_READ_PROTECTED     224
 #define ERROR_NOT_A_DOS_DISK     225
-#define ERROR_DISK_NOT_VALIDATED 213
+#define ERROR_NO_MORE_ENTRIES    232
 
 /* Allocate a new lock entry */
 static int _lock_alloc(void)
@@ -1161,16 +1172,42 @@ static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_l
     // Fallback to legacy behavior for backward compatibility
     if (!strncasecmp (amiga_path, "NIL:", 4))
         snprintf (linux_path, buf_len, "/dev/null");
-    else
+    else if (g_sysroot && !vfs_resolve_case_path (g_sysroot, amiga_path, linux_path, buf_len))
         snprintf (linux_path, buf_len, "%s/%s", g_sysroot, amiga_path);
+    else if (!g_sysroot)
+        snprintf (linux_path, buf_len, "%s", amiga_path);
     
     DPRINTF (LOG_DEBUG, "lxa: _dos_path2linux: legacy resolved %s -> %s\n", amiga_path, linux_path);
 }
 
 static int errno2Amiga (void)
 {
-    // FIXME: do actual mapping!
-    return errno;
+    switch (errno)
+    {
+        case 0:         return 0;
+        case ENOENT:    return ERROR_OBJECT_NOT_FOUND;
+        case ENOTDIR:   return ERROR_DIR_NOT_FOUND;
+        case EEXIST:    return ERROR_OBJECT_EXISTS;
+        case EACCES:    return ERROR_READ_PROTECTED;
+        case EPERM:     return ERROR_READ_PROTECTED;
+        case ENOMEM:    return ERROR_NO_FREE_STORE;
+        case ENOSPC:    return ERROR_DISK_FULL;
+        case EISDIR:    return ERROR_OBJECT_WRONG_TYPE;
+        case ENOTEMPTY: return ERROR_DIRECTORY_NOT_EMPTY;
+        case EXDEV:     return ERROR_RENAME_ACROSS_DEVICES;
+        case ENAMETOOLONG: return ERROR_BAD_STREAM_NAME;
+        case EFBIG:     return ERROR_OBJECT_TOO_LARGE;
+        case EROFS:     return ERROR_DISK_WRITE_PROTECTED;
+        case EMFILE:    /* fall through */
+        case ENFILE:    return ERROR_NO_FREE_STORE;
+        case EBUSY:     return ERROR_OBJECT_IN_USE;
+        case ESPIPE:    return ERROR_SEEK_ERROR;
+        case ELOOP:     return ERROR_TOO_MANY_LEVELS;
+        default:
+            DPRINTF (LOG_WARNING, "lxa: errno2Amiga: unmapped errno %d (%s)\n",
+                     errno, strerror(errno));
+            return ERROR_ACTION_NOT_KNOWN;
+    }
 }
 
 static void _dos_stdinout_fh (uint32_t fh68k, int is_input)
@@ -1238,8 +1275,9 @@ static int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
         }
         else
         {
-            m68k_write_memory_32 (fh68k+40, errno2Amiga());  // fh_Arg2 = error code
-            return errno2Amiga();
+            int amiga_err = errno2Amiga();
+            m68k_write_memory_32 (fh68k+40, amiga_err);  // fh_Arg2 = error code
+            return amiga_err;
         }
     }
 

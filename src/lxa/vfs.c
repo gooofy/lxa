@@ -404,6 +404,12 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
     return resolve_path_from_root(root, p, linux_path, maxlen);
 }
 
+bool vfs_resolve_case_path(const char *root, const char *relative_path,
+                           char *linux_path, size_t maxlen)
+{
+    return resolve_path_from_root(root, relative_path, linux_path, maxlen);
+}
+
 const char *vfs_get_home_dir(void)
 {
     return g_lxa_home[0] ? g_lxa_home : NULL;

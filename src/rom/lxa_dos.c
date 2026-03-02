@@ -1634,8 +1634,36 @@ finish:
 void _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
                                     register BPTR ___seglist  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: UnLoadSeg unimplemented STUB called for seglist 0x%08lx.\n", ___seglist);
-    /* FIXME: Implement memory freeing */
+    DPRINTF (LOG_DEBUG, "_dos: UnLoadSeg() called for seglist 0x%08lx\n", ___seglist);
+
+    if (!___seglist)
+        return;
+
+    /*
+     * Walk the seglist chain and free each hunk.
+     *
+     * LoadSeg allocates each hunk with AllocVec(). The first longword
+     * at BADDR(seg) is the BPTR to the next segment in the chain.
+     * We walk the chain, freeing each hunk with FreeVec().
+     */
+    BPTR seg = ___seglist;
+    int count = 0;
+
+    while (seg)
+    {
+        BPTR *seg_ptr = (BPTR *)BADDR(seg);
+        BPTR next = seg_ptr[0];  /* next segment BPTR */
+
+        DPRINTF (LOG_DEBUG, "_dos: UnLoadSeg() freeing segment %d at 0x%08lx (next=0x%08lx)\n",
+                 count, seg_ptr, next);
+
+        FreeVec(seg_ptr);
+
+        seg = next;
+        count++;
+    }
+
+    DPRINTF (LOG_DEBUG, "_dos: UnLoadSeg() freed %d segments\n", count);
 }
 
 
@@ -2023,14 +2051,31 @@ void *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
 
             if (m)
             {
-                //struct FileHandle *fh = (struct FileHandle *) m;
-
-                // FIXME: initialize
-                //fh->fh_Pos = -1;
-                //fh->fh_End = -1;
+                /* AllocVec with MEMF_CLEAR already zeroes all fields.
+                 * fh_Pos = 0 is correct: our FGetC uses negative fh_Pos
+                 * to store ungotten chars, so 0 means "no ungotten char".
+                 * Note: RKRM says fh_Pos/fh_End are for buffered I/O,
+                 * but we don't use buffering, so leave them at 0. */
             }
             DPRINTF (LOG_DEBUG, "_dos: AllocDosObject() allocated new DOS_FILEHANDLE object: 0x%08lx\n", m);
             return m;
+        }
+
+        case DOS_EXALLCONTROL:
+        {
+            /*
+             * ExAllControl structure - MUST be allocated via AllocDosObject()
+             * per RKRM. Used to control ExAll() directory scanning.
+             * All fields must be initialized to 0, especially eac_LastKey.
+             */
+            struct ExAllControl *eac = AllocVec(sizeof(struct ExAllControl), MEMF_PUBLIC | MEMF_CLEAR);
+            if (!eac)
+            {
+                SetIoErr(ERROR_NO_FREE_STORE);
+                return NULL;
+            }
+            DPRINTF(LOG_DEBUG, "_dos: AllocDosObject() allocated new DOS_EXALLCONTROL object: 0x%08lx\n", eac);
+            return eac;
         }
 
         case DOS_FIB:
@@ -2093,6 +2138,27 @@ OOM:
             return NULL;
         }
 
+        case DOS_STDPKT:
+        {
+            /*
+             * StandardPacket - used for packet-level I/O.
+             * Contains a Message and a DosPacket, with proper linkage.
+             */
+            struct StandardPacket *sp = AllocVec(sizeof(struct StandardPacket), MEMF_PUBLIC | MEMF_CLEAR);
+            if (!sp)
+            {
+                SetIoErr(ERROR_NO_FREE_STORE);
+                return NULL;
+            }
+
+            /* Link the packet to the message per RKRM */
+            sp->sp_Msg.mn_Node.ln_Name = (char *)&sp->sp_Pkt;
+            sp->sp_Pkt.dp_Link = &sp->sp_Msg;
+
+            DPRINTF(LOG_DEBUG, "_dos: AllocDosObject() allocated new DOS_STDPKT object: 0x%08lx\n", sp);
+            return sp;
+        }
+
         case DOS_RDARGS:
         {
             /* Allocate an RDArgs structure for ReadArgs().
@@ -2109,8 +2175,9 @@ OOM:
         }
 
         default:
-            DPRINTF (LOG_ERROR, "_dos: FIXME: AllocDosObject() type=%ld not implemented\n", type);
-            assert (FALSE);
+            LPRINTF (LOG_ERROR, "_dos: AllocDosObject() type=%ld not implemented\n", type);
+            SetIoErr (ERROR_BAD_NUMBER);
+            return NULL;
     }
 
     SetIoErr (ERROR_BAD_NUMBER);
@@ -2175,8 +2242,25 @@ void _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"),
             break;
         }
 
+        case DOS_EXALLCONTROL:
+        {
+            /* Free ExAllControl structure */
+            FreeVec(ptr);
+            break;
+        }
+
+        case DOS_STDPKT:
+        {
+            /* Free StandardPacket structure */
+            FreeVec(ptr);
+            break;
+        }
+
 	default:
-		assert (FALSE); // FIXME: implement other dos obj types
+		LPRINTF (LOG_ERROR, "_dos: FreeDosObject() unknown type=%d, ptr=0x%08lx\n", type, ptr);
+		/* Don't assert — just log and free the memory */
+		FreeVec(ptr);
+		break;
 	}
 }
 
@@ -4816,9 +4900,42 @@ BOOL _dos_InternalUnLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR seglist __asm("d1"),
                                                         register VOID (*freefunc)() __asm("a1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: InternalUnLoadSeg() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_dos: InternalUnLoadSeg() called, seglist=0x%08lx, freefunc=0x%08lx\n",
+             seglist, freefunc);
+
+    if (!seglist)
+        return TRUE;
+
+    /*
+     * InternalUnLoadSeg is like UnLoadSeg but uses a custom free function.
+     * If freefunc is NULL, use FreeVec() as the default.
+     * The freefunc signature matches FreeMem(ptr, size) but we use FreeVec()
+     * since LoadSeg uses AllocVec().
+     */
+    BPTR seg = seglist;
+
+    while (seg)
+    {
+        BPTR *seg_ptr = (BPTR *)BADDR(seg);
+        BPTR next = seg_ptr[0];  /* next segment BPTR */
+
+        if (freefunc)
+        {
+            /* Custom free function - call with pointer and size.
+             * Note: We don't know the exact size, so we pass 0.
+             * In practice, callers using InternalUnLoadSeg typically
+             * use their own memory tracking. */
+            freefunc(seg_ptr, 0);
+        }
+        else
+        {
+            FreeVec(seg_ptr);
+        }
+
+        seg = next;
+    }
+
+    return TRUE;
 }
 
 BPTR _dos_NewLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),

@@ -42,6 +42,9 @@ all:
 	@$(MAKE) -C dos/fhutils
 	@$(MAKE) -C dos/matchfirst
 	@$(MAKE) -C dos/path_navigation
+	@$(MAKE) -C dos/unloadseg
+	@$(MAKE) -C dos/dosobject
+	@$(MAKE) -C dos/case_path
 	@$(MAKE) -C exec/signal_pingpong
 	@$(MAKE) -C exec/multitask
 	@$(MAKE) -C shell/alias
@@ -132,6 +135,9 @@ clean:
 	@$(MAKE) -C dos/fhutils clean
 	@$(MAKE) -C dos/matchfirst clean
 	@$(MAKE) -C dos/path_navigation clean
+	@$(MAKE) -C dos/unloadseg clean
+	@$(MAKE) -C dos/dosobject clean
+	@$(MAKE) -C dos/case_path clean
 	@$(MAKE) -C exec/signal_pingpong clean
 	@$(MAKE) -C exec/multitask clean
 	@$(MAKE) -C shell/alias clean
@@ -219,6 +225,9 @@ clean:
 	rm -f dos/fhutils/actual.out
 	rm -f dos/matchfirst/actual.out
 	rm -f dos/path_navigation/actual.out
+	rm -f dos/unloadseg/actual.out
+	rm -f dos/dosobject/actual.out
+	rm -f dos/case_path/actual.out
 	rm -f exec/signal_pingpong/actual.out
 	rm -f shell/alias/actual.out
 	rm -f shell/controlflow/actual.out
@@ -312,6 +321,9 @@ run-tests:
 	@$(MAKE) -C dos/fhutils run-test
 	@$(MAKE) -C dos/matchfirst run-test
 	@$(MAKE) -C dos/path_navigation run-test
+	@$(MAKE) -C dos/unloadseg run-test
+	@$(MAKE) -C dos/dosobject run-test
+	@$(MAKE) -C dos/case_path run-test
 	@$(MAKE) -C exec/signal_pingpong run-test
 	@$(MAKE) -C exec/multitask run-test
 	@$(MAKE) -C shell/alias run-test

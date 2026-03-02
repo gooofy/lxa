@@ -145,6 +145,18 @@ TEST_F(DosTest, SpecialChars) {
     RunDosTest("SpecialChars");
 }
 
+TEST_F(DosTest, UnLoadSeg) {
+    RunDosTest("UnLoadSeg");
+}
+
+TEST_F(DosTest, DosObject) {
+    RunDosTest("DosObject");
+}
+
+TEST_F(DosTest, CasePath) {
+    RunDosTest("CasePath");
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
