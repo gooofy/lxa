@@ -26,7 +26,7 @@ protected:
             << "Could not get window info";
         
         // Let task reach Wait()
-        WaitForEventLoop(200, 10000);
+        WaitForEventLoop(100, 10000);
         ClearOutput();
     }
 };
@@ -57,7 +57,7 @@ TEST_F(SimpleMenuTest, MenuSelection) {
     
     // Poll for MENUPICK with VBlanks
     bool found = false;
-    for (int attempt = 0; attempt < 100 && !found; attempt++) {
+    for (int attempt = 0; attempt < 60 && !found; attempt++) {
         lxa_trigger_vblank();
         RunCycles(100000);
         
@@ -120,8 +120,8 @@ protected:
             << "Could not get window info";
         
         /* Let rendering complete */
-        WaitForEventLoop(200, 10000);
-        RunCyclesWithVBlank(30, 200000);
+        WaitForEventLoop(100, 10000);
+        RunCyclesWithVBlank(50, 100000);
     }
 };
 

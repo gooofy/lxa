@@ -26,7 +26,7 @@ protected:
             << "Could not get window info";
         
         // Let task process
-        WaitForEventLoop(200, 10000);
+        WaitForEventLoop(100, 10000);
     }
 };
 

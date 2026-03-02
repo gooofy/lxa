@@ -20,7 +20,7 @@ protected:
         ASSERT_TRUE(WaitForWindows(1, 5000));
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
         
-        WaitForEventLoop(200, 10000);
+        WaitForEventLoop(100, 10000);
         ClearOutput();
     }
 };

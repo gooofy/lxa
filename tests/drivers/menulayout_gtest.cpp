@@ -32,7 +32,7 @@ protected:
             << "Could not get window info";
 
         /* Let task reach Wait() in event loop */
-        WaitForEventLoop(200, 10000);
+        WaitForEventLoop(100, 10000);
         ClearOutput();
     }
 };
@@ -63,7 +63,7 @@ TEST_F(MenuLayoutTest, StartupOutput) {
     /* The program prints startup messages after reaching the event loop.
      * Need to give it enough cycles for printf to complete.
      */
-    RunCyclesWithVBlank(30, 50000);
+    RunCyclesWithVBlank(30, 100000);
     std::string output = GetOutput();
     EXPECT_NE(output.find("Menu Example running"), std::string::npos)
         << "Program should print startup message. Output: " << output;
@@ -79,7 +79,7 @@ TEST_F(MenuLayoutTest, ProjectMenuSelection) {
      * Center of first item: 11 + 0 + 4 = 15.
      */
     ClearOutput();
-    RunCyclesWithVBlank(10, 50000);  /* Ensure printf is flushed */
+    RunCyclesWithVBlank(20, 100000);  /* Ensure printf is flushed */
     ClearOutput();
 
     int menu_bar_x = 30;   /* Over "Project" title */
@@ -91,7 +91,7 @@ TEST_F(MenuLayoutTest, ProjectMenuSelection) {
 
     /* Poll for MENUPICK with VBlanks */
     bool found = false;
-    for (int attempt = 0; attempt < 100 && !found; attempt++) {
+    for (int attempt = 0; attempt < 60 && !found; attempt++) {
         lxa_trigger_vblank();
         RunCycles(100000);
 
@@ -174,8 +174,8 @@ protected:
             << "Could not get window info";
 
         /* Let rendering complete */
-        WaitForEventLoop(200, 10000);
-        RunCyclesWithVBlank(30, 200000);
+        WaitForEventLoop(100, 10000);
+        RunCyclesWithVBlank(50, 100000);
     }
 };
 
@@ -222,7 +222,7 @@ TEST_F(MenuLayoutPixelTest, MenuDropdownClearedAfterSelection) {
      * Menu rendering (save-behind, bitmap ops) is cycle-intensive.
      */
     lxa_inject_drag(30, 5, 30, 16, LXA_MOUSE_RIGHT, 10);
-    RunCyclesWithVBlank(20, 200000);
+    RunCyclesWithVBlank(30, 100000);
     lxa_flush_display();
 
     int after_pixels = CountContentPixels(check_x1, check_y1, check_x2, check_y2, 0);

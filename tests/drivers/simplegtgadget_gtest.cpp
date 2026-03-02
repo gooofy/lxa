@@ -28,8 +28,8 @@ protected:
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
         
         // Wait for program to initialize, render, and reach event loop
-        WaitForEventLoop(50, 10000);
-        RunCyclesWithVBlank(10, 100000);
+        WaitForEventLoop(100, 10000);
+        RunCyclesWithVBlank(20, 50000);
     }
 };
 
@@ -113,8 +113,8 @@ protected:
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
         
         // Let rendering complete
-        WaitForEventLoop(200, 10000);
-        RunCyclesWithVBlank(30, 200000);
+        WaitForEventLoop(100, 10000);
+        RunCyclesWithVBlank(50, 100000);
     }
 };
 

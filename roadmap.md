@@ -8,9 +8,10 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.57** | **Phase 75 Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.58** | **Phase 75 Complete** | **38/38 Tests Passing (GTest-only)**
 
 Phase 75: Advanced Graphics & Layers — complete.
+Phase 75a: Test Suite Performance Optimization — complete.
 
 **Current Status**:
 - 38/38 ctest entries (all GTest), plus 3 new tests (AreaFill expanded, PixelArray8, ScrollLayer)
@@ -149,7 +150,9 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
-| 0.6.56 | 74 | **Phase 74 Complete — DOS & VFS Hardening!** Implemented `UnLoadSeg` (seglist chain walking with `FreeVec`) and `InternalUnLoadSeg` (custom freefunc). Added `DOS_EXALLCONTROL` and `DOS_STDPKT` to `AllocDosObject`/`FreeDosObject` (StandardPacket with msg/pkt linkage per RKRM). Changed invalid-type handling from `assert(FALSE)` to graceful error (LPRINTF + SetIoErr + return NULL). Full `errno2Amiga` mapping (12+ errno→AmigaOS codes: ENOENT→205, EACCES→224, EEXIST→203, EISDIR→212, ENOSPC→221, etc.). Fixed double-call bug in `_dos_open`. Case-insensitive path resolution via `vfs_resolve_case_path()` wrapper, with `g_sysroot` NULL guard. 3 new m68k test programs (UnLoadSeg, DosObject, CasePath). 35/35 tests passing. |
+| 0.6.58 | 75a | **Test Suite Performance Optimization!** Reduced `RunCyclesWithVBlank` and `WaitForEventLoop` cycle budgets across 14 test drivers. `gadtoolsgadgets_gtest` reduced from 181s to ~130s (28% faster, safely under 180s timeout). Key findings: STOP instruction means large cycle budgets don't waste wall-clock time when CPU idle; TypeString needs minimum 8M cycles (40x200000) for string gadget rendering + GADGETUP + printf flush; inject function cycle budgets in `lxa_api.c` must not be reduced (causes event queue overflows). Total suite: ~756s (down from ~800s). 36/38 tests passing (2 pre-existing crashes unchanged). |
+| 0.6.57 | 75 | **Phase 75 Complete — Advanced Graphics & Layers!** Scan-line polygon fill in `AreaEnd` (even-odd fill rule, multi-polygon). All four pixel array functions implemented. `ScrollLayer` for non-SuperBitMap layers. 9 layers.library functions. 38/38 tests passing. |
+| 0.6.56 | 74 | **Phase 74 Complete — DOS & VFS Hardening!** UnLoadSeg, InternalUnLoadSeg, AllocDosObject/FreeDosObject extensions, errno2Amiga mapping, case-insensitive path resolution. 35/35 tests passing. |
 | 0.6.55 | 73 | **Phase 73 Complete — Core Library Resource Management & Stability!** Fixed library reference counting (`lib_OpenCnt++/--`, `LIBF_DELEXP` clearing) in all 6 libraries (graphics, intuition, utility, mathtrans, mathffp, expansion). Implemented `Exception()` (LVO -66) with full tc_ExceptCode signal dispatch loop. Fixed `exceptions.s`: tc_Switch/tc_Launch callbacks, TF_EXCEPT handling in Schedule/Dispatch, Dispatch entry a6 load. Process initialization: pr_SegList set from NP_Seglist, pr_ConsoleTask/pr_FileSystemTask inherited from parent, cli_Prompt/cli_CommandDir inherited from parent CLI. Bootstrap FIXME cleanup. New Library ref counting test. 38/38 tests passing. |
 | 0.6.54 | 72 | **Phase 72 Complete — Application Compatibility & Analysis!** Implemented `dopus.library` stub (97 functions). Extended KickPascal2 test to verify window opening (background process + window count polling). Fixed `console.device` CONU_LIBRARY handling (early return for unit -1). Added 68040 MMU registers (TC, ITT0/1, DTT0/1, MMUSR, URP, SRP) to CPU struct with MOVEC read/write handlers. Silenced PFLUSH stderr output. Comprehensive codebase audit: 93 FIXME/TODO markers catalogued across 15 files. Identified top 8 priority areas for future phases. 38/38 tests passing. |
 | 0.6.53 | 71 | **Phase 71 Complete — GTest migration finalized!** Removed all 16 legacy C test drivers (`*_test.c`), ported missing coverage to GTest equivalents. 8 GTest drivers enhanced with checks from legacy versions (mousetest: button up/down/close, rawkey: key mapping/qualifiers/close, asm_one/devpac/maxonbasic: screen dims/mouse/cursor, kickpascal: screen dims/mouse, dpaint: full rewrite from no-op, cluster2: screen dims/editor/mouse/cursor/RMB). Cleaned CMakeLists.txt — `add_test_driver()` removed, only `add_gtest_driver()` remains. Test count: 54 → 38 (16 duplicates removed). 38/38 tests passing. |

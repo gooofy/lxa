@@ -49,10 +49,10 @@ protected:
             << "Could not get window info";
         
         // Let task reach WaitPort() and allow rendering to complete
-        WaitForEventLoop(200, 10000);
+        WaitForEventLoop(100, 10000);
         
         // Extra VBlanks to ensure rendering + planar->chunky conversion
-        RunCyclesWithVBlank(30, 200000);
+        RunCyclesWithVBlank(50, 100000);
     }
 };
 
@@ -169,7 +169,7 @@ protected:
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
         
         // Let task reach WaitPort() - CRITICAL for event handling
-        WaitForEventLoop(200, 10000);
+        WaitForEventLoop(100, 10000);
         ClearOutput();
     }
 };

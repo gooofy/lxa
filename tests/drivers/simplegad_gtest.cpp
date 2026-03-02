@@ -50,7 +50,7 @@ protected:
             << "Could not get window info";
         
         // Let task reach WaitPort() - CRITICAL for event handling
-        WaitForEventLoop(200, 10000);
+        WaitForEventLoop(100, 10000);
         ClearOutput();
     }
 };
@@ -71,7 +71,7 @@ TEST_F(SimpleGadTest, ButtonClick) {
     
     // Process event through VBlanks - need enough for the full Intuition pipeline:
     // event -> input.device -> Intuition -> IDCMP -> task signal -> task runs -> printf
-    RunCyclesWithVBlank(40, 50000);
+    RunCyclesWithVBlank(20, 50000);
     
     // Check output
     std::string output = GetOutput();
@@ -94,7 +94,7 @@ TEST_F(SimpleGadTest, CloseWindow) {
     
     // Give additional VBlanks for the close event to propagate through
     // Intuition and for the task to process it and begin cleanup
-    RunCyclesWithVBlank(10, 50000);
+    RunCyclesWithVBlank(20, 50000);
     
     // Wait for exit - now with VBlank triggering for reliable cleanup
     ASSERT_TRUE(lxa_wait_exit(5000)) 
@@ -137,11 +137,11 @@ protected:
             << "Could not get window info";
         
         // Let task reach WaitPort() and allow rendering to complete
-        WaitForEventLoop(200, 10000);
+        WaitForEventLoop(100, 10000);
         
         // Trigger extra VBlanks to ensure planar->chunky conversion
         // Use more cycles to ensure _render_window_frame() and gadget rendering complete
-        RunCyclesWithVBlank(30, 200000);
+        RunCyclesWithVBlank(50, 100000);
     }
 };
 
@@ -356,7 +356,7 @@ TEST_F(SimpleGadPixelTest, GadghcompHighlightOnClick) {
     // Move to position first
     lxa_inject_mouse(btn_x, btn_y, 0, LXA_EVENT_MOUSEMOVE);
     lxa_trigger_vblank();
-    lxa_run_cycles(50000);
+    lxa_run_cycles(10000);
     
     // Press button down
     lxa_inject_mouse(btn_x, btn_y, LXA_MOUSE_LEFT, LXA_EVENT_MOUSEBUTTON);
@@ -364,7 +364,7 @@ TEST_F(SimpleGadPixelTest, GadghcompHighlightOnClick) {
     // Process events — need enough VBlanks for the full Intuition pipeline
     for (int i = 0; i < 10; i++) {
         lxa_trigger_vblank();
-        lxa_run_cycles(100000);
+        lxa_run_cycles(50000);
     }
     // Flush planar→chunky so display_read_pixel() returns current data
     lxa_flush_display();
@@ -394,7 +394,7 @@ TEST_F(SimpleGadPixelTest, GadghcompHighlightOnClick) {
     // Process events
     for (int i = 0; i < 10; i++) {
         lxa_trigger_vblank();
-        lxa_run_cycles(100000);
+        lxa_run_cycles(50000);
     }
     // Flush planar→chunky so display_read_pixel() returns current data
     lxa_flush_display();

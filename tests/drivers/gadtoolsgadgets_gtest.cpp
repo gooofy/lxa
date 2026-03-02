@@ -45,7 +45,7 @@ protected:
             << "Could not get window info";
 
         /* Let task reach event loop and flush Printf output */
-        RunCyclesWithVBlank(30, 100000);
+        RunCyclesWithVBlank(20, 100000);
 
         /* Capture the startup output */
         output = GetOutput();
@@ -55,7 +55,7 @@ protected:
         if (!program_exited) {
             /* Close the window to let the program exit cleanly */
             lxa_click_close_gadget(0);
-            RunCyclesWithVBlank(20, 50000);
+            RunCyclesWithVBlank(10, 50000);
             lxa_wait_exit(3000);
         }
 
@@ -122,7 +122,7 @@ TEST_F(GadToolsGadgetsTest, ButtonClick) {
 
     ClearOutput();
     Click(btn_x, btn_y);
-    RunCyclesWithVBlank(30, 100000);
+    RunCyclesWithVBlank(20, 100000);
 
     std::string click_output = GetOutput();
     EXPECT_NE(click_output.find("Button was pressed, slider reset to 10"), std::string::npos)
@@ -133,7 +133,7 @@ TEST_F(GadToolsGadgetsTest, CloseWindow) {
     /* Close the window and verify the program handles it */
     ClearOutput();
     lxa_click_close_gadget(0);
-    RunCyclesWithVBlank(20, 50000);
+    RunCyclesWithVBlank(10, 50000);
 
     /* Wait for program exit */
     EXPECT_TRUE(lxa_wait_exit(3000))
@@ -166,7 +166,7 @@ TEST_F(GadToolsGadgetsTest, SliderClick) {
 
     ClearOutput();
     Click(click_x, click_y);
-    RunCyclesWithVBlank(30, 100000);
+    RunCyclesWithVBlank(20, 100000);
 
     std::string click_output = GetOutput();
     /* The sample program prints "Slider at level <N>" for GADGETDOWN/MOUSEMOVE/GADGETUP */
@@ -207,7 +207,7 @@ TEST_F(GadToolsGadgetsTest, SliderDrag) {
     }
 
     lxa_inject_drag(start_x, start_y, end_x, end_y, LXA_MOUSE_LEFT, 5);
-    RunCyclesWithVBlank(60, 200000);
+    RunCyclesWithVBlank(50, 100000);
 
     std::string after = GetOutput();
     int after_count = 0;
@@ -245,7 +245,7 @@ TEST_F(GadToolsGadgetsTest, ButtonResetsSlider) {
     int slider_click_y = window_info.y + slider_top + slider_h / 2;
 
     Click(slider_click_x, slider_click_y);
-    RunCyclesWithVBlank(20, 100000);
+    RunCyclesWithVBlank(15, 100000);
 
     /* Now click the button to reset slider to 10 */
     int btn_x = window_info.x + 190 + 50;   /* center of 100px wide button */
@@ -253,7 +253,7 @@ TEST_F(GadToolsGadgetsTest, ButtonResetsSlider) {
 
     ClearOutput();
     Click(btn_x, btn_y);
-    RunCyclesWithVBlank(30, 100000);
+    RunCyclesWithVBlank(20, 100000);
 
     std::string btn_output = GetOutput();
     EXPECT_NE(btn_output.find("Button was pressed, slider reset to 10"), std::string::npos)
@@ -271,12 +271,12 @@ TEST_F(GadToolsGadgetsTest, DepthGadgetClick) {
     int depth_cy = window_info.y + TITLE_BAR_HEIGHT / 2;
 
     Click(depth_cx, depth_cy);
-    RunCyclesWithVBlank(20, 100000);
+    RunCyclesWithVBlank(10, 100000);
 
     /* Window should still be responsive — close it */
     ClearOutput();
     lxa_click_close_gadget(0);
-    RunCyclesWithVBlank(20, 50000);
+    RunCyclesWithVBlank(10, 50000);
     EXPECT_TRUE(lxa_wait_exit(3000))
         << "Program should exit after close window (depth gadget did not break it)";
     program_exited = true;
@@ -301,7 +301,7 @@ TEST_F(GadToolsGadgetsTest, TabCyclesStringGadgets) {
     int str1_x = window_info.x + 140 + 100;  /* center of 200px wide */
     int str1_y = window_info.y + 60 + 7;     /* center of 14px tall */
     Click(str1_x, str1_y);
-    RunCyclesWithVBlank(20, 100000);
+    RunCyclesWithVBlank(15, 100000);
 
     /* Press TAB to cycle to string gadget 2 */
     PressKey(RAWKEY_TAB, 0);
@@ -310,7 +310,7 @@ TEST_F(GadToolsGadgetsTest, TabCyclesStringGadgets) {
     /* Type "XYZ" into string gadget 2, then press Return to get GADGETUP */
     ClearOutput();
     TypeString("XYZ\n");
-    RunCyclesWithVBlank(60, 200000);
+    RunCyclesWithVBlank(40, 200000);
 
     std::string output2 = GetOutput();
     /* The GADGETUP should report string gadget 2's contents.
@@ -333,7 +333,7 @@ TEST_F(GadToolsGadgetsTest, ShiftTabCyclesBackward) {
     int str2_x = window_info.x + 140 + 100;
     int str2_y = window_info.y + 80 + 7;
     Click(str2_x, str2_y);
-    RunCyclesWithVBlank(20, 100000);
+    RunCyclesWithVBlank(15, 100000);
 
     /* Press Shift-TAB to cycle backward to string gadget 1 */
     PressKey(RAWKEY_TAB, IEQUALIFIER_LSHIFT);
@@ -342,7 +342,7 @@ TEST_F(GadToolsGadgetsTest, ShiftTabCyclesBackward) {
     /* Type "ABC" into string gadget 1, then press Return */
     ClearOutput();
     TypeString("ABC\n");
-    RunCyclesWithVBlank(60, 200000);
+    RunCyclesWithVBlank(40, 200000);
 
     std::string output1 = GetOutput();
     /* Should report string gadget 1's contents */
@@ -362,7 +362,7 @@ TEST_F(GadToolsGadgetsTest, VanillaKeySliderIncrease) {
 
     ClearOutput();
     PressKey(RAWKEY_V, 0);  /* lowercase 'v' */
-    RunCyclesWithVBlank(60, 200000);
+    RunCyclesWithVBlank(30, 100000);
 
     std::string output = GetOutput();
     EXPECT_NE(output.find("VANILLAKEY 'v'"), std::string::npos)
@@ -380,7 +380,7 @@ TEST_F(GadToolsGadgetsTest, VanillaKeySliderDecrease) {
 
     ClearOutput();
     PressKey(RAWKEY_V, IEQUALIFIER_LSHIFT);  /* uppercase 'V' */
-    RunCyclesWithVBlank(60, 200000);
+    RunCyclesWithVBlank(30, 100000);
 
     std::string output = GetOutput();
     EXPECT_NE(output.find("VANILLAKEY 'V'"), std::string::npos)
@@ -397,12 +397,12 @@ TEST_F(GadToolsGadgetsTest, VanillaKeyActivateGadget) {
 
     /* Press 'f' to activate string gadget 1 via VANILLAKEY */
     PressKey(RAWKEY_F, 0);
-    RunCyclesWithVBlank(20, 200000);
+    RunCyclesWithVBlank(20, 100000);
 
     /* Type into the now-active string gadget 1 */
     ClearOutput();
     TypeString("HELLO\n");
-    RunCyclesWithVBlank(60, 200000);
+    RunCyclesWithVBlank(40, 200000);
 
     std::string output = GetOutput();
     EXPECT_NE(output.find("String gadget 1:"), std::string::npos)
@@ -440,7 +440,7 @@ protected:
     void TearDown() override {
         /* Close the window to let the program exit cleanly */
         lxa_click_close_gadget(0);
-        RunCyclesWithVBlank(20, 50000);
+        RunCyclesWithVBlank(10, 50000);
         lxa_wait_exit(3000);
 
         LxaUITest::TearDown();

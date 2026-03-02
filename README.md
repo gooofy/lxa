@@ -201,7 +201,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.57** - Phase 75 Complete (Advanced Graphics & Layers)
+**Version 0.6.58** - Phase 75a Complete (Test Suite Performance Optimization)
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

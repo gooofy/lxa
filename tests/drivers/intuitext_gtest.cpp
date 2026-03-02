@@ -86,8 +86,8 @@ protected:
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
 
         /* Let rendering complete */
-        WaitForEventLoop(200, 10000);
-        RunCyclesWithVBlank(30, 200000);
+        WaitForEventLoop(100, 10000);
+        RunCyclesWithVBlank(50, 100000);
     }
 };
 
