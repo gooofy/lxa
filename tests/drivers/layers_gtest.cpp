@@ -36,6 +36,7 @@ protected:
 TEST_F(LayerTest, ClipRects) { RunLayerTest("ClipRects"); }
 TEST_F(LayerTest, LayerInfo) { RunLayerTest("LayerInfo"); }
 TEST_F(LayerTest, Locking) { RunLayerTest("Locking"); }
+TEST_F(LayerTest, ScrollLayer) { RunLayerTest("ScrollLayer"); }
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

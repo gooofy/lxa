@@ -1096,6 +1096,11 @@ static LONG _layers_SizeLayer ( register struct LayersBase *LayersBase __asm("a6
 
 /*
  * ScrollLayer - Scroll layer contents (offset -0x48)
+ *
+ * Per AROS/RKRM: For non-SuperBitMap layers, the scroll offsets are
+ * accumulated and the bitmap contents are scrolled via ScrollRaster
+ * so the visible content moves. For SuperBitMap layers, we'd need
+ * SyncSBitMap/CopySBitMap which we don't implement yet.
  */
 static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("a6"),
                                   register LONG               dummy      __asm("a0"),
@@ -1108,10 +1113,36 @@ static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("
     if (!layer)
         return;
 
-    layer->Scroll_X += dx;
-    layer->Scroll_Y += dy;
+    if (dx == 0 && dy == 0)
+        return;
 
-    /* TODO: Actually scroll the bitmap contents */
+    ObtainSemaphore(&layer->Lock);
+
+    if (layer->Flags & LAYERSUPER)
+    {
+        /* SuperBitMap layer: adjust scroll offsets (opposite sign per AROS) */
+        layer->Scroll_X -= dx;
+        layer->Scroll_Y -= dy;
+
+        /* TODO: SyncSBitMap/CopySBitMap for full SuperBitMap support */
+    }
+    else
+    {
+        /* Simple/Smart refresh layer:
+         * Scroll the visible bitmap contents via ScrollRaster,
+         * then update the scroll offsets */
+        if (layer->rp && GfxBase)
+        {
+            ScrollRaster(layer->rp, dx, dy,
+                         layer->bounds.MinX, layer->bounds.MinY,
+                         layer->bounds.MaxX, layer->bounds.MaxY);
+        }
+
+        layer->Scroll_X += dx;
+        layer->Scroll_Y += dy;
+    }
+
+    ReleaseSemaphore(&layer->Lock);
 }
 
 /* ========================================================================
@@ -1123,6 +1154,10 @@ static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("
  *
  * Sets up ClipRects for rendering only to damaged areas.
  * Returns TRUE if there are areas to refresh, FALSE otherwise.
+ *
+ * Per RKRM/AROS: saves the current ClipRect list and replaces it with
+ * ClipRects clipped to the damaged region. The application then draws
+ * normally, but rendering is automatically clipped to damaged areas.
  */
 static LONG _layers_BeginUpdate ( register struct LayersBase *LayersBase __asm("a6"),
                                   register struct Layer      *layer      __asm("a0"))
@@ -1139,12 +1174,69 @@ static LONG _layers_BeginUpdate ( register struct LayersBase *LayersBase __asm("
     /* Save current ClipRects for restoration in EndUpdate */
     layer->Undamaged = layer->ClipRect;
 
-    /* TODO: Build ClipRects based on DamageList */
-    /* For now, we just keep the full layer ClipRects */
-
-    /* Check if there's damage to refresh */
+    /* If there's a damage list, build ClipRects clipped to the damaged region */
     if (layer->DamageList && layer->DamageList->RegionRectangle)
     {
+        struct ClipRect *old_cr = layer->ClipRect;
+        struct ClipRect *new_head = NULL;
+        struct ClipRect *new_tail = NULL;
+        struct Layer_Info *li = layer->LayerInfo;
+
+        /* Get the damage bounds in screen coordinates */
+        struct Rectangle damage_bounds;
+        damage_bounds.MinX = layer->DamageList->bounds.MinX + layer->DamageList->RegionRectangle->bounds.MinX;
+        damage_bounds.MinY = layer->DamageList->bounds.MinY + layer->DamageList->RegionRectangle->bounds.MinY;
+        damage_bounds.MaxX = layer->DamageList->bounds.MinX + layer->DamageList->RegionRectangle->bounds.MaxX;
+        damage_bounds.MaxY = layer->DamageList->bounds.MinY + layer->DamageList->RegionRectangle->bounds.MaxY;
+
+        /* Walk RegionRectangles to find full damage extent */
+        {
+            struct RegionRectangle *rr = layer->DamageList->RegionRectangle;
+            while (rr)
+            {
+                WORD rx1 = layer->DamageList->bounds.MinX + rr->bounds.MinX;
+                WORD ry1 = layer->DamageList->bounds.MinY + rr->bounds.MinY;
+                WORD rx2 = layer->DamageList->bounds.MinX + rr->bounds.MaxX;
+                WORD ry2 = layer->DamageList->bounds.MinY + rr->bounds.MaxY;
+
+                if (rx1 < damage_bounds.MinX) damage_bounds.MinX = rx1;
+                if (ry1 < damage_bounds.MinY) damage_bounds.MinY = ry1;
+                if (rx2 > damage_bounds.MaxX) damage_bounds.MaxX = rx2;
+                if (ry2 > damage_bounds.MaxY) damage_bounds.MaxY = ry2;
+
+                rr = rr->Next;
+            }
+        }
+
+        /* Create new ClipRects clipped to the damage bounds */
+        while (old_cr)
+        {
+            struct Rectangle intersection;
+            if (IntersectRectangles(&old_cr->bounds, &damage_bounds, &intersection))
+            {
+                struct ClipRect *new_cr = AllocClipRect(li);
+                if (new_cr)
+                {
+                    new_cr->bounds = intersection;
+                    new_cr->obscured = old_cr->obscured;
+                    new_cr->BitMap = old_cr->BitMap;
+                    new_cr->Next = NULL;
+
+                    if (new_tail)
+                    {
+                        new_tail->Next = new_cr;
+                        new_tail = new_cr;
+                    }
+                    else
+                    {
+                        new_head = new_tail = new_cr;
+                    }
+                }
+            }
+            old_cr = old_cr->Next;
+        }
+
+        layer->ClipRect = new_head;
         return TRUE;
     }
 
@@ -1154,6 +1246,9 @@ static LONG _layers_BeginUpdate ( register struct LayersBase *LayersBase __asm("
 
 /*
  * EndUpdate - End rendering, restore ClipRects (offset -0x54)
+ *
+ * Per RKRM/AROS: restores the original ClipRect list saved by BeginUpdate,
+ * frees the damage-specific ClipRects, and optionally clears the DamageList.
  */
 static VOID _layers_EndUpdate ( register struct LayersBase *LayersBase __asm("a6"),
                                 register struct Layer      *layer      __asm("a0"),
@@ -1166,9 +1261,15 @@ static VOID _layers_EndUpdate ( register struct LayersBase *LayersBase __asm("a6
 
     layer->Flags &= ~LAYERUPDATING;
 
-    /* Restore original ClipRects if we saved them */
+    /* Free damage ClipRects created by BeginUpdate and restore originals */
     if (layer->Undamaged)
     {
+        /* Free the damage-specific ClipRects (if different from the saved ones) */
+        if (layer->ClipRect != layer->Undamaged)
+        {
+            FreeClipRectList(layer->LayerInfo, layer->ClipRect);
+        }
+
         layer->ClipRect = layer->Undamaged;
         layer->Undamaged = NULL;
     }
@@ -1178,8 +1279,8 @@ static VOID _layers_EndUpdate ( register struct LayersBase *LayersBase __asm("a6
     {
         if (layer->DamageList)
         {
-            /* Free DamageList Region */
-            /* TODO: Implement Region freeing */
+            /* Free DamageList Region via graphics.library DisposeRegion */
+            DisposeRegion(layer->DamageList);
             layer->DamageList = NULL;
         }
         layer->Flags &= ~LAYERREFRESH;
@@ -1310,13 +1411,95 @@ static VOID _layers_UnlockLayerInfo ( register struct LayersBase *LayersBase __a
 
 /*
  * SwapBitsRastPortClipRect - Swap backing store with visible (offset -0x7e)
+ *
+ * Per RKRM/AROS: For LAYERSMART layers, swaps the bitmap contents between
+ * the screen (rp->BitMap at cr->bounds position) and the ClipRect's
+ * off-screen backing store (cr->BitMap). This is used during layer
+ * operations to save/restore obscured content.
+ *
+ * For our implementation without full backing store support, this is
+ * a no-op for layers without cr->BitMap. When cr->BitMap exists,
+ * we swap the contents using BltBitMap.
  */
 static VOID _layers_SwapBitsRastPortClipRect ( register struct LayersBase *LayersBase __asm("a6"),
                                                register struct RastPort   *rp         __asm("a0"),
                                                register struct ClipRect   *cr         __asm("a1"))
 {
-    DPRINTF(LOG_DEBUG, "_layers: SwapBitsRastPortClipRect() stub called\n");
-    /* TODO: Implement for LAYERSMART support */
+    DPRINTF(LOG_DEBUG, "_layers: SwapBitsRastPortClipRect() rp=0x%08lx cr=0x%08lx\n",
+            (ULONG)rp, (ULONG)cr);
+
+    if (!rp || !cr || !rp->BitMap)
+        return;
+
+    /* Only meaningful if ClipRect has a backing store bitmap */
+    if (!cr->BitMap)
+        return;
+
+    /* Swap: screen -> temp, backing -> screen, temp -> backing
+     * We do this with two BltBitMaps through a temporary allocation */
+    {
+        WORD width = cr->bounds.MaxX - cr->bounds.MinX + 1;
+        WORD height = cr->bounds.MaxY - cr->bounds.MinY + 1;
+        WORD depth = rp->BitMap->Depth;
+        struct BitMap *temp;
+
+        temp = AllocMem(sizeof(struct BitMap), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!temp)
+            return;
+
+        InitBitMap(temp, depth, width, height);
+
+        /* Allocate planes for temp bitmap */
+        {
+            WORD i;
+            WORD bytesPerRow = ((width + 15) >> 4) << 1;
+            BOOL alloc_ok = TRUE;
+
+            for (i = 0; i < depth; i++)
+            {
+                temp->Planes[i] = AllocMem(bytesPerRow * height, MEMF_CHIP | MEMF_CLEAR);
+                if (!temp->Planes[i])
+                {
+                    alloc_ok = FALSE;
+                    break;
+                }
+            }
+
+            if (!alloc_ok)
+            {
+                /* Clean up partial allocation */
+                {
+                    WORD j;
+                    for (j = 0; j < i; j++)
+                    {
+                        FreeMem(temp->Planes[j], bytesPerRow * height);
+                    }
+                }
+                FreeMem(temp, sizeof(struct BitMap));
+                return;
+            }
+
+            /* Step 1: screen -> temp */
+            BltBitMap(rp->BitMap, cr->bounds.MinX, cr->bounds.MinY,
+                      temp, 0, 0, width, height, 0xC0, 0xFF, NULL);
+
+            /* Step 2: backing -> screen */
+            BltBitMap(cr->BitMap, 0, 0,
+                      rp->BitMap, cr->bounds.MinX, cr->bounds.MinY,
+                      width, height, 0xC0, 0xFF, NULL);
+
+            /* Step 3: temp -> backing */
+            BltBitMap(temp, 0, 0,
+                      cr->BitMap, 0, 0, width, height, 0xC0, 0xFF, NULL);
+
+            /* Free temp bitmap */
+            for (i = 0; i < depth; i++)
+            {
+                FreeMem(temp->Planes[i], bytesPerRow * height);
+            }
+            FreeMem(temp, sizeof(struct BitMap));
+        }
+    }
 }
 
 /*
@@ -1380,37 +1563,113 @@ static VOID _layers_ThinLayerInfo ( register struct LayersBase *LayersBase __asm
 
 /*
  * MoveLayerInFrontOf - Move layer in front of another (offset -0xa8)
+ *
+ * Per RKRM: Moves layer_to_move so it appears directly in front of other_layer
+ * in the z-ordering. Both layers must belong to the same Layer_Info.
  */
 static LONG _layers_MoveLayerInFrontOf ( register struct LayersBase *LayersBase    __asm("a6"),
                                          register struct Layer      *layer_to_move __asm("a0"),
                                          register struct Layer      *other_layer   __asm("a1"))
 {
-    DPRINTF(LOG_DEBUG, "_layers: MoveLayerInFrontOf() stub called\n");
+    struct Layer_Info *li;
+
+    DPRINTF(LOG_DEBUG, "_layers: MoveLayerInFrontOf() layer=0x%08lx other=0x%08lx\n",
+            (ULONG)layer_to_move, (ULONG)other_layer);
 
     if (!layer_to_move || !other_layer)
         return FALSE;
 
-    /* TODO: Full implementation */
+    li = layer_to_move->LayerInfo;
+    if (!li || li != other_layer->LayerInfo)
+        return FALSE;
+
+    /* Already in the right position? */
+    if (layer_to_move->back == other_layer)
+        return TRUE;
+
+    ObtainSemaphore(&li->Lock);
+
+    /* Save old bounds for damage tracking */
+    struct Rectangle old_bounds = layer_to_move->bounds;
+
+    /* Remove layer_to_move from its current position in the z-order */
+    if (layer_to_move->front)
+    {
+        layer_to_move->front->back = layer_to_move->back;
+    }
+    else
+    {
+        /* Was the top layer */
+        li->top_layer = layer_to_move->back;
+    }
+
+    if (layer_to_move->back)
+    {
+        layer_to_move->back->front = layer_to_move->front;
+    }
+
+    /* Insert layer_to_move directly in front of other_layer */
+    layer_to_move->back = other_layer;
+    layer_to_move->front = other_layer->front;
+
+    if (other_layer->front)
+    {
+        other_layer->front->back = layer_to_move;
+    }
+    else
+    {
+        /* other_layer was the top layer, now layer_to_move is */
+        li->top_layer = layer_to_move;
+    }
+    other_layer->front = layer_to_move;
+
+    /* Damage exposed areas */
+    DamageExposedAreas(li, layer_to_move, &old_bounds, &layer_to_move->bounds);
+
+    /* Rebuild ClipRects for all layers (z-order changed) */
+    {
+        struct Layer *l = li->top_layer;
+        while (l)
+        {
+            RebuildClipRects(l);
+            l = l->back;
+        }
+    }
+
+    ReleaseSemaphore(&li->Lock);
+
     return TRUE;
 }
 
 /*
  * InstallClipRegion - Install user clipping region (offset -0xae)
+ *
+ * Per RKRM: Installs a user-defined clipping region on a layer.
+ * Returns the previously installed region (or NULL).
+ * The region further restricts drawing to only the areas within it.
+ * After installation, ClipRects are rebuilt to reflect the new clipping.
  */
 static struct Region * _layers_InstallClipRegion ( register struct LayersBase *LayersBase __asm("a6"),
                                                    register struct Layer      *layer      __asm("a0"),
                                                    register struct Region     *region     __asm("a1"))
 {
+    struct Region *old;
+
     DPRINTF(LOG_DEBUG, "_layers: InstallClipRegion() called layer=0x%08lx region=0x%08lx\n",
             (ULONG)layer, (ULONG)region);
 
     if (!layer)
         return NULL;
 
-    struct Region *old = layer->ClipRegion;
+    ObtainSemaphore(&layer->Lock);
+
+    old = layer->ClipRegion;
     layer->ClipRegion = region;
 
-    /* TODO: Rebuild ClipRects to incorporate the new region */
+    /* Rebuild ClipRects to incorporate the new region */
+    RebuildClipRects(layer);
+
+    ReleaseSemaphore(&layer->Lock);
 
     return old;
 }
@@ -1543,26 +1802,219 @@ static struct Hook * _layers_InstallLayerInfoHook ( register struct LayersBase *
 
 /*
  * SortLayerCR - Sort ClipRects for scrolling (offset -0xd2)
+ *
+ * Per AROS: Sorts the layer's ClipRect linked list based on scroll direction
+ * (dx, dy) so that blits happen in the correct order (back-to-front relative
+ * to scroll direction) to prevent overwriting source data.
+ *
+ * Uses insertion sort on the singly-linked list.
  */
 static VOID _layers_SortLayerCR ( register struct LayersBase *LayersBase __asm("a6"),
                                   register struct Layer      *layer      __asm("a0"),
                                   register WORD               dx         __asm("d0"),
                                   register WORD               dy         __asm("d1"))
 {
-    DPRINTF(LOG_DEBUG, "_layers: SortLayerCR() stub called\n");
-    /* TODO: Implement for optimized scrolling */
+    struct ClipRect *sorted_head;
+    struct ClipRect *cur;
+
+    DPRINTF(LOG_DEBUG, "_layers: SortLayerCR() layer=0x%08lx dx=%d dy=%d\n",
+            (ULONG)layer, dx, dy);
+
+    if (!layer || !layer->ClipRect || !layer->ClipRect->Next)
+        return;  /* 0 or 1 element — already sorted */
+
+    /* Insertion sort */
+    sorted_head = NULL;
+    cur = layer->ClipRect;
+
+    while (cur)
+    {
+        struct ClipRect *next = cur->Next;
+        struct ClipRect *prev = NULL;
+        struct ClipRect *scan = sorted_head;
+        BOOL insert_before;
+
+        /* Find insertion point */
+        while (scan)
+        {
+            insert_before = FALSE;
+
+            if (dy > 0)
+            {
+                /* Scrolling down: process top ClipRects first (ascending MinY) */
+                if (cur->bounds.MinY < scan->bounds.MinY)
+                    insert_before = TRUE;
+                else if (cur->bounds.MinY == scan->bounds.MinY && dx > 0 &&
+                         cur->bounds.MinX < scan->bounds.MinX)
+                    insert_before = TRUE;
+                else if (cur->bounds.MinY == scan->bounds.MinY && dx < 0 &&
+                         cur->bounds.MaxX > scan->bounds.MaxX)
+                    insert_before = TRUE;
+            }
+            else if (dy < 0)
+            {
+                /* Scrolling up: process bottom ClipRects first (descending MaxY) */
+                if (cur->bounds.MaxY > scan->bounds.MaxY)
+                    insert_before = TRUE;
+                else if (cur->bounds.MaxY == scan->bounds.MaxY && dx > 0 &&
+                         cur->bounds.MinX < scan->bounds.MinX)
+                    insert_before = TRUE;
+                else if (cur->bounds.MaxY == scan->bounds.MaxY && dx < 0 &&
+                         cur->bounds.MaxX > scan->bounds.MaxX)
+                    insert_before = TRUE;
+            }
+            else
+            {
+                /* dy == 0: horizontal only */
+                if (dx > 0 && cur->bounds.MinX < scan->bounds.MinX)
+                    insert_before = TRUE;
+                else if (dx < 0 && cur->bounds.MaxX > scan->bounds.MaxX)
+                    insert_before = TRUE;
+            }
+
+            if (insert_before)
+                break;
+
+            prev = scan;
+            scan = scan->Next;
+        }
+
+        /* Insert cur before scan (after prev) */
+        if (prev)
+        {
+            cur->Next = prev->Next;
+            prev->Next = cur;
+        }
+        else
+        {
+            cur->Next = sorted_head;
+            sorted_head = cur;
+        }
+
+        cur = next;
+    }
+
+    layer->ClipRect = sorted_head;
 }
 
 /*
  * DoHookClipRects - Call hook for each ClipRect (offset -0xd8)
+ *
+ * Per RKRM/AROS: Iterates over every ClipRect in the layer, clips the
+ * requested rectangle to each ClipRect's bounds, and calls the hook
+ * for each non-empty intersection.
+ *
+ * The hook receives a layerhookmsg structure containing:
+ *   - l_Layer: the layer pointer
+ *   - l_bounds: the clipped rectangle (in screen coordinates)
+ *   - l_OffsetX/l_OffsetY: logical coordinates for the hook
+ *
+ * Special hooks:
+ *   - LAYERS_NOBACKFILL: do nothing
+ *   - LAYERS_BACKFILL: clear the area with BltBitMap (minterm 0 = clear)
  */
 static VOID _layers_DoHookClipRects ( register struct LayersBase    *LayersBase __asm("a6"),
                                       register struct Hook          *hook       __asm("a0"),
                                       register struct RastPort      *rp         __asm("a1"),
                                       register const struct Rectangle *rect     __asm("a2"))
 {
-    DPRINTF(LOG_DEBUG, "_layers: DoHookClipRects() stub called\n");
-    /* TODO: Implement hook iteration over ClipRects */
+    struct Layer *layer;
+    struct ClipRect *cr;
+    struct Rectangle boundrect;
+
+    DPRINTF(LOG_DEBUG, "_layers: DoHookClipRects() hook=0x%08lx rp=0x%08lx\n",
+            (ULONG)hook, (ULONG)rp);
+
+    if (!rp || !rect)
+        return;
+
+    /* LAYERS_NOBACKFILL means do nothing */
+    if (hook == LAYERS_NOBACKFILL)
+        return;
+
+    layer = rp->Layer;
+
+    if (!layer)
+    {
+        /* No layer — apply hook to the entire rectangle directly */
+        if (hook == LAYERS_BACKFILL || hook == NULL)
+        {
+            /* Clear the area */
+            if (rp->BitMap)
+            {
+                WORD width = rect->MaxX - rect->MinX + 1;
+                WORD height = rect->MaxY - rect->MinY + 1;
+                if (width > 0 && height > 0)
+                {
+                    BltBitMap(rp->BitMap, rect->MinX, rect->MinY,
+                              rp->BitMap, rect->MinX, rect->MinY,
+                              width, height, 0x00, 0xFF, NULL);  /* minterm 0 = clear */
+                }
+            }
+        }
+        return;
+    }
+
+    ObtainSemaphore(&layer->Lock);
+
+    /* Convert rect from layer-relative to screen coordinates */
+    boundrect.MinX = rect->MinX + layer->bounds.MinX - layer->Scroll_X;
+    boundrect.MinY = rect->MinY + layer->bounds.MinY - layer->Scroll_Y;
+    boundrect.MaxX = rect->MaxX + layer->bounds.MinX - layer->Scroll_X;
+    boundrect.MaxY = rect->MaxY + layer->bounds.MinY - layer->Scroll_Y;
+
+    /* Clip to layer bounds */
+    if (boundrect.MinX < layer->bounds.MinX) boundrect.MinX = layer->bounds.MinX;
+    if (boundrect.MinY < layer->bounds.MinY) boundrect.MinY = layer->bounds.MinY;
+    if (boundrect.MaxX > layer->bounds.MaxX) boundrect.MaxX = layer->bounds.MaxX;
+    if (boundrect.MaxY > layer->bounds.MaxY) boundrect.MaxY = layer->bounds.MaxY;
+
+    /* Check if anything visible */
+    if (boundrect.MinX > boundrect.MaxX || boundrect.MinY > boundrect.MaxY)
+    {
+        ReleaseSemaphore(&layer->Lock);
+        return;
+    }
+
+    /* Walk all ClipRects */
+    cr = layer->ClipRect;
+    while (cr)
+    {
+        struct Rectangle intersection;
+
+        if (IntersectRectangles(&boundrect, &cr->bounds, &intersection))
+        {
+            /* Skip hidden ClipRects for LAYERSIMPLE layers (no backing store) */
+            if (cr->obscured && (layer->Flags & LAYERSIMPLE))
+            {
+                cr = cr->Next;
+                continue;
+            }
+
+            /* Apply the hook to this intersection */
+            if (hook == LAYERS_BACKFILL || hook == NULL)
+            {
+                /* Default backfill: clear the area */
+                if (rp->BitMap)
+                {
+                    WORD w = intersection.MaxX - intersection.MinX + 1;
+                    WORD h = intersection.MaxY - intersection.MinY + 1;
+                    if (w > 0 && h > 0)
+                    {
+                        BltBitMap(rp->BitMap, intersection.MinX, intersection.MinY,
+                                  rp->BitMap, intersection.MinX, intersection.MinY,
+                                  w, h, 0x00, 0xFF, NULL);
+                    }
+                }
+            }
+            /* Custom hooks would be called here, but we don't support the
+             * full hook calling convention in ROM code yet */
+        }
+
+        cr = cr->Next;
+    }
+
+    ReleaseSemaphore(&layer->Lock);
 }
 
 /* ========================================================================
@@ -1613,19 +2065,37 @@ static LONG _layers_HideLayer ( register struct LayersBase *LayersBase __asm("a6
 
 /*
  * ShowLayer - Make layer visible (offset -0xea)
+ *
+ * Per RKRM: Makes a hidden layer visible. If in_front_of is not NULL,
+ * the layer is repositioned directly in front of that layer.
  */
 static LONG _layers_ShowLayer ( register struct LayersBase *LayersBase __asm("a6"),
                                 register struct Layer      *layer      __asm("a0"),
                                 register struct Layer      *in_front_of __asm("a1"))
 {
-    DPRINTF(LOG_DEBUG, "_layers: ShowLayer() called\n");
+    DPRINTF(LOG_DEBUG, "_layers: ShowLayer() called layer=0x%08lx in_front_of=0x%08lx\n",
+            (ULONG)layer, (ULONG)in_front_of);
 
     if (!layer)
         return FALSE;
 
     layer->Flags &= ~LAYERHIDDEN;
 
-    /* TODO: Handle in_front_of positioning */
+    /* If in_front_of is specified, reposition the layer */
+    if (in_front_of && layer->LayerInfo)
+    {
+        _layers_MoveLayerInFrontOf(LayersBase, layer, in_front_of);
+    }
+    else if (layer->LayerInfo)
+    {
+        /* Just rebuild ClipRects since visibility changed */
+        struct Layer *l = layer->LayerInfo->top_layer;
+        while (l)
+        {
+            RebuildClipRects(l);
+            l = l->back;
+        }
+    }
 
     return TRUE;
 }

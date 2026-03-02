@@ -8,16 +8,16 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.56** | **Phase 74 Complete** | **35/35 Tests Passing (GTest-only)**
+**Version: 0.6.57** | **Phase 75 Complete** | **38/38 Tests Passing (GTest-only)**
 
-Phase 74: DOS & VFS Hardening — complete.
+Phase 75: Advanced Graphics & Layers — complete.
 
 **Current Status**:
-- 35/35 ctest entries (all GTest), plus 3 new DOS tests (UnLoadSeg, DosObject, CasePath)
-- **UnLoadSeg**: Implemented full seglist chain walking with `FreeVec(BADDR(seg))`. Also implemented `InternalUnLoadSeg` with custom freefunc support.
-- **AllocDosObject/FreeDosObject**: Added `DOS_EXALLCONTROL` and `DOS_STDPKT` types with proper initialization (StandardPacket msg/pkt linkage per RKRM). Changed default from `assert(FALSE)` to graceful error handling (`LPRINTF` + `SetIoErr` + return NULL / `FreeVec`).
-- **errno2Amiga**: Full switch/case mapping from Linux errno to AmigaOS error codes (ENOENT→205, EACCES→224, EEXIST→203, EISDIR→212, ENOSPC→221, etc.). Fixed double-call bug in `_dos_open`.
-- **Case-insensitive paths**: Added `vfs_resolve_case_path()` wrapper in VFS layer. Legacy fallback in `_dos_path2linux` now uses case-insensitive resolution. Fixed `g_sysroot` NULL crash.
+- 38/38 ctest entries (all GTest), plus 3 new tests (AreaFill expanded, PixelArray8, ScrollLayer)
+- **AreaFill scan-line polygon fill**: Replaced outline-only `AreaEnd` with full scan-line algorithm (even-odd fill rule, multi-polygon support via MOVE commands, fill then outline).
+- **Pixel array functions**: Implemented `ReadPixelLine8`, `ReadPixelArray8`, `WritePixelLine8`, `WritePixelArray8` (replaced `assert(FALSE)` stubs). Fixed parameter types to match NDK (`UWORD` not `ULONG`).
+- **ScrollLayer**: Full implementation for non-SuperBitMap layers (calls `ScrollRaster` then updates scroll offsets). SuperBitMap layers adjust offsets per AROS convention.
+- **Layers library**: Implemented `BeginUpdate` (damage-based ClipRects), `EndUpdate` (frees DamageList), `SwapBitsRastPortClipRect` (LAYERSMART bitmap swap), `MoveLayerInFrontOf` (z-order reordering), `InstallClipRegion`, `SortLayerCR` (direction-based insertion sort), `DoHookClipRects`, `ShowLayer`.
 
 ---
 
@@ -71,6 +71,9 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### DOS & VFS Hardening (Phase 74)
 - ✅ **Phase 74**: Implemented `UnLoadSeg` (seglist chain walking with `FreeVec`) and `InternalUnLoadSeg` (custom freefunc). Added `DOS_EXALLCONTROL` and `DOS_STDPKT` to `AllocDosObject`/`FreeDosObject`. Full `errno2Amiga` mapping (12+ errno→AmigaOS codes). Case-insensitive path resolution via `vfs_resolve_case_path()`. 3 new m68k test programs. 35/35 tests passing.
 
+### Advanced Graphics & Layers (Phase 75)
+- ✅ **Phase 75**: Scan-line polygon fill in `AreaEnd` (even-odd fill rule, multi-polygon). Implemented all four pixel array functions (`ReadPixelLine8`, `ReadPixelArray8`, `WritePixelLine8`, `WritePixelArray8`) replacing `assert(FALSE)` stubs, with correct `UWORD` parameter types. `ScrollLayer` for non-SuperBitMap layers. 9 layers.library functions implemented (`BeginUpdate`, `EndUpdate`, `SwapBitsRastPortClipRect`, `MoveLayerInFrontOf`, `InstallClipRegion`, `SortLayerCR`, `DoHookClipRects`, `ShowLayer`). 3 new m68k test programs. 38/38 tests passing.
+
 ---
 
 ## Codebase Audit Results (Phase 72.5)
@@ -81,12 +84,12 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 1. ~~**Library Reference Counting Broken** (8 FIXMEs across 6 libraries)~~ — **Fixed in Phase 73**. `lib_OpenCnt` incremented/decremented, `LIBF_DELEXP` cleared in Open handlers.
 2. **Intuition Heavily Stubbed** (29 markers) — BOOPSI gadgets, PropGadget/StringGadget allocation, AutoRequest rendering, ZipWindow, requesters. → Phase 76.
-3. **Layers Library Stubbed** (10 TODOs) — ScrollLayer, ClipRects, damage tracking, LAYERSMART all unimplemented. → Phase 75.
+3. ~~**Layers Library Stubbed** (10 TODOs) — ScrollLayer, ClipRects, damage tracking, LAYERSMART all unimplemented.~~ — **Fixed in Phase 75**. ScrollLayer, BeginUpdate, EndUpdate, SwapBitsRastPortClipRect, MoveLayerInFrontOf, InstallClipRegion, SortLayerCR, DoHookClipRects, ShowLayer all implemented.
 4. ~~**Exception/Task Switching Incomplete** (5 FIXMEs in exceptions.s)~~ — **Fixed in Phase 73**. tc_Switch, tc_Launch, TF_EXCEPT, Exception() all implemented.
 5. ~~**DOS Memory Leaks** (7 FIXMEs) — UnLoadSeg doesn't free memory, AllocDosObject/FreeDosObject incomplete.~~ — **Fixed in Phase 74**. UnLoadSeg frees seglist chain, AllocDosObject/FreeDosObject complete for all 6 types.
 6. ~~**Process/CLI Initialization Gaps** (5 FIXMEs)~~ — **Fixed in Phase 73**. cli_CommandDir, pr_ConsoleTask, pr_FileSystemTask, pr_SegList, prompt inheritance all implemented.
 7. ~~**Case-Insensitive Paths Missing** (1 FIXME in lxa.c) — Amiga paths are case-insensitive but host I/O is case-sensitive.~~ — **Fixed in Phase 74**. Legacy fallback path uses `vfs_resolve_case_path()` for case-insensitive resolution.
-8. **Graphics Pixel Array Stubs** (4 TODOs) — ReadPixelLine8, ReadPixelArray8, WritePixelLine8 are stubs/assert(FALSE). → Phase 75.
+8. ~~**Graphics Pixel Array Stubs** (4 TODOs) — ReadPixelLine8, ReadPixelArray8, WritePixelLine8 are stubs/assert(FALSE).~~ — **Fixed in Phase 75**. All four pixel array functions fully implemented with correct UWORD parameter types.
 
 ---
 
@@ -108,13 +111,13 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] Fix case-insensitive path mapping in `lxa.c` — added `vfs_resolve_case_path()` wrapper, legacy fallback uses case-insensitive resolution, fixed `g_sysroot` NULL crash.
 - [x] Fix errno-to-AmigaOS error code mapping in host I/O — full switch/case mapping (12+ errno→AmigaOS error codes), fixed double-call bug in `_dos_open`.
 
-### Phase 75: Advanced Graphics & Layers
+### Phase 75: Advanced Graphics & Layers ✅
 **Goal**: Fill in missing graphical operations and layer functions.
-**TODO**:
-- [ ] Implement proper polygon filling using scan-line algorithm (`AreaFill` in `lxa_graphics.c`).
-- [ ] Implement `ReadPixelLine8`, `ReadPixelArray8`, `WritePixelLine8` (currently stubs/asserts).
-- [ ] Implement `ScrollRaster`/`ScrollLayer` to actually scroll bitmap contents.
-- [ ] Implement DamageList tracking, ClipRects rebuilds, and `LAYERSMART` support (10 TODOs in `lxa_layers.c`).
+**DONE**:
+- [x] Implement proper polygon filling using scan-line algorithm (`AreaFill` in `lxa_graphics.c`). Even-odd fill rule, multi-polygon support, fill-then-outline. Added Tests 7 & 8 to area_fill test.
+- [x] Implement `ReadPixelLine8`, `ReadPixelArray8`, `WritePixelLine8`, `WritePixelArray8` (replaced `assert(FALSE)` stubs). Fixed NDK parameter types (`UWORD` not `ULONG`). New pixel_array8 test (6 tests).
+- [x] Implement `ScrollLayer` — calls `ScrollRaster` for non-SuperBitMap layers, then updates scroll offsets. New scroll_layer test (5 tests).
+- [x] Implement DamageList tracking, ClipRects rebuilds, and `LAYERSMART` support: `BeginUpdate` (damage-based ClipRects), `EndUpdate` (frees DamageList + damage ClipRects), `SwapBitsRastPortClipRect` (3-step bitmap swap), `MoveLayerInFrontOf` (z-order reordering), `InstallClipRegion`, `SortLayerCR` (direction-based insertion sort), `DoHookClipRects`, `ShowLayer`.
 
 ### Phase 76: Intuition & BOOPSI Enhancements
 **Goal**: Complete Intuition elements and finalize BOOPSI support.

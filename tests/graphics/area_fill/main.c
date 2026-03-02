@@ -282,9 +282,10 @@ int main(void)
     }
     print("\n");
     
-    /* Test 7: Rectangle (4 sides) */
-    print("Test 7: Draw a rectangle...\n");
+    /* Test 7: Rectangle fill verification */
+    print("Test 7: Rectangle fill - interior pixels should be filled...\n");
     {
+        SetRast(rp, 0);
         AreaMove(rp, 10, 70);
         AreaDraw(rp, 30, 70);
         AreaDraw(rp, 30, 90);
@@ -292,9 +293,63 @@ int main(void)
         result = AreaEnd(rp);
         
         if (result == 0) {
-            print("  OK: Rectangle drawn\n");
+            /* Check interior pixels are filled */
+            BOOL interior_ok = TRUE;
+            LONG x, y;
+            for (y = 72; y <= 88; y += 4)
+            {
+                for (x = 12; x <= 28; x += 4)
+                {
+                    if (!is_pixel_set(rp, x, y))
+                    {
+                        interior_ok = FALSE;
+                    }
+                }
+            }
+            if (interior_ok) {
+                print("  OK: Rectangle interior is filled\n");
+            } else {
+                print("  FAIL: Rectangle interior has unfilled pixels\n");
+            }
+            
+            /* Check outside is not filled */
+            if (!is_pixel_set(rp, 5, 80) && !is_pixel_set(rp, 35, 80)) {
+                print("  OK: Outside rectangle is clear\n");
+            } else {
+                print("  FAIL: Pixels outside rectangle are set\n");
+            }
         } else {
             print("  FAIL: Rectangle drawing failed\n");
+        }
+    }
+    print("\n");
+    
+    /* Test 8: Triangle fill verification */
+    print("Test 8: Triangle fill - interior pixels should be filled...\n");
+    {
+        SetRast(rp, 0);
+        /* Wide triangle: (10,10) - (90,10) - (50,50) */
+        AreaMove(rp, 10, 10);
+        AreaDraw(rp, 90, 10);
+        AreaDraw(rp, 50, 50);
+        result = AreaEnd(rp);
+        
+        if (result == 0) {
+            /* Check center of triangle is filled */
+            if (is_pixel_set(rp, 50, 20)) {
+                print("  OK: Triangle center is filled\n");
+            } else {
+                print("  FAIL: Triangle center is not filled\n");
+            }
+            
+            /* Check a point outside triangle is clear */
+            if (!is_pixel_set(rp, 15, 45)) {
+                print("  OK: Outside triangle is clear\n");
+            } else {
+                print("  FAIL: Pixel outside triangle is set\n");
+            }
+        } else {
+            print("  FAIL: Triangle drawing failed\n");
         }
     }
     print("\n");

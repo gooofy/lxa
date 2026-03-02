@@ -82,19 +82,19 @@ static VOID _graphics_Move ( register struct GfxBase * GfxBase __asm("a6"),
                              register WORD x __asm("d0"),
                              register WORD y __asm("d1"));
 static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
-                                        register struct RastPort * rp __asm("a0"),
-                                        register ULONG xstart __asm("d0"),
-                                        register ULONG ystart __asm("d1"),
-                                        register ULONG xstop __asm("d2"),
-                                        register ULONG ystop __asm("d3"),
-                                        register UBYTE * array __asm("a2"),
-                                        register struct RastPort * temprp __asm("a1"));
-static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
                                          register struct RastPort * rp __asm("a0"),
-                                         register ULONG xstart __asm("d0"),
-                                         register ULONG ystart __asm("d1"),
-                                         register ULONG xstop __asm("d2"),
-                                         register ULONG ystop __asm("d3"),
+                                         register UWORD xstart __asm("d0"),
+                                         register UWORD ystart __asm("d1"),
+                                         register UWORD xstop __asm("d2"),
+                                         register UWORD ystop __asm("d3"),
+                                         register UBYTE * array __asm("a2"),
+                                         register struct RastPort * temprp __asm("a1"));
+static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
+                                          register struct RastPort * rp __asm("a0"),
+                                          register UWORD xstart __asm("d0"),
+                                          register UWORD ystart __asm("d1"),
+                                          register UWORD xstop __asm("d2"),
+                                          register UWORD ystop __asm("d3"),
                                          register UBYTE * array __asm("a2"),
                                          register struct RastPort * temprp __asm("a1"));
 static ULONG _graphics_GetAPen ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1951,6 +1951,148 @@ static LONG _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
     return 0;
 }
 
+/*
+ * AreaEnd - Complete and fill polygon(s) defined by AreaMove/AreaDraw.
+ *
+ * Uses scan-line polygon fill algorithm:
+ * 1. Extract polygon edges from the vertex list
+ * 2. For each scan line between yMin and yMax:
+ *    a. Compute X intersections with all edges
+ *    b. Sort intersections
+ *    c. Fill between pairs of intersections (even-odd rule)
+ * 3. Draw the polygon outline on top
+ */
+
+/* Helper: Fill a single polygon using scan-line algorithm */
+static void AreaFillPolygon(struct GfxBase *GfxBase, struct RastPort *rp,
+                            WORD *vertices, UWORD numVertices)
+{
+    WORD yMin, yMax;
+    WORD scanY;
+    UWORD i;
+
+    if (numVertices < 3)
+        return;
+
+    /* Find bounding box Y range */
+    yMin = vertices[1];
+    yMax = vertices[1];
+    for (i = 1; i < numVertices; i++)
+    {
+        WORD vy = vertices[i * 2 + 1];
+        if (vy < yMin) yMin = vy;
+        if (vy > yMax) yMax = vy;
+    }
+
+    /* Clip to bitmap bounds */
+    if (rp->BitMap)
+    {
+        WORD bmHeight = rp->BitMap->Rows;
+        WORD bmWidth = rp->BitMap->BytesPerRow * 8;
+        WORD offsetY = 0, offsetX = 0;
+
+        if (rp->Layer)
+        {
+            offsetY = rp->Layer->bounds.MinY;
+            offsetX = rp->Layer->bounds.MinX;
+        }
+
+        if (yMin + offsetY < 0) yMin = -offsetY;
+        if (yMax + offsetY >= bmHeight) yMax = bmHeight - 1 - offsetY;
+
+        (void)bmWidth;
+        (void)offsetX;
+    }
+
+    if (yMin > yMax)
+        return;
+
+    /*
+     * Scan-line fill with even-odd rule.
+     * For each scan line, compute X intersections with all polygon edges,
+     * sort them, and fill between pairs.
+     *
+     * We use a small fixed-size intersection buffer on the stack.
+     * Maximum intersections = number of edges = numVertices.
+     */
+    #define AREA_MAX_INTERSECTIONS 256
+    WORD xIntersections[AREA_MAX_INTERSECTIONS];
+
+    for (scanY = yMin; scanY <= yMax; scanY++)
+    {
+        UWORD numIntersections = 0;
+
+        /* Find intersections with all edges */
+        for (i = 0; i < numVertices; i++)
+        {
+            UWORD j = (i + 1) % numVertices;
+            WORD x0 = vertices[i * 2];
+            WORD y0 = vertices[i * 2 + 1];
+            WORD x1 = vertices[j * 2];
+            WORD y1 = vertices[j * 2 + 1];
+
+            /* Skip horizontal edges */
+            if (y0 == y1)
+                continue;
+
+            /* Ensure y0 < y1 */
+            if (y0 > y1)
+            {
+                WORD tmp;
+                tmp = x0; x0 = x1; x1 = tmp;
+                tmp = y0; y0 = y1; y1 = tmp;
+            }
+
+            /* Check if scan line intersects this edge.
+             * Use half-open interval [y0, y1) to avoid double-counting
+             * at vertices shared between adjacent edges. */
+            if (scanY >= y0 && scanY < y1)
+            {
+                /* Compute X intersection using integer arithmetic */
+                LONG xInt = x0 + (LONG)(scanY - y0) * (LONG)(x1 - x0) / (LONG)(y1 - y0);
+
+                if (numIntersections < AREA_MAX_INTERSECTIONS)
+                {
+                    xIntersections[numIntersections++] = (WORD)xInt;
+                }
+            }
+        }
+
+        /* Sort intersections (simple insertion sort - usually very few) */
+        {
+            UWORD a, b;
+            for (a = 1; a < numIntersections; a++)
+            {
+                WORD key = xIntersections[a];
+                b = a;
+                while (b > 0 && xIntersections[b - 1] > key)
+                {
+                    xIntersections[b] = xIntersections[b - 1];
+                    b--;
+                }
+                xIntersections[b] = key;
+            }
+        }
+
+        /* Fill between pairs of intersections (even-odd rule) */
+        {
+            UWORD p;
+            for (p = 0; p + 1 < numIntersections; p += 2)
+            {
+                WORD xLeft = xIntersections[p];
+                WORD xRight = xIntersections[p + 1];
+
+                if (xLeft <= xRight)
+                {
+                    /* Use RectFill to draw the horizontal span */
+                    _graphics_RectFill(GfxBase, rp, xLeft, scanY, xRight, scanY);
+                }
+            }
+        }
+    }
+    #undef AREA_MAX_INTERSECTIONS
+}
+
 static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
@@ -1991,28 +2133,83 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
     CurVctr = areainfo->VctrTbl;
     CurFlag = areainfo->FlagTbl;
 
-    /* Draw the polygon outline */
-    while (Count > 0)
+    /*
+     * Fill polygon(s) using scan-line algorithm.
+     *
+     * The vertex list may contain multiple polygons separated by MOVE commands.
+     * We process each polygon independently:
+     * 1. A MOVE starts a new polygon
+     * 2. DRAW/CLOSEDRAW vertices are added to the current polygon
+     * 3. When we hit the next MOVE or end of vertices, fill the current polygon
+     */
     {
-        switch ((unsigned char)CurFlag[0])
-        {
-            case AREAINFOFLAG_MOVE:
-                _graphics_Move(GfxBase, rp, CurVctr[0], CurVctr[1]);
-                break;
+        /* Temporary vertex buffer for the current polygon.
+         * Each polygon's vertices are extracted here for filling. */
+        #define AREA_POLY_MAX 256
+        WORD polyVerts[AREA_POLY_MAX * 2];
+        UWORD polyCount = 0;
+        WORD *vp = CurVctr;
+        BYTE *fp = CurFlag;
+        UWORD remaining = Count;
 
-            case AREAINFOFLAG_DRAW:
-            case AREAINFOFLAG_CLOSEDRAW:
-                _graphics_Draw(GfxBase, rp, CurVctr[0], CurVctr[1]);
-                break;
+        while (remaining > 0)
+        {
+            if ((unsigned char)fp[0] == AREAINFOFLAG_MOVE)
+            {
+                /* Fill any previous polygon */
+                if (polyCount >= 3)
+                {
+                    AreaFillPolygon(GfxBase, rp, polyVerts, polyCount);
+                }
+                polyCount = 0;
+            }
+
+            /* Add vertex to current polygon */
+            if (polyCount < AREA_POLY_MAX)
+            {
+                polyVerts[polyCount * 2] = vp[0];
+                polyVerts[polyCount * 2 + 1] = vp[1];
+                polyCount++;
+            }
+
+            vp = &vp[2];
+            fp = &fp[1];
+            remaining--;
         }
 
-        CurVctr = &CurVctr[2];
-        CurFlag = &CurFlag[1];
-        Count--;
+        /* Fill the last polygon */
+        if (polyCount >= 3)
+        {
+            AreaFillPolygon(GfxBase, rp, polyVerts, polyCount);
+        }
+        #undef AREA_POLY_MAX
     }
 
-    /* TODO: Implement proper polygon filling using scan-line algorithm from AROS areafill.c */
-    /* For now, we just draw the outline */
+    /* Draw the polygon outline on top of the fill */
+    {
+        WORD *ovp = CurVctr;
+        BYTE *ofp = CurFlag;
+        UWORD ocount = Count;
+
+        while (ocount > 0)
+        {
+            switch ((unsigned char)ofp[0])
+            {
+                case AREAINFOFLAG_MOVE:
+                    _graphics_Move(GfxBase, rp, ovp[0], ovp[1]);
+                    break;
+
+                case AREAINFOFLAG_DRAW:
+                case AREAINFOFLAG_CLOSEDRAW:
+                    _graphics_Draw(GfxBase, rp, ovp[0], ovp[1]);
+                    break;
+            }
+
+            ovp = &ovp[2];
+            ofp = &ofp[1];
+            ocount--;
+        }
+    }
 
     /* Restore cursor position */
     rp->cp_x = Rem_cp_x;
@@ -4648,64 +4845,164 @@ static VOID _graphics_FontExtent ( register struct GfxBase * GfxBase __asm("a6")
     fontExtent->te_Extent.MaxY = font->tf_YSize - font->tf_Baseline - 1;
 }
 
+/*
+ * ReadPixelLine8 - Read a horizontal line of chunky pen values (offset -768)
+ *
+ * Reads 'width' pixels starting at (xstart, ystart) into the array as
+ * pen index values (one byte per pixel). Returns the number of pixels read.
+ *
+ * Per RKRM, tempRP is used as temporary storage but we don't need it
+ * since we read directly from the planar bitmap.
+ */
 static LONG _graphics_ReadPixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
-                                                        register LONG xstart __asm("d0"),
-                                                        register LONG ystart __asm("d1"),
-                                                        register ULONG width __asm("d2"),
+                                                        register UWORD xstart __asm("d0"),
+                                                        register UWORD ystart __asm("d1"),
+                                                        register UWORD width __asm("d2"),
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * tempRP __asm("a1"))
 {
-    /* TODO: See WritePixelLine8 comment */
-    DPRINTF (LOG_ERROR, "_graphics: ReadPixelLine8() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    UWORD x;
+
+    DPRINTF(LOG_DEBUG, "_graphics: ReadPixelLine8() rp=0x%08lx x=%u y=%u w=%u\n",
+            (ULONG)rp, (unsigned)xstart, (unsigned)ystart, (unsigned)width);
+
+    if (!rp || !rp->BitMap || !array)
+        return 0;
+
+    for (x = 0; x < width; x++)
+    {
+        ULONG pen = _graphics_ReadPixel(GfxBase, rp, (WORD)(xstart + x), (WORD)ystart);
+        array[x] = (UBYTE)((pen == (ULONG)-1) ? 0 : pen);
+    }
+
+    return (LONG)width;
 }
 
+/*
+ * ReadPixelArray8 - Read a rectangular area of chunky pen values (offset -780)
+ *
+ * Reads pixels from (xstart,ystart) to (xstop,ystop) inclusive into array
+ * as pen index values. Array must be large enough: (xstop-xstart+1)*(ystop-ystart+1).
+ * Returns the number of pixels read.
+ */
 static LONG _graphics_ReadPixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
-                                                        register ULONG xstart __asm("d0"),
-                                                        register ULONG ystart __asm("d1"),
-                                                        register ULONG xstop __asm("d2"),
-                                                        register ULONG ystop __asm("d3"),
+                                                        register UWORD xstart __asm("d0"),
+                                                        register UWORD ystart __asm("d1"),
+                                                        register UWORD xstop __asm("d2"),
+                                                        register UWORD ystop __asm("d3"),
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * temprp __asm("a1"))
 {
-    /* TODO: See WritePixelLine8 comment */
-    DPRINTF (LOG_ERROR, "_graphics: ReadPixelArray8() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    UWORD x, y;
+    ULONG count = 0;
+
+    DPRINTF(LOG_DEBUG, "_graphics: ReadPixelArray8() rp=0x%08lx (%u,%u)-(%u,%u)\n",
+            (ULONG)rp, (unsigned)xstart, (unsigned)ystart, (unsigned)xstop, (unsigned)ystop);
+
+    if (!rp || !rp->BitMap || !array)
+        return 0;
+
+    if (xstop < xstart || ystop < ystart)
+        return 0;
+
+    for (y = ystart; y <= ystop; y++)
+    {
+        for (x = xstart; x <= xstop; x++)
+        {
+            ULONG pen = _graphics_ReadPixel(GfxBase, rp, (WORD)x, (WORD)y);
+            array[count] = (UBYTE)((pen == (ULONG)-1) ? 0 : pen);
+            count++;
+        }
+    }
+
+    return (LONG)count;
 }
 
+/*
+ * WritePixelArray8 - Write a rectangular area of chunky pen values (offset -786)
+ *
+ * Writes pixels from array into rastport at (xstart,ystart) to (xstop,ystop).
+ * Each byte in the array is treated as a pen index. Returns the number
+ * of pixels written.
+ */
 static LONG _graphics_WritePixelArray8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
-                                                        register ULONG xstart __asm("d0"),
-                                                        register ULONG ystart __asm("d1"),
-                                                        register ULONG xstop __asm("d2"),
-                                                        register ULONG ystop __asm("d3"),
+                                                        register UWORD xstart __asm("d0"),
+                                                        register UWORD ystart __asm("d1"),
+                                                        register UWORD xstop __asm("d2"),
+                                                        register UWORD ystop __asm("d3"),
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * temprp __asm("a1"))
 {
-    /* TODO: See WritePixelLine8 comment */
-    DPRINTF (LOG_ERROR, "_graphics: WritePixelArray8() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    UWORD x, y;
+    ULONG count = 0;
+    UBYTE savedPen;
+
+    DPRINTF(LOG_DEBUG, "_graphics: WritePixelArray8() rp=0x%08lx (%u,%u)-(%u,%u)\n",
+            (ULONG)rp, (unsigned)xstart, (unsigned)ystart, (unsigned)xstop, (unsigned)ystop);
+
+    if (!rp || !rp->BitMap || !array)
+        return 0;
+
+    if (xstop < xstart || ystop < ystart)
+        return 0;
+
+    savedPen = rp->FgPen;
+
+    for (y = ystart; y <= ystop; y++)
+    {
+        for (x = xstart; x <= xstop; x++)
+        {
+            UBYTE pen = array[count];
+            rp->FgPen = pen;
+            _graphics_WritePixel(GfxBase, rp, (WORD)x, (WORD)y);
+            count++;
+        }
+    }
+
+    rp->FgPen = savedPen;
+
+    return (LONG)count;
 }
 
+/*
+ * WritePixelLine8 - Write a horizontal line of chunky pen values (offset -774)
+ *
+ * Writes 'width' pixels from array to rastport at (xstart, ystart).
+ * Each byte in the array is treated as a pen index. Returns the number
+ * of pixels written.
+ */
 static LONG _graphics_WritePixelLine8 ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
-                                                        register ULONG xstart __asm("d0"),
-                                                        register ULONG ystart __asm("d1"),
-                                                        register ULONG width __asm("d2"),
+                                                        register UWORD xstart __asm("d0"),
+                                                        register UWORD ystart __asm("d1"),
+                                                        register UWORD width __asm("d2"),
                                                         register UBYTE * array __asm("a2"),
                                                         register struct RastPort * tempRP __asm("a1"))
 {
-    /* TODO: Proper implementation requires optimized blitting, not just WritePixel() loops.
-     * See AROS write_pixels_8() in gfxfuncsupport.c for reference.
-     * For now, return stub to avoid crashes. */
-    DPRINTF (LOG_ERROR, "_graphics: WritePixelLine8() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    UWORD x;
+    UBYTE savedPen;
+
+    DPRINTF(LOG_DEBUG, "_graphics: WritePixelLine8() rp=0x%08lx x=%u y=%u w=%u\n",
+            (ULONG)rp, (unsigned)xstart, (unsigned)ystart, (unsigned)width);
+
+    if (!rp || !rp->BitMap || !array)
+        return 0;
+
+    savedPen = rp->FgPen;
+
+    for (x = 0; x < width; x++)
+    {
+        UBYTE pen = array[x];
+        rp->FgPen = pen;
+        _graphics_WritePixel(GfxBase, rp, (WORD)(xstart + x), (WORD)ystart);
+    }
+
+    rp->FgPen = savedPen;
+
+    return (LONG)width;
 }
 
 static LONG _graphics_GetVPModeID ( register struct GfxBase * GfxBase __asm("a6"),
