@@ -40,6 +40,7 @@ TEST_F(GraphicsTest, BltBitMap) { RunGraphicsTest("BltBitMap"); }
 TEST_F(GraphicsTest, BltPattern) { RunGraphicsTest("BltPattern"); }
 TEST_F(GraphicsTest, ClipBlit) { RunGraphicsTest("ClipBlit"); }
 TEST_F(GraphicsTest, DrawEllipse) { RunGraphicsTest("DrawEllipse"); }
+TEST_F(GraphicsTest, HwBlitter) { RunGraphicsTest("HwBlitter"); }
 TEST_F(GraphicsTest, InitBitMap) { RunGraphicsTest("InitBitMap"); }
 TEST_F(GraphicsTest, InitRastPort) { RunGraphicsTest("InitRastPort"); }
 TEST_F(GraphicsTest, LayerClipping) { RunGraphicsTest("LayerClipping"); }

@@ -8,10 +8,11 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.58** | **Phase 75 Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.59** | **Phase 75b Complete** | **38/38 Tests Passing (GTest-only)**
 
 Phase 75: Advanced Graphics & Layers — complete.
 Phase 75a: Test Suite Performance Optimization — complete.
+Phase 75b: Hardware Blitter Emulation & CLI Assigns — complete.
 
 **Current Status**:
 - 38/38 ctest entries (all GTest), plus 3 new tests (AreaFill expanded, PixelArray8, ScrollLayer)
@@ -74,6 +75,9 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 ### Advanced Graphics & Layers (Phase 75)
 - ✅ **Phase 75**: Scan-line polygon fill in `AreaEnd` (even-odd fill rule, multi-polygon). Implemented all four pixel array functions (`ReadPixelLine8`, `ReadPixelArray8`, `WritePixelLine8`, `WritePixelArray8`) replacing `assert(FALSE)` stubs, with correct `UWORD` parameter types. `ScrollLayer` for non-SuperBitMap layers. 9 layers.library functions implemented (`BeginUpdate`, `EndUpdate`, `SwapBitsRastPortClipRect`, `MoveLayerInFrontOf`, `InstallClipRegion`, `SortLayerCR`, `DoHookClipRects`, `ShowLayer`). 3 new m68k test programs. 38/38 tests passing.
+
+### Hardware Blitter Emulation & CLI Assigns (Phase 75b)
+- ✅ **Phase 75b**: Full OCS/ECS hardware blitter emulation for applications that bypass graphics.library and program the blitter directly (e.g., Cluster2 Oberon-2 IDE). Implemented all blitter registers (BLTCON0/1, BLTAFWM/BLTALWM, BLTxPTH/L, BLTxMOD, BLTxDAT, BLTSIZE, BLTSIZV/H), `_blitter_execute()` with all 256 minterms, A/B barrel shift, first/last word masks, ascending/descending direction, inclusive-OR and exclusive-OR fill modes. Fixed `m68k_write_memory_32()` to route custom chip area writes as two 16-bit writes. Added `-a name=path` CLI flag for command-line assigns. New hw_blitter m68k test program (7 tests). 38/38 tests passing.
 
 ---
 
@@ -150,6 +154,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.59 | 75b | **Hardware Blitter Emulation & CLI Assigns!** Full OCS/ECS blitter emulation (all 256 minterms, barrel shift, fill modes, ascending/descending). Fixed 32-bit custom chip writes. `-a name=path` CLI flag for command-line assigns. New hw_blitter test (7 tests). 38/38 tests passing. |
 | 0.6.58 | 75a | **Test Suite Performance Optimization!** Reduced `RunCyclesWithVBlank` and `WaitForEventLoop` cycle budgets across 14 test drivers. `gadtoolsgadgets_gtest` reduced from 181s to ~130s (28% faster, safely under 180s timeout). Key findings: STOP instruction means large cycle budgets don't waste wall-clock time when CPU idle; TypeString needs minimum 8M cycles (40x200000) for string gadget rendering + GADGETUP + printf flush; inject function cycle budgets in `lxa_api.c` must not be reduced (causes event queue overflows). Total suite: ~756s (down from ~800s). 36/38 tests passing (2 pre-existing crashes unchanged). |
 | 0.6.57 | 75 | **Phase 75 Complete — Advanced Graphics & Layers!** Scan-line polygon fill in `AreaEnd` (even-odd fill rule, multi-polygon). All four pixel array functions implemented. `ScrollLayer` for non-SuperBitMap layers. 9 layers.library functions. 38/38 tests passing. |
 | 0.6.56 | 74 | **Phase 74 Complete — DOS & VFS Hardening!** UnLoadSeg, InternalUnLoadSeg, AllocDosObject/FreeDosObject extensions, errno2Amiga mapping, case-insensitive path resolution. 35/35 tests passing. |

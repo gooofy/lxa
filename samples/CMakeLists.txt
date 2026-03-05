@@ -152,6 +152,7 @@ set(TESTS_LIST
     "../tests/graphics/bltpattern|main|Tests/Graphics/BltPattern"
     "../tests/graphics/clipblit|main|Tests/Graphics/ClipBlit"
     "../tests/graphics/draw_ellipse|main|Tests/Graphics/DrawEllipse"
+    "../tests/graphics/hw_blitter|main|Tests/Graphics/HwBlitter"
     "../tests/graphics/init_bitmap|main|Tests/Graphics/InitBitMap"
     "../tests/graphics/init_rastport|main|Tests/Graphics/InitRastPort"
     "../tests/graphics/layer_clipping|main|Tests/Graphics/LayerClipping"

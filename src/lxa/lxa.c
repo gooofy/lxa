@@ -77,11 +77,33 @@
 #define CUSTOM_REG_INTREQ   0x09c
 #define CUSTOM_REG_DMACON   0x096
 #define CUSTOM_REG_DMACONR  0x002
-#define CUSTOM_REG_BLTCON0  0x040
-#define CUSTOM_REG_BLTCON1  0x042
-#define CUSTOM_REG_BLTSIZE  0x058
 #define CUSTOM_REG_VPOSR    0x004  /* Read vertical position (Agnus) */
 #define CUSTOM_REG_VHPOSR   0x006  /* Read vert/horiz position */
+
+/* Blitter register offsets (from custom chip base) */
+#define CUSTOM_REG_BLTCON0  0x040
+#define CUSTOM_REG_BLTCON1  0x042
+#define CUSTOM_REG_BLTAFWM  0x044
+#define CUSTOM_REG_BLTALWM  0x046
+#define CUSTOM_REG_BLTCPTH  0x048
+#define CUSTOM_REG_BLTCPTL  0x04a
+#define CUSTOM_REG_BLTBPTH  0x04c
+#define CUSTOM_REG_BLTBPTL  0x04e
+#define CUSTOM_REG_BLTAPTH  0x050
+#define CUSTOM_REG_BLTAPTL  0x052
+#define CUSTOM_REG_BLTDPTH  0x054
+#define CUSTOM_REG_BLTDPTL  0x056
+#define CUSTOM_REG_BLTSIZE  0x058
+#define CUSTOM_REG_BLTCON0L 0x05b  /* ECS: low byte of BLTCON0 */
+#define CUSTOM_REG_BLTSIZV  0x05c  /* ECS: vertical size */
+#define CUSTOM_REG_BLTSIZH  0x05e  /* ECS: horizontal size (triggers blit) */
+#define CUSTOM_REG_BLTCMOD  0x060
+#define CUSTOM_REG_BLTBMOD  0x062
+#define CUSTOM_REG_BLTAMOD  0x064
+#define CUSTOM_REG_BLTDMOD  0x066
+#define CUSTOM_REG_BLTCDAT  0x070
+#define CUSTOM_REG_BLTBDAT  0x072
+#define CUSTOM_REG_BLTADAT  0x074
 #define CUSTOM_REG_DENISEID 0x07c  /* Denise ID register */
 #define CUSTOM_REG_ADKCON   0x09e  /* Audio/disk control */
 #define CUSTOM_REG_ADKCONR  0x010  /* Audio/disk control read */
@@ -144,6 +166,30 @@ static uint32_t g_breakpoints[MAX_BREAKPOINTS];
 static int      g_num_breakpoints               = 0;
 int      g_rv                            = 0;
 static char    *g_sysroot                       = NULL;
+
+/*
+ * Hardware blitter emulation state.
+ * Shadows the Amiga custom chip blitter registers.
+ * Writing to BLTSIZE (or BLTSIZH for ECS) triggers the blit.
+ */
+static struct {
+    uint16_t con0;       /* BLTCON0: shift A (15:12), DMA enables (11:8), minterm (7:0) */
+    uint16_t con1;       /* BLTCON1: shift B (15:12), fill/line/direction flags */
+    uint16_t afwm;       /* First word mask for channel A */
+    uint16_t alwm;       /* Last word mask for channel A */
+    uint32_t cpt;        /* Channel C pointer */
+    uint32_t bpt;        /* Channel B pointer */
+    uint32_t apt;        /* Channel A pointer */
+    uint32_t dpt;        /* Channel D (destination) pointer */
+    int16_t  cmod;       /* Channel C modulo (signed) */
+    int16_t  bmod;       /* Channel B modulo (signed) */
+    int16_t  amod;       /* Channel A modulo (signed) */
+    int16_t  dmod;       /* Channel D modulo (signed) */
+    uint16_t cdat;       /* Channel C data register */
+    uint16_t bdat;       /* Channel B data register */
+    uint16_t adat;       /* Channel A data register */
+    uint16_t sizv;       /* ECS: vertical size (for BLTSIZH trigger) */
+} g_blitter = {0};
 
 typedef struct map_sym_s map_sym_t;
 
@@ -577,7 +623,26 @@ static const char *_custom_reg_name(uint16_t reg)
         case CUSTOM_REG_DENISEID: return "DENISEID";
         case CUSTOM_REG_BLTCON0: return "BLTCON0";
         case CUSTOM_REG_BLTCON1: return "BLTCON1";
+        case CUSTOM_REG_BLTAFWM: return "BLTAFWM";
+        case CUSTOM_REG_BLTALWM: return "BLTALWM";
+        case CUSTOM_REG_BLTCPTH: return "BLTCPTH";
+        case CUSTOM_REG_BLTCPTL: return "BLTCPTL";
+        case CUSTOM_REG_BLTBPTH: return "BLTBPTH";
+        case CUSTOM_REG_BLTBPTL: return "BLTBPTL";
+        case CUSTOM_REG_BLTAPTH: return "BLTAPTH";
+        case CUSTOM_REG_BLTAPTL: return "BLTAPTL";
+        case CUSTOM_REG_BLTDPTH: return "BLTDPTH";
+        case CUSTOM_REG_BLTDPTL: return "BLTDPTL";
         case CUSTOM_REG_BLTSIZE: return "BLTSIZE";
+        case CUSTOM_REG_BLTSIZV: return "BLTSIZV";
+        case CUSTOM_REG_BLTSIZH: return "BLTSIZH";
+        case CUSTOM_REG_BLTCMOD: return "BLTCMOD";
+        case CUSTOM_REG_BLTBMOD: return "BLTBMOD";
+        case CUSTOM_REG_BLTAMOD: return "BLTAMOD";
+        case CUSTOM_REG_BLTDMOD: return "BLTDMOD";
+        case CUSTOM_REG_BLTCDAT: return "BLTCDAT";
+        case CUSTOM_REG_BLTBDAT: return "BLTBDAT";
+        case CUSTOM_REG_BLTADAT: return "BLTADAT";
         case CUSTOM_REG_DMACON: return "DMACON";
         case CUSTOM_REG_INTENA: return "INTENA";
         case CUSTOM_REG_INTREQ: return "INTREQ";
@@ -745,6 +810,235 @@ unsigned int m68k_read_memory_32 (unsigned int address)
     return l;
 }
 
+/*
+ * _blitter_execute() - Software emulation of the Amiga hardware blitter.
+ *
+ * Called when BLTSIZE (OCS) or BLTSIZH (ECS) is written, triggering a blit.
+ * Reads source data from channels A/B/C (DMA or data register), applies
+ * barrel shift (A/B), first/last word masks (A), minterm logic function,
+ * and writes result to channel D.
+ *
+ * Supports:
+ *   - All 256 minterm logic functions
+ *   - Channel A/B barrel shift (ASH/BSH, 0-15 bits)
+ *   - First/last word masks (BLTAFWM/BLTALWM)
+ *   - Per-channel DMA enable/disable (data register fallback)
+ *   - Ascending and descending (reverse) blit direction
+ *   - Inclusive-OR and exclusive-OR fill modes
+ *   - Per-channel signed modulo
+ *
+ * Not supported (not needed for current apps):
+ *   - Line draw mode (BLTCON1 bit 0)
+ */
+static void _blitter_execute (uint16_t width_words, uint16_t height)
+{
+    /* Zero means maximum */
+    if (width_words == 0) width_words = 64;
+    if (height == 0) height = 1024;
+
+    uint16_t con0 = g_blitter.con0;
+    uint16_t con1 = g_blitter.con1;
+    uint8_t  minterm = con0 & 0xff;
+    bool     use_a = (con0 & 0x0800) != 0;
+    bool     use_b = (con0 & 0x0400) != 0;
+    bool     use_c = (con0 & 0x0200) != 0;
+    bool     use_d = (con0 & 0x0100) != 0;
+    uint16_t ash   = (con0 >> 12) & 0xf;
+    uint16_t bsh   = (con1 >> 12) & 0xf;
+    bool     desc  = (con1 & 0x02) != 0;  /* Descending direction */
+    bool     fill_or  = (con1 & 0x08) != 0;
+    bool     fill_xor = (con1 & 0x10) != 0;
+    bool     fill_carry_in = (con1 & 0x04) != 0;
+
+    uint32_t apt = g_blitter.apt;
+    uint32_t bpt = g_blitter.bpt;
+    uint32_t cpt = g_blitter.cpt;
+    uint32_t dpt = g_blitter.dpt;
+
+    int16_t  amod = g_blitter.amod;
+    int16_t  bmod = g_blitter.bmod;
+    int16_t  cmod = g_blitter.cmod;
+    int16_t  dmod = g_blitter.dmod;
+
+    /* Barrel shifter state: holds previous word for cross-word shifting */
+    uint16_t a_prev = 0;
+    uint16_t b_prev = 0;
+
+    DPRINTF (LOG_DEBUG, "lxa: BLITTER: con0=0x%04x con1=0x%04x size=%dx%d "
+             "A=%d B=%d C=%d D=%d ash=%d bsh=%d desc=%d minterm=0x%02x\n",
+             con0, con1, width_words, height,
+             use_a, use_b, use_c, use_d, ash, bsh, desc, minterm);
+
+    int ptr_step = desc ? -2 : 2;
+
+    for (uint16_t row = 0; row < height; row++)
+    {
+        /* Reset barrel shifter at start of each row */
+        a_prev = 0;
+        b_prev = 0;
+
+        /* Fill mode carry state (per-row) */
+        bool fill_carry = fill_carry_in;
+
+        for (uint16_t col = 0; col < width_words; col++)
+        {
+            /* --- Read source channels --- */
+
+            uint16_t a_data;
+            if (use_a)
+            {
+                if (apt < RAM_SIZE - 1)
+                    a_data = (g_ram[apt] << 8) | g_ram[apt + 1];
+                else
+                    a_data = 0;
+                apt += ptr_step;
+            }
+            else
+            {
+                a_data = g_blitter.adat;
+            }
+
+            uint16_t b_data;
+            if (use_b)
+            {
+                if (bpt < RAM_SIZE - 1)
+                    b_data = (g_ram[bpt] << 8) | g_ram[bpt + 1];
+                else
+                    b_data = 0;
+                bpt += ptr_step;
+            }
+            else
+            {
+                b_data = g_blitter.bdat;
+            }
+
+            uint16_t c_data;
+            if (use_c)
+            {
+                if (cpt < RAM_SIZE - 1)
+                    c_data = (g_ram[cpt] << 8) | g_ram[cpt + 1];
+                else
+                    c_data = 0;
+                cpt += ptr_step;
+            }
+            else
+            {
+                c_data = g_blitter.cdat;
+            }
+
+            /* --- Apply barrel shift to channels A and B --- */
+
+            uint16_t a_shifted;
+            if (ash == 0)
+            {
+                a_shifted = a_data;
+            }
+            else
+            {
+                /* Combine previous and current word, shift right by ash bits */
+                uint32_t combined = ((uint32_t)a_prev << 16) | a_data;
+                a_shifted = (combined >> ash) & 0xffff;
+            }
+            a_prev = a_data;
+
+            uint16_t b_shifted;
+            if (bsh == 0)
+            {
+                b_shifted = b_data;
+            }
+            else
+            {
+                uint32_t combined = ((uint32_t)b_prev << 16) | b_data;
+                b_shifted = (combined >> bsh) & 0xffff;
+            }
+            b_prev = b_data;
+
+            /* --- Apply first/last word masks to channel A --- */
+
+            uint16_t a_masked = a_shifted;
+            if (col == 0)
+                a_masked &= g_blitter.afwm;
+            if (col == width_words - 1)
+                a_masked &= g_blitter.alwm;
+            /* If only 1 word wide, both masks are applied (handled above) */
+
+            /* --- Evaluate minterm logic function --- */
+            /* For each bit: index = (A<<2)|(B<<1)|C, result = (minterm>>index)&1 */
+
+            uint16_t result = 0;
+            for (int bit = 15; bit >= 0; bit--)
+            {
+                uint16_t mask = 1 << bit;
+                int a_bit = (a_masked & mask) ? 1 : 0;
+                int b_bit = (b_shifted & mask) ? 1 : 0;
+                int c_bit = (c_data & mask) ? 1 : 0;
+                int idx = (a_bit << 2) | (b_bit << 1) | c_bit;
+                if (minterm & (1 << idx))
+                    result |= mask;
+            }
+
+            /* --- Apply fill mode (if enabled) --- */
+
+            if (fill_or || fill_xor)
+            {
+                uint16_t filled = 0;
+                /*
+                 * Fill processes bits right-to-left within each word.
+                 * When a set bit is encountered, fill_carry toggles.
+                 * While carry is set, bits are filled (OR or XOR).
+                 */
+                for (int bit = 0; bit <= 15; bit++)
+                {
+                    uint16_t mask = 1 << bit;
+                    bool src_bit = (result & mask) != 0;
+
+                    if (src_bit)
+                        fill_carry = !fill_carry;
+
+                    if (fill_or)
+                    {
+                        if (fill_carry || src_bit)
+                            filled |= mask;
+                    }
+                    else /* fill_xor */
+                    {
+                        if (fill_carry)
+                            filled |= mask;
+                    }
+                }
+                result = filled;
+            }
+
+            /* --- Write result to destination --- */
+
+            if (use_d)
+            {
+                if (dpt < RAM_SIZE - 1)
+                {
+                    g_ram[dpt]     = (result >> 8) & 0xff;
+                    g_ram[dpt + 1] = result & 0xff;
+                }
+                dpt += ptr_step;
+            }
+        }
+
+        /* End of row: apply modulo to advance pointers */
+        if (use_a) apt += (desc ? -amod : amod);
+        if (use_b) bpt += (desc ? -bmod : bmod);
+        if (use_c) cpt += (desc ? -cmod : cmod);
+        if (use_d) dpt += (desc ? -dmod : dmod);
+    }
+
+    /* Update pointer registers with final values (real hardware does this) */
+    g_blitter.apt = apt;
+    g_blitter.bpt = bpt;
+    g_blitter.cpt = cpt;
+    g_blitter.dpt = dpt;
+
+    DPRINTF (LOG_DEBUG, "lxa: BLITTER: done (%d words x %d rows = %d words total)\n",
+             width_words, height, width_words * height);
+}
+
 static void _handle_custom_write (uint16_t reg, uint16_t value)
 {
 
@@ -802,6 +1096,86 @@ static void _handle_custom_write (uint16_t reg, uint16_t value)
         case CUSTOM_REG_POTGO:
             DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: %s value=0x%04x (ignored)\n",
                     _custom_reg_name(reg), value);
+            break;
+
+        /* --- Hardware blitter register writes --- */
+        case CUSTOM_REG_BLTCON0:
+            g_blitter.con0 = value;
+            break;
+        case CUSTOM_REG_BLTCON1:
+            g_blitter.con1 = value;
+            break;
+        case CUSTOM_REG_BLTAFWM:
+            g_blitter.afwm = value;
+            break;
+        case CUSTOM_REG_BLTALWM:
+            g_blitter.alwm = value;
+            break;
+        case CUSTOM_REG_BLTCPTH:
+            g_blitter.cpt = (g_blitter.cpt & 0x0000ffff) | ((uint32_t)value << 16);
+            break;
+        case CUSTOM_REG_BLTCPTL:
+            g_blitter.cpt = (g_blitter.cpt & 0xffff0000) | value;
+            break;
+        case CUSTOM_REG_BLTBPTH:
+            g_blitter.bpt = (g_blitter.bpt & 0x0000ffff) | ((uint32_t)value << 16);
+            break;
+        case CUSTOM_REG_BLTBPTL:
+            g_blitter.bpt = (g_blitter.bpt & 0xffff0000) | value;
+            break;
+        case CUSTOM_REG_BLTAPTH:
+            g_blitter.apt = (g_blitter.apt & 0x0000ffff) | ((uint32_t)value << 16);
+            break;
+        case CUSTOM_REG_BLTAPTL:
+            g_blitter.apt = (g_blitter.apt & 0xffff0000) | value;
+            break;
+        case CUSTOM_REG_BLTDPTH:
+            g_blitter.dpt = (g_blitter.dpt & 0x0000ffff) | ((uint32_t)value << 16);
+            break;
+        case CUSTOM_REG_BLTDPTL:
+            g_blitter.dpt = (g_blitter.dpt & 0xffff0000) | value;
+            break;
+        case CUSTOM_REG_BLTSIZE:
+        {
+            /* OCS: Writing BLTSIZE triggers the blit.
+             * Bits 15:6 = height (0=1024), bits 5:0 = width in words (0=64) */
+            uint16_t h = (value >> 6) & 0x3ff;
+            uint16_t w = value & 0x3f;
+            _blitter_execute (w, h);
+            break;
+        }
+        case CUSTOM_REG_BLTSIZV:
+            /* ECS: Store vertical size, blit triggered by BLTSIZH */
+            g_blitter.sizv = value & 0x7fff;
+            break;
+        case CUSTOM_REG_BLTSIZH:
+        {
+            /* ECS: Writing BLTSIZH triggers the blit */
+            uint16_t w = value & 0x7ff;
+            uint16_t h = g_blitter.sizv;
+            _blitter_execute (w, h);
+            break;
+        }
+        case CUSTOM_REG_BLTCMOD:
+            g_blitter.cmod = (int16_t)value;
+            break;
+        case CUSTOM_REG_BLTBMOD:
+            g_blitter.bmod = (int16_t)value;
+            break;
+        case CUSTOM_REG_BLTAMOD:
+            g_blitter.amod = (int16_t)value;
+            break;
+        case CUSTOM_REG_BLTDMOD:
+            g_blitter.dmod = (int16_t)value;
+            break;
+        case CUSTOM_REG_BLTCDAT:
+            g_blitter.cdat = value;
+            break;
+        case CUSTOM_REG_BLTBDAT:
+            g_blitter.bdat = value;
+            break;
+        case CUSTOM_REG_BLTADAT:
+            g_blitter.adat = value;
             break;
         default:
             /* Many apps write to custom chip registers - just log and ignore */
@@ -904,6 +1278,22 @@ void m68k_write_memory_32(unsigned int address, unsigned int value)
 {
     // if (g_trace)
     //     DPRINTF("WRITE32 at 0x%08x -> 0x%08x\n", address, value);
+
+    /*
+     * Custom chip area: 32-bit writes must be handled as two 16-bit writes
+     * (high word first, low word second) because the custom chip register
+     * handler processes 16-bit register writes.  This is critical for
+     * blitter pointer registers (BLTAPT, BLTBPT, BLTCPT, BLTDPT) which
+     * are written as 32-bit values by apps but stored as high/low halves
+     * in adjacent 16-bit registers.
+     */
+    if ((address >= CUSTOM_START) && (address <= CUSTOM_END))
+    {
+        _handle_custom_write ((address    ) & 0xfff, (value >> 16) & 0xffff);
+        _handle_custom_write ((address + 2) & 0xfff, value & 0xffff);
+        return;
+    }
+
     mwrite8 (address  , (value >>24) & 0xff);
     mwrite8 (address+1, (value >>16) & 0xff);
     mwrite8 (address+2, (value >> 8) & 0xff);
@@ -6164,6 +6554,7 @@ static void print_usage(char *argv[])
     fprintf(stderr, "usage: %s [ options ] [ program [ args... ] ]\n", argv[0]);
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
+    fprintf(stderr, "    -a <name=path> add assign (e.g., -a Cluster=/path/to/Cluster)\n");
     fprintf(stderr, "    -b <addr|sym>  add breakpoint, examples: -b _start\n");
     fprintf(stderr, "    -c <config>    use config file (default: ~/.lxa/config.ini)\n");
     fprintf(stderr, "    -d             enable debug output\n");
@@ -6193,6 +6584,11 @@ int main(int argc, char **argv, char **envp)
     char *config_path = NULL;
     int optind=0;
 
+    /* Pending assigns from -a flags (applied after config is loaded) */
+    #define MAX_PENDING_ASSIGNS 32
+    struct { char name[256]; char path[PATH_MAX]; } pending_assigns[MAX_PENDING_ASSIGNS];
+    int num_pending_assigns = 0;
+
     vfs_init();
 
     // argument parsing
@@ -6207,6 +6603,32 @@ int main(int argc, char **argv, char **envp)
 
         switch (argv[optind][1])
         {
+            case 'a':
+            {
+                optind++;
+                if (optind >= argc)
+                {
+                    fprintf(stderr, "Error: -a requires name=path argument\n");
+                    exit(EXIT_FAILURE);
+                }
+                char *eq = strchr(argv[optind], '=');
+                if (!eq)
+                {
+                    fprintf(stderr, "Error: -a argument must be in name=path format\n");
+                    exit(EXIT_FAILURE);
+                }
+                if (num_pending_assigns < MAX_PENDING_ASSIGNS)
+                {
+                    size_t name_len = eq - argv[optind];
+                    if (name_len >= 256) name_len = 255;
+                    strncpy(pending_assigns[num_pending_assigns].name, argv[optind], name_len);
+                    pending_assigns[num_pending_assigns].name[name_len] = '\0';
+                    strncpy(pending_assigns[num_pending_assigns].path, eq + 1, PATH_MAX - 1);
+                    pending_assigns[num_pending_assigns].path[PATH_MAX - 1] = '\0';
+                    num_pending_assigns++;
+                }
+                break;
+            }
             case 'b':
             {
                 optind++;
@@ -6282,6 +6704,21 @@ int main(int argc, char **argv, char **envp)
     
     /* Set up default assigns (C:, S:, LIBS:, etc.) pointing to SYS: subdirectories */
     vfs_setup_default_assigns();
+
+    /* Apply pending assigns from -a command line flags */
+    for (int i = 0; i < num_pending_assigns; i++)
+    {
+        if (!vfs_assign_add(pending_assigns[i].name, pending_assigns[i].path, ASSIGN_LOCK))
+        {
+            fprintf(stderr, "lxa: WARNING: Failed to add assign %s: -> %s\n",
+                    pending_assigns[i].name, pending_assigns[i].path);
+        }
+        else
+        {
+            DPRINTF(LOG_DEBUG, "lxa: Added assign from command line: %s: -> %s\n",
+                    pending_assigns[i].name, pending_assigns[i].path);
+        }
+    }
 
     if (!rom_path) {
         rom_path = (char *)config_get_rom_path();

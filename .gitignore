@@ -177,3 +177,6 @@ tests/stress/memory/memory_stress
 tests/intuition/menu_select/menu_select
 tests/exec/multitask/multitask
 tests/console/csi_cursor/csi_cursor
+tests/dos/case_path/case_path
+tests/dos/dosobject/dosobject
+tests/dos/unloadseg/unloadseg

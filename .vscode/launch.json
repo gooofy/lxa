@@ -1126,7 +1126,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/Cluster2/bin/Cluster2/Editor"],
+            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "-a", "Cluster=${workspaceFolder}/../lxa-apps/Cluster2/bin/Cluster2", "${workspaceFolder}/../lxa-apps/Cluster2/bin/Cluster2/Editor"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
