@@ -8,17 +8,19 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.64** | **Phase 78-A-2 Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.65** | **Phase 78-A-3 Complete** | **38/38 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
 Phase 78-A-2: Exec `Wait()` wait-mask fix complete (v0.6.64).
+Phase 78-A-3: Exec `Wait(SIGBREAKF_CTRL_C)` verification complete (v0.6.65).
 
 **Current Status**:
 - 38/38 ctest entries (all GTest), including new ExecVerify test
 - Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
 - All 10 bugs fixed and verified with m68k tests
 - Fixed `exec.library/Wait()` to clear `tc_SigWait` on return, matching AROS semantics and preventing stale wait masks from affecting later signal delivery
+- Verified `exec.library/Wait(SIGBREAKF_CTRL_C)` already matches AROS semantics and added regression coverage to lock in Ctrl-C break handling
 - Regression sweep complete: `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` stabilized and full `ctest --test-dir build --output-on-failure -j8` is green again
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
 
@@ -55,6 +57,7 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phases 73-77**: Core Library Resource Management, DOS/VFS Hardening, Advanced Graphics & Layers, Intuition/BOOPSI enhancements, Missing Libraries & Devices.
 - **Phase 78-A-1**: Exec Library AROS Verification — 10 bug fixes complete.
 - **Phase 78-A-2**: Exec `Wait()` wait-mask clearing aligned with AROS, with signal regression coverage.
+- **Phase 78-A-3**: Exec `Wait(SIGBREAKF_CTRL_C)` behavior verified against AROS, with explicit break-signal regression coverage.
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.
 
 ---
@@ -119,7 +122,7 @@ Extend the test suite with targeted tests where feasible, extending the test sui
 - [ ] `AllocSignal` / `FreeSignal` — signal bit allocation from tc_SigAlloc
 - [ ] `Signal` — set bits in tc_SigRecvd; wake from wait if bits match tc_SigWait
 - [x] `Wait` — clear tc_SigWait on return
-- [ ] `Wait` — SIGBREAKF_CTRL_C handling
+- [x] `Wait` — SIGBREAKF_CTRL_C handling
 - [ ] `SetSignal` — set/clear signal bits without scheduling
 - [ ] `InitSemaphore` / `ObtainSemaphore` / `ReleaseSemaphore` — nest count, queue
 - [ ] `ObtainSemaphoreShared` / `AttemptSemaphore` / `AttemptSemaphoreShared`
@@ -754,6 +757,7 @@ Extend the test suite with targeted tests where feasible, extending the test sui
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| **0.6.65** | 78-A-3 | Phase 78-A-3 Complete — verified `Wait(SIGBREAKF_CTRL_C)` behavior and added Ctrl-C regression coverage. |
 | **0.6.64** | 78-A-2 | Phase 78-A-2 Complete — fixed `Wait()` to clear `tc_SigWait` on return and added signal regression coverage. |
 | **0.6.63** | 78-A-1 | Phase 78-A-1 Complete — Exec AROS Bug Fixes! Fixed 10 bugs in `exec.c`. |
 | **0.6.0 - 0.6.62** | 44 - 78-W | Core system implementation, test suite stabilization, OS data structure offset verification, missing libraries implementation. |

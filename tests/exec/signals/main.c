@@ -310,8 +310,37 @@ int main(void)
         }
     }
 
-    /* Test 11: SetExcept - basic test */
-    print("\nTest 11: SetExcept basics\n");
+    /* Test 11: Wait handles SIGBREAKF_CTRL_C */
+    print("\nTest 11: Wait handles SIGBREAKF_CTRL_C\n");
+    {
+        ULONG waited;
+
+        SetSignal(0, SIGBREAKF_CTRL_C);
+        Signal(thisTask, SIGBREAKF_CTRL_C);
+
+        waited = Wait(SIGBREAKF_CTRL_C);
+        if (waited == SIGBREAKF_CTRL_C) {
+            test_ok("Wait returned SIGBREAKF_CTRL_C");
+        } else {
+            test_fail_msg("Wait did not return SIGBREAKF_CTRL_C");
+        }
+
+        if (thisTask->tc_SigWait == 0) {
+            test_ok("Wait cleared tc_SigWait after SIGBREAKF_CTRL_C");
+        } else {
+            test_fail_msg("Wait left tc_SigWait set after SIGBREAKF_CTRL_C");
+        }
+
+        if (!(SetSignal(0, 0) & SIGBREAKF_CTRL_C)) {
+            test_ok("Wait consumed SIGBREAKF_CTRL_C");
+        } else {
+            test_fail_msg("Wait did not consume SIGBREAKF_CTRL_C");
+            SetSignal(0, SIGBREAKF_CTRL_C);
+        }
+    }
+
+    /* Test 12: SetExcept - basic test */
+    print("\nTest 12: SetExcept basics\n");
     {
         ULONG mask = (1 << sig1);
         ULONG oldExcept;
