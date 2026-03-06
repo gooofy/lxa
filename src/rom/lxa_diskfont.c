@@ -92,34 +92,301 @@ ULONG __g_lxa_diskfont_ExtFuncLib(void)
 /* Main functions                                                            */
 /****************************************************************************/
 
+/*
+ * Helper: case-insensitive string comparison for font names
+ */
+static int _df_stricmp(const char *s1, const char *s2)
+{
+    while (*s1 && *s2)
+    {
+        char c1 = *s1;
+        char c2 = *s2;
+        /* Simple toupper for ASCII letters */
+        if (c1 >= 'a' && c1 <= 'z') c1 -= 32;
+        if (c2 >= 'a' && c2 <= 'z') c2 -= 32;
+        if (c1 != c2)
+            return c1 - c2;
+        s1++;
+        s2++;
+    }
+    return (unsigned char)*s1 - (unsigned char)*s2;
+}
+
+/*
+ * Helper: check if string ends with a suffix (case-insensitive)
+ */
+static BOOL _df_endswith(const char *str, const char *suffix)
+{
+    int slen = strlen(str);
+    int xlen = strlen(suffix);
+    if (xlen > slen)
+        return FALSE;
+    return _df_stricmp(str + slen - xlen, suffix) == 0;
+}
+
+/*
+ * Helper: strip ".font" suffix from a font name into a buffer.
+ * Returns pointer to buf (the stripped name).
+ */
+static char * _df_strip_font_suffix(const char *name, char *buf, int bufsize)
+{
+    int len = strlen(name);
+    int i;
+
+    /* Copy up to bufsize-1 chars */
+    for (i = 0; i < len && i < bufsize - 1; i++)
+        buf[i] = name[i];
+    buf[i] = '\0';
+
+    /* Strip trailing ".font" if present */
+    int blen = strlen(buf);
+    if (blen > 5 && _df_stricmp(buf + blen - 5, ".font") == 0)
+        buf[blen - 5] = '\0';
+
+    return buf;
+}
+
+/*
+ * Try to load a bitmap font from FONTS: directory.
+ *
+ * Steps:
+ *   1. Build path "FONTS:<fontname>.font"
+ *   2. Open and read the FontContentsHeader
+ *   3. Find the best matching size in the FontContents entries
+ *   4. LoadSeg() the bitmap font file
+ *   5. Parse the DiskFontHeader at the start of the loaded segment
+ *   6. Fix up pointers in the TextFont struct
+ *   7. Register with AddFont()
+ *   8. Return the TextFont*
+ */
+static struct TextFont * _df_load_from_disk(struct TextAttr *textAttr)
+{
+    char path[300];
+    char stripped[64];
+    BPTR fh;
+    struct FontContentsHeader fch;
+    LONG bytesRead;
+    UWORD bestSize = 0;
+    LONG bestDiff = 0x7FFF;
+    char bestFile[MAXFONTPATH];
+    UWORD i;
+
+    if (!textAttr || !textAttr->ta_Name)
+        return NULL;
+
+    /* Strip ".font" suffix to get the base name */
+    _df_strip_font_suffix((const char *)textAttr->ta_Name, stripped, sizeof(stripped));
+
+    DPRINTF (LOG_DEBUG, "_diskfont: _df_load_from_disk() stripped name='%s' requested size=%d\n",
+             stripped, textAttr->ta_YSize);
+
+    /* Build path to .font contents file: "FONTS:<stripped>.font" */
+    strcpy(path, "FONTS:");
+    strcat(path, stripped);
+    strcat(path, ".font");
+
+    DPRINTF (LOG_DEBUG, "_diskfont: trying to open '%s'\n", path);
+
+    fh = Open((STRPTR)path, MODE_OLDFILE);
+    if (!fh)
+    {
+        DPRINTF (LOG_DEBUG, "_diskfont: could not open '%s'\n", path);
+        return NULL;
+    }
+
+    /* Read FontContentsHeader (4 bytes) */
+    bytesRead = Read(fh, &fch, sizeof(fch));
+    if (bytesRead != sizeof(fch))
+    {
+        DPRINTF (LOG_DEBUG, "_diskfont: failed to read FontContentsHeader\n");
+        Close(fh);
+        return NULL;
+    }
+
+    DPRINTF (LOG_DEBUG, "_diskfont: fch_FileID=0x%04x fch_NumEntries=%d\n",
+             fch.fch_FileID, fch.fch_NumEntries);
+
+    /* Validate file ID */
+    if (fch.fch_FileID != FCH_ID && fch.fch_FileID != TFCH_ID && fch.fch_FileID != OFCH_ID)
+    {
+        DPRINTF (LOG_DEBUG, "_diskfont: invalid FileID 0x%04x\n", fch.fch_FileID);
+        Close(fh);
+        return NULL;
+    }
+
+    if (fch.fch_NumEntries == 0)
+    {
+        Close(fh);
+        return NULL;
+    }
+
+    /* Read entries to find the best matching size.
+     * Both FontContents and TFontContents are 260 bytes each.
+     * The fc_YSize/tfc_YSize is at offset 256, fc_Style/tfc_Style at 258, fc_Flags/tfc_Flags at 259.
+     */
+    bestFile[0] = '\0';
+
+    for (i = 0; i < fch.fch_NumEntries; i++)
+    {
+        struct FontContents fc;
+
+        bytesRead = Read(fh, &fc, sizeof(fc));
+        if (bytesRead != sizeof(fc))
+        {
+            DPRINTF (LOG_DEBUG, "_diskfont: failed to read FontContents entry %d\n", i);
+            break;
+        }
+
+        DPRINTF (LOG_DEBUG, "_diskfont: entry %d: file='%s' size=%d style=%d flags=0x%02x\n",
+                 i, fc.fc_FileName, fc.fc_YSize, fc.fc_Style, fc.fc_Flags);
+
+        /* Calculate how well this size matches */
+        LONG diff = (LONG)fc.fc_YSize - (LONG)textAttr->ta_YSize;
+        if (diff < 0)
+            diff = -diff;
+
+        /* Prefer exact match, then closest size */
+        if (diff < bestDiff || (diff == bestDiff && fc.fc_YSize > bestSize))
+        {
+            bestDiff = diff;
+            bestSize = fc.fc_YSize;
+            /* Copy filename */
+            {
+                UWORD j;
+                for (j = 0; j < MAXFONTPATH - 1 && fc.fc_FileName[j]; j++)
+                    bestFile[j] = fc.fc_FileName[j];
+                bestFile[j] = '\0';
+            }
+        }
+    }
+
+    Close(fh);
+
+    if (bestFile[0] == '\0')
+    {
+        DPRINTF (LOG_DEBUG, "_diskfont: no matching font entry found\n");
+        return NULL;
+    }
+
+    DPRINTF (LOG_DEBUG, "_diskfont: best match: file='%s' size=%d (diff=%ld)\n",
+             bestFile, bestSize, bestDiff);
+
+    /* Build the full path to the bitmap font file: "FONTS:<bestFile>" */
+    strcpy(path, "FONTS:");
+    strcat(path, bestFile);
+
+    DPRINTF (LOG_DEBUG, "_diskfont: LoadSeg('%s')...\n", path);
+
+    /* Load the bitmap font as a hunk executable */
+    BPTR segList = LoadSeg((STRPTR)path);
+    if (!segList)
+    {
+        DPRINTF (LOG_DEBUG, "_diskfont: LoadSeg('%s') failed\n", path);
+        return NULL;
+    }
+
+    DPRINTF (LOG_DEBUG, "_diskfont: LoadSeg succeeded, segList=0x%08lx\n", segList);
+
+    /* The loaded segment contains:
+     *   ULONG NextSegment   (at BPTR*4, filled by loader, part of alloc header)
+     *   ULONG ReturnCode    (MOVEQ #0,D0 : RTS = 0x70004E75)
+     *   struct DiskFontHeader dfh
+     *
+     * The segment data starts at (segList << 2), which is the BPTR->APTR conversion.
+     * The first longword at that address is the next segment pointer.
+     * The actual data (ReturnCode + DiskFontHeader) follows.
+     */
+    ULONG *segBase = (ULONG *)(segList << 2);
+
+    /* Skip the NextSegment BPTR at offset 0 (which is the linkage word, NOT part of the data) */
+    /* The ReturnCode is the first data word */
+    ULONG *dataBase = segBase + 1;  /* skip NextSegment BPTR */
+
+    /* Check for ReturnCode (MOVEQ #0,D0 : RTS = 0x70004E75) */
+    if (dataBase[0] != 0x70004E75)
+    {
+        DPRINTF (LOG_DEBUG, "_diskfont: invalid ReturnCode 0x%08lx (expected 0x70004E75)\n", dataBase[0]);
+        /* Try to continue anyway - some fonts may not have this */
+    }
+
+    /* DiskFontHeader starts after the ReturnCode longword */
+    struct DiskFontHeader *dfh = (struct DiskFontHeader *)(dataBase + 1);
+
+    /* Validate the DFH_ID */
+    if (dfh->dfh_FileID != DFH_ID)
+    {
+        DPRINTF (LOG_DEBUG, "_diskfont: invalid DFH_ID 0x%04x (expected 0x%04x)\n",
+                 dfh->dfh_FileID, DFH_ID);
+        UnLoadSeg(segList);
+        return NULL;
+    }
+
+    DPRINTF (LOG_DEBUG, "_diskfont: DFH valid, name='%s' revision=%d\n",
+             dfh->dfh_Name, dfh->dfh_Revision);
+
+    /* Get pointer to the TextFont within the DiskFontHeader */
+    struct TextFont *tf = &dfh->dfh_TF;
+
+    DPRINTF (LOG_DEBUG, "_diskfont: TextFont: YSize=%d XSize=%d LoChar=%d HiChar=%d Modulo=%d\n",
+             tf->tf_YSize, tf->tf_XSize, tf->tf_LoChar, tf->tf_HiChar, tf->tf_Modulo);
+    DPRINTF (LOG_DEBUG, "_diskfont: TextFont: CharData=0x%08lx CharLoc=0x%08lx CharSpace=0x%08lx CharKern=0x%08lx\n",
+             (ULONG)tf->tf_CharData, (ULONG)tf->tf_CharLoc, (ULONG)tf->tf_CharSpace, (ULONG)tf->tf_CharKern);
+
+    /* Fix up the pointers - they are stored as offsets relative to the start
+     * of the DiskFontHeader data. We need to add the base address of the segment
+     * to make them absolute pointers.
+     *
+     * AROS and AmigaOS use the segment start as the relocation base.
+     * Since LoadSeg() performs RELOC32 processing, the pointers should
+     * already be relocated to absolute addresses. We can use them directly.
+     */
+
+    /* Set the font name pointer */
+    tf->tf_Message.mn_Node.ln_Name = (char *)dfh->dfh_Name;
+    tf->tf_Message.mn_Node.ln_Type = NT_FONT;
+
+    /* Store the segment list so we don't unload it (the font data lives there) */
+    dfh->dfh_Segment = segList;
+
+    /* Mark as a disk font */
+    tf->tf_Flags &= ~FPF_ROMFONT;
+    tf->tf_Flags |= FPF_DISKFONT;
+
+    /* Register with graphics.library so future OpenFont() calls find it */
+    AddFont(tf);
+
+    DPRINTF (LOG_DEBUG, "_diskfont: font loaded and registered successfully\n");
+
+    tf->tf_Accessors++;
+    return tf;
+}
+
 struct TextFont * _diskfont_OpenDiskFont ( register struct DiskfontBase *DiskfontBase __asm("a6"),
                                            register struct TextAttr     *textAttr     __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_diskfont: OpenDiskFont() called name='%s' size=%d\n",
              textAttr ? (char *)textAttr->ta_Name : "(null)",
              textAttr ? textAttr->ta_YSize : 0);
-    
+
     if (!textAttr || !textAttr->ta_Name)
         return NULL;
-    
+
     /* First try to open from ROM font list via graphics.library */
     struct TextFont *font = OpenFont(textAttr);
     if (font)
     {
-        DPRINTF (LOG_DEBUG, "_diskfont: Found font in ROM\n");
+        DPRINTF (LOG_DEBUG, "_diskfont: Found font in ROM/memory\n");
         return font;
     }
-    
-    /* TODO: Try to load from FONTS: directory
-     * This would involve:
-     * 1. Lock FONTS:
-     * 2. Look for <fontname>.font file
-     * 3. Parse the .font contents file
-     * 4. Load the appropriate size bitmap font
-     * 5. Register with graphics.library
-     * For now, just return NULL if not in ROM
-     */
-    
+
+    /* Try to load from FONTS: directory */
+    font = _df_load_from_disk(textAttr);
+    if (font)
+    {
+        DPRINTF (LOG_DEBUG, "_diskfont: Loaded font from disk\n");
+        return font;
+    }
+
     DPRINTF (LOG_DEBUG, "_diskfont: Font not found\n");
     return NULL;
 }
@@ -132,36 +399,101 @@ LONG _diskfont_AvailFonts ( register struct DiskfontBase    *DiskfontBase __asm(
     LONG bytesNeeded;
     UWORD numEntries = 0;
     struct AvailFonts *af;
-    
+
+    /* Temporary storage for disk font entries (max 64 entries) */
+    struct {
+        char   name[MAXFONTPATH];
+        UWORD  ysize;
+        UBYTE  style;
+        UBYTE  flags;
+    } diskFonts[64];
+    UWORD numDiskFonts = 0;
+
     DPRINTF (LOG_DEBUG, "_diskfont: AvailFonts() called buffer=0x%08lx bufBytes=%ld flags=0x%08lx\n",
              (ULONG)buffer, bufBytes, flags);
-    
-    /* Count how many fonts we will return */
-    /* We have one ROM font: topaz.font size 8 */
+
+    /* Count memory fonts */
     if (flags & AFF_MEMORY)
     {
         numEntries = 1; /* topaz.font */
     }
-    
+
+    /* Scan FONTS: directory for disk fonts */
+    if (flags & AFF_DISK)
+    {
+        BPTR fontsLock = Lock((STRPTR)"FONTS:", ACCESS_READ);
+        if (fontsLock)
+        {
+            struct FileInfoBlock *fib = (struct FileInfoBlock *)AllocVec(sizeof(struct FileInfoBlock), MEMF_PUBLIC | MEMF_CLEAR);
+            if (fib)
+            {
+                if (Examine(fontsLock, fib))
+                {
+                    while (ExNext(fontsLock, fib) && numDiskFonts < 64)
+                    {
+                        /* Look for .font files (not directories) */
+                        if (fib->fib_DirEntryType < 0 && _df_endswith((const char *)fib->fib_FileName, ".font"))
+                        {
+                            /* Read this .font contents file to get available sizes */
+                            char fontPath[300];
+                            BPTR fh;
+
+                            strcpy(fontPath, "FONTS:");
+                            strcat(fontPath, (const char *)fib->fib_FileName);
+
+                            fh = Open((STRPTR)fontPath, MODE_OLDFILE);
+                            if (fh)
+                            {
+                                struct FontContentsHeader fch;
+                                if (Read(fh, &fch, sizeof(fch)) == sizeof(fch) &&
+                                    (fch.fch_FileID == FCH_ID || fch.fch_FileID == TFCH_ID || fch.fch_FileID == OFCH_ID))
+                                {
+                                    UWORD j;
+                                    for (j = 0; j < fch.fch_NumEntries && numDiskFonts < 64; j++)
+                                    {
+                                        struct FontContents fc;
+                                        if (Read(fh, &fc, sizeof(fc)) != sizeof(fc))
+                                            break;
+
+                                        /* Add this size to our list */
+                                        strcpy(diskFonts[numDiskFonts].name, (const char *)fib->fib_FileName);
+                                        diskFonts[numDiskFonts].ysize = fc.fc_YSize;
+                                        diskFonts[numDiskFonts].style = fc.fc_Style;
+                                        diskFonts[numDiskFonts].flags = fc.fc_Flags;
+                                        numDiskFonts++;
+                                    }
+                                }
+                                Close(fh);
+                            }
+                        }
+                    }
+                }
+                FreeVec(fib);
+            }
+            UnLock(fontsLock);
+        }
+        numEntries += numDiskFonts;
+    }
+
     /* Calculate bytes needed */
-    bytesNeeded = sizeof(struct AvailFontsHeader) + 
+    bytesNeeded = sizeof(struct AvailFontsHeader) +
                   numEntries * sizeof(struct AvailFonts);
-    
-    DPRINTF (LOG_DEBUG, "_diskfont: AvailFonts() numEntries=%d bytesNeeded=%ld\n",
-             numEntries, bytesNeeded);
-    
+
+    DPRINTF (LOG_DEBUG, "_diskfont: AvailFonts() numEntries=%d (disk=%d) bytesNeeded=%ld\n",
+             numEntries, numDiskFonts, bytesNeeded);
+
     /* If buffer is NULL or too small, return bytes still needed */
     if (!buffer || bufBytes < bytesNeeded)
     {
         return bytesNeeded;
     }
-    
+
     /* Fill in the header */
     buffer->afh_NumEntries = numEntries;
-    
+
     /* Fill in font entries */
     af = (struct AvailFonts *)(buffer + 1);  /* Points after header */
-    
+
     if (flags & AFF_MEMORY)
     {
         /* Entry for topaz.font size 8 (ROM font) */
@@ -172,9 +504,23 @@ LONG _diskfont_AvailFonts ( register struct DiskfontBase    *DiskfontBase __asm(
         af->af_Attr.ta_Flags = FPF_ROMFONT | FPF_DESIGNED;
         af++;
     }
-    
+
+    /* Add disk font entries */
+    {
+        UWORD d;
+        for (d = 0; d < numDiskFonts; d++)
+        {
+            af->af_Type = AFF_DISK;
+            af->af_Attr.ta_Name = (STRPTR)diskFonts[d].name;
+            af->af_Attr.ta_YSize = diskFonts[d].ysize;
+            af->af_Attr.ta_Style = diskFonts[d].style;
+            af->af_Attr.ta_Flags = diskFonts[d].flags;
+            af++;
+        }
+    }
+
     DPRINTF (LOG_DEBUG, "_diskfont: AvailFonts() returning 0 (success)\n");
-    
+
     return 0; /* 0 = success, all fonts fit in buffer */
 }
 

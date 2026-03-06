@@ -165,7 +165,13 @@ lxa -d -v myprogram
 - **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
 - **gadtools.library**: GadTools gadgets (buttons, strings, checkboxes, cycles, sliders, MX)
 - **asl.library**: File and font requesters
+- **locale.library**: Locale management, FormatDate, FormatString, ParseDate
+- **diskfont.library**: Font loading from FONTS: directory (bitmap .font files)
+- **mathieeesingbas.library**: IEEE single-precision basic math (12 functions)
+- **mathieeedoubbas.library**: IEEE double-precision basic math (12 functions)
 - **console.device**: Terminal I/O with CSI escape sequences, keyboard input
+- **trackdisk.device**: Floppy disk device (stub with geometry support)
+- **audio.device**: Audio device (stub, accepts opens)
 
 ### System Commands
 
@@ -201,7 +207,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.60** - Phase 76 Complete (Intuition & BOOPSI Enhancements)
+**Version 0.6.61** - Phase 77 Complete (Missing Libraries & Devices)
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
@@ -213,7 +219,7 @@ See [roadmap.md](roadmap.md) for detailed status and future plans.
 - Console: Full CSI escape sequence support, CON:/RAW: handlers
 - GUI Apps: Run but graphical output goes to SDL window
 - Networking: Not implemented
-- Audio: Not implemented
+- Audio: Stub device (accepts opens, no audio output)
 
 ## Troubleshooting
 

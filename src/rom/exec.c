@@ -95,6 +95,7 @@ extern struct Resident *__lxa_mathffp_ROMTag;
 extern struct Resident *__lxa_mathtrans_ROMTag;
 extern struct Resident *__lxa_mathieeedoubbas_ROMTag;
 extern struct Resident *__lxa_mathieeedoubtrans_ROMTag;
+extern struct Resident *__lxa_mathieeesingbas_ROMTag;
 extern struct Resident *__lxa_graphics_ROMTag;
 extern struct Resident *__lxa_intuition_ROMTag;
 extern struct Resident *__lxa_layers_ROMTag;
@@ -119,6 +120,7 @@ extern struct Resident *__lxa_timer_ROMTag;
 extern struct Resident *__lxa_clipboard_ROMTag;
 extern struct Resident *__lxa_audio_ROMTag;
 extern struct Resident *__lxa_gameport_ROMTag;
+extern struct Resident *__lxa_trackdisk_ROMTag;
 
 static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
 static struct ExecBase  g_SysBase;
@@ -131,6 +133,7 @@ struct Library         *MathBase;
 struct Library         *MathTransBase;
 struct Library         *MathIeeeDoubBasBase;
 struct Library         *MathIeeeDoubTransBase;
+struct Library         *MathIeeeSingBasBase;
 struct GfxBase         *GfxBase;
 struct IntuitionBase   *IntuitionBase;
 struct Library         *LayersBase;
@@ -149,6 +152,7 @@ struct Library         *DeviceTimerBase;
 struct Library         *DeviceClipboardBase;
 struct Library         *DeviceAudioBase;
 struct Library         *DeviceGameportBase;
+struct Library         *DeviceTrackdiskBase;
 
 static struct Custom   *custom            = (struct Custom*)        0xdff000;
 
@@ -5001,6 +5005,7 @@ void coldstart (void)
     MathTransBase = (struct Library       *) registerBuiltInLib (sizeof(*MathTransBase) , __lxa_mathtrans_ROMTag );
     MathIeeeDoubBasBase   = (struct Library *) registerBuiltInLib (sizeof(*MathIeeeDoubBasBase), __lxa_mathieeedoubbas_ROMTag);
     MathIeeeDoubTransBase = (struct Library *) registerBuiltInLib (sizeof(*MathIeeeDoubTransBase), __lxa_mathieeedoubtrans_ROMTag);
+    MathIeeeSingBasBase   = (struct Library *) registerBuiltInLib (sizeof(*MathIeeeSingBasBase), __lxa_mathieeesingbas_ROMTag);
     GfxBase       = (struct GfxBase       *) registerBuiltInLib (sizeof(*GfxBase)       , __lxa_graphics_ROMTag  );
     
     /* Initialize GfxBase display dimensions - default to PAL resolution */
@@ -5047,6 +5052,7 @@ void coldstart (void)
     DeviceClipboardBase = (struct Library *) registerBuiltInDev (sizeof (*DeviceClipboardBase), __lxa_clipboard_ROMTag);
     DeviceAudioBase     = (struct Library *) registerBuiltInDev (sizeof (*DeviceAudioBase)    , __lxa_audio_ROMTag    );
     DeviceGameportBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceGameportBase) , __lxa_gameport_ROMTag );
+    DeviceTrackdiskBase = (struct Library *) registerBuiltInDev (sizeof (*DeviceTrackdiskBase), __lxa_trackdisk_ROMTag);
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in devices\n");
 

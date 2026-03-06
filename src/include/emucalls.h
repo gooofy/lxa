@@ -210,5 +210,27 @@
 #define EMU_CALL_IEEEDP_ACOS         5035  /* IEEEDPAcos: d1:d2=double -> d0:d1=double */
 #define EMU_CALL_IEEEDP_LOG10        5036  /* IEEEDPLog10: d1:d2=double -> d0:d1=double */
 
+/*
+ * IEEE Single Precision Basic Math emucalls (5100-5111)
+ *
+ * Phase 77: mathieeesingbas.library
+ * These emucalls bridge the m68k IEEE single math to host native float.
+ * Single-precision values are 32-bit IEEE 754, passed in a single register.
+ * One-operand: d1=float -> d0=float (or d0=LONG for Fix)
+ * Two-operand: d1=left, d2=right -> d0=float (or d0=LONG for Cmp)
+ */
+#define EMU_CALL_IEEESP_FIX          5100  /* IEEESPFix: d1=float -> d0=LONG */
+#define EMU_CALL_IEEESP_FLT          5101  /* IEEESPFlt: d1=LONG -> d0=float */
+#define EMU_CALL_IEEESP_CMP          5102  /* IEEESPCmp: d1=left, d2=right -> d0=-1,0,1 */
+#define EMU_CALL_IEEESP_TST          5103  /* IEEESPTst: d1=float -> d0=-1,0,1 */
+#define EMU_CALL_IEEESP_ABS          5104  /* IEEESPAbs: d1=float -> d0=float */
+#define EMU_CALL_IEEESP_NEG          5105  /* IEEESPNeg: d1=float -> d0=float */
+#define EMU_CALL_IEEESP_ADD          5106  /* IEEESPAdd: d1=left, d2=right -> d0=float */
+#define EMU_CALL_IEEESP_SUB          5107  /* IEEESPSub: d1=left, d2=right -> d0=float */
+#define EMU_CALL_IEEESP_MUL          5108  /* IEEESPMul: d1=left, d2=right -> d0=float */
+#define EMU_CALL_IEEESP_DIV          5109  /* IEEESPDiv: d1=dividend, d2=divisor -> d0=float */
+#define EMU_CALL_IEEESP_FLOOR        5110  /* IEEESPFloor: d1=float -> d0=float */
+#define EMU_CALL_IEEESP_CEIL         5111  /* IEEESPCeil: d1=float -> d0=float */
+
 #endif
 

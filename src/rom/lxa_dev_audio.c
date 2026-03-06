@@ -55,6 +55,9 @@ static struct Library * __g_lxa_audio_InitDev  ( register struct Library    *dev
 
 /*
  * Device Open
+ *
+ * Accept all opens so applications that need audio.device can proceed.
+ * No actual audio channels are allocated - this is a silent stub.
  */
 static void __g_lxa_audio_Open ( register struct Library   *dev   __asm("a6"),
                                   register struct IORequest *ioreq __asm("a1"),
@@ -62,13 +65,12 @@ static void __g_lxa_audio_Open ( register struct Library   *dev   __asm("a6"),
                                   register ULONG             flags __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_audio: Open() stub called, unit=%lu flags=0x%08lx\n", unit, flags);
-    
-    /* Stub implementation - just set error to indicate no allocation */
-    ioreq->io_Error = ADIOERR_NOALLOCATION;
-    ioreq->io_Unit = NULL;
-    ioreq->io_Device = NULL;
-    
-    /* Note: We don't increment open count on failure */
+
+    dev->lib_OpenCnt++;
+
+    ioreq->io_Error  = 0;
+    ioreq->io_Unit   = (struct Unit *)unit;  /* store unit number as pseudo-pointer */
+    ioreq->io_Device = (struct Device *)dev;
 }
 
 /*
@@ -78,8 +80,12 @@ static BPTR __g_lxa_audio_Close( register struct Library   *dev   __asm("a6"),
                                   register struct IORequest *ioreq __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_audio: Close() stub called\n");
-    
-    /* Nothing to do for stub */
+
+    dev->lib_OpenCnt--;
+
+    ioreq->io_Unit   = NULL;
+    ioreq->io_Device = NULL;
+
     return 0;
 }
 

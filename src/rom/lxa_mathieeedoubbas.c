@@ -79,10 +79,12 @@ ULONG __g_lxa_mathieeedoubbas_ExtFuncLib(void)
  */
 asm(
 "_mathieeedoubbas_IEEEDPFix:                                  \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo (from d1)           \n"
 "   move.l  d0, d1              | d1 = hi (from d0)           \n"
 "   move.l  #5000, d0           | EMU_CALL_IEEEDP_FIX         \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0 = LONG result            \n"
 );
 extern void mathieeedoubbas_IEEEDPFix(void);
@@ -115,12 +117,14 @@ extern void mathieeedoubbas_IEEEDPFlt(void);
  */
 asm(
 "_mathieeedoubbas_IEEEDPCmp:                                  \n"
+"   movem.l d2-d4, -(sp)        | save d2-d4 (callee-saved)  \n"
 "   move.l  d3, d4              | d4 = right lo               \n"
 "   move.l  d2, d3              | d3 = right hi               \n"
 "   move.l  d1, d2              | d2 = left lo                \n"
 "   move.l  d0, d1              | d1 = left hi                \n"
 "   move.l  #5002, d0           | EMU_CALL_IEEEDP_CMP         \n"
 "   illegal                                                   \n"
+"   movem.l (sp)+, d2-d4        | restore d2-d4              \n"
 "   tst.l   d0                  | set condition codes         \n"
 "   rts                                                       \n"
 );
@@ -136,10 +140,12 @@ extern void mathieeedoubbas_IEEEDPCmp(void);
  */
 asm(
 "_mathieeedoubbas_IEEEDPTst:                                  \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5003, d0           | EMU_CALL_IEEEDP_TST         \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   tst.l   d0                  | set condition codes         \n"
 "   rts                                                       \n"
 );
@@ -155,10 +161,12 @@ extern void mathieeedoubbas_IEEEDPTst(void);
  */
 asm(
 "_mathieeedoubbas_IEEEDPAbs:                                  \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5004, d0           | EMU_CALL_IEEEDP_ABS         \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubbas_IEEEDPAbs(void);
@@ -173,10 +181,12 @@ extern void mathieeedoubbas_IEEEDPAbs(void);
  */
 asm(
 "_mathieeedoubbas_IEEEDPNeg:                                  \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5005, d0           | EMU_CALL_IEEEDP_NEG         \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubbas_IEEEDPNeg(void);
@@ -191,12 +201,14 @@ extern void mathieeedoubbas_IEEEDPNeg(void);
  */
 asm(
 "_mathieeedoubbas_IEEEDPAdd:                                  \n"
+"   movem.l d2-d4, -(sp)        | save d2-d4 (callee-saved)  \n"
 "   move.l  d3, d4              | d4 = right lo               \n"
 "   move.l  d2, d3              | d3 = right hi               \n"
 "   move.l  d1, d2              | d2 = left lo                \n"
 "   move.l  d0, d1              | d1 = left hi                \n"
 "   move.l  #5006, d0           | EMU_CALL_IEEEDP_ADD         \n"
 "   illegal                                                   \n"
+"   movem.l (sp)+, d2-d4        | restore d2-d4              \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubbas_IEEEDPAdd(void);
@@ -211,12 +223,14 @@ extern void mathieeedoubbas_IEEEDPAdd(void);
  */
 asm(
 "_mathieeedoubbas_IEEEDPSub:                                  \n"
+"   movem.l d2-d4, -(sp)        | save d2-d4 (callee-saved)  \n"
 "   move.l  d3, d4              | d4 = right lo               \n"
 "   move.l  d2, d3              | d3 = right hi               \n"
 "   move.l  d1, d2              | d2 = left lo                \n"
 "   move.l  d0, d1              | d1 = left hi                \n"
 "   move.l  #5007, d0           | EMU_CALL_IEEEDP_SUB         \n"
 "   illegal                                                   \n"
+"   movem.l (sp)+, d2-d4        | restore d2-d4              \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubbas_IEEEDPSub(void);
@@ -231,12 +245,14 @@ extern void mathieeedoubbas_IEEEDPSub(void);
  */
 asm(
 "_mathieeedoubbas_IEEEDPMul:                                  \n"
+"   movem.l d2-d4, -(sp)        | save d2-d4 (callee-saved)  \n"
 "   move.l  d3, d4              | d4 = f2 lo                  \n"
 "   move.l  d2, d3              | d3 = f2 hi                  \n"
 "   move.l  d1, d2              | d2 = f1 lo                  \n"
 "   move.l  d0, d1              | d1 = f1 hi                  \n"
 "   move.l  #5008, d0           | EMU_CALL_IEEEDP_MUL         \n"
 "   illegal                                                   \n"
+"   movem.l (sp)+, d2-d4        | restore d2-d4              \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubbas_IEEEDPMul(void);
@@ -251,12 +267,14 @@ extern void mathieeedoubbas_IEEEDPMul(void);
  */
 asm(
 "_mathieeedoubbas_IEEEDPDiv:                                  \n"
+"   movem.l d2-d4, -(sp)        | save d2-d4 (callee-saved)  \n"
 "   move.l  d3, d4              | d4 = divisor lo             \n"
 "   move.l  d2, d3              | d3 = divisor hi             \n"
 "   move.l  d1, d2              | d2 = dividend lo            \n"
 "   move.l  d0, d1              | d1 = dividend hi            \n"
 "   move.l  #5009, d0           | EMU_CALL_IEEEDP_DIV         \n"
 "   illegal                                                   \n"
+"   movem.l (sp)+, d2-d4        | restore d2-d4              \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubbas_IEEEDPDiv(void);
@@ -271,10 +289,12 @@ extern void mathieeedoubbas_IEEEDPDiv(void);
  */
 asm(
 "_mathieeedoubbas_IEEEDPFloor:                                \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5010, d0           | EMU_CALL_IEEEDP_FLOOR       \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubbas_IEEEDPFloor(void);
@@ -289,10 +309,12 @@ extern void mathieeedoubbas_IEEEDPFloor(void);
  */
 asm(
 "_mathieeedoubbas_IEEEDPCeil:                                 \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5011, d0           | EMU_CALL_IEEEDP_CEIL        \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubbas_IEEEDPCeil(void);

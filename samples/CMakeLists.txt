@@ -210,6 +210,10 @@ set(TESTS_LIST
     "../tests/apps/dopus|main|Tests/Apps/Dopus"
     "../tests/apps/sysinfo|main|Tests/Apps/SysInfo"
     "../tests/apps/kickpascal2|main|Tests/Apps/KickPascal2"
+    "../tests/exec/mathieeesingbas|main|Tests/Exec/MathIeeeSingBas"
+    "../tests/exec/locale|main|Tests/Exec/Locale"
+    "../tests/devices/trackdisk|main|Tests/Devices/Trackdisk"
+    "../tests/devices/audio|main|Tests/Devices/Audio"
 )
 
 # === Copy Test Data Files ===

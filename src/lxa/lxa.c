@@ -5874,6 +5874,240 @@ int op_illg(int level)
         }
 
         /*
+         * Phase 77: IEEE Single Precision Basic Math (5100-5111)
+         * mathieeesingbas.library handlers
+         *
+         * Single-precision floats are 32-bit IEEE 754, passed in one register.
+         * One-operand: d1=float -> d0=result
+         * Two-operand: d1=left, d2=right -> d0=result
+         */
+
+        case EMU_CALL_IEEESP_FIX:
+        {
+            /* IEEESPFix: Convert single float to integer (truncate toward zero)
+             * Input:  d1 = IEEE single float
+             * Output: d0 = LONG integer
+             */
+            union { float f; uint32_t u; } val;
+            val.u = m68k_get_reg(NULL, M68K_REG_D1);
+
+            int32_t result;
+            if (val.f > 2147483647.0f)
+                result = 0x7FFFFFFF;
+            else if (val.f < -2147483648.0f)
+                result = (int32_t)0x80000000;
+            else
+                result = (int32_t)val.f;
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_FIX(%f) = %d\n", val.f, result);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)result);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_FLT:
+        {
+            /* IEEESPFlt: Convert integer to single float
+             * Input:  d1 = LONG integer
+             * Output: d0 = IEEE single float
+             */
+            int32_t integer = (int32_t)m68k_get_reg(NULL, M68K_REG_D1);
+
+            union { float f; uint32_t u; } val;
+            val.f = (float)integer;
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_FLT(%d) = %f\n", integer, val.f);
+            m68k_set_reg(M68K_REG_D0, val.u);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_CMP:
+        {
+            /* IEEESPCmp: Compare two single floats
+             * Input:  d1 = left, d2 = right
+             * Output: d0 = -1 (left < right), 0 (equal), +1 (left > right)
+             */
+            union { float f; uint32_t u; } left, right;
+            left.u  = m68k_get_reg(NULL, M68K_REG_D1);
+            right.u = m68k_get_reg(NULL, M68K_REG_D2);
+
+            int32_t result;
+            if (left.f < right.f)
+                result = -1;
+            else if (left.f > right.f)
+                result = 1;
+            else
+                result = 0;
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_CMP(%f, %f) = %d\n", left.f, right.f, result);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)result);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_TST:
+        {
+            /* IEEESPTst: Test single float against zero
+             * Input:  d1 = IEEE single float
+             * Output: d0 = -1 (negative), 0 (zero), +1 (positive)
+             */
+            union { float f; uint32_t u; } val;
+            val.u = m68k_get_reg(NULL, M68K_REG_D1);
+
+            int32_t result;
+            if (val.f < 0.0f)
+                result = -1;
+            else if (val.f > 0.0f)
+                result = 1;
+            else
+                result = 0;
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_TST(%f) = %d\n", val.f, result);
+            m68k_set_reg(M68K_REG_D0, (uint32_t)result);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_ABS:
+        {
+            /* IEEESPAbs: Absolute value
+             * Input:  d1 = IEEE single float
+             * Output: d0 = |input|
+             */
+            union { float f; uint32_t u; } val;
+            val.u = m68k_get_reg(NULL, M68K_REG_D1);
+
+            val.f = fabsf(val.f);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_ABS -> %f\n", val.f);
+            m68k_set_reg(M68K_REG_D0, val.u);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_NEG:
+        {
+            /* IEEESPNeg: Negate
+             * Input:  d1 = IEEE single float
+             * Output: d0 = -input
+             */
+            union { float f; uint32_t u; } val;
+            val.u = m68k_get_reg(NULL, M68K_REG_D1);
+
+            val.f = -val.f;
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_NEG -> %f\n", val.f);
+            m68k_set_reg(M68K_REG_D0, val.u);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_ADD:
+        {
+            /* IEEESPAdd: Addition
+             * Input:  d1 = left, d2 = right
+             * Output: d0 = left + right
+             */
+            union { float f; uint32_t u; } left, right, result;
+            left.u  = m68k_get_reg(NULL, M68K_REG_D1);
+            right.u = m68k_get_reg(NULL, M68K_REG_D2);
+
+            result.f = left.f + right.f;
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_ADD(%f, %f) = %f\n", left.f, right.f, result.f);
+            m68k_set_reg(M68K_REG_D0, result.u);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_SUB:
+        {
+            /* IEEESPSub: Subtraction
+             * Input:  d1 = left, d2 = right
+             * Output: d0 = left - right
+             */
+            union { float f; uint32_t u; } left, right, result;
+            left.u  = m68k_get_reg(NULL, M68K_REG_D1);
+            right.u = m68k_get_reg(NULL, M68K_REG_D2);
+
+            result.f = left.f - right.f;
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_SUB(%f, %f) = %f\n", left.f, right.f, result.f);
+            m68k_set_reg(M68K_REG_D0, result.u);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_MUL:
+        {
+            /* IEEESPMul: Multiplication
+             * Input:  d1 = factor1, d2 = factor2
+             * Output: d0 = factor1 * factor2
+             */
+            union { float f; uint32_t u; } f1, f2, result;
+            f1.u = m68k_get_reg(NULL, M68K_REG_D1);
+            f2.u = m68k_get_reg(NULL, M68K_REG_D2);
+
+            result.f = f1.f * f2.f;
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_MUL(%f, %f) = %f\n", f1.f, f2.f, result.f);
+            m68k_set_reg(M68K_REG_D0, result.u);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_DIV:
+        {
+            /* IEEESPDiv: Division
+             * Input:  d1 = dividend, d2 = divisor
+             * Output: d0 = dividend / divisor
+             */
+            union { float f; uint32_t u; } dividend, divisor, result;
+            dividend.u = m68k_get_reg(NULL, M68K_REG_D1);
+            divisor.u  = m68k_get_reg(NULL, M68K_REG_D2);
+
+            if (divisor.f == 0.0f)
+            {
+                if (dividend.f >= 0.0f)
+                    result.f = HUGE_VALF;
+                else
+                    result.f = -HUGE_VALF;
+            }
+            else
+            {
+                result.f = dividend.f / divisor.f;
+            }
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_DIV(%f, %f) = %f\n", dividend.f, divisor.f, result.f);
+            m68k_set_reg(M68K_REG_D0, result.u);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_FLOOR:
+        {
+            /* IEEESPFloor: Largest integer not greater than input
+             * Input:  d1 = IEEE single float
+             * Output: d0 = floor(input) as IEEE single float
+             */
+            union { float f; uint32_t u; } val;
+            val.u = m68k_get_reg(NULL, M68K_REG_D1);
+
+            val.f = floorf(val.f);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_FLOOR -> %f\n", val.f);
+            m68k_set_reg(M68K_REG_D0, val.u);
+            break;
+        }
+
+        case EMU_CALL_IEEESP_CEIL:
+        {
+            /* IEEESPCeil: Smallest integer not less than input
+             * Input:  d1 = IEEE single float
+             * Output: d0 = ceil(input) as IEEE single float
+             */
+            union { float f; uint32_t u; } val;
+            val.u = m68k_get_reg(NULL, M68K_REG_D1);
+
+            val.f = ceilf(val.f);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEESP_CEIL -> %f\n", val.f);
+            m68k_set_reg(M68K_REG_D0, val.u);
+            break;
+        }
+
+        /*
          * Phase 61: IEEE Double Precision Transcendental Math (5020-5039)
          * mathieeedoubtrans.library handlers
          */

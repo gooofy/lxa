@@ -8,18 +8,18 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.60** | **Phase 76 Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.61** | **Phase 77 Complete** | **38/38 Tests Passing (GTest-only)**
 
-Phase 76: Intuition & BOOPSI Enhancements — complete.
+Phase 77: Missing Libraries & Devices — complete.
 
 **Current Status**:
-- 38/38 ctest entries (all GTest), 2 new test cases (BOOPSI_IC, Talk2Boopsi sample)
-- **BOOPSI Inter-Object Communication**: Full icclass/modelclass/gadgetclass dispatchers with embedded ICData, `_boopsi_do_notify()` notification pipeline with ICA_TARGET/ICA_MAP tag mapping, loop prevention.
-- **propgclass/strgclass**: Rewritten with INST_DATA for PropGData/StrGData, PGA_*/STRINGA_* tag processing, GM_HANDLEINPUT/GM_GOINACTIVE notification.
-- **SetGadgetAttrsA / DoGadgetMethodA**: Fully implemented (were stubs/crashes).
-- **ActivateWindow**: Proper deactivation of previous window with IDCMP events.
-- **ZipWindow**: Toggle between normal and WA_Zoom alternate position/size.
-- **AutoRequest**: Modal requester with positive/negative gadgets, IntuiText rendering, event loop.
+- 38/38 ctest entries (all GTest), 4 new test cases (mathieeesingbas, trackdisk, audio, locale)
+- **mathieeesingbas.library**: Full IEEE single-precision math (12 functions: Fix/Flt/Cmp/Tst/Abs/Neg/Add/Sub/Mul/Div/Floor/Ceil) via EMU_CALL. Fixed d2 register clobbering bug in two-operand asm stubs.
+- **trackdisk.device**: Stub device with DD 3.5" floppy geometry, TD_MOTOR/TD_CHANGENUM/TD_CHANGESTATE/TD_PROTSTATUS/TD_GETGEOMETRY support.
+- **audio.device**: Fixed Open() to succeed (was returning ADIOERR_NOALLOCATION).
+- **diskfont.library**: Disk font loading from FONTS: directory, AFF_DISK support in AvailFonts.
+- **locale.library**: FormatDate (all format codes), FormatString (printf-like with Amiga conventions), ParseDate.
+- **mathieeedoubbas.library**: Fixed latent d2/d3/d4 register clobbering bug in all 11 asm stubs (same issue found and fixed in mathieeesingbas).
 
 ---
 
@@ -79,6 +79,9 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### Hardware Blitter Emulation & CLI Assigns (Phase 75b)
 - ✅ **Phase 75b**: Full OCS/ECS hardware blitter emulation for applications that bypass graphics.library and program the blitter directly (e.g., Cluster2 Oberon-2 IDE). Implemented all blitter registers (BLTCON0/1, BLTAFWM/BLTALWM, BLTxPTH/L, BLTxMOD, BLTxDAT, BLTSIZE, BLTSIZV/H), `_blitter_execute()` with all 256 minterms, A/B barrel shift, first/last word masks, ascending/descending direction, inclusive-OR and exclusive-OR fill modes. Fixed `m68k_write_memory_32()` to route custom chip area writes as two 16-bit writes. Added `-a name=path` CLI flag for command-line assigns. New hw_blitter m68k test program (7 tests). 38/38 tests passing.
 
+### Intuition & BOOPSI Enhancements (Phase 76)
+- ✅ **Phase 76**: Full BOOPSI inter-object communication (icclass/modelclass/gadgetclass dispatchers with embedded ICData, `_boopsi_do_notify()` notification pipeline with ICA_TARGET/ICA_MAP tag mapping, loop prevention). propgclass/strgclass rewritten with INST_DATA for PropGData/StrGData. SetGadgetAttrsA/DoGadgetMethodA implemented (were stubs/crashes). ActivateWindow with proper deactivation. ZipWindow with WA_Zoom toggle. AutoRequest modal requester. 38/38 tests passing.
+
 ---
 
 ## Codebase Audit Results (Phase 72.5)
@@ -133,13 +136,16 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] Implement `ActivateWindow` deactivation of previous window (clears flag, sends IDCMP_INACTIVEWINDOW/ACTIVEWINDOW, re-renders frames).
 - [x] Implement `AutoRequest` with proper text measurement, gadget creation, IntuiText rendering, and modal event loop.
 
-### Phase 77: Missing Libraries & Devices
+### Phase 77: Missing Libraries & Devices ✅
 **Goal**: Implement essential missing libraries and devices required for full userland.
-**TODO**:
-- [ ] Implement `diskfont.library` (font loading from `FONTS:` directory).
-- [ ] Implement `audio.device` (stub or minimal ALSA/SDL audio bridge).
-- [ ] Implement `trackdisk.device` (stub/basic support) to unblock disk utility applications.
-- [ ] Fully support `mathieeesingbas` and locale formatting/date formatting.
+**DONE**:
+- [x] Implement `mathieeesingbas.library` — Full IEEE single-precision math (12 functions via EMU_CALL). Fixed d2 register clobbering bug in two-operand asm stubs.
+- [x] Implement `trackdisk.device` — Stub device with DD 3.5" floppy geometry and basic command dispatch (TD_MOTOR, TD_CHANGENUM, TD_CHANGESTATE, TD_PROTSTATUS, TD_GETGEOMETRY).
+- [x] Fix `audio.device` — Open() now succeeds (was returning ADIOERR_NOALLOCATION).
+- [x] Implement `diskfont.library` — Disk font loading from FONTS: directory, AFF_DISK support in AvailFonts, binary `.font` contents file parsing.
+- [x] Implement `locale.library` formatting — FormatDate (all format codes), FormatString (printf-like with Amiga conventions), ParseDate.
+- [x] Fix `mathieeedoubbas.library` — Fixed latent d2/d3/d4 register clobbering bug in all 11 asm stubs (same issue as mathieeesingbas).
+- [x] Tests: mathieeesingbas (35 tests), trackdisk, audio, locale (31 tests) — all passing.
 
 ### Phase 78: AROS Compatibility Verification
 **Goal**: Compare and verify `lxa` implementation against AROS.
@@ -154,6 +160,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.61 | 77 | **Phase 77 Complete — Missing Libraries & Devices!** Implemented `mathieeesingbas.library` (12 IEEE single-precision math functions via EMU_CALL, d2 register clobbering fix). `trackdisk.device` stub (DD 3.5" floppy geometry, TD_MOTOR/TD_CHANGENUM/TD_CHANGESTATE/TD_PROTSTATUS/TD_GETGEOMETRY). Fixed `audio.device` Open() (was ADIOERR_NOALLOCATION). Enhanced `diskfont.library` (disk font loading from FONTS: directory, AFF_DISK in AvailFonts). Enhanced `locale.library` (FormatDate all format codes, FormatString printf-like, ParseDate). Fixed latent d2/d3/d4 register clobbering bug in `mathieeedoubbas.library` (all 11 asm stubs). 4 new m68k test programs (mathieeesingbas 35 tests, trackdisk, audio, locale 31 tests). 38/38 tests passing. |
 | 0.6.60 | 76 | **Phase 76 Complete — Intuition & BOOPSI Enhancements!** Full BOOPSI inter-object communication: icclass/modelclass/gadgetclass dispatchers with embedded ICData, `_boopsi_do_notify()` notification pipeline with ICA_TARGET/ICA_MAP tag mapping, loop prevention. propgclass/strgclass rewritten with INST_DATA for PropGData/StrGData, PGA_*/STRINGA_* tag processing, GM_HANDLEINPUT/GM_GOINACTIVE notification. SetGadgetAttrsA/DoGadgetMethodA implemented (were stubs/crashes). ActivateWindow with proper deactivation. ZipWindow with WA_Zoom ZoomData toggle. AutoRequest modal requester. New BOOPSI_IC test (25 assertions) + Talk2Boopsi sample test. 38/38 tests passing. |
 | 0.6.59 | 75b | **Hardware Blitter Emulation & CLI Assigns!** Full OCS/ECS blitter emulation (all 256 minterms, barrel shift, fill modes, ascending/descending). Fixed 32-bit custom chip writes. `-a name=path` CLI flag for command-line assigns. New hw_blitter test (7 tests). 38/38 tests passing. |
 | 0.6.58 | 75a | **Test Suite Performance Optimization!** Reduced `RunCyclesWithVBlank` and `WaitForEventLoop` cycle budgets across 14 test drivers. `gadtoolsgadgets_gtest` reduced from 181s to ~130s (28% faster, safely under 180s timeout). Key findings: STOP instruction means large cycle budgets don't waste wall-clock time when CPU idle; TypeString needs minimum 8M cycles (40x200000) for string gadget rendering + GADGETUP + printf flush; inject function cycle budgets in `lxa_api.c` must not be reduced (causes event queue overflows). Total suite: ~756s (down from ~800s). 36/38 tests passing (2 pre-existing crashes unchanged). |

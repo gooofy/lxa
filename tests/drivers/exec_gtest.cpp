@@ -81,6 +81,14 @@ TEST_F(ExecTest, Library) {
     RunExecTest("Library");
 }
 
+TEST_F(ExecTest, MathIeeeSingBas) {
+    RunExecTest("MathIeeeSingBas");
+}
+
+TEST_F(ExecTest, Locale) {
+    RunExecTest("Locale");
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

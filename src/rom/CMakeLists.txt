@@ -41,6 +41,7 @@ set(ROM_C_SOURCES
     lxa_mathtrans.c
     lxa_mathieeedoubbas.c
     lxa_mathieeedoubtrans.c
+    lxa_mathieeesingbas.c
     lxa_dev_input.c
     lxa_graphics.c
     lxa_intuition.c
@@ -65,6 +66,7 @@ set(ROM_C_SOURCES
     lxa_dev_clipboard.c
     lxa_dev_audio.c
     lxa_dev_gameport.c
+    lxa_dev_trackdisk.c
     util.c
     amath.c
 )
