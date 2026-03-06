@@ -207,7 +207,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.61** - Phase 77 Complete (Missing Libraries & Devices)
+**Version 0.6.64** - Phase 78-A-2 Complete (Exec `Wait()` AROS alignment)
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
@@ -321,5 +321,4 @@ Please read [doc/developer-guide.md](doc/developer-guide.md) before contributing
 - **bebbo/amiga-gcc** - m68k AmigaOS cross-compiler
 - **AROS** - Open-source AmigaOS implementation (reference)
 - AmigaOS community for documentation and support
-
 

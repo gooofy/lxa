@@ -279,8 +279,39 @@ int main(void)
     FreeSignal(-1);
     test_ok("FreeSignal(-1) did not crash");
     
-    /* Test 10: SetExcept - basic test */
-    print("\nTest 10: SetExcept basics\n");
+    /* Test 10: Wait clears tc_SigWait on return */
+    print("\nTest 10: Wait clears tc_SigWait\n");
+    {
+        ULONG mask = (1UL << sig1);
+        ULONG waited;
+
+        /* Seed a stale wait mask and a pending signal. */
+        thisTask->tc_SigWait = 0xFFFFFFFF;
+        SetSignal(mask, mask);
+
+        waited = Wait(mask);
+        if (waited == mask) {
+            test_ok("Wait returned the pending signal mask");
+        } else {
+            test_fail_msg("Wait returned wrong signal mask");
+        }
+
+        if (thisTask->tc_SigWait == 0) {
+            test_ok("Wait cleared tc_SigWait on return");
+        } else {
+            test_fail_msg("Wait left stale tc_SigWait bits");
+        }
+
+        if (!(SetSignal(0, 0) & mask)) {
+            test_ok("Wait consumed the returned signal bit");
+        } else {
+            test_fail_msg("Wait did not consume the returned signal bit");
+            SetSignal(0, mask);
+        }
+    }
+
+    /* Test 11: SetExcept - basic test */
+    print("\nTest 11: SetExcept basics\n");
     {
         ULONG mask = (1 << sig1);
         ULONG oldExcept;

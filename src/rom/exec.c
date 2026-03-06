@@ -1895,6 +1895,9 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
     /* And clear them. */
     thisTask->tc_SigRecvd &= ~___signalSet;
 
+    /* Wait() must leave no stale wait mask behind once it returns. */
+    thisTask->tc_SigWait = 0;
+
     Enable();
 
     DPRINTF (LOG_DEBUG, "_exec: Wait() returning rcvd=0x%08lx\n", rcvd);
