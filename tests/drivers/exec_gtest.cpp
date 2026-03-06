@@ -93,6 +93,10 @@ TEST_F(ExecTest, StructOffsets) {
     RunExecTest("StructOffsets");
 }
 
+TEST_F(ExecTest, ExecVerify) {
+    RunExecTest("ExecVerify");
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

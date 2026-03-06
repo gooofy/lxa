@@ -978,13 +978,13 @@ APTR _exec_AllocMem ( register struct ExecBase *SysBase __asm("a6"),
         mhCur = (struct MemHeader *)mhCur->mh_Node.ln_Succ;
     }
 
-    Permit();
-
-    if (___requirements & MEMF_CLEAR)
+    if (mem && (___requirements & MEMF_CLEAR))
     {
         DPRINTF (LOG_DEBUG, "_exec: AllocMem -> memset %d bytes at 0x%08lx\n", ___byteSize, (ULONG)mem);
         memset(mem, 0, ___byteSize);
     }
+
+    Permit();
 
     DPRINTF (LOG_DEBUG, "_exec: AllocMem returning with mem=0x%08lx\n", (ULONG)mem);
 
@@ -2033,12 +2033,12 @@ BYTE _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
 
     if (signalNum < 0)
     {
-        // find a free signal
+        /* Find a free signal — scan from bit 31 down to bit 0 */
         signalNum = 31;
-        while (signalNum && ((1 << signalNum) & oldmask))
+        while (signalNum >= 0 && ((1 << signalNum) & oldmask))
             signalNum--;
 
-        if (!signalNum)
+        if (signalNum < 0)
             return -1;
 
         DPRINTF (LOG_DEBUG, "_exec: AllocSignal -> auto selected signalNum=%d\n", signalNum);
@@ -2645,11 +2645,11 @@ void _exec_SendIO ( register struct ExecBase * SysBase __asm("a6"),
     if (!___ioRequest || !___ioRequest->io_Device)
         return;
 
-    /* Clear the quick flag - we want async completion */
-    ___ioRequest->io_Flags &= ~IOF_QUICK;
+    /* Clear all flags — don't set quick bit for async I/O (per AROS) */
+    ___ioRequest->io_Flags = 0;
 
-    /* Mark as not yet replied */
-    ___ioRequest->io_Message.mn_Node.ln_Type = NT_MESSAGE;
+    /* Clear message type (per AROS: set to 0, not NT_MESSAGE) */
+    ___ioRequest->io_Message.mn_Node.ln_Type = 0;
 
     /* Call the device's BeginIO vector */
     struct JumpVec *jv = &(((struct JumpVec *)(___ioRequest->io_Device))[-5]);
@@ -2714,25 +2714,26 @@ BYTE _exec_WaitIO ( register struct ExecBase * SysBase __asm("a6"),
     /*
      * If IOF_QUICK is set, the I/O completed synchronously in BeginIO
      * and there's nothing to wait for.
+     *
+     * Per AROS: wait while !(IOF_QUICK) && ln_Type == NT_MESSAGE.
+     * When the device replies, ln_Type changes from NT_MESSAGE to
+     * NT_REPLYMSG, breaking the loop.
      */
-    if (!(___ioRequest->io_Flags & IOF_QUICK))
+    while (!(___ioRequest->io_Flags & IOF_QUICK) &&
+           ___ioRequest->io_Message.mn_Node.ln_Type == NT_MESSAGE)
     {
-        /* Wait for the reply */
-        struct MsgPort *replyPort = ___ioRequest->io_Message.mn_ReplyPort;
+        Wait(1 << ___ioRequest->io_Message.mn_ReplyPort->mp_SigBit);
+    }
 
-        if (replyPort)
-        {
-            /* Wait until the request is replied */
-            while (___ioRequest->io_Message.mn_Node.ln_Type != NT_REPLYMSG)
-            {
-                Wait(1 << replyPort->mp_SigBit);
-            }
-
-            /* Remove from the reply port's message list */
-            Disable();
-            Remove(&___ioRequest->io_Message.mn_Node);
-            Enable();
-        }
+    /*
+     * If ln_Type is NT_REPLYMSG, the request was replied to the port
+     * and must be removed from the reply port's message list.
+     */
+    if (___ioRequest->io_Message.mn_Node.ln_Type == NT_REPLYMSG)
+    {
+        Disable();
+        Remove(&___ioRequest->io_Message.mn_Node);
+        Enable();
     }
 
     DPRINTF (LOG_DEBUG, "_exec: WaitIO returning error=%d\n", ___ioRequest->io_Error);
@@ -2744,20 +2745,22 @@ BYTE _exec_WaitIO ( register struct ExecBase * SysBase __asm("a6"),
  *
  * Calls the device's AbortIO vector to try to cancel the request.
  * The device may or may not support aborting.
+ *
+ * Returns 0 if abort succeeded, non-zero error code otherwise.
  */
-void _exec_AbortIO ( register struct ExecBase * SysBase __asm("a6"),
+LONG _exec_AbortIO ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct IORequest * ___ioRequest  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: AbortIO called, ioRequest=0x%08lx\n", ___ioRequest);
 
     if (!___ioRequest || !___ioRequest->io_Device)
-        return;
+        return IOERR_BADADDRESS;
 
     /* If already completed, nothing to abort */
     if ((___ioRequest->io_Flags & IOF_QUICK) ||
         (___ioRequest->io_Message.mn_Node.ln_Type == NT_REPLYMSG))
     {
-        return;
+        return 0;
     }
 
     /*
@@ -2769,8 +2772,10 @@ void _exec_AbortIO ( register struct ExecBase * SysBase __asm("a6"),
 
     if (abortfn)
     {
-        abortfn(&___ioRequest->io_Device->dd_Library, ___ioRequest);
+        return (LONG)abortfn(&___ioRequest->io_Device->dd_Library, ___ioRequest);
     }
+
+    return 0;
 }
 
 void _exec_AddResource ( register struct ExecBase * SysBase __asm("a6"),
@@ -2979,19 +2984,49 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                     uval /= 10;
                 } while (uval);
 
-                if (negative)
-                    *--p = '-';
-
-                /* Output with padding */
+                /* Output with padding.
+                 * For zero-padded negative numbers, output sign first,
+                 * then zeros, then digits (e.g. "-0005" not "000-5").
+                 */
                 int len = (buf + sizeof(buf) - 1) - p;
-                char padChar = zeroPad ? '0' : ' ';
+                int signLen = negative ? 1 : 0;
 
                 if (!leftAlign)
                 {
-                    while (len < width)
+                    if (zeroPad)
                     {
-                        PUT_CHAR(padChar);
-                        width--;
+                        /* Sign before zero-padding */
+                        if (negative)
+                            PUT_CHAR('-');
+
+                        while (len + signLen < width)
+                        {
+                            PUT_CHAR('0');
+                            width--;
+                        }
+                    }
+                    else
+                    {
+                        /* Space padding: sign is part of the string */
+                        if (negative)
+                            *--p = '-';
+
+                        len = (buf + sizeof(buf) - 1) - p;
+
+                        while (len < width)
+                        {
+                            PUT_CHAR(' ');
+                            width--;
+                        }
+                    }
+                }
+                else
+                {
+                    /* Left-aligned: prepend sign to digit string */
+                    if (negative)
+                    {
+                        *--p = '-';
+                        len++;
                     }
                 }
 
@@ -3075,7 +3110,8 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                     value = *args++;
                 }
 
-                const char *hexDigits = (specifier == 'x') ? "0123456789abcdef" : "0123456789ABCDEF";
+                /* AmigaOS RawDoFmt always uses uppercase hex for both %x and %X */
+                const char *hexDigits = "0123456789ABCDEF";
 
                 char buf[9];
                 char *p = buf + sizeof(buf) - 1;
@@ -3121,7 +3157,7 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                 args += 2;
 
                 if (!str)
-                    str = "(null)";
+                    str = "";
 
                 int len = 0;
                 char *s = str;
@@ -4143,7 +4179,7 @@ APTR _exec_AllocVec ( register struct ExecBase * SysBase        __asm("a6"),
     if (!m)
         return NULL;
 
-    *m++ = ___byteSize;
+    *m++ = ___byteSize + 4;
 
     return m;
 }

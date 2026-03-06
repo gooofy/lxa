@@ -8,13 +8,15 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.62** | **Phase 78-W Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.63** | **Phase 78-A-1 Complete** | **38/38 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
+Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
 
 **Current Status**:
-- 38/38 ctest entries (all GTest), StructOffsets test added to exec_gtest (460 assertions covering 30+ structs)
-- **StructOffsets m68k test**: Comprehensive `offsetof()`/`sizeof()` verification for all key AmigaOS data structures compiled with real NDK headers on m68k-amigaos-gcc. Covers Exec (Node, MinNode, List, MinList, MsgPort, Message, Task, Library, IORequest, IOStdReq, MemChunk, MemHeader, Interrupt, IntVector, SoftIntList, ExecBase, SignalSemaphore), DOS (DateStamp, FileInfoBlock, FileLock, Process, CommandLineInterface, DosPacket), Graphics (BitMap, RastPort, TextAttr, TextFont), and Intuition (Menu, MenuItem, Gadget, PropInfo, StringInfo, IntuiText, Border, Image, IntuiMessage, Window).
+- 38/38 ctest entries (all GTest), including new ExecVerify test
+- Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
+- All 10 bugs fixed and verified with m68k tests
 
 ---
 
@@ -147,6 +149,8 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 **Goal**: Systematically compare `lxa` against AROS (reference source in `others/AROS-20231016-source/`) and
 analyse FS-UAE (`others/fs-uae/`) for algorithmic insights applicable to lxa's WINE-like approach.
 
+Extend the test suite with targeted tests where feasible, extending the test suite coverage.
+
 > **Note**: AROS source lives under `others/AROS-20231016-source/rom/`.  
 > Key sub-dirs: `exec/`, `dos/`, `graphics/`, `hyperlayers/`, `intuition/`, `utility/`, `timer/`, `keymap/`,
 > `expansion/`, `task/`, `devs/console/`, `devs/input/`, `devs/trackdisk/`, `devs/gameport/`, `devs/keyboard/`,
@@ -154,7 +158,40 @@ analyse FS-UAE (`others/fs-uae/`) for algorithmic insights applicable to lxa's W
 
 ---
 
-#### 78-A: Exec Library (`src/rom/exec.c` vs `others/AROS-20231016-source/rom/exec/`)
+#### 78-A-1: Exec Library Bug Fixes (`src/rom/exec.c` — AROS-verified)
+
+**Goal**: Fix all bugs identified by systematic comparison of `exec.c` against AROS reference source (`others/AROS-20231016-source/rom/exec/`). Write m68k tests for each fix.
+
+**HIGH Priority** (correctness bugs that can cause crashes, hangs, or memory corruption):
+
+- [x] **AllocMem MEMF_CLEAR race + NULL crash** (line ~981): `memset()` happens after `Permit()` — another task could observe unzeroed memory. Also no NULL check before `memset` — crash on failed allocation. Fix: move `MEMF_CLEAR` handling inside Forbid/Permit block, add NULL guard. AROS ref: `exec/allocmem.c`.
+- [x] **AllocVec/FreeVec size mismatch** (lines ~4146/4160): `AllocVec` stores `___byteSize` (user size) but allocates `___byteSize+4`. `FreeVec` passes stored size to `FreeMem`, freeing 4 bytes short — silent memory leak on every `FreeVec` call. Fix: store `___byteSize + 4` (total allocation size). AROS ref: `exec/allocvec.c`, `exec/freevec.c`.
+- [x] **WaitIO wrong wait condition** (line ~2726): Waits for `ln_Type != NT_REPLYMSG`, but AROS checks `!(IOF_QUICK) && ln_Type == NT_MESSAGE`. Combined with SendIO setting `ln_Type = NT_MESSAGE` instead of 0, this can cause missed wakeups or hangs. Fix: match AROS logic exactly. AROS ref: `exec/waitio.c`.
+
+**MEDIUM Priority** (behavioral bugs, wrong return types, format output errors):
+
+- [x] **AllocSignal can't allocate signal 0** (line ~2038): Loop `while (signalNum && ...)` skips signal 0. `if (!signalNum) return -1` treats signal 0 as failure. Signal 0 is valid on AmigaOS. Fix: use proper bitmask scan (check all 32 bits including bit 0). AROS ref: `exec/allocsignal.c`.
+- [x] **SendIO wrong flag clearing** (line ~2649): Uses `io_Flags &= ~IOF_QUICK` (preserves other flags) and sets `ln_Type = NT_MESSAGE`. AROS sets `io_Flags = 0` (clear all flags) and `ln_Type = 0`. Fix: match AROS. AROS ref: `exec/sendio.c`.
+- [x] **AbortIO wrong return type** (line ~2748): Returns `void` but RKRM/AROS specifies `LONG` (error code from device's AbortIO vector). Fix: change return type to `LONG`, propagate device return value. AROS ref: `exec/abortio.c`.
+- [x] **RawDoFmt %x lowercase hex** (line ~3078): `%x` uses `"0123456789abcdef"` but AmigaOS RawDoFmt always uses uppercase hex for both `%x` and `%X`. Fix: use uppercase for both. Update existing rawdofmt test expectations.
+- [x] **RawDoFmt NULL string** (line ~3123): NULL `%s` argument outputs `"(null)"` — AmigaOS outputs empty string `""`. Fix: output empty string for NULL. Update existing rawdofmt test expectations.
+- [x] **RawDoFmt negative zero-padding** (line ~2982): `%05d` with value -5 produces `"000-5"` instead of `"-0005"`. Sign is prepended to digit string before padding. Fix: emit sign first, then zero-pad, then digits. Update existing rawdofmt test expectations.
+
+**Tests**:
+- [x] New `tests/exec/exec_verify/main.c` — m68k test covering: AllocMem MEMF_CLEAR returns zeroed memory, AllocVec/FreeVec round-trip, AllocSignal signal 0, RawDoFmt uppercase hex / NULL string / negative padding
+- [x] Update `tests/exec/rawdofmt/main.c` — fix expected values for %x (uppercase), NULL string (empty), negative zero-padding
+- [x] Register `ExecVerify` in `exec_gtest.cpp` and `samples/CMakeLists.txt`
+- [x] All 38/38 tests passing (ExecVerify integrated into existing exec_gtest)
+
+**NOT fixing (intentional behavioral differences)**:
+- AllocMem requirements truncated to UWORD — correct for classic 68k AmigaOS (AROS extends to ULONG for modern targets)
+- RemHead/RemTail extra defensive pointer validation — lxa's checks are stricter but safe
+- RemTask MAX_MEMLISTS=16 limit — practical limit, not a bug
+- FindTask treats invalid pointers as NULL — defensive behavior
+
+---
+
+#### 78-A: Exec Library Full Verification Checklist (`src/rom/exec.c` vs `others/AROS-20231016-source/rom/exec/`)
 
 **Data Structures** (verify offsets/sizes against `exec/exec_init.c`, `exec/exec_util.c`, NDK `exec/types.i`):
 - [ ] `ExecBase` — verify all public field offsets (VBlankFrequency, PowerSupplyFrequency, KickMemPtr, etc.)
@@ -856,6 +893,7 @@ analyse FS-UAE (`others/fs-uae/`) for algorithmic insights applicable to lxa's W
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.63 | 78-A-1 | **Phase 78-A-1 Complete — Exec AROS Bug Fixes!** Fixed 10 bugs in `exec.c` identified by systematic comparison against AROS reference source: AllocMem MEMF_CLEAR race condition + NULL crash (moved memset inside Forbid/Permit, added NULL guard), AllocVec/FreeVec 4-byte memory leak (stored total size instead of user size), WaitIO wrong wait condition (matched AROS `while(!(IOF_QUICK) && ln_Type==NT_MESSAGE)` logic), AllocSignal signal 0 unreachable (fixed loop condition to use `>= 0`), SendIO wrong flag clearing (clear all flags per AROS), AbortIO void→LONG return type, RawDoFmt %x uppercase hex, RawDoFmt NULL string empty instead of "(null)", RawDoFmt negative zero-padding sign-before-zeros. New `exec_verify` m68k test (21 assertions). Updated `rawdofmt` test expectations. 38/38 tests passing. |
 | 0.6.62 | 78-W | **Phase 78-W Complete — Structural Verification!** Comprehensive m68k `offsetof()`/`sizeof()` test program (`tests/exec/struct_offsets/main.c`) verifying 460 assertions across 30+ AmigaOS data structures (Exec: Node/MinNode/List/MinList/MsgPort/Message/Task/Library/IORequest/IOStdReq/MemChunk/MemHeader/Interrupt/IntVector/SoftIntList/ExecBase/SignalSemaphore; DOS: DateStamp/FileInfoBlock/FileLock/Process/CommandLineInterface/DosPacket; Graphics: BitMap/RastPort/TextAttr/TextFont; Intuition: Menu/MenuItem/Gadget/PropInfo/StringInfo/IntuiText/Border/Image/IntuiMessage/Window). Compiled with real NDK headers via m68k-amigaos-gcc. Found and corrected 2 expected offset values (SignalSemaphore ss_Owner/ss_QueueCount — ss_MultipleLink field was not accounted for). 38/38 tests passing. |
 | 0.6.61 | 77 | **Phase 77 Complete — Missing Libraries & Devices!** Implemented `mathieeesingbas.library` (12 IEEE single-precision math functions via EMU_CALL, d2 register clobbering fix). `trackdisk.device` stub (DD 3.5" floppy geometry, TD_MOTOR/TD_CHANGENUM/TD_CHANGESTATE/TD_PROTSTATUS/TD_GETGEOMETRY). Fixed `audio.device` Open() (was ADIOERR_NOALLOCATION). Enhanced `diskfont.library` (disk font loading from FONTS: directory, AFF_DISK in AvailFonts). Enhanced `locale.library` (FormatDate all format codes, FormatString printf-like, ParseDate). Fixed latent d2/d3/d4 register clobbering bug in `mathieeedoubbas.library` (all 11 asm stubs). 4 new m68k test programs (mathieeesingbas 35 tests, trackdisk, audio, locale 31 tests). 38/38 tests passing. |
 | 0.6.60 | 76 | **Phase 76 Complete — Intuition & BOOPSI Enhancements!** Full BOOPSI inter-object communication: icclass/modelclass/gadgetclass dispatchers with embedded ICData, `_boopsi_do_notify()` notification pipeline with ICA_TARGET/ICA_MAP tag mapping, loop prevention. propgclass/strgclass rewritten with INST_DATA for PropGData/StrGData, PGA_*/STRINGA_* tag processing, GM_HANDLEINPUT/GM_GOINACTIVE notification. SetGadgetAttrsA/DoGadgetMethodA implemented (were stubs/crashes). ActivateWindow with proper deactivation. ZipWindow with WA_Zoom ZoomData toggle. AutoRequest modal requester. New BOOPSI_IC test (25 assertions) + Talk2Boopsi sample test. 38/38 tests passing. |

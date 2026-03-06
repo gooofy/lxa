@@ -159,19 +159,20 @@ int main(void)
     print("\nTest 3: Hexadecimal (%x, %X)\n");
     {
         UWORD args[1] = { 0x1234 };
+        /* AmigaOS RawDoFmt: %x always produces uppercase (same as %X) */
         if (format_and_check("%x", args, "1234")) {
-            test_ok("%x lowercase");
+            test_ok("%x uppercase digits");
         } else {
             print("    Got: '"); print(g_buffer); print("'\n");
-            test_fail_msg("%x lowercase");
+            test_fail_msg("%x uppercase digits");
         }
         
         args[0] = 0xABCD;
-        if (format_and_check("%x", args, "abcd")) {
-            test_ok("%x with letters");
+        if (format_and_check("%x", args, "ABCD")) {
+            test_ok("%x with uppercase letters");
         } else {
             print("    Got: '"); print(g_buffer); print("'\n");
-            test_fail_msg("%x with letters");
+            test_fail_msg("%x with uppercase letters");
         }
         
         if (format_and_check("%X", args, "ABCD")) {
@@ -222,12 +223,13 @@ int main(void)
             test_fail_msg("%s basic string");
         }
         
+        /* AmigaOS: NULL string pointer produces empty output */
         sargs[0] = (ULONG)NULL;
-        if (format_and_check("%s", sargs, "(null)")) {
-            test_ok("%s NULL pointer");
+        if (format_and_check("%s", sargs, "")) {
+            test_ok("%s NULL pointer (empty)");
         } else {
             print("    Got: '"); print(g_buffer); print("'\n");
-            test_fail_msg("%s NULL pointer");
+            test_fail_msg("%s NULL pointer (empty)");
         }
     }
     
@@ -255,11 +257,28 @@ int main(void)
         }
         
         args[0] = 0xFF;
-        if (format_and_check("%04x", args, "00ff")) {
-            test_ok("%04x zero-padded hex");
+        if (format_and_check("%04x", args, "00FF")) {
+            test_ok("%04x zero-padded hex (uppercase)");
         } else {
             print("    Got: '"); print(g_buffer); print("'\n");
-            test_fail_msg("%04x zero-padded hex");
+            test_fail_msg("%04x zero-padded hex (uppercase)");
+        }
+        
+        /* Negative zero-padding: sign before zeros */
+        args[0] = (UWORD)-5;
+        if (format_and_check("%05d", args, "-0005")) {
+            test_ok("%05d negative zero-padded");
+        } else {
+            print("    Got: '"); print(g_buffer); print("'\n");
+            test_fail_msg("%05d negative zero-padded");
+        }
+        
+        args[0] = (UWORD)-42;
+        if (format_and_check("%08d", args, "-0000042")) {
+            test_ok("%08d negative zero-padded large width");
+        } else {
+            print("    Got: '"); print(g_buffer); print("'\n");
+            test_fail_msg("%08d negative zero-padded large width");
         }
     }
     
@@ -344,10 +363,10 @@ int main(void)
             ULONG value;
         } args = { "x", 0x42 };
         if (format_and_check("%s=0x%lx", &args, "x=0x42")) {
-            test_ok("Mixed string and hex");
+            test_ok("Mixed string and hex (uppercase)");
         } else {
             print("    Got: '"); print(g_buffer); print("'\n");
-            test_fail_msg("Mixed string and hex");
+            test_fail_msg("Mixed string and hex (uppercase)");
         }
     }
     
