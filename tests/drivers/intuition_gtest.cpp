@@ -122,6 +122,7 @@ protected:
 };
 
 TEST_F(IntuitionTest, BOOPSI) { RunIntuitionTest("BOOPSI"); }
+TEST_F(IntuitionTest, BOOPSI_IC) { RunIntuitionTest("BOOPSI_IC"); }
 TEST_F(IntuitionTest, GadgetClick) { RunIntuitionTest("GadgetClick"); }
 TEST_F(IntuitionTest, GadgetRefresh) { RunIntuitionTest("GadgetRefresh"); }
 TEST_F(IntuitionTest, GadgetClass) { RunIntuitionTest("GadgetClass"); }

@@ -8,26 +8,18 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.59** | **Phase 75b Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.60** | **Phase 76 Complete** | **38/38 Tests Passing (GTest-only)**
 
-Phase 75: Advanced Graphics & Layers — complete.
-Phase 75a: Test Suite Performance Optimization — complete.
-Phase 75b: Hardware Blitter Emulation & CLI Assigns — complete.
-
-**Scheduler Bug Fix (Post-75b)**:
-- Fixed critical intermittent hang in `ShellTest.Variables` (15-30% failure rate).
-- Root cause: clobbered `a1` register in `__do_switch` (exceptions.s) — `tc_State`
-  was written to wrong memory after `Enqueue()` call, causing scheduler corruption
-  and circular TaskReady list. Fix: set `tc_State = TS_READY` before `Enqueue()`.
-- Added `_exec_Signal()` NULL guard for `ThisTask` after `RemTask()`.
-- See `doc/test-reliability-report.md` for full analysis.
+Phase 76: Intuition & BOOPSI Enhancements — complete.
 
 **Current Status**:
-- 38/38 ctest entries (all GTest), plus 3 new tests (AreaFill expanded, PixelArray8, ScrollLayer)
-- **AreaFill scan-line polygon fill**: Replaced outline-only `AreaEnd` with full scan-line algorithm (even-odd fill rule, multi-polygon support via MOVE commands, fill then outline).
-- **Pixel array functions**: Implemented `ReadPixelLine8`, `ReadPixelArray8`, `WritePixelLine8`, `WritePixelArray8` (replaced `assert(FALSE)` stubs). Fixed parameter types to match NDK (`UWORD` not `ULONG`).
-- **ScrollLayer**: Full implementation for non-SuperBitMap layers (calls `ScrollRaster` then updates scroll offsets). SuperBitMap layers adjust offsets per AROS convention.
-- **Layers library**: Implemented `BeginUpdate` (damage-based ClipRects), `EndUpdate` (frees DamageList), `SwapBitsRastPortClipRect` (LAYERSMART bitmap swap), `MoveLayerInFrontOf` (z-order reordering), `InstallClipRegion`, `SortLayerCR` (direction-based insertion sort), `DoHookClipRects`, `ShowLayer`.
+- 38/38 ctest entries (all GTest), 2 new test cases (BOOPSI_IC, Talk2Boopsi sample)
+- **BOOPSI Inter-Object Communication**: Full icclass/modelclass/gadgetclass dispatchers with embedded ICData, `_boopsi_do_notify()` notification pipeline with ICA_TARGET/ICA_MAP tag mapping, loop prevention.
+- **propgclass/strgclass**: Rewritten with INST_DATA for PropGData/StrGData, PGA_*/STRINGA_* tag processing, GM_HANDLEINPUT/GM_GOINACTIVE notification.
+- **SetGadgetAttrsA / DoGadgetMethodA**: Fully implemented (were stubs/crashes).
+- **ActivateWindow**: Proper deactivation of previous window with IDCMP events.
+- **ZipWindow**: Toggle between normal and WA_Zoom alternate position/size.
+- **AutoRequest**: Modal requester with positive/negative gadgets, IntuiText rendering, event loop.
 
 ---
 
@@ -96,7 +88,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 ### Top Issues by Priority
 
 1. ~~**Library Reference Counting Broken** (8 FIXMEs across 6 libraries)~~ — **Fixed in Phase 73**. `lib_OpenCnt` incremented/decremented, `LIBF_DELEXP` cleared in Open handlers.
-2. **Intuition Heavily Stubbed** (29 markers) — BOOPSI gadgets, PropGadget/StringGadget allocation, AutoRequest rendering, ZipWindow, requesters. → Phase 76.
+2. ~~**Intuition Heavily Stubbed** (29 markers) — BOOPSI gadgets, PropGadget/StringGadget allocation, AutoRequest rendering, ZipWindow, requesters.~~ — **Fixed in Phase 76**. BOOPSI IC system (icclass/modelclass/gadgetclass with ICData), propgclass/strgclass rewritten, SetGadgetAttrsA/DoGadgetMethodA implemented, ActivateWindow/ZipWindow/AutoRequest all functional.
 3. ~~**Layers Library Stubbed** (10 TODOs) — ScrollLayer, ClipRects, damage tracking, LAYERSMART all unimplemented.~~ — **Fixed in Phase 75**. ScrollLayer, BeginUpdate, EndUpdate, SwapBitsRastPortClipRect, MoveLayerInFrontOf, InstallClipRegion, SortLayerCR, DoHookClipRects, ShowLayer all implemented.
 4. ~~**Exception/Task Switching Incomplete** (5 FIXMEs in exceptions.s)~~ — **Fixed in Phase 73**. tc_Switch, tc_Launch, TF_EXCEPT, Exception() all implemented.
 5. ~~**DOS Memory Leaks** (7 FIXMEs) — UnLoadSeg doesn't free memory, AllocDosObject/FreeDosObject incomplete.~~ — **Fixed in Phase 74**. UnLoadSeg frees seglist chain, AllocDosObject/FreeDosObject complete for all 6 types.
@@ -132,14 +124,14 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 - [x] Implement `ScrollLayer` — calls `ScrollRaster` for non-SuperBitMap layers, then updates scroll offsets. New scroll_layer test (5 tests).
 - [x] Implement DamageList tracking, ClipRects rebuilds, and `LAYERSMART` support: `BeginUpdate` (damage-based ClipRects), `EndUpdate` (frees DamageList + damage ClipRects), `SwapBitsRastPortClipRect` (3-step bitmap swap), `MoveLayerInFrontOf` (z-order reordering), `InstallClipRegion`, `SortLayerCR` (direction-based insertion sort), `DoHookClipRects`, `ShowLayer`.
 
-### Phase 76: Intuition & BOOPSI Enhancements
+### Phase 76: Intuition & BOOPSI Enhancements ✅
 **Goal**: Complete Intuition elements and finalize BOOPSI support.
-**TODO**:
-- [ ] Implement BOOPSI gadget system and Inter-Object Communication (ICA_MAP/ICA_TARGET).
-- [ ] Fix Zoom gadget (`ZipWindow` behavior).
-- [ ] Implement dynamic resizing and proper visual rendering of Requester borders/text.
-- [ ] Implement `ActivateWindow` deactivation of previous window.
-- [ ] Implement `AutoRequest` with proper text measurement, gadget creation, and IntuiText rendering.
+**DONE**:
+- [x] Implement BOOPSI gadget system and Inter-Object Communication (ICA_MAP/ICA_TARGET). Full icclass, modelclass, gadgetclass dispatchers with embedded ICData, `_boopsi_do_notify()` notification pipeline, loop prevention. propgclass/strgclass rewritten with INST_DATA for PropGData/StrGData.
+- [x] Fix Zoom gadget (`ZipWindow` behavior). Uses `struct ZoomData` stored in `window->ExtData` to toggle between normal and WA_Zoom alternate position/size.
+- [x] Implement `SetGadgetAttrsA` (was stub) and `DoGadgetMethodA` (was `assert(FALSE)` crash).
+- [x] Implement `ActivateWindow` deactivation of previous window (clears flag, sends IDCMP_INACTIVEWINDOW/ACTIVEWINDOW, re-renders frames).
+- [x] Implement `AutoRequest` with proper text measurement, gadget creation, IntuiText rendering, and modal event loop.
 
 ### Phase 77: Missing Libraries & Devices
 **Goal**: Implement essential missing libraries and devices required for full userland.
@@ -162,6 +154,7 @@ Instead of emulating hardware-level disk controllers and running Amiga-native fi
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| 0.6.60 | 76 | **Phase 76 Complete — Intuition & BOOPSI Enhancements!** Full BOOPSI inter-object communication: icclass/modelclass/gadgetclass dispatchers with embedded ICData, `_boopsi_do_notify()` notification pipeline with ICA_TARGET/ICA_MAP tag mapping, loop prevention. propgclass/strgclass rewritten with INST_DATA for PropGData/StrGData, PGA_*/STRINGA_* tag processing, GM_HANDLEINPUT/GM_GOINACTIVE notification. SetGadgetAttrsA/DoGadgetMethodA implemented (were stubs/crashes). ActivateWindow with proper deactivation. ZipWindow with WA_Zoom ZoomData toggle. AutoRequest modal requester. New BOOPSI_IC test (25 assertions) + Talk2Boopsi sample test. 38/38 tests passing. |
 | 0.6.59 | 75b | **Hardware Blitter Emulation & CLI Assigns!** Full OCS/ECS blitter emulation (all 256 minterms, barrel shift, fill modes, ascending/descending). Fixed 32-bit custom chip writes. `-a name=path` CLI flag for command-line assigns. New hw_blitter test (7 tests). 38/38 tests passing. |
 | 0.6.58 | 75a | **Test Suite Performance Optimization!** Reduced `RunCyclesWithVBlank` and `WaitForEventLoop` cycle budgets across 14 test drivers. `gadtoolsgadgets_gtest` reduced from 181s to ~130s (28% faster, safely under 180s timeout). Key findings: STOP instruction means large cycle budgets don't waste wall-clock time when CPU idle; TypeString needs minimum 8M cycles (40x200000) for string gadget rendering + GADGETUP + printf flush; inject function cycle budgets in `lxa_api.c` must not be reduced (causes event queue overflows). Total suite: ~756s (down from ~800s). 36/38 tests passing (2 pre-existing crashes unchanged). |
 | 0.6.57 | 75 | **Phase 75 Complete — Advanced Graphics & Layers!** Scan-line polygon fill in `AreaEnd` (even-odd fill rule, multi-polygon). All four pixel array functions implemented. `ScrollLayer` for non-SuperBitMap layers. 9 layers.library functions. 38/38 tests passing. |

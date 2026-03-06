@@ -162,7 +162,7 @@ lxa -d -v myprogram
 - **dos.library**: File I/O, locks, directories, processes, pattern matching, CON:/RAW: handler
 - **utility.library**: Tag lists, hooks, utility functions
 - **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill, ScrollRaster, AreaFill, pixel arrays)
-- **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest
+- **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
 - **gadtools.library**: GadTools gadgets (buttons, strings, checkboxes, cycles, sliders, MX)
 - **asl.library**: File and font requesters
 - **console.device**: Terminal I/O with CSI escape sequences, keyboard input
@@ -201,7 +201,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.58** - Phase 75a Complete (Test Suite Performance Optimization)
+**Version 0.6.60** - Phase 76 Complete (Intuition & BOOPSI Enhancements)
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

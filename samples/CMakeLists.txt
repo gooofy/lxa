@@ -167,6 +167,7 @@ set(TESTS_LIST
     "../tests/graphics/text_extent|main|Tests/Graphics/TextExtent"
     "../tests/graphics/text_render|main|Tests/Graphics/TextRender"
     "../tests/intuition/boopsi|main|Tests/Intuition/BOOPSI"
+    "../tests/intuition/boopsi_ic|main|Tests/Intuition/BOOPSI_IC"
     "../tests/intuition/gadget_click|main|Tests/Intuition/GadgetClick"
     "../tests/intuition/gadget_refresh|main|Tests/Intuition/GadgetRefresh"
     "../tests/intuition/gadgetclass|main|Tests/Intuition/GadgetClass"
