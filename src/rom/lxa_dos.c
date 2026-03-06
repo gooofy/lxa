@@ -3906,8 +3906,14 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
         DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop iteration %d, stored=0x%08lx\n", 
                 loopCount, storedValue);
         
-        /* Yield to allow child task to run */
-        _dos_Delay(DOSBase, 1);
+        /*
+         * Yield to the host/event loop without creating timer.device traffic.
+         * Using Delay(1) here causes heavy allocation churn while polling for
+         * short-lived child processes. A lightweight EMU_CALL_WAIT is enough to
+         * let interrupts fire, input be processed, and the scheduler run the
+         * child task.
+         */
+        emucall0(EMU_CALL_WAIT);
     }
     
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop finished after %d iterations\n", loopCount);
@@ -7144,4 +7150,3 @@ struct MyDataInit __g_lxa_dos_DataTab =
     /* lib_IdString */ 0x80, (UBYTE) (ULONG) OFFSET(Library, lib_IdString), (ULONG) &_g_dos_ExLibID[0],
     (ULONG) 0
 };
-

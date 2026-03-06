@@ -2617,7 +2617,13 @@ BYTE _exec_DoIO ( register struct ExecBase  *SysBase    __asm("a6"),
         return -1;
 
     ioRequest->io_Flags                   = IOF_QUICK;
-    ioRequest->io_Message.mn_Node.ln_Type = 0;
+    /*
+     * Mark the request as pending before calling BeginIO().
+     * If the device completes asynchronously it will ReplyMsg() the
+     * request, changing ln_Type to NT_REPLYMSG. WaitIO() relies on
+     * this transition to block correctly.
+     */
+    ioRequest->io_Message.mn_Node.ln_Type = NT_MESSAGE;
 
     struct JumpVec *jv = &(((struct JumpVec *)(ioRequest->io_Device))[-5]);
     devBeginIOFn_t beginiofn = jv->vec;
@@ -2645,11 +2651,11 @@ void _exec_SendIO ( register struct ExecBase * SysBase __asm("a6"),
     if (!___ioRequest || !___ioRequest->io_Device)
         return;
 
-    /* Clear all flags — don't set quick bit for async I/O (per AROS) */
+    /* Clear all flags - don't set quick bit for async I/O. */
     ___ioRequest->io_Flags = 0;
 
-    /* Clear message type (per AROS: set to 0, not NT_MESSAGE) */
-    ___ioRequest->io_Message.mn_Node.ln_Type = 0;
+    /* Mark the request as pending until the device replies it. */
+    ___ioRequest->io_Message.mn_Node.ln_Type = NT_MESSAGE;
 
     /* Call the device's BeginIO vector */
     struct JumpVec *jv = &(((struct JumpVec *)(___ioRequest->io_Device))[-5]);
@@ -5210,4 +5216,3 @@ void coldstart (void)
     LPRINTF (LOG_ERROR, "coldstart: this shouldn't happen\n");
     emu_stop(255);
 }
-

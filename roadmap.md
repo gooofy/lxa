@@ -17,6 +17,8 @@ Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63)
 - 38/38 ctest entries (all GTest), including new ExecVerify test
 - Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
 - All 10 bugs fixed and verified with m68k tests
+- Regression sweep complete: `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` stabilized and full `ctest --test-dir build --output-on-failure -j8` is green again
+- Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
 
 ---
 
@@ -734,6 +736,7 @@ Extend the test suite with targeted tests where feasible, extending the test sui
 #### 78-X: Regression & Integration Testing
 
 - [ ] After each 78-A through 78-W subsystem fix: run full `ctest --test-dir build -j8` and confirm all existing tests still pass
+- [x] Regression maintenance: restore `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` to green after timer/SystemTagList/test-harness regressions; verified with full `ctest --test-dir build --output-on-failure -j8`
 - [ ] Add new GTest assertions for each behavioral deviation found vs AROS
 - [ ] Run RKM sample programs after structural changes to catch regressions (gadtoolsgadgets_gtest, simplemenu_gtest, filereq_gtest, fontreq_gtest, easyrequest_gtest)
 - [ ] Run application tests after changes to exec/dos (asm_one_gtest, devpac_gtest, kickpascal_gtest, cluster2_gtest, dpaint_gtest)
