@@ -89,6 +89,10 @@ TEST_F(ExecTest, Locale) {
     RunExecTest("Locale");
 }
 
+TEST_F(ExecTest, StructOffsets) {
+    RunExecTest("StructOffsets");
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

@@ -214,6 +214,7 @@ set(TESTS_LIST
     "../tests/exec/locale|main|Tests/Exec/Locale"
     "../tests/devices/trackdisk|main|Tests/Devices/Trackdisk"
     "../tests/devices/audio|main|Tests/Devices/Audio"
+    "../tests/exec/struct_offsets|main|Tests/Exec/StructOffsets"
 )
 
 # === Copy Test Data Files ===
