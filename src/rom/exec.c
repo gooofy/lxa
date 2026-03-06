@@ -1986,12 +1986,19 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
         {
             /*
              * Trigger reschedule if:
-             * 1. Signaled task has higher priority than current task, OR
-             * 2. Current task is not actually running (e.g., we're in dispatch idle loop
+             * 1. No current task (ThisTask is NULL, e.g., after RemTask), OR
+             * 2. Signaled task has higher priority than current task, OR
+             * 3. Current task is not actually running (e.g., we're in dispatch idle loop
              *    where ThisTask still points to a WAIT/READY task). This happens when
              *    there's only one task and it called Wait().
+             *
+             * IMPORTANT: Must check thisTask for NULL before dereferencing.
+             * ThisTask can be NULL when Signal() is called from an interrupt handler
+             * (e.g., _timer_VBlankHook via _handleIRQ3) after the last running task
+             * has called RemTask() which sets ThisTask = NULL.
              */
-            if (___task->tc_Node.ln_Pri > thisTask->tc_Node.ln_Pri ||
+            if (!thisTask ||
+                ___task->tc_Node.ln_Pri > thisTask->tc_Node.ln_Pri ||
                 thisTask->tc_State != TS_RUN)
             {
                 DPRINTF (LOG_DEBUG, "_exec: Signal() triggering reschedule\n");

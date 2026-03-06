@@ -14,6 +14,14 @@ Phase 75: Advanced Graphics & Layers — complete.
 Phase 75a: Test Suite Performance Optimization — complete.
 Phase 75b: Hardware Blitter Emulation & CLI Assigns — complete.
 
+**Scheduler Bug Fix (Post-75b)**:
+- Fixed critical intermittent hang in `ShellTest.Variables` (15-30% failure rate).
+- Root cause: clobbered `a1` register in `__do_switch` (exceptions.s) — `tc_State`
+  was written to wrong memory after `Enqueue()` call, causing scheduler corruption
+  and circular TaskReady list. Fix: set `tc_State = TS_READY` before `Enqueue()`.
+- Added `_exec_Signal()` NULL guard for `ThisTask` after `RemTask()`.
+- See `doc/test-reliability-report.md` for full analysis.
+
 **Current Status**:
 - 38/38 ctest entries (all GTest), plus 3 new tests (AreaFill expanded, PixelArray8, ScrollLayer)
 - **AreaFill scan-line polygon fill**: Replaced outline-only `AreaEnd` with full scan-line algorithm (even-odd fill rule, multi-polygon support via MOVE commands, fill then outline).

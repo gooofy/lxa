@@ -122,9 +122,9 @@ __do_switch:
 
     | DPUTS      __exec_Schedule_s1
 
+    move.b      #3, 0xf(a1)                         | Ready -> ThisTask->tc_State (set BEFORE Enqueue)
     lea.l       TaskReady(a6), a0                   | &SysBase->TaskReady -> a0
-    jsr         _LVOEnqueue(a6)                     | -> Enqueue()
-    move.b      #3, 0xf(a1)                         | Ready -> ThisTask->tc_State
+    jsr         _LVOEnqueue(a6)                     | -> Enqueue() (a1 may be clobbered by C function)
     move.w      #0x2000, sr                         | enable interrupts
     movem.l     (a7)+, d0-d1/a0-a1/a5-a6            | restore registers
 

@@ -88,7 +88,86 @@ Before completing a task:
 6. Measure Coverage.
 7. Iterate until 100% coverage and passing.
 
-## 5. liblxa API Reference (C++ via lxa_test.h)
+## 5. Running Tests
+
+### 5.1 Build First
+```bash
+./build.sh          # From project root (/home/guenter/projects/amiga/lxa/src/lxa)
+```
+
+### 5.2 Full Test Suite
+```bash
+# ALWAYS use -j8 for parallel execution (6.3x speedup, ~2 min vs ~13 min serial)
+cd build && ctest --output-on-failure -j8
+
+# Equivalent from project root:
+ctest --test-dir build --output-on-failure -j8
+```
+
+### 5.3 Parallelism Guidelines
+
+| Flag   | Wall Time | When to Use                                    |
+|:------:|:---------:|:-----------------------------------------------|
+| `-j1`  | ~13 min   | Never (unless debugging a resource conflict)   |
+| `-j4`  | ~3.5 min  | Minimum acceptable parallelism                 |
+| `-j8`  | **~2 min**| **Default — use this** (captures 99% of speedup) |
+| `-j16` | ~2 min    | No benefit over -j8 (bottleneck is longest test) |
+| `-j38` | ~2 min    | No benefit over -j8                            |
+
+**Why `-j8` is optimal**: The longest test (`gadtoolsgadgets_gtest`) takes
+~126 seconds. Once enough parallelism exists to run all other tests alongside
+it, adding more parallelism has no effect. With `-j8`, the 37 shorter tests
+complete well before the longest one finishes.
+
+**Tests are fully isolated**: Each test runs its own emulator instance with
+independent memory. No shared files, ports, or state. Any parallelism level
+is safe.
+
+### 5.4 Running Specific Tests
+```bash
+# By test name (via ctest):
+ctest --test-dir build --output-on-failure -R shell_gtest
+
+# By GTest filter (direct binary execution):
+./build/tests/drivers/shell_gtest --gtest_filter="ShellTest.Variables"
+
+# Multiple filters:
+./build/tests/drivers/dos_gtest --gtest_filter="DosTest.Lock*"
+
+# List all tests in a binary:
+./build/tests/drivers/exec_gtest --gtest_list_tests
+```
+
+### 5.5 Reliability Testing
+When debugging intermittent failures, use a loop:
+```bash
+# Run a specific test N times with timeout
+for i in $(seq 1 50); do
+    timeout 30 ./build/tests/drivers/shell_gtest \
+        --gtest_filter="ShellTest.Variables" 2>&1 | tail -1
+done
+
+# Full suite reliability (N consecutive runs):
+for run in $(seq 1 5); do
+    echo "=== Run $run ==="
+    ctest --test-dir build --output-on-failure -j8 2>&1 | grep "tests passed"
+done
+```
+
+### 5.6 Test Timeouts
+Tests with explicit CTest timeouts (in `tests/drivers/CMakeLists.txt`):
+
+| Test                  | Timeout | Typical Time |
+|:----------------------|:-------:|:------------:|
+| gadtoolsgadgets_gtest | 200s    | ~126s        |
+| simplegad_gtest       | 120s    | ~45s         |
+| easyrequest_gtest     | 120s    | ~10s         |
+| rgbboxes_gtest        | 25s     | ~11s         |
+
+All other tests use CTest's default timeout (1500s). If adding a new test
+that takes >60 seconds, add an explicit `TIMEOUT` property in CMakeLists.txt.
+
+## 6. liblxa API Reference (C++ via lxa_test.h)
 
 **Execution**:
 - `RunProgram(path, args)` - Load and run program until exit
@@ -106,12 +185,10 @@ Before completing a task:
 - `GetOutput()` - Get program output as string
 - `ClearOutput()` - Clear output buffer
 
-## 6. Debugging Failures
+## 7. Debugging Failures
 1. **GTest Output**: Check failure messages and stack traces.
 2. **Debug Log**: Run with `-v` (verbose).
 3. **Crashes**: Check host-side core dumps or ROM assertions.
 4. **Screenshots**: Some drivers capture screenshots on failure.
-
-## 7. Running Tests
-- All tests: `cd build && ctest`
-- Specific suite: `./build/tests/drivers/lxa_tests --gtest_filter=SimpleGadgetTest.*`
+5. **Intermittent hangs**: See `doc/test-reliability-report.md` for methodology.
+   Use the reliability loop from Section 5.5 to reproduce.

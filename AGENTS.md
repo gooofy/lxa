@@ -35,7 +35,36 @@ Load the specific skill relevant to your task:
   - **Host-side driver patterns** for interactive testing.
   - BitMap verification techniques.
 
-## 3. Quick Start
+## 3. Build & Test Quick Reference
+
+```bash
+# Build (from project root):
+./build.sh
+
+# Run full test suite (ALWAYS use -j8 for parallel execution):
+ctest --test-dir build --output-on-failure -j8
+
+# Run a specific test:
+ctest --test-dir build --output-on-failure -R shell_gtest
+
+# Run specific test cases via GTest filter:
+./build/tests/drivers/shell_gtest --gtest_filter="ShellTest.Variables"
+
+# Reliability loop (for debugging intermittent failures):
+for i in $(seq 1 50); do
+    timeout 30 ./build/tests/drivers/shell_gtest \
+        --gtest_filter="ShellTest.Variables" 2>&1 | tail -1
+done
+```
+
+**Parallelism**: `-j8` is the optimal setting (~2 min wall time). Going higher
+yields no benefit because the longest test (`gadtoolsgadgets_gtest`, ~126s) is
+the bottleneck. Tests are fully isolated — any parallelism level is safe.
+
+See `lxa-testing` skill for detailed test execution docs and
+`doc/test-reliability-report.md` for parallelism benchmarks.
+
+## 4. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.
 3. Load `develop-amiga` for coding standards.
