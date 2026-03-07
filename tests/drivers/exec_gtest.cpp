@@ -101,6 +101,10 @@ TEST_F(ExecTest, Interrupts) {
     RunExecTest("Interrupts");
 }
 
+TEST_F(ExecTest, ExecMisc) {
+    RunExecTest("ExecMisc");
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

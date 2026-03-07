@@ -85,6 +85,26 @@ char *strcat(char *dest, const char *src);
                     (l)->lh_Tail = NULL, \
                     (l)->lh_TailPred = (struct Node *)&(l)->lh_Head)
 
+/*
+ * List accessor macros (matching AROS exec/lists.h semantics)
+ *
+ * These return the first/last/next/previous node in a list, or NULL
+ * if the list is empty or the node is at the head/tail sentinel.
+ */
+#define GETHEAD(l)  (((struct List *)(l))->lh_Head->ln_Succ \
+                     ? ((struct List *)(l))->lh_Head : (struct Node *)0)
+
+#define GETTAIL(l)  (((struct List *)(l))->lh_TailPred->ln_Pred \
+                     ? ((struct List *)(l))->lh_TailPred : (struct Node *)0)
+
+#define GETSUCC(n)  (((n) && ((struct Node *)(n))->ln_Succ && \
+                      ((struct Node *)(n))->ln_Succ->ln_Succ) \
+                     ? ((struct Node *)(n))->ln_Succ : (struct Node *)0)
+
+#define GETPRED(n)  (((n) && ((struct Node *)(n))->ln_Pred && \
+                      ((struct Node *)(n))->ln_Pred->ln_Pred) \
+                     ? ((struct Node *)(n))->ln_Pred : (struct Node *)0)
+
 void            U_hexdump        (int lvl, void *mem, unsigned int len);
 
 struct Task    *U_allocTask      (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess);

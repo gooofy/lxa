@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.68** | **Phase 78-A Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.69** | **Phase 78-A Complete** | **38/38 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -16,10 +16,13 @@ Phase 78-A-2: Exec `Wait()` wait-mask fix complete (v0.6.64).
 Phase 78-A-3: Exec `Wait(SIGBREAKF_CTRL_C)` verification complete (v0.6.65).
 Phase 78-A-4: Exec signals and semaphores verification complete (v0.6.66).
 Phase 78-A-5: Exec interrupts, nesting counters, library management, and `SumKickData()` verification complete (v0.6.68).
+Phase 78-A-6: Exec miscellaneous — `RawDoFmt` edge cases, list accessors, `Alert`, `Supervisor` verification complete (v0.6.69).
 
 **Current Status**:
-- 38/38 ctest entries (all GTest), including new ExecVerify test
+- 38/38 ctest entries (all GTest), including new ExecMisc test
 - Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
+- All remaining miscellaneous Exec items verified: `RawDoFmt` edge cases (maxwidth, precision, `%c`, `%%`, `%b` BSTR, return value), list accessors (`GetHead`/`GetTail`/`GetSucc`/`GetPred` as macros), `Alert` (recovery vs deadend decoding), `Supervisor` (m68k privilege-switch call)
+- `NewRawDoFmt` intentionally skipped: AROS V45+ extension not part of standard AmigaOS 3.x
 - All 10 bugs fixed and verified with m68k tests
 - Fixed `exec.library/Wait()` to clear `tc_SigWait` on return, matching AROS semantics and preventing stale wait masks from affecting later signal delivery
 - Verified `exec.library/Wait(SIGBREAKF_CTRL_C)` already matches AROS semantics and added regression coverage to lock in Ctrl-C break handling
@@ -160,13 +163,13 @@ Status: complete in 0.6.68.
 - [x] `SumKickData`
 
 **Miscellaneous Exec**:
-- [ ] `RawDoFmt` — format string parsing (`%s`, `%d`, `%ld`, `%x`, `%lx`, `%b`, `%c`), PutChProc callback; verify against AROS `exec/rawfmt.c`
-- [ ] `NewRawDoFmt` — extended version
+- [x] `RawDoFmt` — format string parsing (`%s`, `%d`, `%ld`, `%x`, `%lx`, `%b`, `%c`), PutChProc callback; verified against AROS `exec/rawfmt.c`
+- [x] `NewRawDoFmt` — AROS V45+ extension; intentionally skipped (not part of AmigaOS 3.x)
 - [x] `Debug` — serial output stub
-- [ ] `Alert` — deadlock/crash alert display
-- [ ] `Supervisor` — enter supervisor mode
+- [x] `Alert` — recovery vs deadend decoding from alertNum bit 31
+- [x] `Supervisor` — enter supervisor mode (m68k assembly privilege-switch)
 - [x] `UserState` — return to user mode
-- [ ] `GetHead` / `GetTail` / `GetSucc` / `GetPred` — inline accessors
+- [x] `GetHead` / `GetTail` / `GetSucc` / `GetPred` — macros in `util.h` (AROS header-only, not LVO functions)
 
 ---
 
@@ -768,6 +771,7 @@ Status: complete in 0.6.68.
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| **0.6.69** | 78-A-6 | Exec miscellaneous verification: `RawDoFmt` edge cases (maxwidth, `%c`, `%%`, `%b` BSTR, return value), list accessors as macros, `Alert` decoding, `Supervisor` call. 40 sub-tests in new ExecMisc test. |
 | **0.6.68** | 78-A Complete | Completed Exec Phase 78-A verification by covering interrupt nesting, library management helpers, and `SumKickData()`, with the full 38-test suite green. |
 | **0.6.67** | 78-A-4 | Full regression suite green again after fixing DOS CLI BSTR program-name handling, which restored DPaint V startup. |
 | **0.6.66** | 78-A-4 | Phase 78-A-4 Complete — verified Exec signal allocation and semaphore semantics, including shared locks and waiter handoff. |

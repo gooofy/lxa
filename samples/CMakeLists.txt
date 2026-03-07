@@ -217,6 +217,7 @@ set(TESTS_LIST
     "../tests/devices/trackdisk|main|Tests/Devices/Trackdisk"
     "../tests/devices/audio|main|Tests/Devices/Audio"
     "../tests/exec/struct_offsets|main|Tests/Exec/StructOffsets"
+    "../tests/exec/exec_misc|main|Tests/Exec/ExecMisc"
 )
 
 # === Copy Test Data Files ===

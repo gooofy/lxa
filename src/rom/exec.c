@@ -607,7 +607,20 @@ APTR _exec_InitResident ( register struct ExecBase * SysBase __asm("a6"),
 void _exec_Alert ( register struct ExecBase *SysBase   __asm("a6"),
                             register ULONG            alertNum  __asm("d7"))
 {
-    LPRINTF (LOG_ERROR, "_exec: Alert called, alertNum=0x%08lx\n", alertNum);
+    /*
+     * Alert number encoding (from exec/alerts.h):
+     *   Bit 31:     AT_DeadEnd (1) or AT_Recovery (0)
+     *   Bits 24-30: Subsystem (AG_NoMemory, AG_MakeLib, AG_OpenLib, etc.)
+     *   Bits 16-23: General error type
+     *   Bits 0-15:  Subsystem-specific object (AO_ExecLib, AO_DOSLib, etc.)
+     *
+     * AROS behavior: AT_DeadEnd alerts are fatal (system halt/reboot).
+     * Recovery alerts display a message and return to caller.
+     * In lxa we log the decoded alert and continue for recovery alerts.
+     */
+    LPRINTF (LOG_ERROR, "_exec: Alert 0x%08lx (%s)\n",
+             alertNum,
+             (alertNum & 0x80000000) ? "DEADEND" : "recovery");
 }
 
 void _exec_Debug ( register struct ExecBase * SysBase __asm("a6"),
