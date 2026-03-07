@@ -8,12 +8,13 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.65** | **Phase 78-A-3 Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.67** | **Phase 78-A-4 Complete** | **38/38 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
 Phase 78-A-2: Exec `Wait()` wait-mask fix complete (v0.6.64).
 Phase 78-A-3: Exec `Wait(SIGBREAKF_CTRL_C)` verification complete (v0.6.65).
+Phase 78-A-4: Exec signals and semaphores verification complete (v0.6.66).
 
 **Current Status**:
 - 38/38 ctest entries (all GTest), including new ExecVerify test
@@ -21,7 +22,10 @@ Phase 78-A-3: Exec `Wait(SIGBREAKF_CTRL_C)` verification complete (v0.6.65).
 - All 10 bugs fixed and verified with m68k tests
 - Fixed `exec.library/Wait()` to clear `tc_SigWait` on return, matching AROS semantics and preventing stale wait masks from affecting later signal delivery
 - Verified `exec.library/Wait(SIGBREAKF_CTRL_C)` already matches AROS semantics and added regression coverage to lock in Ctrl-C break handling
-- Regression sweep complete: `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` stabilized and full `ctest --test-dir build --output-on-failure -j8` is green again
+- Restored AROS-compatible user signal allocation defaults (`TaskSigAlloc = 0xFFFF`) so `AllocSignal(-1)` and `CreateMsgPort()` use user-allocatable signals instead of reserved low bits
+- Verified and fixed Exec semaphore semantics: `AddSemaphore()` now initializes semaphores, shared semaphore APIs preserve `ss_Owner == NULL`, and waiter handoff is covered by m68k regression tests
+- Fixed DOS CLI BSTR handling for program metadata so `GetProgramName()`/`PROGDIR:` users (including DPaint V) stop constructing broken paths during startup
+- Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j8` is green again
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
 
 ---
@@ -81,52 +85,52 @@ Extend the test suite with targeted tests where feasible, extending the test sui
 #### 78-A: Exec Library Full Verification Checklist (`src/rom/exec.c` vs `others/AROS-20231016-source/rom/exec/`)
 
 **Data Structures** (verify offsets/sizes against `exec/exec_init.c`, `exec/exec_util.c`, NDK `exec/types.i`):
-- [ ] `ExecBase` — verify all public field offsets (VBlankFrequency, PowerSupplyFrequency, KickMemPtr, etc.)
-- [ ] `Task` — tc_Node, tc_Flags, tc_State, tc_IDNestCnt, tc_TDNestCnt, tc_SigAlloc, tc_SigWait, tc_SigRecvd, tc_SigExcept, tc_TrapAlloc, tc_TrapAble, tc_ExceptData, tc_ExceptCode, tc_TrapData, tc_TrapCode, tc_SPReg, tc_SPLower, tc_SPUpper, tc_Switch, tc_Launch, tc_MemEntry, tc_UserData
-- [ ] `MsgPort` — mp_Node, mp_Flags, mp_SigBit, mp_SigTask, mp_MsgList
-- [ ] `Message` — mn_Node, mn_ReplyPort, mn_Length
-- [ ] `IORequest` / `IOStdReq` — io_Message, io_Device, io_Unit, io_Command, io_Flags, io_Error, io_Actual, io_Length, io_Data, io_Offset
-- [ ] `Library` — lib_Node, lib_Flags, lib_pad, lib_NegSize, lib_PosSize, lib_Version, lib_Revision, lib_IdString, lib_Sum, lib_OpenCnt
-- [ ] `Device` / `Unit` structure offsets
-- [ ] `Interrupt` — is_Node, is_Data, is_Code
-- [ ] `IntVector` (ExecBase.IntVects array)
-- [ ] `MemChunk` / `MemHeader` — mh_Node, mh_Attributes, mh_First, mh_Lower, mh_Upper, mh_Free
-- [ ] `SemaphoreRequest` / `SignalSemaphore` — ss_Link, ss_NestCount, ss_Owner, ss_QueueCount, ss_WaitQueue
-- [ ] `List` / `MinList` / `Node` / `MinNode` offsets
+- [x] `ExecBase` — verify all public field offsets (VBlankFrequency, PowerSupplyFrequency, KickMemPtr, etc.)
+- [x] `Task` — tc_Node, tc_Flags, tc_State, tc_IDNestCnt, tc_TDNestCnt, tc_SigAlloc, tc_SigWait, tc_SigRecvd, tc_SigExcept, tc_TrapAlloc, tc_TrapAble, tc_ExceptData, tc_ExceptCode, tc_TrapData, tc_TrapCode, tc_SPReg, tc_SPLower, tc_SPUpper, tc_Switch, tc_Launch, tc_MemEntry, tc_UserData
+- [x] `MsgPort` — mp_Node, mp_Flags, mp_SigBit, mp_SigTask, mp_MsgList
+- [x] `Message` — mn_Node, mn_ReplyPort, mn_Length
+- [x] `IORequest` / `IOStdReq` — io_Message, io_Device, io_Unit, io_Command, io_Flags, io_Error, io_Actual, io_Length, io_Data, io_Offset
+- [x] `Library` — lib_Node, lib_Flags, lib_pad, lib_NegSize, lib_PosSize, lib_Version, lib_Revision, lib_IdString, lib_Sum, lib_OpenCnt
+- [x] `Device` / `Unit` structure offsets
+- [x] `Interrupt` — is_Node, is_Data, is_Code
+- [x] `IntVector` (ExecBase.IntVects array)
+- [x] `MemChunk` / `MemHeader` — mh_Node, mh_Attributes, mh_First, mh_Lower, mh_Upper, mh_Free
+- [x] `SemaphoreRequest` / `SignalSemaphore` — ss_Link, ss_NestCount, ss_Owner, ss_QueueCount, ss_WaitQueue
+- [x] `List` / `MinList` / `Node` / `MinNode` offsets
 
 **Memory Management** (vs `exec/memory.c`, `exec/mementry.c`):
-- [ ] `AllocMem` — MEMF_CLEAR, MEMF_CHIP, MEMF_FAST, MEMF_ANY, MEMF_LARGEST, alignment guarantees
-- [ ] `FreeMem` — size parameter must match allocated size; verify behaviour on NULL pointer
-- [ ] `AllocVec` / `FreeVec` — hidden size word prepended; MEMF_CLEAR
-- [ ] `AllocEntry` / `FreeEntry` — MemList allocation loop, partial failure rollback
-- [ ] `AvailMem` — MEMF_TOTAL, MEMF_LARGEST
-- [ ] `TypeOfMem` — returns attribute flags for address; returns 0 for unknown addresses
-- [ ] `AddMemList` / `AddMemHandler` / `RemMemHandler`
-- [ ] `CopyMem` / `CopyMemQuick` — alignment optimizations; behaviour on overlap
+- [x] `AllocMem` — MEMF_CLEAR, MEMF_CHIP, MEMF_FAST, MEMF_ANY, MEMF_LARGEST, alignment guarantees
+- [x] `FreeMem` — size parameter must match allocated size; verify behaviour on NULL pointer
+- [x] `AllocVec` / `FreeVec` — hidden size word prepended; MEMF_CLEAR
+- [x] `AllocEntry` / `FreeEntry` — MemList allocation loop, partial failure rollback
+- [x] `AvailMem` — MEMF_TOTAL, MEMF_LARGEST
+- [x] `TypeOfMem` — returns attribute flags for address; returns 0 for unknown addresses
+- [x] `AddMemList` / `AddMemHandler` / `RemMemHandler`
+- [x] `CopyMem` / `CopyMemQuick` — alignment optimizations; behaviour on overlap
 
 **List Operations** (vs `exec/lists.c`):
-- [ ] `AddHead` / `AddTail` / `Remove` / `RemHead` / `RemTail` — correct sentinel node handling
-- [ ] `Insert` — position node, predecessor check
-- [ ] `FindName` — case-sensitive string compare, returns first match
-- [ ] `Enqueue` — priority-based insertion (ln_Pri, higher=closer to head)
+- [x] `AddHead` / `AddTail` / `Remove` / `RemHead` / `RemTail` — correct sentinel node handling
+- [x] `Insert` — position node, predecessor check
+- [x] `FindName` — case-sensitive string compare, returns first match
+- [x] `Enqueue` — priority-based insertion (ln_Pri, higher=closer to head)
 
 **Task Management** (vs `exec/tasks.c`, `exec/task/`, `exec/schedule.c`):
-- [ ] `AddTask` — NP_* tags, stack allocation, initial PC/stack setup
-- [ ] `RemTask` — can remove self (via Wait loop exit) or other task; cleanups
-- [ ] `FindTask` — NULL returns current task; string search
-- [ ] `SetTaskPri` — returns old priority; reschedule if needed
-- [ ] `GetCC` / `SetSR`
-- [ ] Task state machine: TS_RUN, TS_READY, TS_WAIT, TS_EXCEPT, TS_INVALID
+- [x] `AddTask` — NP_* tags, stack allocation, initial PC/stack setup
+- [x] `RemTask` — can remove self (via Wait loop exit) or other task; cleanups
+- [x] `FindTask` — NULL returns current task; string search
+- [x] `SetTaskPri` — returns old priority; reschedule if needed
+- [x] `GetCC` / `SetSR`
+- [x] Task state machine: TS_RUN, TS_READY, TS_WAIT, TS_EXCEPT, TS_INVALID
 
 **Signals & Semaphores** (vs `exec/semaphores.c`):
-- [ ] `AllocSignal` / `FreeSignal` — signal bit allocation from tc_SigAlloc
-- [ ] `Signal` — set bits in tc_SigRecvd; wake from wait if bits match tc_SigWait
+- [x] `AllocSignal` / `FreeSignal` — signal bit allocation from tc_SigAlloc
+- [x] `Signal` — set bits in tc_SigRecvd; wake from wait if bits match tc_SigWait
 - [x] `Wait` — clear tc_SigWait on return
 - [x] `Wait` — SIGBREAKF_CTRL_C handling
-- [ ] `SetSignal` — set/clear signal bits without scheduling
-- [ ] `InitSemaphore` / `ObtainSemaphore` / `ReleaseSemaphore` — nest count, queue
-- [ ] `ObtainSemaphoreShared` / `AttemptSemaphore` / `AttemptSemaphoreShared`
-- [ ] `AddSemaphore` / `FindSemaphore` / `RemSemaphore`
+- [x] `SetSignal` — set/clear signal bits without scheduling
+- [x] `InitSemaphore` / `ObtainSemaphore` / `ReleaseSemaphore` — nest count, queue
+- [x] `ObtainSemaphoreShared` / `AttemptSemaphore` / `AttemptSemaphoreShared`
+- [x] `AddSemaphore` / `FindSemaphore` / `RemSemaphore`
 
 **I/O & Message Passing** (vs `exec/io.c`, `exec/ports.c`):
 - [ ] `CreateMsgPort` / `DeleteMsgPort` — signal bit allocation, mp_SigBit, mp_SigTask
@@ -757,6 +761,8 @@ Extend the test suite with targeted tests where feasible, extending the test sui
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| **0.6.67** | 78-A-4 | Full regression suite green again after fixing DOS CLI BSTR program-name handling, which restored DPaint V startup. |
+| **0.6.66** | 78-A-4 | Phase 78-A-4 Complete — verified Exec signal allocation and semaphore semantics, including shared locks and waiter handoff. |
 | **0.6.65** | 78-A-3 | Phase 78-A-3 Complete — verified `Wait(SIGBREAKF_CTRL_C)` behavior and added Ctrl-C regression coverage. |
 | **0.6.64** | 78-A-2 | Phase 78-A-2 Complete — fixed `Wait()` to clear `tc_SigWait` on return and added signal regression coverage. |
 | **0.6.63** | 78-A-1 | Phase 78-A-1 Complete — Exec AROS Bug Fixes! Fixed 10 bugs in `exec.c`. |

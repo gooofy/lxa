@@ -1,6 +1,5 @@
 
 #include <inttypes.h>
-
 #include <hardware/custom.h>
 
 #include <exec/types.h>
@@ -376,7 +375,7 @@ void _makeLibrary ( struct Library *library,
         /* Word-offset format: skip past the -1 marker (2 bytes) */
         MakeFunctions (library, (WORD *)___funcInit+1, (ULONG)___funcInit);
     else
-        MakeFunctions (library, ___funcInit, NULL);
+        MakeFunctions (library, ___funcInit, 0);
 
     library->lib_NegSize = negsize;
     library->lib_PosSize = ___dataSize;
@@ -1160,6 +1159,11 @@ ULONG _exec_AvailMem ( register struct ExecBase * SysBase __asm("a6"),
                         largest = mc->mc_Bytes;
                     mc = mc->mc_Next;
                 }
+            }
+            else if (___requirements & MEMF_TOTAL)
+            {
+                /* Total size of memory region */
+                total += (ULONG)mhCur->mh_Upper - (ULONG)mhCur->mh_Lower;
             }
             else
             {
@@ -2031,23 +2035,29 @@ BYTE _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: AllocSignal called, signalNum=%d\n", signalNum);
 
     struct Task *me = SysBase->ThisTask;
+    ULONG newmask;
 
     ULONG oldmask = me->tc_SigAlloc;
 
     if (signalNum < 0)
     {
-        /* Find a free signal — scan from bit 31 down to bit 0 */
-        signalNum = 31;
-        while (signalNum >= 0 && ((1 << signalNum) & oldmask))
-            signalNum--;
+        ULONG mask1 = ~oldmask & -~oldmask;
 
-        if (signalNum < 0)
+        if (mask1 == 0)
             return -1;
+
+        signalNum = 0;
+        while (((mask1 >> signalNum) & 1) == 0)
+            signalNum++;
 
         DPRINTF (LOG_DEBUG, "_exec: AllocSignal -> auto selected signalNum=%d\n", signalNum);
     }
+    else if (signalNum > 31)
+    {
+        return -1;
+    }
 
-    ULONG newmask = 1 << signalNum;
+    newmask = 1UL << signalNum;
     if (me->tc_SigAlloc & newmask)
         return -1;
 
@@ -2070,7 +2080,8 @@ void _exec_FreeSignal ( register struct ExecBase *SysBase   __asm("a6"),
     if (signalNum != -1)
     {
         struct Task *me = SysBase->ThisTask;
-        me->tc_SigAlloc &= ~(1 << signalNum);
+        if (me && signalNum >= 0 && signalNum < 32)
+            me->tc_SigAlloc &= ~(1UL << signalNum);
     }
 }
 
@@ -3891,10 +3902,9 @@ void _exec_AddSemaphore ( register struct ExecBase * SysBase __asm("a6"),
     if (!___sigSem)
         return;
 
-    Forbid();
+    InitSemaphore(___sigSem);
 
-    /* Set the node type */
-    ___sigSem->ss_Link.ln_Type = NT_SIGNALSEM;
+    Forbid();
 
     /* Add to the system semaphore list (sorted by priority via Enqueue) */
     Enqueue(&SysBase->SemaphoreList, &___sigSem->ss_Link);
@@ -3985,14 +3995,22 @@ void _exec_CopyMem ( register struct ExecBase *SysBase __asm("a6"),
     if (!size)
         return;
 
-    // FIXME: optimize for speed
+    if ((ULONG)dest < (ULONG)source || (ULONG)dest >= (ULONG)source + size)
+    {
+        const UBYTE *src = (const UBYTE *)source;
+        UBYTE *dst = (UBYTE *)dest;
 
-    UBYTE *src = (UBYTE *)source;
-    UBYTE *dst = (UBYTE *)dest;
+        while (size--)
+            *dst++ = *src++;
+    }
+    else
+    {
+        const UBYTE *src = (const UBYTE *)source + size;
+        UBYTE *dst = (UBYTE *)dest + size;
 
-    for (ULONG i = 0; i<size; i++)
-        *dst++ = *src++;
-
+        while (size--)
+            *--dst = *--src;
+    }
 }
 
 void _exec_CopyMemQuick ( register struct ExecBase * SysBase __asm("a6"),
@@ -4167,12 +4185,41 @@ void _exec_ObtainSemaphoreShared ( register struct ExecBase * SysBase __asm("a6"
 {
     DPRINTF (LOG_DEBUG, "_exec: ObtainSemaphoreShared called, sigSem=0x%08lx\n", ___sigSem);
 
-    /*
-     * For simplicity, we implement shared mode as exclusive mode.
-     * This is safe but reduces concurrency for read-heavy workloads.
-     * A proper implementation would track shared vs exclusive holders.
-     */
-    ObtainSemaphore(___sigSem);
+    if (!___sigSem)
+        return;
+
+    struct Task *ThisTask = SysBase->ThisTask;
+
+    if (!ThisTask)
+        return;
+
+    if (ThisTask->tc_State == TS_REMOVED)
+        return;
+
+    Forbid();
+
+    ___sigSem->ss_QueueCount++;
+
+    if (___sigSem->ss_QueueCount == 0)
+    {
+        ___sigSem->ss_Owner = NULL;
+        ___sigSem->ss_NestCount++;
+    }
+    else if (___sigSem->ss_Owner == NULL || ___sigSem->ss_Owner == ThisTask)
+    {
+        ___sigSem->ss_NestCount++;
+    }
+    else
+    {
+        struct SemaphoreRequest sr;
+        sr.sr_Waiter = (struct Task *)((ULONG)ThisTask | SM_SHARED);
+
+        ThisTask->tc_SigRecvd &= ~SIGF_SINGLE;
+        AddTail((struct List *)&___sigSem->ss_WaitQueue, (struct Node *)&sr);
+        Wait(SIGF_SINGLE);
+    }
+
+    Permit();
 }
 
 APTR _exec_AllocVec ( register struct ExecBase * SysBase        __asm("a6"),
@@ -4471,11 +4518,37 @@ ULONG _exec_AttemptSemaphoreShared ( register struct ExecBase * SysBase __asm("a
 {
     DPRINTF (LOG_DEBUG, "_exec: AttemptSemaphoreShared called, sigSem=0x%08lx\n", ___sigSem);
 
-    /*
-     * For simplicity, we implement shared mode as exclusive mode.
-     * This is safe but reduces concurrency.
-     */
-    return AttemptSemaphore(___sigSem);
+    if (!___sigSem)
+        return FALSE;
+
+    struct Task *ThisTask = SysBase->ThisTask;
+    ULONG retval = TRUE;
+
+    if (!ThisTask)
+        return TRUE;
+
+    Forbid();
+
+    ___sigSem->ss_QueueCount++;
+
+    if (___sigSem->ss_QueueCount == 0)
+    {
+        ___sigSem->ss_Owner = NULL;
+        ___sigSem->ss_NestCount++;
+    }
+    else if (___sigSem->ss_Owner == NULL || ___sigSem->ss_Owner == ThisTask)
+    {
+        ___sigSem->ss_NestCount++;
+    }
+    else
+    {
+        ___sigSem->ss_QueueCount--;
+        retval = FALSE;
+    }
+
+    Permit();
+
+    return retval;
 }
 
 void _exec_ColdReboot ( register struct ExecBase * SysBase __asm("a6"))
@@ -5144,6 +5217,7 @@ void coldstart (void)
     SysBase->SemaphoreList.lh_Type = NT_SIGNALSEM;
 
     SysBase->TaskExitCode = _defaultTaskExit;
+    SysBase->TaskSigAlloc = 0xFFFF;
     SysBase->Quantum      = DEFAULT_SCHED_QUANTUM;
     SysBase->Elapsed      = DEFAULT_SCHED_QUANTUM;
     SysBase->SysFlags     = 0;
@@ -5176,12 +5250,40 @@ void coldstart (void)
      * doesn't need a pre-populated command directory path. */
     char *binfn = AllocVec (1024, MEMF_CLEAR);
     emucall1 (EMU_CALL_LOADFILE, (ULONG) binfn);
-    cli->cli_CommandName = MKBADDR(binfn);
+    {
+        LONG binlen = strlen(binfn);
+        UBYTE *binbstr = AllocVec((ULONG)binlen + 2, MEMF_PUBLIC | MEMF_CLEAR);
+        if (binbstr)
+        {
+            binbstr[0] = (UBYTE)binlen;
+            CopyMem(binfn, binbstr + 1, (ULONG)binlen);
+            FreeVec(binfn);
+            cli->cli_CommandName = MKBADDR(binbstr);
+        }
+        else
+        {
+            cli->cli_CommandName = MKBADDR(binfn);
+        }
+    }
 
     // Get command line arguments
     char *args = AllocVec (4096, MEMF_CLEAR);
     emucall1 (EMU_CALL_GETARGS, (ULONG) args);
-    cli->cli_CommandFile = MKBADDR(args);
+    {
+        LONG argslen = strlen(args);
+        UBYTE *argsbstr = AllocVec((ULONG)argslen + 2, MEMF_PUBLIC | MEMF_CLEAR);
+        if (argsbstr)
+        {
+            argsbstr[0] = (UBYTE)argslen;
+            CopyMem(args, argsbstr + 1, (ULONG)argslen);
+            FreeVec(args);
+            cli->cli_CommandFile = MKBADDR(argsbstr);
+        }
+        else
+        {
+            cli->cli_CommandFile = MKBADDR(args);
+        }
+    }
     
     /* Set pr_Arguments so ReadArgs() can find the command line */
     rootProc->pr_Arguments = (STRPTR) args;

@@ -218,6 +218,49 @@ static const char *resolve_amiga_path(const char *name, char *resolved)
     return resolved;
 }
 
+static BPTR alloc_bstr_from_cstr(const char *src)
+{
+    UBYTE *buf;
+    LONG len = 0;
+
+    if (!src)
+        src = "";
+
+    while (src[len] != '\0' && len < 255)
+        len++;
+
+    buf = AllocVec((ULONG)len + 2, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!buf)
+        return 0;
+
+    buf[0] = (UBYTE)len;
+    CopyMem((APTR)src, buf + 1, (ULONG)len);
+
+    return MKBADDR(buf);
+}
+
+static LONG bstr_to_cstr(BPTR bstr, STRPTR buf, LONG len)
+{
+    UBYTE *src;
+    LONG copy_len;
+
+    if (!bstr || !buf || len <= 0)
+        return FALSE;
+
+    src = (UBYTE *)BADDR(bstr);
+    if (!src)
+        return FALSE;
+
+    copy_len = src[0];
+    if (copy_len >= len)
+        copy_len = len - 1;
+
+    CopyMem(src + 1, buf, (ULONG)copy_len);
+    buf[copy_len] = '\0';
+
+    return TRUE;
+}
+
 /* Initialize the RootNode and TaskArray if not already done.
  * Uses DOSBase->dl_Root to store the RootNode (allocated in RAM).
  * Returns the RootNode pointer, or NULL on failure. */
@@ -2103,24 +2146,28 @@ void *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
             cli->cli_FailLevel  = RETURN_ERROR;
             cli->cli_Background = DOSTRUE;
 
-            dirBuf = AllocVec(dirBufLen + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            dirBuf = AllocVec(dirBufLen + 2, MEMF_PUBLIC | MEMF_CLEAR);
             if (!dirBuf) goto OOM;
             dirBuf[0] = 0;
+            dirBuf[1] = 0;
             cli->cli_SetName = MKBADDR(dirBuf);
 
-            commandBuf = AllocVec(commNameLen + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            commandBuf = AllocVec(commNameLen + 2, MEMF_PUBLIC | MEMF_CLEAR);
             if (!commandBuf) goto OOM;
             commandBuf[0] = 0;
+            commandBuf[1] = 0;
             cli->cli_CommandName = MKBADDR(commandBuf);
 
-            fileBuf = AllocVec(commFileLen + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            fileBuf = AllocVec(commFileLen + 2, MEMF_PUBLIC | MEMF_CLEAR);
             if (!fileBuf) goto OOM;
             fileBuf[0] = 0;
+            fileBuf[1] = 0;
             cli->cli_CommandFile = MKBADDR(fileBuf);
 
-            promptBuf = AllocVec(promptLen + 1, MEMF_PUBLIC | MEMF_CLEAR);
+            promptBuf = AllocVec(promptLen + 2, MEMF_PUBLIC | MEMF_CLEAR);
             if (!promptBuf) goto OOM;
             promptBuf[0] = 0;
+            promptBuf[1] = 0;
             cli->cli_Prompt = MKBADDR(promptBuf);
 
             return cli;
@@ -3547,13 +3594,10 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
             /* Copy prompt from parent CLI */
             if (parentCli->cli_Prompt)
             {
-                STRPTR parentPrompt = (STRPTR)BADDR(parentCli->cli_Prompt);
-                LONG promptLen = strlen((const char *)parentPrompt);
-                STRPTR promptBuf = AllocVec(promptLen + 1, MEMF_PUBLIC);
-                if (promptBuf)
+                char parentPrompt[256];
+                if (bstr_to_cstr(parentCli->cli_Prompt, (STRPTR)parentPrompt, sizeof(parentPrompt)))
                 {
-                    CopyMem(parentPrompt, promptBuf, promptLen + 1);
-                    cli->cli_Prompt = MKBADDR(promptBuf);
+                    cli->cli_Prompt = alloc_bstr_from_cstr(parentPrompt);
                 }
             }
 
@@ -3684,16 +3728,22 @@ BOOL _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_dos: GetProgramName() called.\n");
 
+    struct Process *pr;
+    struct CommandLineInterface *cli;
+
     if (!buf || len <= 0)
         return FALSE;
 
-    const char *src = "testprog";
-    LONG i;
-    for (i = 0; i < len - 1 && src[i] != '\0'; i++)
-        buf[i] = src[i];
-    buf[i] = '\0';
+    pr = (struct Process *)FindTask(NULL);
+    if (!pr || !pr->pr_CLI)
+        return FALSE;
 
-    return TRUE;
+    cli = (struct CommandLineInterface *)BADDR(pr->pr_CLI);
+    if (!cli)
+        return FALSE;
+
+    return bstr_to_cstr(cli->cli_CommandName, buf, len);
+
 }
 
 BOOL _dos_SetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),

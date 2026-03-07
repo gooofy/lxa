@@ -207,7 +207,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.65** - Phase 78-A-3 Complete (Exec `Wait(SIGBREAKF_CTRL_C)` verification)
+**Version 0.6.67** - Phase 78-A-4 Complete and full regression suite green
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
