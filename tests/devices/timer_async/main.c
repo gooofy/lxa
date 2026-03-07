@@ -60,9 +60,12 @@ int main(void)
 {
     struct MsgPort *timerPort;
     struct timerequest *timerReq;
+    struct timerequest *timerReq2;
     LONG error;
     ULONG startTime, endTime;
     struct timerequest timeReq;  /* Second request for getting time */
+    struct Device *timerDev;
+    UWORD openCnt1, openCnt2;
     
     print("Testing timer.device async TR_ADDREQUEST\n");
     
@@ -82,6 +85,25 @@ int main(void)
         return 1;
     }
     print("OK: IO request created\n");
+
+    /* Verify request metadata initialized by CreateIORequest */
+    if (timerReq->tr_node.io_Message.mn_ReplyPort == timerPort) {
+        print("OK: Reply port stored in IO request\n");
+    } else {
+        print("FAIL: Reply port not stored in IO request\n");
+        DeleteIORequest((struct IORequest *)timerReq);
+        DeleteMsgPort(timerPort);
+        return 1;
+    }
+
+    if (timerReq->tr_node.io_Message.mn_Length == sizeof(struct timerequest)) {
+        print("OK: IO request length stored correctly\n");
+    } else {
+        print("FAIL: IO request length stored incorrectly\n");
+        DeleteIORequest((struct IORequest *)timerReq);
+        DeleteMsgPort(timerPort);
+        return 1;
+    }
     
     /* Open timer.device with UNIT_MICROHZ for accurate timing */
     error = OpenDevice((STRPTR)TIMERNAME, UNIT_MICROHZ, (struct IORequest *)timerReq, 0);
@@ -94,6 +116,73 @@ int main(void)
         return 1;
     }
     print("OK: timer.device opened (UNIT_MICROHZ)\n");
+
+    if (timerReq->tr_node.io_Device != NULL) {
+        print("OK: OpenDevice stored device pointer\n");
+    } else {
+        print("FAIL: OpenDevice did not store device pointer\n");
+        DeleteIORequest((struct IORequest *)timerReq);
+        DeleteMsgPort(timerPort);
+        return 1;
+    }
+
+    timerDev = timerReq->tr_node.io_Device;
+    openCnt1 = timerDev->dd_Library.lib_OpenCnt;
+    if (openCnt1 >= 1) {
+        print("OK: Device open count incremented\n");
+    } else {
+        print("FAIL: Device open count did not increment\n");
+        DeleteIORequest((struct IORequest *)timerReq);
+        DeleteMsgPort(timerPort);
+        return 1;
+    }
+
+    timerReq2 = (struct timerequest *)CreateIORequest(timerPort, sizeof(struct timerequest));
+    if (!timerReq2) {
+        print("FAIL: Cannot create second IO request\n");
+        CloseDevice((struct IORequest *)timerReq);
+        DeleteIORequest((struct IORequest *)timerReq);
+        DeleteMsgPort(timerPort);
+        return 1;
+    }
+
+    error = OpenDevice((STRPTR)TIMERNAME, UNIT_MICROHZ, (struct IORequest *)timerReq2, 0);
+    if (error != 0) {
+        print("FAIL: Cannot open timer.device second time, error=");
+        print_num((ULONG)error);
+        print("\n");
+        DeleteIORequest((struct IORequest *)timerReq2);
+        CloseDevice((struct IORequest *)timerReq);
+        DeleteIORequest((struct IORequest *)timerReq);
+        DeleteMsgPort(timerPort);
+        return 1;
+    }
+
+    openCnt2 = timerReq2->tr_node.io_Device->dd_Library.lib_OpenCnt;
+    if (openCnt2 == openCnt1 + 1) {
+        print("OK: Second open increments device open count\n");
+    } else {
+        print("FAIL: Second open did not increment device open count\n");
+        CloseDevice((struct IORequest *)timerReq2);
+        DeleteIORequest((struct IORequest *)timerReq2);
+        CloseDevice((struct IORequest *)timerReq);
+        DeleteIORequest((struct IORequest *)timerReq);
+        DeleteMsgPort(timerPort);
+        return 1;
+    }
+
+    CloseDevice((struct IORequest *)timerReq2);
+    if (timerDev->dd_Library.lib_OpenCnt == openCnt1) {
+        print("OK: CloseDevice decremented open count\n");
+    } else {
+        print("FAIL: CloseDevice did not decrement open count\n");
+        DeleteIORequest((struct IORequest *)timerReq2);
+        CloseDevice((struct IORequest *)timerReq);
+        DeleteIORequest((struct IORequest *)timerReq);
+        DeleteMsgPort(timerPort);
+        return 1;
+    }
+    DeleteIORequest((struct IORequest *)timerReq2);
     
     /* Copy the request for time queries */
     CopyMem(timerReq, &timeReq, sizeof(struct timerequest));
@@ -103,6 +192,12 @@ int main(void)
     timeReq.tr_node.io_Flags = IOF_QUICK;
     DoIO((struct IORequest *)&timeReq);
     startTime = timeReq.tr_time.tv_secs;
+    if (CheckIO((struct IORequest *)&timeReq) == (struct IORequest *)&timeReq) {
+        print("OK: CheckIO reports quick DoIO request complete\n");
+    } else {
+        print("FAIL: CheckIO should report quick DoIO request complete\n");
+        goto cleanup;
+    }
     
     /* Don't print variable timestamps for deterministic test output */
     
@@ -115,6 +210,13 @@ int main(void)
     
     SendIO((struct IORequest *)timerReq);
     print("OK: SendIO called\n");
+
+    if (CheckIO((struct IORequest *)timerReq) == NULL) {
+        print("OK: CheckIO reports request pending after SendIO\n");
+    } else {
+        print("FAIL: CheckIO should report pending request after SendIO\n");
+        goto cleanup;
+    }
     
     WaitIO((struct IORequest *)timerReq);
     
@@ -125,6 +227,13 @@ int main(void)
         goto cleanup;
     }
     print("OK: WaitIO returned\n");
+
+    if (CheckIO((struct IORequest *)timerReq) == (struct IORequest *)timerReq) {
+        print("OK: CheckIO reports completed request after WaitIO\n");
+    } else {
+        print("FAIL: CheckIO should report completed request after WaitIO\n");
+        goto cleanup;
+    }
     
     /* Test 2: Longer delay (500ms) */
     print("\nTest 2: 500ms delay\n");
@@ -185,6 +294,24 @@ cleanup:
     /* Close timer.device */
     CloseDevice((struct IORequest *)timerReq);
     print("OK: timer.device closed\n");
+
+    if (timerReq->tr_node.io_Device == NULL) {
+        print("OK: CloseDevice cleared device pointer\n");
+    } else {
+        print("FAIL: CloseDevice did not clear device pointer\n");
+        DeleteIORequest((struct IORequest *)timerReq);
+        DeleteMsgPort(timerPort);
+        return 1;
+    }
+
+    if (timerDev->dd_Library.lib_OpenCnt == openCnt1 - 1) {
+        print("OK: Final close restored open count\n");
+    } else {
+        print("FAIL: Final close did not restore open count\n");
+        DeleteIORequest((struct IORequest *)timerReq);
+        DeleteMsgPort(timerPort);
+        return 1;
+    }
     
     /* Cleanup */
     DeleteIORequest((struct IORequest *)timerReq);

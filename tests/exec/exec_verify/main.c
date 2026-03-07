@@ -15,7 +15,9 @@
  */
 
 #include <exec/types.h>
+#include <exec/execbase.h>
 #include <exec/memory.h>
+#include <exec/libraries.h>
 #include <exec/tasks.h>
 #include <dos/dos.h>
 #include <clib/exec_protos.h>
@@ -120,6 +122,58 @@ static int mem_is_zero(UBYTE *mem, ULONG size)
             return 0;
     }
     return 1;
+}
+
+static ULONG library_checksum_reference(void)
+{
+    struct ExecBase *sys = SysBase;
+    ULONG checksum = 0;
+    BOOL has_data = FALSE;
+
+#ifndef RESLIST_NEXT
+#define RESLIST_NEXT 0x80000000UL
+#endif
+
+    if (sys->KickTagPtr)
+    {
+        ULONG *list = (ULONG *)sys->KickTagPtr;
+
+        while (*list)
+        {
+            checksum += (ULONG)*list;
+
+            if (*list & RESLIST_NEXT)
+            {
+                list = (ULONG *)((ULONG)*list & ~RESLIST_NEXT);
+                continue;
+            }
+
+            list++;
+            has_data = TRUE;
+        }
+    }
+
+    if (sys->KickMemPtr)
+    {
+        struct MemList *mem_list = (struct MemList *)sys->KickMemPtr;
+
+        while (mem_list)
+        {
+            UBYTE i;
+            ULONG *p = (ULONG *)mem_list;
+
+            for (i = 0; i < sizeof(struct MemList) / sizeof(ULONG); i++)
+                checksum += p[i];
+
+            mem_list = (struct MemList *)mem_list->ml_Node.ln_Succ;
+            has_data = TRUE;
+        }
+    }
+
+    if (has_data && !checksum)
+        checksum--;
+
+    return checksum;
 }
 
 int main(void)
@@ -324,8 +378,6 @@ int main(void)
          * can be auto-allocated when it's the last one free */
         {
             /* Save current state */
-            ULONG savedAlloc = me->tc_SigAlloc;
-
             /* Allocate all free signals and track them */
             BYTE allocated[32];
             LONG count = 0;
@@ -509,6 +561,100 @@ int main(void)
     }
 
     /* ===== Summary ===== */
+    print("\nTest 7: SumKickData empty state\n");
+    {
+        APTR old_kick_tag = SysBase->KickTagPtr;
+        APTR old_kick_mem = SysBase->KickMemPtr;
+        ULONG sum;
+
+        SysBase->KickTagPtr = NULL;
+        SysBase->KickMemPtr = NULL;
+
+        sum = SumKickData();
+        if (sum == 0)
+        {
+            test_ok("SumKickData returns 0 with no kick data");
+        }
+        else
+        {
+            test_fail_msg("SumKickData should return 0 with no kick data");
+        }
+
+        SysBase->KickTagPtr = old_kick_tag;
+        SysBase->KickMemPtr = old_kick_mem;
+    }
+
+    print("\nTest 8: SumKickData with KickTagPtr list\n");
+    {
+        APTR old_kick_tag = SysBase->KickTagPtr;
+        APTR old_kick_mem = SysBase->KickMemPtr;
+        ULONG tags[3];
+        ULONG sum;
+        ULONG expected;
+
+        tags[0] = 0x12345678;
+        tags[1] = 0x00000002;
+        tags[2] = 0;
+
+        SysBase->KickTagPtr = tags;
+        SysBase->KickMemPtr = NULL;
+
+        expected = library_checksum_reference();
+        sum = SumKickData();
+        if (sum == expected)
+        {
+            test_ok("SumKickData sums KickTagPtr list");
+        }
+        else
+        {
+            test_fail_msg("SumKickData KickTagPtr sum mismatch");
+        }
+
+        SysBase->KickTagPtr = old_kick_tag;
+        SysBase->KickMemPtr = old_kick_mem;
+    }
+
+    print("\nTest 9: SumKickData with KickMemPtr list\n");
+    {
+        APTR old_kick_tag = SysBase->KickTagPtr;
+        APTR old_kick_mem = SysBase->KickMemPtr;
+        struct
+        {
+            struct MemList ml;
+            struct MemEntry extra;
+        } kick_mem;
+        ULONG sum;
+        ULONG expected;
+
+        kick_mem.ml.ml_Node.ln_Succ = NULL;
+        kick_mem.ml.ml_Node.ln_Pred = NULL;
+        kick_mem.ml.ml_Node.ln_Type = NT_MEMORY;
+        kick_mem.ml.ml_Node.ln_Pri = 0;
+        kick_mem.ml.ml_Node.ln_Name = NULL;
+        kick_mem.ml.ml_NumEntries = 2;
+        kick_mem.ml.ml_ME[0].me_Addr = (APTR)0x1000;
+        kick_mem.ml.ml_ME[0].me_Length = 0x2000;
+        kick_mem.extra.me_Addr = (APTR)0x4000;
+        kick_mem.extra.me_Length = 0x1000;
+
+        SysBase->KickTagPtr = NULL;
+        SysBase->KickMemPtr = &kick_mem.ml;
+
+        expected = library_checksum_reference();
+        sum = SumKickData();
+        if (sum == expected)
+        {
+            test_ok("SumKickData sums KickMemPtr list");
+        }
+        else
+        {
+            test_fail_msg("SumKickData KickMemPtr sum mismatch");
+        }
+
+        SysBase->KickTagPtr = old_kick_tag;
+        SysBase->KickMemPtr = old_kick_mem;
+    }
+
     print("\n=============================\n");
     print("Tests passed: ");
     print_num(test_pass);

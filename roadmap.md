@@ -8,13 +8,14 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.67** | **Phase 78-A-4 Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.68** | **Phase 78-A Complete** | **38/38 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
 Phase 78-A-2: Exec `Wait()` wait-mask fix complete (v0.6.64).
 Phase 78-A-3: Exec `Wait(SIGBREAKF_CTRL_C)` verification complete (v0.6.65).
 Phase 78-A-4: Exec signals and semaphores verification complete (v0.6.66).
+Phase 78-A-5: Exec interrupts, nesting counters, library management, and `SumKickData()` verification complete (v0.6.68).
 
 **Current Status**:
 - 38/38 ctest entries (all GTest), including new ExecVerify test
@@ -24,6 +25,9 @@ Phase 78-A-4: Exec signals and semaphores verification complete (v0.6.66).
 - Verified `exec.library/Wait(SIGBREAKF_CTRL_C)` already matches AROS semantics and added regression coverage to lock in Ctrl-C break handling
 - Restored AROS-compatible user signal allocation defaults (`TaskSigAlloc = 0xFFFF`) so `AllocSignal(-1)` and `CreateMsgPort()` use user-allocatable signals instead of reserved low bits
 - Verified and fixed Exec semaphore semantics: `AddSemaphore()` now initializes semaphores, shared semaphore APIs preserve `ss_Owner == NULL`, and waiter handoff is covered by m68k regression tests
+- Verified Exec interrupt server chaining and software interrupt dispatch, plus nested `Disable()`/`Enable()` and `Forbid()`/`Permit()` counter semantics with dedicated regression coverage
+- Verified Exec library management helpers against AROS semantics: `OpenLibrary()` now forwards requested versions to library open vectors and rejects too-old disk-loaded libraries; `MakeLibrary()`, `SetFunction()`, `SumLibrary()`, `AddLibrary()`, and `RemLibrary()` are locked in by custom-library tests
+- Implemented and verified `SumKickData()` against AROS checksum rules for `KickTagPtr` and `KickMemPtr`
 - Fixed DOS CLI BSTR handling for program metadata so `GetProgramName()`/`PROGDIR:` users (including DPaint V) stop constructing broken paths during startup
 - Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j8` is green again
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
@@ -62,6 +66,7 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-A-1**: Exec Library AROS Verification — 10 bug fixes complete.
 - **Phase 78-A-2**: Exec `Wait()` wait-mask clearing aligned with AROS, with signal regression coverage.
 - **Phase 78-A-3**: Exec `Wait(SIGBREAKF_CTRL_C)` behavior verified against AROS, with explicit break-signal regression coverage.
+- **Phase 78-A-5**: Exec interrupts, nesting counters, library management, and `SumKickData()` verified against AROS behavior.
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.
 
 ---
@@ -83,6 +88,8 @@ Extend the test suite with targeted tests where feasible, extending the test sui
 ---
 
 #### 78-A: Exec Library Full Verification Checklist (`src/rom/exec.c` vs `others/AROS-20231016-source/rom/exec/`)
+
+Status: complete in 0.6.68.
 
 **Data Structures** (verify offsets/sizes against `exec/exec_init.c`, `exec/exec_util.c`, NDK `exec/types.i`):
 - [x] `ExecBase` — verify all public field offsets (VBlankFrequency, PowerSupplyFrequency, KickMemPtr, etc.)
@@ -133,32 +140,32 @@ Extend the test suite with targeted tests where feasible, extending the test sui
 - [x] `AddSemaphore` / `FindSemaphore` / `RemSemaphore`
 
 **I/O & Message Passing** (vs `exec/io.c`, `exec/ports.c`):
-- [ ] `CreateMsgPort` / `DeleteMsgPort` — signal bit allocation, mp_SigBit, mp_SigTask
-- [ ] `CreateIORequest` / `DeleteIORequest`
-- [ ] `OpenDevice` / `CloseDevice` — device open/close counting
-- [ ] `DoIO` / `SendIO` / `AbortIO` / `WaitIO` / `CheckIO` — sync vs async I/O
-- [ ] `GetMsg` / `PutMsg` / `ReplyMsg` / `WaitPort`
+- [x] `CreateMsgPort` / `DeleteMsgPort` — signal bit allocation, mp_SigBit, mp_SigTask
+- [x] `CreateIORequest` / `DeleteIORequest`
+- [x] `OpenDevice` / `CloseDevice` — device open/close counting
+- [x] `DoIO` / `SendIO` / `AbortIO` / `WaitIO` / `CheckIO` — sync vs async I/O
+- [x] `GetMsg` / `PutMsg` / `ReplyMsg` / `WaitPort`
 
 **Interrupts** (vs `exec/interrupts.c`):
-- [ ] `AddIntServer` / `RemIntServer` — INTB_* interrupt vectors; priority insertion
-- [ ] `Cause` — software interrupt dispatch
-- [ ] `Disable` / `Enable` — nesting via IDNestCnt
-- [ ] `Forbid` / `Permit` — nesting via TDNestCnt
+- [x] `AddIntServer` / `RemIntServer` — INTB_* interrupt vectors; priority insertion
+- [x] `Cause` — software interrupt dispatch
+- [x] `Disable` / `Enable` — nesting via IDNestCnt
+- [x] `Forbid` / `Permit` — nesting via TDNestCnt
 
 **Library Management** (vs `exec/libraries.c`, `exec/resident.c`):
-- [ ] `OpenLibrary` / `CloseLibrary` — version check, lib_OpenCnt, expunge on close
-- [ ] `MakeLibrary` / `MakeFunctions` / `SumLibrary`
-- [ ] `AddLibrary` / `RemLibrary` / `FindName` in SysBase->LibList
-- [ ] `SetFunction` — replace LVO function, return old pointer
-- [ ] `SumKickData`
+- [x] `OpenLibrary` / `CloseLibrary` — version check, lib_OpenCnt, expunge on close
+- [x] `MakeLibrary` / `MakeFunctions` / `SumLibrary`
+- [x] `AddLibrary` / `RemLibrary` / `FindName` in SysBase->LibList
+- [x] `SetFunction` — replace LVO function, return old pointer
+- [x] `SumKickData`
 
 **Miscellaneous Exec**:
 - [ ] `RawDoFmt` — format string parsing (`%s`, `%d`, `%ld`, `%x`, `%lx`, `%b`, `%c`), PutChProc callback; verify against AROS `exec/rawfmt.c`
 - [ ] `NewRawDoFmt` — extended version
-- [ ] `Debug` — serial output stub
+- [x] `Debug` — serial output stub
 - [ ] `Alert` — deadlock/crash alert display
 - [ ] `Supervisor` — enter supervisor mode
-- [ ] `UserState` — return to user mode
+- [x] `UserState` — return to user mode
 - [ ] `GetHead` / `GetTail` / `GetSucc` / `GetPred` — inline accessors
 
 ---
@@ -761,6 +768,7 @@ Extend the test suite with targeted tests where feasible, extending the test sui
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| **0.6.68** | 78-A Complete | Completed Exec Phase 78-A verification by covering interrupt nesting, library management helpers, and `SumKickData()`, with the full 38-test suite green. |
 | **0.6.67** | 78-A-4 | Full regression suite green again after fixing DOS CLI BSTR program-name handling, which restored DPaint V startup. |
 | **0.6.66** | 78-A-4 | Phase 78-A-4 Complete — verified Exec signal allocation and semaphore semantics, including shared locks and waiter handoff. |
 | **0.6.65** | 78-A-3 | Phase 78-A-3 Complete — verified `Wait(SIGBREAKF_CTRL_C)` behavior and added Ctrl-C regression coverage. |

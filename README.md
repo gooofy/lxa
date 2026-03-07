@@ -207,7 +207,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.67** - Phase 78-A-4 Complete and full regression suite green
+**Version 0.6.68** - Phase 78-A complete with Exec library management, nesting semantics, and kick checksum verification covered by regression tests
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

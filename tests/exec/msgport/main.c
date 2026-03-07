@@ -4,12 +4,14 @@
  * Tests:
  *   - CreateMsgPort/DeleteMsgPort
  *   - AddPort/RemPort/FindPort
- *   - PutMsg/GetMsg
+ *   - PutMsg/GetMsg/WaitPort
  *   - Message queue ordering
  *   - Port signal allocation
+ *   - CreateIORequest/DeleteIORequest basics
  */
 
 #include <exec/types.h>
+#include <exec/io.h>
 #include <exec/memory.h>
 #include <exec/ports.h>
 #include <exec/tasks.h>
@@ -88,6 +90,7 @@ int main(void)
     struct Task *thisTask;
     struct TestMessage msgs[5];
     struct Message *receivedMsg;
+    struct IORequest *ioReq;
     int i;
     
     g_out = Output();
@@ -308,8 +311,62 @@ int main(void)
         test_fail_msg("Could not get message for ReplyMsg test");
     }
     
-    /* Test 8: DeleteMsgPort */
-    print("\nTest 8: DeleteMsgPort\n");
+    /* Test 8: WaitPort */
+    print("\nTest 8: WaitPort\n");
+
+    PutMsg(port1, (struct Message *)&msgs[3]);
+    receivedMsg = WaitPort(port1);
+    if (receivedMsg == (struct Message *)&msgs[3]) {
+        test_ok("WaitPort returned first queued message");
+    } else {
+        test_fail_msg("WaitPort returned wrong message");
+    }
+
+    receivedMsg = GetMsg(port1);
+    if (receivedMsg == (struct Message *)&msgs[3]) {
+        test_ok("GetMsg retrieved WaitPort message");
+    } else {
+        test_fail_msg("GetMsg did not retrieve WaitPort message");
+    }
+
+    /* Test 9: CreateIORequest/DeleteIORequest */
+    print("\nTest 9: CreateIORequest/DeleteIORequest\n");
+
+    ioReq = CreateIORequest(port1, sizeof(struct IOStdReq));
+    if (ioReq != NULL) {
+        test_ok("CreateIORequest returned non-NULL");
+
+        if (ioReq->io_Message.mn_ReplyPort == port1) {
+            test_ok("CreateIORequest stored reply port");
+        } else {
+            test_fail_msg("CreateIORequest did not store reply port");
+        }
+
+        if (ioReq->io_Message.mn_Length == sizeof(struct IOStdReq)) {
+            test_ok("CreateIORequest stored request length");
+        } else {
+            test_fail_msg("CreateIORequest stored wrong request length");
+        }
+
+        DeleteIORequest(ioReq);
+        test_ok("DeleteIORequest completed");
+    } else {
+        test_fail_msg("CreateIORequest returned NULL");
+    }
+
+    ioReq = CreateIORequest(NULL, sizeof(struct IOStdReq));
+    if (ioReq == NULL) {
+        test_ok("CreateIORequest(NULL, ...) returns NULL");
+    } else {
+        test_fail_msg("CreateIORequest(NULL, ...) should return NULL");
+        DeleteIORequest(ioReq);
+    }
+
+    DeleteIORequest(NULL);
+    test_ok("DeleteIORequest(NULL) did not crash");
+
+    /* Test 10: DeleteMsgPort */
+    print("\nTest 10: DeleteMsgPort\n");
     
     /* Clear the port name before deleting (not required but cleaner) */
     port1->mp_Node.ln_Name = NULL;
@@ -320,8 +377,8 @@ int main(void)
     DeleteMsgPort(port2);
     test_ok("DeleteMsgPort on port2 completed");
     
-    /* Test 9: DeleteMsgPort(NULL) should not crash */
-    print("\nTest 9: DeleteMsgPort(NULL) safety\n");
+    /* Test 11: DeleteMsgPort(NULL) should not crash */
+    print("\nTest 11: DeleteMsgPort(NULL) safety\n");
     DeleteMsgPort(NULL);
     test_ok("DeleteMsgPort(NULL) did not crash");
     

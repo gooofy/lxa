@@ -585,4 +585,3 @@ __exec_handleIRQ3_s1:
     .align 4
 __exec_handleIRQ3_s2:
     .asciz "_handleIRQ3() -> Schedule()\n"
-

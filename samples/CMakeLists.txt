@@ -99,6 +99,7 @@ set(TESTS_LIST
     "../tests/exec/tasks|main|Tests/Exec/Tasks"
     "../tests/exec/library|main|Tests/Exec/Library"
     "../tests/exec/exec_verify|main|Tests/Exec/ExecVerify"
+    "../tests/exec/interrupts|main|Tests/Exec/Interrupts"
     "../tests/dos/chario|main|Tests/Dos/CharIO"
     "../tests/dos/createdir|main|Tests/Dos/CreateDir"
     "../tests/dos/fhutils|main|Tests/Dos/FHUtils"

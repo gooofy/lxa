@@ -54,8 +54,10 @@ typedef struct Library * (*libInitFn_t)   ( register struct Library    *lib     
                                             register BPTR               seglist __asm("a0"),
                                             register struct ExecBase   *sysb    __asm("a6"));
 
-typedef struct Library * (*libOpenFn_t)   ( register struct Library    *lib     __asm("a6"));
-typedef struct Library * (*libCloseFn_t)  ( register struct Library    *lib     __asm("a6"));
+typedef struct Library * (*libOpenFn_t)   ( register ULONG              version __asm("d0"),
+                                            register struct Library    *lib     __asm("a6"));
+typedef BPTR             (*libCloseFn_t)  ( register struct Library    *lib     __asm("a6"));
+typedef BPTR             (*libExpungeFn_t)( register struct Library    *lib     __asm("a6"));
 
 typedef void             (*devOpenFn_t)   ( register struct Library    *dev     __asm("a6"),
                                             register struct IORequest  *ioreq   __asm("a1"),
@@ -606,14 +608,12 @@ void _exec_Alert ( register struct ExecBase *SysBase   __asm("a6"),
                             register ULONG            alertNum  __asm("d7"))
 {
     LPRINTF (LOG_ERROR, "_exec: Alert called, alertNum=0x%08lx\n", alertNum);
-    assert(FALSE);
 }
 
 void _exec_Debug ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___flags  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: Debug unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: Debug called, flags=0x%08lx\n", ___flags);
 }
 
 void _exec_Disable ( register struct ExecBase * SysBase __asm("a6"))
@@ -685,9 +685,18 @@ void _exec_AddIntServer ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
                                                         register struct Interrupt * ___interrupt  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: AddIntServer() stub called, intNumber=%ld interrupt=0x%08lx\n",
+    DPRINTF (LOG_DEBUG, "_exec: AddIntServer() called, intNumber=%ld interrupt=0x%08lx\n",
              ___intNumber, (ULONG)___interrupt);
-    /* Silent stub - we don't have hardware interrupts */
+
+    if (!___interrupt || ___intNumber < 0 || ___intNumber >= 16)
+        return;
+
+    if (!SysBase->IntVects[___intNumber].iv_Data)
+        return;
+
+    Disable();
+    Enqueue((struct List *)SysBase->IntVects[___intNumber].iv_Data, &___interrupt->is_Node);
+    Enable();
 }
 
 /*
@@ -699,9 +708,18 @@ void _exec_RemIntServer ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
                                                         register struct Interrupt * ___interrupt  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: RemIntServer() stub called, intNumber=%ld interrupt=0x%08lx\n",
+    DPRINTF (LOG_DEBUG, "_exec: RemIntServer() called, intNumber=%ld interrupt=0x%08lx\n",
              ___intNumber, (ULONG)___interrupt);
-    /* Silent stub - we don't have hardware interrupts */
+
+    if (!___interrupt || ___intNumber < 0 || ___intNumber >= 16)
+        return;
+
+    if (!SysBase->IntVects[___intNumber].iv_Data)
+        return;
+
+    Disable();
+    Remove((struct Node *)___interrupt);
+    Enable();
 }
 
 /*
@@ -719,20 +737,11 @@ void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
     if (!___interrupt)
         return;
 
-    /*
-     * In a real Amiga, Cause() would queue the interrupt and it would
-     * be executed later by the interrupt system. Since we don't have
-     * a real interrupt system, we execute the handler directly.
-     *
-     * The handler is called with:
-     *   A1 = is_Data (custom data pointer)
-     *   A5 = is_Code (handler address, for self-reference)
-     *   A6 = ExecBase
-     *
-     * We must use inline assembly to properly set up registers because
-     * the compiler uses A5 as the frame pointer. We save A5, set up the
-     * interrupt calling convention, call the handler, then restore A5.
-     */
+    if (___interrupt->is_Node.ln_Type == NT_SOFTINT)
+        return;
+
+    ___interrupt->is_Node.ln_Type = NT_SOFTINT;
+
     APTR handler = ___interrupt->is_Code;
     APTR data = ___interrupt->is_Data;
 
@@ -753,6 +762,8 @@ void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
             : "a1", "d0", "d1", "memory"
         );
     }
+
+    ___interrupt->is_Node.ln_Type = NT_INTERRUPT;
 }
 
 #ifdef ENABLE_DEBUG
@@ -2341,16 +2352,14 @@ void _exec_RemLibrary ( register struct ExecBase * SysBase __asm("a6"),
     /* Get the function pointer from the jump table */
     /* Libraries have negative offsets: LVO -6 (Open) at offset -6, etc. */
     /* Expunge is at LVO -18 which is the 3rd function (after Open, Close) */
-    APTR *vectors = (APTR *)___library;
-    APTR expunge_fn = vectors[-3];  /* LVO -18 = offset -3 in pointer array */
+    struct JumpVec *jv = &(((struct JumpVec *)(___library))[-3]);
+    libExpungeFn_t expunge_fn = (libExpungeFn_t)jv->vec;
     
     if (expunge_fn)
     {
         DPRINTF (LOG_DEBUG, "_exec: Calling library expunge vector at 0x%08lx\n", (ULONG)expunge_fn);
         /* Call: BPTR Expunge(struct Library *lib __asm("d0")) */
-        register struct Library *lib_reg __asm("d0") = ___library;
-        BPTR seglist = ((BPTR (*)(void))expunge_fn)();
-        (void)lib_reg; /* Silence unused warning */
+        BPTR seglist = expunge_fn(___library);
         DPRINTF (LOG_DEBUG, "_exec: Expunge returned seglist=0x%08lx\n", (ULONG)seglist);
     }
     else
@@ -3460,9 +3469,9 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
         }
 
         struct JumpVec *jv = &(((struct JumpVec *)(lib))[-1]);
-        libOpenFn_t openfn = jv->vec;
+        libOpenFn_t openfn = (libOpenFn_t)jv->vec;
 
-        lib = openfn(lib);
+        lib = openfn(version, lib);
 
         DPRINTF (LOG_DEBUG, "_exec: OpenLibrary done libName=%s, version=%ld -> lib=0x%08lx\n", libName, version, lib);
     }
@@ -3569,8 +3578,8 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
                 {
                     /* Call the library's Open function */
                     struct JumpVec *jv = &(((struct JumpVec *)(lib))[-1]);
-                    libOpenFn_t openfn = jv->vec;
-                    lib = openfn(lib);
+                    libOpenFn_t openfn = (libOpenFn_t)jv->vec;
+                    lib = openfn(version, lib);
                     
                     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: successfully loaded %s from disk, lib=0x%08lx\n", libName, lib);
                 }
@@ -3578,7 +3587,8 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
                 {
                     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: loaded library version %ld < requested %ld\n", 
                              lib->lib_Version, version);
-                    /* FIXME: Should we unload and return NULL? For now just return the lib */
+                    RemLibrary(lib);
+                    lib = NULL;
                 }
             }
             else
@@ -3935,9 +3945,57 @@ void _exec_RemSemaphore ( register struct ExecBase * SysBase __asm("a6"),
 
 ULONG _exec_SumKickData ( register struct ExecBase * SysBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: SumKickData unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    ULONG checksum = 0;
+    BOOL has_data = FALSE;
+
+    DPRINTF (LOG_DEBUG, "_exec: SumKickData called, KickTagPtr=0x%08lx KickMemPtr=0x%08lx\n",
+             (ULONG)SysBase->KickTagPtr, (ULONG)SysBase->KickMemPtr);
+
+#ifndef RESLIST_NEXT
+#define RESLIST_NEXT 0x80000000UL
+#endif
+
+    if (SysBase->KickTagPtr)
+    {
+        ULONG *list = (ULONG *)SysBase->KickTagPtr;
+
+        while (*list)
+        {
+            checksum += (ULONG)*list;
+
+            if (*list & RESLIST_NEXT)
+            {
+                list = (ULONG *)((ULONG)*list & ~RESLIST_NEXT);
+                continue;
+            }
+
+            list++;
+            has_data = TRUE;
+        }
+    }
+
+    if (SysBase->KickMemPtr)
+    {
+        struct MemList *mem_list = (struct MemList *)SysBase->KickMemPtr;
+
+        while (mem_list)
+        {
+            UBYTE i;
+            ULONG *p = (ULONG *)mem_list;
+
+            for (i = 0; i < sizeof(struct MemList) / sizeof(ULONG); i++)
+                checksum += p[i];
+
+            mem_list = (struct MemList *)mem_list->ml_Node.ln_Succ;
+            has_data = TRUE;
+        }
+    }
+
+    if (has_data && !checksum)
+        checksum--;
+
+    DPRINTF (LOG_DEBUG, "_exec: SumKickData returning 0x%08lx\n", checksum);
+    return checksum;
 }
 
 void _exec_AddMemList ( register struct ExecBase * SysBase __asm("a6"),
@@ -5211,6 +5269,22 @@ void coldstart (void)
     // init port list for AddPort/RemPort/FindPort
     NEWLIST (&SysBase->PortList);
     SysBase->PortList.lh_Type = NT_MSGPORT;
+
+    // init interrupt server lists and vectors
+    NEWLIST (&SysBase->IntrList);
+    SysBase->IntrList.lh_Type = NT_INTERRUPT;
+    for (int i = 0; i < 16; i++)
+    {
+        struct List *int_list = (struct List *)AllocMem(sizeof(struct List), MEMF_PUBLIC | MEMF_CLEAR);
+        if (int_list)
+        {
+            NEWLIST(int_list);
+            int_list->lh_Type = NT_INTERRUPT;
+            SysBase->IntVects[i].iv_Data = int_list;
+            SysBase->IntVects[i].iv_Code = NULL;
+            SysBase->IntVects[i].iv_Node = NULL;
+        }
+    }
 
     // init semaphore list for AddSemaphore/RemSemaphore/FindSemaphore
     NEWLIST (&SysBase->SemaphoreList);

@@ -15,6 +15,7 @@
 #include <exec/types.h>
 #include <exec/execbase.h>
 #include <exec/libraries.h>
+#include <exec/memory.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <clib/exec_protos.h>
@@ -24,6 +25,74 @@
 
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
+
+static const char g_test_library_name[] = "phase78test.library";
+
+static struct Library *test_init(register struct Library *lib __asm("d0"),
+                                 register BPTR seglist __asm("a0"),
+                                 register struct ExecBase *sys_base __asm("a6"))
+{
+    (void)seglist;
+    (void)sys_base;
+
+    lib->lib_Node.ln_Type = NT_LIBRARY;
+    lib->lib_Node.ln_Name = (char *)g_test_library_name;
+    lib->lib_Flags = LIBF_SUMUSED | LIBF_CHANGED;
+    lib->lib_Version = 5;
+    lib->lib_Revision = 1;
+    return lib;
+}
+
+static struct Library *test_open(register ULONG version __asm("d0"),
+                                 register struct Library *lib __asm("a6"))
+{
+    (void)version;
+    lib->lib_OpenCnt++;
+    lib->lib_Flags &= ~LIBF_DELEXP;
+    return lib;
+}
+
+static BPTR test_close(register struct Library *lib __asm("a6"))
+{
+    lib->lib_OpenCnt--;
+    return 0;
+}
+
+static BPTR test_expunge(register struct Library *lib __asm("a6"))
+{
+    if (lib->lib_OpenCnt == 0)
+    {
+        Remove(&lib->lib_Node);
+        return (BPTR)1;
+    }
+
+    lib->lib_Flags |= LIBF_DELEXP;
+    return 0;
+}
+
+static ULONG test_ext(void)
+{
+    return 0;
+}
+
+static ULONG test_old_function(void)
+{
+    return 0x11111111;
+}
+
+static ULONG test_new_function(void)
+{
+    return 0x22222222;
+}
+
+static APTR g_test_library_vectors[] = {
+    (APTR)test_open,
+    (APTR)test_close,
+    (APTR)test_expunge,
+    (APTR)test_ext,
+    (APTR)test_old_function,
+    (APTR)-1
+};
 
 static void print(const char *s)
 {
@@ -71,7 +140,7 @@ static int test_library_refcount(const char *name)
 {
     int errors = 0;
     struct Library *lib1, *lib2;
-    UWORD cnt_before, cnt_after_open1, cnt_after_open2, cnt_after_close1, cnt_after_close2;
+    UWORD cnt_after_open1, cnt_after_open2, cnt_after_close1, cnt_after_close2;
 
     print("--- Testing ");
     print(name);
@@ -179,6 +248,124 @@ static int test_library_refcount(const char *name)
     return errors;
 }
 
+static int test_exec_library_helpers(void)
+{
+    int errors = 0;
+    struct Library *lib;
+    struct Library *opened;
+    struct Node *found;
+    ULONG old_function;
+    ULONG old_sum;
+    UBYTE *lib_mem;
+    ULONG lib_size;
+
+    print("--- Test: Exec library helpers ---\n");
+
+    lib = MakeLibrary(g_test_library_vectors, NULL, (ULONG (*)())test_init, sizeof(struct Library), 0);
+    if (!lib)
+    {
+        print("FAIL: MakeLibrary returned NULL\n\n");
+        return 1;
+    }
+    print("OK: MakeLibrary returned non-NULL\n");
+
+    if (lib->lib_NegSize == 30)
+    {
+        print("OK: MakeLibrary computed 5 vectors of negative size\n");
+    }
+    else
+    {
+        print("FAIL: MakeLibrary negative size incorrect\n");
+        errors++;
+    }
+
+    AddLibrary(lib);
+    found = FindName(&SysBase->LibList, (CONST_STRPTR)g_test_library_name);
+    if (found == &lib->lib_Node)
+    {
+        print("OK: AddLibrary inserted library into LibList\n");
+    }
+    else
+    {
+        print("FAIL: AddLibrary did not insert library into LibList\n");
+        errors++;
+    }
+
+    opened = OpenLibrary((CONST_STRPTR)g_test_library_name, 5);
+    if (opened == lib)
+    {
+        print("OK: OpenLibrary found custom library\n");
+    }
+    else
+    {
+        print("FAIL: OpenLibrary did not return custom library\n");
+        errors++;
+    }
+
+    if (OpenLibrary((CONST_STRPTR)g_test_library_name, 6) == NULL)
+    {
+        print("OK: OpenLibrary rejected too-high version\n");
+    }
+    else
+    {
+        print("FAIL: OpenLibrary should reject too-high version\n");
+        errors++;
+    }
+
+    old_sum = lib->lib_Sum;
+    old_function = (ULONG)SetFunction(lib, -30, (VOID (*)())test_new_function);
+    if (old_function == (ULONG)test_old_function)
+    {
+        print("OK: SetFunction returned previous function pointer\n");
+    }
+    else
+    {
+        print("FAIL: SetFunction returned wrong previous function pointer\n");
+        errors++;
+    }
+
+    if (lib->lib_Sum != old_sum)
+    {
+        print("OK: SumLibrary updated checksum after SetFunction\n");
+    }
+    else
+    {
+        print("FAIL: SumLibrary did not update checksum after SetFunction\n");
+        errors++;
+    }
+
+    CloseLibrary(opened);
+    if (lib->lib_OpenCnt == 0)
+    {
+        print("OK: CloseLibrary decremented custom library open count\n");
+    }
+    else
+    {
+        print("FAIL: CloseLibrary did not decrement custom library open count\n");
+        errors++;
+    }
+
+    RemLibrary(lib);
+    found = FindName(&SysBase->LibList, (CONST_STRPTR)g_test_library_name);
+    if (found == NULL)
+    {
+        print("OK: RemLibrary expunged custom library from LibList\n");
+    }
+    else
+    {
+        print("FAIL: RemLibrary did not expunge custom library\n");
+        errors++;
+    }
+
+    lib_mem = (UBYTE *)lib - lib->lib_NegSize;
+    lib_size = lib->lib_NegSize + lib->lib_PosSize;
+    FreeMem(lib_mem, lib_size);
+
+    CloseLibrary(NULL);
+    print("OK: CloseLibrary(NULL) did not crash\n\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -227,6 +414,9 @@ int main(void)
             print("OK: OpenLibrary() correctly returned NULL for too-high version\n");
         }
     }
+
+    /* Test 5: Verify MakeLibrary/SetFunction/SumLibrary/AddLibrary/RemLibrary */
+    errors += test_exec_library_helpers();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

@@ -72,9 +72,12 @@ int main(void)
 {
     struct MsgPort *conPort;
     struct IOStdReq *conReq;
+    struct IOStdReq *conReq2;
     struct Window *window = NULL;
     LONG error;
     char readBuf[32];
+    struct Device *consoleDev;
+    UWORD openCnt1, openCnt2;
     
     print("Testing console.device async CMD_READ\n");
     print("======================================\n\n");
@@ -125,6 +128,17 @@ int main(void)
         return 1;
     }
     print("OK: IO request created\n");
+
+    if (conReq->io_Message.mn_ReplyPort == conPort) {
+        print("OK: Reply port stored in IO request\n");
+    } else {
+        print("FAIL: Reply port not stored in IO request\n");
+        DeleteIORequest((struct IORequest *)conReq);
+        DeleteMsgPort(conPort);
+        CloseWindow(window);
+        CloseLibrary((struct Library *)IntuitionBase);
+        return 1;
+    }
     
     /* Open console.device with the window */
     conReq->io_Data = (APTR)window;
@@ -142,6 +156,87 @@ int main(void)
         return 1;
     }
     print("OK: console.device opened\n");
+
+    if (conReq->io_Device != NULL) {
+        print("OK: OpenDevice stored device pointer\n");
+    } else {
+        print("FAIL: OpenDevice did not store device pointer\n");
+        DeleteIORequest((struct IORequest *)conReq);
+        DeleteMsgPort(conPort);
+        CloseWindow(window);
+        CloseLibrary((struct Library *)IntuitionBase);
+        return 1;
+    }
+
+    consoleDev = conReq->io_Device;
+    openCnt1 = consoleDev->dd_Library.lib_OpenCnt;
+    if (openCnt1 >= 1) {
+        print("OK: Device open count incremented\n");
+    } else {
+        print("FAIL: Device open count did not increment\n");
+        DeleteIORequest((struct IORequest *)conReq);
+        DeleteMsgPort(conPort);
+        CloseWindow(window);
+        CloseLibrary((struct Library *)IntuitionBase);
+        return 1;
+    }
+
+    conReq2 = (struct IOStdReq *)CreateIORequest(conPort, sizeof(struct IOStdReq));
+    if (!conReq2) {
+        print("FAIL: Cannot create second IO request\n");
+        CloseDevice((struct IORequest *)conReq);
+        DeleteIORequest((struct IORequest *)conReq);
+        DeleteMsgPort(conPort);
+        CloseWindow(window);
+        CloseLibrary((struct Library *)IntuitionBase);
+        return 1;
+    }
+
+    conReq2->io_Data = (APTR)window;
+    conReq2->io_Length = sizeof(struct Window);
+    error = OpenDevice((STRPTR)"console.device", 0, (struct IORequest *)conReq2, 0);
+    if (error != 0) {
+        print("FAIL: Cannot open console.device second time, error=");
+        print_num(error);
+        print("\n");
+        DeleteIORequest((struct IORequest *)conReq2);
+        CloseDevice((struct IORequest *)conReq);
+        DeleteIORequest((struct IORequest *)conReq);
+        DeleteMsgPort(conPort);
+        CloseWindow(window);
+        CloseLibrary((struct Library *)IntuitionBase);
+        return 1;
+    }
+
+    openCnt2 = conReq2->io_Device->dd_Library.lib_OpenCnt;
+    if (openCnt2 == openCnt1 + 1) {
+        print("OK: Second open increments device open count\n");
+    } else {
+        print("FAIL: Second open did not increment device open count\n");
+        CloseDevice((struct IORequest *)conReq2);
+        DeleteIORequest((struct IORequest *)conReq2);
+        CloseDevice((struct IORequest *)conReq);
+        DeleteIORequest((struct IORequest *)conReq);
+        DeleteMsgPort(conPort);
+        CloseWindow(window);
+        CloseLibrary((struct Library *)IntuitionBase);
+        return 1;
+    }
+
+    CloseDevice((struct IORequest *)conReq2);
+    if (consoleDev->dd_Library.lib_OpenCnt == openCnt1) {
+        print("OK: CloseDevice decremented open count\n");
+    } else {
+        print("FAIL: CloseDevice did not decrement open count\n");
+        DeleteIORequest((struct IORequest *)conReq2);
+        CloseDevice((struct IORequest *)conReq);
+        DeleteIORequest((struct IORequest *)conReq);
+        DeleteMsgPort(conPort);
+        CloseWindow(window);
+        CloseLibrary((struct Library *)IntuitionBase);
+        return 1;
+    }
+    DeleteIORequest((struct IORequest *)conReq2);
     
     /* Test 1: Verify CMD_READ goes async when no input available */
     print("\nTest 1: CMD_READ goes async when no input\n");
@@ -160,6 +255,12 @@ int main(void)
     } else {
         /* If IOF_QUICK is still set, it completed immediately (maybe had buffered data) */
         print("NOTE: Request completed immediately (IOF_QUICK set)\n");
+    }
+
+    if (!CheckIO((struct IORequest *)conReq)) {
+        print("OK: CheckIO reports pending async read\n");
+    } else {
+        print("NOTE: CheckIO reports immediate completion\n");
     }
     
     /* Test 2: AbortIO should cancel the pending read */
@@ -227,6 +328,28 @@ int main(void)
     /* Cleanup */
     CloseDevice((struct IORequest *)conReq);
     print("OK: console.device closed\n");
+
+    if (conReq->io_Device == NULL) {
+        print("OK: CloseDevice cleared device pointer\n");
+    } else {
+        print("FAIL: CloseDevice did not clear device pointer\n");
+        DeleteIORequest((struct IORequest *)conReq);
+        DeleteMsgPort(conPort);
+        CloseWindow(window);
+        CloseLibrary((struct Library *)IntuitionBase);
+        return 1;
+    }
+
+    if (consoleDev->dd_Library.lib_OpenCnt == openCnt1 - 1) {
+        print("OK: Final close restored open count\n");
+    } else {
+        print("FAIL: Final close did not restore open count\n");
+        DeleteIORequest((struct IORequest *)conReq);
+        DeleteMsgPort(conPort);
+        CloseWindow(window);
+        CloseLibrary((struct Library *)IntuitionBase);
+        return 1;
+    }
     
     DeleteIORequest((struct IORequest *)conReq);
     DeleteMsgPort(conPort);
