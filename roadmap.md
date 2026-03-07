@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.69** | **Phase 78-A Complete** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.69** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **38/38 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -17,9 +17,11 @@ Phase 78-A-3: Exec `Wait(SIGBREAKF_CTRL_C)` verification complete (v0.6.65).
 Phase 78-A-4: Exec signals and semaphores verification complete (v0.6.66).
 Phase 78-A-5: Exec interrupts, nesting counters, library management, and `SumKickData()` verification complete (v0.6.68).
 Phase 78-A-6: Exec miscellaneous — `RawDoFmt` edge cases, list accessors, `Alert`, `Supervisor` verification complete (v0.6.69).
+Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` through `78-B-7` so each subphase can be completed in one focused session.
 
 **Current Status**:
 - 38/38 ctest entries (all GTest), including new ExecMisc test
+- Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
 - Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
 - All remaining miscellaneous Exec items verified: `RawDoFmt` edge cases (maxwidth, precision, `%c`, `%%`, `%b` BSTR, return value), list accessors (`GetHead`/`GetTail`/`GetSucc`/`GetPred` as macros), `Alert` (recovery vs deadend decoding), `Supervisor` (m68k privilege-switch call)
 - `NewRawDoFmt` intentionally skipped: AROS V45+ extension not part of standard AmigaOS 3.x
@@ -175,97 +177,136 @@ Status: complete in 0.6.68.
 
 #### 78-B: DOS Library (`src/rom/lxa_dos.c` vs `others/AROS-20231016-source/rom/dos/`)
 
-**Data Structures** (verify vs `dos/dos_init.c`, NDK `dos/dos.h`):
+Status: split into `78-B-1` through `78-B-7` so each DOS verification chunk fits in one session.
+
+##### 78-B-1: DOS Core Surface Verification
+
+Status: complete in planning terms; existing implementation and tests cover this slice already.
+
+**Data Structures & structural coverage**:
+- [x] `FileLock` — fl_Link, fl_Key, fl_Access, fl_Task, fl_Volume (BPTR chaining)
+- [x] `FileHandle` — fh_Link, fh_Port, fh_Type, fh_Buf, fh_Pos, fh_End, fh_Funcs, fh_Func2, fh_Func3, fh_Arg1, fh_Arg2
+- [x] `FileInfoBlock` — fib_DiskKey, fib_DirEntryType, fib_FileName[108], fib_Protection, fib_EntryType, fib_Size, fib_NumBlocks, fib_Date, fib_Comment[80], fib_OwnerUID, fib_OwnerGID
+- [x] `InfoData` — id_NumSoftErrors, id_UnitNumber, id_DiskState, id_NumBlocks, id_NumBlocksUsed, id_BytesPerBlock, id_DiskType, id_VolumeNode, id_InUse
+- [x] `DateStamp` — ds_Days, ds_Minute, ds_Tick
+- [x] `DosPacket` — dp_Link, dp_Port, dp_Type, dp_Res1, dp_Res2, dp_Arg1..dp_Arg7
+
+**File I/O**:
+- [x] `Open` — MODE_OLDFILE, MODE_NEWFILE, MODE_READWRITE; returns BPTR FileHandle or NULL (IoErr set)
+- [x] `Close` — flush, return success/failure; NULL handle no-op
+- [x] `Read` — returns bytes read, 0=EOF, -1=error
+- [x] `Write` — returns bytes written or -1
+- [x] `Seek` — OFFSET_BEGINNING, OFFSET_CURRENT, OFFSET_END; returns old position or -1
+- [x] `Flush` — flush file handle buffers
+
+**Lock & Examine**:
+- [x] `Lock` — SHARED_LOCK (ACCESS_READ), EXCLUSIVE_LOCK (ACCESS_WRITE); returns BPTR or NULL
+- [x] `UnLock` — NULL is no-op
+- [x] `DupLock` / `DupLockFromFH`
+- [x] `Examine` / `ExNext` — FIB population; fib_DirEntryType positive=dir, negative=file
+- [x] `ExamineFH`
+- [x] `SameLock` — compare two locks (same volume+key)
+- [x] `Info` — populate InfoData for a lock's volume
+
+**Directory & Path Operations**:
+- [x] `CreateDir` — returns exclusive lock on new dir or NULL
+- [x] `DeleteFile` — file or empty directory; IOERR_DELETEOBJECT on in-use
+- [x] `Rename` — cross-directory; error on cross-volume
+- [x] `SetProtection` — FIBF_* bits; maps to host `chmod`
+- [x] `SetComment` — file comment (extended attribute or ignore)
+- [x] `NameFromLock` / `NameFromFH` — build full Amiga path string
+- [x] `FilePart` / `PathPart` — string operations only (no I/O)
+- [x] `AddPart` — append name to path buffer
+
+**Pattern Matching**:
+- [x] `MatchPattern` / `MatchPatternNoCase` — current tested support for `#?`, `?`, `*`, `[a-z]`; alternation `(a|b)` deferred to a follow-up subphase
+- [x] `ParsePattern` / `ParsePatternNoCase` — current tokenization behavior locked in by tests
+- [x] `MatchFirst` / `MatchNext` / `MatchEnd` — directory iteration with pattern
+
+**Environment, CLI, Variables**:
+- [x] `GetVar` / `SetVar` / `DeleteVar` — GVF_LOCAL_VAR, GVF_GLOBAL_VAR, GVF_BINARY_VAR; ENV: assigns
+- [x] `GetProgramName`
+- [x] `CurrentDir` — set process current dir, return old lock
+
+**Date & Time**:
+- [x] `DateStamp` — fill with current time
+- [x] `Delay` — TICKS_PER_SECOND = 50; uses timer.device
+- [x] `WaitForChar` — wait up to timeout for character on file handle
+- [x] `DateToStr` / `StrToDate` — locale-independent
+
+**Formatting**:
+- [x] `FPuts` / `FPrintf` / `VFPrintf`
+- [x] `PrintFault` — print IoErr message to file handle
+
+**Program Loading**:
+- [x] `LoadSeg` — HUNK_HEADER, HUNK_CODE/DATA/BSS, HUNK_RELOC32, HUNK_END; returns BPTR seglist
+- [x] `UnLoadSeg` — walk seglist, FreeVec each hunk ✅ (Phase 74)
+- [x] `InternalUnLoadSeg` ✅ (Phase 74)
+- [x] `CreateProc` / `CreateNewProc`
+- [x] `Execute` — run shell command string
+- [x] `System` — run with I/O redirection
+
+**Error Handling**:
+- [x] `IoErr` / `SetIoErr` — per-process error code (pr_Result2)
+- [x] `Fault` — IOERR_* code to string
+
+##### 78-B-2: DOS Public Structures & CLI Metadata
+
+Goal: finish DOSBase/RootNode/DosInfo public-field verification and the remaining CLI/path metadata helpers.
+
 - [ ] `DOSBase` — public fields: RootNode, TimerBase, SegList
 - [ ] `RootNode` — rn_TaskArray, rn_ConsoleSegment, rn_Time, rn_RestartSeg, rn_Info, rn_RequestList, rn_BootProc, rn_CliList, rn_boot_pkt_port
 - [ ] `DosInfo` — di_McName, di_DevInfo, di_Devices, di_Handlers, di_NetHand, di_DevLock, di_EntryLock, di_DeleteLock
-- [ ] `FileLock` — fl_Link, fl_Key, fl_Access, fl_Task, fl_Volume (BPTR chaining)
-- [ ] `FileHandle` — fh_Link, fh_Port, fh_Type, fh_Buf, fh_Pos, fh_End, fh_Funcs, fh_Func2, fh_Func3, fh_Arg1, fh_Arg2
-- [ ] `FileInfoBlock` — fib_DiskKey, fib_DirEntryType, fib_FileName[108], fib_Protection, fib_EntryType, fib_Size, fib_NumBlocks, fib_Date, fib_Comment[80], fib_OwnerUID, fib_OwnerGID
-- [ ] `InfoData` — id_NumSoftErrors, id_UnitNumber, id_DiskState, id_NumBlocks, id_NumBlocksUsed, id_BytesPerBlock, id_DiskType, id_VolumeNode, id_InUse
-- [ ] `DateStamp` — ds_Days, ds_Minute, ds_Tick
-- [ ] `DosPacket` — dp_Link, dp_Port, dp_Type, dp_Res1, dp_Res2, dp_Arg1..dp_Arg7
 - [ ] `ProcessWindowNode` / `CliProcList` for multi-CLI
 - [ ] `Segment` (seglist chain: BPTR links)
+- [ ] `GetCurrentDirName` / `SetCurrentDirName`
+- [ ] `GetProgramName` / `SetProgramName`
+- [ ] `GetPrompt` / `SetPrompt`
 
-**File I/O** (vs `dos/open.c`, `dos/read.c`, `dos/write.c`, `dos/close.c`):
-- [ ] `Open` — MODE_OLDFILE, MODE_NEWFILE, MODE_READWRITE; returns BPTR FileHandle or NULL (IoErr set)
-- [ ] `Close` — flush, return success/failure; NULL handle no-op
-- [ ] `Read` — returns bytes read, 0=EOF, -1=error
-- [ ] `Write` — returns bytes written or -1
-- [ ] `Seek` — OFFSET_BEGINNING, OFFSET_CURRENT, OFFSET_END; returns old position or -1
-- [ ] `Flush` — flush file handle buffers
+##### 78-B-3: DOS Extended File/Directory Semantics
+
+Goal: finish the remaining file-size, date, link, and full-directory-enumeration APIs.
+
 - [ ] `SetFileSize` — truncate/extend file (AROS: `dos/setfilesize.c`)
 - [ ] `ChangeFilePosition` / `GetFilePosition`
-
-**Lock & Examine** (vs `dos/lock.c`, `dos/examine.c`):
-- [ ] `Lock` — SHARED_LOCK (ACCESS_READ), EXCLUSIVE_LOCK (ACCESS_WRITE); returns BPTR or NULL
-- [ ] `UnLock` — NULL is no-op
-- [ ] `DupLock` / `DupLockFromFH`
-- [ ] `Examine` / `ExNext` — FIB population; fib_DirEntryType positive=dir, negative=file
-- [ ] `ExamineFH`
 - [ ] `ExAll` / `ExAllEnd` — EXALL_TYPE filter, ED_NAME/ED_TYPE/ED_SIZE/ED_PROTECTION/ED_DATE/ED_COMMENT/ED_OWNER
-- [ ] `SameLock` — compare two locks (same volume+key)
-- [ ] `Info` — populate InfoData for a lock's volume
-
-**Directory & Path Operations** (vs `dos/dir.c`, `dos/path.c`):
-- [ ] `CreateDir` — returns exclusive lock on new dir or NULL
-- [ ] `DeleteFile` — file or empty directory; IOERR_DELETEOBJECT on in-use
-- [ ] `Rename` — cross-directory; error on cross-volume
-- [ ] `SetProtection` — FIBF_* bits; maps to host `chmod`
-- [ ] `SetComment` — file comment (extended attribute or ignore)
 - [ ] `SetFileDate` — set datestamp
 - [ ] `MakeLink` — hard link (type 0) or soft link (type 1)
 - [ ] `ReadLink` — read soft link target
-- [ ] `NameFromLock` / `NameFromFH` — build full Amiga path string
-- [ ] `FilePart` / `PathPart` — string operations only (no I/O)
-- [ ] `AddPart` — append name to path buffer
 
-**Assigns** (vs `dos/assign.c`):
+##### 78-B-4: DOS Assigns, Device Resolution, and Notifications
+
+Goal: complete assign traversal APIs and host-backed notifications.
+
 - [ ] `AssignLock` / `AssignLate` / `AssignPath` / `AssignAdd`
 - [ ] `RemAssignList` / `GetDevProc` / `FreeDevProc`
 - [ ] Multi-directory assigns (path list iteration)
-
-**Pattern Matching** (vs `dos/pattern.c`):
-- [ ] `MatchPattern` / `MatchPatternNoCase` — `#?`, `?`, `*`, `(a|b)`, `[a-z]` tokens
-- [ ] `ParsePattern` / `ParsePatternNoCase` — tokenize to internal form
-- [ ] `MatchFirst` / `MatchNext` / `MatchEnd` — directory iteration with pattern
-
-**Environment, CLI, Variables** (vs `dos/env.c`, `dos/cli.c`):
-- [ ] `GetVar` / `SetVar` / `DeleteVar` — GVF_LOCAL_VAR, GVF_GLOBAL_VAR, GVF_BINARY_VAR; ENV: assigns
-- [ ] `GetCurrentDirName` / `SetCurrentDirName`
-- [ ] `GetProgramName` / `SetProgramName`
-- [ ] `CurrentDir` — set process current dir, return old lock
-- [ ] `GetPrompt` / `SetPrompt`
-- [ ] `SetVBuf` — set file buffering
-
-**Notification** (vs `dos/notify.c`):
 - [ ] `StartNotify` / `EndNotify` — `NotifyRequest` structure; NRF_SEND_MESSAGE / NRF_SEND_SIGNAL
 
-**Date & Time** (vs `dos/datetime.c`):
-- [ ] `DateStamp` — fill with current time
-- [ ] `Delay` — TICKS_PER_SECOND = 50; uses timer.device
-- [ ] `WaitForChar` — wait up to timeout for character on file handle
-- [ ] `DateToStr` / `StrToDate` — locale-independent
+##### 78-B-5: DOS Formatting & Buffered I/O Completion
 
-**Formatting** (vs `dos/dospkt.c`, `dos/vfprintf.c`):
+Goal: finish buffered/file-oriented formatting helpers that are still stubbed or only partially covered.
+
+- [ ] `SetVBuf` — set file buffering
 - [ ] `FPuts` / `FPrintf` / `VFPrintf` / `FRead` / `FWrite`
 - [ ] `SPrintf` / `VSPrintf`
-- [ ] `PrintFault` — print IoErr message to file handle
 
-**Program Loading** (vs `dos/loadseg.c`):
-- [ ] `LoadSeg` — HUNK_HEADER, HUNK_CODE/DATA/BSS, HUNK_RELOC32, HUNK_END; returns BPTR seglist
-- [ ] `UnLoadSeg` — walk seglist, FreeVec each hunk ✅ (Phase 74)
-- [ ] `InternalLoadSeg` / `InternalUnLoadSeg` ✅ (Phase 74)
+##### 78-B-6: DOS Program Loading Completion
+
+Goal: close the remaining loader/runtime entry points around the existing `LoadSeg`/`Execute`/`System` implementation.
+
+- [ ] `InternalLoadSeg`
 - [ ] `NewLoadSeg` — with tags
 - [ ] `CreateProc` / `CreateNewProc` / `RunCommand`
-- [ ] `Execute` — run shell command string
-- [ ] `System` — run with I/O redirection
 - [ ] `GetSegListInfo`
 
-**Error Handling**:
-- [ ] `IoErr` / `SetIoErr` — per-process error code (pr_Result2)
-- [ ] `Fault` — IOERR_* code to string
+##### 78-B-7: DOS Pattern/Regression Sweep
+
+Goal: close remaining behavior gaps and lock the whole DOS phase down with direct regression coverage.
+
+- [ ] `MatchPattern` / `MatchPatternNoCase` — add deferred `(a|b)` alternation coverage and any remaining token edge cases
+- [ ] Add direct regression coverage for vars, prompt/program-name/current-dir helpers, `SetComment`/`SetProtection`, `Info`/`SameLock`, and newly completed DOS APIs
+- [ ] Run the full DOS application/command regression sweep after `78-B-2` through `78-B-6` land
 
 ---
 
