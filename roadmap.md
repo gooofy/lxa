@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.75** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.76** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -41,8 +41,10 @@ Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` thro
 - Completed Phase 78-B-4 DOS assign/device/notify support: `AssignLock`/`AssignLate`/`AssignPath`/`AssignAdd`/`RemAssignList` now handle multi-directory assign iteration and per-path removal, `GetDevProc`/`FreeDevProc` return iterable assign targets, and `StartNotify`/`EndNotify` deliver host-polled notify messages/signals through the VBlank path
 - Completed Phase 78-B-5 buffered DOS I/O helpers: `SetVBuf`, `FRead`, `FWrite`, `FPuts`, `VFPrintf`, and `FWritef`-style varargs flows now run through host-backed buffered helpers with direct DOS regression coverage for block reads/writes, line buffering, and `UnGetC` interaction
 - Verified against NDK/AROS references that `SPrintf`/`VSPrintf` are not public AmigaOS 3.x DOS APIs, so they are removed from the DOS roadmap scope instead of being exposed as new non-standard vectors
+- Completed Phase 78-B-6 DOS loader/runtime coverage: `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, and `GetSegListInfo` now work with direct regression coverage for hunk seglists, synchronous loaded-program execution, and `CreateProc()` child startup behavior
 - Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j8` is green again
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
+- Fixed the unrelated `commands_gtest` failure in `TYPE`: failed opens now preserve the host-reported `IoErr()` instead of collapsing to stale zero/incorrect errors
 - Test-suite scheduling improved: sharded `gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, and `cluster2` into smaller CTest entries, reducing `ctest -j8` wall time from about 124s to about 95s while keeping total CPU time roughly flat
 
 ---
@@ -307,13 +309,15 @@ Goal: finish buffered/file-oriented formatting helpers that are still stubbed or
 
 ##### 78-B-6: DOS Program Loading Completion
 
+Status: complete in 0.6.76.
+
 Goal: close the remaining loader/runtime entry points around the existing `LoadSeg`/`Execute`/`System` implementation.
 
-- [ ] Fix regression: ctest is still failing on the unrelated commands_gtest type command
-- [ ] `InternalLoadSeg`
-- [ ] `NewLoadSeg` — with tags
-- [ ] `CreateProc` / `CreateNewProc` / `RunCommand`
-- [ ] `GetSegListInfo`
+- [x] Fix regression: ctest is still failing on the unrelated commands_gtest type command
+- [x] `InternalLoadSeg`
+- [x] `NewLoadSeg` — with tags
+- [x] `CreateProc` / `CreateNewProc` / `RunCommand`
+- [x] `GetSegListInfo`
 
 ##### 78-B-7: DOS Pattern/Regression Sweep
 
@@ -828,6 +832,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| **0.6.76** | 78-B-6 | Completed DOS program-loading/runtime coverage by implementing `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, and `GetSegListInfo`, added direct loader/runtime regression tests, and fixed the unrelated `commands_gtest` `TYPE` `IoErr()` regression. |
 | **0.6.75** | 78-B-5 | Completed DOS buffered formatting/I/O coverage by implementing `SetVBuf`, `FRead`, `FWrite`, `FPuts`, and host-backed formatted file output paths with direct regression coverage for block I/O, line buffering, and `UnGetC`; removed non-standard DOS `SPrintf`/`VSPrintf` from scope after NDK/AROS verification. |
 | **0.6.74** | 78-B-4 | Completed DOS assign/device/notify coverage by adding per-path multi-assign removal, iterable `GetDevProc`/`FreeDevProc`, and host-polled `StartNotify`/`EndNotify` delivery through the VBlank path, with direct DOS regression coverage. |
 | **0.6.73** | 78-B-3 | Completed DOS extended file semantics with host-backed `SetFileDate`, `ExAll`/`ExAllEnd`, and `MakeLink`/`ReadLink`, plus regression coverage for directory enumeration, filtering, soft links, and hard links; `ChangeFilePosition`/`GetFilePosition` remain deferred pending a verified public API reference. |

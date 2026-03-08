@@ -129,6 +129,8 @@ set(TESTS_LIST
     "../tests/dos/case_path|main|Tests/Dos/CasePath"
     "../tests/dos/assign_notify|main|Tests/Dos/AssignNotify"
     "../tests/dos/bufferedio|main|Tests/Dos/BufferedIO"
+    "../tests/dos/loadseg_runtime|main|Tests/Dos/LoadSegRuntime"
+    "../tests/dos/loader_child|main|Tests/Dos/LoaderChild"
     "../tests/commands/assign|main|Tests/Commands/Assign"
     "../tests/commands/avail|main|Tests/Commands/Avail"
     "../tests/commands/break_cmd|main|Tests/Commands/Break"

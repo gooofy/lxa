@@ -110,6 +110,34 @@ struct lxa_dos_buffer_state
 static void lxa_dos_sprintf_hook(register UBYTE ch __asm("d0"),
                                  register STRPTR *cursor __asm("a3"));
 
+static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
+                                   BPTR fh,
+                                   CONST_STRPTR debug_name,
+                                   BOOL close_handle);
+
+struct lxa_dos_exit_cleanup
+{
+    BPTR seglist;
+    char *args;
+    BPTR close_input;
+    BPTR close_output;
+    LONG *result_ptr;
+};
+
+static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data);
+
+static void lxa_dos_runcommand_exit_cleanup(LONG return_code, LONG exit_data)
+{
+    struct lxa_dos_exit_cleanup *cleanup = (struct lxa_dos_exit_cleanup *)exit_data;
+
+    if (cleanup && cleanup->result_ptr)
+        *cleanup->result_ptr = return_code;
+
+    lxa_dos_process_exit_cleanup(return_code, exit_data);
+}
+
+#define GSLI_68KHUNK_TAG (TAG_USER + 4005)
+
 LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register CONST_STRPTR command  __asm("d1"),
                                     register const struct TagItem * tags __asm("d2"));
@@ -1279,7 +1307,7 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
         }
         else
         {
-            error = IoErr();
+            error = fh->fh_Arg2 ? fh->fh_Arg2 : err;
             FreeDosObject (DOS_FILEHANDLE, fh);
         }
     }
@@ -1855,228 +1883,217 @@ BOOL _read_string (register struct DosLibrary * DOSBase __asm("a6"), BPTR f, cha
     return TRUE;
 }
 
-BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
-                    register CONST_STRPTR        ___name   __asm("d1"))
+static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
+                                   BPTR fh,
+                                   CONST_STRPTR debug_name,
+                                   BOOL close_handle)
 {
-    DPRINTF (LOG_INFO, "_dos: LoadSeg() called, name=%s\n", ___name);
-
     BOOL success = FALSE;
+    ULONG table_size = 0;
+    ULONG hunk_first_slot = 0;
+    ULONG last_hunk_slot = 0;
+    ULONG *hunk_table = NULL;
+    ULONG hunk_first = 0;
+    CONST_STRPTR load_name = debug_name ? debug_name : (CONST_STRPTR)"<fh>";
 
-    BPTR f = Open (___name, MODE_OLDFILE);
-    if (!f)
+    if (!fh)
     {
-        LPRINTF (LOG_ERROR, "_dos: LoadSeg() Open() for name=%s failed\n", ___name);
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
         return 0;
     }
 
-    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() Open() for name=%s worked, BPTR f=0x%08lx\n", ___name, f);
-
-    // read hunk HEADER
-
-    ULONG ht;
-    if (Read (f, &ht, 4) != 4)
-    {
-        DPRINTF (LOG_DEBUG, "_dos: LoadSeg() failed to read header hunk type\n");
+    if (Seek(fh, 0, OFFSET_BEGINNING) < 0)
         goto finish;
-    }
-    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() header hunk type: 0x%08lx\n", ht);
 
-    if (ht != HUNK_TYPE_HEADER)
     {
-        DPRINTF (LOG_DEBUG, "_dos: LoadSeg() invalid header hunk type\n");
-        goto finish;
-    }
-
-    ULONG num_longs;
-    if (Read (f, &num_longs, 4) != 4)
-    {
-        DPRINTF (LOG_DEBUG, "_dos: LoadSeg() failed to read hunk table size\n");
-        goto finish;
-    }
-    if (num_longs)
-    {
-        // FIXME: implement
-        DPRINTF (LOG_DEBUG, "_dos: LoadSeg() sorry, library names are not implemented yet\n");
-        goto finish;
+        ULONG ht;
+        if (Read(fh, &ht, 4) != 4)
+        {
+            DPRINTF(LOG_DEBUG, "_dos: LoadSeg() failed to read header hunk type\n");
+            goto finish;
+        }
+        DPRINTF(LOG_DEBUG, "_dos: LoadSeg() header hunk type: 0x%08lx\n", ht);
+        if (ht != HUNK_TYPE_HEADER)
+        {
+            SetIoErr(ERROR_FILE_NOT_OBJECT);
+            goto finish;
+        }
     }
 
-    ULONG table_size;
-    ULONG hunk_first_slot;
-    ULONG last_hunk_slot;
+    {
+        ULONG num_longs;
+        if (Read(fh, &num_longs, 4) != 4)
+            goto finish;
+        if (num_longs)
+        {
+            SetIoErr(ERROR_FILE_NOT_OBJECT);
+            goto finish;
+        }
+    }
 
-    if (Read (f, &table_size, 4) != 4)
+    if (Read(fh, &table_size, 4) != 4)
         goto finish;
-    if (Read (f, &hunk_first_slot, 4) != 4)
+    if (Read(fh, &hunk_first_slot, 4) != 4)
         goto finish;
-    if (Read (f, &last_hunk_slot, 4) != 4)
+    if (Read(fh, &last_hunk_slot, 4) != 4)
         goto finish;
 
-    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() reading hunk header, table_size=%d, hunk_first_slot=%d, last_hunk_slot=%d\n", table_size, hunk_first_slot, last_hunk_slot);
+    DPRINTF(LOG_DEBUG,
+            "_dos: LoadSeg() reading hunk header, table_size=%ld, hunk_first_slot=%ld, last_hunk_slot=%ld\n",
+            table_size, hunk_first_slot, last_hunk_slot);
 
-    ULONG *hunk_table = AllocVec ((table_size + 2)*4, MEMF_CLEAR);
+    hunk_table = AllocVec((table_size + 2) * 4, MEMF_CLEAR);
     if (!hunk_table)
-        goto finish;
-
-    ULONG hunk_prev = 0;
-    ULONG hunk_first = 0;
-    for (int i = hunk_first_slot; i <= last_hunk_slot; i++)
     {
-        ULONG cnt;
-
-        if (Read(f, &cnt, 4) != 4)
-            goto finish;
-
-        ULONG mem_flags = (cnt & 0xC0000000) >> 29;
-        ULONG mem_size  = (cnt & 0x3FFFFFFF) * 4;
-
-        ULONG req = MEMF_CLEAR | MEMF_PUBLIC;
-        if (mem_flags == (MEMF_FAST | MEMF_CHIP))
-        {
-            if (Read(f, &req, 4) != 4)
-                goto finish;
-        }
-        else
-        {
-            req |= mem_flags;
-        }
-
-        mem_size += 8; // leave room for the hunk length and the next hunk pointer
-        void *hunk_ptr = AllocVec (mem_size, req);
-        if (!hunk_ptr)
-            goto finish;
-        hunk_table[i] = MKBADDR(hunk_ptr);
-
-        DPRINTF (LOG_DEBUG, "_dos: LoadSeg() hunk %3d size=%6d, flags=0x%08lx, req=0x%08lx -> 0x%08lx\n", i, mem_size, mem_flags, req, hunk_ptr);
-
-        // link hunks
-        if (!hunk_first)
-            hunk_first = hunk_table[i];
-        if (hunk_prev)
-            ((BPTR *)(BADDR(hunk_prev)))[0] = hunk_table[i];
-        hunk_prev = hunk_table[i];
+        SetIoErr(ERROR_NO_FREE_STORE);
+        goto finish;
     }
 
-    // read hunks
-
-    ULONG hunk_type;
-    ULONG hunk_cur = hunk_first_slot;
-    ULONG hunk_last = 0;
-    while ( Read (f, &hunk_type, 4) == 4)
     {
-        /* Mask off memory flags (upper 2 bits) and any extended flags */
-        DPRINTF (LOG_DEBUG, "_dos: LoadSeg() reading hunk #%3d type 0x%08lx (raw)\n", hunk_cur, hunk_type);
-        hunk_type = hunk_type & 0x3FFFFFFF;
+        ULONG hunk_prev = 0;
+        ULONG i;
 
-        switch (hunk_type)
+        for (i = hunk_first_slot; i <= last_hunk_slot; i++)
         {
-            case HUNK_TYPE_CODE:
-            case HUNK_TYPE_DATA:
-            case HUNK_TYPE_BSS:
+            ULONG cnt;
+            ULONG mem_flags;
+            ULONG mem_size;
+            ULONG req = MEMF_CLEAR | MEMF_PUBLIC;
+            void *hunk_ptr;
+
+            if (Read(fh, &cnt, 4) != 4)
+                goto finish;
+
+            mem_flags = (cnt & 0xC0000000) >> 29;
+            mem_size = (cnt & 0x3FFFFFFF) * 4;
+
+            if (mem_flags == (MEMF_FAST | MEMF_CHIP))
             {
-                ULONG cnt;
-
-                if (Read(f, &cnt, 4) != 4)
+                if (Read(fh, &req, 4) != 4)
                     goto finish;
-
-                if (hunk_type != HUNK_TYPE_BSS)
-                {
-                    APTR hunk_mem = BADDR(hunk_table[hunk_cur]+1);
-                    ULONG hunk_size = cnt*4;
-                    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() reading CODE/DATA hunk data hunk_size=%ld, hunk_mem=0x%08lx\n", hunk_size, hunk_mem);
-                    if (Read (f, hunk_mem, hunk_size) != hunk_size)
-                        goto finish;
-                }
-                else
-                {
-                    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() encountered BSS hunk\n");
-                }
-
-                hunk_last = hunk_cur;
-                hunk_cur ++ ;
-                break;
+            }
+            else
+            {
+                req |= mem_flags;
             }
 
-            case HUNK_TYPE_RELOC32:
+            mem_size += 8;
+            hunk_ptr = AllocVec(mem_size, req);
+            if (!hunk_ptr)
             {
-                while (TRUE)
+                SetIoErr(ERROR_NO_FREE_STORE);
+                goto finish;
+            }
+
+            hunk_table[i] = MKBADDR(hunk_ptr);
+            if (!hunk_first)
+                hunk_first = hunk_table[i];
+            if (hunk_prev)
+                ((BPTR *)(BADDR(hunk_prev)))[0] = hunk_table[i];
+            hunk_prev = hunk_table[i];
+        }
+    }
+
+    {
+        ULONG hunk_type;
+        ULONG hunk_cur = hunk_first_slot;
+        ULONG hunk_last = 0;
+
+        while (Read(fh, &hunk_type, 4) == 4)
+        {
+            hunk_type &= 0x3FFFFFFF;
+
+            switch (hunk_type)
+            {
+                case HUNK_TYPE_CODE:
+                case HUNK_TYPE_DATA:
+                case HUNK_TYPE_BSS:
                 {
                     ULONG cnt;
-
-                    if (Read(f, &cnt, 4) != 4)
-                        goto finish;
-                    if (!cnt)
-                        break;
-
-                    ULONG hunk_id;
-                    if (Read(f, &hunk_id, 4) != 4)
+                    if (Read(fh, &cnt, 4) != 4)
                         goto finish;
 
-                    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() RELOC32 Hunk #%ld, cnt=%ld entries\n", hunk_id, cnt);
-                    while (cnt > 0)
+                    if (hunk_type != HUNK_TYPE_BSS)
                     {
-                        ULONG offset;
-                        if (Read(f, &offset, 4) != 4)
+                        APTR hunk_mem = BADDR(hunk_table[hunk_cur] + 1);
+                        ULONG hunk_size = cnt * 4;
+                        if (Read(fh, hunk_mem, hunk_size) != hunk_size)
+                            goto finish;
+                    }
+
+                    hunk_last = hunk_cur;
+                    hunk_cur++;
+                    break;
+                }
+
+                case HUNK_TYPE_RELOC32:
+                {
+                    while (TRUE)
+                    {
+                        ULONG cnt;
+                        ULONG hunk_id;
+
+                        if (Read(fh, &cnt, 4) != 4)
+                            goto finish;
+                        if (!cnt)
+                            break;
+                        if (Read(fh, &hunk_id, 4) != 4)
                             goto finish;
 
-                        ULONG *addr = (ULONG *)(BADDR(hunk_table[hunk_last]+1) + offset);
+                        while (cnt > 0)
+                        {
+                            ULONG offset;
+                            ULONG *addr;
 
-                        ULONG old_val = *addr;
-                        ULONG val = old_val + (ULONG)BADDR(hunk_table[hunk_id]+1);
-
-                        DPRINTF (LOG_DEBUG, "_dos: LoadSeg() RELOC32: hunk %ld offset 0x%lx: 0x%08lx + 0x%08lx -> 0x%08lx\n",
-                                 hunk_last, offset, old_val, (ULONG)BADDR(hunk_table[hunk_id]+1), val);
-
-                        *addr = val;
-
-                        cnt--;
+                            if (Read(fh, &offset, 4) != 4)
+                                goto finish;
+                            addr = (ULONG *)(BADDR(hunk_table[hunk_last] + 1) + offset);
+                            *addr += (ULONG)BADDR(hunk_table[hunk_id] + 1);
+                            cnt--;
+                        }
                     }
+                    break;
                 }
-                break;
-            }
 
-            case HUNK_TYPE_SYMBOL:
-            {
-                //DPRINTF (LOG_DEBUG, "_dos: LoadSeg() HUNK_SYMBOL detected\n");
-                while (TRUE)
+                case HUNK_TYPE_SYMBOL:
                 {
-                    char *name;
-                    if (!_read_string (DOSBase, f, &name))
-                        goto finish;
-                    if (!name)
-                        break;
+                    while (TRUE)
+                    {
+                        char *name;
+                        ULONG offset;
+                        ULONG hunk_base;
 
-                    //DPRINTF (LOG_DEBUG, "_dos: LoadSeg() SYMBOL name=%s\n", name);
-                    ULONG offset;
-                    if (Read(f, &offset, 4) != 4)
-                        goto finish;
+                        if (!_read_string(DOSBase, fh, &name))
+                            goto finish;
+                        if (!name)
+                            break;
+                        if (Read(fh, &offset, 4) != 4)
+                            goto finish;
 
-                    ULONG hunk_base = (intptr_t) BADDR(hunk_table[hunk_last]+1);
-                    ULONG addr = hunk_base + offset;
-                    DPRINTF (LOG_DEBUG, "_dos: LoadSeg() SYMBOL %s at 0x%08lx of hunk at 0x%08lx -> 0x%08lx\n",
-                                        name, offset, hunk_base, addr);
-
-                    emucall2 (EMU_CALL_SYMBOL, addr, (intptr_t) name);
+                        hunk_base = (ULONG)BADDR(hunk_table[hunk_last] + 1);
+                        emucall2(EMU_CALL_SYMBOL, hunk_base + offset, (intptr_t)name);
+                    }
+                    break;
                 }
-                break;
+
+                case HUNK_TYPE_END:
+                    break;
+
+                case HUNK_TYPE_DEBUG:
+                {
+                    ULONG cnt;
+                    if (Read(fh, &cnt, 4) != 4)
+                        goto finish;
+                    if (Seek(fh, cnt * 4, OFFSET_CURRENT) < 0)
+                        goto finish;
+                    break;
+                }
+
+                default:
+                    SetIoErr(ERROR_FILE_NOT_OBJECT);
+                    LPRINTF(LOG_ERROR, "_dos: LoadSeg() unknown hunk type 0x%08lx in file %s\n", hunk_type, load_name);
+                    goto finish;
             }
-
-            case HUNK_TYPE_END:
-                break;
-
-            case HUNK_TYPE_DEBUG:
-			{
-				ULONG cnt;
-                if (Read(f, &cnt, 4)!=4)
-                    goto finish;
-
-                if (Seek(f, cnt*4, OFFSET_CURRENT)<0)
-                    goto finish;
-                break;
-			}
-
-            default:
-                LPRINTF(LOG_ERROR, "_dos: LoadSeg() unknown hunk type 0x%08lx in file %s\n", hunk_type, ___name);
-                assert(FALSE);
         }
     }
 
@@ -2085,32 +2102,50 @@ BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
 finish:
     {
         LONG err = IoErr();
+        ULONG i;
 
-        if (!success)
-            DPRINTF (LOG_INFO, "_dos: LoadSeg() failed to load %s, err=%ld\n", ___name, err);
+        if (close_handle)
+            Close(fh);
 
-        Close (f);
-
-        SetIoErr (err);
+        SetIoErr(err);
 
         if (!success)
         {
-
-            for (int i = hunk_first_slot; i <= last_hunk_slot; i++)
-            {
-                if (!hunk_table[i])
-                    continue;
-                FreeVec (BADDR(hunk_table[i]));
-            }
             if (hunk_table)
-                FreeVec (hunk_table);
+            {
+                for (i = hunk_first_slot; i <= last_hunk_slot; i++)
+                {
+                    if (hunk_table[i])
+                        FreeVec(BADDR(hunk_table[i]));
+                }
+                FreeVec(hunk_table);
+            }
             hunk_first = 0;
+        }
+        else if (hunk_table)
+        {
+            FreeVec(hunk_table);
         }
     }
 
-    DPRINTF (LOG_INFO, "_dos: LoadSeg() done, result: 0x%08lx\n", hunk_first);
-
     return hunk_first;
+}
+
+BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
+                    register CONST_STRPTR        ___name   __asm("d1"))
+{
+    BPTR f;
+
+    DPRINTF(LOG_INFO, "_dos: LoadSeg() called, name=%s\n", STRORNULL(___name));
+
+    f = Open(___name, MODE_OLDFILE);
+    if (!f)
+    {
+        LPRINTF(LOG_ERROR, "_dos: LoadSeg() Open() for name=%s failed\n", STRORNULL(___name));
+        return 0;
+    }
+
+    return lxa_dos_loadseg_handle(DOSBase, f, ___name, TRUE);
 }
 
 void _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
@@ -3970,11 +4005,15 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     BPTR   seglist   =          GetTagData(NP_Seglist  , 0                    , tags);
     BOOL   do_cli    =          GetTagData(NP_Cli      , 0                    , tags);
     APTR   windowPtr = (APTR)   GetTagData(NP_WindowPtr, 0                    , tags);
+    BOOL   freeSeglist =        GetTagData(NP_FreeSeglist, FALSE              , tags);
+    BOOL   closeInput  =        GetTagData(NP_CloseInput, FALSE               , tags);
+    BOOL   closeOutput =        GetTagData(NP_CloseOutput, FALSE              , tags);
            inp       =          GetTagData(NP_Input    , inp                  , tags);
            outp      =          GetTagData(NP_Output   , outp                 , tags);
     char  *args      = (char*)  GetTagData(NP_Arguments, (ULONG)NULL          , tags);
     BPTR   curdir    =          GetTagData(NP_CurrentDir, 0                   , tags);
     BOOL   hasWindowPtrTag = tag_exists(NP_WindowPtr, tags);
+    struct lxa_dos_exit_cleanup *cleanup = NULL;
 
     // Enforce minimum stack size
     if (stackSize < MIN_STACK_SIZE)
@@ -4006,6 +4045,23 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
         args = nargs;
     }
 
+    if (freeSeglist || args || closeInput || closeOutput)
+    {
+        cleanup = (struct lxa_dos_exit_cleanup *)AllocVec(sizeof(*cleanup), MEMF_CLEAR | MEMF_PUBLIC);
+        if (!cleanup)
+        {
+            if (args)
+                FreeVec(args);
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return NULL;
+        }
+
+        cleanup->seglist = freeSeglist ? seglist : 0;
+        cleanup->args = args;
+        cleanup->close_input = closeInput ? inp : 0;
+        cleanup->close_output = closeOutput ? outp : 0;
+    }
+
     // create process
 
     struct Process *process = (struct Process *) U_allocTask (name, pri, stackSize, /*isProcess=*/ TRUE);
@@ -4032,6 +4088,8 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
             // Note: process is on tc_MemEntry, will be cleaned up by RemTask eventually,
             // but since we haven't added it to TaskReady yet, we need to free it manually
             U_freeTask (&process->pr_Task);
+            if (cleanup)
+                FreeVec(cleanup);
             if (args)
                 FreeVec (args);
             return NULL;
@@ -4072,6 +4130,8 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     process->pr_CIS = inp;
     process->pr_COS = outp;
     process->pr_CurrentDir = curdir;
+    process->pr_ExitCode = cleanup ? (APTR)lxa_dos_process_exit_cleanup : NULL;
+    process->pr_ExitData = (LONG)cleanup;
 
     if (hasWindowPtrTag)
         process->pr_WindowPtr = windowPtr;
@@ -4104,9 +4164,94 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR paramptr __asm("d3"),
                                                         register LONG paramlen __asm("d4"))
 {
-    LPRINTF (LOG_ERROR, "_dos: RunCommand() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct Process *child;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    BPTR curDir = 0;
+    LONG result = -1;
+    ULONG oldSig;
+    struct RootNode *root;
+    struct MsgPort *childPort;
+    LONG taskNum;
+    struct lxa_dos_exit_cleanup *cleanup;
+    struct TagItem procTags[] = {
+        { NP_Seglist, 0 },
+        { NP_Name, (ULONG)"RunCommand" },
+        { NP_StackSize, 0 },
+        { NP_Cli, TRUE },
+        { NP_Input, 0 },
+        { NP_Output, 0 },
+        { NP_Arguments, 0 },
+        { NP_CurrentDir, 0 },
+        { NP_FreeSeglist, FALSE },
+        { TAG_DONE, 0 }
+    };
+    if (!me || !seg)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return -1;
+    }
+
+    if (stack < MIN_STACK_SIZE)
+        stack = MIN_STACK_SIZE;
+
+    if (me->pr_CurrentDir)
+        curDir = DupLock(me->pr_CurrentDir);
+
+    procTags[0].ti_Data = seg;
+    procTags[2].ti_Data = (ULONG)stack;
+    procTags[4].ti_Data = me->pr_CIS;
+    procTags[5].ti_Data = me->pr_COS;
+    procTags[6].ti_Data = (ULONG)paramptr;
+    procTags[7].ti_Data = (ULONG)curDir;
+
+    cleanup = (struct lxa_dos_exit_cleanup *)AllocVec(sizeof(*cleanup), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!cleanup)
+    {
+        if (curDir)
+            UnLock(curDir);
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return -1;
+    }
+
+    child = _dos_CreateNewProc(DOSBase, procTags);
+    if (!child)
+    {
+        FreeVec(cleanup);
+        if (curDir)
+            UnLock(curDir);
+        return -1;
+    }
+
+    cleanup->seglist = 0;
+    cleanup->args = NULL;
+    cleanup->close_input = 0;
+    cleanup->close_output = 0;
+    cleanup->result_ptr = &result;
+    child->pr_ExitCode = (APTR)lxa_dos_runcommand_exit_cleanup;
+    child->pr_ExitData = (LONG)cleanup;
+
+    taskNum = child->pr_TaskNum;
+    root = DOSBase->dl_Root;
+    childPort = &child->pr_MsgPort;
+    oldSig = me->pr_Task.tc_SigWait;
+
+    while (1)
+    {
+        ULONG *taskArray = (ULONG *)BADDR(root->rn_TaskArray);
+        ULONG storedValue;
+
+        if (!taskArray)
+            break;
+
+        storedValue = taskArray[taskNum];
+        if (storedValue == 0 || storedValue != (ULONG)childPort)
+            break;
+
+        emucall0(EMU_CALL_WAIT);
+    }
+
+    me->pr_Task.tc_SigWait = oldSig;
+    return result;
 }
 
 struct MsgPort * _dos_GetConsoleTask ( register struct DosLibrary * DOSBase __asm("a6"))
@@ -5620,9 +5765,11 @@ BPTR _dos_InternalLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register const LONG * funcarray __asm("a1"),
                                                         register LONG * stack __asm("a2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: InternalLoadSeg() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    (void)table;
+    (void)funcarray;
+    (void)stack;
+
+    return lxa_dos_loadseg_handle(DOSBase, fh, (CONST_STRPTR)"<InternalLoadSeg>", FALSE);
 }
 
 BOOL _dos_InternalUnLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -5671,9 +5818,66 @@ BPTR _dos_NewLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR file __asm("d1"),
                                                         register const struct TagItem * tags __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: NewLoadSeg() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    (void)tags;
+
+    return _dos_LoadSeg(DOSBase, file);
+}
+
+ULONG _dos_GetSegListInfo ( register struct DosLibrary * DOSBase __asm("a6"),
+                            register BPTR seglist __asm("d0"),
+                            register const struct TagItem * taglist __asm("a0"))
+{
+    ULONG count = 0;
+    struct TagItem *tags = (struct TagItem *)taglist;
+    struct TagItem *tag;
+
+    (void)DOSBase;
+
+    if (!seglist || !taglist)
+        return 0;
+
+    while ((tag = NextTagItem(&tags)) != NULL)
+    {
+        switch (tag->ti_Tag)
+        {
+            case GSLI_68KHUNK_TAG:
+                if (tag->ti_Data)
+                {
+                    *((ULONG *)tag->ti_Data) = seglist;
+                    count++;
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    return count;
+}
+
+static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data)
+{
+    struct lxa_dos_exit_cleanup *cleanup = (struct lxa_dos_exit_cleanup *)exit_data;
+
+    (void)return_code;
+
+    if (!cleanup)
+        return;
+
+    if (cleanup->close_input)
+        Close(cleanup->close_input);
+
+    if (cleanup->close_output && cleanup->close_output != cleanup->close_input)
+        Close(cleanup->close_output);
+
+    if (cleanup->args)
+        FreeVec(cleanup->args);
+
+    if (cleanup->seglist)
+        _dos_UnLoadSeg(DOSBase, cleanup->seglist);
+
+    FreeVec(cleanup);
 }
 
 LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -7970,6 +8174,36 @@ APTR __g_lxa_dos_FuncTab [] =
     _dos_SameDevice, // offset = -984
     _dos_ExAllEnd, // offset = -990
     _dos_SetOwner, // offset = -996
+    _dos_private7, // offset = -1002
+    _dos_private7, // offset = -1008
+    _dos_private7, // offset = -1014
+    _dos_private7, // offset = -1020
+    _dos_private7, // offset = -1026
+    _dos_private7, // offset = -1032
+    _dos_private7, // offset = -1038
+    _dos_private7, // offset = -1044
+    _dos_private7, // offset = -1050
+    _dos_private7, // offset = -1056
+    _dos_private7, // offset = -1062
+    _dos_private7, // offset = -1068
+    _dos_private7, // offset = -1074
+    _dos_private7, // offset = -1080
+    _dos_private7, // offset = -1086
+    _dos_private7, // offset = -1092
+    _dos_private7, // offset = -1098
+    _dos_private7, // offset = -1104
+    _dos_private7, // offset = -1110
+    _dos_private7, // offset = -1116
+    _dos_private7, // offset = -1122
+    _dos_private7, // offset = -1128
+    _dos_private7, // offset = -1134
+    _dos_private7, // offset = -1140
+    _dos_private7, // offset = -1146
+    _dos_private7, // offset = -1152
+    _dos_private7, // offset = -1158
+    _dos_private7, // offset = -1164
+    _dos_private7, // offset = -1170
+    _dos_GetSegListInfo, // offset = -1176
     (APTR) ((LONG)-1)
 };
 

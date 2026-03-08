@@ -165,6 +165,10 @@ TEST_F(DosTest, BufferedIO) {
     RunDosTest("BufferedIO", 10000);
 }
 
+TEST_F(DosTest, LoadSegRuntime) {
+    RunDosTest("LoadSegRuntime", 10000);
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
