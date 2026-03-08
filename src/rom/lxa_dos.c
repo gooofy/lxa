@@ -12,6 +12,7 @@
 #include <dos/dosextens.h>
 #include <dos/dostags.h>
 #include <dos/dosasl.h>
+#include <dos/exall.h>
 #include <dos/var.h>
 #include <dos/datetime.h>
 #include <clib/dos_protos.h>
@@ -223,6 +224,41 @@ static const char *resolve_amiga_path(const char *name, char *resolved)
 static BOOL tag_exists(Tag tag, const struct TagItem *tags)
 {
     return tags && FindTagItem(tag, (struct TagItem *)tags) != NULL;
+}
+
+struct InternalExAllControl
+{
+    struct ExAllControl eac;
+    struct FileInfoBlock *fib;
+};
+
+static ULONG exall_fixed_size(LONG data)
+{
+    switch (data)
+    {
+        case ED_NAME:
+            return offsetof(struct ExAllData, ed_Type);
+
+        case ED_TYPE:
+            return offsetof(struct ExAllData, ed_Size);
+
+        case ED_SIZE:
+            return offsetof(struct ExAllData, ed_Prot);
+
+        case ED_PROTECTION:
+            return offsetof(struct ExAllData, ed_Days);
+
+        case ED_DATE:
+            return offsetof(struct ExAllData, ed_Comment);
+
+        case ED_COMMENT:
+            return offsetof(struct ExAllData, ed_OwnerUID);
+
+        case ED_OWNER:
+            return sizeof(struct ExAllData);
+    }
+
+    return 0;
 }
 
 static LONG bstr_to_cstr(BPTR bstr, STRPTR buf, LONG len)
@@ -2226,7 +2262,7 @@ void *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
              * per RKRM. Used to control ExAll() directory scanning.
              * All fields must be initialized to 0, especially eac_LastKey.
              */
-            struct ExAllControl *eac = AllocVec(sizeof(struct ExAllControl), MEMF_PUBLIC | MEMF_CLEAR);
+            struct InternalExAllControl *eac = AllocVec(sizeof(struct InternalExAllControl), MEMF_PUBLIC | MEMF_CLEAR);
             if (!eac)
             {
                 SetIoErr(ERROR_NO_FREE_STORE);
@@ -2406,7 +2442,9 @@ void _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"),
 
         case DOS_EXALLCONTROL:
         {
-            /* Free ExAllControl structure */
+            struct InternalExAllControl *eac = (struct InternalExAllControl *)ptr;
+            if (eac->fib)
+                FreeDosObject(DOS_FIB, eac->fib);
             FreeVec(ptr);
             break;
         }
@@ -3233,9 +3271,30 @@ LONG _dos_SetFileDate ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register const struct DateStamp * date __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetFileDate() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    char resolved_path[256];
+    const char *path_to_use;
+    LONG ioerr = 0;
+    LONG result;
+
+    DPRINTF (LOG_DEBUG, "_dos: SetFileDate() called, name=%s, date=0x%08lx\n",
+             STRORNULL(name), date);
+
+    if (!name || !date)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    path_to_use = resolve_amiga_path((const char *)name, resolved_path);
+    result = emucall3(EMU_CALL_DOS_SETFILEDATE, (ULONG)path_to_use, (ULONG)date, (ULONG)&ioerr);
+
+    if (!result)
+    {
+        SetIoErr(ioerr ? ioerr : ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 LONG _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -3329,9 +3388,162 @@ LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG data __asm("d4"),
                                                         register struct ExAllControl * control __asm("d5"))
 {
-    LPRINTF (LOG_ERROR, "_dos: ExAll() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct InternalExAllControl *icontrol = (struct InternalExAllControl *)control;
+    struct ExAllData *curr;
+    struct ExAllData *last;
+    UBYTE *end;
+    ULONG fixed_size;
+    LONG err = 0;
+
+    DPRINTF(LOG_DEBUG, "_dos: ExAll() called, lock=0x%08lx, buffer=0x%08lx, size=%ld, data=%ld, control=0x%08lx\n",
+            lock, buffer, size, data, control);
+
+    if (!lock || !buffer || !control)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    if (size <= 0)
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return DOSFALSE;
+    }
+
+    if (data < ED_NAME || data > ED_OWNER)
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return DOSFALSE;
+    }
+
+    if (!icontrol->fib)
+    {
+        icontrol->fib = (struct FileInfoBlock *)AllocDosObject(DOS_FIB, NULL);
+        if (!icontrol->fib)
+            return DOSFALSE;
+    }
+
+    control->eac_Entries = 0;
+
+    if (control->eac_LastKey == 0)
+    {
+        if (!_dos_Examine(DOSBase, lock, icontrol->fib))
+            return DOSFALSE;
+
+        if (icontrol->fib->fib_DirEntryType <= 0)
+        {
+            SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+            return DOSFALSE;
+        }
+    }
+
+    fixed_size = exall_fixed_size(data);
+    end = ((UBYTE *)buffer) + size;
+    last = buffer;
+    curr = buffer;
+
+    for (;;)
+    {
+        UBYTE *next;
+        ULONG name_len;
+        ULONG comment_len;
+        LONG match_data;
+
+        if (!_dos_ExNext(DOSBase, lock, icontrol->fib))
+        {
+            err = IoErr();
+            break;
+        }
+
+        control->eac_LastKey = icontrol->fib->fib_DiskKey;
+
+        if (control->eac_MatchString &&
+            !MatchPatternNoCase((CONST UBYTE *)control->eac_MatchString,
+                                icontrol->fib->fib_FileName))
+            continue;
+
+        next = ((UBYTE *)curr) + fixed_size;
+        if (next > end)
+        {
+            err = (last == curr) ? ERROR_BUFFER_OVERFLOW : 0;
+            break;
+        }
+
+        curr->ed_Type = 0;
+        curr->ed_Size = 0;
+        curr->ed_Prot = 0;
+        curr->ed_Days = 0;
+        curr->ed_Mins = 0;
+        curr->ed_Ticks = 0;
+        curr->ed_Comment = NULL;
+        curr->ed_OwnerUID = 0;
+        curr->ed_OwnerGID = 0;
+
+        if (data >= ED_OWNER)
+        {
+            curr->ed_OwnerUID = icontrol->fib->fib_OwnerUID;
+            curr->ed_OwnerGID = icontrol->fib->fib_OwnerGID;
+        }
+
+        if (data >= ED_COMMENT)
+        {
+            comment_len = strlen((const char *)icontrol->fib->fib_Comment) + 1;
+            curr->ed_Comment = (STRPTR)next;
+            if (next + comment_len > end)
+            {
+                err = (last == curr) ? ERROR_BUFFER_OVERFLOW : 0;
+                break;
+            }
+            CopyMem(icontrol->fib->fib_Comment, next, comment_len);
+            if (icontrol->fib->fib_Comment[0] == '\0')
+                curr->ed_Comment = NULL;
+            next += comment_len;
+        }
+
+        if (data >= ED_DATE)
+        {
+            curr->ed_Days = icontrol->fib->fib_Date.ds_Days;
+            curr->ed_Mins = icontrol->fib->fib_Date.ds_Minute;
+            curr->ed_Ticks = icontrol->fib->fib_Date.ds_Tick;
+        }
+
+        if (data >= ED_PROTECTION)
+            curr->ed_Prot = icontrol->fib->fib_Protection;
+
+        if (data >= ED_SIZE)
+            curr->ed_Size = icontrol->fib->fib_Size;
+
+        if (data >= ED_TYPE)
+            curr->ed_Type = icontrol->fib->fib_DirEntryType;
+
+        name_len = strlen((const char *)icontrol->fib->fib_FileName) + 1;
+        curr->ed_Name = (STRPTR)next;
+        if (next + name_len > end)
+        {
+            err = (last == curr) ? ERROR_BUFFER_OVERFLOW : 0;
+            break;
+        }
+        CopyMem(icontrol->fib->fib_FileName, next, name_len);
+        next += name_len;
+
+        curr->ed_Next = (struct ExAllData *)ALIGN((ULONG)next, sizeof(APTR));
+
+        match_data = data;
+        if (control->eac_MatchFunc && !CallHookPkt(control->eac_MatchFunc, curr, &match_data))
+            continue;
+
+        last = curr;
+        curr = curr->ed_Next;
+        control->eac_Entries++;
+
+        if ((UBYTE *)curr > end)
+            break;
+    }
+
+    last->ed_Next = NULL;
+    SetIoErr(err);
+
+    return (err == 0) ? DOSTRUE : DOSFALSE;
 }
 
 LONG _dos_ReadLink ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -3341,9 +3553,30 @@ LONG _dos_ReadLink ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buffer __asm("d4"),
                                                         register ULONG size __asm("d5"))
 {
-    LPRINTF (LOG_ERROR, "_dos: ReadLink() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    char resolved_path[256];
+    const char *path_to_use;
+    LONG ioerr = 0;
+    LONG result;
+
+    (void)port;
+    (void)lock;
+
+    DPRINTF(LOG_DEBUG, "_dos: ReadLink() called, lock=0x%08lx, path=%s, buffer=0x%08lx, size=%lu\n",
+            lock, STRORNULL(path), buffer, size);
+
+    if (!path || !buffer || size == 0)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return -1;
+    }
+
+    path_to_use = resolve_amiga_path((const char *)path, resolved_path);
+    result = emucall4(EMU_CALL_DOS_READLINK, (ULONG)path_to_use, (ULONG)buffer, (ULONG)size, (ULONG)&ioerr);
+
+    if (result < 0)
+        SetIoErr(ioerr ? ioerr : ERROR_OBJECT_NOT_FOUND);
+
+    return result;
 }
 
 LONG _dos_MakeLink ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -3351,9 +3584,47 @@ LONG _dos_MakeLink ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG dest __asm("d2"),
                                                         register LONG soft __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: MakeLink() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    char resolved_name[256];
+    char dest_path[256];
+    const char *name_to_use;
+    ULONG dest_param;
+    LONG ioerr = 0;
+    LONG result;
+
+    DPRINTF(LOG_DEBUG, "_dos: MakeLink() called, name=%s, dest=0x%08lx, soft=%ld\n",
+            STRORNULL(name), dest, soft);
+
+    if (!name)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    name_to_use = resolve_amiga_path((const char *)name, resolved_name);
+
+    if (soft == LINK_SOFT)
+    {
+        if (!dest)
+        {
+            SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+            return DOSFALSE;
+        }
+        dest_param = (ULONG)resolve_amiga_path((const char *)dest, dest_path);
+    }
+    else
+    {
+        dest_param = (ULONG)dest;
+    }
+
+    result = emucall5(EMU_CALL_DOS_MAKELINK, (ULONG)name_to_use, dest_param, (ULONG)soft, (ULONG)&ioerr, 0);
+
+    if (!result)
+    {
+        SetIoErr(ioerr ? ioerr : ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 LONG _dos_ChangeMode ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -7256,8 +7527,25 @@ VOID _dos_ExAllEnd ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG data __asm("d4"),
                                                         register struct ExAllControl * control __asm("d5"))
 {
-    LPRINTF (LOG_ERROR, "_dos: ExAllEnd() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct InternalExAllControl *icontrol = (struct InternalExAllControl *)control;
+
+    (void)DOSBase;
+    (void)lock;
+    (void)buffer;
+    (void)size;
+    (void)data;
+
+    if (!control)
+        return;
+
+    if (icontrol->fib)
+    {
+        FreeDosObject(DOS_FIB, icontrol->fib);
+        icontrol->fib = NULL;
+    }
+
+    control->eac_LastKey = 0;
+    control->eac_Entries = 0;
 }
 
 BOOL _dos_SetOwner ( register struct DosLibrary * DOSBase __asm("a6"),

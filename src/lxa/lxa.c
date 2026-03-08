@@ -128,6 +128,9 @@
 #define OFFSET_CURRENT       0
 #define OFFSET_END           1
 
+#define LINK_HARD            0
+#define LINK_SOFT            1
+
 #define FILE_KIND_REGULAR    42
 #define FILE_KIND_CONSOLE    23
 #define FILE_KIND_CON        99   /* CON:/RAW: window (m68k-side handling) */
@@ -416,6 +419,8 @@ static uint32_t _timer_get_expired(void)
 
 /* Amiga error codes */
 #define ERROR_NO_FREE_STORE      103
+#define ERROR_BAD_NUMBER         115
+#define ERROR_REQUIRED_ARG_MISSING 116
 #define ERROR_OBJECT_IN_USE      202
 #define ERROR_OBJECT_EXISTS      203
 #define ERROR_DIR_NOT_FOUND      204
@@ -437,6 +442,9 @@ static uint32_t _timer_get_expired(void)
 #define ERROR_READ_PROTECTED     224
 #define ERROR_NOT_A_DOS_DISK     225
 #define ERROR_NO_MORE_ENTRIES    232
+#define ERROR_BUFFER_OVERFLOW    303
+
+#define AMIGA_EPOCH_OFFSET 252460800
 
 /* Allocate a new lock entry */
 static int _lock_alloc(void)
@@ -2336,13 +2344,8 @@ static uint32_t _unix_mode_to_amiga(mode_t mode)
 }
 
 /* Convert Unix time_t to Amiga DateStamp */
-static void _unix_time_to_datestamp(time_t unix_time, uint32_t ds68k)
+static void _unix_timespec_to_datestamp(time_t unix_time, long unix_nsec, uint32_t ds68k)
 {
-    /* Amiga epoch is Jan 1, 1978 */
-    /* Unix epoch is Jan 1, 1970 */
-    /* Difference is 8 years = 2922 days (including 2 leap years) */
-    #define AMIGA_EPOCH_OFFSET 252460800  /* seconds between 1970 and 1978 */
-    
     time_t amiga_time = unix_time - AMIGA_EPOCH_OFFSET;
     if (amiga_time < 0) amiga_time = 0;
     
@@ -2350,11 +2353,32 @@ static void _unix_time_to_datestamp(time_t unix_time, uint32_t ds68k)
     uint32_t days = amiga_time / (24 * 60 * 60);
     uint32_t remaining = amiga_time % (24 * 60 * 60);
     uint32_t minutes = remaining / 60;
-    uint32_t ticks = (remaining % 60) * 50;
-    
+    uint32_t ticks = (remaining % 60) * 50 + (uint32_t)(unix_nsec / 20000000L);
+
     m68k_write_memory_32(ds68k + 0, days);
     m68k_write_memory_32(ds68k + 4, minutes);
     m68k_write_memory_32(ds68k + 8, ticks);
+}
+
+static time_t _datestamp68k_to_unix_time(uint32_t ds68k)
+{
+    uint32_t days = m68k_read_memory_32(ds68k + 0);
+    uint32_t minutes = m68k_read_memory_32(ds68k + 4);
+    uint32_t ticks = m68k_read_memory_32(ds68k + 8);
+    uint64_t amiga_time = (uint64_t)days * 24ULL * 60ULL * 60ULL +
+                          (uint64_t)minutes * 60ULL +
+                          (uint64_t)ticks / 50ULL;
+
+    return (time_t)(amiga_time + AMIGA_EPOCH_OFFSET);
+}
+
+static bool _resolve_amiga_path_host(const char *amiga_path, char *linux_path, size_t maxlen)
+{
+    if (vfs_resolve_path(amiga_path, linux_path, maxlen))
+        return true;
+
+    _dos_path2linux(amiga_path, linux_path, (int)maxlen);
+    return linux_path[0] != '\0';
 }
 
 /* Lock a file or directory */
@@ -2541,7 +2565,7 @@ static int _dos_examine(uint32_t lock_id, uint32_t fib68k)
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
     m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
     
-    _unix_time_to_datestamp(st.st_mtime, fib68k + FIB_fib_Date);
+    _unix_timespec_to_datestamp(st.st_mtime, st.st_mtim.tv_nsec, fib68k + FIB_fib_Date);
     
     /* Read file comment from xattr or sidecar */
     _read_file_comment(lock->linux_path, fib68k);
@@ -2640,7 +2664,7 @@ static int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
     m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
     
-    _unix_time_to_datestamp(st.st_mtime, fib68k + FIB_fib_Date);
+    _unix_timespec_to_datestamp(st.st_mtime, st.st_mtim.tv_nsec, fib68k + FIB_fib_Date);
     
     /* Read file comment from xattr or sidecar */
     _read_file_comment(fullpath, fib68k);
@@ -2818,7 +2842,7 @@ static int _dos_deletefile(uint32_t name68k)
     }
     
     struct stat st;
-    if (stat(linux_path, &st) != 0) {
+    if (lstat(linux_path, &st) != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_deletefile(): stat failed: %s\n", strerror(errno));
         return 0;
     }
@@ -2834,7 +2858,14 @@ static int _dos_deletefile(uint32_t name68k)
         DPRINTF(LOG_DEBUG, "lxa: _dos_deletefile(): delete failed: %s\n", strerror(errno));
         return 0;
     }
-    
+
+    if (!S_ISDIR(st.st_mode)) {
+        char sidecar[PATH_MAX + 32];
+        if (snprintf(sidecar, sizeof(sidecar), "%s.amiga.readlink", linux_path) < (int)sizeof(sidecar)) {
+            unlink(sidecar);
+        }
+    }
+
     DPRINTF(LOG_DEBUG, "lxa: _dos_deletefile(): success\n");
     return 1;
 }
@@ -3016,6 +3047,234 @@ static int _dos_setcomment(uint32_t name68k, uint32_t comment68k)
         unlink(sidecar_path);
     }
     
+    return 1;
+}
+
+static int _dos_setfiledate(uint32_t name68k, uint32_t date68k, uint32_t err68k)
+{
+    char *amiga_path = _mgetstr(name68k);
+    char linux_path[PATH_MAX];
+    struct stat st;
+    struct timespec times[2];
+    time_t unix_time;
+
+    DPRINTF(LOG_DEBUG, "lxa: _dos_setfiledate(): amiga_path=%s, date=0x%08x\n",
+            amiga_path ? amiga_path : "NULL", date68k);
+
+    if (!amiga_path || !date68k)
+    {
+        m68k_write_memory_32(err68k, ERROR_REQUIRED_ARG_MISSING);
+        return 0;
+    }
+
+    if (!_resolve_amiga_path_host(amiga_path, linux_path, sizeof(linux_path)))
+    {
+        m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
+        return 0;
+    }
+
+    if (stat(linux_path, &st) != 0)
+    {
+        m68k_write_memory_32(err68k, errno2Amiga());
+        return 0;
+    }
+
+    unix_time = _datestamp68k_to_unix_time(date68k);
+    times[0].tv_sec = st.st_atime;
+    times[0].tv_nsec = 0;
+    times[1].tv_sec = unix_time;
+    times[1].tv_nsec = (long)((m68k_read_memory_32(date68k + 8) % 50U) * 20000000U);
+
+    if (utimensat(AT_FDCWD, linux_path, times, 0) != 0)
+    {
+        m68k_write_memory_32(err68k, errno2Amiga());
+        return 0;
+    }
+
+    m68k_write_memory_32(err68k, 0);
+    return 1;
+}
+
+static int _dos_readlink(uint32_t path68k, uint32_t buffer68k, uint32_t size, uint32_t err68k)
+{
+    char *amiga_path = _mgetstr(path68k);
+    char linux_path[PATH_MAX];
+    char target[PATH_MAX];
+    char sidecar[PATH_MAX + 32];
+    ssize_t len;
+
+    DPRINTF(LOG_DEBUG, "lxa: _dos_readlink(): amiga_path=%s, size=%u\n",
+            amiga_path ? amiga_path : "NULL", size);
+
+    if (!amiga_path || !buffer68k || size == 0)
+    {
+        m68k_write_memory_32(err68k, ERROR_REQUIRED_ARG_MISSING);
+        return -1;
+    }
+
+    if (!_resolve_amiga_path_host(amiga_path, linux_path, sizeof(linux_path)))
+    {
+        const char *slash = strrchr(amiga_path, '/');
+        if (slash)
+        {
+            char parent_amiga[PATH_MAX];
+            char parent_linux[PATH_MAX];
+            size_t parent_len = (size_t)(slash - amiga_path);
+            if (parent_len >= sizeof(parent_amiga))
+                parent_len = sizeof(parent_amiga) - 1;
+            memcpy(parent_amiga, amiga_path, parent_len);
+            parent_amiga[parent_len] = '\0';
+
+            if (!_resolve_amiga_path_host(parent_amiga, parent_linux, sizeof(parent_linux)))
+            {
+                m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
+                return -1;
+            }
+
+            if (snprintf(linux_path, sizeof(linux_path), "%s/%s", parent_linux, slash + 1) >= (int)sizeof(linux_path))
+            {
+                m68k_write_memory_32(err68k, ERROR_BAD_STREAM_NAME);
+                return -1;
+            }
+        }
+        else
+        {
+            m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
+            return -1;
+        }
+    }
+
+    len = readlink(linux_path, target, sizeof(target) - 1);
+    if (len < 0)
+    {
+        m68k_write_memory_32(err68k, errno2Amiga());
+        return -1;
+    }
+
+    target[len] = '\0';
+
+    if (snprintf(sidecar, sizeof(sidecar), "%s.amiga.readlink", linux_path) < (int)sizeof(sidecar)) {
+        FILE *f = fopen(sidecar, "r");
+        if (f) {
+            len = fread(target, 1, sizeof(target) - 1, f);
+            fclose(f);
+            while (len > 0 && (target[len - 1] == '\n' || target[len - 1] == '\r'))
+                len--;
+            target[len] = '\0';
+        }
+    }
+
+    if ((size_t)len >= size)
+    {
+        m68k_write_memory_32(err68k, ERROR_BUFFER_OVERFLOW);
+        return -2;
+    }
+
+    for (ssize_t i = 0; i <= len; i++)
+        m68k_write_memory_8(buffer68k + (uint32_t)i, (uint8_t)target[i]);
+
+    m68k_write_memory_32(err68k, 0);
+    return (int)len;
+}
+
+static int _dos_makelink(uint32_t name68k, uint32_t dest_param, int32_t soft, uint32_t err68k)
+{
+    char *name = _mgetstr(name68k);
+    char name_linux[PATH_MAX];
+    int result;
+
+    DPRINTF(LOG_DEBUG, "lxa: _dos_makelink(): name=%s, dest=0x%08x, soft=%d\n",
+            name ? name : "NULL", dest_param, soft);
+
+    if (!name)
+    {
+        m68k_write_memory_32(err68k, ERROR_REQUIRED_ARG_MISSING);
+        return 0;
+    }
+
+    if (!_resolve_amiga_path_host(name, name_linux, sizeof(name_linux)))
+    {
+        const char *slash = strrchr(name, '/');
+        if (slash)
+        {
+            char parent_amiga[PATH_MAX];
+            char parent_linux[PATH_MAX];
+            size_t parent_len = (size_t)(slash - name);
+            if (parent_len >= sizeof(parent_amiga))
+                parent_len = sizeof(parent_amiga) - 1;
+            memcpy(parent_amiga, name, parent_len);
+            parent_amiga[parent_len] = '\0';
+
+            if (!_resolve_amiga_path_host(parent_amiga, parent_linux, sizeof(parent_linux)))
+            {
+                m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
+                return 0;
+            }
+
+            if (snprintf(name_linux, sizeof(name_linux), "%s/%s", parent_linux, slash + 1) >= (int)sizeof(name_linux))
+            {
+                m68k_write_memory_32(err68k, ERROR_BAD_STREAM_NAME);
+                return 0;
+            }
+        }
+        else
+        {
+            m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
+            return 0;
+        }
+    }
+
+    if (soft == LINK_SOFT)
+    {
+        char *dest_name = _mgetstr(dest_param);
+        char dest_linux[PATH_MAX];
+        char sidecar[PATH_MAX + 32];
+
+        if (!dest_name)
+        {
+            m68k_write_memory_32(err68k, ERROR_REQUIRED_ARG_MISSING);
+            return 0;
+        }
+
+        if (!_resolve_amiga_path_host(dest_name, dest_linux, sizeof(dest_linux)))
+        {
+            strncpy(dest_linux, dest_name, sizeof(dest_linux) - 1);
+            dest_linux[sizeof(dest_linux) - 1] = '\0';
+        }
+
+        result = symlink(dest_linux, name_linux);
+        if (result == 0)
+        {
+            if (snprintf(sidecar, sizeof(sidecar), "%s.amiga.readlink", name_linux) < (int)sizeof(sidecar)) {
+                FILE *f = fopen(sidecar, "w");
+                if (f) {
+                    fwrite(dest_name, 1, strlen(dest_name), f);
+                    fclose(f);
+                }
+            }
+        }
+    }
+    else
+    {
+        uint32_t lock_id = dest_param;
+        lock_entry_t *lock = _lock_get(lock_id);
+
+        if (!lock)
+        {
+            m68k_write_memory_32(err68k, ERROR_INVALID_LOCK);
+            return 0;
+        }
+
+        result = link(lock->linux_path, name_linux);
+    }
+
+    if (result != 0)
+    {
+        m68k_write_memory_32(err68k, errno2Amiga());
+        return 0;
+    }
+
+    m68k_write_memory_32(err68k, 0);
     return 1;
 }
 
@@ -3327,7 +3586,7 @@ static int _dos_examinefh(uint32_t fh68k, uint32_t fib68k)
     m68k_write_memory_32(fib68k + FIB_fib_Size, st.st_size);
     m68k_write_memory_32(fib68k + FIB_fib_NumBlocks, (st.st_size + 511) / 512);
     
-    _unix_time_to_datestamp(st.st_mtime, fib68k + FIB_fib_Date);
+    _unix_timespec_to_datestamp(st.st_mtime, st.st_mtim.tv_nsec, fib68k + FIB_fib_Date);
     
     /* Read file comment from xattr or sidecar */
     if (linux_path[0]) {
@@ -4439,6 +4698,47 @@ int op_illg(int level)
                     fh, offset, mode);
 
             m68k_set_reg(M68K_REG_D0, _dos_setfilesize(fh, offset, mode));
+            break;
+        }
+
+        case EMU_CALL_DOS_SETFILEDATE:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t date = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t err = m68k_get_reg(NULL, M68K_REG_D3);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_SETFILEDATE name=0x%08x, date=0x%08x, err=0x%08x\n",
+                    name, date, err);
+
+            m68k_set_reg(M68K_REG_D0, _dos_setfiledate(name, date, err));
+            break;
+        }
+
+        case EMU_CALL_DOS_READLINK:
+        {
+            uint32_t path = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t buffer = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t size = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t err = m68k_get_reg(NULL, M68K_REG_D4);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_READLINK path=0x%08x, buffer=0x%08x, size=%u, err=0x%08x\n",
+                    path, buffer, size, err);
+
+            m68k_set_reg(M68K_REG_D0, _dos_readlink(path, buffer, size, err));
+            break;
+        }
+
+        case EMU_CALL_DOS_MAKELINK:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t dest = m68k_get_reg(NULL, M68K_REG_D2);
+            int32_t soft = (int32_t)m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t err = m68k_get_reg(NULL, M68K_REG_D4);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_MAKELINK name=0x%08x, dest=0x%08x, soft=%d, err=0x%08x\n",
+                    name, dest, soft, err);
+
+            m68k_set_reg(M68K_REG_D0, _dos_makelink(name, dest, soft, err));
             break;
         }
 

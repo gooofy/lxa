@@ -159,7 +159,7 @@ lxa -d -v myprogram
 ### AmigaOS Libraries
 
 - **exec.library**: Memory management, multitasking, signals, messages
-- **dos.library**: File I/O, locks, directories, processes, pattern matching, CON:/RAW: handler
+- **dos.library**: File I/O, locks, directories, processes, pattern matching, `SetFileSize`, `SetFileDate`, `ExAll`, `MakeLink`, `ReadLink`, CON:/RAW: handler
 - **utility.library**: Tag lists, hooks, utility functions
 - **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill, ScrollRaster, AreaFill, pixel arrays)
 - **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
@@ -207,7 +207,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.72** - Phase 78-B-2 proc-window semantics verified for `CreateNewProc()`/`SystemTagList()`, with regression coverage for inherited and explicit `NP_WindowPtr` handling
+**Version 0.6.73** - Phase 78-B-3 extended DOS file semantics landed: `SetFileDate`, `ExAll`/`ExAllEnd`, and `MakeLink`/`ReadLink` now work with regression coverage, and `SetFileSize` remains covered in the same subphase
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

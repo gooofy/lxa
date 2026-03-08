@@ -118,6 +118,24 @@ ULONG emucall4 (ULONG func, ULONG param1, ULONG param2, ULONG param3, ULONG para
     return res;
 }
 
+ULONG emucall5 (ULONG func, ULONG param1, ULONG param2, ULONG param3, ULONG param4, ULONG param5)
+{
+    ULONG res;
+    asm volatile( "move.l    %1, d0\n\t"
+         "move.l    %2, d1\n\t"
+         "move.l    %3, d2\n\t"
+         "move.l    %4, d3\n\t"
+         "move.l    %5, d4\n\t"
+         "move.l    %6, d5\n\t"
+         "illegal\n\t"
+         "move.l    d0, %0\n"
+        : "=r" (res)
+        : "r" (func), "r" (param1), "r" (param2), "r" (param3), "r" (param4), "r" (param5)
+        : "cc", "d0", "d1", "d2", "d3", "d4", "d5"
+        );
+    return res;
+}
+
 void emu_stop (ULONG rv)
 {
     emucall1 (EMU_CALL_STOP, rv);
@@ -773,4 +791,3 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
     process->pr_ShellPrivate            = NULL;
     process->pr_CES                     = 0;
 }
-

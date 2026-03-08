@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.72** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.73** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -37,6 +37,7 @@ Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` thro
 - Added DOS CLI metadata helpers (`Set/GetCurrentDirName`, `Set/GetProgramName`, `Set/GetPrompt`) plus `FindCliProc()`/`MaxCli()` coverage, and extended structural verification for `DosLibrary`, `RootNode`, `DosInfo`, `CliProcList`, and `Segment`
 - Verified multi-CLI proc-window semantics: `CreateNewProc()` now inherits `pr_WindowPtr` by default, respects explicit `NP_WindowPtr` overrides (including `NULL`), and `SystemTagList()` passes the caller window pointer for synchronous launches while clearing it for async launches, matching documented `pr_WindowPtr` inheritance rules
 - Implemented `SetFileSize()` with host-backed truncate/extend semantics and added DOS regression coverage for begin/current/end resizing plus zero-filled extension behavior
+- Completed Phase 78-B-3 host-backed DOS extended file semantics: `SetFileDate`, `ExAll`/`ExAllEnd`, and `MakeLink`/`ReadLink` now work with direct DOS/command regression coverage, including soft-link target preservation and hard-link creation
 - Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j8` is green again
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
 - Test-suite scheduling improved: sharded `gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, and `cluster2` into smaller CTest entries, reducing `ctest -j8` wall time from about 124s to about 95s while keeping total CPU time roughly flat
@@ -270,14 +271,16 @@ Goal: finish DOSBase/RootNode/DosInfo public-field verification and the remainin
 
 ##### 78-B-3: DOS Extended File/Directory Semantics
 
+Status: complete in 0.6.73, except `ChangeFilePosition` / `GetFilePosition`, which do not appear to exist as standard public dos.library APIs in the NDK surface used by lxa and are therefore deferred pending a verified public reference.
+
 Goal: finish the remaining file-size, date, link, and full-directory-enumeration APIs.
 
 - [x] `SetFileSize` — truncate/extend file (AROS: `dos/setfilesize.c`)
-- [ ] `ChangeFilePosition` / `GetFilePosition`
-- [ ] `ExAll` / `ExAllEnd` — EXALL_TYPE filter, ED_NAME/ED_TYPE/ED_SIZE/ED_PROTECTION/ED_DATE/ED_COMMENT/ED_OWNER
-- [ ] `SetFileDate` — set datestamp
-- [ ] `MakeLink` — hard link (type 0) or soft link (type 1)
-- [ ] `ReadLink` — read soft link target
+- [ ] `ChangeFilePosition` / `GetFilePosition` — deferred: no standard public API entry points found in current NDK headers/autodocs used by lxa; revisit if a verified AmigaOS reference surface is identified
+- [x] `ExAll` / `ExAllEnd` — ED_NAME/ED_TYPE/ED_SIZE/ED_PROTECTION/ED_DATE/ED_COMMENT/ED_OWNER, match-string filtering, multi-entry buffers
+- [x] `SetFileDate` — set datestamp
+- [x] `MakeLink` — hard link (type 0) or soft link (type 1)
+- [x] `ReadLink` — read soft link target
 
 ##### 78-B-4: DOS Assigns, Device Resolution, and Notifications
 
@@ -818,6 +821,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| **0.6.73** | 78-B-3 | Completed DOS extended file semantics with host-backed `SetFileDate`, `ExAll`/`ExAllEnd`, and `MakeLink`/`ReadLink`, plus regression coverage for directory enumeration, filtering, soft links, and hard links; `ChangeFilePosition`/`GetFilePosition` remain deferred pending a verified public API reference. |
 | **0.6.72** | 78-B-2 | Verified DOS proc-window inheritance semantics by teaching `CreateNewProc()`/`SystemTagList()` to preserve or override `pr_WindowPtr` correctly, with direct regression coverage for inherited and explicit `NP_WindowPtr` behavior. |
 | **0.6.69** | 78-A-6 | Exec miscellaneous verification: `RawDoFmt` edge cases (maxwidth, `%c`, `%%`, `%b` BSTR, return value), list accessors as macros, `Alert` decoding, `Supervisor` call. 40 sub-tests in new ExecMisc test. |
 | **0.6.71** | 78-B-3 | Added host-backed `SetFileSize()` support with regression coverage for truncation, growth, and zero-filled extension, while keeping the full 49-test GTest suite green. |

@@ -60,6 +60,9 @@
 #define EMU_CALL_DOS_OPENFROMLOCK  1044  /* OpenFromLock(lock) -> fh */
 #define EMU_CALL_DOS_WAITFORCHAR   1045  /* WaitForChar(fh, timeout) -> success */
 #define EMU_CALL_DOS_SETFILESIZE   1046  /* SetFileSize(fh, offset, mode) -> size */
+#define EMU_CALL_DOS_SETFILEDATE   1047  /* SetFileDate(name, date, errptr) -> success */
+#define EMU_CALL_DOS_READLINK      1048  /* ReadLink(path, buffer, size, errptr) -> len */
+#define EMU_CALL_DOS_MAKELINK      1049  /* MakeLink(name, dest, soft, errptr) -> success */
 
 /*
  * Graphics Library emucalls (2000-2999)

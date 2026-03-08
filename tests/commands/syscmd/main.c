@@ -5,6 +5,7 @@
  *   - VERSION command output
  *   - DATE command output format
  *   - MakeLink function for creating symlinks
+ *   - ReadLink reads soft-link target
  *
  * Note: WAIT and INFO are harder to test deterministically,
  * so we focus on the testable aspects.
@@ -112,12 +113,48 @@ int main(void)
     /* ===== Test 2: MakeLink function ===== */
     print("\nTest Group 2: MakeLink Function (Soft Links)\n");
     
-    /* Note: MakeLink is not yet implemented in lxa ROM
-     * The MAKELINK command exists but the underlying DOS function
-     * is a stub. Testing is skipped until implemented.
-     */
-    print("  SKIP: MakeLink not yet implemented in ROM\n");
-    tests_passed++;  /* Count as pass since it's expected */
+    {
+        char buf[128];
+        LONG link_result;
+
+        DeleteFile((CONST_STRPTR)"syscmd_target.txt");
+        DeleteFile((CONST_STRPTR)"SYS:Tests/Commands/syscmd_softlink");
+
+        {
+            BPTR fh = Open((CONST_STRPTR)"syscmd_target.txt", MODE_NEWFILE);
+            if (fh) {
+                Write(fh, (CONST APTR)"syscmd", 6);
+                Close(fh);
+            }
+        }
+
+        link_result = MakeLink((CONST_STRPTR)"SYS:Tests/Commands/syscmd_softlink", (LONG)(CONST_STRPTR)"SYS:Tests/Commands/syscmd_target.txt", LINK_SOFT);
+        if (link_result) {
+            test_pass("MakeLink creates soft link");
+        } else {
+            print("  MakeLink IoErr: ");
+            print_num(IoErr());
+            print("\n");
+            test_fail("MakeLink creates soft link");
+        }
+
+        link_result = ReadLink(NULL, 0, (CONST_STRPTR)"SYS:Tests/Commands/syscmd_softlink", (STRPTR)buf, sizeof(buf));
+        if (link_result >= 0 && strcmp(buf, "SYS:Tests/Commands/syscmd_target.txt") == 0) {
+            test_pass("ReadLink returns target path");
+        } else {
+            print("  ReadLink result=");
+            print_num(link_result);
+            print(", IoErr=");
+            print_num(IoErr());
+            print(", target='");
+            print(buf);
+            print("'\n");
+            test_fail("ReadLink returns target path");
+        }
+
+        DeleteFile((CONST_STRPTR)"SYS:Tests/Commands/syscmd_softlink");
+        DeleteFile((CONST_STRPTR)"syscmd_target.txt");
+    }
     
     /* ===== Test 3: Library Version Info ===== */
     print("\nTest Group 3: Library Version Info\n");
