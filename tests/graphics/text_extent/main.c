@@ -96,6 +96,17 @@ int main(void)
     SetFont(&rp, font);
     print("OK: Font set\n");
 
+    numFit = SetSoftStyle(&rp, FSF_BOLD | FSF_ITALIC, FSF_BOLD | FSF_ITALIC);
+    if (numFit != (FSF_BOLD | FSF_ITALIC))
+    {
+        print("FAIL: SetSoftStyle() did not enable bold+italic\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: SetSoftStyle() enabled bold+italic\n");
+    }
+
     /* Test 1: TextExtent with "Hello" */
     print("\nTest 1: TextExtent(Hello, 5)...\n");
     TextExtent(&rp, (CONST_STRPTR)"Hello", 5, &te);
@@ -120,8 +131,8 @@ int main(void)
 
     print("  te_Extent.MinX = ");
     print_num(te.te_Extent.MinX);
-    print(" (expected 0)\n");
-    if (te.te_Extent.MinX != 0)
+    print(" (expected -1)\n");
+    if (te.te_Extent.MinX != -1)
     {
         print("  FAIL: MinX incorrect\n");
         errors++;
@@ -129,8 +140,8 @@ int main(void)
 
     print("  te_Extent.MaxX = ");
     print_num(te.te_Extent.MaxX);
-    print(" (expected 39)\n");
-    if (te.te_Extent.MaxX != 39)
+    print(" (expected 43)\n");
+    if (te.te_Extent.MaxX != 43)
     {
         print("  FAIL: MaxX incorrect\n");
         errors++;
@@ -172,15 +183,17 @@ int main(void)
 
     print("  te_Extent.MaxX = ");
     print_num(te.te_Extent.MaxX);
-    print(" (expected 7)\n");
-    if (te.te_Extent.MaxX != 7)
+    print(" (expected 11)\n");
+    if (te.te_Extent.MaxX != 11)
     {
         print("  FAIL: MaxX incorrect\n");
         errors++;
     }
 
-    if (te.te_Width == 8 && te.te_Extent.MaxX == 7)
+    if (te.te_Width == 8 && te.te_Extent.MaxX == 11)
         print("  OK: Single character dimensions correct\n");
+
+    SetSoftStyle(&rp, 0, FSF_BOLD | FSF_ITALIC);
 
     /* Test 3: TextExtent with empty string */
     print("\nTest 3: TextExtent(empty, 0)...\n");

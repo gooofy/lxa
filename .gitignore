@@ -181,3 +181,4 @@ tests/dos/case_path/case_path
 tests/dos/dosobject/dosobject
 tests/dos/unloadseg/unloadseg
 tests/dos/bufferedio/bufferedio
+tests/graphics/blitter_queue/blitter_queue

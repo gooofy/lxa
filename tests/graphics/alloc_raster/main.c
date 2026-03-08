@@ -29,6 +29,7 @@ static void print(const char *s)
 int main(void)
 {
     PLANEPTR plane;
+    ULONG mem_type;
     ULONG size;
     int errors = 0;
     ULONG i;
@@ -52,8 +53,15 @@ int main(void)
             print("OK: RASSIZE(320, 200) = 8000\n");
         }
 
+        mem_type = TypeOfMem(plane);
+        if ((mem_type & MEMF_CHIP) == 0) {
+            print("FAIL: AllocRaster(320, 200) did not return CHIP memory\n");
+            errors++;
+        } else {
+            print("OK: AllocRaster(320, 200) returned CHIP memory\n");
+        }
+
         /* Verify memory is accessible (write and read back) */
-        /* Note: AllocRaster may use MEMF_CHIP which might not be cleared */
         ((UBYTE *)plane)[0] = 0xAA;
         ((UBYTE *)plane)[size-1] = 0x55;
         if (((UBYTE *)plane)[0] != 0xAA || ((UBYTE *)plane)[size-1] != 0x55) {
@@ -83,6 +91,14 @@ int main(void)
             print("OK: RASSIZE(64, 64) = 512\n");
         }
 
+        mem_type = TypeOfMem(plane);
+        if ((mem_type & MEMF_CHIP) == 0) {
+            print("FAIL: AllocRaster(64, 64) did not return CHIP memory\n");
+            errors++;
+        } else {
+            print("OK: AllocRaster(64, 64) returned CHIP memory\n");
+        }
+
         FreeRaster(plane, 64, 64);
         print("OK: FreeRaster(64, 64) completed\n");
     }
@@ -103,9 +119,45 @@ int main(void)
             print("OK: RASSIZE(17, 10) = 40\n");
         }
 
+        mem_type = TypeOfMem(plane);
+        if ((mem_type & MEMF_CHIP) == 0) {
+            print("FAIL: AllocRaster(17, 10) did not return CHIP memory\n");
+            errors++;
+        } else {
+            print("OK: AllocRaster(17, 10) returned CHIP memory\n");
+        }
+
         FreeRaster(plane, 17, 10);
         print("OK: FreeRaster(17, 10) completed\n");
     }
+
+    plane = AllocRaster(1, 1);
+    if (!plane) {
+        print("FAIL: AllocRaster(1, 1) returned NULL\n");
+        errors++;
+    } else {
+        size = RASSIZE(1, 1);
+        if (size != 2) {
+            print("FAIL: RASSIZE(1, 1) != 2\n");
+            errors++;
+        } else {
+            print("OK: RASSIZE(1, 1) = 2\n");
+        }
+
+        mem_type = TypeOfMem(plane);
+        if ((mem_type & MEMF_CHIP) == 0) {
+            print("FAIL: AllocRaster(1, 1) did not return CHIP memory\n");
+            errors++;
+        } else {
+            print("OK: AllocRaster(1, 1) returned CHIP memory\n");
+        }
+
+        FreeRaster(plane, 1, 1);
+        print("OK: FreeRaster(1, 1) completed\n");
+    }
+
+    FreeRaster(NULL, 64, 64);
+    print("OK: FreeRaster(NULL) is safe\n");
 
     /* Test multiple alloc/free cycles */
     print("Testing multiple alloc/free cycles...\n");

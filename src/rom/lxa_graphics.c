@@ -4,6 +4,7 @@
 #include <exec/execbase.h>
 #include <exec/resident.h>
 #include <exec/initializers.h>
+#include <exec/tasks.h>
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
@@ -29,10 +30,106 @@ extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
 
 /* Global IntuitionBase (defined in exec.c) - used to avoid OpenLibrary from interrupt context */
 extern struct IntuitionBase *IntuitionBase;
+extern struct ExecBase *SysBase;
 
 /* Forward declarations for Topaz font (defined later in this file) */
 static struct TextFont g_topaz8_font;
 static void init_topaz8_font(void);
+
+struct BlitWaitQNode
+{
+    struct Node node;
+    struct Task *task;
+};
+
+static BOOL graphics_blit_queues_empty(struct GfxBase *GfxBase)
+{
+    return GfxBase && (GfxBase->blthd == NULL) && (GfxBase->bsblthd == NULL);
+}
+
+static void graphics_signal_next_blit_waiter_locked(struct GfxBase *GfxBase)
+{
+    struct BlitWaitQNode *waiter;
+
+    if (!GfxBase || IsListEmpty(&GfxBase->BlitWaitQ))
+        return;
+
+    waiter = (struct BlitWaitQNode *)GfxBase->BlitWaitQ.lh_Head;
+    if (waiter && waiter->task)
+    {
+        Signal(waiter->task, 1UL << SIGB_BLIT);
+    }
+}
+
+static void graphics_process_queued_blits(struct GfxBase *GfxBase)
+{
+    struct Task *me;
+
+    if (!GfxBase)
+        return;
+
+    me = FindTask(NULL);
+    if (!me)
+        return;
+
+    for (;;)
+    {
+        struct bltnode *blit = NULL;
+
+        Disable();
+
+        if (GfxBase->BlitOwner != NULL)
+        {
+            Enable();
+            return;
+        }
+
+        if (GfxBase->bsblthd)
+        {
+            blit = GfxBase->bsblthd;
+            GfxBase->bsblthd = blit->n;
+            if (!GfxBase->bsblthd)
+                GfxBase->bsblttl = NULL;
+        }
+        else if (GfxBase->blthd)
+        {
+            blit = GfxBase->blthd;
+            GfxBase->blthd = blit->n;
+            if (!GfxBase->blthd)
+                GfxBase->blttl = NULL;
+        }
+        else
+        {
+            graphics_signal_next_blit_waiter_locked(GfxBase);
+            Enable();
+            return;
+        }
+
+        GfxBase->BlitOwner = me;
+        Enable();
+
+        DPRINTF(LOG_DEBUG, "_graphics: processing queued blit node=0x%08lx\n", (ULONG)blit);
+
+        if (blit->function)
+        {
+            while (blit->function() != 0)
+            {
+            }
+        }
+
+        if ((blit->stat & CLEANUP) && blit->cleanup)
+        {
+            blit->cleanup();
+        }
+
+        Disable();
+        if (GfxBase->BlitOwner == me)
+            GfxBase->BlitOwner = NULL;
+        if (graphics_blit_queues_empty(GfxBase))
+            graphics_signal_next_blit_waiter_locked(GfxBase);
+        Enable();
+    }
+}
 
 /* Forward declarations for graphics functions */
 static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
@@ -55,8 +152,13 @@ static VOID _graphics_FreeRaster ( register struct GfxBase * GfxBase __asm("a6")
                                    register PLANEPTR p __asm("a0"),
                                    register UWORD width __asm("d0"),
                                    register UWORD height __asm("d1"));
+static BOOL _graphics_OrRegionRegion ( register struct GfxBase * GfxBase __asm("a6"),
+                                       register CONST struct Region * srcRegion __asm("a0"),
+                                       register struct Region * destRegion __asm("a1"));
 static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct RastPort * rp __asm("a1"));
+static VOID _graphics_RemFont ( register struct GfxBase * GfxBase __asm("a6"),
+                                register struct TextFont * textFont __asm("a1"));
 static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6"),
                                    register struct RastPort * rp __asm("a1"),
                                    register WORD x __asm("d0"),
@@ -652,6 +754,17 @@ struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphics
     /* Initialize the built-in Topaz-8 font */
     init_topaz8_font();
 
+    /* Initialize the public font list and register the built-in default font. */
+    NEWLIST(&graphicsb->BlitWaitQ);
+    NEWLIST(&graphicsb->TextFonts);
+    graphicsb->blthd = NULL;
+    graphicsb->blttl = NULL;
+    graphicsb->bsblthd = NULL;
+    graphicsb->bsblttl = NULL;
+    graphicsb->BlitOwner = NULL;
+    graphicsb->BlitNest = 0;
+    AddHead(&graphicsb->TextFonts, (struct Node *)&g_topaz8_font);
+
     /* Set the default font for the system */
     graphicsb->DefaultFont = &g_topaz8_font;
 
@@ -1172,8 +1285,7 @@ static LONG _graphics_SetFont ( register struct GfxBase * GfxBase __asm("a6"),
     }
 
     rp->Font = (struct TextFont *)textFont;
-    
-    /* Update TxHeight and TxBaseline from the font */
+    rp->TxWidth = textFont->tf_XSize;
     rp->TxHeight = textFont->tf_YSize;
     rp->TxBaseline = textFont->tf_Baseline;
 
@@ -1184,51 +1296,56 @@ static struct TextFont * _graphics_OpenFont ( register struct GfxBase * GfxBase 
                                                         register struct TextAttr * textAttr __asm("a0"))
 {
     struct TextFont *font;
+    struct Node *node;
+    struct TextFont *best_font;
 
     DPRINTF (LOG_DEBUG, "_graphics: OpenFont() textAttr=0x%08lx\n", (ULONG)textAttr);
 
-    font = get_default_font();
-
-    if (!textAttr)
+    if (!textAttr || !textAttr->ta_Name)
     {
-        /* No attr specified, return default font */
-        font->tf_Accessors++;
-        return font;
+        return NULL;
     }
 
     DPRINTF (LOG_DEBUG, "_graphics: OpenFont() name='%s', size=%d\n",
              textAttr->ta_Name ? (char *)textAttr->ta_Name : "(null)",
              (int)textAttr->ta_YSize);
 
-    /* Check if this is a request for topaz */
-    if (textAttr->ta_Name)
-    {
-        /* Accept "topaz.font" or "topaz" with size 8 */
-        const char *name = (const char *)textAttr->ta_Name;
-        BOOL is_topaz = FALSE;
+    best_font = NULL;
 
-        /* Simple string comparison */
-        if ((name[0] == 't' || name[0] == 'T') &&
-            (name[1] == 'o' || name[1] == 'O') &&
-            (name[2] == 'p' || name[2] == 'P') &&
-            (name[3] == 'a' || name[3] == 'A') &&
-            (name[4] == 'z' || name[4] == 'Z'))
+    for (node = GETHEAD(&GfxBase->TextFonts); node; node = GETSUCC(node))
+    {
+        font = (struct TextFont *)node;
+
+        if (!font->tf_Message.mn_Node.ln_Name)
         {
-            is_topaz = TRUE;
+            continue;
         }
 
-        if (is_topaz && (textAttr->ta_YSize == 0 || textAttr->ta_YSize == 8))
+        if (strcmp(font->tf_Message.mn_Node.ln_Name, (const char *)textAttr->ta_Name) != 0)
         {
-            font->tf_Accessors++;
-            return font;
+            continue;
+        }
+
+        if (textAttr->ta_YSize == 0 || font->tf_YSize == textAttr->ta_YSize)
+        {
+            best_font = font;
+            break;
+        }
+
+        if (!best_font)
+        {
+            best_font = font;
         }
     }
 
-    /* For any other font, just return the built-in topaz for now */
-    /* A full implementation would search diskfont.library */
-    DPRINTF (LOG_WARNING, "_graphics: OpenFont() font not found, using built-in topaz\n");
-    font->tf_Accessors++;
-    return font;
+    if (!best_font)
+    {
+        DPRINTF (LOG_DEBUG, "_graphics: OpenFont() font not found\n");
+        return NULL;
+    }
+
+    best_font->tf_Accessors++;
+    return best_font;
 }
 
 static VOID _graphics_CloseFont ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1241,14 +1358,15 @@ static VOID _graphics_CloseFont ( register struct GfxBase * GfxBase __asm("a6"),
         return;
     }
 
-    /* Decrease reference count */
     if (textFont->tf_Accessors > 0)
     {
         textFont->tf_Accessors--;
     }
 
-    /* For our built-in font, we never actually free it */
-    /* A full implementation would free dynamically loaded fonts when refcount hits 0 */
+    if (textFont->tf_Accessors == 0 && !(textFont->tf_Flags & FPF_ROMFONT))
+    {
+        _graphics_RemFont(GfxBase, textFont);
+    }
 }
 
 static ULONG _graphics_AskSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1269,14 +1387,22 @@ static ULONG _graphics_SetSoftStyle ( register struct GfxBase * GfxBase __asm("a
                                                         register ULONG style __asm("d0"),
                                                         register ULONG enable __asm("d1"))
 {
-    /*
-     * SetSoftStyle() sets which styles should be algorithmically rendered.
-     * Returns the styles that were actually enabled.
-     * We just accept whatever is requested within the enable mask.
-     */
+    ULONG realEnable;
+    ULONG intrinsic_style;
+
     DPRINTF (LOG_DEBUG, "_graphics: SetSoftStyle() rp=0x%08lx style=0x%08lx enable=0x%08lx\n",
              rp, style, enable);
-    return style & enable;
+
+    if (!rp)
+    {
+        return 0;
+    }
+
+    realEnable = enable & _graphics_AskSoftStyle(GfxBase, rp);
+    rp->AlgoStyle = (UBYTE)((~realEnable & rp->AlgoStyle) | (realEnable & style));
+
+    intrinsic_style = rp->Font ? rp->Font->tf_Style : 0;
+    return rp->AlgoStyle | intrinsic_style;
 }
 
 static VOID _graphics_AddBob ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1738,8 +1864,42 @@ static VOID _graphics_LoadView ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_WaitBlit ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    /* No-op: No real blitter hardware to wait for */
-    DPRINTF (LOG_DEBUG, "_graphics: WaitBlit() (no-op)\n");
+    struct Task *me;
+    struct BlitWaitQNode waiter;
+    ULONG signal_mask = 1UL << SIGB_BLIT;
+
+    DPRINTF(LOG_DEBUG, "_graphics: WaitBlit()\n");
+
+    if (!GfxBase)
+        return;
+
+    me = FindTask(NULL);
+    if (!me)
+        return;
+
+    for (;;)
+    {
+        graphics_process_queued_blits(GfxBase);
+
+        Disable();
+        if ((GfxBase->BlitOwner == me) ||
+            ((GfxBase->BlitOwner == NULL) && graphics_blit_queues_empty(GfxBase)))
+        {
+            Enable();
+            return;
+        }
+
+        waiter.task = me;
+        AddTail(&GfxBase->BlitWaitQ, &waiter.node);
+        SetSignal(0, signal_mask);
+        Enable();
+
+        Wait(signal_mask);
+
+        Disable();
+        Remove(&waiter.node);
+        Enable();
+    }
 }
 
 static VOID _graphics_SetRast ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2499,18 +2659,27 @@ static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
 static VOID _graphics_QBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct bltnode * blit __asm("a1"))
 {
-    /*
-     * QBlit() queues a blitter node for execution.
-     * In emulation we have no hardware blitter queue, so we just call
-     * the blit function directly if provided.
-     */
-    DPRINTF (LOG_DEBUG, "_graphics: QBlit() blit=0x%08lx - executing immediately (no queue)\n", (ULONG)blit);
-    
-    if (blit && blit->function) {
-        /* Execute the blit function directly */
-        /* Note: On real hardware this would be queued and executed by the blitter interrupt */
-        blit->function();
+    DPRINTF(LOG_DEBUG, "_graphics: QBlit() blit=0x%08lx\n", (ULONG)blit);
+
+    if (!GfxBase || !blit)
+        return;
+
+    blit->n = NULL;
+
+    Disable();
+    if (GfxBase->blttl)
+    {
+        GfxBase->blttl->n = blit;
+        GfxBase->blttl = blit;
     }
+    else
+    {
+        GfxBase->blthd = blit;
+        GfxBase->blttl = blit;
+    }
+    Enable();
+
+    graphics_process_queued_blits(GfxBase);
 }
 
 static VOID _graphics_InitArea ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2584,16 +2753,27 @@ static VOID _graphics_SetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_QBSBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct bltnode * blit __asm("a1"))
 {
-    /*
-     * QBSBlit() queues a bltnode for synchronized blitter execution.
-     * Similar to QBlit but with beam synchronization (waits for specific scanline).
-     * In emulation we execute immediately (no beam sync in software rendering).
-     */
-    DPRINTF (LOG_DEBUG, "_graphics: QBSBlit() blit=0x%08lx - executing immediately (no queue/sync)\n", (ULONG)blit);
-    
-    if (blit && blit->function) {
-        blit->function();
+    DPRINTF(LOG_DEBUG, "_graphics: QBSBlit() blit=0x%08lx\n", (ULONG)blit);
+
+    if (!GfxBase || !blit)
+        return;
+
+    blit->n = NULL;
+
+    Disable();
+    if (GfxBase->bsblttl)
+    {
+        GfxBase->bsblttl->n = blit;
+        GfxBase->bsblttl = blit;
     }
+    else
+    {
+        GfxBase->bsblthd = blit;
+        GfxBase->bsblttl = blit;
+    }
+    Enable();
+
+    graphics_process_queued_blits(GfxBase);
 }
 
 static VOID _graphics_BltClear ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3519,21 +3699,87 @@ static VOID _graphics_CopySBitMap ( register struct GfxBase * GfxBase __asm("a6"
 
 static VOID _graphics_OwnBlitter ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    /*
-     * OwnBlitter() grants exclusive blitter access to the calling task.
-     * In emulation we don't have real blitter hardware, so this is a no-op.
-     * Apps typically call OwnBlitter/DisownBlitter around BltBitMap sequences.
-     */
-    DPRINTF (LOG_DEBUG, "_graphics: OwnBlitter() - no-op (no hardware blitter)\n");
+    struct Task *me;
+    struct BlitWaitQNode waiter;
+    ULONG signal_mask = 1UL << SIGB_BLIT;
+
+    DPRINTF(LOG_DEBUG, "_graphics: OwnBlitter()\n");
+
+    if (!GfxBase)
+        return;
+
+    me = FindTask(NULL);
+    if (!me)
+        return;
+
+    for (;;)
+    {
+        Disable();
+
+        if (GfxBase->BlitOwner == me)
+        {
+            GfxBase->BlitNest++;
+            Enable();
+            return;
+        }
+
+        if ((GfxBase->BlitOwner == NULL) && graphics_blit_queues_empty(GfxBase))
+        {
+            GfxBase->BlitOwner = me;
+            GfxBase->BlitNest = 1;
+            Enable();
+            return;
+        }
+
+        waiter.task = me;
+        AddTail(&GfxBase->BlitWaitQ, &waiter.node);
+        SetSignal(0, signal_mask);
+        Enable();
+
+        Wait(signal_mask);
+
+        Disable();
+        Remove(&waiter.node);
+        Enable();
+    }
 }
 
 static VOID _graphics_DisownBlitter ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    /*
-     * DisownBlitter() releases exclusive blitter access.
-     * In emulation this is a no-op since we don't have real blitter hardware.
-     */
-    DPRINTF (LOG_DEBUG, "_graphics: DisownBlitter() - no-op (no hardware blitter)\n");
+    struct Task *me;
+
+    DPRINTF(LOG_DEBUG, "_graphics: DisownBlitter()\n");
+
+    if (!GfxBase)
+        return;
+
+    me = FindTask(NULL);
+
+    Disable();
+
+    if (!me || (GfxBase->BlitOwner != me))
+    {
+        Enable();
+        return;
+    }
+
+    if (GfxBase->BlitNest > 1)
+    {
+        GfxBase->BlitNest--;
+        Enable();
+        return;
+    }
+
+    GfxBase->BlitNest = 0;
+    GfxBase->BlitOwner = NULL;
+    Enable();
+
+    graphics_process_queued_blits(GfxBase);
+
+    Disable();
+    if ((GfxBase->BlitOwner == NULL) && graphics_blit_queues_empty(GfxBase))
+        graphics_signal_next_blit_waiter_locked(GfxBase);
+    Enable();
 }
 
 static struct TmpRas * _graphics_InitTmpRas ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3558,18 +3804,22 @@ static VOID _graphics_AskFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register struct TextAttr * textAttr __asm("a0"))
 {
+    struct TextFont *font;
+
     /* Query the attributes of the current font in a RastPort.
      * Based on AROS implementation.
      */
     DPRINTF (LOG_DEBUG, "_graphics: AskFont(rp=%p, textAttr=%p)\n", rp, textAttr);
     
-    if (!rp || !textAttr || !rp->Font)
+    if (!rp || !textAttr)
         return;
+
+    font = rp->Font ? rp->Font : get_default_font();
     
-    textAttr->ta_Name  = (STRPTR)rp->Font->tf_Message.mn_Node.ln_Name;
-    textAttr->ta_YSize = rp->Font->tf_YSize;
-    textAttr->ta_Style = rp->Font->tf_Style;
-    textAttr->ta_Flags = rp->Font->tf_Flags;
+    textAttr->ta_Name  = (STRPTR)font->tf_Message.mn_Node.ln_Name;
+    textAttr->ta_YSize = font->tf_YSize;
+    textAttr->ta_Style = font->tf_Style;
+    textAttr->ta_Flags = font->tf_Flags;
 }
 
 static VOID _graphics_AddFont ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3623,8 +3873,8 @@ static PLANEPTR _graphics_AllocRaster ( register struct GfxBase * GfxBase __asm(
     /* Calculate size using RASSIZE macro formula */
     ULONG size = (ULONG)height * ((((ULONG)width + 15) >> 3) & 0xFFFE);
 
-    /* Allocate chip memory (MEMF_CHIP) and clear it */
-    PLANEPTR raster = (PLANEPTR)AllocMem(size, MEMF_CHIP | MEMF_CLEAR);
+    /* Allocate chip memory for a single native bitplane. */
+    PLANEPTR raster = (PLANEPTR)AllocMem(size, MEMF_CHIP);
 
     DPRINTF (LOG_DEBUG, "_graphics: AllocRaster() -> 0x%08lx (size=%lu)\n", (ULONG)raster, size);
 
@@ -3674,6 +3924,11 @@ static void FreeRegionRectangle(struct RegionRectangle *rr)
         FreeMem(rr, sizeof(struct RegionRectangle));
 }
 
+static BOOL RectangleIsValid(CONST struct Rectangle *rect)
+{
+    return rect && (rect->MinX <= rect->MaxX) && (rect->MinY <= rect->MaxY);
+}
+
 /*
  * Helper: Check if two rectangles overlap
  */
@@ -3681,6 +3936,21 @@ static BOOL RectanglesOverlap(const struct Rectangle *r1, const struct Rectangle
 {
     return (r1->MinX <= r2->MaxX && r1->MaxX >= r2->MinX &&
             r1->MinY <= r2->MaxY && r1->MaxY >= r2->MinY);
+}
+
+static BOOL RectangleIntersection(CONST struct Rectangle *r1,
+                                  CONST struct Rectangle *r2,
+                                  struct Rectangle *result)
+{
+    if (!RectangleIsValid(r1) || !RectangleIsValid(r2) || !result || !RectanglesOverlap(r1, r2))
+        return FALSE;
+
+    result->MinX = (r1->MinX > r2->MinX) ? r1->MinX : r2->MinX;
+    result->MinY = (r1->MinY > r2->MinY) ? r1->MinY : r2->MinY;
+    result->MaxX = (r1->MaxX < r2->MaxX) ? r1->MaxX : r2->MaxX;
+    result->MaxY = (r1->MaxY < r2->MaxY) ? r1->MaxY : r2->MaxY;
+
+    return TRUE;
 }
 
 /*
@@ -3692,40 +3962,102 @@ static BOOL RectangleContains(const struct Rectangle *outer, const struct Rectan
             inner->MinY >= outer->MinY && inner->MaxY <= outer->MaxY);
 }
 
-/*
- * Helper: Update region bounds after adding/removing rectangles
- */
-static void UpdateRegionBounds(struct Region *region)
+static BOOL AppendRegionRectangle(struct Region *region, CONST struct Rectangle *rectangle)
 {
-    struct RegionRectangle *rr = region->RegionRectangle;
+    struct RegionRectangle *rr;
 
+    if (!region || !RectangleIsValid(rectangle))
+        return TRUE;
+
+    rr = AllocRegionRectangle();
     if (!rr)
+        return FALSE;
+
+    rr->bounds = *rectangle;
+    rr->Next = NULL;
+    rr->Prev = NULL;
+
+    if (!region->RegionRectangle)
     {
-        region->bounds.MinX = 0;
-        region->bounds.MinY = 0;
-        region->bounds.MaxX = 0;
-        region->bounds.MaxY = 0;
-        return;
+        region->RegionRectangle = rr;
+        region->bounds = *rectangle;
+        return TRUE;
     }
 
-    /* Start with first rectangle's bounds (relative to region->bounds, so convert) */
-    region->bounds.MinX = rr->bounds.MinX;
-    region->bounds.MinY = rr->bounds.MinY;
-    region->bounds.MaxX = rr->bounds.MaxX;
-    region->bounds.MaxY = rr->bounds.MaxY;
-
-    /* Expand to include all rectangles */
-    for (rr = rr->Next; rr; rr = rr->Next)
     {
-        if (rr->bounds.MinX < region->bounds.MinX)
-            region->bounds.MinX = rr->bounds.MinX;
-        if (rr->bounds.MinY < region->bounds.MinY)
-            region->bounds.MinY = rr->bounds.MinY;
-        if (rr->bounds.MaxX > region->bounds.MaxX)
-            region->bounds.MaxX = rr->bounds.MaxX;
-        if (rr->bounds.MaxY > region->bounds.MaxY)
-            region->bounds.MaxY = rr->bounds.MaxY;
+        struct RegionRectangle *last = region->RegionRectangle;
+        while (last->Next)
+            last = last->Next;
+        last->Next = rr;
+        rr->Prev = last;
     }
+
+    if (rectangle->MinX < region->bounds.MinX)
+        region->bounds.MinX = rectangle->MinX;
+    if (rectangle->MinY < region->bounds.MinY)
+        region->bounds.MinY = rectangle->MinY;
+    if (rectangle->MaxX > region->bounds.MaxX)
+        region->bounds.MaxX = rectangle->MaxX;
+    if (rectangle->MaxY > region->bounds.MaxY)
+        region->bounds.MaxY = rectangle->MaxY;
+
+    return TRUE;
+}
+
+static BOOL AppendRectangleDifference(struct Region *dest,
+                                      CONST struct Rectangle *source,
+                                      CONST struct Rectangle *cut)
+{
+    struct Rectangle intersect;
+    struct Rectangle piece;
+
+    if (!RectangleIsValid(source))
+        return TRUE;
+
+    if (!RectangleIntersection(source, cut, &intersect))
+        return AppendRegionRectangle(dest, source);
+
+    if (source->MinY < intersect.MinY)
+    {
+        piece.MinX = source->MinX;
+        piece.MinY = source->MinY;
+        piece.MaxX = source->MaxX;
+        piece.MaxY = intersect.MinY - 1;
+        if (!AppendRegionRectangle(dest, &piece))
+            return FALSE;
+    }
+
+    if (intersect.MaxY < source->MaxY)
+    {
+        piece.MinX = source->MinX;
+        piece.MinY = intersect.MaxY + 1;
+        piece.MaxX = source->MaxX;
+        piece.MaxY = source->MaxY;
+        if (!AppendRegionRectangle(dest, &piece))
+            return FALSE;
+    }
+
+    if (source->MinX < intersect.MinX)
+    {
+        piece.MinX = source->MinX;
+        piece.MinY = intersect.MinY;
+        piece.MaxX = intersect.MinX - 1;
+        piece.MaxY = intersect.MaxY;
+        if (!AppendRegionRectangle(dest, &piece))
+            return FALSE;
+    }
+
+    if (intersect.MaxX < source->MaxX)
+    {
+        piece.MinX = intersect.MaxX + 1;
+        piece.MinY = intersect.MinY;
+        piece.MaxX = source->MaxX;
+        piece.MaxY = intersect.MaxY;
+        if (!AppendRegionRectangle(dest, &piece))
+            return FALSE;
+    }
+
+    return TRUE;
 }
 
 /*
@@ -3810,39 +4142,10 @@ static BOOL _graphics_OrRectRegion ( register struct GfxBase * GfxBase __asm("a6
     if (!region || !rectangle)
         return FALSE;
 
-    /* Validate rectangle */
-    if (rectangle->MinX > rectangle->MaxX || rectangle->MinY > rectangle->MaxY)
-        return TRUE;  /* Empty rectangle, nothing to do */
+    if (!RectangleIsValid(rectangle))
+        return TRUE;
 
-    /* Allocate new RegionRectangle */
-    struct RegionRectangle *rr = AllocRegionRectangle();
-    if (!rr)
-        return FALSE;
-
-    /* Copy rectangle bounds */
-    rr->bounds = *rectangle;
-    rr->Next = NULL;
-    rr->Prev = NULL;
-
-    /* Add to list (simple append for now - a full implementation would merge overlapping rects) */
-    if (!region->RegionRectangle)
-    {
-        region->RegionRectangle = rr;
-    }
-    else
-    {
-        /* Find end of list */
-        struct RegionRectangle *last = region->RegionRectangle;
-        while (last->Next)
-            last = last->Next;
-        last->Next = rr;
-        rr->Prev = last;
-    }
-
-    /* Update bounds */
-    UpdateRegionBounds(region);
-
-    return TRUE;
+    return AppendRegionRectangle(region, rectangle);
 }
 
 /*
@@ -3862,45 +4165,40 @@ static VOID _graphics_AndRectRegion ( register struct GfxBase * GfxBase __asm("a
     if (!region || !rectangle)
         return;
 
-    struct RegionRectangle *rr = region->RegionRectangle;
-    struct RegionRectangle *prev = NULL;
+    struct Region temp_region;
+    struct RegionRectangle *rr;
 
-    while (rr)
+    if (!region->RegionRectangle)
+        return;
+
+    temp_region.bounds.MinX = 0;
+    temp_region.bounds.MinY = 0;
+    temp_region.bounds.MaxX = 0;
+    temp_region.bounds.MaxY = 0;
+    temp_region.RegionRectangle = NULL;
+
+    if (!RectangleIsValid(rectangle))
     {
-        struct RegionRectangle *next = rr->Next;
-
-        /* Check if rectangles overlap */
-        if (RectanglesOverlap(&rr->bounds, rectangle))
-        {
-            /* Clip rr->bounds to rectangle */
-            if (rr->bounds.MinX < rectangle->MinX)
-                rr->bounds.MinX = rectangle->MinX;
-            if (rr->bounds.MinY < rectangle->MinY)
-                rr->bounds.MinY = rectangle->MinY;
-            if (rr->bounds.MaxX > rectangle->MaxX)
-                rr->bounds.MaxX = rectangle->MaxX;
-            if (rr->bounds.MaxY > rectangle->MaxY)
-                rr->bounds.MaxY = rectangle->MaxY;
-            prev = rr;
-        }
-        else
-        {
-            /* Remove this rectangle - no overlap */
-            if (prev)
-                prev->Next = next;
-            else
-                region->RegionRectangle = next;
-
-            if (next)
-                next->Prev = prev;
-
-            FreeRegionRectangle(rr);
-        }
-        rr = next;
+        _graphics_ClearRegion(GfxBase, region);
+        return;
     }
 
-    /* Update bounds */
-    UpdateRegionBounds(region);
+    for (rr = region->RegionRectangle; rr; rr = rr->Next)
+    {
+        struct Rectangle intersection;
+
+        if (RectangleIntersection(&rr->bounds, rectangle, &intersection))
+        {
+            if (!AppendRegionRectangle(&temp_region, &intersection))
+            {
+                _graphics_ClearRegion(GfxBase, &temp_region);
+                return;
+            }
+        }
+    }
+
+    _graphics_ClearRegion(GfxBase, region);
+    *region = temp_region;
 }
 
 /*
@@ -3922,44 +4220,29 @@ static BOOL _graphics_ClearRectRegion ( register struct GfxBase * GfxBase __asm(
     if (!region || !rectangle)
         return FALSE;
 
-    struct RegionRectangle *rr = region->RegionRectangle;
-    struct RegionRectangle *prev = NULL;
+    struct Region temp_region;
+    struct RegionRectangle *rr;
 
-    while (rr)
+    if (!RectangleIsValid(rectangle) || !region->RegionRectangle)
+        return TRUE;
+
+    temp_region.bounds.MinX = 0;
+    temp_region.bounds.MinY = 0;
+    temp_region.bounds.MaxX = 0;
+    temp_region.bounds.MaxY = 0;
+    temp_region.RegionRectangle = NULL;
+
+    for (rr = region->RegionRectangle; rr; rr = rr->Next)
     {
-        struct RegionRectangle *next = rr->Next;
-
-        /* Check if this rect is fully contained in the clear rectangle */
-        if (RectangleContains(rectangle, &rr->bounds))
+        if (!AppendRectangleDifference(&temp_region, &rr->bounds, rectangle))
         {
-            /* Remove this rectangle entirely */
-            if (prev)
-                prev->Next = next;
-            else
-                region->RegionRectangle = next;
-
-            if (next)
-                next->Prev = prev;
-
-            FreeRegionRectangle(rr);
+            _graphics_ClearRegion(GfxBase, &temp_region);
+            return FALSE;
         }
-        else if (RectanglesOverlap(&rr->bounds, rectangle))
-        {
-            /* Partial overlap - would need to split the rectangle
-             * For now, we just skip it (simplified implementation)
-             * TODO: Implement proper rectangle splitting */
-            prev = rr;
-        }
-        else
-        {
-            /* No overlap, keep rectangle */
-            prev = rr;
-        }
-        rr = next;
     }
 
-    /* Update bounds */
-    UpdateRegionBounds(region);
+    _graphics_ClearRegion(GfxBase, region);
+    *region = temp_region;
 
     return TRUE;
 }
@@ -4151,14 +4434,64 @@ static BOOL _graphics_XorRectRegion ( register struct GfxBase * GfxBase __asm("a
     if (!region || !rectangle)
         return FALSE;
 
-    /* XOR is complex - for now, we implement a simple version:
-     * If rectangle overlaps existing rects, remove the overlapping parts,
-     * otherwise add the rectangle.
-     * A full implementation would properly compute the symmetric difference.
-     *
-     * Simplified approach: Just add the rectangle (like OrRectRegion)
-     * This is not a complete XOR but works for simple cases. */
-    return _graphics_OrRectRegion(GfxBase, region, rectangle);
+    if (!RectangleIsValid(rectangle))
+        return TRUE;
+
+    {
+        struct Region result_region;
+        struct Region add_region;
+        struct RegionRectangle *rr;
+
+        result_region.bounds.MinX = 0;
+        result_region.bounds.MinY = 0;
+        result_region.bounds.MaxX = 0;
+        result_region.bounds.MaxY = 0;
+        result_region.RegionRectangle = NULL;
+
+        add_region.bounds.MinX = 0;
+        add_region.bounds.MinY = 0;
+        add_region.bounds.MaxX = 0;
+        add_region.bounds.MaxY = 0;
+        add_region.RegionRectangle = NULL;
+
+        for (rr = region->RegionRectangle; rr; rr = rr->Next)
+        {
+            if (!AppendRectangleDifference(&result_region, &rr->bounds, rectangle))
+            {
+                _graphics_ClearRegion(GfxBase, &result_region);
+                return FALSE;
+            }
+        }
+
+        if (!AppendRegionRectangle(&add_region, rectangle))
+        {
+            _graphics_ClearRegion(GfxBase, &result_region);
+            return FALSE;
+        }
+
+        for (rr = region->RegionRectangle; rr; rr = rr->Next)
+        {
+            if (!_graphics_ClearRectRegion(GfxBase, &add_region, &rr->bounds))
+            {
+                _graphics_ClearRegion(GfxBase, &result_region);
+                _graphics_ClearRegion(GfxBase, &add_region);
+                return FALSE;
+            }
+        }
+
+        if (!_graphics_OrRegionRegion(GfxBase, &add_region, &result_region))
+        {
+            _graphics_ClearRegion(GfxBase, &result_region);
+            _graphics_ClearRegion(GfxBase, &add_region);
+            return FALSE;
+        }
+
+        _graphics_ClearRegion(GfxBase, &add_region);
+        _graphics_ClearRegion(GfxBase, region);
+        *region = result_region;
+    }
+
+    return TRUE;
 }
 
 static VOID _graphics_FreeCprList ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4456,11 +4789,119 @@ static BOOL _graphics_AndRegionRegion ( register struct GfxBase * GfxBase __asm(
         return TRUE;
     }
 
-    /* For each rectangle in dest, intersect with the entire src region
-     * This is a simplified implementation that ANDs with the src bounds only */
-    _graphics_AndRectRegion(GfxBase, destRegion, &srcRegion->bounds);
+    if (!destRegion->RegionRectangle)
+        return TRUE;
+
+    {
+        struct Region temp_region;
+        struct RegionRectangle *dest_rr;
+
+        temp_region.bounds.MinX = 0;
+        temp_region.bounds.MinY = 0;
+        temp_region.bounds.MaxX = 0;
+        temp_region.bounds.MaxY = 0;
+        temp_region.RegionRectangle = NULL;
+
+        for (dest_rr = destRegion->RegionRectangle; dest_rr; dest_rr = dest_rr->Next)
+        {
+            struct RegionRectangle *src_rr;
+
+            for (src_rr = srcRegion->RegionRectangle; src_rr; src_rr = src_rr->Next)
+            {
+                struct Rectangle intersection;
+
+                if (RectangleIntersection(&dest_rr->bounds, &src_rr->bounds, &intersection))
+                {
+                    if (!AppendRegionRectangle(&temp_region, &intersection))
+                    {
+                        _graphics_ClearRegion(GfxBase, &temp_region);
+                        return FALSE;
+                    }
+                }
+            }
+        }
+
+        _graphics_ClearRegion(GfxBase, destRegion);
+        *destRegion = temp_region;
+    }
 
     return TRUE;
+}
+
+static BOOL _graphics_private0 ( register struct GfxBase * GfxBase __asm("a6"),
+                                 register struct Region * region __asm("a0"),
+                                 register struct Rectangle * rectangle __asm("a1"))
+{
+    DPRINTF(LOG_DEBUG, "_graphics: RectInRegion(region=0x%08lx, rect=0x%08lx)\n",
+            (ULONG)region, (ULONG)rectangle);
+
+    if (!region || !rectangle || !RectangleIsValid(rectangle) || !region->RegionRectangle)
+        return FALSE;
+
+    if (RectangleContains(&region->bounds, rectangle))
+    {
+        struct Region probe_region;
+        struct RegionRectangle *rr;
+
+        probe_region.bounds.MinX = 0;
+        probe_region.bounds.MinY = 0;
+        probe_region.bounds.MaxX = 0;
+        probe_region.bounds.MaxY = 0;
+        probe_region.RegionRectangle = NULL;
+
+        if (!AppendRegionRectangle(&probe_region, rectangle))
+            return FALSE;
+
+        for (rr = region->RegionRectangle; rr; rr = rr->Next)
+        {
+            if (!_graphics_ClearRectRegion(GfxBase, &probe_region, &rr->bounds))
+            {
+                _graphics_ClearRegion(GfxBase, &probe_region);
+                return FALSE;
+            }
+
+            if (probe_region.RegionRectangle == NULL)
+            {
+                _graphics_ClearRegion(GfxBase, &probe_region);
+                return TRUE;
+            }
+        }
+
+        _graphics_ClearRegion(GfxBase, &probe_region);
+    }
+
+    return FALSE;
+}
+
+static BOOL _graphics_private1 ( register struct GfxBase * GfxBase __asm("a6"),
+                                 register struct Region * region __asm("a0"),
+                                 register WORD x __asm("d0"),
+                                 register WORD y __asm("d1"))
+{
+    struct RegionRectangle *rr;
+
+    DPRINTF(LOG_DEBUG, "_graphics: PointInRegion(region=0x%08lx, x=%d, y=%d)\n",
+            (ULONG)region, x, y);
+
+    if (!region || !region->RegionRectangle)
+        return FALSE;
+
+    if ((x < region->bounds.MinX) || (x > region->bounds.MaxX) ||
+        (y < region->bounds.MinY) || (y > region->bounds.MaxY))
+    {
+        return FALSE;
+    }
+
+    for (rr = region->RegionRectangle; rr; rr = rr->Next)
+    {
+        if ((x >= rr->bounds.MinX) && (x <= rr->bounds.MaxX) &&
+            (y >= rr->bounds.MinY) && (y <= rr->bounds.MaxY))
+        {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
 }
 
 static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4568,20 +5009,8 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                   srcBitMap->BytesPerRow);
 }
 
-static VOID _graphics_private0 ( register struct GfxBase * GfxBase __asm("a6"))
-{
-    DPRINTF (LOG_ERROR, "_graphics: private0() unimplemented STUB called.\n");
-    assert(FALSE);
-}
-
-static VOID _graphics_private1 ( register struct GfxBase * GfxBase __asm("a6"))
-{
-    DPRINTF (LOG_ERROR, "_graphics: private1() unimplemented STUB called.\n");
-    assert(FALSE);
-}
-
 static BOOL __attribute__((optimize("O0"))) _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
-                                            register struct Layer * layer __asm("a5"))
+                                                        register struct Layer * layer __asm("a5"))
 {
     /* Attempt to lock a layer without blocking.
      * In our single-threaded emulation, this always succeeds.
@@ -5771,9 +6200,16 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
     struct BitMap *bm;
     ULONG plane;
     ULONG extraPlanes;
+    ULONG plane_size;
 
     DPRINTF (LOG_DEBUG, "_graphics: AllocBitMap(%lu, %lu, %lu, 0x%08lx, 0x%08lx)\n",
              sizex, sizey, depth, flags, (ULONG)friend_bitmap);
+
+    if (BITMAPFLAGS_ARE_EXTENDED(flags))
+    {
+        DPRINTF (LOG_WARNING, "_graphics: AllocBitMap() extended taglists unsupported\n");
+        return NULL;
+    }
 
     if (depth == 0 || depth > 8)
     {
@@ -5795,14 +6231,11 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
         return NULL;
     }
 
-    /* Initialize BitMap structure */
-    bm->BytesPerRow = ((sizex + 15) >> 4) * 2;  /* Round up to nearest word boundary */
-    bm->Rows = (UWORD)sizey;
-    bm->Flags = (UBYTE)(flags | BMF_STANDARD);
-    bm->Depth = (UBYTE)depth;
-    bm->pad = 0;
+    _graphics_InitBitMap(GfxBase, bm, (BYTE)depth, (WORD)sizex, (WORD)sizey);
+    bm->Flags = (UBYTE)(bm->Flags | (flags & (BMF_CLEAR | BMF_DISPLAYABLE | BMF_INTERLEAVED | BMF_MINPLANES)));
+    plane_size = RASSIZE(sizex, sizey);
 
-    /* Allocate plane data (AllocRaster already handles BMF_CLEAR via MEMF_CLEAR) */
+    /* Allocate plane data and clear it only when the public flag requests it. */
     for (plane = 0; plane < depth; plane++)
     {
         bm->Planes[plane] = _graphics_AllocRaster(GfxBase, (UWORD)sizex, (UWORD)sizey);
@@ -5820,6 +6253,11 @@ static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase
 
             FreeMem(bm, sizeof(struct BitMap) + extraPlanes * sizeof(PLANEPTR));
             return NULL;
+        }
+
+        if (flags & BMF_CLEAR)
+        {
+            lxa_memset(bm->Planes[plane], 0, plane_size);
         }
     }
 

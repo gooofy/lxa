@@ -34,9 +34,11 @@ protected:
 };
 
 TEST_F(GraphicsTest, AllocRaster) { RunGraphicsTest("AllocRaster"); }
+TEST_F(GraphicsTest, AllocBitMap) { RunGraphicsTest("AllocBitMap"); }
 TEST_F(GraphicsTest, AreaEllipse) { RunGraphicsTest("AreaEllipse"); }
 TEST_F(GraphicsTest, AreaFill) { RunGraphicsTest("AreaFill"); }
 TEST_F(GraphicsTest, BltBitMap) { RunGraphicsTest("BltBitMap"); }
+TEST_F(GraphicsTest, BlitterQueue) { RunGraphicsTest("BlitterQueue"); }
 TEST_F(GraphicsTest, BltBitMapRastPort) { RunGraphicsTest("BltBitMapRastPort"); }
 TEST_F(GraphicsTest, BltMaskBitMapRastPort) { RunGraphicsTest("BltMaskBitMapRastPort"); }
 TEST_F(GraphicsTest, BltPattern) { RunGraphicsTest("BltPattern"); }

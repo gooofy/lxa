@@ -5251,8 +5251,8 @@ void coldstart (void)
     NEWLIST (&SysBase->ResourceList);
     SysBase->ResourceList.lh_Type = NT_RESOURCE;
     
-    /* Create simple stub CIA resources for timer access */
-    /* cia.resource is a simple Node-based structure */
+    /* Create simple stub resources needed by built-in subsystems. */
+    /* Resources are simple Node-based structures here. */
     struct Node *ciaAResource = AllocVec(sizeof(struct Node), MEMF_CLEAR | MEMF_PUBLIC);
     if (ciaAResource) {
         ciaAResource->ln_Type = NT_RESOURCE;
@@ -5269,6 +5269,15 @@ void coldstart (void)
         ciaBResource->ln_Name = "ciab.resource";
         AddTail(&SysBase->ResourceList, ciaBResource);
         DPRINTF (LOG_DEBUG, "coldstart: registered ciab.resource\n");
+    }
+
+    struct Node *blitterResource = AllocVec(sizeof(struct Node), MEMF_CLEAR | MEMF_PUBLIC);
+    if (blitterResource) {
+        blitterResource->ln_Type = NT_RESOURCE;
+        blitterResource->ln_Pri = 0;
+        blitterResource->ln_Name = "blitter.resource";
+        AddTail(&SysBase->ResourceList, blitterResource);
+        DPRINTF (LOG_DEBUG, "coldstart: registered blitter.resource\n");
     }
     
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in resources\n");

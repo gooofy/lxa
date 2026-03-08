@@ -1,6 +1,6 @@
 /*
  * Test: graphics/text_render
- * Tests OpenFont(), SetFont(), Text(), TextLength() functions
+ * Tests OpenFont(), SetFont(), AskFont(), SetSoftStyle(), Text(), and CloseFont()
  */
 
 #include <exec/types.h>
@@ -53,8 +53,10 @@ int main(void)
     struct RastPort rp;
     struct BitMap bm;
     struct TextAttr ta;
+    struct TextAttr asked;
     struct TextFont *font;
     LONG len;
+    ULONG style_result;
     PLANEPTR plane;
     int errors = 0;
 
@@ -133,6 +135,16 @@ int main(void)
             print("OK: TxHeight = 8 after SetFont\n");
         }
 
+        if (rp.TxWidth != 8)
+        {
+            print("FAIL: TxWidth != 8 after SetFont\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: TxWidth = 8 after SetFont\n");
+        }
+
         if (rp.Font != font)
         {
             print("FAIL: rp.Font not set correctly\n");
@@ -141,6 +153,37 @@ int main(void)
         else
         {
             print("OK: rp.Font set correctly\n");
+        }
+
+        /* Test AskFont() */
+        print("Testing AskFont()...\n");
+        asked.ta_Name = NULL;
+        asked.ta_YSize = 0;
+        asked.ta_Style = 0;
+        asked.ta_Flags = 0;
+        AskFont(&rp, &asked);
+
+        if (!asked.ta_Name || asked.ta_YSize != 8 || asked.ta_Style != font->tf_Style)
+        {
+            print("FAIL: AskFont() returned wrong attributes\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: AskFont() returned current font attributes\n");
+        }
+
+        /* Test SetSoftStyle() enable-mask behavior */
+        print("Testing SetSoftStyle()...\n");
+        style_result = SetSoftStyle(&rp, FSF_BOLD | FSF_ITALIC, FSF_BOLD);
+        if (rp.AlgoStyle != FSF_BOLD || style_result != (ULONG)(font->tf_Style | FSF_BOLD))
+        {
+            print("FAIL: SetSoftStyle() did not honor enable mask\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: SetSoftStyle() updated AlgoStyle correctly\n");
         }
 
         /* Test TextLength() */
@@ -194,19 +237,20 @@ int main(void)
         print("OK: CloseFont() completed\n");
     }
 
-    /* Test OpenFont() with unknown font - LXA returns built-in font as fallback */
-    print("Testing OpenFont(unknown.font) - LXA uses fallback...\n");
+    /* Test OpenFont() with unknown font */
+    print("Testing OpenFont(unknown.font) returns NULL...\n");
     ta.ta_Name = (STRPTR)"unknown.font";
     ta.ta_YSize = 12;
     font = OpenFont(&ta);
-    if (font != NULL)
+    if (font == NULL)
     {
-        print("OK: OpenFont(unknown.font) returned fallback font\n");
-        CloseFont(font);
+        print("OK: OpenFont(unknown.font) returned NULL\n");
     }
     else
     {
-        print("OK: OpenFont(unknown.font) returned NULL\n");
+        print("FAIL: OpenFont(unknown.font) unexpectedly returned a font\n");
+        CloseFont(font);
+        errors++;
     }
 
     /* Clean up */

@@ -54,6 +54,18 @@ int main(void)
     } else {
         print("OK: Depth=4\n");
     }
+    if (bm.Flags != BMF_STANDARD) {
+        print("FAIL: Flags != BMF_STANDARD\n");
+        errors++;
+    } else {
+        print("OK: Flags=BMF_STANDARD\n");
+    }
+    if (bm.pad != 0) {
+        print("FAIL: pad != 0\n");
+        errors++;
+    } else {
+        print("OK: pad=0\n");
+    }
 
     /* Test 17 pixels (should round to 4 bytes for word alignment) */
     InitBitMap(&bm, 1, 17, 10);

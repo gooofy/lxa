@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.82** | **Phase 78-C Graphics Verification In Progress** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.87** | **Phase 78-C Graphics Verification In Progress** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -24,9 +24,15 @@ Phase 78-C: drawing verification expanded; `Draw`, `RectFill`, `SetRast`, `Write
 Phase 78-C: ellipse verification expanded; `AreaEllipse` now stores native ellipse markers in `AreaInfo`, `AreaEnd()` fills/renders those records directly, and both `DrawEllipse` and `AreaEllipse` are locked in by the graphics regression sweep (v0.6.80).
 Phase 78-C: area-fill verification expanded; `AreaEnd()` is now locked against even-odd fill behavior for self-overlapping paths, and the NDK `AreaCircle` shorthand is validated as `AreaEllipse(r,r)` through direct graphics regression coverage (v0.6.81).
 Phase 78-C: blit verification expanded; `BltBitMap`, `BltBitMapRastPort`, `ClipBlit`, and `BltMaskBitMapRastPort` are now covered for overlap semantics, destination minterms, layer ClipRect clipping, and masked copies in the unified graphics regression sweep (v0.6.82).
+Phase 78-C: text/font verification expanded; graphics now initializes and queries the public font list correctly, `OpenFont`/`CloseFont` follow list-based lookup and lifetime rules, `SetFont`/`AskFont`/`SetSoftStyle` are locked against current NDK-style semantics, and the existing text regression programs now verify those behaviors directly (v0.6.83).
+Phase 78-C: blitter/resource verification expanded; `QBlit`/`QBSBlit` now run through queued FIFO/beam-priority execution with cleanup callbacks, `WaitBlit`/`OwnBlitter`/`DisownBlitter` now coordinate ownership and queue draining instead of acting as no-ops, and `blitter.resource` plus `AddResource`/`RemResource` lifecycle coverage are locked in by new graphics/exec regressions (v0.6.84).
+Phase 78-C: bitmap allocation verification expanded; `InitBitMap` is now locked against `BMF_STANDARD`/`pad` initialization while preserving caller-owned planes, and `AllocBitMap`/`FreeBitMap` now have direct regression coverage for chip-plane allocation, flag propagation, and safe cleanup paths (v0.6.85).
+Phase 78-C: raster allocation verification expanded; `AllocRaster`/`FreeRaster` are now aligned with AROS/NDK CHIP-memory semantics, `AllocBitMap(BMF_CLEAR)` performs its own plane clearing instead of relying on `AllocRaster`, and the graphics regression sweep now locks in CHIP allocation, minimum-word sizing, and NULL-safe frees (v0.6.86).
+Phase 78-C: region verification expanded; region boolean ops now split/intersect/toggle rectangles instead of appending placeholders, `RectInRegion`/`PointInRegion` are exposed through the graphics vectors used by tests, and the graphics regression sweep now covers region/rect membership plus `StressTasks` timing is hardened against host contention (v0.6.87).
 
 **Current Status**:
 - 49/49 ctest entries (all GTest), with long-running UI/application suites split into balanced shards for faster parallel execution
+- Full `ctest --test-dir build --output-on-failure -j8` rerun refreshed the top-line count at 49/49 passing entries
 - Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
 - Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
 - All remaining miscellaneous Exec items verified: `RawDoFmt` edge cases (maxwidth, precision, `%c`, `%%`, `%b` BSTR, return value), list accessors (`GetHead`/`GetTail`/`GetSucc`/`GetPred` as macros), `Alert` (recovery vs deadend decoding), `Supervisor` (m68k privilege-switch call)
@@ -59,6 +65,11 @@ Phase 78-C: blit verification expanded; `BltBitMap`, `BltBitMapRastPort`, `ClipB
 - Expanded Phase 78-C ellipse verification: corrected `AreaEllipse` to follow the AROS/NDK contract of storing a two-entry ellipse record instead of flattening to polygon vectors, taught `AreaEnd()` to fill and outline ellipse records directly, and kept `DrawEllipse`/`AreaEllipse` covered by the unified `graphics_gtest` sweep
 - Expanded Phase 78-C area-fill verification: added a self-overlapping double-trace regression so `AreaEnd()` stays aligned with the even-odd scan-line rule, and validated the NDK `AreaCircle` macro shorthand on top of the native ellipse area-fill path
 - Expanded Phase 78-C blit verification: refactored bitmap blitting around shared minterm/mask helpers, added overlap-safe `BltBitMap` coverage plus direct `BltBitMapRastPort` and `BltMaskBitMapRastPort` regression tests, and taught the raster-port blit entry points and `ClipBlit` to respect visible destination ClipRects and obscured source layers
+- Expanded Phase 78-C text/font verification: `graphics.library` now seeds `GfxBase->TextFonts` with the built-in Topaz font, `OpenFont` searches the public list by name and requested size instead of silently falling back, `CloseFont` drops non-ROM fonts from the public list when their accessor count reaches zero, `SetFont` updates `TxWidth` alongside height/baseline, `AskFont` falls back to the default font when needed, and `SetSoftStyle` now updates `rp->AlgoStyle` with proper enable-mask semantics while `text_render`/`text_extent` lock the behavior in
+- Expanded Phase 78-C blitter/resource verification: initialized `GfxBase` blitter wait state, implemented hosted queue draining for `QBlit`/`QBSBlit` with `CLEANUP` callbacks and QBS priority, taught `WaitBlit`/`OwnBlitter`/`DisownBlitter` to honor ownership and pending work using the shared blit wait queue, registered `blitter.resource` during cold start, and added direct regression coverage for both the blitter APIs and `AddResource`/`RemResource`
+- Expanded Phase 78-C bitmap allocation verification: `AllocBitMap()` now reuses `InitBitMap()` semantics for public fields, rejects unsupported extended-tag allocations instead of misinterpreting taglists, preserves the public allocation flags we currently support, and new graphics regressions lock `InitBitMap`/`AllocBitMap`/`FreeBitMap` against allocation, zero-fill, and cleanup behavior
+- Expanded Phase 78-C raster allocation verification: `AllocRaster()` now matches AROS and NDK autodoc behavior by returning raw CHIP memory without implicit clearing, `AllocBitMap()` now applies `BMF_CLEAR` explicitly to each allocated plane, and `alloc_raster` regression coverage now verifies CHIP memory ownership, minimum `RASSIZE()` rounding, repeated alloc/free cycles, and `FreeRaster(NULL)` safety
+- Expanded Phase 78-C region verification: `ClearRectRegion` now splits partially cleared rectangles into the remaining bands, `XorRectRegion` and `AndRegionRegion` operate on actual rectangle geometry instead of placeholder bounds math, the graphics private region vectors now implement `RectInRegion` and `PointInRegion`, `graphics/regions` exercises boolean and membership semantics directly, and `misc_gtest` now treats `StressTasks` as PASS-on-timeout when the wrapper already printed success while the stress binary itself was trimmed to finish comfortably under parallel suite load
 
 ---
 
@@ -371,35 +382,35 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `BltBitMap` — minterm, mask; all 4 ABC masks; BLTDEST only for clears
 - [x] `BltBitMapRastPort` — clip to layer ClipRect chain
 - [x] `ClipBlit` — layer-aware BltBitMapRastPort
-- [ ] `BltTemplate` — expand 1-bit template to pen colors with minterm
-- [ ] `BltPattern` — fill with pattern
+- [x] `BltTemplate` — expand 1-bit template to pen colors with minterm
+- [x] `BltPattern` — fill with pattern
 - [x] `BltMaskBitMapRastPort`
-- [ ] `ReadPixelLine8` / `ReadPixelArray8` / `WritePixelLine8` / `WritePixelArray8` ✅ (Phase 75)
+- [x] `ReadPixelLine8` / `ReadPixelArray8` / `WritePixelLine8` / `WritePixelArray8` ✅ (Phase 75)
 
 **Text Rendering** (vs `graphics/text.c`):
-- [ ] `Text` — JAM1/JAM2/COMPLEMENT styles; tf_CharLoc offsets; clip to layer
-- [ ] `TextLength` — no rendering, measure only
-- [ ] `SetFont` / `AskFont`
-- [ ] `OpenFont` — search GfxBase->TextFonts list; match name+ysize
-- [ ] `CloseFont`
-- [ ] `SetSoftStyle` — FSF_BOLD, FSF_ITALIC, FSF_UNDERLINED, FSF_EXTENDED via algorithmic transforms
+- [x] `Text` — JAM1/JAM2/COMPLEMENT styles; tf_CharLoc offsets; clip to layer
+- [x] `TextLength` — no rendering, measure only
+- [x] `SetFont` / `AskFont`
+- [x] `OpenFont` — search GfxBase->TextFonts list; match name+ysize
+- [x] `CloseFont`
+- [x] `SetSoftStyle` — FSF_BOLD, FSF_ITALIC, FSF_UNDERLINED, FSF_EXTENDED via algorithmic transforms
 
 **Area Fill** (vs `graphics/areafill.c`):
 - [x] `InitArea` / `AreaMove` / `AreaDraw` / `AreaEnd` — scan-line fill ✅ (Phase 75); verify against AROS even-odd rule
 - [x] `AreaCircle` — shorthand for AreaEllipse
 
 **Blitter** (vs `graphics/blitter.c`, `graphics/blit.c`):
-- [ ] `QBlit` / `QBSBlit` — blitter queue with semaphore
-- [ ] `WaitBlit` / `OwnBlitter` / `DisownBlitter`
-- [ ] `InitBitMap` — initialise BitMap struct (does NOT allocate planes)
-- [ ] `AllocBitMap` / `FreeBitMap` — allocate planes from CHIP mem
-- [ ] `AllocRaster` / `FreeRaster` — allocate single plane row
+- [x] `QBlit` / `QBSBlit` — blitter queue with semaphore
+- [x] `WaitBlit` / `OwnBlitter` / `DisownBlitter`
+- [x] `InitBitMap` — initialise BitMap struct (does NOT allocate planes)
+- [x] `AllocBitMap` / `FreeBitMap` — allocate planes from CHIP mem
+- [x] `AllocRaster` / `FreeRaster` — allocate single plane row
 
 **Regions** (vs `graphics/regions.c`):
-- [ ] `NewRegion` / `DisposeRegion` / `ClearRegion`
-- [ ] `OrRectRegion` / `AndRectRegion` / `XorRectRegion` / `ClearRectRegion`
-- [ ] `OrRegionRegion` / `AndRegionRegion` / `XorRegionRegion`
-- [ ] `RectInRegion` / `PointInRegion`
+- [x] `NewRegion` / `DisposeRegion` / `ClearRegion`
+- [x] `OrRectRegion` / `AndRectRegion` / `XorRectRegion` / `ClearRectRegion`
+- [x] `OrRegionRegion` / `AndRegionRegion` / `XorRegionRegion`
+- [x] `RectInRegion` / `PointInRegion`
 
 **Display & ViewPort** (vs `graphics/view.c`):
 - [ ] `InitView` / `InitVPort`

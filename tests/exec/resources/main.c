@@ -6,6 +6,8 @@
  * Tests:
  * 1. OpenResource() functionality
  * 2. CIA resource availability (ciaa.resource, ciab.resource)
+ * 3. blitter.resource availability
+ * 4. AddResource()/RemResource() lifecycle
  */
 
 #include <exec/types.h>
@@ -32,6 +34,7 @@ static void print(const char *s)
 int main(void)
 {
     int errors = 0;
+    struct Node customResource;
 
     print("=== exec/resources Test ===\n\n");
 
@@ -123,6 +126,50 @@ int main(void)
         errors++;
     } else {
         print("OK: ciab.resource found in ResourceList\n");
+    }
+
+    /* ========== Test 5: OpenResource() for blitter.resource ========== */
+    print("\n--- Test 5: OpenResource() for blitter.resource ---\n");
+
+    if (OpenResource((CONST_STRPTR)"blitter.resource") == NULL) {
+        print("FAIL: OpenResource(\"blitter.resource\") returned NULL\n");
+        errors++;
+    } else {
+        print("OK: blitter.resource opened successfully\n");
+    }
+
+    /* ========== Test 6: AddResource()/OpenResource()/RemResource() ========== */
+    print("\n--- Test 6: AddResource/RemResource lifecycle ---\n");
+
+    customResource.ln_Name = (char *)"test.resource";
+    customResource.ln_Pri = 7;
+    customResource.ln_Succ = NULL;
+    customResource.ln_Pred = NULL;
+    customResource.ln_Type = 0;
+
+    AddResource(&customResource);
+
+    if (customResource.ln_Type != NT_RESOURCE) {
+        print("FAIL: AddResource() did not set NT_RESOURCE type\n");
+        errors++;
+    } else {
+        print("OK: AddResource() set NT_RESOURCE type\n");
+    }
+
+    if (OpenResource((CONST_STRPTR)"test.resource") != &customResource) {
+        print("FAIL: OpenResource() did not return custom resource\n");
+        errors++;
+    } else {
+        print("OK: OpenResource() returned custom resource\n");
+    }
+
+    RemResource(&customResource);
+
+    if (OpenResource((CONST_STRPTR)"test.resource") != NULL) {
+        print("FAIL: RemResource() left resource visible\n");
+        errors++;
+    } else {
+        print("OK: RemResource() removed resource from list\n");
     }
 
     /* ========== Final result ========== */

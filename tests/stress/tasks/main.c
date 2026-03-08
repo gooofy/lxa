@@ -83,7 +83,17 @@ static ULONG get_free_mem(void)
 
 /* Simple child task that just increments a counter and exits */
 static volatile LONG g_counter = 0;
+static volatile LONG g_message_counter = 0;
 static struct MsgPort *g_resultPort = NULL;
+static struct Task *g_parent_task = NULL;
+static ULONG g_done_signal_mask = 0;
+
+#define SEQUENTIAL_TASK_COUNT 20
+#define COUNTER_TASK_COUNT 12
+#define SIGNAL_TASK_COUNT 10
+#define MESSAGE_TASK_COUNT 12
+#define CLEANUP_TASK_COUNT 10
+#define FINAL_TASK_COUNT 4
 
 /* Message for reporting task completion */
 struct TaskDoneMsg {
@@ -95,9 +105,8 @@ struct TaskDoneMsg {
 /* Simple task entry - just signal parent and exit */
 void SimpleTask(void)
 {
-    struct Task *parent = (struct Task *)FindTask(NULL)->tc_UserData;
-    if (parent) {
-        Signal(parent, SIGBREAKF_CTRL_D);
+    if (g_parent_task && g_done_signal_mask) {
+        Signal(g_parent_task, g_done_signal_mask);
     }
 }
 
@@ -107,23 +116,25 @@ void CounterTask(void)
     Forbid();
     g_counter++;
     Permit();
-    
-    struct Task *parent = (struct Task *)FindTask(NULL)->tc_UserData;
-    if (parent) {
-        Signal(parent, SIGBREAKF_CTRL_D);
+
+    if (g_parent_task && g_done_signal_mask) {
+        Signal(g_parent_task, g_done_signal_mask);
     }
 }
 
 /* Message task - sends completion message to parent's port */
 void MessageTask(void)
 {
-    struct Process *me = (struct Process *)FindTask(NULL);
-    LONG taskNum = (LONG)me->pr_Task.tc_UserData;
-    
     if (g_resultPort) {
         struct TaskDoneMsg *msg = (struct TaskDoneMsg *)AllocMem(
             sizeof(struct TaskDoneMsg), MEMF_PUBLIC | MEMF_CLEAR);
         if (msg) {
+            LONG taskNum;
+
+            Forbid();
+            taskNum = g_message_counter++;
+            Permit();
+
             msg->tdm_Message.mn_Node.ln_Type = NT_MESSAGE;
             msg->tdm_Message.mn_Length = sizeof(struct TaskDoneMsg);
             msg->tdm_Message.mn_ReplyPort = NULL;  /* No reply needed */
@@ -134,50 +145,89 @@ void MessageTask(void)
     }
 }
 
+static struct Process *create_stress_task(APTR entry, const char *name)
+{
+    struct TagItem tags[] = {
+        { NP_Entry, (ULONG)entry },
+        { NP_Name, (ULONG)name },
+        { NP_StackSize, 4096 },
+        { NP_Input, Input() },
+        { NP_Output, Output() },
+        { TAG_DONE, 0 }
+    };
+
+    return CreateNewProc(tags);
+}
+
+static BOOL wait_for_task_completion(void)
+{
+    if (!g_done_signal_mask) {
+        return FALSE;
+    }
+
+    SetSignal(0, g_done_signal_mask);
+    return (Wait(g_done_signal_mask) & g_done_signal_mask) != 0;
+}
+
+static int collect_messages(struct MsgPort *port, int expected, int max_ticks)
+{
+    struct TaskDoneMsg *msg;
+    int messages_received = 0;
+    int tick;
+
+    for (tick = 0; tick < max_ticks && messages_received < expected; tick++) {
+        while ((msg = (struct TaskDoneMsg *)GetMsg(port)) != NULL) {
+            messages_received++;
+            FreeMem(msg, sizeof(struct TaskDoneMsg));
+        }
+
+        if (messages_received < expected) {
+            Delay(1);
+        }
+    }
+
+    while ((msg = (struct TaskDoneMsg *)GetMsg(port)) != NULL) {
+        messages_received++;
+        FreeMem(msg, sizeof(struct TaskDoneMsg));
+    }
+
+    return messages_received;
+}
+
 int main(void)
 {
     ULONG mem_before, mem_after, mem_leaked;
-    ULONG signals;
     int i;
     int failed;
     int completed;
+    LONG done_signal_bit;
     
     print("Task Stress Test\n");
     print("================\n\n");
     
-    /* Test 1: Sequential task creation - 50 tasks */
-    print("Test 1: Sequential task creation (50 tasks)\n");
+    g_parent_task = FindTask(NULL);
+    done_signal_bit = AllocSignal(-1);
+    if (done_signal_bit == -1) {
+        print("FAIL: Could not allocate completion signal\n");
+        return 20;
+    }
+    g_done_signal_mask = 1UL << done_signal_bit;
+
+    /* Test 1: Sequential task creation */
+    print("Test 1: Sequential task creation\n");
     
     mem_before = get_free_mem();
     failed = 0;
     completed = 0;
     
-    struct Task *mainTask = FindTask(NULL);
-    
-    for (i = 0; i < 50; i++) {
-        struct TagItem tags[] = {
-            { NP_Entry, (ULONG)SimpleTask },
-            { NP_Name, (ULONG)"SimpleTask" },
-            { NP_StackSize, 4096 },
-            { NP_Input, Input() },
-            { NP_Output, Output() },
-            { TAG_DONE, 0 }
-        };
-        
-        /* Store parent task pointer for signaling */
-        mainTask->tc_UserData = (APTR)mainTask;
-        
-        struct Process *child = CreateNewProc(tags);
+    for (i = 0; i < SEQUENTIAL_TASK_COUNT; i++) {
+        struct Process *child = create_stress_task((APTR)SimpleTask, "SimpleTask");
         if (!child) {
             failed++;
             continue;
         }
-        
-        /* Wait for child to signal completion */
-        child->pr_Task.tc_UserData = (APTR)mainTask;
-        signals = Wait(SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_C);
-        
-        if (signals & SIGBREAKF_CTRL_D) {
+
+        if (wait_for_task_completion()) {
             completed++;
         }
     }
@@ -188,7 +238,7 @@ int main(void)
     mem_after = get_free_mem();
     
     print("  Created ");
-    print_num(50 - failed);
+    print_num(SEQUENTIAL_TASK_COUNT - failed);
     print(" tasks, ");
     print_num(completed);
     print(" completed\n");
@@ -208,7 +258,7 @@ int main(void)
     print(" bytes\n");
     
     /* Allow some overhead (4KB) for internal structures */
-    if (failed == 0 && completed == 50 && mem_leaked <= 8192) {
+    if (failed == 0 && completed == SEQUENTIAL_TASK_COUNT && mem_leaked <= 8192) {
         test_pass("Sequential task creation");
     } else if (failed > 0) {
         test_fail("Sequential task creation", "Some tasks failed to create");
@@ -219,32 +269,20 @@ int main(void)
     }
     
     /* Test 2: Counter increment test (verify task execution) */
-    print("\nTest 2: Counter increment (30 tasks)\n");
+    print("\nTest 2: Counter increment\n");
     
     g_counter = 0;
     failed = 0;
     completed = 0;
-    
-    for (i = 0; i < 30; i++) {
-        struct TagItem tags[] = {
-            { NP_Entry, (ULONG)CounterTask },
-            { NP_Name, (ULONG)"CounterTask" },
-            { NP_StackSize, 4096 },
-            { NP_Input, Input() },
-            { NP_Output, Output() },
-            { TAG_DONE, 0 }
-        };
-        
-        struct Process *child = CreateNewProc(tags);
+
+    for (i = 0; i < COUNTER_TASK_COUNT; i++) {
+        struct Process *child = create_stress_task((APTR)CounterTask, "CounterTask");
         if (!child) {
             failed++;
             continue;
         }
-        
-        child->pr_Task.tc_UserData = (APTR)mainTask;
-        signals = Wait(SIGBREAKF_CTRL_D | SIGBREAKF_CTRL_C);
-        
-        if (signals & SIGBREAKF_CTRL_D) {
+
+        if (wait_for_task_completion()) {
             completed++;
         }
     }
@@ -257,7 +295,7 @@ int main(void)
     print_num(g_counter);
     print("\n");
     
-    if (failed == 0 && g_counter == 30) {
+    if (failed == 0 && g_counter == COUNTER_TASK_COUNT) {
         test_pass("Counter increment");
     } else if (failed > 0) {
         test_fail("Counter increment", "Some tasks failed to create");
@@ -266,37 +304,20 @@ int main(void)
     }
     
     /* Test 3: Signal delivery under load */
-    print("\nTest 3: Signal delivery stress (20 tasks with signals)\n");
-    
+    print("\nTest 3: Signal delivery stress\n");
+
     int signals_received = 0;
-    struct Task *me = FindTask(NULL);
     int tasks_started = 0;
-    
-    /* Clear any pending signals */
-    SetSignal(0, SIGBREAKF_CTRL_D);
-    
-    /* Start tasks and immediately wait for each - more reliable */
-    for (i = 0; i < 20; i++) {
-        struct TagItem tags[] = {
-            { NP_Entry, (ULONG)SimpleTask },
-            { NP_Name, (ULONG)"SignalTask" },
-            { NP_StackSize, 4096 },
-            { NP_Input, Input() },
-            { NP_Output, Output() },
-            { TAG_DONE, 0 }
-        };
-        
-        struct Process *child = CreateNewProc(tags);
+
+    for (i = 0; i < SIGNAL_TASK_COUNT; i++) {
+        struct Process *child = create_stress_task((APTR)SimpleTask, "SignalTask");
         if (!child) {
             continue;
         }
-        
-        child->pr_Task.tc_UserData = (APTR)me;
+
         tasks_started++;
-        
-        /* Wait for this task's signal */
-        signals = Wait(SIGBREAKF_CTRL_D);
-        if (signals & SIGBREAKF_CTRL_D) {
+
+        if (wait_for_task_completion()) {
             signals_received++;
         }
     }
@@ -307,14 +328,14 @@ int main(void)
     print_num(signals_received);
     print("\n");
     
-    if (signals_received >= tasks_started - 2) {  /* Allow 2 signal losses */
+    if (signals_received == tasks_started) {
         test_pass("Signal delivery under load");
     } else {
-        test_fail("Signal delivery under load", "Too many signals lost");
+        test_fail("Signal delivery under load", "Signal count mismatch");
     }
     
     /* Test 4: Message port stress */
-    print("\nTest 4: Message port stress (25 messages)\n");
+    print("\nTest 4: Message port stress\n");
     
     g_resultPort = CreateMsgPort();
     if (!g_resultPort) {
@@ -322,33 +343,17 @@ int main(void)
     } else {
         int messages_received = 0;
         int tasks_created = 0;
+        g_message_counter = 0;
         
         /* Create tasks that send messages */
-        for (i = 0; i < 25; i++) {
-            struct TagItem tags[] = {
-                { NP_Entry, (ULONG)MessageTask },
-                { NP_Name, (ULONG)"MsgTask" },
-                { NP_StackSize, 4096 },
-                { NP_Input, Input() },
-                { NP_Output, Output() },
-                { TAG_DONE, 0 }
-            };
-            
-            struct Process *child = CreateNewProc(tags);
+        for (i = 0; i < MESSAGE_TASK_COUNT; i++) {
+            struct Process *child = create_stress_task((APTR)MessageTask, "MsgTask");
             if (child) {
-                child->pr_Task.tc_UserData = (APTR)(LONG)i;
                 tasks_created++;
             }
         }
-        
-        /* Receive messages with delay for tasks to complete */
-        Delay(25);
-        
-        struct TaskDoneMsg *msg;
-        while ((msg = (struct TaskDoneMsg *)GetMsg(g_resultPort)) != NULL) {
-            messages_received++;
-            FreeMem(msg, sizeof(struct TaskDoneMsg));
-        }
+
+        messages_received = collect_messages(g_resultPort, tasks_created, 100);
         
         print("  Tasks created: ");
         print_num(tasks_created);
@@ -359,10 +364,10 @@ int main(void)
         DeleteMsgPort(g_resultPort);
         g_resultPort = NULL;
         
-        if (messages_received >= 20) {  /* Allow some message loss */
+        if (messages_received == tasks_created) {
             test_pass("Message port stress");
         } else {
-            test_fail("Message port stress", "Too few messages received");
+            test_fail("Message port stress", "Message count mismatch");
         }
     }
     
@@ -371,20 +376,10 @@ int main(void)
     
     mem_before = get_free_mem();
     
-    for (i = 0; i < 20; i++) {
-        struct TagItem tags[] = {
-            { NP_Entry, (ULONG)SimpleTask },
-            { NP_Name, (ULONG)"CleanupTask" },
-            { NP_StackSize, 4096 },
-            { NP_Input, Input() },
-            { NP_Output, Output() },
-            { TAG_DONE, 0 }
-        };
-        
-        struct Process *child = CreateNewProc(tags);
+    for (i = 0; i < CLEANUP_TASK_COUNT; i++) {
+        struct Process *child = create_stress_task((APTR)SimpleTask, "CleanupTask");
         if (child) {
-            child->pr_Task.tc_UserData = (APTR)mainTask;
-            Wait(SIGBREAKF_CTRL_D);
+            wait_for_task_completion();
         }
     }
     
@@ -419,20 +414,10 @@ int main(void)
     /* Just verify we can still create and run tasks after all the stress */
     g_counter = 0;
     
-    for (i = 0; i < 5; i++) {
-        struct TagItem tags[] = {
-            { NP_Entry, (ULONG)CounterTask },
-            { NP_Name, (ULONG)"FinalTask" },
-            { NP_StackSize, 4096 },
-            { NP_Input, Input() },
-            { NP_Output, Output() },
-            { TAG_DONE, 0 }
-        };
-        
-        struct Process *child = CreateNewProc(tags);
+    for (i = 0; i < FINAL_TASK_COUNT; i++) {
+        struct Process *child = create_stress_task((APTR)CounterTask, "FinalTask");
         if (child) {
-            child->pr_Task.tc_UserData = (APTR)mainTask;
-            Wait(SIGBREAKF_CTRL_D);
+            wait_for_task_completion();
         }
     }
     
@@ -440,9 +425,11 @@ int main(void)
     
     print("  Final counter: ");
     print_num(g_counter);
-    print(" (expected 5)\n");
+    print(" (expected ");
+    print_num(FINAL_TASK_COUNT);
+    print(")\n");
     
-    if (g_counter == 5) {
+    if (g_counter == FINAL_TASK_COUNT) {
         test_pass("Basic scheduler operation");
     } else {
         test_fail("Basic scheduler operation", "Tasks did not execute correctly");
@@ -459,6 +446,8 @@ int main(void)
     if (tests_failed == 0) {
         print("PASS: All task stress tests passed\n");
     }
+
+    FreeSignal(done_signal_bit);
     
     return tests_failed > 0 ? 10 : 0;
 }
