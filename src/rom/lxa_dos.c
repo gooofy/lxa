@@ -220,6 +220,11 @@ static const char *resolve_amiga_path(const char *name, char *resolved)
     return resolved;
 }
 
+static BOOL tag_exists(Tag tag, const struct TagItem *tags)
+{
+    return tags && FindTagItem(tag, (struct TagItem *)tags) != NULL;
+}
+
 static LONG bstr_to_cstr(BPTR bstr, STRPTR buf, LONG len)
 {
     UBYTE *src;
@@ -3644,10 +3649,12 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     APTR   initpc    = (APTR)   GetTagData(NP_Entry    , 0                    , tags);
     BPTR   seglist   =          GetTagData(NP_Seglist  , 0                    , tags);
     BOOL   do_cli    =          GetTagData(NP_Cli      , 0                    , tags);
+    APTR   windowPtr = (APTR)   GetTagData(NP_WindowPtr, 0                    , tags);
            inp       =          GetTagData(NP_Input    , inp                  , tags);
            outp      =          GetTagData(NP_Output   , outp                 , tags);
     char  *args      = (char*)  GetTagData(NP_Arguments, (ULONG)NULL          , tags);
     BPTR   curdir    =          GetTagData(NP_CurrentDir, 0                   , tags);
+    BOOL   hasWindowPtrTag = tag_exists(NP_WindowPtr, tags);
 
     // Enforce minimum stack size
     if (stackSize < MIN_STACK_SIZE)
@@ -3745,6 +3752,11 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     process->pr_CIS = inp;
     process->pr_COS = outp;
     process->pr_CurrentDir = curdir;
+
+    if (hasWindowPtrTag)
+        process->pr_WindowPtr = windowPtr;
+    else if (IS_PROCESS(me))
+        process->pr_WindowPtr = me->pr_WindowPtr;
 
     if (process->pr_CLI && curdir)
     {
@@ -4121,6 +4133,8 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     BPTR output = GetTagData(SYS_Output, 0, tags);
     ULONG stackSize = GetTagData(NP_StackSize, 4096, tags);  /* Respect caller's stack size, default 4096 */
     BPTR curDir = 0;
+    BOOL asynch = GetTagData(SYS_Asynch, FALSE, tags);
+    APTR childWindowPtr = NULL;
     
     struct Process *me = (struct Process *)FindTask(NULL);
     if (IS_PROCESS(me)) {
@@ -4130,6 +4144,8 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
         if (me->pr_CurrentDir) {
             curDir = DupLock(me->pr_CurrentDir);
         }
+
+        childWindowPtr = asynch ? NULL : me->pr_WindowPtr;
     }
     
     struct TagItem procTags[] = {
@@ -4141,6 +4157,7 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
         { NP_Output, output },
         { NP_Arguments, (ULONG)args },
         { NP_CurrentDir, (ULONG)curDir },
+        { NP_WindowPtr, (ULONG)childWindowPtr },
         { TAG_DONE, 0 }
     };
     
@@ -4160,7 +4177,6 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList() created process 0x%08lx, taskNum=%ld\n", proc, proc->pr_TaskNum);
     
     /* Check for asynchronous execution */
-    BOOL asynch = GetTagData(SYS_Asynch, FALSE, tags);
     if (asynch) {
         /* SYS_Asynch: Don't wait for the child to complete, return immediately.
          * The child will run independently and clean up after itself when done.

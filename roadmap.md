@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.71** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.72** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -35,6 +35,7 @@ Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` thro
 - Implemented and verified `SumKickData()` against AROS checksum rules for `KickTagPtr` and `KickMemPtr`
 - Fixed DOS CLI BSTR handling for program metadata so `GetProgramName()`/`PROGDIR:` users (including DPaint V) stop constructing broken paths during startup
 - Added DOS CLI metadata helpers (`Set/GetCurrentDirName`, `Set/GetProgramName`, `Set/GetPrompt`) plus `FindCliProc()`/`MaxCli()` coverage, and extended structural verification for `DosLibrary`, `RootNode`, `DosInfo`, `CliProcList`, and `Segment`
+- Verified multi-CLI proc-window semantics: `CreateNewProc()` now inherits `pr_WindowPtr` by default, respects explicit `NP_WindowPtr` overrides (including `NULL`), and `SystemTagList()` passes the caller window pointer for synchronous launches while clearing it for async launches, matching documented `pr_WindowPtr` inheritance rules
 - Implemented `SetFileSize()` with host-backed truncate/extend semantics and added DOS regression coverage for begin/current/end resizing plus zero-filled extension behavior
 - Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j8` is green again
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
@@ -262,7 +263,7 @@ Goal: finish DOSBase/RootNode/DosInfo public-field verification and the remainin
 - [x] `DosInfo` — di_McName, di_DevInfo, di_Devices, di_Handlers, di_NetHand, di_DevLock, di_EntryLock, di_DeleteLock
 - [x] `CliProcList` for multi-CLI task-array metadata
 - [x] `Segment` (seglist chain: BPTR links)
-- [ ] `ProcessWindowNode` / proc-window stack semantics for multi-CLI
+- [x] `ProcessWindowNode` / proc-window stack semantics for multi-CLI
 - [x] `GetCurrentDirName` / `SetCurrentDirName`
 - [x] `GetProgramName` / `SetProgramName`
 - [x] `GetPrompt` / `SetPrompt`
@@ -817,6 +818,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| **0.6.72** | 78-B-2 | Verified DOS proc-window inheritance semantics by teaching `CreateNewProc()`/`SystemTagList()` to preserve or override `pr_WindowPtr` correctly, with direct regression coverage for inherited and explicit `NP_WindowPtr` behavior. |
 | **0.6.69** | 78-A-6 | Exec miscellaneous verification: `RawDoFmt` edge cases (maxwidth, `%c`, `%%`, `%b` BSTR, return value), list accessors as macros, `Alert` decoding, `Supervisor` call. 40 sub-tests in new ExecMisc test. |
 | **0.6.71** | 78-B-3 | Added host-backed `SetFileSize()` support with regression coverage for truncation, growth, and zero-filled extension, while keeping the full 49-test GTest suite green. |
 | **0.6.70** | 78-B-2 | Added DOS CLI metadata helpers and multi-CLI lookup helpers, initialized `RootNode`/`DosInfo` public state, and extended struct-offset coverage for DOS public structures. |

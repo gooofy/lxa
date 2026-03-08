@@ -207,7 +207,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.71** - Phase 78-B-3 in progress with `SetFileSize()` support and DOS metadata/structure verification coverage added
+**Version 0.6.72** - Phase 78-B-2 proc-window semantics verified for `CreateNewProc()`/`SystemTagList()`, with regression coverage for inherited and explicit `NP_WindowPtr` handling
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

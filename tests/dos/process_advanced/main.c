@@ -9,6 +9,8 @@
  */
 
 #include <exec/types.h>
+#include <exec/memory.h>
+#include <exec/ports.h>
 #include <dos/dos.h>
 #include <dos/dostags.h>
 #include <dos/dosextens.h>
@@ -24,6 +26,14 @@ extern struct ExecBase *SysBase;
 
 static int tests_passed = 0;
 static int tests_failed = 0;
+
+#define WINDOWPTR_PORT_NAME "ProcessAdvanced.WindowPtr"
+
+struct WindowPtrMessage {
+    struct Message msg;
+    APTR window_ptr;
+    LONG task_num;
+};
 
 static void print(const char *s)
 {
@@ -81,6 +91,38 @@ static void test_bool(const char *name, BOOL cond, const char *reason)
         test_pass(name);
     else
         test_fail(name, reason);
+}
+
+static void send_windowptr_message(struct MsgPort *port, APTR window_ptr, LONG task_num)
+{
+    struct WindowPtrMessage *msg;
+
+    msg = (struct WindowPtrMessage *)AllocMem(sizeof(struct WindowPtrMessage), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!msg)
+        return;
+
+    msg->msg.mn_Node.ln_Type = NT_MESSAGE;
+    msg->msg.mn_Length = sizeof(struct WindowPtrMessage);
+    msg->window_ptr = window_ptr;
+    msg->task_num = task_num;
+
+    PutMsg(port, (struct Message *)msg);
+}
+
+static void WindowPtrChild(void)
+{
+    struct MsgPort *port;
+    struct Process *me;
+
+    Forbid();
+    port = FindPort((STRPTR)WINDOWPTR_PORT_NAME);
+    Permit();
+
+    if (!port)
+        return;
+
+    me = (struct Process *)FindTask(NULL);
+    send_windowptr_message(port, me ? me->pr_WindowPtr : NULL, me ? me->pr_TaskNum : 0);
 }
 
 int main(void)
@@ -325,6 +367,88 @@ int main(void)
               "SetPrompt failed to restore short prompt");
     test_bool("SetCurrentDirName restore short value", SetCurrentDirName((CONST_STRPTR)"RAM:ManualDir"),
               "SetCurrentDirName failed to restore short current-dir name");
+
+    /* Test 8: CreateNewProc proc-window inheritance/override semantics */
+    print("\nTest 8: CreateNewProc window pointer semantics\n");
+    {
+        struct MsgPort *windowPort = CreateMsgPort();
+        struct WindowPtrMessage *msg;
+        struct Process *child;
+        APTR oldWindowPtr = me->pr_WindowPtr;
+        APTR inheritedWindowPtr = (APTR)0x12345678UL;
+
+        if (!windowPort) {
+            test_fail("CreateNewProc window pointer", "Could not create reply port");
+        } else {
+            windowPort->mp_Node.ln_Name = (char *)WINDOWPTR_PORT_NAME;
+            AddPort(windowPort);
+
+            me->pr_WindowPtr = inheritedWindowPtr;
+
+            {
+                struct TagItem inheritTags[] = {
+                    { NP_Entry, (ULONG)WindowPtrChild },
+                    { NP_Name, (ULONG)"ProcessAdvanced.WinInherit" },
+                    { NP_StackSize, 8192 },
+                    { NP_Cli, TRUE },
+                    { TAG_DONE, 0 }
+                };
+
+                child = CreateNewProc(inheritTags);
+                if (!child) {
+                    test_fail("CreateNewProc inherits pr_WindowPtr", "CreateNewProc failed");
+                } else {
+                    WaitPort(windowPort);
+                    msg = (struct WindowPtrMessage *)GetMsg(windowPort);
+                    if (msg && msg->window_ptr == inheritedWindowPtr) {
+                        test_pass("CreateNewProc inherits pr_WindowPtr");
+                    } else {
+                        test_fail("CreateNewProc inherits pr_WindowPtr", "Child did not inherit parent window pointer");
+                    }
+
+                    if (msg && msg->task_num > 0) {
+                        test_pass("CreateNewProc CLI child gets task number");
+                    } else {
+                        test_fail("CreateNewProc CLI child gets task number", "Child CLI task number was not assigned");
+                    }
+
+                    if (msg)
+                        FreeMem(msg, sizeof(*msg));
+                }
+            }
+
+            {
+                struct TagItem overrideTags[] = {
+                    { NP_Entry, (ULONG)WindowPtrChild },
+                    { NP_Name, (ULONG)"ProcessAdvanced.WinOverride" },
+                    { NP_StackSize, 8192 },
+                    { NP_Cli, TRUE },
+                    { NP_WindowPtr, (ULONG)NULL },
+                    { TAG_DONE, 0 }
+                };
+
+                child = CreateNewProc(overrideTags);
+                if (!child) {
+                    test_fail("CreateNewProc honors explicit NULL pr_WindowPtr", "CreateNewProc failed");
+                } else {
+                    WaitPort(windowPort);
+                    msg = (struct WindowPtrMessage *)GetMsg(windowPort);
+                    if (msg && msg->window_ptr == NULL) {
+                        test_pass("CreateNewProc honors explicit NULL pr_WindowPtr");
+                    } else {
+                        test_fail("CreateNewProc honors explicit NULL pr_WindowPtr", "Child did not honor explicit NULL override");
+                    }
+
+                    if (msg)
+                        FreeMem(msg, sizeof(*msg));
+                }
+            }
+
+            me->pr_WindowPtr = oldWindowPtr;
+            RemPort(windowPort);
+            DeleteMsgPort(windowPort);
+        }
+    }
     
     /* Summary */
     print("\n=== Test Summary ===\n");
