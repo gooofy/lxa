@@ -1157,6 +1157,35 @@ const char *vfs_assign_get_path(const char *name)
     return NULL;
 }
 
+assign_type_t vfs_assign_get_type(const char *name)
+{
+    assign_entry_t *entry = find_assign(name);
+    if (entry) {
+        return entry->type;
+    }
+
+    return ASSIGN_LOCK;
+}
+
+int vfs_assign_get_paths(const char *name, const char **paths, int max_count)
+{
+    assign_entry_t *entry = find_assign(name);
+    int count = 0;
+
+    if (!entry || max_count <= 0) {
+        return 0;
+    }
+
+    for (assign_path_t *path = entry->paths; path && count < max_count; path = path->next) {
+        if (paths) {
+            paths[count] = path->linux_path;
+        }
+        count++;
+    }
+
+    return count;
+}
+
 /*
  * Set the program directory for PROGDIR: resolution.
  * This should be called with the directory containing the loaded program.

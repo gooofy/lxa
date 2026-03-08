@@ -15,6 +15,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
+#include <stdint.h>
 #include <linux/limits.h>
 #include <sys/xattr.h>
 
@@ -294,6 +295,24 @@ typedef struct timer_request_s {
 
 static timer_request_t g_timer_queue[MAX_TIMER_REQUESTS];
 
+#define MAX_NOTIFY_REQUESTS 128
+
+typedef struct notify_entry_s {
+    bool in_use;
+    uint32_t notify68k;
+    char linux_path[PATH_MAX];
+    bool pending;
+    bool existed;
+    time_t mtime;
+    off_t size;
+    ino_t ino;
+    dev_t dev;
+} notify_entry_t;
+
+static notify_entry_t g_notify_requests[MAX_NOTIFY_REQUESTS];
+
+static int _linux_path_to_amiga(const char *linux_path, char *amiga_buf, size_t bufsize);
+
 /* Get current time in microseconds since epoch */
 static uint64_t _timer_get_time_us(void)
 {
@@ -443,6 +462,18 @@ static uint32_t _timer_get_expired(void)
 #define ERROR_NOT_A_DOS_DISK     225
 #define ERROR_NO_MORE_ENTRIES    232
 #define ERROR_BUFFER_OVERFLOW    303
+
+#define DVP_DVP_PORT     0
+#define DVP_DVP_LOCK     4
+#define DVP_DVP_FLAGS    8
+#define DVP_DVP_DEVNODE  12
+
+#define DVPF_UNLOCK      (1UL << 0)
+#define DVPF_ASSIGN      (1UL << 1)
+
+#define NRF_SEND_MESSAGE 1
+#define NRF_SEND_SIGNAL  2
+#define NRF_NOTIFY_INITIAL 16
 
 #define AMIGA_EPOCH_OFFSET 252460800
 
@@ -3336,12 +3367,22 @@ static int _dos_assign_add(uint32_t name68k, uint32_t path68k, uint32_t type)
         linux_path[0] = '\0';
     }
     
+    if (type == 3) {
+        if (vfs_assign_add_path(name, linux_path)) {
+            DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): add-path success\n");
+            return 1;
+        }
+
+        DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): add-path failed\n");
+        return 0;
+    }
+
     /* type: 0 = ASSIGN_LOCK, 1 = ASSIGN_LATE, 2 = ASSIGN_PATH */
     assign_type_t atype = (type <= 2) ? (assign_type_t)type : ASSIGN_LOCK;
-    
+
     DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): calling vfs_assign_add(name=%s, linux_path=%s, atype=%d)\n",
             name, linux_path, atype);
-    
+
     if (vfs_assign_add(name, linux_path, atype)) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_assign_add(): success\n");
         return 1;
@@ -3420,6 +3461,254 @@ static int _dos_assign_list(uint32_t buf68k, uint32_t buflen)
     m68k_write_memory_8(buf68k + offset, '\0');
     
     return written;
+}
+
+static uint32_t _dos_make_lock_for_path(const char *linux_path, const char *amiga_path)
+{
+    struct stat st;
+    int lock_id;
+    lock_entry_t *lock;
+
+    if (!linux_path || stat(linux_path, &st) != 0) {
+        return 0;
+    }
+
+    lock_id = _lock_alloc();
+    if (lock_id == 0) {
+        return 0;
+    }
+
+    lock = &g_locks[lock_id];
+    strncpy(lock->linux_path, linux_path, sizeof(lock->linux_path) - 1);
+    lock->linux_path[sizeof(lock->linux_path) - 1] = '\0';
+
+    if (amiga_path && amiga_path[0] != '\0') {
+        strncpy(lock->amiga_path, amiga_path, sizeof(lock->amiga_path) - 1);
+        lock->amiga_path[sizeof(lock->amiga_path) - 1] = '\0';
+    } else {
+        if (!_linux_path_to_amiga(linux_path, lock->amiga_path, sizeof(lock->amiga_path))) {
+            strncpy(lock->amiga_path, linux_path, sizeof(lock->amiga_path) - 1);
+            lock->amiga_path[sizeof(lock->amiga_path) - 1] = '\0';
+        }
+    }
+
+    lock->is_dir = S_ISDIR(st.st_mode);
+    lock->dir = NULL;
+    return (uint32_t)lock_id;
+}
+
+static int _dos_assign_remove_path(uint32_t name68k, uint32_t path68k)
+{
+    char *name = _mgetstr(name68k);
+    char *path = _mgetstr(path68k);
+    char linux_path[PATH_MAX];
+
+    if (!name || !path || name[0] == '\0' || path[0] == '\0') {
+        return 0;
+    }
+
+    if (path[0] == '/') {
+        strncpy(linux_path, path, sizeof(linux_path) - 1);
+        linux_path[sizeof(linux_path) - 1] = '\0';
+    } else {
+        _dos_path2linux(path, linux_path, sizeof(linux_path));
+    }
+
+    return vfs_assign_remove_path(name, linux_path) ? 1 : 0;
+}
+
+static int _dos_getdevproc(uint32_t name68k, uint32_t dp68k, uint32_t err68k)
+{
+    char *name = _mgetstr(name68k);
+    char volume[64];
+    const char *colon;
+    uint32_t index = 0;
+    uint32_t lock_id = 0;
+    char amiga_root[PATH_MAX];
+    char linux_path[PATH_MAX];
+    uint32_t flags = DVPF_UNLOCK;
+
+    if (err68k) {
+        m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
+    }
+
+    if (!name || !dp68k) {
+        return 0;
+    }
+
+    colon = strchr(name, ':');
+    if (!colon) {
+        strncpy(volume, name, sizeof(volume) - 1);
+        volume[sizeof(volume) - 1] = '\0';
+    } else {
+        size_t len = (size_t)(colon - name);
+        if (len >= sizeof(volume)) {
+            len = sizeof(volume) - 1;
+        }
+        memcpy(volume, name, len);
+        volume[len] = '\0';
+    }
+
+    if (m68k_read_memory_32(dp68k + DVP_DVP_DEVNODE) != 0) {
+        index = m68k_read_memory_32(dp68k + DVP_DVP_DEVNODE);
+    }
+
+    if (vfs_assign_exists(volume)) {
+        const char *paths[64];
+        int count = vfs_assign_get_paths(volume, paths, 64);
+
+        if ((int)index >= count) {
+            if (err68k) {
+                m68k_write_memory_32(err68k, ERROR_NO_MORE_ENTRIES);
+            }
+            return 0;
+        }
+
+        if (_linux_path_to_amiga(paths[index], amiga_root, sizeof(amiga_root)) == 0) {
+            snprintf(amiga_root, sizeof(amiga_root), "%s:", volume);
+        }
+
+        lock_id = _dos_make_lock_for_path(paths[index], amiga_root);
+        flags |= DVPF_ASSIGN;
+        m68k_write_memory_32(dp68k + DVP_DVP_DEVNODE, index + 1);
+    } else {
+        if (volume[0] == '\0') {
+            if (err68k) {
+                m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
+            }
+            return 0;
+        }
+
+        snprintf(amiga_root, sizeof(amiga_root), "%s:", volume);
+        _dos_path2linux(amiga_root, linux_path, sizeof(linux_path));
+        lock_id = _dos_make_lock_for_path(linux_path, amiga_root);
+        m68k_write_memory_32(dp68k + DVP_DVP_DEVNODE, 0);
+    }
+
+    if (!lock_id) {
+        if (err68k) {
+            m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
+        }
+        return 0;
+    }
+
+    m68k_write_memory_32(dp68k + DVP_DVP_PORT, 0);
+    m68k_write_memory_32(dp68k + DVP_DVP_LOCK, lock_id);
+    m68k_write_memory_32(dp68k + DVP_DVP_FLAGS, flags);
+
+    if (err68k) {
+        m68k_write_memory_32(err68k, 0);
+    }
+
+    return (int)dp68k;
+}
+
+static void _notify_snapshot(notify_entry_t *entry)
+{
+    struct stat st;
+
+    if (stat(entry->linux_path, &st) == 0) {
+        entry->existed = true;
+        entry->mtime = st.st_mtime;
+        entry->size = st.st_size;
+        entry->ino = st.st_ino;
+        entry->dev = st.st_dev;
+    } else {
+        entry->existed = false;
+        entry->mtime = 0;
+        entry->size = 0;
+        entry->ino = 0;
+        entry->dev = 0;
+    }
+}
+
+static bool _notify_changed(notify_entry_t *entry)
+{
+    struct stat st;
+    bool exists_now = (stat(entry->linux_path, &st) == 0);
+
+    if (exists_now != entry->existed) {
+        _notify_snapshot(entry);
+        return true;
+    }
+
+    if (!exists_now) {
+        return false;
+    }
+
+    if (st.st_mtime != entry->mtime ||
+        st.st_size != entry->size ||
+        st.st_ino != entry->ino ||
+        st.st_dev != entry->dev) {
+        _notify_snapshot(entry);
+        return true;
+    }
+
+    return false;
+}
+
+static int _dos_notify_start(uint32_t notify68k, uint32_t fullname68k, uint32_t flags)
+{
+    char *full_name = _mgetstr(fullname68k);
+    char linux_path[PATH_MAX];
+
+    if (!notify68k || !full_name || full_name[0] == '\0') {
+        return 0;
+    }
+
+    _dos_path2linux(full_name, linux_path, sizeof(linux_path));
+
+    for (int i = 0; i < MAX_NOTIFY_REQUESTS; i++) {
+        if (g_notify_requests[i].in_use && g_notify_requests[i].notify68k == notify68k) {
+            g_notify_requests[i].pending = (flags & NRF_NOTIFY_INITIAL) != 0;
+            strncpy(g_notify_requests[i].linux_path, linux_path, sizeof(g_notify_requests[i].linux_path) - 1);
+            g_notify_requests[i].linux_path[sizeof(g_notify_requests[i].linux_path) - 1] = '\0';
+            _notify_snapshot(&g_notify_requests[i]);
+            return 1;
+        }
+    }
+
+    for (int i = 0; i < MAX_NOTIFY_REQUESTS; i++) {
+        if (!g_notify_requests[i].in_use) {
+            g_notify_requests[i].in_use = true;
+            g_notify_requests[i].notify68k = notify68k;
+            g_notify_requests[i].pending = (flags & NRF_NOTIFY_INITIAL) != 0;
+            strncpy(g_notify_requests[i].linux_path, linux_path, sizeof(g_notify_requests[i].linux_path) - 1);
+            g_notify_requests[i].linux_path[sizeof(g_notify_requests[i].linux_path) - 1] = '\0';
+            _notify_snapshot(&g_notify_requests[i]);
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+static void _dos_notify_end(uint32_t notify68k)
+{
+    for (int i = 0; i < MAX_NOTIFY_REQUESTS; i++) {
+        if (g_notify_requests[i].in_use && g_notify_requests[i].notify68k == notify68k) {
+            memset(&g_notify_requests[i], 0, sizeof(g_notify_requests[i]));
+            break;
+        }
+    }
+}
+
+static uint32_t _dos_notify_poll(void)
+{
+    for (int i = 0; i < MAX_NOTIFY_REQUESTS; i++) {
+        if (!g_notify_requests[i].in_use) {
+            continue;
+        }
+
+        if (!g_notify_requests[i].pending && !_notify_changed(&g_notify_requests[i])) {
+            continue;
+        }
+
+        g_notify_requests[i].pending = false;
+        return g_notify_requests[i].notify68k;
+    }
+
+    return 0;
 }
 
 /*
@@ -4610,6 +4899,53 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_ASSIGN_LIST buf=0x%08x, buflen=%d\n", buf, buflen);
 
             uint32_t res = _dos_assign_list(buf, buflen);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_ASSIGN_REMOVE_PATH:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t path = m68k_get_reg(NULL, M68K_REG_D2);
+
+            uint32_t res = _dos_assign_remove_path(name, path);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_GETDEVPROC:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t dp = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t errptr = m68k_get_reg(NULL, M68K_REG_D3);
+
+            uint32_t res = _dos_getdevproc(name, dp, errptr);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_NOTIFY_START:
+        {
+            uint32_t notify = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t fullname = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t flags = m68k_get_reg(NULL, M68K_REG_D3);
+
+            uint32_t res = _dos_notify_start(notify, fullname, flags);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_NOTIFY_END:
+        {
+            uint32_t notify = m68k_get_reg(NULL, M68K_REG_D1);
+
+            _dos_notify_end(notify);
+            break;
+        }
+
+        case EMU_CALL_DOS_NOTIFY_POLL:
+        {
+            uint32_t res = _dos_notify_poll();
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }
@@ -7462,6 +7798,8 @@ int main(int argc, char **argv, char **envp)
                 g_running = false;  /* Quit requested */
                 break;
             }
+
+            (void)_dos_notify_poll();
 
             /*
              * Update display from Amiga's planar bitmap if configured.

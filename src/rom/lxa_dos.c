@@ -4549,6 +4549,7 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
 #define ASSIGN_TYPE_LOCK 0   /* Points to a specific directory (resolved once) */
 #define ASSIGN_TYPE_LATE 1   /* Late-binding: path resolved when accessed */
 #define ASSIGN_TYPE_PATH 2   /* Non-binding path (like AssignPath) */
+#define ASSIGN_TYPE_ADD  3   /* Append path to multi-assign */
 
 LONG _dos_AssignLock ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
@@ -4591,6 +4592,9 @@ BOOL _dos_AssignLate ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register CONST_STRPTR path __asm("d2"))
 {
+    char resolved_path[256];
+    const char *path_to_use;
+
     DPRINTF (LOG_DEBUG, "_dos: AssignLate() called, name=%s, path=%s\n",
              name ? (char *)name : "NULL", path ? (char *)path : "NULL");
     
@@ -4600,8 +4604,9 @@ BOOL _dos_AssignLate ( register struct DosLibrary * DOSBase __asm("a6"),
         return FALSE;
     }
     
-    /* Call host to create the assign (type 1 = ASSIGN_LATE) */
-    LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path, ASSIGN_TYPE_LATE);
+    path_to_use = resolve_amiga_path((const char *)path, resolved_path);
+
+    LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path_to_use, ASSIGN_TYPE_LATE);
     
     if (result)
     {
@@ -4616,6 +4621,9 @@ BOOL _dos_AssignPath ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register CONST_STRPTR path __asm("d2"))
 {
+    char resolved_path[256];
+    const char *path_to_use;
+
     DPRINTF (LOG_DEBUG, "_dos: AssignPath() called, name=%s, path=%s\n",
              name ? (char *)name : "NULL", path ? (char *)path : "NULL");
     
@@ -4625,8 +4633,9 @@ BOOL _dos_AssignPath ( register struct DosLibrary * DOSBase __asm("a6"),
         return FALSE;
     }
     
-    /* Call host to create the assign (type 2 = ASSIGN_PATH) */
-    LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path, ASSIGN_TYPE_PATH);
+    path_to_use = resolve_amiga_path((const char *)path, resolved_path);
+
+    LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path_to_use, ASSIGN_TYPE_PATH);
     
     if (result)
     {
@@ -4660,8 +4669,7 @@ BOOL _dos_AssignAdd ( register struct DosLibrary * DOSBase __asm("a6"),
     
     DPRINTF (LOG_DEBUG, "_dos: AssignAdd() path from lock: %s\n", path);
     
-    /* Call host to add to the assign (type 0 = ASSIGN_LOCK for adds) */
-    LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path, ASSIGN_TYPE_LOCK);
+    LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path, ASSIGN_TYPE_ADD);
     
     if (result)
     {
@@ -4687,9 +4695,24 @@ LONG _dos_RemAssignList ( register struct DosLibrary * DOSBase __asm("a6"),
         return DOSFALSE;
     }
     
-    /* If lock is NULL, remove the entire assign; otherwise just that path */
-    /* For simplicity, we just remove the entire assign for now */
-    LONG result = emucall1(EMU_CALL_DOS_ASSIGN_REMOVE, (ULONG)name);
+    LONG result;
+
+    if (lock)
+    {
+        char path[256];
+
+        if (!_dos_NameFromLock(DOSBase, lock, (STRPTR)path, sizeof(path)))
+        {
+            SetIoErr(ERROR_OBJECT_NOT_FOUND);
+            return DOSFALSE;
+        }
+
+        result = emucall2(EMU_CALL_DOS_ASSIGN_REMOVE_PATH, (ULONG)name, (ULONG)path);
+    }
+    else
+    {
+        result = emucall1(EMU_CALL_DOS_ASSIGN_REMOVE, (ULONG)name);
+    }
     
     if (result)
     {
@@ -4708,16 +4731,55 @@ struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register struct DevProc * dp __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: GetDeviceProc() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    LONG ioerr = ERROR_OBJECT_NOT_FOUND;
+    struct DevProc *result;
+
+    if (!name)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return NULL;
+    }
+
+    if (!dp)
+    {
+        dp = (struct DevProc *)AllocMem(sizeof(struct DevProc), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!dp)
+        {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return NULL;
+        }
+    }
+    else if (dp->dvp_Flags & DVPF_UNLOCK)
+    {
+        if (dp->dvp_Lock)
+            UnLock(dp->dvp_Lock);
+        dp->dvp_Lock = 0;
+        dp->dvp_Flags = 0;
+    }
+
+    result = (struct DevProc *)emucall3(EMU_CALL_DOS_GETDEVPROC, (ULONG)name, (ULONG)dp, (ULONG)&ioerr);
+    if (!result)
+    {
+        if (dp)
+            FreeMem(dp, sizeof(struct DevProc));
+        SetIoErr(ioerr);
+        return NULL;
+    }
+
+    SetIoErr(0);
+    return result;
 }
 
 VOID _dos_FreeDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DevProc * dp __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FreeDeviceProc() unimplemented STUB called.\n");
-    assert(FALSE);
+    if (!dp)
+        return;
+
+    if ((dp->dvp_Flags & DVPF_UNLOCK) && dp->dvp_Lock)
+        UnLock(dp->dvp_Lock);
+
+    FreeMem(dp, sizeof(struct DevProc));
 }
 
 struct DosList * _dos_LockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -6889,16 +6951,109 @@ BOOL _dos_AddPart ( register struct DosLibrary * DOSBase __asm("a6"),
 BOOL _dos_StartNotify ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct NotifyRequest * notify __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: StartNotify() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    char resolved_name[256];
+    const char *name_to_use;
+
+    if (!notify || !notify->nr_Name)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return FALSE;
+    }
+
+    if (!(notify->nr_Flags & (NRF_SEND_MESSAGE | NRF_SEND_SIGNAL)))
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return FALSE;
+    }
+
+    notify->nr_MsgCount = 0;
+    notify->nr_Handler = NULL;
+    notify->nr_FullName = NULL;
+
+    name_to_use = resolve_amiga_path((const char *)notify->nr_Name, resolved_name);
+
+    if (notify->nr_Flags & NRF_SEND_MESSAGE)
+    {
+        if (!notify->nr_stuff.nr_Msg.nr_Port)
+        {
+            SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+            return FALSE;
+        }
+    }
+    else if (!notify->nr_stuff.nr_Signal.nr_Task)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return FALSE;
+    }
+
+    notify->nr_FullName = AllocVec(strlen(name_to_use) + 1, MEMF_PUBLIC);
+    if (!notify->nr_FullName)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return FALSE;
+    }
+
+    strcpy((char *)notify->nr_FullName, name_to_use);
+
+    if (!emucall3(EMU_CALL_DOS_NOTIFY_START, (ULONG)notify, (ULONG)notify->nr_FullName, notify->nr_Flags))
+    {
+        FreeVec(notify->nr_FullName);
+        notify->nr_FullName = NULL;
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return FALSE;
+    }
+
+    notify->nr_Handler = (struct MsgPort *)DOSBase;
+    notify->nr_Flags |= NRF_MAGIC;
+    SetIoErr(0);
+    return TRUE;
 }
 
 VOID _dos_EndNotify ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct NotifyRequest * notify __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: EndNotify() unimplemented STUB called.\n");
-    assert(FALSE);
+    if (!notify)
+        return;
+
+    emucall1(EMU_CALL_DOS_NOTIFY_END, (ULONG)notify);
+
+    if (notify->nr_FullName)
+    {
+        FreeVec(notify->nr_FullName);
+        notify->nr_FullName = NULL;
+    }
+
+    notify->nr_Handler = NULL;
+    notify->nr_MsgCount = 0;
+    notify->nr_Flags &= ~NRF_MAGIC;
+}
+
+VOID _dos_NotifyVBlankHook(void)
+{
+    struct NotifyRequest *notify;
+
+    while ((notify = (struct NotifyRequest *)emucall0(EMU_CALL_DOS_NOTIFY_POLL)) != NULL)
+    {
+        if (notify->nr_Flags & NRF_SEND_MESSAGE)
+        {
+            struct NotifyMessage *msg = (struct NotifyMessage *)AllocMem(sizeof(struct NotifyMessage), MEMF_PUBLIC | MEMF_CLEAR);
+            if (!msg)
+                continue;
+
+            msg->nm_ExecMessage.mn_Length = sizeof(struct NotifyMessage);
+            msg->nm_ExecMessage.mn_ReplyPort = NULL;
+            msg->nm_Class = NOTIFY_CLASS;
+            msg->nm_Code = NOTIFY_CODE;
+            msg->nm_NReq = notify;
+            notify->nr_MsgCount++;
+            PutMsg(notify->nr_stuff.nr_Msg.nr_Port, (struct Message *)msg);
+        }
+        else if (notify->nr_Flags & NRF_SEND_SIGNAL)
+        {
+            Signal((struct Task *)notify->nr_stuff.nr_Signal.nr_Task,
+                   1UL << notify->nr_stuff.nr_Signal.nr_SignalNum);
+        }
+    }
 }
 
 BOOL _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),

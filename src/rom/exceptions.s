@@ -254,6 +254,9 @@ _handleIRQ3:
     /* This completes async CMD_READ requests when input becomes available */
     jsr         __console_VBlankHook
 
+    /* Process DOS notify requests after timer/input updates */
+    jsr         __dos_NotifyVBlankHook
+
     move.l      4, a6                               | restore a6 (C call may have changed it)
 
     /* count down current task's time slice */

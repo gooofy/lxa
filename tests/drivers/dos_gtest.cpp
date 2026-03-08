@@ -157,6 +157,10 @@ TEST_F(DosTest, CasePath) {
     RunDosTest("CasePath");
 }
 
+TEST_F(DosTest, AssignNotify) {
+    RunDosTest("AssignNotify", 10000);
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

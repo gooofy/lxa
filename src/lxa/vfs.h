@@ -82,6 +82,12 @@ bool vfs_assign_exists(const char *name);
 /* Get the path(s) for an assign (returns first path, or NULL if not found) */
 const char *vfs_assign_get_path(const char *name);
 
+/* Get the assign type or ASSIGN_LOCK if not found */
+assign_type_t vfs_assign_get_type(const char *name);
+
+/* Copy assign paths into caller buffers; returns number of paths copied */
+int vfs_assign_get_paths(const char *name, const char **paths, int max_count);
+
 /* Set the program directory for PROGDIR: resolution */
 void vfs_set_progdir(const char *path);
 

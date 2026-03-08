@@ -48,9 +48,14 @@
 #define EMU_CALL_DOS_FLUSH     1022  /* Flush(fh) -> success */
 
 /* Phase 7: Assignment System */
-#define EMU_CALL_DOS_ASSIGN_ADD    1030  /* AssignAdd(name, path, type) -> success */
+#define EMU_CALL_DOS_ASSIGN_ADD    1030  /* AssignAdd(name, path, type) -> success; type 3 appends path */
 #define EMU_CALL_DOS_ASSIGN_REMOVE 1031  /* AssignRemove(name) -> success */
 #define EMU_CALL_DOS_ASSIGN_LIST   1032  /* AssignList(buf, buflen) -> count */
+#define EMU_CALL_DOS_ASSIGN_REMOVE_PATH 1033  /* AssignRemovePath(name, path) -> success */
+#define EMU_CALL_DOS_GETDEVPROC    1034  /* GetDeviceProc(name, devproc, errptr) -> success */
+#define EMU_CALL_DOS_NOTIFY_START  1035  /* StartNotify(notify, fullname, flags) -> success */
+#define EMU_CALL_DOS_NOTIFY_END    1036  /* EndNotify(notify) */
+#define EMU_CALL_DOS_NOTIFY_POLL   1037  /* Poll next changed notify -> notify ptr or 0 */
 
 /* Phase 10: File Handle Utilities */
 #define EMU_CALL_DOS_DUPLOCKFROMFH 1040  /* DupLockFromFH(fh) -> lock_id */
