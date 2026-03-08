@@ -309,6 +309,7 @@ Goal: finish buffered/file-oriented formatting helpers that are still stubbed or
 
 Goal: close the remaining loader/runtime entry points around the existing `LoadSeg`/`Execute`/`System` implementation.
 
+- [ ] Fix regression: ctest is still failing on the unrelated commands_gtest type command
 - [ ] `InternalLoadSeg`
 - [ ] `NewLoadSeg` — with tags
 - [ ] `CreateProc` / `CreateNewProc` / `RunCommand`
