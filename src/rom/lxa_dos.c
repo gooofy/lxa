@@ -13,6 +13,7 @@
 #include <dos/dostags.h>
 #include <dos/dosasl.h>
 #include <dos/exall.h>
+#include <dos/stdio.h>
 #include <dos/var.h>
 #include <dos/datetime.h>
 #include <clib/dos_protos.h>
@@ -39,6 +40,16 @@
 #define FILE_KIND_REGULAR    42
 #define FILE_KIND_CONSOLE    23
 #define FILE_KIND_CON        99   /* CON:/RAW: window (m68k-side handling) */
+
+#define LXA_DOS_BUFFER_MIN_SIZE      208
+#define LXA_DOS_BUFFER_DEFAULT_SIZE  2048
+
+#define LXA_DOS_BF_WRITE     (1UL << 0)
+#define LXA_DOS_BF_NOBUF     (1UL << 1)
+#define LXA_DOS_BF_LINEBUF   (1UL << 2)
+#define LXA_DOS_BF_OWNBUF    (1UL << 3)
+
+#define LXA_DOS_BUFFER_MAGIC 0x4C584142UL
 
 #define HUNK_TYPE_UNIT     0x03E7
 #define HUNK_TYPE_NAME     0x03E8
@@ -68,6 +79,36 @@ char __aligned _g_dos_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 extern struct ExecBase      *SysBase;
 extern struct UtilityBase   *UtilityBase;
 extern struct DosLibrary    *DOSBase;
+
+LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                        register BPTR fh __asm("d1"));
+LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
+                                 register BPTR file __asm("d1"),
+                                 register APTR buffer __asm("d2"),
+                                 register LONG length __asm("d3"));
+LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
+                                  register BPTR file __asm("d1"),
+                                  register CONST APTR buffer __asm("d2"),
+                                  register LONG length __asm("d3"));
+LONG _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
+                                 register BPTR fh __asm("d1"),
+                                 register LONG ch __asm("d2"));
+LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
+                                    register BPTR fh __asm("d1"),
+                                    register CONST_STRPTR format __asm("d2"),
+                                    register const APTR argarray __asm("d3"));
+
+struct lxa_dos_buffer_state
+{
+    ULONG  magic;
+    UBYTE *buffer;
+    ULONG  size;
+    ULONG  flags;
+    LONG   unget_char;
+};
+
+static void lxa_dos_sprintf_hook(register UBYTE ch __asm("d0"),
+                                 register STRPTR *cursor __asm("a3"));
 
 LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register CONST_STRPTR command  __asm("d1"),
@@ -939,8 +980,241 @@ static LONG con_write(struct ConHandle *ch, CONST APTR buffer, LONG length)
     ch->ch_IORequest->io_Length = length;
     
     DoIO((struct IORequest *)ch->ch_IORequest);
-    
+
     return ch->ch_IORequest->io_Actual;
+}
+
+static struct lxa_dos_buffer_state *lxa_dos_buffer_state_from_fh(struct FileHandle *fh)
+{
+    if (!fh || !fh->fh_Port)
+        return NULL;
+
+    struct lxa_dos_buffer_state *state = (struct lxa_dos_buffer_state *)fh->fh_Port;
+    if (state->magic != LXA_DOS_BUFFER_MAGIC)
+        return NULL;
+
+    return state;
+}
+
+static void lxa_dos_buffer_state_reset_io(struct lxa_dos_buffer_state *state)
+{
+    if (!state)
+        return;
+
+    state->unget_char = -1;
+}
+
+static void lxa_dos_buffer_state_discard(struct FileHandle *fh)
+{
+    struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_from_fh(fh);
+
+    if (!state)
+        return;
+
+    if ((state->flags & LXA_DOS_BF_OWNBUF) && state->buffer)
+        FreeVec(state->buffer);
+
+    state->magic = 0;
+    FreeVec(state);
+    fh->fh_Port = NULL;
+}
+
+static struct lxa_dos_buffer_state *lxa_dos_buffer_state_ensure(struct FileHandle *fh)
+{
+    struct lxa_dos_buffer_state *state;
+
+    if (!fh)
+        return NULL;
+
+    state = lxa_dos_buffer_state_from_fh(fh);
+    if (state)
+        return state;
+
+    state = (struct lxa_dos_buffer_state *)AllocVec(sizeof(*state), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!state)
+        return NULL;
+
+    state->magic = LXA_DOS_BUFFER_MAGIC;
+    state->size = LXA_DOS_BUFFER_DEFAULT_SIZE;
+    state->unget_char = -1;
+    fh->fh_Port = (struct MsgPort *)state;
+
+    return state;
+}
+
+static LONG lxa_dos_buffer_state_setvbuf(struct FileHandle *fh, STRPTR buff, LONG type, LONG size)
+{
+    struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_ensure(fh);
+    ULONG new_flags;
+    ULONG alloc_size;
+    UBYTE *new_buffer = NULL;
+
+    if (!state)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return -1;
+    }
+
+    new_flags = state->flags & LXA_DOS_BF_WRITE;
+
+    switch (type)
+    {
+        case BUF_LINE:
+            new_flags |= LXA_DOS_BF_LINEBUF;
+            break;
+
+        case BUF_FULL:
+            break;
+
+        case BUF_NONE:
+            new_flags |= LXA_DOS_BF_NOBUF;
+            break;
+
+        default:
+            SetIoErr(ERROR_BAD_NUMBER);
+            return -1;
+    }
+
+    if (size >= 0)
+    {
+        alloc_size = (ULONG)size;
+        if (alloc_size < LXA_DOS_BUFFER_MIN_SIZE)
+            alloc_size = LXA_DOS_BUFFER_MIN_SIZE;
+
+        if (!(new_flags & LXA_DOS_BF_NOBUF))
+        {
+            if (buff)
+            {
+                new_buffer = (UBYTE *)buff;
+            }
+            else
+            {
+                new_buffer = (UBYTE *)AllocVec(alloc_size, MEMF_PUBLIC);
+                if (!new_buffer)
+                {
+                    SetIoErr(ERROR_NO_FREE_STORE);
+                    return -1;
+                }
+                new_flags |= LXA_DOS_BF_OWNBUF;
+            }
+        }
+
+        if ((state->flags & LXA_DOS_BF_OWNBUF) && state->buffer)
+            FreeVec(state->buffer);
+
+        state->buffer = new_buffer;
+        state->size = alloc_size;
+    }
+    else if (new_flags & LXA_DOS_BF_NOBUF)
+    {
+        if ((state->flags & LXA_DOS_BF_OWNBUF) && state->buffer)
+            FreeVec(state->buffer);
+
+        state->buffer = NULL;
+    }
+
+    state->flags = new_flags;
+    lxa_dos_buffer_state_reset_io(state);
+    SetIoErr(0);
+    return 0;
+}
+
+static LONG lxa_dos_read_single_byte(struct DosLibrary *DOSBase, BPTR fh, struct FileHandle *fhp,
+                                     struct lxa_dos_buffer_state *state)
+{
+    UBYTE ch;
+    LONG result;
+
+    (void)fhp;
+
+    if (state && state->unget_char >= 0)
+    {
+        LONG ungot = state->unget_char;
+        state->unget_char = -1;
+        return ungot;
+    }
+
+    result = _dos_Read(DOSBase, fh, &ch, 1);
+    if (result < 0)
+        return -2;
+
+    if (result == 0)
+        return -1;
+
+    return (LONG)ch;
+}
+
+static LONG lxa_dos_fputc_internal(struct DosLibrary *DOSBase, struct FileHandle *fhp, BPTR fh, LONG ch)
+{
+    struct lxa_dos_buffer_state *state;
+    UBYTE c = (UBYTE)ch;
+    LONG result;
+
+    state = lxa_dos_buffer_state_ensure(fhp);
+    if (!state)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return -1;
+    }
+
+    lxa_dos_buffer_state_reset_io(state);
+    state->flags |= LXA_DOS_BF_WRITE;
+
+    if ((state->flags & LXA_DOS_BF_NOBUF) || !state->buffer)
+    {
+        result = _dos_Write(DOSBase, fh, &c, 1);
+        if (result <= 0)
+        {
+            if (result == 0)
+                SetIoErr(ERROR_DISK_FULL);
+            return -1;
+        }
+        return ch;
+    }
+
+    state->buffer[0] = c;
+    result = _dos_Write(DOSBase, fh, state->buffer, 1);
+    if (result <= 0)
+    {
+        if (result == 0)
+            SetIoErr(ERROR_DISK_FULL);
+        return -1;
+    }
+
+    if ((state->flags & LXA_DOS_BF_LINEBUF) && (c == '\n' || c == '\r' || c == '\0'))
+    {
+        if (_dos_Flush(DOSBase, fh) == 0)
+            return -1;
+    }
+
+    return ch;
+}
+
+static STRPTR lxa_dos_format_to_string(CONST_STRPTR format, const APTR argarray)
+{
+    STRPTR buffer;
+    STRPTR cursor;
+
+    if (!format)
+        return NULL;
+
+    buffer = AllocVec(1024, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!buffer)
+        return NULL;
+
+    cursor = buffer;
+    RawDoFmt(format, argarray, (VOID (*)())lxa_dos_sprintf_hook, &cursor);
+    return buffer;
+}
+
+static void lxa_dos_sprintf_hook(register UBYTE ch __asm("d0"),
+                                 register STRPTR *cursor __asm("a3"))
+{
+    if (!cursor)
+        return;
+
+    **cursor = ch;
+    (*cursor)++;
 }
 
 BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
@@ -970,8 +1244,8 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
         if (!err)
         {
             /* Check if this is a CON:/RAW: window that needs m68k-side setup */
-            if (fh->fh_Func3 == FILE_KIND_CON)
-            {
+        if (fh->fh_Func3 == FILE_KIND_CON)
+        {
                 DPRINTF (LOG_DEBUG, "_dos: Open() FILE_KIND_CON detected, opening window for '%s'\n", ___name);
                 struct ConHandle *ch = open_con_window((const char *)___name);
                 if (!ch)
@@ -984,6 +1258,18 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
                 /* Store ConHandle pointer in fh_Arg1 for Read/Write/Close */
                 fh->fh_Arg1 = (LONG)ch;
                 DPRINTF (LOG_DEBUG, "_dos: Open() CON: window opened, ch=0x%08lx\n", ch);
+            }
+
+            if (lxa_dos_buffer_state_setvbuf(fh, NULL, BUF_FULL, -1) < 0)
+            {
+                if (fh->fh_Func3 == FILE_KIND_CON)
+                {
+                    struct ConHandle *ch = (struct ConHandle *)fh->fh_Arg1;
+                    if (ch)
+                        close_con_window(ch);
+                }
+                FreeDosObject(DOS_FILEHANDLE, fh);
+                return 0;
             }
             
             BPTR f = MKBADDR (fh);
@@ -1042,6 +1328,8 @@ LONG _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
             me->pr_Result2 = fh->fh_Arg2;
         }
     }
+
+    lxa_dos_buffer_state_discard(fh);
     
     /* Free the FileHandle */
     FreeDosObject (DOS_FILEHANDLE, fh);
@@ -2605,32 +2893,12 @@ LONG _dos_FGetC ( register struct DosLibrary * DOSBase __asm("a6"),
         return -1;
     }
     
-    /* Check if there's an ungotten character */
     struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
-    if (fhp->fh_Pos < 0)
-    {
-        /* fh_Pos is used to store ungotten char - negative value means valid */
-        LONG ch = -(fhp->fh_Pos + 1);  /* Retrieve the character */
-        fhp->fh_Pos = 0;  /* Clear the ungotten flag */
-        DPRINTF (LOG_DEBUG, "_dos: FGetC: returning ungotten char %ld\n", ch);
-        return ch;
-    }
-    
-    /* Read a single character */
-    UBYTE ch;
-    LONG result = _dos_Read(DOSBase, fh, &ch, 1);
-    
-    if (result < 0)
-    {
-        /* Read error */
+    struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_ensure(fhp);
+    LONG ch = lxa_dos_read_single_byte(DOSBase, fh, fhp, state);
+
+    if (ch < 0)
         return -1;
-    }
-    
-    if (result == 0)
-    {
-        /* EOF */
-        return -1;
-    }
     
     DPRINTF (LOG_DEBUG, "_dos: FGetC: returning char %ld ('%c')\n", (LONG)ch, ch > 31 ? ch : '?');
     return (LONG)ch;
@@ -2648,25 +2916,14 @@ LONG _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
         return -1;
     }
     
-    /* Write a single character */
-    UBYTE c = (UBYTE)ch;
-    LONG result = _dos_Write(DOSBase, fh, &c, 1);
-    
+    struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
+    LONG result = lxa_dos_fputc_internal(DOSBase, fhp, fh, ch);
+
     if (result < 0)
-    {
-        /* Write error */
         return -1;
-    }
-    
-    if (result == 0)
-    {
-        /* Couldn't write - disk full? */
-        SetIoErr(ERROR_DISK_FULL);
-        return -1;
-    }
-    
+
     DPRINTF (LOG_DEBUG, "_dos: FPutC: wrote char %ld\n", ch);
-    return ch;  /* Return the character on success */
+    return ch;
 }
 
 LONG _dos_UnGetC ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2681,28 +2938,25 @@ LONG _dos_UnGetC ( register struct DosLibrary * DOSBase __asm("a6"),
         return -1;
     }
     
-    /* Special case: character == -1 means "check if ungot char available" */
-    if (character == -1)
-    {
-        struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
-        /* If fh_Pos is negative, there's an ungotten char */
-        return (fhp->fh_Pos < 0) ? TRUE : FALSE;
-    }
-    
-    /* Store the character for the next FGetC */
-    /* We use fh_Pos as a flag - negative value means "has ungotten char"
-     * The actual character is stored as -(char + 1) so 0 can be stored */
     struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
-    
-    /* Only one character can be pushed back */
-    if (fhp->fh_Pos < 0)
+    struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_ensure(fhp);
+
+    if (!state)
     {
-        /* Already have an ungotten character */
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return -1;
+    }
+
+    if (character == -1)
+        return (state->unget_char >= 0) ? TRUE : FALSE;
+
+    if (state->unget_char >= 0)
+    {
         SetIoErr(ERROR_SEEK_ERROR);
         return -1;
     }
-    
-    fhp->fh_Pos = -(character + 1);
+
+    state->unget_char = character & 0xFF;
     
     DPRINTF (LOG_DEBUG, "_dos: UnGetC: stored char %ld\n", character);
     return character;
@@ -2714,9 +2968,60 @@ LONG _dos_FRead ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG blocklen __asm("d3"),
                                                         register ULONG number __asm("d4"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FRead() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct FileHandle *fhp;
+    struct lxa_dos_buffer_state *state;
+    UBYTE *dst;
+    ULONG bytes_read = 0;
+    ULONG total;
+    LONG last_status = 0;
+
+    DPRINTF (LOG_DEBUG, "_dos: FRead(fh=%08lx, block=%08lx, blocklen=%lu, number=%lu) called.\n",
+             fh, block, blocklen, number);
+
+    if (!fh || !block)
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return -1;
+    }
+
+    if (blocklen == 0 || number == 0)
+    {
+        SetIoErr(0);
+        return 0;
+    }
+
+    total = blocklen * number;
+    fhp = (struct FileHandle *)BADDR(fh);
+    state = lxa_dos_buffer_state_ensure(fhp);
+    if (!state)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return -1;
+    }
+
+    state->flags &= ~LXA_DOS_BF_WRITE;
+    dst = (UBYTE *)block;
+
+    while (bytes_read < total)
+    {
+        LONG ch = lxa_dos_read_single_byte(DOSBase, fh, fhp, state);
+        if (ch < 0)
+        {
+            last_status = ch;
+            break;
+        }
+
+        dst[bytes_read++] = (UBYTE)ch;
+    }
+
+    if (bytes_read == 0)
+    {
+        if (last_status == -2)
+            return -1;
+        return 0;
+    }
+
+    return (LONG)(bytes_read / blocklen);
 }
 
 LONG _dos_FWrite ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2725,9 +3030,41 @@ LONG _dos_FWrite ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG blocklen __asm("d3"),
                                                         register ULONG number __asm("d4"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FWrite() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct FileHandle *fhp;
+    const UBYTE *src;
+    ULONG written = 0;
+    ULONG total;
+
+    DPRINTF (LOG_DEBUG, "_dos: FWrite(fh=%08lx, block=%08lx, blocklen=%lu, number=%lu) called.\n",
+             fh, block, blocklen, number);
+
+    if (!fh || !block)
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return -1;
+    }
+
+    if (blocklen == 0 || number == 0)
+    {
+        SetIoErr(0);
+        return 0;
+    }
+
+    total = blocklen * number;
+    fhp = (struct FileHandle *)BADDR(fh);
+    src = (const UBYTE *)block;
+
+    while (written < total)
+    {
+        if (lxa_dos_fputc_internal(DOSBase, fhp, fh, src[written]) < 0)
+            break;
+        written++;
+    }
+
+    if (written == 0)
+        return -1;
+
+    return (LONG)(written / blocklen);
 }
 
 STRPTR _dos_FGets ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2743,31 +3080,28 @@ STRPTR _dos_FGets ( register struct DosLibrary * DOSBase __asm("a6"),
         return NULL;
     }
     
-    /* Read characters one at a time until newline, EOF, or buffer full */
+    struct FileHandle *fhp = (struct FileHandle *)BADDR(fh);
+    struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_ensure(fhp);
+
+    if (!state)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
+
     ULONG pos = 0;
     ULONG maxread = buflen - 1;  /* Leave room for null terminator */
     
     while (pos < maxread)
     {
-        UBYTE ch;
-        LONG result = _dos_Read(DOSBase, fh, &ch, 1);
-        
-        if (result < 0)
+        LONG ch = lxa_dos_read_single_byte(DOSBase, fh, fhp, state);
+
+        if (ch < 0)
         {
-            /* Read error */
             DPRINTF (LOG_DEBUG, "_dos: FGets: Read error at pos %lu\n", pos);
             if (pos == 0)
-                return NULL;  /* Error before any data read */
-            break;  /* Return what we have */
-        }
-        
-        if (result == 0)
-        {
-            /* EOF */
-            DPRINTF (LOG_DEBUG, "_dos: FGets: EOF at pos %lu\n", pos);
-            if (pos == 0)
-                return NULL;  /* EOF before any data read */
-            break;  /* Return what we have */
+                return NULL;
+            break;
         }
         
         buf[pos++] = ch;
@@ -2802,21 +3136,10 @@ LONG _dos_FPuts ( register struct DosLibrary * DOSBase __asm("a6"),
         return 0;  /* Nothing to write, but not an error */
     }
     
-    /* Calculate string length */
-    ULONG len = 0;
-    const char *p = (const char *)str;
-    while (*p++) len++;
-    
-    if (len == 0)
-        return 0;  /* Empty string, success */
-    
-    /* Write the string (without null terminator) */
-    LONG result = _dos_Write(DOSBase, fh, (CONST APTR)str, len);
-    
-    if (result < 0)
-        return -1;  /* Error */
-    
-    return 0;  /* Success - FPuts returns 0 on success, -1 on error */
+    if (_dos_FWrite(DOSBase, fh, (CONST APTR)str, 1, strlen((const char *)str)) < 0)
+        return -1;
+
+    return 0;
 }
 
 VOID _dos_VFWritef ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2824,8 +3147,7 @@ VOID _dos_VFWritef ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR format __asm("d2"),
                                                         register const LONG * argarray __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: VFWritef() unimplemented STUB called.\n");
-    assert(FALSE);
+    (void)_dos_VFPrintf(DOSBase, fh, format, (APTR)argarray);
 }
 
 LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2833,325 +3155,46 @@ LONG _dos_VFPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR format __asm("d2"),
                                                         register const APTR argarray __asm("d3"))
 {
+    STRPTR formatted;
+    LONG result;
+
     DPRINTF (LOG_DEBUG, "_dos: VFPrintf(fh=%08lx, format='%s') called.\n", fh, format ? format : (CONST_STRPTR)"NULL");
-    
+
     if (!fh || !format)
     {
         SetIoErr(ERROR_BAD_NUMBER);
         return -1;
     }
-    
-    /* AmigaDOS Printf format specifiers:
-     *   %s  - string (STRPTR)
-     *   %ld - long decimal (signed)
-     *   %lu - long unsigned decimal
-     *   %lx - long hex (lowercase)
-     *   %lX - long hex (uppercase)
-     *   %lc - long character
-     *   %d  - word decimal (16-bit, but we treat as long for simplicity)
-     *   %%  - literal %
-     *   %-  - left justify (followed by number)
-     *   %0  - zero-pad (followed by number)
-     *   Width and precision can be specified
-     */
-    
-    const LONG *args = (const LONG *)argarray;
-    LONG argidx = 0;
-    LONG chars_written = 0;
-    UBYTE outbuf[256];  /* Output buffer for formatted numbers */
-    
-    const UBYTE *p = (const UBYTE *)format;
-    while (*p)
+
+    formatted = lxa_dos_format_to_string(format, argarray);
+    if (!formatted)
     {
-        if (*p != '%')
-        {
-            /* Regular character - write directly */
-            LONG result = _dos_FPutC(DOSBase, fh, *p);
-            if (result < 0)
-                return -1;
-            chars_written++;
-            p++;
-            continue;
-        }
-        
-        /* Format specifier */
-        p++;  /* Skip % */
-        
-        /* Handle %% */
-        if (*p == '%')
-        {
-            LONG result = _dos_FPutC(DOSBase, fh, '%');
-            if (result < 0)
-                return -1;
-            chars_written++;
-            p++;
-            continue;
-        }
-        
-        /* Parse flags */
-        BOOL left_justify = FALSE;
-        BOOL zero_pad = FALSE;
-        
-        while (*p == '-' || *p == '0')
-        {
-            if (*p == '-')
-                left_justify = TRUE;
-            if (*p == '0')
-                zero_pad = TRUE;
-            p++;
-        }
-        
-        /* Parse width */
-        LONG width = 0;
-        while (*p >= '0' && *p <= '9')
-        {
-            width = width * 10 + (*p - '0');
-            p++;
-        }
-        
-        /* Skip 'l' modifier (all AmigaDOS args are 32-bit) */
-        if (*p == 'l')
-            p++;
-        
-        /* Get format character */
-        UBYTE fmtchar = *p++;
-        
-        /* Format the value */
-        UBYTE *buf = outbuf;
-        LONG buflen = 0;
-        BOOL is_negative = FALSE;
-        
-        switch (fmtchar)
-        {
-            case 's':
-            {
-                /* String */
-                const UBYTE *str = (const UBYTE *)(args ? args[argidx++] : 0);
-                if (!str)
-                    str = (const UBYTE *)"(null)";
-                
-                /* Calculate length */
-                const UBYTE *s = str;
-                while (*s)
-                {
-                    s++;
-                    buflen++;
-                }
-                
-                /* Output with padding */
-                if (!left_justify && width > buflen)
-                {
-                    for (LONG i = 0; i < width - buflen; i++)
-                    {
-                        LONG result = _dos_FPutC(DOSBase, fh, ' ');
-                        if (result < 0)
-                            return -1;
-                        chars_written++;
-                    }
-                }
-                
-                /* Output string */
-                s = str;
-                while (*s)
-                {
-                    LONG result = _dos_FPutC(DOSBase, fh, *s++);
-                    if (result < 0)
-                        return -1;
-                    chars_written++;
-                }
-                
-                /* Right padding */
-                if (left_justify && width > buflen)
-                {
-                    for (LONG i = 0; i < width - buflen; i++)
-                    {
-                        LONG result = _dos_FPutC(DOSBase, fh, ' ');
-                        if (result < 0)
-                            return -1;
-                        chars_written++;
-                    }
-                }
-                continue;  /* Skip the common output code below */
-            }
-            
-            case 'd':
-            case 'D':
-            {
-                /* Signed decimal */
-                LONG val = args ? args[argidx++] : 0;
-                if (val < 0)
-                {
-                    is_negative = TRUE;
-                    val = -val;
-                }
-                
-                /* Convert to string (backwards) */
-                UBYTE tmpbuf[20];
-                LONG tmpidx = 0;
-                
-                if (val == 0)
-                {
-                    tmpbuf[tmpidx++] = '0';
-                }
-                else
-                {
-                    while (val > 0)
-                    {
-                        tmpbuf[tmpidx++] = '0' + (val % 10);
-                        val /= 10;
-                    }
-                }
-                
-                /* Reverse into output buffer */
-                if (is_negative)
-                    buf[buflen++] = '-';
-                while (tmpidx > 0)
-                    buf[buflen++] = tmpbuf[--tmpidx];
-                break;
-            }
-            
-            case 'u':
-            case 'U':
-            {
-                /* Unsigned decimal */
-                ULONG val = args ? (ULONG)args[argidx++] : 0;
-                
-                UBYTE tmpbuf[20];
-                LONG tmpidx = 0;
-                
-                if (val == 0)
-                {
-                    tmpbuf[tmpidx++] = '0';
-                }
-                else
-                {
-                    while (val > 0)
-                    {
-                        tmpbuf[tmpidx++] = '0' + (val % 10);
-                        val /= 10;
-                    }
-                }
-                
-                while (tmpidx > 0)
-                    buf[buflen++] = tmpbuf[--tmpidx];
-                break;
-            }
-            
-            case 'x':
-            {
-                /* Lowercase hex */
-                ULONG val = args ? (ULONG)args[argidx++] : 0;
-                
-                UBYTE tmpbuf[20];
-                LONG tmpidx = 0;
-                
-                if (val == 0)
-                {
-                    tmpbuf[tmpidx++] = '0';
-                }
-                else
-                {
-                    while (val > 0)
-                    {
-                        UBYTE digit = val & 0xF;
-                        tmpbuf[tmpidx++] = digit < 10 ? '0' + digit : 'a' + digit - 10;
-                        val >>= 4;
-                    }
-                }
-                
-                while (tmpidx > 0)
-                    buf[buflen++] = tmpbuf[--tmpidx];
-                break;
-            }
-            
-            case 'X':
-            {
-                /* Uppercase hex */
-                ULONG val = args ? (ULONG)args[argidx++] : 0;
-                
-                UBYTE tmpbuf[20];
-                LONG tmpidx = 0;
-                
-                if (val == 0)
-                {
-                    tmpbuf[tmpidx++] = '0';
-                }
-                else
-                {
-                    while (val > 0)
-                    {
-                        UBYTE digit = val & 0xF;
-                        tmpbuf[tmpidx++] = digit < 10 ? '0' + digit : 'A' + digit - 10;
-                        val >>= 4;
-                    }
-                }
-                
-                while (tmpidx > 0)
-                    buf[buflen++] = tmpbuf[--tmpidx];
-                break;
-            }
-            
-            case 'c':
-            case 'C':
-            {
-                /* Character */
-                LONG val = args ? args[argidx++] : 0;
-                buf[buflen++] = (UBYTE)val;
-                break;
-            }
-            
-            default:
-                /* Unknown format - output literally */
-                buf[buflen++] = '%';
-                if (fmtchar)
-                    buf[buflen++] = fmtchar;
-                break;
-        }
-        
-        /* Output the formatted buffer with padding */
-        if (!left_justify && width > buflen)
-        {
-            UBYTE pad_char = zero_pad ? '0' : ' ';
-            for (LONG i = 0; i < width - buflen; i++)
-            {
-                LONG result = _dos_FPutC(DOSBase, fh, pad_char);
-                if (result < 0)
-                    return -1;
-                chars_written++;
-            }
-        }
-        
-        /* Output the formatted value */
-        for (LONG i = 0; i < buflen; i++)
-        {
-            LONG result = _dos_FPutC(DOSBase, fh, buf[i]);
-            if (result < 0)
-                return -1;
-            chars_written++;
-        }
-        
-        /* Right padding */
-        if (left_justify && width > buflen)
-        {
-            for (LONG i = 0; i < width - buflen; i++)
-            {
-                LONG result = _dos_FPutC(DOSBase, fh, ' ');
-                if (result < 0)
-                    return -1;
-                chars_written++;
-            }
-        }
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return -1;
     }
-    
-    DPRINTF (LOG_DEBUG, "_dos: VFPrintf: wrote %ld chars\n", chars_written);
-    return chars_written;
+
+    result = _dos_FWrite(DOSBase, fh, formatted, 1, strlen((char *)formatted));
+    FreeVec(formatted);
+
+    if (result < 0)
+        return -1;
+
+    return result;
 }
 
 LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
-														register BPTR fh __asm("d1"))
+													register BPTR fh __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Flush() called fh=%08lx\n", fh);
     struct FileHandle *fhp = (struct FileHandle *) BADDR(fh);
+
+    if (fhp)
+    {
+        struct lxa_dos_buffer_state *state = lxa_dos_buffer_state_from_fh(fhp);
+        if (state)
+            state->flags &= ~LXA_DOS_BF_WRITE;
+    }
+
     return emucall1(EMU_CALL_DOS_FLUSH, (ULONG)fhp);
 }
 
@@ -3161,9 +3204,15 @@ LONG _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG type __asm("d3"),
                                                         register LONG size __asm("d4"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetVBuf() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct FileHandle *fhp = (struct FileHandle *)BADDR(fh);
+
+    if (!fhp)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+
+    return lxa_dos_buffer_state_setvbuf(fhp, buff, type, size);
 }
 
 BPTR _dos_DupLockFromFH ( register struct DosLibrary * DOSBase __asm("a6"),

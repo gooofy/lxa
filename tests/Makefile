@@ -45,6 +45,7 @@ all:
 	@$(MAKE) -C dos/unloadseg
 	@$(MAKE) -C dos/dosobject
 	@$(MAKE) -C dos/case_path
+	@$(MAKE) -C dos/bufferedio
 	@$(MAKE) -C exec/signal_pingpong
 	@$(MAKE) -C exec/multitask
 	@$(MAKE) -C shell/alias
@@ -138,6 +139,7 @@ clean:
 	@$(MAKE) -C dos/unloadseg clean
 	@$(MAKE) -C dos/dosobject clean
 	@$(MAKE) -C dos/case_path clean
+	@$(MAKE) -C dos/bufferedio clean
 	@$(MAKE) -C exec/signal_pingpong clean
 	@$(MAKE) -C exec/multitask clean
 	@$(MAKE) -C shell/alias clean
@@ -228,6 +230,7 @@ clean:
 	rm -f dos/unloadseg/actual.out
 	rm -f dos/dosobject/actual.out
 	rm -f dos/case_path/actual.out
+	rm -f dos/bufferedio/actual.out
 	rm -f exec/signal_pingpong/actual.out
 	rm -f shell/alias/actual.out
 	rm -f shell/controlflow/actual.out

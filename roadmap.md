@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.74** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.75** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -39,6 +39,8 @@ Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` thro
 - Implemented `SetFileSize()` with host-backed truncate/extend semantics and added DOS regression coverage for begin/current/end resizing plus zero-filled extension behavior
 - Completed Phase 78-B-3 host-backed DOS extended file semantics: `SetFileDate`, `ExAll`/`ExAllEnd`, and `MakeLink`/`ReadLink` now work with direct DOS/command regression coverage, including soft-link target preservation and hard-link creation
 - Completed Phase 78-B-4 DOS assign/device/notify support: `AssignLock`/`AssignLate`/`AssignPath`/`AssignAdd`/`RemAssignList` now handle multi-directory assign iteration and per-path removal, `GetDevProc`/`FreeDevProc` return iterable assign targets, and `StartNotify`/`EndNotify` deliver host-polled notify messages/signals through the VBlank path
+- Completed Phase 78-B-5 buffered DOS I/O helpers: `SetVBuf`, `FRead`, `FWrite`, `FPuts`, `VFPrintf`, and `FWritef`-style varargs flows now run through host-backed buffered helpers with direct DOS regression coverage for block reads/writes, line buffering, and `UnGetC` interaction
+- Verified against NDK/AROS references that `SPrintf`/`VSPrintf` are not public AmigaOS 3.x DOS APIs, so they are removed from the DOS roadmap scope instead of being exposed as new non-standard vectors
 - Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j8` is green again
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
 - Test-suite scheduling improved: sharded `gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, and `cluster2` into smaller CTest entries, reducing `ctest -j8` wall time from about 124s to about 95s while keeping total CPU time roughly flat
@@ -295,11 +297,13 @@ Goal: complete assign traversal APIs and host-backed notifications.
 
 ##### 78-B-5: DOS Formatting & Buffered I/O Completion
 
+Status: complete in 0.6.75.
+
 Goal: finish buffered/file-oriented formatting helpers that are still stubbed or only partially covered.
 
-- [ ] `SetVBuf` — set file buffering
-- [ ] `FPuts` / `FPrintf` / `VFPrintf` / `FRead` / `FWrite`
-- [ ] `SPrintf` / `VSPrintf`
+- [x] `SetVBuf` — set file buffering
+- [x] `FPuts` / `FPrintf` / `VFPrintf` / `FRead` / `FWrite`
+- [x] Validate non-standard `SPrintf` / `VSPrintf` status against NDK/AROS references and remove them from DOS scope
 
 ##### 78-B-6: DOS Program Loading Completion
 
@@ -823,6 +827,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
+| **0.6.75** | 78-B-5 | Completed DOS buffered formatting/I/O coverage by implementing `SetVBuf`, `FRead`, `FWrite`, `FPuts`, and host-backed formatted file output paths with direct regression coverage for block I/O, line buffering, and `UnGetC`; removed non-standard DOS `SPrintf`/`VSPrintf` from scope after NDK/AROS verification. |
 | **0.6.74** | 78-B-4 | Completed DOS assign/device/notify coverage by adding per-path multi-assign removal, iterable `GetDevProc`/`FreeDevProc`, and host-polled `StartNotify`/`EndNotify` delivery through the VBlank path, with direct DOS regression coverage. |
 | **0.6.73** | 78-B-3 | Completed DOS extended file semantics with host-backed `SetFileDate`, `ExAll`/`ExAllEnd`, and `MakeLink`/`ReadLink`, plus regression coverage for directory enumeration, filtering, soft links, and hard links; `ChangeFilePosition`/`GetFilePosition` remain deferred pending a verified public API reference. |
 | **0.6.72** | 78-B-2 | Verified DOS proc-window inheritance semantics by teaching `CreateNewProc()`/`SystemTagList()` to preserve or override `pr_WindowPtr` correctly, with direct regression coverage for inherited and explicit `NP_WindowPtr` behavior. |
