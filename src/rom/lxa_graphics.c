@@ -386,7 +386,7 @@ static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, W
 
 char __aligned _g_graphics_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_graphics_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_graphics_Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_graphics_Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_graphics_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

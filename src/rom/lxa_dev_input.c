@@ -17,7 +17,7 @@
 
 char __aligned _g_input_ExDevName [] = EXDEVNAME ".device";
 char __aligned _g_input_ExDevID   [] = EXDEVNAME EXDEVVER;
-char __aligned _g_input_Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_input_Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_input_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 

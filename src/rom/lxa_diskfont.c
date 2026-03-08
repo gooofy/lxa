@@ -35,7 +35,7 @@
 
 char __aligned _g_diskfont_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_diskfont_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_diskfont_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_diskfont_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_diskfont_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

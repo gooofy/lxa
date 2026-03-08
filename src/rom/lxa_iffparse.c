@@ -36,7 +36,7 @@ extern struct UtilityBase *UtilityBase;
 
 char __aligned _g_iffparse_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_iffparse_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_iffparse_Copyright [] = "(C)opyright 2025-2026 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_iffparse_Copyright [] = "(C)opyright 2025-2026 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_iffparse_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

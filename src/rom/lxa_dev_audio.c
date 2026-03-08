@@ -25,7 +25,7 @@
 
 char __aligned _g_audio_ExDevName [] = EXDEVNAME ".device";
 char __aligned _g_audio_ExDevID   [] = EXDEVNAME EXDEVVER;
-char __aligned _g_audio_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_audio_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_audio_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 

@@ -29,7 +29,7 @@
 
 char __aligned _g_rexxsyslib_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_rexxsyslib_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_rexxsyslib_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_rexxsyslib_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_rexxsyslib_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

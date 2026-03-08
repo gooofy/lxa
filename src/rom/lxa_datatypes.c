@@ -121,7 +121,7 @@ extern struct Library *IFFParseBase;
 
 char __aligned _g_datatypes_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_datatypes_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_datatypes_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_datatypes_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_datatypes_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

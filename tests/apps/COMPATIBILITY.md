@@ -1,5 +1,7 @@
 # LXA Application Compatibility Notes
 
+> Historical note: this compatibility log captures earlier app bring-up work and references tooling that has since evolved. For current automated coverage, prefer the active drivers in `tests/drivers/` and the current roadmap status.
+
 **Last Updated**: Phase 49+ (February 2026) - GFA Basic memory errors fixed, Devpac fully fixed
 
 **⚠️ CRITICAL**: Phase 39 testing was **superficial and inadequate**. Tests only checked for crashes, not actual functionality. Manual testing revealed serious rendering issues that automated tests didn't catch.

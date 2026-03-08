@@ -1,5 +1,7 @@
 # Amiga Application Compatibility Strategy
 
+> Historical note: this file is an early compatibility strategy document. Several items described here have since been implemented; use `README.md`, `roadmap.md`, and the active app drivers for current compatibility status.
+
 To transition from a "clean-room" implementation to a "Wine-like" runtime for Amiga software, `lxa` must provide the standard environment Amiga applications expect.
 
 ## Core Infrastructure Requirements

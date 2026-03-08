@@ -1,5 +1,7 @@
 # LXA UI Testing Infrastructure
 
+> Historical note: this document captures an earlier UI-testing design. The current project standard is host-side Google Test drivers in `tests/drivers/` using `liblxa`; the in-ROM `test_inject.h` approach is obsolete.
+
 This document describes the UI testing infrastructure for LXA, enabling automated testing of graphical applications including input simulation and screen verification.
 
 ## Implementation Status

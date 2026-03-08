@@ -1,5 +1,7 @@
 # Graphics and Intuition Architecture for lxa
 
+> Historical note: this document records an early architecture plan for graphics and Intuition support. It should be read as design background, not as the current implementation status.
+
 This document outlines the architectural approach for implementing `graphics.library` and `intuition.library` support in `lxa`, enabling graphical applications and the Workbench environment.
 
 ## 1. High-Level Goals

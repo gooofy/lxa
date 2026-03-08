@@ -23,7 +23,7 @@
 
 char __aligned _g_gameport_ExDevName [] = EXDEVNAME ".device";
 char __aligned _g_gameport_ExDevID   [] = EXDEVNAME EXDEVVER;
-char __aligned _g_gameport_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_gameport_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_gameport_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 

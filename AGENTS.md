@@ -57,9 +57,10 @@ for i in $(seq 1 50); do
 done
 ```
 
-**Parallelism**: `-j8` is the optimal setting (~2 min wall time). Going higher
-yields no benefit because the longest test (`gadtoolsgadgets_gtest`, ~126s) is
-the bottleneck. Tests are fully isolated — any parallelism level is safe.
+**Parallelism**: `-j8` is the project default. The suite's longest interactive
+drivers are now sharded, which keeps full-suite wall time around the current
+~95 second range on this machine class. Higher parallelism is safe, but usually
+does not improve wall time meaningfully.
 
 See `lxa-testing` skill for detailed test execution docs and
 `doc/test-reliability-report.md` for parallelism benchmarks.

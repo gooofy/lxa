@@ -41,7 +41,7 @@
 
 char __aligned _g_asl_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_asl_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_asl_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_asl_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_asl_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

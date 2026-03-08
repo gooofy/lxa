@@ -94,8 +94,8 @@ Utility functions:
 - **String/Math**: Various utility functions
 
 #### Other Libraries
-- **graphics.library** (lxa_graphics.c): Stub implementations
-- **intuition.library** (lxa_intuition.c): Stub implementations
+- **graphics.library** (lxa_graphics.c): Hosted graphics primitives, bitmap operations, text, blits, and supporting compatibility helpers
+- **intuition.library** (lxa_intuition.c): Screen/window management, IDCMP delivery, gadgets, menus, BOOPSI support, and requesters used by the current app/test surface
 - **expansion.library** (lxa_expansion.c): Configuration management
 - **console.device** (lxa_dev_console.c): Terminal I/O
 - **input.device** (lxa_dev_input.c): Input handling
@@ -243,38 +243,34 @@ ROM and system code requires m68k-amigaos cross-compiler:
 
 ## Testing Architecture
 
-### Integration Tests
+### Integration and Driver Tests
 
-Located in `tests/`, each test:
-1. Compiles m68k program with test code
-2. Runs via lxa emulator
-3. Captures stdout
-4. Compares to expected.out
-5. Validates exit code
+The current primary test surface is `tests/drivers/`, where host-side Google Test binaries use `liblxa` to run m68k programs, drive UI interaction, and assert on output, state, or rendered pixels.
 
-Tests are organized by library:
-- `tests/dos/`: DOS library functionality
-- `tests/exec/`: Exec library functionality
-- `tests/shell/`: Shell features
-- `tests/commands/`: Command-line tools
+This includes:
+- library and command regressions such as `dos_gtest`, `exec_gtest`, `commands_gtest`, and `shell_gtest`
+- graphics and UI suites such as `graphics_gtest`, `intuition_gtest`, and the sharded gadget/menu tests
+- application coverage such as `devpac_gtest`, `kickpascal_gtest`, `maxonbasic_gtest`, `cluster2_*_gtest`, and `dpaint_gtest`
 
 ### Unit Tests
 
-Located in `tests/unit/`, using Unity framework:
-- Tests individual functions in isolation
-- Host-side functions (VFS, config parser, etc.)
-- ROM-side functions (with stubs for emucalls)
+Located in `tests/unit/`, using Unity:
+- tests individual host-side helpers in isolation
+- currently covers focused components such as VFS, config parsing, and memory helpers
+- complements, but does not replace, the driver-based integration coverage
 
 ### Coverage
 
 Code coverage tracked via gcov/lcov:
 ```bash
-cmake -DCOVERAGE=ON ..
-make
-make coverage        # Generates HTML report
+cmake -S . -B build -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+cmake --build build --target coverage
 ```
 
-Target: 95%+ line coverage for critical code paths.
+HTML output: `build/coverage_report/index.html`
+
+Target: 95%+ line coverage for critical code paths, with project work expected to add automated coverage alongside implementation changes.
 
 ## Performance Considerations
 

@@ -97,7 +97,7 @@ Before completing a task:
 
 ### 5.2 Full Test Suite
 ```bash
-# ALWAYS use -j8 for parallel execution (6.3x speedup, ~2 min vs ~13 min serial)
+# ALWAYS use -j8 for parallel execution
 cd build && ctest --output-on-failure -j8
 
 # Equivalent from project root:
@@ -108,16 +108,16 @@ ctest --test-dir build --output-on-failure -j8
 
 | Flag   | Wall Time | When to Use                                    |
 |:------:|:---------:|:-----------------------------------------------|
-| `-j1`  | ~13 min   | Never (unless debugging a resource conflict)   |
-| `-j4`  | ~3.5 min  | Minimum acceptable parallelism                 |
-| `-j8`  | **~2 min**| **Default — use this** (captures 99% of speedup) |
-| `-j16` | ~2 min    | No benefit over -j8 (bottleneck is longest test) |
-| `-j38` | ~2 min    | No benefit over -j8                            |
+| `-j1`  | Slowest   | Only for debugging unusual resource conflicts  |
+| `-j4`  | Good      | Acceptable local parallelism                   |
+| `-j8`  | Best default | Project standard for routine runs          |
+| `-j16` | Similar to -j8 | Usually no meaningful wall-time gain     |
+| `-j38` | Similar to -j8 | Safe, but typically unnecessary           |
 
-**Why `-j8` is optimal**: The longest test (`gadtoolsgadgets_gtest`) takes
-~126 seconds. Once enough parallelism exists to run all other tests alongside
-it, adding more parallelism has no effect. With `-j8`, the 37 shorter tests
-complete well before the longest one finishes.
+**Why `-j8` is optimal**: the formerly oversized interactive suites are now
+split into shards, which keeps the full-suite wall time around ~95 seconds on
+this machine class. Higher parallelism remains safe, but usually does not
+improve the end-to-end runtime enough to justify using it as the default.
 
 **Tests are fully isolated**: Each test runs its own emulator instance with
 independent memory. No shared files, ports, or state. Any parallelism level
@@ -157,12 +157,13 @@ done
 ### 5.6 Test Timeouts
 Tests with explicit CTest timeouts (in `tests/drivers/CMakeLists.txt`):
 
-| Test                  | Timeout | Typical Time |
-|:----------------------|:-------:|:------------:|
-| gadtoolsgadgets_gtest | 200s    | ~126s        |
-| simplegad_gtest       | 120s    | ~45s         |
-| easyrequest_gtest     | 120s    | ~10s         |
-| rgbboxes_gtest        | 25s     | ~11s         |
+| Test                         | Timeout | Typical Use |
+|:-----------------------------|:-------:|:------------|
+| `simplegad_behavior_gtest`   | 60s     | behavior shard |
+| `simplegad_pixels_gtest`     | 90s     | pixel shard |
+| `easyrequest_gtest`          | 120s    | requester flow |
+| `rgbboxes_gtest`             | 25s     | graphics regression |
+| `cluster2_navigation_gtest`  | 60s     | interactive app shard |
 
 All other tests use CTest's default timeout (1500s). If adding a new test
 that takes >60 seconds, add an explicit `TIMEOUT` property in CMakeLists.txt.

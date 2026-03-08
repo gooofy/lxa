@@ -6,7 +6,7 @@ This document provides detailed information about building lxa from source.
 
 ### Required Tools
 
-- **CMake** 3.10 or later
+- **CMake** 3.16 or later
 - **GCC** or Clang for host compilation
 - **m68k-amigaos-gcc** for cross-compilation (ROM and system tools)
 - **Make**
@@ -335,12 +335,12 @@ Enables:
 ### Coverage Build
 
 ```bash
-cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug ..
-make -j$(nproc)
-make coverage
+cmake -S . -B build -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+cmake --build build --target coverage
 ```
 
-Generates code coverage report in `build/coverage/`.
+Generates the coverage report in `build/coverage_report/`.
 
 ### Verbose Build
 
@@ -374,12 +374,11 @@ make
 
 ## Building Tests
 
-Tests are built separately:
+Tests are built through the main CMake build and run through CTest:
 
 ```bash
-cd tests
-make        # Build all tests
-make test   # Build and run all tests
+./build.sh
+ctest --test-dir build --output-on-failure -j8
 ```
 
 See [Testing Guide](testing.md) for more information.

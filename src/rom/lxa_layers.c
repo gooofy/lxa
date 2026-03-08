@@ -4,7 +4,7 @@
  * Implements the AmigaOS layers.library for window clipping and refresh handling.
  * This library manages layers (drawing regions) that can overlap and be reordered.
  *
- * Copyright (C) 2026 by G. Bartsch. Licensed under the MIT license.
+ * Copyright (C) 2026 by G. Bartsch. Licensed under the MIT License.
  */
 
 #include <exec/types.h>
@@ -40,7 +40,7 @@
 
 char __aligned _g_layers_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_layers_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_layers_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_layers_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_layers_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

@@ -31,7 +31,7 @@
 
 char __aligned _g_keymap_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_keymap_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_keymap_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_keymap_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_keymap_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

@@ -1,5 +1,7 @@
 # Phase 23: Graphics Library Consolidation - Audit Report
 
+> Historical note: this audit reflects a point-in-time Phase 23 assessment. Use `roadmap.md` and the active graphics tests for current status.
+
 ## 23.1 Analysis & Gap Assessment
 
 ### Overview

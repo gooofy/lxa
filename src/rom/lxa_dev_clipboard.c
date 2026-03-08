@@ -28,7 +28,7 @@
 
 char __aligned _g_clipboard_ExDevName [] = EXDEVNAME ".device";
 char __aligned _g_clipboard_ExDevID   [] = EXDEVNAME EXDEVVER;
-char __aligned _g_clipboard_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_clipboard_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_clipboard_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 

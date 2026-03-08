@@ -21,7 +21,7 @@
 
 char __aligned _g_utility_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_utility_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_utility_Copyright [] = "(C)opyright 2022, 2023 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_utility_Copyright [] = "(C)opyright 2022, 2023 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_utility_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

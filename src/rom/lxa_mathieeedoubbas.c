@@ -29,7 +29,7 @@
 
 char __aligned _g_mathieeedoubbas_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_mathieeedoubbas_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_mathieeedoubbas_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_mathieeedoubbas_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_mathieeedoubbas_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

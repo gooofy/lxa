@@ -1,5 +1,7 @@
 # Graphics and Intuition Testing Strategy
 
+> Historical note: this document preserves earlier graphics and Intuition test-planning material. For current practice, use host-side drivers in `tests/drivers/` together with the active guidance in `doc/testing.md`.
+
 This document outlines the comprehensive testing approach for `graphics.library` and `intuition.library` in lxa, ensuring 100% test coverage for both implemented and upcoming features.
 
 ## 1. Testing Challenges

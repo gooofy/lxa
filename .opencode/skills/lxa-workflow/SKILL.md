@@ -46,7 +46,7 @@ This skill guides you through the project management, versioning, and build proc
 ### Commands
 - **Full Build**: `./build.sh`
 - **Install**: `make -C build install`
-- **Run Tests**: `make -C tests test`
+- **Run Tests**: `ctest --test-dir build --output-on-failure -j8`
 
 ### Artifacts
 - Host: `build/host/bin/lxa`

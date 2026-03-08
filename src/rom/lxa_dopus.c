@@ -31,7 +31,7 @@
 
 char __aligned _g_dopus_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_dopus_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_dopus_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_dopus_Copyright [] = "(C)opyright 2026 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_dopus_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 

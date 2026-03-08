@@ -32,7 +32,7 @@
 
 char __aligned _g_timer_ExDevName [] = EXDEVNAME ".device";
 char __aligned _g_timer_ExDevID   [] = EXDEVNAME EXDEVVER;
-char __aligned _g_timer_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_timer_Copyright [] = "(C)opyright 2025 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_timer_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 

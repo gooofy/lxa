@@ -59,7 +59,7 @@ echo "Welcome to lxa!"
 
 ### Prerequisites
 
-- CMake 3.10+
+- CMake 3.16+
 - GCC or Clang
 - **m68k-amigaos-gcc** cross-compiler ([bebbo/amiga-gcc](https://codeberg.org/bebbo/amiga-gcc))
 
@@ -256,16 +256,16 @@ See documentation for more troubleshooting tips.
 ### Running Tests
 
 ```bash
-cd tests
-make test
+ctest --test-dir build --output-on-failure -j8
 ```
 
 ### Code Coverage
 
 ```bash
-cmake -DCOVERAGE=ON ..
-make coverage
-firefox build/coverage/index.html
+cmake -S . -B build -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j$(nproc)
+cmake --build build --target coverage
+firefox build/coverage_report/index.html
 ```
 
 ### Contributing
@@ -303,7 +303,7 @@ See [doc/architecture.md](doc/architecture.md) for technical details.
 
 MIT License - See [LICENSE](LICENSE) for details.
 
-## Contributing
+## Contribution Areas
 
 We welcome contributions! Areas of interest:
 - Additional AmigaOS library implementations

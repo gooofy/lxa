@@ -60,7 +60,7 @@ struct ConsoleDevBase {
 
 char __aligned _g_console_ExDevName [] = EXDEVNAME ".device";
 char __aligned _g_console_ExDevID   [] = EXDEVNAME EXDEVVER;
-char __aligned _g_console_Copyright [] = "(C)opyright 2022-2025 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_console_Copyright [] = "(C)opyright 2022-2025 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_console_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 

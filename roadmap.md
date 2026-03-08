@@ -46,6 +46,7 @@ Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` thro
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
 - Fixed the unrelated `commands_gtest` failure in `TYPE`: failed opens now preserve the host-reported `IoErr()` instead of collapsing to stale zero/incorrect errors
 - Test-suite scheduling improved: sharded `gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, and `cluster2` into smaller CTest entries, reducing `ctest -j8` wall time from about 124s to about 95s while keeping total CPU time roughly flat
+- Completed project-wide MIT license migration and documentation consistency cleanup: replaced the root Apache 2.0 license text with MIT, aligned repository documentation with the MIT license, refreshed the primary testing/build docs to the current CTest/GTest workflow, and marked older planning documents as historical references where appropriate
 
 ---
 

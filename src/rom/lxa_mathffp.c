@@ -28,7 +28,7 @@ union FFP_ULONG { ULONG ul; FLOAT f; };
 
 char __aligned _g_mathffp_ExLibName [] = EXLIBNAME ".library";
 char __aligned _g_mathffp_ExLibID   [] = EXLIBNAME EXLIBVER;
-char __aligned _g_mathffp_Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT license.";
+char __aligned _g_mathffp_Copyright [] = "(C)opyright 2022 by G. Bartsch. Licensed under the MIT License.";
 
 char __aligned _g_mathffp_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
