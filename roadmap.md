@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.76** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.77** | **Phase 78-B DOS Verification Complete** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -18,6 +18,7 @@ Phase 78-A-4: Exec signals and semaphores verification complete (v0.6.66).
 Phase 78-A-5: Exec interrupts, nesting counters, library management, and `SumKickData()` verification complete (v0.6.68).
 Phase 78-A-6: Exec miscellaneous — `RawDoFmt` edge cases, list accessors, `Alert`, `Supervisor` verification complete (v0.6.69).
 Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` through `78-B-7` so each subphase can be completed in one focused session.
+Phase 78-B-7: DOS pattern/regression sweep complete; Phase 78-B DOS verification is now complete (v0.6.77).
 
 **Current Status**:
 - 49/49 ctest entries (all GTest), with long-running UI/application suites split into balanced shards for faster parallel execution
@@ -42,6 +43,7 @@ Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` thro
 - Completed Phase 78-B-5 buffered DOS I/O helpers: `SetVBuf`, `FRead`, `FWrite`, `FPuts`, `VFPrintf`, and `FWritef`-style varargs flows now run through host-backed buffered helpers with direct DOS regression coverage for block reads/writes, line buffering, and `UnGetC` interaction
 - Verified against NDK/AROS references that `SPrintf`/`VSPrintf` are not public AmigaOS 3.x DOS APIs, so they are removed from the DOS roadmap scope instead of being exposed as new non-standard vectors
 - Completed Phase 78-B-6 DOS loader/runtime coverage: `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, and `GetSegListInfo` now work with direct regression coverage for hunk seglists, synchronous loaded-program execution, and `CreateProc()` child startup behavior
+- Completed Phase 78-B-7 DOS pattern/regression sweep: `MatchPattern`/`MatchPatternNoCase` now cover deferred `(a|b)` alternation groups, direct DOS regression tests lock in CLI metadata and variable helpers plus `SetComment`/`SetProtection`/`Info`/`SameLock`, and the full DOS/application/command regression sweep is green again
 - Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j8` is green again
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
 - Fixed the unrelated `commands_gtest` failure in `TYPE`: failed opens now preserve the host-reported `IoErr()` instead of collapsing to stale zero/incorrect errors
@@ -83,6 +85,7 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-A-2**: Exec `Wait()` wait-mask clearing aligned with AROS, with signal regression coverage.
 - **Phase 78-A-3**: Exec `Wait(SIGBREAKF_CTRL_C)` behavior verified against AROS, with explicit break-signal regression coverage.
 - **Phase 78-A-5**: Exec interrupts, nesting counters, library management, and `SumKickData()` verified against AROS behavior.
+- **Phase 78-B**: DOS library verification completed, including loader/runtime coverage, assign/notify support, buffered I/O, and the final pattern/regression sweep.
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.
 
 ---
@@ -188,7 +191,7 @@ Status: complete in 0.6.68.
 
 #### 78-B: DOS Library (`src/rom/lxa_dos.c` vs `others/AROS-20231016-source/rom/dos/`)
 
-Status: split into `78-B-1` through `78-B-7` so each DOS verification chunk fits in one session.
+Status: complete in 0.6.77.
 
 ##### 78-B-1: DOS Core Surface Verification
 
@@ -230,7 +233,7 @@ Status: complete in planning terms; existing implementation and tests cover this
 - [x] `AddPart` — append name to path buffer
 
 **Pattern Matching**:
-- [x] `MatchPattern` / `MatchPatternNoCase` — current tested support for `#?`, `?`, `*`, `[a-z]`; alternation `(a|b)` deferred to a follow-up subphase
+- [x] `MatchPattern` / `MatchPatternNoCase` — current tested support for `#?`, `?`, `*`, `[a-z]`, `[~a-z]`, and `(a|b)` alternation
 - [x] `ParsePattern` / `ParsePatternNoCase` — current tokenization behavior locked in by tests
 - [x] `MatchFirst` / `MatchNext` / `MatchEnd` — directory iteration with pattern
 
@@ -322,11 +325,13 @@ Goal: close the remaining loader/runtime entry points around the existing `LoadS
 
 ##### 78-B-7: DOS Pattern/Regression Sweep
 
+Status: complete in 0.6.77.
+
 Goal: close remaining behavior gaps and lock the whole DOS phase down with direct regression coverage.
 
-- [ ] `MatchPattern` / `MatchPatternNoCase` — add deferred `(a|b)` alternation coverage and any remaining token edge cases
-- [ ] Add direct regression coverage for vars, prompt/program-name/current-dir helpers, `SetComment`/`SetProtection`, `Info`/`SameLock`, and newly completed DOS APIs
-- [ ] Run the full DOS application/command regression sweep after `78-B-2` through `78-B-6` land
+- [x] `MatchPattern` / `MatchPatternNoCase` — add deferred `(a|b)` alternation coverage and remaining token edge cases used by current tests
+- [x] Add direct regression coverage for vars, prompt/program-name/current-dir helpers, `SetComment`/`SetProtection`, `Info`/`SameLock`, and newly completed DOS APIs
+- [x] Run the full DOS application/command regression sweep after `78-B-2` through `78-B-6` land
 
 ---
 

@@ -159,7 +159,7 @@ lxa -d -v myprogram
 ### AmigaOS Libraries
 
 - **exec.library**: Memory management, multitasking, signals, messages
-- **dos.library**: File I/O, locks, directories, processes, pattern matching, `SetFileSize`, `SetFileDate`, `ExAll`, `MakeLink`, `ReadLink`, `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, `GetSegListInfo`, CON:/RAW: handler
+- **dos.library**: File I/O, locks, directories, processes, pattern matching (including `(a|b)` alternation), `SetFileSize`, `SetFileDate`, `ExAll`, `MakeLink`, `ReadLink`, `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, `GetSegListInfo`, CON:/RAW: handler
 - **utility.library**: Tag lists, hooks, utility functions
 - **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill, ScrollRaster, AreaFill, pixel arrays)
 - **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
@@ -207,7 +207,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.76** - Phase 78-B-6 completed DOS loader/runtime coverage: `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, and `GetSegListInfo` now work with direct regression coverage, and the unrelated `commands_gtest` `TYPE` regression is fixed again
+**Version 0.6.77** - Phase 78-B-7 completed the DOS pattern/regression sweep: `MatchPattern` now covers `(a|b)` alternation, direct DOS regression tests lock in variable/CLI metadata helpers plus `SetComment`/`SetProtection`/`Info`/`SameLock`, and the full regression suite is green again
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

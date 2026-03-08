@@ -368,6 +368,28 @@ int main(void)
     test_bool("SetCurrentDirName restore short value", SetCurrentDirName((CONST_STRPTR)"RAM:ManualDir"),
               "SetCurrentDirName failed to restore short current-dir name");
 
+    print("\nTest 7b: Variable helpers\n");
+
+    test_bool("SetVar local", SetVar((CONST_STRPTR)"PROCLOCAL", (CONST_STRPTR)"Alpha", -1, GVF_LOCAL_ONLY | LV_VAR),
+              "SetVar local failed");
+    result = GetVar((CONST_STRPTR)"PROCLOCAL", (STRPTR)buf, sizeof(buf), GVF_LOCAL_ONLY | LV_VAR);
+    test_bool("GetVar local", result == 5 && strcmp(buf, "Alpha") == 0,
+              "GetVar local returned wrong value");
+    test_bool("DeleteVar local", DeleteVar((CONST_STRPTR)"PROCLOCAL", GVF_LOCAL_ONLY | LV_VAR),
+              "DeleteVar local failed");
+    test_bool("GetVar local after delete", GetVar((CONST_STRPTR)"PROCLOCAL", (STRPTR)buf, sizeof(buf), GVF_LOCAL_ONLY | LV_VAR) == -1 && IoErr() == ERROR_OBJECT_NOT_FOUND,
+              "Deleted local variable should not be found");
+
+    test_bool("SetVar global", SetVar((CONST_STRPTR)"PROCENV", (CONST_STRPTR)"Beta", -1, GVF_GLOBAL_ONLY | LV_VAR),
+              "SetVar global failed");
+    result = GetVar((CONST_STRPTR)"PROCENV", (STRPTR)buf, sizeof(buf), GVF_GLOBAL_ONLY | LV_VAR);
+    test_bool("GetVar global", result == 4 && strcmp(buf, "Beta") == 0,
+              "GetVar global returned wrong value");
+    test_bool("DeleteVar global", DeleteVar((CONST_STRPTR)"PROCENV", GVF_GLOBAL_ONLY | LV_VAR),
+              "DeleteVar global failed");
+    test_bool("GetVar global after delete", GetVar((CONST_STRPTR)"PROCENV", (STRPTR)buf, sizeof(buf), GVF_GLOBAL_ONLY | LV_VAR) == -1 && IoErr() == ERROR_OBJECT_NOT_FOUND,
+              "Deleted global variable should not be found");
+
     /* Test 8: CreateNewProc proc-window inheritance/override semantics */
     print("\nTest 8: CreateNewProc window pointer semantics\n");
     {

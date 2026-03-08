@@ -96,6 +96,53 @@ static void test_match(const char *pattern, const char *str, BOOL expected, cons
     }
 }
 
+static void test_match_nocase(const char *pattern, const char *str, BOOL expected, const char *desc)
+{
+    UBYTE pat_buf[256];
+    LONG pat_result;
+    BOOL match_result;
+
+    pat_result = ParsePatternNoCase((CONST_STRPTR)pattern, pat_buf, sizeof(pat_buf));
+
+    if (pat_result == 0) {
+        print("FAIL [");
+        print(desc);
+        print("]: ParsePatternNoCase failed for '");
+        print(pattern);
+        print("'\n");
+        tests_failed++;
+        return;
+    }
+
+    match_result = MatchPatternNoCase(pat_buf, (STRPTR)str);
+
+    if (match_result == expected) {
+        print("PASS [");
+        print(desc);
+        print("]: '");
+        print(pattern);
+        print("' ");
+        print(expected ? "matches" : "doesn't match");
+        print(" '");
+        print(str);
+        print("' (nocase)\n");
+        tests_passed++;
+    } else {
+        print("FAIL [");
+        print(desc);
+        print("]: '");
+        print(pattern);
+        print("' ");
+        print(match_result ? "matches" : "doesn't match");
+        print(" '");
+        print(str);
+        print("' (expected ");
+        print(expected ? "match" : "no match");
+        print(", nocase)\n");
+        tests_failed++;
+    }
+}
+
 static void test_parse_pattern(const char *pattern, LONG expected_type, const char *desc)
 {
     UBYTE pat_buf[256];
@@ -175,6 +222,8 @@ int main(void)
     test_parse_pattern("*.c", 1, "star wildcard");
     test_parse_pattern("test?", 1, "single char wildcard");
     test_parse_pattern("file#?", 1, "hash question wildcard");
+    test_parse_pattern("(foo|bar)", 1, "alternation group");
+    test_parse_pattern("pre(a|b)suf", 1, "embedded alternation");
     print("\n");
     
     /* Test 2: Exact match (no wildcards) */
@@ -243,14 +292,38 @@ int main(void)
     test_match("#?test#?", "testing", TRUE, "suffix only match");
     test_match("#?test#?", "mytesting", TRUE, "both prefix and suffix");
     print("\n");
-    
-    /* Test 8: Edge cases */
+
+    /* Test 8: Alternation groups */
+    print("--- Alternation Groups ---\n");
+    test_match("(foo|bar)", "foo", TRUE, "alternation first branch");
+    test_match("(foo|bar)", "bar", TRUE, "alternation second branch");
+    test_match("(foo|bar)", "baz", FALSE, "alternation rejects others");
+    test_match("pre(a|b)suf", "preasuf", TRUE, "embedded alternation first");
+    test_match("pre(a|b)suf", "prebsuf", TRUE, "embedded alternation second");
+    test_match("pre(a|b)suf", "precsuf", FALSE, "embedded alternation reject");
+    test_match("file.(c|h)", "file.c", TRUE, "suffix alternation c");
+    test_match("file.(c|h)", "file.h", TRUE, "suffix alternation h");
+    test_match("(a|(bc|de))", "de", TRUE, "nested alternation");
+    test_match("(a|(bc|de))", "bc", TRUE, "nested alternation branch");
+    print("\n");
+
+    /* Test 9: Case-insensitive matching */
+    print("--- Case-Insensitive Patterns ---\n");
+    test_match_nocase("(ReadMe|License).txt", "license.TXT", TRUE, "alternation no-case");
+    test_match_nocase("pre(a|b)suf", "PREBSUF", TRUE, "embedded alternation no-case");
+    test_match_nocase("[a-f]ile", "File", TRUE, "character class no-case");
+    test_match_nocase("(foo|bar)", "BAZ", FALSE, "alternation nocase reject");
+    print("\n");
+
+    /* Test 10: Edge cases */
     print("--- Edge Cases ---\n");
     test_match("?", "a", TRUE, "single ? single char");
     test_match("?", "", FALSE, "single ? empty string");
     test_match("?", "ab", FALSE, "single ? two chars");
     test_match("??", "ab", TRUE, "double ? two chars");
     test_match("#?#?", "hello", TRUE, "double #? pattern");
+    test_match("[~a-z]", "7", TRUE, "negated class matches digit");
+    test_match("[~a-z]", "g", FALSE, "negated class rejects range");
     print("\n");
     
     /* Summary */

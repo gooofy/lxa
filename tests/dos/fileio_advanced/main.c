@@ -406,8 +406,76 @@ int main(void)
         }
     }
 
-    /* Test 6c: ExAll enumeration and filtering */
-    print("\nTest 6c: ExAll enumeration\n");
+    /* Test 6c: SetComment, SetProtection, Info, SameLock */
+    print("\nTest 6c: Metadata and lock helpers\n");
+    {
+        struct FileInfoBlock fib;
+        struct InfoData info;
+        BPTR file_lock;
+        BPTR dup_lock;
+        BPTR dir_lock;
+        LONG same_result;
+
+        file_lock = Lock((CONST_STRPTR)test_file_abs, SHARED_LOCK);
+        if (!file_lock) {
+            test_fail("Metadata helpers setup", "Lock failed");
+        } else {
+            dup_lock = DupLock(file_lock);
+            same_result = dup_lock ? SameLock(file_lock, dup_lock) : LOCK_DIFFERENT;
+            if (dup_lock && same_result == LOCK_SAME) {
+                test_pass("SameLock identifies duplicate lock");
+            } else {
+                test_fail("SameLock identifies duplicate lock", "Wrong lock comparison result");
+            }
+
+            dir_lock = Lock((CONST_STRPTR)"SYS:Tests/Dos", SHARED_LOCK);
+            same_result = dir_lock ? SameLock(file_lock, dir_lock) : LOCK_DIFFERENT;
+            if (dir_lock && (same_result == LOCK_SAME_VOLUME || same_result == LOCK_SAME)) {
+                test_pass("SameLock reports same volume");
+            } else {
+                test_fail("SameLock reports same volume", "Expected same-volume result");
+            }
+
+            if (dir_lock)
+                UnLock(dir_lock);
+
+            if (Info(file_lock, &info) && info.id_BytesPerBlock > 0 && info.id_NumBlocks >= info.id_NumBlocksUsed) {
+                test_pass("Info returns volume statistics");
+            } else {
+                test_fail("Info returns volume statistics", "Unexpected InfoData contents");
+            }
+
+            if (SetComment((CONST_STRPTR)test_file_abs, (CONST_STRPTR)"phase78b7") &&
+                Examine(file_lock, &fib) &&
+                strcmp((const char *)fib.fib_Comment, "phase78b7") == 0) {
+                test_pass("SetComment updates fib_Comment");
+            } else {
+                test_fail("SetComment updates fib_Comment", "Comment mismatch");
+            }
+
+            if (SetProtection((CONST_STRPTR)test_file_abs,
+                              FIBF_WRITE | FIBF_DELETE |
+                              FIBF_GRP_WRITE | FIBF_GRP_DELETE |
+                              FIBF_OTR_WRITE | FIBF_OTR_DELETE) &&
+                Examine(file_lock, &fib) &&
+                (fib.fib_Protection & (FIBF_WRITE | FIBF_DELETE | FIBF_GRP_WRITE | FIBF_GRP_DELETE | FIBF_OTR_WRITE | FIBF_OTR_DELETE)) ==
+                (FIBF_WRITE | FIBF_DELETE | FIBF_GRP_WRITE | FIBF_GRP_DELETE | FIBF_OTR_WRITE | FIBF_OTR_DELETE)) {
+                test_pass("SetProtection updates fib_Protection");
+            } else {
+                test_fail("SetProtection updates fib_Protection", "Protection bits mismatch");
+            }
+
+            SetProtection((CONST_STRPTR)test_file_abs, 0);
+            SetComment((CONST_STRPTR)test_file_abs, (CONST_STRPTR)"");
+
+            if (dup_lock)
+                UnLock(dup_lock);
+            UnLock(file_lock);
+        }
+    }
+
+    /* Test 6d: ExAll enumeration and filtering */
+    print("\nTest 6d: ExAll enumeration\n");
     {
         BPTR dir_lock;
         struct ExAllControl *eac;
@@ -502,8 +570,8 @@ int main(void)
         }
     }
 
-    /* Test 6d: MakeLink/ReadLink soft links */
-    print("\nTest 6d: MakeLink and ReadLink\n");
+    /* Test 6e: MakeLink/ReadLink soft links */
+    print("\nTest 6e: MakeLink and ReadLink\n");
     {
         char link_target[128];
         char hard_link_data[16];

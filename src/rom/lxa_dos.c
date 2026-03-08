@@ -6688,6 +6688,167 @@ static UBYTE _to_lower(UBYTE c)
     return c;
 }
 
+static BOOL _match_pattern_internal(const UBYTE *pat, const UBYTE *str);
+static BOOL _match_pattern_internal_nocase(const UBYTE *pat, const UBYTE *str);
+
+static BOOL _pattern_has_wildcards(CONST_STRPTR pat)
+{
+    const UBYTE *p = (const UBYTE *)pat;
+
+    while (*p)
+    {
+        if (*p == '?' || *p == '#' || *p == '*' || *p == '%' ||
+            *p == '[' || *p == '(' || *p == '|' || *p == '~')
+            return TRUE;
+        p++;
+    }
+
+    return FALSE;
+}
+
+static const UBYTE *_find_group_end(const UBYTE *p)
+{
+    LONG depth = 0;
+
+    if (!p || *p != '(')
+        return NULL;
+
+    while (*p)
+    {
+        if (*p == '%')
+        {
+            if (*(p + 1) == '\0')
+                return NULL;
+            p += 2;
+            continue;
+        }
+
+        if (*p == '[')
+        {
+            p++;
+            while (*p && *p != ']')
+            {
+                if (*p == '%' && *(p + 1) != '\0')
+                    p += 2;
+                else
+                    p++;
+            }
+
+            if (*p != ']')
+                return NULL;
+
+            p++;
+            continue;
+        }
+
+        if (*p == '(')
+            depth++;
+        else if (*p == ')')
+        {
+            depth--;
+            if (depth == 0)
+                return p;
+        }
+
+        p++;
+    }
+
+    return NULL;
+}
+
+static BOOL _match_group_alternatives(const UBYTE *group_start,
+                                      const UBYTE *group_end,
+                                      const UBYTE *rest,
+                                      const UBYTE *str,
+                                      BOOL case_insensitive)
+{
+    const UBYTE *branch_start;
+    const UBYTE *scan;
+    LONG depth;
+
+    if (!group_start || !group_end || !rest || *group_start != '(')
+        return FALSE;
+
+    branch_start = group_start + 1;
+    scan = branch_start;
+    depth = 0;
+
+    while (TRUE)
+    {
+        BOOL at_end = (scan == group_end);
+
+        if (!at_end)
+        {
+            if (*scan == '%')
+            {
+                if (*(scan + 1) == '\0')
+                    return FALSE;
+                scan += 2;
+                continue;
+            }
+
+            if (*scan == '[')
+            {
+                scan++;
+                while (*scan && *scan != ']')
+                {
+                    if (*scan == '%' && *(scan + 1) != '\0')
+                        scan += 2;
+                    else
+                        scan++;
+                }
+
+                if (*scan != ']')
+                    return FALSE;
+
+                scan++;
+                continue;
+            }
+
+            if (*scan == '(')
+                depth++;
+            else if (*scan == ')')
+                depth--;
+        }
+
+        if (at_end || (*scan == '|' && depth == 0))
+        {
+            LONG branch_len = (LONG)(scan - branch_start);
+            LONG rest_len = (LONG)strlen((const char *)rest);
+            UBYTE *combined = (UBYTE *)AllocVec((ULONG)(branch_len + rest_len + 1), MEMF_PUBLIC);
+            BOOL matched;
+
+            if (!combined)
+                return FALSE;
+
+            if (branch_len > 0)
+                CopyMem((APTR)branch_start, combined, (ULONG)branch_len);
+            CopyMem((APTR)rest, combined + branch_len, (ULONG)(rest_len + 1));
+
+            matched = case_insensitive ?
+                _match_pattern_internal_nocase(combined, str) :
+                _match_pattern_internal(combined, str);
+
+            FreeVec(combined);
+
+            if (matched)
+                return TRUE;
+
+            if (at_end)
+                break;
+
+            branch_start = scan + 1;
+        }
+
+        if (at_end)
+            break;
+
+        scan++;
+    }
+
+    return FALSE;
+}
+
 /* 
  * Match a character against a character class [abc] or [a-z] or [~abc]
  * Returns: pointer to char after ']' if match, NULL if no match
@@ -6845,7 +7006,17 @@ static BOOL _match_pattern_internal(const UBYTE *pat, const UBYTE *str)
                     s++;
                 }
                 break;
-                
+
+            case '(':
+                {
+                    const UBYTE *group_end = _find_group_end(p);
+
+                    if (!group_end)
+                        return FALSE;
+
+                    return _match_group_alternatives(p, group_end, group_end + 1, s, FALSE);
+                }
+
             default:
                 /* Literal character match */
                 if (*s != *p)
@@ -6952,7 +7123,17 @@ static BOOL _match_pattern_internal_nocase(const UBYTE *pat, const UBYTE *str)
                     s++;
                 }
                 break;
-                
+
+            case '(':
+                {
+                    const UBYTE *group_end = _find_group_end(p);
+
+                    if (!group_end)
+                        return FALSE;
+
+                    return _match_group_alternatives(p, group_end, group_end + 1, s, TRUE);
+                }
+
             default:
                 /* Literal character match (case-insensitive) */
                 if (_to_lower(*s) != _to_lower(*p))
@@ -6979,16 +7160,7 @@ LONG _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6"),
         return 0;
     }
     
-    /* Check if pattern contains any wildcards */
-    BOOL has_wildcard = FALSE;
-    const UBYTE *p = pat;
-    while (*p) {
-        if (*p == '?' || *p == '#' || *p == '*' || *p == '%' || *p == '[') {
-            has_wildcard = TRUE;
-            break;
-        }
-        p++;
-    }
+    BOOL has_wildcard = _pattern_has_wildcards(pat);
     
     /* Copy pattern to buffer (ParsePattern just copies it for our simple implementation) */
     LONG len = 0;
@@ -7867,16 +8039,7 @@ LONG _dos_ParsePatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
         return 0;
     }
     
-    /* Check if pattern contains any wildcards */
-    BOOL has_wildcard = FALSE;
-    const UBYTE *p = pat;
-    while (*p) {
-        if (*p == '?' || *p == '#' || *p == '*' || *p == '%' || *p == '[') {
-            has_wildcard = TRUE;
-            break;
-        }
-        p++;
-    }
+    BOOL has_wildcard = _pattern_has_wildcards(pat);
     
     /* Copy pattern to buffer */
     LONG len = 0;
