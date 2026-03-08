@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.77** | **Phase 78-B DOS Verification Complete** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.82** | **Phase 78-C Graphics Verification In Progress** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -19,6 +19,11 @@ Phase 78-A-5: Exec interrupts, nesting counters, library management, and `SumKic
 Phase 78-A-6: Exec miscellaneous — `RawDoFmt` edge cases, list accessors, `Alert`, `Supervisor` verification complete (v0.6.69).
 Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` through `78-B-7` so each subphase can be completed in one focused session.
 Phase 78-B-7: DOS pattern/regression sweep complete; Phase 78-B DOS verification is now complete (v0.6.77).
+Phase 78-C: graphics public-structure verification started; `GfxBase`, `BitMap`, `RastPort`, `ViewPort`, `RasInfo`, `ColorMap`, `AreaInfo`, `TmpRas`, `GelsInfo`, and `TextFont` are now covered by `StructOffsets` (v0.6.78).
+Phase 78-C: drawing verification expanded; `Draw`, `RectFill`, `SetRast`, `WritePixel`/`ReadPixel`, `PolyDraw`, and `Flood` now run in the unified graphics regression sweep, with `Draw`/`RectFill` specifically locked against `COMPLEMENT` and `INVERSVID` behavior (v0.6.79).
+Phase 78-C: ellipse verification expanded; `AreaEllipse` now stores native ellipse markers in `AreaInfo`, `AreaEnd()` fills/renders those records directly, and both `DrawEllipse` and `AreaEllipse` are locked in by the graphics regression sweep (v0.6.80).
+Phase 78-C: area-fill verification expanded; `AreaEnd()` is now locked against even-odd fill behavior for self-overlapping paths, and the NDK `AreaCircle` shorthand is validated as `AreaEllipse(r,r)` through direct graphics regression coverage (v0.6.81).
+Phase 78-C: blit verification expanded; `BltBitMap`, `BltBitMapRastPort`, `ClipBlit`, and `BltMaskBitMapRastPort` are now covered for overlap semantics, destination minterms, layer ClipRect clipping, and masked copies in the unified graphics regression sweep (v0.6.82).
 
 **Current Status**:
 - 49/49 ctest entries (all GTest), with long-running UI/application suites split into balanced shards for faster parallel execution
@@ -49,6 +54,11 @@ Phase 78-B-7: DOS pattern/regression sweep complete; Phase 78-B DOS verification
 - Fixed the unrelated `commands_gtest` failure in `TYPE`: failed opens now preserve the host-reported `IoErr()` instead of collapsing to stale zero/incorrect errors
 - Test-suite scheduling improved: sharded `gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, and `cluster2` into smaller CTest entries, reducing `ctest -j8` wall time from about 124s to about 95s while keeping total CPU time roughly flat
 - Completed project-wide MIT license migration and documentation consistency cleanup: replaced the root Apache 2.0 license text with MIT, aligned repository documentation with the MIT license, refreshed the primary testing/build docs to the current CTest/GTest workflow, and marked older planning documents as historical references where appropriate
+- Started Phase 78-C graphics verification by extending `StructOffsets` coverage to the remaining core public graphics structures: `GfxBase`, `ViewPort`, `RasInfo`, `ColorMap`, `AreaInfo`, `TmpRas`, and `GelsInfo`; the existing `BitMap`, `RastPort`, and `TextFont` checks now close the full data-structure subsection against NDK `.i` layout references
+- Expanded Phase 78-C drawing verification across the existing graphics primitives: added direct regression coverage for `Draw` and `RectFill` `INVERSVID` behavior on top of the existing `COMPLEMENT` checks, corrected `Draw`/`RectFill` to use `BgPen` when `INVERSVID` is set, integrated `PolyDraw` and `Flood` into the `graphics_gtest` sweep and sample install set, and fixed `StructOffsets` to reflect the NDK `AreaInfo` layout including `FirstX`/`FirstY`
+- Expanded Phase 78-C ellipse verification: corrected `AreaEllipse` to follow the AROS/NDK contract of storing a two-entry ellipse record instead of flattening to polygon vectors, taught `AreaEnd()` to fill and outline ellipse records directly, and kept `DrawEllipse`/`AreaEllipse` covered by the unified `graphics_gtest` sweep
+- Expanded Phase 78-C area-fill verification: added a self-overlapping double-trace regression so `AreaEnd()` stays aligned with the even-odd scan-line rule, and validated the NDK `AreaCircle` macro shorthand on top of the native ellipse area-fill path
+- Expanded Phase 78-C blit verification: refactored bitmap blitting around shared minterm/mask helpers, added overlap-safe `BltBitMap` coverage plus direct `BltBitMapRastPort` and `BltMaskBitMapRastPort` regression tests, and taught the raster-port blit entry points and `ClipBlit` to respect visible destination ClipRects and obscured source layers
 
 ---
 
@@ -338,32 +348,32 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 #### 78-C: Graphics Library (`src/rom/lxa_graphics.c` vs `others/AROS-20231016-source/rom/graphics/`)
 
 **Data Structures** (vs `graphics/gfx_init.c`, NDK `graphics/gfx.h`):
-- [ ] `GfxBase` — ActiView, ActiViewCprSemaphore, ActualDPMSR, NormalDisplayRows/Columns, MaxDisplayRow/Col
-- [ ] `RastPort` — Layer, BitMap, AreaInfo, TmpRas, GelsInfo, Mask, FgPen, BgPen, AOlPen, DrawMode, AreaPtSz, linpatcnt, dummy, Flags, LinePtrn, cp_x, cp_y, minterms[8], PenWidth, PenHeight, Font, AlgoStyle, TxFlags, TxHeight, TxWidth, TxBaseline, TxSpacing, RP_User, longreserved[2], workreserved[7], patterned[2], Rect
-- [ ] `BitMap` — BytesPerRow, Rows, Flags, Depth, pad, Planes[8]
-- [ ] `ViewPort` — ColorMap, DspIns, SprIns, ClrIns, Next, DWidth, DHeight, DxOffset, DyOffset, Modes, SpritePriorities, ExtendedModes, RasInfo
-- [ ] `RasInfo` — Next, BitMap, RxOffset, RyOffset
-- [ ] `ColorMap` — Count, ColorTable, cm_Entry, PalExtra, SpritePens, Flags
-- [ ] `AreaInfo` — VctrTbl, VctrPtr, FlagTbl, FlagPtr, Count, MaxCount, FirstX, FirstY
-- [ ] `TmpRas` — RasPtr, Size
-- [ ] `GelsInfo` structure
-- [ ] `TextFont` — tf_Message, tf_YSize, tf_Style, tf_Flags, tf_XSize, tf_Baseline, tf_BoldSmear, tf_Accessors, tf_LoChar, tf_HiChar, tf_CharData, tf_Modulo, tf_CharLoc, tf_CharSpace, tf_CharKern
+- [x] `GfxBase` — ActiView, ActiViewCprSemaphore, NormalDisplayRows/Columns, MaxDisplayRow/Col
+- [x] `RastPort` — Layer, BitMap, AreaInfo, TmpRas, GelsInfo, Mask, FgPen, BgPen, AOlPen, DrawMode, AreaPtSz, linpatcnt, dummy, Flags, LinePtrn, cp_x, cp_y, minterms[8], PenWidth, PenHeight, Font, AlgoStyle, TxFlags, TxHeight, TxWidth, TxBaseline, TxSpacing, RP_User, longreserved[2], wordreserved[7], reserved[8]
+- [x] `BitMap` — BytesPerRow, Rows, Flags, Depth, pad, Planes[8]
+- [x] `ViewPort` — Next, ColorMap, DspIns, SprIns, ClrIns, UCopIns, DWidth, DHeight, DxOffset, DyOffset, Modes, SpritePriorities, ExtendedModes, RasInfo
+- [x] `RasInfo` — Next, BitMap, RxOffset, RyOffset
+- [x] `ColorMap` — Flags, Type, Count, ColorTable, PalExtra, SpriteBase_Even/Odd, Bp_0_base, Bp_1_base
+- [x] `AreaInfo` — VctrTbl, VctrPtr, FlagTbl, FlagPtr, Count, MaxCount, FirstX, FirstY
+- [x] `TmpRas` — RasPtr, Size
+- [x] `GelsInfo` — sprRsrvd, Flags, gelHead/tail, nextLine, lastColor, collHandler, bounds, firstBlissObj, lastBlissObj
+- [x] `TextFont` — tf_Message, tf_YSize, tf_Style, tf_Flags, tf_XSize, tf_Baseline, tf_BoldSmear, tf_Accessors, tf_LoChar, tf_HiChar, tf_CharData, tf_Modulo, tf_CharLoc, tf_CharSpace, tf_CharKern
 
 **Drawing Operations** (vs `graphics/draw.c`, `graphics/clip.c`):
-- [ ] `Move` / `Draw` — update cp_x/cp_y; JAM1/JAM2/COMPLEMENT/INVERSVID draw modes
-- [ ] `DrawEllipse` — Bresenham ellipse; clip to rp->Layer
-- [ ] `AreaEllipse` — add ellipse to area fill
-- [ ] `RectFill` — fills with FgPen; clips to layer
-- [ ] `SetRast` — fill entire bitmap (not clipped to layer)
-- [ ] `WritePixel` / `ReadPixel`
-- [ ] `PolyDraw` — MoveTo first, DrawTo remaining
-- [ ] `Flood` — FLOOD_COMPLEMENT, FLOOD_FILL
-- [ ] `BltBitMap` — minterm, mask; all 4 ABC masks; BLTDEST only for clears
-- [ ] `BltBitMapRastPort` — clip to layer ClipRect chain
-- [ ] `ClipBlit` — layer-aware BltBitMapRastPort
+- [x] `Move` / `Draw` — update cp_x/cp_y; JAM1/JAM2/COMPLEMENT/INVERSVID draw modes
+- [x] `DrawEllipse` — Bresenham ellipse; clip to rp->Layer
+- [x] `AreaEllipse` — add ellipse to area fill
+- [x] `RectFill` — fills with FgPen; clips to layer
+- [x] `SetRast` — fill entire bitmap (not clipped to layer)
+- [x] `WritePixel` / `ReadPixel`
+- [x] `PolyDraw` — MoveTo first, DrawTo remaining
+- [x] `Flood` — FLOOD_COMPLEMENT, FLOOD_FILL
+- [x] `BltBitMap` — minterm, mask; all 4 ABC masks; BLTDEST only for clears
+- [x] `BltBitMapRastPort` — clip to layer ClipRect chain
+- [x] `ClipBlit` — layer-aware BltBitMapRastPort
 - [ ] `BltTemplate` — expand 1-bit template to pen colors with minterm
 - [ ] `BltPattern` — fill with pattern
-- [ ] `BltMaskBitMapRastPort`
+- [x] `BltMaskBitMapRastPort`
 - [ ] `ReadPixelLine8` / `ReadPixelArray8` / `WritePixelLine8` / `WritePixelArray8` ✅ (Phase 75)
 
 **Text Rendering** (vs `graphics/text.c`):
@@ -375,8 +385,8 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `SetSoftStyle` — FSF_BOLD, FSF_ITALIC, FSF_UNDERLINED, FSF_EXTENDED via algorithmic transforms
 
 **Area Fill** (vs `graphics/areafill.c`):
-- [ ] `InitArea` / `AreaMove` / `AreaDraw` / `AreaEnd` — scan-line fill ✅ (Phase 75); verify against AROS even-odd rule
-- [ ] `AreaCircle` — shorthand for AreaEllipse
+- [x] `InitArea` / `AreaMove` / `AreaDraw` / `AreaEnd` — scan-line fill ✅ (Phase 75); verify against AROS even-odd rule
+- [x] `AreaCircle` — shorthand for AreaEllipse
 
 **Blitter** (vs `graphics/blitter.c`, `graphics/blit.c`):
 - [ ] `QBlit` / `QBSBlit` — blitter queue with semaphore

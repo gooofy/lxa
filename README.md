@@ -207,7 +207,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.77** - Phase 78-B-7 completed the DOS pattern/regression sweep: `MatchPattern` now covers `(a|b)` alternation, direct DOS regression tests lock in variable/CLI metadata helpers plus `SetComment`/`SetProtection`/`Info`/`SameLock`, and the full regression suite is green again
+**Version 0.6.82** - Phase 78-C graphics verification now also locks in the core blit APIs: `BltBitMap`, `BltBitMapRastPort`, `ClipBlit`, and `BltMaskBitMapRastPort` are covered for minterms, overlap handling, layer-aware clipping, and masked copies in the unified graphics regression sweep
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

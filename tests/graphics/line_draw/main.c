@@ -18,6 +18,13 @@ extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 extern struct GfxBase *GfxBase;
 
+#ifndef JAM1
+#define JAM1        0
+#define JAM2        1
+#define COMPLEMENT  2
+#define INVERSVID   4
+#endif
+
 static void print(const char *s)
 {
     BPTR out = Output();
@@ -172,6 +179,46 @@ int main(void)
     } else {
         print("OK: Short horizontal line (10,5)-(12,5) works\n");
     }
+
+    /* Test COMPLEMENT mode toggles pixels */
+    SetRast(&rp, 0);
+    SetDrMd(&rp, COMPLEMENT);
+    SetAPen(&rp, 1);
+    Move(&rp, 5, 40);
+    Draw(&rp, 7, 40);
+
+    if (ReadPixel(&rp, 6, 40) != 1) {
+        print("FAIL: COMPLEMENT Draw did not set pixel\n");
+        errors++;
+    } else {
+        print("OK: COMPLEMENT Draw sets pixels on first pass\n");
+    }
+
+    Move(&rp, 5, 40);
+    Draw(&rp, 7, 40);
+    if (ReadPixel(&rp, 6, 40) != 0) {
+        print("FAIL: COMPLEMENT Draw did not toggle pixel off\n");
+        errors++;
+    } else {
+        print("OK: COMPLEMENT Draw toggles pixels on second pass\n");
+    }
+
+    /* Test INVERSVID uses background pen */
+    SetDrMd(&rp, JAM1 | INVERSVID);
+    SetRast(&rp, 0);
+    SetAPen(&rp, 0);
+    SetBPen(&rp, 1);
+    Move(&rp, 5, 45);
+    Draw(&rp, 7, 45);
+
+    if (ReadPixel(&rp, 6, 45) != 1) {
+        print("FAIL: INVERSVID Draw did not use background pen\n");
+        errors++;
+    } else {
+        print("OK: INVERSVID Draw uses background pen\n");
+    }
+
+    SetDrMd(&rp, JAM1);
 
     /* Cleanup */
     FreeRaster(bm.Planes[0], 64, 64);

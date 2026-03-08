@@ -73,6 +73,7 @@ static LONG _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct RastPort * rp __asm("a1"),
                                  register LONG x __asm("d0"),
                                  register LONG y __asm("d1"));
+static void areaclosepolygon(struct AreaInfo *areainfo);
 static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                              register struct RastPort * rp __asm("a1"),
                              register WORD x __asm("d0"),
@@ -138,6 +139,13 @@ static VOID _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
 /* BitMap flags */
 #ifndef BMF_STANDARD
 #define BMF_STANDARD (1L << 3)   /* BMB_STANDARD = 3 */
+#endif
+
+#ifndef AREAINFOFLAG_MOVE
+#define AREAINFOFLAG_MOVE      0x00
+#define AREAINFOFLAG_DRAW      0x01
+#define AREAINFOFLAG_CLOSEDRAW 0x02
+#define AREAINFOFLAG_ELLIPSE   0x03
 #endif
 
 /* Macros for flood fill tmpras access */
@@ -379,6 +387,245 @@ static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, W
     }
 }
 
+static UBYTE GetPlaneBit(CONST PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y)
+{
+    UWORD byteOffset;
+    UBYTE bitMask;
+
+    if (plane == NULL)
+        return 0;
+
+    if (plane == (PLANEPTR)-1)
+        return 1;
+
+    byteOffset = y * bytesPerRow + (x >> 3);
+    bitMask = 0x80 >> (x & 7);
+
+    return (plane[byteOffset] & bitMask) ? 1 : 0;
+}
+
+static void SetPlaneBit(PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y, UBYTE value)
+{
+    UWORD byteOffset;
+    UBYTE bitMask;
+
+    if (!plane || plane == (PLANEPTR)-1)
+        return;
+
+    byteOffset = y * bytesPerRow + (x >> 3);
+    bitMask = 0x80 >> (x & 7);
+
+    if (value)
+        plane[byteOffset] |= bitMask;
+    else
+        plane[byteOffset] &= ~bitMask;
+}
+
+static UBYTE ApplyBltMinterm(UBYTE sourceBit, UBYTE destBit, UBYTE minterm)
+{
+    UBYTE result = 0;
+
+    if ((minterm & 0x10) && !sourceBit && !destBit)
+        result = 1;
+    if ((minterm & 0x20) && !sourceBit && destBit)
+        result = 1;
+    if ((minterm & 0x40) && sourceBit && !destBit)
+        result = 1;
+    if ((minterm & 0x80) && sourceBit && destBit)
+        result = 1;
+
+    return result;
+}
+
+static BOOL PointVisibleInLayer(const struct Layer *layer, WORD x, WORD y)
+{
+    const struct ClipRect *cr;
+
+    if (!layer)
+        return TRUE;
+
+    for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
+    {
+        if (cr->obscured)
+            continue;
+
+        if (x >= cr->bounds.MinX && x <= cr->bounds.MaxX &&
+            y >= cr->bounds.MinY && y <= cr->bounds.MaxY)
+        {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
+
+static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
+                          WORD xSrc,
+                          WORD ySrc,
+                          struct BitMap *destBitMap,
+                          WORD xDest,
+                          WORD yDest,
+                          WORD xSize,
+                          WORD ySize,
+                          UBYTE minterm,
+                          UBYTE planeMask,
+                          CONST PLANEPTR pixelMask,
+                          UWORD pixelMaskBpr)
+{
+    LONG srcWidth;
+    LONG srcHeight;
+    LONG destWidth;
+    LONG destHeight;
+    LONG actualWidth;
+    LONG actualHeight;
+    LONG depth;
+    LONG plane;
+    WORD sx = xSrc;
+    WORD sy = ySrc;
+    WORD dx = xDest;
+    WORD dy = yDest;
+    LONG planesAffected = 0;
+
+    if (!srcBitMap || !destBitMap || xSize <= 0 || ySize <= 0 || planeMask == 0)
+        return 0;
+
+    srcWidth = srcBitMap->BytesPerRow * 8;
+    srcHeight = srcBitMap->Rows;
+    destWidth = destBitMap->BytesPerRow * 8;
+    destHeight = destBitMap->Rows;
+    actualWidth = xSize;
+    actualHeight = ySize;
+
+    if (sx < 0)
+    {
+        dx -= sx;
+        actualWidth += sx;
+        sx = 0;
+    }
+
+    if (sy < 0)
+    {
+        dy -= sy;
+        actualHeight += sy;
+        sy = 0;
+    }
+
+    if (dx < 0)
+    {
+        sx -= dx;
+        actualWidth += dx;
+        dx = 0;
+    }
+
+    if (dy < 0)
+    {
+        sy -= dy;
+        actualHeight += dy;
+        dy = 0;
+    }
+
+    if (sx + actualWidth > srcWidth)
+        actualWidth = srcWidth - sx;
+    if (sy + actualHeight > srcHeight)
+        actualHeight = srcHeight - sy;
+    if (dx + actualWidth > destWidth)
+        actualWidth = destWidth - dx;
+    if (dy + actualHeight > destHeight)
+        actualHeight = destHeight - dy;
+
+    if (actualWidth <= 0 || actualHeight <= 0)
+        return 0;
+
+    depth = srcBitMap->Depth;
+    if (destBitMap->Depth < depth)
+        depth = destBitMap->Depth;
+
+    for (plane = 0; plane < depth; plane++)
+    {
+        CONST PLANEPTR srcPlane = srcBitMap->Planes[plane];
+        PLANEPTR destPlane;
+        BOOL overlap;
+        LONG rowStart;
+        LONG rowEnd;
+        LONG rowStep;
+        LONG row;
+
+        if (!(planeMask & (1U << plane)))
+            continue;
+
+        destPlane = destBitMap->Planes[plane];
+
+        if (!destPlane || destPlane == (PLANEPTR)-1)
+            continue;
+
+        planesAffected++;
+
+        overlap = FALSE;
+        if (srcPlane && srcPlane != (PLANEPTR)-1 && srcPlane == destPlane)
+        {
+            WORD tmpMinX;
+            WORD tmpMinY;
+            WORD tmpMaxX;
+            WORD tmpMaxY;
+
+            overlap = ClipIntersectRects(sx, sy,
+                                         sx + actualWidth - 1, sy + actualHeight - 1,
+                                         dx, dy,
+                                         dx + actualWidth - 1, dy + actualHeight - 1,
+                                         &tmpMinX, &tmpMinY, &tmpMaxX, &tmpMaxY);
+        }
+
+        if (overlap && dy > sy)
+        {
+            rowStart = actualHeight - 1;
+            rowEnd = -1;
+            rowStep = -1;
+        }
+        else
+        {
+            rowStart = 0;
+            rowEnd = actualHeight;
+            rowStep = 1;
+        }
+
+        for (row = rowStart; row != rowEnd; row += rowStep)
+        {
+            LONG colStart = 0;
+            LONG colEnd = actualWidth;
+            LONG colStep = 1;
+            LONG col;
+            WORD srcY = sy + row;
+            WORD destY = dy + row;
+
+            if (overlap && destY == srcY && dx > sx)
+            {
+                colStart = actualWidth - 1;
+                colEnd = -1;
+                colStep = -1;
+            }
+
+            for (col = colStart; col != colEnd; col += colStep)
+            {
+                WORD srcX = sx + col;
+                WORD destX = dx + col;
+
+                if (pixelMask && !GetPlaneBit(pixelMask, pixelMaskBpr, srcX, srcY))
+                    continue;
+
+                SetPlaneBit(destPlane,
+                            destBitMap->BytesPerRow,
+                            destX,
+                            destY,
+                            ApplyBltMinterm(GetPlaneBit(srcPlane, srcBitMap->BytesPerRow, srcX, srcY),
+                                            GetPlaneBit(destPlane, destBitMap->BytesPerRow, destX, destY),
+                                            minterm));
+            }
+        }
+    }
+
+    return planesAffected;
+}
+
 #define VERSION    40
 #define REVISION   1
 #define EXLIBNAME  "graphics"
@@ -451,16 +698,15 @@ static LONG _graphics_BltBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register UBYTE mask __asm("d7"),
                                                         register PLANEPTR tempA __asm("a2"))
 {
-    LONG row, col, plane;
-    LONG srcBytesPerRow, destBytesPerRow;
-    LONG srcDepth, destDepth, depth;
-    LONG srcWidth, srcHeight, destWidth, destHeight;
-    LONG actualWidth, actualHeight;
+    LONG planesAffected;
     LONG lxSrc = xSrc, lySrc = ySrc, lxDest = xDest, lyDest = yDest;
     LONG lxSize = xSize, lySize = ySize;
 
     DPRINTF (LOG_DEBUG, "_graphics: BltBitMap() src=0x%08lx (%ld,%ld) dest=0x%08lx (%ld,%ld) size=%ldx%ld minterm=0x%02x mask=0x%02x\n",
              (ULONG)srcBitMap, lxSrc, lySrc, (ULONG)destBitMap, lxDest, lyDest, lxSize, lySize, (unsigned)minterm, (unsigned)mask);
+
+    (void)GfxBase;
+    (void)tempA;
 
     if (!srcBitMap || !destBitMap)
     {
@@ -468,114 +714,20 @@ static LONG _graphics_BltBitMap ( register struct GfxBase * GfxBase __asm("a6"),
         return 0;
     }
 
-    if (lxSize <= 0 || lySize <= 0)
-    {
-        return 0;
-    }
+    planesAffected = BltBitMapCore(srcBitMap,
+                                   xSrc,
+                                   ySrc,
+                                   destBitMap,
+                                   xDest,
+                                   yDest,
+                                   xSize,
+                                   ySize,
+                                   minterm,
+                                   mask,
+                                   NULL,
+                                   0);
 
-    /* Get bitmap dimensions */
-    srcBytesPerRow = srcBitMap->BytesPerRow;
-    destBytesPerRow = destBitMap->BytesPerRow;
-    srcDepth = srcBitMap->Depth;
-    destDepth = destBitMap->Depth;
-    srcWidth = srcBytesPerRow * 8;
-    srcHeight = srcBitMap->Rows;
-    destWidth = destBytesPerRow * 8;
-    destHeight = destBitMap->Rows;
-
-    /* Use minimum depth */
-    depth = (srcDepth < destDepth) ? srcDepth : destDepth;
-
-    /* Clip to source and destination bounds */
-    actualWidth = lxSize;
-    actualHeight = lySize;
-
-    if (lxSrc < 0) { lxDest -= lxSrc; actualWidth += lxSrc; lxSrc = 0; }
-    if (lySrc < 0) { lyDest -= lySrc; actualHeight += lySrc; lySrc = 0; }
-    if (lxDest < 0) { lxSrc -= lxDest; actualWidth += lxDest; lxDest = 0; }
-    if (lyDest < 0) { lySrc -= lyDest; actualHeight += lyDest; lyDest = 0; }
-
-    if (lxSrc + actualWidth > srcWidth) actualWidth = srcWidth - lxSrc;
-    if (lySrc + actualHeight > srcHeight) actualHeight = srcHeight - lySrc;
-    if (lxDest + actualWidth > destWidth) actualWidth = destWidth - lxDest;
-    if (lyDest + actualHeight > destHeight) actualHeight = destHeight - lyDest;
-
-    if (actualWidth <= 0 || actualHeight <= 0)
-    {
-        return 0;
-    }
-
-    /* Process each plane */
-    for (plane = 0; plane < depth; plane++)
-    {
-        UBYTE *srcPlane = srcBitMap->Planes[plane];
-        UBYTE *destPlane = destBitMap->Planes[plane];
-
-        /* Skip if plane is masked out */
-        if (!(mask & (1 << plane)))
-            continue;
-
-        if (!srcPlane || !destPlane)
-            continue;
-
-        /* Process each row */
-        for (row = 0; row < actualHeight; row++)
-        {
-            LONG srcRowStart = (lySrc + row) * srcBytesPerRow;
-            LONG destRowStart = (lyDest + row) * destBytesPerRow;
-
-            /* Process each pixel in the row */
-            for (col = 0; col < actualWidth; col++)
-            {
-                LONG srcPixelX = lxSrc + col;
-                LONG destPixelX = lxDest + col;
-                LONG srcByteOffset = srcRowStart + (srcPixelX / 8);
-                LONG destByteOffset = destRowStart + (destPixelX / 8);
-                UBYTE srcBitMask = (UBYTE)(0x80 >> (srcPixelX % 8));
-                UBYTE destBitMask = (UBYTE)(0x80 >> (destPixelX % 8));
-                UBYTE srcBit = (srcPlane[srcByteOffset] & srcBitMask) ? 1 : 0;
-                UBYTE destBit = (destPlane[destByteOffset] & destBitMask) ? 1 : 0;
-                UBYTE resultBit;
-
-                /* Apply minterm logic
-                 * Minterm is an 8-bit value that encodes all possible logic operations.
-                 * The Amiga blitter uses ABC notation where:
-                 *   A = Source bit
-                 *   B = Destination bit  
-                 *   C = Pattern bit (we assume C=1 since no pattern is provided)
-                 * 
-                 * Index into minterm:
-                 *   0 = !A & !B & !C
-                 *   1 = !A & !B & C
-                 *   2 = !A & B & !C
-                 *   3 = !A & B & C
-                 *   4 = A & !B & !C
-                 *   5 = A & !B & C
-                 *   6 = A & B & !C
-                 *   7 = A & B & C
-                 *
-                 * Common minterms:
-                 *   0xC0 = COPY: ABC + ABc = A (copy source)
-                 *   0xF0 = ALL: set all bits where src=1
-                 *   0x30 = INVERT: aBc (invert source)
-                 */
-                {
-                    /* Calculate index: A*4 + B*2 + C (C=1 assumed) */
-                    UBYTE idx = (srcBit << 2) | (destBit << 1) | 1;
-                    resultBit = (minterm >> idx) & 1;
-                }
-
-                /* Write result */
-                if (resultBit)
-                    destPlane[destByteOffset] |= destBitMask;
-                else
-                    destPlane[destByteOffset] &= ~destBitMask;
-            }
-        }
-    }
-
-    /* Return number of planes actually affected */
-    return depth;
+    return planesAffected;
 }
 
 static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1365,113 +1517,64 @@ static LONG _graphics_AreaEllipse ( register struct GfxBase * GfxBase __asm("a6"
                                                         register WORD a __asm("d2"),
                                                         register WORD b __asm("d3"))
 {
-    LONG x, y;
-    LONG a2, b2;
-    LONG fa2, fb2;
-    LONG sigma;
-    LONG result;
+    struct AreaInfo *areainfo;
 
     DPRINTF (LOG_DEBUG, "_graphics: AreaEllipse() rp=0x%08lx, center=(%ld,%ld), a=%ld, b=%ld\n",
              (ULONG)rp, xCenter, yCenter, a, b);
 
-    if (!rp)
+    if (!rp || !rp->AreaInfo)
         return -1;
 
-    /* Handle degenerate cases */
-    if (a == 0 && b == 0)
+    areainfo = rp->AreaInfo;
+
+    if (areainfo->Count + 2 > areainfo->MaxCount)
+        return -1;
+
+    if (areainfo->Count == 0)
     {
-        return _graphics_AreaMove(GfxBase, rp, xCenter, yCenter);
+        areainfo->VctrPtr[0] = xCenter;
+        areainfo->VctrPtr[1] = yCenter;
+        areainfo->FlagPtr[0] = AREAINFOFLAG_ELLIPSE;
+
+        areainfo->VctrPtr[2] = a;
+        areainfo->VctrPtr[3] = b;
+        areainfo->FlagPtr[1] = AREAINFOFLAG_ELLIPSE;
+
+        areainfo->VctrPtr = &areainfo->VctrPtr[4];
+        areainfo->FlagPtr = &areainfo->FlagPtr[2];
+        areainfo->Count += 2;
+
+        return 0;
     }
 
-    /* Start at the rightmost point of the ellipse */
-    result = _graphics_AreaMove(GfxBase, rp, xCenter + a, yCenter);
-    if (result != 0)
-        return result;
+    areaclosepolygon(areainfo);
 
-    /* Midpoint ellipse algorithm - trace the upper right quadrant */
-    x = 0;
-    y = b;
-    a2 = a * a;
-    b2 = b * b;
-    fa2 = 4 * a2;
-    fb2 = 4 * b2;
-    sigma = 2 * b2 + a2 * (1 - 2 * b);
+    if (areainfo->Count + 2 > areainfo->MaxCount)
+        return -1;
 
-    /* Region 1 - trace to the top */
-    while (b2 * x <= a2 * y)
+    if (areainfo->FlagPtr[-1] == AREAINFOFLAG_MOVE)
     {
-        result = _graphics_AreaDraw(GfxBase, rp, xCenter + x, yCenter - y);
-        if (result != 0)
-            return result;
-
-        if (sigma >= 0)
-        {
-            sigma += fa2 * (1 - y);
-            y--;
-        }
-        sigma += b2 * ((4 * x) + 6);
-        x++;
+        areainfo->VctrPtr = &areainfo->VctrPtr[-2];
+        areainfo->FlagPtr--;
+        areainfo->Count--;
     }
 
-    /* Region 2 - continue to the left */
-    sigma = 2 * a2 + b2 * (1 - 2 * a);
-    x = a;
-    y = 0;
-    while (a2 * y <= b2 * x)
-    {
-        result = _graphics_AreaDraw(GfxBase, rp, xCenter - x, yCenter - y);
-        if (result != 0)
-            return result;
+    if (areainfo->Count + 2 > areainfo->MaxCount)
+        return -1;
 
-        if (sigma >= 0)
-        {
-            sigma += fb2 * (1 - x);
-            x--;
-        }
-        sigma += a2 * ((4 * y) + 6);
-        y++;
-    }
+    areainfo->VctrPtr[0] = xCenter;
+    areainfo->VctrPtr[1] = yCenter;
+    areainfo->FlagPtr[0] = AREAINFOFLAG_ELLIPSE;
 
-    /* Continue to bottom left quadrant */
-    x = 0;
-    y = b;
-    sigma = 2 * b2 + a2 * (1 - 2 * b);
-    while (b2 * x <= a2 * y)
-    {
-        result = _graphics_AreaDraw(GfxBase, rp, xCenter - x, yCenter + y);
-        if (result != 0)
-            return result;
+    areainfo->VctrPtr[2] = a;
+    areainfo->VctrPtr[3] = b;
+    areainfo->FlagPtr[1] = AREAINFOFLAG_ELLIPSE;
 
-        if (sigma >= 0)
-        {
-            sigma += fa2 * (1 - y);
-            y--;
-        }
-        sigma += b2 * ((4 * x) + 6);
-        x++;
-    }
+    areainfo->VctrPtr = &areainfo->VctrPtr[4];
+    areainfo->FlagPtr = &areainfo->FlagPtr[2];
+    areainfo->Count += 2;
 
-    /* Complete to bottom right quadrant */
-    sigma = 2 * a2 + b2 * (1 - 2 * a);
-    x = a;
-    y = 0;
-    while (a2 * y <= b2 * x)
-    {
-        result = _graphics_AreaDraw(GfxBase, rp, xCenter + x, yCenter + y);
-        if (result != 0)
-            return result;
-
-        if (sigma >= 0)
-        {
-            sigma += fb2 * (1 - x);
-            x--;
-        }
-        sigma += a2 * ((4 * y) + 6);
-        y++;
-    }
-
-    /* Close back to start */
-    return _graphics_AreaDraw(GfxBase, rp, xCenter + a, yCenter);
+    return 0;
 }
 
 static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1683,6 +1786,7 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
 {
     struct BitMap *bm;
     BYTE pen;
+    BYTE bgpen;
     WORD x0, y0, x1, y1;
     WORD dx, dy, sx, sy, err;
 
@@ -1702,6 +1806,12 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
 
     bm = rp->BitMap;
     pen = rp->FgPen;
+    bgpen = rp->BgPen;
+
+    if (rp->DrawMode & INVERSVID)
+    {
+        pen = bgpen;
+    }
 
     /* If RastPort has a Layer, use ClipRect-aware drawing */
     if (rp->Layer)
@@ -1814,6 +1924,7 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
 #define AREAINFOFLAG_MOVE      0x00
 #define AREAINFOFLAG_DRAW      0x01
 #define AREAINFOFLAG_CLOSEDRAW 0x02
+#define AREAINFOFLAG_ELLIPSE   0x03
 #endif
 
 /* Helper function to close a polygon (simplified version from AROS) */
@@ -2093,6 +2204,69 @@ static void AreaFillPolygon(struct GfxBase *GfxBase, struct RastPort *rp,
     #undef AREA_MAX_INTERSECTIONS
 }
 
+static void AreaFillEllipse(struct GfxBase *GfxBase, struct RastPort *rp,
+                            WORD xCenter, WORD yCenter, WORD a, WORD b)
+{
+    LONG radius_x = a;
+    LONG radius_y = b;
+    LONG a2;
+    LONG b2;
+    LONG rhs;
+    LONG y;
+    LONG x;
+
+    if (radius_x < 0)
+        radius_x = -radius_x;
+    if (radius_y < 0)
+        radius_y = -radius_y;
+
+    if (radius_x == 0 && radius_y == 0)
+    {
+        _graphics_WritePixel(GfxBase, rp, xCenter, yCenter);
+        return;
+    }
+
+    if (radius_x == 0)
+    {
+        _graphics_RectFill(GfxBase, rp,
+                           xCenter, yCenter - radius_y,
+                           xCenter, yCenter + radius_y);
+        return;
+    }
+
+    if (radius_y == 0)
+    {
+        _graphics_RectFill(GfxBase, rp,
+                           xCenter - radius_x, yCenter,
+                           xCenter + radius_x, yCenter);
+        return;
+    }
+
+    a2 = radius_x * radius_x;
+    b2 = radius_y * radius_y;
+    rhs = a2 * b2;
+    x = radius_x;
+
+    for (y = 0; y <= radius_y; y++)
+    {
+        LONG yy = y * y;
+
+        while (x > 0 && ((x * x * b2) + (yy * a2)) > rhs)
+            x--;
+
+        _graphics_RectFill(GfxBase, rp,
+                           xCenter - x, yCenter + y,
+                           xCenter + x, yCenter + y);
+
+        if (y != 0)
+        {
+            _graphics_RectFill(GfxBase, rp,
+                               xCenter - x, yCenter - y,
+                               xCenter + x, yCenter - y);
+        }
+    }
+}
+
 static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
@@ -2154,6 +2328,24 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
 
         while (remaining > 0)
         {
+            if ((unsigned char)fp[0] == AREAINFOFLAG_ELLIPSE)
+            {
+                if (polyCount >= 3)
+                {
+                    AreaFillPolygon(GfxBase, rp, polyVerts, polyCount);
+                }
+                polyCount = 0;
+
+                if (remaining < 2)
+                    break;
+
+                AreaFillEllipse(GfxBase, rp, vp[0], vp[1], vp[2], vp[3]);
+                vp = &vp[4];
+                fp = &fp[2];
+                remaining -= 2;
+                continue;
+            }
+
             if ((unsigned char)fp[0] == AREAINFOFLAG_MOVE)
             {
                 /* Fill any previous polygon */
@@ -2197,17 +2389,39 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
             {
                 case AREAINFOFLAG_MOVE:
                     _graphics_Move(GfxBase, rp, ovp[0], ovp[1]);
+                    ovp = &ovp[2];
+                    ofp = &ofp[1];
+                    ocount--;
                     break;
 
                 case AREAINFOFLAG_DRAW:
                 case AREAINFOFLAG_CLOSEDRAW:
                     _graphics_Draw(GfxBase, rp, ovp[0], ovp[1]);
+                    ovp = &ovp[2];
+                    ofp = &ofp[1];
+                    ocount--;
+                    break;
+
+                case AREAINFOFLAG_ELLIPSE:
+                    if (ocount < 2)
+                    {
+                        LPRINTF(LOG_ERROR, "_graphics: AreaEnd() malformed ellipse record\n");
+                        ocount = 0;
+                        break;
+                    }
+
+                    _graphics_DrawEllipse(GfxBase, rp, ovp[0], ovp[1], ovp[2], ovp[3]);
+                    ovp = &ovp[4];
+                    ofp = &ofp[2];
+                    ocount -= 2;
+                    break;
+
+                default:
+                    LPRINTF(LOG_ERROR, "_graphics: AreaEnd() unknown AreaInfo flag %u\n",
+                            (unsigned int)(unsigned char)ofp[0]);
+                    ocount = 0;
                     break;
             }
-
-            ovp = &ovp[2];
-            ofp = &ofp[1];
-            ocount--;
         }
     }
 
@@ -2432,6 +2646,7 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
 {
     struct BitMap *bm;
     BYTE pen;
+    BYTE bgpen;
     UBYTE drawmode;
 
     DPRINTF (LOG_DEBUG, "_graphics: RectFill() rp=0x%08lx, (%d,%d)-(%d,%d)\n",
@@ -2442,7 +2657,13 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
 
     bm = rp->BitMap;
     pen = rp->FgPen;
+    bgpen = rp->BgPen;
     drawmode = rp->DrawMode;
+
+    if (drawmode & INVERSVID)
+    {
+        pen = bgpen;
+    }
 
     /* If RastPort has a Layer, use ClipRect-aware drawing */
     if (rp->Layer)
@@ -3785,6 +4006,9 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG ySize __asm("d5"),
                                                         register ULONG minterm __asm("d6"))
 {
+    struct Layer *srcLayer;
+    struct Layer *destLayer;
+
     DPRINTF (LOG_DEBUG, "_graphics: ClipBlit() srcRP=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld mt=0x%02lx\n",
              (ULONG)srcRP, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm);
 
@@ -3803,22 +4027,111 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
      * use the library-vector LockLayerRom() macro (which goes through
      * EMU_CALL and properly saves/restores registers). */
 
+    srcLayer = srcRP->Layer;
+    destLayer = destRP->Layer;
+
     /* Adjust coordinates for layers if present */
-    if (srcRP->Layer)
+    if (srcLayer)
     {
-        xSrc += srcRP->Layer->bounds.MinX;
-        ySrc += srcRP->Layer->bounds.MinY;
+        xSrc += srcLayer->bounds.MinX;
+        ySrc += srcLayer->bounds.MinY;
     }
-    if (destRP->Layer)
+    if (destLayer)
     {
-        xDest += destRP->Layer->bounds.MinX;
-        yDest += destRP->Layer->bounds.MinY;
+        xDest += destLayer->bounds.MinX;
+        yDest += destLayer->bounds.MinY;
     }
 
-    /* Perform the blit */
-    _graphics_BltBitMap(GfxBase, srcRP->BitMap, xSrc, ySrc,
-                        destRP->BitMap, xDest, yDest,
-                        xSize, ySize, minterm, 0xFF, NULL);
+    if (destLayer)
+    {
+        struct ClipRect *cr;
+
+        for (cr = destLayer->ClipRect; cr != NULL; cr = cr->Next)
+        {
+            WORD clipXMin;
+            WORD clipYMin;
+            WORD clipXMax;
+            WORD clipYMax;
+
+            if (cr->obscured)
+                continue;
+
+            if (ClipIntersectRects((WORD)xDest, (WORD)yDest,
+                                   (WORD)(xDest + xSize - 1), (WORD)(yDest + ySize - 1),
+                                   cr->bounds.MinX, cr->bounds.MinY,
+                                   cr->bounds.MaxX, cr->bounds.MaxY,
+                                   &clipXMin, &clipYMin, &clipXMax, &clipYMax))
+            {
+                LONG clipWidth = clipXMax - clipXMin + 1;
+                LONG clipHeight = clipYMax - clipYMin + 1;
+                LONG srcClipX = xSrc + (clipXMin - xDest);
+                LONG srcClipY = ySrc + (clipYMin - yDest);
+
+                if (srcLayer)
+                {
+                    LONG absX;
+                    LONG absY;
+                    LONG row;
+                    LONG col;
+
+                    for (row = 0; row < clipHeight; row++)
+                    {
+                        for (col = 0; col < clipWidth; col++)
+                        {
+                            absX = srcClipX + col;
+                            absY = srcClipY + row;
+
+                            if (!PointVisibleInLayer(srcLayer, (WORD)absX, (WORD)absY))
+                                continue;
+
+                            BltBitMapCore(srcRP->BitMap,
+                                          (WORD)absX,
+                                          (WORD)absY,
+                                          destRP->BitMap,
+                                          (WORD)(clipXMin + col),
+                                          (WORD)(clipYMin + row),
+                                          1,
+                                          1,
+                                          (UBYTE)minterm,
+                                          0xFF,
+                                          NULL,
+                                          0);
+                        }
+                    }
+                }
+                else
+                {
+                    BltBitMapCore(srcRP->BitMap,
+                                  (WORD)srcClipX,
+                                  (WORD)srcClipY,
+                                  destRP->BitMap,
+                                  clipXMin,
+                                  clipYMin,
+                                  (WORD)clipWidth,
+                                  (WORD)clipHeight,
+                                  (UBYTE)minterm,
+                                  0xFF,
+                                  NULL,
+                                  0);
+                }
+            }
+        }
+    }
+    else
+    {
+        BltBitMapCore(srcRP->BitMap,
+                      (WORD)xSrc,
+                      (WORD)ySrc,
+                      destRP->BitMap,
+                      (WORD)xDest,
+                      (WORD)yDest,
+                      (WORD)xSize,
+                      (WORD)ySize,
+                      (UBYTE)minterm,
+                      0xFF,
+                      NULL,
+                      0);
+    }
 }
 
 /*
@@ -4003,19 +4316,60 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
         return;
     }
 
-    /* If RastPort has a Layer, add layer offset for coordinate translation */
+    /* If RastPort has a Layer, clip to visible ClipRects */
     if (destRP->Layer)
     {
-        xDest += destRP->Layer->bounds.MinX;
-        yDest += destRP->Layer->bounds.MinY;
+        struct Layer *layer = destRP->Layer;
+        struct ClipRect *cr;
+        WORD absXMin = xDest + layer->bounds.MinX;
+        WORD absYMin = yDest + layer->bounds.MinY;
+        WORD absXMax = absXMin + xSize - 1;
+        WORD absYMax = absYMin + ySize - 1;
+
+        for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
+        {
+            WORD clipXMin;
+            WORD clipYMin;
+            WORD clipXMax;
+            WORD clipYMax;
+
+            if (cr->obscured)
+                continue;
+
+            if (ClipIntersectRects(absXMin, absYMin, absXMax, absYMax,
+                                   cr->bounds.MinX, cr->bounds.MinY,
+                                   cr->bounds.MaxX, cr->bounds.MaxY,
+                                   &clipXMin, &clipYMin, &clipXMax, &clipYMax))
+            {
+                BltBitMapCore(srcBitMap,
+                              (WORD)(xSrc + (clipXMin - absXMin)),
+                              (WORD)(ySrc + (clipYMin - absYMin)),
+                              destRP->BitMap,
+                              clipXMin,
+                              clipYMin,
+                              (WORD)(clipXMax - clipXMin + 1),
+                              (WORD)(clipYMax - clipYMin + 1),
+                              (UBYTE)minterm,
+                              0xFF,
+                              NULL,
+                              0);
+            }
+        }
+        return;
     }
 
-    /* BltBitMapRastPort is a wrapper around BltBitMap.
-     * It blits from a source BitMap to the RastPort's BitMap.
-     * The mask is 0xFF (all planes) and tempA is NULL. */
-    _graphics_BltBitMap(GfxBase, srcBitMap, xSrc, ySrc,
-                        destRP->BitMap, xDest, yDest,
-                        xSize, ySize, minterm, 0xFF, NULL);
+    BltBitMapCore(srcBitMap,
+                  (WORD)xSrc,
+                  (WORD)ySrc,
+                  destRP->BitMap,
+                  (WORD)xDest,
+                  (WORD)yDest,
+                  (WORD)xSize,
+                  (WORD)ySize,
+                  (UBYTE)minterm,
+                  0xFF,
+                  NULL,
+                  0);
 }
 
 /*
@@ -4158,19 +4512,60 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
         return;
     }
 
-    /* Adjust destination coordinates for layer offset if present */
+    /* Adjust destination coordinates for layer offset if present and clip to ClipRects */
     if (destRP->Layer)
     {
-        xDest += destRP->Layer->bounds.MinX;
-        yDest += destRP->Layer->bounds.MinY;
+        struct Layer *layer = destRP->Layer;
+        struct ClipRect *cr;
+        WORD absXMin = xDest + layer->bounds.MinX;
+        WORD absYMin = yDest + layer->bounds.MinY;
+        WORD absXMax = absXMin + xSize - 1;
+        WORD absYMax = absYMin + ySize - 1;
+
+        for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
+        {
+            WORD clipXMin;
+            WORD clipYMin;
+            WORD clipXMax;
+            WORD clipYMax;
+
+            if (cr->obscured)
+                continue;
+
+            if (ClipIntersectRects(absXMin, absYMin, absXMax, absYMax,
+                                   cr->bounds.MinX, cr->bounds.MinY,
+                                   cr->bounds.MaxX, cr->bounds.MaxY,
+                                   &clipXMin, &clipYMin, &clipXMax, &clipYMax))
+            {
+                BltBitMapCore(srcBitMap,
+                              (WORD)(xSrc + (clipXMin - absXMin)),
+                              (WORD)(ySrc + (clipYMin - absYMin)),
+                              destRP->BitMap,
+                              clipXMin,
+                              clipYMin,
+                              (WORD)(clipXMax - clipXMin + 1),
+                              (WORD)(clipYMax - clipYMin + 1),
+                              (UBYTE)minterm,
+                              0xFF,
+                              bltMask,
+                              srcBitMap->BytesPerRow);
+            }
+        }
+        return;
     }
 
-    /* BltMaskBitMapRastPort blits from a source BitMap to the RastPort's BitMap
-     * using a mask plane. The mask determines which pixels to blit.
-     * Pass the mask to BltBitMap which already supports masking. */
-    _graphics_BltBitMap(GfxBase, srcBitMap, xSrc, ySrc,
-                        destRP->BitMap, xDest, yDest,
-                        xSize, ySize, minterm, 0xFF, bltMask);
+    BltBitMapCore(srcBitMap,
+                  (WORD)xSrc,
+                  (WORD)ySrc,
+                  destRP->BitMap,
+                  (WORD)xDest,
+                  (WORD)yDest,
+                  (WORD)xSize,
+                  (WORD)ySize,
+                  (UBYTE)minterm,
+                  0xFF,
+                  bltMask,
+                  srcBitMap->BytesPerRow);
 }
 
 static VOID _graphics_private0 ( register struct GfxBase * GfxBase __asm("a6"))
@@ -6273,4 +6668,3 @@ struct MyDataInit __g_lxa_graphics_DataTab =
     /* lib_IdString */ 0x80, (UBYTE) (ULONG) OFFSET(Library, lib_IdString), (ULONG) &_g_graphics_ExLibID[0],
     (ULONG) 0
 };
-

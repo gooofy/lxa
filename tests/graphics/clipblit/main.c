@@ -30,6 +30,26 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
+static void print_num(LONG n)
+{
+    char buf[16];
+    char *p = buf + 15;
+    BOOL neg = FALSE;
+
+    *p = '\0';
+    if (n < 0) {
+        neg = TRUE;
+        n = -n;
+    }
+    do {
+        *(--p) = '0' + (n % 10);
+        n /= 10;
+    } while (n > 0);
+    if (neg)
+        *(--p) = '-';
+    print(p);
+}
+
 int main(void)
 {
     struct Library *LayersBase;
@@ -37,6 +57,7 @@ int main(void)
     struct BitMap *bm_src, *bm_dst;
     struct Layer_Info *li;
     struct Layer *layer;
+    int errors = 0;
     
     print("Testing ClipBlit...\n\n");
     
@@ -86,15 +107,18 @@ int main(void)
     /* Test 1: ClipBlit without layers */
     print("Test 1: ClipBlit without layers...\n");
     {
+        SetRast(rp_dst, 0);
         ClipBlit(rp_src, 10, 10, rp_dst, 20, 20, 30, 30, 0xC0);
         
         /* Check if pixels were copied */
         ULONG pixel = ReadPixel(rp_dst, 25, 25);
-        if (pixel != 0) {
+        if (pixel == 1) {
             print("  OK: Pixels copied without layers\n");
         } else {
-            print("  WARN: No pixels detected (might be implementation detail)\n");
-            print("  OK: Function executed without error\n");
+            print("  FAIL: Expected copied pixel color 1, got ");
+            print_num(pixel);
+            print("\n");
+            errors++;
         }
     }
     print("\n");
@@ -119,8 +143,13 @@ int main(void)
                 
                 /* Blit with layer */
                 ClipBlit(rp_src, 10, 10, rp_dst, 0, 0, 30, 30, 0xC0);
-                
-                print("  OK: ClipBlit with layer executed\n");
+
+                if (ReadPixel(rp_dst, 15, 15) == 1 && ReadPixel(rp_dst, 95, 15) == 0) {
+                    print("  OK: ClipBlit with layer clipped to visible region\n");
+                } else {
+                    print("  FAIL: ClipBlit with layer ignored layer bounds\n");
+                    errors++;
+                }
                 
                 DeleteLayer(0, layer);
             }
@@ -132,13 +161,72 @@ int main(void)
     /* Test 3: ClipBlit with minterm */
     print("Test 3: ClipBlit with different minterm...\n");
     {
-        SetRast(rp_dst, 0);
+        SetAPen(rp_dst, 1);
+        SetRast(rp_dst, 1);
         rp_dst->Layer = NULL;
         
-        /* Copy with minterm 0x50 (ONLYSOURCE) */
+        /* Minterm 0x50 inverts destination bits */
         ClipBlit(rp_src, 15, 15, rp_dst, 5, 5, 20, 20, 0x50);
-        
-        print("  OK: ClipBlit with minterm 0x50 executed\n");
+
+        if (ReadPixel(rp_dst, 10, 10) == 0) {
+            print("  OK: ClipBlit minterm 0x50 inverted destination bits\n");
+        } else {
+            print("  FAIL: ClipBlit minterm 0x50 did not invert destination bits\n");
+            errors++;
+        }
+    }
+    print("\n");
+
+    /* Test 4: ClipBlit from obscured source area */
+    print("Test 4: ClipBlit honors source layer visibility...\n");
+    {
+        struct Layer *src_back;
+        struct Layer *src_front;
+        struct Layer_Info *src_li;
+        struct RastPort rp_back;
+        struct RastPort rp_front;
+
+        src_li = NewLayerInfo();
+        if (!src_li) {
+            print("  FAIL: Could not create source Layer_Info\n");
+            errors++;
+        } else {
+            src_back = CreateUpfrontLayer(src_li, bm_src, 0, 0, 49, 49, LAYERSIMPLE, NULL);
+            src_front = CreateUpfrontLayer(src_li, bm_src, 20, 0, 49, 49, LAYERSIMPLE, NULL);
+
+            if (!src_back || !src_front) {
+                print("  FAIL: Could not create source layers\n");
+                errors++;
+            } else {
+                InitRastPort(&rp_back);
+                InitRastPort(&rp_front);
+                rp_back.BitMap = bm_src;
+                rp_back.Layer = src_back;
+                rp_front.BitMap = bm_src;
+                rp_front.Layer = src_front;
+
+                SetAPen(&rp_back, 1);
+                RectFill(&rp_back, 0, 0, 49, 49);
+                SetAPen(&rp_front, 0);
+                RectFill(&rp_front, 0, 0, 29, 49);
+
+                SetRast(rp_dst, 0);
+                ClipBlit(&rp_back, 0, 0, rp_dst, 0, 0, 50, 50, 0xC0);
+
+                if (ReadPixel(rp_dst, 10, 10) == 1 && ReadPixel(rp_dst, 30, 10) == 0) {
+                    print("  OK: ClipBlit skipped obscured source pixels\n");
+                } else {
+                    print("  FAIL: ClipBlit copied obscured source pixels\n");
+                    errors++;
+                }
+            }
+
+            if (src_front)
+                DeleteLayer(0, src_front);
+            if (src_back)
+                DeleteLayer(0, src_back);
+            DisposeLayerInfo(src_li);
+        }
     }
     print("\n");
     
@@ -149,6 +237,11 @@ int main(void)
     FreeBitMap(bm_dst);
     CloseLibrary(LayersBase);
     
+    if (errors != 0) {
+        print("FAIL: clipblit had errors\n");
+        return 20;
+    }
+
     print("PASS: clipblit all tests passed\n");
     return 0;
 }

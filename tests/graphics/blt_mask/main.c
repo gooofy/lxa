@@ -26,11 +26,32 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
+static void print_num(LONG n)
+{
+    char buf[16];
+    char *p = buf + 15;
+    BOOL neg = FALSE;
+
+    *p = '\0';
+    if (n < 0) {
+        neg = TRUE;
+        n = -n;
+    }
+    do {
+        *(--p) = '0' + (n % 10);
+        n /= 10;
+    } while (n > 0);
+    if (neg)
+        *(--p) = '-';
+    print(p);
+}
+
 int main(void)
 {
     struct RastPort *rp;
     struct BitMap *bm_src, *bm_dst, *bm_mask;
     PLANEPTR mask_plane;
+    int errors = 0;
     
     print("Testing BltMaskBitMapRastPort...\n\n");
     
@@ -84,8 +105,14 @@ int main(void)
     /* Test 1: Basic masked blit */
     print("Test 1: Basic masked blit...\n");
     {
+        SetRast(rp, 0);
         BltMaskBitMapRastPort(bm_src, 0, 0, rp, 16, 16, 32, 32, 0xC0, mask_plane);
-        print("  OK: BltMaskBitMapRastPort executed\n");
+        if (ReadPixel(rp, 16, 16) == 0 && ReadPixel(rp, 17, 16) == 1) {
+            print("  OK: Masked blit respected checkerboard mask\n");
+        } else {
+            print("  FAIL: Masked blit did not respect checkerboard mask\n");
+            errors++;
+        }
     }
     print("\n");
     
@@ -94,24 +121,41 @@ int main(void)
     {
         SetRast(rp, 0);
         BltMaskBitMapRastPort(bm_src, 0, 0, rp, 0, 0, 16, 16, 0xC0, NULL);
-        print("  OK: BltMaskBitMapRastPort with NULL mask executed\n");
+        if (ReadPixel(rp, 5, 5) == 1 && ReadPixel(rp, 20, 20) == 0) {
+            print("  OK: NULL mask copied the full requested rectangle\n");
+        } else {
+            print("  FAIL: NULL mask did not copy the expected area\n");
+            errors++;
+        }
     }
     print("\n");
     
     /* Test 3: Masked blit with different minterm */
     print("Test 3: Masked blit with minterm 0x50...\n");
     {
-        SetRast(rp, 0);
+        SetAPen(rp, 1);
+        SetRast(rp, 1);
         BltMaskBitMapRastPort(bm_src, 8, 8, rp, 24, 24, 16, 16, 0x50, mask_plane);
-        print("  OK: BltMaskBitMapRastPort with minterm 0x50 executed\n");
+        if (ReadPixel(rp, 24, 24) == 0 && ReadPixel(rp, 25, 24) == 1) {
+            print("  OK: Minterm 0x50 preserved destination through masked blit\n");
+        } else {
+            print("  FAIL: Minterm 0x50 changed masked destination unexpectedly\n");
+            errors++;
+        }
     }
     print("\n");
     
     /* Test 4: Partial blit at edge */
     print("Test 4: Partial blit at destination edge...\n");
     {
+        SetRast(rp, 0);
         BltMaskBitMapRastPort(bm_src, 0, 0, rp, 56, 56, 16, 16, 0xC0, mask_plane);
-        print("  OK: Edge blit executed\n");
+        if (ReadPixel(rp, 56, 56) == 0 && ReadPixel(rp, 57, 56) == 1 && ReadPixel(rp, 63, 63) == 1) {
+            print("  OK: Edge masked blit stayed within destination bounds\n");
+        } else {
+            print("  FAIL: Edge masked blit wrote unexpected pixels\n");
+            errors++;
+        }
     }
     print("\n");
     
@@ -121,6 +165,11 @@ int main(void)
     FreeBitMap(bm_dst);
     FreeBitMap(bm_mask);
     
+    if (errors != 0) {
+        print("FAIL: blt_mask had errors\n");
+        return 20;
+    }
+
     print("PASS: blt_mask all tests passed\n");
     return 0;
 }

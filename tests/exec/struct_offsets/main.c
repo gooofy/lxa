@@ -28,8 +28,10 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <graphics/gfx.h>
+#include <graphics/gfxbase.h>
 #include <graphics/rastport.h>
 #include <graphics/text.h>
+#include <graphics/view.h>
 #include <intuition/intuition.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
@@ -571,6 +573,90 @@ static void test_bitmap(void)
     CHECK_OFFSET(BitMap, Planes, 8);
 }
 
+static void test_gfxbase(void)
+{
+    print("--- GfxBase ---\n");
+
+    CHECK_OFFSET(GfxBase, ActiView, 34);
+    CHECK_OFFSET(GfxBase, MaxDisplayRow, 212);
+    CHECK_OFFSET(GfxBase, MaxDisplayColumn, 214);
+    CHECK_OFFSET(GfxBase, NormalDisplayRows, 216);
+    CHECK_OFFSET(GfxBase, NormalDisplayColumns, 218);
+    CHECK_OFFSET(GfxBase, ActiViewCprSemaphore, 412);
+}
+
+static void test_view_structs(void)
+{
+    print("--- ViewPort / RasInfo / ColorMap ---\n");
+
+    CHECK_SIZEOF(ViewPort, 40);
+    CHECK_OFFSET(ViewPort, Next, 0);
+    CHECK_OFFSET(ViewPort, ColorMap, 4);
+    CHECK_OFFSET(ViewPort, DspIns, 8);
+    CHECK_OFFSET(ViewPort, SprIns, 12);
+    CHECK_OFFSET(ViewPort, ClrIns, 16);
+    CHECK_OFFSET(ViewPort, UCopIns, 20);
+    CHECK_OFFSET(ViewPort, DWidth, 24);
+    CHECK_OFFSET(ViewPort, DHeight, 26);
+    CHECK_OFFSET(ViewPort, DxOffset, 28);
+    CHECK_OFFSET(ViewPort, DyOffset, 30);
+    CHECK_OFFSET(ViewPort, Modes, 32);
+    CHECK_OFFSET(ViewPort, SpritePriorities, 34);
+    CHECK_OFFSET(ViewPort, ExtendedModes, 35);
+    CHECK_OFFSET(ViewPort, RasInfo, 36);
+
+    CHECK_SIZEOF(RasInfo, 12);
+    CHECK_OFFSET(RasInfo, Next, 0);
+    CHECK_OFFSET(RasInfo, BitMap, 4);
+    CHECK_OFFSET(RasInfo, RxOffset, 8);
+    CHECK_OFFSET(RasInfo, RyOffset, 10);
+
+    CHECK_SIZEOF(ColorMap, 52);
+    CHECK_OFFSET(ColorMap, Flags, 0);
+    CHECK_OFFSET(ColorMap, Type, 1);
+    CHECK_OFFSET(ColorMap, Count, 2);
+    CHECK_OFFSET(ColorMap, ColorTable, 4);
+    CHECK_OFFSET(ColorMap, PalExtra, 40);
+    CHECK_OFFSET(ColorMap, SpriteBase_Even, 44);
+    CHECK_OFFSET(ColorMap, SpriteBase_Odd, 46);
+    CHECK_OFFSET(ColorMap, Bp_0_base, 48);
+    CHECK_OFFSET(ColorMap, Bp_1_base, 50);
+}
+
+static void test_graphics_helpers(void)
+{
+    print("--- AreaInfo / TmpRas / GelsInfo ---\n");
+
+    CHECK_SIZEOF(AreaInfo, 24);
+    CHECK_OFFSET(AreaInfo, VctrTbl, 0);
+    CHECK_OFFSET(AreaInfo, VctrPtr, 4);
+    CHECK_OFFSET(AreaInfo, FlagTbl, 8);
+    CHECK_OFFSET(AreaInfo, FlagPtr, 12);
+    CHECK_OFFSET(AreaInfo, Count, 16);
+    CHECK_OFFSET(AreaInfo, MaxCount, 18);
+    CHECK_OFFSET(AreaInfo, FirstX, 20);
+    CHECK_OFFSET(AreaInfo, FirstY, 22);
+
+    CHECK_SIZEOF(TmpRas, 8);
+    CHECK_OFFSET(TmpRas, RasPtr, 0);
+    CHECK_OFFSET(TmpRas, Size, 4);
+
+    CHECK_SIZEOF(GelsInfo, 38);
+    CHECK_OFFSET(GelsInfo, sprRsrvd, 0);
+    CHECK_OFFSET(GelsInfo, Flags, 1);
+    CHECK_OFFSET(GelsInfo, gelHead, 2);
+    CHECK_OFFSET(GelsInfo, gelTail, 6);
+    CHECK_OFFSET(GelsInfo, nextLine, 10);
+    CHECK_OFFSET(GelsInfo, lastColor, 14);
+    CHECK_OFFSET(GelsInfo, collHandler, 18);
+    CHECK_OFFSET(GelsInfo, leftmost, 22);
+    CHECK_OFFSET(GelsInfo, rightmost, 24);
+    CHECK_OFFSET(GelsInfo, topmost, 26);
+    CHECK_OFFSET(GelsInfo, bottommost, 28);
+    CHECK_OFFSET(GelsInfo, firstBlissObj, 30);
+    CHECK_OFFSET(GelsInfo, lastBlissObj, 34);
+}
+
 static void test_rastport(void)
 {
     print("--- RastPort ---\n");
@@ -900,6 +986,9 @@ int main(void)
 
     /* Graphics structs */
     test_bitmap();
+    test_gfxbase();
+    test_view_structs();
+    test_graphics_helpers();
     test_rastport();
     test_textfont();
 

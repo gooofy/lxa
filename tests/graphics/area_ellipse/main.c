@@ -20,6 +20,10 @@ extern struct GfxBase *GfxBase;
 
 #define AREA_MAX_VECTORS 500
 
+#ifndef AreaCircle
+#define AreaCircle(rp, cx, cy, r) AreaEllipse((rp), (cx), (cy), (r), (r))
+#endif
+
 static void print(const char *s)
 {
     BPTR out = Output();
@@ -335,6 +339,29 @@ int main(void)
             
             /* Clean up */
             AreaEnd(rp);
+        }
+    }
+    print("\n");
+
+    /* Test 9: AreaCircle shorthand should match AreaEllipse(r,r) */
+    print("Test 9: AreaCircle shorthand should draw a circle...\n");
+    {
+        SetRast(rp, 0);
+        result = AreaCircle(rp, 60, 60, 12);
+        if (result != 0) {
+            print("  FAIL: AreaCircle returned error\n");
+        } else if (areainfo->Count != 2) {
+            print("  FAIL: AreaCircle did not record the expected ellipse marker pair\n");
+        } else {
+            result = AreaEnd(rp);
+            if (result != 0) {
+                print("  FAIL: AreaEnd after AreaCircle returned error\n");
+            } else if (!is_pixel_set(rp, 72, 60) || !is_pixel_set(rp, 48, 60) ||
+                       !is_pixel_set(rp, 60, 48) || !is_pixel_set(rp, 60, 72)) {
+                print("  FAIL: AreaCircle did not render the expected circle extents\n");
+            } else {
+                print("  OK: AreaCircle shorthand matches AreaEllipse(r,r)\n");
+            }
         }
     }
     print("\n");

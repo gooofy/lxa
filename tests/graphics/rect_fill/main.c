@@ -23,6 +23,7 @@ extern struct GfxBase *GfxBase;
 #define JAM1        0
 #define JAM2        1
 #define COMPLEMENT  2
+#define INVERSVID   4
 #endif
 
 static void print(const char *s)
@@ -183,6 +184,23 @@ int main(void)
     } else {
         print("OK: RectFill at bitmap edge works\n");
     }
+
+    /* Test INVERSVID uses background pen */
+    SetRast(&rp, 0);
+    SetAPen(&rp, 0);
+    SetBPen(&rp, 2);
+    SetDrMd(&rp, JAM1 | INVERSVID);
+    RectFill(&rp, 40, 40, 45, 45);
+
+    color = ReadPixel(&rp, 42, 42);
+    if (color != 2) {
+        print("FAIL: INVERSVID RectFill did not use background pen\n");
+        errors++;
+    } else {
+        print("OK: INVERSVID RectFill uses background pen\n");
+    }
+
+    SetDrMd(&rp, JAM1);
 
     /* Cleanup */
     FreeRaster(bm.Planes[0], 64, 64);

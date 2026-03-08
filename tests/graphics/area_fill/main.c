@@ -353,6 +353,33 @@ int main(void)
         }
     }
     print("\n");
+
+    /* Test 9: Even-odd fill rule for self-overlapping paths */
+    print("Test 9: Even-odd fill should cancel a double-traced rectangle...\n");
+    {
+        SetRast(rp, 0);
+
+        AreaMove(rp, 10, 10);
+        AreaDraw(rp, 30, 10);
+        AreaDraw(rp, 30, 30);
+        AreaDraw(rp, 10, 30);
+        AreaDraw(rp, 10, 10);
+        AreaDraw(rp, 30, 10);
+        AreaDraw(rp, 30, 30);
+        AreaDraw(rp, 10, 30);
+        result = AreaEnd(rp);
+
+        if (result != 0) {
+            print("  FAIL: Double-traced rectangle drawing failed\n");
+        } else if (is_pixel_set(rp, 20, 20)) {
+            print("  FAIL: Even-odd fill left the rectangle interior filled\n");
+        } else if (!is_pixel_set(rp, 10, 20) || !is_pixel_set(rp, 30, 20)) {
+            print("  FAIL: Rectangle outline was not preserved\n");
+        } else {
+            print("  OK: Even-odd fill cancels the overlapped interior\n");
+        }
+    }
+    print("\n");
     
     /* Cleanup */
     FreeMem(raster, RASSIZE(100, 100));
