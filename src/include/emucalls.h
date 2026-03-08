@@ -59,6 +59,7 @@
 #define EMU_CALL_DOS_PARENTOFFH    1043  /* ParentOfFH(fh) -> lock_id */
 #define EMU_CALL_DOS_OPENFROMLOCK  1044  /* OpenFromLock(lock) -> fh */
 #define EMU_CALL_DOS_WAITFORCHAR   1045  /* WaitForChar(fh, timeout) -> success */
+#define EMU_CALL_DOS_SETFILESIZE   1046  /* SetFileSize(fh, offset, mode) -> size */
 
 /*
  * Graphics Library emucalls (2000-2999)
@@ -233,4 +234,3 @@
 #define EMU_CALL_IEEESP_CEIL         5111  /* IEEESPCeil: d1=float -> d0=float */
 
 #endif
-

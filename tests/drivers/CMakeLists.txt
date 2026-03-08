@@ -10,7 +10,7 @@ if(NOT TARGET liblxa)
 endif()
 
 # Common settings for Google Test drivers
-function(add_gtest_driver NAME)
+function(add_gtest_driver_target NAME)
     add_executable(${NAME} ${NAME}.cpp)
     target_link_libraries(${NAME} PRIVATE 
         liblxa
@@ -27,17 +27,34 @@ function(add_gtest_driver NAME)
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED ON
     )
-    
-    # Add as a CTest
-    add_test(NAME ${NAME}
-        COMMAND ${NAME}
+endfunction()
+
+function(add_gtest_driver_shard TEST_NAME TARGET_NAME)
+    set(options)
+    set(oneValueArgs FILTER TIMEOUT)
+    cmake_parse_arguments(SHARD "${options}" "${oneValueArgs}" "" ${ARGN})
+
+    set(test_command ${TARGET_NAME})
+    if(SHARD_FILTER)
+        list(APPEND test_command --gtest_filter=${SHARD_FILTER})
+    endif()
+
+    add_test(NAME ${TEST_NAME}
+        COMMAND ${test_command}
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
-    
-    # Set test properties for Google Test
-    set_tests_properties(${NAME} PROPERTIES
-        LABELS "gtest"
-    )
+
+    set(test_properties LABELS "gtest")
+    if(SHARD_TIMEOUT)
+        list(APPEND test_properties TIMEOUT ${SHARD_TIMEOUT})
+    endif()
+
+    set_tests_properties(${TEST_NAME} PROPERTIES ${test_properties})
+endfunction()
+
+function(add_gtest_driver NAME)
+    add_gtest_driver_target(${NAME})
+    add_gtest_driver_shard(${NAME} ${NAME})
 endfunction()
 
 # ========== Google Test Drivers ==========
@@ -50,18 +67,35 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     
     # SimpleGad - boolean gadgets test (GTest version)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplegad_gtest.cpp)
-        add_gtest_driver(simplegad_gtest)
-        set_tests_properties(simplegad_gtest PROPERTIES TIMEOUT 120)
+        add_gtest_driver_target(simplegad_gtest)
+        add_gtest_driver_shard(simplegad_behavior_gtest simplegad_gtest
+            FILTER "SimpleGadTest.*"
+            TIMEOUT 60)
+        add_gtest_driver_shard(simplegad_pixels_gtest simplegad_gtest
+            FILTER "SimpleGadPixelTest.*"
+            TIMEOUT 90)
     endif()
     
     # SimpleMenu - menu system test (GTest version)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplemenu_gtest.cpp)
-        add_gtest_driver(simplemenu_gtest)
+        add_gtest_driver_target(simplemenu_gtest)
+        add_gtest_driver_shard(simplemenu_behavior_gtest simplemenu_gtest
+            FILTER "SimpleMenuTest.*"
+            TIMEOUT 60)
+        add_gtest_driver_shard(simplemenu_pixels_gtest simplemenu_gtest
+            FILTER "SimpleMenuPixelTest.*"
+            TIMEOUT 60)
     endif()
     
     # MenuLayout - advanced menu layout test (GTest version)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/menulayout_gtest.cpp)
-        add_gtest_driver(menulayout_gtest)
+        add_gtest_driver_target(menulayout_gtest)
+        add_gtest_driver_shard(menulayout_behavior_gtest menulayout_gtest
+            FILTER "MenuLayoutTest.*"
+            TIMEOUT 60)
+        add_gtest_driver_shard(menulayout_pixels_gtest menulayout_gtest
+            FILTER "MenuLayoutPixelTest.*"
+            TIMEOUT 60)
     endif()
     
     # CustomPointer - custom pointer test (GTest version)
@@ -124,8 +158,28 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     
     # GadToolsGadgets - GadTools gadget creation test (STRING_KIND, SLIDER_KIND, BUTTON_KIND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsgadgets_gtest.cpp)
-        add_gtest_driver(gadtoolsgadgets_gtest)
-        set_tests_properties(gadtoolsgadgets_gtest PROPERTIES TIMEOUT 200)
+        add_gtest_driver_target(gadtoolsgadgets_gtest)
+        add_gtest_driver_shard(gadtoolsgadgets_core_gtest gadtoolsgadgets_gtest
+            FILTER "GadToolsGadgetsTest.AllGadgetsCreated:GadToolsGadgetsTest.WindowOpened:GadToolsGadgetsTest.GadgetsRefreshed:GadToolsGadgetsTest.EventLoopEntered:GadToolsGadgetsTest.CloseWindow"
+            TIMEOUT 60)
+        add_gtest_driver_shard(gadtoolsgadgets_pointer_gtest gadtoolsgadgets_gtest
+            FILTER "GadToolsGadgetsTest.ButtonClick:GadToolsGadgetsTest.SliderClick:GadToolsGadgetsTest.ButtonResetsSlider:GadToolsGadgetsTest.DepthGadgetClick"
+            TIMEOUT 60)
+        add_gtest_driver_shard(gadtoolsgadgets_navigation_gtest gadtoolsgadgets_gtest
+            FILTER "GadToolsGadgetsTest.SliderDrag:GadToolsGadgetsTest.TabCyclesStringGadgets"
+            TIMEOUT 60)
+        add_gtest_driver_shard(gadtoolsgadgets_keyboard_gtest gadtoolsgadgets_gtest
+            FILTER "GadToolsGadgetsTest.ShiftTabCyclesBackward:GadToolsGadgetsTest.VanillaKeySliderIncrease:GadToolsGadgetsTest.VanillaKeySliderDecrease:GadToolsGadgetsTest.VanillaKeyActivateGadget"
+            TIMEOUT 60)
+        add_gtest_driver_shard(gadtoolsgadgets_pixels_a_gtest gadtoolsgadgets_gtest
+            FILTER "GadToolsGadgetsPixelTest.WindowTitleBarRendered:GadToolsGadgetsPixelTest.ButtonBevelBorderRendered:GadToolsGadgetsPixelTest.StringGadgetBevelBorderRendered:GadToolsGadgetsPixelTest.StringGadgetDoubleBevelRendered"
+            TIMEOUT 90)
+        add_gtest_driver_shard(gadtoolsgadgets_pixels_b_gtest gadtoolsgadgets_gtest
+            FILTER "GadToolsGadgetsPixelTest.StringGadgetTextRendered:GadToolsGadgetsPixelTest.ButtonLabelRendered:GadToolsGadgetsPixelTest.SliderKnobVisible:GadToolsGadgetsPixelTest.SliderBevelBorderRendered"
+            TIMEOUT 90)
+        add_gtest_driver_shard(gadtoolsgadgets_pixels_c_gtest gadtoolsgadgets_gtest
+            FILTER "GadToolsGadgetsPixelTest.UnderscoreLabelRendered:GadToolsGadgetsPixelTest.SizeGadgetRendered:GadToolsGadgetsPixelTest.DepthGadgetRendered"
+            TIMEOUT 90)
     endif()
     
     # ========== API Tests ==========
@@ -225,7 +279,16 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     
     # Cluster2 - Oberon-2 IDE test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cluster2_gtest.cpp)
-        add_gtest_driver(cluster2_gtest)
+        add_gtest_driver_target(cluster2_gtest)
+        add_gtest_driver_shard(cluster2_startup_gtest cluster2_gtest
+            FILTER "Cluster2Test.WindowOpens:Cluster2Test.ScreenDimensions:Cluster2Test.EditorReady"
+            TIMEOUT 60)
+        add_gtest_driver_shard(cluster2_input_gtest cluster2_gtest
+            FILTER "Cluster2Test.RespondsToInput:Cluster2Test.MouseInput"
+            TIMEOUT 60)
+        add_gtest_driver_shard(cluster2_navigation_gtest cluster2_gtest
+            FILTER "Cluster2Test.CursorKeys:Cluster2Test.RMBMenuAccess"
+            TIMEOUT 60)
     endif()
     
     # DPaint V - Graphics editor test
@@ -235,4 +298,3 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     
     message(STATUS "Google Test drivers configured")
 endif()
-

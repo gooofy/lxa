@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.69** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **38/38 Tests Passing (GTest-only)**
+**Version: 0.6.71** | **Phase 78-B Rescoped Into Session-Sized DOS Subphases** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -20,7 +20,7 @@ Phase 78-A-6: Exec miscellaneous — `RawDoFmt` edge cases, list accessors, `Ale
 Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` through `78-B-7` so each subphase can be completed in one focused session.
 
 **Current Status**:
-- 38/38 ctest entries (all GTest), including new ExecMisc test
+- 49/49 ctest entries (all GTest), with long-running UI/application suites split into balanced shards for faster parallel execution
 - Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
 - Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
 - All remaining miscellaneous Exec items verified: `RawDoFmt` edge cases (maxwidth, precision, `%c`, `%%`, `%b` BSTR, return value), list accessors (`GetHead`/`GetTail`/`GetSucc`/`GetPred` as macros), `Alert` (recovery vs deadend decoding), `Supervisor` (m68k privilege-switch call)
@@ -34,8 +34,11 @@ Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` thro
 - Verified Exec library management helpers against AROS semantics: `OpenLibrary()` now forwards requested versions to library open vectors and rejects too-old disk-loaded libraries; `MakeLibrary()`, `SetFunction()`, `SumLibrary()`, `AddLibrary()`, and `RemLibrary()` are locked in by custom-library tests
 - Implemented and verified `SumKickData()` against AROS checksum rules for `KickTagPtr` and `KickMemPtr`
 - Fixed DOS CLI BSTR handling for program metadata so `GetProgramName()`/`PROGDIR:` users (including DPaint V) stop constructing broken paths during startup
+- Added DOS CLI metadata helpers (`Set/GetCurrentDirName`, `Set/GetProgramName`, `Set/GetPrompt`) plus `FindCliProc()`/`MaxCli()` coverage, and extended structural verification for `DosLibrary`, `RootNode`, `DosInfo`, `CliProcList`, and `Segment`
+- Implemented `SetFileSize()` with host-backed truncate/extend semantics and added DOS regression coverage for begin/current/end resizing plus zero-filled extension behavior
 - Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j8` is green again
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
+- Test-suite scheduling improved: sharded `gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, and `cluster2` into smaller CTest entries, reducing `ctest -j8` wall time from about 124s to about 95s while keeping total CPU time roughly flat
 
 ---
 
@@ -254,20 +257,21 @@ Status: complete in planning terms; existing implementation and tests cover this
 
 Goal: finish DOSBase/RootNode/DosInfo public-field verification and the remaining CLI/path metadata helpers.
 
-- [ ] `DOSBase` — public fields: RootNode, TimerBase, SegList
-- [ ] `RootNode` — rn_TaskArray, rn_ConsoleSegment, rn_Time, rn_RestartSeg, rn_Info, rn_RequestList, rn_BootProc, rn_CliList, rn_boot_pkt_port
-- [ ] `DosInfo` — di_McName, di_DevInfo, di_Devices, di_Handlers, di_NetHand, di_DevLock, di_EntryLock, di_DeleteLock
-- [ ] `ProcessWindowNode` / `CliProcList` for multi-CLI
-- [ ] `Segment` (seglist chain: BPTR links)
-- [ ] `GetCurrentDirName` / `SetCurrentDirName`
-- [ ] `GetProgramName` / `SetProgramName`
-- [ ] `GetPrompt` / `SetPrompt`
+- [x] `DOSBase` — public fields: RootNode, timer request / utility / intuition base pointers verified via `DosLibrary` layout checks (classic NDK public DOS library layout)
+- [x] `RootNode` — rn_TaskArray, rn_ConsoleSegment, rn_Time, rn_RestartSeg, rn_Info, rn_BootProc, rn_CliList, rn_ShellSegment, rn_Flags
+- [x] `DosInfo` — di_McName, di_DevInfo, di_Devices, di_Handlers, di_NetHand, di_DevLock, di_EntryLock, di_DeleteLock
+- [x] `CliProcList` for multi-CLI task-array metadata
+- [x] `Segment` (seglist chain: BPTR links)
+- [ ] `ProcessWindowNode` / proc-window stack semantics for multi-CLI
+- [x] `GetCurrentDirName` / `SetCurrentDirName`
+- [x] `GetProgramName` / `SetProgramName`
+- [x] `GetPrompt` / `SetPrompt`
 
 ##### 78-B-3: DOS Extended File/Directory Semantics
 
 Goal: finish the remaining file-size, date, link, and full-directory-enumeration APIs.
 
-- [ ] `SetFileSize` — truncate/extend file (AROS: `dos/setfilesize.c`)
+- [x] `SetFileSize` — truncate/extend file (AROS: `dos/setfilesize.c`)
 - [ ] `ChangeFilePosition` / `GetFilePosition`
 - [ ] `ExAll` / `ExAllEnd` — EXALL_TYPE filter, ED_NAME/ED_TYPE/ED_SIZE/ED_PROTECTION/ED_DATE/ED_COMMENT/ED_OWNER
 - [ ] `SetFileDate` — set datestamp
@@ -799,6 +803,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 - [ ] After each 78-A through 78-W subsystem fix: run full `ctest --test-dir build -j8` and confirm all existing tests still pass
 - [x] Regression maintenance: restore `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` to green after timer/SystemTagList/test-harness regressions; verified with full `ctest --test-dir build --output-on-failure -j8`
+- [x] Rebalance long-running GTest drivers for parallel CTest execution by splitting oversized suites (`gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, `cluster2`) into smaller shards; verified with full `ctest --test-dir build --output-on-failure -j8`
 - [ ] Add new GTest assertions for each behavioral deviation found vs AROS
 - [ ] Run RKM sample programs after structural changes to catch regressions (gadtoolsgadgets_gtest, simplemenu_gtest, filereq_gtest, fontreq_gtest, easyrequest_gtest)
 - [ ] Run application tests after changes to exec/dos (asm_one_gtest, devpac_gtest, kickpascal_gtest, cluster2_gtest, dpaint_gtest)
@@ -813,6 +818,8 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 | Version | Phase | Key Changes |
 | :--- | :--- | :--- |
 | **0.6.69** | 78-A-6 | Exec miscellaneous verification: `RawDoFmt` edge cases (maxwidth, `%c`, `%%`, `%b` BSTR, return value), list accessors as macros, `Alert` decoding, `Supervisor` call. 40 sub-tests in new ExecMisc test. |
+| **0.6.71** | 78-B-3 | Added host-backed `SetFileSize()` support with regression coverage for truncation, growth, and zero-filled extension, while keeping the full 49-test GTest suite green. |
+| **0.6.70** | 78-B-2 | Added DOS CLI metadata helpers and multi-CLI lookup helpers, initialized `RootNode`/`DosInfo` public state, and extended struct-offset coverage for DOS public structures. |
 | **0.6.68** | 78-A Complete | Completed Exec Phase 78-A verification by covering interrupt nesting, library management helpers, and `SumKickData()`, with the full 38-test suite green. |
 | **0.6.67** | 78-A-4 | Full regression suite green again after fixing DOS CLI BSTR program-name handling, which restored DPaint V startup. |
 | **0.6.66** | 78-A-4 | Phase 78-A-4 Complete — verified Exec signal allocation and semaphore semantics, including shared locks and waiter handoff. |

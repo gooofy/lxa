@@ -17,6 +17,8 @@
 #include <inline/exec.h>
 #include <inline/dos.h>
 
+#include <string.h>
+
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
@@ -73,9 +75,19 @@ static void test_fail(const char *name, const char *reason)
     tests_failed++;
 }
 
+static void test_bool(const char *name, BOOL cond, const char *reason)
+{
+    if (cond)
+        test_pass(name);
+    else
+        test_fail(name, reason);
+}
+
 int main(void)
 {
     LONG result;
+    char buf[256];
+    LONG oldErr;
     
     print("SystemTagList Advanced Features Test\n");
     print("=====================================\n\n");
@@ -237,6 +249,82 @@ int main(void)
         print("  Current dir exists: no\n");
         test_pass("Process has no current dir (expected in test env)");
     }
+
+    /* Test 7: CLI metadata helpers */
+    print("\nTest 7: CLI metadata helpers\n");
+
+    test_bool("GetProgramName initial", GetProgramName((STRPTR)buf, sizeof(buf)), "GetProgramName failed");
+    if (GetProgramName((STRPTR)buf, sizeof(buf))) {
+        print("  Program name: ");
+        print(buf);
+        print("\n");
+    }
+
+    test_bool("SetProgramName custom", SetProgramName((CONST_STRPTR)"ProcessAdvanced"), "SetProgramName failed");
+    test_bool("GetProgramName custom", GetProgramName((STRPTR)buf, sizeof(buf)) && strcmp(buf, "ProcessAdvanced") == 0,
+              "Program name mismatch after SetProgramName");
+
+    test_bool("GetPrompt initial", GetPrompt((STRPTR)buf, sizeof(buf)), "GetPrompt failed");
+    if (GetPrompt((STRPTR)buf, sizeof(buf))) {
+        print("  Prompt: ");
+        print(buf);
+        print("\n");
+    }
+
+    test_bool("SetPrompt custom", SetPrompt((CONST_STRPTR)"ADV> "), "SetPrompt failed");
+    test_bool("GetPrompt custom", GetPrompt((STRPTR)buf, sizeof(buf)) && strcmp(buf, "ADV> ") == 0,
+              "Prompt mismatch after SetPrompt");
+
+    test_bool("GetCurrentDirName initial", GetCurrentDirName((STRPTR)buf, sizeof(buf)), "GetCurrentDirName failed");
+    if (GetCurrentDirName((STRPTR)buf, sizeof(buf))) {
+        print("  Current dir name: ");
+        print(buf);
+        print("\n");
+    }
+
+    test_bool("SetCurrentDirName custom", SetCurrentDirName((CONST_STRPTR)"RAM:ManualDir"), "SetCurrentDirName failed");
+    test_bool("GetCurrentDirName custom", GetCurrentDirName((STRPTR)buf, sizeof(buf)) && strcmp(buf, "RAM:ManualDir") == 0,
+              "Current dir name mismatch after SetCurrentDirName");
+
+    oldErr = SetIoErr(0);
+    (void)oldErr;
+    test_bool("GetProgramName tiny buffer", !GetProgramName((STRPTR)buf, 4) && IoErr() == ERROR_LINE_TOO_LONG,
+              "Expected ERROR_LINE_TOO_LONG for tiny program buffer");
+
+    test_bool("GetPrompt tiny buffer", !GetPrompt((STRPTR)buf, 3) && IoErr() == ERROR_LINE_TOO_LONG,
+              "Expected ERROR_LINE_TOO_LONG for tiny prompt buffer");
+
+    test_bool("GetCurrentDirName tiny buffer", !GetCurrentDirName((STRPTR)buf, 5) && IoErr() == ERROR_LINE_TOO_LONG,
+              "Expected ERROR_LINE_TOO_LONG for tiny current-dir buffer");
+
+    test_bool("SetProgramName too long", !SetProgramName((CONST_STRPTR)
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
+              "ABCDEFGHIJKLMNO"),
+              "SetProgramName should reject names >255 chars");
+
+    test_bool("SetPrompt max length accepted", SetPrompt((CONST_STRPTR)
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
+              "ABCDEFGHIJKLMNO"),
+              "SetPrompt should accept a 255-byte string");
+
+    test_bool("SetCurrentDirName max length accepted", SetCurrentDirName((CONST_STRPTR)
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
+              "ABCDEFGHIJKLMNO"),
+              "SetCurrentDirName should accept a 255-byte string");
+
+    test_bool("FindCliProc current", FindCliProc(((struct Process *)FindTask(NULL))->pr_TaskNum) != NULL,
+              "FindCliProc did not return current process");
+    test_bool("FindCliProc missing", FindCliProc(9999) == NULL, "FindCliProc should return NULL for missing CLI");
+    test_bool("MaxCli valid", MaxCli() >= (ULONG)((struct Process *)FindTask(NULL))->pr_TaskNum,
+              "MaxCli smaller than current CLI number");
+
+    test_bool("SetPrompt restore short value", SetPrompt((CONST_STRPTR)"ADV> "),
+              "SetPrompt failed to restore short prompt");
+    test_bool("SetCurrentDirName restore short value", SetCurrentDirName((CONST_STRPTR)"RAM:ManualDir"),
+              "SetCurrentDirName failed to restore short current-dir name");
     
     /* Summary */
     print("\n=== Test Summary ===\n");

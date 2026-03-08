@@ -1715,6 +1715,58 @@ static int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
     return o;
 }
 
+static int _dos_setfilesize(uint32_t fh68k, int32_t offset, int32_t mode)
+{
+    int fd = m68k_read_memory_32(fh68k + 36);
+    off_t base;
+    off_t new_size;
+
+    DPRINTF(LOG_DEBUG, "lxa: _dos_setfilesize(): fh=0x%08x, offset=%d, mode=%d\n",
+            fh68k, offset, mode);
+
+    switch (mode)
+    {
+        case OFFSET_BEGINNING:
+            base = 0;
+            break;
+
+        case OFFSET_CURRENT:
+            base = lseek(fd, 0, SEEK_CUR);
+            break;
+
+        case OFFSET_END:
+            base = lseek(fd, 0, SEEK_END);
+            break;
+
+        default:
+            errno = EINVAL;
+            m68k_write_memory_32(fh68k + 40, errno2Amiga());
+            return -1;
+    }
+
+    if (base < 0)
+    {
+        m68k_write_memory_32(fh68k + 40, errno2Amiga());
+        return -1;
+    }
+
+    new_size = base + offset;
+    if (new_size < 0)
+    {
+        errno = EINVAL;
+        m68k_write_memory_32(fh68k + 40, errno2Amiga());
+        return -1;
+    }
+
+    if (ftruncate(fd, new_size) != 0)
+    {
+        m68k_write_memory_32(fh68k + 40, errno2Amiga());
+        return -1;
+    }
+
+    return (int)new_size;
+}
+
 /*
  * Phase 16: Console Device Enhancement
  *
@@ -4374,6 +4426,19 @@ int op_illg(int level)
 
             uint32_t res = _dos_waitforchar(fh, timeout);
             m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_SETFILESIZE:
+        {
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+            int32_t offset = (int32_t)m68k_get_reg(NULL, M68K_REG_D2);
+            int32_t mode = (int32_t)m68k_get_reg(NULL, M68K_REG_D3);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_SETFILESIZE fh=0x%08x, offset=%d, mode=%d\n",
+                    fh, offset, mode);
+
+            m68k_set_reg(M68K_REG_D0, _dos_setfilesize(fh, offset, mode));
             break;
         }
 

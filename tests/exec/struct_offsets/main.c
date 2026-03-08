@@ -485,6 +485,56 @@ static void test_cli(void)
     CHECK_OFFSET(CommandLineInterface, cli_Module, 60);
 }
 
+static void test_dos_public(void)
+{
+    print("--- DosLibrary / RootNode / CliProcList / DosInfo / Segment ---\n");
+
+    CHECK_SIZEOF(DosLibrary, 70);
+    CHECK_OFFSET(DosLibrary, dl_lib, 0);
+    CHECK_OFFSET(DosLibrary, dl_Root, 34);
+    CHECK_OFFSET(DosLibrary, dl_GV, 38);
+    CHECK_OFFSET(DosLibrary, dl_A2, 42);
+    CHECK_OFFSET(DosLibrary, dl_A5, 46);
+    CHECK_OFFSET(DosLibrary, dl_A6, 50);
+    CHECK_OFFSET(DosLibrary, dl_Errors, 54);
+    CHECK_OFFSET(DosLibrary, dl_TimeReq, 58);
+    CHECK_OFFSET(DosLibrary, dl_UtilityBase, 62);
+    CHECK_OFFSET(DosLibrary, dl_IntuitionBase, 66);
+
+    CHECK_SIZEOF(RootNode, 56);
+    CHECK_OFFSET(RootNode, rn_TaskArray, 0);
+    CHECK_OFFSET(RootNode, rn_ConsoleSegment, 4);
+    CHECK_OFFSET(RootNode, rn_Time, 8);
+    CHECK_OFFSET(RootNode, rn_RestartSeg, 20);
+    CHECK_OFFSET(RootNode, rn_Info, 24);
+    CHECK_OFFSET(RootNode, rn_FileHandlerSegment, 28);
+    CHECK_OFFSET(RootNode, rn_CliList, 32);
+    CHECK_OFFSET(RootNode, rn_BootProc, 44);
+    CHECK_OFFSET(RootNode, rn_ShellSegment, 48);
+    CHECK_OFFSET(RootNode, rn_Flags, 52);
+
+    CHECK_SIZEOF(CliProcList, 16);
+    CHECK_OFFSET(CliProcList, cpl_Node, 0);
+    CHECK_OFFSET(CliProcList, cpl_First, 8);
+    CHECK_OFFSET(CliProcList, cpl_Array, 12);
+
+    CHECK_SIZEOF(DosInfo, 158);
+    CHECK_OFFSET(DosInfo, di_McName, 0);
+    CHECK_OFFSET(DosInfo, di_DevInfo, 4);
+    CHECK_OFFSET(DosInfo, di_Devices, 8);
+    CHECK_OFFSET(DosInfo, di_Handlers, 12);
+    CHECK_OFFSET(DosInfo, di_NetHand, 16);
+    CHECK_OFFSET(DosInfo, di_DevLock, 20);
+    CHECK_OFFSET(DosInfo, di_EntryLock, 66);
+    CHECK_OFFSET(DosInfo, di_DeleteLock, 112);
+
+    CHECK_SIZEOF(Segment, 16);
+    CHECK_OFFSET(Segment, seg_Next, 0);
+    CHECK_OFFSET(Segment, seg_UC, 4);
+    CHECK_OFFSET(Segment, seg_Seg, 8);
+    CHECK_OFFSET(Segment, seg_Name, 12);
+}
+
 static void test_dospacket(void)
 {
     print("--- DosPacket ---\n");
@@ -846,6 +896,7 @@ int main(void)
     test_process();
     test_cli();
     test_dospacket();
+    test_dos_public();
 
     /* Graphics structs */
     test_bitmap();

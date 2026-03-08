@@ -207,7 +207,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.68** - Phase 78-A complete with Exec library management, nesting semantics, and kick checksum verification covered by regression tests
+**Version 0.6.71** - Phase 78-B-3 in progress with `SetFileSize()` support and DOS metadata/structure verification coverage added
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

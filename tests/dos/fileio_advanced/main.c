@@ -284,8 +284,77 @@ int main(void)
         Close(fh);
     }
     
-    /* Test 6: MODE_NEWFILE truncates existing */
-    print("\nTest 6: MODE_NEWFILE truncates existing\n");
+    /* Test 6: SetFileSize truncate/extend semantics */
+    print("\nTest 6: SetFileSize semantics\n");
+
+    fh = Open((CONST_STRPTR)test_file, MODE_READWRITE);
+    if (!fh) {
+        test_fail("SetFileSize open", "Open failed");
+        return 1;
+    }
+
+    result = SetFileSize(fh, 4, OFFSET_BEGINNING);
+    if (result == 4) {
+        test_pass("SetFileSize truncate from beginning");
+    } else {
+        print("  SetFileSize begin returned ");
+        print_num(result);
+        print("\n");
+        test_fail("SetFileSize truncate from beginning", "Wrong return value");
+    }
+
+    Seek(fh, 0, OFFSET_BEGINNING);
+    result = Read(fh, buffer, 16);
+    if (result == 4 && buffer[0] == 'H' && buffer[3] == 'l') {
+        test_pass("SetFileSize truncated file contents");
+    } else {
+        test_fail("SetFileSize truncated file contents", "Unexpected truncated data");
+    }
+
+    result = Seek(fh, 2, OFFSET_BEGINNING);
+    if (result < 0) {
+        test_fail("SetFileSize seek before current-mode resize", "Seek failed");
+    } else {
+        result = SetFileSize(fh, 3, OFFSET_CURRENT);
+        if (result == 5) {
+            test_pass("SetFileSize resize from current position");
+        } else {
+            print("  SetFileSize current returned ");
+            print_num(result);
+            print("\n");
+            test_fail("SetFileSize resize from current position", "Wrong return value");
+        }
+    }
+
+    result = SetFileSize(fh, 3, OFFSET_END);
+    if (result == 8) {
+        test_pass("SetFileSize extend from end");
+    } else {
+        print("  SetFileSize end returned ");
+        print_num(result);
+        print("\n");
+        test_fail("SetFileSize extend from end", "Wrong return value");
+    }
+
+    Close(fh);
+
+    fh = Open((CONST_STRPTR)test_file, MODE_OLDFILE);
+    if (!fh) {
+        test_fail("SetFileSize verify reopen", "Open failed");
+        return 1;
+    }
+
+    result = Read(fh, buffer, 16);
+    if (result == 8 && buffer[0] == 'H' && buffer[1] == 'e' && buffer[2] == 'l' && buffer[3] == 'l' &&
+        buffer[4] == 0 && buffer[5] == 0 && buffer[6] == 0 && buffer[7] == 0) {
+        test_pass("SetFileSize extension zero-fills");
+    } else {
+        test_fail("SetFileSize extension zero-fills", "Unexpected extended data");
+    }
+    Close(fh);
+
+    /* Test 7: MODE_NEWFILE truncates existing */
+    print("\nTest 7: MODE_NEWFILE truncates existing\n");
     
     fh = Open((CONST_STRPTR)test_file, MODE_NEWFILE);
     if (!fh) {

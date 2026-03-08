@@ -30,6 +30,8 @@
 
 //#include <string.h>
 
+#include <stddef.h>
+
 //#define ENABLE_DEBUG
 #include "util.h"
 
@@ -218,27 +220,6 @@ static const char *resolve_amiga_path(const char *name, char *resolved)
     return resolved;
 }
 
-static BPTR alloc_bstr_from_cstr(const char *src)
-{
-    UBYTE *buf;
-    LONG len = 0;
-
-    if (!src)
-        src = "";
-
-    while (src[len] != '\0' && len < 255)
-        len++;
-
-    buf = AllocVec((ULONG)len + 2, MEMF_PUBLIC | MEMF_CLEAR);
-    if (!buf)
-        return 0;
-
-    buf[0] = (UBYTE)len;
-    CopyMem((APTR)src, buf + 1, (ULONG)len);
-
-    return MKBADDR(buf);
-}
-
 static LONG bstr_to_cstr(BPTR bstr, STRPTR buf, LONG len)
 {
     UBYTE *src;
@@ -259,6 +240,112 @@ static LONG bstr_to_cstr(BPTR bstr, STRPTR buf, LONG len)
     buf[copy_len] = '\0';
 
     return TRUE;
+}
+
+static LONG bstr_copy_to_cstr(BPTR bstr, STRPTR buf, LONG len)
+{
+    UBYTE *src;
+    LONG src_len;
+    LONG copy_len;
+
+    if (!buf || len <= 0)
+        return FALSE;
+
+    buf[0] = '\0';
+
+    if (!bstr)
+        return FALSE;
+
+    src = (UBYTE *)BADDR(bstr);
+    if (!src)
+        return FALSE;
+
+    src_len = src[0];
+    copy_len = src_len;
+    if (copy_len >= len)
+        copy_len = len - 1;
+
+    CopyMem(src + 1, buf, (ULONG)copy_len);
+    buf[copy_len] = '\0';
+
+    if (src_len >= len)
+    {
+        SetIoErr(ERROR_LINE_TOO_LONG);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+static LONG bstr_set_from_cstr(BPTR bstr, CONST_STRPTR src)
+{
+    UBYTE *dst;
+    ULONG alloc_size;
+    LONG max_len;
+    LONG len = 0;
+
+    if (!src)
+        src = (CONST_STRPTR)"";
+
+    if (!bstr)
+        return FALSE;
+
+    dst = (UBYTE *)BADDR(bstr);
+    if (!dst)
+        return FALSE;
+
+    while (src[len] != '\0' && len < 256)
+        len++;
+
+    if (src[len] != '\0')
+    {
+        SetIoErr(ERROR_LINE_TOO_LONG);
+        return FALSE;
+    }
+
+    alloc_size = *(((ULONG *)dst) - 1);
+    if (alloc_size < 6)
+        return FALSE;
+
+    max_len = (LONG)alloc_size - 6;
+    if (len > max_len)
+    {
+        SetIoErr(ERROR_LINE_TOO_LONG);
+        return FALSE;
+    }
+
+    dst[0] = (UBYTE)len;
+    CopyMem((APTR)src, dst + 1, (ULONG)len);
+    dst[len + 1] = '\0';
+
+    return TRUE;
+}
+
+static LONG lock_to_path(BPTR lock, STRPTR buffer, LONG len)
+{
+    if (!lock || !buffer || len <= 0)
+        return FALSE;
+
+    return emucall3(EMU_CALL_DOS_NAMEFROMLOCK, (ULONG)lock, (ULONG)buffer, (ULONG)len);
+}
+
+static void sync_cli_setname_from_lock(struct CommandLineInterface *cli, BPTR lock)
+{
+    char path[256];
+
+    if (!cli)
+        return;
+
+    if (!lock)
+    {
+        bstr_set_from_cstr(cli->cli_SetName, (CONST_STRPTR)"");
+        return;
+    }
+
+    if (lock_to_path(lock, (STRPTR)path, sizeof(path)))
+        bstr_set_from_cstr(cli->cli_SetName, (CONST_STRPTR)path);
+    else
+        bstr_set_from_cstr(cli->cli_SetName, (CONST_STRPTR)"");
 }
 
 /* Initialize the RootNode and TaskArray if not already done.
@@ -282,12 +369,22 @@ static struct RootNode *initRootNode(void)
     
     /* Allocate initial TaskArray */
     ULONG *taskArray = (ULONG *)AllocMem((INITIAL_TASK_ARRAY_SIZE + 1) * sizeof(ULONG), MEMF_CLEAR | MEMF_PUBLIC);
+    struct DosInfo *dosInfo = NULL;
     if (taskArray)
     {
         taskArray[0] = INITIAL_TASK_ARRAY_SIZE;  /* Max slots */
         /* Slots 1..INITIAL_TASK_ARRAY_SIZE are already 0 (free) due to MEMF_CLEAR */
     }
-    
+
+    dosInfo = (struct DosInfo *)AllocMem(sizeof(struct DosInfo), MEMF_CLEAR | MEMF_PUBLIC);
+    if (dosInfo)
+    {
+        InitSemaphore(&dosInfo->di_DevLock);
+        InitSemaphore(&dosInfo->di_EntryLock);
+        InitSemaphore(&dosInfo->di_DeleteLock);
+        rootNode->rn_Info = MKBADDR(dosInfo);
+    }
+
     rootNode->rn_TaskArray = MKBADDR(taskArray);
     
     /* Initialize the MinList for CLI processes */
@@ -298,7 +395,14 @@ static struct RootNode *initRootNode(void)
     /* Link to DOSBase */
     if (DOSBase)
         DOSBase->dl_Root = rootNode;
-    
+
+    if (taskArray)
+    {
+        struct Process *me = (struct Process *)FindTask(NULL);
+        if (me && IS_PROCESS(me) && me->pr_TaskNum > 0 && (ULONG)me->pr_TaskNum <= INITIAL_TASK_ARRAY_SIZE)
+            taskArray[me->pr_TaskNum] = (ULONG)&me->pr_MsgPort;
+    }
+
     DPRINTF(LOG_DEBUG, "_dos: initRootNode() done, rootNode=0x%08lx, taskArray=0x%08lx\n", rootNode, taskArray);
     
     return rootNode;
@@ -1250,6 +1354,12 @@ BPTR _dos_CurrentDir ( register struct DosLibrary * __libBase __asm("a6"),
     struct Process *me = (struct Process *)FindTask(NULL);
     BPTR old_lock = me->pr_CurrentDir;
     me->pr_CurrentDir = ___lock;
+
+    if (me->pr_CLI)
+    {
+        struct CommandLineInterface *cli = (struct CommandLineInterface *)BADDR(me->pr_CLI);
+        sync_cli_setname_from_lock(cli, ___lock);
+    }
 
     DPRINTF (LOG_DEBUG, "_dos: CurrentDir() old_lock=0x%08lx\n", old_lock);
 
@@ -3256,9 +3366,28 @@ LONG _dos_SetFileSize ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG pos __asm("d2"),
                                                         register LONG mode __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetFileSize() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct FileHandle *fhp;
+    LONG result;
+
+    DPRINTF (LOG_DEBUG, "_dos: SetFileSize() called, fh=0x%08lx, pos=%ld, mode=%ld\n",
+             fh, pos, mode);
+
+    fhp = (struct FileHandle *)BADDR(fh);
+    if (!fhp)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+
+    result = emucall3(EMU_CALL_DOS_SETFILESIZE, (ULONG)fhp, (ULONG)pos, (ULONG)mode);
+    if (result < 0)
+    {
+        struct Process *me = (struct Process *)FindTask(NULL);
+        if (me)
+            me->pr_Result2 = fhp->fh_Arg2;
+    }
+
+    return result;
 }
 
 LONG _dos_SetIoErr ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -3596,13 +3725,18 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
             {
                 char parentPrompt[256];
                 if (bstr_to_cstr(parentCli->cli_Prompt, (STRPTR)parentPrompt, sizeof(parentPrompt)))
-                {
-                    cli->cli_Prompt = alloc_bstr_from_cstr(parentPrompt);
-                }
+                    bstr_set_from_cstr(cli->cli_Prompt, (CONST_STRPTR)parentPrompt);
             }
 
             /* Inherit cli_CommandDir (path list) from parent CLI */
             cli->cli_CommandDir = parentCli->cli_CommandDir;
+
+            if (!curdir && parentCli->cli_SetName)
+            {
+                char parentDir[256];
+                if (bstr_to_cstr(parentCli->cli_SetName, (STRPTR)parentDir, sizeof(parentDir)))
+                    bstr_set_from_cstr(cli->cli_SetName, (CONST_STRPTR)parentDir);
+            }
         }
 
         process->pr_CLI = MKBADDR(cli);
@@ -3611,6 +3745,12 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     process->pr_CIS = inp;
     process->pr_COS = outp;
     process->pr_CurrentDir = curdir;
+
+    if (process->pr_CLI && curdir)
+    {
+        struct CommandLineInterface *cli = (struct CommandLineInterface *)BADDR(process->pr_CLI);
+        sync_cli_setname_from_lock(cli, curdir);
+    }
 
     // launch it
 
@@ -3685,41 +3825,128 @@ BOOL _dos_SetArgStr ( register struct DosLibrary * DOSBase __asm("a6"),
 struct Process * _dos_FindCliProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG num __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FindCliProc() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct RootNode *root;
+    ULONG *taskArray;
+    struct MsgPort *port;
+
+    DPRINTF (LOG_DEBUG, "_dos: FindCliProc() called, num=%lu\n", num);
+
+    if (!DOSBase || !DOSBase->dl_Root || num == 0)
+        return NULL;
+
+    root = DOSBase->dl_Root;
+    taskArray = (ULONG *)BADDR(root->rn_TaskArray);
+    if (!taskArray || num > taskArray[0] || taskArray[num] == 0)
+        return NULL;
+
+    port = (struct MsgPort *)taskArray[num];
+    return (struct Process *)((UBYTE *)port - offsetof(struct Process, pr_MsgPort));
 }
 
 ULONG _dos_MaxCli ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: MaxCli() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct RootNode *root;
+    ULONG *taskArray;
+    ULONG retval;
+
+    DPRINTF (LOG_DEBUG, "_dos: MaxCli() called.\n");
+
+    if (!DOSBase || !DOSBase->dl_Root)
+        return 0;
+
+    root = DOSBase->dl_Root;
+    taskArray = (ULONG *)BADDR(root->rn_TaskArray);
+    if (!taskArray)
+        return 0;
+
+    retval = taskArray[0];
+    while (retval > 0 && taskArray[retval] == 0)
+        retval--;
+
+    return retval;
 }
 
 BOOL _dos_SetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetCurrentDirName() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct Process *pr;
+    struct CommandLineInterface *cli;
+
+    DPRINTF (LOG_DEBUG, "_dos: SetCurrentDirName() called.\n");
+
+    pr = (struct Process *)FindTask(NULL);
+    if (!pr || !pr->pr_CLI)
+    {
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return FALSE;
+    }
+
+    cli = (struct CommandLineInterface *)BADDR(pr->pr_CLI);
+    if (!cli)
+    {
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return FALSE;
+    }
+
+    return bstr_set_from_cstr(cli->cli_SetName, name);
 }
 
 BOOL _dos_GetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buf __asm("d1"),
                                                         register LONG len __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: GetCurrentDirName() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct Process *pr;
+    struct CommandLineInterface *cli;
+
+    DPRINTF (LOG_DEBUG, "_dos: GetCurrentDirName() called.\n");
+
+    if (!buf || len <= 0)
+        return FALSE;
+
+    pr = (struct Process *)FindTask(NULL);
+    if (!pr)
+    {
+        buf[0] = '\0';
+        return FALSE;
+    }
+
+    cli = pr->pr_CLI ? (struct CommandLineInterface *)BADDR(pr->pr_CLI) : NULL;
+    if (!cli)
+    {
+        if (pr->pr_CurrentDir && _dos_NameFromLock(DOSBase, pr->pr_CurrentDir, buf, len))
+            return TRUE;
+
+        buf[0] = '\0';
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return FALSE;
+    }
+
+    return bstr_copy_to_cstr(cli->cli_SetName, buf, len);
 }
 
 BOOL _dos_SetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetProgramName() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct Process *pr;
+    struct CommandLineInterface *cli;
+
+    DPRINTF (LOG_DEBUG, "_dos: SetProgramName() called.\n");
+
+    pr = (struct Process *)FindTask(NULL);
+    if (!pr || !pr->pr_CLI)
+    {
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return FALSE;
+    }
+
+    cli = (struct CommandLineInterface *)BADDR(pr->pr_CLI);
+    if (!cli)
+    {
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return FALSE;
+    }
+
+    return bstr_set_from_cstr(cli->cli_CommandName, name);
 }
 
 BOOL _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -3736,31 +3963,79 @@ BOOL _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
 
     pr = (struct Process *)FindTask(NULL);
     if (!pr || !pr->pr_CLI)
+    {
+        if (buf && len > 0)
+            buf[0] = '\0';
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
         return FALSE;
+    }
 
     cli = (struct CommandLineInterface *)BADDR(pr->pr_CLI);
     if (!cli)
+    {
+        buf[0] = '\0';
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
         return FALSE;
+    }
 
-    return bstr_to_cstr(cli->cli_CommandName, buf, len);
+    return bstr_copy_to_cstr(cli->cli_CommandName, buf, len);
 
 }
 
 BOOL _dos_SetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetPrompt() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct Process *pr;
+    struct CommandLineInterface *cli;
+
+    DPRINTF (LOG_DEBUG, "_dos: SetPrompt() called.\n");
+
+    pr = (struct Process *)FindTask(NULL);
+    if (!pr || !pr->pr_CLI)
+    {
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return FALSE;
+    }
+
+    cli = (struct CommandLineInterface *)BADDR(pr->pr_CLI);
+    if (!cli)
+    {
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return FALSE;
+    }
+
+    return bstr_set_from_cstr(cli->cli_Prompt, name);
 }
 
 BOOL _dos_GetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buf __asm("d1"),
                                                         register LONG len __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: GetPrompt() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct Process *pr;
+    struct CommandLineInterface *cli;
+
+    DPRINTF (LOG_DEBUG, "_dos: GetPrompt() called.\n");
+
+    if (!buf || len <= 0)
+        return FALSE;
+
+    pr = (struct Process *)FindTask(NULL);
+    if (!pr || !pr->pr_CLI)
+    {
+        buf[0] = '\0';
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return FALSE;
+    }
+
+    cli = (struct CommandLineInterface *)BADDR(pr->pr_CLI);
+    if (!cli)
+    {
+        buf[0] = '\0';
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return FALSE;
+    }
+
+    return bstr_copy_to_cstr(cli->cli_Prompt, buf, len);
 }
 
 BPTR _dos_SetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"),
