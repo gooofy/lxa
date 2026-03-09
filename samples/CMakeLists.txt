@@ -197,6 +197,8 @@ set(TESTS_LIST
     "../tests/gadtools/context_refresh|main|Tests/GadTools/ContextRefresh"
     "../tests/gadtools/drawbevelbox|main|Tests/GadTools/DrawBevelBox"
     "../tests/gadtools/gadget_attrs|main|Tests/GadTools/GadgetAttrs"
+    "../tests/gadtools/message_filters|main|Tests/GadTools/MessageFilters"
+    "../tests/gadtools/menu_api|main|Tests/GadTools/MenuAPI"
     "../tests/intuition/boopsi|main|Tests/Intuition/BOOPSI"
     "../tests/intuition/boopsi_ic|main|Tests/Intuition/BOOPSI_IC"
     "../tests/intuition/drawing_helpers|main|Tests/Intuition/DrawingHelpers"

@@ -473,18 +473,18 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `CreateGadgetA` — all current lxa-supported kinds (`BUTTON_KIND`, `CHECKBOX_KIND`, `CYCLE_KIND`, `INTEGER_KIND`, `LISTVIEW_KIND`, `MX_KIND`, `NUMBER_KIND`, `PALETTE_KIND`, `SCROLLER_KIND`, `SLIDER_KIND`, `STRING_KIND`, `TEXT_KIND`) now have direct regression coverage for creation/linkage and kind-specific gadget-class assignment (v0.6.114)
 - [x] `FreeGadgets` — teardown coverage now walks full mixed-kind gadget lists; no public NDK `FreeGadget()` symbol was found in the bundled AmigaOS 3.2 surface, so the roadmap tracks the exported `FreeGadgets()` API instead (v0.6.114)
 - [x] `GT_SetGadgetAttrsA` / `GT_GetGadgetAttrs` — checkbox/cycle/string/integer/slider state round-trips and updates verified with direct regression coverage (v0.6.110)
-- [ ] `GT_ReplyIMsg` / `GT_GetIMsg` — thin wrappers around Intuition IDCMP
-- [ ] `GT_RefreshWindow` — paint gadget list
-- [ ] `GT_BeginRefresh` / `GT_EndRefresh`
-- [ ] `GT_PostFilterIMsg` / `GT_FilterIMsg`
-- [ ] `CreateMenusA` / `FreeMenus` / `LayoutMenuItemsA` / `LayoutMenusA`
+- [x] `GT_ReplyIMsg` / `GT_GetIMsg` — thin wrappers around Intuition IDCMP now have direct regression coverage via `Tests/GadTools/MessageFilters` and interactive event-loop coverage in the GadTools samples (v0.6.115)
+- [x] `GT_RefreshWindow` — window gadget-list refresh path is locked down by `Tests/GadTools/ContextRefresh` and exercised by the RKM-style GadTools samples (v0.6.115)
+- [x] `GT_BeginRefresh` / `GT_EndRefresh` — refresh wrapper semantics now have direct regression coverage via `Tests/GadTools/ContextRefresh` (v0.6.115)
+- [x] `GT_PostFilterIMsg` / `GT_FilterIMsg` — current compatibility passthrough semantics are verified with direct message-wrapper regression coverage (v0.6.115)
+- [x] `CreateMenusA` / `FreeMenus` / `LayoutMenuItemsA` / `LayoutMenusA` — NewMenu validation, user-data storage, menu/item flag propagation, and menu-strip/item layout now have direct regression coverage via `Tests/GadTools/MenuAPI` plus interactive sample coverage in `gadtoolsmenu_gtest` (v0.6.115)
 - [x] `DrawBevelBoxA` — raised/recessed/ridge bevel rendering now runs in the automated GadTools regression driver via `Tests/GadTools/DrawBevelBox` (v0.6.114)
 
 ##### 78-F-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — message wrappers, refresh wrappers, and menu creation/layout helpers now have hosted implementations with direct regression coverage (v0.6.115)
+- [x] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [x] Performance review: identify performance improvement opportunities, add them to phase 79
 
 
 
@@ -912,11 +912,15 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] Layers architecture: separate future private layers state (shape hooks, nested-family bookkeeping, visibility-only metadata) from public `struct Layer` fields so unsupported V50+ semantics can grow without coupling to public layout hacks
 - [ ] Intuition architecture: centralize screen-type classification and Workbench-screen lookup behind shared helpers so Workbench/public-screen paths cannot drift on mixed screen lists
 - [ ] Intuition architecture: separate private screen-order bookkeeping from public `struct Screen` list links so future Workbench/public-screen behavior can grow without overloading public flags semantics
+- [ ] GadTools architecture: factor shared gadget/menu label creation, underscore handling, and pen/font resolution behind reusable helpers so gadget, menu, and bevel rendering paths cannot drift semantically
+- [ ] GadTools architecture: introduce compact private companions for GadTools-owned menu/item metadata instead of overloading public structs with ad-hoc hosted allocations when more V39+ features land
 - [ ] Graphics performance: avoid repeated palette list walks in `ObtainBestPenA()`/`FindColor()` by caching exact-match or nearest-pen hints inside palette-extra state
 - [ ] Graphics performance: skip redundant viewport/display updates when `ScrollVPort()` or `ChangeVPBitMap()` are called with unchanged state
 - [ ] Intuition performance: cache the current Workbench screen pointer or tail/front bookkeeping so `OpenWorkBench()`, `WBenchToFront()`, and `WBenchToBack()` avoid repeated full screen-list scans
 - [ ] Layers performance: avoid full `RebuildAllClipRects()` passes for simple z-order/visibility changes by recomputing only the affected layer span
 - [ ] Layers performance: replace coarse `DamageExposedAreas()` whole-intersection refreshes with exact exposed-rectangle splitting to reduce redundant refresh damage on move/size/delete paths
+- [ ] GadTools performance: cache per-menu/item text extents and derived layout widths so repeated `LayoutMenusA()`/`LayoutMenuItemsA()` calls avoid re-measuring every label and submenu chain
+- [ ] GadTools performance: skip redundant `GT_RefreshWindow()` full-list redraws when attribute updates can identify a single affected gadget or requester subtree
 
 
 ---
@@ -938,4 +942,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-C Review**: Graphics review pass completed; viewport/copper/palette/double-buffer compatibility helpers now have hosted implementations with direct graphics regression coverage and full-suite validation.
 - **Phase 78-D Review**: Layers review pass completed; backdrop-layer z-order/immutability semantics now match the documented RKRM surface with direct layers regression coverage, and remaining architecture/performance follow-ups are tracked in Phase 79.
 - **Phase 78-E Review**: Intuition review pass advanced; `NextObject()`, `WBenchToFront()`, and `WBenchToBack()` now match the documented public behavior with BOOPSI/screen-order regression coverage, and the remaining intuition architecture/performance follow-ups are tracked in Phase 79.
+- **Phase 78-F Review**: GadTools review pass completed; menu creation/layout helpers plus message/refresh wrappers now have hosted compatibility implementations with direct regression coverage, and the remaining GadTools architecture/performance follow-ups are tracked in Phase 79.
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.

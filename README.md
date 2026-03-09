@@ -172,7 +172,7 @@ lxa -d -v myprogram
 - **utility.library**: Tag lists, hooks, utility functions
 - **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill, ScrollRaster, AreaFill, pixel arrays), palette/pen matching coverage via `ObtainPen()`/`ObtainBestPenA()` regressions
 - **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
-- **gadtools.library**: GadTools gadgets (buttons, strings, checkboxes, cycles, sliders, MX)
+- **gadtools.library**: GadTools gadgets (buttons, strings, checkboxes, cycles, sliders, MX), menu layout helpers, and IDCMP/refresh wrapper coverage
 - **asl.library**: File and font requesters
 - **locale.library**: Locale management, FormatDate, FormatString, ParseDate
 - **diskfont.library**: Font loading from FONTS: directory (bitmap .font files)

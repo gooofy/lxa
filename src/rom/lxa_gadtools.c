@@ -1137,6 +1137,195 @@ static void FreeMenuItems(struct MenuItem *item);
 void _gadtools_FreeMenus ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                            register struct Menu *menu __asm("a0") );
 
+static void gt_set_menu_error(struct TagItem *taglist, ULONG code)
+{
+    ULONG *secondary_error;
+
+    secondary_error = (ULONG *)GetTagData(GTMN_SecondaryError, 0, taglist);
+    if (secondary_error)
+        *secondary_error = code;
+}
+
+static BOOL gt_validate_newmenu_array(const struct NewMenu *newmenu)
+{
+    BOOL have_title = FALSE;
+    BOOL have_item = FALSE;
+    UBYTE type;
+
+    if (!newmenu)
+        return FALSE;
+
+    while (newmenu->nm_Type != NM_END)
+    {
+        if (newmenu->nm_Type & NM_IGNORE)
+        {
+            newmenu++;
+            continue;
+        }
+
+        type = newmenu->nm_Type & ~(MENU_IMAGE | NM_IGNORE);
+
+        switch (type)
+        {
+            case NM_TITLE:
+                have_title = TRUE;
+                have_item = FALSE;
+                break;
+
+            case NM_ITEM:
+                if (!have_title)
+                    return FALSE;
+                have_item = TRUE;
+                break;
+
+            case NM_SUB:
+                if (!have_item)
+                    return FALSE;
+                break;
+
+            default:
+                return FALSE;
+        }
+
+        newmenu++;
+    }
+
+    return have_title;
+}
+
+static WORD gt_menu_label_width(CONST_STRPTR label)
+{
+    if (!label || label == NM_BARLABEL)
+        return 0;
+
+    return gt_strlen(label) * 8;
+}
+
+static BOOL gt_is_separator_item(const struct MenuItem *item)
+{
+    struct IntuiText *it;
+
+    if (!item || !(item->Flags & ITEMTEXT) || !item->ItemFill)
+        return FALSE;
+
+    it = (struct IntuiText *)item->ItemFill;
+    if (!it->IText)
+        return FALSE;
+
+    return it->IText[0] == '-';
+}
+
+static WORD gt_measure_menu_item_width(struct MenuItem *item)
+{
+    struct IntuiText *it;
+    WORD width = 16;
+
+    if (!item)
+        return 0;
+
+    if (gt_is_separator_item(item))
+        return 24;
+
+    if ((item->Flags & ITEMTEXT) && item->ItemFill)
+    {
+        it = (struct IntuiText *)item->ItemFill;
+        width += gt_menu_label_width(it->IText);
+    }
+    else if (item->ItemFill)
+    {
+        width += item->Width;
+    }
+
+    if (item->Flags & CHECKIT)
+        width += 12;
+
+    if (item->Flags & COMMSEQ)
+        width += 28;
+
+    if (item->SubItem)
+        width += 12;
+
+    if (width < 40)
+        width = 40;
+
+    return width;
+}
+
+static BOOL gt_layout_menu_item_chain(struct MenuItem *firstitem, WORD left_edge,
+                                      struct TextAttr *textattr, UBYTE front_pen,
+                                      WORD *out_width, WORD *out_height)
+{
+    struct MenuItem *item;
+    struct IntuiText *it;
+    WORD max_width = 0;
+    WORD y = 0;
+
+    if (!firstitem)
+    {
+        if (out_width)
+            *out_width = 0;
+        if (out_height)
+            *out_height = 0;
+        return TRUE;
+    }
+
+    for (item = firstitem; item; item = item->NextItem)
+    {
+        WORD needed = gt_measure_menu_item_width(item);
+        if (needed > max_width)
+            max_width = needed;
+    }
+
+    if (max_width == 0)
+        max_width = 40;
+
+    for (item = firstitem; item; item = item->NextItem)
+    {
+        item->LeftEdge = left_edge;
+        item->TopEdge = y;
+        item->Width = max_width;
+
+        if (item->Height <= 0)
+            item->Height = gt_is_separator_item(item) ? 6 : 10;
+
+        if ((item->Flags & ITEMTEXT) && item->ItemFill)
+        {
+            it = (struct IntuiText *)item->ItemFill;
+            it->FrontPen = front_pen;
+            it->ITextFont = textattr;
+            if (gt_is_separator_item(item))
+            {
+                it->LeftEdge = 2;
+                it->TopEdge = 0;
+            }
+            else
+            {
+                it->LeftEdge = (item->Flags & CHECKIT) ? 14 : 2;
+                it->TopEdge = 1;
+            }
+        }
+
+        if (item->SubItem)
+        {
+            WORD dummy_width;
+            WORD dummy_height;
+
+            if (!gt_layout_menu_item_chain(item->SubItem, max_width, textattr,
+                                           front_pen, &dummy_width, &dummy_height))
+                return FALSE;
+        }
+
+        y += item->Height;
+    }
+
+    if (out_width)
+        *out_width = max_width;
+    if (out_height)
+        *out_height = y;
+
+    return TRUE;
+}
+
 /* CreateMenusA - Create menus from NewMenu array
  *
  * Parses the NewMenu array and creates the corresponding Menu and MenuItem
@@ -1156,28 +1345,30 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
     struct IntuiText *itext;
     struct NewMenu *nm;
     WORD menuLeft = 0;
+    BOOL menu_image;
 
     DPRINTF (LOG_DEBUG, "_gadtools: CreateMenusA() newmenu=0x%08lx\n", (ULONG)newmenu);
 
     if (!newmenu)
         return NULL;
 
-    /* First pass: count entries and validate */
-    for (nm = newmenu; nm->nm_Type != NM_END; nm++) {
-        if (nm->nm_Type == NM_IGNORE)
-            continue;
-        /* Just validate we have at least one menu title */
-        if (nm->nm_Type == NM_TITLE && firstMenu == NULL) {
-            /* Will create first menu */
-        }
+    gt_set_menu_error(taglist, 0);
+
+    if (!gt_validate_newmenu_array(newmenu))
+    {
+        gt_set_menu_error(taglist, GTMENU_INVALID);
+        return NULL;
     }
 
     /* Second pass: create the menu structures */
     for (nm = newmenu; nm->nm_Type != NM_END; nm++) {
-        UBYTE type = nm->nm_Type & ~MENU_IMAGE;  /* Strip image flag */
+        UBYTE type;
 
-        if (nm->nm_Type == NM_IGNORE)
+        if (nm->nm_Type & NM_IGNORE)
             continue;
+
+        menu_image = ((nm->nm_Type & MENU_IMAGE) != 0);
+        type = nm->nm_Type & ~(MENU_IMAGE | NM_IGNORE);
 
         DPRINTF (LOG_DEBUG, "_gadtools: CreateMenusA: type=%d label='%s'\n",
                  type, nm->nm_Label ? (nm->nm_Label == (STRPTR)-1 ? "(bar)" : (char*)nm->nm_Label) : "(null)");
@@ -1185,9 +1376,10 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
         switch (type) {
             case NM_TITLE: {
                 /* Create a new Menu structure */
-                struct Menu *menu = AllocMem(sizeof(struct Menu), MEMF_CLEAR | MEMF_PUBLIC);
+                struct Menu *menu = AllocMem(sizeof(struct Menu) + sizeof(APTR), MEMF_CLEAR | MEMF_PUBLIC);
                 if (!menu) {
                     /* Out of memory - free what we have and return NULL */
+                    gt_set_menu_error(taglist, GTMENU_NOMEM);
                     if (firstMenu)
                         _gadtools_FreeMenus(GadToolsBase, firstMenu);
                     return NULL;
@@ -1221,6 +1413,7 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                 } else if (lastMenu) {
                     lastMenu->NextMenu = menu;
                 }
+                GTMENU_USERDATA(menu) = nm->nm_UserData;
                 lastMenu = menu;
                 currentMenu = menu;
                 currentItem = NULL;
@@ -1235,11 +1428,15 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
 
                 if (!currentMenu) {
                     DPRINTF (LOG_ERROR, "_gadtools: CreateMenusA: NM_ITEM without NM_TITLE!\n");
-                    continue;
+                    gt_set_menu_error(taglist, GTMENU_INVALID);
+                    if (firstMenu)
+                        _gadtools_FreeMenus(GadToolsBase, firstMenu);
+                    return NULL;
                 }
 
-                item = AllocMem(sizeof(struct MenuItem), MEMF_CLEAR | MEMF_PUBLIC);
+                item = AllocMem(sizeof(struct MenuItem) + sizeof(APTR), MEMF_CLEAR | MEMF_PUBLIC);
                 if (!item) {
+                    gt_set_menu_error(taglist, GTMENU_NOMEM);
                     if (firstMenu)
                         _gadtools_FreeMenus(GadToolsBase, firstMenu);
                     return NULL;
@@ -1272,6 +1469,9 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                     item->ItemFill = itext;
                     item->Flags &= ~ITEMENABLED;  /* Separators are not selectable */
                     item->Height = 6;  /* Shorter height for separators */
+                } else if (menu_image) {
+                    item->ItemFill = (APTR)nm->nm_Label;
+                    item->Flags &= ~ITEMTEXT;
                 } else {
                     /* Create IntuiText for the label */
                     itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
@@ -1316,6 +1516,7 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                 } else if (lastItem) {
                     lastItem->NextItem = item;
                 }
+                GTMENUITEM_USERDATA(item) = nm->nm_UserData;
                 lastItem = item;
                 currentItem = item;
                 lastSubItem = NULL;
@@ -1328,11 +1529,15 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
 
                 if (!currentItem) {
                     DPRINTF (LOG_ERROR, "_gadtools: CreateMenusA: NM_SUB without NM_ITEM!\n");
-                    continue;
+                    gt_set_menu_error(taglist, GTMENU_INVALID);
+                    if (firstMenu)
+                        _gadtools_FreeMenus(GadToolsBase, firstMenu);
+                    return NULL;
                 }
 
-                subitem = AllocMem(sizeof(struct MenuItem), MEMF_CLEAR | MEMF_PUBLIC);
+                subitem = AllocMem(sizeof(struct MenuItem) + sizeof(APTR), MEMF_CLEAR | MEMF_PUBLIC);
                 if (!subitem) {
+                    gt_set_menu_error(taglist, GTMENU_NOMEM);
                     if (firstMenu)
                         _gadtools_FreeMenus(GadToolsBase, firstMenu);
                     return NULL;
@@ -1360,6 +1565,9 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                     subitem->ItemFill = itext;
                     subitem->Flags &= ~ITEMENABLED;
                     subitem->Height = 6;
+                } else if (menu_image) {
+                    subitem->ItemFill = (APTR)nm->nm_Label;
+                    subitem->Flags &= ~ITEMTEXT;
                 } else {
                     itext = AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
                     if (itext) {
@@ -1397,6 +1605,7 @@ struct Menu * _gadtools_CreateMenusA ( register struct GadToolsBase *GadToolsBas
                 } else if (lastSubItem) {
                     lastSubItem->NextItem = subitem;
                 }
+                GTMENUITEM_USERDATA(subitem) = nm->nm_UserData;
                 lastSubItem = subitem;
                 break;
             }
@@ -1423,7 +1632,7 @@ static void FreeMenuItems(struct MenuItem *item)
             FreeMem(item->ItemFill, sizeof(struct IntuiText));
         }
 
-        FreeMem(item, sizeof(struct MenuItem));
+        FreeMem(item, sizeof(struct MenuItem) + sizeof(APTR));
         item = next;
     }
 }
@@ -1443,7 +1652,7 @@ void _gadtools_FreeMenus ( register struct GadToolsBase *GadToolsBase __asm("a6"
         }
 
         /* Free the menu itself */
-        FreeMem(menu, sizeof(struct Menu));
+        FreeMem(menu, sizeof(struct Menu) + sizeof(APTR));
         menu = nextMenu;
     }
 }
@@ -1454,8 +1663,29 @@ BOOL _gadtools_LayoutMenuItemsA ( register struct GadToolsBase *GadToolsBase __a
                                   register APTR vi __asm("a1"),
                                   register struct TagItem *taglist __asm("a2") )
 {
+    struct TextAttr *textattr;
+    struct VisualInfo *visual_info;
+    UBYTE front_pen;
+    WORD width;
+    WORD height;
+
     DPRINTF (LOG_DEBUG, "_gadtools: LayoutMenuItemsA()\n");
-    return TRUE;
+
+    if (!firstitem)
+        return FALSE;
+
+    textattr = (struct TextAttr *)GetTagData(GTMN_TextAttr, 0, taglist);
+    if (!textattr && vi)
+    {
+        visual_info = (struct VisualInfo *)vi;
+        if (visual_info->vi_Screen)
+            textattr = visual_info->vi_Screen->Font;
+    }
+
+    front_pen = (UBYTE)GetTagData(GTMN_FrontPen, 0, taglist);
+
+    return gt_layout_menu_item_chain(firstitem, 0, textattr, front_pen,
+                                     &width, &height);
 }
 
 /* LayoutMenusA - Layout entire menu structure */
@@ -1464,7 +1694,47 @@ BOOL _gadtools_LayoutMenusA ( register struct GadToolsBase *GadToolsBase __asm("
                               register APTR vi __asm("a1"),
                               register struct TagItem *taglist __asm("a2") )
 {
+    struct Menu *menu;
+    struct VisualInfo *visual_info;
+    struct Screen *screen = NULL;
+    struct TextAttr *textattr;
+    WORD left = 0;
+    WORD width;
+    WORD height;
+
     DPRINTF (LOG_DEBUG, "_gadtools: LayoutMenusA()\n");
+
+    if (!firstmenu)
+        return FALSE;
+
+    visual_info = (struct VisualInfo *)vi;
+    if (visual_info)
+        screen = visual_info->vi_Screen;
+
+    textattr = (struct TextAttr *)GetTagData(GTMN_TextAttr, 0, taglist);
+    if (!textattr && screen)
+        textattr = screen->Font;
+
+    for (menu = firstmenu; menu; menu = menu->NextMenu)
+    {
+        menu->LeftEdge = left;
+        menu->TopEdge = 0;
+        menu->Height = screen ? (screen->BarHeight + 1) : 10;
+        menu->Width = gt_menu_label_width(menu->MenuName) + 16;
+        if (menu->Width < 24)
+            menu->Width = 24;
+
+        if (menu->FirstItem)
+        {
+            if (!gt_layout_menu_item_chain(menu->FirstItem, 0, textattr,
+                                           (UBYTE)GetTagData(GTMN_FrontPen, 0, taglist),
+                                           &width, &height))
+                return FALSE;
+        }
+
+        left += menu->Width;
+    }
+
     return TRUE;
 }
 

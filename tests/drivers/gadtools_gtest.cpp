@@ -31,6 +31,14 @@ TEST_F(GadToolsTest, DrawBevelBox) {
     RunGadToolsTest("DrawBevelBox");
 }
 
+TEST_F(GadToolsTest, MenuAPI) {
+    RunGadToolsTest("MenuAPI");
+}
+
+TEST_F(GadToolsTest, MessageFilters) {
+    RunGadToolsTest("MessageFilters");
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
