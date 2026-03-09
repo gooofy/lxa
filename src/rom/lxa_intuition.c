@@ -6272,6 +6272,12 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         }
     }
 
+    if (window->Flags & WFLG_GIMMEZEROZERO)
+    {
+        window->GZZWidth = window->Width - window->BorderLeft - window->BorderRight;
+        window->GZZHeight = window->Height - window->BorderTop - window->BorderBottom;
+    }
+
     /* Create a Layer for this window so graphics operations use proper coordinate offsets */
     {
         struct Layer *layer;
@@ -6829,6 +6835,12 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
     /* Update Window structure */
     window->Width = new_w;
     window->Height = new_h;
+
+    if (window->Flags & WFLG_GIMMEZEROZERO)
+    {
+        window->GZZWidth = window->Width - window->BorderLeft - window->BorderRight;
+        window->GZZHeight = window->Height - window->BorderTop - window->BorderBottom;
+    }
 
     /* Update Layer if present */
     if (window->WLayer && LayersBase)
@@ -9427,6 +9439,18 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                     else
                         nw.Flags &= ~WFLG_SIZEGADGET;
                     break;
+                case WA_SizeBRight:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_SIZEBRIGHT;
+                    else
+                        nw.Flags &= ~WFLG_SIZEBRIGHT;
+                    break;
+                case WA_SizeBBottom:
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_SIZEBBOTTOM;
+                    else
+                        nw.Flags &= ~WFLG_SIZEBBOTTOM;
+                    break;
                 case WA_DragBar:
                     if (tag->ti_Data)
                         nw.Flags |= WFLG_DRAGBAR;
@@ -9562,6 +9586,17 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                     break;
                 screen = screen->NextScreen;
             }
+
+            if (!screen && _intuition_OpenWorkBench(IntuitionBase))
+            {
+                screen = IntuitionBase->FirstScreen;
+                while (screen)
+                {
+                    if (screen->Flags & WBENCHSCREEN)
+                        break;
+                    screen = screen->NextScreen;
+                }
+            }
         }
 
         if (screen)
@@ -9583,6 +9618,19 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                     border_top = screen->WBorTop;
                 else
                     border_top = screen->WBorBottom;
+
+                if (nw.Flags & WFLG_SIZEGADGET)
+                {
+                    BOOL sizeBBottom = (nw.Flags & WFLG_SIZEBBOTTOM) ||
+                                       !(nw.Flags & WFLG_SIZEBRIGHT);
+                    BOOL sizeBRight = (nw.Flags & WFLG_SIZEBRIGHT) ||
+                                      !(nw.Flags & WFLG_SIZEBBOTTOM);
+
+                    if (sizeBBottom && border_bottom < SYS_GADGET_HEIGHT)
+                        border_bottom = SYS_GADGET_HEIGHT;
+                    if (sizeBRight && border_right < SYS_GADGET_WIDTH)
+                        border_right = SYS_GADGET_WIDTH;
+                }
             }
 
             if (inner_width >= 0)
