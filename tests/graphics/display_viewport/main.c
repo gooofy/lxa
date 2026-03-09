@@ -115,6 +115,9 @@ int main(void)
     struct DimensionInfo dims;
     struct MonitorInfo mon;
     struct NameInfo name;
+    struct UCopList ucl;
+    struct CopList *ucl_list;
+    struct DBufInfo *dbi = NULL;
     ULONG result;
     ULONG ids[8];
     ULONG display_id;
@@ -332,6 +335,27 @@ int main(void)
         print("OK: MakeVPort() built placeholder copper list\n");
     }
 
+    fill_bytes(&ucl, 0, sizeof(ucl));
+    ucl_list = UCopperListInit(&ucl, 4);
+    if (!ucl_list || ucl.FirstCopList != ucl_list || ucl.CopList != ucl_list ||
+        ucl_list->MaxCount != 4 || ucl_list->CopPtr != ucl_list->CopIns)
+    {
+        print("FAIL: UCopperListInit() did not initialize UCopList state\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: UCopperListInit() initialized UCopList state\n");
+    }
+
+    if (ucl.FirstCopList)
+    {
+        FreeMem(ucl.FirstCopList->CopIns, 4 * sizeof(struct CopIns));
+        FreeMem(ucl.FirstCopList, sizeof(struct CopList));
+        ucl.FirstCopList = NULL;
+        ucl.CopList = NULL;
+    }
+
     result = MrgCop(&view);
     if (result != MVP_OK || view.LOFCprList == NULL || view.SHFCprList == NULL)
     {
@@ -373,6 +397,59 @@ int main(void)
         print("OK: LoadView() updated ActiView\n");
     }
     LoadView(old_view);
+
+    dbi = AllocDBufInfo(&vp);
+    if (!dbi)
+    {
+        print("FAIL: AllocDBufInfo() returned NULL\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: AllocDBufInfo() allocated DBufInfo\n");
+        ChangeVPBitMap(&vp, bm, dbi);
+        if (vp.RasInfo->BitMap != bm)
+        {
+            print("FAIL: ChangeVPBitMap() did not update RasInfo bitmap\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: ChangeVPBitMap() updated RasInfo bitmap\n");
+        }
+        FreeDBufInfo(dbi);
+        dbi = NULL;
+    }
+
+    vp.DxOffset = 12;
+    vp.DyOffset = 34;
+    if (cm->cm_vpe)
+    {
+        ScrollVPort(&vp);
+        if (cm->cm_vpe->Origin[0].x != 12 || cm->cm_vpe->Origin[0].y != 34)
+        {
+            print("FAIL: ScrollVPort() did not track viewport origin\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: ScrollVPort() tracked viewport origin\n");
+        }
+    }
+
+    result = CoerceMode(&vp, PAL_MONITOR_ID, 0);
+    if (result != (PAL_MONITOR_ID | HIRES_KEY))
+    {
+        print("FAIL: CoerceMode() returned unexpected mode\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: CoerceMode() returned expected mode\n");
+    }
+
+    WaitBOVP(&vp);
+    print("OK: WaitBOVP() returned without blocking\n");
 
     if (FindDisplayInfo(INVALID_ID) != NULL || FindDisplayInfo(0x00F00000) != NULL)
     {

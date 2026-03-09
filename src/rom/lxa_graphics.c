@@ -175,6 +175,13 @@ static VOID _graphics_SetRGB32CM ( register struct GfxBase * GfxBase __asm("a6")
                                    register ULONG r __asm("d1"),
                                    register ULONG g __asm("d2"),
                                    register ULONG b __asm("d3"));
+static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6"),
+                                                        register struct ColorMap * cm __asm("a0"),
+                                                        register ULONG n __asm("d0"),
+                                                        register ULONG r __asm("d1"),
+                                                        register ULONG g __asm("d2"),
+                                                        register ULONG b __asm("d3"),
+                                                        register LONG f __asm("d4"));
 
 #define GRAPHICS_PEN_NONE ((UWORD)0xFFFF)
 
@@ -4231,8 +4238,8 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
 static VOID _graphics_WaitBOVP ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: WaitBOVP() unimplemented STUB called.\n");
-    assert(FALSE);
+    (void)GfxBase;
+    (void)vp;
 }
 
 static WORD _graphics_GetSprite ( register struct GfxBase * GfxBase __asm("a6"),
@@ -5295,17 +5302,57 @@ static ULONG _graphics_GetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_ScrollVPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ScrollVPort() unimplemented STUB called.\n");
-    assert(FALSE);
+    (void)GfxBase;
+
+    if (!vp)
+        return;
+
+    if (vp->ColorMap && vp->ColorMap->cm_vpe)
+    {
+        struct ViewPortExtra *vpe = vp->ColorMap->cm_vpe;
+
+        vpe->Origin[0].x = vp->DxOffset;
+        vpe->Origin[0].y = vp->DyOffset;
+        vpe->Origin[1].x = vp->DxOffset;
+        vpe->Origin[1].y = vp->DyOffset;
+    }
 }
 
 static struct CopList * _graphics_UCopperListInit ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct UCopList * uCopList __asm("a0"),
                                                         register LONG n __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: UCopperListInit() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct CopList *copList;
+
+    (void)GfxBase;
+
+    if (!uCopList || n < 0)
+        return NULL;
+
+    if (uCopList->FirstCopList && uCopList->FirstCopList->MaxCount != 0 && uCopList->FirstCopList->CopIns)
+    {
+        uCopList->FirstCopList->Count = uCopList->FirstCopList->MaxCount;
+        uCopList->FirstCopList->CopPtr = uCopList->FirstCopList->CopIns;
+        return uCopList->FirstCopList;
+    }
+
+    copList = (struct CopList *)AllocMem(sizeof(struct CopList), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!copList)
+        return NULL;
+
+    copList->MaxCount = (WORD)n;
+    copList->Count = (WORD)n;
+    copList->CopIns = (struct CopIns *)AllocMem((ULONG)n * sizeof(struct CopIns), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!copList->CopIns)
+    {
+        FreeMem(copList, sizeof(struct CopList));
+        return NULL;
+    }
+
+    copList->CopPtr = copList->CopIns;
+    uCopList->FirstCopList = copList;
+    uCopList->CopList = copList;
+    return copList;
 }
 
 static VOID _graphics_FreeGBuffers ( register struct GfxBase * GfxBase __asm("a6"),
@@ -6940,9 +6987,61 @@ static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("
                                                         register ULONG b __asm("d3"),
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ObtainBestPenA() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct PaletteExtra *pe;
+    LONG retval = -1;
+    ULONG best_distance = (ULONG)-1;
+    ULONG precision;
+    ULONG fail_if_bad;
+    UWORD pen;
+
+    if (!cm || !cm->PalExtra)
+        return -1;
+
+    precision = GetTagData(OBP_Precision, PRECISION_IMAGE, (struct TagItem *)tags);
+    fail_if_bad = GetTagData(OBP_FailIfBad, FALSE, (struct TagItem *)tags);
+    pe = cm->PalExtra;
+
+    ObtainSemaphore(&pe->pe_Semaphore);
+
+    pen = pe->pe_FirstShared;
+    while (pen != GRAPHICS_PEN_NONE)
+    {
+        ULONG distance = graphics_color_distance(cm, r, g, b, pen);
+
+        if (distance < best_distance)
+        {
+            best_distance = distance;
+            retval = pen;
+        }
+
+        pen = graphics_palette_alloc_list(pe)[pen];
+    }
+
+    if ((retval == -1) ||
+        ((LONG)precision == PRECISION_EXACT && best_distance != 0) ||
+        (best_distance * pe->pe_NFree > (precision * precision) * pe->pe_SharableColors))
+    {
+        LONG tmp = _graphics_ObtainPen(GfxBase, cm, (ULONG)-1, r, g, b, 0);
+
+        if (tmp == -1)
+        {
+            if (fail_if_bad)
+                retval = -1;
+            else if (retval != -1)
+                graphics_palette_ref_counts(pe)[retval]++;
+        }
+        else
+        {
+            retval = tmp;
+        }
+    }
+    else
+    {
+        graphics_palette_ref_counts(pe)[retval]++;
+    }
+
+    ReleaseSemaphore(&pe->pe_Semaphore);
+    return retval;
 }
 
 static VOID _graphics_private6 ( register struct GfxBase * GfxBase __asm("a6"))
@@ -7295,9 +7394,21 @@ static ULONG _graphics_CoerceMode ( register struct GfxBase * GfxBase __asm("a6"
                                                         register ULONG monitorid __asm("d0"),
                                                         register ULONG flags __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: CoerceMode() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    ULONG base_monitor;
+    ULONG mode;
+
+    (void)GfxBase;
+    (void)flags;
+
+    if (!vp)
+        return INVALID_ID;
+
+    base_monitor = monitorid & MONITOR_ID_MASK;
+    if (base_monitor == 0)
+        base_monitor = PAL_MONITOR_ID;
+
+    mode = (vp->Modes & HIRES) ? HIRES_KEY : LORES_KEY;
+    return base_monitor | mode;
 }
 
 static VOID _graphics_ChangeVPBitMap ( register struct GfxBase * GfxBase __asm("a6"),
@@ -7305,8 +7416,16 @@ static VOID _graphics_ChangeVPBitMap ( register struct GfxBase * GfxBase __asm("
                                                         register struct BitMap * bm __asm("a1"),
                                                         register struct DBufInfo * db __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ChangeVPBitMap() unimplemented STUB called.\n");
-    assert(FALSE);
+    if (!vp || !vp->RasInfo || !bm)
+        return;
+
+    vp->RasInfo->BitMap = bm;
+
+    if (db)
+    {
+        ReplyMsg(&db->dbi_SafeMessage);
+        ReplyMsg(&db->dbi_DispMessage);
+    }
 }
 
 static VOID _graphics_ReleasePen ( register struct GfxBase * GfxBase __asm("a6"),
@@ -7509,16 +7628,17 @@ static ULONG _graphics_GetBitMapAttr ( register struct GfxBase * GfxBase __asm("
 static struct DBufInfo * _graphics_AllocDBufInfo ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AllocDBufInfo() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    (void)GfxBase;
+    (void)vp;
+    return (struct DBufInfo *)AllocMem(sizeof(struct DBufInfo), MEMF_PUBLIC | MEMF_CLEAR);
 }
 
 static VOID _graphics_FreeDBufInfo ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct DBufInfo * dbi __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FreeDBufInfo() unimplemented STUB called.\n");
-    assert(FALSE);
+    (void)GfxBase;
+    if (dbi)
+        FreeMem(dbi, sizeof(struct DBufInfo));
 }
 
 static ULONG _graphics_SetOutlinePen ( register struct GfxBase * GfxBase __asm("a6"),
@@ -7564,8 +7684,21 @@ static VOID _graphics_SetMaxPen ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a0"),
                                                         register ULONG maxpen __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetMaxPen() unimplemented STUB called.\n");
-    assert(FALSE);
+    UBYTE mask;
+
+    (void)GfxBase;
+
+    if (!rp || maxpen == 0)
+        return;
+
+    mask = 0;
+    while ((UBYTE)maxpen != 0)
+    {
+        maxpen >>= 1;
+        mask = (mask << 1) | 0x01;
+    }
+
+    rp->Mask = mask;
 }
 
 static VOID _graphics_SetRGB32CM ( register struct GfxBase * GfxBase __asm("a6"),

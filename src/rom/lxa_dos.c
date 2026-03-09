@@ -2,6 +2,7 @@
 //#include <exec/memory.h>
 //#include <exec/libraries.h>
 #include <exec/execbase.h>
+#include <exec/alerts.h>
 #include <exec/resident.h>
 #include <exec/initializers.h>
 #include <exec/io.h>
@@ -141,6 +142,17 @@ static void lxa_dos_runcommand_exit_cleanup(LONG return_code, LONG exit_data)
 LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register CONST_STRPTR command  __asm("d1"),
                                     register const struct TagItem * tags __asm("d2"));
+
+struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                        register CONST_STRPTR name __asm("d1"),
+                                                        register struct DevProc * dp __asm("d2"));
+VOID _dos_FreeDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                        register struct DevProc * dp __asm("d1"));
+VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                        register struct DosPacket * dp __asm("d1"),
+                                                        register struct MsgPort * port __asm("d2"),
+                                                        register struct MsgPort * replyport __asm("d3"));
+struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * DOSBase __asm("a6"));
 
 /* Forward declaration for variable functions */
 struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2214,9 +2226,28 @@ void _dos_NoReqLoadSeg (register struct DosLibrary * __libBase __asm("a6"),
 struct MsgPort * _dos_DeviceProc ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: DeviceProc unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct DevProc *dvp;
+    struct MsgPort *result = NULL;
+    LONG ioerr = ERROR_DEVICE_NOT_MOUNTED;
+
+    dvp = _dos_GetDeviceProc(__libBase, ___name, NULL);
+    if (!dvp)
+        return NULL;
+
+    if (dvp->dvp_Flags & DVPF_UNLOCK)
+    {
+        result = NULL;
+        ioerr = ERROR_DEVICE_NOT_MOUNTED;
+    }
+    else
+    {
+        result = dvp->dvp_Port;
+        ioerr = (LONG)dvp->dvp_Lock;
+    }
+
+    _dos_FreeDeviceProc(__libBase, dvp);
+    SetIoErr(ioerr);
+    return result;
 }
 
 LONG _dos_SetComment ( register struct DosLibrary * __libBase __asm("a6"),
@@ -2796,9 +2827,59 @@ LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG arg4 __asm("d6"),
                                                         register LONG arg5 __asm("d7"))
 {
-    LPRINTF (LOG_ERROR, "_dos: DoPkt() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct StandardPacket *sp;
+    struct MsgPort *replyport;
+    struct DosPacket *reply;
+    LONG res;
+
+    if (!port)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    sp = (struct StandardPacket *)AllocDosObject(DOS_STDPKT, NULL);
+    if (!sp)
+        return DOSFALSE;
+
+    if (me && me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
+    {
+        replyport = &me->pr_MsgPort;
+    }
+    else
+    {
+        replyport = CreateMsgPort();
+        if (!replyport)
+        {
+            FreeDosObject(DOS_STDPKT, sp);
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return DOSFALSE;
+        }
+    }
+
+    sp->sp_Pkt.dp_Type = action;
+    sp->sp_Pkt.dp_Arg1 = arg1;
+    sp->sp_Pkt.dp_Arg2 = arg2;
+    sp->sp_Pkt.dp_Arg3 = arg3;
+    sp->sp_Pkt.dp_Arg4 = arg4;
+    sp->sp_Pkt.dp_Arg5 = arg5;
+    sp->sp_Pkt.dp_Res1 = 0;
+    sp->sp_Pkt.dp_Res2 = 0;
+
+    _dos_SendPkt(DOSBase, &sp->sp_Pkt, port, replyport);
+    reply = _dos_WaitPkt(DOSBase);
+    if (reply != &sp->sp_Pkt)
+        Alert(AN_AsyncPkt);
+
+    res = sp->sp_Pkt.dp_Res1;
+    if (me && me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
+        me->pr_Result2 = sp->sp_Pkt.dp_Res2;
+    else
+        DeleteMsgPort(replyport);
+
+    FreeDosObject(DOS_STDPKT, sp);
+    return res;
 }
 
 VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2806,15 +2887,40 @@ VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct MsgPort * port __asm("d2"),
                                                         register struct MsgPort * replyport __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SendPkt() unimplemented STUB called.\n");
-    assert(FALSE);
+    if (!dp || !port || !replyport || !dp->dp_Link)
+        return;
+
+    dp->dp_Port = replyport;
+    dp->dp_Link->mn_ReplyPort = replyport;
+    PutMsg(port, dp->dp_Link);
 }
 
 struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: WaitPkt() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct MsgPort *msgPort;
+    struct Message *msg = NULL;
+
+    if (!me || me->pr_Task.tc_Node.ln_Type != NT_PROCESS)
+        return NULL;
+
+    msgPort = &me->pr_MsgPort;
+
+    if (me->pr_PktWait)
+    {
+        typedef struct Message *(*pktwait_fn_t)(register APTR __asm("a0"), register struct MsgPort * __asm("a1"), register struct ExecBase * __asm("a6"));
+        pktwait_fn_t waitfn = (pktwait_fn_t)me->pr_PktWait;
+        msg = waitfn(me->pr_PktWait, msgPort, SysBase);
+    }
+
+    while (!msg)
+    {
+        msg = GetMsg(msgPort);
+        if (!msg)
+            Wait(1UL << msgPort->mp_SigBit);
+    }
+
+    return (struct DosPacket *)msg->mn_Node.ln_Name;
 }
 
 VOID _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2822,16 +2928,29 @@ VOID _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG res1 __asm("d2"),
                                                         register LONG res2 __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: ReplyPkt() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct MsgPort *replyport;
+    struct Message *msg;
+
+    if (!dp || !dp->dp_Link || !dp->dp_Port)
+        return;
+
+    replyport = dp->dp_Port;
+    msg = dp->dp_Link;
+    msg->mn_Node.ln_Name = (char *)dp;
+    dp->dp_Port = me ? &me->pr_MsgPort : NULL;
+    dp->dp_Res1 = res1;
+    dp->dp_Res2 = res2;
+    PutMsg(replyport, msg);
 }
 
 VOID _dos_AbortPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct MsgPort * port __asm("d1"),
                                                         register struct DosPacket * pkt __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: AbortPkt() unimplemented STUB called.\n");
-    assert(FALSE);
+    (void)DOSBase;
+    (void)port;
+    (void)pkt;
 }
 
 BOOL _dos_LockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -4518,9 +4637,15 @@ BOOL _dos_GetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
 BPTR _dos_SetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetProgramDir() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct Process *pr = (struct Process *)FindTask(NULL);
+    BPTR old_lock;
+
+    if (!pr)
+        return 0;
+
+    old_lock = pr->pr_HomeDir;
+    pr->pr_HomeDir = lock;
+    return old_lock;
 }
 
 BPTR _dos_GetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"))

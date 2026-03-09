@@ -143,6 +143,105 @@ static struct ClipRect *AllocClipRect(struct Layer_Info *li)
     return cr;
 }
 
+static BOOL IsBackdropLayer(const struct Layer *layer)
+{
+    return layer && ((layer->Flags & LAYERBACKDROP) != 0);
+}
+
+static struct Layer *FindBackmostLayer(struct Layer_Info *li)
+{
+    struct Layer *layer;
+
+    if (!li)
+        return NULL;
+
+    layer = li->top_layer;
+    while (layer && layer->back)
+        layer = layer->back;
+
+    return layer;
+}
+
+static struct Layer *FindFrontmostBackdrop(struct Layer_Info *li)
+{
+    struct Layer *layer;
+
+    if (!li)
+        return NULL;
+
+    layer = li->top_layer;
+    while (layer)
+    {
+        if (IsBackdropLayer(layer))
+            return layer;
+        layer = layer->back;
+    }
+
+    return NULL;
+}
+
+static void UnlinkLayerFromInfo(struct Layer_Info *li, struct Layer *layer)
+{
+    if (!li || !layer)
+        return;
+
+    if (layer->front)
+        layer->front->back = layer->back;
+    else
+        li->top_layer = layer->back;
+
+    if (layer->back)
+        layer->back->front = layer->front;
+
+    layer->front = NULL;
+    layer->back = NULL;
+}
+
+static void InsertLayerAtFront(struct Layer_Info *li, struct Layer *layer)
+{
+    if (!li || !layer)
+        return;
+
+    layer->front = NULL;
+    layer->back = li->top_layer;
+    if (li->top_layer)
+        li->top_layer->front = layer;
+    li->top_layer = layer;
+}
+
+static void InsertLayerInFrontOf(struct Layer_Info *li, struct Layer *layer, struct Layer *other)
+{
+    struct Layer *backmost;
+
+    if (!li || !layer)
+        return;
+
+    if (!other)
+    {
+        backmost = FindBackmostLayer(li);
+        if (!backmost)
+        {
+            li->top_layer = layer;
+            layer->front = NULL;
+            layer->back = NULL;
+            return;
+        }
+
+        layer->front = backmost;
+        layer->back = NULL;
+        backmost->back = layer;
+        return;
+    }
+
+    layer->back = other;
+    layer->front = other->front;
+    if (other->front)
+        other->front->back = layer;
+    else
+        li->top_layer = layer;
+    other->front = layer;
+}
+
 /*
  * Return a ClipRect to the Layer_Info pool
  */
@@ -709,6 +808,8 @@ static struct Layer * CreateLayerInternal ( struct LayersBase  *LayersBase,
                                             struct BitMap      *bm2,
                                             BOOL                in_front)
 {
+    struct Layer *first_backdrop;
+
     DPRINTF(LOG_DEBUG, "_layers: CreateLayerInternal() [%ld,%ld]-[%ld,%ld] flags=0x%lx front=%d\n",
             x0, y0, x1, y1, flags, in_front);
 
@@ -762,41 +863,35 @@ static struct Layer * CreateLayerInternal ( struct LayersBase  *LayersBase,
     /* Insert into layer list */
     ObtainSemaphore(&li->Lock);
 
-    if (in_front)
+    first_backdrop = FindFrontmostBackdrop(li);
+    if (!li->top_layer)
     {
-        /* Insert at front (top) */
-        layer->back = li->top_layer;
-        layer->front = NULL;
-
-        if (li->top_layer)
-        {
-            li->top_layer->front = layer;
-        }
         li->top_layer = layer;
+        layer->front = NULL;
+        layer->back = NULL;
     }
-    else
+    else if (in_front)
     {
-        /* Insert at back (bottom) */
-        if (!li->top_layer)
+        if (IsBackdropLayer(layer))
         {
-            /* First layer */
-            li->top_layer = layer;
-            layer->front = NULL;
-            layer->back = NULL;
+            if (first_backdrop)
+                InsertLayerInFrontOf(li, layer, first_backdrop);
+            else
+                InsertLayerInFrontOf(li, layer, NULL);
         }
         else
         {
-            /* Find the backmost layer */
-            struct Layer *back = li->top_layer;
-            while (back->back)
-            {
-                back = back->back;
-            }
-
-            layer->front = back;
-            layer->back = NULL;
-            back->back = layer;
+            InsertLayerAtFront(li, layer);
         }
+    }
+    else
+    {
+        if (IsBackdropLayer(layer))
+            InsertLayerInFrontOf(li, layer, NULL);
+        else if (first_backdrop)
+            InsertLayerInFrontOf(li, layer, first_backdrop);
+        else
+            InsertLayerInFrontOf(li, layer, NULL);
     }
 
     /* Build initial ClipRects */
@@ -938,6 +1033,8 @@ static LONG _layers_UpfrontLayer ( register struct LayersBase *LayersBase __asm(
                                    register LONG               dummy      __asm("a0"),
                                    register struct Layer      *layer      __asm("a1"))
 {
+    struct Layer *target;
+
     DPRINTF(LOG_DEBUG, "_layers: UpfrontLayer() called layer=0x%08lx\n", (ULONG)layer);
 
     if (!layer || !layer->LayerInfo)
@@ -947,25 +1044,30 @@ static LONG _layers_UpfrontLayer ( register struct LayersBase *LayersBase __asm(
 
     ObtainSemaphore(&li->Lock);
 
-    /* Already at front? */
-    if (layer->front == NULL)
+    target = FindFrontmostBackdrop(li);
+
+    if (!IsBackdropLayer(layer))
     {
-        ReleaseSemaphore(&li->Lock);
-        return TRUE;
+        if (layer->front == NULL)
+        {
+            ReleaseSemaphore(&li->Lock);
+            return TRUE;
+        }
+
+        UnlinkLayerFromInfo(li, layer);
+        InsertLayerAtFront(li, layer);
     }
+    else
+    {
+        if (target == layer)
+        {
+            ReleaseSemaphore(&li->Lock);
+            return TRUE;
+        }
 
-    /* Remove from current position */
-    if (layer->front)
-        layer->front->back = layer->back;
-    if (layer->back)
-        layer->back->front = layer->front;
-
-    /* Insert at front */
-    layer->back = li->top_layer;
-    layer->front = NULL;
-    if (li->top_layer)
-        li->top_layer->front = layer;
-    li->top_layer = layer;
+        UnlinkLayerFromInfo(li, layer);
+        InsertLayerInFrontOf(li, layer, target);
+    }
 
     /* Rebuild ClipRects for all layers (z-order changed) */
     {
@@ -989,6 +1091,8 @@ static LONG _layers_BehindLayer ( register struct LayersBase *LayersBase __asm("
                                   register LONG               dummy      __asm("a0"),
                                   register struct Layer      *layer      __asm("a1"))
 {
+    struct Layer *target;
+
     DPRINTF(LOG_DEBUG, "_layers: BehindLayer() called layer=0x%08lx\n", (ULONG)layer);
 
     if (!layer || !layer->LayerInfo)
@@ -998,40 +1102,17 @@ static LONG _layers_BehindLayer ( register struct LayersBase *LayersBase __asm("
 
     ObtainSemaphore(&li->Lock);
 
-    /* Already at back? */
-    if (layer->back == NULL && layer != li->top_layer)
+    target = IsBackdropLayer(layer) ? NULL : FindFrontmostBackdrop(li);
+
+    if ((target && layer->back == target) ||
+        (!target && FindBackmostLayer(li) == layer))
     {
         ReleaseSemaphore(&li->Lock);
         return TRUE;
     }
 
-    /* Remove from current position */
-    if (layer->front)
-        layer->front->back = layer->back;
-    else
-        li->top_layer = layer->back;
-
-    if (layer->back)
-        layer->back->front = layer->front;
-
-    /* Find backmost layer */
-    struct Layer *back = li->top_layer;
-    if (back)
-    {
-        while (back->back)
-            back = back->back;
-
-        layer->front = back;
-        layer->back = NULL;
-        back->back = layer;
-    }
-    else
-    {
-        /* Only layer */
-        li->top_layer = layer;
-        layer->front = NULL;
-        layer->back = NULL;
-    }
+    UnlinkLayerFromInfo(li, layer);
+    InsertLayerInFrontOf(li, layer, target);
 
     /* Rebuild ClipRects for all layers (z-order changed) */
     {
@@ -1060,6 +1141,9 @@ static LONG _layers_MoveLayer ( register struct LayersBase *LayersBase __asm("a6
     DPRINTF(LOG_DEBUG, "_layers: MoveLayer() layer=0x%08lx dx=%ld dy=%ld\n", (ULONG)layer, dx, dy);
 
     if (!layer)
+        return FALSE;
+
+    if (IsBackdropLayer(layer))
         return FALSE;
 
     struct Layer_Info *li = layer->LayerInfo;
@@ -1112,6 +1196,9 @@ static LONG _layers_SizeLayer ( register struct LayersBase *LayersBase __asm("a6
     DPRINTF(LOG_DEBUG, "_layers: SizeLayer() layer=0x%08lx dx=%ld dy=%ld\n", (ULONG)layer, dx, dy);
 
     if (!layer)
+        return FALSE;
+
+    if (IsBackdropLayer(layer))
         return FALSE;
 
     struct Layer_Info *li = layer->LayerInfo;
@@ -1650,6 +1737,7 @@ static LONG _layers_MoveLayerInFrontOf ( register struct LayersBase *LayersBase 
                                          register struct Layer      *other_layer   __asm("a1"))
 {
     struct Layer_Info *li;
+    struct Layer *target;
 
     DPRINTF(LOG_DEBUG, "_layers: MoveLayerInFrontOf() layer=0x%08lx other=0x%08lx\n",
             (ULONG)layer_to_move, (ULONG)other_layer);
@@ -1657,12 +1745,22 @@ static LONG _layers_MoveLayerInFrontOf ( register struct LayersBase *LayersBase 
     if (!layer_to_move || !other_layer)
         return FALSE;
 
+    if (layer_to_move == other_layer)
+        return TRUE;
+
     li = layer_to_move->LayerInfo;
     if (!li || li != other_layer->LayerInfo)
         return FALSE;
 
+    if (IsBackdropLayer(layer_to_move) && !IsBackdropLayer(other_layer))
+        return FALSE;
+
+    target = other_layer;
+    if (!IsBackdropLayer(layer_to_move) && IsBackdropLayer(other_layer))
+        target = FindFrontmostBackdrop(li);
+
     /* Already in the right position? */
-    if (layer_to_move->back == other_layer)
+    if (layer_to_move->back == target)
         return TRUE;
 
     ObtainSemaphore(&li->Lock);
@@ -1670,36 +1768,8 @@ static LONG _layers_MoveLayerInFrontOf ( register struct LayersBase *LayersBase 
     /* Save old bounds for damage tracking */
     struct Rectangle old_bounds = layer_to_move->bounds;
 
-    /* Remove layer_to_move from its current position in the z-order */
-    if (layer_to_move->front)
-    {
-        layer_to_move->front->back = layer_to_move->back;
-    }
-    else
-    {
-        /* Was the top layer */
-        li->top_layer = layer_to_move->back;
-    }
-
-    if (layer_to_move->back)
-    {
-        layer_to_move->back->front = layer_to_move->front;
-    }
-
-    /* Insert layer_to_move directly in front of other_layer */
-    layer_to_move->back = other_layer;
-    layer_to_move->front = other_layer->front;
-
-    if (other_layer->front)
-    {
-        other_layer->front->back = layer_to_move;
-    }
-    else
-    {
-        /* other_layer was the top layer, now layer_to_move is */
-        li->top_layer = layer_to_move;
-    }
-    other_layer->front = layer_to_move;
+    UnlinkLayerFromInfo(li, layer_to_move);
+    InsertLayerInFrontOf(li, layer_to_move, target);
 
     /* Damage exposed areas */
     DamageExposedAreas(li, layer_to_move, &old_bounds, &layer_to_move->bounds);
@@ -1766,6 +1836,9 @@ static LONG _layers_MoveSizeLayer ( register struct LayersBase *LayersBase __asm
             (ULONG)layer, dx, dy, dw, dh);
 
     if (!layer)
+        return FALSE;
+
+    if (IsBackdropLayer(layer))
         return FALSE;
 
     struct Layer_Info *li = layer->LayerInfo;

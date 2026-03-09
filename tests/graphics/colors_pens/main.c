@@ -221,6 +221,18 @@ int main(void)
         print("OK: FindColor() returns closest matching pen\n");
     }
 
+    found = ObtainBestPenA(cm, 0xFFFFFFFFUL, 0xCCCCCCCCUL, 0x88888888UL, NULL);
+    if (found != 5)
+    {
+        print("FAIL: ObtainBestPenA() did not reuse best shared pen\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: ObtainBestPenA() reuses matching shared pen\n");
+        ReleasePen(cm, (ULONG)found);
+    }
+
     ReleasePen(cm, 4);
     FreeColorMap(cm);
     FreeBitMap(bm);

@@ -239,6 +239,34 @@ int main(void)
         errors++;
     }
 
+    print("\nTest 3b: Backdrop layers stay behind normal layers and reject move/size...\n");
+    {
+        struct Layer *backdrop = CreateBehindLayer(li, bm, 0, 120, 79, 179,
+                                                   LAYERSIMPLE | LAYERBACKDROP, NULL);
+        if (!backdrop)
+        {
+            print("FAIL: Could not create backdrop layer\n");
+            errors++;
+        }
+        else if (backdrop->back == NULL && backdrop->front == behind &&
+                 !MoveLayer(0, backdrop, 5, 5) &&
+                 !SizeLayer(0, backdrop, 10, 10) &&
+                 !MoveSizeLayer(backdrop, 1, 1, 1, 1) &&
+                 UpfrontLayer(0, backdrop) && backdrop->back == NULL &&
+                 BehindLayer(0, behind) && behind->back == backdrop)
+        {
+            print("OK: Backdrop z-order and immobility semantics verified\n");
+        }
+        else
+        {
+            print("FAIL: Backdrop layer semantics incorrect\n");
+            errors++;
+        }
+
+        if (backdrop)
+            DeleteLayer(0, backdrop);
+    }
+
     print("\nTest 4: DeleteLayer unlinks layers, damages exposed areas, and pools ClipRects...\n");
     if (upfront)
     {

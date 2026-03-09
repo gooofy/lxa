@@ -14,6 +14,7 @@
 
 #include <exec/types.h>
 #include <exec/memory.h>
+#include <exec/tasks.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/exall.h>
@@ -234,6 +235,35 @@ int main(void)
         } else {
             test_fail("DOS_CLI", "AllocDosObject returned NULL");
         }
+    }
+
+    /* Test 5b: DOS_STDPKT packet helpers */
+    print("\nTest 5b: DOS packet helper compatibility\n");
+    {
+        struct StandardPacket *sp = (struct StandardPacket *)AllocDosObject(DOS_STDPKT, NULL);
+        struct MsgPort *port = CreateMsgPort();
+        struct Process *me = (struct Process *)FindTask(NULL);
+        if (sp && port) {
+            sp->sp_Pkt.dp_Type = ACTION_NIL;
+            SendPkt(&sp->sp_Pkt, port, &me->pr_MsgPort);
+            if (sp->sp_Pkt.dp_Port == &me->pr_MsgPort) {
+                test_pass("SendPkt stores reply port");
+            } else {
+                test_fail("SendPkt", "reply port mismatch");
+            }
+            ReplyPkt(&sp->sp_Pkt, 11, 22);
+            if (sp->sp_Pkt.dp_Res1 == 11 && sp->sp_Pkt.dp_Res2 == 22) {
+                test_pass("ReplyPkt stores result fields");
+            } else {
+                test_fail("ReplyPkt", "result fields mismatch");
+            }
+        } else {
+            test_fail("DOS packet helpers", "setup failed");
+        }
+        if (port)
+            DeleteMsgPort(port);
+        if (sp)
+            FreeDosObject(DOS_STDPKT, sp);
     }
 
     /* Test 6: DOS_RDARGS */

@@ -112,6 +112,7 @@ int main(void)
     BPTR lock_b;
     struct DevProc *dp;
     struct MsgPort *port;
+    struct MsgPort *device_port;
     struct NotifyRequest notify;
     struct NotifyMessage *msg;
 
@@ -231,6 +232,31 @@ int main(void)
         }
 
         DeleteMsgPort(port);
+    }
+
+    print("\nTest 6: SetProgramDir / GetProgramDir\n");
+    lock_a = Lock((CONST_STRPTR)"assign_a", SHARED_LOCK);
+    if (lock_a) {
+        BPTR old_progdir = SetProgramDir(lock_a);
+        if (GetProgramDir() == lock_a) {
+            test_pass("SetProgramDir updates PROGDIR lock");
+        } else {
+            test_fail("SetProgramDir", "GetProgramDir mismatch");
+        }
+        SetProgramDir(old_progdir);
+        if (lock_a)
+            UnLock(lock_a);
+    } else {
+        test_fail("SetProgramDir", "could not lock assign_a");
+    }
+
+    print("\nTest 7: DeviceProc via assign\n");
+    device_port = DeviceProc((CONST_STRPTR)"LATEASSIGN:");
+    if (device_port) {
+        test_pass("DeviceProc resolves assign-backed port");
+    } else {
+        print_ioerr("DeviceProc IoErr");
+        test_fail("DeviceProc", "returned NULL");
     }
 
     cleanup();
