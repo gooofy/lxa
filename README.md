@@ -216,7 +216,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.104** - Phase 78-E Intuition verification now also locks `SizeWindow()` against `GFLG_RELRIGHT`/`GFLG_RELBOTTOM` gadget reanchoring and stale-pixel cleanup, with shared relative-geometry handling keeping resize redraws, hit-testing, and gadget highlighting aligned
+**Version 0.6.107** - Phase 78-E pointer/input helper verification now locks `SetPointer`/`ClearPointer`, `SetMouseQueue`, `CurrentTime`, `DisplayAlert`, and `DisplayBeep` against direct Intuition regressions, including public pointer metadata updates, mouse-move queue throttling, monotonic time snapshots, and alert return semantics
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

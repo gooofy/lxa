@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.104** | **Phase 78-E Intuition Relative Gadget Resize Verification Expanded** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.107** | **Phase 78-E Intuition Pointer/Input Helpers Verification Expanded** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -38,6 +38,9 @@ Phase 78-E: Intuition gadget-management verification expanded; the existing scre
 Phase 78-E: build/test hygiene sweep complete; the full tree now rebuilds without warnings under the current sample/test compile policy, `fontreq_gtest` now renders against the screen bitmap for pixel assertions, and the full `ctest --test-dir build --output-on-failure -j16` sweep is green again (v0.6.102).
 Phase 78-E: Intuition menu/BOOPSI verification expanded; `OnMenu`/`OffMenu` now follow packed menu-number enable/disable semantics for menus, items, and sub-items, `SetGadgetAttrsA`/`DoGadgetMethodA` now have direct BOOPSI regression coverage, and `SizeWindow()` now redraws the frame immediately so resize-driven gadget visuals stay current (v0.6.103).
 Phase 78-E: relative gadget resize verification expanded; gadget hit-testing/rendering now share one `GFLG_REL*` geometry path, `SizeWindow()` clears stale pixels before redraw when relative gadgets move, and `Tests/Intuition/WindowManipulation` now locks `GFLG_RELRIGHT`/`GFLG_RELBOTTOM` gadgets against resize-driven repositioning and cleanup semantics (v0.6.104).
+Phase 78-E: BOOPSI and menu verification expanded; `MakeClass()` now rejects missing/duplicate public superclasses correctly, `FreeClass()` always removes public classes before reporting busy-state failure, rootclass object methods now support `OM_ADDTAIL`/`OM_REMOVE` so `DoMethodA`/`CoerceMethodA` and `modelclass` membership flows work through direct regressions, and the Intuition sweep now locks `NewObjectA`/`DisposeObject`, `GetAttr`/`SetAttrsA`, `DoMethodA`/`CoerceMethodA`, `MakeClass`/`AddClass`/`RemoveClass`/`FreeClass`, `SetMenuStrip`/`ClearMenuStrip`/`ResetMenuStrip`, and `ItemAddress` against the current NDK-style semantics (v0.6.105).
+Phase 78-E: requester verification expanded; `InitRequester()` now clears the full public structure, true requesters now honor centered `POINTREL` placement plus Intuition-rendered border/text/gadget chains with cleanup state wired through `RWindow`/`ReqLayer`, `BuildSysRequest()` now runs through the EasyRequest-style requester builder, and direct plus host-driven regressions now lock `Request()`/`EndRequest()` and `BuildSysRequest()`/`FreeSysRequest()`/`SysReqHandler()` against current lxa semantics for requester posting, cancellation, and gadget-result handling (v0.6.106).
+Phase 78-E: pointer/input helper verification expanded; `SetPointer()`/`ClearPointer()` now preserve the public window pointer fields, `SetMouseQueue()` now follows V36-style outstanding `IDCMP_MOUSEMOVE` throttling with default queue tracking, `CurrentTime()` remains locked to host timer snapshots, and direct regressions now cover `DisplayAlert()` dead-end vs recovery return semantics plus `DisplayBeep()` acceptance for screen-specific and global calls (v0.6.107).
 
 **Current Status**:
 - 49/49 ctest entries (all GTest) now pass; the Intuition sweep now covers public-screen locking/status helpers, screen ordering/position helpers, and the expanded window manipulation surface alongside the earlier screen/window-open semantics
@@ -52,6 +55,9 @@ Phase 78-E: relative gadget resize verification expanded; gadget hit-testing/ren
 - `Tests/Intuition/GadgetRefresh` now verifies `AddGadget`/`RemoveGadget`/`AddGList`/`RemoveGList`, `RefreshGadgets`/`RefreshGList`, `ActivateGadget`, and `OnGadget`/`OffGadget` for head/tail insertion, ordinal removal, list-preserving refreshes, string-gadget activation, and disabled-flag transitions
 - `Tests/Intuition/MenuStrip` now verifies `OnMenu`/`OffMenu` for whole-menu, item, and sub-item enable/disable semantics in addition to the earlier `SetMenuStrip`/`ClearMenuStrip`/`ResetMenuStrip` and `ItemAddress` coverage
 - `Tests/Intuition/BOOPSI_IC` now verifies `SetGadgetAttrsA` and `DoGadgetMethodA` directly against live BOOPSI gadgets, including class attribute updates and explicit `OM_GET` dispatch through the gadget method entry point
+- `Tests/Intuition/BOOPSI` now verifies private/public class creation and teardown via `MakeClass`/`AddClass`/`RemoveClass`/`FreeClass`, object lifecycle and attribute dispatch via `NewObjectA`/`DisposeObject`/`GetAttr`/`SetAttrsA`, direct `DoMethodA`/`CoerceMethodA` method routing, and `modelclass` `OM_ADDMEMBER`/`OM_REMMEMBER`/`OM_UPDATE` broadcasting through custom observer classes
+- `Tests/Intuition/RequesterBasic` plus a dedicated `tests/drivers/intuition_gtest.cpp` host-side interaction path now verify `InitRequester`, `Request`/`EndRequest`, and `BuildSysRequest`/`FreeSysRequest`/`SysReqHandler` for full-structure init, centered true-requester placement, Intuition-managed requester rendering, close-gadget cancellation, and gadget-ID return flow
+- `Tests/Intuition/PointerInput` now verifies `SetPointer`/`ClearPointer`, `SetMouseQueue`, `CurrentTime`, `DisplayAlert`, and `DisplayBeep` for public pointer metadata updates, V36 mouse-move queue throttling, monotonic time snapshots, alert return semantics, and global/screen beep acceptance
 - `Tests/Intuition/IDCMP` now verifies `ModifyIDCMP` creates both public and internal IDCMP ports, keeps replied messages on the cleanup queue until Intuition reaps them, and tears both ports down cleanly when IDCMP is disabled
 - Added clearer CLI assign controls: `--assign` now aliases the old `-a` replace behavior, `--assign-add` appends to multi-assign search lists, unit coverage locks the underlying replace/append VFS semantics, and the VS Code manual-test launch configs now use the explicit long-form options while rebuilding/installing the latest runtime before launch
 - Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
@@ -538,30 +544,30 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `SizeWindow` interaction with GFLG_RELRIGHT/RELBOTTOM relative gadgets — shared geometry handling now covers hit-testing/rendering/highlight paths, and resize redraws clear stale pixels before relative gadgets are repainted (v0.6.104)
 
 **BOOPSI / OOP** (vs `intuition/boopsi.c`, `intuition/classes.c`):
-- [ ] `NewObjectA` / `DisposeObject` — class dispatch, tag list
-- [ ] `GetAttr` / `SetAttrsA` / `CoerceMethodA`
-- [ ] `DoMethodA` — OM_NEW, OM_SET, OM_GET, OM_DISPOSE, OM_ADDMEMBER, OM_REMMEMBER, OM_NOTIFY, OM_UPDATE
-- [ ] `MakeClass` / `FreeClass` / `AddClass` / `RemoveClass`
-- [ ] `ICA_TARGET / ICA_MAP` notification pipeline ✅ (Phase 76)
-- [ ] Standard classes: rootclass, imageclass, frameiclass, sysiclass, fillrectclass, gadgetclass, propgclass, strgclass, buttongclass, frbuttonclass, groupgclass, icclass, modelclass ✅ (Phase 76)
+- [x] `NewObjectA` / `DisposeObject` — class dispatch, tag list (v0.6.105)
+- [x] `GetAttr` / `SetAttrsA` / `CoerceMethodA` (v0.6.105)
+- [x] `DoMethodA` — OM_NEW, OM_SET, OM_GET, OM_DISPOSE, OM_ADDMEMBER, OM_REMMEMBER, OM_NOTIFY, OM_UPDATE (v0.6.105)
+- [x] `MakeClass` / `FreeClass` / `AddClass` / `RemoveClass` (v0.6.105)
+- [x] `ICA_TARGET / ICA_MAP` notification pipeline ✅ (Phase 76)
+- [x] Standard classes: rootclass, imageclass, frameiclass, sysiclass, fillrectclass, gadgetclass, propgclass, strgclass, buttongclass, frbuttonclass, groupgclass, icclass, modelclass ✅ (Phase 76)
 - [ ] `GetScreenDepth` / `GetScreenRect`
 
 **Menus** (vs `intuition/menus.c`):
-- [ ] `SetMenuStrip` / `ClearMenuStrip` / `ResetMenuStrip`
+- [x] `SetMenuStrip` / `ClearMenuStrip` / `ResetMenuStrip` (v0.6.105)
 - [x] `OnMenu` / `OffMenu` — packed menu/item/sub-item enable-state semantics verified (v0.6.103)
-- [ ] `ItemAddress` — menu number decode (MENUNUM/ITEMNUM/SUBNUM macros)
+- [x] `ItemAddress` — menu number decode (MENUNUM/ITEMNUM/SUBNUM macros) (v0.6.105)
 
 **Requesters** (vs `intuition/requesters.c`):
-- [ ] `Request` / `EndRequest`
-- [ ] `BuildSysRequest` / `FreeSysRequest` / `SysReqHandler`
-- [ ] `AutoRequest` ✅ (Phase 76)
-- [ ] `EasyRequestArgs` / `BuildEasyRequestArgs` ✅ (Phase 70a)
+- [x] `Request` / `EndRequest` (v0.6.106)
+- [x] `BuildSysRequest` / `FreeSysRequest` / `SysReqHandler` (v0.6.106)
+- [x] `AutoRequest` ✅ (Phase 76)
+- [x] `EasyRequestArgs` / `BuildEasyRequestArgs` ✅ (Phase 70a)
 
 **Pointers & Input** (vs `intuition/pointer.c`):
-- [ ] `SetPointer` / `ClearPointer` — sprite data, xoffset/yoffset
-- [ ] `SetMouseQueue` — limit pending MOUSEMOVE messages
-- [ ] `CurrentTime` — fill seconds/micros from timer
-- [ ] `DisplayAlert` / `DisplayBeep`
+- [x] `SetPointer` / `ClearPointer` — sprite data, xoffset/yoffset (v0.6.107)
+- [x] `SetMouseQueue` — limit pending MOUSEMOVE messages (v0.6.107)
+- [x] `CurrentTime` — fill seconds/micros from timer (v0.6.107)
+- [x] `DisplayAlert` / `DisplayBeep` (v0.6.107)
 
 **Drawing in Intuition**:
 - [ ] `DrawBorder` — linked Border chain rendering

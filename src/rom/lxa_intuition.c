@@ -46,6 +46,7 @@
 /* LACE flag for interlaced display modes */
 #define LACE_FLAG 0x0004
 
+#define DEFAULT_MOUSEQUEUE 5
 #define IDCMPUPDATE_TAG_LIMIT 256
 #define LXA_WMF_IDCMP_USERPORT_OWNED  0x80000000UL
 #define LXA_WMF_IDCMP_WINDOWPORT_OWNED 0x40000000UL
@@ -109,7 +110,27 @@ static inline LONG _call_BehindLayer(struct Library *base, struct Layer *layer) 
     return _res;
 }
 
-struct LXAIntuitionBase;
+struct LXAWindowState {
+    struct Node node;
+    struct Window *window;
+    UWORD mouse_queue;
+    UWORD pending_mousemoves;
+};
+
+struct LXAIntuitionBase {
+    struct IntuitionBase ib;
+    struct List ClassList;      /* List of public classes */
+    struct IClass *RootClass;   /* Pointer to rootclass */
+    struct IClass *ICClass;     /* Pointer to icclass */
+    struct IClass *ModelClass;  /* Pointer to modelclass */
+    struct IClass *GadgetClass; /* Pointer to gadgetclass */
+    struct IClass *ButtonGClass;/* Pointer to buttongclass */
+    struct IClass *PropGClass;  /* Pointer to propgclass */
+    struct IClass *StrGClass;   /* Pointer to strgclass */
+    struct List PubScreenList;  /* List of public screens */
+    struct List WindowStateList;/* Private per-window state */
+    struct Screen *DefaultPubScreen;
+};
 
 /* Forward declarations */
 VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -117,6 +138,8 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"),
                                                         register WORD numGad __asm("d0"));
+static struct LXAWindowState *_intuition_find_window_state(struct LXAIntuitionBase *base,
+                                                           const struct Window *window);
 
 /* Forward declaration for internal string gadget key handling */
 static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window, 
@@ -156,9 +179,18 @@ static ULONG _idcmp_update_payload_size(APTR payload)
 
 static VOID _dispose_idcmp_message(struct IntuiMessage *msg)
 {
+    struct LXAWindowState *state;
+
     if (!msg)
     {
         return;
+    }
+
+    if (msg->Class == IDCMP_MOUSEMOVE && msg->IDCMPWindow)
+    {
+        state = _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, msg->IDCMPWindow);
+        if (state && state->pending_mousemoves > 0)
+            state->pending_mousemoves--;
     }
 
     if (msg->Class == IDCMP_IDCMPUPDATE && msg->IAddress)
@@ -191,6 +223,7 @@ static VOID _flush_idcmp_port(struct MsgPort *port)
 
 static VOID _dispose_window_idcmp_ports(struct Window *window)
 {
+    struct LXAWindowState *state;
     struct MsgPort *user_port;
     struct MsgPort *reply_port;
     ULONG owned_flags;
@@ -203,10 +236,14 @@ static VOID _dispose_window_idcmp_ports(struct Window *window)
     user_port = window->UserPort;
     reply_port = window->WindowPort;
     owned_flags = window->MoreFlags;
+    state = _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
 
     window->UserPort = NULL;
     window->WindowPort = NULL;
     window->MoreFlags &= ~(LXA_WMF_IDCMP_USERPORT_OWNED | LXA_WMF_IDCMP_WINDOWPORT_OWNED);
+
+    if (state)
+        state->pending_mousemoves = 0;
 
     if (owned_flags & LXA_WMF_IDCMP_WINDOWPORT_OWNED)
     {
@@ -272,27 +309,79 @@ struct LXAClassNode {
     struct IClass *class_ptr;
 };
 
-/* Extended IntuitionBase to hold private data */
-struct LXAIntuitionBase {
-    struct IntuitionBase ib;
-    struct List ClassList;      /* List of public classes */
-    struct IClass *RootClass;   /* Pointer to rootclass */
-    struct IClass *ICClass;     /* Pointer to icclass */
-    struct IClass *ModelClass;  /* Pointer to modelclass */
-    struct IClass *GadgetClass; /* Pointer to gadgetclass */
-    struct IClass *ButtonGClass;/* Pointer to buttongclass */
-    struct IClass *PropGClass;  /* Pointer to propgclass */
-    struct IClass *StrGClass;   /* Pointer to strgclass */
-    struct List PubScreenList;  /* List of public screens */
-    struct Screen *DefaultPubScreen;
-};
-
 struct LXAPubScreenNode {
     struct PubScreenNode pub;
 };
 
 static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST_STRPTR classID);
 static ULONG _intuition_dispatch_method(struct IClass *cl, Object *obj, Msg msg);
+
+static struct LXAWindowState *_intuition_find_window_state(struct LXAIntuitionBase *base,
+                                                           const struct Window *window)
+{
+    struct Node *node;
+
+    if (!base || !window)
+        return NULL;
+
+    for (node = base->WindowStateList.lh_Head; node && node->ln_Succ; node = node->ln_Succ)
+    {
+        struct LXAWindowState *state = (struct LXAWindowState *)node;
+
+        if (state->window == window)
+            return state;
+    }
+
+    return NULL;
+}
+
+static struct LXAWindowState *_intuition_ensure_window_state(struct LXAIntuitionBase *base,
+                                                             struct Window *window)
+{
+    struct LXAWindowState *state;
+
+    state = _intuition_find_window_state(base, window);
+    if (state)
+        return state;
+
+    state = (struct LXAWindowState *)AllocMem(sizeof(*state), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!state)
+        return NULL;
+
+    state->window = window;
+    state->mouse_queue = DEFAULT_MOUSEQUEUE;
+    AddTail(&base->WindowStateList, &state->node);
+
+    return state;
+}
+
+static VOID _intuition_remove_window_state(struct LXAIntuitionBase *base, const struct Window *window)
+{
+    struct LXAWindowState *state;
+
+    state = _intuition_find_window_state(base, window);
+    if (!state)
+        return;
+
+    Remove(&state->node);
+    FreeMem(state, sizeof(*state));
+}
+
+static LONG _intuition_set_mouse_queue_value(struct LXAIntuitionBase *base,
+                                             struct Window *window,
+                                             UWORD queue_length)
+{
+    struct LXAWindowState *state;
+    LONG old_value;
+
+    state = _intuition_find_window_state(base, window);
+    if (!state)
+        return -1;
+
+    old_value = state->mouse_queue;
+    state->mouse_queue = queue_length;
+    return old_value;
+}
 
 /* Forward declarations for internal calls */
 struct DrawInfo * _intuition_GetScreenDrawInfo(
@@ -489,6 +578,19 @@ static ULONG rootclass_dispatch(
     switch (msg->MethodID) {
         case OM_NEW:
             return (ULONG)obj;
+
+        case OM_ADDTAIL:
+        {
+            struct opAddTail *opat = (struct opAddTail *)msg;
+            if (!opat->opat_List)
+                return 0;
+            AddTail(opat->opat_List, (struct Node *)&_OBJECT(obj)->o_Node);
+            return 1;
+        }
+
+        case OM_REMOVE:
+            Remove((struct Node *)&_OBJECT(obj)->o_Node);
+            return 1;
             
         case OM_DISPOSE:
             return 0;
@@ -550,6 +652,11 @@ static void _draw_bevel_box(struct RastPort *rp, WORD left, WORD top, WORD width
 /* Forward declarations for gadget rendering helpers */
 static void _complement_gadget_area(struct Window *window, struct Requester *req, struct Gadget *gad);
 static void _render_gadget(struct Window *window, struct Requester *req, struct Gadget *gad);
+static void _render_requester(struct Window *window, struct Requester *req);
+static void _calculate_requester_box(struct Window *window, struct Requester *req,
+                                     LONG *left, LONG *top,
+                                     LONG *width, LONG *height);
+static void _rerender_requester_stack(struct Window *window);
 
 /* Forward declarations for EasyRequest infrastructure */
 struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -2392,6 +2499,7 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
     /* Initialize ClassList (NewList inline) */
     NewList(&base->ClassList);
     NewList(&base->PubScreenList);
+    NewList(&base->WindowStateList);
     base->DefaultPubScreen = NULL;
 
     /* Create rootclass */
@@ -2754,7 +2862,15 @@ VOID _intuition_ClearPointer ( register struct IntuitionBase * IntuitionBase __a
      * Since we don't support custom pointers yet, this is a no-op.
      */
     DPRINTF (LOG_DEBUG, "_intuition: ClearPointer() window=0x%08lx (no-op)\n", (ULONG)window);
-    /* No-op - we use the system default pointer */
+
+    if (!window)
+        return;
+
+    window->Pointer = NULL;
+    window->PtrHeight = 0;
+    window->PtrWidth = 0;
+    window->XOffset = 0;
+    window->YOffset = 0;
 }
 
 BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -2890,6 +3006,8 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
         window->FirstGadget = NULL;
     }
 
+    _intuition_remove_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+
     /* Unlink window from screen's window list */
     if (window->WScreen)
     {
@@ -2970,6 +3088,9 @@ BOOL _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __a
         }
     }
     
+    if (alertNumber & DEADEND_ALERT)
+        return FALSE;
+
     /* Return TRUE = left mouse button (continue), FALSE = right mouse (reboot) */
     return TRUE;
 }
@@ -3185,6 +3306,7 @@ VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm
                                                         register struct Window * window __asm("a1"))
 {
     struct Requester *curr, *prev = NULL;
+    LONG left, top, width, height;
 
     DPRINTF (LOG_DEBUG, "_intuition: EndRequest() req=0x%08lx win=0x%08lx\n", (ULONG)requester, (ULONG)window);
     
@@ -3210,23 +3332,16 @@ VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm
     }
     
     requester->Flags &= ~REQACTIVE;
+    requester->OlderRequest = NULL;
+    requester->ReqLayer = NULL;
+    requester->RWindow = NULL;
     
-    /* Restore background */
-    /* Typically this involves refreshing the window area covered by the requester.
-     * Since we don't have BackFill layers logic fully hooked up to refresh logic yet,
-     * we might just trigger a refresh event or clear the area?
-     * "Proper" way: Restore bits if saved, or damage layer.
-     */
-     
-    /* For now, just invalidate the area if we have layers */
-    if (window->WLayer && LayersBase)
+    if (window->RPort)
     {
-        /* TODO: DamageLayerRegion or similar? */
-        /* Simplest: Clear to window background and let refresh handle it */
-        /* SetAPen(window->RPort, window->BackFill ? 0 : 0);
-           RectFill(window->RPort, requester->LeftEdge, ...);
-           RefeshWindowFrame...
-        */
+        _calculate_requester_box(window, requester, &left, &top, &width, &height);
+        SetAPen(window->RPort, 0);
+        RectFill(window->RPort, left, top, left + width - 1, top + height - 1);
+        _rerender_requester_stack(window);
     }
 }
 
@@ -3342,15 +3457,8 @@ VOID _intuition_InitRequester ( register struct IntuitionBase * IntuitionBase __
     DPRINTF (LOG_DEBUG, "_intuition: InitRequester() req=0x%08lx\n", (ULONG)requester);
     
     if (!requester) return;
-    
-    /* Clear relevant fields */
-    /* Note: Application usually allocates this, we just init defaults if needed.
-     * RKRM says: "Initializes a requester for use."
-     * It typically clears flags and sets up pointers.
-     */
-    requester->OlderRequest = NULL;
-    requester->Flags &= ~REQACTIVE;
-    /* We don't clear other fields as they are set by the app */
+
+    memset(requester, 0, sizeof(*requester));
 }
 
 struct MenuItem * _intuition_ItemAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3524,8 +3632,14 @@ static void _calculate_gadget_box(struct Window *window, struct Requester *req,
 
     if (req)
     {
-        calc_left += req->LeftEdge;
-        calc_top += req->TopEdge;
+        LONG req_left;
+        LONG req_top;
+        LONG req_width;
+        LONG req_height;
+
+        _calculate_requester_box(window, req, &req_left, &req_top, &req_width, &req_height);
+        calc_left += req_left;
+        calc_top += req_top;
     }
 
     if (gad->Flags & GFLG_RELRIGHT)
@@ -3659,6 +3773,31 @@ static BOOL _point_in_gadget(struct Window *window, struct Gadget *gad, WORD rel
     return (relX >= gx0 && relX < gx0 + width && relY >= gy0 && relY < gy0 + height);
 }
 
+static void _rerender_requester_stack(struct Window *window)
+{
+    struct Requester *stack[10];
+    struct Requester *req;
+    WORD count;
+    WORD i;
+
+    if (!window)
+        return;
+
+    if (window->FirstGadget)
+        _intuition_RefreshGList(IntuitionBase, window->FirstGadget, window, NULL, -1);
+
+    count = 0;
+    req = window->FirstRequest;
+    while (req && count < 10)
+    {
+        stack[count++] = req;
+        req = req->OlderRequest;
+    }
+
+    for (i = count - 1; i >= 0; i--)
+        _render_requester(window, stack[i]);
+}
+
 /* Forward declarations for WindowToBack/WindowToFront (used by depth gadget handler) */
 VOID _intuition_WindowToBack(register struct IntuitionBase *IntuitionBase __asm("a6"),
                              register struct Window *window __asm("a0"));
@@ -3765,6 +3904,69 @@ static struct Window *g_active_window;
 /* State for prop gadget dragging
  * Note: These MUST NOT have initializers - .bss goes to RAM. */
 static WORD g_prop_click_offset;            /* Mouse offset within knob on click */
+
+static void _calculate_requester_box(struct Window *window, struct Requester *req,
+                                     LONG *left, LONG *top,
+                                     LONG *width, LONG *height)
+{
+    LONG calc_left;
+    LONG calc_top;
+    LONG calc_width;
+    LONG calc_height;
+
+    if (!window || !req)
+    {
+        if (left)
+            *left = 0;
+        if (top)
+            *top = 0;
+        if (width)
+            *width = 0;
+        if (height)
+            *height = 0;
+        return;
+    }
+
+    calc_left = req->LeftEdge;
+    calc_top = req->TopEdge;
+    calc_width = req->Width;
+    calc_height = req->Height;
+
+    if (calc_width < 0)
+        calc_width = 0;
+    if (calc_height < 0)
+        calc_height = 0;
+
+    if (req->Flags & POINTREL)
+    {
+        calc_left = ((LONG)window->Width - calc_width) / 2 + req->RelLeft;
+        calc_top = ((LONG)window->Height - calc_height) / 2 + req->RelTop;
+    }
+
+    if (calc_left < 0)
+        calc_left = 0;
+    if (calc_top < 0)
+        calc_top = 0;
+
+    if (calc_width > window->Width)
+        calc_left = 0;
+    else if (calc_left + calc_width > window->Width)
+        calc_left = window->Width - calc_width;
+
+    if (calc_height > window->Height)
+        calc_top = 0;
+    else if (calc_top + calc_height > window->Height)
+        calc_top = window->Height - calc_height;
+
+    if (left)
+        *left = calc_left;
+    if (top)
+        *top = calc_top;
+    if (width)
+        *width = calc_width;
+    if (height)
+        *height = calc_height;
+}
 
 /* State for menu bar handling
  * Note: These MUST NOT have initializers because initialized static data goes
@@ -4770,6 +4972,7 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
 static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code, 
                                  UWORD qualifier, APTR iaddress, WORD mouseX, WORD mouseY)
 {
+    struct LXAWindowState *state;
     struct IntuiMessage *imsg;
     
     if (!window || !window->UserPort || !window->WindowPort) {
@@ -4779,6 +4982,13 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
     /* Check if window is interested in this message class */
     if (!(window->IDCMPFlags & class)) {
         return FALSE;
+    }
+
+    state = _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+    if (class == IDCMP_MOUSEMOVE && state)
+    {
+        if (state->pending_mousemoves >= state->mouse_queue)
+            return FALSE;
     }
     
     _reap_window_idcmp_replies(window);
@@ -4816,6 +5026,9 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
     
     /* Post the message to the window's UserPort */
     PutMsg(window->UserPort, (struct Message *)imsg);
+
+    if (class == IDCMP_MOUSEMOVE && state)
+        state->pending_mousemoves++;
     
     DPRINTF(LOG_DEBUG, "_intuition: Posted IDCMP 0x%08lx to window 0x%08lx\n",
             class, (ULONG)window);
@@ -6757,6 +6970,14 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         /* Store the host window handle in UserData */
         window->UserData = (APTR)window_handle;
 
+        if (!_intuition_ensure_window_state((struct LXAIntuitionBase *)IntuitionBase, window))
+        {
+            if (window->UserData)
+                emucall1(EMU_CALL_INT_CLOSE_WINDOW, (ULONG)window->UserData);
+            FreeMem(window, sizeof(struct Window));
+            return NULL;
+        }
+
         DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() window_handle=0x%08lx rootless=%d\n",
                  window_handle, (int)rootless_mode);
     }
@@ -7016,35 +7237,29 @@ static void _render_requester(struct Window *window, struct Requester *req)
     
     rp = window->RPort;
     
-    left = req->LeftEdge;
-    top = req->TopEdge;
-    width = req->Width;
-    height = req->Height;
-    
-    if (req->Flags & POINTREL)
-    {
-        left += window->BorderLeft; /* Or current mouse pos? POINTREL usually relative to window top-left or mouse? 
-                                     * RKRM: "LeftEdge, TopEdge are relative to the window's top-left."
-                                     * Wait, POINTREL usually means relative to Mouse? No, that's specialized.
-                                     * Usually standard requesters are window-relative.
-                                     */
-         /* Actually, if not POINTREL, it's relative to screen? No, Requester is always in Window. 
-          * flags: POINTREL = "Relative to the pointer position".
-          */
-    }
+    _calculate_requester_box(window, req, &left, &top, &width, &height);
     
     /* Draw background */
-    SetAPen(rp, req->BackFill);
-    RectFill(rp, left, top, left + width - 1, top + height - 1);
+    if (!(req->Flags & NOREQBACKFILL))
+    {
+        SetAPen(rp, req->BackFill);
+        RectFill(rp, left, top, left + width - 1, top + height - 1);
+    }
     
     /* Draw Border if present */
-    /* TODO: Render req->ReqBorder */
+    if (req->ReqBorder)
+        _intuition_DrawBorder(IntuitionBase, rp, req->ReqBorder, left, top);
     
     /* Draw Text if present */
-    /* TODO: Render req->ReqText via PrintIText (which calls IntuiTextLength/Move/Text) */
+    if (req->ReqText)
+        _intuition_PrintIText(IntuitionBase, rp, req->ReqText, left, top);
+
+    if ((req->Flags & USEREQIMAGE) && req->ReqImage)
+        _intuition_DrawImage(IntuitionBase, rp, req->ReqImage, left, top);
     
     /* Draw Gadgets */
-    /* TODO: RefreshGList(req->ReqGadget, window, req, -1) */
+    if (req->ReqGadget)
+        _intuition_RefreshGList(IntuitionBase, req->ReqGadget, window, req, -1);
 }
 
 BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -7060,6 +7275,8 @@ BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a
     window->FirstRequest = requester;
     
     requester->Flags |= REQACTIVE;
+    requester->RWindow = window;
+    requester->ReqLayer = window->WLayer;
     
     /* Render */
     _render_requester(window, requester);
@@ -7191,6 +7408,15 @@ VOID _intuition_SetPointer ( register struct IntuitionBase * IntuitionBase __asm
      */
     DPRINTF (LOG_DEBUG, "_intuition: SetPointer() window=0x%08lx pointer=0x%08lx %dx%d offset=(%d,%d) (no-op)\n",
              (ULONG)window, (ULONG)pointer, width, height, xOffset, yOffset);
+
+    if (!window)
+        return;
+
+    window->Pointer = pointer;
+    window->PtrHeight = height;
+    window->PtrWidth = width;
+    window->XOffset = xOffset;
+    window->YOffset = yOffset;
 }
 
 VOID _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -7788,52 +8014,75 @@ struct Window * _intuition_BuildSysRequest ( register struct IntuitionBase * Int
                                                         register UWORD width __asm("d1"),
                                                         register UWORD height __asm("d2"))
 {
-    struct NewWindow nw;
+    struct EasyStruct easy;
     struct Window *reqWindow;
-    /* struct Gadget *posGad = NULL, *negGad = NULL; */
-    /* LONG textW, textH; */
-    LONG winW = width, winH = height;
+    char *body_buf;
+    char *gad_buf;
+    LONG body_len;
+    LONG pos_len;
+    LONG neg_len;
+    const struct IntuiText *it;
+    char *dst;
     
     DPRINTF (LOG_DEBUG, "_intuition: BuildSysRequest() body=%s\n", 
              (bodyText && bodyText->IText) ? (char *)bodyText->IText : "NULL");
 
-    /* Default dimensions if not provided */
-    if (winW == 0) winW = 320;
-    if (winH == 0) winH = 100;
-    
-    /* TODO: Calculate actual size from text */
-
-    memset(&nw, 0, sizeof(nw));
-    nw.LeftEdge = (window) ? window->LeftEdge + 20 : 0;
-    nw.TopEdge = (window) ? window->TopEdge + 20 : 0;
-    nw.Width = winW;
-    nw.Height = winH;
-    nw.DetailPen = 0;
-    nw.BlockPen = 1;
-    nw.Title = (UBYTE *)"System Request";
-    nw.Flags = WFLG_ACTIVATE | WFLG_RMBTRAP | WFLG_NOCAREREFRESH | WFLG_SIMPLE_REFRESH | WFLG_BORDERLESS;
-    nw.IDCMPFlags = IDCMP_GADGETUP | IDCMP_MOUSEBUTTONS | IDCMP_VANILLAKEY;
-    
-    if (window && window->WScreen) {
-        nw.Type = CUSTOMSCREEN;
-        nw.Screen = window->WScreen;
-    } else {
-        nw.Type = WBENCHSCREEN;
+    body_len = 0;
+    for (it = bodyText; it; it = it->NextText)
+    {
+        if (it->IText)
+            body_len += strlen((char *)it->IText);
+        if (it->NextText)
+            body_len++;
     }
-    
-    /* Open Window */
-    reqWindow = _intuition_OpenWindow(IntuitionBase, &nw);
-    if (!reqWindow) return NULL;
-    
-    /* Create Gadgets manually for now (simplified) 
-     * In a real implementation, we'd use NewObject or alloc Gadget structs.
-     * Here we'll just alloc memory for them.
-     */
-     
-    /* TODO: Create Gadgets */
-    /* Draw Text */
-    /* TODO: Draw IntuiText */
-    
+
+    body_buf = (char *)AllocMem(body_len + 1, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!body_buf)
+        return NULL;
+
+    dst = body_buf;
+    for (it = bodyText; it; it = it->NextText)
+    {
+        if (it->IText)
+        {
+            strcpy(dst, (char *)it->IText);
+            dst += strlen(dst);
+        }
+        if (it->NextText)
+            *dst++ = '\n';
+    }
+    *dst = '\0';
+
+    pos_len = (posText && posText->IText) ? strlen((char *)posText->IText) : 0;
+    neg_len = (negText && negText->IText) ? strlen((char *)negText->IText) : strlen("Cancel");
+    gad_buf = (char *)AllocMem(pos_len + neg_len + 2, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!gad_buf)
+    {
+        FreeMem(body_buf, body_len + 1);
+        return NULL;
+    }
+
+    if (posText && posText->IText)
+        strcpy(gad_buf, (char *)posText->IText);
+    gad_buf[pos_len] = '|';
+    if (negText && negText->IText)
+        strcpy(gad_buf + pos_len + 1, (char *)negText->IText);
+    else
+        strcpy(gad_buf + pos_len + 1, "Cancel");
+
+    easy.es_StructSize = sizeof(easy);
+    easy.es_Flags = 0;
+    easy.es_Title = (UBYTE *)"System Request";
+    easy.es_TextFormat = (UBYTE *)body_buf;
+    easy.es_GadgetFormat = (UBYTE *)gad_buf;
+
+    (void)width;
+    (void)height;
+    reqWindow = _intuition_BuildEasyRequestArgs(IntuitionBase, window, &easy, flags, NULL);
+
+    FreeMem(gad_buf, pos_len + neg_len + 2);
+    FreeMem(body_buf, body_len + 1);
+
     return reqWindow;
 }
 
@@ -8706,9 +8955,14 @@ LONG _intuition_SetMouseQueue ( register struct IntuitionBase * IntuitionBase __
                                                         register struct Window * window __asm("a0"),
                                                         register UWORD queueLength __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetMouseQueue() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    LONG old_value;
+
+    DPRINTF (LOG_DEBUG, "_intuition: SetMouseQueue() window=0x%08lx queueLength=%u\n",
+             (ULONG)window, (unsigned)queueLength);
+
+    old_value = _intuition_set_mouse_queue_value((struct LXAIntuitionBase *)IntuitionBase,
+                                                 window, queueLength);
+    return old_value;
 }
 
 VOID _intuition_ZipWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -9728,6 +9982,9 @@ LONG _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __
     LONG result = -2; /* No result yet */
     
     DPRINTF (LOG_DEBUG, "_intuition: SysReqHandler() window=0x%08lx wait=%ld\n", (ULONG)window, waitInput);
+
+    if (window == NULL || window == (struct Window *)1)
+        return (LONG)window;
     
     if (!window || !window->UserPort) return -1;
     
@@ -9759,9 +10016,10 @@ LONG _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __
             }
             else if (class == IDCMP_CLOSEWINDOW)
             {
-                return -1; /* Cancel */
+                return 0;
             }
-            /* Handle keyboard shortcuts if implemented */
+
+            return -1;
         }
         
         if (!waitInput) break;
@@ -9774,6 +10032,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                                                         register const struct NewWindow * newWindow __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
+    UWORD mouse_queue = DEFAULT_MOUSEQUEUE;
     struct NewWindow nw;
     struct TagItem *tstate;
     struct TagItem *tag;
@@ -9964,11 +10223,13 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                 case WA_Zoom:
                     zoom_coords = (WORD *)tag->ti_Data;
                     break;
+                case WA_MouseQueue:
+                    mouse_queue = (UWORD)tag->ti_Data;
+                    break;
                 /* Tags we recognize but don't fully implement yet */
                 case WA_PubScreenName:
                 case WA_PubScreen:
                 case WA_PubScreenFallBack:
-                case WA_MouseQueue:
                 case WA_BackFill:
                 case WA_RptQueue:
                 case WA_AutoAdjust:
@@ -10084,6 +10345,9 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
 
     /* Call our existing OpenWindow with the assembled NewWindow */
     struct Window *win = _intuition_OpenWindow(IntuitionBase, &nw);
+
+    if (win)
+        _intuition_set_mouse_queue_value((struct LXAIntuitionBase *)IntuitionBase, win, mouse_queue);
 
     /* If WA_Zoom was specified, allocate and attach ZoomData */
     if (win && zoom_coords)
@@ -10700,11 +10964,20 @@ struct IClass * _intuition_MakeClass ( register struct IntuitionBase * Intuition
             superClassID ? (char *)superClassID : "NULL",
             (ULONG)superClass, instanceSize, flags);
 
-    /* Determine superclass */
-    if (!superClass && superClassID)
+    if (!base)
+        return NULL;
+
+    /* Determine superclass. Public superclasses must resolve by name, while
+     * private classes must be provided explicitly via superClassPtr.
+     */
+    if (superClassID)
         superClass = _intuition_find_class(base, superClassID);
+
     if (!superClass)
-        superClass = base->RootClass;
+        return NULL;
+
+    if (classID && _intuition_find_class(base, classID))
+        return NULL;
     
     /* Calculate allocation size */
     /* We allocate: IClass + ClassID string */
@@ -10742,7 +11015,7 @@ VOID _intuition_AddClass ( register struct IntuitionBase * IntuitionBase __asm("
 {
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
 
-    if (!classPtr)
+    if (!classPtr || !classPtr->cl_ID)
         return;
 
     if (classPtr->cl_Flags & CLF_INLIST)
@@ -10895,14 +11168,14 @@ BOOL _intuition_FreeClass ( register struct IntuitionBase * IntuitionBase __asm(
     if (!classPtr)
         return FALSE;
 
+    if (classPtr->cl_Flags & CLF_INLIST)
+        _intuition_RemoveClass(IntuitionBase, classPtr);
+
     if (classPtr->cl_SubclassCount != 0)
         return FALSE;
 
     if (classPtr->cl_ObjectCount != 0)
         return FALSE;
-
-    if (classPtr->cl_Flags & CLF_INLIST)
-        _intuition_RemoveClass(IntuitionBase, classPtr);
 
     if (classPtr->cl_Super && classPtr->cl_Super->cl_SubclassCount > 0)
         classPtr->cl_Super->cl_SubclassCount--;

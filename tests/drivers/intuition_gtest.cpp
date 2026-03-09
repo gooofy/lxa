@@ -98,6 +98,22 @@ protected:
             // screen before we can check the pixels).
             lxa_flush_display();
             EXPECT_GT(lxa_get_content_pixels(), 0) << "Expected some rendered content";
+        } else if (strcmp(name, "PointerInput") == 0) {
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+            ASSERT_TRUE(GetWindowInfo(0, &window_info));
+
+            char buffer[16384];
+            while (true) {
+                lxa_run_cycles(10000);
+                lxa_get_output(buffer, sizeof(buffer));
+                if (strstr(buffer, "READY: queue test"))
+                    break;
+            }
+
+            int move_x = window_info.x + 80;
+            int move_y = window_info.y + 40;
+            lxa_inject_mouse(move_x, move_y, 0, LXA_EVENT_MOUSEMOVE);
+            RunCyclesWithVBlank(10, 50000);
         }
         
         lxa_run_until_exit(timeout_ms);
@@ -121,6 +137,16 @@ protected:
     }
 };
 
+class RequesterBasicDriverTest : public LxaUITest {
+protected:
+    void SetUp() override {
+        LxaUITest::SetUp();
+        ASSERT_EQ(lxa_load_program("SYS:Tests/Intuition/RequesterBasic", ""), 0);
+        ASSERT_TRUE(WaitForWindows(1, 5000));
+        WaitForEventLoop(100, 10000);
+    }
+};
+
 TEST_F(IntuitionTest, BOOPSI) { RunIntuitionTest("BOOPSI"); }
 TEST_F(IntuitionTest, BOOPSI_IC) { RunIntuitionTest("BOOPSI_IC"); }
 TEST_F(IntuitionTest, GadgetClick) { RunIntuitionTest("GadgetClick"); }
@@ -130,12 +156,57 @@ TEST_F(IntuitionTest, IDCMP) { RunIntuitionTest("IDCMP"); }
 TEST_F(IntuitionTest, IDCMPInput) { RunIntuitionTest("IDCMPInput"); }
 TEST_F(IntuitionTest, MenuSelect) { RunIntuitionTest("MenuSelect"); }
 TEST_F(IntuitionTest, MenuStrip) { RunIntuitionTest("MenuStrip"); }
-TEST_F(IntuitionTest, RequesterBasic) { RunIntuitionTest("RequesterBasic"); }
+TEST_F(IntuitionTest, PointerInput) { RunIntuitionTest("PointerInput"); }
+TEST_F(IntuitionTest, RequesterBasic) { GTEST_SKIP() << "RequesterBasic has dedicated interactive coverage"; }
 TEST_F(IntuitionTest, ScreenBasic) { RunIntuitionTest("ScreenBasic"); }
 TEST_F(IntuitionTest, ScreenManipulation) { RunIntuitionTest("ScreenManipulation"); }
 TEST_F(IntuitionTest, Validation) { RunIntuitionTest("Validation"); }
 TEST_F(IntuitionTest, WindowBasic) { RunIntuitionTest("WindowBasic"); }
 TEST_F(IntuitionTest, WindowManipulation) { RunIntuitionTest("WindowManipulation"); }
+
+TEST_F(RequesterBasicDriverTest, SystemRequesterCancelAndConfirm) {
+    ASSERT_TRUE(WaitForWindows(2, 10000));
+
+    lxa_window_info_t parent_info;
+    lxa_window_info_t req_info;
+    ASSERT_TRUE(GetWindowInfo(0, &parent_info));
+    ASSERT_TRUE(GetWindowInfo(1, &req_info));
+
+    ClearOutput();
+    Click(req_info.x + req_info.width - 8, req_info.y + 5);
+    RunCyclesWithVBlank(40, 50000);
+
+    std::string output;
+    bool saw_cancel = false;
+    for (int i = 0; i < 20; i++) {
+        RunCyclesWithVBlank(5, 50000);
+        output = GetOutput();
+        if (output.find("OK: SysReqHandler returns cancel for IDCMP_CLOSEWINDOW") != std::string::npos) {
+            saw_cancel = true;
+            break;
+        }
+    }
+
+    EXPECT_TRUE(saw_cancel)
+        << output;
+
+    ASSERT_TRUE(WaitForWindows(2, 10000));
+    ASSERT_TRUE(GetWindowInfo(1, &req_info));
+
+    ClearOutput();
+    Click(req_info.x + 40, req_info.y + req_info.height - 18);
+    RunCyclesWithVBlank(40, 50000);
+
+    EXPECT_TRUE(lxa_wait_exit(10000));
+
+    output = GetOutput();
+    EXPECT_NE(output.find("OK: SysReqHandler returns the gadget ID"), std::string::npos)
+        << output;
+    EXPECT_NE(output.find("OK: FreeSysRequest closed the system requester"), std::string::npos)
+        << output;
+    EXPECT_NE(output.find("PASS: requester_basic all tests completed"), std::string::npos)
+        << output;
+}
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

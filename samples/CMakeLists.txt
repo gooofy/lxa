@@ -203,6 +203,7 @@ set(TESTS_LIST
     "../tests/intuition/idcmp_input|main|Tests/Intuition/IDCMPInput"
     "../tests/intuition/menu_select|main|Tests/Intuition/MenuSelect"
     "../tests/intuition/menu_strip|main|Tests/Intuition/MenuStrip"
+    "../tests/intuition/pointer_input|main|Tests/Intuition/PointerInput"
     "../tests/intuition/requester_basic|main|Tests/Intuition/RequesterBasic"
     "../tests/intuition/screen_basic|main|Tests/Intuition/ScreenBasic"
     "../tests/intuition/screen_manipulation|main|Tests/Intuition/ScreenManipulation"

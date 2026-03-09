@@ -1,6 +1,7 @@
 /*
  * Test: intuition/requester_basic
- * Tests InitRequester, Request, EndRequest functions
+ * Tests InitRequester, Request, EndRequest, BuildSysRequest, FreeSysRequest,
+ * and SysReqHandler functions.
  */
 
 #include <exec/types.h>
@@ -12,6 +13,7 @@
 #include <clib/graphics_protos.h>
 #include <clib/intuition_protos.h>
 #include <clib/dos_protos.h>
+#include <exec/ports.h>
 #include <inline/exec.h>
 #include <inline/graphics.h>
 #include <inline/intuition.h>
@@ -31,14 +33,80 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
+static struct Border req_border = {
+    0, 0,
+    2, 0,
+    JAM1,
+    5,
+    NULL,
+    NULL
+};
+
+static SHORT req_border_xy[] = {
+    0, 39,
+    0, 0,
+    119, 0,
+    119, 39,
+    0, 39
+};
+
+static struct IntuiText req_text = {
+    1, 0,
+    JAM1,
+    8, 12,
+    NULL,
+    (UBYTE *)"Requester active",
+    NULL
+};
+
+static struct IntuiText sys_body_2 = {
+    1, 0,
+    JAM1,
+    0, 10,
+    NULL,
+    (UBYTE *)"Continue test?",
+    NULL
+};
+
+static struct IntuiText sys_body_1 = {
+    1, 0,
+    JAM1,
+    0, 0,
+    NULL,
+    (UBYTE *)"System requester",
+    &sys_body_2
+};
+
+static struct IntuiText sys_pos = {
+    1, 0,
+    JAM1,
+    0, 0,
+    NULL,
+    (UBYTE *)"Retry",
+    NULL
+};
+
+static struct IntuiText sys_neg = {
+    1, 0,
+    JAM1,
+    0, 0,
+    NULL,
+    (UBYTE *)"Cancel",
+    NULL
+};
+
 int main(void)
 {
     struct NewScreen ns;
     struct NewWindow nw;
     struct Screen *screen;
     struct Window *window;
+    struct Window *sys_window;
     struct Requester requester;
     BOOL result;
+    LONG sys_result;
+    ULONG idcmp_class;
+    struct IntuiMessage *msg;
     
     print("Testing Requester Functions...\n\n");
     
@@ -96,10 +164,15 @@ int main(void)
     print("Test 1: InitRequester()...\n");
     InitRequester(&requester);
     print("  OK: InitRequester called\n");
-    if (requester.LeftEdge == 0 && requester.TopEdge == 0) {
-        print("  OK: Requester initialized to zero\n");
+    if (requester.LeftEdge == 0 && requester.TopEdge == 0 &&
+        requester.Width == 0 && requester.Height == 0 &&
+        requester.ReqGadget == NULL && requester.ReqBorder == NULL &&
+        requester.ReqText == NULL && requester.RWindow == NULL &&
+        requester.ReqLayer == NULL && requester.OlderRequest == NULL &&
+        requester.Flags == 0) {
+        print("  OK: InitRequester clears the whole structure\n");
     } else {
-        print("  FAIL: Requester not properly initialized\n");
+        print("  FAIL: InitRequester did not clear the whole structure\n");
     }
     print("\n");
     
@@ -109,30 +182,122 @@ int main(void)
     requester.TopEdge = 30;
     requester.Width = 200;
     requester.Height = 100;
-    requester.RelLeft = 0;
-    requester.RelTop = 0;
+    requester.RelLeft = 7;
+    requester.RelTop = -5;
     requester.ReqGadget = NULL;
-    requester.ReqBorder = NULL;
-    requester.ReqText = NULL;
-    requester.Flags = 0;
+    requester.ReqBorder = &req_border;
+    requester.ReqText = &req_text;
+    requester.Flags = POINTREL | SIMPLEREQ;
     requester.BackFill = 1;
     requester.ReqLayer = NULL;
     requester.ImageBMap = NULL;
     requester.RWindow = NULL;
     requester.ReqImage = NULL;
+    req_border.XY = req_border_xy;
     
     result = Request(&requester, window);
-    if (result) {
-        print("  OK: Request returned TRUE\n");
+    if (result && window->FirstRequest == &requester &&
+        (requester.Flags & REQACTIVE) && requester.RWindow == window &&
+        requester.ReqLayer == window->WLayer) {
+        print("  OK: Request linked and activated the requester\n");
     } else {
-        print("  FAIL: Request returned FALSE\n");
+        print("  FAIL: Request did not fully activate the requester\n");
     }
     print("\n");
     
     /* Test 3: EndRequest */
     print("Test 3: EndRequest()...\n");
     EndRequest(&requester, window);
-    print("  OK: EndRequest called\n\n");
+    if (window->FirstRequest == NULL && !(requester.Flags & REQACTIVE) &&
+        requester.RWindow == NULL && requester.ReqLayer == NULL &&
+        requester.OlderRequest == NULL) {
+        print("  OK: EndRequest unlinked and cleaned up the requester\n\n");
+    } else {
+        print("  FAIL: EndRequest did not fully clean up the requester\n\n");
+    }
+
+    /* Test 4: BuildSysRequest and SysReqHandler cancel path */
+    print("Test 4: BuildSysRequest() / SysReqHandler(IDCMP_CLOSEWINDOW)...\n");
+    sys_window = BuildSysRequest(window, &sys_body_1, &sys_pos, &sys_neg,
+                                 IDCMP_CLOSEWINDOW, 0, 0);
+    if (!sys_window || sys_window == (struct Window *)1) {
+        print("  FAIL: BuildSysRequest did not open requester window\n\n");
+    } else {
+        if (sys_window->UserPort != NULL && sys_window->FirstGadget != NULL) {
+            print("  OK: BuildSysRequest opened a requester window\n");
+        } else {
+            print("  FAIL: BuildSysRequest window missing IDCMP/gadget setup\n");
+        }
+
+        while ((msg = (struct IntuiMessage *)GetMsg(sys_window->UserPort)) != NULL) {
+            ReplyMsg((struct Message *)msg);
+        }
+
+        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!msg) {
+            print("  FAIL: Could not allocate close message\n");
+            FreeSysRequest(sys_window);
+        } else {
+            msg->ExecMessage.mn_Length = sizeof(struct IntuiMessage);
+            msg->ExecMessage.mn_ReplyPort = sys_window->WindowPort;
+            msg->Class = IDCMP_CLOSEWINDOW;
+            PutMsg(sys_window->UserPort, (struct Message *)msg);
+
+            idcmp_class = 0;
+            sys_result = SysReqHandler(sys_window, &idcmp_class, FALSE);
+            if (sys_result == 0 && idcmp_class == IDCMP_CLOSEWINDOW) {
+                print("  OK: SysReqHandler returns cancel for IDCMP_CLOSEWINDOW\n");
+            } else {
+                print("  FAIL: SysReqHandler did not report IDCMP_CLOSEWINDOW correctly\n");
+            }
+            FreeSysRequest(sys_window);
+        }
+        print("\n");
+    }
+
+    /* Test 5: BuildSysRequest and SysReqHandler gadget path */
+    print("Test 5: BuildSysRequest() / SysReqHandler(IDCMP_GADGETUP)...\n");
+    sys_window = BuildSysRequest(window, &sys_body_1, &sys_pos, &sys_neg,
+                                 IDCMP_CLOSEWINDOW, 0, 0);
+    if (!sys_window || sys_window == (struct Window *)1) {
+        print("  FAIL: BuildSysRequest did not open second requester window\n\n");
+    } else {
+        struct Gadget *gad = sys_window->FirstGadget;
+
+        if (gad && gad->NextGadget != NULL) {
+            print("  OK: BuildSysRequest created response gadgets\n");
+        } else {
+            print("  FAIL: BuildSysRequest did not create response gadgets\n");
+        }
+
+        while ((msg = (struct IntuiMessage *)GetMsg(sys_window->UserPort)) != NULL) {
+            ReplyMsg((struct Message *)msg);
+        }
+
+        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!msg || !gad) {
+            print("  FAIL: Could not stage gadget reply message\n");
+            if (msg) FreeMem(msg, sizeof(struct IntuiMessage));
+            FreeSysRequest(sys_window);
+        } else {
+            msg->ExecMessage.mn_Length = sizeof(struct IntuiMessage);
+            msg->ExecMessage.mn_ReplyPort = sys_window->WindowPort;
+            msg->Class = IDCMP_GADGETUP;
+            msg->IAddress = gad;
+            PutMsg(sys_window->UserPort, (struct Message *)msg);
+
+            idcmp_class = 0;
+            sys_result = SysReqHandler(sys_window, &idcmp_class, FALSE);
+            if (sys_result == gad->GadgetID && idcmp_class == IDCMP_GADGETUP) {
+                print("  OK: SysReqHandler returns the gadget ID\n");
+            } else {
+                print("  FAIL: SysReqHandler did not return the gadget ID\n");
+            }
+
+            FreeSysRequest(sys_window);
+            print("  OK: FreeSysRequest closed the system requester\n\n");
+        }
+    }
     
     /* Cleanup */
     CloseWindow(window);
