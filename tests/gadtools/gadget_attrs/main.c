@@ -22,12 +22,19 @@ int main(void)
     struct Screen *screen = NULL;
     APTR vi = NULL;
     struct Gadget *glist = NULL;
+    struct Gadget *context = NULL;
     struct Gadget *gad = NULL;
     struct Gadget *checkbox_gad;
     struct Gadget *slider_gad;
     struct Gadget *string_gad;
     struct Gadget *integer_gad;
     struct Gadget *cycle_gad;
+    struct Gadget *mx_gad;
+    struct Gadget *listview_gad;
+    struct Gadget *palette_gad;
+    struct Gadget *scroller_gad;
+    struct Gadget *text_gad;
+    struct Gadget *number_gad;
     struct NewGadget ng;
     STRPTR cycle_labels[] = { (STRPTR)"One", (STRPTR)"Two", (STRPTR)"Three", NULL };
     ULONG checked = 99;
@@ -112,15 +119,29 @@ int main(void)
     ng.ng_GadgetText = (UBYTE *)"Check";
     ng.ng_GadgetID = 1;
 
-    gad = CreateContext(&glist);
+    if (CreateContext(NULL) != NULL)
+        return fail("CreateContext(NULL) should fail safely");
+
+    context = gad = CreateContext(&glist);
     if (!gad)
         return fail("CreateContext failed");
+    if (glist != context)
+        return fail("CreateContext did not store the context gadget in the list head");
+    if (context->NextGadget != NULL)
+        return fail("fresh context gadget should not have a successor");
+    if ((context->Flags & GFLG_GADGHIGHBITS) != GFLG_GADGHNONE)
+        return fail("context gadget should be invisible and unselectable");
+    if ((context->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET)
+        return fail("context gadget type mismatch");
+    printf("OK: CreateContext returned invisible sentinel gadget\n");
 
     checkbox_gad = gad = CreateGadget(CHECKBOX_KIND, gad, &ng,
         GTCB_Checked, FALSE,
         TAG_DONE);
     if (!checkbox_gad)
         return fail("checkbox creation failed");
+    if (context->NextGadget != checkbox_gad)
+        return fail("context gadget did not link to the first created gadget");
 
     ng.ng_TopEdge += 20;
     ng.ng_GadgetText = (UBYTE *)"Slider";
@@ -132,6 +153,8 @@ int main(void)
         TAG_DONE);
     if (!slider_gad)
         return fail("slider creation failed");
+    if (checkbox_gad->NextGadget != slider_gad)
+        return fail("checkbox gadget did not link to slider gadget");
 
     ng.ng_TopEdge += 20;
     ng.ng_GadgetText = (UBYTE *)"String";
@@ -142,6 +165,8 @@ int main(void)
         TAG_DONE);
     if (!string_gad)
         return fail("string creation failed");
+    if (slider_gad->NextGadget != string_gad)
+        return fail("slider gadget did not link to string gadget");
 
     ng.ng_TopEdge += 20;
     ng.ng_GadgetText = (UBYTE *)"Integer";
@@ -152,6 +177,8 @@ int main(void)
         TAG_DONE);
     if (!integer_gad)
         return fail("integer creation failed");
+    if (string_gad->NextGadget != integer_gad)
+        return fail("string gadget did not link to integer gadget");
 
     ng.ng_TopEdge += 20;
     ng.ng_GadgetText = (UBYTE *)"Cycle";
@@ -162,6 +189,78 @@ int main(void)
         TAG_DONE);
     if (!cycle_gad)
         return fail("cycle creation failed");
+    if (integer_gad->NextGadget != cycle_gad)
+        return fail("integer gadget did not link to cycle gadget");
+
+    ng.ng_TopEdge += 20;
+    ng.ng_GadgetText = (UBYTE *)"MX";
+    ng.ng_GadgetID = 6;
+    mx_gad = gad = CreateGadget(MX_KIND, gad, &ng, TAG_DONE);
+    if (!mx_gad)
+        return fail("mx creation failed");
+    if (cycle_gad->NextGadget != mx_gad)
+        return fail("cycle gadget did not link to mx gadget");
+
+    ng.ng_TopEdge += 20;
+    ng.ng_GadgetText = (UBYTE *)"ListView";
+    ng.ng_GadgetID = 7;
+    listview_gad = gad = CreateGadget(LISTVIEW_KIND, gad, &ng, TAG_DONE);
+    if (!listview_gad)
+        return fail("listview creation failed");
+    if (mx_gad->NextGadget != listview_gad)
+        return fail("mx gadget did not link to listview gadget");
+
+    ng.ng_TopEdge += 20;
+    ng.ng_GadgetText = (UBYTE *)"Palette";
+    ng.ng_GadgetID = 8;
+    palette_gad = gad = CreateGadget(PALETTE_KIND, gad, &ng, TAG_DONE);
+    if (!palette_gad)
+        return fail("palette creation failed");
+    if (listview_gad->NextGadget != palette_gad)
+        return fail("listview gadget did not link to palette gadget");
+
+    ng.ng_TopEdge += 20;
+    ng.ng_GadgetText = (UBYTE *)"Scroller";
+    ng.ng_GadgetID = 9;
+    scroller_gad = gad = CreateGadget(SCROLLER_KIND, gad, &ng, TAG_DONE);
+    if (!scroller_gad)
+        return fail("scroller creation failed");
+    if (palette_gad->NextGadget != scroller_gad)
+        return fail("palette gadget did not link to scroller gadget");
+
+    ng.ng_TopEdge += 20;
+    ng.ng_GadgetText = (UBYTE *)"Text";
+    ng.ng_GadgetID = 10;
+    text_gad = gad = CreateGadget(TEXT_KIND, gad, &ng, TAG_DONE);
+    if (!text_gad)
+        return fail("text creation failed");
+    if (scroller_gad->NextGadget != text_gad)
+        return fail("scroller gadget did not link to text gadget");
+
+    ng.ng_TopEdge += 20;
+    ng.ng_GadgetText = (UBYTE *)"Number";
+    ng.ng_GadgetID = 11;
+    number_gad = gad = CreateGadget(NUMBER_KIND, gad, &ng, TAG_DONE);
+    if (!number_gad)
+        return fail("number creation failed");
+    if (text_gad->NextGadget != number_gad)
+        return fail("text gadget did not link to number gadget");
+    if (number_gad->NextGadget != NULL)
+        return fail("last gadget should terminate the list");
+
+    if ((mx_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET)
+        return fail("mx gadget type mismatch");
+    if ((listview_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET)
+        return fail("listview gadget type mismatch");
+    if ((palette_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET)
+        return fail("palette gadget type mismatch");
+    if ((scroller_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET)
+        return fail("scroller gadget type mismatch");
+    if ((text_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_BOOLGADGET)
+        return fail("text gadget type mismatch");
+    if ((number_gad->GadgetType & GTYP_GTYPEMASK) != GTYP_BOOLGADGET)
+        return fail("number gadget type mismatch");
+    printf("OK: CreateGadget supports all current gadget kinds\n");
 
     if (GT_GetGadgetAttrsA(checkbox_gad, NULL, NULL, get_checkbox_tags) != 1 || checked != FALSE)
         return fail("checkbox get attrs did not report initial unchecked state");

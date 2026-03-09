@@ -1496,8 +1496,18 @@ void _gadtools_GT_RefreshWindow ( register struct GadToolsBase *GadToolsBase __a
                                   register struct Window *win __asm("a0"),
                                   register struct Requester *req __asm("a1") )
 {
+    struct Gadget *gadgets;
+
     DPRINTF (LOG_DEBUG, "_gadtools: GT_RefreshWindow() win=0x%08lx\n", (ULONG)win);
-    /* Stub - would need to refresh gadgets */
+
+    if (!win)
+        return;
+
+    gadgets = req ? req->ReqGadget : win->FirstGadget;
+    if (!gadgets)
+        return;
+
+    RefreshGList(gadgets, win, req, -1);
 }
 
 /* GT_BeginRefresh - Begin a refresh operation */
@@ -1505,7 +1515,11 @@ void _gadtools_GT_BeginRefresh ( register struct GadToolsBase *GadToolsBase __as
                                  register struct Window *win __asm("a0") )
 {
     DPRINTF (LOG_DEBUG, "_gadtools: GT_BeginRefresh() win=0x%08lx\n", (ULONG)win);
-    /* Stub - call BeginRefresh if available */
+
+    if (!win)
+        return;
+
+    BeginRefresh(win);
 }
 
 /* GT_EndRefresh - End a refresh operation */
@@ -1514,7 +1528,11 @@ void _gadtools_GT_EndRefresh ( register struct GadToolsBase *GadToolsBase __asm(
                                register BOOL complete __asm("d0") )
 {
     DPRINTF (LOG_DEBUG, "_gadtools: GT_EndRefresh() win=0x%08lx, complete=%d\n", (ULONG)win, complete);
-    /* Stub - call EndRefresh if available */
+
+    if (!win)
+        return;
+
+    EndRefresh(win, complete);
 }
 
 /* GT_FilterIMsg - Filter an IntuiMessage */

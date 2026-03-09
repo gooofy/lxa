@@ -469,16 +469,16 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 #### 78-F: GadTools Library (`src/rom/lxa_gadtools.c` vs `others/AROS-20231016-source/rom/compiler/alib/`)
 
-- [ ] `GT_CreateContext` / `GT_FreeContext` — context gadget; verify head/tail sentinel nodes
-- [ ] `GT_CreateGadgetA` — all kinds: BUTTON_KIND, CHECKBOX_KIND, CYCLE_KIND, INTEGER_KIND, LISTVIEW_KIND, MX_KIND, NUMBER_KIND, PALETTE_KIND, SCROLLER_KIND, SLIDER_KIND, STRING_KIND, TEXT_KIND
-- [ ] `GT_FreeGadget` / `GT_FreeGadgets`
+- [x] `CreateContext` / context-list teardown — public NDK surface verified as `CreateContext()` + `FreeGadgets()` (no public `FreeContext()` entry point); direct regression coverage now locks the invisible sentinel gadget semantics, head/tail linkage, and safe teardown across all currently supported GadTools kinds (v0.6.114)
+- [x] `CreateGadgetA` — all current lxa-supported kinds (`BUTTON_KIND`, `CHECKBOX_KIND`, `CYCLE_KIND`, `INTEGER_KIND`, `LISTVIEW_KIND`, `MX_KIND`, `NUMBER_KIND`, `PALETTE_KIND`, `SCROLLER_KIND`, `SLIDER_KIND`, `STRING_KIND`, `TEXT_KIND`) now have direct regression coverage for creation/linkage and kind-specific gadget-class assignment (v0.6.114)
+- [x] `FreeGadgets` — teardown coverage now walks full mixed-kind gadget lists; no public NDK `FreeGadget()` symbol was found in the bundled AmigaOS 3.2 surface, so the roadmap tracks the exported `FreeGadgets()` API instead (v0.6.114)
 - [x] `GT_SetGadgetAttrsA` / `GT_GetGadgetAttrs` — checkbox/cycle/string/integer/slider state round-trips and updates verified with direct regression coverage (v0.6.110)
 - [ ] `GT_ReplyIMsg` / `GT_GetIMsg` — thin wrappers around Intuition IDCMP
 - [ ] `GT_RefreshWindow` — paint gadget list
 - [ ] `GT_BeginRefresh` / `GT_EndRefresh`
 - [ ] `GT_PostFilterIMsg` / `GT_FilterIMsg`
 - [ ] `CreateMenusA` / `FreeMenus` / `LayoutMenuItemsA` / `LayoutMenusA`
-- [ ] `DrawBevelBoxA` — raised/recessed bevel rendering
+- [x] `DrawBevelBoxA` — raised/recessed/ridge bevel rendering now runs in the automated GadTools regression driver via `Tests/GadTools/DrawBevelBox` (v0.6.114)
 
 ##### 78-F-2: Review
 

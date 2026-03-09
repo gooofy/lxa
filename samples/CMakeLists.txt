@@ -194,6 +194,8 @@ set(TESTS_LIST
     "../tests/graphics/set_rast|main|Tests/Graphics/SetRast"
     "../tests/graphics/text_extent|main|Tests/Graphics/TextExtent"
     "../tests/graphics/text_render|main|Tests/Graphics/TextRender"
+    "../tests/gadtools/context_refresh|main|Tests/GadTools/ContextRefresh"
+    "../tests/gadtools/drawbevelbox|main|Tests/GadTools/DrawBevelBox"
     "../tests/gadtools/gadget_attrs|main|Tests/GadTools/GadgetAttrs"
     "../tests/intuition/boopsi|main|Tests/Intuition/BOOPSI"
     "../tests/intuition/boopsi_ic|main|Tests/Intuition/BOOPSI_IC"

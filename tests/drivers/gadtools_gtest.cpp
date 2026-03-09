@@ -23,6 +23,14 @@ TEST_F(GadToolsTest, GadgetAttrs) {
     RunGadToolsTest("GadgetAttrs");
 }
 
+TEST_F(GadToolsTest, ContextRefresh) {
+    RunGadToolsTest("ContextRefresh");
+}
+
+TEST_F(GadToolsTest, DrawBevelBox) {
+    RunGadToolsTest("DrawBevelBox");
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
