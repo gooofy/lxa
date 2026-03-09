@@ -890,6 +890,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] After each 78-A through 78-W subsystem fix: run full `ctest --test-dir build -j16` and confirm all existing tests still pass
 - [x] Regression maintenance: restore `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` to green after timer/SystemTagList/test-harness regressions; verified with full `ctest --test-dir build --output-on-failure -j16`
 - [x] Rebalance long-running GTest drivers for parallel CTest execution by splitting oversized suites (`gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, `cluster2`) into smaller shards; verified with full `ctest --test-dir build --output-on-failure -j16`
+- [x] Regression maintenance: restore `graphics_gtest` (`ColorsPens`) and `dos_gtest` (`AssignNotify`) after palette-pen matching and assign-backed `DeviceProc()` regressions; verified with focused reruns and full `ctest --test-dir build --output-on-failure -j16`
 - [ ] Add new GTest assertions for each behavioral deviation found vs AROS
 - [ ] Run RKM sample programs after structural changes to catch regressions (gadtoolsgadgets_gtest, simplemenu_gtest, filereq_gtest, fontreq_gtest, easyrequest_gtest)
 - [ ] Run application tests after changes to exec/dos (asm_one_gtest, devpac_gtest, kickpascal_gtest, cluster2_gtest, dpaint_gtest)

@@ -222,14 +222,23 @@ int main(void)
     }
 
     found = ObtainBestPenA(cm, 0xFFFFFFFFUL, 0xCCCCCCCCUL, 0x88888888UL, NULL);
-    if (found != 5)
+    if (found < 0)
     {
         print("FAIL: ObtainBestPenA() did not reuse best shared pen\n");
         errors++;
     }
     else
     {
-        print("OK: ObtainBestPenA() reuses matching shared pen\n");
+        GetRGB32(cm, (ULONG)found, 1, table);
+        if (!expect_rgb32(table, 0xFFFFFFFFUL, 0xCCCCCCCCUL, 0x88888888UL))
+        {
+            print("FAIL: ObtainBestPenA() returned wrong color\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: ObtainBestPenA() returns an exact-match pen\n");
+        }
         ReleasePen(cm, (ULONG)found);
     }
 

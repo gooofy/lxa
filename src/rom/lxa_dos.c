@@ -2227,6 +2227,7 @@ struct MsgPort * _dos_DeviceProc ( register struct DosLibrary * __libBase __asm(
                                                         register CONST_STRPTR ___name  __asm("d1"))
 {
     struct DevProc *dvp;
+    struct Process *me;
     struct MsgPort *result = NULL;
     LONG ioerr = ERROR_DEVICE_NOT_MOUNTED;
 
@@ -2234,14 +2235,16 @@ struct MsgPort * _dos_DeviceProc ( register struct DosLibrary * __libBase __asm(
     if (!dvp)
         return NULL;
 
-    if (dvp->dvp_Flags & DVPF_UNLOCK)
-    {
-        result = NULL;
-        ioerr = ERROR_DEVICE_NOT_MOUNTED;
-    }
-    else
+    me = (struct Process *)FindTask(NULL);
+
+    if (dvp->dvp_Port)
     {
         result = dvp->dvp_Port;
+        ioerr = (LONG)dvp->dvp_Lock;
+    }
+    else if (dvp->dvp_Lock && me && me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
+    {
+        result = &me->pr_MsgPort;
         ioerr = (LONG)dvp->dvp_Lock;
     }
 

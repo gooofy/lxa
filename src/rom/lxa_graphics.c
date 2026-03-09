@@ -7000,7 +7000,6 @@ static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("
     precision = GetTagData(OBP_Precision, PRECISION_IMAGE, (struct TagItem *)tags);
     fail_if_bad = GetTagData(OBP_FailIfBad, FALSE, (struct TagItem *)tags);
     pe = cm->PalExtra;
-
     ObtainSemaphore(&pe->pe_Semaphore);
 
     pen = pe->pe_FirstShared;
@@ -7041,6 +7040,7 @@ static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("
     }
 
     ReleaseSemaphore(&pe->pe_Semaphore);
+
     return retval;
 }
 

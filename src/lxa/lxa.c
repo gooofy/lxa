@@ -3526,7 +3526,7 @@ static int _dos_getdevproc(uint32_t name68k, uint32_t dp68k, uint32_t err68k)
     uint32_t lock_id = 0;
     char amiga_root[PATH_MAX];
     char linux_path[PATH_MAX];
-    uint32_t flags = DVPF_UNLOCK;
+    uint32_t flags = 0;
 
     if (err68k) {
         m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
@@ -3570,6 +3570,7 @@ static int _dos_getdevproc(uint32_t name68k, uint32_t dp68k, uint32_t err68k)
 
         lock_id = _dos_make_lock_for_path(paths[index], amiga_root);
         flags |= DVPF_ASSIGN;
+        flags |= DVPF_UNLOCK;
         m68k_write_memory_32(dp68k + DVP_DVP_DEVNODE, index + 1);
     } else {
         if (volume[0] == '\0') {
