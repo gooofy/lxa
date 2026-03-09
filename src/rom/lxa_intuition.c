@@ -7197,10 +7197,43 @@ VOID _intuition_WindowToBack ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Window * window __asm("a0"))
 {
     BOOL rootless_mode;
+    struct Window **link;
+    struct Window *tail;
 
     DPRINTF (LOG_DEBUG, "_intuition: WindowToBack() window=0x%08lx\n", (ULONG)window);
     
     if (!window) return;
+
+    if (window->WScreen && window->WScreen->FirstWindow != window)
+    {
+        link = &window->WScreen->FirstWindow;
+        while (*link && *link != window)
+            link = &(*link)->NextWindow;
+
+        if (*link == window)
+        {
+            *link = window->NextWindow;
+            tail = window->WScreen->FirstWindow;
+            while (tail && tail->NextWindow)
+                tail = tail->NextWindow;
+
+            if (tail)
+                tail->NextWindow = window;
+            else
+                window->WScreen->FirstWindow = window;
+
+            window->NextWindow = NULL;
+        }
+    }
+    else if (window->WScreen && window->NextWindow)
+    {
+        window->WScreen->FirstWindow = window->NextWindow;
+        tail = window->WScreen->FirstWindow;
+        while (tail->NextWindow)
+            tail = tail->NextWindow;
+        tail->NextWindow = window;
+        window->NextWindow = NULL;
+    }
 
     /* Update internal structures */
     if (window->WLayer && LayersBase)
@@ -7224,10 +7257,25 @@ VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __
                                                         register struct Window * window __asm("a0"))
 {
     BOOL rootless_mode;
+    struct Window **link;
 
     DPRINTF (LOG_DEBUG, "_intuition: WindowToFront() window=0x%08lx\n", (ULONG)window);
     
     if (!window) return;
+
+    if (window->WScreen && window->WScreen->FirstWindow != window)
+    {
+        link = &window->WScreen->FirstWindow;
+        while (*link && *link != window)
+            link = &(*link)->NextWindow;
+
+        if (*link == window)
+        {
+            *link = window->NextWindow;
+            window->NextWindow = window->WScreen->FirstWindow;
+            window->WScreen->FirstWindow = window;
+        }
+    }
 
     /* Update internal structures */
     if (window->WLayer && LayersBase)
@@ -10890,13 +10938,16 @@ VOID _intuition_ScreenDepth ( register struct IntuitionBase * IntuitionBase __as
 {
     DPRINTF (LOG_DEBUG, "_intuition: ScreenDepth() screen=0x%08lx flags=0x%08lx\n", (ULONG)screen, flags);
 
-    if (flags & SDEPTH_TOFRONT)
-    {
-        _intuition_ScreenToFront(IntuitionBase, screen);
-    }
-    else if (flags & SDEPTH_TOBACK)
+    if (!screen)
+        return;
+
+    if ((UWORD)flags == SDEPTH_TOBACK)
     {
         _intuition_ScreenToBack(IntuitionBase, screen);
+    }
+    else
+    {
+        _intuition_ScreenToFront(IntuitionBase, screen);
     }
 }
 

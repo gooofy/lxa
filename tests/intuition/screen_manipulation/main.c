@@ -35,6 +35,8 @@ int main(void)
 {
     struct NewScreen ns1, ns2;
     struct Screen *screen1, *screen2;
+    struct Screen screen_copy;
+    int errors = 0;
     
     print("Testing Screen Manipulation Functions...\n\n");
     
@@ -86,27 +88,85 @@ int main(void)
     /* Test 1: ScreenToBack */
     print("Test 1: ScreenToBack(screen2)...\n");
     ScreenToBack(screen2);
-    print("  OK: ScreenToBack called\n\n");
+    if (IntuitionBase->FirstScreen != screen1 || screen1->NextScreen != screen2 || screen2->NextScreen != NULL) {
+        print("  FAIL: ScreenToBack did not move screen2 behind screen1\n\n");
+        errors++;
+    } else {
+        print("  OK: ScreenToBack moves screen2 behind screen1\n\n");
+    }
     
     /* Test 2: ScreenToFront */
     print("Test 2: ScreenToFront(screen2)...\n");
     ScreenToFront(screen2);
-    print("  OK: ScreenToFront called\n\n");
+    if (IntuitionBase->FirstScreen != screen2 || screen2->NextScreen != screen1) {
+        print("  FAIL: ScreenToFront did not restore screen2 to the front\n\n");
+        errors++;
+    } else {
+        print("  OK: ScreenToFront restores screen2 to the front\n\n");
+    }
     
     /* Test 3: ScreenDepth with SDEPTH_TOBACK */
     print("Test 3: ScreenDepth(screen1, SDEPTH_TOBACK, NULL)...\n");
     ScreenDepth(screen1, SDEPTH_TOBACK, NULL);
-    print("  OK: ScreenDepth TOBACK called\n\n");
+    if (IntuitionBase->FirstScreen != screen2 || screen2->NextScreen != screen1 || screen1->NextScreen != NULL) {
+        print("  FAIL: ScreenDepth(TOBACK) did not keep screen1 at the back\n\n");
+        errors++;
+    } else {
+        print("  OK: ScreenDepth(TOBACK) keeps screen1 at the back\n\n");
+    }
     
     /* Test 4: ScreenDepth with SDEPTH_TOFRONT */
     print("Test 4: ScreenDepth(screen1, SDEPTH_TOFRONT, NULL)...\n");
     ScreenDepth(screen1, SDEPTH_TOFRONT, NULL);
-    print("  OK: ScreenDepth TOFRONT called\n\n");
+    if (IntuitionBase->FirstScreen != screen1 || screen1->NextScreen != screen2) {
+        print("  FAIL: ScreenDepth(TOFRONT) did not move screen1 to the front\n\n");
+        errors++;
+    } else {
+        print("  OK: ScreenDepth(TOFRONT) moves screen1 to the front\n\n");
+    }
     
     /* Test 5: ScreenPosition */
     print("Test 5: ScreenPosition(screen1, SPOS_RELATIVE, 10, 20, 0, 0)...\n");
     ScreenPosition(screen1, SPOS_RELATIVE, 10, 20, 0, 0);
-    print("  OK: ScreenPosition called\n\n");
+    if (screen1->LeftEdge != 10 || screen1->TopEdge != 20) {
+        print("  FAIL: ScreenPosition(SPOS_RELATIVE) did not update coordinates\n\n");
+        errors++;
+    } else {
+        print("  OK: ScreenPosition(SPOS_RELATIVE) updates coordinates\n\n");
+    }
+
+    print("Test 6: MoveScreen(screen1, -4, 6)...\n");
+    MoveScreen(screen1, -4, 6);
+    if (screen1->LeftEdge != 6 || screen1->TopEdge != 26) {
+        print("  FAIL: MoveScreen did not apply the requested delta\n\n");
+        errors++;
+    } else {
+        print("  OK: MoveScreen applies relative movement\n\n");
+    }
+
+    print("Test 7: ScreenPosition(screen1, SPOS_ABSOLUTE, 3, 7, 0, 0)...\n");
+    ScreenPosition(screen1, SPOS_ABSOLUTE, 3, 7, 0, 0);
+    if (screen1->LeftEdge != 3 || screen1->TopEdge != 7) {
+        print("  FAIL: ScreenPosition(SPOS_ABSOLUTE) did not set absolute coordinates\n\n");
+        errors++;
+    } else {
+        print("  OK: ScreenPosition(SPOS_ABSOLUTE) sets absolute coordinates\n\n");
+    }
+
+    print("Test 8: GetScreenData(screen1)...\n");
+    if (!GetScreenData(&screen_copy, sizeof(screen_copy), CUSTOMSCREEN, screen1)) {
+        print("  FAIL: GetScreenData() returned FALSE for a live screen\n\n");
+        errors++;
+    } else if (screen_copy.LeftEdge != screen1->LeftEdge ||
+               screen_copy.TopEdge != screen1->TopEdge ||
+               screen_copy.Width != screen1->Width ||
+               screen_copy.Height != screen1->Height ||
+               screen_copy.Title != screen1->Title) {
+        print("  FAIL: GetScreenData() did not copy the public screen fields\n\n");
+        errors++;
+    } else {
+        print("  OK: GetScreenData() copies the screen structure\n\n");
+    }
     
     /* Cleanup */
     CloseScreen(screen2);
@@ -114,6 +174,11 @@ int main(void)
     CloseScreen(screen1);
     print("OK: Screen 1 closed\n\n");
     
-    print("PASS: screen_manipulation all tests completed\n");
-    return 0;
+    if (errors == 0) {
+        print("PASS: screen_manipulation all tests completed\n");
+        return 0;
+    }
+
+    print("FAIL: screen_manipulation had errors\n");
+    return 20;
 }

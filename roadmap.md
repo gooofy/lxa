@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.99** | **Phase 78-E Intuition Refresh & IDCMP Cleanup Verified** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.100** | **Phase 78-E Intuition Screen/Window Manipulation Expanded** | **48/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -34,15 +34,16 @@ Phase 78-C: Sprites & GELs verification expanded; `GetSprite`/`FreeSprite`/`Chan
 Phase 78-C: Pens & Colors verification expanded; `SetRGB4`/`SetRGB32`/`SetRGB4CM`/`SetRGB32CM`/`GetRGB32` plus `LoadRGB4`/`LoadRGB32` now preserve classic 8-bit palette precision through `ColorMap`/`LowColorBits`, `AttachPalExtra` now seeds sharable palette state for pen arbitration, and `ObtainPen`/`ReleasePen`/`FindColor` now follow current shared/exclusive pen semantics with direct graphics regression coverage (v0.6.90).
 Phase 78-C: BitMap utilities verification expanded; `ScalerDiv`/`BitMapScale` now have direct planar-scaling coverage, `AddFont`/`RemFont`/`ExtendFont`/`StripFont` now follow current public-font and `tf_Extension` lifetime rules, and `GfxNew`/`GfxFree`/`GfxAssociate`/`GfxLookUp` now support the extended-node associations used by Release 2 display clients, all locked in by a new unified graphics regression (v0.6.91).
 Phase 78-D: layers core verification completed; direct regressions now cover `InitLayers`/`NewLayerInfo`/`DisposeLayerInfo`, upfront/behind and hook-layer creation, `DeleteLayer`, `MoveLayer`, `SizeLayer`, `UpfrontLayer`/`BehindLayer`, locking helpers, and the earlier tag-driven layer creation semantics in one unified sweep (v0.6.94).
-Phase 78-E: Intuition ABI verification expanded; `Window`, `IntuiMessage`, `Gadget`, `StringInfo`, `PropInfo`, `Image`, `Border`, `IntuiText`, `MenuItem`, and `Menu` are already covered by `StructOffsets`, `OpenScreen`/`CloseScreen`/`OpenScreenTagList` remain locked for tag overrides/default opens/close refusal, `LockPubScreen`/`UnlockPubScreen`/`LockPubScreenList`/`UnlockPubScreenList`, `PubScreenStatus`, `GetDefaultPubScreen`, and `ShowTitle` now have direct public-screen regression coverage, `MoveWindow`/`SizeWindow`/`ChangeWindowBox`/`WindowLimits`/`WindowToFront`/`WindowToBack` plus `SetWindowTitles` remain covered for mutation/depth semantics, and `BeginRefresh`/`EndRefresh` plus `ModifyIDCMP` cleanup now have direct regression coverage for refresh-flag transitions and IDCMP reply-port cleanup behavior (v0.6.99).
+Phase 78-E: Intuition ABI verification expanded; `Window`, `IntuiMessage`, `Gadget`, `StringInfo`, `PropInfo`, `Image`, `Border`, `IntuiText`, `MenuItem`, and `Menu` are already covered by `StructOffsets`, `OpenScreen`/`CloseScreen`/`OpenScreenTagList` remain locked for tag overrides/default opens/close refusal, `LockPubScreen`/`UnlockPubScreen`/`LockPubScreenList`/`UnlockPubScreenList`, `PubScreenStatus`, `GetDefaultPubScreen`, and `ShowTitle` now have direct public-screen regression coverage, `GetScreenData`, `MoveScreen`, `ScreenToFront`/`ScreenToBack`, `MoveWindow`/`SizeWindow`/`ChangeWindowBox`/`WindowLimits`/`WindowToFront`/`WindowToBack`, `ActivateWindow`, `ZipWindow`, and `RefreshWindowFrame` now have direct screen/window manipulation regression coverage, and `BeginRefresh`/`EndRefresh` plus `ModifyIDCMP` cleanup remain covered for refresh-flag transitions and IDCMP reply-port cleanup behavior (v0.6.100).
 
 **Current Status**:
-- 49/49 ctest entries (all GTest) still pass, and the Intuition sweep now covers public-screen locking/status helpers, window mutation/depth entry points, and the current refresh/IDCMP cleanup surface alongside the earlier screen/window-open semantics
-- Full `ctest --test-dir build --output-on-failure -j8` remains green, with the expanded Intuition sweep now locking the current 78-E public-screen, window-mutation, and refresh/IDCMP cleanup surface under the unified suite
+- 48/49 ctest entries (all GTest) currently pass; the Intuition sweep now covers public-screen locking/status helpers, screen ordering/position helpers, and the expanded window manipulation surface alongside the earlier screen/window-open semantics
+- `ctest --test-dir build --output-on-failure -R intuition_gtest` is green with the expanded Intuition sweep; the full `ctest --test-dir build --output-on-failure -j8` run now fails only on the pre-existing unrelated `fontreq_gtest` pixel assertion (`FontReqTest.FontListDisplayed`)
 - `Tests/Exec/StructOffsets` now covers the full public Intuition structure set currently tracked in Phase 78-E, including `Window`, `IntuiMessage`, gadgets, string/prop helpers, images/borders/text, menus, plus the earlier `IntuitionBase`, `Screen`, and `Requester` checks
 - `Tests/Intuition/ScreenBasic` now locks `OpenScreen`/`CloseScreen`/`OpenScreenTagList` plus `GetDefaultPubScreen`, `LockPubScreen`/`UnlockPubScreen`, `LockPubScreenList`/`UnlockPubScreenList`, `PubScreenStatus`, and `ShowTitle` against V36-style close refusal, public/private transitions, list exposure, and title-bar visibility semantics
 - `Tests/Intuition/WindowBasic` now locks `OpenWindow`/`CloseWindow`/`OpenWindowTagList` against tag-driven size/position overrides, boolean flag clearing, Workbench fallback for tag-only opens, `WA_InnerWidth`/`WA_InnerHeight` plus `WA_GimmeZeroZero`, size-border placement tags, and `WA_Zoom`-backed `ZipWindow()` toggling
-- `Tests/Intuition/WindowManipulation` now verifies `MoveWindow`/`SizeWindow`/`WindowLimits`/`ChangeWindowBox`/`SetWindowTitles`/`WindowToFront`/`WindowToBack` plus `BeginRefresh`/`EndRefresh` for geometry changes, IDCMP delivery, title-update semantics, depth ordering, and refresh-flag cleanup behavior
+- `Tests/Intuition/ScreenManipulation` now verifies `GetScreenData`, `MoveScreen`, `ScreenToFront`/`ScreenToBack`, `ScreenDepth`, and `ScreenPosition` directly against the live screen list and copied public structure state
+- `Tests/Intuition/WindowManipulation` now verifies `MoveWindow`/`SizeWindow`/`WindowLimits`/`ChangeWindowBox`/`SetWindowTitles`/`WindowToFront`/`WindowToBack`, `ActivateWindow`, `RefreshWindowFrame`, `ZipWindow`, plus `BeginRefresh`/`EndRefresh` for geometry changes, IDCMP delivery, title/frame redraw semantics, depth ordering, zoom toggling, and refresh-flag cleanup behavior
 - `Tests/Intuition/IDCMP` now verifies `ModifyIDCMP` creates both public and internal IDCMP ports, keeps replied messages on the cleanup queue until Intuition reaps them, and tears both ports down cleanly when IDCMP is disabled
 - Added clearer CLI assign controls: `--assign` now aliases the old `-a` replace behavior, `--assign-add` appends to multi-assign search lists, unit coverage locks the underlying replace/append VFS semantics, and the VS Code manual-test launch configs now use the explicit long-form options while rebuilding/installing the latest runtime before launch
 - Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
@@ -500,9 +501,9 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 **Screens** (vs `intuition/screens.c`):
 - [x] `OpenScreen` / `CloseScreen` / `OpenScreenTagList` — direct regression coverage now locks default opens, tag overrides/clears, `OpenScreenTagList(NULL, tags)`, ViewModes-based small-height expansion, and V36-style `CloseScreen()` refusal while windows remain open
 - [x] `LockPubScreen` / `UnlockPubScreen` / `LockPubScreenList` / `UnlockPubScreenList`
-- [ ] `GetScreenData` — fill ScreenBuffer from screen
-- [ ] `MoveScreen` — panning
-- [ ] `ScreenToFront` / `ScreenToBack`
+- [x] `GetScreenData` — fill ScreenBuffer from screen
+- [x] `MoveScreen` — panning
+- [x] `ScreenToFront` / `ScreenToBack`
 - [x] `ShowTitle` — SA_ShowTitle toggle
 - [x] `PubScreenStatus`
 - [ ] `SetDefaultScreenFont`
@@ -511,14 +512,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `OpenWindow` / `CloseWindow` / `OpenWindowTagList`
 - [x] `MoveWindow` / `SizeWindow` / `ChangeWindowBox`
 - [x] `WindowToFront` / `WindowToBack`
-- [ ] `ActivateWindow` ✅ (Phase 76)
-- [ ] `ZipWindow` ✅ (Phase 76)
+- [x] `ActivateWindow` ✅ (Phase 76)
+- [x] `ZipWindow` ✅ (Phase 76)
 - [x] `SetWindowTitles` — current lxa semantics locked for update, no-change (`(UBYTE *)-1`), and blank-title cases
-- [ ] `RefreshWindowFrame`
+- [x] `RefreshWindowFrame`
 - [x] `WindowLimits` — min/max width/height
 - [x] `BeginRefresh` / `EndRefresh` — WFlg damage tracking
 - [x] `ModifyIDCMP`
-- [ ] `GetDefaultPubScreen`
+- [x] `GetDefaultPubScreen`
 
 **Gadgets** (vs `intuition/gadgets.c`, `intuition/boopsi.c`):
 - [ ] `AddGadget` / `RemoveGadget` / `AddGList` / `RemoveGList`
