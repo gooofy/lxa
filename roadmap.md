@@ -1,148 +1,8 @@
 # lxa Roadmap: Towards a Fuller AmigaOS Implementation
 
-This document outlines the strategic plan for expanding `lxa` into a more complete AmigaOS-compatible environment, focusing on **Exec**, **DOS**, and a functional **Userland**. We follow a "WINE-like" approach for DOS, where filesystem operations are efficiently bridged to the host Linux system.
+This document outlines the strategic plan for expanding `lxa` into a more complete AmigaOS-compatible environment.
 
-**IMPORTANT**: **Always** adhere to project and coding standards outlined in `AGENTS.md`! Test coverage, roadmap updates and documentation are **mandatory** in this project!
-
----
-
-## Current Status
-
-**Version: 0.6.109** | **Phase 78-E Intuition DrawImage Verification Expanded** | **49/49 Tests Passing (GTest-only)**
-
-Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
-Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
-Phase 78-A-2: Exec `Wait()` wait-mask fix complete (v0.6.64).
-Phase 78-A-3: Exec `Wait(SIGBREAKF_CTRL_C)` verification complete (v0.6.65).
-Phase 78-A-4: Exec signals and semaphores verification complete (v0.6.66).
-Phase 78-A-5: Exec interrupts, nesting counters, library management, and `SumKickData()` verification complete (v0.6.68).
-Phase 78-A-6: Exec miscellaneous — `RawDoFmt` edge cases, list accessors, `Alert`, `Supervisor` verification complete (v0.6.69).
-Phase 78-B replanned: original DOS checklist preserved, split into `78-B-1` through `78-B-7` so each subphase can be completed in one focused session.
-Phase 78-B-7: DOS pattern/regression sweep complete; Phase 78-B DOS verification is now complete (v0.6.77).
-Phase 78-C: graphics public-structure verification started; `GfxBase`, `BitMap`, `RastPort`, `ViewPort`, `RasInfo`, `ColorMap`, `AreaInfo`, `TmpRas`, `GelsInfo`, and `TextFont` are now covered by `StructOffsets` (v0.6.78).
-Phase 78-C: drawing verification expanded; `Draw`, `RectFill`, `SetRast`, `WritePixel`/`ReadPixel`, `PolyDraw`, and `Flood` now run in the unified graphics regression sweep, with `Draw`/`RectFill` specifically locked against `COMPLEMENT` and `INVERSVID` behavior (v0.6.79).
-Phase 78-C: ellipse verification expanded; `AreaEllipse` now stores native ellipse markers in `AreaInfo`, `AreaEnd()` fills/renders those records directly, and both `DrawEllipse` and `AreaEllipse` are locked in by the graphics regression sweep (v0.6.80).
-Phase 78-C: area-fill verification expanded; `AreaEnd()` is now locked against even-odd fill behavior for self-overlapping paths, and the NDK `AreaCircle` shorthand is validated as `AreaEllipse(r,r)` through direct graphics regression coverage (v0.6.81).
-Phase 78-C: blit verification expanded; `BltBitMap`, `BltBitMapRastPort`, `ClipBlit`, and `BltMaskBitMapRastPort` are now covered for overlap semantics, destination minterms, layer ClipRect clipping, and masked copies in the unified graphics regression sweep (v0.6.82).
-Phase 78-C: text/font verification expanded; graphics now initializes and queries the public font list correctly, `OpenFont`/`CloseFont` follow list-based lookup and lifetime rules, `SetFont`/`AskFont`/`SetSoftStyle` are locked against current NDK-style semantics, and the existing text regression programs now verify those behaviors directly (v0.6.83).
-Phase 78-C: blitter/resource verification expanded; `QBlit`/`QBSBlit` now run through queued FIFO/beam-priority execution with cleanup callbacks, `WaitBlit`/`OwnBlitter`/`DisownBlitter` now coordinate ownership and queue draining instead of acting as no-ops, and `blitter.resource` plus `AddResource`/`RemResource` lifecycle coverage are locked in by new graphics/exec regressions (v0.6.84).
-Phase 78-C: bitmap allocation verification expanded; `InitBitMap` is now locked against `BMF_STANDARD`/`pad` initialization while preserving caller-owned planes, and `AllocBitMap`/`FreeBitMap` now have direct regression coverage for chip-plane allocation, flag propagation, and safe cleanup paths (v0.6.85).
-Phase 78-C: raster allocation verification expanded; `AllocRaster`/`FreeRaster` are now aligned with AROS/NDK CHIP-memory semantics, `AllocBitMap(BMF_CLEAR)` performs its own plane clearing instead of relying on `AllocRaster`, and the graphics regression sweep now locks in CHIP allocation, minimum-word sizing, and NULL-safe frees (v0.6.86).
-Phase 78-C: region verification expanded; region boolean ops now split/intersect/toggle rectangles instead of appending placeholders, `RectInRegion`/`PointInRegion` are exposed through the graphics vectors used by tests, and the graphics regression sweep now covers region/rect membership plus `StressTasks` timing is hardened against host contention (v0.6.87).
-Phase 78-C: Display & ViewPort verification expanded; `InitView`/`InitVPort`, `LoadView`, `MakeVPort`/`MrgCop`/`FreeVPortCopLists`/`FreeCopList`, `VideoControl`, `GetDisplayInfoData`, and `FindDisplayInfo`/`NextDisplayInfo` now have direct graphics regression coverage, with placeholder copper-list lifecycle plus classic display-info/tag semantics aligned for current lxa usage (v0.6.88).
-Phase 78-C: Sprites & GELs verification expanded; `GetSprite`/`FreeSprite`/`ChangeSprite`/`MoveSprite` now follow NDK-style allocation and coordinate semantics, `InitGels`/`AddVSprite`/`AddBob`/`RemVSprite`/`SortGList` now maintain deterministic GEL ordering, and `DrawGList` now honors Bob draw/removal flow with direct regression coverage (v0.6.89).
-Phase 78-C: Pens & Colors verification expanded; `SetRGB4`/`SetRGB32`/`SetRGB4CM`/`SetRGB32CM`/`GetRGB32` plus `LoadRGB4`/`LoadRGB32` now preserve classic 8-bit palette precision through `ColorMap`/`LowColorBits`, `AttachPalExtra` now seeds sharable palette state for pen arbitration, and `ObtainPen`/`ReleasePen`/`FindColor` now follow current shared/exclusive pen semantics with direct graphics regression coverage (v0.6.90).
-Phase 78-C: BitMap utilities verification expanded; `ScalerDiv`/`BitMapScale` now have direct planar-scaling coverage, `AddFont`/`RemFont`/`ExtendFont`/`StripFont` now follow current public-font and `tf_Extension` lifetime rules, and `GfxNew`/`GfxFree`/`GfxAssociate`/`GfxLookUp` now support the extended-node associations used by Release 2 display clients, all locked in by a new unified graphics regression (v0.6.91).
-Phase 78-D: layers core verification completed; direct regressions now cover `InitLayers`/`NewLayerInfo`/`DisposeLayerInfo`, upfront/behind and hook-layer creation, `DeleteLayer`, `MoveLayer`, `SizeLayer`, `UpfrontLayer`/`BehindLayer`, locking helpers, and the earlier tag-driven layer creation semantics in one unified sweep (v0.6.94).
-Phase 78-E: Intuition gadget-management verification expanded; the existing screen/window/public-screen coverage remains in place, and direct regressions now lock `AddGadget`/`RemoveGadget`/`AddGList`/`RemoveGList`, `RefreshGadgets`/`RefreshGList`, `ActivateGadget`, and `OnGadget`/`OffGadget` against ordinal insertion/removal semantics, refresh stability, string-gadget activation, and disabled-state toggling (v0.6.101).
-Phase 78-E: build/test hygiene sweep complete; the full tree now rebuilds without warnings under the current sample/test compile policy, `fontreq_gtest` now renders against the screen bitmap for pixel assertions, and the full `ctest --test-dir build --output-on-failure -j16` sweep is green again (v0.6.102).
-Phase 78-E: Intuition menu/BOOPSI verification expanded; `OnMenu`/`OffMenu` now follow packed menu-number enable/disable semantics for menus, items, and sub-items, `SetGadgetAttrsA`/`DoGadgetMethodA` now have direct BOOPSI regression coverage, and `SizeWindow()` now redraws the frame immediately so resize-driven gadget visuals stay current (v0.6.103).
-Phase 78-E: relative gadget resize verification expanded; gadget hit-testing/rendering now share one `GFLG_REL*` geometry path, `SizeWindow()` clears stale pixels before redraw when relative gadgets move, and `Tests/Intuition/WindowManipulation` now locks `GFLG_RELRIGHT`/`GFLG_RELBOTTOM` gadgets against resize-driven repositioning and cleanup semantics (v0.6.104).
-Phase 78-E: BOOPSI and menu verification expanded; `MakeClass()` now rejects missing/duplicate public superclasses correctly, `FreeClass()` always removes public classes before reporting busy-state failure, rootclass object methods now support `OM_ADDTAIL`/`OM_REMOVE` so `DoMethodA`/`CoerceMethodA` and `modelclass` membership flows work through direct regressions, and the Intuition sweep now locks `NewObjectA`/`DisposeObject`, `GetAttr`/`SetAttrsA`, `DoMethodA`/`CoerceMethodA`, `MakeClass`/`AddClass`/`RemoveClass`/`FreeClass`, `SetMenuStrip`/`ClearMenuStrip`/`ResetMenuStrip`, and `ItemAddress` against the current NDK-style semantics (v0.6.105).
-Phase 78-E: requester verification expanded; `InitRequester()` now clears the full public structure, true requesters now honor centered `POINTREL` placement plus Intuition-rendered border/text/gadget chains with cleanup state wired through `RWindow`/`ReqLayer`, `BuildSysRequest()` now runs through the EasyRequest-style requester builder, and direct plus host-driven regressions now lock `Request()`/`EndRequest()` and `BuildSysRequest()`/`FreeSysRequest()`/`SysReqHandler()` against current lxa semantics for requester posting, cancellation, and gadget-result handling (v0.6.106).
-Phase 78-E: pointer/input helper verification expanded; `SetPointer()`/`ClearPointer()` now preserve the public window pointer fields, `SetMouseQueue()` now follows V36-style outstanding `IDCMP_MOUSEMOVE` throttling with default queue tracking, `CurrentTime()` remains locked to host timer snapshots, and direct regressions now cover `DisplayAlert()` dead-end vs recovery return semantics plus `DisplayBeep()` acceptance for screen-specific and global calls (v0.6.107).
-Phase 78-E: drawing helper verification expanded; direct regressions now lock `DrawBorder`, `DrawImageState`, `PrintIText`/`IntuiTextLength`, and `EraseImage` against linked-border rendering, standard-image draw/erase behavior, and IntuiText width/rendering semantics, with host-side pixel assertions confirming the rendered output before and after image erasure (v0.6.108).
-Phase 78-E: `DrawImage` verification expanded; `DrawImage()` now follows the public AROS/NDK path through `DrawImageState(IDS_NORMAL)`, classic images now walk full `NextImage` chains with `PlanePick==0` fill handling plus `IDS_SELECTED` minterm semantics, and direct plus host-side regressions now lock chained draw/erase behavior against the current public surface while confirming `GetScreenDepth`/`GetScreenRect` and `DrawBoopsiObject` are not part of the bundled public NDK/AROS API set (v0.6.109).
-
-**Current Status**:
-- 49/49 ctest entries (all GTest) now pass; the Intuition sweep now covers public-screen locking/status helpers, screen ordering/position helpers, the expanded window manipulation surface, and the full public Intuition drawing-image surface alongside the earlier screen/window-open semantics
-- `./build.sh` now completes cleanly without warnings under the current sample/test compile policy, and the targeted low-noise source fixes keep host/unit utility code warning-free where those targets still compile with their default diagnostics
-- `ctest --test-dir build --output-on-failure -R fontreq_gtest` is green again after forcing the requester pixel test to render through the screen bitmap instead of rootless window surfaces, and the full `ctest --test-dir build --output-on-failure -j16` sweep is green
-- `Tests/Exec/StructOffsets` now covers the full public Intuition structure set currently tracked in Phase 78-E, including `Window`, `IntuiMessage`, gadgets, string/prop helpers, images/borders/text, menus, plus the earlier `IntuitionBase`, `Screen`, and `Requester` checks
-- `Tests/Intuition/ScreenBasic` now locks `OpenScreen`/`CloseScreen`/`OpenScreenTagList` plus `GetDefaultPubScreen`, `LockPubScreen`/`UnlockPubScreen`, `LockPubScreenList`/`UnlockPubScreenList`, `PubScreenStatus`, and `ShowTitle` against V36-style close refusal, public/private transitions, list exposure, and title-bar visibility semantics
-- `Tests/Intuition/WindowBasic` now locks `OpenWindow`/`CloseWindow`/`OpenWindowTagList` against tag-driven size/position overrides, boolean flag clearing, Workbench fallback for tag-only opens, `WA_InnerWidth`/`WA_InnerHeight` plus `WA_GimmeZeroZero`, size-border placement tags, and `WA_Zoom`-backed `ZipWindow()` toggling
-- `Tests/Intuition/ScreenManipulation` now verifies `GetScreenData`, `MoveScreen`, `ScreenToFront`/`ScreenToBack`, `ScreenDepth`, and `ScreenPosition` directly against the live screen list and copied public structure state
-- `Tests/Intuition/WindowManipulation` now verifies `MoveWindow`/`SizeWindow`/`WindowLimits`/`ChangeWindowBox`/`SetWindowTitles`/`WindowToFront`/`WindowToBack`, `ActivateWindow`, `RefreshWindowFrame`, `ZipWindow`, plus `BeginRefresh`/`EndRefresh` for geometry changes, IDCMP delivery, title/frame redraw semantics, depth ordering, zoom toggling, and refresh-flag cleanup behavior
-- `Tests/Intuition/WindowManipulation` now also verifies that `SizeWindow()` reanchors `GFLG_RELRIGHT`/`GFLG_RELBOTTOM` gadgets to the new window edge and clears the old gadget pixels before redraw so resize-driven relative gadgets do not leave stale artifacts behind
-- `Tests/Intuition/GadgetRefresh` now verifies `AddGadget`/`RemoveGadget`/`AddGList`/`RemoveGList`, `RefreshGadgets`/`RefreshGList`, `ActivateGadget`, and `OnGadget`/`OffGadget` for head/tail insertion, ordinal removal, list-preserving refreshes, string-gadget activation, and disabled-flag transitions
-- `Tests/Intuition/MenuStrip` now verifies `OnMenu`/`OffMenu` for whole-menu, item, and sub-item enable/disable semantics in addition to the earlier `SetMenuStrip`/`ClearMenuStrip`/`ResetMenuStrip` and `ItemAddress` coverage
-- `Tests/Intuition/BOOPSI_IC` now verifies `SetGadgetAttrsA` and `DoGadgetMethodA` directly against live BOOPSI gadgets, including class attribute updates and explicit `OM_GET` dispatch through the gadget method entry point
-- `Tests/Intuition/BOOPSI` now verifies private/public class creation and teardown via `MakeClass`/`AddClass`/`RemoveClass`/`FreeClass`, object lifecycle and attribute dispatch via `NewObjectA`/`DisposeObject`/`GetAttr`/`SetAttrsA`, direct `DoMethodA`/`CoerceMethodA` method routing, and `modelclass` `OM_ADDMEMBER`/`OM_REMMEMBER`/`OM_UPDATE` broadcasting through custom observer classes
-- `Tests/Intuition/RequesterBasic` plus a dedicated `tests/drivers/intuition_gtest.cpp` host-side interaction path now verify `InitRequester`, `Request`/`EndRequest`, and `BuildSysRequest`/`FreeSysRequest`/`SysReqHandler` for full-structure init, centered true-requester placement, Intuition-managed requester rendering, close-gadget cancellation, and gadget-ID return flow
-- `Tests/Intuition/PointerInput` now verifies `SetPointer`/`ClearPointer`, `SetMouseQueue`, `CurrentTime`, `DisplayAlert`, and `DisplayBeep` for public pointer metadata updates, V36 mouse-move queue throttling, monotonic time snapshots, alert return semantics, and global/screen beep acceptance
-- `Tests/Intuition/DrawingHelpers` plus a dedicated `tests/drivers/intuition_gtest.cpp` pixel path now verify `DrawBorder`, `DrawImage`, `DrawImageState`, `PrintIText`/`IntuiTextLength`, and `EraseImage` for linked border-chain rendering, chained classic-image rendering, `IDS_SELECTED` state handling, bounded erase cleanup, and visible IntuiText output with expected width calculation
-- `Tests/Intuition/IDCMP` now verifies `ModifyIDCMP` creates both public and internal IDCMP ports, keeps replied messages on the cleanup queue until Intuition reaps them, and tears both ports down cleanly when IDCMP is disabled
-- Added clearer CLI assign controls: `--assign` now aliases the old `-a` replace behavior, `--assign-add` appends to multi-assign search lists, unit coverage locks the underlying replace/append VFS semantics, and the VS Code manual-test launch configs now use the explicit long-form options while rebuilding/installing the latest runtime before launch
-- Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
-- Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
-- All remaining miscellaneous Exec items verified: `RawDoFmt` edge cases (maxwidth, precision, `%c`, `%%`, `%b` BSTR, return value), list accessors (`GetHead`/`GetTail`/`GetSucc`/`GetPred` as macros), `Alert` (recovery vs deadend decoding), `Supervisor` (m68k privilege-switch call)
-- `NewRawDoFmt` intentionally skipped: AROS V45+ extension not part of standard AmigaOS 3.x
-- All 10 bugs fixed and verified with m68k tests
-- Fixed `exec.library/Wait()` to clear `tc_SigWait` on return, matching AROS semantics and preventing stale wait masks from affecting later signal delivery
-- Verified `exec.library/Wait(SIGBREAKF_CTRL_C)` already matches AROS semantics and added regression coverage to lock in Ctrl-C break handling
-- Restored AROS-compatible user signal allocation defaults (`TaskSigAlloc = 0xFFFF`) so `AllocSignal(-1)` and `CreateMsgPort()` use user-allocatable signals instead of reserved low bits
-- Verified and fixed Exec semaphore semantics: `AddSemaphore()` now initializes semaphores, shared semaphore APIs preserve `ss_Owner == NULL`, and waiter handoff is covered by m68k regression tests
-- Verified Exec interrupt server chaining and software interrupt dispatch, plus nested `Disable()`/`Enable()` and `Forbid()`/`Permit()` counter semantics with dedicated regression coverage
-- Verified Exec library management helpers against AROS semantics: `OpenLibrary()` now forwards requested versions to library open vectors and rejects too-old disk-loaded libraries; `MakeLibrary()`, `SetFunction()`, `SumLibrary()`, `AddLibrary()`, and `RemLibrary()` are locked in by custom-library tests
-- Implemented and verified `SumKickData()` against AROS checksum rules for `KickTagPtr` and `KickMemPtr`
-- Fixed DOS CLI BSTR handling for program metadata so `GetProgramName()`/`PROGDIR:` users (including DPaint V) stop constructing broken paths during startup
-- Added DOS CLI metadata helpers (`Set/GetCurrentDirName`, `Set/GetProgramName`, `Set/GetPrompt`) plus `FindCliProc()`/`MaxCli()` coverage, and extended structural verification for `DosLibrary`, `RootNode`, `DosInfo`, `CliProcList`, and `Segment`
-- Verified multi-CLI proc-window semantics: `CreateNewProc()` now inherits `pr_WindowPtr` by default, respects explicit `NP_WindowPtr` overrides (including `NULL`), and `SystemTagList()` passes the caller window pointer for synchronous launches while clearing it for async launches, matching documented `pr_WindowPtr` inheritance rules
-- Implemented `SetFileSize()` with host-backed truncate/extend semantics and added DOS regression coverage for begin/current/end resizing plus zero-filled extension behavior
-- Completed Phase 78-B-3 host-backed DOS extended file semantics: `SetFileDate`, `ExAll`/`ExAllEnd`, and `MakeLink`/`ReadLink` now work with direct DOS/command regression coverage, including soft-link target preservation and hard-link creation
-- Completed Phase 78-B-4 DOS assign/device/notify support: `AssignLock`/`AssignLate`/`AssignPath`/`AssignAdd`/`RemAssignList` now handle multi-directory assign iteration and per-path removal, `GetDevProc`/`FreeDevProc` return iterable assign targets, and `StartNotify`/`EndNotify` deliver host-polled notify messages/signals through the VBlank path
-- Completed Phase 78-B-5 buffered DOS I/O helpers: `SetVBuf`, `FRead`, `FWrite`, `FPuts`, `VFPrintf`, and `FWritef`-style varargs flows now run through host-backed buffered helpers with direct DOS regression coverage for block reads/writes, line buffering, and `UnGetC` interaction
-- Verified against NDK/AROS references that `SPrintf`/`VSPrintf` are not public AmigaOS 3.x DOS APIs, so they are removed from the DOS roadmap scope instead of being exposed as new non-standard vectors
-- Completed Phase 78-B-6 DOS loader/runtime coverage: `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, and `GetSegListInfo` now work with direct regression coverage for hunk seglists, synchronous loaded-program execution, and `CreateProc()` child startup behavior
-- Completed Phase 78-B-7 DOS pattern/regression sweep: `MatchPattern`/`MatchPatternNoCase` now cover deferred `(a|b)` alternation groups, direct DOS regression tests lock in CLI metadata and variable helpers plus `SetComment`/`SetProtection`/`Info`/`SameLock`, and the full DOS/application/command regression sweep is green again
-- Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j16` is green again
-- Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
-- Fixed the unrelated `commands_gtest` failure in `TYPE`: failed opens now preserve the host-reported `IoErr()` instead of collapsing to stale zero/incorrect errors
-- Test-suite scheduling improved: sharded `gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, and `cluster2` into smaller CTest entries, reducing `ctest -j16` wall time from about 124s to about 95s while keeping total CPU time roughly flat
-- Completed project-wide MIT license migration and documentation consistency cleanup: replaced the root Apache 2.0 license text with MIT, aligned repository documentation with the MIT license, refreshed the primary testing/build docs to the current CTest/GTest workflow, and marked older planning documents as historical references where appropriate
-- Started Phase 78-C graphics verification by extending `StructOffsets` coverage to the remaining core public graphics structures: `GfxBase`, `ViewPort`, `RasInfo`, `ColorMap`, `AreaInfo`, `TmpRas`, and `GelsInfo`; the existing `BitMap`, `RastPort`, and `TextFont` checks now close the full data-structure subsection against NDK `.i` layout references
-- Expanded Phase 78-C drawing verification across the existing graphics primitives: added direct regression coverage for `Draw` and `RectFill` `INVERSVID` behavior on top of the existing `COMPLEMENT` checks, corrected `Draw`/`RectFill` to use `BgPen` when `INVERSVID` is set, integrated `PolyDraw` and `Flood` into the `graphics_gtest` sweep and sample install set, and fixed `StructOffsets` to reflect the NDK `AreaInfo` layout including `FirstX`/`FirstY`
-- Expanded Phase 78-C ellipse verification: corrected `AreaEllipse` to follow the AROS/NDK contract of storing a two-entry ellipse record instead of flattening to polygon vectors, taught `AreaEnd()` to fill and outline ellipse records directly, and kept `DrawEllipse`/`AreaEllipse` covered by the unified `graphics_gtest` sweep
-- Expanded Phase 78-C area-fill verification: added a self-overlapping double-trace regression so `AreaEnd()` stays aligned with the even-odd scan-line rule, and validated the NDK `AreaCircle` macro shorthand on top of the native ellipse area-fill path
-- Expanded Phase 78-C blit verification: refactored bitmap blitting around shared minterm/mask helpers, added overlap-safe `BltBitMap` coverage plus direct `BltBitMapRastPort` and `BltMaskBitMapRastPort` regression tests, and taught the raster-port blit entry points and `ClipBlit` to respect visible destination ClipRects and obscured source layers
-- Expanded Phase 78-C text/font verification: `graphics.library` now seeds `GfxBase->TextFonts` with the built-in Topaz font, `OpenFont` searches the public list by name and requested size instead of silently falling back, `CloseFont` drops non-ROM fonts from the public list when their accessor count reaches zero, `SetFont` updates `TxWidth` alongside height/baseline, `AskFont` falls back to the default font when needed, and `SetSoftStyle` now updates `rp->AlgoStyle` with proper enable-mask semantics while `text_render`/`text_extent` lock the behavior in
-- Expanded Phase 78-C blitter/resource verification: initialized `GfxBase` blitter wait state, implemented hosted queue draining for `QBlit`/`QBSBlit` with `CLEANUP` callbacks and QBS priority, taught `WaitBlit`/`OwnBlitter`/`DisownBlitter` to honor ownership and pending work using the shared blit wait queue, registered `blitter.resource` during cold start, and added direct regression coverage for both the blitter APIs and `AddResource`/`RemResource`
-- Expanded Phase 78-C bitmap allocation verification: `AllocBitMap()` now reuses `InitBitMap()` semantics for public fields, rejects unsupported extended-tag allocations instead of misinterpreting taglists, preserves the public allocation flags we currently support, and new graphics regressions lock `InitBitMap`/`AllocBitMap`/`FreeBitMap` against allocation, zero-fill, and cleanup behavior
-- Expanded Phase 78-C raster allocation verification: `AllocRaster()` now matches AROS and NDK autodoc behavior by returning raw CHIP memory without implicit clearing, `AllocBitMap()` now applies `BMF_CLEAR` explicitly to each allocated plane, and `alloc_raster` regression coverage now verifies CHIP memory ownership, minimum `RASSIZE()` rounding, repeated alloc/free cycles, and `FreeRaster(NULL)` safety
-- Expanded Phase 78-C region verification: `ClearRectRegion` now splits partially cleared rectangles into the remaining bands, `XorRectRegion` and `AndRegionRegion` operate on actual rectangle geometry instead of placeholder bounds math, the graphics private region vectors now implement `RectInRegion` and `PointInRegion`, `graphics/regions` exercises boolean and membership semantics directly, and `misc_gtest` now treats `StressTasks` as PASS-on-timeout when the wrapper already printed success while the stress binary itself was trimmed to finish comfortably under parallel suite load
-- Expanded Phase 78-C Display & ViewPort verification: `VideoControl()` now preserves and queries classic ColorMap/ViewPort state via `VTAG_*` and `VC_*` tags, `MakeVPort()`/`MrgCop()` plus the free helpers now maintain placeholder copper-list lifecycle for direct-view clients like `RGBBoxes`, `LoadView()` remains ActiView-facing, and `FindDisplayInfo()`/`NextDisplayInfo()`/`GetDisplayInfoData()` now expose a stable PAL/NTSC lores/hires mode set with direct regression coverage in `graphics/DisplayViewPort`
-- Expanded Phase 78-C Sprites & GELs verification: `GetSprite()`/`FreeSprite()` now reserve and release the documented eight sprite slots, `ChangeSprite()`/`MoveSprite()` update public `SimpleSprite` state, `InitGels()` seeds sentinel ordering, `AddVSprite()`/`AddBob()` plus `SortGList()` preserve Y/X ordering, and `DrawGList()` now renders/removes simple Bob-backed GELs in `graphics/SpritesGels`; `DoBlitVSprite` was dropped from roadmap scope because it is not a public AmigaOS 3.x graphics entry point in the NDK
-- Expanded Phase 78-C Pens & Colors verification: `SetRGB4`/`SetRGB32`/`SetRGB4CM`/`SetRGB32CM` and `LoadRGB4`/`LoadRGB32` now maintain classic `ColorMap`/`LowColorBits` palette state with `GetRGB32` returning full 8-bit-expanded values, `AttachPalExtra()` now allocates sharable palette bookkeeping for current `ObtainPen()`/`ReleasePen()` behavior, and `graphics/ColorsPens` locks shared/exclusive pen allocation plus `FindColor()` matching into the unified graphics sweep
-- Expanded Phase 78-C BitMap utilities verification: `ScalerDiv()` and `BitMapScale()` now have direct regression coverage for rounded destination sizing plus planar nearest-neighbor scaling, `AddFont()`/`RemFont()` now honor `TE0F_NOREMFONT` while `ExtendFont()`/`StripFont()` manage `tf_Extension`/`FSF_TAGGED` lifetime with cloned default tags, and `GfxNew()`/`GfxFree()`/`GfxAssociate()`/`GfxLookUp()` now provide the basic extended-node allocation and lookup path needed by current Release 2 graphics callers
-- Expanded Phase 78-E Intuition verification: the existing `StructOffsets` sweep already covers `Window`, `IntuiMessage`, `Gadget`, `StringInfo`, `PropInfo`, `Image`, `Border`, `IntuiText`, `MenuItem`, and `Menu`, `screen_basic` verifies `OpenScreen`/`CloseScreen`/`OpenScreenTagList` for close-while-window-open refusal, tag override/clear behavior, and tag-only default opens with height expansion, and `window_basic` now verifies `OpenWindow`/`CloseWindow`/`OpenWindowTagList` for override/clear behavior, tag-only Workbench fallback, `WA_InnerWidth`/`WA_InnerHeight` + `WA_GimmeZeroZero`, size-border tags, and `WA_Zoom`
-
----
-
-## Core Philosophy & Boundaries
-
-### WINE-like DOS Approach
-Instead of emulating hardware-level disk controllers and running Amiga-native filesystems (like OFS/FFS) on top, `lxa` maps Amiga logical drives directly to Linux directories.
-
-- **Drives as Directories**: `DH0:`, `DF0:`, etc., are backed by standard Linux directories.
-- **Host Interception**: DOS calls (`Open`, `Read`, `Lock`, etc.) are handled by the host `lxa` process using Linux system calls.
-- **Auto-Provisioning**: On first run, `lxa` creates a default `~/.lxa` structure with `SYS:`, `S:`, `C:`, etc.
-
-### Support Boundaries
-
-| Feature | Status | Note |
-| :--- | :--- | :--- |
-| **Exec Multitasking** | ✅ Full | Signal-based multitasking, Message Ports, Semaphores |
-| **DOS Filesystem** | ✅ Full | Mapped to Linux via VFS layer |
-| **Interactive Shell** | ✅ Full | Amiga-compatible Shell with prompt, history, scripting |
-| **Assigns** | ✅ Full | Logical assigns, multi-directory assigns (Paths) |
-| **Graphics/Intuition** | ✅ 95% | SDL2-based rendering, windows, screens, gadgets |
-| **Floppy Emulation** | ✅ Basic | Floppies appear as directories |
-
----
-
-## Completed Phases (1-77) & Past Milestones
-
-All foundational work, test suite transitions, performance tuning, and implementation of core libraries (Exec, DOS, Graphics, Intuition, GadTools, ASL, BOOPSI, utility, locale, math, trackdisk, etc.) have been completed. 
-
-- **Phases 1-72**: Foundation, Test Suite Stabilization (Google Test & liblxa), Performance & Infrastructure.
-- **Phase 72.5**: Codebase Audit (93 markers catalogued and resolved).
-- **Phases 73-77**: Core Library Resource Management, DOS/VFS Hardening, Advanced Graphics & Layers, Intuition/BOOPSI enhancements, Missing Libraries & Devices.
-- **Phase 78-A-1**: Exec Library AROS Verification — 10 bug fixes complete.
-- **Phase 78-A-2**: Exec `Wait()` wait-mask clearing aligned with AROS, with signal regression coverage.
-- **Phase 78-A-3**: Exec `Wait(SIGBREAKF_CTRL_C)` behavior verified against AROS, with explicit break-signal regression coverage.
-- **Phase 78-A-5**: Exec interrupts, nesting counters, library management, and `SumKickData()` verified against AROS behavior.
-- **Phase 78-B**: DOS library verification completed, including loader/runtime coverage, assign/notify support, buffered I/O, and the final pattern/regression sweep.
-- **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.
+**IMPORTANT**: **Always** adhere to project and coding standards outlined in `AGENTS.md`! Test coverage, roadmap updates and documentation are **mandatory** in this project! Keep the roadmap structured, compact and focused on future phases and milestones. Compact/summarize past phases and milestones whenever possible.
 
 ---
 
@@ -163,8 +23,6 @@ Extend the test suite with targeted tests where feasible, extending the test sui
 ---
 
 #### 78-A: Exec Library Full Verification Checklist (`src/rom/exec.c` vs `others/AROS-20231016-source/rom/exec/`)
-
-Status: complete in 0.6.68.
 
 **Data Structures** (verify offsets/sizes against `exec/exec_init.c`, `exec/exec_util.c`, NDK `exec/types.i`):
 - [x] `ExecBase` — verify all public field offsets (VBlankFrequency, PowerSupplyFrequency, KickMemPtr, etc.)
@@ -243,11 +101,14 @@ Status: complete in 0.6.68.
 - [x] `UserState` — return to user mode
 - [x] `GetHead` / `GetTail` / `GetSucc` / `GetPred` — macros in `util.h` (AROS header-only, not LVO functions)
 
+**Review**:
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
 ---
 
 #### 78-B: DOS Library (`src/rom/lxa_dos.c` vs `others/AROS-20231016-source/rom/dos/`)
-
-Status: complete in 0.6.77.
 
 ##### 78-B-1: DOS Core Surface Verification
 
@@ -389,6 +250,12 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] Add direct regression coverage for vars, prompt/program-name/current-dir helpers, `SetComment`/`SetProtection`, `Info`/`SameLock`, and newly completed DOS APIs
 - [x] Run the full DOS application/command regression sweep after `78-B-2` through `78-B-6` land
 
+##### 78-B-8: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
 ---
 
 #### 78-C: Graphics Library (`src/rom/lxa_graphics.c` vs `others/AROS-20231016-source/rom/graphics/`)
@@ -471,6 +338,13 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `AddFont` / `RemFont`
 - [x] `GfxFree` / `GfxNew` / `GfxAssociate` / `GfxLookUp`
 
+##### 78-C-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
 ---
 
 #### 78-D: Layers Library (`src/rom/lxa_layers.c` vs `others/AROS-20231016-source/rom/hyperlayers/`)
@@ -495,6 +369,12 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `FattenLayerInfo` / `ThinLayerInfo` — `NEWLAYERINFO_CALLED` compatibility semantics verified (v0.6.92)
 - [x] `InstallLayerHook` / `InstallLayerInfoHook` — previous-hook return and assignment semantics verified (v0.6.92)
 - [x] `AddLayerInfoTag` / `CreateLayerTagList` — current hook-layer tag semantics verified for `LA_BackfillHook`, `LA_SuperBitMap`, `LA_WindowPtr`, `LA_Hidden`, `LA_InFrontOf`, and `LA_Behind` (v0.6.93)
+
+##### 78-D-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
 
 ---
 
@@ -579,6 +459,12 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `EraseImage` (v0.6.108)
 - [x] `DrawBoopsiObject` — verified out of scope after checking bundled NDK 3.2 and AROS public Intuition surfaces; no exported API with this name is present, and BOOPSI image drawing remains covered through `DrawImageState()`/`IM_DRAW` on image objects (v0.6.109)
 
+##### 78-E-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
 ---
 
 #### 78-F: GadTools Library (`src/rom/lxa_gadtools.c` vs `others/AROS-20231016-source/rom/compiler/alib/`)
@@ -594,6 +480,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `CreateMenusA` / `FreeMenus` / `LayoutMenuItemsA` / `LayoutMenusA`
 - [ ] `DrawBevelBoxA` — raised/recessed bevel rendering
 
+##### 78-F-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
+
 ---
 
 #### 78-G: ASL Library (`src/rom/lxa_asl.c` vs `others/AROS-20231016-source/rom/compiler/alib/`)
@@ -605,6 +499,12 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] ScreenMode requester tags
 - [ ] `fr_File` / `fr_Drawer` / `fr_NumArgs` / `fr_ArgList` output fields
 - [ ] `fo_Attr` / `fo_TAttr` output fields ✅ (Phase 70a)
+
+##### 78-G-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
 
 ---
 
@@ -627,6 +527,12 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `GetUniqueID`
 - [ ] `MakeDosPatternA` / `MatchDosPatternA`
 
+##### 78-H-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
 ---
 
 #### 78-I: Locale Library (`src/rom/lxa_locale.c` vs NDK `libraries/locale.h`)
@@ -641,6 +547,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `FormatDate` ✅ (Phase 77) — all % codes; verify against AROS `locale/formatdate.c`
 - [ ] `FormatString` ✅ (Phase 77) — `%s`/`%d`/`%ld`/`%u`/`%lu`/`%x`/`%lx` with PutChProc callback
 - [ ] `ParseDate` ✅ (Phase 77)
+
+##### 78-I-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
 
 ---
 
@@ -657,6 +571,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `CollectionChunk` / `PropChunk`
 - [ ] `OpenClipboard` / `CloseClipboard` / `ReadClipboard` / `WriteClipboard`
 
+##### 78-J-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
+
 ---
 
 #### 78-K: Keymap Library (`src/rom/lxa_keymap.c` vs `others/AROS-20231016-source/rom/keymap/`)
@@ -667,6 +589,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `KeyMap` structure — km_LoKeyMap/km_LoKeyMapTypes/km_HiKeyMap/km_HiKeyMapTypes; KCF_* type flags
 - [ ] Dead-key sequences (diaeresis, accent, tilde)
 
+##### 78-K-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
+
 ---
 
 #### 78-L: Timer Device (`src/rom/lxa_dev_timer.c` vs `others/AROS-20231016-source/rom/timer/`)
@@ -676,6 +606,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `AbortIO` for timer requests
 - [ ] `GetSysTime` / `AddTime` / `SubTime` / `CmpTime` — `struct timeval`
 - [ ] EClockVal reading
+
+##### 78-L-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
 
 ---
 
@@ -689,6 +627,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] Scroll-back buffer management
 - [ ] Verify ANSI CSI sequences: `\e[H` (home), `\e[J` (erase display), `\e[K` (erase line), `\e[?25l/h` (cursor hide/show)
 
+##### 78-M-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
+
 ---
 
 #### 78-N: Input Device (`src/rom/lxa_dev_input.c` vs `others/AROS-20231016-source/rom/devs/input/`)
@@ -699,6 +645,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `InputEvent` chain processing; IE_RAWKEY, IE_BUTTON, IE_POINTER, IE_TIMER, IE_NEWACTIVE, IE_NEWSIZE, IE_REFRESH
 - [ ] Qualifier accumulation: IEQUALIFIER_LSHIFT, RSHIFT, CAPSLOCK, CONTROL, LALT, RALT, LCOMMAND, RCOMMAND, NUMERICPAD, REPEAT, INTERRUPT, MULTIBROADCAST, MIDBUTTON, RBUTTON, LEFTBUTTON
 - [ ] `FreeInputHandlerList`
+
+##### 78-N-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
 
 ---
 
@@ -712,6 +666,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] Audio interrupt (end-of-sample notification)
 - [ ] SDL2 audio stream mapping to Amiga channel model
 
+##### 78-O-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
+
 ---
 
 #### 78-P: Trackdisk Device (`src/rom/lxa_dev_trackdisk.c` vs `others/AROS-20231016-source/rom/devs/trackdisk/`)
@@ -722,6 +684,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `TD_ADDCHANGEINT` / `TD_REMCHANGEINT` — disk change notification via interrupt
 - [ ] `ETD_READ` / `ETD_WRITE` — extended commands with `TDU_PUBFLAGS`
 - [ ] Error codes: TDERR_NotSpecified, TDERR_NoSecHdr, TDERR_BadSecPreamble, TDERR_TooFewSecs, TDERR_NoDisk
+
+##### 78-P-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
 
 ---
 
@@ -735,6 +705,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `MakeDosNode` / `AddDosNode` — bootnode creation
 - [ ] `ObtainConfigBinding` / `ReleaseConfigBinding`
 - [ ] `SetCurrentBinding` / `GetCurrentBinding`
+
+##### 78-Q-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
 
 ---
 
@@ -764,6 +742,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `IEEEDPPow` / `IEEEDPSqrt` / `IEEEDPFieee` / `IEEEDPTieee`
 - [ ] Verify against glibc results for edge values
 
+##### 78-R-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
+
 ---
 
 #### 78-S: Diskfont Library (`src/rom/lxa_diskfont.c`)
@@ -774,6 +760,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `NewFontContents` — build AF list for single drawer
 - [ ] Proportional font support (TF_PROPORTIONAL, tf_CharSpace, tf_CharKern arrays)
 - [ ] Multi-plane fonts (depth > 1)
+
+##### 78-S-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
 
 ---
 
@@ -787,6 +781,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `MakeWorkbenchGadgetA` — custom icon rendering via BOOPSI
 - [ ] `OpenWorkbench` / `CloseWorkbench`
 - [ ] `ChangeWorkbench` notification
+
+##### 78-T-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
 
 ---
 
@@ -823,6 +825,14 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `AddDTObject` / `RemoveDTObject`
 - [ ] `DrawDTObjectA`
 - [ ] DTST_FILE / DTST_CLIPBOARD / DTST_RAM source types
+
+##### 78-V-2: Review
+
+- [ ] Implement missing functions and stubs as far as possible
+- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+
+
 
 ---
 
@@ -885,26 +895,21 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] Run application tests after changes to exec/dos (asm_one_gtest, devpac_gtest, kickpascal_gtest, cluster2_gtest, dpaint_gtest)
 - [ ] Update version to 0.7.0 when Phase 78 is complete (new MINOR — significant compatibility milestone)
 
+### Phase 79: Architecture and performance improvements
+
+
 ---
 
-## Version History
+## Completed Phases (1-77) & Past Milestones
 
-*Massively compacted. For full historical details, refer to Git history.*
+All foundational work, test suite transitions, performance tuning, and implementation of core libraries (Exec, DOS, Graphics, Intuition, GadTools, ASL, BOOPSI, utility, locale, math, trackdisk, etc.) have been completed. 
 
-| Version | Phase | Key Changes |
-| :--- | :--- | :--- |
-| **0.6.76** | 78-B-6 | Completed DOS program-loading/runtime coverage by implementing `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, and `GetSegListInfo`, added direct loader/runtime regression tests, and fixed the unrelated `commands_gtest` `TYPE` `IoErr()` regression. |
-| **0.6.75** | 78-B-5 | Completed DOS buffered formatting/I/O coverage by implementing `SetVBuf`, `FRead`, `FWrite`, `FPuts`, and host-backed formatted file output paths with direct regression coverage for block I/O, line buffering, and `UnGetC`; removed non-standard DOS `SPrintf`/`VSPrintf` from scope after NDK/AROS verification. |
-| **0.6.74** | 78-B-4 | Completed DOS assign/device/notify coverage by adding per-path multi-assign removal, iterable `GetDevProc`/`FreeDevProc`, and host-polled `StartNotify`/`EndNotify` delivery through the VBlank path, with direct DOS regression coverage. |
-| **0.6.73** | 78-B-3 | Completed DOS extended file semantics with host-backed `SetFileDate`, `ExAll`/`ExAllEnd`, and `MakeLink`/`ReadLink`, plus regression coverage for directory enumeration, filtering, soft links, and hard links; `ChangeFilePosition`/`GetFilePosition` remain deferred pending a verified public API reference. |
-| **0.6.72** | 78-B-2 | Verified DOS proc-window inheritance semantics by teaching `CreateNewProc()`/`SystemTagList()` to preserve or override `pr_WindowPtr` correctly, with direct regression coverage for inherited and explicit `NP_WindowPtr` behavior. |
-| **0.6.69** | 78-A-6 | Exec miscellaneous verification: `RawDoFmt` edge cases (maxwidth, `%c`, `%%`, `%b` BSTR, return value), list accessors as macros, `Alert` decoding, `Supervisor` call. 40 sub-tests in new ExecMisc test. |
-| **0.6.71** | 78-B-3 | Added host-backed `SetFileSize()` support with regression coverage for truncation, growth, and zero-filled extension, while keeping the full 49-test GTest suite green. |
-| **0.6.70** | 78-B-2 | Added DOS CLI metadata helpers and multi-CLI lookup helpers, initialized `RootNode`/`DosInfo` public state, and extended struct-offset coverage for DOS public structures. |
-| **0.6.68** | 78-A Complete | Completed Exec Phase 78-A verification by covering interrupt nesting, library management helpers, and `SumKickData()`, with the full 38-test suite green. |
-| **0.6.67** | 78-A-4 | Full regression suite green again after fixing DOS CLI BSTR program-name handling, which restored DPaint V startup. |
-| **0.6.66** | 78-A-4 | Phase 78-A-4 Complete — verified Exec signal allocation and semaphore semantics, including shared locks and waiter handoff. |
-| **0.6.65** | 78-A-3 | Phase 78-A-3 Complete — verified `Wait(SIGBREAKF_CTRL_C)` behavior and added Ctrl-C regression coverage. |
-| **0.6.64** | 78-A-2 | Phase 78-A-2 Complete — fixed `Wait()` to clear `tc_SigWait` on return and added signal regression coverage. |
-| **0.6.63** | 78-A-1 | Phase 78-A-1 Complete — Exec AROS Bug Fixes! Fixed 10 bugs in `exec.c`. |
-| **0.6.0 - 0.6.62** | 44 - 78-W | Core system implementation, test suite stabilization, OS data structure offset verification, missing libraries implementation. |
+- **Phases 1-72**: Foundation, Test Suite Stabilization (Google Test & liblxa), Performance & Infrastructure.
+- **Phase 72.5**: Codebase Audit (93 markers catalogued and resolved).
+- **Phases 73-77**: Core Library Resource Management, DOS/VFS Hardening, Advanced Graphics & Layers, Intuition/BOOPSI enhancements, Missing Libraries & Devices.
+- **Phase 78-A-1**: Exec Library AROS Verification — 10 bug fixes complete.
+- **Phase 78-A-2**: Exec `Wait()` wait-mask clearing aligned with AROS, with signal regression coverage.
+- **Phase 78-A-3**: Exec `Wait(SIGBREAKF_CTRL_C)` behavior verified against AROS, with explicit break-signal regression coverage.
+- **Phase 78-A-5**: Exec interrupts, nesting counters, library management, and `SumKickData()` verified against AROS behavior.
+- **Phase 78-B**: DOS library verification completed, including loader/runtime coverage, assign/notify support, buffered I/O, and the final pattern/regression sweep.
+- **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.
