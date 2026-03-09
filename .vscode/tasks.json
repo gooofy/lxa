@@ -25,7 +25,7 @@
             "args": [
                 "--build",
                 "build",
-                "-j8",
+                "-j16",
                 "--target",
                 "lxa",
                 "lxa.rom",

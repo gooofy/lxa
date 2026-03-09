@@ -18,10 +18,10 @@ This skill guides you through the project management, versioning, and build proc
    - Ensure no warnings.
    - **Always** strive towards completing the phase you're working on. Create elaborate TODO lists to achieve that, do **not** stop early.
 3. **Finish**:
-   - Update `roadmap.md` (`[x]`).
+   - Validate (Tests + Coverage).
+   - Update `roadmap.md` (`[x]`), compact/summarize done tasks, keep it clean and focused on the future.
    - Update `README.md`.
    - Update Version Number.
-   - Validate (Tests + Coverage).
 
 ### "Done" Definition
 1. Functionality works.
@@ -46,7 +46,7 @@ This skill guides you through the project management, versioning, and build proc
 ### Commands
 - **Full Build**: `./build.sh`
 - **Install**: `make -C build install`
-- **Run Tests**: `ctest --test-dir build --output-on-failure -j8`
+- **Run Tests**: `ctest --test-dir build --output-on-failure -j16`
 
 ### Artifacts
 - Host: `build/host/bin/lxa`

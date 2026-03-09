@@ -7,18 +7,18 @@
 The current `lxa` test suite exposes **49 CTest entries** and is designed for parallel execution through:
 
 ```bash
-ctest --test-dir build --output-on-failure -j8
+ctest --test-dir build --output-on-failure -j16
 ```
 
-The suite is fully isolated: each test uses its own emulator instance and does not depend on shared mutable runtime state. The longest historical UI/application suites have been split into smaller shards, which keeps the default `-j8` run efficient and predictable.
+The suite is fully isolated: each test uses its own emulator instance and does not depend on shared mutable runtime state. The longest historical UI/application suites have been split into smaller shards, which keeps the default `-j16` run efficient and predictable.
 
 ## Current Recommendations
 
-- Use `-j8` as the default parallelism level
+- Use `-j16` as the default parallelism level
 - Treat higher parallelism as safe but usually not meaningfully faster
 - Run individual drivers directly when you need GTest filters or tighter debugging loops
 
-## Why `-j8` Remains the Default
+## Why `-j16` Remains the Default
 
 The suite previously had a few oversized UI drivers that dominated wall time. Those drivers are now sharded into smaller CTest entries such as:
 - `simplegad_behavior_gtest` and `simplegad_pixels_gtest`
@@ -27,7 +27,7 @@ The suite previously had a few oversized UI drivers that dominated wall time. Th
 - `gadtoolsgadgets_*_gtest` shards
 - `cluster2_*_gtest` shards
 
-This rebalancing reduced full-suite wall time from roughly **124 seconds** to roughly **95 seconds** while keeping total CPU cost close to flat. `-j8` remains the best default because it captures the practical speedup without adding noise to local debugging or CI output.
+This rebalancing reduced full-suite wall time from roughly **124 seconds** to roughly **95 seconds** while keeping total CPU cost close to flat. `-j16` remains the best default because it captures the practical speedup without adding noise to local debugging or CI output.
 
 ## Timeouts With Explicit Coverage
 
@@ -60,7 +60,7 @@ Or for repeated suite validation:
 ```bash
 for run in $(seq 1 5); do
     echo "=== Run $run ==="
-    ctest --test-dir build --output-on-failure -j8 2>&1 | grep "tests passed"
+    ctest --test-dir build --output-on-failure -j16 2>&1 | grep "tests passed"
 done
 ```
 

@@ -6,7 +6,7 @@ This document describes the current test workflow for `lxa`. The authoritative p
 
 The repository currently exposes **49 CTest entries**:
 - **Google Test drivers** in `tests/drivers/` for DOS, Exec, Shell, graphics, Intuition, device, sample, and application coverage
-- **Sharded UI/application suites** for the longest interactive tests so `ctest -j8` stays efficient
+- **Sharded UI/application suites** for the longest interactive tests so `ctest -j16` stays efficient
 - **Unity unit tests** in `tests/unit/` for focused host-side logic such as VFS and configuration parsing
 
 Interactive UI tests must use the host-side `liblxa` driver infrastructure. The legacy in-ROM `test_inject.h` approach is obsolete and must not be used for new work.
@@ -22,10 +22,10 @@ Interactive UI tests must use the host-side `liblxa` driver infrastructure. The 
 ### Run the Full Test Suite
 
 ```bash
-ctest --test-dir build --output-on-failure -j8
+ctest --test-dir build --output-on-failure -j16
 ```
 
-`-j8` is the project default. The suite is fully isolated, and higher parallelism is safe, but it does not materially improve wall time on the current sharded test layout.
+`-j16` is the project default. The suite is fully isolated, and higher parallelism is safe, but it does not materially improve wall time on the current sharded test layout.
 
 ### Run One CTest Entry
 
@@ -159,7 +159,7 @@ Before finishing substantial work:
 
 ```bash
 ./build.sh
-ctest --test-dir build --output-on-failure -j8
+ctest --test-dir build --output-on-failure -j16
 ```
 
 If you changed only one subsystem, run the targeted suite first, then run the full suite when the work is ready.

@@ -8331,44 +8331,57 @@ UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm(
                                                         register WORD numGad __asm("d1"),
                                                         register struct Requester * requester __asm("a2"))
 {
+    struct Gadget **insert_link;
+    struct Gadget *scan;
+    struct Gadget *last;
+    WORD remaining;
+    UWORD actual_position;
+
     DPRINTF (LOG_DEBUG, "_intuition: AddGList() window=0x%08lx gadget=0x%08lx pos=%d numGad=%d req=0x%08lx\n",
              (ULONG)window, (ULONG)gadget, position, numGad, (ULONG)requester);
 
-    if (!window || !gadget)
-        return 0;
+    if (!window || !gadget || numGad == 0)
+        return (UWORD)-1;
 
-    /* Count the gadgets to add (or use numGad if specified) */
-    WORD count = 0;
-    struct Gadget *gad = gadget;
-    struct Gadget *last = gadget;
-    
-    while (gad && (numGad == -1 || count < numGad)) {
-        count++;
-        last = gad;
-        gad = gad->NextGadget;
+    last = gadget;
+    remaining = numGad;
+    while (last->NextGadget && remaining != 1)
+    {
+        last = last->NextGadget;
+        if (remaining > 0)
+            remaining--;
     }
-    
-    /* Insert at the specified position in window's gadget list */
-    if (position == 0 || position == (UWORD)~0 || !window->FirstGadget) {
-        /* Insert at beginning or first position */
-        last->NextGadget = window->FirstGadget;
-        window->FirstGadget = gadget;
-    } else {
-        /* Find the insertion point */
-        struct Gadget *prev = window->FirstGadget;
-        UWORD pos = 1;
-        
-        while (prev->NextGadget && pos < position) {
-            prev = prev->NextGadget;
-            pos++;
+
+    insert_link = &window->FirstGadget;
+    actual_position = 0;
+
+    if (position == (UWORD)-1)
+    {
+        while (*insert_link)
+        {
+            insert_link = &(*insert_link)->NextGadget;
+            actual_position++;
         }
-        
-        /* Insert after prev */
-        last->NextGadget = prev->NextGadget;
-        prev->NextGadget = gadget;
     }
-    
-    return (UWORD)count;
+    else
+    {
+        while (*insert_link && actual_position < position)
+        {
+            insert_link = &(*insert_link)->NextGadget;
+            actual_position++;
+        }
+    }
+
+    scan = *insert_link;
+    *insert_link = gadget;
+    last->NextGadget = scan;
+
+    if (!requester || requester->ReqLayer)
+    {
+        _intuition_RefreshGList(IntuitionBase, gadget, window, requester, numGad);
+    }
+
+    return actual_position;
 }
 
 UWORD _intuition_RemoveGList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -8376,42 +8389,40 @@ UWORD _intuition_RemoveGList ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Gadget * gadget __asm("a1"),
                                                         register WORD numGad __asm("d0"))
 {
+    struct Gadget **link;
+    struct Gadget *last;
+    WORD remaining;
+    UWORD position;
+
     DPRINTF (LOG_DEBUG, "_intuition: RemoveGList() window=0x%08lx gadget=0x%08lx numGad=%d\n",
              (ULONG)remPtr, (ULONG)gadget, numGad);
 
-    if (!remPtr || !gadget)
-        return 0;
+    if (!remPtr || !gadget || numGad == 0)
+        return (UWORD)-1;
 
-    /* Find the gadget in the window's list */
-    struct Gadget *prev = NULL;
-    struct Gadget *curr = remPtr->FirstGadget;
-    
-    while (curr && curr != gadget) {
-        prev = curr;
-        curr = curr->NextGadget;
+    link = &remPtr->FirstGadget;
+    position = 0;
+    while (*link && *link != gadget)
+    {
+        link = &(*link)->NextGadget;
+        position++;
     }
-    
-    if (!curr)
-        return 0;  /* Not found */
 
-    /* Count gadgets to remove */
-    UWORD count = 0;
-    struct Gadget *last = gadget;
-    
-    while (last && (numGad == -1 || count < (UWORD)numGad)) {
-        count++;
-        if (!last->NextGadget || (numGad != -1 && count >= (UWORD)numGad))
-            break;
+    if (!*link)
+        return (UWORD)-1;
+
+    last = gadget;
+    remaining = numGad;
+    while (last->NextGadget && remaining != 1)
+    {
         last = last->NextGadget;
+        if (remaining > 0)
+            remaining--;
     }
-    
-    /* Remove the gadgets from the list */
-    if (prev)
-        prev->NextGadget = last->NextGadget;
-    else
-        remPtr->FirstGadget = last->NextGadget;
-    
-    return count;
+
+    *link = last->NextGadget;
+
+    return position;
 }
 
 VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -8463,10 +8474,23 @@ BOOL _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase _
                                                         register struct Window * window __asm("a1"),
                                                         register struct Requester * requester __asm("a2"))
 {
+    UWORD gadget_type;
+
     DPRINTF (LOG_DEBUG, "_intuition: ActivateGadget() gad=0x%08lx win=0x%08lx type=0x%04x\n",
              (ULONG)gadget, (ULONG)window, gadget ? gadget->GadgetType : 0);
     
-    if (!gadget || !window) return FALSE;
+    if (!gadget || (!window && !requester))
+        return FALSE;
+
+    if (gadget->Flags & GFLG_DISABLED)
+        return FALSE;
+
+    gadget_type = gadget->GadgetType & GTYP_GTYPEMASK;
+    if (gadget_type != GTYP_STRGADGET && gadget_type != GTYP_CUSTOMGADGET)
+        return FALSE;
+
+    if (gadget_type == GTYP_CUSTOMGADGET && (gadget->Activation & GACT_ACTIVEGADGET))
+        return FALSE;
     
     /* Per RKRM, ActivateGadget() is primarily used for string gadgets.
      * It makes the gadget the active input gadget so it receives keyboard input.

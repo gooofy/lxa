@@ -41,8 +41,8 @@ Load the specific skill relevant to your task:
 # Build (from project root):
 ./build.sh
 
-# Run full test suite (ALWAYS use -j8 for parallel execution):
-ctest --test-dir build --output-on-failure -j8
+# Run full test suite (ALWAYS use -j16 for parallel execution):
+ctest --test-dir build --output-on-failure -j16
 
 # Run a specific test:
 ctest --test-dir build --output-on-failure -R shell_gtest
@@ -57,7 +57,7 @@ for i in $(seq 1 50); do
 done
 ```
 
-**Parallelism**: `-j8` is the project default. The suite's longest interactive
+**Parallelism**: `-j16` is the project default. The suite's longest interactive
 drivers are now sharded, which keeps full-suite wall time around the current
 ~95 second range on this machine class. Higher parallelism is safe, but usually
 does not improve wall time meaningfully.

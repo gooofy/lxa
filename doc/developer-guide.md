@@ -39,7 +39,7 @@ This guide provides essential information for developers working on lxa.
 4. **Run tests**:
    ```bash
    ./build.sh
-   ctest --test-dir build --output-on-failure -j8
+   ctest --test-dir build --output-on-failure -j16
    ```
 
 ## Project Structure
@@ -140,7 +140,7 @@ After completing a task:
 Before committing:
 ```bash
 # All tests pass
-ctest --test-dir build --output-on-failure -j8
+ctest --test-dir build --output-on-failure -j16
 
 # Check coverage
 cmake --build build --target coverage
@@ -709,7 +709,7 @@ indent -linux src/lxa/*.c
 1. Read [AGENTS.md](../AGENTS.md) for quality requirements
 2. Write tests (target 100% coverage for new code)
 3. Update documentation
-4. Run full test suite: `ctest --test-dir build --output-on-failure -j8`
+4. Run full test suite: `ctest --test-dir build --output-on-failure -j16`
 5. Check for warnings: `make 2>&1 | grep warning`
 
 ### Commit Messages

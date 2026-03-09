@@ -97,11 +97,11 @@ Before completing a task:
 
 ### 5.2 Full Test Suite
 ```bash
-# ALWAYS use -j8 for parallel execution
-cd build && ctest --output-on-failure -j8
+# ALWAYS use -j16 for parallel execution
+cd build && ctest --output-on-failure -j16
 
 # Equivalent from project root:
-ctest --test-dir build --output-on-failure -j8
+ctest --test-dir build --output-on-failure -j16
 ```
 
 ### 5.3 Parallelism Guidelines
@@ -110,11 +110,11 @@ ctest --test-dir build --output-on-failure -j8
 |:------:|:---------:|:-----------------------------------------------|
 | `-j1`  | Slowest   | Only for debugging unusual resource conflicts  |
 | `-j4`  | Good      | Acceptable local parallelism                   |
-| `-j8`  | Best default | Project standard for routine runs          |
-| `-j16` | Similar to -j8 | Usually no meaningful wall-time gain     |
-| `-j38` | Similar to -j8 | Safe, but typically unnecessary           |
+| `-j16`  | Best default | Project standard for routine runs          |
+| `-j16` | Similar to -j16 | Usually no meaningful wall-time gain     |
+| `-j38` | Similar to -j16 | Safe, but typically unnecessary           |
 
-**Why `-j8` is optimal**: the formerly oversized interactive suites are now
+**Why `-j16` is optimal**: the formerly oversized interactive suites are now
 split into shards, which keeps the full-suite wall time around ~95 seconds on
 this machine class. Higher parallelism remains safe, but usually does not
 improve the end-to-end runtime enough to justify using it as the default.
@@ -150,7 +150,7 @@ done
 # Full suite reliability (N consecutive runs):
 for run in $(seq 1 5); do
     echo "=== Run $run ==="
-    ctest --test-dir build --output-on-failure -j8 2>&1 | grep "tests passed"
+    ctest --test-dir build --output-on-failure -j16 2>&1 | grep "tests passed"
 done
 ```
 

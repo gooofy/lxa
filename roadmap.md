@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.100** | **Phase 78-E Intuition Screen/Window Manipulation Expanded** | **48/49 Tests Passing (GTest-only)**
+**Version: 0.6.101** | **Phase 78-E Intuition Gadget Management Expanded** | **48/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -34,16 +34,17 @@ Phase 78-C: Sprites & GELs verification expanded; `GetSprite`/`FreeSprite`/`Chan
 Phase 78-C: Pens & Colors verification expanded; `SetRGB4`/`SetRGB32`/`SetRGB4CM`/`SetRGB32CM`/`GetRGB32` plus `LoadRGB4`/`LoadRGB32` now preserve classic 8-bit palette precision through `ColorMap`/`LowColorBits`, `AttachPalExtra` now seeds sharable palette state for pen arbitration, and `ObtainPen`/`ReleasePen`/`FindColor` now follow current shared/exclusive pen semantics with direct graphics regression coverage (v0.6.90).
 Phase 78-C: BitMap utilities verification expanded; `ScalerDiv`/`BitMapScale` now have direct planar-scaling coverage, `AddFont`/`RemFont`/`ExtendFont`/`StripFont` now follow current public-font and `tf_Extension` lifetime rules, and `GfxNew`/`GfxFree`/`GfxAssociate`/`GfxLookUp` now support the extended-node associations used by Release 2 display clients, all locked in by a new unified graphics regression (v0.6.91).
 Phase 78-D: layers core verification completed; direct regressions now cover `InitLayers`/`NewLayerInfo`/`DisposeLayerInfo`, upfront/behind and hook-layer creation, `DeleteLayer`, `MoveLayer`, `SizeLayer`, `UpfrontLayer`/`BehindLayer`, locking helpers, and the earlier tag-driven layer creation semantics in one unified sweep (v0.6.94).
-Phase 78-E: Intuition ABI verification expanded; `Window`, `IntuiMessage`, `Gadget`, `StringInfo`, `PropInfo`, `Image`, `Border`, `IntuiText`, `MenuItem`, and `Menu` are already covered by `StructOffsets`, `OpenScreen`/`CloseScreen`/`OpenScreenTagList` remain locked for tag overrides/default opens/close refusal, `LockPubScreen`/`UnlockPubScreen`/`LockPubScreenList`/`UnlockPubScreenList`, `PubScreenStatus`, `GetDefaultPubScreen`, and `ShowTitle` now have direct public-screen regression coverage, `GetScreenData`, `MoveScreen`, `ScreenToFront`/`ScreenToBack`, `MoveWindow`/`SizeWindow`/`ChangeWindowBox`/`WindowLimits`/`WindowToFront`/`WindowToBack`, `ActivateWindow`, `ZipWindow`, and `RefreshWindowFrame` now have direct screen/window manipulation regression coverage, and `BeginRefresh`/`EndRefresh` plus `ModifyIDCMP` cleanup remain covered for refresh-flag transitions and IDCMP reply-port cleanup behavior (v0.6.100).
+Phase 78-E: Intuition gadget-management verification expanded; the existing screen/window/public-screen coverage remains in place, and direct regressions now lock `AddGadget`/`RemoveGadget`/`AddGList`/`RemoveGList`, `RefreshGadgets`/`RefreshGList`, `ActivateGadget`, and `OnGadget`/`OffGadget` against ordinal insertion/removal semantics, refresh stability, string-gadget activation, and disabled-state toggling (v0.6.101).
 
 **Current Status**:
 - 48/49 ctest entries (all GTest) currently pass; the Intuition sweep now covers public-screen locking/status helpers, screen ordering/position helpers, and the expanded window manipulation surface alongside the earlier screen/window-open semantics
-- `ctest --test-dir build --output-on-failure -R intuition_gtest` is green with the expanded Intuition sweep; the full `ctest --test-dir build --output-on-failure -j8` run now fails only on the pre-existing unrelated `fontreq_gtest` pixel assertion (`FontReqTest.FontListDisplayed`)
+- `ctest --test-dir build --output-on-failure -R intuition_gtest` is green with the expanded Intuition sweep; the full `ctest --test-dir build --output-on-failure -j16` run now fails only on the pre-existing unrelated `fontreq_gtest` pixel assertion (`FontReqTest.FontListDisplayed`)
 - `Tests/Exec/StructOffsets` now covers the full public Intuition structure set currently tracked in Phase 78-E, including `Window`, `IntuiMessage`, gadgets, string/prop helpers, images/borders/text, menus, plus the earlier `IntuitionBase`, `Screen`, and `Requester` checks
 - `Tests/Intuition/ScreenBasic` now locks `OpenScreen`/`CloseScreen`/`OpenScreenTagList` plus `GetDefaultPubScreen`, `LockPubScreen`/`UnlockPubScreen`, `LockPubScreenList`/`UnlockPubScreenList`, `PubScreenStatus`, and `ShowTitle` against V36-style close refusal, public/private transitions, list exposure, and title-bar visibility semantics
 - `Tests/Intuition/WindowBasic` now locks `OpenWindow`/`CloseWindow`/`OpenWindowTagList` against tag-driven size/position overrides, boolean flag clearing, Workbench fallback for tag-only opens, `WA_InnerWidth`/`WA_InnerHeight` plus `WA_GimmeZeroZero`, size-border placement tags, and `WA_Zoom`-backed `ZipWindow()` toggling
 - `Tests/Intuition/ScreenManipulation` now verifies `GetScreenData`, `MoveScreen`, `ScreenToFront`/`ScreenToBack`, `ScreenDepth`, and `ScreenPosition` directly against the live screen list and copied public structure state
 - `Tests/Intuition/WindowManipulation` now verifies `MoveWindow`/`SizeWindow`/`WindowLimits`/`ChangeWindowBox`/`SetWindowTitles`/`WindowToFront`/`WindowToBack`, `ActivateWindow`, `RefreshWindowFrame`, `ZipWindow`, plus `BeginRefresh`/`EndRefresh` for geometry changes, IDCMP delivery, title/frame redraw semantics, depth ordering, zoom toggling, and refresh-flag cleanup behavior
+- `Tests/Intuition/GadgetRefresh` now verifies `AddGadget`/`RemoveGadget`/`AddGList`/`RemoveGList`, `RefreshGadgets`/`RefreshGList`, `ActivateGadget`, and `OnGadget`/`OffGadget` for head/tail insertion, ordinal removal, list-preserving refreshes, string-gadget activation, and disabled-flag transitions
 - `Tests/Intuition/IDCMP` now verifies `ModifyIDCMP` creates both public and internal IDCMP ports, keeps replied messages on the cleanup queue until Intuition reaps them, and tears both ports down cleanly when IDCMP is disabled
 - Added clearer CLI assign controls: `--assign` now aliases the old `-a` replace behavior, `--assign-add` appends to multi-assign search lists, unit coverage locks the underlying replace/append VFS semantics, and the VS Code manual-test launch configs now use the explicit long-form options while rebuilding/installing the latest runtime before launch
 - Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
@@ -68,10 +69,10 @@ Phase 78-E: Intuition ABI verification expanded; `Window`, `IntuiMessage`, `Gadg
 - Verified against NDK/AROS references that `SPrintf`/`VSPrintf` are not public AmigaOS 3.x DOS APIs, so they are removed from the DOS roadmap scope instead of being exposed as new non-standard vectors
 - Completed Phase 78-B-6 DOS loader/runtime coverage: `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, and `GetSegListInfo` now work with direct regression coverage for hunk seglists, synchronous loaded-program execution, and `CreateProc()` child startup behavior
 - Completed Phase 78-B-7 DOS pattern/regression sweep: `MatchPattern`/`MatchPatternNoCase` now cover deferred `(a|b)` alternation groups, direct DOS regression tests lock in CLI metadata and variable helpers plus `SetComment`/`SetProtection`/`Info`/`SameLock`, and the full DOS/application/command regression sweep is green again
-- Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j8` is green again
+- Regression sweep complete: `exec_gtest`, `shell_gtest`, `rgbboxes_gtest`, and `dpaint_gtest` are green, and full `ctest --test-dir build --output-on-failure -j16` is green again
 - Fixed test/runtime regressions in synchronous timer I/O setup, `SystemTagList()` wait-loop polling, shell variable coverage, and multitask/rgbboxes assertions
 - Fixed the unrelated `commands_gtest` failure in `TYPE`: failed opens now preserve the host-reported `IoErr()` instead of collapsing to stale zero/incorrect errors
-- Test-suite scheduling improved: sharded `gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, and `cluster2` into smaller CTest entries, reducing `ctest -j8` wall time from about 124s to about 95s while keeping total CPU time roughly flat
+- Test-suite scheduling improved: sharded `gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, and `cluster2` into smaller CTest entries, reducing `ctest -j16` wall time from about 124s to about 95s while keeping total CPU time roughly flat
 - Completed project-wide MIT license migration and documentation consistency cleanup: replaced the root Apache 2.0 license text with MIT, aligned repository documentation with the MIT license, refreshed the primary testing/build docs to the current CTest/GTest workflow, and marked older planning documents as historical references where appropriate
 - Started Phase 78-C graphics verification by extending `StructOffsets` coverage to the remaining core public graphics structures: `GfxBase`, `ViewPort`, `RasInfo`, `ColorMap`, `AreaInfo`, `TmpRas`, and `GelsInfo`; the existing `BitMap`, `RastPort`, and `TextFont` checks now close the full data-structure subsection against NDK `.i` layout references
 - Expanded Phase 78-C drawing verification across the existing graphics primitives: added direct regression coverage for `Draw` and `RectFill` `INVERSVID` behavior on top of the existing `COMPLEMENT` checks, corrected `Draw`/`RectFill` to use `BgPen` when `INVERSVID` is set, integrated `PolyDraw` and `Flood` into the `graphics_gtest` sweep and sample install set, and fixed `StructOffsets` to reflect the NDK `AreaInfo` layout including `FirstX`/`FirstY`
@@ -522,12 +523,12 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `GetDefaultPubScreen`
 
 **Gadgets** (vs `intuition/gadgets.c`, `intuition/boopsi.c`):
-- [ ] `AddGadget` / `RemoveGadget` / `AddGList` / `RemoveGList`
-- [ ] `RefreshGadgets` / `RefreshGList`
-- [ ] `ActivateGadget`
+- [x] `AddGadget` / `RemoveGadget` / `AddGList` / `RemoveGList`
+- [x] `RefreshGadgets` / `RefreshGList`
+- [x] `ActivateGadget`
 - [ ] `SetGadgetAttrsA` ✅ (Phase 76)
 - [ ] `DoGadgetMethodA` ✅ (Phase 76)
-- [ ] `OnGadget` / `OffGadget` — GADGDISABLED flag; re-render
+- [x] `OnGadget` / `OffGadget` — GADGDISABLED flag; re-render
 - [ ] `SizeWindow` interaction with GFLG_RELRIGHT/RELBOTTOM relative gadgets
 
 **BOOPSI / OOP** (vs `intuition/boopsi.c`, `intuition/classes.c`):
@@ -861,9 +862,9 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 #### 78-X: Regression & Integration Testing
 
-- [ ] After each 78-A through 78-W subsystem fix: run full `ctest --test-dir build -j8` and confirm all existing tests still pass
-- [x] Regression maintenance: restore `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` to green after timer/SystemTagList/test-harness regressions; verified with full `ctest --test-dir build --output-on-failure -j8`
-- [x] Rebalance long-running GTest drivers for parallel CTest execution by splitting oversized suites (`gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, `cluster2`) into smaller shards; verified with full `ctest --test-dir build --output-on-failure -j8`
+- [ ] After each 78-A through 78-W subsystem fix: run full `ctest --test-dir build -j16` and confirm all existing tests still pass
+- [x] Regression maintenance: restore `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` to green after timer/SystemTagList/test-harness regressions; verified with full `ctest --test-dir build --output-on-failure -j16`
+- [x] Rebalance long-running GTest drivers for parallel CTest execution by splitting oversized suites (`gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, `cluster2`) into smaller shards; verified with full `ctest --test-dir build --output-on-failure -j16`
 - [ ] Add new GTest assertions for each behavioral deviation found vs AROS
 - [ ] Run RKM sample programs after structural changes to catch regressions (gadtoolsgadgets_gtest, simplemenu_gtest, filereq_gtest, fontreq_gtest, easyrequest_gtest)
 - [ ] Run application tests after changes to exec/dos (asm_one_gtest, devpac_gtest, kickpascal_gtest, cluster2_gtest, dpaint_gtest)

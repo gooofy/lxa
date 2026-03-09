@@ -216,7 +216,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.96** - Phase 78-E Intuition verification now covers the already-implemented public window/menu/gadget/message structs in `Tests/Exec/StructOffsets`, and `Tests/Intuition/ScreenBasic` now locks `OpenScreen`, `CloseScreen`, and `OpenScreenTagList` against tag overrides, tag-only default opens, height expansion, and close refusal while windows remain open
+**Version 0.6.101** - Phase 78-E Intuition verification now also locks gadget-list management and activation semantics via `Tests/Intuition/GadgetRefresh`, covering `AddGadget`/`RemoveGadget`/`AddGList`/`RemoveGList`, `RefreshGadgets`/`RefreshGList`, `ActivateGadget`, and `OnGadget`/`OffGadget` alongside the earlier screen and window coverage
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
@@ -265,7 +265,7 @@ See documentation for more troubleshooting tips.
 ### Running Tests
 
 ```bash
-ctest --test-dir build --output-on-failure -j8
+ctest --test-dir build --output-on-failure -j16
 ```
 
 ### Code Coverage
