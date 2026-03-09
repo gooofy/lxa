@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.93** | **Phase 78-D Layers Verification In Progress** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.94** | **Phase 78-D Layers Verification Complete** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -33,11 +33,11 @@ Phase 78-C: Display & ViewPort verification expanded; `InitView`/`InitVPort`, `L
 Phase 78-C: Sprites & GELs verification expanded; `GetSprite`/`FreeSprite`/`ChangeSprite`/`MoveSprite` now follow NDK-style allocation and coordinate semantics, `InitGels`/`AddVSprite`/`AddBob`/`RemVSprite`/`SortGList` now maintain deterministic GEL ordering, and `DrawGList` now honors Bob draw/removal flow with direct regression coverage (v0.6.89).
 Phase 78-C: Pens & Colors verification expanded; `SetRGB4`/`SetRGB32`/`SetRGB4CM`/`SetRGB32CM`/`GetRGB32` plus `LoadRGB4`/`LoadRGB32` now preserve classic 8-bit palette precision through `ColorMap`/`LowColorBits`, `AttachPalExtra` now seeds sharable palette state for pen arbitration, and `ObtainPen`/`ReleasePen`/`FindColor` now follow current shared/exclusive pen semantics with direct graphics regression coverage (v0.6.90).
 Phase 78-C: BitMap utilities verification expanded; `ScalerDiv`/`BitMapScale` now have direct planar-scaling coverage, `AddFont`/`RemFont`/`ExtendFont`/`StripFont` now follow current public-font and `tf_Extension` lifetime rules, and `GfxNew`/`GfxFree`/`GfxAssociate`/`GfxLookUp` now support the extended-node associations used by Release 2 display clients, all locked in by a new unified graphics regression (v0.6.91).
-Phase 78-D: layers tag creation verification expanded; `CreateLayerTagList` now honors current `LA_BackfillHook`, `LA_SuperBitMap`, `LA_WindowPtr`, `LA_Hidden`, `LA_InFrontOf`, and `LA_Behind` semantics, `AddLayerInfoTag(LA_BackfillHook)` now seeds default hook-layer creation behavior, and the layers regression sweep covers those tag-driven hook/z-order cases directly (v0.6.93).
+Phase 78-D: layers core verification completed; direct regressions now cover `InitLayers`/`NewLayerInfo`/`DisposeLayerInfo`, upfront/behind and hook-layer creation, `DeleteLayer`, `MoveLayer`, `SizeLayer`, `UpfrontLayer`/`BehindLayer`, locking helpers, and the earlier tag-driven layer creation semantics in one unified sweep (v0.6.94).
 
 **Current Status**:
-- 49/49 ctest entries (all GTest) still pass, and `layers_gtest` now includes direct tag-driven layer-creation coverage alongside the earlier cliprect, locking, scroll, and visibility regressions
-- Full `ctest --test-dir build --output-on-failure -j8` remains green, with the new layers sweep locking `CreateLayerTagList` hook/window/superbitmap/hidden ordering semantics plus `AddLayerInfoTag(LA_BackfillHook)` defaults
+- 49/49 ctest entries (all GTest) still pass, and `layers_gtest` now includes a dedicated `CoreOps` regression covering the remaining create/delete/move/resize/z-order paths alongside the earlier cliprect, locking, scroll, tag, and visibility regressions
+- Full `ctest --test-dir build --output-on-failure -j8` remains green, with the layers sweep now locking the full 78-D core surface including hook-layer creation, damage/ClipRect cleanup on delete, and geometry/z-order rebuild behavior
 - Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
 - Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
 - All remaining miscellaneous Exec items verified: `RawDoFmt` edge cases (maxwidth, precision, `%c`, `%%`, `%b` BSTR, return value), list accessors (`GetHead`/`GetTail`/`GetSucc`/`GetPred` as macros), `Alert` (recovery vs deadend decoding), `Supervisor` (m68k privilege-switch call)
@@ -449,22 +449,22 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 #### 78-D: Layers Library (`src/rom/lxa_layers.c` vs `others/AROS-20231016-source/rom/hyperlayers/`)
 
-- [ ] `InitLayers` — initialise LayerInfo struct
-- [ ] `NewLayerInfo` / `DisposeLayerInfo`
-- [ ] `CreateUpfrontLayer` / `CreateBehindLayer` / `CreateUpfrontHookLayer` / `CreateBehindHookLayer` — with and without SuperBitMap
-- [ ] `DeleteLayer` — release ClipRects, damage list, region, bitmap
-- [ ] `MoveLayer` — move by delta; update ClipRect chain
-- [ ] `SizeLayer` — resize layer; rebuild ClipRects
-- [ ] `BehindLayer` / `UpfrontLayer` — z-order without moving
-- [ ] `MoveLayerInFrontOf` ✅ (Phase 75)
-- [ ] `ScrollLayer` ✅ (Phase 75)
-- [ ] `BeginUpdate` / `EndUpdate` ✅ (Phase 75)
-- [ ] `SwapBitsRastPortClipRect` ✅ (Phase 75)
-- [ ] `InstallClipRegion` ✅ (Phase 75)
-- [ ] `SortLayerCR` ✅ (Phase 75)
-- [ ] `DoHookClipRects` ✅ (Phase 75)
+- [x] `InitLayers` — initialise LayerInfo struct, including default bounds and compatibility flags (v0.6.94)
+- [x] `NewLayerInfo` / `DisposeLayerInfo` — allocation, initialization, and pooled `ClipRect` cleanup verified (v0.6.94)
+- [x] `CreateUpfrontLayer` / `CreateBehindLayer` / `CreateUpfrontHookLayer` / `CreateBehindHookLayer` — with and without SuperBitMap (v0.6.94)
+- [x] `DeleteLayer` — releases ClipRects, rebuilds exposure state, and preserves damage tracking for revealed layers (v0.6.94)
+- [x] `MoveLayer` — move by delta; update ClipRect chain (v0.6.94)
+- [x] `SizeLayer` — resize layer; rebuild ClipRects (v0.6.94)
+- [x] `BehindLayer` / `UpfrontLayer` — z-order without moving (v0.6.94)
+- [x] `MoveLayerInFrontOf` ✅ (Phase 75)
+- [x] `ScrollLayer` ✅ (Phase 75)
+- [x] `BeginUpdate` / `EndUpdate` ✅ (Phase 75)
+- [x] `SwapBitsRastPortClipRect` ✅ (Phase 75)
+- [x] `InstallClipRegion` ✅ (Phase 75)
+- [x] `SortLayerCR` ✅ (Phase 75)
+- [x] `DoHookClipRects` ✅ (Phase 75)
 - [x] `ShowLayer` / `HideLayer` / `LayerOccluded` / `SetLayerInfoBounds` — visibility, z-order restore, and `Layer_Info` clipping bounds verified (v0.6.92)
-- [ ] `LockLayer` / `UnlockLayer` / `LockLayers` / `UnlockLayers` / `LockLayerRom` / `UnlockLayerRom`
+- [x] `LockLayer` / `UnlockLayer` / `LockLayers` / `UnlockLayers` / `LockLayerRom` / `UnlockLayerRom` — current lxa compatibility semantics verified for layer and graphics locking entry points (v0.6.94)
 - [x] `WhichLayer` — hit-test point to top-most visible layer/ClipRect, including hidden-layer and bounds-clipped coverage (v0.6.92)
 - [x] `FattenLayerInfo` / `ThinLayerInfo` — `NEWLAYERINFO_CALLED` compatibility semantics verified (v0.6.92)
 - [x] `InstallLayerHook` / `InstallLayerInfoHook` — previous-hook return and assignment semantics verified (v0.6.92)

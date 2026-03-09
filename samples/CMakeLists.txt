@@ -210,6 +210,7 @@ set(TESTS_LIST
     "../tests/devices/timer|main|Tests/Devices/Timer"
     "../tests/devices/timer_async|main|Tests/Devices/TimerAsync"
     "../tests/layers/cliprects|main|Tests/Layers/ClipRects"
+    "../tests/layers/core_ops|main|Tests/Layers/CoreOps"
     "../tests/layers/layer_info|main|Tests/Layers/LayerInfo"
     "../tests/layers/locking|main|Tests/Layers/Locking"
     "../tests/layers/scroll_layer|main|Tests/Layers/ScrollLayer"
