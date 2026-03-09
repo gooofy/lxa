@@ -137,6 +137,18 @@ protected:
     }
 };
 
+class DrawingHelpersDriverTest : public LxaUITest {
+protected:
+    void SetUp() override {
+        config.rootless = false;
+        LxaUITest::SetUp();
+        ASSERT_EQ(lxa_load_program("SYS:Tests/Intuition/DrawingHelpers", ""), 0);
+        ASSERT_TRUE(WaitForWindows(1, 5000));
+        ASSERT_TRUE(GetWindowInfo(0, &window_info));
+        WaitForEventLoop(100, 10000);
+    }
+};
+
 class RequesterBasicDriverTest : public LxaUITest {
 protected:
     void SetUp() override {
@@ -149,6 +161,7 @@ protected:
 
 TEST_F(IntuitionTest, BOOPSI) { RunIntuitionTest("BOOPSI"); }
 TEST_F(IntuitionTest, BOOPSI_IC) { RunIntuitionTest("BOOPSI_IC"); }
+TEST_F(IntuitionTest, DrawingHelpers) { RunIntuitionTest("DrawingHelpers"); }
 TEST_F(IntuitionTest, GadgetClick) { RunIntuitionTest("GadgetClick"); }
 TEST_F(IntuitionTest, GadgetRefresh) { RunIntuitionTest("GadgetRefresh"); }
 TEST_F(IntuitionTest, GadgetClass) { RunIntuitionTest("GadgetClass"); }
@@ -205,6 +218,94 @@ TEST_F(RequesterBasicDriverTest, SystemRequesterCancelAndConfirm) {
     EXPECT_NE(output.find("OK: FreeSysRequest closed the system requester"), std::string::npos)
         << output;
     EXPECT_NE(output.find("PASS: requester_basic all tests completed"), std::string::npos)
+        << output;
+}
+
+TEST_F(DrawingHelpersDriverTest, RendersAndErasesContent) {
+    std::string output;
+    bool saw_before_erase = false;
+
+    for (int i = 0; i < 40; i++) {
+        RunCyclesWithVBlank(2, 50000);
+        output = GetOutput();
+        if (output.find("READY: before erase") != std::string::npos) {
+            saw_before_erase = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(saw_before_erase) << output;
+
+    lxa_flush_display();
+
+    EXPECT_GT(CountContentPixels(
+                  window_info.x + 10,
+                  window_info.y + 10,
+                  window_info.x + 34,
+                  window_info.y + 22,
+                  0),
+              20)
+        << "Expected DrawBorder output to be visible";
+
+    EXPECT_GT(CountContentPixels(
+                  window_info.x + 10,
+                  window_info.y + 30,
+                  window_info.x + 60,
+                  window_info.y + 42,
+                  0),
+              10)
+        << "Expected PrintIText output to be visible";
+
+    EXPECT_GT(CountContentPixels(
+                  window_info.x + 60,
+                  window_info.y + 20,
+                  window_info.x + 75,
+                  window_info.y + 27,
+                  0),
+              18)
+        << "Expected DrawImage chain output to be visible before EraseImage";
+
+    EXPECT_EQ(ReadPixel(window_info.x + 90, window_info.y + 20), 2)
+        << "Expected IDS_SELECTED to merge edge pixels with the existing border pens";
+    EXPECT_EQ(ReadPixel(window_info.x + 91, window_info.y + 21), 3)
+        << "Expected IDS_SELECTED to merge interior pixels with the existing background pen";
+
+    bool saw_after_erase = false;
+    for (int i = 0; i < 40; i++) {
+        RunCyclesWithVBlank(2, 50000);
+        output = GetOutput();
+        if (output.find("READY: after erase") != std::string::npos) {
+            saw_after_erase = true;
+            break;
+        }
+    }
+
+    ASSERT_TRUE(saw_after_erase) << output;
+
+    lxa_flush_display();
+
+    EXPECT_EQ(CountContentPixels(
+                  window_info.x + 60,
+                  window_info.y + 20,
+                  window_info.x + 67,
+                  window_info.y + 27,
+                  0),
+              0)
+        << "Expected EraseImage to clear the image area";
+
+    EXPECT_GT(CountContentPixels(
+                  window_info.x + 72,
+                  window_info.y + 22,
+                  window_info.x + 75,
+                  window_info.y + 25,
+                  0),
+              0)
+        << "Expected trailing chained image pixels to remain after EraseImage";
+
+    EXPECT_TRUE(lxa_wait_exit(10000));
+
+    output = GetOutput();
+    EXPECT_NE(output.find("PASS: drawing_helpers all tests completed"), std::string::npos)
         << output;
 }
 

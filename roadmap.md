@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.107** | **Phase 78-E Intuition Pointer/Input Helpers Verification Expanded** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.109** | **Phase 78-E Intuition DrawImage Verification Expanded** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -41,9 +41,11 @@ Phase 78-E: relative gadget resize verification expanded; gadget hit-testing/ren
 Phase 78-E: BOOPSI and menu verification expanded; `MakeClass()` now rejects missing/duplicate public superclasses correctly, `FreeClass()` always removes public classes before reporting busy-state failure, rootclass object methods now support `OM_ADDTAIL`/`OM_REMOVE` so `DoMethodA`/`CoerceMethodA` and `modelclass` membership flows work through direct regressions, and the Intuition sweep now locks `NewObjectA`/`DisposeObject`, `GetAttr`/`SetAttrsA`, `DoMethodA`/`CoerceMethodA`, `MakeClass`/`AddClass`/`RemoveClass`/`FreeClass`, `SetMenuStrip`/`ClearMenuStrip`/`ResetMenuStrip`, and `ItemAddress` against the current NDK-style semantics (v0.6.105).
 Phase 78-E: requester verification expanded; `InitRequester()` now clears the full public structure, true requesters now honor centered `POINTREL` placement plus Intuition-rendered border/text/gadget chains with cleanup state wired through `RWindow`/`ReqLayer`, `BuildSysRequest()` now runs through the EasyRequest-style requester builder, and direct plus host-driven regressions now lock `Request()`/`EndRequest()` and `BuildSysRequest()`/`FreeSysRequest()`/`SysReqHandler()` against current lxa semantics for requester posting, cancellation, and gadget-result handling (v0.6.106).
 Phase 78-E: pointer/input helper verification expanded; `SetPointer()`/`ClearPointer()` now preserve the public window pointer fields, `SetMouseQueue()` now follows V36-style outstanding `IDCMP_MOUSEMOVE` throttling with default queue tracking, `CurrentTime()` remains locked to host timer snapshots, and direct regressions now cover `DisplayAlert()` dead-end vs recovery return semantics plus `DisplayBeep()` acceptance for screen-specific and global calls (v0.6.107).
+Phase 78-E: drawing helper verification expanded; direct regressions now lock `DrawBorder`, `DrawImageState`, `PrintIText`/`IntuiTextLength`, and `EraseImage` against linked-border rendering, standard-image draw/erase behavior, and IntuiText width/rendering semantics, with host-side pixel assertions confirming the rendered output before and after image erasure (v0.6.108).
+Phase 78-E: `DrawImage` verification expanded; `DrawImage()` now follows the public AROS/NDK path through `DrawImageState(IDS_NORMAL)`, classic images now walk full `NextImage` chains with `PlanePick==0` fill handling plus `IDS_SELECTED` minterm semantics, and direct plus host-side regressions now lock chained draw/erase behavior against the current public surface while confirming `GetScreenDepth`/`GetScreenRect` and `DrawBoopsiObject` are not part of the bundled public NDK/AROS API set (v0.6.109).
 
 **Current Status**:
-- 49/49 ctest entries (all GTest) now pass; the Intuition sweep now covers public-screen locking/status helpers, screen ordering/position helpers, and the expanded window manipulation surface alongside the earlier screen/window-open semantics
+- 49/49 ctest entries (all GTest) now pass; the Intuition sweep now covers public-screen locking/status helpers, screen ordering/position helpers, the expanded window manipulation surface, and the full public Intuition drawing-image surface alongside the earlier screen/window-open semantics
 - `./build.sh` now completes cleanly without warnings under the current sample/test compile policy, and the targeted low-noise source fixes keep host/unit utility code warning-free where those targets still compile with their default diagnostics
 - `ctest --test-dir build --output-on-failure -R fontreq_gtest` is green again after forcing the requester pixel test to render through the screen bitmap instead of rootless window surfaces, and the full `ctest --test-dir build --output-on-failure -j16` sweep is green
 - `Tests/Exec/StructOffsets` now covers the full public Intuition structure set currently tracked in Phase 78-E, including `Window`, `IntuiMessage`, gadgets, string/prop helpers, images/borders/text, menus, plus the earlier `IntuitionBase`, `Screen`, and `Requester` checks
@@ -58,6 +60,7 @@ Phase 78-E: pointer/input helper verification expanded; `SetPointer()`/`ClearPoi
 - `Tests/Intuition/BOOPSI` now verifies private/public class creation and teardown via `MakeClass`/`AddClass`/`RemoveClass`/`FreeClass`, object lifecycle and attribute dispatch via `NewObjectA`/`DisposeObject`/`GetAttr`/`SetAttrsA`, direct `DoMethodA`/`CoerceMethodA` method routing, and `modelclass` `OM_ADDMEMBER`/`OM_REMMEMBER`/`OM_UPDATE` broadcasting through custom observer classes
 - `Tests/Intuition/RequesterBasic` plus a dedicated `tests/drivers/intuition_gtest.cpp` host-side interaction path now verify `InitRequester`, `Request`/`EndRequest`, and `BuildSysRequest`/`FreeSysRequest`/`SysReqHandler` for full-structure init, centered true-requester placement, Intuition-managed requester rendering, close-gadget cancellation, and gadget-ID return flow
 - `Tests/Intuition/PointerInput` now verifies `SetPointer`/`ClearPointer`, `SetMouseQueue`, `CurrentTime`, `DisplayAlert`, and `DisplayBeep` for public pointer metadata updates, V36 mouse-move queue throttling, monotonic time snapshots, alert return semantics, and global/screen beep acceptance
+- `Tests/Intuition/DrawingHelpers` plus a dedicated `tests/drivers/intuition_gtest.cpp` pixel path now verify `DrawBorder`, `DrawImage`, `DrawImageState`, `PrintIText`/`IntuiTextLength`, and `EraseImage` for linked border-chain rendering, chained classic-image rendering, `IDS_SELECTED` state handling, bounded erase cleanup, and visible IntuiText output with expected width calculation
 - `Tests/Intuition/IDCMP` now verifies `ModifyIDCMP` creates both public and internal IDCMP ports, keeps replied messages on the cleanup queue until Intuition reaps them, and tears both ports down cleanly when IDCMP is disabled
 - Added clearer CLI assign controls: `--assign` now aliases the old `-a` replace behavior, `--assign-add` appends to multi-assign search lists, unit coverage locks the underlying replace/append VFS semantics, and the VS Code manual-test launch configs now use the explicit long-form options while rebuilding/installing the latest runtime before launch
 - Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
@@ -550,7 +553,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `MakeClass` / `FreeClass` / `AddClass` / `RemoveClass` (v0.6.105)
 - [x] `ICA_TARGET / ICA_MAP` notification pipeline ✅ (Phase 76)
 - [x] Standard classes: rootclass, imageclass, frameiclass, sysiclass, fillrectclass, gadgetclass, propgclass, strgclass, buttongclass, frbuttonclass, groupgclass, icclass, modelclass ✅ (Phase 76)
-- [ ] `GetScreenDepth` / `GetScreenRect`
+- [x] `GetScreenDepth` / `GetScreenRect` — verified out of scope after checking bundled NDK 3.2 and AROS public Intuition surfaces; no exported API with these names is present, so `ScreenDepth`/`GetScreenData` remain the public coverage points for the current screen helpers (v0.6.109)
 
 **Menus** (vs `intuition/menus.c`):
 - [x] `SetMenuStrip` / `ClearMenuStrip` / `ResetMenuStrip` (v0.6.105)
@@ -570,11 +573,11 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `DisplayAlert` / `DisplayBeep` (v0.6.107)
 
 **Drawing in Intuition**:
-- [ ] `DrawBorder` — linked Border chain rendering
-- [ ] `DrawImage` / `DrawImageState` — Image chain, IMGS_* state for 3D look
-- [ ] `PrintIText` / `IntuiTextLength`
-- [ ] `EraseImage`
-- [ ] `DrawBoopsiObject`
+- [x] `DrawBorder` — linked Border chain rendering (v0.6.108)
+- [x] `DrawImage` / `DrawImageState` — `DrawImage()` now follows the public `DrawImageState(IDS_NORMAL)` path, direct regressions cover linked classic image chains plus `PlanePick==0` fill behavior, and `DrawImageState()` is locked against AROS-style `IDS_SELECTED` semantics for standard images; no bundled public NDK/AROS `IMGS_*` Intuition image states were found beyond the `IDS_*` surface (v0.6.109)
+- [x] `PrintIText` / `IntuiTextLength` (v0.6.108)
+- [x] `EraseImage` (v0.6.108)
+- [x] `DrawBoopsiObject` — verified out of scope after checking bundled NDK 3.2 and AROS public Intuition surfaces; no exported API with this name is present, and BOOPSI image drawing remains covered through `DrawImageState()`/`IM_DRAW` on image objects (v0.6.109)
 
 ---
 

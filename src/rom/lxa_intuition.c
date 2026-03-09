@@ -315,6 +315,13 @@ struct LXAPubScreenNode {
 
 static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST_STRPTR classID);
 static ULONG _intuition_dispatch_method(struct IClass *cl, Object *obj, Msg msg);
+VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                        register struct RastPort * rp __asm("a0"),
+                                                        register struct Image * image __asm("a1"),
+                                                        register WORD leftOffset __asm("d0"),
+                                                        register WORD topOffset __asm("d1"),
+                                                        register ULONG state __asm("d2"),
+                                                        register const struct DrawInfo * drawInfo __asm("a2"));
 
 static struct LXAWindowState *_intuition_find_window_state(struct LXAIntuitionBase *base,
                                                            const struct Window *window)
@@ -3234,71 +3241,9 @@ VOID _intuition_DrawImage ( register struct IntuitionBase * IntuitionBase __asm(
 {
     DPRINTF (LOG_DEBUG, "_intuition: DrawImage() rp=0x%08lx image=0x%08lx at %d,%d\n",
              (ULONG)rp, (ULONG)image, (int)leftOffset, (int)topOffset);
-    
-    if (!rp || !image)
-        return;
-    
-    /* Walk the Image chain and render each image */
-    while (image)
-    {
-        WORD x = leftOffset + image->LeftEdge;
-        WORD y = topOffset + image->TopEdge;
-        
-        DPRINTF (LOG_DEBUG, "_intuition: DrawImage() rendering image: w=%d h=%d depth=%d leftEdge=%d topEdge=%d -> x=%d y=%d\n",
-                 (int)image->Width, (int)image->Height, (int)image->Depth,
-                 (int)image->LeftEdge, (int)image->TopEdge, (int)x, (int)y);
-        
-        if (image->ImageData && image->Width > 0 && image->Height > 0)
-        {
-            /* Render image data using BltTemplate or pixel-by-pixel */
-            /* For now, use a simple blit approach */
-            
-            UWORD wordsPerRow = (image->Width + 15) / 16;
-            UBYTE planePick = image->PlanePick;
-            UBYTE planeOnOff = image->PlaneOnOff;
-            UWORD *data = image->ImageData;
-            
-            for (WORD py = 0; py < image->Height; py++)
-            {
-                for (WORD px = 0; px < image->Width; px++)
-                {
-                    UWORD wordIndex = px / 16;
-                    UWORD bitIndex = 15 - (px % 16);
-                    
-                    /* Build the color from all planes */
-                    UBYTE color = 0;
-                    UWORD *planeData = data;
-                    
-                    for (WORD plane = 0; plane < image->Depth && plane < 8; plane++)
-                    {
-                        if (planePick & (1 << plane))
-                        {
-                            /* This plane has data */
-                            UWORD word = planeData[py * wordsPerRow + wordIndex];
-                            if (word & (1 << bitIndex))
-                                color |= (1 << plane);
-                            planeData += wordsPerRow * image->Height;
-                        }
-                        else
-                        {
-                            /* Use PlaneOnOff for this plane */
-                            if (planeOnOff & (1 << plane))
-                                color |= (1 << plane);
-                        }
-                    }
-                    
-                    /* Only draw non-zero pixels (or all if depth is 0) */
-                    if (color != 0 || image->Depth == 0)
-                    {
-                        SetAPen(rp, color);
-                        WritePixel(rp, x + px, y + py);
-                    }
-                }
-            }
-        }
-        
-        image = image->NextImage;
-    }
+
+    _intuition_DrawImageState(IntuitionBase, rp, image, leftOffset, topOffset,
+                              IDS_NORMAL, NULL);
 }
 
 VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -10584,30 +10529,100 @@ VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase _
                                                         register const struct DrawInfo * drawInfo __asm("a2"))
 {
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    UBYTE savedAPen;
+    UBYTE savedBPen;
+    UBYTE savedDrMd;
     
     DPRINTF (LOG_DEBUG, "_intuition: DrawImageState() image=0x%08lx state=0x%08lx\n", (ULONG)image, state);
     
     if (!image || !rp) return;
-    
-    if (_is_object(base, image)) {
-        /* Dispatch IM_DRAW */
-        struct impDraw imp;
-        imp.MethodID = IM_DRAW;
-        imp.imp_RPort = rp;
-        imp.imp_Offset.X = leftOffset;
-        imp.imp_Offset.Y = topOffset;
-        imp.imp_State = state;
-        imp.imp_DrInfo = (struct DrawInfo *)drawInfo;
-        
-        /* Dimensions usually come from object itself, but impDraw doesn't take them.
-         * The object knows its size.
-         */
-         
-        _intuition_dispatch_method(_OBJECT(image)->o_Class, (Object *)image, (Msg)&imp);
-    } else {
-        /* Standard Image */
-        _intuition_DrawImage(IntuitionBase, rp, image, leftOffset, topOffset);
+
+    savedAPen = rp->FgPen;
+    savedBPen = rp->BgPen;
+    savedDrMd = rp->DrawMode;
+
+    if (rp->Layer)
+        LockLayerRom(rp->Layer);
+
+    while (image)
+    {
+        BOOL is_boopsi = (image->Depth == CUSTOMIMAGEDEPTH) || _is_object(base, image);
+
+        if (is_boopsi) {
+            struct impDraw imp;
+
+            imp.MethodID = IM_DRAW;
+            imp.imp_RPort = rp;
+            imp.imp_Offset.X = leftOffset;
+            imp.imp_Offset.Y = topOffset;
+            imp.imp_State = state;
+            imp.imp_DrInfo = (struct DrawInfo *)drawInfo;
+
+            _intuition_dispatch_method(_OBJECT(image)->o_Class, (Object *)image, (Msg)&imp);
+        } else if (image->Width > 0 && image->Height > 0) {
+            ULONG planepick = image->PlanePick;
+            ULONG planeonoff = image->PlaneOnOff & ~planepick;
+
+            if (planepick == 0) {
+                SetAPen(rp, planeonoff);
+                RectFill(rp,
+                         leftOffset + image->LeftEdge,
+                         topOffset + image->TopEdge,
+                         leftOffset + image->LeftEdge + image->Width - 1,
+                         topOffset + image->TopEdge + image->Height - 1);
+            } else if (image->ImageData) {
+                struct BitMap bitmap;
+                WORD plane_size = ((image->Width + 15) >> 4) * image->Height;
+                WORD depth = 1;
+                WORD image_depth = image->Depth;
+                WORD plane;
+                WORD image_plane_index = 0;
+                ULONG shift = 1;
+
+                if (rp->BitMap && rp->BitMap->Depth > 0)
+                    depth = rp->BitMap->Depth;
+                if (depth > 8)
+                    depth = 8;
+
+                InitBitMap(&bitmap, depth, image->Width, image->Height);
+
+                for (plane = 0; plane < depth; plane++)
+                {
+                    if ((image_depth > 0) && (planepick & shift))
+                    {
+                        image_depth--;
+                        bitmap.Planes[plane] = (PLANEPTR)(image->ImageData + (plane_size * image_plane_index));
+                        image_plane_index++;
+                    }
+                    else
+                    {
+                        bitmap.Planes[plane] = (planeonoff & shift) ? (PLANEPTR)-1 : NULL;
+                    }
+
+                    shift <<= 1;
+                }
+
+                BltBitMapRastPort(&bitmap,
+                                  0,
+                                  0,
+                                  rp,
+                                  leftOffset + image->LeftEdge,
+                                  topOffset + image->TopEdge,
+                                  image->Width,
+                                  image->Height,
+                                  (state == IDS_SELECTED) ? 0x30 : 0xC0);
+            }
+        }
+
+        image = image->NextImage;
     }
+
+    SetAPen(rp, savedAPen);
+    SetBPen(rp, savedBPen);
+    SetDrMd(rp, savedDrMd);
+
+    if (rp->Layer)
+        UnlockLayerRom(rp->Layer);
 }
 
 BOOL _intuition_PointInImage ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -10637,7 +10652,7 @@ VOID _intuition_EraseImage ( register struct IntuitionBase * IntuitionBase __asm
     
     if (!image || !rp) return;
     
-    if (_is_object(base, image)) {
+    if ((image->Depth == CUSTOMIMAGEDEPTH) || _is_object(base, image)) {
         /* Dispatch IM_ERASE */
         struct impErase imp;
         imp.MethodID = IM_ERASE;
