@@ -472,7 +472,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] `GT_CreateContext` / `GT_FreeContext` — context gadget; verify head/tail sentinel nodes
 - [ ] `GT_CreateGadgetA` — all kinds: BUTTON_KIND, CHECKBOX_KIND, CYCLE_KIND, INTEGER_KIND, LISTVIEW_KIND, MX_KIND, NUMBER_KIND, PALETTE_KIND, SCROLLER_KIND, SLIDER_KIND, STRING_KIND, TEXT_KIND
 - [ ] `GT_FreeGadget` / `GT_FreeGadgets`
-- [ ] `GT_SetGadgetAttrsA` / `GT_GetGadgetAttrs`
+- [x] `GT_SetGadgetAttrsA` / `GT_GetGadgetAttrs` — checkbox/cycle/string/integer/slider state round-trips and updates verified with direct regression coverage (v0.6.110)
 - [ ] `GT_ReplyIMsg` / `GT_GetIMsg` — thin wrappers around Intuition IDCMP
 - [ ] `GT_RefreshWindow` — paint gadget list
 - [ ] `GT_BeginRefresh` / `GT_EndRefresh`

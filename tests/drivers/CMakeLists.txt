@@ -107,6 +107,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsmenu_gtest.cpp)
         add_gtest_driver(gadtoolsmenu_gtest)
     endif()
+
+    # GadTools API tests
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtools_gtest.cpp)
+        add_gtest_driver(gadtools_gtest)
+    endif()
     
     # FileReq - ASL file requester test (GTest version)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/filereq_gtest.cpp)
