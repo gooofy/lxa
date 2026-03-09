@@ -461,9 +461,9 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 ##### 78-E-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — `NextObject()`, `WBenchToFront()`, and `WBenchToBack()` now follow the public NDK/AROS semantics with direct BOOPSI/screen-order regression coverage (v0.6.113)
+- [x] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [x] Performance review: identify performance improvement opportunities, add them to phase 79
 
 ---
 
@@ -910,8 +910,11 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [ ] Graphics architecture: route copper-list and double-buffer helpers through shared placeholder alloc/free helpers so `MakeVPort`, `UCopperListInit`, and `ChangeVPBitMap` cannot drift in ownership semantics
 - [ ] Layers architecture: centralize layer-list insertion/removal and backdrop-order invariants behind one internal z-order helper path so create/reorder/show operations cannot drift semantically
 - [ ] Layers architecture: separate future private layers state (shape hooks, nested-family bookkeeping, visibility-only metadata) from public `struct Layer` fields so unsupported V50+ semantics can grow without coupling to public layout hacks
+- [ ] Intuition architecture: centralize screen-type classification and Workbench-screen lookup behind shared helpers so Workbench/public-screen paths cannot drift on mixed screen lists
+- [ ] Intuition architecture: separate private screen-order bookkeeping from public `struct Screen` list links so future Workbench/public-screen behavior can grow without overloading public flags semantics
 - [ ] Graphics performance: avoid repeated palette list walks in `ObtainBestPenA()`/`FindColor()` by caching exact-match or nearest-pen hints inside palette-extra state
 - [ ] Graphics performance: skip redundant viewport/display updates when `ScrollVPort()` or `ChangeVPBitMap()` are called with unchanged state
+- [ ] Intuition performance: cache the current Workbench screen pointer or tail/front bookkeeping so `OpenWorkBench()`, `WBenchToFront()`, and `WBenchToBack()` avoid repeated full screen-list scans
 - [ ] Layers performance: avoid full `RebuildAllClipRects()` passes for simple z-order/visibility changes by recomputing only the affected layer span
 - [ ] Layers performance: replace coarse `DamageExposedAreas()` whole-intersection refreshes with exact exposed-rectangle splitting to reduce redundant refresh damage on move/size/delete paths
 
@@ -934,4 +937,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-B Review**: DOS review pass completed; `DeviceProc`, DOS packet compatibility helpers, and `SetProgramDir` now have hosted implementations with direct DOS regression coverage and full-suite validation.
 - **Phase 78-C Review**: Graphics review pass completed; viewport/copper/palette/double-buffer compatibility helpers now have hosted implementations with direct graphics regression coverage and full-suite validation.
 - **Phase 78-D Review**: Layers review pass completed; backdrop-layer z-order/immutability semantics now match the documented RKRM surface with direct layers regression coverage, and remaining architecture/performance follow-ups are tracked in Phase 79.
+- **Phase 78-E Review**: Intuition review pass advanced; `NextObject()`, `WBenchToFront()`, and `WBenchToBack()` now match the documented public behavior with BOOPSI/screen-order regression coverage, and the remaining intuition architecture/performance follow-ups are tracked in Phase 79.
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.

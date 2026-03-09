@@ -31,14 +31,37 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
+static int screen_position(struct Screen *target)
+{
+    struct Screen *screen = IntuitionBase->FirstScreen;
+    int index = 0;
+
+    while (screen) {
+        if (screen == target)
+            return index;
+        screen = screen->NextScreen;
+        index++;
+    }
+
+    return -1;
+}
+
 int main(void)
 {
     struct NewScreen ns1, ns2;
-    struct Screen *screen1, *screen2;
+    struct Screen wbns;
+    struct Screen *workbench, *screen1, *screen2;
     struct Screen screen_copy;
     int errors = 0;
     
     print("Testing Screen Manipulation Functions...\n\n");
+
+    workbench = OpenWorkBench() ? IntuitionBase->FirstScreen : NULL;
+    if (!workbench || !(workbench->Flags & WBENCHSCREEN)) {
+        print("ERROR: Could not open Workbench screen\n");
+        return 1;
+    }
+    print("OK: Workbench screen opened\n");
     
     /* Open first screen */
     ns1.LeftEdge = 0;
@@ -84,11 +107,63 @@ int main(void)
         return 1;
     }
     print("OK: Screen 2 opened\n\n");
+
+    print("Test 0: WBenchToBack()...\n");
+    if (!WBenchToBack()) {
+        print("  FAIL: WBenchToBack returned FALSE while Workbench was open\n\n");
+        errors++;
+    } else if (IntuitionBase->FirstScreen != screen2 ||
+               screen_position(screen2) != 0 ||
+               screen_position(screen1) != 1 ||
+               screen_position(workbench) != 2 ||
+               workbench->NextScreen != NULL) {
+        print("  FAIL: WBenchToBack did not move Workbench behind custom screens\n\n");
+        errors++;
+    } else {
+        print("  OK: WBenchToBack moves Workbench to the back\n\n");
+    }
+
+    print("Test 0b: WBenchToFront()...\n");
+    if (!WBenchToFront()) {
+        print("  FAIL: WBenchToFront returned FALSE while Workbench was open\n\n");
+        errors++;
+    } else if (IntuitionBase->FirstScreen != workbench ||
+               screen_position(workbench) != 0 ||
+               screen_position(screen2) != 1 ||
+               screen_position(screen1) != 2) {
+        print("  FAIL: WBenchToFront did not restore Workbench to the front\n\n");
+        errors++;
+    } else {
+        print("  OK: WBenchToFront restores Workbench to the front\n\n");
+    }
+
+    print("Test 0c: GetScreenData(workbench)...\n");
+    if (!GetScreenData(&wbns, sizeof(wbns), WBENCHSCREEN, workbench)) {
+        print("  FAIL: GetScreenData() returned FALSE for Workbench\n\n");
+        errors++;
+    } else if (!(wbns.Flags & WBENCHSCREEN)) {
+        print("  FAIL: GetScreenData() did not preserve WBENCHSCREEN flag\n\n");
+        errors++;
+    } else {
+        print("  OK: GetScreenData() copies Workbench public fields\n\n");
+    }
+
+    ScreenToFront(screen2);
+    if (screen_position(screen2) != 0 || screen_position(workbench) != 1 || screen_position(screen1) != 2) {
+        print("ERROR: failed to restore baseline screen order for later tests\n");
+        CloseScreen(screen2);
+        CloseScreen(screen1);
+        return 1;
+    }
     
     /* Test 1: ScreenToBack */
     print("Test 1: ScreenToBack(screen2)...\n");
     ScreenToBack(screen2);
-    if (IntuitionBase->FirstScreen != screen1 || screen1->NextScreen != screen2 || screen2->NextScreen != NULL) {
+    if (IntuitionBase->FirstScreen != workbench ||
+        screen_position(workbench) != 0 ||
+        screen_position(screen1) != 1 ||
+        screen_position(screen2) != 2 ||
+        screen2->NextScreen != NULL) {
         print("  FAIL: ScreenToBack did not move screen2 behind screen1\n\n");
         errors++;
     } else {
@@ -98,7 +173,10 @@ int main(void)
     /* Test 2: ScreenToFront */
     print("Test 2: ScreenToFront(screen2)...\n");
     ScreenToFront(screen2);
-    if (IntuitionBase->FirstScreen != screen2 || screen2->NextScreen != screen1) {
+    if (IntuitionBase->FirstScreen != screen2 ||
+        screen_position(screen2) != 0 ||
+        screen_position(workbench) != 1 ||
+        screen_position(screen1) != 2) {
         print("  FAIL: ScreenToFront did not restore screen2 to the front\n\n");
         errors++;
     } else {
@@ -108,7 +186,11 @@ int main(void)
     /* Test 3: ScreenDepth with SDEPTH_TOBACK */
     print("Test 3: ScreenDepth(screen1, SDEPTH_TOBACK, NULL)...\n");
     ScreenDepth(screen1, SDEPTH_TOBACK, NULL);
-    if (IntuitionBase->FirstScreen != screen2 || screen2->NextScreen != screen1 || screen1->NextScreen != NULL) {
+    if (IntuitionBase->FirstScreen != screen2 ||
+        screen_position(screen2) != 0 ||
+        screen_position(workbench) != 1 ||
+        screen_position(screen1) != 2 ||
+        screen1->NextScreen != NULL) {
         print("  FAIL: ScreenDepth(TOBACK) did not keep screen1 at the back\n\n");
         errors++;
     } else {
@@ -118,7 +200,10 @@ int main(void)
     /* Test 4: ScreenDepth with SDEPTH_TOFRONT */
     print("Test 4: ScreenDepth(screen1, SDEPTH_TOFRONT, NULL)...\n");
     ScreenDepth(screen1, SDEPTH_TOFRONT, NULL);
-    if (IntuitionBase->FirstScreen != screen1 || screen1->NextScreen != screen2) {
+    if (IntuitionBase->FirstScreen != screen1 ||
+        screen_position(screen1) != 0 ||
+        screen_position(screen2) != 1 ||
+        screen_position(workbench) != 2) {
         print("  FAIL: ScreenDepth(TOFRONT) did not move screen1 to the front\n\n");
         errors++;
     } else {
@@ -173,6 +258,11 @@ int main(void)
     print("OK: Screen 2 closed\n");
     CloseScreen(screen1);
     print("OK: Screen 1 closed\n\n");
+
+    if (!WBenchToFront()) {
+        print("FAIL: WBenchToFront failed during cleanup\n");
+        return 20;
+    }
     
     if (errors == 0) {
         print("PASS: screen_manipulation all tests completed\n");

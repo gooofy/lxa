@@ -1,5 +1,6 @@
 #include <exec/types.h>
 #include <exec/memory.h>
+#include <exec/lists.h>
 #include <intuition/intuition.h>
 #include <intuition/classes.h>
 #include <intuition/classusr.h>
@@ -324,6 +325,64 @@ static void test_modelclass_members(void)
     CHECK(FreeClass(member_class) == TRUE, "FreeClass frees observer class");
 }
 
+static void test_nextobject_iteration(void)
+{
+    Class *member_class;
+    Object *member1;
+    Object *member2;
+    struct List object_list;
+    struct opAddTail add_msg;
+    ULONG remove_method;
+    APTR state;
+    Object *iter;
+
+    printf("Test: NextObject iterates BOOPSI lists safely\n");
+
+    member_class = MakeClass(NULL, ROOTCLASS, NULL, sizeof(struct TestData), 0);
+    CHECK(member_class != NULL, "MakeClass creates iterator class");
+    if (!member_class)
+        return;
+
+    member_class->cl_Dispatcher.h_Entry = (ULONG (*)())base_dispatch;
+
+    member1 = (Object *)NewObject(member_class, NULL, TAG_END);
+    member2 = (Object *)NewObject(member_class, NULL, TAG_END);
+    CHECK(member1 != NULL && member2 != NULL, "iterator members created");
+    if (!member1 || !member2) {
+        if (member1)
+            DisposeObject(member1);
+        if (member2)
+            DisposeObject(member2);
+        FreeClass(member_class);
+        return;
+    }
+
+    NewList(&object_list);
+    add_msg.MethodID = OM_ADDTAIL;
+    add_msg.opat_List = &object_list;
+    CHECK(DoMethodA(member1, (Msg)&add_msg) == 1, "first object added to Exec list");
+    CHECK(DoMethodA(member2, (Msg)&add_msg) == 1, "second object added to Exec list");
+
+    state = (APTR)object_list.lh_Head;
+    iter = (Object *)NextObject(&state);
+    CHECK(iter == member1, "NextObject returns the first object");
+
+    remove_method = OM_REMOVE;
+    CHECK(DoMethodA(iter, (Msg)&remove_method) == 1, "returned object can be removed during iteration");
+    DisposeObject(iter);
+
+    iter = (Object *)NextObject(&state);
+    CHECK(iter == member2, "NextObject advances to the next object after removal");
+
+    CHECK(DoMethodA(iter, (Msg)&remove_method) == 1, "second object can be removed from the list");
+    DisposeObject(iter);
+
+    iter = (Object *)NextObject(&state);
+    CHECK(iter == NULL, "NextObject returns NULL at end of list");
+
+    CHECK(FreeClass(member_class) == TRUE, "FreeClass frees iterator class");
+}
+
 int main(void)
 {
     IntuitionBase = OpenLibrary((CONST_STRPTR)"intuition.library", 39);
@@ -339,6 +398,7 @@ int main(void)
     test_private_class_and_dispatch();
     test_public_class_lifecycle();
     test_modelclass_members();
+    test_nextobject_iteration();
 
     CloseLibrary(IntuitionBase);
 

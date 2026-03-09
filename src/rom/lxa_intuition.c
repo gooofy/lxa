@@ -154,6 +154,10 @@ VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm
                                                         register struct Window * window __asm("a0"),
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"));
+VOID _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                        register struct Screen * screen __asm("a0"));
+VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                         register struct Screen * screen __asm("a0"));
 
 static ULONG _idcmp_update_payload_size(APTR payload)
 {
@@ -435,7 +439,7 @@ static const char *_intuition_pubscreen_name_for_screen(const struct Screen *scr
     if (!screen)
         return "Workbench";
 
-    if (screen->Flags & WBENCHSCREEN)
+    if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
         return "Workbench";
 
     if (screen->Title && screen->Title[0] != '\0')
@@ -445,6 +449,22 @@ static const char *_intuition_pubscreen_name_for_screen(const struct Screen *scr
         return (const char *)screen->DefaultTitle;
 
     return "Screen";
+}
+
+static struct Screen *_intuition_find_workbench_screen(struct IntuitionBase *IntuitionBase)
+{
+    struct Screen *screen;
+
+    if (!IntuitionBase)
+        return NULL;
+
+    for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
+    {
+        if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+            return screen;
+    }
+
+    return NULL;
 }
 
 static struct PubScreenNode *_intuition_find_pubscreen_by_screen(struct LXAIntuitionBase *base,
@@ -545,7 +565,7 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
 
     AddTail(&base->PubScreenList, &entry->pub.psn_Node);
 
-    if (!base->DefaultPubScreen || (base->DefaultPubScreen->Flags & WBENCHSCREEN))
+    if (!base->DefaultPubScreen || ((base->DefaultPubScreen->Flags & SCREENTYPE) == WBENCHSCREEN))
         base->DefaultPubScreen = screen;
 }
 
@@ -6714,7 +6734,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         screen = IntuitionBase->FirstScreen;
         while (screen)
         {
-            if (screen->Flags & WBENCHSCREEN)
+            if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
                 break;
             screen = screen->NextScreen;
         }
@@ -6732,7 +6752,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
             screen = IntuitionBase->FirstScreen;
             while (screen)
             {
-                if (screen->Flags & WBENCHSCREEN)
+                if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
                     break;
                 screen = screen->NextScreen;
             }
@@ -6996,7 +7016,7 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     wbscreen = IntuitionBase->FirstScreen;
     while (wbscreen)
     {
-        if (wbscreen->Flags & WBENCHSCREEN)
+        if ((wbscreen->Flags & SCREENTYPE) == WBENCHSCREEN)
         {
             DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - Workbench already open at 0x%08lx\n", (ULONG)wbscreen);
             return (ULONG)wbscreen;
@@ -7672,7 +7692,15 @@ LONG _intuition_IntuiTextLength ( register struct IntuitionBase * IntuitionBase 
 
 BOOL _intuition_WBenchToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_intuition: WBenchToBack() stub called - no-op.\n");
+    struct Screen *wbscreen;
+
+    DPRINTF (LOG_DEBUG, "_intuition: WBenchToBack() called.\n");
+
+    wbscreen = _intuition_find_workbench_screen(IntuitionBase);
+    if (!wbscreen)
+        return FALSE;
+
+    _intuition_ScreenToBack(IntuitionBase, wbscreen);
     return TRUE;
 }
 
@@ -7682,33 +7710,11 @@ BOOL _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __
     
     DPRINTF (LOG_DEBUG, "_intuition: WBenchToFront() called.\n");
     
-    /* First, open the Workbench screen if it doesn't exist.
-     * According to AmigaOS behavior, WBenchToFront should open the
-     * Workbench if not already open (similar to OpenWorkBench but
-     * also brings it to front).
-     */
-    wbscreen = IntuitionBase->FirstScreen;
-    while (wbscreen)
-    {
-        if (wbscreen->Flags & WBENCHSCREEN)
-            break;
-        wbscreen = wbscreen->NextScreen;
-    }
-    
+    wbscreen = _intuition_find_workbench_screen(IntuitionBase);
     if (!wbscreen)
-    {
-        /* Workbench not open - open it */
-        DPRINTF (LOG_DEBUG, "_intuition: WBenchToFront() - Workbench not open, opening it.\n");
-        if (!_intuition_OpenWorkBench(IntuitionBase))
-        {
-            DPRINTF (LOG_ERROR, "_intuition: WBenchToFront() - failed to open Workbench.\n");
-            return FALSE;
-        }
-    }
-    
-    /* TODO: Bring Workbench to front (screen depth ordering) */
-    /* For now, since we typically only have one screen, this is a no-op */
-    
+        return FALSE;
+
+    _intuition_ScreenToFront(IntuitionBase, wbscreen);
     return TRUE;
 }
 
@@ -10218,7 +10224,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
             screen = IntuitionBase->FirstScreen;
             while (screen)
             {
-                if (screen->Flags & WBENCHSCREEN)
+                if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
                     break;
                 screen = screen->NextScreen;
             }
@@ -10228,7 +10234,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                 screen = IntuitionBase->FirstScreen;
                 while (screen)
                 {
-                    if (screen->Flags & WBENCHSCREEN)
+                    if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
                         break;
                     screen = screen->NextScreen;
                 }
@@ -10954,8 +10960,31 @@ ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase
 APTR _intuition_NextObject ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register APTR objectPtrPtr __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_intuition: NextObject() objectPtrPtr=0x%08lx (stub)\n", (ULONG)objectPtrPtr);
-    return NULL;
+    struct _Object *nextobject;
+    APTR oldobject;
+
+    DPRINTF (LOG_DEBUG, "_intuition: NextObject() objectPtrPtr=0x%08lx\n", (ULONG)objectPtrPtr);
+
+    IntuitionBase = IntuitionBase;
+
+    if (!objectPtrPtr)
+        return NULL;
+
+    if (!*((struct _Object **)objectPtrPtr))
+        return NULL;
+
+    nextobject = (struct _Object *)(*((struct _Object **)objectPtrPtr))->o_Node.mln_Succ;
+    if (nextobject)
+    {
+        oldobject = BASEOBJECT(*((struct _Object **)objectPtrPtr));
+        *((struct _Object **)objectPtrPtr) = nextobject;
+    }
+    else
+    {
+        oldobject = NULL;
+    }
+
+    return oldobject;
 }
 
 VOID _intuition_private2 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
