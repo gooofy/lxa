@@ -2455,7 +2455,11 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
         return FALSE;
     }
 
-    /* TODO: Check if any windows are still open on this screen */
+    if (screen->FirstWindow)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: CloseScreen() refusing to close screen with open windows\n");
+        return FALSE;
+    }
 
     /* Get the display handle */
     display_handle = (ULONG)screen->ExtData;
@@ -2503,6 +2507,11 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
     if (screen->ViewPort.RasInfo)
     {
         FreeMem(screen->ViewPort.RasInfo, sizeof(struct RasInfo));
+    }
+
+    if (screen->ViewPort.ColorMap)
+    {
+        FreeColorMap(screen->ViewPort.ColorMap);
     }
 
     /* Free the Screen structure */
@@ -9681,28 +9690,39 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     ns.DefaultTitle = (UBYTE *)tag->ti_Data;
                     break;
                 case SA_Type:
-                    ns.Type = (UWORD)tag->ti_Data;
+                    ns.Type &= ~SCREENTYPE;
+                    ns.Type |= ((UWORD)tag->ti_Data & SCREENTYPE);
                     break;
                 case SA_Behind:
                     if (tag->ti_Data)
                         ns.Type |= SCREENBEHIND;
+                    else
+                        ns.Type &= ~SCREENBEHIND;
                     break;
                 case SA_Quiet:
                     if (tag->ti_Data)
                         ns.Type |= SCREENQUIET;
+                    else
+                        ns.Type &= ~SCREENQUIET;
                     break;
                 case SA_ShowTitle:
                     if (tag->ti_Data)
                         ns.Type |= SHOWTITLE;
+                    else
+                        ns.Type &= ~SHOWTITLE;
                     break;
                 case SA_AutoScroll:
                     if (tag->ti_Data)
                         ns.Type |= AUTOSCROLL;
+                    else
+                        ns.Type &= ~AUTOSCROLL;
                     break;
                 case SA_BitMap:
                     ns.CustomBitMap = (struct BitMap *)tag->ti_Data;
                     if (tag->ti_Data)
                         ns.Type |= CUSTOMBITMAP;
+                    else
+                        ns.Type &= ~CUSTOMBITMAP;
                     break;
                 case SA_Font:
                     ns.Font = (struct TextAttr *)tag->ti_Data;

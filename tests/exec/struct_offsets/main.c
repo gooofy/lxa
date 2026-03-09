@@ -33,6 +33,8 @@
 #include <graphics/text.h>
 #include <graphics/view.h>
 #include <intuition/intuition.h>
+#include <intuition/intuitionbase.h>
+#include <intuition/screens.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <inline/exec.h>
@@ -730,6 +732,85 @@ static void test_textfont(void)
  * Intuition Library Structs
  * ================================================================ */
 
+static void test_intuitionbase(void)
+{
+    print("--- IntuitionBase ---\n");
+
+    CHECK_SIZEOF(IntuitionBase, 80);
+    CHECK_OFFSET(IntuitionBase, LibNode, 0);
+    CHECK_OFFSET(IntuitionBase, ViewLord, 34);
+    CHECK_OFFSET(IntuitionBase, ActiveWindow, 52);
+    CHECK_OFFSET(IntuitionBase, ActiveScreen, 56);
+    CHECK_OFFSET(IntuitionBase, FirstScreen, 60);
+    CHECK_OFFSET(IntuitionBase, Flags, 64);
+    CHECK_OFFSET(IntuitionBase, MouseY, 68);
+    CHECK_OFFSET(IntuitionBase, MouseX, 70);
+    CHECK_OFFSET(IntuitionBase, Seconds, 72);
+    CHECK_OFFSET(IntuitionBase, Micros, 76);
+}
+
+static void test_screen(void)
+{
+    print("--- Screen ---\n");
+
+    CHECK_SIZEOF(Screen, 346);
+    CHECK_OFFSET(Screen, NextScreen, 0);
+    CHECK_OFFSET(Screen, FirstWindow, 4);
+    CHECK_OFFSET(Screen, LeftEdge, 8);
+    CHECK_OFFSET(Screen, TopEdge, 10);
+    CHECK_OFFSET(Screen, Width, 12);
+    CHECK_OFFSET(Screen, Height, 14);
+    CHECK_OFFSET(Screen, MouseY, 16);
+    CHECK_OFFSET(Screen, MouseX, 18);
+    CHECK_OFFSET(Screen, Flags, 20);
+    CHECK_OFFSET(Screen, Title, 22);
+    CHECK_OFFSET(Screen, DefaultTitle, 26);
+    CHECK_OFFSET(Screen, BarHeight, 30);
+    CHECK_OFFSET(Screen, BarVBorder, 31);
+    CHECK_OFFSET(Screen, BarHBorder, 32);
+    CHECK_OFFSET(Screen, MenuVBorder, 33);
+    CHECK_OFFSET(Screen, MenuHBorder, 34);
+    CHECK_OFFSET(Screen, WBorTop, 35);
+    CHECK_OFFSET(Screen, WBorLeft, 36);
+    CHECK_OFFSET(Screen, WBorRight, 37);
+    CHECK_OFFSET(Screen, WBorBottom, 38);
+    CHECK_OFFSET(Screen, Font, 40);
+    CHECK_OFFSET(Screen, ViewPort, 44);
+    CHECK_OFFSET(Screen, RastPort, 84);
+    CHECK_OFFSET(Screen, BitMap, 184);
+    CHECK_OFFSET(Screen, LayerInfo, 224);
+    CHECK_OFFSET(Screen, FirstGadget, 326);
+    CHECK_OFFSET(Screen, DetailPen, 330);
+    CHECK_OFFSET(Screen, BlockPen, 331);
+    CHECK_OFFSET(Screen, SaveColor0, 332);
+    CHECK_OFFSET(Screen, BarLayer, 334);
+    CHECK_OFFSET(Screen, ExtData, 338);
+    CHECK_OFFSET(Screen, UserData, 342);
+}
+
+static void test_requester(void)
+{
+    print("--- Requester ---\n");
+
+    CHECK_SIZEOF(Requester, 112);
+    CHECK_OFFSET(Requester, OlderRequest, 0);
+    CHECK_OFFSET(Requester, LeftEdge, 4);
+    CHECK_OFFSET(Requester, TopEdge, 6);
+    CHECK_OFFSET(Requester, Width, 8);
+    CHECK_OFFSET(Requester, Height, 10);
+    CHECK_OFFSET(Requester, RelLeft, 12);
+    CHECK_OFFSET(Requester, RelTop, 14);
+    CHECK_OFFSET(Requester, ReqGadget, 16);
+    CHECK_OFFSET(Requester, ReqBorder, 20);
+    CHECK_OFFSET(Requester, ReqText, 24);
+    CHECK_OFFSET(Requester, Flags, 28);
+    CHECK_OFFSET(Requester, BackFill, 30);
+    CHECK_OFFSET(Requester, ReqLayer, 32);
+    CHECK_OFFSET(Requester, ImageBMap, 68);
+    CHECK_OFFSET(Requester, RWindow, 72);
+    CHECK_OFFSET(Requester, ReqImage, 76);
+}
+
 static void test_menu(void)
 {
     print("--- Menu / MenuItem ---\n");
@@ -993,6 +1074,9 @@ int main(void)
     test_textfont();
 
     /* Intuition structs */
+    test_intuitionbase();
+    test_screen();
+    test_requester();
     test_menu();
     test_gadget();
     test_propinfo();

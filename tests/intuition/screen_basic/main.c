@@ -9,6 +9,7 @@
 #include <graphics/rastport.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
+#include <utility/tagitem.h>
 #include <clib/exec_protos.h>
 #include <clib/graphics_protos.h>
 #include <clib/intuition_protos.h>
@@ -36,6 +37,9 @@ int main(void)
 {
     struct NewScreen ns;
     struct Screen *screen;
+    struct Screen *tagged_screen = NULL;
+    struct Screen *default_screen = NULL;
+    struct Window *window = NULL;
     int errors = 0;
 
     print("Testing OpenScreen()/CloseScreen()...\n");
@@ -151,9 +155,125 @@ int main(void)
         print("OK: Drawing to screen works\n");
     }
 
+    /* CloseScreen() must refuse to close screens with open windows */
+    {
+        struct NewWindow nw = {0};
+        nw.LeftEdge = 10;
+        nw.TopEdge = 10;
+        nw.Width = 120;
+        nw.Height = 60;
+        nw.DetailPen = (UBYTE)-1;
+        nw.BlockPen = (UBYTE)-1;
+        nw.Flags = WFLG_BORDERLESS;
+        nw.Title = (UBYTE *)"CloseScreen guard";
+        nw.Screen = screen;
+        nw.Type = CUSTOMSCREEN;
+
+        window = OpenWindow(&nw);
+        if (!window) {
+            print("FAIL: OpenWindow() for CloseScreen test returned NULL\n");
+            errors++;
+        } else if (CloseScreen(screen) != FALSE) {
+            print("FAIL: CloseScreen() should fail while a window is open\n");
+            errors++;
+        } else {
+            print("OK: CloseScreen() refuses screens with open windows\n");
+        }
+    }
+
+    if (window) {
+        CloseWindow(window);
+        window = NULL;
+    }
+
+    /* OpenScreenTagList() must honor tag overrides and allow clearing flags */
+    {
+        static UBYTE tag_title[] = "Tagged Screen";
+        struct NewScreen base = {0};
+        struct TagItem tags[] = {
+            { SA_Width, 640 },
+            { SA_Height, 256 },
+            { SA_Depth, 3 },
+            { SA_Title, (ULONG)tag_title },
+            { SA_Behind, FALSE },
+            { SA_Quiet, FALSE },
+            { SA_ShowTitle, FALSE },
+            { SA_AutoScroll, FALSE },
+            { TAG_DONE, 0 }
+        };
+
+        base.Width = 160;
+        base.Height = 100;
+        base.Depth = 1;
+        base.DetailPen = 0;
+        base.BlockPen = 1;
+        base.Type = CUSTOMSCREEN | SCREENBEHIND | SCREENQUIET | SHOWTITLE | AUTOSCROLL;
+        base.DefaultTitle = (UBYTE *)"Base Screen";
+
+        tagged_screen = OpenScreenTagList(&base, tags);
+        if (!tagged_screen) {
+            print("FAIL: OpenScreenTagList() returned NULL\n");
+            errors++;
+        } else {
+            if (tagged_screen->Width != 640 || tagged_screen->Height != 256 || tagged_screen->BitMap.Depth != 3) {
+                print("FAIL: OpenScreenTagList() did not apply size/depth tags\n");
+                errors++;
+            } else if (tagged_screen->Title != tag_title) {
+                print("FAIL: OpenScreenTagList() did not apply title tag\n");
+                errors++;
+            } else if ((tagged_screen->Flags & (SCREENBEHIND | SCREENQUIET | SHOWTITLE | AUTOSCROLL)) != 0) {
+                print("FAIL: OpenScreenTagList() did not clear boolean tags\n");
+                errors++;
+            } else {
+                print("OK: OpenScreenTagList() applies and clears screen tags\n");
+            }
+        }
+    }
+
+    if (tagged_screen) {
+        if (!CloseScreen(tagged_screen)) {
+            print("FAIL: CloseScreen(tagged_screen) failed\n");
+            errors++;
+        }
+        tagged_screen = NULL;
+    }
+
+    /* OpenScreenTagList() also supports a NULL NewScreen with tag-only defaults */
+    {
+        struct TagItem tags[] = {
+            { SA_Width, 320 },
+            { SA_Height, 40 },
+            { SA_Depth, 2 },
+            { TAG_DONE, 0 }
+        };
+
+        default_screen = OpenScreenTagList(NULL, tags);
+        if (!default_screen) {
+            print("FAIL: OpenScreenTagList(NULL, tags) returned NULL\n");
+            errors++;
+        } else if (default_screen->Width != 320 || default_screen->Height != 256 || default_screen->BitMap.Depth != 2) {
+            print("FAIL: OpenScreenTagList(NULL, tags) did not apply defaults/height expansion\n");
+            errors++;
+        } else {
+            print("OK: OpenScreenTagList(NULL, tags) uses defaults and height expansion\n");
+        }
+    }
+
+    if (default_screen) {
+        if (!CloseScreen(default_screen)) {
+            print("FAIL: CloseScreen(default_screen) failed\n");
+            errors++;
+        }
+        default_screen = NULL;
+    }
+
     /* Close the screen */
-    CloseScreen(screen);
-    print("OK: CloseScreen() completed\n");
+    if (!CloseScreen(screen)) {
+        print("FAIL: CloseScreen() failed after windows were closed\n");
+        errors++;
+    } else {
+        print("OK: CloseScreen() completed\n");
+    }
 
     /* Final result */
     if (errors == 0) {

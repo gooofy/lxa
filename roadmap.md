@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.94** | **Phase 78-D Layers Verification Complete** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.96** | **Phase 78-E Intuition Structures + Screen Opening Verified** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -34,10 +34,13 @@ Phase 78-C: Sprites & GELs verification expanded; `GetSprite`/`FreeSprite`/`Chan
 Phase 78-C: Pens & Colors verification expanded; `SetRGB4`/`SetRGB32`/`SetRGB4CM`/`SetRGB32CM`/`GetRGB32` plus `LoadRGB4`/`LoadRGB32` now preserve classic 8-bit palette precision through `ColorMap`/`LowColorBits`, `AttachPalExtra` now seeds sharable palette state for pen arbitration, and `ObtainPen`/`ReleasePen`/`FindColor` now follow current shared/exclusive pen semantics with direct graphics regression coverage (v0.6.90).
 Phase 78-C: BitMap utilities verification expanded; `ScalerDiv`/`BitMapScale` now have direct planar-scaling coverage, `AddFont`/`RemFont`/`ExtendFont`/`StripFont` now follow current public-font and `tf_Extension` lifetime rules, and `GfxNew`/`GfxFree`/`GfxAssociate`/`GfxLookUp` now support the extended-node associations used by Release 2 display clients, all locked in by a new unified graphics regression (v0.6.91).
 Phase 78-D: layers core verification completed; direct regressions now cover `InitLayers`/`NewLayerInfo`/`DisposeLayerInfo`, upfront/behind and hook-layer creation, `DeleteLayer`, `MoveLayer`, `SizeLayer`, `UpfrontLayer`/`BehindLayer`, locking helpers, and the earlier tag-driven layer creation semantics in one unified sweep (v0.6.94).
+Phase 78-E: Intuition ABI verification expanded; `Window`, `IntuiMessage`, `Gadget`, `StringInfo`, `PropInfo`, `Image`, `Border`, `IntuiText`, `MenuItem`, and `Menu` are already covered by `StructOffsets`, and `OpenScreen`/`CloseScreen`/`OpenScreenTagList` now have direct behavioral regression coverage for tag overrides, default/tag-only opens, height expansion, and close refusal with open windows (v0.6.96).
 
 **Current Status**:
 - 49/49 ctest entries (all GTest) still pass, and `layers_gtest` now includes a dedicated `CoreOps` regression covering the remaining create/delete/move/resize/z-order paths alongside the earlier cliprect, locking, scroll, tag, and visibility regressions
 - Full `ctest --test-dir build --output-on-failure -j8` remains green, with the layers sweep now locking the full 78-D core surface including hook-layer creation, damage/ClipRect cleanup on delete, and geometry/z-order rebuild behavior
+- `Tests/Exec/StructOffsets` now covers the full public Intuition structure set currently tracked in Phase 78-E, including `Window`, `IntuiMessage`, gadgets, string/prop helpers, images/borders/text, menus, plus the earlier `IntuitionBase`, `Screen`, and `Requester` checks
+- `Tests/Intuition/ScreenBasic` now locks `OpenScreen`/`CloseScreen`/`OpenScreenTagList` against V36-style close refusal when windows are still open, tag-driven field overrides, tag-based flag clearing, and `OpenScreenTagList(NULL, tags)` defaults including small-height expansion
 - Added clearer CLI assign controls: `--assign` now aliases the old `-a` replace behavior, `--assign-add` appends to multi-assign search lists, unit coverage locks the underlying replace/append VFS semantics, and the VS Code manual-test launch configs now use the explicit long-form options while rebuilding/installing the latest runtime before launch
 - Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
 - Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
@@ -80,6 +83,7 @@ Phase 78-D: layers core verification completed; direct regressions now cover `In
 - Expanded Phase 78-C Sprites & GELs verification: `GetSprite()`/`FreeSprite()` now reserve and release the documented eight sprite slots, `ChangeSprite()`/`MoveSprite()` update public `SimpleSprite` state, `InitGels()` seeds sentinel ordering, `AddVSprite()`/`AddBob()` plus `SortGList()` preserve Y/X ordering, and `DrawGList()` now renders/removes simple Bob-backed GELs in `graphics/SpritesGels`; `DoBlitVSprite` was dropped from roadmap scope because it is not a public AmigaOS 3.x graphics entry point in the NDK
 - Expanded Phase 78-C Pens & Colors verification: `SetRGB4`/`SetRGB32`/`SetRGB4CM`/`SetRGB32CM` and `LoadRGB4`/`LoadRGB32` now maintain classic `ColorMap`/`LowColorBits` palette state with `GetRGB32` returning full 8-bit-expanded values, `AttachPalExtra()` now allocates sharable palette bookkeeping for current `ObtainPen()`/`ReleasePen()` behavior, and `graphics/ColorsPens` locks shared/exclusive pen allocation plus `FindColor()` matching into the unified graphics sweep
 - Expanded Phase 78-C BitMap utilities verification: `ScalerDiv()` and `BitMapScale()` now have direct regression coverage for rounded destination sizing plus planar nearest-neighbor scaling, `AddFont()`/`RemFont()` now honor `TE0F_NOREMFONT` while `ExtendFont()`/`StripFont()` manage `tf_Extension`/`FSF_TAGGED` lifetime with cloned default tags, and `GfxNew()`/`GfxFree()`/`GfxAssociate()`/`GfxLookUp()` now provide the basic extended-node allocation and lookup path needed by current Release 2 graphics callers
+- Expanded Phase 78-E Intuition verification: the existing `StructOffsets` sweep already covers `Window`, `IntuiMessage`, `Gadget`, `StringInfo`, `PropInfo`, `Image`, `Border`, `IntuiText`, `MenuItem`, and `Menu`, and `screen_basic` now verifies `OpenScreen`/`CloseScreen`/`OpenScreenTagList` for close-while-window-open refusal, tag override/clear behavior, and tag-only default opens with height expansion
 
 ---
 
@@ -476,22 +480,22 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 #### 78-E: Intuition Library (`src/rom/lxa_intuition.c` vs `others/AROS-20231016-source/rom/intuition/`)
 
 **Data Structures** (vs `intuition/iobsolete.h`, NDK `intuition/intuition.h`):
-- [ ] `IntuitionBase` — FirstScreen, ActiveScreen, ActiveWindow, MouseX/Y, Seconds/Micros, ActiveGadget, MenuVerifyTimeout
-- [ ] `Screen` — NextScreen, FirstWindow, LeftEdge/TopEdge/Width/Height, MouseY/X, Flags, Title, DefaultTitle, BarHeight, BarVBorder, BarHBorder, MenuVBorder, MenuHBorder, WBorTop/Left/Right/Bottom, Font, ViewPort, RastPort, BitMap, LayerInfo, FirstGadget, DetailPen, BlockPen, SaveColor0, ViewPortAddress, Depth, WBorLeft, WBorRight, WBorTop, WBorBottom, Title, BitMap
-- [ ] `Window` — NextWindow, LeftEdge/TopEdge/Width/Height, MouseX/Y, MinWidth/MinHeight/MaxWidth/MaxHeight, Flags, Title, Screen, RPort, BorderLeft/Top/Right/Bottom, FirstGadget, Parent/Descendant, Pointer/PtrHeight/PtrWidth/XOffset/YOffset, IDCMPFlags, UserPort, WindowPort, MessageKey, DetailPen, BlockPen, CheckMark, ScreenTitle, GZZWidth, GZZHeight, ExtData, UserData, WLayer, IFont, MoreFlags
-- [ ] `IntuiMessage` — ExecMessage, Class, Code, Qualifier, IAddress, MouseX/Y, Seconds/Micros, IDCMPWindow, SpecialLink
-- [ ] `Gadget` — NextGadget, LeftEdge/TopEdge/Width/Height, Flags, Activation, GadgetType, GadgetRender/SelectRender, GadgetText, MutualExclude, SpecialInfo, GadgetID, UserData
-- [ ] `StringInfo` — Buffer, UndoBuffer, BufferPos, MaxChars, DispPos, UndoPos, NumChars, DispCount, CLeft, CTop, LayerPtr, LongInt, AltKeyMap
-- [ ] `PropInfo` — Flags, HorizPot/VertPot, HorizBody/VertBody, CWidth/CHeight, HPotRes/VPotRes, LeftBorder/TopBorder
-- [ ] `Image` — LeftEdge, TopEdge, Width, Height, Depth, ImageData, PlanePick, PlaneOnOff, NextImage
-- [ ] `Border` — LeftEdge, TopEdge, FrontPen, BackPen, DrawMode, Count, XY, NextBorder
-- [ ] `IntuiText` — FrontPen, BackPen, DrawMode, LeftEdge, TopEdge, ITextFont, IText, NextText
-- [ ] `MenuItem` — NextItem, LeftEdge/TopEdge/Width/Height, Flags, MutualExclude, ItemFill, SelectFill, Command, SubItem, NextSelect
-- [ ] `Menu` — NextMenu, LeftEdge/TopEdge/Width/Height, Flags, MenuName, FirstItem
-- [ ] `Requester` — OlderRequest, LeftEdge/TopEdge/Width/Height, RelLeft/RelTop, ReqGadget, ReqBorder, ReqText, Flags, BackFill, ReqLayer, ReqPad1, ImageBMap, RWindow, ReqImage, ReqPad2, special
+- [x] `IntuitionBase` — FirstScreen, ActiveScreen, ActiveWindow, MouseX/Y, Seconds/Micros verified against the current public NDK layout; `ActiveGadget`/`MenuVerifyTimeout` do not appear in the published AmigaOS 3.2 public structure and remain out of scope pending a verified public reference
+- [x] `Screen` — NextScreen, FirstWindow, LeftEdge/TopEdge/Width/Height, MouseY/X, Flags, Title, DefaultTitle, BarHeight, BarVBorder, BarHBorder, MenuVBorder, MenuHBorder, WBorTop/Left/Right/Bottom, Font, ViewPort, RastPort, BitMap, LayerInfo, FirstGadget, DetailPen, BlockPen, SaveColor0, BarLayer, ExtData, UserData
+- [x] `Window` — NextWindow, LeftEdge/TopEdge/Width/Height, MouseX/Y, MinWidth/MinHeight/MaxWidth/MaxHeight, Flags, Title, Screen, RPort, BorderLeft/Top/Right/Bottom, FirstGadget, Parent/Descendant, Pointer/PtrHeight/PtrWidth/XOffset/YOffset, IDCMPFlags, UserPort, WindowPort, MessageKey, DetailPen, BlockPen, CheckMark, ScreenTitle, GZZWidth, GZZHeight, ExtData, UserData, WLayer, IFont, MoreFlags
+- [x] `IntuiMessage` — ExecMessage, Class, Code, Qualifier, IAddress, MouseX/Y, Seconds/Micros, IDCMPWindow, SpecialLink
+- [x] `Gadget` — NextGadget, LeftEdge/TopEdge/Width/Height, Flags, Activation, GadgetType, GadgetRender/SelectRender, GadgetText, MutualExclude, SpecialInfo, GadgetID, UserData
+- [x] `StringInfo` — Buffer, UndoBuffer, BufferPos, MaxChars, DispPos, UndoPos, NumChars, DispCount, CLeft, CTop, LayerPtr, LongInt, AltKeyMap
+- [x] `PropInfo` — Flags, HorizPot/VertPot, HorizBody/VertBody, CWidth/CHeight, HPotRes/VPotRes, LeftBorder/TopBorder
+- [x] `Image` — LeftEdge, TopEdge, Width, Height, Depth, ImageData, PlanePick, PlaneOnOff, NextImage
+- [x] `Border` — LeftEdge, TopEdge, FrontPen, BackPen, DrawMode, Count, XY, NextBorder
+- [x] `IntuiText` — FrontPen, BackPen, DrawMode, LeftEdge, TopEdge, ITextFont, IText, NextText
+- [x] `MenuItem` — NextItem, LeftEdge/TopEdge/Width/Height, Flags, MutualExclude, ItemFill, SelectFill, Command, SubItem, NextSelect
+- [x] `Menu` — NextMenu, LeftEdge/TopEdge/Width/Height, Flags, MenuName, FirstItem
+- [x] `Requester` — OlderRequest, LeftEdge/TopEdge/Width/Height, RelLeft/RelTop, ReqGadget, ReqBorder, ReqText, Flags, BackFill, ReqLayer, ReqPad1, ImageBMap, RWindow, ReqImage, ReqPad2
 
 **Screens** (vs `intuition/screens.c`):
-- [ ] `OpenScreen` / `CloseScreen` / `OpenScreenTagList`
+- [x] `OpenScreen` / `CloseScreen` / `OpenScreenTagList` — direct regression coverage now locks default opens, tag overrides/clears, `OpenScreenTagList(NULL, tags)`, ViewModes-based small-height expansion, and V36-style `CloseScreen()` refusal while windows remain open
 - [ ] `LockPubScreen` / `UnlockPubScreen` / `LockPubScreenList` / `UnlockPubScreenList`
 - [ ] `GetScreenData` — fill ScreenBuffer from screen
 - [ ] `MoveScreen` — panning

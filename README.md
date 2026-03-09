@@ -216,7 +216,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.91** - Phase 78-C graphics verification now also locks in BitMap utilities behavior: `ScalerDiv`/`BitMapScale`, public font add/remove plus `tf_Extension` lifetime, and `GfxNew`/`GfxFree`/`GfxAssociate`/`GfxLookUp` all have direct regression coverage
+**Version 0.6.96** - Phase 78-E Intuition verification now covers the already-implemented public window/menu/gadget/message structs in `Tests/Exec/StructOffsets`, and `Tests/Intuition/ScreenBasic` now locks `OpenScreen`, `CloseScreen`, and `OpenScreenTagList` against tag overrides, tag-only default opens, height expansion, and close refusal while windows remain open
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
