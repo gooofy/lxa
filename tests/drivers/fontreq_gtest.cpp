@@ -121,6 +121,14 @@ TEST_F(FontReqTest, OKButtonSelectsFont) {
         << "Should print font name. Output: " << output;
     EXPECT_NE(output.find("YSize="), std::string::npos)
         << "Should print font size. Output: " << output;
+    EXPECT_NE(output.find("TName="), std::string::npos)
+        << "Should print TTextAttr name. Output: " << output;
+    EXPECT_NE(output.find("TYSize="), std::string::npos)
+        << "Should print TTextAttr size. Output: " << output;
+    EXPECT_NE(output.find("TStyle="), std::string::npos)
+        << "Should print TTextAttr style. Output: " << output;
+    EXPECT_NE(output.find("TFlags="), std::string::npos)
+        << "Should print TTextAttr flags. Output: " << output;
 }
 
 TEST_F(FontReqTest, FontListDisplayed) {

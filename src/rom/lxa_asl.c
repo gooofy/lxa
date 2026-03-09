@@ -20,6 +20,8 @@
 #include <inline/dos.h>
 
 #include <graphics/gfx.h>
+#include <graphics/displayinfo.h>
+#include <graphics/modeid.h>
 #include <graphics/rastport.h>
 #include <clib/graphics_protos.h>
 #include <inline/graphics.h>
@@ -56,12 +58,17 @@ struct AslBase {
     BPTR           SegList;
 };
 
-/* Internal FileRequester structure - maps to public FileRequester structure
- * NOTE: fr_Type MUST be at offset 0 (overlaps fr_Reserved0) so that
- * AslRequest() can determine the requester type regardless of which
- * struct type the pointer actually refers to. */
+#define ASL_REQUEST_MAGIC 0x41534c52UL
+
+struct AslRequestHeader {
+    ULONG magic;
+    ULONG type;
+    ULONG size;
+};
+
+/* Internal FileRequester structure - public prefix matches NDK FileRequester. */
 struct LXAFileRequester {
-    ULONG         fr_Type;          /* Requester type (at offset 0) */
+    UBYTE         fr_Reserved0[4];
     STRPTR        fr_File;          /* Contents of File gadget on exit */
     STRPTR        fr_Drawer;        /* Contents of Drawer gadget on exit */
     UBYTE         fr_Reserved1[10];
@@ -84,26 +91,24 @@ struct LXAFileRequester {
     struct Screen *fr_Screen;       /* Screen to open on */
     BOOL          fr_DoSaveMode;    /* Save mode? */
     BOOL          fr_DoPatterns;    /* Show pattern gadget? */
+    BOOL          fr_DoMultiSelect; /* Multi-select requested? */
     BOOL          fr_DrawersOnly;   /* Only show drawers? */
 };
 
-/* Internal FontRequester structure
- * Layout MUST match NDK FontRequester: fo_Reserved0[8] then fo_Attr at offset 8.
- * We store fo_Type inside the first 4 bytes of the reserved area so that
- * AslRequest() can determine the requester type from a generic pointer. */
+/* Internal FontRequester structure - public prefix matches NDK FontRequester. */
 struct LXAFontRequester {
-    ULONG         fo_Type;          /* Requester type (at offset 0, inside reserved area) */
-    UBYTE         fo_Reserved0b[4]; /* Remaining 4 bytes of fo_Reserved0[8] */
+    UBYTE         fo_Reserved0[8];
     struct TextAttr fo_Attr;        /* Font attributes on exit (offset 8, matches NDK) */
     UBYTE         fo_FrontPen;      /* Returned front pen */
     UBYTE         fo_BackPen;       /* Returned back pen */
     UBYTE         fo_DrawMode;      /* Returned draw mode */
-    UBYTE         fo_Pad;
+    UBYTE         fo_SpecialDrawMode;
     APTR          fo_UserData;
     WORD          fo_LeftEdge;
     WORD          fo_TopEdge;
     WORD          fo_Width;
     WORD          fo_Height;
+    struct TTextAttr fo_TAttr;
     
     /* Private fields (after public NDK-compatible area) */
     STRPTR        fo_Title;
@@ -115,6 +120,61 @@ struct LXAFontRequester {
     UWORD         fo_MaxHeight;     /* Maximum font height to display */
     STRPTR        fo_InitialName;   /* Initial font name from tags */
     UWORD         fo_InitialSize;   /* Initial font size from tags */
+    UBYTE         fo_InitialStyle;  /* Initial style from tags */
+    UBYTE         fo_InitialFlags;  /* Initial flags from tags */
+    ULONG         fo_RequestFlags;  /* ASLFO_Flags */
+    BOOL          fo_DoStyle;       /* Show style buttons? */
+    BOOL          fo_FixedWidthOnly;/* Restrict to fixed-width fonts? */
+};
+
+/* Internal ScreenModeRequester structure - public prefix matches NDK ScreenModeRequester. */
+struct LXAScreenModeRequester {
+    ULONG         sm_DisplayID;
+    ULONG         sm_DisplayWidth;
+    ULONG         sm_DisplayHeight;
+    UWORD         sm_DisplayDepth;
+    UWORD         sm_OverscanType;
+    BOOL          sm_AutoScroll;
+    ULONG         sm_BitMapWidth;
+    ULONG         sm_BitMapHeight;
+    WORD          sm_LeftEdge;
+    WORD          sm_TopEdge;
+    WORD          sm_Width;
+    WORD          sm_Height;
+    BOOL          sm_InfoOpened;
+    WORD          sm_InfoLeftEdge;
+    WORD          sm_InfoTopEdge;
+    WORD          sm_InfoWidth;
+    WORD          sm_InfoHeight;
+    APTR          sm_UserData;
+
+    STRPTR        sm_Title;
+    STRPTR        sm_OkText;
+    STRPTR        sm_CancelText;
+    struct Window *sm_Window;
+    struct Screen *sm_Screen;
+    ULONG         sm_PropertyFlags;
+    ULONG         sm_PropertyMask;
+    UWORD         sm_MinWidth;
+    UWORD         sm_MaxWidth;
+    UWORD         sm_MinHeight;
+    UWORD         sm_MaxHeight;
+    UWORD         sm_MinDepth;
+    UWORD         sm_MaxDepth;
+    BOOL          sm_DoWidth;
+    BOOL          sm_DoHeight;
+    BOOL          sm_DoDepth;
+    BOOL          sm_DoOverscanType;
+    BOOL          sm_DoAutoScroll;
+};
+
+struct AslDisplayModeEntry {
+    ULONG display_id;
+    UWORD width;
+    UWORD height;
+    UWORD depth;
+    ULONG property_flags;
+    UBYTE name[DISPLAYNAMELEN];
 };
 
 /* Gadget IDs - File Requester */
@@ -136,6 +196,7 @@ struct LXAFontRequester {
 #define MAX_FILE_ENTRIES 100
 #define MAX_PATH_LEN     256
 #define MAX_FILE_LEN     108
+#define MAX_SCREENMODE_ENTRIES 8
 
 /*
  * Library init/open/close/expunge
@@ -211,6 +272,311 @@ static void asl_strfree(STRPTR str)
     }
 }
 
+static APTR asl_alloc_request(ULONG req_type, ULONG struct_size)
+{
+    struct AslRequestHeader *hdr;
+    ULONG total_size = sizeof(struct AslRequestHeader) + struct_size;
+
+    hdr = AllocMem(total_size, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!hdr)
+        return NULL;
+
+    hdr->magic = ASL_REQUEST_MAGIC;
+    hdr->type = req_type;
+    hdr->size = struct_size;
+
+    return (APTR)(hdr + 1);
+}
+
+static struct AslRequestHeader *asl_request_header(APTR requester)
+{
+    struct AslRequestHeader *hdr;
+
+    if (!requester)
+        return NULL;
+
+    hdr = ((struct AslRequestHeader *)requester) - 1;
+    if (hdr->magic != ASL_REQUEST_MAGIC)
+        return NULL;
+
+    return hdr;
+}
+
+static ULONG asl_request_type(APTR requester)
+{
+    struct AslRequestHeader *hdr = asl_request_header(requester);
+
+    if (!hdr)
+        return INVALID_ID;
+
+    return hdr->type;
+}
+
+static void asl_free_request_memory(APTR requester)
+{
+    struct AslRequestHeader *hdr = asl_request_header(requester);
+    ULONG total_size;
+
+    if (!hdr)
+        return;
+
+    total_size = sizeof(struct AslRequestHeader) + hdr->size;
+    hdr->magic = 0;
+    FreeMem(hdr, total_size);
+}
+
+static void asl_clear_file_arglist(struct LXAFileRequester *fr)
+{
+    LONG i;
+
+    if (!fr || !fr->fr_ArgList)
+    {
+        if (fr)
+            fr->fr_NumArgs = 0;
+        return;
+    }
+
+    for (i = 0; i < fr->fr_NumArgs; i++)
+    {
+        if (fr->fr_ArgList[i].wa_Lock)
+            UnLock(fr->fr_ArgList[i].wa_Lock);
+        if (fr->fr_ArgList[i].wa_Name)
+            asl_strfree(fr->fr_ArgList[i].wa_Name);
+    }
+
+    FreeMem(fr->fr_ArgList, sizeof(struct WBArg) * fr->fr_NumArgs);
+    fr->fr_ArgList = NULL;
+    fr->fr_NumArgs = 0;
+}
+
+static void asl_build_file_arglist(struct LXAFileRequester *fr)
+{
+    BPTR lock = 0;
+    STRPTR name_copy;
+
+    if (!fr)
+        return;
+
+    asl_clear_file_arglist(fr);
+
+    if (!fr->fr_File || !fr->fr_File[0])
+        return;
+
+    fr->fr_ArgList = AllocMem(sizeof(struct WBArg), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!fr->fr_ArgList)
+        return;
+
+    name_copy = asl_strdup(fr->fr_File);
+    if (!name_copy)
+    {
+        FreeMem(fr->fr_ArgList, sizeof(struct WBArg));
+        fr->fr_ArgList = NULL;
+        return;
+    }
+
+    if (fr->fr_Drawer && fr->fr_Drawer[0])
+        lock = Lock(fr->fr_Drawer, ACCESS_READ);
+
+    fr->fr_ArgList[0].wa_Lock = lock;
+    fr->fr_ArgList[0].wa_Name = name_copy;
+    fr->fr_NumArgs = 1;
+}
+
+static void asl_set_font_selection(struct LXAFontRequester *fo, CONST_STRPTR name, UWORD size, UBYTE style, UBYTE flags)
+{
+    if (!fo)
+        return;
+
+    if (fo->fo_Attr.ta_Name)
+        asl_strfree(fo->fo_Attr.ta_Name);
+
+    fo->fo_Attr.ta_Name = asl_strdup(name ? name : (CONST_STRPTR)"topaz.font");
+    fo->fo_Attr.ta_YSize = size ? size : 8;
+    fo->fo_Attr.ta_Style = style;
+    fo->fo_Attr.ta_Flags = flags;
+
+    fo->fo_TAttr.tta_Name = fo->fo_Attr.ta_Name;
+    fo->fo_TAttr.tta_YSize = fo->fo_Attr.ta_YSize;
+    fo->fo_TAttr.tta_Style = fo->fo_Attr.ta_Style;
+    fo->fo_TAttr.tta_Flags = fo->fo_Attr.ta_Flags;
+    fo->fo_TAttr.tta_Tags = NULL;
+}
+
+static const ULONG g_asl_display_ids[] = {
+    LORES_KEY,
+    HIRES_KEY,
+    NTSC_MONITOR_ID | LORES_KEY,
+    NTSC_MONITOR_ID | HIRES_KEY,
+    PAL_MONITOR_ID | LORES_KEY,
+    PAL_MONITOR_ID | HIRES_KEY
+};
+
+static BOOL asl_query_display_mode(ULONG display_id, struct AslDisplayModeEntry *entry)
+{
+    struct DimensionInfo dims;
+    struct DisplayInfo di;
+    struct NameInfo name;
+    ULONG i;
+
+    if (!entry)
+        return FALSE;
+
+    memset(entry, 0, sizeof(*entry));
+    entry->display_id = display_id;
+
+    if (GetDisplayInfoData(NULL, &dims, sizeof(dims), DTAG_DIMS, display_id) < sizeof(struct QueryHeader))
+        return FALSE;
+    if (GetDisplayInfoData(NULL, &di, sizeof(di), DTAG_DISP, display_id) < sizeof(struct QueryHeader))
+        return FALSE;
+
+    entry->width = dims.Nominal.MaxX - dims.Nominal.MinX + 1;
+    entry->height = dims.Nominal.MaxY - dims.Nominal.MinY + 1;
+    entry->depth = dims.MaxDepth;
+    entry->property_flags = di.PropertyFlags;
+
+    if (GetDisplayInfoData(NULL, &name, sizeof(name), DTAG_NAME, display_id) >= sizeof(struct QueryHeader))
+    {
+        for (i = 0; i < (DISPLAYNAMELEN - 1) && name.Name[i]; i++)
+            entry->name[i] = name.Name[i];
+        return TRUE;
+    }
+
+    if (display_id & HIRES)
+    {
+        entry->name[0] = 'H';
+        entry->name[1] = 'I';
+        entry->name[2] = 'R';
+        entry->name[3] = 'E';
+        entry->name[4] = 'S';
+    }
+    else
+    {
+        entry->name[0] = 'L';
+        entry->name[1] = 'O';
+        entry->name[2] = 'R';
+        entry->name[3] = 'E';
+        entry->name[4] = 'S';
+    }
+
+    return TRUE;
+}
+
+static void asl_set_screenmode_selection(struct LXAScreenModeRequester *sm, ULONG display_id, ULONG width, ULONG height, UWORD depth)
+{
+    struct AslDisplayModeEntry entry;
+
+    if (!sm)
+        return;
+
+    if (!asl_query_display_mode(display_id, &entry))
+    {
+        entry.display_id = LORES_KEY;
+        entry.width = 320;
+        entry.height = 200;
+        entry.depth = 8;
+    }
+
+    sm->sm_DisplayID = entry.display_id;
+    sm->sm_DisplayWidth = width ? width : entry.width;
+    sm->sm_DisplayHeight = height ? height : entry.height;
+    sm->sm_DisplayDepth = depth ? depth : entry.depth;
+    sm->sm_BitMapWidth = sm->sm_DisplayWidth;
+    sm->sm_BitMapHeight = sm->sm_DisplayHeight;
+}
+
+static BOOL asl_screenmode_matches_filters(struct LXAScreenModeRequester *sm, const struct AslDisplayModeEntry *entry)
+{
+    if (!sm || !entry)
+        return FALSE;
+
+    if (sm->sm_MinWidth && entry->width < sm->sm_MinWidth)
+        return FALSE;
+    if (sm->sm_MaxWidth && entry->width > sm->sm_MaxWidth)
+        return FALSE;
+    if (sm->sm_MinHeight && entry->height < sm->sm_MinHeight)
+        return FALSE;
+    if (sm->sm_MaxHeight && entry->height > sm->sm_MaxHeight)
+        return FALSE;
+    if (sm->sm_MinDepth && entry->depth < sm->sm_MinDepth)
+        return FALSE;
+    if (sm->sm_MaxDepth && entry->depth > sm->sm_MaxDepth)
+        return FALSE;
+    if ((entry->property_flags & sm->sm_PropertyMask) != (sm->sm_PropertyFlags & sm->sm_PropertyMask))
+        return FALSE;
+
+    return TRUE;
+}
+
+static void draw_screenmode_entries(struct RastPort *rp,
+                                    WORD winWidth,
+                                    WORD margin,
+                                    WORD listTop,
+                                    WORD listHeight,
+                                    struct AslDisplayModeEntry *entries,
+                                    WORD entryCount,
+                                    WORD selectedIndex)
+{
+    WORD i;
+
+    SetAPen(rp, 0);
+    RectFill(rp, margin + 1, listTop + 1, winWidth - margin - 1, listTop + listHeight - 1);
+
+    for (i = 0; i < entryCount; i++)
+    {
+        WORD rowTop = listTop + 4 + i * 12;
+        UBYTE line[48];
+        WORD pos = 0;
+        WORD j;
+        ULONG value;
+
+        if (selectedIndex == i)
+        {
+            SetAPen(rp, 2);
+            RectFill(rp, margin + 2, rowTop - 8, winWidth - margin - 2, rowTop + 2);
+        }
+
+        SetAPen(rp, 1);
+        Move(rp, margin + 4, rowTop);
+
+        if (selectedIndex == i)
+            line[pos++] = '>';
+        else
+            line[pos++] = ' ';
+
+        for (j = 0; entries[i].name[j] && pos < (sizeof(line) - 1); j++)
+            line[pos++] = entries[i].name[j];
+
+        if (pos < (sizeof(line) - 4))
+        {
+            line[pos++] = ' ';
+            line[pos++] = '(';
+        }
+
+        value = entries[i].width;
+        if (value >= 1000 && pos < (sizeof(line) - 1)) line[pos++] = '0' + (value / 1000);
+        if (value >= 100 && pos < (sizeof(line) - 1)) line[pos++] = '0' + ((value / 100) % 10);
+        if (value >= 10 && pos < (sizeof(line) - 1)) line[pos++] = '0' + ((value / 10) % 10);
+        if (pos < (sizeof(line) - 1)) line[pos++] = '0' + (value % 10);
+        if (pos < (sizeof(line) - 1)) line[pos++] = 'x';
+
+        value = entries[i].height;
+        if (value >= 1000 && pos < (sizeof(line) - 1)) line[pos++] = '0' + (value / 1000);
+        if (value >= 100 && pos < (sizeof(line) - 1)) line[pos++] = '0' + ((value / 100) % 10);
+        if (value >= 10 && pos < (sizeof(line) - 1)) line[pos++] = '0' + ((value / 10) % 10);
+        if (pos < (sizeof(line) - 1)) line[pos++] = '0' + (value % 10);
+        if (pos < (sizeof(line) - 2))
+        {
+            line[pos++] = 'x';
+            line[pos++] = '0' + (entries[i].depth % 10);
+        }
+        if (pos < (sizeof(line) - 1))
+            line[pos++] = ')';
+        line[pos] = 0;
+
+        Text(rp, (STRPTR)line, pos);
+    }
+}
+
 /* Parse tags for file requester */
 static void parse_fr_tags(struct LXAFileRequester *fr, struct TagItem *tagList)
 {
@@ -279,8 +645,19 @@ static void parse_fr_tags(struct LXAFileRequester *fr, struct TagItem *tagList)
             case ASLFR_DoPatterns:
                 fr->fr_DoPatterns = (BOOL)tag->ti_Data;
                 break;
+            case ASLFR_DoMultiSelect:
+                fr->fr_DoMultiSelect = (BOOL)tag->ti_Data;
+                break;
             case ASLFR_DrawersOnly:
                 fr->fr_DrawersOnly = (BOOL)tag->ti_Data;
+                break;
+            case ASLFR_Flags1:
+                fr->fr_DoSaveMode = (tag->ti_Data & FRF_DOSAVEMODE) ? TRUE : FALSE;
+                fr->fr_DoPatterns = (tag->ti_Data & FRF_DOPATTERNS) ? TRUE : FALSE;
+                fr->fr_DoMultiSelect = (tag->ti_Data & FRF_DOMULTISELECT) ? TRUE : FALSE;
+                break;
+            case ASLFR_Flags2:
+                fr->fr_DrawersOnly = (tag->ti_Data & FRF_DRAWERSONLY) ? TRUE : FALSE;
                 break;
             case ASLFR_UserData:
                 fr->fr_UserData = (APTR)tag->ti_Data;
@@ -343,6 +720,12 @@ static void parse_fo_tags(struct LXAFontRequester *fo, struct TagItem *tagList)
             case ASLFO_InitialSize:
                 fo->fo_InitialSize = (UWORD)tag->ti_Data;
                 break;
+            case ASLFO_InitialStyle:
+                fo->fo_InitialStyle = (UBYTE)tag->ti_Data;
+                break;
+            case ASLFO_InitialFlags:
+                fo->fo_InitialFlags = (UBYTE)tag->ti_Data;
+                break;
             case ASLFO_MinHeight:
                 fo->fo_MinHeight = (UWORD)tag->ti_Data;
                 break;
@@ -358,8 +741,147 @@ static void parse_fo_tags(struct LXAFontRequester *fo, struct TagItem *tagList)
             case ASLFO_UserData:
                 fo->fo_UserData = (APTR)tag->ti_Data;
                 break;
+            case ASLFO_Flags:
+                fo->fo_RequestFlags = tag->ti_Data;
+                fo->fo_DoStyle = (tag->ti_Data & FOF_DOSTYLE) ? TRUE : FALSE;
+                fo->fo_FixedWidthOnly = (tag->ti_Data & FOF_FIXEDWIDTHONLY) ? TRUE : FALSE;
+                break;
+            case ASLFO_DoStyle:
+                fo->fo_DoStyle = (BOOL)tag->ti_Data;
+                break;
+            case ASLFO_FixedWidthOnly:
+                fo->fo_FixedWidthOnly = (BOOL)tag->ti_Data;
+                break;
         }
     }
+}
+
+static void parse_sm_tags(struct LXAScreenModeRequester *sm, struct TagItem *tagList)
+{
+    struct TagItem *tag;
+
+    if (!tagList)
+        return;
+
+    for (tag = tagList; tag->ti_Tag != TAG_DONE; tag++)
+    {
+        if (tag->ti_Tag == TAG_SKIP)
+        {
+            tag += tag->ti_Data;
+            continue;
+        }
+        if (tag->ti_Tag == TAG_IGNORE)
+            continue;
+        if (tag->ti_Tag == TAG_MORE)
+        {
+            tag = (struct TagItem *)tag->ti_Data;
+            if (!tag) break;
+            tag--;
+            continue;
+        }
+
+        switch (tag->ti_Tag)
+        {
+            case ASLSM_TitleText:
+                sm->sm_Title = (STRPTR)tag->ti_Data;
+                break;
+            case ASLSM_PositiveText:
+                sm->sm_OkText = (STRPTR)tag->ti_Data;
+                break;
+            case ASLSM_NegativeText:
+                sm->sm_CancelText = (STRPTR)tag->ti_Data;
+                break;
+            case ASLSM_Window:
+                sm->sm_Window = (struct Window *)tag->ti_Data;
+                break;
+            case ASLSM_Screen:
+                sm->sm_Screen = (struct Screen *)tag->ti_Data;
+                break;
+            case ASLSM_UserData:
+                sm->sm_UserData = (APTR)tag->ti_Data;
+                break;
+            case ASLSM_InitialLeftEdge:
+                sm->sm_LeftEdge = (WORD)tag->ti_Data;
+                break;
+            case ASLSM_InitialTopEdge:
+                sm->sm_TopEdge = (WORD)tag->ti_Data;
+                break;
+            case ASLSM_InitialWidth:
+                sm->sm_Width = (WORD)tag->ti_Data;
+                break;
+            case ASLSM_InitialHeight:
+                sm->sm_Height = (WORD)tag->ti_Data;
+                break;
+            case ASLSM_InitialDisplayID:
+                sm->sm_DisplayID = tag->ti_Data;
+                break;
+            case ASLSM_InitialDisplayWidth:
+                sm->sm_DisplayWidth = tag->ti_Data;
+                break;
+            case ASLSM_InitialDisplayHeight:
+                sm->sm_DisplayHeight = tag->ti_Data;
+                break;
+            case ASLSM_InitialDisplayDepth:
+                sm->sm_DisplayDepth = (UWORD)tag->ti_Data;
+                break;
+            case ASLSM_InitialOverscanType:
+                sm->sm_OverscanType = (UWORD)tag->ti_Data;
+                break;
+            case ASLSM_InitialAutoScroll:
+                sm->sm_AutoScroll = (BOOL)tag->ti_Data;
+                break;
+            case ASLSM_InitialInfoOpened:
+                sm->sm_InfoOpened = (BOOL)tag->ti_Data;
+                break;
+            case ASLSM_InitialInfoLeftEdge:
+                sm->sm_InfoLeftEdge = (WORD)tag->ti_Data;
+                break;
+            case ASLSM_InitialInfoTopEdge:
+                sm->sm_InfoTopEdge = (WORD)tag->ti_Data;
+                break;
+            case ASLSM_DoWidth:
+                sm->sm_DoWidth = (BOOL)tag->ti_Data;
+                break;
+            case ASLSM_DoHeight:
+                sm->sm_DoHeight = (BOOL)tag->ti_Data;
+                break;
+            case ASLSM_DoDepth:
+                sm->sm_DoDepth = (BOOL)tag->ti_Data;
+                break;
+            case ASLSM_DoOverscanType:
+                sm->sm_DoOverscanType = (BOOL)tag->ti_Data;
+                break;
+            case ASLSM_DoAutoScroll:
+                sm->sm_DoAutoScroll = (BOOL)tag->ti_Data;
+                break;
+            case ASLSM_PropertyFlags:
+                sm->sm_PropertyFlags = tag->ti_Data;
+                break;
+            case ASLSM_PropertyMask:
+                sm->sm_PropertyMask = tag->ti_Data;
+                break;
+            case ASLSM_MinWidth:
+                sm->sm_MinWidth = (UWORD)tag->ti_Data;
+                break;
+            case ASLSM_MaxWidth:
+                sm->sm_MaxWidth = (UWORD)tag->ti_Data;
+                break;
+            case ASLSM_MinHeight:
+                sm->sm_MinHeight = (UWORD)tag->ti_Data;
+                break;
+            case ASLSM_MaxHeight:
+                sm->sm_MaxHeight = (UWORD)tag->ti_Data;
+                break;
+            case ASLSM_MinDepth:
+                sm->sm_MinDepth = (UWORD)tag->ti_Data;
+                break;
+            case ASLSM_MaxDepth:
+                sm->sm_MaxDepth = (UWORD)tag->ti_Data;
+                break;
+        }
+    }
+
+    asl_set_screenmode_selection(sm, sm->sm_DisplayID, sm->sm_DisplayWidth, sm->sm_DisplayHeight, sm->sm_DisplayDepth);
 }
 
 /* Display the file requester window and handle interaction */
@@ -641,6 +1163,7 @@ static BOOL do_file_request(struct LXAFileRequester *fr)
                                 fr->fr_File = asl_strdup(fileBuf);
                                 if (fr->fr_Drawer) asl_strfree(fr->fr_Drawer);
                                 fr->fr_Drawer = asl_strdup(drawerBuf);
+                                asl_build_file_arglist(fr);
                                 done = TRUE;
                                 result = TRUE;
                                 break;
@@ -906,11 +1429,11 @@ static BOOL do_font_request(struct LXAFontRequester *fo)
                     if (igad->GadgetID == GID_FONT_OK)
                     {
                         /* Set the output font attributes */
-                        fo->fo_Attr.ta_Name = asl_strdup(
-                            fo->fo_InitialName ? fo->fo_InitialName : (CONST_STRPTR)"topaz.font");
-                        fo->fo_Attr.ta_YSize = fo->fo_InitialSize > 0 ? fo->fo_InitialSize : 8;
-                        fo->fo_Attr.ta_Style = 0;  /* FS_NORMAL */
-                        fo->fo_Attr.ta_Flags = FPF_ROMFONT | FPF_DESIGNED;
+                        asl_set_font_selection(fo,
+                            fo->fo_InitialName ? fo->fo_InitialName : (CONST_STRPTR)"topaz.font",
+                            fo->fo_InitialSize > 0 ? fo->fo_InitialSize : 8,
+                            fo->fo_InitialStyle,
+                            fo->fo_InitialFlags ? fo->fo_InitialFlags : (FPF_ROMFONT | FPF_DESIGNED));
                         result = TRUE;
                         done = TRUE;
                     }
@@ -956,6 +1479,218 @@ cleanup:
     return result;
 }
 
+static BOOL do_screenmode_request(struct LXAScreenModeRequester *sm)
+{
+    struct NewWindow nw;
+    struct Window *win;
+    struct Screen *scr;
+    struct IntuiMessage *imsg;
+    struct Gadget *gadList = NULL, *gad, *lastGad = NULL;
+    struct RastPort *rp;
+    struct AslDisplayModeEntry display_entries[MAX_SCREENMODE_ENTRIES];
+    BOOL result = FALSE;
+    BOOL done = FALSE;
+    WORD winWidth, winHeight;
+    WORD btnWidth = 60, btnHeight = 14;
+    WORD margin = 8;
+    WORD listTop, listHeight;
+    WORD selectedIndex = 0;
+    WORD display_count = 0;
+    ULONG i;
+
+    if (sm->sm_Window)
+        scr = sm->sm_Window->WScreen;
+    else if (sm->sm_Screen)
+        scr = sm->sm_Screen;
+    else
+        scr = NULL;
+
+    winWidth = sm->sm_Width > 0 ? sm->sm_Width : 320;
+    winHeight = sm->sm_Height > 0 ? sm->sm_Height : 180;
+
+    for (i = 0; i < (sizeof(g_asl_display_ids) / sizeof(g_asl_display_ids[0])); i++)
+    {
+        struct AslDisplayModeEntry entry;
+
+        if (!asl_query_display_mode(g_asl_display_ids[i], &entry))
+            continue;
+        if (!asl_screenmode_matches_filters(sm, &entry))
+            continue;
+
+        display_entries[display_count] = entry;
+        if (entry.display_id == sm->sm_DisplayID)
+            selectedIndex = display_count;
+        display_count++;
+        if (display_count >= MAX_SCREENMODE_ENTRIES)
+            break;
+    }
+
+    if (display_count == 0)
+    {
+        if (asl_query_display_mode(sm->sm_DisplayID ? sm->sm_DisplayID : LORES_KEY, &display_entries[0]))
+            display_count = 1;
+    }
+
+    gad = AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!gad)
+        goto cleanup;
+    gadList = gad;
+    lastGad = gad;
+
+    gad->LeftEdge = margin;
+    gad->TopEdge = winHeight - 20 - btnHeight;
+    gad->Width = btnWidth;
+    gad->Height = btnHeight;
+    gad->GadgetID = GID_FONT_OK;
+    gad->GadgetType = GTYP_BOOLGADGET;
+    gad->Flags = GFLG_GADGHCOMP;
+    gad->Activation = GACT_RELVERIFY;
+
+    gad = AllocMem(sizeof(struct Gadget), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!gad)
+        goto cleanup;
+    lastGad->NextGadget = gad;
+    lastGad = gad;
+
+    gad->LeftEdge = winWidth - margin - btnWidth;
+    gad->TopEdge = winHeight - 20 - btnHeight;
+    gad->Width = btnWidth;
+    gad->Height = btnHeight;
+    gad->GadgetID = GID_FONT_CANCEL;
+    gad->GadgetType = GTYP_BOOLGADGET;
+    gad->Flags = GFLG_GADGHCOMP;
+    gad->Activation = GACT_RELVERIFY;
+
+    nw.LeftEdge = sm->sm_LeftEdge >= 0 ? sm->sm_LeftEdge : 40;
+    nw.TopEdge = sm->sm_TopEdge >= 0 ? sm->sm_TopEdge : 24;
+    nw.Width = winWidth;
+    nw.Height = winHeight;
+    nw.DetailPen = 0;
+    nw.BlockPen = 1;
+    nw.IDCMPFlags = IDCMP_GADGETUP | IDCMP_CLOSEWINDOW | IDCMP_REFRESHWINDOW | IDCMP_MOUSEBUTTONS;
+    nw.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET | WFLG_CLOSEGADGET | WFLG_ACTIVATE | WFLG_SMART_REFRESH;
+    nw.FirstGadget = gadList;
+    nw.CheckMark = NULL;
+    nw.Title = sm->sm_Title ? sm->sm_Title : (UBYTE *)"Select Screen Mode";
+    nw.Screen = scr;
+    nw.BitMap = NULL;
+    nw.MinWidth = 240;
+    nw.MinHeight = 120;
+    nw.MaxWidth = 640;
+    nw.MaxHeight = 256;
+    nw.Type = scr ? CUSTOMSCREEN : WBENCHSCREEN;
+
+    win = OpenWindow(&nw);
+    if (!win)
+        goto cleanup;
+
+    rp = win->RPort;
+    listTop = 20 + margin;
+    listHeight = winHeight - listTop - btnHeight - margin * 2 - 20;
+
+    SetAPen(rp, 1);
+    Move(rp, margin, listTop - 2);
+    Text(rp, (STRPTR)"Modes:", 6);
+    Move(rp, margin + 44, winHeight - 20 - btnHeight + 10);
+    Text(rp, sm->sm_OkText ? sm->sm_OkText : (STRPTR)"OK",
+         sm->sm_OkText ? strlen((char *)sm->sm_OkText) : 2);
+    Move(rp, winWidth - margin - btnWidth + 8, winHeight - 20 - btnHeight + 10);
+    Text(rp, sm->sm_CancelText ? sm->sm_CancelText : (STRPTR)"Cancel",
+         sm->sm_CancelText ? strlen((char *)sm->sm_CancelText) : 6);
+
+    SetAPen(rp, 2);
+    Move(rp, margin, listTop);
+    Draw(rp, margin, listTop + listHeight);
+    Draw(rp, winWidth - margin, listTop + listHeight);
+    SetAPen(rp, 1);
+    Draw(rp, winWidth - margin, listTop);
+    Draw(rp, margin, listTop);
+
+    draw_screenmode_entries(rp, winWidth, margin, listTop, listHeight, display_entries, display_count, selectedIndex);
+    RefreshGList(gadList, win, NULL, -1);
+
+    while (!done)
+    {
+        WaitPort(win->UserPort);
+
+        while ((imsg = (struct IntuiMessage *)GetMsg(win->UserPort)) != NULL)
+        {
+            ULONG class_id = imsg->Class;
+            WORD mouse_x = imsg->MouseX;
+            WORD mouse_y = imsg->MouseY;
+            struct Gadget *igad = (struct Gadget *)imsg->IAddress;
+
+            ReplyMsg((struct Message *)imsg);
+
+            switch (class_id)
+            {
+                case IDCMP_GADGETUP:
+                    if (igad && igad->GadgetID == GID_FONT_OK)
+                    {
+                        if (display_count > 0)
+                        {
+                            struct AslDisplayModeEntry *entry = &display_entries[selectedIndex];
+                            asl_set_screenmode_selection(sm, entry->display_id, entry->width, entry->height, entry->depth);
+                        }
+                        result = TRUE;
+                        done = TRUE;
+                    }
+                    else if (igad && igad->GadgetID == GID_FONT_CANCEL)
+                    {
+                        result = FALSE;
+                        done = TRUE;
+                    }
+                    break;
+
+                case IDCMP_MOUSEBUTTONS:
+                    if (display_count > 0 && mouse_x >= margin && mouse_x <= (winWidth - margin) &&
+                        mouse_y >= listTop && mouse_y < (listTop + listHeight))
+                    {
+                        WORD row = (mouse_y - (listTop + 2)) / 12;
+                        if (row >= 0 && row < display_count)
+                        {
+                            selectedIndex = row;
+                            draw_screenmode_entries(rp, winWidth, margin, listTop, listHeight,
+                                                    display_entries, display_count, selectedIndex);
+                        }
+                    }
+                    break;
+
+                case IDCMP_CLOSEWINDOW:
+                    result = FALSE;
+                    done = TRUE;
+                    break;
+
+                case IDCMP_REFRESHWINDOW:
+                    BeginRefresh(win);
+                    draw_screenmode_entries(rp, winWidth, margin, listTop, listHeight,
+                                            display_entries, display_count, selectedIndex);
+                    EndRefresh(win, TRUE);
+                    break;
+            }
+        }
+    }
+
+    sm->sm_LeftEdge = win->LeftEdge;
+    sm->sm_TopEdge = win->TopEdge;
+    sm->sm_Width = win->Width;
+    sm->sm_Height = win->Height;
+
+    CloseWindow(win);
+    win = NULL;
+
+cleanup:
+    gad = gadList;
+    while (gad)
+    {
+        struct Gadget *next = gad->NextGadget;
+        FreeMem(gad, sizeof(struct Gadget));
+        gad = next;
+    }
+
+    return result;
+}
+
 /*
  * ASL Functions (V36+)
  */
@@ -965,9 +1700,10 @@ APTR _asl_AllocFileRequest ( register struct AslBase *AslBase __asm("a6") )
 {
     DPRINTF (LOG_DEBUG, "_asl: AllocFileRequest() (obsolete) -> AllocAslRequest(ASL_FileRequest)\n");
     
-    struct LXAFileRequester *req = AllocMem(sizeof(struct LXAFileRequester), MEMF_CLEAR | MEMF_PUBLIC);
+    struct LXAFileRequester *req = asl_alloc_request(ASL_FileRequest, sizeof(struct LXAFileRequester));
     if (req) {
-        req->fr_Type = ASL_FileRequest;
+        req->fr_LeftEdge = -1;
+        req->fr_TopEdge = -1;
         req->fr_Width = 300;
         req->fr_Height = 200;
     }
@@ -983,10 +1719,11 @@ void _asl_FreeFileRequest ( register struct AslBase *AslBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_asl: FreeFileRequest() fileReq=0x%08lx\n", (ULONG)fileReq);
     
     if (fr) {
+        asl_clear_file_arglist(fr);
         if (fr->fr_File) asl_strfree(fr->fr_File);
         if (fr->fr_Drawer) asl_strfree(fr->fr_Drawer);
         if (fr->fr_Pattern) asl_strfree(fr->fr_Pattern);
-        FreeMem(fr, sizeof(struct LXAFileRequester));
+        asl_free_request_memory(fr);
     }
 }
 
@@ -1013,9 +1750,8 @@ APTR _asl_AllocAslRequest ( register struct AslBase *AslBase __asm("a6"),
     
     switch (reqType) {
         case ASL_FileRequest: {
-            struct LXAFileRequester *fr = AllocMem(sizeof(struct LXAFileRequester), MEMF_CLEAR | MEMF_PUBLIC);
+            struct LXAFileRequester *fr = asl_alloc_request(reqType, sizeof(struct LXAFileRequester));
             if (fr) {
-                fr->fr_Type = ASL_FileRequest;
                 fr->fr_LeftEdge = -1;  /* Sentinel: not set by app */
                 fr->fr_TopEdge = -1;   /* Sentinel: not set by app */
                 fr->fr_Width = 300;
@@ -1026,9 +1762,8 @@ APTR _asl_AllocAslRequest ( register struct AslBase *AslBase __asm("a6"),
         }
         
         case ASL_FontRequest: {
-            struct LXAFontRequester *fo = AllocMem(sizeof(struct LXAFontRequester), MEMF_CLEAR | MEMF_PUBLIC);
+            struct LXAFontRequester *fo = asl_alloc_request(reqType, sizeof(struct LXAFontRequester));
             if (fo) {
-                fo->fo_Type = ASL_FontRequest;
                 fo->fo_LeftEdge = -1;   /* Sentinel: not set by app */
                 fo->fo_TopEdge = -1;    /* Sentinel: not set by app */
                 fo->fo_Width = 300;
@@ -1037,13 +1772,32 @@ APTR _asl_AllocAslRequest ( register struct AslBase *AslBase __asm("a6"),
                 fo->fo_MaxHeight = 24;  /* Default per RKRM */
                 fo->fo_InitialSize = 8; /* Default font size */
                 parse_fo_tags(fo, tagList);
+                asl_set_font_selection(fo,
+                    fo->fo_InitialName ? fo->fo_InitialName : (CONST_STRPTR)"topaz.font",
+                    fo->fo_InitialSize,
+                    fo->fo_InitialStyle,
+                    fo->fo_InitialFlags ? fo->fo_InitialFlags : (FPF_ROMFONT | FPF_DESIGNED));
             }
             return fo;
         }
         
-        case ASL_ScreenModeRequest:
+        case ASL_ScreenModeRequest: {
+            struct LXAScreenModeRequester *sm = asl_alloc_request(reqType, sizeof(struct LXAScreenModeRequester));
+            if (sm) {
+                sm->sm_LeftEdge = -1;
+                sm->sm_TopEdge = -1;
+                sm->sm_Width = 320;
+                sm->sm_Height = 180;
+                sm->sm_DisplayID = LORES_KEY;
+                sm->sm_DoWidth = TRUE;
+                sm->sm_DoHeight = TRUE;
+                sm->sm_DoDepth = TRUE;
+                parse_sm_tags(sm, tagList);
+            }
+            return sm;
+        }
+
         default:
-            /* Not implemented yet */
             return NULL;
     }
 }
@@ -1056,22 +1810,28 @@ void _asl_FreeAslRequest ( register struct AslBase *AslBase __asm("a6"),
     
     if (!requester)
         return;
-    
-    /* Check type by looking at first field after reserved bytes */
-    struct LXAFileRequester *fr = (struct LXAFileRequester *)requester;
-    
-    if (fr->fr_Type == ASL_FileRequest) {
+
+    switch (asl_request_type(requester)) {
+    case ASL_FileRequest: {
+        struct LXAFileRequester *fr = (struct LXAFileRequester *)requester;
+        asl_clear_file_arglist(fr);
         if (fr->fr_File) asl_strfree(fr->fr_File);
         if (fr->fr_Drawer) asl_strfree(fr->fr_Drawer);
         if (fr->fr_Pattern) asl_strfree(fr->fr_Pattern);
-        FreeMem(fr, sizeof(struct LXAFileRequester));
-    } else if (fr->fr_Type == ASL_FontRequest) {
+        asl_free_request_memory(fr);
+        break;
+    }
+    case ASL_FontRequest: {
         struct LXAFontRequester *fo = (struct LXAFontRequester *)requester;
         if (fo->fo_Attr.ta_Name) asl_strfree(fo->fo_Attr.ta_Name);
-        FreeMem(requester, sizeof(struct LXAFontRequester));
-    } else {
-        /* Unknown type - try to free as file requester size */
-        FreeMem(requester, sizeof(struct LXAFileRequester));
+        asl_free_request_memory(fo);
+        break;
+    }
+    case ASL_ScreenModeRequest:
+        asl_free_request_memory(requester);
+        break;
+    default:
+        break;
     }
 }
 
@@ -1080,21 +1840,24 @@ BOOL _asl_AslRequest ( register struct AslBase *AslBase __asm("a6"),
                        register APTR requester __asm("a0"),
                        register struct TagItem *tagList __asm("a1") )
 {
-    struct LXAFileRequester *fr = (struct LXAFileRequester *)requester;
-    
     DPRINTF (LOG_DEBUG, "_asl: AslRequest() requester=0x%08lx\n", (ULONG)requester);
     
     if (!requester)
         return FALSE;
     
     /* Apply any tags passed to AslRequest */
-    if (fr->fr_Type == ASL_FileRequest) {
+    if (asl_request_type(requester) == ASL_FileRequest) {
+        struct LXAFileRequester *fr = (struct LXAFileRequester *)requester;
         parse_fr_tags(fr, tagList);
         return do_file_request(fr);
-    } else if (fr->fr_Type == ASL_FontRequest) {
+    } else if (asl_request_type(requester) == ASL_FontRequest) {
         struct LXAFontRequester *fo = (struct LXAFontRequester *)requester;
         parse_fo_tags(fo, tagList);
         return do_font_request(fo);
+    } else if (asl_request_type(requester) == ASL_ScreenModeRequest) {
+        struct LXAScreenModeRequester *sm = (struct LXAScreenModeRequester *)requester;
+        parse_sm_tags(sm, tagList);
+        return do_screenmode_request(sm);
     }
     
     return FALSE;

@@ -492,17 +492,19 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 #### 78-G: ASL Library (`src/rom/lxa_asl.c` vs `others/AROS-20231016-source/rom/compiler/alib/`)
 
-- [ ] `AllocAslRequest` / `FreeAslRequest` — ASL_FileRequest, ASL_FontRequest, ASL_ScreenModeRequest
-- [ ] `AslRequestTags` / `AslRequest` — run modal requester, return TRUE/FALSE
-- [ ] FileRequester tags: ASLFR_Window, ASLFR_TitleText, ASLFR_InitialFile, ASLFR_InitialDrawer, ASLFR_InitialPattern, ASLFR_Flags1 (FRF_DOSAVEMODE, FRF_DOMULTISELECT, FRF_DOPATTERNS)
-- [ ] FontRequester tags: ASLFO_Window, ASLFO_TitleText, ASLFO_InitialName, ASLFO_InitialSize, ASLFO_InitialStyle, ASLFO_Flags (FOF_DOFIXEDWIDTHONLY, FOF_DOSTYLEBUTTONS)
-- [ ] ScreenMode requester tags
-- [ ] `fr_File` / `fr_Drawer` / `fr_NumArgs` / `fr_ArgList` output fields
-- [ ] `fo_Attr` / `fo_TAttr` output fields ✅ (Phase 70a)
+Status: core requester allocation and modal execution now cover file, font, and screen mode requesters in 0.6.117, including direct GTest/sample regression coverage for `fr_ArgList`, `fo_TAttr`, and basic screen-mode selection.
+
+- [x] `AllocAslRequest` / `FreeAslRequest` — ASL_FileRequest, ASL_FontRequest, ASL_ScreenModeRequest
+- [ ] `AslRequestTags` / `AslRequest` — run modal requester, return TRUE/FALSE; plain `AslRequest()` is covered, varargs helper status still needs explicit verification against the public alib surface
+- [x] FileRequester tags: ASLFR_Window, ASLFR_TitleText, ASLFR_InitialFile, ASLFR_InitialDrawer, ASLFR_InitialPattern, ASLFR_Flags1 (FRF_DOSAVEMODE, FRF_DOMULTISELECT, FRF_DOPATTERNS)
+- [x] FontRequester tags: ASLFO_Window, ASLFO_TitleText, ASLFO_InitialName, ASLFO_InitialSize, ASLFO_InitialStyle, ASLFO_Flags (FOF_DOFIXEDWIDTHONLY, FOF_DOSTYLEBUTTONS)
+- [x] ScreenMode requester tags — initial mode/size/depth filters, title/buttons, and modal selection/cancel flow
+- [x] `fr_File` / `fr_Drawer` / `fr_NumArgs` / `fr_ArgList` output fields
+- [x] `fo_Attr` / `fo_TAttr` output fields ✅ (Phase 70a)
 
 ##### 78-G-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
+- [ ] Implement missing functions and stubs as far as possible — remaining follow-up is mainly varargs/alib helper verification and broader ScreenMode requester option coverage
 - [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
 - [ ] Performance review: identify performance improvement opportunities, add them to phase 79
 
@@ -893,7 +895,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] Rebalance long-running GTest drivers for parallel CTest execution by splitting oversized suites (`gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, `cluster2`) into smaller shards; verified with full `ctest --test-dir build --output-on-failure -j16`
 - [x] Regression maintenance: restore `graphics_gtest` (`ColorsPens`) and `dos_gtest` (`AssignNotify`) after palette-pen matching and assign-backed `DeviceProc()` regressions; verified with focused reruns and full `ctest --test-dir build --output-on-failure -j16`
 - [ ] Add new GTest assertions for each behavioral deviation found vs AROS
-- [ ] Run RKM sample programs after structural changes to catch regressions (gadtoolsgadgets_gtest, simplemenu_gtest, filereq_gtest, fontreq_gtest, easyrequest_gtest)
+- [x] Run RKM sample programs after structural changes to catch regressions (gadtoolsgadgets_gtest, simplemenu_gtest, filereq_gtest, fontreq_gtest, easyrequest_gtest) — ASL requester regression sweep now covers `filereq_gtest`, `fontreq_gtest`, `screenmodereq_gtest`, and `misc_gtest` targeted reruns in 0.6.117
 - [ ] Run application tests after changes to exec/dos (asm_one_gtest, devpac_gtest, kickpascal_gtest, cluster2_gtest, dpaint_gtest)
 - [ ] Update version to 0.7.0 when Phase 78 is complete (new MINOR — significant compatibility milestone)
 

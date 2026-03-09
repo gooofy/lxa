@@ -78,6 +78,45 @@ TEST_F(FileReqTest, CancelButton) {
     EXPECT_TRUE(exited) << "Program should exit after Cancel button";
 }
 
+TEST_F(FileReqTest, OKBuildsArgList) {
+    int drawer_x = window_info.x + 70;
+    int drawer_y = window_info.y + 27;
+    int file_x = window_info.x + 70;
+    int file_y = window_info.y + window_info.height - 35;
+    int ok_x = window_info.x + 8 + 30;
+    int ok_y = window_info.y + window_info.height - 20 - 14 + 7;
+
+    ClearOutput();
+    Click(drawer_x, drawer_y);
+    RunCyclesWithVBlank(5, 50000);
+    TypeString("SYS:");
+    RunCyclesWithVBlank(10, 50000);
+
+    Click(file_x, file_y);
+    RunCyclesWithVBlank(5, 50000);
+    TypeString("asl.library");
+    RunCyclesWithVBlank(10, 50000);
+
+    Click(ok_x, ok_y);
+    RunCyclesWithVBlank(20, 50000);
+
+    bool exited = lxa_wait_exit(5000);
+    if (!exited) {
+        Click(window_info.x + 10, window_info.y + 5);
+        exited = lxa_wait_exit(3000);
+    }
+
+    EXPECT_TRUE(exited) << "Program should exit after OK button";
+
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("NUMARGS=1"), std::string::npos)
+        << output;
+    EXPECT_NE(output.find("ARG0_NAME=asl.library"), std::string::npos)
+        << output;
+    EXPECT_NE(output.find("ARG0_LOCK="), std::string::npos)
+        << output;
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

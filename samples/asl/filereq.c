@@ -64,6 +64,12 @@ void main(int argc, char **argv)
             if (AslRequest(fr, NULL))
             {
                 printf("PATH=%s  FILE=%s\n", fr->rf_Dir, fr->rf_File);
+                printf("NUMARGS=%ld\n", fr->fr_NumArgs);
+                if (fr->fr_ArgList && fr->fr_NumArgs > 0)
+                {
+                    printf("ARG0_NAME=%s\n", fr->fr_ArgList[0].wa_Name);
+                    printf("ARG0_LOCK=%s\n", fr->fr_ArgList[0].wa_Lock ? "set" : "null");
+                }
                 printf("To combine the path and filename, copy the path\n");
                 printf("to a buffer, add the filename with Dos AddPart().\n");
             }

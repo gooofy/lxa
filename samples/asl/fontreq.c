@@ -54,6 +54,10 @@ void main(int argc, char **argv)
                 printf("FontReq: YSize=%d\n", fr->fo_Attr.ta_YSize);
                 printf("FontReq: Style=0x%x\n", fr->fo_Attr.ta_Style);
                 printf("FontReq: Flags=0x%x\n", fr->fo_Attr.ta_Flags);
+                printf("FontReq: TName=%s\n", fr->fo_TAttr.tta_Name);
+                printf("FontReq: TYSize=%d\n", fr->fo_TAttr.tta_YSize);
+                printf("FontReq: TStyle=0x%x\n", fr->fo_TAttr.tta_Style);
+                printf("FontReq: TFlags=0x%x\n", fr->fo_TAttr.tta_Flags);
             }
             else
             {

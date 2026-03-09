@@ -122,6 +122,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/fontreq_gtest.cpp)
         add_gtest_driver(fontreq_gtest)
     endif()
+
+    # ScreenModeReq - ASL screenmode requester test (GTest version)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/screenmodereq_gtest.cpp)
+        add_gtest_driver(screenmodereq_gtest)
+    endif()
     
     # ========== Input Tests ==========
     

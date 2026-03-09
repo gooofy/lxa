@@ -173,7 +173,7 @@ lxa -d -v myprogram
 - **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill, ScrollRaster, AreaFill, pixel arrays), palette/pen matching coverage via `ObtainPen()`/`ObtainBestPenA()` regressions
 - **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
 - **gadtools.library**: GadTools gadgets (buttons, strings, checkboxes, cycles, sliders, MX), menu layout helpers, and IDCMP/refresh wrapper coverage
-- **asl.library**: File and font requesters
+- **asl.library**: File, font, and screen mode requesters
 - **locale.library**: Locale management, FormatDate, FormatString, ParseDate
 - **diskfont.library**: Font loading from FONTS: directory (bitmap .font files)
 - **mathieeesingbas.library**: IEEE single-precision basic math (12 functions)
@@ -216,7 +216,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.107** - Phase 78-E pointer/input helper verification now locks `SetPointer`/`ClearPointer`, `SetMouseQueue`, `CurrentTime`, `DisplayAlert`, and `DisplayBeep` against direct Intuition regressions, including public pointer metadata updates, mouse-move queue throttling, monotonic time snapshots, and alert return semantics
+**Version 0.6.117** - Phase 78-G now covers ASL screen mode requester allocation/selection plus richer file/font requester metadata (`fr_ArgList`, `fo_TAttr`) with direct regression coverage in the Google Test suite
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

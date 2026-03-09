@@ -94,6 +94,7 @@ set(SAMPLES_LIST
     "expansion|findboards|FindBoards"
     "asl|filereq|FileReq"
     "asl|fontreq|FontReq"
+    "asl|screenmodereq|ScreenModeReq"
 )
 
 # === Tests ===
@@ -254,6 +255,8 @@ set(TESTS_LIST
     "../tests/devices/audio|main|Tests/Devices/Audio"
     "../tests/exec/struct_offsets|main|Tests/Exec/StructOffsets"
     "../tests/exec/exec_misc|main|Tests/Exec/ExecMisc"
+    "../tests/asl/filerequest|main|Tests/asl/filerequest"
+    "../tests/asl/screenmoderequest|main|Tests/asl/screenmoderequest"
 )
 
 # === Copy Test Data Files ===
