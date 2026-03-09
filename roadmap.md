@@ -102,9 +102,9 @@ Extend the test suite with targeted tests where feasible, extending the test sui
 - [x] `GetHead` / `GetTail` / `GetSucc` / `GetPred` — macros in `util.h` (AROS header-only, not LVO functions)
 
 **Review**:
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — `InitCode()`, `SetIntVector()`, `CachePreDMA()`, `CachePostDMA()`, and hosted `ColdReboot()` semantics now match the current lxa/AROS-compatible surface closely enough for direct regression coverage
+- [x] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [x] Performance review: identify performance improvement opportunities, add them to phase 79
 
 ---
 
@@ -897,6 +897,11 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 ### Phase 79: Architecture and performance improvements
 
+- [ ] Exec architecture: replace the manual built-in resident table population in `coldstart()` with a single shared registration source so `ResModules`, built-in library/device registration, and resident verification stay in sync
+- [ ] Exec architecture: factor interrupt vector state management (`SetIntVector`, server chains, sentinel defaults) behind shared helpers so direct vectors and queued interrupt servers cannot drift semantically
+- [ ] Exec performance: pre-bucket residents by startup class/version during coldstart so `InitCode()` does not need to linearly rescan every resident on each replay
+- [ ] Exec performance: cache built-in resident/library name lookups used during init and replay to avoid repeated list walks and string compares during startup-sensitive paths
+
 
 ---
 
@@ -911,5 +916,6 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-A-2**: Exec `Wait()` wait-mask clearing aligned with AROS, with signal regression coverage.
 - **Phase 78-A-3**: Exec `Wait(SIGBREAKF_CTRL_C)` behavior verified against AROS, with explicit break-signal regression coverage.
 - **Phase 78-A-5**: Exec interrupts, nesting counters, library management, and `SumKickData()` verified against AROS behavior.
+- **Phase 78-A Review**: Exec review pass completed; remaining stubbed `InitCode`, `SetIntVector`, `CachePreDMA`, `CachePostDMA`, and hosted `ColdReboot` behavior now have implementation coverage, with direct exec regressions and full-suite validation.
 - **Phase 78-B**: DOS library verification completed, including loader/runtime coverage, assign/notify support, buffered I/O, and the final pattern/regression sweep.
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.

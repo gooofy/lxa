@@ -17,6 +17,7 @@
 #include <exec/types.h>
 #include <exec/execbase.h>
 #include <exec/memory.h>
+#include <exec/resident.h>
 #include <exec/lists.h>
 #include <exec/nodes.h>
 #include <exec/alerts.h>
@@ -637,8 +638,58 @@ int main(void)
         }
     }
 
-    /* ===== Test 9: RawDoFmt BSTR format ===== */
-    print("\nTest 9: RawDoFmt BSTR format\n");
+    /* ===== Test 9: CachePreDMA / CachePostDMA hosted semantics ===== */
+    print("\nTest 9: CachePreDMA / CachePostDMA hosted semantics\n");
+    {
+        ULONG dma_length = 16;
+        ULONG buffer[4] = { 1, 2, 3, 4 };
+        APTR dma_addr;
+
+        dma_addr = CachePreDMA(buffer, &dma_length, DMA_ReadFromRAM);
+        if (dma_addr == buffer)
+        {
+            test_ok("CachePreDMA returns original address");
+        }
+        else
+        {
+            test_fail_msg("CachePreDMA returns original address");
+        }
+
+        if (dma_length == 16)
+        {
+            test_ok("CachePreDMA preserves length");
+        }
+        else
+        {
+            test_fail_msg("CachePreDMA preserves length");
+        }
+
+        CachePostDMA(buffer, &dma_length, DMA_NoModify);
+        test_ok("CachePostDMA returns without crashing");
+    }
+
+    /* ===== Test 10: InitCode resident replay ===== */
+    print("\nTest 10: InitCode resident replay\n");
+    {
+        struct Resident *resident_before;
+        struct Resident *resident_after;
+
+        resident_before = FindResident((CONST_STRPTR)"dos.library");
+        InitCode(RTF_COLDSTART, 0);
+        resident_after = FindResident((CONST_STRPTR)"dos.library");
+
+        if (resident_before != NULL && resident_after == resident_before)
+        {
+            test_ok("InitCode keeps built-in residents discoverable");
+        }
+        else
+        {
+            test_fail_msg("InitCode keeps built-in residents discoverable");
+        }
+    }
+
+    /* ===== Test 11: RawDoFmt BSTR format ===== */
+    print("\nTest 11: RawDoFmt BSTR format\n");
     {
         /*
          * BSTR requires 4-byte aligned memory because BPTR = address >> 2.

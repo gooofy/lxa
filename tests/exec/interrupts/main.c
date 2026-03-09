@@ -84,6 +84,10 @@ static void SoftHandlerB(void)
     record_order(2);
 }
 
+static void VectorHandler(void)
+{
+}
+
 int main(void)
 {
     struct Interrupt intA;
@@ -256,6 +260,50 @@ int main(void)
 
     UserState(NULL);
     test_ok("UserState(NULL) did not crash");
+
+    /* Test 9: SetIntVector direct vector semantics */
+    print("\nTest 9: SetIntVector direct vector semantics\n");
+    {
+        struct Interrupt vectorInt;
+        struct Interrupt *oldInt;
+
+        vectorInt.is_Node.ln_Type = NT_INTERRUPT;
+        vectorInt.is_Node.ln_Pri = 0;
+        vectorInt.is_Node.ln_Name = (char *)"Vector";
+        vectorInt.is_Data = NULL;
+        vectorInt.is_Code = (void (*)())VectorHandler;
+
+        oldInt = SetIntVector(INTB_EXTER, &vectorInt);
+        if (oldInt == NULL) {
+            test_ok("SetIntVector returns previous vector");
+        } else {
+            test_fail_msg("SetIntVector returns previous vector");
+        }
+
+        if (SysBase->IntVects[INTB_EXTER].iv_Code == vectorInt.is_Code) {
+            test_ok("SetIntVector updates iv_Code");
+        } else {
+            test_fail_msg("SetIntVector updates iv_Code");
+        }
+
+        if (SysBase->IntVects[INTB_EXTER].iv_Node == NULL) {
+            test_ok("SetIntVector keeps non-handler iv_Node NULL");
+        } else {
+            test_fail_msg("SetIntVector keeps non-handler iv_Node NULL");
+        }
+
+        if (SetIntVector(INTB_EXTER, NULL) == &vectorInt) {
+            test_ok("SetIntVector(NULL) returns installed vector");
+        } else {
+            test_fail_msg("SetIntVector(NULL) returns installed vector");
+        }
+
+        if ((ULONG)SysBase->IntVects[INTB_EXTER].iv_Code == ~0UL) {
+            test_ok("SetIntVector(NULL) restores default iv_Code sentinel");
+        } else {
+            test_fail_msg("SetIntVector(NULL) restores default iv_Code sentinel");
+        }
+    }
 
     print("\n=============================\n");
     print("Tests passed: ");

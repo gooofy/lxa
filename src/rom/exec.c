@@ -127,6 +127,17 @@ static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
 static struct ExecBase  g_SysBase;
 static struct MemHeader g_MemHeader;
 
+struct ExecIntVectorState
+{
+    struct List server_list;
+    struct Interrupt *direct_interrupt;
+    APTR direct_data;
+};
+
+static struct ExecIntVectorState g_IntVectorState[16];
+
+static struct Resident *g_ResidentModules[33];
+
 struct ExecBase        *SysBase;
 struct UtilityBase     *UtilityBase;
 struct DosLibrary      *DOSBase;
@@ -203,8 +214,73 @@ void _exec_InitCode ( register struct ExecBase * SysBase __asm("a6"),
                       register ULONG ___startClass  __asm("d0"),
                       register ULONG ___version  __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: InitCode unimplemented STUB called.\n");
-    assert(FALSE);
+#ifndef RESLIST_NEXT
+#define RESLIST_NEXT 0x80000000UL
+#endif
+
+    struct Resident **list;
+
+    DPRINTF (LOG_DEBUG, "_exec: InitCode called, startClass=0x%08lx version=%lu\n",
+             ___startClass, ___version);
+
+    list = SysBase->ResModules;
+    while (list && *list)
+    {
+        struct Resident *resident;
+
+        if ((ULONG)*list & RESLIST_NEXT)
+        {
+            list = (struct Resident **)((ULONG)*list & ~RESLIST_NEXT);
+            continue;
+        }
+
+        resident = *list++;
+        if (!resident)
+            continue;
+
+        if (resident->rt_MatchWord != RTC_MATCHWORD || resident->rt_MatchTag != resident)
+            continue;
+
+        if (resident->rt_Version < ___version)
+            continue;
+
+        if (!(resident->rt_Flags & ___startClass))
+            continue;
+
+        if ((resident->rt_Flags & RTF_AUTOINIT) && resident->rt_Name)
+        {
+            struct List *target_list = NULL;
+            struct Node *node;
+
+            switch (resident->rt_Type)
+            {
+                case NT_LIBRARY:
+                    target_list = &SysBase->LibList;
+                    break;
+                case NT_DEVICE:
+                    target_list = &SysBase->DeviceList;
+                    break;
+                case NT_RESOURCE:
+                    target_list = &SysBase->ResourceList;
+                    break;
+            }
+
+            if (target_list)
+            {
+                for (node = GETHEAD(target_list); node; node = GETSUCC(node))
+                {
+                    if (node->ln_Name && strcmp(node->ln_Name, resident->rt_Name) == 0)
+                    {
+                        resident = NULL;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (resident)
+            InitResident(resident, 0);
+    }
 }
 
 void _exec_InitStruct ( register struct ExecBase * SysBase __asm("a6"),
@@ -679,9 +755,37 @@ struct Interrupt * _exec_SetIntVector ( register struct ExecBase * SysBase __asm
                                                         register LONG ___intNumber  __asm("d0"),
                                                         register const struct Interrupt * ___interrupt  __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: SetIntVector unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct Interrupt *old_interrupt;
+    BOOL is_handler;
+
+    DPRINTF (LOG_DEBUG, "_exec: SetIntVector called, intNumber=%ld interrupt=0x%08lx\n",
+             ___intNumber, (ULONG)___interrupt);
+
+    if (___intNumber < 0 || ___intNumber >= 16)
+        return NULL;
+
+    is_handler = (___intNumber <= 2) || (___intNumber >= 6 && ___intNumber <= 12);
+    old_interrupt = g_IntVectorState[___intNumber].direct_interrupt;
+
+    Disable();
+
+    g_IntVectorState[___intNumber].direct_interrupt = (struct Interrupt *)___interrupt;
+    SysBase->IntVects[___intNumber].iv_Node = is_handler ? (struct Node *)___interrupt : NULL;
+
+    if (___interrupt)
+    {
+        g_IntVectorState[___intNumber].direct_data = ___interrupt->is_Data;
+        SysBase->IntVects[___intNumber].iv_Code = ___interrupt->is_Code;
+    }
+    else
+    {
+        g_IntVectorState[___intNumber].direct_data = (APTR)~0;
+        SysBase->IntVects[___intNumber].iv_Code = (APTR)~0;
+    }
+
+    Enable();
+
+    return old_interrupt;
 }
 
 /*
@@ -4624,8 +4728,11 @@ ULONG _exec_AttemptSemaphoreShared ( register struct ExecBase * SysBase __asm("a
 
 void _exec_ColdReboot ( register struct ExecBase * SysBase __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: ColdReboot unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_WARNING, "_exec: ColdReboot() requested, stopping emulator for hosted reboot\n");
+    emu_stop(0);
+    while (1)
+    {
+    }
 }
 
 void exec_StackSwap ( register struct ExecBase        *SysBase   __asm("a6"),
@@ -4666,9 +4773,9 @@ APTR _exec_CachePreDMA ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG * ___length  __asm("a1"),
                                                         register ULONG ___flags  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: CachePreDMA unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_exec: CachePreDMA() addr=0x%08lx len=0x%08lx flags=0x%08lx\n",
+             (ULONG)___address, (ULONG)___length, ___flags);
+    return (APTR)___address;
 }
 
 void _exec_CachePostDMA ( register struct ExecBase * SysBase __asm("a6"),
@@ -4676,8 +4783,8 @@ void _exec_CachePostDMA ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG * ___length  __asm("a1"),
                                                         register ULONG ___flags  __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_exec: CachePostDMA unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_exec: CachePostDMA() addr=0x%08lx len=0x%08lx flags=0x%08lx\n",
+             (ULONG)___address, (ULONG)___length, ___flags);
 }
 
 void _exec_AddMemHandler ( register struct ExecBase * SysBase __asm("a6"),
@@ -5145,6 +5252,41 @@ void coldstart (void)
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-1014)].vec = _exec_AllocVecPooled;   /* V39+ */
     g_ExecJumpTable[EXEC_FUNCTABLE_ENTRY(-1020)].vec = _exec_FreeVecPooled;    /* V39+ */
 
+    g_ResidentModules[0] = __lxa_dos_ROMTag;
+    g_ResidentModules[1] = __lxa_utility_ROMTag;
+    g_ResidentModules[2] = __lxa_mathffp_ROMTag;
+    g_ResidentModules[3] = __lxa_mathtrans_ROMTag;
+    g_ResidentModules[4] = __lxa_mathieeedoubbas_ROMTag;
+    g_ResidentModules[5] = __lxa_mathieeedoubtrans_ROMTag;
+    g_ResidentModules[6] = __lxa_mathieeesingbas_ROMTag;
+    g_ResidentModules[7] = __lxa_graphics_ROMTag;
+    g_ResidentModules[8] = __lxa_intuition_ROMTag;
+    g_ResidentModules[9] = __lxa_layers_ROMTag;
+    g_ResidentModules[10] = __lxa_expansion_ROMTag;
+    g_ResidentModules[11] = __lxa_icon_ROMTag;
+    g_ResidentModules[12] = __lxa_diskfont_ROMTag;
+    g_ResidentModules[13] = __lxa_keymap_ROMTag;
+    g_ResidentModules[14] = __lxa_translator_ROMTag;
+    g_ResidentModules[15] = __lxa_locale_ROMTag;
+    g_ResidentModules[16] = __lxa_gadtools_ROMTag;
+    g_ResidentModules[17] = __lxa_workbench_ROMTag;
+    g_ResidentModules[18] = __lxa_asl_ROMTag;
+    g_ResidentModules[19] = __lxa_commodities_ROMTag;
+    g_ResidentModules[20] = __lxa_rexxsyslib_ROMTag;
+    g_ResidentModules[21] = __lxa_iffparse_ROMTag;
+    g_ResidentModules[22] = __lxa_datatypes_ROMTag;
+    g_ResidentModules[23] = __lxa_reqtools_ROMTag;
+    g_ResidentModules[24] = __lxa_dopus_ROMTag;
+    g_ResidentModules[25] = __lxa_input_ROMTag;
+    g_ResidentModules[26] = __lxa_console_ROMTag;
+    g_ResidentModules[27] = __lxa_timer_ROMTag;
+    g_ResidentModules[28] = __lxa_clipboard_ROMTag;
+    g_ResidentModules[29] = __lxa_audio_ROMTag;
+    g_ResidentModules[30] = __lxa_gameport_ROMTag;
+    g_ResidentModules[31] = __lxa_trackdisk_ROMTag;
+    g_ResidentModules[32] = NULL;
+
+    SysBase->ResModules = g_ResidentModules;
     SysBase->SoftVer = VERSION;
 
     // Initialize SysBase LibNode (exec.library version info)
@@ -5297,15 +5439,14 @@ void coldstart (void)
     SysBase->IntrList.lh_Type = NT_INTERRUPT;
     for (int i = 0; i < 16; i++)
     {
-        struct List *int_list = (struct List *)AllocMem(sizeof(struct List), MEMF_PUBLIC | MEMF_CLEAR);
-        if (int_list)
-        {
-            NEWLIST(int_list);
-            int_list->lh_Type = NT_INTERRUPT;
-            SysBase->IntVects[i].iv_Data = int_list;
-            SysBase->IntVects[i].iv_Code = NULL;
-            SysBase->IntVects[i].iv_Node = NULL;
-        }
+        NEWLIST(&g_IntVectorState[i].server_list);
+        g_IntVectorState[i].server_list.lh_Type = NT_INTERRUPT;
+        g_IntVectorState[i].direct_interrupt = NULL;
+        g_IntVectorState[i].direct_data = (APTR)~0;
+
+        SysBase->IntVects[i].iv_Data = &g_IntVectorState[i].server_list;
+        SysBase->IntVects[i].iv_Code = (APTR)~0;
+        SysBase->IntVects[i].iv_Node = NULL;
     }
 
     // init semaphore list for AddSemaphore/RemSemaphore/FindSemaphore
