@@ -3494,10 +3494,125 @@ static struct Window * _find_window_at_pos(struct Screen *screen, WORD x, WORD y
  * Coordinates are window-relative
  * Returns the gadget or NULL if none found
  */
+static void _calculate_gadget_box(struct Window *window, struct Requester *req,
+                                  struct Gadget *gad,
+                                  LONG *left, LONG *top,
+                                  LONG *width, LONG *height)
+{
+    LONG calc_left;
+    LONG calc_top;
+    LONG calc_width;
+    LONG calc_height;
+
+    if (!window || !gad)
+    {
+        if (left)
+            *left = 0;
+        if (top)
+            *top = 0;
+        if (width)
+            *width = 0;
+        if (height)
+            *height = 0;
+        return;
+    }
+
+    calc_left = gad->LeftEdge;
+    calc_top = gad->TopEdge;
+    calc_width = gad->Width;
+    calc_height = gad->Height;
+
+    if (req)
+    {
+        calc_left += req->LeftEdge;
+        calc_top += req->TopEdge;
+    }
+
+    if (gad->Flags & GFLG_RELRIGHT)
+    {
+        LONG container_width = req ? req->Width : window->Width;
+        calc_left += container_width;
+    }
+
+    if (gad->Flags & GFLG_RELBOTTOM)
+    {
+        LONG container_height = req ? req->Height : window->Height;
+        calc_top += container_height;
+    }
+
+    if (gad->Flags & GFLG_RELWIDTH)
+    {
+        LONG container_width = req ? req->Width : window->Width;
+        calc_width += container_width;
+    }
+
+    if (gad->Flags & GFLG_RELHEIGHT)
+    {
+        LONG container_height = req ? req->Height : window->Height;
+        calc_height += container_height;
+    }
+
+    if (left)
+        *left = calc_left;
+    if (top)
+        *top = calc_top;
+    if (width)
+        *width = calc_width;
+    if (height)
+        *height = calc_height;
+}
+
+static void _clear_relative_gadget_trails(struct Window *window, WORD dx, WORD dy)
+{
+    struct Gadget *gad;
+    struct RastPort *rp;
+
+    if (!window || !window->RPort)
+        return;
+
+    rp = window->RPort;
+
+    for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
+    {
+        LONG new_left;
+        LONG new_top;
+        LONG new_width;
+        LONG new_height;
+        LONG old_left;
+        LONG old_top;
+        LONG old_width;
+        LONG old_height;
+
+        if (!(gad->Flags & (GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_RELWIDTH | GFLG_RELHEIGHT)))
+            continue;
+
+        _calculate_gadget_box(window, NULL, gad, &new_left, &new_top, &new_width, &new_height);
+
+        old_left = new_left - ((gad->Flags & GFLG_RELRIGHT) ? dx : 0);
+        old_top = new_top - ((gad->Flags & GFLG_RELBOTTOM) ? dy : 0);
+        old_width = new_width - ((gad->Flags & GFLG_RELWIDTH) ? dx : 0);
+        old_height = new_height - ((gad->Flags & GFLG_RELHEIGHT) ? dy : 0);
+
+        if (old_width <= 0 || old_height <= 0)
+            continue;
+
+        if (old_left == new_left && old_top == new_top &&
+            old_width == new_width && old_height == new_height)
+            continue;
+
+        SetAPen(rp, 0);
+        RectFill(rp,
+                 old_left,
+                 old_top,
+                 old_left + old_width - 1,
+                 old_top + old_height - 1);
+    }
+}
+
 static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WORD relY)
 {
     struct Gadget *gad;
-    WORD gx0, gy0, gx1, gy1;
+    LONG gx0, gy0, width, height;
     
     if (!window)
         return NULL;
@@ -3509,33 +3624,15 @@ static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WOR
         if (gad->Flags & GFLG_DISABLED)
             continue;
         
-        /* Calculate gadget bounds (handling relative positioning) */
-        gx0 = gad->LeftEdge;
-        gy0 = gad->TopEdge;
-        gx1 = gx0 + gad->Width;
-        gy1 = gy0 + gad->Height;
-        
-        /* Handle GFLG_REL* flags for relative positioning */
-        if (gad->Flags & GFLG_RELRIGHT)
-            gx0 += window->Width - 1;
-        if (gad->Flags & GFLG_RELBOTTOM)
-            gy0 += window->Height - 1;
-        if (gad->Flags & GFLG_RELWIDTH)
-            gx1 = gx0 + gad->Width + window->Width;
-        if (gad->Flags & GFLG_RELHEIGHT)
-            gy1 = gy0 + gad->Height + window->Height;
-        
-        /* Update end coordinates if relative flags changed start */
-        if (gad->Flags & GFLG_RELRIGHT)
-            gx1 = gx0 + gad->Width;
-        if (gad->Flags & GFLG_RELBOTTOM)
-            gy1 = gy0 + gad->Height;
+        _calculate_gadget_box(window, NULL, gad, &gx0, &gy0, &width, &height);
         
         DPRINTF(LOG_DEBUG, "_intuition: _find_gadget_at_pos() checking gad=0x%08lx type=0x%04x bounds=(%d,%d)-(%d,%d) point=(%d,%d)\n",
-                (ULONG)gad, gad->GadgetType, gx0, gy0, gx1, gy1, relX, relY);
+                (ULONG)gad, gad->GadgetType,
+                (int)gx0, (int)gy0, (int)(gx0 + width), (int)(gy0 + height),
+                relX, relY);
         
         /* Check if point is inside gadget bounds */
-        if (relX >= gx0 && relX < gx1 && relY >= gy0 && relY < gy1)
+        if (relX >= gx0 && relX < gx0 + width && relY >= gy0 && relY < gy0 + height)
         {
             DPRINTF(LOG_DEBUG, "_intuition: _find_gadget_at_pos() hit gadget type=0x%04x at (%d,%d)\n",
                     gad->GadgetType, (int)relX, (int)relY);
@@ -3552,33 +3649,14 @@ static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WOR
  */
 static BOOL _point_in_gadget(struct Window *window, struct Gadget *gad, WORD relX, WORD relY)
 {
-    WORD gx0, gy0, gx1, gy1;
+    LONG gx0, gy0, width, height;
     
     if (!window || !gad)
         return FALSE;
     
-    /* Calculate gadget bounds */
-    gx0 = gad->LeftEdge;
-    gy0 = gad->TopEdge;
-    gx1 = gx0 + gad->Width;
-    gy1 = gy0 + gad->Height;
+    _calculate_gadget_box(window, NULL, gad, &gx0, &gy0, &width, &height);
     
-    /* Handle GFLG_REL* flags */
-    if (gad->Flags & GFLG_RELRIGHT)
-        gx0 += window->Width - 1;
-    if (gad->Flags & GFLG_RELBOTTOM)
-        gy0 += window->Height - 1;
-    if (gad->Flags & GFLG_RELWIDTH)
-        gx1 = gx0 + gad->Width + window->Width;
-    if (gad->Flags & GFLG_RELHEIGHT)
-        gy1 = gy0 + gad->Height + window->Height;
-    
-    if (gad->Flags & GFLG_RELRIGHT)
-        gx1 = gx0 + gad->Width;
-    if (gad->Flags & GFLG_RELBOTTOM)
-        gy1 = gy0 + gad->Height;
-    
-    return (relX >= gx0 && relX < gx1 && relY >= gy0 && relY < gy1);
+    return (relX >= gx0 && relX < gx0 + width && relY >= gy0 && relY < gy0 + height);
 }
 
 /* Forward declarations for WindowToBack/WindowToFront (used by depth gadget handler) */
@@ -5729,14 +5807,45 @@ VOID _intuition_OffMenu ( register struct IntuitionBase * IntuitionBase __asm("a
                                                         register struct Window * window __asm("a0"),
                                                         register UWORD menuNumber __asm("d0"))
 {
-    /*
-     * OffMenu() disables a menu, menu item, or sub-item.
-     * The menuNumber encodes: menu (bits 0-4), item (bits 5-10), subitem (bits 11-15).
-     * For now we just log it - menu rendering isn't implemented yet.
-     */
-    DPRINTF (LOG_DEBUG, "_intuition: OffMenu() window=0x%08lx menuNumber=0x%04x (no-op)\n",
+    struct Menu *menu;
+    struct MenuItem *item;
+    WORD index;
+
+    DPRINTF (LOG_DEBUG, "_intuition: OffMenu() window=0x%08lx menuNumber=0x%04x\n",
              (ULONG)window, (unsigned)menuNumber);
-    /* No-op - menu enable/disable is visual only */
+
+    if (!window || !window->MenuStrip || MENUNUM(menuNumber) == NOMENU)
+        return;
+
+    menu = window->MenuStrip;
+    for (index = 0; menu && index < MENUNUM(menuNumber); index++)
+        menu = menu->NextMenu;
+
+    if (!menu)
+        return;
+
+    if (ITEMNUM(menuNumber) == NOITEM)
+    {
+        menu->Flags &= ~MENUENABLED;
+        return;
+    }
+
+    item = menu->FirstItem;
+    for (index = 0; item && index < ITEMNUM(menuNumber); index++)
+        item = item->NextItem;
+
+    if (!item)
+        return;
+
+    if (SUBNUM(menuNumber) != NOSUB && item->SubItem)
+    {
+        item = item->SubItem;
+        for (index = 0; item && index < SUBNUM(menuNumber); index++)
+            item = item->NextItem;
+    }
+
+    if (item)
+        item->Flags &= ~ITEMENABLED;
 }
 
 VOID _intuition_OnGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -5757,14 +5866,45 @@ VOID _intuition_OnMenu ( register struct IntuitionBase * IntuitionBase __asm("a6
                                                         register struct Window * window __asm("a0"),
                                                         register UWORD menuNumber __asm("d0"))
 {
-    /*
-     * OnMenu() enables a menu, menu item, or sub-item.
-     * The menuNumber encodes: menu (bits 0-4), item (bits 5-10), subitem (bits 11-15).
-     * For now we just log it - menu rendering isn't implemented yet.
-     */
-    DPRINTF (LOG_DEBUG, "_intuition: OnMenu() window=0x%08lx menuNumber=0x%04x (no-op)\n",
+    struct Menu *menu;
+    struct MenuItem *item;
+    WORD index;
+
+    DPRINTF (LOG_DEBUG, "_intuition: OnMenu() window=0x%08lx menuNumber=0x%04x\n",
              (ULONG)window, (unsigned)menuNumber);
-    /* No-op - menu enable/disable is visual only */
+
+    if (!window || !window->MenuStrip || MENUNUM(menuNumber) == NOMENU)
+        return;
+
+    menu = window->MenuStrip;
+    for (index = 0; menu && index < MENUNUM(menuNumber); index++)
+        menu = menu->NextMenu;
+
+    if (!menu)
+        return;
+
+    if (ITEMNUM(menuNumber) == NOITEM)
+    {
+        menu->Flags |= MENUENABLED;
+        return;
+    }
+
+    item = menu->FirstItem;
+    for (index = 0; item && index < ITEMNUM(menuNumber); index++)
+        item = item->NextItem;
+
+    if (!item)
+        return;
+
+    if (SUBNUM(menuNumber) != NOSUB && item->SubItem)
+    {
+        item = item->SubItem;
+        for (index = 0; item && index < SUBNUM(menuNumber); index++)
+            item = item->NextItem;
+    }
+
+    if (item)
+        item->Flags |= ITEMENABLED;
 }
 
 struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -7157,6 +7297,10 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
         emucall3(EMU_CALL_INT_SIZE_WINDOW, (ULONG)window->UserData, (ULONG)new_w, (ULONG)new_h);
     }
 
+    _clear_relative_gadget_trails(window, dx, dy);
+
+    _render_window_frame(window);
+
     _post_idcmp_message(window, IDCMP_NEWSIZE, 0, 0,
                         window, window->MouseX, window->MouseY);
     _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE, 0,
@@ -7974,38 +8118,7 @@ static void _complement_gadget_area(struct Window *window, struct Requester *req
     
     rp = window->RPort;
     
-    /* Calculate gadget position (same logic as _render_gadget) */
-    left = gad->LeftEdge;
-    top = gad->TopEdge;
-    width = gad->Width;
-    height = gad->Height;
-    
-    if (req)
-    {
-        left += req->LeftEdge;
-        top += req->TopEdge;
-    }
-    
-    if (gad->Flags & GFLG_RELRIGHT)
-    {
-        LONG containerW = (req) ? req->Width : window->Width;
-        left += containerW;
-    }
-    if (gad->Flags & GFLG_RELBOTTOM)
-    {
-        LONG containerH = (req) ? req->Height : window->Height;
-        top += containerH;
-    }
-    if (gad->Flags & GFLG_RELWIDTH)
-    {
-        LONG containerW = (req) ? req->Width : window->Width;
-        width += containerW;
-    }
-    if (gad->Flags & GFLG_RELHEIGHT)
-    {
-        LONG containerH = (req) ? req->Height : window->Height;
-        height += containerH;
-    }
+    _calculate_gadget_box(window, req, gad, &left, &top, &width, &height);
     
     DPRINTF(LOG_DEBUG, "_intuition: _complement_gadget_area() gad=0x%08lx at (%ld,%ld) %ldx%ld flags=0x%04x\n",
             (ULONG)gad, left, top, width, height, (unsigned)gad->Flags);
@@ -8030,39 +8143,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     
     rp = window->RPort;
     
-    /* Calculate base position */
-    left = gad->LeftEdge;
-    top = gad->TopEdge;
-    width = gad->Width;
-    height = gad->Height;
-    
-    if (req)
-    {
-        left += req->LeftEdge;
-        top += req->TopEdge;
-    }
-    
-    /* Handle relative positioning flags */
-    if (gad->Flags & GFLG_RELRIGHT)
-    {
-        LONG containerW = (req) ? req->Width : window->Width;
-        left += containerW;
-    }
-    if (gad->Flags & GFLG_RELBOTTOM)
-    {
-        LONG containerH = (req) ? req->Height : window->Height;
-        top += containerH;
-    }
-    if (gad->Flags & GFLG_RELWIDTH)
-    {
-        LONG containerW = (req) ? req->Width : window->Width;
-        width += containerW;
-    }
-    if (gad->Flags & GFLG_RELHEIGHT)
-    {
-        LONG containerH = (req) ? req->Height : window->Height;
-        height += containerH;
-    }
+    _calculate_gadget_box(window, req, gad, &left, &top, &width, &height);
     
     /* Add window border offset if not using a layer that handles it?
      * Standard Gfx: RPort is usually window's UserPort or similar.

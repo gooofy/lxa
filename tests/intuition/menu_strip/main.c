@@ -41,6 +41,7 @@ int main(void)
     struct MenuItem item1, item2, item3;
     struct MenuItem sub1, sub2;
     struct MenuItem *result;
+    UWORD old_flags;
     int errors = 0;
 
     print("Testing menu functions...\n");
@@ -210,6 +211,55 @@ int main(void)
         errors++;
     } else {
         print("OK: window->MenuStrip set correctly\n");
+    }
+
+    print("Testing OffMenu()/OnMenu() for whole menu disable...\n");
+    old_flags = menu1.Flags;
+    OffMenu(window, FULLMENUNUM(0, NOITEM, NOSUB));
+    if (menu1.Flags & MENUENABLED) {
+        print("FAIL: OffMenu() did not clear MENUENABLED\n");
+        errors++;
+    } else {
+        OnMenu(window, FULLMENUNUM(0, NOITEM, NOSUB));
+        if (!(menu1.Flags & MENUENABLED)) {
+            print("FAIL: OnMenu() did not restore MENUENABLED\n");
+            errors++;
+        } else {
+            print("OK: OffMenu()/OnMenu() toggle MENUENABLED\n");
+        }
+    }
+    menu1.Flags = old_flags;
+
+    print("Testing OffMenu()/OnMenu() for item disable...\n");
+    item2.Flags |= ITEMENABLED;
+    OffMenu(window, FULLMENUNUM(0, 1, NOSUB));
+    if (item2.Flags & ITEMENABLED) {
+        print("FAIL: OffMenu() did not clear ITEMENABLED on menu item\n");
+        errors++;
+    } else {
+        OnMenu(window, FULLMENUNUM(0, 1, NOSUB));
+        if (!(item2.Flags & ITEMENABLED)) {
+            print("FAIL: OnMenu() did not restore ITEMENABLED on menu item\n");
+            errors++;
+        } else {
+            print("OK: OffMenu()/OnMenu() toggle ITEMENABLED on menu items\n");
+        }
+    }
+
+    print("Testing OffMenu()/OnMenu() for sub-item disable...\n");
+    sub2.Flags |= ITEMENABLED;
+    OffMenu(window, FULLMENUNUM(0, 0, 1));
+    if (sub2.Flags & ITEMENABLED) {
+        print("FAIL: OffMenu() did not clear ITEMENABLED on sub-item\n");
+        errors++;
+    } else {
+        OnMenu(window, FULLMENUNUM(0, 0, 1));
+        if (!(sub2.Flags & ITEMENABLED)) {
+            print("FAIL: OnMenu() did not restore ITEMENABLED on sub-item\n");
+            errors++;
+        } else {
+            print("OK: OffMenu()/OnMenu() toggle ITEMENABLED on sub-items\n");
+        }
     }
 
     /* Test ItemAddress() with MENUNULL */

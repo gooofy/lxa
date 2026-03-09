@@ -10,6 +10,7 @@
 #include <graphics/layers.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
+#include <string.h>
 #include <clib/exec_protos.h>
 #include <clib/graphics_protos.h>
 #include <clib/intuition_protos.h>
@@ -114,6 +115,9 @@ int main(void)
     struct NewWindow nw;
     struct Screen *screen;
     struct Window *window;
+    struct Gadget relative_gadget;
+    struct Border relative_border;
+    WORD relative_xy[] = {0, 0, 19, 0, 19, 9, 0, 9, 0, 0};
     int errors = 0;
     
     print("Testing Window Manipulation Functions...\n\n");
@@ -418,7 +422,60 @@ int main(void)
             }
         }
     }
-    
+
+    print("Test 4g: SizeWindow repositions relative gadgets and clears old pixels...\n");
+    memset(&relative_gadget, 0, sizeof(relative_gadget));
+    memset(&relative_border, 0, sizeof(relative_border));
+    relative_border.FrontPen = 1;
+    relative_border.BackPen = 0;
+    relative_border.DrawMode = JAM1;
+    relative_border.Count = 5;
+    relative_border.XY = relative_xy;
+
+    relative_gadget.LeftEdge = -30;
+    relative_gadget.TopEdge = -20;
+    relative_gadget.Width = 20;
+    relative_gadget.Height = 10;
+    relative_gadget.Flags = GFLG_RELRIGHT | GFLG_RELBOTTOM;
+    relative_gadget.GadgetType = GTYP_BOOLGADGET;
+    relative_gadget.GadgetRender = &relative_border;
+    relative_gadget.GadgetID = 99;
+
+    AddGadget(window, &relative_gadget, (UWORD)~0);
+    RefreshGadgets(&relative_gadget, window, NULL);
+    {
+        LONG old_x;
+        LONG old_y;
+
+        old_x = window->LeftEdge + relative_gadget.LeftEdge + window->Width;
+        old_y = window->TopEdge + relative_gadget.TopEdge + window->Height;
+
+        if (ReadPixel(&screen->RastPort, old_x, old_y) != 1) {
+            print("  FAIL: Relative gadget did not render at its initial anchor\n\n");
+            errors++;
+        } else {
+            SizeWindow(window, 20, 10);
+            {
+                LONG new_x;
+                LONG new_y;
+
+                new_x = window->LeftEdge + relative_gadget.LeftEdge + window->Width;
+                new_y = window->TopEdge + relative_gadget.TopEdge + window->Height;
+
+                if (ReadPixel(&screen->RastPort, new_x, new_y) != 1) {
+                    print("  FAIL: SizeWindow did not redraw the relative gadget at the new anchor\n\n");
+                    errors++;
+                } else if (ReadPixel(&screen->RastPort, old_x, old_y) != 0) {
+                    print("  FAIL: SizeWindow left stale pixels at the old relative gadget position\n\n");
+                    errors++;
+                } else {
+                    print("  OK: SizeWindow moves relative gadgets and clears the old location\n\n");
+                }
+            }
+        }
+    }
+    RemoveGadget(window, &relative_gadget);
+
     /* Test 5: ZipWindow */
     print("Test 5: ZipWindow()...\n");
     ZipWindow(window);

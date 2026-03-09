@@ -216,7 +216,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.101** - Phase 78-E Intuition verification now also locks gadget-list management and activation semantics via `Tests/Intuition/GadgetRefresh`, covering `AddGadget`/`RemoveGadget`/`AddGList`/`RemoveGList`, `RefreshGadgets`/`RefreshGList`, `ActivateGadget`, and `OnGadget`/`OffGadget` alongside the earlier screen and window coverage
+**Version 0.6.104** - Phase 78-E Intuition verification now also locks `SizeWindow()` against `GFLG_RELRIGHT`/`GFLG_RELBOTTOM` gadget reanchoring and stale-pixel cleanup, with shared relative-geometry handling keeping resize redraws, hit-testing, and gadget highlighting aligned
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

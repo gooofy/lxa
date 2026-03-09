@@ -321,6 +321,92 @@ static void test_ica_target_setup(void)
     TEST_PASS("Window closed");
 }
 
+static void test_dogadgetmethod_and_setgadgetattrs(void)
+{
+    struct Window *w;
+    struct Gadget *prop;
+    struct opGet opg;
+    ULONG value = 0;
+
+    TEST_START("SetGadgetAttrs and DoGadgetMethodA dispatch through gadget class");
+
+    w = OpenWindowTags(NULL,
+        WA_Width,  220,
+        WA_Height, 120,
+        WA_Flags,  WFLG_CLOSEGADGET | WFLG_DRAGBAR,
+        WA_Title,  (ULONG)"BOOPSI Gadget Method Test",
+        TAG_END);
+
+    TEST_CHECK(w != NULL, "Window opened", "Window open failed");
+    if (!w) return;
+
+    prop = (struct Gadget *)NewObject(NULL, (CONST_STRPTR)"propgclass",
+        GA_ID,       7,
+        GA_Left,     12,
+        GA_Top,      12,
+        GA_Width,    18,
+        GA_Height,   70,
+        PGA_Total,   100,
+        PGA_Top,     10,
+        PGA_Visible, 20,
+        PGA_Freedom, FREEVERT,
+        TAG_END);
+
+    TEST_CHECK(prop != NULL, "propgclass object created", "propgclass creation failed");
+    if (!prop)
+    {
+        CloseWindow(w);
+        return;
+    }
+
+    AddGList(w, prop, (UWORD)~0, 1, NULL);
+    RefreshGList(prop, w, NULL, 1);
+    TEST_PASS("propgclass added to window");
+
+    if (!SetGadgetAttrs(prop, w, NULL,
+            GA_Disabled, TRUE,
+            PGA_Top, 33,
+            TAG_END))
+    {
+        TEST_FAIL("SetGadgetAttrs did not report a change");
+    }
+    else if (!(prop->Flags & GFLG_DISABLED))
+    {
+        TEST_FAIL("SetGadgetAttrs did not update GA_Disabled");
+    }
+    else if (!GetAttr(PGA_Top, (Object *)prop, &value) || value != 33)
+    {
+        TEST_FAIL("SetGadgetAttrs did not update PGA_Top");
+    }
+    else
+    {
+        TEST_PASS("SetGadgetAttrs updated gadget and class attributes");
+    }
+
+    opg.MethodID = OM_GET;
+    opg.opg_AttrID = PGA_Top;
+    opg.opg_Storage = &value;
+    value = 0;
+    if (!DoGadgetMethodA(prop, w, NULL, (Msg)&opg))
+    {
+        TEST_FAIL("DoGadgetMethodA(OM_GET) failed");
+    }
+    else if (value != 33)
+    {
+        TEST_FAIL("DoGadgetMethodA(OM_GET) returned wrong PGA_Top");
+    }
+    else
+    {
+        TEST_PASS("DoGadgetMethodA dispatched OM_GET successfully");
+    }
+
+    RemoveGList(w, prop, -1);
+    DisposeObject(prop);
+    TEST_PASS("propgclass disposed");
+    CloseWindow(w);
+    TEST_PASS("Window closed");
+}
+
 int main(void)
 {
     printf("BOOPSI IC Test Suite\n");
@@ -343,6 +429,8 @@ int main(void)
     test_modelclass();
     printf("\n");
     test_ica_target_setup();
+    printf("\n");
+    test_dogadgetmethod_and_setgadgetattrs();
     printf("\n");
 
     printf("====================\n");
