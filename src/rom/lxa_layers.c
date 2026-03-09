@@ -23,10 +23,15 @@
 #include <graphics/rastport.h>
 #include <graphics/clip.h>
 #include <graphics/layers.h>
+#include <graphics/layersext.h>
 #include <graphics/regions.h>
 
+#include <utility/tagitem.h>
+
 #include <clib/graphics_protos.h>
+#include <clib/utility_protos.h>
 #include <inline/graphics.h>
+#include <inline/utility.h>
 
 #include <clib/layers_protos.h>
 
@@ -46,6 +51,7 @@ char __aligned _g_layers_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase *SysBase;
 extern struct GfxBase  *GfxBase;
+extern struct UtilityBase *UtilityBase;
 
 /*
  * LayersBase structure - library base for layers.library
@@ -57,6 +63,19 @@ struct LayersBase
 };
 
 static struct LayersBase *LayersBase;
+
+static BOOL IntersectRectangles(const struct Rectangle *r1, const struct Rectangle *r2,
+                                struct Rectangle *result);
+static void RebuildClipRects(struct Layer *layer);
+static struct Layer *CreateLayerTagListInternal(struct LayersBase *LayersBase,
+                                                struct Layer_Info *li,
+                                                struct BitMap *bm,
+                                                LONG x0,
+                                                LONG y0,
+                                                LONG x1,
+                                                LONG y1,
+                                                LONG flags,
+                                                struct TagItem *tagList);
 
 /* ========================================================================
  * Library management functions
@@ -170,11 +189,25 @@ static void FreeClipRectList(struct Layer_Info *li, struct ClipRect *cr)
  */
 static struct ClipRect *CreateSimpleClipRect(struct Layer_Info *li, struct Layer *layer)
 {
+    struct Rectangle bounds;
+    struct Rectangle clipped;
     struct ClipRect *cr = AllocClipRect(li);
     if (!cr)
         return NULL;
 
-    cr->bounds = layer->bounds;
+    bounds = layer->bounds;
+    if (li)
+    {
+        if (!IntersectRectangles(&bounds, &li->bounds, &clipped))
+        {
+            FreeClipRect(li, cr);
+            return NULL;
+        }
+
+        bounds = clipped;
+    }
+
+    cr->bounds = bounds;
     cr->obscured = 0;  /* Visible */
     cr->BitMap = NULL; /* Draw directly to screen */
     cr->Next = NULL;
@@ -198,8 +231,8 @@ static BOOL RectContainsRect(const struct Rectangle *outer, const struct Rectang
  * Returns a linked list of ClipRects.
  */
 static struct ClipRect *SplitRectAroundObscurer(struct Layer_Info *li,
-                                                 struct Rectangle *rect,
-                                                 struct Rectangle *obscurer)
+                                                  struct Rectangle *rect,
+                                                  struct Rectangle *obscurer)
 {
     struct ClipRect *head = NULL;
     struct ClipRect *tail = NULL;
@@ -310,6 +343,21 @@ static struct ClipRect *SplitRectAroundObscurer(struct Layer_Info *li,
     return head;
 }
 
+static void RebuildAllClipRects(struct Layer_Info *li)
+{
+    struct Layer *layer;
+
+    if (!li)
+        return;
+
+    layer = li->top_layer;
+    while (layer)
+    {
+        RebuildClipRects(layer);
+        layer = layer->back;
+    }
+}
+
 /*
  * Check if two rectangles overlap
  */
@@ -326,7 +374,12 @@ static BOOL RectsOverlap(const struct Rectangle *r1, const struct Rectangle *r2)
  */
 static void RebuildClipRects(struct Layer *layer)
 {
-    struct Layer_Info *li = layer->LayerInfo;
+    struct Layer_Info *li;
+
+    if (!layer)
+        return;
+
+    li = layer->LayerInfo;
 
     /* Free existing ClipRects */
     FreeClipRectList(li, layer->ClipRect);
@@ -335,6 +388,9 @@ static void RebuildClipRects(struct Layer *layer)
     DPRINTF(LOG_DEBUG, "_layers: RebuildClipRects() layer bounds [%d,%d]-[%d,%d]\n",
             layer->bounds.MinX, layer->bounds.MinY,
             layer->bounds.MaxX, layer->bounds.MaxY);
+
+    if (layer->Flags & LAYERHIDDEN)
+        return;
 
     /* Start with a single ClipRect covering the whole layer */
     struct ClipRect *initial = CreateSimpleClipRect(li, layer);
@@ -844,6 +900,8 @@ static LONG _layers_DeleteLayer ( register struct LayersBase *LayersBase __asm("
 
     /* Remove from semaphore list */
     Remove((struct Node *)&layer->Lock);
+
+    RebuildAllClipRects(li);
 
     ReleaseSemaphore(&li->Lock);
 
@@ -1510,22 +1568,32 @@ static struct Layer * _layers_WhichLayer ( register struct LayersBase *LayersBas
                                            register WORD               x          __asm("d0"),
                                            register WORD               y          __asm("d1"))
 {
+    struct Layer *layer;
+
     DPRINTF(LOG_DEBUG, "_layers: WhichLayer() x=%d y=%d\n", x, y);
 
     if (!li)
         return NULL;
 
     /* Search from front (top) to back (bottom) */
-    struct Layer *layer = li->top_layer;
+    layer = li->top_layer;
     while (layer)
     {
         /* Skip hidden layers */
         if (!(layer->Flags & LAYERHIDDEN))
         {
-            if (x >= layer->bounds.MinX && x <= layer->bounds.MaxX &&
-                y >= layer->bounds.MinY && y <= layer->bounds.MaxY)
+            struct ClipRect *cr = layer->ClipRect;
+
+            while (cr)
             {
-                return layer;
+                if (!cr->obscured &&
+                    x >= cr->bounds.MinX && x <= cr->bounds.MaxX &&
+                    y >= cr->bounds.MinY && y <= cr->bounds.MaxY)
+                {
+                    return layer;
+                }
+
+                cr = cr->Next;
             }
         }
         layer = layer->back;
@@ -1544,7 +1612,12 @@ static struct Layer * _layers_WhichLayer ( register struct LayersBase *LayersBas
 static LONG _layers_FattenLayerInfo ( register struct LayersBase *LayersBase __asm("a6"),
                                       register struct Layer_Info *li         __asm("a0"))
 {
-    DPRINTF(LOG_DEBUG, "_layers: FattenLayerInfo() obsolete stub called\n");
+    DPRINTF(LOG_DEBUG, "_layers: FattenLayerInfo() called li=0x%08lx\n", (ULONG)li);
+
+    if (!li)
+        return FALSE;
+
+    li->Flags |= NEWLAYERINFO_CALLED;
     return TRUE;
 }
 
@@ -1554,7 +1627,12 @@ static LONG _layers_FattenLayerInfo ( register struct LayersBase *LayersBase __a
 static VOID _layers_ThinLayerInfo ( register struct LayersBase *LayersBase __asm("a6"),
                                     register struct Layer_Info *li         __asm("a0"))
 {
-    DPRINTF(LOG_DEBUG, "_layers: ThinLayerInfo() obsolete stub called\n");
+    DPRINTF(LOG_DEBUG, "_layers: ThinLayerInfo() called li=0x%08lx\n", (ULONG)li);
+
+    if (!li)
+        return;
+
+    li->Flags &= ~NEWLAYERINFO_CALLED;
 }
 
 /* ========================================================================
@@ -2054,12 +2132,19 @@ static BOOL _layers_LayerOccluded ( register struct LayersBase *LayersBase __asm
 static LONG _layers_HideLayer ( register struct LayersBase *LayersBase __asm("a6"),
                                 register struct Layer      *layer      __asm("a0"))
 {
+    struct Layer_Info *li;
+
     DPRINTF(LOG_DEBUG, "_layers: HideLayer() called\n");
 
     if (!layer)
         return FALSE;
 
+    li = layer->LayerInfo;
     layer->Flags |= LAYERHIDDEN;
+
+    if (li)
+        RebuildAllClipRects(li);
+
     return TRUE;
 }
 
@@ -2073,28 +2158,34 @@ static LONG _layers_ShowLayer ( register struct LayersBase *LayersBase __asm("a6
                                 register struct Layer      *layer      __asm("a0"),
                                 register struct Layer      *in_front_of __asm("a1"))
 {
+    struct Layer_Info *li;
+
     DPRINTF(LOG_DEBUG, "_layers: ShowLayer() called layer=0x%08lx in_front_of=0x%08lx\n",
             (ULONG)layer, (ULONG)in_front_of);
 
     if (!layer)
         return FALSE;
 
+    li = layer->LayerInfo;
     layer->Flags &= ~LAYERHIDDEN;
 
     /* If in_front_of is specified, reposition the layer */
-    if (in_front_of && layer->LayerInfo)
+    if (in_front_of == LAYER_FRONTMOST)
+    {
+        return _layers_UpfrontLayer(LayersBase, 0, layer);
+    }
+    else if (in_front_of == LAYER_BACKMOST)
+    {
+        return _layers_BehindLayer(LayersBase, 0, layer);
+    }
+    else if (in_front_of && li)
     {
         _layers_MoveLayerInFrontOf(LayersBase, layer, in_front_of);
     }
-    else if (layer->LayerInfo)
+    else if (li)
     {
         /* Just rebuild ClipRects since visibility changed */
-        struct Layer *l = layer->LayerInfo->top_layer;
-        while (l)
-        {
-            RebuildClipRects(l);
-            l = l->back;
-        }
+        RebuildAllClipRects(li);
     }
 
     return TRUE;
@@ -2113,7 +2204,156 @@ static BOOL _layers_SetLayerInfoBounds ( register struct LayersBase     *LayersB
         return FALSE;
 
     li->bounds = *bounds;
+    RebuildAllClipRects(li);
+
     return TRUE;
+}
+
+static struct Layer *CreateLayerTagListInternal(struct LayersBase *LayersBase,
+                                                struct Layer_Info *li,
+                                                struct BitMap *bm,
+                                                LONG x0,
+                                                LONG y0,
+                                                LONG x1,
+                                                LONG y1,
+                                                LONG flags,
+                                                struct TagItem *tagList)
+{
+    struct Hook *hook;
+    struct BitMap *super_bitmap = NULL;
+    struct Layer *in_front_of = NULL;
+    struct Layer *behind = NULL;
+    struct Layer *layer;
+    struct TagItem *tag;
+    struct TagItem *state = tagList;
+    APTR window = NULL;
+    BOOL hidden = FALSE;
+
+    if (!li || !bm)
+        return NULL;
+
+    hook = (struct Hook *)li->resPtr1;
+    if (!hook)
+        hook = LAYERS_BACKFILL;
+
+    while ((tag = NextTagItem(&state)))
+    {
+        switch (tag->ti_Tag)
+        {
+            case LA_BackfillHook:
+                hook = (struct Hook *)tag->ti_Data;
+                break;
+
+            case LA_SuperBitMap:
+                super_bitmap = (struct BitMap *)tag->ti_Data;
+                break;
+
+            case LA_WindowPtr:
+                window = (APTR)tag->ti_Data;
+                break;
+
+            case LA_Hidden:
+                hidden = (BOOL)tag->ti_Data;
+                break;
+
+            case LA_InFrontOf:
+                in_front_of = (struct Layer *)tag->ti_Data;
+                break;
+
+            case LA_Behind:
+                behind = (struct Layer *)tag->ti_Data;
+                break;
+
+            case LA_ChildOf:
+            case LA_ShapeRegion:
+            case LA_ShapeHook:
+                if (tag->ti_Data)
+                    return NULL;
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    if (in_front_of && behind)
+        return NULL;
+
+    if ((flags & LAYERSUPER) && !super_bitmap)
+        return NULL;
+
+    layer = CreateLayerInternal(LayersBase, li, bm, x0, y0, x1, y1, flags,
+                                hook, super_bitmap, TRUE);
+    if (!layer)
+        return NULL;
+
+    layer->Window = window;
+
+    if (in_front_of)
+    {
+        if (!_layers_MoveLayerInFrontOf(LayersBase, layer, in_front_of))
+            goto failed;
+    }
+    else if (behind)
+    {
+        if (behind->back)
+        {
+            if (!_layers_MoveLayerInFrontOf(LayersBase, layer, behind->back))
+                goto failed;
+        }
+        else if (!_layers_BehindLayer(LayersBase, 0, layer))
+        {
+            goto failed;
+        }
+    }
+
+    if (hidden && !_layers_HideLayer(LayersBase, layer))
+        goto failed;
+
+    return layer;
+
+failed:
+    _layers_DeleteLayer(LayersBase, 0, layer);
+    return NULL;
+}
+
+static struct Layer * _layers_CreateLayerTagList ( register struct LayersBase *LayersBase __asm("a6"),
+                                                   register struct Layer_Info *li         __asm("a0"),
+                                                   register struct BitMap     *bm         __asm("a1"),
+                                                   register LONG               x0         __asm("d0"),
+                                                   register LONG               y0         __asm("d1"),
+                                                   register LONG               x1         __asm("d2"),
+                                                   register LONG               y1         __asm("d3"),
+                                                   register LONG               flags      __asm("d4"),
+                                                   register struct TagItem    *tagList    __asm("a2"))
+{
+    DPRINTF(LOG_DEBUG, "_layers: CreateLayerTagList() called\n");
+    return CreateLayerTagListInternal(LayersBase, li, bm, x0, y0, x1, y1, flags, tagList);
+}
+
+static LONG _layers_AddLayerInfoTag ( register struct LayersBase *LayersBase __asm("a6"),
+                                      register struct Layer_Info *li         __asm("a0"),
+                                      register Tag                tag        __asm("d0"),
+                                      register ULONG              data       __asm("d1"))
+{
+    DPRINTF(LOG_DEBUG, "_layers: AddLayerInfoTag() called tag=0x%08lx\n", (ULONG)tag);
+
+    if (!li)
+        return FALSE;
+
+    switch (tag)
+    {
+        case TAG_DONE:
+        case TAG_IGNORE:
+            return TRUE;
+
+        case LA_BackfillHook:
+            li->resPtr1 = (APTR)data;
+            return TRUE;
+
+        default:
+            return FALSE;
+    }
 }
 
 /* ========================================================================
@@ -2215,6 +2455,8 @@ APTR __g_lxa_layers_FuncTab [] =
     _layers_HideLayer,                // -228 (0xe4)
     _layers_ShowLayer,                // -234 (0xea)
     _layers_SetLayerInfoBounds,       // -240 (0xf0)
+    _layers_CreateLayerTagList,       // -246 (0xf6)
+    _layers_AddLayerInfoTag,          // -252 (0xfc)
 
     (APTR) ((LONG)-1)
 };

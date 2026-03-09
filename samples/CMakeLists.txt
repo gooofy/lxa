@@ -213,6 +213,8 @@ set(TESTS_LIST
     "../tests/layers/layer_info|main|Tests/Layers/LayerInfo"
     "../tests/layers/locking|main|Tests/Layers/Locking"
     "../tests/layers/scroll_layer|main|Tests/Layers/ScrollLayer"
+    "../tests/layers/tag_layers|main|Tests/Layers/TagLayers"
+    "../tests/layers/visibility|main|Tests/Layers/Visibility"
     "../tests/shell/alias|main|Tests/Shell/Alias/Test"
     "../tests/shell/controlflow|main|Tests/Shell/ControlFlow/Test"
     "../tests/shell/script|main|Tests/Shell/Script/Test"
