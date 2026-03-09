@@ -8403,8 +8403,16 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
                 LONG ty = top + it->TopEdge;
                 SetAPen(rp, it->FrontPen);
                 SetBPen(rp, it->BackPen);
-                Move(rp, tx, ty);
-                Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
+                if (it->IText[0] == '_' && it->IText[1] == '\0')
+                {
+                    Move(rp, tx, ty + 1);
+                    Draw(rp, tx + 7, ty + 1);
+                }
+                else
+                {
+                    Move(rp, tx, ty);
+                    Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
+                }
             }
             it = it->NextText;
         }

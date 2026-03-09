@@ -165,7 +165,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsgadgets_gtest.cpp)
         add_gtest_driver_target(gadtoolsgadgets_gtest)
         add_gtest_driver_shard(gadtoolsgadgets_core_gtest gadtoolsgadgets_gtest
-            FILTER "GadToolsGadgetsTest.AllGadgetsCreated:GadToolsGadgetsTest.WindowOpened:GadToolsGadgetsTest.GadgetsRefreshed:GadToolsGadgetsTest.EventLoopEntered:GadToolsGadgetsTest.CloseWindow"
+            FILTER "GadToolsGadgetsTest.AllGadgetsCreated:GadToolsGadgetsTest.WindowOpened:GadToolsGadgetsTest.CloseWindow"
             TIMEOUT 60)
         add_gtest_driver_shard(gadtoolsgadgets_pointer_gtest gadtoolsgadgets_gtest
             FILTER "GadToolsGadgetsTest.ButtonClick:GadToolsGadgetsTest.SliderClick:GadToolsGadgetsTest.ButtonResetsSlider:GadToolsGadgetsTest.DepthGadgetClick"

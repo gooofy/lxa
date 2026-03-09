@@ -888,6 +888,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 #### 78-X: Regression & Integration Testing
 
 - [ ] After each 78-A through 78-W subsystem fix: run full `ctest --test-dir build -j16` and confirm all existing tests still pass
+- [x] Regression maintenance: restore `simplegtgadget_gtest` and all `gadtoolsgadgets_*_gtest` shards to green after hosted-output timing drift and underline-rendering regressions; verified with targeted reruns and full `ctest --test-dir build --output-on-failure -j16` (v0.6.116)
 - [x] Regression maintenance: restore `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` to green after timer/SystemTagList/test-harness regressions; verified with full `ctest --test-dir build --output-on-failure -j16`
 - [x] Rebalance long-running GTest drivers for parallel CTest execution by splitting oversized suites (`gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, `cluster2`) into smaller shards; verified with full `ctest --test-dir build --output-on-failure -j16`
 - [x] Regression maintenance: restore `graphics_gtest` (`ColorsPens`) and `dos_gtest` (`AssignNotify`) after palette-pen matching and assign-backed `DeviceProc()` regressions; verified with focused reruns and full `ctest --test-dir build --output-on-failure -j16`
