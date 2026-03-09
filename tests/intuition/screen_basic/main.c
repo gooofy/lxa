@@ -39,7 +39,11 @@ int main(void)
     struct Screen *screen;
     struct Screen *tagged_screen = NULL;
     struct Screen *default_screen = NULL;
+    struct Screen *locked_screen = NULL;
     struct Window *window = NULL;
+    struct List *pub_list;
+    struct PubScreenNode *pub_node;
+    char default_name[MAXPUBSCREENNAME + 1];
     int errors = 0;
 
     print("Testing OpenScreen()/CloseScreen()...\n");
@@ -184,6 +188,96 @@ int main(void)
     if (window) {
         CloseWindow(window);
         window = NULL;
+    }
+
+    /* Public screen helpers must expose and lock the screen correctly */
+    default_name[0] = '\0';
+    GetDefaultPubScreen(default_name);
+    if (default_name[0] == '\0') {
+        print("FAIL: GetDefaultPubScreen() returned empty name\n");
+        errors++;
+    } else {
+        print("OK: GetDefaultPubScreen() returned a name\n");
+    }
+
+    locked_screen = LockPubScreen((UBYTE *)default_name);
+    if (locked_screen != screen) {
+        print("FAIL: LockPubScreen() did not return the opened screen\n");
+        errors++;
+    } else if (CloseScreen(screen) != FALSE) {
+        print("FAIL: CloseScreen() should fail while the screen is locked\n");
+        errors++;
+    } else {
+        print("OK: LockPubScreen() prevents CloseScreen()\n");
+    }
+
+    pub_list = LockPubScreenList();
+    if (!pub_list) {
+        print("FAIL: LockPubScreenList() returned NULL\n");
+        errors++;
+    } else {
+        pub_node = (struct PubScreenNode *)pub_list->lh_Head;
+        if (!pub_node || !pub_node->psn_Node.ln_Succ || pub_node->psn_Screen != screen) {
+            print("FAIL: LockPubScreenList() did not expose the public screen node\n");
+            errors++;
+        } else {
+            print("OK: LockPubScreenList() exposes the public screen node\n");
+        }
+        UnlockPubScreenList();
+    }
+
+    if (PubScreenStatus(screen, PSNF_PRIVATE) != 0) {
+        print("FAIL: PubScreenStatus() privatized a locked screen\n");
+        errors++;
+    } else {
+        print("OK: PubScreenStatus() refuses to privatize a locked screen\n");
+    }
+
+    UnlockPubScreen(NULL, locked_screen);
+    locked_screen = NULL;
+
+    if (PubScreenStatus(screen, PSNF_PRIVATE) != 0) {
+        print("FAIL: PubScreenStatus() returned wrong old flags when privatizing\n");
+        errors++;
+    } else if (LockPubScreen((UBYTE *)default_name) != NULL) {
+        print("FAIL: LockPubScreen() should fail for a private screen\n");
+        errors++;
+    } else {
+        print("OK: PubScreenStatus() can privatize the screen\n");
+    }
+
+    if (PubScreenStatus(screen, 0) != PSNF_PRIVATE) {
+        print("FAIL: PubScreenStatus() did not report prior private state\n");
+        errors++;
+    } else {
+        locked_screen = LockPubScreen((UBYTE *)default_name);
+        if (locked_screen != screen) {
+            print("FAIL: LockPubScreen() did not restore access after making screen public\n");
+            errors++;
+        } else {
+            print("OK: PubScreenStatus() restores public-screen access\n");
+        }
+    }
+
+    if (locked_screen) {
+        UnlockPubScreen(NULL, locked_screen);
+        locked_screen = NULL;
+    }
+
+    ShowTitle(screen, FALSE);
+    if (screen->Flags & SHOWTITLE) {
+        print("FAIL: ShowTitle(FALSE) did not clear SHOWTITLE\n");
+        errors++;
+    } else {
+        print("OK: ShowTitle(FALSE) clears SHOWTITLE\n");
+    }
+
+    ShowTitle(screen, TRUE);
+    if (!(screen->Flags & SHOWTITLE)) {
+        print("FAIL: ShowTitle(TRUE) did not set SHOWTITLE\n");
+        errors++;
+    } else {
+        print("OK: ShowTitle(TRUE) sets SHOWTITLE\n");
     }
 
     /* OpenScreenTagList() must honor tag overrides and allow clearing flags */

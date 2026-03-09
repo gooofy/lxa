@@ -5,7 +5,9 @@
 
 #include <exec/types.h>
 #include <exec/memory.h>
+#include <exec/ports.h>
 #include <graphics/gfx.h>
+#include <graphics/layers.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
 #include <clib/exec_protos.h>
@@ -51,6 +53,50 @@ static void print_num(LONG n)
     print(p);
 }
 
+static BOOL expect_message(struct MsgPort *port, ULONG expected_class, UWORD expected_code)
+{
+    struct IntuiMessage *msg;
+
+    if (!port)
+        return FALSE;
+
+    msg = (struct IntuiMessage *)GetMsg(port);
+    if (!msg)
+        return FALSE;
+
+    if (msg->Class != expected_class || msg->Code != expected_code)
+    {
+        ReplyMsg((struct Message *)msg);
+        return FALSE;
+    }
+
+    ReplyMsg((struct Message *)msg);
+    return TRUE;
+}
+
+static BOOL seed_refresh_damage(struct Window *window)
+{
+    struct Rectangle rect;
+
+    if (!window || !window->WLayer)
+        return FALSE;
+
+    if (!window->WLayer->DamageList)
+    {
+        window->WLayer->DamageList = NewRegion();
+        if (!window->WLayer->DamageList)
+            return FALSE;
+    }
+
+    rect.MinX = window->LeftEdge;
+    rect.MinY = window->TopEdge;
+    rect.MaxX = window->LeftEdge + 15;
+    rect.MaxY = window->TopEdge + 15;
+    OrRectRegion(window->WLayer->DamageList, &rect);
+    window->WLayer->Flags |= LAYERREFRESH;
+    return TRUE;
+}
+
 int main(void)
 {
     struct NewScreen ns;
@@ -89,8 +135,8 @@ int main(void)
     nw.Height = 200;
     nw.DetailPen = 0;
     nw.BlockPen = 1;
-    nw.IDCMPFlags = 0;
-    nw.Flags = WFLG_DRAGBAR | WFLG_ACTIVATE | WFLG_SIZEGADGET;
+    nw.IDCMPFlags = IDCMP_CHANGEWINDOW | IDCMP_NEWSIZE;
+    nw.Flags = WFLG_DRAGBAR | WFLG_ACTIVATE | WFLG_SIZEGADGET | WFLG_SIMPLE_REFRESH;
     nw.FirstGadget = NULL;
     nw.CheckMark = NULL;
     nw.Title = (UBYTE *)"Test Window";
@@ -121,26 +167,139 @@ int main(void)
     /* Test 1: MoveWindow */
     print("Test 1: MoveWindow(50, 30)...\n");
     MoveWindow(window, 50, 30);
-    print("  OK: MoveWindow called\n\n");
+    if (window->LeftEdge != 150 || window->TopEdge != 80) {
+        print("  FAIL: MoveWindow did not update position\n\n");
+    } else if (!expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE)) {
+        print("  FAIL: MoveWindow did not emit IDCMP_CHANGEWINDOW\n\n");
+    } else {
+        print("  OK: MoveWindow updates geometry and posts IDCMP_CHANGEWINDOW\n\n");
+    }
     
     /* Test 2: SizeWindow */
     print("Test 2: SizeWindow(50, 40)...\n");
     SizeWindow(window, 50, 40);
-    print("  OK: SizeWindow called\n\n");
+    if (window->Width != 350 || window->Height != 240) {
+        print("  FAIL: SizeWindow did not update size\n\n");
+    } else if (!expect_message(window->UserPort, IDCMP_NEWSIZE, 0)) {
+        print("  FAIL: SizeWindow did not emit IDCMP_NEWSIZE\n\n");
+    } else if (!expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE)) {
+        print("  FAIL: SizeWindow did not emit IDCMP_CHANGEWINDOW\n\n");
+    } else {
+        print("  OK: SizeWindow updates geometry and posts size/change messages\n\n");
+    }
     
     /* Test 3: WindowLimits */
     print("Test 3: WindowLimits(150, 100, 400, 300)...\n");
     if (WindowLimits(window, 150, 100, 400, 300)) {
-        print("  OK: WindowLimits returned TRUE\n");
+        if (window->MinWidth != 150 || window->MinHeight != 100 ||
+            window->MaxWidth != 400 || window->MaxHeight != 300) {
+            print("  FAIL: WindowLimits did not store new limits\n");
+        } else {
+            print("  OK: WindowLimits returned TRUE and stored limits\n");
+        }
     } else {
         print("  FAIL: WindowLimits returned FALSE\n");
     }
     print("\n");
+
+    print("Test 3b: SizeWindow(200, 200) honors WindowLimits...\n");
+    SizeWindow(window, 200, 200);
+    if (window->Width != 400 || window->Height != 300) {
+        print("  FAIL: SizeWindow did not clamp to WindowLimits\n\n");
+    } else if (!expect_message(window->UserPort, IDCMP_NEWSIZE, 0) ||
+               !expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE)) {
+        print("  FAIL: Clamped SizeWindow did not emit expected messages\n\n");
+    } else {
+        print("  OK: SizeWindow clamps to WindowLimits and still posts messages\n\n");
+    }
     
     /* Test 4: ChangeWindowBox */
     print("Test 4: ChangeWindowBox(50, 40, 250, 180)...\n");
     ChangeWindowBox(window, 50, 40, 250, 180);
-    print("  OK: ChangeWindowBox called\n\n");
+    if (window->LeftEdge != 50 || window->TopEdge != 40 ||
+        window->Width != 250 || window->Height != 180) {
+        print("  FAIL: ChangeWindowBox did not apply full box\n\n");
+    } else if (!expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE) ||
+               !expect_message(window->UserPort, IDCMP_NEWSIZE, 0) ||
+               !expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE)) {
+        print("  FAIL: ChangeWindowBox did not emit move/size/change messages\n\n");
+    } else {
+        print("  OK: ChangeWindowBox updates box and emits move/size/change messages\n\n");
+    }
+
+    print("Test 4b: SetWindowTitles() semantics...\n");
+    SetWindowTitles(window, (UBYTE *)"Renamed Window", (UBYTE *)"Renamed Screen");
+    if (!window->Title || !window->WScreen || !window->WScreen->Title ||
+        window->Title[0] != 'R' || window->WScreen->Title[0] != 'R') {
+        print("  FAIL: SetWindowTitles did not update both titles\n\n");
+    } else {
+        SetWindowTitles(window, (UBYTE *)-1, (UBYTE *)"");
+        if (window->Title[0] != 'R' || window->WScreen->Title[0] != '\0') {
+            print("  FAIL: SetWindowTitles did not honor no-change/blank semantics\n\n");
+        } else {
+            print("  OK: SetWindowTitles handles update, no-change, and blank semantics\n\n");
+        }
+    }
+
+    print("Test 4c: WindowToBack()/WindowToFront() maintain z-order...\n");
+    {
+        struct NewWindow helper = nw;
+        struct Window *other;
+
+        helper.LeftEdge = 20;
+        helper.TopEdge = 20;
+        helper.Width = 180;
+        helper.Height = 120;
+        helper.Title = (UBYTE *)"Other Window";
+
+        other = OpenWindow(&helper);
+        if (!other) {
+            print("  FAIL: Could not open second window for z-order test\n\n");
+        } else {
+            WindowToBack(other);
+            if (screen->FirstWindow != window) {
+                print("  FAIL: WindowToBack did not move other window behind\n\n");
+            } else if (!expect_message(other->UserPort, IDCMP_CHANGEWINDOW, CWCODE_DEPTH)) {
+                print("  FAIL: WindowToBack did not emit depth change\n\n");
+            } else {
+                WindowToFront(other);
+                if (screen->FirstWindow != other) {
+                    print("  FAIL: WindowToFront did not restore frontmost window\n\n");
+                } else if (!expect_message(other->UserPort, IDCMP_CHANGEWINDOW, CWCODE_DEPTH)) {
+                    print("  FAIL: WindowToFront did not emit depth change\n\n");
+                } else {
+                    print("  OK: WindowToBack/WindowToFront update z-order and post depth changes\n\n");
+                }
+            }
+
+            CloseWindow(other);
+        }
+    }
+
+    print("Test 4d: BeginRefresh()/EndRefresh() toggle refresh state...\n");
+    if (!seed_refresh_damage(window)) {
+        print("  FAIL: Could not seed layer damage for refresh test\n\n");
+    } else {
+        BeginRefresh(window);
+        if (!(window->Flags & WFLG_WINDOWREFRESH)) {
+            print("  FAIL: BeginRefresh did not set WFLG_WINDOWREFRESH\n\n");
+        } else {
+            EndRefresh(window, FALSE);
+            if (window->Flags & WFLG_WINDOWREFRESH) {
+                print("  FAIL: EndRefresh(FALSE) did not clear WFLG_WINDOWREFRESH\n\n");
+            } else if (!(window->WLayer->Flags & LAYERREFRESH)) {
+                print("  FAIL: EndRefresh(FALSE) cleared LAYERREFRESH too early\n\n");
+            } else {
+                BeginRefresh(window);
+                EndRefresh(window, TRUE);
+                if (window->WLayer->Flags & LAYERREFRESH) {
+                    print("  FAIL: EndRefresh(TRUE) did not clear LAYERREFRESH\n\n");
+                } else {
+                    print("  OK: BeginRefresh/EndRefresh manage window and layer refresh flags\n\n");
+                }
+            }
+        }
+    }
     
     /* Test 5: ZipWindow */
     print("Test 5: ZipWindow()...\n");

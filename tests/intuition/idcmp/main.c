@@ -118,6 +118,13 @@ int main(void)
         print("OK: UserPort created after ModifyIDCMP\n");
     }
 
+    if (window->WindowPort == NULL) {
+        print("FAIL: WindowPort not created after ModifyIDCMP\n");
+        errors++;
+    } else {
+        print("OK: WindowPort created after ModifyIDCMP\n");
+    }
+
     /* Verify IDCMPFlags were updated */
     if (!(window->IDCMPFlags & IDCMP_CLOSEWINDOW)) {
         print("FAIL: IDCMP_CLOSEWINDOW not set\n");
@@ -169,6 +176,34 @@ int main(void)
         print("OK: UserPort still exists after flag change\n");
     }
 
+    print("OK: Generating replied IDCMP cleanup traffic...\n");
+    if (!ModifyIDCMP(window, IDCMP_CHANGEWINDOW)) {
+        print("FAIL: ModifyIDCMP() failed to switch to IDCMP_CHANGEWINDOW\n");
+        errors++;
+    } else {
+        struct IntuiMessage *msg;
+        MoveWindow(window, 5, 0);
+        msg = (struct IntuiMessage *)GetMsg(window->UserPort);
+        if (msg == NULL) {
+            print("FAIL: Expected IDCMP_CHANGEWINDOW after MoveWindow\n");
+            errors++;
+        } else if (msg->Class != IDCMP_CHANGEWINDOW) {
+            print("FAIL: Wrong IDCMP class after MoveWindow\n");
+            ReplyMsg((struct Message *)msg);
+            errors++;
+        } else {
+            ReplyMsg((struct Message *)msg);
+            msg = (struct IntuiMessage *)GetMsg(window->WindowPort);
+            if (window->WindowPort == NULL || msg == NULL) {
+                print("FAIL: Replied IDCMP message did not reach WindowPort cleanup queue\n");
+                errors++;
+            } else {
+                FreeMem(msg, sizeof(struct IntuiMessage));
+                print("OK: Replied IDCMP message queued for cleanup on WindowPort\n");
+            }
+        }
+    }
+
     /* Now clear all IDCMP flags */
     ModifyIDCMP(window, 0);
 
@@ -178,6 +213,13 @@ int main(void)
         errors++;
     } else {
         print("OK: UserPort removed when IDCMPFlags cleared\n");
+    }
+
+    if (window->WindowPort != NULL) {
+        print("FAIL: WindowPort not removed when IDCMPFlags=0\n");
+        errors++;
+    } else {
+        print("OK: WindowPort removed when IDCMPFlags cleared\n");
     }
 
     /* Verify flags are zero */

@@ -46,9 +46,14 @@
 /* LACE flag for interlaced display modes */
 #define LACE_FLAG 0x0004
 
+#define IDCMPUPDATE_TAG_LIMIT 256
+#define LXA_WMF_IDCMP_USERPORT_OWNED  0x80000000UL
+#define LXA_WMF_IDCMP_WINDOWPORT_OWNED 0x40000000UL
+
 extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
 extern struct UtilityBase *UtilityBase;
+extern struct ExecBase *SysBase;
 
 /* Global IntuitionBase (defined in exec.c) - used to avoid OpenLibrary from interrupt context */
 extern struct IntuitionBase *IntuitionBase;
@@ -127,6 +132,141 @@ VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"));
 
+static ULONG _idcmp_update_payload_size(APTR payload)
+{
+    const struct TagItem *tags = (const struct TagItem *)payload;
+    ULONG count = 0;
+
+    if (!tags)
+    {
+        return 0;
+    }
+
+    while (count < IDCMPUPDATE_TAG_LIMIT)
+    {
+        if (tags[count].ti_Tag == TAG_END)
+        {
+            return (count + 1) * sizeof(struct TagItem);
+        }
+        count++;
+    }
+
+    return 0;
+}
+
+static VOID _dispose_idcmp_message(struct IntuiMessage *msg)
+{
+    if (!msg)
+    {
+        return;
+    }
+
+    if (msg->Class == IDCMP_IDCMPUPDATE && msg->IAddress)
+    {
+        ULONG payload_size = _idcmp_update_payload_size(msg->IAddress);
+
+        if (payload_size)
+        {
+            FreeMem(msg->IAddress, payload_size);
+        }
+    }
+
+    FreeMem(msg, sizeof(struct IntuiMessage));
+}
+
+static VOID _flush_idcmp_port(struct MsgPort *port)
+{
+    struct IntuiMessage *msg;
+
+    if (!port)
+    {
+        return;
+    }
+
+    while ((msg = (struct IntuiMessage *)GetMsg(port)) != NULL)
+    {
+        _dispose_idcmp_message(msg);
+    }
+}
+
+static VOID _dispose_window_idcmp_ports(struct Window *window)
+{
+    struct MsgPort *user_port;
+    struct MsgPort *reply_port;
+    ULONG owned_flags;
+
+    if (!window)
+    {
+        return;
+    }
+
+    user_port = window->UserPort;
+    reply_port = window->WindowPort;
+    owned_flags = window->MoreFlags;
+
+    window->UserPort = NULL;
+    window->WindowPort = NULL;
+    window->MoreFlags &= ~(LXA_WMF_IDCMP_USERPORT_OWNED | LXA_WMF_IDCMP_WINDOWPORT_OWNED);
+
+    if (owned_flags & LXA_WMF_IDCMP_WINDOWPORT_OWNED)
+    {
+        _flush_idcmp_port(reply_port);
+        DeleteMsgPort(reply_port);
+    }
+
+    if (owned_flags & LXA_WMF_IDCMP_USERPORT_OWNED)
+    {
+        _flush_idcmp_port(user_port);
+        DeleteMsgPort(user_port);
+    }
+}
+
+static BOOL _ensure_window_idcmp_ports(struct Window *window)
+{
+    if (!window)
+    {
+        return FALSE;
+    }
+
+    if (!window->UserPort)
+    {
+        window->UserPort = CreateMsgPort();
+        if (!window->UserPort)
+        {
+            return FALSE;
+        }
+        window->MoreFlags |= LXA_WMF_IDCMP_USERPORT_OWNED;
+    }
+
+    if (!window->WindowPort)
+    {
+        window->WindowPort = CreateMsgPort();
+        if (!window->WindowPort)
+        {
+            if (window->MoreFlags & LXA_WMF_IDCMP_USERPORT_OWNED)
+            {
+                DeleteMsgPort(window->UserPort);
+                window->UserPort = NULL;
+                window->MoreFlags &= ~LXA_WMF_IDCMP_USERPORT_OWNED;
+            }
+            return FALSE;
+        }
+        window->MoreFlags |= LXA_WMF_IDCMP_WINDOWPORT_OWNED;
+    }
+
+    return TRUE;
+}
+
+static VOID _reap_window_idcmp_replies(struct Window *window)
+{
+    if (!window || !(window->MoreFlags & LXA_WMF_IDCMP_WINDOWPORT_OWNED))
+    {
+        return;
+    }
+
+    _flush_idcmp_port(window->WindowPort);
+}
+
 struct LXAClassNode {
     struct Node node;
     struct IClass *class_ptr;
@@ -143,6 +283,12 @@ struct LXAIntuitionBase {
     struct IClass *ButtonGClass;/* Pointer to buttongclass */
     struct IClass *PropGClass;  /* Pointer to propgclass */
     struct IClass *StrGClass;   /* Pointer to strgclass */
+    struct List PubScreenList;  /* List of public screens */
+    struct Screen *DefaultPubScreen;
+};
+
+struct LXAPubScreenNode {
+    struct PubScreenNode pub;
 };
 
 static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST_STRPTR classID);
@@ -164,6 +310,174 @@ static void _intuition_strncpy(char *dst, const char *src, LONG maxchars)
     for (i = 0; i < maxchars - 1 && src[i] != '\0'; i++)
         dst[i] = src[i];
     dst[i] = '\0';
+}
+
+static int _intuition_ascii_casecmp(const char *a, const char *b)
+{
+    while (*a && *b)
+    {
+        char ca = *a;
+        char cb = *b;
+
+        if (ca >= 'A' && ca <= 'Z')
+            ca = (char)(ca - 'A' + 'a');
+        if (cb >= 'A' && cb <= 'Z')
+            cb = (char)(cb - 'A' + 'a');
+
+        if (ca != cb)
+            return (int)((unsigned char)ca - (unsigned char)cb);
+
+        a++;
+        b++;
+    }
+
+    return (int)((unsigned char)*a - (unsigned char)*b);
+}
+
+static const char *_intuition_pubscreen_name_for_screen(const struct Screen *screen)
+{
+    if (!screen)
+        return "Workbench";
+
+    if (screen->Flags & WBENCHSCREEN)
+        return "Workbench";
+
+    if (screen->Title && screen->Title[0] != '\0')
+        return (const char *)screen->Title;
+
+    if (screen->DefaultTitle && screen->DefaultTitle[0] != '\0')
+        return (const char *)screen->DefaultTitle;
+
+    return "Screen";
+}
+
+static struct PubScreenNode *_intuition_find_pubscreen_by_screen(struct LXAIntuitionBase *base,
+                                                                  const struct Screen *screen)
+{
+    struct Node *node;
+
+    if (!base || !screen)
+        return NULL;
+
+    for (node = base->PubScreenList.lh_Head; node && node->ln_Succ; node = node->ln_Succ)
+    {
+        struct PubScreenNode *pub = (struct PubScreenNode *)node;
+        if (pub->psn_Screen == screen)
+            return pub;
+    }
+
+    return NULL;
+}
+
+static struct PubScreenNode *_intuition_find_pubscreen_by_name(struct LXAIntuitionBase *base,
+                                                                CONST_STRPTR name)
+{
+    struct Node *node;
+
+    if (!base || !name)
+        return NULL;
+
+    for (node = base->PubScreenList.lh_Head; node && node->ln_Succ; node = node->ln_Succ)
+    {
+        struct PubScreenNode *pub = (struct PubScreenNode *)node;
+        if (pub->psn_Node.ln_Name && _intuition_ascii_casecmp(pub->psn_Node.ln_Name, (const char *)name) == 0)
+            return pub;
+    }
+
+    return NULL;
+}
+
+static struct PubScreenNode *_intuition_default_pubscreen_node(struct LXAIntuitionBase *base)
+{
+    struct PubScreenNode *pub;
+    struct Node *node;
+
+    if (!base)
+        return NULL;
+
+    if (base->DefaultPubScreen)
+    {
+        pub = _intuition_find_pubscreen_by_screen(base, base->DefaultPubScreen);
+        if (pub && !(pub->psn_Flags & PSNF_PRIVATE))
+            return pub;
+    }
+
+    pub = _intuition_find_pubscreen_by_name(base, (CONST_STRPTR)"Workbench");
+    if (pub && !(pub->psn_Flags & PSNF_PRIVATE))
+        return pub;
+
+    for (node = base->PubScreenList.lh_Head; node && node->ln_Succ; node = node->ln_Succ)
+    {
+        pub = (struct PubScreenNode *)node;
+        if (!(pub->psn_Flags & PSNF_PRIVATE))
+            return pub;
+    }
+
+    return NULL;
+}
+
+static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, struct Screen *screen)
+{
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct LXAPubScreenNode *entry;
+    const char *name;
+    char *namebuf;
+    ULONG size;
+    ULONG len;
+
+    if (!base || !screen || _intuition_find_pubscreen_by_screen(base, screen))
+        return;
+
+    name = _intuition_pubscreen_name_for_screen(screen);
+    len = strlen(name);
+    size = sizeof(struct LXAPubScreenNode) + len + 1;
+
+    entry = (struct LXAPubScreenNode *)AllocMem(size, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!entry)
+        return;
+
+    namebuf = (char *)(entry + 1);
+    strcpy(namebuf, name);
+
+    entry->pub.psn_Node.ln_Name = namebuf;
+    entry->pub.psn_Screen = screen;
+    entry->pub.psn_Flags = 0;
+    entry->pub.psn_Size = (WORD)size;
+    entry->pub.psn_VisitorCount = 0;
+    entry->pub.psn_SigTask = NULL;
+    entry->pub.psn_SigBit = 0;
+
+    AddTail(&base->PubScreenList, &entry->pub.psn_Node);
+
+    if (!base->DefaultPubScreen || (base->DefaultPubScreen->Flags & WBENCHSCREEN))
+        base->DefaultPubScreen = screen;
+}
+
+static VOID _intuition_unregister_pubscreen(struct IntuitionBase *IntuitionBase, struct Screen *screen)
+{
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct PubScreenNode *pub;
+
+    if (!base || !screen)
+        return;
+
+    pub = _intuition_find_pubscreen_by_screen(base, screen);
+    if (!pub)
+        return;
+
+    Remove(&pub->psn_Node);
+
+    if (base->DefaultPubScreen == screen)
+        base->DefaultPubScreen = NULL;
+
+    FreeMem(pub, pub->psn_Size);
+
+    if (!base->DefaultPubScreen)
+    {
+        struct PubScreenNode *default_pub = _intuition_default_pubscreen_node(base);
+        if (default_pub)
+            base->DefaultPubScreen = default_pub->psn_Screen;
+    }
 }
 
 /* Rootclass dispatcher */
@@ -2077,6 +2391,8 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
 
     /* Initialize ClassList (NewList inline) */
     NewList(&base->ClassList);
+    NewList(&base->PubScreenList);
+    base->DefaultPubScreen = NULL;
 
     /* Create rootclass */
     struct IClass *root = AllocMem(sizeof(struct IClass) + sizeof("rootclass"), MEMF_PUBLIC | MEMF_CLEAR);
@@ -2446,6 +2762,8 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
 {
     ULONG display_handle;
     UBYTE i;
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct PubScreenNode *pub;
 
     DPRINTF (LOG_DEBUG, "_intuition: CloseScreen() screen=0x%08lx\n", (ULONG)screen);
 
@@ -2458,6 +2776,14 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
     if (screen->FirstWindow)
     {
         DPRINTF (LOG_DEBUG, "_intuition: CloseScreen() refusing to close screen with open windows\n");
+        return FALSE;
+    }
+
+    pub = _intuition_find_pubscreen_by_screen(base, screen);
+    if (pub && pub->psn_VisitorCount > 0)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: CloseScreen() refusing to close screen with visitor count %d\n",
+                 pub->psn_VisitorCount);
         return FALSE;
     }
 
@@ -2514,6 +2840,8 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
         FreeColorMap(screen->ViewPort.ColorMap);
     }
 
+    _intuition_unregister_pubscreen(IntuitionBase, screen);
+
     /* Free the Screen structure */
     FreeMem(screen, sizeof(struct Screen));
 
@@ -2542,16 +2870,8 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
         window->UserData = NULL;
     }
 
-    /* TODO: Reply to any pending IDCMP messages */
-
-    /* Free the IDCMP message port if we created it */
-    if (window->UserPort)
-    {
-        /* Remove and delete the port */
-        /* Note: caller should have already drained the messages */
-        DeleteMsgPort(window->UserPort);
-        window->UserPort = NULL;
-    }
+    /* Dispose any pending and replied IDCMP messages, then remove both ports. */
+    _dispose_window_idcmp_ports(window);
 
     /* Free system gadgets we created */
     {
@@ -3120,28 +3440,17 @@ BOOL _intuition_ModifyIDCMP ( register struct IntuitionBase * IntuitionBase __as
         return FALSE;
     }
 
-    /* If flags are being cleared and we had IDCMP active, remove the port */
-    if (flags == 0 && window->UserPort)
+    if (flags != 0)
     {
-        /* Drain any pending messages first */
-        struct Message *msg;
-        while ((msg = GetMsg(window->UserPort)) != NULL)
-        {
-            ReplyMsg(msg);
-        }
-        
-        DeleteMsgPort(window->UserPort);
-        window->UserPort = NULL;
-    }
-    /* If we're setting flags and didn't have a port, create one */
-    else if (flags != 0 && !window->UserPort)
-    {
-        window->UserPort = CreateMsgPort();
-        if (!window->UserPort)
+        if (!_ensure_window_idcmp_ports(window))
         {
             LPRINTF (LOG_ERROR, "_intuition: ModifyIDCMP() failed to create port\n");
             return FALSE;
         }
+    }
+    else
+    {
+        _dispose_window_idcmp_ports(window);
     }
 
     /* Update the flags */
@@ -4385,7 +4694,7 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
 {
     struct IntuiMessage *imsg;
     
-    if (!window || !window->UserPort) {
+    if (!window || !window->UserPort || !window->WindowPort) {
         return FALSE;
     }
     
@@ -4394,6 +4703,8 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
         return FALSE;
     }
     
+    _reap_window_idcmp_replies(window);
+
     /* Allocate IntuiMessage */
     imsg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
     if (!imsg)
@@ -4405,7 +4716,7 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
     /* Fill in the message */
     imsg->ExecMessage.mn_Node.ln_Type = NT_MESSAGE;
     imsg->ExecMessage.mn_Length = sizeof(struct IntuiMessage);
-    imsg->ExecMessage.mn_ReplyPort = NULL;  /* No reply expected for IDCMP */
+    imsg->ExecMessage.mn_ReplyPort = window->WindowPort;
     
     imsg->Class = class;
     imsg->Code = code;
@@ -5396,31 +5707,8 @@ VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm
         emucall3(EMU_CALL_INT_MOVE_WINDOW, (ULONG)window->UserData, (ULONG)new_x, (ULONG)new_y);
     }
 
-    /* Send IDCMP_CHANGEWINDOW notification */
-    if (window->IDCMPFlags & IDCMP_CHANGEWINDOW)
-    {
-        struct IntuiMessage *msg;
-        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
-        if (msg)
-        {
-            msg->Class = IDCMP_CHANGEWINDOW;
-            msg->Code = CWCODE_MOVESIZE;
-            msg->Qualifier = 0;
-            msg->IAddress = window;
-            msg->IDCMPWindow = window;
-            msg->MouseX = window->MouseX;
-            msg->MouseY = window->MouseY;
-            
-            if (window->UserPort)
-            {
-                PutMsg(window->UserPort, (struct Message *)msg);
-            }
-            else
-            {
-                FreeMem(msg, sizeof(struct IntuiMessage));
-            }
-        }
-    }
+    _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE, 0,
+                        window, window->MouseX, window->MouseY);
 }
 
 VOID _intuition_OffGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -5705,6 +5993,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Link screen into IntuitionBase screen list (at front) */
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
+    _intuition_register_pubscreen(IntuitionBase, screen);
     
     /* Debug: print offset of FirstScreen */
     LPRINTF(LOG_INFO, "[ROM] OpenScreen: offsetof(FirstScreen)=%d, sizeof(IntuitionBase)=%d, sizeof(Library)=%d, sizeof(View)=%d\n",
@@ -6332,11 +6621,10 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
                  window_handle, (int)rootless_mode);
     }
 
-    /* Create IDCMP message port if IDCMP flags are set */
+    /* Create IDCMP message ports if IDCMP flags are set */
     if (newWindow->IDCMPFlags)
     {
-        window->UserPort = CreateMsgPort();
-        if (!window->UserPort)
+        if (!_ensure_window_idcmp_ports(window))
         {
             LPRINTF (LOG_ERROR, "_intuition: OpenWindow() failed to create IDCMP port\n");
             if (window->UserData)
@@ -6789,7 +7077,8 @@ VOID _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase 
     /* Update screen title if requested */
     if (screenTitle != (CONST_STRPTR)-1 && window->WScreen) {
         window->WScreen->Title = (UBYTE *)screenTitle;
-        /* TODO: actually redraw the screen title */
+        if (window->WScreen->Flags & SHOWTITLE)
+            _render_screen_title_bar(window->WScreen);
     }
 }
 
@@ -6797,12 +7086,23 @@ VOID _intuition_ShowTitle ( register struct IntuitionBase * IntuitionBase __asm(
                                                         register struct Screen * screen __asm("a0"),
                                                         register BOOL showIt __asm("d0"))
 {
-    /*
-     * ShowTitle() controls whether the screen title bar is shown in front of
-     * or behind backdrop windows. Since we don't have true screen layering,
-     * this is a no-op.
-     */
     DPRINTF (LOG_DEBUG, "_intuition: ShowTitle() screen=0x%08lx showIt=%d\n", screen, showIt);
+
+    if (!screen)
+        return;
+
+    if (showIt)
+        screen->Flags |= SHOWTITLE;
+    else
+        screen->Flags &= ~SHOWTITLE;
+
+    if (showIt)
+        _render_screen_title_bar(screen);
+    else
+    {
+        SetAPen(&screen->RastPort, 0);
+        RectFill(&screen->RastPort, 0, 0, screen->Width - 1, screen->BarHeight);
+    }
 }
 
 VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -6857,57 +7157,10 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
         emucall3(EMU_CALL_INT_SIZE_WINDOW, (ULONG)window->UserData, (ULONG)new_w, (ULONG)new_h);
     }
 
-    /* Send IDCMP_NEWSIZE */
-    if (window->IDCMPFlags & IDCMP_NEWSIZE)
-    {
-        struct IntuiMessage *msg;
-        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
-        if (msg)
-        {
-            msg->Class = IDCMP_NEWSIZE;
-            msg->Code = 0;
-            msg->Qualifier = 0;
-            msg->IAddress = window;
-            msg->IDCMPWindow = window;
-            msg->MouseX = window->MouseX;
-            msg->MouseY = window->MouseY; 
-            
-            if (window->UserPort)
-            {
-                PutMsg(window->UserPort, (struct Message *)msg);
-            }
-            else
-            {
-                FreeMem(msg, sizeof(struct IntuiMessage));
-            }
-        }
-    }
-
-    /* Send IDCMP_CHANGEWINDOW */
-    if (window->IDCMPFlags & IDCMP_CHANGEWINDOW)
-    {
-        struct IntuiMessage *msg;
-        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
-        if (msg)
-        {
-            msg->Class = IDCMP_CHANGEWINDOW;
-            msg->Code = CWCODE_MOVESIZE;
-            msg->Qualifier = 0;
-            msg->IAddress = window;
-            msg->IDCMPWindow = window;
-            msg->MouseX = window->MouseX;
-            msg->MouseY = window->MouseY;
-            
-            if (window->UserPort)
-            {
-                PutMsg(window->UserPort, (struct Message *)msg);
-            }
-            else
-            {
-                FreeMem(msg, sizeof(struct IntuiMessage));
-            }
-        }
-    }
+    _post_idcmp_message(window, IDCMP_NEWSIZE, 0, 0,
+                        window, window->MouseX, window->MouseY);
+    _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE, 0,
+                        window, window->MouseX, window->MouseY);
 }
 
 struct View * _intuition_ViewAddress ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -6963,31 +7216,8 @@ VOID _intuition_WindowToBack ( register struct IntuitionBase * IntuitionBase __a
         emucall1(EMU_CALL_INT_WINDOW_TOBACK, (ULONG)window->UserData);
     }
 
-    /* Send IDCMP_CHANGEWINDOW notification */
-    if (window->IDCMPFlags & IDCMP_CHANGEWINDOW)
-    {
-        struct IntuiMessage *msg;
-        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
-        if (msg)
-        {
-            msg->Class = IDCMP_CHANGEWINDOW;
-            msg->Code = CWCODE_DEPTH;
-            msg->Qualifier = 0;
-            msg->IAddress = window;
-            msg->IDCMPWindow = window;
-            msg->MouseX = window->MouseX;
-            msg->MouseY = window->MouseY;
-            
-            if (window->UserPort)
-            {
-                PutMsg(window->UserPort, (struct Message *)msg);
-            }
-            else
-            {
-                FreeMem(msg, sizeof(struct IntuiMessage));
-            }
-        }
-    }
+    _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_DEPTH, 0,
+                        window, window->MouseX, window->MouseY);
 }
 
 VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -7013,31 +7243,8 @@ VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __
         emucall1(EMU_CALL_INT_WINDOW_TOFRONT, (ULONG)window->UserData);
     }
 
-    /* Send IDCMP_CHANGEWINDOW notification */
-    if (window->IDCMPFlags & IDCMP_CHANGEWINDOW)
-    {
-        struct IntuiMessage *msg;
-        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
-        if (msg)
-        {
-            msg->Class = IDCMP_CHANGEWINDOW;
-            msg->Code = CWCODE_DEPTH;
-            msg->Qualifier = 0;
-            msg->IAddress = window;
-            msg->IDCMPWindow = window;
-            msg->MouseX = window->MouseX;
-            msg->MouseY = window->MouseY;
-            
-            if (window->UserPort)
-            {
-                PutMsg(window->UserPort, (struct Message *)msg);
-            }
-            else
-            {
-                FreeMem(msg, sizeof(struct IntuiMessage));
-            }
-        }
-    }
+    _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_DEPTH, 0,
+                        window, window->MouseX, window->MouseY);
 }
 
 BOOL _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -7349,21 +7556,32 @@ BOOL _intuition_AutoRequest ( register struct IntuitionBase * IntuitionBase __as
 VOID _intuition_BeginRefresh ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                register struct Window * window __asm("a0"))
 {
+    struct Layer *layer;
+
     DPRINTF(LOG_DEBUG, "_intuition: BeginRefresh() window=0x%08lx\n", (ULONG)window);
 
     if (!window)
         return;
 
-    struct Layer *layer = window->WLayer;
+    layer = window->WLayer;
     if (!layer)
     {
         DPRINTF(LOG_DEBUG, "_intuition: BeginRefresh() window has no layer\n");
         return;
     }
 
-    /* Call the layers.library BeginUpdate which sets up clipping
-     * to only allow drawing in damaged regions */
-    BeginUpdate(layer);
+    LockLayerInfo(&window->WScreen->LayerInfo);
+    LockLayer(0, layer);
+
+    if (!BeginUpdate(layer))
+    {
+        EndUpdate(layer, FALSE);
+        UnlockLayer(layer);
+        UnlockLayerInfo(&window->WScreen->LayerInfo);
+        return;
+    }
+
+    window->Flags |= WFLG_WINDOWREFRESH;
 
     /* Optionally: Clear the damaged areas to the background color
      * For WFLG_SIMPLE_REFRESH windows, the app is responsible for redrawing */
@@ -7438,28 +7656,35 @@ VOID _intuition_EndRefresh ( register struct IntuitionBase * IntuitionBase __asm
                              register struct Window * window __asm("a0"),
                              register LONG complete __asm("d0"))
 {
+    struct Layer *layer;
+
     DPRINTF(LOG_DEBUG, "_intuition: EndRefresh() window=0x%08lx complete=%ld\n",
             (ULONG)window, complete);
 
     if (!window)
         return;
 
-    struct Layer *layer = window->WLayer;
+    layer = window->WLayer;
     if (!layer)
     {
         DPRINTF(LOG_DEBUG, "_intuition: EndRefresh() window has no layer\n");
         return;
     }
 
-    /* Call the layers.library EndUpdate to restore normal clipping.
-     * If complete is TRUE (non-zero), clear the damage list. */
-    EndUpdate(layer, complete ? TRUE : FALSE);
+    if (window->Flags & WFLG_WINDOWREFRESH)
+    {
+        EndUpdate(layer, complete ? TRUE : FALSE);
+    }
 
-    /* Clear the LAYERREFRESH flag if we're done */
-    if (complete && layer)
+    window->Flags &= ~WFLG_WINDOWREFRESH;
+
+    if (complete)
     {
         layer->Flags &= ~LAYERREFRESH;
     }
+
+    UnlockLayer(layer);
+    UnlockLayerInfo(&window->WScreen->LayerInfo);
 }
 
 VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -8411,39 +8636,67 @@ VOID _intuition_ZipWindow ( register struct IntuitionBase * IntuitionBase __asm(
 struct Screen * _intuition_LockPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("a0"))
 {
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct PubScreenNode *pub;
     struct Screen *screen;
     
     DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() name='%s', FirstScreen=0x%08lx\n", 
              name ? (char *)name : "(null/default)", (ULONG)IntuitionBase->FirstScreen);
     
-    /* If name is NULL or "Workbench", return the default public screen */
-    if (!name || strcmp((const char *)name, "Workbench") == 0)
+    /* If name is NULL, return the default public screen. */
+    if (!name)
     {
-        screen = IntuitionBase->FirstScreen;
-        if (screen)
+        pub = _intuition_default_pubscreen_node(base);
+        if (pub)
         {
-            /* Increment a visitor count (we don't actually track this, but apps expect it to work) */
-            DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() returning FirstScreen=0x%08lx\n", (ULONG)screen);
-            return screen;
+            pub->psn_VisitorCount++;
+            DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() returning default screen=0x%08lx visitors=%d\n",
+                     (ULONG)pub->psn_Screen, pub->psn_VisitorCount);
+            return pub->psn_Screen;
         }
-        
+
         /* No screen exists - auto-open Workbench screen */
         DPRINTF (LOG_INFO, "_intuition: LockPubScreen() no screen, auto-opening Workbench\n");
         if (_intuition_OpenWorkBench(IntuitionBase))
         {
-            screen = IntuitionBase->FirstScreen;
-            if (screen)
+            pub = _intuition_default_pubscreen_node(base);
+            if (pub)
             {
-                DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() returning new Workbench screen=0x%08lx\n", (ULONG)screen);
-                return screen;
+                pub->psn_VisitorCount++;
+                DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() returning new default screen=0x%08lx visitors=%d\n",
+                         (ULONG)pub->psn_Screen, pub->psn_VisitorCount);
+                return pub->psn_Screen;
             }
         }
         DPRINTF (LOG_ERROR, "_intuition: LockPubScreen() failed to auto-open Workbench\n");
         return NULL;
     }
-    
-    /* Named public screens not supported yet - return NULL
-     * (app should fall back to default screen) */
+
+    if (_intuition_ascii_casecmp((const char *)name, "Workbench") == 0)
+    {
+        pub = _intuition_find_pubscreen_by_name(base, (CONST_STRPTR)"Workbench");
+        if (!pub && _intuition_OpenWorkBench(IntuitionBase))
+            pub = _intuition_find_pubscreen_by_name(base, (CONST_STRPTR)"Workbench");
+
+        if (pub && !(pub->psn_Flags & PSNF_PRIVATE))
+        {
+            pub->psn_VisitorCount++;
+            return pub->psn_Screen;
+        }
+
+        return NULL;
+    }
+
+    pub = _intuition_find_pubscreen_by_name(base, name);
+    if (pub && !(pub->psn_Flags & PSNF_PRIVATE))
+    {
+        pub->psn_VisitorCount++;
+        screen = pub->psn_Screen;
+        DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() returning named screen '%s' 0x%08lx visitors=%d\n",
+                 (const char *)name, (ULONG)screen, pub->psn_VisitorCount);
+        return screen;
+    }
+
     DPRINTF (LOG_DEBUG, "_intuition: LockPubScreen() named screen '%s' not found\n", (char *)name);
     return NULL;
 }
@@ -8452,27 +8705,27 @@ VOID _intuition_UnlockPubScreen ( register struct IntuitionBase * IntuitionBase 
                                                         register CONST_STRPTR name __asm("a0"),
                                                         register struct Screen * screen __asm("a1"))
 {
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct PubScreenNode *pub = NULL;
+
     DPRINTF (LOG_DEBUG, "_intuition: UnlockPubScreen() name='%s', screen=0x%08lx\n",
              name ? (char *)name : "(null)", (ULONG)screen);
-    /* In a full implementation, we'd decrement a visitor count */
-    /* For now, this is a no-op since we don't track screen locks */
+
+    if (name)
+        pub = _intuition_find_pubscreen_by_name(base, name);
+    if (!pub && screen)
+        pub = _intuition_find_pubscreen_by_screen(base, screen);
+
+    if (pub && pub->psn_VisitorCount > 0)
+        pub->psn_VisitorCount--;
 }
 
 struct List * _intuition_LockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    /* Lock the list of public screens for reading.
-     * Returns a pointer to the list head.
-     * In our simplified implementation, we don't have a separate pub screen list,
-     * so we return NULL. Applications should handle this gracefully.
-     */
-    DPRINTF (LOG_DEBUG, "_intuition: LockPubScreenList() - returning NULL (no pub screen list)\n");
-    
-    /* In a full implementation, this would:
-     * 1. ObtainSemaphore on the pub screen list semaphore
-     * 2. Return pointer to IntuitionBase's internal pub screen list
-     * For now, return NULL since we don't track public screens separately.
-     */
-    return NULL;
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+
+    DPRINTF (LOG_DEBUG, "_intuition: LockPubScreenList() -> 0x%08lx\n", (ULONG)&base->PubScreenList);
+    return &base->PubScreenList;
 }
 
 VOID _intuition_UnlockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))
@@ -8545,15 +8798,33 @@ UWORD _intuition_PubScreenStatus ( register struct IntuitionBase * IntuitionBase
                                                         register struct Screen * screen __asm("a0"),
                                                         register UWORD statusFlags __asm("d0"))
 {
-    /*
-     * PubScreenStatus() changes the status of a public screen.
-     * Status flags include PSNF_PRIVATE (make private).
-     * Returns the old status, or 0 if screen has visitor windows (can't make private).
-     * We don't track public screens properly yet, so just return success.
-     */
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct PubScreenNode *pub;
+    UWORD oldFlags;
+
     DPRINTF (LOG_DEBUG, "_intuition: PubScreenStatus() screen=0x%08lx statusFlags=0x%04x\n",
              (ULONG)screen, statusFlags);
-    return 1;  /* Success - old status was "public" */
+
+    if (!screen)
+        return 0;
+
+    pub = _intuition_find_pubscreen_by_screen(base, screen);
+    if (!pub)
+        return 0;
+
+    oldFlags = pub->psn_Flags;
+
+    if ((statusFlags & PSNF_PRIVATE) && pub->psn_VisitorCount > 0)
+        return 0;
+
+    pub->psn_Flags = statusFlags & PSNF_PRIVATE;
+
+    if ((pub->psn_Flags & PSNF_PRIVATE) && base->DefaultPubScreen == screen)
+        base->DefaultPubScreen = NULL;
+    else if (!(pub->psn_Flags & PSNF_PRIVATE) && !base->DefaultPubScreen)
+        base->DefaultPubScreen = screen;
+
+    return oldFlags;
 }
 
 struct RastPort	* _intuition_ObtainGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -8652,16 +8923,22 @@ VOID _intuition_private1 ( register struct IntuitionBase * IntuitionBase __asm("
 VOID _intuition_GetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register STRPTR nameBuffer __asm("a0"))
 {
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct PubScreenNode *pub;
+
     /* Get the name of the default public screen.
      * Copies the name into nameBuffer (which must be at least MAXPUBSCREENNAME+1 bytes).
      */
     DPRINTF (LOG_DEBUG, "_intuition: GetDefaultPubScreen(nameBuffer=%p)\n", nameBuffer);
-    
+
     if (!nameBuffer)
         return;
-    
-    /* In our simplified implementation, Workbench is always the default */
-    strcpy((char *)nameBuffer, "Workbench");
+
+    pub = _intuition_default_pubscreen_node(base);
+    if (pub && pub->psn_Node.ln_Name)
+        strcpy((char *)nameBuffer, pub->psn_Node.ln_Name);
+    else
+        strcpy((char *)nameBuffer, "Workbench");
 }
 
 /* ============================================================================
