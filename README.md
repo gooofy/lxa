@@ -207,7 +207,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.82** - Phase 78-C graphics verification now also locks in the core blit APIs: `BltBitMap`, `BltBitMapRastPort`, `ClipBlit`, and `BltMaskBitMapRastPort` are covered for minterms, overlap handling, layer-aware clipping, and masked copies in the unified graphics regression sweep
+**Version 0.6.91** - Phase 78-C graphics verification now also locks in BitMap utilities behavior: `ScalerDiv`/`BitMapScale`, public font add/remove plus `tf_Extension` lifetime, and `GfxNew`/`GfxFree`/`GfxAssociate`/`GfxLookUp` all have direct regression coverage
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

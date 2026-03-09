@@ -41,8 +41,11 @@ TEST_F(GraphicsTest, BltBitMap) { RunGraphicsTest("BltBitMap"); }
 TEST_F(GraphicsTest, BlitterQueue) { RunGraphicsTest("BlitterQueue"); }
 TEST_F(GraphicsTest, BltBitMapRastPort) { RunGraphicsTest("BltBitMapRastPort"); }
 TEST_F(GraphicsTest, BltMaskBitMapRastPort) { RunGraphicsTest("BltMaskBitMapRastPort"); }
+TEST_F(GraphicsTest, BitMapUtils) { RunGraphicsTest("BitMapUtils"); }
 TEST_F(GraphicsTest, BltPattern) { RunGraphicsTest("BltPattern"); }
 TEST_F(GraphicsTest, ClipBlit) { RunGraphicsTest("ClipBlit"); }
+TEST_F(GraphicsTest, ColorsPens) { RunGraphicsTest("ColorsPens"); }
+TEST_F(GraphicsTest, DisplayViewPort) { RunGraphicsTest("DisplayViewPort"); }
 TEST_F(GraphicsTest, DrawEllipse) { RunGraphicsTest("DrawEllipse"); }
 TEST_F(GraphicsTest, Flood) { RunGraphicsTest("Flood"); }
 TEST_F(GraphicsTest, HwBlitter) { RunGraphicsTest("HwBlitter"); }
@@ -56,6 +59,7 @@ TEST_F(GraphicsTest, PixelOps) { RunGraphicsTest("PixelOps"); }
 TEST_F(GraphicsTest, PolyDraw) { RunGraphicsTest("PolyDraw"); }
 TEST_F(GraphicsTest, RectFill) { RunGraphicsTest("RectFill"); }
 TEST_F(GraphicsTest, Regions) { RunGraphicsTest("Regions"); }
+TEST_F(GraphicsTest, SpritesGels) { RunGraphicsTest("SpritesGels"); }
 TEST_F(GraphicsTest, RPAttrs) { RunGraphicsTest("RPAttrs"); }
 TEST_F(GraphicsTest, SetRast) { RunGraphicsTest("SetRast"); }
 TEST_F(GraphicsTest, TextExtent) { RunGraphicsTest("TextExtent"); }

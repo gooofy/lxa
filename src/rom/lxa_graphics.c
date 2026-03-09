@@ -8,9 +8,14 @@
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
+#include <stdint.h>
+
 #include <graphics/sprite.h>
 #include <graphics/view.h>
+#include <graphics/modeid.h>
+#include <graphics/videocontrol.h>
 #include <graphics/gfxbase.h>
+#include <graphics/gfxnodes.h>
 #include <graphics/rastport.h>
 #include <graphics/gfx.h>
 #include <graphics/regions.h>
@@ -18,7 +23,11 @@
 #include <graphics/layers.h>
 #include <graphics/gels.h>
 #include <graphics/scale.h>
+#include <graphics/text.h>
 #include <hardware/blit.h>
+
+#include <clib/utility_protos.h>
+#include <inline/utility.h>
 
 #include <intuition/intuitionbase.h>
 
@@ -31,10 +40,32 @@ extern VOID _intuition_ProcessInputEvents(struct Screen *screen);
 /* Global IntuitionBase (defined in exec.c) - used to avoid OpenLibrary from interrupt context */
 extern struct IntuitionBase *IntuitionBase;
 extern struct ExecBase *SysBase;
+extern struct UtilityBase *UtilityBase;
 
 /* Forward declarations for Topaz font (defined later in this file) */
 static struct TextFont g_topaz8_font;
 static void init_topaz8_font(void);
+
+#define GFXASSOCIATE_HASHSIZE 8
+#define GRAPHICS_TFE_MATCHWORD 0xDFE7
+
+static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
+                          WORD xSrc,
+                          WORD ySrc,
+                          struct BitMap *destBitMap,
+                          WORD xDest,
+                          WORD yDest,
+                          WORD xSize,
+                          WORD ySize,
+                          UBYTE minterm,
+                          UBYTE mask,
+                          CONST PLANEPTR bltMask,
+                          UWORD maskBytesPerRow);
+static VOID _graphics_AddVSprite(register struct GfxBase *GfxBase __asm("a6"),
+                                 register struct VSprite *vSprite __asm("a0"),
+                                 register struct RastPort *rp __asm("a1"));
+static VOID _graphics_RemVSprite(register struct GfxBase *GfxBase __asm("a6"),
+                                 register struct VSprite *vSprite __asm("a0"));
 
 struct BlitWaitQNode
 {
@@ -138,6 +169,158 @@ static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
                                   register ULONG red __asm("d1"),
                                   register ULONG green __asm("d2"),
                                   register ULONG blue __asm("d3"));
+static VOID _graphics_SetRGB32CM ( register struct GfxBase * GfxBase __asm("a6"),
+                                   register struct ColorMap * cm __asm("a0"),
+                                   register ULONG n __asm("d0"),
+                                   register ULONG r __asm("d1"),
+                                   register ULONG g __asm("d2"),
+                                   register ULONG b __asm("d3"));
+
+#define GRAPHICS_PEN_NONE ((UWORD)0xFFFF)
+
+static UWORD *graphics_palette_ref_counts(struct PaletteExtra *pe)
+{
+    return (UWORD *)pe->pe_RefCnt;
+}
+
+static UWORD *graphics_palette_alloc_list(struct PaletteExtra *pe)
+{
+    return (UWORD *)pe->pe_AllocList;
+}
+
+static VOID graphics_color_get(CONST struct ColorMap *cm,
+                               ULONG index,
+                               ULONG *r,
+                               ULONG *g,
+                               ULONG *b)
+{
+    UWORD hibits;
+    ULONG red8;
+    ULONG green8;
+    ULONG blue8;
+
+    hibits = ((CONST UWORD *)cm->ColorTable)[index];
+    red8 = (hibits & 0x0f00) >> 4;
+    green8 = (hibits & 0x00f0);
+    blue8 = (hibits & 0x000f) << 4;
+
+    if ((cm->Type > COLORMAP_TYPE_V1_2) && cm->LowColorBits)
+    {
+        UWORD lobits = ((CONST UWORD *)cm->LowColorBits)[index];
+
+        red8 |= (lobits & 0x0f00) >> 8;
+        green8 |= (lobits & 0x00f0) >> 4;
+        blue8 |= (lobits & 0x000f);
+    }
+
+    *r = red8 * 0x01010101UL;
+    *g = green8 * 0x01010101UL;
+    *b = blue8 * 0x01010101UL;
+}
+
+static BOOL graphics_color_equal(CONST struct ColorMap *cm,
+                                 ULONG r,
+                                 ULONG g,
+                                 ULONG b,
+                                 ULONG index)
+{
+    CONST UWORD *colors = (CONST UWORD *)cm->ColorTable;
+
+    if (colors[index] != (((r >> 20) & 0x0f00) |
+                          ((g >> 24) & 0x00f0) |
+                          ((b >> 28) & 0x000f)))
+        return FALSE;
+
+    if ((cm->Type > COLORMAP_TYPE_V1_2) && cm->LowColorBits)
+    {
+        CONST UWORD *low = (CONST UWORD *)cm->LowColorBits;
+
+        if (low[index] != (((r >> 16) & 0x0f00) |
+                           ((g >> 20) & 0x00f0) |
+                           ((b >> 24) & 0x000f)))
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
+static ULONG graphics_color_distance(CONST struct ColorMap *cm,
+                                     ULONG r,
+                                     ULONG g,
+                                     ULONG b,
+                                     ULONG index)
+{
+    ULONG cr;
+    ULONG cg;
+    ULONG cb;
+    LONG dr;
+    LONG dg;
+    LONG db;
+
+    graphics_color_get(cm, index, &cr, &cg, &cb);
+
+    dr = (LONG)((r >> 24) & 0xff) - (LONG)((cr >> 24) & 0xff);
+    dg = (LONG)((g >> 24) & 0xff) - (LONG)((cg >> 24) & 0xff);
+    db = (LONG)((b >> 24) & 0xff) - (LONG)((cb >> 24) & 0xff);
+
+    return (ULONG)(dr * dr) + (ULONG)(dg * dg) + (ULONG)(db * db);
+}
+
+static BOOL graphics_palette_remove_pen(struct PaletteExtra *pe,
+                                        UWORD *head,
+                                        UWORD pen)
+{
+    UWORD *alloc_list = graphics_palette_alloc_list(pe);
+    UWORD prev = GRAPHICS_PEN_NONE;
+    UWORD cur = *head;
+
+    while (cur != GRAPHICS_PEN_NONE)
+    {
+        if (cur == pen)
+        {
+            if (prev == GRAPHICS_PEN_NONE)
+                *head = alloc_list[cur];
+            else
+                alloc_list[prev] = alloc_list[cur];
+
+            alloc_list[cur] = GRAPHICS_PEN_NONE;
+            return TRUE;
+        }
+
+        prev = cur;
+        cur = alloc_list[cur];
+    }
+
+    return FALSE;
+}
+
+static BOOL graphics_palette_pen_in_list(struct PaletteExtra *pe,
+                                         UWORD head,
+                                         UWORD pen)
+{
+    UWORD *alloc_list = graphics_palette_alloc_list(pe);
+    UWORD cur = head;
+
+    while (cur != GRAPHICS_PEN_NONE)
+    {
+        if (cur == pen)
+            return TRUE;
+
+        cur = alloc_list[cur];
+    }
+
+    return FALSE;
+}
+
+static VOID graphics_palette_push_pen(struct PaletteExtra *pe,
+                                      UWORD *head,
+                                      UWORD pen)
+{
+    UWORD *alloc_list = graphics_palette_alloc_list(pe);
+
+    alloc_list[pen] = *head;
+    *head = pen;
+}
 
 static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct RastPort * rp __asm("a1"),
@@ -159,6 +342,8 @@ static VOID _graphics_ClearEOL ( register struct GfxBase * GfxBase __asm("a6"),
                                  register struct RastPort * rp __asm("a1"));
 static VOID _graphics_RemFont ( register struct GfxBase * GfxBase __asm("a6"),
                                 register struct TextFont * textFont __asm("a1"));
+static VOID _graphics_StripFont ( register struct GfxBase * GfxBase __asm("a6"),
+                                  register struct TextFont * font __asm("a0"));
 static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6"),
                                    register struct RastPort * rp __asm("a1"),
                                    register WORD x __asm("d0"),
@@ -261,6 +446,300 @@ static void lxa_memset(void *s, int c, ULONG n)
     UBYTE *p = (UBYTE *)s;
     while (n--)
         *p++ = (UBYTE)c;
+}
+
+static void lxa_memcpy(void *dest, const void *src, ULONG n)
+{
+    UBYTE *d = (UBYTE *)dest;
+    const UBYTE *s = (const UBYTE *)src;
+
+    while (n--)
+        *d++ = *s++;
+}
+
+static ULONG graphics_calc_hash_index(uintptr_t value, UWORD hashsize)
+{
+    UBYTE index = (value & 0xff)
+                + ((value >> 8) & 0xff)
+                + ((value >> 16) & 0xff)
+                + ((value >> 24) & 0xff);
+
+    index &= (UBYTE)(hashsize - 1);
+    return index;
+}
+
+static LONG graphics_dummy_init(struct ExtendedNode *node, UWORD reserved)
+{
+    (void)node;
+    (void)reserved;
+    return 0;
+}
+
+static ULONG graphics_gfx_node_size(ULONG node_type)
+{
+    switch (node_type)
+    {
+        case VIEW_EXTRA_TYPE:
+            return sizeof(struct ViewExtra);
+        case VIEWPORT_EXTRA_TYPE:
+            return sizeof(struct ViewPortExtra);
+        case SPECIAL_MONITOR_TYPE:
+            return sizeof(struct SpecialMonitor);
+        case MONITOR_SPEC_TYPE:
+            return sizeof(struct MonitorSpec);
+        default:
+            return 0;
+    }
+}
+
+static APTR *graphics_hash_bucket_ptr(struct GfxBase *GfxBase, CONST APTR associateNode)
+{
+    ULONG index;
+
+    if (!GfxBase || !GfxBase->hash_table || !associateNode)
+        return NULL;
+
+    index = graphics_calc_hash_index((uintptr_t)associateNode, GFXASSOCIATE_HASHSIZE);
+    return (APTR *)&GfxBase->hash_table[index];
+}
+
+static struct TextFontExtension *graphics_text_font_extension(struct TextFont *font)
+{
+    struct TextFontExtension *tfe;
+
+    if (!font)
+        return NULL;
+
+    tfe = (struct TextFontExtension *)font->tf_Extension;
+    if (!tfe)
+        return NULL;
+
+    if ((tfe->tfe_MatchWord != GRAPHICS_TFE_MATCHWORD) || (tfe->tfe_BackPtr != font))
+        return NULL;
+
+    return tfe;
+}
+
+static ULONG graphics_query_header_length(ULONG size)
+{
+    return (size + 7) / 8;
+}
+
+static const ULONG g_known_display_ids[] = {
+    LORES_KEY,
+    HIRES_KEY,
+    NTSC_MONITOR_ID | LORES_KEY,
+    NTSC_MONITOR_ID | HIRES_KEY,
+    PAL_MONITOR_ID | LORES_KEY,
+    PAL_MONITOR_ID | HIRES_KEY
+};
+
+static BOOL graphics_display_id_is_known(ULONG display_id)
+{
+    ULONG i;
+
+    if (display_id == INVALID_ID)
+        return FALSE;
+
+    for (i = 0; i < (sizeof(g_known_display_ids) / sizeof(g_known_display_ids[0])); i++)
+    {
+        if (g_known_display_ids[i] == display_id)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+static const char *graphics_display_mode_name(ULONG display_id)
+{
+    if (display_id & HIRES)
+        return "HIRES";
+
+    return "LORES";
+}
+
+static UWORD graphics_display_nominal_width(ULONG display_id)
+{
+    return (display_id & HIRES) ? 640 : 320;
+}
+
+static UWORD graphics_display_nominal_height(ULONG display_id)
+{
+    if ((display_id & MONITOR_ID_MASK) == PAL_MONITOR_ID)
+        return 256;
+
+    return 200;
+}
+
+static UWORD graphics_display_total_rows(ULONG display_id)
+{
+    if ((display_id & MONITOR_ID_MASK) == PAL_MONITOR_ID)
+        return 312;
+
+    if ((display_id & MONITOR_ID_MASK) == NTSC_MONITOR_ID)
+        return 262;
+
+    return 262;
+}
+
+static ULONG graphics_copy_query(void *dest, ULONG dest_size, const void *src, ULONG src_size)
+{
+    ULONG copy_size;
+
+    if (!dest || dest_size == 0)
+        return 0;
+
+    copy_size = (dest_size < src_size) ? dest_size : src_size;
+    lxa_memcpy(dest, src, copy_size);
+    return copy_size;
+}
+
+static struct CopList *graphics_alloc_placeholder_coplist(void)
+{
+    struct CopList *cop_list;
+
+    cop_list = AllocMem(sizeof(struct CopList), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!cop_list)
+        return NULL;
+
+    cop_list->MaxCount = 1;
+    return cop_list;
+}
+
+static struct cprlist *graphics_alloc_placeholder_cprlist(void)
+{
+    struct cprlist *cpr_list;
+
+    cpr_list = AllocMem(sizeof(struct cprlist), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!cpr_list)
+        return NULL;
+
+    cpr_list->MaxCount = 1;
+    cpr_list->start = AllocMem(2 * sizeof(UWORD), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!cpr_list->start)
+    {
+        FreeMem(cpr_list, sizeof(struct cprlist));
+        return NULL;
+    }
+
+    return cpr_list;
+}
+
+static VOID graphics_free_placeholder_coplist(struct CopList *cop_list)
+{
+    if (cop_list)
+        FreeMem(cop_list, sizeof(struct CopList));
+}
+
+static VOID graphics_free_placeholder_cprlist(struct cprlist *cpr_list)
+{
+    if (!cpr_list)
+        return;
+
+    if (cpr_list->start)
+        FreeMem(cpr_list->start, 2 * sizeof(UWORD));
+
+    FreeMem(cpr_list, sizeof(struct cprlist));
+}
+
+static ULONG graphics_vsprite_sort_key(CONST struct VSprite *vSprite)
+{
+    return (((ULONG)(UWORD)vSprite->Y) << 16) | (UWORD)vSprite->X;
+}
+
+static VOID graphics_init_gels_sentinel(struct VSprite *vSprite, WORD x, WORD y)
+{
+    if (!vSprite)
+        return;
+
+    vSprite->OldX = x;
+    vSprite->OldY = y;
+    vSprite->X = x;
+    vSprite->Y = y;
+    vSprite->DrawPath = NULL;
+    vSprite->ClearPath = NULL;
+}
+
+static VOID graphics_insert_vsprite_sorted(struct VSprite *head,
+                                           struct VSprite *tail,
+                                           struct VSprite *vSprite)
+{
+    struct VSprite *cursor;
+    ULONG key;
+
+    if (!head || !tail || !vSprite)
+        return;
+
+    key = graphics_vsprite_sort_key(vSprite);
+    cursor = head;
+
+    while (cursor->NextVSprite && cursor->NextVSprite != tail)
+    {
+        if (graphics_vsprite_sort_key(cursor->NextVSprite) >= key)
+            break;
+        cursor = cursor->NextVSprite;
+    }
+
+    vSprite->PrevVSprite = cursor;
+    vSprite->NextVSprite = cursor->NextVSprite ? cursor->NextVSprite : tail;
+    if (vSprite->NextVSprite)
+        vSprite->NextVSprite->PrevVSprite = vSprite;
+    cursor->NextVSprite = vSprite;
+}
+
+static BOOL graphics_build_vsprite_bitmap(CONST struct VSprite *vSprite,
+                                          struct BitMap *bm)
+{
+    ULONG plane_size;
+    ULONG plane;
+    UBYTE *image_data;
+
+    if (!vSprite || !bm || !vSprite->ImageData || vSprite->Width <= 0 ||
+        vSprite->Height <= 0 || vSprite->Depth <= 0 || vSprite->Depth > 8)
+    {
+        return FALSE;
+    }
+
+    lxa_memset(bm, 0, sizeof(*bm));
+    bm->BytesPerRow = (UWORD)(vSprite->Width * 2);
+    bm->Rows = (UWORD)vSprite->Height;
+    bm->Depth = (UWORD)vSprite->Depth;
+    plane_size = (ULONG)bm->BytesPerRow * (ULONG)bm->Rows;
+    image_data = (UBYTE *)vSprite->ImageData;
+
+    for (plane = 0; plane < (ULONG)bm->Depth; plane++)
+        bm->Planes[plane] = image_data + (plane * plane_size);
+
+    return TRUE;
+}
+
+static VOID graphics_draw_vsprite(struct GfxBase *GfxBase,
+                                  struct RastPort *rp,
+                                  struct VSprite *vSprite)
+{
+    struct BitMap src_bm;
+
+    if (!rp || !rp->BitMap || !vSprite)
+        return;
+
+    if (!graphics_build_vsprite_bitmap(vSprite, &src_bm))
+        return;
+
+    BltBitMapCore(&src_bm,
+                  0,
+                  0,
+                  rp->BitMap,
+                  vSprite->X,
+                  vSprite->Y,
+                  (WORD)(vSprite->Width << 4),
+                  vSprite->Height,
+                  0xC0,
+                  0xFF,
+                  (vSprite->VSBob && vSprite->VSBob->ImageShadow) ?
+                      (PLANEPTR)vSprite->VSBob->ImageShadow : NULL,
+                  src_bm.BytesPerRow);
+
+    (void)GfxBase;
 }
 
 /*
@@ -767,6 +1246,7 @@ struct GfxBase * __g_lxa_graphics_InitLib    ( register struct GfxBase *graphics
 
     /* Set the default font for the system */
     graphicsb->DefaultFont = &g_topaz8_font;
+    graphicsb->hash_table = (LONG *)AllocMem(GFXASSOCIATE_HASHSIZE * sizeof(APTR), MEMF_PUBLIC | MEMF_CLEAR);
 
     DPRINTF (LOG_DEBUG, "_graphics: InitLib() DefaultFont set to 0x%08lx (g_topaz8_font at 0x%08lx)\n", 
              (ULONG)graphicsb->DefaultFont, (ULONG)&g_topaz8_font);
@@ -1409,16 +1889,43 @@ static VOID _graphics_AddBob ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Bob * bob __asm("a0"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AddBob() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: AddBob() bob=0x%08lx rp=0x%08lx\n",
+             (ULONG)bob, (ULONG)rp);
+
+    if (!bob || !rp || !rp->GelsInfo || !bob->BobVSprite)
+        return;
+
+    bob->Flags &= BUSERFLAGS;
+    bob->Flags |= BWAITING;
+    bob->BobVSprite->VSBob = bob;
+    _graphics_AddVSprite(GfxBase, bob->BobVSprite, rp);
 }
 
 static VOID _graphics_AddVSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct VSprite * vSprite __asm("a0"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AddVSprite() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct GelsInfo *gelsInfo;
+
+    DPRINTF (LOG_DEBUG, "_graphics: AddVSprite() vs=0x%08lx rp=0x%08lx\n",
+             (ULONG)vSprite, (ULONG)rp);
+
+    if (!vSprite || !rp || !rp->GelsInfo)
+        return;
+
+    gelsInfo = rp->GelsInfo;
+    vSprite->Flags &= SUSERFLAGS;
+    vSprite->OldX = vSprite->X;
+    vSprite->OldY = vSprite->Y;
+    vSprite->DrawPath = NULL;
+    vSprite->ClearPath = NULL;
+
+    if (vSprite->PrevVSprite || vSprite->NextVSprite)
+        _graphics_RemVSprite(GfxBase, vSprite);
+
+    graphics_insert_vsprite_sorted(gelsInfo->gelHead, gelsInfo->gelTail, vSprite);
+
+    (void)GfxBase;
 }
 
 static VOID _graphics_DoCollision ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1432,8 +1939,47 @@ static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: DrawGList() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct VSprite *current;
+    struct VSprite *tail;
+
+    DPRINTF (LOG_DEBUG, "_graphics: DrawGList() rp=0x%08lx vp=0x%08lx\n",
+             (ULONG)rp, (ULONG)vp);
+
+    if (!rp || !rp->GelsInfo || !rp->GelsInfo->gelHead || !rp->GelsInfo->gelTail)
+        return;
+
+    current = rp->GelsInfo->gelHead->NextVSprite;
+    tail = rp->GelsInfo->gelTail;
+
+    while (current && current != tail)
+    {
+        struct VSprite *next = current->NextVSprite;
+
+        if (current->VSBob && (current->VSBob->Flags & BOBSAWAY))
+        {
+            _graphics_RemVSprite(GfxBase, current);
+            current->VSBob->Flags |= BOBNIX;
+            current->VSBob->Flags &= ~BDRAWN;
+            current = next;
+            continue;
+        }
+
+        if ((current->Flags & GELGONE) == 0)
+            graphics_draw_vsprite(GfxBase, rp, current);
+
+        current->OldX = current->X;
+        current->OldY = current->Y;
+
+        if (current->VSBob)
+        {
+            current->VSBob->Flags |= BDRAWN;
+            current->VSBob->Flags &= ~BOBNIX;
+        }
+
+        current = next;
+    }
+
+    (void)vp;
 }
 
 static VOID _graphics_InitGels ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1441,42 +1987,43 @@ static VOID _graphics_InitGels ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct VSprite * tail __asm("a1"),
                                                         register struct GelsInfo * gelsInfo __asm("a2"))
 {
-    /*
-     * InitGels() initializes the GEL (Graphics ELement) system for a RastPort.
-     * This sets up the VSprite list with head/tail sentinels for sprite animation.
-     * Since we don't support hardware sprites/GELs, we just initialize the structure.
-     */
     DPRINTF (LOG_DEBUG, "_graphics: InitGels() head=0x%08lx tail=0x%08lx gelsInfo=0x%08lx\n",
              (ULONG)head, (ULONG)tail, (ULONG)gelsInfo);
-    
-    if (gelsInfo) {
-        /* Set up the VSprite list with sentinels */
-        gelsInfo->sprRsrvd = 0;
-        gelsInfo->Flags = 0;
-        gelsInfo->gelHead = head;
-        gelsInfo->gelTail = tail;
-        gelsInfo->nextLine = NULL;
-        gelsInfo->lastColor = NULL;
-        gelsInfo->collHandler = NULL;
-        gelsInfo->leftmost = 0;
-        gelsInfo->rightmost = 0;
-        gelsInfo->topmost = 0;
-        gelsInfo->bottommost = 0;
-        gelsInfo->firstBlissObj = NULL;
-        gelsInfo->lastBlissObj = NULL;
-        
-        /* Link the head and tail */
-        if (head) {
-            head->NextVSprite = tail;
-            head->PrevVSprite = NULL;
-            head->ClearPath = NULL;
-        }
-        if (tail) {
-            tail->PrevVSprite = head;
-            tail->NextVSprite = NULL;
-            tail->ClearPath = NULL;
-        }
+
+    if (!gelsInfo)
+        return;
+
+    gelsInfo->sprRsrvd = 0;
+    gelsInfo->Flags = 0;
+    gelsInfo->gelHead = head;
+    gelsInfo->gelTail = tail;
+    gelsInfo->nextLine = NULL;
+    gelsInfo->lastColor = NULL;
+    gelsInfo->collHandler = NULL;
+    gelsInfo->leftmost = 0;
+    gelsInfo->rightmost = 0;
+    gelsInfo->topmost = 0;
+    gelsInfo->bottommost = 0;
+    gelsInfo->firstBlissObj = NULL;
+    gelsInfo->lastBlissObj = NULL;
+
+    graphics_init_gels_sentinel(head, -32768, -32768);
+    graphics_init_gels_sentinel(tail, 32767, 32767);
+
+    if (head)
+    {
+        head->NextVSprite = tail;
+        head->PrevVSprite = NULL;
+        head->ClearPath = tail;
     }
+
+    if (tail)
+    {
+        tail->PrevVSprite = head;
+        tail->NextVSprite = NULL;
+    }
+
+    (void)GfxBase;
 }
 
 static VOID _graphics_InitMasks ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1498,8 +2045,22 @@ static VOID _graphics_RemIBob ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_RemVSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct VSprite * vSprite __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: RemVSprite() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: RemVSprite() vs=0x%08lx\n", (ULONG)vSprite);
+
+    if (!vSprite)
+        return;
+
+    if (vSprite->PrevVSprite)
+        vSprite->PrevVSprite->NextVSprite = vSprite->NextVSprite;
+    if (vSprite->NextVSprite)
+        vSprite->NextVSprite->PrevVSprite = vSprite->PrevVSprite;
+
+    vSprite->PrevVSprite = NULL;
+    vSprite->NextVSprite = NULL;
+    vSprite->DrawPath = NULL;
+    vSprite->ClearPath = NULL;
+
+    (void)GfxBase;
 }
 
 static VOID _graphics_SetCollision ( register struct GfxBase  *GfxBase   __asm("a6"),
@@ -1513,8 +2074,37 @@ static VOID _graphics_SetCollision ( register struct GfxBase  *GfxBase   __asm("
 static VOID _graphics_SortGList ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SortGList() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct VSprite *head;
+    struct VSprite *tail;
+    struct VSprite *current;
+
+    DPRINTF (LOG_DEBUG, "_graphics: SortGList() rp=0x%08lx\n", (ULONG)rp);
+
+    if (!rp || !rp->GelsInfo || !rp->GelsInfo->gelHead || !rp->GelsInfo->gelTail)
+        return;
+
+    head = rp->GelsInfo->gelHead;
+    tail = rp->GelsInfo->gelTail;
+    current = head->NextVSprite;
+
+    head->NextVSprite = tail;
+    tail->PrevVSprite = head;
+
+    while (current && current != tail)
+    {
+        struct VSprite *next = current->NextVSprite;
+
+        current->PrevVSprite = NULL;
+        current->NextVSprite = NULL;
+        graphics_insert_vsprite_sorted(head, tail, current);
+
+        if (current->VSBob)
+            current->VSBob->Flags &= ~BDRAWN;
+
+        current = next;
+    }
+
+    (void)GfxBase;
 }
 
 static VOID _graphics_AddAnimOb ( register struct GfxBase * GfxBase __asm("a6"),
@@ -1826,25 +2416,58 @@ static VOID _graphics_InitVPort ( register struct GfxBase * GfxBase __asm("a6"),
 static ULONG _graphics_MrgCop ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a1"))
 {
-    /* MrgCop() merges the copper lists from all ViewPorts into a single list.
-     * In lxa, we use SDL-based rendering through Intuition, so we don't need
-     * actual copper lists. This stub returns success (0) to allow RKM samples
-     * like RGBBoxes to run without crashing.
-     */
-    DPRINTF (LOG_DEBUG, "_graphics: MrgCop() view=0x%08lx (stub - no-op)\n", (ULONG)view);
-    return 0;  /* MVP_OK - success */
+    struct cprlist *lof_list;
+    struct cprlist *shf_list = NULL;
+
+    DPRINTF (LOG_DEBUG, "_graphics: MrgCop() view=0x%08lx\n", (ULONG)view);
+
+    if (!view)
+        return MVP_OK;
+
+    lof_list = graphics_alloc_placeholder_cprlist();
+    if (!lof_list)
+        return MVP_NO_MEM;
+
+    if (view->Modes & LACE)
+    {
+        shf_list = graphics_alloc_placeholder_cprlist();
+        if (!shf_list)
+        {
+            graphics_free_placeholder_cprlist(lof_list);
+            return MVP_NO_MEM;
+        }
+    }
+
+    graphics_free_placeholder_cprlist(view->LOFCprList);
+    graphics_free_placeholder_cprlist(view->SHFCprList);
+    view->LOFCprList = lof_list;
+    view->SHFCprList = shf_list;
+
+    return MVP_OK;
 }
 
 static ULONG _graphics_MakeVPort ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
-    /* MakeVPort() builds the copper list for a ViewPort.
-     * In lxa, we use SDL-based rendering, so copper lists are not needed.
-     * This stub returns success to allow RKM samples like RGBBoxes to run.
-     */
-    DPRINTF (LOG_DEBUG, "_graphics: MakeVPort() view=0x%08lx, vp=0x%08lx (stub - no-op)\n", (ULONG)view, (ULONG)vp);
-    return 0;  /* MVP_OK - success */
+    struct CopList *dsp_list;
+
+    DPRINTF (LOG_DEBUG, "_graphics: MakeVPort() view=0x%08lx, vp=0x%08lx\n", (ULONG)view, (ULONG)vp);
+
+    if (!vp)
+        return MVP_OK;
+
+    dsp_list = graphics_alloc_placeholder_coplist();
+    if (!dsp_list)
+        return MVP_NO_MEM;
+
+    graphics_free_placeholder_coplist(vp->DspIns);
+    vp->DspIns = dsp_list;
+
+    if (vp->ColorMap)
+        vp->ColorMap->cm_vp = vp;
+
+    return MVP_OK;
 }
 
 static VOID _graphics_LoadView ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3616,16 +4239,63 @@ static WORD _graphics_GetSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct SimpleSprite * sprite __asm("a0"),
                                                         register LONG num __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetSprite() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    UBYTE search_mask;
+    WORD result = -1;
+
+    DPRINTF (LOG_DEBUG, "_graphics: GetSprite() sprite=0x%08lx num=%ld\n",
+             (ULONG)sprite, num);
+
+    if (!sprite || !GfxBase)
+        return -1;
+
+    if (num > 7 || num < -1)
+        num = -1;
+
+    Disable();
+
+    if (num == -1)
+    {
+        WORD count;
+
+        search_mask = 0x01;
+        for (count = 0; count < 8; count++)
+        {
+            if ((GfxBase->SpriteReserved & search_mask) == 0)
+            {
+                GfxBase->SpriteReserved |= search_mask;
+                result = count;
+                break;
+            }
+            search_mask <<= 1;
+        }
+    }
+    else
+    {
+        search_mask = (UBYTE)(0x01 << num);
+        if ((GfxBase->SpriteReserved & search_mask) == 0)
+        {
+            GfxBase->SpriteReserved |= search_mask;
+            result = (WORD)num;
+        }
+    }
+
+    Enable();
+
+    sprite->num = (UWORD)result;
+    return result;
 }
 
 static VOID _graphics_FreeSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG num __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FreeSprite() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: FreeSprite() num=%ld\n", num);
+
+    if (!GfxBase || num < 0 || num > 7)
+        return;
+
+    Disable();
+    GfxBase->SpriteReserved &= (UBYTE)~(1U << num);
+    Enable();
 }
 
 static VOID _graphics_ChangeSprite ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3633,8 +4303,15 @@ static VOID _graphics_ChangeSprite ( register struct GfxBase * GfxBase __asm("a6
                                                         register struct SimpleSprite * sprite __asm("a1"),
                                                         register UWORD * newData __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ChangeSprite() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: ChangeSprite() vp=0x%08lx sprite=0x%08lx data=0x%08lx\n",
+             (ULONG)vp, (ULONG)sprite, (ULONG)newData);
+
+    if (!sprite)
+        return;
+
+    sprite->posctldata = newData;
+
+    (void)GfxBase;
 }
 
 static VOID _graphics_MoveSprite ( register struct GfxBase * GfxBase __asm("a6"),
@@ -3643,8 +4320,24 @@ static VOID _graphics_MoveSprite ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: MoveSprite() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: MoveSprite() vp=0x%08lx sprite=0x%08lx x=%ld y=%ld\n",
+             (ULONG)vp, (ULONG)sprite, x, y);
+
+    if (!sprite)
+        return;
+
+    if (vp)
+    {
+        sprite->x = (UWORD)(x + vp->DxOffset);
+        sprite->y = (UWORD)(y + vp->DyOffset);
+    }
+    else
+    {
+        sprite->x = (UWORD)x;
+        sprite->y = (UWORD)y;
+    }
+
+    (void)GfxBase;
 }
 
 /* NOTE: These functions use __attribute__((optimize("O0"))) to work around
@@ -3845,6 +4538,8 @@ static VOID _graphics_AddFont ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_RemFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * textFont __asm("a1"))
 {
+    struct TextFontExtension *tfe;
+
     /* Remove a font from the list of public fonts.
      * Based on AROS implementation.
      */
@@ -3854,12 +4549,21 @@ static VOID _graphics_RemFont ( register struct GfxBase * GfxBase __asm("a6"),
         return;
     
     Forbid();
+
+    tfe = graphics_text_font_extension(textFont);
+    if (tfe && (tfe->tfe_Flags0 & TE0F_NOREMFONT))
+    {
+        Permit();
+        return;
+    }
     
     /* Only remove if not already removed */
     if (!(textFont->tf_Flags & FPF_REMOVED)) {
         textFont->tf_Flags |= FPF_REMOVED;
         Remove(&textFont->tf_Message.mn_Node);
     }
+
+    _graphics_StripFont(GfxBase, textFont);
     
     Permit();
 }
@@ -4250,32 +4954,24 @@ static BOOL _graphics_ClearRectRegion ( register struct GfxBase * GfxBase __asm(
 static VOID _graphics_FreeVPortCopLists ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ViewPort * vp __asm("a0"))
 {
-    /*
-     * FreeVPortCopLists() frees intermediate copper lists for a ViewPort.
-     * In lxa we don't use real copper lists (SDL-based rendering), so this is a no-op.
-     * We just need to clear the pointers to indicate lists are freed.
-     */
     DPRINTF(LOG_DEBUG, "_graphics: FreeVPortCopLists(vp=0x%08lx)\n", (ULONG)vp);
     
     if (vp)
     {
-        /* Clear copper list pointers - they weren't really allocated */
+        graphics_free_placeholder_coplist(vp->DspIns);
+        graphics_free_placeholder_coplist(vp->SprIns);
+        graphics_free_placeholder_coplist(vp->ClrIns);
         vp->DspIns = NULL;
         vp->SprIns = NULL;
         vp->ClrIns = NULL;
-        vp->UCopIns = NULL;
     }
 }
 
 static VOID _graphics_FreeCopList ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct CopList * copList __asm("a0"))
 {
-    /*
-     * FreeCopList() frees a CopList structure.
-     * In lxa we don't use real copper lists (SDL-based rendering), so this is a no-op.
-     */
-    DPRINTF(LOG_DEBUG, "_graphics: FreeCopList(copList=0x%08lx) - no-op\n", (ULONG)copList);
-    /* Nothing to free - we never allocated real copper lists */
+    DPRINTF(LOG_DEBUG, "_graphics: FreeCopList(copList=0x%08lx)\n", (ULONG)copList);
+    graphics_free_placeholder_coplist(copList);
 }
 
 static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4497,12 +5193,8 @@ static BOOL _graphics_XorRectRegion ( register struct GfxBase * GfxBase __asm("a
 static VOID _graphics_FreeCprList ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct cprlist * cprList __asm("a0"))
 {
-    /*
-     * FreeCprList() frees a cprlist structure (compiled copper list).
-     * In lxa we don't use real copper lists (SDL-based rendering), so this is a no-op.
-     */
-    DPRINTF(LOG_DEBUG, "_graphics: FreeCprList(cprList=0x%08lx) - no-op\n", (ULONG)cprList);
-    /* Nothing to free - we never allocated real copper lists */
+    DPRINTF(LOG_DEBUG, "_graphics: FreeCprList(cprList=0x%08lx)\n", (ULONG)cprList);
+    graphics_free_placeholder_cprlist(cprList);
 }
 
 static struct ColorMap * _graphics_GetColorMap ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4917,8 +5609,8 @@ static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
      */
     UWORD *ct;
     
-    DPRINTF(LOG_DEBUG, "_graphics: SetRGB4CM(cm=%p, index=%ld, r=%ld, g=%ld, b=%ld)\n",
-            colorMap, index, red, green, blue);
+    DPRINTF(LOG_DEBUG, "_graphics: SetRGB4CM(cm=0x%08lx, index=%ld, r=%ld, g=%ld, b=%ld)\n",
+            (ULONG)colorMap, index, red, green, blue);
     
     /* Validate parameters */
     if (!colorMap || index < 0 || index >= colorMap->Count)
@@ -4928,8 +5620,16 @@ static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
     if (!ct)
         return;
     
-    /* Pack RGB into 12-bit format: 0x0RGB */
-    ct[index] = ((red & 0xF) << 8) | ((green & 0xF) << 4) | (blue & 0xF);
+    /* Pack RGB into 12-bit format: 0x0RGB, preserving the top nibble. */
+    ct[index] = (ct[index] & 0xF000) |
+                ((red & 0xF) << 8) |
+                ((green & 0xF) << 4) |
+                (blue & 0xF);
+
+    if ((colorMap->Type > COLORMAP_TYPE_V1_2) && colorMap->LowColorBits)
+    {
+        ((UWORD *)colorMap->LowColorBits)[index] = 0;
+    }
 }
 
 static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase __asm("a6"),
@@ -5026,24 +5726,90 @@ static BOOL __attribute__((optimize("O0"))) _graphics_AttemptLockLayerRom ( regi
 static APTR _graphics_GfxNew ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG gfxNodeType __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GfxNew() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct ExtendedNode *node;
+    ULONG size;
+
+    DPRINTF (LOG_DEBUG, "_graphics: GfxNew(type=%lu)\n", gfxNodeType);
+
+    size = graphics_gfx_node_size(gfxNodeType);
+    if (size == 0)
+        return NULL;
+
+    node = (struct ExtendedNode *)AllocMem(size, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!node)
+        return NULL;
+
+    node->xln_Type = NT_GRAPHICS;
+    node->xln_Subsystem = SS_GRAPHICS;
+    node->xln_Subtype = (UBYTE)gfxNodeType;
+    node->xln_Library = GfxBase;
+    node->xln_Init = graphics_dummy_init;
+
+    if (gfxNodeType == VIEW_EXTRA_TYPE)
+    {
+        ((struct ViewExtra *)node)->Monitor = GfxBase ? GfxBase->natural_monitor : NULL;
+        ((struct ViewExtra *)node)->TopLine = 0;
+    }
+
+    return node;
 }
 
 static VOID _graphics_GfxFree ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register APTR gfxNodePtr __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GfxFree() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct ExtendedNode *node = (struct ExtendedNode *)gfxNodePtr;
+    ULONG size;
+
+    DPRINTF (LOG_DEBUG, "_graphics: GfxFree(node=0x%08lx)\n", (ULONG)gfxNodePtr);
+
+    if (!node)
+        return;
+
+    size = graphics_gfx_node_size(node->xln_Subtype);
+    if (size == 0 || node->xln_Subsystem != SS_GRAPHICS || node->xln_Type != NT_GRAPHICS)
+        return;
+
+    if (node->xln_Pred)
+    {
+        if (node->xln_Succ)
+            ((struct ExtendedNode *)node->xln_Succ)->xln_Pred = node->xln_Pred;
+
+        ((struct ExtendedNode *)node->xln_Pred)->xln_Succ = node->xln_Succ;
+    }
+
+    FreeMem(node, size);
 }
 
 static VOID _graphics_GfxAssociate ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST APTR associateNode __asm("a0"),
                                                         register APTR gfxNodePtr __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GfxAssociate() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct ExtendedNode *node = (struct ExtendedNode *)gfxNodePtr;
+    APTR *bucket;
+
+    DPRINTF (LOG_DEBUG, "_graphics: GfxAssociate(ptr=0x%08lx, node=0x%08lx)\n",
+             (ULONG)associateNode, (ULONG)gfxNodePtr);
+
+    if (!associateNode || !node)
+        return;
+
+    bucket = graphics_hash_bucket_ptr(GfxBase, associateNode);
+    if (!bucket)
+        return;
+
+    if (node->xln_Pred)
+    {
+        if (node->xln_Succ)
+            ((struct ExtendedNode *)node->xln_Succ)->xln_Pred = node->xln_Pred;
+        ((struct ExtendedNode *)node->xln_Pred)->xln_Succ = node->xln_Succ;
+    }
+
+    ((struct ViewExtra *)node)->View = (struct View *)associateNode;
+    node->xln_Succ = (struct Node *)*bucket;
+    node->xln_Pred = (struct Node *)bucket;
+    if (*bucket)
+        ((struct ExtendedNode *)*bucket)->xln_Pred = (struct Node *)node;
+    *bucket = gfxNodePtr;
 }
 
 static VOID _graphics_BitMapScale ( register struct GfxBase * GfxBase __asm("a6"),
@@ -5362,8 +6128,24 @@ static ULONG _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
 static APTR _graphics_GfxLookUp ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST APTR associateNode __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GfxLookUp() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct ExtendedNode *node;
+    APTR *bucket;
+
+    DPRINTF (LOG_DEBUG, "_graphics: GfxLookUp(ptr=0x%08lx)\n", (ULONG)associateNode);
+
+    bucket = graphics_hash_bucket_ptr(GfxBase, associateNode);
+    if (!bucket)
+        return NULL;
+
+    node = (struct ExtendedNode *)*bucket;
+    while (node)
+    {
+        if (((struct ViewExtra *)node)->View == associateNode)
+            return node;
+
+        node = (struct ExtendedNode *)node->xln_Succ;
+    }
+
     return NULL;
 }
 
@@ -5371,9 +6153,109 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
                                                         register struct ColorMap * colorMap __asm("a0"),
                                                         register struct TagItem * tagarray __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: VideoControl() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct TagItem *tag;
+    LONG *immediate = NULL;
+    ULONG result = 0;
+
+    DPRINTF (LOG_DEBUG, "_graphics: VideoControl() cm=0x%08lx tags=0x%08lx\n",
+             (ULONG)colorMap, (ULONG)tagarray);
+
+    if (!colorMap || !tagarray)
+        return 1;
+
+    for (tag = tagarray; tag->ti_Tag != TAG_DONE; tag++)
+    {
+        switch (tag->ti_Tag)
+        {
+            case VTAG_ATTACH_CM_SET: colorMap->cm_vp = (struct ViewPort *)tag->ti_Data; break;
+            case VTAG_ATTACH_CM_GET: tag->ti_Tag = VTAG_ATTACH_CM_SET; tag->ti_Data = (ULONG)colorMap->cm_vp; break;
+            case VTAG_VIEWPORTEXTRA_SET: colorMap->cm_vpe = (struct ViewPortExtra *)tag->ti_Data; break;
+            case VTAG_VIEWPORTEXTRA_GET: tag->ti_Tag = VTAG_VIEWPORTEXTRA_SET; tag->ti_Data = (ULONG)colorMap->cm_vpe; break;
+            case VTAG_NORMAL_DISP_SET: colorMap->NormalDisplayInfo = (APTR)tag->ti_Data; break;
+            case VTAG_NORMAL_DISP_GET: tag->ti_Tag = VTAG_NORMAL_DISP_SET; tag->ti_Data = (ULONG)colorMap->NormalDisplayInfo; break;
+            case VTAG_COERCE_DISP_SET: colorMap->CoerceDisplayInfo = (APTR)tag->ti_Data; break;
+            case VTAG_COERCE_DISP_GET: tag->ti_Tag = VTAG_COERCE_DISP_SET; tag->ti_Data = (ULONG)colorMap->CoerceDisplayInfo; break;
+            case VTAG_PF1_BASE_SET: colorMap->Bp_0_base = (UWORD)tag->ti_Data; break;
+            case VTAG_PF1_BASE_GET: tag->ti_Tag = VTAG_PF1_BASE_SET; tag->ti_Data = colorMap->Bp_0_base; break;
+            case VTAG_PF2_BASE_SET: colorMap->Bp_1_base = (UWORD)tag->ti_Data; break;
+            case VTAG_PF2_BASE_GET: tag->ti_Tag = VTAG_PF2_BASE_SET; tag->ti_Data = colorMap->Bp_1_base; break;
+            case VTAG_SPEVEN_BASE_SET: colorMap->SpriteBase_Even = (UWORD)tag->ti_Data; break;
+            case VTAG_SPEVEN_BASE_GET: tag->ti_Tag = VTAG_SPEVEN_BASE_SET; tag->ti_Data = colorMap->SpriteBase_Even; break;
+            case VTAG_SPODD_BASE_SET: colorMap->SpriteBase_Odd = (UWORD)tag->ti_Data; break;
+            case VTAG_SPODD_BASE_GET: tag->ti_Tag = VTAG_SPODD_BASE_SET; tag->ti_Data = colorMap->SpriteBase_Odd; break;
+            case VTAG_BORDERSPRITE_SET: colorMap->Flags |= BORDERSPRITES; break;
+            case VTAG_BORDERSPRITE_CLR: colorMap->Flags &= ~BORDERSPRITES; break;
+            case VTAG_BORDERSPRITE_GET:
+                if (colorMap->Flags & BORDERSPRITES) { tag->ti_Tag = VTAG_BORDERSPRITE_SET; tag->ti_Data = TRUE; }
+                else { tag->ti_Tag = VTAG_BORDERSPRITE_CLR; tag->ti_Data = FALSE; }
+                break;
+            case VTAG_SPRITERESN_SET: colorMap->SpriteResolution = (UBYTE)tag->ti_Data; break;
+            case VTAG_SPRITERESN_GET: tag->ti_Tag = VTAG_SPRITERESN_SET; tag->ti_Data = colorMap->SpriteResolution; break;
+            case VTAG_DEFSPRITERESN_SET: colorMap->SpriteResDefault = (UBYTE)tag->ti_Data; break;
+            case VTAG_DEFSPRITERESN_GET: tag->ti_Tag = VTAG_DEFSPRITERESN_SET; tag->ti_Data = colorMap->SpriteResDefault; break;
+            case VTAG_BORDERBLANK_SET: colorMap->Flags |= BORDER_BLANKING; break;
+            case VTAG_BORDERBLANK_CLR: colorMap->Flags &= ~BORDER_BLANKING; break;
+            case VTAG_BORDERBLANK_GET:
+                if (colorMap->Flags & BORDER_BLANKING) { tag->ti_Tag = VTAG_BORDERBLANK_SET; tag->ti_Data = TRUE; }
+                else { tag->ti_Tag = VTAG_BORDERBLANK_CLR; tag->ti_Data = FALSE; }
+                break;
+            case VTAG_BORDERNOTRANS_SET: colorMap->Flags |= BORDER_NOTRANSPARENCY; break;
+            case VTAG_BORDERNOTRANS_CLR: colorMap->Flags &= ~BORDER_NOTRANSPARENCY; break;
+            case VTAG_BORDERNOTRANS_GET:
+                if (colorMap->Flags & BORDER_NOTRANSPARENCY) { tag->ti_Tag = VTAG_BORDERNOTRANS_SET; tag->ti_Data = TRUE; }
+                else { tag->ti_Tag = VTAG_BORDERNOTRANS_CLR; tag->ti_Data = FALSE; }
+                break;
+            case VTAG_IMMEDIATE: immediate = (LONG *)tag->ti_Data; break;
+            case VTAG_FULLPALETTE_SET: colorMap->AuxFlags |= CMAF_FULLPALETTE; break;
+            case VTAG_FULLPALETTE_CLR: colorMap->AuxFlags &= ~CMAF_FULLPALETTE; break;
+            case VTAG_FULLPALETTE_GET:
+                if (colorMap->AuxFlags & CMAF_FULLPALETTE) { tag->ti_Tag = VTAG_FULLPALETTE_SET; tag->ti_Data = TRUE; }
+                else { tag->ti_Tag = VTAG_FULLPALETTE_CLR; tag->ti_Data = FALSE; }
+                break;
+            case VC_IntermediateCLUpdate:
+                if (tag->ti_Data) colorMap->AuxFlags &= ~CMAF_NO_INTERMED_UPDATE;
+                else colorMap->AuxFlags |= CMAF_NO_INTERMED_UPDATE;
+                break;
+            case VC_IntermediateCLUpdate_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_NO_INTERMED_UPDATE) ? FALSE : TRUE; break;
+            case VC_NoColorPaletteLoad:
+                if (tag->ti_Data) colorMap->AuxFlags |= CMAF_NO_COLOR_LOAD;
+                else colorMap->AuxFlags &= ~CMAF_NO_COLOR_LOAD;
+                break;
+            case VC_NoColorPaletteLoad_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_NO_COLOR_LOAD) ? TRUE : FALSE; break;
+            case VC_DUALPF_Disable:
+                if (tag->ti_Data) colorMap->AuxFlags |= CMAF_DUALPF_DISABLE;
+                else colorMap->AuxFlags &= ~CMAF_DUALPF_DISABLE;
+                break;
+            case VC_DUALPF_Disable_Query: *((ULONG *)tag->ti_Data) = (colorMap->AuxFlags & CMAF_DUALPF_DISABLE) ? TRUE : FALSE; break;
+            case VTAG_USERCLIP_SET: colorMap->Flags |= USER_COPPER_CLIP; break;
+            case VTAG_USERCLIP_CLR: colorMap->Flags &= ~USER_COPPER_CLIP; break;
+            case VTAG_USERCLIP_GET:
+                if (colorMap->Flags & USER_COPPER_CLIP) { tag->ti_Tag = VTAG_USERCLIP_SET; tag->ti_Data = TRUE; }
+                else { tag->ti_Tag = VTAG_USERCLIP_CLR; tag->ti_Data = FALSE; }
+                break;
+            case VTAG_BATCH_CM_SET: colorMap->Flags |= VIDEOCONTROL_BATCH; break;
+            case VTAG_BATCH_CM_CLR: colorMap->Flags &= ~VIDEOCONTROL_BATCH; break;
+            case VTAG_BATCH_CM_GET:
+                if (colorMap->Flags & VIDEOCONTROL_BATCH) { tag->ti_Tag = VTAG_BATCH_CM_SET; tag->ti_Data = TRUE; }
+                else { tag->ti_Tag = VTAG_BATCH_CM_CLR; tag->ti_Data = FALSE; }
+                break;
+            case VTAG_BATCH_ITEMS_SET: colorMap->cm_batch_items = (struct TagItem *)tag->ti_Data; break;
+            case VTAG_BATCH_ITEMS_ADD: break;
+            case VTAG_BATCH_ITEMS_GET: tag->ti_Tag = VTAG_BATCH_ITEMS_SET; tag->ti_Data = (ULONG)colorMap->cm_batch_items; break;
+            case VTAG_VPMODEID_SET: colorMap->VPModeID = tag->ti_Data; break;
+            case VTAG_VPMODEID_CLR: colorMap->VPModeID = INVALID_ID; break;
+            case VTAG_VPMODEID_GET:
+                tag->ti_Tag = (colorMap->VPModeID == INVALID_ID) ? VTAG_VPMODEID_CLR : VTAG_VPMODEID_SET;
+                tag->ti_Data = colorMap->VPModeID;
+                break;
+            default: result = 1; break;
+        }
+    }
+
+    if (immediate)
+        *immediate = 0;
+
+    return result;
 }
 
 static struct MonitorSpec * _graphics_OpenMonitor ( register struct GfxBase * GfxBase __asm("a6"),
@@ -5405,45 +6287,35 @@ static BOOL _graphics_CloseMonitor ( register struct GfxBase * GfxBase __asm("a6
 static DisplayInfoHandle _graphics_FindDisplayInfo ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG displayID __asm("d0"))
 {
-    /*
-     * FindDisplayInfo() finds a display info handle for a given display ID.
-     * We return a simple non-NULL handle for common PAL/NTSC modes that 
-     * GetDisplayInfoData can recognize, NULL for unknown modes.
-     */
     DPRINTF (LOG_DEBUG, "_graphics: FindDisplayInfo() displayID=0x%08lx\n", displayID);
-    
-    /* Return displayID+1 as handle for known modes (non-zero = valid handle) */
-    /* This allows GetDisplayInfoData to retrieve the displayID from handle-1 */
-    switch (displayID & 0xFFFF0000) {
-        case 0x00000000:  /* LORES/HIRES modes */
-        case 0x00010000:  /* NTSC monitors */
-        case 0x00020000:  /* PAL monitors */
-            return (DisplayInfoHandle)(displayID + 1);
-        default:
-            return (DisplayInfoHandle)0;  /* Unknown mode */
-    }
+
+    if (!graphics_display_id_is_known(displayID))
+        return (DisplayInfoHandle)0;
+
+    return (DisplayInfoHandle)(displayID + 1);
 }
 
 static ULONG _graphics_NextDisplayInfo ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG displayID __asm("d0"))
 {
-    /*
-     * NextDisplayInfo() iterates through available display modes.
-     * Returns INVALID_ID (0xFFFFFFFF) when done.
-     * We just provide a minimal set: LORES and HIRES.
-     */
+    ULONG i;
+
     DPRINTF (LOG_DEBUG, "_graphics: NextDisplayInfo() displayID=0x%08lx\n", displayID);
-    
-    if (displayID == 0xFFFFFFFF) {
-        /* First call - return LORES */
-        return 0x00000000;  /* LORES_KEY */
-    } else if (displayID == 0x00000000) {
-        /* Return HIRES */
-        return 0x00008000;  /* HIRES_KEY */
+
+    if (displayID == INVALID_ID)
+        return g_known_display_ids[0];
+
+    for (i = 0; i < (sizeof(g_known_display_ids) / sizeof(g_known_display_ids[0])); i++)
+    {
+        if (g_known_display_ids[i] == displayID)
+        {
+            if (i + 1 < (sizeof(g_known_display_ids) / sizeof(g_known_display_ids[0])))
+                return g_known_display_ids[i + 1];
+            return INVALID_ID;
+        }
     }
-    
-    /* Done */
-    return 0xFFFFFFFF;
+
+    return INVALID_ID;
 }
 
 static VOID _graphics_private2 ( register struct GfxBase * GfxBase __asm("a6"))
@@ -5471,12 +6343,9 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
                                                         register ULONG tagID __asm("d1"),
                                                         register ULONG displayID __asm("d2"))
 {
-    /*
-     * GetDisplayInfoData() retrieves information about a display mode.
-     * Returns the number of bytes copied, or 0 on failure.
-     * We provide basic info for LORES/HIRES modes.
-     */
     ULONG actualDisplayID;
+    UWORD width;
+    UWORD height;
     
     DPRINTF (LOG_DEBUG, "_graphics: GetDisplayInfoData() handle=0x%08lx buf=0x%08lx size=%lu tagID=0x%08lx displayID=0x%08lx\n",
              (ULONG)handle, (ULONG)buf, size, tagID, displayID);
@@ -5484,114 +6353,127 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
     if (!buf || size == 0)
         return 0;
     
-    /* Get actual display ID - either from parameter or from handle */
-    if (displayID != 0 && displayID != 0xFFFFFFFF) {
+    if (displayID != INVALID_ID)
+    {
         actualDisplayID = displayID;
-    } else if (handle) {
-        actualDisplayID = ((ULONG)handle) - 1;  /* Handle is displayID+1 */
-    } else {
+    }
+    else if (handle)
+    {
+        actualDisplayID = ((ULONG)handle) - 1;
+    }
+    else
+    {
         return 0;
     }
-    
-    /* Clear buffer */
+
+    if (!graphics_display_id_is_known(actualDisplayID))
+        return 0;
+
     lxa_memset(buf, 0, size);
+    width = graphics_display_nominal_width(actualDisplayID);
+    height = graphics_display_nominal_height(actualDisplayID);
     
-    switch (tagID) {
-        case 0x80000000: /* DTAG_DISP - DisplayInfo */
+    switch (tagID)
+    {
+        case DTAG_DISP:
         {
-            /* Provide minimal DisplayInfo */
-            struct {
-                ULONG StructID;
-                ULONG DisplayID;
-                ULONG SkipID;
-                ULONG Length;
-                UWORD NotAvailable;
-                ULONG PropertyFlags;
-            } *di = (void *)buf;
-            
-            ULONG copySize = (size < 24) ? size : 24;
-            
-            di->StructID = tagID;
-            di->DisplayID = actualDisplayID;
-            di->SkipID = 0;
-            di->Length = 2;  /* 2 double-longwords after header */
-            di->NotAvailable = 0;  /* Available */
-            di->PropertyFlags = 0x00000340;  /* DIPF_IS_WB | DIPF_IS_DRAGGABLE | DIPF_IS_SPRITES */
-            
-            if (actualDisplayID & 0x00008000) {
-                /* HIRES mode */
-                di->PropertyFlags |= 0;  /* No extra flags for HIRES */
-            }
-            
-            return copySize;
+            struct DisplayInfo di;
+
+            lxa_memset(&di, 0, sizeof(di));
+            di.Header.StructID = DTAG_DISP;
+            di.Header.DisplayID = actualDisplayID;
+            di.Header.SkipID = TAG_SKIP;
+            di.Header.Length = graphics_query_header_length(sizeof(di));
+            di.NotAvailable = FALSE;
+            di.PropertyFlags = DIPF_IS_SPRITES | DIPF_IS_WB | DIPF_IS_DRAGGABLE;
+            if ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID)
+                di.PropertyFlags |= DIPF_IS_PAL;
+            if (actualDisplayID & LACE)
+                di.PropertyFlags |= DIPF_IS_LACE;
+            di.Resolution.x = (actualDisplayID & HIRES) ? 22 : 44;
+            di.Resolution.y = ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID) ? 44 : 52;
+            di.PixelSpeed = (actualDisplayID & HIRES) ? 70 : 140;
+            di.NumStdSprites = 8;
+            di.PaletteRange = 16;
+            di.SpriteResolution = di.Resolution;
+            di.RedBits = 4;
+            di.GreenBits = 4;
+            di.BlueBits = 4;
+
+            return graphics_copy_query(buf, size, &di, sizeof(di));
         }
         
-        case 0x80001000: /* DTAG_DIMS - DimensionInfo */
+        case DTAG_DIMS:
         {
-            /* Provide minimal DimensionInfo */
-            struct {
-                ULONG StructID;
-                ULONG DisplayID;
-                ULONG SkipID;
-                ULONG Length;
-                UWORD MaxDepth;
-                UWORD MinRasterWidth;
-                UWORD MinRasterHeight;
-                UWORD MaxRasterWidth;
-                UWORD MaxRasterHeight;
-            } *dims = (void *)buf;
-            
-            ULONG copySize = (size < 28) ? size : 28;
-            
-            dims->StructID = tagID;
-            dims->DisplayID = actualDisplayID;
-            dims->SkipID = 0;
-            dims->Length = 3;
-            dims->MaxDepth = 8;  /* 256 colors max */
-            
-            if (actualDisplayID & 0x00008000) {
-                /* HIRES mode */
-                dims->MinRasterWidth = 640;
-                dims->MinRasterHeight = 200;
-                dims->MaxRasterWidth = 1280;
-                dims->MaxRasterHeight = 512;
-            } else {
-                /* LORES mode */
-                dims->MinRasterWidth = 320;
-                dims->MinRasterHeight = 200;
-                dims->MaxRasterWidth = 704;
-                dims->MaxRasterHeight = 512;
-            }
-            
-            return copySize;
+            struct DimensionInfo dims;
+
+            lxa_memset(&dims, 0, sizeof(dims));
+            dims.Header.StructID = DTAG_DIMS;
+            dims.Header.DisplayID = actualDisplayID;
+            dims.Header.SkipID = TAG_SKIP;
+            dims.Header.Length = graphics_query_header_length(sizeof(dims));
+            dims.MaxDepth = 8;
+            dims.MinRasterWidth = width;
+            dims.MinRasterHeight = height;
+            dims.MaxRasterWidth = width;
+            dims.MaxRasterHeight = height;
+            dims.Nominal.MinX = 0;
+            dims.Nominal.MinY = 0;
+            dims.Nominal.MaxX = width - 1;
+            dims.Nominal.MaxY = height - 1;
+            dims.MaxOScan = dims.Nominal;
+            dims.VideoOScan = dims.Nominal;
+            dims.TxtOScan = dims.Nominal;
+            dims.StdOScan = dims.Nominal;
+
+            return graphics_copy_query(buf, size, &dims, sizeof(dims));
         }
         
-        case 0x80003000: /* DTAG_NAME - NameInfo */
+        case DTAG_MNTR:
         {
-            /* Provide mode name */
-            struct {
-                ULONG StructID;
-                ULONG DisplayID;
-                ULONG SkipID;
-                ULONG Length;
-                char Name[32];
-            } *name = (void *)buf;
-            
-            ULONG copySize = (size < 48) ? size : 48;
-            const char *modeName;
-            int i;
-            
-            name->StructID = tagID;
-            name->DisplayID = actualDisplayID;
-            name->SkipID = 0;
-            name->Length = 4;
-            
-            modeName = (actualDisplayID & 0x00008000) ? "HIRES" : "LORES";
-            for (i = 0; modeName[i] && i < 31; i++)
-                name->Name[i] = modeName[i];
-            name->Name[i] = 0;
-            
-            return copySize;
+            struct MonitorInfo mon;
+
+            lxa_memset(&mon, 0, sizeof(mon));
+            mon.Header.StructID = DTAG_MNTR;
+            mon.Header.DisplayID = actualDisplayID;
+            mon.Header.SkipID = TAG_SKIP;
+            mon.Header.Length = graphics_query_header_length(sizeof(mon));
+            mon.ViewPosition.x = 0;
+            mon.ViewPosition.y = 0;
+            mon.ViewResolution.x = (actualDisplayID & HIRES) ? 22 : 44;
+            mon.ViewResolution.y = ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID) ? 44 : 52;
+            mon.ViewPositionRange.MinX = 0;
+            mon.ViewPositionRange.MinY = 0;
+            mon.ViewPositionRange.MaxX = width - 1;
+            mon.ViewPositionRange.MaxY = height - 1;
+            mon.TotalRows = graphics_display_total_rows(actualDisplayID);
+            mon.TotalColorClocks = (actualDisplayID & HIRES) ? 455 : 227;
+            mon.MinRow = 0;
+            mon.Compatibility = MCOMPAT_MIXED;
+            mon.MouseTicks.x = mon.ViewResolution.x;
+            mon.MouseTicks.y = mon.ViewResolution.y;
+            mon.DefaultViewPosition = mon.ViewPosition;
+            mon.PreferredModeID = actualDisplayID;
+
+            return graphics_copy_query(buf, size, &mon, sizeof(mon));
+        }
+
+        case DTAG_NAME:
+        {
+            struct NameInfo name;
+            const char *mode_name;
+            ULONG i;
+
+            lxa_memset(&name, 0, sizeof(name));
+            name.Header.StructID = DTAG_NAME;
+            name.Header.DisplayID = actualDisplayID;
+            name.Header.SkipID = TAG_SKIP;
+            name.Header.Length = graphics_query_header_length(sizeof(name));
+            mode_name = graphics_display_mode_name(actualDisplayID);
+            for (i = 0; mode_name[i] && i < (DISPLAYNAMELEN - 1); i++)
+                name.Name[i] = mode_name[i];
+
+            return graphics_copy_query(buf, size, &name, sizeof(name));
         }
         
         default:
@@ -5838,6 +6720,9 @@ static LONG _graphics_GetVPModeID ( register struct GfxBase * GfxBase __asm("a6"
     
     if (!vp)
         return INVALID_ID;
+
+    if (vp->ColorMap && vp->ColorMap->VPModeID != INVALID_ID)
+        return (LONG)vp->ColorMap->VPModeID;
     
     /* Build mode ID from viewport modes */
     if (vp->Modes & HIRES)
@@ -5899,16 +6784,68 @@ static ULONG _graphics_ExtendFont ( register struct GfxBase * GfxBase __asm("a6"
                                                         register struct TextFont * font __asm("a0"),
                                                         register CONST struct TagItem * fontTags __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ExtendFont() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct TextFontExtension *tfe;
+    struct TagItem default_tags[] = {
+        { TAG_DONE, 0 }
+    };
+
+    DPRINTF (LOG_DEBUG, "_graphics: ExtendFont(font=0x%08lx tags=0x%08lx)\n",
+             (ULONG)font, (ULONG)fontTags);
+
+    if (!font)
+        return FALSE;
+
+    tfe = graphics_text_font_extension(font);
+    if (tfe)
+        return TRUE;
+
+    if (!fontTags)
+        fontTags = default_tags;
+
+    tfe = (struct TextFontExtension *)AllocMem(sizeof(struct TextFontExtension), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!tfe)
+        return FALSE;
+
+    tfe->tfe_Tags = CloneTagItems(fontTags);
+    if (!tfe->tfe_Tags)
+        tfe->tfe_Tags = AllocateTagItems(1);
+
+    if (!tfe->tfe_Tags)
+    {
+        FreeMem(tfe, sizeof(struct TextFontExtension));
+        return FALSE;
+    }
+
+    tfe->tfe_MatchWord = GRAPHICS_TFE_MATCHWORD;
+    tfe->tfe_BackPtr = font;
+    tfe->tfe_OrigReplyPort = font->tf_Message.mn_ReplyPort;
+    font->tf_Extension = (struct MsgPort *)tfe;
+    font->tf_Style |= FSF_TAGGED;
+
+    return TRUE;
 }
 
 static VOID _graphics_StripFont ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct TextFont * font __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: StripFont() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct TextFontExtension *tfe;
+
+    DPRINTF (LOG_DEBUG, "_graphics: StripFont(font=0x%08lx)\n", (ULONG)font);
+
+    if (!font)
+        return;
+
+    tfe = graphics_text_font_extension(font);
+    if (!tfe)
+        return;
+
+    font->tf_Extension = tfe->tfe_OrigReplyPort;
+    font->tf_Style &= ~FSF_TAGGED;
+
+    if (tfe->tfe_Tags)
+        FreeTagItems(tfe->tfe_Tags);
+
+    FreeMem(tfe, sizeof(struct TextFontExtension));
 }
 
 static UWORD _graphics_CalcIVG ( register struct GfxBase * GfxBase __asm("a6"),
@@ -5924,8 +6861,78 @@ static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("
                                                         register struct ColorMap * cm __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AttachPalExtra() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct PaletteExtra *pe;
+    UWORD *ref_counts;
+    UWORD *alloc_list;
+    ULONG sharablecolors;
+    ULONG i;
+
+    DPRINTF (LOG_DEBUG, "_graphics: AttachPalExtra() cm=0x%08lx vp=0x%08lx\n",
+             (ULONG)cm, (ULONG)vp);
+
+    if (!cm)
+        return 1;
+
+    if (cm->PalExtra)
+        return 0;
+
+    pe = AllocMem(sizeof(struct PaletteExtra), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!pe)
+        return 1;
+
+    ref_counts = (UWORD *)AllocMem(cm->Count * sizeof(UWORD), MEMF_PUBLIC | MEMF_CLEAR);
+    alloc_list = (UWORD *)AllocMem(cm->Count * sizeof(UWORD), MEMF_PUBLIC);
+    if (!ref_counts || !alloc_list)
+    {
+        if (ref_counts)
+            FreeMem(ref_counts, cm->Count * sizeof(UWORD));
+        if (alloc_list)
+            FreeMem(alloc_list, cm->Count * sizeof(UWORD));
+        FreeMem(pe, sizeof(struct PaletteExtra));
+        return 1;
+    }
+
+    InitSemaphore(&pe->pe_Semaphore);
+    pe->pe_RefCnt = (UBYTE *)ref_counts;
+    pe->pe_AllocList = (UBYTE *)alloc_list;
+    pe->pe_ViewPort = vp;
+
+    sharablecolors = (ULONG)cm->Count;
+    if (vp && vp->RasInfo && vp->RasInfo->BitMap)
+    {
+        ULONG bmdepth = (ULONG)vp->RasInfo->BitMap->Depth;
+
+        if (bmdepth < 8)
+        {
+            ULONG depth_colors = 1UL << bmdepth;
+
+            if (depth_colors < sharablecolors)
+                sharablecolors = depth_colors;
+        }
+    }
+
+    for (i = 0; i < (ULONG)cm->Count; i++)
+        alloc_list[i] = GRAPHICS_PEN_NONE;
+
+    if (sharablecolors > 0)
+    {
+        for (i = 0; i < sharablecolors; i++)
+            alloc_list[i] = (i == 0) ? GRAPHICS_PEN_NONE : (UWORD)(i - 1);
+
+        pe->pe_FirstFree = (UWORD)(sharablecolors - 1);
+        pe->pe_SharableColors = (UWORD)(sharablecolors - 1);
+    }
+    else
+    {
+        pe->pe_FirstFree = GRAPHICS_PEN_NONE;
+        pe->pe_SharableColors = GRAPHICS_PEN_NONE;
+    }
+
+    pe->pe_NFree = (UWORD)sharablecolors;
+    pe->pe_FirstShared = GRAPHICS_PEN_NONE;
+    pe->pe_NShared = 0;
+
+    cm->PalExtra = pe;
     return 0;
 }
 
@@ -5965,13 +6972,10 @@ static VOID _graphics_SetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
     if (!vp)
         return;
 
-    /* Update ColorMap (store as 4-bit for compatibility) */
+    /* Update ColorMap using the full public 32-bit-to-8-bit packing. */
     if (vp->ColorMap && n < (ULONG)vp->ColorMap->Count)
     {
-        ULONG r4 = (r >> 28) & 0xF;
-        ULONG g4 = (g >> 28) & 0xF;
-        ULONG b4 = (b >> 28) & 0xF;
-        _graphics_SetRGB4CM(GfxBase, vp->ColorMap, (LONG)n, r4, g4, b4);
+        _graphics_SetRGB32CM(GfxBase, vp->ColorMap, n, r, g, b);
     }
 
     /* Propagate to host display using full 8-bit precision */
@@ -6067,13 +7071,10 @@ static VOID _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
 
             ULONG index = first + i;
 
-            /* Update ColorMap (store as 4-bit) */
+            /* Update ColorMap using the full 8-bit palette packing. */
             if (vp->ColorMap && index < (ULONG)vp->ColorMap->Count)
             {
-                ULONG r4 = (r >> 28) & 0xF;
-                ULONG g4 = (g >> 28) & 0xF;
-                ULONG b4 = (b >> 28) & 0xF;
-                _graphics_SetRGB4CM(GfxBase, vp->ColorMap, (LONG)index, r4, g4, b4);
+                _graphics_SetRGB32CM(GfxBase, vp->ColorMap, index, r, g, b);
             }
 
             /* Propagate to host display using 8-bit precision */
@@ -6137,44 +7138,27 @@ static VOID _graphics_GetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
     if (!cm || !table)
         return;
     
-    UWORD *ct = cm->ColorTable;
-    if (!ct)
+    if (!cm->ColorTable)
         return;
     
     for (ULONG i = 0; i < ncolors; i++) {
         ULONG color_index = firstcolor + i;
-        ULONG rgb4;
+        ULONG r;
+        ULONG g;
+        ULONG b;
         
         if (color_index < cm->Count) {
-            rgb4 = ct[color_index];
+            graphics_color_get(cm, color_index, &r, &g, &b);
         } else {
-            rgb4 = 0;  /* Out of range - return black */
+            r = 0;
+            g = 0;
+            b = 0;
         }
         
-        /* Extract 4-bit components from 0x0RGB format */
-        ULONG r4 = (rgb4 >> 8) & 0xF;
-        ULONG g4 = (rgb4 >> 4) & 0xF;
-        ULONG b4 = rgb4 & 0xF;
-        
-        /* Expand 4-bit to 32-bit by replicating bits
-         * 0xF -> 0xFFFFFFFF, 0x8 -> 0x88888888, etc.
-         */
-        ULONG r32 = r4 | (r4 << 4);
-        r32 = r32 | (r32 << 8);
-        r32 = r32 | (r32 << 16);
-        
-        ULONG g32 = g4 | (g4 << 4);
-        g32 = g32 | (g32 << 8);
-        g32 = g32 | (g32 << 16);
-        
-        ULONG b32 = b4 | (b4 << 4);
-        b32 = b32 | (b32 << 8);
-        b32 = b32 | (b32 << 16);
-        
         /* Store in table: R, G, B for each color */
-        table[i * 3 + 0] = r32;
-        table[i * 3 + 1] = g32;
-        table[i * 3 + 2] = b32;
+        table[i * 3 + 0] = r;
+        table[i * 3 + 1] = g;
+        table[i * 3 + 2] = b;
     }
 }
 
@@ -6332,8 +7316,49 @@ static VOID _graphics_ReleasePen ( register struct GfxBase * GfxBase __asm("a6")
                                                         register struct ColorMap * cm __asm("a0"),
                                                         register ULONG n __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ReleasePen() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct PaletteExtra *pe;
+    UWORD *ref_counts;
+    UWORD pen;
+
+    DPRINTF (LOG_DEBUG, "_graphics: ReleasePen() cm=0x%08lx n=%lu\n", (ULONG)cm, n);
+
+    if (!cm || !cm->PalExtra || n >= (ULONG)cm->Count)
+        return;
+
+    pe = cm->PalExtra;
+    ref_counts = graphics_palette_ref_counts(pe);
+    pen = (UWORD)n;
+
+    ObtainSemaphore(&pe->pe_Semaphore);
+
+    if (graphics_palette_pen_in_list(pe, pe->pe_FirstFree, pen))
+    {
+        ReleaseSemaphore(&pe->pe_Semaphore);
+        return;
+    }
+
+    if (ref_counts[pen] != 0)
+    {
+        ref_counts[pen]--;
+
+        if (ref_counts[pen] == 0)
+        {
+            if (graphics_palette_remove_pen(pe, &pe->pe_FirstShared, pen))
+            {
+                if (pe->pe_NShared > 0)
+                    pe->pe_NShared--;
+                graphics_palette_push_pen(pe, &pe->pe_FirstFree, pen);
+                pe->pe_NFree++;
+            }
+        }
+    }
+    else
+    {
+        graphics_palette_push_pen(pe, &pe->pe_FirstFree, pen);
+        pe->pe_NFree++;
+    }
+
+    ReleaseSemaphore(&pe->pe_Semaphore);
 }
 
 static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6"),
@@ -6344,9 +7369,120 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
                                                         register ULONG b __asm("d3"),
                                                         register LONG f __asm("d4"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ObtainPen() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct PaletteExtra *pe;
+    UWORD *ref_counts;
+    ULONG retval = (ULONG)-1;
+    BOOL was_shared = FALSE;
+
+    DPRINTF (LOG_DEBUG, "_graphics: ObtainPen() cm=0x%08lx n=%lu r=0x%08lx g=0x%08lx b=0x%08lx flags=0x%08lx\n",
+             (ULONG)cm, n, r, g, b, (ULONG)f);
+
+    if (!cm || !cm->PalExtra)
+        return (ULONG)-1;
+
+    pe = cm->PalExtra;
+    ref_counts = graphics_palette_ref_counts(pe);
+
+    if ((pe->pe_SharableColors == GRAPHICS_PEN_NONE) ||
+        ((n != (ULONG)-1) && (n > (ULONG)pe->pe_SharableColors)))
+    {
+        return (ULONG)-1;
+    }
+
+    ObtainSemaphore(&pe->pe_Semaphore);
+
+    if (n != (ULONG)-1)
+    {
+        UWORD pen = (UWORD)n;
+
+        if (f & PENF_EXCLUSIVE)
+        {
+            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
+            {
+                if (pe->pe_NFree > 0)
+                    pe->pe_NFree--;
+                retval = pen;
+            }
+        }
+        else
+        {
+            if (ref_counts[pen] != 0)
+            {
+                if (graphics_color_equal(cm, r, g, b, pen))
+                {
+                    ref_counts[pen]++;
+                    retval = pen;
+                    was_shared = TRUE;
+                }
+            }
+            else if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
+            {
+                if (pe->pe_NFree > 0)
+                    pe->pe_NFree--;
+                graphics_palette_push_pen(pe, &pe->pe_FirstShared, pen);
+                pe->pe_NShared++;
+                ref_counts[pen] = 1;
+                retval = pen;
+            }
+        }
+    }
+    else if (f & PENF_EXCLUSIVE)
+    {
+        if (pe->pe_FirstFree != GRAPHICS_PEN_NONE)
+        {
+            UWORD pen = pe->pe_FirstFree;
+
+            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
+            {
+                if (pe->pe_NFree > 0)
+                    pe->pe_NFree--;
+                retval = pen;
+            }
+        }
+    }
+    else
+    {
+        UWORD *alloc_list = graphics_palette_alloc_list(pe);
+        UWORD pen = pe->pe_FirstShared;
+
+        while (pen != GRAPHICS_PEN_NONE)
+        {
+            if (graphics_color_equal(cm, r, g, b, pen))
+            {
+                ref_counts[pen]++;
+                retval = pen;
+                was_shared = TRUE;
+                break;
+            }
+
+            pen = alloc_list[pen];
+        }
+
+        if ((retval == (ULONG)-1) && (pe->pe_FirstFree != GRAPHICS_PEN_NONE))
+        {
+            pen = pe->pe_FirstFree;
+            if (graphics_palette_remove_pen(pe, &pe->pe_FirstFree, pen))
+            {
+                if (pe->pe_NFree > 0)
+                    pe->pe_NFree--;
+                graphics_palette_push_pen(pe, &pe->pe_FirstShared, pen);
+                pe->pe_NShared++;
+                ref_counts[pen] = 1;
+                retval = pen;
+            }
+        }
+    }
+
+    if ((retval != (ULONG)-1) && !(f & PENF_NO_SETCOLOR) && !was_shared)
+    {
+        if (pe->pe_ViewPort)
+            _graphics_SetRGB32(GfxBase, pe->pe_ViewPort, retval, r, g, b);
+        else
+            _graphics_SetRGB32CM(GfxBase, cm, retval, r, g, b);
+    }
+
+    ReleaseSemaphore(&pe->pe_Semaphore);
+    return retval;
 }
 
 static ULONG _graphics_GetBitMapAttr ( register struct GfxBase * GfxBase __asm("a6"),
@@ -6453,11 +7589,17 @@ static VOID _graphics_SetRGB32CM ( register struct GfxBase * GfxBase __asm("a6")
     if (!cm || n >= (ULONG)cm->Count)
         return;
 
-    /* Store as 4-bit values in ColorTable (0x0RGB format) */
-    ULONG r4 = (r >> 28) & 0xF;
-    ULONG g4 = (g >> 28) & 0xF;
-    ULONG b4 = (b >> 28) & 0xF;
-    _graphics_SetRGB4CM(GfxBase, cm, (LONG)n, r4, g4, b4);
+    ((UWORD *)cm->ColorTable)[n] = (((UWORD *)cm->ColorTable)[n] & 0xF000) |
+                                   ((r >> 20) & 0x0f00) |
+                                   ((g >> 24) & 0x00f0) |
+                                   ((b >> 28) & 0x000f);
+
+    if ((cm->Type > COLORMAP_TYPE_V1_2) && cm->LowColorBits)
+    {
+        ((UWORD *)cm->LowColorBits)[n] = ((r >> 16) & 0x0f00) |
+                                         ((g >> 20) & 0x00f0) |
+                                         ((b >> 24) & 0x000f);
+    }
 }
 
 static VOID _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("a6"),
@@ -6582,9 +7724,46 @@ static LONG _graphics_FindColor ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG b __asm("d3"),
                                                         register LONG maxcolor __asm("d4"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FindColor() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    ULONG best_pen = 0;
+    ULONG best_distance = (ULONG)-1;
+    ULONG limit;
+    ULONG i;
+
+    DPRINTF (LOG_DEBUG, "_graphics: FindColor() cm=0x%08lx r=0x%08lx g=0x%08lx b=0x%08lx maxcolor=%ld\n",
+             (ULONG)cm, r, g, b, maxcolor);
+
+    if (!cm || cm->Count == 0)
+        return 0;
+
+    if (maxcolor < 0)
+    {
+        if (cm->PalExtra && (cm->PalExtra->pe_SharableColors != GRAPHICS_PEN_NONE))
+            limit = cm->PalExtra->pe_SharableColors;
+        else
+            limit = (ULONG)cm->Count - 1;
+    }
+    else
+    {
+        limit = (ULONG)maxcolor;
+        if (limit >= (ULONG)cm->Count)
+            limit = (ULONG)cm->Count - 1;
+    }
+
+    for (i = 0; i <= limit; i++)
+    {
+        ULONG distance = graphics_color_distance(cm, r, g, b, i);
+
+        if (distance < best_distance)
+        {
+            best_distance = distance;
+            best_pen = i;
+
+            if (distance == 0)
+                break;
+        }
+    }
+
+    return (LONG)best_pen;
 }
 
 static VOID _graphics_private9 ( register struct GfxBase * GfxBase __asm("a6"))

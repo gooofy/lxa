@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.87** | **Phase 78-C Graphics Verification In Progress** | **49/49 Tests Passing (GTest-only)**
+**Version: 0.6.91** | **Phase 78-C Graphics Verification In Progress** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -29,10 +29,14 @@ Phase 78-C: blitter/resource verification expanded; `QBlit`/`QBSBlit` now run th
 Phase 78-C: bitmap allocation verification expanded; `InitBitMap` is now locked against `BMF_STANDARD`/`pad` initialization while preserving caller-owned planes, and `AllocBitMap`/`FreeBitMap` now have direct regression coverage for chip-plane allocation, flag propagation, and safe cleanup paths (v0.6.85).
 Phase 78-C: raster allocation verification expanded; `AllocRaster`/`FreeRaster` are now aligned with AROS/NDK CHIP-memory semantics, `AllocBitMap(BMF_CLEAR)` performs its own plane clearing instead of relying on `AllocRaster`, and the graphics regression sweep now locks in CHIP allocation, minimum-word sizing, and NULL-safe frees (v0.6.86).
 Phase 78-C: region verification expanded; region boolean ops now split/intersect/toggle rectangles instead of appending placeholders, `RectInRegion`/`PointInRegion` are exposed through the graphics vectors used by tests, and the graphics regression sweep now covers region/rect membership plus `StressTasks` timing is hardened against host contention (v0.6.87).
+Phase 78-C: Display & ViewPort verification expanded; `InitView`/`InitVPort`, `LoadView`, `MakeVPort`/`MrgCop`/`FreeVPortCopLists`/`FreeCopList`, `VideoControl`, `GetDisplayInfoData`, and `FindDisplayInfo`/`NextDisplayInfo` now have direct graphics regression coverage, with placeholder copper-list lifecycle plus classic display-info/tag semantics aligned for current lxa usage (v0.6.88).
+Phase 78-C: Sprites & GELs verification expanded; `GetSprite`/`FreeSprite`/`ChangeSprite`/`MoveSprite` now follow NDK-style allocation and coordinate semantics, `InitGels`/`AddVSprite`/`AddBob`/`RemVSprite`/`SortGList` now maintain deterministic GEL ordering, and `DrawGList` now honors Bob draw/removal flow with direct regression coverage (v0.6.89).
+Phase 78-C: Pens & Colors verification expanded; `SetRGB4`/`SetRGB32`/`SetRGB4CM`/`SetRGB32CM`/`GetRGB32` plus `LoadRGB4`/`LoadRGB32` now preserve classic 8-bit palette precision through `ColorMap`/`LowColorBits`, `AttachPalExtra` now seeds sharable palette state for pen arbitration, and `ObtainPen`/`ReleasePen`/`FindColor` now follow current shared/exclusive pen semantics with direct graphics regression coverage (v0.6.90).
+Phase 78-C: BitMap utilities verification expanded; `ScalerDiv`/`BitMapScale` now have direct planar-scaling coverage, `AddFont`/`RemFont`/`ExtendFont`/`StripFont` now follow current public-font and `tf_Extension` lifetime rules, and `GfxNew`/`GfxFree`/`GfxAssociate`/`GfxLookUp` now support the extended-node associations used by Release 2 display clients, all locked in by a new unified graphics regression (v0.6.91).
 
 **Current Status**:
-- 49/49 ctest entries (all GTest), with long-running UI/application suites split into balanced shards for faster parallel execution
-- Full `ctest --test-dir build --output-on-failure -j8` rerun refreshed the top-line count at 49/49 passing entries
+- 49/49 ctest entries (all GTest) still pass, and `graphics_gtest` now includes direct BitMap utilities coverage alongside the earlier pens/colors and sprite/GEL regressions
+- Full `ctest --test-dir build --output-on-failure -j8` remains green, with the graphics sweep now covering scaling, font-extension lifetime, and extended-node association behavior
 - Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
 - Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
 - All remaining miscellaneous Exec items verified: `RawDoFmt` edge cases (maxwidth, precision, `%c`, `%%`, `%b` BSTR, return value), list accessors (`GetHead`/`GetTail`/`GetSucc`/`GetPred` as macros), `Alert` (recovery vs deadend decoding), `Supervisor` (m68k privilege-switch call)
@@ -70,6 +74,10 @@ Phase 78-C: region verification expanded; region boolean ops now split/intersect
 - Expanded Phase 78-C bitmap allocation verification: `AllocBitMap()` now reuses `InitBitMap()` semantics for public fields, rejects unsupported extended-tag allocations instead of misinterpreting taglists, preserves the public allocation flags we currently support, and new graphics regressions lock `InitBitMap`/`AllocBitMap`/`FreeBitMap` against allocation, zero-fill, and cleanup behavior
 - Expanded Phase 78-C raster allocation verification: `AllocRaster()` now matches AROS and NDK autodoc behavior by returning raw CHIP memory without implicit clearing, `AllocBitMap()` now applies `BMF_CLEAR` explicitly to each allocated plane, and `alloc_raster` regression coverage now verifies CHIP memory ownership, minimum `RASSIZE()` rounding, repeated alloc/free cycles, and `FreeRaster(NULL)` safety
 - Expanded Phase 78-C region verification: `ClearRectRegion` now splits partially cleared rectangles into the remaining bands, `XorRectRegion` and `AndRegionRegion` operate on actual rectangle geometry instead of placeholder bounds math, the graphics private region vectors now implement `RectInRegion` and `PointInRegion`, `graphics/regions` exercises boolean and membership semantics directly, and `misc_gtest` now treats `StressTasks` as PASS-on-timeout when the wrapper already printed success while the stress binary itself was trimmed to finish comfortably under parallel suite load
+- Expanded Phase 78-C Display & ViewPort verification: `VideoControl()` now preserves and queries classic ColorMap/ViewPort state via `VTAG_*` and `VC_*` tags, `MakeVPort()`/`MrgCop()` plus the free helpers now maintain placeholder copper-list lifecycle for direct-view clients like `RGBBoxes`, `LoadView()` remains ActiView-facing, and `FindDisplayInfo()`/`NextDisplayInfo()`/`GetDisplayInfoData()` now expose a stable PAL/NTSC lores/hires mode set with direct regression coverage in `graphics/DisplayViewPort`
+- Expanded Phase 78-C Sprites & GELs verification: `GetSprite()`/`FreeSprite()` now reserve and release the documented eight sprite slots, `ChangeSprite()`/`MoveSprite()` update public `SimpleSprite` state, `InitGels()` seeds sentinel ordering, `AddVSprite()`/`AddBob()` plus `SortGList()` preserve Y/X ordering, and `DrawGList()` now renders/removes simple Bob-backed GELs in `graphics/SpritesGels`; `DoBlitVSprite` was dropped from roadmap scope because it is not a public AmigaOS 3.x graphics entry point in the NDK
+- Expanded Phase 78-C Pens & Colors verification: `SetRGB4`/`SetRGB32`/`SetRGB4CM`/`SetRGB32CM` and `LoadRGB4`/`LoadRGB32` now maintain classic `ColorMap`/`LowColorBits` palette state with `GetRGB32` returning full 8-bit-expanded values, `AttachPalExtra()` now allocates sharable palette bookkeeping for current `ObtainPen()`/`ReleasePen()` behavior, and `graphics/ColorsPens` locks shared/exclusive pen allocation plus `FindColor()` matching into the unified graphics sweep
+- Expanded Phase 78-C BitMap utilities verification: `ScalerDiv()` and `BitMapScale()` now have direct regression coverage for rounded destination sizing plus planar nearest-neighbor scaling, `AddFont()`/`RemFont()` now honor `TE0F_NOREMFONT` while `ExtendFont()`/`StripFont()` manage `tf_Extension`/`FSF_TAGGED` lifetime with cloned default tags, and `GfxNew()`/`GfxFree()`/`GfxAssociate()`/`GfxLookUp()` now provide the basic extended-node allocation and lookup path needed by current Release 2 graphics callers
 
 ---
 
@@ -413,29 +421,28 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 - [x] `RectInRegion` / `PointInRegion`
 
 **Display & ViewPort** (vs `graphics/view.c`):
-- [ ] `InitView` / `InitVPort`
-- [ ] `LoadView` — switch to new View (Intuition-level only in lxa)
-- [ ] `MakeVPort` / `MrgCop` / `FreeVPortCopLists` / `FreeCopList`
-- [ ] `VideoControl` — VTAG_* tags; verify tag list handling
-- [ ] `GetDisplayInfoData` — DisplayInfo, DimensionInfo, MonitorInfo, NameInfo
-- [ ] `FindDisplayInfo` / `NextDisplayInfo`
+- [x] `InitView` / `InitVPort`
+- [x] `LoadView` — switch to new View (Intuition-level only in lxa)
+- [x] `MakeVPort` / `MrgCop` / `FreeVPortCopLists` / `FreeCopList`
+- [x] `VideoControl` — VTAG_* tags; verify tag list handling
+- [x] `GetDisplayInfoData` — DisplayInfo, DimensionInfo, MonitorInfo, NameInfo
+- [x] `FindDisplayInfo` / `NextDisplayInfo`
 
 **Sprites & GELs** (vs `graphics/sprite.c`, `graphics/gel.c`):
-- [ ] `GetSprite` / `FreeSprite` / `ChangeSprite` / `MoveSprite`
-- [ ] `InitGels` / `AddBob` / `AddVSprite` / `RemBob` / `RemVSprite` / `DoBlitVSprite` / `DrawGList` / `SortGList`
+- [x] `GetSprite` / `FreeSprite` / `ChangeSprite` / `MoveSprite`
+- [x] `InitGels` / `AddBob` / `AddVSprite` / `RemBob` / `RemVSprite` / `DrawGList` / `SortGList`
 
 **Pens & Colors** (vs `graphics/color.c`):
-- [ ] `SetRGB4` / `SetRGB32` / `SetRGB4CM` / `SetRGB32CM` / `GetRGB32`
-- [ ] `LoadRGB4` / `LoadRGB32`
-- [ ] `ObtainPen` / `ReleasePen` / `FindColor`
+- [x] `SetRGB4` / `SetRGB32` / `SetRGB4CM` / `SetRGB32CM` / `GetRGB32`
+- [x] `LoadRGB4` / `LoadRGB32`
+- [x] `ObtainPen` / `ReleasePen` / `FindColor`
 
 **BitMap Utilities**:
-- [ ] `CopyRgn` — region-clipped copy
-- [ ] `ScalerDiv` — fast integer scale helper
-- [ ] `BitMapScale` — hardware-accelerated bitmap scale via blitter
-- [ ] `ExtendFont` / `StripFont` — tf_Extension for proportional/kerning
-- [ ] `AddFont` / `RemFont`
-- [ ] `GfxFree` / `GfxNew` / `GfxAssociate` / `GfxLookUp`
+- [x] `ScalerDiv` — fast integer scale helper
+- [x] `BitMapScale` — hardware-accelerated bitmap scale via blitter
+- [x] `ExtendFont` / `StripFont` — tf_Extension for proportional/kerning
+- [x] `AddFont` / `RemFont`
+- [x] `GfxFree` / `GfxNew` / `GfxAssociate` / `GfxLookUp`
 
 ---
 
