@@ -1,17 +1,76 @@
 {
-    // See https://go.microsoft.com/fwlink/?LinkId=733558
-    // for the documentation about the tasks.json format
     "version": "2.0.0",
     "tasks": [
+        {
+            "label": "Configure lxa build",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S",
+                ".",
+                "-B",
+                "build",
+                "-DCMAKE_BUILD_TYPE=Release",
+                "-DCMAKE_INSTALL_PREFIX=${workspaceFolder}/../../usr"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Compile lxa runtime",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "build",
+                "-j8",
+                "--target",
+                "lxa",
+                "lxa.rom",
+                "lxa-samples"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "Install lxa runtime",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--install",
+                "build"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build latest lxa runtime",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "Configure lxa build",
+                "Compile lxa runtime",
+                "Install lxa runtime"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
         {
             "label": "build aqb compiler",
             "type": "shell",
             "command": "make",
             "args": [],
-            "group": {
-              "kind": "build",
-              "isDefault": true
-            }
+            "problemMatcher": []
         }
     ]
 }

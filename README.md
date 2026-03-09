@@ -134,9 +134,18 @@ lxa [options] [program]
 
 - `-c <config>` - Specify configuration file
 - `-r <rom>` - Specify ROM path
-- `-s <sysroot>` - Set system root directory
+- `--assign <name=path>` - Replace or create an assign from the command line
+- `--assign-add <name=path>` - Append a path to an existing multi-assign
+- `-a <name=path>` - Legacy alias for `--assign`
 - `-d` - Enable debug output
 - `-v` - Verbose mode
+
+Examples:
+
+```bash
+lxa --assign APPS=../lxa-apps --assign Cluster=/path/to/Cluster APPS:Cluster2/bin/Cluster2/Editor
+lxa --assign LIBS=/path/to/base/libs --assign-add LIBS=/path/to/override/libs SYS:System/Shell
+```
 
 ### Examples
 

@@ -417,6 +417,50 @@ void test_multi_assign_add_path(void)
     vfs_assign_remove("MULTITEST");
 }
 
+void test_multi_assign_append_resolves_second_path_contents(void)
+{
+    char result[4096];
+    char path1[4096];
+    char path2[4096];
+    char file_path[4096];
+
+    snprintf(path1, sizeof(path1), "%s/C", g_fixture_sys);
+    snprintf(path2, sizeof(path2), "%s/S", g_fixture_sys);
+
+    snprintf(file_path, sizeof(file_path), "%s/OnlyInSecond", path2);
+    FILE *f = fopen(file_path, "w");
+    TEST_ASSERT_NOT_NULL(f);
+    fputs("ok\n", f);
+    fclose(f);
+
+    TEST_ASSERT_TRUE(vfs_assign_add("MULTIAPPEND", path1, ASSIGN_LOCK));
+    TEST_ASSERT_TRUE(vfs_assign_add_path("MULTIAPPEND", path2));
+
+    TEST_ASSERT_TRUE(vfs_resolve_path("MULTIAPPEND:OnlyInSecond", result, sizeof(result)));
+    TEST_ASSERT_EQUAL_STRING(file_path, result);
+
+    TEST_ASSERT_TRUE(vfs_assign_remove("MULTIAPPEND"));
+}
+
+void test_assign_replace_discards_previous_paths(void)
+{
+    char result[4096];
+    char path1[4096];
+    char path2[4096];
+
+    snprintf(path1, sizeof(path1), "%s/C", g_fixture_sys);
+    snprintf(path2, sizeof(path2), "%s/S", g_fixture_sys);
+
+    TEST_ASSERT_TRUE(vfs_assign_add("REPLACE", path1, ASSIGN_LOCK));
+    TEST_ASSERT_TRUE(vfs_assign_add_path("REPLACE", path2));
+    TEST_ASSERT_TRUE(vfs_assign_add("REPLACE", path2, ASSIGN_LOCK));
+
+    TEST_ASSERT_TRUE(vfs_resolve_path("REPLACE:", result, sizeof(result)));
+    TEST_ASSERT_EQUAL_STRING(path2, result);
+
+    TEST_ASSERT_TRUE(vfs_assign_remove("REPLACE"));
+}
+
 void test_assign_case_insensitive(void)
 {
     char result[4096];
@@ -498,6 +542,8 @@ int main(void)
 
     /* Multi-assign tests */
     RUN_TEST(test_multi_assign_add_path);
+    RUN_TEST(test_multi_assign_append_resolves_second_path_contents);
+    RUN_TEST(test_assign_replace_discards_previous_paths);
     RUN_TEST(test_assign_case_insensitive);
     RUN_TEST(test_assign_remove_nonexistent);
     RUN_TEST(test_assign_get_path_nonexistent);

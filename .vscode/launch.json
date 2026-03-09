@@ -6,11 +6,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleTask"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/SimpleTask"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -26,11 +38,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Signals"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Signals"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -46,11 +70,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Semaphore"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Semaphore"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -66,11 +102,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Port1"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Port1"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -86,11 +134,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Port2"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Port2"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -106,11 +166,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/BuildList"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/BuildList"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -126,11 +198,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Allocate"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Allocate"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -146,11 +230,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/AllocEntry"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/AllocEntry"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -166,11 +262,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/DeviceUse"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/DeviceUse"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -186,11 +294,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/TimerSoftInt"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/TimerSoftInt"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -206,11 +326,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/TaskList"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/TaskList"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -226,11 +358,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/RGBBoxes"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/RGBBoxes"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -246,11 +390,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Clipping"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Clipping"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -266,11 +422,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/AvailFonts"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/AvailFonts"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -286,11 +454,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/MeasureText"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/MeasureText"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -306,11 +486,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/WBClone"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/WBClone"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -326,11 +518,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/OpenWindowTags"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/OpenWindowTags"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -346,11 +550,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleGad"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/SimpleGad"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -366,11 +582,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/UpdateStrGad"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/UpdateStrGad"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -386,11 +614,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/IntuiText"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/IntuiText"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -406,11 +646,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleImage"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/SimpleImage"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -426,11 +678,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/ShadowBorder"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/ShadowBorder"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -446,11 +710,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/EasyIntuition"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/EasyIntuition"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -466,11 +742,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleMenu"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/SimpleMenu"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -486,11 +774,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/EasyRequest"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/EasyRequest"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -506,11 +806,55 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleGTGadget"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/SimpleGTGadget"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Sample: MenuLayout",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/MenuLayout"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -526,11 +870,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/GadToolsMenu"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/GadToolsMenu"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -546,11 +902,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/GadToolsGadgets"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/GadToolsGadgets"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -566,11 +934,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/MouseTest"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/MouseTest"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -586,11 +966,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/RawKey"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/RawKey"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -606,11 +998,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/CustomPointer"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/CustomPointer"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -626,11 +1030,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/CloneScreen"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/CloneScreen"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -646,11 +1062,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/PublicScreen"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/PublicScreen"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -666,11 +1094,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/VisibleWindow"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/VisibleWindow"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -686,11 +1126,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/WinPubScreen"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/WinPubScreen"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -706,11 +1158,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Talk2Boopsi"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Talk2Boopsi"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -726,11 +1190,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/DoubleBuffer"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/DoubleBuffer"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -746,11 +1222,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/SimpleTimer"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/SimpleTimer"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -766,11 +1254,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/AskKeymap"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/AskKeymap"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -786,11 +1286,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Tag1"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Tag1"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -806,11 +1318,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Hooks1"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Hooks1"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -826,11 +1350,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/IStr"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/IStr"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -846,11 +1382,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/A2D"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/A2D"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -866,11 +1414,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Uptime"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Uptime"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -886,11 +1446,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/FFPExample"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/FFPExample"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -906,11 +1478,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/FFPTrans"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/FFPTrans"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -926,11 +1510,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/IEEEDPExample"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/IEEEDPExample"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -946,11 +1542,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/Sift"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Sift"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -966,11 +1574,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/FindBoards"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/FindBoards"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -986,11 +1606,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/FileReq"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/FileReq"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -1006,11 +1638,119 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/build/target/samples/Samples/FontReq"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/FontReq"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Test App: Dopus Wrapper",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Tests/Apps/Dopus"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Test App: KickPascal2 Wrapper",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Tests/Apps/KickPascal2"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "Test App: SysInfo Wrapper",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/build/target/samples/Samples/Tests/Apps/SysInfo"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -1026,11 +1766,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/Asm-One/bin/ASM-One/ASM-One_V1.48"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/../lxa-apps/Asm-One/bin/ASM-One/ASM-One_V1.48"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -1046,11 +1798,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/DevPac/bin/Devpac/Devpac"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/../lxa-apps/DevPac/bin/Devpac/Devpac"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -1066,11 +1830,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/kickpascal2/bin/KP2/KP"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/../lxa-apps/kickpascal2/bin/KP2/KP"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -1086,11 +1862,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/MaxonBASIC/bin/MaxonBASIC/MaxonBASIC"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/../lxa-apps/MaxonBASIC/bin/MaxonBASIC/MaxonBASIC"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -1106,11 +1894,23 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "${workspaceFolder}/../lxa-apps/DeluxePaint/DeluxePaintV/DPaintV"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/../lxa-apps/DPaintV/bin/DPaintV/DPaint"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -1126,11 +1926,89 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/host/bin/lxa",
-            "args": ["-r", "${workspaceFolder}/build/target/rom/lxa.rom", "-a", "Cluster=${workspaceFolder}/../lxa-apps/Cluster2/bin/Cluster2", "${workspaceFolder}/../lxa-apps/Cluster2/bin/Cluster2/Editor"],
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "--assign-add",
+                "Cluster=${workspaceFolder}/../lxa-apps/Cluster2/bin/Cluster2",
+                "${workspaceFolder}/../lxa-apps/Cluster2/bin/Cluster2/Editor"
+            ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
-            "environment": [],
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
             "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: DOpus",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/../lxa-apps/DOPUS/bin/DOPUS/DirectoryOpus"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: SysInfo",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "${workspaceFolder}/../lxa-apps/SysInfo/bin/SysInfo/SysInfo"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
             "MIMode": "gdb",
             "setupCommands": [
                 {

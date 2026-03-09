@@ -7489,7 +7489,9 @@ static void print_usage(char *argv[])
     fprintf(stderr, "usage: %s [ options ] [ program [ args... ] ]\n", argv[0]);
     fprintf(stderr, "\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "    -a <name=path> add assign (e.g., -a Cluster=/path/to/Cluster)\n");
+    fprintf(stderr, "    -a <name=path>          replace assign (legacy alias for --assign)\n");
+    fprintf(stderr, "    --assign <name=path>    replace assign target (e.g., Cluster=/path/to/Cluster)\n");
+    fprintf(stderr, "    --assign-add <name=path> append path to multi-assign search list\n");
     fprintf(stderr, "    -b <addr|sym>  add breakpoint, examples: -b _start\n");
     fprintf(stderr, "    -c <config>    use config file (default: ~/.lxa/config.ini)\n");
     fprintf(stderr, "    -d             enable debug output\n");
@@ -7513,15 +7515,84 @@ static void print_usage(char *argv[])
     fprintf(stderr, "Configuration: ~/.lxa/config.ini (created on first run)\n");
 }
 
+#define MAX_PENDING_ASSIGNS 32
+
+typedef enum pending_assign_mode_e {
+    PENDING_ASSIGN_REPLACE,
+    PENDING_ASSIGN_APPEND
+} pending_assign_mode_t;
+
+typedef struct pending_assign_s {
+    char name[256];
+    char path[PATH_MAX];
+    pending_assign_mode_t mode;
+} pending_assign_t;
+
+static const char *get_option_value(int argc, char **argv, int *optind,
+                                    const char *current_arg, const char *option_name)
+{
+    size_t option_len = strlen(option_name);
+
+    if (strncmp(current_arg, option_name, option_len) != 0) {
+        return NULL;
+    }
+
+    if (current_arg[option_len] == '=') {
+        return current_arg + option_len + 1;
+    }
+
+    if (current_arg[option_len] != '\0') {
+        return NULL;
+    }
+
+    (*optind)++;
+    if (*optind >= argc) {
+        fprintf(stderr, "Error: %s requires name=path argument\n", option_name);
+        exit(EXIT_FAILURE);
+    }
+
+    return argv[*optind];
+}
+
+static void queue_pending_assign(pending_assign_t *pending_assigns, int *num_pending_assigns,
+                                 const char *spec, pending_assign_mode_t mode,
+                                 const char *option_name)
+{
+    const char *eq = strchr(spec, '=');
+    size_t name_len;
+
+    if (!eq || eq == spec || eq[1] == '\0') {
+        fprintf(stderr, "Error: %s argument must be in name=path format\n", option_name);
+        exit(EXIT_FAILURE);
+    }
+
+    if (*num_pending_assigns >= MAX_PENDING_ASSIGNS) {
+        fprintf(stderr, "Error: too many assign options (max %d)\n", MAX_PENDING_ASSIGNS);
+        exit(EXIT_FAILURE);
+    }
+
+    name_len = (size_t)(eq - spec);
+    if (name_len >= sizeof(pending_assigns[*num_pending_assigns].name)) {
+        name_len = sizeof(pending_assigns[*num_pending_assigns].name) - 1;
+    }
+
+    strncpy(pending_assigns[*num_pending_assigns].name, spec, name_len);
+    pending_assigns[*num_pending_assigns].name[name_len] = '\0';
+    strncpy(pending_assigns[*num_pending_assigns].path, eq + 1,
+            sizeof(pending_assigns[*num_pending_assigns].path) - 1);
+    pending_assigns[*num_pending_assigns].path[sizeof(pending_assigns[*num_pending_assigns].path) - 1] = '\0';
+    pending_assigns[*num_pending_assigns].mode = mode;
+    (*num_pending_assigns)++;
+}
+
 int main(int argc, char **argv, char **envp)
 {
     char *rom_path = NULL;
     char *config_path = NULL;
     int optind=0;
 
-    /* Pending assigns from -a flags (applied after config is loaded) */
-    #define MAX_PENDING_ASSIGNS 32
-    struct { char name[256]; char path[PATH_MAX]; } pending_assigns[MAX_PENDING_ASSIGNS];
+    /* Pending assigns from command line flags (applied after config is loaded) */
+    pending_assign_t pending_assigns[MAX_PENDING_ASSIGNS];
     int num_pending_assigns = 0;
 
     vfs_init();
@@ -7536,6 +7607,34 @@ int main(int argc, char **argv, char **envp)
             exit(EXIT_SUCCESS);
         }
 
+        if (strncmp(argv[optind], "--assign-add", strlen("--assign-add")) == 0)
+        {
+            const char *spec = get_option_value(argc, argv, &optind, argv[optind], "--assign-add");
+            if (!spec)
+            {
+                print_usage(argv);
+                exit(EXIT_FAILURE);
+            }
+
+            queue_pending_assign(pending_assigns, &num_pending_assigns, spec,
+                                 PENDING_ASSIGN_APPEND, "--assign-add");
+            continue;
+        }
+
+        if (strncmp(argv[optind], "--assign", strlen("--assign")) == 0)
+        {
+            const char *spec = get_option_value(argc, argv, &optind, argv[optind], "--assign");
+            if (!spec)
+            {
+                print_usage(argv);
+                exit(EXIT_FAILURE);
+            }
+
+            queue_pending_assign(pending_assigns, &num_pending_assigns, spec,
+                                 PENDING_ASSIGN_REPLACE, "--assign");
+            continue;
+        }
+
         switch (argv[optind][1])
         {
             case 'a':
@@ -7546,22 +7645,8 @@ int main(int argc, char **argv, char **envp)
                     fprintf(stderr, "Error: -a requires name=path argument\n");
                     exit(EXIT_FAILURE);
                 }
-                char *eq = strchr(argv[optind], '=');
-                if (!eq)
-                {
-                    fprintf(stderr, "Error: -a argument must be in name=path format\n");
-                    exit(EXIT_FAILURE);
-                }
-                if (num_pending_assigns < MAX_PENDING_ASSIGNS)
-                {
-                    size_t name_len = eq - argv[optind];
-                    if (name_len >= 256) name_len = 255;
-                    strncpy(pending_assigns[num_pending_assigns].name, argv[optind], name_len);
-                    pending_assigns[num_pending_assigns].name[name_len] = '\0';
-                    strncpy(pending_assigns[num_pending_assigns].path, eq + 1, PATH_MAX - 1);
-                    pending_assigns[num_pending_assigns].path[PATH_MAX - 1] = '\0';
-                    num_pending_assigns++;
-                }
+                queue_pending_assign(pending_assigns, &num_pending_assigns, argv[optind],
+                                     PENDING_ASSIGN_REPLACE, "-a");
                 break;
             }
             case 'b':
@@ -7640,17 +7725,30 @@ int main(int argc, char **argv, char **envp)
     /* Set up default assigns (C:, S:, LIBS:, etc.) pointing to SYS: subdirectories */
     vfs_setup_default_assigns();
 
-    /* Apply pending assigns from -a command line flags */
+    /* Apply pending assigns from command line flags */
     for (int i = 0; i < num_pending_assigns; i++)
     {
-        if (!vfs_assign_add(pending_assigns[i].name, pending_assigns[i].path, ASSIGN_LOCK))
+        bool ok;
+
+        if (pending_assigns[i].mode == PENDING_ASSIGN_APPEND)
         {
-            fprintf(stderr, "lxa: WARNING: Failed to add assign %s: -> %s\n",
+            ok = vfs_assign_add_path(pending_assigns[i].name, pending_assigns[i].path);
+        }
+        else
+        {
+            ok = vfs_assign_add(pending_assigns[i].name, pending_assigns[i].path, ASSIGN_LOCK);
+        }
+
+        if (!ok)
+        {
+            fprintf(stderr, "lxa: WARNING: Failed to %s assign %s: -> %s\n",
+                    pending_assigns[i].mode == PENDING_ASSIGN_APPEND ? "append to" : "set",
                     pending_assigns[i].name, pending_assigns[i].path);
         }
         else
         {
-            DPRINTF(LOG_DEBUG, "lxa: Added assign from command line: %s: -> %s\n",
+            DPRINTF(LOG_DEBUG, "lxa: %s assign from command line: %s: -> %s\n",
+                    pending_assigns[i].mode == PENDING_ASSIGN_APPEND ? "Appended to" : "Set",
                     pending_assigns[i].name, pending_assigns[i].path);
         }
     }

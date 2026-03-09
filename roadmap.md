@@ -38,6 +38,7 @@ Phase 78-D: layers core verification completed; direct regressions now cover `In
 **Current Status**:
 - 49/49 ctest entries (all GTest) still pass, and `layers_gtest` now includes a dedicated `CoreOps` regression covering the remaining create/delete/move/resize/z-order paths alongside the earlier cliprect, locking, scroll, tag, and visibility regressions
 - Full `ctest --test-dir build --output-on-failure -j8` remains green, with the layers sweep now locking the full 78-D core surface including hook-layer creation, damage/ClipRect cleanup on delete, and geometry/z-order rebuild behavior
+- Added clearer CLI assign controls: `--assign` now aliases the old `-a` replace behavior, `--assign-add` appends to multi-assign search lists, unit coverage locks the underlying replace/append VFS semantics, and the VS Code manual-test launch configs now use the explicit long-form options while rebuilding/installing the latest runtime before launch
 - Original Phase 78-B DOS checklist retained in full, but regrouped into session-sized subphases to avoid closing the phase against unimplemented stubs
 - Phase 78-A AROS comparison completed: 27 issues identified in exec.c (10 bugs fixed, 10 behavioral differences noted, 1 missing feature, 6 correct)
 - All remaining miscellaneous Exec items verified: `RawDoFmt` edge cases (maxwidth, precision, `%c`, `%%`, `%b` BSTR, return value), list accessors (`GetHead`/`GetTail`/`GetSucc`/`GetPred` as macros), `Alert` (recovery vs deadend decoding), `Supervisor` (m68k privilege-switch call)
