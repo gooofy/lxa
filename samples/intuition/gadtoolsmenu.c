@@ -80,7 +80,6 @@ SHORT done;
 UWORD menuNumber;
 UWORD menuNum;
 UWORD itemNum;
-UWORD subNum;
 struct MenuItem *item;
 
 done = FALSE;
@@ -108,8 +107,6 @@ while (FALSE == done)
                     /* process the item here! */
                     menuNum = MENUNUM(menuNumber);
                     itemNum = ITEMNUM(menuNumber);
-                    subNum  = SUBNUM(menuNumber);
-
                     /* stop if quit is selected. */
                     if ((menuNum == 0) && (itemNum == 5))
                         done = TRUE;

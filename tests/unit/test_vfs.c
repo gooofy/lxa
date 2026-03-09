@@ -491,7 +491,7 @@ void test_assign_get_path_nonexistent(void)
 {
     /* Getting path of non-existent assign should return NULL */
     const char *path = vfs_assign_get_path("NONEXISTENT_ASSIGN");
-    TEST_ASSERT_NULL(path);
+    TEST_ASSERT_TRUE(path == NULL);
 }
 
 /*-------------------------------------------------------

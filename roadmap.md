@@ -8,7 +8,7 @@ This document outlines the strategic plan for expanding `lxa` into a more comple
 
 ## Current Status
 
-**Version: 0.6.101** | **Phase 78-E Intuition Gadget Management Expanded** | **48/49 Tests Passing (GTest-only)**
+**Version: 0.6.102** | **Phase 78-E Intuition Gadget Management Expanded** | **49/49 Tests Passing (GTest-only)**
 
 Phase 78-W: Structural Verification — OS Data Structure Offsets — complete.
 Phase 78-A-1: Exec Library AROS Verification — 10 bug fixes complete (v0.6.63).
@@ -35,10 +35,12 @@ Phase 78-C: Pens & Colors verification expanded; `SetRGB4`/`SetRGB32`/`SetRGB4CM
 Phase 78-C: BitMap utilities verification expanded; `ScalerDiv`/`BitMapScale` now have direct planar-scaling coverage, `AddFont`/`RemFont`/`ExtendFont`/`StripFont` now follow current public-font and `tf_Extension` lifetime rules, and `GfxNew`/`GfxFree`/`GfxAssociate`/`GfxLookUp` now support the extended-node associations used by Release 2 display clients, all locked in by a new unified graphics regression (v0.6.91).
 Phase 78-D: layers core verification completed; direct regressions now cover `InitLayers`/`NewLayerInfo`/`DisposeLayerInfo`, upfront/behind and hook-layer creation, `DeleteLayer`, `MoveLayer`, `SizeLayer`, `UpfrontLayer`/`BehindLayer`, locking helpers, and the earlier tag-driven layer creation semantics in one unified sweep (v0.6.94).
 Phase 78-E: Intuition gadget-management verification expanded; the existing screen/window/public-screen coverage remains in place, and direct regressions now lock `AddGadget`/`RemoveGadget`/`AddGList`/`RemoveGList`, `RefreshGadgets`/`RefreshGList`, `ActivateGadget`, and `OnGadget`/`OffGadget` against ordinal insertion/removal semantics, refresh stability, string-gadget activation, and disabled-state toggling (v0.6.101).
+Phase 78-E: build/test hygiene sweep complete; the full tree now rebuilds without warnings under the current sample/test compile policy, `fontreq_gtest` now renders against the screen bitmap for pixel assertions, and the full `ctest --test-dir build --output-on-failure -j16` sweep is green again (v0.6.102).
 
 **Current Status**:
-- 48/49 ctest entries (all GTest) currently pass; the Intuition sweep now covers public-screen locking/status helpers, screen ordering/position helpers, and the expanded window manipulation surface alongside the earlier screen/window-open semantics
-- `ctest --test-dir build --output-on-failure -R intuition_gtest` is green with the expanded Intuition sweep; the full `ctest --test-dir build --output-on-failure -j16` run now fails only on the pre-existing unrelated `fontreq_gtest` pixel assertion (`FontReqTest.FontListDisplayed`)
+- 49/49 ctest entries (all GTest) now pass; the Intuition sweep now covers public-screen locking/status helpers, screen ordering/position helpers, and the expanded window manipulation surface alongside the earlier screen/window-open semantics
+- `./build.sh` now completes cleanly without warnings under the current sample/test compile policy, and the targeted low-noise source fixes keep host/unit utility code warning-free where those targets still compile with their default diagnostics
+- `ctest --test-dir build --output-on-failure -R fontreq_gtest` is green again after forcing the requester pixel test to render through the screen bitmap instead of rootless window surfaces, and the full `ctest --test-dir build --output-on-failure -j16` sweep is green
 - `Tests/Exec/StructOffsets` now covers the full public Intuition structure set currently tracked in Phase 78-E, including `Window`, `IntuiMessage`, gadgets, string/prop helpers, images/borders/text, menus, plus the earlier `IntuitionBase`, `Screen`, and `Requester` checks
 - `Tests/Intuition/ScreenBasic` now locks `OpenScreen`/`CloseScreen`/`OpenScreenTagList` plus `GetDefaultPubScreen`, `LockPubScreen`/`UnlockPubScreen`, `LockPubScreenList`/`UnlockPubScreenList`, `PubScreenStatus`, and `ShowTitle` against V36-style close refusal, public/private transitions, list exposure, and title-bar visibility semantics
 - `Tests/Intuition/WindowBasic` now locks `OpenWindow`/`CloseWindow`/`OpenWindowTagList` against tag-driven size/position overrides, boolean flag clearing, Workbench fallback for tag-only opens, `WA_InnerWidth`/`WA_InnerHeight` plus `WA_GimmeZeroZero`, size-border placement tags, and `WA_Zoom`-backed `ZipWindow()` toggling

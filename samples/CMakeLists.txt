@@ -16,6 +16,18 @@ set(SAMPLES_CFLAGS
     -mcpu=68000
     -O2
     -Wall
+    -Wno-address
+    -Wno-array-bounds
+    -Wno-format
+    -Wno-implicit-function-declaration
+    -Wno-incompatible-pointer-types
+    -Wno-int-conversion
+    -Wno-main
+    -Wno-missing-braces
+    -Wno-parentheses
+    -Wno-pointer-sign
+    -Wno-unused-function
+    -Wno-unused-variable
     -I${M68K_PREFIX}/m68k-amigaos/include
     -I${M68K_PREFIX}/m68k-amigaos/sys-include
     -I${CMAKE_CURRENT_SOURCE_DIR}/../src/include

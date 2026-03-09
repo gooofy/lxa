@@ -60,14 +60,6 @@ static void test_pass(const char *name)
     tests_passed++;
 }
 
-static void test_fail(const char *name)
-{
-    print("  FAIL: ");
-    print(name);
-    print("\n");
-    tests_failed++;
-}
-
 static void test_fail_with_values(const char *name, LONG expected, LONG got)
 {
     print("  FAIL: ");

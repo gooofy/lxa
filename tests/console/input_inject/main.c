@@ -39,20 +39,6 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
-static void print_hex(ULONG val)
-{
-    char buf[16];
-    int i = 0;
-    buf[i++] = '0';
-    buf[i++] = 'x';
-    for (int j = 7; j >= 0; j--) {
-        int nibble = (val >> (j * 4)) & 0xF;
-        buf[i++] = nibble < 10 ? '0' + nibble : 'a' + nibble - 10;
-    }
-    buf[i++] = '\0';
-    print(buf);
-}
-
 int main(void)
 {
     struct NewScreen ns;

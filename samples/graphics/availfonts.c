@@ -98,7 +98,7 @@ VOID main(int argc, char **argv)
                     {
                         printf("AvailFonts: Font %d: '%s' size=%d type=%s\n",
                                i,
-                               afont->af_Attr.ta_Name ? afont->af_Attr.ta_Name : "(null)",
+                               afont->af_Attr.ta_Name ? (const char *)afont->af_Attr.ta_Name : "(null)",
                                afont->af_Attr.ta_YSize,
                                (afont->af_Type & AFF_MEMORY) ? "MEMORY" :
                                (afont->af_Type & AFF_DISK) ? "DISK" : "OTHER");

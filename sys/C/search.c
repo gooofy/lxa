@@ -263,14 +263,14 @@ static void search_directory(const char *dirname, const char *search_str,
             while (ExNext(lock, fib) && !check_break()) {
                 /* Build full path */
                 LONG dlen = strlen(dirname);
-                LONG nlen = strlen(fib->fib_FileName);
+                LONG nlen = strlen((const char *)fib->fib_FileName);
                 
                 if (dlen + nlen + 2 < PATH_BUFFER_SIZE) {
                     strcpy(path, dirname);
                     if (dlen > 0 && dirname[dlen-1] != ':' && dirname[dlen-1] != '/') {
                         strcat(path, "/");
                     }
-                    strcat(path, fib->fib_FileName);
+                    strcat(path, (const char *)fib->fib_FileName);
                     
                     if (fib->fib_DirEntryType > 0) {
                         /* Subdirectory */

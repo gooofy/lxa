@@ -16,6 +16,8 @@ using namespace lxa::testing;
 class FontReqTest : public LxaUITest {
 protected:
     void SetUp() override {
+        config.rootless = false;
+
         LxaUITest::SetUp();
         
         // Load the FontReq program
@@ -32,6 +34,7 @@ protected:
         
         // Let task reach event loop
         WaitForEventLoop(100, 10000);
+        RunCyclesWithVBlank(50, 100000);
     }
 };
 
