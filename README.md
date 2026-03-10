@@ -217,7 +217,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.7.1** - Phase 78-K is now closed: `keymap.library` now covers default-keymap updates plus `MapRawKey()` / `MapANSI()` translation paths with direct exec regression coverage for dead keys, control translation, and string descriptors
+**Version 0.7.2** - Phase 78-L is now closed: `timer.device` now covers documented request units, system-time set/get behavior, `AbortIO()`, direct `timer.library` helper calls, and 64-bit `ReadEClock()` values with direct device and exec regression coverage
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

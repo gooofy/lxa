@@ -58,6 +58,8 @@ struct TimerBase
     struct timeval tb_SystemTime;      /* Current system time */
     struct MinList tb_TimerList;       /* List of pending timer requests */
     ULONG          tb_EClock;          /* E-Clock frequency (709379 Hz for PAL) */
+    LONG           tb_TimeOffsetSecs;  /* System time offset from raw host time */
+    LONG           tb_TimeOffsetMicro;
 };
 
 /* Timer unit structure (one per open) */
@@ -71,10 +73,57 @@ struct TimerUnit
  * Helper: Get current host time via emucall
  * EMU_CALL_GETSYSTIME takes pointer to struct timeval and fills it
  */
-static void get_current_time(struct timeval *tv)
+static void get_raw_time(struct timeval *tv)
 {
     /* Use emucall to get time from host - pass pointer to timeval struct */
     emucall1(EMU_CALL_GETSYSTIME, (ULONG)tv);
+}
+
+static void normalize_timeval(struct timeval *tv)
+{
+    while (tv->tv_micro >= 1000000)
+    {
+        tv->tv_secs++;
+        tv->tv_micro -= 1000000;
+    }
+}
+
+static void zero_request_time(struct timerequest *tr)
+{
+    tr->tr_time.tv_secs = 0;
+    tr->tr_time.tv_micro = 0;
+}
+
+static void get_current_time(struct TimerBase *timerbase, struct timeval *tv)
+{
+    LONG secs;
+    LONG micros;
+
+    get_raw_time(tv);
+
+    secs = (LONG)tv->tv_secs + timerbase->tb_TimeOffsetSecs;
+    micros = (LONG)tv->tv_micro + timerbase->tb_TimeOffsetMicro;
+
+    while (micros >= 1000000)
+    {
+        secs++;
+        micros -= 1000000;
+    }
+
+    while (micros < 0)
+    {
+        secs--;
+        micros += 1000000;
+    }
+
+    if (secs < 0)
+    {
+        secs = 0;
+        micros = 0;
+    }
+
+    tv->tv_secs = (ULONG)secs;
+    tv->tv_micro = (ULONG)micros;
 }
 
 /*
@@ -84,6 +133,173 @@ static void get_current_time(struct timeval *tv)
 static BOOL timer_add_request(struct timerequest *tr, ULONG secs, ULONG micros)
 {
     return emucall3(EMU_CALL_TIMER_ADD, (ULONG)tr, secs, micros) != 0;
+}
+
+static void u64_add_u32(ULONG *hi, ULONG *lo, ULONG value)
+{
+    ULONG old_lo = *lo;
+
+    *lo += value;
+    if (*lo < old_lo)
+    {
+        (*hi)++;
+    }
+}
+
+static void u64_sub(ULONG a_hi,
+                    ULONG a_lo,
+                    ULONG b_hi,
+                    ULONG b_lo,
+                    ULONG *res_hi,
+                    ULONG *res_lo)
+{
+    *res_hi = a_hi - b_hi;
+    *res_lo = a_lo - b_lo;
+
+    if (a_lo < b_lo)
+    {
+        (*res_hi)--;
+    }
+}
+
+static int u64_cmp(ULONG a_hi, ULONG a_lo, ULONG b_hi, ULONG b_lo)
+{
+    if (a_hi < b_hi)
+    {
+        return -1;
+    }
+    if (a_hi > b_hi)
+    {
+        return 1;
+    }
+    if (a_lo < b_lo)
+    {
+        return -1;
+    }
+    if (a_lo > b_lo)
+    {
+        return 1;
+    }
+    return 0;
+}
+
+static void mul_u32_u32_to_u64(ULONG a, ULONG b, ULONG *hi, ULONG *lo)
+{
+    ULONG a_lo = a & 0xffff;
+    ULONG a_hi = a >> 16;
+    ULONG b_lo = b & 0xffff;
+    ULONG b_hi = b >> 16;
+    ULONG p0 = a_lo * b_lo;
+    ULONG p1 = a_lo * b_hi;
+    ULONG p2 = a_hi * b_lo;
+    ULONG p3 = a_hi * b_hi;
+    ULONG carry;
+
+    *lo = p0;
+    *hi = p3;
+
+    carry = (p1 & 0xffff) << 16;
+    u64_add_u32(hi, lo, carry);
+    *hi += p1 >> 16;
+
+    carry = (p2 & 0xffff) << 16;
+    u64_add_u32(hi, lo, carry);
+    *hi += p2 >> 16;
+}
+
+static void divmod_u64_u32(ULONG num_hi,
+                           ULONG num_lo,
+                           ULONG denom,
+                           ULONG *quot,
+                           ULONG *rem)
+{
+    ULONG q = 0;
+    ULONG r = 0;
+    int bit;
+
+    for (bit = 31; bit >= 0; bit--)
+    {
+        r = (r << 1) | ((num_hi >> bit) & 1);
+        if (r >= denom)
+        {
+            r -= denom;
+            q |= (1UL << bit);
+        }
+    }
+
+    for (bit = 31; bit >= 0; bit--)
+    {
+        r = (r << 1) | ((num_lo >> bit) & 1);
+        if (r >= denom)
+        {
+            r -= denom;
+            q |= (1UL << bit);
+        }
+    }
+
+    *quot = q;
+    *rem = r;
+}
+
+static void timer_read_eclock_ticks(struct TimerBase *timerbase, ULONG *ticks_hi, ULONG *ticks_lo)
+{
+    struct timeval raw_time;
+    ULONG prod_hi;
+    ULONG prod_lo;
+    ULONG frac_ticks;
+
+    get_raw_time(&raw_time);
+    normalize_timeval(&raw_time);
+
+    mul_u32_u32_to_u64(raw_time.tv_secs, timerbase->tb_EClock, &prod_hi, &prod_lo);
+    frac_ticks = (raw_time.tv_micro * timerbase->tb_EClock) / 1000000UL;
+    u64_add_u32(&prod_hi, &prod_lo, frac_ticks);
+
+    *ticks_hi = prod_hi;
+    *ticks_lo = prod_lo;
+}
+
+static void eclock_delay_to_timeval(struct TimerBase *timerbase,
+                                    ULONG ticks_hi,
+                                    ULONG ticks_lo,
+                                    ULONG *secs,
+                                    ULONG *micros)
+{
+    ULONG rem_ticks;
+    ULONG us_hi;
+    ULONG us_lo;
+    ULONG rounded_lo;
+
+    divmod_u64_u32(ticks_hi, ticks_lo, timerbase->tb_EClock, secs, &rem_ticks);
+
+    mul_u32_u32_to_u64(rem_ticks, 1000000UL, &us_hi, &us_lo);
+    u64_add_u32(&us_hi, &us_lo, timerbase->tb_EClock - 1);
+    divmod_u64_u32(us_hi, us_lo, timerbase->tb_EClock, micros, &rounded_lo);
+
+    if (*micros >= 1000000)
+    {
+        (*secs)++;
+        *micros -= 1000000;
+    }
+}
+
+static void round_up_to_vblank(ULONG *secs, ULONG *micros)
+{
+    ULONG ticks;
+
+    if (*secs == 0 && *micros == 0)
+    {
+        return;
+    }
+
+    ticks = (*secs * 50UL) + ((*micros + 19999UL) / 20000UL);
+    if (ticks == 0)
+    {
+        ticks = 1;
+    }
+
+    *secs = ticks / 50UL;
+    *micros = (ticks % 50UL) * 20000UL;
 }
 
 /*
@@ -139,6 +355,7 @@ VOID _timer_VBlankHook(void)
         
         /* Set error to 0 (success) */
         tr->tr_node.io_Error = 0;
+        zero_request_time(tr);
         
         /* Reply to the message - this wakes up the waiting task */
         ReplyMsg(&tr->tr_node.io_Message);
@@ -197,10 +414,10 @@ static BOOL timeval_sub(struct timeval *result, struct timeval *a, struct timeva
  */
 static LONG timeval_cmp(struct timeval *a, struct timeval *b)
 {
-    if (a->tv_secs < b->tv_secs) return -1;
-    if (a->tv_secs > b->tv_secs) return 1;
-    if (a->tv_micro < b->tv_micro) return -1;
-    if (a->tv_micro > b->tv_micro) return 1;
+    if (a->tv_secs > b->tv_secs) return -1;
+    if (a->tv_secs < b->tv_secs) return 1;
+    if (a->tv_micro > b->tv_micro) return -1;
+    if (a->tv_micro < b->tv_micro) return 1;
     return 0;
 }
 
@@ -223,8 +440,11 @@ static struct Library * __g_lxa_timer_InitDev  ( register struct Library    *dev
     timerbase->tb_TimerList.mlh_Tail = NULL;
     timerbase->tb_TimerList.mlh_TailPred = (struct MinNode *)&timerbase->tb_TimerList.mlh_Head;
     
+    timerbase->tb_TimeOffsetSecs = 0;
+    timerbase->tb_TimeOffsetMicro = 0;
+
     /* Initialize system time */
-    get_current_time(&timerbase->tb_SystemTime);
+    get_current_time(timerbase, &timerbase->tb_SystemTime);
     
     DPRINTF (LOG_DEBUG, "_timer: InitDev() system time: %lu.%06lu\n",
              timerbase->tb_SystemTime.tv_secs, timerbase->tb_SystemTime.tv_micro);
@@ -327,7 +547,7 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
     switch (command) {
         case TR_GETSYSTIME: {
             /* Get current system time */
-            get_current_time(&tr->tr_time);
+            get_current_time(timerbase, &tr->tr_time);
             
             DPRINTF (LOG_DEBUG, "_timer: TR_GETSYSTIME -> %lu.%06lu\n",
                      tr->tr_time.tv_secs, tr->tr_time.tv_micro);
@@ -337,11 +557,32 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
         }
         
         case TR_SETSYSTIME: {
-            /* Set system time (for now, just log it) */
-            DPRINTF (LOG_DEBUG, "_timer: TR_SETSYSTIME %lu.%06lu (ignored)\n",
+            struct timeval raw_time;
+
+            /* Set system time relative to the raw host time */
+            DPRINTF (LOG_DEBUG, "_timer: TR_SETSYSTIME %lu.%06lu\n",
                      tr->tr_time.tv_secs, tr->tr_time.tv_micro);
-            
+
+            get_raw_time(&raw_time);
+            normalize_timeval(&raw_time);
+
+            timerbase->tb_TimeOffsetSecs = (LONG)tr->tr_time.tv_secs - (LONG)raw_time.tv_secs;
+            timerbase->tb_TimeOffsetMicro = (LONG)tr->tr_time.tv_micro - (LONG)raw_time.tv_micro;
+
+            while (timerbase->tb_TimeOffsetMicro >= 1000000)
+            {
+                timerbase->tb_TimeOffsetSecs++;
+                timerbase->tb_TimeOffsetMicro -= 1000000;
+            }
+
+            while (timerbase->tb_TimeOffsetMicro < 0)
+            {
+                timerbase->tb_TimeOffsetSecs--;
+                timerbase->tb_TimeOffsetMicro += 1000000;
+            }
+
             timerbase->tb_SystemTime = tr->tr_time;
+            zero_request_time(tr);
             ioreq->io_Error = 0;
             break;
         }
@@ -357,34 +598,59 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
                      delay_secs, delay_micro, ioreq->io_Flags);
             
             /* Get current time */
-            get_current_time(&current_time);
+            get_current_time(timerbase, &current_time);
             
             /* Handle different unit types */
             if (timer_unit) {
                 switch (timer_unit->tu_UnitNum) {
                     case UNIT_VBLANK:
-                        /* UNIT_VBLANK: delay is in VBlank ticks (1/50th second for PAL)
-                         * Convert to actual time */
-                        delay_secs = delay_secs / 50;
-                        delay_micro = (delay_secs % 50) * 20000 + delay_micro;
-                        if (delay_micro >= 1000000) {
-                            delay_secs++;
-                            delay_micro -= 1000000;
-                        }
-                        /* Minimum delay of 1 VBlank tick */
-                        if (delay_secs == 0 && delay_micro < 20000) {
-                            delay_micro = 20000;
-                        }
+                        normalize_timeval(&tr->tr_time);
+                        delay_secs = tr->tr_time.tv_secs;
+                        delay_micro = tr->tr_time.tv_micro;
+                        round_up_to_vblank(&delay_secs, &delay_micro);
                         break;
                         
                     case UNIT_ECLOCK:
-                    case UNIT_WAITECLOCK:
-                        /* UNIT_ECLOCK: delay is in E-Clock ticks (709379 Hz for PAL)
-                         * Convert to microseconds */
+                        /* UNIT_ECLOCK: delay is encoded as an EClockVal. */
                         {
-                            ULONG total_ticks = delay_secs * timerbase->tb_EClock + delay_micro;
-                            delay_secs = total_ticks / timerbase->tb_EClock;
-                            delay_micro = (total_ticks % timerbase->tb_EClock) * 1000000 / timerbase->tb_EClock;
+                            struct EClockVal *eclock = (struct EClockVal *)&tr->tr_time;
+                            eclock_delay_to_timeval(timerbase,
+                                                    eclock->ev_hi,
+                                                    eclock->ev_lo,
+                                                    &delay_secs,
+                                                    &delay_micro);
+                        }
+                        break;
+                    case UNIT_WAITECLOCK:
+                        {
+                            struct EClockVal *eclock = (struct EClockVal *)&tr->tr_time;
+                            ULONG current_hi;
+                            ULONG current_lo;
+                            ULONG diff_hi;
+                            ULONG diff_lo;
+
+                            timer_read_eclock_ticks(timerbase, &current_hi, &current_lo);
+
+                            if (u64_cmp(eclock->ev_hi, eclock->ev_lo, current_hi, current_lo) <= 0)
+                            {
+                                DPRINTF(LOG_DEBUG, "_timer: UNIT_WAITECLOCK - target already passed\n");
+                                zero_request_time(tr);
+                                delay_secs = 0;
+                                delay_micro = 0;
+                                break;
+                            }
+
+                            u64_sub(eclock->ev_hi,
+                                    eclock->ev_lo,
+                                    current_hi,
+                                    current_lo,
+                                    &diff_hi,
+                                    &diff_lo);
+                            eclock_delay_to_timeval(timerbase,
+                                                    diff_hi,
+                                                    diff_lo,
+                                                    &delay_secs,
+                                                    &delay_micro);
                         }
                         break;
                         
@@ -398,18 +664,23 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
                             if (!timeval_sub(&tr->tr_time, &wake_time, &current_time)) {
                                 /* Wake time already passed, complete immediately */
                                 DPRINTF(LOG_DEBUG, "_timer: UNIT_WAITUNTIL - time already passed\n");
-                                tr->tr_time.tv_secs = 0;
-                                tr->tr_time.tv_micro = 0;
+                                zero_request_time(tr);
+                                delay_secs = 0;
+                                delay_micro = 0;
                                 break;
                             }
                             delay_secs = tr->tr_time.tv_secs;
                             delay_micro = tr->tr_time.tv_micro;
+                            round_up_to_vblank(&delay_secs, &delay_micro);
                         }
                         break;
                         
                     case UNIT_MICROHZ:
                     default:
                         /* UNIT_MICROHZ: delay is in seconds + microseconds (standard) */
+                        normalize_timeval(&tr->tr_time);
+                        delay_secs = tr->tr_time.tv_secs;
+                        delay_micro = tr->tr_time.tv_micro;
                         break;
                 }
             }
@@ -418,6 +689,7 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
             if (delay_secs == 0 && delay_micro == 0) {
                 /* No delay, complete immediately */
                 DPRINTF(LOG_DEBUG, "_timer: Zero delay, completing immediately\n");
+                zero_request_time(tr);
                 ioreq->io_Error = 0;
                 break;
             }
@@ -442,7 +714,7 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
         case CMD_READ: {
             /* Read elapsed time since device was opened */
             struct timeval current_time;
-            get_current_time(&current_time);
+            get_current_time(timerbase, &current_time);
             
             tr->tr_time.tv_secs = current_time.tv_secs;
             tr->tr_time.tv_micro = current_time.tv_micro;
@@ -490,8 +762,8 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
  * This function removes a pending timer request from the queue.
  * Returns 0 if the request was successfully aborted, or an error code.
  */
-static ULONG __g_lxa_timer_AbortIO ( register struct Library   *dev   __asm("a6"),
-                                     register struct IORequest *ioreq __asm("a1"))
+static LONG __g_lxa_timer_AbortIO ( register struct Library   *dev   __asm("a6"),
+                                    register struct IORequest *ioreq __asm("a1"))
 {
     struct timerequest *tr = (struct timerequest *)ioreq;
     
@@ -501,6 +773,7 @@ static ULONG __g_lxa_timer_AbortIO ( register struct Library   *dev   __asm("a6"
     if (timer_remove_request(tr)) {
         /* Successfully removed - mark as aborted */
         ioreq->io_Error = IOERR_ABORTED;
+        zero_request_time(tr);
         
         /* Reply to the message */
         ReplyMsg(&ioreq->io_Message);
@@ -511,7 +784,7 @@ static ULONG __g_lxa_timer_AbortIO ( register struct Library   *dev   __asm("a6"
     
     /* Request not found - might have already completed */
     DPRINTF(LOG_DEBUG, "_timer: AbortIO() request not found (may have completed)\n");
-    return IOERR_NOCMD;
+    return -1;
 }
 
 /*
@@ -530,6 +803,9 @@ static void __g_lxa_timer_AddTime (
 {
     DPRINTF(LOG_DEBUG, "_timer: AddTime(%lu.%06lu + %lu.%06lu)\n",
             dest->tv_secs, dest->tv_micro, src->tv_secs, src->tv_micro);
+
+    normalize_timeval(dest);
+    normalize_timeval(src);
     
     timeval_add(dest, dest, src);
     
@@ -547,6 +823,9 @@ static void __g_lxa_timer_SubTime (
 {
     DPRINTF(LOG_DEBUG, "_timer: SubTime(%lu.%06lu - %lu.%06lu)\n",
             dest->tv_secs, dest->tv_micro, src->tv_secs, src->tv_micro);
+
+    normalize_timeval(dest);
+    normalize_timeval(src);
     
     timeval_sub(dest, dest, src);
     
@@ -563,7 +842,12 @@ static LONG __g_lxa_timer_CmpTime (
     register struct timeval   *dest  __asm("a0"),
     register struct timeval   *src   __asm("a1"))
 {
-    LONG result = timeval_cmp(dest, src);
+    LONG result;
+
+    normalize_timeval(dest);
+    normalize_timeval(src);
+
+    result = timeval_cmp(dest, src);
     
     DPRINTF(LOG_DEBUG, "_timer: CmpTime(%lu.%06lu vs %lu.%06lu) -> %ld\n",
             dest->tv_secs, dest->tv_micro, src->tv_secs, src->tv_micro, result);
@@ -581,20 +865,10 @@ static ULONG __g_lxa_timer_ReadEClock (
     register struct EClockVal *dest  __asm("a0"))
 {
     struct TimerBase *timerbase = (struct TimerBase *)dev;
-    struct timeval current;
+    timer_read_eclock_ticks(timerbase, &dest->ev_hi, &dest->ev_lo);
     
-    get_current_time(&current);
-    
-    /* Convert time to E-Clock ticks */
-    /* E-Clock = 709379 Hz for PAL */
-    ULONG total_ticks = current.tv_secs * timerbase->tb_EClock +
-                        (current.tv_micro * timerbase->tb_EClock / 1000000);
-    
-    dest->ev_hi = 0;  /* High 32 bits (we don't track overflow) */
-    dest->ev_lo = total_ticks;
-    
-    DPRINTF(LOG_DEBUG, "_timer: ReadEClock -> %lu Hz, value=%lu\n", 
-            timerbase->tb_EClock, total_ticks);
+    DPRINTF(LOG_DEBUG, "_timer: ReadEClock -> %lu Hz, value=%lu:%lu\n",
+            timerbase->tb_EClock, dest->ev_hi, dest->ev_lo);
     
     return timerbase->tb_EClock;
 }
@@ -607,7 +881,7 @@ static void __g_lxa_timer_GetSysTime (
     register struct Library   *dev   __asm("a6"),
     register struct timeval   *dest  __asm("a0"))
 {
-    get_current_time(dest);
+    get_current_time((struct TimerBase *)dev, dest);
     
     DPRINTF(LOG_DEBUG, "_timer: GetSysTime -> %lu.%06lu\n", dest->tv_secs, dest->tv_micro);
 }

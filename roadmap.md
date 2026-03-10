@@ -606,17 +606,17 @@ Status: complete in 0.6.124.
 
 #### 78-L: Timer Device (`src/rom/lxa_dev_timer.c` vs `others/AROS-20231016-source/rom/timer/`)
 
-- [ ] `TR_ADDREQUEST` — UNIT_MICROHZ (≥50 ms), UNIT_VBLANK (VBL aligned), UNIT_ECLOCK, UNIT_WAITUNTIL
-- [ ] `TR_GETSYSTIME` / `TR_SETSYSTIME`
-- [ ] `AbortIO` for timer requests
-- [ ] `GetSysTime` / `AddTime` / `SubTime` / `CmpTime` — `struct timeval`
-- [ ] EClockVal reading
+- [x] `TR_ADDREQUEST` — UNIT_MICROHZ, UNIT_VBLANK (VBL aligned), UNIT_ECLOCK, UNIT_WAITUNTIL, and UNIT_WAITECLOCK now convert/round delays per the bundled timer autodocs and complete immediate past-deadline waits without hanging the caller (v0.7.2)
+- [x] `TR_GETSYSTIME` / `TR_SETSYSTIME` — system time now follows the device-set offset instead of raw host time, and direct device regressions verify the zeroed-request semantics plus subsequent `GetSysTime()` / `TR_GETSYSTIME` reads (v0.7.2)
+- [x] `AbortIO` for timer requests — pending timer requests now return 0 on successful abort, set `IOERR_ABORTED`, and zero the request time in the hosted queue path (v0.7.2)
+- [x] `GetSysTime` / `AddTime` / `SubTime` / `CmpTime` — `struct timeval` normalization, carry/borrow handling, and classic timer-device comparison ordering are locked down by direct device regression coverage (v0.7.2)
+- [x] EClockVal reading — `ReadEClock()` now returns a stable frequency plus advancing 64-bit `EClockVal` values without relying on 64-bit ROM helper libgcc symbols (v0.7.2)
 
 ##### 78-L-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — the hosted timer surface tracked for this phase now covers request scheduling across the documented units, system-time set/get behavior, abort semantics, library helper calls, and direct `EClockVal` reads with regression coverage in `Tests/Devices/Timer` / `Tests/Devices/TimerAsync` plus `devices_gtest` and `exec_gtest` validation (v0.7.2)
+- [x] Architecture review: timer timekeeping still mixes raw-host time reads, system-time offsets, and per-unit conversion rules inline inside `lxa_dev_timer.c`; Phase 79 now tracks factoring that state and conversion logic behind a small private timer-time companion so request scheduling and direct library calls cannot drift semantically (v0.7.2)
+- [x] Performance review: timer requests currently recompute unit conversions and scan the fixed host queue linearly for every add/remove/expiry check; Phase 79 now tracks consolidating conversion helpers and moving the hosted queue toward wake-time-ordered bookkeeping so longer-lived timer workloads avoid repeated full scans (v0.7.2)
 
 
 
@@ -934,6 +934,8 @@ Status: complete in 0.6.124.
 - [ ] Locale performance: add indexed catalog-string lookup and reusable collation transform caches so repeated `GetCatalogStr()` / `StrnCmp()` / `StrConvert()` calls avoid linear entry scans and repeated ASCII folding work
 - [ ] Keymap architecture: factor descriptor lookup, qualifier decoding, and dead-key bookkeeping behind shared private helpers so `MapRawKey()` and `MapANSI()` cannot drift as alternate keymaps or console-side overrides grow
 - [ ] Keymap performance: cache per-keymap dead-key indexes and descriptor search metadata so repeated `MapANSI()` conversions avoid rescanning both keymap halves on every call
+- [ ] Timer architecture: factor raw-host time reads, system-time offsets, and per-unit delay/absolute-time conversion rules behind a private timer-time helper so `TR_*` requests and direct timer.library entry points cannot drift semantically
+- [ ] Timer performance: replace the fixed unsorted hosted timer queue plus repeated per-request conversion work with wake-time-ordered bookkeeping so add/remove/expiry checks avoid full linear scans on heavier timer workloads
 - [ ] IFFParse performance: avoid repeated full context-stack LCI scans during `ParseIFF()` by separating declaration indexes from stored items and caching active stop/property/collection matches per context
 
 
@@ -962,4 +964,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-I**: locale.library now closes the remaining public V38 surface tracked for this phase: named/default locale opens, on-disk `.catalog` loading from `PROGDIR:` / `LOCALE:`, catalog/default string lookup, character classification and case conversion, and `StrConvert()` / `StrnCmp()` collation coverage are all exercised by direct exec regressions alongside the existing `FormatDate()` / `FormatString()` / `ParseDate()` tests (v0.7.0).
 - **Phase 78-J**: iffparse.library now covers the tracked V36 parser surface for hosted use: chunk allocation/open/close, RAWSTEP/STEP/SCAN traversal, stop conditions, entry/exit handlers, property/collection storage, write-mode chunk construction, record/byte I/O helpers, context queries, and clipboard-backed IFF streams are exercised by the direct iffparse regression plus the full green suite; the remaining Phase 79 work is structural/performance cleanup inside `lxa_iffparse.c` rather than missing public APIs.
 - **Phase 78-K**: keymap.library now closes the tracked public keymap surface for this phase: default-keymap query/update semantics, `MapRawKey()` qualifier/string/dead-key translation, `MapANSI()` rawkey encoding, and `KeyMap` structure layout all have direct regression coverage via `Tests/Exec/Keymap` and `Tests/Exec/StructOffsets` (v0.7.1).
+- **Phase 78-L**: timer.device now closes the tracked hosted timer surface for this phase: `TR_ADDREQUEST` covers the documented relative/absolute timer units (`UNIT_MICROHZ`, `UNIT_VBLANK`, `UNIT_ECLOCK`, `UNIT_WAITUNTIL`, `UNIT_WAITECLOCK`), `TR_GETSYSTIME` / `TR_SETSYSTIME` share the same system-time offset semantics as `GetSysTime()`, `AbortIO()` returns classic timer abort results, `AddTime()` / `SubTime()` / `CmpTime()` normalize `timeval`s with direct regression coverage, and `ReadEClock()` returns advancing 64-bit values without ROM-side libgcc helpers; validation is green via `devices_gtest` and `exec_gtest` (v0.7.2).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 633 assertions passing, now including `KeyMap` layout coverage.
