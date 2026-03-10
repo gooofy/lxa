@@ -20,6 +20,8 @@
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
 
+#include <devices/clipboard.h>
+
 #include <libraries/iffparse.h>
 #include <utility/hooks.h>
 #include <clib/utility_protos.h>
@@ -56,6 +58,11 @@ extern struct DosLibrary *DOSBase;
 #define IFFSTATE_EXIT       5   /* At chunk end, calling exit handlers */
 #define IFFSTATE_POPCHUNK   6   /* Popping chunk from stack */
 
+#define LXA_IFFLCI_STOP     MAKE_ID('s','t','o','p')
+#define LXA_IFFLCI_STOPEXIT MAKE_ID('s','t','p','x')
+#define LXA_IFFLCI_PROPDECL MAKE_ID('p','d','c','l')
+#define LXA_IFFLCI_COLLDECL MAKE_ID('c','d','c','l')
+
 /* Internal context node - extends public ContextNode */
 struct IntContextNode
 {
@@ -70,6 +77,7 @@ struct IntLocalContextItem
 {
     struct LocalContextItem LCI;        /* Public part */
     struct Hook            *lci_PurgeHook;  /* Cleanup hook */
+    struct Hook            *lci_Hook;       /* Entry/exit hook */
     APTR                    lci_UserData;   /* User data pointer */
     ULONG                   lci_UserDataSize;
 };
@@ -95,6 +103,14 @@ struct IFFParseBase
     struct Library lib;
     BPTR           SegList;
     struct Hook    iff_DOSHook;     /* Built-in DOS stream hook */
+    struct Hook    iff_ClipHook;    /* Built-in clipboard stream hook */
+};
+
+struct IntClipboardHandle
+{
+    struct ClipboardHandle cbh_Public;
+    LONG                   cbh_Position;
+    LONG                   cbh_ClipID;
 };
 
 /* Forward declarations of library functions */
@@ -116,6 +132,10 @@ LONG _iffparse_StoreLocalItem(register struct IFFParseBase *IFFParseBase __asm("
                               register struct IFFHandle *iff __asm("a0"),
                               register struct LocalContextItem *localItem __asm("a1"),
                               register LONG position __asm("d0"));
+LONG _iffparse_ReadChunkBytes(register struct IFFParseBase *IFFParseBase __asm("a6"),
+                              register struct IFFHandle *iff __asm("a0"),
+                              register APTR buf __asm("a1"),
+                              register LONG numBytes __asm("d0"));
 LONG _iffparse_GoodID(register struct IFFParseBase *IFFParseBase __asm("a6"),
                       register LONG id __asm("d0"));
 struct ContextNode * _iffparse_CurrentChunk(register struct IFFParseBase *IFFParseBase __asm("a6"),
@@ -131,6 +151,9 @@ LONG _iffparse_StopChunk(register struct IFFParseBase *IFFParseBase __asm("a6"),
 static LONG DOSStreamHandler(register struct Hook *hook __asm("a0"),
                             register struct IFFHandle *iff __asm("a2"),
                             register struct IFFStreamCmd *cmd __asm("a1"));
+static LONG ClipboardStreamHandler(register struct Hook *hook __asm("a0"),
+                                  register struct IFFHandle *iff __asm("a2"),
+                                  register struct IFFStreamCmd *cmd __asm("a1"));
 
 static LONG StreamRead(struct IntIFFHandle *iiff, APTR buf, LONG numBytes);
 static LONG StreamWrite(struct IntIFFHandle *iiff, APTR buf, LONG numBytes);
@@ -143,6 +166,24 @@ static void PopContextNode(struct IFFParseBase *IFFParseBase, struct IntIFFHandl
 static LONG GetChunkHeader(struct IFFParseBase *IFFParseBase, struct IntIFFHandle *iiff);
 static LONG InvokeHandlers(struct IFFParseBase *IFFParseBase, struct IntIFFHandle *iiff,
                           LONG mode, LONG ident);
+static struct IntLocalContextItem *FindLocalItemInContext(struct IntContextNode *icn,
+                                                         LONG type,
+                                                         LONG id,
+                                                         LONG ident);
+static BOOL HasDeclaration(struct IFFParseBase *IFFParseBase,
+                           struct IFFHandle *iff,
+                           LONG type,
+                           LONG id,
+                           LONG ident);
+static LONG RemoveStoredItem(struct IFFParseBase *IFFParseBase,
+                             struct IntContextNode *icn,
+                             LONG type,
+                             LONG id,
+                             LONG ident);
+static LONG StorePropertyChunk(struct IFFParseBase *IFFParseBase,
+                               struct IFFHandle *iff);
+static LONG StoreCollectionChunk(struct IFFParseBase *IFFParseBase,
+                                 struct IFFHandle *iff);
 
 /*
  * Library init/open/close/expunge
@@ -159,7 +200,11 @@ struct IFFParseBase * __g_lxa_iffparse_InitLib ( register struct IFFParseBase *i
     iffbase->iff_DOSHook.h_Entry = (ULONG (*)())DOSStreamHandler;
     iffbase->iff_DOSHook.h_SubEntry = NULL;
     iffbase->iff_DOSHook.h_Data = NULL;
-    
+
+    iffbase->iff_ClipHook.h_Entry = (ULONG (*)())ClipboardStreamHandler;
+    iffbase->iff_ClipHook.h_SubEntry = NULL;
+    iffbase->iff_ClipHook.h_Data = NULL;
+
     return iffbase;
 }
 
@@ -242,6 +287,92 @@ static LONG DOSStreamHandler(register struct Hook *hook __asm("a0"),
     return result;
 }
 
+static LONG ClipboardStreamHandler(register struct Hook *hook __asm("a0"),
+                                  register struct IFFHandle *iff __asm("a2"),
+                                  register struct IFFStreamCmd *cmd __asm("a1"))
+{
+    struct IntClipboardHandle *clip = (struct IntClipboardHandle *)iff->iff_Stream;
+    struct IOClipReq *clipreq;
+    LONG result = 0;
+
+    if (!clip)
+        return IFFERR_NOHOOK;
+
+    clipreq = &clip->cbh_Public.cbh_Req;
+
+    switch (cmd->sc_Command)
+    {
+        case IFFCMD_INIT:
+            clipreq->io_Command = CBD_CURRENTREADID;
+            clipreq->io_Flags = IOF_QUICK;
+            DoIO((struct IORequest *)clipreq);
+            if (clipreq->io_Error != 0)
+                return IFFERR_READ;
+
+            clip->cbh_ClipID = clipreq->io_ClipID;
+            clip->cbh_Position = 0;
+            result = 0;
+            break;
+
+        case IFFCMD_CLEANUP:
+            if (iff->iff_Flags & IFFF_WRITE)
+            {
+                clipreq->io_Command = CMD_UPDATE;
+                clipreq->io_Flags = IOF_QUICK;
+                DoIO((struct IORequest *)clipreq);
+                if (clipreq->io_Error == 0)
+                    clip->cbh_ClipID = clipreq->io_ClipID;
+            }
+
+            clip->cbh_Position = 0;
+            result = 0;
+            break;
+
+        case IFFCMD_READ:
+            clipreq->io_Command = CMD_READ;
+            clipreq->io_Flags = IOF_QUICK;
+            clipreq->io_Data = (STRPTR)cmd->sc_Buf;
+            clipreq->io_Length = cmd->sc_NBytes;
+            clipreq->io_Offset = clip->cbh_Position;
+            clipreq->io_ClipID = clip->cbh_ClipID;
+            DoIO((struct IORequest *)clipreq);
+            if (clipreq->io_Error != 0)
+                return IFFERR_READ;
+
+            clip->cbh_Position += clipreq->io_Actual;
+            result = clipreq->io_Actual;
+            break;
+
+        case IFFCMD_WRITE:
+            clipreq->io_Command = CMD_WRITE;
+            clipreq->io_Flags = IOF_QUICK;
+            clipreq->io_Data = (STRPTR)cmd->sc_Buf;
+            clipreq->io_Length = cmd->sc_NBytes;
+            clipreq->io_Offset = clip->cbh_Position;
+            DoIO((struct IORequest *)clipreq);
+            if (clipreq->io_Error != 0)
+                return IFFERR_WRITE;
+
+            clip->cbh_Position += clipreq->io_Actual;
+            result = clipreq->io_Actual;
+            break;
+
+        case IFFCMD_SEEK:
+            if ((clip->cbh_Position + cmd->sc_NBytes) < 0)
+                return IFFERR_SEEK;
+
+            clip->cbh_Position += cmd->sc_NBytes;
+            result = 0;
+            break;
+
+        default:
+            result = IFFERR_SYNTAX;
+            break;
+    }
+
+    return result;
+}
+
 /*
  * Stream helper functions
  */
@@ -308,6 +439,8 @@ static LONG StreamSeekAbs(struct IntIFFHandle *iiff, LONG newPos)
  */
 static void PurgeLCI(struct IFFParseBase *IFFParseBase, struct IntLocalContextItem *ilci)
 {
+    ULONG totalSize;
+
     if (ilci->lci_PurgeHook)
     {
         /* Call the purge hook - it will free any associated data */
@@ -317,9 +450,28 @@ static void PurgeLCI(struct IFFParseBase *IFFParseBase, struct IntLocalContextIt
         cmd.sc_NBytes = ilci->lci_UserDataSize;
         CallHookPkt(ilci->lci_PurgeHook, &ilci->LCI, &cmd);
     }
-    
+
+    if (ilci->LCI.lci_Ident == IFFLCI_COLLECTION)
+    {
+        struct CollectionItem *head = (struct CollectionItem *)ilci->lci_UserData;
+        struct CollectionItem *ci;
+        struct CollectionItem *next_ci;
+
+        if (head)
+        {
+            ci = head->ci_Next;
+            while (ci)
+            {
+                next_ci = ci->ci_Next;
+                FreeMem(ci, sizeof(struct CollectionItem) + ci->ci_Size);
+                ci = next_ci;
+            }
+        }
+    }
+
     /* Free the LCI itself */
-    FreeMem(ilci, sizeof(struct IntLocalContextItem));
+    totalSize = sizeof(struct IntLocalContextItem) + ilci->lci_UserDataSize;
+    FreeMem(ilci, totalSize);
 }
 
 /*
@@ -396,11 +548,13 @@ static LONG GetChunkHeader(struct IFFParseBase *IFFParseBase, struct IntIFFHandl
     err = StreamRead(iiff, &id, 4);
     if (err < 4)
         return (err < 0) ? err : IFFERR_EOF;
+    iiff->iff_StreamPos += 4;
     
     /* Read chunk size */
     err = StreamRead(iiff, &size, 4);
     if (err < 4)
         return (err < 0) ? err : IFFERR_MANGLED;
+    iiff->iff_StreamPos += 4;
     
     /* Check if this is a container chunk (FORM, LIST, CAT, PROP) */
     if (id == ID_FORM || id == ID_LIST || id == ID_CAT || id == MAKE_ID('P','R','O','P'))
@@ -409,6 +563,7 @@ static LONG GetChunkHeader(struct IFFParseBase *IFFParseBase, struct IntIFFHandl
         err = StreamRead(iiff, &type, 4);
         if (err < 4)
             return (err < 0) ? err : IFFERR_MANGLED;
+        iiff->iff_StreamPos += 4;
         
         /* Note: size includes the type (4 bytes) plus all nested chunk data.
          * We track cn_Scan starting at 0 after the type, so adjust size to
@@ -466,15 +621,11 @@ static LONG InvokeHandlers(struct IFFParseBase *IFFParseBase, struct IntIFFHandl
                     (ilci->LCI.lci_ID == cn->cn_ID || ilci->LCI.lci_ID == 0))
                 {
                     /* Found a matching handler - call it */
-                    struct Hook *hook = ilci->lci_PurgeHook;  /* Hook is stored here */
+                    struct Hook *hook = ilci->lci_Hook;
                     if (hook)
                     {
-                        struct IFFStreamCmd cmd;
-                        cmd.sc_Command = (ident == IFFLCI_ENTRYHANDLER) ? IFFCMD_ENTRY : IFFCMD_EXIT;
-                        cmd.sc_Buf = ilci->lci_UserData;  /* Object pointer */
-                        cmd.sc_NBytes = 0;
-                        
-                        result = CallHookPkt(hook, (struct IFFHandle *)iiff, &cmd);
+                        LONG cmd = (ident == IFFLCI_ENTRYHANDLER) ? IFFCMD_ENTRY : IFFCMD_EXIT;
+                        result = CallHookPkt(hook, ilci->lci_UserData, &cmd);
                         if (result != 0)
                             return result;
                     }
@@ -484,7 +635,195 @@ static LONG InvokeHandlers(struct IFFParseBase *IFFParseBase, struct IntIFFHandl
         }
         icn = (struct IntContextNode *)icn->CN.cn_Node.mln_Succ;
     }
-    
+
+    return 0;
+}
+
+static struct IntLocalContextItem *FindLocalItemInContext(struct IntContextNode *icn,
+                                                         LONG type,
+                                                         LONG id,
+                                                         LONG ident)
+{
+    struct IntLocalContextItem *ilci;
+
+    if (!icn)
+        return NULL;
+
+    ilci = (struct IntLocalContextItem *)icn->cn_LCIList.mlh_Head;
+    while (ilci->LCI.lci_Node.mln_Succ)
+    {
+        if ((type == 0 || ilci->LCI.lci_Type == type) &&
+            (id == 0 || ilci->LCI.lci_ID == id) &&
+            ilci->LCI.lci_Ident == ident)
+        {
+            return ilci;
+        }
+        ilci = (struct IntLocalContextItem *)ilci->LCI.lci_Node.mln_Succ;
+    }
+
+    return NULL;
+}
+
+static BOOL HasDeclaration(struct IFFParseBase *IFFParseBase,
+                           struct IFFHandle *iff,
+                           LONG type,
+                           LONG id,
+                           LONG ident)
+{
+    return _iffparse_FindLocalItem(IFFParseBase, iff, type, id, ident) != NULL;
+}
+
+static LONG RemoveStoredItem(struct IFFParseBase *IFFParseBase,
+                             struct IntContextNode *icn,
+                             LONG type,
+                             LONG id,
+                             LONG ident)
+{
+    struct IntLocalContextItem *ilci;
+
+    ilci = FindLocalItemInContext(icn, type, id, ident);
+    if (!ilci)
+        return 0;
+
+    Remove((struct Node *)&ilci->LCI.lci_Node);
+    PurgeLCI(IFFParseBase, ilci);
+
+    return 0;
+}
+
+static LONG StorePropertyChunk(struct IFFParseBase *IFFParseBase,
+                               struct IFFHandle *iff)
+{
+    struct IntIFFHandle *iiff = (struct IntIFFHandle *)iff;
+    struct IntContextNode *current;
+    struct IntContextNode *scope;
+    struct IntLocalContextItem *ilci;
+    struct StoredProperty *sp;
+    LONG bytesRead;
+
+    current = (struct IntContextNode *)iiff->iff_CNStack.mlh_Head;
+    if (!current || current == &iiff->iff_DefaultCN)
+        return IFFERR_NOSCOPE;
+
+    scope = (struct IntContextNode *)_iffparse_FindPropContext(IFFParseBase, iff);
+    if (!scope)
+        return IFFERR_NOSCOPE;
+
+    RemoveStoredItem(IFFParseBase, scope, current->CN.cn_Type, current->CN.cn_ID, IFFLCI_PROP);
+
+    ilci = (struct IntLocalContextItem *)_iffparse_AllocLocalItem(IFFParseBase,
+                                                                  current->CN.cn_Type,
+                                                                  current->CN.cn_ID,
+                                                                  IFFLCI_PROP,
+                                                                  sizeof(struct StoredProperty) + current->CN.cn_Size);
+    if (!ilci)
+        return IFFERR_NOMEM;
+
+    sp = (struct StoredProperty *)_iffparse_LocalItemData(IFFParseBase, (struct LocalContextItem *)ilci);
+    if (!sp)
+    {
+        _iffparse_FreeLocalItem(IFFParseBase, (struct LocalContextItem *)ilci);
+        return IFFERR_NOMEM;
+    }
+
+    sp->sp_Size = current->CN.cn_Size;
+    sp->sp_Data = (APTR)((UBYTE *)sp + sizeof(struct StoredProperty));
+
+    bytesRead = _iffparse_ReadChunkBytes(IFFParseBase, iff, sp->sp_Data, current->CN.cn_Size);
+    if (bytesRead < 0)
+    {
+        _iffparse_FreeLocalItem(IFFParseBase, (struct LocalContextItem *)ilci);
+        return bytesRead;
+    }
+
+    if (bytesRead != current->CN.cn_Size)
+    {
+        _iffparse_FreeLocalItem(IFFParseBase, (struct LocalContextItem *)ilci);
+        return IFFERR_READ;
+    }
+
+    AddHead((struct List *)&scope->cn_LCIList, (struct Node *)&ilci->LCI.lci_Node);
+
+    DPRINTF(LOG_DEBUG, "_iffparse: StorePropertyChunk() stored type=0x%08lx id=0x%08lx size=%ld\n",
+            current->CN.cn_Type, current->CN.cn_ID, current->CN.cn_Size);
+
+    return 0;
+}
+
+static LONG StoreCollectionChunk(struct IFFParseBase *IFFParseBase,
+                                 struct IFFHandle *iff)
+{
+    struct IntIFFHandle *iiff = (struct IntIFFHandle *)iff;
+    struct IntContextNode *current;
+    struct IntContextNode *scope;
+    struct IntLocalContextItem *ilci;
+    struct CollectionItem *ci;
+    struct CollectionItem *head;
+    LONG bytesRead;
+
+    current = (struct IntContextNode *)iiff->iff_CNStack.mlh_Head;
+    if (!current || current == &iiff->iff_DefaultCN)
+        return IFFERR_NOSCOPE;
+
+    scope = (struct IntContextNode *)_iffparse_FindPropContext(IFFParseBase, iff);
+    if (!scope)
+        return IFFERR_NOSCOPE;
+
+    ilci = FindLocalItemInContext(scope, current->CN.cn_Type, current->CN.cn_ID, IFFLCI_COLLECTION);
+    if (!ilci)
+    {
+        ilci = (struct IntLocalContextItem *)_iffparse_AllocLocalItem(IFFParseBase,
+                                                                      current->CN.cn_Type,
+                                                                      current->CN.cn_ID,
+                                                                      IFFLCI_COLLECTION,
+                                                                      sizeof(struct CollectionItem));
+        if (!ilci)
+            return IFFERR_NOMEM;
+
+        ci = (struct CollectionItem *)_iffparse_LocalItemData(IFFParseBase, (struct LocalContextItem *)ilci);
+        if (!ci)
+        {
+            _iffparse_FreeLocalItem(IFFParseBase, (struct LocalContextItem *)ilci);
+            return IFFERR_NOMEM;
+        }
+
+        ci->ci_Next = NULL;
+        ci->ci_Size = 0;
+        ci->ci_Data = NULL;
+        AddHead((struct List *)&scope->cn_LCIList, (struct Node *)&ilci->LCI.lci_Node);
+    }
+
+    head = (struct CollectionItem *)_iffparse_LocalItemData(IFFParseBase, (struct LocalContextItem *)ilci);
+    if (!head)
+        return IFFERR_NOMEM;
+
+    ci = AllocMem(sizeof(struct CollectionItem) + current->CN.cn_Size, MEMF_ANY | MEMF_CLEAR);
+    if (!ci)
+        return IFFERR_NOMEM;
+
+    ci->ci_Size = current->CN.cn_Size;
+    if (current->CN.cn_Size > 0)
+        ci->ci_Data = (APTR)((UBYTE *)ci + sizeof(struct CollectionItem));
+
+    bytesRead = _iffparse_ReadChunkBytes(IFFParseBase, iff, ci->ci_Data, current->CN.cn_Size);
+    if (bytesRead < 0)
+    {
+        FreeMem(ci, sizeof(struct CollectionItem) + current->CN.cn_Size);
+        return bytesRead;
+    }
+
+    if (bytesRead != current->CN.cn_Size)
+    {
+        FreeMem(ci, sizeof(struct CollectionItem) + current->CN.cn_Size);
+        return IFFERR_READ;
+    }
+
+    ci->ci_Next = head->ci_Next;
+    head->ci_Next = ci;
+
+    DPRINTF(LOG_DEBUG, "_iffparse: StoreCollectionChunk() stored type=0x%08lx id=0x%08lx size=%ld\n",
+            current->CN.cn_Type, current->CN.cn_ID, current->CN.cn_Size);
+
     return 0;
 }
 
@@ -562,6 +901,7 @@ LONG _iffparse_OpenIFF ( register struct IFFParseBase *IFFParseBase __asm("a6"),
     if (rwMode & IFFF_WRITE)
     {
         iiff->iff_CurrentState = IFFSTATE_INIT;
+        iiff->iff_StreamPos = 0;
     }
     else
     {
@@ -576,6 +916,8 @@ LONG _iffparse_OpenIFF ( register struct IFFParseBase *IFFParseBase __asm("a6"),
             return IFFERR_NOTIFF;
         
         iiff->iff_CurrentState = IFFSTATE_COMPOSITE;
+        iiff->iff_StreamPos = (icn->CN.cn_ID == ID_FORM || icn->CN.cn_ID == ID_LIST ||
+                               icn->CN.cn_ID == ID_CAT || icn->CN.cn_ID == MAKE_ID('P','R','O','P')) ? 12 : 8;
     }
     
     return 0;
@@ -588,6 +930,7 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
 {
     struct IntIFFHandle *iiff = (struct IntIFFHandle *)iff;
     struct IntContextNode *icn;
+    struct ContextNode *cn;
     LONG err;
     BOOL done = FALSE;
     
@@ -602,6 +945,7 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
         switch (iiff->iff_CurrentState)
         {
             case IFFSTATE_COMPOSITE:
+                cn = _iffparse_CurrentChunk(IFFParseBase, iff);
                 /* Inside a composite chunk - invoke entry handlers if not RAWSTEP */
                 if (control != IFFPARSE_RAWSTEP)
                 {
@@ -613,7 +957,13 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
                     if (err != 0)
                         return err;
                 }
-                
+
+                if (control == IFFPARSE_SCAN &&
+                    HasDeclaration(IFFParseBase, iff, cn->cn_Type, cn->cn_ID, LXA_IFFLCI_STOP))
+                {
+                    return 0;
+                }
+                 
                 /* Check for stop chunks */
                 /* For now, just proceed to read next chunk */
                 iiff->iff_CurrentState = IFFSTATE_PUSHCHUNK;
@@ -669,6 +1019,7 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
                 break;
                 
             case IFFSTATE_ATOMIC:
+                cn = _iffparse_CurrentChunk(IFFParseBase, iff);
                 /* Inside an atomic (data) chunk - invoke entry handlers */
                 if (control != IFFPARSE_RAWSTEP)
                 {
@@ -680,7 +1031,29 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
                     if (err != 0)
                         return err;
                 }
-                
+
+                if (control != IFFPARSE_RAWSTEP)
+                {
+                    if (HasDeclaration(IFFParseBase, iff, cn->cn_Type, cn->cn_ID, LXA_IFFLCI_PROPDECL))
+                    {
+                        err = StorePropertyChunk(IFFParseBase, iff);
+                        if (err != 0)
+                            return err;
+                    }
+                    else if (HasDeclaration(IFFParseBase, iff, cn->cn_Type, cn->cn_ID, LXA_IFFLCI_COLLDECL))
+                    {
+                        err = StoreCollectionChunk(IFFParseBase, iff);
+                        if (err != 0)
+                            return err;
+                    }
+                }
+
+                if (control == IFFPARSE_SCAN &&
+                    HasDeclaration(IFFParseBase, iff, cn->cn_Type, cn->cn_ID, LXA_IFFLCI_STOP))
+                {
+                    return 0;
+                }
+                 
                 /* Move to scan exit */
                 iiff->iff_CurrentState = IFFSTATE_SCANEXIT;
                 
@@ -704,6 +1077,7 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
                             err = StreamSeek(iiff, remaining);
                             if (err < 0)
                                 return err;
+                            iiff->iff_StreamPos += remaining;
                         }
                         else
                         {
@@ -715,6 +1089,7 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
                                 err = StreamRead(iiff, buf, toRead);
                                 if (err < toRead)
                                     return (err < 0) ? err : IFFERR_READ;
+                                iiff->iff_StreamPos += toRead;
                                 remaining -= toRead;
                             }
                         }
@@ -726,6 +1101,7 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
                     {
                         UBYTE pad;
                         StreamRead(iiff, &pad, 1);
+                        iiff->iff_StreamPos++;
                     }
                 }
                 
@@ -733,6 +1109,7 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
                 break;
                 
             case IFFSTATE_EXIT:
+                cn = _iffparse_CurrentChunk(IFFParseBase, iff);
                 /* At chunk end - invoke exit handlers */
                 if (control != IFFPARSE_RAWSTEP)
                 {
@@ -744,7 +1121,20 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
                     if (err != 0)
                         return err;
                 }
-                
+
+                if (control == IFFPARSE_SCAN &&
+                    HasDeclaration(IFFParseBase, iff, cn->cn_Type, cn->cn_ID, LXA_IFFLCI_STOPEXIT))
+                {
+                    iiff->iff_CurrentState = IFFSTATE_POPCHUNK;
+                    return IFFERR_EOC;
+                }
+
+                if (control == IFFPARSE_STEP || control == IFFPARSE_RAWSTEP)
+                {
+                    iiff->iff_CurrentState = IFFSTATE_POPCHUNK;
+                    return IFFERR_EOC;
+                }
+                 
                 iiff->iff_CurrentState = IFFSTATE_POPCHUNK;
                 break;
                 
@@ -880,6 +1270,7 @@ LONG _iffparse_ReadChunkBytes ( register struct IFFParseBase *IFFParseBase __asm
     
     /* Update scan position */
     icn->CN.cn_Scan += bytesRead;
+    iiff->iff_StreamPos += bytesRead;
     
     return bytesRead;
 }
@@ -1147,7 +1538,7 @@ LONG _iffparse_EntryHandler ( register struct IFFParseBase *IFFParseBase __asm("
         return IFFERR_NOMEM;
     
     /* Store hook and object */
-    ilci->lci_PurgeHook = handler;
+    ilci->lci_Hook = handler;
     ilci->lci_UserData = object;
     
     err = _iffparse_StoreLocalItem(IFFParseBase, iff, (struct LocalContextItem *)ilci, position);
@@ -1180,7 +1571,7 @@ LONG _iffparse_ExitHandler ( register struct IFFParseBase *IFFParseBase __asm("a
     if (!ilci)
         return IFFERR_NOMEM;
     
-    ilci->lci_PurgeHook = handler;
+    ilci->lci_Hook = handler;
     ilci->lci_UserData = object;
     
     err = _iffparse_StoreLocalItem(IFFParseBase, iff, (struct LocalContextItem *)ilci, position);
@@ -1199,12 +1590,16 @@ LONG _iffparse_PropChunk ( register struct IFFParseBase *IFFParseBase __asm("a6"
                            register LONG type __asm("d0"),
                            register LONG id __asm("d1") )
 {
+    struct LocalContextItem *item;
+
     DPRINTF (LOG_DEBUG, "_iffparse: PropChunk() type=0x%08lx id=0x%08lx\n",
              type, id);
-    
-    /* For now, just register as a stop chunk - full property handling would
-       require an entry handler that reads and stores the chunk data */
-    return _iffparse_StopChunk(IFFParseBase, iff, type, id);
+
+    item = _iffparse_AllocLocalItem(IFFParseBase, type, id, LXA_IFFLCI_PROPDECL, 0);
+    if (!item)
+        return IFFERR_NOMEM;
+
+    return _iffparse_StoreLocalItem(IFFParseBase, iff, item, IFFSLI_ROOT);
 }
 
 /* PropChunks - Declare multiple property chunks */
@@ -1233,14 +1628,16 @@ LONG _iffparse_StopChunk ( register struct IFFParseBase *IFFParseBase __asm("a6"
                            register LONG type __asm("d0"),
                            register LONG id __asm("d1") )
 {
+    struct LocalContextItem *item;
+
     DPRINTF (LOG_DEBUG, "_iffparse: StopChunk() type=0x%08lx id=0x%08lx\n",
              type, id);
-    
-    /* A stop chunk is implemented as an entry handler that returns IFF_RETURN2CLIENT */
-    /* For simplicity, we store the type/id in a LCI and check in ParseIFF */
-    /* TODO: Implement proper stop chunk handling */
-    
-    return 0;  /* Success - even though not fully implemented */
+
+    item = _iffparse_AllocLocalItem(IFFParseBase, type, id, LXA_IFFLCI_STOP, 0);
+    if (!item)
+        return IFFERR_NOMEM;
+
+    return _iffparse_StoreLocalItem(IFFParseBase, iff, item, IFFSLI_ROOT);
 }
 
 /* StopChunks - Declare multiple stop chunks */
@@ -1269,11 +1666,16 @@ LONG _iffparse_CollectionChunk ( register struct IFFParseBase *IFFParseBase __as
                                  register LONG type __asm("d0"),
                                  register LONG id __asm("d1") )
 {
+    struct LocalContextItem *item;
+
     DPRINTF (LOG_DEBUG, "_iffparse: CollectionChunk() type=0x%08lx id=0x%08lx\n",
              type, id);
-    
-    /* Similar to PropChunk but collects multiple instances */
-    return _iffparse_StopChunk(IFFParseBase, iff, type, id);
+
+    item = _iffparse_AllocLocalItem(IFFParseBase, type, id, LXA_IFFLCI_COLLDECL, 0);
+    if (!item)
+        return IFFERR_NOMEM;
+
+    return _iffparse_StoreLocalItem(IFFParseBase, iff, item, IFFSLI_ROOT);
 }
 
 /* CollectionChunks - Declare multiple collection chunks */
@@ -1302,11 +1704,16 @@ LONG _iffparse_StopOnExit ( register struct IFFParseBase *IFFParseBase __asm("a6
                             register LONG type __asm("d0"),
                             register LONG id __asm("d1") )
 {
+    struct LocalContextItem *item;
+
     DPRINTF (LOG_DEBUG, "_iffparse: StopOnExit() type=0x%08lx id=0x%08lx\n",
              type, id);
-    
-    /* TODO: Implement as exit handler */
-    return 0;
+
+    item = _iffparse_AllocLocalItem(IFFParseBase, type, id, LXA_IFFLCI_STOPEXIT, 0);
+    if (!item)
+        return IFFERR_NOMEM;
+
+    return _iffparse_StoreLocalItem(IFFParseBase, iff, item, IFFSLI_ROOT);
 }
 
 /* FindProp - Find a stored property */
@@ -1635,26 +2042,64 @@ void _iffparse_InitIFFasDOS ( register struct IFFParseBase *IFFParseBase __asm("
 void _iffparse_InitIFFasClip ( register struct IFFParseBase *IFFParseBase __asm("a6"),
                                register struct IFFHandle *iff __asm("a0") )
 {
-    DPRINTF (LOG_DEBUG, "_iffparse: InitIFFasClip() iff=0x%08lx (stub - uses DOS hook)\n", (ULONG)iff);
-    
-    /* For now, just use DOS hook - clipboard support would need clipboard.device */
-    _iffparse_InitIFF(IFFParseBase, iff, IFFF_RSEEK, &IFFParseBase->iff_DOSHook);
+    DPRINTF (LOG_DEBUG, "_iffparse: InitIFFasClip() iff=0x%08lx\n", (ULONG)iff);
+
+    _iffparse_InitIFF(IFFParseBase, iff, IFFF_RSEEK, &IFFParseBase->iff_ClipHook);
 }
 
 /* OpenClipboard - Open clipboard for IFF operations */
 struct ClipboardHandle * _iffparse_OpenClipboard ( register struct IFFParseBase *IFFParseBase __asm("a6"),
-                                                   register LONG unitNumber __asm("d0") )
+                                                    register LONG unitNumber __asm("d0") )
 {
-    DPRINTF (LOG_DEBUG, "_iffparse: OpenClipboard() unitNumber=%ld (stub, returns NULL)\n", unitNumber);
-    /* Clipboard support not implemented */
-    return NULL;
+    struct IntClipboardHandle *clipHandle;
+    struct MsgPort *reply_port;
+
+    DPRINTF (LOG_DEBUG, "_iffparse: OpenClipboard() unitNumber=%ld\n", unitNumber);
+
+    clipHandle = AllocMem(sizeof(struct IntClipboardHandle), MEMF_ANY | MEMF_CLEAR);
+    if (!clipHandle)
+        return NULL;
+
+    reply_port = &clipHandle->cbh_Public.cbh_CBport;
+    reply_port->mp_Node.ln_Type = NT_MSGPORT;
+    reply_port->mp_Flags = PA_IGNORE;
+    reply_port->mp_SigTask = FindTask(NULL);
+    NewList(&reply_port->mp_MsgList);
+
+    clipHandle->cbh_Public.cbh_SatisfyPort.mp_Node.ln_Type = NT_MSGPORT;
+    clipHandle->cbh_Public.cbh_SatisfyPort.mp_Flags = PA_IGNORE;
+    clipHandle->cbh_Public.cbh_SatisfyPort.mp_SigTask = FindTask(NULL);
+    NewList(&clipHandle->cbh_Public.cbh_SatisfyPort.mp_MsgList);
+
+    clipHandle->cbh_Public.cbh_Req.io_Message.mn_ReplyPort = reply_port;
+    clipHandle->cbh_Public.cbh_Req.io_Message.mn_Length = sizeof(struct IOClipReq);
+
+    if (OpenDevice((STRPTR)"clipboard.device", unitNumber,
+                   (struct IORequest *)&clipHandle->cbh_Public.cbh_Req, 0) != 0)
+    {
+        FreeMem(clipHandle, sizeof(struct IntClipboardHandle));
+        return NULL;
+    }
+
+    clipHandle->cbh_Position = 0;
+    clipHandle->cbh_ClipID = 0;
+
+    return &clipHandle->cbh_Public;
 }
 
 /* CloseClipboard - Close clipboard handle */
 void _iffparse_CloseClipboard ( register struct IFFParseBase *IFFParseBase __asm("a6"),
                                 register struct ClipboardHandle *clipHandle __asm("a0") )
 {
-    DPRINTF (LOG_DEBUG, "_iffparse: CloseClipboard() clipHandle=0x%08lx (stub)\n", (ULONG)clipHandle);
+    struct IntClipboardHandle *intHandle = (struct IntClipboardHandle *)clipHandle;
+
+    DPRINTF (LOG_DEBUG, "_iffparse: CloseClipboard() clipHandle=0x%08lx\n", (ULONG)clipHandle);
+
+    if (!clipHandle)
+        return;
+
+    CloseDevice((struct IORequest *)&clipHandle->cbh_Req);
+    FreeMem(intHandle, sizeof(struct IntClipboardHandle));
 }
 
 /* GoodID - Check if ID is valid */

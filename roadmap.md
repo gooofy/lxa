@@ -564,22 +564,23 @@ Status: complete in 0.6.124.
 
 #### 78-J: IFFParse Library (`src/rom/lxa_iffparse.c` vs NDK `libraries/iffparse.h`)
 
-- [ ] `AllocIFF` / `FreeIFF`
-- [ ] `InitIFFasDOS` / `InitIFFasClip`
-- [ ] `OpenIFF` / `CloseIFF` — IFFF_READ, IFFF_WRITE
-- [ ] `ParseIFF` — IFFPARSE_RAWSTEP, IFFPARSE_SCAN, IFFPARSE_STEP; return codes
-- [ ] `StopChunk` / `StopOnExit` / `EntryHandler` / `ExitHandler`
-- [ ] `PushChunk` / `PopChunk` — write support
-- [ ] `ReadChunkBytes` / `ReadChunkRecords` / `WriteChunkBytes` / `WriteChunkRecords`
-- [ ] `CurrentChunk` / `ParentChunk` / `FindProp` / `FindCollection` / `FindPropContext`
-- [ ] `CollectionChunk` / `PropChunk`
-- [ ] `OpenClipboard` / `CloseClipboard` / `ReadClipboard` / `WriteClipboard`
+- [x] `AllocIFF` / `FreeIFF`
+- [x] `InitIFFasDOS` / `InitIFFasClip`
+- [x] `OpenIFF` / `CloseIFF` — IFFF_READ, IFFF_WRITE
+- [x] `ParseIFF` — IFFPARSE_RAWSTEP, IFFPARSE_SCAN, IFFPARSE_STEP; return codes
+- [x] `StopChunk` / `StopOnExit` / `EntryHandler` / `ExitHandler`
+- [x] `PushChunk` / `PopChunk` — write support
+- [x] `ReadChunkBytes` / `ReadChunkRecords` / `WriteChunkBytes` / `WriteChunkRecords`
+- [x] `CurrentChunk` / `ParentChunk` / `FindProp` / `FindCollection` / `FindPropContext`
+- [x] `CollectionChunk` / `PropChunk`
+- [x] `OpenClipboard` / `CloseClipboard` — clipboard-backed IFF streams now work for the covered hosted path; direct `ReadClipboard` / `WriteClipboard` entry points remain outside the public NDK iffparse surface tracked here
 
 ##### 78-J-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Validation complete: full ROM rebuild, direct iffparse regression coverage, and full `ctest --test-dir build --output-on-failure -j16` are green
+- [x] Implement missing functions and stubs as far as possible
+- [x] Architecture review: identify architecture improvement opportunities, add them to phase 79
+- [x] Performance review: identify performance improvement opportunities, add them to phase 79
 
 
 
@@ -921,6 +922,7 @@ Status: complete in 0.6.124.
 - [ ] GadTools architecture: introduce compact private companions for GadTools-owned menu/item metadata instead of overloading public structs with ad-hoc hosted allocations when more V39+ features land
 - [ ] Utility architecture: factor named-object/root-namespace bookkeeping behind shared private helpers or companions instead of open-coding list/semaphore ownership inside `lxa_utility.c` before remaining utility APIs expand further
 - [ ] Locale architecture: split locale-private built-in strings, catalog state, and future language-driver/file-backed providers behind a shared companion layer so `lxa_locale.c` does not keep one monolithic English-only data source wired directly into every API
+- [ ] IFFParse architecture: factor declaration matching, property/collection storage, and clipboard stream state into smaller helpers/companions so `lxa_iffparse.c` does not keep growing one monolithic parser state machine
 - [ ] Graphics performance: avoid repeated palette list walks in `ObtainBestPenA()`/`FindColor()` by caching exact-match or nearest-pen hints inside palette-extra state
 - [ ] Graphics performance: skip redundant viewport/display updates when `ScrollVPort()` or `ChangeVPBitMap()` are called with unchanged state
 - [ ] Intuition performance: cache the current Workbench screen pointer or tail/front bookkeeping so `OpenWorkBench()`, `WBenchToFront()`, and `WBenchToBack()` avoid repeated full screen-list scans
@@ -930,6 +932,7 @@ Status: complete in 0.6.124.
 - [ ] GadTools performance: skip redundant `GT_RefreshWindow()` full-list redraws when attribute updates can identify a single affected gadget or requester subtree
 - [ ] Utility performance: add optional accelerated name lookup for large shared namespaces so repeated `FindNamedObject()` scans do not remain purely linear as more hosted subsystems start sharing named objects
 - [ ] Locale performance: add indexed catalog-string lookup and reusable collation transform caches so repeated `GetCatalogStr()` / `StrnCmp()` / `StrConvert()` calls avoid linear entry scans and repeated ASCII folding work
+- [ ] IFFParse performance: avoid repeated full context-stack LCI scans during `ParseIFF()` by separating declaration indexes from stored items and caching active stop/property/collection matches per context
 
 
 ---
@@ -955,4 +958,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-G Review**: ASL review advanced; the public `AllocAslRequestTags()` / `AslRequestTags()` varargs surface is now verified across file, font, and screen mode requester flows, and the remaining ASL follow-up is broader ScreenMode option coverage (v0.6.119).
 - **Phase 78-H**: utility.library is now fully closed for this roadmap phase: `HookEntry`-driven hook dispatch is verified against the NDK `amiga.lib` contract, the named-object namespace regressions lock duplicate handling, enumeration, removal holds, and reply semantics, and the old DOS-pattern follow-up is retired after confirming it is not part of the public `utility.library` surface in the bundled NDK/AROS references (v0.6.124).
 - **Phase 78-I**: locale.library now closes the remaining public V38 surface tracked for this phase: named/default locale opens, on-disk `.catalog` loading from `PROGDIR:` / `LOCALE:`, catalog/default string lookup, character classification and case conversion, and `StrConvert()` / `StrnCmp()` collation coverage are all exercised by direct exec regressions alongside the existing `FormatDate()` / `FormatString()` / `ParseDate()` tests (v0.7.0).
+- **Phase 78-J**: iffparse.library now covers the tracked V36 parser surface for hosted use: chunk allocation/open/close, RAWSTEP/STEP/SCAN traversal, stop conditions, entry/exit handlers, property/collection storage, write-mode chunk construction, record/byte I/O helpers, context queries, and clipboard-backed IFF streams are exercised by the direct iffparse regression plus the full green suite; the remaining Phase 79 work is structural/performance cleanup inside `lxa_iffparse.c` rather than missing public APIs.
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.

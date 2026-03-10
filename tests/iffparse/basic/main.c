@@ -1,20 +1,11 @@
 /*
- * iffparse.library basic test
- *
- * Tests the core IFF parsing functionality:
- * - AllocIFF/FreeIFF
- * - InitIFFasDOS
- * - OpenIFF/CloseIFF
- * - PushChunk/PopChunk
- * - WriteChunkBytes/ReadChunkBytes
- * - ParseIFF
- * - CurrentChunk
- * - GoodID/GoodType/IDtoStr
+ * iffparse.library regression test
  */
 
 #include <exec/types.h>
 #include <exec/memory.h>
 #include <dos/dos.h>
+#include <devices/clipboard.h>
 #include <libraries/iffparse.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
@@ -25,292 +16,439 @@
 
 struct Library *IFFParseBase;
 
-/* Test data */
 #define ID_TEST MAKE_ID('T','E','S','T')
 #define ID_DATA MAKE_ID('D','A','T','A')
 #define ID_NAME MAKE_ID('N','A','M','E')
 
-static char testData[] = "Hello, IFF World!";
-static char nameData[] = "Test IFF File";
+static const char name_data[] = "Test IFF File";
+static const char name_extra[] = "ABCDWXYZ";
+static const char data_data[] = "Hello, IFF World!";
+static const char data_extra[] = "123456";
 
-int main(int argc, char **argv)
+static LONG g_failures = 0;
+static LONG g_entry_hits = 0;
+static LONG g_exit_hits = 0;
+
+static void expect_true(BOOL condition, const char *message)
 {
-    struct IFFHandle *iff;
+    if (condition)
+        printf("OK: %s\n", message);
+    else
+    {
+        printf("FAIL: %s\n", message);
+        g_failures++;
+    }
+}
+
+static BOOL bytes_equal(const char *a, const char *b, LONG len)
+{
+    LONG i;
+
+    for (i = 0; i < len; i++)
+    {
+        if (a[i] != b[i])
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
+static ULONG entry_handler(register struct Hook *hook __asm("a0"),
+                          register APTR object __asm("a2"),
+                          register LONG *message __asm("a1"))
+{
+    (void)hook;
+
+    if (object && message && *message == IFFCMD_ENTRY)
+        (*(LONG *)object)++;
+
+    return 0;
+}
+
+static ULONG exit_handler(register struct Hook *hook __asm("a0"),
+                         register APTR object __asm("a2"),
+                         register LONG *message __asm("a1"))
+{
+    (void)hook;
+
+    if (object && message && *message == IFFCMD_EXIT)
+        (*(LONG *)object)++;
+
+    return 0;
+}
+
+static BOOL write_test_file(struct IFFHandle *iff)
+{
     BPTR file;
     LONG error;
-    struct ContextNode *cn;
-    UBYTE buf[64];
-    UBYTE idStr[8];
-    LONG bytesRead;
-    
-    printf("IFFParse library basic test\n");
-    printf("===========================\n\n");
-    
-    /* Open iffparse.library */
-    IFFParseBase = OpenLibrary((CONST_STRPTR)"iffparse.library", 0);
-    if (!IFFParseBase)
-    {
-        printf("FAIL: Could not open iffparse.library\n");
-        return 20;
-    }
-    printf("Opened iffparse.library\n");
-    
-    /* Test GoodID */
-    printf("\n--- Testing GoodID/GoodType/IDtoStr ---\n");
-    
-    if (GoodID(ID_FORM))
-        printf("GoodID(FORM): TRUE (correct)\n");
-    else
-        printf("GoodID(FORM): FALSE (FAIL)\n");
-    
-    if (GoodID(0x00000000))
-        printf("GoodID(0x00000000): TRUE (FAIL)\n");
-    else
-        printf("GoodID(0x00000000): FALSE (correct - contains non-printable chars)\n");
-    
-    if (GoodType(ID_TEST))
-        printf("GoodType(TEST): TRUE (correct)\n");
-    else
-        printf("GoodType(TEST): FALSE (FAIL)\n");
-    
-    if (GoodType(MAKE_ID(' ','A','B','C')))
-        printf("GoodType(' ABC'): TRUE (FAIL - first char is space)\n");
-    else
-        printf("GoodType(' ABC'): FALSE (correct - first char is space)\n");
-    
-    IDtoStr(ID_FORM, idStr);
-    printf("IDtoStr(ID_FORM): '%s'\n", (char *)idStr);
-    
-    /* Test AllocIFF */
-    printf("\n--- Testing AllocIFF ---\n");
-    iff = AllocIFF();
-    if (!iff)
-    {
-        printf("FAIL: AllocIFF returned NULL\n");
-        CloseLibrary(IFFParseBase);
-        return 20;
-    }
-    printf("AllocIFF: OK (handle allocated)\n");
-    printf("  iff_Depth: %d\n", (int)iff->iff_Depth);
-    printf("  iff_Flags: 0x%x\n", (unsigned int)iff->iff_Flags);
-    
-    /* Test write mode */
-    printf("\n--- Testing IFF Write ---\n");
-    
-    /* Open output file */
+
     file = Open((CONST_STRPTR)"T:test.iff", MODE_NEWFILE);
     if (!file)
     {
-        printf("FAIL: Could not create T:test.iff\n");
-        FreeIFF(iff);
-        CloseLibrary(IFFParseBase);
-        return 20;
+        expect_true(FALSE, "Create T:test.iff");
+        return FALSE;
     }
-    printf("Created T:test.iff\n");
-    
-    /* Set up IFF handle for DOS I/O */
+
     iff->iff_Stream = (ULONG)file;
     InitIFFasDOS(iff);
-    printf("InitIFFasDOS completed\n");
-    
-    /* Open for writing */
     error = OpenIFF(iff, IFFF_WRITE);
+    expect_true(error == 0, "OpenIFF write");
     if (error != 0)
     {
-        printf("FAIL: OpenIFF(WRITE) returned %d\n", (int)error);
         Close(file);
-        FreeIFF(iff);
-        CloseLibrary(IFFParseBase);
-        return 20;
+        return FALSE;
     }
-    printf("OpenIFF(WRITE): success\n");
-    
-    /* Push FORM chunk */
+
     error = PushChunk(iff, ID_TEST, ID_FORM, IFFSIZE_UNKNOWN);
-    if (error != 0)
+    expect_true(error == 0, "Push FORM TEST");
+    if (error == 0)
     {
-        printf("FAIL: PushChunk(FORM) returned %d\n", (int)error);
-        CloseIFF(iff);
-        Close(file);
-        FreeIFF(iff);
-        CloseLibrary(IFFParseBase);
-        return 20;
+        error = PushChunk(iff, 0, ID_NAME, IFFSIZE_UNKNOWN);
+        expect_true(error == 0, "Push NAME");
+        if (error == 0)
+        {
+            expect_true(WriteChunkBytes(iff, (APTR)name_data, strlen(name_data)) == (LONG)strlen(name_data),
+                        "WriteChunkBytes NAME");
+            expect_true(WriteChunkRecords(iff, (APTR)name_extra, 4, 2) == 2,
+                        "WriteChunkRecords NAME");
+            expect_true(PopChunk(iff) == 0, "PopChunk NAME");
+        }
+
+        error = PushChunk(iff, 0, ID_DATA, IFFSIZE_UNKNOWN);
+        expect_true(error == 0, "Push DATA");
+        if (error == 0)
+        {
+            expect_true(WriteChunkBytes(iff, (APTR)data_data, strlen(data_data)) == (LONG)strlen(data_data),
+                        "WriteChunkBytes DATA");
+            expect_true(WriteChunkRecords(iff, (APTR)data_extra, 3, 2) == 2,
+                        "WriteChunkRecords DATA");
+            expect_true(PopChunk(iff) == 0, "PopChunk DATA");
+        }
+
+        expect_true(PopChunk(iff) == 0, "PopChunk FORM");
     }
-    printf("PushChunk(FORM TEST): success, depth=%d\n", (int)iff->iff_Depth);
-    
-    /* Push NAME chunk */
-    error = PushChunk(iff, 0, ID_NAME, IFFSIZE_UNKNOWN);
-    if (error != 0)
-    {
-        printf("FAIL: PushChunk(NAME) returned %d\n", (int)error);
-        CloseIFF(iff);
-        Close(file);
-        FreeIFF(iff);
-        CloseLibrary(IFFParseBase);
-        return 20;
-    }
-    printf("PushChunk(NAME): success, depth=%d\n", (int)iff->iff_Depth);
-    
-    /* Write NAME data */
-    error = WriteChunkBytes(iff, nameData, strlen(nameData));
-    if (error < 0)
-    {
-        printf("FAIL: WriteChunkBytes(NAME) returned %d\n", (int)error);
-        CloseIFF(iff);
-        Close(file);
-        FreeIFF(iff);
-        CloseLibrary(IFFParseBase);
-        return 20;
-    }
-    printf("WriteChunkBytes(NAME): wrote %d bytes\n", (int)error);
-    
-    /* Pop NAME chunk */
-    error = PopChunk(iff);
-    if (error != 0)
-    {
-        printf("FAIL: PopChunk(NAME) returned %d\n", (int)error);
-        CloseIFF(iff);
-        Close(file);
-        FreeIFF(iff);
-        CloseLibrary(IFFParseBase);
-        return 20;
-    }
-    printf("PopChunk(NAME): success, depth=%d\n", (int)iff->iff_Depth);
-    
-    /* Push DATA chunk */
-    error = PushChunk(iff, 0, ID_DATA, IFFSIZE_UNKNOWN);
-    if (error != 0)
-    {
-        printf("FAIL: PushChunk(DATA) returned %d\n", (int)error);
-        CloseIFF(iff);
-        Close(file);
-        FreeIFF(iff);
-        CloseLibrary(IFFParseBase);
-        return 20;
-    }
-    printf("PushChunk(DATA): success, depth=%d\n", (int)iff->iff_Depth);
-    
-    /* Write DATA data */
-    error = WriteChunkBytes(iff, testData, strlen(testData));
-    if (error < 0)
-    {
-        printf("FAIL: WriteChunkBytes(DATA) returned %d\n", (int)error);
-        CloseIFF(iff);
-        Close(file);
-        FreeIFF(iff);
-        CloseLibrary(IFFParseBase);
-        return 20;
-    }
-    printf("WriteChunkBytes(DATA): wrote %d bytes\n", (int)error);
-    
-    /* Pop DATA chunk */
-    error = PopChunk(iff);
-    printf("PopChunk(DATA): result=%d, depth=%d\n", (int)error, (int)iff->iff_Depth);
-    
-    /* Pop FORM chunk */
-    error = PopChunk(iff);
-    printf("PopChunk(FORM): result=%d, depth=%d\n", (int)error, (int)iff->iff_Depth);
-    
-    /* Close IFF */
+
     CloseIFF(iff);
-    printf("CloseIFF: done\n");
-    
-    /* Close file */
     Close(file);
-    printf("Closed output file\n");
-    
-    /* Now test read mode */
-    printf("\n--- Testing IFF Read ---\n");
-    
-    /* Reopen file for reading */
+    return TRUE;
+}
+
+static BOOL open_read_file(struct IFFHandle *iff, BPTR *file_out)
+{
+    LONG error;
+    BPTR file;
+
     file = Open((CONST_STRPTR)"T:test.iff", MODE_OLDFILE);
+    expect_true(file != 0, "Open T:test.iff for reading");
     if (!file)
-    {
-        printf("FAIL: Could not open T:test.iff for reading\n");
-        FreeIFF(iff);
-        CloseLibrary(IFFParseBase);
-        return 20;
-    }
-    printf("Opened T:test.iff for reading\n");
-    
-    /* Set up for reading */
+        return FALSE;
+
     iff->iff_Stream = (ULONG)file;
     InitIFFasDOS(iff);
-    
-    /* Open for reading */
     error = OpenIFF(iff, IFFF_READ);
+    expect_true(error == 0, "OpenIFF read");
     if (error != 0)
     {
-        printf("FAIL: OpenIFF(READ) returned %d\n", (int)error);
         Close(file);
-        FreeIFF(iff);
-        CloseLibrary(IFFParseBase);
-        return 20;
+        return FALSE;
     }
-    printf("OpenIFF(READ): success\n");
-    
-    /* Get current chunk (should be FORM) */
-    cn = CurrentChunk(iff);
-    if (cn)
+
+    *file_out = file;
+    return TRUE;
+}
+
+static void close_read_file(struct IFFHandle *iff, BPTR file)
+{
+    CloseIFF(iff);
+    Close(file);
+}
+
+static void verify_basic_read(struct IFFHandle *iff)
+{
+    BPTR file;
+    LONG error;
+    LONG name_seen = 0;
+    LONG data_seen = 0;
+
+    if (!open_read_file(iff, &file))
+        return;
+
+    expect_true(CurrentChunk(NULL) == NULL, "CurrentChunk NULL");
+    expect_true(CurrentChunk(iff) != NULL && CurrentChunk(iff)->cn_ID == ID_FORM,
+                "CurrentChunk after OpenIFF is FORM");
+    expect_true(FindPropContext(iff) != NULL, "FindPropContext inside FORM");
+
+    while ((error = ParseIFF(iff, IFFPARSE_RAWSTEP)) == 0 || error == IFFERR_EOC)
     {
-        IDtoStr(cn->cn_ID, idStr);
-        printf("CurrentChunk: ID='%s' Size=%d\n", (char *)idStr, (int)cn->cn_Size);
-    }
-    else
-    {
-        printf("CurrentChunk: NULL\n");
-    }
-    
-    /* Parse to find chunks */
-    printf("\nParsing IFF file...\n");
-    while ((error = ParseIFF(iff, IFFPARSE_RAWSTEP)) == 0)
-    {
+        struct ContextNode *cn;
+
+        if (error == IFFERR_EOC)
+            continue;
+
         cn = CurrentChunk(iff);
-        if (cn)
+        if (!cn)
         {
-            UBYTE typeStr[8];
-            IDtoStr(cn->cn_ID, idStr);
-            IDtoStr(cn->cn_Type, typeStr);
-            printf("  Found chunk: ID='%s' Type='%s' Size=%d Scan=%d\n",
-                   (char *)idStr, (char *)typeStr, (int)cn->cn_Size, (int)cn->cn_Scan);
-            
-            /* Read DATA chunk content */
-            if (cn->cn_ID == ID_DATA)
-            {
-                memset(buf, 0, sizeof(buf));
-                bytesRead = ReadChunkBytes(iff, buf, sizeof(buf) - 1);
-                printf("    Read %d bytes: '%s'\n", (int)bytesRead, (char *)buf);
-            }
-            else if (cn->cn_ID == ID_NAME)
-            {
-                memset(buf, 0, sizeof(buf));
-                bytesRead = ReadChunkBytes(iff, buf, sizeof(buf) - 1);
-                printf("    Read %d bytes: '%s'\n", (int)bytesRead, (char *)buf);
-            }
+            expect_true(FALSE, "CurrentChunk available during RAWSTEP");
+            continue;
+        }
+
+        if (cn->cn_ID == ID_NAME)
+        {
+            char first[9];
+            char rest[32];
+            struct ContextNode *parent = ParentChunk(cn);
+
+            memset(first, 0, sizeof(first));
+            memset(rest, 0, sizeof(rest));
+            expect_true(parent != NULL && parent->cn_ID == ID_FORM, "ParentChunk NAME -> FORM");
+            expect_true(ReadChunkRecords(iff, first, 4, 2) == 2, "ReadChunkRecords NAME");
+            expect_true(ReadChunkBytes(iff, rest, sizeof(rest) - 1) == 14, "ReadChunkBytes NAME remainder");
+            expect_true(bytes_equal(first, name_data, 8), "NAME first records content");
+            expect_true(strcmp(rest, " FileABCDWXYZ") == 0, "NAME remainder content");
+            name_seen++;
+        }
+        else if (cn->cn_ID == ID_DATA)
+        {
+            char first[7];
+            char rest[32];
+            struct ContextNode *parent = ParentChunk(cn);
+
+            memset(first, 0, sizeof(first));
+            memset(rest, 0, sizeof(rest));
+            expect_true(parent != NULL && parent->cn_ID == ID_FORM, "ParentChunk DATA -> FORM");
+            expect_true(ReadChunkRecords(iff, first, 3, 2) == 2, "ReadChunkRecords DATA");
+            expect_true(ReadChunkBytes(iff, rest, sizeof(rest) - 1) == 18, "ReadChunkBytes DATA remainder");
+            expect_true(bytes_equal(first, data_data, 6), "DATA first records content");
+            expect_true(strcmp(rest, " IFF World!123456") == 0, "DATA remainder content");
+            data_seen++;
         }
     }
-    
-    if (error == IFFERR_EOF)
+
+    expect_true(error == IFFERR_EOF, "ParseIFF RAWSTEP reaches EOF");
+    expect_true(name_seen == 1, "RAWSTEP saw NAME once");
+    expect_true(data_seen == 1, "RAWSTEP saw DATA once");
+
+    close_read_file(iff, file);
+}
+
+static void verify_property_collection_handlers(struct IFFHandle *iff)
+{
+    BPTR file;
+    LONG error;
+    struct Hook entry_hook;
+    struct Hook exit_hook;
+    LONG prop_checked = 0;
+    LONG collection_checked = 0;
+
+    if (!open_read_file(iff, &file))
+        return;
+
+    g_entry_hits = 0;
+    g_exit_hits = 0;
+
+    entry_hook.h_Entry = (ULONG (*)())entry_handler;
+    entry_hook.h_SubEntry = NULL;
+    entry_hook.h_Data = NULL;
+    exit_hook.h_Entry = (ULONG (*)())exit_handler;
+    exit_hook.h_SubEntry = NULL;
+    exit_hook.h_Data = NULL;
+
+    expect_true(PropChunk(iff, ID_TEST, ID_NAME) == 0, "PropChunk NAME declaration");
+    expect_true(CollectionChunk(iff, ID_TEST, ID_DATA) == 0, "CollectionChunk DATA declaration");
+    expect_true(EntryHandler(iff, ID_TEST, ID_DATA, IFFSLI_ROOT, &entry_hook, &g_entry_hits) == 0,
+                "EntryHandler DATA declaration");
+    expect_true(ExitHandler(iff, ID_TEST, ID_DATA, IFFSLI_ROOT, &exit_hook, &g_exit_hits) == 0,
+                "ExitHandler DATA declaration");
+
+    while ((error = ParseIFF(iff, IFFPARSE_STEP)) == 0 || error == IFFERR_EOC)
     {
-        printf("ParseIFF: reached EOF (expected)\n");
+        struct ContextNode *cn;
+
+        if (error == IFFERR_EOC)
+            continue;
+
+        cn = CurrentChunk(iff);
+        if (!cn)
+            continue;
+
+        if (cn->cn_ID == ID_NAME)
+        {
+            struct StoredProperty *prop = FindProp(iff, ID_TEST, ID_NAME);
+
+            expect_true(prop != NULL, "FindProp NAME while in scope");
+            if (prop)
+            {
+                expect_true(prop->sp_Size == 22, "StoredProperty NAME size");
+                expect_true(bytes_equal((const char *)prop->sp_Data, name_data, strlen(name_data)),
+                            "StoredProperty NAME prefix");
+                expect_true(bytes_equal((const char *)prop->sp_Data + strlen(name_data),
+                                        name_extra,
+                                        strlen(name_extra)),
+                            "StoredProperty NAME suffix");
+            }
+            prop_checked = 1;
+        }
+        else if (cn->cn_ID == ID_DATA)
+        {
+            struct StoredProperty *prop = FindProp(iff, ID_TEST, ID_NAME);
+            struct CollectionItem *collection = FindCollection(iff, ID_TEST, ID_DATA);
+
+            expect_true(prop != NULL, "FindProp NAME still visible in DATA scope");
+            expect_true(collection != NULL && collection->ci_Next != NULL,
+                        "FindCollection DATA while in scope");
+            if (collection && collection->ci_Next)
+            {
+                expect_true(collection->ci_Next->ci_Size == 24, "CollectionItem DATA size");
+                expect_true(bytes_equal((const char *)collection->ci_Next->ci_Data,
+                                        data_data,
+                                        strlen(data_data)),
+                            "CollectionItem DATA prefix");
+                expect_true(bytes_equal((const char *)collection->ci_Next->ci_Data + strlen(data_data),
+                                        data_extra,
+                                        strlen(data_extra)),
+                            "CollectionItem DATA suffix");
+            }
+            collection_checked = 1;
+        }
     }
-    else
+
+    expect_true(error == IFFERR_EOF, "ParseIFF STEP reaches EOF");
+    expect_true(prop_checked == 1, "Property chunk observed");
+    expect_true(collection_checked == 1, "Collection chunk observed");
+    expect_true(g_entry_hits == 1, "Entry handler invoked once");
+    expect_true(g_exit_hits == 1, "Exit handler invoked once");
+
+    close_read_file(iff, file);
+}
+
+static void verify_stop_conditions(struct IFFHandle *iff)
+{
+    BPTR file;
+    LONG error;
+
+    if (!open_read_file(iff, &file))
+        return;
+
+    expect_true(StopChunk(iff, ID_TEST, ID_DATA) == 0, "StopChunk DATA declaration");
+    error = ParseIFF(iff, IFFPARSE_SCAN);
+    expect_true(error == 0, "ParseIFF SCAN stops on DATA entry");
+    expect_true(CurrentChunk(iff) != NULL && CurrentChunk(iff)->cn_ID == ID_DATA,
+                "CurrentChunk is DATA after StopChunk");
+    close_read_file(iff, file);
+
+    if (!open_read_file(iff, &file))
+        return;
+
+    expect_true(StopOnExit(iff, ID_TEST, ID_DATA) == 0, "StopOnExit DATA declaration");
+    error = ParseIFF(iff, IFFPARSE_SCAN);
+    expect_true(error == 0 || error == IFFERR_EOC, "ParseIFF SCAN stops on DATA exit");
+    expect_true(CurrentChunk(iff) != NULL && CurrentChunk(iff)->cn_ID == ID_DATA,
+                "CurrentChunk remains DATA at StopOnExit");
+    do {
+        error = ParseIFF(iff, IFFPARSE_SCAN);
+    } while (error == 0 || error == IFFERR_EOC);
+    expect_true(error == IFFERR_EOF || error == IFFERR_READ,
+                "ParseIFF continues after StopOnExit without crashing");
+    close_read_file(iff, file);
+}
+
+static void verify_clipboard_roundtrip(void)
+{
+    struct ClipboardHandle *clip;
+    struct IFFHandle *iff;
+    LONG error;
+
+    clip = OpenClipboard(PRIMARY_CLIP);
+    expect_true(clip != NULL, "OpenClipboard PRIMARY_CLIP");
+    if (!clip)
+        return;
+
+    iff = AllocIFF();
+    expect_true(iff != NULL, "AllocIFF for clipboard");
+    if (!iff)
     {
-        printf("ParseIFF: ended with error %d\n", (int)error);
+        CloseClipboard(clip);
+        return;
     }
-    
-    /* Close */
-    CloseIFF(iff);
-    Close(file);
-    printf("Closed IFF file\n");
-    
-    /* Free IFF handle */
+
+    iff->iff_Stream = (ULONG)clip;
+    InitIFFasClip(iff);
+    error = OpenIFF(iff, IFFF_WRITE);
+    expect_true(error == 0, "OpenIFF clipboard write");
+    if (error == 0)
+    {
+        expect_true(PushChunk(iff, ID_TEST, ID_FORM, IFFSIZE_UNKNOWN) == 0, "Clipboard Push FORM");
+        expect_true(PushChunk(iff, 0, ID_DATA, IFFSIZE_UNKNOWN) == 0, "Clipboard Push DATA");
+        expect_true(WriteChunkBytes(iff, (APTR)data_data, strlen(data_data)) == (LONG)strlen(data_data),
+                    "Clipboard WriteChunkBytes DATA");
+        expect_true(WriteChunkRecords(iff, (APTR)data_extra, 3, 2) == 2,
+                    "Clipboard WriteChunkRecords DATA");
+        expect_true(PopChunk(iff) == 0, "Clipboard Pop DATA");
+        expect_true(PopChunk(iff) == 0, "Clipboard Pop FORM");
+        CloseIFF(iff);
+    }
+
+    iff->iff_Stream = (ULONG)clip;
+    InitIFFasClip(iff);
+    error = OpenIFF(iff, IFFF_READ);
+    expect_true(error == 0, "OpenIFF clipboard read");
+    if (error == 0)
+    {
+        char buffer[32];
+
+        expect_true(StopChunk(iff, ID_TEST, ID_DATA) == 0, "Clipboard StopChunk DATA");
+        error = ParseIFF(iff, IFFPARSE_SCAN);
+        expect_true(error == 0, "ParseIFF clipboard stops on DATA entry");
+        memset(buffer, 0, sizeof(buffer));
+        expect_true(ReadChunkBytes(iff, buffer, sizeof(buffer) - 1) == 24, "ReadChunkBytes clipboard DATA");
+        expect_true(bytes_equal(buffer, data_data, strlen(data_data)), "Clipboard DATA prefix");
+        expect_true(bytes_equal(buffer + strlen(data_data), data_extra, strlen(data_extra)),
+                    "Clipboard DATA suffix");
+        CloseIFF(iff);
+    }
+
     FreeIFF(iff);
-    printf("FreeIFF: done\n");
-    
-    /* Clean up */
+    CloseClipboard(clip);
+}
+
+int main(void)
+{
+    struct IFFHandle *iff;
+
+    printf("IFFParse library regression test\n");
+    printf("===============================\n\n");
+
+    IFFParseBase = OpenLibrary((CONST_STRPTR)"iffparse.library", 0);
+    expect_true(IFFParseBase != NULL, "OpenLibrary iffparse.library");
+    if (!IFFParseBase)
+        return 20;
+
+    expect_true(GoodID(ID_FORM) != FALSE, "GoodID FORM");
+    expect_true(GoodID(0) == FALSE, "GoodID rejects zero");
+    expect_true(GoodType(ID_TEST) != FALSE, "GoodType TEST");
+    expect_true(GoodType(MAKE_ID(' ','A','B','C')) == FALSE, "GoodType rejects leading space");
+
+    iff = AllocIFF();
+    expect_true(iff != NULL, "AllocIFF");
+    if (!iff)
+    {
+        CloseLibrary(IFFParseBase);
+        return 20;
+    }
+
+    expect_true(write_test_file(iff), "Create IFF test file");
+    verify_basic_read(iff);
+    verify_property_collection_handlers(iff);
+    verify_stop_conditions(iff);
+    verify_clipboard_roundtrip();
+
+    FreeIFF(iff);
     CloseLibrary(IFFParseBase);
-    printf("\nTest completed successfully!\n");
-    
-    return 0;
+
+    if (g_failures == 0)
+        printf("PASS: iffparse regression test complete\n");
+    else
+        printf("FAIL: iffparse regression test complete (%ld failures)\n", g_failures);
+
+    return g_failures ? 20 : 0;
 }

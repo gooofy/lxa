@@ -19,8 +19,11 @@
 #include <inline/dos.h>
 
 #include <libraries/locale.h>
+#include <libraries/iffparse.h>
 #include <utility/tagitem.h>
 #include <utility/hooks.h>
+#include <clib/utility_protos.h>
+#include <inline/utility.h>
 
 #include "util.h"
 
@@ -37,6 +40,7 @@ char __aligned _g_locale_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase *SysBase;
 extern struct DosLibrary *DOSBase;
+extern struct UtilityBase *UtilityBase;
 
 /* LocaleBase structure (extends standard definition) */
 struct MyLocaleBase {
@@ -459,7 +463,7 @@ static ULONG _loc_strconvert_ascii(CONST_STRPTR string,
         return 0;
 
     if (!string)
-        string = "";
+        string = (CONST_STRPTR)"";
 
     orig = string;
 
@@ -500,28 +504,6 @@ static ULONG _loc_strconvert_ascii(CONST_STRPTR string,
         *dst = '\0';
     else
         ((UBYTE *)buffer)[buffer_size - 1] = '\0';
-
-    return written;
-}
-
-static ULONG _loc_strconvert_original_length(CONST_STRPTR string, ULONG type)
-{
-    ULONG written = 0;
-
-    if (!string)
-        return 0;
-
-    while (*string)
-    {
-        ULONG original = (ULONG)(UBYTE)*string;
-        ULONG folded = _loc_collate_primary(original);
-
-        written++;
-        if (type == SC_COLLATE2 && original != folded)
-            written++;
-
-        string++;
-    }
 
     return written;
 }
@@ -1965,7 +1947,7 @@ struct Catalog * _locale_OpenCatalogA ( register struct MyLocaleBase    *LocaleB
                                         register CONST struct TagItem   *tags       __asm("a2"))
 {
     CONST_STRPTR requested_language;
-    CONST_STRPTR builtin_language = "english";
+    CONST_STRPTR builtin_language = (CONST_STRPTR)g_DefaultLanguageName;
     UWORD required_version = 0;
 
     DPRINTF (LOG_DEBUG, "_locale: OpenCatalogA() called name='%s'\n", name ? (char *)name : "(null)");
@@ -2414,8 +2396,7 @@ ULONG _locale_StrConvert ( register struct MyLocaleBase *LocaleBase __asm("a6"),
         case SC_ASCII:
         case SC_COLLATE1:
         case SC_COLLATE2:
-            _loc_strconvert_ascii(string, buffer, bufferSize, type);
-            return _loc_strconvert_original_length(string, type);
+            return _loc_strconvert_ascii(string, buffer, bufferSize, type);
         default:
             if (buffer && bufferSize > 0)
                 ((UBYTE *)buffer)[0] = '\0';
