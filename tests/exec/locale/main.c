@@ -119,6 +119,305 @@ static BOOL str_eq(const char *a, const char *b)
     return *a == *b;
 }
 
+static void make_dir_if_needed(const char *path)
+{
+    BPTR lock = Lock((STRPTR)path, SHARED_LOCK);
+    if (lock) {
+        UnLock(lock);
+        return;
+    }
+
+    CreateDir((STRPTR)path);
+}
+
+static void write_be32(UBYTE *p, ULONG value)
+{
+    p[0] = (UBYTE)(value >> 24);
+    p[1] = (UBYTE)(value >> 16);
+    p[2] = (UBYTE)(value >> 8);
+    p[3] = (UBYTE)value;
+}
+
+static BOOL write_all(BPTR fh, const void *data, LONG len)
+{
+    return Write(fh, (CONST APTR)data, len) == len;
+}
+
+static BOOL write_catalog_chunk(BPTR fh, const char *id, const char *text)
+{
+    UBYTE header[8];
+    LONG len = 0;
+
+    while (text[len]) len++;
+
+    header[0] = (UBYTE)id[0];
+    header[1] = (UBYTE)id[1];
+    header[2] = (UBYTE)id[2];
+    header[3] = (UBYTE)id[3];
+    write_be32(&header[4], (ULONG)(len + 1));
+
+    if (!write_all(fh, header, sizeof(header)))
+        return FALSE;
+    if (!write_all(fh, text, len + 1))
+        return FALSE;
+    if (((len + 1) & 1) && !write_all(fh, "", 1))
+        return FALSE;
+
+    return TRUE;
+}
+
+static BOOL write_catalog_string(BPTR fh, ULONG id, const char *text)
+{
+    UBYTE header[8];
+    UBYTE lenbuf[4];
+    LONG len = 0;
+    UBYTE zero = 0;
+
+    while (text[len]) len++;
+
+    write_be32(header, id);
+    write_be32(&header[4], (ULONG)(len + 1 + 4));
+    write_be32(lenbuf, (ULONG)(len + 1));
+
+    if (!write_all(fh, header, sizeof(header)))
+        return FALSE;
+    if (!write_all(fh, lenbuf, sizeof(lenbuf)))
+        return FALSE;
+    if (!write_all(fh, text, len + 1))
+        return FALSE;
+
+    while (((len + 1 + 4) & 3) != 0) {
+        if (!write_all(fh, &zero, 1))
+            return FALSE;
+        len++;
+    }
+
+    return TRUE;
+}
+
+static BOOL create_test_catalog(const char *path)
+{
+    static const ULONG lang_chunk_total = 16;
+    static const ULONG fver_chunk_total = 46;
+    static const ULONG cset_chunk_total = 40;
+    static const ULONG strs_payload_size = 16;
+    static const ULONG strs_chunk_total = 8 + strs_payload_size;
+    static const ULONG form_size = 4 + lang_chunk_total + fver_chunk_total + cset_chunk_total + strs_chunk_total;
+    UBYTE header[12];
+    UBYTE cset_header[8];
+    UBYTE cset_payload[32];
+    UBYTE strs_header[8];
+    LONG i;
+    BPTR fh;
+
+    fh = Open((STRPTR)path, MODE_NEWFILE);
+    if (!fh)
+        return FALSE;
+
+    header[0] = 'F'; header[1] = 'O'; header[2] = 'R'; header[3] = 'M';
+    write_be32(&header[4], form_size);
+    header[8] = 'C'; header[9] = 'T'; header[10] = 'L'; header[11] = 'G';
+
+    cset_header[0] = 'C'; cset_header[1] = 'S'; cset_header[2] = 'E'; cset_header[3] = 'T';
+    write_be32(&cset_header[4], 32);
+
+    strs_header[0] = 'S'; strs_header[1] = 'T'; strs_header[2] = 'R'; strs_header[3] = 'S';
+    write_be32(&strs_header[4], strs_payload_size);
+
+    for (i = 0; i < 32; i++)
+        cset_payload[i] = 0;
+
+    if (!write_all(fh, header, sizeof(header)) ||
+        !write_catalog_chunk(fh, "LANG", "deutsch") ||
+        !write_catalog_chunk(fh, "FVER", "$VER: test.catalog 7.3 (10.03.2026)") ||
+        !write_all(fh, cset_header, sizeof(cset_header)) ||
+        !write_all(fh, cset_payload, sizeof(cset_payload)) ||
+        !write_all(fh, strs_header, sizeof(strs_header)) ||
+        !write_catalog_string(fh, 42, "Katalogtext")) {
+        Close(fh);
+        return FALSE;
+    }
+
+    Close(fh);
+    return TRUE;
+}
+
+static void test_locale_basics(void)
+{
+    struct Locale *locale;
+
+    print("--- OpenLocale / class tests ---\n");
+
+    locale = OpenLocale(NULL);
+    if (locale && str_eq((const char *)locale->loc_LocaleName, "english"))
+        test_ok("OpenLocale NULL returns default locale");
+    else
+        test_fail_msg("OpenLocale NULL returns default locale");
+
+    if (OpenLocale((STRPTR)"english") != NULL)
+        test_ok("OpenLocale english");
+    else
+        test_fail_msg("OpenLocale english");
+
+    if (OpenLocale((STRPTR)"missing") == NULL)
+        test_ok("OpenLocale missing fails");
+    else
+        test_fail_msg("OpenLocale missing fails");
+
+    if (IsAlpha(locale, 'A') && IsDigit(locale, '4') && IsSpace(locale, ' ') &&
+        IsUpper(locale, 'Z') && IsLower(locale, 'z') && IsAlNum(locale, '9') &&
+        IsGraph(locale, '!') && IsCntrl(locale, '\n') && IsPrint(locale, ' ') &&
+        IsPunct(locale, '?') && IsXDigit(locale, 'f'))
+        test_ok("Character classification");
+    else
+        test_fail_msg("Character classification");
+
+    if (!IsAlpha(locale, '1') && !IsDigit(locale, 'x') && !IsSpace(locale, 'A') &&
+        !IsUpper(locale, 'a') && !IsLower(locale, 'A') && !IsAlNum(locale, '-') &&
+        !IsGraph(locale, ' ') && !IsCntrl(locale, 'A') && !IsPrint(locale, 127) &&
+        !IsPunct(locale, 'A') && !IsXDigit(locale, 'g'))
+        test_ok("Character classification negatives");
+    else
+        test_fail_msg("Character classification negatives");
+
+    if (ConvToUpper(locale, 'b') == 'B' && ConvToLower(locale, 'Q') == 'q' &&
+        ConvToUpper(locale, '?') == '?' && ConvToLower(locale, '?') == '?')
+        test_ok("ConvToUpper / ConvToLower");
+    else
+        test_fail_msg("ConvToUpper / ConvToLower");
+}
+
+static void test_catalogs(void)
+{
+    struct Locale *locale;
+    struct Catalog *catalog;
+    STRPTR s;
+
+    print("--- Catalog tests ---\n");
+
+    make_dir_if_needed("T:Catalogs");
+    make_dir_if_needed("T:Catalogs/deutsch");
+
+    if (!AssignPath((STRPTR)"LOCALE", (STRPTR)"T:")) {
+        test_fail_msg("AssignPath LOCALE");
+        return;
+    }
+    test_ok("AssignPath LOCALE");
+
+    if (!create_test_catalog("T:Catalogs/deutsch/test.catalog")) {
+        test_fail_msg("create test catalog");
+        return;
+    }
+    test_ok("create test catalog");
+
+    locale = OpenLocale(NULL);
+    catalog = OpenCatalog(locale, (STRPTR)"test.catalog",
+                          OC_BuiltInLanguage, (ULONG)"english",
+                          OC_Language, (ULONG)"deutsch",
+                          TAG_DONE);
+    if (!catalog) {
+        test_fail_msg("OpenCatalog external file");
+        return;
+    }
+    test_ok("OpenCatalog external file");
+
+    if (str_eq((const char *)catalog->cat_Language, "deutsch") && catalog->cat_Version == 7 && catalog->cat_Revision == 3)
+        test_ok("Catalog metadata");
+    else
+        test_fail_msg("Catalog metadata");
+
+    s = GetCatalogStr(catalog, 42, (STRPTR)"fallback");
+    if (s && str_eq((const char *)s, "Katalogtext"))
+        test_ok("GetCatalogStr from catalog");
+    else
+        test_fail_msg("GetCatalogStr from catalog");
+
+    s = GetCatalogStr(catalog, 99, (STRPTR)"fallback");
+    if (s && str_eq((const char *)s, "fallback"))
+        test_ok("GetCatalogStr fallback");
+    else
+        test_fail_msg("GetCatalogStr fallback");
+
+    CloseCatalog(catalog);
+    test_ok("CloseCatalog");
+
+    catalog = OpenCatalog(locale, (STRPTR)"test.catalog",
+                          OC_BuiltInLanguage, (ULONG)"english",
+                          OC_Language, (ULONG)"deutsch",
+                          OC_Version, 8,
+                          TAG_DONE);
+    if (catalog == NULL)
+        test_ok("OpenCatalog version mismatch fails");
+    else {
+        test_fail_msg("OpenCatalog version mismatch fails");
+        CloseCatalog(catalog);
+    }
+
+    catalog = OpenCatalog(locale, (STRPTR)"test.catalog",
+                          OC_BuiltInLanguage, (ULONG)"english",
+                          OC_Language, (ULONG)"english",
+                          TAG_DONE);
+    if (catalog == NULL)
+        test_ok("OpenCatalog built-in language shortcut");
+    else {
+        test_fail_msg("OpenCatalog built-in language shortcut");
+        CloseCatalog(catalog);
+    }
+
+    s = GetCatalogStr(NULL, 1, (STRPTR)"builtin");
+    if (s && str_eq((const char *)s, "builtin"))
+        test_ok("GetCatalogStr NULL catalog");
+    else
+        test_fail_msg("GetCatalogStr NULL catalog");
+
+    DeleteFile((STRPTR)"T:Catalogs/deutsch/test.catalog");
+}
+
+static void test_strcmp_convert(void)
+{
+    struct Locale *locale;
+    char buf[32];
+
+    print("--- StrnCmp / StrConvert tests ---\n");
+
+    locale = OpenLocale(NULL);
+
+    if (StrnCmp(locale, (STRPTR)"abc", (STRPTR)"ABC", -1, SC_ASCII) == 0 &&
+        StrnCmp(locale, (STRPTR)"abc", (STRPTR)"abd", -1, SC_ASCII) < 0 &&
+        StrnCmp(locale, (STRPTR)"abd", (STRPTR)"abc", -1, SC_ASCII) > 0)
+        test_ok("StrnCmp SC_ASCII");
+    else
+        test_fail_msg("StrnCmp SC_ASCII");
+
+    if (StrnCmp(locale, (STRPTR)"Test", (STRPTR)"test", -1, SC_COLLATE1) == 0 &&
+        StrnCmp(locale, (STRPTR)"TeSt", (STRPTR)"test", -1, SC_COLLATE2) > 0)
+        test_ok("StrnCmp SC_COLLATE1/2");
+    else
+        test_fail_msg("StrnCmp SC_COLLATE1/2");
+
+    if (StrnCmp(locale, NULL, NULL, -1, SC_ASCII) == 0 &&
+        StrnCmp(locale, NULL, (STRPTR)"a", -1, SC_ASCII) < 0 &&
+        StrnCmp(locale, (STRPTR)"a", NULL, -1, SC_ASCII) > 0)
+        test_ok("StrnCmp NULL handling");
+    else
+        test_fail_msg("StrnCmp NULL handling");
+
+    if (StrConvert(locale, (STRPTR)"TeSt", buf, sizeof(buf), SC_ASCII) == 4 && str_eq(buf, "TEST"))
+        test_ok("StrConvert SC_ASCII");
+    else
+        test_fail_msg("StrConvert SC_ASCII");
+
+    if (StrConvert(locale, (STRPTR)"TeSt", buf, sizeof(buf), SC_COLLATE2) == 6 && str_eq(buf, "TESTet"))
+        test_ok("StrConvert SC_COLLATE2");
+    else
+        test_fail_msg("StrConvert SC_COLLATE2");
+
+    if (StrConvert(locale, (STRPTR)"abcdef", buf, 4, SC_ASCII) == 3 && str_eq(buf, "ABC"))
+        test_ok("StrConvert truncation");
+    else
+        test_fail_msg("StrConvert truncation");
+}
+
 static void test_format_date(void)
 {
     char buf[256];
@@ -587,6 +886,9 @@ int main(void)
     test_ok("OpenLibrary locale.library");
 
     test_locale_strings();
+    test_locale_basics();
+    test_catalogs();
+    test_strcmp_convert();
     test_format_date();
     test_format_string();
     test_parse_date();

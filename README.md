@@ -174,7 +174,7 @@ lxa -d -v myprogram
 - **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
 - **gadtools.library**: GadTools gadgets (buttons, strings, checkboxes, cycles, sliders, MX), menu layout helpers, and IDCMP/refresh wrapper coverage
 - **asl.library**: File, font, and screen mode requesters, including public `AllocAslRequestTags()`/`AslRequestTags()` varargs entry-point coverage
-- **locale.library**: Locale management, FormatDate, FormatString, ParseDate
+- **locale.library**: Locale management, `.catalog` loading and lookup, character classification/case conversion, `StrConvert`/`StrnCmp`, FormatDate, FormatString, ParseDate
 - **diskfont.library**: Font loading from FONTS: directory (bitmap .font files)
 - **mathieeesingbas.library**: IEEE single-precision basic math (12 functions)
 - **mathieeedoubbas.library**: IEEE double-precision basic math (12 functions)

@@ -541,22 +541,22 @@ Status: complete in 0.6.124.
 
 #### 78-I: Locale Library (`src/rom/lxa_locale.c` vs NDK `libraries/locale.h`)
 
-- [ ] `OpenLocale` / `CloseLocale` — NULL = default locale
-- [ ] `OpenCatalog` / `CloseCatalog` — .catalog file loading from LOCALE:Catalogs/
-- [ ] `GetCatalogStr` / `GetLocaleStr`
-- [ ] `IsAlpha` / `IsDigit` / `IsSpace` / `IsUpper` / `IsLower` / `IsAlNum` / `IsGraph` / `IsCntrl` / `IsPrint` / `IsPunct` / `IsXDigit`
-- [ ] `ToUpper` / `ToLower`
-- [ ] `StrnCmp` — locale-sensitive string comparison (with strength level)
-- [ ] `ConvToUpper` / `ConvToLower`
-- [ ] `FormatDate` ✅ (Phase 77) — all % codes; verify against AROS `locale/formatdate.c`
-- [ ] `FormatString` ✅ (Phase 77) — `%s`/`%d`/`%ld`/`%u`/`%lu`/`%x`/`%lx` with PutChProc callback
-- [ ] `ParseDate` ✅ (Phase 77)
+- [x] `OpenLocale` / `CloseLocale` — NULL = default locale; direct named fallback for built-in English default
+- [x] `OpenCatalog` / `CloseCatalog` — `.catalog` loading from `PROGDIR:Catalogs/` and `LOCALE:Catalogs/`, with built-in-language and exact-version fallback behavior covered by exec regressions (v0.7.0)
+- [x] `GetCatalogStr` / `GetLocaleStr`
+- [x] `IsAlpha` / `IsDigit` / `IsSpace` / `IsUpper` / `IsLower` / `IsAlNum` / `IsGraph` / `IsCntrl` / `IsPrint` / `IsPunct` / `IsXDigit`
+- [x] `ToUpper` / `ToLower` — verified against the bundled NDK as `utility.library` entry points patched through locale support rather than public `locale.library` APIs; locale-side case conversion remains `ConvToUpper()` / `ConvToLower()` (v0.7.0)
+- [x] `StrnCmp` — built-in ASCII/collation strength handling for `SC_ASCII`, `SC_COLLATE1`, and `SC_COLLATE2`
+- [x] `ConvToUpper` / `ConvToLower`
+- [x] `FormatDate` ✅ (Phase 77) — all % codes; verified against AROS `locale/formatdate.c`
+- [x] `FormatString` ✅ (Phase 77) — `%s`/`%d`/`%ld`/`%u`/`%lu`/`%x`/`%lx` with PutChProc callback
+- [x] `ParseDate` ✅ (Phase 77)
 
 ##### 78-I-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — locale.library now covers the remaining public V38 surface tracked here, including catalog loading/parsing, catalog/default string fallback, character classification/case conversion, and `StrConvert()` / `StrnCmp()` regression coverage alongside the existing date/string formatting paths (v0.7.0)
+- [x] Architecture review: locale formatting, catalog lookup, and collation still embed one built-in English/ASCII data source directly in `lxa_locale.c`; Phase 79 now tracks splitting locale-private data/provider state behind a shared companion so future real locale files/language drivers do not couple every API to one monolithic translation unit (v0.7.0)
+- [x] Performance review: catalog string lookup and built-in collation transforms remain linear scans/rebuilds per call; Phase 79 now tracks indexing catalog IDs and caching transformed collation keys so repeated `GetCatalogStr()` / `StrnCmp()` / `StrConvert()` workloads avoid repeated full scans and folding work (v0.7.0)
 
 
 
@@ -920,6 +920,7 @@ Status: complete in 0.6.124.
 - [ ] GadTools architecture: factor shared gadget/menu label creation, underscore handling, and pen/font resolution behind reusable helpers so gadget, menu, and bevel rendering paths cannot drift semantically
 - [ ] GadTools architecture: introduce compact private companions for GadTools-owned menu/item metadata instead of overloading public structs with ad-hoc hosted allocations when more V39+ features land
 - [ ] Utility architecture: factor named-object/root-namespace bookkeeping behind shared private helpers or companions instead of open-coding list/semaphore ownership inside `lxa_utility.c` before remaining utility APIs expand further
+- [ ] Locale architecture: split locale-private built-in strings, catalog state, and future language-driver/file-backed providers behind a shared companion layer so `lxa_locale.c` does not keep one monolithic English-only data source wired directly into every API
 - [ ] Graphics performance: avoid repeated palette list walks in `ObtainBestPenA()`/`FindColor()` by caching exact-match or nearest-pen hints inside palette-extra state
 - [ ] Graphics performance: skip redundant viewport/display updates when `ScrollVPort()` or `ChangeVPBitMap()` are called with unchanged state
 - [ ] Intuition performance: cache the current Workbench screen pointer or tail/front bookkeeping so `OpenWorkBench()`, `WBenchToFront()`, and `WBenchToBack()` avoid repeated full screen-list scans
@@ -928,6 +929,7 @@ Status: complete in 0.6.124.
 - [ ] GadTools performance: cache per-menu/item text extents and derived layout widths so repeated `LayoutMenusA()`/`LayoutMenuItemsA()` calls avoid re-measuring every label and submenu chain
 - [ ] GadTools performance: skip redundant `GT_RefreshWindow()` full-list redraws when attribute updates can identify a single affected gadget or requester subtree
 - [ ] Utility performance: add optional accelerated name lookup for large shared namespaces so repeated `FindNamedObject()` scans do not remain purely linear as more hosted subsystems start sharing named objects
+- [ ] Locale performance: add indexed catalog-string lookup and reusable collation transform caches so repeated `GetCatalogStr()` / `StrnCmp()` / `StrConvert()` calls avoid linear entry scans and repeated ASCII folding work
 
 
 ---
@@ -952,4 +954,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-F Review**: GadTools review pass completed; menu creation/layout helpers plus message/refresh wrappers now have hosted compatibility implementations with direct regression coverage, and the remaining GadTools architecture/performance follow-ups are tracked in Phase 79.
 - **Phase 78-G Review**: ASL review advanced; the public `AllocAslRequestTags()` / `AslRequestTags()` varargs surface is now verified across file, font, and screen mode requester flows, and the remaining ASL follow-up is broader ScreenMode option coverage (v0.6.119).
 - **Phase 78-H**: utility.library is now fully closed for this roadmap phase: `HookEntry`-driven hook dispatch is verified against the NDK `amiga.lib` contract, the named-object namespace regressions lock duplicate handling, enumeration, removal holds, and reply semantics, and the old DOS-pattern follow-up is retired after confirming it is not part of the public `utility.library` surface in the bundled NDK/AROS references (v0.6.124).
+- **Phase 78-I**: locale.library now closes the remaining public V38 surface tracked for this phase: named/default locale opens, on-disk `.catalog` loading from `PROGDIR:` / `LOCALE:`, catalog/default string lookup, character classification and case conversion, and `StrConvert()` / `StrnCmp()` collation coverage are all exercised by direct exec regressions alongside the existing `FormatDate()` / `FormatString()` / `ParseDate()` tests (v0.7.0).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.

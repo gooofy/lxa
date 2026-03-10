@@ -15,6 +15,8 @@
 
 #include <dos/dos.h>
 #include <dos/dosextens.h>
+#include <clib/dos_protos.h>
+#include <inline/dos.h>
 
 #include <libraries/locale.h>
 #include <utility/tagitem.h>
@@ -34,11 +36,28 @@ char __aligned _g_locale_Copyright [] = "(C)opyright 2025 by G. Bartsch. License
 char __aligned _g_locale_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase *SysBase;
+extern struct DosLibrary *DOSBase;
 
 /* LocaleBase structure (extends standard definition) */
 struct MyLocaleBase {
     struct LocaleBase lb;
     BPTR              SegList;
+};
+
+#define LXA_CATALOG_MAGIC 0x4c434154UL
+
+struct CatalogEntry
+{
+    struct CatalogEntry *next;
+    LONG                 id;
+    STRPTR               string;
+};
+
+struct MyCatalog
+{
+    struct Catalog       cat;
+    ULONG                magic;
+    struct CatalogEntry *entries;
 };
 
 /* Default locale strings (English US) */
@@ -177,6 +196,618 @@ static struct Locale g_DefaultLocale = {
     0,                               /* loc_Reserved3 */
 };
 
+static LONG _loc_strlen(CONST_STRPTR str)
+{
+    LONG len = 0;
+
+    if (!str)
+        return 0;
+
+    while (str[len])
+        len++;
+
+    return len;
+}
+
+static LONG _loc_strcmp(CONST_STRPTR lhs, CONST_STRPTR rhs)
+{
+    if (!lhs)
+        return rhs ? -1 : 0;
+    if (!rhs)
+        return 1;
+
+    while (*lhs && *rhs && *lhs == *rhs)
+    {
+        lhs++;
+        rhs++;
+    }
+
+    return (LONG)(UBYTE)*lhs - (LONG)(UBYTE)*rhs;
+}
+
+static ULONG _loc_ascii_upper(ULONG character)
+{
+    if (character >= 'a' && character <= 'z')
+        return character - ('a' - 'A');
+
+    return character;
+}
+
+static ULONG _loc_ascii_lower(ULONG character)
+{
+    if (character >= 'A' && character <= 'Z')
+        return character + ('a' - 'A');
+
+    return character;
+}
+
+static BOOL _loc_strieq_ascii(CONST_STRPTR lhs, CONST_STRPTR rhs)
+{
+    if (!lhs || !rhs)
+        return lhs == rhs;
+
+    while (*lhs && *rhs)
+    {
+        if (_loc_ascii_lower((ULONG)(UBYTE)*lhs) != _loc_ascii_lower((ULONG)(UBYTE)*rhs))
+            return FALSE;
+
+        lhs++;
+        rhs++;
+    }
+
+    return *lhs == *rhs;
+}
+
+static ULONG _loc_be32(const UBYTE *buffer)
+{
+    return ((ULONG)buffer[0] << 24) |
+           ((ULONG)buffer[1] << 16) |
+           ((ULONG)buffer[2] << 8)  |
+           ((ULONG)buffer[3]);
+}
+
+static BOOL _loc_read_exact(BPTR fh, APTR buffer, ULONG size)
+{
+    if (size == 0)
+        return TRUE;
+
+    return Read(fh, buffer, size) == (LONG)size;
+}
+
+static BOOL _loc_skip_bytes(BPTR fh, ULONG size)
+{
+    if (size == 0)
+        return TRUE;
+
+    return Seek(fh, size, OFFSET_CURRENT) >= 0;
+}
+
+static STRPTR _loc_dup_bytes(const UBYTE *buffer, ULONG size)
+{
+    STRPTR result;
+
+    while (size > 0 && buffer[size - 1] == 0)
+        size--;
+
+    result = AllocVec(size + 1, MEMF_CLEAR);
+    if (!result)
+        return NULL;
+
+    if (size > 0)
+        CopyMem((APTR)buffer, result, size);
+
+    result[size] = '\0';
+    return result;
+}
+
+static void _loc_free_catalog(struct MyCatalog *catalog)
+{
+    struct CatalogEntry *entry;
+    struct CatalogEntry *next;
+
+    if (!catalog || catalog->magic != LXA_CATALOG_MAGIC)
+        return;
+
+    entry = catalog->entries;
+    while (entry)
+    {
+        next = entry->next;
+        if (entry->string)
+            FreeVec(entry->string);
+        FreeVec(entry);
+        entry = next;
+    }
+
+    if (catalog->cat.cat_Language)
+        FreeVec(catalog->cat.cat_Language);
+
+    catalog->magic = 0;
+    FreeVec(catalog);
+}
+
+static BOOL _loc_add_catalog_entry(struct MyCatalog *catalog, LONG id, STRPTR string)
+{
+    struct CatalogEntry *entry;
+    struct CatalogEntry **tail;
+
+    entry = AllocVec(sizeof(*entry), MEMF_CLEAR);
+    if (!entry)
+        return FALSE;
+
+    entry->id = id;
+    entry->string = string;
+
+    tail = &catalog->entries;
+    while (*tail)
+        tail = &(*tail)->next;
+
+    *tail = entry;
+    return TRUE;
+}
+
+static void _loc_parse_version_string(CONST_STRPTR version_string,
+                                      UWORD       *version,
+                                      UWORD       *revision)
+{
+    ULONG value = 0;
+
+    *version = 0;
+    *revision = 0;
+
+    if (!version_string)
+        return;
+
+    while (*version_string)
+    {
+        if (*version_string >= '0' && *version_string <= '9')
+        {
+            value = 0;
+            while (*version_string >= '0' && *version_string <= '9')
+            {
+                value = value * 10 + (*version_string - '0');
+                version_string++;
+            }
+
+            *version = (UWORD)value;
+
+            if (*version_string == '.')
+            {
+                version_string++;
+                value = 0;
+                while (*version_string >= '0' && *version_string <= '9')
+                {
+                    value = value * 10 + (*version_string - '0');
+                    version_string++;
+                }
+                *revision = (UWORD)value;
+            }
+            return;
+        }
+
+        version_string++;
+    }
+}
+
+static ULONG _loc_collate_primary(ULONG character)
+{
+    return _loc_ascii_upper(character);
+}
+
+static ULONG _loc_collate_secondary(ULONG character)
+{
+    ULONG primary = _loc_collate_primary(character);
+
+    if (character == primary)
+        return 0;
+
+    return character;
+}
+
+static LONG _loc_compare_folded(CONST_STRPTR string1, CONST_STRPTR string2, LONG length)
+{
+    while (*string1 && *string2 && length != 0)
+    {
+        LONG c1 = (LONG)_loc_collate_primary((ULONG)(UBYTE)*string1++);
+        LONG c2 = (LONG)_loc_collate_primary((ULONG)(UBYTE)*string2++);
+
+        if (c1 != c2)
+            return c1 - c2;
+
+        if (length > 0)
+            length--;
+    }
+
+    if (length == 0)
+        return 0;
+
+    return (LONG)_loc_collate_primary((ULONG)(UBYTE)*string1) -
+           (LONG)_loc_collate_primary((ULONG)(UBYTE)*string2);
+}
+
+static LONG _loc_compare_secondary(CONST_STRPTR string1, CONST_STRPTR string2, LONG length)
+{
+    while (*string1 && *string2 && length != 0)
+    {
+        LONG c1 = (LONG)_loc_collate_secondary((ULONG)(UBYTE)*string1++);
+        LONG c2 = (LONG)_loc_collate_secondary((ULONG)(UBYTE)*string2++);
+
+        if (c1 != c2)
+            return c1 - c2;
+
+        if (length > 0)
+            length--;
+    }
+
+    if (length == 0)
+        return 0;
+
+    return (LONG)_loc_collate_secondary((ULONG)(UBYTE)*string1) -
+           (LONG)_loc_collate_secondary((ULONG)(UBYTE)*string2);
+}
+
+static ULONG _loc_strconvert_ascii(CONST_STRPTR string,
+                                   APTR         buffer,
+                                   ULONG        buffer_size,
+                                   ULONG        type)
+{
+    UBYTE *dst = (UBYTE *)buffer;
+    ULONG remaining = buffer_size;
+    ULONG written = 0;
+    CONST_STRPTR orig;
+
+    if (!buffer || buffer_size == 0)
+        return 0;
+
+    if (!string)
+        string = "";
+
+    orig = string;
+
+    while (*string)
+    {
+        ULONG folded = _loc_collate_primary((ULONG)(UBYTE)*string);
+
+        if (remaining > 1)
+        {
+            *dst++ = (UBYTE)folded;
+            remaining--;
+            written++;
+        }
+
+        string++;
+    }
+
+    if (type == SC_COLLATE2)
+    {
+        string = orig;
+        while (*string)
+        {
+            ULONG original = (ULONG)(UBYTE)*string;
+            ULONG folded = _loc_collate_primary(original);
+
+            if (original != folded && remaining > 1)
+            {
+                *dst++ = (UBYTE)original;
+                remaining--;
+                written++;
+            }
+
+            string++;
+        }
+    }
+
+    if (remaining > 0)
+        *dst = '\0';
+    else
+        ((UBYTE *)buffer)[buffer_size - 1] = '\0';
+
+    return written;
+}
+
+static ULONG _loc_strconvert_original_length(CONST_STRPTR string, ULONG type)
+{
+    ULONG written = 0;
+
+    if (!string)
+        return 0;
+
+    while (*string)
+    {
+        ULONG original = (ULONG)(UBYTE)*string;
+        ULONG folded = _loc_collate_primary(original);
+
+        written++;
+        if (type == SC_COLLATE2 && original != folded)
+            written++;
+
+        string++;
+    }
+
+    return written;
+}
+
+static BOOL _loc_parse_catalog_strings(BPTR fh, struct MyCatalog *catalog, ULONG chunk_size)
+{
+    ULONG consumed = 0;
+
+    while (consumed < chunk_size)
+    {
+        UBYTE header[8];
+        ULONG string_size;
+        ULONG padded_size;
+        UBYTE *payload;
+        STRPTR string;
+
+        if (chunk_size - consumed < 8)
+            return FALSE;
+
+        if (!_loc_read_exact(fh, header, sizeof(header)))
+            return FALSE;
+
+        consumed += sizeof(header);
+        string_size = _loc_be32(&header[4]);
+        padded_size = (string_size + 3) & ~3UL;
+
+        if (padded_size > chunk_size - consumed)
+            return FALSE;
+
+        payload = AllocVec(padded_size, MEMF_CLEAR);
+        if (!payload)
+            return FALSE;
+
+        if (!_loc_read_exact(fh, payload, padded_size))
+        {
+            FreeVec(payload);
+            return FALSE;
+        }
+
+        consumed += padded_size;
+        string = _loc_dup_bytes(payload, string_size);
+        FreeVec(payload);
+        if (!string)
+            return FALSE;
+
+        if (!_loc_add_catalog_entry(catalog, (LONG)_loc_be32(&header[0]), string))
+        {
+            FreeVec(string);
+            return FALSE;
+        }
+    }
+
+    return consumed == chunk_size;
+}
+
+static struct Catalog *_loc_try_open_catalog(CONST_STRPTR path, UWORD required_version)
+{
+    BPTR fh;
+    UBYTE header[12];
+    ULONG form_size;
+    ULONG remaining;
+    struct MyCatalog *catalog;
+    LONG ioerr = ERROR_OBJECT_NOT_FOUND;
+
+    fh = Open((STRPTR)path, MODE_OLDFILE);
+    if (!fh)
+        return NULL;
+
+    if (!_loc_read_exact(fh, header, sizeof(header)))
+    {
+        ioerr = ERROR_OBJECT_WRONG_TYPE;
+        goto fail;
+    }
+
+    if (_loc_be32(&header[0]) != MAKE_ID('F', 'O', 'R', 'M') ||
+        _loc_be32(&header[8]) != MAKE_ID('C', 'T', 'L', 'G'))
+    {
+        ioerr = ERROR_OBJECT_WRONG_TYPE;
+        goto fail;
+    }
+
+    form_size = _loc_be32(&header[4]);
+    if (form_size < 4)
+    {
+        ioerr = ERROR_OBJECT_WRONG_TYPE;
+        goto fail;
+    }
+
+    catalog = AllocVec(sizeof(*catalog), MEMF_CLEAR);
+    if (!catalog)
+    {
+        ioerr = ERROR_NO_FREE_STORE;
+        goto fail;
+    }
+
+    catalog->magic = LXA_CATALOG_MAGIC;
+    remaining = form_size - 4;
+
+    while (remaining >= 8)
+    {
+        UBYTE chunk_header[8];
+        ULONG chunk_id;
+        ULONG chunk_size;
+        ULONG padded_chunk_size;
+
+        if (!_loc_read_exact(fh, chunk_header, sizeof(chunk_header)))
+        {
+            ioerr = ERROR_OBJECT_WRONG_TYPE;
+            goto fail_catalog;
+        }
+
+        remaining -= 8;
+        chunk_id = _loc_be32(&chunk_header[0]);
+        chunk_size = _loc_be32(&chunk_header[4]);
+        padded_chunk_size = (chunk_size + 1) & ~1UL;
+
+        if (padded_chunk_size > remaining)
+        {
+            ioerr = ERROR_OBJECT_WRONG_TYPE;
+            goto fail_catalog;
+        }
+
+        if (chunk_id == MAKE_ID('L', 'A', 'N', 'G') ||
+            chunk_id == MAKE_ID('F', 'V', 'E', 'R'))
+        {
+            UBYTE *payload = AllocVec(padded_chunk_size, MEMF_CLEAR);
+            STRPTR text;
+
+            if (!payload)
+            {
+                ioerr = ERROR_NO_FREE_STORE;
+                goto fail_catalog;
+            }
+
+            if (!_loc_read_exact(fh, payload, padded_chunk_size))
+            {
+                FreeVec(payload);
+                ioerr = ERROR_OBJECT_WRONG_TYPE;
+                goto fail_catalog;
+            }
+
+            text = _loc_dup_bytes(payload, chunk_size);
+            FreeVec(payload);
+            if (!text)
+            {
+                ioerr = ERROR_NO_FREE_STORE;
+                goto fail_catalog;
+            }
+
+            if (chunk_id == MAKE_ID('L', 'A', 'N', 'G'))
+            {
+                if (catalog->cat.cat_Language)
+                    FreeVec(catalog->cat.cat_Language);
+                catalog->cat.cat_Language = text;
+            }
+            else
+            {
+                _loc_parse_version_string(text, &catalog->cat.cat_Version, &catalog->cat.cat_Revision);
+                FreeVec(text);
+            }
+        }
+        else if (chunk_id == MAKE_ID('C', 'S', 'E', 'T'))
+        {
+            UBYTE codeset[4];
+
+            if (chunk_size < 4 || !_loc_read_exact(fh, codeset, sizeof(codeset)))
+            {
+                ioerr = ERROR_OBJECT_WRONG_TYPE;
+                goto fail_catalog;
+            }
+
+            catalog->cat.cat_CodeSet = _loc_be32(codeset);
+            if (!_loc_skip_bytes(fh, padded_chunk_size - 4))
+            {
+                ioerr = ERROR_OBJECT_WRONG_TYPE;
+                goto fail_catalog;
+            }
+        }
+        else if (chunk_id == MAKE_ID('S', 'T', 'R', 'S'))
+        {
+            if (!_loc_parse_catalog_strings(fh, catalog, chunk_size))
+            {
+                ioerr = ERROR_OBJECT_WRONG_TYPE;
+                goto fail_catalog;
+            }
+
+            if ((chunk_size & 1) && !_loc_skip_bytes(fh, 1))
+            {
+                ioerr = ERROR_OBJECT_WRONG_TYPE;
+                goto fail_catalog;
+            }
+        }
+        else
+        {
+            if (!_loc_skip_bytes(fh, padded_chunk_size))
+            {
+                ioerr = ERROR_OBJECT_WRONG_TYPE;
+                goto fail_catalog;
+            }
+        }
+
+        remaining -= padded_chunk_size;
+    }
+
+    Close(fh);
+
+    if (required_version != 0 && catalog->cat.cat_Version != required_version)
+    {
+        ioerr = ERROR_OBJECT_WRONG_TYPE;
+        goto fail_catalog_only;
+    }
+
+    if (!catalog->cat.cat_Language)
+    {
+        catalog->cat.cat_Language = _loc_dup_bytes((const UBYTE *)g_DefaultLanguageName,
+                                                   _loc_strlen((STRPTR)g_DefaultLanguageName));
+        if (!catalog->cat.cat_Language)
+        {
+            ioerr = ERROR_NO_FREE_STORE;
+            goto fail_catalog_only;
+        }
+    }
+
+    SetIoErr(0);
+    return &catalog->cat;
+
+fail_catalog:
+    Close(fh);
+
+fail_catalog_only:
+    _loc_free_catalog(catalog);
+    SetIoErr(ioerr);
+    return NULL;
+
+fail:
+    Close(fh);
+    SetIoErr(ioerr);
+    return NULL;
+}
+
+static struct Catalog *_loc_open_catalog_for_language(CONST_STRPTR name,
+                                                      CONST_STRPTR language,
+                                                      UWORD        required_version)
+{
+    static const char progdir_prefix[] = "PROGDIR:Catalogs/";
+    static const char locale_prefix[] = "LOCALE:Catalogs/";
+    const char *prefixes[2] = { progdir_prefix, locale_prefix };
+    LONG last_error = ERROR_OBJECT_NOT_FOUND;
+    int i;
+
+    for (i = 0; i < 2; i++)
+    {
+        LONG prefix_len = _loc_strlen((STRPTR)prefixes[i]);
+        LONG language_len = _loc_strlen(language);
+        LONG name_len = _loc_strlen(name);
+        LONG path_len = prefix_len + language_len + 1 + name_len + 1;
+        STRPTR path = AllocVec(path_len, MEMF_CLEAR);
+        struct Catalog *catalog;
+
+        if (!path)
+        {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return NULL;
+        }
+
+        CopyMem((APTR)prefixes[i], path, prefix_len);
+        CopyMem((APTR)language, path + prefix_len, language_len);
+        path[prefix_len + language_len] = '/';
+        CopyMem((APTR)name, path + prefix_len + language_len + 1, name_len);
+        path[path_len - 1] = '\0';
+
+        catalog = _loc_try_open_catalog(path, required_version);
+        if (catalog)
+        {
+            FreeVec(path);
+            return catalog;
+        }
+
+        last_error = IoErr();
+        FreeVec(path);
+    }
+
+    SetIoErr(last_error);
+    return NULL;
+}
+
 /****************************************************************************/
 /* Library management functions                                              */
 /****************************************************************************/
@@ -227,8 +858,11 @@ VOID _locale_CloseCatalog ( register struct MyLocaleBase *LocaleBase __asm("a6")
                             register struct Catalog      *catalog    __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_locale: CloseCatalog() called\n");
+
+    (void)LocaleBase;
+
     if (catalog)
-        FreeMem(catalog, sizeof(struct Catalog));
+        _loc_free_catalog((struct MyCatalog *)catalog);
 }
 
 VOID _locale_CloseLocale ( register struct MyLocaleBase *LocaleBase __asm("a6"),
@@ -244,18 +878,20 @@ ULONG _locale_ConvToLower ( register struct MyLocaleBase *LocaleBase __asm("a6")
                             register struct Locale       *locale     __asm("a0"),
                             register ULONG                character  __asm("d0"))
 {
-    if (character >= 'A' && character <= 'Z')
-        return character + ('a' - 'A');
-    return character;
+    (void)LocaleBase;
+    (void)locale;
+
+    return _loc_ascii_lower(character);
 }
 
 ULONG _locale_ConvToUpper ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                             register struct Locale       *locale     __asm("a0"),
                             register ULONG                character  __asm("d0"))
 {
-    if (character >= 'a' && character <= 'z')
-        return character - ('a' - 'A');
-    return character;
+    (void)LocaleBase;
+    (void)locale;
+
+    return _loc_ascii_upper(character);
 }
 
 /****************************************************************************/
@@ -1196,8 +1832,28 @@ STRPTR _locale_GetCatalogStr ( register struct MyLocaleBase   *LocaleBase    __a
                                register LONG                   stringNum     __asm("d0"),
                                register CONST_STRPTR           defaultString __asm("a1"))
 {
+    const struct MyCatalog *my_catalog = (const struct MyCatalog *)catalog;
+
     DPRINTF (LOG_DEBUG, "_locale: GetCatalogStr() called stringNum=%ld\n", stringNum);
-    /* No catalog support - just return default */
+
+    (void)LocaleBase;
+
+    if (!catalog || my_catalog->magic != LXA_CATALOG_MAGIC)
+        return (STRPTR)defaultString;
+
+    if (stringNum >= 0)
+    {
+        const struct CatalogEntry *entry = my_catalog->entries;
+
+        while (entry)
+        {
+            if (entry->id == stringNum)
+                return entry->string;
+
+            entry = entry->next;
+        }
+    }
+
     return (STRPTR)defaultString;
 }
 
@@ -1308,17 +1964,58 @@ struct Catalog * _locale_OpenCatalogA ( register struct MyLocaleBase    *LocaleB
                                         register CONST_STRPTR            name       __asm("a1"),
                                         register CONST struct TagItem   *tags       __asm("a2"))
 {
+    CONST_STRPTR requested_language;
+    CONST_STRPTR builtin_language = "english";
+    UWORD required_version = 0;
+
     DPRINTF (LOG_DEBUG, "_locale: OpenCatalogA() called name='%s'\n", name ? (char *)name : "(null)");
-    /* Return NULL - no catalog support yet */
-    return NULL;
+
+    (void)LocaleBase;
+
+    if (!name || !*name)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return NULL;
+    }
+
+    if (!locale)
+        locale = &g_DefaultLocale;
+
+    requested_language = locale->loc_LanguageName ? locale->loc_LanguageName : (STRPTR)g_DefaultLanguageName;
+
+    if (tags)
+    {
+        builtin_language = (CONST_STRPTR)GetTagData(OC_BuiltInLanguage, (ULONG)builtin_language, (struct TagItem *)tags);
+        requested_language = (CONST_STRPTR)GetTagData(OC_Language, (ULONG)requested_language, (struct TagItem *)tags);
+        required_version = (UWORD)GetTagData(OC_Version, 0, (struct TagItem *)tags);
+    }
+
+    if (builtin_language && _loc_strieq_ascii(requested_language, builtin_language))
+    {
+        SetIoErr(0);
+        return NULL;
+    }
+
+    return _loc_open_catalog_for_language(name, requested_language, required_version);
 }
 
 struct Locale * _locale_OpenLocale ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                                      register CONST_STRPTR         name       __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_locale: OpenLocale() called name='%s'\n", name ? (char *)name : "(null)");
-    /* Always return the default locale */
-    return &g_DefaultLocale;
+
+    (void)LocaleBase;
+
+    if (!name || !*name ||
+        _loc_strieq_ascii(name, (STRPTR)g_DefaultLocaleName) ||
+        _loc_strieq_ascii(name, (STRPTR)g_DefaultLanguageName))
+    {
+        SetIoErr(0);
+        return &g_DefaultLocale;
+    }
+
+    SetIoErr(ERROR_OBJECT_NOT_FOUND);
+    return NULL;
 }
 
 /****************************************************************************/
@@ -1708,23 +2405,22 @@ ULONG _locale_StrConvert ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                            register ULONG                type       __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_locale: StrConvert() called\n");
-    
-    if (!string || !buffer || bufferSize == 0)
-        return 0;
-    
-    /* Simple copy for now */
-    UBYTE *dst = (UBYTE *)buffer;
-    const UBYTE *src = (const UBYTE *)string;
-    ULONG count = 0;
-    
-    while (*src && count < bufferSize - 1)
+
+    (void)LocaleBase;
+    (void)locale;
+
+    switch (type)
     {
-        *dst++ = *src++;
-        count++;
+        case SC_ASCII:
+        case SC_COLLATE1:
+        case SC_COLLATE2:
+            _loc_strconvert_ascii(string, buffer, bufferSize, type);
+            return _loc_strconvert_original_length(string, type);
+        default:
+            if (buffer && bufferSize > 0)
+                ((UBYTE *)buffer)[0] = '\0';
+            return 0;
     }
-    *dst = '\0';
-    
-    return count;
 }
 
 LONG _locale_StrnCmp ( register struct MyLocaleBase *LocaleBase __asm("a6"),
@@ -1734,40 +2430,51 @@ LONG _locale_StrnCmp ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register LONG                 length     __asm("d0"),
                        register ULONG                type       __asm("d1"))
 {
+    LONG result;
+
+    (void)LocaleBase;
+    (void)locale;
+
     if (!string1 && !string2)
         return 0;
     if (!string1)
         return -1;
     if (!string2)
         return 1;
-    
-    const UBYTE *s1 = (const UBYTE *)string1;
-    const UBYTE *s2 = (const UBYTE *)string2;
-    
-    while (length > 0 && *s1 && *s2)
+
+    switch (type)
     {
-        LONG c1 = *s1++;
-        LONG c2 = *s2++;
-        
-        /* For SC_COLLATE1/2, do case-insensitive comparison */
-        if (type != SC_ASCII)
-        {
-            if (c1 >= 'A' && c1 <= 'Z')
-                c1 += 'a' - 'A';
-            if (c2 >= 'A' && c2 <= 'Z')
-                c2 += 'a' - 'A';
-        }
-        
-        if (c1 != c2)
-            return c1 - c2;
-        
-        length--;
+        case SC_ASCII:
+        case SC_COLLATE1:
+            return _loc_compare_folded(string1, string2, length);
+
+        case SC_COLLATE2:
+            result = _loc_compare_folded(string1, string2, length);
+            if (result != 0)
+                return result;
+            return _loc_compare_secondary(string1, string2, length);
+
+        default:
+            if (length == 0)
+                return 0;
+
+            if (length < 0)
+                return _loc_strcmp(string1, string2);
+
+            while (*string1 && *string2 && length-- > 0)
+            {
+                LONG c1 = (LONG)(UBYTE)*string1++;
+                LONG c2 = (LONG)(UBYTE)*string2++;
+
+                if (c1 != c2)
+                    return c1 - c2;
+            }
+
+            if (length == 0)
+                return 0;
+
+            return (LONG)(UBYTE)*string1 - (LONG)(UBYTE)*string2;
     }
-    
-    if (length == 0)
-        return 0;
-    
-    return *s1 - *s2;
 }
 
 /****************************************************************************/
@@ -1847,8 +2554,9 @@ APTR __g_lxa_locale_FuncTab [] =
     _locale_OpenCatalogA,             // -150 (0x96) pos 24
     _locale_OpenLocale,               // -156 (0x9c) pos 25
     _locale_ParseDate,                // -162 (0xa2) pos 26
-    _locale_StrConvert,               // -168 (0xae) pos 27
-    _locale_StrnCmp,                  // -174 (0xb4) pos 28
+    _locale_Reserved,                 // -168 (0xa8) pos 27 - reserved
+    _locale_StrConvert,               // -174 (0xae) pos 28
+    _locale_StrnCmp,                  // -180 (0xb4) pos 29
     (APTR) ((LONG)-1)
 };
 
