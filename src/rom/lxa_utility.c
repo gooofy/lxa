@@ -1,12 +1,17 @@
 #include <exec/types.h>
-//#include <exec/memory.h>
+#include <exec/memory.h>
 //#include <exec/libraries.h>
 #include <exec/execbase.h>
+#include <exec/lists.h>
+#include <exec/nodes.h>
+#include <exec/ports.h>
 #include <exec/resident.h>
+#include <exec/semaphores.h>
 #include <exec/initializers.h>
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
+#include <utility/name.h>
 #include <utility/utility.h>
 #include <utility/pack.h>
 #include <clib/utility_protos.h>
@@ -32,10 +37,29 @@ extern struct ExecBase      *SysBase;
 // baseType: struct UtilityBase *
 // libname: utility.library
 
-struct LXAUtilityBase
+struct UtilityNameSpace
 {
-    struct UtilityBase utility_base;
-    ULONG              last_id;
+    struct MinList         list;
+    struct SignalSemaphore lock;
+    ULONG                  flags;
+};
+
+struct UtilityNamedObject
+{
+    struct NamedObject            named_object;
+    struct Node                   node;
+    struct UtilityNameSpace      *parent_space;
+    struct UtilityNameSpace      *child_space;
+    struct Message               *free_message;
+    UWORD                         use_count;
+    BOOL                          free_object;
+};
+
+struct LXAUtilityRootBase
+{
+    struct UtilityBase      utility_base;
+    ULONG                   last_id;
+    struct UtilityNameSpace root_space;
 };
 
 static const ULONG utility_day_table[] = {
@@ -52,15 +76,146 @@ union utility_memaccess
     LONG  sl;
 };
 
+static VOID utility_new_min_list(struct MinList *list)
+{
+    list->mlh_Head = (struct MinNode *)&list->mlh_Tail;
+    list->mlh_Tail = NULL;
+    list->mlh_TailPred = (struct MinNode *)&list->mlh_Head;
+}
+
+static struct UtilityNameSpace *utility_root_space(struct UtilityBase *UtilityBase)
+{
+    return &((struct LXAUtilityRootBase *)UtilityBase)->root_space;
+}
+
+static struct UtilityNamedObject *utility_named_object(struct NamedObject *object)
+{
+    return (struct UtilityNamedObject *)object;
+}
+
+static struct UtilityNameSpace *utility_get_namespace(struct UtilityBase *UtilityBase,
+                                                      struct NamedObject *name_space)
+{
+    if (name_space)
+        return utility_named_object(name_space)->child_space;
+
+    return utility_root_space(UtilityBase);
+}
+
+static BOOL utility_names_equal(struct UtilityBase *UtilityBase,
+                                struct UtilityNameSpace *name_space,
+                                CONST_STRPTR lhs,
+                                CONST_STRPTR rhs)
+{
+    UBYTE c1;
+    UBYTE c2;
+
+    (void)UtilityBase;
+
+    if (!lhs || !rhs)
+        return FALSE;
+
+    if (name_space->flags & NSF_CASE)
+        return strcmp((const char *)lhs, (const char *)rhs) == 0;
+
+    while (*lhs && *rhs)
+    {
+        c1 = ToLower(*lhs++);
+        c2 = ToLower(*rhs++);
+
+        if (c1 != c2)
+            return FALSE;
+    }
+
+    return *lhs == *rhs;
+}
+
+static struct UtilityNamedObject *utility_find_named_object_locked(struct UtilityBase *UtilityBase,
+                                                                   struct UtilityNameSpace *name_space,
+                                                                   CONST_STRPTR name,
+                                                                   struct UtilityNamedObject *last_object)
+{
+    struct Node *node;
+
+    if (!name_space)
+        return NULL;
+
+    if (last_object)
+        node = last_object->node.ln_Succ;
+    else
+        node = (struct Node *)name_space->list.mlh_Head;
+
+    while (node && node->ln_Succ)
+    {
+        struct UtilityNamedObject *current = (struct UtilityNamedObject *)node;
+
+        if (!name || utility_names_equal(UtilityBase, name_space, current->node.ln_Name, name))
+            return current;
+
+        node = node->ln_Succ;
+    }
+
+    return NULL;
+}
+
+static VOID utility_destroy_named_object(struct UtilityNamedObject *object)
+{
+    if (!object)
+        return;
+
+    if (object->named_object.no_Object && object->free_object)
+        FreeVec(object->named_object.no_Object);
+
+    if (object->child_space)
+        FreeMem(object->child_space, sizeof(*object->child_space));
+
+    FreeVec(object);
+}
+
+static VOID utility_finish_named_object_removal(struct UtilityNamedObject *object)
+{
+    struct UtilityNameSpace *name_space;
+    struct Message *free_message;
+
+    if (!object)
+        return;
+
+    name_space = object->parent_space;
+    if (!name_space)
+        return;
+
+    ObtainSemaphore(&name_space->lock);
+
+    if (object->parent_space == name_space)
+    {
+        Remove(&object->node);
+        object->parent_space = NULL;
+    }
+
+    free_message = object->free_message;
+    object->free_message = NULL;
+
+    ReleaseSemaphore(&name_space->lock);
+
+    if (free_message)
+        ReplyMsg(free_message);
+}
+
 struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *utilityb __asm("d0"),
                                                   register BPTR                seglist  __asm("a0"),
                                                   register struct ExecBase    *sysb     __asm("a6"))
 {
+    struct LXAUtilityRootBase *base = (struct LXAUtilityRootBase *)utilityb;
+
     (void)seglist;
     (void)sysb;
 
-    ((struct LXAUtilityBase *)utilityb)->last_id = 0;
-    DPRINTF (LOG_DEBUG, "_utility: WARNING: InitLib() unimplemented STUB called.\n");
+    base->last_id = 0;
+    utility_new_min_list(&base->root_space.list);
+    InitSemaphore(&base->root_space.lock);
+    base->root_space.flags = 0;
+
+    DPRINTF (LOG_DEBUG, "_utility: InitLib() called.\n");
     return utilityb;
 }
 
@@ -1152,26 +1307,114 @@ static BOOL _utility_AddNamedObject ( register struct UtilityBase * UtilityBase 
                                                         register struct NamedObject * nameSpace __asm("a0"),
                                                         register struct NamedObject * object __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_utility: AddNamedObject() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct UtilityNameSpace *name_space;
+    struct UtilityNamedObject *named_object;
+    BOOL ret = FALSE;
+
+    DPRINTF (LOG_DEBUG, "_utility: AddNamedObject() called, nameSpace=0x%08lx, object=0x%08lx\n",
+             (ULONG)nameSpace, (ULONG)object);
+
+    if (!object)
+        return FALSE;
+
+    name_space = utility_get_namespace(UtilityBase, nameSpace);
+    named_object = utility_named_object(object);
+
+    if (!name_space || named_object->parent_space)
+        return FALSE;
+
+    ObtainSemaphore(&name_space->lock);
+
+    if ((name_space->flags & NSF_NODUPS) &&
+        utility_find_named_object_locked(UtilityBase, name_space, named_object->node.ln_Name, NULL))
+    {
+        ret = FALSE;
+    }
+    else
+    {
+        Enqueue((struct List *)&name_space->list, &named_object->node);
+        named_object->parent_space = name_space;
+        ret = TRUE;
+    }
+
+    ReleaseSemaphore(&name_space->lock);
+
+    return ret;
 }
 
 static struct NamedObject * _utility_AllocNamedObjectA ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_utility: AllocNamedObjectA() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct UtilityNamedObject *object;
+    ULONG name_len;
+    ULONG user_space_size;
+
+    (void)UtilityBase;
+
+    DPRINTF (LOG_DEBUG, "_utility: AllocNamedObjectA() called, name='%s'\n", STRORNULL(name));
+
+    if (!name)
+        return NULL;
+
+    name_len = strlen((const char *)name);
+    object = AllocVec(sizeof(*object) + name_len + 1, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!object)
+        return NULL;
+
+    object->node.ln_Name = (STRPTR)(object + 1);
+    strcpy((char *)object->node.ln_Name, (const char *)name);
+    object->node.ln_Pri = (BYTE)GetTagData(ANO_Priority, 0, tagList);
+    object->use_count = 1;
+
+    if (GetTagData(ANO_NameSpace, FALSE, tagList))
+    {
+        object->child_space = AllocMem(sizeof(*object->child_space), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!object->child_space)
+        {
+            utility_destroy_named_object(object);
+            return NULL;
+        }
+
+        utility_new_min_list(&object->child_space->list);
+        InitSemaphore(&object->child_space->lock);
+        object->child_space->flags = GetTagData(ANO_Flags, 0, tagList);
+    }
+
+    user_space_size = GetTagData(ANO_UserSpace, 0, tagList);
+    if (user_space_size)
+    {
+        object->named_object.no_Object = AllocVec(user_space_size, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!object->named_object.no_Object)
+        {
+            utility_destroy_named_object(object);
+            return NULL;
+        }
+
+        object->free_object = TRUE;
+    }
+
+    return &object->named_object;
 }
 
 static LONG _utility_AttemptRemNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * object __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: AttemptRemNamedObject() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct UtilityNamedObject *named_object;
+
+    (void)UtilityBase;
+
+    DPRINTF (LOG_DEBUG, "_utility: AttemptRemNamedObject() called, object=0x%08lx\n", (ULONG)object);
+
+    if (!object)
+        return FALSE;
+
+    named_object = utility_named_object(object);
+    if (named_object->free_message || named_object->use_count > 1)
+        return FALSE;
+
+    RemNamedObject(object, NULL);
+    return TRUE;
 }
 
 static struct NamedObject * _utility_FindNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
@@ -1179,45 +1422,143 @@ static struct NamedObject * _utility_FindNamedObject ( register struct UtilityBa
                                                         register CONST_STRPTR name __asm("a1"),
                                                         register struct NamedObject * lastObject __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_utility: FindNamedObject() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct UtilityNameSpace *name_space;
+    struct UtilityNamedObject *found;
+    struct UtilityNamedObject *last_named_object = NULL;
+
+    DPRINTF (LOG_DEBUG, "_utility: FindNamedObject() called, nameSpace=0x%08lx, name='%s', lastObject=0x%08lx\n",
+             (ULONG)nameSpace, STRORNULL(name), (ULONG)lastObject);
+
+    name_space = utility_get_namespace(UtilityBase, nameSpace);
+    if (!name_space)
+        return NULL;
+
+    if (lastObject)
+        last_named_object = utility_named_object(lastObject);
+
+    ObtainSemaphore(&name_space->lock);
+    found = utility_find_named_object_locked(UtilityBase, name_space, name, last_named_object);
+    if (found)
+        found->use_count++;
+    ReleaseSemaphore(&name_space->lock);
+
+    return found ? &found->named_object : NULL;
 }
 
 static VOID _utility_FreeNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * object __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: FreeNamedObject() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct UtilityNamedObject *named_object;
+
+    (void)UtilityBase;
+
+    DPRINTF (LOG_DEBUG, "_utility: FreeNamedObject() called, object=0x%08lx\n", (ULONG)object);
+
+    if (!object)
+        return;
+
+    named_object = utility_named_object(object);
+    if (named_object->parent_space)
+        return;
+
+    if (named_object->child_space && named_object->child_space->list.mlh_TailPred != (struct MinNode *)&named_object->child_space->list.mlh_Head)
+        return;
+
+    utility_destroy_named_object(named_object);
 }
 
 static STRPTR _utility_NamedObjectName ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * object __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: NamedObjectName() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    (void)UtilityBase;
+
+    DPRINTF (LOG_DEBUG, "_utility: NamedObjectName() called, object=0x%08lx\n", (ULONG)object);
+
+    if (!object)
+        return NULL;
+
+    return utility_named_object(object)->node.ln_Name;
 }
 
 static VOID _utility_ReleaseNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * object __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: ReleaseNamedObject() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct UtilityNamedObject *named_object;
+    BOOL finish_removal = FALSE;
+
+    (void)UtilityBase;
+
+    DPRINTF (LOG_DEBUG, "_utility: ReleaseNamedObject() called, object=0x%08lx\n", (ULONG)object);
+
+    if (!object)
+        return;
+
+    named_object = utility_named_object(object);
+
+    Forbid();
+    if (named_object->use_count > 0)
+        named_object->use_count--;
+    if (named_object->use_count == 0 && named_object->free_message)
+        finish_removal = TRUE;
+    Permit();
+
+    if (finish_removal)
+        utility_finish_named_object_removal(named_object);
 }
 
 static VOID _utility_RemNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
                                                         register struct NamedObject * object __asm("a0"),
                                                         register struct Message * message __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_utility: RemNamedObject() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct UtilityNamedObject *named_object;
+    BOOL finish_removal = FALSE;
+
+    (void)UtilityBase;
+
+    DPRINTF (LOG_DEBUG, "_utility: RemNamedObject() called, object=0x%08lx, message=0x%08lx\n",
+             (ULONG)object, (ULONG)message);
+
+    if (!object)
+        return;
+
+    named_object = utility_named_object(object);
+    if (!named_object->parent_space)
+        return;
+
+    Forbid();
+
+    if (message)
+    {
+        if (!named_object->free_message)
+        {
+            message->mn_Node.ln_Name = (STRPTR)object;
+            named_object->free_message = message;
+        }
+        else
+        {
+            message->mn_Node.ln_Name = NULL;
+            ReplyMsg(message);
+            Permit();
+            return;
+        }
+    }
+
+    if (named_object->use_count > 0)
+        named_object->use_count--;
+
+    if (named_object->use_count == 0)
+        finish_removal = TRUE;
+
+    Permit();
+
+    if (finish_removal)
+        utility_finish_named_object_removal(named_object);
 }
 
 static ULONG _utility_GetUniqueID ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     ULONG ret;
-    struct LXAUtilityBase *base = (struct LXAUtilityBase *)UtilityBase;
+    struct LXAUtilityRootBase *base = (struct LXAUtilityRootBase *)UtilityBase;
 
     DPRINTF (LOG_DEBUG, "_utility: GetUniqueID() called.\n");
 
@@ -1287,7 +1628,7 @@ struct Resident *__lxa_utility_ROMTag = &ROMTag;
 
 struct InitTable __g_lxa_utility_InitTab =
 {
-    (ULONG)               sizeof(struct LXAUtilityBase), // LibBaseSize
+    (ULONG)               sizeof(struct LXAUtilityRootBase), // LibBaseSize
     (APTR              *) &__g_lxa_utility_FuncTab[0],  // FunctionTable
     (APTR)                &__g_lxa_utility_DataTab,     // DataTable
     (APTR)                __g_lxa_utility_InitLib       // InitLibFn

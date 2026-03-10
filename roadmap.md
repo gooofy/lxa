@@ -525,15 +525,15 @@ Status: core requester allocation and modal execution now cover file, font, and 
 - [x] `CheckDate` / `Amiga2Date` / `Date2Amiga` — struct ClockData ↔ seconds-since-epoch
 - [x] `SMult32` / `UMult32` / `SDivMod32` / `UDivMod32` — 32-bit multiply/divide
 - [x] `PackStructureTags` / `UnpackStructureTags` — TagItem ↔ struct mapping via PackTable
-- [ ] `NamedObjectA` / `AllocNamedObjectA` / `FreeNamedObject` / `AddNamedObject` / `RemNamedObject` / `FindNamedObject`
+- [x] `NamedObjectA` / `AllocNamedObjectA` / `FreeNamedObject` / `AddNamedObject` / `RemNamedObject` / `FindNamedObject` — root and nested namespace allocation, duplicate-name rejection, case-insensitive lookup, removal/reply semantics, and user-space allocation now have direct regression coverage (v0.6.122)
 - [x] `GetUniqueID`
 - [ ] `MakeDosPatternA` / `MatchDosPatternA`
 
 ##### 78-H-2: Review
 
 - [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Architecture review: utility named objects still duplicate private namespace/list plumbing inside `lxa_utility.c`; Phase 79 now tracks factoring that internal bookkeeping behind shared helpers before `HookEntry`/DOS-pattern follow-up work extends the library further (v0.6.122)
+- [x] Performance review: utility namespace lookup now has coverage, and Phase 79 now tracks adding optional name-lookup acceleration so larger shared namespaces do not stay on linear scans forever (v0.6.122)
 
 ---
 
@@ -917,6 +917,7 @@ Status: core requester allocation and modal execution now cover file, font, and 
 - [ ] Intuition architecture: separate private screen-order bookkeeping from public `struct Screen` list links so future Workbench/public-screen behavior can grow without overloading public flags semantics
 - [ ] GadTools architecture: factor shared gadget/menu label creation, underscore handling, and pen/font resolution behind reusable helpers so gadget, menu, and bevel rendering paths cannot drift semantically
 - [ ] GadTools architecture: introduce compact private companions for GadTools-owned menu/item metadata instead of overloading public structs with ad-hoc hosted allocations when more V39+ features land
+- [ ] Utility architecture: factor named-object/root-namespace bookkeeping behind shared private helpers or companions instead of open-coding list/semaphore ownership inside `lxa_utility.c` before remaining utility APIs expand further
 - [ ] Graphics performance: avoid repeated palette list walks in `ObtainBestPenA()`/`FindColor()` by caching exact-match or nearest-pen hints inside palette-extra state
 - [ ] Graphics performance: skip redundant viewport/display updates when `ScrollVPort()` or `ChangeVPBitMap()` are called with unchanged state
 - [ ] Intuition performance: cache the current Workbench screen pointer or tail/front bookkeeping so `OpenWorkBench()`, `WBenchToFront()`, and `WBenchToBack()` avoid repeated full screen-list scans
@@ -924,6 +925,7 @@ Status: core requester allocation and modal execution now cover file, font, and 
 - [ ] Layers performance: replace coarse `DamageExposedAreas()` whole-intersection refreshes with exact exposed-rectangle splitting to reduce redundant refresh damage on move/size/delete paths
 - [ ] GadTools performance: cache per-menu/item text extents and derived layout widths so repeated `LayoutMenusA()`/`LayoutMenuItemsA()` calls avoid re-measuring every label and submenu chain
 - [ ] GadTools performance: skip redundant `GT_RefreshWindow()` full-list redraws when attribute updates can identify a single affected gadget or requester subtree
+- [ ] Utility performance: add optional accelerated name lookup for large shared namespaces so repeated `FindNamedObject()` scans do not remain purely linear as more hosted subsystems start sharing named objects
 
 
 ---
@@ -947,4 +949,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-E Review**: Intuition review pass advanced; `NextObject()`, `WBenchToFront()`, and `WBenchToBack()` now match the documented public behavior with BOOPSI/screen-order regression coverage, and the remaining intuition architecture/performance follow-ups are tracked in Phase 79.
 - **Phase 78-F Review**: GadTools review pass completed; menu creation/layout helpers plus message/refresh wrappers now have hosted compatibility implementations with direct regression coverage, and the remaining GadTools architecture/performance follow-ups are tracked in Phase 79.
 - **Phase 78-G Review**: ASL review advanced; the public `AllocAslRequestTags()` / `AslRequestTags()` varargs surface is now verified across file, font, and screen mode requester flows, and the remaining ASL follow-up is broader ScreenMode option coverage (v0.6.119).
+- **Phase 78-H**: utility.library now covers the public named-object namespace helpers (`AllocNamedObjectA()`, `AddNamedObject()`, `FindNamedObject()`, `AttemptRemNamedObject()`, `RemNamedObject()`, `ReleaseNamedObject()`, `FreeNamedObject()`, `NamedObjectName()`) with direct regression coverage for duplicate handling, removal replies, and user-space allocation (v0.6.122).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.

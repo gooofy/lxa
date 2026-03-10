@@ -5,6 +5,9 @@
 #include <utility/date.h>
 #include <utility/pack.h>
 #include <utility/hooks.h>
+#include <utility/name.h>
+#include <exec/semaphores.h>
+#include <exec/lists.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <clib/utility_protos.h>
@@ -599,6 +602,107 @@ static void test_unpack_structure_tags(void)
         "UnpackStructureTags handles PACK_NEWOFFSET entries");
 }
 
+static void test_named_objects(void)
+{
+    struct TagItem root_tags[] = {
+        { ANO_NameSpace, TRUE },
+        { ANO_Flags, NSF_NODUPS },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem child_tags[] = {
+        { ANO_UserSpace, 32 },
+        { ANO_Priority, 7 },
+        { TAG_DONE, 0 }
+    };
+    struct NamedObject *root;
+    struct NamedObject *alpha;
+    struct NamedObject *dup;
+    struct NamedObject *beta;
+    struct NamedObject *found;
+    struct NamedObject *found_next;
+    struct NamedObject *root_scan;
+    struct MsgPort *reply_port;
+    struct Message remove_message;
+    BOOL removed;
+
+    print("Testing NamedObject namespace helpers...\n");
+
+    root = AllocNamedObjectA((CONST_STRPTR)"root", root_tags);
+    expect_true(root != NULL, "AllocNamedObjectA allocates namespace root");
+    if (!root)
+        return;
+
+    alpha = AllocNamedObjectA((CONST_STRPTR)"Alpha", child_tags);
+    expect_true(alpha != NULL, "AllocNamedObjectA allocates object with user space");
+    if (!alpha)
+    {
+        FreeNamedObject(root);
+        return;
+    }
+
+    expect_true(alpha->no_Object != NULL, "AllocNamedObjectA allocates requested user space");
+    expect_true(NamedObjectName(alpha) != NULL && !strcmp((char *)NamedObjectName(alpha), "Alpha"),
+        "NamedObjectName returns stored object name");
+
+    expect_true(AddNamedObject(root, alpha), "AddNamedObject inserts child into namespace");
+    expect_true(!AddNamedObject(root, alpha), "AddNamedObject rejects reinserting same object");
+
+    dup = AllocNamedObjectA((CONST_STRPTR)"Alpha", NULL);
+    expect_true(dup != NULL, "AllocNamedObjectA allocates duplicate-name candidate");
+    if (dup)
+    {
+        expect_true(!AddNamedObject(root, dup), "AddNamedObject rejects duplicate names in NSF_NODUPS namespace");
+        FreeNamedObject(dup);
+    }
+
+    found = FindNamedObject(root, (CONST_STRPTR)"alpha", NULL);
+    expect_true(found == alpha, "FindNamedObject matches case-insensitively by default");
+    if (found)
+        ReleaseNamedObject(found);
+
+    found = FindNamedObject(root, NULL, NULL);
+    expect_true(found == alpha, "FindNamedObject(NULL name) returns first object");
+    found_next = FindNamedObject(root, NULL, found);
+    expect_true(found_next == NULL, "FindNamedObject(NULL name,last) advances past last object");
+    if (found)
+        ReleaseNamedObject(found);
+
+    removed = AttemptRemNamedObject(alpha);
+    expect_true(!removed, "AttemptRemNamedObject fails while allocation hold remains");
+
+    ReleaseNamedObject(alpha);
+    removed = AttemptRemNamedObject(alpha);
+    expect_true(removed, "AttemptRemNamedObject removes object after release");
+    expect_true(FindNamedObject(root, (CONST_STRPTR)"Alpha", NULL) == NULL,
+        "Removed object is no longer findable");
+    FreeNamedObject(alpha);
+
+    beta = AllocNamedObjectA((CONST_STRPTR)"Beta", NULL);
+    expect_true(beta != NULL, "AllocNamedObjectA allocates removable object");
+    if (beta)
+    {
+        expect_true(AddNamedObject(root, beta), "AddNamedObject inserts second child");
+        reply_port = CreateMsgPort();
+        expect_true(reply_port != NULL, "CreateMsgPort allocates reply port for RemNamedObject");
+        if (reply_port)
+        {
+            memset(&remove_message, 0, sizeof(remove_message));
+            remove_message.mn_ReplyPort = reply_port;
+            RemNamedObject(beta, &remove_message);
+            expect_true(WaitPort(reply_port) == &remove_message, "RemNamedObject replies removal message");
+            expect_true(remove_message.mn_Node.ln_Name == (STRPTR)beta,
+                "RemNamedObject reply names removed object");
+            DeleteMsgPort(reply_port);
+        }
+        FreeNamedObject(beta);
+    }
+
+    root_scan = FindNamedObject(NULL, (CONST_STRPTR)"root", NULL);
+    expect_true(root_scan == NULL, "Root namespace stays empty until object is added there");
+
+    FreeNamedObject(root);
+}
+
 int main(void)
 {
     print("utility/tagitems test\n");
@@ -619,6 +723,7 @@ int main(void)
     test_math_helpers();
     test_pack_structure_tags();
     test_unpack_structure_tags();
+    test_named_objects();
 
     CloseLibrary((struct Library *)UtilityBase);
 
