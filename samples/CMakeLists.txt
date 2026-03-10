@@ -221,6 +221,8 @@ set(TESTS_LIST
     "../tests/console/csi_unit|main|Tests/Console/csi_unit"
     "../tests/console/sgr_unit|main|Tests/Console/sgr_unit"
     "../tests/console/keymap_unit|main|Tests/Console/keymap_unit"
+    "../tests/console/raw_events_unit|main|Tests/Console/raw_events_unit"
+    "../tests/console/scrollback_unit|main|Tests/Console/scrollback_unit"
     "../tests/console/con_handler|main|Tests/Console/con_handler"
     "../tests/console/kp2_test|main|Tests/Console/kp2_test"
     "../tests/console/input_inject|main|Tests/Console/input_inject"

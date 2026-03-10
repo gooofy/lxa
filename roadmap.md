@@ -624,19 +624,19 @@ Status: complete in 0.6.124.
 
 #### 78-M: Console Device (`src/rom/lxa_dev_console.c` vs `others/AROS-20231016-source/rom/devs/console/`)
 
-- [ ] `CMD_WRITE` — ANSI escape sequences: cursor movement, SGR attributes (bold/reverse/underline), erase, color (foreground/background 30-37/40-47)
-- [ ] `CMD_READ` — read character/line; CRAF_* flags
+- [x] `CMD_WRITE` — ANSI cursor movement, erase, cursor-visibility, and SGR color/attribute handling are locked down by the direct `Tests/Console/csi_unit` and `Tests/Console/sgr_unit` regressions plus `console_gtest` validation (v0.7.5)
+- [x] `CMD_READ` — basic character/line reads, async completion, keymap-backed translation, and the documented raw-input-event/report stream now have direct regression coverage for legacy special-key reads plus `aSRE` / `aRRE` raw-key, mouse-button, gadget, and resize reports in `Tests/Console/raw_events_unit` under `console_gtest`; remaining follow-up is broader event-class breadth and any documented read-mode flags once a verified public reference is identified (v0.7.6)
 - [x] `CD_ASKKEYMAP` / `CD_SETKEYMAP` — default-keymap query/set behavior and the documented `CONU_LIBRARY` library-only path are covered directly by the RKM-style `AskKeymap` sample, while unit-local keymap install/query plus `CMD_READ` rawkey translation stay covered by the dedicated console keymap regression; standard console opens no longer pre-copy the default keymap unless callers explicitly install one (v0.7.5)
 - [x] `CONU_LIBRARY` unit (-1) handling — library-only open path and `RawKeyConvert()` access are now locked by direct regression coverage alongside the keymap command tests (v0.7.3)
-- [ ] Window resize events (IDCMP_NEWSIZE) → console resize
-- [ ] Scroll-back buffer management
-- [ ] Verify ANSI CSI sequences: `\e[H` (home), `\e[J` (erase display), `\e[K` (erase line), `\e[?25l/h` (cursor hide/show)
+- [x] Window resize events (IDCMP_NEWSIZE) → console resize — hosted console units now recompute bounds from `IDCMP_NEWSIZE`, and `Tests/Console/csi_unit` verifies that window growth updates the reported console rows/columns (v0.7.5)
+- [x] Scroll-back buffer management — `CD_SETUPSCROLLBACK` / `CD_SETSCROLLBACKPOSITION` now have hosted compatibility coverage via `Tests/Console/scrollback_unit`, with text-mode history storage and repositioning wired for standard console units (v0.7.6)
+- [x] Verify ANSI CSI sequences: `\e[H` (home), `\e[J` (erase display), `\e[K` (erase line), `\e[?25l/h` (cursor hide/show) — direct pixel/bounds regressions in `Tests/Console/csi_unit` and attribute-state regressions in `Tests/Console/sgr_unit` now cover the tracked write-side behavior (v0.7.5)
 
 ##### 78-M-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible — keymap command handling, standard-unit default-keymap fallback, library-only open semantics, and the split AskKeymap/unit-keymap regression coverage are now covered; remaining follow-up is resize/scroll-back/read-flag compatibility work
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — keymap command handling, standard-unit default-keymap fallback, library-only open semantics, write-side ANSI/resize coverage, raw-input/report `CMD_READ` compatibility, and initial scroll-back command support are now covered; remaining follow-up is broader event-class breadth and documented read-mode flags (v0.7.6)
+- [x] Architecture review: console-device follow-up should split private console-unit state and centralize input-event/report translation; added to phase 79 (v0.7.5)
+- [x] Performance review: console-device follow-up should avoid per-keystroke keymap setup churn and redundant cursor refresh waits; added to phase 79 (v0.7.5)
 
 
 
@@ -936,6 +936,10 @@ Status: complete in 0.6.124.
 - [ ] Keymap performance: cache per-keymap dead-key indexes and descriptor search metadata so repeated `MapANSI()` conversions avoid rescanning both keymap halves on every call
 - [ ] Timer architecture: factor raw-host time reads, system-time offsets, and per-unit delay/absolute-time conversion rules behind a private timer-time helper so `TR_*` requests and direct timer.library entry points cannot drift semantically
 - [ ] Timer performance: replace the fixed unsorted hosted timer queue plus repeated per-request conversion work with wake-time-ordered bookkeeping so add/remove/expiry checks avoid full linear scans on heavier timer workloads
+- [ ] Console architecture: separate private hosted console-unit state (CSI parser, pending reads, raw-event masks, future scroll-back storage) from the public `struct ConUnit` surface so `CMD_WRITE`, `CMD_READ`, and resize/refresh handling share one compatibility model
+- [ ] Console architecture: centralize console input-event translation/report generation so keymap conversion, special-key CSI output, and future `aSRE` / `aRRE` / `aIER` / `aSKR` support cannot drift across the IDCMP, `CMD_READ`, and library-entry paths
+- [ ] Console performance: cache reusable keymap/default-keymap state for active console units so repeated `CMD_READ` key conversions avoid reopening or rebuilding translation state for every keystroke
+- [ ] Console performance: batch cursor redraw/refresh decisions during bursty writes, input processing, and resize handling so console output avoids redundant `WaitTOF()` and full cursor repaint churn
 - [ ] IFFParse performance: avoid repeated full context-stack LCI scans during `ParseIFF()` by separating declaration indexes from stored items and caching active stop/property/collection matches per context
 
 
@@ -965,4 +969,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-J**: iffparse.library now covers the tracked V36 parser surface for hosted use: chunk allocation/open/close, RAWSTEP/STEP/SCAN traversal, stop conditions, entry/exit handlers, property/collection storage, write-mode chunk construction, record/byte I/O helpers, context queries, and clipboard-backed IFF streams are exercised by the direct iffparse regression plus the full green suite; the remaining Phase 79 work is structural/performance cleanup inside `lxa_iffparse.c` rather than missing public APIs.
 - **Phase 78-K**: keymap.library now closes the tracked public keymap surface for this phase: default-keymap query/update semantics, `MapRawKey()` qualifier/string/dead-key translation, `MapANSI()` rawkey encoding, and `KeyMap` structure layout all have direct regression coverage via `Tests/Exec/Keymap` and `Tests/Exec/StructOffsets` (v0.7.1).
 - **Phase 78-L**: timer.device now closes the tracked hosted timer surface for this phase: `TR_ADDREQUEST` covers the documented relative/absolute timer units (`UNIT_MICROHZ`, `UNIT_VBLANK`, `UNIT_ECLOCK`, `UNIT_WAITUNTIL`, `UNIT_WAITECLOCK`), `TR_GETSYSTIME` / `TR_SETSYSTIME` share the same system-time offset semantics as `GetSysTime()`, `AbortIO()` returns classic timer abort results, `AddTime()` / `SubTime()` / `CmpTime()` normalize `timeval`s with direct regression coverage, and `ReadEClock()` returns advancing 64-bit values without ROM-side libgcc helpers; validation is green via `devices_gtest` and `exec_gtest` (v0.7.2).
+- **Phase 78-M**: console.device compatibility advanced again: direct console regressions now lock ANSI cursor movement/erase/cursor-visibility handling, SGR color and attribute state, `IDCMP_NEWSIZE`-driven bounds updates, keymap/library-mode behavior, legacy special-key reads, broadened raw-input/report coverage (`aSRE` / `aRRE` for raw-key, mouse-button, gadget, and resize reports), and initial scroll-back commands together under `console_gtest`; the remaining follow-up is broader event-class breadth and documented read-mode flags (v0.7.6).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 633 assertions passing, now including `KeyMap` layout coverage.

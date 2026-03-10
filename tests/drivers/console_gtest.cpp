@@ -8,6 +8,10 @@
 using namespace lxa::testing;
 
 #define RAWKEY_A 0x20
+#define RAWKEY_UP 0x4C
+#define RAWKEY_DOWN 0x4D
+#define RAWKEY_RIGHT 0x4E
+#define RAWKEY_LEFT 0x4F
 
 class ConsoleTest : public LxaUITest {
 protected:
@@ -82,6 +86,52 @@ protected:
                 }
             }
             RunCyclesWithVBlank(20);
+        } else if (strcmp(name, "raw_events_unit") == 0) {
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+            lxa_window_info_t window_info;
+
+            ASSERT_TRUE(GetWindowInfo(0, &window_info));
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for special key report", 8000));
+            RunCyclesWithVBlank(10);
+            PressKey(RAWKEY_UP, 0);
+            RunCyclesWithVBlank(20);
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for raw special-key report", 8000));
+            RunCyclesWithVBlank(10);
+            PressKey(RAWKEY_UP, 0);
+            RunCyclesWithVBlank(20);
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for RAWKEY report", 8000));
+            RunCyclesWithVBlank(10);
+            PressKey(RAWKEY_A, 0);
+            RunCyclesWithVBlank(20);
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for raw mouse-button report", 8000));
+            RunCyclesWithVBlank(10);
+            Click(window_info.x + 40, window_info.y + 40);
+            RunCyclesWithVBlank(20);
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for raw gadget-down report", 8000));
+            RunCyclesWithVBlank(10);
+            Click(window_info.x + 95, window_info.y + 28);
+            RunCyclesWithVBlank(20);
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for size-window raw event report", 8000));
+            RunCyclesWithVBlank(20);
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for ASCII after raw reset", 8000));
+            RunCyclesWithVBlank(10);
+            PressKey(RAWKEY_A, 0);
+            RunCyclesWithVBlank(20);
+        } else if (strcmp(name, "scrollback_unit") == 0) {
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for scrollback position 1", 8000));
+            RunCyclesWithVBlank(20);
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for scrollback position 0", 8000));
+            RunCyclesWithVBlank(20);
         } else if (strcmp(name, "con_handler") == 0) {
             ASSERT_TRUE(WaitForWindows(1, 5000));
 
@@ -106,6 +156,8 @@ protected:
 TEST_F(ConsoleTest, CSICursor) { RunConsoleTest("csi_cursor"); }
 TEST_F(ConsoleTest, CSIUnit) { RunConsoleTest("csi_unit"); }
 TEST_F(ConsoleTest, SGRUnit) { RunConsoleTest("sgr_unit"); }
+TEST_F(ConsoleTest, RawEventsUnit) { RunConsoleTest("raw_events_unit"); }
+TEST_F(ConsoleTest, ScrollbackUnit) { RunConsoleTest("scrollback_unit"); }
 TEST_F(ConsoleTest, KeymapUnit) {
     int result = RunProgram("SYS:AskKeymap");
     EXPECT_EQ(result, 0);

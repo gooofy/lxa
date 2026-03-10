@@ -73,6 +73,9 @@ extern struct GfxBase       *GfxBase;
 /* Input buffer size */
 #define INPUT_BUF_LEN 256
 
+/* Required console IDCMP flags */
+#define CONSOLE_REQUIRED_IDCMP_FLAGS (IDCMP_RAWKEY | IDCMP_NEWSIZE)
+
 /* Our extended ConUnit with additional state */
 struct LxaConUnit {
     struct ConUnit cu;           /* Standard ConUnit at the beginning */
@@ -116,6 +119,17 @@ struct LxaConUnit {
     /* Unit mode */
     UWORD  unit_mode;            /* CONU_STANDARD, CONU_CHARMAP, or CONU_SNIPMAP */
     BOOL   use_keymap;           /* TRUE if using custom keymap (CONU_CHARMAP/SNIPMAP) */
+    UWORD  raw_prev1;            /* Previous raw key (upper=code, lower=qualifier) */
+    UWORD  raw_prev2;            /* Raw key before raw_prev1 */
+    APTR   scrollback_gadget;    /* Optional scrollback gadget */
+    ULONG  scrollback_max_lines; /* Maximum retained scrollback lines */
+    ULONG  scrollback_line_count;/* Current retained scrollback lines */
+    ULONG  scrollback_position;  /* Top visible line from scrollback start */
+    UWORD  text_cols;            /* Visible text columns */
+    UWORD  text_rows;            /* Visible text rows */
+    char   *visible_text;        /* Visible text cell buffer */
+    char   *scrollback_text;     /* Scrollback text cell buffer */
+    ULONG  base_idcmp_flags;     /* Window IDCMP flags before console additions */
     /* Pending async read request (Phase 45) */
     struct IOStdReq *pending_read;  /* Currently pending async read, or NULL */
 };
@@ -341,6 +355,19 @@ static void console_cursor_down(struct LxaConUnit *unit);
 static void console_init_tab_stops(struct LxaConUnit *unit);
 static void console_try_complete_pending_read(struct LxaConUnit *unit);
 static void console_update_window_geometry(struct LxaConUnit *unit);
+static void console_sync_text_geometry(struct LxaConUnit *unit);
+static void console_refresh_scrollback_view(struct LxaConUnit *unit);
+static void console_update_idcmp_flags(struct LxaConUnit *unit);
+static BOOL console_raw_event_enabled(struct LxaConUnit *unit, UBYTE event_class);
+static void console_emit_raw_event_report(struct LxaConUnit *unit,
+                                          UBYTE event_class,
+                                          UBYTE event_subclass,
+                                          UWORD code,
+                                          UWORD qualifier,
+                                          UWORD x,
+                                          UWORD y,
+                                          ULONG seconds,
+                                          ULONG micros);
 
 /*
  * Initialize a ConUnit for a window
@@ -432,6 +459,18 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
 
     /* Initialize pending read (Phase 45: async I/O) */
     unit->pending_read = NULL;
+    unit->raw_prev1 = 0;
+    unit->raw_prev2 = 0;
+    unit->scrollback_gadget = NULL;
+    unit->scrollback_max_lines = 0;
+    unit->scrollback_line_count = 0;
+    unit->scrollback_position = 0;
+    unit->text_cols = 0;
+    unit->text_rows = 0;
+    unit->visible_text = NULL;
+    unit->scrollback_text = NULL;
+    unit->base_idcmp_flags = window->IDCMPFlags;
+    console_sync_text_geometry(unit);
     
     LPRINTF(LOG_INFO, "_console: Created ConUnit for window 0x%08lx: XMax=%d YMax=%d XRSize=%d YRSize=%d\n",
             (ULONG)window, unit->cu.cu_XMax, unit->cu.cu_YMax, unit->cu.cu_XRSize, unit->cu.cu_YRSize);
@@ -447,6 +486,12 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
 static void console_destroy_unit(struct LxaConUnit *unit)
 {
     if (unit) {
+        if (unit->visible_text) {
+            FreeMem(unit->visible_text, unit->text_cols * unit->text_rows);
+        }
+        if (unit->scrollback_text) {
+            FreeMem(unit->scrollback_text, unit->text_cols * unit->scrollback_max_lines);
+        }
         FreeMem(unit, sizeof(struct LxaConUnit));
     }
 }
@@ -531,6 +576,12 @@ static void console_update_window_geometry(struct LxaConUnit *unit)
             unit->scroll_bottom = unit->cu.cu_YMax;
         }
     }
+
+    console_sync_text_geometry(unit);
+
+    if (unit->scrollback_position != unit->scrollback_line_count) {
+        console_refresh_scrollback_view(unit);
+    }
 }
 
 /*
@@ -597,6 +648,518 @@ static void input_buf_put_string(struct LxaConUnit *unit, const char *str)
     while (*str) {
         input_buf_put(unit, *str++);
     }
+}
+
+static ULONG console_line_width(const struct LxaConUnit *unit)
+{
+    if (!unit || unit->text_cols == 0) {
+        return 0;
+    }
+
+    return unit->text_cols;
+}
+
+static char *console_visible_line_ptr(struct LxaConUnit *unit, ULONG row)
+{
+    ULONG width = console_line_width(unit);
+
+    if (!unit || !unit->visible_text || width == 0 || row >= unit->text_rows) {
+        return NULL;
+    }
+
+    return unit->visible_text + (row * width);
+}
+
+static char *console_scrollback_line_ptr(struct LxaConUnit *unit, ULONG row)
+{
+    ULONG width = console_line_width(unit);
+
+    if (!unit || !unit->scrollback_text || width == 0 || row >= unit->scrollback_max_lines) {
+        return NULL;
+    }
+
+    return unit->scrollback_text + (row * width);
+}
+
+static void console_fill_chars(char *dst, ULONG count, char value)
+{
+    ULONG i;
+
+    if (!dst) {
+        return;
+    }
+
+    for (i = 0; i < count; i++) {
+        dst[i] = value;
+    }
+}
+
+static void console_copy_chars(char *dst, const char *src, ULONG count)
+{
+    ULONG i;
+
+    if (!dst || !src) {
+        return;
+    }
+
+    for (i = 0; i < count; i++) {
+        dst[i] = src[i];
+    }
+}
+
+static void console_clear_visible_line(struct LxaConUnit *unit, ULONG row)
+{
+    char *line = console_visible_line_ptr(unit, row);
+    ULONG width = console_line_width(unit);
+
+    if (!line || width == 0) {
+        return;
+    }
+
+    console_fill_chars(line, width, ' ');
+}
+
+static void console_set_cell(struct LxaConUnit *unit, ULONG row, ULONG col, char value)
+{
+    char *line = console_visible_line_ptr(unit, row);
+
+    if (!line || col >= unit->text_cols) {
+        return;
+    }
+
+    line[col] = value;
+}
+
+static void console_shift_visible_region_up(struct LxaConUnit *unit, ULONG top, ULONG bottom)
+{
+    ULONG row;
+    ULONG width = console_line_width(unit);
+
+    if (!unit || width == 0 || top >= bottom || bottom >= unit->text_rows) {
+        return;
+    }
+
+    for (row = top; row < bottom; row++) {
+        console_copy_chars(console_visible_line_ptr(unit, row),
+                           console_visible_line_ptr(unit, row + 1),
+                           width);
+    }
+
+    console_clear_visible_line(unit, bottom);
+}
+
+static void console_shift_visible_region_down(struct LxaConUnit *unit, ULONG top, ULONG bottom)
+{
+    ULONG row;
+    ULONG width = console_line_width(unit);
+
+    if (!unit || width == 0 || top >= bottom || bottom >= unit->text_rows) {
+        return;
+    }
+
+    row = bottom;
+    while (row > top) {
+        console_copy_chars(console_visible_line_ptr(unit, row),
+                           console_visible_line_ptr(unit, row - 1),
+                           width);
+        row--;
+    }
+
+    console_clear_visible_line(unit, top);
+}
+
+static ULONG console_max_scrollback_position(struct LxaConUnit *unit)
+{
+    if (!unit) {
+        return 0;
+    }
+
+    return unit->scrollback_line_count;
+}
+
+static void console_clamp_scrollback_position(struct LxaConUnit *unit)
+{
+    ULONG max_position;
+
+    if (!unit) {
+        return;
+    }
+
+    max_position = console_max_scrollback_position(unit);
+    if (unit->scrollback_position > max_position) {
+        unit->scrollback_position = max_position;
+    }
+}
+
+static void console_reset_scrollback_storage(struct LxaConUnit *unit)
+{
+    ULONG width;
+
+    if (!unit) {
+        return;
+    }
+
+    width = console_line_width(unit);
+
+    unit->scrollback_line_count = 0;
+    unit->scrollback_position = 0;
+
+    if (unit->scrollback_text && width != 0 && unit->scrollback_max_lines != 0) {
+        console_fill_chars(unit->scrollback_text, width * unit->scrollback_max_lines, ' ');
+    }
+}
+
+static void console_sync_text_geometry(struct LxaConUnit *unit)
+{
+    ULONG visible_size;
+    ULONG history_size;
+    UWORD cols;
+    UWORD rows;
+
+    if (!unit) {
+        return;
+    }
+
+    cols = unit->cu.cu_XMax + 1;
+    rows = unit->cu.cu_YMax + 1;
+
+    if (cols == 0 || rows == 0) {
+        return;
+    }
+
+    if (unit->visible_text && unit->text_cols == cols && unit->text_rows == rows) {
+        return;
+    }
+
+    if (unit->visible_text) {
+        FreeMem(unit->visible_text, unit->text_cols * unit->text_rows);
+        unit->visible_text = NULL;
+    }
+
+    if (unit->scrollback_text) {
+        FreeMem(unit->scrollback_text, unit->text_cols * unit->scrollback_max_lines);
+        unit->scrollback_text = NULL;
+    }
+
+    unit->text_cols = cols;
+    unit->text_rows = rows;
+
+    visible_size = (ULONG)cols * (ULONG)rows;
+    unit->visible_text = AllocMem(visible_size, MEMF_PUBLIC | MEMF_CLEAR);
+    if (unit->visible_text) {
+        console_fill_chars(unit->visible_text, visible_size, ' ');
+    }
+
+    if (unit->scrollback_max_lines != 0) {
+        history_size = (ULONG)cols * unit->scrollback_max_lines;
+        unit->scrollback_text = AllocMem(history_size, MEMF_PUBLIC | MEMF_CLEAR);
+        if (unit->scrollback_text) {
+            console_fill_chars(unit->scrollback_text, history_size, ' ');
+        }
+    }
+
+    console_reset_scrollback_storage(unit);
+}
+
+static void console_store_scrollback_line(struct LxaConUnit *unit, ULONG row)
+{
+    char *src;
+    char *dst;
+    ULONG line;
+    ULONG width;
+    BOOL keep_view;
+
+    if (!unit || unit->scrollback_max_lines == 0 || !unit->scrollback_text) {
+        return;
+    }
+
+    src = console_visible_line_ptr(unit, row);
+    width = console_line_width(unit);
+    if (!src || width == 0) {
+        return;
+    }
+
+    keep_view = unit->scrollback_position < unit->scrollback_line_count;
+
+    if (unit->scrollback_line_count < unit->scrollback_max_lines) {
+        dst = console_scrollback_line_ptr(unit, unit->scrollback_line_count);
+        unit->scrollback_line_count++;
+    } else {
+        for (line = 1; line < unit->scrollback_max_lines; line++) {
+            console_copy_chars(console_scrollback_line_ptr(unit, line - 1),
+                               console_scrollback_line_ptr(unit, line),
+                               width);
+        }
+        dst = console_scrollback_line_ptr(unit, unit->scrollback_max_lines - 1);
+    }
+
+    if (dst) {
+        console_copy_chars(dst, src, width);
+    }
+
+    if (keep_view) {
+        unit->scrollback_position++;
+    }
+
+    console_clamp_scrollback_position(unit);
+}
+
+static char console_get_display_char(struct LxaConUnit *unit, ULONG line, ULONG col)
+{
+    char *src;
+
+    if (!unit || col >= unit->text_cols) {
+        return ' ';
+    }
+
+    if (line < unit->scrollback_line_count) {
+        src = console_scrollback_line_ptr(unit, line);
+    } else {
+        src = console_visible_line_ptr(unit, line - unit->scrollback_line_count);
+    }
+
+    if (!src) {
+        return ' ';
+    }
+
+    return src[col];
+}
+
+static void console_clear_text_area(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+
+    if (!unit || !unit->cu.cu_Window) {
+        return;
+    }
+
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp) {
+        return;
+    }
+
+    SetAPen(rp, unit->cu.cu_BgPen);
+    RectFill(rp,
+             unit->cu.cu_XROrigin,
+             unit->cu.cu_YROrigin,
+             unit->cu.cu_XRExtant,
+             unit->cu.cu_YRExtant);
+}
+
+static void console_refresh_scrollback_view(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    ULONG row;
+    ULONG col;
+    ULONG line;
+    WORD x;
+    WORD y;
+    char ch[2];
+
+    if (!unit || !unit->cu.cu_Window || !unit->visible_text) {
+        return;
+    }
+
+    console_clamp_scrollback_position(unit);
+
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+    if (!rp) {
+        return;
+    }
+
+    console_hide_cursor(unit);
+    console_clear_text_area(unit);
+
+    SetAPen(rp, unit->cu.cu_FgPen);
+    SetBPen(rp, unit->cu.cu_BgPen);
+    SetDrMd(rp, unit->cu.cu_DrawMode);
+
+    ch[1] = '\0';
+
+    for (row = 0; row < unit->text_rows; row++) {
+        line = unit->scrollback_position + row;
+        for (col = 0; col < unit->text_cols; col++) {
+            ch[0] = console_get_display_char(unit, line, col);
+            if (ch[0] == '\0' || ch[0] == ' ') {
+                continue;
+            }
+
+            x = unit->cu.cu_XROrigin + (col * unit->cu.cu_XRSize);
+            y = unit->cu.cu_YROrigin + (row * unit->cu.cu_YRSize) + unit->cu.cu_YRSize - 1;
+            Move(rp, x, y);
+            Text(rp, (CONST_STRPTR)ch, 1);
+        }
+    }
+
+    if (unit->cursor_visible && unit->scrollback_position == unit->scrollback_line_count) {
+        console_draw_cursor(unit);
+    }
+
+    WaitTOF();
+}
+
+static void console_update_idcmp_flags(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    ULONG desired_flags;
+    struct IntuitionBase *IntuitionBase;
+
+    if (!unit || !unit->cu.cu_Window) {
+        return;
+    }
+
+    window = unit->cu.cu_Window;
+    desired_flags = unit->base_idcmp_flags | CONSOLE_REQUIRED_IDCMP_FLAGS;
+
+    if (console_raw_event_enabled(unit, IECLASS_RAWMOUSE)) {
+        desired_flags |= IDCMP_MOUSEBUTTONS;
+    }
+    if (console_raw_event_enabled(unit, IECLASS_POINTERPOS)) {
+        desired_flags |= IDCMP_MOUSEMOVE;
+    }
+    if (console_raw_event_enabled(unit, IECLASS_GADGETDOWN)) {
+        desired_flags |= IDCMP_GADGETDOWN;
+    }
+    if (console_raw_event_enabled(unit, IECLASS_GADGETUP)) {
+        desired_flags |= IDCMP_GADGETUP;
+    }
+    if (console_raw_event_enabled(unit, IECLASS_CLOSEWINDOW)) {
+        desired_flags |= IDCMP_CLOSEWINDOW;
+    }
+    if (console_raw_event_enabled(unit, IECLASS_REFRESHWINDOW)) {
+        desired_flags |= IDCMP_REFRESHWINDOW;
+    }
+    if (console_raw_event_enabled(unit, IECLASS_ACTIVEWINDOW)) {
+        desired_flags |= IDCMP_ACTIVEWINDOW;
+    }
+    if (console_raw_event_enabled(unit, IECLASS_INACTIVEWINDOW)) {
+        desired_flags |= IDCMP_INACTIVEWINDOW;
+    }
+    if (console_raw_event_enabled(unit, IECLASS_CHANGEWINDOW)) {
+        desired_flags |= IDCMP_CHANGEWINDOW;
+    }
+
+    if (window->IDCMPFlags == desired_flags) {
+        return;
+    }
+
+    IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
+    if (!IntuitionBase) {
+        return;
+    }
+
+    ModifyIDCMP(window, desired_flags);
+    CloseLibrary((struct Library *)IntuitionBase);
+}
+
+static BOOL console_raw_event_enabled(struct LxaConUnit *unit, UBYTE event_class)
+{
+    if (!unit || event_class > IECLASS_MAX) {
+        return FALSE;
+    }
+
+    return (unit->cu.cu_RawEvents[event_class / 8] & (1U << (event_class & 7))) != 0;
+}
+
+static void console_set_raw_event(struct LxaConUnit *unit, UBYTE event_class, BOOL enabled)
+{
+    if (!unit || event_class > IECLASS_MAX) {
+        return;
+    }
+
+    if (enabled) {
+        unit->cu.cu_RawEvents[event_class / 8] |= (1U << (event_class & 7));
+    } else {
+        unit->cu.cu_RawEvents[event_class / 8] &= ~(1U << (event_class & 7));
+    }
+
+    console_update_idcmp_flags(unit);
+}
+
+static char *console_append_ulong(char *dst, char *end, ULONG value)
+{
+    char digits[16];
+    int pos = 0;
+
+    if (dst >= end) {
+        return dst;
+    }
+
+    if (value == 0) {
+        *dst++ = '0';
+        return dst;
+    }
+
+    while (value > 0 && pos < (int)sizeof(digits)) {
+        digits[pos++] = '0' + (value % 10);
+        value /= 10;
+    }
+
+    while (pos > 0 && dst < end) {
+        *dst++ = digits[--pos];
+    }
+
+    return dst;
+}
+
+static void console_emit_raw_event_report(struct LxaConUnit *unit,
+                                          UBYTE event_class,
+                                          UBYTE event_subclass,
+                                          UWORD code,
+                                          UWORD qualifier,
+                                          UWORD x,
+                                          UWORD y,
+                                          ULONG seconds,
+                                          ULONG micros)
+{
+    char report[96];
+    char *p = report;
+    char *end = report + sizeof(report) - 1;
+
+    if (!unit) {
+        return;
+    }
+
+    *p++ = (char)0x9B;
+    p = console_append_ulong(p, end, event_class);
+    if (p < end) {
+        *p++ = ';';
+    }
+    p = console_append_ulong(p, end, event_subclass);
+    if (p < end) {
+        *p++ = ';';
+    }
+    p = console_append_ulong(p, end, code);
+    if (p < end) {
+        *p++ = ';';
+    }
+    p = console_append_ulong(p, end, qualifier);
+    if (p < end) {
+        *p++ = ';';
+    }
+    p = console_append_ulong(p, end, x);
+    if (p < end) {
+        *p++ = ';';
+    }
+    p = console_append_ulong(p, end, y);
+    if (p < end) {
+        *p++ = ';';
+    }
+    p = console_append_ulong(p, end, seconds);
+    if (p < end) {
+        *p++ = ';';
+    }
+    p = console_append_ulong(p, end, micros);
+    if (p < end) {
+        *p++ = '|';
+    }
+    *p = '\0';
+
+    input_buf_put_string(unit, report);
 }
 
 /* Amiga rawkey codes for special keys */
@@ -870,6 +1433,179 @@ static BOOL handle_special_key(struct LxaConUnit *unit, UWORD rawkey, UWORD qual
     }
 }
 
+static BOOL console_handle_raw_event_message(struct LxaConUnit *unit,
+                                             struct IntuiMessage *imsg)
+{
+    UBYTE event_class;
+    UBYTE event_subclass = 0;
+    UWORD code = 0;
+    UWORD qualifier = 0;
+    UWORD x = 0;
+    UWORD y = 0;
+    ULONG seconds = 0;
+    ULONG micros = 0;
+
+    if (!unit || !imsg) {
+        return FALSE;
+    }
+
+    switch (imsg->Class) {
+        case IDCMP_RAWKEY:
+            if (!console_raw_event_enabled(unit, IECLASS_RAWKEY)) {
+                return FALSE;
+            }
+            event_class = IECLASS_RAWKEY;
+            code = imsg->Code;
+            qualifier = imsg->Qualifier;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            x = unit->raw_prev1;
+            y = unit->raw_prev2;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          code, qualifier, x, y,
+                                          seconds, micros);
+            unit->raw_prev2 = unit->raw_prev1;
+            unit->raw_prev1 = ((code & 0x00FF) << 8) | (qualifier & 0x00FF);
+            return TRUE;
+
+        case IDCMP_MOUSEBUTTONS:
+            if (!console_raw_event_enabled(unit, IECLASS_RAWMOUSE)) {
+                return FALSE;
+            }
+            event_class = IECLASS_RAWMOUSE;
+            code = imsg->Code;
+            qualifier = imsg->Qualifier;
+            x = (UWORD)imsg->MouseX;
+            y = (UWORD)imsg->MouseY;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          code, qualifier, x, y,
+                                          seconds, micros);
+            return TRUE;
+
+        case IDCMP_MOUSEMOVE:
+            if (!console_raw_event_enabled(unit, IECLASS_POINTERPOS)) {
+                return FALSE;
+            }
+            event_class = IECLASS_POINTERPOS;
+            qualifier = imsg->Qualifier;
+            x = (UWORD)imsg->MouseX;
+            y = (UWORD)imsg->MouseY;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          0, qualifier, x, y,
+                                          seconds, micros);
+            return TRUE;
+
+        case IDCMP_GADGETDOWN:
+            if (!console_raw_event_enabled(unit, IECLASS_GADGETDOWN)) {
+                return FALSE;
+            }
+            event_class = IECLASS_GADGETDOWN;
+            code = imsg->Code;
+            qualifier = imsg->Qualifier;
+            x = (UWORD)imsg->MouseX;
+            y = (UWORD)imsg->MouseY;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          code, qualifier, x, y,
+                                          seconds, micros);
+            return TRUE;
+
+        case IDCMP_GADGETUP:
+            if (!console_raw_event_enabled(unit, IECLASS_GADGETUP)) {
+                return FALSE;
+            }
+            event_class = IECLASS_GADGETUP;
+            code = imsg->Code;
+            qualifier = imsg->Qualifier;
+            x = (UWORD)imsg->MouseX;
+            y = (UWORD)imsg->MouseY;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          code, qualifier, x, y,
+                                          seconds, micros);
+            return TRUE;
+
+        case IDCMP_CLOSEWINDOW:
+            if (!console_raw_event_enabled(unit, IECLASS_CLOSEWINDOW)) {
+                return FALSE;
+            }
+            event_class = IECLASS_CLOSEWINDOW;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          0, 0, 0, 0, seconds, micros);
+            return TRUE;
+
+        case IDCMP_NEWSIZE:
+            if (!console_raw_event_enabled(unit, IECLASS_SIZEWINDOW)) {
+                return FALSE;
+            }
+            event_class = IECLASS_SIZEWINDOW;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          0, 0, 0, 0, seconds, micros);
+            return TRUE;
+
+        case IDCMP_REFRESHWINDOW:
+            if (!console_raw_event_enabled(unit, IECLASS_REFRESHWINDOW)) {
+                return FALSE;
+            }
+            event_class = IECLASS_REFRESHWINDOW;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          0, 0, 0, 0, seconds, micros);
+            return TRUE;
+
+        case IDCMP_ACTIVEWINDOW:
+            if (!console_raw_event_enabled(unit, IECLASS_ACTIVEWINDOW)) {
+                return FALSE;
+            }
+            event_class = IECLASS_ACTIVEWINDOW;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          0, 0, 0, 0, seconds, micros);
+            return TRUE;
+
+        case IDCMP_INACTIVEWINDOW:
+            if (!console_raw_event_enabled(unit, IECLASS_INACTIVEWINDOW)) {
+                return FALSE;
+            }
+            event_class = IECLASS_INACTIVEWINDOW;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          0, 0, 0, 0, seconds, micros);
+            return TRUE;
+
+        case IDCMP_CHANGEWINDOW:
+            if (!console_raw_event_enabled(unit, IECLASS_CHANGEWINDOW)) {
+                return FALSE;
+            }
+            event_class = IECLASS_CHANGEWINDOW;
+            code = imsg->Code;
+            qualifier = imsg->Qualifier;
+            seconds = imsg->Seconds;
+            micros = imsg->Micros;
+            console_emit_raw_event_report(unit, event_class, event_subclass,
+                                          code, qualifier, 0, 0, seconds, micros);
+            return TRUE;
+
+        default:
+            return FALSE;
+    }
+
+    return FALSE;
+}
+
 /*
  * Process keyboard input from IDCMP
  * Called when reading from console to check for new input
@@ -900,12 +1636,20 @@ static void console_process_input(struct LxaConUnit *unit)
         if (imsg->Class == IDCMP_NEWSIZE) {
             console_hide_cursor(unit);
             console_update_window_geometry(unit);
+            console_handle_raw_event_message(unit, imsg);
             redraw_cursor = TRUE;
             DPRINTF(LOG_DEBUG, "_console: IDCMP_NEWSIZE -> XMax=%d YMax=%d\n",
                     unit->cu.cu_XMax, unit->cu.cu_YMax);
         } else if (imsg->Class == IDCMP_RAWKEY) {
             UWORD rawkey = imsg->Code;
             UWORD qualifier = imsg->Qualifier;
+
+            if (console_raw_event_enabled(unit, IECLASS_RAWKEY)) {
+                console_handle_raw_event_message(unit, imsg);
+                redraw_cursor = TRUE;
+                ReplyMsg((struct Message *)imsg);
+                continue;
+            }
             
             /* Only process key-down events */
             if (!(rawkey & 0x80)) {
@@ -973,6 +1717,10 @@ static void console_process_input(struct LxaConUnit *unit)
                     }
                 }
             }
+        } else if (console_handle_raw_event_message(unit, imsg)) {
+            redraw_cursor = TRUE;
+            ReplyMsg((struct Message *)imsg);
+            continue;
         }
         
         /* Reply to the message (free it) */
@@ -1006,8 +1754,10 @@ static void console_try_complete_pending_read(struct LxaConUnit *unit)
     
     /* Check if we have enough data to satisfy the read */
     if (unit->line_mode) {
-        /* In line mode, need a complete line */
-        if (!input_has_line(unit)) {
+        /* In line mode, any available buffered data may satisfy the read.
+         * A complete line is common for cooked keyboard input, but console
+         * reads also return escape/report sequences without trailing newlines. */
+        if (!input_has_line(unit) && input_buf_empty(unit)) {
             return;  /* Not ready yet */
         }
     } else {
@@ -1131,6 +1881,8 @@ static void console_write_char(struct LxaConUnit *unit, char c)
     str[0] = c;
     str[1] = '\0';
     Text(rp, (CONST_STRPTR)str, 1);
+
+    console_set_cell(unit, unit->cu.cu_YCP, unit->cu.cu_XCP, c);
     
     /* Advance cursor */
     unit->cu.cu_XCP++;
@@ -1188,6 +1940,8 @@ static void console_scroll_up(struct LxaConUnit *unit)
     /* ScrollRaster(rp, dx, dy, x1, y1, x2, y2) moves content by (dx, dy) pixels */
     /* We want to move up by one character height */
     ScrollRaster(rp, 0, unit->cu.cu_YRSize, x1, y1, x2, y2);
+    console_store_scrollback_line(unit, unit->scroll_top);
+    console_shift_visible_region_up(unit, unit->scroll_top, unit->scroll_bottom);
     
     DPRINTF(LOG_DEBUG, "_console: scroll_up() scrolled region [%d-%d] by %d pixels\n", 
             unit->scroll_top, unit->scroll_bottom, unit->cu.cu_YRSize);
@@ -1216,6 +1970,7 @@ static void console_scroll_down(struct LxaConUnit *unit)
     
     /* Scroll down by one character height (negative dy) */
     ScrollRaster(rp, 0, -unit->cu.cu_YRSize, x1, y1, x2, y2);
+    console_shift_visible_region_down(unit, unit->scroll_top, unit->scroll_bottom);
     
     DPRINTF(LOG_DEBUG, "_console: scroll_down() scrolled region [%d-%d] by %d pixels\n",
             unit->scroll_top, unit->scroll_bottom, unit->cu.cu_YRSize);
@@ -1297,6 +2052,13 @@ static void console_clear_to_eol(struct LxaConUnit *unit)
     
     SetAPen(rp, unit->cu.cu_BgPen);
     RectFill(rp, x1, y1, x2, y2);
+
+    if (unit->visible_text && unit->cu.cu_YCP >= 0 && unit->cu.cu_YCP < unit->text_rows) {
+        ULONG col;
+        for (col = unit->cu.cu_XCP; col < unit->text_cols; col++) {
+            console_set_cell(unit, unit->cu.cu_YCP, col, ' ');
+        }
+    }
 }
 
 /*
@@ -1321,6 +2083,14 @@ static void console_clear_to_bol(struct LxaConUnit *unit)
     
     SetAPen(rp, unit->cu.cu_BgPen);
     RectFill(rp, x1, y1, x2, y2);
+
+    if (unit->visible_text && unit->cu.cu_YCP >= 0 && unit->cu.cu_YCP < unit->text_rows) {
+        ULONG col;
+        ULONG limit = unit->cu.cu_XCP < unit->text_cols ? unit->cu.cu_XCP : unit->text_cols - 1;
+        for (col = 0; col <= limit; col++) {
+            console_set_cell(unit, unit->cu.cu_YCP, col, ' ');
+        }
+    }
 }
 
 /*
@@ -1345,6 +2115,10 @@ static void console_clear_line(struct LxaConUnit *unit)
     
     SetAPen(rp, unit->cu.cu_BgPen);
     RectFill(rp, x1, y1, x2, y2);
+
+    if (unit->visible_text && unit->cu.cu_YCP >= 0 && unit->cu.cu_YCP < unit->text_rows) {
+        console_clear_visible_line(unit, unit->cu.cu_YCP);
+    }
 }
 
 /*
@@ -1373,6 +2147,21 @@ static void console_clear_to_eos(struct LxaConUnit *unit)
         
         SetAPen(rp, unit->cu.cu_BgPen);
         RectFill(rp, x1, y1, x2, y2);
+    }
+
+    if (unit->visible_text) {
+        ULONG row;
+        ULONG col;
+
+        if (unit->cu.cu_YCP >= 0 && unit->cu.cu_YCP < unit->text_rows) {
+            for (col = unit->cu.cu_XCP; col < unit->text_cols; col++) {
+                console_set_cell(unit, unit->cu.cu_YCP, col, ' ');
+            }
+        }
+
+        for (row = unit->cu.cu_YCP + 1; row < unit->text_rows; row++) {
+            console_clear_visible_line(unit, row);
+        }
     }
 }
 
@@ -1403,6 +2192,14 @@ static void console_clear_to_bos(struct LxaConUnit *unit)
     
     /* Then clear from start of line to cursor */
     console_clear_to_bol(unit);
+
+    if (unit->visible_text) {
+        ULONG row;
+
+        for (row = 0; row < unit->cu.cu_YCP && row < unit->text_rows; row++) {
+            console_clear_visible_line(unit, row);
+        }
+    }
 }
 
 /*
@@ -1428,6 +2225,7 @@ static void console_insert_line(struct LxaConUnit *unit)
     /* Scroll down from cursor position to bottom */
     SetAPen(rp, unit->cu.cu_BgPen);
     ScrollRaster(rp, 0, -unit->cu.cu_YRSize, x1, y1, x2, y2);
+    console_shift_visible_region_down(unit, unit->cu.cu_YCP, unit->cu.cu_YMax);
 }
 
 /*
@@ -1453,6 +2251,7 @@ static void console_delete_line(struct LxaConUnit *unit)
     /* Scroll up from cursor position to bottom */
     SetAPen(rp, unit->cu.cu_BgPen);
     ScrollRaster(rp, 0, unit->cu.cu_YRSize, x1, y1, x2, y2);
+    console_shift_visible_region_up(unit, unit->cu.cu_YCP, unit->cu.cu_YMax);
 }
 
 /*
@@ -1522,7 +2321,13 @@ static void console_clear_display(struct LxaConUnit *unit)
     SetAPen(rp, unit->cu.cu_BgPen);
     RectFill(rp, unit->cu.cu_XROrigin, unit->cu.cu_YROrigin, 
              unit->cu.cu_XRExtant, unit->cu.cu_YRExtant);
-    
+
+    if (unit->visible_text) {
+        console_fill_chars(unit->visible_text,
+                           (ULONG)unit->text_cols * unit->text_rows,
+                           ' ');
+    }
+     
     /* Reset cursor to home */
     unit->cu.cu_XCP = 0;
     unit->cu.cu_YCP = 0;
@@ -2179,21 +2984,37 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
             break;
         }
         
-        case '{':  /* Set scrolling region (Amiga-specific) - CSI n { */
+        case '{':  /* Set Raw Events (Amiga-specific) */
         {
-            /* This sets how many lines to use for the scrolling region from the top */
-            int lines = (nparams >= 1 && params[0] > 0) ? params[0] : unit->cu.cu_YMax + 1;
-            
-            /* Clamp to screen size */
-            if (lines < 1) lines = 1;
-            if (lines > unit->cu.cu_YMax + 1) lines = unit->cu.cu_YMax + 1;
-            
-            /* Set scrolling region from top to specified line */
-            unit->scroll_top = 0;
-            unit->scroll_bottom = lines - 1;
-            
-            DPRINTF(LOG_DEBUG, "_console: Amiga scrolling region - set to %d lines (0-%d)\n",
-                    lines, unit->scroll_bottom);
+            if (nparams == 0) {
+                console_set_raw_event(unit, IECLASS_RAWKEY, TRUE);
+            } else {
+                for (int i = 0; i < nparams; i++) {
+                    if (params[i] >= 0) {
+                        console_set_raw_event(unit, (UBYTE)params[i], TRUE);
+                    }
+                }
+            }
+
+            DPRINTF(LOG_DEBUG, "_console: enabled raw event selection (%d params)\n", nparams);
+            break;
+        }
+
+        case '}':  /* Reset Raw Events (Amiga-specific) */
+        {
+            if (nparams == 0) {
+                for (int i = 0; i <= IECLASS_MAX; i++) {
+                    console_set_raw_event(unit, (UBYTE)i, FALSE);
+                }
+            } else {
+                for (int i = 0; i < nparams; i++) {
+                    if (params[i] >= 0) {
+                        console_set_raw_event(unit, (UBYTE)params[i], FALSE);
+                    }
+                }
+            }
+
+            DPRINTF(LOG_DEBUG, "_console: cleared raw event selection (%d params)\n", nparams);
             break;
         }
         
@@ -2370,10 +3191,6 @@ static struct Library * __g_lxa_console_InitDev  ( register struct Library    *d
     return dev;
 }
 
-/* IDCMP_RAWKEY constant - 1<<10 = 0x400 */
-#define IDCMP_RAWKEY_FLAG 0x0400
-#define CONSOLE_REQUIRED_IDCMP_FLAGS (IDCMP_RAWKEY_FLAG | IDCMP_NEWSIZE)
-
 static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
                                             register struct IORequest *ioreq __asm("a1"),
                                             register ULONG            unitn  __asm("d0"),
@@ -2435,17 +3252,7 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
                 break;
         }
 
-        /* Ensure the window has the IDCMP flags we need for console input/resize tracking. */
-        if ((window->IDCMPFlags & CONSOLE_REQUIRED_IDCMP_FLAGS) != CONSOLE_REQUIRED_IDCMP_FLAGS) {
-            LPRINTF(LOG_INFO, "_console: Adding console IDCMP flags to window flags 0x%08lx\n",
-                    (ULONG)window->IDCMPFlags);
-            /* Use ModifyIDCMP to add the flags - this also ensures UserPort exists */
-            struct IntuitionBase *IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
-            if (IntuitionBase) {
-                ModifyIDCMP(window, window->IDCMPFlags | CONSOLE_REQUIRED_IDCMP_FLAGS);
-                CloseLibrary((struct Library *)IntuitionBase);
-            }
-        }
+        console_update_idcmp_flags(unit);
         
         LPRINTF(LOG_INFO, "_console: Window now has IDCMPFlags=0x%08lx, UserPort=0x%08lx\n",
                 (ULONG)window->IDCMPFlags, (ULONG)window->UserPort);
@@ -2547,15 +3354,24 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 console_process_input(unit);
                 
                 /* Check if we have enough data to satisfy the request immediately */
+            if (unit->line_mode) {
+                /* In line mode, need a complete line OR existing buffer data */
+                data_available = input_has_line(unit) || !input_buf_empty(unit);
+            } else {
+                /* In raw mode, any data is enough */
+                data_available = !input_buf_empty(unit);
+            }
+
+            if (!data_available) {
+                console_process_input(unit);
                 if (unit->line_mode) {
-                    /* In line mode, need a complete line OR existing buffer data */
                     data_available = input_has_line(unit) || !input_buf_empty(unit);
                 } else {
-                    /* In raw mode, any data is enough */
                     data_available = !input_buf_empty(unit);
                 }
-                
-                if (data_available) {
+            }
+                 
+            if (data_available) {
                     /* Data is available - complete immediately */
                     console_hide_cursor(unit);
                     
@@ -2733,7 +3549,43 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 }
             }
             break;
-            
+
+        case CD_SETUPSCROLLBACK:
+            DPRINTF(LOG_DEBUG, "_console: CD_SETUPSCROLLBACK\n");
+            if (!unit) {
+                ioreq->io_Error = IOERR_BADADDRESS;
+            } else if (!iostd->io_Data || iostd->io_Length < (LONG)sizeof(struct ConsoleScrollback)) {
+                ioreq->io_Error = IOERR_BADLENGTH;
+            } else {
+                struct ConsoleScrollback *scrollback = (struct ConsoleScrollback *)iostd->io_Data;
+
+                unit->scrollback_gadget = scrollback->cs_ScrollerGadget;
+                unit->scrollback_max_lines = scrollback->cs_NumLines;
+                console_sync_text_geometry(unit);
+                ioreq->io_Error = 0;
+                iostd->io_Actual = sizeof(struct ConsoleScrollback);
+            }
+            break;
+
+        case CD_SETSCROLLBACKPOSITION:
+            DPRINTF(LOG_DEBUG, "_console: CD_SETSCROLLBACKPOSITION offset=%lu\n", iostd->io_Offset);
+            if (!unit) {
+                ioreq->io_Error = IOERR_BADADDRESS;
+            } else {
+                unit->scrollback_position = iostd->io_Offset;
+                console_clamp_scrollback_position(unit);
+                console_refresh_scrollback_view(unit);
+                ioreq->io_Error = 0;
+                iostd->io_Actual = unit->scrollback_position;
+            }
+            break;
+
+        case CMD_UPDATE:
+            if (unit && unit->cu.cu_Window) {
+                console_process_input(unit);
+            }
+            break;
+             
         default:
             /* Unknown or unimplemented command */
             DPRINTF (LOG_DEBUG, "_console: BeginIO unknown cmd=%d\n", ioreq->io_Command);

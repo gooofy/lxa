@@ -381,6 +381,12 @@ static BOOL get_window_bounds(int *rows, int *cols)
     return FALSE;
 }
 
+static void con_update(void)
+{
+    con_io->io_Command = CMD_UPDATE;
+    DoIO((struct IORequest *)con_io);
+}
+
 /*
  * Test: Cursor starts at home position
  */
@@ -642,6 +648,11 @@ static void test_window_resize_updates_console(void)
     }
 
     SizeWindow(test_win, 80, 40);
+    con_update();
+    WaitTOF();
+    WaitTOF();
+    Delay(2);
+    con_update();
     WaitTOF();
     WaitTOF();
 
