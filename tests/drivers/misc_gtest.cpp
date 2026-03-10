@@ -9,7 +9,7 @@
 
 using namespace lxa::testing;
 
-class MiscTest : public LxaTest {
+class MiscTest : public LxaWindowTest {
 protected:
     void SetUp() override {
         LxaTest::SetUp();
@@ -69,6 +69,46 @@ TEST_F(MiscTest, AslFileRequest) {
 
 TEST_F(MiscTest, AslScreenModeRequest) {
     RunMiscTest("asl", "screenmoderequest");
+}
+
+TEST_F(MiscTest, UtilityTagItems) {
+    RunMiscTest("Utility", "TagItems");
+}
+
+TEST_F(MiscTest, AslFontRequestVarargs) {
+    RunProgram("SYS:FontReq", "", 5000);
+
+    ASSERT_TRUE(WaitForWindows(1, 5000))
+        << "Font requester did not open within 5 seconds";
+
+    lxa_window_info_t window_info;
+    ASSERT_TRUE(GetWindowInfo(0, &window_info))
+        << "Could not get font requester window info";
+
+    for (int i = 0; i < 100; i++) {
+        RunCycles(10000);
+    }
+    RunCyclesWithVBlank(20, 50000);
+
+    int cancel_x = window_info.x + window_info.width - 8 - 60 + 30;
+    int cancel_y = window_info.y + window_info.height - 20 - 14 + 7;
+
+    Click(cancel_x, cancel_y);
+    RunCyclesWithVBlank(20, 50000);
+
+    bool exited = lxa_wait_exit(5000);
+    if (!exited) {
+        Click(window_info.x + 10, window_info.y + 5);
+        exited = lxa_wait_exit(3000);
+    }
+
+    EXPECT_TRUE(exited) << "FontReq should exit after Cancel button";
+
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("AllocAslRequest succeeded"), std::string::npos)
+        << output;
+    EXPECT_NE(output.find("User cancelled"), std::string::npos)
+        << output;
 }
 
 TEST_F(MiscTest, StressFilesystem) {

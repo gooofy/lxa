@@ -31,10 +31,20 @@ extern struct ExecBase      *SysBase;
 // baseType: struct UtilityBase *
 // libname: utility.library
 
+struct LXAUtilityBase
+{
+    struct UtilityBase utility_base;
+    ULONG              last_id;
+};
+
 struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *utilityb __asm("d0"),
                                                   register BPTR                seglist  __asm("a0"),
                                                   register struct ExecBase    *sysb     __asm("a6"))
 {
+    (void)seglist;
+    (void)sysb;
+
+    ((struct LXAUtilityBase *)utilityb)->last_id = 0;
     DPRINTF (LOG_DEBUG, "_utility: WARNING: InitLib() unimplemented STUB called.\n");
     return utilityb;
 }
@@ -153,8 +163,30 @@ static VOID _utility_MapTags ( register struct UtilityBase * UtilityBase __asm("
                                                         register const struct TagItem * mapList __asm("a1"),
                                                         register ULONG mapType __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: MapTags() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct TagItem *tag;
+    struct TagItem *map;
+    struct TagItem *state;
+
+    DPRINTF (LOG_DEBUG, "_utility: MapTags() called.\n");
+
+    (void)UtilityBase;
+
+    state = tagList;
+
+    while ((tag = NextTagItem(&state)))
+    {
+        if (mapList && (map = FindTagItem(tag->ti_Tag, mapList)))
+        {
+            if (map->ti_Data == TAG_DONE)
+                tag->ti_Tag = TAG_IGNORE;
+            else
+                tag->ti_Tag = (ULONG)map->ti_Data;
+        }
+        else if (mapType == MAP_REMOVE_NOT_FOUND)
+        {
+            tag->ti_Tag = TAG_IGNORE;
+        }
+    }
 }
 
 /*
@@ -198,8 +230,10 @@ static struct TagItem * _utility_CloneTagItems ( register struct UtilityBase * U
 {
     DPRINTF (LOG_DEBUG, "_utility: CloneTagItems() called, tagList=0x%08lx\n", (ULONG)tagList);
 
+    (void)UtilityBase;
+
     if (!tagList)
-        return NULL;
+        return AllocateTagItems(1);
 
     /* First pass: count the tags */
     ULONG count = 0;
@@ -263,8 +297,17 @@ static VOID _utility_RefreshTagItemClones ( register struct UtilityBase * Utilit
 {
     DPRINTF (LOG_DEBUG, "_utility: RefreshTagItemClones() called\n");
 
-    if (!clone || !original)
+    (void)UtilityBase;
+
+    if (!clone)
         return;
+
+    if (!original)
+    {
+        clone->ti_Tag = TAG_DONE;
+        clone->ti_Data = 0;
+        return;
+    }
 
     struct TagItem *cstate = clone;
     struct TagItem *ostate = (struct TagItem *)original;
@@ -319,7 +362,9 @@ static ULONG _utility_FilterTagItems ( register struct UtilityBase * UtilityBase
 {
     DPRINTF (LOG_DEBUG, "_utility: FilterTagItems() called, logic=%lu\n", logic);
 
-    if (!tagList)
+    (void)UtilityBase;
+
+    if (!tagList || !filterArray)
         return 0;
 
     ULONG count = 0;
@@ -353,10 +398,12 @@ static ULONG _utility_FilterTagItems ( register struct UtilityBase * UtilityBase
         BOOL in_array = filterArray ? TagInArray(tstate->ti_Tag, filterArray) : FALSE;
         BOOL keep;
 
-        if (logic == 0)  /* TAGFILTER_AND */
+        if (logic == TAGFILTER_AND)
             keep = in_array;
-        else  /* TAGFILTER_NOT */
+        else if (logic == TAGFILTER_NOT)
             keep = !in_array;
+        else
+            keep = TRUE;
 
         if (keep)
         {
@@ -916,9 +963,16 @@ static VOID _utility_RemNamedObject ( register struct UtilityBase * UtilityBase 
 
 static ULONG _utility_GetUniqueID ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_utility: GetUniqueID() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    ULONG ret;
+    struct LXAUtilityBase *base = (struct LXAUtilityBase *)UtilityBase;
+
+    DPRINTF (LOG_DEBUG, "_utility: GetUniqueID() called.\n");
+
+    Disable();
+    ret = ++base->last_id;
+    Enable();
+
+    return ret;
 }
 
 static VOID _utility_private3 ( register struct UtilityBase * UtilityBase __asm("a6"))
@@ -980,7 +1034,7 @@ struct Resident *__lxa_utility_ROMTag = &ROMTag;
 
 struct InitTable __g_lxa_utility_InitTab =
 {
-    (ULONG)               sizeof(struct UtilityBase),   // LibBaseSize
+    (ULONG)               sizeof(struct LXAUtilityBase), // LibBaseSize
     (APTR              *) &__g_lxa_utility_FuncTab[0],  // FunctionTable
     (APTR)                &__g_lxa_utility_DataTab,     // DataTable
     (APTR)                __g_lxa_utility_InitLib       // InitLibFn
@@ -1050,4 +1104,3 @@ struct MyDataInit __g_lxa_utility_DataTab =
     /* lib_IdString */ 0x80, (UBYTE) (ULONG) OFFSET(Library, lib_IdString), (ULONG) &_g_utility_ExLibID[0],
     (ULONG) 0
 };
-

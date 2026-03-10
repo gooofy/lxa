@@ -20,7 +20,6 @@ struct Library *AslBase = NULL;
 int main(void)
 {
     struct FileRequester *fr;
-    struct TagItem tags[8];
     
     printf("ASL FileRequester Test\n");
     printf("======================\n\n");
@@ -52,23 +51,16 @@ int main(void)
     /* Test 3: Allocation with tags */
     printf("\nTest 3: AllocAslRequest with tags...\n");
     
-    tags[0].ti_Tag = ASLFR_TitleText;
-    tags[0].ti_Data = (ULONG)"Select a File";
-    tags[1].ti_Tag = ASLFR_InitialDrawer;
-    tags[1].ti_Data = (ULONG)"SYS:";
-    tags[2].ti_Tag = ASLFR_InitialFile;
-    tags[2].ti_Data = (ULONG)"test.txt";
-    tags[3].ti_Tag = ASLFR_InitialLeftEdge;
-    tags[3].ti_Data = 50;
-    tags[4].ti_Tag = ASLFR_InitialTopEdge;
-    tags[4].ti_Data = 30;
-    tags[5].ti_Tag = ASLFR_InitialWidth;
-    tags[5].ti_Data = 320;
-    tags[6].ti_Tag = ASLFR_InitialHeight;
-    tags[6].ti_Data = 200;
-    tags[7].ti_Tag = TAG_DONE;
-    
-    fr = (struct FileRequester *)AllocAslRequest(ASL_FileRequest, tags);
+    fr = (struct FileRequester *)AllocAslRequestTags(
+        ASL_FileRequest,
+        ASLFR_TitleText, (ULONG)"Select a File",
+        ASLFR_InitialDrawer, (ULONG)"SYS:",
+        ASLFR_InitialFile, (ULONG)"test.txt",
+        ASLFR_InitialLeftEdge, 50,
+        ASLFR_InitialTopEdge, 30,
+        ASLFR_InitialWidth, 320,
+        ASLFR_InitialHeight, 200,
+        TAG_DONE);
     
     if (!fr) {
         printf("FAIL: AllocAslRequest with tags returned NULL\n");

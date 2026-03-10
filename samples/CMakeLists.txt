@@ -257,6 +257,7 @@ set(TESTS_LIST
     "../tests/exec/exec_misc|main|Tests/Exec/ExecMisc"
     "../tests/asl/filerequest|main|Tests/asl/filerequest"
     "../tests/asl/screenmoderequest|main|Tests/asl/screenmoderequest"
+    "../tests/utility/tagitems|main|Tests/Utility/TagItems"
 )
 
 # === Copy Test Data Files ===

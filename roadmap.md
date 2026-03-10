@@ -492,10 +492,10 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 #### 78-G: ASL Library (`src/rom/lxa_asl.c` vs `others/AROS-20231016-source/rom/compiler/alib/`)
 
-Status: core requester allocation and modal execution now cover file, font, and screen mode requesters in 0.6.117, including direct GTest/sample regression coverage for `fr_ArgList`, `fo_TAttr`, and basic screen-mode selection.
+Status: core requester allocation and modal execution now cover file, font, and screen mode requesters in 0.6.119, including direct GTest/sample regression coverage for `fr_ArgList`, `fo_TAttr`, basic screen-mode selection, and the public `AllocAslRequestTags()` / `AslRequestTags()` varargs helpers.
 
 - [x] `AllocAslRequest` / `FreeAslRequest` — ASL_FileRequest, ASL_FontRequest, ASL_ScreenModeRequest
-- [ ] `AslRequestTags` / `AslRequest` — run modal requester, return TRUE/FALSE; plain `AslRequest()` is covered, varargs helper status still needs explicit verification against the public alib surface
+- [x] `AslRequestTags` / `AslRequest` — run modal requester, return TRUE/FALSE; direct file/font/screen-mode regressions now verify the public varargs helper surface against the bundled NDK alib definitions (v0.6.119)
 - [x] FileRequester tags: ASLFR_Window, ASLFR_TitleText, ASLFR_InitialFile, ASLFR_InitialDrawer, ASLFR_InitialPattern, ASLFR_Flags1 (FRF_DOSAVEMODE, FRF_DOMULTISELECT, FRF_DOPATTERNS)
 - [x] FontRequester tags: ASLFO_Window, ASLFO_TitleText, ASLFO_InitialName, ASLFO_InitialSize, ASLFO_InitialStyle, ASLFO_Flags (FOF_DOFIXEDWIDTHONLY, FOF_DOSTYLEBUTTONS)
 - [x] ScreenMode requester tags — initial mode/size/depth filters, title/buttons, and modal selection/cancel flow
@@ -504,29 +504,29 @@ Status: core requester allocation and modal execution now cover file, font, and 
 
 ##### 78-G-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible — remaining follow-up is mainly varargs/alib helper verification and broader ScreenMode requester option coverage
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — remaining follow-up is broader ScreenMode requester option coverage beyond the current modal/file/font/screen-mode helper surface
+- [x] Architecture review: requester varargs entry points intentionally reuse the core taglist implementation paths (`AllocAslRequest` / `AslRequest`) via the public pragma/inline ABI, so no extra hosted dispatch layer is needed; broader ASL/private requester architecture follow-ups remain out of scope until more tags and hooks land, with no new Phase 79 item required in the meantime (v0.6.119)
+- [x] Performance review: the public varargs helper path is compiler-side stack/tag marshalling into the existing taglist entry points, so there is no distinct runtime hot path to optimize beyond the current requester implementations; no new Phase 79 item is required for this verification-only pass (v0.6.119)
 
 ---
 
 #### 78-H: Utility Library (`src/rom/lxa_utility.c` vs `others/AROS-20231016-source/rom/utility/`)
 
-- [ ] `FindTagItem` — scan TagList for tag; handle TAG_MORE, TAG_SKIP, TAG_IGNORE, TAG_END
-- [ ] `GetTagData` — return ti_Data or default
+- [x] `FindTagItem` — scan TagList for tag; handle TAG_MORE, TAG_SKIP, TAG_IGNORE, TAG_END
+- [x] `GetTagData` — return ti_Data or default
 - [ ] `TagInArray` — check if tag present in array
 - [ ] `FilterTagItems` — remove non-listed tags
-- [ ] `MapTags` — remap tag values
-- [ ] `AllocateTagItems` / `FreeTagItems` / `CloneTagItems`
-- [ ] `RefreshTagItemClones`
-- [ ] `NextTagItem` — iterate with state pointer
-- [ ] `CallHookPkt` — invoke Hook with A0=hook, A2=object, A1=message
+- [x] `MapTags` — remap tag values
+- [x] `AllocateTagItems` / `FreeTagItems` / `CloneTagItems`
+- [x] `RefreshTagItemClones`
+- [x] `NextTagItem` — iterate with state pointer
+- [x] `CallHookPkt` — invoke Hook with A0=hook, A2=object, A1=message
 - [ ] `HookEntry` — assembly trampoline (hook calling convention)
 - [ ] `CheckDate` / `Amiga2Date` / `Date2Amiga` — struct ClockData ↔ seconds-since-epoch
 - [ ] `SMult32` / `UMult32` / `SDivMod32` / `UDivMod32` — 32-bit multiply/divide
 - [ ] `PackStructureTags` / `UnpackStructureTags` — TagItem ↔ struct mapping via PackTable
 - [ ] `NamedObjectA` / `AllocNamedObjectA` / `FreeNamedObject` / `AddNamedObject` / `RemNamedObject` / `FindNamedObject`
-- [ ] `GetUniqueID`
+- [x] `GetUniqueID`
 - [ ] `MakeDosPatternA` / `MatchDosPatternA`
 
 ##### 78-H-2: Review
@@ -946,4 +946,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-D Review**: Layers review pass completed; backdrop-layer z-order/immutability semantics now match the documented RKRM surface with direct layers regression coverage, and remaining architecture/performance follow-ups are tracked in Phase 79.
 - **Phase 78-E Review**: Intuition review pass advanced; `NextObject()`, `WBenchToFront()`, and `WBenchToBack()` now match the documented public behavior with BOOPSI/screen-order regression coverage, and the remaining intuition architecture/performance follow-ups are tracked in Phase 79.
 - **Phase 78-F Review**: GadTools review pass completed; menu creation/layout helpers plus message/refresh wrappers now have hosted compatibility implementations with direct regression coverage, and the remaining GadTools architecture/performance follow-ups are tracked in Phase 79.
+- **Phase 78-G Review**: ASL review advanced; the public `AllocAslRequestTags()` / `AslRequestTags()` varargs surface is now verified across file, font, and screen mode requester flows, and the remaining ASL follow-up is broader ScreenMode option coverage (v0.6.119).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.

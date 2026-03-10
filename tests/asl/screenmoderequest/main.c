@@ -15,7 +15,6 @@ struct Library *AslBase = NULL;
 int main(void)
 {
     struct ScreenModeRequester *sm;
-    struct TagItem tags[6];
 
     printf("ASL ScreenModeRequester Test\n");
     printf("============================\n\n");
@@ -42,19 +41,14 @@ int main(void)
     printf("  Depth: %u\n", sm->sm_DisplayDepth);
     FreeAslRequest(sm);
 
-    tags[0].ti_Tag = ASLSM_TitleText;
-    tags[0].ti_Data = (ULONG)"Pick a mode";
-    tags[1].ti_Tag = ASLSM_InitialDisplayID;
-    tags[1].ti_Data = PAL_MONITOR_ID | HIRES_KEY;
-    tags[2].ti_Tag = ASLSM_MinWidth;
-    tags[2].ti_Data = 640;
-    tags[3].ti_Tag = ASLSM_MinHeight;
-    tags[3].ti_Data = 200;
-    tags[4].ti_Tag = ASLSM_MinDepth;
-    tags[4].ti_Data = 4;
-    tags[5].ti_Tag = TAG_DONE;
-
-    sm = (struct ScreenModeRequester *)AllocAslRequest(ASL_ScreenModeRequest, tags);
+    sm = (struct ScreenModeRequester *)AllocAslRequestTags(
+        ASL_ScreenModeRequest,
+        ASLSM_TitleText, (ULONG)"Pick a mode",
+        ASLSM_InitialDisplayID, PAL_MONITOR_ID | HIRES_KEY,
+        ASLSM_MinWidth, 640,
+        ASLSM_MinHeight, 200,
+        ASLSM_MinDepth, 4,
+        TAG_DONE);
     if (!sm) {
         printf("FAIL: Tagged AllocAslRequest returned NULL\n");
         CloseLibrary(AslBase);

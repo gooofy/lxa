@@ -169,11 +169,11 @@ lxa -d -v myprogram
 
 - **exec.library**: Memory management, multitasking, signals, messages
 - **dos.library**: File I/O, locks, directories, processes, pattern matching (including `(a|b)` alternation), `SetFileSize`, `SetFileDate`, `ExAll`, `MakeLink`, `ReadLink`, `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, `GetSegListInfo`, CON:/RAW: handler, assign-backed `DeviceProc()`/`GetDeviceProc()` coverage
-- **utility.library**: Tag lists, hooks, utility functions
+- **utility.library**: Tag lists, hooks, utility functions including direct regression coverage for tag-list cloning/filtering/mapping, hook dispatch, and unique ID generation
 - **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill, ScrollRaster, AreaFill, pixel arrays), palette/pen matching coverage via `ObtainPen()`/`ObtainBestPenA()` regressions
 - **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
 - **gadtools.library**: GadTools gadgets (buttons, strings, checkboxes, cycles, sliders, MX), menu layout helpers, and IDCMP/refresh wrapper coverage
-- **asl.library**: File, font, and screen mode requesters
+- **asl.library**: File, font, and screen mode requesters, including public `AllocAslRequestTags()`/`AslRequestTags()` varargs entry-point coverage
 - **locale.library**: Locale management, FormatDate, FormatString, ParseDate
 - **diskfont.library**: Font loading from FONTS: directory (bitmap .font files)
 - **mathieeesingbas.library**: IEEE single-precision basic math (12 functions)
@@ -216,7 +216,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.117** - Phase 78-G now covers ASL screen mode requester allocation/selection plus richer file/font requester metadata (`fr_ArgList`, `fo_TAttr`) with direct regression coverage in the Google Test suite
+**Version 0.6.120** - Phase 78-H now verifies the core `utility.library` tag-list helpers (`FindTagItem()`, `GetTagData()`, `NextTagItem()`, `AllocateTagItems()`, `CloneTagItems()`, `RefreshTagItemClones()`, `TagInArray()`, `FilterTagItems()`, `MapTags()`), `CallHookPkt()`, and `GetUniqueID()` with direct regression coverage in the misc Google Test suite and m68k test program
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

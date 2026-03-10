@@ -16,13 +16,6 @@ struct Library *AslBase = NULL;
 void main(int argc, char **argv)
 {
     struct ScreenModeRequester *sm;
-    struct TagItem tags[] = {
-        { ASLSM_TitleText, (ULONG)"Select Screen Mode" },
-        { ASLSM_InitialDisplayID, PAL_MONITOR_ID | HIRES_KEY },
-        { ASLSM_MinWidth, 320 },
-        { ASLSM_MinHeight, 200 },
-        { TAG_DONE, 0 }
-    };
 
     printf("ScreenModeReq: Starting ASL ScreenMode requester demo\n");
 
@@ -35,7 +28,13 @@ void main(int argc, char **argv)
 
     printf("ScreenModeReq: Opened asl.library v%d\n", AslBase->lib_Version);
 
-    sm = (struct ScreenModeRequester *)AllocAslRequest(ASL_ScreenModeRequest, tags);
+    sm = (struct ScreenModeRequester *)AllocAslRequestTags(
+        ASL_ScreenModeRequest,
+        ASLSM_TitleText, (ULONG)"Select Screen Mode",
+        ASLSM_InitialDisplayID, PAL_MONITOR_ID | HIRES_KEY,
+        ASLSM_MinWidth, 320,
+        ASLSM_MinHeight, 200,
+        TAG_DONE);
     if (sm == NULL)
     {
         printf("ScreenModeReq: AllocAslRequest failed\n");
@@ -45,7 +44,11 @@ void main(int argc, char **argv)
 
     printf("ScreenModeReq: AllocAslRequest succeeded\n");
 
-    if (AslRequest(sm, NULL))
+    if (AslRequestTags(sm,
+        ASLSM_TitleText, (ULONG)"Select Screen Mode",
+        ASLSM_MinWidth, 320,
+        ASLSM_MinHeight, 200,
+        TAG_DONE))
     {
         printf("ScreenModeReq: User selected mode\n");
         printf("ScreenModeReq: DisplayID=0x%08lx\n", sm->sm_DisplayID);
