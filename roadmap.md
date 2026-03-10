@@ -588,17 +588,17 @@ Status: complete in 0.6.124.
 
 #### 78-K: Keymap Library (`src/rom/lxa_keymap.c` vs `others/AROS-20231016-source/rom/keymap/`)
 
-- [ ] `SetKeyMap` / `AskKeyMapDefault`
-- [ ] `MapANSI` — convert ANSI string to rawkey+qualifier sequence
-- [ ] `MapRawKey` — rawkey+qualifier+keymap → character(s); qualifier processing (shift, alt, ctrl)
-- [ ] `KeyMap` structure — km_LoKeyMap/km_LoKeyMapTypes/km_HiKeyMap/km_HiKeyMapTypes; KCF_* type flags
-- [ ] Dead-key sequences (diaeresis, accent, tilde)
+- [x] `SetKeyMapDefault` / `AskKeyMapDefault` — default-pointer update semantics now match the public RKRM/AROS contract, including explicit NULL installs for callers that temporarily clear the default (v0.7.1)
+- [x] `MapANSI` — convert ANSI string to rawkey+qualifier sequence, including string-descriptor lookup, control translation, overflow reporting, and dead-key prefix emission (v0.7.1)
+- [x] `MapRawKey` — rawkey+qualifier+keymap → character(s); qualifier processing (shift, alt, ctrl), string descriptors, key-up filtering, and dead/deadable translation now have direct regression coverage (v0.7.1)
+- [x] `KeyMap` structure — km_LoKeyMap/km_LoKeyMapTypes/km_HiKeyMap/km_HiKeyMapTypes plus the remaining public pointer fields are now verified by direct struct-offset coverage (v0.7.1)
+- [x] Dead-key sequences (diaeresis, accent, tilde) — hosted keymap translation now implements the public `DPF_DEAD` / `DPF_MOD` path, including prior-key state for deadable output (v0.7.1)
 
 ##### 78-K-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — `MapANSI()` is no longer a stub, `MapRawKey()` now covers the documented dead-key path, and direct exec regressions lock the public keymap surface against the bundled RKRM/AROS behavior (v0.7.1)
+- [x] Architecture review: keymap translation still duplicates AROS-style descriptor scanning and dead-key bookkeeping inline inside `lxa_keymap.c`; Phase 79 now tracks factoring descriptor lookup and dead-key metadata discovery behind shared private helpers before alternate keymaps or console-side overrides expand further (v0.7.1)
+- [x] Performance review: `MapANSI()` still rescans both keymap halves to rediscover dead-key metadata and candidate matches on every call; Phase 79 now tracks caching descriptor/dead-key indexes per installed keymap so repeated conversions avoid full linear scans (v0.7.1)
 
 
 
@@ -932,6 +932,8 @@ Status: complete in 0.6.124.
 - [ ] GadTools performance: skip redundant `GT_RefreshWindow()` full-list redraws when attribute updates can identify a single affected gadget or requester subtree
 - [ ] Utility performance: add optional accelerated name lookup for large shared namespaces so repeated `FindNamedObject()` scans do not remain purely linear as more hosted subsystems start sharing named objects
 - [ ] Locale performance: add indexed catalog-string lookup and reusable collation transform caches so repeated `GetCatalogStr()` / `StrnCmp()` / `StrConvert()` calls avoid linear entry scans and repeated ASCII folding work
+- [ ] Keymap architecture: factor descriptor lookup, qualifier decoding, and dead-key bookkeeping behind shared private helpers so `MapRawKey()` and `MapANSI()` cannot drift as alternate keymaps or console-side overrides grow
+- [ ] Keymap performance: cache per-keymap dead-key indexes and descriptor search metadata so repeated `MapANSI()` conversions avoid rescanning both keymap halves on every call
 - [ ] IFFParse performance: avoid repeated full context-stack LCI scans during `ParseIFF()` by separating declaration indexes from stored items and caching active stop/property/collection matches per context
 
 
@@ -959,4 +961,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-H**: utility.library is now fully closed for this roadmap phase: `HookEntry`-driven hook dispatch is verified against the NDK `amiga.lib` contract, the named-object namespace regressions lock duplicate handling, enumeration, removal holds, and reply semantics, and the old DOS-pattern follow-up is retired after confirming it is not part of the public `utility.library` surface in the bundled NDK/AROS references (v0.6.124).
 - **Phase 78-I**: locale.library now closes the remaining public V38 surface tracked for this phase: named/default locale opens, on-disk `.catalog` loading from `PROGDIR:` / `LOCALE:`, catalog/default string lookup, character classification and case conversion, and `StrConvert()` / `StrnCmp()` collation coverage are all exercised by direct exec regressions alongside the existing `FormatDate()` / `FormatString()` / `ParseDate()` tests (v0.7.0).
 - **Phase 78-J**: iffparse.library now covers the tracked V36 parser surface for hosted use: chunk allocation/open/close, RAWSTEP/STEP/SCAN traversal, stop conditions, entry/exit handlers, property/collection storage, write-mode chunk construction, record/byte I/O helpers, context queries, and clipboard-backed IFF streams are exercised by the direct iffparse regression plus the full green suite; the remaining Phase 79 work is structural/performance cleanup inside `lxa_iffparse.c` rather than missing public APIs.
-- **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.
+- **Phase 78-K**: keymap.library now closes the tracked public keymap surface for this phase: default-keymap query/update semantics, `MapRawKey()` qualifier/string/dead-key translation, `MapANSI()` rawkey encoding, and `KeyMap` structure layout all have direct regression coverage via `Tests/Exec/Keymap` and `Tests/Exec/StructOffsets` (v0.7.1).
+- **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 633 assertions passing, now including `KeyMap` layout coverage.

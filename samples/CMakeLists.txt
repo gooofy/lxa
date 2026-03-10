@@ -251,6 +251,7 @@ set(TESTS_LIST
     "../tests/apps/kickpascal2|main|Tests/Apps/KickPascal2"
     "../tests/exec/mathieeesingbas|main|Tests/Exec/MathIeeeSingBas"
     "../tests/exec/locale|main|Tests/Exec/Locale"
+    "../tests/exec/keymap|main|Tests/Exec/Keymap"
     "../tests/devices/trackdisk|main|Tests/Devices/Trackdisk"
     "../tests/devices/audio|main|Tests/Devices/Audio"
     "../tests/exec/struct_offsets|main|Tests/Exec/StructOffsets"

@@ -35,6 +35,7 @@
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
 #include <intuition/screens.h>
+#include <libraries/keymap.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <inline/exec.h>
@@ -977,6 +978,21 @@ static void test_intuimessage(void)
     CHECK_OFFSET(IntuiMessage, SpecialLink, 48);
 }
 
+static void test_keymap(void)
+{
+    print("--- KeyMap ---\n");
+
+    CHECK_SIZEOF(KeyMap, 32);
+    CHECK_OFFSET(KeyMap, km_LoKeyMapTypes, 0);
+    CHECK_OFFSET(KeyMap, km_LoKeyMap, 4);
+    CHECK_OFFSET(KeyMap, km_LoCapsable, 8);
+    CHECK_OFFSET(KeyMap, km_LoRepeatable, 12);
+    CHECK_OFFSET(KeyMap, km_HiKeyMapTypes, 16);
+    CHECK_OFFSET(KeyMap, km_HiKeyMap, 20);
+    CHECK_OFFSET(KeyMap, km_HiCapsable, 24);
+    CHECK_OFFSET(KeyMap, km_HiRepeatable, 28);
+}
+
 static void test_window(void)
 {
     print("--- Window ---\n");
@@ -1086,6 +1102,7 @@ int main(void)
     test_image();
     test_intuimessage();
     test_window();
+    test_keymap();
 
     /* Summary */
     print("\n==================================\n");

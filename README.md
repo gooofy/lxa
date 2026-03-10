@@ -175,6 +175,7 @@ lxa -d -v myprogram
 - **gadtools.library**: GadTools gadgets (buttons, strings, checkboxes, cycles, sliders, MX), menu layout helpers, and IDCMP/refresh wrapper coverage
 - **asl.library**: File, font, and screen mode requesters, including public `AllocAslRequestTags()`/`AslRequestTags()` varargs entry-point coverage
 - **locale.library**: Locale management, `.catalog` loading and lookup, character classification/case conversion, `StrConvert`/`StrnCmp`, FormatDate, FormatString, ParseDate
+- **keymap.library**: Default-keymap queries/updates plus `MapRawKey()` / `MapANSI()` translation coverage, including dead-key and string-sequence handling
 - **diskfont.library**: Font loading from FONTS: directory (bitmap .font files)
 - **mathieeesingbas.library**: IEEE single-precision basic math (12 functions)
 - **mathieeedoubbas.library**: IEEE double-precision basic math (12 functions)
@@ -216,7 +217,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.124** - Phase 78-H is now closed: utility-library coverage keeps the `HookEntry`/`h_SubEntry` contract and named-object namespace semantics locked down, and the leftover DOS-pattern note was retired after confirming those APIs are not part of the bundled public `utility.library` surface
+**Version 0.7.1** - Phase 78-K is now closed: `keymap.library` now covers default-keymap updates plus `MapRawKey()` / `MapANSI()` translation paths with direct exec regression coverage for dead keys, control translation, and string descriptors
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

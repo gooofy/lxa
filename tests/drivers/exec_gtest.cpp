@@ -89,6 +89,10 @@ TEST_F(ExecTest, Locale) {
     RunExecTest("Locale");
 }
 
+TEST_F(ExecTest, Keymap) {
+    RunExecTest("Keymap");
+}
+
 TEST_F(ExecTest, StructOffsets) {
     RunExecTest("StructOffsets");
 }
