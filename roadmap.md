@@ -512,6 +512,8 @@ Status: core requester allocation and modal execution now cover file, font, and 
 
 #### 78-H: Utility Library (`src/rom/lxa_utility.c` vs `others/AROS-20231016-source/rom/utility/`)
 
+Status: complete in 0.6.124.
+
 - [x] `FindTagItem` — scan TagList for tag; handle TAG_MORE, TAG_SKIP, TAG_IGNORE, TAG_END
 - [x] `GetTagData` — return ti_Data or default
 - [x] `TagInArray` — check if tag present in array
@@ -521,17 +523,17 @@ Status: core requester allocation and modal execution now cover file, font, and 
 - [x] `RefreshTagItemClones`
 - [x] `NextTagItem` — iterate with state pointer
 - [x] `CallHookPkt` — invoke Hook with A0=hook, A2=object, A1=message
-- [ ] `HookEntry` — assembly trampoline (hook calling convention)
+- [x] `HookEntry` — verified against NDK `amiga.lib` semantics via direct `utility/tagitems` regression coverage; `CallHookPkt()` now explicitly exercises the public `HookEntry`/`h_SubEntry` path instead of a test-local shim (v0.6.123)
 - [x] `CheckDate` / `Amiga2Date` / `Date2Amiga` — struct ClockData ↔ seconds-since-epoch
 - [x] `SMult32` / `UMult32` / `SDivMod32` / `UDivMod32` — 32-bit multiply/divide
 - [x] `PackStructureTags` / `UnpackStructureTags` — TagItem ↔ struct mapping via PackTable
 - [x] `NamedObjectA` / `AllocNamedObjectA` / `FreeNamedObject` / `AddNamedObject` / `RemNamedObject` / `FindNamedObject` — root and nested namespace allocation, duplicate-name rejection, case-insensitive lookup, removal/reply semantics, and user-space allocation now have direct regression coverage (v0.6.122)
 - [x] `GetUniqueID`
-- [ ] `MakeDosPatternA` / `MatchDosPatternA`
+- [x] `MakeDosPatternA` / `MatchDosPatternA` — verified out of scope for `utility.library` after checking the bundled NDK 3.2 public utility surface (`Autodocs/utility.md`, `FD/utility_lib.fd`, `Include_H/clib/utility_protos.h`) and the bundled AROS utility sources; no exported `utility.library` API with these names exists, and DOS pattern support remains tracked under `dos.library` `ParsePattern*()` / `MatchPattern*()` coverage (v0.6.124)
 
 ##### 78-H-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
+- [x] Implement missing functions and stubs as far as possible — `HookEntry` is now verified as an `amiga.lib` companion surface used by utility hooks, and the remaining DOS-pattern follow-up was closed by confirming `MakeDosPatternA()` / `MatchDosPatternA()` are not part of the public `utility.library` surface tracked by the bundled NDK/AROS references (v0.6.124)
 - [x] Architecture review: utility named objects still duplicate private namespace/list plumbing inside `lxa_utility.c`; Phase 79 now tracks factoring that internal bookkeeping behind shared helpers before `HookEntry`/DOS-pattern follow-up work extends the library further (v0.6.122)
 - [x] Performance review: utility namespace lookup now has coverage, and Phase 79 now tracks adding optional name-lookup acceleration so larger shared namespaces do not stay on linear scans forever (v0.6.122)
 
@@ -949,5 +951,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-E Review**: Intuition review pass advanced; `NextObject()`, `WBenchToFront()`, and `WBenchToBack()` now match the documented public behavior with BOOPSI/screen-order regression coverage, and the remaining intuition architecture/performance follow-ups are tracked in Phase 79.
 - **Phase 78-F Review**: GadTools review pass completed; menu creation/layout helpers plus message/refresh wrappers now have hosted compatibility implementations with direct regression coverage, and the remaining GadTools architecture/performance follow-ups are tracked in Phase 79.
 - **Phase 78-G Review**: ASL review advanced; the public `AllocAslRequestTags()` / `AslRequestTags()` varargs surface is now verified across file, font, and screen mode requester flows, and the remaining ASL follow-up is broader ScreenMode option coverage (v0.6.119).
-- **Phase 78-H**: utility.library now covers the public named-object namespace helpers (`AllocNamedObjectA()`, `AddNamedObject()`, `FindNamedObject()`, `AttemptRemNamedObject()`, `RemNamedObject()`, `ReleaseNamedObject()`, `FreeNamedObject()`, `NamedObjectName()`) with direct regression coverage for duplicate handling, removal replies, and user-space allocation (v0.6.122).
+- **Phase 78-H**: utility.library is now fully closed for this roadmap phase: `HookEntry`-driven hook dispatch is verified against the NDK `amiga.lib` contract, the named-object namespace regressions lock duplicate handling, enumeration, removal holds, and reply semantics, and the old DOS-pattern follow-up is retired after confirming it is not part of the public `utility.library` surface in the bundled NDK/AROS references (v0.6.124).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 460 assertions passing.

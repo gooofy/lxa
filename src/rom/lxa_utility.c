@@ -93,6 +93,16 @@ static struct UtilityNamedObject *utility_named_object(struct NamedObject *objec
     return (struct UtilityNamedObject *)object;
 }
 
+static struct UtilityNamedObject *utility_named_object_from_node(struct Node *node)
+{
+    ULONG offset = (ULONG)&((struct UtilityNamedObject *)0)->node;
+
+    if (!node || !node->ln_Succ)
+        return NULL;
+
+    return (struct UtilityNamedObject *)((UBYTE *)node - offset);
+}
+
 static struct UtilityNameSpace *utility_get_namespace(struct UtilityBase *UtilityBase,
                                                       struct NamedObject *name_space)
 {
@@ -136,6 +146,7 @@ static struct UtilityNamedObject *utility_find_named_object_locked(struct Utilit
                                                                    struct UtilityNamedObject *last_object)
 {
     struct Node *node;
+    struct UtilityNamedObject *current;
 
     if (!name_space)
         return NULL;
@@ -145,11 +156,9 @@ static struct UtilityNamedObject *utility_find_named_object_locked(struct Utilit
     else
         node = (struct Node *)name_space->list.mlh_Head;
 
-    while (node && node->ln_Succ)
+    while ((current = utility_named_object_from_node(node)) != NULL)
     {
-        struct UtilityNamedObject *current = (struct UtilityNamedObject *)node;
-
-        if (!name || utility_names_equal(UtilityBase, name_space, current->node.ln_Name, name))
+        if (!name || utility_names_equal(UtilityBase, name_space, (CONST_STRPTR)current->node.ln_Name, name))
             return current;
 
         node = node->ln_Succ;
@@ -213,7 +222,7 @@ struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *u
     base->last_id = 0;
     utility_new_min_list(&base->root_space.list);
     InitSemaphore(&base->root_space.lock);
-    base->root_space.flags = 0;
+    base->root_space.flags = NSF_NODUPS;
 
     DPRINTF (LOG_DEBUG, "_utility: InitLib() called.\n");
     return utilityb;
@@ -1326,7 +1335,7 @@ static BOOL _utility_AddNamedObject ( register struct UtilityBase * UtilityBase 
     ObtainSemaphore(&name_space->lock);
 
     if ((name_space->flags & NSF_NODUPS) &&
-        utility_find_named_object_locked(UtilityBase, name_space, named_object->node.ln_Name, NULL))
+        utility_find_named_object_locked(UtilityBase, name_space, (CONST_STRPTR)named_object->node.ln_Name, NULL))
     {
         ret = FALSE;
     }
@@ -1362,7 +1371,7 @@ static struct NamedObject * _utility_AllocNamedObjectA ( register struct Utility
     if (!object)
         return NULL;
 
-    object->node.ln_Name = (STRPTR)(object + 1);
+    object->node.ln_Name = (char *)(object + 1);
     strcpy((char *)object->node.ln_Name, (const char *)name);
     object->node.ln_Pri = (BYTE)GetTagData(ANO_Priority, 0, tagList);
     object->use_count = 1;
@@ -1437,7 +1446,23 @@ static struct NamedObject * _utility_FindNamedObject ( register struct UtilityBa
         last_named_object = utility_named_object(lastObject);
 
     ObtainSemaphore(&name_space->lock);
-    found = utility_find_named_object_locked(UtilityBase, name_space, name, last_named_object);
+
+    if (name)
+    {
+        found = utility_find_named_object_locked(UtilityBase, name_space, name, last_named_object);
+    }
+    else
+    {
+        struct Node *node;
+
+        if (last_named_object)
+            node = last_named_object->node.ln_Succ;
+        else
+            node = (struct Node *)name_space->list.mlh_Head;
+
+        found = utility_named_object_from_node(node);
+    }
+
     if (found)
         found->use_count++;
     ReleaseSemaphore(&name_space->lock);
@@ -1477,7 +1502,7 @@ static STRPTR _utility_NamedObjectName ( register struct UtilityBase * UtilityBa
     if (!object)
         return NULL;
 
-    return utility_named_object(object)->node.ln_Name;
+    return (STRPTR)utility_named_object(object)->node.ln_Name;
 }
 
 static VOID _utility_ReleaseNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
@@ -1531,7 +1556,7 @@ static VOID _utility_RemNamedObject ( register struct UtilityBase * UtilityBase 
     {
         if (!named_object->free_message)
         {
-            message->mn_Node.ln_Name = (STRPTR)object;
+            message->mn_Node.ln_Name = (char *)object;
             named_object->free_message = message;
         }
         else

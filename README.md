@@ -169,7 +169,7 @@ lxa -d -v myprogram
 
 - **exec.library**: Memory management, multitasking, signals, messages
 - **dos.library**: File I/O, locks, directories, processes, pattern matching (including `(a|b)` alternation), `SetFileSize`, `SetFileDate`, `ExAll`, `MakeLink`, `ReadLink`, `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, `GetSegListInfo`, CON:/RAW: handler, assign-backed `DeviceProc()`/`GetDeviceProc()` coverage
-- **utility.library**: Tag lists, hooks, utility functions including direct regression coverage for tag-list cloning/filtering/mapping, pack/unpack helpers, named-object namespaces, date conversion helpers, 32-bit math helpers, hook dispatch, and unique ID generation
+- **utility.library**: Tag lists, hooks, utility functions including direct regression coverage for tag-list cloning/filtering/mapping, pack/unpack helpers, named-object namespaces, date conversion helpers, 32-bit math helpers, `HookEntry`-driven hook dispatch, and unique ID generation
 - **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill, ScrollRaster, AreaFill, pixel arrays), palette/pen matching coverage via `ObtainPen()`/`ObtainBestPenA()` regressions
 - **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
 - **gadtools.library**: GadTools gadgets (buttons, strings, checkboxes, cycles, sliders, MX), menu layout helpers, and IDCMP/refresh wrapper coverage
@@ -216,7 +216,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.6.122** - Phase 78-H now also verifies the public `utility.library` named-object namespace helpers (`AllocNamedObjectA()`, `AddNamedObject()`, `FindNamedObject()`, `AttemptRemNamedObject()`, `RemNamedObject()`, `ReleaseNamedObject()`, `FreeNamedObject()`, `NamedObjectName()`) alongside the existing tag-list, pack/unpack, date, 32-bit math, hook, and unique-ID regression coverage in the misc Google Test suite and m68k test program
+**Version 0.6.124** - Phase 78-H is now closed: utility-library coverage keeps the `HookEntry`/`h_SubEntry` contract and named-object namespace semantics locked down, and the leftover DOS-pattern note was retired after confirming those APIs are not part of the bundled public `utility.library` surface
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

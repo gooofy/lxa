@@ -9,6 +9,7 @@
 #include <exec/semaphores.h>
 #include <exec/lists.h>
 #include <clib/exec_protos.h>
+#include <clib/alib_protos.h>
 #include <clib/dos_protos.h>
 #include <clib/utility_protos.h>
 #include <inline/exec.h>
@@ -220,15 +221,6 @@ static ULONG call_udivmod32(ULONG dividend, ULONG divisor, ULONG *remainder)
     return quotient;
 }
 
-static ULONG hook_entry(register struct Hook *hook __asm("a0"),
-                        register APTR object __asm("a2"),
-                        register APTR message __asm("a1"))
-{
-    typedef ULONG (*HookFunc)(struct Hook *, APTR, APTR);
-    HookFunc func = (HookFunc)hook->h_SubEntry;
-    return func(hook, object, message);
-}
-
 static ULONG hook_subentry(struct Hook *hook, APTR object, APTR message)
 {
     ULONG *state = (ULONG *)hook->h_Data;
@@ -430,13 +422,15 @@ static void test_call_hook_and_unique_id(void)
 
     print("Testing CallHookPkt/GetUniqueID...\n");
 
-    hook.h_Entry = (ULONG (*)())hook_entry;
+    hook.h_Entry = (ULONG (*)())HookEntry;
     hook.h_SubEntry = (ULONG (*)())hook_subentry;
     hook.h_Data = &hook_state;
 
     ret = CallHookPkt(&hook, (APTR)0x1234UL, (APTR)0x5678UL);
     expect_ulong(ret, 0xCAFEBABEUL, "CallHookPkt returns hook result");
     expect_ulong(hook_state, 0xCAFEBABEUL, "CallHookPkt passes hook/object/message");
+    expect_true(hook.h_Entry == (ULONG (*)())HookEntry,
+        "HookEntry amiga.lib stub is installed as hook entry");
 
     id1 = GetUniqueID();
     id2 = GetUniqueID();
@@ -667,10 +661,15 @@ static void test_named_objects(void)
     if (found)
         ReleaseNamedObject(found);
 
-    removed = AttemptRemNamedObject(alpha);
-    expect_true(!removed, "AttemptRemNamedObject fails while allocation hold remains");
+    found = FindNamedObject(root, (CONST_STRPTR)"Alpha", NULL);
+    expect_true(found == alpha, "FindNamedObject returns object for removal-hold test");
 
-    ReleaseNamedObject(alpha);
+    removed = AttemptRemNamedObject(alpha);
+    expect_true(!removed, "AttemptRemNamedObject fails while find hold remains");
+
+    if (found)
+        ReleaseNamedObject(found);
+
     removed = AttemptRemNamedObject(alpha);
     expect_true(removed, "AttemptRemNamedObject removes object after release");
     expect_true(FindNamedObject(root, (CONST_STRPTR)"Alpha", NULL) == NULL,
@@ -690,7 +689,7 @@ static void test_named_objects(void)
             remove_message.mn_ReplyPort = reply_port;
             RemNamedObject(beta, &remove_message);
             expect_true(WaitPort(reply_port) == &remove_message, "RemNamedObject replies removal message");
-            expect_true(remove_message.mn_Node.ln_Name == (STRPTR)beta,
+            expect_true((APTR)remove_message.mn_Node.ln_Name == (APTR)beta,
                 "RemNamedObject reply names removed object");
             DeleteMsgPort(reply_port);
         }
