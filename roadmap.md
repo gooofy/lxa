@@ -514,17 +514,17 @@ Status: core requester allocation and modal execution now cover file, font, and 
 
 - [x] `FindTagItem` — scan TagList for tag; handle TAG_MORE, TAG_SKIP, TAG_IGNORE, TAG_END
 - [x] `GetTagData` — return ti_Data or default
-- [ ] `TagInArray` — check if tag present in array
-- [ ] `FilterTagItems` — remove non-listed tags
+- [x] `TagInArray` — check if tag present in array
+- [x] `FilterTagItems` — remove non-listed tags
 - [x] `MapTags` — remap tag values
 - [x] `AllocateTagItems` / `FreeTagItems` / `CloneTagItems`
 - [x] `RefreshTagItemClones`
 - [x] `NextTagItem` — iterate with state pointer
 - [x] `CallHookPkt` — invoke Hook with A0=hook, A2=object, A1=message
 - [ ] `HookEntry` — assembly trampoline (hook calling convention)
-- [ ] `CheckDate` / `Amiga2Date` / `Date2Amiga` — struct ClockData ↔ seconds-since-epoch
-- [ ] `SMult32` / `UMult32` / `SDivMod32` / `UDivMod32` — 32-bit multiply/divide
-- [ ] `PackStructureTags` / `UnpackStructureTags` — TagItem ↔ struct mapping via PackTable
+- [x] `CheckDate` / `Amiga2Date` / `Date2Amiga` — struct ClockData ↔ seconds-since-epoch
+- [x] `SMult32` / `UMult32` / `SDivMod32` / `UDivMod32` — 32-bit multiply/divide
+- [x] `PackStructureTags` / `UnpackStructureTags` — TagItem ↔ struct mapping via PackTable
 - [ ] `NamedObjectA` / `AllocNamedObjectA` / `FreeNamedObject` / `AddNamedObject` / `RemNamedObject` / `FindNamedObject`
 - [x] `GetUniqueID`
 - [ ] `MakeDosPatternA` / `MatchDosPatternA`

@@ -8,6 +8,7 @@
 #include <inline/exec.h>
 
 #include <utility/utility.h>
+#include <utility/pack.h>
 #include <clib/utility_protos.h>
 #include <inline/utility.h>
 
@@ -35,6 +36,20 @@ struct LXAUtilityBase
 {
     struct UtilityBase utility_base;
     ULONG              last_id;
+};
+
+static const ULONG utility_day_table[] = {
+    0, 31, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335
+};
+
+union utility_memaccess
+{
+    UBYTE ub;
+    UWORD uw;
+    ULONG ul;
+    BYTE  sb;
+    WORD  sw;
+    LONG  sl;
 };
 
 struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *utilityb __asm("d0"),
@@ -472,40 +487,87 @@ static VOID _utility_Amiga2Date ( register struct UtilityBase *UtilityBase __asm
                                   register struct ClockData   *result      __asm("a0"))
 {
     LONG days;
+    LONG leap;
+    LONG year;
+    LONG month;
+
+    if (!result)
+        return;
 
     days = seconds / 86400;
     result->wday = days % 7;
 
-	LONG x = seconds;
+    result->sec = seconds % 60;
+    seconds /= 60;
+    result->min = seconds % 60;
+    seconds /= 60;
+    result->hour = seconds % 24;
 
-    result->sec = x % 60;
-    x /= 60;
-    result->min = x % 60;
-    x /= 60;
-    result->hour = x % 24;
+    leap = 1;
 
-	// http://howardhinnant.github.io/date_algorithms.html#civil_from_days
+    if (days < 92 * 365 + 30 * 366)
+    {
+        days += 366 + 365;
+        year = 4 * (days / (366 + 3 * 365)) + 1976;
+        days %= (366 + 3 * 365);
 
-	LONG z = days;
-	z += 719468 + 2922;	// epoch adjustment 1/1/1970, 1/1/1978
-    LONG era = z / 146097;
-    LONG doe = z - era * 146097;                                 // [0, 146096]
-    LONG yoe = (doe - doe/1460 + doe/36524 - doe/146096) / 365;  // [0, 399]
-    UWORD y = yoe + era * 400;
-    UWORD doy = doe - (365*yoe + yoe/4 - yoe/100);                // [0, 365]
-    UWORD mp = (5*doy + 2)/153;                                   // [0, 11]
-    UWORD mp_offset = (153*mp+2)/5;
-    UWORD day = doy - mp_offset + 1;                              // [1, 31]
-    UWORD month = mp < 10 ? mp+3 : mp-9;                          // [1, 12]
-    UWORD year = y + (month <= 2);
+        if (days >= 366)
+        {
+            leap = 0;
+            days--;
+            year += days / 365;
+            days %= 365;
+        }
+    }
+    else
+    {
+        days -= 17 * 365 + 5 * 366;
+        year = 400 * (days / (97 * 366 + 303 * 365)) + 2000;
+        days %= (97 * 366 + 303 * 365);
 
-	DPRINTF (LOG_DEBUG, "_utility_Amiga2Date: seconds=%ld -> %02ld:%02ld:%02ld, doy=%d, mp=%d, mp_offset=%d\n",
-             seconds, result->hour, result->min, result->sec, doy, mp, mp_offset);
-	DPRINTF (LOG_DEBUG, "_utility_Amiga2Date: result: %02d-%02d-%04d\n", month, day, year);
+        if (days >= 366)
+        {
+            leap = 0;
+            days--;
+            year += 100 * (days / (24 * 366 + 76 * 365));
+            days %= (24 * 366 + 76 * 365);
+
+            if (days >= 365)
+            {
+                leap = 1;
+                days++;
+                year += 4 * (days / (366 + 3 * 365));
+                days %= (366 + 3 * 365);
+
+                if (days >= 366)
+                {
+                    leap = 0;
+                    days--;
+                    year += days / 365;
+                    days %= 365;
+                }
+            }
+        }
+    }
+
+    if (!leap && days >= 31 + 28)
+        days++;
+
+    for (month = 11; month >= 0; month--)
+    {
+        if (days >= (LONG)utility_day_table[month])
+        {
+            days -= utility_day_table[month];
+            break;
+        }
+    }
+
+    days++;
+    month++;
 
     result->month = month;
-    result->mday  = day;
-    result->year  = year;
+    result->mday = days;
+    result->year = year;
 }
 
 /*
@@ -517,42 +579,38 @@ static VOID _utility_Amiga2Date ( register struct UtilityBase *UtilityBase __asm
 static ULONG _utility_Date2Amiga ( register struct UtilityBase * UtilityBase __asm("a6"),
                                    register const struct ClockData * date __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga() called, date=%04d-%02d-%02d %02d:%02d:%02d\n",
-             date->year, date->month, date->mday, date->hour, date->min, date->sec);
+    static const UWORD days_per_month[12] = {
+        0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
+    };
+    ULONG time;
+    UWORD year;
+    UWORD leaps;
 
     if (!date)
         return 0;
 
-    /* Convert civil date to days since epoch using Howard Hinnant's algorithm */
-    LONG y = date->year;
-    LONG m = date->month;
-    LONG d = date->mday;
+    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga() called, date=%04d-%02d-%02d %02d:%02d:%02d\n",
+             date->year, date->month, date->mday, date->hour, date->min, date->sec);
 
-    /* Adjust year and month for algorithm (March = month 0) */
-    y -= (m <= 2);
-    LONG era = y / 400;
-    LONG yoe = y - era * 400;                                   /* [0, 399] */
-    LONG doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;  /* [0, 365] */
-    LONG yoe365 = yoe * 365;
-    LONG yoe4 = yoe/4;
-    LONG yoe100 = yoe/100;
-    LONG doe = yoe365 + yoe4 - yoe100 + doy;               /* [0, 146096] */
-    LONG days = era * 146097 + doe - 719468 - 2922;             /* Days since 1978-01-01 */
+    time = date->sec + (date->min * 60) + (date->hour * 3600);
+    time += ((date->mday - 1) + days_per_month[date->month - 1]) * 86400;
+    time += (date->year - 1978) * 31536000;
 
-    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga intermediate: y(adj)=%ld, m=%ld, d=%ld\n", y, m, d);
-    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga intermediate: era=%ld, yoe=%ld, doy=%ld\n", era, yoe, doy);
-    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga intermediate: yoe365=%ld, yoe4=%ld, yoe100=%ld\n", yoe365, yoe4, yoe100);
-    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga intermediate: doe=%ld, days=%ld\n", doe, days);
+    year = date->year;
 
-    /* Convert to seconds and add time components */
-    ULONG seconds = (ULONG)days * 86400UL;
-    seconds += (ULONG)date->hour * 3600UL;
-    seconds += (ULONG)date->min * 60UL;
-    seconds += (ULONG)date->sec;
+    if (((year % 400) == 0) || (((year % 4) == 0) && ((year % 100) != 0)))
+    {
+        if (date->month >= 3)
+            time += 86400;
+    }
 
-    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga() -> %lu seconds\n", seconds);
+    year--;
+    leaps = ((year / 4) - (year / 100) + (year / 400) - (494 - 19 + 4));
+    time += leaps * 86400;
 
-    return seconds;
+    DPRINTF (LOG_DEBUG, "_utility: Date2Amiga() -> %lu seconds\n", time);
+
+    return time;
 }
 
 /*
@@ -570,7 +628,7 @@ static ULONG _utility_CheckDate ( register struct UtilityBase * UtilityBase __as
         return 0;
 
     /* Validate time components */
-    if (date->sec > 59 || date->min > 59 || date->hour > 23)
+    if (date->sec > 60 || date->min > 59 || date->hour > 23)
         return 0;
 
     /* Validate month */
@@ -626,26 +684,48 @@ static LONG _utility_SDivMod32 ( register struct UtilityBase * UtilityBase __asm
                                                         register LONG dividend __asm("d0"),
                                                         register LONG divisor __asm("d1"))
 {
+    LONG quotient;
+    LONG remainder;
+
+    (void)UtilityBase;
+
     /* SDivMod32 divides D0 by D1 and returns quotient in D0 and remainder in D1 */
     if (divisor == 0) {
         DPRINTF (LOG_ERROR, "_utility: SDivMod32() division by zero!\n");
+        __asm volatile ("moveq #0, %%d1" : : : "d1");
         return 0;
     }
-    
-    return dividend / divisor;
+
+    quotient = dividend / divisor;
+    remainder = dividend % divisor;
+
+    __asm volatile ("move.l %0, %%d1" : : "d"(remainder) : "d1");
+
+    return quotient;
 }
 
 static ULONG _utility_UDivMod32 ( register struct UtilityBase * UtilityBase __asm("a6"),
 														register ULONG dividend __asm("d0"),
 														register ULONG divisor __asm("d1"))
 {
+    ULONG quotient;
+    ULONG remainder;
+
+    (void)UtilityBase;
+
     /* UDivMod32 divides D0 by D1 and returns quotient in D0 and remainder in D1 */
     if (divisor == 0) {
         DPRINTF (LOG_ERROR, "_utility: UDivMod32() division by zero!\n");
+        __asm volatile ("moveq #0, %%d1" : : : "d1");
         return 0;
     }
-    
-    return dividend / divisor;
+
+    quotient = dividend / divisor;
+    remainder = dividend % divisor;
+
+    __asm volatile ("move.l %0, %%d1" : : "d"(remainder) : "d1");
+
+    return quotient;
 }
 
 static LONG _utility_Stricmp ( register struct UtilityBase * UtilityBase __asm("a6"),
@@ -880,9 +960,104 @@ static ULONG _utility_PackStructureTags ( register struct UtilityBase * UtilityB
                                                         register const ULONG * packTable __asm("a1"),
                                                         register const struct TagItem * tagList __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_utility: PackStructureTags() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    Tag tag_base;
+    ULONG entry;
+    ULONG count = 0;
+
+    DPRINTF (LOG_DEBUG, "_utility: PackStructureTags() called.\n");
+
+    (void)UtilityBase;
+
+    if (!pack || !packTable || !tagList)
+        return 0;
+
+    tag_base = *packTable++;
+
+    while ((entry = *packTable++) != 0)
+    {
+        UWORD mem_offset;
+        UWORD tag_offset;
+        UBYTE bit_offset;
+        struct TagItem *tag;
+        union utility_memaccess *mem_ptr;
+
+        if ((LONG)entry == -1)
+        {
+            tag_base = *packTable++;
+            continue;
+        }
+
+        if (entry & PSTF_PACK)
+            continue;
+
+        tag_offset = (entry >> 16) & 0x03ff;
+        tag = FindTagItem(tag_base + tag_offset, tagList);
+        if (!tag)
+            continue;
+
+        mem_offset = entry & 0x1fff;
+        bit_offset = (entry >> 13) & 0x07;
+        mem_ptr = (union utility_memaccess *)((UBYTE *)pack + mem_offset);
+
+        if ((entry & (PKCTRL_BIT | PSTF_EXISTS)) == (PKCTRL_BIT | PSTF_EXISTS))
+        {
+            if (entry & PSTF_SIGNED)
+                mem_ptr->ub &= ~(1U << bit_offset);
+            else
+                mem_ptr->ub |= (1U << bit_offset);
+
+            count++;
+            continue;
+        }
+
+        switch (entry & 0x98000000UL)
+        {
+            case PKCTRL_ULONG:
+                mem_ptr->ul = tag->ti_Data;
+                break;
+
+            case PKCTRL_UWORD:
+                mem_ptr->uw = tag->ti_Data;
+                break;
+
+            case PKCTRL_UBYTE:
+                mem_ptr->ub = tag->ti_Data;
+                break;
+
+            case PKCTRL_LONG:
+                mem_ptr->sl = tag->ti_Data;
+                break;
+
+            case PKCTRL_WORD:
+                mem_ptr->sw = tag->ti_Data;
+                break;
+
+            case PKCTRL_BYTE:
+                mem_ptr->sb = tag->ti_Data;
+                break;
+
+            case PKCTRL_BIT:
+                if (tag->ti_Data)
+                    mem_ptr->ub |= (1U << bit_offset);
+                else
+                    mem_ptr->ub &= ~(1U << bit_offset);
+                break;
+
+            case PKCTRL_FLIPBIT:
+                if (tag->ti_Data)
+                    mem_ptr->ub &= ~(1U << bit_offset);
+                else
+                    mem_ptr->ub |= (1U << bit_offset);
+                break;
+
+            default:
+                continue;
+        }
+
+        count++;
+    }
+
+    return count;
 }
 
 static ULONG _utility_UnpackStructureTags ( register struct UtilityBase * UtilityBase __asm("a6"),
@@ -890,9 +1065,87 @@ static ULONG _utility_UnpackStructureTags ( register struct UtilityBase * Utilit
                                                         register const ULONG * packTable __asm("a1"),
                                                         register struct TagItem * tagList __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_utility: UnpackStructureTags() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    Tag tag_base;
+    ULONG entry;
+    ULONG count = 0;
+
+    DPRINTF (LOG_DEBUG, "_utility: UnpackStructureTags() called.\n");
+
+    (void)UtilityBase;
+
+    if (!pack || !packTable || !tagList)
+        return 0;
+
+    tag_base = *packTable++;
+
+    while ((entry = *packTable++) != 0)
+    {
+        UWORD mem_offset;
+        UWORD tag_offset;
+        UBYTE bit_offset;
+        struct TagItem *tag;
+        union utility_memaccess *mem_ptr;
+
+        if ((LONG)entry == -1)
+        {
+            tag_base = *packTable++;
+            continue;
+        }
+
+        if (entry & PSTF_UNPACK)
+            continue;
+
+        tag_offset = (entry >> 16) & 0x03ff;
+        tag = FindTagItem(tag_base + tag_offset, tagList);
+        if (!tag)
+            continue;
+
+        mem_offset = entry & 0x1fff;
+        bit_offset = (entry >> 13) & 0x07;
+        mem_ptr = (union utility_memaccess *)((UBYTE *)pack + mem_offset);
+
+        switch (entry & 0x98000000UL)
+        {
+            case PKCTRL_ULONG:
+                *(ULONG *)tag->ti_Data = mem_ptr->ul;
+                break;
+
+            case PKCTRL_UWORD:
+                *(ULONG *)tag->ti_Data = mem_ptr->uw;
+                break;
+
+            case PKCTRL_UBYTE:
+                *(ULONG *)tag->ti_Data = mem_ptr->ub;
+                break;
+
+            case PKCTRL_LONG:
+                *(ULONG *)tag->ti_Data = mem_ptr->sl;
+                break;
+
+            case PKCTRL_WORD:
+                *(ULONG *)tag->ti_Data = mem_ptr->sw;
+                break;
+
+            case PKCTRL_BYTE:
+                *(ULONG *)tag->ti_Data = mem_ptr->sb;
+                break;
+
+            case PKCTRL_BIT:
+                *(ULONG *)tag->ti_Data = (mem_ptr->ub & (1U << bit_offset)) ? TRUE : FALSE;
+                break;
+
+            case PKCTRL_FLIPBIT:
+                *(ULONG *)tag->ti_Data = (mem_ptr->ub & (1U << bit_offset)) ? FALSE : TRUE;
+                break;
+
+            default:
+                continue;
+        }
+
+        count++;
+    }
+
+    return count;
 }
 
 static BOOL _utility_AddNamedObject ( register struct UtilityBase * UtilityBase __asm("a6"),
