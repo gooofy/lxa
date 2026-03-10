@@ -14,6 +14,7 @@
 #include <exec/memory.h>
 #include <exec/io.h>
 #include <devices/console.h>
+#include <devices/conunit.h>
 #include <dos/dos.h>
 #include <intuition/intuition.h>
 #include <graphics/rastport.h>
@@ -262,6 +263,62 @@ static void assert_pens(int expected_fg, int expected_bg, const char *test_name)
     }
 }
 
+static struct ConUnit *get_con_unit(void)
+{
+    if (!con_io) {
+        return NULL;
+    }
+
+    return (struct ConUnit *)con_io->io_Unit;
+}
+
+static void assert_cursor_visible_flag(BOOL expected, const char *test_name)
+{
+    struct ConUnit *unit = get_con_unit();
+    int actual = -1;
+
+    tests_run++;
+
+    if (unit) {
+        actual = unit->cu_Modes[0] & 0;
+    }
+
+    if (con_io && con_io->io_Unit) {
+        struct ConUnit *base_unit = (struct ConUnit *)con_io->io_Unit;
+        struct {
+            struct ConUnit cu;
+            BOOL csi_active;
+            BOOL esc_active;
+            char csi_buf[64];
+            UWORD csi_len;
+            char input_buf[256];
+            UWORD input_head;
+            UWORD input_tail;
+            BOOL echo_enabled;
+            BOOL line_mode;
+            BOOL cursor_visible;
+        } *extended = (APTR)base_unit;
+
+        actual = extended->cursor_visible ? 1 : 0;
+    }
+
+    if (actual == (expected ? 1 : 0)) {
+        print("PASS: ");
+        print(test_name);
+        print("\n");
+        tests_passed++;
+    } else {
+        print("FAIL: ");
+        print(test_name);
+        print(" - expected cursor_visible=");
+        print_num(expected ? 1 : 0);
+        print(" got ");
+        print_num(actual);
+        print("\n");
+        tests_failed++;
+    }
+}
+
 /*
  * Test: Reset attributes (SGR 0)
  */
@@ -455,6 +512,33 @@ static void test_sgr_default_reset(void)
     assert_pens(1, 0, "CSI m (bare) resets to default");
 }
 
+static void test_esc_bracket_sgr_sequences(void)
+{
+    send_sgr(CSI "0m");
+
+    con_puts("\x1b[31;44m ");
+    con_puts("\x08");
+    assert_pens(1, 4, "ESC[31;44m sets fg/bg pens");
+
+    con_puts("\x1b[7m ");
+    con_puts("\x08");
+    assert_pens(4, 1, "ESC[7m enables inverse video");
+
+    con_puts("\x1b[27m ");
+    con_puts("\x08");
+    assert_pens(1, 4, "ESC[27m disables inverse video");
+
+    con_puts("\x1b[39;49m ");
+    con_puts("\x08");
+    assert_pens(1, 0, "ESC[39;49m restores default pens");
+
+    con_puts("\x1b[?25l");
+    assert_cursor_visible_flag(FALSE, "ESC[?25l clears cursor visibility");
+
+    con_puts("\x1b[?25h");
+    assert_cursor_visible_flag(TRUE, "ESC[?25h restores cursor visibility");
+}
+
 /*
  * Open console device on test window
  */
@@ -551,6 +635,7 @@ int main(void)
     test_sgr_bold();
     test_sgr_multiple();
     test_sgr_default_reset();
+    test_esc_bracket_sgr_sequences();
     
     /* Summary */
     print("\n=== Test Summary ===\n");

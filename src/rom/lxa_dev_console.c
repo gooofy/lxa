@@ -233,9 +233,24 @@ static void console_copy_keymap(struct KeyMap *dest, const struct KeyMap *src)
     dest->km_HiRepeatable = src->km_HiRepeatable;
 }
 
+static struct KeyMap *console_ask_keymap_default(struct Library *keymap_base)
+{
+    register char *base __asm("a6") = (char *)keymap_base;
+
+    return ((struct KeyMap *(*)(char * __asm("a6")))(base - 36))(base);
+}
+
+static void console_set_keymap_default(struct Library *keymap_base, struct KeyMap *map)
+{
+    register char *base __asm("a6") = (char *)keymap_base;
+
+    ((VOID (*)(char * __asm("a6"), struct KeyMap * __asm("a0")))(base - 30))(base, map);
+}
+
 static BOOL console_load_default_keymap(struct KeyMap *dest)
 {
     struct Library *KeymapBase;
+    struct KeyMap *default_keymap;
 
     if (!dest) {
         return FALSE;
@@ -243,18 +258,10 @@ static BOOL console_load_default_keymap(struct KeyMap *dest)
 
     KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
     if (KeymapBase) {
-        register struct KeyMap *_result __asm("d0");
-        register struct Library *_a6 __asm("a6") = KeymapBase;
+        default_keymap = console_ask_keymap_default(KeymapBase);
 
-        __asm volatile (
-            "jsr %1@(-36)"
-            : "=r" (_result)
-            : "a" (_a6)
-            : "cc", "memory"
-        );
-
-        if (_result) {
-            console_copy_keymap(dest, _result);
+        if (default_keymap) {
+            console_copy_keymap(dest, default_keymap);
             CloseLibrary(KeymapBase);
             return TRUE;
         }
@@ -286,7 +293,6 @@ static WORD console_map_rawkey(struct LxaConUnit *unit, UWORD rawkey, UWORD qual
         if (unit && unit->use_keymap) {
             map = &unit->cu.cu_KeyMapStruct;
         }
-
         register struct KeyMap *_a2 __asm("a2") = map;
 
         event.ie_Class = IECLASS_RAWKEY;
@@ -334,6 +340,7 @@ static void console_cursor_up(struct LxaConUnit *unit);
 static void console_cursor_down(struct LxaConUnit *unit);
 static void console_init_tab_stops(struct LxaConUnit *unit);
 static void console_try_complete_pending_read(struct LxaConUnit *unit);
+static void console_update_window_geometry(struct LxaConUnit *unit);
 
 /*
  * Initialize a ConUnit for a window
@@ -341,8 +348,6 @@ static void console_try_complete_pending_read(struct LxaConUnit *unit);
 static struct LxaConUnit *console_create_unit(struct Window *window)
 {
     struct LxaConUnit *unit;
-    struct RastPort *rp;
-    struct TextFont *font;
     
     if (!window) {
         LPRINTF(LOG_ERROR, "_console: console_create_unit() window is NULL\n");
@@ -366,36 +371,7 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     
     /* Store the window pointer */
     unit->cu.cu_Window = window;
-    
-    /* Get the window's RastPort for font info */
-    rp = window->RPort;
-    if (rp) {
-        font = rp->Font;
-        if (font) {
-            unit->cu.cu_XRSize = font->tf_XSize;
-            unit->cu.cu_YRSize = font->tf_YSize;
-        } else {
-            /* Default to 8x8 font */
-            unit->cu.cu_XRSize = 8;
-            unit->cu.cu_YRSize = 8;
-        }
-    } else {
-        unit->cu.cu_XRSize = 8;
-        unit->cu.cu_YRSize = 8;
-    }
-    
-    /* Calculate raster area - use inner window area (excluding borders) */
-    /* Window border offsets: left=4, top=11 (title bar), right=4, bottom=2 typically */
-    unit->cu.cu_XROrigin = window->BorderLeft;
-    unit->cu.cu_YROrigin = window->BorderTop;
-    unit->cu.cu_XRExtant = window->Width - window->BorderRight - 1;
-    unit->cu.cu_YRExtant = window->Height - window->BorderBottom - 1;
-    
-    /* Calculate max character positions */
-    WORD width = unit->cu.cu_XRExtant - unit->cu.cu_XROrigin + 1;
-    WORD height = unit->cu.cu_YRExtant - unit->cu.cu_YROrigin + 1;
-    unit->cu.cu_XMax = (width / unit->cu.cu_XRSize) - 1;
-    unit->cu.cu_YMax = (height / unit->cu.cu_YRSize) - 1;
+    console_update_window_geometry(unit);
     
     /* Initialize cursor position to top-left */
     unit->cu.cu_XCP = 0;
@@ -472,6 +448,88 @@ static void console_destroy_unit(struct LxaConUnit *unit)
 {
     if (unit) {
         FreeMem(unit, sizeof(struct LxaConUnit));
+    }
+}
+
+static void console_update_window_geometry(struct LxaConUnit *unit)
+{
+    struct Window *window;
+    struct RastPort *rp;
+    struct TextFont *font;
+    WORD width;
+    WORD height;
+    WORD old_ymax;
+    BOOL full_scroll_region;
+
+    if (!unit || !unit->cu.cu_Window) {
+        return;
+    }
+
+    window = unit->cu.cu_Window;
+    rp = window->RPort;
+
+    old_ymax = unit->cu.cu_YMax;
+    full_scroll_region = (unit->scroll_top == 0 && unit->scroll_bottom == old_ymax);
+
+    if (rp) {
+        font = rp->Font;
+        if (font) {
+            unit->cu.cu_XRSize = font->tf_XSize;
+            unit->cu.cu_YRSize = font->tf_YSize;
+        } else {
+            unit->cu.cu_XRSize = 8;
+            unit->cu.cu_YRSize = 8;
+        }
+    } else {
+        unit->cu.cu_XRSize = 8;
+        unit->cu.cu_YRSize = 8;
+    }
+
+    unit->cu.cu_XROrigin = window->BorderLeft;
+    unit->cu.cu_YROrigin = window->BorderTop;
+    unit->cu.cu_XRExtant = window->Width - window->BorderRight - 1;
+    unit->cu.cu_YRExtant = window->Height - window->BorderBottom - 1;
+
+    width = unit->cu.cu_XRExtant - unit->cu.cu_XROrigin + 1;
+    height = unit->cu.cu_YRExtant - unit->cu.cu_YROrigin + 1;
+
+    if (width < unit->cu.cu_XRSize) {
+        width = unit->cu.cu_XRSize;
+    }
+    if (height < unit->cu.cu_YRSize) {
+        height = unit->cu.cu_YRSize;
+    }
+
+    unit->cu.cu_XMax = (width / unit->cu.cu_XRSize) - 1;
+    unit->cu.cu_YMax = (height / unit->cu.cu_YRSize) - 1;
+
+    if (unit->cu.cu_XCP > unit->cu.cu_XMax) {
+        unit->cu.cu_XCP = unit->cu.cu_XMax;
+    }
+    if (unit->cu.cu_YCP > unit->cu.cu_YMax) {
+        unit->cu.cu_YCP = unit->cu.cu_YMax;
+    }
+    if (unit->cu.cu_XCCP > unit->cu.cu_XMax) {
+        unit->cu.cu_XCCP = unit->cu.cu_XMax;
+    }
+    if (unit->cu.cu_YCCP > unit->cu.cu_YMax) {
+        unit->cu.cu_YCCP = unit->cu.cu_YMax;
+    }
+
+    if (full_scroll_region) {
+        unit->scroll_top = 0;
+        unit->scroll_bottom = unit->cu.cu_YMax;
+    } else {
+        if (unit->scroll_top > unit->cu.cu_YMax) {
+            unit->scroll_top = unit->cu.cu_YMax;
+        }
+        if (unit->scroll_bottom > unit->cu.cu_YMax) {
+            unit->scroll_bottom = unit->cu.cu_YMax;
+        }
+        if (unit->scroll_top >= unit->scroll_bottom) {
+            unit->scroll_top = 0;
+            unit->scroll_bottom = unit->cu.cu_YMax;
+        }
     }
 }
 
@@ -839,7 +897,13 @@ static void console_process_input(struct LxaConUnit *unit)
     
     /* Process all pending IDCMP messages */
     while ((imsg = (struct IntuiMessage *)GetMsg(port)) != NULL) {
-        if (imsg->Class == IDCMP_RAWKEY) {
+        if (imsg->Class == IDCMP_NEWSIZE) {
+            console_hide_cursor(unit);
+            console_update_window_geometry(unit);
+            redraw_cursor = TRUE;
+            DPRINTF(LOG_DEBUG, "_console: IDCMP_NEWSIZE -> XMax=%d YMax=%d\n",
+                    unit->cu.cu_XMax, unit->cu.cu_YMax);
+        } else if (imsg->Class == IDCMP_RAWKEY) {
             UWORD rawkey = imsg->Code;
             UWORD qualifier = imsg->Qualifier;
             
@@ -1844,6 +1908,9 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
                     case 7:  /* Auto-wrap mode (AWM) */
                         unit->autowrap_mode = TRUE;
                         break;
+                    case 25:  /* ANSI cursor visible */
+                        unit->cursor_visible = TRUE;
+                        break;
                 }
             } else {
                 switch (mode) {
@@ -1869,6 +1936,10 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
                 switch (mode) {
                     case 7:  /* Auto-wrap mode (AWM) */
                         unit->autowrap_mode = FALSE;
+                        break;
+                    case 25:  /* ANSI cursor hidden */
+                        console_hide_cursor(unit);
+                        unit->cursor_visible = FALSE;
                         break;
                 }
             } else {
@@ -2301,6 +2372,7 @@ static struct Library * __g_lxa_console_InitDev  ( register struct Library    *d
 
 /* IDCMP_RAWKEY constant - 1<<10 = 0x400 */
 #define IDCMP_RAWKEY_FLAG 0x0400
+#define CONSOLE_REQUIRED_IDCMP_FLAGS (IDCMP_RAWKEY_FLAG | IDCMP_NEWSIZE)
 
 static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
                                             register struct IORequest *ioreq __asm("a1"),
@@ -2362,15 +2434,17 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
                 LPRINTF(LOG_WARNING, "_console: Unknown unitn %ld, defaulting to CONU_STANDARD\n", unitn);
                 break;
         }
+
+        console_load_default_keymap(&unit->cu.cu_KeyMapStruct);
         
-        /* Ensure the window has IDCMP_RAWKEY flag set so we receive keyboard events */
-        if (!(window->IDCMPFlags & IDCMP_RAWKEY_FLAG)) {
-            LPRINTF(LOG_INFO, "_console: Adding IDCMP_RAWKEY to window flags 0x%08lx\n",
+        /* Ensure the window has the IDCMP flags we need for console input/resize tracking. */
+        if ((window->IDCMPFlags & CONSOLE_REQUIRED_IDCMP_FLAGS) != CONSOLE_REQUIRED_IDCMP_FLAGS) {
+            LPRINTF(LOG_INFO, "_console: Adding console IDCMP flags to window flags 0x%08lx\n",
                     (ULONG)window->IDCMPFlags);
-            /* Use ModifyIDCMP to add the flag - this also ensures UserPort exists */
+            /* Use ModifyIDCMP to add the flags - this also ensures UserPort exists */
             struct IntuitionBase *IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
             if (IntuitionBase) {
-                ModifyIDCMP(window, window->IDCMPFlags | IDCMP_RAWKEY_FLAG);
+                ModifyIDCMP(window, window->IDCMPFlags | CONSOLE_REQUIRED_IDCMP_FLAGS);
                 CloseLibrary((struct Library *)IntuitionBase);
             }
         }
@@ -2646,16 +2720,7 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
             } else {
                 struct Library *KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
                 if (KeymapBase) {
-                    register struct Library *_a6 __asm("a6") = KeymapBase;
-                    register struct KeyMap *_a0 __asm("a0") = (struct KeyMap *)iostd->io_Data;
-
-                    __asm volatile (
-                        "jsr %1@(-30)"
-                        :
-                        : "a" (_a6), "r" (_a0)
-                        : "cc", "memory"
-                    );
-
+                    console_set_keymap_default(KeymapBase, (struct KeyMap *)iostd->io_Data);
                     CloseLibrary(KeymapBase);
                     ioreq->io_Error = 0;
                     iostd->io_Actual = sizeof(struct KeyMap);
@@ -2747,25 +2812,20 @@ static LONG __g_lxa_console_RawKeyConvert (
     /* Open keymap.library */
     KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
     if (KeymapBase) {
-        /* Call MapRawKey from keymap.library 
-         * MapRawKey is at LVO -42 (offset -42 from library base) 
-         * Signature: WORD MapRawKey(struct InputEvent *event, STRPTR buffer, LONG length, struct KeyMap *keyMap)
-         * Registers: A0=event, A1=buffer, D1=length, A2=keyMap, A6=KeymapBase
-         */
         register LONG _result __asm("d0");
         register struct Library *_a6 __asm("a6") = KeymapBase;
         register struct InputEvent *_a0 __asm("a0") = events;
         register STRPTR _a1 __asm("a1") = buffer;
         register LONG _d1 __asm("d1") = length;
         register struct KeyMap *_a2 __asm("a2") = keyMap;
-        
+
         __asm volatile (
             "jsr %1@(-42)"
             : "=r" (_result)
             : "a" (_a6), "r" (_a0), "r" (_a1), "r" (_d1), "r" (_a2)
             : "cc", "memory"
         );
-        
+
         result = _result;
         CloseLibrary(KeymapBase);
     } else {

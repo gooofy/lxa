@@ -11,8 +11,10 @@
 #include <exec/memory.h>
 #include <exec/io.h>
 #include <devices/console.h>
+#include <devices/conunit.h>
 #include <dos/dos.h>
 #include <intuition/intuition.h>
+#include <graphics/rastport.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <clib/intuition_protos.h>
@@ -233,6 +235,152 @@ static void assert_cursor(int expected_row, int expected_col, const char *test_n
     }
 }
 
+static struct ConUnit *get_con_unit(void)
+{
+    if (!con_io) {
+        return NULL;
+    }
+
+    return (struct ConUnit *)con_io->io_Unit;
+}
+
+static int count_non_bg_pixels_in_cell(int row, int col)
+{
+    struct ConUnit *unit = get_con_unit();
+    struct RastPort *rp;
+    WORD x0;
+    WORD y0;
+    WORD x1;
+    WORD y1;
+    int count = 0;
+    WORD x;
+    WORD y;
+
+    if (!test_win || !test_win->RPort || !unit) {
+        return -1;
+    }
+
+    rp = test_win->RPort;
+    x0 = unit->cu_XROrigin + ((col - 1) * unit->cu_XRSize);
+    y0 = unit->cu_YROrigin + ((row - 1) * unit->cu_YRSize);
+    x1 = x0 + unit->cu_XRSize - 1;
+    y1 = y0 + unit->cu_YRSize - 1;
+
+    for (y = y0; y <= y1; y++) {
+        for (x = x0; x <= x1; x++) {
+            if (ReadPixel(rp, x, y) != rp->BgPen) {
+                count++;
+            }
+        }
+    }
+
+    return count;
+}
+
+static void assert_cell_has_content(int row, int col, const char *test_name)
+{
+    int pixels;
+
+    tests_run++;
+    pixels = count_non_bg_pixels_in_cell(row, col);
+
+    if (pixels > 0) {
+        print("PASS: ");
+        print(test_name);
+        print("\n");
+        tests_passed++;
+    } else {
+        print("FAIL: ");
+        print(test_name);
+        print(" - cell has no visible content\n");
+        tests_failed++;
+    }
+}
+
+static void assert_cell_blank(int row, int col, const char *test_name)
+{
+    int pixels;
+
+    tests_run++;
+    pixels = count_non_bg_pixels_in_cell(row, col);
+
+    if (pixels == 0) {
+        print("PASS: ");
+        print(test_name);
+        print("\n");
+        tests_passed++;
+    } else {
+        print("FAIL: ");
+        print(test_name);
+        print(" - expected blank cell, got ");
+        print_num(pixels);
+        print(" visible pixels\n");
+        tests_failed++;
+    }
+}
+
+static void start_async_read(char *buf, LONG len)
+{
+    con_io->io_Command = CMD_READ;
+    con_io->io_Data = buf;
+    con_io->io_Length = len;
+    con_io->io_Flags = IOF_QUICK;
+    SendIO((struct IORequest *)con_io);
+}
+
+static void finish_async_read(void)
+{
+    if (!CheckIO((struct IORequest *)con_io)) {
+        AbortIO((struct IORequest *)con_io);
+    }
+
+    WaitIO((struct IORequest *)con_io);
+}
+
+static BOOL get_window_bounds(int *rows, int *cols)
+{
+    char buf[32];
+    LONG len;
+    int values[4] = {0, 0, 0, 0};
+    int value_count = 0;
+    int current = 0;
+    BOOL have_digits = FALSE;
+    int i;
+
+    con_clear_input();
+    con_puts(CSI "0q");
+
+    len = con_read(buf, sizeof(buf) - 1);
+    if (len <= 0) {
+        return FALSE;
+    }
+    buf[len] = '\0';
+
+    for (i = 0; i < len && value_count < 4; i++) {
+        if (buf[i] >= '0' && buf[i] <= '9') {
+            current = current * 10 + (buf[i] - '0');
+            have_digits = TRUE;
+        } else if (buf[i] == ';' || buf[i] == ' ' || buf[i] == 'r') {
+            if (have_digits) {
+                values[value_count++] = current;
+                current = 0;
+                have_digits = FALSE;
+            }
+            if (buf[i] == 'r') {
+                break;
+            }
+        }
+    }
+
+    if (value_count == 4) {
+        *rows = values[2];
+        *cols = values[3];
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
 /*
  * Test: Cursor starts at home position
  */
@@ -439,6 +587,87 @@ static void test_boundary_left(void)
     assert_cursor(5, 1, "Cursor left at left boundary");
 }
 
+static void test_esc_bracket_sequences(void)
+{
+    char read_buf[8];
+
+    con_puts(CSI "2J" CSI "5;10H");
+    con_puts("\x1b[H");
+    assert_cursor(1, 1, "ESC[H homes the cursor");
+
+    con_puts(CSI "2;1H");
+    con_puts("ABC");
+    assert_cell_has_content(2, 2, "Text draws before ESC[K erase");
+    con_puts(CSI "2;1H");
+    con_puts("\x1b[K");
+    assert_cell_blank(2, 2, "ESC[K clears to end of line");
+
+    con_puts(CSI "3;1H");
+    con_puts("XYZ");
+    assert_cell_has_content(3, 2, "Text draws before ESC[J erase");
+    con_puts(CSI "1;1H");
+    con_puts("\x1b[J");
+    assert_cell_blank(3, 2, "ESC[J clears to end of display");
+
+    con_puts(CSI "2J" CSI "H");
+    con_puts("\x1b[?25l");
+    start_async_read(read_buf, sizeof(read_buf));
+    WaitTOF();
+    WaitTOF();
+    assert_cell_blank(1, 1, "ESC[?25l hides the cursor");
+    finish_async_read();
+
+    con_puts("\x1b[?25h");
+    start_async_read(read_buf, sizeof(read_buf));
+    WaitTOF();
+    WaitTOF();
+    assert_cell_has_content(1, 1, "ESC[?25h shows the cursor");
+    finish_async_read();
+    con_puts("\x1b[?25l");
+}
+
+static void test_window_resize_updates_console(void)
+{
+    int rows_before;
+    int cols_before;
+    int rows_after;
+    int cols_after;
+
+    tests_run++;
+
+    if (!get_window_bounds(&rows_before, &cols_before)) {
+        print("FAIL: Console bounds before resize could not be queried\n");
+        tests_failed++;
+        return;
+    }
+
+    SizeWindow(test_win, 80, 40);
+    WaitTOF();
+    WaitTOF();
+
+    if (!get_window_bounds(&rows_after, &cols_after)) {
+        print("FAIL: Console bounds after resize could not be queried\n");
+        tests_failed++;
+        return;
+    }
+
+    if (rows_after > rows_before && cols_after > cols_before) {
+        print("PASS: Window resize updates console bounds\n");
+        tests_passed++;
+    } else {
+        print("FAIL: Window resize did not update console bounds (before ");
+        print_num(rows_before);
+        print("x");
+        print_num(cols_before);
+        print(", after ");
+        print_num(rows_after);
+        print("x");
+        print_num(cols_after);
+        print(")\n");
+        tests_failed++;
+    }
+}
+
 /*
  * Open console device on test window
  */
@@ -448,8 +677,8 @@ static BOOL setup_console(void)
         0, 0,          /* Left, Top */
         400, 200,      /* Width, Height */
         0, 1,          /* Detail, Block pens */
-        IDCMP_RAWKEY | IDCMP_VANILLAKEY,
-        WFLG_SMART_REFRESH | WFLG_ACTIVATE | WFLG_DEPTHGADGET,
+        IDCMP_RAWKEY | IDCMP_VANILLAKEY | IDCMP_NEWSIZE,
+        WFLG_SMART_REFRESH | WFLG_ACTIVATE | WFLG_DEPTHGADGET | WFLG_SIZEGADGET,
         NULL, NULL,
         (STRPTR)"CSI Unit Test",
         NULL, NULL,
@@ -538,6 +767,8 @@ int main(void)
     test_newline();
     test_boundary_top();
     test_boundary_left();
+    test_esc_bracket_sequences();
+    test_window_resize_updates_console();
     
     /* Summary */
     print("\n=== Test Summary ===\n");

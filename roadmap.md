@@ -626,7 +626,7 @@ Status: complete in 0.6.124.
 
 - [ ] `CMD_WRITE` — ANSI escape sequences: cursor movement, SGR attributes (bold/reverse/underline), erase, color (foreground/background 30-37/40-47)
 - [ ] `CMD_READ` — read character/line; CRAF_* flags
-- [x] `CD_ASKKEYMAP` / `CD_SETKEYMAP` — unit-local keymap install/query plus default-keymap query/set behavior now have direct regression coverage, and `CMD_READ` rawkey translation uses the installed per-unit keymap when present (v0.7.3)
+- [x] `CD_ASKKEYMAP` / `CD_SETKEYMAP` — unit-local keymap install/query plus default-keymap query/set behavior now have direct regression coverage, `CMD_READ` rawkey translation uses the installed per-unit keymap when present, and the RKM-style `AskKeymap` sample is back on the documented `CONU_LIBRARY` library-only path after the regression fix (v0.7.4)
 - [x] `CONU_LIBRARY` unit (-1) handling — library-only open path and `RawKeyConvert()` access are now locked by direct regression coverage alongside the keymap command tests (v0.7.3)
 - [ ] Window resize events (IDCMP_NEWSIZE) → console resize
 - [ ] Scroll-back buffer management

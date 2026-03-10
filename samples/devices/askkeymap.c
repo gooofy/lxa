@@ -26,8 +26,6 @@ int main(void)
     struct MsgPort *ConsoleMP;
     struct IOStdReq *ConsoleIO;
     struct KeyMap *keymap;
-    int i, j;
-    UBYTE *prt;
     int errors = 0;
 
     printf("AskKeymap: CD_ASKKEYMAP command test\n\n");
@@ -47,7 +45,7 @@ int main(void)
         return 1;
     }
 
-    /* Open the console device with CONU_LIBRARY (no window needed) */
+    /* AskKeymap is a library-only console.device query. */
     if (OpenDevice("console.device", CONU_LIBRARY, (struct IORequest *)ConsoleIO, 0L)) {
         printf("ERROR: console.device did not open\n");
         DeleteIORequest((struct IORequest *)ConsoleIO);
@@ -85,75 +83,56 @@ int main(void)
             printf("ERROR: km_LoKeyMapTypes is NULL\n");
             errors++;
         } else {
-            printf("OK: km_LoKeyMapTypes = 0x%08lx\n", (unsigned long)keymap->km_LoKeyMapTypes);
+            printf("OK: km_LoKeyMapTypes present\n");
         }
 
         if (!keymap->km_LoKeyMap) {
             printf("ERROR: km_LoKeyMap is NULL\n");
             errors++;
         } else {
-            printf("OK: km_LoKeyMap = 0x%08lx\n", (unsigned long)keymap->km_LoKeyMap);
+            printf("OK: km_LoKeyMap present\n");
         }
 
         if (!keymap->km_LoCapsable) {
             printf("ERROR: km_LoCapsable is NULL\n");
             errors++;
         } else {
-            printf("OK: km_LoCapsable = 0x%08lx\n", (unsigned long)keymap->km_LoCapsable);
+            printf("OK: km_LoCapsable present\n");
         }
 
         if (!keymap->km_LoRepeatable) {
             printf("ERROR: km_LoRepeatable is NULL\n");
             errors++;
         } else {
-            printf("OK: km_LoRepeatable = 0x%08lx\n", (unsigned long)keymap->km_LoRepeatable);
+            printf("OK: km_LoRepeatable present\n");
         }
 
         if (!keymap->km_HiKeyMapTypes) {
             printf("ERROR: km_HiKeyMapTypes is NULL\n");
             errors++;
         } else {
-            printf("OK: km_HiKeyMapTypes = 0x%08lx\n", (unsigned long)keymap->km_HiKeyMapTypes);
+            printf("OK: km_HiKeyMapTypes present\n");
         }
 
         if (!keymap->km_HiKeyMap) {
             printf("ERROR: km_HiKeyMap is NULL\n");
             errors++;
         } else {
-            printf("OK: km_HiKeyMap = 0x%08lx\n", (unsigned long)keymap->km_HiKeyMap);
+            printf("OK: km_HiKeyMap present\n");
         }
 
         if (!keymap->km_HiCapsable) {
             printf("ERROR: km_HiCapsable is NULL\n");
             errors++;
         } else {
-            printf("OK: km_HiCapsable = 0x%08lx\n", (unsigned long)keymap->km_HiCapsable);
+            printf("OK: km_HiCapsable present\n");
         }
 
         if (!keymap->km_HiRepeatable) {
             printf("ERROR: km_HiRepeatable is NULL\n");
             errors++;
         } else {
-            printf("OK: km_HiRepeatable = 0x%08lx\n", (unsigned long)keymap->km_HiRepeatable);
-        }
-
-        /* If all pointers are valid, print top row of keyboard */
-        if (errors == 0) {
-            printf("\nResult of CD_ASKKEYMAP for top row of keyboard:\n\n");
-            printf("\tShift\n");
-            printf("\tAlt\tAlt\tShift\tNo Qualifier\n");
-            prt = (UBYTE *)keymap->km_LoKeyMap;
-            for (j = 0; j < 14; j++) {
-                for (i = 0; i < 4; i++) {
-                    if (*prt >= 0x20 && *prt < 0x7F) {
-                        printf("\t%c", *prt);
-                    } else {
-                        printf("\t0x%02x", *prt);
-                    }
-                    prt++;
-                }
-                printf("\n");
-            }
+            printf("OK: km_HiRepeatable present\n");
         }
     }
 

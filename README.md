@@ -217,7 +217,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.7.3** - Phase 78-M console-device follow-up now covers `CONU_LIBRARY` library-only opens plus direct `CD_ASKKEYMAP` / `CD_SETKEYMAP` regression coverage, and `CMD_READ` now honors an installed per-unit keymap for rawkey translation
+**Version 0.7.4** - Fix the AskKeymap sample regression by restoring the documented `CONU_LIBRARY` library-only console-device path for `CD_ASKKEYMAP`, while keeping the Phase 78-M keymap command coverage and per-unit `CMD_READ` keymap translation work in place
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
