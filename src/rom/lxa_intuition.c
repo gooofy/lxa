@@ -50,6 +50,7 @@
 #define IDCMPUPDATE_TAG_LIMIT 256
 #define LXA_WMF_IDCMP_USERPORT_OWNED  0x80000000UL
 #define LXA_WMF_IDCMP_WINDOWPORT_OWNED 0x40000000UL
+#define LXA_WMF_GADGETHELP            0x20000000UL
 
 extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
@@ -110,6 +111,21 @@ static inline LONG _call_BehindLayer(struct Library *base, struct Layer *layer) 
     return _res;
 }
 
+static inline LONG _call_MoveLayerInFrontOf(struct Library *base,
+                                            struct Layer *layer,
+                                            struct Layer *other)
+{
+    register struct Library * _base __asm("a6") = base;
+    register struct Layer * _layer __asm("a0") = layer;
+    register struct Layer * _other __asm("a1") = other;
+    register LONG _res __asm("d0");
+    __asm volatile ("jsr -168(%%a6)"
+        : "=r"(_res)
+        : "r"(_base), "r"(_layer), "r"(_other)
+        : "d1", "a0", "a1", "memory", "cc");
+    return _res;
+}
+
 struct LXAWindowState {
     struct Node node;
     struct Window *window;
@@ -130,6 +146,9 @@ struct LXAIntuitionBase {
     struct List PubScreenList;  /* List of public screens */
     struct List WindowStateList;/* Private per-window state */
     struct Screen *DefaultPubScreen;
+    struct Preferences DefaultPrefs;
+    struct Preferences ActivePrefs;
+    struct Hook *EditHook;
 };
 
 /* Forward declarations */
@@ -411,6 +430,108 @@ static void _intuition_strncpy(char *dst, const char *src, LONG maxchars)
         dst[i] = src[i];
     dst[i] = '\0';
 }
+
+static VOID _intuition_init_preferences(struct Preferences *prefs)
+{
+    if (!prefs)
+        return;
+
+    memset(prefs, 0, sizeof(*prefs));
+
+    prefs->FontHeight = 8;
+    prefs->PrinterPort = 0;
+    prefs->BaudRate = 5;
+
+    prefs->KeyRptDelay.tv_secs = 0;
+    prefs->KeyRptDelay.tv_micro = 500000;
+    prefs->KeyRptSpeed.tv_secs = 0;
+    prefs->KeyRptSpeed.tv_micro = 100000;
+
+    prefs->DoubleClick.tv_secs = 0;
+    prefs->DoubleClick.tv_micro = 500000;
+
+    prefs->XOffset = -1;
+    prefs->YOffset = -1;
+    prefs->PointerTicks = 1;
+
+    prefs->color0 = 0x0AAA;
+    prefs->color1 = 0x0000;
+    prefs->color2 = 0x0FFF;
+    prefs->color3 = 0x068B;
+
+    prefs->color17 = 0x0E44;
+    prefs->color18 = 0x0000;
+    prefs->color19 = 0x0EEC;
+
+    prefs->ViewXOffset = 0;
+    prefs->ViewYOffset = 0;
+    prefs->ViewInitX = 0x0081;
+    prefs->ViewInitY = 0x002C;
+
+    prefs->EnableCLI = TRUE | (1 << 14);
+
+    prefs->PrinterType = 0x07;
+    prefs->PrintPitch = 0;
+    prefs->PrintQuality = 0;
+    prefs->PrintSpacing = 0;
+    prefs->PrintLeftMargin = 5;
+    prefs->PrintRightMargin = 75;
+    prefs->PrintImage = 0;
+    prefs->PrintAspect = 0;
+    prefs->PrintShade = 1;
+    prefs->PrintThreshold = 7;
+
+    prefs->PaperSize = 0;
+    prefs->PaperLength = 66;
+    prefs->PaperType = 0;
+
+    prefs->SerRWBits = 0;
+    prefs->SerStopBuf = 0x01;
+    prefs->SerParShk = 0x02;
+
+    prefs->LaceWB = 0;
+}
+
+static struct Preferences *_intuition_copy_prefs(struct Preferences *dst,
+                                                 WORD size,
+                                                 const struct Preferences *src)
+{
+    ULONG copy_size;
+
+    if (!dst)
+        return NULL;
+
+    if (size <= 0 || !src)
+        return dst;
+
+    copy_size = (ULONG)size;
+    if (copy_size > sizeof(struct Preferences))
+        copy_size = sizeof(struct Preferences);
+
+    CopyMem((APTR)src, dst, copy_size);
+    return dst;
+}
+
+static const UWORD _intuition_busy_pointer[] = {
+    0x0000, 0x0000,
+    0x0400, 0x07C0,
+    0x0000, 0x07C0,
+    0x0100, 0x0380,
+    0x0000, 0x07E0,
+    0x07C0, 0x1FF8,
+    0x1FF0, 0x3FEC,
+    0x3FF8, 0x7FDE,
+    0x3FF8, 0x7FBE,
+    0x7FFC, 0xFF7F,
+    0x7EFC, 0xFFFF,
+    0x7FFC, 0xFFFF,
+    0x3FF8, 0x7FFE,
+    0x3FF8, 0x7FFE,
+    0x1FF0, 0x3FFC,
+    0x07C0, 0x1FF8,
+    0x0000, 0x07E0,
+    0x0000, 0x0000
+};
 
 static int _intuition_ascii_casecmp(const char *a, const char *b)
 {
@@ -2528,6 +2649,9 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
     NewList(&base->PubScreenList);
     NewList(&base->WindowStateList);
     base->DefaultPubScreen = NULL;
+    _intuition_init_preferences(&base->DefaultPrefs);
+    base->ActivePrefs = base->DefaultPrefs;
+    base->EditHook = NULL;
 
     /* Create rootclass */
     struct IClass *root = AllocMem(sizeof(struct IClass) + sizeof("rootclass"), MEMF_PUBLIC | MEMF_CLEAR);
@@ -2862,9 +2986,16 @@ UWORD _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm
 BOOL _intuition_ClearDMRequest ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: ClearDMRequest() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_intuition: ClearDMRequest() window=0x%08lx\n", (ULONG)window);
+
+    if (!window)
+        return FALSE;
+
+    if (window->DMRequest && (window->DMRequest->Flags & REQACTIVE))
+        return FALSE;
+
+    window->DMRequest = NULL;
+    return TRUE;
 }
 
 VOID _intuition_ClearMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3071,9 +3202,15 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
 
 LONG _intuition_CloseWorkBench ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: CloseWorkBench() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct Screen *wbscreen;
+
+    DPRINTF (LOG_DEBUG, "_intuition: CloseWorkBench()\n");
+
+    wbscreen = _intuition_find_workbench_screen(IntuitionBase);
+    if (!wbscreen)
+        return FALSE;
+
+    return _intuition_CloseScreen(IntuitionBase, wbscreen) ? TRUE : FALSE;
 }
 
 VOID _intuition_CurrentTime ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3138,6 +3275,7 @@ BOOL _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __as
                                                         register ULONG cSeconds __asm("d2"),
                                                         register ULONG cMicros __asm("d3"))
 {
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
     /* Check if two times are within the double-click interval.
      * Based on AROS implementation.
      * 
@@ -3168,9 +3306,10 @@ BOOL _intuition_DoubleClick ( register struct IntuitionBase * IntuitionBase __as
     /* Calculate absolute difference */
     diff = (sTotal > cTotal) ? (sTotal - cTotal) : (cTotal - sTotal);
     
-    /* Default double-click time is 0.5 seconds (500000 microseconds) */
-    /* Use IntuitionBase preferences if available */
-    doubleClickTime = 500000;  /* Default: 0.5 seconds */
+    doubleClickTime = base->ActivePrefs.DoubleClick.tv_secs * 1000000UL +
+                      base->ActivePrefs.DoubleClick.tv_micro;
+    if (doubleClickTime == 0)
+        doubleClickTime = 500000;
     
     DPRINTF (LOG_DEBUG, "_intuition: DoubleClick diff=%lu threshold=%lu\n", diff, doubleClickTime);
     
@@ -3314,106 +3453,30 @@ struct Preferences * _intuition_GetDefPrefs ( register struct IntuitionBase * In
                                                         register struct Preferences * preferences __asm("a0"),
                                                         register WORD size __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: GetDefPrefs() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+
+    DPRINTF (LOG_DEBUG, "_intuition: GetDefPrefs() preferences=0x%08lx size=%d\n",
+             (ULONG)preferences, (int)size);
+
+    if (!preferences)
+        return NULL;
+
+    return _intuition_copy_prefs(preferences, size, &base->DefaultPrefs);
 }
 
 struct Preferences * _intuition_GetPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Preferences * preferences __asm("a0"),
                                                         register WORD size __asm("d0"))
 {
-    /*
-     * GetPrefs() copies the current Intuition preferences into the user's buffer.
-     * We provide reasonable defaults for a standard PAL/NTSC Workbench setup.
-     */
-    DPRINTF (LOG_DEBUG, "_intuition: GetPrefs() preferences=0x%08lx size=%d\n", 
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+
+    DPRINTF (LOG_DEBUG, "_intuition: GetPrefs() preferences=0x%08lx size=%d\n",
              (ULONG)preferences, (int)size);
-    
-    if (!preferences || size <= 0) {
+
+    if (!preferences)
         return NULL;
-    }
-    
-    /* Clear the buffer first */
-    char *p = (char *)preferences;
-    for (int i = 0; i < size && i < (int)sizeof(struct Preferences); i++) {
-        p[i] = 0;
-    }
-    
-    /* Fill in sensible defaults - only fill what fits in the provided buffer */
-    struct Preferences defaults;
-    char *d = (char *)&defaults;
-    for (int i = 0; i < (int)sizeof(defaults); i++) d[i] = 0;
-    
-    defaults.FontHeight = 8;          /* TOPAZ_EIGHTY - standard 80-col font */
-    defaults.PrinterPort = 0;         /* PARALLEL_PRINTER */
-    defaults.BaudRate = 5;            /* BAUD_9600 */
-    
-    /* Key repeat: ~500ms delay, ~100ms repeat */
-    defaults.KeyRptDelay.tv_secs = 0;
-    defaults.KeyRptDelay.tv_micro = 500000;
-    defaults.KeyRptSpeed.tv_secs = 0;
-    defaults.KeyRptSpeed.tv_micro = 100000;
-    
-    /* Double-click: ~500ms */
-    defaults.DoubleClick.tv_secs = 0;
-    defaults.DoubleClick.tv_micro = 500000;
-    
-    /* Pointer offsets */
-    defaults.XOffset = -1;
-    defaults.YOffset = -1;
-    defaults.PointerTicks = 1;
-    
-    /* Workbench colors (standard 4-color palette) */
-    defaults.color0 = 0x0AAA;         /* Grey background */
-    defaults.color1 = 0x0000;         /* Black */
-    defaults.color2 = 0x0FFF;         /* White */
-    defaults.color3 = 0x068B;         /* Blue */
-    
-    /* Pointer colors */
-    defaults.color17 = 0x0E44;        /* Orange-red */
-    defaults.color18 = 0x0000;        /* Black */
-    defaults.color19 = 0x0EEC;        /* Yellow */
-    
-    /* View offsets (PAL defaults) */
-    defaults.ViewXOffset = 0;
-    defaults.ViewYOffset = 0;
-    defaults.ViewInitX = 0x0081;      /* Standard HIRES offset */
-    defaults.ViewInitY = 0x002C;      /* Standard PAL offset */
-    
-    defaults.EnableCLI = TRUE | (1 << 14);  /* SCREEN_DRAG enabled */
-    
-    /* Printer defaults */
-    defaults.PrinterType = 0x07;      /* EPSON */
-    defaults.PrintPitch = 0;          /* PICA */
-    defaults.PrintQuality = 0;        /* DRAFT */
-    defaults.PrintSpacing = 0;        /* SIX_LPI */
-    defaults.PrintLeftMargin = 5;
-    defaults.PrintRightMargin = 75;
-    defaults.PrintImage = 0;          /* IMAGE_POSITIVE */
-    defaults.PrintAspect = 0;         /* ASPECT_HORIZ */
-    defaults.PrintShade = 1;          /* SHADE_GREYSCALE */
-    defaults.PrintThreshold = 7;
-    
-    /* Paper defaults */
-    defaults.PaperSize = 0;           /* US_LETTER */
-    defaults.PaperLength = 66;        /* 66 lines per page */
-    defaults.PaperType = 0;           /* FANFOLD */
-    
-    /* Serial defaults: 8N1 */
-    defaults.SerRWBits = 0;           /* 8 read, 8 write bits */
-    defaults.SerStopBuf = 0x01;       /* 1 stop bit, 1024 buf */
-    defaults.SerParShk = 0x02;        /* No parity, no handshake */
-    
-    defaults.LaceWB = 0;              /* No interlace */
-    
-    /* Copy to user buffer */
-    int copy_size = size < (int)sizeof(struct Preferences) ? size : (int)sizeof(struct Preferences);
-    for (int i = 0; i < copy_size; i++) {
-        p[i] = d[i];
-    }
-    
-    return preferences;
+
+    return _intuition_copy_prefs(preferences, size, &base->ActivePrefs);
 }
 
 VOID _intuition_InitRequester ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -7333,9 +7396,17 @@ BOOL _intuition_SetDMRequest ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Window * window __asm("a0"),
                                                         register struct Requester * requester __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetDMRequest() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_intuition: SetDMRequest() window=0x%08lx requester=0x%08lx\n",
+             (ULONG)window, (ULONG)requester);
+
+    if (!window)
+        return FALSE;
+
+    if (window->DMRequest && (window->DMRequest->Flags & REQACTIVE))
+        return FALSE;
+
+    window->DMRequest = requester;
+    return TRUE;
 }
 
 BOOL _intuition_SetMenuStrip ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -7658,9 +7729,34 @@ struct Preferences  * _intuition_SetPrefs ( register struct IntuitionBase * Intu
                                                         register LONG size __asm("d0"),
                                                         register BOOL inform __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetPrefs() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct Screen *screen;
+
+    DPRINTF (LOG_DEBUG, "_intuition: SetPrefs() preferences=0x%08lx size=%ld inform=%d\n",
+             (ULONG)preferences, size, (int)inform);
+
+    if (!preferences || size <= 0)
+        return (struct Preferences *)preferences;
+
+    CopyMem((APTR)preferences,
+            &base->ActivePrefs,
+            (ULONG)size > sizeof(struct Preferences) ? sizeof(struct Preferences) : (ULONG)size);
+
+    if (inform)
+    {
+        for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
+        {
+            struct Window *window;
+
+            for (window = screen->FirstWindow; window; window = window->NextWindow)
+            {
+                if (window->IDCMPFlags & IDCMP_NEWPREFS)
+                    _post_idcmp_message(window, IDCMP_NEWPREFS, 0, 0, NULL, window->MouseX, window->MouseY);
+            }
+        }
+    }
+
+    return (struct Preferences *)preferences;
 }
 
 LONG _intuition_IntuiTextLength ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -8829,8 +8925,14 @@ VOID _intuition_NewModifyProp ( register struct IntuitionBase * IntuitionBase __
                                                         register UWORD vertBody __asm("d4"),
                                                         register WORD numGad __asm("d5"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: NewModifyProp() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: NewModifyProp() gadget=0x%08lx window=0x%08lx req=0x%08lx numGad=%d\n",
+             (ULONG)gadget, (ULONG)window, (ULONG)requester, (int)numGad);
+
+    _intuition_ModifyProp(IntuitionBase, gadget, window, requester,
+                          flags, horizPot, vertPot, horizBody, vertBody);
+
+    if (window && gadget)
+        _intuition_RefreshGList(IntuitionBase, gadget, window, requester, numGad);
 }
 
 LONG _intuition_QueryOverscan ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -8882,8 +8984,43 @@ VOID _intuition_MoveWindowInFrontOf ( register struct IntuitionBase * IntuitionB
                                                         register struct Window * window __asm("a0"),
                                                         register struct Window * behindWindow __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: MoveWindowInFrontOf() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct Window **link;
+
+    DPRINTF (LOG_DEBUG, "_intuition: MoveWindowInFrontOf() window=0x%08lx behind=0x%08lx\n",
+             (ULONG)window, (ULONG)behindWindow);
+
+    if (!window || !window->WScreen)
+        return;
+
+    if (!behindWindow)
+    {
+        _intuition_WindowToFront(IntuitionBase, window);
+        return;
+    }
+
+    if (window == behindWindow || behindWindow->WScreen != window->WScreen)
+        return;
+
+    link = &window->WScreen->FirstWindow;
+    while (*link && *link != window)
+        link = &(*link)->NextWindow;
+    if (*link != window)
+        return;
+
+    *link = window->NextWindow;
+
+    link = &window->WScreen->FirstWindow;
+    while (*link && *link != behindWindow)
+        link = &(*link)->NextWindow;
+
+    window->NextWindow = *link;
+    *link = window;
+
+    if (window->WLayer && behindWindow->WLayer && LayersBase)
+        _call_MoveLayerInFrontOf(LayersBase, window->WLayer, behindWindow->WLayer);
+
+    _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_DEPTH, 0,
+                        window, window->MouseX, window->MouseY);
 }
 
 VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -8905,9 +9042,14 @@ VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase 
 struct Hook * _intuition_SetEditHook ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Hook * hook __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetEditHook() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct Hook *old_hook = base->EditHook;
+
+    DPRINTF (LOG_DEBUG, "_intuition: SetEditHook() hook=0x%08lx old=0x%08lx\n",
+             (ULONG)hook, (ULONG)old_hook);
+
+    base->EditHook = hook;
+    return old_hook;
 }
 
 LONG _intuition_SetMouseQueue ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -11440,8 +11582,13 @@ VOID _intuition_LendMenus ( register struct IntuitionBase * IntuitionBase __asm(
                                                         register struct Window * fromwindow __asm("a0"),
                                                         register struct Window * towindow __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: LendMenus() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: LendMenus() from=0x%08lx to=0x%08lx\n",
+             (ULONG)fromwindow, (ULONG)towindow);
+
+    if (!fromwindow)
+        return;
+
+    fromwindow->MenuStrip = towindow ? towindow->MenuStrip : NULL;
 }
 
 ULONG _intuition_DoGadgetMethodA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -11471,8 +11618,45 @@ VOID _intuition_SetWindowPointerA ( register struct IntuitionBase * IntuitionBas
                                                         register struct Window * win __asm("a0"),
                                                         register const struct TagItem * taglist __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: SetWindowPointerA() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct TagItem *state;
+    struct TagItem *tag;
+    UWORD *pointer = NULL;
+    BOOL busy = FALSE;
+
+    DPRINTF (LOG_DEBUG, "_intuition: SetWindowPointerA() win=0x%08lx taglist=0x%08lx\n",
+             (ULONG)win, (ULONG)taglist);
+
+    if (!win)
+        return;
+
+    if (!taglist)
+    {
+        _intuition_ClearPointer(IntuitionBase, win);
+        return;
+    }
+
+    state = (struct TagItem *)taglist;
+    while ((tag = NextTagItem(&state)))
+    {
+        switch (tag->ti_Tag)
+        {
+            case WA_Pointer:
+                pointer = (UWORD *)tag->ti_Data;
+                break;
+            case WA_BusyPointer:
+                busy = tag->ti_Data ? TRUE : FALSE;
+                break;
+            case WA_PointerDelay:
+                break;
+        }
+    }
+
+    if (busy)
+        _intuition_SetPointer(IntuitionBase, win, (UWORD *)_intuition_busy_pointer, 16, 16, -6, 0);
+    else if (pointer)
+        _intuition_SetPointer(IntuitionBase, win, pointer, win->PtrHeight, win->PtrWidth, win->XOffset, win->YOffset);
+    else
+        _intuition_ClearPointer(IntuitionBase, win);
 }
 
 BOOL _intuition_TimedDisplayAlert ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -11481,17 +11665,25 @@ BOOL _intuition_TimedDisplayAlert ( register struct IntuitionBase * IntuitionBas
                                                         register UWORD height __asm("d1"),
                                                         register ULONG time __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: TimedDisplayAlert() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_intuition: TimedDisplayAlert() alert=0x%08lx height=%u time=%lu\n",
+             alertNumber, (unsigned)height, time);
+    return _intuition_DisplayAlert(IntuitionBase, alertNumber, string, height);
 }
 
 VOID _intuition_HelpControl ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * win __asm("a0"),
                                                         register ULONG flags __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: HelpControl() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: HelpControl() win=0x%08lx flags=0x%08lx\n",
+             (ULONG)win, flags);
+
+    if (!win)
+        return;
+
+    if (flags & HC_GADGETHELP)
+        win->MoreFlags |= LXA_WMF_GADGETHELP;
+    else
+        win->MoreFlags &= ~LXA_WMF_GADGETHELP;
 }
 
 

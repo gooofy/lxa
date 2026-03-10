@@ -1,7 +1,6 @@
 /*
  * Test: intuition/pointer_input
- * Tests SetPointer/ClearPointer, SetMouseQueue, CurrentTime, DisplayAlert,
- * and DisplayBeep.
+ * Tests pointer helpers, mouse queue, alerts, and beep helpers.
  */
 
 #include <exec/types.h>
@@ -220,7 +219,13 @@ int main(void)
 
     DisplayBeep(screen);
     DisplayBeep(NULL);
-    print("  OK: DisplayBeep accepted screen-specific and global calls\n\n");
+    alert_result = TimedDisplayAlert(RECOVERY_ALERT, alert_text, 20, 5);
+    if (alert_result != TRUE) {
+        print("  FAIL: TimedDisplayAlert did not match recovery alert semantics\n\n");
+        errors++;
+    } else {
+        print("  OK: DisplayBeep and TimedDisplayAlert accept compatibility calls\n\n");
+    }
 
     CloseWindow(window);
     CloseScreen(screen);

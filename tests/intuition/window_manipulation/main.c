@@ -1,6 +1,6 @@
 /*
  * Test: intuition/window_manipulation
- * Tests MoveWindow, SizeWindow, WindowLimits, ChangeWindowBox functions
+ * Tests window geometry, z-order, menu lending, and helper wrappers.
  */
 
 #include <exec/types.h>
@@ -309,6 +309,100 @@ int main(void)
             }
 
             CloseWindow(other);
+        }
+    }
+
+    print("Test 4c2: MoveWindowInFrontOf() reorders windows and posts depth changes...\n");
+    {
+        struct NewWindow helper = nw;
+        struct Window *middle;
+        struct Window *back;
+
+        helper.LeftEdge = 10;
+        helper.TopEdge = 10;
+        helper.Width = 140;
+        helper.Height = 90;
+        helper.Flags = WFLG_DRAGBAR;
+        helper.IDCMPFlags = IDCMP_CHANGEWINDOW;
+        helper.Title = (UBYTE *)"Middle";
+        middle = OpenWindow(&helper);
+
+        helper.LeftEdge = 40;
+        helper.TopEdge = 40;
+        helper.Title = (UBYTE *)"Back";
+        back = OpenWindow(&helper);
+
+        if (!middle || !back) {
+            print("  FAIL: Could not open helper windows for MoveWindowInFrontOf\n\n");
+            errors++;
+            if (back) CloseWindow(back);
+            if (middle) CloseWindow(middle);
+        } else {
+            drain_port(window->UserPort);
+            MoveWindowInFrontOf(window, middle);
+            if (screen->FirstWindow != back || back->NextWindow != window || window->NextWindow != middle) {
+                print("  FAIL: MoveWindowInFrontOf did not splice the window before the target\n\n");
+                errors++;
+            } else if (!expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_DEPTH)) {
+                print("  FAIL: MoveWindowInFrontOf did not emit a depth change message\n\n");
+                errors++;
+            } else {
+                print("  OK: MoveWindowInFrontOf reorders depth relative to another window\n\n");
+            }
+
+            WindowToFront(window);
+            ModifyIDCMP(window, IDCMP_ACTIVEWINDOW | IDCMP_INACTIVEWINDOW | IDCMP_CHANGEWINDOW | IDCMP_NEWSIZE);
+            CloseWindow(back);
+            CloseWindow(middle);
+        }
+    }
+
+    print("Test 4c3: LendMenus() borrows and clears menu strips...\n");
+    {
+        struct NewWindow helper = nw;
+        struct Window *menu_window;
+        struct MenuItem item;
+        struct Menu menu;
+
+        memset(&item, 0, sizeof(item));
+        memset(&menu, 0, sizeof(menu));
+        item.LeftEdge = 0;
+        item.TopEdge = 0;
+        item.Width = 40;
+        item.Height = 10;
+        menu.MenuName = (UBYTE *)"Project";
+        menu.FirstItem = &item;
+        helper.LeftEdge = 60;
+        helper.TopEdge = 60;
+        helper.Width = 160;
+        helper.Height = 100;
+        helper.Flags = WFLG_DRAGBAR;
+        helper.IDCMPFlags = 0;
+        helper.Title = (UBYTE *)"Menu Borrower";
+
+        menu_window = OpenWindow(&helper);
+        if (!menu_window) {
+            print("  FAIL: Could not open helper window for LendMenus\n\n");
+            errors++;
+        } else if (!SetMenuStrip(menu_window, &menu)) {
+            print("  FAIL: Could not attach source menu strip for LendMenus\n\n");
+            errors++;
+            CloseWindow(menu_window);
+        } else {
+            LendMenus(window, menu_window);
+            if (window->MenuStrip != &menu) {
+                print("  FAIL: LendMenus did not assign the source menu strip\n\n");
+                errors++;
+            } else {
+                LendMenus(window, NULL);
+                if (window->MenuStrip != NULL) {
+                    print("  FAIL: LendMenus did not clear the borrowed menu strip\n\n");
+                    errors++;
+                } else {
+                    print("  OK: LendMenus follows borrow-and-clear semantics\n\n");
+                }
+            }
+            CloseWindow(menu_window);
         }
     }
 

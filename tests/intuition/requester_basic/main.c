@@ -1,7 +1,7 @@
 /*
  * Test: intuition/requester_basic
  * Tests InitRequester, Request, EndRequest, BuildSysRequest, FreeSysRequest,
- * and SysReqHandler functions.
+ * SysReqHandler, and DMRequest helpers.
  */
 
 #include <exec/types.h>
@@ -214,6 +214,31 @@ int main(void)
         print("  OK: EndRequest unlinked and cleaned up the requester\n\n");
     } else {
         print("  FAIL: EndRequest did not fully clean up the requester\n\n");
+    }
+
+    /* Test 3b: SetDMRequest / ClearDMRequest */
+    print("Test 3b: SetDMRequest() / ClearDMRequest()...\n");
+    requester.Flags = 0;
+    if (!SetDMRequest(window, &requester)) {
+        print("  FAIL: SetDMRequest returned FALSE for inactive requester\n\n");
+    } else if (window->DMRequest != &requester) {
+        print("  FAIL: SetDMRequest did not attach the requester\n\n");
+    } else if (!ClearDMRequest(window)) {
+        print("  FAIL: ClearDMRequest returned FALSE for detached requester\n\n");
+    } else if (window->DMRequest != NULL) {
+        print("  FAIL: ClearDMRequest did not clear the window DMRequest pointer\n\n");
+    } else {
+        requester.Flags = REQACTIVE;
+        window->DMRequest = &requester;
+        if (ClearDMRequest(window)) {
+            print("  FAIL: ClearDMRequest detached an active requester\n\n");
+        } else if (SetDMRequest(window, NULL)) {
+            print("  FAIL: SetDMRequest replaced an active requester\n\n");
+        } else {
+            requester.Flags = 0;
+            window->DMRequest = NULL;
+            print("  OK: DMRequest helpers honor attach, clear, and active-requester refusal\n\n");
+        }
     }
 
     /* Test 4: BuildSysRequest and SysReqHandler cancel path */

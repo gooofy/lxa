@@ -461,7 +461,7 @@ Goal: close remaining behavior gaps and lock the whole DOS phase down with direc
 
 ##### 78-E-2: Review
 
-- [x] Implement missing functions and stubs as far as possible — `NextObject()`, `WBenchToFront()`, and `WBenchToBack()` now follow the public NDK/AROS semantics with direct BOOPSI/screen-order regression coverage (v0.6.113)
+- [x] Implement missing functions and stubs as far as possible — `NextObject()`, `WBenchToFront()`, and `WBenchToBack()` now follow the public NDK/AROS semantics with direct BOOPSI/screen-order regression coverage (v0.6.113); follow-up Intuition compatibility work now covers `ClearDMRequest()`, `SetDMRequest()`, `CloseWorkBench()`, `GetDefPrefs()`, `SetPrefs()`, `NewModifyProp()`, `MoveWindowInFrontOf()`, `SetEditHook()`, `LendMenus()`, `SetWindowPointerA()`, `TimedDisplayAlert()`, and `HelpControl()` with direct regression coverage in the requester, pointer, screen, and window test programs (v0.6.118)
 - [x] Architecture review: identify architecture improvement opportunities, add them to phase 79
 - [x] Performance review: identify performance improvement opportunities, add them to phase 79
 

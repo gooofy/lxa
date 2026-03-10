@@ -1,6 +1,6 @@
 /*
  * Test: intuition/screen_manipulation
- * Tests ScreenToBack, ScreenToFront, ScreenDepth, ScreenPosition functions
+ * Tests screen ordering, data helpers, and Workbench open/close behavior.
  */
 
 #include <exec/types.h>
@@ -258,6 +258,24 @@ int main(void)
     print("OK: Screen 2 closed\n");
     CloseScreen(screen1);
     print("OK: Screen 1 closed\n\n");
+
+    print("Test 9: CloseWorkBench() / OpenWorkBench()...\n");
+    if (!CloseWorkBench()) {
+        print("  FAIL: CloseWorkBench returned FALSE for an open Workbench screen\n\n");
+        errors++;
+    } else if (screen_position(workbench) != -1) {
+        print("  FAIL: CloseWorkBench left the Workbench screen open\n\n");
+        errors++;
+    } else if (CloseWorkBench()) {
+        print("  FAIL: CloseWorkBench returned TRUE when Workbench was already closed\n\n");
+        errors++;
+    } else if (!OpenWorkBench() || screen_position(IntuitionBase->FirstScreen) == -1 ||
+               !(IntuitionBase->FirstScreen->Flags & WBENCHSCREEN)) {
+        print("  FAIL: OpenWorkBench did not reopen Workbench after close\n\n");
+        errors++;
+    } else {
+        print("  OK: CloseWorkBench closes Workbench once and OpenWorkBench restores it\n\n");
+    }
 
     if (!WBenchToFront()) {
         print("FAIL: WBenchToFront failed during cleanup\n");

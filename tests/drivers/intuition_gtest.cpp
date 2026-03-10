@@ -114,6 +114,10 @@ protected:
             int move_y = window_info.y + 40;
             lxa_inject_mouse(move_x, move_y, 0, LXA_EVENT_MOUSEMOVE);
             RunCyclesWithVBlank(10, 50000);
+        } else if (strcmp(name, "ScreenManipulation") == 0) {
+            timeout_ms = 10000;
+        } else if (strcmp(name, "WindowManipulation") == 0) {
+            timeout_ms = 10000;
         }
         
         lxa_run_until_exit(timeout_ms);
