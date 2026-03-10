@@ -626,15 +626,15 @@ Status: complete in 0.6.124.
 
 - [ ] `CMD_WRITE` — ANSI escape sequences: cursor movement, SGR attributes (bold/reverse/underline), erase, color (foreground/background 30-37/40-47)
 - [ ] `CMD_READ` — read character/line; CRAF_* flags
-- [ ] `CD_ASKKEYMAP` / `CD_SETKEYMAP`
-- [ ] `CONU_LIBRARY` unit (-1) handling ✅ (Phase 72)
+- [x] `CD_ASKKEYMAP` / `CD_SETKEYMAP` — unit-local keymap install/query plus default-keymap query/set behavior now have direct regression coverage, and `CMD_READ` rawkey translation uses the installed per-unit keymap when present (v0.7.3)
+- [x] `CONU_LIBRARY` unit (-1) handling — library-only open path and `RawKeyConvert()` access are now locked by direct regression coverage alongside the keymap command tests (v0.7.3)
 - [ ] Window resize events (IDCMP_NEWSIZE) → console resize
 - [ ] Scroll-back buffer management
 - [ ] Verify ANSI CSI sequences: `\e[H` (home), `\e[J` (erase display), `\e[K` (erase line), `\e[?25l/h` (cursor hide/show)
 
 ##### 78-M-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
+- [ ] Implement missing functions and stubs as far as possible — keymap command handling and library-only open semantics are now covered; remaining follow-up is resize/scroll-back/read-flag compatibility work
 - [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
 - [ ] Performance review: identify performance improvement opportunities, add them to phase 79
 

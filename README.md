@@ -179,7 +179,7 @@ lxa -d -v myprogram
 - **diskfont.library**: Font loading from FONTS: directory (bitmap .font files)
 - **mathieeesingbas.library**: IEEE single-precision basic math (12 functions)
 - **mathieeedoubbas.library**: IEEE double-precision basic math (12 functions)
-- **console.device**: Terminal I/O with CSI escape sequences, keyboard input
+- **console.device**: Terminal I/O with CSI escape sequences, keyboard input, `CONU_LIBRARY` access, and covered keymap command/query support
 - **trackdisk.device**: Floppy disk device (stub with geometry support)
 - **audio.device**: Audio device (stub, accepts opens)
 
@@ -217,7 +217,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.7.2** - Phase 78-L is now closed: `timer.device` now covers documented request units, system-time set/get behavior, `AbortIO()`, direct `timer.library` helper calls, and 64-bit `ReadEClock()` values with direct device and exec regression coverage
+**Version 0.7.3** - Phase 78-M console-device follow-up now covers `CONU_LIBRARY` library-only opens plus direct `CD_ASKKEYMAP` / `CD_SETKEYMAP` regression coverage, and `CMD_READ` now honors an installed per-unit keymap for rawkey translation
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

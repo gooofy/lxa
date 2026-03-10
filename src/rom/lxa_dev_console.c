@@ -217,6 +217,100 @@ static char rawkey_to_ascii(UWORD rawkey, UWORD qualifier)
     return c;
 }
 
+static void console_copy_keymap(struct KeyMap *dest, const struct KeyMap *src)
+{
+    if (!dest || !src) {
+        return;
+    }
+
+    dest->km_LoKeyMapTypes = src->km_LoKeyMapTypes;
+    dest->km_LoKeyMap = src->km_LoKeyMap;
+    dest->km_LoCapsable = src->km_LoCapsable;
+    dest->km_LoRepeatable = src->km_LoRepeatable;
+    dest->km_HiKeyMapTypes = src->km_HiKeyMapTypes;
+    dest->km_HiKeyMap = src->km_HiKeyMap;
+    dest->km_HiCapsable = src->km_HiCapsable;
+    dest->km_HiRepeatable = src->km_HiRepeatable;
+}
+
+static BOOL console_load_default_keymap(struct KeyMap *dest)
+{
+    struct Library *KeymapBase;
+
+    if (!dest) {
+        return FALSE;
+    }
+
+    KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
+    if (KeymapBase) {
+        register struct KeyMap *_result __asm("d0");
+        register struct Library *_a6 __asm("a6") = KeymapBase;
+
+        __asm volatile (
+            "jsr %1@(-36)"
+            : "=r" (_result)
+            : "a" (_a6)
+            : "cc", "memory"
+        );
+
+        if (_result) {
+            console_copy_keymap(dest, _result);
+            CloseLibrary(KeymapBase);
+            return TRUE;
+        }
+
+        CloseLibrary(KeymapBase);
+    }
+
+    return FALSE;
+}
+
+static WORD console_map_rawkey(struct LxaConUnit *unit, UWORD rawkey, UWORD qualifier,
+                               STRPTR buffer, LONG length)
+{
+    struct Library *KeymapBase;
+    struct InputEvent event = {0};
+    struct KeyMap *map = NULL;
+
+    if (!buffer || length <= 0) {
+        return 0;
+    }
+
+    KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
+    if (KeymapBase) {
+        register WORD _result __asm("d0");
+        register struct Library *_a6 __asm("a6") = KeymapBase;
+        register struct InputEvent *_a0 __asm("a0") = &event;
+        register STRPTR _a1 __asm("a1") = buffer;
+        register LONG _d1 __asm("d1") = length;
+        if (unit && unit->use_keymap) {
+            map = &unit->cu.cu_KeyMapStruct;
+        }
+
+        register struct KeyMap *_a2 __asm("a2") = map;
+
+        event.ie_Class = IECLASS_RAWKEY;
+        event.ie_Code = rawkey;
+        event.ie_Qualifier = qualifier;
+
+        __asm volatile (
+            "jsr %1@(-42)"
+            : "=r" (_result)
+            : "a" (_a6), "r" (_a0), "r" (_a1), "r" (_d1), "r" (_a2)
+            : "cc", "memory"
+        );
+
+        CloseLibrary(KeymapBase);
+
+        if (_result > 0) {
+            return _result;
+        }
+    }
+
+    buffer[0] = rawkey_to_ascii(rawkey, qualifier);
+    return buffer[0] ? 1 : 0;
+}
+
 /*
  * Forward declarations
  */
@@ -359,7 +453,7 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     /* Initialize unit mode (will be set in OpenDevice) */
     unit->unit_mode = CONU_STANDARD;
     unit->use_keymap = FALSE;
-    
+
     /* Initialize pending read (Phase 45: async I/O) */
     unit->pending_read = NULL;
     
@@ -761,48 +855,54 @@ static void console_process_input(struct LxaConUnit *unit)
                     redraw_cursor = TRUE;
                     DPRINTF(LOG_DEBUG, "_console: Special key handled\n");
                 } else {
-                    /* Try normal ASCII conversion */
-                    char c = rawkey_to_ascii(rawkey, qualifier);
-                    
-                    DPRINTF(LOG_DEBUG, "_console: ASCII conversion -> '%c' (0x%02x)\n",
-                            (c >= 32 && c < 127) ? c : '.', (unsigned char)c);
-                    
-                    if (c) {
+                    UBYTE mapped[16];
+                    WORD mapped_len = console_map_rawkey(unit, rawkey, qualifier,
+                                                         mapped, sizeof(mapped));
+
+                    DPRINTF(LOG_DEBUG, "_console: key conversion -> len=%d first=0x%02x\n",
+                            mapped_len,
+                            mapped_len > 0 ? (unsigned char)mapped[0] : 0);
+
+                    if (mapped_len > 0) {
                         redraw_cursor = TRUE;
-                        
-                        /* Handle special characters */
-                        if (c == '\b') {
-                            /* Backspace - remove last character from buffer if possible */
-                            BOOL can_backspace = FALSE;
-                            
-                            /* Only allow backspace if we have characters in our input buffer
-                             * that are part of the current line (not past a newline) */
-                            if (!input_buf_empty(unit)) {
-                                UWORD prev = (unit->input_head + INPUT_BUF_LEN - 1) % INPUT_BUF_LEN;
-                                if (unit->input_buf[prev] != '\r' && 
-                                    unit->input_buf[prev] != '\n') {
-                                    unit->input_head = prev;
-                                    can_backspace = TRUE;
+
+                        for (WORD mi = 0; mi < mapped_len; mi++) {
+                            char c = mapped[mi];
+
+                            /* Handle special characters */
+                            if (c == '\b') {
+                                /* Backspace - remove last character from buffer if possible */
+                                BOOL can_backspace = FALSE;
+
+                                /* Only allow backspace if we have characters in our input buffer
+                                 * that are part of the current line (not past a newline) */
+                                if (!input_buf_empty(unit)) {
+                                    UWORD prev = (unit->input_head + INPUT_BUF_LEN - 1) % INPUT_BUF_LEN;
+                                    if (unit->input_buf[prev] != '\r' &&
+                                        unit->input_buf[prev] != '\n') {
+                                        unit->input_head = prev;
+                                        can_backspace = TRUE;
+                                    }
                                 }
-                            }
-                            
-                            if (can_backspace && unit->echo_enabled) {
-                                /* Echo backspace: move cursor back, space, move back again */
-                                console_process_char(unit, '\b');
-                                console_process_char(unit, ' ');
-                                console_process_char(unit, '\b');
-                            }
-                        } else {
-                            /* Add character to buffer */
-                            input_buf_put(unit, c);
-                            
-                            /* Echo if enabled */
-                            if (unit->echo_enabled) {
-                                if (c == '\r') {
-                                    console_process_char(unit, '\r');
-                                    console_process_char(unit, '\n');
-                                } else if (c >= 32 || c == '\t') {
-                                    console_process_char(unit, c);
+
+                                if (can_backspace && unit->echo_enabled) {
+                                    /* Echo backspace: move cursor back, space, move back again */
+                                    console_process_char(unit, '\b');
+                                    console_process_char(unit, ' ');
+                                    console_process_char(unit, '\b');
+                                }
+                            } else {
+                                /* Add character to buffer */
+                                input_buf_put(unit, c);
+
+                                /* Echo if enabled */
+                                if (unit->echo_enabled) {
+                                    if (c == '\r') {
+                                        console_process_char(unit, '\r');
+                                        console_process_char(unit, '\n');
+                                    } else if (c >= 32 || c == '\t') {
+                                        console_process_char(unit, c);
+                                    }
                                 }
                             }
                         }
@@ -2247,13 +2347,12 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
                 break;
             case CONU_CHARMAP:
                 unit->unit_mode = CONU_CHARMAP;
-                unit->use_keymap = TRUE;
-                /* Copy keymap from cu_KeyMapStruct if provided, otherwise use default */
+                unit->use_keymap = FALSE;
                 LPRINTF(LOG_INFO, "_console: Opened as CONU_CHARMAP (character map console)\n");
                 break;
             case CONU_SNIPMAP:
                 unit->unit_mode = CONU_SNIPMAP;
-                unit->use_keymap = TRUE;
+                unit->use_keymap = FALSE;
                 LPRINTF(LOG_INFO, "_console: Opened as CONU_SNIPMAP (snipmap console)\n");
                 break;
             default:
@@ -2502,43 +2601,22 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
             
         case CD_ASKKEYMAP:
         case CD_ASKDEFAULTKEYMAP:
-            /* Return the current/default keymap */
-            /* Both commands return the same keymap since we don't support per-unit keymaps yet */
             DPRINTF(LOG_DEBUG, "_console: CD_ASKKEYMAP/CD_ASKDEFAULTKEYMAP io_Data=0x%08lx io_Length=%ld\n",
                     (ULONG)iostd->io_Data, (LONG)iostd->io_Length);
             if (iostd->io_Data && iostd->io_Length >= (LONG)sizeof(struct KeyMap)) {
-                struct Library *KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
-                if (KeymapBase) {
-                    /* Call AskKeyMapDefault from keymap.library (LVO -36) */
-                    register struct KeyMap *_result __asm("d0");
-                    register struct Library *_a6 __asm("a6") = KeymapBase;
-                    __asm volatile (
-                        "jsr %1@(-36)"
-                        : "=r" (_result)
-                        : "a" (_a6)
-                        : "cc", "memory"
-                    );
-                    if (_result) {
-                        /* Copy the KeyMap structure to user's buffer */
-                        struct KeyMap *destMap = (struct KeyMap *)iostd->io_Data;
-                        destMap->km_LoKeyMapTypes = _result->km_LoKeyMapTypes;
-                        destMap->km_LoKeyMap = _result->km_LoKeyMap;
-                        destMap->km_LoCapsable = _result->km_LoCapsable;
-                        destMap->km_LoRepeatable = _result->km_LoRepeatable;
-                        destMap->km_HiKeyMapTypes = _result->km_HiKeyMapTypes;
-                        destMap->km_HiKeyMap = _result->km_HiKeyMap;
-                        destMap->km_HiCapsable = _result->km_HiCapsable;
-                        destMap->km_HiRepeatable = _result->km_HiRepeatable;
-                        ioreq->io_Error = 0;
-                        iostd->io_Actual = sizeof(struct KeyMap);
-                        DPRINTF(LOG_DEBUG, "_console: CD_ASKKEYMAP returned keymap at 0x%08lx\n", (ULONG)_result);
-                    } else {
-                        LPRINTF(LOG_WARNING, "_console: CD_ASKKEYMAP - AskKeyMapDefault returned NULL\n");
-                        ioreq->io_Error = IOERR_OPENFAIL;
-                    }
-                    CloseLibrary(KeymapBase);
+                struct KeyMap *destMap = (struct KeyMap *)iostd->io_Data;
+
+                if (ioreq->io_Command == CD_ASKKEYMAP && unit) {
+                    console_copy_keymap(destMap, &unit->cu.cu_KeyMapStruct);
+                    ioreq->io_Error = 0;
+                    iostd->io_Actual = sizeof(struct KeyMap);
+                    DPRINTF(LOG_DEBUG, "_console: CD_ASKKEYMAP returned unit keymap\n");
+                } else if (console_load_default_keymap(destMap)) {
+                    ioreq->io_Error = 0;
+                    iostd->io_Actual = sizeof(struct KeyMap);
+                    DPRINTF(LOG_DEBUG, "_console: CD_ASKKEYMAP returned default keymap\n");
                 } else {
-                    LPRINTF(LOG_WARNING, "_console: CD_ASKKEYMAP - couldn't open keymap.library\n");
+                    LPRINTF(LOG_WARNING, "_console: CD_ASKKEYMAP - couldn't load keymap\n");
                     ioreq->io_Error = IOERR_OPENFAIL;
                 }
             } else {
@@ -2548,17 +2626,43 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
             break;
             
         case CD_SETKEYMAP:
-            /* Set the keymap for this unit */
-            /* For now, just accept and ignore - we use the default system keymap */
             DPRINTF(LOG_DEBUG, "_console: CD_SETKEYMAP\n");
-            ioreq->io_Error = 0;
+            if (!unit) {
+                ioreq->io_Error = IOERR_BADADDRESS;
+            } else if (!iostd->io_Data || iostd->io_Length < (LONG)sizeof(struct KeyMap)) {
+                ioreq->io_Error = IOERR_BADLENGTH;
+            } else {
+                console_copy_keymap(&unit->cu.cu_KeyMapStruct, (const struct KeyMap *)iostd->io_Data);
+                unit->use_keymap = TRUE;
+                ioreq->io_Error = 0;
+                iostd->io_Actual = sizeof(struct KeyMap);
+            }
             break;
             
         case CD_SETDEFAULTKEYMAP:
-            /* Set the default keymap */
-            /* For now, just accept and ignore */
             DPRINTF(LOG_DEBUG, "_console: CD_SETDEFAULTKEYMAP\n");
-            ioreq->io_Error = 0;
+            if (!iostd->io_Data || iostd->io_Length < (LONG)sizeof(struct KeyMap)) {
+                ioreq->io_Error = IOERR_BADLENGTH;
+            } else {
+                struct Library *KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
+                if (KeymapBase) {
+                    register struct Library *_a6 __asm("a6") = KeymapBase;
+                    register struct KeyMap *_a0 __asm("a0") = (struct KeyMap *)iostd->io_Data;
+
+                    __asm volatile (
+                        "jsr %1@(-30)"
+                        :
+                        : "a" (_a6), "r" (_a0)
+                        : "cc", "memory"
+                    );
+
+                    CloseLibrary(KeymapBase);
+                    ioreq->io_Error = 0;
+                    iostd->io_Actual = sizeof(struct KeyMap);
+                } else {
+                    ioreq->io_Error = IOERR_OPENFAIL;
+                }
+            }
             break;
             
         default:
