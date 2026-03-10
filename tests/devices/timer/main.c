@@ -305,8 +305,7 @@ int main(void)
     print("OK: GetSysTime follows TR_SETSYSTIME\n");
 
     eclock_freq_1 = ReadEClock(&eclock_1);
-    GetSysTime(&tv_a);
-    GetSysTime(&tv_b);
+    Delay(1);
     eclock_freq_2 = ReadEClock(&eclock_2);
 
     if (eclock_freq_1 != 0 && eclock_freq_1 == eclock_freq_2) {

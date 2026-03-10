@@ -2435,8 +2435,6 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
                 break;
         }
 
-        console_load_default_keymap(&unit->cu.cu_KeyMapStruct);
-        
         /* Ensure the window has the IDCMP flags we need for console input/resize tracking. */
         if ((window->IDCMPFlags & CONSOLE_REQUIRED_IDCMP_FLAGS) != CONSOLE_REQUIRED_IDCMP_FLAGS) {
             LPRINTF(LOG_INFO, "_console: Adding console IDCMP flags to window flags 0x%08lx\n",
@@ -2681,6 +2679,12 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 struct KeyMap *destMap = (struct KeyMap *)iostd->io_Data;
 
                 if (ioreq->io_Command == CD_ASKKEYMAP && unit) {
+                    if (!unit->use_keymap && !console_load_default_keymap(&unit->cu.cu_KeyMapStruct)) {
+                        LPRINTF(LOG_WARNING, "_console: CD_ASKKEYMAP - couldn't load default unit keymap\n");
+                        ioreq->io_Error = IOERR_OPENFAIL;
+                        break;
+                    }
+
                     console_copy_keymap(destMap, &unit->cu.cu_KeyMapStruct);
                     ioreq->io_Error = 0;
                     iostd->io_Actual = sizeof(struct KeyMap);

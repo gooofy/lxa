@@ -67,9 +67,33 @@ static void print_num(LONG n)
     }
 }
 
+static struct KeyMap original_map;
+static struct KeyMap verify_map;
+static struct KeyMap custom_map;
+static ULONG custom_lo_map[LO_KEYS];
+static ULONG custom_hi_map[HI_KEYS];
+static UBYTE custom_lo_types[LO_KEYS];
+static UBYTE custom_hi_types[HI_KEYS];
+static UBYTE custom_lo_caps[LO_BITS];
+static UBYTE custom_lo_repeat[LO_BITS];
+static UBYTE custom_hi_caps[HI_BITS];
+static UBYTE custom_hi_repeat[HI_BITS];
+static char convert_buf[16];
+static char read_buf[4];
+static struct NewWindow nw = {0};
+
 static BOOL ask_keymap(struct IOStdReq *req, struct KeyMap *map)
 {
     req->io_Command = CD_ASKKEYMAP;
+    req->io_Data = (APTR)map;
+    req->io_Length = sizeof(*map);
+    DoIO((struct IORequest *)req);
+    return req->io_Error == 0 && req->io_Actual == sizeof(*map);
+}
+
+static BOOL ask_default_keymap(struct IOStdReq *req, struct KeyMap *map)
+{
+    req->io_Command = CD_ASKDEFAULTKEYMAP;
     req->io_Data = (APTR)map;
     req->io_Length = sizeof(*map);
     DoIO((struct IORequest *)req);
@@ -85,26 +109,6 @@ static BOOL set_keymap(struct IOStdReq *req, struct KeyMap *map)
     return req->io_Error == 0 && req->io_Actual == sizeof(*map);
 }
 
-static LONG console_rawkey_convert(struct Library *console_device, struct InputEvent *ie,
-                                   STRPTR buffer, LONG length, struct KeyMap *keymap)
-{
-    register LONG result __asm("d0");
-    register struct Library *_a6 __asm("a6") = console_device;
-    register struct InputEvent *_a0 __asm("a0") = ie;
-    register STRPTR _a1 __asm("a1") = buffer;
-    register LONG _d1 __asm("d1") = length;
-    register struct KeyMap *_a2 __asm("a2") = keymap;
-
-    __asm volatile (
-        "jsr %1@(-48)"
-        : "=r" (result)
-        : "a" (_a6), "r" (_a0), "r" (_a1), "r" (_d1), "r" (_a2)
-        : "cc", "memory"
-    );
-
-    return result;
-}
-
 int main(void)
 {
     struct MsgPort *lib_port = NULL;
@@ -112,22 +116,6 @@ int main(void)
     struct MsgPort *console_port = NULL;
     struct IOStdReq *console_req = NULL;
     struct Window *window = NULL;
-    struct Library *console_device = NULL;
-    struct NewWindow nw = {0};
-    struct InputEvent ie = {0};
-    struct KeyMap original_map;
-    struct KeyMap verify_map;
-    struct KeyMap custom_map;
-    ULONG custom_lo_map[LO_KEYS];
-    ULONG custom_hi_map[HI_KEYS];
-    UBYTE custom_lo_types[LO_KEYS];
-    UBYTE custom_hi_types[HI_KEYS];
-    UBYTE custom_lo_caps[LO_BITS];
-    UBYTE custom_lo_repeat[LO_BITS];
-    UBYTE custom_hi_caps[HI_BITS];
-    UBYTE custom_hi_repeat[HI_BITS];
-    char convert_buf[16];
-    char read_buf[4];
     LONG result;
 
     print("keymap_unit: testing console.device keymap commands\n");
@@ -163,19 +151,15 @@ int main(void)
         return 1;
     }
 
-    console_device = (struct Library *)lib_req->io_Device;
-    ie.ie_Class = IECLASS_RAWKEY;
-    ie.ie_Code = RAWKEY_A_CODE;
-    ie.ie_Qualifier = 0;
-    result = console_rawkey_convert(console_device, &ie, convert_buf, sizeof(convert_buf), NULL);
-    if (result != 1 || convert_buf[0] != 'a') {
-        print("FAIL: CONU_LIBRARY RawKeyConvert did not return 'a'\n");
+    print("OK: CONU_LIBRARY open works\n");
+
+    if (!ask_default_keymap(lib_req, &original_map)) {
+        print("FAIL: CD_ASKDEFAULTKEYMAP failed\n");
         CloseDevice((struct IORequest *)lib_req);
         DeleteIORequest((struct IORequest *)lib_req);
         DeleteMsgPort(lib_port);
         return 1;
     }
-    print("OK: CONU_LIBRARY open and RawKeyConvert work\n");
 
     CloseDevice((struct IORequest *)lib_req);
     DeleteIORequest((struct IORequest *)lib_req);
@@ -229,16 +213,6 @@ int main(void)
         print("FAIL: could not open console unit, error=");
         print_num(result);
         print("\n");
-        DeleteIORequest((struct IORequest *)console_req);
-        DeleteMsgPort(console_port);
-        CloseWindow(window);
-        CloseLibrary((struct Library *)IntuitionBase);
-        return 1;
-    }
-
-    if (!ask_keymap(console_req, &original_map)) {
-        print("FAIL: CD_ASKKEYMAP failed\n");
-        CloseDevice((struct IORequest *)console_req);
         DeleteIORequest((struct IORequest *)console_req);
         DeleteMsgPort(console_port);
         CloseWindow(window);

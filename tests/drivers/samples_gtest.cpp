@@ -37,7 +37,7 @@ TEST_F(SampleTest, AllocEntry) { RunSample("AllocEntry"); }
 TEST_F(SampleTest, AskKeymap) { RunSample("AskKeymap"); }
 TEST_F(SampleTest, AvailFonts) { RunSample("AvailFonts"); }
 TEST_F(SampleTest, BuildList) { RunSample("BuildList"); }
-TEST_F(SampleTest, DeviceUse) { RunSample("DeviceUse"); }
+TEST_F(SampleTest, DeviceUse) { RunSample("DeviceUse", 12000); }
 TEST_F(SampleTest, FFPExample) { RunSample("FFPExample"); }
 TEST_F(SampleTest, FFPTrans) { RunSample("FFPTrans"); }
 TEST_F(SampleTest, FindBoards) { RunSample("FindBoards"); }

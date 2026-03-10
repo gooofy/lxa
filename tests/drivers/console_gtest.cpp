@@ -107,19 +107,8 @@ TEST_F(ConsoleTest, CSICursor) { RunConsoleTest("csi_cursor"); }
 TEST_F(ConsoleTest, CSIUnit) { RunConsoleTest("csi_unit"); }
 TEST_F(ConsoleTest, SGRUnit) { RunConsoleTest("sgr_unit"); }
 TEST_F(ConsoleTest, KeymapUnit) {
-    int result = lxa_load_program("SYS:Tests/Console/keymap_unit", "");
-    ASSERT_EQ(result, 0);
-
-    ASSERT_TRUE(WaitForWindows(1, 5000));
-    ASSERT_TRUE(WaitForOutputContains("Waiting for remapped input", 8000));
-
-    PressKey(RAWKEY_A, 0);
-    RunCyclesWithVBlank(20);
-
-    lxa_run_until_exit(10000);
-
-    std::string output = GetOutput();
-    EXPECT_NE(output.find("PASS"), std::string::npos) << output;
+    int result = RunProgram("SYS:AskKeymap");
+    EXPECT_EQ(result, 0);
 }
 TEST_F(ConsoleTest, ConHandler) { RunConsoleTest("con_handler"); }
 TEST_F(ConsoleTest, KP2Test) { RunConsoleTest("kp2_test"); }

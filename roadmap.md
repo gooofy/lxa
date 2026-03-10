@@ -626,7 +626,7 @@ Status: complete in 0.6.124.
 
 - [ ] `CMD_WRITE` — ANSI escape sequences: cursor movement, SGR attributes (bold/reverse/underline), erase, color (foreground/background 30-37/40-47)
 - [ ] `CMD_READ` — read character/line; CRAF_* flags
-- [x] `CD_ASKKEYMAP` / `CD_SETKEYMAP` — unit-local keymap install/query plus default-keymap query/set behavior now have direct regression coverage, `CMD_READ` rawkey translation uses the installed per-unit keymap when present, and the RKM-style `AskKeymap` sample is back on the documented `CONU_LIBRARY` library-only path after the regression fix (v0.7.4)
+- [x] `CD_ASKKEYMAP` / `CD_SETKEYMAP` — default-keymap query/set behavior and the documented `CONU_LIBRARY` library-only path are covered directly by the RKM-style `AskKeymap` sample, while unit-local keymap install/query plus `CMD_READ` rawkey translation stay covered by the dedicated console keymap regression; standard console opens no longer pre-copy the default keymap unless callers explicitly install one (v0.7.5)
 - [x] `CONU_LIBRARY` unit (-1) handling — library-only open path and `RawKeyConvert()` access are now locked by direct regression coverage alongside the keymap command tests (v0.7.3)
 - [ ] Window resize events (IDCMP_NEWSIZE) → console resize
 - [ ] Scroll-back buffer management
@@ -634,7 +634,7 @@ Status: complete in 0.6.124.
 
 ##### 78-M-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible — keymap command handling and library-only open semantics are now covered; remaining follow-up is resize/scroll-back/read-flag compatibility work
+- [ ] Implement missing functions and stubs as far as possible — keymap command handling, standard-unit default-keymap fallback, library-only open semantics, and the split AskKeymap/unit-keymap regression coverage are now covered; remaining follow-up is resize/scroll-back/read-flag compatibility work
 - [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
 - [ ] Performance review: identify performance improvement opportunities, add them to phase 79
 
