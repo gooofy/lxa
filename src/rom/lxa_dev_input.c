@@ -17,9 +17,9 @@
 #include "util.h"
 
 #define VERSION    40
-#define REVISION   2
+#define REVISION   3
 #define EXDEVNAME  "input"
-#define EXDEVVER   " 40.2 (2026/03/10)"
+#define EXDEVVER   " 40.3 (2026/03/10)"
 
 #define QUALIFIER_KEY_MASK (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT | \
                             IEQUALIFIER_CAPSLOCK | IEQUALIFIER_CONTROL | \
@@ -29,6 +29,8 @@
 
 #define QUALIFIER_MOUSE_MASK (IEQUALIFIER_MIDBUTTON | IEQUALIFIER_RBUTTON | \
                               IEQUALIFIER_LEFTBUTTON)
+
+#define QUALIFIER_STATE_MASK (QUALIFIER_KEY_MASK | QUALIFIER_MOUSE_MASK)
 
 char __aligned _g_input_ExDevName [] = EXDEVNAME ".device";
 char __aligned _g_input_ExDevID   [] = EXDEVNAME EXDEVVER;
@@ -89,7 +91,7 @@ static void input_update_qualifier(struct InputBase *inputbase,
         return;
     }
 
-    qualifier_bits = event->ie_Qualifier & (QUALIFIER_KEY_MASK | QUALIFIER_MOUSE_MASK);
+    qualifier_bits = event->ie_Qualifier & QUALIFIER_STATE_MASK;
 
     switch (event->ie_Class)
     {
@@ -184,7 +186,8 @@ static void input_prepare_event(struct InputBase *inputbase,
     }
 
     input_update_qualifier(inputbase, event);
-    event->ie_Qualifier = inputbase->ib_ActQualifier;
+    event->ie_Qualifier = (event->ie_Qualifier & ~QUALIFIER_STATE_MASK) |
+                          inputbase->ib_ActQualifier;
     event->ie_NextEvent = NULL;
     input_get_systime(&event->ie_TimeStamp);
 }

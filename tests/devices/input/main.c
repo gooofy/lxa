@@ -272,6 +272,66 @@ int main(void)
         test_fail("PeekQualifier rawkey state mismatch");
     }
 
+    reset_counters();
+    event.ie_Class = IECLASS_RAWKEY;
+    event.ie_Code = 0x21;
+    event.ie_Qualifier = IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT |
+                         IEQUALIFIER_CAPSLOCK | IEQUALIFIER_CONTROL |
+                         IEQUALIFIER_LALT | IEQUALIFIER_RALT |
+                         IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND |
+                         IEQUALIFIER_NUMERICPAD | IEQUALIFIER_REPEAT |
+                         IEQUALIFIER_INTERRUPT |
+                         IEQUALIFIER_MULTIBROADCAST;
+    event.ie_X = 1;
+    event.ie_Y = 2;
+
+    input_req->io_Command = IND_WRITEEVENT;
+    input_req->io_Data = &event;
+    input_req->io_Flags = IOF_QUICK;
+    DoIO((struct IORequest *)input_req);
+
+    if (input_req->io_Error == 0) {
+        test_ok("IND_WRITEEVENT preserves transient key qualifier bits");
+    } else {
+        test_fail("IND_WRITEEVENT transient key qualifiers failed");
+    }
+
+    if ((g_first_last_qual & (IEQUALIFIER_REPEAT | IEQUALIFIER_INTERRUPT |
+                              IEQUALIFIER_MULTIBROADCAST)) ==
+        (IEQUALIFIER_REPEAT | IEQUALIFIER_INTERRUPT |
+         IEQUALIFIER_MULTIBROADCAST) &&
+        (g_second_last_qual & (IEQUALIFIER_REPEAT | IEQUALIFIER_INTERRUPT |
+                               IEQUALIFIER_MULTIBROADCAST)) ==
+        (IEQUALIFIER_REPEAT | IEQUALIFIER_INTERRUPT |
+         IEQUALIFIER_MULTIBROADCAST)) {
+        test_ok("Handlers receive transient key qualifier bits");
+    } else {
+        test_fail("Transient key qualifier bits not delivered");
+    }
+
+    if (PeekQualifier() == (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT |
+                            IEQUALIFIER_CAPSLOCK | IEQUALIFIER_CONTROL |
+                            IEQUALIFIER_LALT | IEQUALIFIER_RALT |
+                            IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND |
+                            IEQUALIFIER_NUMERICPAD)) {
+        test_ok("PeekQualifier keeps only held key qualifiers");
+    } else {
+        test_fail("PeekQualifier latched transient key qualifiers");
+    }
+
+    event.ie_Code = 0x21 | IECODE_UP_PREFIX;
+    event.ie_Qualifier = 0;
+    input_req->io_Command = IND_WRITEEVENT;
+    input_req->io_Data = &event;
+    input_req->io_Flags = IOF_QUICK;
+    DoIO((struct IORequest *)input_req);
+
+    if (PeekQualifier() == 0) {
+        test_ok("PeekQualifier clears key qualifiers on release snapshot");
+    } else {
+        test_fail("PeekQualifier did not clear released key qualifiers");
+    }
+
     if (g_first_last_x == 12 && g_first_last_y == 34 && g_second_last_x == 12 && g_second_last_y == 34) {
         test_ok("Event coordinates preserved");
     } else {
@@ -424,6 +484,47 @@ int main(void)
         test_ok("PeekQualifier tracks mouse qualifier state");
     } else {
         test_fail("PeekQualifier mouse state mismatch");
+    }
+
+    event.ie_Code = IECODE_MBUTTON;
+    event.ie_Qualifier = IEQUALIFIER_LEFTBUTTON | IEQUALIFIER_RBUTTON |
+                         IEQUALIFIER_MIDBUTTON | IEQUALIFIER_REPEAT |
+                         IEQUALIFIER_INTERRUPT |
+                         IEQUALIFIER_MULTIBROADCAST;
+
+    input_req->io_Command = IND_WRITEEVENT;
+    input_req->io_Data = &event;
+    input_req->io_Flags = IOF_QUICK;
+    DoIO((struct IORequest *)input_req);
+
+    if (input_req->io_Error == 0) {
+        test_ok("IND_WRITEEVENT preserves transient mouse qualifier bits");
+    } else {
+        test_fail("IND_WRITEEVENT transient mouse qualifiers failed");
+    }
+
+    if ((PeekQualifier() & (IEQUALIFIER_LEFTBUTTON | IEQUALIFIER_RBUTTON |
+                            IEQUALIFIER_MIDBUTTON)) ==
+        (IEQUALIFIER_LEFTBUTTON | IEQUALIFIER_RBUTTON |
+         IEQUALIFIER_MIDBUTTON) &&
+        (PeekQualifier() & (IEQUALIFIER_REPEAT | IEQUALIFIER_INTERRUPT |
+                            IEQUALIFIER_MULTIBROADCAST)) == 0) {
+        test_ok("PeekQualifier keeps only held mouse qualifiers");
+    } else {
+        test_fail("PeekQualifier latched transient mouse qualifiers");
+    }
+
+    event.ie_Code = IECODE_MBUTTON | IECODE_UP_PREFIX;
+    event.ie_Qualifier = 0;
+    input_req->io_Command = IND_WRITEEVENT;
+    input_req->io_Data = &event;
+    input_req->io_Flags = IOF_QUICK;
+    DoIO((struct IORequest *)input_req);
+
+    if (PeekQualifier() == 0) {
+        test_ok("PeekQualifier clears mouse qualifiers on release snapshot");
+    } else {
+        test_fail("PeekQualifier did not clear released mouse qualifiers");
     }
 
     CloseDevice((struct IORequest *)input_req);
