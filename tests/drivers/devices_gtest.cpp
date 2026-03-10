@@ -36,6 +36,7 @@ protected:
 
 TEST_F(DeviceTest, Clipboard) { RunDeviceTest("Clipboard"); }
 TEST_F(DeviceTest, ConsoleAsync) { RunDeviceTest("ConsoleAsync"); }
+TEST_F(DeviceTest, Input) { RunDeviceTest("Input"); }
 TEST_F(DeviceTest, Timer) { RunDeviceTest("Timer"); }
 TEST_F(DeviceTest, TimerAsync) { RunDeviceTest("TimerAsync"); }
 TEST_F(DeviceTest, Trackdisk) { RunDeviceTest("Trackdisk"); }

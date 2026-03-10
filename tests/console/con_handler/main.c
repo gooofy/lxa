@@ -29,6 +29,8 @@ int main(void)
     BPTR conFile;
     char buf[64];
     LONG written, read_len;
+    LONG total_read = 0;
+    BOOL saw_newline = FALSE;
     
     print("Testing CON: handler via Open()\n");
     
@@ -60,28 +62,46 @@ int main(void)
     WaitTOF();
     WaitTOF();
     
-    /* Read from the console */
-    read_len = Read(conFile, buf, 10);
-    if (read_len < 0) {
-        print("FAIL: Read failed\n");
+    /* Read from the console until Return is delivered */
+    while (total_read < 10 && !saw_newline) {
+        read_len = Read(conFile, buf + total_read, 1);
+        if (read_len < 0) {
+            print("FAIL: Read failed\n");
+            Close(conFile);
+            return 1;
+        }
+        if (read_len == 0) {
+            continue;
+        }
+
+        if (buf[total_read] == '\n' || buf[total_read] == '\r') {
+            saw_newline = TRUE;
+        }
+        total_read += read_len;
+    }
+
+    print("OK: Read ");
+    /* Print the number of bytes read */
+    {
+        char num[8];
+        int i = 0;
+        if (total_read == 0) {
+            num[i++] = '0';
+        } else {
+            LONG n = total_read;
+            if (n >= 10) num[i++] = '0' + (n / 10);
+            num[i++] = '0' + (n % 10);
+        }
+        num[i] = '\0';
+        print(num);
+    }
+    print(" bytes\n");
+
+    if (!saw_newline) {
+        print("FAIL: Did not receive newline terminator\n");
         Close(conFile);
         return 1;
     }
-    
-    print("OK: Read ");
-    /* Print the number of bytes read */
-    char num[8];
-    int i = 0;
-    if (read_len == 0) {
-        num[i++] = '0';
-    } else {
-        LONG n = read_len;
-        if (n >= 10) num[i++] = '0' + (n / 10);
-        num[i++] = '0' + (n % 10);
-    }
-    num[i] = '\0';
-    print(num);
-    print(" bytes\n");
     
     /* Close the console */
     Close(conFile);

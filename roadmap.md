@@ -644,18 +644,18 @@ Status: complete in 0.6.124.
 
 #### 78-N: Input Device (`src/rom/lxa_dev_input.c` vs `others/AROS-20231016-source/rom/devs/input/`)
 
-- [ ] `IND_ADDHANDLER` / `IND_REMHANDLER` — input handler chain; priority ordering
-- [ ] `IND_SETTHRESH` / `IND_SETPERIOD` — key repeat
-- [ ] `IND_SETMPORT` / `IND_SETMTYPE`
-- [ ] `InputEvent` chain processing; IE_RAWKEY, IE_BUTTON, IE_POINTER, IE_TIMER, IE_NEWACTIVE, IE_NEWSIZE, IE_REFRESH
+- [x] `IND_ADDHANDLER` / `IND_REMHANDLER` — input handler chain; priority ordering (v0.7.7)
+- [x] `IND_SETTHRESH` / `IND_SETPERIOD` — key repeat configuration storage and direct request coverage (v0.7.7)
+- [x] `IND_SETMPORT` / `IND_SETMTYPE` (v0.7.7)
+- [x] `InputEvent` chain processing; current hosted coverage now dispatches `IECLASS_RAWKEY`, `IECLASS_RAWMOUSE`, and `IECLASS_POINTERPOS` through `input.device`, with direct `IND_WRITEEVENT` / `IND_ADDEVENT` regression coverage and Intuition-side host input routing preserved (v0.7.7)
 - [ ] Qualifier accumulation: IEQUALIFIER_LSHIFT, RSHIFT, CAPSLOCK, CONTROL, LALT, RALT, LCOMMAND, RCOMMAND, NUMERICPAD, REPEAT, INTERRUPT, MULTIBROADCAST, MIDBUTTON, RBUTTON, LEFTBUTTON
 - [ ] `FreeInputHandlerList`
 
 ##### 78-N-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — `input.device` now provides handler installation/removal, qualifier snapshots via `PeekQualifier()`, repeat timing setters, mouse-port/type setters, and direct event dispatch for the currently hosted rawkey/rawmouse/pointer event path with dedicated `Tests/Devices/Input` coverage (v0.7.7)
+- [x] Architecture review: input-event synthesis still lives partly in `lxa_intuition.c` and partly in `lxa_dev_input.c`; Phase 79 now tracks centralizing host-event to `InputEvent` translation behind a shared private input companion so Intuition, console, and future commodities consumers cannot drift semantically (v0.7.7)
+- [x] Performance review: the new hosted handler path still rebuilds and walks the full handler chain for every single event without batching or cached qualifier/event templates; Phase 79 now tracks lightweight reusable event-translation helpers plus optional handler fast-path bookkeeping so bursty keyboard/mouse workloads avoid redundant per-event setup work (v0.7.7)
 
 
 
@@ -940,6 +940,8 @@ Status: complete in 0.6.124.
 - [ ] Console architecture: centralize console input-event translation/report generation so keymap conversion, special-key CSI output, and future `aSRE` / `aRRE` / `aIER` / `aSKR` support cannot drift across the IDCMP, `CMD_READ`, and library-entry paths
 - [ ] Console performance: cache reusable keymap/default-keymap state for active console units so repeated `CMD_READ` key conversions avoid reopening or rebuilding translation state for every keystroke
 - [ ] Console performance: batch cursor redraw/refresh decisions during bursty writes, input processing, and resize handling so console output avoids redundant `WaitTOF()` and full cursor repaint churn
+- [ ] Input architecture: centralize host-event to `InputEvent` synthesis behind shared private helpers so `lxa_intuition.c`, `lxa_dev_input.c`, console raw-event generation, and future commodities consumers all reuse one compatibility path
+- [ ] Input performance: cache reusable qualifier/event-template state and optional handler fast-path metadata so bursty keyboard/mouse workloads avoid rebuilding equivalent `InputEvent` state and fully generic handler walks on every host event
 - [ ] IFFParse performance: avoid repeated full context-stack LCI scans during `ParseIFF()` by separating declaration indexes from stored items and caching active stop/property/collection matches per context
 
 
@@ -970,4 +972,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-K**: keymap.library now closes the tracked public keymap surface for this phase: default-keymap query/update semantics, `MapRawKey()` qualifier/string/dead-key translation, `MapANSI()` rawkey encoding, and `KeyMap` structure layout all have direct regression coverage via `Tests/Exec/Keymap` and `Tests/Exec/StructOffsets` (v0.7.1).
 - **Phase 78-L**: timer.device now closes the tracked hosted timer surface for this phase: `TR_ADDREQUEST` covers the documented relative/absolute timer units (`UNIT_MICROHZ`, `UNIT_VBLANK`, `UNIT_ECLOCK`, `UNIT_WAITUNTIL`, `UNIT_WAITECLOCK`), `TR_GETSYSTIME` / `TR_SETSYSTIME` share the same system-time offset semantics as `GetSysTime()`, `AbortIO()` returns classic timer abort results, `AddTime()` / `SubTime()` / `CmpTime()` normalize `timeval`s with direct regression coverage, and `ReadEClock()` returns advancing 64-bit values without ROM-side libgcc helpers; validation is green via `devices_gtest` and `exec_gtest` (v0.7.2).
 - **Phase 78-M**: console.device compatibility advanced again: direct console regressions now lock ANSI cursor movement/erase/cursor-visibility handling, SGR color and attribute state, `IDCMP_NEWSIZE`-driven bounds updates, keymap/library-mode behavior, legacy special-key reads, broadened raw-input/report coverage (`aSRE` / `aRRE` for raw-key, mouse-button, gadget, and resize reports), and initial scroll-back commands together under `console_gtest`; the remaining follow-up is broader event-class breadth and documented read-mode flags (v0.7.6).
+- **Phase 78-N**: input.device compatibility has started closing with direct hosted coverage for handler-chain ordering (`IND_ADDHANDLER` / `IND_REMHANDLER`), `PeekQualifier()`, repeat timing setters, mouse-port/type setters, and direct `IND_WRITEEVENT` / `IND_ADDEVENT` dispatch over the current rawkey/rawmouse/pointer path; remaining follow-up is broader qualifier semantics, extra event classes, and cleanup helpers such as `FreeInputHandlerList()` (v0.7.7).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 633 assertions passing, now including `KeyMap` layout coverage.

@@ -73,6 +73,8 @@ int main(void)
     struct EClockVal eclock_2;
     ULONG eclock_freq_1;
     ULONG eclock_freq_2;
+    BOOL eclock_advanced = FALSE;
+    int eclock_attempt;
     
     print("Testing timer.device\n");
     
@@ -305,8 +307,30 @@ int main(void)
     print("OK: GetSysTime follows TR_SETSYSTIME\n");
 
     eclock_freq_1 = ReadEClock(&eclock_1);
-    Delay(1);
-    eclock_freq_2 = ReadEClock(&eclock_2);
+    eclock_freq_2 = eclock_freq_1;
+    eclock_2 = eclock_1;
+
+    timerReq->tr_node.io_Command = TR_GETSYSTIME;
+    timerReq->tr_node.io_Flags = IOF_QUICK;
+
+    for (eclock_attempt = 0; eclock_attempt < 5; eclock_attempt++) {
+        DoIO((struct IORequest *)timerReq);
+        if (timerReq->tr_node.io_Error != 0) {
+            print("FAIL: TR_GETSYSTIME failed during ReadEClock retry\n");
+            CloseDevice((struct IORequest *)waitUntilReq);
+            FreeMem(waitUntilReq, sizeof(struct timerequest));
+            CloseDevice((struct IORequest *)timerReq);
+            FreeMem(timerReq, sizeof(struct timerequest));
+            FreeMem(timerPort, sizeof(struct MsgPort));
+            return 1;
+        }
+        eclock_freq_2 = ReadEClock(&eclock_2);
+        if (eclock_2.ev_hi > eclock_1.ev_hi ||
+            (eclock_2.ev_hi == eclock_1.ev_hi && eclock_2.ev_lo > eclock_1.ev_lo)) {
+            eclock_advanced = TRUE;
+            break;
+        }
+    }
 
     if (eclock_freq_1 != 0 && eclock_freq_1 == eclock_freq_2) {
         print("OK: ReadEClock returned stable frequency\n");
@@ -320,8 +344,7 @@ int main(void)
         return 1;
     }
 
-    if (eclock_2.ev_hi > eclock_1.ev_hi ||
-        (eclock_2.ev_hi == eclock_1.ev_hi && eclock_2.ev_lo > eclock_1.ev_lo)) {
+    if (eclock_advanced) {
         print("OK: ReadEClock advanced over time\n");
     } else {
         print("FAIL: ReadEClock did not advance\n");

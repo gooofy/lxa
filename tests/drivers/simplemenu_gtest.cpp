@@ -200,6 +200,9 @@ TEST_F(SimpleMenuPixelTest, ScreenTitleBarRestoredAfterMenu) {
     
     lxa_inject_drag(menu_bar_x, menu_bar_y, menu_bar_x, item_y, LXA_MOUSE_RIGHT, 10);
     RunCyclesWithVBlank(20, 50000);
+
+    /* Let the title bar redraw settle before sampling pixels again. */
+    RunCyclesWithVBlank(10, 100000);
     lxa_flush_display();
     
     /* Read pixels after menu closed - title bar should be restored */

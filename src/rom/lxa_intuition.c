@@ -35,6 +35,8 @@
 
 #include "util.h"
 
+extern void _input_device_dispatch_event(struct InputEvent *event);
+
 /*
  * Minimum usable screen/window height threshold.
  * When applications pass suspiciously small height values (< 50 pixels),
@@ -5190,6 +5192,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
     ULONG key_data;
     WORD mouseX, mouseY;
     struct Window *window;
+    struct InputEvent input_event;
     
     if (!screen)
         return;
@@ -5237,6 +5240,14 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
         
         /* Find the window at the mouse position */
         window = _find_window_at_pos(screen, mouseX, mouseY);
+
+        input_event.ie_NextEvent = NULL;
+        input_event.ie_SubClass = 0;
+        input_event.ie_Code = 0;
+        input_event.ie_Qualifier = 0;
+        input_event.ie_X = mouseX;
+        input_event.ie_Y = mouseY;
+        input_event.ie_EventAddress = NULL;
         
         DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: mouse=(%d,%d) window=0x%08lx firstWin=0x%08lx\n",
                 mouseX, mouseY, (ULONG)window, (ULONG)screen->FirstWindow);
@@ -5256,6 +5267,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 button_code = emucall0(EMU_CALL_INT_GET_MOUSE_BTN);
                 UWORD code = (UWORD)(button_code & 0xFF);
                 UWORD qualifier = (UWORD)((button_code >> 8) & 0xFFFF);
+
+                input_event.ie_Class = IECLASS_RAWMOUSE;
+                input_event.ie_Code = code;
+                input_event.ie_Qualifier = qualifier;
+                _input_device_dispatch_event(&input_event);
                 
                 DPRINTF(LOG_DEBUG, "_intuition: MouseButton code=0x%02x qual=0x%04x at (%d,%d)\n",
                         code, qualifier, mouseX, mouseY);
@@ -5593,6 +5609,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
             {
                 key_data = emucall0(EMU_CALL_INT_GET_KEY);  /* Get qualifier */
                 UWORD qualifier = (UWORD)(key_data >> 16);
+
+                input_event.ie_Class = IECLASS_POINTERPOS;
+                input_event.ie_Qualifier = qualifier;
+                _input_device_dispatch_event(&input_event);
                 
                 /* Handle menu tracking when in menu mode */
                 if (g_menu_mode && g_menu_window)
@@ -5807,6 +5827,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 key_data = emucall0(EMU_CALL_INT_GET_KEY);
                 UWORD rawkey = (UWORD)(key_data & 0xFFFF);
                 UWORD qualifier = (UWORD)(key_data >> 16);
+
+                input_event.ie_Class = IECLASS_RAWKEY;
+                input_event.ie_Code = rawkey;
+                input_event.ie_Qualifier = qualifier;
+                _input_device_dispatch_event(&input_event);
                 
                 /* Check if there's an active string gadget that should receive keyboard input */
                 if (g_active_gadget && g_active_window &&
@@ -5851,6 +5876,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
             
             case 4:  /* Close window request (from host window manager) */
             {
+                input_event.ie_Class = IECLASS_EVENT;
+                input_event.ie_Code = IECODE_NEWACTIVE;
+                _input_device_dispatch_event(&input_event);
+
                 if (window)
                 {
                     WORD relX = mouseX - window->LeftEdge;

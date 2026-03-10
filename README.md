@@ -179,6 +179,7 @@ lxa -d -v myprogram
 - **diskfont.library**: Font loading from FONTS: directory (bitmap .font files)
 - **mathieeesingbas.library**: IEEE single-precision basic math (12 functions)
 - **mathieeedoubbas.library**: IEEE double-precision basic math (12 functions)
+- **input.device**: Handler-chain management (`IND_ADDHANDLER` / `IND_REMHANDLER`), qualifier tracking via `PeekQualifier()`, repeat timing configuration, and direct event injection/dispatch coverage for `IND_WRITEEVENT` / `IND_ADDEVENT`
 - **console.device**: Terminal I/O with CSI escape sequences, keyboard input, `CONU_LIBRARY` access, and covered keymap command/query support
 - **trackdisk.device**: Floppy disk device (stub with geometry support)
 - **audio.device**: Audio device (stub, accepts opens)
@@ -217,7 +218,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.7.6** - Extend Phase 78-M console compatibility with original-source-aligned raw-event `CMD_READ` coverage and initial scroll-back command support, while preserving the existing ANSI, keymap, and library-mode console regressions
+**Version 0.7.7** - Advance Phase 78-N input.device compatibility with handler-chain dispatch, qualifier state tracking, and direct regression coverage, while preserving the current console and Intuition input paths
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
