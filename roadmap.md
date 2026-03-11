@@ -6,17 +6,16 @@
 
 ## Next Release Focus
 
-### Phase 79: `keyboard.device`
+### Phase 79 complete (`0.8.1`)
 
-Goal: close the remaining public keyboard-device surface and wire it into the existing input/keymap stack.
+Phase 79 closes the remaining `keyboard.device` surface and keeps it aligned with the hosted input stack.
 
-- [ ] Implement the documented public command set: `CMD_CLEAR`, `KBD_READEVENT`, `KBD_READMATRIX`, `KBD_ADDRESETHANDLER`, `KBD_REMRESETHANDLER`, `KBD_RESETHANDLERDONE`
-- [ ] Match `KBD_READEVENT` raw-key event semantics, qualifier rules, and partial-buffer completion behavior
-- [ ] Match `KBD_READMATRIX` buffer length and matrix layout against the bundled autodocs and AROS reference
-- [ ] Share hosted keyboard state with `input.device`, `console.device`, Intuition, and `keymap.library` so the input stack stays semantically aligned
-- [ ] Add direct regression coverage under `Tests/Devices/Keyboard` and validating `devices_gtest` coverage for open/read/abort/reset-handler flows
-- [ ] Factor private keyboard queue, matrix, and reset-handler bookkeeping behind compact internal helpers
-- [ ] Avoid rebuilding matrix snapshots and event chains from scratch during bursty input workloads
+- [x] Implemented the documented public command set: `CMD_CLEAR`, `KBD_READEVENT`, `KBD_READMATRIX`, `KBD_ADDRESETHANDLER`, `KBD_REMRESETHANDLER`, `KBD_RESETHANDLERDONE`
+- [x] Matched `KBD_READEVENT` behavior for raw-key event chaining, held/numeric-pad qualifier reporting, pending-read completion, and abort handling
+- [x] Matched `KBD_READMATRIX` matrix sizing/layout semantics with direct 32-byte snapshot coverage against the hosted raw-key stream
+- [x] Shared hosted keyboard events from Intuition into `keyboard.device`, keeping the stack aligned with `input.device`, console raw-key consumers, and `keymap.library`
+- [x] Added direct regression coverage under `Tests/Devices/Keyboard` and `devices_gtest` for open/read/abort/reset-handler flows
+- [x] Factored queue, matrix, and reset-handler bookkeeping into compact private helpers and reused buffered snapshots during bursty reads
 
 ---
 

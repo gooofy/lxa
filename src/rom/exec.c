@@ -116,6 +116,7 @@ extern struct Resident *__lxa_timer_ROMTag;
 extern struct Resident *__lxa_clipboard_ROMTag;
 extern struct Resident *__lxa_audio_ROMTag;
 extern struct Resident *__lxa_gameport_ROMTag;
+extern struct Resident *__lxa_keyboard_ROMTag;
 extern struct Resident *__lxa_trackdisk_ROMTag;
 
 static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
@@ -131,7 +132,7 @@ struct ExecIntVectorState
 
 static struct ExecIntVectorState g_IntVectorState[16];
 
-static struct Resident *g_ResidentModules[28];
+static struct Resident *g_ResidentModules[29];
 
 struct ExecBase        *SysBase;
 struct UtilityBase     *UtilityBase;
@@ -159,6 +160,7 @@ struct Library         *DeviceTimerBase;
 struct Library         *DeviceClipboardBase;
 struct Library         *DeviceAudioBase;
 struct Library         *DeviceGameportBase;
+struct Library         *DeviceKeyboardBase;
 struct Library         *DeviceTrackdiskBase;
 
 static struct Custom   *custom            = (struct Custom*)        0xdff000;
@@ -5273,8 +5275,9 @@ void coldstart (void)
     g_ResidentModules[23] = __lxa_clipboard_ROMTag;
     g_ResidentModules[24] = __lxa_audio_ROMTag;
     g_ResidentModules[25] = __lxa_gameport_ROMTag;
-    g_ResidentModules[26] = __lxa_trackdisk_ROMTag;
-    g_ResidentModules[27] = NULL;
+    g_ResidentModules[26] = __lxa_keyboard_ROMTag;
+    g_ResidentModules[27] = __lxa_trackdisk_ROMTag;
+    g_ResidentModules[28] = NULL;
 
     SysBase->ResModules = g_ResidentModules;
     SysBase->SoftVer = VERSION;
@@ -5368,6 +5371,7 @@ void coldstart (void)
     DeviceClipboardBase = (struct Library *) registerBuiltInDev (sizeof (*DeviceClipboardBase), __lxa_clipboard_ROMTag);
     DeviceAudioBase     = (struct Library *) registerBuiltInDev (sizeof (*DeviceAudioBase)    , __lxa_audio_ROMTag    );
     DeviceGameportBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceGameportBase) , __lxa_gameport_ROMTag );
+    DeviceKeyboardBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceKeyboardBase) , __lxa_keyboard_ROMTag );
     DeviceTrackdiskBase = (struct Library *) registerBuiltInDev (sizeof (*DeviceTrackdiskBase), __lxa_trackdisk_ROMTag);
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in devices\n");

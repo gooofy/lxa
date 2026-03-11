@@ -234,6 +234,7 @@ set(TESTS_LIST
     "../tests/devices/timer|main|Tests/Devices/Timer"
     "../tests/devices/timer_async|main|Tests/Devices/TimerAsync"
     "../tests/devices/input|main|Tests/Devices/Input"
+    "../tests/devices/keyboard|main|Tests/Devices/Keyboard"
     "../tests/layers/cliprects|main|Tests/Layers/ClipRects"
     "../tests/layers/core_ops|main|Tests/Layers/CoreOps"
     "../tests/layers/layer_info|main|Tests/Layers/LayerInfo"

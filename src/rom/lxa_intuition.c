@@ -36,6 +36,7 @@
 #include "util.h"
 
 extern void _input_device_dispatch_event(struct InputEvent *event);
+extern void _keyboard_device_record_event(UWORD rawkey, UWORD qualifier);
 
 /*
  * Minimum usable screen/window height threshold.
@@ -5832,6 +5833,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 input_event.ie_Code = rawkey;
                 input_event.ie_Qualifier = qualifier;
                 _input_device_dispatch_event(&input_event);
+                _keyboard_device_record_event(rawkey, qualifier);
                 
                 /* Check if there's an active string gadget that should receive keyboard input */
                 if (g_active_gadget && g_active_window &&

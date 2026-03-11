@@ -6,8 +6,62 @@
 
 using namespace lxa::testing;
 
+#define RAWKEY_A      0x20
+#define RAWKEY_LSHIFT 0x60
+#define RESET_WARNING 0x78
+#define QUAL_LSHIFT   0x0001
+
 class DeviceTest : public LxaTest {
 protected:
+    bool WaitForOutputContains(const char* marker, int timeout_ms = 5000) {
+        int elapsed = 0;
+
+        while (elapsed < timeout_ms) {
+            RunCyclesWithVBlank(1);
+            if (GetOutput().find(marker) != std::string::npos) {
+                return true;
+            }
+            elapsed += 16;
+        }
+
+        return false;
+    }
+
+    void RunKeyboardDeviceTest(int timeout_ms = 10000) {
+        int result = lxa_load_program("SYS:Tests/Devices/Keyboard", "");
+        ASSERT_EQ(result, 0) << "Failed to load keyboard device test";
+
+        ASSERT_TRUE(WaitForWindows(1, 5000));
+        ASSERT_TRUE(WaitForOutputContains("Waiting for SHIFT key...", 5000));
+
+        ASSERT_TRUE(lxa_inject_key(RAWKEY_LSHIFT, QUAL_LSHIFT, true));
+        RunCyclesWithVBlank(10);
+
+        ASSERT_TRUE(WaitForOutputContains("Waiting for keypad 1 and A...", 5000));
+
+        ASSERT_TRUE(lxa_inject_key(0x1d, QUAL_LSHIFT, true));
+        RunCyclesWithVBlank(10);
+
+        ASSERT_TRUE(lxa_inject_key(RAWKEY_A, QUAL_LSHIFT, true));
+        RunCyclesWithVBlank(10);
+
+        ASSERT_TRUE(WaitForOutputContains("Waiting for reset-warning rawkey...", 5000));
+
+        ASSERT_TRUE(lxa_inject_key(RESET_WARNING, QUAL_LSHIFT, true));
+        RunCyclesWithVBlank(20);
+
+        result = lxa_run_until_exit(timeout_ms);
+
+        std::string output = GetOutput();
+        if (result != 0 || output.find("FAIL:") != std::string::npos) {
+            SCOPED_TRACE("Test Output:\n" + output);
+        }
+
+        EXPECT_EQ(result, 0) << "Test Keyboard exited with non-zero code";
+        EXPECT_NE(output.find("PASS: keyboard.device tests passed"), std::string::npos)
+            << "Keyboard device test did not report success";
+    }
+
     void RunDeviceTest(const char* name, int timeout_ms = 5000) {
         std::string path = "SYS:Tests/Devices/" + std::string(name);
         int result = RunProgram(path.c_str(), "", timeout_ms);
@@ -49,6 +103,7 @@ protected:
 TEST_F(DeviceTest, Clipboard) { RunDeviceTest("Clipboard"); }
 TEST_F(DeviceTest, ConsoleAsync) { RunDeviceTest("ConsoleAsync"); }
 TEST_F(DeviceTest, Input) { RunDeviceTest("Input"); }
+TEST_F(DeviceTest, Keyboard) { RunKeyboardDeviceTest(); }
 TEST_F(DeviceTest, Timer) { RunDeviceTest("Timer"); }
 TEST_F(DeviceTest, TimerAsync) { RunDeviceTest("TimerAsync"); }
 TEST_F(DeviceTest, Trackdisk) { RunTrackdiskTest(); }
