@@ -219,7 +219,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.1** - Phase 79 closes `keyboard.device` with shared hosted raw-key capture, matrix snapshots, reset-handler flow coverage, and direct device regressions alongside the existing input stack
+**Version 0.8.2** - Phase 80 cleanup now folds DOS packet send/wait/reply/result propagation into the shared Exec/DOS helpers alongside the earlier current-process, resident registration, and interrupt bookkeeping consolidation
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

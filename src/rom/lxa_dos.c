@@ -154,6 +154,67 @@ VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct MsgPort * replyport __asm("d3"));
 struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * DOSBase __asm("a6"));
 
+static BOOL lxa_dos_is_process(const struct Process *process)
+{
+    return process && process->pr_Task.tc_Node.ln_Type == NT_PROCESS;
+}
+
+static VOID lxa_dos_bind_packet_message(struct DosPacket *packet,
+                                        struct Message *message)
+{
+    if (!packet || !message)
+        return;
+
+    message->mn_Node.ln_Name = (char *)packet;
+    packet->dp_Link = message;
+}
+
+static BOOL lxa_dos_packet_is_bound(const struct DosPacket *packet)
+{
+    return packet && packet->dp_Link &&
+           packet->dp_Link->mn_Node.ln_Name == (char *)packet;
+}
+
+static struct DosPacket *lxa_dos_packet_from_message(struct Message *message)
+{
+    if (!message)
+        return NULL;
+
+    return (struct DosPacket *)message->mn_Node.ln_Name;
+}
+
+static struct DosPacket *lxa_dos_wait_packet_on_port(struct Process *process,
+                                                     struct MsgPort *msg_port)
+{
+    struct Message *message = NULL;
+
+    if (!msg_port)
+        return NULL;
+
+    if (lxa_dos_is_process(process) && msg_port == &process->pr_MsgPort && process->pr_PktWait)
+    {
+        typedef struct Message *(*pktwait_fn_t)(register APTR __asm("a0"), register struct MsgPort * __asm("a1"), register struct ExecBase * __asm("a6"));
+        pktwait_fn_t waitfn = (pktwait_fn_t)process->pr_PktWait;
+        message = waitfn(process->pr_PktWait, msg_port, SysBase);
+    }
+
+    while (!message)
+    {
+        message = GetMsg(msg_port);
+        if (!message)
+            Wait(1UL << msg_port->mp_SigBit);
+    }
+
+    return lxa_dos_packet_from_message(message);
+}
+
+static VOID lxa_dos_store_packet_result2(struct Process *process,
+                                         const struct DosPacket *packet)
+{
+    if (lxa_dos_is_process(process) && packet)
+        process->pr_Result2 = packet->dp_Res2;
+}
+
 /* Forward declaration for variable functions */
 struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                  register CONST_STRPTR name __asm("d1"),
@@ -205,7 +266,7 @@ static const char *resolve_amiga_path(const char *name, char *resolved)
     }
     
     /* It's a relative path - need to resolve against current directory */
-    struct Process *me = (struct Process *)FindTask(NULL);
+    struct Process *me = U_getCurrentProcess();
     BPTR curdir = me->pr_CurrentDir;
     
     if (!curdir) {
@@ -520,7 +581,7 @@ static struct RootNode *initRootNode(void)
 
     if (taskArray)
     {
-        struct Process *me = (struct Process *)FindTask(NULL);
+        struct Process *me = U_getCurrentProcess();
         if (me && IS_PROCESS(me) && me->pr_TaskNum > 0 && (ULONG)me->pr_TaskNum <= INITIAL_TASK_ARRAY_SIZE)
             taskArray[me->pr_TaskNum] = (ULONG)&me->pr_MsgPort;
     }
@@ -1364,7 +1425,7 @@ LONG _dos_Close ( register struct DosLibrary * __libBase __asm("a6"),
 
         if (l<0)
         {
-            struct Process *me = (struct Process *)FindTask(NULL);
+            struct Process *me = U_getCurrentProcess();
             me->pr_Result2 = fh->fh_Arg2;
         }
     }
@@ -1400,7 +1461,7 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
         else
         {
             l = -1;
-            struct Process *me = (struct Process *)FindTask(NULL);
+            struct Process *me = U_getCurrentProcess();
             me->pr_Result2 = ERROR_OBJECT_NOT_FOUND;
         }
     }
@@ -1412,7 +1473,7 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
 
         if (l<0)
         {
-            struct Process *me = (struct Process *)FindTask(NULL);
+            struct Process *me = U_getCurrentProcess();
             me->pr_Result2 = fh->fh_Arg2;
         }
     }
@@ -1445,7 +1506,7 @@ LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
         else
         {
             l = -1;
-            struct Process *me = (struct Process *)FindTask(NULL);
+            struct Process *me = U_getCurrentProcess();
             me->pr_Result2 = ERROR_OBJECT_NOT_FOUND;
         }
     }
@@ -1457,7 +1518,7 @@ LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
 
         if (l<0)
         {
-            struct Process *me = (struct Process *)FindTask(NULL);
+            struct Process *me = U_getCurrentProcess();
             me->pr_Result2 = fh->fh_Arg2;
         }
     }
@@ -1505,7 +1566,7 @@ LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
 
     if (l<0)
     {
-        struct Process *me = (struct Process *)FindTask(NULL);
+        struct Process *me = U_getCurrentProcess();
         me->pr_Result2 = fh->fh_Arg2;
     }
 
@@ -1720,7 +1781,7 @@ BPTR _dos_CurrentDir ( register struct DosLibrary * __libBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_dos: CurrentDir() called, lock=0x%08lx\n", ___lock);
 
-    struct Process *me = (struct Process *)FindTask(NULL);
+    struct Process *me = U_getCurrentProcess();
     BPTR old_lock = me->pr_CurrentDir;
     me->pr_CurrentDir = ___lock;
 
@@ -1739,7 +1800,10 @@ LONG _dos_IoErr ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_dos: IoErr() called.\n");
 
-    struct Process *me = (struct Process *)FindTask(NULL);
+    struct Process *me = U_getCurrentProcess();
+
+    if (!lxa_dos_is_process(me))
+        return 0;
 
     return me->pr_Result2;
 }
@@ -1808,7 +1872,7 @@ void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
 
     LPRINTF (LOG_INFO, "_dos: Exit() called, returnCode=%ld\n", ___returnCode);
 
-    struct Process *me = (struct Process *)FindTask(NULL);
+    struct Process *me = U_getCurrentProcess();
 
     /* Store the return code */
     me->pr_Result2 = ___returnCode;
@@ -2830,11 +2894,12 @@ LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG arg4 __asm("d6"),
                                                         register LONG arg5 __asm("d7"))
 {
-    struct Process *me = (struct Process *)FindTask(NULL);
+    struct Process *me = U_getCurrentProcess();
     struct StandardPacket *sp;
     struct MsgPort *replyport;
     struct DosPacket *reply;
     LONG res;
+    BOOL use_process_port;
 
     if (!port)
     {
@@ -2846,7 +2911,9 @@ LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     if (!sp)
         return DOSFALSE;
 
-    if (me && me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
+    use_process_port = lxa_dos_is_process(me);
+
+    if (use_process_port)
     {
         replyport = &me->pr_MsgPort;
     }
@@ -2871,15 +2938,26 @@ LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     sp->sp_Pkt.dp_Res2 = 0;
 
     _dos_SendPkt(DOSBase, &sp->sp_Pkt, port, replyport);
-    reply = _dos_WaitPkt(DOSBase);
+
+    reply = lxa_dos_wait_packet_on_port(use_process_port ? me : NULL, replyport);
+    if (!reply)
+    {
+        if (!use_process_port)
+            DeleteMsgPort(replyport);
+        FreeDosObject(DOS_STDPKT, sp);
+        return DOSFALSE;
+    }
+
     if (reply != &sp->sp_Pkt)
         Alert(AN_AsyncPkt);
 
-    res = sp->sp_Pkt.dp_Res1;
-    if (me && me->pr_Task.tc_Node.ln_Type == NT_PROCESS)
-        me->pr_Result2 = sp->sp_Pkt.dp_Res2;
-    else
+    res = reply->dp_Res1;
+    lxa_dos_store_packet_result2(me, reply);
+
+    if (!use_process_port)
         DeleteMsgPort(replyport);
+    else
+        replyport = NULL;
 
     FreeDosObject(DOS_STDPKT, sp);
     return res;
@@ -2890,7 +2968,13 @@ VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct MsgPort * port __asm("d2"),
                                                         register struct MsgPort * replyport __asm("d3"))
 {
-    if (!dp || !port || !replyport || !dp->dp_Link)
+    if (!dp || !port || !replyport)
+        return;
+
+    if (!lxa_dos_packet_is_bound(dp))
+        lxa_dos_bind_packet_message(dp, dp->dp_Link);
+
+    if (!lxa_dos_packet_is_bound(dp))
         return;
 
     dp->dp_Port = replyport;
@@ -2900,30 +2984,12 @@ VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
 
 struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    struct Process *me = (struct Process *)FindTask(NULL);
-    struct MsgPort *msgPort;
-    struct Message *msg = NULL;
+    struct Process *me = U_getCurrentProcess();
 
-    if (!me || me->pr_Task.tc_Node.ln_Type != NT_PROCESS)
+    if (!lxa_dos_is_process(me))
         return NULL;
 
-    msgPort = &me->pr_MsgPort;
-
-    if (me->pr_PktWait)
-    {
-        typedef struct Message *(*pktwait_fn_t)(register APTR __asm("a0"), register struct MsgPort * __asm("a1"), register struct ExecBase * __asm("a6"));
-        pktwait_fn_t waitfn = (pktwait_fn_t)me->pr_PktWait;
-        msg = waitfn(me->pr_PktWait, msgPort, SysBase);
-    }
-
-    while (!msg)
-    {
-        msg = GetMsg(msgPort);
-        if (!msg)
-            Wait(1UL << msgPort->mp_SigBit);
-    }
-
-    return (struct DosPacket *)msg->mn_Node.ln_Name;
+    return lxa_dos_wait_packet_on_port(me, &me->pr_MsgPort);
 }
 
 VOID _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -2931,17 +2997,20 @@ VOID _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG res1 __asm("d2"),
                                                         register LONG res2 __asm("d3"))
 {
-    struct Process *me = (struct Process *)FindTask(NULL);
+    struct Process *me = U_getCurrentProcess();
     struct MsgPort *replyport;
     struct Message *msg;
+    struct MsgPort *current_port = NULL;
 
     if (!dp || !dp->dp_Link || !dp->dp_Port)
         return;
 
     replyport = dp->dp_Port;
     msg = dp->dp_Link;
-    msg->mn_Node.ln_Name = (char *)dp;
-    dp->dp_Port = me ? &me->pr_MsgPort : NULL;
+    lxa_dos_bind_packet_message(dp, msg);
+    if (lxa_dos_is_process(me))
+        current_port = &me->pr_MsgPort;
+    dp->dp_Port = current_port;
     dp->dp_Res1 = res1;
     dp->dp_Res2 = res2;
     PutMsg(replyport, msg);
@@ -3864,7 +3933,7 @@ LONG _dos_SetFileSize ( register struct DosLibrary * DOSBase __asm("a6"),
     result = emucall3(EMU_CALL_DOS_SETFILESIZE, (ULONG)fhp, (ULONG)pos, (ULONG)mode);
     if (result < 0)
     {
-        struct Process *me = (struct Process *)FindTask(NULL);
+        struct Process *me = U_getCurrentProcess();
         if (me)
             me->pr_Result2 = fhp->fh_Arg2;
     }
@@ -4287,7 +4356,7 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG paramlen __asm("d4"))
 {
     struct Process *child;
-    struct Process *me = (struct Process *)FindTask(NULL);
+    struct Process *me = U_getCurrentProcess();
     BPTR curDir = 0;
     LONG result = -1;
     ULONG oldSig;
@@ -4729,7 +4798,7 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     BOOL asynch = GetTagData(SYS_Asynch, FALSE, tags);
     APTR childWindowPtr = NULL;
     
-    struct Process *me = (struct Process *)FindTask(NULL);
+    struct Process *me = U_getCurrentProcess();
     if (IS_PROCESS(me)) {
         if (!input) input = me->pr_CIS;
         if (!output) output = me->pr_COS;

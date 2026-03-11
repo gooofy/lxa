@@ -23,7 +23,7 @@ Phase 79 closes the remaining `keyboard.device` surface and keeps it aligned wit
 
 Goal: pay down the architecture and performance follow-up identified during the Phase 78 compatibility sweep without reopening already-closed API coverage.
 
-- [ ] Exec/DOS core: unify resident registration, interrupt-vector management, packet transport, and current-process access so startup and messaging paths cannot drift
+- [ ] Exec/DOS core: unify resident registration, interrupt-vector management, packet transport, and current-process access so startup and messaging paths cannot drift; current-task/current-process helpers, shared resident/device registration, centralized interrupt-vector/server-chain bookkeeping, and DOS packet send/wait/reply/result propagation now share the common path
 - [ ] Graphics/Layers: centralize viewport, copper, double-buffer, layer ordering, and clip/damage bookkeeping; reduce redundant palette scans, viewport refreshes, and full clip-rect rebuilds
 - [ ] Intuition/Workbench/GadTools: separate private UI bookkeeping from public structs, share screen/workbench/app-object helpers, and avoid repeated full-list scans or full-window redraws
 - [ ] Utility/Locale/IFFParse/Diskfont: split monolithic private state into companions/helpers and add caching for namespace lookup, catalog lookup, parser context matching, and color-font rendering
