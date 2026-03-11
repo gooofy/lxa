@@ -85,6 +85,10 @@ TEST_F(ExecTest, MathIeeeSingBas) {
     RunExecTest("MathIeeeSingBas");
 }
 
+TEST_F(ExecTest, MathFFP) {
+    RunExecTest("MathFFP");
+}
+
 TEST_F(ExecTest, Locale) {
     RunExecTest("Locale");
 }

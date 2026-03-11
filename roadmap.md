@@ -724,8 +724,8 @@ Status: complete in 0.6.124.
 #### 78-R: Math Libraries
 
 **mathffp** (`src/rom/lxa_mathffp.c` vs NDK `math.h`):
-- [ ] `SPFix` / `SPFlt` / `SPCmp` / `SPTst` / `SPAbs` / `SPNeg` — single-precision fast float
-- [ ] `SPAdd` / `SPSub` / `SPMul` / `SPDiv`
+- [x] `SPFix` / `SPFlt` / `SPCmp` / `SPTst` / `SPAbs` / `SPNeg` — single-precision fast float
+- [x] `SPAdd` / `SPSub` / `SPMul` / `SPDiv`
 - [ ] `SPFloor` / `SPCeil`
 - [ ] FFP format: 8-bit exponent (biased by 0x40), 24-bit mantissa, 1 sign bit
 - [ ] Edge cases: NaN, Inf, zero, denormals

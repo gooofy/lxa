@@ -123,9 +123,34 @@
         "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/misc_gtest.cpp:41: Failure",
         "[  FAILED  ] MiscTest.ExpansionMemConfig (430 ms)"
       ]
+    },
+    {
+      "iteration": 6,
+      "startedAt": "2026-03-11T09:02:11.337Z",
+      "endedAt": "2026-03-11T09:08:46.488Z",
+      "durationMs": 392998,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "roadmap.md",
+        "samples/CMakeLists.txt",
+        "tests/drivers/exec_gtest.cpp",
+        "tests/exec/mathffp/"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/exec/mathffp/main.c",
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include/include_h/inline/mathffp.h",
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include/include_h/libraries/mathffp.h",
+        "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest",
+        "100% tests passed, 0 tests failed out of 1"
+      ]
     }
   ],
-  "totalDurationMs": 2668264,
+  "totalDurationMs": 3061262,
   "struggleIndicators": {
     "repeatedErrors": {
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/CMakeLists.txt": 3,
@@ -149,7 +174,12 @@
       "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:380:71: error: passing argument 2 o": 1,
       "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:383:40: error: passing argument 2 o": 1,
       "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:425:32: error: pointer targets in a": 1,
-      "[  FAILED  ] MiscTest.ExpansionMemConfig (430 ms)": 1
+      "[  FAILED  ] MiscTest.ExpansionMemConfig (430 ms)": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/exec/mathffp/main": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include/include_h/inlin": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include/include_h/libra": 1,
+      "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest": 1,
+      "100% tests passed, 0 tests failed out of 1": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0
