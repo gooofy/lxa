@@ -250,6 +250,9 @@ _handleIRQ3:
     /* This calls ReplyMsg() for expired timers, properly waking up waiting tasks */
     jsr         __timer_VBlankHook
 
+    /* Process audio playback timing and end-of-sample interrupts */
+    jsr         __audio_VBlankHook
+
     /* Process pending console reads via Console hook (Phase 45: async I/O) */
     /* This completes async CMD_READ requests when input becomes available */
     jsr         __console_VBlankHook

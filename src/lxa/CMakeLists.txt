@@ -65,6 +65,16 @@ if(SDL2_FOUND)
     list(APPEND LXA_COMPILE_DEFINITIONS SDL2_FOUND)
 endif()
 
+set(LXA_SDL_LINK_LIBS)
+if(SDL2_FOUND)
+    list(APPEND LXA_SDL_LINK_LIBS ${SDL2_LIBRARIES})
+endif()
+
+find_library(SDL2_MIXER_LIBRARY SDL2_mixer)
+if(SDL2_MIXER_LIBRARY)
+    list(APPEND LXA_SDL_LINK_LIBS ${SDL2_MIXER_LIBRARY})
+endif()
+
 # === liblxa static library ===
 # This is used by test drivers to control the emulator programmatically
 add_library(liblxa STATIC
@@ -94,8 +104,8 @@ target_link_libraries(liblxa PUBLIC
     m
 )
 
-if(SDL2_FOUND)
-    target_link_libraries(liblxa PUBLIC ${SDL2_LIBRARIES})
+if(LXA_SDL_LINK_LIBS)
+    target_link_libraries(liblxa PUBLIC ${LXA_SDL_LINK_LIBS})
 endif()
 
 set_target_properties(liblxa PROPERTIES
@@ -128,8 +138,8 @@ target_link_libraries(lxa PRIVATE
     m
 )
 
-if(SDL2_FOUND)
-    target_link_libraries(lxa PRIVATE ${SDL2_LIBRARIES})
+if(LXA_SDL_LINK_LIBS)
+    target_link_libraries(lxa PRIVATE ${LXA_SDL_LINK_LIBS})
 endif()
 
 set_target_properties(lxa PROPERTIES

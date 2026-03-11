@@ -32,6 +32,10 @@
 #include "config.h"
 #include "display.h"
 
+#ifdef SDL2_FOUND
+#include <SDL.h>
+#endif
+
 #define RAM_START   0x000000
 #define RAM_SIZE    10 * 1024 * 1024
 #define RAM_END     RAM_START + RAM_SIZE - 1
@@ -295,6 +299,23 @@ typedef struct timer_request_s {
 
 static timer_request_t g_timer_queue[MAX_TIMER_REQUESTS];
 
+#ifdef SDL2_FOUND
+#define AUDIO_HOST_CHANNELS 4
+
+typedef struct audio_channel_state_s {
+    bool active;
+    uint8_t channel;
+    uint16_t volume;
+    uint16_t period;
+    uint32_t length;
+    uint32_t cycles;
+} audio_channel_state_t;
+
+static audio_channel_state_t g_audio_channels[AUDIO_HOST_CHANNELS];
+static SDL_AudioDeviceID g_audio_device;
+static bool g_audio_initialized = false;
+#endif
+
 #define MAX_NOTIFY_REQUESTS 128
 
 typedef struct notify_entry_s {
@@ -319,6 +340,124 @@ static uint64_t _timer_get_time_us(void)
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return (uint64_t)tv.tv_sec * 1000000ULL + (uint64_t)tv.tv_usec;
+}
+
+static void __attribute__((unused)) _audio_init(void)
+{
+#ifdef SDL2_FOUND
+    SDL_AudioSpec want;
+
+    if (g_audio_initialized)
+    {
+        return;
+    }
+
+    if (!(SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO))
+    {
+        if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0)
+        {
+            DPRINTF(LOG_WARNING, "lxa: SDL audio init failed: %s\n", SDL_GetError());
+            return;
+        }
+    }
+
+    memset(&want, 0, sizeof(want));
+    want.freq = 22050;
+    want.format = AUDIO_S16SYS;
+    want.channels = 1;
+    want.samples = 1024;
+
+    g_audio_device = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0);
+    if (g_audio_device == 0)
+    {
+        DPRINTF(LOG_WARNING, "lxa: SDL_OpenAudioDevice failed: %s\n", SDL_GetError());
+        return;
+    }
+
+    SDL_PauseAudioDevice(g_audio_device, 0);
+    g_audio_initialized = true;
+#endif
+}
+
+static void __attribute__((unused)) _audio_shutdown(void)
+{
+#ifdef SDL2_FOUND
+    if (g_audio_initialized)
+    {
+        SDL_ClearQueuedAudio(g_audio_device);
+        SDL_CloseAudioDevice(g_audio_device);
+        g_audio_device = 0;
+        g_audio_initialized = false;
+    }
+#endif
+
+    return;
+}
+
+static void _audio_queue_fragment(uint32_t packed,
+                                  uint32_t data_ptr,
+                                  uint32_t length,
+                                  uint32_t period,
+                                  uint32_t volume)
+{
+#ifdef SDL2_FOUND
+    uint8_t channel = packed & 0xff;
+    uint32_t cycles = packed >> 8;
+    int16_t mixbuf[4096];
+    uint32_t count;
+    uint32_t i;
+
+    if (channel >= AUDIO_HOST_CHANNELS)
+    {
+        return;
+    }
+
+    _audio_init();
+
+    if (!g_audio_initialized)
+    {
+        return;
+    }
+
+    if (length > 4096)
+    {
+        length = 4096;
+    }
+
+    count = length;
+    if (count == 0)
+    {
+        return;
+    }
+
+    if (volume > 64)
+    {
+        volume = 64;
+    }
+
+    for (i = 0; i < count; i++)
+    {
+        int8_t sample = (int8_t)m68k_read_memory_8(data_ptr + i);
+        mixbuf[i] = (int16_t)((sample * (int32_t)volume * 256) / 64);
+    }
+
+    SDL_ClearQueuedAudio(g_audio_device);
+    SDL_QueueAudio(g_audio_device, mixbuf, count * sizeof(int16_t));
+
+    g_audio_channels[channel].active = true;
+    g_audio_channels[channel].channel = channel;
+    g_audio_channels[channel].volume = (uint16_t)volume;
+    g_audio_channels[channel].period = (uint16_t)period;
+    g_audio_channels[channel].length = count;
+    g_audio_channels[channel].cycles = cycles;
+#else
+#endif
+
+    (void)packed;
+    (void)data_ptr;
+    (void)length;
+    (void)period;
+    (void)volume;
 }
 
 /* Add a timer request to the queue.
@@ -5926,6 +6065,19 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_AUDIO_PLAY:
+        {
+            uint32_t packed = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t data_ptr = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t length = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t period = m68k_get_reg(NULL, M68K_REG_D4);
+            uint32_t volume = m68k_get_reg(NULL, M68K_REG_D5);
+
+            _audio_queue_fragment(packed, data_ptr, length, period, volume);
+            m68k_set_reg(M68K_REG_D0, 1);
+            break;
+        }
+
         /*
          * Console device emucalls
          */
@@ -7964,6 +8116,8 @@ int main(int argc, char **argv, char **envp)
     timer.it_interval.tv_sec = 0;
     timer.it_interval.tv_usec = 0;
     setitimer(ITIMER_REAL, &timer, NULL);
+
+    _audio_shutdown();
 
     return g_rv;
 }

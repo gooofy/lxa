@@ -663,19 +663,19 @@ Status: complete in 0.6.124.
 
 #### 78-O: Audio Device (`src/rom/lxa_dev_audio.c`)
 
-- [ ] `ADCMD_ALLOCATE` / `ADCMD_FREE` — channel allocation bitmask (channels 0-3)
-- [ ] `ADCMD_SETPREC` — allocation precedence
-- [ ] `CMD_WRITE` — DMA audio playback: period/volume/data/length
-- [ ] `ADCMD_PERVOL` — change period and volume of running sound
-- [ ] `ADCMD_FINISH` / `ADCMD_WAITCYCLE`
-- [ ] Audio interrupt (end-of-sample notification)
-- [ ] SDL2 audio stream mapping to Amiga channel model
+- [x] `ADCMD_ALLOCATE` / `ADCMD_FREE` — channel allocation bitmask (channels 0-3)
+- [x] `ADCMD_SETPREC` — allocation precedence
+- [x] `CMD_WRITE` — DMA audio playback: period/volume/data/length
+- [x] `ADCMD_PERVOL` — change period and volume of running sound
+- [x] `ADCMD_FINISH` / `ADCMD_WAITCYCLE`
+- [x] Audio interrupt (end-of-sample notification)
+- [x] SDL2 audio stream mapping to Amiga channel model
 
 ##### 78-O-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — `audio.device` now covers the tracked hosted surface for allocation/free, precedence updates, queued single-channel `CMD_WRITE`, live `ADCMD_PERVOL` / `ADCMD_FINISH` / `ADCMD_WAITCYCLE`, and end-of-cycle `INTB_AUD0-3` interrupt delivery with direct regression coverage in `Tests/Devices/Audio` plus `devices_gtest` / `exec_gtest` validation (v0.7.9)
+- [x] Architecture review: audio playback timing, request queues, and IRQ dispatch currently live together inside `lxa_dev_audio.c`; Phase 79 now tracks splitting channel-state/timing bookkeeping from interrupt/request management so future lock/steal semantics and broader Paula compatibility can grow without one monolithic device file (v0.7.9)
+- [x] Performance review: hosted audio playback currently re-queues one fragment per write/cycle and linearly scans misc/pending request lists on every VBlank; Phase 79 now tracks wake-time-ordered audio events plus per-channel waiter buckets so longer queued playback avoids redundant full-list walks and fragment churn (v0.7.9)
 
 
 
@@ -942,6 +942,8 @@ Status: complete in 0.6.124.
 - [ ] Console performance: batch cursor redraw/refresh decisions during bursty writes, input processing, and resize handling so console output avoids redundant `WaitTOF()` and full cursor repaint churn
 - [ ] Input architecture: centralize host-event to `InputEvent` synthesis behind shared private helpers so `lxa_intuition.c`, `lxa_dev_input.c`, console raw-event generation, and future commodities consumers all reuse one compatibility path
 - [ ] Input performance: cache reusable qualifier/event-template state and optional handler fast-path metadata so bursty keyboard/mouse workloads avoid rebuilding equivalent `InputEvent` state and fully generic handler walks on every host event
+- [ ] Audio architecture: split private audio channel timing/state, request-queue ownership, and IRQ dispatch helpers behind a compact companion so allocation/steal rules, playback control, and end-of-sample interrupt delivery cannot drift as more Paula-compatible behavior lands
+- [ ] Audio performance: replace VBlank-wide misc/pending-request scans and per-write fragment requeueing with per-channel wake buckets / lightweight host buffering so longer playback sequences avoid redundant list walks and queue churn
 - [ ] IFFParse performance: avoid repeated full context-stack LCI scans during `ParseIFF()` by separating declaration indexes from stored items and caching active stop/property/collection matches per context
 
 
@@ -973,4 +975,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-L**: timer.device now closes the tracked hosted timer surface for this phase: `TR_ADDREQUEST` covers the documented relative/absolute timer units (`UNIT_MICROHZ`, `UNIT_VBLANK`, `UNIT_ECLOCK`, `UNIT_WAITUNTIL`, `UNIT_WAITECLOCK`), `TR_GETSYSTIME` / `TR_SETSYSTIME` share the same system-time offset semantics as `GetSysTime()`, `AbortIO()` returns classic timer abort results, `AddTime()` / `SubTime()` / `CmpTime()` normalize `timeval`s with direct regression coverage, and `ReadEClock()` returns advancing 64-bit values without ROM-side libgcc helpers; validation is green via `devices_gtest` and `exec_gtest` (v0.7.2).
 - **Phase 78-M**: console.device compatibility advanced again: direct console regressions now lock ANSI cursor movement/erase/cursor-visibility handling, SGR color and attribute state, `IDCMP_NEWSIZE`-driven bounds updates, keymap/library-mode behavior, legacy special-key reads, broadened raw-input/report coverage (`aSRE` / `aRRE` for raw-key, mouse-button, gadget, and resize reports), and initial scroll-back commands together under `console_gtest`; the remaining follow-up is broader event-class breadth and documented read-mode flags (v0.7.6).
 - **Phase 78-N**: input.device verification is now closed for the tracked public surface: handler-chain ordering (`IND_ADDHANDLER` / `IND_REMHANDLER`), repeat timing setters, mouse-port/type setters, direct `IND_WRITEEVENT` / `IND_ADDEVENT` dispatch, held-state `PeekQualifier()` snapshots, and transient per-event qualifier delivery are all covered by `Tests/Devices/Input`; the older `FreeInputHandlerList()` follow-up is retired after confirming it is not part of the bundled NDK/AROS public ABI (v0.7.8).
+- **Phase 78-O**: audio.device now closes the tracked hosted audio surface for this phase: channel allocation/free, precedence changes, queued `CMD_WRITE` playback timing, live `ADCMD_PERVOL` / `ADCMD_FINISH` / `ADCMD_WAITCYCLE`, SDL-backed fragment playback, and end-of-sample `INTB_AUD0-3` interrupt delivery are exercised by `Tests/Devices/Audio` with validating `devices_gtest` / `exec_gtest` runs (v0.7.9).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 633 assertions passing, now including `KeyMap` layout coverage.

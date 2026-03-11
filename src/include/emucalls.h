@@ -146,6 +146,11 @@
 #define EMU_CALL_TIMER_GET_EXPIRED 3503  /* Get next expired timer: () -> ioreq_ptr or 0 */
 
 /*
+ * Audio Device emucalls (3600-3699)
+ */
+#define EMU_CALL_AUDIO_PLAY        3600  /* Queue hosted audio fragment: d1=(cycles<<8)|channel, d2=data, d3=len, d4=period, d5=volume */
+
+/*
  * Console Device emucalls (4000-4099)
  */
 #define EMU_CALL_CON_READ          4000  /* Read from console: (buf, len) -> bytes_read (-1 if no data yet) */
