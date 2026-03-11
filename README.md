@@ -219,7 +219,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.2** - Phase 80 cleanup now folds DOS packet send/wait/reply/result propagation into the shared Exec/DOS helpers alongside the earlier current-process, resident registration, and interrupt bookkeeping consolidation
+**Version 0.8.3** - Phase 80 cleanup now keeps GadTools context bookkeeping and Workbench app-object tracking private while building on the earlier shared Exec/DOS and graphics/layers consolidation
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

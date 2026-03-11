@@ -63,8 +63,11 @@ struct VisualInfo {
 
 /* GadgetContext - internal context for gadget list creation */
 struct GadgetContext {
+    ULONG magic;
     struct Gadget *gc_Last;
 };
+
+#define GT_CONTEXT_MAGIC 0x47544358UL
 
 enum gt_kind
 {
@@ -91,6 +94,35 @@ struct GTGadgetData
     LONG max;
     APTR aux;
 };
+
+static struct GadgetContext *gt_get_context(struct Gadget *gad)
+{
+    struct GadgetContext *context;
+
+    if (!gad || gad->GadgetType != GTYP_CUSTOMGADGET)
+        return NULL;
+
+    context = (struct GadgetContext *)gad->SpecialInfo;
+    if (!context || context->magic != GT_CONTEXT_MAGIC)
+        return NULL;
+
+    return context;
+}
+
+static BOOL gt_is_context_gadget(struct Gadget *gad)
+{
+    return gt_get_context(gad) != NULL;
+}
+
+static struct Gadget *gt_public_glist(struct Gadget *gad)
+{
+    struct GadgetContext *context = gt_get_context(gad);
+
+    if (!context)
+        return gad;
+
+    return gad->NextGadget;
+}
 
 /*
  * Library init/open/close/expunge
@@ -953,7 +985,19 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
 
     /* Link to previous gadget */
     if (gad) {
-        gad->NextGadget = newgad;
+        if (gt_is_context_gadget(gad))
+        {
+            struct GadgetContext *context = gt_get_context(gad);
+            struct Gadget *tail = context ? context->gc_Last : gad;
+
+            tail->NextGadget = newgad;
+            if (context)
+                context->gc_Last = newgad;
+        }
+        else
+        {
+            gad->NextGadget = newgad;
+        }
     }
 
     DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() -> 0x%08lx\n", (ULONG)newgad);
@@ -967,6 +1011,21 @@ void _gadtools_FreeGadgets ( register struct GadToolsBase *GadToolsBase __asm("a
     struct Gadget *next;
 
     DPRINTF (LOG_DEBUG, "_gadtools: FreeGadgets() gad=0x%08lx\n", (ULONG)gad);
+
+    if (gt_is_context_gadget(gad))
+    {
+        struct GadgetContext *context = gt_get_context(gad);
+        struct Gadget *first = gad->NextGadget;
+
+        if (context)
+        {
+            context->magic = 0;
+            FreeMem(context, sizeof(*context));
+        }
+
+        FreeMem(gad, sizeof(struct Gadget));
+        gad = first;
+    }
 
     while (gad) {
         next = gad->NextGadget;
@@ -1774,6 +1833,7 @@ void _gadtools_GT_RefreshWindow ( register struct GadToolsBase *GadToolsBase __a
         return;
 
     gadgets = req ? req->ReqGadget : win->FirstGadget;
+    gadgets = gt_public_glist(gadgets);
     if (!gadgets)
         return;
 
@@ -1826,6 +1886,7 @@ struct Gadget * _gadtools_CreateContext ( register struct GadToolsBase *GadTools
                                           register struct Gadget **glistptr __asm("a0") )
 {
     struct Gadget *context;
+    struct GadgetContext *context_data;
 
     DPRINTF (LOG_DEBUG, "_gadtools: CreateContext() glistptr=0x%08lx\n", (ULONG)glistptr);
 
@@ -1837,9 +1898,20 @@ struct Gadget * _gadtools_CreateContext ( register struct GadToolsBase *GadTools
     if (!context)
         return NULL;
 
+    context_data = AllocMem(sizeof(struct GadgetContext), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!context_data)
+    {
+        FreeMem(context, sizeof(struct Gadget));
+        return NULL;
+    }
+
+    context_data->magic = GT_CONTEXT_MAGIC;
+    context_data->gc_Last = context;
+
     /* The context gadget is a placeholder, not a real gadget */
     context->GadgetType = GTYP_CUSTOMGADGET;
     context->Flags = GFLG_GADGHNONE;
+    context->SpecialInfo = context_data;
 
     *glistptr = context;
 

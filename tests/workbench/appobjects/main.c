@@ -174,6 +174,22 @@ int main(void)
         print("OK: stale App* handles are rejected\n");
     }
 
+    app_window = AddAppWindowA(5, 0x5555, window, port, NULL);
+    if (!app_window)
+    {
+        print("FAIL: AddAppWindowA failed after earlier removals\n");
+        errors++;
+    }
+    else if (!RemoveAppWindow(app_window))
+    {
+        print("FAIL: recycled AppWindow handle was not removable\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: AppWindow bookkeeping stays reusable after removals\n");
+    }
+
     print("Test 2: Unsupported compatibility helpers stay well-defined...\n");
     if (WBInfo((BPTR)0, STR("SYS:"), screen) != 0)
     {

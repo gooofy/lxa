@@ -42,6 +42,7 @@ extern struct ExecBase *SysBase;
 struct WorkbenchBase {
     struct Library lib;
     BPTR           SegList;
+    struct List    app_objects;
 };
 
 #define LXA_WORKBENCH_APP_MAGIC 0x57424150UL
@@ -53,6 +54,7 @@ enum lxa_workbench_app_type {
 };
 
 struct lxa_workbench_app_object {
+    struct Node node;
     ULONG magic;
     ULONG type;
     ULONG id;
@@ -62,7 +64,30 @@ struct lxa_workbench_app_object {
     struct MsgPort *msgport;
 };
 
-static APTR workbench_alloc_app_object(ULONG type,
+static VOID workbench_init_app_list(struct WorkbenchBase *wbb)
+{
+    if (!wbb)
+        return;
+
+    NEWLIST(&wbb->app_objects);
+}
+
+static struct lxa_workbench_app_object *workbench_validate_app_object(APTR handle,
+                                                                      ULONG expected_type)
+{
+    struct lxa_workbench_app_object *obj = (struct lxa_workbench_app_object *)handle;
+
+    if (!obj)
+        return NULL;
+
+    if (obj->magic != LXA_WORKBENCH_APP_MAGIC || obj->type != expected_type)
+        return NULL;
+
+    return obj;
+}
+
+static APTR workbench_alloc_app_object(struct WorkbenchBase *WorkbenchBase,
+                                       ULONG type,
                                        ULONG id,
                                        ULONG userdata,
                                        APTR primary,
@@ -70,6 +95,9 @@ static APTR workbench_alloc_app_object(ULONG type,
                                        struct MsgPort *msgport)
 {
     struct lxa_workbench_app_object *obj;
+
+    if (!WorkbenchBase)
+        return NULL;
 
     obj = AllocMem(sizeof(*obj), MEMF_CLEAR | MEMF_PUBLIC);
     if (!obj)
@@ -83,19 +111,19 @@ static APTR workbench_alloc_app_object(ULONG type,
     obj->secondary = secondary;
     obj->msgport = msgport;
 
+    AddTail(&WorkbenchBase->app_objects, &obj->node);
+
     return obj;
 }
 
 static BOOL workbench_free_app_object(APTR handle, ULONG expected_type)
 {
-    struct lxa_workbench_app_object *obj = (struct lxa_workbench_app_object *)handle;
+    struct lxa_workbench_app_object *obj = workbench_validate_app_object(handle, expected_type);
 
     if (!obj)
         return FALSE;
 
-    if (obj->magic != LXA_WORKBENCH_APP_MAGIC || obj->type != expected_type)
-        return FALSE;
-
+    Remove(&obj->node);
     obj->magic = 0;
     FreeMem(obj, sizeof(*obj));
     return TRUE;
@@ -111,6 +139,7 @@ struct WorkbenchBase * __g_lxa_workbench_InitLib ( register struct WorkbenchBase
 {
     DPRINTF (LOG_DEBUG, "_workbench: InitLib() called\n");
     wbb->SegList = seglist;
+    workbench_init_app_list(wbb);
     return wbb;
 }
 
@@ -168,7 +197,8 @@ APTR _workbench_AddAppWindowA ( register struct WorkbenchBase *WorkbenchBase __a
     if (!window || !msgport)
         return NULL;
 
-    return workbench_alloc_app_object(LXA_WORKBENCH_APP_WINDOW,
+    return workbench_alloc_app_object(WorkbenchBase,
+                                      LXA_WORKBENCH_APP_WINDOW,
                                       id,
                                       userdata,
                                       window,
@@ -200,7 +230,8 @@ APTR _workbench_AddAppIconA ( register struct WorkbenchBase *WorkbenchBase __asm
     if (!msgport || !diskobj)
         return NULL;
 
-    return workbench_alloc_app_object(LXA_WORKBENCH_APP_ICON,
+    return workbench_alloc_app_object(WorkbenchBase,
+                                      LXA_WORKBENCH_APP_ICON,
                                       id,
                                       userdata,
                                       diskobj,
@@ -230,7 +261,8 @@ APTR _workbench_AddAppMenuItemA ( register struct WorkbenchBase *WorkbenchBase _
     if (!text || !msgport)
         return NULL;
 
-    return workbench_alloc_app_object(LXA_WORKBENCH_APP_MENU,
+    return workbench_alloc_app_object(WorkbenchBase,
+                                      LXA_WORKBENCH_APP_MENU,
                                       id,
                                       userdata,
                                       (APTR)text,

@@ -48,6 +48,8 @@ int main(void)
         return fail("CreateContext did not initialize the gadget list");
     if ((context->GadgetType & GTYP_GTYPEMASK) != GTYP_CUSTOMGADGET)
         return fail("context gadget type mismatch");
+    if (context->SpecialInfo == NULL)
+        return fail("context gadget private bookkeeping missing");
     printf("OK: CreateContext initialized gadget list head\n");
 
     memset(&ng, 0, sizeof(ng));
@@ -73,6 +75,8 @@ int main(void)
         TAG_DONE);
     if (!string_gad || button->NextGadget != string_gad)
         return fail("string gadget creation/linking failed");
+    if (glist != context)
+        return fail("context head should stay stable after gadget appends");
 
     win = OpenWindowTags(NULL,
         WA_Title, (ULONG)"Context Refresh Test",
@@ -89,6 +93,8 @@ int main(void)
         TAG_DONE);
     if (!win)
         return fail("OpenWindowTags failed");
+    if (win->FirstGadget != button)
+        return fail("OpenWindowTags should expose the first real gadget, not the context head");
 
     GT_RefreshWindow(win, NULL);
     printf("OK: GT_RefreshWindow accepted a window gadget list\n");

@@ -55,6 +55,8 @@ extern void _keyboard_device_record_event(UWORD rawkey, UWORD qualifier);
 #define LXA_WMF_IDCMP_WINDOWPORT_OWNED 0x40000000UL
 #define LXA_WMF_GADGETHELP            0x20000000UL
 
+#define LXA_GADTOOLS_CONTEXT_MAGIC    0x47544358UL
+
 extern struct GfxBase *GfxBase;
 extern struct Library *LayersBase;
 extern struct UtilityBase *UtilityBase;
@@ -136,6 +138,11 @@ struct LXAWindowState {
     UWORD pending_mousemoves;
 };
 
+struct LXAGadgetContext {
+    ULONG magic;
+    struct Gadget *last;
+};
+
 struct LXAIntuitionBase {
     struct IntuitionBase ib;
     struct List ClassList;      /* List of public classes */
@@ -162,6 +169,7 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
                                                         register WORD numGad __asm("d0"));
 static struct LXAWindowState *_intuition_find_window_state(struct LXAIntuitionBase *base,
                                                            const struct Window *window);
+static struct Gadget *_intuition_public_gadget_list(struct Gadget *gadgets);
 
 /* Forward declaration for internal string gadget key handling */
 static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window, 
@@ -366,6 +374,20 @@ static struct LXAWindowState *_intuition_find_window_state(struct LXAIntuitionBa
     }
 
     return NULL;
+}
+
+static struct Gadget *_intuition_public_gadget_list(struct Gadget *gadgets)
+{
+    struct LXAGadgetContext *context;
+
+    if (!gadgets || gadgets->GadgetType != GTYP_CUSTOMGADGET)
+        return gadgets;
+
+    context = (struct LXAGadgetContext *)gadgets->SpecialInfo;
+    if (!context || context->magic != LXA_GADTOOLS_CONTEXT_MAGIC)
+        return gadgets;
+
+    return gadgets->NextGadget;
 }
 
 static struct LXAWindowState *_intuition_ensure_window_state(struct LXAIntuitionBase *base,
@@ -7077,6 +7099,8 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     /* Create system gadgets based on window flags */
     _create_window_sys_gadgets(window);
     
+    window->FirstGadget = _intuition_public_gadget_list(window->FirstGadget);
+
     /* Initialize string gadget NumChars for user gadgets (per RKRM, Intuition does this) */
     {
         struct Gadget *gad = window->FirstGadget;
