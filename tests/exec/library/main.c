@@ -366,6 +366,53 @@ static int test_exec_library_helpers(void)
     return errors;
 }
 
+static int test_external_library_scope(void)
+{
+    static const char * const external_libs[] = {
+        "commodities.library",
+        "rexxsyslib.library",
+        "datatypes.library"
+    };
+    int errors = 0;
+    ULONG i;
+
+    print("--- Test: External library scope ---\n");
+
+    for (i = 0; i < (sizeof(external_libs) / sizeof(external_libs[0])); i++)
+    {
+        const char *name = external_libs[i];
+        struct Resident *resident = FindResident((CONST_STRPTR)name);
+        struct Node *node = FindName(&SysBase->LibList, (CONST_STRPTR)name);
+
+        print("Checking ");
+        print(name);
+        print("...\n");
+
+        if (resident != NULL)
+        {
+            print("FAIL: library should not be resident in ROM\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: library is not resident in ROM\n");
+        }
+
+        if (node != NULL)
+        {
+            print("FAIL: library should not be pre-registered in LibList\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: library is not pre-registered in LibList\n");
+        }
+    }
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -414,6 +461,9 @@ int main(void)
 
     /* Test 4: Verify MakeLibrary/SetFunction/SumLibrary/AddLibrary/RemLibrary */
     errors += test_exec_library_helpers();
+
+    /* Test 5: Verify third-party libraries stay off the built-in ROM surface */
+    errors += test_external_library_scope();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

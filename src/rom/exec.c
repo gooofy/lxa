@@ -109,10 +109,7 @@ extern struct Resident *__lxa_locale_ROMTag;
 extern struct Resident *__lxa_gadtools_ROMTag;
 extern struct Resident *__lxa_workbench_ROMTag;
 extern struct Resident *__lxa_asl_ROMTag;
-extern struct Resident *__lxa_commodities_ROMTag;
-extern struct Resident *__lxa_rexxsyslib_ROMTag;
 extern struct Resident *__lxa_iffparse_ROMTag;
-extern struct Resident *__lxa_datatypes_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 extern struct Resident *__lxa_console_ROMTag;
 extern struct Resident *__lxa_timer_ROMTag;
@@ -134,7 +131,7 @@ struct ExecIntVectorState
 
 static struct ExecIntVectorState g_IntVectorState[16];
 
-static struct Resident *g_ResidentModules[31];
+static struct Resident *g_ResidentModules[28];
 
 struct ExecBase        *SysBase;
 struct UtilityBase     *UtilityBase;
@@ -5269,18 +5266,15 @@ void coldstart (void)
     g_ResidentModules[16] = __lxa_gadtools_ROMTag;
     g_ResidentModules[17] = __lxa_workbench_ROMTag;
     g_ResidentModules[18] = __lxa_asl_ROMTag;
-    g_ResidentModules[19] = __lxa_commodities_ROMTag;
-    g_ResidentModules[20] = __lxa_rexxsyslib_ROMTag;
-    g_ResidentModules[21] = __lxa_iffparse_ROMTag;
-    g_ResidentModules[22] = __lxa_datatypes_ROMTag;
-    g_ResidentModules[23] = __lxa_input_ROMTag;
-    g_ResidentModules[24] = __lxa_console_ROMTag;
-    g_ResidentModules[25] = __lxa_timer_ROMTag;
-    g_ResidentModules[26] = __lxa_clipboard_ROMTag;
-    g_ResidentModules[27] = __lxa_audio_ROMTag;
-    g_ResidentModules[28] = __lxa_gameport_ROMTag;
-    g_ResidentModules[29] = __lxa_trackdisk_ROMTag;
-    g_ResidentModules[30] = NULL;
+    g_ResidentModules[19] = __lxa_iffparse_ROMTag;
+    g_ResidentModules[20] = __lxa_input_ROMTag;
+    g_ResidentModules[21] = __lxa_console_ROMTag;
+    g_ResidentModules[22] = __lxa_timer_ROMTag;
+    g_ResidentModules[23] = __lxa_clipboard_ROMTag;
+    g_ResidentModules[24] = __lxa_audio_ROMTag;
+    g_ResidentModules[25] = __lxa_gameport_ROMTag;
+    g_ResidentModules[26] = __lxa_trackdisk_ROMTag;
+    g_ResidentModules[27] = NULL;
 
     SysBase->ResModules = g_ResidentModules;
     SysBase->SoftVer = VERSION;
@@ -5357,10 +5351,7 @@ void coldstart (void)
     GadToolsBase  = (struct Library       *) registerBuiltInLib (sizeof(*GadToolsBase)  , __lxa_gadtools_ROMTag  );
     WorkbenchBase = (struct Library       *) registerBuiltInLib (sizeof(*WorkbenchBase) , __lxa_workbench_ROMTag );
     AslBase       = (struct Library       *) registerBuiltInLib (sizeof(*AslBase)       , __lxa_asl_ROMTag       );
-                      registerBuiltInLib (sizeof(struct Library), __lxa_commodities_ROMTag);
-                      registerBuiltInLib (sizeof(struct RxsLib) , __lxa_rexxsyslib_ROMTag );
-                      registerBuiltInLib (sizeof(struct Library), __lxa_iffparse_ROMTag  );
-                      registerBuiltInLib (sizeof(struct Library), __lxa_datatypes_ROMTag );
+    		      registerBuiltInLib (sizeof(struct Library), __lxa_iffparse_ROMTag  );
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in libraries\n");
 

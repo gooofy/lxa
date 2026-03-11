@@ -1,7 +1,7 @@
 /**
  * misc_gtest.cpp - Google Test suite for miscellaneous libraries and stress tests
  *
- * Covers Icon, Workbench, IffParse, DataTypes, ASL and Stress tests.
+ * Covers Icon, Workbench, IffParse, ASL and Stress tests.
  */
 
 #include "lxa_test.h"
@@ -65,10 +65,6 @@ TEST_F(MiscTest, IffParseBasic) {
     dst << src.rdbuf();
     
     RunMiscTest("IffParse", "Basic");
-}
-
-TEST_F(MiscTest, DataTypesBasic) {
-    RunMiscTest("DataTypes", "Basic");
 }
 
 TEST_F(MiscTest, AslFileRequest) {
