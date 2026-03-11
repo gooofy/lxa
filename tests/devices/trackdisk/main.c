@@ -4,6 +4,7 @@
 
 #include <exec/types.h>
 #include <exec/io.h>
+#include <exec/interrupts.h>
 #include <exec/memory.h>
 #include <exec/ports.h>
 #include <exec/execbase.h>
@@ -23,6 +24,12 @@ extern struct DosLibrary *DOSBase;
 static BPTR out;
 static LONG test_pass = 0;
 static LONG test_fail = 0;
+static volatile LONG change_irq_count = 0;
+
+static void change_irq_handler(void)
+{
+    change_irq_count++;
+}
 
 static void print(const char *s)
 {
@@ -78,6 +85,7 @@ int main(void)
 {
     struct MsgPort *port;
     struct IOStdReq *req;
+    struct Interrupt change_irq;
     LONG error;
 
     out = Output();
@@ -194,6 +202,39 @@ int main(void)
         test_ok("CMD_FLUSH");
     else
         test_fail_msg("CMD_FLUSH");
+
+    /* Test: TD_ADDCHANGEINT / TD_REMCHANGEINT lifecycle */
+    change_irq.is_Node.ln_Type = NT_INTERRUPT;
+    change_irq.is_Node.ln_Pri = 0;
+    change_irq.is_Node.ln_Name = (char *)"trackdisk-change";
+    change_irq.is_Data = NULL;
+    change_irq.is_Code = (VOID (*)())change_irq_handler;
+
+    req->io_Command = TD_ADDCHANGEINT;
+    req->io_Flags = 0;
+    req->io_Length = sizeof(struct Interrupt);
+    req->io_Data = &change_irq;
+    SendIO((struct IORequest *)req);
+
+    if (CheckIO((struct IORequest *)req) == NULL)
+        test_ok("TD_ADDCHANGEINT remains pending");
+    else
+        test_fail_msg("TD_ADDCHANGEINT remains pending");
+
+    req->io_Command = TD_REMCHANGEINT;
+    req->io_Flags = 0;
+    req->io_Length = sizeof(struct Interrupt);
+    req->io_Data = &change_irq;
+    DoIO((struct IORequest *)req);
+    if (req->io_Error == 0)
+        test_ok("TD_REMCHANGEINT completes held request");
+    else
+        test_fail_msg("TD_REMCHANGEINT completes held request");
+
+    if (CheckIO((struct IORequest *)req) == (struct IORequest *)req)
+        test_ok("TD_REMCHANGEINT request reports completion");
+    else
+        test_fail_msg("TD_REMCHANGEINT request reports completion");
 
     /* Test: Close device */
     CloseDevice((struct IORequest *)req);

@@ -686,7 +686,7 @@ Status: complete in 0.6.124.
 - [ ] `TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK` — map to host file I/O on `.adf` image
 - [ ] `TD_MOTOR` ✅ (Phase 77)
 - [ ] `TD_CHANGENUM` / `TD_CHANGESTATE` / `TD_PROTSTATUS` / `TD_GETGEOMETRY` ✅ (Phase 77)
-- [ ] `TD_ADDCHANGEINT` / `TD_REMCHANGEINT` — disk change notification via interrupt
+- [x] `TD_ADDCHANGEINT` / `TD_REMCHANGEINT` — hosted compatibility now holds the change-notify request pending until `TD_REMCHANGEINT`, matching the public NDK lifetime semantics with direct regression coverage in `Tests/Devices/Trackdisk` (v0.7.10)
 - [ ] `ETD_READ` / `ETD_WRITE` — extended commands with `TDU_PUBFLAGS`
 - [ ] Error codes: TDERR_NotSpecified, TDERR_NoSecHdr, TDERR_BadSecPreamble, TDERR_TooFewSecs, TDERR_NoDisk
 
@@ -900,7 +900,7 @@ Status: complete in 0.6.124.
 - [ ] Add new GTest assertions for each behavioral deviation found vs AROS
 - [x] Run RKM sample programs after structural changes to catch regressions (gadtoolsgadgets_gtest, simplemenu_gtest, filereq_gtest, fontreq_gtest, easyrequest_gtest) — ASL requester regression sweep now covers `filereq_gtest`, `fontreq_gtest`, `screenmodereq_gtest`, and `misc_gtest` targeted reruns in 0.6.117
 - [ ] Run application tests after changes to exec/dos (asm_one_gtest, devpac_gtest, kickpascal_gtest, cluster2_gtest, dpaint_gtest)
-- [ ] Update version to 0.7.0 when Phase 78 is complete (new MINOR — significant compatibility milestone)
+- [ ] Update version when Phase 78 is complete (next MINOR — significant compatibility milestone)
 
 ### Phase 79: Architecture and performance improvements
 
@@ -976,4 +976,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-M**: console.device compatibility advanced again: direct console regressions now lock ANSI cursor movement/erase/cursor-visibility handling, SGR color and attribute state, `IDCMP_NEWSIZE`-driven bounds updates, keymap/library-mode behavior, legacy special-key reads, broadened raw-input/report coverage (`aSRE` / `aRRE` for raw-key, mouse-button, gadget, and resize reports), and initial scroll-back commands together under `console_gtest`; the remaining follow-up is broader event-class breadth and documented read-mode flags (v0.7.6).
 - **Phase 78-N**: input.device verification is now closed for the tracked public surface: handler-chain ordering (`IND_ADDHANDLER` / `IND_REMHANDLER`), repeat timing setters, mouse-port/type setters, direct `IND_WRITEEVENT` / `IND_ADDEVENT` dispatch, held-state `PeekQualifier()` snapshots, and transient per-event qualifier delivery are all covered by `Tests/Devices/Input`; the older `FreeInputHandlerList()` follow-up is retired after confirming it is not part of the bundled NDK/AROS public ABI (v0.7.8).
 - **Phase 78-O**: audio.device now closes the tracked hosted audio surface for this phase: channel allocation/free, precedence changes, queued `CMD_WRITE` playback timing, live `ADCMD_PERVOL` / `ADCMD_FINISH` / `ADCMD_WAITCYCLE`, SDL-backed fragment playback, and end-of-sample `INTB_AUD0-3` interrupt delivery are exercised by `Tests/Devices/Audio` with validating `devices_gtest` / `exec_gtest` runs (v0.7.9).
+- **Phase 78-P (partial)**: `trackdisk.device` disk-change listener lifecycle now matches the public NDK contract for the hosted compatibility surface: `TD_ADDCHANGEINT` keeps its request pending until paired `TD_REMCHANGEINT`, and the direct `Tests/Devices/Trackdisk` regression locks that lifetime semantics down alongside the existing geometry/status coverage (v0.7.10).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 633 assertions passing, now including `KeyMap` layout coverage.

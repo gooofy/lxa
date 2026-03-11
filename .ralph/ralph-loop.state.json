@@ -1,0 +1,13 @@
+{
+  "active": true,
+  "iteration": 1,
+  "minIterations": 1,
+  "maxIterations": 10,
+  "completionPromise": "COMPLETE",
+  "tasksMode": false,
+  "taskPromise": "READY_FOR_NEXT_TASK",
+  "prompt": "Continue with the next roadmap items.",
+  "startedAt": "2026-03-11T07:21:18.929Z",
+  "model": "",
+  "agent": "opencode"
+}

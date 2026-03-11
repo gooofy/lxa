@@ -26,6 +26,7 @@
 #include <exec/resident.h>
 #include <exec/initializers.h>
 #include <exec/io.h>
+#include <exec/interrupts.h>
 #include <exec/memory.h>
 #include <exec/errors.h>
 #include <clib/exec_protos.h>
@@ -64,6 +65,8 @@ struct TDUnit
     UBYTE          tdu_MotorOn;        /* motor state */
     UBYTE          tdu_ProtStatus;     /* write protection */
     UBYTE          tdu_UnitNum;
+    struct IORequest *tdu_ChangeIntReq;
+    struct Interrupt *tdu_ChangeInt;
 };
 
 #define NUMUNITS  4
@@ -128,6 +131,8 @@ static void __g_lxa_trackdisk_Open ( register struct Library   *dev   __asm("a6"
         tdu->tdu_MotorOn     = 0;
         tdu->tdu_ProtStatus  = 0;   /* not write-protected */
         tdu->tdu_UnitNum     = (UBYTE)unit;
+        tdu->tdu_ChangeIntReq = NULL;
+        tdu->tdu_ChangeInt = NULL;
         g_units[unit] = tdu;
     }
 
@@ -259,12 +264,34 @@ static BPTR __g_lxa_trackdisk_BeginIO ( register struct Library   *dev   __asm("
             break;
 
         case TD_ADDCHANGEINT:
-            /* We don't support disk change notifications - just hold the request */
-            /* Don't reply - the request stays pending until TD_REMCHANGEINT */
+            if (!tdu || !io->io_Data || io->io_Length < sizeof(struct Interrupt))
+            {
+                ioreq->io_Error = TDERR_NotSpecified;
+                break;
+            }
+
+            if (tdu->tdu_ChangeIntReq && tdu->tdu_ChangeIntReq != ioreq)
+            {
+                ioreq->io_Error = TDERR_DriveInUse;
+                break;
+            }
+
+            tdu->tdu_ChangeIntReq = ioreq;
+            tdu->tdu_ChangeInt = (struct Interrupt *)io->io_Data;
+
+            /* Per NDK autodoc this request remains pending until TD_REMCHANGEINT. */
+            ioreq->io_Flags &= ~IOF_QUICK;
             return 0;
 
         case TD_REMCHANGEINT:
-            /* Reply to the add-change-int request */
+            if (!tdu || tdu->tdu_ChangeIntReq != ioreq)
+            {
+                ioreq->io_Error = TDERR_NotSpecified;
+                break;
+            }
+
+            tdu->tdu_ChangeIntReq = NULL;
+            tdu->tdu_ChangeInt = NULL;
             break;
 
         case TD_EJECT:
