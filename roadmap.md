@@ -707,9 +707,9 @@ Status: complete in 0.6.124.
 - [x] `AllocBoardMem` / `FreeBoardMem`
 - [x] `AllocExpansionMem` / `FreeExpansionMem`
 - [x] `ConfigBoard` / `ConfigChain`
-- [ ] `MakeDosNode` / `AddDosNode` — bootnode creation
-- [ ] `ObtainConfigBinding` / `ReleaseConfigBinding`
-- [ ] `SetCurrentBinding` / `GetCurrentBinding`
+- [x] `MakeDosNode` / `AddDosNode` — bootnode creation
+- [x] `ObtainConfigBinding` / `ReleaseConfigBinding`
+- [x] `SetCurrentBinding` / `GetCurrentBinding`
 
 ##### 78-Q-2: Review
 

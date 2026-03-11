@@ -1,5 +1,5 @@
 #include <exec/types.h>
-//#include <exec/memory.h>
+#include <exec/memory.h>
 //#include <exec/libraries.h>
 #include <exec/execbase.h>
 #include <exec/resident.h>
@@ -7,8 +7,14 @@
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
 
+#include <dos/dos.h>
+#include <dos/dosextens.h>
+#include <dos/filehandler.h>
+#include <exec/nodes.h>
+#include <exec/semaphores.h>
 #include <libraries/expansionbase.h>
 #include <libraries/configregs.h>
+#include <libraries/configvars.h>
 
 #include "util.h"
 
@@ -36,7 +42,106 @@ struct LXAExpansionBase
     struct List BoardList;
     struct List MountList;
     UBYTE ExpansionSlots[(E_MEMORYSLOTS + 7) / 8];
+    struct SignalSemaphore BindSemaphore;
 };
+
+static struct CurrentBinding *expansion_current_binding(struct ExpansionBase *ExpansionBase)
+{
+    return &((struct LXAExpansionBase *)ExpansionBase)->eb_Private04;
+}
+
+static struct SignalSemaphore *expansion_bind_semaphore(struct ExpansionBase *ExpansionBase)
+{
+    return &((struct LXAExpansionBase *)ExpansionBase)->BindSemaphore;
+}
+
+static ULONG expansion_min_ulong(ULONG a, ULONG b)
+{
+    return (a < b) ? a : b;
+}
+
+static UBYTE expansion_ascii_tolower(UBYTE c)
+{
+    if (c >= 'A' && c <= 'Z')
+    {
+        return (UBYTE)(c + ('a' - 'A'));
+    }
+
+    return c;
+}
+
+static LONG expansion_bstr_casecmp(BSTR first, BSTR second)
+{
+    const UBYTE *first_bytes;
+    const UBYTE *second_bytes;
+    ULONG index;
+    UBYTE first_len;
+    UBYTE second_len;
+
+    if (first == second)
+    {
+        return 0;
+    }
+
+    if (first == 0)
+    {
+        return -1;
+    }
+
+    if (second == 0)
+    {
+        return 1;
+    }
+
+    first_bytes = (const UBYTE *)BADDR(first);
+    second_bytes = (const UBYTE *)BADDR(second);
+
+    first_len = first_bytes[0];
+    second_len = second_bytes[0];
+
+    for (index = 0; index < first_len && index < second_len; index++)
+    {
+        UBYTE first_char = expansion_ascii_tolower(first_bytes[index + 1]);
+        UBYTE second_char = expansion_ascii_tolower(second_bytes[index + 1]);
+
+        if (first_char != second_char)
+        {
+            return (LONG)first_char - (LONG)second_char;
+        }
+    }
+
+    return (LONG)first_len - (LONG)second_len;
+}
+
+static ULONG expansion_bstr_storage_size(ULONG string_len, BOOL include_terminator)
+{
+    return ALIGN(1 + string_len + (include_terminator ? 1 : 0), 4);
+}
+
+static BSTR expansion_write_bstr(STRPTR dest, CONST_STRPTR src, BOOL include_terminator)
+{
+    ULONG len = 0;
+    UBYTE *bytes = (UBYTE *)dest;
+
+    if (src != NULL)
+    {
+        len = (ULONG)strlen((const char *)src);
+        CopyMem((APTR)src, dest + 1, len);
+    }
+
+    if (include_terminator)
+    {
+        dest[1 + len] = 0;
+    }
+
+    bytes[0] = (UBYTE)expansion_min_ulong(len + (include_terminator ? 1 : 0), 255);
+    return MKBADDR(dest);
+}
+
+static struct List *expansion_mount_list(struct ExpansionBase *ExpansionBase)
+{
+    return &((struct LXAExpansionBase *)ExpansionBase)->MountList;
+}
 
 static struct List *expansion_board_list(struct ExpansionBase *ExpansionBase)
 {
@@ -206,7 +311,8 @@ struct ExpansionBase * __g_lxa_expansion_InitLib    ( register struct ExpansionB
     (void)sysb;
 
     NEWLIST(expansion_board_list(expansionb));
-    NEWLIST(&((struct LXAExpansionBase *)expansionb)->MountList);
+    NEWLIST(expansion_mount_list(expansionb));
+    InitSemaphore(expansion_bind_semaphore(expansionb));
 
     DPRINTF (LOG_DEBUG, "_expansion: InitLib() called.\n");
     return expansionb;
@@ -515,39 +621,114 @@ VOID _expansion_WriteExpansionByte ( register struct ExpansionBase * ExpansionBa
 
 VOID _expansion_ObtainConfigBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: ObtainConfigBinding() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_expansion: ObtainConfigBinding()\n");
+
+    ObtainSemaphore(expansion_bind_semaphore(ExpansionBase));
 }
 
 VOID _expansion_ReleaseConfigBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: ReleaseConfigBinding() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_expansion: ReleaseConfigBinding()\n");
+
+    ReleaseSemaphore(expansion_bind_semaphore(ExpansionBase));
 }
 
 VOID _expansion_SetCurrentBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register struct CurrentBinding * currentBinding __asm("a0"),
                                                         register ULONG bindingSize __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: SetCurrentBinding() unimplemented STUB called.\n");
-    assert(FALSE);
+    ULONG size = expansion_min_ulong(bindingSize, sizeof(struct CurrentBinding));
+    UBYTE *dst = (UBYTE *)expansion_current_binding(ExpansionBase);
+
+    DPRINTF (LOG_DEBUG, "_expansion: SetCurrentBinding(currentBinding=0x%08lx, bindingSize=%lu)\n",
+             (ULONG)currentBinding, bindingSize);
+
+    if (currentBinding != NULL && size > 0)
+    {
+        CopyMem(currentBinding, dst, size);
+    }
+    else
+    {
+        size = 0;
+    }
+
+    while (size < sizeof(struct CurrentBinding))
+    {
+        dst[size++] = 0;
+    }
 }
 
 ULONG _expansion_GetCurrentBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register const struct CurrentBinding * currentBinding __asm("a0"),
                                                         register ULONG bindingSize __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: GetCurrentBinding() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    ULONG size = expansion_min_ulong(bindingSize, sizeof(struct CurrentBinding));
+
+    DPRINTF (LOG_DEBUG, "_expansion: GetCurrentBinding(currentBinding=0x%08lx, bindingSize=%lu)\n",
+             (ULONG)currentBinding, bindingSize);
+
+    if (currentBinding != NULL && size > 0)
+    {
+        CopyMem(expansion_current_binding(ExpansionBase), (APTR)currentBinding, size);
+    }
+
+    return sizeof(struct CurrentBinding);
 }
 
 struct DeviceNode * _expansion_MakeDosNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register const APTR parmPacket __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: MakeDosNode() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    const ULONG *params = (const ULONG *)parmPacket;
+    const struct DosEnvec *packet_environ;
+    struct DeviceNode *device_node;
+    struct FileSysStartupMsg *startup;
+    struct DosEnvec *environ;
+    STRPTR name_storage;
+    STRPTR device_storage;
+    ULONG environ_size;
+    ULONG name_size;
+    ULONG device_size;
+
+    (void)ExpansionBase;
+
+    DPRINTF (LOG_DEBUG, "_expansion: MakeDosNode(parmPacket=0x%08lx)\n", (ULONG)parmPacket);
+
+    if (params == NULL || (CONST_STRPTR)params[0] == NULL)
+    {
+        return NULL;
+    }
+
+    packet_environ = (const struct DosEnvec *)&params[4];
+    environ_size = (packet_environ->de_TableSize + 1) * sizeof(ULONG);
+    name_size = expansion_bstr_storage_size((ULONG)strlen((const char *)params[0]), FALSE);
+    device_size = expansion_bstr_storage_size(params[1] ? (ULONG)strlen((const char *)params[1]) : 0, TRUE);
+
+    device_node = (struct DeviceNode *)AllocVec(sizeof(*device_node) + sizeof(*startup) + environ_size + name_size + device_size,
+                                                MEMF_CLEAR | MEMF_PUBLIC);
+    if (device_node == NULL)
+    {
+        return NULL;
+    }
+
+    startup = (struct FileSysStartupMsg *)&device_node[1];
+    environ = (struct DosEnvec *)&startup[1];
+    name_storage = (STRPTR)(((UBYTE *)environ) + environ_size);
+    device_storage = name_storage + name_size;
+
+    CopyMem((APTR)packet_environ, environ, environ_size);
+
+    startup->fssm_Unit = params[2];
+    startup->fssm_Device = expansion_write_bstr(device_storage, (CONST_STRPTR)params[1], TRUE);
+    startup->fssm_Environ = MKBADDR(environ);
+    startup->fssm_Flags = params[3];
+
+    device_node->dn_Startup = MKBADDR(startup);
+    device_node->dn_Type = DLT_DEVICE;
+    device_node->dn_Name = expansion_write_bstr(name_storage, (CONST_STRPTR)params[0], FALSE);
+    device_node->dn_Priority = 10;
+    device_node->dn_StackSize = 4000;
+
+    return device_node;
 }
 
 BOOL _expansion_AddDosNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -555,9 +736,51 @@ BOOL _expansion_AddDosNode ( register struct ExpansionBase * ExpansionBase __asm
                                                         register ULONG flags __asm("d1"),
                                                         register struct DeviceNode * deviceNode __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: AddDosNode() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct BootNode *boot_node;
+    struct BootNode *existing;
+
+    DPRINTF (LOG_DEBUG, "_expansion: AddDosNode(bootPri=%ld, flags=0x%08lx, deviceNode=0x%08lx)\n",
+             bootPri, flags, (ULONG)deviceNode);
+
+    if (deviceNode == NULL)
+    {
+        return FALSE;
+    }
+
+    expansion_lock_binding();
+
+    existing = (struct BootNode *)expansion_mount_list(ExpansionBase)->lh_Head;
+    while (existing != NULL && existing->bn_Node.ln_Succ != NULL)
+    {
+        struct DeviceNode *existing_device = (struct DeviceNode *)existing->bn_DeviceNode;
+
+        if (existing_device != NULL && expansion_bstr_casecmp(existing_device->dn_Name, deviceNode->dn_Name) == 0)
+        {
+            expansion_unlock_binding();
+            return FALSE;
+        }
+
+        existing = (struct BootNode *)existing->bn_Node.ln_Succ;
+    }
+
+    expansion_unlock_binding();
+
+    boot_node = (struct BootNode *)AllocMem(sizeof(struct BootNode), MEMF_CLEAR | MEMF_PUBLIC);
+    if (boot_node == NULL)
+    {
+        return FALSE;
+    }
+
+    boot_node->bn_Node.ln_Type = NT_BOOTNODE;
+    boot_node->bn_Node.ln_Pri = (BYTE)bootPri;
+    boot_node->bn_Flags = (UWORD)flags;
+    boot_node->bn_DeviceNode = deviceNode;
+
+    expansion_lock_binding();
+    Enqueue(expansion_mount_list(ExpansionBase), (struct Node *)boot_node);
+    expansion_unlock_binding();
+
+    return TRUE;
 }
 
 struct MyDataInit

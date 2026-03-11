@@ -265,6 +265,7 @@ set(TESTS_LIST
     "../tests/utility/tagitems|main|Tests/Utility/TagItems"
     "../tests/expansion/configdev_chain|main|Tests/Expansion/ConfigDevChain"
     "../tests/expansion/mem_config|main|Tests/Expansion/MemConfig"
+    "../tests/expansion/dos_binding|main|Tests/Expansion/DosBinding"
 )
 
 # === Copy Test Data Files ===
