@@ -212,9 +212,37 @@
         "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:34: Failure",
         "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:35: Failure"
       ]
+    },
+    {
+      "iteration": 9,
+      "startedAt": "2026-03-11T09:53:09.320Z",
+      "endedAt": "2026-03-11T10:01:50.406Z",
+      "durationMs": 519188,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "roadmap.md",
+        "tests/exec/mathffp/main.c"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "[ ] Run targeted math tests and full `ctest --test-dir build --output-on-failure -j16`",
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/exec/CMakeLists.txt",
+        "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -j16",
+        "8/51 Test  #9: menulayout_pixels_gtest ............***Failed    6.04 sec",
+        "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/menulayout_gtest.cpp:234: Failure",
+        "[  FAILED  ] MenuLayoutPixelTest.MenuDropdownClearedAfterSelection (3806 ms)",
+        "[  FAILED  ] 1 test, listed below:",
+        "[  FAILED  ] MenuLayoutPixelTest.MenuDropdownClearedAfterSelection",
+        "1 FAILED TEST",
+        "98% tests passed, 1 tests failed out of 51"
+      ]
     }
   ],
-  "totalDurationMs": 5711558,
+  "totalDurationMs": 6230746,
   "struggleIndicators": {
     "repeatedErrors": {
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/CMakeLists.txt": 3,
@@ -229,12 +257,12 @@
       "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/misc_gtest.cpp:33: Failure": 2,
       "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/misc_gtest.cpp:41: Failure": 2,
       "[  FAILED  ] MiscTest.ExpansionMemConfig (411 ms)": 1,
-      "[  FAILED  ] 1 test, listed below:": 1,
+      "[  FAILED  ] 1 test, listed below:": 2,
       "[  FAILED  ] MiscTest.ExpansionMemConfig": 1,
-      "1 FAILED TEST": 1,
+      "1 FAILED TEST": 2,
       "[  FAILED  ] MiscTest.ExpansionMemConfig (350 ms)": 1,
       "[ ] Run targeted expansion tests and full `ctest --test-dir build --output-on-failure -j16` validati": 1,
-      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/exec/CMakeLists.t": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/exec/CMakeLists.t": 2,
       "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:380:71: error: passing argument 2 o": 1,
       "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:383:40: error: passing argument 2 o": 1,
       "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:425:32: error: pointer targets in a": 1,
@@ -262,7 +290,14 @@
       "FAIL: 34 of 56 tests failed": 1,
       "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:33: Failure": 1,
       "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:34: Failure": 1,
-      "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:35: Failure": 1
+      "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:35: Failure": 1,
+      "[ ] Run targeted math tests and full `ctest --test-dir build --output-on-failure -j16`": 1,
+      "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -j16": 1,
+      "8/51 Test  #9: menulayout_pixels_gtest ............***Failed    6.04 sec": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/menulayout_gtest.cpp:234: Failure": 1,
+      "[  FAILED  ] MenuLayoutPixelTest.MenuDropdownClearedAfterSelection (3806 ms)": 1,
+      "[  FAILED  ] MenuLayoutPixelTest.MenuDropdownClearedAfterSelection": 1,
+      "98% tests passed, 1 tests failed out of 51": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0

@@ -728,7 +728,7 @@ Status: complete in 0.6.124.
 - [x] `SPAdd` / `SPSub` / `SPMul` / `SPDiv`
 - [x] `SPFloor` / `SPCeil` — hosted rounding semantics now run through the new FFP/IEEE bridge so exact integers, positive fractions, and negative edge cases (including whole negative values) stay aligned with the current regression coverage
 - [x] FFP format: 8-bit exponent (biased by 0x40), 24-bit mantissa, 1 sign bit — hosted bridge/tests now lock the current raw FFP encoding/decoding assumptions used by `mathffp.library` and `mathtrans.library`
-- [ ] Edge cases: NaN, Inf, zero, denormals
+- [x] Edge cases: NaN, Inf, zero, denormals — direct exec coverage now locks the current hosted FFP bridge behavior for signed zero collapse, infinity saturation, NaN-to-zero conversion, and subnormal underflow, alongside `SPAsin()` / `SPAcos()` regression checks for the remaining mathtrans review surface
 
 **mathtrans** (`src/rom/lxa_mathtrans.c`):
 - [x] `SPSin` / `SPCos` / `SPTan` / `SPAtan`
@@ -749,9 +749,9 @@ Status: complete in 0.6.124.
 
 ##### 78-R-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — the tracked hosted math surface is now closed for this phase: `mathffp.library` rounding/conversion edge cases, `mathtrans.library` `SPAsin()` / `SPAcos()`, and the existing `mathieeedoubtrans.library` transcendental/conversion coverage are all exercised directly via `Tests/Exec/MathFFP` / `Tests/Exec/MathIeeeDoubTrans`, with validating `exec_gtest` runs and a green full `ctest --test-dir build --output-on-failure -j16`
+- [x] Architecture review: identify architecture improvement opportunities, add them to phase 79 — Phase 79 now tracks consolidating the hosted FFP/IEEE conversion and transcendental bridge helpers so `mathffp.library`, `mathtrans.library`, and `mathieeedoubtrans.library` cannot drift on NaN/Inf/range semantics or register packing details
+- [x] Performance review: identify performance improvement opportunities, add them to phase 79 — Phase 79 now tracks reducing repeated FFP/IEEE conversion work and per-call transcendental dispatch overhead in the hosted emucall path so math-heavy loops avoid redundant bridge setup
 
 
 
@@ -949,6 +949,8 @@ Status: complete in 0.6.124.
 - [ ] IFFParse performance: avoid repeated full context-stack LCI scans during `ParseIFF()` by separating declaration indexes from stored items and caching active stop/property/collection matches per context
 - [ ] Expansion architecture: separate private expansion board-list, mount-list, and binding/AutoConfig scan state behind shared helpers or a compact companion so boot-node insertion, config-chain walks, and future DOS-startup integration do not keep coupling to public base fields
 - [ ] Expansion performance: avoid repeated full ROM rereads/bytewise compares and linear mount-list duplicate scans during hosted AutoConfig probing so broader expansion coverage can validate boards with less repeated work
+- [ ] Math architecture: consolidate hosted FFP/IEEE conversion helpers and transcendental bridge packing behind shared private math helpers so `mathffp.library`, `mathtrans.library`, and `mathieeedoubtrans.library` cannot drift on NaN/Inf/range semantics or register layout details
+- [ ] Math performance: reduce repeated FFP/IEEE conversion and transcendental emucall setup overhead in math-heavy paths so hosted `mathffp`/`mathtrans`/`mathieeedoubtrans` loops avoid redundant bridge work
 
 
 ---
@@ -982,4 +984,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-O**: audio.device now closes the tracked hosted audio surface for this phase: channel allocation/free, precedence changes, queued `CMD_WRITE` playback timing, live `ADCMD_PERVOL` / `ADCMD_FINISH` / `ADCMD_WAITCYCLE`, SDL-backed fragment playback, and end-of-sample `INTB_AUD0-3` interrupt delivery are exercised by `Tests/Devices/Audio` with validating `devices_gtest` / `exec_gtest` runs (v0.7.9).
 - **Phase 78-P**: `trackdisk.device` now covers the tracked hosted surface for this phase: `.adf`-backed `TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK`, extended `ETD_READ` / `ETD_WRITE` counter validation, classic geometry/status and write-protect/missing-media errors, plus the earlier change-interrupt lifetime semantics are all exercised by `Tests/Devices/Trackdisk`; validation is green via targeted `devices_gtest` and full `ctest --test-dir build --output-on-failure -j16` (v0.7.11).
 - **Phase 78-Q Review**: expansion.library review is now closed for the tracked hosted surface: boot-node insertion, ConfigDev allocation/free helpers, and AutoConfig byte/ROM decode helpers now have hosted compatibility implementations with direct `Tests/Expansion/*` regression coverage; targeted `misc_gtest` expansion validation is green, and the full `ctest --test-dir build --output-on-failure -j16` sweep currently reaches an unrelated `devices_gtest` audio failure outside expansion scope.
+- **Phase 78-R Review**: hosted math-library review is now closed for the tracked Phase 78 surface: `mathffp.library` regression coverage locks FFP rounding/conversion edge cases (signed zero collapse, infinity saturation, NaN/subnormal handling) plus `mathtrans.library` `SPAsin()` / `SPAcos()`, `mathieeedoubtrans.library` keeps its direct transcendental/edge-value coverage, and validation is green via `exec_gtest` plus the full `ctest --test-dir build --output-on-failure -j16` sweep (v0.7.11).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 633 assertions passing, now including `KeyMap` layout coverage.

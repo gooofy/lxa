@@ -153,6 +153,11 @@ static void expect_ieee_bits(FLOAT actual, ULONG expected, const char *name)
     expect_true(float_bits(actual) == expected, name);
 }
 
+static void expect_ffp_bits(FLOAT actual, ULONG expected, const char *name)
+{
+    expect_true(float_bits(actual) == expected, name);
+}
+
 static void expect_close(FLOAT actual_ffp, FLOAT expected_ieee, FLOAT tolerance, const char *name)
 {
     FLOAT actual_ieee = SPTieee(actual_ffp);
@@ -269,6 +274,10 @@ int main(void)
     expect_close(SPCos(pi), -1.0f, 0.02f, "SPCos(pi) ~= -1");
     expect_close(SPTan(quarter_pi), 1.0f, 0.03f, "SPTan(pi/4) ~= 1");
     expect_close(SPAtan(SPFlt(1)), 0.7853982f, 0.03f, "SPAtan(1) ~= pi/4");
+    expect_close(SPAsin(SPFlt(0)), 0.0f, 0.02f, "SPAsin(0) ~= 0");
+    expect_close(SPAsin(SPFlt(1)), 1.5707963f, 0.03f, "SPAsin(1) ~= pi/2");
+    expect_close(SPAcos(SPFlt(1)), 0.0f, 0.02f, "SPAcos(1) ~= 0");
+    expect_close(SPAcos(SPFlt(0)), 1.5707963f, 0.03f, "SPAcos(0) ~= pi/2");
 
     {
         FLOAT cos_result = SPFlt(0);
@@ -289,8 +298,14 @@ int main(void)
 
     expect_ieee_bits(SPTieee(SPFlt(0)), 0x00000000UL, "SPTieee(0) = 0.0f");
     expect_ieee_bits(SPTieee(SPFlt(1)), 0x3F800000UL, "SPTieee(1) = 1.0f");
+    expect_ffp_bits(SPFieee(ffp_from_bits(0x00000000UL)), 0x00000000UL, "SPFieee(+0.0f) = FFP 0");
+    expect_ffp_bits(SPFieee(ffp_from_bits(0x80000000UL)), 0x00000000UL, "SPFieee(-0.0f) = FFP 0");
     expect_long(SPFix(SPFieee(1.0f)), 1, "SPFieee(1.0f) = 1");
     expect_long(SPFix(SPFieee(-2.5f)), -2, "SPFieee(-2.5f) truncates to -2");
+    expect_ffp_bits(SPFieee(ffp_from_bits(0x7f800000UL)), 0xffffff7fUL, "SPFieee(+inf) saturates to max FFP");
+    expect_ffp_bits(SPFieee(ffp_from_bits(0xff800000UL)), 0xffffffffUL, "SPFieee(-inf) saturates to min FFP");
+    expect_ffp_bits(SPFieee(ffp_from_bits(0x7fc00000UL)), 0x00000000UL, "SPFieee(NaN) collapses to FFP 0");
+    expect_ffp_bits(SPFieee(ffp_from_bits(0x00000001UL)), 0x00000000UL, "SPFieee(subnormal) underflows to FFP 0");
 
     CloseLibrary(MathTransBase);
     test_ok("CloseLibrary mathtrans.library");
