@@ -704,9 +704,9 @@ Status: complete in 0.6.124.
 
 - [x] `FindConfigDev` ✅ — verify ConfigDev chain search
 - [x] `AddConfigDev` / `RemConfigDev`
-- [ ] `AllocBoardMem` / `FreeBoardMem`
-- [ ] `AllocExpansionMem` / `FreeExpansionMem`
-- [ ] `ConfigBoard` / `ConfigChain`
+- [x] `AllocBoardMem` / `FreeBoardMem`
+- [x] `AllocExpansionMem` / `FreeExpansionMem`
+- [x] `ConfigBoard` / `ConfigChain`
 - [ ] `MakeDosNode` / `AddDosNode` — bootnode creation
 - [ ] `ObtainConfigBinding` / `ReleaseConfigBinding`
 - [ ] `SetCurrentBinding` / `GetCurrentBinding`

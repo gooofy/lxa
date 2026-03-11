@@ -79,6 +79,10 @@ TEST_F(MiscTest, ExpansionConfigDevChain) {
     RunMiscTest("Expansion", "ConfigDevChain");
 }
 
+TEST_F(MiscTest, ExpansionMemConfig) {
+    RunMiscTest("Expansion", "MemConfig");
+}
+
 TEST_F(MiscTest, AslFontRequestVarargs) {
     RunProgram("SYS:FontReq", "", 5000);
 

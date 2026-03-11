@@ -8,6 +8,7 @@
 #include <inline/exec.h>
 
 #include <libraries/expansionbase.h>
+#include <libraries/configregs.h>
 
 #include "util.h"
 
@@ -34,6 +35,7 @@ struct LXAExpansionBase
     struct CurrentBinding eb_Private04;
     struct List BoardList;
     struct List MountList;
+    UBYTE ExpansionSlots[(E_MEMORYSLOTS + 7) / 8];
 };
 
 static struct List *expansion_board_list(struct ExpansionBase *ExpansionBase)
@@ -49,6 +51,147 @@ static VOID expansion_lock_binding(void)
 static VOID expansion_unlock_binding(void)
 {
     Permit();
+}
+
+static ULONG expansion_slots_needed(ULONG slot_spec)
+{
+    ULONG mem_bits = slot_spec & ERT_MEMMASK;
+
+    if (mem_bits == 0)
+    {
+        return E_MEMORYSLOTS;
+    }
+
+    return 1UL << (mem_bits - 1);
+}
+
+static BOOL expansion_slot_is_allocated(struct ExpansionBase *ExpansionBase, ULONG slot)
+{
+    struct LXAExpansionBase *base = (struct LXAExpansionBase *)ExpansionBase;
+    ULONG relative_slot;
+
+    if (slot < (E_MEMORYBASE >> E_SLOTSHIFT) || slot >= ((E_MEMORYBASE >> E_SLOTSHIFT) + E_MEMORYSLOTS))
+    {
+        return TRUE;
+    }
+
+    relative_slot = slot - (E_MEMORYBASE >> E_SLOTSHIFT);
+    return (base->ExpansionSlots[relative_slot >> 3] & (1U << (relative_slot & 7))) != 0;
+}
+
+static VOID expansion_set_slot_state(struct ExpansionBase *ExpansionBase, ULONG slot, BOOL allocated)
+{
+    struct LXAExpansionBase *base = (struct LXAExpansionBase *)ExpansionBase;
+    ULONG relative_slot = slot - (E_MEMORYBASE >> E_SLOTSHIFT);
+    UBYTE mask = (UBYTE)(1U << (relative_slot & 7));
+
+    if (allocated)
+    {
+        base->ExpansionSlots[relative_slot >> 3] |= mask;
+    }
+    else
+    {
+        base->ExpansionSlots[relative_slot >> 3] &= (UBYTE)~mask;
+    }
+}
+
+static BOOL expansion_range_is_free(struct ExpansionBase *ExpansionBase, ULONG start_slot, ULONG num_slots)
+{
+    ULONG slot;
+
+    for (slot = 0; slot < num_slots; slot++)
+    {
+        if (expansion_slot_is_allocated(ExpansionBase, start_slot + slot))
+        {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+static VOID expansion_mark_range(struct ExpansionBase *ExpansionBase, ULONG start_slot, ULONG num_slots, BOOL allocated)
+{
+    ULONG slot;
+
+    for (slot = 0; slot < num_slots; slot++)
+    {
+        expansion_set_slot_state(ExpansionBase, start_slot + slot, allocated);
+    }
+}
+
+static ULONG expansion_alloc_slots(struct ExpansionBase *ExpansionBase, ULONG num_slots, ULONG slot_offset)
+{
+    ULONG base_slot = (E_MEMORYBASE >> E_SLOTSHIFT);
+    ULONG last_start;
+    ULONG start_slot;
+
+    if (num_slots == 0 || num_slots > E_MEMORYSLOTS)
+    {
+        return (ULONG)-1;
+    }
+
+    last_start = base_slot + E_MEMORYSLOTS - num_slots;
+    start_slot = base_slot;
+
+    while (((start_slot - slot_offset) % num_slots) != 0)
+    {
+        start_slot++;
+    }
+
+    while (start_slot <= last_start)
+    {
+        if (expansion_range_is_free(ExpansionBase, start_slot, num_slots))
+        {
+            expansion_mark_range(ExpansionBase, start_slot, num_slots, TRUE);
+            return start_slot;
+        }
+
+        start_slot += num_slots;
+    }
+
+    return (ULONG)-1;
+}
+
+static VOID expansion_free_slots(struct ExpansionBase *ExpansionBase, ULONG start_slot, ULONG num_slots)
+{
+    ULONG base_slot = (E_MEMORYBASE >> E_SLOTSHIFT);
+    ULONG last_slot = base_slot + E_MEMORYSLOTS;
+    ULONG slot;
+
+    if (start_slot == (ULONG)-1 || num_slots == 0)
+    {
+        return;
+    }
+
+    if (start_slot < base_slot || start_slot + num_slots > last_slot)
+    {
+        LPRINTF(LOG_ERROR, "_expansion: free outside Zorro II memory range start=%lu num=%lu\n", start_slot, num_slots);
+        return;
+    }
+
+    for (slot = 0; slot < num_slots; slot++)
+    {
+        if (!expansion_slot_is_allocated(ExpansionBase, start_slot + slot))
+        {
+            LPRINTF(LOG_ERROR, "_expansion: double free in expansion slot range start=%lu num=%lu\n", start_slot, num_slots);
+            return;
+        }
+    }
+
+    expansion_mark_range(ExpansionBase, start_slot, num_slots, FALSE);
+}
+
+static ULONG expansion_board_slot_offset(ULONG slot_spec)
+{
+    ULONG slots = expansion_slots_needed(slot_spec);
+
+    if (slots == 64)
+    {
+        return 32;
+    }
+
+    return 0;
 }
 
 // libBase: ExpansionBase
@@ -119,11 +262,20 @@ BOOL _expansion_AddBootNode ( register struct ExpansionBase * ExpansionBase __as
     return FALSE;
 }
 
-VOID _expansion_AllocBoardMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
-                                                        register ULONG slotSpec __asm("d0"))
+ULONG _expansion_AllocBoardMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+                                                         register ULONG slotSpec __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: AllocBoardMem() unimplemented STUB called.\n");
-    assert(FALSE);
+    ULONG start_slot;
+    ULONG num_slots = expansion_slots_needed(slotSpec);
+    ULONG slot_offset = expansion_board_slot_offset(slotSpec);
+
+    DPRINTF (LOG_DEBUG, "_expansion: AllocBoardMem(slotSpec=0x%08lx)\n", slotSpec);
+
+    expansion_lock_binding();
+    start_slot = expansion_alloc_slots(ExpansionBase, num_slots, slot_offset);
+    expansion_unlock_binding();
+
+    return start_slot;
 }
 
 struct ConfigDev * _expansion_AllocConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"))
@@ -137,24 +289,113 @@ APTR _expansion_AllocExpansionMem ( register struct ExpansionBase * ExpansionBas
                                                         register ULONG numSlots __asm("d0"),
                                                         register ULONG slotAlign __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: AllocExpansionMem() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    ULONG start_slot;
+
+    DPRINTF (LOG_DEBUG, "_expansion: AllocExpansionMem(numSlots=%lu, slotAlign=%lu)\n", numSlots, slotAlign);
+
+    expansion_lock_binding();
+    start_slot = expansion_alloc_slots(ExpansionBase, numSlots, slotAlign);
+    expansion_unlock_binding();
+
+    return (APTR)start_slot;
 }
 
-VOID _expansion_ConfigBoard ( register struct ExpansionBase * ExpansionBase __asm("a6"),
-                                                        register APTR board __asm("a0"),
-                                                        register struct ConfigDev * configDev __asm("a1"))
+ULONG _expansion_ConfigBoard ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+                                                         register APTR board __asm("a0"),
+                                                         register struct ConfigDev * configDev __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: ConfigBoard() unimplemented STUB called.\n");
-    assert(FALSE);
+    ULONG slot_spec;
+    ULONG board_size;
+    ULONG slot_count;
+    ULONG start_slot;
+
+    DPRINTF (LOG_DEBUG, "_expansion: ConfigBoard(board=0x%08lx, configDev=0x%08lx)\n", (ULONG)board, (ULONG)configDev);
+
+    if (configDev == NULL)
+    {
+        return EE_NOBOARD;
+    }
+
+    slot_spec = configDev->cd_Rom.er_Type;
+    board_size = configDev->cd_BoardSize;
+
+    if (board_size == 0)
+    {
+        board_size = ERT_MEMNEEDED(slot_spec);
+    }
+
+    slot_count = (board_size + E_SLOTSIZE - 1) >> E_SLOTSHIFT;
+    if (slot_count == 0)
+    {
+        slot_count = expansion_slots_needed(slot_spec);
+    }
+
+    expansion_lock_binding();
+
+    if (configDev->cd_BoardAddr != NULL && configDev->cd_SlotSize != 0)
+    {
+        expansion_unlock_binding();
+        return EE_OK;
+    }
+
+    start_slot = expansion_alloc_slots(ExpansionBase, slot_count, expansion_board_slot_offset(slot_spec));
+
+    if (start_slot == (ULONG)-1)
+    {
+        ExpansionBase->Flags |= EBF_SHORTMEM;
+        if ((configDev->cd_Rom.er_Flags & ERFF_NOSHUTUP) == 0)
+        {
+            configDev->cd_Flags |= CDF_SHUTUP;
+        }
+        expansion_unlock_binding();
+        return EE_NOEXPANSION;
+    }
+
+    configDev->cd_BoardAddr = (APTR)EC_MEMADDR(start_slot);
+    configDev->cd_BoardSize = board_size;
+    configDev->cd_SlotAddr = (UWORD)start_slot;
+    configDev->cd_SlotSize = (UWORD)slot_count;
+    configDev->cd_Flags &= (UBYTE)~CDF_SHUTUP;
+    configDev->cd_Flags |= CDF_CONFIGME;
+
+    expansion_unlock_binding();
+    return EE_OK;
 }
 
-VOID _expansion_ConfigChain ( register struct ExpansionBase * ExpansionBase __asm("a6"),
-                                                        register APTR baseAddr __asm("a0"))
+ULONG _expansion_ConfigChain ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+                                                         register APTR baseAddr __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: ConfigChain() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct ConfigDev *config_dev;
+    ULONG result = EE_OK;
+
+    DPRINTF (LOG_DEBUG, "_expansion: ConfigChain(baseAddr=0x%08lx)\n", (ULONG)baseAddr);
+
+    expansion_lock_binding();
+    config_dev = (struct ConfigDev *)expansion_board_list(ExpansionBase)->lh_Head;
+
+    while (config_dev != NULL && config_dev->cd_Node.ln_Succ != NULL)
+    {
+        struct ConfigDev *next_config_dev = (struct ConfigDev *)config_dev->cd_Node.ln_Succ;
+
+        if (config_dev->cd_BoardAddr == NULL || config_dev->cd_SlotSize == 0)
+        {
+            ULONG board_result;
+
+            expansion_unlock_binding();
+            board_result = _expansion_ConfigBoard(ExpansionBase, baseAddr, config_dev);
+            expansion_lock_binding();
+
+            if (board_result != EE_OK)
+            {
+                result = board_result;
+            }
+        }
+
+        config_dev = next_config_dev;
+    }
+
+    expansion_unlock_binding();
+    return result;
 }
 
 struct ConfigDev * _expansion_FindConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -202,8 +443,13 @@ VOID _expansion_FreeBoardMem ( register struct ExpansionBase * ExpansionBase __a
                                                         register ULONG startSlot __asm("d0"),
                                                         register ULONG slotSpec __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: FreeBoardMem() unimplemented STUB called.\n");
-    assert(FALSE);
+    ULONG num_slots = expansion_slots_needed(slotSpec);
+
+    DPRINTF (LOG_DEBUG, "_expansion: FreeBoardMem(startSlot=%lu, slotSpec=0x%08lx)\n", startSlot, slotSpec);
+
+    expansion_lock_binding();
+    expansion_free_slots(ExpansionBase, startSlot, num_slots);
+    expansion_unlock_binding();
 }
 
 VOID _expansion_FreeConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -217,8 +463,11 @@ VOID _expansion_FreeExpansionMem ( register struct ExpansionBase * ExpansionBase
                                                         register ULONG startSlot __asm("d0"),
                                                         register ULONG numSlots __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: FreeExpansionMem() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_expansion: FreeExpansionMem(startSlot=%lu, numSlots=%lu)\n", startSlot, numSlots);
+
+    expansion_lock_binding();
+    expansion_free_slots(ExpansionBase, startSlot, numSlots);
+    expansion_unlock_binding();
 }
 
 UBYTE _expansion_ReadExpansionByte ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -346,7 +595,7 @@ struct Resident *__lxa_expansion_ROMTag = &ROMTag;
 
 struct InitTable __g_lxa_expansion_InitTab =
 {
-    (ULONG)               sizeof(struct ExpansionBase),        // LibBaseSize
+    (ULONG)               sizeof(struct LXAExpansionBase),     // LibBaseSize
     (APTR              *) &__g_lxa_expansion_FuncTab[0],  // FunctionTable
     (APTR)                &__g_lxa_expansion_DataTab,     // DataTable
     (APTR)                __g_lxa_expansion_InitLib       // InitLibFn

@@ -264,6 +264,7 @@ set(TESTS_LIST
     "../tests/asl/screenmoderequest|main|Tests/asl/screenmoderequest"
     "../tests/utility/tagitems|main|Tests/Utility/TagItems"
     "../tests/expansion/configdev_chain|main|Tests/Expansion/ConfigDevChain"
+    "../tests/expansion/mem_config|main|Tests/Expansion/MemConfig"
 )
 
 # === Copy Test Data Files ===
