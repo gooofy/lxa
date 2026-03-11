@@ -94,12 +94,41 @@
         "1 FAILED TEST",
         "[  FAILED  ] MiscTest.ExpansionMemConfig (350 ms)"
       ]
+    },
+    {
+      "iteration": 5,
+      "startedAt": "2026-03-11T08:50:21.970Z",
+      "endedAt": "2026-03-11T09:02:08.244Z",
+      "durationMs": 704188,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "roadmap.md",
+        "src/rom/lxa_expansion.c",
+        "tests/expansion/mem_config/main.c"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "[ ] Run targeted expansion tests and full `ctest --test-dir build --output-on-failure -j16` validation",
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/CMakeLists.txt",
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/exec/CMakeLists.txt",
+        "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:380:71: error: passing argument 2 of '_expansion_ReadExpansionByte' discards 'const' qualifier from pointer target type [-Werror=discar",
+        "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:383:40: error: passing argument 2 of '_expansion_ReadExpansionByte' discards 'const' qualifier from pointer target type [-Werror=discar",
+        "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:425:32: error: pointer targets in assignment differ in signedness [-Werror=pointer-sign]",
+        "FAIL: 8 expansion memory/config helper test(s) failed",
+        "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/misc_gtest.cpp:33: Failure",
+        "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/misc_gtest.cpp:41: Failure",
+        "[  FAILED  ] MiscTest.ExpansionMemConfig (430 ms)"
+      ]
     }
   ],
-  "totalDurationMs": 1964076,
+  "totalDurationMs": 2668264,
   "struggleIndicators": {
     "repeatedErrors": {
-      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/CMakeLists.txt": 2,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/CMakeLists.txt": 3,
       "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:32:5: error: unknown type name 'IPT": 1,
       "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:33:5: error: unknown type name 'IPT": 1,
       "\u001b[91m\u001b[1mError: \u001b[0mNo such file or directory: '/opt/amiga/src/amiga-gcc/projects/NDK3.2/Documentati": 1,
@@ -107,14 +136,20 @@
       "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R misc_gtest": 1,
       "100% tests passed, 0 tests failed out of 2": 1,
       "/home/guenter/projects/amiga/lxa/src/lxa/samples/../tests/expansion/dos_binding/main.c:329:31: error": 1,
-      "FAIL: 8 expansion memory/config helper test(s) failed": 1,
-      "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/misc_gtest.cpp:33: Failure": 1,
-      "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/misc_gtest.cpp:41: Failure": 1,
+      "FAIL: 8 expansion memory/config helper test(s) failed": 2,
+      "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/misc_gtest.cpp:33: Failure": 2,
+      "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/misc_gtest.cpp:41: Failure": 2,
       "[  FAILED  ] MiscTest.ExpansionMemConfig (411 ms)": 1,
       "[  FAILED  ] 1 test, listed below:": 1,
       "[  FAILED  ] MiscTest.ExpansionMemConfig": 1,
       "1 FAILED TEST": 1,
-      "[  FAILED  ] MiscTest.ExpansionMemConfig (350 ms)": 1
+      "[  FAILED  ] MiscTest.ExpansionMemConfig (350 ms)": 1,
+      "[ ] Run targeted expansion tests and full `ctest --test-dir build --output-on-failure -j16` validati": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/exec/CMakeLists.t": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:380:71: error: passing argument 2 o": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:383:40: error: passing argument 2 o": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/src/rom/lxa_expansion.c:425:32: error: pointer targets in a": 1,
+      "[  FAILED  ] MiscTest.ExpansionMemConfig (430 ms)": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0

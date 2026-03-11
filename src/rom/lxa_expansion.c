@@ -45,6 +45,10 @@ struct LXAExpansionBase
     struct SignalSemaphore BindSemaphore;
 };
 
+UBYTE _expansion_ReadExpansionByte ( register struct ExpansionBase * ExpansionBase __asm("a6"),
+                                                        register const APTR board __asm("a0"),
+                                                        register ULONG offset __asm("d0"));
+
 static struct CurrentBinding *expansion_current_binding(struct ExpansionBase *ExpansionBase)
 {
     return &((struct LXAExpansionBase *)ExpansionBase)->eb_Private04;
@@ -291,12 +295,144 @@ static ULONG expansion_board_slot_offset(ULONG slot_spec)
 {
     ULONG slots = expansion_slots_needed(slot_spec);
 
-    if (slots == 64)
+    if (slots >= 64)
     {
         return 32;
     }
 
     return 0;
+}
+
+static UWORD expansion_board_low_nybble_offset(CONST_APTR board)
+{
+    return (((ULONG)board) & 0xff000000UL) ? 0x0100 : 0x0002;
+}
+
+static BOOL expansion_rom_equal(const struct ExpansionRom *first, const struct ExpansionRom *second)
+{
+    const UBYTE *first_bytes = (const UBYTE *)first;
+    const UBYTE *second_bytes = (const UBYTE *)second;
+    ULONG index;
+
+    for (index = 0; index < sizeof(*first); index++)
+    {
+        if (first_bytes[index] != second_bytes[index])
+        {
+            return FALSE;
+        }
+    }
+
+    return TRUE;
+}
+
+static ULONG expansion_detect_board_size(const struct ExpansionRom *rom)
+{
+    ULONG size;
+
+    if ((rom->er_Type & ERT_TYPEMASK) == ERT_ZORROIII && (rom->er_Flags & ERFF_EXTENDED) != 0)
+    {
+        size = (16UL * 1024UL * 1024UL) << (rom->er_Type & ERT_MEMMASK);
+    }
+    else
+    {
+        UBYTE mem = rom->er_Type & ERT_MEMMASK;
+
+        if (mem == 0)
+        {
+            size = 8UL * 1024UL * 1024UL;
+        }
+        else
+        {
+            size = (32UL * 1024UL) << mem;
+        }
+    }
+
+    if ((rom->er_Type & ERT_TYPEMASK) == ERT_ZORROIII)
+    {
+        UBYTE subsize = rom->er_Flags & ERT_Z3_SSMASK;
+        ULONG subsize_limit = size;
+
+        if (subsize >= 2 && subsize <= 7)
+        {
+            subsize_limit = (64UL * 1024UL) << (subsize - 2);
+        }
+        else if (subsize >= 8)
+        {
+            subsize_limit = (4UL + (ULONG)(subsize - 8) * 2UL) * 1024UL * 1024UL;
+        }
+
+        if (size > subsize_limit)
+        {
+            size = subsize_limit;
+        }
+    }
+
+    return size;
+}
+
+static VOID expansion_read_rom_once(CONST_APTR board, struct ExpansionRom *rom)
+{
+    UBYTE *rom_bytes = (UBYTE *)rom;
+    ULONG index;
+
+    for (index = 0; index < sizeof(*rom); index++)
+    {
+        rom_bytes[index] = (UBYTE)~_expansion_ReadExpansionByte(NULL, (APTR)board, index);
+    }
+
+    _expansion_ReadExpansionByte(NULL, (APTR)board, sizeof(*rom));
+    rom->er_Type = (UBYTE)~rom->er_Type;
+}
+
+static BOOL expansion_add_boot_node_internal(struct ExpansionBase *ExpansionBase,
+                                             LONG bootPri,
+                                             ULONG flags,
+                                             struct DeviceNode *deviceNode,
+                                             struct ConfigDev *configDev)
+{
+    struct BootNode *boot_node;
+    struct BootNode *existing;
+
+    if (deviceNode == NULL)
+    {
+        return FALSE;
+    }
+
+    expansion_lock_binding();
+
+    existing = (struct BootNode *)expansion_mount_list(ExpansionBase)->lh_Head;
+    while (existing != NULL && existing->bn_Node.ln_Succ != NULL)
+    {
+        struct DeviceNode *existing_device = (struct DeviceNode *)existing->bn_DeviceNode;
+
+        if (existing_device != NULL && expansion_bstr_casecmp(existing_device->dn_Name, deviceNode->dn_Name) == 0)
+        {
+            expansion_unlock_binding();
+            return FALSE;
+        }
+
+        existing = (struct BootNode *)existing->bn_Node.ln_Succ;
+    }
+
+    expansion_unlock_binding();
+
+    boot_node = (struct BootNode *)AllocMem(sizeof(struct BootNode), MEMF_CLEAR | MEMF_PUBLIC);
+    if (boot_node == NULL)
+    {
+        return FALSE;
+    }
+
+    boot_node->bn_Node.ln_Name = (char *)configDev;
+    boot_node->bn_Node.ln_Type = NT_BOOTNODE;
+    boot_node->bn_Node.ln_Pri = (BYTE)bootPri;
+    boot_node->bn_Flags = (UWORD)flags;
+    boot_node->bn_DeviceNode = deviceNode;
+
+    expansion_lock_binding();
+    Enqueue(expansion_mount_list(ExpansionBase), (struct Node *)boot_node);
+    expansion_unlock_binding();
+
+    return TRUE;
 }
 
 // libBase: ExpansionBase
@@ -363,9 +499,10 @@ BOOL _expansion_AddBootNode ( register struct ExpansionBase * ExpansionBase __as
                                                         register struct DeviceNode * deviceNode __asm("a0"),
                                                         register struct ConfigDev * configDev __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: AddBootNode() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    DPRINTF (LOG_DEBUG, "_expansion: AddBootNode(bootPri=%ld, flags=0x%08lx, deviceNode=0x%08lx, configDev=0x%08lx)\n",
+             bootPri, flags, (ULONG)deviceNode, (ULONG)configDev);
+
+    return expansion_add_boot_node_internal(ExpansionBase, bootPri, flags, deviceNode, configDev);
 }
 
 ULONG _expansion_AllocBoardMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -386,9 +523,11 @@ ULONG _expansion_AllocBoardMem ( register struct ExpansionBase * ExpansionBase _
 
 struct ConfigDev * _expansion_AllocConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: AllocConfigDev() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    (void)ExpansionBase;
+
+    DPRINTF (LOG_DEBUG, "_expansion: AllocConfigDev()\n");
+
+    return (struct ConfigDev *)AllocMem(sizeof(struct ConfigDev), MEMF_CLEAR | MEMF_CHIP);
 }
 
 APTR _expansion_AllocExpansionMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -561,8 +700,14 @@ VOID _expansion_FreeBoardMem ( register struct ExpansionBase * ExpansionBase __a
 VOID _expansion_FreeConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register struct ConfigDev * configDev __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: FreeConfigDev() unimplemented STUB called.\n");
-    assert(FALSE);
+    (void)ExpansionBase;
+
+    DPRINTF (LOG_DEBUG, "_expansion: FreeConfigDev(configDev=0x%08lx)\n", (ULONG)configDev);
+
+    if (configDev != NULL)
+    {
+        FreeMem(configDev, sizeof(struct ConfigDev));
+    }
 }
 
 VOID _expansion_FreeExpansionMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -580,17 +725,69 @@ UBYTE _expansion_ReadExpansionByte ( register struct ExpansionBase * ExpansionBa
                                                         register const APTR board __asm("a0"),
                                                         register ULONG offset __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: ReadExpansionByte() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    volatile const UBYTE *bytes = (const UBYTE *)board;
+    ULONG physical_offset;
+    UWORD low_offset;
+    UBYTE value;
+
+    (void)ExpansionBase;
+
+    DPRINTF (LOG_DEBUG, "_expansion: ReadExpansionByte(board=0x%08lx, offset=%lu)\n", (ULONG)board, offset);
+
+    if (board == NULL)
+    {
+        return 0;
+    }
+
+    physical_offset = offset * 4;
+    low_offset = expansion_board_low_nybble_offset(board);
+
+    value = (UBYTE)((bytes[physical_offset + low_offset] & 0xf0) >> 4);
+    value |= (UBYTE)(bytes[physical_offset] & 0xf0);
+
+    return value;
 }
 
 VOID _expansion_ReadExpansionRom ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register const APTR board __asm("a0"),
                                                         register struct ConfigDev * configDev __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: ReadExpansionRom() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct ExpansionRom rom_copy;
+    UBYTE count;
+
+    DPRINTF (LOG_DEBUG, "_expansion: ReadExpansionRom(board=0x%08lx, configDev=0x%08lx)\n", (ULONG)board, (ULONG)configDev);
+
+    if (board == NULL || configDev == NULL)
+    {
+        return;
+    }
+
+    expansion_read_rom_once(board, &configDev->cd_Rom);
+
+    if (configDev->cd_Rom.er_Reserved03 != 0 ||
+        configDev->cd_Rom.er_Manufacturer == 0 ||
+        configDev->cd_Rom.er_Manufacturer == 0xffff ||
+        ((configDev->cd_Rom.er_Type & ERT_TYPEMASK) != ERT_ZORROII &&
+         (configDev->cd_Rom.er_Type & ERT_TYPEMASK) != ERT_ZORROIII))
+    {
+        configDev->cd_BoardAddr = NULL;
+        configDev->cd_BoardSize = 0;
+        return;
+    }
+
+    for (count = 0; count < 11; count++)
+    {
+        expansion_read_rom_once(board, &rom_copy);
+        if (!expansion_rom_equal(&configDev->cd_Rom, &rom_copy))
+        {
+            configDev->cd_BoardAddr = NULL;
+            configDev->cd_BoardSize = 0;
+            return;
+        }
+    }
+
+    configDev->cd_BoardAddr = (APTR)board;
+    configDev->cd_BoardSize = expansion_detect_board_size(&configDev->cd_Rom);
 }
 
 VOID _expansion_RemConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -615,8 +812,25 @@ VOID _expansion_WriteExpansionByte ( register struct ExpansionBase * ExpansionBa
                                                         register ULONG offset __asm("d0"),
                                                         register UBYTE byte __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: WriteExpansionByte() unimplemented STUB called.\n");
-    assert(FALSE);
+    volatile UBYTE *bytes = (UBYTE *)board;
+    ULONG physical_offset;
+    UWORD low_offset;
+
+    (void)ExpansionBase;
+
+    DPRINTF (LOG_DEBUG, "_expansion: WriteExpansionByte(board=0x%08lx, offset=%lu, byte=0x%02x)\n",
+             (ULONG)board, offset, byte);
+
+    if (board == NULL)
+    {
+        return;
+    }
+
+    physical_offset = offset * 4;
+    low_offset = expansion_board_low_nybble_offset(board);
+
+    bytes[physical_offset + low_offset] = (UBYTE)(byte << 4);
+    bytes[physical_offset] = byte;
 }
 
 VOID _expansion_ObtainConfigBinding ( register struct ExpansionBase * ExpansionBase __asm("a6"))
@@ -736,51 +950,10 @@ BOOL _expansion_AddDosNode ( register struct ExpansionBase * ExpansionBase __asm
                                                         register ULONG flags __asm("d1"),
                                                         register struct DeviceNode * deviceNode __asm("a0"))
 {
-    struct BootNode *boot_node;
-    struct BootNode *existing;
-
     DPRINTF (LOG_DEBUG, "_expansion: AddDosNode(bootPri=%ld, flags=0x%08lx, deviceNode=0x%08lx)\n",
              bootPri, flags, (ULONG)deviceNode);
 
-    if (deviceNode == NULL)
-    {
-        return FALSE;
-    }
-
-    expansion_lock_binding();
-
-    existing = (struct BootNode *)expansion_mount_list(ExpansionBase)->lh_Head;
-    while (existing != NULL && existing->bn_Node.ln_Succ != NULL)
-    {
-        struct DeviceNode *existing_device = (struct DeviceNode *)existing->bn_DeviceNode;
-
-        if (existing_device != NULL && expansion_bstr_casecmp(existing_device->dn_Name, deviceNode->dn_Name) == 0)
-        {
-            expansion_unlock_binding();
-            return FALSE;
-        }
-
-        existing = (struct BootNode *)existing->bn_Node.ln_Succ;
-    }
-
-    expansion_unlock_binding();
-
-    boot_node = (struct BootNode *)AllocMem(sizeof(struct BootNode), MEMF_CLEAR | MEMF_PUBLIC);
-    if (boot_node == NULL)
-    {
-        return FALSE;
-    }
-
-    boot_node->bn_Node.ln_Type = NT_BOOTNODE;
-    boot_node->bn_Node.ln_Pri = (BYTE)bootPri;
-    boot_node->bn_Flags = (UWORD)flags;
-    boot_node->bn_DeviceNode = deviceNode;
-
-    expansion_lock_binding();
-    Enqueue(expansion_mount_list(ExpansionBase), (struct Node *)boot_node);
-    expansion_unlock_binding();
-
-    return TRUE;
+    return expansion_add_boot_node_internal(ExpansionBase, bootPri, flags, deviceNode, NULL);
 }
 
 struct MyDataInit

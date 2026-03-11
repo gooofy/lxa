@@ -713,9 +713,9 @@ Status: complete in 0.6.124.
 
 ##### 78-Q-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — `AddBootNode()`, `AllocConfigDev()`, `FreeConfigDev()`, `ReadExpansionByte()`, `ReadExpansionRom()`, and `WriteExpansionByte()` now have hosted compatibility implementations with direct expansion regression coverage in `Tests/Expansion/MemConfig`; targeted expansion validation is green, and the full `ctest --test-dir build --output-on-failure -j16` sweep currently reaches an unrelated `devices_gtest` audio failure outside expansion scope
+- [x] Architecture review: expansion-library boot-node insertion and AutoConfig ROM decoding now share internal helper paths, and Phase 79 tracks separating remaining expansion-private board/boot bookkeeping so boot-node, config-chain, and ROM-scan flows cannot drift semantically
+- [x] Performance review: expansion ROM probing still rereads and byte-decodes whole AutoConfig headers for validation, and Phase 79 tracks tightening that scan/compare path plus reducing repeated mount-list duplicate checks as hosted expansion coverage grows
 
 
 
@@ -947,6 +947,8 @@ Status: complete in 0.6.124.
 - [ ] Trackdisk architecture: factor hosted `.adf` discovery, media-state refresh, and direct/extended command validation behind a private trackdisk companion so ROM-side command dispatch and host-side image handling cannot drift semantically
 - [ ] Trackdisk performance: cache resolved `DFx:` image metadata/handles and batch sector transfers so repeated floppy I/O avoids per-request directory rescans, reopen churn, and byte-at-a-time host copies
 - [ ] IFFParse performance: avoid repeated full context-stack LCI scans during `ParseIFF()` by separating declaration indexes from stored items and caching active stop/property/collection matches per context
+- [ ] Expansion architecture: separate private expansion board-list, mount-list, and binding/AutoConfig scan state behind shared helpers or a compact companion so boot-node insertion, config-chain walks, and future DOS-startup integration do not keep coupling to public base fields
+- [ ] Expansion performance: avoid repeated full ROM rereads/bytewise compares and linear mount-list duplicate scans during hosted AutoConfig probing so broader expansion coverage can validate boards with less repeated work
 
 
 ---
@@ -979,4 +981,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-N**: input.device verification is now closed for the tracked public surface: handler-chain ordering (`IND_ADDHANDLER` / `IND_REMHANDLER`), repeat timing setters, mouse-port/type setters, direct `IND_WRITEEVENT` / `IND_ADDEVENT` dispatch, held-state `PeekQualifier()` snapshots, and transient per-event qualifier delivery are all covered by `Tests/Devices/Input`; the older `FreeInputHandlerList()` follow-up is retired after confirming it is not part of the bundled NDK/AROS public ABI (v0.7.8).
 - **Phase 78-O**: audio.device now closes the tracked hosted audio surface for this phase: channel allocation/free, precedence changes, queued `CMD_WRITE` playback timing, live `ADCMD_PERVOL` / `ADCMD_FINISH` / `ADCMD_WAITCYCLE`, SDL-backed fragment playback, and end-of-sample `INTB_AUD0-3` interrupt delivery are exercised by `Tests/Devices/Audio` with validating `devices_gtest` / `exec_gtest` runs (v0.7.9).
 - **Phase 78-P**: `trackdisk.device` now covers the tracked hosted surface for this phase: `.adf`-backed `TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK`, extended `ETD_READ` / `ETD_WRITE` counter validation, classic geometry/status and write-protect/missing-media errors, plus the earlier change-interrupt lifetime semantics are all exercised by `Tests/Devices/Trackdisk`; validation is green via targeted `devices_gtest` and full `ctest --test-dir build --output-on-failure -j16` (v0.7.11).
+- **Phase 78-Q Review**: expansion.library review is now closed for the tracked hosted surface: boot-node insertion, ConfigDev allocation/free helpers, and AutoConfig byte/ROM decode helpers now have hosted compatibility implementations with direct `Tests/Expansion/*` regression coverage; targeted `misc_gtest` expansion validation is green, and the full `ctest --test-dir build --output-on-failure -j16` sweep currently reaches an unrelated `devices_gtest` audio failure outside expansion scope.
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 633 assertions passing, now including `KeyMap` layout coverage.
