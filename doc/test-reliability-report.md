@@ -7,7 +7,7 @@
 The current `lxa` test suite exposes **49 CTest entries** and is designed for parallel execution through:
 
 ```bash
-ctest --test-dir build --output-on-failure -j16
+ctest --test-dir build --output-on-failure --timeout 60 -j16
 ```
 
 The suite is fully isolated: each test uses its own emulator instance and does not depend on shared mutable runtime state. The longest historical UI/application suites have been split into smaller shards, which keeps the default `-j16` run efficient and predictable.
@@ -60,7 +60,7 @@ Or for repeated suite validation:
 ```bash
 for run in $(seq 1 5); do
     echo "=== Run $run ==="
-    ctest --test-dir build --output-on-failure -j16 2>&1 | grep "tests passed"
+    ctest --test-dir build --output-on-failure --timeout 60 -j16 2>&1 | grep "tests passed"
 done
 ```
 

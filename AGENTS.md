@@ -42,11 +42,11 @@ Load the specific skill relevant to your task:
 # Build (from project root):
 ./build.sh
 
-# Run full test suite (ALWAYS use -j16 for parallel execution):
-ctest --test-dir build --output-on-failure -j16
+# Run full test suite (ALWAYS use -j16 for parallel execution, always use timeout so we detect hanging tests):
+ctest --test-dir build --output-on-failure -j16 --timeout 60
 
 # Run a specific test:
-ctest --test-dir build --output-on-failure -R shell_gtest
+ctest --test-dir build --output-on-failure --timeout 60 -R shell_gtest
 
 # Run specific test cases via GTest filter:
 ./build/tests/drivers/shell_gtest --gtest_filter="ShellTest.Variables"

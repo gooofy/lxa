@@ -22,7 +22,7 @@ Interactive UI tests must use the host-side `liblxa` driver infrastructure. The 
 ### Run the Full Test Suite
 
 ```bash
-ctest --test-dir build --output-on-failure -j16
+ctest --test-dir build --output-on-failure --timeout 60 -j16
 ```
 
 `-j16` is the project default. The suite is fully isolated, and higher parallelism is safe, but it does not materially improve wall time on the current sharded test layout.
@@ -30,7 +30,7 @@ ctest --test-dir build --output-on-failure -j16
 ### Run One CTest Entry
 
 ```bash
-ctest --test-dir build --output-on-failure -R shell_gtest
+ctest --test-dir build --output-on-failure --timeout 60 -R shell_gtest
 ```
 
 ### Run Specific GTest Cases
@@ -80,7 +80,7 @@ These tests remain useful for small host-side helpers and focused logic that doe
 Run only the unit tests with:
 
 ```bash
-ctest --test-dir build --output-on-failure -R '^unit_'
+ctest --test-dir build --output-on-failure --timeout 60 -R '^unit_'
 ```
 
 ## Writing New Tests
@@ -131,7 +131,7 @@ Project expectations remain strict:
 ### Re-run a Single CTest Entry Verbosely
 
 ```bash
-ctest --test-dir build --output-on-failure -V -R console_gtest
+ctest --test-dir build --output-on-failure --timeout 60 -V -R console_gtest
 ```
 
 ### Run a Driver Directly
@@ -159,7 +159,7 @@ Before finishing substantial work:
 
 ```bash
 ./build.sh
-ctest --test-dir build --output-on-failure -j16
+ctest --test-dir build --output-on-failure --timeout 60 -j16
 ```
 
 If you changed only one subsystem, run the targeted suite first, then run the full suite when the work is ready.

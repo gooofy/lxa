@@ -99,10 +99,10 @@ Before completing a task:
 ### 5.2 Full Test Suite
 ```bash
 # ALWAYS use -j16 for parallel execution
-cd build && ctest --output-on-failure -j16
+cd build && ctest --output-on-failure --timeout 60 -j16
 
 # Equivalent from project root:
-ctest --test-dir build --output-on-failure -j16
+ctest --test-dir build --output-on-failure --timeout 60 -j16
 ```
 
 ### 5.3 Parallelism Guidelines
@@ -127,7 +127,7 @@ is safe.
 ### 5.4 Running Specific Tests
 ```bash
 # By test name (via ctest):
-ctest --test-dir build --output-on-failure -R shell_gtest
+ctest --test-dir build --output-on-failure  --timeout 60 -R shell_gtest
 
 # By GTest filter (direct binary execution):
 ./build/tests/drivers/shell_gtest --gtest_filter="ShellTest.Variables"
@@ -151,7 +151,7 @@ done
 # Full suite reliability (N consecutive runs):
 for run in $(seq 1 5); do
     echo "=== Run $run ==="
-    ctest --test-dir build --output-on-failure -j16 2>&1 | grep "tests passed"
+    ctest --test-dir build --output-on-failure --timeout 60 -j16 2>&1 | grep "tests passed"
 done
 ```
 

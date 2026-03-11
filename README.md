@@ -267,7 +267,7 @@ See documentation for more troubleshooting tips.
 ### Running Tests
 
 ```bash
-ctest --test-dir build --output-on-failure -j16
+ctest --test-dir build --output-on-failure --timeout 60 -j16
 ```
 
 ### Code Coverage

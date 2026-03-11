@@ -378,7 +378,7 @@ Tests are built through the main CMake build and run through CTest:
 
 ```bash
 ./build.sh
-ctest --test-dir build --output-on-failure -j16
+ctest --test-dir build --output-on-failure --timeout 60 -j16
 ```
 
 See [Testing Guide](testing.md) for more information.

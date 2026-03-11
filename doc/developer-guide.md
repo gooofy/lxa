@@ -39,7 +39,7 @@ This guide provides essential information for developers working on lxa.
 4. **Run tests**:
    ```bash
    ./build.sh
-   ctest --test-dir build --output-on-failure -j16
+   ctest --test-dir build --output-on-failure --timeout 60 -j16
    ```
 
 ## Project Structure
@@ -140,7 +140,7 @@ After completing a task:
 Before committing:
 ```bash
 # All tests pass
-ctest --test-dir build --output-on-failure -j16
+ctest --test-dir build --output-on-failure --timeout 60 -j16
 
 # Check coverage
 cmake --build build --target coverage
