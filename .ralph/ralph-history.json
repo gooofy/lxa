@@ -180,9 +180,41 @@
         "collect2: error: ld returned 1 exit status",
         "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest -j16"
       ]
+    },
+    {
+      "iteration": 8,
+      "startedAt": "2026-03-11T09:41:39.451Z",
+      "endedAt": "2026-03-11T09:53:06.382Z",
+      "durationMs": 685066,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "roadmap.md",
+        "samples/CMakeLists.txt",
+        "src/lxa/lxa.c",
+        "src/rom/lxa_mathieeedoubtrans.c",
+        "tests/drivers/exec_gtest.cpp",
+        "tests/exec/mathieeedoubtrans/"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Documentation/Autodocs/mathieeedoubtrans.doc",
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/others/AROS-20231016-source/rom/mathieeedoubtrans/mathieeedoubtrans_init.c",
+        "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest",
+        "1/1 Test #32: exec_gtest .......................***Failed   11.06 sec",
+        "Tests failed: 0",
+        "_exec: OpenLibrary: *** ERROR: requested library nonexistent.library was not found.",
+        "FAIL: 34 of 56 tests failed",
+        "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:33: Failure",
+        "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:34: Failure",
+        "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:35: Failure"
+      ]
     }
   ],
-  "totalDurationMs": 5026492,
+  "totalDurationMs": 5711558,
   "struggleIndicators": {
     "repeatedErrors": {
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/CMakeLists.txt": 3,
@@ -210,7 +242,7 @@
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/exec/mathffp/main": 1,
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include/include_h/inlin": 1,
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include/include_h/libra": 1,
-      "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest": 1,
+      "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest": 2,
       "100% tests passed, 0 tests failed out of 1": 1,
       "[ ] Run targeted build/tests, fix failures, and mark task complete in `.ralph/ralph-tasks.md`": 1,
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include_H/inline/mathie": 1,
@@ -221,7 +253,16 @@
       "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7711:17: error: ‘host_float_to_ffp’ defined b": 1,
       "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7688:14: error: ‘ffp_to_host_float’ defined b": 1,
       "collect2: error: ld returned 1 exit status": 1,
-      "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest -j16": 1
+      "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest -j16": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Documentation/Autodocs/": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/others/AROS-20231016-so": 1,
+      "1/1 Test #32: exec_gtest .......................***Failed   11.06 sec": 1,
+      "Tests failed: 0": 1,
+      "_exec: OpenLibrary: *** ERROR: requested library nonexistent.library was not found.": 1,
+      "FAIL: 34 of 56 tests failed": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:33: Failure": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:34: Failure": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/tests/drivers/exec_gtest.cpp:35: Failure": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0

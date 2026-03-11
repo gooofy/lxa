@@ -79,10 +79,12 @@ ULONG __g_lxa_mathieeedoubtrans_ExtFuncLib(void)
  */
 asm(
 "_mathieeedoubtrans_IEEEDPAtan:                               \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5020, d0           | EMU_CALL_IEEEDP_ATAN        \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPAtan(void);
@@ -95,10 +97,12 @@ extern void mathieeedoubtrans_IEEEDPAtan(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPSin:                                \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5021, d0           | EMU_CALL_IEEEDP_SIN         \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPSin(void);
@@ -111,10 +115,12 @@ extern void mathieeedoubtrans_IEEEDPSin(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPCos:                                \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5022, d0           | EMU_CALL_IEEEDP_COS         \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPCos(void);
@@ -127,10 +133,12 @@ extern void mathieeedoubtrans_IEEEDPCos(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPTan:                                \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5023, d0           | EMU_CALL_IEEEDP_TAN         \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPTan(void);
@@ -145,10 +153,12 @@ extern void mathieeedoubtrans_IEEEDPTan(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPSincos:                             \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5024, d0           | EMU_CALL_IEEEDP_SINCOS      \n"
 "   illegal                     | host stores cos to (a0)     \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = sin result          \n"
 );
 extern void mathieeedoubtrans_IEEEDPSincos(void);
@@ -161,10 +171,12 @@ extern void mathieeedoubtrans_IEEEDPSincos(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPSinh:                               \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5025, d0           | EMU_CALL_IEEEDP_SINH        \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPSinh(void);
@@ -177,10 +189,12 @@ extern void mathieeedoubtrans_IEEEDPSinh(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPCosh:                               \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5026, d0           | EMU_CALL_IEEEDP_COSH        \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPCosh(void);
@@ -193,10 +207,12 @@ extern void mathieeedoubtrans_IEEEDPCosh(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPTanh:                               \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5027, d0           | EMU_CALL_IEEEDP_TANH        \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPTanh(void);
@@ -209,10 +225,12 @@ extern void mathieeedoubtrans_IEEEDPTanh(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPExp:                                \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5028, d0           | EMU_CALL_IEEEDP_EXP         \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPExp(void);
@@ -225,10 +243,12 @@ extern void mathieeedoubtrans_IEEEDPExp(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPLog:                                \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5029, d0           | EMU_CALL_IEEEDP_LOG         \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPLog(void);
@@ -243,12 +263,14 @@ extern void mathieeedoubtrans_IEEEDPLog(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPPow:                                \n"
+"   movem.l d2-d4, -(sp)        | save d2-d4 (callee-saved)   \n"
 "   move.l  d3, d4              | d4 = exp lo                 \n"
 "   move.l  d2, d3              | d3 = exp hi                 \n"
 "   move.l  d1, d2              | d2 = arg lo                 \n"
 "   move.l  d0, d1              | d1 = arg hi                 \n"
 "   move.l  #5030, d0           | EMU_CALL_IEEEDP_POW         \n"
 "   illegal                                                   \n"
+"   movem.l (sp)+, d2-d4        | restore d2-d4               \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPPow(void);
@@ -261,10 +283,12 @@ extern void mathieeedoubtrans_IEEEDPPow(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPSqrt:                               \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5031, d0           | EMU_CALL_IEEEDP_SQRT        \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPSqrt(void);
@@ -277,10 +301,12 @@ extern void mathieeedoubtrans_IEEEDPSqrt(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPTieee:                              \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5032, d0           | EMU_CALL_IEEEDP_TIEEE       \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0 = single result          \n"
 );
 extern void mathieeedoubtrans_IEEEDPTieee(void);
@@ -308,10 +334,12 @@ extern void mathieeedoubtrans_IEEEDPFieee(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPAsin:                               \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5034, d0           | EMU_CALL_IEEEDP_ASIN        \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPAsin(void);
@@ -324,10 +352,12 @@ extern void mathieeedoubtrans_IEEEDPAsin(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPAcos:                               \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5035, d0           | EMU_CALL_IEEEDP_ACOS        \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPAcos(void);
@@ -340,10 +370,12 @@ extern void mathieeedoubtrans_IEEEDPAcos(void);
  */
 asm(
 "_mathieeedoubtrans_IEEEDPLog10:                              \n"
+"   move.l  d2, -(sp)           | save d2 (callee-saved)      \n"
 "   move.l  d1, d2              | d2 = lo                     \n"
 "   move.l  d0, d1              | d1 = hi                     \n"
 "   move.l  #5036, d0           | EMU_CALL_IEEEDP_LOG10       \n"
 "   illegal                                                   \n"
+"   move.l  (sp)+, d2           | restore d2                  \n"
 "   rts                         | d0:d1 = double result       \n"
 );
 extern void mathieeedoubtrans_IEEEDPLog10(void);

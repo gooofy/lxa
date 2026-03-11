@@ -7,7 +7,7 @@
 - [x] Finish `78-Q-2` review items, update `roadmap.md`, and validate expansion changes with targeted/full tests
 - [x] Implement and test `78-R` `mathffp.library` core conversion/comparison/arithmetic APIs
 - [x] Implement and test `78-R` `mathffp.library` rounding/edge-case behavior plus `mathtrans.library` single-precision transcendentals
-- [ ] Implement and test `78-R` `mathieeedoubtrans.library` transcendentals and edge-value coverage
+- [x] Implement and test `78-R` `mathieeedoubtrans.library` transcendentals and edge-value coverage
 - [ ] Finish `78-R-2` review items, update `roadmap.md`, and validate math-library changes with targeted/full tests
 - [ ] Implement and test `78-S` diskfont enumeration/content APIs (`DisposeFontContents`, `NewFontContents`) and verify existing font-surface behavior
 - [ ] Implement and test `78-S` proportional and multi-plane diskfont support

@@ -85,6 +85,10 @@ TEST_F(ExecTest, MathIeeeSingBas) {
     RunExecTest("MathIeeeSingBas");
 }
 
+TEST_F(ExecTest, MathIeeeDoubTrans) {
+    RunExecTest("MathIeeeDoubTrans");
+}
+
 TEST_F(ExecTest, MathFFP) {
     RunExecTest("MathFFP");
 }

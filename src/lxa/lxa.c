@@ -34,6 +34,8 @@
 
 static float ffp_to_host_float(uint32_t raw);
 static uint32_t host_float_to_ffp(float value);
+static double host_double_from_words(uint32_t hi, uint32_t lo);
+static void host_double_to_words(double value, uint32_t *hi, uint32_t *lo);
 
 #ifdef SDL2_FOUND
 #include <SDL.h>
@@ -6771,20 +6773,17 @@ int op_illg(int level)
              */
             uint32_t hi = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = hi;
-            val.u.lo = lo;
+            double value = host_double_from_words(hi, lo);
             
             int32_t result;
-            if (val.d > 2147483647.0)
+            if (value > 2147483647.0)
                 result = 0x7FFFFFFF;
-            else if (val.d < -2147483648.0)
+            else if (value < -2147483648.0)
                 result = (int32_t)0x80000000;
             else
-                result = (int32_t)val.d;
+                result = (int32_t)value;
             
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FIX(%f) = %d\n", val.d, result);
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FIX(%f) = %d\n", value, result);
             m68k_set_reg(M68K_REG_D0, (uint32_t)result);
             break;
         }
@@ -6797,12 +6796,14 @@ int op_illg(int level)
              */
             int32_t integer = (int32_t)m68k_get_reg(NULL, M68K_REG_D1);
             
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.d = (double)integer;
+            double value = (double)integer;
+            uint32_t hi;
+            uint32_t lo;
             
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FLT(%d) = %f\n", integer, val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            host_double_to_words(value, &hi, &lo);
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FLT(%d) = %f\n", integer, value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -6812,21 +6813,20 @@ int op_illg(int level)
              * Input:  d1:d2 = left, d3:d4 = right
              * Output: d0 = -1 (left < right), 0 (equal), +1 (left > right)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } left, right;
-            left.u.hi  = m68k_get_reg(NULL, M68K_REG_D1);
-            left.u.lo  = m68k_get_reg(NULL, M68K_REG_D2);
-            right.u.hi = m68k_get_reg(NULL, M68K_REG_D3);
-            right.u.lo = m68k_get_reg(NULL, M68K_REG_D4);
+            double left = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                m68k_get_reg(NULL, M68K_REG_D2));
+            double right = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D3),
+                                                 m68k_get_reg(NULL, M68K_REG_D4));
             
             int32_t result;
-            if (left.d < right.d)
+            if (left < right)
                 result = -1;
-            else if (left.d > right.d)
+            else if (left > right)
                 result = 1;
             else
                 result = 0;
             
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_CMP(%f, %f) = %d\n", left.d, right.d, result);
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_CMP(%f, %f) = %d\n", left, right, result);
             m68k_set_reg(M68K_REG_D0, (uint32_t)result);
             break;
         }
@@ -6837,19 +6837,18 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0 = -1 (negative), 0 (zero), +1 (positive)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
             
             int32_t result;
-            if (val.d < 0.0)
+            if (value < 0.0)
                 result = -1;
-            else if (val.d > 0.0)
+            else if (value > 0.0)
                 result = 1;
             else
                 result = 0;
             
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TST(%f) = %d\n", val.d, result);
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TST(%f) = %d\n", value, result);
             m68k_set_reg(M68K_REG_D0, (uint32_t)result);
             break;
         }
@@ -6860,15 +6859,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = |input|
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
             
-            val.d = fabs(val.d);
+            value = fabs(value);
+            host_double_to_words(value, &hi, &lo);
             
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ABS -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ABS -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -6878,15 +6879,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = -input
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
             
-            val.d = -val.d;
+            value = -value;
+            host_double_to_words(value, &hi, &lo);
             
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_NEG -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_NEG -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -6896,17 +6899,19 @@ int op_illg(int level)
              * Input:  d1:d2 = left, d3:d4 = right
              * Output: d0:d1 = left + right
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } left, right, result;
-            left.u.hi  = m68k_get_reg(NULL, M68K_REG_D1);
-            left.u.lo  = m68k_get_reg(NULL, M68K_REG_D2);
-            right.u.hi = m68k_get_reg(NULL, M68K_REG_D3);
-            right.u.lo = m68k_get_reg(NULL, M68K_REG_D4);
+            double left = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                m68k_get_reg(NULL, M68K_REG_D2));
+            double right = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D3),
+                                                 m68k_get_reg(NULL, M68K_REG_D4));
+            double result = left + right;
+            uint32_t hi;
+            uint32_t lo;
             
-            result.d = left.d + right.d;
+            host_double_to_words(result, &hi, &lo);
             
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ADD(%f, %f) = %f\n", left.d, right.d, result.d);
-            m68k_set_reg(M68K_REG_D0, result.u.hi);
-            m68k_set_reg(M68K_REG_D1, result.u.lo);
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ADD(%f, %f) = %f\n", left, right, result);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -6916,17 +6921,19 @@ int op_illg(int level)
              * Input:  d1:d2 = left, d3:d4 = right
              * Output: d0:d1 = left - right
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } left, right, result;
-            left.u.hi  = m68k_get_reg(NULL, M68K_REG_D1);
-            left.u.lo  = m68k_get_reg(NULL, M68K_REG_D2);
-            right.u.hi = m68k_get_reg(NULL, M68K_REG_D3);
-            right.u.lo = m68k_get_reg(NULL, M68K_REG_D4);
-            
-            result.d = left.d - right.d;
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SUB(%f, %f) = %f\n", left.d, right.d, result.d);
-            m68k_set_reg(M68K_REG_D0, result.u.hi);
-            m68k_set_reg(M68K_REG_D1, result.u.lo);
+            double left = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                m68k_get_reg(NULL, M68K_REG_D2));
+            double right = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D3),
+                                                 m68k_get_reg(NULL, M68K_REG_D4));
+            double result = left - right;
+            uint32_t hi;
+            uint32_t lo;
+
+            host_double_to_words(result, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SUB(%f, %f) = %f\n", left, right, result);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -6936,17 +6943,19 @@ int op_illg(int level)
              * Input:  d1:d2 = factor1, d3:d4 = factor2
              * Output: d0:d1 = factor1 * factor2
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } f1, f2, result;
-            f1.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            f1.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            f2.u.hi = m68k_get_reg(NULL, M68K_REG_D3);
-            f2.u.lo = m68k_get_reg(NULL, M68K_REG_D4);
-            
-            result.d = f1.d * f2.d;
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_MUL(%f, %f) = %f\n", f1.d, f2.d, result.d);
-            m68k_set_reg(M68K_REG_D0, result.u.hi);
-            m68k_set_reg(M68K_REG_D1, result.u.lo);
+            double f1 = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                              m68k_get_reg(NULL, M68K_REG_D2));
+            double f2 = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D3),
+                                              m68k_get_reg(NULL, M68K_REG_D4));
+            double result = f1 * f2;
+            uint32_t hi;
+            uint32_t lo;
+
+            host_double_to_words(result, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_MUL(%f, %f) = %f\n", f1, f2, result);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -6956,27 +6965,31 @@ int op_illg(int level)
              * Input:  d1:d2 = dividend, d3:d4 = divisor
              * Output: d0:d1 = dividend / divisor
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } dividend, divisor, result;
-            dividend.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            dividend.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            divisor.u.hi  = m68k_get_reg(NULL, M68K_REG_D3);
-            divisor.u.lo  = m68k_get_reg(NULL, M68K_REG_D4);
-            
-            if (divisor.d == 0.0)
+            double dividend = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                    m68k_get_reg(NULL, M68K_REG_D2));
+            double divisor = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D3),
+                                                   m68k_get_reg(NULL, M68K_REG_D4));
+            double result;
+            uint32_t hi;
+            uint32_t lo;
+
+            if (divisor == 0.0)
             {
-                if (dividend.d >= 0.0)
-                    result.d = HUGE_VAL;
+                if (signbit(dividend) != signbit(divisor))
+                    result = -HUGE_VAL;
                 else
-                    result.d = -HUGE_VAL;
+                    result = HUGE_VAL;
             }
             else
             {
-                result.d = dividend.d / divisor.d;
+                result = dividend / divisor;
             }
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_DIV(%f, %f) = %f\n", dividend.d, divisor.d, result.d);
-            m68k_set_reg(M68K_REG_D0, result.u.hi);
-            m68k_set_reg(M68K_REG_D1, result.u.lo);
+
+            host_double_to_words(result, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_DIV(%f, %f) = %f\n", dividend, divisor, result);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -6986,15 +6999,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = floor(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = floor(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FLOOR -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = floor(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FLOOR -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7004,15 +7019,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = ceil(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = ceil(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_CEIL -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = ceil(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_CEIL -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
 
@@ -7347,15 +7364,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = atan(input) in radians
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = atan(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ATAN(%f) -> %f\n", val.d, val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double input = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            double result = atan(input);
+            uint32_t hi;
+            uint32_t lo;
+
+            host_double_to_words(result, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ATAN(%f) -> %f\n", input, result);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7365,15 +7384,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double (radians)
              * Output: d0:d1 = sin(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = sin(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SIN -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double input = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            double result = sin(input);
+            uint32_t hi;
+            uint32_t lo;
+
+            host_double_to_words(result, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SIN -> %f\n", result);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7383,15 +7404,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double (radians)
              * Output: d0:d1 = cos(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = cos(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_COS -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double input = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            double result = cos(input);
+            uint32_t hi;
+            uint32_t lo;
+
+            host_double_to_words(result, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_COS -> %f\n", result);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7401,15 +7424,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double (radians)
              * Output: d0:d1 = tan(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = tan(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TAN -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double input = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            double result = tan(input);
+            uint32_t hi;
+            uint32_t lo;
+
+            host_double_to_words(result, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TAN -> %f\n", result);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7419,24 +7444,29 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double (radians), a0 = pointer to store cos
              * Output: d0:d1 = sin(input), *a0 = cos(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val, cos_val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            double input = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            double sin_result = sin(input);
+            double cos_result = cos(input);
             uint32_t cos_ptr = m68k_get_reg(NULL, M68K_REG_A0);
+            uint32_t hi;
+            uint32_t lo;
+            uint32_t cos_hi;
+            uint32_t cos_lo;
             
-            cos_val.d = cos(val.d);
-            val.d = sin(val.d);
+            host_double_to_words(sin_result, &hi, &lo);
+            host_double_to_words(cos_result, &cos_hi, &cos_lo);
             
             /* Store cos result to memory pointed by a0 */
             if (cos_ptr != 0)
             {
-                m68k_write_memory_32(cos_ptr, cos_val.u.hi);
-                m68k_write_memory_32(cos_ptr + 4, cos_val.u.lo);
+                m68k_write_memory_32(cos_ptr, cos_hi);
+                m68k_write_memory_32(cos_ptr + 4, cos_lo);
             }
             
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SINCOS -> sin=%f, cos=%f\n", val.d, cos_val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SINCOS -> sin=%f, cos=%f\n", sin_result, cos_result);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7446,15 +7476,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = sinh(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = sinh(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SINH -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = sinh(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SINH -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7464,15 +7496,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = cosh(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = cosh(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_COSH -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = cosh(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_COSH -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7482,15 +7516,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = tanh(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = tanh(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TANH -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = tanh(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TANH -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7500,15 +7536,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = exp(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = exp(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_EXP -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = exp(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_EXP -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7518,15 +7556,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = log(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = log(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_LOG -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = log(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_LOG -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7536,17 +7576,19 @@ int op_illg(int level)
              * Input:  d1:d2 = arg (base), d3:d4 = exp (exponent)
              * Output: d0:d1 = arg^exp
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } base, exponent, result;
-            base.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            base.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            exponent.u.hi = m68k_get_reg(NULL, M68K_REG_D3);
-            exponent.u.lo = m68k_get_reg(NULL, M68K_REG_D4);
-            
-            result.d = pow(base.d, exponent.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_POW(%f, %f) = %f\n", base.d, exponent.d, result.d);
-            m68k_set_reg(M68K_REG_D0, result.u.hi);
-            m68k_set_reg(M68K_REG_D1, result.u.lo);
+            double base = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                m68k_get_reg(NULL, M68K_REG_D2));
+            double exponent = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D3),
+                                                    m68k_get_reg(NULL, M68K_REG_D4));
+            double result = pow(base, exponent);
+            uint32_t hi;
+            uint32_t lo;
+
+            host_double_to_words(result, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_POW(%f, %f) = %f\n", base, exponent, result);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7556,15 +7598,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = sqrt(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = sqrt(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SQRT -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = sqrt(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_SQRT -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7574,14 +7618,13 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0 = IEEE single
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } dval;
             union { float f; uint32_t u; } sval;
-            dval.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            dval.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
+            double dval = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                m68k_get_reg(NULL, M68K_REG_D2));
             
-            sval.f = (float)dval.d;
+            sval.f = (float)dval;
             
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TIEEE(%f) -> single\n", dval.d);
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_TIEEE(%f) -> single\n", dval);
             m68k_set_reg(M68K_REG_D0, sval.u);
             break;
         }
@@ -7593,14 +7636,17 @@ int op_illg(int level)
              * Output: d0:d1 = IEEE double
              */
             union { float f; uint32_t u; } sval;
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } dval;
+            double dval;
+            uint32_t hi;
+            uint32_t lo;
             sval.u = m68k_get_reg(NULL, M68K_REG_D1);
             
-            dval.d = (double)sval.f;
+            dval = (double)sval.f;
+            host_double_to_words(dval, &hi, &lo);
             
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FIEEE(single) -> %f\n", dval.d);
-            m68k_set_reg(M68K_REG_D0, dval.u.hi);
-            m68k_set_reg(M68K_REG_D1, dval.u.lo);
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_FIEEE(single) -> %f\n", dval);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7610,15 +7656,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = asin(input) in radians
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = asin(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ASIN -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = asin(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ASIN -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7628,15 +7676,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = acos(input) in radians
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = acos(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ACOS -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = acos(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_ACOS -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
         
@@ -7646,15 +7696,17 @@ int op_illg(int level)
              * Input:  d1:d2 = IEEE double
              * Output: d0:d1 = log10(input)
              */
-            union { double d; struct { uint32_t hi; uint32_t lo; } u; } val;
-            val.u.hi = m68k_get_reg(NULL, M68K_REG_D1);
-            val.u.lo = m68k_get_reg(NULL, M68K_REG_D2);
-            
-            val.d = log10(val.d);
-            
-            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_LOG10 -> %f\n", val.d);
-            m68k_set_reg(M68K_REG_D0, val.u.hi);
-            m68k_set_reg(M68K_REG_D1, val.u.lo);
+            double value = host_double_from_words(m68k_get_reg(NULL, M68K_REG_D1),
+                                                 m68k_get_reg(NULL, M68K_REG_D2));
+            uint32_t hi;
+            uint32_t lo;
+
+            value = log10(value);
+            host_double_to_words(value, &hi, &lo);
+
+            DPRINTF(LOG_DEBUG, "lxa: IEEEDP_LOG10 -> %f\n", value);
+            m68k_set_reg(M68K_REG_D0, hi);
+            m68k_set_reg(M68K_REG_D1, lo);
             break;
         }
 
@@ -7713,6 +7765,24 @@ static float ffp_to_host_float(uint32_t raw)
     }
 
     return value;
+}
+
+static double host_double_from_words(uint32_t hi, uint32_t lo)
+{
+    uint64_t bits = ((uint64_t)hi << 32) | (uint64_t)lo;
+    double value;
+
+    memcpy(&value, &bits, sizeof(value));
+    return value;
+}
+
+static void host_double_to_words(double value, uint32_t *hi, uint32_t *lo)
+{
+    uint64_t bits;
+
+    memcpy(&bits, &value, sizeof(bits));
+    *hi = (uint32_t)(bits >> 32);
+    *lo = (uint32_t)bits;
 }
 
 static uint32_t host_float_to_ffp(float value)

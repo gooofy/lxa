@@ -741,11 +741,11 @@ Status: complete in 0.6.124.
 **mathieeedoubbas** (`src/rom/lxa_mathieeedoubbas.c`) ✅ (Phase 77) — d2/d3/d4 clobber fixed.
 
 **mathieeedoubtrans** (`src/rom/lxa_mathieeedoubtrans.c`):
-- [ ] `IEEEDPSin` / `IEEEDPCos` / `IEEEDPTan` / `IEEEDPAtan`
-- [ ] `IEEEDPSinh` / `IEEEDPCosh` / `IEEEDPTanh`
-- [ ] `IEEEDPExp` / `IEEEDPLog` / `IEEEDPLog10`
-- [ ] `IEEEDPPow` / `IEEEDPSqrt` / `IEEEDPFieee` / `IEEEDPTieee`
-- [ ] Verify against glibc results for edge values
+- [x] `IEEEDPSin` / `IEEEDPCos` / `IEEEDPTan` / `IEEEDPAtan`
+- [x] `IEEEDPSinh` / `IEEEDPCosh` / `IEEEDPTanh`
+- [x] `IEEEDPExp` / `IEEEDPLog` / `IEEEDPLog10`
+- [x] `IEEEDPPow` / `IEEEDPSqrt` / `IEEEDPFieee` / `IEEEDPTieee`
+- [x] Verify against glibc results for edge values — hosted emucalls now round-trip IEEE double words explicitly instead of relying on host struct word order, preserving correct big-endian Amiga register layout across all transcendental paths; direct regression coverage in `tests/exec/mathieeedoubtrans/main.c` locks zero/negative-zero, infinities, NaNs, domain/range edges, `IEEEDPSincos()`, and IEEE single/double conversions against host libm results
 
 ##### 78-R-2: Review
 
