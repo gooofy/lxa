@@ -120,7 +120,13 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     
     # FontReq - ASL font requester test (GTest version)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/fontreq_gtest.cpp)
-        add_gtest_driver(fontreq_gtest)
+        add_gtest_driver_target(fontreq_gtest)
+        add_gtest_driver_shard(fontreq_behavior_gtest fontreq_gtest
+            FILTER "FontReqTest.RequesterOpens:FontReqTest.WindowPositionAndSize:FontReqTest.FontListDisplayed"
+            TIMEOUT 60)
+        add_gtest_driver_shard(fontreq_actions_gtest fontreq_gtest
+            FILTER "FontReqTest.CancelButton:FontReqTest.OKButtonSelectsFont"
+            TIMEOUT 60)
     endif()
 
     # ScreenModeReq - ASL screenmode requester test (GTest version)

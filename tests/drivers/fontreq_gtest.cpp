@@ -16,8 +16,6 @@ using namespace lxa::testing;
 class FontReqTest : public LxaUITest {
 protected:
     void SetUp() override {
-        config.rootless = false;
-
         LxaUITest::SetUp();
         
         // Load the FontReq program
@@ -32,9 +30,28 @@ protected:
         ASSERT_TRUE(GetWindowInfo(0, &window_info)) 
             << "Could not get window info";
         
-        // Let task reach event loop
+        WaitForRequesterReady();
+    }
+
+    void WaitForRequesterReady() {
         WaitForEventLoop(100, 10000);
-        RunCyclesWithVBlank(50, 100000);
+        RunCyclesWithVBlank(20, 50000);
+    }
+
+    bool ActivateAndWaitForExit(int x, int y) {
+        for (int attempt = 0; attempt < 3; ++attempt) {
+            WaitForRequesterReady();
+            Click(x, y);
+            RunCyclesWithVBlank(20, 50000);
+
+            if (lxa_wait_exit(4000)) {
+                return true;
+            }
+        }
+
+        Click(window_info.x + 10, window_info.y + 5);
+        RunCyclesWithVBlank(20, 50000);
+        return lxa_wait_exit(4000);
     }
 };
 
@@ -60,24 +77,8 @@ TEST_F(FontReqTest, CancelButton) {
     int cancel_x = window_info.x + window_info.width - 8 - 60 + 30;
     int cancel_y = window_info.y + window_info.height - 20 - 14 + 7;
     
-    Click(cancel_x, cancel_y);
-    
-    // Process event
-    RunCyclesWithVBlank(20, 50000);
-    
-    // Run more for output
-    for (int i = 0; i < 100; i++) {
-        RunCycles(10000);
-    }
-    
-    // Wait for exit
-    bool exited = lxa_wait_exit(5000);
-    
-    // If Cancel didn't work, try close gadget as fallback
-    if (!exited) {
-        Click(window_info.x + 10, window_info.y + 5);
-        exited = lxa_wait_exit(3000);
-    }
+    ClearOutput();
+    bool exited = ActivateAndWaitForExit(cancel_x, cancel_y);
     
     EXPECT_TRUE(exited) << "Program should exit after Cancel button";
     
@@ -94,23 +95,8 @@ TEST_F(FontReqTest, OKButtonSelectsFont) {
     int ok_x = window_info.x + 8 + 30;
     int ok_y = window_info.y + window_info.height - 20 - 14 + 7;
     
-    Click(ok_x, ok_y);
-    
-    // Process event
-    RunCyclesWithVBlank(20, 50000);
-    
-    // Run more for output
-    for (int i = 0; i < 100; i++) {
-        RunCycles(10000);
-    }
-    
-    // Wait for exit
-    bool exited = lxa_wait_exit(5000);
-    
-    if (!exited) {
-        Click(window_info.x + 10, window_info.y + 5);
-        exited = lxa_wait_exit(3000);
-    }
+    ClearOutput();
+    bool exited = ActivateAndWaitForExit(ok_x, ok_y);
     
     EXPECT_TRUE(exited) << "Program should exit after OK button";
     

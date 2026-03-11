@@ -505,6 +505,7 @@ Status: core requester allocation and modal execution now cover file, font, and 
 ##### 78-G-2: Review
 
 - [x] Implement missing functions and stubs as far as possible — remaining follow-up is broader ScreenMode requester option coverage beyond the current modal/file/font/screen-mode helper surface
+- [x] Test reliability follow-up — the hosted FontReq driver now uses the same rootless/default event timing as the stable misc coverage, and the dedicated font requester suite is split into behavior/action shards so the CTest run stays comfortably below per-test timeouts under `ctest --test-dir build --output-on-failure --timeout 60 -j16`
 - [x] Architecture review: requester varargs entry points intentionally reuse the core taglist implementation paths (`AllocAslRequest` / `AslRequest`) via the public pragma/inline ABI, so no extra hosted dispatch layer is needed; broader ASL/private requester architecture follow-ups remain out of scope until more tags and hooks land, with no new Phase 79 item required in the meantime (v0.6.119)
 - [x] Performance review: the public varargs helper path is compiler-side stack/tag marshalling into the existing taglist entry points, so there is no distinct runtime hot path to optimize beyond the current requester implementations; no new Phase 79 item is required for this verification-only pass (v0.6.119)
 
