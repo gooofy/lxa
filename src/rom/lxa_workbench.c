@@ -17,6 +17,10 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 
+#include <workbench/workbench.h>
+
+#include <intuition/intuition.h>
+
 #include <utility/tagitem.h>
 
 #include "util.h"
@@ -39,6 +43,63 @@ struct WorkbenchBase {
     struct Library lib;
     BPTR           SegList;
 };
+
+#define LXA_WORKBENCH_APP_MAGIC 0x57424150UL
+
+enum lxa_workbench_app_type {
+    LXA_WORKBENCH_APP_WINDOW = 1,
+    LXA_WORKBENCH_APP_ICON = 2,
+    LXA_WORKBENCH_APP_MENU = 3
+};
+
+struct lxa_workbench_app_object {
+    ULONG magic;
+    ULONG type;
+    ULONG id;
+    ULONG userdata;
+    APTR primary;
+    APTR secondary;
+    struct MsgPort *msgport;
+};
+
+static APTR workbench_alloc_app_object(ULONG type,
+                                       ULONG id,
+                                       ULONG userdata,
+                                       APTR primary,
+                                       APTR secondary,
+                                       struct MsgPort *msgport)
+{
+    struct lxa_workbench_app_object *obj;
+
+    obj = AllocMem(sizeof(*obj), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!obj)
+        return NULL;
+
+    obj->magic = LXA_WORKBENCH_APP_MAGIC;
+    obj->type = type;
+    obj->id = id;
+    obj->userdata = userdata;
+    obj->primary = primary;
+    obj->secondary = secondary;
+    obj->msgport = msgport;
+
+    return obj;
+}
+
+static BOOL workbench_free_app_object(APTR handle, ULONG expected_type)
+{
+    struct lxa_workbench_app_object *obj = (struct lxa_workbench_app_object *)handle;
+
+    if (!obj)
+        return FALSE;
+
+    if (obj->magic != LXA_WORKBENCH_APP_MAGIC || obj->type != expected_type)
+        return FALSE;
+
+    obj->magic = 0;
+    FreeMem(obj, sizeof(*obj));
+    return TRUE;
+}
 
 /*
  * Library init/open/close/expunge
@@ -101,18 +162,26 @@ APTR _workbench_AddAppWindowA ( register struct WorkbenchBase *WorkbenchBase __a
                                 register struct MsgPort *msgport __asm("a1"),
                                 register struct TagItem *taglist __asm("a2") )
 {
-    DPRINTF (LOG_DEBUG, "_workbench: AddAppWindowA() id=%ld, window=0x%08lx (stub)\n",
+    DPRINTF (LOG_DEBUG, "_workbench: AddAppWindowA() id=%ld, window=0x%08lx\n",
              id, (ULONG)window);
-    /* Return non-NULL to indicate success, but we don't actually do anything */
-    return (APTR)0x12345678;
+
+    if (!window || !msgport)
+        return NULL;
+
+    return workbench_alloc_app_object(LXA_WORKBENCH_APP_WINDOW,
+                                      id,
+                                      userdata,
+                                      window,
+                                      taglist,
+                                      msgport);
 }
 
 /* RemoveAppWindow - Remove an AppWindow */
 BOOL _workbench_RemoveAppWindow ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                   register APTR appWindow __asm("a0") )
 {
-    DPRINTF (LOG_DEBUG, "_workbench: RemoveAppWindow() appWindow=0x%08lx (stub)\n", (ULONG)appWindow);
-    return TRUE;
+    DPRINTF (LOG_DEBUG, "_workbench: RemoveAppWindow() appWindow=0x%08lx\n", (ULONG)appWindow);
+    return workbench_free_app_object(appWindow, LXA_WORKBENCH_APP_WINDOW);
 }
 
 /* AddAppIconA - Add an AppIcon to Workbench */
@@ -125,18 +194,26 @@ APTR _workbench_AddAppIconA ( register struct WorkbenchBase *WorkbenchBase __asm
                               register APTR diskobj __asm("a3"),
                               register struct TagItem *taglist __asm("a4") )
 {
-    DPRINTF (LOG_DEBUG, "_workbench: AddAppIconA() id=%ld, text='%s' (stub)\n",
+    DPRINTF (LOG_DEBUG, "_workbench: AddAppIconA() id=%ld, text='%s'\n",
              id, text ? (char *)text : "(null)");
-    /* Return non-NULL to indicate success */
-    return (APTR)0x12345679;
+
+    if (!msgport || !diskobj)
+        return NULL;
+
+    return workbench_alloc_app_object(LXA_WORKBENCH_APP_ICON,
+                                      id,
+                                      userdata,
+                                      diskobj,
+                                      (APTR)lock,
+                                      msgport);
 }
 
 /* RemoveAppIcon - Remove an AppIcon */
 BOOL _workbench_RemoveAppIcon ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                 register APTR appIcon __asm("a0") )
 {
-    DPRINTF (LOG_DEBUG, "_workbench: RemoveAppIcon() appIcon=0x%08lx (stub)\n", (ULONG)appIcon);
-    return TRUE;
+    DPRINTF (LOG_DEBUG, "_workbench: RemoveAppIcon() appIcon=0x%08lx\n", (ULONG)appIcon);
+    return workbench_free_app_object(appIcon, LXA_WORKBENCH_APP_ICON);
 }
 
 /* AddAppMenuItemA - Add an item to Workbench Tools menu */
@@ -147,18 +224,26 @@ APTR _workbench_AddAppMenuItemA ( register struct WorkbenchBase *WorkbenchBase _
                                   register struct MsgPort *msgport __asm("a1"),
                                   register struct TagItem *taglist __asm("a2") )
 {
-    DPRINTF (LOG_DEBUG, "_workbench: AddAppMenuItemA() id=%ld, text='%s' (stub)\n",
+    DPRINTF (LOG_DEBUG, "_workbench: AddAppMenuItemA() id=%ld, text='%s'\n",
              id, text ? (char *)text : "(null)");
-    /* Return non-NULL to indicate success */
-    return (APTR)0x1234567a;
+
+    if (!text || !msgport)
+        return NULL;
+
+    return workbench_alloc_app_object(LXA_WORKBENCH_APP_MENU,
+                                      id,
+                                      userdata,
+                                      (APTR)text,
+                                      taglist,
+                                      msgport);
 }
 
 /* RemoveAppMenuItem - Remove a menu item */
 BOOL _workbench_RemoveAppMenuItem ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
                                     register APTR appMenuItem __asm("a0") )
 {
-    DPRINTF (LOG_DEBUG, "_workbench: RemoveAppMenuItem() appMenuItem=0x%08lx (stub)\n", (ULONG)appMenuItem);
-    return TRUE;
+    DPRINTF (LOG_DEBUG, "_workbench: RemoveAppMenuItem() appMenuItem=0x%08lx\n", (ULONG)appMenuItem);
+    return workbench_free_app_object(appMenuItem, LXA_WORKBENCH_APP_MENU);
 }
 
 /*
@@ -200,11 +285,69 @@ BOOL _workbench_CloseWorkbenchObjectA ( register struct WorkbenchBase *Workbench
     return FALSE;  /* Not implemented */
 }
 
+BOOL _workbench_WorkbenchControlA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+                                    register CONST_STRPTR name __asm("a0"),
+                                    register CONST struct TagItem *tags __asm("a1") )
+{
+    DPRINTF (LOG_DEBUG, "_workbench: WorkbenchControlA() name='%s' (stub)\n",
+             STRORNULL(name));
+    return FALSE;
+}
+
+struct AppWindowDropZone * _workbench_AddAppWindowDropZoneA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+                                                               register struct AppWindow *aw __asm("a0"),
+                                                               register ULONG id __asm("d0"),
+                                                               register ULONG userdata __asm("d1"),
+                                                               register CONST struct TagItem *tags __asm("a1") )
+{
+    DPRINTF (LOG_DEBUG, "_workbench: AddAppWindowDropZoneA() aw=0x%08lx id=%ld (stub)\n",
+             (ULONG)aw, id);
+    return NULL;
+}
+
+BOOL _workbench_RemoveAppWindowDropZone ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+                                          register struct AppWindow *aw __asm("a0"),
+                                          register struct AppWindowDropZone *dropZone __asm("a1") )
+{
+    DPRINTF (LOG_DEBUG, "_workbench: RemoveAppWindowDropZone() aw=0x%08lx dropZone=0x%08lx (stub)\n",
+             (ULONG)aw, (ULONG)dropZone);
+    return FALSE;
+}
+
+BOOL _workbench_ChangeWorkbenchSelectionA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+                                            register CONST_STRPTR name __asm("a0"),
+                                            register struct Hook *hook __asm("a1"),
+                                            register CONST struct TagItem *tags __asm("a2") )
+{
+    DPRINTF (LOG_DEBUG, "_workbench: ChangeWorkbenchSelectionA() name='%s' (stub)\n",
+             STRORNULL(name));
+    return FALSE;
+}
+
+BOOL _workbench_MakeWorkbenchObjectVisibleA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+                                              register CONST_STRPTR name __asm("a0"),
+                                              register CONST struct TagItem *tags __asm("a1") )
+{
+    DPRINTF (LOG_DEBUG, "_workbench: MakeWorkbenchObjectVisibleA() name='%s' (stub)\n",
+             STRORNULL(name));
+    return FALSE;
+}
+
+ULONG _workbench_WhichWorkbenchObjectA ( register struct WorkbenchBase *WorkbenchBase __asm("a6"),
+                                         register struct Window *window __asm("a0"),
+                                         register LONG mousex __asm("d0"),
+                                         register LONG mousey __asm("d1"),
+                                         register CONST struct TagItem *tags __asm("a1") )
+{
+    DPRINTF (LOG_DEBUG, "_workbench: WhichWorkbenchObjectA() window=0x%08lx mouse=%ld,%ld (stub)\n",
+             (ULONG)window, mousex, mousey);
+    return WBO_NONE;
+}
+
 /* Reserved/Private functions */
 static ULONG _workbench_Private1 ( void ) { return 0; }
 static ULONG _workbench_Private2 ( void ) { return 0; }
 static ULONG _workbench_Private3 ( void ) { return 0; }
-static ULONG _workbench_Private4 ( void ) { return 0; }
 
 /*
  * Library structure definitions
@@ -261,8 +404,8 @@ APTR __g_lxa_workbench_FuncTab [] =
     __g_lxa_workbench_CloseLib,          // -12  Standard
     __g_lxa_workbench_ExpungeLib,        // -18  Standard
     __g_lxa_workbench_ExtFuncLib,        // -24  Standard (reserved)
-    _workbench_Private1,                 // -30  Private (V36)
-    _workbench_UpdateWorkbench,          // -36  UpdateWorkbench (V36)
+    _workbench_UpdateWorkbench,          // -30  UpdateWorkbench (V36)
+    _workbench_Private1,                 // -36  Private (V36)
     _workbench_Private2,                 // -42  Private (V36)
     _workbench_AddAppWindowA,            // -48  AddAppWindowA (V36)
     _workbench_RemoveAppWindow,          // -54  RemoveAppWindow (V36)
@@ -272,9 +415,14 @@ APTR __g_lxa_workbench_FuncTab [] =
     _workbench_RemoveAppMenuItem,        // -78  RemoveAppMenuItem (V36)
     _workbench_Private3,                 // -84  Private (V39)
     _workbench_WBInfo,                   // -90  WBInfo (V39)
-    _workbench_Private4,                 // -96  Private (V44)
-    _workbench_OpenWorkbenchObjectA,     // -102 OpenWorkbenchObjectA (V44)
-    _workbench_CloseWorkbenchObjectA,    // -108 CloseWorkbenchObjectA (V44)
+    _workbench_OpenWorkbenchObjectA,     // -96  OpenWorkbenchObjectA (V44)
+    _workbench_CloseWorkbenchObjectA,    // -102 CloseWorkbenchObjectA (V44)
+    _workbench_WorkbenchControlA,        // -108 WorkbenchControlA (V44)
+    _workbench_AddAppWindowDropZoneA,    // -114 AddAppWindowDropZoneA (V44)
+    _workbench_RemoveAppWindowDropZone,  // -120 RemoveAppWindowDropZone (V44)
+    _workbench_ChangeWorkbenchSelectionA,// -126 ChangeWorkbenchSelectionA (V44)
+    _workbench_MakeWorkbenchObjectVisibleA, // -132 MakeWorkbenchObjectVisibleA (V44)
+    _workbench_WhichWorkbenchObjectA,    // -138 WhichWorkbenchObjectA (V47)
     (APTR) ((LONG)-1)
 };
 

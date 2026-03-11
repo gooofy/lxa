@@ -779,20 +779,22 @@ Status: complete in 0.6.124.
 
 #### 78-T: Workbench & Icon Libraries (`src/rom/lxa_workbench.c`, `src/rom/lxa_icon.c`)
 
-- [ ] `GetDiskObjectNew` / `GetDiskObject` / `PutDiskObject` / `FreeDiskObject` — `.info` file parsing
-- [ ] `DiskObject` structure — do_Magic, do_Version, do_Gadget, do_Type, do_DefaultTool, do_ToolArray, do_StackSize, do_ToolTypes
-- [ ] `FindToolType` / `MatchToolValue` — ToolTypes array search
-- [ ] `AddAppWindow` / `RemoveAppWindow` / `AddAppIcon` / `RemoveAppIcon` / `AddAppMenuItem` / `RemoveAppMenuItem`
-- [ ] `WBInfo` — info requester
-- [ ] `MakeWorkbenchGadgetA` — custom icon rendering via BOOPSI
-- [ ] `OpenWorkbench` / `CloseWorkbench`
-- [ ] `ChangeWorkbench` notification
+Status: complete in 0.7.16.
+
+- [x] `GetDiskObjectNew` / `GetDiskObject` / `PutDiskObject` / `FreeDiskObject` — `.info` round-trips plus default-icon fallback for drawers/tools/projects now have direct regression coverage via `Tests/Icon/DiskObject` (v0.7.16)
+- [x] `DiskObject` structure — `do_Magic`, `do_Version`, `do_Gadget`, `do_Type`, `do_DefaultTool`, `do_ToolTypes`, `do_StackSize`, and `do_ToolWindow` now have direct read/write coverage via `Tests/Icon/DiskObject` (v0.7.16)
+- [x] `FindToolType` / `MatchToolValue` — ToolTypes array search is locked down by `Tests/Icon/ToolType` (v0.7.16)
+- [x] `AddAppWindow` / `RemoveAppWindow` / `AddAppIcon` / `RemoveAppIcon` / `AddAppMenuItem` / `RemoveAppMenuItem` — hosted compatibility now uses allocated opaque handles instead of fixed dummy pointers, with direct regression coverage via `Tests/Workbench/AppObjects` (v0.7.16)
+- [x] `WBInfo` — current hosted compatibility correctly reports the requester as unavailable without a real Workbench task/UI model, with direct regression coverage via `Tests/Workbench/AppObjects` (v0.7.16)
+- [x] `MakeWorkbenchGadgetA` — verified out of scope after checking the bundled NDK 3.2 and AROS public workbench/icon surfaces; no exported API with this name is present, and icon rendering remains covered through `icon.library` drawing/AppIcon compatibility paths instead (v0.7.16)
+- [x] `OpenWorkbench` / `CloseWorkbench` — verified as the public misspelled `OpenWorkBench()` / `CloseWorkBench()` intuition.library APIs already covered under Phase 78-E via `Tests/Intuition/ScreenManipulation` (v0.6.118)
+- [x] `ChangeWorkbench` notification — verified against the bundled NDK 3.2 public surface as `ChangeWorkbenchSelectionA()` rather than a standalone `ChangeWorkbench()` API; current hosted compatibility returns unavailable and is covered directly in `Tests/Workbench/AppObjects` (v0.7.16)
 
 ##### 78-T-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — basic Workbench AppWindow/AppIcon/AppMenuItem lifecycle now uses allocated opaque handles, `GetDiskObjectNew()` falls back by examined file type, and the public V44/V47 workbench.library entry table now matches the bundled NDK offsets with direct hosted fallback coverage for the remaining unsupported helpers (v0.7.16)
+- [x] Architecture review: workbench.library still open-codes its private app-object bookkeeping in `lxa_workbench.c`; Phase 79 now tracks factoring that compatibility state behind shared helpers before drop-zone/object-query support grows (v0.7.16)
+- [x] Performance review: current workbench.library compatibility allocates and frees one small record per registered AppWindow/AppIcon/AppMenuItem; Phase 79 now tracks reusing lightweight private records once broader Workbench support lands (v0.7.16)
 
 
 
@@ -916,6 +918,7 @@ Status: complete in 0.6.124.
 - [ ] Layers architecture: separate future private layers state (shape hooks, nested-family bookkeeping, visibility-only metadata) from public `struct Layer` fields so unsupported V50+ semantics can grow without coupling to public layout hacks
 - [ ] Intuition architecture: centralize screen-type classification and Workbench-screen lookup behind shared helpers so Workbench/public-screen paths cannot drift on mixed screen lists
 - [ ] Intuition architecture: separate private screen-order bookkeeping from public `struct Screen` list links so future Workbench/public-screen behavior can grow without overloading public flags semantics
+- [ ] Workbench architecture: factor AppWindow/AppIcon/AppMenuItem private handle bookkeeping behind shared helpers or companions so registration, teardown, and future drop-zone/object-query paths cannot drift semantically
 - [ ] GadTools architecture: factor shared gadget/menu label creation, underscore handling, and pen/font resolution behind reusable helpers so gadget, menu, and bevel rendering paths cannot drift semantically
 - [ ] GadTools architecture: introduce compact private companions for GadTools-owned menu/item metadata instead of overloading public structs with ad-hoc hosted allocations when more V39+ features land
 - [ ] Utility architecture: factor named-object/root-namespace bookkeeping behind shared private helpers or companions instead of open-coding list/semaphore ownership inside `lxa_utility.c` before remaining utility APIs expand further
@@ -924,6 +927,7 @@ Status: complete in 0.6.124.
 - [ ] Graphics performance: avoid repeated palette list walks in `ObtainBestPenA()`/`FindColor()` by caching exact-match or nearest-pen hints inside palette-extra state
 - [ ] Graphics performance: skip redundant viewport/display updates when `ScrollVPort()` or `ChangeVPBitMap()` are called with unchanged state
 - [ ] Intuition performance: cache the current Workbench screen pointer or tail/front bookkeeping so `OpenWorkBench()`, `WBenchToFront()`, and `WBenchToBack()` avoid repeated full screen-list scans
+- [ ] Workbench performance: reuse lightweight private app-object records instead of allocating and freeing one new hosted bookkeeping block per `AddAppWindowA()` / `AddAppIconA()` / `AddAppMenuItemA()` registration when broader Workbench support grows
 - [ ] Layers performance: avoid full `RebuildAllClipRects()` passes for simple z-order/visibility changes by recomputing only the affected layer span
 - [ ] Layers performance: replace coarse `DamageExposedAreas()` whole-intersection refreshes with exact exposed-rectangle splitting to reduce redundant refresh damage on move/size/delete paths
 - [ ] GadTools performance: cache per-menu/item text extents and derived layout widths so repeated `LayoutMenusA()`/`LayoutMenuItemsA()` calls avoid re-measuring every label and submenu chain

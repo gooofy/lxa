@@ -88,6 +88,9 @@ struct IconBase {
     BPTR           SegList;
 };
 
+struct DiskObject * _icon_GetDefDiskObject ( register struct IconBase *IconBase __asm("a6"),
+                                             register LONG              type    __asm("d0"));
+
 /* 
  * .info file format (simplified):
  * - DiskObject header (do_Magic, do_Version)
@@ -255,13 +258,42 @@ static STRPTR ReadBCPLString(BPTR fh)
     return str;
 }
 
+static LONG GuessDiskObjectType(CONST_STRPTR name)
+{
+    struct FileInfoBlock fib;
+    BPTR lock;
+
+    if (!name)
+        return WBPROJECT;
+
+    lock = Lock(name, ACCESS_READ);
+    if (!lock)
+        return WBPROJECT;
+
+    if (!Examine(lock, &fib))
+    {
+        UnLock(lock);
+        return WBPROJECT;
+    }
+
+    UnLock(lock);
+
+    if (fib.fib_DirEntryType > 0)
+        return WBDRAWER;
+
+    if ((fib.fib_Protection & FIBF_EXECUTE) == 0)
+        return WBTOOL;
+
+    return WBPROJECT;
+}
+
 struct DiskObject * _icon_GetDiskObject ( register struct IconBase *IconBase __asm("a6"),
                                           register CONST_STRPTR     name     __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_icon: GetDiskObject() called name='%s'\n", name ? (char*)name : "(null)");
     
     if (!name)
-        return NULL;
+        return AllocMem(sizeof(struct DiskObject), MEMF_CLEAR | MEMF_PUBLIC);
     
     /* Build .info filename */
     LONG nameLen = strlen((const char *)name);
@@ -444,9 +476,10 @@ struct DiskObject * _icon_GetDiskObjectNew ( register struct IconBase *IconBase 
     
     if (!dobj)
     {
-        /* If no icon exists, return a default icon based on file type */
-        /* For now, just return NULL - GetDefDiskObject would need file type detection */
-        DPRINTF (LOG_DEBUG, "_icon: GetDiskObjectNew() - no icon found, returning NULL\n");
+        LONG type = GuessDiskObjectType(name);
+
+        DPRINTF (LOG_DEBUG, "_icon: GetDiskObjectNew() - using default type=%ld\n", type);
+        dobj = _icon_GetDefDiskObject(IconBase, type);
     }
     
     return dobj;

@@ -244,6 +244,8 @@ set(TESTS_LIST
     "../tests/shell/controlflow|main|Tests/Shell/ControlFlow/Test"
     "../tests/shell/script|main|Tests/Shell/Script/Test"
     "../tests/shell/variables|main|Tests/Shell/Variables/Test"
+    "../tests/workbench/appobjects|main|Tests/Workbench/AppObjects"
+    "../tests/icon/diskobject|main|Tests/Icon/DiskObject"
     "../tests/icon/tooltype|main|Tests/Icon/ToolType"
     "../tests/iffparse/basic|main|Tests/IffParse/Basic"
     "../tests/datatypes/test_basic|main|Tests/DataTypes/Basic"
