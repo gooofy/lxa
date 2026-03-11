@@ -134,103 +134,6 @@ struct LxaConUnit {
     struct IOStdReq *pending_read;  /* Currently pending async read, or NULL */
 };
 
-/*
- * Rawkey to ASCII conversion table (unshifted)
- * Index by rawkey code (0x00-0x67), value is ASCII character
- * 0 = no printable character
- */
-static const char rawkey_to_ascii_unshifted[128] = {
-    /* 0x00-0x0F: top row (`, 1-9, 0, -, =, \, unassigned, KP0) */
-    '`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\\', 0, '0',
-    /* 0x10-0x1F: qwerty row (q-p, [, ], unassigned, KP1-3) */
-    'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', 0, '1', '2', '3',
-    /* 0x20-0x2F: asdf row (a-;, ', unassigned, unassigned, KP4-6) */
-    'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', 0, 0, '4', '5', '6',
-    /* 0x30-0x3F: zxcv row (unassigned, z-/, unassigned, KP., KP7-9) */
-    0, 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '.', '7', '8', '9',
-    /* 0x40-0x4F: space, backspace, tab, KP enter, return, esc, del, unassigned, up, down, right, left */
-    ' ', '\b', '\t', '\r', '\r', 0x1B, 0x7F, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    /* 0x50-0x5F: F1-F10, unassigned... */
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    /* 0x60-0x6F: modifiers and more */
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    /* 0x70-0x7F: unused */
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
-
-/*
- * Rawkey to ASCII conversion table (shifted)
- */
-static const char rawkey_to_ascii_shifted[128] = {
-    /* 0x00-0x0F: top row (~, !-), _, +, |, unassigned, KP0) */
-    '~', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '|', 0, '0',
-    /* 0x10-0x1F: qwerty row (Q-P, {, }, unassigned, KP1-3) */
-    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', 0, '1', '2', '3',
-    /* 0x20-0x2F: asdf row (A-:, ", unassigned, unassigned, KP4-6) */
-    'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', 0, 0, '4', '5', '6',
-    /* 0x30-0x3F: zxcv row (unassigned, Z-?, unassigned, KP., KP7-9) */
-    0, 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '.', '7', '8', '9',
-    /* 0x40-0x4F: space, backspace, tab, KP enter, return, esc, del */
-    ' ', '\b', '\t', '\r', '\r', 0x1B, 0x7F, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    /* 0x50-0x7F: rest unchanged */
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
-
-/*
- * Convert Amiga rawkey + qualifier to ASCII character
- * Returns 0 if no printable character
- */
-static char rawkey_to_ascii(UWORD rawkey, UWORD qualifier)
-{
-    char c;
-    BOOL shifted;
-    
-    /* Ignore key-up events (high bit set) */
-    if (rawkey & 0x80) return 0;
-    
-    /* Bounds check */
-    if (rawkey >= 128) return 0;
-    
-    /* Check shift state */
-    shifted = (qualifier & (0x0001 | 0x0002)) != 0;  /* IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT */
-    
-    /* Check caps lock for letters */
-    if (qualifier & 0x0004) {  /* IEQUALIFIER_CAPSLOCK */
-        /* Caps lock only affects letters (a-z = 0x20-0x39) */
-        if ((rawkey >= 0x10 && rawkey <= 0x19) ||  /* qwerty row */
-            (rawkey >= 0x20 && rawkey <= 0x28) ||  /* asdf row */
-            (rawkey >= 0x31 && rawkey <= 0x3A))    /* zxcv row */
-        {
-            shifted = !shifted;
-        }
-    }
-    
-    c = shifted ? rawkey_to_ascii_shifted[rawkey] : rawkey_to_ascii_unshifted[rawkey];
-    
-    /* Handle Control key - convert to control character */
-    if (c && (qualifier & 0x0008)) {  /* IEQUALIFIER_CONTROL */
-        if (c >= 'a' && c <= 'z') {
-            c = c - 'a' + 1;  /* Ctrl+A = 0x01, etc. */
-        } else if (c >= 'A' && c <= 'Z') {
-            c = c - 'A' + 1;
-        } else if (c == '[') {
-            c = 0x1B;  /* ESC */
-        } else if (c == '\\') {
-            c = 0x1C;
-        } else if (c == ']') {
-            c = 0x1D;
-        } else if (c == '^' || c == '6') {
-            c = 0x1E;
-        } else if (c == '_' || c == '-') {
-            c = 0x1F;
-        }
-    }
-    
-    return c;
-}
-
 static void console_copy_keymap(struct KeyMap *dest, const struct KeyMap *src)
 {
     if (!dest || !src) {
@@ -327,7 +230,7 @@ static WORD console_map_rawkey(struct LxaConUnit *unit, UWORD rawkey, UWORD qual
         }
     }
 
-    buffer[0] = rawkey_to_ascii(rawkey, qualifier);
+    buffer[0] = U_rawkeyToVanilla(rawkey, qualifier);
     return buffer[0] ? 1 : 0;
 }
 
@@ -622,6 +525,51 @@ static UWORD input_buf_count(struct LxaConUnit *unit)
     } else {
         return INPUT_BUF_LEN - unit->input_tail + unit->input_head;
     }
+}
+
+static BOOL input_has_line(struct LxaConUnit *unit);
+
+static void input_buf_clear(struct LxaConUnit *unit)
+{
+    if (!unit) {
+        return;
+    }
+
+    unit->input_head = 0;
+    unit->input_tail = 0;
+}
+
+static BOOL console_input_ready(struct LxaConUnit *unit)
+{
+    if (!unit) {
+        return FALSE;
+    }
+
+    if (unit->line_mode) {
+        return input_has_line(unit) || !input_buf_empty(unit);
+    }
+
+    return !input_buf_empty(unit);
+}
+
+static LONG console_consume_input(struct LxaConUnit *unit, char *data, LONG len)
+{
+    LONG count = 0;
+
+    if (!unit || !data || len <= 0) {
+        return 0;
+    }
+
+    while (count < len && !input_buf_empty(unit)) {
+        char c = input_buf_get(unit);
+        data[count++] = c;
+
+        if (unit->line_mode && (c == '\r' || c == '\n')) {
+            break;
+        }
+    }
+
+    return count;
 }
 
 /*
@@ -1757,12 +1705,12 @@ static void console_try_complete_pending_read(struct LxaConUnit *unit)
         /* In line mode, any available buffered data may satisfy the read.
          * A complete line is common for cooked keyboard input, but console
          * reads also return escape/report sequences without trailing newlines. */
-        if (!input_has_line(unit) && input_buf_empty(unit)) {
+        if (!console_input_ready(unit)) {
             return;  /* Not ready yet */
         }
     } else {
         /* In raw mode, any data is enough */
-        if (input_buf_empty(unit)) {
+        if (!console_input_ready(unit)) {
             return;  /* Not ready yet */
         }
     }
@@ -1780,15 +1728,7 @@ static void console_try_complete_pending_read(struct LxaConUnit *unit)
     data = (char *)iostd->io_Data;
     len = iostd->io_Length;
     
-    while (count < len && !input_buf_empty(unit)) {
-        char c = input_buf_get(unit);
-        data[count++] = c;
-        
-        /* In line mode, stop at newline */
-        if (unit->line_mode && (c == '\r' || c == '\n')) {
-            break;
-        }
-    }
+    count = console_consume_input(unit, data, len);
     
     iostd->io_Actual = count;
     iostd->io_Error = 0;
@@ -3354,37 +3294,19 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 console_process_input(unit);
                 
                 /* Check if we have enough data to satisfy the request immediately */
-            if (unit->line_mode) {
-                /* In line mode, need a complete line OR existing buffer data */
-                data_available = input_has_line(unit) || !input_buf_empty(unit);
-            } else {
-                /* In raw mode, any data is enough */
-                data_available = !input_buf_empty(unit);
-            }
+                data_available = console_input_ready(unit);
 
-            if (!data_available) {
-                console_process_input(unit);
-                if (unit->line_mode) {
-                    data_available = input_has_line(unit) || !input_buf_empty(unit);
-                } else {
-                    data_available = !input_buf_empty(unit);
+                if (!data_available) {
+                    console_process_input(unit);
+                    data_available = console_input_ready(unit);
                 }
-            }
                  
             if (data_available) {
                     /* Data is available - complete immediately */
                     console_hide_cursor(unit);
                     
                     /* Copy available characters to buffer */
-                    while (count < len && !input_buf_empty(unit)) {
-                        char c = input_buf_get(unit);
-                        data[count++] = c;
-                        
-                        /* In line mode, stop at newline */
-                        if (unit->line_mode && (c == '\r' || c == '\n')) {
-                            break;
-                        }
-                    }
+                    count = console_consume_input(unit, data, len);
                     
                     iostd->io_Actual = count;
                     ioreq->io_Error = 0;
@@ -3482,8 +3404,7 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
             DPRINTF(LOG_DEBUG, "_console: CMD_CLEAR (clearing input buffer)\n");
             if (unit) {
                 /* Reset the input ring buffer */
-                unit->input_head = 0;
-                unit->input_tail = 0;
+                input_buf_clear(unit);
             }
             break;
             

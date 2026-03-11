@@ -73,21 +73,6 @@ struct TimerUnit
  * Helper: Get current host time via emucall
  * EMU_CALL_GETSYSTIME takes pointer to struct timeval and fills it
  */
-static void get_raw_time(struct timeval *tv)
-{
-    /* Use emucall to get time from host - pass pointer to timeval struct */
-    emucall1(EMU_CALL_GETSYSTIME, (ULONG)tv);
-}
-
-static void normalize_timeval(struct timeval *tv)
-{
-    while (tv->tv_micro >= 1000000)
-    {
-        tv->tv_secs++;
-        tv->tv_micro -= 1000000;
-    }
-}
-
 static void zero_request_time(struct timerequest *tr)
 {
     tr->tr_time.tv_secs = 0;
@@ -99,7 +84,7 @@ static void get_current_time(struct TimerBase *timerbase, struct timeval *tv)
     LONG secs;
     LONG micros;
 
-    get_raw_time(tv);
+    U_getSysTime(tv);
 
     secs = (LONG)tv->tv_secs + timerbase->tb_TimeOffsetSecs;
     micros = (LONG)tv->tv_micro + timerbase->tb_TimeOffsetMicro;
@@ -248,8 +233,8 @@ static void timer_read_eclock_ticks(struct TimerBase *timerbase, ULONG *ticks_hi
     ULONG prod_lo;
     ULONG frac_ticks;
 
-    get_raw_time(&raw_time);
-    normalize_timeval(&raw_time);
+    U_getSysTime(&raw_time);
+    U_normalizeTimeval(&raw_time);
 
     mul_u32_u32_to_u64(raw_time.tv_secs, timerbase->tb_EClock, &prod_hi, &prod_lo);
     frac_ticks = (raw_time.tv_micro * timerbase->tb_EClock) / 1000000UL;
@@ -563,8 +548,8 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
             DPRINTF (LOG_DEBUG, "_timer: TR_SETSYSTIME %lu.%06lu\n",
                      tr->tr_time.tv_secs, tr->tr_time.tv_micro);
 
-            get_raw_time(&raw_time);
-            normalize_timeval(&raw_time);
+            U_getSysTime(&raw_time);
+            U_normalizeTimeval(&raw_time);
 
             timerbase->tb_TimeOffsetSecs = (LONG)tr->tr_time.tv_secs - (LONG)raw_time.tv_secs;
             timerbase->tb_TimeOffsetMicro = (LONG)tr->tr_time.tv_micro - (LONG)raw_time.tv_micro;
@@ -604,7 +589,7 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
             if (timer_unit) {
                 switch (timer_unit->tu_UnitNum) {
                     case UNIT_VBLANK:
-                        normalize_timeval(&tr->tr_time);
+                        U_normalizeTimeval(&tr->tr_time);
                         delay_secs = tr->tr_time.tv_secs;
                         delay_micro = tr->tr_time.tv_micro;
                         round_up_to_vblank(&delay_secs, &delay_micro);
@@ -678,7 +663,7 @@ static BPTR __g_lxa_timer_BeginIO ( register struct Library   *dev   __asm("a6")
                     case UNIT_MICROHZ:
                     default:
                         /* UNIT_MICROHZ: delay is in seconds + microseconds (standard) */
-                        normalize_timeval(&tr->tr_time);
+                        U_normalizeTimeval(&tr->tr_time);
                         delay_secs = tr->tr_time.tv_secs;
                         delay_micro = tr->tr_time.tv_micro;
                         break;
@@ -804,8 +789,8 @@ static void __g_lxa_timer_AddTime (
     DPRINTF(LOG_DEBUG, "_timer: AddTime(%lu.%06lu + %lu.%06lu)\n",
             dest->tv_secs, dest->tv_micro, src->tv_secs, src->tv_micro);
 
-    normalize_timeval(dest);
-    normalize_timeval(src);
+    U_normalizeTimeval(dest);
+    U_normalizeTimeval(src);
     
     timeval_add(dest, dest, src);
     
@@ -824,8 +809,8 @@ static void __g_lxa_timer_SubTime (
     DPRINTF(LOG_DEBUG, "_timer: SubTime(%lu.%06lu - %lu.%06lu)\n",
             dest->tv_secs, dest->tv_micro, src->tv_secs, src->tv_micro);
 
-    normalize_timeval(dest);
-    normalize_timeval(src);
+    U_normalizeTimeval(dest);
+    U_normalizeTimeval(src);
     
     timeval_sub(dest, dest, src);
     
@@ -844,8 +829,8 @@ static LONG __g_lxa_timer_CmpTime (
 {
     LONG result;
 
-    normalize_timeval(dest);
-    normalize_timeval(src);
+    U_normalizeTimeval(dest);
+    U_normalizeTimeval(src);
 
     result = timeval_cmp(dest, src);
     

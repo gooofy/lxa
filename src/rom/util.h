@@ -4,6 +4,8 @@
 #include "emucalls.h"
 
 #include <exec/types.h>
+#include <devices/inputevent.h>
+#include <devices/timer.h>
 
 #include "dos/dos.h"
 #include "dos/dosextens.h"
@@ -107,6 +109,12 @@ char *strcat(char *dest, const char *src);
                      ? ((struct Node *)(n))->ln_Pred : (struct Node *)0)
 
 void            U_hexdump        (int lvl, void *mem, unsigned int len);
+void            U_getSysTime     (struct timeval *tv);
+void            U_normalizeTimeval(struct timeval *tv);
+char            U_rawkeyToVanilla(UWORD rawkey, UWORD qualifier);
+
+struct Task    *U_getCurrentTask (void);
+struct Process *U_getCurrentProcess(void);
 
 struct Task    *U_allocTask      (STRPTR name, LONG pri, ULONG stacksize, BOOL isProcess);
 void            U_prepareTask    (struct Task *task, APTR initPC, APTR finalPC, char *args);

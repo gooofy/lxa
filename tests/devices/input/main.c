@@ -266,6 +266,12 @@ int main(void)
         test_fail("Handler ordering/mutation mismatch");
     }
 
+    if (g_first_last_x == 12 && g_first_last_y == 34 && g_second_last_x == 12 && g_second_last_y == 34) {
+        test_ok("Event coordinates preserved");
+    } else {
+        test_fail("Event coordinates mismatch");
+    }
+
     if (PeekQualifier() == IEQUALIFIER_LSHIFT) {
         test_ok("PeekQualifier tracks rawkey qualifier state");
     } else {
@@ -332,12 +338,6 @@ int main(void)
         test_fail("PeekQualifier did not clear released key qualifiers");
     }
 
-    if (g_first_last_x == 12 && g_first_last_y == 34 && g_second_last_x == 12 && g_second_last_y == 34) {
-        test_ok("Event coordinates preserved");
-    } else {
-        test_fail("Event coordinates mismatch");
-    }
-
     reset_counters();
     add_events[0].ie_NextEvent = NULL;
     add_events[0].ie_Class = IECLASS_RAWKEY;
@@ -401,10 +401,15 @@ int main(void)
     time_req->tr_node.io_Command = IND_SETTHRESH;
     time_req->tr_node.io_Flags = IOF_QUICK;
     time_req->tr_time.tv_secs = 0;
-    time_req->tr_time.tv_micro = 250000;
+    time_req->tr_time.tv_micro = 1250000;
     DoIO((struct IORequest *)time_req);
     if (time_req->tr_node.io_Error == 0) {
         test_ok("IND_SETTHRESH accepted timeval");
+        if (time_req->tr_time.tv_secs == 1 && time_req->tr_time.tv_micro == 250000) {
+            test_ok("IND_SETTHRESH normalized timeval payload");
+        } else {
+            test_fail("IND_SETTHRESH did not normalize timeval payload");
+        }
     } else {
         test_fail("IND_SETTHRESH failed");
     }
@@ -412,10 +417,15 @@ int main(void)
     time_req->tr_node.io_Command = IND_SETPERIOD;
     time_req->tr_node.io_Flags = IOF_QUICK;
     time_req->tr_time.tv_secs = 0;
-    time_req->tr_time.tv_micro = 30000;
+    time_req->tr_time.tv_micro = 2030000;
     DoIO((struct IORequest *)time_req);
     if (time_req->tr_node.io_Error == 0) {
         test_ok("IND_SETPERIOD accepted timeval");
+        if (time_req->tr_time.tv_secs == 2 && time_req->tr_time.tv_micro == 30000) {
+            test_ok("IND_SETPERIOD normalized timeval payload");
+        } else {
+            test_fail("IND_SETPERIOD did not normalize timeval payload");
+        }
     } else {
         test_fail("IND_SETPERIOD failed");
     }

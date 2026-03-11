@@ -124,6 +124,13 @@ protected:
             RunCyclesWithVBlank(10);
             PressKey(RAWKEY_A, 0);
             RunCyclesWithVBlank(20);
+        } else if (strcmp(name, "keymap_unit") == 0) {
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for remapped input", 8000));
+            RunCyclesWithVBlank(10);
+            PressKey(RAWKEY_A, 0);
+            RunCyclesWithVBlank(20);
         } else if (strcmp(name, "scrollback_unit") == 0) {
             ASSERT_TRUE(WaitForWindows(1, 5000));
 
@@ -158,9 +165,12 @@ TEST_F(ConsoleTest, CSIUnit) { RunConsoleTest("csi_unit"); }
 TEST_F(ConsoleTest, SGRUnit) { RunConsoleTest("sgr_unit"); }
 TEST_F(ConsoleTest, RawEventsUnit) { RunConsoleTest("raw_events_unit"); }
 TEST_F(ConsoleTest, ScrollbackUnit) { RunConsoleTest("scrollback_unit"); }
-TEST_F(ConsoleTest, KeymapUnit) {
-    int result = RunProgram("SYS:AskKeymap");
+TEST_F(ConsoleTest, KeymapUnit) { RunConsoleTest("keymap_unit"); }
+TEST_F(ConsoleTest, ConsoleAsync) {
+    int result = RunProgram("SYS:Tests/Devices/ConsoleAsync");
     EXPECT_EQ(result, 0);
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("PASS"), std::string::npos);
 }
 TEST_F(ConsoleTest, ConHandler) { RunConsoleTest("con_handler"); }
 TEST_F(ConsoleTest, KP2Test) { RunConsoleTest("kp2_test"); }

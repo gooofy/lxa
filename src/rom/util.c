@@ -22,6 +22,16 @@
 
 extern struct ExecBase *SysBase;
 
+struct Task *U_getCurrentTask(void)
+{
+    return SysBase->ThisTask;
+}
+
+struct Process *U_getCurrentProcess(void)
+{
+    return (struct Process *)U_getCurrentTask();
+}
+
 // a union to handle the
 union _d_bits {
 	double d;
@@ -163,6 +173,114 @@ void  emu_trace (BOOL enable)
 void emu_monitor (void)
 {
     emucall0 (EMU_CALL_MONITOR);
+}
+
+void U_getSysTime(struct timeval *tv)
+{
+    if (!tv)
+    {
+        return;
+    }
+
+    emucall1(EMU_CALL_GETSYSTIME, (ULONG)tv);
+}
+
+void U_normalizeTimeval(struct timeval *tv)
+{
+    if (!tv)
+    {
+        return;
+    }
+
+    while (tv->tv_micro >= 1000000)
+    {
+        tv->tv_secs++;
+        tv->tv_micro -= 1000000;
+    }
+}
+
+char U_rawkeyToVanilla(UWORD rawkey, UWORD qualifier)
+{
+    static const char unshifted[128] = {
+        '`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\\', 0, '0',
+        'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', 0, '1', '2', '3',
+        'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', 0, 0, '4', '5', '6',
+        0, 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/', 0, '.', '7', '8', '9',
+        ' ', '\b', '\t', '\r', '\r', 0x1B, 0x7F, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    };
+    static const char shifted[128] = {
+        '~', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', '|', 0, '0',
+        'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', 0, '1', '2', '3',
+        'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', 0, 0, '4', '5', '6',
+        0, 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '<', '>', '?', 0, '.', '7', '8', '9',
+        ' ', '\b', '\t', '\r', '\r', 0x1B, 0x7F, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    };
+    char c;
+    BOOL shifted_state;
+
+    if (rawkey & IECODE_UP_PREFIX)
+    {
+        return 0;
+    }
+
+    if (rawkey >= 128)
+    {
+        return 0;
+    }
+
+    shifted_state = (qualifier & (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT)) != 0;
+
+    if (qualifier & IEQUALIFIER_CAPSLOCK)
+    {
+        if ((rawkey >= 0x10 && rawkey <= 0x19) ||
+            (rawkey >= 0x20 && rawkey <= 0x28) ||
+            (rawkey >= 0x31 && rawkey <= 0x3A))
+        {
+            shifted_state = !shifted_state;
+        }
+    }
+
+    c = shifted_state ? shifted[rawkey] : unshifted[rawkey];
+
+    if (c && (qualifier & IEQUALIFIER_CONTROL))
+    {
+        if (c >= 'a' && c <= 'z')
+        {
+            c = c - 'a' + 1;
+        }
+        else if (c >= 'A' && c <= 'Z')
+        {
+            c = c - 'A' + 1;
+        }
+        else if (c == '[')
+        {
+            c = 0x1B;
+        }
+        else if (c == '\\')
+        {
+            c = 0x1C;
+        }
+        else if (c == ']')
+        {
+            c = 0x1D;
+        }
+        else if (c == '^' || c == '6')
+        {
+            c = 0x1E;
+        }
+        else if (c == '_' || c == '-')
+        {
+            c = 0x1F;
+        }
+    }
+
+    return c;
 }
 
 void lputc (int level, char c)
@@ -767,7 +885,7 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
      * Inherit pr_ConsoleTask and pr_FileSystemTask from the parent process,
      * per RKRM: "A process inherits these fields from its parent."
      */
-    struct Process *parent = (struct Process *) FindTask(NULL);
+    struct Process *parent = U_getCurrentProcess();
     if (parent && parent->pr_Task.tc_Node.ln_Type == NT_PROCESS)
     {
         process->pr_ConsoleTask    = parent->pr_ConsoleTask;

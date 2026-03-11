@@ -54,16 +54,6 @@ struct InputBase
 
 static struct InputBase *g_input_base = NULL;
 
-static void input_get_systime(struct timeval *tv)
-{
-    if (!tv)
-    {
-        return;
-    }
-
-    emucall1(EMU_CALL_GETSYSTIME, (ULONG)tv);
-}
-
 static void input_init_defaults(struct InputBase *inputbase)
 {
     if (!inputbase)
@@ -189,7 +179,7 @@ static void input_prepare_event(struct InputBase *inputbase,
     event->ie_Qualifier = (event->ie_Qualifier & ~QUALIFIER_STATE_MASK) |
                           inputbase->ib_ActQualifier;
     event->ie_NextEvent = NULL;
-    input_get_systime(&event->ie_TimeStamp);
+    U_getSysTime(&event->ie_TimeStamp);
 }
 
 static LONG input_dispatch_single_event(struct InputBase *inputbase,
@@ -358,12 +348,12 @@ static BPTR __g_lxa_input_BeginIO(register struct Library *dev __asm("a6"),
         }
 
         case IND_SETTHRESH:
-            ((struct timerequest *)ioreq)->tr_time.tv_micro %= 1000000;
+            U_normalizeTimeval(&((struct timerequest *)ioreq)->tr_time);
             inputbase->ib_KeyRepeatThreshold = ((struct timerequest *)ioreq)->tr_time;
             break;
 
         case IND_SETPERIOD:
-            ((struct timerequest *)ioreq)->tr_time.tv_micro %= 1000000;
+            U_normalizeTimeval(&((struct timerequest *)ioreq)->tr_time);
             inputbase->ib_KeyRepeatPeriod = ((struct timerequest *)ioreq)->tr_time;
             break;
 
