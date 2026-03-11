@@ -24,6 +24,33 @@ char __aligned _g_expansion_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase      *SysBase;
 
+struct LXAExpansionBase
+{
+    struct Library LibNode;
+    UBYTE Flags;
+    UBYTE eb_Private01;
+    ULONG eb_Private02;
+    ULONG eb_Private03;
+    struct CurrentBinding eb_Private04;
+    struct List BoardList;
+    struct List MountList;
+};
+
+static struct List *expansion_board_list(struct ExpansionBase *ExpansionBase)
+{
+    return &((struct LXAExpansionBase *)ExpansionBase)->BoardList;
+}
+
+static VOID expansion_lock_binding(void)
+{
+    Forbid();
+}
+
+static VOID expansion_unlock_binding(void)
+{
+    Permit();
+}
+
 // libBase: ExpansionBase
 // baseType: struct ExpansionBase *
 // libname: expansion.library
@@ -32,7 +59,13 @@ struct ExpansionBase * __g_lxa_expansion_InitLib    ( register struct ExpansionB
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_expansion: WARNING: InitLib() unimplemented STUB called.\n");
+    (void)seglist;
+    (void)sysb;
+
+    NEWLIST(expansion_board_list(expansionb));
+    NEWLIST(&((struct LXAExpansionBase *)expansionb)->MountList);
+
+    DPRINTF (LOG_DEBUG, "_expansion: InitLib() called.\n");
     return expansionb;
 }
 
@@ -63,8 +96,16 @@ ULONG __g_lxa_expansion_ExtFuncLib(void)
 VOID _expansion_AddConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register struct ConfigDev * configDev __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: AddConfigDev() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_expansion: AddConfigDev(configDev=0x%08lx)\n", (ULONG)configDev);
+
+    if (configDev == NULL)
+    {
+        return;
+    }
+
+    expansion_lock_binding();
+    AddTail(expansion_board_list(ExpansionBase), (struct Node *)configDev);
+    expansion_unlock_binding();
 }
 
 BOOL _expansion_AddBootNode ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -121,14 +162,40 @@ struct ConfigDev * _expansion_FindConfigDev ( register struct ExpansionBase * Ex
                                                         register LONG manufacturer __asm("d0"),
                                                         register LONG product __asm("d1"))
 {
+    struct ConfigDev *config_dev;
+
     DPRINTF (LOG_DEBUG, "_expansion: FindConfigDev(oldConfigDev=0x%08lx, manufacturer=%ld, product=%ld)\n",
              (ULONG)oldConfigDev, manufacturer, product);
-    
-    /*
-     * In lxa, we don't emulate expansion hardware, so there are no ConfigDev
-     * entries in the list. Always return NULL to indicate no (more) boards.
-     */
-    return NULL;
+
+    expansion_lock_binding();
+
+    if (oldConfigDev == NULL)
+    {
+        config_dev = (struct ConfigDev *)expansion_board_list(ExpansionBase)->lh_Head;
+    }
+    else
+    {
+        config_dev = (struct ConfigDev *)oldConfigDev->cd_Node.ln_Succ;
+    }
+
+    while (config_dev != NULL && config_dev->cd_Node.ln_Succ != NULL)
+    {
+        if ((manufacturer == -1 || config_dev->cd_Rom.er_Manufacturer == manufacturer) &&
+            (product == -1 || config_dev->cd_Rom.er_Product == product))
+        {
+            break;
+        }
+
+        config_dev = (struct ConfigDev *)config_dev->cd_Node.ln_Succ;
+    }
+
+    if (config_dev != NULL && config_dev->cd_Node.ln_Succ == NULL)
+    {
+        config_dev = NULL;
+    }
+
+    expansion_unlock_binding();
+    return config_dev;
 }
 
 VOID _expansion_FreeBoardMem ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -174,8 +241,18 @@ VOID _expansion_ReadExpansionRom ( register struct ExpansionBase * ExpansionBase
 VOID _expansion_RemConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),
                                                         register struct ConfigDev * configDev __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_expansion: RemConfigDev() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_expansion: RemConfigDev(configDev=0x%08lx)\n", (ULONG)configDev);
+
+    (void)ExpansionBase;
+
+    if (configDev == NULL)
+    {
+        return;
+    }
+
+    expansion_lock_binding();
+    Remove((struct Node *)configDev);
+    expansion_unlock_binding();
 }
 
 VOID _expansion_WriteExpansionByte ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -315,4 +392,3 @@ struct MyDataInit __g_lxa_expansion_DataTab =
     /* lib_IdString */ 0x80, (UBYTE) (ULONG) OFFSET(Library, lib_IdString), (ULONG) &_g_expansion_ExLibID[0],
     (ULONG) 0
 };
-

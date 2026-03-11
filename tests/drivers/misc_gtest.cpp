@@ -75,6 +75,10 @@ TEST_F(MiscTest, UtilityTagItems) {
     RunMiscTest("Utility", "TagItems");
 }
 
+TEST_F(MiscTest, ExpansionConfigDevChain) {
+    RunMiscTest("Expansion", "ConfigDevChain");
+}
+
 TEST_F(MiscTest, AslFontRequestVarargs) {
     RunProgram("SYS:FontReq", "", 5000);
 

@@ -702,8 +702,8 @@ Status: complete in 0.6.124.
 
 #### 78-Q: Expansion Library (`src/rom/lxa_expansion.c` vs `others/AROS-20231016-source/rom/expansion/`)
 
-- [ ] `FindConfigDev` ✅ — verify ConfigDev chain search
-- [ ] `AddConfigDev` / `RemConfigDev`
+- [x] `FindConfigDev` ✅ — verify ConfigDev chain search
+- [x] `AddConfigDev` / `RemConfigDev`
 - [ ] `AllocBoardMem` / `FreeBoardMem`
 - [ ] `AllocExpansionMem` / `FreeExpansionMem`
 - [ ] `ConfigBoard` / `ConfigChain`

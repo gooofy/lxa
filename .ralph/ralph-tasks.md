@@ -1,7 +1,7 @@
 # Ralph Tasks
 
 - [x] Seed Phase 78 Ralph task list from `roadmap.md`
-- [ ] Implement and test `78-Q` expansion.library ConfigDev chain APIs (`FindConfigDev`, `AddConfigDev`, `RemConfigDev`)
+- [x] Implement and test `78-Q` expansion.library ConfigDev chain APIs (`FindConfigDev`, `AddConfigDev`, `RemConfigDev`)
 - [ ] Implement and test `78-Q` expansion.library memory/config helpers (`AllocBoardMem`, `FreeBoardMem`, `AllocExpansionMem`, `FreeExpansionMem`, `ConfigBoard`, `ConfigChain`)
 - [ ] Implement and test `78-Q` expansion.library DOS/binding helpers (`MakeDosNode`, `AddDosNode`, `ObtainConfigBinding`, `ReleaseConfigBinding`, `SetCurrentBinding`, `GetCurrentBinding`)
 - [ ] Finish `78-Q-2` review items, update `roadmap.md`, and validate expansion changes with targeted/full tests
