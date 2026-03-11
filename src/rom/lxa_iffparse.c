@@ -104,6 +104,12 @@ struct IFFParseBase
     BPTR           SegList;
     struct Hook    iff_DOSHook;     /* Built-in DOS stream hook */
     struct Hook    iff_ClipHook;    /* Built-in clipboard stream hook */
+    struct IntContextNode *iff_LastPropScope;
+    struct IntContextNode *iff_LastFindScope;
+    LONG                  iff_LastFindType;
+    LONG                  iff_LastFindID;
+    LONG                  iff_LastFindIdent;
+    struct IntLocalContextItem *iff_LastFindItem;
 };
 
 struct IntClipboardHandle
@@ -165,10 +171,12 @@ static struct IntContextNode *PushContextNode(struct IFFParseBase *IFFParseBase,
 static void PopContextNode(struct IFFParseBase *IFFParseBase, struct IntIFFHandle *iiff);
 static LONG GetChunkHeader(struct IFFParseBase *IFFParseBase, struct IntIFFHandle *iiff);
 static LONG InvokeHandlers(struct IFFParseBase *IFFParseBase, struct IntIFFHandle *iiff,
-                          LONG mode, LONG ident);
+                           LONG mode, LONG ident);
+static VOID InvalidateFindCache(struct IFFParseBase *IFFParseBase,
+                                struct IntContextNode *scope);
 static struct IntLocalContextItem *FindLocalItemInContext(struct IntContextNode *icn,
-                                                         LONG type,
-                                                         LONG id,
+                                                          LONG type,
+                                                          LONG id,
                                                          LONG ident);
 static BOOL HasDeclaration(struct IFFParseBase *IFFParseBase,
                            struct IFFHandle *iff,
@@ -204,6 +212,13 @@ struct IFFParseBase * __g_lxa_iffparse_InitLib ( register struct IFFParseBase *i
     iffbase->iff_ClipHook.h_Entry = (ULONG (*)())ClipboardStreamHandler;
     iffbase->iff_ClipHook.h_SubEntry = NULL;
     iffbase->iff_ClipHook.h_Data = NULL;
+
+    iffbase->iff_LastPropScope = NULL;
+    iffbase->iff_LastFindScope = NULL;
+    iffbase->iff_LastFindType = 0;
+    iffbase->iff_LastFindID = 0;
+    iffbase->iff_LastFindIdent = 0;
+    iffbase->iff_LastFindItem = NULL;
 
     return iffbase;
 }
@@ -519,7 +534,8 @@ static void PopContextNode(struct IFFParseBase *IFFParseBase, struct IntIFFHandl
     
     DPRINTF(LOG_DEBUG, "_iffparse: PopContextNode id=0x%08lx type=0x%08lx depth=%ld\n",
             icn->CN.cn_ID, icn->CN.cn_Type, iiff->IH.iff_Depth);
-    
+    InvalidateFindCache(IFFParseBase, icn);
+     
     /* Purge all local context items */
     ilci = (struct IntLocalContextItem *)icn->cn_LCIList.mlh_Head;
     while ((next = (struct IntLocalContextItem *)ilci->LCI.lci_Node.mln_Succ))
@@ -640,9 +656,9 @@ static LONG InvokeHandlers(struct IFFParseBase *IFFParseBase, struct IntIFFHandl
 }
 
 static struct IntLocalContextItem *FindLocalItemInContext(struct IntContextNode *icn,
-                                                         LONG type,
-                                                         LONG id,
-                                                         LONG ident)
+                                                          LONG type,
+                                                          LONG id,
+                                                          LONG ident)
 {
     struct IntLocalContextItem *ilci;
 
@@ -662,6 +678,25 @@ static struct IntLocalContextItem *FindLocalItemInContext(struct IntContextNode 
     }
 
     return NULL;
+}
+
+static VOID InvalidateFindCache(struct IFFParseBase *IFFParseBase,
+                                struct IntContextNode *scope)
+{
+    if (!IFFParseBase)
+        return;
+
+    if (!scope || IFFParseBase->iff_LastFindScope == scope)
+    {
+        IFFParseBase->iff_LastFindScope = NULL;
+        IFFParseBase->iff_LastFindType = 0;
+        IFFParseBase->iff_LastFindID = 0;
+        IFFParseBase->iff_LastFindIdent = 0;
+        IFFParseBase->iff_LastFindItem = NULL;
+    }
+
+    if (!scope || IFFParseBase->iff_LastPropScope == scope)
+        IFFParseBase->iff_LastPropScope = NULL;
 }
 
 static BOOL HasDeclaration(struct IFFParseBase *IFFParseBase,
@@ -685,6 +720,7 @@ static LONG RemoveStoredItem(struct IFFParseBase *IFFParseBase,
     if (!ilci)
         return 0;
 
+    InvalidateFindCache(IFFParseBase, icn);
     Remove((struct Node *)&ilci->LCI.lci_Node);
     PurgeLCI(IFFParseBase, ilci);
 
@@ -709,6 +745,7 @@ static LONG StorePropertyChunk(struct IFFParseBase *IFFParseBase,
     if (!scope)
         return IFFERR_NOSCOPE;
 
+    IFFParseBase->iff_LastPropScope = scope;
     RemoveStoredItem(IFFParseBase, scope, current->CN.cn_Type, current->CN.cn_ID, IFFLCI_PROP);
 
     ilci = (struct IntLocalContextItem *)_iffparse_AllocLocalItem(IFFParseBase,
@@ -768,6 +805,8 @@ static LONG StoreCollectionChunk(struct IFFParseBase *IFFParseBase,
     scope = (struct IntContextNode *)_iffparse_FindPropContext(IFFParseBase, iff);
     if (!scope)
         return IFFERR_NOSCOPE;
+
+    IFFParseBase->iff_LastPropScope = scope;
 
     ilci = FindLocalItemInContext(scope, current->CN.cn_Type, current->CN.cn_ID, IFFLCI_COLLECTION);
     if (!ilci)
@@ -1764,10 +1803,17 @@ struct ContextNode * _iffparse_FindPropContext ( register struct IFFParseBase *I
     struct IntContextNode *icn;
     
     DPRINTF (LOG_DEBUG, "_iffparse: FindPropContext() iff=0x%08lx\n", (ULONG)iff);
-    
+     
     if (!iff)
         return NULL;
-    
+
+    if (IFFParseBase && IFFParseBase->iff_LastPropScope)
+    {
+        icn = IFFParseBase->iff_LastPropScope;
+        if (icn->CN.cn_Node.mln_Succ && (icn->CN.cn_ID == ID_FORM || icn->CN.cn_ID == ID_LIST))
+            return (struct ContextNode *)icn;
+    }
+     
     /* Walk the context stack looking for FORM or LIST */
     icn = (struct IntContextNode *)iiff->iff_CNStack.mlh_Head;
     while (icn->CN.cn_Node.mln_Succ)
@@ -1776,6 +1822,8 @@ struct ContextNode * _iffparse_FindPropContext ( register struct IFFParseBase *I
         {
             if (icn->CN.cn_ID == ID_FORM || icn->CN.cn_ID == ID_LIST)
             {
+                if (IFFParseBase)
+                    IFFParseBase->iff_LastPropScope = icn;
                 return (struct ContextNode *)icn;
             }
         }
@@ -1920,9 +1968,19 @@ struct LocalContextItem * _iffparse_FindLocalItem ( register struct IFFParseBase
     
     DPRINTF (LOG_DEBUG, "_iffparse: FindLocalItem() type=0x%08lx id=0x%08lx ident=0x%08lx\n",
              type, id, ident);
-    
+     
     if (!iff)
         return NULL;
+
+    if (IFFParseBase &&
+        IFFParseBase->iff_LastFindScope == (struct IntContextNode *)iiff->iff_CNStack.mlh_Head &&
+        IFFParseBase->iff_LastFindType == type &&
+        IFFParseBase->iff_LastFindID == id &&
+        IFFParseBase->iff_LastFindIdent == ident)
+    {
+        return IFFParseBase->iff_LastFindItem ?
+               (struct LocalContextItem *)IFFParseBase->iff_LastFindItem : NULL;
+    }
     
     /* Walk context stack from top to bottom */
     icn = (struct IntContextNode *)iiff->iff_CNStack.mlh_Head;
@@ -1936,13 +1994,30 @@ struct LocalContextItem * _iffparse_FindLocalItem ( register struct IFFParseBase
                 (id == 0 || ilci->LCI.lci_ID == id) &&
                 ilci->LCI.lci_Ident == ident)
             {
+                if (IFFParseBase)
+                {
+                    IFFParseBase->iff_LastFindScope = (struct IntContextNode *)iiff->iff_CNStack.mlh_Head;
+                    IFFParseBase->iff_LastFindType = type;
+                    IFFParseBase->iff_LastFindID = id;
+                    IFFParseBase->iff_LastFindIdent = ident;
+                    IFFParseBase->iff_LastFindItem = ilci;
+                }
                 return (struct LocalContextItem *)ilci;
             }
             ilci = (struct IntLocalContextItem *)ilci->LCI.lci_Node.mln_Succ;
         }
         icn = (struct IntContextNode *)icn->CN.cn_Node.mln_Succ;
     }
-    
+
+    if (IFFParseBase)
+    {
+        IFFParseBase->iff_LastFindScope = (struct IntContextNode *)iiff->iff_CNStack.mlh_Head;
+        IFFParseBase->iff_LastFindType = type;
+        IFFParseBase->iff_LastFindID = id;
+        IFFParseBase->iff_LastFindIdent = ident;
+        IFFParseBase->iff_LastFindItem = NULL;
+    }
+     
     return NULL;
 }
 
@@ -1991,7 +2066,8 @@ LONG _iffparse_StoreLocalItem ( register struct IFFParseBase *IFFParseBase __asm
     
     /* Add to head of context's LCI list */
     AddHead((struct List *)&icn->cn_LCIList, (struct Node *)&localItem->lci_Node);
-    
+    InvalidateFindCache(IFFParseBase, icn);
+     
     return 0;
 }
 
@@ -2007,8 +2083,9 @@ void _iffparse_StoreItemInContext ( register struct IFFParseBase *IFFParseBase _
     
     if (!localItem || !contextNode)
         return;
-    
+     
     AddHead((struct List *)&icn->cn_LCIList, (struct Node *)&localItem->lci_Node);
+    InvalidateFindCache(IFFParseBase, icn);
 }
 
 /* InitIFF - Initialize an IFF handle with custom stream hook */

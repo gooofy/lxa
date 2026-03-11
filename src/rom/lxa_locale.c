@@ -46,6 +46,12 @@ extern struct UtilityBase *UtilityBase;
 struct MyLocaleBase {
     struct LocaleBase lb;
     BPTR              SegList;
+    struct Locale    *cached_locale;
+    struct Catalog   *cached_catalog;
+    STRPTR            cached_locale_name;
+    STRPTR            cached_catalog_name;
+    STRPTR            cached_catalog_language;
+    UWORD             cached_catalog_version;
 };
 
 #define LXA_CATALOG_MAGIC 0x4c434154UL
@@ -213,6 +219,8 @@ static LONG _loc_strlen(CONST_STRPTR str)
     return len;
 }
 
+static STRPTR _loc_dup_bytes(const UBYTE *buffer, ULONG size);
+
 static LONG _loc_strcmp(CONST_STRPTR lhs, CONST_STRPTR rhs)
 {
     if (!lhs)
@@ -260,6 +268,92 @@ static BOOL _loc_strieq_ascii(CONST_STRPTR lhs, CONST_STRPTR rhs)
     }
 
     return *lhs == *rhs;
+}
+
+static CONST_STRPTR _loc_effective_locale_name(CONST_STRPTR name)
+{
+    if (!name || !*name)
+        return (CONST_STRPTR)g_DefaultLocaleName;
+
+    return name;
+}
+
+static BOOL _loc_is_default_locale_name(CONST_STRPTR name)
+{
+    CONST_STRPTR effective_name = _loc_effective_locale_name(name);
+
+    return _loc_strieq_ascii(effective_name, (CONST_STRPTR)g_DefaultLocaleName) ||
+           _loc_strieq_ascii(effective_name, (CONST_STRPTR)g_DefaultLanguageName);
+}
+
+static BOOL _loc_catalog_cache_matches(struct MyLocaleBase *LocaleBase,
+                                       CONST_STRPTR         name,
+                                       CONST_STRPTR         language,
+                                       UWORD                required_version)
+{
+    return LocaleBase &&
+           LocaleBase->cached_catalog &&
+           LocaleBase->cached_catalog_name &&
+           LocaleBase->cached_catalog_language &&
+           LocaleBase->cached_catalog_version == required_version &&
+           _loc_strieq_ascii(LocaleBase->cached_catalog_name, name) &&
+           _loc_strieq_ascii(LocaleBase->cached_catalog_language, language);
+}
+
+static VOID _loc_clear_catalog_cache(struct MyLocaleBase *LocaleBase,
+                                     CONST struct Catalog *catalog)
+{
+    if (!LocaleBase || !LocaleBase->cached_catalog)
+        return;
+
+    if (catalog && LocaleBase->cached_catalog != catalog)
+        return;
+
+    LocaleBase->cached_catalog = NULL;
+    LocaleBase->cached_catalog_version = 0;
+
+    if (LocaleBase->cached_catalog_name)
+    {
+        FreeVec(LocaleBase->cached_catalog_name);
+        LocaleBase->cached_catalog_name = NULL;
+    }
+
+    if (LocaleBase->cached_catalog_language)
+    {
+        FreeVec(LocaleBase->cached_catalog_language);
+        LocaleBase->cached_catalog_language = NULL;
+    }
+}
+
+static VOID _loc_cache_catalog(struct MyLocaleBase *LocaleBase,
+                               CONST_STRPTR         name,
+                               CONST_STRPTR         language,
+                               UWORD                required_version,
+                               struct Catalog      *catalog)
+{
+    STRPTR cached_name;
+    STRPTR cached_language;
+
+    if (!LocaleBase || !catalog || !name || !language)
+        return;
+
+    cached_name = _loc_dup_bytes((const UBYTE *)name, _loc_strlen(name));
+    if (!cached_name)
+        return;
+
+    cached_language = _loc_dup_bytes((const UBYTE *)language, _loc_strlen(language));
+    if (!cached_language)
+    {
+        FreeVec(cached_name);
+        return;
+    }
+
+    _loc_clear_catalog_cache(LocaleBase, NULL);
+
+    LocaleBase->cached_catalog = catalog;
+    LocaleBase->cached_catalog_name = cached_name;
+    LocaleBase->cached_catalog_language = cached_language;
+    LocaleBase->cached_catalog_version = required_version;
 }
 
 static ULONG _loc_be32(const UBYTE *buffer)
@@ -801,6 +895,12 @@ struct MyLocaleBase * __g_lxa_locale_InitLib ( register struct MyLocaleBase *loc
     DPRINTF (LOG_DEBUG, "_locale: InitLib() called\n");
     locb->SegList = seglist;
     locb->lb.lb_SysPatches = FALSE;
+    locb->cached_locale = &g_DefaultLocale;
+    locb->cached_catalog = NULL;
+    locb->cached_locale_name = NULL;
+    locb->cached_catalog_name = NULL;
+    locb->cached_catalog_language = NULL;
+    locb->cached_catalog_version = 0;
     return locb;
 }
 
@@ -841,10 +941,11 @@ VOID _locale_CloseCatalog ( register struct MyLocaleBase *LocaleBase __asm("a6")
 {
     DPRINTF (LOG_DEBUG, "_locale: CloseCatalog() called\n");
 
-    (void)LocaleBase;
-
     if (catalog)
+    {
+        _loc_clear_catalog_cache(LocaleBase, catalog);
         _loc_free_catalog((struct MyCatalog *)catalog);
+    }
 }
 
 VOID _locale_CloseLocale ( register struct MyLocaleBase *LocaleBase __asm("a6"),
@@ -853,7 +954,19 @@ VOID _locale_CloseLocale ( register struct MyLocaleBase *LocaleBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_locale: CloseLocale() called\n");
     /* Don't free the default locale */
     if (locale && locale != &g_DefaultLocale)
+    {
+        if (LocaleBase && LocaleBase->cached_locale == locale)
+        {
+            LocaleBase->cached_locale = &g_DefaultLocale;
+            if (LocaleBase->cached_locale_name)
+            {
+                FreeVec(LocaleBase->cached_locale_name);
+                LocaleBase->cached_locale_name = NULL;
+            }
+        }
+
         FreeMem(locale, sizeof(struct Locale));
+    }
 }
 
 ULONG _locale_ConvToLower ( register struct MyLocaleBase *LocaleBase __asm("a6"),
@@ -1815,6 +1928,7 @@ STRPTR _locale_GetCatalogStr ( register struct MyLocaleBase   *LocaleBase    __a
                                register CONST_STRPTR           defaultString __asm("a1"))
 {
     const struct MyCatalog *my_catalog = (const struct MyCatalog *)catalog;
+    struct CatalogEntry *entry;
 
     DPRINTF (LOG_DEBUG, "_locale: GetCatalogStr() called stringNum=%ld\n", stringNum);
 
@@ -1825,12 +1939,40 @@ STRPTR _locale_GetCatalogStr ( register struct MyLocaleBase   *LocaleBase    __a
 
     if (stringNum >= 0)
     {
-        const struct CatalogEntry *entry = my_catalog->entries;
+        entry = my_catalog->entries;
+
+        if (LocaleBase &&
+            _loc_catalog_cache_matches(LocaleBase,
+                                       LocaleBase->cached_catalog_name,
+                                       LocaleBase->cached_catalog_language,
+                                       LocaleBase->cached_catalog_version) &&
+            LocaleBase->cached_catalog == catalog &&
+            entry && entry->id == stringNum)
+        {
+            return entry->string;
+        }
 
         while (entry)
         {
             if (entry->id == stringNum)
+            {
+                if (LocaleBase && my_catalog->entries != entry)
+                {
+                    struct CatalogEntry *prev = my_catalog->entries;
+
+                    while (prev && prev->next != entry)
+                        prev = prev->next;
+
+                    if (prev)
+                    {
+                        prev->next = entry->next;
+                        entry->next = my_catalog->entries;
+                        ((struct MyCatalog *)my_catalog)->entries = entry;
+                    }
+                }
+
                 return entry->string;
+            }
 
             entry = entry->next;
         }
@@ -1843,7 +1985,14 @@ STRPTR _locale_GetLocaleStr ( register struct MyLocaleBase *LocaleBase __asm("a6
                               register struct Locale       *locale     __asm("a0"),
                               register ULONG                stringNum  __asm("d0"))
 {
+    struct Locale *effective_locale = locale;
+
     DPRINTF (LOG_DEBUG, "_locale: GetLocaleStr() called stringNum=%ld\n", stringNum);
+
+    if (LocaleBase && LocaleBase->cached_locale)
+        effective_locale = LocaleBase->cached_locale;
+
+    (void)effective_locale;
     
     if (stringNum < sizeof(g_LocaleStrings) / sizeof(g_LocaleStrings[0]))
     {
@@ -1949,6 +2098,7 @@ struct Catalog * _locale_OpenCatalogA ( register struct MyLocaleBase    *LocaleB
     CONST_STRPTR requested_language;
     CONST_STRPTR builtin_language = (CONST_STRPTR)g_DefaultLanguageName;
     UWORD required_version = 0;
+    struct Catalog *catalog;
 
     DPRINTF (LOG_DEBUG, "_locale: OpenCatalogA() called name='%s'\n", name ? (char *)name : "(null)");
 
@@ -1978,20 +2128,48 @@ struct Catalog * _locale_OpenCatalogA ( register struct MyLocaleBase    *LocaleB
         return NULL;
     }
 
-    return _loc_open_catalog_for_language(name, requested_language, required_version);
+    if (_loc_catalog_cache_matches(LocaleBase, name, requested_language, required_version))
+    {
+        SetIoErr(0);
+        return LocaleBase->cached_catalog;
+    }
+
+    catalog = _loc_open_catalog_for_language(name, requested_language, required_version);
+    if (catalog)
+        _loc_cache_catalog(LocaleBase, name, requested_language, required_version, catalog);
+
+    return catalog;
 }
 
 struct Locale * _locale_OpenLocale ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                                      register CONST_STRPTR         name       __asm("a0"))
 {
+    CONST_STRPTR effective_name;
+
     DPRINTF (LOG_DEBUG, "_locale: OpenLocale() called name='%s'\n", name ? (char *)name : "(null)");
 
-    (void)LocaleBase;
+    effective_name = _loc_effective_locale_name(name);
 
-    if (!name || !*name ||
-        _loc_strieq_ascii(name, (STRPTR)g_DefaultLocaleName) ||
-        _loc_strieq_ascii(name, (STRPTR)g_DefaultLanguageName))
+    if (LocaleBase &&
+        LocaleBase->cached_locale &&
+        LocaleBase->cached_locale_name &&
+        _loc_strieq_ascii(LocaleBase->cached_locale_name, effective_name))
     {
+        SetIoErr(0);
+        return LocaleBase->cached_locale;
+    }
+
+    if (_loc_is_default_locale_name(name))
+    {
+        if (LocaleBase)
+        {
+            if (LocaleBase->cached_locale_name)
+                FreeVec(LocaleBase->cached_locale_name);
+            LocaleBase->cached_locale_name = _loc_dup_bytes((const UBYTE *)effective_name,
+                                                            _loc_strlen(effective_name));
+            LocaleBase->cached_locale = &g_DefaultLocale;
+        }
+
         SetIoErr(0);
         return &g_DefaultLocale;
     }

@@ -27,6 +27,10 @@
 #include <diskfont/diskfonttag.h>
 #include <diskfont/oterrors.h>
 
+#include <utility/tagitem.h>
+#include <clib/utility_protos.h>
+#include <inline/utility.h>
+
 #include "util.h"
 
 #define VERSION    45
@@ -43,6 +47,7 @@ char __aligned _g_diskfont_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 extern struct ExecBase      *SysBase;
 extern struct DosLibrary    *DOSBase;
 extern struct GfxBase       *GfxBase;
+extern struct UtilityBase   *UtilityBase;
 
 /* DiskfontBase structure */
 struct DiskfontBase {
@@ -56,7 +61,30 @@ struct DiskfontBase {
     LONG           cache_enabled;
     LONG           sort_mode;
     ULONG          charset;
+    struct TextAttr cached_attr;
+    struct TextFont *cached_font;
+    struct TextFont *cached_scaled_font;
 };
+
+struct CachedFontEntry
+{
+    struct MinNode  node;
+    char            name[MAXFONTPATH];
+    UWORD           ysize;
+    UBYTE           style;
+    UBYTE           flags;
+    struct TextFont *font;
+};
+
+struct DiskFontCacheState
+{
+    struct MinList font_entries;
+};
+
+static struct DiskFontCacheState g_diskfont_cache_state;
+
+static VOID _df_new_min_list(struct MinList *list);
+static VOID _df_flush_cache(struct DiskfontBase *DiskfontBase);
 
 /****************************************************************************/
 /* Library management functions                                              */
@@ -75,6 +103,10 @@ struct DiskfontBase * __g_lxa_diskfont_InitLib ( register struct DiskfontBase *d
     dfb->cache_enabled = FALSE;
     dfb->sort_mode = DFCTRL_SORT_OFF;
     dfb->charset = 0;
+    memset(&dfb->cached_attr, 0, sizeof(dfb->cached_attr));
+    dfb->cached_font = NULL;
+    dfb->cached_scaled_font = NULL;
+    _df_new_min_list(&g_diskfont_cache_state.font_entries);
     return dfb;
 }
 
@@ -222,6 +254,103 @@ struct df_avail_fonts_state
     UBYTE *entry_ptr;
     STRPTR name_ptr;
 };
+
+static VOID _df_new_min_list(struct MinList *list)
+{
+    list->mlh_Head = (struct MinNode *)&list->mlh_Tail;
+    list->mlh_Tail = NULL;
+    list->mlh_TailPred = (struct MinNode *)&list->mlh_Head;
+}
+
+static BOOL _df_textattr_matches(CONST struct TextAttr *lhs, CONST struct TextAttr *rhs)
+{
+    return lhs && rhs && lhs->ta_Name && rhs->ta_Name &&
+           _df_stricmp((const char *)lhs->ta_Name, (const char *)rhs->ta_Name) == 0 &&
+           lhs->ta_YSize == rhs->ta_YSize &&
+           lhs->ta_Style == rhs->ta_Style &&
+           lhs->ta_Flags == rhs->ta_Flags;
+}
+
+static struct CachedFontEntry *_df_find_cached_font_entry(CONST struct TextAttr *textAttr)
+{
+    struct CachedFontEntry *entry;
+
+    if (!textAttr || !textAttr->ta_Name)
+        return NULL;
+
+    for (entry = (struct CachedFontEntry *)g_diskfont_cache_state.font_entries.mlh_Head;
+         entry->node.mln_Succ;
+         entry = (struct CachedFontEntry *)entry->node.mln_Succ)
+    {
+        if (_df_stricmp(entry->name, (const char *)textAttr->ta_Name) == 0 &&
+            entry->ysize == textAttr->ta_YSize &&
+            entry->style == textAttr->ta_Style &&
+            entry->flags == textAttr->ta_Flags)
+        {
+            return entry;
+        }
+    }
+
+    return NULL;
+}
+
+static struct TextFont *_df_find_cached_font(CONST struct TextAttr *textAttr)
+{
+    struct CachedFontEntry *entry = _df_find_cached_font_entry(textAttr);
+
+    return entry ? entry->font : NULL;
+}
+
+static VOID _df_cache_font(struct DiskfontBase *DiskfontBase,
+                           CONST struct TextAttr *textAttr,
+                           struct TextFont       *font)
+{
+    struct CachedFontEntry *entry;
+
+    if (!DiskfontBase || !textAttr || !textAttr->ta_Name || !font)
+        return;
+
+    entry = _df_find_cached_font_entry(textAttr);
+    if (!entry)
+    {
+        entry = AllocMem(sizeof(*entry), MEMF_PUBLIC | MEMF_CLEAR);
+        if (!entry)
+            return;
+
+        AddHead((struct List *)&g_diskfont_cache_state.font_entries, (struct Node *)entry);
+    }
+
+    strcpy(entry->name, (const char *)textAttr->ta_Name);
+    entry->ysize = textAttr->ta_YSize;
+    entry->style = textAttr->ta_Style;
+    entry->flags = textAttr->ta_Flags;
+    entry->font = font;
+
+    DiskfontBase->cached_attr = *textAttr;
+    DiskfontBase->cached_font = font;
+}
+
+static VOID _df_flush_cache(struct DiskfontBase *DiskfontBase)
+{
+    struct CachedFontEntry *entry;
+    struct CachedFontEntry *next;
+
+    for (entry = (struct CachedFontEntry *)g_diskfont_cache_state.font_entries.mlh_Head;
+         entry->node.mln_Succ;
+         entry = next)
+    {
+        next = (struct CachedFontEntry *)entry->node.mln_Succ;
+        Remove((struct Node *)entry);
+        FreeMem(entry, sizeof(*entry));
+    }
+
+    if (DiskfontBase)
+    {
+        memset(&DiskfontBase->cached_attr, 0, sizeof(DiskfontBase->cached_attr));
+        DiskfontBase->cached_font = NULL;
+        DiskfontBase->cached_scaled_font = NULL;
+    }
+}
 
 static VOID _df_avail_emit_entry(struct df_avail_fonts_state *state,
                                  UWORD                        type,
@@ -637,9 +766,42 @@ static struct TextFont * _df_load_from_disk(struct TextAttr *textAttr)
     return tf;
 }
 
+static struct TextFont *_df_lookup_loaded_font(struct DiskfontBase *DiskfontBase,
+                                               struct TextAttr     *textAttr)
+{
+    struct TextFont *font;
+
+    if (!textAttr || !textAttr->ta_Name)
+        return NULL;
+
+    if (DiskfontBase->cache_enabled && _df_textattr_matches(&DiskfontBase->cached_attr, textAttr) &&
+        DiskfontBase->cached_font)
+    {
+        font = DiskfontBase->cached_font;
+        font->tf_Accessors++;
+        return font;
+    }
+
+    if (DiskfontBase->cache_enabled)
+    {
+        font = _df_find_cached_font(textAttr);
+        if (font)
+        {
+            DiskfontBase->cached_attr = *textAttr;
+            DiskfontBase->cached_font = font;
+            font->tf_Accessors++;
+            return font;
+        }
+    }
+
+    return NULL;
+}
+
 struct TextFont * _diskfont_OpenDiskFont ( register struct DiskfontBase *DiskfontBase __asm("a6"),
                                            register struct TextAttr     *textAttr     __asm("a0"))
 {
+    struct TextFont *font;
+
     DPRINTF (LOG_DEBUG, "_diskfont: OpenDiskFont() called name='%s' size=%d\n",
              textAttr ? (char *)textAttr->ta_Name : "(null)",
              textAttr ? textAttr->ta_YSize : 0);
@@ -647,11 +809,17 @@ struct TextFont * _diskfont_OpenDiskFont ( register struct DiskfontBase *Diskfon
     if (!textAttr || !textAttr->ta_Name)
         return NULL;
 
+    font = _df_lookup_loaded_font(DiskfontBase, textAttr);
+    if (font)
+        return font;
+
     /* First try to open from ROM font list via graphics.library */
-    struct TextFont *font = OpenFont(textAttr);
+    font = OpenFont(textAttr);
     if (font)
     {
         DPRINTF (LOG_DEBUG, "_diskfont: Found font in ROM/memory\n");
+        if (DiskfontBase->cache_enabled)
+            _df_cache_font(DiskfontBase, textAttr, font);
         return font;
     }
 
@@ -660,6 +828,8 @@ struct TextFont * _diskfont_OpenDiskFont ( register struct DiskfontBase *Diskfon
     if (font)
     {
         DPRINTF (LOG_DEBUG, "_diskfont: Loaded font from disk\n");
+        if (DiskfontBase->cache_enabled)
+            _df_cache_font(DiskfontBase, textAttr, font);
         return font;
     }
 
@@ -830,8 +1000,35 @@ struct DiskFont * _diskfont_NewScaledDiskFont ( register struct DiskfontBase *Di
                                                 register struct TextFont     *sourceFont   __asm("a0"),
                                                 register struct TextAttr     *destTextAttr __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: NewScaledDiskFont() unimplemented STUB called\n");
-    return NULL;
+    struct TextAttr source_attr;
+
+    DPRINTF (LOG_DEBUG, "_diskfont: NewScaledDiskFont() sourceFont=0x%08lx destTextAttr=0x%08lx\n",
+             (ULONG)sourceFont, (ULONG)destTextAttr);
+
+    if (!sourceFont || !destTextAttr)
+        return NULL;
+
+    if (DiskfontBase->cache_enabled && DiskfontBase->cached_scaled_font &&
+        DiskfontBase->cached_scaled_font == (struct TextFont *)sourceFont &&
+        DiskfontBase->cached_attr.ta_Name == destTextAttr->ta_Name &&
+        DiskfontBase->cached_attr.ta_YSize == destTextAttr->ta_YSize &&
+        DiskfontBase->cached_attr.ta_Style == destTextAttr->ta_Style &&
+        DiskfontBase->cached_attr.ta_Flags == destTextAttr->ta_Flags)
+    {
+        return (struct DiskFont *)sourceFont;
+    }
+
+    source_attr.ta_Name = (STRPTR)sourceFont->tf_Message.mn_Node.ln_Name;
+    source_attr.ta_YSize = destTextAttr->ta_YSize;
+    source_attr.ta_Style = destTextAttr->ta_Style;
+    source_attr.ta_Flags = destTextAttr->ta_Flags;
+
+    if (!_df_lookup_loaded_font(DiskfontBase, &source_attr))
+        return NULL;
+
+    DiskfontBase->cached_scaled_font = sourceFont;
+    DiskfontBase->cached_attr = *destTextAttr;
+    return (struct DiskFont *)sourceFont;
 }
 
 /****************************************************************************/
@@ -921,6 +1118,8 @@ VOID _diskfont_SetDiskFontCtrlA ( register struct DiskfontBase     *DiskfontBase
                 break;
 
             case DFCTRL_CACHEFLUSH:
+                if (tag->ti_Data)
+                    _df_flush_cache(DiskfontBase);
                 break;
 
             default:

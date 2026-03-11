@@ -219,7 +219,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.3** - Phase 80 cleanup now keeps GadTools context bookkeeping and Workbench app-object tracking private while building on the earlier shared Exec/DOS and graphics/layers consolidation
+**Version 0.8.4** - Phase 80 cleanup now adds helper-state caches across Utility, Locale, IFFParse, and Diskfont on top of the earlier shared Exec/DOS, graphics/layers, and UI consolidation
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

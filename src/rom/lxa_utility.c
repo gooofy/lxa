@@ -42,6 +42,7 @@ struct UtilityNameSpace
     struct MinList         list;
     struct SignalSemaphore lock;
     ULONG                  flags;
+    struct UtilityNamedObject *cached_object;
 };
 
 struct UtilityNamedObject
@@ -151,6 +152,16 @@ static struct UtilityNamedObject *utility_find_named_object_locked(struct Utilit
     if (!name_space)
         return NULL;
 
+    if (!last_object && name && name_space->cached_object &&
+        name_space->cached_object->parent_space == name_space &&
+        utility_names_equal(UtilityBase,
+                            name_space,
+                            (CONST_STRPTR)name_space->cached_object->node.ln_Name,
+                            name))
+    {
+        return name_space->cached_object;
+    }
+
     if (last_object)
         node = last_object->node.ln_Succ;
     else
@@ -159,10 +170,17 @@ static struct UtilityNamedObject *utility_find_named_object_locked(struct Utilit
     while ((current = utility_named_object_from_node(node)) != NULL)
     {
         if (!name || utility_names_equal(UtilityBase, name_space, (CONST_STRPTR)current->node.ln_Name, name))
+        {
+            if (name)
+                name_space->cached_object = current;
             return current;
+        }
 
         node = node->ln_Succ;
     }
+
+    if (name)
+        name_space->cached_object = NULL;
 
     return NULL;
 }
@@ -197,6 +215,8 @@ static VOID utility_finish_named_object_removal(struct UtilityNamedObject *objec
 
     if (object->parent_space == name_space)
     {
+        if (name_space->cached_object == object)
+            name_space->cached_object = NULL;
         Remove(&object->node);
         object->parent_space = NULL;
     }
@@ -223,6 +243,7 @@ struct UtilityBase * __g_lxa_utility_InitLib    ( register struct UtilityBase *u
     utility_new_min_list(&base->root_space.list);
     InitSemaphore(&base->root_space.lock);
     base->root_space.flags = NSF_NODUPS;
+    base->root_space.cached_object = NULL;
 
     DPRINTF (LOG_DEBUG, "_utility: InitLib() called.\n");
     return utilityb;
@@ -1343,6 +1364,7 @@ static BOOL _utility_AddNamedObject ( register struct UtilityBase * UtilityBase 
     {
         Enqueue((struct List *)&name_space->list, &named_object->node);
         named_object->parent_space = name_space;
+        name_space->cached_object = named_object;
         ret = TRUE;
     }
 
@@ -1388,6 +1410,7 @@ static struct NamedObject * _utility_AllocNamedObjectA ( register struct Utility
         utility_new_min_list(&object->child_space->list);
         InitSemaphore(&object->child_space->lock);
         object->child_space->flags = GetTagData(ANO_Flags, 0, tagList);
+        object->child_space->cached_object = NULL;
     }
 
     user_space_size = GetTagData(ANO_UserSpace, 0, tagList);
