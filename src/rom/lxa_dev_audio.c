@@ -54,15 +54,40 @@ struct AudioChannel
     struct timeval ac_CycleDeadline;
 };
 
+struct AudioPrivate
+{
+    struct List         ap_PendingAllocations;
+    struct List         ap_MiscRequests;
+    WORD                ap_KeyGen;
+    struct AudioChannel ap_Channels[AUDIO_CHANNELS];
+};
+
 struct AudioBase
 {
     struct Device  ab_Device;
     BPTR           ab_SegList;
-    struct List    ab_PendingAllocations;
-    struct List    ab_MiscRequests;
-    WORD           ab_KeyGen;
-    struct AudioChannel ab_Channels[AUDIO_CHANNELS];
+    struct AudioPrivate ab_Private;
 };
+
+static struct AudioPrivate *audio_private(struct AudioBase *audio)
+{
+    return &audio->ab_Private;
+}
+
+static struct List *audio_pending_allocations(struct AudioBase *audio)
+{
+    return &audio_private(audio)->ap_PendingAllocations;
+}
+
+static struct List *audio_misc_requests(struct AudioBase *audio)
+{
+    return &audio_private(audio)->ap_MiscRequests;
+}
+
+static struct AudioChannel *audio_channel_state(struct AudioBase *audio, UBYTE channel)
+{
+    return &audio_private(audio)->ap_Channels[channel];
+}
 
 static void audio_get_raw_time(struct timeval *tv)
 {
@@ -214,11 +239,11 @@ static WORD audio_next_key(struct AudioBase *audio)
 {
     do
     {
-        audio->ab_KeyGen++;
+        audio_private(audio)->ap_KeyGen++;
     }
-    while (audio->ab_KeyGen == 0);
+    while (audio_private(audio)->ap_KeyGen == 0);
 
-    return audio->ab_KeyGen;
+    return audio_private(audio)->ap_KeyGen;
 }
 
 static struct IOAudio *audio_list_head(struct List *list)
@@ -351,7 +376,7 @@ static void audio_abort_misc_for_mask(struct AudioBase *audio, UBYTE mask, BYTE 
     struct IOAudio *io;
     struct IOAudio *next;
 
-    for (io = (struct IOAudio *)GETHEAD(&audio->ab_MiscRequests);
+    for (io = (struct IOAudio *)GETHEAD(audio_misc_requests(audio));
          io;
          io = next)
     {
@@ -420,9 +445,9 @@ static void audio_release_mask(struct AudioBase *audio, UBYTE mask)
     {
         if (mask & (1U << ch))
         {
-            audio_abort_channel(audio, &audio->ab_Channels[ch], IOERR_ABORTED);
-            audio->ab_Channels[ch].ac_AllocKey = 0;
-            audio->ab_Channels[ch].ac_Precedence = ADALLOC_MINPREC;
+    audio_abort_channel(audio, audio_channel_state(audio, ch), IOERR_ABORTED);
+    audio_channel_state(audio, ch)->ac_AllocKey = 0;
+    audio_channel_state(audio, ch)->ac_Precedence = ADALLOC_MINPREC;
         }
     }
 }
@@ -495,7 +520,7 @@ static UBYTE audio_validate_mask(struct AudioBase *audio, UBYTE requested_mask, 
 
     for (ch = 0; ch < AUDIO_CHANNELS; ch++)
     {
-        if ((requested_mask & (1U << ch)) && audio_key_matches(&audio->ab_Channels[ch], key))
+        if ((requested_mask & (1U << ch)) && audio_key_matches(audio_channel_state(audio, ch), key))
         {
             matched |= (1U << ch);
         }
@@ -535,7 +560,7 @@ static BOOL audio_choose_allocation(struct AudioBase *audio,
 
         for (ch = 0; ch < AUDIO_CHANNELS; ch++)
         {
-            struct AudioChannel *channel = &audio->ab_Channels[ch];
+            struct AudioChannel *channel = audio_channel_state(audio, ch);
 
             if (!(mask & (1U << ch)))
             {
@@ -605,9 +630,11 @@ static void audio_commit_allocation(struct AudioBase *audio,
     {
         if (mask & (1U << ch))
         {
-            audio->ab_Channels[ch].ac_AllocKey = key;
-            audio->ab_Channels[ch].ac_Precedence = precedence;
-            audio->ab_Channels[ch].ac_Stopped = FALSE;
+            struct AudioChannel *channel = audio_channel_state(audio, ch);
+
+            channel->ac_AllocKey = key;
+            channel->ac_Precedence = precedence;
+            channel->ac_Stopped = FALSE;
         }
     }
 
@@ -633,7 +660,7 @@ static BOOL audio_allocate_now(struct AudioBase *audio,
             return TRUE;
         }
 
-        AddTail(&audio->ab_PendingAllocations, (struct Node *)io);
+        AddTail(audio_pending_allocations(audio), (struct Node *)io);
         io->ioa_Request.io_Flags &= ~IOF_QUICK;
         return FALSE;
     }
@@ -652,7 +679,7 @@ static void audio_try_pending_allocations(struct AudioBase *audio)
     struct IOAudio *io;
     struct IOAudio *next;
 
-    for (io = (struct IOAudio *)GETHEAD(&audio->ab_PendingAllocations);
+    for (io = (struct IOAudio *)GETHEAD(audio_pending_allocations(audio));
          io;
          io = next)
     {
@@ -660,7 +687,7 @@ static void audio_try_pending_allocations(struct AudioBase *audio)
         Remove((struct Node *)io);
         if (!audio_allocate_now(audio, io, FALSE))
         {
-            AddTail(&audio->ab_PendingAllocations, (struct Node *)io);
+            AddTail(audio_pending_allocations(audio), (struct Node *)io);
             continue;
         }
 
@@ -686,7 +713,7 @@ static BOOL audio_handle_waitcycle(struct AudioBase *audio, struct IOAudio *io)
         return TRUE;
     }
 
-    channel = &audio->ab_Channels[channel_num];
+    channel = audio_channel_state(audio, channel_num);
     if (!audio_key_matches(channel, io->ioa_AllocKey))
     {
         io->ioa_Request.io_Error = ADIOERR_NOALLOCATION;
@@ -699,7 +726,7 @@ static BOOL audio_handle_waitcycle(struct AudioBase *audio, struct IOAudio *io)
         return TRUE;
     }
 
-    AddTail(&audio->ab_MiscRequests, (struct Node *)io);
+    AddTail(audio_misc_requests(audio), (struct Node *)io);
     io->ioa_Request.io_Flags &= ~IOF_QUICK;
     return FALSE;
 }
@@ -722,9 +749,9 @@ static BOOL audio_handle_pervol(struct AudioBase *audio, struct IOAudio *io)
     {
         for (ch = 0; ch < AUDIO_CHANNELS; ch++)
         {
-            if ((matched & (1U << ch)) && audio->ab_Channels[ch].ac_Playing && !audio->ab_Channels[ch].ac_Stopped)
+            if ((matched & (1U << ch)) && audio_channel_state(audio, ch)->ac_Playing && !audio_channel_state(audio, ch)->ac_Stopped)
             {
-                AddTail(&audio->ab_MiscRequests, (struct Node *)io);
+                AddTail(audio_misc_requests(audio), (struct Node *)io);
                 io->ioa_Request.io_Flags &= ~IOF_QUICK;
                 return FALSE;
             }
@@ -735,8 +762,8 @@ static BOOL audio_handle_pervol(struct AudioBase *audio, struct IOAudio *io)
     {
         if (matched & (1U << ch))
         {
-            audio->ab_Channels[ch].ac_Period = io->ioa_Period;
-            audio->ab_Channels[ch].ac_Volume = io->ioa_Volume;
+            audio_channel_state(audio, ch)->ac_Period = io->ioa_Period;
+            audio_channel_state(audio, ch)->ac_Volume = io->ioa_Volume;
         }
     }
 
@@ -761,9 +788,9 @@ static BOOL audio_handle_finish(struct AudioBase *audio, struct IOAudio *io)
     {
         for (ch = 0; ch < AUDIO_CHANNELS; ch++)
         {
-            if ((matched & (1U << ch)) && audio->ab_Channels[ch].ac_Playing && !audio->ab_Channels[ch].ac_Stopped)
+            if ((matched & (1U << ch)) && audio_channel_state(audio, ch)->ac_Playing && !audio_channel_state(audio, ch)->ac_Stopped)
             {
-                AddTail(&audio->ab_MiscRequests, (struct Node *)io);
+                AddTail(audio_misc_requests(audio), (struct Node *)io);
                 io->ioa_Request.io_Flags &= ~IOF_QUICK;
                 return FALSE;
             }
@@ -774,7 +801,7 @@ static BOOL audio_handle_finish(struct AudioBase *audio, struct IOAudio *io)
     {
         if (matched & (1U << ch))
         {
-            audio_finish_immediately(audio, &audio->ab_Channels[ch]);
+            audio_finish_immediately(audio, audio_channel_state(audio, ch));
         }
     }
 
@@ -796,7 +823,7 @@ static BOOL audio_handle_write(struct AudioBase *audio, struct IOAudio *io)
         return TRUE;
     }
 
-    channel = &audio->ab_Channels[channel_num];
+    channel = audio_channel_state(audio, channel_num);
     if (!audio_key_matches(channel, io->ioa_AllocKey))
     {
         io->ioa_Request.io_Error = ADIOERR_NOALLOCATION;
@@ -826,7 +853,7 @@ static BOOL audio_handle_read(struct AudioBase *audio, struct IOAudio *io)
         return TRUE;
     }
 
-    channel = &audio->ab_Channels[channel_num];
+    channel = audio_channel_state(audio, channel_num);
     if (!audio_key_matches(channel, io->ioa_AllocKey))
     {
         io->ioa_Request.io_Error = ADIOERR_NOALLOCATION;
@@ -865,7 +892,7 @@ static BOOL audio_handle_flush(struct AudioBase *audio, struct IOAudio *io)
     {
         if (matched & (1U << ch))
         {
-            audio_abort_channel(audio, &audio->ab_Channels[ch], IOERR_ABORTED);
+            audio_abort_channel(audio, audio_channel_state(audio, ch), IOERR_ABORTED);
         }
     }
 
@@ -885,7 +912,7 @@ static BOOL audio_handle_reset(struct AudioBase *audio, struct IOAudio *io)
     {
         if (matched & (1U << ch))
         {
-            audio_abort_channel(audio, &audio->ab_Channels[ch], IOERR_ABORTED);
+            audio_abort_channel(audio, audio_channel_state(audio, ch), IOERR_ABORTED);
         }
     }
 
@@ -905,7 +932,7 @@ static BOOL audio_handle_setprec(struct AudioBase *audio, struct IOAudio *io)
     {
         if (matched & (1U << ch))
         {
-            audio->ab_Channels[ch].ac_Precedence = io->ioa_Request.io_Message.mn_Node.ln_Pri;
+            audio_channel_state(audio, ch)->ac_Precedence = io->ioa_Request.io_Message.mn_Node.ln_Pri;
         }
     }
 
@@ -985,7 +1012,7 @@ static void audio_process_misc_for_channel(struct AudioBase *audio,
     struct IOAudio *next;
     UBYTE mask = (1U << channel->ac_Channel);
 
-    for (io = (struct IOAudio *)GETHEAD(&audio->ab_MiscRequests);
+    for (io = (struct IOAudio *)GETHEAD(audio_misc_requests(audio));
          io;
          io = next)
     {
@@ -1099,7 +1126,7 @@ VOID _audio_VBlankHook(void)
 
     for (ch = 0; ch < AUDIO_CHANNELS; ch++)
     {
-        audio_tick_channel(audio, &audio->ab_Channels[ch], &now);
+        audio_tick_channel(audio, audio_channel_state(audio, ch), &now);
     }
 }
 
@@ -1111,24 +1138,26 @@ static struct Library * __g_lxa_audio_InitDev(register struct Library *dev __asm
     UBYTE ch;
 
     audio->ab_SegList = seglist;
-    audio->ab_KeyGen = 0x5a00;
-    NEWLIST(&audio->ab_PendingAllocations);
-    NEWLIST(&audio->ab_MiscRequests);
+    audio_private(audio)->ap_KeyGen = 0x5a00;
+    NEWLIST(audio_pending_allocations(audio));
+    NEWLIST(audio_misc_requests(audio));
 
     for (ch = 0; ch < AUDIO_CHANNELS; ch++)
     {
-        NEWLIST(&audio->ab_Channels[ch].ac_WriteList);
-        audio->ab_Channels[ch].ac_AllocKey = 0;
-        audio->ab_Channels[ch].ac_Precedence = ADALLOC_MINPREC;
-        audio->ab_Channels[ch].ac_Channel = ch;
-        audio->ab_Channels[ch].ac_Stopped = FALSE;
-        audio->ab_Channels[ch].ac_Playing = FALSE;
-        audio->ab_Channels[ch].ac_Period = 0;
-        audio->ab_Channels[ch].ac_Volume = 0;
-        audio->ab_Channels[ch].ac_CyclesRemaining = 0;
-        audio->ab_Channels[ch].ac_CycleMicros = 0;
-        audio->ab_Channels[ch].ac_CycleDeadline.tv_secs = 0;
-        audio->ab_Channels[ch].ac_CycleDeadline.tv_micro = 0;
+        struct AudioChannel *channel = audio_channel_state(audio, ch);
+
+        NEWLIST(&channel->ac_WriteList);
+        channel->ac_AllocKey = 0;
+        channel->ac_Precedence = ADALLOC_MINPREC;
+        channel->ac_Channel = ch;
+        channel->ac_Stopped = FALSE;
+        channel->ac_Playing = FALSE;
+        channel->ac_Period = 0;
+        channel->ac_Volume = 0;
+        channel->ac_CyclesRemaining = 0;
+        channel->ac_CycleMicros = 0;
+        channel->ac_CycleDeadline.tv_secs = 0;
+        channel->ac_CycleDeadline.tv_micro = 0;
     }
 
     return dev;
@@ -1220,14 +1249,14 @@ static ULONG __g_lxa_audio_AbortIO(register struct Library *dev __asm("a6"),
     struct IOAudio *io = (struct IOAudio *)ioreq;
     UBYTE ch;
 
-    if (audio_request_is_on_list(&audio->ab_PendingAllocations, io))
+    if (audio_request_is_on_list(audio_pending_allocations(audio), io))
     {
         Remove((struct Node *)io);
         audio_reply_request(io, IOERR_ABORTED);
         return 0;
     }
 
-    if (audio_request_is_on_list(&audio->ab_MiscRequests, io))
+    if (audio_request_is_on_list(audio_misc_requests(audio), io))
     {
         Remove((struct Node *)io);
         audio_reply_request(io, IOERR_ABORTED);
@@ -1236,7 +1265,7 @@ static ULONG __g_lxa_audio_AbortIO(register struct Library *dev __asm("a6"),
 
     for (ch = 0; ch < AUDIO_CHANNELS; ch++)
     {
-        struct AudioChannel *channel = &audio->ab_Channels[ch];
+        struct AudioChannel *channel = audio_channel_state(audio, ch);
         struct IOAudio *head = audio_list_head(&channel->ac_WriteList);
 
         if (!audio_request_is_on_list(&channel->ac_WriteList, io))

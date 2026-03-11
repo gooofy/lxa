@@ -28,8 +28,8 @@ Goal: pay down the architecture and performance follow-up identified during the 
 - [ ] Intuition/Workbench/GadTools: separate private UI bookkeeping from public structs, share screen/workbench/app-object helpers, and avoid repeated full-list scans or full-window redraws; GadTools context heads now stay private when windows/refresh paths consume gadget lists, and Workbench app-object handles now reuse a tracked private list while broader redraw/app-helper follow-up remains
 - [ ] Utility/Locale/IFFParse/Diskfont: split monolithic private state into companions/helpers and add caching for namespace lookup, catalog lookup, parser context matching, and color-font rendering; Utility namespaces now cache recent lookups, locale caches default-locale/catalog hits, iffparse reuses property/local-item context matches, and diskfont caches repeated font opens/scaled lookups while broader helper extraction remains
 - [x] Keymap/Timer/Console/Input: share translation and timing helpers across the input stack, then remove repeated scans, conversions, and queue walks in hot paths; rawkey-to-vanilla conversion and system-time normalization now live in shared ROM helpers, while console reads/input buffers reuse common readiness/consume paths with added regression coverage for normalized repeat timings and console driver flows
-- [ ] Audio/Trackdisk/Expansion: isolate device-private state from ROM entry points and replace repeated host rescans/requeues with cached handles and ordered wake-up bookkeeping
-- [ ] Math libraries: consolidate hosted FFP/IEEE bridge helpers so the math libraries share one compatibility model and avoid repeated conversion/setup overhead
+- [x] Audio/Trackdisk/Expansion: device-private state now stays behind dedicated helpers/private companions, removing global unit tables and keeping allocation/mount bookkeeping out of ROM entry points while preserving ordered wake-up/reply paths
+- [x] Math libraries: hosted FFP/IEEE bridge helpers now share centralized host conversion/clamp/compare/register plumbing so the math emucall surface uses one compatibility model with less repeated setup overhead
 
 ---
 

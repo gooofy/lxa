@@ -47,11 +47,21 @@ char __aligned _g_trackdisk_Copyright [] = "(C)opyright 2026 by G. Bartsch. Lice
 char __aligned _g_trackdisk_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 
 extern struct ExecBase *SysBase;
+#define NUMUNITS  4
+
+struct TDUnit;
+
+struct TrackdiskPrivate
+{
+    struct TDUnit *tp_Units[NUMUNITS];
+};
+
 /* Trackdisk device base */
 struct TrackdiskBase
 {
     struct Device  td_Device;
     BPTR           td_SegList;
+    struct TrackdiskPrivate td_Private;
 };
 
 /* Per-unit data */
@@ -68,9 +78,15 @@ struct TDUnit
     struct Interrupt *tdu_ChangeInt;
 };
 
-#define NUMUNITS  4
+static struct TrackdiskPrivate *trackdisk_private(struct TrackdiskBase *tdbase)
+{
+    return &tdbase->td_Private;
+}
 
-static struct TDUnit *g_units[NUMUNITS];
+static struct TDUnit **trackdisk_units(struct TrackdiskBase *tdbase)
+{
+    return trackdisk_private(tdbase)->tp_Units;
+}
 
 static LONG trackdisk_validate_extended_count(struct TDUnit *tdu, struct IORequest *ioreq)
 {
@@ -205,6 +221,7 @@ static struct Library * __g_lxa_trackdisk_InitDev ( register struct Library    *
                                                      register struct ExecBase  *sysb    __asm("a6"))
 {
     struct TrackdiskBase *tdbase = (struct TrackdiskBase *)dev;
+    struct TDUnit **units = trackdisk_units(tdbase);
     ULONG i;
 
     DPRINTF (LOG_DEBUG, "_trackdisk: InitDev() called\n");
@@ -212,7 +229,7 @@ static struct Library * __g_lxa_trackdisk_InitDev ( register struct Library    *
     tdbase->td_SegList = seglist;
 
     for (i = 0; i < NUMUNITS; i++)
-        g_units[i] = NULL;
+        units[i] = NULL;
 
     return dev;
 }
@@ -228,6 +245,9 @@ static void __g_lxa_trackdisk_Open ( register struct Library   *dev   __asm("a6"
                                       register ULONG             unit  __asm("d0"),
                                       register ULONG             flags __asm("d1"))
 {
+    struct TrackdiskBase *tdbase = (struct TrackdiskBase *)dev;
+    struct TDUnit **units = trackdisk_units(tdbase);
+
     DPRINTF (LOG_DEBUG, "_trackdisk: Open() called, unit=%lu flags=0x%08lx\n", unit, flags);
 
     if (unit >= NUMUNITS)
@@ -240,7 +260,7 @@ static void __g_lxa_trackdisk_Open ( register struct Library   *dev   __asm("a6"
     }
 
     /* Allocate unit if not already done */
-    if (!g_units[unit])
+    if (!units[unit])
     {
         struct TDUnit *tdu = (struct TDUnit *)AllocMem(sizeof(struct TDUnit), MEMF_PUBLIC | MEMF_CLEAR);
         if (!tdu)
@@ -258,14 +278,14 @@ static void __g_lxa_trackdisk_Open ( register struct Library   *dev   __asm("a6"
         tdu->tdu_CurrentTrack = 0;
         tdu->tdu_ChangeIntReq = NULL;
         tdu->tdu_ChangeInt = NULL;
-        g_units[unit] = tdu;
+        units[unit] = tdu;
     }
 
     dev->lib_OpenCnt++;
-    g_units[unit]->tdu_Unit.unit_OpenCnt++;
+    units[unit]->tdu_Unit.unit_OpenCnt++;
 
     ioreq->io_Error  = 0;
-    ioreq->io_Unit   = (struct Unit *)g_units[unit];
+    ioreq->io_Unit   = (struct Unit *)units[unit];
     ioreq->io_Device = (struct Device *)dev;
 }
 

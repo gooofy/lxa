@@ -38,11 +38,14 @@ struct LXAExpansionBase
     UBYTE eb_Private01;
     ULONG eb_Private02;
     ULONG eb_Private03;
-    struct CurrentBinding eb_Private04;
-    struct List BoardList;
-    struct List MountList;
-    UBYTE ExpansionSlots[(E_MEMORYSLOTS + 7) / 8];
-    struct SignalSemaphore BindSemaphore;
+    struct ExpansionPrivate
+    {
+        struct CurrentBinding ep_CurrentBinding;
+        struct List ep_BoardList;
+        struct List ep_MountList;
+        UBYTE ep_ExpansionSlots[(E_MEMORYSLOTS + 7) / 8];
+        struct SignalSemaphore ep_BindSemaphore;
+    } Private;
 };
 
 UBYTE _expansion_ReadExpansionByte ( register struct ExpansionBase * ExpansionBase __asm("a6"),
@@ -51,12 +54,12 @@ UBYTE _expansion_ReadExpansionByte ( register struct ExpansionBase * ExpansionBa
 
 static struct CurrentBinding *expansion_current_binding(struct ExpansionBase *ExpansionBase)
 {
-    return &((struct LXAExpansionBase *)ExpansionBase)->eb_Private04;
+    return &((struct LXAExpansionBase *)ExpansionBase)->Private.ep_CurrentBinding;
 }
 
 static struct SignalSemaphore *expansion_bind_semaphore(struct ExpansionBase *ExpansionBase)
 {
-    return &((struct LXAExpansionBase *)ExpansionBase)->BindSemaphore;
+    return &((struct LXAExpansionBase *)ExpansionBase)->Private.ep_BindSemaphore;
 }
 
 static ULONG expansion_min_ulong(ULONG a, ULONG b)
@@ -144,12 +147,12 @@ static BSTR expansion_write_bstr(STRPTR dest, CONST_STRPTR src, BOOL include_ter
 
 static struct List *expansion_mount_list(struct ExpansionBase *ExpansionBase)
 {
-    return &((struct LXAExpansionBase *)ExpansionBase)->MountList;
+    return &((struct LXAExpansionBase *)ExpansionBase)->Private.ep_MountList;
 }
 
 static struct List *expansion_board_list(struct ExpansionBase *ExpansionBase)
 {
-    return &((struct LXAExpansionBase *)ExpansionBase)->BoardList;
+    return &((struct LXAExpansionBase *)ExpansionBase)->Private.ep_BoardList;
 }
 
 static VOID expansion_lock_binding(void)
@@ -185,7 +188,7 @@ static BOOL expansion_slot_is_allocated(struct ExpansionBase *ExpansionBase, ULO
     }
 
     relative_slot = slot - (E_MEMORYBASE >> E_SLOTSHIFT);
-    return (base->ExpansionSlots[relative_slot >> 3] & (1U << (relative_slot & 7))) != 0;
+    return (base->Private.ep_ExpansionSlots[relative_slot >> 3] & (1U << (relative_slot & 7))) != 0;
 }
 
 static VOID expansion_set_slot_state(struct ExpansionBase *ExpansionBase, ULONG slot, BOOL allocated)
@@ -196,11 +199,11 @@ static VOID expansion_set_slot_state(struct ExpansionBase *ExpansionBase, ULONG 
 
     if (allocated)
     {
-        base->ExpansionSlots[relative_slot >> 3] |= mask;
+        base->Private.ep_ExpansionSlots[relative_slot >> 3] |= mask;
     }
     else
     {
-        base->ExpansionSlots[relative_slot >> 3] &= (UBYTE)~mask;
+        base->Private.ep_ExpansionSlots[relative_slot >> 3] &= (UBYTE)~mask;
     }
 }
 
