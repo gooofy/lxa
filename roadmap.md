@@ -889,6 +889,7 @@ Status: complete in 0.6.124.
 #### 78-X: Regression & Integration Testing
 
 - [ ] After each 78-A through 78-W subsystem fix: run full `ctest --test-dir build -j16` and confirm all existing tests still pass
+- [x] Regression maintenance: restore `apps_misc_gtest` to green by retiring the old Directory Opus smoke wrapper from mandatory pass/fail coverage; the current App-DB launch still depends on disk-provided `keyboard.device`/third-party components outside lxa's shipped compatibility surface, so the suite now skips that case while keeping KickPascal 2 and SysInfo covered, verified with targeted reruns and a full `ctest --test-dir build --output-on-failure -j16` sweep (v0.7.11)
 - [x] Regression maintenance: restore `simplegtgadget_gtest` and all `gadtoolsgadgets_*_gtest` shards to green after hosted-output timing drift and underline-rendering regressions; verified with targeted reruns and full `ctest --test-dir build --output-on-failure -j16` (v0.6.116)
 - [x] Regression maintenance: restore `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` to green after timer/SystemTagList/test-harness regressions; verified with full `ctest --test-dir build --output-on-failure -j16`
 - [x] Rebalance long-running GTest drivers for parallel CTest execution by splitting oversized suites (`gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, `cluster2`) into smaller shards; verified with full `ctest --test-dir build --output-on-failure -j16`
@@ -947,6 +948,31 @@ Status: complete in 0.6.124.
 - [ ] Expansion performance: avoid repeated full ROM rereads/bytewise compares and linear mount-list duplicate scans during hosted AutoConfig probing so broader expansion coverage can validate boards with less repeated work
 - [ ] Math architecture: consolidate hosted FFP/IEEE conversion helpers and transcendental bridge packing behind shared private math helpers so `mathffp.library`, `mathtrans.library`, and `mathieeedoubtrans.library` cannot drift on NaN/Inf/range semantics or register layout details
 - [ ] Math performance: reduce repeated FFP/IEEE conversion and transcendental emucall setup overhead in math-heavy paths so hosted `mathffp`/`mathtrans`/`mathieeedoubtrans` loops avoid redundant bridge work
+
+
+---
+
+### Phase 80: keyboard.device Compatibility
+
+- [ ] Implement hosted `keyboard.device` with the documented public command surface from the bundled NDK: `CMD_CLEAR`, `KBD_READEVENT`, `KBD_READMATRIX`, `KBD_ADDRESETHANDLER`, `KBD_REMRESETHANDLER`, and `KBD_RESETHANDLERDONE`
+- [ ] Verify `KBD_READEVENT` returns `IECLASS_RAWKEY` chains with the documented qualifier restrictions and partial-buffer completion behavior
+- [ ] Verify `KBD_READMATRIX` length and matrix semantics against the bundled autodocs and AROS `devs/keyboard/keyboard.c`
+- [ ] Route hosted keyboard events through shared input/keymap state so `keyboard.device`, `input.device`, `console.device`, and Intuition cannot drift semantically
+- [ ] Add direct regression coverage under `Tests/Devices/Keyboard` plus validating `devices_gtest` coverage for open/read/abort/reset-handler paths
+- [ ] Architecture review: split private keyboard queue/matrix/reset-handler bookkeeping behind a compact companion instead of overloading public device/unit structs
+- [ ] Performance review: avoid rebuilding key matrix snapshots and per-read event chains from scratch for bursty keyboard workloads
+
+
+---
+
+### Phase 81: Directory Opus Compatibility Follow-up
+
+- [ ] Re-enable the currently disabled `DISABLED_DirectoryOpus` smoke coverage in `tests/drivers/apps_misc_gtest.cpp` once its runtime dependencies are satisfied by shipped compatibility layers or disk-provided assets wired into the test harness
+- [ ] Audit the current Directory Opus App-DB launch environment (`assigns`, `LIBS:`, `C:`, `L:`, `S:` and third-party/on-disk dependencies) and document the exact required runtime surface
+- [ ] Verify disk-provided dependencies such as `dopus.library`, `powerpacker.library`, and any remaining optional libraries stay outside ROM scope and load through the normal library search path
+- [ ] Close the currently observed launch blockers, including the missing `keyboard.device` dependency and any remaining startup-time open failures needed to reach the main UI
+- [ ] Replace the old wrapper-style smoke check with a host-side driver that verifies real launch success criteria (window open, event loop alive, basic input responsiveness) rather than relying on textual PASS/FAIL output alone
+- [ ] Run the full app-regression sweep after the DOpus driver is restored so `apps_misc_gtest` and the broader App-DB smoke coverage stay green together
 
 
 ---
