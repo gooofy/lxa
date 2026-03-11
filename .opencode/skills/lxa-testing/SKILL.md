@@ -12,6 +12,7 @@ This skill details the testing requirements and strategies for the lxa project.
 - **TDD**: Write tests first.
 - **100% Coverage**: Mandatory.
 - **Unified Infrastructure**: All tests run through Google Test.
+- **Third-party scope**: Do not add ROM-coverage tests for third-party libraries; only exercise them when real copies are supplied on disk.
 
 ## 2. Test Types
 

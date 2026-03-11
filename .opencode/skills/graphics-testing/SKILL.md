@@ -101,3 +101,4 @@ int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0);
 - Always clean up resources (close screens/windows).
 - Use `ClearOutput()` before the section you want to verify.
 - Check for specific strings with `output.find()`, don't compare entire output.
+- If a UI test depends on a third-party helper library, load the real library from disk instead of adding a ROM stub for it.

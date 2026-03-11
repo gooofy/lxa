@@ -59,8 +59,6 @@ set(ROM_C_SOURCES
     lxa_rexxsyslib.c
     lxa_iffparse.c
     lxa_datatypes.c
-    lxa_reqtools.c
-    lxa_dopus.c
     lxa_dev_console.c
     lxa_dev_timer.c
     lxa_dev_clipboard.c

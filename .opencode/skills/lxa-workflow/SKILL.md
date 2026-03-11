@@ -20,6 +20,7 @@ This skill guides you through the project management, versioning, and build proc
 3. **Finish**:
    - Validate (Tests + Coverage).
    - Update `roadmap.md` (`[x]`), compact/summarize done tasks, keep it clean and focused on the future.
+   - Remove or rewrite roadmap items that would incorrectly re-implement third-party libraries; document that those libraries must be loaded from disk instead.
    - Update `README.md`.
    - Update Version Number.
 

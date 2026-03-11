@@ -113,8 +113,6 @@ extern struct Resident *__lxa_commodities_ROMTag;
 extern struct Resident *__lxa_rexxsyslib_ROMTag;
 extern struct Resident *__lxa_iffparse_ROMTag;
 extern struct Resident *__lxa_datatypes_ROMTag;
-extern struct Resident *__lxa_reqtools_ROMTag;
-extern struct Resident *__lxa_dopus_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 extern struct Resident *__lxa_console_ROMTag;
 extern struct Resident *__lxa_timer_ROMTag;
@@ -136,7 +134,7 @@ struct ExecIntVectorState
 
 static struct ExecIntVectorState g_IntVectorState[16];
 
-static struct Resident *g_ResidentModules[33];
+static struct Resident *g_ResidentModules[31];
 
 struct ExecBase        *SysBase;
 struct UtilityBase     *UtilityBase;
@@ -5275,16 +5273,14 @@ void coldstart (void)
     g_ResidentModules[20] = __lxa_rexxsyslib_ROMTag;
     g_ResidentModules[21] = __lxa_iffparse_ROMTag;
     g_ResidentModules[22] = __lxa_datatypes_ROMTag;
-    g_ResidentModules[23] = __lxa_reqtools_ROMTag;
-    g_ResidentModules[24] = __lxa_dopus_ROMTag;
-    g_ResidentModules[25] = __lxa_input_ROMTag;
-    g_ResidentModules[26] = __lxa_console_ROMTag;
-    g_ResidentModules[27] = __lxa_timer_ROMTag;
-    g_ResidentModules[28] = __lxa_clipboard_ROMTag;
-    g_ResidentModules[29] = __lxa_audio_ROMTag;
-    g_ResidentModules[30] = __lxa_gameport_ROMTag;
-    g_ResidentModules[31] = __lxa_trackdisk_ROMTag;
-    g_ResidentModules[32] = NULL;
+    g_ResidentModules[23] = __lxa_input_ROMTag;
+    g_ResidentModules[24] = __lxa_console_ROMTag;
+    g_ResidentModules[25] = __lxa_timer_ROMTag;
+    g_ResidentModules[26] = __lxa_clipboard_ROMTag;
+    g_ResidentModules[27] = __lxa_audio_ROMTag;
+    g_ResidentModules[28] = __lxa_gameport_ROMTag;
+    g_ResidentModules[29] = __lxa_trackdisk_ROMTag;
+    g_ResidentModules[30] = NULL;
 
     SysBase->ResModules = g_ResidentModules;
     SysBase->SoftVer = VERSION;
@@ -5365,8 +5361,6 @@ void coldstart (void)
                       registerBuiltInLib (sizeof(struct RxsLib) , __lxa_rexxsyslib_ROMTag );
                       registerBuiltInLib (sizeof(struct Library), __lxa_iffparse_ROMTag  );
                       registerBuiltInLib (sizeof(struct Library), __lxa_datatypes_ROMTag );
-                      registerBuiltInLib (sizeof(struct Library), __lxa_reqtools_ROMTag  );
-                      registerBuiltInLib (sizeof(struct Library), __lxa_dopus_ROMTag    );
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in libraries\n");
 

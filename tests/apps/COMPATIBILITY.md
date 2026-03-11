@@ -28,9 +28,8 @@ GFA Basic now opens a 640x256 screen and window, initializes console, and enters
 - EdWordPro - Opens windows but actual functionality unverified  
 - SysInfo - No crash but actual functionality unverified
 
-**⚠️ PARTIAL (2 apps):**
+**⚠️ PARTIAL (1 app):**
 - BeckerText II - Opens main window (after Phase 46 fixes) but functionality unverified
-- Directory Opus 4 - Main process exits, dopus_task doesn't display GUI
 
 **❌ FAILING (1 app):**
 - Oberon 2 - NULL pointer crash at startup
@@ -209,9 +208,9 @@ GFA Basic now opens a 640x256 screen and window, initializes console, and enters
   - InitArea() - area fill initialization
   - AskSoftStyle() / SetSoftStyle() - text style queries
   - SetRGB4() - color register setting (no-op)
-- **Missing Libraries** (non-fatal):
+- **Missing Libraries/Devices** (non-fatal):
   - keymap.library - keyboard layout
-  - reqtools.library - file requesters
+  - third-party requester library on disk
   - rexxsyslib.library - ARexx support
   - clipboard.device - copy/paste
 - **What We Know**:
@@ -234,7 +233,7 @@ GFA Basic now opens a 640x256 screen and window, initializes console, and enters
   4. Crashes accessing invalid ROM address (0x00FBEED1)
 - **Issues**:
   1. iffparse.library not found (non-fatal)
-  2. reqtools.library not found (non-fatal)
+  2. Third-party requester library not found on disk (non-fatal)
   3. timer.device not found
   4. Crash appears to be from unimplemented ROM function
 - **Fix Required**:
@@ -256,28 +255,6 @@ GFA Basic now opens a 640x256 screen and window, initializes console, and enters
   - Unknown, no diagnostic output
 - **Fix Required**:
   - Debug to find initialization failure
-
-### Directory Opus 4 - ⚠️ PARTIAL
-- **Binary**: `APPS:DOPUS/DirectoryOpus`
-- **Status**: Loads libraries but fails to open window, enters exception loop
-- **Issues**:
-  1. Main process exits with error code 1 immediately
-  2. Background process loads dopus.library successfully
-  3. commodities.library not found (non-fatal)
-  4. rexxsyslib.library not found (non-fatal)
-  5. powerpacker.library causes exception loop
-  6. Uses Zorro-III memory area (0x01000000-0x0FFFFFFF) - now handled, returns 0xFF
-- **Libraries Found**:
-  - dopus.library ✓
-  - powerpacker.library ✓
-- **Libraries Missing**:
-  - commodities.library (Commodities Exchange support)
-  - rexxsyslib.library (ARexx support)
-- **Fix Required**:
-  - Debug why main process exits immediately
-  - Investigate powerpacker.library exception
-  - Consider implementing commodities.library stub
-- **Test**: `tests/apps/dopus` (currently expects failure)
 
 ### AmigaBasic - ⚠️ PARTIAL
 - **Binary**: `APPS:AmigaBasic/AmigaBASIC`
@@ -365,11 +342,11 @@ Some applications require:
 These are not yet implemented.
 
 ### 5. Missing Libraries
-Some applications require:
-- reqtools.library
+Some applications require third-party libraries that `lxa` does not ship in ROM:
+- requester libraries supplied on disk
 - xpk*.library (compression)
 - MUI classes
-These are not yet implemented.
+These must be supplied from disk rather than re-implemented in `lxa`.
 
 ## Test Infrastructure
 

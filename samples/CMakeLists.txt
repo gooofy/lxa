@@ -250,7 +250,6 @@ set(TESTS_LIST
     "../tests/stress/filesystem|main|Tests/Stress/Filesystem"
     "../tests/stress/memory|main|Tests/Stress/Memory"
     "../tests/stress/tasks|main|Tests/Stress/Tasks"
-    "../tests/apps/dopus|main|Tests/Apps/Dopus"
     "../tests/apps/sysinfo|main|Tests/Apps/SysInfo"
     "../tests/apps/kickpascal2|main|Tests/Apps/KickPascal2"
     "../tests/exec/mathffp|main|Tests/Exec/MathFFP"

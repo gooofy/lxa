@@ -380,10 +380,7 @@ int main(void)
     errors += test_library_refcount("mathffp.library");
     errors += test_library_refcount("expansion.library");
 
-    /* Test 2: Also test libraries that already work correctly */
-    errors += test_library_refcount("reqtools.library");
-
-    /* Test 3: OpenLibrary() for non-existent library */
+    /* Test 2: OpenLibrary() for non-existent library */
     print("--- Test: Non-existent library ---\n");
     {
         struct Library *fake = OpenLibrary((CONST_STRPTR)"nonexistent.library", 0);
@@ -399,7 +396,7 @@ int main(void)
         }
     }
 
-    /* Test 4: Version check - request version higher than available */
+    /* Test 3: Version check - request version higher than available */
     print("\n--- Test: Version check ---\n");
     {
         struct Library *lib = OpenLibrary((CONST_STRPTR)"graphics.library", 99);
@@ -415,7 +412,7 @@ int main(void)
         }
     }
 
-    /* Test 5: Verify MakeLibrary/SetFunction/SumLibrary/AddLibrary/RemLibrary */
+    /* Test 4: Verify MakeLibrary/SetFunction/SumLibrary/AddLibrary/RemLibrary */
     errors += test_exec_library_helpers();
 
     /* ========== Final result ========== */

@@ -51,7 +51,8 @@ This skill covers the core principles, rules, and conventions for developing Ami
 ## 4. Implementation Rules
 1. **Conventions**: Respect existing naming/formatting.
 2. **Safety**: Check pointers (`BADDR`), handle `IoErr()`.
-3. **Proactiveness**: Add `EMU_CALL` for new packets, update roadmap.
+3. **Scope**: Do not re-implement third-party libraries in `lxa`. They must be installed on disk and loaded normally.
+4. **Proactiveness**: Add `EMU_CALL` for new packets, update roadmap.
 
 ## 5. Common Patterns
 - **BPTR**: `BADDR(bptr)` (Amiga->Host), `MKBADDR(ptr)` (Host->Amiga).

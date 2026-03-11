@@ -797,7 +797,7 @@ Status: complete in 0.6.124.
 
 ---
 
-#### 78-U: Commodities, RexxSysLib, ReqTools, Datatypes
+#### 78-U: Commodities, RexxSysLib, Datatypes
 
 **Commodities** (`src/rom/lxa_commodities.c`):
 - [ ] `CreateCxObj` — CX_FILTER, CX_TYPEFILTER, CX_SEND, CX_SIGNAL, CX_TRANSLATE, CX_BROKER, CX_DEBUG, CX_INVALID
@@ -816,13 +816,6 @@ Status: complete in 0.6.124.
 - [ ] `IsRexxMsg`
 - [ ] `SetRexxLocalVar` / `GetRexxLocalVar`
 
-**ReqTools** (`src/rom/lxa_reqtools.c`):
-- [ ] `rtAllocRequestA` / `rtFreeRequest`
-- [ ] `rtFileRequestA` — file requester dialog
-- [ ] `rtFontRequestA` — font requester dialog
-- [ ] `rtPaletteRequestA` / `rtScreenModeRequestA`
-- [ ] `rtEZRequestA` / `rtGetStringA` / `rtGetLongA`
-
 **Datatypes** (`src/rom/lxa_datatypes.c`):
 - [ ] `ObtainDataTypeA` / `ReleaseDataType`
 - [ ] `NewDTObjectA` / `DisposeDTObject`
@@ -831,9 +824,12 @@ Status: complete in 0.6.124.
 - [ ] `DrawDTObjectA`
 - [ ] DTST_FILE / DTST_CLIPBOARD / DTST_RAM source types
 
+**Third-party libraries**:
+- [ ] Keep third-party libraries out of ROM scope; they must be installed on disk and loaded through the normal Amiga library search path instead of being re-implemented in `lxa`
+
 ##### 78-V-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
+- [ ] Implement missing functions and stubs as far as possible within `lxa`'s scope; third-party disk libraries must stay external
 - [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
 - [ ] Performance review: identify performance improvement opportunities, add them to phase 79
 
