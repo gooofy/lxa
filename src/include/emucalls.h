@@ -69,6 +69,12 @@
 #define EMU_CALL_DOS_READLINK      1048  /* ReadLink(path, buffer, size, errptr) -> len */
 #define EMU_CALL_DOS_MAKELINK      1049  /* MakeLink(name, dest, soft, errptr) -> success */
 
+/* Phase 78-P: trackdisk.device hosted image I/O */
+#define EMU_CALL_TRACKDISK_READ    1050  /* TrackdiskRead(unit, data, len, offset, ext) -> ioerr */
+#define EMU_CALL_TRACKDISK_WRITE   1051  /* TrackdiskWrite(unit, data, len, offset, ext) -> ioerr */
+#define EMU_CALL_TRACKDISK_FORMAT  1052  /* TrackdiskFormat(unit, data, len, offset, ext) -> ioerr */
+#define EMU_CALL_TRACKDISK_SEEK    1053  /* TrackdiskSeek(unit, offset, ext) -> ioerr */
+
 /*
  * Graphics Library emucalls (2000-2999)
  *

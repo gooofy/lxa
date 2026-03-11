@@ -138,6 +138,15 @@
 
 #define FILE_KIND_REGULAR    42
 #define FILE_KIND_CONSOLE    23
+
+#define TD_SECTOR_HOST             512
+#define TDERR_NOTSPECIFIED_HOST    20
+#define TDERR_BADSECPREAMBLE_HOST  22
+#define TDERR_TOOFEWSECS_HOST      26
+#define TDERR_WRITEPROT_HOST       28
+#define TDERR_DISKCHANGED_HOST     29
+#define TDERR_SEEKERROR_HOST       30
+#define TDERR_NOMEM_HOST           31
 #define FILE_KIND_CON        99   /* CON:/RAW: window (m68k-side handling) */
 
 #define TRACE_BUF_ENTRIES 1000000
@@ -1943,6 +1952,237 @@ static int _dos_setfilesize(uint32_t fh68k, int32_t offset, int32_t mode)
     }
 
     return (int)new_size;
+}
+
+static int trackdisk_errno_to_td_error(void)
+{
+    switch (errno)
+    {
+        case 0:
+            return 0;
+        case ENOENT:
+        case ENODEV:
+            return TDERR_DISKCHANGED_HOST;
+        case EROFS:
+        case EACCES:
+        case EPERM:
+            return TDERR_WRITEPROT_HOST;
+        case ENOMEM:
+            return TDERR_NOMEM_HOST;
+        case EINVAL:
+            return TDERR_BADSECPREAMBLE_HOST;
+        case EIO:
+            return TDERR_NOTSPECIFIED_HOST;
+        default:
+            return TDERR_NOTSPECIFIED_HOST;
+    }
+}
+
+static int trackdisk_unit_path(uint32_t unit, char *path, size_t path_size)
+{
+    char drive_name[8];
+    const char *drive_path;
+    struct stat st;
+    DIR *dir;
+    struct dirent *de;
+
+    snprintf(drive_name, sizeof(drive_name), "DF%u", unit);
+    drive_path = vfs_get_drive_path(drive_name);
+    if (!drive_path)
+        return TDERR_DISKCHANGED_HOST;
+
+    if (stat(drive_path, &st) != 0)
+        return trackdisk_errno_to_td_error();
+
+    if (S_ISREG(st.st_mode))
+    {
+        strncpy(path, drive_path, path_size - 1);
+        path[path_size - 1] = '\0';
+        return 0;
+    }
+
+    if (!S_ISDIR(st.st_mode))
+        return TDERR_DISKCHANGED_HOST;
+
+    dir = opendir(drive_path);
+    if (!dir)
+        return trackdisk_errno_to_td_error();
+
+    while ((de = readdir(dir)) != NULL)
+    {
+        size_t len = strlen(de->d_name);
+        if (len >= 4 && strcasecmp(de->d_name + len - 4, ".adf") == 0)
+        {
+            snprintf(path, path_size, "%s/%s", drive_path, de->d_name);
+            closedir(dir);
+            return 0;
+        }
+    }
+
+    closedir(dir);
+    return TDERR_DISKCHANGED_HOST;
+}
+
+static int trackdisk_check_bounds(off_t file_size, uint32_t offset, uint32_t length)
+{
+    uint64_t end = (uint64_t)offset + (uint64_t)length;
+
+    if (end > (uint64_t)file_size)
+        return TDERR_TOOFEWSECS_HOST;
+
+    return 0;
+}
+
+static int _trackdisk_read(uint32_t unit, uint32_t data_ptr, uint32_t length, uint32_t offset, uint32_t is_ext)
+{
+    char path[PATH_MAX];
+    int fd;
+    struct stat st;
+    uint32_t i;
+    int error;
+    (void)is_ext;
+
+    error = trackdisk_unit_path(unit, path, sizeof(path));
+    if (error != 0)
+        return error;
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0)
+        return trackdisk_errno_to_td_error();
+
+    if (fstat(fd, &st) != 0)
+    {
+        error = trackdisk_errno_to_td_error();
+        close(fd);
+        return error;
+    }
+
+    error = trackdisk_check_bounds(st.st_size, offset, length);
+    if (error != 0)
+    {
+        close(fd);
+        return error;
+    }
+
+    if (lseek(fd, (off_t)offset, SEEK_SET) < 0)
+    {
+        error = trackdisk_errno_to_td_error();
+        close(fd);
+        return error;
+    }
+
+    for (i = 0; i < length; i++)
+    {
+        unsigned char byte;
+        ssize_t n = read(fd, &byte, 1);
+        if (n != 1)
+        {
+            close(fd);
+            return (n < 0) ? trackdisk_errno_to_td_error() : TDERR_TOOFEWSECS_HOST;
+        }
+        m68k_write_memory_8(data_ptr + i, byte);
+    }
+
+    close(fd);
+    return 0;
+}
+
+static int _trackdisk_write(uint32_t unit, uint32_t data_ptr, uint32_t length, uint32_t offset, uint32_t is_ext)
+{
+    char path[PATH_MAX];
+    int fd;
+    struct stat st;
+    uint32_t i;
+    int error;
+    (void)is_ext;
+
+    error = trackdisk_unit_path(unit, path, sizeof(path));
+    if (error != 0)
+        return error;
+
+    fd = open(path, O_RDWR);
+    if (fd < 0)
+        return trackdisk_errno_to_td_error();
+
+    if (fstat(fd, &st) != 0)
+    {
+        error = trackdisk_errno_to_td_error();
+        close(fd);
+        return error;
+    }
+
+    error = trackdisk_check_bounds(st.st_size, offset, length);
+    if (error != 0)
+    {
+        close(fd);
+        return error;
+    }
+
+    if (lseek(fd, (off_t)offset, SEEK_SET) < 0)
+    {
+        error = trackdisk_errno_to_td_error();
+        close(fd);
+        return error;
+    }
+
+    for (i = 0; i < length; i++)
+    {
+        unsigned char byte = (unsigned char)m68k_read_memory_8(data_ptr + i);
+        if (write(fd, &byte, 1) != 1)
+        {
+            error = trackdisk_errno_to_td_error();
+            close(fd);
+            return error;
+        }
+    }
+
+    close(fd);
+    return 0;
+}
+
+static int _trackdisk_format(uint32_t unit, uint32_t data_ptr, uint32_t length, uint32_t offset, uint32_t is_ext)
+{
+    return _trackdisk_write(unit, data_ptr, length, offset, is_ext);
+}
+
+static int _trackdisk_seek(uint32_t unit, uint32_t offset, uint32_t is_ext)
+{
+    char path[PATH_MAX];
+    int fd;
+    struct stat st;
+    int error;
+    (void)is_ext;
+
+    error = trackdisk_unit_path(unit, path, sizeof(path));
+    if (error != 0)
+        return error;
+
+    fd = open(path, O_RDONLY);
+    if (fd < 0)
+        return trackdisk_errno_to_td_error();
+
+    if (fstat(fd, &st) != 0)
+    {
+        error = trackdisk_errno_to_td_error();
+        close(fd);
+        return error;
+    }
+
+    if ((uint64_t)offset > (uint64_t)st.st_size)
+    {
+        close(fd);
+        return TDERR_SEEKERROR_HOST;
+    }
+
+    if (lseek(fd, (off_t)offset, SEEK_SET) < 0)
+    {
+        error = trackdisk_errno_to_td_error();
+        close(fd);
+        return error;
+    }
+
+    close(fd);
+    return 0;
 }
 
 /*
@@ -5215,6 +5455,52 @@ int op_illg(int level)
                     name, dest, soft, err);
 
             m68k_set_reg(M68K_REG_D0, _dos_makelink(name, dest, soft, err));
+            break;
+        }
+
+        case EMU_CALL_TRACKDISK_READ:
+        {
+            uint32_t unit = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t data = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t length = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t offset = m68k_get_reg(NULL, M68K_REG_D4);
+            uint32_t is_ext = m68k_get_reg(NULL, M68K_REG_D5);
+
+            m68k_set_reg(M68K_REG_D0, _trackdisk_read(unit, data, length, offset, is_ext));
+            break;
+        }
+
+        case EMU_CALL_TRACKDISK_WRITE:
+        {
+            uint32_t unit = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t data = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t length = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t offset = m68k_get_reg(NULL, M68K_REG_D4);
+            uint32_t is_ext = m68k_get_reg(NULL, M68K_REG_D5);
+
+            m68k_set_reg(M68K_REG_D0, _trackdisk_write(unit, data, length, offset, is_ext));
+            break;
+        }
+
+        case EMU_CALL_TRACKDISK_FORMAT:
+        {
+            uint32_t unit = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t data = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t length = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t offset = m68k_get_reg(NULL, M68K_REG_D4);
+            uint32_t is_ext = m68k_get_reg(NULL, M68K_REG_D5);
+
+            m68k_set_reg(M68K_REG_D0, _trackdisk_format(unit, data, length, offset, is_ext));
+            break;
+        }
+
+        case EMU_CALL_TRACKDISK_SEEK:
+        {
+            uint32_t unit = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t offset = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t is_ext = m68k_get_reg(NULL, M68K_REG_D3);
+
+            m68k_set_reg(M68K_REG_D0, _trackdisk_seek(unit, offset, is_ext));
             break;
         }
 

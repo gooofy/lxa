@@ -181,7 +181,7 @@ lxa -d -v myprogram
 - **mathieeedoubbas.library**: IEEE double-precision basic math (12 functions)
 - **input.device**: Handler-chain management (`IND_ADDHANDLER` / `IND_REMHANDLER`), held-qualifier snapshots via `PeekQualifier()`, transient qualifier-bit preservation on injected events, repeat timing configuration, and direct event injection/dispatch coverage for `IND_WRITEEVENT` / `IND_ADDEVENT`
 - **console.device**: Terminal I/O with CSI escape sequences, keyboard input, `CONU_LIBRARY` access, and covered keymap command/query support
-- **trackdisk.device**: Floppy disk device stub with geometry/status support and covered `TD_ADDCHANGEINT`/`TD_REMCHANGEINT` request lifetime semantics
+- **trackdisk.device**: Hosted `.adf`-backed sector I/O (`TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK`, plus `ETD_READ` / `ETD_WRITE`) with geometry/status support, classic error handling, and covered `TD_ADDCHANGEINT`/`TD_REMCHANGEINT` request lifetime semantics
 - **audio.device**: Channel allocation, timed `CMD_WRITE` playback, `ADCMD_SETPREC` / `ADCMD_PERVOL` / `ADCMD_FINISH` / `ADCMD_WAITCYCLE`, and end-of-sample audio interrupt delivery
 
 ### System Commands

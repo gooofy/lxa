@@ -8,10 +8,6 @@ using namespace lxa::testing;
 
 class DeviceTest : public LxaTest {
 protected:
-    void SetUp() override {
-        LxaTest::SetUp();
-    }
-
     void RunDeviceTest(const char* name, int timeout_ms = 5000) {
         std::string path = "SYS:Tests/Devices/" + std::string(name);
         int result = RunProgram(path.c_str(), "", timeout_ms);
@@ -32,6 +28,22 @@ protected:
         
         EXPECT_TRUE(passed) << "Test " << name << " did not report success";
     }
+
+    void RunTrackdiskTest(int timeout_ms = 5000) {
+        char df0_dir[] = "/tmp/lxa_test_DF0_XXXXXX";
+        char df1_dir[] = "/tmp/lxa_test_DF1_XXXXXX";
+        ASSERT_NE(mkdtemp(df0_dir), nullptr);
+        ASSERT_NE(mkdtemp(df1_dir), nullptr);
+        ASSERT_TRUE(lxa_add_drive("DF0", df0_dir));
+        ASSERT_TRUE(lxa_add_drive("DF1", df1_dir));
+
+        RunDeviceTest("Trackdisk", timeout_ms);
+
+        std::string cleanup0 = std::string("rm -rf ") + df0_dir;
+        std::string cleanup1 = std::string("rm -rf ") + df1_dir;
+        system(cleanup0.c_str());
+        system(cleanup1.c_str());
+    }
 };
 
 TEST_F(DeviceTest, Clipboard) { RunDeviceTest("Clipboard"); }
@@ -39,7 +51,7 @@ TEST_F(DeviceTest, ConsoleAsync) { RunDeviceTest("ConsoleAsync"); }
 TEST_F(DeviceTest, Input) { RunDeviceTest("Input"); }
 TEST_F(DeviceTest, Timer) { RunDeviceTest("Timer"); }
 TEST_F(DeviceTest, TimerAsync) { RunDeviceTest("TimerAsync"); }
-TEST_F(DeviceTest, Trackdisk) { RunDeviceTest("Trackdisk"); }
+TEST_F(DeviceTest, Trackdisk) { RunTrackdiskTest(); }
 TEST_F(DeviceTest, Audio) { RunDeviceTest("Audio"); }
 
 int main(int argc, char **argv) {

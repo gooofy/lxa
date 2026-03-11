@@ -31,7 +31,6 @@
 #include <exec/errors.h>
 #include <clib/exec_protos.h>
 #include <inline/exec.h>
-
 #include <devices/trackdisk.h>
 
 #include "util.h"
@@ -48,7 +47,6 @@ char __aligned _g_trackdisk_Copyright [] = "(C)opyright 2026 by G. Bartsch. Lice
 char __aligned _g_trackdisk_VERSTRING [] = "\0$VER: " EXDEVNAME EXDEVVER;
 
 extern struct ExecBase *SysBase;
-
 /* Trackdisk device base */
 struct TrackdiskBase
 {
@@ -65,6 +63,7 @@ struct TDUnit
     UBYTE          tdu_MotorOn;        /* motor state */
     UBYTE          tdu_ProtStatus;     /* write protection */
     UBYTE          tdu_UnitNum;
+    ULONG          tdu_CurrentTrack;
     struct IORequest *tdu_ChangeIntReq;
     struct Interrupt *tdu_ChangeInt;
 };
@@ -72,6 +71,131 @@ struct TDUnit
 #define NUMUNITS  4
 
 static struct TDUnit *g_units[NUMUNITS];
+
+static LONG trackdisk_validate_extended_count(struct TDUnit *tdu, struct IORequest *ioreq)
+{
+    struct IOExtTD *iotd = (struct IOExtTD *)ioreq;
+
+    if ((ioreq->io_Command & TDF_EXTCOM) && iotd->iotd_Count > tdu->tdu_ChangeCount)
+        return TDERR_DiskChanged;
+
+    return 0;
+}
+
+static LONG trackdisk_check_basic_request(struct TDUnit *tdu, struct IOStdReq *io)
+{
+    if (!tdu || !tdu->tdu_DiskIn)
+        return TDERR_DiskChanged;
+
+    if (!io->io_Data && io->io_Length)
+        return TDERR_NotSpecified;
+
+    if ((io->io_Offset & (TD_SECTOR - 1)) != 0)
+        return TDERR_BadSecPreamble;
+
+    if ((io->io_Length & (TD_SECTOR - 1)) != 0)
+        return TDERR_BadSecPreamble;
+
+    return 0;
+}
+
+static LONG trackdisk_handle_read_write(UWORD emucall, struct TDUnit *tdu, struct IORequest *ioreq)
+{
+    struct IOStdReq *io = (struct IOStdReq *)ioreq;
+    LONG error;
+
+    error = trackdisk_check_basic_request(tdu, io);
+    if (error != 0)
+        return error;
+
+    error = trackdisk_validate_extended_count(tdu, ioreq);
+    if (error != 0)
+        return error;
+
+    if ((ioreq->io_Command & TDF_EXTCOM) && ((struct IOExtTD *)ioreq)->iotd_SecLabel)
+        return TDERR_NoSecHdr;
+
+    error = (LONG)emucall5(emucall,
+                           (ULONG)tdu->tdu_UnitNum,
+                           (ULONG)io->io_Data,
+                           io->io_Length,
+                           io->io_Offset,
+                           (ioreq->io_Command & TDF_EXTCOM) ? 1 : 0);
+    if (error == 0)
+    {
+        io->io_Actual = io->io_Length;
+        tdu->tdu_CurrentTrack = (ULONG)(io->io_Offset / (TD_SECTOR * NUMSECS));
+    }
+
+    return error;
+}
+
+static LONG trackdisk_handle_seek(struct TDUnit *tdu, struct IORequest *ioreq)
+{
+    struct IOStdReq *io = (struct IOStdReq *)ioreq;
+    LONG error;
+
+    if (!tdu || !tdu->tdu_DiskIn)
+        return TDERR_DiskChanged;
+
+    if ((io->io_Offset & (TD_SECTOR - 1)) != 0)
+        return TDERR_BadSecPreamble;
+
+    error = trackdisk_validate_extended_count(tdu, ioreq);
+    if (error != 0)
+        return error;
+
+    error = (LONG)emucall3(EMU_CALL_TRACKDISK_SEEK,
+                           (ULONG)tdu->tdu_UnitNum,
+                           io->io_Offset,
+                           (ioreq->io_Command & TDF_EXTCOM) ? 1 : 0);
+    if (error == 0)
+        tdu->tdu_CurrentTrack = (ULONG)(io->io_Offset / (TD_SECTOR * NUMSECS));
+
+    return error;
+}
+
+static LONG trackdisk_handle_format(struct TDUnit *tdu, struct IORequest *ioreq)
+{
+    struct IOStdReq *io = (struct IOStdReq *)ioreq;
+    LONG error;
+
+    if (!tdu || !tdu->tdu_DiskIn)
+        return TDERR_DiskChanged;
+
+    if (tdu->tdu_ProtStatus)
+        return TDERR_WriteProt;
+
+    if (!io->io_Data || io->io_Length == 0)
+        return TDERR_NotSpecified;
+
+    if ((io->io_Offset % (TD_SECTOR * NUMSECS)) != 0)
+        return TDERR_BadSecPreamble;
+
+    if ((io->io_Length % (TD_SECTOR * NUMSECS)) != 0)
+        return TDERR_TooFewSecs;
+
+    error = trackdisk_validate_extended_count(tdu, ioreq);
+    if (error != 0)
+        return error;
+
+    if ((ioreq->io_Command & TDF_EXTCOM) && ((struct IOExtTD *)ioreq)->iotd_SecLabel)
+        return TDERR_NoSecHdr;
+
+    error = (LONG)emucall5(EMU_CALL_TRACKDISK_FORMAT,
+                           (ULONG)tdu->tdu_UnitNum,
+                           (ULONG)io->io_Data,
+                           io->io_Length,
+                           io->io_Offset,
+                           (ioreq->io_Command & TDF_EXTCOM) ? 1 : 0);
+    if (error == 0)
+    {
+        io->io_Actual = io->io_Length;
+        tdu->tdu_CurrentTrack = (ULONG)(io->io_Offset / (TD_SECTOR * NUMSECS));
+    }
+
+    return error;
+}
 
 /*
  * Device Init
@@ -131,6 +255,7 @@ static void __g_lxa_trackdisk_Open ( register struct Library   *dev   __asm("a6"
         tdu->tdu_MotorOn     = 0;
         tdu->tdu_ProtStatus  = 0;   /* not write-protected */
         tdu->tdu_UnitNum     = (UBYTE)unit;
+        tdu->tdu_CurrentTrack = 0;
         tdu->tdu_ChangeIntReq = NULL;
         tdu->tdu_ChangeInt = NULL;
         g_units[unit] = tdu;
@@ -260,7 +385,7 @@ static BPTR __g_lxa_trackdisk_BeginIO ( register struct Library   *dev   __asm("
         }
 
         case TD_SEEK:
-            /* Seek is a no-op in our stub (directories don't have tracks) */
+            ioreq->io_Error = trackdisk_handle_seek(tdu, ioreq);
             break;
 
         case TD_ADDCHANGEINT:
@@ -299,12 +424,25 @@ static BPTR __g_lxa_trackdisk_BeginIO ( register struct Library   *dev   __asm("
             break;
 
         case CMD_READ:
+            ioreq->io_Error = trackdisk_handle_read_write(EMU_CALL_TRACKDISK_READ, tdu, ioreq);
+            break;
+
         case CMD_WRITE:
+            if (tdu && tdu->tdu_ProtStatus)
+            {
+                ioreq->io_Error = TDERR_WriteProt;
+                break;
+            }
+            ioreq->io_Error = trackdisk_handle_read_write(EMU_CALL_TRACKDISK_WRITE, tdu, ioreq);
+            break;
+
         case TD_FORMAT:
+            ioreq->io_Error = trackdisk_handle_format(tdu, ioreq);
+            break;
+
         case TD_RAWREAD:
         case TD_RAWWRITE:
-            /* Actual I/O not supported in stub - directories use DOS, not device I/O */
-            DPRINTF (LOG_DEBUG, "_trackdisk: I/O command %u not supported (use DOS)\n", base_cmd);
+            DPRINTF (LOG_DEBUG, "_trackdisk: I/O command %u not supported\n", base_cmd);
             ioreq->io_Error = TDERR_NotSpecified;
             break;
 

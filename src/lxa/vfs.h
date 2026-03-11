@@ -6,6 +6,7 @@
 
 void vfs_init(void);
 bool vfs_add_drive(const char *amiga_name, const char *linux_path);
+const char *vfs_get_drive_path(const char *amiga_name);
 bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen);
 
 /*

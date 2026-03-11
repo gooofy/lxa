@@ -110,7 +110,7 @@ int main(void)
     struct IOAudio *req2;
     struct Interrupt audio_irq;
     UBYTE alloc_map[] = { 1 };
-    BYTE waveform[40];
+    BYTE waveform[800];
     LONG error;
     struct IORequest *check;
 
@@ -119,7 +119,7 @@ int main(void)
 
     {
         int i;
-        for (i = 0; i < 40; i++) {
+        for (i = 0; i < (int)sizeof(waveform); i++) {
             waveform[i] = (i & 1) ? -127 : 127;
         }
     }
@@ -206,9 +206,9 @@ int main(void)
     req->ioa_Request.io_Flags = ADIOF_PERVOL;
     req->ioa_Data = (UBYTE *)waveform;
     req->ioa_Length = sizeof(waveform);
-    req->ioa_Period = 20000;
+    req->ioa_Period = 50000;
     req->ioa_Volume = 32;
-    req->ioa_Cycles = 2;
+    req->ioa_Cycles = 4;
     SendIO((struct IORequest *)req);
 
     check = CheckIO((struct IORequest *)req);

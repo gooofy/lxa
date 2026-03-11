@@ -683,18 +683,18 @@ Status: complete in 0.6.124.
 
 #### 78-P: Trackdisk Device (`src/rom/lxa_dev_trackdisk.c` vs `others/AROS-20231016-source/rom/devs/trackdisk/`)
 
-- [ ] `TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK` — map to host file I/O on `.adf` image
-- [ ] `TD_MOTOR` ✅ (Phase 77)
-- [ ] `TD_CHANGENUM` / `TD_CHANGESTATE` / `TD_PROTSTATUS` / `TD_GETGEOMETRY` ✅ (Phase 77)
+- [x] `TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK` — hosted trackdisk units now map to `.adf` images exposed either directly or via the first `.adf` file inside the mapped `DFx:` directory, with direct regression coverage for sector reads/writes, track formatting, seek validation, missing-media handling, and write-protect behavior in `Tests/Devices/Trackdisk` (v0.7.11)
+- [x] `TD_MOTOR` ✅ (Phase 77)
+- [x] `TD_CHANGENUM` / `TD_CHANGESTATE` / `TD_PROTSTATUS` / `TD_GETGEOMETRY` ✅ (Phase 77)
 - [x] `TD_ADDCHANGEINT` / `TD_REMCHANGEINT` — hosted compatibility now holds the change-notify request pending until `TD_REMCHANGEINT`, matching the public NDK lifetime semantics with direct regression coverage in `Tests/Devices/Trackdisk` (v0.7.10)
-- [ ] `ETD_READ` / `ETD_WRITE` — extended commands with `TDU_PUBFLAGS`
-- [ ] Error codes: TDERR_NotSpecified, TDERR_NoSecHdr, TDERR_BadSecPreamble, TDERR_TooFewSecs, TDERR_NoDisk
+- [x] `ETD_READ` / `ETD_WRITE` — extended count checking now rejects stale media counters and sector-label requests on the hosted `.adf` path, with direct regression coverage in `Tests/Devices/Trackdisk` (v0.7.11)
+- [x] Error codes: TDERR_NotSpecified, TDERR_NoSecHdr, TDERR_BadSecPreamble, TDERR_TooFewSecs, TDERR_NoDisk
 
 ##### 78-P-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — hosted `trackdisk.device` now covers the planned `.adf`-backed read/write/format/seek surface, extended read/write count validation, write-protect/missing-media behavior, and direct regression coverage in `Tests/Devices/Trackdisk`; validation is green via targeted `devices_gtest` and full `ctest --test-dir build --output-on-failure -j16` (v0.7.11)
+- [x] Architecture review: hosted trackdisk `.adf` discovery and request validation currently split between ROM-side command dispatch and host-side image lookup/open code; Phase 79 now tracks factoring disk-image selection, media-state refresh, and command validation behind one private trackdisk companion so direct and extended command paths cannot drift semantically (v0.7.11)
+- [x] Performance review: hosted trackdisk I/O currently re-opens and rescans the mapped `DFx:` path for every request, with byte-at-a-time host transfers on each read/write; Phase 79 now tracks caching resolved image handles/metadata and batching sector copies so repeated floppy traffic avoids redundant directory scans and syscall churn (v0.7.11)
 
 
 
@@ -944,6 +944,8 @@ Status: complete in 0.6.124.
 - [ ] Input performance: cache reusable qualifier/event-template state and optional handler fast-path metadata so bursty keyboard/mouse workloads avoid rebuilding equivalent `InputEvent` state and fully generic handler walks on every host event
 - [ ] Audio architecture: split private audio channel timing/state, request-queue ownership, and IRQ dispatch helpers behind a compact companion so allocation/steal rules, playback control, and end-of-sample interrupt delivery cannot drift as more Paula-compatible behavior lands
 - [ ] Audio performance: replace VBlank-wide misc/pending-request scans and per-write fragment requeueing with per-channel wake buckets / lightweight host buffering so longer playback sequences avoid redundant list walks and queue churn
+- [ ] Trackdisk architecture: factor hosted `.adf` discovery, media-state refresh, and direct/extended command validation behind a private trackdisk companion so ROM-side command dispatch and host-side image handling cannot drift semantically
+- [ ] Trackdisk performance: cache resolved `DFx:` image metadata/handles and batch sector transfers so repeated floppy I/O avoids per-request directory rescans, reopen churn, and byte-at-a-time host copies
 - [ ] IFFParse performance: avoid repeated full context-stack LCI scans during `ParseIFF()` by separating declaration indexes from stored items and caching active stop/property/collection matches per context
 
 
@@ -976,5 +978,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-M**: console.device compatibility advanced again: direct console regressions now lock ANSI cursor movement/erase/cursor-visibility handling, SGR color and attribute state, `IDCMP_NEWSIZE`-driven bounds updates, keymap/library-mode behavior, legacy special-key reads, broadened raw-input/report coverage (`aSRE` / `aRRE` for raw-key, mouse-button, gadget, and resize reports), and initial scroll-back commands together under `console_gtest`; the remaining follow-up is broader event-class breadth and documented read-mode flags (v0.7.6).
 - **Phase 78-N**: input.device verification is now closed for the tracked public surface: handler-chain ordering (`IND_ADDHANDLER` / `IND_REMHANDLER`), repeat timing setters, mouse-port/type setters, direct `IND_WRITEEVENT` / `IND_ADDEVENT` dispatch, held-state `PeekQualifier()` snapshots, and transient per-event qualifier delivery are all covered by `Tests/Devices/Input`; the older `FreeInputHandlerList()` follow-up is retired after confirming it is not part of the bundled NDK/AROS public ABI (v0.7.8).
 - **Phase 78-O**: audio.device now closes the tracked hosted audio surface for this phase: channel allocation/free, precedence changes, queued `CMD_WRITE` playback timing, live `ADCMD_PERVOL` / `ADCMD_FINISH` / `ADCMD_WAITCYCLE`, SDL-backed fragment playback, and end-of-sample `INTB_AUD0-3` interrupt delivery are exercised by `Tests/Devices/Audio` with validating `devices_gtest` / `exec_gtest` runs (v0.7.9).
-- **Phase 78-P (partial)**: `trackdisk.device` disk-change listener lifecycle now matches the public NDK contract for the hosted compatibility surface: `TD_ADDCHANGEINT` keeps its request pending until paired `TD_REMCHANGEINT`, and the direct `Tests/Devices/Trackdisk` regression locks that lifetime semantics down alongside the existing geometry/status coverage (v0.7.10).
+- **Phase 78-P**: `trackdisk.device` now covers the tracked hosted surface for this phase: `.adf`-backed `TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK`, extended `ETD_READ` / `ETD_WRITE` counter validation, classic geometry/status and write-protect/missing-media errors, plus the earlier change-interrupt lifetime semantics are all exercised by `Tests/Devices/Trackdisk`; validation is green via targeted `devices_gtest` and full `ctest --test-dir build --output-on-failure -j16` (v0.7.11).
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 633 assertions passing, now including `KeyMap` layout coverage.

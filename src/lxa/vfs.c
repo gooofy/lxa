@@ -193,6 +193,21 @@ bool vfs_add_drive(const char *amiga_name, const char *linux_path) {
     return true;
 }
 
+const char *vfs_get_drive_path(const char *amiga_name)
+{
+    drive_map_t *map = g_drive_maps;
+
+    while (map)
+    {
+        if (strcasecmp(map->amiga_name, amiga_name) == 0)
+            return map->linux_path;
+
+        map = map->next;
+    }
+
+    return NULL;
+}
+
 static bool resolve_case(const char *base, const char *component, char *resolved, size_t maxlen) {
     DIR *dir = opendir(base);
     if (!dir) return false;
