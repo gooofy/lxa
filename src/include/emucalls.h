@@ -252,4 +252,30 @@
 #define EMU_CALL_IEEESP_FLOOR        5110  /* IEEESPFloor: d1=float -> d0=float */
 #define EMU_CALL_IEEESP_CEIL         5111  /* IEEESPCeil: d1=float -> d0=float */
 
+/*
+ * Motorola FFP/mathtrans helpers (5120-5136)
+ *
+ * These bridge Motorola Fast Floating Point values to host-native math.
+ * FFP values are passed as raw 32-bit words in data registers.
+ */
+#define EMU_CALL_FFP_ATAN            5120  /* SPAtan:   d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_SIN             5121  /* SPSin:    d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_COS             5122  /* SPCos:    d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_TAN             5123  /* SPTan:    d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_SINCOS          5124  /* SPSincos: d1=ffp, d2=ffp* -> d0=sin, *d2=cos */
+#define EMU_CALL_FFP_SINH            5125  /* SPSinh:   d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_COSH            5126  /* SPCosh:   d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_TANH            5127  /* SPTanh:   d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_EXP             5128  /* SPExp:    d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_LOG             5129  /* SPLog:    d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_POW             5130  /* SPPow:    d1=base, d2=power -> d0=ffp */
+#define EMU_CALL_FFP_SQRT            5131  /* SPSqrt:   d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_TIEEE           5132  /* SPTieee:  d1=ffp -> d0=ieee single */
+#define EMU_CALL_FFP_FIEEE           5133  /* SPFieee:  d1=ieee single -> d0=ffp */
+#define EMU_CALL_FFP_ASIN            5134  /* SPAsin:   d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_ACOS            5135  /* SPAcos:   d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_LOG10           5136  /* SPLog10:  d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_FLOOR           5137  /* SPFloor:  d1=ffp -> d0=ffp */
+#define EMU_CALL_FFP_CEIL            5138  /* SPCeil:   d1=ffp -> d0=ffp */
+
 #endif

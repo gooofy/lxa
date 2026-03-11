@@ -148,9 +148,41 @@
         "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest",
         "100% tests passed, 0 tests failed out of 1"
       ]
+    },
+    {
+      "iteration": 7,
+      "startedAt": "2026-03-11T09:08:49.680Z",
+      "endedAt": "2026-03-11T09:41:36.538Z",
+      "durationMs": 1965230,
+      "agent": "opencode",
+      "model": "",
+      "toolsUsed": {},
+      "filesModified": [
+        ".ralph/ralph-tasks.md",
+        "roadmap.md",
+        "src/include/emucalls.h",
+        "src/lxa/lxa.c",
+        "src/rom/lxa_mathffp.c",
+        "src/rom/lxa_mathtrans.c",
+        "tests/exec/mathffp/main.c"
+      ],
+      "exitCode": 0,
+      "completionDetected": false,
+      "errors": [
+        "[ ] Run targeted build/tests, fix failures, and mark task complete in `.ralph/ralph-tasks.md`",
+        "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include_H/inline/mathieeedoubtrans.h",
+        "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7265:27: error: implicit declaration of function ‘ffp_to_host_float’ [-Wimplicit-function-declaration]",
+        "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7285:39: error: implicit declaration of function ‘host_float_to_ffp’ [-Wimplicit-function-declaration]",
+        "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7688:14: error: conflicting types for ‘ffp_to_host_float’; have ‘float(uint32_t)’ {aka ‘float(unsigned int)’}",
+        "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7711:17: error: conflicting types for ‘host_float_to_ffp’; have ‘uint32_t(float)’ {aka ‘unsigned int(float)’}",
+        "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7711:17: error: ‘host_float_to_ffp’ defined but not used [-Werror=unused-function]",
+        "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7688:14: error: ‘ffp_to_host_float’ defined but not used [-Werror=unused-function]",
+        "collect2: error: ld returned 1 exit status",
+        "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest -j16"
+      ]
     }
   ],
-  "totalDurationMs": 3061262,
+  "totalDurationMs": 5026492,
   "struggleIndicators": {
     "repeatedErrors": {
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /home/guenter/projects/amiga/lxa/src/lxa/tests/CMakeLists.txt": 3,
@@ -179,7 +211,17 @@
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include/include_h/inlin": 1,
       "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include/include_h/libra": 1,
       "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest": 1,
-      "100% tests passed, 0 tests failed out of 1": 1
+      "100% tests passed, 0 tests failed out of 1": 1,
+      "[ ] Run targeted build/tests, fix failures, and mark task complete in `.ralph/ralph-tasks.md`": 1,
+      "\u001b[91m\u001b[1mError: \u001b[0mFile not found: /opt/amiga/src/amiga-gcc/projects/NDK3.2/Include_H/inline/mathie": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7265:27: error: implicit declaration of funct": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7285:39: error: implicit declaration of funct": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7688:14: error: conflicting types for ‘ffp_to": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7711:17: error: conflicting types for ‘host_f": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7711:17: error: ‘host_float_to_ffp’ defined b": 1,
+      "/home/guenter/projects/amiga/lxa/src/lxa/src/lxa/lxa.c:7688:14: error: ‘ffp_to_host_float’ defined b": 1,
+      "collect2: error: ld returned 1 exit status": 1,
+      "\u001b[0m$ \u001b[0mctest --test-dir build --output-on-failure -R exec_gtest -j16": 1
     },
     "noProgressIterations": 0,
     "shortIterations": 0

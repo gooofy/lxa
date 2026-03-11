@@ -10,6 +10,14 @@
 #define MATHFFP_BASE_NAME MathBase
 #include <inline/mathffp.h>
 
+struct Library *MathIeeeSingBasBase;
+#define MATHIEEESINGBAS_BASE_NAME MathIeeeSingBasBase
+#include <inline/mathieeesingbas.h>
+
+struct Library *MathTransBase;
+#define MATHTRANS_BASE_NAME MathTransBase
+#include <inline/mathtrans.h>
+
 extern struct ExecBase *SysBase;
 extern struct DosLibrary *DOSBase;
 struct Library *MathBase;
@@ -118,9 +126,47 @@ static void expect_true(BOOL condition, const char *name)
     }
 }
 
+static ULONG float_bits(FLOAT value)
+{
+    union {
+        FLOAT f;
+        ULONG u;
+    } bits;
+
+    bits.f = value;
+    return bits.u;
+}
+
+static FLOAT ffp_from_bits(ULONG bits)
+{
+    union {
+        FLOAT f;
+        ULONG u;
+    } raw;
+
+    raw.u = bits;
+    return raw.f;
+}
+
+static void expect_ieee_bits(FLOAT actual, ULONG expected, const char *name)
+{
+    expect_true(float_bits(actual) == expected, name);
+}
+
+static void expect_close(FLOAT actual_ffp, FLOAT expected_ieee, FLOAT tolerance, const char *name)
+{
+    FLOAT actual_ieee = SPTieee(actual_ffp);
+    FLOAT diff = IEEESPAbs(IEEESPSub(actual_ieee, expected_ieee));
+
+    expect_true(IEEESPCmp(diff, tolerance) <= 0, name);
+}
+
 int main(void)
 {
     LONG i;
+    FLOAT pi = ffp_from_bits(0xc90fdb42UL);
+    FLOAT half_pi = ffp_from_bits(0xc90fdb41UL);
+    FLOAT quarter_pi = ffp_from_bits(0xc90fdb40UL);
 
     out = Output();
 
@@ -133,6 +179,25 @@ int main(void)
         return 20;
     }
     test_ok("OpenLibrary mathffp.library");
+
+    MathIeeeSingBasBase = OpenLibrary("mathieeesingbas.library", 0);
+    if (MathIeeeSingBasBase == NULL)
+    {
+        print("FAIL: Cannot open mathieeesingbas.library\n");
+        CloseLibrary(MathBase);
+        return 20;
+    }
+    test_ok("OpenLibrary mathieeesingbas.library");
+
+    MathTransBase = OpenLibrary("mathtrans.library", 0);
+    if (MathTransBase == NULL)
+    {
+        print("FAIL: Cannot open mathtrans.library\n");
+        CloseLibrary(MathIeeeSingBasBase);
+        CloseLibrary(MathBase);
+        return 20;
+    }
+    test_ok("OpenLibrary mathtrans.library");
 
     expect_long(SPFix(SPFlt(0)), 0, "SPFix(SPFlt(0)) = 0");
     expect_long(SPFix(SPFlt(1)), 1, "SPFix(SPFlt(1)) = 1");
@@ -188,6 +253,49 @@ int main(void)
     expect_long(SPFix(SPDiv(SPFlt(-3), SPFlt(21))), -7, "SPDiv(-3, 21) = -7");
     expect_long(SPTst(SPDiv(SPFlt(5), SPFlt(0))), 0, "SPDiv(5, 0) = 0");
 
+    expect_long(SPFix(SPFloor(SPDiv(SPFlt(10), SPFlt(37)))), 3, "SPFloor(37/10) = 3");
+    expect_long(SPFix(SPFloor(SPDiv(SPFlt(10), SPFlt(-37)))), -4, "SPFloor(-37/10) = -4");
+    expect_long(SPFix(SPFloor(SPDiv(SPFlt(2), SPFlt(1)))), 0, "SPFloor(1/2) = 0");
+    expect_long(SPFix(SPFloor(SPDiv(SPFlt(10), SPFlt(-30)))), -3, "SPFloor(-30/10) = -3");
+
+    expect_long(SPFix(SPCeil(SPDiv(SPFlt(10), SPFlt(37)))), 4, "SPCeil(37/10) = 4");
+    expect_long(SPFix(SPCeil(SPDiv(SPFlt(10), SPFlt(-37)))), -3, "SPCeil(-37/10) = -3");
+    expect_long(SPFix(SPCeil(SPDiv(SPFlt(2), SPFlt(1)))), 1, "SPCeil(1/2) = 1");
+    expect_long(SPFix(SPCeil(SPDiv(SPFlt(10), SPFlt(-30)))), -3, "SPCeil(-30/10) = -3");
+
+    expect_close(SPSin(SPFlt(0)), 0.0f, 0.01f, "SPSin(0) ~= 0");
+    expect_close(SPCos(SPFlt(0)), 1.0f, 0.01f, "SPCos(0) ~= 1");
+    expect_close(SPSin(half_pi), 1.0f, 0.02f, "SPSin(pi/2) ~= 1");
+    expect_close(SPCos(pi), -1.0f, 0.02f, "SPCos(pi) ~= -1");
+    expect_close(SPTan(quarter_pi), 1.0f, 0.03f, "SPTan(pi/4) ~= 1");
+    expect_close(SPAtan(SPFlt(1)), 0.7853982f, 0.03f, "SPAtan(1) ~= pi/4");
+
+    {
+        FLOAT cos_result = SPFlt(0);
+        FLOAT sin_result = SPSincos(&cos_result, half_pi);
+        expect_close(sin_result, 1.0f, 0.02f, "SPSincos(pi/2) sin ~= 1");
+        expect_close(cos_result, 0.0f, 0.02f, "SPSincos(pi/2) cos ~= 0");
+    }
+
+    expect_close(SPSinh(SPFlt(0)), 0.0f, 0.01f, "SPSinh(0) ~= 0");
+    expect_close(SPCosh(SPFlt(0)), 1.0f, 0.01f, "SPCosh(0) ~= 1");
+    expect_close(SPTanh(SPFlt(0)), 0.0f, 0.01f, "SPTanh(0) ~= 0");
+
+    expect_close(SPExp(SPFlt(0)), 1.0f, 0.03f, "SPExp(0) ~= 1");
+    expect_close(SPLog(SPFlt(1)), 0.0f, 0.03f, "SPLog(1) ~= 0");
+    expect_close(SPLog10(SPFlt(10)), 1.0f, 0.03f, "SPLog10(10) ~= 1");
+    expect_close(SPPow(SPFlt(3), SPFlt(2)), 8.0f, 0.05f, "SPPow(3, 2) ~= 8");
+    expect_close(SPSqrt(SPFlt(9)), 3.0f, 0.03f, "SPSqrt(9) ~= 3");
+
+    expect_ieee_bits(SPTieee(SPFlt(0)), 0x00000000UL, "SPTieee(0) = 0.0f");
+    expect_ieee_bits(SPTieee(SPFlt(1)), 0x3F800000UL, "SPTieee(1) = 1.0f");
+    expect_long(SPFix(SPFieee(1.0f)), 1, "SPFieee(1.0f) = 1");
+    expect_long(SPFix(SPFieee(-2.5f)), -2, "SPFieee(-2.5f) truncates to -2");
+
+    CloseLibrary(MathTransBase);
+    test_ok("CloseLibrary mathtrans.library");
+    CloseLibrary(MathIeeeSingBasBase);
+    test_ok("CloseLibrary mathieeesingbas.library");
     CloseLibrary(MathBase);
     test_ok("CloseLibrary");
 

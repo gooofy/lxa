@@ -32,6 +32,9 @@
 #include "config.h"
 #include "display.h"
 
+static float ffp_to_host_float(uint32_t raw);
+static uint32_t host_float_to_ffp(float value);
+
 #ifdef SDL2_FOUND
 #include <SDL.h>
 #endif
@@ -7247,6 +7250,92 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_FFP_ATAN:
+        case EMU_CALL_FFP_SIN:
+        case EMU_CALL_FFP_COS:
+        case EMU_CALL_FFP_TAN:
+        case EMU_CALL_FFP_SINH:
+        case EMU_CALL_FFP_COSH:
+        case EMU_CALL_FFP_TANH:
+        case EMU_CALL_FFP_EXP:
+        case EMU_CALL_FFP_LOG:
+        case EMU_CALL_FFP_SQRT:
+        case EMU_CALL_FFP_ASIN:
+        case EMU_CALL_FFP_ACOS:
+        case EMU_CALL_FFP_LOG10:
+        case EMU_CALL_FFP_FLOOR:
+        case EMU_CALL_FFP_CEIL:
+        {
+            uint32_t raw = m68k_get_reg(NULL, M68K_REG_D1);
+            float input = ffp_to_host_float(raw);
+            float result = 0.0f;
+
+            switch (d0)
+            {
+                case EMU_CALL_FFP_ATAN:  result = atanf(input); break;
+                case EMU_CALL_FFP_SIN:   result = sinf(input); break;
+                case EMU_CALL_FFP_COS:   result = cosf(input); break;
+                case EMU_CALL_FFP_TAN:   result = tanf(input); break;
+                case EMU_CALL_FFP_SINH:  result = sinhf(input); break;
+                case EMU_CALL_FFP_COSH:  result = coshf(input); break;
+                case EMU_CALL_FFP_TANH:  result = tanhf(input); break;
+                case EMU_CALL_FFP_EXP:   result = expf(input); break;
+                case EMU_CALL_FFP_LOG:   result = logf(input); break;
+                case EMU_CALL_FFP_SQRT:  result = sqrtf(input); break;
+                case EMU_CALL_FFP_ASIN:  result = asinf(input); break;
+                case EMU_CALL_FFP_ACOS:  result = acosf(input); break;
+                case EMU_CALL_FFP_LOG10: result = log10f(input); break;
+                case EMU_CALL_FFP_FLOOR: result = floorf(input); break;
+                case EMU_CALL_FFP_CEIL:  result = ceilf(input); break;
+            }
+
+            m68k_set_reg(M68K_REG_D0, host_float_to_ffp(result));
+            break;
+        }
+
+        case EMU_CALL_FFP_SINCOS:
+        {
+            uint32_t raw = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t cos_ptr = m68k_get_reg(NULL, M68K_REG_D2);
+            float input = ffp_to_host_float(raw);
+            float sin_result = sinf(input);
+            float cos_result = cosf(input);
+
+            if (cos_ptr != 0)
+            {
+                m68k_write_memory_32(cos_ptr, host_float_to_ffp(cos_result));
+            }
+
+            m68k_set_reg(M68K_REG_D0, host_float_to_ffp(sin_result));
+            break;
+        }
+
+        case EMU_CALL_FFP_POW:
+        {
+            float base = ffp_to_host_float(m68k_get_reg(NULL, M68K_REG_D1));
+            float power = ffp_to_host_float(m68k_get_reg(NULL, M68K_REG_D2));
+            float result = powf(base, power);
+
+            m68k_set_reg(M68K_REG_D0, host_float_to_ffp(result));
+            break;
+        }
+
+        case EMU_CALL_FFP_TIEEE:
+        {
+            union { float f; uint32_t u; } val;
+            val.f = ffp_to_host_float(m68k_get_reg(NULL, M68K_REG_D1));
+            m68k_set_reg(M68K_REG_D0, val.u);
+            break;
+        }
+
+        case EMU_CALL_FFP_FIEEE:
+        {
+            union { float f; uint32_t u; } val;
+            val.u = m68k_get_reg(NULL, M68K_REG_D1);
+            m68k_set_reg(M68K_REG_D0, host_float_to_ffp(val.f));
+            break;
+        }
+
         /*
          * Phase 61: IEEE Double Precision Transcendental Math (5020-5039)
          * mathieeedoubtrans.library handlers
@@ -7602,6 +7691,80 @@ int op_illg(int level)
 }
 
 #define MAX_JITTER 1024
+
+static float ffp_to_host_float(uint32_t raw)
+{
+    uint32_t mantissa;
+    int exponent;
+    float value;
+
+    if (raw == 0)
+    {
+        return 0.0f;
+    }
+
+    mantissa = raw >> 8;
+    exponent = (int)(raw & 0x7f) - 64;
+    value = ldexpf((float)mantissa / 16777216.0f, exponent);
+
+    if (raw & 0x80)
+    {
+        value = -value;
+    }
+
+    return value;
+}
+
+static uint32_t host_float_to_ffp(float value)
+{
+    float mantissa;
+    int exponent;
+    uint32_t sign = 0;
+    uint32_t mantissa_bits;
+    int encoded_exponent;
+
+    if (value == 0.0f)
+    {
+        return 0;
+    }
+
+    if (isnan(value))
+    {
+        return 0;
+    }
+
+    if (signbit(value))
+    {
+        sign = 0x80;
+        value = -value;
+    }
+
+    if (isinf(value))
+    {
+        return sign | 0xffffff7fU;
+    }
+
+    mantissa = frexpf(value, &exponent);
+    mantissa_bits = (uint32_t)lrintf(mantissa * 16777216.0f);
+
+    if (mantissa_bits >= 0x1000000U)
+    {
+        mantissa_bits >>= 1;
+        exponent++;
+    }
+
+    encoded_exponent = exponent + 64;
+    if (encoded_exponent <= 0)
+    {
+        return 0;
+    }
+    if (encoded_exponent > 0x7f)
+    {
+        return sign | 0xffffff7fU;
+    }
+
+    return (mantissa_bits << 8) | sign | (uint32_t)encoded_exponent;
+}
 
 static uint32_t _debug_print_diss (uint32_t pc, uint32_t curPC)
 {

@@ -726,15 +726,15 @@ Status: complete in 0.6.124.
 **mathffp** (`src/rom/lxa_mathffp.c` vs NDK `math.h`):
 - [x] `SPFix` / `SPFlt` / `SPCmp` / `SPTst` / `SPAbs` / `SPNeg` — single-precision fast float
 - [x] `SPAdd` / `SPSub` / `SPMul` / `SPDiv`
-- [ ] `SPFloor` / `SPCeil`
-- [ ] FFP format: 8-bit exponent (biased by 0x40), 24-bit mantissa, 1 sign bit
+- [x] `SPFloor` / `SPCeil` — hosted rounding semantics now run through the new FFP/IEEE bridge so exact integers, positive fractions, and negative edge cases (including whole negative values) stay aligned with the current regression coverage
+- [x] FFP format: 8-bit exponent (biased by 0x40), 24-bit mantissa, 1 sign bit — hosted bridge/tests now lock the current raw FFP encoding/decoding assumptions used by `mathffp.library` and `mathtrans.library`
 - [ ] Edge cases: NaN, Inf, zero, denormals
 
 **mathtrans** (`src/rom/lxa_mathtrans.c`):
-- [ ] `SPSin` / `SPCos` / `SPTan` / `SPAtan`
-- [ ] `SPSinh` / `SPCosh` / `SPTanh`
-- [ ] `SPExp` / `SPLog` / `SPLog10`
-- [ ] `SPPow` / `SPSqrt` / `SPTieee` / `SPFieee`
+- [x] `SPSin` / `SPCos` / `SPTan` / `SPAtan`
+- [x] `SPSinh` / `SPCosh` / `SPTanh`
+- [x] `SPExp` / `SPLog` / `SPLog10`
+- [x] `SPPow` / `SPSqrt` / `SPTieee` / `SPFieee` — mathtrans now delegates the public FFP transcendental/conversion surface through host-backed FFP emucalls, with direct exec regressions covering `SPSincos()` as well
 
 **mathieeesingbas** ✅ (Phase 77) — all 12 functions verified.
 
