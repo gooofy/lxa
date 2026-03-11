@@ -66,6 +66,8 @@ static VOID _graphics_AddVSprite(register struct GfxBase *GfxBase __asm("a6"),
                                  register struct RastPort *rp __asm("a1"));
 static VOID _graphics_RemVSprite(register struct GfxBase *GfxBase __asm("a6"),
                                  register struct VSprite *vSprite __asm("a0"));
+static UBYTE GetPlaneBit(CONST PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y);
+static void SetPlaneBit(PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y, UBYTE value);
 
 struct BlitWaitQNode
 {
@@ -1563,6 +1565,141 @@ static struct TextFont *get_default_font(void)
     return &g_topaz8_font;
 }
 
+#define NUMCHARS(tf) (((tf)->tf_HiChar - (tf)->tf_LoChar) + 2)
+
+static BOOL graphics_text_is_colorfont(CONST struct TextFont *font)
+{
+    return font && (font->tf_Style & FSF_COLORFONT);
+}
+
+static ULONG graphics_text_charloc(CONST struct TextFont *font, WORD idx)
+{
+    if (!font || !font->tf_CharLoc || idx < 0)
+        return 0;
+
+    return ((ULONG *)font->tf_CharLoc)[idx];
+}
+
+static WORD graphics_text_glyph_width(CONST struct TextFont *font, WORD idx)
+{
+    ULONG charloc;
+
+    if (!font)
+        return 0;
+
+    charloc = graphics_text_charloc(font, idx);
+    if (charloc)
+        return (WORD)(charloc & 0xFFFF);
+
+    return font->tf_XSize;
+}
+
+static WORD graphics_text_glyph_pos(CONST struct TextFont *font, WORD idx)
+{
+    ULONG charloc;
+
+    if (!font)
+        return 0;
+
+    charloc = graphics_text_charloc(font, idx);
+    if (charloc)
+        return (WORD)(charloc >> 16);
+
+    return 0;
+}
+
+static UBYTE graphics_text_mono_pen(CONST struct TextFont *font, WORD idx, WORD row, WORD col)
+{
+    WORD glyph_width;
+    WORD glyph_pos;
+
+    if (!font || !font->tf_CharData || row < 0 || row >= font->tf_YSize || col < 0)
+        return 0;
+
+    if (!font->tf_CharLoc)
+    {
+        const UBYTE *glyph = topaz8_get_glyph((UBYTE)(font->tf_LoChar + idx));
+
+        if (col >= font->tf_XSize)
+            return 0;
+
+        return (glyph[row] & (0x80 >> col)) ? 1 : 0;
+    }
+
+    glyph_width = graphics_text_glyph_width(font, idx);
+    glyph_pos = graphics_text_glyph_pos(font, idx);
+    if (col >= glyph_width)
+        return 0;
+
+    return GetPlaneBit((PLANEPTR)font->tf_CharData, font->tf_Modulo, (WORD)(glyph_pos + col), row);
+}
+
+static UBYTE graphics_text_color_pen(CONST struct TextFont *font, WORD idx, WORD row, WORD col)
+{
+    struct ColorTextFont *ctf;
+    WORD glyph_width;
+    WORD glyph_pos;
+    UBYTE pen = 0;
+    UBYTE depth;
+    UBYTE plane_index = 0;
+    UBYTE bit = 1;
+    UBYTE logical_plane;
+
+    if (!graphics_text_is_colorfont(font) || row < 0 || row >= font->tf_YSize || col < 0)
+        return 0;
+
+    ctf = (struct ColorTextFont *)font;
+    glyph_width = graphics_text_glyph_width(font, idx);
+    glyph_pos = graphics_text_glyph_pos(font, idx);
+    if (col >= glyph_width)
+        return 0;
+
+    depth = ctf->ctf_Depth;
+    if (depth > 8)
+        depth = 8;
+
+    for (logical_plane = 0; logical_plane < depth; logical_plane++, bit <<= 1)
+    {
+        UBYTE plane_bit;
+
+        if (ctf->ctf_PlanePick & bit)
+        {
+            plane_bit = GetPlaneBit((PLANEPTR)ctf->ctf_CharData[plane_index],
+                                    font->tf_Modulo,
+                                    (WORD)(glyph_pos + col),
+                                    row);
+            plane_index++;
+        }
+        else
+        {
+            plane_bit = (ctf->ctf_PlaneOnOff & bit) ? 1 : 0;
+        }
+
+        if (plane_bit)
+            pen |= bit;
+    }
+
+    if (ctf->ctf_FgColor != 0xFF && pen == ctf->ctf_FgColor)
+        pen = 1;
+
+    return pen;
+}
+
+static WORD graphics_text_char_index(CONST struct TextFont *font, UBYTE c)
+{
+    WORD defaultidx;
+
+    if (!font)
+        return 0;
+
+    defaultidx = NUMCHARS(font) - 1;
+
+    if (c < font->tf_LoChar || c > font->tf_HiChar)
+        return defaultidx;
+
+    return (WORD)(c - font->tf_LoChar);
+}
+
 static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register CONST_STRPTR string __asm("a0"),
@@ -1586,8 +1723,30 @@ static WORD _graphics_TextLength ( register struct GfxBase * GfxBase __asm("a6")
         font = get_default_font();
     }
 
-    /* For fixed-width fonts, it's simply count * XSize */
-    width = (WORD)(count * font->tf_XSize);
+    if ((font->tf_Flags & FPF_PROPORTIONAL) || font->tf_CharKern || font->tf_CharSpace)
+    {
+        width = 0;
+
+        while (count--)
+        {
+            WORD idx = graphics_text_char_index(font, *string++);
+
+            if (font->tf_CharKern)
+                width += ((WORD *)font->tf_CharKern)[idx];
+
+            if (font->tf_CharSpace)
+                width += ((WORD *)font->tf_CharSpace)[idx];
+            else
+                width += font->tf_XSize;
+
+            width += rp->TxSpacing;
+        }
+    }
+    else
+    {
+        /* For fixed-width fonts, it's simply count * XSize */
+        width = (WORD)(count * (font->tf_XSize + rp->TxSpacing));
+    }
 
     return width;
 }
@@ -1602,8 +1761,8 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
     WORD x, y;
     ULONG i, row, col;
     UBYTE fgpen, bgpen;
-    const UBYTE *glyph;
     UBYTE drawmode;
+    BOOL colorfont;
 
     DPRINTF (LOG_DEBUG, "_graphics: Text() string='%s' count=%u pos=(%d,%d) fg=%d bg=%d dm=%d\n",
              string ? (char *)string : "(null)", (unsigned int)count,
@@ -1636,6 +1795,7 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
     fgpen = (UBYTE)rp->FgPen;
     bgpen = (UBYTE)rp->BgPen;
     drawmode = rp->DrawMode;
+    colorfont = graphics_text_is_colorfont(font);
 
     /* If RastPort has a Layer, add layer offset for coordinate translation */
     if (rp->Layer)
@@ -1659,22 +1819,29 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
     for (i = 0; i < count; i++)
     {
         UBYTE ch = (UBYTE)string[i];
-        glyph = topaz8_get_glyph(ch);
+        WORD idx = graphics_text_char_index(font, ch);
+        WORD glyph_width = graphics_text_glyph_width(font, idx);
+
+        if (font->tf_CharKern)
+            x += ((WORD *)font->tf_CharKern)[idx];
 
         /* Draw the character glyph */
         for (row = 0; row < (ULONG)font->tf_YSize; row++)
         {
-            UBYTE bits = glyph[row];
             WORD py = y + (WORD)row;
 
             /* Skip if row is outside bitmap */
             if (py < 0 || py >= (WORD)bm->Rows)
                 continue;
 
-            for (col = 0; col < (ULONG)font->tf_XSize; col++)
+            for (col = 0; col < (ULONG)glyph_width; col++)
             {
                 WORD px = x + (WORD)col;
-                BOOL pixel_set = (bits & (0x80 >> col)) != 0;
+                UBYTE source_pen = colorfont ?
+                    graphics_text_color_pen(font, idx, (WORD)row, (WORD)col) :
+                    graphics_text_mono_pen(font, idx, (WORD)row, (WORD)col);
+                BOOL pixel_set = source_pen != 0;
+                UBYTE pen = colorfont ? source_pen : fgpen;
 
                 /* Skip if column is outside bitmap */
                 if (px < 0 || px >= (WORD)(bm->BytesPerRow * 8))
@@ -1694,7 +1861,7 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                         for (plane = 0; plane < (ULONG)bm->Depth; plane++)
                         {
                             UBYTE *plane_ptr = bm->Planes[plane] + py * bm->BytesPerRow + byte_idx;
-                            if (fgpen & (1 << plane))
+                            if (pen & (1 << plane))
                                 *plane_ptr |= bit_mask;
                             else
                                 *plane_ptr &= ~bit_mask;
@@ -1706,13 +1873,13 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
                     /* JAM2: Draw both foreground and background */
                     WORD byte_idx = px / 8;
                     UBYTE bit_mask = (UBYTE)(0x80 >> (px % 8));
-                    UBYTE pen = pixel_set ? fgpen : bgpen;
+                    UBYTE draw_pen = pixel_set ? pen : bgpen;
                     ULONG plane;
 
                     for (plane = 0; plane < (ULONG)bm->Depth; plane++)
                     {
                         UBYTE *plane_ptr = bm->Planes[plane] + py * bm->BytesPerRow + byte_idx;
-                        if (pen & (1 << plane))
+                        if (draw_pen & (1 << plane))
                             *plane_ptr |= bit_mask;
                         else
                             *plane_ptr &= ~bit_mask;
@@ -1738,7 +1905,12 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
         }
 
         /* Advance position */
-        x += (WORD)font->tf_XSize;
+        if (font->tf_CharSpace)
+            x += ((WORD *)font->tf_CharSpace)[idx];
+        else
+            x += font->tf_XSize;
+
+        x += rp->TxSpacing;
     }
 
     /* Update RastPort cursor position.
@@ -6030,10 +6202,62 @@ static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6")
     textExtent->te_Extent.MinY = -tf->tf_Baseline;
     textExtent->te_Extent.MaxY = textExtent->te_Height - 1 - tf->tf_Baseline;
 
-    /* For fixed-width fonts (like Topaz-8), MinX is 0 and MaxX is width-1 */
-    /* TODO: Handle proportional fonts with kerning/spacing tables */
-    textExtent->te_Extent.MinX = 0;
-    textExtent->te_Extent.MaxX = (width > 0) ? (width - 1) : 0;
+    if ((tf->tf_Flags & FPF_PROPORTIONAL) || tf->tf_CharKern || tf->tf_CharSpace)
+    {
+        WORD x = 0;
+        WORD x2 = 0;
+
+        textExtent->te_Extent.MinX = 0;
+        textExtent->te_Extent.MaxX = 0;
+
+        while (count--)
+        {
+            WORD idx = graphics_text_char_index(tf, *string++);
+            WORD char_width = tf->tf_XSize;
+
+            if (tf->tf_CharKern)
+                x += ((WORD *)tf->tf_CharKern)[idx];
+
+            if (x < textExtent->te_Extent.MinX)
+                textExtent->te_Extent.MinX = x;
+            if (x > textExtent->te_Extent.MaxX)
+                textExtent->te_Extent.MaxX = x;
+
+            if (tf->tf_CharLoc)
+                char_width = (WORD)(((ULONG *)tf->tf_CharLoc)[idx] & 0xFFFF);
+
+            x2 = x + char_width;
+            if (x2 < textExtent->te_Extent.MinX)
+                textExtent->te_Extent.MinX = x2;
+            if (x2 > textExtent->te_Extent.MaxX)
+                textExtent->te_Extent.MaxX = x2;
+
+            if (tf->tf_CharSpace)
+                x += ((WORD *)tf->tf_CharSpace)[idx];
+            else
+                x += tf->tf_XSize;
+
+            if (x < textExtent->te_Extent.MinX)
+                textExtent->te_Extent.MinX = x;
+            if (x > textExtent->te_Extent.MaxX)
+                textExtent->te_Extent.MaxX = x;
+
+            x += rp->TxSpacing;
+            if (x < textExtent->te_Extent.MinX)
+                textExtent->te_Extent.MinX = x;
+            if (x > textExtent->te_Extent.MaxX)
+                textExtent->te_Extent.MaxX = x;
+        }
+
+        if (width > 0)
+            textExtent->te_Extent.MaxX--;
+    }
+    else
+    {
+        /* For fixed-width fonts (like Topaz-8), MinX is 0 and MaxX is width-1 */
+        textExtent->te_Extent.MinX = 0;
+        textExtent->te_Extent.MaxX = (width > 0) ? (width - 1) : 0;
+    }
 
     /* Handle bold style - adds smear to right side */
     if (rp->AlgoStyle & FSF_BOLD)

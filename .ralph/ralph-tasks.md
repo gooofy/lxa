@@ -6,4 +6,4 @@
 - [x] Add multi-plane diskfont support and close the remaining 78-S review items
 - [x] Complete Phase 78-T Workbench/icon library coverage
 - [x] Complete Phase 78-U Commodities/RexxSysLib/Datatypes scope work
-- [ ] Finish the remaining Phase 78 FS-UAE analysis, regression, and release tasks
+- [x] Finish the remaining Phase 78 FS-UAE analysis, regression, and release tasks

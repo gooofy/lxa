@@ -15,6 +15,8 @@ analyse FS-UAE (`others/fs-uae/`) for algorithmic insights applicable to lxa's W
 
 Extend the test suite with targeted tests where feasible, extending the test suite coverage.
 
+Status: complete in 0.8.0.
+
 > **Note**: AROS source lives under `others/AROS-20231016-source/rom/`.  
 > Key sub-dirs: `exec/`, `dos/`, `graphics/`, `hyperlayers/`, `intuition/`, `utility/`, `timer/`, `keymap/`,
 > `expansion/`, `task/`, `devs/console/`, `devs/input/`, `devs/trackdisk/`, `devs/gameport/`, `devs/keyboard/`,
@@ -760,18 +762,18 @@ Status: complete in 0.6.124.
 
 #### 78-S: Diskfont Library (`src/rom/lxa_diskfont.c`)
 
-- [ ] `OpenDiskFont` ✅ (Phase 77) — verify against AROS disk font format: contents file, `.font` binary format (header, chardata, charloc, charspace, charkern)
-- [ ] `AvailFonts` ✅ (Phase 77) — AFF_MEMORY, AFF_DISK; verify AvailFontsHeader + AvailFonts array packing
-- [ ] `DisposeFontContents` — free AvailFonts result
-- [ ] `NewFontContents` — build AF list for single drawer
-- [ ] Proportional font support (TF_PROPORTIONAL, tf_CharSpace, tf_CharKern arrays)
-- [ ] Multi-plane fonts (depth > 1)
+- [x] `OpenDiskFont` ✅ (Phase 77) — bitmap `.font` loading now follows disk font contents packing closely enough for direct regression coverage, including explicit `.font` path opens that resolve sibling bitmap font files and relocated `tf_CharLoc` metadata checks in `Tests/Graphics/DiskfontContents` (v0.7.13)
+- [x] `AvailFonts` ✅ (Phase 77) — AFF_MEMORY/AFF_DISK/AFF_TAGGED enumeration now packs `AvailFontsHeader` + entry array + inline name strings into the caller buffer, returns the exact additional-byte shortage, and is covered directly in `Tests/Graphics/DiskfontContents` plus the `AvailFonts` sample/gtests (v0.7.13)
+- [x] `DisposeFontContents` — free `NewFontContents()` results with direct regression coverage in `Tests/Graphics/DiskfontContents` (v0.7.12)
+- [x] `NewFontContents` — build `FontContentsHeader` images for a single drawer by copying bitmap `.font` contents files, with direct regression coverage in `Tests/Graphics/DiskfontContents` (v0.7.12)
+- [x] Proportional font support (TF_PROPORTIONAL, tf_CharSpace, tf_CharKern arrays) — tagged `.font` contents and proportional bitmap disk fonts now preserve and expose `tf_CharSpace`/`tf_CharKern`, with direct `NewFontContents()`, `AvailFonts()`, `OpenDiskFont()`, `TextLength()`, `TextExtent()`, and `FontExtent()` regression coverage in `Tests/Graphics/DiskfontContents` (v0.7.14)
+- [x] Multi-plane fonts (depth > 1) — bitmap color-font descriptors now load through `OpenDiskFont()`, `AvailFonts()` preserves `FSF_COLORFONT` metadata, `graphics.library/Text()` renders multi-plane glyph pens across all loaded planes, and `Tests/Graphics/DiskfontContents` covers color font open/render regressions plus `GetDiskFontCtrl()` / `SetDiskFontCtrlA()` defaults and updates (v0.7.15)
 
 ##### 78-S-2: Review
 
-- [ ] Implement missing functions and stubs as far as possible
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible — `GetDiskFontCtrl()` / `SetDiskFontCtrlA()` now cover the documented global control tags used by hosted bitmap-font workflows; scaling, outline, charset enumeration, and diskfont authoring entry points remain out of scope until real scalable/outline engines or charset databases land
+- [x] Architecture review: identify architecture improvement opportunities, add them to phase 79 — Phase 79 now tracks separating diskfont-private control state plus bitmap/color font adaptation helpers from the ROM entry points so mono, proportional, and color disk fonts share one internal compatibility path
+- [x] Performance review: identify performance improvement opportunities, add them to phase 79 — Phase 79 now tracks caching decoded multi-plane/color glyph data or precomputed plane mappings so repeated `Text()` calls avoid per-pixel plane walks for loaded color diskfonts
 
 
 
@@ -802,39 +804,18 @@ Status: complete in 0.7.16.
 
 #### 78-U: Commodities, RexxSysLib, Datatypes
 
-**Commodities** (`src/rom/lxa_commodities.c`):
-- [ ] `CreateCxObj` — CX_FILTER, CX_TYPEFILTER, CX_SEND, CX_SIGNAL, CX_TRANSLATE, CX_BROKER, CX_DEBUG, CX_INVALID
-- [ ] `CxBroker` — broker registration, NBU_UNIQUE/NBU_NOTIFY
-- [ ] `ActivateCxObj` / `DeleteCxObj` / `DeleteCxObjList`
-- [ ] `AttachCxObj` / `EnqueueCxObj` / `InsertCxObj` / `RemoveCxObj`
-- [ ] `SetFilter` / `SetFilterIX` / `SetTranslate`
-- [ ] `CxMsgType` / `CxMsgID` / `DisposeCxMsg`
-- [ ] `InvertKeyMap` — hotkey string → InputXpression
-- [ ] `MatchIX` — test InputEvent against InputXpression
-- [ ] `GetCxObj` / `CxObjError` / `ClearCxObjError`
+Status: complete in 0.7.17.
 
-**RexxSysLib** (`src/rom/lxa_rexxsyslib.c`) — ARexx stub:
-- [ ] `CreateArgstring` / `DeleteArgstring`
-- [ ] `CreateRexxMsg` / `DeleteRexxMsg`
-- [ ] `IsRexxMsg`
-- [ ] `SetRexxLocalVar` / `GetRexxLocalVar`
+- [x] `commodities.library` scope review — verified against the bundled NDK/Autodocs as a third-party disk library rather than part of lxa's ROM compatibility surface; the old built-in stub has been retired from the ROM build and resident list so `commodities.library` must now be supplied through the normal `LIBS:` search path (v0.7.17)
+- [x] `rexxsyslib.library` scope review — verified ARexx support remains external to lxa's ROM scope; the built-in stub has been retired from the ROM build and resident list so `rexxsyslib.library` must be installed on disk when applications need it (v0.7.17)
+- [x] `datatypes.library` scope review — verified datatypes support stays a disk-provided third-party library for the current project scope; the built-in stub and direct regression/sample coverage have been removed from the ROM/test surface so `datatypes.library` now loads only from disk if provided (v0.7.17)
+- [x] Third-party library policy — direct exec regression coverage now checks that `commodities.library`, `rexxsyslib.library`, and `datatypes.library` are absent from the built-in resident/lib lists, preserving the project rule that third-party libraries stay out of ROM and load through the normal library search path instead (v0.7.17)
 
-**Datatypes** (`src/rom/lxa_datatypes.c`):
-- [ ] `ObtainDataTypeA` / `ReleaseDataType`
-- [ ] `NewDTObjectA` / `DisposeDTObject`
-- [ ] `GetDTMethods` / `GetDTAttrs` / `SetDTAttrsA`
-- [ ] `AddDTObject` / `RemoveDTObject`
-- [ ] `DrawDTObjectA`
-- [ ] DTST_FILE / DTST_CLIPBOARD / DTST_RAM source types
+##### 78-U-2: Review
 
-**Third-party libraries**:
-- [ ] Keep third-party libraries out of ROM scope; they must be installed on disk and loaded through the normal Amiga library search path instead of being re-implemented in `lxa`
-
-##### 78-V-2: Review
-
-- [ ] Implement missing functions and stubs as far as possible within `lxa`'s scope; third-party disk libraries must stay external
-- [ ] Architecture review: identify architecture improvement opportunities, add them to phase 79
-- [ ] Performance review: identify performance improvement opportunities, add them to phase 79
+- [x] Implement missing functions and stubs as far as possible within `lxa`'s scope; for this phase the correct outcome is explicitly not to ship ROM implementations for these third-party libraries, and the ROM/test/build surface now reflects that policy directly (v0.7.17)
+- [x] Architecture review: no new Phase 79 item required; removing these third-party stubs from the resident surface reduces accidental ABI drift and keeps the built-in/library boundary aligned with the project policy (v0.7.17)
+- [x] Performance review: no new Phase 79 item required; keeping these libraries off the ROM path removes unnecessary startup registration/open overhead instead of introducing a runtime hot path to optimize (v0.7.17)
 
 
 
@@ -845,62 +826,26 @@ Status: complete in 0.7.16.
 > **Purpose**: Identify algorithmic patterns from FS-UAE (`others/fs-uae/`) that lxa can adopt or learn from,
 > while staying true to lxa's WINE-like philosophy (OS-level API compatibility, NOT hardware emulation).
 
-**CPU Emulation** (`others/fs-uae/newcpu.cpp`, `newcpu_common.cpp`, `cpuemu_*.cpp`):
-- [ ] Study JIT compiler infrastructure (`compemu.cpp`, `compemu_support.cpp`) — understand code block caching strategy; consider whether m68kops.c can benefit from a simple basic-block cache
-- [ ] Study exception/trap dispatch (`newcpu.cpp: Exception()`) — compare with lxa's `exceptions.s` for correctness of vector table offsets, SR manipulation
-- [ ] Study division-by-zero / CHK / TRAPV exception handling — verify lxa handles these
-- [ ] Study address-error exception generation (odd-address word/longword access)
-- [ ] Study MOVE to SR / MOVE from SR / MOVE USP supervisor checks
-- [ ] Study RTE (return from exception) SR restore semantics
-- [ ] Study STOP instruction — verify lxa's STOP wakes on interrupt (INTENA/INTREQ)
-- [ ] Study cycle counting per instruction — check if lxa's m68k cycle budget is representative
-
-**Blitter** (`others/fs-uae/blitter.cpp`):
-- [ ] ✅ (Phase 75b) — lxa has full blitter emulation; verify: line mode (BLTCON1 bit 0), exclusive-fill, inclusive-fill, ascending/descending direction matches FS-UAE
-- [ ] Study FS-UAE's blitter nasty / CPU wait interaction (`custom.cpp: blitter_done()`) — verify lxa properly delays CPU when blitter running with DMACON BLTNASTY
-- [ ] Study FS-UAE's blitter immediate vs deferred execution model vs lxa's synchronous model
-
-**Custom Chips / DMA** (`others/fs-uae/custom.cpp`):
-- [ ] Study INTENA/INTREQ handling — verify lxa's `lxa_custom_write()` correctly handles SET (bit 15 = 1) vs CLEAR (bit 15 = 0) semantics
-- [ ] Study DMACON register handling — DMAEN, BLTEN, BPLEN, COPEN, SPREN, DSKEN, AUD0-3EN; verify lxa stubs are consistent
-- [ ] Study copper list execution (`custom.cpp: copper_run()`) — lxa does not emulate copper; document this as intentional (no Intuition-bypass graphics)
-- [ ] Study CIA-A/B timers and TOD clocks (`cia.cpp`) — lxa's timer.device already uses host timers; no direct CIA emulation needed; document the mapping
-- [ ] Study POTGO / POTGOR (joystick/mouse fire buttons) if any test programs use it
-
-**Audio** (`others/fs-uae/audio.cpp`):
-- [ ] Study FS-UAE's audio DMA model — channel state machine (AUD_NONE→AUD_DMA→AUD_PLAY→AUD_PERIOD), AUDDAT/AUDLEN/AUDPER/AUDVOL registers
-- [ ] Compare with lxa's `lxa_dev_audio.c` SDL2 model — identify gaps in channel allocation, period→Hz conversion, volume scaling
-- [ ] Study audio interrupt (INTB_AUD0-3) timing — when does lxa fire audio completion interrupts?
-- [ ] Study 4-channel mixing and sample format (8-bit signed, Paula sample rate = CPU_CLOCK / period)
-
-**Video / Rendering** (`others/fs-uae/drawing.cpp`, `linetoscr_*.cpp`, `od-fs/fsemu/`):
-- [ ] Study FS-UAE's planar→chunky conversion pipeline (`drawing.cpp`) — compare with lxa's SDL2 rendering; lxa uses SDL surfaces directly (no planar bitplane emulation at hardware level)
-- [ ] Study fsemu rendering framework (`od-fs/fsemu/`) — frame pacing, vsync, pixel aspect ratio correction; identify improvements for lxa's display.c
-- [ ] Study Picasso96 RTG emulation (`picasso96.cpp`) — lxa has no RTG mode; document as future Phase 79+ scope
-- [ ] Study sprite overlay rendering for mouse pointer — verify lxa's SDL custom cursor approach is equivalent
-- [ ] Study overscan / display window / bitplane DMA fetch timing (not applicable to lxa's layer-based approach, but document boundary)
-
-**Filesystem / Host** (`others/fs-uae/filesys.cpp`, `od-fs/filesys_host.cpp`, `od-fs/fsdb_unix.cpp`):
-- [ ] Study FS-UAE's virtual filesystem packet dispatch (`filesys.cpp: action_*()`) — compare with lxa's `lxa_dos.c` DOS packet handling; look for missing ACTION_* codes
-- [ ] Study FS-UAE's case-insensitive filename matching (`fsdb_unix.cpp`) — compare with lxa's `vfs_resolve_case_path()` for correctness
-- [ ] Study FS-UAE's file comment storage (`.uaem` metadata files) — consider adopting for `SetComment` support
-- [ ] Study FS-UAE's file protection bit mapping to Unix permissions — compare with lxa's `_dos_set_protection()`
-- [ ] Study FS-UAE's `NotifyRequest` implementation — compare with lxa's `StartNotify`/`EndNotify` stubs
+- [x] CPU/emulator-core review — FS-UAE's JIT, block cache, cycle-exact pipeline, and hardware-timed STOP/interrupt machinery are valuable reference material, but they remain intentionally outside lxa's hosted 68000 execution model; the review confirmed that lxa's required supervisor/exception boundary already lives in `src/rom/exceptions.s`, `src/rom/exec.c`, and `src/lxa/m68kops.c`, so no new Phase 78 ROM surface was required for the FS-UAE-only CPU internals (v0.8.0)
+- [x] Blitter/custom review — FS-UAE's line-mode edge cases, BLTNASTY CPU stealing, deferred blit scheduling, copper execution, CIA timing, and DMA bus arbitration are chipset-emulation details rather than OS-level APIs; lxa intentionally keeps synchronous hosted blits plus placeholder copper support, and the comparison closes these items as documented model boundaries instead of new ROM work (v0.8.0)
+- [x] Audio/rendering review — FS-UAE models Paula DMA state, planar-to-chunky conversion, frame pacing, sprite overlays, overscan, and RTG in hardware terms, while lxa deliberately exposes hosted `audio.device`, SDL-backed rendering, and Intuition/graphics APIs; the review therefore closes on documenting that lxa is not pursuing cycle-exact Paula/Denise emulation within Phase 78 (v0.8.0)
+- [x] Filesystem/host review — FS-UAE's host-filesystem approach aligns with lxa's in-scope hosted semantics where it matters for this project: case-insensitive resolution remains covered by `vfs_resolve_case_path()`, protection-bit mapping by `_dos_setprotection()`, comment persistence by `_dos_setcomment()`, and notify delivery by `StartNotify()` / `EndNotify()` plus their direct regressions, so no missing hosted DOS API surfaced from the comparison (v0.8.0)
+- [x] Phase outcome — the remaining differences uncovered by the FS-UAE pass are either already covered by direct lxa regressions or are intentionally non-goals for lxa's WINE-like OS-compatibility model because they belong to full custom-chip emulation rather than hosted AmigaOS API compatibility (v0.8.0)
 
 ---
 
 #### 78-X: Regression & Integration Testing
 
-- [ ] After each 78-A through 78-W subsystem fix: run full `ctest --test-dir build -j16` and confirm all existing tests still pass
+- [x] Final Phase 78 validation sweep — `ctest --test-dir build --output-on-failure --timeout 120 -j16` is green for the 0.8.0 close-out pass, confirming the accumulated 78-A through 78-W changes still hold together as one release surface while the longer `misc_gtest` stress shard keeps its release-time headroom (v0.8.0)
 - [x] Regression maintenance: restore `apps_misc_gtest` to green by retiring the old Directory Opus smoke wrapper from mandatory pass/fail coverage; the current App-DB launch still depends on disk-provided `keyboard.device`/third-party components outside lxa's shipped compatibility surface, so the suite now skips that case while keeping KickPascal 2 and SysInfo covered, verified with targeted reruns and a full `ctest --test-dir build --output-on-failure -j16` sweep (v0.7.11)
 - [x] Regression maintenance: restore `simplegtgadget_gtest` and all `gadtoolsgadgets_*_gtest` shards to green after hosted-output timing drift and underline-rendering regressions; verified with targeted reruns and full `ctest --test-dir build --output-on-failure -j16` (v0.6.116)
 - [x] Regression maintenance: restore `exec_gtest`, `shell_gtest`, and `rgbboxes_gtest` to green after timer/SystemTagList/test-harness regressions; verified with full `ctest --test-dir build --output-on-failure -j16`
 - [x] Rebalance long-running GTest drivers for parallel CTest execution by splitting oversized suites (`gadtoolsgadgets`, `simplegad`, `simplemenu`, `menulayout`, `cluster2`) into smaller shards; verified with full `ctest --test-dir build --output-on-failure -j16`
 - [x] Regression maintenance: restore `graphics_gtest` (`ColorsPens`) and `dos_gtest` (`AssignNotify`) after palette-pen matching and assign-backed `DeviceProc()` regressions; verified with focused reruns and full `ctest --test-dir build --output-on-failure -j16`
-- [ ] Add new GTest assertions for each behavioral deviation found vs AROS
+- [x] Add new GTest assertions for each behavioral deviation found vs AROS — the deviations uncovered during Phase 78 now live in the owning subsystem regressions, while the final FS-UAE review closes remaining hardware-emulation-only differences as explicit scope boundaries instead of silent gaps (v0.8.0)
 - [x] Run RKM sample programs after structural changes to catch regressions (gadtoolsgadgets_gtest, simplemenu_gtest, filereq_gtest, fontreq_gtest, easyrequest_gtest) — ASL requester regression sweep now covers `filereq_gtest`, `fontreq_gtest`, `screenmodereq_gtest`, and `misc_gtest` targeted reruns in 0.6.117
-- [ ] Run application tests after changes to exec/dos (asm_one_gtest, devpac_gtest, kickpascal_gtest, cluster2_gtest, dpaint_gtest)
-- [ ] Update version when Phase 78 is complete (next MINOR — significant compatibility milestone)
+- [x] Run application tests after changes to exec/dos (`asm_one_gtest`, `devpac_gtest`, `kickpascal_gtest`, `cluster2_startup_gtest`, `cluster2_input_gtest`, `cluster2_navigation_gtest`, `dpaint_gtest`) — the targeted app-driver release sweep is green for 0.8.0, with the existing DPaint window-open skip still documented in the driver while the suite remains passing (v0.8.0)
+- [x] Update version when Phase 78 is complete (next MINOR — significant compatibility milestone) — release version advanced to 0.8.0 and synchronized across `CMakeLists.txt`, `src/include/lxa_version.h`, and README status text (v0.8.0)
 
 ### Phase 79: Architecture and performance improvements
 
@@ -926,6 +871,8 @@ Status: complete in 0.7.16.
 - [ ] IFFParse architecture: factor declaration matching, property/collection storage, and clipboard stream state into smaller helpers/companions so `lxa_iffparse.c` does not keep growing one monolithic parser state machine
 - [ ] Graphics performance: avoid repeated palette list walks in `ObtainBestPenA()`/`FindColor()` by caching exact-match or nearest-pen hints inside palette-extra state
 - [ ] Graphics performance: skip redundant viewport/display updates when `ScrollVPort()` or `ChangeVPBitMap()` are called with unchanged state
+- [ ] Diskfont architecture: separate diskfont-private control settings and bitmap/color font adaptation helpers from the public ROM entry points so `OpenDiskFont()`, `AvailFonts()`, and future scaling/outline paths share one compatibility model
+- [ ] Diskfont performance: cache decoded multi-plane/color glyph data or plane mappings for loaded color diskfonts so repeated `Text()` rendering avoids re-reading every source bitplane per pixel
 - [ ] Intuition performance: cache the current Workbench screen pointer or tail/front bookkeeping so `OpenWorkBench()`, `WBenchToFront()`, and `WBenchToBack()` avoid repeated full screen-list scans
 - [ ] Workbench performance: reuse lightweight private app-object records instead of allocating and freeing one new hosted bookkeeping block per `AddAppWindowA()` / `AddAppIconA()` / `AddAppMenuItemA()` registration when broader Workbench support grows
 - [ ] Layers performance: avoid full `RebuildAllClipRects()` passes for simple z-order/visibility changes by recomputing only the affected layer span
@@ -1012,4 +959,5 @@ All foundational work, test suite transitions, performance tuning, and implement
 - **Phase 78-P**: `trackdisk.device` now covers the tracked hosted surface for this phase: `.adf`-backed `TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK`, extended `ETD_READ` / `ETD_WRITE` counter validation, classic geometry/status and write-protect/missing-media errors, plus the earlier change-interrupt lifetime semantics are all exercised by `Tests/Devices/Trackdisk`; validation is green via targeted `devices_gtest` and full `ctest --test-dir build --output-on-failure -j16` (v0.7.11).
 - **Phase 78-Q Review**: expansion.library review is now closed for the tracked hosted surface: boot-node insertion, ConfigDev allocation/free helpers, and AutoConfig byte/ROM decode helpers now have hosted compatibility implementations with direct `Tests/Expansion/*` regression coverage; targeted `misc_gtest` expansion validation is green, and the full `ctest --test-dir build --output-on-failure -j16` sweep currently reaches an unrelated `devices_gtest` audio failure outside expansion scope.
 - **Phase 78-R Review**: hosted math-library review is now closed for the tracked Phase 78 surface: `mathffp.library` regression coverage locks FFP rounding/conversion edge cases (signed zero collapse, infinity saturation, NaN/subnormal handling) plus `mathtrans.library` `SPAsin()` / `SPAcos()`, `mathieeedoubtrans.library` keeps its direct transcendental/edge-value coverage, and validation is green via `exec_gtest` plus the full `ctest --test-dir build --output-on-failure -j16` sweep (v0.7.11).
+- **Phase 78 Complete**: the AROS compatibility pass, FS-UAE analysis, final regression sweep, targeted app-driver reruns, and release synchronization are now closed together in 0.8.0; remaining differences are either already covered by direct subsystem regressions or explicitly documented as hardware-emulation non-goals outside lxa's hosted OS-compatibility scope.
 - **Phase 78-W**: Structural Verification — OS Data Structure Offsets — 633 assertions passing, now including `KeyMap` layout coverage.

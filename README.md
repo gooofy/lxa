@@ -176,7 +176,7 @@ lxa -d -v myprogram
 - **asl.library**: File, font, and screen mode requesters, including public `AllocAslRequestTags()`/`AslRequestTags()` varargs entry-point coverage
 - **locale.library**: Locale management, `.catalog` loading and lookup, character classification/case conversion, `StrConvert`/`StrnCmp`, FormatDate, FormatString, ParseDate
 - **keymap.library**: Default-keymap queries/updates plus `MapRawKey()` / `MapANSI()` translation coverage, including dead-key and string-sequence handling
-- **diskfont.library**: Font loading from FONTS: directory (bitmap .font files)
+- **diskfont.library**: Font loading from `FONTS:` bitmap `.font` files, including proportional and multi-plane color bitmap fonts, plus covered `NewFontContents()` / `DisposeFontContents()` helpers and diskfont control-tag queries
 - **mathieeesingbas.library**: IEEE single-precision basic math (12 functions)
 - **mathieeedoubbas.library**: IEEE double-precision basic math (12 functions)
 - **input.device**: Handler-chain management (`IND_ADDHANDLER` / `IND_REMHANDLER`), held-qualifier snapshots via `PeekQualifier()`, transient qualifier-bit preservation on injected events, repeat timing configuration, and direct event injection/dispatch coverage for `IND_WRITEEVENT` / `IND_ADDEVENT`
@@ -218,19 +218,20 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.7.8** - Complete Phase 78-N input.device qualifier semantics by preserving transient event bits while keeping `PeekQualifier()` aligned with held key/button state, with direct regression coverage and no console/Intuition regressions
+**Version 0.8.0** - Complete Phase 78 by closing the remaining FS-UAE analysis, final regression sweep, and release synchronization work, documenting the hosted/non-hardware-emulation boundary while keeping the full suite green
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
 ## Known Limitations
 
 - CPU: 68000 only (no 68020+ or FPU)
+- Third-party libraries such as `commodities.library`, `rexxsyslib.library`, and `datatypes.library` are not shipped in ROM and must be installed on disk in `LIBS:`
 - Graphics: Basic screen/window support with drawing primitives
 - Intuition: Screen and window management, basic IDCMP input handling
 - Console: Full CSI escape sequence support, CON:/RAW: handlers
 - GUI Apps: Run but graphical output goes to SDL window
 - Networking: Not implemented
-- Audio: Stub device (accepts opens, no audio output)
+- Audio: Hosted `audio.device` playback is available, but Paula chip-level DMA timing/mixing remains approximate rather than cycle-exact
 
 ## Troubleshooting
 

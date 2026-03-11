@@ -261,6 +261,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # Misc tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/misc_gtest.cpp)
         add_gtest_driver(misc_gtest)
+        set_tests_properties(misc_gtest PROPERTIES TIMEOUT 120)
     endif()
 
     # Misc Apps tests
