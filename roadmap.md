@@ -52,13 +52,15 @@ Goal: pay down the architecture and performance follow-up identified during the 
 
 ### Phase 81: Directory Opus follow-up
 
-Goal: restore meaningful Directory Opus app coverage once the remaining external runtime dependencies are satisfied in a policy-correct way.
+Goal: Fully working Directory Opus app
 
 - [ ] Audit and document the exact DOpus runtime surface (`assigns`, `LIBS:`, `C:`, `L:`, `S:`, and disk-provided dependencies)
 - [ ] Keep disk-provided dependencies such as `dopus.library`, `powerpacker.library`, and other optional libraries outside ROM scope
 - [ ] Close the remaining launch blockers, including `keyboard.device` and any other startup-time open failures needed to reach the main UI
 - [ ] Replace the old wrapper smoke check with a host-side driver that verifies real launch success criteria
 - [ ] Re-enable `DISABLED_DirectoryOpus` and rerun the broader app-regression sweep once the driver is stable
+- [ ] Extend integration test infrastructure as needed so we can have fully interactive deep Amiga application integration tests: keep track of UI elements on screen (windows, gadgets and their positions), make them accessible from automated tests. Extend test to wait for UI to be drawn, then simulate mouse clicks and other input events, make sure UI behaves in the expected manner
+- [ ] Use the integration test infrastructure to perform a file copy operation in DOpus. Test must verify file was successfully copied using DOPUS
 
 ---
 
