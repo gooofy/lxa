@@ -106,6 +106,15 @@ TEST_F(GadToolsGadgetsTest, WindowOpened) {
         << "Window size should be reported";
 }
 
+TEST_F(GadToolsGadgetsTest, RootlessWindowShowsContent) {
+    EXPECT_EQ(lxa_get_window_count(), 1)
+        << "Exactly one rootless window should be tracked";
+
+    int content = lxa_get_window_content(0);
+    EXPECT_GT(content, 0)
+        << "Rootless window should contain rendered gadget pixels";
+}
+
 TEST_F(GadToolsGadgetsTest, GadgetsRefreshed) {
     SUCCEED() << "Startup rendering is covered by creation/window tests and pixel shards";
 }
@@ -129,6 +138,27 @@ TEST_F(GadToolsGadgetsTest, ButtonClick) {
     std::string click_output = DrainOutputAfterClose();
     EXPECT_NE(click_output.find("Button was pressed, slider reset to 10"), std::string::npos)
         << "Button click should trigger handleGadgetEvent and reset slider. Output: " << click_output;
+}
+
+TEST_F(GadToolsGadgetsTest, ButtonClickCompletesWithinOneVBlank) {
+    int btn_x = window_info.x + 190 + 50;
+    int btn_y = window_info.y + 120 + 6;
+
+    ClearOutput();
+    Click(btn_x, btn_y);
+
+    bool handled = false;
+    for (int i = 0; i < 6; i++) {
+        lxa_trigger_vblank();
+        RunCycles(100000);
+        if (GetOutput().find("Button was pressed, slider reset to 10") != std::string::npos) {
+            handled = true;
+            break;
+        }
+    }
+
+    EXPECT_TRUE(handled)
+        << "Button click should be processed within one or two VBlank ticks without visible lag";
 }
 
 TEST_F(GadToolsGadgetsTest, CloseWindow) {
@@ -266,6 +296,29 @@ TEST_F(GadToolsGadgetsTest, DepthGadgetClick) {
     std::string close_output = GetOutput();
     EXPECT_NE(close_output.find("IDCMP_CLOSEWINDOW"), std::string::npos)
         << "IDCMP_CLOSEWINDOW should still be delivered after depth gadget click";
+}
+
+TEST_F(GadToolsGadgetsTest, ResizeDragKeepsWindowResponsive) {
+    constexpr int size_gadget_w = 18;
+    constexpr int size_gadget_h = 10;
+    int start_x = window_info.x + window_info.width - (size_gadget_w / 2);
+    int start_y = window_info.y + window_info.height - (size_gadget_h / 2);
+    int end_x = start_x + 32;
+    int end_y = start_y + 18;
+
+    ASSERT_TRUE(lxa_inject_drag(start_x, start_y, end_x, end_y, LXA_MOUSE_LEFT, 4));
+    RunCyclesWithVBlank(20, 100000);
+
+    ClearOutput();
+    lxa_click_close_gadget(0);
+    RunCyclesWithVBlank(10, 50000);
+    EXPECT_TRUE(lxa_wait_exit(3000))
+        << "Window should remain responsive after a resize drag";
+    program_exited = true;
+
+    std::string close_output = GetOutput();
+    EXPECT_NE(close_output.find("IDCMP_CLOSEWINDOW"), std::string::npos)
+        << "Close gadget should still work after a resize drag";
 }
 
 TEST_F(GadToolsGadgetsTest, TabCyclesStringGadgets) {
@@ -764,6 +817,22 @@ TEST_F(GadToolsGadgetsPixelTest, UnderscoreLabelRendered) {
         << "Underline row of 'C' cell in button label should have underline pixels";
 }
 
+TEST_F(GadToolsGadgetsPixelTest, SliderLevelValueRendered) {
+    int value_x = 120;
+    int char_top = 42;
+    int char_h = 8;
+
+    int value_content = CountContentPixels(
+        window_info.x + value_x,
+        window_info.y + char_top,
+        window_info.x + value_x + 15,
+        window_info.y + char_top + char_h - 1,
+        PEN_GREY
+    );
+    EXPECT_GT(value_content, 4)
+        << "Slider level display should contain rendered digits";
+}
+
 TEST_F(GadToolsGadgetsPixelTest, SizeGadgetRendered) {
     /* When WA_SizeGadget=TRUE, a sizing gadget should be created in the
      * bottom-right corner of the window. The sizing gadget has a 3D frame
@@ -854,6 +923,55 @@ TEST_F(GadToolsGadgetsPixelTest, DepthGadgetRendered) {
     /* Background pixels fill the back rectangle interior and margins */
     EXPECT_GT(bg_count, 2)
         << "Depth gadget should have background (pen 0) pixels in margins/back rect";
+}
+
+TEST_F(GadToolsGadgetsPixelTest, ResizeKeepsSizeGadgetBordersClean) {
+    constexpr int size_gadget_w = 18;
+    constexpr int size_gadget_h = 10;
+    int start_x = window_info.x + window_info.width - (size_gadget_w / 2);
+    int start_y = window_info.y + window_info.height - (size_gadget_h / 2);
+    int end_x = start_x + 36;
+    int end_y = start_y + 20;
+
+    ASSERT_TRUE(lxa_inject_drag(start_x, start_y, end_x, end_y, LXA_MOUSE_LEFT, 5));
+    RunCyclesWithVBlank(40, 100000);
+
+    ASSERT_TRUE(GetWindowInfo(0, &window_info))
+        << "Window info should update after resizing";
+
+    int right_border_left = window_info.x + window_info.width - 18;
+    int right_border_top = window_info.y + TITLE_BAR_HEIGHT + 2;
+    int right_border_bottom = window_info.y + window_info.height - size_gadget_h - 2;
+    int right_border_content = CountContentPixels(
+        right_border_left,
+        right_border_top,
+        window_info.x + window_info.width - 3,
+        right_border_bottom,
+        PEN_GREY
+    );
+    EXPECT_EQ(right_border_content, 0)
+        << "Right resize border should be cleared instead of leaving stale gadget pixels";
+
+    int bottom_border_top = window_info.y + window_info.height - size_gadget_h;
+    int bottom_border_content = CountContentPixels(
+        window_info.x + 2,
+        bottom_border_top,
+        window_info.x + window_info.width - 20,
+        window_info.y + window_info.height - 3,
+        PEN_GREY
+    );
+    EXPECT_EQ(bottom_border_content, 0)
+        << "Bottom resize border should stay clean during resize redraws";
+
+    int size_content = CountContentPixels(
+        window_info.x + window_info.width - 16,
+        window_info.y + window_info.height - 8,
+        window_info.x + window_info.width - 3,
+        window_info.y + window_info.height - 3,
+        PEN_GREY
+    );
+    EXPECT_GT(size_content, 3)
+        << "Size gadget area should still contain rendered pixels after resizing";
 }
 
 int main(int argc, char **argv) {

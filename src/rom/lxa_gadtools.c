@@ -93,6 +93,31 @@ struct GTGadgetData
     LONG min;
     LONG max;
     APTR aux;
+    struct IntuiText *level_text;
+    STRPTR level_buffer;
+    STRPTR format;
+    ULONG max_level_len;
+    ULONG max_pixel_len;
+    UWORD level_place;
+    UBYTE justification;
+    LONG (*disp_func)(struct Gadget *, LONG);
+};
+
+BOOL _gadtools_IsCheckbox(register struct Gadget *gad __asm("a0"));
+BOOL _gadtools_GetCheckboxState(register struct Gadget *gad __asm("a0"));
+VOID _gadtools_SetCheckboxState(register struct Gadget *gad __asm("a0"),
+                                register BOOL checked __asm("d0"));
+BOOL _gadtools_IsCycle(register struct Gadget *gad __asm("a0"));
+UWORD _gadtools_GetCycleState(register struct Gadget *gad __asm("a0"));
+VOID _gadtools_SetCycleState(register struct Gadget *gad __asm("a0"),
+                             register UWORD active __asm("d0"));
+UWORD _gadtools_AdvanceCycleState(register struct Gadget *gad __asm("a0"));
+STRPTR _gadtools_GetCycleLabel(register struct Gadget *gad __asm("a0"));
+
+struct gt_format_state
+{
+    STRPTR cursor;
+    ULONG remaining;
 };
 
 static struct GadgetContext *gt_get_context(struct Gadget *gad)
@@ -201,6 +226,212 @@ static struct GTGadgetData *gt_get_data(struct Gadget *gad)
     return (struct GTGadgetData *)gad->SelectRender;
 }
 
+BOOL _gadtools_IsCheckbox(register struct Gadget *gad __asm("a0"))
+{
+    struct GTGadgetData *data = gt_get_data(gad);
+
+    return (data && data->kind == GT_KIND_CHECKBOX) ? TRUE : FALSE;
+}
+
+BOOL _gadtools_GetCheckboxState(register struct Gadget *gad __asm("a0"))
+{
+    struct GTGadgetData *data = gt_get_data(gad);
+
+    if (!data || data->kind != GT_KIND_CHECKBOX)
+        return FALSE;
+
+    return data->value ? TRUE : FALSE;
+}
+
+VOID _gadtools_SetCheckboxState(register struct Gadget *gad __asm("a0"),
+                                register BOOL checked __asm("d0"))
+{
+    struct GTGadgetData *data = gt_get_data(gad);
+
+    if (!data || data->kind != GT_KIND_CHECKBOX)
+        return;
+
+    data->value = checked ? TRUE : FALSE;
+}
+
+static UWORD gt_cycle_label_count(struct GTGadgetData *data)
+{
+    STRPTR *labels;
+    UWORD count = 0;
+
+    if (!data || data->kind != GT_KIND_CYCLE || !data->aux)
+        return 0;
+
+    labels = (STRPTR *)data->aux;
+    while (labels[count])
+        count++;
+
+    return count;
+}
+
+static UWORD gt_cycle_max_label_len(struct GTGadgetData *data)
+{
+    STRPTR *labels;
+    UWORD count;
+    UWORD i;
+    UWORD max_len = 0;
+
+    if (!data || data->kind != GT_KIND_CYCLE || !data->aux)
+        return 0;
+
+    labels = (STRPTR *)data->aux;
+    count = gt_cycle_label_count(data);
+    for (i = 0; i < count; i++)
+    {
+        UWORD len = gt_strlen(labels[i]);
+
+        if (len > max_len)
+            max_len = len;
+    }
+
+    return max_len;
+}
+
+static VOID gt_update_cycle_label_display(struct GTGadgetData *data)
+{
+    STRPTR *labels;
+    UWORD count;
+    UWORD active;
+    STRPTR label;
+    UWORD i;
+
+    if (!data || data->kind != GT_KIND_CYCLE || !data->level_buffer)
+        return;
+
+    if (!data->aux)
+    {
+        data->level_buffer[0] = '\0';
+        return;
+    }
+
+    labels = (STRPTR *)data->aux;
+    count = gt_cycle_label_count(data);
+    if (count == 0)
+    {
+        data->level_buffer[0] = '\0';
+        return;
+    }
+
+    if (data->value < 0)
+        active = 0;
+    else if ((ULONG)data->value >= count)
+        active = count - 1;
+    else
+        active = (UWORD)data->value;
+
+    label = labels[active];
+    if (!label)
+    {
+        data->level_buffer[0] = '\0';
+        return;
+    }
+
+    for (i = 0; label[i] != '\0' && i < data->max_level_len; i++)
+        data->level_buffer[i] = label[i];
+    data->level_buffer[i] = '\0';
+}
+
+BOOL _gadtools_IsCycle(register struct Gadget *gad __asm("a0"))
+{
+    struct GTGadgetData *data = gt_get_data(gad);
+
+    return (data && data->kind == GT_KIND_CYCLE) ? TRUE : FALSE;
+}
+
+UWORD _gadtools_GetCycleState(register struct Gadget *gad __asm("a0"))
+{
+    struct GTGadgetData *data = gt_get_data(gad);
+    UWORD count;
+
+    if (!data || data->kind != GT_KIND_CYCLE)
+        return 0;
+
+    count = gt_cycle_label_count(data);
+    if (count == 0)
+        return 0;
+
+    if (data->value < 0)
+        return 0;
+
+    if ((ULONG)data->value >= count)
+        return count - 1;
+
+    return (UWORD)data->value;
+}
+
+VOID _gadtools_SetCycleState(register struct Gadget *gad __asm("a0"),
+                             register UWORD active __asm("d0"))
+{
+    struct GTGadgetData *data = gt_get_data(gad);
+    UWORD count;
+
+    if (!data || data->kind != GT_KIND_CYCLE)
+        return;
+
+    count = gt_cycle_label_count(data);
+    if (count == 0)
+    {
+        data->value = 0;
+        return;
+    }
+
+    if (active >= count)
+        active = count - 1;
+
+    data->value = (LONG)active;
+    gt_update_cycle_label_display(data);
+}
+
+UWORD _gadtools_AdvanceCycleState(register struct Gadget *gad __asm("a0"))
+{
+    struct GTGadgetData *data = gt_get_data(gad);
+    UWORD count;
+    UWORD active;
+
+    if (!data || data->kind != GT_KIND_CYCLE)
+        return 0;
+
+    count = gt_cycle_label_count(data);
+    if (count == 0)
+    {
+        data->value = 0;
+        return 0;
+    }
+
+    active = _gadtools_GetCycleState(gad);
+    active++;
+    if (active >= count)
+        active = 0;
+
+    data->value = (LONG)active;
+    gt_update_cycle_label_display(data);
+    return active;
+}
+
+STRPTR _gadtools_GetCycleLabel(register struct Gadget *gad __asm("a0"))
+{
+    struct GTGadgetData *data = gt_get_data(gad);
+    STRPTR *labels;
+    UWORD active;
+    UWORD count;
+
+    if (!data || data->kind != GT_KIND_CYCLE || !data->aux)
+        return NULL;
+
+    labels = (STRPTR *)data->aux;
+    count = gt_cycle_label_count(data);
+    if (count == 0)
+        return NULL;
+
+    active = _gadtools_GetCycleState(gad);
+    return labels[active];
+}
+
 static WORD gt_format_long(STRPTR buf, ULONG maxchars, LONG value)
 {
     ULONG magnitude;
@@ -254,6 +485,140 @@ static WORD gt_format_long(STRPTR buf, ULONG maxchars, LONG value)
 
     buf[i] = '\0';
     return i;
+}
+
+static void gt_format_char_hook(register UBYTE ch __asm("d0"),
+                                register struct gt_format_state *state __asm("a3"))
+{
+    if (!state || !state->cursor || state->remaining == 0)
+        return;
+
+    *(state->cursor)++ = ch;
+    state->remaining--;
+}
+
+static STRPTR gt_strdup(CONST_STRPTR text)
+{
+    STRPTR copy;
+    WORD len;
+    WORD i;
+
+    if (!text)
+        return NULL;
+
+    len = gt_strlen(text);
+    copy = (STRPTR)AllocMem(len + 1, MEMF_PUBLIC);
+    if (!copy)
+        return NULL;
+
+    for (i = 0; i < len; i++)
+        copy[i] = text[i];
+    copy[len] = '\0';
+
+    return copy;
+}
+
+static WORD gt_format_slider_level(STRPTR buf, ULONG maxchars,
+                                   CONST_STRPTR format, LONG value)
+{
+    struct gt_format_state state;
+
+    if (!buf || maxchars == 0)
+        return 0;
+
+    if (!format)
+        format = (CONST_STRPTR)"%ld";
+
+    state.cursor = buf;
+    state.remaining = maxchars - 1;
+
+    RawDoFmt(format, &value, (VOID (*)())gt_format_char_hook, &state);
+    *state.cursor = '\0';
+
+    return (WORD)(state.cursor - buf);
+}
+
+static struct IntuiText *gt_label_chain_tail(struct IntuiText *it)
+{
+    if (!it)
+        return NULL;
+
+    while (it->NextText)
+        it = it->NextText;
+
+    return it;
+}
+
+static void gt_position_slider_level_text(struct GTGadgetData *data,
+                                          struct IntuiText *level_text,
+                                          WORD gadWidth,
+                                          WORD gadHeight)
+{
+    ULONG place;
+    WORD text_width;
+    WORD text_left;
+
+    if (!data || !level_text)
+        return;
+
+    place = data->level_place;
+    if (!place)
+        place = PLACETEXT_LEFT;
+
+    text_width = gt_strlen(level_text->IText) * 8;
+    if (text_width > (WORD)data->max_pixel_len)
+        text_width = (WORD)data->max_pixel_len;
+
+    if (data->justification == GTJ_RIGHT)
+        text_left = (WORD)data->max_pixel_len - text_width;
+    else if (data->justification == GTJ_CENTER)
+        text_left = ((WORD)data->max_pixel_len - text_width) / 2;
+    else
+        text_left = 0;
+
+    if (text_left < 0)
+        text_left = 0;
+
+    if (place & PLACETEXT_LEFT)
+    {
+        level_text->LeftEdge = -((WORD)data->max_pixel_len) - GT_INTERWIDTH + text_left;
+        level_text->TopEdge  = (gadHeight - GT_FONT_HEIGHT) / 2 + GT_FONT_BASELINE;
+    }
+    else if (place & PLACETEXT_RIGHT)
+    {
+        level_text->LeftEdge = gadWidth + GT_INTERWIDTH + text_left;
+        level_text->TopEdge  = (gadHeight - GT_FONT_HEIGHT) / 2 + GT_FONT_BASELINE;
+    }
+    else if (place & PLACETEXT_ABOVE)
+    {
+        level_text->LeftEdge = (gadWidth - (WORD)data->max_pixel_len) / 2 + text_left;
+        level_text->TopEdge  = -GT_FONT_HEIGHT - 2 + GT_FONT_BASELINE;
+    }
+    else
+    {
+        level_text->LeftEdge = (gadWidth - (WORD)data->max_pixel_len) / 2 + text_left;
+        level_text->TopEdge  = gadHeight + 3 + GT_FONT_BASELINE;
+    }
+}
+
+VOID _gadtools_UpdateSliderLevelDisplay(register struct Gadget *gad __asm("a0"),
+                                        register LONG level __asm("d0"))
+{
+    struct GTGadgetData *data;
+    LONG display_level;
+
+    if (!gad)
+        return;
+
+    data = gt_get_data(gad);
+    if (!data || data->kind != GT_KIND_SLIDER || !data->level_text || !data->level_buffer)
+        return;
+
+    data->value = level;
+    display_level = data->disp_func ? data->disp_func(gad, level) : level;
+    gt_format_slider_level(data->level_buffer, data->max_level_len + 1,
+                           data->format, display_level);
+    gt_position_slider_level_text(data, data->level_text, gad->Width, gad->Height);
 }
 
 static struct TagItem *gt_find_tagitem(ULONG tag_value, struct TagItem *taglist)
@@ -460,23 +825,29 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     if (ul_pos >= 0)
     {
         struct IntuiText *ulText;
-        /* We use a single underscore character '_' drawn at the position of
-         * the shortcut character. The '_' glyph in topaz 8 provides the underline. */
-        static const char ul_char[] = "_";
+        STRPTR ul_char;
 
         ulText = (struct IntuiText *)AllocMem(sizeof(struct IntuiText), MEMF_CLEAR | MEMF_PUBLIC);
-        if (ulText)
+        ul_char = gt_strdup((CONST_STRPTR)"_");
+        if (ulText && ul_char)
         {
             ulText->FrontPen  = it->FrontPen;
             ulText->BackPen   = it->BackPen;
             ulText->DrawMode  = JAM1;
             ulText->ITextFont = NULL;
-            ulText->IText     = (STRPTR)ul_char;
+            ulText->IText     = ul_char;
             ulText->NextText  = NULL;
             /* Position relative to the main text: offset by ul_pos characters */
             ulText->LeftEdge  = it->LeftEdge + ul_pos * 8;
             ulText->TopEdge   = it->TopEdge;
             it->NextText = ulText;
+        }
+        else
+        {
+            if (ul_char)
+                FreeMem(ul_char, 2);
+            if (ulText)
+                FreeMem(ulText, sizeof(struct IntuiText));
         }
     }
 
@@ -647,18 +1018,16 @@ static void gt_free_ridge_bevel(struct Border *b)
  * and the IntuiText struct itself. */
 static void gt_free_label(struct IntuiText *it)
 {
-    if (!it) return;
+    while (it)
+    {
+        struct IntuiText *next = it->NextText;
 
-    /* Free underline IntuiText if present (NextText).
-     * Note: underline IText points to static data, no need to free it. */
-    if (it->NextText)
-        FreeMem(it->NextText, sizeof(struct IntuiText));
+        if (it->IText)
+            FreeMem(it->IText, gt_strlen(it->IText) + 1);
 
-    /* Free the allocated IText string copy */
-    if (it->IText)
-        FreeMem(it->IText, gt_strlen(it->IText) + 1);
-
-    FreeMem(it, sizeof(struct IntuiText));
+        FreeMem(it, sizeof(struct IntuiText));
+        it = next;
+    }
 }
 
 /* CreateGadgetA - Create a GadTools gadget
@@ -852,10 +1221,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             newgad->Flags = GFLG_GADGHCOMP;
 
             if (GetTagData(GTCB_Checked, FALSE, taglist))
-            {
-                newgad->Flags |= GFLG_SELECTED;
                 data->value = TRUE;
-            }
 
             /* Create recessed bevel box border for the checkbox frame */
             newgad->GadgetRender = (APTR)gt_create_bevel(ng->ng_Width, ng->ng_Height, TRUE);
@@ -868,8 +1234,15 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
         case SLIDER_KIND:
         {
             struct PropInfo *pi;
+            struct IntuiText *label_tail;
+            struct IntuiText *level_text;
             LONG sl_min, sl_max, sl_level;
+            LONG display_level;
             UWORD horizPot, horizBody;
+            UWORD max_level_len;
+            UWORD level_place;
+            ULONG max_pixel_len;
+            UBYTE justification;
 
             data->kind = GT_KIND_SLIDER;
             newgad->GadgetType = GTYP_PROPGADGET;
@@ -887,6 +1260,34 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             if (sl_level < sl_min) sl_level = sl_min;
             if (sl_level > sl_max) sl_level = sl_max;
             data->value = sl_level;
+            data->format = gt_strdup((STRPTR)GetTagData(GTSL_LevelFormat, (ULONG)"%ld", taglist));
+            if (!data->format)
+            {
+                FreeMem(data, sizeof(struct GTGadgetData));
+                FreeMem(newgad, sizeof(struct Gadget));
+                return NULL;
+            }
+
+            max_level_len = (UWORD)GetTagData(GTSL_MaxLevelLen, 2, taglist);
+            if (max_level_len == 0)
+                max_level_len = 2;
+            level_place = (UWORD)GetTagData(GTSL_LevelPlace, PLACETEXT_LEFT, taglist);
+            justification = (UBYTE)GetTagData(GTSL_Justification, GTJ_LEFT, taglist);
+            max_pixel_len = GetTagData(GTSL_MaxPixelLen, (ULONG)(max_level_len * 8), taglist);
+
+            data->max_level_len = max_level_len;
+            data->level_place = level_place;
+            data->justification = justification;
+            data->max_pixel_len = max_pixel_len;
+            data->disp_func = (LONG (*)(struct Gadget *, LONG))GetTagData(GTSL_DispFunc, 0, taglist);
+            data->level_buffer = (STRPTR)AllocMem(max_level_len + 1, MEMF_CLEAR | MEMF_PUBLIC);
+            if (!data->level_buffer)
+            {
+                FreeMem(data->format, gt_strlen(data->format) + 1);
+                FreeMem(data, sizeof(struct GTGadgetData));
+                FreeMem(newgad, sizeof(struct Gadget));
+                return NULL;
+            }
 
             /* Compute HorizPot from level:
              * Pot = ((level - min) * MAXPOT) / (max - min) */
@@ -906,7 +1307,8 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             pi = (struct PropInfo *)AllocMem(sizeof(struct PropInfo), MEMF_CLEAR | MEMF_PUBLIC);
             if (!pi)
             {
-                gt_free_label(newgad->GadgetText);
+                FreeMem(data->level_buffer, max_level_len + 1);
+                FreeMem(data->format, gt_strlen(data->format) + 1);
                 FreeMem(data, sizeof(struct GTGadgetData));
                 FreeMem(newgad, sizeof(struct Gadget));
                 return NULL;
@@ -931,6 +1333,45 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,
                                                   ng->ng_Width, ng->ng_Height, us);
+            if (!newgad->GadgetText)
+            {
+                FreeMem(pi, sizeof(struct PropInfo));
+                gt_free_bevel((struct Border *)newgad->GadgetRender);
+                FreeMem(data->level_buffer, max_level_len + 1);
+                FreeMem(data->format, gt_strlen(data->format) + 1);
+                FreeMem(data, sizeof(struct GTGadgetData));
+                FreeMem(newgad, sizeof(struct Gadget));
+                return NULL;
+            }
+
+            display_level = data->disp_func ? data->disp_func(newgad, sl_level) : sl_level;
+            gt_format_slider_level(data->level_buffer, max_level_len + 1,
+                                   data->format, display_level);
+            level_text = gt_create_label(data->level_buffer, 0, level_place,
+                                         ng->ng_Width, ng->ng_Height, 0);
+            if (!level_text)
+            {
+                gt_free_label(newgad->GadgetText);
+                FreeMem(pi, sizeof(struct PropInfo));
+                gt_free_bevel((struct Border *)newgad->GadgetRender);
+                FreeMem(data->level_buffer, max_level_len + 1);
+                FreeMem(data->format, gt_strlen(data->format) + 1);
+                FreeMem(data, sizeof(struct GTGadgetData));
+                FreeMem(newgad, sizeof(struct Gadget));
+                return NULL;
+            }
+
+            if (level_text->IText)
+                FreeMem(level_text->IText, gt_strlen(level_text->IText) + 1);
+            level_text->IText = data->level_buffer;
+
+            data->level_text = level_text;
+            gt_position_slider_level_text(data, level_text, ng->ng_Width, ng->ng_Height);
+            label_tail = gt_label_chain_tail(newgad->GadgetText);
+            if (label_tail)
+                label_tail->NextText = level_text;
+            else
+                newgad->GadgetText = level_text;
 
             DPRINTF (LOG_DEBUG, "_gadtools: CreateGadgetA() SLIDER: pi=0x%08lx min=%ld max=%ld level=%ld pot=%u body=%u bevel=0x%08lx text=0x%08lx\n",
                      (ULONG)pi, sl_min, sl_max, sl_level, horizPot, horizBody,
@@ -938,6 +1379,11 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             break;
         }
         case CYCLE_KIND:
+        {
+            struct IntuiText *label_tail;
+            struct IntuiText *cycle_text;
+            UWORD max_label_len;
+
             data->kind = GT_KIND_CYCLE;
             data->aux = (APTR)GetTagData(GTCY_Labels, 0, taglist);
             data->value = (LONG)GetTagData(GTCY_Active, 0, taglist);
@@ -945,11 +1391,53 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             newgad->Activation = GACT_RELVERIFY;
             newgad->Flags = GFLG_GADGHCOMP;
 
+            max_label_len = gt_cycle_max_label_len(data);
+            if (max_label_len == 0)
+                max_label_len = 1;
+            data->max_level_len = max_label_len;
+            data->level_buffer = (STRPTR)AllocMem(max_label_len + 1, MEMF_CLEAR | MEMF_PUBLIC);
+            if (!data->level_buffer)
+            {
+                FreeMem(data, sizeof(struct GTGadgetData));
+                FreeMem(newgad, sizeof(struct Gadget));
+                return NULL;
+            }
+
+            _gadtools_SetCycleState(newgad, (UWORD)data->value);
+
             newgad->GadgetRender = (APTR)gt_create_bevel(ng->ng_Width, ng->ng_Height, TRUE);
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,
                                                   ng->ng_Width, ng->ng_Height, us);
+            cycle_text = gt_create_label(data->level_buffer, 0, PLACETEXT_IN,
+                                         ng->ng_Width, ng->ng_Height, 0);
+            if (!newgad->GadgetRender || !newgad->GadgetText || !cycle_text)
+            {
+                if (cycle_text)
+                    gt_free_label(cycle_text);
+                gt_free_label(newgad->GadgetText);
+                if (newgad->GadgetRender)
+                    gt_free_bevel((struct Border *)newgad->GadgetRender);
+                FreeMem(data->level_buffer, max_label_len + 1);
+                FreeMem(data, sizeof(struct GTGadgetData));
+                FreeMem(newgad, sizeof(struct Gadget));
+                return NULL;
+            }
+
+            if (cycle_text->IText)
+                FreeMem(cycle_text->IText, gt_strlen(cycle_text->IText) + 1);
+            cycle_text->IText = data->level_buffer;
+            cycle_text->LeftEdge = 4;
+            cycle_text->TopEdge = (ng->ng_Height - GT_FONT_HEIGHT) / 2 + GT_FONT_BASELINE;
+            data->level_text = cycle_text;
+
+            label_tail = gt_label_chain_tail(newgad->GadgetText);
+            if (label_tail)
+                label_tail->NextText = cycle_text;
+            else
+                newgad->GadgetText = cycle_text;
             break;
+        }
         case MX_KIND:
         case SCROLLER_KIND:
         case LISTVIEW_KIND:
@@ -1046,6 +1534,16 @@ void _gadtools_FreeGadgets ( register struct GadToolsBase *GadToolsBase __asm("a
         }
 
         if (gad->SelectRender)
+        {
+            struct GTGadgetData *data = (struct GTGadgetData *)gad->SelectRender;
+
+            if (data->format)
+                FreeMem(data->format, gt_strlen(data->format) + 1);
+            if (data->level_buffer)
+                FreeMem(data->level_buffer, data->max_level_len + 1);
+        }
+
+        if (gad->SelectRender)
             FreeMem(gad->SelectRender, sizeof(struct GTGadgetData));
 
         /* Free GadgetText (IntuiText) if we allocated one.
@@ -1092,10 +1590,6 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
         tag = gt_find_tagitem(GTCB_Checked, taglist);
         if (tag)
         {
-            if (tag->ti_Data)
-                gad->Flags |= GFLG_SELECTED;
-            else
-                gad->Flags &= ~GFLG_SELECTED;
             data->value = (tag->ti_Data != 0) ? TRUE : FALSE;
             needs_refresh = TRUE;
         }
@@ -1106,7 +1600,7 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
         tag = gt_find_tagitem(GTCY_Active, taglist);
         if (tag)
         {
-            data->value = (LONG)tag->ti_Data;
+            _gadtools_SetCycleState(gad, (UWORD)tag->ti_Data);
             needs_refresh = TRUE;
         }
     }
@@ -1175,6 +1669,8 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
                     pi->HorizPot = (UWORD)(((level - sl_min) * (LONG)0xFFFF) / (sl_max - sl_min));
                 else
                     pi->HorizPot = 0;
+
+                _gadtools_UpdateSliderLevelDisplay(gad, level);
 
                 DPRINTF (LOG_DEBUG, "_gadtools: GT_SetGadgetAttrsA() SLIDER level=%ld -> pot=%u\n",
                          level, pi->HorizPot);
@@ -2148,8 +2644,11 @@ LONG _gadtools_GT_GetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
         switch (tag->ti_Tag)
         {
             case GTCB_Checked:
-                *(ULONG *)tag->ti_Data = (gad->Flags & GFLG_SELECTED) ? TRUE : FALSE;
-                count++;
+                if (data && data->kind == GT_KIND_CHECKBOX)
+                {
+                    *(ULONG *)tag->ti_Data = data->value ? TRUE : FALSE;
+                    count++;
+                }
                 break;
 
             case GTCY_Active:

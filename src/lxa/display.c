@@ -15,6 +15,7 @@
 #include "display.h"
 #include "config.h"
 #include "util.h"
+#include "m68k.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -78,11 +79,142 @@ struct display_window_t
 static display_window_t g_windows[MAX_ROOTLESS_WINDOWS];
 static bool g_rootless_mode = false;
 
+extern uint8_t g_ram[];
+
+#define LXA_RAM_SIZE (10 * 1024 * 1024)
+
 /* Global state */
 static bool g_display_initialized = false;
 static bool g_sdl_available = false;
 static bool g_headless_mode = false;  /* Skip SDL window creation for automated testing */
 static display_t *g_active_display = NULL;  /* Forward declaration for event routing */
+#define EVENT_QUEUE_SIZE 32
+static display_event_t g_event_queue[EVENT_QUEUE_SIZE];
+static int g_event_queue_head = 0;
+static int g_event_queue_tail = 0;
+static int g_mouse_x = 0;
+static int g_mouse_y = 0;
+static int g_last_buttons = 0;  /* Track button state for inject release detection */
+
+#if HAS_SDL2
+static uint32_t display_renderer_flags(void)
+{
+    /* The emulator already paces redraws from its own VBlank timer.
+     * Letting SDL block on the host compositor adds avoidable latency,
+     * especially in rootless mode where both screen and window presents can stack. */
+    return SDL_RENDERER_ACCELERATED;
+}
+#endif
+
+static void display_window_sync_from_screen(display_window_t *window)
+{
+    uint32_t planes_ptr;
+    uint32_t bpr;
+    uint32_t depth;
+    int screen_width;
+    int screen_height;
+    int screen_depth;
+    int src_x;
+    int src_y;
+    int dst_x = 0;
+    int dst_y = 0;
+    int copy_width;
+    int copy_height;
+    const uint8_t *planes[8] = {0};
+
+    if (!window || !window->in_use || !window->screen || !window->pixels)
+    {
+        return;
+    }
+
+    if (!display_get_amiga_bitmap(window->screen, &planes_ptr, &bpr, &depth))
+    {
+        return;
+    }
+
+    display_get_size(window->screen, &screen_width, &screen_height, &screen_depth);
+
+    if (screen_width <= 0 || screen_height <= 0 || bpr == 0 || depth == 0)
+    {
+        return;
+    }
+
+    src_x = window->x;
+    src_y = window->y;
+
+    if (src_x < 0)
+    {
+        dst_x = -src_x;
+        src_x = 0;
+    }
+
+    if (src_y < 0)
+    {
+        dst_y = -src_y;
+        src_y = 0;
+    }
+
+    if (src_x >= screen_width || src_y >= screen_height ||
+        dst_x >= window->width || dst_y >= window->height)
+    {
+        memset(window->pixels, 0, (size_t)window->width * (size_t)window->height);
+        window->dirty = true;
+        return;
+    }
+
+    copy_width = screen_width - src_x;
+    if (copy_width > window->width - dst_x)
+    {
+        copy_width = window->width - dst_x;
+    }
+
+    copy_height = screen_height - src_y;
+    if (copy_height > window->height - dst_y)
+    {
+        copy_height = window->height - dst_y;
+    }
+
+    memset(window->pixels, 0, (size_t)window->width * (size_t)window->height);
+
+    for (uint32_t plane = 0; plane < depth && plane < 8; plane++)
+    {
+        uint32_t plane_addr = m68k_read_memory_32(planes_ptr + plane * 4);
+        if (plane_addr && plane_addr < LXA_RAM_SIZE)
+        {
+            planes[plane] = &g_ram[plane_addr];
+        }
+    }
+
+    for (int row = 0; row < copy_height; row++)
+    {
+        uint8_t *dst = window->pixels + (dst_y + row) * window->width + dst_x;
+        int src_row_offset = (src_y + row) * (int)bpr;
+
+        for (int col = 0; col < copy_width; col++)
+        {
+            int src_col = src_x + col;
+            int byte_idx = src_col / 8;
+            int bit_idx = 7 - (src_col % 8);
+            uint8_t pixel = 0;
+
+            for (uint32_t plane = 0; plane < depth && plane < 8; plane++)
+            {
+                if (planes[plane])
+                {
+                    uint8_t plane_byte = planes[plane][src_row_offset + byte_idx];
+                    if (plane_byte & (1 << bit_idx))
+                    {
+                        pixel |= (1 << plane);
+                    }
+                }
+            }
+
+            dst[col] = pixel;
+        }
+    }
+
+    window->dirty = true;
+}
 
 /*
  * Initialize the display subsystem.
@@ -103,6 +235,13 @@ bool display_init(void)
 
     /* Initialize rootless window slots */
     memset(g_windows, 0, sizeof(g_windows));
+    g_active_display = NULL;
+    memset(g_event_queue, 0, sizeof(g_event_queue));
+    g_event_queue_head = 0;
+    g_event_queue_tail = 0;
+    g_mouse_x = 0;
+    g_mouse_y = 0;
+    g_last_buttons = 0;
 
 #if HAS_SDL2
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
@@ -144,6 +283,13 @@ void display_shutdown(void)
 
     g_display_initialized = false;
     g_sdl_available = false;
+    g_active_display = NULL;
+    memset(g_event_queue, 0, sizeof(g_event_queue));
+    g_event_queue_head = 0;
+    g_event_queue_tail = 0;
+    g_mouse_x = 0;
+    g_mouse_y = 0;
+    g_last_buttons = 0;
 }
 
 /*
@@ -217,7 +363,7 @@ display_t *display_open(int width, int height, int depth, const char *title)
     }
 
 #if HAS_SDL2
-    if (g_sdl_available && !g_headless_mode)
+    if (g_sdl_available && !g_headless_mode && !g_rootless_mode)
     {
         const char *window_title = title ? title : "LXA Display";
 
@@ -240,7 +386,7 @@ display_t *display_open(int width, int height, int depth, const char *title)
 
         display->renderer = SDL_CreateRenderer(
             display->window, -1,
-            SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
+            display_renderer_flags()
         );
 
         if (!display->renderer)
@@ -286,8 +432,10 @@ display_t *display_open(int width, int height, int depth, const char *title)
     }
     else
     {
-        LPRINTF(LOG_INFO, "display: opened %dx%dx%d virtual display (no SDL2)\n",
-                width, height, depth);
+        LPRINTF(LOG_INFO, "display: opened %dx%dx%d virtual display (%s)\n",
+                width, height, depth,
+                g_headless_mode ? "headless" :
+                (g_rootless_mode ? "rootless backing store" : "no SDL2"));
     }
 #else
     LPRINTF(LOG_INFO, "display: opened %dx%dx%d virtual display (no SDL2)\n",
@@ -556,13 +704,6 @@ void display_get_size(display_t *display, int *width, int *height, int *depth)
 /*
  * Input event queue - simple circular buffer for pending events
  */
-#define EVENT_QUEUE_SIZE 32
-static display_event_t g_event_queue[EVENT_QUEUE_SIZE];
-static int g_event_queue_head = 0;
-static int g_event_queue_tail = 0;
-static int g_mouse_x = 0;
-static int g_mouse_y = 0;
-static int g_last_buttons = 0;  /* Track button state for inject release detection */
 
 /*
  * Add an event to the queue
@@ -990,7 +1131,7 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
 
         win->renderer = SDL_CreateRenderer(
             win->window, -1,
-            SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
+            display_renderer_flags()
         );
 
         if (!win->renderer)
@@ -1410,6 +1551,7 @@ void display_refresh_all(void)
     {
         if (g_windows[i].in_use)
         {
+            display_window_sync_from_screen(&g_windows[i]);
             display_window_refresh(&g_windows[i]);
         }
     }

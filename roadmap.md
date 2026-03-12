@@ -35,18 +35,18 @@ Goal: pay down the architecture and performance follow-up identified during the 
 
 ### Phase 80-2: Fix UI Glitches
 
-- [ ] GadToolsGadgets Sample: fix rootless mode: a separate rootless windows gets opened, but the actual UI is still drawn on the "Workbench Screen" window
-- [ ] GadToolsGadgets Sample: Volume setting is not displayed (empty space right of label)
-- [ ] GadToolsGadgets Sample: UI is incredibly sluggish - for example, there is a noticable lag when clicking the "Click Here" Button that is not present on a real Amiga
-- [ ] GadToolsGadgets Sample: trying to resize the window is very laggy and leaves window border garbage on screen while resizing
-- [ ] GadToolsMenu Sample: separators are too wide, parts are drawn outside the menu and leave garbage on screen
-- [ ] GadToolsMenu Sample: Print submenu indicator is missing
-- [ ] GadToolsMenu Sample: Print submenu is missing
-- [ ] GadToolsMenu Sample: Redraw issues: while moving the mouse over opened menus, flickering occurs
-- [ ] GadToolsMenu Sample: Redraw issues: while moving the mouse over opened menus, lower menu items keep appearing and disappearing
-- [ ] SimpleGTGadget Sample: Checkbox doesn't react to mouse clicks, no check mark
-- [ ] SimpleGTGadget Sample: Number gadget is not responsive to keyboard input, cursor does not show when clicked (but entered characters do appear once focus leaves gadget / clicked elsewhere)
-- [ ] SimpleGTGadget Sample: Cycle gadget is just an empty box, does not respond to any input
+- [x] GadToolsGadgets Sample: fix rootless mode: a separate rootless windows gets opened, but the actual UI is still drawn on the "Workbench Screen" window
+- [x] GadToolsGadgets Sample: Volume setting is not displayed (empty space right of label)
+- [x] GadToolsGadgets Sample: UI is incredibly sluggish - for example, there is a noticable lag when clicking the "Click Here" Button that is not present on a real Amiga
+- [x] GadToolsGadgets Sample: trying to resize the window is very laggy and leaves window border garbage on screen while resizing
+- [x] GadToolsMenu Sample: separators are too wide, parts are drawn outside the menu and leave garbage on screen
+- [x] GadToolsMenu Sample: Print submenu indicator is missing
+- [x] GadToolsMenu Sample: Print submenu is missing
+- [x] GadToolsMenu Sample: Redraw issues: while moving the mouse over opened menus, flickering occurs
+- [x] GadToolsMenu Sample: Redraw issues: while moving the mouse over opened menus, lower menu items keep appearing and disappearing
+- [x] SimpleGTGadget Sample: Checkbox doesn't react to mouse clicks, no check mark
+- [x] SimpleGTGadget Sample: Number gadget is not responsive to keyboard input, cursor does not show when clicked (but entered characters do appear once focus leaves gadget / clicked elsewhere)
+- [x] SimpleGTGadget Sample: Cycle gadget is just an empty box, does not respond to any input
 
 ---
 

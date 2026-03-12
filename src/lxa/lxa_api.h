@@ -260,6 +260,14 @@ bool lxa_inject_string(const char *str);
 int lxa_get_window_count(void);
 
 /*
+ * Get non-background pixel count for a rootless window.
+ *
+ * @param index  Window index (0-based)
+ * @return Number of non-background pixels, or -1 if unavailable
+ */
+int lxa_get_window_content(int index);
+
+/*
  * Window information structure
  */
 typedef struct lxa_window_info {

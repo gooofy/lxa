@@ -6,6 +6,8 @@
 
 #include "lxa_test.h"
 
+#include <vector>
+
 using namespace lxa::testing;
 
 class GadToolsMenuTest : public LxaUITest {
@@ -31,6 +33,99 @@ protected:
     }
 };
 
+class GadToolsMenuPixelTest : public LxaUITest {
+protected:
+    int CountChangedPixels(int x1, int y1, int x2, int y2,
+                           const std::vector<int>& before) {
+        int changed = 0;
+        int index = 0;
+
+        for (int y = y1; y <= y2; ++y) {
+            for (int x = x1; x <= x2; ++x, ++index) {
+                if (ReadPixel(x, y) != before[index])
+                    changed++;
+            }
+        }
+
+        return changed;
+    }
+
+    std::vector<int> CapturePixels(int x1, int y1, int x2, int y2) {
+        std::vector<int> pixels;
+
+        pixels.reserve((x2 - x1 + 1) * (y2 - y1 + 1));
+        for (int y = y1; y <= y2; ++y) {
+            for (int x = x1; x <= x2; ++x)
+                pixels.push_back(ReadPixel(x, y));
+        }
+
+        return pixels;
+    }
+
+    bool OpenProjectMenu() {
+        int menu_bar_x = 30;
+        int menu_bar_y = 5;
+        int dropdown_before = CountContentPixels(0, 12, 120, 60, 0);
+
+        for (int attempt = 0; attempt < 20; ++attempt) {
+            lxa_inject_mouse(menu_bar_x, menu_bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEBUTTON);
+            lxa_inject_mouse(menu_bar_x, menu_bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEMOVE);
+            RunCyclesWithVBlank(10, 100000);
+            lxa_flush_display();
+
+            if (CountContentPixels(0, 12, 120, 60, 0) > dropdown_before + 20)
+                return true;
+
+            lxa_inject_mouse(menu_bar_x, menu_bar_y, 0, LXA_EVENT_MOUSEBUTTON);
+            RunCyclesWithVBlank(5, 100000);
+            lxa_flush_display();
+            RunCyclesWithVBlank(10, 100000);
+        }
+
+        return false;
+    }
+
+    void MoveMenuPointer(int x, int y) {
+        lxa_inject_mouse(x, y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEMOVE);
+        RunCyclesWithVBlank(10, 100000);
+        lxa_flush_display();
+    }
+
+    void CloseProjectMenu() {
+        lxa_inject_mouse(30, 5, 0, LXA_EVENT_MOUSEBUTTON);
+        RunCyclesWithVBlank(20, 100000);
+    }
+
+    void SetUp() override {
+        config.rootless = false;
+
+        LxaUITest::SetUp();
+
+        ASSERT_EQ(lxa_load_program("SYS:GadToolsMenu", ""), 0)
+            << "Failed to load GadToolsMenu";
+
+        ASSERT_TRUE(WaitForWindows(1, 5000))
+            << "Window did not open within 5 seconds";
+
+        ASSERT_TRUE(GetWindowInfo(0, &window_info))
+            << "Could not get window info";
+
+        WaitForEventLoop(100, 10000);
+
+        int title_pixels = 0;
+        for (int attempt = 0; attempt < 20; ++attempt) {
+            RunCyclesWithVBlank(10, 100000);
+            lxa_flush_display();
+            title_pixels = CountContentPixels(0, 0, 120, 10, 0);
+            if (title_pixels > 20)
+                break;
+        }
+
+        ASSERT_GT(title_pixels, 20)
+            << "Expected GadToolsMenu menu titles to be visible before interaction";
+    }
+};
+
 TEST_F(GadToolsMenuTest, WindowOpens) {
     EXPECT_EQ(window_info.width, 400) << "Window width should be 400";
     EXPECT_EQ(window_info.height, 100) << "Window height should be 100";
@@ -49,6 +144,175 @@ TEST_F(GadToolsMenuTest, CloseGadget) {
     // Wait for exit
     bool exited = lxa_wait_exit(5000);
     EXPECT_TRUE(exited) << "Program should exit cleanly via close gadget";
+}
+
+TEST_F(GadToolsMenuPixelTest, SeparatorStaysInsideMenuBounds) {
+    lxa_flush_display();
+
+    int menu_bar_x = 30;
+    int menu_bar_y = 5;
+
+    int separator_y = 35;
+    int interior_x1 = 8;
+    int interior_x2 = 80;
+    int leak_x1 = 120;
+    int leak_x2 = 132;
+    int leak_before[13];
+    int dropdown_before = CountContentPixels(0, 12, 120, 60, 0);
+    bool menu_open = false;
+
+    for (int x = leak_x1; x <= leak_x2; ++x)
+        leak_before[x - leak_x1] = ReadPixel(x, separator_y);
+
+    for (int attempt = 0; attempt < 20 && !menu_open; ++attempt) {
+        lxa_inject_mouse(menu_bar_x, menu_bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEBUTTON);
+        lxa_inject_mouse(menu_bar_x, menu_bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEMOVE);
+        RunCyclesWithVBlank(10, 100000);
+        lxa_flush_display();
+
+        if (CountContentPixels(0, 12, 120, 60, 0) > dropdown_before + 20) {
+            menu_open = true;
+            break;
+        }
+
+        lxa_inject_mouse(menu_bar_x, menu_bar_y, 0, LXA_EVENT_MOUSEBUTTON);
+        RunCyclesWithVBlank(5, 100000);
+        lxa_flush_display();
+        RunCyclesWithVBlank(10, 100000);
+    }
+
+    ASSERT_TRUE(menu_open) << "Expected Project menu drop-down to open";
+
+    int interior_after = 0;
+    int leak_changed_pixels = 0;
+
+    for (int x = interior_x1; x <= interior_x2; ++x) {
+        if (ReadPixel(x, separator_y) != 0 || ReadPixel(x, separator_y + 1) != 0)
+            interior_after++;
+    }
+
+    for (int x = leak_x1; x <= leak_x2; ++x) {
+        if (ReadPixel(x, separator_y) != leak_before[x - leak_x1])
+            leak_changed_pixels++;
+    }
+
+    EXPECT_GT(interior_after, 10)
+        << "Expected separator rendering to add visible pixels inside the menu";
+
+    EXPECT_EQ(leak_changed_pixels, 0)
+        << "Separator should not draw into the area right of the menu";
+
+    lxa_inject_mouse(menu_bar_x, menu_bar_y, 0, LXA_EVENT_MOUSEBUTTON);
+    RunCyclesWithVBlank(20, 100000);
+}
+
+TEST_F(GadToolsMenuPixelTest, PrintItemShowsSubmenuIndicator) {
+    lxa_flush_display();
+
+    int print_x = 30;
+    int print_y = 42;
+    int indicator_x1 = 78;
+    int indicator_x2 = 88;
+    int indicator_y1 = 37;
+    int indicator_y2 = 45;
+    int submenu_x1 = 100;
+    int submenu_y1 = 20;
+    int submenu_x2 = 220;
+    int submenu_y2 = 75;
+    int before_pixels = 0;
+    std::vector<int> submenu_before;
+
+    for (int y = indicator_y1; y <= indicator_y2; ++y) {
+        for (int x = indicator_x1; x <= indicator_x2; ++x) {
+            if (ReadPixel(x, y) != 0)
+                before_pixels++;
+        }
+    }
+
+    ASSERT_TRUE(OpenProjectMenu()) << "Expected Project menu drop-down to open";
+
+    submenu_before = CapturePixels(submenu_x1, submenu_y1, submenu_x2, submenu_y2);
+
+    int after_pixels = 0;
+    for (int y = indicator_y1; y <= indicator_y2; ++y) {
+        for (int x = indicator_x1; x <= indicator_x2; ++x) {
+            if (ReadPixel(x, y) != 0)
+                after_pixels++;
+        }
+    }
+
+    EXPECT_GT(after_pixels, before_pixels + 6)
+        << "Expected the Print item to show a submenu indicator near the right margin";
+
+    MoveMenuPointer(print_x, print_y);
+    MoveMenuPointer(95, print_y);
+
+    int submenu_changed = CountChangedPixels(submenu_x1, submenu_y1,
+                                             submenu_x2, submenu_y2,
+                                             submenu_before);
+
+    EXPECT_GT(submenu_changed, 60)
+        << "Expected the Print submenu to render to the right of the main menu";
+
+    CloseProjectMenu();
+}
+
+TEST_F(GadToolsMenuPixelTest, HoverRedrawReturnsToSamePixels) {
+    ASSERT_TRUE(OpenProjectMenu()) << "Expected Project menu drop-down to open";
+
+    const int menu_x1 = 0;
+    const int menu_y1 = 12;
+    const int menu_x2 = 220;
+    const int menu_y2 = 72;
+    const int print_x = 30;
+    const int print_y = 42;
+    const int save_y = 26;
+
+    MoveMenuPointer(print_x, print_y);
+    MoveMenuPointer(95, print_y);
+    std::vector<int> print_hover_before = CapturePixels(menu_x1, menu_y1, menu_x2, menu_y2);
+
+    MoveMenuPointer(print_x, save_y);
+    MoveMenuPointer(print_x, print_y);
+    MoveMenuPointer(95, print_y);
+
+    int changed = CountChangedPixels(menu_x1, menu_y1, menu_x2, menu_y2, print_hover_before);
+
+    EXPECT_EQ(changed, 0)
+        << "Expected returning to the same hover state to restore the same menu pixels";
+
+    CloseProjectMenu();
+}
+
+TEST_F(GadToolsMenuPixelTest, SubmenuHoverDoesNotCorruptLowerMainItems) {
+    ASSERT_TRUE(OpenProjectMenu()) << "Expected Project menu drop-down to open";
+
+    const int lower_item_x1 = 0;
+    const int lower_item_y1 = 48;
+    const int lower_item_x2 = 88;
+    const int lower_item_y2 = 72;
+    const int print_x = 30;
+    const int print_y = 42;
+    const int draft_sub_x = 110;
+    const int draft_sub_y = 26;
+    const int nlq_sub_x = 110;
+    const int nlq_sub_y = 36;
+
+    MoveMenuPointer(print_x, print_y);
+    MoveMenuPointer(draft_sub_x, draft_sub_y);
+    std::vector<int> lower_before = CapturePixels(lower_item_x1, lower_item_y1,
+                                                  lower_item_x2, lower_item_y2);
+
+    MoveMenuPointer(nlq_sub_x, nlq_sub_y);
+
+    int changed = CountChangedPixels(lower_item_x1, lower_item_y1,
+                                     lower_item_x2, lower_item_y2,
+                                     lower_before);
+
+    EXPECT_EQ(changed, 0)
+        << "Expected submenu hover changes to leave lower main-menu items stable";
+
+    CloseProjectMenu();
 }
 
 int main(int argc, char **argv) {

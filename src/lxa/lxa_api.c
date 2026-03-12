@@ -60,6 +60,8 @@ void lxa_api_capture_output(const char *data, int len)
 
 int lxa_init(const lxa_config_t *config)
 {
+    extern volatile sig_atomic_t g_pending_irq;
+
     if (g_api_initialized) {
         fprintf(stderr, "lxa_init: already initialized\n");
         return -1;
@@ -112,6 +114,7 @@ int lxa_init(const lxa_config_t *config)
     }
 
     /* Set up initial memory image */
+    memset(g_ram, 0, RAM_SIZE);
     uint32_t initial_sp = RAM_SIZE - 1;
     uint32_t reset_vector = ROM_START + 2;
     m68k_write_memory_32(0, initial_sp);
@@ -121,6 +124,7 @@ int lxa_init(const lxa_config_t *config)
     m68k_init();
     m68k_set_cpu_type(M68K_CPU_TYPE_68030);
     m68k_pulse_reset();
+    g_pending_irq = 0;
 
     /* Set headless mode if requested */
     if (config->headless) {
@@ -546,6 +550,12 @@ int lxa_get_window_count(void)
 {
     if (!g_api_initialized) return 0;
     return display_get_window_count();
+}
+
+int lxa_get_window_content(int index)
+{
+    if (!g_api_initialized) return -1;
+    return display_get_window_content(index);
 }
 
 bool lxa_get_window_info(int index, lxa_window_info_t *info)

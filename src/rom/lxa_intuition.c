@@ -37,6 +37,16 @@
 
 extern void _input_device_dispatch_event(struct InputEvent *event);
 extern void _keyboard_device_record_event(UWORD rawkey, UWORD qualifier);
+extern VOID _gadtools_UpdateSliderLevelDisplay(register struct Gadget *gad __asm("a0"),
+                                               register LONG level __asm("d0"));
+extern BOOL _gadtools_IsCheckbox(register struct Gadget *gad __asm("a0"));
+extern BOOL _gadtools_GetCheckboxState(register struct Gadget *gad __asm("a0"));
+extern VOID _gadtools_SetCheckboxState(register struct Gadget *gad __asm("a0"),
+                                       register BOOL checked __asm("d0"));
+extern BOOL _gadtools_IsCycle(register struct Gadget *gad __asm("a0"));
+extern UWORD _gadtools_GetCycleState(register struct Gadget *gad __asm("a0"));
+extern UWORD _gadtools_AdvanceCycleState(register struct Gadget *gad __asm("a0"));
+extern STRPTR _gadtools_GetCycleLabel(register struct Gadget *gad __asm("a0"));
 
 /*
  * Minimum usable screen/window height threshold.
@@ -3776,6 +3786,48 @@ static void _clear_relative_gadget_trails(struct Window *window, WORD dx, WORD d
     }
 }
 
+static void _clear_resized_window_exposed_areas(struct Window *window,
+                                                WORD old_width,
+                                                WORD old_height)
+{
+    struct RastPort *rp;
+    WORD old_inner_right;
+    WORD new_inner_right;
+    WORD old_inner_bottom;
+    WORD new_inner_bottom;
+
+    if (!window || !window->RPort)
+        return;
+
+    rp = window->RPort;
+    SetAPen(rp, 0);
+
+    old_inner_right = old_width - window->BorderRight - 1;
+    new_inner_right = window->Width - window->BorderRight - 1;
+    old_inner_bottom = old_height - window->BorderBottom - 1;
+    new_inner_bottom = window->Height - window->BorderBottom - 1;
+
+    if (new_inner_right > old_inner_right &&
+        window->BorderTop <= new_inner_bottom)
+    {
+        RectFill(rp,
+                 old_inner_right + 1,
+                 window->BorderTop,
+                 new_inner_right,
+                 new_inner_bottom);
+    }
+
+    if (new_inner_bottom > old_inner_bottom &&
+        window->BorderLeft <= new_inner_right)
+    {
+        RectFill(rp,
+                 window->BorderLeft,
+                 old_inner_bottom + 1,
+                 new_inner_right,
+                 new_inner_bottom);
+    }
+}
+
 static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WORD relY)
 {
     struct Gadget *gad;
@@ -4029,6 +4081,7 @@ static BOOL g_menu_mode;                    /* TRUE when right mouse button held
 static struct Window *g_menu_window;        /* Window whose menu is being shown */
 static struct Menu *g_active_menu;          /* Currently highlighted menu */
 static struct MenuItem *g_active_item;      /* Currently highlighted item */
+static struct MenuItem *g_active_subitem;   /* Currently highlighted sub-item */
 static UWORD g_menu_selection;              /* Encoded menu selection */
 
 /* State for window dragging
@@ -4116,6 +4169,37 @@ static UWORD _encode_menu_selection(WORD menuNum, WORD itemNum, WORD subNum)
     return code;
 }
 
+static BOOL _is_separator_menu_item(const struct MenuItem *item)
+{
+    struct IntuiText *it;
+
+    if (!item || !(item->Flags & ITEMTEXT) || !item->ItemFill)
+        return FALSE;
+
+    it = (struct IntuiText *)item->ItemFill;
+    if (!it || !it->IText)
+        return FALSE;
+
+    return it->IText[0] == '-';
+}
+
+static void _draw_submenu_indicator(struct RastPort *rp, WORD right, WORD center_y)
+{
+    WORD x;
+    WORD half_height;
+
+    if (!rp)
+        return;
+
+    half_height = 3;
+
+    for (x = 0; x <= 3; x++)
+    {
+        Move(rp, right - x, center_y - half_height + x);
+        Draw(rp, right - x, center_y + half_height - x);
+    }
+}
+
 /*
  * Find which menu title is at a given screen X position
  * Returns the menu or NULL if no menu at that position
@@ -4152,9 +4236,12 @@ static struct Menu * _find_menu_at_x(struct Window *window, WORD screenX)
 static struct MenuItem * _find_item_at_pos(struct Menu *menu, WORD x, WORD y)
 {
     struct MenuItem *item;
+    WORD chain_left;
     
     if (!menu || !menu->FirstItem)
         return NULL;
+
+    chain_left = menu->FirstItem->LeftEdge;
     
     for (item = menu->FirstItem; item; item = item->NextItem)
     {
@@ -4162,13 +4249,40 @@ static struct MenuItem * _find_item_at_pos(struct Menu *menu, WORD x, WORD y)
         if (!(item->Flags & ITEMENABLED))
             continue;
         
-        if (x >= item->LeftEdge && x < item->LeftEdge + item->Width &&
+        if (x >= item->LeftEdge - chain_left &&
+            x < item->LeftEdge - chain_left + item->Width &&
             y >= item->TopEdge && y < item->TopEdge + item->Height)
         {
             return item;
         }
     }
     
+    return NULL;
+}
+
+static struct MenuItem * _find_item_in_chain_at_pos(struct MenuItem *firstItem, WORD x, WORD y)
+{
+    struct MenuItem *item;
+    WORD chain_left;
+
+    if (!firstItem)
+        return NULL;
+
+    chain_left = firstItem->LeftEdge;
+
+    for (item = firstItem; item; item = item->NextItem)
+    {
+        if (!(item->Flags & ITEMENABLED))
+            continue;
+
+        if (x >= item->LeftEdge - chain_left &&
+            x < item->LeftEdge - chain_left + item->Width &&
+            y >= item->TopEdge && y < item->TopEdge + item->Height)
+        {
+            return item;
+        }
+    }
+
     return NULL;
 }
 
@@ -4210,6 +4324,147 @@ static WORD _get_item_index(struct Menu *menu, struct MenuItem *targetItem)
     }
     
     return NOITEM;
+}
+
+static WORD _get_item_chain_index(struct MenuItem *firstItem, struct MenuItem *targetItem)
+{
+    struct MenuItem *item;
+    WORD index;
+
+    if (!firstItem || !targetItem)
+        return NOITEM;
+
+    index = 0;
+    for (item = firstItem; item; item = item->NextItem, index++)
+    {
+        if (item == targetItem)
+            return index;
+    }
+
+    return NOITEM;
+}
+
+static void _get_menu_item_chain_box(struct MenuItem *firstItem,
+                                     WORD baseX, WORD baseY,
+                                     WORD *boxX, WORD *boxY,
+                                     WORD *boxWidth, WORD *boxHeight)
+{
+    struct MenuItem *item;
+    WORD chain_left;
+    WORD max_width;
+    WORD max_height;
+
+    if (boxX)
+        *boxX = baseX;
+    if (boxY)
+        *boxY = baseY;
+    if (boxWidth)
+        *boxWidth = 0;
+    if (boxHeight)
+        *boxHeight = 0;
+
+    if (!firstItem)
+        return;
+
+    chain_left = firstItem->LeftEdge;
+    max_width = 0;
+    max_height = 0;
+
+    for (item = firstItem; item; item = item->NextItem)
+    {
+        WORD width = (item->LeftEdge - chain_left) + item->Width;
+        WORD height = item->TopEdge + item->Height;
+
+        if (width > max_width)
+            max_width = width;
+        if (height > max_height)
+            max_height = height;
+    }
+
+    if (boxWidth)
+        *boxWidth = max_width + 8;
+    if (boxHeight)
+        *boxHeight = max_height + 4;
+}
+
+static BOOL _get_menu_submenu_box(struct Window *window,
+                                  struct Menu *menu,
+                                  struct MenuItem *item,
+                                  WORD *boxX, WORD *boxY,
+                                  WORD *boxWidth, WORD *boxHeight)
+{
+    struct Screen *screen;
+    WORD menuX;
+    WORD menuY;
+
+    if (boxX)
+        *boxX = 0;
+    if (boxY)
+        *boxY = 0;
+    if (boxWidth)
+        *boxWidth = 0;
+    if (boxHeight)
+        *boxHeight = 0;
+
+    if (!window || !window->WScreen || !menu || !item || !item->SubItem)
+        return FALSE;
+
+    screen = window->WScreen;
+    menuX = screen->BarHBorder + menu->LeftEdge;
+    menuY = screen->BarHeight + 1;
+
+    _get_menu_item_chain_box(item->SubItem,
+                             menuX + item->LeftEdge + item->Width,
+                             menuY + item->TopEdge,
+                             boxX, boxY, boxWidth, boxHeight);
+
+    return TRUE;
+}
+
+static BOOL _get_active_submenu_box(struct Window *window,
+                                    WORD *boxX, WORD *boxY,
+                                    WORD *boxWidth, WORD *boxHeight)
+{
+    return _get_menu_submenu_box(window,
+                                 g_active_menu,
+                                 g_active_item,
+                                 boxX,
+                                 boxY,
+                                 boxWidth,
+                                 boxHeight);
+}
+
+static BOOL _menu_hover_redraw_can_repaint_in_place(struct Window *window,
+                                                    struct Menu *oldMenu,
+                                                    struct MenuItem *oldItem)
+{
+    WORD oldX;
+    WORD oldY;
+    WORD oldWidth;
+    WORD oldHeight;
+    WORD newX;
+    WORD newY;
+    WORD newWidth;
+    WORD newHeight;
+    BOOL hadOldSubmenu;
+    BOOL hasNewSubmenu;
+
+    if (!window || !oldMenu || oldMenu != g_active_menu)
+        return FALSE;
+
+    hadOldSubmenu = _get_menu_submenu_box(window, oldMenu, oldItem,
+                                          &oldX, &oldY, &oldWidth, &oldHeight);
+    hasNewSubmenu = _get_active_submenu_box(window,
+                                            &newX, &newY, &newWidth, &newHeight);
+
+    if (hadOldSubmenu != hasNewSubmenu)
+        return FALSE;
+
+    if (!hadOldSubmenu)
+        return TRUE;
+
+    return oldX == newX && oldY == newY &&
+           oldWidth == newWidth && oldHeight == newHeight;
 }
 
 /*
@@ -4482,6 +4737,14 @@ static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu)
     struct Screen *screen;
     struct MenuItem *item;
     WORD barHeight, menuX, menuY, menuWidth, menuHeight;
+    WORD submenuX;
+    WORD submenuY;
+    WORD submenuWidth;
+    WORD submenuHeight;
+    WORD saveX;
+    WORD saveY;
+    WORD saveRight;
+    WORD saveBottom;
     
     if (!window || !window->WScreen || !menu || !menu->FirstItem)
         return;
@@ -4504,8 +4767,138 @@ static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu)
     }
     menuWidth += 8;    /* padding, matching _render_menu_items */
     menuHeight += 4;
-    
-    _save_menu_dropdown_area(screen, menuX, menuY, menuWidth, menuHeight);
+
+    saveX = menuX;
+    saveY = menuY;
+    saveRight = menuX + menuWidth;
+    saveBottom = menuY + menuHeight;
+
+    if (_get_active_submenu_box(window, &submenuX, &submenuY, &submenuWidth, &submenuHeight))
+    {
+        if (submenuX < saveX)
+            saveX = submenuX;
+        if (submenuY < saveY)
+            saveY = submenuY;
+        if (submenuX + submenuWidth > saveRight)
+            saveRight = submenuX + submenuWidth;
+        if (submenuY + submenuHeight > saveBottom)
+            saveBottom = submenuY + submenuHeight;
+    }
+
+    _save_menu_dropdown_area(screen, saveX, saveY, saveRight - saveX, saveBottom - saveY);
+}
+
+static void _render_menu_item_chain(struct RastPort *rp,
+                                    struct MenuItem *firstItem,
+                                    struct MenuItem *highlightedItem,
+                                    WORD menuX, WORD menuY)
+{
+    struct MenuItem *item;
+    struct IntuiText *it;
+    WORD chain_left;
+    WORD menuWidth;
+    WORD menuHeight;
+    WORD itemY;
+
+    if (!rp || !firstItem)
+        return;
+
+    _get_menu_item_chain_box(firstItem, menuX, menuY, NULL, NULL, &menuWidth, &menuHeight);
+    chain_left = firstItem->LeftEdge;
+
+    SetAPen(rp, 1);
+    RectFill(rp, menuX, menuY, menuX + menuWidth - 1, menuY + menuHeight - 1);
+
+    SetAPen(rp, 2);
+    Move(rp, menuX, menuY + menuHeight - 2);
+    Draw(rp, menuX, menuY);
+    Draw(rp, menuX + menuWidth - 2, menuY);
+
+    SetAPen(rp, 0);
+    Move(rp, menuX + menuWidth - 1, menuY);
+    Draw(rp, menuX + menuWidth - 1, menuY + menuHeight - 1);
+    Draw(rp, menuX, menuY + menuHeight - 1);
+
+    for (item = firstItem; item; item = item->NextItem)
+    {
+        WORD item_box_x = menuX + item->LeftEdge - chain_left;
+        WORD itemX = item_box_x + 4;
+
+        itemY = menuY + item->TopEdge + 2;
+
+        if (item == highlightedItem && (item->Flags & ITEMENABLED))
+        {
+            SetAPen(rp, 0);
+            RectFill(rp, menuX + 2, itemY - 1,
+                     menuX + menuWidth - 3, itemY + item->Height - 2);
+            SetAPen(rp, 1);
+            SetBPen(rp, 0);
+        }
+        else
+        {
+            SetAPen(rp, 0);
+            SetBPen(rp, 1);
+        }
+
+        it = (struct IntuiText *)item->ItemFill;
+
+        if (_is_separator_menu_item(item))
+        {
+            WORD separator_y = itemY + (item->Height / 2) - 1;
+            WORD separator_left = item_box_x + 6;
+            WORD separator_right = item_box_x + item->Width - 7;
+
+            if (separator_right >= separator_left)
+            {
+                SetAPen(rp, 0);
+                Move(rp, separator_left, separator_y + 1);
+                Draw(rp, separator_right, separator_y + 1);
+
+                SetAPen(rp, 2);
+                Move(rp, separator_left, separator_y);
+                Draw(rp, separator_right, separator_y);
+            }
+
+            continue;
+        }
+
+        if (it && it->IText)
+        {
+            if (!(item->Flags & ITEMENABLED))
+            {
+                SetAPen(rp, 2);
+                SetBPen(rp, 1);
+            }
+
+            Move(rp, itemX + it->LeftEdge, itemY + it->TopEdge + rp->TxBaseline);
+            Text(rp, (STRPTR)it->IText, strlen((const char *)it->IText));
+
+            if (item->Flags & CHECKED)
+            {
+                Move(rp, menuX + 3, itemY + rp->TxBaseline);
+                Text(rp, (STRPTR)"\x9E", 1);
+            }
+
+            if (item->Flags & COMMSEQ)
+            {
+                char cmdStr[4];
+                cmdStr[0] = 'A';
+                cmdStr[1] = '-';
+                cmdStr[2] = item->Command;
+                cmdStr[3] = '\0';
+                Move(rp, menuX + menuWidth - 40, itemY + rp->TxBaseline);
+                Text(rp, (STRPTR)cmdStr, 3);
+            }
+
+            if (item->SubItem)
+            {
+                WORD indicator_right = item_box_x + item->Width - 7;
+                WORD indicator_center_y = itemY + (item->Height / 2) - 1;
+
+                _draw_submenu_indicator(rp, indicator_right, indicator_center_y);
+            }
+        }
+    }
 }
 
 /*
@@ -4516,11 +4909,12 @@ static void _render_menu_items(struct Window *window)
     struct Screen *screen;
     struct RastPort *rp;
     struct Menu *menu;
-    struct MenuItem *item;
-    struct IntuiText *it;
     WORD barHeight;
-    WORD menuX, menuY, menuWidth, menuHeight;
-    WORD itemY;
+    WORD menuX, menuY;
+    WORD submenuX;
+    WORD submenuY;
+    WORD submenuWidth;
+    WORD submenuHeight;
     
     if (!window || !window->WScreen || !g_active_menu)
         return;
@@ -4542,91 +4936,16 @@ static void _render_menu_items(struct Window *window)
     /* Calculate menu drop-down position and size */
     menuX = screen->BarHBorder + menu->LeftEdge;
     menuY = barHeight;
-    
-    /* Calculate menu width/height from items */
-    menuWidth = 0;
-    menuHeight = 0;
-    for (item = menu->FirstItem; item; item = item->NextItem)
-    {
-        WORD w = item->LeftEdge + item->Width;
-        WORD h = item->TopEdge + item->Height;
-        if (w > menuWidth) menuWidth = w;
-        if (h > menuHeight) menuHeight = h;
-    }
-    menuWidth += 8;  /* Add some padding */
-    menuHeight += 4;
-    
-    /* Draw menu box background */
-    SetAPen(rp, 1);  /* Background color */
-    RectFill(rp, menuX, menuY, menuX + menuWidth - 1, menuY + menuHeight - 1);
-    
-    /* Draw menu box border (3D effect) */
-    SetAPen(rp, 2);  /* White/shine */
-    Move(rp, menuX, menuY + menuHeight - 2);
-    Draw(rp, menuX, menuY);
-    Draw(rp, menuX + menuWidth - 2, menuY);
-    
-    SetAPen(rp, 0);  /* Black/shadow */
-    Move(rp, menuX + menuWidth - 1, menuY);
-    Draw(rp, menuX + menuWidth - 1, menuY + menuHeight - 1);
-    Draw(rp, menuX, menuY + menuHeight - 1);
-    
-    /* Render menu items */
+
     SetDrMd(rp, JAM2);
-    
-    for (item = menu->FirstItem; item; item = item->NextItem)
+
+    _render_menu_item_chain(rp, menu->FirstItem, g_active_item, menuX, menuY);
+
+    if (_get_active_submenu_box(window, &submenuX, &submenuY, &submenuWidth, &submenuHeight))
     {
-        WORD itemX = menuX + item->LeftEdge + 4;
-        itemY = menuY + item->TopEdge + 2;
-        
-        /* Highlight selected item */
-        if (item == g_active_item && (item->Flags & ITEMENABLED))
-        {
-            SetAPen(rp, 0);  /* Highlighted background */
-            RectFill(rp, menuX + 2, itemY - 1, 
-                     menuX + menuWidth - 3, itemY + item->Height - 2);
-            SetAPen(rp, 1);
-            SetBPen(rp, 0);
-        }
-        else
-        {
-            SetAPen(rp, 0);
-            SetBPen(rp, 1);
-        }
-        
-        /* Draw item text (if IntuiText) */
-        it = (struct IntuiText *)item->ItemFill;
-        if (it && it->IText)
-        {
-            /* Disabled items shown in gray (pen 1 on pen 1 = gray effect) */
-            if (!(item->Flags & ITEMENABLED))
-            {
-                SetAPen(rp, 2);  /* Gray text for disabled */
-                SetBPen(rp, 1);
-            }
-            
-            Move(rp, itemX + it->LeftEdge, itemY + it->TopEdge + rp->TxBaseline);
-            Text(rp, (STRPTR)it->IText, strlen((const char *)it->IText));
-            
-            /* Draw checkmark if checked */
-            if (item->Flags & CHECKED)
-            {
-                Move(rp, menuX + 3, itemY + rp->TxBaseline);
-                Text(rp, (STRPTR)"\x9E", 1);  /* Amiga checkmark character */
-            }
-            
-            /* Draw command key if present */
-            if (item->Flags & COMMSEQ)
-            {
-                char cmdStr[4];
-                cmdStr[0] = 'A';  /* Amiga key symbol (simplified) */
-                cmdStr[1] = '-';
-                cmdStr[2] = item->Command;
-                cmdStr[3] = '\0';
-                Move(rp, menuX + menuWidth - 40, itemY + rp->TxBaseline);
-                Text(rp, (STRPTR)cmdStr, 3);
-            }
-        }
+        (void)submenuWidth;
+        (void)submenuHeight;
+        _render_menu_item_chain(rp, g_active_item->SubItem, g_active_subitem, submenuX, submenuY);
     }
 }
 
@@ -4646,6 +4965,7 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
     g_menu_window = window;
     g_active_menu = NULL;
     g_active_item = NULL;
+    g_active_subitem = NULL;
     g_menu_selection = MENUNULL;
     
     /* Render the menu bar */
@@ -4684,20 +5004,27 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
             (ULONG)g_active_menu, (ULONG)g_active_item);
     
     /* Calculate menu selection code if we have a valid selection */
-    if (g_active_menu && g_active_item && (g_active_item->Flags & ITEMENABLED))
+    if (g_active_menu && g_active_item)
     {
         WORD menuNum = _get_menu_index(g_menu_window, g_active_menu);
         WORD itemNum = _get_item_index(g_active_menu, g_active_item);
-        menuCode = _encode_menu_selection(menuNum, itemNum, NOSUB);
-        
-        /* Set NextSelect to MENUNULL to indicate this is the only/last selection.
-         * On real Amiga, Intuition sets this for single selections. For shift-click
-         * multi-select, it would chain to additional selected items. We only
-         * support single selections for now. */
-        g_active_item->NextSelect = MENUNULL;
-        
-        DPRINTF(LOG_DEBUG, "_intuition: Menu selection: menu=%d item=%d code=0x%04x\n",
-                (int)menuNum, (int)itemNum, menuCode);
+        WORD subNum = NOSUB;
+        struct MenuItem *selected_item = g_active_item;
+
+        if (g_active_subitem && (g_active_subitem->Flags & ITEMENABLED))
+        {
+            subNum = _get_item_chain_index(g_active_item->SubItem, g_active_subitem);
+            selected_item = g_active_subitem;
+        }
+
+        if (selected_item->Flags & ITEMENABLED)
+        {
+            menuCode = _encode_menu_selection(menuNum, itemNum, subNum);
+            selected_item->NextSelect = MENUNULL;
+
+            DPRINTF(LOG_DEBUG, "_intuition: Menu selection: menu=%d item=%d sub=%d code=0x%04x\n",
+                    (int)menuNum, (int)itemNum, (int)subNum, menuCode);
+        }
     }
     
     /* Post IDCMP_MENUPICK if we have a valid selection */
@@ -4714,6 +5041,7 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
     g_menu_window = NULL;
     g_active_menu = NULL;
     g_active_item = NULL;
+    g_active_subitem = NULL;
     g_menu_selection = MENUNULL;
     
     /* Restore the menu drop-down area and redraw screen title bar */
@@ -5218,6 +5546,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             
                             /* Set gadget as selected */
                             gad->Flags |= GFLG_SELECTED;
+
+                            if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                                _render_gadget(window, NULL, gad);
                             
                             /* For sizing system gadget, start resize drag immediately */
                             if ((gad->GadgetType & GTYP_SYSGADGET) &&
@@ -5242,6 +5573,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                     /* Position cursor at end of text */
                                     si->BufferPos = si->NumChars;
                                 }
+
+                                _render_gadget(window, NULL, gad);
                             }
                             
                             /* For prop gadgets, compute drag offset for smooth knob tracking */
@@ -5288,6 +5621,20 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                             pi->HorizPot = (UWORD)(((ULONG)(newKnobL - containerL) * 0xFFFF) / (ULONG)maxMoveX);
                                         else
                                             pi->HorizPot = 0;
+
+                                        {
+                                            WORD sl_min = (WORD)pi->CWidth;
+                                            WORD sl_max = (WORD)pi->CHeight;
+                                            LONG level;
+
+                                            if (sl_max > sl_min)
+                                                level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min)) / 0xFFFF;
+                                            else
+                                                level = sl_min;
+
+                                            _gadtools_UpdateSliderLevelDisplay(gad, level);
+                                        }
+
                                         /* Redraw the gadget with new knob position */
                                         _render_gadget(window, NULL, gad);
                                     }
@@ -5306,7 +5653,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             
                             /* Render selected state highlight (but not for prop gadgets - they draw their own knob) */
                             if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP &&
-                                (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET)
+                                (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET &&
+                                (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_STRGADGET)
                             {
                                 _complement_gadget_area(window, NULL, gad);
                             }
@@ -5369,6 +5717,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                                            qualifier, gad, activeRelX, activeRelY);
                                     }
                                 }
+
+                                _render_gadget(activeWin, NULL, gad);
                                 /* Don't clear g_active_gadget or g_active_window */
                             }
                             /* For prop gadgets: finalize pot, compute level, post GADGETUP */
@@ -5391,6 +5741,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                         level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
                                     else
                                         level = sl_min;
+                                    _gadtools_UpdateSliderLevelDisplay(gad, level);
                                     level_code = (UWORD)level;
 
                                     DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTUP: pot=%u min=%d max=%d level=%ld\n",
@@ -5411,7 +5762,31 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             else
                             {
                                 /* Non-string gadgets: update selected state */
-                                if ((gad->Activation & GACT_TOGGLESELECT) && inside)
+                                if (_gadtools_IsCheckbox(gad))
+                                {
+                                    if (inside)
+                                    {
+                                        _gadtools_SetCheckboxState(gad,
+                                                                   _gadtools_GetCheckboxState(gad) ? FALSE : TRUE);
+                                    }
+                                    gad->Flags &= ~GFLG_SELECTED;
+                                }
+                                else if (_gadtools_IsCycle(gad))
+                                {
+                                    UWORD active = _gadtools_GetCycleState(gad);
+
+                                    if (inside)
+                                        active = _gadtools_AdvanceCycleState(gad);
+
+                                    gad->Flags &= ~GFLG_SELECTED;
+
+                                    if (inside && (gad->Activation & GACT_RELVERIFY))
+                                    {
+                                        _post_idcmp_message(activeWin, IDCMP_GADGETUP, active,
+                                                           qualifier, gad, activeRelX, activeRelY);
+                                    }
+                                }
+                                else if ((gad->Activation & GACT_TOGGLESELECT) && inside)
                                 {
                                     /* Toggle gadgets: flip SELECTED state on release inside gadget */
                                     gad->Flags ^= GFLG_SELECTED;
@@ -5438,7 +5813,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                 }
                                 
                                 /* Render normal state - undo GADGHCOMP highlight */
-                                if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP)
+                                if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                                {
+                                    _render_gadget(activeWin, NULL, gad);
+                                }
+                                else if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP)
                                 {
                                     _complement_gadget_area(activeWin, NULL, gad);
                                 }
@@ -5534,6 +5913,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 {
                     BOOL needRedraw = FALSE;
                     struct Menu *oldMenu = g_active_menu;
+                    struct MenuItem *oldItem = g_active_item;
                     
                     /* Check if mouse is in menu bar area */
                     if (mouseY < screen->BarHeight + 1)
@@ -5543,32 +5923,71 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                         {
                             g_active_menu = newMenu;
                             g_active_item = NULL;  /* Clear item when switching menus */
+                            g_active_subitem = NULL;
                             needRedraw = TRUE;
                         }
                     }
-                    /* Check if mouse is in drop-down menu area */
                     else if (g_active_menu && g_active_menu->FirstItem)
                     {
-                        /* Calculate position relative to menu drop-down
-                         * Must match the position used in _render_menu_items */
-                        WORD menuTop = screen->BarHeight + 1;
-                        WORD menuLeft = screen->BarHBorder + g_active_menu->LeftEdge;
-                        WORD itemX = mouseX - menuLeft;
-                        WORD itemY = mouseY - menuTop;
-                        
-                        struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
-                        if (newItem != g_active_item)
+                        BOOL handledSubmenu = FALSE;
+
+                        if (g_active_item && g_active_item->SubItem)
                         {
-                            g_active_item = newItem;
-                            needRedraw = TRUE;
+                            WORD submenuX;
+                            WORD submenuY;
+                            WORD submenuWidth;
+                            WORD submenuHeight;
+
+                            if (_get_active_submenu_box(g_menu_window, &submenuX, &submenuY,
+                                                        &submenuWidth, &submenuHeight) &&
+                                mouseX >= submenuX && mouseX < submenuX + submenuWidth &&
+                                mouseY >= submenuY && mouseY < submenuY + submenuHeight)
+                            {
+                                struct MenuItem *newSubItem;
+
+                                handledSubmenu = TRUE;
+                                newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
+                                                                        mouseX - submenuX,
+                                                                        mouseY - submenuY);
+                                if (newSubItem != g_active_subitem)
+                                {
+                                    g_active_subitem = newSubItem;
+                                    needRedraw = TRUE;
+                                }
+                            }
+                        }
+
+                        if (!handledSubmenu)
+                        {
+                            /* Check if mouse is in the main drop-down menu area.
+                             * This keeps lower menu items responsive after visiting
+                             * a submenu instead of pinning the parent item highlight. */
+                            WORD menuTop = screen->BarHeight + 1;
+                            WORD menuLeft = screen->BarHBorder + g_active_menu->LeftEdge;
+                            WORD itemX = mouseX - menuLeft;
+                            WORD itemY = mouseY - menuTop;
+                            struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
+
+                            if (newItem != g_active_item)
+                            {
+                                g_active_item = newItem;
+                                g_active_subitem = NULL;
+                                needRedraw = TRUE;
+                            }
+                            else if (g_active_subitem)
+                            {
+                                g_active_subitem = NULL;
+                                needRedraw = TRUE;
+                            }
                         }
                     }
                     else
                     {
                         /* Mouse outside menu areas */
-                        if (g_active_item)
+                        if (g_active_item || g_active_subitem)
                         {
                             g_active_item = NULL;
+                            g_active_subitem = NULL;
                             needRedraw = TRUE;
                         }
                     }
@@ -5576,23 +5995,24 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                     /* Redraw if selection changed */
                     if (needRedraw)
                     {
-                        if (oldMenu != g_active_menu)
+                        if (_menu_hover_redraw_can_repaint_in_place(g_menu_window,
+                                                                    oldMenu,
+                                                                    oldItem))
                         {
-                            /* Menu changed: restore old drop-down, redraw bar, save & draw new */
-                            if (oldMenu)
-                            {
-                                _restore_menu_dropdown_area(g_menu_window->WScreen);
-                            }
-                            _render_menu_bar(g_menu_window);
-                        }
-                        if (g_active_menu)
-                        {
-                            if (oldMenu != g_active_menu)
-                            {
-                                /* Save area for the new drop-down */
-                                _save_dropdown_for_menu(g_menu_window, g_active_menu);
-                            }
                             _render_menu_items(g_menu_window);
+                        }
+                        else
+                        {
+                            if (oldMenu || g_active_menu)
+                                _restore_menu_dropdown_area(g_menu_window->WScreen);
+
+                            _render_menu_bar(g_menu_window);
+
+                            if (g_active_menu)
+                            {
+                                _save_dropdown_for_menu(g_menu_window, g_active_menu);
+                                _render_menu_items(g_menu_window);
+                            }
                         }
                     }
                 }
@@ -5654,9 +6074,6 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                 size_dx, size_dy, newW, newH);
                         
                         _intuition_SizeWindow(IntuitionBase, g_size_window, size_dx, size_dy);
-                        
-                        /* Re-render the window frame after resize */
-                        _render_window_frame(g_size_window);
                     }
                 }
                 
@@ -5713,6 +6130,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                                 level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
                             else
                                 level = sl_min;
+
+                            _gadtools_UpdateSliderLevelDisplay(gad, level);
 
                             WORD relX = mouseX - activeWin->LeftEdge;
                             WORD relY = mouseY - activeWin->TopEdge;
@@ -6470,6 +6889,11 @@ static void _render_window_frame(struct Window *window)
     struct RastPort *rp;
     WORD x0, y0, x1, y1;
     WORD titleBarBottom;
+    WORD right_border_left;
+    WORD right_border_top;
+    WORD right_border_bottom;
+    WORD bottom_border_top;
+    WORD bottom_border_right;
     struct Gadget *gad;
     UBYTE detPen, blkPen, shiPen, shaPen;
     
@@ -6544,6 +6968,41 @@ static void _render_window_frame(struct Window *window)
             SetBPen(rp, (window->Flags & WFLG_WINDOWACTIVE) ? blkPen : detPen);
             Move(rp, textX, textY + rp->TxBaseline);
             Text(rp, (STRPTR)window->Title, strlen((char *)window->Title));
+        }
+    }
+
+    if (window->BorderRight > 1)
+    {
+        right_border_left = window->Width - window->BorderRight;
+        right_border_top = window->BorderTop;
+        right_border_bottom = window->Height - window->BorderBottom - 1;
+
+        if (right_border_left <= x1 - 1 &&
+            right_border_top <= right_border_bottom)
+        {
+            SetAPen(rp, 0);
+            RectFill(rp,
+                     right_border_left,
+                     right_border_top,
+                     x1 - 1,
+                     right_border_bottom);
+        }
+    }
+
+    if (window->BorderBottom > 1)
+    {
+        bottom_border_top = window->Height - window->BorderBottom;
+        bottom_border_right = window->Width - 2;
+
+        if (x0 + 1 <= bottom_border_right &&
+            bottom_border_top <= y1 - 1)
+        {
+            SetAPen(rp, 0);
+            RectFill(rp,
+                     x0 + 1,
+                     bottom_border_top,
+                     bottom_border_right,
+                     y1 - 1);
         }
     }
     
@@ -7460,11 +7919,15 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD dy __asm("d1"))
 {
     LONG new_w, new_h;
+    WORD old_width, old_height;
     BOOL rootless_mode;
 
     DPRINTF(LOG_DEBUG, "_intuition: SizeWindow() window=0x%08lx dx=%d dy=%d\n", (ULONG)window, dx, dy);
 
     if (!window) return;
+
+    old_width = window->Width;
+    old_height = window->Height;
 
     new_w = window->Width + dx;
     new_h = window->Height + dy;
@@ -7507,6 +7970,7 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
     }
 
     _clear_relative_gadget_trails(window, dx, dy);
+    _clear_resized_window_exposed_areas(window, old_width, old_height);
 
     _render_window_frame(window);
 
@@ -8446,6 +8910,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
                 LONG ty = top + it->TopEdge;
                 SetAPen(rp, it->FrontPen);
                 SetBPen(rp, it->BackPen);
+                SetDrMd(rp, it->DrawMode);
                 if (it->IText[0] == '_' && it->IText[1] == '\0')
                 {
                     Move(rp, tx, ty + 1);
@@ -8527,7 +8992,58 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
                     knobX, knobY, knobW, knobH, pi->HorizPot, pi->HorizBody);
         }
     }
-    
+
+    if (_gadtools_IsCheckbox(gad))
+    {
+        WORD box_left = left + 2;
+        WORD box_top = top + 2;
+        WORD box_right = left + width - 3;
+        WORD box_bottom = top + height - 3;
+
+        if (box_left <= box_right && box_top <= box_bottom)
+        {
+            SetAPen(rp, 0);
+            RectFill(rp, box_left, box_top, box_right, box_bottom);
+
+            if (_gadtools_GetCheckboxState(gad))
+            {
+                WORD mid_y = box_top + ((box_bottom - box_top) / 2);
+
+                SetAPen(rp, 1);
+                Move(rp, box_left + 1, mid_y);
+                Draw(rp, box_left + 3, box_bottom);
+                Draw(rp, box_right, box_top);
+            }
+        }
+    }
+
+    if (_gadtools_IsCycle(gad))
+    {
+        WORD inner_top = top + 2;
+        WORD inner_right = left + width - 3;
+        WORD inner_bottom = top + height - 3;
+        WORD arrow_left = inner_right - 11;
+        WORD arrow_center_x = inner_right - 6;
+        WORD arrow_center_y = top + (height / 2);
+
+        if (inner_top <= inner_bottom)
+        {
+            if (arrow_left < left + width - 2)
+            {
+                SetAPen(rp, 0);
+                RectFill(rp, arrow_left + 1, inner_top, inner_right, inner_bottom);
+
+                SetAPen(rp, 1);
+                Move(rp, arrow_left, inner_top);
+                Draw(rp, arrow_left, inner_bottom);
+
+                Move(rp, arrow_center_x - 3, arrow_center_y - 1);
+                Draw(rp, arrow_center_x, arrow_center_y + 2);
+                Draw(rp, arrow_center_x + 3, arrow_center_y - 1);
+            }
+        }
+    }
+
     /* Render string gadget buffer contents.
      * Per RKRM, Intuition renders the string contents inside the gadget area.
      * The border/image (GadgetRender) provides the visual frame, and Intuition
