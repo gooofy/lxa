@@ -54,7 +54,7 @@ Goal: pay down the architecture and performance follow-up identified during the 
 
 Goal: Fully working Directory Opus app
 
-- [ ] Audit and document the exact DOpus runtime surface (`assigns`, `LIBS:`, `C:`, `L:`, `S:`, and disk-provided dependencies)
+- [x] Audit and document the exact DOpus runtime surface (`assigns`, `LIBS:`, `C:`, `L:`, `S:`, and disk-provided dependencies); `doc/app_db.md` now records the `DOpus:`/`LIBS:`/`C:`/`L:`/`S:` layout, bundled third-party libraries and helpers, startup-sequence hand-off, and the currently observed runtime library/device surface from the App-DB copy
 - [ ] Keep disk-provided dependencies such as `dopus.library`, `powerpacker.library`, and other optional libraries outside ROM scope
 - [ ] Close the remaining launch blockers, including `keyboard.device` and any other startup-time open failures needed to reach the main UI
 - [ ] Replace the old wrapper smoke check with a host-side driver that verifies real launch success criteria
