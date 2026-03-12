@@ -131,6 +131,13 @@ int main(void)
         test_fail_msg("AddIntServer priority order incorrect");
     }
 
+    AddIntServer(INTB_SOFTINT, &intA);
+    if (intB.is_Node.ln_Succ == &intA.is_Node && intA.is_Node.ln_Succ == (struct Node *)&soft_list->lh_Tail) {
+        test_ok("AddIntServer ignores duplicate server links");
+    } else {
+        test_fail_msg("AddIntServer should ignore duplicate server links");
+    }
+
     /* Test 2: Cause executes software interrupt */
     print("\nTest 2: Cause executes software interrupt\n");
     g_soft_count = 0;
@@ -173,6 +180,13 @@ int main(void)
         test_ok("RemIntServer restored empty list");
     } else {
         test_fail_msg("RemIntServer did not restore empty list");
+    }
+
+    RemIntServer(INTB_SOFTINT, &intA);
+    if (soft_list->lh_TailPred == (struct Node *)soft_list) {
+        test_ok("RemIntServer ignores missing servers");
+    } else {
+        test_fail_msg("RemIntServer should ignore missing servers");
     }
 
     /* Test 5: Cause(NULL) safety */
@@ -265,6 +279,7 @@ int main(void)
     print("\nTest 9: SetIntVector direct vector semantics\n");
     {
         struct Interrupt vectorInt;
+        struct Interrupt handlerInt;
         struct Interrupt *oldInt;
 
         vectorInt.is_Node.ln_Type = NT_INTERRUPT;
@@ -302,6 +317,26 @@ int main(void)
             test_ok("SetIntVector(NULL) restores default iv_Code sentinel");
         } else {
             test_fail_msg("SetIntVector(NULL) restores default iv_Code sentinel");
+        }
+
+        handlerInt.is_Node.ln_Type = NT_INTERRUPT;
+        handlerInt.is_Node.ln_Pri = 0;
+        handlerInt.is_Node.ln_Name = (char *)"Handler";
+        handlerInt.is_Data = NULL;
+        handlerInt.is_Code = (void (*)())VectorHandler;
+
+        SetIntVector(INTB_DSKSYNC, &handlerInt);
+        if (SysBase->IntVects[INTB_DSKSYNC].iv_Node == &handlerInt.is_Node) {
+            test_ok("SetIntVector stores handler iv_Node for handler vectors");
+        } else {
+            test_fail_msg("SetIntVector should store handler iv_Node for handler vectors");
+        }
+
+        SetIntVector(INTB_DSKSYNC, NULL);
+        if (SysBase->IntVects[INTB_DSKSYNC].iv_Node == NULL) {
+            test_ok("SetIntVector(NULL) clears handler iv_Node");
+        } else {
+            test_fail_msg("SetIntVector(NULL) should clear handler iv_Node");
         }
     }
 

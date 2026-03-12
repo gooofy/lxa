@@ -132,7 +132,176 @@ struct ExecIntVectorState
 
 static struct ExecIntVectorState g_IntVectorState[16];
 
+static BOOL exec_interrupt_index_valid(LONG int_number)
+{
+    return int_number >= 0 && int_number < 16;
+}
+
+static BOOL exec_interrupt_uses_handler_node(LONG int_number)
+{
+    return (int_number <= 2) || (int_number >= 6 && int_number <= 12);
+}
+
+static struct ExecIntVectorState *exec_get_int_vector_state(LONG int_number)
+{
+    if (!exec_interrupt_index_valid(int_number))
+        return NULL;
+
+    return &g_IntVectorState[int_number];
+}
+
+static struct List *exec_get_int_server_chain(struct ExecBase *SysBase,
+                                              LONG int_number)
+{
+    struct ExecIntVectorState *state = exec_get_int_vector_state(int_number);
+
+    if (!SysBase || !state)
+        return NULL;
+
+    return &state->server_list;
+}
+
+static BOOL exec_interrupt_server_is_linked(struct List *server_chain,
+                                            const struct Interrupt *interrupt)
+{
+    struct Node *node;
+
+    if (!server_chain || !interrupt)
+        return FALSE;
+
+    for (node = server_chain->lh_Head; node && node->ln_Succ; node = node->ln_Succ)
+    {
+        if (node == &interrupt->is_Node)
+            return TRUE;
+    }
+
+    return FALSE;
+}
+
+static void exec_init_int_vector_state(struct ExecBase *SysBase,
+                                       LONG int_number)
+{
+    struct ExecIntVectorState *state = exec_get_int_vector_state(int_number);
+
+    if (!SysBase || !state)
+        return;
+
+    NEWLIST(&state->server_list);
+    state->server_list.lh_Type = NT_INTERRUPT;
+    state->direct_interrupt = NULL;
+    state->direct_data = (APTR)~0;
+
+    SysBase->IntVects[int_number].iv_Data = &state->server_list;
+    SysBase->IntVects[int_number].iv_Code = (APTR)~0;
+    SysBase->IntVects[int_number].iv_Node = NULL;
+}
+
+static struct Interrupt *exec_set_int_vector_state(struct ExecBase *SysBase,
+                                                   LONG int_number,
+                                                   const struct Interrupt *interrupt)
+{
+    struct ExecIntVectorState *state = exec_get_int_vector_state(int_number);
+    struct Interrupt *old_interrupt;
+
+    if (!SysBase || !state)
+        return NULL;
+
+    old_interrupt = state->direct_interrupt;
+    state->direct_interrupt = (struct Interrupt *)interrupt;
+    SysBase->IntVects[int_number].iv_Node = exec_interrupt_uses_handler_node(int_number)
+                                            ? (struct Node *)interrupt
+                                            : NULL;
+
+    if (interrupt)
+    {
+        state->direct_data = interrupt->is_Data;
+        SysBase->IntVects[int_number].iv_Code = interrupt->is_Code;
+    }
+    else
+    {
+        state->direct_data = (APTR)~0;
+        SysBase->IntVects[int_number].iv_Code = (APTR)~0;
+    }
+
+    return old_interrupt;
+}
+
+static void exec_add_interrupt_server(struct ExecBase *SysBase,
+                                      LONG int_number,
+                                      struct Interrupt *interrupt)
+{
+    struct List *server_chain = exec_get_int_server_chain(SysBase, int_number);
+
+    if (!server_chain || !interrupt || exec_interrupt_server_is_linked(server_chain, interrupt))
+        return;
+
+    Enqueue(server_chain, &interrupt->is_Node);
+}
+
+static void exec_remove_interrupt_server(struct ExecBase *SysBase,
+                                         LONG int_number,
+                                         struct Interrupt *interrupt)
+{
+    struct List *server_chain = exec_get_int_server_chain(SysBase, int_number);
+
+    if (!server_chain || !interrupt || !exec_interrupt_server_is_linked(server_chain, interrupt))
+        return;
+
+    Remove((struct Node *)interrupt);
+    interrupt->is_Node.ln_Succ = NULL;
+    interrupt->is_Node.ln_Pred = NULL;
+}
+
+static BOOL exec_begin_interrupt_dispatch(struct Interrupt *interrupt)
+{
+    if (!interrupt || interrupt->is_Node.ln_Type == NT_SOFTINT)
+        return FALSE;
+
+    interrupt->is_Node.ln_Type = NT_SOFTINT;
+    return TRUE;
+}
+
+static void exec_finish_interrupt_dispatch(struct Interrupt *interrupt)
+{
+    if (interrupt)
+        interrupt->is_Node.ln_Type = NT_INTERRUPT;
+}
+
 static struct Resident *g_ResidentModules[29];
+
+static struct List *exec_get_resident_target_list(struct ExecBase *SysBase,
+                                                  UBYTE resident_type)
+{
+    switch (resident_type)
+    {
+        case NT_LIBRARY:
+            return &SysBase->LibList;
+        case NT_DEVICE:
+            return &SysBase->DeviceList;
+        case NT_RESOURCE:
+            return &SysBase->ResourceList;
+    }
+
+    return NULL;
+}
+
+static struct Library *exec_register_resident_node(struct ExecBase *SysBase,
+                                                   struct List *target_list,
+                                                   const struct Resident *resident,
+                                                   ULONG seg_list)
+{
+    struct InitTable *init_tab = (struct InitTable *)resident->rt_Init;
+    struct Library *lib_base = MakeLibrary(init_tab->FunctionTable,
+                                           init_tab->DataTable,
+                                           init_tab->InitLibFn,
+                                           init_tab->LibBaseSize,
+                                           seg_list);
+
+    if (lib_base)
+        AddTail(target_list, (struct Node *)lib_base);
+
+    return lib_base;
+}
 
 struct ExecBase        *SysBase;
 struct UtilityBase     *UtilityBase;
@@ -246,21 +415,10 @@ void _exec_InitCode ( register struct ExecBase * SysBase __asm("a6"),
 
         if ((resident->rt_Flags & RTF_AUTOINIT) && resident->rt_Name)
         {
-            struct List *target_list = NULL;
-            struct Node *node;
+                struct List *target_list;
+                struct Node *node;
 
-            switch (resident->rt_Type)
-            {
-                case NT_LIBRARY:
-                    target_list = &SysBase->LibList;
-                    break;
-                case NT_DEVICE:
-                    target_list = &SysBase->DeviceList;
-                    break;
-                case NT_RESOURCE:
-                    target_list = &SysBase->ResourceList;
-                    break;
-            }
+            target_list = exec_get_resident_target_list(SysBase, resident->rt_Type);
 
             if (target_list)
             {
@@ -629,39 +787,20 @@ APTR _exec_InitResident ( register struct ExecBase * SysBase __asm("a6"),
         
         DPRINTF (LOG_DEBUG, "_exec: InitResident: AUTOINIT LibBaseSize=%ld\n", initTab->LibBaseSize);
         
-        /* Create the library using MakeLibrary */
-        struct Library *libBase = MakeLibrary (
-            initTab->FunctionTable, 
-            initTab->DataTable, 
-            initTab->InitLibFn, 
-            initTab->LibBaseSize, 
-            ___segList
-        );
-        
-        if (libBase)
-        {
-            /* Add to appropriate list based on type */
-            switch (___resident->rt_Type)
+            struct List *target_list = exec_get_resident_target_list(SysBase, ___resident->rt_Type);
+            struct Library *libBase = NULL;
+
+            if (target_list)
             {
-                case NT_LIBRARY:
-                    AddTail (&SysBase->LibList, (struct Node*) libBase);
-                    DPRINTF (LOG_DEBUG, "_exec: InitResident: added library %s to LibList\n", ___resident->rt_Name);
-                    break;
-                case NT_DEVICE:
-                    AddTail (&SysBase->DeviceList, (struct Node*) libBase);
-                    DPRINTF (LOG_DEBUG, "_exec: InitResident: added device %s to DeviceList\n", ___resident->rt_Name);
-                    break;
-                case NT_RESOURCE:
-                    AddTail (&SysBase->ResourceList, (struct Node*) libBase);
-                    DPRINTF (LOG_DEBUG, "_exec: InitResident: added resource %s to ResourceList\n", ___resident->rt_Name);
-                    break;
-                default:
-                    LPRINTF (LOG_WARNING, "_exec: InitResident: unknown type %d for %s\n", 
-                             ___resident->rt_Type, ___resident->rt_Name);
-                    break;
+                libBase = exec_register_resident_node(SysBase, target_list, ___resident, ___segList);
             }
+            else
+            {
+                LPRINTF (LOG_WARNING, "_exec: InitResident: unknown type %d for %s\n",
+                         ___resident->rt_Type, ___resident->rt_Name);
+            }
+
             result = libBase;
-        }
     }
     else
     {
@@ -753,32 +892,16 @@ struct Interrupt * _exec_SetIntVector ( register struct ExecBase * SysBase __asm
                                                         register const struct Interrupt * ___interrupt  __asm("a1"))
 {
     struct Interrupt *old_interrupt;
-    BOOL is_handler;
 
     DPRINTF (LOG_DEBUG, "_exec: SetIntVector called, intNumber=%ld interrupt=0x%08lx\n",
              ___intNumber, (ULONG)___interrupt);
 
-    if (___intNumber < 0 || ___intNumber >= 16)
+    if (!exec_interrupt_index_valid(___intNumber))
         return NULL;
-
-    is_handler = (___intNumber <= 2) || (___intNumber >= 6 && ___intNumber <= 12);
-    old_interrupt = g_IntVectorState[___intNumber].direct_interrupt;
 
     Disable();
 
-    g_IntVectorState[___intNumber].direct_interrupt = (struct Interrupt *)___interrupt;
-    SysBase->IntVects[___intNumber].iv_Node = is_handler ? (struct Node *)___interrupt : NULL;
-
-    if (___interrupt)
-    {
-        g_IntVectorState[___intNumber].direct_data = ___interrupt->is_Data;
-        SysBase->IntVects[___intNumber].iv_Code = ___interrupt->is_Code;
-    }
-    else
-    {
-        g_IntVectorState[___intNumber].direct_data = (APTR)~0;
-        SysBase->IntVects[___intNumber].iv_Code = (APTR)~0;
-    }
+    old_interrupt = exec_set_int_vector_state(SysBase, ___intNumber, ___interrupt);
 
     Enable();
 
@@ -802,14 +925,11 @@ void _exec_AddIntServer ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: AddIntServer() called, intNumber=%ld interrupt=0x%08lx\n",
              ___intNumber, (ULONG)___interrupt);
 
-    if (!___interrupt || ___intNumber < 0 || ___intNumber >= 16)
-        return;
-
-    if (!SysBase->IntVects[___intNumber].iv_Data)
+    if (!___interrupt || !exec_interrupt_index_valid(___intNumber))
         return;
 
     Disable();
-    Enqueue((struct List *)SysBase->IntVects[___intNumber].iv_Data, &___interrupt->is_Node);
+    exec_add_interrupt_server(SysBase, ___intNumber, ___interrupt);
     Enable();
 }
 
@@ -825,14 +945,11 @@ void _exec_RemIntServer ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: RemIntServer() called, intNumber=%ld interrupt=0x%08lx\n",
              ___intNumber, (ULONG)___interrupt);
 
-    if (!___interrupt || ___intNumber < 0 || ___intNumber >= 16)
-        return;
-
-    if (!SysBase->IntVects[___intNumber].iv_Data)
+    if (!___interrupt || !exec_interrupt_index_valid(___intNumber))
         return;
 
     Disable();
-    Remove((struct Node *)___interrupt);
+    exec_remove_interrupt_server(SysBase, ___intNumber, ___interrupt);
     Enable();
 }
 
@@ -848,13 +965,8 @@ void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: Cause called, interrupt=0x%08lx\n", ___interrupt);
 
-    if (!___interrupt)
+    if (!exec_begin_interrupt_dispatch(___interrupt))
         return;
-
-    if (___interrupt->is_Node.ln_Type == NT_SOFTINT)
-        return;
-
-    ___interrupt->is_Node.ln_Type = NT_SOFTINT;
 
     APTR handler = ___interrupt->is_Code;
     APTR data = ___interrupt->is_Data;
@@ -877,7 +989,7 @@ void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
         );
     }
 
-    ___interrupt->is_Node.ln_Type = NT_INTERRUPT;
+    exec_finish_interrupt_dispatch(___interrupt);
 }
 
 #ifdef ENABLE_DEBUG
@@ -4829,11 +4941,7 @@ struct Library *registerBuiltInLib (ULONG dSize, struct Resident *romTAG)
      * where LibBase is declared as struct Library* instead of the actual library type).
      * The 5th parameter (segList) is 0 for ROM-based libraries.
      */
-    struct Library *libBase = MakeLibrary (initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, initTab->LibBaseSize, 0);
-
-    AddTail (&SysBase->LibList, (struct Node*) libBase);
-
-    return libBase;
+    return exec_register_resident_node(SysBase, &SysBase->LibList, romTAG, 0);
 }
 
 struct Library *registerBuiltInDev (ULONG dSize, struct Resident *romTAG)
@@ -4846,11 +4954,7 @@ struct Library *registerBuiltInDev (ULONG dSize, struct Resident *romTAG)
     /* Use LibBaseSize from the InitTable for the actual device base size.
      * The 5th parameter (segList) is 0 for ROM-based devices.
      */
-    struct Library *libBase = MakeLibrary (initTab->FunctionTable, initTab->DataTable, initTab->InitLibFn, initTab->LibBaseSize, 0);
-
-    AddTail (&SysBase->DeviceList, (struct Node*) libBase);
-
-    return libBase;
+    return exec_register_resident_node(SysBase, &SysBase->DeviceList, romTAG, 0);
 }
 
 #if 0
@@ -4933,7 +5037,7 @@ void _bootstrap(void)
             
             BPTR dirLock = Lock((STRPTR)dirbuf, ACCESS_READ);
             if (dirLock) {
-                struct Process *me = (struct Process *)FindTask(NULL);
+                struct Process *me = U_getCurrentProcess();
                 me->pr_CurrentDir = dirLock;
                 me->pr_HomeDir = DupLock(dirLock);  /* Also set HomeDir for PROGDIR: */
                 DPRINTF (LOG_INFO, "_exec: _bootstrap(): current dir lock=0x%08lx\n", dirLock);
@@ -4952,7 +5056,7 @@ void _bootstrap(void)
      * from there instead of pr_SegList.
      */
     {
-        struct Process *me = (struct Process *)FindTask(NULL);
+        struct Process *me = U_getCurrentProcess();
         me->pr_SegList = segs;
         DPRINTF (LOG_DEBUG, "_exec: _bootstrap(): set pr_SegList=0x%08lx on process 0x%08lx\n", segs, me);
         
@@ -5428,14 +5532,7 @@ void coldstart (void)
     SysBase->IntrList.lh_Type = NT_INTERRUPT;
     for (int i = 0; i < 16; i++)
     {
-        NEWLIST(&g_IntVectorState[i].server_list);
-        g_IntVectorState[i].server_list.lh_Type = NT_INTERRUPT;
-        g_IntVectorState[i].direct_interrupt = NULL;
-        g_IntVectorState[i].direct_data = (APTR)~0;
-
-        SysBase->IntVects[i].iv_Data = &g_IntVectorState[i].server_list;
-        SysBase->IntVects[i].iv_Code = (APTR)~0;
-        SysBase->IntVects[i].iv_Node = NULL;
+        exec_init_int_vector_state(SysBase, i);
     }
 
     // init semaphore list for AddSemaphore/RemSemaphore/FindSemaphore

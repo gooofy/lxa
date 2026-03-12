@@ -8,6 +8,7 @@
 #include <graphics/gfx.h>
 #include <graphics/layers.h>
 #include <graphics/clip.h>
+#include <graphics/regions.h>
 #include <clib/exec_protos.h>
 #include <clib/graphics_protos.h>
 #include <clib/layers_protos.h>
@@ -85,6 +86,20 @@ static int count_free_cliprects(struct Layer_Info *li)
     {
         count++;
         cr = cr->Next;
+    }
+
+    return count;
+}
+
+static int count_region_rects(struct Region *region)
+{
+    int count = 0;
+    struct RegionRectangle *rr = region ? region->RegionRectangle : NULL;
+
+    while (rr)
+    {
+        count++;
+        rr = rr->Next;
     }
 
     return count;
@@ -265,6 +280,72 @@ int main(void)
 
         if (backdrop)
             DeleteLayer(0, backdrop);
+    }
+
+    print("\nTest 3c: BeginUpdate preserves disjoint damage rectangles...\n");
+    if (hook_front)
+    {
+        struct Rectangle damage_a;
+        struct Rectangle damage_b;
+
+        hook_front->DamageList = NewRegion();
+        if (!hook_front->DamageList)
+        {
+            print("FAIL: Could not allocate damage region\n");
+            errors++;
+        }
+        else
+        {
+            damage_a.MinX = 125;
+            damage_a.MinY = 25;
+            damage_a.MaxX = 132;
+            damage_a.MaxY = 32;
+            damage_b.MinX = 165;
+            damage_b.MinY = 60;
+            damage_b.MaxX = 172;
+            damage_b.MaxY = 68;
+
+            if (!OrRectRegion(hook_front->DamageList, &damage_a) ||
+                !OrRectRegion(hook_front->DamageList, &damage_b))
+            {
+                print("FAIL: Could not seed damage rectangles\n");
+                errors++;
+                DisposeRegion(hook_front->DamageList);
+                hook_front->DamageList = NULL;
+            }
+            else if (!BeginUpdate(hook_front))
+            {
+                print("FAIL: BeginUpdate() rejected valid damage region\n");
+                errors++;
+                DisposeRegion(hook_front->DamageList);
+                hook_front->DamageList = NULL;
+            }
+            else if (count_cliprects(hook_front) == 2 &&
+                     count_region_rects(hook_front->DamageList) == 2)
+            {
+                EndUpdate(hook_front, TRUE);
+                if (count_cliprects(hook_front) == 1 && hook_front->DamageList == NULL)
+                {
+                    print("OK: BeginUpdate/EndUpdate kept split damage bookkeeping\n");
+                }
+                else
+                {
+                    print("FAIL: EndUpdate() did not restore cliprects/damage state\n");
+                    errors++;
+                }
+            }
+            else
+            {
+                print("FAIL: BeginUpdate() collapsed split damage into one cliprect\n");
+                errors++;
+                EndUpdate(hook_front, TRUE);
+            }
+        }
+    }
+    else
+    {
+        print("FAIL: No hook layer available for damage test\n");
+        errors++;
     }
 
     print("\nTest 4: DeleteLayer unlinks layers, damages exposed areas, and pools ClipRects...\n");

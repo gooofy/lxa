@@ -274,6 +274,16 @@ int main(void)
         print("OK: VideoControl() returned stored values\n");
     }
 
+    if (cm->cm_vp == &vp)
+    {
+        print("OK: VideoControl() attached ColorMap to ViewPort\n");
+    }
+    else
+    {
+        print("FAIL: VideoControl() did not set cm_vp\n");
+        errors++;
+    }
+
     query_value = 0xFFFFFFFF;
     intermediate_query_tags[0].ti_Data = (ULONG)&query_value;
     result = VideoControl(cm, intermediate_query_tags);
@@ -330,9 +340,14 @@ int main(void)
         print("FAIL: MakeVPort() did not build placeholder copper list\n");
         errors++;
     }
+    else if (cm->cm_vp != &vp)
+    {
+        print("FAIL: MakeVPort() did not keep ColorMap attached to ViewPort\n");
+        errors++;
+    }
     else
     {
-        print("OK: MakeVPort() built placeholder copper list\n");
+        print("OK: MakeVPort() built placeholder copper list and attached ColorMap\n");
     }
 
     fill_bytes(&ucl, 0, sizeof(ucl));

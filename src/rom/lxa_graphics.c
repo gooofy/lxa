@@ -752,29 +752,72 @@ static VOID graphics_draw_vsprite(struct GfxBase *GfxBase,
 }
 
 /*
- * Helper: Find the display handle for a ViewPort.
- *
- * On AmigaOS, ViewPort is embedded in struct Screen. We navigate from
- * ViewPort → Screen by searching IntuitionBase->FirstScreen list.
- * The display handle is stored in screen->ExtData.
- *
- * Returns 0 if no matching screen found.
+ * Helper: Find the Intuition screen that owns a ViewPort.
  */
-static ULONG _find_display_handle_for_vp(struct ViewPort *vp)
+static struct Screen *graphics_viewport_screen(struct ViewPort *vp)
 {
     struct Screen *screen;
 
     if (!vp || !IntuitionBase)
-        return 0;
+        return NULL;
 
     /* Search the screen list for a screen whose ViewPort matches */
     for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
     {
         if (&screen->ViewPort == vp)
-            return (ULONG)screen->ExtData;
+            return screen;
     }
 
-    return 0;
+    return NULL;
+}
+
+static ULONG graphics_viewport_display_handle(struct ViewPort *vp)
+{
+    struct Screen *screen = graphics_viewport_screen(vp);
+
+    return screen ? (ULONG)screen->ExtData : 0;
+}
+
+static VOID graphics_viewport_attach_colormap(struct ViewPort *vp)
+{
+    if (vp && vp->ColorMap)
+        vp->ColorMap->cm_vp = vp;
+}
+
+static VOID graphics_viewport_set_origin(struct ViewPort *vp)
+{
+    struct ViewPortExtra *vpe;
+
+    if (!vp || !vp->ColorMap || !vp->ColorMap->cm_vpe)
+        return;
+
+    vpe = vp->ColorMap->cm_vpe;
+    vpe->Origin[0].x = vp->DxOffset;
+    vpe->Origin[0].y = vp->DyOffset;
+    vpe->Origin[1].x = vp->DxOffset;
+    vpe->Origin[1].y = vp->DyOffset;
+}
+
+static VOID graphics_viewport_set_bitmap(struct ViewPort *vp, struct BitMap *bm)
+{
+    if (vp && vp->RasInfo && bm)
+        vp->RasInfo->BitMap = bm;
+}
+
+static VOID graphics_viewport_push_color(struct ViewPort *vp,
+                                         ULONG index,
+                                         ULONG red8,
+                                         ULONG green8,
+                                         ULONG blue8)
+{
+    ULONG handle;
+
+    handle = graphics_viewport_display_handle(vp);
+    if (handle)
+    {
+        ULONG rgb = (red8 << 16) | (green8 << 8) | blue8;
+        emucall3(EMU_CALL_GFX_SET_COLOR, handle, index, rgb);
+    }
 }
 
 /*
@@ -2504,8 +2547,9 @@ static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
     }
 
     /* Propagate to host display */
-    ULONG handle = _find_display_handle_for_vp(vp);
-    if (handle)
+    graphics_viewport_attach_colormap(vp);
+
+    if (vp->ColorMap)
     {
         for (i = 0; i < count; i++)
         {
@@ -2513,8 +2557,7 @@ static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
             ULONG r8 = ((c >> 8) & 0xF) * 17;
             ULONG g8 = ((c >> 4) & 0xF) * 17;
             ULONG b8 = (c & 0xF) * 17;
-            ULONG rgb = (r8 << 16) | (g8 << 8) | b8;
-            emucall3(EMU_CALL_GFX_SET_COLOR, handle, (ULONG)i, rgb);
+            graphics_viewport_push_color(vp, (ULONG)i, r8, g8, b8);
         }
     }
 }
@@ -2643,8 +2686,7 @@ static ULONG _graphics_MakeVPort ( register struct GfxBase * GfxBase __asm("a6")
     graphics_free_placeholder_coplist(vp->DspIns);
     vp->DspIns = dsp_list;
 
-    if (vp->ColorMap)
-        vp->ColorMap->cm_vp = vp;
+    graphics_viewport_attach_colormap(vp);
 
     return MVP_OK;
 }
@@ -3540,16 +3582,11 @@ static VOID _graphics_SetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
     }
 
     /* Propagate to host display */
-    ULONG handle = _find_display_handle_for_vp(vp);
-    if (handle)
-    {
-        /* Convert 4-bit to 8-bit (multiply by 17 = 0x11) and pack as 0x00RRGGBB */
-        ULONG r8 = (red & 0xF) * 17;
-        ULONG g8 = (green & 0xF) * 17;
-        ULONG b8 = (blue & 0xF) * 17;
-        ULONG rgb = (r8 << 16) | (g8 << 8) | b8;
-        emucall3(EMU_CALL_GFX_SET_COLOR, handle, (ULONG)index, rgb);
-    }
+    graphics_viewport_push_color(vp,
+                                 (ULONG)index,
+                                 (red & 0xF) * 17,
+                                 (green & 0xF) * 17,
+                                 (blue & 0xF) * 17);
 }
 
 static VOID _graphics_QBSBlit ( register struct GfxBase * GfxBase __asm("a6"),
@@ -5479,15 +5516,7 @@ static VOID _graphics_ScrollVPort ( register struct GfxBase * GfxBase __asm("a6"
     if (!vp)
         return;
 
-    if (vp->ColorMap && vp->ColorMap->cm_vpe)
-    {
-        struct ViewPortExtra *vpe = vp->ColorMap->cm_vpe;
-
-        vpe->Origin[0].x = vp->DxOffset;
-        vpe->Origin[0].y = vp->DyOffset;
-        vpe->Origin[1].x = vp->DxOffset;
-        vpe->Origin[1].y = vp->DyOffset;
-    }
+    graphics_viewport_set_origin(vp);
 }
 
 static struct CopList * _graphics_UCopperListInit ( register struct GfxBase * GfxBase __asm("a6"),
@@ -7299,15 +7328,7 @@ static VOID _graphics_SetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
     }
 
     /* Propagate to host display using full 8-bit precision */
-    ULONG handle = _find_display_handle_for_vp(vp);
-    if (handle)
-    {
-        ULONG r8 = (r >> 24) & 0xFF;
-        ULONG g8 = (g >> 24) & 0xFF;
-        ULONG b8 = (b >> 24) & 0xFF;
-        ULONG rgb = (r8 << 16) | (g8 << 8) | b8;
-        emucall3(EMU_CALL_GFX_SET_COLOR, handle, n, rgb);
-    }
+    graphics_viewport_push_color(vp, n, (r >> 24) & 0xFF, (g >> 24) & 0xFF, (b >> 24) & 0xFF);
 }
 
 static ULONG _graphics_GetAPen ( register struct GfxBase * GfxBase __asm("a6"),
@@ -7365,15 +7386,13 @@ static VOID _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
      *   Then count * 3 ULONGs: R, G, B values (32-bit left-justified)
      * Terminated by a count word of 0.
      */
-    ULONG handle;
-    
     DPRINTF (LOG_DEBUG, "_graphics: LoadRGB32() vp=0x%08lx table=0x%08lx\n",
              (ULONG)vp, (ULONG)table);
 
     if (!vp || !table)
         return;
 
-    handle = _find_display_handle_for_vp(vp);
+    graphics_viewport_attach_colormap(vp);
 
     /* Parse the table structure */
     while (*table)
@@ -7398,14 +7417,7 @@ static VOID _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
             }
 
             /* Propagate to host display using 8-bit precision */
-            if (handle)
-            {
-                ULONG r8 = (r >> 24) & 0xFF;
-                ULONG g8 = (g >> 24) & 0xFF;
-                ULONG b8 = (b >> 24) & 0xFF;
-                ULONG rgb = (r8 << 16) | (g8 << 8) | b8;
-                emucall3(EMU_CALL_GFX_SET_COLOR, handle, index, rgb);
-            }
+            graphics_viewport_push_color(vp, index, (r >> 24) & 0xFF, (g >> 24) & 0xFF, (b >> 24) & 0xFF);
         }
     }
 }
@@ -7643,7 +7655,7 @@ static VOID _graphics_ChangeVPBitMap ( register struct GfxBase * GfxBase __asm("
     if (!vp || !vp->RasInfo || !bm)
         return;
 
-    vp->RasInfo->BitMap = bm;
+    graphics_viewport_set_bitmap(vp, bm);
 
     if (db)
     {

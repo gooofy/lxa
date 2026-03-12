@@ -82,6 +82,20 @@ static int count_cliprects(struct Layer *layer)
     return count;
 }
 
+static int count_region_rects(struct Region *region)
+{
+    int count = 0;
+    struct RegionRectangle *rr = region ? region->RegionRectangle : NULL;
+
+    while (rr)
+    {
+        count++;
+        rr = rr->Next;
+    }
+
+    return count;
+}
+
 int main(void)
 {
     struct Layer_Info *li;
@@ -269,6 +283,63 @@ int main(void)
     {
         print("FAIL: Out-of-bounds point still resolves to layer\n");
         errors++;
+    }
+
+    print("\nTest 4b: InstallClipRegion constrains cliprects and hit testing...\n");
+    {
+        struct Region *clip = NewRegion();
+        struct Region *old_clip;
+        struct Rectangle clip_rect;
+
+        if (!clip)
+        {
+            print("FAIL: Could not allocate clip region\n");
+            errors++;
+        }
+        else
+        {
+            clip_rect.MinX = 45;
+            clip_rect.MinY = 45;
+            clip_rect.MaxX = 55;
+            clip_rect.MaxY = 55;
+            OrRectRegion(clip, &clip_rect);
+
+            old_clip = InstallClipRegion(front, clip);
+            if (old_clip != NULL)
+            {
+                print("FAIL: InstallClipRegion returned unexpected previous region\n");
+                errors++;
+            }
+            else if (count_cliprects(front) == 1 && count_region_rects(clip) == 1 &&
+                     front->ClipRect->bounds.MinX == 45 && front->ClipRect->bounds.MaxX == 55 &&
+                     WhichLayer(li, 50, 50) == front && WhichLayer(li, 70, 70) == NULL)
+            {
+                print("OK: InstallClipRegion tightened cliprects and hit testing\n");
+            }
+            else
+            {
+                print("FAIL: InstallClipRegion did not constrain visibility correctly\n");
+                errors++;
+            }
+
+            old_clip = InstallClipRegion(front, NULL);
+            if (old_clip != clip)
+            {
+                print("FAIL: InstallClipRegion(NULL) did not return previous region\n");
+                errors++;
+            }
+            else if (WhichLayer(li, 58, 58) == front)
+            {
+                print("OK: Removing clip region restored full visibility\n");
+            }
+            else
+            {
+                print("FAIL: Removing clip region did not restore visibility\n");
+                errors++;
+            }
+
+            DisposeRegion(clip);
+        }
     }
 
     print("\nTest 5: Hook installation helpers and fatten/thin flags...\n");
