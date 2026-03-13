@@ -49,7 +49,6 @@ TEST_F(SampleTest, Semaphore) { RunSample("Semaphore"); }
 TEST_F(SampleTest, Signals) { RunSample("Signals"); }
 TEST_F(SampleTest, SimpleTask) { RunSample("SimpleTask"); }
 TEST_F(SampleTest, Tag1) { RunSample("Tag1"); }
-TEST_F(SampleTest, Talk2Boopsi) { RunSample("Talk2Boopsi"); }
 TEST_F(SampleTest, TaskList) { RunSample("TaskList"); }
 TEST_F(SampleTest, TimerSoftInt) { RunSample("TimerSoftInt"); }
 TEST_F(SampleTest, Uptime) { RunSample("Uptime"); }

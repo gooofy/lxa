@@ -155,7 +155,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/updatestrgad_gtest.cpp)
         add_gtest_driver(updatestrgad_gtest)
     endif()
-    
+
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/talk2boopsi_gtest.cpp)
+        add_gtest_driver(talk2boopsi_gtest)
+    endif()
+
     # IntuiText - IntuiText rendering test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/intuitext_gtest.cpp)
         add_gtest_driver(intuitext_gtest)
