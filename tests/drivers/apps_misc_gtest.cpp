@@ -323,6 +323,31 @@ TEST_F(AppsMiscTest, SysInfo) {
     RunAppsMiscTest("SysInfo", 5000);
 }
 
+TEST_F(AppsMiscTest, SysInfoRootlessWindowDrawsContent) {
+    if (FindAppsPath() == nullptr) {
+        GTEST_SKIP() << "lxa-apps directory not found";
+    }
+
+    ASSERT_EQ(lxa_load_program("APPS:SysInfo/bin/SysInfo/SysInfo", ""), 0)
+        << "Failed to load SysInfo via APPS: assign";
+
+    ASSERT_TRUE(WaitForWindows(1, 15000))
+        << "SysInfo did not open a rootless window\n"
+        << GetOutput();
+
+    ASSERT_TRUE(GetWindowInfo(0, &window_info));
+    EXPECT_GT(window_info.width, 0);
+    EXPECT_GT(window_info.height, 0);
+
+    EXPECT_TRUE(WaitForWindowDrawn(0, 5000))
+        << "SysInfo rootless window should expose visible content instead of a black screen\n"
+        << GetOutput();
+
+    EXPECT_TRUE(lxa_is_running())
+        << "SysInfo should remain running after its main window is drawn\n"
+        << GetOutput();
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

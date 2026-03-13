@@ -778,6 +778,33 @@ static ULONG graphics_viewport_display_handle(struct ViewPort *vp)
     return screen ? (ULONG)screen->ExtData : 0;
 }
 
+static VOID graphics_screen_adopt_bitmap(struct Screen *screen,
+                                         struct BitMap *bm)
+{
+    ULONG handle;
+    ULONG bpr_depth;
+
+    if (!screen || !bm)
+        return;
+
+    screen->BitMap = *bm;
+    screen->RastPort.BitMap = &screen->BitMap;
+
+    if (screen->ViewPort.RasInfo)
+        screen->ViewPort.RasInfo->BitMap = &screen->BitMap;
+
+    handle = (ULONG)screen->ExtData;
+    if (handle)
+    {
+        bpr_depth = ((ULONG)screen->BitMap.BytesPerRow << 16) |
+                    (ULONG)screen->BitMap.Depth;
+        emucall3(EMU_CALL_INT_SET_SCREEN_BITMAP,
+                 handle,
+                 (ULONG)&screen->BitMap.Planes[0],
+                 bpr_depth);
+    }
+}
+
 static VOID graphics_viewport_attach_colormap(struct ViewPort *vp)
 {
     if (vp && vp->ColorMap)
@@ -800,8 +827,23 @@ static VOID graphics_viewport_set_origin(struct ViewPort *vp)
 
 static VOID graphics_viewport_set_bitmap(struct ViewPort *vp, struct BitMap *bm)
 {
-    if (vp && vp->RasInfo && bm)
-        vp->RasInfo->BitMap = bm;
+    struct Screen *screen;
+
+    if (!vp || !vp->RasInfo || !bm)
+        return;
+
+    screen = graphics_viewport_screen(vp);
+    if (screen)
+    {
+        /* Keep the embedded Screen bitmap and host-visible bitmap metadata in
+         * sync with viewport swaps so custom-screen applications like SysInfo
+         * do not present an all-black rootless window. */
+        graphics_screen_adopt_bitmap(screen, bm);
+        vp->RasInfo->BitMap = &screen->BitMap;
+        return;
+    }
+
+    vp->RasInfo->BitMap = bm;
 }
 
 static VOID graphics_viewport_push_color(struct ViewPort *vp,
