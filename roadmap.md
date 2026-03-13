@@ -64,6 +64,21 @@ Goal: Fully working Directory Opus app. DOpus 4 Manual: /home/guenter/projects/a
 
 ---
 
+### Phase 82: Address manual test results
+
+- [x] Fix headless mode: headless/app-launch configs now default to `rootless_mode = true`, so the Workbench screen stays hidden and only application windows appear on the host side unless a config explicitly opts back into screen-mode rendering.
+- [x] In headless mode make sure application windows are wide enough on the X11 side so they can display the whole menu; rootless host windows now widen to the remaining screen width while keeping their logical Amiga dimensions intact, with regression coverage for both the sizing helper and a captured MenuLayout rootless window
+- [x] ASMOne no longer crashes on keyboard input; IDCMP RAWKEY messages now provide the documented previous-key snapshot through `IntuiMessage.IAddress`, with regression coverage in `Tests/Console/input_inject` and the live `asm_one_gtest` keyboard scenarios
+- [x] KickPascal rootless launches now keep the logical Amiga window geometry while widening the host-side window, so the IDE no longer appears in a portrait-shaped host frame; regression coverage now captures the live rootless KP2 window and asserts the widened host extent stays landscape.
+- [ ] DPaint V: *** ERROR: requested library rexxsyslib.library was not found.
+- [ ] SysInfo: black screen
+- [ ] Sample Talk2Boopsi: seems totally different from RKM original, does not display a slider + label, does not get interactive, quits after a while
+- [ ] Sample SimpleGadget: Gadget border is not drawn / invisible
+- [ ] Sample UpdateStrGad: When string gadget is activated, it does not change its contents to "Activated" like the RKM original does. Keyboard input is extremely laggy - sometimes several seconds pass until entered characters appear on screen, rendering the string gadget unusable
+
+
+---
+
 ## Completed Milestones
 
 ### Phase 78 complete (`0.8.0`)

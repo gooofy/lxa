@@ -191,6 +191,7 @@ TEST_F(AppsMiscTest, DirectoryOpus) {
     int gadget_count = GetGadgetCount(0);
     EXPECT_GE(gadget_count, -1)
         << "Tracked windows should report an introspection status for gadget enumeration";
+
 }
 
 TEST_F(AppsMiscScreenTest, DISABLED_DirectoryOpusCopiesFile) {

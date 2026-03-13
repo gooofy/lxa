@@ -46,8 +46,14 @@ int main(void)
     struct Screen *screen;
     struct Window *window;
     int key_count = 0;
+    int errors = 0;
     struct IntuiMessage *msg;
+    UBYTE *prev = NULL;
     BOOL done = FALSE;
+    UBYTE prev1_code = 0;
+    UBYTE prev1_qual = 0;
+    UBYTE prev2_code = 0;
+    UBYTE prev2_qual = 0;
 
     print("Testing input injection infrastructure...\n");
 
@@ -109,8 +115,32 @@ int main(void)
         Wait(1L << window->UserPort->mp_SigBit);
         while ((msg = (struct IntuiMessage *)GetMsg(window->UserPort)) != NULL) {
             if (msg->Class == IDCMP_RAWKEY) {
-                key_count++;
-                print("  Received RAWKEY\n");
+                if (msg->IAddress == NULL) {
+                    print("FAIL: RAWKEY IAddress is NULL\n");
+                    errors++;
+                    done = TRUE;
+                } else if ((msg->Code & 0x80) == 0) {
+                    prev = (UBYTE *)msg->IAddress;
+                    key_count++;
+
+                    if (prev[0] != prev1_code || prev[1] != prev1_qual ||
+                        prev[2] != prev2_code || prev[3] != prev2_qual) {
+                        print("FAIL: RAWKEY IAddress previous-key snapshot mismatch\n");
+                        errors++;
+                        done = TRUE;
+                    } else {
+                        print("  Received RAWKEY with valid previous-key snapshot\n");
+                    }
+
+                    prev2_code = prev1_code;
+                    prev2_qual = prev1_qual;
+                    prev1_code = (UBYTE)(msg->Code & 0x7f);
+                    prev1_qual = (UBYTE)(msg->Qualifier & 0xff);
+
+                    if (key_count >= 3) {
+                        done = TRUE;
+                    }
+                }
             } else if (msg->Class == IDCMP_CLOSEWINDOW) {
                 done = TRUE;
             }
@@ -118,12 +148,16 @@ int main(void)
         }
     }
 
-    print("PASS: input_inject all tests passed\n");
+    if (errors == 0 && key_count == 3) {
+        print("PASS: input_inject all tests passed\n");
+    } else if (errors == 0) {
+        print("FAIL: input_inject did not receive enough key-down events\n");
+    }
 
     CloseWindow(window);
     CloseScreen(screen);
     CloseLibrary((struct Library *)GfxBase);
     CloseLibrary((struct Library *)IntuitionBase);
 
-    return 0;
+    return (errors == 0 && key_count == 3) ? 0 : 20;
 }

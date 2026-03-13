@@ -169,6 +169,9 @@ class AppRunner:
         config.append("")
         config.append("[floppies]")
         config.append("")
+        config.append("[display]")
+        config.append("rootless_mode = true")
+        config.append("")
 
         with open(config_path, "w") as f:
             f.write("\n".join(config))

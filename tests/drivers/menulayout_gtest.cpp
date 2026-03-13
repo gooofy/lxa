@@ -13,6 +13,7 @@
 #include "lxa_test.h"
 
 #include <algorithm>
+#include <fstream>
 
 using namespace lxa::testing;
 
@@ -59,6 +60,28 @@ TEST_F(MenuLayoutTest, WindowHasCorrectSize) {
         << "Window should be wide enough for the text";
     EXPECT_GE(window_info.height, 40)
         << "Window height should include space for text (font fix)";
+}
+
+TEST_F(MenuLayoutTest, RootlessHostWindowWidensForMenus) {
+    const std::string capture_path = std::string(ram_dir_path) + "/menulayout-window.ppm";
+
+    ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0))
+        << "Rootless MenuLayout window capture should succeed";
+
+    std::ifstream capture(capture_path, std::ios::binary);
+    ASSERT_TRUE(capture.good()) << "Failed to open captured rootless MenuLayout image";
+
+    std::string magic;
+    int captured_width = 0;
+    int captured_height = 0;
+    int max_value = 0;
+    capture >> magic >> captured_width >> captured_height >> max_value;
+
+    ASSERT_EQ(magic, "P6") << "Captured rootless window should use the PPM format";
+    EXPECT_GT(captured_width, window_info.width)
+        << "Host-side rootless window should widen beyond the logical Amiga width so menus remain visible";
+    EXPECT_EQ(captured_height, window_info.height)
+        << "Host-side widening should preserve the logical window height";
 }
 
 TEST_F(MenuLayoutTest, StartupOutput) {

@@ -153,6 +153,30 @@ void test_config_default_ram_size(void)
     TEST_ASSERT_TRUE_MESSAGE(ram > 0, "RAM size should be positive");
 }
 
+void test_config_rootless_mode_defaults_true(void)
+{
+    write_config(
+        "[system]\n"
+        "rom_path = /rom\n"
+    );
+
+    TEST_ASSERT_TRUE(config_load(g_config_path));
+    TEST_ASSERT_TRUE(config_get_rootless_mode());
+}
+
+void test_config_display_rootless_mode_false(void)
+{
+    write_config(
+        "[system]\n"
+        "rom_path = /rom\n"
+        "[display]\n"
+        "rootless_mode = false\n"
+    );
+
+    TEST_ASSERT_TRUE(config_load(g_config_path));
+    TEST_ASSERT_FALSE(config_get_rootless_mode());
+}
+
 /*-------------------------------------------------------
  * Drive Configuration Tests
  *-------------------------------------------------------*/
@@ -400,6 +424,8 @@ int main(void)
 
     /* Defaults */
     RUN_TEST(test_config_default_ram_size);
+    RUN_TEST(test_config_rootless_mode_defaults_true);
+    RUN_TEST(test_config_display_rootless_mode_false);
 
     /* Drive configuration */
     RUN_TEST(test_config_drives_section);

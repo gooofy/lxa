@@ -14,6 +14,7 @@
 
 #include "display.h"
 #include "config.h"
+#include "rootless_layout.h"
 #include "util.h"
 #include "m68k.h"
 
@@ -68,6 +69,8 @@ struct display_window_t
     int           x, y;           /* Position on host desktop */
     int           width;
     int           height;
+    int           logical_width;
+    int           logical_height;
     int           depth;
     uint32_t      amiga_window_ptr;
     char          title[256];
@@ -1034,6 +1037,109 @@ static display_window_t *find_free_window_slot(void)
     return NULL;
 }
 
+static bool display_window_reallocate_backing_store(display_window_t *window,
+                                                    int host_width,
+                                                    int host_height)
+{
+    uint8_t *new_pixels;
+
+    if (!window || !window->in_use)
+    {
+        return false;
+    }
+
+    if (host_width <= 0 || host_width > DISPLAY_MAX_WIDTH ||
+        host_height <= 0 || host_height > DISPLAY_MAX_HEIGHT)
+    {
+        return false;
+    }
+
+    if (host_width == window->width && host_height == window->height)
+    {
+        return true;
+    }
+
+    new_pixels = calloc(host_width * host_height, sizeof(uint8_t));
+    if (!new_pixels)
+    {
+        LPRINTF(LOG_ERROR, "display: out of memory for resized window\n");
+        return false;
+    }
+
+    if (window->pixels)
+    {
+        int copy_w = (host_width < window->width) ? host_width : window->width;
+        int copy_h = (host_height < window->height) ? host_height : window->height;
+
+        for (int row = 0; row < copy_h; row++)
+        {
+            memcpy(new_pixels + row * host_width,
+                   window->pixels + row * window->width,
+                   copy_w);
+        }
+
+        free(window->pixels);
+    }
+
+    window->pixels = new_pixels;
+    window->width = host_width;
+    window->height = host_height;
+
+#if HAS_SDL2
+    if (g_sdl_available && window->window)
+    {
+        SDL_SetWindowSize(window->window, host_width, host_height);
+
+        if (window->texture)
+        {
+            SDL_DestroyTexture(window->texture);
+        }
+
+        window->texture = SDL_CreateTexture(
+            window->renderer,
+            SDL_PIXELFORMAT_ARGB8888,
+            SDL_TEXTUREACCESS_STREAMING,
+            host_width, host_height
+        );
+        SDL_RenderSetLogicalSize(window->renderer, host_width, host_height);
+    }
+#endif
+
+    window->dirty = true;
+    return true;
+}
+
+static int display_window_host_width(display_window_t *window, int logical_width)
+{
+    int screen_width = 0;
+    bool widen_for_host_menu = true;
+
+    if (window && window->screen)
+    {
+        screen_width = window->screen->width;
+    }
+
+    return rootless_layout_host_width(screen_width,
+                                      window ? window->x : 0,
+                                      logical_width,
+                                      widen_for_host_menu);
+}
+
+static bool display_window_apply_host_extent(display_window_t *window)
+{
+    int host_width;
+
+    if (!window || !window->in_use)
+    {
+        return false;
+    }
+
+    host_width = display_window_host_width(window, window->logical_width);
+    return display_window_reallocate_backing_store(window,
+                                                   host_width,
+                                                   window->logical_height);
+}
+
 /*
  * Open a rootless window.
  */
@@ -1070,7 +1176,9 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
     win->screen = screen;
     win->x = x;
     win->y = y;
-    win->width = width;
+    win->logical_width = width;
+    win->logical_height = height;
+    win->width = display_window_host_width(win, width);
     win->height = height;
     win->depth = depth;
     win->in_use = true;
@@ -1085,7 +1193,7 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
     }
 
     /* Allocate pixel buffer */
-    win->pixels = calloc(width * height, sizeof(uint8_t));
+    win->pixels = calloc(win->width * win->height, sizeof(uint8_t));
     if (!win->pixels)
     {
         LPRINTF(LOG_ERROR, "display: out of memory for window pixel buffer\n");
@@ -1125,7 +1233,7 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
             window_title,
             (x >= 0) ? x : SDL_WINDOWPOS_CENTERED,
             (y >= 0) ? y : SDL_WINDOWPOS_CENTERED,
-            width, height,
+            win->width, win->height,
             SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
         );
 
@@ -1166,7 +1274,7 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
             win->renderer,
             SDL_PIXELFORMAT_ARGB8888,
             SDL_TEXTUREACCESS_STREAMING,
-            width, height
+            win->width, win->height
         );
 
         if (!win->texture)
@@ -1181,19 +1289,19 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
         }
 
         /* Set logical size for proper scaling */
-        SDL_RenderSetLogicalSize(win->renderer, width, height);
+        SDL_RenderSetLogicalSize(win->renderer, win->width, win->height);
 
         LPRINTF(LOG_INFO, "display: opened rootless window %dx%d '%s' (SDL ID %u)\n",
-                width, height, window_title, win->sdl_window_id);
+                win->width, win->height, window_title, win->sdl_window_id);
     }
     else
     {
         LPRINTF(LOG_INFO, "display: opened virtual window %dx%d (no SDL2)\n",
-                width, height);
+                win->width, win->height);
     }
 #else
     LPRINTF(LOG_INFO, "display: opened virtual window %dx%d (no SDL2)\n",
-            width, height);
+            win->width, win->height);
 #endif
 
     win->dirty = true;
@@ -1246,6 +1354,11 @@ bool display_window_move(display_window_t *window, int x, int y)
     window->x = x;
     window->y = y;
 
+    if (!display_window_apply_host_extent(window))
+    {
+        return false;
+    }
+
 #if HAS_SDL2
     if (g_sdl_available && window->window)
     {
@@ -1272,50 +1385,12 @@ bool display_window_size(display_window_t *window, int width, int height)
         return false;
     }
 
-    /* Reallocate pixel buffer if size changed */
-    if (width != window->width || height != window->height)
+    window->logical_width = width;
+    window->logical_height = height;
+
+    if (!display_window_apply_host_extent(window))
     {
-        uint8_t *new_pixels = calloc(width * height, sizeof(uint8_t));
-        if (!new_pixels)
-        {
-            LPRINTF(LOG_ERROR, "display: out of memory for resized window\n");
-            return false;
-        }
-
-        /* Copy old pixels (as much as fits) */
-        int copy_w = (width < window->width) ? width : window->width;
-        int copy_h = (height < window->height) ? height : window->height;
-        for (int row = 0; row < copy_h; row++)
-        {
-            memcpy(new_pixels + row * width,
-                   window->pixels + row * window->width,
-                   copy_w);
-        }
-
-        free(window->pixels);
-        window->pixels = new_pixels;
-        window->width = width;
-        window->height = height;
-
-#if HAS_SDL2
-        if (g_sdl_available && window->window)
-        {
-            SDL_SetWindowSize(window->window, width, height);
-
-            /* Recreate texture at new size */
-            if (window->texture)
-            {
-                SDL_DestroyTexture(window->texture);
-            }
-            window->texture = SDL_CreateTexture(
-                window->renderer,
-                SDL_PIXELFORMAT_ARGB8888,
-                SDL_TEXTUREACCESS_STREAMING,
-                width, height
-            );
-            SDL_RenderSetLogicalSize(window->renderer, width, height);
-        }
-#endif
+        return false;
     }
 
     window->dirty = true;
@@ -2130,8 +2205,8 @@ bool display_get_window_dimensions(int index, int *width, int *height)
         {
             if (found == index)
             {
-                if (width)  *width  = g_windows[i].width;
-                if (height) *height = g_windows[i].height;
+                if (width)  *width  = g_windows[i].logical_width ? g_windows[i].logical_width : g_windows[i].width;
+                if (height) *height = g_windows[i].logical_height ? g_windows[i].logical_height : g_windows[i].height;
                 return true;
             }
             found++;

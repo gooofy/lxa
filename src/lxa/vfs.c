@@ -931,7 +931,11 @@ bool vfs_setup_environment(void)
         "\n"
         "[floppies]\n"
         "# Map floppy drives to directories\n"
-        "# DF0 = ~/.lxa/floppy0\n",
+        "# DF0 = ~/.lxa/floppy0\n"
+        "\n"
+        "[display]\n"
+        "# Track each Intuition window as a separate host window by default\n"
+        "rootless_mode = true\n",
         g_lxa_home);
     
     if (!write_file_if_missing(path, config_content)) return false;

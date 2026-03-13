@@ -8,6 +8,8 @@
 
 #include "lxa_test.h"
 
+#include <fstream>
+
 using namespace lxa::testing;
 
 class KickPascalTest : public LxaUITest {
@@ -28,6 +30,8 @@ protected:
             << "KickPascal window did not open";
         
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
+        ASSERT_TRUE(WaitForWindowDrawn(0, 5000))
+            << "KickPascal window did not draw";
         
         /* Let KickPascal initialize */
         RunCyclesWithVBlank(100, 50000);
@@ -45,6 +49,31 @@ TEST_F(KickPascalTest, ScreenDimensions) {
         EXPECT_GE(width, 640) << "Screen width should be >= 640";
         EXPECT_GE(height, 200) << "Screen height should be >= 200";
     }
+}
+
+TEST_F(KickPascalTest, RootlessHostWindowUsesLandscapeExtent) {
+    const std::string capture_path = ram_dir_path + "/kickpascal-window.ppm";
+    std::ifstream capture;
+    std::string magic;
+    int captured_width = 0;
+    int captured_height = 0;
+    int max_value = 0;
+
+    ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0))
+        << "Rootless KickPascal window capture should succeed";
+
+    capture.open(capture_path, std::ios::binary);
+    ASSERT_TRUE(capture.good()) << "Failed to open captured KickPascal window image";
+
+    capture >> magic >> captured_width >> captured_height >> max_value;
+
+    ASSERT_EQ(magic, "P6") << "Captured KickPascal window should use the PPM format";
+    EXPECT_GT(captured_width, window_info.width)
+        << "Host-side KickPascal window should widen beyond the logical Amiga width";
+    EXPECT_EQ(captured_height, window_info.height)
+        << "Host-side widening should preserve the logical Amiga height";
+    EXPECT_GT(captured_width, captured_height)
+        << "KickPascal should present a landscape host window rather than a portrait one";
 }
 
 TEST_F(KickPascalTest, EditorVisible) {

@@ -146,6 +146,15 @@ struct LXAWindowState {
     struct Window *window;
     UWORD mouse_queue;
     UWORD pending_mousemoves;
+    UBYTE prev1_down_code;
+    UBYTE prev1_down_qual;
+    UBYTE prev2_down_code;
+    UBYTE prev2_down_qual;
+};
+
+struct LXAIntuiMessage {
+    struct IntuiMessage msg;
+    APTR rawkey_prev_code_quals;
 };
 
 struct LXAGadgetContext {
@@ -224,6 +233,7 @@ static ULONG _idcmp_update_payload_size(APTR payload)
 static VOID _dispose_idcmp_message(struct IntuiMessage *msg)
 {
     struct LXAWindowState *state;
+    ULONG msg_size;
 
     if (!msg)
     {
@@ -247,7 +257,11 @@ static VOID _dispose_idcmp_message(struct IntuiMessage *msg)
         }
     }
 
-    FreeMem(msg, sizeof(struct IntuiMessage));
+    msg_size = sizeof(struct IntuiMessage);
+    if (msg->ExecMessage.mn_Length >= sizeof(struct IntuiMessage))
+        msg_size = msg->ExecMessage.mn_Length;
+
+    FreeMem(msg, msg_size);
 }
 
 static VOID _flush_idcmp_port(struct MsgPort *port)
@@ -398,6 +412,19 @@ static struct Gadget *_intuition_public_gadget_list(struct Gadget *gadgets)
         return gadgets;
 
     return gadgets->NextGadget;
+}
+
+static VOID _intuition_note_rawkey(struct LXAWindowState *state,
+                                   UWORD rawkey,
+                                   UWORD qualifier)
+{
+    if (!state || (rawkey & IECODE_UP_PREFIX))
+        return;
+
+    state->prev2_down_code = state->prev1_down_code;
+    state->prev2_down_qual = state->prev1_down_qual;
+    state->prev1_down_code = (UBYTE)(rawkey & ~IECODE_UP_PREFIX);
+    state->prev1_down_qual = (UBYTE)(qualifier & 0xff);
 }
 
 static struct LXAWindowState *_intuition_ensure_window_state(struct LXAIntuitionBase *base,
@@ -5354,7 +5381,9 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
                                  UWORD qualifier, APTR iaddress, WORD mouseX, WORD mouseY)
 {
     struct LXAWindowState *state;
+    struct LXAIntuiMessage *rawkey_msg;
     struct IntuiMessage *imsg;
+    ULONG msg_size;
     
     if (!window || !window->UserPort || !window->WindowPort) {
         return FALSE;
@@ -5365,7 +5394,7 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
         return FALSE;
     }
 
-    state = _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+    state = _intuition_ensure_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
     if (class == IDCMP_MOUSEMOVE && state)
     {
         if (state->pending_mousemoves >= state->mouse_queue)
@@ -5374,8 +5403,12 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
     
     _reap_window_idcmp_replies(window);
 
+    msg_size = sizeof(struct IntuiMessage);
+    if (class == IDCMP_RAWKEY)
+        msg_size = sizeof(struct LXAIntuiMessage);
+
     /* Allocate IntuiMessage */
-    imsg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
+    imsg = (struct IntuiMessage *)AllocMem(msg_size, MEMF_PUBLIC | MEMF_CLEAR);
     if (!imsg)
     {
         LPRINTF(LOG_ERROR, "_intuition: _post_idcmp_message() out of memory\n");
@@ -5384,13 +5417,28 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
     
     /* Fill in the message */
     imsg->ExecMessage.mn_Node.ln_Type = NT_MESSAGE;
-    imsg->ExecMessage.mn_Length = sizeof(struct IntuiMessage);
+    imsg->ExecMessage.mn_Length = msg_size;
     imsg->ExecMessage.mn_ReplyPort = window->WindowPort;
     
     imsg->Class = class;
     imsg->Code = code;
     imsg->Qualifier = qualifier;
-    imsg->IAddress = iaddress;
+    if (class == IDCMP_RAWKEY)
+    {
+        UBYTE *prev;
+
+        rawkey_msg = (struct LXAIntuiMessage *)imsg;
+        prev = (UBYTE *)&rawkey_msg->rawkey_prev_code_quals;
+        prev[0] = state ? state->prev1_down_code : 0;
+        prev[1] = state ? state->prev1_down_qual : 0;
+        prev[2] = state ? state->prev2_down_code : 0;
+        prev[3] = state ? state->prev2_down_qual : 0;
+        imsg->IAddress = &rawkey_msg->rawkey_prev_code_quals;
+    }
+    else
+    {
+        imsg->IAddress = iaddress;
+    }
     imsg->MouseX = mouseX;
     imsg->MouseY = mouseY;
     imsg->IDCMPWindow = window;
@@ -6184,6 +6232,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                 }
                 else if (window)
                 {
+                    struct LXAWindowState *state = _intuition_ensure_window_state(
+                        (struct LXAIntuitionBase *)IntuitionBase, window);
                     WORD relX = mouseX - window->LeftEdge;
                     WORD relY = mouseY - window->TopEdge;
                     BOOL posted = FALSE;
@@ -6205,6 +6255,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                         _post_idcmp_message(window, IDCMP_RAWKEY, rawkey,
                                            qualifier, NULL, relX, relY);
                     }
+
+                    _intuition_note_rawkey(state, rawkey, qualifier);
                 }
                 break;
             }
@@ -6286,8 +6338,12 @@ VOID _intuition_ReplyIntuiMsg(struct IntuiMessage *imsg)
 {
     if (imsg)
     {
-        /* Just free the message - we don't track them centrally */
-        FreeMem(imsg, sizeof(struct IntuiMessage));
+        ULONG msg_size = sizeof(struct IntuiMessage);
+
+        if (imsg->ExecMessage.mn_Length >= sizeof(struct IntuiMessage))
+            msg_size = imsg->ExecMessage.mn_Length;
+
+        FreeMem(imsg, msg_size);
     }
 }
 

@@ -40,6 +40,7 @@ set(LXA_CORE_SOURCES
     vfs.c
     config.c
     display.c
+    rootless_layout.c
 )
 
 # Common compile options

@@ -8,7 +8,7 @@
 
 static char *g_rom_path = NULL;
 static int g_ram_size = 10 * 1024 * 1024;
-static bool g_rootless_mode = false;  /* Phase 15: Rootless windowing mode */
+static bool g_rootless_mode = true;  /* Phase 15: Rootless windowing mode */
 
 static char *trim(char *str) {
     char *end;

@@ -95,10 +95,28 @@ target_compile_definitions(test_memory PRIVATE
 
 add_test(NAME unit_memory COMMAND test_memory)
 
+# === Rootless Layout Unit Tests ===
+add_executable(test_rootless_layout
+    test_rootless_layout.c
+    ${LXA_SRC_DIR}/rootless_layout.c
+)
+target_include_directories(test_rootless_layout PRIVATE
+    ${UNITY_DIR}
+    ${LXA_SRC_DIR}
+    ${INCLUDE_DIR}
+)
+target_link_libraries(test_rootless_layout unity)
+target_compile_definitions(test_rootless_layout PRIVATE
+    UNIT_TESTING=1
+    _GNU_SOURCE
+)
+
+add_test(NAME unit_rootless_layout COMMAND test_rootless_layout)
+
 # === Custom target to run all unit tests ===
 add_custom_target(test-unit
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS test_vfs test_config test_memory
+    DEPENDS test_vfs test_config test_memory test_rootless_layout
     COMMENT "Running unit tests..."
 )
 

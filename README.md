@@ -97,6 +97,9 @@ DH1 = /mnt/data/amiga
 [floppies]
 DF0 = ~/.lxa/floppy0
 
+[display]
+rootless_mode = true
+
 [assigns]
 KP2 = /path/to/kickpascal2
 LIBS = /path/to/kickpascal2/libs
@@ -139,6 +142,8 @@ lxa [options] [program]
 - `-a <name=path>` - Legacy alias for `--assign`
 - `-d` - Enable debug output
 - `-v` - Verbose mode
+
+`rootless_mode = true` keeps the Workbench screen hidden and exposes application windows as separate host windows, which is the recommended default for app launches.
 
 Examples:
 
@@ -219,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.10** - Phase 81 is complete with live Directory Opus launch coverage, disk-provided bundle-library enforcement, and the new host-side UI-driver helpers needed for deeper interactive app testing
+**Version 0.8.11** - Phase 82 rootless app-window follow-up keeps hosted application frames landscape-sized for menu-heavy tools like KickPascal while preserving the logical Amiga window geometry used by tests and input handling
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
