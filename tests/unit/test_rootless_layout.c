@@ -35,6 +35,17 @@ void test_rootless_layout_ignores_offscreen_left_edges(void)
     TEST_ASSERT_EQUAL_INT(320, rootless_layout_host_width(640, 800, 320, true));
 }
 
+void test_rootless_layout_maps_rootless_local_coords_to_screen_coords(void)
+{
+    int screen_x = 0;
+    int screen_y = 0;
+
+    rootless_layout_screen_coords(25, 40, 12, 7, &screen_x, &screen_y);
+
+    TEST_ASSERT_EQUAL_INT(37, screen_x);
+    TEST_ASSERT_EQUAL_INT(47, screen_y);
+}
+
 int main(void)
 {
     UNITY_BEGIN();
@@ -43,5 +54,6 @@ int main(void)
     RUN_TEST(test_rootless_layout_clamps_negative_left_edge_before_expanding);
     RUN_TEST(test_rootless_layout_keeps_existing_width_when_already_wide_enough);
     RUN_TEST(test_rootless_layout_ignores_offscreen_left_edges);
+    RUN_TEST(test_rootless_layout_maps_rootless_local_coords_to_screen_coords);
     return UNITY_END();
 }

@@ -101,6 +101,35 @@ static int g_mouse_x = 0;
 static int g_mouse_y = 0;
 static int g_last_buttons = 0;  /* Track button state for inject release detection */
 
+static void display_event_set_rootless_coords(display_event_t *event,
+                                              uint32_t sdl_window_id,
+                                              int local_x,
+                                              int local_y)
+{
+    display_window_t *window;
+
+    if (!event)
+    {
+        return;
+    }
+
+    event->mouse_x = local_x;
+    event->mouse_y = local_y;
+
+    window = display_window_from_sdl_id(sdl_window_id);
+    if (!window)
+    {
+        return;
+    }
+
+    rootless_layout_screen_coords(window->x,
+                                  window->y,
+                                  local_x,
+                                  local_y,
+                                  &event->mouse_x,
+                                  &event->mouse_y);
+}
+
 #if HAS_SDL2
 static uint32_t display_renderer_flags(void)
 {
@@ -906,24 +935,48 @@ bool display_poll_events(void)
                 break;
 
             case SDL_MOUSEMOTION:
-                g_mouse_x = event.motion.x;
-                g_mouse_y = event.motion.y;
                 disp_event.type = DISPLAY_EVENT_MOUSEMOVE;
-                disp_event.mouse_x = event.motion.x;
-                disp_event.mouse_y = event.motion.y;
                 disp_event.qualifier = sdl_mod_to_qualifier(SDL_GetModState());
+
+                if (g_rootless_mode)
+                {
+                    display_event_set_rootless_coords(&disp_event,
+                                                      event.motion.windowID,
+                                                      event.motion.x,
+                                                      event.motion.y);
+                }
+                else
+                {
+                    disp_event.mouse_x = event.motion.x;
+                    disp_event.mouse_y = event.motion.y;
+                }
+
+                g_mouse_x = disp_event.mouse_x;
+                g_mouse_y = disp_event.mouse_y;
                 queue_event(&disp_event);
                 break;
 
             case SDL_MOUSEBUTTONDOWN:
             case SDL_MOUSEBUTTONUP:
-                g_mouse_x = event.button.x;
-                g_mouse_y = event.button.y;
                 disp_event.type = DISPLAY_EVENT_MOUSEBUTTON;
-                disp_event.mouse_x = event.button.x;
-                disp_event.mouse_y = event.button.y;
                 disp_event.button_down = (event.type == SDL_MOUSEBUTTONDOWN);
                 disp_event.qualifier = sdl_mod_to_qualifier(SDL_GetModState());
+
+                if (g_rootless_mode)
+                {
+                    display_event_set_rootless_coords(&disp_event,
+                                                      event.button.windowID,
+                                                      event.button.x,
+                                                      event.button.y);
+                }
+                else
+                {
+                    disp_event.mouse_x = event.button.x;
+                    disp_event.mouse_y = event.button.y;
+                }
+
+                g_mouse_x = disp_event.mouse_x;
+                g_mouse_y = disp_event.mouse_y;
                 
                 /* Map SDL button to Amiga IECODE */
                 /* IECODE_LBUTTON = 0x68, IECODE_RBUTTON = 0x69, IECODE_MBUTTON = 0x6A */

@@ -4169,8 +4169,16 @@ static VOID _init_string_gadget_info(struct Gadget *gadget)
             while (si->Buffer[len] != '\0' && len < si->MaxChars)
                 len++;
             si->NumChars = len;
-            /* Position cursor at end of existing text */
-            si->BufferPos = len;
+
+            if (si->BufferPos < 0)
+                si->BufferPos = 0;
+            else if (si->BufferPos > len)
+                si->BufferPos = len;
+
+            if (si->DispPos < 0)
+                si->DispPos = 0;
+            else if (si->DispPos > len)
+                si->DispPos = len;
         }
     }
 }
@@ -7509,6 +7517,12 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         }
         IntuitionBase->ActiveWindow = window;
         window->Flags |= WFLG_WINDOWACTIVE;
+
+        if (window->IDCMPFlags & IDCMP_ACTIVEWINDOW)
+        {
+            _post_idcmp_message(window, IDCMP_ACTIVEWINDOW, 0, 0,
+                                window, 0, 0);
+        }
     }
 
     /* Create system gadgets based on window flags */
@@ -9293,6 +9307,19 @@ UWORD _intuition_AddGList ( register struct IntuitionBase * IntuitionBase __asm(
     scan = *insert_link;
     *insert_link = gadget;
     last->NextGadget = scan;
+
+    {
+        struct Gadget *init = gadget;
+        WORD init_remaining = numGad;
+
+        while (init && (init_remaining == -1 || init_remaining > 0))
+        {
+            _init_string_gadget_info(init);
+            init = init->NextGadget;
+            if (init_remaining > 0)
+                init_remaining--;
+        }
+    }
 
     if (!requester || requester->ReqLayer)
     {

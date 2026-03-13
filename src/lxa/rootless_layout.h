@@ -8,4 +8,11 @@ int rootless_layout_host_width(int screen_width,
                                int logical_width,
                                bool widen_for_host_menu);
 
+void rootless_layout_screen_coords(int window_left,
+                                   int window_top,
+                                   int local_x,
+                                   int local_y,
+                                   int *screen_x,
+                                   int *screen_y);
+
 #endif

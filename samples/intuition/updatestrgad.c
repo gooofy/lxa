@@ -99,6 +99,7 @@ int main(int argc, char **argv)
                         WA_Height, 100,
                         WA_Title, (ULONG)"Activate Window, Enter Text",
                         WA_Gadgets, &strGad,
+                        WA_Activate, TRUE,
                         WA_CloseGadget, TRUE,
                         WA_IDCMP, IDCMP_ACTIVEWINDOW | IDCMP_CLOSEWINDOW | IDCMP_GADGETUP,
                         TAG_END);
@@ -200,6 +201,7 @@ VOID updateStrGad(struct Window *win, struct Gadget *gad, UBYTE *newstr)
     ** initial display position.
     */
     strcpy(((struct StringInfo *)(gad->SpecialInfo))->Buffer, newstr);
+    ((struct StringInfo *)(gad->SpecialInfo))->NumChars = strlen(newstr);
     ((struct StringInfo *)(gad->SpecialInfo))->BufferPos = 0;
     ((struct StringInfo *)(gad->SpecialInfo))->DispPos   = 0;
     

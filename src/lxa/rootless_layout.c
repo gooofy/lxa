@@ -30,3 +30,21 @@ int rootless_layout_host_width(int screen_width,
 
     return logical_width;
 }
+
+void rootless_layout_screen_coords(int window_left,
+                                   int window_top,
+                                   int local_x,
+                                   int local_y,
+                                   int *screen_x,
+                                   int *screen_y)
+{
+    if (screen_x)
+    {
+        *screen_x = window_left + local_x;
+    }
+
+    if (screen_y)
+    {
+        *screen_y = window_top + local_y;
+    }
+}

@@ -72,9 +72,9 @@ Goal: Fully working Directory Opus app. DOpus 4 Manual: /home/guenter/projects/a
 - [x] KickPascal rootless launches now keep the logical Amiga window geometry while widening the host-side window, so the IDE no longer appears in a portrait-shaped host frame; regression coverage now captures the live rootless KP2 window and asserts the widened host extent stays landscape.
 - [x] DPaint V now tolerates the disk-provided `rexxsyslib.library`; the build installs a shared `SYS:Libs/rexxsyslib.library` from the existing stub source, `dpaint_gtest` appends the DPaint `Libs/` drawer to `LIBS:`, and the live launch regression now asserts startup no longer stalls on the missing-library system requester.
 - [x] SysInfo no longer opens to a black rootless window; viewport bitmap swaps now keep the embedded `Screen` bitmap plus host refresh metadata aligned, and `apps_misc_gtest` asserts the live SysInfo window draws visible content under headless rootless mode.
-- [ ] Sample Talk2Boopsi: seems totally different from RKM original, does not display a slider + label, does not get interactive, quits after a while
-- [ ] Sample SimpleGadget: Gadget border is not drawn / invisible
-- [ ] Sample UpdateStrGad: When string gadget is activated, it does not change its contents to "Activated" like the RKM original does. Keyboard input is extremely laggy - sometimes several seconds pass until entered characters appear on screen, rendering the string gadget unusable
+- [x] Sample Talk2Boopsi now follows the RKRM flow again: the sample keeps its linked prop/string gadgets visible until the user closes the window, headless interaction coverage verifies it no longer quits early, and a non-rootless pixel regression confirms the prop gadget renders visible content.
+- [x] Sample SimpleGadget now renders its boolean gadget border in rootless mode too; Intuition draws user gadgets into the rootless backing bitmap at open time, and `simplegad_gtest` now captures the live headless window to verify the border stays visible there alongside the existing non-rootless pixel regression.
+- [x] Sample UpdateStrGad now follows the RKRM activation flow again: the sample explicitly opens as an active window so `IDCMP_ACTIVEWINDOW` updates the string gadget to `Activated`, rootless host-window input is translated back into screen coordinates so key focus/clicks no longer lag behind in SDL rootless mode, and `updatestrgad_gtest` plus rootless-layout unit coverage keep the activation regression covered.
 
 
 ---
