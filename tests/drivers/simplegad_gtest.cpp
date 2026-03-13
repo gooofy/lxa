@@ -12,6 +12,9 @@
 
 #include "lxa_test.h"
 
+#include <fstream>
+#include <vector>
+
 using namespace lxa::testing;
 
 // Gadget positions (from simplegad.c RKM original)
@@ -59,6 +62,74 @@ TEST_F(SimpleGadTest, WindowOpens) {
     // Just verify the window opened successfully
     EXPECT_GT(window_info.width, 0);
     EXPECT_GT(window_info.height, 0);
+}
+
+TEST_F(SimpleGadTest, RootlessWindowShowsGadgetBorder) {
+    const std::string capture_path = std::string(ram_dir_path) + "/simplegad-window.ppm";
+    std::ifstream capture;
+    std::string magic;
+    int captured_width = 0;
+    int captured_height = 0;
+    int max_value = 0;
+    int top_edge_pixels = 0;
+    int left_edge_pixels = 0;
+    int right_edge_pixels = 0;
+    int bottom_edge_pixels = 0;
+    int bx0 = 19;
+    int by0 = 19;
+    int bx1 = 19 + BUTTON_WIDTH + 1;
+    int by1 = 19 + BUTTON_HEIGHT + 1;
+
+    ASSERT_TRUE(WaitForWindowDrawn(0, 5000))
+        << "Rootless SimpleGad window did not draw";
+    RunCyclesWithVBlank(20, 50000);
+
+    ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0))
+        << "Rootless SimpleGad window capture should succeed";
+
+    capture.open(capture_path, std::ios::binary);
+    ASSERT_TRUE(capture.good()) << "Failed to open captured SimpleGad window image";
+
+    capture >> magic >> captured_width >> captured_height >> max_value;
+    capture.get();
+
+    ASSERT_EQ(magic, "P6") << "Captured SimpleGad window should use the PPM format";
+    ASSERT_GE(captured_width, bx1 + 1);
+    ASSERT_GE(captured_height, by1 + 1);
+
+    std::vector<unsigned char> pixels(static_cast<size_t>(captured_width) *
+                                      static_cast<size_t>(captured_height) * 3u);
+    capture.read(reinterpret_cast<char *>(pixels.data()), pixels.size());
+    ASSERT_EQ(capture.gcount(), static_cast<std::streamsize>(pixels.size()))
+        << "Captured SimpleGad image data was truncated";
+
+    auto is_black = [&](int x, int y) {
+        size_t idx = (static_cast<size_t>(y) * static_cast<size_t>(captured_width) +
+                      static_cast<size_t>(x)) * 3u;
+        return pixels[idx] == 0 && pixels[idx + 1] == 0 && pixels[idx + 2] == 0;
+    };
+
+    for (int x = bx0; x <= bx1; x++) {
+        if (is_black(x, by0)) top_edge_pixels++;
+        if (is_black(x, by1)) bottom_edge_pixels++;
+    }
+    for (int y = by0; y <= by1; y++) {
+        if (is_black(bx0, y)) left_edge_pixels++;
+        if (is_black(bx1, y)) right_edge_pixels++;
+    }
+
+    EXPECT_GT(top_edge_pixels, 90)
+        << "Rootless top edge of gadget border should contain black pixels (got "
+        << top_edge_pixels << ")";
+    EXPECT_GT(bottom_edge_pixels, 90)
+        << "Rootless bottom edge of gadget border should contain black pixels (got "
+        << bottom_edge_pixels << ")";
+    EXPECT_GT(left_edge_pixels, 45)
+        << "Rootless left edge of gadget border should contain black pixels (got "
+        << left_edge_pixels << ")";
+    EXPECT_GT(right_edge_pixels, 45)
+        << "Rootless right edge of gadget border should contain black pixels (got "
+        << right_edge_pixels << ")";
 }
 
 TEST_F(SimpleGadTest, ButtonClick) {

@@ -862,6 +862,7 @@ static void _draw_bevel_box(struct RastPort *rp, WORD left, WORD top, WORD width
 /* Forward declarations for gadget rendering helpers */
 static void _complement_gadget_area(struct Window *window, struct Requester *req, struct Gadget *gad);
 static void _render_gadget(struct Window *window, struct Requester *req, struct Gadget *gad);
+static void _render_window_user_gadgets(struct Window *window);
 static void _render_requester(struct Window *window, struct Requester *req);
 static void _calculate_requester_box(struct Window *window, struct Requester *req,
                                      LONG *left, LONG *top,
@@ -7194,16 +7195,21 @@ static void _render_window_frame(struct Window *window)
         }
     }
     
-    /* Render user gadgets (borders, images, text).
-     * The loop above only draws system gadgets. User gadgets with
-     * Border/Image rendering need a separate pass.
-     */
+    /* Render user gadgets after the frame/system gadgets. */
+    _render_window_user_gadgets(window);
+}
+
+static void _render_window_user_gadgets(struct Window *window)
+{
+    struct Gadget *gad;
+
+    if (!window)
+        return;
+
     for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
     {
         if (!(gad->GadgetType & GTYP_SYSGADGET))
-        {
             _render_gadget(window, NULL, gad);
-        }
     }
 }
 
@@ -7520,10 +7526,16 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         }
     }
     
-    /* Render the window frame and gadgets (in non-rootless mode) */
+    /* Render initial visuals.
+     * Rootless windows still need user gadgets drawn into the backing bitmap,
+     * even though the host window manager supplies the outer frame. */
     if (!rootless_mode)
     {
         _render_window_frame(window);
+    }
+    else
+    {
+        _render_window_user_gadgets(window);
     }
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() -> 0x%08lx\n", (ULONG)window);
