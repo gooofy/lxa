@@ -24,9 +24,15 @@ Host-side test drivers use the `liblxa` API and Google Test framework. This is t
 **Key Features**:
 - Full control over timing and event injection via `LxaUITest` base class
 - Can inject mouse clicks, key presses, and menu selections
-- Can query window state and capture program output
+- Can query window state, gadget geometry, and capture program output
 - Runs headlessly without SDL2 display
 - Standard GTest assertions and reporting
+
+**Current helper surface**:
+- `WaitForWindowDrawn()` / `lxa_wait_window_drawn()` for visible-content readiness
+- `GetGadgetCount()`, `GetGadgetInfo()`, and `GetGadgets()` for Intuition gadget introspection
+- `ClickGadget()` for geometry-driven interaction
+- `CaptureWindow()` / `lxa_capture_screen()` for screenshots on failure
 
 **Example**: `tests/drivers/simplegad_gtest.cpp`
 ```cpp
@@ -83,11 +89,12 @@ Before completing a task:
 ## 4. TDD Workflow
 1. Read Roadmap.
 2. Plan Tests (Edge cases, errors).
-3. Write GTest Driver.
-4. Implement Feature.
-5. Run Tests via `ctest` or `make lxa_tests`.
-6. Measure Coverage.
-7. Iterate until 100% coverage and passing.
+3. Write or extend the GTest Driver.
+4. Prefer readiness and gadget-introspection helpers over fixed sleeps or fragile raw coordinates.
+5. Implement Feature.
+6. Run Tests via `ctest` or `make lxa_tests`.
+7. Measure Coverage.
+8. Iterate until 100% coverage and passing.
 
 ## 5. Running Tests
 
@@ -177,11 +184,20 @@ that takes >60 seconds, add an explicit `TIMEOUT` property in CMakeLists.txt.
 - `RunCyclesWithVBlank(iterations, cycles_per_iteration)` - Run cycles with VBlank interrupts
 - `WaitForWindows(count, timeout_ms)` - Wait for windows to open
 - `GetWindowInfo(index, info)` - Get window position/size
+- `WaitForWindowDrawn(index, timeout_ms)` - Wait for non-empty visible window content
 
 **Event Injection**:
 - `Click(x, y, button)` - Click at position
 - `PressKey(rawkey, qualifier)` - Key press
 - `TypeString(str)` - Type string
+- `ClickGadget(index, window_index, button)` - Click gadget by queried geometry
+
+**Introspection / Artifacts**:
+- `GetGadgetCount(window_index)` - Get tracked gadget count
+- `GetGadgetInfo(gadget_index, info, window_index)` - Query one gadget
+- `GetGadgets(window_index)` - Enumerate gadgets
+- `CaptureWindow(path, index)` - Save tracked window image
+- `lxa_capture_screen(path)` - Save full screen image
 
 **Output Capture**:
 - `GetOutput()` - Get program output as string

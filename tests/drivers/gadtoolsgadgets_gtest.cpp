@@ -144,6 +144,17 @@ TEST_F(GadToolsGadgetsTest, ButtonClickCompletesWithinOneVBlank) {
     int btn_x = window_info.x + 190 + 50;
     int btn_y = window_info.y + 120 + 6;
 
+    bool event_loop_ready = false;
+    for (int i = 0; i < 200; i++) {
+        if (GetOutput().find("Entering event loop") != std::string::npos) {
+            event_loop_ready = true;
+            break;
+        }
+        RunCyclesWithVBlank(1, 100000);
+    }
+
+    ASSERT_TRUE(event_loop_ready) << "Program should reach the interactive event loop before timing the click";
+
     ClearOutput();
     Click(btn_x, btn_y);
 

@@ -6308,6 +6308,21 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_INT_ATTACH_WINDOW:
+        {
+            /* d1: window_handle, d2: emulated Window* */
+            uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            display_window_t *win = (display_window_t *)(uintptr_t)d1;
+
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_ATTACH_WINDOW handle=0x%08x, window=0x%08x\n",
+                    d1, d2);
+
+            m68k_set_reg(M68K_REG_D0,
+                         display_window_attach_amiga_window(win, d2) ? 1 : 0);
+            break;
+        }
+
         /*
          * Timer device emucalls (Phase 45)
          * These manage the host-side timer queue for async TR_ADDREQUEST.

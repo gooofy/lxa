@@ -80,6 +80,8 @@ The DOpus app bundle already ships these libraries under `APPS:DirectoryOpus/bin
 - `Explode.Library`
 - `Icon.Library`
 
+`tests/exec/library/main.c` now locks this policy in with a regression that verifies the bundled third-party names stay absent from the ROM resident list and Exec `LibList` until real disk copies are opened through `LIBS:`.
+
 The bundle also ships helper commands under `APPS:DirectoryOpus/bin/DOPUS/c/` (`Assign`, `Execute`, `GoWB`, `InitLib`, `NewCLI`, `Run`, `LoadWB`, `ppmore`, `lha`, and others) plus `L:Ram-Handler` under `APPS:DirectoryOpus/bin/DOPUS/l/`.
 
 ### Startup Sequence Observations
@@ -108,4 +110,10 @@ String scans of `APPS:DirectoryOpus/bin/DOPUS/DirectoryOpus` show direct referen
 - Libraries: `dos.library`, `intuition.library`, `diskfont.library`, `icon.library`, `workbench.library`, `commodities.library`, `rexxsyslib.library`, `utility.library`, `services.library`, `accounts.library`, `powerpacker.library`
 - Devices: `keyboard.device`, `input.device`, `audio.device`, `timer.device`, `printer.device`, `console.device`
 
-Some of these are optional feature paths rather than guaranteed first-frame requirements, but they define the compatibility surface that the remaining Phase 81 bring-up work must audit against real launch logs and host-side drivers.
+Direct launch verification with `./build/host/bin/lxa --assign APPS=../lxa-apps --assign DOpus=../lxa-apps/DirectoryOpus/bin/DOPUS APPS:DirectoryOpus/bin/DOPUS/DirectoryOpus` now reaches the first real DOpus UI frame: Workbench opens, DOpus opens its own screen, and the main `DOPUS.1` window appears.
+
+That run also narrows the remaining startup-time open failures that matter for Phase 81 bring-up:
+
+- `keyboard.device` is no longer a launch blocker; the Phase 79 device work is sufficient for DOpus to reach its main UI
+- `input.device`, `console.device`, `timer.device`, and `audio.device` are present during launch and do not block first frame
+- `commodities.library`, `rexxsyslib.library`, and `inovamusic.library` still fail to open in this environment, but those failures are currently non-fatal for reaching the main DOpus window and should be treated as optional follow-up compatibility work unless later drivers prove otherwise

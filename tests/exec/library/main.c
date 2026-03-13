@@ -23,6 +23,8 @@
 #include <inline/exec.h>
 #include <inline/dos.h>
 
+#undef SetFunction
+
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
@@ -254,7 +256,7 @@ static int test_exec_library_helpers(void)
     struct Library *lib;
     struct Library *opened;
     struct Node *found;
-    ULONG old_function;
+    APTR old_function;
     ULONG old_sum;
     UBYTE *lib_mem;
     ULONG lib_size;
@@ -313,8 +315,8 @@ static int test_exec_library_helpers(void)
     }
 
     old_sum = lib->lib_Sum;
-    old_function = (ULONG)SetFunction(lib, -30, (VOID (*)())test_new_function);
-    if (old_function == (ULONG)test_old_function)
+    old_function = SetFunction(lib, -30, (ULONG (*)())test_new_function);
+    if (old_function == (APTR)test_old_function)
     {
         print("OK: SetFunction returned previous function pointer\n");
     }
@@ -368,10 +370,16 @@ static int test_exec_library_helpers(void)
 
 static int test_external_library_scope(void)
 {
-    static const char * const external_libs[] = {
+    static const char *external_libs[] = {
         "commodities.library",
         "rexxsyslib.library",
-        "datatypes.library"
+        "datatypes.library",
+        "dopus.library",
+        "powerpacker.library",
+        "arp.library",
+        "iff.library",
+        "Explode.Library",
+        "Icon.Library"
     };
     int errors = 0;
     ULONG i;

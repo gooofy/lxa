@@ -54,6 +54,12 @@ TEST_F(GadgetTest, ClickButton) {
 - `RunCyclesWithVBlank()` triggers the VBlank interrupt which processes input through Intuition.
 - After `Signal()` wakes the task, it needs CPU cycles to run `GetMsg()` and `printf()`.
 
+### New Driver Helpers
+- `WaitForWindowDrawn()` avoids clicking before Intuition has rendered visible content.
+- `GetGadgetCount()`, `GetGadgetInfo()`, and `GetGadgets()` let tests inspect live gadget geometry instead of guessing coordinates.
+- `ClickGadget()` uses the queried gadget bounds to inject a reliable click.
+- `CaptureWindow()` and `lxa_capture_screen()` provide failure artifacts for visual regressions.
+
 ## 3. Graphics Library (`tests/graphics/`)
 - **Init**: `InitRastPort`, `InitBitMap`.
 - **Memory**: `AllocRaster`, `FreeRaster`.
@@ -76,6 +82,13 @@ For tests requiring:
 - Window dragging or resizing
 
 **MUST use Google Test host-side driver infrastructure** (`tests/drivers/`)
+
+Preferred flow for interactive app tests:
+1. Wait for the expected window count.
+2. Call `WaitForWindowDrawn()`.
+3. Let the task settle with `RunCyclesWithVBlank()` / `WaitForEventLoop()`.
+4. Use gadget introspection helpers when available.
+5. Capture screenshots only for debugging or failure artifacts.
 
 ## 5. Migration: test_inject.h
 The legacy `test_inject.h` approach (in-ROM self-testing) has been removed. All tests must be driven from the host side via Google Test.

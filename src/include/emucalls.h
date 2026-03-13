@@ -139,6 +139,7 @@
 #define EMU_CALL_INT_SET_TITLE     3026  /* Set window title: (window_handle, title_ptr) -> success */
 #define EMU_CALL_INT_REFRESH_WINDOW 3027 /* Refresh window: (window_handle, planes_ptr, bpr, depth) */
 #define EMU_CALL_INT_GET_ROOTLESS  3028  /* Get rootless mode: () -> bool */
+#define EMU_CALL_INT_ATTACH_WINDOW 3029  /* Attach emulated Window*: (window_handle, window_ptr) -> success */
 
 /*
  * Timer Device emucalls (3500-3599)

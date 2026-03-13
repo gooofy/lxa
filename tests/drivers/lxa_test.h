@@ -16,6 +16,7 @@
 #include <cstring>
 #include <unistd.h>
 #include <cstdio>
+#include <vector>
 
 namespace lxa {
 namespace testing {
@@ -356,6 +357,14 @@ protected:
     bool GetWindowInfo(int index, lxa_window_info_t* info) {
         return lxa_get_window_info(index, info);
     }
+
+    bool WaitForWindowDrawn(int index = 0, int timeout_ms = 5000) {
+        return lxa_wait_window_drawn(index, timeout_ms);
+    }
+
+    bool CaptureWindow(const char* filename, int index = 0) {
+        return lxa_capture_window(index, filename);
+    }
     
     /**
      * Inject a mouse click at the given coordinates.
@@ -376,6 +385,39 @@ protected:
      */
     void TypeString(const char* str) {
         lxa_inject_string(str);
+    }
+
+    int GetGadgetCount(int window_index = 0) {
+        return lxa_get_gadget_count(window_index);
+    }
+
+    bool GetGadgetInfo(int gadget_index, lxa_gadget_info_t* info, int window_index = 0) {
+        return lxa_get_gadget_info(window_index, gadget_index, info);
+    }
+
+    std::vector<lxa_gadget_info_t> GetGadgets(int window_index = 0) {
+        std::vector<lxa_gadget_info_t> gadgets;
+        int count = GetGadgetCount(window_index);
+
+        for (int i = 0; i < count; i++) {
+            lxa_gadget_info_t info;
+            if (GetGadgetInfo(i, &info, window_index)) {
+                gadgets.push_back(info);
+            }
+        }
+
+        return gadgets;
+    }
+
+    bool ClickGadget(int gadget_index, int window_index = 0, int button = LXA_MOUSE_LEFT) {
+        lxa_gadget_info_t info;
+        if (!GetGadgetInfo(gadget_index, &info, window_index)) {
+            return false;
+        }
+
+        int click_x = info.left + info.width / 2;
+        int click_y = info.top + info.height / 2;
+        return lxa_inject_mouse_click(click_x, click_y, button);
     }
 };
 

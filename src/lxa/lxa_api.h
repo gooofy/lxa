@@ -276,6 +276,18 @@ typedef struct lxa_window_info {
     char title[256];      /* Window title */
 } lxa_window_info_t;
 
+typedef struct lxa_gadget_info {
+    int left;
+    int top;
+    int width;
+    int height;
+    uint16_t flags;
+    uint16_t activation;
+    uint16_t gadget_type;
+    uint16_t gadget_id;
+    uint32_t user_data;
+} lxa_gadget_info_t;
+
 /*
  * Get information about a window.
  *
@@ -284,6 +296,34 @@ typedef struct lxa_window_info {
  * @return true if window exists, false otherwise
  */
 bool lxa_get_window_info(int index, lxa_window_info_t *info);
+
+/*
+ * Wait until window content becomes non-empty.
+ *
+ * @param index       Window index (0-based)
+ * @param timeout_ms  Maximum time to wait
+ * @return true if content is visible, false on timeout
+ */
+bool lxa_wait_window_drawn(int index, int timeout_ms);
+
+/*
+ * Get the number of gadgets attached to a tracked Intuition window.
+ *
+ * @param window_index  Window index (0-based)
+ * @return Number of gadgets, or -1 if unavailable
+ */
+int lxa_get_gadget_count(int window_index);
+
+/*
+ * Get gadget information by window/gadget index.
+ * Gadget coordinates are screen-relative so they can be used directly for clicks.
+ *
+ * @param window_index  Window index (0-based)
+ * @param gadget_index  Gadget index (0-based)
+ * @param info          Output gadget information
+ * @return true on success
+ */
+bool lxa_get_gadget_info(int window_index, int gadget_index, lxa_gadget_info_t *info);
 
 /*
  * Click the close gadget of a window.
@@ -416,6 +456,15 @@ void lxa_clear_output(void);
  * @return true on success
  */
 bool lxa_capture_screen(const char *filename);
+
+/*
+ * Capture a tracked rootless window to a file.
+ *
+ * @param window_index  Window index (0-based)
+ * @param filename      Output filename (PPM format)
+ * @return true on success
+ */
+bool lxa_capture_window(int window_index, const char *filename);
 
 #ifdef __cplusplus
 }

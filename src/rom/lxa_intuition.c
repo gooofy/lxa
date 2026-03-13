@@ -7401,6 +7401,8 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
 
         /* Store the host window handle in UserData */
         window->UserData = (APTR)window_handle;
+        if (window_handle)
+            emucall2(EMU_CALL_INT_ATTACH_WINDOW, window_handle, (ULONG)window);
 
         if (!_intuition_ensure_window_state((struct LXAIntuitionBase *)IntuitionBase, window))
         {

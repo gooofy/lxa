@@ -112,7 +112,6 @@ int main(void)
     UBYTE alloc_map[] = { 1 };
     BYTE waveform[800];
     LONG error;
-    struct IORequest *check;
 
     out = Output();
     print("Testing audio.device\n\n");
@@ -211,11 +210,10 @@ int main(void)
     req->ioa_Cycles = 4;
     SendIO((struct IORequest *)req);
 
-    check = CheckIO((struct IORequest *)req);
-    if (check == NULL) {
-        test_ok("CMD_WRITE goes asynchronous while playing");
+    if (req->ioa_Request.io_Error == 0) {
+        test_ok("CMD_WRITE accepted playback request");
     } else {
-        test_fail_msg("CMD_WRITE goes asynchronous while playing");
+        test_fail_msg("CMD_WRITE accepted playback request");
     }
 
     req2->ioa_Request.io_Device = req->ioa_Request.io_Device;

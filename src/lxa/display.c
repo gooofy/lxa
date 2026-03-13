@@ -69,6 +69,8 @@ struct display_window_t
     int           width;
     int           height;
     int           depth;
+    uint32_t      amiga_window_ptr;
+    char          title[256];
     uint8_t      *pixels;         /* Chunky pixel buffer */
     uint32_t      palette[DISPLAY_MAX_COLORS];  /* Local palette if no screen */
     bool          dirty;
@@ -1072,6 +1074,15 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
     win->height = height;
     win->depth = depth;
     win->in_use = true;
+    win->amiga_window_ptr = 0;
+    if (title)
+    {
+        snprintf(win->title, sizeof(win->title), "%s", title);
+    }
+    else
+    {
+        snprintf(win->title, sizeof(win->title), "%s", "LXA Window");
+    }
 
     /* Allocate pixel buffer */
     win->pixels = calloc(width * height, sizeof(uint8_t));
@@ -1371,6 +1382,20 @@ bool display_window_set_title(display_window_t *window, const char *title)
         SDL_SetWindowTitle(window->window, title ? title : "LXA Window");
     }
 #endif
+
+    snprintf(window->title, sizeof(window->title), "%s", title ? title : "LXA Window");
+
+    return true;
+}
+
+bool display_window_attach_amiga_window(display_window_t *window, uint32_t amiga_window_ptr)
+{
+    if (!window || !window->in_use)
+    {
+        return false;
+    }
+
+    window->amiga_window_ptr = amiga_window_ptr;
 
     return true;
 }
@@ -1975,6 +2000,24 @@ bool display_capture_window(display_window_t *window, const char *filename)
     return true;
 }
 
+bool display_capture_window_by_index(int index, const char *filename)
+{
+    int found = 0;
+
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (!g_windows[i].in_use)
+            continue;
+
+        if (found == index)
+            return display_capture_window(&g_windows[i], filename);
+
+        found++;
+    }
+
+    return false;
+}
+
 /*
  * ============================================================================
  * Phase 39b: Enhanced Application Testing Infrastructure
@@ -2153,6 +2196,52 @@ bool display_get_window_position(int index, int *x, int *y)
             found++;
         }
     }
+    return false;
+}
+
+bool display_get_window_title(int index, char *title, int title_len)
+{
+    int found = 0;
+
+    if (!title || title_len <= 0)
+        return false;
+
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (g_windows[i].in_use)
+        {
+            if (found == index)
+            {
+                snprintf(title, title_len, "%s", g_windows[i].title);
+                return true;
+            }
+            found++;
+        }
+    }
+
+    return false;
+}
+
+bool display_get_window_emulated_pointer(int index, uint32_t *amiga_window_ptr)
+{
+    int found = 0;
+
+    if (!amiga_window_ptr)
+        return false;
+
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (g_windows[i].in_use)
+        {
+            if (found == index)
+            {
+                *amiga_window_ptr = g_windows[i].amiga_window_ptr;
+                return true;
+            }
+            found++;
+        }
+    }
+
     return false;
 }
 

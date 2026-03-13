@@ -69,6 +69,12 @@ Typical driver capabilities:
 - capture textual output
 - run deterministic VBlank-driven execution
 
+Common helpers in `tests/drivers/lxa_test.h` now include:
+- `WaitForWindowDrawn()` to block until a tracked window exposes visible content
+- `GetGadgetCount()`, `GetGadgetInfo()`, and `GetGadgets()` for Intuition gadget introspection
+- `ClickGadget()` for geometry-driven gadget clicks without hard-coded pixel coordinates
+- `CaptureWindow()` and `lxa_capture_screen()` for failure artifacts during interactive debugging
+
 Example binaries include `shell_gtest`, `dos_gtest`, `graphics_gtest`, `devpac_gtest`, `kickpascal_gtest`, and the sharded gadget/menu suites.
 
 ### Unity Unit Tests
@@ -92,10 +98,12 @@ Add or extend a Google Test driver in `tests/drivers/`. Use the `LxaUITest` base
 Preferred pattern:
 1. load the program
 2. wait for the expected windows
-3. run a few VBlank iterations so the task reaches its event loop
-4. inject input
-5. run more VBlank iterations
-6. assert on output, window state, or pixels
+3. call `WaitForWindowDrawn()` before asserting on visible UI or clicking gadgets
+4. run a few VBlank iterations so the task reaches its event loop
+5. use gadget introspection helpers where possible instead of fragile raw coordinates
+6. inject input
+7. run more VBlank iterations
+8. assert on output, window state, gadget state, or pixels
 
 ### For Non-Interactive Functional Coverage
 

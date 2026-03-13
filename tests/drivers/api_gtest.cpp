@@ -32,6 +32,51 @@ TEST_F(LxaAPITest, WindowOpens) {
     EXPECT_GE(lxa_get_window_count(), 1) << "Window should be open";
 }
 
+TEST_F(LxaAPITest, WaitWindowDrawnAndEnumerateGadgets) {
+    ASSERT_TRUE(WaitForWindowDrawn(0, 5000));
+    WaitForEventLoop(100, 10000);
+
+    std::vector<lxa_gadget_info_t> gadgets = GetGadgets();
+    ASSERT_GE(gadgets.size(), 1u) << "SimpleGad should expose at least one clickable gadget";
+
+    const lxa_gadget_info_t* gadget = nullptr;
+    for (const auto& candidate : gadgets) {
+        if (candidate.gadget_id == 3) {
+            gadget = &candidate;
+            break;
+        }
+    }
+
+    ASSERT_NE(gadget, nullptr) << "Expected to find SimpleGad's button gadget";
+    EXPECT_GT(gadget->width, 0);
+    EXPECT_GT(gadget->height, 0);
+    EXPECT_GE(gadget->left, window_info.x);
+    EXPECT_GE(gadget->top, window_info.y);
+}
+
+TEST_F(LxaAPITest, ClickGadgetHelper) {
+    ASSERT_TRUE(WaitForWindowDrawn(0, 5000));
+    WaitForEventLoop(100, 10000);
+
+    std::vector<lxa_gadget_info_t> gadgets = GetGadgets();
+    int button_index = -1;
+    for (size_t i = 0; i < gadgets.size(); i++) {
+        if (gadgets[i].gadget_id == 3) {
+            button_index = static_cast<int>(i);
+            break;
+        }
+    }
+    ASSERT_GE(button_index, 0);
+
+    ClearOutput();
+    ASSERT_TRUE(ClickGadget(button_index));
+    RunCyclesWithVBlank(20, 50000);
+
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("IDCMP_GADGETUP"), std::string::npos);
+    EXPECT_NE(output.find("gadget number 3"), std::string::npos);
+}
+
 TEST_F(LxaAPITest, GetScreenInfo) {
     lxa_screen_info_t screen_info;
     bool got_info = lxa_get_screen_info(&screen_info);

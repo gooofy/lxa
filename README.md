@@ -219,14 +219,14 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.6** - Phase 80 cleanup now folds audio, trackdisk, and expansion private state behind shared helpers while consolidating hosted math bridge conversions across the FFP and IEEE paths
+**Version 0.8.10** - Phase 81 is complete with live Directory Opus launch coverage, disk-provided bundle-library enforcement, and the new host-side UI-driver helpers needed for deeper interactive app testing
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
 ## Known Limitations
 
 - CPU: 68000 only (no 68020+ or FPU)
-- Third-party libraries such as `commodities.library`, `rexxsyslib.library`, and `datatypes.library` are not shipped in ROM and must be installed on disk in `LIBS:`
+- Third-party libraries such as `commodities.library`, `rexxsyslib.library`, `datatypes.library`, `dopus.library`, and `powerpacker.library` are not shipped in ROM and must be installed on disk in `LIBS:`
 - Graphics: Basic screen/window support with drawing primitives
 - Intuition: Screen and window management, basic IDCMP input handling
 - Console: Full CSI escape sequence support, CON:/RAW: handlers

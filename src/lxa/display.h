@@ -304,6 +304,14 @@ bool display_window_to_back(display_window_t *window);
 bool display_window_set_title(display_window_t *window, const char *title);
 
 /*
+ * Attach an emulated Intuition Window pointer to a tracked rootless window.
+ * @param window             Window handle
+ * @param amiga_window_ptr   Emulated Window* address
+ * @return true on success
+ */
+bool display_window_attach_amiga_window(display_window_t *window, uint32_t amiga_window_ptr);
+
+/*
  * Refresh a rootless window - update from its pixel buffer.
  * @param window  Window handle
  */
@@ -426,6 +434,15 @@ bool display_capture_screen(display_t *display, const char *filename);
 bool display_capture_window(display_window_t *window, const char *filename);
 
 /*
+ * Capture a rootless window by tracked window index.
+ *
+ * @param index     Window index (0-based)
+ * @param filename  Output filename (PPM format)
+ * @return true on success
+ */
+bool display_capture_window_by_index(int index, const char *filename);
+
+/*
  * Check if the event queue is empty.
  * Useful for waiting until all injected events have been processed.
  *
@@ -495,6 +512,23 @@ int display_get_window_content(int index);
  * @return true if window exists at index
  */
 bool display_get_window_position(int index, int *x, int *y);
+
+/*
+ * Get window title by index.
+ * @param index      Window index (0-based)
+ * @param title      Output buffer
+ * @param title_len  Output buffer size
+ * @return true if window exists at index
+ */
+bool display_get_window_title(int index, char *title, int title_len);
+
+/*
+ * Get emulated Intuition Window* pointer by index.
+ * @param index             Window index (0-based)
+ * @param amiga_window_ptr  Output pointer value
+ * @return true if window exists at index
+ */
+bool display_get_window_emulated_pointer(int index, uint32_t *amiga_window_ptr);
 
 /*
  * Compare the active display to a reference PPM file.

@@ -1,6 +1,6 @@
 # lxa Development Guide for Agents
 
-This document is the entry point for AI agents working on the `lxa` codebase. The detailed instructions have been split into specialized skills.
+This document is the entry point for AI agents working on the `lxa` codebase. Treat it as the short operational checklist, then load the relevant skills for the task at hand.
 
 ## 1. Core Mandates
 - **Stability**: Zero tolerance for crashes.
@@ -8,10 +8,28 @@ This document is the entry point for AI agents working on the `lxa` codebase. Th
 - **Reference**: ALWAYS consult RKRM and NDK.
 - **Third-Party Libraries**: Do not re-implement third-party libraries in ROM. They must be supplied on disk and opened through the normal Amiga library search path.
 - **Complete Phases if possible**: When working on a phase of the roadmap, plan ahead and make sure you create all the TODO items needed to **successfully complete** the phase. Do not stop early, but strive towards reaching the goal of finishing a phase.
-- **Keep the roadmap.md file updated**: Whenever you complete a task or finish work, make sure you update the `roadmap.md` file accordingly. Keep it nice, clean and tidy so we always know where we stand and what the next steps are. Summarize, re-organize, create new phases as needed.
+- **Keep the roadmap.md file updated**: Whenever you complete, defer, or re-scope work, update `roadmap.md` so it stays clean, current, and future-focused. If you intentionally park unfinished work, document that decision explicitly instead of leaving ambiguous unchecked items behind.
 - **Host-Side Test Drivers for UI Tests**: All interactive UI tests (gadget clicks, menu selection, keyboard input) MUST use the host-side driver infrastructure (`tests/drivers/` with liblxa) and Google Test. The legacy `test_inject.h` approach has been removed. All tests are integrated into the unified GTest suite.
 
-## 2. Available Skills
+## 2. Standard Workflow
+1. Read `roadmap.md` and identify the active phase or the follow-up you are explicitly parking.
+2. Load the relevant skills before editing code or documentation.
+3. Preserve the boundary between ROM functionality and disk-provided third-party components.
+4. Add or update automated coverage for the changed behavior.
+5. Run the appropriate build/tests, then update roadmap/docs/version together.
+
+## 3. Interactive Integration Test Tools
+The host-side integration stack has grown beyond simple click injection. Future agents should use these tools instead of ad-hoc sleeps or hard-coded assumptions:
+
+- `lxa_wait_window_drawn()` / `LxaTest::WaitForWindowDrawn()` to wait for visible UI readiness
+- `lxa_get_gadget_count()` / `lxa_get_gadget_info()` plus `LxaTest::GetGadgets()` for tracked Intuition gadget introspection
+- `LxaTest::ClickGadget()` for center-of-gadget interaction using queried geometry
+- `lxa_capture_window()` / `lxa_capture_screen()` for failure artifacts
+- tracked rootless-window to emulated-window pointer linkage, so host-side tests can correlate visible windows with Intuition state
+
+Prefer these helpers over brittle coordinate-only scripts whenever the test can identify a real window or gadget.
+
+## 4. Available Skills
 Load the specific skill relevant to your task:
 
 - **`develop-amiga`**:
@@ -36,7 +54,7 @@ Load the specific skill relevant to your task:
   - **Host-side driver patterns** for interactive testing.
   - BitMap verification techniques.
 
-## 3. Build & Test Quick Reference
+## 5. Build & Test Quick Reference
 
 ```bash
 # Build (from project root):
@@ -66,7 +84,7 @@ does not improve wall time meaningfully.
 See `lxa-testing` skill for detailed test execution docs and
 `doc/test-reliability-report.md` for parallelism benchmarks.
 
-## 4. Quick Start
+## 6. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.
 3. Load `develop-amiga` for coding standards.

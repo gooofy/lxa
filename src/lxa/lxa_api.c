@@ -42,6 +42,296 @@ extern void lxa_set_console_output_hook(void (*hook)(const char *data, int len))
 #define ROM_SIZE (512 * 1024)
 #define ROM_START 0xf80000
 #define TIMER_INTERVAL_US 20000
+#define EXECBASE_LIBLIST             392
+#define INTUITIONBASE_FIRSTSCREEN    60
+
+#define NODE_SUCC_OFFSET             0
+#define NODE_NAME_OFFSET             10
+
+#define SCREEN_NEXTSCREEN_OFFSET     0
+#define SCREEN_FIRSTWINDOW_OFFSET    4
+
+#define WINDOW_LEFTEDGE_OFFSET      4
+#define WINDOW_TOPEDGE_OFFSET       6
+#define WINDOW_WIDTH_OFFSET         8
+#define WINDOW_HEIGHT_OFFSET        10
+#define WINDOW_TITLE_OFFSET         32
+#define WINDOW_WSCREEN_OFFSET       46
+#define WINDOW_FIRSTGADGET_OFFSET   62
+
+#define GADGET_NEXT_OFFSET          0
+#define GADGET_LEFTEDGE_OFFSET      4
+#define GADGET_TOPEDGE_OFFSET       6
+#define GADGET_WIDTH_OFFSET         8
+#define GADGET_HEIGHT_OFFSET        10
+#define GADGET_FLAGS_OFFSET         12
+#define GADGET_ACTIVATION_OFFSET    14
+#define GADGET_TYPE_OFFSET          16
+#define GADGET_GADGETRENDER_OFFSET  18
+#define GADGET_SELECTRENDER_OFFSET  22
+#define GADGET_GADGETTEXT_OFFSET    26
+#define GADGET_MUTUALEXCLUDE_OFFSET 30
+#define GADGET_SPECIALINFO_OFFSET   34
+#define GADGET_ID_OFFSET            38
+#define GADGET_USERDATA_OFFSET      40
+
+#define EXTGADGET_MOREFLAGS_OFFSET  44
+#define EXTGADGET_BOUNDSLEFT_OFFSET 48
+#define EXTGADGET_BOUNDSTOP_OFFSET  50
+#define EXTGADGET_BOUNDSWIDTH_OFFSET 52
+#define EXTGADGET_BOUNDSHEIGHT_OFFSET 54
+
+#define GFLG_RELBOTTOM              0x0008
+#define GFLG_RELRIGHT               0x0010
+#define GFLG_RELWIDTH               0x0020
+#define GFLG_RELHEIGHT              0x0040
+#define GFLG_EXTENDED               0x8000
+#define GMORE_BOUNDS                0x00000001UL
+
+static bool lxa_api_memory_string_equals(uint32_t addr, const char *str)
+{
+    size_t i;
+
+    if (!addr || !str)
+        return false;
+
+    for (i = 0; str[i] != '\0'; i++)
+    {
+        if ((char)m68k_read_memory_8(addr + i) != str[i])
+            return false;
+    }
+
+    return m68k_read_memory_8(addr + i) == 0;
+}
+
+static bool lxa_api_read_emulated_string(uint32_t addr, char *buffer, size_t buffer_len)
+{
+    size_t i;
+
+    if (!buffer || buffer_len == 0)
+        return false;
+
+    buffer[0] = '\0';
+    if (!addr)
+        return false;
+
+    for (i = 0; i + 1 < buffer_len; i++)
+    {
+        char c = (char)m68k_read_memory_8(addr + i);
+        buffer[i] = c;
+        if (c == '\0')
+            return true;
+    }
+
+    buffer[buffer_len - 1] = '\0';
+    return true;
+}
+
+static uint32_t lxa_api_find_library(const char *name)
+{
+    uint32_t sysbase;
+    uint32_t list_addr;
+    uint32_t node_addr;
+
+    if (!name)
+        return 0;
+
+    sysbase = m68k_read_memory_32(4);
+    if (sysbase == 0)
+        return 0;
+
+    list_addr = sysbase + EXECBASE_LIBLIST;
+    node_addr = m68k_read_memory_32(list_addr);
+
+    while (node_addr != list_addr + 4 && node_addr != 0)
+    {
+        uint32_t name_ptr = m68k_read_memory_32(node_addr + NODE_NAME_OFFSET);
+
+        if (lxa_api_memory_string_equals(name_ptr, name))
+            return node_addr;
+
+        node_addr = m68k_read_memory_32(node_addr + NODE_SUCC_OFFSET);
+    }
+
+    return 0;
+}
+
+static bool lxa_api_window_matches_index(uint32_t window_ptr, int index)
+{
+    lxa_window_info_t tracked_info;
+    char tracked_title[256];
+    char emulated_title[256];
+    uint32_t title_ptr;
+
+    if (!window_ptr || !lxa_get_window_info(index, &tracked_info))
+        return false;
+
+    title_ptr = m68k_read_memory_32(window_ptr + WINDOW_TITLE_OFFSET);
+    tracked_title[0] = '\0';
+    emulated_title[0] = '\0';
+    display_get_window_title(index, tracked_title, sizeof(tracked_title));
+    lxa_api_read_emulated_string(title_ptr, emulated_title, sizeof(emulated_title));
+
+    if ((int16_t)m68k_read_memory_16(window_ptr + WINDOW_LEFTEDGE_OFFSET) != tracked_info.x)
+        return false;
+    if ((int16_t)m68k_read_memory_16(window_ptr + WINDOW_TOPEDGE_OFFSET) != tracked_info.y)
+        return false;
+    if ((int16_t)m68k_read_memory_16(window_ptr + WINDOW_WIDTH_OFFSET) != tracked_info.width)
+        return false;
+    if ((int16_t)m68k_read_memory_16(window_ptr + WINDOW_HEIGHT_OFFSET) != tracked_info.height)
+        return false;
+
+    if (tracked_title[0] != '\0' && emulated_title[0] != '\0' && strcmp(tracked_title, emulated_title) != 0)
+        return false;
+
+    return true;
+}
+
+static uint32_t lxa_api_find_window_pointer_by_scan(int index)
+{
+    uint32_t intuition_base;
+    uint32_t screen_ptr;
+    int current_index = 0;
+
+    intuition_base = lxa_api_find_library("intuition.library");
+    if (!intuition_base)
+        return 0;
+
+    screen_ptr = m68k_read_memory_32(intuition_base + INTUITIONBASE_FIRSTSCREEN);
+    while (screen_ptr)
+    {
+        uint32_t window_ptr = m68k_read_memory_32(screen_ptr + SCREEN_FIRSTWINDOW_OFFSET);
+
+        while (window_ptr)
+        {
+            if (current_index == index)
+                return window_ptr;
+            if (lxa_api_window_matches_index(window_ptr, index))
+                return window_ptr;
+
+            current_index++;
+            window_ptr = m68k_read_memory_32(window_ptr + NODE_SUCC_OFFSET);
+        }
+
+        screen_ptr = m68k_read_memory_32(screen_ptr + SCREEN_NEXTSCREEN_OFFSET);
+    }
+
+    return 0;
+}
+
+static uint32_t lxa_api_get_window_pointer(int index)
+{
+    uint32_t window_ptr = 0;
+
+    if (display_get_window_emulated_pointer(index, &window_ptr) && window_ptr != 0)
+        return window_ptr;
+
+    return lxa_api_find_window_pointer_by_scan(index);
+}
+
+static void lxa_api_calculate_gadget_box(uint32_t window_ptr,
+                                         uint32_t gadget_ptr,
+                                         int *left,
+                                         int *top,
+                                         int *width,
+                                         int *height)
+{
+    int calc_left;
+    int calc_top;
+    int calc_width;
+    int calc_height;
+    uint16_t flags;
+
+    if (!window_ptr || !gadget_ptr)
+    {
+        if (left)
+            *left = 0;
+        if (top)
+            *top = 0;
+        if (width)
+            *width = 0;
+        if (height)
+            *height = 0;
+        return;
+    }
+
+    calc_left = (int16_t)m68k_read_memory_16(gadget_ptr + GADGET_LEFTEDGE_OFFSET);
+    calc_top = (int16_t)m68k_read_memory_16(gadget_ptr + GADGET_TOPEDGE_OFFSET);
+    calc_width = (int16_t)m68k_read_memory_16(gadget_ptr + GADGET_WIDTH_OFFSET);
+    calc_height = (int16_t)m68k_read_memory_16(gadget_ptr + GADGET_HEIGHT_OFFSET);
+    flags = (uint16_t)m68k_read_memory_16(gadget_ptr + GADGET_FLAGS_OFFSET);
+
+    if ((flags & GFLG_EXTENDED) &&
+        (m68k_read_memory_32(gadget_ptr + EXTGADGET_MOREFLAGS_OFFSET) & GMORE_BOUNDS))
+    {
+        calc_left = (int16_t)m68k_read_memory_16(gadget_ptr + EXTGADGET_BOUNDSLEFT_OFFSET);
+        calc_top = (int16_t)m68k_read_memory_16(gadget_ptr + EXTGADGET_BOUNDSTOP_OFFSET);
+        calc_width = (int16_t)m68k_read_memory_16(gadget_ptr + EXTGADGET_BOUNDSWIDTH_OFFSET);
+        calc_height = (int16_t)m68k_read_memory_16(gadget_ptr + EXTGADGET_BOUNDSHEIGHT_OFFSET);
+    }
+
+    if (flags & (GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_RELWIDTH | GFLG_RELHEIGHT))
+    {
+        uint32_t screen_ptr = m68k_read_memory_32(window_ptr + WINDOW_WSCREEN_OFFSET);
+        int container_width = (int16_t)m68k_read_memory_16(window_ptr + WINDOW_WIDTH_OFFSET);
+        int container_height = (int16_t)m68k_read_memory_16(window_ptr + WINDOW_HEIGHT_OFFSET);
+
+        if (screen_ptr)
+        {
+            container_width = (int16_t)m68k_read_memory_16(screen_ptr + 8);
+            container_height = (int16_t)m68k_read_memory_16(screen_ptr + 10);
+        }
+
+        if (flags & GFLG_RELRIGHT)
+            calc_left += container_width;
+        if (flags & GFLG_RELBOTTOM)
+            calc_top += container_height;
+        if (flags & GFLG_RELWIDTH)
+            calc_width += container_width;
+        if (flags & GFLG_RELHEIGHT)
+            calc_height += container_height;
+    }
+
+    if (left)
+        *left = calc_left;
+    if (top)
+        *top = calc_top;
+    if (width)
+        *width = calc_width;
+    if (height)
+        *height = calc_height;
+}
+
+static uint32_t lxa_api_get_window_gadget(int window_index, int gadget_index)
+{
+    uint32_t window_ptr;
+    uint32_t gadget_ptr;
+    int current_index = 0;
+
+    if (gadget_index < 0)
+        return 0;
+
+    window_ptr = lxa_api_get_window_pointer(window_index);
+    if (!window_ptr)
+        return 0;
+
+    gadget_ptr = m68k_read_memory_32(window_ptr + WINDOW_FIRSTGADGET_OFFSET);
+    if (gadget_ptr == 0)
+    {
+        uint32_t screen_ptr = m68k_read_memory_32(window_ptr + WINDOW_WSCREEN_OFFSET);
+        if (screen_ptr)
+            gadget_ptr = m68k_read_memory_32(screen_ptr + 326);
+    }
+    while (gadget_ptr)
+    {
+        if (current_index == gadget_index)
+            return gadget_ptr;
+        current_index++;
+        gadget_ptr = m68k_read_memory_32(gadget_ptr + GADGET_NEXT_OFFSET);
+    }
+
+    return 0;
+}
 
 /* API state */
 static bool g_api_initialized = false;
@@ -576,7 +866,111 @@ bool lxa_get_window_info(int index, lxa_window_info_t *info)
     info->y = y;
     info->width = w;
     info->height = h;
-    info->title[0] = '\0';  /* TODO: implement title query */
+    if (!display_get_window_title(index, info->title, sizeof(info->title))) {
+        info->title[0] = '\0';
+    }
+
+    return true;
+}
+
+bool lxa_wait_window_drawn(int index, int timeout_ms)
+{
+    if (!g_api_initialized)
+        return false;
+
+    struct timeval start, now;
+    int cycles_since_vblank = 0;
+    const int cycles_per_vblank = 50000;
+
+    gettimeofday(&start, NULL);
+
+    while (g_running)
+    {
+        if (lxa_get_window_content(index) >= 0)
+            return true;
+
+        lxa_run_cycles(10000);
+        cycles_since_vblank += 10000;
+
+        if (cycles_since_vblank >= cycles_per_vblank)
+        {
+            lxa_trigger_vblank();
+            cycles_since_vblank = 0;
+        }
+
+        if (timeout_ms > 0)
+        {
+            gettimeofday(&now, NULL);
+            long elapsed = (now.tv_sec - start.tv_sec) * 1000 +
+                           (now.tv_usec - start.tv_usec) / 1000;
+            if (elapsed >= timeout_ms)
+                return false;
+        }
+    }
+
+    return lxa_get_window_content(index) >= 0;
+}
+
+int lxa_get_gadget_count(int window_index)
+{
+    uint32_t window_ptr;
+    uint32_t gadget_ptr;
+    int count = 0;
+
+    if (!g_api_initialized)
+        return -1;
+
+    window_ptr = lxa_api_get_window_pointer(window_index);
+    if (!window_ptr)
+        return -1;
+
+    gadget_ptr = m68k_read_memory_32(window_ptr + WINDOW_FIRSTGADGET_OFFSET);
+    if (gadget_ptr == 0)
+    {
+        uint32_t screen_ptr = m68k_read_memory_32(window_ptr + WINDOW_WSCREEN_OFFSET);
+        if (screen_ptr)
+            gadget_ptr = m68k_read_memory_32(screen_ptr + 326);
+    }
+    while (gadget_ptr)
+    {
+        count++;
+        gadget_ptr = m68k_read_memory_32(gadget_ptr + GADGET_NEXT_OFFSET);
+    }
+
+    return count;
+}
+
+bool lxa_get_gadget_info(int window_index, int gadget_index, lxa_gadget_info_t *info)
+{
+    uint32_t window_ptr;
+    uint32_t gadget_ptr;
+    int left;
+    int top;
+    int width;
+    int height;
+
+    if (!g_api_initialized || !info)
+        return false;
+
+    window_ptr = lxa_api_get_window_pointer(window_index);
+    if (!window_ptr)
+        return false;
+
+    gadget_ptr = lxa_api_get_window_gadget(window_index, gadget_index);
+    if (!gadget_ptr)
+        return false;
+
+    lxa_api_calculate_gadget_box(window_ptr, gadget_ptr, &left, &top, &width, &height);
+
+    info->left = (int16_t)m68k_read_memory_16(window_ptr + WINDOW_LEFTEDGE_OFFSET) + left;
+    info->top = (int16_t)m68k_read_memory_16(window_ptr + WINDOW_TOPEDGE_OFFSET) + top;
+    info->width = width;
+    info->height = height;
+    info->flags = (uint16_t)m68k_read_memory_16(gadget_ptr + GADGET_FLAGS_OFFSET);
+    info->activation = (uint16_t)m68k_read_memory_16(gadget_ptr + GADGET_ACTIVATION_OFFSET);
+    info->gadget_type = (uint16_t)m68k_read_memory_16(gadget_ptr + GADGET_TYPE_OFFSET);
+    info->gadget_id = (uint16_t)m68k_read_memory_16(gadget_ptr + GADGET_ID_OFFSET);
+    info->user_data = m68k_read_memory_32(gadget_ptr + GADGET_USERDATA_OFFSET);
 
     return true;
 }
@@ -759,4 +1153,12 @@ bool lxa_capture_screen(const char *filename)
     if (!disp) return false;
     
     return display_capture_screen(disp, filename);
+}
+
+bool lxa_capture_window(int window_index, const char *filename)
+{
+    if (!g_api_initialized || !filename)
+        return false;
+
+    return display_capture_window_by_index(window_index, filename);
 }
