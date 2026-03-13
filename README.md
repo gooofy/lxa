@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.11** - Phase 82 rootless app-window follow-up keeps hosted application frames landscape-sized for menu-heavy tools like KickPascal while preserving the logical Amiga window geometry used by tests and input handling
+**Version 0.8.12** - Phase 82 now also installs a disk-provided `rexxsyslib.library` stub into `SYS:Libs`, letting DPaint V reach its real startup window instead of stopping at a missing-library requester
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

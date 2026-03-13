@@ -144,6 +144,24 @@ inline const char* FindSystemBasePath() {
 }
 
 /**
+ * Helper function to find system libraries path (Libs/).
+ */
+inline const char* FindSystemLibsPath() {
+    static std::string system_libs_path;
+    const char* base = FindSystemBasePath();
+    if (base == nullptr) {
+        return nullptr;
+    }
+
+    system_libs_path = std::string(base) + "/Libs";
+    if (access(system_libs_path.c_str(), F_OK) == 0) {
+        return system_libs_path.c_str();
+    }
+
+    return nullptr;
+}
+
+/**
  * Helper function to find lxa-apps directory.
  */
 inline const char* FindAppsPath() {
@@ -220,6 +238,11 @@ protected:
         const char* system_base = FindSystemBasePath();
         if (system_base) {
             lxa_add_assign_path("SYS", system_base);
+        }
+
+        const char* libs_path = FindSystemLibsPath();
+        if (libs_path) {
+            lxa_add_assign_path("LIBS", libs_path);
         }
 
         // Map RAM: to a temporary directory

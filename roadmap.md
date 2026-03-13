@@ -70,7 +70,7 @@ Goal: Fully working Directory Opus app. DOpus 4 Manual: /home/guenter/projects/a
 - [x] In headless mode make sure application windows are wide enough on the X11 side so they can display the whole menu; rootless host windows now widen to the remaining screen width while keeping their logical Amiga dimensions intact, with regression coverage for both the sizing helper and a captured MenuLayout rootless window
 - [x] ASMOne no longer crashes on keyboard input; IDCMP RAWKEY messages now provide the documented previous-key snapshot through `IntuiMessage.IAddress`, with regression coverage in `Tests/Console/input_inject` and the live `asm_one_gtest` keyboard scenarios
 - [x] KickPascal rootless launches now keep the logical Amiga window geometry while widening the host-side window, so the IDE no longer appears in a portrait-shaped host frame; regression coverage now captures the live rootless KP2 window and asserts the widened host extent stays landscape.
-- [ ] DPaint V: *** ERROR: requested library rexxsyslib.library was not found.
+- [x] DPaint V now tolerates the disk-provided `rexxsyslib.library`; the build installs a shared `SYS:Libs/rexxsyslib.library` from the existing stub source, `dpaint_gtest` appends the DPaint `Libs/` drawer to `LIBS:`, and the live launch regression now asserts startup no longer stalls on the missing-library system requester.
 - [ ] SysInfo: black screen
 - [ ] Sample Talk2Boopsi: seems totally different from RKM original, does not display a slider + label, does not get interactive, quits after a while
 - [ ] Sample SimpleGadget: Gadget border is not drawn / invisible

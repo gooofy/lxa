@@ -27,6 +27,53 @@ set(COMMAND_LDFLAGS -mcrt=nix20)
 # Create output directories
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/C)
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/System)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Libs)
+
+# === SYS:Libs Libraries ===
+set(LIBS_CFLAGS
+    ${COMMAND_CFLAGS}
+    -fno-builtin
+)
+
+set(LIBS_LDFLAGS
+    -shared
+    -nostartfiles
+)
+
+set(LIBS_OUTPUTS)
+
+function(add_disk_library target output_name)
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs SOURCES)
+    cmake_parse_arguments(DISKLIB "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    if(NOT DISKLIB_SOURCES)
+        message(FATAL_ERROR "add_disk_library(${target}) requires SOURCES")
+    endif()
+
+    set(output "${CMAKE_CURRENT_BINARY_DIR}/Libs/${output_name}")
+    list(APPEND DISKLIB_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/Libs/disklib_support.c)
+
+    add_custom_command(
+        OUTPUT ${output}
+        COMMAND ${M68K_GCC_BIN} ${LIBS_CFLAGS} ${LIBS_LDFLAGS} -o ${output} ${DISKLIB_SOURCES}
+        DEPENDS ${DISKLIB_SOURCES}
+        COMMENT "Building LIBS:${output_name}"
+    )
+
+    set(LIBS_OUTPUTS ${LIBS_OUTPUTS} ${output} PARENT_SCOPE)
+
+    install(FILES ${output}
+        DESTINATION share/lxa/System/Libs
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+    )
+endfunction()
+
+add_disk_library(rexxsyslib_disklib rexxsyslib.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_rexxsyslib.c
+)
 
 # === SYS:C Commands ===
 set(C_COMMANDS
@@ -114,3 +161,8 @@ add_custom_target(lxa-sys ALL DEPENDS ${ALL_COMMANDS})
 
 # Add dependency to ensure commands are built
 add_dependencies(lxa-sys lxa.rom)
+
+if(LIBS_OUTPUTS)
+    add_custom_target(lxa-libs ALL DEPENDS ${LIBS_OUTPUTS})
+    add_dependencies(lxa-libs lxa.rom)
+endif()

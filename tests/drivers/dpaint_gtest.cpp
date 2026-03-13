@@ -8,11 +8,23 @@
 
 #include "lxa_test.h"
 
+#include <filesystem>
+
 using namespace lxa::testing;
 
 class DPaintTest : public LxaUITest {
 protected:
     bool window_opened = false;
+
+    bool HasDiskRexxSysLib() {
+        const char* system_base = FindSystemBasePath();
+        if (system_base == nullptr) {
+            return false;
+        }
+
+        return std::filesystem::exists(
+            std::filesystem::path(system_base) / "Libs" / "rexxsyslib.library");
+    }
 
     void SetUp() override {
         LxaUITest::SetUp();
@@ -20,6 +32,10 @@ protected:
         const char* apps = FindAppsPath();
         if (!apps) {
             GTEST_SKIP() << "lxa-apps directory not found";
+        }
+
+        if (!HasDiskRexxSysLib()) {
+            GTEST_SKIP() << "disk-provided rexxsyslib.library missing from SYS:Libs";
         }
         
         /* Load via APPS: assign */
@@ -40,6 +56,8 @@ protected:
 TEST_F(DPaintTest, ProgramLoads) {
     /* Verify DPaint loaded and is running */
     EXPECT_TRUE(lxa_is_running()) << "DPaint process should be running";
+    EXPECT_STRNE(window_info.title, "System Message")
+        << "DPaint should not stop at the missing rexxsyslib requester";
 }
 
 TEST_F(DPaintTest, WindowOpens) {
