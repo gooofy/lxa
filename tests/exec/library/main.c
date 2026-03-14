@@ -556,6 +556,141 @@ static int test_dos_lockrecord_stub_closed(void)
     return errors;
 }
 
+static int test_dos_lockrecords_stub_closed(void)
+{
+    int errors = 0;
+    BPTR fh;
+    BOOL ok;
+    struct RecordLock records[2];
+
+    print("--- Test: DOS LockRecords entry point ---\n");
+
+    fh = Open((CONST_STRPTR)"library_lockrecords_test.dat", MODE_NEWFILE);
+    if (fh == 0)
+    {
+        print("FAIL: Open() for LockRecords probe failed\n\n");
+        return 1;
+    }
+
+    records[0].rec_FH = fh;
+    records[0].rec_Offset = 0;
+    records[0].rec_Length = 1;
+    records[0].rec_Mode = REC_SHARED_IMMED;
+    records[1].rec_FH = 0;
+    records[1].rec_Offset = 0;
+    records[1].rec_Length = 0;
+    records[1].rec_Mode = 0;
+
+    ok = LockRecords(records, 0);
+    if (ok)
+    {
+        print("OK: LockRecords() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: LockRecords() unexpectedly failed\n");
+        errors++;
+    }
+
+    Close(fh);
+    DeleteFile((CONST_STRPTR)"library_lockrecords_test.dat");
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_unlockrecord_stub_closed(void)
+{
+    int errors = 0;
+    BPTR fh;
+    BOOL ok;
+
+    print("--- Test: DOS UnLockRecord entry point ---\n");
+
+    fh = Open((CONST_STRPTR)"library_unlockrecord_test.dat", MODE_NEWFILE);
+    if (fh == 0)
+    {
+        print("FAIL: Open() for UnLockRecord probe failed\n\n");
+        return 1;
+    }
+
+    if (!LockRecord(fh, 0, 1, REC_SHARED_IMMED, 0))
+    {
+        print("FAIL: LockRecord() setup for UnLockRecord probe failed\n");
+        errors++;
+    }
+    else
+    {
+        ok = UnLockRecord(fh, 0, 1);
+        if (ok)
+        {
+            print("OK: UnLockRecord() no longer behaves like a stub\n");
+        }
+        else
+        {
+            print("FAIL: UnLockRecord() unexpectedly failed\n");
+            errors++;
+        }
+    }
+
+    Close(fh);
+    DeleteFile((CONST_STRPTR)"library_unlockrecord_test.dat");
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_unlockrecords_stub_closed(void)
+{
+    int errors = 0;
+    BPTR fh;
+    BOOL ok;
+    struct RecordLock records[2];
+
+    print("--- Test: DOS UnLockRecords entry point ---\n");
+
+    fh = Open((CONST_STRPTR)"library_unlockrecords_test.dat", MODE_NEWFILE);
+    if (fh == 0)
+    {
+        print("FAIL: Open() for UnLockRecords probe failed\n\n");
+        return 1;
+    }
+
+    if (!LockRecord(fh, 0, 1, REC_SHARED_IMMED, 0))
+    {
+        print("FAIL: LockRecord() setup for UnLockRecords probe failed\n");
+        errors++;
+    }
+    else
+    {
+        records[0].rec_FH = fh;
+        records[0].rec_Offset = 0;
+        records[0].rec_Length = 1;
+        records[0].rec_Mode = REC_SHARED_IMMED;
+        records[1].rec_FH = 0;
+        records[1].rec_Offset = 0;
+        records[1].rec_Length = 0;
+        records[1].rec_Mode = 0;
+
+        ok = UnLockRecords(records);
+        if (ok)
+        {
+            print("OK: UnLockRecords() no longer behaves like a stub\n");
+        }
+        else
+        {
+            print("FAIL: UnLockRecords() unexpectedly failed\n");
+            errors++;
+        }
+    }
+
+    Close(fh);
+    DeleteFile((CONST_STRPTR)"library_unlockrecords_test.dat");
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -613,6 +748,15 @@ int main(void)
 
     /* Test 7: Verify LockRecord no longer hits the stub path */
     errors += test_dos_lockrecord_stub_closed();
+
+    /* Test 8: Verify LockRecords no longer hits the stub path */
+    errors += test_dos_lockrecords_stub_closed();
+
+    /* Test 9: Verify UnLockRecord no longer hits the stub path */
+    errors += test_dos_unlockrecord_stub_closed();
+
+    /* Test 10: Verify UnLockRecords no longer hits the stub path */
+    errors += test_dos_unlockrecords_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

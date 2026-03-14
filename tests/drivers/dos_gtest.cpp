@@ -133,6 +133,18 @@ TEST_F(DosTest, LockRecord) {
     RunDosTest("LockRecord");
 }
 
+TEST_F(DosTest, LockRecords) {
+    RunDosTest("LockRecords");
+}
+
+TEST_F(DosTest, UnLockRecord) {
+    RunDosTest("UnLockRecord");
+}
+
+TEST_F(DosTest, UnLockRecords) {
+    RunDosTest("UnLockRecords");
+}
+
 TEST_F(DosTest, LockLeak) {
     RunDosTest("LockLeak");
 }

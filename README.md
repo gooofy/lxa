@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.17** - Phase 83 now closes `dos.library/LockRecord()`, matching the documented cooperative per-filehandle locking surface with direct regression coverage for collisions, timeouts, shared locks, and close-time release
+**Version 0.8.18** - Phase 83 now closes `dos.library/UnLockRecords()`, matching the documented record-array unlock walk with null-terminator handling, first-failure propagation, null-array rejection, and direct regression coverage for successful list release and partial-failure cases
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

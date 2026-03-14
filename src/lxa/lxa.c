@@ -792,6 +792,40 @@ static bool _record_lock_add(dev_t dev, ino_t ino, uint32_t owner_fh68k,
     return true;
 }
 
+static bool _record_lock_remove(dev_t dev, ino_t ino, uint32_t owner_fh68k,
+                                uint64_t offset, uint64_t length)
+{
+    for (int i = 0; i < MAX_RECORD_LOCKS; i++)
+    {
+        record_lock_entry_t *entry = &g_record_locks[i];
+
+        if (!entry->in_use)
+        {
+            continue;
+        }
+
+        if (entry->dev != dev || entry->ino != ino)
+        {
+            continue;
+        }
+
+        if (entry->owner_fh68k != owner_fh68k)
+        {
+            continue;
+        }
+
+        if (entry->offset != offset || entry->length != length)
+        {
+            continue;
+        }
+
+        entry->in_use = false;
+        return true;
+    }
+
+    return false;
+}
+
 static void _record_lock_release_all(uint32_t owner_fh68k)
 {
     for (int i = 0; i < MAX_RECORD_LOCKS; i++)
@@ -3093,6 +3127,46 @@ static uint32_t _dos_lockrecord(uint32_t fh68k, uint32_t offset, uint32_t length
 
         usleep(1000);
     }
+}
+
+static uint32_t _dos_unlockrecord(uint32_t fh68k, uint32_t offset, uint32_t length)
+{
+    int kind;
+    int fd;
+    struct stat st;
+
+    DPRINTF(LOG_DEBUG,
+            "lxa: _dos_unlockrecord(): fh=0x%08x offset=%u length=%u\n",
+            fh68k, offset, length);
+
+    if (fh68k == 0)
+    {
+        return 0;
+    }
+
+    kind = m68k_read_memory_32(fh68k + 32);
+    fd = m68k_read_memory_32(fh68k + 36);
+
+    if (kind != FILE_KIND_REGULAR)
+    {
+        m68k_write_memory_32(fh68k + 40, ERROR_OBJECT_WRONG_TYPE);
+        return 0;
+    }
+
+    if (fstat(fd, &st) != 0)
+    {
+        m68k_write_memory_32(fh68k + 40, errno2Amiga());
+        return 0;
+    }
+
+    if (!_record_lock_remove(st.st_dev, st.st_ino, fh68k, offset, length))
+    {
+        m68k_write_memory_32(fh68k + 40, ERROR_RECORD_NOT_LOCKED);
+        return 0;
+    }
+
+    m68k_write_memory_32(fh68k + 40, 0);
+    return 1;
 }
 
 /* FileInfoBlock offsets (from dos/dos.h) */
@@ -5696,6 +5770,20 @@ int op_illg(int level)
                     fh, offset, length, mode, timeout);
 
             m68k_set_reg(M68K_REG_D0, _dos_lockrecord(fh, offset, length, mode, timeout));
+            break;
+        }
+
+        case EMU_CALL_DOS_UNLOCKRECORD:
+        {
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t offset = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t length = m68k_get_reg(NULL, M68K_REG_D3);
+
+            DPRINTF(LOG_DEBUG,
+                    "lxa: op_illg(): EMU_CALL_DOS_UNLOCKRECORD fh=0x%08x offset=%u length=%u\n",
+                    fh, offset, length);
+
+            m68k_set_reg(M68K_REG_D0, _dos_unlockrecord(fh, offset, length));
             break;
         }
 

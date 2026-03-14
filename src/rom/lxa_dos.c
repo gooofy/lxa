@@ -14,6 +14,7 @@
 #include <dos/dostags.h>
 #include <dos/dosasl.h>
 #include <dos/exall.h>
+#include <dos/record.h>
 #include <dos/stdio.h>
 #include <dos/var.h>
 #include <dos/datetime.h>
@@ -3062,13 +3063,69 @@ BOOL _dos_LockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
     return DOSTRUE;
 }
 
+static BOOL dos_unlockrecord_internal(BPTR fh, ULONG offset, ULONG length)
+{
+    struct FileHandle *fhp;
+
+    fhp = (struct FileHandle *)BADDR(fh);
+    if (!fhp)
+    {
+        return DOSFALSE;
+    }
+
+    return emucall3(EMU_CALL_DOS_UNLOCKRECORD, (ULONG)fhp, offset, length) ? DOSTRUE : DOSFALSE;
+}
+
 BOOL _dos_LockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct RecordLock * recArray __asm("d1"),
                                                         register ULONG timeout __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: LockRecords() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct RecordLock *first;
+
+    (void)DOSBase;
+
+    DPRINTF(LOG_DEBUG, "_dos: LockRecords(recArray=%p, timeout=%lu) called.\n",
+            (void *)recArray, timeout);
+
+    if (recArray == NULL)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return DOSFALSE;
+    }
+
+    first = recArray;
+    while (recArray->rec_FH != 0)
+    {
+        struct RecordLock *rollback;
+
+        if (!_dos_LockRecord(DOSBase,
+                             recArray->rec_FH,
+                             recArray->rec_Offset,
+                             recArray->rec_Length,
+                             recArray->rec_Mode,
+                             timeout))
+        {
+            rollback = first;
+            while (rollback != recArray)
+            {
+                if (!dos_unlockrecord_internal(rollback->rec_FH,
+                                               rollback->rec_Offset,
+                                               rollback->rec_Length))
+                {
+                    break;
+                }
+
+                rollback++;
+            }
+
+            return DOSFALSE;
+        }
+
+        recArray++;
+    }
+
+    SetIoErr(0);
+    return DOSTRUE;
 }
 
 BOOL _dos_UnLockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -3076,17 +3133,61 @@ BOOL _dos_UnLockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG offset __asm("d2"),
                                                         register ULONG length __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: UnLockRecord() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct FileHandle *fhp;
+
+    (void)DOSBase;
+
+    DPRINTF(LOG_DEBUG,
+            "_dos: UnLockRecord() called fh=0x%08lx offset=%lu length=%lu\n",
+            fh, offset, length);
+
+    fhp = (struct FileHandle *)BADDR(fh);
+    if (!fhp)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return DOSFALSE;
+    }
+
+    if (!emucall3(EMU_CALL_DOS_UNLOCKRECORD, (ULONG)fhp, offset, length))
+    {
+        LONG ioerr = fhp->fh_Arg2;
+        SetIoErr(ioerr ? ioerr : ERROR_ACTION_NOT_KNOWN);
+        return DOSFALSE;
+    }
+
+    SetIoErr(0);
+    return DOSTRUE;
 }
 
 BOOL _dos_UnLockRecords ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct RecordLock * recArray __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: UnLockRecords() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    (void)DOSBase;
+
+    DPRINTF(LOG_DEBUG, "_dos: UnLockRecords(recArray=%p) called.\n",
+            (void *)recArray);
+
+    if (recArray == NULL)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return DOSFALSE;
+    }
+
+    while (recArray->rec_FH != 0)
+    {
+        if (!_dos_UnLockRecord(DOSBase,
+                               recArray->rec_FH,
+                               recArray->rec_Offset,
+                               recArray->rec_Length))
+        {
+            return DOSFALSE;
+        }
+
+        recArray++;
+    }
+
+    SetIoErr(0);
+    return DOSTRUE;
 }
 
 BPTR _dos_SelectInput ( register struct DosLibrary * DOSBase __asm("a6"),
