@@ -296,6 +296,7 @@ void sigalrm_handler(int sig)
  *   - Reference count for DupLock
  */
 #define MAX_LOCKS 256
+#define MAX_RECORD_LOCKS 256
 
 typedef struct lock_entry_s {
     bool in_use;
@@ -307,6 +308,18 @@ typedef struct lock_entry_s {
 } lock_entry_t;
 
 static lock_entry_t g_locks[MAX_LOCKS];
+
+typedef struct record_lock_entry_s {
+    bool in_use;
+    dev_t dev;
+    ino_t ino;
+    uint32_t owner_fh68k;
+    uint64_t offset;
+    uint64_t length;
+    bool exclusive;
+} record_lock_entry_t;
+
+static record_lock_entry_t g_record_locks[MAX_RECORD_LOCKS];
 
 /*
  * Phase 45: Async Timer Queue
@@ -627,6 +640,9 @@ static uint32_t _timer_get_expired(void)
 #define ERROR_READ_PROTECTED     224
 #define ERROR_NOT_A_DOS_DISK     225
 #define ERROR_NO_MORE_ENTRIES    232
+#define ERROR_RECORD_NOT_LOCKED  240
+#define ERROR_LOCK_COLLISION     241
+#define ERROR_LOCK_TIMEOUT       242
 #define ERROR_BUFFER_OVERFLOW    303
 
 #define DVP_DVP_PORT     0
@@ -676,6 +692,115 @@ static lock_entry_t *_lock_get(int lock_id)
     if (lock_id <= 0 || lock_id >= MAX_LOCKS) return NULL;
     if (!g_locks[lock_id].in_use) return NULL;
     return &g_locks[lock_id];
+}
+
+static uint64_t _record_lock_end(uint64_t offset, uint64_t length)
+{
+    if (length > UINT64_MAX - offset)
+    {
+        return UINT64_MAX;
+    }
+
+    return offset + length;
+}
+
+static bool _record_locks_overlap(uint64_t offset_a, uint64_t length_a,
+                                  uint64_t offset_b, uint64_t length_b)
+{
+    uint64_t end_a;
+    uint64_t end_b;
+
+    if (length_a == 0 || length_b == 0)
+    {
+        return false;
+    }
+
+    end_a = _record_lock_end(offset_a, length_a);
+    end_b = _record_lock_end(offset_b, length_b);
+
+    return offset_a < end_b && offset_b < end_a;
+}
+
+static int _record_lock_alloc(void)
+{
+    for (int i = 0; i < MAX_RECORD_LOCKS; i++)
+    {
+        if (!g_record_locks[i].in_use)
+        {
+            memset(&g_record_locks[i], 0, sizeof(g_record_locks[i]));
+            g_record_locks[i].in_use = true;
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+static int _record_lock_find_conflict(dev_t dev, ino_t ino, uint32_t owner_fh68k,
+                                      uint64_t offset, uint64_t length, bool exclusive)
+{
+    for (int i = 0; i < MAX_RECORD_LOCKS; i++)
+    {
+        record_lock_entry_t *entry = &g_record_locks[i];
+
+        if (!entry->in_use)
+        {
+            continue;
+        }
+
+        if (entry->dev != dev || entry->ino != ino)
+        {
+            continue;
+        }
+
+        if (entry->owner_fh68k == owner_fh68k)
+        {
+            continue;
+        }
+
+        if (!_record_locks_overlap(entry->offset, entry->length, offset, length))
+        {
+            continue;
+        }
+
+        if (entry->exclusive || exclusive)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+static bool _record_lock_add(dev_t dev, ino_t ino, uint32_t owner_fh68k,
+                             uint64_t offset, uint64_t length, bool exclusive)
+{
+    int slot = _record_lock_alloc();
+
+    if (slot < 0)
+    {
+        return false;
+    }
+
+    g_record_locks[slot].dev = dev;
+    g_record_locks[slot].ino = ino;
+    g_record_locks[slot].owner_fh68k = owner_fh68k;
+    g_record_locks[slot].offset = offset;
+    g_record_locks[slot].length = length;
+    g_record_locks[slot].exclusive = exclusive;
+
+    return true;
+}
+
+static void _record_lock_release_all(uint32_t owner_fh68k)
+{
+    for (int i = 0; i < MAX_RECORD_LOCKS; i++)
+    {
+        if (g_record_locks[i].in_use && g_record_locks[i].owner_fh68k == owner_fh68k)
+        {
+            g_record_locks[i].in_use = false;
+        }
+    }
 }
 
 /*
@@ -2729,6 +2854,8 @@ static int _dos_close (uint32_t fh68k)
 
     int fd = m68k_read_memory_32 (fh68k+36);
 
+    _record_lock_release_all(fh68k);
+
     close(fd);
 
     DPRINTF (LOG_DEBUG, "lxa: _dos_close(): fh=0x%08x done\n", fh68k);
@@ -2886,6 +3013,86 @@ static uint32_t _dos_duplock(uint32_t lock_id)
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_duplock(): new_lock_id=%d\n", new_lock_id);
     return new_lock_id;
+}
+
+static uint32_t _dos_lockrecord(uint32_t fh68k, uint32_t offset, uint32_t length,
+                                uint32_t mode, uint32_t timeout)
+{
+    int kind;
+    int fd;
+    struct stat st;
+    bool exclusive;
+    bool immediate;
+    uint64_t deadline_us = 0;
+
+    DPRINTF(LOG_DEBUG,
+            "lxa: _dos_lockrecord(): fh=0x%08x offset=%u length=%u mode=%u timeout=%u\n",
+            fh68k, offset, length, mode, timeout);
+
+    if (fh68k == 0)
+    {
+        return 0;
+    }
+
+    kind = m68k_read_memory_32(fh68k + 32);
+    fd = m68k_read_memory_32(fh68k + 36);
+
+    if (mode > 3)
+    {
+        m68k_write_memory_32(fh68k + 40, ERROR_BAD_NUMBER);
+        return 0;
+    }
+
+    if (kind != FILE_KIND_REGULAR)
+    {
+        m68k_write_memory_32(fh68k + 40, ERROR_OBJECT_WRONG_TYPE);
+        return 0;
+    }
+
+    if (fstat(fd, &st) != 0)
+    {
+        m68k_write_memory_32(fh68k + 40, errno2Amiga());
+        return 0;
+    }
+
+    exclusive = (mode == 0 || mode == 1);
+    immediate = (mode == 1 || mode == 3);
+
+    if (!immediate)
+    {
+        deadline_us = _timer_get_time_us() + ((uint64_t)timeout * 20000ULL);
+    }
+
+    for (;;)
+    {
+        if (_record_lock_find_conflict(st.st_dev, st.st_ino, fh68k,
+                                       offset, length, exclusive) < 0)
+        {
+            if (!_record_lock_add(st.st_dev, st.st_ino, fh68k,
+                                  offset, length, exclusive))
+            {
+                m68k_write_memory_32(fh68k + 40, ERROR_NO_FREE_STORE);
+                return 0;
+            }
+
+            m68k_write_memory_32(fh68k + 40, 0);
+            return 1;
+        }
+
+        if (immediate)
+        {
+            m68k_write_memory_32(fh68k + 40, ERROR_LOCK_COLLISION);
+            return 0;
+        }
+
+        if (timeout == 0 || _timer_get_time_us() >= deadline_us)
+        {
+            m68k_write_memory_32(fh68k + 40, ERROR_LOCK_TIMEOUT);
+            return 0;
+        }
+
+        usleep(1000);
+    }
 }
 
 /* FileInfoBlock offsets (from dos/dos.h) */
@@ -5473,6 +5680,22 @@ int op_illg(int level)
                     name, dest, soft, err);
 
             m68k_set_reg(M68K_REG_D0, _dos_makelink(name, dest, soft, err));
+            break;
+        }
+
+        case EMU_CALL_DOS_LOCKRECORD:
+        {
+            uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t offset = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t length = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t mode = m68k_get_reg(NULL, M68K_REG_D4);
+            uint32_t timeout = m68k_get_reg(NULL, M68K_REG_D5);
+
+            DPRINTF(LOG_DEBUG,
+                    "lxa: op_illg(): EMU_CALL_DOS_LOCKRECORD fh=0x%08x offset=%u length=%u mode=%u timeout=%u\n",
+                    fh, offset, length, mode, timeout);
+
+            m68k_set_reg(M68K_REG_D0, _dos_lockrecord(fh, offset, length, mode, timeout));
             break;
         }
 

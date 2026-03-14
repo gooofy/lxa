@@ -129,6 +129,10 @@ TEST_F(DosTest, LockExamine) {
     RunDosTest("LockExamine");
 }
 
+TEST_F(DosTest, LockRecord) {
+    RunDosTest("LockRecord");
+}
+
 TEST_F(DosTest, LockLeak) {
     RunDosTest("LockLeak");
 }

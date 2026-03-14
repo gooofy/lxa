@@ -18,6 +18,7 @@
 #include <exec/memory.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
+#include <dos/record.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <inline/exec.h>
@@ -425,6 +426,7 @@ static int test_dos_library_init_state(void)
 {
     int errors = 0;
     ULONG *task_array;
+    struct DosInfo *dos_info;
 
     print("--- Test: DOS InitLib state ---\n");
 
@@ -464,13 +466,43 @@ static int test_dos_library_init_state(void)
         errors++;
     }
 
-    if (DOSBase->dl_Root && DOSBase->dl_Root->rn_Info != 0)
+    dos_info = (DOSBase->dl_Root && DOSBase->dl_Root->rn_Info != 0)
+        ? (struct DosInfo *)BADDR(DOSBase->dl_Root->rn_Info)
+        : NULL;
+
+    if (dos_info != NULL)
     {
         print("OK: dos.library initialized DosInfo\n");
     }
     else
     {
         print("FAIL: dos.library DosInfo is NULL\n");
+        errors++;
+    }
+
+    if (DOSBase->dl_Root != NULL &&
+        DOSBase->dl_Root->rn_CliList.mlh_Head == (struct MinNode *)&DOSBase->dl_Root->rn_CliList.mlh_Tail &&
+        DOSBase->dl_Root->rn_CliList.mlh_Tail == NULL &&
+        DOSBase->dl_Root->rn_CliList.mlh_TailPred == (struct MinNode *)&DOSBase->dl_Root->rn_CliList.mlh_Head)
+    {
+        print("OK: dos.library initialized an empty CLI list\n");
+    }
+    else
+    {
+        print("FAIL: dos.library CLI list is not initialized like NEWLIST\n");
+        errors++;
+    }
+
+    if (dos_info != NULL &&
+        dos_info->di_DevLock.ss_Link.ln_Type == NT_SIGNALSEM &&
+        dos_info->di_EntryLock.ss_Link.ln_Type == NT_SIGNALSEM &&
+        dos_info->di_DeleteLock.ss_Link.ln_Type == NT_SIGNALSEM)
+    {
+        print("OK: dos.library initialized DosInfo semaphores\n");
+    }
+    else
+    {
+        print("FAIL: dos.library DosInfo semaphore state is not initialized\n");
         errors++;
     }
 
@@ -486,6 +518,39 @@ static int test_dos_library_init_state(void)
         print("FAIL: dos.library private startup pointers should be cleared\n");
         errors++;
     }
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_lockrecord_stub_closed(void)
+{
+    int errors = 0;
+    BPTR fh;
+    BOOL ok;
+
+    print("--- Test: DOS LockRecord entry point ---\n");
+
+    fh = Open((CONST_STRPTR)"library_lockrecord_test.dat", MODE_NEWFILE);
+    if (fh == 0)
+    {
+        print("FAIL: Open() for LockRecord probe failed\n\n");
+        return 1;
+    }
+
+    ok = LockRecord(fh, 0, 1, REC_SHARED_IMMED, 0);
+    if (ok)
+    {
+        print("OK: LockRecord() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: LockRecord() unexpectedly failed\n");
+        errors++;
+    }
+
+    Close(fh);
+    DeleteFile((CONST_STRPTR)"library_lockrecord_test.dat");
 
     print("\n");
     return errors;
@@ -545,6 +610,9 @@ int main(void)
 
     /* Test 6: Verify dos.library InitLib initialized the public DOS base state */
     errors += test_dos_library_init_state();
+
+    /* Test 7: Verify LockRecord no longer hits the stub path */
+    errors += test_dos_lockrecord_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

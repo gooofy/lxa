@@ -3036,9 +3036,30 @@ BOOL _dos_LockRecord ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG mode __asm("d4"),
                                                         register ULONG timeout __asm("d5"))
 {
-    LPRINTF (LOG_ERROR, "_dos: LockRecord() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct FileHandle *fhp;
+    LONG result;
+
+    DPRINTF(LOG_DEBUG,
+            "_dos: LockRecord() called fh=0x%08lx offset=%lu length=%lu mode=%lu timeout=%lu\n",
+            fh, offset, length, mode, timeout);
+
+    fhp = (struct FileHandle *)BADDR(fh);
+    if (!fhp)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return DOSFALSE;
+    }
+
+    result = emucall5(EMU_CALL_DOS_LOCKRECORD, (ULONG)fhp, offset, length, mode, timeout);
+    if (!result)
+    {
+        LONG ioerr = fhp->fh_Arg2;
+        SetIoErr(ioerr ? ioerr : ERROR_ACTION_NOT_KNOWN);
+        return DOSFALSE;
+    }
+
+    SetIoErr(0);
+    return DOSTRUE;
 }
 
 BOOL _dos_LockRecords ( register struct DosLibrary * DOSBase __asm("a6"),

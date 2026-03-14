@@ -133,6 +133,7 @@ set(TESTS_LIST
     "../tests/dos/fileio_advanced|main|Tests/Dos/FileIOAdvanced"
     "../tests/dos/fileio_errors|main|Tests/Dos/FileIOErrors"
     "../tests/dos/lock_examine|main|Tests/Dos/LockExamine"
+    "../tests/dos/lockrecord|main|Tests/Dos/LockRecord"
     "../tests/dos/lock_leak|main|Tests/Dos/LockLeak"
     "../tests/dos/rename_open|main|Tests/Dos/RenameOpen"
     "../tests/dos/seek_console|main|Tests/Dos/SeekConsole"
