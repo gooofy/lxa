@@ -169,8 +169,44 @@ TEST_F(DosTest, GetFileSysTask) {
     RunDosTest("GetFileSysTask");
 }
 
+TEST_F(DosTest, GetArgStr) {
+    RunDosTest("GetArgStr");
+}
+
+TEST_F(DosTest, SetArgStr) {
+    RunDosTest("SetArgStr");
+}
+
 TEST_F(DosTest, SetFileSysTask) {
     RunDosTest("SetFileSysTask");
+}
+
+TEST_F(DosTest, RemDosEntry) {
+    RunDosTest("RemDosEntry");
+}
+
+TEST_F(DosTest, AddDosEntry) {
+    RunDosTest("AddDosEntry");
+}
+
+TEST_F(DosTest, MakeDosEntry) {
+    RunDosTest("MakeDosEntry");
+}
+
+TEST_F(DosTest, FreeDosEntry) {
+    RunDosTest("FreeDosEntry");
+}
+
+TEST_F(DosTest, Format) {
+    RunDosTest("Format");
+}
+
+TEST_F(DosTest, Relabel) {
+    RunDosTest("Relabel");
+}
+
+TEST_F(DosTest, Inhibit) {
+    RunDosTest("Inhibit");
 }
 
 TEST_F(DosTest, LockLeak) {

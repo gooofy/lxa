@@ -539,6 +539,39 @@ static void input_buf_clear(struct LxaConUnit *unit)
     unit->input_tail = 0;
 }
 
+LONG _console_SetMode(struct IOStdReq *iostd, LONG mode)
+{
+    struct LxaConUnit *unit;
+
+    if (!iostd) {
+        return FALSE;
+    }
+
+    unit = (struct LxaConUnit *)iostd->io_Unit;
+    if (!unit) {
+        return FALSE;
+    }
+
+    switch (mode) {
+        case 0:
+        case 2:
+            unit->line_mode = TRUE;
+            break;
+
+        case 1:
+            if (unit->line_mode) {
+                input_buf_clear(unit);
+            }
+            unit->line_mode = FALSE;
+            break;
+
+        default:
+            return FALSE;
+    }
+
+    return TRUE;
+}
+
 static BOOL console_input_ready(struct LxaConUnit *unit)
 {
     if (!unit) {

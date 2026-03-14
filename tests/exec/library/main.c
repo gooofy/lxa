@@ -953,6 +953,336 @@ static int test_dos_setfilesystask_stub_closed(void)
     return errors;
 }
 
+static int test_dos_getargstr_stub_closed(void)
+{
+    int errors = 0;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    STRPTR old_argstr;
+    static char probe_args[] = "exec library arg string";
+
+    print("--- Test: DOS GetArgStr entry point ---\n");
+
+    old_argstr = me->pr_Arguments;
+    me->pr_Arguments = probe_args;
+
+    if (GetArgStr() == (STRPTR)probe_args)
+    {
+        print("OK: GetArgStr() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: GetArgStr() returned the wrong pointer\n");
+        errors++;
+    }
+
+    me->pr_Arguments = old_argstr;
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_setargstr_stub_closed(void)
+{
+    int errors = 0;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    STRPTR old_argstr;
+    STRPTR previous;
+    static char probe_args[] = "exec library set arg string";
+
+    print("--- Test: DOS SetArgStr entry point ---\n");
+
+    old_argstr = me->pr_Arguments;
+    previous = SetArgStr(probe_args);
+
+    if (previous == old_argstr && me->pr_Arguments == (STRPTR)probe_args)
+    {
+        print("OK: SetArgStr() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: SetArgStr() returned or stored the wrong pointer\n");
+        errors++;
+    }
+
+    SetArgStr(old_argstr);
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_remdosentry_stub_closed(void)
+{
+    int errors = 0;
+    struct RootNode *root;
+    struct DosInfo *dos_info;
+    BPTR old_head;
+    struct DosList *node;
+
+    print("--- Test: DOS RemDosEntry entry point ---\n");
+
+    if (!DOSBase || !DOSBase->dl_Root)
+    {
+        print("FAIL: DOS root node is not initialized\n\n");
+        return 1;
+    }
+
+    root = DOSBase->dl_Root;
+    dos_info = (struct DosInfo *)BADDR(root->rn_Info);
+    if (!dos_info)
+    {
+        print("FAIL: DOS info is not initialized\n\n");
+        return 1;
+    }
+
+    node = (struct DosList *)AllocMem(sizeof(*node), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!node)
+    {
+        print("FAIL: Could not allocate probe DosList node for RemDosEntry\n\n");
+        return 1;
+    }
+
+    old_head = dos_info->di_DevInfo;
+    dos_info->di_DevInfo = MKBADDR(node);
+
+    if (RemDosEntry(node) && dos_info->di_DevInfo == 0)
+    {
+        print("OK: RemDosEntry() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: RemDosEntry() did not unlink the probe node\n");
+        errors++;
+    }
+
+    dos_info->di_DevInfo = old_head;
+    FreeMem(node, sizeof(*node));
+
+    print("\n");
+    return errors;
+}
+
+static BSTR alloc_bstr(const char *name)
+{
+    ULONG len = 0;
+    UBYTE *buffer;
+    ULONG i;
+
+    while (name[len])
+        len++;
+
+    buffer = (UBYTE *)AllocMem(len + 2, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!buffer)
+        return 0;
+
+    buffer[0] = (UBYTE)len;
+    for (i = 0; i < len; i++)
+        buffer[i + 1] = (UBYTE)name[i];
+
+    return MKBADDR(buffer);
+}
+
+static void free_bstr(BSTR bstr)
+{
+    UBYTE *buffer = (UBYTE *)BADDR(bstr);
+
+    if (buffer)
+        FreeMem(buffer, buffer[0] + 2);
+}
+
+static int test_dos_adddosentry_stub_closed(void)
+{
+    int errors = 0;
+    struct RootNode *root;
+    struct DosInfo *dos_info;
+    BPTR old_head;
+    struct DosList *node;
+    BSTR name;
+
+    print("--- Test: DOS AddDosEntry entry point ---\n");
+
+    if (!DOSBase || !DOSBase->dl_Root)
+    {
+        print("FAIL: DOS root node is not initialized\n\n");
+        return 1;
+    }
+
+    root = DOSBase->dl_Root;
+    dos_info = (struct DosInfo *)BADDR(root->rn_Info);
+    if (!dos_info)
+    {
+        print("FAIL: DOS info is not initialized\n\n");
+        return 1;
+    }
+
+    node = (struct DosList *)AllocMem(sizeof(*node), MEMF_PUBLIC | MEMF_CLEAR);
+    name = alloc_bstr("EXECADDDOS");
+    if (!node || !name)
+    {
+        print("FAIL: Could not allocate probe DosList node for AddDosEntry\n\n");
+        if (name)
+            free_bstr(name);
+        if (node)
+            FreeMem(node, sizeof(*node));
+        return 1;
+    }
+
+    node->dol_Type = DLT_DEVICE;
+    node->dol_Name = name;
+
+    old_head = dos_info->di_DevInfo;
+    dos_info->di_DevInfo = 0;
+
+    if (AddDosEntry(node) == DOSTRUE && BADDR(dos_info->di_DevInfo) == node && node->dol_Next == 0)
+    {
+        print("OK: AddDosEntry() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: AddDosEntry() did not insert the probe node\n");
+        errors++;
+    }
+
+    dos_info->di_DevInfo = old_head;
+    free_bstr(name);
+    FreeMem(node, sizeof(*node));
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_makedosentry_stub_closed(void)
+{
+    int errors = 0;
+    struct DosList *node;
+    UBYTE *name;
+
+    print("--- Test: DOS MakeDosEntry entry point ---\n");
+
+    node = MakeDosEntry((CONST_STRPTR)"EXECMAKEDOS", DLT_DEVICE);
+    if (!node)
+    {
+        print("FAIL: MakeDosEntry() returned NULL\n\n");
+        return 1;
+    }
+
+    name = (UBYTE *)BADDR(node->dol_Name);
+    if (node->dol_Type == DLT_DEVICE && node->dol_Next == 0 && name != NULL &&
+        name[0] == 11 && name[1] == 'E' && name[11] == 'S' && name[12] == '\0')
+    {
+        print("OK: MakeDosEntry() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: MakeDosEntry() did not initialize the probe node correctly\n");
+        errors++;
+    }
+
+    if (node->dol_Name)
+        FreeVec((APTR)BADDR(node->dol_Name));
+    FreeVec(node);
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_freedosentry_stub_closed(void)
+{
+    int errors = 0;
+    struct DosList *node;
+
+    print("--- Test: DOS FreeDosEntry entry point ---\n");
+
+    node = MakeDosEntry((CONST_STRPTR)"EXECFREEDOS", DLT_DEVICE);
+    if (!node)
+    {
+        print("FAIL: MakeDosEntry() returned NULL for FreeDosEntry probe\n\n");
+        return 1;
+    }
+
+    SetIoErr(ERROR_OBJECT_NOT_FOUND);
+    FreeDosEntry(node);
+    if (IoErr() == ERROR_OBJECT_NOT_FOUND)
+    {
+        print("OK: FreeDosEntry() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: FreeDosEntry() changed IoErr unexpectedly\n");
+        errors++;
+    }
+
+    FreeDosEntry(NULL);
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_format_stub_closed(void)
+{
+    int errors = 0;
+    BOOL ok;
+
+    print("--- Test: DOS Format entry point ---\n");
+
+    ok = Format((CONST_STRPTR)"HOME:", (CONST_STRPTR)"LIBFORMAT", ID_DOS_DISK);
+    if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
+    {
+        print("OK: Format() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: Format() did not fail through the public path as expected\n");
+        errors++;
+    }
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_relabel_stub_closed(void)
+{
+    int errors = 0;
+    BOOL ok;
+
+    print("--- Test: DOS Relabel entry point ---\n");
+
+    ok = Relabel((CONST_STRPTR)"HOME:", (CONST_STRPTR)"LIBRELABEL");
+    if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
+    {
+        print("OK: Relabel() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: Relabel() did not fail through the public path as expected\n");
+        errors++;
+    }
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_inhibit_stub_closed(void)
+{
+    int errors = 0;
+    BOOL ok;
+
+    print("--- Test: DOS Inhibit entry point ---\n");
+
+    ok = Inhibit((CONST_STRPTR)"HOME:", DOSTRUE);
+    if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
+    {
+        print("OK: Inhibit() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: Inhibit() did not fail through the public path as expected\n");
+        errors++;
+    }
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -1043,6 +1373,33 @@ int main(void)
 
     /* Test 18: Verify SetFileSysTask no longer hits the stub path */
     errors += test_dos_setfilesystask_stub_closed();
+
+    /* Test 19: Verify GetArgStr no longer hits the stub path */
+    errors += test_dos_getargstr_stub_closed();
+
+    /* Test 20: Verify SetArgStr no longer hits the stub path */
+    errors += test_dos_setargstr_stub_closed();
+
+    /* Test 21: Verify RemDosEntry no longer hits the stub path */
+    errors += test_dos_remdosentry_stub_closed();
+
+    /* Test 22: Verify AddDosEntry no longer hits the stub path */
+    errors += test_dos_adddosentry_stub_closed();
+
+    /* Test 23: Verify MakeDosEntry no longer hits the stub path */
+    errors += test_dos_makedosentry_stub_closed();
+
+    /* Test 24: Verify FreeDosEntry no longer hits the stub path */
+    errors += test_dos_freedosentry_stub_closed();
+
+    /* Test 25: Verify Format no longer hits the stub path */
+    errors += test_dos_format_stub_closed();
+
+    /* Test 26: Verify Relabel no longer hits the stub path */
+    errors += test_dos_relabel_stub_closed();
+
+    /* Test 27: Verify Inhibit no longer hits the stub path */
+    errors += test_dos_inhibit_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

@@ -145,6 +145,18 @@ protected:
             RunCyclesWithVBlank(10);
             SlowTypeString("test\n");
             RunCyclesWithVBlank(30);
+        } else if (strcmp(name, "setmode") == 0) {
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for RAW input: a", 8000));
+            RunCyclesWithVBlank(10);
+            SlowTypeString("a");
+            RunCyclesWithVBlank(20);
+
+            ASSERT_TRUE(WaitForOutputContains("Waiting for RAW input after CON mode: b", 8000));
+            RunCyclesWithVBlank(10);
+            SlowTypeString("b");
+            RunCyclesWithVBlank(30);
         }
         
         lxa_run_until_exit(timeout_ms);
@@ -171,6 +183,7 @@ TEST_F(ConsoleTest, ConsoleAsync) {
     EXPECT_NE(output.find("PASS"), std::string::npos);
 }
 TEST_F(ConsoleTest, ConHandler) { RunConsoleTest("con_handler"); }
+TEST_F(ConsoleTest, SetMode) { RunConsoleTest("setmode"); }
 TEST_F(ConsoleTest, KP2Test) { RunConsoleTest("kp2_test"); }
 TEST_F(ConsoleTest, InputInject) { RunConsoleTest("input_inject"); }
 TEST_F(ConsoleTest, InputConsole) { RunConsoleTest("input_console"); }

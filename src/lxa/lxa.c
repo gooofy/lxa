@@ -49,6 +49,7 @@ static int32_t compare_double_values(double left, double right);
 static int32_t compare_float_values(float left, float right);
 static double host_safe_double_divide(double dividend, double divisor);
 static float host_safe_float_divide(float dividend, float divisor);
+static int errno2Amiga(void);
 
 #ifdef SDL2_FOUND
 #include <SDL.h>
@@ -146,6 +147,12 @@ static float host_safe_float_divide(float dividend, float divisor);
 #define MODE_OLDFILE        1005
 #define MODE_NEWFILE        1006
 #define MODE_READWRITE      1004
+
+#define SHARED_LOCK         -2
+#define EXCLUSIVE_LOCK      -1
+
+#define CHANGE_LOCK         0
+#define CHANGE_FH           1
 
 #define OFFSET_BEGINNING    -1
 #define OFFSET_CURRENT       0
@@ -305,6 +312,7 @@ typedef struct lock_entry_s {
     DIR *dir;           /* For directory iteration */
     int refcount;       /* For DupLock */
     bool is_dir;        /* True if lock is on a directory */
+    int32_t access_mode;
 } lock_entry_t;
 
 static lock_entry_t g_locks[MAX_LOCKS];
@@ -793,7 +801,7 @@ static bool _record_lock_add(dev_t dev, ino_t ino, uint32_t owner_fh68k,
 }
 
 static bool _record_lock_remove(dev_t dev, ino_t ino, uint32_t owner_fh68k,
-                                uint64_t offset, uint64_t length)
+                                 uint64_t offset, uint64_t length)
 {
     for (int i = 0; i < MAX_RECORD_LOCKS; i++)
     {
@@ -823,6 +831,155 @@ static bool _record_lock_remove(dev_t dev, ino_t ino, uint32_t owner_fh68k,
         return true;
     }
 
+    return false;
+}
+
+static bool _dos_lock_info_from_fh(uint32_t fh68k, dev_t *dev_out, ino_t *ino_out)
+{
+    int fd;
+    int kind;
+    struct stat st;
+
+    if (fh68k == 0 || !dev_out || !ino_out)
+    {
+        return false;
+    }
+
+    kind = m68k_read_memory_32(fh68k + 32);
+    fd = m68k_read_memory_32(fh68k + 36);
+
+    if (kind != FILE_KIND_REGULAR)
+    {
+        return false;
+    }
+
+    if (fstat(fd, &st) != 0)
+    {
+        return false;
+    }
+
+    *dev_out = st.st_dev;
+    *ino_out = st.st_ino;
+    return true;
+}
+
+static bool _dos_change_mode(uint32_t type, uint32_t object, int32_t new_mode, uint32_t err68k)
+{
+    dev_t dev;
+    ino_t ino;
+    lock_entry_t *lock;
+    uint32_t fh68k;
+    uint32_t lock_id;
+    uint32_t err = 0;
+
+    DPRINTF(LOG_DEBUG,
+            "lxa: _dos_change_mode(): type=%u object=0x%08x new_mode=%d err=0x%08x\n",
+            type, object, new_mode, err68k);
+
+    if (type != CHANGE_LOCK && type != CHANGE_FH)
+    {
+        err = ERROR_BAD_NUMBER;
+        goto fail;
+    }
+
+    if (new_mode != SHARED_LOCK && new_mode != EXCLUSIVE_LOCK)
+    {
+        err = ERROR_BAD_NUMBER;
+        goto fail;
+    }
+
+    if (type == CHANGE_FH)
+    {
+        fh68k = object << 2;
+        if (!_dos_lock_info_from_fh(fh68k, &dev, &ino))
+        {
+            err = ERROR_OBJECT_WRONG_TYPE;
+            goto fail;
+        }
+    }
+    else
+    {
+        lock_id = object;
+        lock = _lock_get(lock_id);
+        if (!lock)
+        {
+            err = ERROR_INVALID_LOCK;
+            goto fail;
+        }
+
+        {
+            struct stat st;
+            if (stat(lock->linux_path, &st) != 0)
+            {
+                err = errno2Amiga();
+                goto fail;
+            }
+            dev = st.st_dev;
+            ino = st.st_ino;
+        }
+    }
+
+    if (new_mode == EXCLUSIVE_LOCK)
+    {
+        for (int i = 0; i < MAX_LOCKS; i++)
+        {
+            lock_entry_t *entry = &g_locks[i];
+            struct stat st;
+
+            if (!entry->in_use)
+            {
+                continue;
+            }
+
+            if (type == CHANGE_LOCK && i == (int)object)
+            {
+                continue;
+            }
+
+            if (stat(entry->linux_path, &st) != 0)
+            {
+                continue;
+            }
+
+            if (st.st_dev == dev && st.st_ino == ino)
+            {
+                err = ERROR_OBJECT_IN_USE;
+                goto fail;
+            }
+        }
+    }
+
+    if (type == CHANGE_FH)
+    {
+        DPRINTF(LOG_DEBUG, "lxa: _dos_change_mode(): fh change accepted\n");
+    }
+    else
+    {
+        lock = _lock_get(object);
+        if (!lock)
+        {
+            err = ERROR_INVALID_LOCK;
+            goto fail;
+        }
+
+        lock->access_mode = new_mode;
+        DPRINTF(LOG_DEBUG, "lxa: _dos_change_mode(): lock %u access now %d\n", object, new_mode);
+    }
+
+    if (err68k)
+    {
+        m68k_write_memory_32(err68k, 0);
+    }
+
+    return true;
+
+fail:
+    if (err68k)
+    {
+        m68k_write_memory_32(err68k, err);
+    }
+
+    DPRINTF(LOG_DEBUG, "lxa: _dos_change_mode(): fail err=%u\n", err);
     return false;
 }
 
@@ -3005,6 +3162,7 @@ static uint32_t _dos_lock(uint32_t name68k, int32_t mode)
     strncpy(lock->amiga_path, amiga_path, sizeof(lock->amiga_path) - 1);
     lock->is_dir = S_ISDIR(st.st_mode);
     lock->dir = NULL;
+    lock->access_mode = mode;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_lock: allocated lock_id=%d\n", lock_id);
     
@@ -3044,6 +3202,7 @@ static uint32_t _dos_duplock(uint32_t lock_id)
     strncpy(new_lock->amiga_path, lock->amiga_path, sizeof(new_lock->amiga_path) - 1);
     new_lock->is_dir = lock->is_dir;
     new_lock->dir = NULL;
+    new_lock->access_mode = lock->access_mode;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_duplock(): new_lock_id=%d\n", new_lock_id);
     return new_lock_id;
@@ -3502,6 +3661,7 @@ static uint32_t _dos_parentdir(uint32_t lock_id)
     strncpy(new_lock->amiga_path, parent_amiga, sizeof(new_lock->amiga_path) - 1);
     new_lock->is_dir = true;
     new_lock->dir = NULL;
+    new_lock->access_mode = SHARED_LOCK;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_parentdir(): parent=%s, amiga=%s, new_lock_id=%d\n", parent_path, parent_amiga, new_lock_id);
     return new_lock_id;
@@ -3533,6 +3693,7 @@ static uint32_t _dos_createdir(uint32_t name68k)
     strncpy(lock->amiga_path, amiga_path, sizeof(lock->amiga_path) - 1);
     lock->is_dir = true;
     lock->dir = NULL;
+    lock->access_mode = EXCLUSIVE_LOCK;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_createdir(): success, lock_id=%d\n", lock_id);
     return lock_id;
@@ -4498,9 +4659,10 @@ static uint32_t _dos_duplockfromfh(uint32_t fh68k)
     char amiga_path[PATH_MAX];
     _linux_path_to_amiga(linux_path, amiga_path, sizeof(amiga_path));
     strncpy(lock->amiga_path, amiga_path, sizeof(lock->amiga_path) - 1);
-    
+
     lock->is_dir = S_ISDIR(st.st_mode);
     lock->dir = NULL;
+    lock->access_mode = SHARED_LOCK;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_duplockfromfh(): returning lock_id=%d\n", lock_id);
     return lock_id;
@@ -4667,9 +4829,10 @@ static uint32_t _dos_parentoffh(uint32_t fh68k)
     char amiga_path[PATH_MAX];
     _linux_path_to_amiga(linux_path, amiga_path, sizeof(amiga_path));
     strncpy(lock->amiga_path, amiga_path, sizeof(lock->amiga_path) - 1);
-    
+
     lock->is_dir = TRUE;
     lock->dir = NULL;
+    lock->access_mode = SHARED_LOCK;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_parentoffh(): returning lock_id=%d\n", lock_id);
     return lock_id;
@@ -5784,6 +5947,21 @@ int op_illg(int level)
                     fh, offset, length);
 
             m68k_set_reg(M68K_REG_D0, _dos_unlockrecord(fh, offset, length));
+            break;
+        }
+
+        case EMU_CALL_DOS_CHANGEMODE:
+        {
+            uint32_t type = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t object = m68k_get_reg(NULL, M68K_REG_D2);
+            int32_t new_mode = (int32_t)m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t err = m68k_get_reg(NULL, M68K_REG_D4);
+
+            DPRINTF(LOG_DEBUG,
+                    "lxa: op_illg(): EMU_CALL_DOS_CHANGEMODE type=%u object=0x%08x new_mode=%d err=0x%08x\n",
+                    type, object, new_mode, err);
+
+            m68k_set_reg(M68K_REG_D0, _dos_change_mode(type, object, new_mode, err));
             break;
         }
 

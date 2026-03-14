@@ -114,7 +114,9 @@ extern LONG _console_SetMode(struct IOStdReq *iostd, LONG mode);
 static void lxa_dos_sprintf_hook(register UBYTE ch __asm("d0"),
                                  register STRPTR *cursor __asm("a3"));
 
+static BSTR lxa_dos_alloc_name_bstr(CONST_STRPTR name);
 static BOOL lxa_dos_copy_bstr(BSTR bstr, STRPTR buffer, ULONG size);
+static BOOL lxa_dos_bstr_case_equal(BSTR left, BSTR right);
 static BOOL lxa_dos_copy_until(CONST_STRPTR src, STRPTR dst, ULONG size, char stop);
 static BOOL lxa_dos_extract_volume_name(CONST_STRPTR name, STRPTR buffer, ULONG size);
 static BOOL lxa_dos_lookup_device_name(struct MsgPort *task, STRPTR buffer, ULONG size);
@@ -1348,6 +1350,40 @@ static void lxa_dos_sprintf_hook(register UBYTE ch __asm("d0"),
     (*cursor)++;
 }
 
+static BSTR lxa_dos_alloc_name_bstr(CONST_STRPTR name)
+{
+    ULONG len = 0;
+    ULONG copy_len;
+    UBYTE *buffer;
+
+    if (!name)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return 0;
+    }
+
+    while (name[len] != '\0')
+        len++;
+
+    copy_len = len;
+    if (copy_len > 255)
+        copy_len = 255;
+
+    buffer = (UBYTE *)AllocVec(copy_len + 2, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!buffer)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return 0;
+    }
+
+    buffer[0] = (UBYTE)copy_len;
+    if (copy_len > 0)
+        CopyMem((APTR)name, buffer + 1, copy_len);
+    buffer[copy_len + 1] = '\0';
+
+    return MKBADDR(buffer);
+}
+
 static BOOL lxa_dos_copy_bstr(BSTR bstr, STRPTR buffer, ULONG size)
 {
     UBYTE *src;
@@ -1371,6 +1407,39 @@ static BOOL lxa_dos_copy_bstr(BSTR bstr, STRPTR buffer, ULONG size)
         buffer[i] = src[i + 1];
 
     buffer[len] = '\0';
+    return TRUE;
+}
+
+static BOOL lxa_dos_bstr_case_equal(BSTR left, BSTR right)
+{
+    UBYTE *left_str = (UBYTE *)BADDR(left);
+    UBYTE *right_str = (UBYTE *)BADDR(right);
+    ULONG left_len;
+    ULONG right_len;
+    ULONG i;
+
+    if (!left_str || !right_str)
+        return left_str == right_str;
+
+    left_len = left_str[0];
+    right_len = right_str[0];
+    if (left_len != right_len)
+        return FALSE;
+
+    for (i = 0; i < left_len; i++)
+    {
+        UBYTE left_ch = left_str[i + 1];
+        UBYTE right_ch = right_str[i + 1];
+
+        if (left_ch >= 'a' && left_ch <= 'z')
+            left_ch -= 'a' - 'A';
+        if (right_ch >= 'a' && right_ch <= 'z')
+            right_ch -= 'a' - 'A';
+
+        if (left_ch != right_ch)
+            return FALSE;
+    }
+
     return TRUE;
 }
 
@@ -5159,17 +5228,33 @@ struct MsgPort * _dos_SetFileSysTask ( register struct DosLibrary * DOSBase __as
 
 STRPTR _dos_GetArgStr ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: GetArgStr() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct Task *me = FindTask(NULL);
+
+    (void)DOSBase;
+
+    if (!me || me->tc_Node.ln_Type != NT_PROCESS)
+        return NULL;
+
+    return ((struct Process *)me)->pr_Arguments;
 }
 
-BOOL _dos_SetArgStr ( register struct DosLibrary * DOSBase __asm("a6"),
+STRPTR _dos_SetArgStr ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR string __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetArgStr() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct Task *me = FindTask(NULL);
+    struct Process *process;
+    STRPTR old_string;
+
+    (void)DOSBase;
+
+    if (!me || me->tc_Node.ln_Type != NT_PROCESS)
+        return NULL;
+
+    process = (struct Process *)me;
+    old_string = process->pr_Arguments;
+    process->pr_Arguments = (STRPTR)string;
+
+    return old_string;
 }
 
 struct Process * _dos_FindCliProc ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -5915,17 +6000,99 @@ struct DosList * _dos_AttemptLockDosList ( register struct DosLibrary * DOSBase 
 BOOL _dos_RemDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosList * dlist __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: RemDosEntry() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct RootNode *root;
+    struct DosInfo *dos_info;
+    struct DosList *current;
+
+    (void)DOSBase;
+
+    if (!dlist)
+        return FALSE;
+
+    root = initRootNode();
+    if (!root)
+        return FALSE;
+
+    dos_info = (struct DosInfo *)BADDR(root->rn_Info);
+    if (!dos_info)
+        return FALSE;
+
+    ObtainSemaphore(&dos_info->di_DevLock);
+
+    current = (struct DosList *)BADDR(dos_info->di_DevInfo);
+    if (current == dlist)
+    {
+        dos_info->di_DevInfo = dlist->dol_Next;
+        ReleaseSemaphore(&dos_info->di_DevLock);
+        return TRUE;
+    }
+
+    while (current)
+    {
+        struct DosList *next = (struct DosList *)BADDR(current->dol_Next);
+
+        if (next == dlist)
+        {
+            current->dol_Next = dlist->dol_Next;
+            ReleaseSemaphore(&dos_info->di_DevLock);
+            return TRUE;
+        }
+
+        current = next;
+    }
+
+    ReleaseSemaphore(&dos_info->di_DevLock);
     return FALSE;
 }
 
 LONG _dos_AddDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosList * dlist __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: AddDosEntry() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct RootNode *root;
+    struct DosInfo *dos_info;
+    struct DosList *current;
+
+    (void)DOSBase;
+
+    if (!dlist)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    root = initRootNode();
+    if (!root)
+        return DOSFALSE;
+
+    dos_info = (struct DosInfo *)BADDR(root->rn_Info);
+    if (!dos_info)
+        return DOSFALSE;
+
+    ObtainSemaphore(&dos_info->di_DevLock);
+
+    if (dlist->dol_Type != DLT_VOLUME)
+    {
+        current = (struct DosList *)BADDR(dos_info->di_DevInfo);
+        while (current)
+        {
+            if (current->dol_Type != DLT_VOLUME &&
+                lxa_dos_bstr_case_equal(current->dol_Name, dlist->dol_Name))
+            {
+                ReleaseSemaphore(&dos_info->di_DevLock);
+                SetIoErr(ERROR_OBJECT_EXISTS);
+                return DOSFALSE;
+            }
+
+            current = (struct DosList *)BADDR(current->dol_Next);
+        }
+    }
+
+    dlist->dol_Next = dos_info->di_DevInfo;
+    dos_info->di_DevInfo = MKBADDR(dlist);
+
+    ReleaseSemaphore(&dos_info->di_DevLock);
+    SetIoErr(0);
+    return DOSTRUE;
 }
 
 struct DosList * _dos_FindDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -6026,16 +6193,41 @@ struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * DOSBase __asm(
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG type __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: MakeDosEntry() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct DosList *dlist;
+
+    (void)DOSBase;
+
+    dlist = (struct DosList *)AllocVec(sizeof(*dlist), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!dlist)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
+
+    dlist->dol_Name = lxa_dos_alloc_name_bstr(name);
+    if (dlist->dol_Name == 0)
+    {
+        FreeVec(dlist);
+        return NULL;
+    }
+
+    dlist->dol_Type = type;
+    SetIoErr(0);
+    return dlist;
 }
 
 VOID _dos_FreeDosEntry ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosList * dlist __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: FreeDosEntry() unimplemented STUB called.\n");
-    assert(FALSE);
+    (void)DOSBase;
+
+    if (!dlist)
+        return;
+
+    if (dlist->dol_Name)
+        FreeVec((APTR)BADDR(dlist->dol_Name));
+
+    FreeVec(dlist);
 }
 
 BOOL _dos_IsFileSystem ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -6123,27 +6315,212 @@ BOOL _dos_Format ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR volumename __asm("d2"),
                                                         register ULONG dostype __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: Format() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct DevProc *dvp;
+    BSTR volume_bstr;
+    LONG status;
+    CONST_STRPTR p;
+
+    if (!filesystem || !volumename)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    for (p = filesystem; *p != '\0'; p++)
+    {
+        if (*p == ':')
+            break;
+    }
+
+    if (*p != ':')
+    {
+        SetIoErr(ERROR_INVALID_COMPONENT_NAME);
+        return DOSFALSE;
+    }
+
+    for (p = volumename; *p != '\0'; p++)
+    {
+        if (*p == ':')
+        {
+            SetIoErr(ERROR_INVALID_COMPONENT_NAME);
+            return DOSFALSE;
+        }
+    }
+
+    dvp = _dos_GetDeviceProc(DOSBase, filesystem, NULL);
+    if (!dvp)
+        return DOSFALSE;
+
+    if (dvp->dvp_Flags & DVPF_ASSIGN)
+    {
+        _dos_FreeDeviceProc(DOSBase, dvp);
+        SetIoErr(ERROR_DEVICE_NOT_MOUNTED);
+        return DOSFALSE;
+    }
+
+    volume_bstr = lxa_dos_alloc_name_bstr(volumename);
+    if (!volume_bstr)
+    {
+        _dos_FreeDeviceProc(DOSBase, dvp);
+        return DOSFALSE;
+    }
+
+    if (!dvp->dvp_Port)
+    {
+        FreeVec((APTR)BADDR(volume_bstr));
+        _dos_FreeDeviceProc(DOSBase, dvp);
+        SetIoErr(ERROR_ACTION_NOT_KNOWN);
+        return DOSFALSE;
+    }
+
+    status = _dos_DoPkt(DOSBase,
+                        dvp->dvp_Port,
+                        ACTION_FORMAT,
+                        (LONG)volume_bstr,
+                        (LONG)dostype,
+                        0,
+                        0,
+                        0);
+
+    FreeVec((APTR)BADDR(volume_bstr));
+    _dos_FreeDeviceProc(DOSBase, dvp);
+
+    return status;
 }
 
 LONG _dos_Relabel ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR drive __asm("d1"),
                                                         register CONST_STRPTR newname __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: Relabel() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct DevProc *dvp;
+    BSTR newname_bstr;
+    LONG status;
+    CONST_STRPTR p;
+
+    if (!drive || !newname)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    for (p = drive; *p != '\0'; p++)
+    {
+        if (*p == ':')
+            break;
+    }
+
+    if (*p != ':')
+    {
+        SetIoErr(ERROR_INVALID_COMPONENT_NAME);
+        return DOSFALSE;
+    }
+
+    for (p = newname; *p != '\0'; p++)
+    {
+        if (*p == ':')
+        {
+            SetIoErr(ERROR_INVALID_COMPONENT_NAME);
+            return DOSFALSE;
+        }
+    }
+
+    dvp = _dos_GetDeviceProc(DOSBase, drive, NULL);
+    if (!dvp)
+        return DOSFALSE;
+
+    if (dvp->dvp_Flags & DVPF_ASSIGN)
+    {
+        _dos_FreeDeviceProc(DOSBase, dvp);
+        SetIoErr(ERROR_DEVICE_NOT_MOUNTED);
+        return DOSFALSE;
+    }
+
+    newname_bstr = lxa_dos_alloc_name_bstr(newname);
+    if (!newname_bstr)
+    {
+        _dos_FreeDeviceProc(DOSBase, dvp);
+        return DOSFALSE;
+    }
+
+    if (!dvp->dvp_Port)
+    {
+        FreeVec((APTR)BADDR(newname_bstr));
+        _dos_FreeDeviceProc(DOSBase, dvp);
+        SetIoErr(ERROR_ACTION_NOT_KNOWN);
+        return DOSFALSE;
+    }
+
+    status = _dos_DoPkt(DOSBase,
+                        dvp->dvp_Port,
+                        ACTION_RENAME_DISK,
+                        (LONG)newname_bstr,
+                        0,
+                        0,
+                        0,
+                        0);
+
+    FreeVec((APTR)BADDR(newname_bstr));
+    _dos_FreeDeviceProc(DOSBase, dvp);
+
+    return status;
 }
 
 LONG _dos_Inhibit ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG onoff __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: Inhibit() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct DevProc *dvp;
+    LONG status;
+    CONST_STRPTR p;
+
+    if (!name)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    for (p = name; *p != '\0'; p++)
+    {
+        if (*p == ':')
+            break;
+    }
+
+    if (*p != ':')
+    {
+        SetIoErr(ERROR_INVALID_COMPONENT_NAME);
+        return DOSFALSE;
+    }
+
+    dvp = _dos_GetDeviceProc(DOSBase, name, NULL);
+    if (!dvp)
+        return DOSFALSE;
+
+    if (dvp->dvp_Flags & DVPF_ASSIGN)
+    {
+        _dos_FreeDeviceProc(DOSBase, dvp);
+        SetIoErr(ERROR_DEVICE_NOT_MOUNTED);
+        return DOSFALSE;
+    }
+
+    if (!dvp->dvp_Port)
+    {
+        _dos_FreeDeviceProc(DOSBase, dvp);
+        SetIoErr(ERROR_ACTION_NOT_KNOWN);
+        return DOSFALSE;
+    }
+
+    status = _dos_DoPkt(DOSBase,
+                        dvp->dvp_Port,
+                        ACTION_INHIBIT,
+                        onoff,
+                        0,
+                        0,
+                        0,
+                        0);
+
+    _dos_FreeDeviceProc(DOSBase, dvp);
+
+    return status;
 }
 
 LONG _dos_AddBuffers ( register struct DosLibrary * DOSBase __asm("a6"),
