@@ -142,6 +142,7 @@ set(TESTS_LIST
     "../tests/dos/errorreport|main|Tests/Dos/ErrorReport"
     "../tests/dos/getconsoletask|main|Tests/Dos/GetConsoleTask"
     "../tests/dos/setconsoletask|main|Tests/Dos/SetConsoleTask"
+    "../tests/dos/getfilesystask|main|Tests/Dos/GetFileSysTask"
     "../tests/dos/lock_leak|main|Tests/Dos/LockLeak"
     "../tests/dos/rename_open|main|Tests/Dos/RenameOpen"
     "../tests/dos/seek_console|main|Tests/Dos/SeekConsole"

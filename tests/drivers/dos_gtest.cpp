@@ -165,6 +165,10 @@ TEST_F(DosTest, SetConsoleTask) {
     RunDosTest("SetConsoleTask");
 }
 
+TEST_F(DosTest, GetFileSysTask) {
+    RunDosTest("GetFileSysTask");
+}
+
 TEST_F(DosTest, LockLeak) {
     RunDosTest("LockLeak");
 }

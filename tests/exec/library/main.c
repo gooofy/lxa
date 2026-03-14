@@ -880,6 +880,42 @@ static int test_dos_setconsoletask_stub_closed(void)
     return errors;
 }
 
+static int test_dos_getfilesystask_stub_closed(void)
+{
+    int errors = 0;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct MsgPort *probe_port;
+    struct MsgPort *old_filesystem_task;
+
+    print("--- Test: DOS GetFileSysTask entry point ---\n");
+
+    probe_port = CreateMsgPort();
+    if (!probe_port)
+    {
+        print("FAIL: Could not allocate probe port for GetFileSysTask\n\n");
+        return 1;
+    }
+
+    old_filesystem_task = (struct MsgPort *)me->pr_FileSystemTask;
+    me->pr_FileSystemTask = probe_port;
+
+    if (GetFileSysTask() == probe_port)
+    {
+        print("OK: GetFileSysTask() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: GetFileSysTask() returned the wrong port\n");
+        errors++;
+    }
+
+    me->pr_FileSystemTask = old_filesystem_task;
+    DeleteMsgPort(probe_port);
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -964,6 +1000,9 @@ int main(void)
 
     /* Test 16: Verify SetConsoleTask no longer hits the stub path */
     errors += test_dos_setconsoletask_stub_closed();
+
+    /* Test 17: Verify GetFileSysTask no longer hits the stub path */
+    errors += test_dos_getfilesystask_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");
