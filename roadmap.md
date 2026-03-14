@@ -83,7 +83,7 @@ Goal: Fully working Directory Opus app. DOpus 4 Manual: /home/guenter/projects/a
 
 Goal: eliminate the remaining non-private `dos.library` stubs, match RKRM/NDK behavior, and keep each closure checked against AROS.
 
-- [ ] Finish `__g_lxa_dos_InitLib()` so DOS library startup no longer logs an unimplemented stub and the resident init path follows Amiga library-init expectations
+- [x] Finish `__g_lxa_dos_InitLib()` so DOS library startup no longer logs an unimplemented stub and the resident init path follows Amiga library-init expectations; startup now installs `DOSBase`, clears the private compatibility pointers, allocates `RootNode`/`DosInfo`/the initial task array with failure cleanup, and `Tests/Exec/Library` asserts the initialized DOS base state directly
 - [ ] Compare and verify the finished `__g_lxa_dos_InitLib()` path against the AROS `dos.library` initialization flow
 - [ ] Implement `LockRecord()` per RKRM/NDK semantics with direct regression coverage
 - [ ] Compare and verify `LockRecord()` behavior against the AROS implementation

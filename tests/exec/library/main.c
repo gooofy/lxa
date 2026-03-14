@@ -421,6 +421,76 @@ static int test_external_library_scope(void)
     return errors;
 }
 
+static int test_dos_library_init_state(void)
+{
+    int errors = 0;
+    ULONG *task_array;
+
+    print("--- Test: DOS InitLib state ---\n");
+
+    if (DOSBase == NULL)
+    {
+        print("FAIL: DOSBase should be available\n\n");
+        return 1;
+    }
+
+    if (DOSBase->dl_Root != NULL)
+    {
+        print("OK: dos.library initialized RootNode\n");
+    }
+    else
+    {
+        print("FAIL: dos.library RootNode is NULL\n");
+        errors++;
+    }
+
+    task_array = DOSBase->dl_Root ? (ULONG *)BADDR(DOSBase->dl_Root->rn_TaskArray) : NULL;
+    if (task_array != NULL)
+    {
+        print("OK: dos.library initialized RootNode task array\n");
+        if (task_array[0] >= 8)
+        {
+            print("OK: dos.library task array has expected initial capacity\n");
+        }
+        else
+        {
+            print("FAIL: dos.library task array capacity is too small\n");
+            errors++;
+        }
+    }
+    else
+    {
+        print("FAIL: dos.library task array is NULL\n");
+        errors++;
+    }
+
+    if (DOSBase->dl_Root && DOSBase->dl_Root->rn_Info != 0)
+    {
+        print("OK: dos.library initialized DosInfo\n");
+    }
+    else
+    {
+        print("FAIL: dos.library DosInfo is NULL\n");
+        errors++;
+    }
+
+    if (DOSBase->dl_Errors == NULL &&
+        DOSBase->dl_TimeReq == NULL &&
+        DOSBase->dl_UtilityBase == NULL &&
+        DOSBase->dl_IntuitionBase == NULL)
+    {
+        print("OK: dos.library private startup pointers stay cleared\n");
+    }
+    else
+    {
+        print("FAIL: dos.library private startup pointers should be cleared\n");
+        errors++;
+    }
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -472,6 +542,9 @@ int main(void)
 
     /* Test 5: Verify third-party libraries stay off the built-in ROM surface */
     errors += test_external_library_scope();
+
+    /* Test 6: Verify dos.library InitLib initialized the public DOS base state */
+    errors += test_dos_library_init_state();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

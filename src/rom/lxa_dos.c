@@ -536,6 +536,10 @@ static void sync_cli_setname_from_lock(struct CommandLineInterface *cli, BPTR lo
  * Returns the RootNode pointer, or NULL on failure. */
 static struct RootNode *initRootNode(void)
 {
+    struct RootNode *rootNode;
+    ULONG *taskArray;
+    struct DosInfo *dosInfo;
+
     /* Check if already initialized - DOSBase->dl_Root will be non-NULL */
     if (DOSBase && DOSBase->dl_Root)
         return DOSBase->dl_Root;
@@ -543,30 +547,38 @@ static struct RootNode *initRootNode(void)
     DPRINTF(LOG_DEBUG, "_dos: initRootNode() initializing RootNode\n");
     
     /* Allocate RootNode in RAM (not ROM static!) */
-    struct RootNode *rootNode = (struct RootNode *)AllocMem(sizeof(struct RootNode), MEMF_CLEAR | MEMF_PUBLIC);
+    rootNode = (struct RootNode *)AllocMem(sizeof(struct RootNode), MEMF_CLEAR | MEMF_PUBLIC);
     if (!rootNode)
     {
         LPRINTF(LOG_ERROR, "_dos: initRootNode() failed to allocate RootNode\n");
         return NULL;
     }
-    
+
     /* Allocate initial TaskArray */
-    ULONG *taskArray = (ULONG *)AllocMem((INITIAL_TASK_ARRAY_SIZE + 1) * sizeof(ULONG), MEMF_CLEAR | MEMF_PUBLIC);
-    struct DosInfo *dosInfo = NULL;
-    if (taskArray)
+    taskArray = (ULONG *)AllocMem((INITIAL_TASK_ARRAY_SIZE + 1) * sizeof(ULONG), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!taskArray)
     {
-        taskArray[0] = INITIAL_TASK_ARRAY_SIZE;  /* Max slots */
-        /* Slots 1..INITIAL_TASK_ARRAY_SIZE are already 0 (free) due to MEMF_CLEAR */
+        LPRINTF(LOG_ERROR, "_dos: initRootNode() failed to allocate TaskArray\n");
+        FreeMem(rootNode, sizeof(struct RootNode));
+        return NULL;
     }
 
+    taskArray[0] = INITIAL_TASK_ARRAY_SIZE;  /* Max slots */
+    /* Slots 1..INITIAL_TASK_ARRAY_SIZE are already 0 (free) due to MEMF_CLEAR */
+
     dosInfo = (struct DosInfo *)AllocMem(sizeof(struct DosInfo), MEMF_CLEAR | MEMF_PUBLIC);
-    if (dosInfo)
+    if (!dosInfo)
     {
-        InitSemaphore(&dosInfo->di_DevLock);
-        InitSemaphore(&dosInfo->di_EntryLock);
-        InitSemaphore(&dosInfo->di_DeleteLock);
-        rootNode->rn_Info = MKBADDR(dosInfo);
+        LPRINTF(LOG_ERROR, "_dos: initRootNode() failed to allocate DosInfo\n");
+        FreeMem(taskArray, (INITIAL_TASK_ARRAY_SIZE + 1) * sizeof(ULONG));
+        FreeMem(rootNode, sizeof(struct RootNode));
+        return NULL;
     }
+
+    InitSemaphore(&dosInfo->di_DevLock);
+    InitSemaphore(&dosInfo->di_EntryLock);
+    InitSemaphore(&dosInfo->di_DeleteLock);
+    rootNode->rn_Info = MKBADDR(dosInfo);
 
     rootNode->rn_TaskArray = MKBADDR(taskArray);
     
@@ -712,30 +724,22 @@ struct DosLibrary * __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb   
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: WARNING: InitLib() unimplemented STUB called.\n");
-#if 0
-    ExecBase = exb;
+    (void)seglist;
+    (void)sysb;
 
-    ExecBase->exb_ExecBase = sysbase;
-    ExecBase->exb_SegList = seglist;
+    DPRINTF (LOG_DEBUG, "_dos: InitLib() called\n");
 
-    if (L_OpenLibs(ExecBase)) return(ExecBase);
+    DOSBase = dosb;
 
-    L_CloseLibs();
+    dosb->dl_Root = NULL;
+    dosb->dl_Errors = NULL;
+    dosb->dl_TimeReq = NULL;
+    dosb->dl_UtilityBase = NULL;
+    dosb->dl_IntuitionBase = NULL;
 
-    {
-      ULONG negsize, possize, fullsize;
-      UBYTE *negptr = (UBYTE *) ExecBase;
+    if (!initRootNode())
+        return NULL;
 
-      negsize  = ExecBase->exb_LibNode.lib_NegSize;
-      possize  = ExecBase->exb_LibNode.lib_PosSize;
-      fullsize = negsize + possize;
-      negptr  -= negsize;
-
-      FreeMem(negptr, fullsize);
-
-    }
-#endif
     return dosb;
 }
 
