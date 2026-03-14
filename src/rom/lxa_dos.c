@@ -109,8 +109,25 @@ struct lxa_dos_buffer_state
     LONG   unget_char;
 };
 
+extern LONG _console_SetMode(struct IOStdReq *iostd, LONG mode);
+
 static void lxa_dos_sprintf_hook(register UBYTE ch __asm("d0"),
                                  register STRPTR *cursor __asm("a3"));
+
+static BOOL lxa_dos_copy_bstr(BSTR bstr, STRPTR buffer, ULONG size);
+static BOOL lxa_dos_copy_until(CONST_STRPTR src, STRPTR dst, ULONG size, char stop);
+static BOOL lxa_dos_extract_volume_name(CONST_STRPTR name, STRPTR buffer, ULONG size);
+static BOOL lxa_dos_lookup_device_name(struct MsgPort *task, STRPTR buffer, ULONG size);
+static BOOL lxa_dos_errorreport_context(struct DosLibrary *DOSBase,
+                                        LONG type,
+                                        ULONG arg1,
+                                        struct MsgPort *device,
+                                        STRPTR volume,
+                                        ULONG volume_size,
+                                        STRPTR devname,
+                                        ULONG devname_size,
+                                        BOOL *have_volume,
+                                        BOOL *have_device);
 
 static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                                    BPTR fh,
@@ -147,6 +164,14 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
 struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register struct DevProc * dp __asm("d2"));
+LONG _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                        register BPTR lock __asm("d1"),
+                                                        register STRPTR buffer __asm("d2"),
+                                                        register LONG len __asm("d3"));
+LONG _dos_NameFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                      register BPTR fh __asm("d1"),
+                                                      register STRPTR buffer __asm("d2"),
+                                                      register LONG len __asm("d3"));
 VOID _dos_FreeDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DevProc * dp __asm("d1"));
 VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -515,7 +540,7 @@ static LONG lock_to_path(BPTR lock, STRPTR buffer, LONG len)
 
 static void sync_cli_setname_from_lock(struct CommandLineInterface *cli, BPTR lock)
 {
-    char path[256];
+    UBYTE path[256];
 
     if (!cli)
         return;
@@ -1321,6 +1346,189 @@ static void lxa_dos_sprintf_hook(register UBYTE ch __asm("d0"),
 
     **cursor = ch;
     (*cursor)++;
+}
+
+static BOOL lxa_dos_copy_bstr(BSTR bstr, STRPTR buffer, ULONG size)
+{
+    UBYTE *src;
+    ULONG len;
+    ULONG i;
+
+    if (!buffer || size == 0)
+        return FALSE;
+
+    buffer[0] = '\0';
+
+    src = (UBYTE *)BADDR(bstr);
+    if (!src)
+        return FALSE;
+
+    len = src[0];
+    if (len >= size)
+        len = size - 1;
+
+    for (i = 0; i < len; i++)
+        buffer[i] = src[i + 1];
+
+    buffer[len] = '\0';
+    return TRUE;
+}
+
+static BOOL lxa_dos_copy_until(CONST_STRPTR src, STRPTR dst, ULONG size, char stop)
+{
+    ULONG i = 0;
+
+    if (!dst || size == 0)
+        return FALSE;
+
+    dst[0] = '\0';
+
+    if (!src)
+        return FALSE;
+
+    while (src[i] && src[i] != stop)
+    {
+        if (i + 1 < size)
+            dst[i] = src[i];
+        i++;
+    }
+
+    if (size > 0)
+    {
+        ULONG term = (i < size) ? i : (size - 1);
+        dst[term] = '\0';
+    }
+
+    return i > 0;
+}
+
+static BOOL lxa_dos_extract_volume_name(CONST_STRPTR name, STRPTR buffer, ULONG size)
+{
+    if (!buffer || size == 0)
+        return FALSE;
+
+    buffer[0] = '\0';
+
+    if (!name)
+        return FALSE;
+
+    return lxa_dos_copy_until(name, buffer, size, ':');
+}
+
+static BOOL lxa_dos_lookup_device_name(struct MsgPort *task, STRPTR buffer, ULONG size)
+{
+    struct DosList *dol;
+    ULONG flags = LDF_READ | LDF_ALL;
+    BOOL found = FALSE;
+
+    if (!buffer || size == 0)
+        return FALSE;
+
+    buffer[0] = '\0';
+
+    if (!task)
+        return FALSE;
+
+    dol = LockDosList(flags);
+    while (dol)
+    {
+        if (dol->dol_Type == DLT_DEVICE && dol->dol_Task == task)
+        {
+            found = lxa_dos_copy_bstr(dol->dol_Name, buffer, size);
+            break;
+        }
+
+        dol = (struct DosList *)BADDR(dol->dol_Next);
+    }
+
+    UnLockDosList(flags);
+    return found;
+}
+
+static BOOL lxa_dos_errorreport_context(struct DosLibrary *DOSBase,
+                                        LONG type,
+                                        ULONG arg1,
+                                        struct MsgPort *device,
+                                        STRPTR volume,
+                                        ULONG volume_size,
+                                        STRPTR devname,
+                                        ULONG devname_size,
+                                        BOOL *have_volume,
+                                        BOOL *have_device)
+{
+    char path[256];
+    struct MsgPort *task = device;
+
+    if (have_volume)
+        *have_volume = FALSE;
+    if (have_device)
+        *have_device = FALSE;
+
+    if (volume && volume_size > 0)
+        volume[0] = '\0';
+    if (devname && devname_size > 0)
+        devname[0] = '\0';
+
+    switch (type)
+    {
+        case REPORT_STREAM:
+        {
+            struct FileHandle *fh = (struct FileHandle *)BADDR((BPTR)arg1);
+
+            if (!fh)
+                break;
+
+            task = fh->fh_Type;
+            if (_dos_NameFromFH(DOSBase, (BPTR)arg1, (STRPTR)path, sizeof(path)))
+            {
+                if (have_volume)
+                    *have_volume = lxa_dos_extract_volume_name((CONST_STRPTR)path, volume, volume_size);
+            }
+            break;
+        }
+
+        case REPORT_LOCK:
+        {
+            struct FileLock *lock = (struct FileLock *)BADDR((BPTR)arg1);
+
+            if (lock)
+                task = lock->fl_Task;
+
+            if (arg1 && _dos_NameFromLock(DOSBase, (BPTR)arg1, (STRPTR)path, sizeof(path)))
+            {
+                if (have_volume)
+                    *have_volume = lxa_dos_extract_volume_name((CONST_STRPTR)path, volume, volume_size);
+            }
+            break;
+        }
+
+        case REPORT_VOLUME:
+        {
+            struct DeviceList *dl = (struct DeviceList *)arg1;
+
+            if (!dl)
+                break;
+
+            task = dl->dl_Task;
+            if (have_volume)
+                *have_volume = lxa_dos_copy_bstr(dl->dl_Name, volume, volume_size);
+            break;
+        }
+
+        case REPORT_INSERT:
+            if (have_volume)
+                *have_volume = lxa_dos_extract_volume_name((CONST_STRPTR)arg1, volume, volume_size);
+            break;
+
+        case REPORT_TASK:
+        default:
+            break;
+    }
+
+    if (have_device)
+        *have_device = lxa_dos_lookup_device_name(task, devname, devname_size);
+
+    return TRUE;
 }
 
 BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
@@ -3827,9 +4035,42 @@ LONG _dos_SetMode ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG mode __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetMode() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct FileHandle *fhp;
+
+    (void)DOSBase;
+
+    DPRINTF(LOG_DEBUG, "_dos: SetMode() called, fh=0x%08lx, mode=%ld\n", fh, mode);
+
+    fhp = (struct FileHandle *)BADDR(fh);
+    if (!fhp)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return DOSFALSE;
+    }
+
+    if (fhp->fh_Func3 == FILE_KIND_CON)
+    {
+        struct ConHandle *ch = (struct ConHandle *)fhp->fh_Arg1;
+
+        if (!ch || !ch->ch_IORequest)
+        {
+            SetIoErr(ERROR_OBJECT_NOT_FOUND);
+            return DOSFALSE;
+        }
+
+        if (!_console_SetMode(ch->ch_IORequest, mode))
+        {
+            SetIoErr(ERROR_ACTION_NOT_KNOWN);
+            return DOSFALSE;
+        }
+
+        ch->ch_RawMode = (mode == 1) ? TRUE : FALSE;
+        SetIoErr(0);
+        return DOSTRUE;
+    }
+
+    SetIoErr(ERROR_ACTION_NOT_KNOWN);
+    return DOSFALSE;
 }
 
 LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -4083,9 +4324,21 @@ LONG _dos_ChangeMode ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d2"),
                                                         register LONG newmode __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: ChangeMode() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    LONG ioerr = 0;
+
+    (void)DOSBase;
+
+    DPRINTF(LOG_DEBUG, "_dos: ChangeMode() called, type=%ld, object=0x%08lx, newmode=%ld\n",
+            type, fh, newmode);
+
+    if (!emucall4(EMU_CALL_DOS_CHANGEMODE, (ULONG)type, (ULONG)fh, (ULONG)newmode, (ULONG)&ioerr))
+    {
+        SetIoErr(ioerr ? ioerr : ERROR_ACTION_NOT_KNOWN);
+        return DOSFALSE;
+    }
+
+    SetIoErr(0);
+    return DOSTRUE;
 }
 
 LONG _dos_SetFileSize ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -4311,9 +4564,230 @@ LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG arg1 __asm("d3"),
                                                         register struct MsgPort * device __asm("d4"))
 {
-    LPRINTF (LOG_ERROR, "_dos: ErrorReport() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct Process *me;
+    struct Window *ref_window = NULL;
+    struct IntuitionBase *IntuitionBase;
+    struct IntuiText body_text;
+    struct IntuiText retry_text;
+    struct IntuiText cancel_text;
+    STRPTR body_buf;
+    CONST_STRPTR body_format = NULL;
+    APTR fmt_args[2];
+    LONG result = DOSTRUE;
+    BOOL have_volume = FALSE;
+    BOOL have_device = FALSE;
+    UBYTE volume[128];
+    UBYTE devname[128];
+
+    DPRINTF(LOG_DEBUG,
+            "_dos: ErrorReport(code=%ld, type=%ld, arg1=0x%08lx, device=%p) called.\n",
+            code, type, arg1, (void *)device);
+
+    me = (struct Process *)FindTask(NULL);
+    if (!IS_PROCESS(me))
+    {
+        SetIoErr(code);
+        return DOSTRUE;
+    }
+
+    if (me->pr_WindowPtr == (APTR)-1)
+    {
+        SetIoErr(code);
+        return DOSTRUE;
+    }
+
+    if (me->pr_WindowPtr != NULL)
+        ref_window = (struct Window *)me->pr_WindowPtr;
+
+    fmt_args[0] = NULL;
+    fmt_args[1] = NULL;
+    volume[0] = '\0';
+    devname[0] = '\0';
+
+    switch (code)
+    {
+        case ERROR_DISK_NOT_VALIDATED:
+            body_format = (CONST_STRPTR)"Volume %s is not validated.";
+            break;
+
+        case ERROR_DISK_WRITE_PROTECTED:
+            body_format = (CONST_STRPTR)"Volume %s is write protected.";
+            break;
+
+        case ERROR_DEVICE_NOT_MOUNTED:
+            break;
+
+        case ERROR_DISK_FULL:
+            body_format = (CONST_STRPTR)"Volume %s is full.";
+            break;
+
+        case ERROR_NOT_A_DOS_DISK:
+            body_format = (CONST_STRPTR)"Not a DOS disk in device %s.";
+            break;
+
+        case ERROR_NO_DISK:
+            body_format = (CONST_STRPTR)"No disk present in device %s.";
+            break;
+
+        case ABORT_BUSY:
+            body_format = (CONST_STRPTR)"You MUST replace volume %s in device %s.";
+            break;
+
+        case ABORT_DISK_ERROR:
+            body_format = (CONST_STRPTR)"Volume %s has a read/write error.";
+            break;
+
+        default:
+            SetIoErr(code);
+            return DOSTRUE;
+    }
+
+    lxa_dos_errorreport_context(DOSBase,
+                                type,
+                                arg1,
+                                device,
+                                volume,
+                                sizeof(volume),
+                                devname,
+                                sizeof(devname),
+                                &have_volume,
+                                &have_device);
+
+    switch (code)
+    {
+        case ERROR_DISK_NOT_VALIDATED:
+        case ERROR_DISK_WRITE_PROTECTED:
+        case ERROR_DISK_FULL:
+        case ABORT_DISK_ERROR:
+            if (have_volume)
+                fmt_args[0] = volume;
+            else
+                body_format = (code == ERROR_DISK_NOT_VALIDATED) ? (CONST_STRPTR)"Disk is not validated." :
+                              (code == ERROR_DISK_WRITE_PROTECTED) ? (CONST_STRPTR)"Disk is write protected." :
+                              (code == ERROR_DISK_FULL) ? (CONST_STRPTR)"Disk is full." :
+                              (CONST_STRPTR)"Disk has a read/write error.";
+            break;
+
+        case ERROR_DEVICE_NOT_MOUNTED:
+            if (type == REPORT_INSERT)
+            {
+                if (have_volume)
+                {
+                    body_format = (CONST_STRPTR)"Please insert volume %s.";
+                    fmt_args[0] = volume;
+                }
+                else
+                {
+                    body_format = (CONST_STRPTR)"Please insert the requested volume.";
+                }
+            }
+            else if (have_volume && have_device)
+            {
+                body_format = (CONST_STRPTR)"Please replace volume %s in device %s.";
+                fmt_args[0] = volume;
+                fmt_args[1] = devname;
+            }
+            else if (have_volume)
+            {
+                body_format = (CONST_STRPTR)"Please replace volume %s.";
+                fmt_args[0] = volume;
+            }
+            else
+            {
+                body_format = (CONST_STRPTR)"Device not mounted.";
+            }
+            break;
+
+        case ERROR_NOT_A_DOS_DISK:
+        case ERROR_NO_DISK:
+            if (have_device)
+                fmt_args[0] = devname;
+            else
+                body_format = (code == ERROR_NOT_A_DOS_DISK) ? (CONST_STRPTR)"Not a DOS disk." : (CONST_STRPTR)"No disk present.";
+            break;
+
+        case ABORT_BUSY:
+            if (have_volume && have_device)
+            {
+                fmt_args[0] = volume;
+                fmt_args[1] = devname;
+            }
+            else if (have_volume)
+            {
+                body_format = (CONST_STRPTR)"You MUST replace volume %s.";
+                fmt_args[0] = volume;
+            }
+            else
+            {
+                body_format = (CONST_STRPTR)"Requested volume must be replaced.";
+            }
+            break;
+    }
+
+    body_buf = lxa_dos_format_to_string(body_format, fmt_args);
+    if (!body_buf)
+    {
+        SetIoErr(code);
+        return DOSTRUE;
+    }
+
+    IntuitionBase = (struct IntuitionBase *)OpenLibrary((STRPTR)"intuition.library", 0);
+    if (!IntuitionBase)
+    {
+        FreeVec(body_buf);
+        SetIoErr(code);
+        return DOSTRUE;
+    }
+
+    if (!ref_window && !IntuitionBase->FirstScreen)
+    {
+        CloseLibrary((struct Library *)IntuitionBase);
+        FreeVec(body_buf);
+        SetIoErr(code);
+        return DOSTRUE;
+    }
+
+    body_text.FrontPen = 1;
+    body_text.BackPen = 0;
+    body_text.DrawMode = JAM1;
+    body_text.LeftEdge = 8;
+    body_text.TopEdge = 4;
+    body_text.ITextFont = NULL;
+    body_text.IText = (UBYTE *)body_buf;
+    body_text.NextText = NULL;
+
+    retry_text.FrontPen = 1;
+    retry_text.BackPen = 0;
+    retry_text.DrawMode = JAM1;
+    retry_text.LeftEdge = 0;
+    retry_text.TopEdge = 0;
+    retry_text.ITextFont = NULL;
+    retry_text.IText = (UBYTE *)"Retry";
+    retry_text.NextText = NULL;
+
+    cancel_text.FrontPen = 1;
+    cancel_text.BackPen = 0;
+    cancel_text.DrawMode = JAM1;
+    cancel_text.LeftEdge = 0;
+    cancel_text.TopEdge = 0;
+    cancel_text.ITextFont = NULL;
+    cancel_text.IText = (UBYTE *)"Cancel";
+    cancel_text.NextText = NULL;
+
+    result = AutoRequest(ref_window,
+                         &body_text,
+                         &retry_text,
+                         &cancel_text,
+                         0,
+                         0,
+                         440,
+                         80) ? DOSFALSE : DOSTRUE;
+
+    CloseLibrary((struct Library *)IntuitionBase);
+    FreeVec(body_buf);
+
+    SetIoErr(code);
+    return result;
 }
 
 VOID _dos_private2 ( register struct DosLibrary * DOSBase __asm("a6"))
@@ -4623,17 +5097,33 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
 
 struct MsgPort * _dos_GetConsoleTask ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: GetConsoleTask() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct Task *me = FindTask(NULL);
+
+    (void)DOSBase;
+
+    if (!me || me->tc_Node.ln_Type != NT_PROCESS)
+        return NULL;
+
+    return ((struct Process *)me)->pr_ConsoleTask;
 }
 
 struct MsgPort * _dos_SetConsoleTask ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register const struct MsgPort * task __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetConsoleTask() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct Task *me = FindTask(NULL);
+    struct Process *process;
+    struct MsgPort *old_task;
+
+    (void)DOSBase;
+
+    if (!me || me->tc_Node.ln_Type != NT_PROCESS)
+        return NULL;
+
+    process = (struct Process *)me;
+    old_task = process->pr_ConsoleTask;
+    process->pr_ConsoleTask = (struct MsgPort *)task;
+
+    return old_task;
 }
 
 struct MsgPort * _dos_GetFileSysTask ( register struct DosLibrary * DOSBase __asm("a6"))

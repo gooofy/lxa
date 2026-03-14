@@ -149,6 +149,22 @@ TEST_F(DosTest, SplitName) {
     RunDosTest("SplitName");
 }
 
+TEST_F(DosTest, ChangeMode) {
+    RunDosTest("ChangeMode");
+}
+
+TEST_F(DosTest, ErrorReport) {
+    RunDosTest("ErrorReport", 15000);
+}
+
+TEST_F(DosTest, GetConsoleTask) {
+    RunDosTest("GetConsoleTask");
+}
+
+TEST_F(DosTest, SetConsoleTask) {
+    RunDosTest("SetConsoleTask");
+}
+
 TEST_F(DosTest, LockLeak) {
     RunDosTest("LockLeak");
 }

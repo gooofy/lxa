@@ -714,6 +714,172 @@ static int test_dos_splitname_stub_closed(void)
     return errors;
 }
 
+static int test_dos_setmode_stub_closed(void)
+{
+    int errors = 0;
+    BPTR fh;
+    BOOL ok;
+
+    print("--- Test: DOS SetMode entry point ---\n");
+
+    fh = Open((CONST_STRPTR)"CON:0/0/320/60/Library SetMode", MODE_OLDFILE);
+    if (fh == 0)
+    {
+        print("FAIL: Open() for SetMode probe failed\n\n");
+        return 1;
+    }
+
+    ok = SetMode(fh, 0);
+    if (ok)
+    {
+        print("OK: SetMode() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: SetMode() unexpectedly failed\n");
+        errors++;
+    }
+
+    Close(fh);
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_changemode_stub_closed(void)
+{
+    int errors = 0;
+    BPTR lock;
+    BOOL ok;
+
+    print("--- Test: DOS ChangeMode entry point ---\n");
+
+    lock = Lock((CONST_STRPTR)"SYS:Tests", SHARED_LOCK);
+    if (lock == 0)
+    {
+        print("FAIL: Lock() for ChangeMode probe failed\n\n");
+        return 1;
+    }
+
+    ok = ChangeMode(CHANGE_LOCK, lock, SHARED_LOCK);
+    if (ok)
+    {
+        print("OK: ChangeMode() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: ChangeMode() unexpectedly failed\n");
+        errors++;
+    }
+
+    UnLock(lock);
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_errorreport_stub_closed(void)
+{
+    int errors = 0;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    APTR old_window_ptr;
+    LONG result;
+
+    print("--- Test: DOS ErrorReport entry point ---\n");
+
+    old_window_ptr = me->pr_WindowPtr;
+    me->pr_WindowPtr = (APTR)-1;
+
+    result = ErrorReport(ERROR_NO_DISK, REPORT_INSERT, (ULONG)"DH0:", NULL);
+    if (result == DOSTRUE && IoErr() == ERROR_NO_DISK)
+    {
+        print("OK: ErrorReport() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: ErrorReport() unexpectedly failed\n");
+        errors++;
+    }
+
+    me->pr_WindowPtr = old_window_ptr;
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_getconsoletask_stub_closed(void)
+{
+    int errors = 0;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct MsgPort *probe_port;
+    struct MsgPort *old_console_task;
+
+    print("--- Test: DOS GetConsoleTask entry point ---\n");
+
+    probe_port = CreateMsgPort();
+    if (!probe_port)
+    {
+        print("FAIL: Could not allocate probe port for GetConsoleTask\n\n");
+        return 1;
+    }
+
+    old_console_task = me->pr_ConsoleTask;
+    me->pr_ConsoleTask = probe_port;
+
+    if (GetConsoleTask() == probe_port)
+    {
+        print("OK: GetConsoleTask() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: GetConsoleTask() returned the wrong port\n");
+        errors++;
+    }
+
+    me->pr_ConsoleTask = old_console_task;
+    DeleteMsgPort(probe_port);
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_setconsoletask_stub_closed(void)
+{
+    int errors = 0;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct MsgPort *probe_port;
+    struct MsgPort *old_console_task;
+    struct MsgPort *previous;
+
+    print("--- Test: DOS SetConsoleTask entry point ---\n");
+
+    probe_port = CreateMsgPort();
+    if (!probe_port)
+    {
+        print("FAIL: Could not allocate probe port for SetConsoleTask\n\n");
+        return 1;
+    }
+
+    old_console_task = me->pr_ConsoleTask;
+    previous = SetConsoleTask(probe_port);
+
+    if (previous == old_console_task && me->pr_ConsoleTask == probe_port)
+    {
+        print("OK: SetConsoleTask() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: SetConsoleTask() returned or stored the wrong port\n");
+        errors++;
+    }
+
+    SetConsoleTask(old_console_task);
+    DeleteMsgPort(probe_port);
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -783,6 +949,21 @@ int main(void)
 
     /* Test 11: Verify SplitName no longer hits the stub path */
     errors += test_dos_splitname_stub_closed();
+
+    /* Test 12: Verify SetMode no longer hits the stub path */
+    errors += test_dos_setmode_stub_closed();
+
+    /* Test 13: Verify ChangeMode no longer hits the stub path */
+    errors += test_dos_changemode_stub_closed();
+
+    /* Test 14: Verify ErrorReport no longer hits the stub path */
+    errors += test_dos_errorreport_stub_closed();
+
+    /* Test 15: Verify GetConsoleTask no longer hits the stub path */
+    errors += test_dos_getconsoletask_stub_closed();
+
+    /* Test 16: Verify SetConsoleTask no longer hits the stub path */
+    errors += test_dos_setconsoletask_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");
