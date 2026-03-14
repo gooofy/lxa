@@ -145,6 +145,10 @@ TEST_F(DosTest, UnLockRecords) {
     RunDosTest("UnLockRecords");
 }
 
+TEST_F(DosTest, SplitName) {
+    RunDosTest("SplitName");
+}
+
 TEST_F(DosTest, LockLeak) {
     RunDosTest("LockLeak");
 }

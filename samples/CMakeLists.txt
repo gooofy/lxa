@@ -137,6 +137,7 @@ set(TESTS_LIST
     "../tests/dos/lockrecords|main|Tests/Dos/LockRecords"
     "../tests/dos/unlockrecord|main|Tests/Dos/UnLockRecord"
     "../tests/dos/unlockrecords|main|Tests/Dos/UnLockRecords"
+    "../tests/dos/splitname|main|Tests/Dos/SplitName"
     "../tests/dos/lock_leak|main|Tests/Dos/LockLeak"
     "../tests/dos/rename_open|main|Tests/Dos/RenameOpen"
     "../tests/dos/seek_console|main|Tests/Dos/SeekConsole"

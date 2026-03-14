@@ -3754,9 +3754,59 @@ WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register WORD oldpos __asm("d4"),
                                                         register LONG size __asm("d5"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SplitName() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    CONST_STRPTR cursor;
+    LONG copied = 0;
+    LONG available;
+    WORD position;
+
+    DPRINTF (LOG_DEBUG,
+             "_dos: SplitName() called, name='%s', separator='%c', buf=0x%08lx, oldpos=%d, size=%ld\n",
+             STRORNULL(name), separator ? separator : ' ', (ULONG)buf, oldpos, size);
+
+    if (!name || !buf)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return -1;
+    }
+
+    if (size <= 0 || oldpos < 0)
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return -1;
+    }
+
+    cursor = name;
+    position = 0;
+    available = size - 1;
+
+    while (position < oldpos && *cursor)
+    {
+        cursor++;
+        position++;
+    }
+
+    while (*cursor && *cursor != separator)
+    {
+        if (copied < available)
+        {
+            buf[copied++] = *cursor;
+        }
+
+        cursor++;
+        position++;
+    }
+
+    if (size > 0)
+    {
+        buf[copied] = '\0';
+    }
+
+    if (*cursor == separator)
+    {
+        return position + 1;
+    }
+
+    return -1;
 }
 
 LONG _dos_SameLock ( register struct DosLibrary * DOSBase __asm("a6"),

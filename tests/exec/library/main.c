@@ -691,6 +691,29 @@ static int test_dos_unlockrecords_stub_closed(void)
     return errors;
 }
 
+static int test_dos_splitname_stub_closed(void)
+{
+    int errors = 0;
+    WORD pos;
+    char buffer[16];
+
+    print("--- Test: DOS SplitName entry point ---\n");
+
+    pos = SplitName((CONST_STRPTR)"SYS:Tools/Dir", ':', (STRPTR)buffer, 0, sizeof(buffer));
+    if (pos == 4 && buffer[0] == 'S' && buffer[1] == 'Y' && buffer[2] == 'S' && buffer[3] == '\0')
+    {
+        print("OK: SplitName() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: SplitName() unexpectedly failed\n");
+        errors++;
+    }
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -757,6 +780,9 @@ int main(void)
 
     /* Test 10: Verify UnLockRecords no longer hits the stub path */
     errors += test_dos_unlockrecords_stub_closed();
+
+    /* Test 11: Verify SplitName no longer hits the stub path */
+    errors += test_dos_splitname_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");
