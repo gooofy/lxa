@@ -5141,9 +5141,20 @@ struct MsgPort * _dos_GetFileSysTask ( register struct DosLibrary * DOSBase __as
 struct MsgPort * _dos_SetFileSysTask ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register const struct MsgPort * task __asm("d1"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetFileSysTask() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    struct Task *me = FindTask(NULL);
+    struct Process *process;
+    struct MsgPort *old_task;
+
+    (void)DOSBase;
+
+    if (!me || me->tc_Node.ln_Type != NT_PROCESS)
+        return NULL;
+
+    process = (struct Process *)me;
+    old_task = process->pr_FileSystemTask;
+    process->pr_FileSystemTask = (struct MsgPort *)task;
+
+    return old_task;
 }
 
 STRPTR _dos_GetArgStr ( register struct DosLibrary * DOSBase __asm("a6"))

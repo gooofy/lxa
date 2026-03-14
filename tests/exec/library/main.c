@@ -916,6 +916,43 @@ static int test_dos_getfilesystask_stub_closed(void)
     return errors;
 }
 
+static int test_dos_setfilesystask_stub_closed(void)
+{
+    int errors = 0;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct MsgPort *probe_port;
+    struct MsgPort *old_filesystem_task;
+    struct MsgPort *previous;
+
+    print("--- Test: DOS SetFileSysTask entry point ---\n");
+
+    probe_port = CreateMsgPort();
+    if (!probe_port)
+    {
+        print("FAIL: Could not allocate probe port for SetFileSysTask\n\n");
+        return 1;
+    }
+
+    old_filesystem_task = me->pr_FileSystemTask;
+    previous = SetFileSysTask(probe_port);
+
+    if (previous == old_filesystem_task && me->pr_FileSystemTask == probe_port)
+    {
+        print("OK: SetFileSysTask() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: SetFileSysTask() returned or stored the wrong port\n");
+        errors++;
+    }
+
+    SetFileSysTask(old_filesystem_task);
+    DeleteMsgPort(probe_port);
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -1003,6 +1040,9 @@ int main(void)
 
     /* Test 17: Verify GetFileSysTask no longer hits the stub path */
     errors += test_dos_getfilesystask_stub_closed();
+
+    /* Test 18: Verify SetFileSysTask no longer hits the stub path */
+    errors += test_dos_setfilesystask_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

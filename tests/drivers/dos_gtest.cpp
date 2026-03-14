@@ -169,6 +169,10 @@ TEST_F(DosTest, GetFileSysTask) {
     RunDosTest("GetFileSysTask");
 }
 
+TEST_F(DosTest, SetFileSysTask) {
+    RunDosTest("SetFileSysTask");
+}
+
 TEST_F(DosTest, LockLeak) {
     RunDosTest("LockLeak");
 }
