@@ -209,6 +209,10 @@ TEST_F(DosTest, Inhibit) {
     RunDosTest("Inhibit");
 }
 
+TEST_F(DosTest, AddBuffers) {
+    RunDosTest("AddBuffers");
+}
+
 TEST_F(DosTest, LockLeak) {
     RunDosTest("LockLeak");
 }

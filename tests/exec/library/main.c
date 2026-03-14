@@ -1283,6 +1283,28 @@ static int test_dos_inhibit_stub_closed(void)
     return errors;
 }
 
+static int test_dos_addbuffers_stub_closed(void)
+{
+    int errors = 0;
+    LONG ok;
+
+    print("--- Test: DOS AddBuffers entry point ---\n");
+
+    ok = AddBuffers((CONST_STRPTR)"HOME:", 1);
+    if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
+    {
+        print("OK: AddBuffers() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: AddBuffers() did not fail through the public path as expected\n");
+        errors++;
+    }
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -1400,6 +1422,9 @@ int main(void)
 
     /* Test 27: Verify Inhibit no longer hits the stub path */
     errors += test_dos_inhibit_stub_closed();
+
+    /* Test 28: Verify AddBuffers no longer hits the stub path */
+    errors += test_dos_addbuffers_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

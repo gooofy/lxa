@@ -6527,9 +6527,64 @@ LONG _dos_AddBuffers ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG number __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: AddBuffers() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct DevProc *dvp;
+    LONG status;
+    CONST_STRPTR p;
+
+    if (!name)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    for (p = name; *p != '\0'; p++)
+    {
+        if (*p == ':')
+            break;
+    }
+
+    if (*p != ':')
+    {
+        SetIoErr(ERROR_INVALID_COMPONENT_NAME);
+        return DOSFALSE;
+    }
+
+    dvp = _dos_GetDeviceProc(DOSBase, name, NULL);
+    if (!dvp)
+        return DOSFALSE;
+
+    if (dvp->dvp_Flags & DVPF_ASSIGN)
+    {
+        _dos_FreeDeviceProc(DOSBase, dvp);
+        SetIoErr(ERROR_DEVICE_NOT_MOUNTED);
+        return DOSFALSE;
+    }
+
+    if (!dvp->dvp_Port)
+    {
+        _dos_FreeDeviceProc(DOSBase, dvp);
+        SetIoErr(ERROR_ACTION_NOT_KNOWN);
+        return DOSFALSE;
+    }
+
+    status = _dos_DoPkt(DOSBase,
+                        dvp->dvp_Port,
+                        ACTION_MORE_CACHE,
+                        number,
+                        0,
+                        0,
+                        0,
+                        0);
+
+    _dos_FreeDeviceProc(DOSBase, dvp);
+
+    if (status > 0)
+    {
+        SetIoErr(status);
+        return DOSTRUE;
+    }
+
+    return status;
 }
 
 LONG _dos_CompareDates ( register struct DosLibrary * DOSBase __asm("a6"),

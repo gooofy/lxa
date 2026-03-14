@@ -153,6 +153,7 @@ set(TESTS_LIST
     "../tests/dos/format|main|Tests/Dos/Format"
     "../tests/dos/relabel|main|Tests/Dos/Relabel"
     "../tests/dos/inhibit|main|Tests/Dos/Inhibit"
+    "../tests/dos/addbuffers|main|Tests/Dos/AddBuffers"
     "../tests/dos/lock_leak|main|Tests/Dos/LockLeak"
     "../tests/dos/rename_open|main|Tests/Dos/RenameOpen"
     "../tests/dos/seek_console|main|Tests/Dos/SeekConsole"
