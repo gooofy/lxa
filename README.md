@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.18** - Phase 83 now closes `dos.library/UnLockRecords()`, matching the documented record-array unlock walk with null-terminator handling, first-failure propagation, null-array rejection, and direct regression coverage for successful list release and partial-failure cases
+**Version 0.8.19** - Phase 83 now verifies `dos.library/UnLockRecords()` against AROS, confirming the ordered `UnLockRecord()` walk, first-failure propagation, null-terminator handling, null-array rejection, and the existing direct regression coverage all stay aligned
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
