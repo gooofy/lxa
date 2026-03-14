@@ -8793,7 +8793,7 @@ APTR _intuition_AllocRemember ( register struct IntuitionBase * IntuitionBase __
 
 VOID _intuition_private0 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private0() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private0");
     assert(FALSE);
 }
 
@@ -9984,7 +9984,7 @@ VOID _intuition_GadgetMouse ( register struct IntuitionBase * IntuitionBase __as
 
 VOID _intuition_private1 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private1() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private1");
     assert(FALSE);
 }
 
@@ -11699,7 +11699,7 @@ APTR _intuition_NextObject ( register struct IntuitionBase * IntuitionBase __asm
 
 VOID _intuition_private2 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private2() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private2");
     assert(FALSE);
 }
 
@@ -11940,49 +11940,49 @@ BOOL _intuition_FreeClass ( register struct IntuitionBase * IntuitionBase __asm(
 
 VOID _intuition_private3 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private3() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private3");
     assert(FALSE);
 }
 
 VOID _intuition_private4 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private4() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private4");
     assert(FALSE);
 }
 
 VOID _intuition_private5 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private5() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private5");
     assert(FALSE);
 }
 
 VOID _intuition_private6 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private6() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private6");
     assert(FALSE);
 }
 
 VOID _intuition_private7 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private7() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private7");
     assert(FALSE);
 }
 
 VOID _intuition_private8 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private8() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private8");
     assert(FALSE);
 }
 
 VOID _intuition_private9 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private9() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private9");
     assert(FALSE);
 }
 
 VOID _intuition_private10 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: private10() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_intuition", "private10");
     assert(FALSE);
 }
 

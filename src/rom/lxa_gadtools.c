@@ -2590,12 +2590,12 @@ void _gadtools_FreeVisualInfo ( register struct GadToolsBase *GadToolsBase __asm
  * Private/Reserved Functions
  */
 
-static void _gadtools_Private1 ( void ) { }
-static void _gadtools_Private2 ( void ) { }
-static void _gadtools_Private3 ( void ) { }
-static void _gadtools_Private4 ( void ) { }
-static void _gadtools_Private5 ( void ) { }
-static void _gadtools_Private6 ( void ) { }
+static void _gadtools_Private1 ( void ) { PRIVATE_FUNCTION_ERROR("_gadtools", "Private1"); }
+static void _gadtools_Private2 ( void ) { PRIVATE_FUNCTION_ERROR("_gadtools", "Private2"); }
+static void _gadtools_Private3 ( void ) { PRIVATE_FUNCTION_ERROR("_gadtools", "Private3"); }
+static void _gadtools_Private4 ( void ) { PRIVATE_FUNCTION_ERROR("_gadtools", "Private4"); }
+static void _gadtools_Private5 ( void ) { PRIVATE_FUNCTION_ERROR("_gadtools", "Private5"); }
+static void _gadtools_Private6 ( void ) { PRIVATE_FUNCTION_ERROR("_gadtools", "Private6"); }
 
 /* GT_GetGadgetAttrsA - Get gadget attributes (V39+) */
 LONG _gadtools_GT_GetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase __asm("a6"),

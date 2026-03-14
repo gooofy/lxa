@@ -6659,19 +6659,19 @@ static ULONG _graphics_NextDisplayInfo ( register struct GfxBase * GfxBase __asm
 
 static VOID _graphics_private2 ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: private2() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_graphics", "private2");
     assert(FALSE);
 }
 
 static VOID _graphics_private3 ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: private3() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_graphics", "private3");
     assert(FALSE);
 }
 
 static VOID _graphics_private4 ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: private4() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_graphics", "private4");
     assert(FALSE);
 }
 
@@ -7090,7 +7090,7 @@ static LONG _graphics_ModeNotAvailable ( register struct GfxBase * GfxBase __asm
 
 static VOID _graphics_private5 ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: private5() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_graphics", "private5");
     assert(FALSE);
 }
 
@@ -7341,7 +7341,7 @@ static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("
 
 static VOID _graphics_private6 ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: private6() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_graphics", "private6");
     assert(FALSE);
 }
 
@@ -7538,13 +7538,13 @@ static VOID _graphics_GetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_private7 ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: private7() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_graphics", "private7");
     assert(FALSE);
 }
 
 static VOID _graphics_private8 ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: private8() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_graphics", "private8");
     assert(FALSE);
 }
 
@@ -8176,7 +8176,7 @@ static LONG _graphics_FindColor ( register struct GfxBase * GfxBase __asm("a6"),
 
 static VOID _graphics_private9 ( register struct GfxBase * GfxBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: private9() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_graphics", "private9");
     assert(FALSE);
 }
 

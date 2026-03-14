@@ -43,6 +43,9 @@ void  lprintf  (int level, const char *format, ...);
  */
 #define STRORNULL(s) ((s) ? (const char*)(s) : "(null)")
 
+#define PRIVATE_FUNCTION_ERROR(lib, func) \
+    LPRINTF(LOG_ERROR, lib ": " func "() error: private function called.\n")
+
 #define ENABLE_DEBUG
 
 #ifdef ENABLE_DEBUG

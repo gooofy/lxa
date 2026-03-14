@@ -377,9 +377,9 @@ ULONG _workbench_WhichWorkbenchObjectA ( register struct WorkbenchBase *Workbenc
 }
 
 /* Reserved/Private functions */
-static ULONG _workbench_Private1 ( void ) { return 0; }
-static ULONG _workbench_Private2 ( void ) { return 0; }
-static ULONG _workbench_Private3 ( void ) { return 0; }
+static ULONG _workbench_Private1 ( void ) { PRIVATE_FUNCTION_ERROR("_workbench", "Private1"); return 0; }
+static ULONG _workbench_Private2 ( void ) { PRIVATE_FUNCTION_ERROR("_workbench", "Private2"); return 0; }
+static ULONG _workbench_Private3 ( void ) { PRIVATE_FUNCTION_ERROR("_workbench", "Private3"); return 0; }
 
 /*
  * Library structure definitions

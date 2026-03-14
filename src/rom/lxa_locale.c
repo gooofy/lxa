@@ -930,7 +930,7 @@ ULONG __g_lxa_locale_ExtFuncLib(void)
 }
 
 /* Reserved function stub */
-static ULONG _locale_Reserved(void) { return 0; }
+static ULONG _locale_Reserved(void) { PRIVATE_FUNCTION_ERROR("_locale", "Reserved"); return 0; }
 
 /****************************************************************************/
 /* Main functions                                                            */

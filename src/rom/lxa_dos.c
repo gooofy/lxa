@@ -2262,13 +2262,13 @@ void _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
 
 VOID _dos_private0 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: private0() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_dos", "private0");
     assert(FALSE);
 }
 
 VOID _dos_private1 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: private1() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_dos", "private1");
     assert(FALSE);
 }
 
@@ -2276,14 +2276,14 @@ void  _dos_ClearVec (register struct DosLibrary * __libBase __asm("a6"),
                                      register BPTR ___bVector  __asm("d1"),
                                      register BPTR ___upb      __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: ClearVec() unimplemented *PRIVATE* STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_dos", "ClearVec");
     assert(FALSE);
 }
 
 void _dos_NoReqLoadSeg (register struct DosLibrary * __libBase __asm("a6"),
                                         register BPTR ___bFileName             __asm("d1"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: NoReqLoadSeg() unimplemented *PRIVATE* STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_dos", "NoReqLoadSeg");
     assert(FALSE);
 }
 
@@ -4142,7 +4142,7 @@ LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
 
 VOID _dos_private2 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: private2() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_dos", "private2");
     assert(FALSE);
 }
 
@@ -7396,7 +7396,7 @@ BOOL _dos_MatchPattern ( register struct DosLibrary * DOSBase __asm("a6"),
 
 VOID _dos_private3 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: private3() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_dos", "private3");
     assert(FALSE);
 }
 
@@ -7428,7 +7428,7 @@ VOID _dos_FreeArgs ( register struct DosLibrary * DOSBase __asm("a6"),
 
 VOID _dos_private4 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: private4() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_dos", "private4");
     assert(FALSE);
 }
 
@@ -8131,7 +8131,7 @@ struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"
 
 VOID _dos_private5 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: private5() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_dos", "private5");
     assert(FALSE);
 }
 
@@ -8217,7 +8217,7 @@ LONG _dos_VPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
 
 VOID _dos_private6 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: private6() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_dos", "private6");
     assert(FALSE);
 }
 
@@ -8275,7 +8275,7 @@ BOOL _dos_MatchPatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
 
 VOID _dos_private7 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
-    LPRINTF (LOG_ERROR, "_dos: private7() unimplemented STUB called.\n");
+    PRIVATE_FUNCTION_ERROR("_dos", "private7");
     assert(FALSE);
 }
 

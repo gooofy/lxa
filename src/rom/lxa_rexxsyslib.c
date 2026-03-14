@@ -76,6 +76,7 @@ ULONG __g_lxa_rexxsyslib_ExtFuncLib ( void )
 /* Reserved function slots (bias 30-120, 16 slots) */
 ULONG _rexxsyslib_Reserved ( void )
 {
+    PRIVATE_FUNCTION_ERROR("_rexxsyslib", "Reserved");
     return 0;
 }
 

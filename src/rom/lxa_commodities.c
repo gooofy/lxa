@@ -211,6 +211,7 @@ void _commodities_RemoveCxObj ( register struct CommoditiesBase *CxBase __asm("a
 /* Private function slot */
 ULONG _commodities_Private1 ( register struct CommoditiesBase *CxBase __asm("a6") )
 {
+    PRIVATE_FUNCTION_ERROR("_commodities", "Private1");
     return 0;
 }
 
@@ -323,16 +324,19 @@ void _commodities_AddIEvents ( register struct CommoditiesBase *CxBase __asm("a6
 /* Private function slots */
 ULONG _commodities_Private2 ( register struct CommoditiesBase *CxBase __asm("a6") )
 {
+    PRIVATE_FUNCTION_ERROR("_commodities", "Private2");
     return 0;
 }
 
 ULONG _commodities_Private3 ( register struct CommoditiesBase *CxBase __asm("a6") )
 {
+    PRIVATE_FUNCTION_ERROR("_commodities", "Private3");
     return 0;
 }
 
 ULONG _commodities_Private4 ( register struct CommoditiesBase *CxBase __asm("a6") )
 {
+    PRIVATE_FUNCTION_ERROR("_commodities", "Private4");
     return 0;
 }
 

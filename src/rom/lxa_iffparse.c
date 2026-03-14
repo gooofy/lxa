@@ -1553,6 +1553,7 @@ LONG _iffparse_PopChunk ( register struct IFFParseBase *IFFParseBase __asm("a6")
 /* Reserved slot */
 ULONG _iffparse_Reserved ( void )
 {
+    PRIVATE_FUNCTION_ERROR("_iffparse", "Reserved");
     return 0;
 }
 
