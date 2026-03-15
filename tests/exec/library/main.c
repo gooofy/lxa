@@ -20,12 +20,17 @@
 #include <dos/dosextens.h>
 #include <dos/rdargs.h>
 #include <dos/record.h>
+#include <graphics/collide.h>
+#include <graphics/gels.h>
+#include <graphics/rastport.h>
 #include <utility/tagitem.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
+#include <clib/graphics_protos.h>
 #include <clib/utility_protos.h>
 #include <inline/exec.h>
 #include <inline/dos.h>
+#include <inline/graphics.h>
 #include <inline/utility.h>
 
 #undef SetFunction
@@ -34,6 +39,7 @@ extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
 static struct UtilityBase *UtilityBase;
+extern struct GfxBase *GfxBase;
 
 static const char g_test_library_name[] = "phase78test.library";
 
@@ -1773,6 +1779,193 @@ static int test_utility_applytagchanges_stub_closed(void)
     return errors;
 }
 
+static LONG exec_boundary_collision(struct VSprite *vs, WORD hits)
+{
+    (void)vs;
+    return hits;
+}
+
+static int test_graphics_remibob_stub_closed(void)
+{
+    int errors = 0;
+    struct VSprite head;
+    struct VSprite tail;
+    struct VSprite base_vs;
+    struct VSprite cover_vs;
+    struct GelsInfo gels_info;
+    struct RastPort rp;
+    struct Bob base_bob;
+    struct Bob cover_bob;
+    struct BitMap *bm;
+    WORD image_data[1] = { 0x8000 };
+
+    print("--- Test: graphics RemIBob entry point ---\n");
+
+    bm = AllocBitMap(32, 16, 1, BMF_CLEAR, NULL);
+    if (!bm)
+    {
+        print("FAIL: AllocBitMap() returned NULL\n");
+        return 1;
+    }
+
+    InitGels(&head, &tail, &gels_info);
+    InitRastPort(&rp);
+    rp.BitMap = bm;
+    rp.GelsInfo = &gels_info;
+    SetAPen(&rp, 1);
+
+    base_vs.NextVSprite = NULL;
+    base_vs.PrevVSprite = NULL;
+    base_vs.DrawPath = NULL;
+    base_vs.ClearPath = NULL;
+    base_vs.OldY = 0;
+    base_vs.OldX = 0;
+    base_vs.Flags = 0;
+    base_vs.Y = 4;
+    base_vs.X = 4;
+    base_vs.Height = 1;
+    base_vs.Width = 1;
+    base_vs.Depth = 1;
+    base_vs.MeMask = 0;
+    base_vs.HitMask = 0;
+    base_vs.ImageData = image_data;
+    base_vs.BorderLine = NULL;
+    base_vs.CollMask = NULL;
+    base_vs.SprColors = NULL;
+    base_vs.VSBob = NULL;
+    base_vs.PlanePick = 1;
+    base_vs.PlaneOnOff = 0;
+    base_vs.VUserExt = 0;
+
+    cover_vs = base_vs;
+    cover_vs.X = 5;
+
+    base_bob.Flags = 0;
+    base_bob.SaveBuffer = NULL;
+    base_bob.ImageShadow = NULL;
+    base_bob.Before = NULL;
+    base_bob.After = NULL;
+    base_bob.BobVSprite = &base_vs;
+    base_bob.BobComp = NULL;
+    base_bob.DBuffer = NULL;
+    base_bob.BUserExt = 0;
+
+    cover_bob.Flags = 0;
+    cover_bob.SaveBuffer = NULL;
+    cover_bob.ImageShadow = NULL;
+    cover_bob.Before = NULL;
+    cover_bob.After = NULL;
+    cover_bob.BobVSprite = &cover_vs;
+    cover_bob.BobComp = NULL;
+    cover_bob.DBuffer = NULL;
+    cover_bob.BUserExt = 0;
+
+    AddBob(&base_bob, &rp);
+    AddBob(&cover_bob, &rp);
+    DrawGList(&rp, NULL);
+    RemIBob(&base_bob, &rp, NULL);
+
+    if ((base_bob.Flags & BOBNIX) == 0 || (cover_bob.Flags & BOBNIX) == 0 ||
+        head.NextVSprite != &cover_vs || ReadPixel(&rp, 4, 4) != 0 || ReadPixel(&rp, 5, 4) != 0)
+    {
+        print("FAIL: RemIBob() did not immediately remove and clear the Bob\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: RemIBob() no longer behaves like a stub\n");
+    }
+
+    FreeBitMap(bm);
+
+    print("\n");
+    return errors;
+}
+
+static int test_graphics_docollision_stub_closed(void)
+{
+    int errors = 0;
+    struct VSprite head;
+    struct VSprite tail;
+    struct VSprite probe;
+    struct GelsInfo gels_info;
+    struct collTable coll_table;
+    struct RastPort rp;
+    WORD image_data[2] = { 0x8000, 0x0000 };
+    WORD coll_mask[2] = { 0, 0 };
+    WORD border_line[1] = { 0 };
+
+    print("--- Test: graphics DoCollision entry point ---\n");
+
+    InitGels(&head, &tail, &gels_info);
+    InitRastPort(&rp);
+    rp.GelsInfo = &gels_info;
+
+    probe.NextVSprite = NULL;
+    probe.PrevVSprite = NULL;
+    probe.DrawPath = NULL;
+    probe.ClearPath = NULL;
+    probe.OldY = 0;
+    probe.OldX = 0;
+    probe.Flags = VSPRITE;
+    probe.Y = 4;
+    probe.X = 4;
+    probe.Height = 2;
+    probe.Width = 1;
+    probe.Depth = 1;
+    probe.MeMask = 0;
+    probe.HitMask = 1 << BORDERHIT;
+    probe.ImageData = image_data;
+    probe.BorderLine = border_line;
+    probe.CollMask = coll_mask;
+    probe.SprColors = NULL;
+    probe.VSBob = NULL;
+    probe.PlanePick = 1;
+    probe.PlaneOnOff = 0;
+    probe.VUserExt = 0;
+
+    coll_table.collPtrs[0] = (LONG (*)(struct VSprite *, struct VSprite *))exec_boundary_collision;
+    gels_info.collHandler = &coll_table;
+    gels_info.leftmost = 5;
+    gels_info.rightmost = 20;
+    gels_info.topmost = 5;
+    gels_info.bottommost = 20;
+
+    InitMasks(&probe);
+    AddVSprite(&probe, &rp);
+    DoCollision(&rp);
+
+    if ((UWORD)probe.BorderLine[0] == 0x8000U &&
+        (UWORD)probe.CollMask[0] == 0x8000U &&
+        (UWORD)probe.CollMask[1] == 0x0000U)
+    {
+        print("OK: DoCollision() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: DoCollision()/InitMasks() returned unexpected results\n");
+        errors++;
+    }
+
+    coll_table.collPtrs[0] = NULL;
+    coll_table.collPtrs[15] = NULL;
+    SetCollision(BORDERHIT, (VOID (*)())exec_boundary_collision, &gels_info);
+    SetCollision(15, (VOID (*)())exec_boundary_collision, &gels_info);
+    if ((APTR)gels_info.collHandler->collPtrs[BORDERHIT] == (APTR)exec_boundary_collision &&
+        (APTR)gels_info.collHandler->collPtrs[15] == (APTR)exec_boundary_collision)
+    {
+        print("OK: SetCollision() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: SetCollision() did not store callback\n");
+        errors++;
+    }
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -1920,6 +2113,12 @@ int main(void)
 
     /* Test 37: Verify ApplyTagChanges no longer hits the stub path */
     errors += test_utility_applytagchanges_stub_closed();
+
+    /* Test 38: Verify RemIBob no longer hits the stub path */
+    errors += test_graphics_remibob_stub_closed();
+
+    /* Test 39: Verify DoCollision/InitMasks/SetCollision no longer hit the stub path */
+    errors += test_graphics_docollision_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

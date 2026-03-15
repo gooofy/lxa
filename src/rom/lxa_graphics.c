@@ -22,6 +22,7 @@
 #include <graphics/clip.h>
 #include <graphics/layers.h>
 #include <graphics/gels.h>
+#include <graphics/collide.h>
 #include <graphics/scale.h>
 #include <graphics/text.h>
 #include <hardware/blit.h>
@@ -61,6 +62,12 @@ static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
                           UBYTE mask,
                           CONST PLANEPTR bltMask,
                           UWORD maskBytesPerRow);
+static VOID _graphics_EraseRect(register struct GfxBase *GfxBase __asm("a6"),
+                                register struct RastPort *rp __asm("a1"),
+                                register LONG xMin __asm("d0"),
+                                register LONG yMin __asm("d1"),
+                                register LONG xMax __asm("d2"),
+                                register LONG yMax __asm("d3"));
 static VOID _graphics_AddVSprite(register struct GfxBase *GfxBase __asm("a6"),
                                  register struct VSprite *vSprite __asm("a0"),
                                  register struct RastPort *rp __asm("a1"));
@@ -654,6 +661,262 @@ static VOID graphics_free_placeholder_cprlist(struct cprlist *cpr_list)
 static ULONG graphics_vsprite_sort_key(CONST struct VSprite *vSprite)
 {
     return (((ULONG)(UWORD)vSprite->Y) << 16) | (UWORD)vSprite->X;
+}
+
+static WORD graphics_vsprite_words_per_line(CONST struct VSprite *vSprite)
+{
+    if (!vSprite || vSprite->Width <= 0)
+        return 0;
+
+    if (vSprite->Flags & VSPRITE)
+        return (WORD)((vSprite->Width + 15) >> 4);
+
+    return vSprite->Width;
+}
+
+static WORD graphics_vsprite_mask_depth(CONST struct VSprite *vSprite)
+{
+    if (!vSprite)
+        return 0;
+
+    if (vSprite->Depth > 0)
+        return vSprite->Depth;
+
+    if (vSprite->Flags & VSPRITE)
+        return 2;
+
+    return 0;
+}
+
+static BOOL graphics_collmask_pixel_is_set(CONST UWORD *row, WORD words_per_line, WORD x)
+{
+    WORD word_index;
+    WORD bit_index;
+
+    if (!row || words_per_line <= 0 || x < 0 || x >= (words_per_line << 4))
+        return FALSE;
+
+    word_index = (WORD)(x >> 4);
+    bit_index = (WORD)(x & 0x0f);
+
+    return (row[word_index] & (0x8000U >> bit_index)) != 0;
+}
+
+static BOOL graphics_vsprite_get_occupied_bounds(CONST struct VSprite *vSprite,
+                                                 WORD *left,
+                                                 WORD *top,
+                                                 WORD *right,
+                                                 WORD *bottom)
+{
+    WORD words_per_line;
+    WORD row;
+    BOOL found = FALSE;
+
+    if (!vSprite || !left || !top || !right || !bottom || vSprite->Height <= 0)
+        return FALSE;
+
+    words_per_line = graphics_vsprite_words_per_line(vSprite);
+    if (words_per_line <= 0)
+        return FALSE;
+
+    *left = 0;
+    *top = 0;
+    *right = (WORD)((words_per_line << 4) - 1);
+    *bottom = (WORD)(vSprite->Height - 1);
+
+    if (!vSprite->CollMask)
+        return TRUE;
+
+    for (row = 0; row < vSprite->Height; row++)
+    {
+        CONST UWORD *coll_row = (CONST UWORD *)(CONST VOID *)(vSprite->CollMask + (row * words_per_line));
+        WORD column;
+
+        for (column = 0; column < (words_per_line << 4); column++)
+        {
+            if (!graphics_collmask_pixel_is_set(coll_row, words_per_line, column))
+                continue;
+
+            if (!found)
+            {
+                *left = column;
+                *right = column;
+                *top = row;
+                *bottom = row;
+                found = TRUE;
+            }
+            else
+            {
+                if (column < *left)
+                    *left = column;
+                if (column > *right)
+                    *right = column;
+                if (row < *top)
+                    *top = row;
+                if (row > *bottom)
+                    *bottom = row;
+            }
+        }
+    }
+
+    return found;
+}
+
+static WORD graphics_vsprite_boundary_flags(CONST struct GelsInfo *gelsInfo,
+                                            CONST struct VSprite *vSprite)
+{
+    WORD left;
+    WORD top;
+    WORD right;
+    WORD bottom;
+    WORD flags = 0;
+
+    if (!gelsInfo || !vSprite ||
+        (vSprite->HitMask & (1U << BORDERHIT)) == 0)
+    {
+        return 0;
+    }
+
+    if (!graphics_vsprite_get_occupied_bounds(vSprite, &left, &top, &right, &bottom))
+        return 0;
+
+    if ((WORD)(vSprite->Y + top) < gelsInfo->topmost)
+        flags |= TOPHIT;
+    if ((WORD)(vSprite->Y + bottom) > gelsInfo->bottommost)
+        flags |= BOTTOMHIT;
+    if ((WORD)(vSprite->X + left) < gelsInfo->leftmost)
+        flags |= LEFTHIT;
+    if ((WORD)(vSprite->X + right) > gelsInfo->rightmost)
+        flags |= RIGHTHIT;
+
+    return flags;
+}
+
+static BOOL graphics_vsprites_collide(CONST struct VSprite *left_vsprite,
+                                      CONST struct VSprite *right_vsprite)
+{
+    WORD left_words;
+    WORD right_words;
+    WORD y_start;
+    WORD y_end;
+    WORD x_start;
+    WORD x_end;
+    WORD y;
+
+    if (!left_vsprite || !right_vsprite || !left_vsprite->CollMask || !right_vsprite->CollMask ||
+        left_vsprite->Height <= 0 || right_vsprite->Height <= 0)
+    {
+        return FALSE;
+    }
+
+    left_words = graphics_vsprite_words_per_line(left_vsprite);
+    right_words = graphics_vsprite_words_per_line(right_vsprite);
+    if (left_words <= 0 || right_words <= 0)
+        return FALSE;
+
+    y_start = (left_vsprite->Y > right_vsprite->Y) ? left_vsprite->Y : right_vsprite->Y;
+    y_end = ((WORD)(left_vsprite->Y + left_vsprite->Height - 1) <
+             (WORD)(right_vsprite->Y + right_vsprite->Height - 1))
+                ? (WORD)(left_vsprite->Y + left_vsprite->Height - 1)
+                : (WORD)(right_vsprite->Y + right_vsprite->Height - 1);
+    x_start = (left_vsprite->X > right_vsprite->X) ? left_vsprite->X : right_vsprite->X;
+    x_end = ((WORD)(left_vsprite->X + (left_words << 4) - 1) <
+             (WORD)(right_vsprite->X + (right_words << 4) - 1))
+                ? (WORD)(left_vsprite->X + (left_words << 4) - 1)
+                : (WORD)(right_vsprite->X + (right_words << 4) - 1);
+
+    if (y_start > y_end || x_start > x_end)
+        return FALSE;
+
+    for (y = y_start; y <= y_end; y++)
+    {
+        CONST UWORD *left_row = (CONST UWORD *)(CONST VOID *)(left_vsprite->CollMask + ((y - left_vsprite->Y) * left_words));
+        CONST UWORD *right_row = (CONST UWORD *)(CONST VOID *)(right_vsprite->CollMask + ((y - right_vsprite->Y) * right_words));
+        WORD x;
+
+        for (x = x_start; x <= x_end; x++)
+        {
+            if (graphics_collmask_pixel_is_set(left_row, left_words, (WORD)(x - left_vsprite->X)) &&
+                graphics_collmask_pixel_is_set(right_row, right_words, (WORD)(x - right_vsprite->X)))
+            {
+                return TRUE;
+            }
+        }
+    }
+
+    return FALSE;
+}
+
+static BOOL graphics_vsprites_old_bounds_overlap(CONST struct VSprite *left_vsprite,
+                                                 CONST struct VSprite *right_vsprite)
+{
+    WORD left_left;
+    WORD left_top;
+    WORD left_right;
+    WORD left_bottom;
+    WORD right_left;
+    WORD right_top;
+    WORD right_right;
+    WORD right_bottom;
+
+    if (!left_vsprite || !right_vsprite || left_vsprite->Width <= 0 || left_vsprite->Height <= 0 ||
+        right_vsprite->Width <= 0 || right_vsprite->Height <= 0)
+    {
+        return FALSE;
+    }
+
+    left_left = left_vsprite->OldX;
+    left_top = left_vsprite->OldY;
+    left_right = (WORD)(left_left + (left_vsprite->Width << 4) - 1);
+    left_bottom = (WORD)(left_top + left_vsprite->Height - 1);
+
+    right_left = right_vsprite->OldX;
+    right_top = right_vsprite->OldY;
+    right_right = (WORD)(right_left + (right_vsprite->Width << 4) - 1);
+    right_bottom = (WORD)(right_top + right_vsprite->Height - 1);
+
+    return !(left_right < right_left || right_right < left_left ||
+             left_bottom < right_top || right_bottom < left_top);
+}
+
+static VOID graphics_clear_bob_immediately(struct GfxBase *GfxBase,
+                                           struct RastPort *rp,
+                                           struct VSprite *vSprite,
+                                           struct VSprite *tail)
+{
+    struct Bob *bob;
+    struct VSprite *other;
+
+    if (!vSprite || !vSprite->VSBob)
+        return;
+
+    bob = vSprite->VSBob;
+    if (bob->Flags & (BWAITING | BOBNIX))
+    {
+        bob->Flags &= ~BWAITING;
+        return;
+    }
+
+    other = vSprite->NextVSprite;
+    while (other && other != tail)
+    {
+        if (other->VSBob && graphics_vsprites_old_bounds_overlap(vSprite, other))
+            graphics_clear_bob_immediately(GfxBase, rp, other, tail);
+        other = other->NextVSprite;
+    }
+
+    if (rp && (bob->Flags & SAVEBOB) == 0 && vSprite->Width > 0 && vSprite->Height > 0)
+    {
+        _graphics_EraseRect(GfxBase,
+                            rp,
+                            vSprite->OldX,
+                            vSprite->OldY,
+                            (LONG)(vSprite->OldX + (vSprite->Width << 4) - 1),
+                            (LONG)(vSprite->OldY + vSprite->Height - 1));
+    }
+
+    bob->Flags &= ~(BWAITING | BDRAWN);
+    bob->Flags |= BOBNIX;
 }
 
 static VOID graphics_init_gels_sentinel(struct VSprite *vSprite, WORD x, WORD y)
@@ -2195,8 +2458,63 @@ static VOID _graphics_AddVSprite ( register struct GfxBase * GfxBase __asm("a6")
 static VOID _graphics_DoCollision ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: DoCollision() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct GelsInfo *gelsInfo;
+    struct VSprite *current;
+    struct VSprite *tail;
+
+    DPRINTF (LOG_DEBUG, "_graphics: DoCollision() rp=0x%08lx\n", (ULONG)rp);
+
+    if (!rp || !rp->GelsInfo || !rp->GelsInfo->gelHead || !rp->GelsInfo->gelTail)
+        return;
+
+    gelsInfo = rp->GelsInfo;
+    current = gelsInfo->gelHead->NextVSprite;
+    tail = gelsInfo->gelTail;
+
+    while (current && current != tail)
+    {
+        WORD boundary_flags = graphics_vsprite_boundary_flags(gelsInfo, current);
+        struct VSprite *other = current->NextVSprite;
+
+        if (boundary_flags != 0 && gelsInfo->collHandler && gelsInfo->collHandler->collPtrs[0])
+        {
+            typedef LONG (*graphics_boundary_collision_t)(struct VSprite *, WORD);
+            graphics_boundary_collision_t routine = (graphics_boundary_collision_t)gelsInfo->collHandler->collPtrs[0];
+            routine(current, boundary_flags);
+        }
+
+        while (other && other != tail)
+        {
+            if (graphics_vsprites_collide(current, other))
+            {
+                UWORD mask = (UWORD)(current->MeMask & other->HitMask);
+                UWORD bit = 0;
+
+                while (bit < 16 && mask != 0)
+                {
+                    if (mask & 0x0001)
+                    {
+                        if (gelsInfo->collHandler && gelsInfo->collHandler->collPtrs[bit])
+                        {
+                            typedef VOID (*graphics_gel_collision_t)(struct VSprite *, struct VSprite *);
+                            graphics_gel_collision_t routine = (graphics_gel_collision_t)gelsInfo->collHandler->collPtrs[bit];
+                            routine(current, other);
+                        }
+                        break;
+                    }
+
+                    bit++;
+                    mask >>= 1;
+                }
+            }
+
+            other = other->NextVSprite;
+        }
+
+        current = current->NextVSprite;
+    }
+
+    (void)GfxBase;
 }
 
 static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2237,7 +2555,7 @@ static VOID _graphics_DrawGList ( register struct GfxBase * GfxBase __asm("a6"),
         if (current->VSBob)
         {
             current->VSBob->Flags |= BDRAWN;
-            current->VSBob->Flags &= ~BOBNIX;
+            current->VSBob->Flags &= ~(BOBNIX | BWAITING);
         }
 
         current = next;
@@ -2293,8 +2611,49 @@ static VOID _graphics_InitGels ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_InitMasks ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct VSprite * vSprite __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: InitMasks() unimplemented STUB called.\n");
-    assert(FALSE);
+    WORD words_per_line;
+    WORD depth;
+    WORD words_per_plane;
+    WORD count;
+
+    DPRINTF (LOG_DEBUG, "_graphics: InitMasks() vs=0x%08lx\n", (ULONG)vSprite);
+
+    if (!vSprite || !vSprite->ImageData || !vSprite->CollMask || !vSprite->BorderLine ||
+        vSprite->Height <= 0)
+    {
+        return;
+    }
+
+    words_per_line = graphics_vsprite_words_per_line(vSprite);
+    depth = graphics_vsprite_mask_depth(vSprite);
+    if (words_per_line <= 0 || depth <= 0)
+        return;
+
+    words_per_plane = (WORD)(vSprite->Height * words_per_line);
+
+    for (count = 0; count < words_per_plane; count++)
+    {
+        WORD data = vSprite->ImageData[count];
+        WORD plane;
+
+        for (plane = 1; plane < depth; plane++)
+            data |= vSprite->ImageData[count + (plane * words_per_plane)];
+
+        vSprite->CollMask[count] = data;
+    }
+
+    for (count = 0; count < words_per_line; count++)
+    {
+        WORD data = vSprite->CollMask[count];
+        WORD row;
+
+        for (row = 1; row < vSprite->Height; row++)
+            data |= vSprite->CollMask[count + (row * words_per_line)];
+
+        vSprite->BorderLine[count] = data;
+    }
+
+    (void)GfxBase;
 }
 
 static VOID _graphics_RemIBob ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2302,8 +2661,22 @@ static VOID _graphics_RemIBob ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"),
                                                         register struct ViewPort * vp __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: RemIBob() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct VSprite *vSprite;
+    struct VSprite *tail;
+
+    DPRINTF (LOG_DEBUG, "_graphics: RemIBob() bob=0x%08lx rp=0x%08lx vp=0x%08lx\n",
+             (ULONG)bob, (ULONG)rp, (ULONG)vp);
+
+    if (!bob || !bob->BobVSprite)
+        return;
+
+    vSprite = bob->BobVSprite;
+    tail = (rp && rp->GelsInfo) ? rp->GelsInfo->gelTail : NULL;
+
+    graphics_clear_bob_immediately(GfxBase, rp, vSprite, tail);
+    _graphics_RemVSprite(GfxBase, vSprite);
+
+    (void)vp;
 }
 
 static VOID _graphics_RemVSprite ( register struct GfxBase * GfxBase __asm("a6"),
@@ -2328,11 +2701,19 @@ static VOID _graphics_RemVSprite ( register struct GfxBase * GfxBase __asm("a6")
 }
 
 static VOID _graphics_SetCollision ( register struct GfxBase  *GfxBase   __asm("a6"),
+                                              register ULONG             num       __asm("d0"),
                                               register void            (*routine) __asm("a0"),
                                               register struct GelsInfo *GInfo     __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetCollision() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_graphics: SetCollision() num=%lu routine=0x%08lx ginfo=0x%08lx\n",
+             num, (ULONG)routine, (ULONG)GInfo);
+
+    if (!GInfo || !GInfo->collHandler || num >= 16)
+        return;
+
+    GInfo->collHandler->collPtrs[num] = (LONG (*)(struct VSprite *, struct VSprite *))routine;
+
+    (void)GfxBase;
 }
 
 static VOID _graphics_SortGList ( register struct GfxBase * GfxBase __asm("a6"),
