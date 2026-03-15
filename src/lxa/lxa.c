@@ -3343,6 +3343,64 @@ static uint32_t _dos_unlockrecord(uint32_t fh68k, uint32_t offset, uint32_t leng
 #define FIB_fib_Reserved     228 /* char[32] */
 #define FIB_SIZE             260
 
+static uint32_t _default_owner_info_from_stat(const struct stat *st)
+{
+    return (((uint32_t)st->st_uid & 0xffffU) << 16) | ((uint32_t)st->st_gid & 0xffffU);
+}
+
+static void _write_owner_info(uint32_t fib68k, uint32_t owner_info)
+{
+    m68k_write_memory_16(fib68k + FIB_fib_OwnerUID, (owner_info >> 16) & 0xffffU);
+    m68k_write_memory_16(fib68k + FIB_fib_OwnerGID, owner_info & 0xffffU);
+}
+
+static uint32_t _read_owner_info(const char *linux_path, const struct stat *st)
+{
+    char owner_buf[32];
+    char *end = NULL;
+    unsigned long owner_info;
+
+    memset(owner_buf, 0, sizeof(owner_buf));
+
+#ifdef HAVE_XATTR
+    {
+        ssize_t len = getxattr(linux_path, "user.amiga.owner", owner_buf, sizeof(owner_buf) - 1);
+
+        if (len > 0)
+        {
+            owner_buf[len] = '\0';
+            owner_info = strtoul(owner_buf, &end, 16);
+            if (end != owner_buf)
+                return (uint32_t)owner_info;
+        }
+    }
+#endif
+
+    {
+        char sidecar_path[PATH_MAX + 8];
+        FILE *f;
+
+        snprintf(sidecar_path, sizeof(sidecar_path), "%s.owner", linux_path);
+        f = fopen(sidecar_path, "r");
+        if (f)
+        {
+            if (fgets(owner_buf, sizeof(owner_buf), f))
+            {
+                owner_info = strtoul(owner_buf, &end, 16);
+                fclose(f);
+                if (end != owner_buf)
+                    return (uint32_t)owner_info;
+            }
+            else
+            {
+                fclose(f);
+            }
+        }
+    }
+
+    return _default_owner_info_from_stat(st);
+}
+
 /* Read file comment from xattr or sidecar file */
 static void _read_file_comment(const char *linux_path, uint32_t fib68k)
 {
@@ -3438,9 +3496,7 @@ static int _dos_examine(uint32_t lock_id, uint32_t fib68k)
     /* Read file comment from xattr or sidecar */
     _read_file_comment(lock->linux_path, fib68k);
     
-    /* Owner info */
-    m68k_write_memory_16(fib68k + FIB_fib_OwnerUID, st.st_uid);
-    m68k_write_memory_16(fib68k + FIB_fib_OwnerGID, st.st_gid);
+    _write_owner_info(fib68k, _read_owner_info(lock->linux_path, &st));
     
     /* If this is a directory, open it for ExNext iteration */
     if (S_ISDIR(st.st_mode) && !lock->dir) {
@@ -3537,8 +3593,7 @@ static int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
     /* Read file comment from xattr or sidecar */
     _read_file_comment(fullpath, fib68k);
     
-    m68k_write_memory_16(fib68k + FIB_fib_OwnerUID, st.st_uid);
-    m68k_write_memory_16(fib68k + FIB_fib_OwnerGID, st.st_gid);
+    _write_owner_info(fib68k, _read_owner_info(fullpath, &st));
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): success, name=%s, type=%d\n", de->d_name, type);
     return 1;
@@ -3917,6 +3972,64 @@ static int _dos_setcomment(uint32_t name68k, uint32_t comment68k)
         unlink(sidecar_path);
     }
     
+    return 1;
+}
+
+static int _dos_setowner(uint32_t name68k, uint32_t owner68k, uint32_t err68k)
+{
+    char *amiga_path = _mgetstr(name68k);
+    char linux_path[PATH_MAX];
+    struct stat st;
+    char owner_buf[32];
+
+    DPRINTF(LOG_DEBUG, "lxa: _dos_setowner(): amiga_path=%s, owner=0x%08x\n",
+            amiga_path ? amiga_path : "NULL", owner68k);
+
+    if (!amiga_path)
+    {
+        m68k_write_memory_32(err68k, ERROR_REQUIRED_ARG_MISSING);
+        return 0;
+    }
+
+    if (!_resolve_amiga_path_host(amiga_path, linux_path, sizeof(linux_path)))
+    {
+        m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
+        return 0;
+    }
+
+    if (stat(linux_path, &st) != 0)
+    {
+        m68k_write_memory_32(err68k, errno2Amiga());
+        return 0;
+    }
+
+#ifdef HAVE_XATTR
+    snprintf(owner_buf, sizeof(owner_buf), "%08x", owner68k);
+    if (setxattr(linux_path, "user.amiga.owner", owner_buf, strlen(owner_buf), 0) == 0)
+    {
+        m68k_write_memory_32(err68k, 0);
+        return 1;
+    }
+#endif
+
+    {
+        char sidecar_path[PATH_MAX + 8];
+        FILE *f;
+
+        snprintf(sidecar_path, sizeof(sidecar_path), "%s.owner", linux_path);
+        f = fopen(sidecar_path, "w");
+        if (!f)
+        {
+            m68k_write_memory_32(err68k, errno2Amiga());
+            return 0;
+        }
+
+        snprintf(owner_buf, sizeof(owner_buf), "%08x", owner68k);
+        fprintf(f, "%s", owner_buf);
+        fclose(f);
+    }
+
+    m68k_write_memory_32(err68k, 0);
     return 1;
 }
 
@@ -4723,9 +4836,7 @@ static int _dos_examinefh(uint32_t fh68k, uint32_t fib68k)
         _read_file_comment(linux_path, fib68k);
     }
     
-    /* Owner info */
-    m68k_write_memory_16(fib68k + FIB_fib_OwnerUID, st.st_uid);
-    m68k_write_memory_16(fib68k + FIB_fib_OwnerGID, st.st_gid);
+    _write_owner_info(fib68k, _read_owner_info(linux_path, &st));
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_examinefh(): success, type=%d, size=%ld\n", type, (long)st.st_size);
     return 1;
@@ -5693,6 +5804,20 @@ int op_illg(int level)
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_SETCOMMENT name=0x%08x, comment=0x%08x\n", name, comment);
 
             uint32_t res = _dos_setcomment(name, comment);
+            m68k_set_reg(M68K_REG_D0, res);
+            break;
+        }
+
+        case EMU_CALL_DOS_SETOWNER:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t owner = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t err = m68k_get_reg(NULL, M68K_REG_D3);
+
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_SETOWNER name=0x%08x, owner=0x%08x, err=0x%08x\n",
+                    name, owner, err);
+
+            uint32_t res = _dos_setowner(name, owner, err);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }

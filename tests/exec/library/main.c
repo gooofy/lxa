@@ -18,16 +18,22 @@
 #include <exec/memory.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
+#include <dos/rdargs.h>
 #include <dos/record.h>
+#include <utility/tagitem.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
+#include <clib/utility_protos.h>
 #include <inline/exec.h>
 #include <inline/dos.h>
+#include <inline/utility.h>
 
 #undef SetFunction
 
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
+
+static struct UtilityBase *UtilityBase;
 
 static const char g_test_library_name[] = "phase78test.library";
 
@@ -778,6 +784,45 @@ static int test_dos_changemode_stub_closed(void)
     return errors;
 }
 
+static int test_dos_samedevice_stub_closed(void)
+{
+    int errors = 0;
+    BPTR lock1;
+    BPTR lock2;
+    BOOL same;
+
+    print("--- Test: DOS SameDevice entry point ---\n");
+
+    lock1 = Lock((CONST_STRPTR)"SYS:", SHARED_LOCK);
+    lock2 = Lock((CONST_STRPTR)"SYS:Tests", SHARED_LOCK);
+    if (lock1 == 0 || lock2 == 0)
+    {
+        print("FAIL: Lock() for SameDevice probe failed\n\n");
+        if (lock2)
+            UnLock(lock2);
+        if (lock1)
+            UnLock(lock1);
+        return 1;
+    }
+
+    same = SameDevice(lock1, lock2);
+    if (same == DOSTRUE)
+    {
+        print("OK: SameDevice() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: SameDevice() unexpectedly failed\n");
+        errors++;
+    }
+
+    UnLock(lock2);
+    UnLock(lock1);
+
+    print("\n");
+    return errors;
+}
+
 static int test_dos_errorreport_stub_closed(void)
 {
     int errors = 0;
@@ -976,6 +1021,189 @@ static int test_dos_getargstr_stub_closed(void)
     }
 
     me->pr_Arguments = old_argstr;
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_cliinitnewcli_stub_closed(void)
+{
+    int errors = 0;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct DosPacket dp = { 0 };
+    struct CommandLineInterface *old_cli;
+    struct CommandLineInterface *cli;
+    BPTR old_dir;
+    BPTR restore_dir;
+    BPTR new_dir;
+    BPTR std_input;
+    BPTR std_output;
+    BPTR old_cis;
+    BPTR old_cos;
+    BPTR old_ces;
+
+    print("--- Test: DOS CliInitNewcli entry point ---\n");
+
+    if (!me || me->pr_Task.tc_Node.ln_Type != NT_PROCESS)
+    {
+        print("FAIL: Current task is not a process\n\n");
+        return 1;
+    }
+
+    old_cli = me->pr_CLI ? (struct CommandLineInterface *)BADDR(me->pr_CLI) : NULL;
+    old_dir = me->pr_CurrentDir;
+    old_cis = me->pr_CIS;
+    old_cos = me->pr_COS;
+    old_ces = me->pr_CES;
+    restore_dir = old_dir ? DupLock(old_dir) : 0;
+    new_dir = Lock((CONST_STRPTR)"RAM:", SHARED_LOCK);
+    std_input = Open((CONST_STRPTR)"NIL:", MODE_OLDFILE);
+    std_output = Open((CONST_STRPTR)"NIL:", MODE_NEWFILE);
+
+    if (!new_dir || !std_input || !std_output)
+    {
+        print("FAIL: Could not allocate CliInitNewcli probe resources\n");
+        errors++;
+        goto cleanup;
+    }
+
+    dp.dp_Res1 = 1;
+    dp.dp_Arg1 = new_dir;
+    dp.dp_Arg2 = std_input;
+    dp.dp_Arg3 = std_output;
+    dp.dp_Arg4 = std_input;
+
+    if (CliInitNewcli(&dp) == 0 && IoErr() == 0)
+    {
+        cli = Cli();
+        if (cli && cli->cli_StandardInput == std_input && cli->cli_StandardOutput == std_output)
+            print("OK: CliInitNewcli() no longer behaves like a stub\n");
+        else
+        {
+            print("FAIL: CliInitNewcli() did not initialize the CLI as expected\n");
+            errors++;
+        }
+    }
+    else
+    {
+        print("FAIL: CliInitNewcli() unexpectedly failed\n");
+        errors++;
+    }
+
+cleanup:
+    if (restore_dir || old_dir == 0)
+        CurrentDir(restore_dir);
+    me->pr_CIS = old_cis;
+    me->pr_COS = old_cos;
+    me->pr_CES = old_ces;
+
+    if (!old_cli && me->pr_CLI)
+    {
+        FreeDosObject(DOS_CLI, (APTR)BADDR(me->pr_CLI));
+        me->pr_CLI = 0;
+    }
+
+    if (std_output)
+        Close(std_output);
+    if (std_input)
+        Close(std_input);
+    if (new_dir)
+        UnLock(new_dir);
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_cliinitrun_stub_closed(void)
+{
+    int errors = 0;
+    struct Process *me = (struct Process *)FindTask(NULL);
+    struct DosPacket dp = { 0 };
+    struct CommandLineInterface *old_cli;
+    struct CommandLineInterface *cli;
+    BPTR old_dir;
+    BPTR restore_dir;
+    BPTR new_dir;
+    BPTR std_input;
+    BPTR old_cis;
+    BPTR old_cos;
+    BPTR old_ces;
+    LONG result;
+
+    print("--- Test: DOS CliInitRun entry point ---\n");
+
+    if (!me || me->pr_Task.tc_Node.ln_Type != NT_PROCESS)
+    {
+        print("FAIL: Current task is not a process\n\n");
+        return 1;
+    }
+
+    old_cli = me->pr_CLI ? (struct CommandLineInterface *)BADDR(me->pr_CLI) : NULL;
+    old_dir = me->pr_CurrentDir;
+    old_cis = me->pr_CIS;
+    old_cos = me->pr_COS;
+    old_ces = me->pr_CES;
+    restore_dir = old_dir ? DupLock(old_dir) : 0;
+    new_dir = Lock((CONST_STRPTR)"RAM:", SHARED_LOCK);
+    std_input = Open((CONST_STRPTR)"NIL:", MODE_OLDFILE);
+
+    if (!new_dir || !std_input)
+    {
+        print("FAIL: Could not allocate CliInitRun probe resources\n");
+        errors++;
+        goto cleanup;
+    }
+
+    dp.dp_Arg1 = old_cli ? MKBADDR(old_cli) : 0;
+    dp.dp_Arg2 = std_input;
+    dp.dp_Arg3 = 0;
+    dp.dp_Arg4 = std_input;
+    dp.dp_Arg5 = new_dir;
+    dp.dp_Arg6 = 1;
+
+    result = CliInitRun(&dp);
+    if (IoErr() == 0)
+    {
+        cli = Cli();
+        if (cli && cli->cli_StandardInput == std_input && cli->cli_StandardOutput != 0 &&
+            (result & ((LONG)1 << 31)) != 0)
+            print("OK: CliInitRun() no longer behaves like a stub\n");
+        else
+        {
+            print("FAIL: CliInitRun() did not initialize the CLI as expected\n");
+            errors++;
+        }
+    }
+    else
+    {
+        print("FAIL: CliInitRun() unexpectedly failed\n");
+        errors++;
+    }
+
+cleanup:
+    if (me->pr_CLI)
+    {
+        cli = (struct CommandLineInterface *)BADDR(me->pr_CLI);
+        if (cli && cli->cli_StandardOutput && cli->cli_StandardOutput != old_cos)
+            Close(cli->cli_StandardOutput);
+    }
+
+    if (restore_dir || old_dir == 0)
+        CurrentDir(restore_dir);
+    me->pr_CIS = old_cis;
+    me->pr_COS = old_cos;
+    me->pr_CES = old_ces;
+
+    if (!old_cli && me->pr_CLI)
+    {
+        FreeDosObject(DOS_CLI, (APTR)BADDR(me->pr_CLI));
+        me->pr_CLI = 0;
+    }
+
+    if (std_input)
+        Close(std_input);
+    if (new_dir)
+        UnLock(new_dir);
 
     print("\n");
     return errors;
@@ -1305,6 +1533,246 @@ static int test_dos_addbuffers_stub_closed(void)
     return errors;
 }
 
+static int test_dos_setowner_stub_closed(void)
+{
+    int errors = 0;
+    BOOL ok;
+    BPTR fh;
+
+    print("--- Test: DOS SetOwner entry point ---\n");
+
+    fh = Open((CONST_STRPTR)"T:lib_setowner_probe", MODE_NEWFILE);
+    if (!fh)
+    {
+        print("FAIL: Open() for SetOwner probe failed\n\n");
+        return 1;
+    }
+    Close(fh);
+
+    ok = SetOwner((CONST_STRPTR)"T:lib_setowner_probe", 0x12345678);
+    if (ok == DOSTRUE)
+    {
+        print("OK: SetOwner() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: SetOwner() unexpectedly failed\n");
+        errors++;
+    }
+
+    DeleteFile((CONST_STRPTR)"T:lib_setowner_probe");
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_addsegment_stub_closed(void)
+{
+    int errors = 0;
+    BPTR seg;
+    LONG ok;
+    struct RootNode *root;
+    struct DosInfo *dos_info;
+    BPTR old_head;
+    struct Segment *entry;
+
+    print("--- Test: DOS AddSegment entry point ---\n");
+
+    seg = LoadSeg((CONST_STRPTR)"SYS:Tests/Dos/HelloWorld");
+    if (!seg)
+    {
+        print("FAIL: LoadSeg() returned NULL for AddSegment probe\n\n");
+        return 1;
+    }
+
+    root = DOSBase ? DOSBase->dl_Root : NULL;
+    dos_info = root ? (struct DosInfo *)BADDR(root->rn_Info) : NULL;
+    if (!dos_info)
+    {
+        print("FAIL: DOS info is not initialized for AddSegment probe\n\n");
+        UnLoadSeg(seg);
+        return 1;
+    }
+
+    old_head = dos_info->di_ResList;
+    ok = AddSegment((CONST_STRPTR)"EXECADDSEG", seg, 0);
+    entry = (struct Segment *)BADDR(dos_info->di_ResList);
+    if (ok == DOSTRUE && IoErr() == 0 && entry && entry->seg_Seg == seg && entry->seg_Next == old_head)
+    {
+        print("OK: AddSegment() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: AddSegment() did not insert the resident segment as expected\n");
+        errors++;
+    }
+
+    if (entry && entry->seg_Seg == seg)
+    {
+        dos_info->di_ResList = entry->seg_Next;
+        UnLoadSeg(seg);
+        FreeVec(entry);
+    }
+    else
+    {
+        UnLoadSeg(seg);
+    }
+
+    print("\n");
+    return errors;
+}
+
+static int test_dos_readitem_stub_closed(void)
+{
+    int errors = 0;
+    struct CSource source;
+    LONG result;
+    char buffer[16];
+
+    print("--- Test: DOS ReadItem entry point ---\n");
+
+    source.CS_Buffer = (STRPTR)"alpha beta\n";
+    source.CS_Length = 11;
+    source.CS_CurChr = 0;
+    result = ReadItem((CONST_STRPTR)buffer, sizeof(buffer), &source);
+    if (result == ITEM_UNQUOTED && buffer[0] == 'a' && buffer[1] == 'l' && buffer[2] == 'p' && buffer[3] == 'h' && buffer[4] == 'a' && buffer[5] == '\0')
+    {
+        print("OK: ReadItem() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: ReadItem() unexpectedly failed\n");
+        errors++;
+    }
+
+    print("\n");
+    return errors;
+}
+
+static int test_utility_packbooltags_stub_closed(void)
+{
+    int errors = 0;
+    struct TagItem bool_map[] = {
+        { TAG_USER + 0x100, 0x01 },
+        { TAG_USER + 0x101, 0x02 },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem tags[] = {
+        { TAG_USER + 0x100, 0 },
+        { TAG_USER + 0x101, 1 },
+        { TAG_DONE, 0 }
+    };
+    ULONG flags;
+
+    print("--- Test: utility PackBoolTags entry point ---\n");
+
+    UtilityBase = (struct UtilityBase *)OpenLibrary((CONST_STRPTR)"utility.library", 36);
+    if (UtilityBase == NULL)
+    {
+        print("FAIL: OpenLibrary() for utility.library returned NULL\n\n");
+        return 1;
+    }
+
+    flags = PackBoolTags(0x01, tags, bool_map);
+    if (flags == 0x02)
+    {
+        print("OK: PackBoolTags() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: PackBoolTags() returned unexpected flags\n");
+        errors++;
+    }
+
+    CloseLibrary((struct Library *)UtilityBase);
+    UtilityBase = NULL;
+
+    print("\n");
+    return errors;
+}
+
+static int test_utility_filtertagchanges_stub_closed(void)
+{
+    int errors = 0;
+    struct TagItem original[] = {
+        { TAG_USER + 0x100, 1 },
+        { TAG_USER + 0x101, 2 },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem changes[] = {
+        { TAG_USER + 0x100, 1 },
+        { TAG_USER + 0x101, 9 },
+        { TAG_DONE, 0 }
+    };
+
+    print("--- Test: utility FilterTagChanges entry point ---\n");
+
+    UtilityBase = (struct UtilityBase *)OpenLibrary((CONST_STRPTR)"utility.library", 36);
+    if (UtilityBase == NULL)
+    {
+        print("FAIL: OpenLibrary() for utility.library returned NULL\n\n");
+        return 1;
+    }
+
+    FilterTagChanges(changes, original, 1);
+    if (changes[0].ti_Tag == TAG_IGNORE && changes[1].ti_Tag == TAG_USER + 0x101 && original[1].ti_Data == 9)
+    {
+        print("OK: FilterTagChanges() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: FilterTagChanges() returned unexpected results\n");
+        errors++;
+    }
+
+    CloseLibrary((struct Library *)UtilityBase);
+    UtilityBase = NULL;
+
+    print("\n");
+    return errors;
+}
+
+static int test_utility_applytagchanges_stub_closed(void)
+{
+    int errors = 0;
+    struct TagItem changes[] = {
+        { TAG_USER + 0x100, 7 },
+        { TAG_USER + 0x101, 9 },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem list[] = {
+        { TAG_USER + 0x100, 1 },
+        { TAG_USER + 0x101, 2 },
+        { TAG_DONE, 0 }
+    };
+
+    print("--- Test: utility ApplyTagChanges entry point ---\n");
+
+    UtilityBase = (struct UtilityBase *)OpenLibrary((CONST_STRPTR)"utility.library", 36);
+    if (UtilityBase == NULL)
+    {
+        print("FAIL: OpenLibrary() for utility.library returned NULL\n\n");
+        return 1;
+    }
+
+    ApplyTagChanges(list, changes);
+    if (list[0].ti_Data == 7 && list[1].ti_Data == 9)
+    {
+        print("OK: ApplyTagChanges() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: ApplyTagChanges() returned unexpected results\n");
+        errors++;
+    }
+
+    CloseLibrary((struct Library *)UtilityBase);
+    UtilityBase = NULL;
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -1381,50 +1849,77 @@ int main(void)
     /* Test 13: Verify ChangeMode no longer hits the stub path */
     errors += test_dos_changemode_stub_closed();
 
-    /* Test 14: Verify ErrorReport no longer hits the stub path */
+    /* Test 14: Verify SameDevice no longer hits the stub path */
+    errors += test_dos_samedevice_stub_closed();
+
+    /* Test 15: Verify ErrorReport no longer hits the stub path */
     errors += test_dos_errorreport_stub_closed();
 
-    /* Test 15: Verify GetConsoleTask no longer hits the stub path */
+    /* Test 16: Verify GetConsoleTask no longer hits the stub path */
     errors += test_dos_getconsoletask_stub_closed();
 
-    /* Test 16: Verify SetConsoleTask no longer hits the stub path */
+    /* Test 17: Verify SetConsoleTask no longer hits the stub path */
     errors += test_dos_setconsoletask_stub_closed();
 
-    /* Test 17: Verify GetFileSysTask no longer hits the stub path */
+    /* Test 18: Verify GetFileSysTask no longer hits the stub path */
     errors += test_dos_getfilesystask_stub_closed();
 
-    /* Test 18: Verify SetFileSysTask no longer hits the stub path */
+    /* Test 19: Verify SetFileSysTask no longer hits the stub path */
     errors += test_dos_setfilesystask_stub_closed();
 
-    /* Test 19: Verify GetArgStr no longer hits the stub path */
+    /* Test 20: Verify GetArgStr no longer hits the stub path */
     errors += test_dos_getargstr_stub_closed();
 
-    /* Test 20: Verify SetArgStr no longer hits the stub path */
+    /* Test 21: Verify CliInitNewcli no longer hits the stub path */
+    errors += test_dos_cliinitnewcli_stub_closed();
+
+    /* Test 22: Verify CliInitRun no longer hits the stub path */
+    errors += test_dos_cliinitrun_stub_closed();
+
+    /* Test 23: Verify SetArgStr no longer hits the stub path */
     errors += test_dos_setargstr_stub_closed();
 
-    /* Test 21: Verify RemDosEntry no longer hits the stub path */
+    /* Test 24: Verify RemDosEntry no longer hits the stub path */
     errors += test_dos_remdosentry_stub_closed();
 
-    /* Test 22: Verify AddDosEntry no longer hits the stub path */
+    /* Test 25: Verify AddDosEntry no longer hits the stub path */
     errors += test_dos_adddosentry_stub_closed();
 
-    /* Test 23: Verify MakeDosEntry no longer hits the stub path */
+    /* Test 26: Verify MakeDosEntry no longer hits the stub path */
     errors += test_dos_makedosentry_stub_closed();
 
-    /* Test 24: Verify FreeDosEntry no longer hits the stub path */
+    /* Test 27: Verify FreeDosEntry no longer hits the stub path */
     errors += test_dos_freedosentry_stub_closed();
 
-    /* Test 25: Verify Format no longer hits the stub path */
+    /* Test 28: Verify Format no longer hits the stub path */
     errors += test_dos_format_stub_closed();
 
-    /* Test 26: Verify Relabel no longer hits the stub path */
+    /* Test 29: Verify Relabel no longer hits the stub path */
     errors += test_dos_relabel_stub_closed();
 
-    /* Test 27: Verify Inhibit no longer hits the stub path */
+    /* Test 30: Verify Inhibit no longer hits the stub path */
     errors += test_dos_inhibit_stub_closed();
 
-    /* Test 28: Verify AddBuffers no longer hits the stub path */
+    /* Test 31: Verify AddBuffers no longer hits the stub path */
     errors += test_dos_addbuffers_stub_closed();
+
+    /* Test 32: Verify SetOwner no longer hits the stub path */
+    errors += test_dos_setowner_stub_closed();
+
+    /* Test 33: Verify AddSegment no longer hits the stub path */
+    errors += test_dos_addsegment_stub_closed();
+
+    /* Test 34: Verify ReadItem no longer hits the stub path */
+    errors += test_dos_readitem_stub_closed();
+
+    /* Test 35: Verify PackBoolTags no longer hits the stub path */
+    errors += test_utility_packbooltags_stub_closed();
+
+    /* Test 36: Verify FilterTagChanges no longer hits the stub path */
+    errors += test_utility_filtertagchanges_stub_closed();
+
+    /* Test 37: Verify ApplyTagChanges no longer hits the stub path */
+    errors += test_utility_applytagchanges_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

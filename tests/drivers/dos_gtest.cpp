@@ -153,6 +153,10 @@ TEST_F(DosTest, ChangeMode) {
     RunDosTest("ChangeMode");
 }
 
+TEST_F(DosTest, SameDevice) {
+    RunDosTest("SameDevice");
+}
+
 TEST_F(DosTest, ErrorReport) {
     RunDosTest("ErrorReport", 15000);
 }
@@ -171,6 +175,14 @@ TEST_F(DosTest, GetFileSysTask) {
 
 TEST_F(DosTest, GetArgStr) {
     RunDosTest("GetArgStr");
+}
+
+TEST_F(DosTest, CliInitNewcli) {
+    RunDosTest("CliInitNewcli");
+}
+
+TEST_F(DosTest, CliInitRun) {
+    RunDosTest("CliInitRun");
 }
 
 TEST_F(DosTest, SetArgStr) {
@@ -197,6 +209,14 @@ TEST_F(DosTest, FreeDosEntry) {
     RunDosTest("FreeDosEntry");
 }
 
+TEST_F(DosTest, AddSegment) {
+    RunDosTest("AddSegment");
+}
+
+TEST_F(DosTest, ReadItem) {
+    RunDosTest("ReadItem");
+}
+
 TEST_F(DosTest, Format) {
     RunDosTest("Format");
 }
@@ -211,6 +231,10 @@ TEST_F(DosTest, Inhibit) {
 
 TEST_F(DosTest, AddBuffers) {
     RunDosTest("AddBuffers");
+}
+
+TEST_F(DosTest, SetOwner) {
+    RunDosTest("SetOwner");
 }
 
 TEST_F(DosTest, LockLeak) {

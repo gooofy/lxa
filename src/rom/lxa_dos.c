@@ -14,6 +14,7 @@
 #include <dos/dostags.h>
 #include <dos/dosasl.h>
 #include <dos/exall.h>
+#include <dos/rdargs.h>
 #include <dos/record.h>
 #include <dos/stdio.h>
 #include <dos/var.h>
@@ -117,6 +118,7 @@ static void lxa_dos_sprintf_hook(register UBYTE ch __asm("d0"),
 static BSTR lxa_dos_alloc_name_bstr(CONST_STRPTR name);
 static BOOL lxa_dos_copy_bstr(BSTR bstr, STRPTR buffer, ULONG size);
 static BOOL lxa_dos_bstr_case_equal(BSTR left, BSTR right);
+static BOOL lxa_dos_bstr_cstr_case_equal(const UBYTE *bstr, CONST_STRPTR cstr);
 static BOOL lxa_dos_copy_until(CONST_STRPTR src, STRPTR dst, ULONG size, char stop);
 static BOOL lxa_dos_extract_volume_name(CONST_STRPTR name, STRPTR buffer, ULONG size);
 static BOOL lxa_dos_lookup_device_name(struct MsgPort *task, STRPTR buffer, ULONG size);
@@ -530,6 +532,17 @@ static LONG bstr_set_from_cstr(BPTR bstr, CONST_STRPTR src)
     dst[len + 1] = '\0';
 
     return TRUE;
+}
+
+static void lxa_dos_clear_bstr(BPTR bstr)
+{
+    UBYTE *ptr = (UBYTE *)BADDR(bstr);
+
+    if (!ptr)
+        return;
+
+    ptr[0] = 0;
+    ptr[1] = '\0';
 }
 
 static LONG lock_to_path(BPTR lock, STRPTR buffer, LONG len)
@@ -1441,6 +1454,35 @@ static BOOL lxa_dos_bstr_case_equal(BSTR left, BSTR right)
     }
 
     return TRUE;
+}
+
+static BOOL lxa_dos_bstr_cstr_case_equal(const UBYTE *bstr, CONST_STRPTR cstr)
+{
+    ULONG len;
+    ULONG i;
+
+    if (!bstr || !cstr)
+        return bstr == (const UBYTE *)cstr;
+
+    len = bstr[0];
+    for (i = 0; i < len; i++)
+    {
+        UBYTE left_ch = bstr[i + 1];
+        UBYTE right_ch = (UBYTE)cstr[i];
+
+        if (right_ch == '\0')
+            return FALSE;
+
+        if (left_ch >= 'a' && left_ch <= 'z')
+            left_ch -= 'a' - 'A';
+        if (right_ch >= 'a' && right_ch <= 'z')
+            right_ch -= 'a' - 'A';
+
+        if (left_ch != right_ch)
+            return FALSE;
+    }
+
+    return cstr[len] == '\0';
 }
 
 static BOOL lxa_dos_copy_until(CONST_STRPTR src, STRPTR dst, ULONG size, char stop)
@@ -7196,9 +7238,78 @@ LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR seg __asm("d2"),
                                                         register LONG system __asm("d3"))
 {
-    LPRINTF (LOG_ERROR, "_dos: AddSegment() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct RootNode *root;
+    struct DosInfo *dos_info;
+    struct Segment *current;
+    struct Segment *segment;
+    ULONG name_len = 0;
+    ULONG copy_len;
+    ULONG alloc_size;
+    BOOL want_system;
+
+    (void)DOSBase;
+
+    if (!name || !seg)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    root = initRootNode();
+    if (!root)
+        return DOSFALSE;
+
+    dos_info = (struct DosInfo *)BADDR(root->rn_Info);
+    if (!dos_info)
+        return DOSFALSE;
+
+    while (name[name_len] != '\0')
+        name_len++;
+
+    copy_len = name_len;
+    if (copy_len > 255)
+        copy_len = 255;
+
+    alloc_size = offsetof(struct Segment, seg_Name) + copy_len + 2;
+    want_system = (system < 0);
+
+    Forbid();
+
+    current = (struct Segment *)BADDR(dos_info->di_ResList);
+    while (current)
+    {
+        if (((want_system && current->seg_UC < 0) || (!want_system && current->seg_UC >= 0)) &&
+            lxa_dos_bstr_cstr_case_equal(current->seg_Name, name))
+        {
+            Permit();
+            SetIoErr(ERROR_OBJECT_EXISTS);
+            return DOSFALSE;
+        }
+
+        current = (struct Segment *)BADDR(current->seg_Next);
+    }
+
+    segment = (struct Segment *)AllocVec(alloc_size, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!segment)
+    {
+        Permit();
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return DOSFALSE;
+    }
+
+    segment->seg_UC = system;
+    segment->seg_Seg = seg;
+    segment->seg_Name[0] = (UBYTE)copy_len;
+    if (copy_len > 0)
+        CopyMem((APTR)name, &segment->seg_Name[1], copy_len);
+    segment->seg_Name[copy_len + 1] = '\0';
+
+    segment->seg_Next = dos_info->di_ResList;
+    dos_info->di_ResList = MKBADDR(segment);
+
+    Permit();
+    SetIoErr(0);
+    return DOSTRUE;
 }
 
 struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -7751,9 +7862,150 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
                                                          register LONG maxchars __asm("d2"),
                                                          register struct CSource * cSource __asm("d3"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: ReadItem() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    STRPTR buffer = (STRPTR)name;
+    STRPTR cursor = buffer;
+    LONG ch;
+    BPTR input_fh = 0;
+
+    DPRINTF (LOG_DEBUG, "_dos: ReadItem(buffer=%p, maxchars=%ld, cSource=%p) called.\n",
+             buffer, maxchars, cSource);
+
+    if (!buffer)
+        return ITEM_NOTHING;
+
+    if (maxchars == 0)
+    {
+        *cursor = '\0';
+        return ITEM_NOTHING;
+    }
+
+    if (!cSource)
+        input_fh = Input();
+
+#define READITEM_GET(c)                                                        \
+    do                                                                         \
+    {                                                                          \
+        if (cSource)                                                           \
+        {                                                                      \
+            if (cSource->CS_CurChr >= cSource->CS_Length)                      \
+                (c) = -1;                                                      \
+            else                                                               \
+                (c) = (UBYTE)cSource->CS_Buffer[cSource->CS_CurChr++];         \
+        }                                                                      \
+        else                                                                   \
+        {                                                                      \
+            (c) = _dos_FGetC(DOSBase, input_fh);                               \
+        }                                                                      \
+    } while (0)
+
+#define READITEM_UNGET(c)                                                      \
+    do                                                                         \
+    {                                                                          \
+        if (cSource)                                                           \
+            cSource->CS_CurChr--;                                              \
+        else if ((c) != -1)                                                    \
+            _dos_UnGetC(DOSBase, input_fh, (c));                               \
+    } while (0)
+
+    do
+    {
+        READITEM_GET(ch);
+    } while (ch == ' ' || ch == '\t');
+
+    if (!ch || ch == '\n' || ch == -1 || ch == ';')
+    {
+        *cursor = '\0';
+        if (ch != -1)
+            READITEM_UNGET(ch);
+        return ITEM_NOTHING;
+    }
+    else if (ch == '=')
+    {
+        *cursor = '\0';
+        return ITEM_EQUAL;
+    }
+    else if (ch == '"')
+    {
+        for (;;)
+        {
+            if (!maxchars)
+            {
+                cursor[-1] = '\0';
+                return ITEM_NOTHING;
+            }
+
+            maxchars--;
+            READITEM_GET(ch);
+
+            if (ch == '*')
+            {
+                READITEM_GET(ch);
+                if (!ch || ch == '\n' || ch == -1)
+                {
+                    READITEM_UNGET(ch);
+                    *cursor = '\0';
+                    return ITEM_ERROR;
+                }
+                else if (ch == 'n' || ch == 'N')
+                {
+                    ch = '\n';
+                }
+                else if (ch == 'e' || ch == 'E')
+                {
+                    ch = 0x1b;
+                }
+            }
+            else if (!ch || ch == '\n' || ch == -1)
+            {
+                READITEM_UNGET(ch);
+                *cursor = '\0';
+                return ITEM_ERROR;
+            }
+            else if (ch == '"')
+            {
+                *cursor = '\0';
+                return ITEM_QUOTED;
+            }
+
+            *cursor++ = (UBYTE)ch;
+        }
+    }
+    else
+    {
+        if (!maxchars)
+        {
+            cursor[-1] = '\0';
+            return ITEM_ERROR;
+        }
+
+        maxchars--;
+        *cursor++ = (UBYTE)ch;
+
+        for (;;)
+        {
+            if (!maxchars)
+            {
+                cursor[-1] = '\0';
+                return ITEM_ERROR;
+            }
+
+            maxchars--;
+            READITEM_GET(ch);
+
+            if (!ch || ch == ' ' || ch == '\t' || ch == '\n' || ch == '=' || ch == -1)
+            {
+                if (ch != '=' && ch != ' ' && ch != '\t')
+                    READITEM_UNGET(ch);
+                *cursor = '\0';
+                return ITEM_UNQUOTED;
+            }
+
+            *cursor++ = (UBYTE)ch;
+        }
+    }
+
+#undef READITEM_GET
+#undef READITEM_UNGET
 }
 
 LONG _dos_StrToLong ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -9252,17 +9504,230 @@ VOID _dos_private5 ( register struct DosLibrary * DOSBase __asm("a6"))
 LONG _dos_CliInitNewcli ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosPacket * dp __asm("a0"))
 {
-    LPRINTF (LOG_ERROR, "_dos: CliInitNewcli() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct Process *me;
+    struct CommandLineInterface *cli;
+    BPTR current_dir;
+    BPTR std_input;
+    BPTR std_output;
+    BPTR current_input;
+
+    DPRINTF(LOG_DEBUG, "_dos: CliInitNewcli(dp=0x%08lx) called.\n", dp);
+
+    if (!dp)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return 0;
+    }
+
+    me = (struct Process *)FindTask(NULL);
+    if (!me || !IS_PROCESS(me))
+    {
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return 0;
+    }
+
+    cli = me->pr_CLI ? (struct CommandLineInterface *)BADDR(me->pr_CLI) : NULL;
+    if (!cli)
+    {
+        cli = (struct CommandLineInterface *)AllocDosObject(DOS_CLI, NULL);
+        if (!cli)
+            return 0;
+
+        me->pr_CLI = MKBADDR(cli);
+    }
+
+    current_dir = (BPTR)dp->dp_Arg1;
+    std_input = (BPTR)dp->dp_Arg2;
+    std_output = (BPTR)dp->dp_Arg3;
+    current_input = (BPTR)dp->dp_Arg4;
+
+    if (!std_input)
+        std_input = current_input;
+
+    if (!std_input)
+    {
+        SetIoErr((LONG)me);
+        return 0;
+    }
+
+    if (!current_input)
+        current_input = std_input;
+
+    if (!std_output)
+    {
+        if (IsInteractive(std_input))
+            std_output = Open((CONST_STRPTR)"*", MODE_NEWFILE);
+        else
+            std_output = Open((CONST_STRPTR)"NIL:", MODE_NEWFILE);
+
+        if (!std_output)
+        {
+            SetIoErr((LONG)me);
+            return 0;
+        }
+    }
+
+    CurrentDir(current_dir);
+
+    cli->cli_StandardInput = std_input;
+    cli->cli_CurrentInput = current_input;
+    cli->cli_StandardOutput = std_output;
+    cli->cli_CurrentOutput = std_output;
+    cli->cli_Interactive = IsInteractive(std_input) ? DOSTRUE : DOSFALSE;
+    cli->cli_Background = DOSFALSE;
+    cli->cli_FailLevel = RETURN_ERROR;
+    cli->cli_Module = 0;
+
+    if (cli->cli_DefaultStack <= 0)
+    {
+        cli->cli_DefaultStack = (me->pr_StackSize + 3) / 4;
+        if (cli->cli_DefaultStack < 1024)
+            cli->cli_DefaultStack = 1024;
+    }
+
+    lxa_dos_clear_bstr(cli->cli_CommandFile);
+    lxa_dos_clear_bstr(cli->cli_CommandName);
+    bstr_set_from_cstr(cli->cli_Prompt, (CONST_STRPTR)"%N> ");
+    sync_cli_setname_from_lock(cli, current_dir);
+
+    me->pr_CIS = current_input;
+    me->pr_COS = std_output;
+    me->pr_CES = std_output;
+
+    if (IsInteractive(std_input))
+        SetConsoleTask(((struct FileHandle *)BADDR(std_input))->fh_Type);
+
+    SetIoErr(0);
     return 0;
 }
 
 LONG _dos_CliInitRun ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosPacket * dp __asm("a0"))
 {
-    LPRINTF (LOG_ERROR, "_dos: CliInitRun() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct Process *me;
+    struct CommandLineInterface *cli;
+    struct CommandLineInterface *old_cli;
+    BPTR current_dir;
+    BPTR std_input;
+    BPTR std_output;
+    BPTR current_input;
+    LONG flags = (LONG)0x80000000UL;
+
+    DPRINTF(LOG_DEBUG, "_dos: CliInitRun(dp=0x%08lx) called.\n", dp);
+
+    if (!dp)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return 0;
+    }
+
+    me = (struct Process *)FindTask(NULL);
+    if (!me || !IS_PROCESS(me))
+    {
+        SetIoErr(ERROR_OBJECT_WRONG_TYPE);
+        return 0;
+    }
+
+    cli = me->pr_CLI ? (struct CommandLineInterface *)BADDR(me->pr_CLI) : NULL;
+    if (!cli)
+    {
+        cli = (struct CommandLineInterface *)AllocDosObject(DOS_CLI, NULL);
+        if (!cli)
+            return 0;
+
+        me->pr_CLI = MKBADDR(cli);
+    }
+
+    old_cli = dp->dp_Arg1 ? (struct CommandLineInterface *)BADDR((BPTR)dp->dp_Arg1) : NULL;
+    current_dir = (BPTR)dp->dp_Arg5;
+    std_input = (BPTR)dp->dp_Arg2;
+    std_output = (BPTR)dp->dp_Arg3;
+    current_input = (BPTR)dp->dp_Arg4;
+
+    if (dp->dp_Arg6)
+        flags |= (1 << 1);
+
+    if (!std_input)
+        std_input = current_input;
+
+    if (!std_input)
+    {
+        SetIoErr((LONG)me);
+        return 0;
+    }
+
+    if (!current_input)
+        current_input = std_input;
+
+    if (IsInteractive(std_input))
+        SetConsoleTask(((struct FileHandle *)BADDR(std_input))->fh_Type);
+
+    if (!std_output)
+    {
+        if (GetConsoleTask())
+            std_output = Open((CONST_STRPTR)"*", MODE_NEWFILE);
+        else
+            std_output = Open((CONST_STRPTR)"NIL:", MODE_NEWFILE);
+
+        if (!std_output)
+        {
+            SetIoErr((LONG)me);
+            return 0;
+        }
+
+        flags |= 1;
+    }
+
+    CurrentDir(current_dir);
+
+    cli->cli_StandardInput = std_input;
+    cli->cli_CurrentInput = current_input;
+    cli->cli_StandardOutput = std_output;
+    cli->cli_CurrentOutput = std_output;
+    cli->cli_Interactive = IsInteractive(std_input) ? DOSTRUE : DOSFALSE;
+    cli->cli_Background = DOSTRUE;
+    cli->cli_FailLevel = RETURN_ERROR;
+    cli->cli_Module = 0;
+
+    if (cli->cli_DefaultStack <= 0)
+    {
+        cli->cli_DefaultStack = (me->pr_StackSize + 3) / 4;
+        if (cli->cli_DefaultStack < 1024)
+            cli->cli_DefaultStack = 1024;
+    }
+
+    lxa_dos_clear_bstr(cli->cli_CommandFile);
+    lxa_dos_clear_bstr(cli->cli_CommandName);
+
+    if (old_cli)
+    {
+        char old_prompt[256];
+        char old_dir_name[256];
+
+        cli->cli_CommandDir = old_cli->cli_CommandDir;
+
+        if (bstr_to_cstr(old_cli->cli_Prompt, (STRPTR)old_prompt, sizeof(old_prompt)))
+            bstr_set_from_cstr(cli->cli_Prompt, (CONST_STRPTR)old_prompt);
+        else
+            bstr_set_from_cstr(cli->cli_Prompt, (CONST_STRPTR)"%N> ");
+
+        if (bstr_to_cstr(old_cli->cli_SetName, (STRPTR)old_dir_name, sizeof(old_dir_name)))
+            bstr_set_from_cstr(cli->cli_SetName, (CONST_STRPTR)old_dir_name);
+        else
+            sync_cli_setname_from_lock(cli, current_dir);
+    }
+    else
+    {
+        bstr_set_from_cstr(cli->cli_Prompt, (CONST_STRPTR)"%N> ");
+        sync_cli_setname_from_lock(cli, current_dir);
+    }
+
+    me->pr_CIS = current_input;
+    me->pr_COS = std_output;
+    me->pr_CES = std_output;
+
+    SetIoErr(0);
+    return flags;
 }
 
 LONG _dos_WriteChars ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -9397,9 +9862,16 @@ BOOL _dos_SameDevice ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR lock1 __asm("d1"),
                                                         register BPTR lock2 __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SameDevice() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    LONG result;
+
+    DPRINTF (LOG_DEBUG, "_dos: SameDevice() called, lock1=0x%08lx, lock2=0x%08lx\n", lock1, lock2);
+
+    if (lock1 == 0 || lock2 == 0)
+        return DOSFALSE;
+
+    result = _dos_SameLock(DOSBase, lock1, lock2);
+
+    return (result != LOCK_DIFFERENT) ? DOSTRUE : DOSFALSE;
 }
 
 VOID _dos_ExAllEnd ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -9434,9 +9906,30 @@ BOOL _dos_SetOwner ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG owner_info __asm("d2"))
 {
-    LPRINTF (LOG_ERROR, "_dos: SetOwner() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    char resolved_path[256];
+    const char *path_to_use;
+    LONG ioerr = 0;
+    LONG result;
+
+    DPRINTF (LOG_DEBUG, "_dos: SetOwner() called, name=%s, owner_info=0x%08lx\n",
+             STRORNULL(name), (ULONG)owner_info);
+
+    if (!name)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return DOSFALSE;
+    }
+
+    path_to_use = resolve_amiga_path((const char *)name, resolved_path);
+    result = emucall3(EMU_CALL_DOS_SETOWNER, (ULONG)path_to_use, (ULONG)owner_info, (ULONG)&ioerr);
+
+    if (!result)
+    {
+        SetIoErr(ioerr ? ioerr : ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    return DOSTRUE;
 }
 
 struct MyDataInit

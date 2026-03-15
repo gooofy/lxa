@@ -412,6 +412,147 @@ static void test_map_tags(void)
         "MapTags removes unmatched tag when requested");
 }
 
+static void test_filter_tag_changes(void)
+{
+    struct TagItem original_tail[] = {
+        { TEST_TAG_C, 30 },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem original[] = {
+        { TEST_TAG_A, 10 },
+        { TEST_TAG_B, 20 },
+        { TAG_MORE, (ULONG)original_tail },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem change_tail[] = {
+        { TEST_TAG_C, 30 },
+        { TEST_TAG_D, 40 },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem change[] = {
+        { TEST_TAG_A, 10 },
+        { TEST_TAG_B, 99 },
+        { TAG_MORE, (ULONG)change_tail },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem unchanged[] = {
+        { TEST_TAG_A, 77 },
+        { TAG_DONE, 0 }
+    };
+
+    print("Testing FilterTagChanges...\n");
+
+    FilterTagChanges(NULL, original, 1);
+    expect_ulong(original[0].ti_Data, 10,
+        "FilterTagChanges ignores NULL change list");
+
+    FilterTagChanges(unchanged, NULL, 1);
+    expect_ulong(unchanged[0].ti_Tag, TEST_TAG_A,
+        "FilterTagChanges ignores NULL original list");
+
+    FilterTagChanges(change, original, 0);
+    expect_ulong(change[0].ti_Tag, TAG_IGNORE,
+        "FilterTagChanges ignores unchanged tag");
+    expect_ulong(change[1].ti_Tag, TEST_TAG_B,
+        "FilterTagChanges keeps changed tag");
+    expect_ulong(change_tail[0].ti_Tag, TAG_IGNORE,
+        "FilterTagChanges follows TAG_MORE for unchanged tags");
+    expect_ulong(change_tail[1].ti_Tag, TEST_TAG_D,
+        "FilterTagChanges keeps tags missing from original list");
+    expect_ulong(original[1].ti_Data, 20,
+        "FilterTagChanges does not update original when apply is false");
+
+    FilterTagChanges(change, original, 1);
+    expect_ulong(original[1].ti_Data, 99,
+        "FilterTagChanges updates original when apply is true");
+}
+
+static void test_pack_bool_tags(void)
+{
+    struct TagItem bool_map[] = {
+        { TEST_TAG_A, 0x01 },
+        { TEST_TAG_B, 0x02 },
+        { TEST_TAG_C, 0x04 },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem tail[] = {
+        { TEST_TAG_A, 0 },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem tags[] = {
+        { TEST_TAG_A, 1 },
+        { TEST_TAG_B, 0 },
+        { TAG_IGNORE, 0 },
+        { TAG_SKIP, 1 },
+        { TEST_TAG_E, 0 },
+        { TEST_TAG_C, 9 },
+        { TAG_MORE, (ULONG)tail },
+        { TAG_DONE, 0 }
+    };
+    ULONG packed;
+
+    print("Testing PackBoolTags...\n");
+
+    packed = PackBoolTags(0x07, tags, bool_map);
+    expect_ulong(packed, 0x04,
+        "PackBoolTags applies boolean mappings and last-tag wins");
+
+    packed = PackBoolTags(0x05, NULL, bool_map);
+    expect_ulong(packed, 0x05,
+        "PackBoolTags leaves initial flags unchanged for NULL tag list");
+
+    packed = PackBoolTags(0x03, tags, NULL);
+    expect_ulong(packed, 0x03,
+        "PackBoolTags ignores tags when bool map is NULL");
+}
+
+static void test_apply_tag_changes(void)
+{
+    struct TagItem change_tail[] = {
+        { TEST_TAG_C, 303 },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem changes[] = {
+        { TEST_TAG_A, 101 },
+        { TEST_TAG_C, 999 },
+        { TAG_MORE, (ULONG)change_tail },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem list_tail[] = {
+        { TEST_TAG_C, 30 },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem list[] = {
+        { TEST_TAG_A, 10 },
+        { TAG_IGNORE, 0 },
+        { TAG_SKIP, 1 },
+        { TEST_TAG_B, 20 },
+        { TEST_TAG_D, 40 },
+        { TAG_MORE, (ULONG)list_tail },
+        { TAG_DONE, 0 }
+    };
+
+    print("Testing ApplyTagChanges...\n");
+
+    ApplyTagChanges(NULL, changes);
+    expect_ulong(changes[0].ti_Data, 101,
+        "ApplyTagChanges ignores NULL destination list");
+
+    ApplyTagChanges(list, NULL);
+    expect_ulong(list[0].ti_Data, 10,
+        "ApplyTagChanges ignores NULL change list");
+
+    ApplyTagChanges(list, changes);
+    expect_ulong(list[0].ti_Data, 101,
+        "ApplyTagChanges updates matching tags");
+    expect_ulong(list[3].ti_Data, 20,
+        "ApplyTagChanges skips tags hidden by TAG_SKIP");
+    expect_ulong(list[4].ti_Data, 40,
+        "ApplyTagChanges leaves unmatched tags unchanged");
+    expect_ulong(list_tail[0].ti_Data, 999,
+        "ApplyTagChanges uses the first matching change entry");
+}
+
 static void test_call_hook_and_unique_id(void)
 {
     struct Hook hook;
@@ -717,6 +858,9 @@ int main(void)
     test_allocate_clone_refresh();
     test_tag_in_array_and_filter();
     test_map_tags();
+    test_filter_tag_changes();
+    test_pack_bool_tags();
+    test_apply_tag_changes();
     test_call_hook_and_unique_id();
     test_date_helpers();
     test_math_helpers();

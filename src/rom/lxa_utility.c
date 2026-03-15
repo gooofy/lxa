@@ -308,9 +308,29 @@ static ULONG _utility_PackBoolTags ( register struct UtilityBase * UtilityBase _
                                                         register const struct TagItem * tagList __asm("a0"),
                                                         register const struct TagItem * boolMap __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_utility: PackBoolTags() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    struct TagItem *state;
+    struct TagItem *tag;
+    struct TagItem *map;
+
+    DPRINTF (LOG_DEBUG, "_utility: PackBoolTags() called.\n");
+
+    (void)UtilityBase;
+
+    state = (struct TagItem *)tagList;
+
+    while ((tag = NextTagItem(&state)))
+    {
+        map = FindTagItem(tag->ti_Tag, boolMap);
+        if (!map)
+            continue;
+
+        if (tag->ti_Data == 0)
+            initialFlags &= ~map->ti_Data;
+        else
+            initialFlags |= map->ti_Data;
+    }
+
+    return initialFlags;
 }
 
 static struct TagItem * _utility_NextTagItem ( register struct UtilityBase *  UtilityBase __asm("a6"),
@@ -354,8 +374,34 @@ static VOID _utility_FilterTagChanges ( register struct UtilityBase * UtilityBas
                                                         register struct TagItem * originalList __asm("a1"),
                                                         register ULONG apply __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_utility: FilterTagChanges() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct TagItem *state;
+    struct TagItem *change;
+    struct TagItem *orig;
+
+    DPRINTF (LOG_DEBUG, "_utility: FilterTagChanges() called.\n");
+
+    (void)UtilityBase;
+
+    if (!changeList || !originalList)
+        return;
+
+    state = changeList;
+
+    while ((change = NextTagItem(&state)))
+    {
+        orig = FindTagItem(change->ti_Tag, originalList);
+        if (!orig)
+            continue;
+
+        if (change->ti_Data == orig->ti_Data)
+        {
+            change->ti_Tag = TAG_IGNORE;
+        }
+        else if (apply)
+        {
+            orig->ti_Data = change->ti_Data;
+        }
+    }
 }
 
 static VOID _utility_MapTags ( register struct UtilityBase * UtilityBase __asm("a6"),
@@ -1004,8 +1050,25 @@ static VOID _utility_ApplyTagChanges ( register struct UtilityBase * UtilityBase
                                                         register struct TagItem * list __asm("a0"),
                                                         register const struct TagItem * changeList __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_utility: ApplyTagChanges() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct TagItem *state;
+    struct TagItem *tag;
+    struct TagItem *change;
+
+    DPRINTF (LOG_DEBUG, "_utility: ApplyTagChanges() called.\n");
+
+    (void)UtilityBase;
+
+    if (!list || !changeList)
+        return;
+
+    state = list;
+
+    while ((tag = NextTagItem(&state)))
+    {
+        change = FindTagItem(tag->ti_Tag, changeList);
+        if (change)
+            tag->ti_Data = change->ti_Data;
+    }
 }
 
 static VOID _utility_private2 ( register struct UtilityBase * UtilityBase __asm("a6"))

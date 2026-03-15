@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.19** - Phase 83 now verifies `dos.library/UnLockRecords()` against AROS, confirming the ordered `UnLockRecord()` walk, first-failure propagation, null-terminator handling, null-array rejection, and the existing direct regression coverage all stay aligned
+**Version 0.8.29** - Phases 83 and 84 close the remaining public `dos.library` and `utility.library` stubs in scope here, including `CliInitNewcli()`, `CliInitRun()`, `SameDevice()`, `SetOwner()`, `PackBoolTags()`, `FilterTagChanges()`, and `ApplyTagChanges()`, with direct regression coverage plus explicit AROS-behavior verification recorded in `roadmap.md`
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
