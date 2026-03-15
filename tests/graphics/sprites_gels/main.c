@@ -38,6 +38,14 @@ static WORD g_boundary_flags;
 static int g_pair_hits;
 static struct VSprite *g_pair_first;
 static struct VSprite *g_pair_second;
+static int g_animob_routine_calls;
+static int g_animcomp_timeout_calls;
+static int g_animcomp_static_calls;
+static int g_animcomp_nextseq_calls;
+static struct AnimOb *g_last_animob;
+static struct AnimComp *g_last_timeout_comp;
+static struct AnimComp *g_last_static_comp;
+static struct AnimComp *g_last_nextseq_comp;
 
 static LONG boundary_collision(struct VSprite *vs, WORD hits)
 {
@@ -52,6 +60,34 @@ static LONG pair_collision(struct VSprite *first, struct VSprite *second)
     g_pair_hits++;
     g_pair_first = first;
     g_pair_second = second;
+    return 0;
+}
+
+static WORD animob_routine(struct AnimOb *anOb)
+{
+    g_animob_routine_calls++;
+    g_last_animob = anOb;
+    return 0;
+}
+
+static WORD animcomp_timeout_routine(struct AnimComp *anComp)
+{
+    g_animcomp_timeout_calls++;
+    g_last_timeout_comp = anComp;
+    return 0;
+}
+
+static WORD animcomp_static_routine(struct AnimComp *anComp)
+{
+    g_animcomp_static_calls++;
+    g_last_static_comp = anComp;
+    return 0;
+}
+
+static WORD animcomp_nextseq_routine(struct AnimComp *anComp)
+{
+    g_animcomp_nextseq_calls++;
+    g_last_nextseq_comp = anComp;
     return 0;
 }
 
@@ -335,6 +371,255 @@ int main(void)
     SetRast(&rp, 0);
     InitGels(&head, &tail, &gels_info);
     rp.GelsInfo = &gels_info;
+    {
+        struct VSprite anim_vs_a;
+        struct VSprite anim_vs_b;
+        struct Bob anim_bob_a;
+        struct Bob anim_bob_b;
+        struct AnimComp anim_comp_a;
+        struct AnimComp anim_comp_b;
+        struct AnimOb anim_first;
+        struct AnimOb anim_second;
+        struct AnimOb *anim_key = NULL;
+
+        init_test_vsprite(&anim_vs_a, 11, 12, 1, 1, 1, sprite_data, 0);
+        init_test_vsprite(&anim_vs_b, 13, 14, 1, 1, 1, sprite_data, 0);
+
+        anim_bob_a.Flags = 0;
+        anim_bob_a.SaveBuffer = NULL;
+        anim_bob_a.ImageShadow = NULL;
+        anim_bob_a.Before = NULL;
+        anim_bob_a.After = NULL;
+        anim_bob_a.BobVSprite = &anim_vs_a;
+        anim_bob_a.BobComp = &anim_comp_a;
+        anim_bob_a.DBuffer = NULL;
+        anim_bob_a.BUserExt = 0;
+
+        anim_bob_b.Flags = 0;
+        anim_bob_b.SaveBuffer = NULL;
+        anim_bob_b.ImageShadow = NULL;
+        anim_bob_b.Before = NULL;
+        anim_bob_b.After = NULL;
+        anim_bob_b.BobVSprite = &anim_vs_b;
+        anim_bob_b.BobComp = &anim_comp_b;
+        anim_bob_b.DBuffer = NULL;
+        anim_bob_b.BUserExt = 0;
+
+        anim_comp_a.Flags = 0;
+        anim_comp_a.Timer = 0;
+        anim_comp_a.TimeSet = 7;
+        anim_comp_a.NextComp = &anim_comp_b;
+        anim_comp_a.PrevComp = NULL;
+        anim_comp_a.NextSeq = &anim_comp_a;
+        anim_comp_a.PrevSeq = &anim_comp_a;
+        anim_comp_a.AnimCRoutine = NULL;
+        anim_comp_a.YTrans = 0;
+        anim_comp_a.XTrans = 0;
+        anim_comp_a.HeadOb = &anim_first;
+        anim_comp_a.AnimBob = &anim_bob_a;
+
+        anim_comp_b.Flags = 0;
+        anim_comp_b.Timer = 0;
+        anim_comp_b.TimeSet = 3;
+        anim_comp_b.NextComp = NULL;
+        anim_comp_b.PrevComp = &anim_comp_a;
+        anim_comp_b.NextSeq = &anim_comp_b;
+        anim_comp_b.PrevSeq = &anim_comp_b;
+        anim_comp_b.AnimCRoutine = NULL;
+        anim_comp_b.YTrans = 0;
+        anim_comp_b.XTrans = 0;
+        anim_comp_b.HeadOb = &anim_first;
+        anim_comp_b.AnimBob = &anim_bob_b;
+
+        anim_first.NextOb = NULL;
+        anim_first.PrevOb = (struct AnimOb *)0x1;
+        anim_first.Clock = 0;
+        anim_first.AnOldY = 0;
+        anim_first.AnOldX = 0;
+        anim_first.AnY = 0;
+        anim_first.AnX = 0;
+        anim_first.YVel = 0;
+        anim_first.XVel = 0;
+        anim_first.YAccel = 0;
+        anim_first.XAccel = 0;
+        anim_first.RingYTrans = 0;
+        anim_first.RingXTrans = 0;
+        anim_first.AnimORoutine = NULL;
+        anim_first.HeadComp = &anim_comp_a;
+        anim_first.AUserExt = 0;
+
+        anim_second = anim_first;
+        anim_second.HeadComp = NULL;
+        anim_second.NextOb = (struct AnimOb *)0x1;
+        anim_second.PrevOb = (struct AnimOb *)0x1;
+
+        AddAnimOb(&anim_first, &anim_key, &rp);
+        AddAnimOb(&anim_second, &anim_key, &rp);
+
+        if (anim_key != &anim_second || anim_second.NextOb != &anim_first ||
+            anim_second.PrevOb != NULL || anim_first.PrevOb != &anim_second ||
+            anim_first.NextOb != NULL || anim_comp_a.Timer != 7 ||
+            anim_comp_b.Timer != 3 || (anim_bob_a.Flags & BWAITING) == 0 ||
+            (anim_bob_b.Flags & BWAITING) == 0 || anim_vs_a.VSBob != &anim_bob_a ||
+            anim_vs_b.VSBob != &anim_bob_b)
+        {
+            print("FAIL: AddAnimOb() did not link objects or initialize components\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: AddAnimOb() prepends AnimObs and queues component Bobs\n");
+        }
+    }
+
+    {
+        struct VSprite seq_vs;
+        struct VSprite next_vs;
+        struct VSprite static_vs;
+        struct Bob seq_bob;
+        struct Bob next_bob;
+        struct Bob static_bob;
+        struct AnimComp seq_comp;
+        struct AnimComp next_seq_comp;
+        struct AnimComp static_comp;
+        struct AnimOb anim_ob;
+        struct AnimOb *anim_key = NULL;
+
+        SetRast(&rp, 0);
+        InitGels(&head, &tail, &gels_info);
+        rp.GelsInfo = &gels_info;
+
+        g_animob_routine_calls = 0;
+        g_animcomp_timeout_calls = 0;
+        g_animcomp_static_calls = 0;
+        g_animcomp_nextseq_calls = 0;
+        g_last_animob = NULL;
+        g_last_timeout_comp = NULL;
+        g_last_static_comp = NULL;
+        g_last_nextseq_comp = NULL;
+
+        init_test_vsprite(&seq_vs, 20, 18, 1, 1, 1, sprite_data, 0);
+        init_test_vsprite(&next_vs, 2, 2, 1, 1, 1, sprite_data_alt, 0);
+        init_test_vsprite(&static_vs, 6, 6, 1, 1, 1, sprite_data, 0);
+
+        seq_bob.Flags = 0;
+        seq_bob.SaveBuffer = NULL;
+        seq_bob.ImageShadow = NULL;
+        seq_bob.Before = NULL;
+        seq_bob.After = NULL;
+        seq_bob.BobVSprite = &seq_vs;
+        seq_bob.BobComp = &seq_comp;
+        seq_bob.DBuffer = NULL;
+        seq_bob.BUserExt = 0;
+
+        next_bob.Flags = 0;
+        next_bob.SaveBuffer = NULL;
+        next_bob.ImageShadow = NULL;
+        next_bob.Before = NULL;
+        next_bob.After = NULL;
+        next_bob.BobVSprite = &next_vs;
+        next_bob.BobComp = &next_seq_comp;
+        next_bob.DBuffer = NULL;
+        next_bob.BUserExt = 0;
+
+        static_bob.Flags = 0;
+        static_bob.SaveBuffer = NULL;
+        static_bob.ImageShadow = NULL;
+        static_bob.Before = NULL;
+        static_bob.After = NULL;
+        static_bob.BobVSprite = &static_vs;
+        static_bob.BobComp = &static_comp;
+        static_bob.DBuffer = NULL;
+        static_bob.BUserExt = 0;
+
+        seq_comp.Flags = RINGTRIGGER;
+        seq_comp.Timer = 1;
+        seq_comp.TimeSet = 5;
+        seq_comp.NextComp = &static_comp;
+        seq_comp.PrevComp = NULL;
+        seq_comp.NextSeq = &next_seq_comp;
+        seq_comp.PrevSeq = &next_seq_comp;
+        seq_comp.AnimCRoutine = animcomp_timeout_routine;
+        seq_comp.YTrans = 0;
+        seq_comp.XTrans = 0;
+        seq_comp.HeadOb = &anim_ob;
+        seq_comp.AnimBob = &seq_bob;
+
+        next_seq_comp.Flags = 0;
+        next_seq_comp.Timer = 0;
+        next_seq_comp.TimeSet = 4;
+        next_seq_comp.NextComp = (struct AnimComp *)0x1;
+        next_seq_comp.PrevComp = (struct AnimComp *)0x1;
+        next_seq_comp.NextSeq = &seq_comp;
+        next_seq_comp.PrevSeq = &seq_comp;
+        next_seq_comp.AnimCRoutine = animcomp_nextseq_routine;
+        next_seq_comp.YTrans = 128;
+        next_seq_comp.XTrans = 64;
+        next_seq_comp.HeadOb = &anim_ob;
+        next_seq_comp.AnimBob = &next_bob;
+
+        static_comp.Flags = 0;
+        static_comp.Timer = 5;
+        static_comp.TimeSet = 5;
+        static_comp.NextComp = NULL;
+        static_comp.PrevComp = &seq_comp;
+        static_comp.NextSeq = &static_comp;
+        static_comp.PrevSeq = &static_comp;
+        static_comp.AnimCRoutine = animcomp_static_routine;
+        static_comp.YTrans = 64;
+        static_comp.XTrans = 0;
+        static_comp.HeadOb = &anim_ob;
+        static_comp.AnimBob = &static_bob;
+
+        anim_ob.NextOb = NULL;
+        anim_ob.PrevOb = NULL;
+        anim_ob.Clock = 41;
+        anim_ob.AnOldY = -1;
+        anim_ob.AnOldX = -1;
+        anim_ob.AnY = 0;
+        anim_ob.AnX = 0;
+        anim_ob.YVel = 64;
+        anim_ob.XVel = 64;
+        anim_ob.YAccel = 0;
+        anim_ob.XAccel = 0;
+        anim_ob.RingYTrans = 64;
+        anim_ob.RingXTrans = 64;
+        anim_ob.AnimORoutine = animob_routine;
+        anim_ob.HeadComp = &seq_comp;
+        anim_ob.AUserExt = 0;
+        anim_key = &anim_ob;
+
+        AddBob(&seq_bob, &rp);
+        AddBob(&static_bob, &rp);
+        Animate(&anim_key, &rp);
+
+        if (anim_ob.Clock != 42 || anim_ob.AnOldX != 0 || anim_ob.AnOldY != 0 ||
+            anim_ob.AnX != 128 || anim_ob.AnY != 128 ||
+            anim_ob.HeadComp != &next_seq_comp || next_seq_comp.NextComp != &static_comp ||
+            next_seq_comp.PrevComp != NULL || static_comp.PrevComp != &next_seq_comp ||
+            next_seq_comp.Timer != 4 || (seq_bob.Flags & BOBSAWAY) == 0 ||
+            (next_bob.Flags & BWAITING) == 0 || (UWORD)seq_vs.X != 0x8001 ||
+            (UWORD)seq_vs.Y != 0x8001 ||
+            next_vs.OldX != 20 || next_vs.OldY != 18 || next_vs.X != 3 || next_vs.Y != 4 ||
+            static_vs.X != 2 || static_vs.Y != 3 || g_animob_routine_calls != 1 ||
+            g_last_animob != &anim_ob || g_animcomp_timeout_calls != 1 ||
+            g_last_timeout_comp != &seq_comp || g_animcomp_static_calls != 1 ||
+            g_last_static_comp != &static_comp || g_animcomp_nextseq_calls != 0 ||
+            g_last_nextseq_comp != NULL)
+        {
+            print("FAIL: Animate() did not update motion, sequence, and callbacks correctly\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: Animate() updates motion, switches sequences, and calls routines\n");
+        }
+    }
+
+    SetRast(&rp, 0);
+    InitGels(&head, &tail, &gels_info);
+    rp.GelsInfo = &gels_info;
+
     init_test_vsprite(&bob_vs, 7, 9, 1, 1, 1, sprite_data, 0);
     bob.Flags = 0;
     bob.SaveBuffer = NULL;

@@ -76,6 +76,16 @@ static VOID _graphics_RemVSprite(register struct GfxBase *GfxBase __asm("a6"),
 static UBYTE GetPlaneBit(CONST PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y);
 static void SetPlaneBit(PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y, UBYTE value);
 
+static WORD graphics_anim_fixed_to_coord(WORD anim_coord, WORD comp_trans)
+{
+    LONG coord = ((LONG)anim_coord + (LONG)comp_trans) >> 5;
+
+    if (coord & 1)
+        coord += 2;
+
+    return (WORD)(coord >> 1);
+}
+
 struct BlitWaitQNode
 {
     struct Node node;
@@ -2757,16 +2767,153 @@ static VOID _graphics_AddAnimOb ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct AnimOb ** anKey __asm("a1"),
                                                         register struct RastPort * rp __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AddAnimOb() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct AnimComp *current;
+
+    DPRINTF (LOG_DEBUG, "_graphics: AddAnimOb() anOb=0x%08lx anKey=0x%08lx rp=0x%08lx\n",
+             (ULONG)anOb, (ULONG)anKey, (ULONG)rp);
+
+    if (!anOb || !anKey)
+        return;
+
+    if (*anKey)
+    {
+        anOb->NextOb = *anKey;
+        anOb->PrevOb = NULL;
+        (*anKey)->PrevOb = anOb;
+    }
+    else
+    {
+        anOb->NextOb = NULL;
+        anOb->PrevOb = NULL;
+    }
+
+    *anKey = anOb;
+
+    current = anOb->HeadComp;
+    while (current)
+    {
+        current->Timer = current->TimeSet;
+
+        if (current->AnimBob)
+            _graphics_AddBob(GfxBase, current->AnimBob, rp);
+
+        current = current->NextComp;
+    }
 }
 
 static VOID _graphics_Animate ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct AnimOb ** anKey __asm("a0"),
                                                         register struct RastPort * rp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: Animate() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct AnimOb *current_animob;
+
+    DPRINTF (LOG_DEBUG, "_graphics: Animate() anKey=0x%08lx rp=0x%08lx\n",
+             (ULONG)anKey, (ULONG)rp);
+
+    if (!anKey)
+        return;
+
+    current_animob = *anKey;
+    while (current_animob)
+    {
+        struct AnimComp *current_comp = current_animob->HeadComp;
+
+        current_animob->Clock += 1;
+        current_animob->AnOldY = current_animob->AnY;
+        current_animob->AnOldX = current_animob->AnX;
+        current_animob->AnY += current_animob->YVel;
+        current_animob->AnX += current_animob->XVel;
+        current_animob->YVel += current_animob->YAccel;
+        current_animob->XVel += current_animob->XAccel;
+
+        if (current_animob->AnimORoutine)
+        {
+            typedef WORD (*graphics_animob_routine_t)(struct AnimOb *);
+            graphics_animob_routine_t routine = (graphics_animob_routine_t)current_animob->AnimORoutine;
+
+            routine(current_animob);
+        }
+
+        while (current_comp)
+        {
+            struct AnimComp *sequence_comp = current_comp;
+            struct VSprite *current_vsprite = NULL;
+
+            if (sequence_comp->AnimBob)
+                current_vsprite = sequence_comp->AnimBob->BobVSprite;
+
+            sequence_comp->Timer -= 1;
+
+            if (sequence_comp->Timer == 0 && sequence_comp->NextSeq)
+            {
+                struct AnimComp *next_sequence = sequence_comp->NextSeq;
+                struct VSprite *new_vsprite = NULL;
+
+                if (sequence_comp == current_animob->HeadComp)
+                    current_animob->HeadComp = next_sequence;
+
+                next_sequence->NextComp = sequence_comp->NextComp;
+                next_sequence->PrevComp = sequence_comp->PrevComp;
+
+                if (sequence_comp->PrevComp)
+                    sequence_comp->PrevComp->NextComp = next_sequence;
+
+                if (sequence_comp->NextComp)
+                    sequence_comp->NextComp->PrevComp = next_sequence;
+
+                next_sequence->Timer = next_sequence->TimeSet;
+                if (next_sequence->AnimBob)
+                {
+                    _graphics_AddBob(GfxBase, next_sequence->AnimBob, rp);
+                    new_vsprite = next_sequence->AnimBob->BobVSprite;
+                }
+
+                if (current_vsprite && new_vsprite)
+                {
+                    new_vsprite->OldY = current_vsprite->Y;
+                    new_vsprite->OldX = current_vsprite->X;
+                }
+
+                if (sequence_comp->Flags & RINGTRIGGER)
+                {
+                    current_animob->AnY += current_animob->RingYTrans;
+                    current_animob->AnX += current_animob->RingXTrans;
+                }
+
+                if (new_vsprite)
+                {
+                    new_vsprite->Y = graphics_anim_fixed_to_coord(current_animob->AnY, next_sequence->YTrans);
+                    new_vsprite->X = graphics_anim_fixed_to_coord(current_animob->AnX, next_sequence->XTrans);
+                }
+
+                if (current_vsprite)
+                {
+                    current_vsprite->Y = 0x8001;
+                    current_vsprite->X = 0x8001;
+                }
+
+                if (sequence_comp->AnimBob)
+                    sequence_comp->AnimBob->Flags |= BOBSAWAY;
+            }
+            else if (current_vsprite)
+            {
+                current_vsprite->Y = graphics_anim_fixed_to_coord(current_animob->AnY, sequence_comp->YTrans);
+                current_vsprite->X = graphics_anim_fixed_to_coord(current_animob->AnX, sequence_comp->XTrans);
+            }
+
+            if (sequence_comp->AnimCRoutine)
+            {
+                typedef WORD (*graphics_animcomp_routine_t)(struct AnimComp *);
+                graphics_animcomp_routine_t routine = (graphics_animcomp_routine_t)sequence_comp->AnimCRoutine;
+
+                routine(sequence_comp);
+            }
+
+            current_comp = current_comp->NextComp;
+        }
+
+        current_animob = current_animob->NextOb;
+    }
 }
 
 static BOOL _graphics_GetGBuffers ( register struct GfxBase * GfxBase __asm("a6"),
