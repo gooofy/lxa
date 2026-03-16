@@ -272,22 +272,22 @@ Goal: eliminate the remaining non-private `clipboard.device` stubs, match RKRM/N
 - [x] Implemented `AbortIO()` per RKRM/NDK device semantics with direct regression coverage; pending posted-read requests can now be cancelled cleanly, `AbortIO()` returns success only for the active deferred read, marks the request with `IOERR_ABORTED`, replies the message, and keeps direct coverage in `Tests/Devices/Clipboard` plus the `Tests/Exec/Library` probe
 - [x] Compared `AbortIO()` behavior against the available AROS references; the current AROS snapshot does not ship a public `clipboard.device` implementation body for `AbortIO()`, so lxa aligns with the standard Exec device contract used by the NDK and by other AROS device implementations: abort only genuinely pending requests, return success for the cancelled request, and leave unrelated/completed requests untouched
 
-### Phase 92: Close `gameport.device` stub surface
+### Phase 92 complete (`0.8.45`): Close `gameport.device` stub surface
 
 Goal: eliminate the remaining non-private `gameport.device` stubs, match RKRM/NDK behavior, and keep each closure checked against AROS.
 
-- [ ] Finish `InitDev()` so `gameport.device` startup no longer behaves as a stub and its resident/device init path follows Amiga device-init expectations
-- [ ] Compare and verify the finished `InitDev()` path against the AROS `gameport.device` initialization flow
-- [ ] Implement `Open()` per RKRM/NDK device semantics with direct regression coverage
-- [ ] Compare and verify `Open()` behavior against the AROS `gameport.device` implementation
-- [ ] Implement `Close()` per RKRM/NDK device semantics with direct regression coverage
-- [ ] Compare and verify `Close()` behavior against the AROS `gameport.device` implementation
-- [ ] Implement `Expunge()` per RKRM/NDK device semantics with direct regression coverage
-- [ ] Compare and verify `Expunge()` behavior against the AROS `gameport.device` implementation
-- [ ] Implement `BeginIO()` per RKRM/NDK device semantics with direct regression coverage
-- [ ] Compare and verify `BeginIO()` behavior against the AROS `gameport.device` implementation
-- [ ] Implement `AbortIO()` per RKRM/NDK device semantics with direct regression coverage
-- [ ] Compare and verify `AbortIO()` behavior against the AROS `gameport.device` implementation
+- [x] Finished `InitDev()` so `gameport.device` startup no longer behaves as a stub and its resident/device init path follows Amiga device-init expectations; initialization now installs clean per-device state, default controller types, the pending-read list, and a hosted `input.device` handler bridge instead of only logging an unimplemented stub
+- [x] Compared and verified the finished `InitDev()` path against the AROS `gameport.device` initialization flow; both paths install device-private state and register mouse/input integration during startup, while lxa keeps the hosted handler registration explicit through the shared `input.device` helper surface instead of AROS's internal task hookup
+- [x] Implemented `Open()` per RKRM/NDK device semantics with direct regression coverage; `Open()` now validates the requested unit and minimum `IOStdReq` size, allocates per-open unit state, clears deferred-expunge state, and is covered directly in `Tests/Devices/Gameport`, `devices_gtest`, and the `Tests/Exec/Library` probe
+- [x] Compared and verified `Open()` behavior against the AROS `gameport.device` implementation; AROS likewise rejects unsupported units and undersized requests before allocating/opening per-open unit state, and the lxa path preserves that public contract while using compact hosted bookkeeping instead of the AROS internal unit wrapper
+- [x] Implemented `Close()` per RKRM/NDK device semantics with direct regression coverage; `Close()` now unlinks any pending read owned by the closing opener, decrements per-unit and library open counts, resets controller type on the final close for a unit, and is exercised by `Tests/Devices/Gameport` plus the direct `Tests/Exec/Library` coverage
+- [x] Compared and verified `Close()` behavior against the AROS `gameport.device` implementation; AROS tears down the opener-private unit state and pairs it with deferred-expunge handling on the final close, and the lxa path preserves that externally visible lifetime contract with the same pending-read cleanup and final-close reset semantics
+- [x] Implemented `Expunge()` per RKRM/NDK device semantics with direct regression coverage; `Expunge()` now removes the device from `ExecBase->DeviceList`, defers removal with `LIBF_DELEXP` while opens remain, and finalizes cleanup on the last close while the direct `Tests/Exec/Library` probe keeps the entry point covered
+- [x] Compared and verified `Expunge()` behavior against the AROS `gameport.device` implementation; AROS follows the standard Exec device rule of deferring expunge until the open count reaches zero, and the lxa path now preserves that contract while also unregistering the hosted input hook during the final cleanup path
+- [x] Implemented `BeginIO()` per RKRM/NDK device semantics with direct regression coverage; `BeginIO()` now handles `CMD_CLEAR`, `GPD_ASKCTYPE`, `GPD_SETCTYPE`, `GPD_ASKTRIGGER`, `GPD_SETTRIGGER`, `GPD_READEVENT`, and `NSCMD_DEVICEQUERY`, reports documented bad-address/bad-length/no-command errors, and keeps direct regression coverage in `Tests/Devices/Gameport`, `devices_gtest`, and `Tests/Exec/Library`
+- [x] Compared and verified `BeginIO()` behavior against the AROS `gameport.device` implementation; AROS exposes the same documented public command set and keeps `GPD_READEVENT` pending until input or abort completes it, and the lxa path now preserves that contract while sourcing events from the hosted `input.device` stream rather than a hardware mouse interrupt path
+- [x] Implemented `AbortIO()` per RKRM/NDK device semantics with direct regression coverage; `AbortIO()` now cancels a genuinely pending `GPD_READEVENT`, marks the request with `IOERR_ABORTED`, replies it, and keeps that behavior covered directly in `Tests/Devices/Gameport` and `Tests/Exec/Library`
+- [x] Compared and verified `AbortIO()` behavior against the AROS `gameport.device` implementation; AROS aborts only still-pending read requests and leaves unrelated/completed I/O untouched, and the lxa path now preserves that public contract for the hosted pending-read queue
 
 ### Phase 93: Close `trackdisk.device` stub surface
 

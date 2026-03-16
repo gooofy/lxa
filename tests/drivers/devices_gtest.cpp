@@ -102,6 +102,7 @@ protected:
 
 TEST_F(DeviceTest, Clipboard) { RunDeviceTest("Clipboard"); }
 TEST_F(DeviceTest, ConsoleAsync) { RunDeviceTest("ConsoleAsync"); }
+TEST_F(DeviceTest, Gameport) { RunDeviceTest("Gameport"); }
 TEST_F(DeviceTest, Input) { RunDeviceTest("Input"); }
 TEST_F(DeviceTest, Keyboard) { RunKeyboardDeviceTest(); }
 TEST_F(DeviceTest, Timer) { RunDeviceTest("Timer"); }

@@ -21,6 +21,8 @@
 #include <exec/libraries.h>
 #include <exec/memory.h>
 #include <devices/clipboard.h>
+#include <devices/gameport.h>
+#include <devices/newstyle.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/rdargs.h>
@@ -4625,6 +4627,195 @@ static ULONG clipboard_probe_hook(register struct Hook *hook __asm("a0"),
     return 0;
 }
 
+static int test_gameport_phase92_stub_closed(void)
+{
+    int errors = 0;
+    struct MsgPort *port = NULL;
+    struct IOStdReq *req1 = NULL;
+    struct IOStdReq *req2 = NULL;
+    struct IOStdReq *reopen = NULL;
+    struct Device *device;
+    struct Node *node;
+    struct NSDeviceQueryResult query;
+    struct GamePortTrigger trigger;
+    UBYTE ctype;
+    LONG open_error;
+
+    print("--- Test: gameport.device Phase 92 entry point ---\n");
+
+    port = CreateMsgPort();
+    req1 = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
+    req2 = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
+    reopen = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
+    if (!port || !req1 || !req2 || !reopen)
+    {
+        print("FAIL: Could not allocate gameport.device probe resources\n\n");
+        if (reopen)
+            DeleteIORequest((struct IORequest *)reopen);
+        if (req2)
+            DeleteIORequest((struct IORequest *)req2);
+        if (req1)
+            DeleteIORequest((struct IORequest *)req1);
+        if (port)
+            DeleteMsgPort(port);
+        return 1;
+    }
+
+    if (OpenDevice((CONST_STRPTR)"gameport.device", 0, (struct IORequest *)req1, 0) != 0 ||
+        OpenDevice((CONST_STRPTR)"gameport.device", 1, (struct IORequest *)req2, 0) != 0)
+    {
+        print("FAIL: OpenDevice() for gameport.device probe failed\n\n");
+        if (req2->io_Device)
+            CloseDevice((struct IORequest *)req2);
+        if (req1->io_Device)
+            CloseDevice((struct IORequest *)req1);
+        DeleteIORequest((struct IORequest *)reopen);
+        DeleteIORequest((struct IORequest *)req2);
+        DeleteIORequest((struct IORequest *)req1);
+        DeleteMsgPort(port);
+        return 1;
+    }
+
+    ctype = GPCT_MOUSE;
+    req1->io_Command = GPD_SETCTYPE;
+    req1->io_Flags = IOF_QUICK;
+    req1->io_Data = &ctype;
+    req1->io_Length = sizeof(ctype);
+    DoIO((struct IORequest *)req1);
+
+    trigger.gpt_Keys = GPTF_DOWNKEYS;
+    trigger.gpt_Timeout = 9;
+    trigger.gpt_XDelta = 2;
+    trigger.gpt_YDelta = 5;
+    req1->io_Command = GPD_SETTRIGGER;
+    req1->io_Flags = IOF_QUICK;
+    req1->io_Data = &trigger;
+    req1->io_Length = sizeof(trigger);
+    DoIO((struct IORequest *)req1);
+
+    req1->io_Command = NSCMD_DEVICEQUERY;
+    req1->io_Flags = IOF_QUICK;
+    req1->io_Data = &query;
+    req1->io_Length = sizeof(query);
+    DoIO((struct IORequest *)req1);
+    if (req1->io_Error == 0 &&
+        query.nsdqr_DeviceType == NSDEVTYPE_GAMEPORT &&
+        query.nsdqr_SupportedCommands != NULL)
+    {
+        print("OK: gameport.device BeginIO() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: gameport.device BeginIO() still behaved like a stub\n");
+        errors++;
+        goto cleanup;
+    }
+
+    req1->io_Command = GPD_READEVENT;
+    req1->io_Data = &query;
+    req1->io_Length = sizeof(struct InputEvent);
+    SendIO((struct IORequest *)req1);
+    if (CheckIO((struct IORequest *)req1) != NULL)
+    {
+        print("FAIL: gameport.device GPD_READEVENT should pend without input\n");
+        errors++;
+        goto cleanup;
+    }
+
+    AbortIO((struct IORequest *)req1);
+    WaitIO((struct IORequest *)req1);
+    if (req1->io_Error == IOERR_ABORTED)
+    {
+        print("OK: gameport.device AbortIO() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: gameport.device AbortIO() did not cancel a pending read\n");
+        errors++;
+        goto cleanup;
+    }
+
+    device = req1->io_Device;
+    node = FindName(&SysBase->DeviceList, (CONST_STRPTR)"gameport.device");
+    if (node != &device->dd_Library.lib_Node)
+    {
+        print("FAIL: gameport.device missing from DeviceList before Expunge probe\n");
+        errors++;
+        goto cleanup;
+    }
+
+    RemDevice(device);
+    if ((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
+        FindName(&SysBase->DeviceList, (CONST_STRPTR)"gameport.device") == NULL)
+    {
+        print("OK: gameport.device Expunge() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: gameport.device Expunge() did not defer and unlink as expected\n");
+        errors++;
+    }
+
+    open_error = OpenDevice((CONST_STRPTR)"gameport.device", 0, (struct IORequest *)reopen, 0);
+    if (open_error == IOERR_OPENFAIL)
+    {
+        print("OK: deferred gameport.device Expunge() blocks new opens\n");
+    }
+    else
+    {
+        print("FAIL: deferred gameport.device Expunge() still allowed opens\n");
+        errors++;
+        if (open_error == 0)
+            CloseDevice((struct IORequest *)reopen);
+    }
+
+    CloseDevice((struct IORequest *)req2);
+    if (device->dd_Library.lib_OpenCnt == 1 &&
+        (device->dd_Library.lib_Flags & LIBF_DELEXP) != 0)
+    {
+        print("OK: gameport.device Close() keeps deferred Expunge pending\n");
+    }
+    else
+    {
+        print("FAIL: gameport.device Close() completed deferred Expunge too early\n");
+        errors++;
+    }
+
+    CloseDevice((struct IORequest *)req1);
+    if (FindName(&SysBase->DeviceList, (CONST_STRPTR)"gameport.device") == NULL &&
+        device->dd_Library.lib_OpenCnt == 0 &&
+        (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
+    {
+        print("OK: gameport.device final Close() completes deferred Expunge\n");
+    }
+    else
+    {
+        print("FAIL: gameport.device final Close() did not finish deferred Expunge\n");
+        errors++;
+    }
+
+    DeleteIORequest((struct IORequest *)reopen);
+    DeleteIORequest((struct IORequest *)req2);
+    DeleteIORequest((struct IORequest *)req1);
+    DeleteMsgPort(port);
+
+    print("\n");
+    return errors;
+
+cleanup:
+    if (req2->io_Device)
+        CloseDevice((struct IORequest *)req2);
+    if (req1->io_Device)
+        CloseDevice((struct IORequest *)req1);
+    DeleteIORequest((struct IORequest *)reopen);
+    DeleteIORequest((struct IORequest *)req2);
+    DeleteIORequest((struct IORequest *)req1);
+    DeleteMsgPort(port);
+
+    print("\n");
+    return errors;
+}
+
 static int test_clipboard_phase91_stub_closed(void)
 {
     int errors = 0;
@@ -5038,6 +5229,9 @@ int main(void)
 
     /* Test 59: Verify clipboard.device Phase 91 entry points no longer hit the stub path */
     errors += test_clipboard_phase91_stub_closed();
+
+    /* Test 60: Verify gameport.device Phase 92 entry points no longer hit the stub path */
+    errors += test_gameport_phase92_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

@@ -233,6 +233,39 @@ void _input_device_dispatch_event(struct InputEvent *event)
     input_dispatch_single_event(g_input_base, event);
 }
 
+BOOL _input_device_add_handler(struct Interrupt *handler)
+{
+    if (!g_input_base || !handler)
+    {
+        return FALSE;
+    }
+
+    if (input_handler_is_linked(g_input_base, handler))
+    {
+        return TRUE;
+    }
+
+    ((struct Node *)handler)->ln_Succ = NULL;
+    ((struct Node *)handler)->ln_Pred = NULL;
+    Enqueue(&g_input_base->ib_HandlerList, (struct Node *)handler);
+    return TRUE;
+}
+
+void _input_device_remove_handler(struct Interrupt *handler)
+{
+    if (!g_input_base || !handler)
+    {
+        return;
+    }
+
+    if (input_handler_is_linked(g_input_base, handler))
+    {
+        Remove((struct Node *)handler);
+        ((struct Node *)handler)->ln_Succ = NULL;
+        ((struct Node *)handler)->ln_Pred = NULL;
+    }
+}
+
 UWORD __g_lxa_input_PeekQualifier(register struct Library *dev __asm("a6"))
 {
     struct InputBase *inputbase = (struct InputBase *)dev;
@@ -317,14 +350,12 @@ static BPTR __g_lxa_input_BeginIO(register struct Library *dev __asm("a6"),
                 break;
             }
 
-            if (input_handler_is_linked(inputbase, handler))
+            if (!input_handler_is_linked(inputbase, handler))
             {
-                break;
+                ((struct Node *)handler)->ln_Succ = NULL;
+                ((struct Node *)handler)->ln_Pred = NULL;
+                Enqueue(&inputbase->ib_HandlerList, (struct Node *)handler);
             }
-
-            ((struct Node *)handler)->ln_Succ = NULL;
-            ((struct Node *)handler)->ln_Pred = NULL;
-            Enqueue(&inputbase->ib_HandlerList, (struct Node *)handler);
             break;
         }
 

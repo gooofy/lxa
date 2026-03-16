@@ -185,6 +185,7 @@ lxa -d -v myprogram
 - **mathieeesingbas.library**: IEEE single-precision basic math (12 functions)
 - **mathieeedoubbas.library**: IEEE double-precision basic math (12 functions)
 - **input.device**: Handler-chain management (`IND_ADDHANDLER` / `IND_REMHANDLER`), held-qualifier snapshots via `PeekQualifier()`, transient qualifier-bit preservation on injected events, repeat timing configuration, and direct event injection/dispatch coverage for `IND_WRITEEVENT` / `IND_ADDEVENT`
+- **gameport.device**: Covered init/open/close/expunge lifetime semantics, controller-type and trigger query/set commands, `NSCMD_DEVICEQUERY`, pending `GPD_READEVENT` requests with `AbortIO()`, and hosted mouse-event delivery through the shared input stack
 - **keyboard.device**: Covered `CMD_CLEAR`, `KBD_READEVENT`, `KBD_READMATRIX`, reset-handler registration/acknowledgement, per-open read queues, shared Intuition/raw-key event capture, and current key-matrix snapshots aligned with the hosted input stack
 - **console.device**: Terminal I/O with CSI escape sequences, keyboard input, `CONU_LIBRARY` access, and covered keymap command/query support
 - **trackdisk.device**: Hosted `.adf`-backed sector I/O (`TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK`, plus `ETD_READ` / `ETD_WRITE`) with geometry/status support, classic error handling, and covered `TD_ADDCHANGEINT`/`TD_REMCHANGEINT` request lifetime semantics
@@ -224,7 +225,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.44** - Phase 91 closes the remaining public `clipboard.device` stubs in scope here with RKRM-aligned expunge, `CBD_POST`, `CBD_CHANGEHOOK`, and `AbortIO` handling, including deferred satisfy-message reads, change-hook notifications, pending-read cancellation, and direct regression coverage plus roadmap notes for the missing public AROS device sources
+**Version 0.8.45** - Phase 92 closes the remaining public `gameport.device` stubs in scope here with RKRM/NDK-aligned init/open/close/expunge semantics, covered controller-type and trigger commands, `NSCMD_DEVICEQUERY`, and pending `GPD_READEVENT` plus `AbortIO()` behavior verified against the bundled AROS device sources
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
