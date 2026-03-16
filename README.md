@@ -181,7 +181,7 @@ lxa -d -v myprogram
 - **asl.library**: File, font, and screen mode requesters, including public `AllocAslRequestTags()`/`AslRequestTags()` varargs entry-point coverage
 - **locale.library**: Locale management, `.catalog` loading and lookup, character classification/case conversion, `StrConvert`/`StrnCmp`, FormatDate, FormatString, ParseDate
 - **keymap.library**: Default-keymap queries/updates plus `MapRawKey()` / `MapANSI()` translation coverage, including dead-key and string-sequence handling
-- **diskfont.library**: Font loading from `FONTS:` bitmap `.font` files, including proportional and multi-plane color bitmap fonts, plus covered `NewFontContents()` / `DisposeFontContents()` helpers and diskfont control-tag queries
+- **diskfont.library**: Font loading from `FONTS:` bitmap `.font` files, including proportional and multi-plane color bitmap fonts, covered `NewFontContents()` / `DisposeFontContents()` helpers and diskfont control-tag queries, plus Phase 88 outline-font wrappers (`E*Engine`, `OpenOutlineFont()` / `CloseOutlineFont()`), font-file write helpers, and built-in charset metadata queries
 - **mathieeesingbas.library**: IEEE single-precision basic math (12 functions)
 - **mathieeedoubbas.library**: IEEE double-precision basic math (12 functions)
 - **input.device**: Handler-chain management (`IND_ADDHANDLER` / `IND_REMHANDLER`), held-qualifier snapshots via `PeekQualifier()`, transient qualifier-bit preservation on injected events, repeat timing configuration, and direct event injection/dispatch coverage for `IND_WRITEEVENT` / `IND_ADDEVENT`
@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.40** - Phase 87 closes the remaining public `icon.library` stubs in scope here by persisting default icons via `PutDefDiskObject()`, wiring the Phase 44 control/layout/draw helpers into a shared planar icon path, and extending the icon plus exec-library regression coverage to keep the aligned AROS/NDK behavior notes recorded in `roadmap.md`
+**Version 0.8.41** - Phase 88 closes the remaining public `diskfont.library` stubs in scope here by wiring the V47 outline-engine wrappers through caller-supplied bullet bases, loading and validating `.otag` outline-font descriptors, adding diskfont write-helper and charset-query coverage, and extending both the graphics and exec-library regression suites to keep the documented NDK behavior pinned down in `roadmap.md`
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

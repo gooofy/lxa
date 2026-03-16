@@ -27,6 +27,9 @@
 #include <graphics/gels.h>
 #include <graphics/layers.h>
 #include <graphics/rastport.h>
+#include <diskfont/diskfont.h>
+#include <diskfont/diskfonttag.h>
+#include <diskfont/glyph.h>
 #include <intuition/intuition.h>
 #include <intuition/imageclass.h>
 #include <intuition/screens.h>
@@ -3689,6 +3692,130 @@ static int test_icon_phase87_stub_closed(void)
     return errors;
 }
 
+static int test_diskfont_phase88_stub_closed(void)
+{
+    int errors = 0;
+    struct Library *diskfont;
+    struct Library *fake_bullet;
+    struct OutlineFont *outline;
+    struct MinList list;
+    struct TagItem tags[4];
+    ULONG path_value = 0;
+    ULONG list_value = 0;
+    ULONG underline_value = 0;
+    ULONG charset_name;
+
+    print("--- Test: diskfont.library Phase 88 entry points ---\n");
+
+    diskfont = OpenLibrary((CONST_STRPTR)"diskfont.library", 0);
+    if (!diskfont)
+    {
+        print("FAIL: OpenLibrary() for diskfont.library returned NULL\n\n");
+        return 1;
+    }
+
+    fake_bullet = OpenLibrary((CONST_STRPTR)"bullet.library", 0);
+    if (!fake_bullet)
+    {
+        print("FAIL: fake bullet.library should be available from test setup\n");
+        CloseLibrary(diskfont);
+        return 1;
+    }
+
+    NewList((struct List *)&list);
+    outline = OpenOutlineFont((CONST_STRPTR)"T:diskfont_test/outline.font", (struct List *)&list, OFF_OPEN);
+    if (!outline)
+    {
+        print("FAIL: OpenOutlineFont() still behaves like a stub\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: OpenOutlineFont() no longer behaves like a stub\n");
+
+        tags[0].ti_Tag = OT_OTagPath;
+        tags[0].ti_Data = (ULONG)outline->olf_OTagPath;
+        tags[1].ti_Tag = OT_OTagList;
+        tags[1].ti_Data = (ULONG)outline->olf_OTagList;
+        tags[2].ti_Tag = OT_UnderLined;
+        tags[2].ti_Data = OTUL_Broken;
+        tags[3].ti_Tag = TAG_DONE;
+        tags[3].ti_Data = 0;
+
+        if (ESetInfoA(&outline->olf_EEngine, tags) == OTERR_Success)
+        {
+            print("OK: ESetInfoA() no longer behaves like a stub\n");
+        }
+        else
+        {
+            print("FAIL: ESetInfoA() still behaves like a stub\n");
+            errors++;
+        }
+
+        tags[0].ti_Tag = OT_OTagPath;
+        tags[0].ti_Data = (ULONG)&path_value;
+        tags[1].ti_Tag = OT_OTagList;
+        tags[1].ti_Data = (ULONG)&list_value;
+        tags[2].ti_Tag = OT_UnderLined;
+        tags[2].ti_Data = (ULONG)&underline_value;
+        tags[3].ti_Tag = TAG_DONE;
+        tags[3].ti_Data = 0;
+
+        if (EObtainInfoA(&outline->olf_EEngine, tags) == OTERR_Success &&
+            path_value == (ULONG)outline->olf_OTagPath &&
+            list_value != 0 &&
+            underline_value == OTUL_Broken)
+        {
+            print("OK: EObtainInfoA() no longer behaves like a stub\n");
+        }
+        else
+        {
+            print("FAIL: EObtainInfoA() still behaves like a stub\n");
+            errors++;
+        }
+
+        if (EReleaseInfoA(&outline->olf_EEngine, tags) == OTERR_Success)
+        {
+            print("OK: EReleaseInfoA() no longer behaves like a stub\n");
+        }
+        else
+        {
+            print("FAIL: EReleaseInfoA() still behaves like a stub\n");
+            errors++;
+        }
+
+        ECloseEngine(&outline->olf_EEngine);
+        if (outline->olf_EEngine.ege_GlyphEngine == NULL)
+        {
+            print("OK: ECloseEngine() no longer behaves like a stub\n");
+        }
+        else
+        {
+            print("FAIL: ECloseEngine() did not clear glyph engine\n");
+            errors++;
+        }
+
+        CloseOutlineFont(outline, (struct List *)&list);
+    }
+
+    charset_name = ObtainCharsetInfo(DFCS_NUMBER, 106, DFCS_NAME);
+    if (charset_name != 0)
+    {
+        print("OK: ObtainCharsetInfo() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: ObtainCharsetInfo() still behaves like a stub\n");
+        errors++;
+    }
+
+    CloseLibrary(fake_bullet);
+    CloseLibrary(diskfont);
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -3890,6 +4017,9 @@ int main(void)
 
     /* Test 55: Verify icon.library Phase 87 entry points no longer hit stub paths */
     errors += test_icon_phase87_stub_closed();
+
+    /* Test 56: Verify diskfont.library Phase 88 entry points no longer hit stub paths */
+    errors += test_diskfont_phase88_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

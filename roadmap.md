@@ -224,30 +224,18 @@ Goal: eliminate the remaining non-private `icon.library` stubs, match RKRM/NDK b
 - [x] Implement `ChangeToSelectedIconColor()` per RKRM/NDK semantics with direct regression coverage; `ChangeToSelectedIconColor()` now brightens the supplied `ColorRegister` in place with bounded channel math, safely ignores null inputs, and adds direct regression coverage in `tests/icon/diskobject`, `misc_gtest`, and the `Tests/Exec/Library` entry-point probe
 - [x] Compare and verify `ChangeToSelectedIconColor()` behavior against the AROS implementation; the AROS autodoc defines the same narrow in-place color-adjustment contract without exposing extra state, and the lxa path now preserves that observable behavior with a deterministic bounded brightening transform while intentionally avoiding any undocumented palette remap heuristics beyond the selected-state adjustment closed in this phase
 
-### Phase 88: Close `diskfont.library` stub surface
+### Phase 88 complete (`0.8.41`): Close `diskfont.library` stub surface
 
 Goal: eliminate the remaining non-private `diskfont.library` stubs, match RKRM/NDK behavior, and keep each closure checked against AROS.
 
-- [ ] Implement `EOpenEngine()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `EOpenEngine()` behavior against the AROS implementation
-- [ ] Implement `ECloseEngine()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `ECloseEngine()` behavior against the AROS implementation
-- [ ] Implement `ESetInfoA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `ESetInfoA()` behavior against the AROS implementation
-- [ ] Implement `EObtainInfoA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `EObtainInfoA()` behavior against the AROS implementation
-- [ ] Implement `EReleaseInfoA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `EReleaseInfoA()` behavior against the AROS implementation
-- [ ] Implement `OpenOutlineFont()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `OpenOutlineFont()` behavior against the AROS implementation
-- [ ] Implement `CloseOutlineFont()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `CloseOutlineFont()` behavior against the AROS implementation
-- [ ] Implement `WriteFontContents()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `WriteFontContents()` behavior against the AROS implementation
-- [ ] Implement `WriteDiskFontHeaderA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `WriteDiskFontHeaderA()` behavior against the AROS implementation
-- [ ] Implement `ObtainCharsetInfo()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `ObtainCharsetInfo()` behavior against the AROS implementation
+- [x] Implemented the V47 engine wrappers `EOpenEngine()`, `ECloseEngine()`, `ESetInfoA()`, `EObtainInfoA()`, and `EReleaseInfoA()` so `diskfont.library` now opens glyph-engine contexts through the caller-provided `ege_BulletBase`, tracks the selected `.otag` state alongside direct metric tags, and keeps outline-engine state query/release flows working without the old stubs; direct regression coverage now exercises the engine path in `Tests/Graphics/DiskfontContents` and the `exec_gtest` entry-point probe
+- [x] Compared and verified the engine-wrapper behavior against the available AROS reference material; the current `others/AROS-20231016-source` snapshot does not ship a public `diskfont.library` implementation for these V47 outline wrappers, so the lxa path follows the NDK/RKRM autodocs directly while preserving the same intended bullet-library delegation model and recording that source-gap explicitly here
+- [x] Implemented `OpenOutlineFont()` and `CloseOutlineFont()` per the documented `.otag` flow, including suffix/path resolution, `OT_FileIdent` size validation, relocation of indirect tags in the loaded tag list, optional `OFF_OPEN` engine startup, and full teardown of the outline-font allocation; direct regression coverage now builds a synthetic `.otag` file and verifies both manual-open and `OFF_OPEN` flows in `Tests/Graphics/DiskfontContents`, with an additional `exec_gtest` probe covering the public entry points
+- [x] Compared and verified the outline-font open/close behavior against the available AROS reference material; as with the engine wrappers, the current AROS snapshot does not expose a corresponding public `diskfont.library` source file for these V47 routines, so lxa intentionally follows the NDK-documented validation/load/open sequence while keeping the absence of a comparable AROS implementation explicit
+- [x] Implemented `WriteFontContents()` and `WriteDiskFontHeaderA()` so callers can persist `FontContentsHeader` data and emit relocatable bitmap diskfont hunk files for monochrome, proportional, and color-font metadata without falling back to stub results; `Tests/Graphics/DiskfontContents` now round-trips written `.font` contents data and reopens a written bitmap font header through `OpenDiskFont()`
+- [x] Compared and verified the write-helper behavior against the available AROS reference material; the bundled AROS snapshot again lacks the corresponding public `diskfont.library` source, so lxa follows the NDK diskfont file-format contracts already exercised by `OpenDiskFont()` and keeps the resulting round-trip coverage in `Tests/Graphics/DiskfontContents` as the compatibility anchor
+- [x] Implemented `ObtainCharsetInfo()` with built-in charset metadata for the currently used ASCII/Latin-1/UTF-8 cases, including number/name/MIME-name lookup, browsing via `DFCS_NEXTNUMBER`, and 256-entry mapping-table queries; direct regression coverage now verifies the lookup surface in both `Tests/Graphics/DiskfontContents` and the `exec_gtest` entry-point probe
+- [x] Compared and verified `ObtainCharsetInfo()` behavior against the available AROS reference material; the current AROS source snapshot does not provide a public implementation to compare directly, so lxa follows the NDK-defined `DFCS_*` lookup contract and documents that the charset table currently covers the built-in charsets needed by the hosted stack rather than an external `L:CharSets/character-sets` parser
 
 ### Phase 89: Close `workbench.library` stub surface
 

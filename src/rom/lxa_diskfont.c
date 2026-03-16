@@ -15,6 +15,7 @@
 
 #include <dos/dos.h>
 #include <dos/dosextens.h>
+#include <dos/doshunks.h>
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
 
@@ -24,6 +25,7 @@
 #include <inline/graphics.h>
 
 #include <diskfont/diskfont.h>
+#include <diskfont/glyph.h>
 #include <diskfont/diskfonttag.h>
 #include <diskfont/oterrors.h>
 
@@ -81,10 +83,522 @@ struct DiskFontCacheState
     struct MinList font_entries;
 };
 
+struct DiskfontGlyphEngineState
+{
+    struct GlyphEngine glyph_engine;
+    STRPTR             glyph_name;
+    STRPTR             current_otag_path;
+    struct TagItem    *current_otag_list;
+    STRPTR             pending_otag_path;
+    struct TagItem    *pending_otag_list;
+    ULONG              device_dpi;
+    ULONG              dot_size;
+    ULONG              point_height;
+    ULONG              set_factor;
+    ULONG              shear_sin;
+    ULONG              shear_cos;
+    ULONG              rotate_sin;
+    ULONG              rotate_cos;
+    ULONG              embolden_x;
+    ULONG              embolden_y;
+    ULONG              point_size;
+    ULONG              glyph_code;
+    ULONG              glyph_code2;
+    ULONG              glyph_code32;
+    ULONG              glyph_code2_32;
+    ULONG              glyph_width;
+    ULONG              underlined;
+};
+
+struct DiskfontOutlinePrivate
+{
+    struct Library *engine_library;
+};
+
+struct df_color_diskfont_header
+{
+    struct Node          dfh_DF;
+    UWORD                dfh_FileID;
+    UWORD                dfh_Revision;
+    BPTR                 dfh_Segment;
+    TEXT                 dfh_Name[MAXFONTNAME];
+    struct ColorTextFont ctf;
+};
+
+struct df_charset_info
+{
+    ULONG        number;
+    CONST_STRPTR name;
+    CONST_STRPTR mime_name;
+    CONST ULONG *map_table;
+};
+
+static const ULONG g_df_charset_ascii_map[256] = {
+    0x00000000, 0x00000001, 0x00000002, 0x00000003, 0x00000004, 0x00000005, 0x00000006, 0x00000007,
+    0x00000008, 0x00000009, 0x0000000a, 0x0000000b, 0x0000000c, 0x0000000d, 0x0000000e, 0x0000000f,
+    0x00000010, 0x00000011, 0x00000012, 0x00000013, 0x00000014, 0x00000015, 0x00000016, 0x00000017,
+    0x00000018, 0x00000019, 0x0000001a, 0x0000001b, 0x0000001c, 0x0000001d, 0x0000001e, 0x0000001f,
+    0x00000020, 0x00000021, 0x00000022, 0x00000023, 0x00000024, 0x00000025, 0x00000026, 0x00000027,
+    0x00000028, 0x00000029, 0x0000002a, 0x0000002b, 0x0000002c, 0x0000002d, 0x0000002e, 0x0000002f,
+    0x00000030, 0x00000031, 0x00000032, 0x00000033, 0x00000034, 0x00000035, 0x00000036, 0x00000037,
+    0x00000038, 0x00000039, 0x0000003a, 0x0000003b, 0x0000003c, 0x0000003d, 0x0000003e, 0x0000003f,
+    0x00000040, 0x00000041, 0x00000042, 0x00000043, 0x00000044, 0x00000045, 0x00000046, 0x00000047,
+    0x00000048, 0x00000049, 0x0000004a, 0x0000004b, 0x0000004c, 0x0000004d, 0x0000004e, 0x0000004f,
+    0x00000050, 0x00000051, 0x00000052, 0x00000053, 0x00000054, 0x00000055, 0x00000056, 0x00000057,
+    0x00000058, 0x00000059, 0x0000005a, 0x0000005b, 0x0000005c, 0x0000005d, 0x0000005e, 0x0000005f,
+    0x00000060, 0x00000061, 0x00000062, 0x00000063, 0x00000064, 0x00000065, 0x00000066, 0x00000067,
+    0x00000068, 0x00000069, 0x0000006a, 0x0000006b, 0x0000006c, 0x0000006d, 0x0000006e, 0x0000006f,
+    0x00000070, 0x00000071, 0x00000072, 0x00000073, 0x00000074, 0x00000075, 0x00000076, 0x00000077,
+    0x00000078, 0x00000079, 0x0000007a, 0x0000007b, 0x0000007c, 0x0000007d, 0x0000007e, 0x0000007f,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd,
+    0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd, 0x0000fffd
+};
+
+static const ULONG g_df_charset_identity_map[256] = {
+    0x00000000, 0x00000001, 0x00000002, 0x00000003, 0x00000004, 0x00000005, 0x00000006, 0x00000007,
+    0x00000008, 0x00000009, 0x0000000a, 0x0000000b, 0x0000000c, 0x0000000d, 0x0000000e, 0x0000000f,
+    0x00000010, 0x00000011, 0x00000012, 0x00000013, 0x00000014, 0x00000015, 0x00000016, 0x00000017,
+    0x00000018, 0x00000019, 0x0000001a, 0x0000001b, 0x0000001c, 0x0000001d, 0x0000001e, 0x0000001f,
+    0x00000020, 0x00000021, 0x00000022, 0x00000023, 0x00000024, 0x00000025, 0x00000026, 0x00000027,
+    0x00000028, 0x00000029, 0x0000002a, 0x0000002b, 0x0000002c, 0x0000002d, 0x0000002e, 0x0000002f,
+    0x00000030, 0x00000031, 0x00000032, 0x00000033, 0x00000034, 0x00000035, 0x00000036, 0x00000037,
+    0x00000038, 0x00000039, 0x0000003a, 0x0000003b, 0x0000003c, 0x0000003d, 0x0000003e, 0x0000003f,
+    0x00000040, 0x00000041, 0x00000042, 0x00000043, 0x00000044, 0x00000045, 0x00000046, 0x00000047,
+    0x00000048, 0x00000049, 0x0000004a, 0x0000004b, 0x0000004c, 0x0000004d, 0x0000004e, 0x0000004f,
+    0x00000050, 0x00000051, 0x00000052, 0x00000053, 0x00000054, 0x00000055, 0x00000056, 0x00000057,
+    0x00000058, 0x00000059, 0x0000005a, 0x0000005b, 0x0000005c, 0x0000005d, 0x0000005e, 0x0000005f,
+    0x00000060, 0x00000061, 0x00000062, 0x00000063, 0x00000064, 0x00000065, 0x00000066, 0x00000067,
+    0x00000068, 0x00000069, 0x0000006a, 0x0000006b, 0x0000006c, 0x0000006d, 0x0000006e, 0x0000006f,
+    0x00000070, 0x00000071, 0x00000072, 0x00000073, 0x00000074, 0x00000075, 0x00000076, 0x00000077,
+    0x00000078, 0x00000079, 0x0000007a, 0x0000007b, 0x0000007c, 0x0000007d, 0x0000007e, 0x0000007f,
+    0x00000080, 0x00000081, 0x00000082, 0x00000083, 0x00000084, 0x00000085, 0x00000086, 0x00000087,
+    0x00000088, 0x00000089, 0x0000008a, 0x0000008b, 0x0000008c, 0x0000008d, 0x0000008e, 0x0000008f,
+    0x00000090, 0x00000091, 0x00000092, 0x00000093, 0x00000094, 0x00000095, 0x00000096, 0x00000097,
+    0x00000098, 0x00000099, 0x0000009a, 0x0000009b, 0x0000009c, 0x0000009d, 0x0000009e, 0x0000009f,
+    0x000000a0, 0x000000a1, 0x000000a2, 0x000000a3, 0x000000a4, 0x000000a5, 0x000000a6, 0x000000a7,
+    0x000000a8, 0x000000a9, 0x000000aa, 0x000000ab, 0x000000ac, 0x000000ad, 0x000000ae, 0x000000af,
+    0x000000b0, 0x000000b1, 0x000000b2, 0x000000b3, 0x000000b4, 0x000000b5, 0x000000b6, 0x000000b7,
+    0x000000b8, 0x000000b9, 0x000000ba, 0x000000bb, 0x000000bc, 0x000000bd, 0x000000be, 0x000000bf,
+    0x000000c0, 0x000000c1, 0x000000c2, 0x000000c3, 0x000000c4, 0x000000c5, 0x000000c6, 0x000000c7,
+    0x000000c8, 0x000000c9, 0x000000ca, 0x000000cb, 0x000000cc, 0x000000cd, 0x000000ce, 0x000000cf,
+    0x000000d0, 0x000000d1, 0x000000d2, 0x000000d3, 0x000000d4, 0x000000d5, 0x000000d6, 0x000000d7,
+    0x000000d8, 0x000000d9, 0x000000da, 0x000000db, 0x000000dc, 0x000000dd, 0x000000de, 0x000000df,
+    0x000000e0, 0x000000e1, 0x000000e2, 0x000000e3, 0x000000e4, 0x000000e5, 0x000000e6, 0x000000e7,
+    0x000000e8, 0x000000e9, 0x000000ea, 0x000000eb, 0x000000ec, 0x000000ed, 0x000000ee, 0x000000ef,
+    0x000000f0, 0x000000f1, 0x000000f2, 0x000000f3, 0x000000f4, 0x000000f5, 0x000000f6, 0x000000f7,
+    0x000000f8, 0x000000f9, 0x000000fa, 0x000000fb, 0x000000fc, 0x000000fd, 0x000000fe, 0x000000ff
+};
+
+static const struct df_charset_info g_df_charsets[] = {
+    { 3,   (CONST_STRPTR)"US-ASCII",   (CONST_STRPTR)"US-ASCII",   g_df_charset_ascii_map },
+    { 4,   (CONST_STRPTR)"ISO-8859-1", (CONST_STRPTR)"ISO-8859-1", g_df_charset_identity_map },
+    { 106, (CONST_STRPTR)"UTF-8",      (CONST_STRPTR)"UTF-8",      g_df_charset_identity_map }
+};
+
 static struct DiskFontCacheState g_diskfont_cache_state;
 
 static VOID _df_new_min_list(struct MinList *list);
 static VOID _df_flush_cache(struct DiskfontBase *DiskfontBase);
+static int _df_stricmp(const char *s1, const char *s2);
+static BOOL _df_endswith(const char *str, const char *suffix);
+static BOOL _df_has_path(const char *name);
+LONG _diskfont_EOpenEngine ( register struct DiskfontBase  *DiskfontBase __asm("a6"),
+                             register struct EGlyphEngine  *eEngine      __asm("a0"));
+VOID _diskfont_ECloseEngine ( register struct DiskfontBase *DiskfontBase __asm("a6"),
+                              register struct EGlyphEngine *eEngine      __asm("a0"));
+ULONG _diskfont_ESetInfoA ( register struct DiskfontBase    *DiskfontBase __asm("a6"),
+                            register struct EGlyphEngine    *eEngine      __asm("a0"),
+                            register CONST struct TagItem   *taglist      __asm("a1"));
+VOID _diskfont_CloseOutlineFont ( register struct DiskfontBase *DiskfontBase __asm("a6"),
+                                  register struct OutlineFont  *olf          __asm("a0"),
+                                  register struct List         *list         __asm("a1"));
+
+static STRPTR _df_strdup(CONST_STRPTR src)
+{
+    ULONG len;
+    STRPTR copy;
+
+    if (!src)
+        return NULL;
+
+    len = strlen((const char *)src) + 1;
+    copy = (STRPTR)AllocMem(len, MEMF_PUBLIC);
+    if (!copy)
+        return NULL;
+
+    CopyMem((APTR)src, copy, len);
+    return copy;
+}
+
+static VOID _df_copy_name(TEXT *dst, CONST_STRPTR src, ULONG max_len)
+{
+    ULONG i;
+
+    if (!dst || max_len == 0)
+        return;
+
+    for (i = 0; i + 1 < max_len && src && src[i]; i++)
+        dst[i] = (TEXT)src[i];
+
+    dst[i] = 0;
+}
+
+static struct df_charset_info *_df_find_charset_by_number(ULONG number)
+{
+    ULONG i;
+
+    for (i = 0; i < (sizeof(g_df_charsets) / sizeof(g_df_charsets[0])); i++)
+    {
+        if (g_df_charsets[i].number == number)
+            return (struct df_charset_info *)&g_df_charsets[i];
+    }
+
+    return NULL;
+}
+
+static struct df_charset_info *_df_find_charset_by_string(ULONG tag, CONST_STRPTR value)
+{
+    ULONG i;
+
+    if (!value)
+        return NULL;
+
+    for (i = 0; i < (sizeof(g_df_charsets) / sizeof(g_df_charsets[0])); i++)
+    {
+        CONST_STRPTR probe = (tag == DFCS_MIMENAME) ? g_df_charsets[i].mime_name : g_df_charsets[i].name;
+
+        if (probe && _df_stricmp((const char *)probe, (const char *)value) == 0)
+            return (struct df_charset_info *)&g_df_charsets[i];
+    }
+
+    return NULL;
+}
+
+static struct df_charset_info *_df_find_charset_next(ULONG after_number)
+{
+    ULONG i;
+    struct df_charset_info *best = NULL;
+
+    for (i = 0; i < (sizeof(g_df_charsets) / sizeof(g_df_charsets[0])); i++)
+    {
+        if (g_df_charsets[i].number > after_number)
+        {
+            if (!best || g_df_charsets[i].number < best->number)
+                best = (struct df_charset_info *)&g_df_charsets[i];
+        }
+    }
+
+    return best;
+}
+
+static struct df_charset_info *_df_find_charset(ULONG knownTag, ULONG knownValue)
+{
+    switch (knownTag)
+    {
+        case DFCS_NUMBER:
+            return _df_find_charset_by_number(knownValue);
+
+        case DFCS_NAME:
+            return _df_find_charset_by_string(knownTag, (CONST_STRPTR)knownValue);
+
+        case DFCS_MIMENAME:
+            return _df_find_charset_by_string(knownTag, (CONST_STRPTR)knownValue);
+
+        case DFCS_NEXTNUMBER:
+            return _df_find_charset_next(knownValue);
+
+        default:
+            return NULL;
+    }
+}
+
+static struct GlyphEngine *_df_engine_open_call(struct Library *library)
+{
+    register char *base __asm("a6");
+
+    base = (char *)library;
+    return ((struct GlyphEngine *(*)(char * __asm("a6")))(base - 30))(base);
+}
+
+static VOID _df_engine_close_call(struct Library *library, struct GlyphEngine *glyph_engine)
+{
+    register char *base __asm("a6");
+
+    base = (char *)library;
+    ((VOID (*)(char * __asm("a6"), struct GlyphEngine * __asm("a0")))(base - 36))(base, glyph_engine);
+}
+
+static ULONG _df_engine_set_info_call(struct Library *library,
+                                      struct GlyphEngine *glyph_engine,
+                                      CONST struct TagItem *taglist)
+{
+    register char *base __asm("a6");
+
+    base = (char *)library;
+    return ((ULONG (*)(char * __asm("a6"), struct GlyphEngine * __asm("a0"), CONST struct TagItem * __asm("a1")))(base - 42))(base, glyph_engine, taglist);
+}
+
+static ULONG _df_engine_obtain_info_call(struct Library *library,
+                                         struct GlyphEngine *glyph_engine,
+                                         CONST struct TagItem *taglist)
+{
+    register char *base __asm("a6");
+
+    base = (char *)library;
+    return ((ULONG (*)(char * __asm("a6"), struct GlyphEngine * __asm("a0"), CONST struct TagItem * __asm("a1")))(base - 48))(base, glyph_engine, taglist);
+}
+
+static ULONG _df_engine_release_info_call(struct Library *library,
+                                          struct GlyphEngine *glyph_engine,
+                                          CONST struct TagItem *taglist)
+{
+    register char *base __asm("a6");
+
+    base = (char *)library;
+    return ((ULONG (*)(char * __asm("a6"), struct GlyphEngine * __asm("a0"), CONST struct TagItem * __asm("a1")))(base - 54))(base, glyph_engine, taglist);
+}
+
+static struct DiskfontGlyphEngineState *_df_glyph_state(struct EGlyphEngine *eEngine)
+{
+    if (!eEngine)
+        return NULL;
+
+    return (struct DiskfontGlyphEngineState *)eEngine->ege_Reserved;
+}
+
+static VOID _df_glyph_state_defaults(struct DiskfontGlyphEngineState *state)
+{
+    if (!state)
+        return;
+
+    state->device_dpi = (72UL << 16) | 72UL;
+    state->dot_size = (100UL << 16) | 100UL;
+    state->set_factor = 0x00010000UL;
+    state->shear_cos = 0x00010000UL;
+    state->rotate_cos = 0x00010000UL;
+    state->underlined = OTUL_None;
+}
+
+static VOID _df_glyph_state_free(struct DiskfontGlyphEngineState *state)
+{
+    if (!state)
+        return;
+
+    if (state->current_otag_path)
+        FreeMem(state->current_otag_path, strlen((const char *)state->current_otag_path) + 1);
+    if (state->current_otag_list)
+        FreeMem(state->current_otag_list, state->current_otag_list[0].ti_Data);
+    if (state->pending_otag_path)
+        FreeMem(state->pending_otag_path, strlen((const char *)state->pending_otag_path) + 1);
+    if (state->glyph_name)
+        FreeMem(state->glyph_name, strlen((const char *)state->glyph_name) + 1);
+    FreeMem(state, sizeof(*state));
+}
+
+static BOOL _df_otag_build_path(CONST_STRPTR name, char *path, ULONG path_size)
+{
+    ULONG len;
+
+    if (!name || !path || path_size < 8)
+        return FALSE;
+
+    path[0] = '\0';
+    if (_df_has_path((const char *)name))
+    {
+        if (strlen((const char *)name) + 1 > path_size)
+            return FALSE;
+
+        strcpy(path, (const char *)name);
+    }
+    else
+    {
+        strcpy(path, "FONTS:");
+        if (!AddPart((STRPTR)path, (STRPTR)name, path_size))
+            return FALSE;
+    }
+
+    len = strlen(path);
+    if (_df_endswith(path, ".font"))
+    {
+        if (len + 1 < 5)
+            return FALSE;
+
+        path[len - 4] = 'o';
+        path[len - 3] = 't';
+        path[len - 2] = 'a';
+        path[len - 1] = 'g';
+    }
+    else if (!_df_endswith(path, ".otag"))
+    {
+        if (len + strlen(OTSUFFIX) + 1 > path_size)
+            return FALSE;
+
+        strcat(path, OTSUFFIX);
+    }
+
+    return TRUE;
+}
+
+static BOOL _df_read_file(CONST_STRPTR path, UBYTE **data_out, ULONG *size_out)
+{
+    BPTR fh;
+    LONG size;
+    UBYTE *data;
+
+    if (!path || !data_out || !size_out)
+        return FALSE;
+
+    *data_out = NULL;
+    *size_out = 0;
+
+    fh = Open(path, MODE_OLDFILE);
+    if (!fh)
+        return FALSE;
+
+    size = Seek(fh, 0, OFFSET_END);
+    if (size <= 0 || Seek(fh, 0, OFFSET_BEGINNING) < 0)
+    {
+        Close(fh);
+        return FALSE;
+    }
+
+    data = (UBYTE *)AllocMem((ULONG)size, MEMF_PUBLIC);
+    if (!data)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        Close(fh);
+        return FALSE;
+    }
+
+    if (Read(fh, data, size) != size)
+    {
+        FreeMem(data, (ULONG)size);
+        Close(fh);
+        return FALSE;
+    }
+
+    Close(fh);
+    *data_out = data;
+    *size_out = (ULONG)size;
+    return TRUE;
+}
+
+static BOOL _df_validate_otag_list(struct TagItem *taglist, ULONG size)
+{
+    ULONG tag_count = 0;
+    BOOL saw_file_ident = FALSE;
+    BOOL saw_engine = FALSE;
+    UBYTE *base = (UBYTE *)taglist;
+
+    while (((UBYTE *)&taglist[tag_count] + sizeof(struct TagItem)) <= (base + size))
+    {
+        struct TagItem *tag = &taglist[tag_count];
+
+        if (tag_count == 0)
+        {
+            if (tag->ti_Tag != OT_FileIdent || tag->ti_Data != size)
+                return FALSE;
+
+            saw_file_ident = TRUE;
+        }
+
+        if (tag->ti_Tag == TAG_DONE)
+            return saw_file_ident && saw_engine;
+
+        if (tag->ti_Tag == OT_Engine)
+            saw_engine = TRUE;
+
+        if (tag->ti_Tag & OT_Indirect)
+        {
+            if (tag->ti_Data >= size)
+                return FALSE;
+
+            tag->ti_Data = (ULONG)(base + tag->ti_Data);
+        }
+
+        tag_count++;
+    }
+
+    return FALSE;
+}
+
+static ULONG _df_font_char_count(CONST struct TextFont *font)
+{
+    if (!font || font->tf_HiChar < font->tf_LoChar)
+        return 0;
+
+    return (ULONG)(font->tf_HiChar - font->tf_LoChar + 1);
+}
+
+static BOOL _df_write_all(BPTR fh, CONST_APTR data, ULONG size)
+{
+    return fh && size >= 0 && Write(fh, data, (LONG)size) == (LONG)size;
+}
+
+static LONG _df_write_diskfont_hunk(CONST_STRPTR fileName,
+                                    UBYTE *payload,
+                                    ULONG payload_size,
+                                    ULONG *reloc_offsets,
+                                    ULONG reloc_count)
+{
+    BPTR fh;
+    ULONG hunk_header = HUNK_HEADER;
+    ULONG hunk_code = HUNK_CODE;
+    ULONG hunk_reloc32 = HUNK_RELOC32;
+    ULONG hunk_end = HUNK_END;
+    ULONG zero = 0;
+    ULONG one = 1;
+    ULONG hunk_size_longs;
+    ULONG padded_size;
+    UBYTE pad[4] = {0, 0, 0, 0};
+
+    if (!fileName || !payload)
+        return FALSE;
+
+    fh = Open(fileName, MODE_NEWFILE);
+    if (!fh)
+        return FALSE;
+
+    hunk_size_longs = (payload_size + 3) / 4;
+    padded_size = hunk_size_longs * 4;
+
+    if (!_df_write_all(fh, &hunk_header, 4) ||
+        !_df_write_all(fh, &zero, 4) ||
+        !_df_write_all(fh, &one, 4) ||
+        !_df_write_all(fh, &zero, 4) ||
+        !_df_write_all(fh, &zero, 4) ||
+        !_df_write_all(fh, &hunk_size_longs, 4) ||
+        !_df_write_all(fh, &hunk_code, 4) ||
+        !_df_write_all(fh, &hunk_size_longs, 4) ||
+        !_df_write_all(fh, payload, payload_size) ||
+        (padded_size > payload_size && !_df_write_all(fh, pad, padded_size - payload_size)) ||
+        !_df_write_all(fh, &hunk_reloc32, 4) ||
+        !_df_write_all(fh, &reloc_count, 4) ||
+        !_df_write_all(fh, &zero, 4) ||
+        (reloc_count > 0 && !_df_write_all(fh, reloc_offsets, reloc_count * sizeof(ULONG))) ||
+        !_df_write_all(fh, &zero, 4) ||
+        !_df_write_all(fh, &hunk_end, 4))
+    {
+        Close(fh);
+        return FALSE;
+    }
+
+    Close(fh);
+    return TRUE;
+}
 
 /****************************************************************************/
 /* Library management functions                                              */
@@ -1135,38 +1649,261 @@ VOID _diskfont_SetDiskFontCtrlA ( register struct DiskfontBase     *DiskfontBase
 LONG _diskfont_EOpenEngine ( register struct DiskfontBase  *DiskfontBase __asm("a6"),
                              register struct EGlyphEngine  *eEngine      __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: EOpenEngine() unimplemented STUB called\n");
-    return OTERR_UnknownTag;
+    struct DiskfontGlyphEngineState *state;
+    struct GlyphEngine *glyph_engine;
+
+    (void)DiskfontBase;
+
+    if (!eEngine || !eEngine->ege_BulletBase)
+    {
+        if (eEngine)
+            eEngine->ege_GlyphEngine = NULL;
+        return FALSE;
+    }
+
+    if (eEngine->ege_GlyphEngine)
+        return TRUE;
+
+    glyph_engine = _df_engine_open_call(eEngine->ege_BulletBase);
+    if (!glyph_engine)
+    {
+        eEngine->ege_GlyphEngine = NULL;
+        return FALSE;
+    }
+
+    state = (struct DiskfontGlyphEngineState *)AllocMem(sizeof(*state), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!state)
+    {
+        _df_engine_close_call(eEngine->ege_BulletBase, glyph_engine);
+        eEngine->ege_GlyphEngine = NULL;
+        return FALSE;
+    }
+
+    state->glyph_engine = *glyph_engine;
+    state->glyph_name = _df_strdup(glyph_engine->gle_Name);
+    _df_glyph_state_defaults(state);
+
+    eEngine->ege_Reserved = state;
+    eEngine->ege_GlyphEngine = glyph_engine;
+    return TRUE;
 }
 
 VOID _diskfont_ECloseEngine ( register struct DiskfontBase *DiskfontBase __asm("a6"),
                               register struct EGlyphEngine *eEngine      __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: ECloseEngine() unimplemented STUB called\n");
+    struct DiskfontGlyphEngineState *state;
+
+    (void)DiskfontBase;
+
+    if (!eEngine || !eEngine->ege_GlyphEngine)
+        return;
+
+    state = _df_glyph_state(eEngine);
+    _df_engine_close_call(eEngine->ege_BulletBase, eEngine->ege_GlyphEngine);
+    _df_glyph_state_free(state);
+    eEngine->ege_Reserved = NULL;
+    eEngine->ege_GlyphEngine = NULL;
 }
 
 ULONG _diskfont_ESetInfoA ( register struct DiskfontBase    *DiskfontBase __asm("a6"),
                             register struct EGlyphEngine    *eEngine      __asm("a0"),
                             register CONST struct TagItem   *taglist      __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: ESetInfoA() unimplemented STUB called\n");
-    return OTERR_UnknownTag;
+    struct DiskfontGlyphEngineState *state = _df_glyph_state(eEngine);
+    CONST struct TagItem *tag;
+    STRPTR pending_path = NULL;
+    struct TagItem *pending_list = NULL;
+    ULONG result;
+
+    (void)DiskfontBase;
+
+    if (!eEngine || !eEngine->ege_BulletBase || !eEngine->ege_GlyphEngine || !taglist || !state)
+        return OTERR_BadData;
+
+    for (tag = taglist; tag && tag->ti_Tag != TAG_DONE; tag = NextTagItem((struct TagItem **)&tag))
+    {
+        switch (tag->ti_Tag)
+        {
+            case OT_DeviceDPI:   state->device_dpi = tag->ti_Data; break;
+            case OT_DotSize:     state->dot_size = tag->ti_Data; break;
+            case OT_PointHeight: state->point_height = tag->ti_Data; break;
+            case OT_SetFactor:   state->set_factor = tag->ti_Data; break;
+            case OT_ShearSin:    state->shear_sin = tag->ti_Data; break;
+            case OT_ShearCos:    state->shear_cos = tag->ti_Data; break;
+            case OT_RotateSin:   state->rotate_sin = tag->ti_Data; break;
+            case OT_RotateCos:   state->rotate_cos = tag->ti_Data; break;
+            case OT_EmboldenX:   state->embolden_x = tag->ti_Data; break;
+            case OT_EmboldenY:   state->embolden_y = tag->ti_Data; break;
+            case OT_PointSize:   state->point_size = tag->ti_Data; break;
+            case OT_GlyphCode:   state->glyph_code = tag->ti_Data; break;
+            case OT_GlyphCode2:  state->glyph_code2 = tag->ti_Data; break;
+            case OT_GlyphCode_32: state->glyph_code32 = tag->ti_Data; break;
+            case OT_GlyphCode2_32: state->glyph_code2_32 = tag->ti_Data; break;
+            case OT_GlyphWidth:  state->glyph_width = tag->ti_Data; break;
+            case OT_UnderLined:  state->underlined = tag->ti_Data; break;
+
+            case OT_OTagPath:
+                if (pending_path)
+                    FreeMem(pending_path, strlen((const char *)pending_path) + 1);
+                pending_path = _df_strdup((CONST_STRPTR)tag->ti_Data);
+                if (!pending_path)
+                    return OTERR_NoMemory;
+                break;
+
+            case OT_OTagList:
+            {
+                struct TagItem *src = (struct TagItem *)tag->ti_Data;
+                ULONG copy_size;
+
+                if (!src)
+                    return OTERR_BadData;
+
+                copy_size = ((struct TagItem *)src)->ti_Data;
+                if (copy_size < sizeof(struct TagItem))
+                    return OTERR_BadFace;
+
+                pending_list = (struct TagItem *)AllocMem(copy_size, MEMF_PUBLIC);
+                if (!pending_list)
+                    return OTERR_NoMemory;
+
+                CopyMem(src, pending_list, copy_size);
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+
+    result = _df_engine_set_info_call(eEngine->ege_BulletBase, eEngine->ege_GlyphEngine, taglist);
+    if (result != OTERR_Success)
+    {
+        if (pending_path)
+            FreeMem(pending_path, strlen((const char *)pending_path) + 1);
+        if (pending_list)
+            FreeMem(pending_list, pending_list[0].ti_Data);
+        return result;
+    }
+
+    if (pending_path)
+    {
+        if (state->current_otag_path)
+            FreeMem(state->current_otag_path, strlen((const char *)state->current_otag_path) + 1);
+        state->current_otag_path = pending_path;
+    }
+
+    if (pending_list)
+    {
+        if (state->current_otag_list)
+            FreeMem(state->current_otag_list, state->current_otag_list[0].ti_Data);
+        state->current_otag_list = pending_list;
+    }
+
+    return OTERR_Success;
 }
 
 ULONG _diskfont_EObtainInfoA ( register struct DiskfontBase    *DiskfontBase __asm("a6"),
                                register struct EGlyphEngine    *eEngine      __asm("a0"),
                                register CONST struct TagItem   *taglist      __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: EObtainInfoA() unimplemented STUB called\n");
-    return OTERR_UnknownTag;
+    struct DiskfontGlyphEngineState *state = _df_glyph_state(eEngine);
+    CONST struct TagItem *tag;
+
+    (void)DiskfontBase;
+
+    if (!eEngine || !eEngine->ege_BulletBase || !eEngine->ege_GlyphEngine || !taglist || !state)
+        return OTERR_BadData;
+
+    for (tag = taglist; tag && tag->ti_Tag != TAG_DONE; tag = NextTagItem((struct TagItem **)&tag))
+    {
+        ULONG *dest = (ULONG *)tag->ti_Data;
+
+        if (!dest)
+            return OTERR_BadData;
+
+        switch (tag->ti_Tag)
+        {
+            case OT_DeviceDPI:   *dest = state->device_dpi; break;
+            case OT_DotSize:     *dest = state->dot_size; break;
+            case OT_PointHeight: *dest = state->point_height; break;
+            case OT_SetFactor:   *dest = state->set_factor; break;
+            case OT_ShearSin:    *dest = state->shear_sin; break;
+            case OT_ShearCos:    *dest = state->shear_cos; break;
+            case OT_RotateSin:   *dest = state->rotate_sin; break;
+            case OT_RotateCos:   *dest = state->rotate_cos; break;
+            case OT_EmboldenX:   *dest = state->embolden_x; break;
+            case OT_EmboldenY:   *dest = state->embolden_y; break;
+            case OT_PointSize:   *dest = state->point_size; break;
+            case OT_GlyphCode:   *dest = state->glyph_code; break;
+            case OT_GlyphCode2:  *dest = state->glyph_code2; break;
+            case OT_GlyphCode_32: *dest = state->glyph_code32; break;
+            case OT_GlyphCode2_32: *dest = state->glyph_code2_32; break;
+            case OT_GlyphWidth:  *dest = state->glyph_width; break;
+            case OT_UnderLined:  *dest = state->underlined; break;
+
+            case OT_OTagPath:
+                if (!state->current_otag_path)
+                    return OTERR_NoFace;
+                *dest = (ULONG)state->current_otag_path;
+                break;
+
+            case OT_OTagList:
+                if (!state->current_otag_list)
+                    return OTERR_NoFace;
+                *dest = (ULONG)state->current_otag_list;
+                break;
+
+            default:
+                return _df_engine_obtain_info_call(eEngine->ege_BulletBase, eEngine->ege_GlyphEngine, taglist);
+        }
+    }
+
+    return OTERR_Success;
 }
 
 ULONG _diskfont_EReleaseInfoA ( register struct DiskfontBase    *DiskfontBase __asm("a6"),
                                 register struct EGlyphEngine    *eEngine      __asm("a0"),
                                 register CONST struct TagItem   *taglist      __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: EReleaseInfoA() unimplemented STUB called\n");
-    return 0;
+    struct DiskfontGlyphEngineState *state = _df_glyph_state(eEngine);
+    CONST struct TagItem *tag;
+
+    (void)DiskfontBase;
+
+    if (!eEngine || !eEngine->ege_BulletBase || !eEngine->ege_GlyphEngine || !taglist || !state)
+        return OTERR_BadData;
+
+    for (tag = taglist; tag && tag->ti_Tag != TAG_DONE; tag = NextTagItem((struct TagItem **)&tag))
+    {
+        switch (tag->ti_Tag)
+        {
+            case OT_OTagPath:
+            case OT_OTagList:
+            case OT_DeviceDPI:
+            case OT_DotSize:
+            case OT_PointHeight:
+            case OT_SetFactor:
+            case OT_ShearSin:
+            case OT_ShearCos:
+            case OT_RotateSin:
+            case OT_RotateCos:
+            case OT_EmboldenX:
+            case OT_EmboldenY:
+            case OT_PointSize:
+            case OT_GlyphCode:
+            case OT_GlyphCode2:
+            case OT_GlyphCode_32:
+            case OT_GlyphCode2_32:
+            case OT_GlyphWidth:
+            case OT_UnderLined:
+                break;
+
+            default:
+                return _df_engine_release_info_call(eEngine->ege_BulletBase, eEngine->ege_GlyphEngine, taglist);
+        }
+    }
+
+    return OTERR_Success;
 }
 
 struct OutlineFont * _diskfont_OpenOutlineFont ( register struct DiskfontBase *DiskfontBase __asm("a6"),
@@ -1174,15 +1911,121 @@ struct OutlineFont * _diskfont_OpenOutlineFont ( register struct DiskfontBase *D
                                                  register struct List          *list        __asm("a1"),
                                                  register ULONG                flags        __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: OpenOutlineFont() unimplemented STUB called\n");
-    return NULL;
+    struct OutlineFont *outline;
+    UBYTE *otag_data = NULL;
+    ULONG otag_size = 0;
+    char path[512];
+    struct TagItem *engine_tag;
+
+    (void)DiskfontBase;
+    (void)list;
+
+    if (!name || !_df_otag_build_path(name, path, sizeof(path)))
+        return NULL;
+
+    if (!_df_read_file((CONST_STRPTR)path, &otag_data, &otag_size))
+        return NULL;
+
+    if (!_df_validate_otag_list((struct TagItem *)otag_data, otag_size))
+    {
+        FreeMem(otag_data, otag_size);
+        return NULL;
+    }
+
+    outline = (struct OutlineFont *)AllocMem(sizeof(*outline), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!outline)
+    {
+        FreeMem(otag_data, otag_size);
+        return NULL;
+    }
+
+    outline->olf_OTagPath = _df_strdup((CONST_STRPTR)path);
+    outline->olf_OTagList = (struct TagItem *)otag_data;
+
+    engine_tag = FindTagItem(OT_Engine, outline->olf_OTagList);
+    outline->olf_EngineName = engine_tag ? _df_strdup((CONST_STRPTR)engine_tag->ti_Data) : NULL;
+
+    if (outline->olf_EngineName)
+    {
+        ULONG lib_len = strlen((const char *)outline->olf_EngineName) + 9;
+        outline->olf_LibraryName = (STRPTR)AllocMem(lib_len, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!outline->olf_LibraryName)
+        {
+            _diskfont_CloseOutlineFont(DiskfontBase, outline, list);
+            return NULL;
+        }
+
+        strcpy((char *)outline->olf_LibraryName, (const char *)outline->olf_EngineName);
+        strcat((char *)outline->olf_LibraryName, ".library");
+    }
+
+    if (flags & OFF_OPEN)
+    {
+        struct TagItem otags[3];
+        ULONG err;
+
+        if (!outline->olf_LibraryName)
+        {
+            _diskfont_CloseOutlineFont(DiskfontBase, outline, list);
+            return NULL;
+        }
+
+        outline->olf_EEngine.ege_BulletBase = (struct Library *)OpenLibrary(outline->olf_LibraryName, 0);
+        if (!outline->olf_EEngine.ege_BulletBase)
+        {
+            _diskfont_CloseOutlineFont(DiskfontBase, outline, list);
+            return NULL;
+        }
+
+        if (!_diskfont_EOpenEngine(DiskfontBase, &outline->olf_EEngine))
+        {
+            _diskfont_CloseOutlineFont(DiskfontBase, outline, list);
+            return NULL;
+        }
+
+        otags[0].ti_Tag = OT_OTagPath;
+        otags[0].ti_Data = (ULONG)outline->olf_OTagPath;
+        otags[1].ti_Tag = OT_OTagList;
+        otags[1].ti_Data = (ULONG)outline->olf_OTagList;
+        otags[2].ti_Tag = TAG_DONE;
+        otags[2].ti_Data = 0;
+        err = _diskfont_ESetInfoA(DiskfontBase, &outline->olf_EEngine, otags);
+        if (err != OTERR_Success)
+        {
+            _diskfont_CloseOutlineFont(DiskfontBase, outline, list);
+            return NULL;
+        }
+    }
+
+    return outline;
 }
 
 VOID _diskfont_CloseOutlineFont ( register struct DiskfontBase *DiskfontBase __asm("a6"),
                                   register struct OutlineFont  *olf          __asm("a0"),
                                   register struct List         *list         __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: CloseOutlineFont() unimplemented STUB called\n");
+    (void)DiskfontBase;
+    (void)list;
+
+    if (!olf)
+        return;
+
+    if (olf->olf_EEngine.ege_GlyphEngine)
+        _diskfont_ECloseEngine(DiskfontBase, &olf->olf_EEngine);
+
+    if (olf->olf_EEngine.ege_BulletBase)
+        CloseLibrary((struct Library *)olf->olf_EEngine.ege_BulletBase);
+
+    if (olf->olf_OTagList)
+        FreeMem(olf->olf_OTagList, olf->olf_OTagList[0].ti_Data);
+    if (olf->olf_OTagPath)
+        FreeMem(olf->olf_OTagPath, strlen((const char *)olf->olf_OTagPath) + 1);
+    if (olf->olf_EngineName)
+        FreeMem(olf->olf_EngineName, strlen((const char *)olf->olf_EngineName) + 1);
+    if (olf->olf_LibraryName)
+        FreeMem(olf->olf_LibraryName, strlen((const char *)olf->olf_LibraryName) + 1);
+
+    FreeMem(olf, sizeof(*olf));
 }
 
 LONG _diskfont_WriteFontContents ( register struct DiskfontBase        *DiskfontBase        __asm("a6"),
@@ -1190,8 +2033,46 @@ LONG _diskfont_WriteFontContents ( register struct DiskfontBase        *Diskfont
                                    register CONST_STRPTR                fontName            __asm("a1"),
                                    register CONST struct FontContentsHeader *fontContentsHeader __asm("a2"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: WriteFontContents() unimplemented STUB called\n");
-    return FALSE;
+    ULONG total_size;
+    ULONG entry_size;
+    char path[512];
+    BPTR fh;
+
+    (void)DiskfontBase;
+
+    if (!fontName || !fontContentsHeader || !_df_endswith((const char *)fontName, ".font"))
+        return FALSE;
+
+    if (fontsLock)
+    {
+        if (!NameFromLock(fontsLock, (STRPTR)path, sizeof(path)) ||
+            !AddPart((STRPTR)path, (STRPTR)fontName, sizeof(path)))
+        {
+            return FALSE;
+        }
+    }
+    else
+    {
+        if (strlen((const char *)fontName) >= sizeof(path))
+            return FALSE;
+        strcpy(path, (const char *)fontName);
+    }
+
+    entry_size = _df_font_contents_entry_size(fontContentsHeader->fch_FileID);
+    total_size = sizeof(struct FontContentsHeader) + ((ULONG)fontContentsHeader->fch_NumEntries * entry_size);
+
+    fh = Open((CONST_STRPTR)path, MODE_NEWFILE);
+    if (!fh)
+        return FALSE;
+
+    if (!_df_write_all(fh, fontContentsHeader, total_size))
+    {
+        Close(fh);
+        return FALSE;
+    }
+
+    Close(fh);
+    return TRUE;
 }
 
 LONG _diskfont_WriteDiskFontHeaderA ( register struct DiskfontBase    *DiskfontBase __asm("a6"),
@@ -1199,8 +2080,130 @@ LONG _diskfont_WriteDiskFontHeaderA ( register struct DiskfontBase    *DiskfontB
                                       register CONST_STRPTR            fileName     __asm("a1"),
                                       register CONST struct TagItem   *tagList      __asm("a2"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: WriteDiskFontHeaderA() unimplemented STUB called\n");
-    return FALSE;
+    ULONG char_count;
+    ULONG char_data_size;
+    ULONG char_loc_size;
+    ULONG char_space_size;
+    ULONG char_kern_size;
+    ULONG header_size;
+    ULONG payload_size;
+    ULONG reloc_offsets[12];
+    ULONG reloc_count = 0;
+    UBYTE *payload;
+    UBYTE *cursor;
+    ULONG return_code = 0x70004E75;
+    ULONG plane_size = 0;
+    ULONG i;
+
+    (void)DiskfontBase;
+    (void)tagList;
+
+    if (!font || !fileName || !font->tf_CharData || !font->tf_CharLoc)
+        return FALSE;
+
+    char_count = _df_font_char_count(font);
+    char_data_size = (ULONG)font->tf_Modulo * (ULONG)font->tf_YSize;
+    char_loc_size = char_count * sizeof(ULONG);
+    char_space_size = font->tf_CharSpace ? (char_count * sizeof(WORD)) : 0;
+    char_kern_size = font->tf_CharKern ? (char_count * sizeof(WORD)) : 0;
+
+    if (font->tf_Style & FSF_COLORFONT)
+    {
+        struct ColorTextFont *ctf = (struct ColorTextFont *)font;
+        plane_size = char_data_size;
+        header_size = sizeof(struct df_color_diskfont_header);
+        payload_size = sizeof(ULONG) + header_size + (plane_size * ctf->ctf_Depth) + char_loc_size;
+    }
+    else
+    {
+        header_size = sizeof(struct DiskFontHeader);
+        payload_size = sizeof(ULONG) + header_size + char_data_size + char_loc_size + char_space_size + char_kern_size;
+    }
+
+    payload = (UBYTE *)AllocMem(payload_size, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!payload)
+        return FALSE;
+
+    CopyMem(&return_code, payload, sizeof(return_code));
+    cursor = payload + sizeof(ULONG);
+
+    if (font->tf_Style & FSF_COLORFONT)
+    {
+        struct ColorTextFont *src = (struct ColorTextFont *)font;
+        struct df_color_diskfont_header *dst = (struct df_color_diskfont_header *)cursor;
+        UBYTE *char_data_base;
+        UBYTE *char_loc_base;
+
+        dst->dfh_FileID = DFH_ID;
+        dst->dfh_Revision = 1;
+        _df_copy_name(dst->dfh_Name, (CONST_STRPTR)font->tf_Message.mn_Node.ln_Name, MAXFONTNAME);
+        dst->ctf = *src;
+
+        char_data_base = cursor + header_size;
+        char_loc_base = char_data_base + (plane_size * src->ctf_Depth);
+        dst->ctf.ctf_TF.tf_CharData = (APTR)(char_data_base - payload);
+        dst->ctf.ctf_TF.tf_CharLoc = (APTR)(char_loc_base - payload);
+        reloc_offsets[reloc_count++] = (ULONG)((UBYTE *)&dst->ctf.ctf_TF.tf_CharData - payload);
+        reloc_offsets[reloc_count++] = (ULONG)((UBYTE *)&dst->ctf.ctf_TF.tf_CharLoc - payload);
+
+        for (i = 0; i < src->ctf_Depth; i++)
+        {
+            CopyMem(src->ctf_CharData[i], char_data_base + (plane_size * i), plane_size);
+            dst->ctf.ctf_CharData[i] = (APTR)((char_data_base + (plane_size * i)) - payload);
+            reloc_offsets[reloc_count++] = (ULONG)((UBYTE *)&dst->ctf.ctf_CharData[i] - payload);
+        }
+
+        CopyMem(font->tf_CharLoc, char_loc_base, char_loc_size);
+    }
+    else
+    {
+        struct DiskFontHeader *dst = (struct DiskFontHeader *)cursor;
+        UBYTE *char_data_base;
+        UBYTE *char_loc_base;
+        UBYTE *char_space_base;
+        UBYTE *char_kern_base;
+
+        dst->dfh_FileID = DFH_ID;
+        dst->dfh_Revision = 1;
+        _df_copy_name(dst->dfh_Name, (CONST_STRPTR)font->tf_Message.mn_Node.ln_Name, MAXFONTNAME);
+        dst->dfh_TF = *font;
+
+        char_data_base = cursor + header_size;
+        char_loc_base = char_data_base + char_data_size;
+        char_space_base = char_loc_base + char_loc_size;
+        char_kern_base = char_space_base + char_space_size;
+
+        dst->dfh_TF.tf_CharData = (APTR)(char_data_base - payload);
+        dst->dfh_TF.tf_CharLoc = (APTR)(char_loc_base - payload);
+        reloc_offsets[reloc_count++] = (ULONG)((UBYTE *)&dst->dfh_TF.tf_CharData - payload);
+        reloc_offsets[reloc_count++] = (ULONG)((UBYTE *)&dst->dfh_TF.tf_CharLoc - payload);
+
+        CopyMem(font->tf_CharData, char_data_base, char_data_size);
+        CopyMem(font->tf_CharLoc, char_loc_base, char_loc_size);
+
+        if (char_space_size)
+        {
+            dst->dfh_TF.tf_CharSpace = (APTR)(char_space_base - payload);
+            reloc_offsets[reloc_count++] = (ULONG)((UBYTE *)&dst->dfh_TF.tf_CharSpace - payload);
+            CopyMem(font->tf_CharSpace, char_space_base, char_space_size);
+        }
+
+        if (char_kern_size)
+        {
+            dst->dfh_TF.tf_CharKern = (APTR)(char_kern_base - payload);
+            reloc_offsets[reloc_count++] = (ULONG)((UBYTE *)&dst->dfh_TF.tf_CharKern - payload);
+            CopyMem(font->tf_CharKern, char_kern_base, char_kern_size);
+        }
+    }
+
+    if (!_df_write_diskfont_hunk(fileName, payload, payload_size, reloc_offsets, reloc_count))
+    {
+        FreeMem(payload, payload_size);
+        return FALSE;
+    }
+
+    FreeMem(payload, payload_size);
+    return TRUE;
 }
 
 ULONG _diskfont_ObtainCharsetInfo ( register struct DiskfontBase *DiskfontBase __asm("a6"),
@@ -1208,8 +2211,32 @@ ULONG _diskfont_ObtainCharsetInfo ( register struct DiskfontBase *DiskfontBase _
                                     register ULONG                knownValue   __asm("d1"),
                                     register ULONG                wantedTag    __asm("d2"))
 {
-    DPRINTF (LOG_DEBUG, "_diskfont: ObtainCharsetInfo() unimplemented STUB called\n");
-    return 0;
+    struct df_charset_info *info;
+
+    (void)DiskfontBase;
+
+    info = _df_find_charset(knownTag, knownValue);
+    if (!info)
+        return 0;
+
+    switch (wantedTag)
+    {
+        case DFCS_NUMBER:
+        case DFCS_NEXTNUMBER:
+            return info->number;
+
+        case DFCS_NAME:
+            return (ULONG)info->name;
+
+        case DFCS_MIMENAME:
+            return (ULONG)info->mime_name;
+
+        case DFCS_MAPTABLE:
+            return (ULONG)info->map_table;
+
+        default:
+            return 0;
+    }
 }
 
 /****************************************************************************/

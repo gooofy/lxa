@@ -1,10 +1,12 @@
 #include <exec/types.h>
 #include <exec/memory.h>
+#include <exec/libraries.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <clib/diskfont_protos.h>
 #include <clib/graphics_protos.h>
 #include <dos/doshunks.h>
+#include <diskfont/glyph.h>
 #include <graphics/text.h>
 #include <inline/exec.h>
 #include <inline/dos.h>
@@ -20,6 +22,140 @@ extern struct GfxBase *GfxBase;
 struct Library *DiskfontBase;
 
 static LONG errors;
+static const char g_fake_bullet_name[] = "bullet.library";
+
+static struct Library *fake_bullet_init(register struct Library *lib __asm("d0"),
+                                        register BPTR seglist __asm("a0"),
+                                        register struct ExecBase *sys_base __asm("a6"))
+{
+    (void)seglist;
+    (void)sys_base;
+
+    lib->lib_Node.ln_Type = NT_LIBRARY;
+    lib->lib_Node.ln_Name = (char *)g_fake_bullet_name;
+    lib->lib_Flags = LIBF_SUMUSED | LIBF_CHANGED;
+    lib->lib_Version = 47;
+    lib->lib_Revision = 1;
+    return lib;
+}
+
+static struct Library *fake_bullet_open(register ULONG version __asm("d0"),
+                                        register struct Library *lib __asm("a6"))
+{
+    (void)version;
+    lib->lib_OpenCnt++;
+    lib->lib_Flags &= ~LIBF_DELEXP;
+    return lib;
+}
+
+static BPTR fake_bullet_close(register struct Library *lib __asm("a6"))
+{
+    lib->lib_OpenCnt--;
+    return 0;
+}
+
+static BPTR fake_bullet_expunge(register struct Library *lib __asm("a6"))
+{
+    if (lib->lib_OpenCnt == 0)
+    {
+        Remove(&lib->lib_Node);
+        return (BPTR)1;
+    }
+
+    lib->lib_Flags |= LIBF_DELEXP;
+    return 0;
+}
+
+static ULONG fake_bullet_ext(void)
+{
+    return 0;
+}
+
+static struct GlyphEngine *fake_bullet_open_engine(register struct Library *BulletBase __asm("a6"))
+{
+    struct GlyphEngine *engine = (struct GlyphEngine *)AllocMem(sizeof(*engine), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!engine)
+        return NULL;
+
+    engine->gle_Library = BulletBase;
+    engine->gle_Name = (STRPTR)"bullet";
+    return engine;
+}
+
+static VOID fake_bullet_close_engine(register struct GlyphEngine *glyphEngine __asm("a0"),
+                                     register struct Library *BulletBase __asm("a6"))
+{
+    (void)BulletBase;
+    if (glyphEngine)
+        FreeMem(glyphEngine, sizeof(*glyphEngine));
+}
+
+static ULONG fake_bullet_set_info(register struct GlyphEngine *glyphEngine __asm("a0"),
+                                  register const struct TagItem *tagList __asm("a1"),
+                                  register struct Library *BulletBase __asm("a6"))
+{
+    (void)glyphEngine;
+    (void)tagList;
+    (void)BulletBase;
+    return OTERR_Success;
+}
+
+static ULONG fake_bullet_obtain_info(register struct GlyphEngine *glyphEngine __asm("a0"),
+                                     register const struct TagItem *tagList __asm("a1"),
+                                     register struct Library *BulletBase __asm("a6"))
+{
+    (void)glyphEngine;
+    (void)tagList;
+    (void)BulletBase;
+    return OTERR_Success;
+}
+
+static ULONG fake_bullet_release_info(register struct GlyphEngine *glyphEngine __asm("a0"),
+                                      register const struct TagItem *tagList __asm("a1"),
+                                      register struct Library *BulletBase __asm("a6"))
+{
+    (void)glyphEngine;
+    (void)tagList;
+    (void)BulletBase;
+    return OTERR_Success;
+}
+
+static APTR g_fake_bullet_vectors[] = {
+    (APTR)fake_bullet_open,
+    (APTR)fake_bullet_close,
+    (APTR)fake_bullet_expunge,
+    (APTR)fake_bullet_ext,
+    (APTR)fake_bullet_open_engine,
+    (APTR)fake_bullet_close_engine,
+    (APTR)fake_bullet_set_info,
+    (APTR)fake_bullet_obtain_info,
+    (APTR)fake_bullet_release_info,
+    (APTR)-1
+};
+
+static struct Library *install_fake_bullet_library(void)
+{
+    struct Library *lib = MakeLibrary(g_fake_bullet_vectors, NULL, (ULONG (*)())fake_bullet_init, sizeof(struct Library), 0);
+    if (!lib)
+        return NULL;
+
+    AddLibrary(lib);
+    return lib;
+}
+
+static void remove_fake_bullet_library(struct Library *lib)
+{
+    UBYTE *mem;
+    ULONG size;
+
+    if (!lib)
+        return;
+
+    RemLibrary(lib);
+    mem = (UBYTE *)lib - lib->lib_NegSize;
+    size = lib->lib_NegSize + lib->lib_PosSize;
+    FreeMem(mem, size);
+}
 
 static void print(const char *s)
 {
@@ -183,6 +319,51 @@ static BOOL create_invalid_contents_file(const char *path)
     header.fch_NumEntries = 0;
 
     if (!write_all(fh, &header, sizeof(header)))
+    {
+        Close(fh);
+        return FALSE;
+    }
+
+    Close(fh);
+    return TRUE;
+}
+
+static BOOL create_otag_file(const char *path)
+{
+    BPTR fh;
+    struct TagItem tags[9];
+    ULONG file_size = sizeof(tags);
+    char family[] = "Test Outline Family";
+    char engine[] = "bullet";
+    UWORD avail_sizes[] = { 2, 12, 24 };
+
+    fh = Open((CONST_STRPTR)path, MODE_NEWFILE);
+    if (!fh)
+        return FALSE;
+
+    tags[0].ti_Tag = OT_FileIdent;
+    tags[0].ti_Data = file_size;
+    tags[1].ti_Tag = OT_Engine;
+    tags[1].ti_Data = (ULONG)((UBYTE *)engine - (UBYTE *)tags);
+    tags[2].ti_Tag = OT_Family;
+    tags[2].ti_Data = (ULONG)((UBYTE *)family - (UBYTE *)tags);
+    tags[3].ti_Tag = OT_YSizeFactor;
+    tags[3].ti_Data = (72UL << 16) | 72UL;
+    tags[4].ti_Tag = OT_SpaceWidth;
+    tags[4].ti_Data = 500;
+    tags[5].ti_Tag = OT_IsFixed;
+    tags[5].ti_Data = TRUE;
+    tags[6].ti_Tag = OT_StemWeight;
+    tags[6].ti_Data = OTS_Book;
+    tags[7].ti_Tag = OT_AvailSizes;
+    tags[7].ti_Data = (ULONG)((UBYTE *)avail_sizes - (UBYTE *)tags);
+    tags[8].ti_Tag = TAG_DONE;
+    tags[8].ti_Data = 0;
+
+    if (!write_all(fh, tags, sizeof(tags)) ||
+        !write_all(fh, family, sizeof(family)) ||
+        !write_all(fh, engine, sizeof(engine)) ||
+        !write_all(fh, avail_sizes, sizeof(avail_sizes)))
     {
         Close(fh);
         return FALSE;
@@ -1146,6 +1327,188 @@ static void test_diskfont_ctrl(void)
     }
 }
 
+static void test_outline_helpers(void)
+{
+    struct Library *fake_bullet;
+    struct OutlineFont *outline;
+    struct TagItem tags[4];
+    struct MinList shared_list;
+    ULONG path_value = 0;
+    ULONG list_value = 0;
+    ULONG underline_value = 0;
+    ULONG charset_name;
+    ULONG charset_next;
+    ULONG charset_map;
+    ULONG result;
+
+    fake_bullet = install_fake_bullet_library();
+    if (!fake_bullet)
+    {
+        fail("Install fake bullet.library for outline coverage");
+        return;
+    }
+
+    NewList((struct List *)&shared_list);
+
+    outline = OpenOutlineFont((CONST_STRPTR)"T:diskfont_test/outline.font", (struct List *)&shared_list, 0);
+    if (!outline)
+    {
+        fail("OpenOutlineFont loads and relocates .otag file");
+        remove_fake_bullet_library(fake_bullet);
+        return;
+    }
+
+    if (outline->olf_OTagList &&
+        FindTagItem(OT_Engine, outline->olf_OTagList) &&
+        streq((const char *)outline->olf_EngineName, "bullet") &&
+        streq((const char *)outline->olf_LibraryName, "bullet.library"))
+    {
+        pass("OpenOutlineFont loads and relocates .otag file");
+    }
+    else
+    {
+        fail("OpenOutlineFont loads and relocates .otag file");
+    }
+
+    tags[0].ti_Tag = OT_OTagPath;
+    tags[0].ti_Data = (ULONG)outline->olf_OTagPath;
+    tags[1].ti_Tag = OT_OTagList;
+    tags[1].ti_Data = (ULONG)outline->olf_OTagList;
+    tags[2].ti_Tag = OT_UnderLined;
+    tags[2].ti_Data = OTUL_Solid;
+    tags[3].ti_Tag = TAG_DONE;
+    tags[3].ti_Data = 0;
+
+    result = EOpenEngine(&outline->olf_EEngine);
+    if (result)
+        pass("EOpenEngine acquires glyph engine via ege_BulletBase");
+    else
+        fail("EOpenEngine acquires glyph engine via ege_BulletBase");
+
+    if (ESetInfoA(&outline->olf_EEngine, tags) == OTERR_Success)
+        pass("ESetInfoA stores outline-font tags without stub failure");
+    else
+        fail("ESetInfoA stores outline-font tags without stub failure");
+
+    tags[0].ti_Tag = OT_OTagPath;
+    tags[0].ti_Data = (ULONG)&path_value;
+    tags[1].ti_Tag = OT_OTagList;
+    tags[1].ti_Data = (ULONG)&list_value;
+    tags[2].ti_Tag = OT_UnderLined;
+    tags[2].ti_Data = (ULONG)&underline_value;
+    tags[3].ti_Tag = TAG_DONE;
+    tags[3].ti_Data = 0;
+
+    if (EObtainInfoA(&outline->olf_EEngine, tags) == OTERR_Success &&
+        path_value == (ULONG)outline->olf_OTagPath &&
+        list_value != 0 &&
+        underline_value == OTUL_Solid)
+    {
+        pass("EObtainInfoA returns stored outline-font state");
+    }
+    else
+    {
+        fail("EObtainInfoA returns stored outline-font state");
+    }
+
+    if (EReleaseInfoA(&outline->olf_EEngine, tags) == OTERR_Success)
+        pass("EReleaseInfoA accepts stored outline-font state");
+    else
+        fail("EReleaseInfoA accepts stored outline-font state");
+
+    ECloseEngine(&outline->olf_EEngine);
+    if (outline->olf_EEngine.ege_GlyphEngine == NULL)
+        pass("ECloseEngine clears the glyph engine handle");
+    else
+        fail("ECloseEngine clears the glyph engine handle");
+
+    CloseOutlineFont(outline, (struct List *)&shared_list);
+    pass("CloseOutlineFont releases outline font state");
+
+    outline = OpenOutlineFont((CONST_STRPTR)"T:diskfont_test/outline.font", NULL, OFF_OPEN);
+    if (outline && outline->olf_EEngine.ege_GlyphEngine != NULL)
+        pass("OpenOutlineFont with OFF_OPEN also opens engine state");
+    else
+        fail("OpenOutlineFont with OFF_OPEN also opens engine state");
+
+    CloseOutlineFont(outline, NULL);
+
+    charset_name = ObtainCharsetInfo(DFCS_NUMBER, 106, DFCS_NAME);
+    charset_next = ObtainCharsetInfo(DFCS_NEXTNUMBER, 3, DFCS_NUMBER);
+    charset_map = ObtainCharsetInfo(DFCS_NAME, (ULONG)"UTF-8", DFCS_MAPTABLE);
+    if (charset_name && streq((const char *)charset_name, "UTF-8") && charset_next == 4 && charset_map)
+        pass("ObtainCharsetInfo exposes built-in charset metadata");
+    else
+        fail("ObtainCharsetInfo exposes built-in charset metadata");
+
+    remove_fake_bullet_library(fake_bullet);
+}
+
+static void test_write_helpers(BPTR fonts_lock)
+{
+    struct FontContentsHeader *contents;
+    struct FontContentsHeader *roundtrip;
+    struct TextAttr ta;
+    struct TextFont *font;
+    LONG ysize = 0;
+
+    contents = NewFontContents(fonts_lock, (CONST_STRPTR)"test.font");
+    if (!contents)
+    {
+        fail("NewFontContents setup for WriteFontContents");
+        return;
+    }
+
+    if (WriteFontContents(fonts_lock, (CONST_STRPTR)"written.font", contents))
+        pass("WriteFontContents writes a new .font contents file");
+    else
+        fail("WriteFontContents writes a new .font contents file");
+
+    roundtrip = NewFontContents(fonts_lock, (CONST_STRPTR)"written.font");
+    if (roundtrip && roundtrip->fch_NumEntries == contents->fch_NumEntries)
+        pass("WriteFontContents output round-trips through NewFontContents");
+    else
+        fail("WriteFontContents output round-trips through NewFontContents");
+
+    if (roundtrip)
+        DisposeFontContents(roundtrip);
+    DisposeFontContents(contents);
+
+    ta.ta_Name = (STRPTR)"T:diskfont_test/test.font";
+    ta.ta_YSize = 12;
+    ta.ta_Style = FS_NORMAL;
+    ta.ta_Flags = 0;
+    font = OpenDiskFont(&ta);
+    if (!font)
+    {
+        fail("OpenDiskFont setup for WriteDiskFontHeaderA");
+        return;
+    }
+
+    if (WriteDiskFontHeaderA(font, (CONST_STRPTR)"T:diskfont_test/writtenfont/test12", NULL))
+        pass("WriteDiskFontHeaderA writes an executable diskfont header");
+    else
+        fail("WriteDiskFontHeaderA writes an executable diskfont header");
+
+    CloseFont(font);
+
+    ta.ta_Name = (STRPTR)"T:diskfont_test/writtenfont.font";
+    ta.ta_YSize = 12;
+    ta.ta_Style = FS_NORMAL;
+    ta.ta_Flags = 0;
+    font = OpenDiskFont(&ta);
+    if (font)
+    {
+        ysize = font->tf_YSize;
+        CloseFont(font);
+    }
+
+    if (ysize == 12)
+        pass("WriteDiskFontHeaderA output reopens as a bitmap font");
+    else
+        fail("WriteDiskFontHeaderA output reopens as a bitmap font");
+}
+
 int main(void)
 {
     BPTR old_dir;
@@ -1177,11 +1540,14 @@ int main(void)
     ensure_dir("test");
     ensure_dir("prop");
     ensure_dir("color");
+    ensure_dir("writtenfont");
 
     if (!create_font_contents_file("test.font") ||
         !create_tagged_font_contents_file("prop.font") ||
         !create_color_font_contents_file("color.font") ||
         !create_invalid_contents_file("broken.font") ||
+        !create_otag_file("outline.otag") ||
+        !create_font_contents_file("writtenfont.font") ||
         !create_bitmap_font_file("test/test12", "test.font") ||
         !create_proportional_font_file("prop/prop12", "prop.font") ||
         !create_color_font_file("color/color12", "color.font"))
@@ -1220,6 +1586,8 @@ int main(void)
     test_open_disk_font_path();
     test_open_proportional_disk_font_path();
     test_open_color_disk_font_path();
+    test_outline_helpers();
+    test_write_helpers(fonts_lock);
 
     UnLock(fonts_lock);
     CurrentDir(old_dir);
@@ -1227,6 +1595,11 @@ int main(void)
     DeleteFile((CONST_STRPTR)"T:diskfont_test/color");
     DeleteFile((CONST_STRPTR)"T:diskfont_test/prop/prop12");
     DeleteFile((CONST_STRPTR)"T:diskfont_test/prop");
+    DeleteFile((CONST_STRPTR)"T:diskfont_test/writtenfont/test12");
+    DeleteFile((CONST_STRPTR)"T:diskfont_test/writtenfont");
+    DeleteFile((CONST_STRPTR)"T:diskfont_test/writtenfont.font");
+    DeleteFile((CONST_STRPTR)"T:diskfont_test/written.font");
+    DeleteFile((CONST_STRPTR)"T:diskfont_test/outline.otag");
     DeleteFile((CONST_STRPTR)"T:diskfont_test/test/test12");
     DeleteFile((CONST_STRPTR)"T:diskfont_test/test");
     DeleteFile((CONST_STRPTR)"T:diskfont_test/color.font");
