@@ -62,6 +62,47 @@ static const char *get_user_home(void)
 /* Static buffer for data directory path */
 static char g_data_dir[PATH_MAX] = "";
 
+void vfs_reset(void)
+{
+    drive_map_t *drive = g_drive_maps;
+    assign_entry_t *assign = g_assigns;
+
+    while (drive)
+    {
+        drive_map_t *next = drive->next;
+
+        free(drive->amiga_name);
+        free(drive->linux_path);
+        free(drive);
+        drive = next;
+    }
+    g_drive_maps = NULL;
+
+    while (assign)
+    {
+        assign_entry_t *next_assign = assign->next;
+        assign_path_t *path = assign->paths;
+
+        while (path)
+        {
+            assign_path_t *next_path = path->next;
+
+            free(path->linux_path);
+            free(path);
+            path = next_path;
+        }
+
+        free(assign->name);
+        free(assign);
+        assign = next_assign;
+    }
+    g_assigns = NULL;
+
+    g_lxa_home[0] = '\0';
+    g_progdir[0] = '\0';
+    g_data_dir[0] = '\0';
+}
+
 /* Get the installation data directory */
 static const char *get_data_dir(void)
 {

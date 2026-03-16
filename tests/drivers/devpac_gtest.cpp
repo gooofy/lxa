@@ -12,6 +12,16 @@ using namespace lxa::testing;
 
 class DevpacTest : public LxaUITest {
 protected:
+    void SlowTypeString(const char* str, int settle_vblanks = 3) {
+        char ch[2] = {0, 0};
+
+        while (*str) {
+            ch[0] = *str++;
+            TypeString(ch);
+            RunCyclesWithVBlank(settle_vblanks, 50000);
+        }
+    }
+
     void SetUp() override {
         LxaUITest::SetUp();
         
@@ -28,6 +38,8 @@ protected:
             << "Devpac window did not open";
         
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
+        ASSERT_TRUE(WaitForWindowDrawn(0, 5000));
+        WaitForEventLoop(100, 10000);
         
         /* Let Devpac initialize */
         RunCyclesWithVBlank(100, 50000);
@@ -54,8 +66,11 @@ TEST_F(DevpacTest, EditorVisible) {
 }
 
 TEST_F(DevpacTest, RespondsToInput) {
-    /* Type a simple assembly program */
-    TypeString("; Devpac test\n\tmove.l\t#0,d0\n\trts\n");
+    /* Focus the editor and type a simple assembly program gradually. */
+    Click(window_info.x + window_info.width / 2, window_info.y + window_info.height / 2);
+    RunCyclesWithVBlank(20, 50000);
+
+    SlowTypeString("; Devpac test\n\tmove.l\t#0,d0\n\trts\n", 4);
     RunCyclesWithVBlank(40, 50000);
 
     EXPECT_TRUE(lxa_is_running()) << "Devpac should still be running after typing";

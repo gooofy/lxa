@@ -60,6 +60,8 @@ struct TimerBase
     ULONG          tb_EClock;          /* E-Clock frequency (709379 Hz for PAL) */
     LONG           tb_TimeOffsetSecs;  /* System time offset from raw host time */
     LONG           tb_TimeOffsetMicro;
+    ULONG          tb_LastEClockHi;    /* Last returned E-Clock high word */
+    ULONG          tb_LastEClockLo;    /* Last returned E-Clock low word */
 };
 
 /* Timer unit structure (one per open) */
@@ -239,6 +241,18 @@ static void timer_read_eclock_ticks(struct TimerBase *timerbase, ULONG *ticks_hi
     mul_u32_u32_to_u64(raw_time.tv_secs, timerbase->tb_EClock, &prod_hi, &prod_lo);
     frac_ticks = (raw_time.tv_micro * timerbase->tb_EClock) / 1000000UL;
     u64_add_u32(&prod_hi, &prod_lo, frac_ticks);
+
+    if (u64_cmp(prod_hi, prod_lo,
+                timerbase->tb_LastEClockHi,
+                timerbase->tb_LastEClockLo) <= 0)
+    {
+        prod_hi = timerbase->tb_LastEClockHi;
+        prod_lo = timerbase->tb_LastEClockLo;
+        u64_add_u32(&prod_hi, &prod_lo, 1);
+    }
+
+    timerbase->tb_LastEClockHi = prod_hi;
+    timerbase->tb_LastEClockLo = prod_lo;
 
     *ticks_hi = prod_hi;
     *ticks_lo = prod_lo;
@@ -427,6 +441,8 @@ static struct Library * __g_lxa_timer_InitDev  ( register struct Library    *dev
     
     timerbase->tb_TimeOffsetSecs = 0;
     timerbase->tb_TimeOffsetMicro = 0;
+    timerbase->tb_LastEClockHi = 0;
+    timerbase->tb_LastEClockLo = 0;
 
     /* Initialize system time */
     get_current_time(timerbase, &timerbase->tb_SystemTime);

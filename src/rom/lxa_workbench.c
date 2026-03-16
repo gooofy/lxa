@@ -986,10 +986,23 @@ ULONG _workbench_WBInfo ( register struct WorkbenchBase *WorkbenchBase __asm("a6
     ok_text.IText = (UBYTE *)"OK";
     ok_text.NextText = NULL;
 
-    if (!AutoRequest(NULL, &body_text, &ok_text, NULL, 0, 0, 320, 70))
     {
-        SetIoErr(ERROR_OBJECT_NOT_FOUND);
-        return FALSE;
+        struct Window *requester;
+
+        requester = BuildSysRequest((struct Window *)screen->FirstWindow,
+                                    &body_text,
+                                    &ok_text,
+                                    NULL,
+                                    0,
+                                    320,
+                                    70);
+        if (!requester)
+        {
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return FALSE;
+        }
+
+        FreeSysRequest(requester);
     }
 
     SetIoErr(0);

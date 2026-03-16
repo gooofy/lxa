@@ -192,6 +192,12 @@ static struct LXAWindowState *_intuition_find_window_state(struct LXAIntuitionBa
 static struct Gadget *_intuition_public_gadget_list(struct Gadget *gadgets);
 static ULONG _intuition_get_host_window_handle(struct LXAIntuitionBase *base,
                                                const struct Window *window);
+static VOID _intuition_reset_runtime_state(VOID);
+static VOID _intuition_discard_menu_runtime_state(VOID);
+static VOID _intuition_clear_window_runtime_state(struct Window *window);
+static VOID _intuition_clear_screen_runtime_state(struct IntuitionBase *IntuitionBase,
+                                                  struct Screen *screen);
+static volatile BOOL g_processing_events;
 
 /* Forward declaration for internal string gadget key handling */
 static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window, 
@@ -2769,6 +2775,8 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)intuitionb;
     DPRINTF (LOG_DEBUG, "_intuition: InitLib() called.\n");
 
+    _intuition_reset_runtime_state();
+
     /* Initialize ClassList (NewList inline) */
     NewList(&base->ClassList);
     NewList(&base->PubScreenList);
@@ -4016,6 +4024,7 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
     UBYTE i;
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
     struct PubScreenNode *pub;
+    BOOL was_processing_events;
 
     DPRINTF (LOG_DEBUG, "_intuition: CloseScreen() screen=0x%08lx\n", (ULONG)screen);
 
@@ -4038,6 +4047,11 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
                  pub->psn_VisitorCount);
         return FALSE;
     }
+
+    was_processing_events = g_processing_events;
+    g_processing_events = TRUE;
+
+    _intuition_clear_screen_runtime_state(IntuitionBase, screen);
 
     /* Get the display handle */
     display_handle = (ULONG)screen->ExtData;
@@ -4097,6 +4111,8 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
     /* Free the Screen structure */
     FreeMem(screen, sizeof(struct Screen));
 
+    g_processing_events = was_processing_events;
+
     DPRINTF (LOG_DEBUG, "_intuition: CloseScreen() done\n");
 
     return TRUE;
@@ -4106,6 +4122,7 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
                                                         register struct Window * window __asm("a0"))
 {
     struct LXAWindowState *state;
+    BOOL was_processing_events;
 
     DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() window=0x%08lx\n", (ULONG)window);
 
@@ -4114,6 +4131,11 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
         LPRINTF (LOG_ERROR, "_intuition: CloseWindow() called with NULL window\n");
         return;
     }
+
+    was_processing_events = g_processing_events;
+    g_processing_events = TRUE;
+
+    _intuition_clear_window_runtime_state(window);
 
     state = _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
 
@@ -4178,6 +4200,8 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
 
     /* Free the Window structure */
     FreeMem(window, sizeof(struct Window));
+
+    g_processing_events = was_processing_events;
 
     DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() done\n");
 }
@@ -5022,6 +5046,103 @@ static WORD   g_menu_save_x;               /* Left edge of saved area */
 static WORD   g_menu_save_y;               /* Top edge of saved area */
 static WORD   g_menu_save_w;               /* Width of saved area in pixels */
 static WORD   g_menu_save_h;               /* Height of saved area in pixels */
+
+static VOID _intuition_discard_menu_runtime_state(VOID)
+{
+    if (g_menu_save_buffer && g_menu_save_size > 0)
+    {
+        FreeMem(g_menu_save_buffer, g_menu_save_size);
+    }
+
+    g_menu_mode = FALSE;
+    g_menu_window = NULL;
+    g_active_menu = NULL;
+    g_active_item = NULL;
+    g_active_subitem = NULL;
+    g_menu_selection = MENUNULL;
+    g_menu_save_buffer = NULL;
+    g_menu_save_size = 0;
+    g_menu_save_x = 0;
+    g_menu_save_y = 0;
+    g_menu_save_w = 0;
+    g_menu_save_h = 0;
+}
+
+static VOID _intuition_clear_window_runtime_state(struct Window *window)
+{
+    if (!window)
+        return;
+
+    if (g_active_window == window)
+    {
+        g_active_window = NULL;
+        g_active_gadget = NULL;
+        g_prop_click_offset = 0;
+    }
+
+    if (g_drag_window == window)
+    {
+        g_dragging_window = FALSE;
+        g_drag_window = NULL;
+        g_drag_start_x = 0;
+        g_drag_start_y = 0;
+        g_drag_window_x = 0;
+        g_drag_window_y = 0;
+    }
+
+    if (g_size_window == window)
+    {
+        g_sizing_window = FALSE;
+        g_size_window = NULL;
+        g_size_start_x = 0;
+        g_size_start_y = 0;
+        g_size_orig_w = 0;
+        g_size_orig_h = 0;
+    }
+
+    if (g_menu_window == window)
+        _intuition_discard_menu_runtime_state();
+}
+
+static VOID _intuition_clear_screen_runtime_state(struct IntuitionBase *IntuitionBase,
+                                                  struct Screen *screen)
+{
+    struct Window *window;
+
+    if (!screen)
+        return;
+
+    if (g_menu_window && g_menu_window->WScreen == screen)
+        _intuition_discard_menu_runtime_state();
+
+    for (window = screen->FirstWindow; window; window = window->NextWindow)
+        _intuition_clear_window_runtime_state(window);
+
+    if (IntuitionBase && IntuitionBase->ActiveWindow && IntuitionBase->ActiveWindow->WScreen == screen)
+        IntuitionBase->ActiveWindow = NULL;
+}
+
+static VOID _intuition_reset_runtime_state(VOID)
+{
+    _intuition_discard_menu_runtime_state();
+
+    g_active_gadget = NULL;
+    g_active_window = NULL;
+    g_prop_click_offset = 0;
+    g_dragging_window = FALSE;
+    g_drag_window = NULL;
+    g_drag_start_x = 0;
+    g_drag_start_y = 0;
+    g_drag_window_x = 0;
+    g_drag_window_y = 0;
+    g_sizing_window = FALSE;
+    g_size_window = NULL;
+    g_size_start_x = 0;
+    g_size_start_y = 0;
+    g_size_orig_w = 0;
+    g_size_orig_h = 0;
+    g_processing_events = FALSE;
+}
 
 /* Forward declarations for functions used by the input event handler */
 static void _render_window_frame(struct Window *window);
@@ -6363,7 +6484,6 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
  * IDCMP messages to windows that have requested them.
  */
 /* Prevent re-entry to event processing (e.g., VBlank firing during WaitTOF) */
-static volatile BOOL g_processing_events;
 
 VOID _intuition_ProcessInputEvents(struct Screen *screen)
 {

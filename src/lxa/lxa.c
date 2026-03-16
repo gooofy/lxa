@@ -240,6 +240,7 @@ struct map_sym_s
     map_sym_t *next;
     uint32_t   offset;
     char      *name;
+    bool       owns_name;
 };
 
 static map_sym_t *_g_map      = NULL;
@@ -379,6 +380,39 @@ typedef struct notify_entry_s {
 } notify_entry_t;
 
 static notify_entry_t g_notify_requests[MAX_NOTIFY_REQUESTS];
+
+void lxa_reset_host_state(void)
+{
+    _g_map = NULL;
+    _g_pending_bps = NULL;
+
+    g_trace = FALSE;
+    g_stepping = FALSE;
+    g_next_pc = 0;
+    memset(g_trace_buf, 0, sizeof(g_trace_buf));
+    g_trace_buf_idx = 0;
+    g_debug_active = FALSE;
+    g_running = TRUE;
+    g_loadfile = NULL;
+    g_console_output_hook = NULL;
+    memset(g_args, 0, sizeof(g_args));
+    g_args_len = 0;
+    memset(g_breakpoints, 0, sizeof(g_breakpoints));
+    g_num_breakpoints = 0;
+    g_rv = 0;
+    g_sysroot = NULL;
+    g_last_event = (display_event_t){0};
+    memset(g_locks, 0, sizeof(g_locks));
+    memset(g_record_locks, 0, sizeof(g_record_locks));
+    memset(g_timer_queue, 0, sizeof(g_timer_queue));
+    memset(g_notify_requests, 0, sizeof(g_notify_requests));
+    g_pending_irq = 0;
+#ifdef SDL2_FOUND
+    memset(g_audio_channels, 0, sizeof(g_audio_channels));
+    g_audio_device = 0;
+    g_audio_initialized = false;
+#endif
+}
 
 static int _linux_path_to_amiga(const char *linux_path, char *amiga_buf, size_t bufsize);
 
@@ -1086,7 +1120,7 @@ void hexdump (int lvl, uint32_t offset, uint32_t len)
     }
 }
 
-static bool _symtab_add (char *name, uint32_t offset)
+static bool _symtab_add_owned (char *name, uint32_t offset, bool owns_name)
 {
     map_sym_t *m = malloc (sizeof (*m));
     if (!m)
@@ -1097,6 +1131,7 @@ static bool _symtab_add (char *name, uint32_t offset)
     m->next   = NULL;
     m->offset = offset;
     m->name   = name;
+    m->owns_name = owns_name;
 
     // add to sorted map list
 
@@ -1116,6 +1151,11 @@ static bool _symtab_add (char *name, uint32_t offset)
         prev->next = m;
     }
     return true;
+}
+
+static bool _symtab_add (char *name, uint32_t offset)
+{
+    return _symtab_add_owned(name, offset, false);
 }
 
 static uint32_t _find_symbol (const char *name)
@@ -8629,7 +8669,7 @@ bool _load_rom_map (const char *rom_path)
             name[l]=0;
             //printf ("%-20s at 0x%x\n", name, offset);
 
-            if (!_symtab_add (name, offset))
+            if (!_symtab_add_owned (name, offset, true))
                 return false;
 
         }

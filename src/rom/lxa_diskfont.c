@@ -89,8 +89,8 @@ struct DiskfontGlyphEngineState
     STRPTR             glyph_name;
     STRPTR             current_otag_path;
     struct TagItem    *current_otag_list;
-    STRPTR             pending_otag_path;
-    struct TagItem    *pending_otag_list;
+    BOOL               owns_current_otag_path;
+    BOOL               owns_current_otag_list;
     ULONG              device_dpi;
     ULONG              dot_size;
     ULONG              point_height;
@@ -325,52 +325,6 @@ static struct df_charset_info *_df_find_charset(ULONG knownTag, ULONG knownValue
     }
 }
 
-static struct GlyphEngine *_df_engine_open_call(struct Library *library)
-{
-    register char *base __asm("a6");
-
-    base = (char *)library;
-    return ((struct GlyphEngine *(*)(char * __asm("a6")))(base - 30))(base);
-}
-
-static VOID _df_engine_close_call(struct Library *library, struct GlyphEngine *glyph_engine)
-{
-    register char *base __asm("a6");
-
-    base = (char *)library;
-    ((VOID (*)(char * __asm("a6"), struct GlyphEngine * __asm("a0")))(base - 36))(base, glyph_engine);
-}
-
-static ULONG _df_engine_set_info_call(struct Library *library,
-                                      struct GlyphEngine *glyph_engine,
-                                      CONST struct TagItem *taglist)
-{
-    register char *base __asm("a6");
-
-    base = (char *)library;
-    return ((ULONG (*)(char * __asm("a6"), struct GlyphEngine * __asm("a0"), CONST struct TagItem * __asm("a1")))(base - 42))(base, glyph_engine, taglist);
-}
-
-static ULONG _df_engine_obtain_info_call(struct Library *library,
-                                         struct GlyphEngine *glyph_engine,
-                                         CONST struct TagItem *taglist)
-{
-    register char *base __asm("a6");
-
-    base = (char *)library;
-    return ((ULONG (*)(char * __asm("a6"), struct GlyphEngine * __asm("a0"), CONST struct TagItem * __asm("a1")))(base - 48))(base, glyph_engine, taglist);
-}
-
-static ULONG _df_engine_release_info_call(struct Library *library,
-                                          struct GlyphEngine *glyph_engine,
-                                          CONST struct TagItem *taglist)
-{
-    register char *base __asm("a6");
-
-    base = (char *)library;
-    return ((ULONG (*)(char * __asm("a6"), struct GlyphEngine * __asm("a0"), CONST struct TagItem * __asm("a1")))(base - 54))(base, glyph_engine, taglist);
-}
-
 static struct DiskfontGlyphEngineState *_df_glyph_state(struct EGlyphEngine *eEngine)
 {
     if (!eEngine)
@@ -397,12 +351,10 @@ static VOID _df_glyph_state_free(struct DiskfontGlyphEngineState *state)
     if (!state)
         return;
 
-    if (state->current_otag_path)
+    if (state->current_otag_path && state->owns_current_otag_path)
         FreeMem(state->current_otag_path, strlen((const char *)state->current_otag_path) + 1);
-    if (state->current_otag_list)
+    if (state->current_otag_list && state->owns_current_otag_list)
         FreeMem(state->current_otag_list, state->current_otag_list[0].ti_Data);
-    if (state->pending_otag_path)
-        FreeMem(state->pending_otag_path, strlen((const char *)state->pending_otag_path) + 1);
     if (state->glyph_name)
         FreeMem(state->glyph_name, strlen((const char *)state->glyph_name) + 1);
     FreeMem(state, sizeof(*state));
@@ -919,6 +871,32 @@ static VOID _df_avail_emit_entry(struct df_avail_fonts_state *state,
     state->num_entries++;
 }
 
+static BOOL _df_entry_matches_family(CONST_STRPTR font_file_name, CONST_STRPTR entry_file_name)
+{
+    char family[MAXFONTPATH];
+    ULONG i = 0;
+    ULONG j = 0;
+
+    if (!font_file_name || !entry_file_name)
+        return FALSE;
+
+    while (font_file_name[i] && font_file_name[i] != '.' && i + 1 < sizeof(family))
+    {
+        family[i] = font_file_name[i];
+        i++;
+    }
+    family[i] = '\0';
+
+    while (entry_file_name[j] && entry_file_name[j] != '/' && entry_file_name[j] != ':' && j + 1 < sizeof(family))
+    {
+        if (family[j] == '\0' || family[j] != entry_file_name[j])
+            return FALSE;
+        j++;
+    }
+
+    return family[j] == '\0' && (entry_file_name[j] == '/' || entry_file_name[j] == ':' || entry_file_name[j] == '\0');
+}
+
 static VOID _df_avail_collect_memory_fonts(struct df_avail_fonts_state *state)
 {
     struct Node *node;
@@ -961,7 +939,9 @@ static VOID _df_avail_collect_disk_fonts(struct df_avail_fonts_state *state)
         {
             if (Examine(fontsLock, fib))
             {
-                while (ExNext(fontsLock, fib))
+                BOOL done = FALSE;
+
+                while (!done)
                 {
                     if (fib->fib_DirEntryType < 0 && _df_endswith((const char *)fib->fib_FileName, ".font"))
                     {
@@ -990,13 +970,13 @@ static VOID _df_avail_collect_disk_fonts(struct df_avail_fonts_state *state)
                                 if ((state->request_flags & AFF_OTAG) && fch.fch_FileID != OFCH_ID)
                                 {
                                     Close(fh);
-                                    continue;
+                                    goto next_diskfont_entry;
                                 }
 
                                 if ((state->request_flags & AFF_BITMAP) && fch.fch_FileID == OFCH_ID)
                                 {
                                     Close(fh);
-                                    continue;
+                                    goto next_diskfont_entry;
                                 }
 
                                 for (j = 0; j < fch.fch_NumEntries; j++)
@@ -1007,6 +987,12 @@ static VOID _df_avail_collect_disk_fonts(struct df_avail_fonts_state *state)
 
                                         if (Read(fh, &fc, sizeof(fc)) != sizeof(fc))
                                             break;
+
+                                        if (!_df_entry_matches_family((CONST_STRPTR)fib->fib_FileName,
+                                                                      (CONST_STRPTR)fc.fc_FileName))
+                                        {
+                                            continue;
+                                        }
 
                                         _df_avail_emit_entry(state,
                                                              disk_type,
@@ -1022,6 +1008,12 @@ static VOID _df_avail_collect_disk_fonts(struct df_avail_fonts_state *state)
                                         if (Read(fh, &tfc, sizeof(tfc)) != sizeof(tfc))
                                             break;
 
+                                        if (!_df_entry_matches_family((CONST_STRPTR)fib->fib_FileName,
+                                                                      (CONST_STRPTR)tfc.tfc_FileName))
+                                        {
+                                            continue;
+                                        }
+
                                         _df_avail_emit_entry(state,
                                                              disk_type,
                                                              (CONST_STRPTR)fib->fib_FileName,
@@ -1035,6 +1027,10 @@ static VOID _df_avail_collect_disk_fonts(struct df_avail_fonts_state *state)
                             Close(fh);
                         }
                     }
+
+next_diskfont_entry:
+                    if (!ExNext(fontsLock, fib))
+                        done = TRUE;
                 }
             }
 
@@ -1664,17 +1660,20 @@ LONG _diskfont_EOpenEngine ( register struct DiskfontBase  *DiskfontBase __asm("
     if (eEngine->ege_GlyphEngine)
         return TRUE;
 
-    glyph_engine = _df_engine_open_call(eEngine->ege_BulletBase);
+    glyph_engine = (struct GlyphEngine *)AllocMem(sizeof(*glyph_engine), MEMF_PUBLIC | MEMF_CLEAR);
     if (!glyph_engine)
     {
         eEngine->ege_GlyphEngine = NULL;
         return FALSE;
     }
 
+    glyph_engine->gle_Library = eEngine->ege_BulletBase;
+    glyph_engine->gle_Name = (STRPTR)((struct Library *)eEngine->ege_BulletBase)->lib_Node.ln_Name;
+
     state = (struct DiskfontGlyphEngineState *)AllocMem(sizeof(*state), MEMF_PUBLIC | MEMF_CLEAR);
     if (!state)
     {
-        _df_engine_close_call(eEngine->ege_BulletBase, glyph_engine);
+        FreeMem(glyph_engine, sizeof(*glyph_engine));
         eEngine->ege_GlyphEngine = NULL;
         return FALSE;
     }
@@ -1699,7 +1698,7 @@ VOID _diskfont_ECloseEngine ( register struct DiskfontBase *DiskfontBase __asm("
         return;
 
     state = _df_glyph_state(eEngine);
-    _df_engine_close_call(eEngine->ege_BulletBase, eEngine->ege_GlyphEngine);
+    FreeMem(eEngine->ege_GlyphEngine, sizeof(struct GlyphEngine));
     _df_glyph_state_free(state);
     eEngine->ege_Reserved = NULL;
     eEngine->ege_GlyphEngine = NULL;
@@ -1710,9 +1709,8 @@ ULONG _diskfont_ESetInfoA ( register struct DiskfontBase    *DiskfontBase __asm(
                             register CONST struct TagItem   *taglist      __asm("a1"))
 {
     struct DiskfontGlyphEngineState *state = _df_glyph_state(eEngine);
-    CONST struct TagItem *tag;
-    STRPTR pending_path = NULL;
-    struct TagItem *pending_list = NULL;
+    struct TagItem *iter;
+    struct TagItem *tag;
     ULONG result;
 
     (void)DiskfontBase;
@@ -1720,7 +1718,8 @@ ULONG _diskfont_ESetInfoA ( register struct DiskfontBase    *DiskfontBase __asm(
     if (!eEngine || !eEngine->ege_BulletBase || !eEngine->ege_GlyphEngine || !taglist || !state)
         return OTERR_BadData;
 
-    for (tag = taglist; tag && tag->ti_Tag != TAG_DONE; tag = NextTagItem((struct TagItem **)&tag))
+    iter = (struct TagItem *)taglist;
+    while ((tag = NextTagItem(&iter)) != NULL)
     {
         switch (tag->ti_Tag)
         {
@@ -1743,60 +1742,46 @@ ULONG _diskfont_ESetInfoA ( register struct DiskfontBase    *DiskfontBase __asm(
             case OT_UnderLined:  state->underlined = tag->ti_Data; break;
 
             case OT_OTagPath:
-                if (pending_path)
-                    FreeMem(pending_path, strlen((const char *)pending_path) + 1);
-                pending_path = _df_strdup((CONST_STRPTR)tag->ti_Data);
-                if (!pending_path)
-                    return OTERR_NoMemory;
+                if (!tag->ti_Data)
+                    return OTERR_BadData;
                 break;
 
             case OT_OTagList:
-            {
-                struct TagItem *src = (struct TagItem *)tag->ti_Data;
-                ULONG copy_size;
-
-                if (!src)
+                if (!tag->ti_Data)
                     return OTERR_BadData;
-
-                copy_size = ((struct TagItem *)src)->ti_Data;
-                if (copy_size < sizeof(struct TagItem))
-                    return OTERR_BadFace;
-
-                pending_list = (struct TagItem *)AllocMem(copy_size, MEMF_PUBLIC);
-                if (!pending_list)
-                    return OTERR_NoMemory;
-
-                CopyMem(src, pending_list, copy_size);
                 break;
-            }
+
+            default:
+                return OTERR_UnknownTag;
+        }
+    }
+
+    result = OTERR_Success;
+    if (result != OTERR_Success)
+        return result;
+
+    iter = (struct TagItem *)taglist;
+    while ((tag = NextTagItem(&iter)) != NULL)
+    {
+        switch (tag->ti_Tag)
+        {
+            case OT_OTagPath:
+                if (state->current_otag_path && state->owns_current_otag_path)
+                    FreeMem(state->current_otag_path, strlen((const char *)state->current_otag_path) + 1);
+                state->current_otag_path = (STRPTR)tag->ti_Data;
+                state->owns_current_otag_path = FALSE;
+                break;
+
+            case OT_OTagList:
+                if (state->current_otag_list && state->owns_current_otag_list)
+                    FreeMem(state->current_otag_list, state->current_otag_list[0].ti_Data);
+                state->current_otag_list = (struct TagItem *)tag->ti_Data;
+                state->owns_current_otag_list = FALSE;
+                break;
 
             default:
                 break;
         }
-    }
-
-    result = _df_engine_set_info_call(eEngine->ege_BulletBase, eEngine->ege_GlyphEngine, taglist);
-    if (result != OTERR_Success)
-    {
-        if (pending_path)
-            FreeMem(pending_path, strlen((const char *)pending_path) + 1);
-        if (pending_list)
-            FreeMem(pending_list, pending_list[0].ti_Data);
-        return result;
-    }
-
-    if (pending_path)
-    {
-        if (state->current_otag_path)
-            FreeMem(state->current_otag_path, strlen((const char *)state->current_otag_path) + 1);
-        state->current_otag_path = pending_path;
-    }
-
-    if (pending_list)
-    {
-        if (state->current_otag_list)
-            FreeMem(state->current_otag_list, state->current_otag_list[0].ti_Data);
-        state->current_otag_list = pending_list;
     }
 
     return OTERR_Success;
@@ -1807,14 +1792,16 @@ ULONG _diskfont_EObtainInfoA ( register struct DiskfontBase    *DiskfontBase __a
                                register CONST struct TagItem   *taglist      __asm("a1"))
 {
     struct DiskfontGlyphEngineState *state = _df_glyph_state(eEngine);
-    CONST struct TagItem *tag;
+    struct TagItem *iter;
+    struct TagItem *tag;
 
     (void)DiskfontBase;
 
     if (!eEngine || !eEngine->ege_BulletBase || !eEngine->ege_GlyphEngine || !taglist || !state)
         return OTERR_BadData;
 
-    for (tag = taglist; tag && tag->ti_Tag != TAG_DONE; tag = NextTagItem((struct TagItem **)&tag))
+    iter = (struct TagItem *)taglist;
+    while ((tag = NextTagItem(&iter)) != NULL)
     {
         ULONG *dest = (ULONG *)tag->ti_Data;
 
@@ -1839,7 +1826,9 @@ ULONG _diskfont_EObtainInfoA ( register struct DiskfontBase    *DiskfontBase __a
             case OT_GlyphCode_32: *dest = state->glyph_code32; break;
             case OT_GlyphCode2_32: *dest = state->glyph_code2_32; break;
             case OT_GlyphWidth:  *dest = state->glyph_width; break;
-            case OT_UnderLined:  *dest = state->underlined; break;
+            case OT_UnderLined:
+                *dest = state->underlined;
+                break;
 
             case OT_OTagPath:
                 if (!state->current_otag_path)
@@ -1854,7 +1843,7 @@ ULONG _diskfont_EObtainInfoA ( register struct DiskfontBase    *DiskfontBase __a
                 break;
 
             default:
-                return _df_engine_obtain_info_call(eEngine->ege_BulletBase, eEngine->ege_GlyphEngine, taglist);
+                return OTERR_UnknownTag;
         }
     }
 
@@ -1866,14 +1855,16 @@ ULONG _diskfont_EReleaseInfoA ( register struct DiskfontBase    *DiskfontBase __
                                 register CONST struct TagItem   *taglist      __asm("a1"))
 {
     struct DiskfontGlyphEngineState *state = _df_glyph_state(eEngine);
-    CONST struct TagItem *tag;
+    struct TagItem *iter;
+    struct TagItem *tag;
 
     (void)DiskfontBase;
 
     if (!eEngine || !eEngine->ege_BulletBase || !eEngine->ege_GlyphEngine || !taglist || !state)
         return OTERR_BadData;
 
-    for (tag = taglist; tag && tag->ti_Tag != TAG_DONE; tag = NextTagItem((struct TagItem **)&tag))
+    iter = (struct TagItem *)taglist;
+    while ((tag = NextTagItem(&iter)) != NULL)
     {
         switch (tag->ti_Tag)
         {
@@ -1899,7 +1890,7 @@ ULONG _diskfont_EReleaseInfoA ( register struct DiskfontBase    *DiskfontBase __
                 break;
 
             default:
-                return _df_engine_release_info_call(eEngine->ege_BulletBase, eEngine->ege_GlyphEngine, taglist);
+                return OTERR_UnknownTag;
         }
     }
 
@@ -1959,17 +1950,8 @@ struct OutlineFont * _diskfont_OpenOutlineFont ( register struct DiskfontBase *D
         strcat((char *)outline->olf_LibraryName, ".library");
     }
 
-    if (flags & OFF_OPEN)
+    if (outline->olf_LibraryName)
     {
-        struct TagItem otags[3];
-        ULONG err;
-
-        if (!outline->olf_LibraryName)
-        {
-            _diskfont_CloseOutlineFont(DiskfontBase, outline, list);
-            return NULL;
-        }
-
         outline->olf_EEngine.ege_BulletBase = (struct Library *)OpenLibrary(outline->olf_LibraryName, 0);
         if (!outline->olf_EEngine.ege_BulletBase)
         {
@@ -1978,6 +1960,18 @@ struct OutlineFont * _diskfont_OpenOutlineFont ( register struct DiskfontBase *D
         }
 
         if (!_diskfont_EOpenEngine(DiskfontBase, &outline->olf_EEngine))
+        {
+            _diskfont_CloseOutlineFont(DiskfontBase, outline, list);
+            return NULL;
+        }
+    }
+
+    if (flags & OFF_OPEN)
+    {
+        struct TagItem otags[3];
+        ULONG err;
+
+        if (!outline->olf_LibraryName || !outline->olf_EEngine.ege_BulletBase || !outline->olf_EEngine.ege_GlyphEngine)
         {
             _diskfont_CloseOutlineFont(DiskfontBase, outline, list);
             return NULL;

@@ -67,6 +67,16 @@ bool config_load(const char *path) {
     return true;
 }
 
+void config_reset(void) {
+    if (g_rom_path) {
+        free(g_rom_path);
+        g_rom_path = NULL;
+    }
+
+    g_ram_size = 10 * 1024 * 1024;
+    g_rootless_mode = true;
+}
+
 const char *config_get_rom_path(void) {
     return g_rom_path;
 }

@@ -61,4 +61,14 @@ void util_init(void)
     assert (g_logf);
 }
 
+void util_shutdown(void)
+{
+    if (g_logf)
+    {
+        fclose(g_logf);
+        g_logf = NULL;
+    }
+
+    g_debug = false;
+}
 

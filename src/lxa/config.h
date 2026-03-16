@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 bool config_load(const char *path);
+void config_reset(void);
 const char *config_get_rom_path(void);
 int config_get_ram_size(void);
 

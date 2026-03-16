@@ -91,39 +91,41 @@ protected:
             lxa_window_info_t window_info;
 
             ASSERT_TRUE(GetWindowInfo(0, &window_info));
+            ASSERT_TRUE(WaitForWindowDrawn(0, 5000));
+            WaitForEventLoop(100, 10000);
 
-            ASSERT_TRUE(WaitForOutputContains("Waiting for special key report", 8000));
-            RunCyclesWithVBlank(10);
+            ASSERT_TRUE(WaitForOutputContains("Waiting for special key report", 12000));
+            RunCyclesWithVBlank(30, 50000);
             PressKey(RAWKEY_UP, 0);
-            RunCyclesWithVBlank(20);
+            ASSERT_TRUE(WaitForOutputContains("OK: special key report returned expected sequence", 12000));
 
-            ASSERT_TRUE(WaitForOutputContains("Waiting for raw special-key report", 8000));
-            RunCyclesWithVBlank(10);
+            ASSERT_TRUE(WaitForOutputContains("Waiting for raw special-key report", 12000));
+            RunCyclesWithVBlank(30, 50000);
             PressKey(RAWKEY_UP, 0);
-            RunCyclesWithVBlank(20);
+            ASSERT_TRUE(WaitForOutputContains("OK: raw special key report returned compatible sequence", 12000));
 
-            ASSERT_TRUE(WaitForOutputContains("Waiting for RAWKEY report", 8000));
-            RunCyclesWithVBlank(10);
+            ASSERT_TRUE(WaitForOutputContains("Waiting for RAWKEY report", 12000));
+            RunCyclesWithVBlank(30, 50000);
             PressKey(RAWKEY_A, 0);
-            RunCyclesWithVBlank(20);
+            ASSERT_TRUE(WaitForOutputContains("OK: raw key report returned expected prefix", 12000));
 
-            ASSERT_TRUE(WaitForOutputContains("Waiting for raw mouse-button report", 8000));
-            RunCyclesWithVBlank(10);
+            ASSERT_TRUE(WaitForOutputContains("Waiting for raw mouse-button report", 12000));
+            RunCyclesWithVBlank(30, 50000);
             Click(window_info.x + 40, window_info.y + 40);
-            RunCyclesWithVBlank(20);
+            ASSERT_TRUE(WaitForOutputContains("OK: raw mouse-button report returned expected prefix", 12000));
 
-            ASSERT_TRUE(WaitForOutputContains("Waiting for raw gadget-down report", 8000));
-            RunCyclesWithVBlank(10);
+            ASSERT_TRUE(WaitForOutputContains("Waiting for raw gadget-down report", 12000));
+            RunCyclesWithVBlank(30, 50000);
             Click(window_info.x + 95, window_info.y + 28);
-            RunCyclesWithVBlank(20);
+            ASSERT_TRUE(WaitForOutputContains("OK: raw gadget-down report returned expected prefix", 12000));
 
-            ASSERT_TRUE(WaitForOutputContains("Waiting for size-window raw event report", 8000));
-            RunCyclesWithVBlank(20);
+            ASSERT_TRUE(WaitForOutputContains("Waiting for size-window raw event report", 12000));
+            ASSERT_TRUE(WaitForOutputContains("OK: size-window raw event report returned expected prefix", 12000));
 
-            ASSERT_TRUE(WaitForOutputContains("Waiting for ASCII after raw reset", 8000));
-            RunCyclesWithVBlank(10);
+            ASSERT_TRUE(WaitForOutputContains("Waiting for ASCII after raw reset", 12000));
+            RunCyclesWithVBlank(30, 50000);
             PressKey(RAWKEY_A, 0);
-            RunCyclesWithVBlank(20);
+            ASSERT_TRUE(WaitForOutputContains("OK: raw event reset restored ASCII stream", 12000));
         } else if (strcmp(name, "keymap_unit") == 0) {
             ASSERT_TRUE(WaitForOutputContains("Waiting for remapped input", 8000));
             RunCyclesWithVBlank(10);

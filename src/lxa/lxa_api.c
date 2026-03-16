@@ -36,6 +36,7 @@ extern bool _load_rom_map(const char *rom_path);
 extern void sigalrm_handler(int sig);
 extern int _timer_check_expired(void);
 extern void lxa_set_console_output_hook(void (*hook)(const char *data, int len));
+extern void lxa_reset_host_state(void);
 
 /* Configuration constants from lxa.c */
 #define RAM_SIZE (10 * 1024 * 1024)
@@ -472,6 +473,11 @@ void lxa_shutdown(void)
 
     /* Shutdown display */
     display_shutdown();
+
+    config_reset();
+    vfs_reset();
+    util_shutdown();
+    lxa_reset_host_state();
 
     g_api_initialized = false;
 }

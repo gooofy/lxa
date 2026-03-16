@@ -55,6 +55,6 @@ extern bool     g_debug;
 void hexdump (int lvl, uint32_t offset, uint32_t len);
 
 void util_init(void);
+void util_shutdown(void);
 
 #endif
-

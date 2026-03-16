@@ -42,7 +42,7 @@ static void print(const char *s)
 
 static void print_hex(const char *prefix, ULONG val)
 {
-    char buf[32];
+    char buf[48];
     char *p = buf;
     const char *src = prefix;
     while (*src) *p++ = *src++;
