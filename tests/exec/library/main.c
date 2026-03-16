@@ -2393,7 +2393,7 @@ static int test_graphics_getgbuffers_stub_closed(void)
     WORD borderline_b[1] = { 0 };
     WORD borderline_c[1] = { 0 };
 
-    print("--- Test: graphics GetGBuffers entry point ---\n");
+    print("--- Test: graphics GetGBuffers/FreeGBuffers entry points ---\n");
 
     InitRastPort(&rp);
     init_exec_test_vsprite(&buf_vs_a, 0, 0, 1, 2, 2, image_data, 0);
@@ -2510,40 +2510,33 @@ static int test_graphics_getgbuffers_stub_closed(void)
     }
 
     if (buf_bob_a.ImageShadow)
-        FreeMem(buf_bob_a.ImageShadow, 4);
-    if (buf_bob_a.SaveBuffer)
-        FreeMem(buf_bob_a.SaveBuffer, 8);
-    if (buf_vs_a.BorderLine)
-        FreeMem(buf_vs_a.BorderLine, 2);
-    if (buf_bob_a.DBuffer)
     {
-        if (buf_bob_a.DBuffer->BufBuffer)
-            FreeMem(buf_bob_a.DBuffer->BufBuffer, 8);
-        FreeMem(buf_bob_a.DBuffer, sizeof(struct DBufPacket));
-    }
-    if (buf_bob_b.ImageShadow)
-        FreeMem(buf_bob_b.ImageShadow, 4);
-    if (buf_bob_b.SaveBuffer)
-        FreeMem(buf_bob_b.SaveBuffer, 8);
-    if (buf_vs_b.BorderLine)
-        FreeMem(buf_vs_b.BorderLine, 2);
-    if (buf_bob_b.DBuffer)
-    {
-        if (buf_bob_b.DBuffer->BufBuffer)
-            FreeMem(buf_bob_b.DBuffer->BufBuffer, 8);
-        FreeMem(buf_bob_b.DBuffer, sizeof(struct DBufPacket));
-    }
-    if (buf_bob_c.ImageShadow)
-        FreeMem(buf_bob_c.ImageShadow, 4);
-    if (buf_bob_c.SaveBuffer)
-        FreeMem(buf_bob_c.SaveBuffer, 8);
-    if (buf_vs_c.BorderLine)
-        FreeMem(buf_vs_c.BorderLine, 2);
-    if (buf_bob_c.DBuffer)
-    {
-        if (buf_bob_c.DBuffer->BufBuffer)
-            FreeMem(buf_bob_c.DBuffer->BufBuffer, 8);
-        FreeMem(buf_bob_c.DBuffer, sizeof(struct DBufPacket));
+        WORD *separate_mask = (WORD *)AllocMem(4, MEMF_CHIP | MEMF_CLEAR);
+
+        if (!separate_mask)
+        {
+            print("FAIL: Could not allocate separate CollMask for FreeGBuffers() test\n");
+            errors++;
+            FreeGBuffers(&buf_anim, &rp, TRUE);
+        }
+        else
+        {
+            buf_vs_b.CollMask = separate_mask;
+            FreeGBuffers(&buf_anim, &rp, TRUE);
+
+            if (buf_bob_a.ImageShadow || buf_bob_a.SaveBuffer || buf_vs_a.CollMask || buf_vs_a.BorderLine ||
+                buf_bob_a.DBuffer || buf_bob_b.ImageShadow || buf_bob_b.SaveBuffer || buf_vs_b.CollMask ||
+                buf_vs_b.BorderLine || buf_bob_b.DBuffer || buf_bob_c.ImageShadow || buf_bob_c.SaveBuffer ||
+                buf_vs_c.CollMask || buf_vs_c.BorderLine || buf_bob_c.DBuffer)
+            {
+                print("FAIL: FreeGBuffers() did not release all allocated buffers\n");
+                errors++;
+            }
+            else
+            {
+                print("OK: FreeGBuffers() no longer behaves like a stub\n");
+            }
+        }
     }
 
     print("\n");

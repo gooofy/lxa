@@ -6412,8 +6412,75 @@ static VOID _graphics_FreeGBuffers ( register struct GfxBase * GfxBase __asm("a6
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG flag __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FreeGBuffers() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct AnimComp *current_comp;
+    BOOL double_buffer;
+
+    DPRINTF (LOG_DEBUG, "_graphics: FreeGBuffers() anOb=0x%08lx rp=0x%08lx flag=%ld\n",
+             (ULONG)anOb, (ULONG)rp, flag);
+
+    if (!anOb)
+        return;
+
+    double_buffer = (flag != 0) ? TRUE : FALSE;
+    current_comp = anOb->HeadComp;
+
+    while (current_comp)
+    {
+        struct AnimComp *sequence_comp = current_comp;
+
+        do
+        {
+            struct Bob *bob = sequence_comp->AnimBob;
+            struct VSprite *vSprite = bob ? bob->BobVSprite : NULL;
+            ULONG shadow_size;
+            ULONG savebuffer_size;
+            ULONG borderline_size;
+
+            if (!bob || !vSprite)
+            {
+                sequence_comp = sequence_comp ? sequence_comp->NextSeq : NULL;
+                continue;
+            }
+
+            shadow_size = graphics_vsprite_shadow_size(vSprite);
+            savebuffer_size = graphics_vsprite_savebuffer_size(vSprite);
+            borderline_size = (ULONG)graphics_vsprite_words_per_line(vSprite) * sizeof(WORD);
+
+            if (bob->ImageShadow && shadow_size > 0)
+                FreeMem(bob->ImageShadow, shadow_size);
+
+            if (vSprite->CollMask && vSprite->CollMask != bob->ImageShadow && shadow_size > 0)
+                FreeMem(vSprite->CollMask, shadow_size);
+
+            bob->ImageShadow = NULL;
+            vSprite->CollMask = NULL;
+
+            if (bob->SaveBuffer && savebuffer_size > 0)
+                FreeMem(bob->SaveBuffer, savebuffer_size);
+            bob->SaveBuffer = NULL;
+
+            if (vSprite->BorderLine && borderline_size > 0)
+                FreeMem(vSprite->BorderLine, borderline_size);
+            vSprite->BorderLine = NULL;
+
+            if (double_buffer && bob->DBuffer)
+            {
+                if (bob->DBuffer->BufBuffer && savebuffer_size > 0)
+                    FreeMem(bob->DBuffer->BufBuffer, savebuffer_size);
+
+                FreeMem(bob->DBuffer, sizeof(struct DBufPacket));
+                bob->DBuffer = NULL;
+            }
+
+            sequence_comp = sequence_comp->NextSeq;
+        }
+        while (sequence_comp && sequence_comp != current_comp);
+
+        current_comp = current_comp->NextComp;
+    }
+
+    (void)GfxBase;
+    (void)rp;
 }
 
 static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __asm("a6"),
