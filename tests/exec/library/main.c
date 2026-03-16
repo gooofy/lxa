@@ -377,10 +377,13 @@ static BOOL create_otag_file(CONST_STRPTR path)
 {
     BPTR fh;
     struct TagItem tags[9];
-    ULONG file_size = sizeof(tags);
+    ULONG family_offset = sizeof(tags);
     char family[] = "Test Outline Family";
+    ULONG engine_offset = sizeof(tags) + sizeof(family);
     char engine[] = "bullet";
+    ULONG avail_sizes_offset = sizeof(tags) + sizeof(family) + sizeof(engine);
     UWORD avail_sizes[] = { 2, 12, 24 };
+    ULONG file_size = sizeof(tags) + sizeof(family) + sizeof(engine) + sizeof(avail_sizes);
 
     fh = Open(path, MODE_NEWFILE);
     if (!fh)
@@ -389,9 +392,9 @@ static BOOL create_otag_file(CONST_STRPTR path)
     tags[0].ti_Tag = OT_FileIdent;
     tags[0].ti_Data = file_size;
     tags[1].ti_Tag = OT_Engine;
-    tags[1].ti_Data = (ULONG)((UBYTE *)engine - (UBYTE *)tags);
+    tags[1].ti_Data = engine_offset;
     tags[2].ti_Tag = OT_Family;
-    tags[2].ti_Data = (ULONG)((UBYTE *)family - (UBYTE *)tags);
+    tags[2].ti_Data = family_offset;
     tags[3].ti_Tag = OT_YSizeFactor;
     tags[3].ti_Data = (72UL << 16) | 72UL;
     tags[4].ti_Tag = OT_SpaceWidth;
@@ -401,9 +404,13 @@ static BOOL create_otag_file(CONST_STRPTR path)
     tags[6].ti_Tag = OT_StemWeight;
     tags[6].ti_Data = OTS_Book;
     tags[7].ti_Tag = OT_AvailSizes;
-    tags[7].ti_Data = (ULONG)((UBYTE *)avail_sizes - (UBYTE *)tags);
+    tags[7].ti_Data = avail_sizes_offset;
     tags[8].ti_Tag = TAG_DONE;
     tags[8].ti_Data = 0;
+
+    tags[1].ti_Tag |= OT_Indirect;
+    tags[2].ti_Tag |= OT_Indirect;
+    tags[7].ti_Tag |= OT_Indirect;
 
     if (!write_all(fh, tags, sizeof(tags)) ||
         !write_all(fh, family, sizeof(family)) ||
@@ -3976,7 +3983,6 @@ static int test_diskfont_phase88_stub_closed(void)
         DiskfontBase = NULL;
         return 1;
     }
-
     NewList((struct List *)&list);
     outline = OpenOutlineFont((CONST_STRPTR)"T:diskfont_test/outline.font", (struct List *)&list, OFF_OPEN);
     if (!outline)
@@ -4792,17 +4798,17 @@ int main(void)
     /* Test 54: Verify Intuition no longer hits the stub path */
     errors += test_intuition_entry_point_dispatch();
 
-    /* Test 55: Verify timer.device Phase 90 entry point no longer hits the stub path */
-    errors += test_timer_phase90_stub_closed();
-
-    /* Test 56: Verify icon.library Phase 87 entry points no longer hit stub paths */
+    /* Test 55: Verify icon.library Phase 87 entry points no longer hit stub paths */
     errors += test_icon_phase87_stub_closed();
 
-    /* Test 57: Verify diskfont.library Phase 88 entry points no longer hit stub paths */
+    /* Test 56: Verify diskfont.library Phase 88 entry points no longer hit stub paths */
     errors += test_diskfont_phase88_stub_closed();
 
-    /* Test 58: Verify workbench.library Phase 89 entry points no longer hit stub paths */
+    /* Test 57: Verify workbench.library Phase 89 entry points no longer hit stub paths */
     errors += test_workbench_phase89_stub_closed();
+
+    /* Test 58: Verify timer.device Phase 90 entry point no longer hits the stub path */
+    errors += test_timer_phase90_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");
