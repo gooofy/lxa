@@ -21,7 +21,20 @@
 #include <workbench/workbench.h>
 #include <workbench/icon.h>
 
+#include <graphics/gfx.h>
+#include <graphics/rastport.h>
+#include <clib/graphics_protos.h>
+#include <inline/graphics.h>
+
 #include <intuition/intuition.h>
+#include <intuition/screens.h>
+#include <clib/intuition_protos.h>
+#include <inline/intuition.h>
+
+#include <clib/utility_protos.h>
+#include <inline/utility.h>
+
+#include <datatypes/pictureclass.h>
 
 #include "util.h"
 
@@ -80,13 +93,334 @@ char __aligned _g_icon_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
 extern struct ExecBase      *SysBase;
 extern struct DosLibrary    *DOSBase;
+extern struct GfxBase       *GfxBase;
+extern struct UtilityBase   *UtilityBase;
+extern struct IntuitionBase *IntuitionBase;
 
 /* IconBase structure - minimal for now */
+struct IconPrivateState
+{
+    struct Node       node;
+    struct DiskObject *icon;
+    struct Screen     *screen;
+    ULONG              flags;
+};
+
+#define ICON_PRIVATE_FRAMELESS 0x00000001UL
+
 struct IconBase {
     struct Library lib;
     UWORD          Pad;
     BPTR           SegList;
+    struct List    PrivateStates;
+    struct Screen *GlobalScreen;
+    LONG           GlobalPrecision;
+    struct Rectangle GlobalEmbossRect;
+    BOOL           GlobalFrameless;
+    BOOL           GlobalNewIconsSupport;
+    BOOL           GlobalColorIconSupport;
+    struct Hook   *GlobalIdentifyHook;
+    LONG           GlobalMaxNameLength;
 };
+
+struct IconLayoutInfo
+{
+    WORD image_width;
+    WORD image_height;
+    WORD label_width;
+    WORD label_height;
+    WORD content_width;
+    WORD total_width;
+    WORD total_height;
+    WORD image_x;
+    WORD image_y;
+    WORD label_x;
+    WORD label_y;
+    BOOL frameless;
+    BOOL borderless;
+};
+
+static BOOL icon_is_valid_type(LONG type)
+{
+    return (type >= WBDISK && type <= WBAPPICON);
+}
+
+static CONST_STRPTR icon_default_type_name(LONG type)
+{
+    switch (type)
+    {
+        case WBDISK:    return (CONST_STRPTR)"def_disk";
+        case WBDRAWER:  return (CONST_STRPTR)"def_drawer";
+        case WBTOOL:    return (CONST_STRPTR)"def_tool";
+        case WBPROJECT: return (CONST_STRPTR)"def_project";
+        case WBGARBAGE: return (CONST_STRPTR)"def_garbage";
+        case WBDEVICE:  return (CONST_STRPTR)"def_device";
+        case WBKICK:    return (CONST_STRPTR)"def_kick";
+        case WBAPPICON: return (CONST_STRPTR)"def_appicon";
+    }
+
+    return NULL;
+}
+
+static BOOL icon_build_default_path(LONG type, UBYTE *buffer, ULONG size)
+{
+    CONST_STRPTR type_name = icon_default_type_name(type);
+
+    if (!type_name || !buffer || size < 16)
+        return FALSE;
+
+    strcpy((char *)buffer, "ENV:Sys/");
+    strcat((char *)buffer, (const char *)type_name);
+    return TRUE;
+}
+
+static void icon_ensure_default_directory(void)
+{
+    BPTR lock = Lock((CONST_STRPTR)"ENV:Sys", ACCESS_READ);
+
+    if (lock)
+    {
+        UnLock(lock);
+        return;
+    }
+
+    CreateDir((CONST_STRPTR)"ENV:Sys");
+}
+
+static struct IconPrivateState *icon_find_private_state(struct IconBase *IconBase,
+                                                        CONST struct DiskObject *icon)
+{
+    struct Node *node;
+
+    if (!IconBase || !icon)
+        return NULL;
+
+    for (node = IconBase->PrivateStates.lh_Head; node && node->ln_Succ; node = node->ln_Succ)
+    {
+        struct IconPrivateState *state = (struct IconPrivateState *)node;
+
+        if (state->icon == icon)
+            return state;
+    }
+
+    return NULL;
+}
+
+static struct IconPrivateState *icon_ensure_private_state(struct IconBase *IconBase,
+                                                          struct DiskObject *icon)
+{
+    struct IconPrivateState *state;
+
+    if (!IconBase || !icon)
+        return NULL;
+
+    state = icon_find_private_state(IconBase, icon);
+    if (state)
+        return state;
+
+    state = AllocMem(sizeof(*state), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!state)
+        return NULL;
+
+    state->icon = icon;
+    AddTail(&IconBase->PrivateStates, &state->node);
+    return state;
+}
+
+static void icon_remove_private_state(struct IconBase *IconBase,
+                                      CONST struct DiskObject *icon)
+{
+    struct IconPrivateState *state = icon_find_private_state(IconBase, icon);
+
+    if (!state)
+        return;
+
+    Remove(&state->node);
+    FreeMem(state, sizeof(*state));
+}
+
+static struct RastPort *icon_select_text_rastport(struct RastPort *rp,
+                                                  struct Screen *screen,
+                                                  struct RastPort *fallback)
+{
+    if (rp)
+        return rp;
+
+    if (screen)
+        return &screen->RastPort;
+
+    return fallback;
+}
+
+static BOOL icon_tag_enabled(CONST struct TagItem *tags, Tag tag, BOOL fallback)
+{
+    struct TagItem *item = tags ? FindTagItem(tag, (struct TagItem *)tags) : NULL;
+
+    if (!item)
+        return fallback;
+
+    return item->ti_Data ? TRUE : FALSE;
+}
+
+static struct Screen *icon_select_screen(struct IconBase *IconBase,
+                                         CONST struct DiskObject *icon)
+{
+    struct IconPrivateState *state = icon_find_private_state(IconBase, icon);
+
+    if (state && state->screen)
+        return state->screen;
+
+    return IconBase ? IconBase->GlobalScreen : NULL;
+}
+
+static BOOL icon_is_frameless(struct IconBase *IconBase,
+                              CONST struct DiskObject *icon,
+                              CONST struct TagItem *tags)
+{
+    BOOL fallback = IconBase ? IconBase->GlobalFrameless : FALSE;
+    struct IconPrivateState *state = icon_find_private_state(IconBase, icon);
+
+    if (state && (state->flags & ICON_PRIVATE_FRAMELESS) != 0)
+        fallback = TRUE;
+
+    return icon_tag_enabled(tags, ICONDRAWA_Frameless, fallback);
+}
+
+static struct Image *icon_select_image(CONST struct DiskObject *icon, ULONG state)
+{
+    if (!icon)
+        return NULL;
+
+    if (state == IDS_SELECTED && icon->do_Gadget.SelectRender)
+        return (struct Image *)icon->do_Gadget.SelectRender;
+
+    return (struct Image *)icon->do_Gadget.GadgetRender;
+}
+
+static void icon_compute_layout(struct IconBase *IconBase,
+                                struct RastPort *rp,
+                                CONST struct DiskObject *icon,
+                                CONST_STRPTR label,
+                                CONST struct TagItem *tags,
+                                struct IconLayoutInfo *layout)
+{
+    struct RastPort temp_rp;
+    struct RastPort *text_rp;
+    struct Screen *screen;
+    WORD pad;
+
+    memset(layout, 0, sizeof(*layout));
+
+    if (!icon)
+        return;
+
+    screen = icon_select_screen(IconBase, icon);
+    InitRastPort(&temp_rp);
+    text_rp = icon_select_text_rastport(rp, screen, &temp_rp);
+
+    layout->frameless = icon_is_frameless(IconBase, icon, tags);
+    layout->borderless = icon_tag_enabled(tags, ICONDRAWA_Borderless, FALSE);
+
+    pad = (layout->frameless || layout->borderless) ? 0 : 2;
+
+    layout->image_width = icon->do_Gadget.Width;
+    layout->image_height = icon->do_Gadget.Height;
+    if (layout->image_width < 1)
+        layout->image_width = 1;
+    if (layout->image_height < 1)
+        layout->image_height = 1;
+
+    if (label)
+    {
+        layout->label_width = TextLength(text_rp, label, strlen((const char *)label));
+        layout->label_height = text_rp->TxHeight ? text_rp->TxHeight : 8;
+    }
+
+    layout->content_width = layout->image_width;
+    if (layout->label_width > layout->content_width)
+        layout->content_width = layout->label_width;
+
+    layout->total_width = layout->content_width + (pad * 2);
+    layout->total_height = layout->image_height + (pad * 2);
+    if (label)
+        layout->total_height += 2 + layout->label_height;
+
+    layout->image_x = pad + ((layout->content_width - layout->image_width) / 2);
+    layout->image_y = pad;
+    layout->label_x = pad + ((layout->content_width - layout->label_width) / 2);
+    layout->label_y = pad + layout->image_height + 2;
+}
+
+static struct DrawInfo *icon_acquire_draw_info(struct IconBase *IconBase,
+                                               CONST struct DiskObject *icon,
+                                               CONST struct TagItem *tags,
+                                               BOOL *must_free)
+{
+    struct DrawInfo *draw_info = (struct DrawInfo *)GetTagData(ICONDRAWA_DrawInfo, 0, (struct TagItem *)tags);
+    struct Screen *screen;
+
+    *must_free = FALSE;
+    if (draw_info)
+        return draw_info;
+
+    screen = icon_select_screen(IconBase, icon);
+    if (!screen)
+        return NULL;
+
+    draw_info = GetScreenDrawInfo(screen);
+    if (draw_info)
+        *must_free = TRUE;
+
+    return draw_info;
+}
+
+static void icon_release_draw_info(CONST struct DiskObject *icon,
+                                   struct DrawInfo *draw_info,
+                                   BOOL must_free,
+                                   struct IconBase *IconBase)
+{
+    struct Screen *screen;
+
+    if (!must_free || !draw_info)
+        return;
+
+    screen = icon_select_screen(IconBase, icon);
+    if (screen)
+        FreeScreenDrawInfo(screen, draw_info);
+}
+
+static void icon_draw_frame(struct RastPort *rp,
+                            WORD left,
+                            WORD top,
+                            WORD width,
+                            WORD height,
+                            CONST struct DrawInfo *draw_info,
+                            BOOL selected)
+{
+    UBYTE saved_pen;
+    UBYTE shine = draw_info ? (UBYTE)draw_info->dri_Pens[SHINEPEN] : 2;
+    UBYTE shadow = draw_info ? (UBYTE)draw_info->dri_Pens[SHADOWPEN] : 1;
+    UBYTE fill = draw_info ? (UBYTE)draw_info->dri_Pens[BACKGROUNDPEN] : 0;
+
+    if (!rp || width < 2 || height < 2)
+        return;
+
+    saved_pen = rp->FgPen;
+
+    SetAPen(rp, fill);
+    RectFill(rp, left, top, left + width - 1, top + height - 1);
+
+    SetAPen(rp, selected ? shadow : shine);
+    Move(rp, left, top + height - 1);
+    Draw(rp, left, top);
+    Draw(rp, left + width - 1, top);
+
+    SetAPen(rp, selected ? shine : shadow);
+    Draw(rp, left + width - 1, top + height - 1);
+    Draw(rp, left, top + height - 1);
+
+    SetAPen(rp, saved_pen);
+}
 
 struct DiskObject * _icon_GetDefDiskObject ( register struct IconBase *IconBase __asm("a6"),
                                              register LONG              type    __asm("d0"));
@@ -111,7 +445,20 @@ struct IconBase * __g_lxa_icon_InitLib ( register struct IconBase *iconb    __as
                                           register struct ExecBase *sysb    __asm("a6"))
 {
     DPRINTF (LOG_DEBUG, "_icon: InitLib() called\n");
+
+    NEWLIST(&iconb->PrivateStates);
     iconb->SegList = seglist;
+    iconb->GlobalScreen = NULL;
+    iconb->GlobalPrecision = PRECISION_ICON;
+    iconb->GlobalEmbossRect.MinX = 0;
+    iconb->GlobalEmbossRect.MinY = 0;
+    iconb->GlobalEmbossRect.MaxX = 0;
+    iconb->GlobalEmbossRect.MaxY = 0;
+    iconb->GlobalFrameless = FALSE;
+    iconb->GlobalNewIconsSupport = FALSE;
+    iconb->GlobalColorIconSupport = FALSE;
+    iconb->GlobalIdentifyHook = NULL;
+    iconb->GlobalMaxNameLength = 30;
     return iconb;
 }
 
@@ -488,12 +835,34 @@ struct DiskObject * _icon_GetDiskObjectNew ( register struct IconBase *IconBase 
 struct DiskObject * _icon_GetDefDiskObject ( register struct IconBase *IconBase __asm("a6"),
                                              register LONG              type    __asm("d0"))
 {
+    UBYTE default_name[64];
+    struct DiskObject *saved;
+
     DPRINTF (LOG_DEBUG, "_icon: GetDefDiskObject() called type=%ld\n", type);
+
+    if (!icon_is_valid_type(type))
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return NULL;
+    }
+
+    if (icon_build_default_path(type, default_name, sizeof(default_name)))
+    {
+        saved = _icon_GetDiskObject(IconBase, (CONST_STRPTR)default_name);
+        if (saved)
+        {
+            SetIoErr(0);
+            return saved;
+        }
+    }
     
     /* Allocate a default DiskObject */
     struct DiskObject *dobj = AllocMem(sizeof(struct DiskObject), MEMF_CLEAR | MEMF_PUBLIC);
     if (!dobj)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
         return NULL;
+    }
     
     /* Set up basic defaults */
     dobj->do_Magic = WB_DISKMAGIC;
@@ -506,6 +875,8 @@ struct DiskObject * _icon_GetDefDiskObject ( register struct IconBase *IconBase 
     /* Set gadget defaults */
     dobj->do_Gadget.Width = 40;
     dobj->do_Gadget.Height = 40;
+
+    SetIoErr(0);
     
     return dobj;
 }
@@ -673,9 +1044,39 @@ BOOL _icon_PutDiskObject ( register struct IconBase       *IconBase __asm("a6"),
 BOOL _icon_PutDefDiskObject ( register struct IconBase       *IconBase  __asm("a6"),
                               register CONST struct DiskObject *dobj    __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: PutDefDiskObject() unimplemented STUB called.\n");
-    /* Would save to ENV:Sys/def_<type>.info */
-    return FALSE;
+    UBYTE default_name[64];
+
+    DPRINTF (LOG_DEBUG, "_icon: PutDefDiskObject() called dobj=0x%08lx\n", dobj);
+
+    if (!dobj)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return FALSE;
+    }
+
+    if (!icon_is_valid_type(dobj->do_Type))
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return FALSE;
+    }
+
+    if (!icon_build_default_path(dobj->do_Type, default_name, sizeof(default_name)))
+    {
+        SetIoErr(ERROR_BAD_NUMBER);
+        return FALSE;
+    }
+
+    icon_ensure_default_directory();
+
+    if (!_icon_PutDiskObject(IconBase, (CONST_STRPTR)default_name, dobj))
+    {
+        if (IoErr() == 0)
+            SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return FALSE;
+    }
+
+    SetIoErr(0);
+    return TRUE;
 }
 
 BOOL _icon_DeleteDiskObject ( register struct IconBase *IconBase __asm("a6"),
@@ -774,6 +1175,7 @@ VOID _icon_FreeDiskObject ( register struct IconBase   *IconBase __asm("a6"),
     }
     
     /* Free the DiskObject itself */
+    icon_remove_private_state(IconBase, dobj);
     FreeMem(dobj, sizeof(struct DiskObject));
 }
 
@@ -1032,8 +1434,241 @@ ULONG _icon_IconControlA ( register struct IconBase      *IconBase __asm("a6"),
                            register struct DiskObject    *icon     __asm("a0"),
                            register CONST struct TagItem *tags     __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: IconControlA() unimplemented STUB called.\n");
-    return 0;
+    struct TagItem *state = (struct TagItem *)tags;
+    struct TagItem *tag;
+    struct TagItem *error_tag = NULL;
+    LONG error_code = 0;
+    ULONG processed = 0;
+
+    DPRINTF (LOG_DEBUG, "_icon: IconControlA() called icon=0x%08lx tags=0x%08lx\n", icon, tags);
+
+    while ((tag = NextTagItem(&state)) != NULL)
+    {
+        switch (tag->ti_Tag)
+        {
+            case ICONA_ErrorCode:
+            case ICONA_ErrorTagItem:
+                break;
+
+            case ICONCTRLA_SetGlobalScreen:
+                IconBase->GlobalScreen = (struct Screen *)tag->ti_Data;
+                processed++;
+                break;
+
+            case ICONCTRLA_GetGlobalScreen:
+                if ((APTR)tag->ti_Data)
+                {
+                    *(struct Screen **)tag->ti_Data = IconBase->GlobalScreen;
+                    processed++;
+                }
+                break;
+
+            case ICONCTRLA_SetGlobalPrecision:
+                IconBase->GlobalPrecision = (LONG)tag->ti_Data;
+                processed++;
+                break;
+
+            case ICONCTRLA_GetGlobalPrecision:
+                if ((APTR)tag->ti_Data)
+                {
+                    *(LONG *)tag->ti_Data = IconBase->GlobalPrecision;
+                    processed++;
+                }
+                break;
+
+            case ICONCTRLA_SetGlobalEmbossRect:
+                if ((APTR)tag->ti_Data)
+                {
+                    IconBase->GlobalEmbossRect = *(struct Rectangle *)tag->ti_Data;
+                    processed++;
+                }
+                break;
+
+            case ICONCTRLA_GetGlobalEmbossRect:
+                if ((APTR)tag->ti_Data)
+                {
+                    *(struct Rectangle *)tag->ti_Data = IconBase->GlobalEmbossRect;
+                    processed++;
+                }
+                break;
+
+            case ICONCTRLA_SetGlobalFrameless:
+                IconBase->GlobalFrameless = tag->ti_Data ? TRUE : FALSE;
+                processed++;
+                break;
+
+            case ICONCTRLA_GetGlobalFrameless:
+                if ((APTR)tag->ti_Data)
+                {
+                    *(ULONG *)tag->ti_Data = IconBase->GlobalFrameless;
+                    processed++;
+                }
+                break;
+
+            case ICONCTRLA_SetGlobalNewIconsSupport:
+                IconBase->GlobalNewIconsSupport = tag->ti_Data ? TRUE : FALSE;
+                processed++;
+                break;
+
+            case ICONCTRLA_GetGlobalNewIconsSupport:
+                if ((APTR)tag->ti_Data)
+                {
+                    *(ULONG *)tag->ti_Data = IconBase->GlobalNewIconsSupport;
+                    processed++;
+                }
+                break;
+
+            case ICONCTRLA_SetGlobalColorIconSupport:
+                IconBase->GlobalColorIconSupport = tag->ti_Data ? TRUE : FALSE;
+                processed++;
+                break;
+
+            case ICONCTRLA_GetGlobalColorIconSupport:
+                if ((APTR)tag->ti_Data)
+                {
+                    *(ULONG *)tag->ti_Data = IconBase->GlobalColorIconSupport;
+                    processed++;
+                }
+                break;
+
+            case ICONCTRLA_SetGlobalIdentifyHook:
+                IconBase->GlobalIdentifyHook = (struct Hook *)tag->ti_Data;
+                processed++;
+                break;
+
+            case ICONCTRLA_GetGlobalIdentifyHook:
+                if ((APTR)tag->ti_Data)
+                {
+                    *(struct Hook **)tag->ti_Data = IconBase->GlobalIdentifyHook;
+                    processed++;
+                }
+                break;
+
+            case ICONCTRLA_SetGlobalMaxNameLength:
+                IconBase->GlobalMaxNameLength = (LONG)tag->ti_Data;
+                processed++;
+                break;
+
+            case ICONCTRLA_GetGlobalMaxNameLength:
+                if ((APTR)tag->ti_Data)
+                {
+                    *(LONG *)tag->ti_Data = IconBase->GlobalMaxNameLength;
+                    processed++;
+                }
+                break;
+
+            case ICONCTRLA_SetFrameless:
+            case ICONCTRLA_GetFrameless:
+            case ICONCTRLA_GetScreen:
+            case ICONCTRLA_SetWidth:
+            case ICONCTRLA_GetWidth:
+            case ICONCTRLA_SetHeight:
+            case ICONCTRLA_GetHeight:
+            case ICONCTRLA_HasRealImage2:
+            case ICONCTRLA_IsPaletteMapped:
+            case ICONCTRLA_IsNewIcon:
+            case ICONCTRLA_IsNativeIcon:
+                if (!icon)
+                {
+                    error_code = ERROR_REQUIRED_ARG_MISSING;
+                    error_tag = tag;
+                    goto done;
+                }
+                break;
+
+            default:
+                error_code = ERROR_BAD_NUMBER;
+                error_tag = tag;
+                goto done;
+        }
+
+        switch (tag->ti_Tag)
+        {
+            case ICONCTRLA_SetFrameless:
+            {
+                struct IconPrivateState *private_state = icon_ensure_private_state(IconBase, icon);
+
+                if (!private_state)
+                {
+                    error_code = ERROR_NO_FREE_STORE;
+                    error_tag = tag;
+                    goto done;
+                }
+
+                if (tag->ti_Data)
+                    private_state->flags |= ICON_PRIVATE_FRAMELESS;
+                else
+                    private_state->flags &= ~ICON_PRIVATE_FRAMELESS;
+                processed++;
+                break;
+            }
+
+            case ICONCTRLA_GetFrameless:
+                *(ULONG *)tag->ti_Data = icon_is_frameless(IconBase, icon, NULL);
+                processed++;
+                break;
+
+            case ICONCTRLA_GetScreen:
+                *(struct Screen **)tag->ti_Data = icon_select_screen(IconBase, icon);
+                processed++;
+                break;
+
+            case ICONCTRLA_SetWidth:
+                icon->do_Gadget.Width = (WORD)tag->ti_Data;
+                processed++;
+                break;
+
+            case ICONCTRLA_GetWidth:
+                *(LONG *)tag->ti_Data = icon->do_Gadget.Width;
+                processed++;
+                break;
+
+            case ICONCTRLA_SetHeight:
+                icon->do_Gadget.Height = (WORD)tag->ti_Data;
+                processed++;
+                break;
+
+            case ICONCTRLA_GetHeight:
+                *(LONG *)tag->ti_Data = icon->do_Gadget.Height;
+                processed++;
+                break;
+
+            case ICONCTRLA_HasRealImage2:
+                *(LONG *)tag->ti_Data = icon->do_Gadget.SelectRender ? TRUE : FALSE;
+                processed++;
+                break;
+
+            case ICONCTRLA_IsPaletteMapped:
+                *(LONG *)tag->ti_Data = FALSE;
+                processed++;
+                break;
+
+            case ICONCTRLA_IsNewIcon:
+                *(LONG *)tag->ti_Data = FALSE;
+                processed++;
+                break;
+
+            case ICONCTRLA_IsNativeIcon:
+                *(LONG *)tag->ti_Data = TRUE;
+                processed++;
+                break;
+        }
+    }
+
+done:
+    if (tags)
+    {
+        LONG *tag_error = (LONG *)GetTagData(ICONA_ErrorCode, 0, (struct TagItem *)tags);
+        struct TagItem **tag_error_item = (struct TagItem **)GetTagData(ICONA_ErrorTagItem, 0, (struct TagItem *)tags);
+
+        if (tag_error)
+            *tag_error = error_code;
+        if (tag_error_item)
+            *tag_error_item = error_tag;
+    }
+
+    SetIoErr(error_code);
+    return processed;
 }
 
 VOID _icon_DrawIconStateA ( register struct IconBase       *IconBase   __asm("a6"),
@@ -1045,7 +1680,79 @@ VOID _icon_DrawIconStateA ( register struct IconBase       *IconBase   __asm("a6
                             register ULONG                  state      __asm("d2"),
                             register CONST struct TagItem  *tags       __asm("a3"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: DrawIconStateA() unimplemented STUB called.\n");
+    struct IconLayoutInfo layout;
+    struct Image *image;
+    ULONG image_state;
+    struct DrawInfo *draw_info;
+    BOOL free_draw_info;
+    UBYTE saved_apen;
+    UBYTE saved_bpen;
+    UBYTE saved_mode;
+    UBYTE text_pen;
+
+    DPRINTF (LOG_DEBUG, "_icon: DrawIconStateA() called icon=0x%08lx label='%s' state=0x%08lx\n",
+             icon, STRORNULL(label), state);
+
+    if (!rp || !icon)
+        return;
+
+    icon_compute_layout(IconBase, rp, icon, label, tags, &layout);
+    image = icon_select_image(icon, state);
+    image_state = state;
+    if (state == IDS_SELECTED && icon->do_Gadget.SelectRender && image == (struct Image *)icon->do_Gadget.SelectRender)
+        image_state = IDS_NORMAL;
+    draw_info = icon_acquire_draw_info(IconBase, icon, tags, &free_draw_info);
+
+    saved_apen = rp->FgPen;
+    saved_bpen = rp->BgPen;
+    saved_mode = rp->DrawMode;
+
+    if (layout.frameless && icon_tag_enabled(tags, ICONDRAWA_EraseBackground, FALSE))
+    {
+        UBYTE bg = draw_info ? (UBYTE)draw_info->dri_Pens[BACKGROUNDPEN] : 0;
+        SetAPen(rp, bg);
+        RectFill(rp,
+                 leftOffset,
+                 topOffset,
+                 leftOffset + layout.total_width - 1,
+                 topOffset + layout.total_height - 1);
+    }
+
+    if (!layout.frameless && !layout.borderless)
+    {
+        icon_draw_frame(rp,
+                        leftOffset,
+                        topOffset,
+                        layout.total_width,
+                        layout.image_height + 4,
+                        draw_info,
+                        state == IDS_SELECTED);
+    }
+
+    if (image)
+    {
+        DrawImageState(rp,
+                       image,
+                       leftOffset + layout.image_x,
+                       topOffset + layout.image_y,
+                       image_state,
+                       draw_info);
+    }
+
+    if (label)
+    {
+        text_pen = draw_info ? (UBYTE)draw_info->dri_Pens[(state == IDS_SELECTED) ? FILLTEXTPEN : TEXTPEN] : 1;
+        SetAPen(rp, text_pen);
+        Move(rp,
+             leftOffset + layout.label_x,
+             topOffset + layout.label_y + rp->TxBaseline);
+        Text(rp, label, strlen((const char *)label));
+    }
+
+    SetAPen(rp, saved_apen);
+    SetBPen(rp, saved_bpen);
+    SetDrMd(rp, saved_mode);
+    icon_release_draw_info(icon, draw_info, free_draw_info, IconBase);
 }
 
 BOOL _icon_GetIconRectangleA ( register struct IconBase       *IconBase __asm("a6"),
@@ -1055,8 +1762,20 @@ BOOL _icon_GetIconRectangleA ( register struct IconBase       *IconBase __asm("a
                                register struct Rectangle      *rect     __asm("a3"),
                                register CONST struct TagItem  *tags     __asm("a4"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: GetIconRectangleA() unimplemented STUB called.\n");
-    return FALSE;
+    struct IconLayoutInfo layout;
+
+    DPRINTF (LOG_DEBUG, "_icon: GetIconRectangleA() called icon=0x%08lx label='%s' rect=0x%08lx\n",
+             icon, STRORNULL(label), rect);
+
+    if (!icon || !rect)
+        return FALSE;
+
+    icon_compute_layout(IconBase, rp, icon, label, tags, &layout);
+    rect->MinX = 0;
+    rect->MinY = 0;
+    rect->MaxX = layout.total_width - 1;
+    rect->MaxY = layout.total_height - 1;
+    return TRUE;
 }
 
 struct DiskObject * _icon_NewDiskObject ( register struct IconBase *IconBase __asm("a6"),
@@ -1089,14 +1808,47 @@ BOOL _icon_LayoutIconA ( register struct IconBase      *IconBase __asm("a6"),
                          register struct Screen        *screen   __asm("a1"),
                          register struct TagItem       *tags     __asm("a2"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: LayoutIconA() unimplemented STUB called.\n");
-    return TRUE; /* Pretend success */
+    struct IconPrivateState *state;
+
+    DPRINTF (LOG_DEBUG, "_icon: LayoutIconA() called icon=0x%08lx screen=0x%08lx\n", icon, screen);
+
+    if (!icon)
+        return FALSE;
+
+    state = icon_ensure_private_state(IconBase, icon);
+    if (!state)
+    {
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return FALSE;
+    }
+
+    state->screen = screen;
+
+    if (icon->do_Gadget.GadgetRender)
+    {
+        struct Image *image = (struct Image *)icon->do_Gadget.GadgetRender;
+
+        if (image->Width > 0)
+            icon->do_Gadget.Width = image->Width;
+        if (image->Height > 0)
+            icon->do_Gadget.Height = image->Height;
+    }
+
+    SetIoErr(0);
+    return TRUE;
 }
 
 VOID _icon_ChangeToSelectedIconColor ( register struct IconBase    *IconBase __asm("a6"),
                                        register struct ColorRegister *cr     __asm("a0"))
 {
-    DPRINTF (LOG_DEBUG, "_icon: ChangeToSelectedIconColor() unimplemented STUB called.\n");
+    DPRINTF (LOG_DEBUG, "_icon: ChangeToSelectedIconColor() called cr=0x%08lx\n", cr);
+
+    if (!cr)
+        return;
+
+    cr->red = (UBYTE)((cr->red + 0x22 > 0xff) ? 0xff : cr->red + 0x22);
+    cr->green = (UBYTE)((cr->green + 0x22 > 0xff) ? 0xff : cr->green + 0x22);
+    cr->blue = (UBYTE)((cr->blue + 0x22 > 0xff) ? 0xff : cr->blue + 0x22);
 }
 
 /****************************************************************************/

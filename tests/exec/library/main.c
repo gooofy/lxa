@@ -26,18 +26,23 @@
 #include <graphics/collide.h>
 #include <graphics/gels.h>
 #include <graphics/layers.h>
-#include <intuition/intuition.h>
-#include <intuition/screens.h>
 #include <graphics/rastport.h>
+#include <intuition/intuition.h>
+#include <intuition/imageclass.h>
+#include <intuition/screens.h>
 #include <utility/tagitem.h>
+#include <workbench/workbench.h>
+#include <workbench/icon.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <clib/graphics_protos.h>
+#include <clib/icon_protos.h>
 #include <clib/intuition_protos.h>
 #include <clib/utility_protos.h>
 #include <inline/exec.h>
 #include <inline/dos.h>
 #include <inline/graphics.h>
+#include <inline/icon.h>
 #include <inline/intuition.h>
 #include <inline/utility.h>
 
@@ -47,8 +52,18 @@ extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
 
 static struct UtilityBase *UtilityBase;
+static struct Library *IconBase;
 extern struct GfxBase *GfxBase;
 extern struct IntuitionBase *IntuitionBase;
+
+#ifndef ICONA_ErrorCode
+#define ICONA_ErrorCode              (TAG_USER + 0x9001)
+#define ICONCTRLA_SetFrameless       (TAG_USER + 0x9020)
+#define ICONCTRLA_GetFrameless       (TAG_USER + 0x9021)
+#define ICONCTRLA_GetWidth           (TAG_USER + 0x9027)
+#define ICONCTRLA_HasRealImage2      (TAG_USER + 0x902c)
+#define ICONA_ErrorTagItem           (TAG_USER + 0x904b)
+#endif
 
 static const char g_test_library_name[] = "phase78test.library";
 
@@ -3471,6 +3486,209 @@ static int test_intuition_entry_point_dispatch(void)
     return errors;
 }
 
+static struct Image *alloc_icon_test_image(UWORD width, UWORD height, UWORD depth, UWORD pattern)
+{
+    struct Image *image;
+    LONG words = ((width + 15) / 16) * height * depth;
+    LONG bytes = words * 2;
+    UWORD *data;
+    LONG i;
+
+    image = (struct Image *)AllocMem(sizeof(struct Image), MEMF_CLEAR);
+    if (!image)
+        return NULL;
+
+    data = (UWORD *)AllocMem(bytes, MEMF_CHIP | MEMF_CLEAR);
+    if (!data)
+    {
+        FreeMem(image, sizeof(struct Image));
+        return NULL;
+    }
+
+    for (i = 0; i < words; i++)
+        data[i] = pattern;
+
+    image->Width = width;
+    image->Height = height;
+    image->Depth = depth;
+    image->ImageData = data;
+    image->PlanePick = 1;
+    image->PlaneOnOff = 0;
+    return image;
+}
+
+static int test_icon_phase87_stub_closed(void)
+{
+    int errors = 0;
+    struct DiskObject *icon;
+    struct DiskObject *loaded;
+    struct TagItem tags[5];
+    struct TagItem *error_tag = NULL;
+    LONG error_code = 0;
+    ULONG frameless = 0;
+    LONG width = 0;
+    LONG has_image2 = 0;
+    struct Rectangle rect;
+    struct ColorRegister color;
+    struct BitMap bitmap;
+    struct RastPort rp;
+    PLANEPTR plane;
+
+    print("--- Test: icon.library Phase 87 entry points ---\n");
+
+    IconBase = OpenLibrary((CONST_STRPTR)"icon.library", 0);
+    if (IconBase == NULL)
+    {
+        print("FAIL: OpenLibrary() for icon.library returned NULL\n\n");
+        return 1;
+    }
+
+    icon = GetDefDiskObject(WBTOOL);
+    if (!icon)
+    {
+        print("FAIL: GetDefDiskObject() returned NULL\n");
+        CloseLibrary(IconBase);
+        IconBase = NULL;
+        return 1;
+    }
+
+    icon->do_StackSize = 7777;
+    if (!PutDefDiskObject(icon))
+    {
+        print("FAIL: PutDefDiskObject() still behaves like a stub\n");
+        errors++;
+    }
+    else
+    {
+        loaded = GetDefDiskObject(WBTOOL);
+        if (loaded && loaded->do_StackSize == 7777)
+            print("OK: PutDefDiskObject() no longer behaves like a stub\n");
+        else
+        {
+            print("FAIL: PutDefDiskObject() did not persist the default icon\n");
+            errors++;
+        }
+        FreeDiskObject(loaded);
+    }
+
+    icon->do_Gadget.Width = 8;
+    icon->do_Gadget.Height = 8;
+    icon->do_Gadget.GadgetRender = (APTR)alloc_icon_test_image(8, 8, 1, 0xF0F0);
+    icon->do_Gadget.SelectRender = (APTR)alloc_icon_test_image(8, 8, 1, 0xFFFF);
+    if (!icon->do_Gadget.GadgetRender || !icon->do_Gadget.SelectRender)
+    {
+        print("FAIL: could not allocate icon images for Phase 87 probes\n");
+        errors++;
+    }
+
+    tags[0].ti_Tag = ICONCTRLA_SetFrameless;
+    tags[0].ti_Data = TRUE;
+    tags[1].ti_Tag = ICONCTRLA_GetFrameless;
+    tags[1].ti_Data = (ULONG)&frameless;
+    tags[2].ti_Tag = ICONCTRLA_GetWidth;
+    tags[2].ti_Data = (ULONG)&width;
+    tags[3].ti_Tag = ICONCTRLA_HasRealImage2;
+    tags[3].ti_Data = (ULONG)&has_image2;
+    tags[4].ti_Tag = TAG_DONE;
+    tags[4].ti_Data = 0;
+    if (IconControlA(icon, tags) == 4 && frameless && width == 8 && has_image2)
+    {
+        print("OK: IconControlA() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: IconControlA() did not process supported tags\n");
+        errors++;
+    }
+
+    tags[0].ti_Tag = ICONA_ErrorCode;
+    tags[0].ti_Data = (ULONG)&error_code;
+    tags[1].ti_Tag = ICONA_ErrorTagItem;
+    tags[1].ti_Data = (ULONG)&error_tag;
+    tags[2].ti_Tag = TAG_USER + 0x777;
+    tags[2].ti_Data = 0;
+    tags[3].ti_Tag = TAG_DONE;
+    tags[3].ti_Data = 0;
+    if (IconControlA(icon, tags) == 0 && error_code != 0 && error_tag == &tags[2])
+    {
+        print("OK: IconControlA() reports unsupported tags\n");
+    }
+    else
+    {
+        print("FAIL: IconControlA() did not report unsupported tags\n");
+        errors++;
+    }
+
+    if (!LayoutIconA(icon, NULL, NULL))
+    {
+        print("FAIL: LayoutIconA() still behaves like a stub\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: LayoutIconA() no longer behaves like a stub\n");
+    }
+
+    plane = AllocRaster(64, 32);
+    if (!plane)
+    {
+        print("FAIL: AllocRaster() failed for icon rectangle probe\n");
+        errors++;
+    }
+    else
+    {
+        InitBitMap(&bitmap, 1, 64, 32);
+        bitmap.Planes[0] = plane;
+        InitRastPort(&rp);
+        rp.BitMap = &bitmap;
+
+        if (!GetIconRectangleA(&rp, icon, (CONST_STRPTR)"AB", &rect, NULL) ||
+            rect.MaxX <= rect.MinX || rect.MaxY <= rect.MinY)
+        {
+            print("FAIL: GetIconRectangleA() still behaves like a stub\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: GetIconRectangleA() no longer behaves like a stub\n");
+        }
+
+        DrawIconStateA(&rp, icon, NULL, 0, 0, IDS_SELECTED, NULL);
+        if (ReadPixel(&rp, 2, 2) == 0)
+        {
+            print("FAIL: DrawIconStateA() still behaves like a stub\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: DrawIconStateA() no longer behaves like a stub\n");
+        }
+
+        FreeRaster(plane, 64, 32);
+    }
+
+    color.red = 10;
+    color.green = 20;
+    color.blue = 30;
+    ChangeToSelectedIconColor(&color);
+    if (color.red > 10 && color.green > 20 && color.blue > 30)
+    {
+        print("OK: ChangeToSelectedIconColor() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: ChangeToSelectedIconColor() still behaves like a stub\n");
+        errors++;
+    }
+
+    FreeDiskObject(icon);
+    CloseLibrary(IconBase);
+    IconBase = NULL;
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -3669,6 +3887,9 @@ int main(void)
 
     /* Test 54: Verify Intuition no longer hits the stub path */
     errors += test_intuition_entry_point_dispatch();
+
+    /* Test 55: Verify icon.library Phase 87 entry points no longer hit stub paths */
+    errors += test_icon_phase87_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

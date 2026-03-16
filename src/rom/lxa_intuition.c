@@ -144,6 +144,7 @@ static inline LONG _call_MoveLayerInFrontOf(struct Library *base,
 struct LXAWindowState {
     struct Node node;
     struct Window *window;
+    ULONG host_window_handle;
     UWORD mouse_queue;
     UWORD pending_mousemoves;
     UBYTE prev1_down_code;
@@ -189,6 +190,8 @@ VOID _intuition_RefreshGList ( register struct IntuitionBase * IntuitionBase __a
 static struct LXAWindowState *_intuition_find_window_state(struct LXAIntuitionBase *base,
                                                            const struct Window *window);
 static struct Gadget *_intuition_public_gadget_list(struct Gadget *gadgets);
+static ULONG _intuition_get_host_window_handle(struct LXAIntuitionBase *base,
+                                               const struct Window *window);
 
 /* Forward declaration for internal string gadget key handling */
 static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window, 
@@ -412,6 +415,18 @@ static struct Gadget *_intuition_public_gadget_list(struct Gadget *gadgets)
         return gadgets;
 
     return gadgets->NextGadget;
+}
+
+static ULONG _intuition_get_host_window_handle(struct LXAIntuitionBase *base,
+                                               const struct Window *window)
+{
+    struct LXAWindowState *state;
+
+    state = _intuition_find_window_state(base, window);
+    if (!state)
+        return 0;
+
+    return state->host_window_handle;
 }
 
 static VOID _intuition_note_rawkey(struct LXAWindowState *state,
@@ -4090,6 +4105,8 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
 VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"))
 {
+    struct LXAWindowState *state;
+
     DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() window=0x%08lx\n", (ULONG)window);
 
     if (!window)
@@ -4098,13 +4115,15 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
         return;
     }
 
-    /* Phase 15: Close the rootless host window if one exists */
-    if (window->UserData)
+    state = _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+
+    /* Close the tracked host window if one exists. */
+    if (state && state->host_window_handle)
     {
-        DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() closing rootless window_handle=0x%08lx\n",
-                 (ULONG)window->UserData);
-        emucall1(EMU_CALL_INT_CLOSE_WINDOW, (ULONG)window->UserData);
-        window->UserData = NULL;
+        DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() closing host window_handle=0x%08lx\n",
+                 state->host_window_handle);
+        emucall1(EMU_CALL_INT_CLOSE_WINDOW, state->host_window_handle);
+        state->host_window_handle = 0;
     }
 
     /* Dispose any pending and replied IDCMP messages, then remove both ports. */
@@ -7311,10 +7330,15 @@ VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm
     /* Check for rootless mode */
     rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
     
-    if (rootless_mode && window->UserData)
+    if (rootless_mode)
     {
-        /* Update host window - emucall expects absolute coordinates */
-        emucall3(EMU_CALL_INT_MOVE_WINDOW, (ULONG)window->UserData, (ULONG)new_x, (ULONG)new_y);
+        ULONG window_handle = _intuition_get_host_window_handle((struct LXAIntuitionBase *)IntuitionBase, window);
+
+        if (window_handle)
+        {
+            /* Update host window - emucall expects absolute coordinates */
+            emucall3(EMU_CALL_INT_MOVE_WINDOW, window_handle, (ULONG)new_x, (ULONG)new_y);
+        }
     }
 
     _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE, 0,
@@ -8090,6 +8114,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     struct Screen *screen;
     WORD width, height;
     ULONG rootless_mode;
+    ULONG host_window_handle = 0;
 
     LPRINTF (LOG_INFO, "_intuition: OpenWindow() newWindow=0x%08lx\n", (ULONG)newWindow);
 
@@ -8331,18 +8356,22 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
             LPRINTF (LOG_WARNING, "_intuition: OpenWindow() window registration failed, continuing without\n");
         }
 
-        /* Store the host window handle in UserData */
-        window->UserData = (APTR)window_handle;
-        if (window_handle)
-            emucall2(EMU_CALL_INT_ATTACH_WINDOW, window_handle, (ULONG)window);
+        struct LXAWindowState *state = _intuition_ensure_window_state((struct LXAIntuitionBase *)IntuitionBase,
+                                                                      window);
 
-        if (!_intuition_ensure_window_state((struct LXAIntuitionBase *)IntuitionBase, window))
+        if (!state)
         {
-            if (window->UserData)
-                emucall1(EMU_CALL_INT_CLOSE_WINDOW, (ULONG)window->UserData);
+            if (window_handle)
+                emucall1(EMU_CALL_INT_CLOSE_WINDOW, window_handle);
             FreeMem(window, sizeof(struct Window));
             return NULL;
         }
+
+        state->host_window_handle = window_handle;
+        host_window_handle = window_handle;
+
+        if (window_handle)
+            emucall2(EMU_CALL_INT_ATTACH_WINDOW, window_handle, (ULONG)window);
 
         DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() window_handle=0x%08lx rootless=%d\n",
                  window_handle, (int)rootless_mode);
@@ -8354,9 +8383,9 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         if (!_ensure_window_idcmp_ports(window))
         {
             LPRINTF (LOG_ERROR, "_intuition: OpenWindow() failed to create IDCMP port\n");
-            if (window->UserData)
+            if (host_window_handle)
             {
-                emucall1(EMU_CALL_INT_CLOSE_WINDOW, (ULONG)window->UserData);
+                emucall1(EMU_CALL_INT_CLOSE_WINDOW, host_window_handle);
             }
             FreeMem(window, sizeof(struct Window));
             return NULL;
@@ -8909,10 +8938,15 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
     /* Check for rootless mode */
     rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
     
-    if (rootless_mode && window->UserData)
+    if (rootless_mode)
     {
-        /* Update host window - emucall expects absolute dimensions */
-        emucall3(EMU_CALL_INT_SIZE_WINDOW, (ULONG)window->UserData, (ULONG)new_w, (ULONG)new_h);
+        ULONG window_handle = _intuition_get_host_window_handle((struct LXAIntuitionBase *)IntuitionBase, window);
+
+        if (window_handle)
+        {
+            /* Update host window - emucall expects absolute dimensions */
+            emucall3(EMU_CALL_INT_SIZE_WINDOW, window_handle, (ULONG)new_w, (ULONG)new_h);
+        }
     }
 
     _clear_relative_gadget_trails(window, dx, dy);
@@ -9007,9 +9041,12 @@ VOID _intuition_WindowToBack ( register struct IntuitionBase * IntuitionBase __a
     /* Check for rootless mode */
     rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
     
-    if (rootless_mode && window->UserData)
+    if (rootless_mode)
     {
-        emucall1(EMU_CALL_INT_WINDOW_TOBACK, (ULONG)window->UserData);
+        ULONG window_handle = _intuition_get_host_window_handle((struct LXAIntuitionBase *)IntuitionBase, window);
+
+        if (window_handle)
+            emucall1(EMU_CALL_INT_WINDOW_TOBACK, window_handle);
     }
 
     _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_DEPTH, 0,
@@ -9049,9 +9086,12 @@ VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __
     /* Check for rootless mode */
     rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
     
-    if (rootless_mode && window->UserData)
+    if (rootless_mode)
     {
-        emucall1(EMU_CALL_INT_WINDOW_TOFRONT, (ULONG)window->UserData);
+        ULONG window_handle = _intuition_get_host_window_handle((struct LXAIntuitionBase *)IntuitionBase, window);
+
+        if (window_handle)
+            emucall1(EMU_CALL_INT_WINDOW_TOFRONT, window_handle);
     }
 
     _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_DEPTH, 0,
@@ -9545,6 +9585,7 @@ VOID _intuition_FreeSysRequest ( register struct IntuitionBase * IntuitionBase _
         {
             /* Clear UserData before freeing to avoid double-free */
             window->UserData = NULL;
+            window->FirstGadget = NULL;
 
             if (erd->gadget_mem)
                 FreeMem(erd->gadget_mem, erd->gadget_mem_size);

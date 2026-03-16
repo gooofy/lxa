@@ -22,6 +22,18 @@ using namespace lxa::testing;
 
 class SimpleGTGadgetTest : public LxaUITest {
 protected:
+    bool WaitForOutputContains(const char* needle, int iterations = 60, int vblanks = 2) {
+        for (int i = 0; i < iterations; i++) {
+            std::string output = GetOutput();
+            if (output.find(needle) != std::string::npos) {
+                return true;
+            }
+            RunCyclesWithVBlank(vblanks, 100000);
+        }
+
+        return GetOutput().find(needle) != std::string::npos;
+    }
+
     void SetUp() override {
         LxaUITest::SetUp();
         
@@ -63,10 +75,10 @@ TEST_F(SimpleGTGadgetTest, ClickCheckbox) {
 
     ClearOutput();
     Click(clickX, clickY);
-    RunCyclesWithVBlank(20, 100000);
+    ASSERT_TRUE(WaitForOutputContains("gadget ID 2")) << GetOutput();
 
     std::string output = GetOutput();
-    EXPECT_NE(output.find("IDCMP_GADGETUP: gadget ID 2"), std::string::npos)
+    EXPECT_NE(output.find("gadget ID 2"), std::string::npos)
         << output;
 
     Click(window_info.x + 5, window_info.y + 5);

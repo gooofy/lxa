@@ -31,6 +31,19 @@ protected:
     std::string output;
     bool program_exited = false;
 
+    bool WaitForOutputContains(const char* needle, int iterations = 60, int vblanks = 2) {
+        for (int i = 0; i < iterations; i++) {
+            output = GetOutput();
+            if (output.find(needle) != std::string::npos) {
+                return true;
+            }
+            RunCyclesWithVBlank(vblanks, 100000);
+        }
+
+        output = GetOutput();
+        return output.find(needle) != std::string::npos;
+    }
+
     std::string DrainOutputAfterClose(int wait_ms = 3000) {
         EXPECT_TRUE(lxa_wait_exit(wait_ms)) << "Program should exit after close window";
         program_exited = true;
@@ -51,11 +64,8 @@ protected:
         ASSERT_TRUE(GetWindowInfo(0, &window_info))
             << "Could not get window info";
 
-        /* Let task reach event loop and flush Printf output */
-        RunCyclesWithVBlank(20, 100000);
-
-        /* Capture the startup output */
-        output = GetOutput();
+        /* Let task reach event loop and wait for startup Printf output to flush. */
+        WaitForOutputContains("Window size:");
     }
 
     void TearDown() override {
@@ -97,6 +107,9 @@ TEST_F(GadToolsGadgetsTest, AllGadgetsCreated) {
 }
 
 TEST_F(GadToolsGadgetsTest, WindowOpened) {
+    WaitForOutputContains("Window opened at");
+    WaitForOutputContains("Window size:");
+
     /* Verify window was opened */
     EXPECT_NE(output.find("Window opened at"), std::string::npos)
         << "Window should open successfully";

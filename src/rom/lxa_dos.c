@@ -657,6 +657,16 @@ static LONG allocTaskNum(struct Process *process)
     ULONG *taskArray = (ULONG *)BADDR(rootNode->rn_TaskArray);
     if (!taskArray)
         return 0;
+
+    {
+        struct Process *current = U_getCurrentProcess();
+
+        if (current && IS_PROCESS(current) && current->pr_TaskNum > 0 &&
+            (ULONG)current->pr_TaskNum <= taskArray[0] && taskArray[current->pr_TaskNum] == 0)
+        {
+            taskArray[current->pr_TaskNum] = (ULONG)&current->pr_MsgPort;
+        }
+    }
     
     ULONG maxSlots = taskArray[0];
     
@@ -5305,6 +5315,7 @@ struct Process * _dos_FindCliProc ( register struct DosLibrary * DOSBase __asm("
     struct RootNode *root;
     ULONG *taskArray;
     struct MsgPort *port;
+    struct Process *current;
 
     DPRINTF (LOG_DEBUG, "_dos: FindCliProc() called, num=%lu\n", num);
 
@@ -5313,6 +5324,14 @@ struct Process * _dos_FindCliProc ( register struct DosLibrary * DOSBase __asm("
 
     root = DOSBase->dl_Root;
     taskArray = (ULONG *)BADDR(root->rn_TaskArray);
+    current = U_getCurrentProcess();
+
+    if (taskArray && current && IS_PROCESS(current) && current->pr_TaskNum > 0 &&
+        (ULONG)current->pr_TaskNum <= taskArray[0] && taskArray[current->pr_TaskNum] == 0)
+    {
+        taskArray[current->pr_TaskNum] = (ULONG)&current->pr_MsgPort;
+    }
+
     if (!taskArray || num > taskArray[0] || taskArray[num] == 0)
         return NULL;
 
@@ -5325,6 +5344,7 @@ ULONG _dos_MaxCli ( register struct DosLibrary * DOSBase __asm("a6"))
     struct RootNode *root;
     ULONG *taskArray;
     ULONG retval;
+    struct Process *current;
 
     DPRINTF (LOG_DEBUG, "_dos: MaxCli() called.\n");
 
@@ -5335,6 +5355,13 @@ ULONG _dos_MaxCli ( register struct DosLibrary * DOSBase __asm("a6"))
     taskArray = (ULONG *)BADDR(root->rn_TaskArray);
     if (!taskArray)
         return 0;
+
+    current = U_getCurrentProcess();
+    if (current && IS_PROCESS(current) && current->pr_TaskNum > 0 &&
+        (ULONG)current->pr_TaskNum <= taskArray[0] && taskArray[current->pr_TaskNum] == 0)
+    {
+        taskArray[current->pr_TaskNum] = (ULONG)&current->pr_MsgPort;
+    }
 
     retval = taskArray[0];
     while (retval > 0 && taskArray[retval] == 0)

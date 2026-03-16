@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.39** - Phase 86 closes the remaining public `intuition.library` stubs in scope here by restoring the legacy `OpenIntuition()` and `Intuition()` entry points, reusing the existing Workbench screen, routing synthetic compatibility input through the same Intuition-side dispatch used by live events, and recording the matching AROS-behavior notes in `roadmap.md`
+**Version 0.8.40** - Phase 87 closes the remaining public `icon.library` stubs in scope here by persisting default icons via `PutDefDiskObject()`, wiring the Phase 44 control/layout/draw helpers into a shared planar icon path, and extending the icon plus exec-library regression coverage to keep the aligned AROS/NDK behavior notes recorded in `roadmap.md`
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
