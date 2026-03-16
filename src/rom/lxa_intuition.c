@@ -3060,6 +3060,7 @@ BPTR __g_lxa_intuition_ExpungeLib ( register struct IntuitionBase  *intuitionb  
 
 ULONG __g_lxa_intuition_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_intuition", "ExtFuncLib");
     return 0;
 }
 

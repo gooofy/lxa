@@ -289,32 +289,32 @@ Goal: eliminate the remaining non-private `gameport.device` stubs, match RKRM/ND
 - [x] Implemented `AbortIO()` per RKRM/NDK device semantics with direct regression coverage; `AbortIO()` now cancels a genuinely pending `GPD_READEVENT`, marks the request with `IOERR_ABORTED`, replies it, and keeps that behavior covered directly in `Tests/Devices/Gameport` and `Tests/Exec/Library`
 - [x] Compared and verified `AbortIO()` behavior against the AROS `gameport.device` implementation; AROS aborts only still-pending read requests and leaves unrelated/completed I/O untouched, and the lxa path now preserves that public contract for the hosted pending-read queue
 
-### Phase 93: Close `trackdisk.device` stub surface
+### Phase 93 complete (`0.8.46`): Close `trackdisk.device` stub surface
 
 Goal: eliminate the remaining non-private `trackdisk.device` stubs, match RKRM/NDK behavior, and keep each closure checked against AROS.
 
-- [ ] Implement `Expunge()` per RKRM/NDK device semantics with direct regression coverage
-- [ ] Compare and verify `Expunge()` behavior against the AROS `trackdisk.device` implementation
-- [ ] Implement `TD_RAWREAD` handling per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `TD_RAWREAD` behavior against the AROS `trackdisk.device` implementation
-- [ ] Implement `TD_RAWWRITE` handling per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `TD_RAWWRITE` behavior against the AROS `trackdisk.device` implementation
-- [ ] Implement `AbortIO()` per RKRM/NDK device semantics with direct regression coverage
-- [ ] Compare and verify `AbortIO()` behavior against the AROS `trackdisk.device` implementation
+- [x] Implemented `Expunge()` per RKRM/NDK device semantics with direct regression coverage; `trackdisk.device` now removes itself from `ExecBase->DeviceList`, defers final cleanup with `LIBF_DELEXP` while opens remain, blocks reopen attempts during deferred expunge, and finishes unit teardown on the last `CloseDevice()`, with direct coverage in `Tests/Devices/Trackdisk` and `Tests/Exec/Library`
+- [x] Compared and verified `Expunge()` behavior against the AROS `trackdisk.device` implementation; AROS also unlinks/deletes through the standard Exec deferred-expunge contract, and the lxa path now preserves that visible lifetime model while additionally freeing hosted unit bookkeeping and pending change-interrupt requests during the final cleanup path
+- [x] Implemented `TD_RAWREAD` handling per RKRM/NDK semantics with direct regression coverage; `trackdisk.device` now accepts raw track reads up to the documented 32766-byte limit, treats `io_Offset` as a track number, preserves ETD change-count validation, rejects out-of-range tracks with `TDERR_SeekError`, and keeps direct coverage in `Tests/Devices/Trackdisk` plus `Tests/Exec/Library`
+- [x] Compared and verified `TD_RAWREAD` behavior against the AROS `trackdisk.device` implementation; AROS routes `TD_RAWREAD`/`ETD_RAWREAD` through the same disk-change guard and track-based seek path before reading raw bytes, and the lxa path now preserves that public contract while intentionally bridging raw transfers into the hosted `.adf` image instead of hardware MFM DMA
+- [x] Implemented `TD_RAWWRITE` handling per RKRM/NDK semantics with direct regression coverage; `trackdisk.device` now mirrors the raw track contract for writes, including the documented maximum size, track-number addressing, ETD change-count validation, and write-protect rejection, with direct coverage in `Tests/Devices/Trackdisk` plus `Tests/Exec/Library`
+- [x] Compared and verified `TD_RAWWRITE` behavior against the AROS `trackdisk.device` implementation; AROS routes raw writes through the same track-based device path and ETD disk-change check used by its regular write commands, and the lxa path now preserves that visible contract while intentionally writing raw bytes into the hosted `.adf` backing image rather than attempting real floppy-controller timing
+- [x] Implemented `AbortIO()` per RKRM/NDK device semantics with direct regression coverage; `trackdisk.device` now aborts only the still-pending `TD_ADDCHANGEINT` request, marks it `IOERR_ABORTED`, replies it, and leaves unrelated/completed I/O untouched, with direct coverage in `Tests/Devices/Trackdisk` and `Tests/Exec/Library`
+- [x] Compared and verified `AbortIO()` behavior against the AROS `trackdisk.device` implementation; AROS currently returns `IOERR_NOCMD` because its pending work is handled by the device task instead of a directly abortable listener request, and the lxa path intentionally adopts the documented pending-request cancellation model already used by the other hosted devices so the public `TD_ADDCHANGEINT` lifetime remains explicitly covered and non-stubbed here
 
-### Phase 94: Close `mathffp.library` stub surface
+### Phase 94 complete (`0.8.46`): Close `mathffp.library` stub surface
 
 Goal: eliminate the remaining non-private `mathffp.library` stub logging and keep the hosted math bridge aligned with Amiga library-init expectations.
 
-- [ ] Finish `__g_lxa_mathffp_InitLib()` so mathffp library startup no longer logs an unimplemented stub and the resident init path follows Amiga library-init expectations
-- [ ] Compare and verify the finished `__g_lxa_mathffp_InitLib()` path against the AROS `mathffp.library` initialization flow
+- [x] Finished `__g_lxa_mathffp_InitLib()` so mathffp library startup no longer logs an unimplemented stub and the resident init path follows Amiga library-init expectations; startup now behaves like the other hosted math libraries by accepting the resident-provided base, leaving library metadata intact, and keeping direct entry-point coverage in `Tests/Exec/Library`
+- [x] Compared and verified the finished `__g_lxa_mathffp_InitLib()` path against the AROS `mathffp.library` initialization flow; AROS uses the standard autoinit library path without extra public startup side effects, and the lxa path now preserves that visible contract while continuing to route the actual FFP operations through the hosted bridge helpers
 
-### Phase 95: Stub-eradication closeout
+### Phase 95 complete (`0.8.46`): Stub-eradication closeout
 
 Goal: finish the ROM-side stub elimination sweep cleanly and prove that only intentional private/reserved entry points remain unimplemented.
 
-- [ ] Keep private/reserved entry points intentionally unimplemented, but ensure every such call path reports a descriptive `error: private function called` diagnostic instead of a generic stub message
-- [ ] Rerun a full ROM-source stub scan and verify that no non-private unimplemented stub logs remain anywhere under `src/rom/`
+- [x] Kept private/reserved entry points intentionally unimplemented, but ensured every such call path reports a descriptive `error: private function called` diagnostic instead of a generic stub message; reserved `ExtFuncLib()` and icon reserved slots now use `PRIVATE_FUNCTION_ERROR(...)` across the remaining ROM libraries instead of silently returning or logging stub warnings
+- [x] Reran a full ROM-source stub scan and verified that no non-private unimplemented stub logs remain anywhere under `src/rom/`; the remaining intentionally unimplemented paths are now the explicit private/reserved entry points that report `error: private function called`
 
 ---
 

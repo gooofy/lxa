@@ -506,6 +506,7 @@ BPTR __g_lxa_keymap_ExpungeLib ( register struct KeymapBase *kmb __asm("a6"))
 
 ULONG __g_lxa_keymap_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_keymap", "ExtFuncLib");
     return 0;
 }
 

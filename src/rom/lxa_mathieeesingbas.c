@@ -69,6 +69,7 @@ BPTR __g_lxa_mathieeesingbas_ExpungeLib (register struct Library *lib __asm("a6"
 
 ULONG __g_lxa_mathieeesingbas_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_mathieeesingbas", "ExtFuncLib");
     return 0;
 }
 

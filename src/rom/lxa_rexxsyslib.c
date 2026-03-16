@@ -70,6 +70,7 @@ BPTR __g_lxa_rexxsyslib_CloseLib ( register struct RxsLib *rexxbase __asm("a6") 
 
 ULONG __g_lxa_rexxsyslib_ExtFuncLib ( void )
 {
+    PRIVATE_FUNCTION_ERROR("_rexxsyslib", "ExtFuncLib");
     return 0;
 }
 

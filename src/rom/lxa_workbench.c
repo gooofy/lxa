@@ -798,6 +798,7 @@ BPTR __g_lxa_workbench_CloseLib ( register struct WorkbenchBase *wbb __asm("a6")
 
 ULONG __g_lxa_workbench_ExtFuncLib ( void )
 {
+    PRIVATE_FUNCTION_ERROR("_workbench", "ExtFuncLib");
     return 0;
 }
 

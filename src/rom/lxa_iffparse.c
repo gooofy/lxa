@@ -245,6 +245,7 @@ BPTR __g_lxa_iffparse_CloseLib ( register struct IFFParseBase *iffbase __asm("a6
 
 ULONG __g_lxa_iffparse_ExtFuncLib ( void )
 {
+    PRIVATE_FUNCTION_ERROR("_iffparse", "ExtFuncLib");
     return 0;
 }
 

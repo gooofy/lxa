@@ -926,6 +926,7 @@ BPTR __g_lxa_locale_ExpungeLib ( register struct MyLocaleBase *locb __asm("a6"))
 
 ULONG __g_lxa_locale_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_locale", "ExtFuncLib");
     return 0;
 }
 

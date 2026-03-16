@@ -66,6 +66,7 @@ BPTR __g_lxa_mathieeedoubtrans_ExpungeLib (register struct Library *lib __asm("a
 
 ULONG __g_lxa_mathieeedoubtrans_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_mathieeedoubtrans", "ExtFuncLib");
     return 0;
 }
 

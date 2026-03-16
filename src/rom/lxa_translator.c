@@ -70,6 +70,7 @@ BPTR __g_lxa_translator_ExpungeLib ( register struct TranslatorBase *trb __asm("
 
 ULONG __g_lxa_translator_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_translator", "ExtFuncLib");
     return 0;
 }
 

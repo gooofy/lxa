@@ -42,7 +42,10 @@ struct MathBase * __g_lxa_mathffp_InitLib  ( register struct MathBase *mathffpb 
                                                       register BPTR               seglist __asm("a0"),
                                                       register struct ExecBase   *sysb    __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_mathffp: WARNING: InitLib() unimplemented STUB called.\n");
+    (void)seglist;
+    (void)sysb;
+
+    DPRINTF(LOG_DEBUG, "_mathffp: InitLib() called\n");
     return mathffpb;
 }
 
@@ -67,7 +70,8 @@ BPTR __g_lxa_mathffp_ExpungeLib ( register struct MathBase  *mathffpb      __asm
 
 ULONG __g_lxa_mathffp_ExtFuncLib(void)
 {
-    return NULL;
+    PRIVATE_FUNCTION_ERROR("_mathffp", "ExtFuncLib");
+    return 0;
 }
 
 LONG mathffp_SPFix ( register struct Library *MathBase __asm("a6"),

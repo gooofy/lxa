@@ -188,7 +188,7 @@ lxa -d -v myprogram
 - **gameport.device**: Covered init/open/close/expunge lifetime semantics, controller-type and trigger query/set commands, `NSCMD_DEVICEQUERY`, pending `GPD_READEVENT` requests with `AbortIO()`, and hosted mouse-event delivery through the shared input stack
 - **keyboard.device**: Covered `CMD_CLEAR`, `KBD_READEVENT`, `KBD_READMATRIX`, reset-handler registration/acknowledgement, per-open read queues, shared Intuition/raw-key event capture, and current key-matrix snapshots aligned with the hosted input stack
 - **console.device**: Terminal I/O with CSI escape sequences, keyboard input, `CONU_LIBRARY` access, and covered keymap command/query support
-- **trackdisk.device**: Hosted `.adf`-backed sector I/O (`TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK`, plus `ETD_READ` / `ETD_WRITE`) with geometry/status support, classic error handling, and covered `TD_ADDCHANGEINT`/`TD_REMCHANGEINT` request lifetime semantics
+- **trackdisk.device**: Hosted `.adf`-backed sector I/O (`TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK`, plus `ETD_*` variants and raw track `TD_RAWREAD` / `TD_RAWWRITE`) with geometry/status support, classic error handling, covered `TD_ADDCHANGEINT`/`TD_REMCHANGEINT` request lifetime semantics, and deferred-expunge plus abort coverage
 - **audio.device**: Channel allocation, timed `CMD_WRITE` playback, `ADCMD_SETPREC` / `ADCMD_PERVOL` / `ADCMD_FINISH` / `ADCMD_WAITCYCLE`, and end-of-sample audio interrupt delivery
 
 ### System Commands
@@ -225,7 +225,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.45** - Phase 92 closes the remaining public `gameport.device` stubs in scope here with RKRM/NDK-aligned init/open/close/expunge semantics, covered controller-type and trigger commands, `NSCMD_DEVICEQUERY`, and pending `GPD_READEVENT` plus `AbortIO()` behavior verified against the bundled AROS device sources
+**Version 0.8.46** - Phases 93-95 close the remaining planned `trackdisk.device` and `mathffp.library` stub paths, add covered raw-track I/O plus deferred-expunge/abort behavior for `trackdisk.device`, and finish the ROM-side stub-eradication sweep by routing reserved/private entry points through explicit `error: private function called` diagnostics
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

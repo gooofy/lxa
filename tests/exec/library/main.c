@@ -23,6 +23,7 @@
 #include <devices/clipboard.h>
 #include <devices/gameport.h>
 #include <devices/newstyle.h>
+#include <devices/trackdisk.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/rdargs.h>
@@ -41,6 +42,7 @@
 #include <intuition/intuition.h>
 #include <intuition/imageclass.h>
 #include <intuition/screens.h>
+#include <libraries/mathffp.h>
 #include <utility/hooks.h>
 #include <dos/dostags.h>
 #include <utility/tagitem.h>
@@ -204,6 +206,34 @@ static struct Library *install_fake_bullet_library(void)
 
     AddLibrary(lib);
     return lib;
+}
+
+static BOOL create_trackdisk_probe_adf(CONST_STRPTR name, UBYTE fill)
+{
+    UBYTE block[TD_SECTOR];
+    BPTR fh;
+    LONG i;
+    LONG blocks;
+
+    for (i = 0; i < TD_SECTOR; i++)
+        block[i] = fill;
+
+    fh = Open(name, MODE_NEWFILE);
+    if (fh == 0)
+        return FALSE;
+
+    blocks = (80 * 2 * 11 * TD_SECTOR) / TD_SECTOR;
+    for (i = 0; i < blocks; i++)
+    {
+        if (Write(fh, block, TD_SECTOR) != TD_SECTOR)
+        {
+            Close(fh);
+            return FALSE;
+        }
+    }
+
+    Close(fh);
+    return TRUE;
 }
 
 static void remove_fake_bullet_library(struct Library *lib)
@@ -4816,6 +4846,233 @@ cleanup:
     return errors;
 }
 
+static int test_trackdisk_phase93_stub_closed(void)
+{
+    int errors = 0;
+    struct MsgPort *port = NULL;
+    struct IOExtTD *req1 = NULL;
+    struct IOExtTD *req2 = NULL;
+    struct IOExtTD *reopen = NULL;
+    struct Device *device;
+    struct Node *node;
+    LONG open_error;
+    UBYTE rawbuf[TD_SECTOR];
+    struct Interrupt change_irq;
+
+    print("--- Test: trackdisk.device Phase 93 entry point ---\n");
+
+    port = CreateMsgPort();
+    req1 = (struct IOExtTD *)CreateIORequest(port, sizeof(struct IOExtTD));
+    req2 = (struct IOExtTD *)CreateIORequest(port, sizeof(struct IOExtTD));
+    reopen = (struct IOExtTD *)CreateIORequest(port, sizeof(struct IOExtTD));
+    if (!port || !req1 || !req2 || !reopen)
+    {
+        print("FAIL: Could not allocate trackdisk.device probe resources\n\n");
+        if (reopen)
+            DeleteIORequest((struct IORequest *)reopen);
+        if (req2)
+            DeleteIORequest((struct IORequest *)req2);
+        if (req1)
+            DeleteIORequest((struct IORequest *)req1);
+        if (port)
+            DeleteMsgPort(port);
+        return 1;
+    }
+
+    if (OpenDevice((CONST_STRPTR)"trackdisk.device", 0, (struct IORequest *)req1, 0) != 0 ||
+        OpenDevice((CONST_STRPTR)"trackdisk.device", 1, (struct IORequest *)req2, 0) != 0)
+    {
+        print("FAIL: OpenDevice() for trackdisk.device probe failed\n\n");
+        if (req2->iotd_Req.io_Device)
+            CloseDevice((struct IORequest *)req2);
+        if (req1->iotd_Req.io_Device)
+            CloseDevice((struct IORequest *)req1);
+        DeleteIORequest((struct IORequest *)reopen);
+        DeleteIORequest((struct IORequest *)req2);
+        DeleteIORequest((struct IORequest *)req1);
+        DeleteMsgPort(port);
+        return 1;
+    }
+
+    req1->iotd_Req.io_Command = TD_RAWREAD;
+    req1->iotd_Req.io_Flags = IOF_QUICK;
+    req1->iotd_Req.io_Data = rawbuf;
+    req1->iotd_Req.io_Length = sizeof(rawbuf);
+    req1->iotd_Req.io_Offset = 160;
+    DoIO((struct IORequest *)req1);
+    if (req1->iotd_Req.io_Error == TDERR_SeekError)
+    {
+        print("OK: trackdisk.device TD_RAWREAD no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: trackdisk.device TD_RAWREAD unexpectedly failed\n");
+        errors++;
+        goto cleanup;
+    }
+
+    req1->iotd_Req.io_Command = ETD_RAWWRITE;
+    req1->iotd_Req.io_Flags = IOF_QUICK;
+    req1->iotd_Req.io_Data = rawbuf;
+    req1->iotd_Req.io_Length = sizeof(rawbuf);
+    req1->iotd_Req.io_Offset = 0;
+    req1->iotd_Count = 2;
+    DoIO((struct IORequest *)req1);
+    if (req1->iotd_Req.io_Error == TDERR_DiskChanged)
+    {
+        print("OK: trackdisk.device TD_RAWWRITE/ETD count checks no longer behave like a stub\n");
+    }
+    else
+    {
+        print("FAIL: trackdisk.device TD_RAWWRITE/ETD count check did not run\n");
+        errors++;
+        goto cleanup;
+    }
+
+    change_irq.is_Node.ln_Type = NT_INTERRUPT;
+    change_irq.is_Node.ln_Pri = 0;
+    change_irq.is_Node.ln_Name = (char *)"trackdisk-phase93";
+    change_irq.is_Data = NULL;
+    change_irq.is_Code = (VOID (*)())fake_bullet_ext;
+
+    req1->iotd_Req.io_Command = TD_ADDCHANGEINT;
+    req1->iotd_Req.io_Flags = 0;
+    req1->iotd_Req.io_Data = &change_irq;
+    req1->iotd_Req.io_Length = sizeof(change_irq);
+    SendIO((struct IORequest *)req1);
+    if (CheckIO((struct IORequest *)req1) != NULL)
+    {
+        print("FAIL: trackdisk.device TD_ADDCHANGEINT should pend\n");
+        errors++;
+        goto cleanup;
+    }
+
+    AbortIO((struct IORequest *)req1);
+    WaitIO((struct IORequest *)req1);
+    if (req1->iotd_Req.io_Error == IOERR_ABORTED)
+    {
+        print("OK: trackdisk.device AbortIO() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: trackdisk.device AbortIO() did not cancel a pending change interrupt\n");
+        errors++;
+        goto cleanup;
+    }
+
+    device = req1->iotd_Req.io_Device;
+    node = FindName(&SysBase->DeviceList, (CONST_STRPTR)"trackdisk.device");
+    if (node != &device->dd_Library.lib_Node)
+    {
+        print("FAIL: trackdisk.device missing from DeviceList before Expunge probe\n");
+        errors++;
+        goto cleanup;
+    }
+
+    RemDevice(device);
+    if ((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
+        FindName(&SysBase->DeviceList, (CONST_STRPTR)"trackdisk.device") == NULL)
+    {
+        print("OK: trackdisk.device Expunge() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: trackdisk.device Expunge() did not defer and unlink as expected\n");
+        errors++;
+    }
+
+    open_error = OpenDevice((CONST_STRPTR)"trackdisk.device", 0, (struct IORequest *)reopen, 0);
+    if (open_error == IOERR_OPENFAIL)
+    {
+        print("OK: deferred trackdisk.device Expunge() blocks new opens\n");
+    }
+    else
+    {
+        print("FAIL: deferred trackdisk.device Expunge() still allowed opens\n");
+        errors++;
+        if (open_error == 0)
+            CloseDevice((struct IORequest *)reopen);
+    }
+
+    CloseDevice((struct IORequest *)req2);
+    if (device->dd_Library.lib_OpenCnt == 1 &&
+        (device->dd_Library.lib_Flags & LIBF_DELEXP) != 0)
+    {
+        print("OK: trackdisk.device Close() keeps deferred Expunge pending\n");
+    }
+    else
+    {
+        print("FAIL: trackdisk.device Close() completed deferred Expunge too early\n");
+        errors++;
+    }
+
+    CloseDevice((struct IORequest *)req1);
+    if (FindName(&SysBase->DeviceList, (CONST_STRPTR)"trackdisk.device") == NULL &&
+        device->dd_Library.lib_OpenCnt == 0 &&
+        (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
+    {
+        print("OK: trackdisk.device final Close() completes deferred Expunge\n");
+    }
+    else
+    {
+        print("FAIL: trackdisk.device final Close() did not finish deferred Expunge\n");
+        errors++;
+    }
+
+    DeleteIORequest((struct IORequest *)reopen);
+    DeleteIORequest((struct IORequest *)req2);
+    DeleteIORequest((struct IORequest *)req1);
+    DeleteMsgPort(port);
+
+    print("\n");
+    return errors;
+
+cleanup:
+    if (req2->iotd_Req.io_Device)
+        CloseDevice((struct IORequest *)req2);
+    if (req1->iotd_Req.io_Device)
+        CloseDevice((struct IORequest *)req1);
+    DeleteIORequest((struct IORequest *)reopen);
+    DeleteIORequest((struct IORequest *)req2);
+    DeleteIORequest((struct IORequest *)req1);
+    DeleteMsgPort(port);
+
+    print("\n");
+    return errors;
+}
+
+static int test_mathffp_phase94_stub_closed(void)
+{
+    int errors = 0;
+    struct Library *mathffp_base;
+
+    print("--- Test: mathffp.library Phase 94 entry point ---\n");
+
+    mathffp_base = OpenLibrary((CONST_STRPTR)"mathffp.library", 0);
+    if (mathffp_base == NULL)
+    {
+        print("FAIL: OpenLibrary() for mathffp.library probe failed\n\n");
+        return 1;
+    }
+
+    if (mathffp_base->lib_Node.ln_Name != NULL &&
+        mathffp_base->lib_Version == 40 &&
+        mathffp_base->lib_IdString != NULL)
+    {
+        print("OK: mathffp.library InitLib() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: mathffp.library InitLib() left public library state inconsistent\n");
+        errors++;
+    }
+
+    CloseLibrary(mathffp_base);
+
+    print("\n");
+    return errors;
+}
+
 static int test_clipboard_phase91_stub_closed(void)
 {
     int errors = 0;
@@ -5232,6 +5489,12 @@ int main(void)
 
     /* Test 60: Verify gameport.device Phase 92 entry points no longer hit the stub path */
     errors += test_gameport_phase92_stub_closed();
+
+    /* Test 61: Verify trackdisk.device Phase 93 entry points no longer hit the stub path */
+    errors += test_trackdisk_phase93_stub_closed();
+
+    /* Test 62: Verify mathffp.library Phase 94 entry point no longer hits the stub path */
+    errors += test_mathffp_phase94_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

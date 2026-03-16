@@ -58,6 +58,7 @@ BPTR __g_lxa_mathtrans_ExpungeLib(register struct Library *lib __asm("a6"))
 
 ULONG __g_lxa_mathtrans_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_mathtrans", "ExtFuncLib");
     return 0;
 }
 

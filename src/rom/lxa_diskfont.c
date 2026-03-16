@@ -598,6 +598,7 @@ BPTR __g_lxa_diskfont_ExpungeLib ( register struct DiskfontBase *dfb __asm("a6")
 
 ULONG __g_lxa_diskfont_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_diskfont", "ExtFuncLib");
     return 0;
 }
 

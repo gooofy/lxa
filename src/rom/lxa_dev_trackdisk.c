@@ -1,11 +1,9 @@
 /*
- * lxa_dev_trackdisk.c - Trackdisk device stub implementation
+ * lxa_dev_trackdisk.c - Trackdisk device implementation
  *
- * Provides a stub trackdisk.device for compatibility with applications
- * that attempt to use it. Since lxa maps floppy drives to directories
- * (WINE-like approach), actual disk I/O is not performed. This stub
- * allows OpenDevice() to succeed and returns sensible defaults for
- * status queries.
+ * Provides a hosted trackdisk.device backed by .adf images. Since lxa maps
+ * floppy drives to directories (WINE-like approach), disk traffic is bridged
+ * to the first .adf image present in the mounted DFx: path.
  *
  * Supported commands:
  * - TD_CHANGENUM:   Returns change counter (always 1 = disk present)
@@ -39,6 +37,7 @@
 #define REVISION   1
 #define EXDEVNAME  "trackdisk"
 #define EXDEVVER   " 40.1 (2026/03/06)"
+#define TD_TRACK_BYTES (TD_SECTOR * NUMSECS)
 
 char __aligned _g_trackdisk_ExDevName [] = EXDEVNAME ".device";
 char __aligned _g_trackdisk_ExDevID   [] = EXDEVNAME EXDEVVER;
@@ -86,6 +85,72 @@ static struct TrackdiskPrivate *trackdisk_private(struct TrackdiskBase *tdbase)
 static struct TDUnit **trackdisk_units(struct TrackdiskBase *tdbase)
 {
     return trackdisk_private(tdbase)->tp_Units;
+}
+
+static void trackdisk_reply_request(struct IORequest *ioreq)
+{
+    if (!(ioreq->io_Flags & IOF_QUICK))
+    {
+        ReplyMsg(&ioreq->io_Message);
+    }
+}
+
+static void trackdisk_abort_changeint(struct TDUnit *tdu, LONG error)
+{
+    struct IORequest *pending;
+
+    if (!tdu || !tdu->tdu_ChangeIntReq)
+    {
+        return;
+    }
+
+    pending = tdu->tdu_ChangeIntReq;
+    tdu->tdu_ChangeIntReq = NULL;
+    tdu->tdu_ChangeInt = NULL;
+    pending->io_Error = error;
+    trackdisk_reply_request(pending);
+}
+
+static void trackdisk_free_units(struct TrackdiskBase *tdbase)
+{
+    struct TDUnit **units = trackdisk_units(tdbase);
+    ULONG i;
+
+    for (i = 0; i < NUMUNITS; i++)
+    {
+        if (units[i])
+        {
+            trackdisk_abort_changeint(units[i], IOERR_ABORTED);
+            FreeMem(units[i], sizeof(struct TDUnit));
+            units[i] = NULL;
+        }
+    }
+}
+
+static BPTR trackdisk_expunge_if_possible(struct TrackdiskBase *tdbase)
+{
+    if (FindName(&SysBase->DeviceList,
+                 (CONST_STRPTR)tdbase->td_Device.dd_Library.lib_Node.ln_Name) ==
+        &tdbase->td_Device.dd_Library.lib_Node)
+    {
+        Remove(&tdbase->td_Device.dd_Library.lib_Node);
+        DPRINTF(LOG_DEBUG, "_trackdisk: Expunge() removed device from DeviceList\n");
+    }
+
+    if (tdbase->td_Device.dd_Library.lib_OpenCnt != 0)
+    {
+        tdbase->td_Device.dd_Library.lib_Flags |= LIBF_DELEXP;
+        DPRINTF(LOG_DEBUG, "_trackdisk: Expunge() deferred, open count=%u\n",
+                (unsigned int)tdbase->td_Device.dd_Library.lib_OpenCnt);
+        return 0;
+    }
+
+    tdbase->td_Device.dd_Library.lib_Flags &= ~LIBF_DELEXP;
+    trackdisk_free_units(tdbase);
+
+    DPRINTF(LOG_DEBUG, "_trackdisk: Expunge() finalizing removal\n");
+
+    return tdbase->td_SegList;
 }
 
 static LONG trackdisk_validate_extended_count(struct TDUnit *tdu, struct IORequest *ioreq)
@@ -213,6 +278,44 @@ static LONG trackdisk_handle_format(struct TDUnit *tdu, struct IORequest *ioreq)
     return error;
 }
 
+static LONG trackdisk_handle_raw(UWORD emucall, struct TDUnit *tdu, struct IORequest *ioreq)
+{
+    struct IOStdReq *io = (struct IOStdReq *)ioreq;
+    ULONG raw_offset;
+    LONG error;
+
+    if (!tdu || !tdu->tdu_DiskIn)
+        return TDERR_DiskChanged;
+
+    if (!io->io_Data && io->io_Length)
+        return TDERR_NotSpecified;
+
+    if (io->io_Length > 32766)
+        return TDERR_NotSpecified;
+
+    error = trackdisk_validate_extended_count(tdu, ioreq);
+    if (error != 0)
+        return error;
+
+    if (io->io_Offset >= 160)
+        return TDERR_SeekError;
+
+    raw_offset = io->io_Offset * TD_TRACK_BYTES;
+    error = (LONG)emucall5(emucall,
+                           (ULONG)tdu->tdu_UnitNum,
+                           (ULONG)io->io_Data,
+                           io->io_Length,
+                           raw_offset,
+                           (ioreq->io_Command & TDF_EXTCOM) ? 1 : 0);
+    if (error == 0)
+    {
+        io->io_Actual = io->io_Length;
+        tdu->tdu_CurrentTrack = io->io_Offset;
+    }
+
+    return error;
+}
+
 /*
  * Device Init
  */
@@ -249,6 +352,16 @@ static void __g_lxa_trackdisk_Open ( register struct Library   *dev   __asm("a6"
     struct TDUnit **units = trackdisk_units(tdbase);
 
     DPRINTF (LOG_DEBUG, "_trackdisk: Open() called, unit=%lu flags=0x%08lx\n", unit, flags);
+
+    ioreq->io_Error = 0;
+    ioreq->io_Unit = NULL;
+    ioreq->io_Device = NULL;
+
+    if (dev->lib_Flags & LIBF_DELEXP)
+    {
+        ioreq->io_Error = IOERR_OPENFAIL;
+        return;
+    }
 
     if (unit >= NUMUNITS)
     {
@@ -295,6 +408,7 @@ static void __g_lxa_trackdisk_Open ( register struct Library   *dev   __asm("a6"
 static BPTR __g_lxa_trackdisk_Close ( register struct Library   *dev   __asm("a6"),
                                        register struct IORequest *ioreq __asm("a1"))
 {
+    struct TrackdiskBase *tdbase = (struct TrackdiskBase *)dev;
     struct TDUnit *tdu = (struct TDUnit *)ioreq->io_Unit;
 
     DPRINTF (LOG_DEBUG, "_trackdisk: Close() called\n");
@@ -307,6 +421,12 @@ static BPTR __g_lxa_trackdisk_Close ( register struct Library   *dev   __asm("a6
     ioreq->io_Unit   = NULL;
     ioreq->io_Device = NULL;
 
+    if (tdbase->td_Device.dd_Library.lib_OpenCnt == 0 &&
+        (tdbase->td_Device.dd_Library.lib_Flags & LIBF_DELEXP))
+    {
+        return trackdisk_expunge_if_possible(tdbase);
+    }
+
     return 0;
 }
 
@@ -315,8 +435,8 @@ static BPTR __g_lxa_trackdisk_Close ( register struct Library   *dev   __asm("a6
  */
 static BPTR __g_lxa_trackdisk_Expunge ( register struct Library *dev __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_trackdisk: Expunge() stub called\n");
-    return 0;
+    DPRINTF(LOG_DEBUG, "_trackdisk: Expunge() called\n");
+    return trackdisk_expunge_if_possible((struct TrackdiskBase *)dev);
 }
 
 /*
@@ -461,9 +581,16 @@ static BPTR __g_lxa_trackdisk_BeginIO ( register struct Library   *dev   __asm("
             break;
 
         case TD_RAWREAD:
+            ioreq->io_Error = trackdisk_handle_raw(EMU_CALL_TRACKDISK_READ, tdu, ioreq);
+            break;
+
         case TD_RAWWRITE:
-            DPRINTF (LOG_DEBUG, "_trackdisk: I/O command %u not supported\n", base_cmd);
-            ioreq->io_Error = TDERR_NotSpecified;
+            if (tdu && tdu->tdu_ProtStatus)
+            {
+                ioreq->io_Error = TDERR_WriteProt;
+                break;
+            }
+            ioreq->io_Error = trackdisk_handle_raw(EMU_CALL_TRACKDISK_WRITE, tdu, ioreq);
             break;
 
         default:
@@ -472,10 +599,7 @@ static BPTR __g_lxa_trackdisk_BeginIO ( register struct Library   *dev   __asm("
     }
 
     /* Reply if not quick */
-    if (!(ioreq->io_Flags & IOF_QUICK))
-    {
-        ReplyMsg(&ioreq->io_Message);
-    }
+    trackdisk_reply_request(ioreq);
 
     return 0;
 }
@@ -486,8 +610,19 @@ static BPTR __g_lxa_trackdisk_BeginIO ( register struct Library   *dev   __asm("
 static ULONG __g_lxa_trackdisk_AbortIO ( register struct Library   *dev   __asm("a6"),
                                            register struct IORequest *ioreq __asm("a1"))
 {
-    DPRINTF (LOG_DEBUG, "_trackdisk: AbortIO() stub called\n");
-    return IOERR_NOCMD;
+    struct TDUnit *tdu = (struct TDUnit *)ioreq->io_Unit;
+
+    (void)dev;
+
+    DPRINTF(LOG_DEBUG, "_trackdisk: AbortIO() called\n");
+
+    if (tdu && tdu->tdu_ChangeIntReq == ioreq)
+    {
+        trackdisk_abort_changeint(tdu, IOERR_ABORTED);
+        return 0;
+    }
+
+    return (ULONG)-1;
 }
 
 /*

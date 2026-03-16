@@ -1828,7 +1828,8 @@ BPTR __g_lxa_graphics_ExpungeLib ( register struct GfxBase  *graphicsb      __as
 
 ULONG __g_lxa_graphics_ExtFuncLib(void)
 {
-    return NULL;
+    PRIVATE_FUNCTION_ERROR("_graphics", "ExtFuncLib");
+    return 0;
 }
 
 static LONG _graphics_BltBitMap ( register struct GfxBase * GfxBase __asm("a6"),

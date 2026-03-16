@@ -484,6 +484,7 @@ BPTR __g_lxa_icon_ExpungeLib ( register struct IconBase *iconb __asm("a6"))
 
 ULONG __g_lxa_icon_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_icon", "ExtFuncLib");
     return 0;
 }
 
@@ -1897,7 +1898,7 @@ struct InitTable __g_lxa_icon_InitTab =
 };
 
 /* Reserved function stub */
-static ULONG _icon_Reserved(void) { return 0; }
+static ULONG _icon_Reserved(void) { PRIVATE_FUNCTION_ERROR("_icon", "Reserved"); return 0; }
 
 /* Function table - offsets match AmigaOS 3.x icon.library 
  * Offsets from pragmas: FreeFreeList=0x36, AddFreeList=0x48, etc.

@@ -78,6 +78,7 @@ BPTR __g_lxa_commodities_CloseLib ( register struct CommoditiesBase *cxb __asm("
 
 ULONG __g_lxa_commodities_ExtFuncLib ( void )
 {
+    PRIVATE_FUNCTION_ERROR("_commodities", "ExtFuncLib");
     return 0;
 }
 

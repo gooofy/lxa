@@ -8,6 +8,7 @@
 #include <exec/memory.h>
 #include <exec/ports.h>
 #include <exec/execbase.h>
+#include <exec/errors.h>
 #include <devices/trackdisk.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
@@ -333,6 +334,67 @@ int main(void)
         test_fail_msg("Prepare ETD_READ sector 1");
     }
 
+    req->iotd_Req.io_Command = TD_RAWREAD;
+    req->iotd_Req.io_Flags = IOF_QUICK;
+    req->iotd_Req.io_Data = trackbuf;
+    req->iotd_Req.io_Length = TD_SECTOR * 2;
+    req->iotd_Req.io_Offset = 0;
+    DoIO((struct IORequest *)req);
+    if (req->iotd_Req.io_Error == 0 &&
+        trackbuf[0] == 0xE5 &&
+        verify_pattern(trackbuf + TD_SECTOR, TD_SECTOR, 0x10))
+        test_ok("TD_RAWREAD track 0");
+    else
+        test_fail_msg("TD_RAWREAD track 0");
+
+    req->iotd_Req.io_Command = ETD_RAWREAD;
+    req->iotd_Req.io_Flags = IOF_QUICK;
+    req->iotd_Req.io_Data = sector;
+    req->iotd_Req.io_Length = TD_SECTOR;
+    req->iotd_Req.io_Offset = 0;
+    req->iotd_Count = 2;
+    DoIO((struct IORequest *)req);
+    if (req->iotd_Req.io_Error == TDERR_DiskChanged)
+        test_ok("ETD_RAWREAD detects stale change count");
+    else
+        test_fail_msg("ETD_RAWREAD detects stale change count");
+
+    req->iotd_Req.io_Command = TD_RAWREAD;
+    req->iotd_Req.io_Flags = IOF_QUICK;
+    req->iotd_Req.io_Data = sector;
+    req->iotd_Req.io_Length = TD_SECTOR;
+    req->iotd_Req.io_Offset = 160;
+    DoIO((struct IORequest *)req);
+    if (req->iotd_Req.io_Error == TDERR_SeekError)
+        test_ok("TD_RAWREAD rejects invalid track");
+    else
+        test_fail_msg("TD_RAWREAD rejects invalid track");
+
+    for (i = 0; i < TD_SECTOR * 2; i++)
+        trackbuf[i] = (UBYTE)(0x60 + (i % TD_SECTOR));
+
+    req->iotd_Req.io_Command = TD_RAWWRITE;
+    req->iotd_Req.io_Flags = IOF_QUICK;
+    req->iotd_Req.io_Data = trackbuf;
+    req->iotd_Req.io_Length = TD_SECTOR * 2;
+    req->iotd_Req.io_Offset = 1;
+    DoIO((struct IORequest *)req);
+    if (req->iotd_Req.io_Error == 0)
+        test_ok("TD_RAWWRITE track 1");
+    else
+        test_fail_msg("TD_RAWWRITE track 1");
+
+    req->iotd_Req.io_Command = CMD_READ;
+    req->iotd_Req.io_Flags = IOF_QUICK;
+    req->iotd_Req.io_Data = sector;
+    req->iotd_Req.io_Length = TD_SECTOR;
+    req->iotd_Req.io_Offset = TD_SECTOR * NUMSECS;
+    DoIO((struct IORequest *)req);
+    if (req->iotd_Req.io_Error == 0 && verify_pattern(sector, TD_SECTOR, 0x60))
+        test_ok("TD_RAWWRITE persisted track data");
+    else
+        test_fail_msg("TD_RAWWRITE persisted track data");
+
     for (i = 0; i < TD_SECTOR; i++)
         sector[i] = (UBYTE)i;
 
@@ -616,6 +678,24 @@ int main(void)
         test_ok("TD_REMCHANGEINT request reports completion");
     else
         test_fail_msg("TD_REMCHANGEINT request reports completion");
+
+    req->iotd_Req.io_Command = TD_ADDCHANGEINT;
+    req->iotd_Req.io_Flags = 0;
+    req->iotd_Req.io_Length = sizeof(struct Interrupt);
+    req->iotd_Req.io_Data = &change_irq;
+    SendIO((struct IORequest *)req);
+
+    if (CheckIO((struct IORequest *)req) == NULL)
+        test_ok("TD_ADDCHANGEINT stays abortable while pending");
+    else
+        test_fail_msg("TD_ADDCHANGEINT stays abortable while pending");
+
+    AbortIO((struct IORequest *)req);
+    WaitIO((struct IORequest *)req);
+    if (req->iotd_Req.io_Error == IOERR_ABORTED)
+        test_ok("AbortIO cancels TD_ADDCHANGEINT");
+    else
+        test_fail_msg("AbortIO cancels TD_ADDCHANGEINT");
 
     /* Test: Close device */
     CloseDevice((struct IORequest *)req);

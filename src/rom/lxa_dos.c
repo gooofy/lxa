@@ -857,6 +857,7 @@ BPTR __g_lxa_dos_ExpungeLib ( register struct DosLibrary  *dosb      __asm("a6")
 
 ULONG __g_lxa_dos_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_dos", "ExtFuncLib");
     return 0;
 }
 

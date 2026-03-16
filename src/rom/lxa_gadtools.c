@@ -184,6 +184,7 @@ BPTR __g_lxa_gadtools_CloseLib ( register struct GadToolsBase *gtb __asm("a6") )
 
 ULONG __g_lxa_gadtools_ExtFuncLib ( void )
 {
+    PRIVATE_FUNCTION_ERROR("_gadtools", "ExtFuncLib");
     return 0;
 }
 

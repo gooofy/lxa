@@ -478,7 +478,8 @@ BPTR __g_lxa_expansion_ExpungeLib ( register struct ExpansionBase  *expansionb  
 
 ULONG __g_lxa_expansion_ExtFuncLib(void)
 {
-    return NULL;
+    PRIVATE_FUNCTION_ERROR("_expansion", "ExtFuncLib");
+    return 0;
 }
 
 VOID _expansion_AddConfigDev ( register struct ExpansionBase * ExpansionBase __asm("a6"),

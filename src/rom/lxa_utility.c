@@ -270,7 +270,8 @@ BPTR __g_lxa_utility_ExpungeLib ( register struct UtilityBase  *utilityb      __
 
 ULONG __g_lxa_utility_ExtFuncLib(void)
 {
-    return NULL;
+    PRIVATE_FUNCTION_ERROR("_utility", "ExtFuncLib");
+    return 0;
 }
 
 static struct TagItem * _utility_FindTagItem ( register struct UtilityBase   *UtilityBase __asm("a6"),

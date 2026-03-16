@@ -260,6 +260,7 @@ BPTR __g_lxa_datatypes_CloseLib ( register struct DataTypesBase *dtbase __asm("a
 
 ULONG __g_lxa_datatypes_ExtFuncLib ( void )
 {
+    PRIVATE_FUNCTION_ERROR("_datatypes", "ExtFuncLib");
     return 0;
 }
 

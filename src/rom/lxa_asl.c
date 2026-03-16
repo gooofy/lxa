@@ -233,6 +233,7 @@ BPTR __g_lxa_asl_CloseLib ( register struct AslBase *aslb __asm("a6") )
 
 ULONG __g_lxa_asl_ExtFuncLib ( void )
 {
+    PRIVATE_FUNCTION_ERROR("_asl", "ExtFuncLib");
     return 0;
 }
 

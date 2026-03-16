@@ -115,6 +115,7 @@ BPTR __g_lxa_layers_ExpungeLib ( register struct LayersBase *layersb __asm("a6")
 
 ULONG __g_lxa_layers_ExtFuncLib(void)
 {
+    PRIVATE_FUNCTION_ERROR("_layers", "ExtFuncLib");
     return 0;
 }
 
