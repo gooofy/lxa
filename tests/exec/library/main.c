@@ -30,24 +30,31 @@
 #include <diskfont/diskfont.h>
 #include <diskfont/diskfonttag.h>
 #include <diskfont/glyph.h>
+#include <diskfont/oterrors.h>
 #include <intuition/intuition.h>
 #include <intuition/imageclass.h>
 #include <intuition/screens.h>
+#include <utility/hooks.h>
+#include <dos/dostags.h>
 #include <utility/tagitem.h>
 #include <workbench/workbench.h>
 #include <workbench/icon.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
+#include <clib/diskfont_protos.h>
 #include <clib/graphics_protos.h>
 #include <clib/icon_protos.h>
 #include <clib/intuition_protos.h>
 #include <clib/utility_protos.h>
+#include <clib/wb_protos.h>
 #include <inline/exec.h>
 #include <inline/dos.h>
+#include <inline/diskfont.h>
 #include <inline/graphics.h>
 #include <inline/icon.h>
 #include <inline/intuition.h>
 #include <inline/utility.h>
+#include <inline/wb.h>
 
 #undef SetFunction
 
@@ -56,8 +63,11 @@ extern struct ExecBase *SysBase;
 
 static struct UtilityBase *UtilityBase;
 static struct Library *IconBase;
+static struct Library *DiskfontBase;
+static struct Library *WorkbenchBase;
 extern struct GfxBase *GfxBase;
 extern struct IntuitionBase *IntuitionBase;
+static const char g_fake_bullet_name[] = "bullet.library";
 
 #ifndef ICONA_ErrorCode
 #define ICONA_ErrorCode              (TAG_USER + 0x9001)
@@ -69,6 +79,169 @@ extern struct IntuitionBase *IntuitionBase;
 #endif
 
 static const char g_test_library_name[] = "phase78test.library";
+
+static struct Library *fake_bullet_init(register struct Library *lib __asm("d0"),
+                                        register BPTR seglist __asm("a0"),
+                                        register struct ExecBase *sys_base __asm("a6"))
+{
+    (void)seglist;
+    (void)sys_base;
+
+    lib->lib_Node.ln_Type = NT_LIBRARY;
+    lib->lib_Node.ln_Name = (char *)g_fake_bullet_name;
+    lib->lib_Flags = LIBF_SUMUSED | LIBF_CHANGED;
+    lib->lib_Version = 47;
+    lib->lib_Revision = 1;
+    return lib;
+}
+
+static struct Library *fake_bullet_open(register ULONG version __asm("d0"),
+                                        register struct Library *lib __asm("a6"))
+{
+    (void)version;
+    lib->lib_OpenCnt++;
+    lib->lib_Flags &= ~LIBF_DELEXP;
+    return lib;
+}
+
+static BPTR fake_bullet_close(register struct Library *lib __asm("a6"))
+{
+    lib->lib_OpenCnt--;
+    return 0;
+}
+
+static BPTR fake_bullet_expunge(register struct Library *lib __asm("a6"))
+{
+    if (lib->lib_OpenCnt == 0)
+    {
+        Remove(&lib->lib_Node);
+        return (BPTR)1;
+    }
+
+    lib->lib_Flags |= LIBF_DELEXP;
+    return 0;
+}
+
+static ULONG fake_bullet_ext(void)
+{
+    return 0;
+}
+
+static struct GlyphEngine *fake_bullet_open_engine(register struct Library *BulletBase __asm("a6"))
+{
+    struct GlyphEngine *engine = (struct GlyphEngine *)AllocMem(sizeof(*engine), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!engine)
+        return NULL;
+
+    engine->gle_Library = BulletBase;
+    engine->gle_Name = (STRPTR)"bullet";
+    return engine;
+}
+
+static VOID fake_bullet_close_engine(register struct GlyphEngine *glyphEngine __asm("a0"),
+                                     register struct Library *BulletBase __asm("a6"))
+{
+    (void)BulletBase;
+    if (glyphEngine)
+        FreeMem(glyphEngine, sizeof(*glyphEngine));
+}
+
+static ULONG fake_bullet_set_info(register struct GlyphEngine *glyphEngine __asm("a0"),
+                                  register const struct TagItem *tagList __asm("a1"),
+                                  register struct Library *BulletBase __asm("a6"))
+{
+    (void)glyphEngine;
+    (void)tagList;
+    (void)BulletBase;
+    return OTERR_Success;
+}
+
+static ULONG fake_bullet_obtain_info(register struct GlyphEngine *glyphEngine __asm("a0"),
+                                     register const struct TagItem *tagList __asm("a1"),
+                                     register struct Library *BulletBase __asm("a6"))
+{
+    (void)glyphEngine;
+    (void)tagList;
+    (void)BulletBase;
+    return OTERR_Success;
+}
+
+static ULONG fake_bullet_release_info(register struct GlyphEngine *glyphEngine __asm("a0"),
+                                      register const struct TagItem *tagList __asm("a1"),
+                                      register struct Library *BulletBase __asm("a6"))
+{
+    (void)glyphEngine;
+    (void)tagList;
+    (void)BulletBase;
+    return OTERR_Success;
+}
+
+static APTR g_fake_bullet_vectors[] = {
+    (APTR)fake_bullet_open,
+    (APTR)fake_bullet_close,
+    (APTR)fake_bullet_expunge,
+    (APTR)fake_bullet_ext,
+    (APTR)fake_bullet_open_engine,
+    (APTR)fake_bullet_close_engine,
+    (APTR)fake_bullet_set_info,
+    (APTR)fake_bullet_obtain_info,
+    (APTR)fake_bullet_release_info,
+    (APTR)-1
+};
+
+static struct Library *install_fake_bullet_library(void)
+{
+    struct Library *lib = MakeLibrary(g_fake_bullet_vectors, NULL, (ULONG (*)())fake_bullet_init, sizeof(struct Library), 0);
+    if (!lib)
+        return NULL;
+
+    AddLibrary(lib);
+    return lib;
+}
+
+static void remove_fake_bullet_library(struct Library *lib)
+{
+    UBYTE *mem;
+    ULONG size;
+
+    if (!lib)
+        return;
+
+    RemLibrary(lib);
+    mem = (UBYTE *)lib - lib->lib_NegSize;
+    size = lib->lib_NegSize + lib->lib_PosSize;
+    FreeMem(mem, size);
+}
+
+static int str_eq(const char *a, const char *b)
+{
+    while (*a && *b)
+    {
+        if (*a != *b)
+            return 0;
+        a++;
+        b++;
+    }
+
+    return (*a == '\0' && *b == '\0');
+}
+
+static ULONG select_workbench_icon(register struct Hook *hook __asm("a0"),
+                                   register APTR object __asm("a2"),
+                                   register struct IconSelectMsg *ism __asm("a1"))
+{
+    ULONG *calls = (ULONG *)hook->h_Data;
+
+    (void)object;
+
+    if (calls)
+        (*calls)++;
+
+    if (ism && ism->ism_Name && str_eq((const char *)ism->ism_Name, "AppObjects.info"))
+        return ISMACTION_Select;
+
+    return ISMACTION_Ignore;
+}
 
 static struct Library *test_init(register struct Library *lib __asm("d0"),
                                  register BPTR seglist __asm("a0"),
@@ -172,6 +345,73 @@ static void print_num(LONG n)
     if (neg)
         *--p = '-';
     print(p);
+}
+
+static BOOL write_all(BPTR fh, CONST APTR data, LONG size)
+{
+    return (fh != 0 && data != NULL && size >= 0 && Write(fh, data, size) == size);
+}
+
+static void ensure_dir(CONST_STRPTR path)
+{
+    BPTR lock;
+
+    if (!path)
+        return;
+
+    lock = Lock(path, SHARED_LOCK);
+    if (lock)
+    {
+        UnLock(lock);
+        return;
+    }
+
+    CreateDir(path);
+}
+
+static BOOL create_otag_file(CONST_STRPTR path)
+{
+    BPTR fh;
+    struct TagItem tags[9];
+    ULONG file_size = sizeof(tags);
+    char family[] = "Test Outline Family";
+    char engine[] = "bullet";
+    UWORD avail_sizes[] = { 2, 12, 24 };
+
+    fh = Open(path, MODE_NEWFILE);
+    if (!fh)
+        return FALSE;
+
+    tags[0].ti_Tag = OT_FileIdent;
+    tags[0].ti_Data = file_size;
+    tags[1].ti_Tag = OT_Engine;
+    tags[1].ti_Data = (ULONG)((UBYTE *)engine - (UBYTE *)tags);
+    tags[2].ti_Tag = OT_Family;
+    tags[2].ti_Data = (ULONG)((UBYTE *)family - (UBYTE *)tags);
+    tags[3].ti_Tag = OT_YSizeFactor;
+    tags[3].ti_Data = (72UL << 16) | 72UL;
+    tags[4].ti_Tag = OT_SpaceWidth;
+    tags[4].ti_Data = 500;
+    tags[5].ti_Tag = OT_IsFixed;
+    tags[5].ti_Data = TRUE;
+    tags[6].ti_Tag = OT_StemWeight;
+    tags[6].ti_Data = OTS_Book;
+    tags[7].ti_Tag = OT_AvailSizes;
+    tags[7].ti_Data = (ULONG)((UBYTE *)avail_sizes - (UBYTE *)tags);
+    tags[8].ti_Tag = TAG_DONE;
+    tags[8].ti_Data = 0;
+
+    if (!write_all(fh, tags, sizeof(tags)) ||
+        !write_all(fh, family, sizeof(family)) ||
+        !write_all(fh, engine, sizeof(engine)) ||
+        !write_all(fh, avail_sizes, sizeof(avail_sizes)))
+    {
+        Close(fh);
+        return FALSE;
+    }
+
+    Close(fh);
+    return TRUE;
 }
 
 /*
@@ -3705,6 +3945,14 @@ static int test_diskfont_phase88_stub_closed(void)
     ULONG underline_value = 0;
     ULONG charset_name;
 
+    ensure_dir((CONST_STRPTR)"T:diskfont_test");
+    DeleteFile((CONST_STRPTR)"T:diskfont_test/outline.otag");
+    if (!create_otag_file((CONST_STRPTR)"T:diskfont_test/outline.otag"))
+    {
+        print("FAIL: could not create outline.otag test fixture\n\n");
+        return 1;
+    }
+
     print("--- Test: diskfont.library Phase 88 entry points ---\n");
 
     diskfont = OpenLibrary((CONST_STRPTR)"diskfont.library", 0);
@@ -3714,11 +3962,14 @@ static int test_diskfont_phase88_stub_closed(void)
         return 1;
     }
 
-    fake_bullet = OpenLibrary((CONST_STRPTR)"bullet.library", 0);
+    DiskfontBase = diskfont;
+
+    fake_bullet = install_fake_bullet_library();
     if (!fake_bullet)
     {
-        print("FAIL: fake bullet.library should be available from test setup\n");
+        print("FAIL: could not install fake bullet.library\n");
         CloseLibrary(diskfont);
+        DiskfontBase = NULL;
         return 1;
     }
 
@@ -3809,8 +4060,416 @@ static int test_diskfont_phase88_stub_closed(void)
         errors++;
     }
 
-    CloseLibrary(fake_bullet);
+    remove_fake_bullet_library(fake_bullet);
     CloseLibrary(diskfont);
+    DiskfontBase = NULL;
+    DeleteFile((CONST_STRPTR)"T:diskfont_test/outline.otag");
+
+    print("\n");
+    return errors;
+}
+
+static int test_workbench_phase89_stub_closed(void)
+{
+    int errors = 0;
+    struct MsgPort *port = NULL;
+    struct Screen *screen = NULL;
+    struct Window *window = NULL;
+    struct DiskObject *icon = NULL;
+    struct AppWindow *app_window = NULL;
+    struct AppWindowDropZone *drop_zone = NULL;
+    struct TagItem open_tags[3];
+    struct TagItem drop_tags[5];
+    struct TagItem control_tags[5];
+    struct TagItem which_tags[9];
+    struct Hook hook;
+    struct List *copy_list = NULL;
+    ULONG global_flags = 0;
+    ULONG type_restart = 0;
+    ULONG default_stack = 0;
+    ULONG hit_type = 0;
+    ULONG hit_width = 0;
+    ULONG hit_height = 0;
+    ULONG hit_state = 0;
+    ULONG is_fake = 0;
+    LONG hit_left = -1;
+    LONG hit_top = -1;
+    LONG is_open = 0;
+    ULONG hook_calls = 0;
+    BPTR search_path_copy = 0;
+    BPTR update_lock = 0;
+    char icon_name[64];
+    struct NewScreen ns;
+    struct NewWindow nw;
+
+    print("--- Test: workbench.library Phase 89 entry points ---\n");
+
+    WorkbenchBase = OpenLibrary((CONST_STRPTR)"workbench.library", 0);
+    IconBase = OpenLibrary((CONST_STRPTR)"icon.library", 0);
+    if (!WorkbenchBase || !IconBase)
+    {
+        print("FAIL: OpenLibrary() for workbench/icon library returned NULL\n\n");
+        if (IconBase)
+            CloseLibrary(IconBase);
+        if (WorkbenchBase)
+            CloseLibrary(WorkbenchBase);
+        IconBase = NULL;
+        WorkbenchBase = NULL;
+        return 1;
+    }
+
+    port = CreateMsgPort();
+    if (!port)
+    {
+        print("FAIL: CreateMsgPort() failed\n");
+        CloseLibrary(IconBase);
+        CloseLibrary(WorkbenchBase);
+        IconBase = NULL;
+        WorkbenchBase = NULL;
+        return 1;
+    }
+
+    ns.LeftEdge = 0;
+    ns.TopEdge = 0;
+    ns.Width = 320;
+    ns.Height = 200;
+    ns.Depth = 2;
+    ns.DetailPen = 0;
+    ns.BlockPen = 1;
+    ns.ViewModes = 0;
+    ns.Type = CUSTOMSCREEN;
+    ns.Font = NULL;
+    ns.DefaultTitle = (UBYTE *)"WB Phase 89";
+    ns.Gadgets = NULL;
+    ns.CustomBitMap = NULL;
+
+    screen = OpenScreen(&ns);
+    if (!screen)
+    {
+        print("FAIL: OpenScreen() failed for workbench probe\n");
+        DeleteMsgPort(port);
+        CloseLibrary(IconBase);
+        CloseLibrary(WorkbenchBase);
+        IconBase = NULL;
+        WorkbenchBase = NULL;
+        return 1;
+    }
+
+    nw.LeftEdge = 10;
+    nw.TopEdge = 10;
+    nw.Width = 180;
+    nw.Height = 60;
+    nw.DetailPen = 0;
+    nw.BlockPen = 1;
+    nw.IDCMPFlags = IDCMP_CLOSEWINDOW;
+    nw.Flags = WFLG_CLOSEGADGET | WFLG_DRAGBAR | WFLG_ACTIVATE;
+    nw.FirstGadget = NULL;
+    nw.CheckMark = NULL;
+    nw.Title = (UBYTE *)"WB Phase 89 Window";
+    nw.Screen = screen;
+    nw.BitMap = NULL;
+    nw.MinWidth = 50;
+    nw.MinHeight = 30;
+    nw.MaxWidth = 300;
+    nw.MaxHeight = 180;
+    nw.Type = CUSTOMSCREEN;
+
+    window = OpenWindow(&nw);
+    if (!window)
+    {
+        print("FAIL: OpenWindow() failed for workbench probe\n");
+        CloseScreen(screen);
+        DeleteMsgPort(port);
+        CloseLibrary(IconBase);
+        CloseLibrary(WorkbenchBase);
+        IconBase = NULL;
+        WorkbenchBase = NULL;
+        return 1;
+    }
+
+    icon = GetDefDiskObject(WBTOOL);
+    if (!icon)
+    {
+        print("FAIL: GetDefDiskObject() failed for workbench probe\n");
+        CloseWindow(window);
+        CloseScreen(screen);
+        DeleteMsgPort(port);
+        CloseLibrary(IconBase);
+        CloseLibrary(WorkbenchBase);
+        IconBase = NULL;
+        WorkbenchBase = NULL;
+        return 1;
+    }
+
+    if (!OpenWorkbenchObjectA((CONST_STRPTR)"SYS:Tests/Workbench", NULL))
+    {
+        print("FAIL: OpenWorkbenchObjectA() still behaves like a stub for drawers\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: OpenWorkbenchObjectA() opens drawers\n");
+    }
+
+    open_tags[0].ti_Tag = WBOPENA_Show;
+    open_tags[0].ti_Data = DDFLAGS_SHOWALL;
+    open_tags[1].ti_Tag = WBOPENA_ViewBy;
+    open_tags[1].ti_Data = DDVM_BYNAME;
+    open_tags[2].ti_Tag = TAG_DONE;
+    open_tags[2].ti_Data = 0;
+    if (!OpenWorkbenchObjectA((CONST_STRPTR)"SYS:Tests/Exec/Lists", open_tags))
+    {
+        print("FAIL: OpenWorkbenchObjectA() still behaves like a stub for files\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: OpenWorkbenchObjectA() launches files asynchronously\n");
+    }
+
+    control_tags[0].ti_Tag = WBCTRLA_IsOpen;
+    control_tags[0].ti_Data = (ULONG)&is_open;
+    control_tags[1].ti_Tag = WBCTRLA_GetDefaultStackSize;
+    control_tags[1].ti_Data = (ULONG)&default_stack;
+    control_tags[2].ti_Tag = WBCTRLA_GetOpenDrawerList;
+    control_tags[2].ti_Data = (ULONG)&copy_list;
+    control_tags[3].ti_Tag = TAG_DONE;
+    control_tags[3].ti_Data = 0;
+    if (!WorkbenchControlA((CONST_STRPTR)"SYS:Tests/Workbench", control_tags) || !is_open || default_stack < 4096 || !copy_list)
+    {
+        print("FAIL: WorkbenchControlA() still behaves like a stub for open drawer queries\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: WorkbenchControlA() reports open drawers and defaults\n");
+    }
+
+    control_tags[0].ti_Tag = WBCTRLA_FreeOpenDrawerList;
+    control_tags[0].ti_Data = (ULONG)copy_list;
+    control_tags[1].ti_Tag = WBCTRLA_SetDefaultStackSize;
+    control_tags[1].ti_Data = 2048;
+    control_tags[2].ti_Tag = WBCTRLA_GetDefaultStackSize;
+    control_tags[2].ti_Data = (ULONG)&default_stack;
+    control_tags[3].ti_Tag = WBCTRLA_SetGlobalFlags;
+    control_tags[3].ti_Data = WBF_BOUNDTEXTVIEW;
+    control_tags[4].ti_Tag = TAG_DONE;
+    control_tags[4].ti_Data = 0;
+    copy_list = NULL;
+    if (!WorkbenchControlA(NULL, control_tags) || default_stack != 4096)
+    {
+        print("FAIL: WorkbenchControlA() did not clamp default stack size\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: WorkbenchControlA() clamps default stack size\n");
+    }
+
+    control_tags[0].ti_Tag = WBCTRLA_GetGlobalFlags;
+    control_tags[0].ti_Data = (ULONG)&global_flags;
+    control_tags[1].ti_Tag = WBCTRLA_SetTypeRestartTime;
+    control_tags[1].ti_Data = 9;
+    control_tags[2].ti_Tag = WBCTRLA_GetTypeRestartTime;
+    control_tags[2].ti_Data = (ULONG)&type_restart;
+    control_tags[3].ti_Tag = WBCTRLA_DuplicateSearchPath;
+    control_tags[3].ti_Data = (ULONG)&search_path_copy;
+    control_tags[4].ti_Tag = TAG_DONE;
+    control_tags[4].ti_Data = 0;
+    if (!WorkbenchControlA(NULL, control_tags) || global_flags != WBF_BOUNDTEXTVIEW || type_restart != 9)
+    {
+        print("FAIL: WorkbenchControlA() did not preserve configurable state\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: WorkbenchControlA() preserves configurable state\n");
+    }
+
+    control_tags[0].ti_Tag = WBCTRLA_FreeSearchPath;
+    control_tags[0].ti_Data = (ULONG)search_path_copy;
+    control_tags[1].ti_Tag = TAG_DONE;
+    control_tags[1].ti_Data = 0;
+    search_path_copy = 0;
+    if (!WorkbenchControlA(NULL, control_tags))
+    {
+        print("FAIL: WorkbenchControlA() should free duplicated search paths\n");
+        errors++;
+    }
+
+    app_window = AddAppWindowA(6, 0x6666, window, port, NULL);
+    drop_tags[0].ti_Tag = WBDZA_Left;
+    drop_tags[0].ti_Data = 4;
+    drop_tags[1].ti_Tag = WBDZA_Top;
+    drop_tags[1].ti_Data = 5;
+    drop_tags[2].ti_Tag = WBDZA_Width;
+    drop_tags[2].ti_Data = 20;
+    drop_tags[3].ti_Tag = WBDZA_Height;
+    drop_tags[3].ti_Data = 15;
+    drop_tags[4].ti_Tag = TAG_DONE;
+    drop_tags[4].ti_Data = 0;
+    drop_zone = AddAppWindowDropZoneA(app_window, 7, 0x7777, drop_tags);
+    if (!app_window || !drop_zone)
+    {
+        print("FAIL: AddAppWindowDropZoneA() still behaves like a stub\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: AddAppWindowDropZoneA() allocates drop zones\n");
+    }
+
+    icon_name[0] = '\0';
+    which_tags[0].ti_Tag = WBOBJA_Type;
+    which_tags[0].ti_Data = (ULONG)&hit_type;
+    which_tags[1].ti_Tag = WBOBJA_Left;
+    which_tags[1].ti_Data = (ULONG)&hit_left;
+    which_tags[2].ti_Tag = WBOBJA_Top;
+    which_tags[2].ti_Data = (ULONG)&hit_top;
+    which_tags[3].ti_Tag = WBOBJA_Width;
+    which_tags[3].ti_Data = (ULONG)&hit_width;
+    which_tags[4].ti_Tag = WBOBJA_Height;
+    which_tags[4].ti_Data = (ULONG)&hit_height;
+    which_tags[5].ti_Tag = WBOBJA_Name;
+    which_tags[5].ti_Data = (ULONG)icon_name;
+    which_tags[6].ti_Tag = WBOBJA_State;
+    which_tags[6].ti_Data = (ULONG)&hit_state;
+    which_tags[7].ti_Tag = WBOBJA_IsFake;
+    which_tags[7].ti_Data = (ULONG)&is_fake;
+    which_tags[8].ti_Tag = TAG_DONE;
+    which_tags[8].ti_Data = 0;
+    if (WhichWorkbenchObjectA(window, 8, 8, which_tags) != WBO_ICON ||
+        hit_type != WBAPPICON || hit_left != 4 || hit_top != 5 ||
+        hit_width != 20 || hit_height != 15 || hit_state != IDS_NORMAL || !is_fake)
+    {
+        print("FAIL: WhichWorkbenchObjectA() still behaves like a stub for icon hits\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: WhichWorkbenchObjectA() reports drop zone icon hits\n");
+    }
+
+    if (WhichWorkbenchObjectA(window, 40, 20, NULL) != WBO_DRAWER)
+    {
+        print("FAIL: WhichWorkbenchObjectA() should report drawer hits for empty areas\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: WhichWorkbenchObjectA() reports drawer hits\n");
+    }
+
+    hook.h_Entry = (ULONG (*)())select_workbench_icon;
+    hook.h_SubEntry = NULL;
+    hook.h_Data = &hook_calls;
+    if (!ChangeWorkbenchSelectionA((CONST_STRPTR)"SYS:Tests/Workbench", &hook, NULL) || hook_calls <= 0)
+    {
+        print("FAIL: ChangeWorkbenchSelectionA() still behaves like a stub\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: ChangeWorkbenchSelectionA() updates selection state\n");
+    }
+
+    control_tags[0].ti_Tag = WBCTRLA_GetSelectedIconList;
+    control_tags[0].ti_Data = (ULONG)&copy_list;
+    control_tags[1].ti_Tag = TAG_DONE;
+    control_tags[1].ti_Data = 0;
+    copy_list = NULL;
+    if (!WorkbenchControlA(NULL, control_tags) || !copy_list)
+    {
+        print("FAIL: WorkbenchControlA() should expose selected icon lists\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: WorkbenchControlA() exposes selected icon lists\n");
+    }
+
+    control_tags[0].ti_Tag = WBCTRLA_FreeSelectedIconList;
+    control_tags[0].ti_Data = (ULONG)copy_list;
+    control_tags[1].ti_Tag = TAG_DONE;
+    control_tags[1].ti_Data = 0;
+    copy_list = NULL;
+    WorkbenchControlA(NULL, control_tags);
+
+    if (!MakeWorkbenchObjectVisibleA((CONST_STRPTR)"SYS:Tests/Workbench/AppObjects", NULL))
+    {
+        print("FAIL: MakeWorkbenchObjectVisibleA() still behaves like a stub\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: MakeWorkbenchObjectVisibleA() validates open drawer visibility\n");
+    }
+
+    if (!RemoveAppWindowDropZone(app_window, drop_zone))
+    {
+        print("FAIL: RemoveAppWindowDropZone() still behaves like a stub\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: RemoveAppWindowDropZone() removes valid drop zones\n");
+    }
+
+    if (!RemoveAppWindow(app_window))
+    {
+        print("FAIL: RemoveAppWindow() failed after drop zone removal\n");
+        errors++;
+    }
+
+    update_lock = Lock((CONST_STRPTR)"SYS:Tests/Workbench", SHARED_LOCK);
+    if (update_lock)
+    {
+        UpdateWorkbench((CONST_STRPTR)"AppObjects", update_lock, UPDATEWB_ObjectRemoved);
+        UnLock(update_lock);
+    }
+
+    if (!CloseWorkbenchObjectA((CONST_STRPTR)"SYS:Tests/Workbench", NULL))
+    {
+        print("FAIL: CloseWorkbenchObjectA() still behaves like a stub\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: CloseWorkbenchObjectA() closes opened drawers\n");
+    }
+
+    if (!WBInfo((BPTR)0, (CONST_STRPTR)"SYS:Tests/Workbench", screen))
+    {
+        print("FAIL: WBInfo() still behaves like a stub\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: WBInfo() creates requesters\n");
+    }
+
+    if (OpenWorkbenchObjectA((CONST_STRPTR)"SYS:MissingPhase89", NULL) ||
+        CloseWorkbenchObjectA((CONST_STRPTR)"SYS:MissingPhase89", NULL) ||
+        MakeWorkbenchObjectVisibleA((CONST_STRPTR)"SYS:MissingPhase89", NULL) ||
+        RemoveAppWindowDropZone(NULL, drop_zone) ||
+        ChangeWorkbenchSelectionA((CONST_STRPTR)"SYS:Tests/Workbench", NULL, NULL))
+    {
+        print("FAIL: Phase 89 invalid calls should fail cleanly\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: Phase 89 invalid calls fail cleanly\n");
+    }
+
+    FreeDiskObject(icon);
+    CloseWindow(window);
+    CloseScreen(screen);
+    DeleteMsgPort(port);
+    CloseLibrary(IconBase);
+    CloseLibrary(WorkbenchBase);
+    IconBase = NULL;
+    WorkbenchBase = NULL;
 
     print("\n");
     return errors;
@@ -4020,6 +4679,9 @@ int main(void)
 
     /* Test 56: Verify diskfont.library Phase 88 entry points no longer hit stub paths */
     errors += test_diskfont_phase88_stub_closed();
+
+    /* Test 57: Verify workbench.library Phase 89 entry points no longer hit stub paths */
+    errors += test_workbench_phase89_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

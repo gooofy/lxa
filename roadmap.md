@@ -237,30 +237,20 @@ Goal: eliminate the remaining non-private `diskfont.library` stubs, match RKRM/N
 - [x] Implemented `ObtainCharsetInfo()` with built-in charset metadata for the currently used ASCII/Latin-1/UTF-8 cases, including number/name/MIME-name lookup, browsing via `DFCS_NEXTNUMBER`, and 256-entry mapping-table queries; direct regression coverage now verifies the lookup surface in both `Tests/Graphics/DiskfontContents` and the `exec_gtest` entry-point probe
 - [x] Compared and verified `ObtainCharsetInfo()` behavior against the available AROS reference material; the current AROS source snapshot does not provide a public implementation to compare directly, so lxa follows the NDK-defined `DFCS_*` lookup contract and documents that the charset table currently covers the built-in charsets needed by the hosted stack rather than an external `L:CharSets/character-sets` parser
 
-### Phase 89: Close `workbench.library` stub surface
+### Phase 89 complete (`0.8.42`): Close `workbench.library` stub surface
 
 Goal: eliminate the remaining non-private `workbench.library` stubs, match RKRM/NDK behavior, and keep each closure checked against AROS.
 
-- [ ] Implement `UpdateWorkbench()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `UpdateWorkbench()` behavior against the AROS implementation
-- [ ] Implement `WBInfo()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `WBInfo()` behavior against the AROS implementation
-- [ ] Implement `OpenWorkbenchObjectA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `OpenWorkbenchObjectA()` behavior against the AROS implementation
-- [ ] Implement `CloseWorkbenchObjectA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `CloseWorkbenchObjectA()` behavior against the AROS implementation
-- [ ] Implement `WorkbenchControlA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `WorkbenchControlA()` behavior against the AROS implementation
-- [ ] Implement `AddAppWindowDropZoneA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `AddAppWindowDropZoneA()` behavior against the AROS implementation
-- [ ] Implement `RemoveAppWindowDropZone()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `RemoveAppWindowDropZone()` behavior against the AROS implementation
-- [ ] Implement `ChangeWorkbenchSelectionA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `ChangeWorkbenchSelectionA()` behavior against the AROS implementation
-- [ ] Implement `MakeWorkbenchObjectVisibleA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `MakeWorkbenchObjectVisibleA()` behavior against the AROS implementation
-- [ ] Implement `WhichWorkbenchObjectA()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `WhichWorkbenchObjectA()` behavior against the AROS implementation
+- [x] Implemented `UpdateWorkbench()` and `WBInfo()` with hosted state/requester handling; update notifications now retire deleted object state from the hosted drawer/program/selection lists, `WBInfo()` resolves the requested object path into an Intuition requester, and direct regression coverage lives in `Tests/Workbench/AppObjects` plus the `exec_gtest` entry-point probe
+- [x] Compared `UpdateWorkbench()` and `WBInfo()` against the available AROS references; the bundled AROS snapshot does not provide public `workbench.library` implementations for either API, so lxa follows the NDK autodocs directly while keeping that source-gap explicit here
+- [x] Implemented `OpenWorkbenchObjectA()` and `CloseWorkbenchObjectA()` with hosted drawer/program tracking; drawer opens preserve show/view settings, tool launches route through asynchronous `SystemTagList()`, close requests retire the corresponding hosted drawer/program state, and direct coverage lives in `Tests/Workbench/AppObjects` plus the `exec_gtest` entry-point probe
+- [x] Compared `OpenWorkbenchObjectA()` and `CloseWorkbenchObjectA()` against the available AROS references; the current AROS tree exposes only the `compiler/alib` varargs wrappers for these APIs and no public `workbench.library` implementation bodies, so lxa follows the NDK/RKRM object-open and drawer-close contracts directly while documenting the wrapper-only AROS surface
+- [x] Implemented `WorkbenchControlA()` with the documented hosted query/setter surface needed here, including stack-size clamping, search-path duplication/free, launched-program/open-drawer/selected-icon/hidden-device list copies, configurable hooks, setup-cleanup hook bookkeeping, and global/type-restart state; direct coverage now exercises these paths in `Tests/Workbench/AppObjects` alongside the existing `exec_gtest` probe
+- [x] Compared `WorkbenchControlA()` against the available AROS references; AROS again ships only the `compiler/alib/workbenchcontrol.c` varargs wrapper plus header/docs references, so lxa follows the NDK tag contracts directly while keeping the missing public implementation explicit
+- [x] Implemented `AddAppWindowDropZoneA()` and `RemoveAppWindowDropZone()` with hosted AppWindow ownership and geometry validation; drop zones now keep the documented bounding-box metadata, respect first-added hit ordering, are removed automatically when the parent AppWindow goes away, and are covered directly in `Tests/Workbench/AppObjects` plus the `exec_gtest` probe
+- [x] Compared `AddAppWindowDropZoneA()` and `RemoveAppWindowDropZone()` against the available AROS references; the current AROS snapshot provides only the `AddAppWindowDropZoneA()` varargs wrapper and no public implementation bodies for either API, so lxa follows the NDK drop-zone contract directly while noting that source gap here
+- [x] Implemented `ChangeWorkbenchSelectionA()`, `MakeWorkbenchObjectVisibleA()`, and `WhichWorkbenchObjectA()` with hosted drawer/path state; selection walks now invoke the caller hook across open drawer entries, visibility checks validate open drawers and contained objects, object-hit queries report hosted drawer or drop-zone hits plus the documented metadata used by the tests, and direct coverage lives in `Tests/Workbench/AppObjects` plus the `exec_gtest` entry-point probe
+- [x] Compared `ChangeWorkbenchSelectionA()`, `MakeWorkbenchObjectVisibleA()`, and `WhichWorkbenchObjectA()` against the available AROS references; the current AROS tree contains only the `MakeWorkbenchObjectVisibleA()` varargs wrapper plus header/docs references and no public implementation bodies for these APIs, so lxa follows the NDK contracts directly while keeping the absence of comparable AROS implementation files explicit
 
 ### Phase 90: Close `timer.device` stub surface
 

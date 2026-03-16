@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.41** - Phase 88 closes the remaining public `diskfont.library` stubs in scope here by wiring the V47 outline-engine wrappers through caller-supplied bullet bases, loading and validating `.otag` outline-font descriptors, adding diskfont write-helper and charset-query coverage, and extending both the graphics and exec-library regression suites to keep the documented NDK behavior pinned down in `roadmap.md`
+**Version 0.8.42** - Phase 89 closes the remaining public `workbench.library` stubs in scope here with hosted implementations for object open/close, control/state queries, drop zones, selection updates, object-hit queries, visibility checks, update notifications, and info requesters, plus direct regression coverage and roadmap notes for the missing AROS public implementations
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
