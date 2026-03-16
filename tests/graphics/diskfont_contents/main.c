@@ -7,6 +7,7 @@
 #include <clib/graphics_protos.h>
 #include <dos/doshunks.h>
 #include <diskfont/glyph.h>
+#include <diskfont/oterrors.h>
 #include <graphics/text.h>
 #include <inline/exec.h>
 #include <inline/dos.h>
@@ -332,10 +333,13 @@ static BOOL create_otag_file(const char *path)
 {
     BPTR fh;
     struct TagItem tags[9];
-    ULONG file_size = sizeof(tags);
+    ULONG family_offset = sizeof(tags);
     char family[] = "Test Outline Family";
+    ULONG engine_offset = sizeof(tags) + sizeof(family);
     char engine[] = "bullet";
+    ULONG avail_sizes_offset = sizeof(tags) + sizeof(family) + sizeof(engine);
     UWORD avail_sizes[] = { 2, 12, 24 };
+    ULONG file_size = sizeof(tags) + sizeof(family) + sizeof(engine) + sizeof(avail_sizes);
 
     fh = Open((CONST_STRPTR)path, MODE_NEWFILE);
     if (!fh)
@@ -344,9 +348,9 @@ static BOOL create_otag_file(const char *path)
     tags[0].ti_Tag = OT_FileIdent;
     tags[0].ti_Data = file_size;
     tags[1].ti_Tag = OT_Engine;
-    tags[1].ti_Data = (ULONG)((UBYTE *)engine - (UBYTE *)tags);
+    tags[1].ti_Data = engine_offset;
     tags[2].ti_Tag = OT_Family;
-    tags[2].ti_Data = (ULONG)((UBYTE *)family - (UBYTE *)tags);
+    tags[2].ti_Data = family_offset;
     tags[3].ti_Tag = OT_YSizeFactor;
     tags[3].ti_Data = (72UL << 16) | 72UL;
     tags[4].ti_Tag = OT_SpaceWidth;
@@ -356,9 +360,13 @@ static BOOL create_otag_file(const char *path)
     tags[6].ti_Tag = OT_StemWeight;
     tags[6].ti_Data = OTS_Book;
     tags[7].ti_Tag = OT_AvailSizes;
-    tags[7].ti_Data = (ULONG)((UBYTE *)avail_sizes - (UBYTE *)tags);
+    tags[7].ti_Data = avail_sizes_offset;
     tags[8].ti_Tag = TAG_DONE;
     tags[8].ti_Data = 0;
+
+    tags[1].ti_Tag |= OT_Indirect;
+    tags[2].ti_Tag |= OT_Indirect;
+    tags[7].ti_Tag |= OT_Indirect;
 
     if (!write_all(fh, tags, sizeof(tags)) ||
         !write_all(fh, family, sizeof(family)) ||
