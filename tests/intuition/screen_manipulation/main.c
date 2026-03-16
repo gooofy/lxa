@@ -51,12 +51,39 @@ int main(void)
     struct NewScreen ns1, ns2;
     struct Screen wbns;
     struct Screen *workbench, *screen1, *screen2;
+    struct Screen *initial_workbench;
     struct Screen screen_copy;
     int errors = 0;
     
     print("Testing Screen Manipulation Functions...\n\n");
 
-    workbench = OpenWorkBench() ? IntuitionBase->FirstScreen : NULL;
+    initial_workbench = IntuitionBase->FirstScreen;
+    while (CloseWorkBench())
+        ;
+
+    print("Test -1: OpenIntuition()...\n");
+    OpenIntuition();
+    workbench = IntuitionBase->FirstScreen;
+    if (!workbench || !(workbench->Flags & WBENCHSCREEN)) {
+        print("  FAIL: OpenIntuition() did not open the Workbench screen\n\n");
+        errors++;
+        workbench = OpenWorkBench() ? IntuitionBase->FirstScreen : NULL;
+        if (!workbench || !(workbench->Flags & WBENCHSCREEN)) {
+            print("ERROR: Could not recover Workbench screen\n");
+            return 1;
+        }
+    } else {
+        struct Screen *opened = workbench;
+        OpenIntuition();
+        if (IntuitionBase->FirstScreen != opened) {
+            print("  FAIL: OpenIntuition() reopened Workbench instead of reusing it\n\n");
+            errors++;
+            workbench = IntuitionBase->FirstScreen;
+        } else {
+            print("  OK: OpenIntuition() opens Workbench once and is idempotent\n\n");
+        }
+    }
+
     if (!workbench || !(workbench->Flags & WBENCHSCREEN)) {
         print("ERROR: Could not open Workbench screen\n");
         return 1;
@@ -280,6 +307,11 @@ int main(void)
     if (!WBenchToFront()) {
         print("FAIL: WBenchToFront failed during cleanup\n");
         return 20;
+    }
+
+    if (initial_workbench == NULL) {
+        while (CloseWorkBench())
+            ;
     }
     
     if (errors == 0) {

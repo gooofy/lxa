@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.37** - Phase 85 closes the remaining public `graphics.library` stubs in scope here, including GEL collision/mask helpers, animation-object sequencing, user copper list builders, superbitmap sync/copy, copper-budget calculation, chipset negotiation, and extended sprite allocation/change/free flows, with direct regression coverage plus explicit AROS-behavior verification recorded in `roadmap.md`
+**Version 0.8.39** - Phase 86 closes the remaining public `intuition.library` stubs in scope here by restoring the legacy `OpenIntuition()` and `Intuition()` entry points, reusing the existing Workbench screen, routing synthetic compatibility input through the same Intuition-side dispatch used by live events, and recording the matching AROS-behavior notes in `roadmap.md`
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
