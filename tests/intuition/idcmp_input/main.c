@@ -12,6 +12,7 @@
 #include <exec/types.h>
 #include <exec/memory.h>
 #include <exec/ports.h>
+#include <devices/inputevent.h>
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
 #include <intuition/intuition.h>
@@ -46,6 +47,8 @@ int main(void)
     struct NewWindow nw;
     struct Screen *screen1, *screen2;
     struct Window *window;
+    struct IntuiMessage *imsg;
+    struct InputEvent event;
     int errors = 0;
 
     print("Testing IDCMP input infrastructure...\n");
@@ -226,6 +229,35 @@ int main(void)
         } else {
             print("OK: No spurious IDCMP messages (expected in headless mode)\n");
         }
+    }
+
+    print("\n--- Test 4: Intuition() dispatches RAWKEY input ---\n");
+    event.ie_NextEvent = NULL;
+    event.ie_Class = IECLASS_RAWKEY;
+    event.ie_SubClass = 0;
+    event.ie_Code = 0x20;
+    event.ie_Qualifier = IEQUALIFIER_LSHIFT;
+    event.ie_X = 0;
+    event.ie_Y = 0;
+    event.ie_EventAddress = NULL;
+
+    Intuition(&event);
+
+    imsg = (struct IntuiMessage *)GetMsg(window->UserPort);
+    if (imsg == NULL) {
+        print("FAIL: Intuition() did not deliver IDCMP_RAWKEY\n");
+        errors++;
+    } else {
+        if (imsg->Class != IDCMP_RAWKEY ||
+            imsg->Code != 0x20 ||
+            imsg->Qualifier != IEQUALIFIER_LSHIFT ||
+            imsg->IDCMPWindow != window) {
+            print("FAIL: Intuition() delivered the wrong IDCMP payload\n");
+            errors++;
+        } else {
+            print("OK: Intuition() routes synthetic RAWKEY input to the active window\n");
+        }
+        ReplyMsg((struct Message *)imsg);
     }
 
     /* ========== Cleanup ========== */

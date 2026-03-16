@@ -868,10 +868,57 @@ static void _calculate_requester_box(struct Window *window, struct Requester *re
                                      LONG *left, LONG *top,
                                      LONG *width, LONG *height);
 static void _rerender_requester_stack(struct Window *window);
+static struct Window * _find_window_at_pos(struct Screen *screen, WORD x, WORD y);
+static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WORD relY);
+static BOOL _point_in_gadget(struct Window *window, struct Gadget *gad, WORD relX, WORD relY);
+static struct Menu * _find_menu_at_x(struct Window *window, WORD screenX);
+static struct MenuItem * _find_item_at_pos(struct Menu *menu, WORD x, WORD y);
+static struct MenuItem * _find_item_in_chain_at_pos(struct MenuItem *firstItem, WORD x, WORD y);
+static BOOL _get_active_submenu_box(struct Window *window,
+                                    WORD *submenuX,
+                                    WORD *submenuY,
+                                    WORD *submenuWidth,
+                                    WORD *submenuHeight);
+static BOOL _menu_hover_redraw_can_repaint_in_place(struct Window *window,
+                                                    struct Menu *oldMenu,
+                                                    struct MenuItem *oldItem);
+static void _restore_menu_dropdown_area(struct Screen *screen);
+static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu);
+static void _render_menu_bar(struct Window *window);
+static void _render_menu_items(struct Window *window);
+static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD mouseX, WORD mouseY);
+static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY);
+static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadget);
+
+VOID _intuition_SizeWindow(register struct IntuitionBase *IntuitionBase __asm("a6"),
+                           register struct Window *window __asm("a0"),
+                           register WORD dx __asm("d0"),
+                           register WORD dy __asm("d1"));
+
+static struct Gadget *g_active_gadget;
+static struct Window *g_active_window;
+static WORD g_prop_click_offset;
+static BOOL g_menu_mode;
+static struct Window *g_menu_window;
+static struct Menu *g_active_menu;
+static struct MenuItem *g_active_item;
+static struct MenuItem *g_active_subitem;
+static BOOL g_dragging_window;
+static struct Window *g_drag_window;
+static WORD g_drag_start_x;
+static WORD g_drag_start_y;
+static WORD g_drag_window_x;
+static WORD g_drag_window_y;
+static BOOL g_sizing_window;
+static struct Window *g_size_window;
+static WORD g_size_start_x;
+static WORD g_size_start_y;
+static WORD g_size_orig_w;
+static WORD g_size_orig_h;
 
 /* Forward declarations for EasyRequest infrastructure */
 struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
-                                                  register struct Window * window __asm("a0"),
+                                                   register struct Window * window __asm("a0"),
                                                   register const struct EasyStruct * easyStruct __asm("a1"),
                                                   register ULONG idcmp __asm("d0"),
                                                   register const APTR args __asm("a3"));
@@ -2995,15 +3042,868 @@ ULONG __g_lxa_intuition_ExtFuncLib(void)
 
 VOID _intuition_OpenIntuition ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: OpenIntuition() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: OpenIntuition() called\n");
+
+    if (!IntuitionBase)
+        return;
+
+    if (_intuition_find_workbench_screen(IntuitionBase))
+        return;
+
+    (void)_intuition_OpenWorkBench(IntuitionBase);
+}
+
+static VOID _intuition_update_input_snapshot(struct IntuitionBase *IntuitionBase,
+                                             WORD mouseX,
+                                             WORD mouseY)
+{
+    struct timeval tv;
+
+    if (!IntuitionBase)
+        return;
+
+    U_getSysTime(&tv);
+    IntuitionBase->MouseX = mouseX;
+    IntuitionBase->MouseY = mouseY;
+    IntuitionBase->Seconds = tv.tv_secs;
+    IntuitionBase->Micros = tv.tv_micro;
+}
+
+static struct Window *_intuition_resolve_input_window(struct IntuitionBase *IntuitionBase,
+                                                      struct Screen *screen,
+                                                      WORD mouseX,
+                                                      WORD mouseY)
+{
+    struct Window *window = NULL;
+
+    if (screen)
+        window = _find_window_at_pos(screen, mouseX, mouseY);
+
+    if (!window && g_active_window && (!screen || g_active_window->WScreen == screen))
+        window = g_active_window;
+
+    if (!window && IntuitionBase && IntuitionBase->ActiveWindow &&
+        (!screen || IntuitionBase->ActiveWindow->WScreen == screen))
+    {
+        window = IntuitionBase->ActiveWindow;
+    }
+
+    if (!window && screen)
+        window = screen->FirstWindow;
+
+    return window;
+}
+
+static struct Screen *_intuition_resolve_input_screen(struct IntuitionBase *IntuitionBase,
+                                                      const struct InputEvent *iEvent,
+                                                      WORD mouseX,
+                                                      WORD mouseY)
+{
+    struct Screen *screen;
+
+    if (!IntuitionBase)
+        return NULL;
+
+    if (iEvent && iEvent->ie_Class == IECLASS_RAWKEY &&
+        IntuitionBase->ActiveWindow && IntuitionBase->ActiveWindow->WScreen)
+    {
+        return IntuitionBase->ActiveWindow->WScreen;
+    }
+
+    for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
+    {
+        if (mouseX >= screen->LeftEdge &&
+            mouseX < screen->LeftEdge + screen->Width &&
+            mouseY >= screen->TopEdge &&
+            mouseY < screen->TopEdge + screen->Height)
+        {
+            return screen;
+        }
+    }
+
+    if (IntuitionBase->ActiveWindow && IntuitionBase->ActiveWindow->WScreen)
+        return IntuitionBase->ActiveWindow->WScreen;
+
+    if (IntuitionBase->ActiveScreen)
+        return IntuitionBase->ActiveScreen;
+
+    return IntuitionBase->FirstScreen;
+}
+
+static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *IntuitionBase,
+                                                 struct Screen *screen,
+                                                 struct Window *window,
+                                                 WORD mouseX,
+                                                 WORD mouseY,
+                                                 UWORD code,
+                                                 UWORD qualifier,
+                                                 BOOL dispatch_input_device)
+{
+    struct InputEvent input_event;
+
+    input_event.ie_NextEvent = NULL;
+    input_event.ie_Class = IECLASS_RAWMOUSE;
+    input_event.ie_SubClass = 0;
+    input_event.ie_Code = code;
+    input_event.ie_Qualifier = qualifier;
+    input_event.ie_X = mouseX;
+    input_event.ie_Y = mouseY;
+    input_event.ie_EventAddress = NULL;
+
+    if (dispatch_input_device)
+        _input_device_dispatch_event(&input_event);
+
+    DPRINTF(LOG_DEBUG, "_intuition: MouseButton code=0x%02x qual=0x%04x at (%d,%d)\n",
+            code, qualifier, mouseX, mouseY);
+
+    if (!window)
+        return;
+
+    {
+        WORD relX = mouseX - window->LeftEdge;
+        WORD relY = mouseY - window->TopEdge;
+
+        DPRINTF(LOG_DEBUG, "_intuition: MouseButton: window=0x%08lx at (%d,%d) size=(%d,%d) rel=(%d,%d)\n",
+                (ULONG)window, window->LeftEdge, window->TopEdge, window->Width, window->Height, relX, relY);
+
+        if (code == SELECTDOWN)
+        {
+            struct Gadget *gad = _find_gadget_at_pos(window, relX, relY);
+            DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN relX=%d relY=%d gad=0x%08lx firstGad=0x%08lx type=0x%04x\n",
+                    relX, relY, (ULONG)gad, (ULONG)window->FirstGadget,
+                    gad ? gad->GadgetType : 0xFFFF);
+            if (gad)
+            {
+                DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN on gadget type=0x%04x\n",
+                        gad->GadgetType);
+
+                g_active_gadget = gad;
+                g_active_window = window;
+
+                gad->Flags |= GFLG_SELECTED;
+
+                if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                    _render_gadget(window, NULL, gad);
+
+                if ((gad->GadgetType & GTYP_SYSGADGET) &&
+                    (gad->GadgetType & GTYP_SYSTYPEMASK) == GTYP_SIZING)
+                {
+                    DPRINTF(LOG_DEBUG, "_intuition: Starting window resize: window=0x%08lx size=(%d,%d)\n",
+                            (ULONG)window, window->Width, window->Height);
+                    g_sizing_window = TRUE;
+                    g_size_window = window;
+                    g_size_start_x = mouseX;
+                    g_size_start_y = mouseY;
+                    g_size_orig_w = window->Width;
+                    g_size_orig_h = window->Height;
+                }
+
+                if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+                {
+                    struct StringInfo *si = (struct StringInfo *)gad->SpecialInfo;
+                    if (si && si->Buffer)
+                    {
+                        si->BufferPos = si->NumChars;
+                    }
+
+                    _render_gadget(window, NULL, gad);
+                }
+
+                if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
+                {
+                    struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+                    if (pi && (pi->Flags & AUTOKNOB))
+                    {
+                        WORD gadAbsL = gad->LeftEdge + window->LeftEdge;
+                        WORD containerL = gadAbsL + 1;
+                        WORD containerW = gad->Width - 2;
+                        WORD knobW;
+                        WORD maxMoveX;
+                        WORD knobX;
+
+                        if (pi->Flags & FREEHORIZ)
+                            knobW = (WORD)(((ULONG)containerW * (ULONG)pi->HorizBody) / 0xFFFF);
+                        else
+                            knobW = containerW;
+                        if (knobW < 6) knobW = 6;
+                        if (knobW > containerW) knobW = containerW;
+
+                        maxMoveX = containerW - knobW;
+                        if (maxMoveX < 0) maxMoveX = 0;
+                        knobX = containerL + (WORD)(((ULONG)maxMoveX * (ULONG)pi->HorizPot) / 0xFFFF);
+
+                        if (mouseX >= knobX && mouseX < knobX + knobW)
+                        {
+                            g_prop_click_offset = mouseX - knobX;
+                        }
+                        else
+                        {
+                            g_prop_click_offset = knobW / 2;
+                            {
+                                WORD newKnobL = mouseX - g_prop_click_offset;
+                                if (newKnobL < containerL) newKnobL = containerL;
+                                if (newKnobL > containerL + maxMoveX)
+                                    newKnobL = containerL + maxMoveX;
+                                if (maxMoveX > 0)
+                                    pi->HorizPot = (UWORD)(((ULONG)(newKnobL - containerL) * 0xFFFF) / (ULONG)maxMoveX);
+                                else
+                                    pi->HorizPot = 0;
+
+                                {
+                                    WORD sl_min = (WORD)pi->CWidth;
+                                    WORD sl_max = (WORD)pi->CHeight;
+                                    LONG level;
+
+                                    if (sl_max > sl_min)
+                                        level = sl_min + ((LONG)pi->HorizPot * (sl_max - sl_min)) / 0xFFFF;
+                                    else
+                                        level = sl_min;
+
+                                    _gadtools_UpdateSliderLevelDisplay(gad, level);
+                                }
+
+                                _render_gadget(window, NULL, gad);
+                            }
+                        }
+
+                        DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTDOWN: knobX=%d knobW=%d maxMove=%d offset=%d pot=%u\n",
+                                knobX, knobW, maxMoveX, g_prop_click_offset, pi->HorizPot);
+                    }
+                }
+
+                if (gad->Activation & GACT_IMMEDIATE)
+                {
+                    _post_idcmp_message(window, IDCMP_GADGETDOWN, 0,
+                                       qualifier, gad, relX, relY);
+                }
+
+                if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP &&
+                    (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_PROPGADGET &&
+                    (gad->GadgetType & GTYP_GTYPEMASK) != GTYP_STRGADGET)
+                {
+                    _complement_gadget_area(window, NULL, gad);
+                }
+            }
+            else
+            {
+                if ((window->Flags & WFLG_DRAGBAR) &&
+                    relY >= 0 && relY < window->BorderTop &&
+                    relX >= 0 && relX < window->Width)
+                {
+                    DPRINTF(LOG_DEBUG, "_intuition: Starting window drag: window=0x%08lx at (%d,%d)\n",
+                            (ULONG)window, window->LeftEdge, window->TopEdge);
+                    g_dragging_window = TRUE;
+                    g_drag_window = window;
+                    g_drag_start_x = mouseX;
+                    g_drag_start_y = mouseY;
+                    g_drag_window_x = window->LeftEdge;
+                    g_drag_window_y = window->TopEdge;
+                }
+            }
+        }
+        else if (code == SELECTUP)
+        {
+            if (g_active_gadget && g_active_window)
+            {
+                struct Gadget *gad = g_active_gadget;
+                struct Window *activeWin = g_active_window;
+                WORD activeRelX = mouseX - activeWin->LeftEdge;
+                WORD activeRelY = mouseY - activeWin->TopEdge;
+                BOOL inside = _point_in_gadget(activeWin, gad, activeRelX, activeRelY);
+
+                DPRINTF(LOG_DEBUG, "_intuition: SELECTUP gadtype=0x%04x inside=%d isSys=%d isStr=%d\n",
+                        gad->GadgetType, inside,
+                        (gad->GadgetType & GTYP_SYSGADGET) ? 1 : 0,
+                        ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET) ? 1 : 0);
+
+                DPRINTF(LOG_DEBUG, "_intuition: SELECTUP on gadget type=0x%04x inside=%d\n",
+                        gad->GadgetType, inside);
+
+                if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+                {
+                    DPRINTF(LOG_DEBUG, "_intuition: String gadget remains active for keyboard input\n");
+
+                    if (inside)
+                    {
+                        if (gad->Activation & GACT_IMMEDIATE)
+                        {
+                            _post_idcmp_message(activeWin, IDCMP_GADGETDOWN, 0,
+                                               qualifier, gad, activeRelX, activeRelY);
+                        }
+                    }
+
+                    _render_gadget(activeWin, NULL, gad);
+                }
+                else if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
+                {
+                    struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+                    UWORD level_code = 0;
+
+                    gad->Flags &= ~GFLG_SELECTED;
+
+                    if (pi)
+                    {
+                        WORD sl_min = (WORD)pi->CWidth;
+                        WORD sl_max = (WORD)pi->CHeight;
+                        LONG range = sl_max - sl_min;
+                        LONG level;
+
+                        if (range > 0)
+                            level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                        else
+                            level = sl_min;
+                        _gadtools_UpdateSliderLevelDisplay(gad, level);
+                        level_code = (UWORD)level;
+
+                        DPRINTF(LOG_DEBUG, "_intuition: Prop SELECTUP: pot=%u min=%d max=%d level=%ld\n",
+                                pi->HorizPot, sl_min, sl_max, level);
+                    }
+
+                    if (gad->Activation & GACT_RELVERIFY)
+                    {
+                        _post_idcmp_message(activeWin, IDCMP_GADGETUP, level_code,
+                                           qualifier, gad, activeRelX, activeRelY);
+                    }
+
+                    g_active_gadget = NULL;
+                    g_active_window = NULL;
+                }
+                else
+                {
+                    if (_gadtools_IsCheckbox(gad))
+                    {
+                        if (inside)
+                        {
+                            _gadtools_SetCheckboxState(gad,
+                                                       _gadtools_GetCheckboxState(gad) ? FALSE : TRUE);
+                        }
+                        gad->Flags &= ~GFLG_SELECTED;
+                    }
+                    else if (_gadtools_IsCycle(gad))
+                    {
+                        UWORD active = _gadtools_GetCycleState(gad);
+
+                        if (inside)
+                            active = _gadtools_AdvanceCycleState(gad);
+
+                        gad->Flags &= ~GFLG_SELECTED;
+
+                        if (inside && (gad->Activation & GACT_RELVERIFY))
+                        {
+                            _post_idcmp_message(activeWin, IDCMP_GADGETUP, active,
+                                               qualifier, gad, activeRelX, activeRelY);
+                        }
+                    }
+                    else if ((gad->Activation & GACT_TOGGLESELECT) && inside)
+                    {
+                        gad->Flags ^= GFLG_SELECTED;
+                    }
+                    else
+                    {
+                        gad->Flags &= ~GFLG_SELECTED;
+                    }
+
+                    if (inside)
+                    {
+                        if (gad->GadgetType & GTYP_SYSGADGET)
+                        {
+                            _handle_sys_gadget_verify(activeWin, gad);
+                        }
+                        else if (gad->Activation & GACT_RELVERIFY)
+                        {
+                            _post_idcmp_message(activeWin, IDCMP_GADGETUP, 0,
+                                               qualifier, gad, activeRelX, activeRelY);
+                        }
+                    }
+
+                    if (_gadtools_IsCheckbox(gad) || _gadtools_IsCycle(gad))
+                    {
+                        _render_gadget(activeWin, NULL, gad);
+                    }
+                    else if ((gad->Flags & GFLG_GADGHIGHBITS) == GFLG_GADGHCOMP)
+                    {
+                        _complement_gadget_area(activeWin, NULL, gad);
+                    }
+
+                    g_active_gadget = NULL;
+                    g_active_window = NULL;
+                }
+            }
+
+            if (g_dragging_window)
+            {
+                DPRINTF(LOG_DEBUG, "_intuition: Stopping window drag\n");
+                g_dragging_window = FALSE;
+                g_drag_window = NULL;
+            }
+
+            if (g_sizing_window)
+            {
+                DPRINTF(LOG_DEBUG, "_intuition: Stopping window resize: final size=(%d,%d)\n",
+                        g_size_window ? g_size_window->Width : 0,
+                        g_size_window ? g_size_window->Height : 0);
+                g_sizing_window = FALSE;
+                g_size_window = NULL;
+            }
+        }
+        else if (code == MENUDOWN)
+        {
+            struct Window *menuWin = NULL;
+
+            DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
+                    mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
+
+            if (window && window->MenuStrip && !(window->Flags & WFLG_RMBTRAP))
+            {
+                menuWin = window;
+            }
+            else if (screen)
+            {
+                menuWin = screen->FirstWindow;
+                while (menuWin)
+                {
+                    if (menuWin->MenuStrip && !(menuWin->Flags & WFLG_RMBTRAP))
+                        break;
+                    menuWin = menuWin->NextWindow;
+                }
+            }
+
+            if (menuWin && menuWin->MenuStrip && screen)
+            {
+                DPRINTF(LOG_DEBUG, "_intuition: Entering menu mode for menuWin=0x%08lx\n", (ULONG)menuWin);
+                _enter_menu_mode(menuWin, screen, mouseX, mouseY);
+            }
+        }
+        else if (code == MENUUP)
+        {
+            DPRINTF(LOG_DEBUG, "_intuition: MENUUP at (%d,%d), g_menu_mode=%d, g_active_menu=0x%08lx, g_active_item=0x%08lx\n",
+                    mouseX, mouseY, g_menu_mode, (ULONG)g_active_menu, (ULONG)g_active_item);
+            if (g_menu_mode && g_menu_window)
+            {
+                _exit_menu_mode(g_menu_window, mouseX, mouseY);
+            }
+        }
+
+        _post_idcmp_message(window, IDCMP_MOUSEBUTTONS, code,
+                           qualifier, NULL, relX, relY);
+    }
+}
+
+static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBase,
+                                               struct Screen *screen,
+                                               struct Window *window,
+                                               WORD mouseX,
+                                               WORD mouseY,
+                                               UWORD qualifier,
+                                               BOOL dispatch_input_device)
+{
+    struct InputEvent input_event;
+
+    input_event.ie_NextEvent = NULL;
+    input_event.ie_Class = IECLASS_POINTERPOS;
+    input_event.ie_SubClass = 0;
+    input_event.ie_Code = 0;
+    input_event.ie_Qualifier = qualifier;
+    input_event.ie_X = mouseX;
+    input_event.ie_Y = mouseY;
+    input_event.ie_EventAddress = NULL;
+
+    if (dispatch_input_device)
+        _input_device_dispatch_event(&input_event);
+
+    if (g_menu_mode && g_menu_window && screen)
+    {
+        BOOL needRedraw = FALSE;
+        struct Menu *oldMenu = g_active_menu;
+        struct MenuItem *oldItem = g_active_item;
+
+        if (mouseY < screen->BarHeight + 1)
+        {
+            struct Menu *newMenu = _find_menu_at_x(g_menu_window, mouseX);
+            if (newMenu != g_active_menu)
+            {
+                g_active_menu = newMenu;
+                g_active_item = NULL;
+                g_active_subitem = NULL;
+                needRedraw = TRUE;
+            }
+        }
+        else if (g_active_menu && g_active_menu->FirstItem)
+        {
+            BOOL handledSubmenu = FALSE;
+
+            if (g_active_item && g_active_item->SubItem)
+            {
+                WORD submenuX;
+                WORD submenuY;
+                WORD submenuWidth;
+                WORD submenuHeight;
+
+                if (_get_active_submenu_box(g_menu_window, &submenuX, &submenuY,
+                                            &submenuWidth, &submenuHeight) &&
+                    mouseX >= submenuX && mouseX < submenuX + submenuWidth &&
+                    mouseY >= submenuY && mouseY < submenuY + submenuHeight)
+                {
+                    struct MenuItem *newSubItem;
+
+                    handledSubmenu = TRUE;
+                    newSubItem = _find_item_in_chain_at_pos(g_active_item->SubItem,
+                                                            mouseX - submenuX,
+                                                            mouseY - submenuY);
+                    if (newSubItem != g_active_subitem)
+                    {
+                        g_active_subitem = newSubItem;
+                        needRedraw = TRUE;
+                    }
+                }
+            }
+
+            if (!handledSubmenu)
+            {
+                WORD menuTop = screen->BarHeight + 1;
+                WORD menuLeft = screen->BarHBorder + g_active_menu->LeftEdge;
+                WORD itemX = mouseX - menuLeft;
+                WORD itemY = mouseY - menuTop;
+                struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
+
+                if (newItem != g_active_item)
+                {
+                    g_active_item = newItem;
+                    g_active_subitem = NULL;
+                    needRedraw = TRUE;
+                }
+                else if (g_active_subitem)
+                {
+                    g_active_subitem = NULL;
+                    needRedraw = TRUE;
+                }
+            }
+        }
+        else
+        {
+            if (g_active_item || g_active_subitem)
+            {
+                g_active_item = NULL;
+                g_active_subitem = NULL;
+                needRedraw = TRUE;
+            }
+        }
+
+        if (needRedraw)
+        {
+            if (_menu_hover_redraw_can_repaint_in_place(g_menu_window,
+                                                        oldMenu,
+                                                        oldItem))
+            {
+                _render_menu_items(g_menu_window);
+            }
+            else
+            {
+                if (oldMenu || g_active_menu)
+                    _restore_menu_dropdown_area(g_menu_window->WScreen);
+
+                _render_menu_bar(g_menu_window);
+
+                if (g_active_menu)
+                {
+                    _save_dropdown_for_menu(g_menu_window, g_active_menu);
+                    _render_menu_items(g_menu_window);
+                }
+            }
+        }
+    }
+
+    if (g_dragging_window && g_drag_window)
+    {
+        WORD dx = mouseX - g_drag_start_x;
+        WORD dy = mouseY - g_drag_start_y;
+        WORD newX = g_drag_window_x + dx;
+        WORD newY = g_drag_window_y + dy;
+        struct Screen *wscreen = g_drag_window->WScreen;
+
+        if (wscreen)
+        {
+            if (newX < -g_drag_window->Width + 20)
+                newX = -g_drag_window->Width + 20;
+            if (newX > wscreen->Width - 20)
+                newX = wscreen->Width - 20;
+            if (newY < 0)
+                newY = 0;
+            if (newY > wscreen->Height - g_drag_window->BorderTop)
+                newY = wscreen->Height - g_drag_window->BorderTop;
+        }
+
+        if (newX != g_drag_window->LeftEdge || newY != g_drag_window->TopEdge)
+        {
+            WORD move_dx = newX - g_drag_window->LeftEdge;
+            WORD move_dy = newY - g_drag_window->TopEdge;
+
+            DPRINTF(LOG_DEBUG, "_intuition: Dragging window to (%d,%d) delta=(%d,%d)\n",
+                    newX, newY, move_dx, move_dy);
+
+            _intuition_MoveWindow(IntuitionBase, g_drag_window, move_dx, move_dy);
+        }
+    }
+
+    if (g_sizing_window && g_size_window)
+    {
+        WORD dx = mouseX - g_size_start_x;
+        WORD dy = mouseY - g_size_start_y;
+        WORD newW = g_size_orig_w + dx;
+        WORD newH = g_size_orig_h + dy;
+        WORD size_dx = newW - g_size_window->Width;
+        WORD size_dy = newH - g_size_window->Height;
+
+        if (size_dx != 0 || size_dy != 0)
+        {
+            DPRINTF(LOG_DEBUG, "_intuition: Sizing window: delta=(%d,%d) target=(%d,%d)\n",
+                    size_dx, size_dy, newW, newH);
+
+            _intuition_SizeWindow(IntuitionBase, g_size_window, size_dx, size_dy);
+        }
+    }
+
+    if (g_active_gadget && g_active_window &&
+        (g_active_gadget->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
+    {
+        struct Gadget *gad = g_active_gadget;
+        struct Window *activeWin = g_active_window;
+        struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+
+        if (pi && (pi->Flags & AUTOKNOB) && (pi->Flags & FREEHORIZ))
+        {
+            WORD gadAbsL = gad->LeftEdge + activeWin->LeftEdge;
+            WORD containerL = gadAbsL + 1;
+            WORD containerW = gad->Width - 2;
+            WORD knobW;
+            WORD maxMoveX;
+            WORD newKnobL;
+            UWORD old_pot = pi->HorizPot;
+
+            knobW = (WORD)(((ULONG)containerW * (ULONG)pi->HorizBody) / 0xFFFF);
+            if (knobW < 6) knobW = 6;
+            if (knobW > containerW) knobW = containerW;
+
+            maxMoveX = containerW - knobW;
+            if (maxMoveX < 0) maxMoveX = 0;
+
+            newKnobL = mouseX - g_prop_click_offset;
+            if (newKnobL < containerL) newKnobL = containerL;
+            if (newKnobL > containerL + maxMoveX)
+                newKnobL = containerL + maxMoveX;
+
+            if (maxMoveX > 0)
+                pi->HorizPot = (UWORD)(((ULONG)(newKnobL - containerL) * 0xFFFF) / (ULONG)maxMoveX);
+            else
+                pi->HorizPot = 0;
+
+            if (pi->HorizPot != old_pot)
+            {
+                WORD sl_min;
+                WORD sl_max;
+                LONG range;
+                LONG level;
+                WORD relX;
+                WORD relY;
+
+                _render_gadget(activeWin, NULL, gad);
+
+                sl_min = (WORD)pi->CWidth;
+                sl_max = (WORD)pi->CHeight;
+                range = sl_max - sl_min;
+                if (range > 0)
+                    level = sl_min + ((LONG)pi->HorizPot * range) / 0xFFFF;
+                else
+                    level = sl_min;
+
+                _gadtools_UpdateSliderLevelDisplay(gad, level);
+
+                relX = mouseX - activeWin->LeftEdge;
+                relY = mouseY - activeWin->TopEdge;
+                _post_idcmp_message(activeWin, IDCMP_MOUSEMOVE, (UWORD)level,
+                                   qualifier, gad, relX, relY);
+            }
+        }
+    }
+
+    if (window)
+    {
+        WORD relX = mouseX - window->LeftEdge;
+        WORD relY = mouseY - window->TopEdge;
+
+        window->MouseX = relX;
+        window->MouseY = relY;
+
+        _post_idcmp_message(window, IDCMP_MOUSEMOVE, 0,
+                           qualifier, NULL, relX, relY);
+    }
+}
+
+static VOID _intuition_handle_rawkey_event(struct IntuitionBase *IntuitionBase,
+                                           struct Window *window,
+                                           WORD mouseX,
+                                           WORD mouseY,
+                                           UWORD rawkey,
+                                           UWORD qualifier,
+                                           BOOL dispatch_input_device)
+{
+    struct InputEvent input_event;
+
+    input_event.ie_NextEvent = NULL;
+    input_event.ie_Class = IECLASS_RAWKEY;
+    input_event.ie_SubClass = 0;
+    input_event.ie_Code = rawkey;
+    input_event.ie_Qualifier = qualifier;
+    input_event.ie_X = mouseX;
+    input_event.ie_Y = mouseY;
+    input_event.ie_EventAddress = NULL;
+
+    if (dispatch_input_device)
+        _input_device_dispatch_event(&input_event);
+    _keyboard_device_record_event(rawkey, qualifier);
+
+    if (g_active_gadget && g_active_window &&
+        (g_active_gadget->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
+    {
+        BOOL stillActive = _handle_string_gadget_key(g_active_gadget, g_active_window,
+                                                     rawkey, qualifier);
+        if (!stillActive)
+        {
+            g_active_gadget = NULL;
+            g_active_window = NULL;
+        }
+    }
+    else if (window)
+    {
+        struct LXAWindowState *state = _intuition_ensure_window_state(
+            (struct LXAIntuitionBase *)IntuitionBase, window);
+        WORD relX = mouseX - window->LeftEdge;
+        WORD relY = mouseY - window->TopEdge;
+        BOOL posted = FALSE;
+
+        if (window->IDCMPFlags & IDCMP_VANILLAKEY)
+        {
+            char ascii = U_rawkeyToVanilla(rawkey, qualifier);
+            if (ascii)
+            {
+                posted = _post_idcmp_message(window, IDCMP_VANILLAKEY,
+                                             (UWORD)ascii, qualifier, NULL, relX, relY);
+            }
+        }
+
+        if (!posted)
+        {
+            _post_idcmp_message(window, IDCMP_RAWKEY, rawkey,
+                               qualifier, NULL, relX, relY);
+        }
+
+        _intuition_note_rawkey(state, rawkey, qualifier);
+    }
+}
+
+static VOID _intuition_handle_event_class_event(struct IntuitionBase *IntuitionBase,
+                                                struct Window *window,
+                                                WORD mouseX,
+                                                WORD mouseY,
+                                                UWORD code,
+                                                BOOL dispatch_input_device)
+{
+    struct InputEvent input_event;
+
+    input_event.ie_NextEvent = NULL;
+    input_event.ie_Class = IECLASS_EVENT;
+    input_event.ie_SubClass = 0;
+    input_event.ie_Code = code;
+    input_event.ie_Qualifier = 0;
+    input_event.ie_X = mouseX;
+    input_event.ie_Y = mouseY;
+    input_event.ie_EventAddress = NULL;
+
+    if (dispatch_input_device)
+        _input_device_dispatch_event(&input_event);
+
+    if (window)
+    {
+        WORD relX = mouseX - window->LeftEdge;
+        WORD relY = mouseY - window->TopEdge;
+        _post_idcmp_message(window, IDCMP_CLOSEWINDOW, 0,
+                           0, window, relX, relY);
+    }
 }
 
 VOID _intuition_Intuition ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct InputEvent * iEvent __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_intuition: Intuition() unimplemented STUB called.\n");
-    assert(FALSE);
+    DPRINTF (LOG_DEBUG, "_intuition: Intuition() called iEvent=0x%08lx\n", (ULONG)iEvent);
+
+    while (IntuitionBase && iEvent)
+    {
+        struct InputEvent current_event = *iEvent;
+        struct Screen *screen;
+        struct Window *window;
+        struct InputEvent *next_event = iEvent->ie_NextEvent;
+        WORD mouseX = IntuitionBase->MouseX;
+        WORD mouseY = IntuitionBase->MouseY;
+
+        current_event.ie_NextEvent = NULL;
+
+        if (current_event.ie_Class == IECLASS_RAWMOUSE ||
+            current_event.ie_Class == IECLASS_POINTERPOS)
+        {
+            mouseX = current_event.ie_X;
+            mouseY = current_event.ie_Y;
+        }
+        else if (current_event.ie_X != 0 || current_event.ie_Y != 0)
+        {
+            mouseX = current_event.ie_X;
+            mouseY = current_event.ie_Y;
+        }
+
+        screen = _intuition_resolve_input_screen(IntuitionBase, &current_event, mouseX, mouseY);
+        _intuition_update_input_snapshot(IntuitionBase, mouseX, mouseY);
+        window = _intuition_resolve_input_window(IntuitionBase, screen, mouseX, mouseY);
+
+        switch (current_event.ie_Class)
+        {
+            case IECLASS_RAWMOUSE:
+                _intuition_handle_mouse_button_event(IntuitionBase, screen, window,
+                                                     mouseX, mouseY,
+                                                     current_event.ie_Code,
+                                                     current_event.ie_Qualifier,
+                                                     TRUE);
+                break;
+
+            case IECLASS_POINTERPOS:
+                _intuition_handle_pointerpos_event(IntuitionBase, screen, window,
+                                                   mouseX, mouseY,
+                                                   current_event.ie_Qualifier,
+                                                   TRUE);
+                break;
+
+            case IECLASS_RAWKEY:
+                _intuition_handle_rawkey_event(IntuitionBase, window,
+                                               mouseX, mouseY,
+                                               current_event.ie_Code,
+                                               current_event.ie_Qualifier,
+                                               TRUE);
+                break;
+
+            case IECLASS_EVENT:
+                if (current_event.ie_Code == IECODE_NEWACTIVE)
+                {
+                    _intuition_handle_event_class_event(IntuitionBase, window,
+                                                        mouseX, mouseY,
+                                                        current_event.ie_Code,
+                                                        TRUE);
+                }
+                break;
+
+            default:
+                break;
+        }
+
+        iEvent = next_event;
+    }
 }
 
 UWORD _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -4028,16 +4928,6 @@ static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadg
     }
 }
 
-/* State for tracking active gadget during mouse press
- * Note: These MUST NOT have initializers - uninitialized statics go into .bss (RAM),
- * while initialized statics go into .data which is in ROM (read-only). */
-static struct Gadget *g_active_gadget;
-static struct Window *g_active_window;
-
-/* State for prop gadget dragging
- * Note: These MUST NOT have initializers - .bss goes to RAM. */
-static WORD g_prop_click_offset;            /* Mouse offset within knob on click */
-
 static void _calculate_requester_box(struct Window *window, struct Requester *req,
                                      LONG *left, LONG *top,
                                      LONG *width, LONG *height)
@@ -4101,35 +4991,7 @@ static void _calculate_requester_box(struct Window *window, struct Requester *re
         *height = calc_height;
 }
 
-/* State for menu bar handling
- * Note: These MUST NOT have initializers because initialized static data goes
- * into .data section which is placed in ROM (read-only). Uninitialized statics
- * go into .bss which is in RAM. We initialize them in _enter_menu_mode(). */
-static BOOL g_menu_mode;                    /* TRUE when right mouse button held */
-static struct Window *g_menu_window;        /* Window whose menu is being shown */
-static struct Menu *g_active_menu;          /* Currently highlighted menu */
-static struct MenuItem *g_active_item;      /* Currently highlighted item */
-static struct MenuItem *g_active_subitem;   /* Currently highlighted sub-item */
 static UWORD g_menu_selection;              /* Encoded menu selection */
-
-/* State for window dragging
- * Note: These MUST NOT have initializers - uninitialized statics go into .bss (RAM),
- * while initialized statics go into .data which is in ROM (read-only). */
-static BOOL g_dragging_window;              /* TRUE when dragging a window */
-static struct Window *g_drag_window;        /* Window being dragged */
-static WORD g_drag_start_x;                 /* Mouse X when drag started */
-static WORD g_drag_start_y;                 /* Mouse Y when drag started */
-static WORD g_drag_window_x;                /* Window X when drag started */
-static WORD g_drag_window_y;                /* Window Y when drag started */
-
-/* State for window resizing via sizing gadget
- * Note: These MUST NOT have initializers - .bss goes to RAM. */
-static BOOL g_sizing_window;                /* TRUE when sizing a window */
-static struct Window *g_size_window;        /* Window being resized */
-static WORD g_size_start_x;                 /* Mouse X when sizing started */
-static WORD g_size_start_y;                 /* Mouse Y when sizing started */
-static WORD g_size_orig_w;                  /* Window width when sizing started */
-static WORD g_size_orig_h;                  /* Window height when sizing started */
 
 /* Menu drop-down save-behind buffer.
  * When a menu drop-down is rendered, the screen area beneath it is saved here

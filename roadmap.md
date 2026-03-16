@@ -202,9 +202,9 @@ Goal: eliminate the remaining non-private `graphics.library` stubs, match RKRM/N
 
 Goal: eliminate the remaining non-private `intuition.library` stubs, match RKRM/NDK behavior, and keep each closure checked against AROS.
 
-- [ ] Implement `OpenIntuition()` per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `OpenIntuition()` behavior against the AROS implementation
-- [ ] Implement `Intuition()` per RKRM/NDK semantics with direct regression coverage
+- [x] Implement `OpenIntuition()` per RKRM/NDK semantics with direct regression coverage; `OpenIntuition()` now follows the legacy public entry-point contract by ensuring the Workbench screen exists once, reusing the existing Workbench instance when already open, and adding direct regression coverage in `Tests/Intuition/ScreenManipulation` plus the `Tests/Exec/Library` entry-point probe
+- [x] Compare and verify `OpenIntuition()` behavior against the AROS implementation; AROS marks `OpenIntuition()` as an AmigaOS-private entry point and omits a public implementation from its Intuition function table, while the NDK still exposes the legacy vector, so the lxa path intentionally preserves the observable Amiga contract by delegating to `OpenWorkBench()` only when no Workbench screen is present and keeping the aligned one-shot/idempotent semantics covered in `Tests/Intuition/ScreenManipulation` and `Tests/Exec/Library`
+- [x] Implement `Intuition()` per RKRM/NDK semantics with direct regression coverage; `Intuition()` now accepts synthetic `InputEvent` chains instead of trapping, routes RAWKEY/RAWMOUSE/POINTERPOS compatibility events through the same Intuition-side dispatch used by live host input, updates the current mouse/time snapshot, and adds direct regression coverage in `Tests/Exec/Library` plus `Tests/Intuition/IDCMPInput`
 - [ ] Compare and verify `Intuition()` behavior against the AROS implementation
 
 ### Phase 87: Close `icon.library` stub surface

@@ -21,19 +21,24 @@
 #include <dos/dosextens.h>
 #include <dos/rdargs.h>
 #include <dos/record.h>
+#include <devices/inputevent.h>
 #include <graphics/copper.h>
 #include <graphics/collide.h>
 #include <graphics/gels.h>
 #include <graphics/layers.h>
+#include <intuition/intuition.h>
+#include <intuition/screens.h>
 #include <graphics/rastport.h>
 #include <utility/tagitem.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
 #include <clib/graphics_protos.h>
+#include <clib/intuition_protos.h>
 #include <clib/utility_protos.h>
 #include <inline/exec.h>
 #include <inline/dos.h>
 #include <inline/graphics.h>
+#include <inline/intuition.h>
 #include <inline/utility.h>
 
 #undef SetFunction
@@ -43,6 +48,7 @@ extern struct ExecBase *SysBase;
 
 static struct UtilityBase *UtilityBase;
 extern struct GfxBase *GfxBase;
+extern struct IntuitionBase *IntuitionBase;
 
 static const char g_test_library_name[] = "phase78test.library";
 
@@ -3316,6 +3322,155 @@ static int test_graphics_freespritedata_stub_closed(void)
     return errors;
 }
 
+static int test_intuition_openintuition_stub_closed(void)
+{
+    int errors = 0;
+    struct Screen *before;
+    struct Screen *after_first;
+
+    print("--- Test: intuition OpenIntuition entry point ---\n");
+
+    before = IntuitionBase->FirstScreen;
+    while (CloseWorkBench())
+        ;
+
+    if (IntuitionBase->FirstScreen != NULL)
+    {
+        print("FAIL: Could not reset Workbench state before OpenIntuition probe\n\n");
+        return 1;
+    }
+
+    OpenIntuition();
+    after_first = IntuitionBase->FirstScreen;
+    if (!after_first || !(after_first->Flags & WBENCHSCREEN))
+    {
+        print("FAIL: OpenIntuition() did not open the Workbench screen\n");
+        errors++;
+    }
+    else
+    {
+        OpenIntuition();
+        if (IntuitionBase->FirstScreen != after_first)
+        {
+            print("FAIL: OpenIntuition() was not idempotent\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: OpenIntuition() no longer behaves like a stub\n");
+        }
+    }
+
+    if (before == NULL)
+    {
+        while (CloseWorkBench())
+            ;
+    }
+
+    print("\n");
+    return errors;
+}
+
+static int test_intuition_entry_point_dispatch(void)
+{
+    struct NewScreen ns;
+    struct NewWindow nw;
+    struct Screen *screen;
+    struct Window *window;
+    struct IntuiMessage *msg;
+    struct InputEvent event;
+    int errors = 0;
+
+    print("--- Test: intuition Intuition entry point ---\n");
+
+    ns.LeftEdge = 0;
+    ns.TopEdge = 0;
+    ns.Width = 320;
+    ns.Height = 200;
+    ns.Depth = 2;
+    ns.DetailPen = 0;
+    ns.BlockPen = 1;
+    ns.ViewModes = 0;
+    ns.Type = CUSTOMSCREEN;
+    ns.Font = NULL;
+    ns.DefaultTitle = (UBYTE *)"Intuition Entry";
+    ns.Gadgets = NULL;
+    ns.CustomBitMap = NULL;
+
+    screen = OpenScreen(&ns);
+    if (!screen)
+    {
+        print("FAIL: Could not open screen for Intuition() probe\n\n");
+        return 1;
+    }
+
+    nw.LeftEdge = 12;
+    nw.TopEdge = 14;
+    nw.Width = 160;
+    nw.Height = 80;
+    nw.DetailPen = 0;
+    nw.BlockPen = 1;
+    nw.IDCMPFlags = IDCMP_RAWKEY;
+    nw.Flags = WFLG_ACTIVATE | WFLG_DRAGBAR;
+    nw.FirstGadget = NULL;
+    nw.CheckMark = NULL;
+    nw.Title = (UBYTE *)"Intuition Probe";
+    nw.Screen = screen;
+    nw.BitMap = NULL;
+    nw.MinWidth = 0;
+    nw.MinHeight = 0;
+    nw.MaxWidth = 0;
+    nw.MaxHeight = 0;
+    nw.Type = CUSTOMSCREEN;
+
+    window = OpenWindow(&nw);
+    if (!window)
+    {
+        print("FAIL: Could not open window for Intuition() probe\n\n");
+        CloseScreen(screen);
+        return 1;
+    }
+
+    event.ie_NextEvent = NULL;
+    event.ie_Class = IECLASS_RAWKEY;
+    event.ie_SubClass = 0;
+    event.ie_Code = 0x20;
+    event.ie_Qualifier = IEQUALIFIER_LSHIFT;
+    event.ie_X = 0;
+    event.ie_Y = 0;
+    event.ie_EventAddress = NULL;
+    Intuition(&event);
+
+    msg = (struct IntuiMessage *)GetMsg(window->UserPort);
+    if (!msg)
+    {
+        print("FAIL: Intuition() did not post IDCMP_RAWKEY\n");
+        errors++;
+    }
+    else
+    {
+        if (msg->Class != IDCMP_RAWKEY ||
+            msg->Code != 0x20 ||
+            msg->Qualifier != IEQUALIFIER_LSHIFT)
+        {
+            print("FAIL: Intuition() posted the wrong IDCMP_RAWKEY payload\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: Intuition() dispatches synthetic input through IDCMP\n");
+        }
+
+        ReplyMsg((struct Message *)msg);
+    }
+
+    CloseWindow(window);
+    CloseScreen(screen);
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -3508,6 +3663,12 @@ int main(void)
 
     /* Test 52: Verify FreeSpriteData no longer hits the stub path */
     errors += test_graphics_freespritedata_stub_closed();
+
+    /* Test 53: Verify OpenIntuition no longer hits the stub path */
+    errors += test_intuition_openintuition_stub_closed();
+
+    /* Test 54: Verify Intuition no longer hits the stub path */
+    errors += test_intuition_entry_point_dispatch();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");
