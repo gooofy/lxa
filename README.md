@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.43** - Phase 90 closes the remaining public `timer.device` stub in scope here with RKRM-aligned expunge handling that unlinks deferred-removal devices, blocks new opens after `RemDevice()`, completes teardown on the final `CloseDevice()`, and adds direct regression coverage plus roadmap notes against the AROS reference behavior
+**Version 0.8.44** - Phase 91 closes the remaining public `clipboard.device` stubs in scope here with RKRM-aligned expunge, `CBD_POST`, `CBD_CHANGEHOOK`, and `AbortIO` handling, including deferred satisfy-message reads, change-hook notifications, pending-read cancellation, and direct regression coverage plus roadmap notes for the missing public AROS device sources
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

@@ -20,6 +20,7 @@
 #include <exec/io.h>
 #include <exec/libraries.h>
 #include <exec/memory.h>
+#include <devices/clipboard.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <dos/rdargs.h>
@@ -4599,6 +4600,231 @@ static int test_timer_phase90_stub_closed(void)
     return errors;
 }
 
+struct ClipboardHookProbeState
+{
+    ULONG calls;
+    LONG last_cmd;
+    LONG last_clip_id;
+    APTR last_object;
+};
+
+static ULONG clipboard_probe_hook(register struct Hook *hook __asm("a0"),
+                                  register APTR object __asm("a2"),
+                                  register struct ClipHookMsg *msg __asm("a1"))
+{
+    struct ClipboardHookProbeState *state = (struct ClipboardHookProbeState *)hook->h_Data;
+
+    if (state && msg)
+    {
+        state->calls++;
+        state->last_cmd = msg->chm_ChangeCmd;
+        state->last_clip_id = msg->chm_ClipID;
+        state->last_object = object;
+    }
+
+    return 0;
+}
+
+static int test_clipboard_phase91_stub_closed(void)
+{
+    int errors = 0;
+    struct MsgPort *reply_port = NULL;
+    struct MsgPort *satisfy_port = NULL;
+    struct IOClipReq *writer = NULL;
+    struct IOClipReq *reader = NULL;
+    struct IOClipReq *reopen = NULL;
+    struct Device *device;
+    struct Node *node;
+    struct SatisfyMsg *msg;
+    struct Hook hook;
+    struct ClipboardHookProbeState hook_state;
+    LONG clip_id;
+    LONG open_error;
+    BYTE wait_error;
+    char post_data[] = "phase91-post";
+    char read_buffer[32];
+
+    print("--- Test: clipboard.device Phase 91 entry point ---\n");
+
+    reply_port = CreateMsgPort();
+    satisfy_port = CreateMsgPort();
+    writer = (struct IOClipReq *)CreateIORequest(reply_port, sizeof(struct IOClipReq));
+    reader = (struct IOClipReq *)CreateIORequest(reply_port, sizeof(struct IOClipReq));
+    reopen = (struct IOClipReq *)CreateIORequest(reply_port, sizeof(struct IOClipReq));
+    if (!reply_port || !satisfy_port || !writer || !reader || !reopen)
+    {
+        print("FAIL: Could not allocate clipboard.device probe resources\n\n");
+        if (reopen)
+            DeleteIORequest((struct IORequest *)reopen);
+        if (reader)
+            DeleteIORequest((struct IORequest *)reader);
+        if (writer)
+            DeleteIORequest((struct IORequest *)writer);
+        if (satisfy_port)
+            DeleteMsgPort(satisfy_port);
+        if (reply_port)
+            DeleteMsgPort(reply_port);
+        return 1;
+    }
+
+    if (OpenDevice((CONST_STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)writer, 0) != 0 ||
+        OpenDevice((CONST_STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)reader, 0) != 0)
+    {
+        print("FAIL: OpenDevice() for clipboard.device probe failed\n\n");
+        if (reader->io_Device)
+            CloseDevice((struct IORequest *)reader);
+        if (writer->io_Device)
+            CloseDevice((struct IORequest *)writer);
+        DeleteIORequest((struct IORequest *)reopen);
+        DeleteIORequest((struct IORequest *)reader);
+        DeleteIORequest((struct IORequest *)writer);
+        DeleteMsgPort(satisfy_port);
+        DeleteMsgPort(reply_port);
+        return 1;
+    }
+
+    hook_state.calls = 0;
+    hook_state.last_cmd = -1;
+    hook_state.last_clip_id = -1;
+    hook_state.last_object = NULL;
+    hook.h_Entry = (ULONG (*)())clipboard_probe_hook;
+    hook.h_SubEntry = NULL;
+    hook.h_Data = &hook_state;
+
+    writer->io_Command = CBD_CHANGEHOOK;
+    writer->io_Flags = IOF_QUICK;
+    writer->io_Data = (STRPTR)&hook;
+    writer->io_Length = 1;
+    DoIO((struct IORequest *)writer);
+    if (writer->io_Error != 0)
+    {
+        print("FAIL: clipboard.device CBD_CHANGEHOOK install failed\n");
+        errors++;
+        goto cleanup;
+    }
+
+    writer->io_Command = CBD_POST;
+    writer->io_Flags = IOF_QUICK;
+    writer->io_Data = (STRPTR)satisfy_port;
+    writer->io_ClipID = 0;
+    DoIO((struct IORequest *)writer);
+    clip_id = writer->io_ClipID;
+    if (writer->io_Error != 0 || hook_state.calls != 1 || hook_state.last_cmd != CBD_POST)
+    {
+        print("FAIL: clipboard.device CBD_POST did not close the stub path\n");
+        errors++;
+        goto cleanup;
+    }
+    else
+    {
+        print("OK: clipboard.device CBD_POST no longer behaves like a stub\n");
+    }
+
+    reader->io_Command = CMD_READ;
+    reader->io_Data = (STRPTR)read_buffer;
+    reader->io_Length = sizeof(read_buffer);
+    reader->io_Offset = 0;
+    reader->io_ClipID = clip_id;
+    SendIO((struct IORequest *)reader);
+    if (CheckIO((struct IORequest *)reader) != NULL)
+    {
+        print("FAIL: clipboard.device posted read should pend until satisfied\n");
+        errors++;
+        goto cleanup;
+    }
+
+    msg = (struct SatisfyMsg *)GetMsg(satisfy_port);
+    if (!msg || msg->sm_ClipID != clip_id)
+    {
+        print("FAIL: clipboard.device CBD_POST did not deliver SatisfyMsg\n");
+        errors++;
+        goto cleanup;
+    }
+
+    writer->io_Command = CMD_WRITE;
+    writer->io_Flags = IOF_QUICK;
+    writer->io_Data = (STRPTR)post_data;
+    writer->io_Length = sizeof(post_data) - 1;
+    writer->io_Offset = 0;
+    writer->io_ClipID = clip_id;
+    DoIO((struct IORequest *)writer);
+    writer->io_Command = CMD_UPDATE;
+    writer->io_Flags = IOF_QUICK;
+    writer->io_ClipID = clip_id;
+    DoIO((struct IORequest *)writer);
+    wait_error = WaitIO((struct IORequest *)reader);
+    if (writer->io_Error != 0 || wait_error != 0 || reader->io_Error != 0 ||
+        hook_state.calls != 2 || hook_state.last_cmd != CMD_UPDATE)
+    {
+        print("FAIL: clipboard.device posted write/update sequence behaved like a stub\n");
+        errors++;
+        goto cleanup;
+    }
+    else
+    {
+        print("OK: clipboard.device CBD_CHANGEHOOK observes post satisfaction updates\n");
+    }
+
+    writer->io_Command = CBD_CHANGEHOOK;
+    writer->io_Flags = IOF_QUICK;
+    writer->io_Data = (STRPTR)&hook;
+    writer->io_Length = 0;
+    DoIO((struct IORequest *)writer);
+    if (writer->io_Error != 0)
+    {
+        print("FAIL: clipboard.device CBD_CHANGEHOOK removal failed\n");
+        errors++;
+    }
+
+    device = writer->io_Device;
+    node = FindName(&SysBase->DeviceList, (CONST_STRPTR)"clipboard.device");
+    if (node != &device->dd_Library.lib_Node)
+    {
+        print("FAIL: clipboard.device missing from DeviceList before Expunge probe\n");
+        errors++;
+        goto cleanup;
+    }
+
+    RemDevice(device);
+    if ((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
+        FindName(&SysBase->DeviceList, (CONST_STRPTR)"clipboard.device") == NULL)
+    {
+        print("OK: clipboard.device Expunge() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: clipboard.device Expunge() did not defer and unlink as expected\n");
+        errors++;
+    }
+
+    open_error = OpenDevice((CONST_STRPTR)"clipboard.device", PRIMARY_CLIP, (struct IORequest *)reopen, 0);
+    if (open_error == IOERR_OPENFAIL)
+    {
+        print("OK: deferred clipboard.device Expunge() blocks new opens\n");
+    }
+    else
+    {
+        print("FAIL: deferred clipboard.device Expunge() still allowed opens\n");
+        errors++;
+        if (open_error == 0)
+            CloseDevice((struct IORequest *)reopen);
+    }
+
+cleanup:
+    if (reader->io_Device)
+        CloseDevice((struct IORequest *)reader);
+    if (writer->io_Device)
+        CloseDevice((struct IORequest *)writer);
+    DeleteIORequest((struct IORequest *)reopen);
+    DeleteIORequest((struct IORequest *)reader);
+    DeleteIORequest((struct IORequest *)writer);
+    DeleteMsgPort(satisfy_port);
+    DeleteMsgPort(reply_port);
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -4809,6 +5035,9 @@ int main(void)
 
     /* Test 58: Verify timer.device Phase 90 entry point no longer hits the stub path */
     errors += test_timer_phase90_stub_closed();
+
+    /* Test 59: Verify clipboard.device Phase 91 entry points no longer hit the stub path */
+    errors += test_clipboard_phase91_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

@@ -259,18 +259,18 @@ Goal: eliminate the remaining non-private `timer.device` stubs, match RKRM/NDK b
 - [x] Implemented `Expunge()` per RKRM/NDK device semantics with direct regression coverage; `timer.device` now removes itself from the Exec device list when `RemDevice()` requests expunge, defers teardown with `LIBF_DELEXP` while opens remain, completes the deferred expunge on the final `CloseDevice()`, and adds direct regression coverage in `Tests/Devices/Timer`
 - [x] Compared `Expunge()` behavior against the AROS `timer.device` implementation; AROS wires expunge cleanup through `ADD2EXPUNGELIB()` helpers such as `timervblank.c`'s `vblank_Expunge()` and the NDK device autodocs specify the same public contract that `RemDevice()` unlinks the device before `Expunge()` runs, defers removal while `lib_OpenCnt` is non-zero, and completes once the last close arrives, which the lxa implementation now preserves for the hosted ROM device model
 
-### Phase 91: Close `clipboard.device` stub surface
+### Phase 91 complete (`0.8.44`): Close `clipboard.device` stub surface
 
 Goal: eliminate the remaining non-private `clipboard.device` stubs, match RKRM/NDK behavior, and keep each closure checked against AROS.
 
-- [ ] Implement `Expunge()` per RKRM/NDK device semantics with direct regression coverage
-- [ ] Compare and verify `Expunge()` behavior against the AROS `clipboard.device` implementation
-- [ ] Implement `CBD_POST` handling per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `CBD_POST` behavior against the AROS `clipboard.device` implementation
-- [ ] Implement `CBD_CHANGEHOOK` handling per RKRM/NDK semantics with direct regression coverage
-- [ ] Compare and verify `CBD_CHANGEHOOK` behavior against the AROS `clipboard.device` implementation
-- [ ] Implement `AbortIO()` per RKRM/NDK device semantics with direct regression coverage
-- [ ] Compare and verify `AbortIO()` behavior against the AROS `clipboard.device` implementation
+- [x] Implemented `Expunge()` per RKRM/NDK device semantics with direct regression coverage; `clipboard.device` now unlinks itself from the Exec device list when `RemDevice()` requests expunge, defers teardown with `LIBF_DELEXP` while opens remain, frees hosted clipboard state on the final `CloseDevice()`, and adds direct regression coverage in `Tests/Devices/Clipboard` plus the `Tests/Exec/Library` entry-point probe
+- [x] Compared `Expunge()` behavior against the available AROS references; the bundled AROS snapshot exposes `devices/clipboard.h` but does not include a public `clipboard.device` implementation source for expunge handling, so lxa follows the NDK device autodoc contract directly while keeping that source gap explicit here
+- [x] Implemented `CBD_POST` handling per RKRM/NDK semantics with direct regression coverage; posted clips now allocate a new public ClipID without copying data immediately, send a `SatisfyMsg` only when a reader actually demands the clip, preserve the posted ClipID across the satisfy write/update sequence, and complete deferred readers once the posted data is written, with direct coverage in `Tests/Devices/Clipboard` and the `Tests/Exec/Library` probe
+- [x] Compared `CBD_POST` behavior against the available AROS references; the current AROS tree again exposes only the public clipboard header definitions and no comparable `clipboard.device` implementation body, so lxa follows the RKRM/NDK post contract directly: `CBD_POST` returns a ClipID, delivers a satisfy message on demand, and lets `CBD_CURRENTREADID`/`CBD_CURRENTWRITEID` observe whether the posted clip is still current
+- [x] Implemented `CBD_CHANGEHOOK` handling per RKRM/NDK semantics with direct regression coverage; clipboard units now maintain install/remove bookkeeping for change hooks, invoke them with `ClipHookMsg` metadata for both `CBD_POST` and `CMD_UPDATE`, pass the opened unit as the hook object, and cover the install/remove/notification behavior directly in `Tests/Devices/Clipboard` and the `Tests/Exec/Library` probe
+- [x] Compared `CBD_CHANGEHOOK` behavior against the available AROS references; as with the other Phase 91 entry points, the bundled AROS snapshot provides only the public header declarations and no implementation source, so lxa follows the NDK hook contract directly while keeping the missing public AROS device body explicit here
+- [x] Implemented `AbortIO()` per RKRM/NDK device semantics with direct regression coverage; pending posted-read requests can now be cancelled cleanly, `AbortIO()` returns success only for the active deferred read, marks the request with `IOERR_ABORTED`, replies the message, and keeps direct coverage in `Tests/Devices/Clipboard` plus the `Tests/Exec/Library` probe
+- [x] Compared `AbortIO()` behavior against the available AROS references; the current AROS snapshot does not ship a public `clipboard.device` implementation body for `AbortIO()`, so lxa aligns with the standard Exec device contract used by the NDK and by other AROS device implementations: abort only genuinely pending requests, return success for the cancelled request, and leave unrelated/completed requests untouched
 
 ### Phase 92: Close `gameport.device` stub surface
 
