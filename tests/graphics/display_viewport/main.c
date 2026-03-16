@@ -373,6 +373,71 @@ int main(void)
         print("OK: MakeVPort() built placeholder copper list and attached ColorMap\n");
     }
 
+    {
+        struct CopIns calc_ins[3];
+        struct CopList calc_list;
+        struct BitMap calc_bm;
+        struct RasInfo calc_ras;
+
+        fill_bytes(&calc_list, 0, sizeof(calc_list));
+        fill_bytes(calc_ins, 0, sizeof(calc_ins));
+        fill_bytes(&calc_bm, 0, sizeof(calc_bm));
+        fill_bytes(&calc_ras, 0, sizeof(calc_ras));
+
+        calc_ins[0].OpCode = COPPER_MOVE;
+        calc_ins[1].OpCode = COPPER_MOVE;
+        calc_ins[2].OpCode = COPPER_WAIT;
+        calc_list.CopIns = calc_ins;
+        calc_list.Count = 3;
+        calc_list.MaxCount = 3;
+        calc_bm.BytesPerRow = 40;
+        calc_bm.Rows = 256;
+        calc_bm.Depth = 2;
+        calc_ras.BitMap = &calc_bm;
+
+        vp.DspIns = &calc_list;
+        vp.RasInfo = &calc_ras;
+        vp.DWidth = 320;
+        vp.Modes = HIRES | LACE;
+        view.Modes = LACE;
+
+        result = CalcIVG(&view, &vp);
+        if (result != 1)
+        {
+            print("FAIL: CalcIVG() returned unexpected laced viewport gap\n");
+            errors++;
+        }
+        else
+        {
+            calc_bm.Depth = 8;
+            vp.DWidth = 640;
+            result = CalcIVG(&view, &vp);
+            if (result != 0)
+            {
+                print("FAIL: CalcIVG() ignored unavailable copper bandwidth\n");
+                errors++;
+            }
+            else
+            {
+                vp.DspIns = NULL;
+                if (CalcIVG(&view, &vp) != 0)
+                {
+                    print("FAIL: CalcIVG() accepted a viewport without DspIns\n");
+                    errors++;
+                }
+                else
+                {
+                    print("OK: CalcIVG() accounts for copper bandwidth and DspIns presence\n");
+                }
+            }
+        }
+
+        vp.RasInfo = &ras_info;
+        vp.DWidth = 320;
+        vp.Modes = HIRES | LACE;
+        view.Modes = LACE;
+    }
+
     fill_bytes(&ucl, 0, sizeof(ucl));
     ucl_list = UCopperListInit(&ucl, 4);
     if (!ucl_list || ucl.FirstCopList != ucl_list || ucl.CopList != ucl_list ||

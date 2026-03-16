@@ -11,6 +11,7 @@
 #include <graphics/sprite.h>
 #include <graphics/rastport.h>
 #include <graphics/view.h>
+#include <utility/tagitem.h>
 #include <clib/exec_protos.h>
 #include <clib/graphics_protos.h>
 #include <clib/dos_protos.h>
@@ -205,6 +206,100 @@ int main(void)
 
     for (i = 0; i < 8; i++)
         FreeSprite(i);
+
+    {
+        struct ExtSprite ext_sprite;
+        struct ExtSprite attached_primary;
+        struct ExtSprite attached_sprite;
+        struct ExtSprite specific_sprite;
+        struct ExtSprite specific_attached;
+        struct ExtSprite fail_attached;
+        struct TagItem specific_tags[] = {
+            { GSTAG_SPRITE_NUM, 5 },
+            { TAG_DONE, 0 }
+        };
+        struct TagItem attached_tags[] = {
+            { GSTAG_ATTACHED, (ULONG)&attached_sprite },
+            { TAG_DONE, 0 }
+        };
+        struct TagItem specific_attached_tags[] = {
+            { GSTAG_SPRITE_NUM, 6 },
+            { GSTAG_ATTACHED, (ULONG)&specific_attached },
+            { TAG_DONE, 0 }
+        };
+        struct TagItem invalid_attached_tags[] = {
+            { GSTAG_SPRITE_NUM, 3 },
+            { GSTAG_ATTACHED, (ULONG)&fail_attached },
+            { TAG_DONE, 0 }
+        };
+
+        ext_sprite.es_SimpleSprite.num = 99;
+        attached_primary.es_SimpleSprite.num = 99;
+        attached_sprite.es_SimpleSprite.num = 99;
+        if (GetExtSpriteA(&ext_sprite, NULL) != 0 || ext_sprite.es_SimpleSprite.num != 0)
+        {
+            print("FAIL: GetExtSpriteA() automatic single allocation failed\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: GetExtSpriteA() allocates the first free single sprite\n");
+        }
+
+        if (GetExtSpriteA(&specific_sprite, specific_tags) != 5 || specific_sprite.es_SimpleSprite.num != 5)
+        {
+            print("FAIL: GetExtSpriteA() specific single allocation failed\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: GetExtSpriteA() honors GSTAG_SPRITE_NUM for single sprites\n");
+        }
+
+        if (GetExtSpriteA(&attached_primary, attached_tags) != 2 ||
+            attached_primary.es_SimpleSprite.num != 2 ||
+            attached_sprite.es_SimpleSprite.num != 3)
+        {
+            print("FAIL: GetExtSpriteA() automatic attached allocation failed\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: GetExtSpriteA() allocates the first free attached pair\n");
+        }
+
+        if (GetExtSpriteA(&specific_sprite, specific_attached_tags) != 6 ||
+            specific_sprite.es_SimpleSprite.num != 6 ||
+            specific_attached.es_SimpleSprite.num != 7)
+        {
+            print("FAIL: GetExtSpriteA() specific attached allocation failed\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: GetExtSpriteA() honors GSTAG_SPRITE_NUM for attached pairs\n");
+        }
+
+        fail_attached.es_SimpleSprite.num = 77;
+        if (GetExtSpriteA(&specific_sprite, invalid_attached_tags) != -1 ||
+            specific_sprite.es_SimpleSprite.num != (UWORD)-1 ||
+            fail_attached.es_SimpleSprite.num != (UWORD)-1)
+        {
+            print("FAIL: GetExtSpriteA() accepted an odd attached sprite request\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: GetExtSpriteA() rejects odd-numbered attached pair requests\n");
+        }
+
+        FreeSprite(0);
+        FreeSprite(5);
+        FreeSprite(2);
+        FreeSprite(3);
+        FreeSprite(6);
+        FreeSprite(7);
+    }
 
     InitVPort(&vp);
     vp.DxOffset = 5;

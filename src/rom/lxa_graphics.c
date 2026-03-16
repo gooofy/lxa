@@ -90,6 +90,104 @@ static void SetPlaneBit(PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y, UBYTE
 static WORD graphics_vsprite_words_per_line(CONST struct VSprite *vSprite);
 static WORD graphics_vsprite_mask_depth(CONST struct VSprite *vSprite);
 
+static WORD graphics_reserve_sprite_slots(struct GfxBase *GfxBase,
+                                          WORD requested_num,
+                                          BOOL attached,
+                                          UWORD *primary_num,
+                                          UWORD *secondary_num)
+{
+    UBYTE reserved_mask;
+    WORD result = -1;
+
+    if (!GfxBase || !primary_num)
+        return -1;
+
+    *primary_num = (UWORD)-1;
+    if (secondary_num)
+        *secondary_num = (UWORD)-1;
+
+    Disable();
+
+    reserved_mask = GfxBase->SpriteReserved;
+
+    if (attached)
+    {
+        WORD pair_base = -1;
+
+        if (requested_num == -1)
+        {
+            WORD candidate;
+
+            for (candidate = 0; candidate <= 6; candidate += 2)
+            {
+                UBYTE pair_mask = (UBYTE)(0x03U << candidate);
+
+                if ((reserved_mask & pair_mask) == 0)
+                {
+                    pair_base = candidate;
+                    reserved_mask |= pair_mask;
+                    break;
+                }
+            }
+        }
+        else if (requested_num >= 0 && requested_num <= 6 && (requested_num & 1) == 0)
+        {
+            UBYTE pair_mask = (UBYTE)(0x03U << requested_num);
+
+            if ((reserved_mask & pair_mask) == 0)
+            {
+                pair_base = requested_num;
+                reserved_mask |= pair_mask;
+            }
+        }
+
+        if (pair_base >= 0)
+        {
+            *primary_num = (UWORD)pair_base;
+            if (secondary_num)
+                *secondary_num = (UWORD)(pair_base + 1);
+            result = pair_base;
+        }
+    }
+    else
+    {
+        if (requested_num == -1)
+        {
+            WORD candidate;
+
+            for (candidate = 0; candidate < 8; candidate++)
+            {
+                UBYTE sprite_mask = (UBYTE)(0x01U << candidate);
+
+                if ((reserved_mask & sprite_mask) == 0)
+                {
+                    reserved_mask |= sprite_mask;
+                    *primary_num = (UWORD)candidate;
+                    result = candidate;
+                    break;
+                }
+            }
+        }
+        else if (requested_num >= 0 && requested_num < 8)
+        {
+            UBYTE sprite_mask = (UBYTE)(0x01U << requested_num);
+
+            if ((reserved_mask & sprite_mask) == 0)
+            {
+                reserved_mask |= sprite_mask;
+                *primary_num = (UWORD)requested_num;
+                result = requested_num;
+            }
+        }
+    }
+
+    if (result >= 0)
+        GfxBase->SpriteReserved = reserved_mask;
+
+    Enable();
+    return result;
+}
+
 static WORD graphics_anim_fixed_to_coord(WORD anim_coord, WORD comp_trans)
 {
     LONG coord = ((LONG)anim_coord + (LONG)comp_trans) >> 5;
@@ -8063,13 +8161,139 @@ static VOID _graphics_StripFont ( register struct GfxBase * GfxBase __asm("a6"),
     FreeMem(tfe, sizeof(struct TextFontExtension));
 }
 
+static ULONG graphics_calcivg_instruction_cycles(CONST struct CopIns *cop_ins)
+{
+    if (!cop_ins)
+        return 0;
+
+    switch (cop_ins->OpCode)
+    {
+        case CPRNXTBUF:
+            return 0;
+
+        case COPPER_WAIT:
+            return 3;
+
+        case COPPER_MOVE:
+        default:
+            return 2;
+    }
+}
+
+static ULONG graphics_calcivg_total_cycles(CONST struct CopList *cop_list)
+{
+    ULONG total_cycles = 0;
+
+    while (cop_list)
+    {
+        if (cop_list->CopIns && cop_list->Count > 0)
+        {
+            UWORD i;
+
+            for (i = 0; i < (UWORD)cop_list->Count; i++)
+                total_cycles += graphics_calcivg_instruction_cycles(&cop_list->CopIns[i]);
+        }
+
+        cop_list = cop_list->Next;
+    }
+
+    return total_cycles;
+}
+
+static ULONG graphics_calcivg_display_width(CONST struct ViewPort *vp)
+{
+    if (!vp)
+        return 0;
+
+    if (vp->DWidth > 0)
+        return (ULONG)(UWORD)vp->DWidth;
+
+    if (vp->Modes & SUPERHIRES)
+        return 1280;
+
+    if (vp->Modes & HIRES)
+        return 640;
+
+    return 320;
+}
+
+static ULONG graphics_calcivg_bitplane_cycles(CONST struct ViewPort *vp)
+{
+    CONST struct RasInfo *ras_info;
+    ULONG display_width;
+    ULONG bitplane_cycles = 0;
+
+    if (!vp)
+        return 0;
+
+    display_width = graphics_calcivg_display_width(vp);
+    ras_info = vp->RasInfo;
+
+    while (ras_info)
+    {
+        CONST struct BitMap *bit_map = ras_info->BitMap;
+        ULONG width;
+        ULONG depth;
+
+        if (!bit_map)
+        {
+            ras_info = ras_info->Next;
+            continue;
+        }
+
+        width = display_width;
+        if (width == 0)
+            width = (ULONG)bit_map->BytesPerRow * 8UL;
+
+        depth = (bit_map->Depth > 0) ? (ULONG)bit_map->Depth : 1UL;
+        bitplane_cycles += (((width + 15UL) >> 4) * depth);
+
+        ras_info = ras_info->Next;
+    }
+
+    if (bitplane_cycles == 0)
+        bitplane_cycles = (display_width + 15UL) >> 4;
+
+    return bitplane_cycles;
+}
+
 static UWORD _graphics_CalcIVG ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * v __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: CalcIVG() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    ULONG total_cycles;
+    ULONG available_cycles_per_line;
+    ULONG bitplane_cycles;
+    ULONG result;
+
+    (void)GfxBase;
+
+    DPRINTF (LOG_DEBUG, "_graphics: CalcIVG(view=0x%08lx, vp=0x%08lx)\n", (ULONG)v, (ULONG)vp);
+
+    if (!v || !vp || !vp->DspIns)
+        return 0;
+
+    total_cycles = graphics_calcivg_total_cycles(vp->DspIns);
+    if (total_cycles == 0)
+        return 0;
+
+    bitplane_cycles = graphics_calcivg_bitplane_cycles(vp);
+    if (bitplane_cycles >= 114)
+        return 0;
+
+    available_cycles_per_line = 114 - bitplane_cycles;
+    if ((v->Modes | vp->Modes) & LACE)
+    {
+        available_cycles_per_line /= 2;
+        if (available_cycles_per_line == 0)
+            return 0;
+    }
+
+    result = (total_cycles + available_cycles_per_line - 1) / available_cycles_per_line;
+    if (result > 0xffffUL)
+        result = 0xffffUL;
+
+    return (UWORD)result;
 }
 
 static LONG _graphics_AttachPalExtra ( register struct GfxBase * GfxBase __asm("a6"),
@@ -8340,12 +8564,49 @@ static VOID _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
     }
 }
 
+static UBYTE graphics_available_chiprev_bits(void)
+{
+    return (UBYTE)SETCHIPREV_AA;
+}
+
 static ULONG _graphics_SetChipRev ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG want __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SetChipRev() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    UBYTE chiprev_bits;
+
+    DPRINTF (LOG_DEBUG, "_graphics: SetChipRev(want=0x%08lx)\n", want);
+
+    if (!GfxBase)
+        return 0;
+
+    chiprev_bits = graphics_available_chiprev_bits();
+
+    if (want != SETCHIPREV_BEST)
+    {
+        switch (want)
+        {
+            case SETCHIPREV_A:
+                chiprev_bits = SETCHIPREV_A;
+                break;
+
+            case SETCHIPREV_ECS:
+                if ((chiprev_bits & SETCHIPREV_ECS) == SETCHIPREV_ECS)
+                    chiprev_bits = SETCHIPREV_ECS;
+                break;
+
+            case SETCHIPREV_AA:
+                if ((chiprev_bits & SETCHIPREV_AA) == SETCHIPREV_AA)
+                    chiprev_bits = SETCHIPREV_AA;
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    GfxBase->ChipRevBits0 = chiprev_bits;
+
+    return (ULONG)GfxBase->ChipRevBits0;
 }
 
 static VOID _graphics_SetABPenDrMd ( register struct GfxBase * GfxBase __asm("a6"),
@@ -8538,9 +8799,72 @@ static LONG _graphics_GetExtSpriteA ( register struct GfxBase       *GfxBase __a
                                                register struct ExtSprite     *ss      __asm("a2"),
                                                register CONST struct TagItem *tags    __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetExtSpriteA() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    CONST struct TagItem *tag;
+    CONST struct TagItem *attached_tag = NULL;
+    struct ExtSprite *attached_sprite = NULL;
+    WORD requested_num = -1;
+    UWORD primary_num;
+    UWORD secondary_num;
+    WORD result;
+
+    DPRINTF (LOG_DEBUG, "_graphics: GetExtSpriteA() sprite=0x%08lx tags=0x%08lx\n",
+             (ULONG)ss, (ULONG)tags);
+
+    if (!ss || !GfxBase)
+        return -1;
+
+    if (tags)
+    {
+        tag = tags;
+        while (tag->ti_Tag != TAG_DONE)
+        {
+            switch (tag->ti_Tag)
+            {
+                case TAG_IGNORE:
+                    break;
+
+                case TAG_MORE:
+                    tag = (CONST struct TagItem *)tag->ti_Data;
+                    continue;
+
+                case TAG_SKIP:
+                    tag += tag->ti_Data;
+                    break;
+
+                case GSTAG_SPRITE_NUM:
+                    requested_num = (WORD)tag->ti_Data;
+                    break;
+
+                case GSTAG_ATTACHED:
+                    attached_tag = tag;
+                    attached_sprite = (struct ExtSprite *)tag->ti_Data;
+                    break;
+
+                default:
+                    break;
+            }
+
+            tag++;
+        }
+    }
+
+    if (attached_tag && !attached_sprite)
+    {
+        ss->es_SimpleSprite.num = (UWORD)-1;
+        return -1;
+    }
+
+    result = graphics_reserve_sprite_slots(GfxBase,
+                                           requested_num,
+                                           (attached_sprite != NULL),
+                                           &primary_num,
+                                           &secondary_num);
+
+    ss->es_SimpleSprite.num = primary_num;
+    if (attached_sprite)
+        attached_sprite->es_SimpleSprite.num = secondary_num;
+
+    return result;
 }
 
 static ULONG _graphics_CoerceMode ( register struct GfxBase * GfxBase __asm("a6"),

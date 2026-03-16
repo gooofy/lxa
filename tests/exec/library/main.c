@@ -12,6 +12,7 @@
  * 6. Version check on OpenLibrary()
  */
 
+#include <string.h>
 #include <exec/types.h>
 #include <exec/execbase.h>
 #include <exec/libraries.h>
@@ -2691,6 +2692,127 @@ static int test_graphics_cwait_stub_closed(void)
     return errors;
 }
 
+static int test_graphics_calcivg_stub_closed(void)
+{
+    int errors = 0;
+    struct View view;
+    struct ViewPort vp;
+    struct RasInfo ras_info;
+    struct BitMap bit_map;
+    struct CopIns cop_ins[3];
+    struct CopList cop_list;
+
+    print("--- Test: graphics CalcIVG entry point ---\n");
+
+    memset(&view, 0, sizeof(view));
+    memset(&vp, 0, sizeof(vp));
+    memset(&ras_info, 0, sizeof(ras_info));
+    memset(&bit_map, 0, sizeof(bit_map));
+    memset(cop_ins, 0, sizeof(cop_ins));
+    memset(&cop_list, 0, sizeof(cop_list));
+
+    cop_ins[0].OpCode = COPPER_MOVE;
+    cop_ins[1].OpCode = COPPER_MOVE;
+    cop_ins[2].OpCode = COPPER_WAIT;
+    cop_list.CopIns = cop_ins;
+    cop_list.Count = 3;
+    cop_list.MaxCount = 3;
+
+    bit_map.BytesPerRow = 40;
+    bit_map.Rows = 200;
+    bit_map.Depth = 2;
+
+    ras_info.BitMap = &bit_map;
+
+    view.ViewPort = &vp;
+    view.Modes = LACE;
+    vp.DspIns = &cop_list;
+    vp.RasInfo = &ras_info;
+    vp.DWidth = 320;
+    vp.DHeight = 200;
+    vp.Modes = HIRES | LACE;
+
+    if (CalcIVG(&view, &vp) != 1)
+    {
+        print("FAIL: CalcIVG() returned unexpected laced result\n");
+        errors++;
+    }
+    else
+    {
+        bit_map.Depth = 8;
+        vp.DWidth = 640;
+        if (CalcIVG(&view, &vp) != 0)
+        {
+            print("FAIL: CalcIVG() ignored saturated display bandwidth\n");
+            errors++;
+        }
+        else
+        {
+            vp.DspIns = NULL;
+            if (CalcIVG(&view, &vp) != 0)
+            {
+                print("FAIL: CalcIVG() accepted a viewport without DspIns\n");
+                errors++;
+            }
+            else
+            {
+                print("OK: CalcIVG() no longer behaves like a stub\n");
+            }
+        }
+    }
+
+    print("\n");
+    return errors;
+}
+
+static int test_graphics_setchiprev_stub_closed(void)
+{
+    int errors = 0;
+    UBYTE original_bits = GfxBase->ChipRevBits0;
+
+    print("--- Test: graphics SetChipRev entry point ---\n");
+
+    if (SetChipRev(SETCHIPREV_A) != SETCHIPREV_A ||
+        GfxBase->ChipRevBits0 != SETCHIPREV_A)
+    {
+        print("FAIL: SetChipRev() did not switch to OCS/ECS Agnus bits\n");
+        errors++;
+    }
+    else if (SetChipRev(SETCHIPREV_ECS) != SETCHIPREV_ECS ||
+             GfxBase->ChipRevBits0 != SETCHIPREV_ECS)
+    {
+        print("FAIL: SetChipRev() did not switch to ECS bits\n");
+        errors++;
+    }
+    else if (SetChipRev(SETCHIPREV_AA) != SETCHIPREV_AA ||
+             GfxBase->ChipRevBits0 != SETCHIPREV_AA)
+    {
+        print("FAIL: SetChipRev() did not switch to AGA bits\n");
+        errors++;
+    }
+    else if (SetChipRev(0x13579BDFUL) != SETCHIPREV_AA ||
+             GfxBase->ChipRevBits0 != SETCHIPREV_AA)
+    {
+        print("FAIL: SetChipRev() changed state for unsupported chip request\n");
+        errors++;
+    }
+    else if (SetChipRev(SETCHIPREV_BEST) != SETCHIPREV_AA ||
+             GfxBase->ChipRevBits0 != SETCHIPREV_AA)
+    {
+        print("FAIL: SetChipRev() did not report best available chip set\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: SetChipRev() no longer behaves like a stub\n");
+    }
+
+    GfxBase->ChipRevBits0 = original_bits;
+
+    print("\n");
+    return errors;
+}
+
 static int test_graphics_syncsbitmap_stub_closed(void)
 {
     int errors = 0;
@@ -2889,6 +3011,92 @@ cleanup:
     return errors;
 }
 
+static int test_graphics_getextsprite_stub_closed(void)
+{
+    int errors = 0;
+    struct ExtSprite single_sprite;
+    struct ExtSprite attached_primary;
+    struct ExtSprite attached_secondary;
+    struct ExtSprite specific_primary;
+    struct ExtSprite specific_secondary;
+    struct ExtSprite odd_secondary;
+    struct TagItem attached_tags[] = {
+        { GSTAG_ATTACHED, (ULONG)&attached_secondary },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem specific_tags[] = {
+        { GSTAG_SPRITE_NUM, 4 },
+        { GSTAG_ATTACHED, (ULONG)&specific_secondary },
+        { TAG_DONE, 0 }
+    };
+    struct TagItem odd_tags[] = {
+        { GSTAG_SPRITE_NUM, 3 },
+        { GSTAG_ATTACHED, (ULONG)&odd_secondary },
+        { TAG_DONE, 0 }
+    };
+
+    print("--- Test: graphics GetExtSpriteA entry point ---\n");
+
+    single_sprite.es_SimpleSprite.num = 99;
+    if (GetExtSpriteA(&single_sprite, NULL) != 0 || single_sprite.es_SimpleSprite.num != 0)
+    {
+        print("FAIL: GetExtSpriteA() did not allocate the first free single sprite\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: GetExtSpriteA() allocates a free single sprite\n");
+    }
+
+    attached_primary.es_SimpleSprite.num = 99;
+    attached_secondary.es_SimpleSprite.num = 99;
+    if (GetExtSpriteA(&attached_primary, attached_tags) != 2 ||
+        attached_primary.es_SimpleSprite.num != 2 ||
+        attached_secondary.es_SimpleSprite.num != 3)
+    {
+        print("FAIL: GetExtSpriteA() did not allocate an attached sprite pair\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: GetExtSpriteA() allocates an attached sprite pair\n");
+    }
+
+    if (GetExtSpriteA(&specific_primary, specific_tags) != 4 ||
+        specific_primary.es_SimpleSprite.num != 4 ||
+        specific_secondary.es_SimpleSprite.num != 5)
+    {
+        print("FAIL: GetExtSpriteA() did not honor GSTAG_SPRITE_NUM for attached allocation\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: GetExtSpriteA() honors GSTAG_SPRITE_NUM for attached allocation\n");
+    }
+
+    odd_secondary.es_SimpleSprite.num = 99;
+    if (GetExtSpriteA(&specific_primary, odd_tags) != -1 ||
+        specific_primary.es_SimpleSprite.num != (UWORD)-1 ||
+        odd_secondary.es_SimpleSprite.num != (UWORD)-1)
+    {
+        print("FAIL: GetExtSpriteA() accepted an odd-numbered attached request\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: GetExtSpriteA() rejects odd-numbered attached requests\n");
+    }
+
+    FreeSprite(0);
+    FreeSprite(2);
+    FreeSprite(3);
+    FreeSprite(4);
+    FreeSprite(5);
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -3061,11 +3269,20 @@ int main(void)
     /* Test 45: Verify CWait no longer hits the stub path */
     errors += test_graphics_cwait_stub_closed();
 
-    /* Test 46: Verify SyncSBitMap no longer hits the stub path */
+    /* Test 46: Verify CalcIVG no longer hits the stub path */
+    errors += test_graphics_calcivg_stub_closed();
+
+    /* Test 47: Verify SetChipRev no longer hits the stub path */
+    errors += test_graphics_setchiprev_stub_closed();
+
+    /* Test 48: Verify SyncSBitMap no longer hits the stub path */
     errors += test_graphics_syncsbitmap_stub_closed();
 
-    /* Test 47: Verify CopySBitMap no longer hits the stub path */
+    /* Test 49: Verify CopySBitMap no longer hits the stub path */
     errors += test_graphics_copysbitmap_stub_closed();
+
+    /* Test 50: Verify GetExtSpriteA no longer hits the stub path */
+    errors += test_graphics_getextsprite_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

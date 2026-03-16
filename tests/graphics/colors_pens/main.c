@@ -1,6 +1,7 @@
 #include <exec/types.h>
 #include <exec/memory.h>
 #include <graphics/gfx.h>
+#include <graphics/gfxbase.h>
 #include <graphics/view.h>
 #include <graphics/rastport.h>
 #include <clib/exec_protos.h>
@@ -240,6 +241,41 @@ int main(void)
             print("OK: ObtainBestPenA() returns an exact-match pen\n");
         }
         ReleasePen(cm, (ULONG)found);
+    }
+
+    if (SetChipRev(SETCHIPREV_A) != SETCHIPREV_A ||
+        GfxBase->ChipRevBits0 != SETCHIPREV_A)
+    {
+        print("FAIL: SetChipRev() did not clamp to OCS/ECS Agnus bits\n");
+        errors++;
+    }
+    else if (SetChipRev(SETCHIPREV_ECS) != SETCHIPREV_ECS ||
+             GfxBase->ChipRevBits0 != SETCHIPREV_ECS)
+    {
+        print("FAIL: SetChipRev() did not enable ECS bits\n");
+        errors++;
+    }
+    else if (SetChipRev(SETCHIPREV_AA) != SETCHIPREV_AA ||
+             GfxBase->ChipRevBits0 != SETCHIPREV_AA)
+    {
+        print("FAIL: SetChipRev() did not enable AGA bits\n");
+        errors++;
+    }
+    else if (SetChipRev(0x12345678UL) != SETCHIPREV_AA ||
+             GfxBase->ChipRevBits0 != SETCHIPREV_AA)
+    {
+        print("FAIL: SetChipRev() changed chip revision for unsupported request\n");
+        errors++;
+    }
+    else if (SetChipRev(SETCHIPREV_BEST) != SETCHIPREV_AA ||
+             GfxBase->ChipRevBits0 != SETCHIPREV_AA)
+    {
+        print("FAIL: SetChipRev() did not report best available chip set\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: SetChipRev() updates GfxBase chip revision bits\n");
     }
 
     ReleasePen(cm, 4);
