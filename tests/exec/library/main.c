@@ -3097,6 +3097,225 @@ static int test_graphics_getextsprite_stub_closed(void)
     return errors;
 }
 
+struct ExtSpriteDataLayout
+{
+    struct ExtSprite sprite;
+    struct BitMap *bitmap;
+};
+
+static ULONG get_free_public_mem(void)
+{
+    return AvailMem(MEMF_PUBLIC);
+}
+
+static ULONG get_free_chip_mem(void)
+{
+    return AvailMem(MEMF_CHIP);
+}
+
+static int test_graphics_allocspritedata_stub_closed(void)
+{
+    int errors = 0;
+    struct BitMap source_bm;
+    PLANEPTR plane0;
+    PLANEPTR plane1;
+    struct ExtSprite *sprite;
+    struct ExtSprite oldsprite;
+    struct ExtSprite newsprite;
+    struct ExtSprite conflicting_sprite;
+    struct TagItem tags[] = {
+        { SPRITEA_Width, 16 },
+        { TAG_DONE, 0 }
+    };
+
+    print("--- Test: graphics AllocSpriteDataA entry point ---\n");
+
+    plane0 = AllocRaster(16, 1);
+    plane1 = AllocRaster(16, 1);
+    if (!plane0 || !plane1)
+    {
+        if (plane0)
+            FreeRaster(plane0, 16, 1);
+        if (plane1)
+            FreeRaster(plane1, 16, 1);
+        print("FAIL: AllocRaster() for AllocSpriteDataA() test failed\n\n");
+        return 1;
+    }
+
+    InitBitMap(&source_bm, 2, 16, 1);
+    source_bm.Planes[0] = plane0;
+    source_bm.Planes[1] = plane1;
+    BltClear(plane0, RASSIZE(16, 1), 1);
+    BltClear(plane1, RASSIZE(16, 1), 1);
+    ((UWORD *)plane0)[0] = 0x8000;
+    ((UWORD *)plane1)[0] = 0x4000;
+
+    sprite = AllocSpriteDataA(&source_bm, tags);
+    if (!sprite ||
+        sprite->es_SimpleSprite.height != 1 ||
+        sprite->es_wordwidth != 1 ||
+        sprite->es_SimpleSprite.posctldata[2] != 0x8000 ||
+        sprite->es_SimpleSprite.posctldata[3] != 0x4000 ||
+        ((struct ExtSpriteDataLayout *)sprite)->bitmap == NULL)
+    {
+        print("FAIL: AllocSpriteDataA() did not convert bitmap data\n");
+        if (!sprite)
+        {
+            print("  sprite=NULL\n");
+        }
+        else
+        {
+            print("  height="); print_num(sprite->es_SimpleSprite.height);
+            print(" wordwidth="); print_num(sprite->es_wordwidth);
+            print(" data="); print_num(sprite->es_SimpleSprite.posctldata[2]);
+            print(","); print_num(sprite->es_SimpleSprite.posctldata[3]);
+            print(" bitmap="); print_num((LONG)((struct ExtSpriteDataLayout *)sprite)->bitmap);
+            print("\n");
+        }
+        errors++;
+    }
+    else
+    {
+        print("OK: AllocSpriteDataA() allocates converted sprite data\n");
+    }
+
+    oldsprite.es_SimpleSprite.x = 7;
+    oldsprite.es_SimpleSprite.y = 9;
+    oldsprite.es_SimpleSprite.num = 2;
+    newsprite = *sprite;
+    conflicting_sprite = *sprite;
+    conflicting_sprite.es_SimpleSprite.num = 1;
+
+    if (!ChangeExtSpriteA(NULL, &oldsprite, &newsprite, NULL) ||
+        newsprite.es_SimpleSprite.num != 2 ||
+        newsprite.es_SimpleSprite.x != 7 ||
+        newsprite.es_SimpleSprite.y != 9)
+    {
+        print("FAIL: ChangeExtSpriteA() did not adopt old sprite state\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: ChangeExtSpriteA() adopts old sprite state\n");
+    }
+
+    if (ChangeExtSpriteA(NULL, &oldsprite, &conflicting_sprite, NULL) != 0)
+    {
+        print("FAIL: ChangeExtSpriteA() accepted a conflicting sprite number\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: ChangeExtSpriteA() rejects conflicting sprite numbers\n");
+    }
+
+    FreeSpriteData(sprite);
+    FreeRaster(plane0, 16, 1);
+    FreeRaster(plane1, 16, 1);
+
+    print("\n");
+    return errors;
+}
+
+static int test_graphics_freespritedata_stub_closed(void)
+{
+    int errors = 0;
+    struct BitMap source_bm;
+    PLANEPTR plane0;
+    PLANEPTR plane1;
+    struct ExtSprite *sprite;
+    ULONG public_before;
+    ULONG public_after;
+    ULONG chip_before;
+    ULONG chip_after;
+    struct TagItem tags[] = {
+        { SPRITEA_Width, 16 },
+        { TAG_DONE, 0 }
+    };
+
+    print("--- Test: graphics FreeSpriteData entry point ---\n");
+
+    plane0 = AllocRaster(16, 1);
+    plane1 = AllocRaster(16, 1);
+    if (!plane0 || !plane1)
+    {
+        if (plane0)
+            FreeRaster(plane0, 16, 1);
+        if (plane1)
+            FreeRaster(plane1, 16, 1);
+        print("FAIL: AllocRaster() for FreeSpriteData() test failed\n\n");
+        return 1;
+    }
+
+    InitBitMap(&source_bm, 2, 16, 1);
+    source_bm.Planes[0] = plane0;
+    source_bm.Planes[1] = plane1;
+    BltClear(plane0, RASSIZE(16, 1), 1);
+    BltClear(plane1, RASSIZE(16, 1), 1);
+    ((UWORD *)plane0)[0] = 0x8000;
+    ((UWORD *)plane1)[0] = 0x4000;
+
+    sprite = AllocSpriteDataA(&source_bm, tags);
+    if (!sprite)
+    {
+        print("FAIL: FreeSpriteData() setup allocation failed\n");
+        errors++;
+    }
+    else
+    {
+        public_before = get_free_public_mem();
+        chip_before = get_free_chip_mem();
+        SetIoErr(ERROR_BAD_NUMBER);
+        FreeSpriteData(sprite);
+        public_after = get_free_public_mem();
+        chip_after = get_free_chip_mem();
+
+        if (IoErr() != ERROR_BAD_NUMBER)
+        {
+            print("FAIL: FreeSpriteData() changed IoErr\n");
+            errors++;
+        }
+        else if (public_after + 64 < public_before)
+        {
+            print("FAIL: FreeSpriteData() did not return public memory\n");
+            print("  before="); print_num(public_before);
+            print(" after="); print_num(public_after);
+            print("\n");
+            errors++;
+        }
+        else if (chip_after + 32 < chip_before)
+        {
+            print("FAIL: FreeSpriteData() did not return chip memory\n");
+            print("  before="); print_num(chip_before);
+            print(" after="); print_num(chip_after);
+            print("\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: FreeSpriteData() frees sprite data without disturbing IoErr\n");
+        }
+    }
+
+    SetIoErr(ERROR_OBJECT_NOT_FOUND);
+    FreeSpriteData(NULL);
+    if (IoErr() != ERROR_OBJECT_NOT_FOUND)
+    {
+        print("FAIL: FreeSpriteData(NULL) changed IoErr\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: FreeSpriteData(NULL) is a no-op\n");
+    }
+
+    FreeRaster(plane0, 16, 1);
+    FreeRaster(plane1, 16, 1);
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -3283,6 +3502,12 @@ int main(void)
 
     /* Test 50: Verify GetExtSpriteA no longer hits the stub path */
     errors += test_graphics_getextsprite_stub_closed();
+
+    /* Test 51: Verify AllocSpriteDataA no longer hits the stub path */
+    errors += test_graphics_allocspritedata_stub_closed();
+
+    /* Test 52: Verify FreeSpriteData no longer hits the stub path */
+    errors += test_graphics_freespritedata_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

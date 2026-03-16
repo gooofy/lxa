@@ -35,6 +35,35 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
+static void print_num(LONG n)
+{
+    char buf[16];
+    char *p = buf + sizeof(buf) - 1;
+    BOOL neg = FALSE;
+
+    *p = '\0';
+    if (n < 0)
+    {
+        neg = TRUE;
+        n = -n;
+    }
+    if (n == 0)
+    {
+        *--p = '0';
+    }
+    else
+    {
+        while (n > 0)
+        {
+            *--p = '0' + (n % 10);
+            n /= 10;
+        }
+    }
+    if (neg)
+        *--p = '-';
+    print(p);
+}
+
 static int g_boundary_hits;
 static WORD g_boundary_flags;
 static int g_pair_hits;
@@ -124,6 +153,22 @@ static void init_test_vsprite(struct VSprite *vs,
     vs->PlanePick = 1;
     vs->PlaneOnOff = 0;
     vs->VUserExt = 0;
+}
+
+struct ExtSpriteDataLayout
+{
+    struct ExtSprite sprite;
+    struct BitMap *bitmap;
+};
+
+static ULONG get_free_public_mem(void)
+{
+    return AvailMem(MEMF_PUBLIC);
+}
+
+static ULONG get_free_chip_mem(void)
+{
+    return AvailMem(MEMF_CHIP);
 }
 
 int main(void)
@@ -299,6 +344,287 @@ int main(void)
         FreeSprite(3);
         FreeSprite(6);
         FreeSprite(7);
+    }
+
+    {
+        struct BitMap source_bm;
+        PLANEPTR plane0;
+        PLANEPTR plane1;
+        struct ExtSprite *converted;
+        struct ExtSprite *scaled;
+        struct ExtSprite *attached_sprite;
+        struct ExtSprite *legacy_sprite;
+        struct ExtSprite *free_test_sprite;
+        struct ExtSprite oldsprite;
+        struct ExtSprite invalid_oldsprite;
+        struct ExtSprite newsprite;
+        struct ExtSprite conflicting_sprite;
+        ULONG public_before;
+        ULONG public_after;
+        ULONG chip_before;
+        ULONG chip_after;
+        struct TagItem scale_tags[] = {
+            { SPRITEA_Width, 16 },
+            { SPRITEA_XReplication, -1 },
+            { TAG_DONE, 0 }
+        };
+        struct TagItem attached_tags[] = {
+            { SPRITEA_Width, 16 },
+            { SPRITEA_Attached, TRUE },
+            { TAG_DONE, 0 }
+        };
+        struct TagItem invalid_width_tags[] = {
+            { SPRITEA_Width, 12 },
+            { TAG_DONE, 0 }
+        };
+        struct TagItem legacy_tags[] = {
+            { SPRITEA_Width, 16 },
+            { SPRITEA_OutputHeight, 2 },
+            { SPRITEA_OldDataFormat, TRUE },
+            { TAG_DONE, 0 }
+        };
+        UWORD legacy_data[] = {
+            0, 0,
+            0x8000, 0x4000,
+            0x0001, 0x0000,
+            0, 0
+        };
+
+        plane0 = AllocRaster(16, 2);
+        plane1 = AllocRaster(16, 2);
+        InitBitMap(&source_bm, 4, 16, 2);
+        source_bm.Planes[0] = plane0;
+        source_bm.Planes[1] = plane1;
+        source_bm.Planes[2] = plane1;
+        source_bm.Planes[3] = plane0;
+        if (!plane0 || !plane1)
+        {
+            print("FAIL: AllocRaster() for AllocSpriteDataA() source failed\n");
+            return 20;
+        }
+
+        BltClear(plane0, RASSIZE(16, 2), 1);
+        BltClear(plane1, RASSIZE(16, 2), 1);
+        ((UWORD *)plane0)[0] = 0x8000;
+        ((UWORD *)plane1)[0] = 0x4000;
+        ((UWORD *)plane0)[1] = 0x0001;
+
+        converted = AllocSpriteDataA(&source_bm, NULL);
+        if (!converted ||
+            converted->es_SimpleSprite.height != 2 ||
+            converted->es_wordwidth != 1 ||
+            converted->es_SimpleSprite.posctldata[2] != 0x8000 ||
+            converted->es_SimpleSprite.posctldata[3] != 0x4000 ||
+            converted->es_SimpleSprite.posctldata[4] != 0x0001 ||
+            converted->es_SimpleSprite.posctldata[5] != 0x0000 ||
+            ((struct ExtSpriteDataLayout *)converted)->bitmap == NULL)
+        {
+            print("FAIL: AllocSpriteDataA() basic bitmap conversion failed\n");
+            if (!converted)
+            {
+                print("  sprite=NULL\n");
+            }
+            else
+            {
+                print("  height="); print_num(converted->es_SimpleSprite.height);
+                print(" wordwidth="); print_num(converted->es_wordwidth);
+                print(" data="); print_num(converted->es_SimpleSprite.posctldata[2]);
+                print(","); print_num(converted->es_SimpleSprite.posctldata[3]);
+                print(","); print_num(converted->es_SimpleSprite.posctldata[4]);
+                print(","); print_num(converted->es_SimpleSprite.posctldata[5]);
+                print(" bitmap="); print_num((LONG)((struct ExtSpriteDataLayout *)converted)->bitmap);
+                print("\n");
+            }
+            errors++;
+        }
+        else
+        {
+            print("OK: AllocSpriteDataA() converts bitmap planes into sprite data\n");
+        }
+
+        scaled = AllocSpriteDataA(&source_bm, scale_tags);
+        if (!scaled ||
+            scaled->es_SimpleSprite.posctldata[2] != 0x8000 ||
+            scaled->es_SimpleSprite.posctldata[3] != 0x0000)
+        {
+            print("FAIL: AllocSpriteDataA() x replication/downscale failed\n");
+            if (!scaled)
+            {
+                print("  sprite=NULL\n");
+            }
+            else
+            {
+                print("  data="); print_num(scaled->es_SimpleSprite.posctldata[2]);
+                print(","); print_num(scaled->es_SimpleSprite.posctldata[3]);
+                print("\n");
+            }
+            errors++;
+        }
+        else
+        {
+            print("OK: AllocSpriteDataA() applies x replication tags\n");
+        }
+
+        attached_sprite = AllocSpriteDataA(&source_bm, attached_tags);
+        if (!attached_sprite || (attached_sprite->es_SimpleSprite.posctldata[1] & SPRITE_ATTACHED) == 0)
+        {
+            print("FAIL: AllocSpriteDataA() attached sprite flag handling failed\n");
+            if (!attached_sprite)
+            {
+                print("  sprite=NULL\n");
+            }
+            else
+            {
+                print("  ctl1="); print_num(attached_sprite->es_SimpleSprite.posctldata[1]);
+                print("\n");
+            }
+            errors++;
+        }
+        else
+        {
+            print("OK: AllocSpriteDataA() marks attached sprite data\n");
+        }
+
+        legacy_sprite = AllocSpriteDataA((struct BitMap *)legacy_data, legacy_tags);
+        if (!legacy_sprite ||
+            legacy_sprite->es_SimpleSprite.posctldata[2] != 0x8000 ||
+            legacy_sprite->es_SimpleSprite.posctldata[3] != 0x4000 ||
+            legacy_sprite->es_SimpleSprite.posctldata[4] != 0x0001 ||
+            legacy_sprite->es_SimpleSprite.posctldata[5] != 0x0000)
+        {
+            print("FAIL: AllocSpriteDataA() old data format conversion failed\n");
+            if (!legacy_sprite)
+            {
+                print("  sprite=NULL\n");
+            }
+            else
+            {
+                print("  data="); print_num(legacy_sprite->es_SimpleSprite.posctldata[2]);
+                print(","); print_num(legacy_sprite->es_SimpleSprite.posctldata[3]);
+                print(","); print_num(legacy_sprite->es_SimpleSprite.posctldata[4]);
+                print(","); print_num(legacy_sprite->es_SimpleSprite.posctldata[5]);
+                print("\n");
+            }
+            errors++;
+        }
+        else
+        {
+            print("OK: AllocSpriteDataA() accepts old sprite data format\n");
+        }
+
+        if (AllocSpriteDataA(&source_bm, invalid_width_tags) != NULL)
+        {
+            print("FAIL: AllocSpriteDataA() accepted an invalid width\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: AllocSpriteDataA() rejects unsupported widths\n");
+        }
+
+        free_test_sprite = AllocSpriteDataA(&source_bm, NULL);
+        if (!free_test_sprite)
+        {
+            print("FAIL: FreeSpriteData() setup allocation failed\n");
+            errors++;
+        }
+        else
+        {
+            public_before = get_free_public_mem();
+            chip_before = get_free_chip_mem();
+            SetIoErr(ERROR_BAD_NUMBER);
+            FreeSpriteData(free_test_sprite);
+            public_after = get_free_public_mem();
+            chip_after = get_free_chip_mem();
+
+            if (IoErr() != ERROR_BAD_NUMBER)
+            {
+                print("FAIL: FreeSpriteData() changed IoErr\n");
+                errors++;
+            }
+            else if (public_after + 64 < public_before)
+            {
+                print("FAIL: FreeSpriteData() did not return public memory\n");
+                print("  before="); print_num(public_before);
+                print(" after="); print_num(public_after);
+                print("\n");
+                errors++;
+            }
+            else if (chip_after + 32 < chip_before)
+            {
+                print("FAIL: FreeSpriteData() did not return chip memory\n");
+                print("  before="); print_num(chip_before);
+                print(" after="); print_num(chip_after);
+                print("\n");
+                errors++;
+            }
+            else
+            {
+                print("OK: FreeSpriteData() frees sprite data without disturbing IoErr\n");
+            }
+        }
+
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        FreeSpriteData(NULL);
+        if (IoErr() != ERROR_OBJECT_NOT_FOUND)
+        {
+            print("FAIL: FreeSpriteData(NULL) changed IoErr\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: FreeSpriteData(NULL) is a no-op\n");
+        }
+
+        oldsprite.es_SimpleSprite.x = 23;
+        oldsprite.es_SimpleSprite.y = 41;
+        oldsprite.es_SimpleSprite.num = 4;
+        invalid_oldsprite = oldsprite;
+        invalid_oldsprite.es_SimpleSprite.num = 8;
+
+        newsprite = *converted;
+        conflicting_sprite = *converted;
+        conflicting_sprite.es_SimpleSprite.num = 1;
+
+        if (!ChangeExtSpriteA(NULL, &oldsprite, &newsprite, NULL) ||
+            newsprite.es_SimpleSprite.num != 4 ||
+            newsprite.es_SimpleSprite.x != 23 ||
+            newsprite.es_SimpleSprite.y != 41)
+        {
+            print("FAIL: ChangeExtSpriteA() did not copy sprite engine state\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: ChangeExtSpriteA() reuses the old sprite engine state\n");
+        }
+
+        if (ChangeExtSpriteA(NULL, &oldsprite, &conflicting_sprite, NULL) != 0)
+        {
+            print("FAIL: ChangeExtSpriteA() accepted a conflicting new sprite number\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: ChangeExtSpriteA() rejects conflicting sprite numbers\n");
+        }
+
+        if (ChangeExtSpriteA(NULL, &invalid_oldsprite, &newsprite, NULL) != 0)
+        {
+            print("FAIL: ChangeExtSpriteA() accepted an invalid old sprite number\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: ChangeExtSpriteA() rejects invalid old sprite numbers\n");
+        }
+
+        FreeSpriteData(converted);
+        FreeSpriteData(scaled);
+        FreeSpriteData(attached_sprite);
+        FreeSpriteData(legacy_sprite);
+        FreeRaster(plane0, 16, 2);
+        FreeRaster(plane1, 16, 2);
     }
 
     InitVPort(&vp);

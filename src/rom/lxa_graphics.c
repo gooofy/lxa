@@ -616,6 +616,59 @@ static void lxa_memcpy(void *dest, const void *src, ULONG n)
         *d++ = *s++;
 }
 
+static ULONG graphics_sprite_data_word_count(UWORD wordwidth, UWORD height)
+{
+    return 4UL + ((ULONG)wordwidth * 2UL * (ULONG)height);
+}
+
+struct LxaExtSpriteData
+{
+    struct ExtSprite sprite;
+    struct BitMap *bitmap;
+};
+
+static struct LxaExtSpriteData *graphics_extsprite_private(struct ExtSprite *sprite)
+{
+    if (!sprite)
+        return NULL;
+
+    return (struct LxaExtSpriteData *)sprite;
+}
+
+static LONG graphics_sprite_source_coord(UWORD dest_coord, LONG replication)
+{
+    if (replication >= 0)
+        return (LONG)(dest_coord >> replication);
+
+    return (LONG)((ULONG)dest_coord << (ULONG)(-replication));
+}
+
+static UBYTE graphics_bitmap_plane_bit(CONST struct BitMap *bm, UWORD plane, LONG x, LONG y)
+{
+    if (!bm || x < 0 || y < 0 || x >= (LONG)(bm->BytesPerRow * 8) || y >= (LONG)bm->Rows)
+        return 0;
+
+    if (plane >= bm->Depth)
+        return 0;
+
+    return GetPlaneBit(bm->Planes[plane], bm->BytesPerRow, (WORD)x, (WORD)y);
+}
+
+static UBYTE graphics_old_sprite_plane_bit(CONST UWORD *old_data,
+                                           UWORD source_height,
+                                           UWORD plane,
+                                           LONG x,
+                                           LONG y)
+{
+    CONST UWORD *row;
+
+    if (!old_data || plane > 1 || x < 0 || x >= 16 || y < 0 || y >= source_height)
+        return 0;
+
+    row = old_data + 2 + ((ULONG)y * 2UL);
+    return (row[plane] & (0x8000U >> (UWORD)x)) ? 1 : 0;
+}
+
 static ULONG graphics_calc_hash_index(uintptr_t value, UWORD hashsize)
 {
     UBYTE index = (value & 0xff)
@@ -9384,9 +9437,264 @@ static struct ExtSprite * _graphics_AllocSpriteDataA ( register struct GfxBase *
                                                         register CONST struct BitMap * bm __asm("a2"),
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: AllocSpriteDataA() unimplemented STUB called.\n");
-    assert(FALSE);
-    return NULL;
+    CONST struct TagItem *tag;
+    ULONG width = 16;
+    ULONG output_height = 0;
+    LONG xrep = 0;
+    LONG yrep = 0;
+    BOOL have_output_height = FALSE;
+    BOOL attached = FALSE;
+    BOOL old_data_format = FALSE;
+    ULONG source_width;
+    ULONG source_height;
+    ULONG scaled_width;
+    ULONG scaled_height;
+    ULONG dest_height;
+    ULONG plane_count;
+    ULONG source_plane_base;
+    ULONG extra_planes;
+    ULONG bitmap_size;
+    ULONG sprite_words;
+    ULONG sprite_bytes;
+    ULONG y;
+    ULONG plane;
+    struct BitMap *dest_bm = NULL;
+    struct LxaExtSpriteData *sprite_data_block = NULL;
+    struct ExtSprite *sprite;
+    UWORD *sprite_data;
+
+    DPRINTF (LOG_DEBUG, "_graphics: AllocSpriteDataA() bm=0x%08lx tags=0x%08lx\n",
+             (ULONG)bm, (ULONG)tags);
+
+    if (!GfxBase || !bm)
+        return NULL;
+
+    if (tags)
+    {
+        tag = tags;
+        while (tag->ti_Tag != TAG_DONE)
+        {
+            switch (tag->ti_Tag)
+            {
+                case TAG_IGNORE:
+                    break;
+
+                case TAG_MORE:
+                    tag = (CONST struct TagItem *)tag->ti_Data;
+                    continue;
+
+                case TAG_SKIP:
+                    tag += tag->ti_Data;
+                    break;
+
+                case SPRITEA_Width:
+                    width = tag->ti_Data;
+                    break;
+
+                case SPRITEA_XReplication:
+                    xrep = (LONG)tag->ti_Data;
+                    break;
+
+                case SPRITEA_YReplication:
+                    yrep = (LONG)tag->ti_Data;
+                    break;
+
+                case SPRITEA_OutputHeight:
+                    output_height = tag->ti_Data;
+                    have_output_height = TRUE;
+                    break;
+
+                case SPRITEA_Attached:
+                    attached = (tag->ti_Data != 0);
+                    break;
+
+                case SPRITEA_OldDataFormat:
+                    old_data_format = (tag->ti_Data != 0);
+                    break;
+
+                default:
+                    break;
+            }
+
+            tag++;
+        }
+    }
+
+    if (width == 0 || width > 64 || (width & 15) != 0)
+        return NULL;
+
+    if (xrep < -2 || xrep > 2 || yrep < -2 || yrep > 2)
+        return NULL;
+
+    if (old_data_format)
+    {
+        if (attached)
+            return NULL;
+
+        if (!have_output_height)
+            return NULL;
+
+        source_width = width;
+        source_height = output_height;
+    }
+    else
+    {
+        source_width = _graphics_GetBitMapAttr(GfxBase, bm, BMA_WIDTH);
+        source_height = _graphics_GetBitMapAttr(GfxBase, bm, BMA_HEIGHT);
+    }
+
+    if (source_width == 0)
+        return NULL;
+
+    scaled_width = _graphics_ScalerDiv(GfxBase, source_width,
+                                       (xrep >= 0) ? (16UL << xrep) : (16UL >> (-xrep)),
+                                       16);
+    scaled_height = _graphics_ScalerDiv(GfxBase, source_height,
+                                        (yrep >= 0) ? (16UL << yrep) : (16UL >> (-yrep)),
+                                        16);
+
+    if (scaled_width > width)
+        return NULL;
+
+    if (have_output_height)
+    {
+        if (output_height == 0)
+            return NULL;
+        if (scaled_height > output_height)
+            return NULL;
+        dest_height = output_height;
+    }
+    else
+    {
+        dest_height = scaled_height;
+    }
+
+    if (dest_height == 0)
+        dest_height = 1;
+
+    plane_count = 2;
+    source_plane_base = attached ? 2 : 0;
+    extra_planes = (plane_count > 8) ? (plane_count - 8) : 0;
+    bitmap_size = sizeof(struct BitMap) + (extra_planes * sizeof(PLANEPTR));
+
+    sprite_data_block = (struct LxaExtSpriteData *)AllocMem(sizeof(struct LxaExtSpriteData), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!sprite_data_block)
+        return NULL;
+
+    sprite = &sprite_data_block->sprite;
+
+    dest_bm = (struct BitMap *)AllocMem(bitmap_size, MEMF_PUBLIC | MEMF_CLEAR);
+    if (!dest_bm)
+    {
+        FreeMem(sprite_data_block, sizeof(struct LxaExtSpriteData));
+        return NULL;
+    }
+
+    _graphics_InitBitMap(GfxBase, dest_bm, (BYTE)plane_count, (WORD)width, (WORD)dest_height);
+
+    for (plane = 0; plane < plane_count; plane++)
+    {
+        dest_bm->Planes[plane] = _graphics_AllocRaster(GfxBase, (UWORD)width, (UWORD)dest_height);
+        if (!dest_bm->Planes[plane])
+        {
+            ULONG free_plane;
+
+            for (free_plane = 0; free_plane < plane; free_plane++)
+            {
+                if (dest_bm->Planes[free_plane])
+                    _graphics_FreeRaster(GfxBase, dest_bm->Planes[free_plane], (UWORD)width, (UWORD)dest_height);
+            }
+
+            FreeMem(dest_bm, bitmap_size);
+            FreeMem(sprite_data_block, sizeof(struct LxaExtSpriteData));
+            return NULL;
+        }
+
+        lxa_memset(dest_bm->Planes[plane], 0, RASSIZE(width, dest_height));
+    }
+
+    for (y = 0; y < scaled_height; y++)
+    {
+        LONG source_y = graphics_sprite_source_coord((UWORD)y, yrep);
+        ULONG x;
+
+        for (x = 0; x < scaled_width; x++)
+        {
+            LONG source_x = graphics_sprite_source_coord((UWORD)x, xrep);
+
+            for (plane = 0; plane < plane_count; plane++)
+            {
+                UBYTE bit;
+
+                if (old_data_format)
+                    bit = graphics_old_sprite_plane_bit((CONST UWORD *)bm, (UWORD)source_height, (UWORD)plane, source_x, source_y);
+                else
+                    bit = graphics_bitmap_plane_bit(bm, (UWORD)(source_plane_base + plane), source_x, source_y);
+
+                if (bit)
+                    SetPlaneBit(dest_bm->Planes[plane], dest_bm->BytesPerRow, (WORD)x, (WORD)y, 1);
+            }
+        }
+    }
+
+    sprite_words = graphics_sprite_data_word_count((UWORD)(width >> 4), (UWORD)dest_height);
+    sprite_bytes = sprite_words * sizeof(UWORD);
+    sprite_data = (UWORD *)AllocMem(sprite_bytes, MEMF_CHIP | MEMF_CLEAR);
+    if (!sprite_data)
+    {
+        _graphics_FreeBitMap(GfxBase, dest_bm);
+        FreeMem(sprite_data_block, sizeof(struct LxaExtSpriteData));
+        return NULL;
+    }
+
+    sprite->es_SimpleSprite.posctldata = sprite_data;
+    sprite->es_SimpleSprite.height = (UWORD)dest_height;
+    sprite->es_SimpleSprite.x = 0;
+    sprite->es_SimpleSprite.y = 0;
+    sprite->es_SimpleSprite.num = 0;
+    sprite->es_wordwidth = (UWORD)(width >> 4);
+    sprite->es_flags = 0;
+
+    for (y = 0; y < dest_height; y++)
+    {
+        ULONG chunk;
+
+        for (chunk = 0; chunk < (ULONG)sprite->es_wordwidth; chunk++)
+        {
+            UWORD word0 = 0;
+            UWORD word1 = 0;
+            ULONG bit_index;
+
+            for (bit_index = 0; bit_index < 16; bit_index++)
+            {
+                WORD pixel_x = (WORD)((chunk * 16UL) + bit_index);
+
+                if (GetPlaneBit(dest_bm->Planes[0], dest_bm->BytesPerRow, pixel_x, (WORD)y))
+                    word0 |= (UWORD)(0x8000U >> bit_index);
+                if (GetPlaneBit(dest_bm->Planes[1], dest_bm->BytesPerRow, pixel_x, (WORD)y))
+                    word1 |= (UWORD)(0x8000U >> bit_index);
+            }
+
+            sprite_data[2 + (y * (ULONG)sprite->es_wordwidth * 2UL) + (chunk * 2UL)] = word0;
+            sprite_data[2 + (y * (ULONG)sprite->es_wordwidth * 2UL) + (chunk * 2UL) + 1] = word1;
+        }
+    }
+
+    if (attached)
+        sprite_data[1] |= SPRITE_ATTACHED;
+
+    sprite_data_block->bitmap = dest_bm;
+
+    DPRINTF (LOG_DEBUG,
+             "_graphics: AllocSpriteDataA() -> sprite=0x%08lx bitmap=0x%08lx height=%lu width=%lu data[2]=0x%04x data[3]=0x%04x\n",
+             (ULONG)sprite,
+             (ULONG)dest_bm,
+             dest_height,
+             width,
+             sprite_data[2],
+             sprite_data[3]);
+
+    return sprite;
 }
 
 static LONG _graphics_ChangeExtSpriteA ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9395,16 +9703,55 @@ static LONG _graphics_ChangeExtSpriteA ( register struct GfxBase * GfxBase __asm
                                                         register struct ExtSprite * newsprite __asm("a2"),
                                                         register CONST struct TagItem * tags __asm("a3"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: ChangeExtSpriteA() unimplemented STUB called.\n");
-    assert(FALSE);
-    return 0;
+    (void)tags;
+    (void)vp;
+
+    DPRINTF (LOG_DEBUG, "_graphics: ChangeExtSpriteA() vp=0x%08lx old=0x%08lx new=0x%08lx tags=0x%08lx\n",
+             (ULONG)vp, (ULONG)oldsprite, (ULONG)newsprite, (ULONG)tags);
+
+    if (!GfxBase || !oldsprite || !newsprite)
+        return 0;
+
+    if (!newsprite->es_SimpleSprite.posctldata ||
+        newsprite->es_SimpleSprite.height == 0 ||
+        newsprite->es_wordwidth == 0)
+        return 0;
+
+    if (oldsprite->es_SimpleSprite.num > 7)
+        return 0;
+
+    if (newsprite->es_SimpleSprite.num != 0 &&
+        newsprite->es_SimpleSprite.num != oldsprite->es_SimpleSprite.num)
+        return 0;
+
+    newsprite->es_SimpleSprite.num = oldsprite->es_SimpleSprite.num;
+    newsprite->es_SimpleSprite.x = oldsprite->es_SimpleSprite.x;
+    newsprite->es_SimpleSprite.y = oldsprite->es_SimpleSprite.y;
+
+    return 1;
 }
 
 static VOID _graphics_FreeSpriteData ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct ExtSprite * sp __asm("a2"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: FreeSpriteData() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct LxaExtSpriteData *private_data;
+
+    DPRINTF (LOG_DEBUG, "_graphics: FreeSpriteData() sp=0x%08lx\n", (ULONG)sp);
+
+    if (!sp)
+        return;
+
+    private_data = graphics_extsprite_private(sp);
+    if (private_data && private_data->bitmap)
+        _graphics_FreeBitMap(GfxBase, private_data->bitmap);
+
+    if (sp->es_SimpleSprite.posctldata)
+    {
+        ULONG sprite_words = graphics_sprite_data_word_count(sp->es_wordwidth, sp->es_SimpleSprite.height);
+        FreeMem(sp->es_SimpleSprite.posctldata, sprite_words * sizeof(UWORD));
+    }
+
+    FreeMem(sp, sizeof(struct LxaExtSpriteData));
 }
 
 static VOID _graphics_SetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"),
