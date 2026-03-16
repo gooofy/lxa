@@ -6,6 +6,51 @@
 
 - Phase 96: Manual Testing Results
 
+The following issues were discovered when comparing apps running via lxa to running them on a real amiga. All of them need to be investigated thoroughly and fixed.
+The goal of this phase is to make all apps run exactly like they would on a real amiga.
+
+* [ ] To investigate UI issues, develop a tool (in python, node, ... whatever you see fit) that uses an LLM with image input capabilities to analyze screenshots of amiga applications so you can actually "see" what's on the amiga screen. You can use openrouter.ai for that purpose: use the access key provided in OPENROUTER_API_KEY env var. Use a vision capable model from openrouter, google/gemini-3-flash-preview or anthropic/claude-sonnet-4.6 for example.
+
+* [ ] ASM-One: no screen mode requester on startup
+* [ ] ASM-One: does not ask for ALLOCATE/WORKSPACE sizes on startup, does not show prompt
+* [ ] ASM-One: no menu bar
+    _intuition: _render_menu_bar() invalid RastPort BitMap
+    _intuition: _render_menu_bar() invalid RastPort BitMap
+    _intuition: _render_menu_bar() invalid RastPort BitMap
+    _intuition: _render_menu_items() invalid RastPort BitMap
+    _intuition: _render_menu_bar() invalid RastPort BitMap
+    _intuition: _render_menu_items() invalid RastPort BitMap
+    _intuition: _render_menu_bar() invalid RastPort BitMap
+    _intuition: _render_menu_items() invalid RastPort BitMap
+    _intuition: _render_menu_items() invalid RastPort BitMap
+    _intuition: _render_menu_items() invalid RastPort BitMap
+    _intuition: _render_menu_bar() invalid RastPort BitMap
+    _intuition: _render_menu_items() invalid RastPort BitMap
+* [ ] ASM-One: errors on startup
+    _intuition: OpenWorkBench() returning, IntuitionBase=0x000113ec
+    _dos: LoadSeg() called, name=LIBS:reqtools.library
+    _dos: LoadSeg() Open() for name=LIBS:reqtools.library failed
+    _exec: OpenLibrary: *** ERROR: requested library reqtools.library was not found.
+    _intuition: OpenScreen() newScreen=0x0008041c
+    display: opened 800x600x2 virtual display (rootless backing store)
+    [ROM] OpenScreen: offsetof(FirstScreen)=60, sizeof(IntuitionBase)=80, sizeof(Library)=34, sizeof(View)=18
+    [ROM] OpenScreen: IntuitionBase=0x000113ec, FirstScreen set to 0x0001cb48
+    _intuition: OpenWindow() newWindow=0x0008040c
+    Title string: 'ASM-One V1.48'
+    display: opened rootless window 800x600 'ASM-One V1.48' (SDL ID 4)
+    _console: Open() called, unitn=-1, flags=0x00000000, io_Data(Window)=0x00000000
+    _console: Opened as CONU_LIBRARY (library mode only, no unit)
+* [ ] DPaint V: Ownership information window is empty
+* [ ] DPaint V: Screen Format dialog completely garbled, especially the `Choose Display Mode`, `Display Information` and `Credits` section
+* [ ] Devpac: Menu bar in rootless mode invisible (probably painted off the top of the visible window part)
+* [ ] Devpac: Menu bar very flickery / repaint issues
+* [ ] Devpac: "About" dialog drawn twice: in separate rootless window *and* inside the main rootless window
+* [ ] Devpac: "About" dialog: "Continue" button border is drawn wrong, probably draw order wrong, appears striken through
+* [ ] KickPascal: "presents" string drawn at wrong coordinates: collides with logo/"Company" string
+* [ ] KickPascal: `KickPascal` logo image off to the left of the screen, also: right part of logo cut off
+* [ ] KickPascal: "Workspace/KBytes (max = ..." string draw partially off to the left of the screen
+* [ ] KickPascal: cannot delete the default "200" entry for the "Workspace/KBytes" question
+
 ---
 
 ## Completed Milestones
