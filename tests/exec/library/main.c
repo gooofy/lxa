@@ -20,8 +20,10 @@
 #include <dos/dosextens.h>
 #include <dos/rdargs.h>
 #include <dos/record.h>
+#include <graphics/copper.h>
 #include <graphics/collide.h>
 #include <graphics/gels.h>
+#include <graphics/layers.h>
 #include <graphics/rastport.h>
 #include <utility/tagitem.h>
 #include <clib/exec_protos.h>
@@ -1792,6 +1794,39 @@ static struct AnimOb *exec_last_animob;
 static struct AnimComp *exec_last_timeout_comp;
 static struct AnimComp *exec_last_static_comp;
 
+static void init_exec_test_vsprite(struct VSprite *vs,
+                                   WORD x,
+                                   WORD y,
+                                   WORD width_words,
+                                   WORD height,
+                                   WORD depth,
+                                   WORD *image_data,
+                                   WORD flags)
+{
+    vs->NextVSprite = NULL;
+    vs->PrevVSprite = NULL;
+    vs->DrawPath = NULL;
+    vs->ClearPath = NULL;
+    vs->OldY = 0;
+    vs->OldX = 0;
+    vs->Flags = flags;
+    vs->Y = y;
+    vs->X = x;
+    vs->Height = height;
+    vs->Width = width_words;
+    vs->Depth = depth;
+    vs->MeMask = 0;
+    vs->HitMask = 0;
+    vs->ImageData = image_data;
+    vs->BorderLine = NULL;
+    vs->CollMask = NULL;
+    vs->SprColors = NULL;
+    vs->VSBob = NULL;
+    vs->PlanePick = 1;
+    vs->PlaneOnOff = 0;
+    vs->VUserExt = 0;
+}
+
 static WORD exec_animob_routine(struct AnimOb *anOb)
 {
     exec_animob_routine_calls++;
@@ -1811,6 +1846,29 @@ static WORD exec_animcomp_static_routine(struct AnimComp *anComp)
     exec_animcomp_static_calls++;
     exec_last_static_comp = anComp;
     return 0;
+}
+
+static void exec_free_ucoplist_chain(struct UCopList *ucl)
+{
+    struct CopList *cop_list;
+
+    if (!ucl)
+        return;
+
+    cop_list = ucl->FirstCopList;
+    while (cop_list)
+    {
+        struct CopList *next = cop_list->Next;
+
+        if (cop_list->CopIns)
+            FreeMem(cop_list->CopIns, cop_list->MaxCount * sizeof(struct CopIns));
+
+        FreeMem(cop_list, sizeof(struct CopList));
+        cop_list = next;
+    }
+
+    ucl->FirstCopList = NULL;
+    ucl->CopList = NULL;
 }
 
 static int test_graphics_addanimob_stub_closed(void)
@@ -2310,6 +2368,534 @@ static int test_graphics_animate_stub_closed(void)
     return errors;
 }
 
+static int test_graphics_getgbuffers_stub_closed(void)
+{
+    int errors = 0;
+    struct VSprite buf_vs_a;
+    struct VSprite buf_vs_b;
+    struct VSprite buf_vs_c;
+    struct RastPort rp;
+    struct Bob buf_bob_a;
+    struct Bob buf_bob_b;
+    struct Bob buf_bob_c;
+    struct AnimComp buf_comp_a;
+    struct AnimComp buf_comp_b;
+    struct AnimComp buf_comp_c;
+    struct AnimComp buf_seq_a;
+    struct AnimOb buf_anim;
+    WORD image_data[4] = { 0x8000, 0x2000, 0x4000, 0x1000 };
+    WORD image_data_alt[2] = { 0x1111, 0x2222 };
+    WORD image_data_third[4] = { 0x0f00, 0x00f0, 0x3000, 0x0003 };
+    WORD collmask_a[2] = { 0, 0 };
+    WORD collmask_b[2] = { 0, 0 };
+    WORD collmask_c[2] = { 0, 0 };
+    WORD borderline_a[1] = { 0 };
+    WORD borderline_b[1] = { 0 };
+    WORD borderline_c[1] = { 0 };
+
+    print("--- Test: graphics GetGBuffers entry point ---\n");
+
+    InitRastPort(&rp);
+    init_exec_test_vsprite(&buf_vs_a, 0, 0, 1, 2, 2, image_data, 0);
+    init_exec_test_vsprite(&buf_vs_b, 0, 0, 1, 2, 2, image_data, 0);
+    init_exec_test_vsprite(&buf_vs_c, 0, 0, 1, 2, 2, image_data_third, 0);
+
+    buf_bob_a.Flags = 0;
+    buf_bob_a.SaveBuffer = NULL;
+    buf_bob_a.ImageShadow = NULL;
+    buf_bob_a.Before = NULL;
+    buf_bob_a.After = NULL;
+    buf_bob_a.BobVSprite = &buf_vs_a;
+    buf_bob_a.BobComp = &buf_comp_a;
+    buf_bob_a.DBuffer = NULL;
+    buf_bob_a.BUserExt = 0;
+
+    buf_bob_b = buf_bob_a;
+    buf_bob_b.BobVSprite = &buf_vs_b;
+    buf_bob_b.BobComp = &buf_seq_a;
+
+    buf_bob_c = buf_bob_a;
+    buf_bob_c.BobVSprite = &buf_vs_c;
+    buf_bob_c.BobComp = &buf_comp_b;
+
+    buf_comp_a.Flags = 0;
+    buf_comp_a.Timer = 0;
+    buf_comp_a.TimeSet = 1;
+    buf_comp_a.NextComp = &buf_comp_b;
+    buf_comp_a.PrevComp = NULL;
+    buf_comp_a.NextSeq = &buf_seq_a;
+    buf_comp_a.PrevSeq = &buf_seq_a;
+    buf_comp_a.AnimCRoutine = NULL;
+    buf_comp_a.YTrans = 0;
+    buf_comp_a.XTrans = 0;
+    buf_comp_a.HeadOb = &buf_anim;
+    buf_comp_a.AnimBob = &buf_bob_a;
+
+    buf_seq_a = buf_comp_a;
+    buf_seq_a.NextComp = NULL;
+    buf_seq_a.PrevComp = NULL;
+    buf_seq_a.NextSeq = &buf_comp_a;
+    buf_seq_a.PrevSeq = &buf_comp_a;
+    buf_seq_a.AnimBob = &buf_bob_b;
+
+    buf_comp_b = buf_comp_a;
+    buf_comp_b.NextComp = NULL;
+    buf_comp_b.PrevComp = &buf_comp_a;
+    buf_comp_b.NextSeq = &buf_comp_b;
+    buf_comp_b.PrevSeq = &buf_comp_b;
+    buf_comp_b.AnimBob = &buf_bob_c;
+
+    buf_anim.NextOb = NULL;
+    buf_anim.PrevOb = NULL;
+    buf_anim.Clock = 0;
+    buf_anim.AnOldY = 0;
+    buf_anim.AnOldX = 0;
+    buf_anim.AnY = 0;
+    buf_anim.AnX = 0;
+    buf_anim.YVel = 0;
+    buf_anim.XVel = 0;
+    buf_anim.YAccel = 0;
+    buf_anim.XAccel = 0;
+    buf_anim.RingYTrans = 0;
+    buf_anim.RingXTrans = 0;
+    buf_anim.AnimORoutine = NULL;
+    buf_anim.HeadComp = &buf_comp_a;
+    buf_anim.AUserExt = 0;
+
+    buf_comp_c = buf_comp_b;
+
+    buf_vs_a.CollMask = collmask_a;
+    buf_vs_a.BorderLine = borderline_a;
+    buf_vs_b.Depth = 1;
+    buf_vs_b.ImageData = image_data_alt;
+    buf_vs_b.CollMask = collmask_b;
+    buf_vs_b.BorderLine = borderline_b;
+    buf_vs_c.CollMask = collmask_c;
+    buf_vs_c.BorderLine = borderline_c;
+
+    buf_bob_c.BobComp = &buf_comp_c;
+    buf_comp_c.AnimBob = &buf_bob_c;
+
+    InitGMasks(&buf_anim);
+    if ((UWORD)buf_vs_a.CollMask[0] != 0xc000U || (UWORD)buf_vs_a.CollMask[1] != 0x3000U ||
+        (UWORD)buf_vs_a.BorderLine[0] != 0xf000U || (UWORD)buf_vs_b.CollMask[0] != 0x1111U ||
+        (UWORD)buf_vs_b.CollMask[1] != 0x2222U || (UWORD)buf_vs_b.BorderLine[0] != 0x3333U ||
+        (UWORD)buf_vs_c.CollMask[0] != 0x3f00U || (UWORD)buf_vs_c.CollMask[1] != 0x00f3U ||
+        (UWORD)buf_vs_c.BorderLine[0] != 0x3ff3U)
+    {
+        print("FAIL: InitGMasks() did not initialize all component sequences\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: InitGMasks() no longer behaves like a stub\n");
+    }
+
+    if (!GetGBuffers(&buf_anim, &rp, TRUE) ||
+        !buf_bob_a.ImageShadow || buf_vs_a.CollMask != buf_bob_a.ImageShadow ||
+        !buf_bob_a.SaveBuffer || !buf_vs_a.BorderLine || !buf_bob_a.DBuffer ||
+        !buf_bob_a.DBuffer->BufBuffer || !buf_bob_b.ImageShadow ||
+        buf_vs_b.CollMask != buf_bob_b.ImageShadow || !buf_bob_b.SaveBuffer ||
+        !buf_vs_b.BorderLine || !buf_bob_b.DBuffer || !buf_bob_b.DBuffer->BufBuffer ||
+        !buf_bob_c.ImageShadow || buf_vs_c.CollMask != buf_bob_c.ImageShadow ||
+        !buf_bob_c.SaveBuffer || !buf_vs_c.BorderLine || !buf_bob_c.DBuffer ||
+        !buf_bob_c.DBuffer->BufBuffer)
+    {
+        print("FAIL: GetGBuffers() did not allocate the expected buffers\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: GetGBuffers() no longer behaves like a stub\n");
+    }
+
+    if (buf_bob_a.ImageShadow)
+        FreeMem(buf_bob_a.ImageShadow, 4);
+    if (buf_bob_a.SaveBuffer)
+        FreeMem(buf_bob_a.SaveBuffer, 8);
+    if (buf_vs_a.BorderLine)
+        FreeMem(buf_vs_a.BorderLine, 2);
+    if (buf_bob_a.DBuffer)
+    {
+        if (buf_bob_a.DBuffer->BufBuffer)
+            FreeMem(buf_bob_a.DBuffer->BufBuffer, 8);
+        FreeMem(buf_bob_a.DBuffer, sizeof(struct DBufPacket));
+    }
+    if (buf_bob_b.ImageShadow)
+        FreeMem(buf_bob_b.ImageShadow, 4);
+    if (buf_bob_b.SaveBuffer)
+        FreeMem(buf_bob_b.SaveBuffer, 8);
+    if (buf_vs_b.BorderLine)
+        FreeMem(buf_vs_b.BorderLine, 2);
+    if (buf_bob_b.DBuffer)
+    {
+        if (buf_bob_b.DBuffer->BufBuffer)
+            FreeMem(buf_bob_b.DBuffer->BufBuffer, 8);
+        FreeMem(buf_bob_b.DBuffer, sizeof(struct DBufPacket));
+    }
+    if (buf_bob_c.ImageShadow)
+        FreeMem(buf_bob_c.ImageShadow, 4);
+    if (buf_bob_c.SaveBuffer)
+        FreeMem(buf_bob_c.SaveBuffer, 8);
+    if (buf_vs_c.BorderLine)
+        FreeMem(buf_vs_c.BorderLine, 2);
+    if (buf_bob_c.DBuffer)
+    {
+        if (buf_bob_c.DBuffer->BufBuffer)
+            FreeMem(buf_bob_c.DBuffer->BufBuffer, 8);
+        FreeMem(buf_bob_c.DBuffer, sizeof(struct DBufPacket));
+    }
+
+    print("\n");
+    return errors;
+}
+
+static int test_graphics_cbump_stub_closed(void)
+{
+    int errors = 0;
+    struct UCopList ucl;
+    struct CopList *first;
+
+    print("--- Test: graphics CBump entry point ---\n");
+
+    ucl.Next = NULL;
+    ucl.FirstCopList = NULL;
+    ucl.CopList = NULL;
+
+    first = UCopperListInit(&ucl, 1);
+    if (!first)
+    {
+        print("FAIL: UCopperListInit() returned NULL\n");
+        return 1;
+    }
+
+    first->CopPtr->OpCode = COPPER_MOVE;
+    first->CopPtr->u3.u4.u1.DestAddr = 0x0180;
+    first->CopPtr->u3.u4.u2.DestData = 0xaaaa;
+    CBump(&ucl);
+
+    if (!first->Next || ucl.CopList != first->Next || first->CopIns[0].OpCode != CPRNXTBUF ||
+        first->CopIns[0].u3.nxtlist != first->Next || ucl.CopList->Count != 1 ||
+        ucl.CopList->CopPtr != (ucl.CopList->CopIns + 1) ||
+        ucl.CopList->CopIns[0].OpCode != COPPER_MOVE ||
+        ucl.CopList->CopIns[0].u3.u4.u1.DestAddr != 0x0180 ||
+        ucl.CopList->CopIns[0].u3.u4.u2.DestData != (WORD)0xaaaa)
+    {
+        print("FAIL: CBump() did not advance the user copper list\n");
+        errors++;
+    }
+    else
+    {
+        print("OK: CBump() no longer behaves like a stub\n");
+    }
+
+    exec_free_ucoplist_chain(&ucl);
+
+    print("\n");
+    return errors;
+}
+
+static int test_graphics_cmove_stub_closed(void)
+{
+    int errors = 0;
+    struct UCopList ucl;
+    struct CopList *first;
+
+    print("--- Test: graphics CMove entry point ---\n");
+
+    ucl.Next = NULL;
+    ucl.FirstCopList = NULL;
+    ucl.CopList = NULL;
+
+    first = UCopperListInit(&ucl, 1);
+    if (!first)
+    {
+        print("FAIL: UCopperListInit() returned NULL\n");
+        return 1;
+    }
+
+    if (!CMove(&ucl, (APTR)0x0180, 0x55aa) ||
+        first->CopIns[0].OpCode != COPPER_MOVE ||
+        first->CopIns[0].u3.u4.u1.DestAddr != 0x0180 ||
+        first->CopIns[0].u3.u4.u2.DestData != (WORD)0x55aa ||
+        first->Count != 0 || first->CopPtr != first->CopIns)
+    {
+        print("FAIL: CMove() did not populate the active copper slot\n");
+        errors++;
+    }
+    else
+    {
+        first->Count = first->MaxCount;
+        first->CopPtr = first->CopIns + first->MaxCount;
+
+        if (CMove(&ucl, (APTR)0x0182, 0x1234) != FALSE)
+        {
+            print("FAIL: CMove() did not report a full copper block\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: CMove() no longer behaves like a stub\n");
+        }
+    }
+
+    exec_free_ucoplist_chain(&ucl);
+
+    print("\n");
+    return errors;
+}
+
+static int test_graphics_cwait_stub_closed(void)
+{
+    int errors = 0;
+    struct UCopList ucl;
+    struct CopList *first;
+
+    print("--- Test: graphics CWait entry point ---\n");
+
+    ucl.Next = NULL;
+    ucl.FirstCopList = NULL;
+    ucl.CopList = NULL;
+
+    first = UCopperListInit(&ucl, 1);
+    if (!first)
+    {
+        print("FAIL: UCopperListInit() returned NULL\n");
+        return 1;
+    }
+
+    CWait(&ucl, 0x0033, 0x0077);
+
+    if (first->CopIns[0].OpCode != COPPER_WAIT ||
+        first->CopIns[0].u3.u4.u1.VWaitPos != (WORD)0x0033 ||
+        first->CopIns[0].u3.u4.u2.HWaitPos != (WORD)0x0077 ||
+        first->Count != 0 || first->CopPtr != first->CopIns)
+    {
+        print("FAIL: CWait() did not populate the active copper slot\n");
+        errors++;
+    }
+    else
+    {
+        first->CopIns[0].OpCode = COPPER_MOVE;
+        first->Count = first->MaxCount;
+        first->CopPtr = first->CopIns + first->MaxCount;
+        CWait(&ucl, 0x0011, 0x0022);
+
+        if (first->CopIns[0].OpCode != COPPER_MOVE)
+        {
+            print("FAIL: CWait() overwrote a full copper block\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: CWait() no longer behaves like a stub\n");
+        }
+    }
+
+    exec_free_ucoplist_chain(&ucl);
+
+    print("\n");
+    return errors;
+}
+
+static int test_graphics_syncsbitmap_stub_closed(void)
+{
+    int errors = 0;
+    struct Layer_Info *li = NULL;
+    struct BitMap *screen_bm = NULL;
+    struct BitMap *super_bm = NULL;
+    struct Layer *layer = NULL;
+    struct RastPort screen_rp;
+    struct RastPort super_rp;
+
+    print("--- Test: graphics SyncSBitMap entry point ---\n");
+
+    li = NewLayerInfo();
+    screen_bm = AllocMem(sizeof(struct BitMap), MEMF_PUBLIC | MEMF_CLEAR);
+    super_bm = AllocMem(sizeof(struct BitMap), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!li || !screen_bm || !super_bm)
+    {
+        print("FAIL: Could not allocate SuperBitMap test setup\n");
+        errors++;
+        goto cleanup;
+    }
+
+    InitBitMap(screen_bm, 1, 64, 64);
+    InitBitMap(super_bm, 1, 64, 64);
+    screen_bm->Planes[0] = AllocRaster(64, 64);
+    super_bm->Planes[0] = AllocRaster(64, 64);
+    if (!screen_bm->Planes[0] || !super_bm->Planes[0])
+    {
+        print("FAIL: Could not allocate SuperBitMap raster planes\n");
+        errors++;
+        goto cleanup;
+    }
+
+    layer = CreateBehindLayer(li, screen_bm, 10, 12, 29, 31, LAYERSUPER | LAYERSMART, super_bm);
+    if (!layer || !layer->rp)
+    {
+        print("FAIL: Could not create SuperBitMap layer\n");
+        errors++;
+        goto cleanup;
+    }
+
+    InitRastPort(&screen_rp);
+    screen_rp.BitMap = screen_bm;
+    SetRast(&screen_rp, 0);
+
+    InitRastPort(&super_rp);
+    super_rp.BitMap = super_bm;
+    SetRast(&super_rp, 0);
+
+    layer->Scroll_X = 2;
+    layer->Scroll_Y = 3;
+    SetAPen(&screen_rp, 1);
+    WritePixel(&screen_rp, 14, 18);
+
+    SyncSBitMap(layer);
+
+    if (ReadPixel(&super_rp, 2, 3) != 1 || ReadPixel(&super_rp, 4, 6) != 0)
+    {
+        print("FAIL: SyncSBitMap() did not copy visible content into the SuperBitMap\n");
+        errors++;
+    }
+    else
+    {
+        layer->Flags &= ~LAYERSUPER;
+        SetRast(&super_rp, 0);
+        SyncSBitMap(layer);
+        if (ReadPixel(&super_rp, 2, 3) != 0)
+        {
+            print("FAIL: SyncSBitMap() ignored the LAYERSUPER guard\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: SyncSBitMap() no longer behaves like a stub\n");
+        }
+    }
+
+cleanup:
+    if (layer)
+        DeleteLayer(0, layer);
+    if (screen_bm)
+    {
+        if (screen_bm->Planes[0])
+            FreeRaster(screen_bm->Planes[0], 64, 64);
+        FreeMem(screen_bm, sizeof(struct BitMap));
+    }
+    if (super_bm)
+    {
+        if (super_bm->Planes[0])
+            FreeRaster(super_bm->Planes[0], 64, 64);
+        FreeMem(super_bm, sizeof(struct BitMap));
+    }
+    if (li)
+        DisposeLayerInfo(li);
+
+    print("\n");
+    return errors;
+}
+
+static int test_graphics_copysbitmap_stub_closed(void)
+{
+    int errors = 0;
+    struct Layer_Info *li = NULL;
+    struct BitMap *screen_bm = NULL;
+    struct BitMap *super_bm = NULL;
+    struct Layer *layer = NULL;
+    struct RastPort screen_rp;
+    struct RastPort super_rp;
+
+    print("--- Test: graphics CopySBitMap entry point ---\n");
+
+    li = NewLayerInfo();
+    screen_bm = AllocMem(sizeof(struct BitMap), MEMF_PUBLIC | MEMF_CLEAR);
+    super_bm = AllocMem(sizeof(struct BitMap), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!li || !screen_bm || !super_bm)
+    {
+        print("FAIL: Could not allocate CopySBitMap test setup\n");
+        errors++;
+        goto cleanup;
+    }
+
+    InitBitMap(screen_bm, 1, 64, 64);
+    InitBitMap(super_bm, 1, 64, 64);
+    screen_bm->Planes[0] = AllocRaster(64, 64);
+    super_bm->Planes[0] = AllocRaster(64, 64);
+    if (!screen_bm->Planes[0] || !super_bm->Planes[0])
+    {
+        print("FAIL: Could not allocate CopySBitMap raster planes\n");
+        errors++;
+        goto cleanup;
+    }
+
+    layer = CreateBehindLayer(li, screen_bm, 10, 12, 29, 31, LAYERSUPER | LAYERSMART, super_bm);
+    if (!layer || !layer->rp)
+    {
+        print("FAIL: Could not create CopySBitMap layer\n");
+        errors++;
+        goto cleanup;
+    }
+
+    InitRastPort(&screen_rp);
+    screen_rp.BitMap = screen_bm;
+    SetRast(&screen_rp, 0);
+
+    InitRastPort(&super_rp);
+    super_rp.BitMap = super_bm;
+    SetRast(&super_rp, 0);
+
+    layer->Scroll_X = 2;
+    layer->Scroll_Y = 3;
+    SetAPen(&super_rp, 1);
+    WritePixel(&super_rp, 2, 3);
+
+    CopySBitMap(layer);
+
+    if (ReadPixel(&screen_rp, 14, 18) != 1 || ReadPixel(&screen_rp, 16, 21) != 0)
+    {
+        print("FAIL: CopySBitMap() did not copy backing content into the visible layer\n");
+        errors++;
+    }
+    else
+    {
+        layer->Flags &= ~LAYERSUPER;
+        SetRast(&screen_rp, 0);
+        CopySBitMap(layer);
+        if (ReadPixel(&screen_rp, 14, 18) != 0)
+        {
+            print("FAIL: CopySBitMap() ignored the LAYERSUPER guard\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: CopySBitMap() no longer behaves like a stub\n");
+        }
+    }
+
+cleanup:
+    if (layer)
+        DeleteLayer(0, layer);
+    if (screen_bm)
+    {
+        if (screen_bm->Planes[0])
+            FreeRaster(screen_bm->Planes[0], 64, 64);
+        FreeMem(screen_bm, sizeof(struct BitMap));
+    }
+    if (super_bm)
+    {
+        if (super_bm->Planes[0])
+            FreeRaster(super_bm->Planes[0], 64, 64);
+        FreeMem(super_bm, sizeof(struct BitMap));
+    }
+    if (li)
+        DisposeLayerInfo(li);
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -2469,6 +3055,24 @@ int main(void)
 
     /* Test 41: Verify Animate no longer hits the stub path */
     errors += test_graphics_animate_stub_closed();
+
+    /* Test 42: Verify GetGBuffers no longer hits the stub path */
+    errors += test_graphics_getgbuffers_stub_closed();
+
+    /* Test 43: Verify CBump no longer hits the stub path */
+    errors += test_graphics_cbump_stub_closed();
+
+    /* Test 44: Verify CMove no longer hits the stub path */
+    errors += test_graphics_cmove_stub_closed();
+
+    /* Test 45: Verify CWait no longer hits the stub path */
+    errors += test_graphics_cwait_stub_closed();
+
+    /* Test 46: Verify SyncSBitMap no longer hits the stub path */
+    errors += test_graphics_syncsbitmap_stub_closed();
+
+    /* Test 47: Verify CopySBitMap no longer hits the stub path */
+    errors += test_graphics_copysbitmap_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

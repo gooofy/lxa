@@ -348,6 +348,88 @@ int main(void)
         errors++;
     }
 
+    print("\nTest 3d: SyncSBitMap copies visible layer content into the SuperBitMap...\n");
+    if (hook_super && hook_super->rp)
+    {
+        struct RastPort screen_rp;
+        struct RastPort super_rp;
+
+        InitRastPort(&screen_rp);
+        screen_rp.BitMap = bm;
+        SetRast(&screen_rp, 0);
+
+        InitRastPort(&super_rp);
+        super_rp.BitMap = super_bm;
+        SetRast(&super_rp, 0);
+
+        hook_super->Scroll_X = 2;
+        hook_super->Scroll_Y = 1;
+
+        SetAPen(&screen_rp, 1);
+        WritePixel(&screen_rp, 185, 26);
+
+        SyncSBitMap(hook_super);
+
+        if (ReadPixel(&super_rp, 3, 5) == 1 && ReadPixel(&super_rp, 5, 6) == 0)
+        {
+            print("OK: SyncSBitMap mirrored the visible super layer into backing storage\n");
+        }
+        else
+        {
+            print("FAIL: SyncSBitMap did not update the expected SuperBitMap pixels\n");
+            errors++;
+        }
+
+        hook_super->Scroll_X = 0;
+        hook_super->Scroll_Y = 0;
+    }
+    else
+    {
+        print("FAIL: No super layer available for SyncSBitMap test\n");
+        errors++;
+    }
+
+    print("\nTest 3e: CopySBitMap copies backing SuperBitMap content into the visible layer...\n");
+    if (hook_super && hook_super->rp)
+    {
+        struct RastPort screen_rp;
+        struct RastPort super_rp;
+
+        InitRastPort(&screen_rp);
+        screen_rp.BitMap = bm;
+        SetRast(&screen_rp, 0);
+
+        InitRastPort(&super_rp);
+        super_rp.BitMap = super_bm;
+        SetRast(&super_rp, 0);
+
+        hook_super->Scroll_X = 2;
+        hook_super->Scroll_Y = 1;
+
+        SetAPen(&super_rp, 1);
+        WritePixel(&super_rp, 3, 5);
+
+        CopySBitMap(hook_super);
+
+        if (ReadPixel(&screen_rp, 185, 26) == 1 && ReadPixel(&screen_rp, 187, 27) == 0)
+        {
+            print("OK: CopySBitMap mirrored the backing super layer into visible pixels\n");
+        }
+        else
+        {
+            print("FAIL: CopySBitMap did not update the expected visible layer pixels\n");
+            errors++;
+        }
+
+        hook_super->Scroll_X = 0;
+        hook_super->Scroll_Y = 0;
+    }
+    else
+    {
+        print("FAIL: No super layer available for CopySBitMap test\n");
+        errors++;
+    }
+
     print("\nTest 4: DeleteLayer unlinks layers, damages exposed areas, and pools ClipRects...\n");
     if (upfront)
     {

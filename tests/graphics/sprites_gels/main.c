@@ -20,6 +20,7 @@
 
 extern struct DosLibrary *DOSBase;
 extern struct GfxBase *GfxBase;
+extern struct ExecBase *SysBase;
 
 static void print(const char *s)
 {
@@ -613,6 +614,178 @@ int main(void)
         else
         {
             print("OK: Animate() updates motion, switches sequences, and calls routines\n");
+        }
+    }
+
+    {
+        struct VSprite buf_vs_a;
+        struct VSprite buf_vs_b;
+        struct VSprite buf_vs_c;
+        struct Bob buf_bob_a;
+        struct Bob buf_bob_b;
+        struct Bob buf_bob_c;
+        struct AnimComp buf_comp_a;
+        struct AnimComp buf_comp_b;
+        struct AnimComp buf_comp_c;
+        struct AnimComp buf_seq_a;
+        struct AnimOb buf_anim;
+        UWORD buf_image_data[4] = { 0x8000, 0x2000, 0x4000, 0x1000 };
+        UWORD buf_image_data_alt[2] = { 0x1111, 0x2222 };
+        UWORD buf_image_data_third[4] = { 0x0f00, 0x00f0, 0x3000, 0x0003 };
+        UWORD buf_collmask_a[2] = { 0, 0 };
+        UWORD buf_collmask_b[2] = { 0, 0 };
+        UWORD buf_collmask_c[2] = { 0, 0 };
+        UWORD buf_border_a[1] = { 0 };
+        UWORD buf_border_b[1] = { 0 };
+        UWORD buf_border_c[1] = { 0 };
+
+        init_test_vsprite(&buf_vs_a, 0, 0, 1, 2, 2, buf_image_data, 0);
+        init_test_vsprite(&buf_vs_b, 0, 0, 1, 2, 2, buf_image_data, 0);
+        init_test_vsprite(&buf_vs_c, 0, 0, 1, 2, 2, buf_image_data_third, 0);
+
+        buf_bob_a.Flags = 0;
+        buf_bob_a.SaveBuffer = NULL;
+        buf_bob_a.ImageShadow = NULL;
+        buf_bob_a.Before = NULL;
+        buf_bob_a.After = NULL;
+        buf_bob_a.BobVSprite = &buf_vs_a;
+        buf_bob_a.BobComp = &buf_comp_a;
+        buf_bob_a.DBuffer = NULL;
+        buf_bob_a.BUserExt = 0;
+
+        buf_bob_b = buf_bob_a;
+        buf_bob_b.BobVSprite = &buf_vs_b;
+        buf_bob_b.BobComp = &buf_seq_a;
+
+        buf_bob_c = buf_bob_a;
+        buf_bob_c.BobVSprite = &buf_vs_c;
+        buf_bob_c.BobComp = &buf_comp_b;
+
+        buf_comp_a.Flags = 0;
+        buf_comp_a.Timer = 0;
+        buf_comp_a.TimeSet = 1;
+        buf_comp_a.NextComp = &buf_comp_b;
+        buf_comp_a.PrevComp = NULL;
+        buf_comp_a.NextSeq = &buf_seq_a;
+        buf_comp_a.PrevSeq = &buf_seq_a;
+        buf_comp_a.AnimCRoutine = NULL;
+        buf_comp_a.YTrans = 0;
+        buf_comp_a.XTrans = 0;
+        buf_comp_a.HeadOb = &buf_anim;
+        buf_comp_a.AnimBob = &buf_bob_a;
+
+        buf_seq_a = buf_comp_a;
+        buf_seq_a.NextComp = NULL;
+        buf_seq_a.PrevComp = NULL;
+        buf_seq_a.NextSeq = &buf_comp_a;
+        buf_seq_a.PrevSeq = &buf_comp_a;
+        buf_seq_a.AnimBob = &buf_bob_b;
+
+        buf_comp_b = buf_comp_a;
+        buf_comp_b.NextComp = NULL;
+        buf_comp_b.PrevComp = &buf_comp_a;
+        buf_comp_b.NextSeq = &buf_comp_b;
+        buf_comp_b.PrevSeq = &buf_comp_b;
+        buf_comp_b.AnimBob = &buf_bob_c;
+
+        buf_anim.NextOb = NULL;
+        buf_anim.PrevOb = NULL;
+        buf_anim.Clock = 0;
+        buf_anim.AnOldY = 0;
+        buf_anim.AnOldX = 0;
+        buf_anim.AnY = 0;
+        buf_anim.AnX = 0;
+        buf_anim.YVel = 0;
+        buf_anim.XVel = 0;
+        buf_anim.YAccel = 0;
+        buf_anim.XAccel = 0;
+        buf_anim.RingYTrans = 0;
+        buf_anim.RingXTrans = 0;
+        buf_anim.AnimORoutine = NULL;
+        buf_anim.HeadComp = &buf_comp_a;
+        buf_anim.AUserExt = 0;
+
+        buf_vs_a.CollMask = buf_collmask_a;
+        buf_vs_a.BorderLine = buf_border_a;
+        buf_vs_b.Depth = 1;
+        buf_vs_b.ImageData = buf_image_data_alt;
+        buf_vs_b.CollMask = buf_collmask_b;
+        buf_vs_b.BorderLine = buf_border_b;
+        buf_vs_c.CollMask = buf_collmask_c;
+        buf_vs_c.BorderLine = buf_border_c;
+
+        InitGMasks(&buf_anim);
+        if ((UWORD)buf_vs_a.CollMask[0] != 0xc000U || (UWORD)buf_vs_a.CollMask[1] != 0x3000U ||
+            (UWORD)buf_vs_a.BorderLine[0] != 0xf000U || (UWORD)buf_vs_b.CollMask[0] != 0x1111U ||
+            (UWORD)buf_vs_b.CollMask[1] != 0x2222U || (UWORD)buf_vs_b.BorderLine[0] != 0x3333U ||
+            (UWORD)buf_vs_c.CollMask[0] != 0x3f00U || (UWORD)buf_vs_c.CollMask[1] != 0x00f3U ||
+            (UWORD)buf_vs_c.BorderLine[0] != 0x3ff3U)
+        {
+            print("FAIL: InitGMasks() did not initialize every sequence mask\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: InitGMasks() initializes every component sequence mask\n");
+        }
+
+        if (!GetGBuffers(&buf_anim, &rp, TRUE))
+        {
+            print("FAIL: GetGBuffers() did not allocate buffers for the AnimOb\n");
+            errors++;
+        }
+        else if (!buf_bob_a.ImageShadow || buf_vs_a.CollMask != buf_bob_a.ImageShadow ||
+                  !buf_bob_a.SaveBuffer || !buf_vs_a.BorderLine || !buf_bob_a.DBuffer ||
+                 !buf_bob_a.DBuffer->BufBuffer || !buf_bob_b.ImageShadow ||
+                 buf_vs_b.CollMask != buf_bob_b.ImageShadow || !buf_bob_b.SaveBuffer ||
+                 !buf_vs_b.BorderLine || !buf_bob_b.DBuffer || !buf_bob_b.DBuffer->BufBuffer ||
+                 !buf_bob_c.ImageShadow || buf_vs_c.CollMask != buf_bob_c.ImageShadow ||
+                 !buf_bob_c.SaveBuffer || !buf_vs_c.BorderLine || !buf_bob_c.DBuffer ||
+                 !buf_bob_c.DBuffer->BufBuffer)
+        {
+            print("FAIL: GetGBuffers() returned success without filling all buffer pointers\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: GetGBuffers() allocates save, mask, border, and DBuf buffers\n");
+        }
+
+        if (buf_bob_a.ImageShadow)
+            FreeMem(buf_bob_a.ImageShadow, 4);
+        if (buf_bob_a.SaveBuffer)
+            FreeMem(buf_bob_a.SaveBuffer, 8);
+        if (buf_vs_a.BorderLine)
+            FreeMem(buf_vs_a.BorderLine, 2);
+        if (buf_bob_a.DBuffer)
+        {
+            if (buf_bob_a.DBuffer->BufBuffer)
+                FreeMem(buf_bob_a.DBuffer->BufBuffer, 8);
+            FreeMem(buf_bob_a.DBuffer, sizeof(struct DBufPacket));
+        }
+        if (buf_bob_b.ImageShadow)
+            FreeMem(buf_bob_b.ImageShadow, 4);
+        if (buf_bob_b.SaveBuffer)
+            FreeMem(buf_bob_b.SaveBuffer, 8);
+        if (buf_vs_b.BorderLine)
+            FreeMem(buf_vs_b.BorderLine, 2);
+        if (buf_bob_b.DBuffer)
+        {
+            if (buf_bob_b.DBuffer->BufBuffer)
+                FreeMem(buf_bob_b.DBuffer->BufBuffer, 8);
+            FreeMem(buf_bob_b.DBuffer, sizeof(struct DBufPacket));
+        }
+        if (buf_bob_c.ImageShadow)
+            FreeMem(buf_bob_c.ImageShadow, 4);
+        if (buf_bob_c.SaveBuffer)
+            FreeMem(buf_bob_c.SaveBuffer, 8);
+        if (buf_vs_c.BorderLine)
+            FreeMem(buf_vs_c.BorderLine, 2);
+        if (buf_bob_c.DBuffer)
+        {
+            if (buf_bob_c.DBuffer->BufBuffer)
+                FreeMem(buf_bob_c.DBuffer->BufBuffer, 8);
+            FreeMem(buf_bob_c.DBuffer, sizeof(struct DBufPacket));
         }
     }
 

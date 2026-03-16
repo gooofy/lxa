@@ -44,6 +44,29 @@ static void fill_bytes(APTR ptr, UBYTE value, ULONG size)
         p[i] = value;
 }
 
+static void free_ucoplist_chain(struct UCopList *ucl)
+{
+    struct CopList *cop_list;
+
+    if (!ucl)
+        return;
+
+    cop_list = ucl->FirstCopList;
+    while (cop_list)
+    {
+        struct CopList *next = cop_list->Next;
+
+        if (cop_list->CopIns)
+            FreeMem(cop_list->CopIns, cop_list->MaxCount * sizeof(struct CopIns));
+
+        FreeMem(cop_list, sizeof(struct CopList));
+        cop_list = next;
+    }
+
+    ucl->FirstCopList = NULL;
+    ucl->CopList = NULL;
+}
+
 static int strings_equal(const char *a, const char *b)
 {
     while (*a && *b)
@@ -363,13 +386,132 @@ int main(void)
         print("OK: UCopperListInit() initialized UCopList state\n");
     }
 
-    if (ucl.FirstCopList)
+    free_ucoplist_chain(&ucl);
+
+    fill_bytes(&ucl, 0, sizeof(ucl));
+    ucl_list = UCopperListInit(&ucl, 1);
+    if (!ucl_list)
     {
-        FreeMem(ucl.FirstCopList->CopIns, 4 * sizeof(struct CopIns));
-        FreeMem(ucl.FirstCopList, sizeof(struct CopList));
-        ucl.FirstCopList = NULL;
-        ucl.CopList = NULL;
+        print("FAIL: UCopperListInit() returned NULL for CMove() test\n");
+        errors++;
     }
+    else if (!CMove(&ucl, (APTR)0x0180, 0x1357) ||
+             ucl.CopList != ucl_list || ucl_list->Count != 0 ||
+             ucl_list->CopPtr != ucl_list->CopIns ||
+             ucl_list->CopIns[0].OpCode != COPPER_MOVE ||
+             ucl_list->CopIns[0].u3.u4.u1.DestAddr != 0x0180 ||
+             ucl_list->CopIns[0].u3.u4.u2.DestData != 0x1357)
+    {
+        print("FAIL: CMove() did not encode the copper move instruction\n");
+        errors++;
+    }
+    else
+    {
+        ucl_list->Count = ucl_list->MaxCount;
+        ucl_list->CopPtr = ucl_list->CopIns + ucl_list->MaxCount;
+
+        if (CMove(&ucl, (APTR)0x0182, 0x2468) != FALSE)
+        {
+            print("FAIL: CMove() did not report a full copper block\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: CMove() encodes instructions and reports full blocks\n");
+        }
+    }
+
+    free_ucoplist_chain(&ucl);
+
+    fill_bytes(&ucl, 0, sizeof(ucl));
+    ucl_list = UCopperListInit(&ucl, 2);
+    if (!ucl_list)
+    {
+        print("FAIL: UCopperListInit() returned NULL for CBump() test\n");
+        errors++;
+    }
+    else
+    {
+        ucl.CopList->CopPtr->OpCode = COPPER_MOVE;
+        ucl.CopList->CopPtr->u3.u4.u1.DestAddr = 0x0180;
+        ucl.CopList->CopPtr->u3.u4.u2.DestData = 0x1234;
+        CBump(&ucl);
+
+        if (ucl.CopList != ucl_list || ucl_list->Count != 1 ||
+            ucl_list->CopPtr != (ucl_list->CopIns + 1))
+        {
+            print("FAIL: CBump() did not advance within the current copper block\n");
+            errors++;
+        }
+        else
+        {
+            ucl.CopList->CopPtr->OpCode = COPPER_WAIT;
+            ucl.CopList->CopPtr->u3.u4.u1.VWaitPos = 0x0020;
+            ucl.CopList->CopPtr->u3.u4.u2.HWaitPos = 0x0040;
+            CBump(&ucl);
+
+            if (!ucl_list->Next || ucl.CopList != ucl_list->Next ||
+                ucl_list->CopIns[1].OpCode != CPRNXTBUF ||
+                ucl_list->CopIns[1].u3.nxtlist != ucl_list->Next ||
+                ucl.CopList->Count != 1 ||
+                ucl.CopList->CopPtr != (ucl.CopList->CopIns + 1) ||
+                ucl.CopList->CopIns[0].OpCode != COPPER_WAIT ||
+                ucl.CopList->CopIns[0].u3.u4.u1.VWaitPos != 0x0020 ||
+                ucl.CopList->CopIns[0].u3.u4.u2.HWaitPos != 0x0040)
+            {
+                print("FAIL: CBump() did not spill the last instruction into a chained block\n");
+                errors++;
+            }
+            else
+            {
+                print("OK: CBump() advances and chains copper instruction blocks\n");
+            }
+        }
+    }
+
+    free_ucoplist_chain(&ucl);
+
+    fill_bytes(&ucl, 0, sizeof(ucl));
+    ucl_list = UCopperListInit(&ucl, 1);
+    if (!ucl_list)
+    {
+        print("FAIL: UCopperListInit() returned NULL for CWait() test\n");
+        errors++;
+    }
+    else
+    {
+        CWait(&ucl, 0x0024, 0x0068);
+
+        if (ucl.CopList != ucl_list || ucl_list->Count != 0 ||
+            ucl_list->CopPtr != ucl_list->CopIns ||
+            ucl_list->CopIns[0].OpCode != COPPER_WAIT ||
+            ucl_list->CopIns[0].u3.u4.u1.VWaitPos != 0x0024 ||
+            ucl_list->CopIns[0].u3.u4.u2.HWaitPos != 0x0068)
+        {
+            print("FAIL: CWait() did not encode the copper wait instruction\n");
+            errors++;
+        }
+        else
+        {
+            ucl_list->CopIns[0].OpCode = COPPER_MOVE;
+            ucl_list->Count = ucl_list->MaxCount;
+            ucl_list->CopPtr = ucl_list->CopIns + ucl_list->MaxCount;
+
+            CWait(&ucl, 0x0012, 0x0034);
+
+            if (ucl_list->CopIns[0].OpCode != COPPER_MOVE)
+            {
+                print("FAIL: CWait() overwrote a full copper block\n");
+                errors++;
+            }
+            else
+            {
+                print("OK: CWait() encodes instructions and leaves full blocks untouched\n");
+            }
+        }
+    }
+
+    free_ucoplist_chain(&ucl);
 
     result = MrgCop(&view);
     if (result != MVP_OK || view.LOFCprList == NULL || view.SHFCprList == NULL)

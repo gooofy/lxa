@@ -62,6 +62,18 @@ static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
                           UBYTE mask,
                           CONST PLANEPTR bltMask,
                           UWORD maskBytesPerRow);
+static LONG _graphics_BltBitMap(register struct GfxBase *GfxBase __asm("a6"),
+                                register CONST struct BitMap *srcBitMap __asm("a0"),
+                                register WORD xSrc __asm("d0"),
+                                register WORD ySrc __asm("d1"),
+                                register struct BitMap *destBitMap __asm("a1"),
+                                register WORD xDest __asm("d2"),
+                                register WORD yDest __asm("d3"),
+                                register WORD xSize __asm("d4"),
+                                register WORD ySize __asm("d5"),
+                                register UBYTE minterm __asm("d6"),
+                                register UBYTE mask __asm("d7"),
+                                register PLANEPTR tempA __asm("a2"));
 static VOID _graphics_EraseRect(register struct GfxBase *GfxBase __asm("a6"),
                                 register struct RastPort *rp __asm("a1"),
                                 register LONG xMin __asm("d0"),
@@ -75,6 +87,8 @@ static VOID _graphics_RemVSprite(register struct GfxBase *GfxBase __asm("a6"),
                                  register struct VSprite *vSprite __asm("a0"));
 static UBYTE GetPlaneBit(CONST PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y);
 static void SetPlaneBit(PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y, UBYTE value);
+static WORD graphics_vsprite_words_per_line(CONST struct VSprite *vSprite);
+static WORD graphics_vsprite_mask_depth(CONST struct VSprite *vSprite);
 
 static WORD graphics_anim_fixed_to_coord(WORD anim_coord, WORD comp_trans)
 {
@@ -84,6 +98,27 @@ static WORD graphics_anim_fixed_to_coord(WORD anim_coord, WORD comp_trans)
         coord += 2;
 
     return (WORD)(coord >> 1);
+}
+
+static ULONG graphics_vsprite_shadow_size(CONST struct VSprite *vSprite)
+{
+    WORD words_per_line = graphics_vsprite_words_per_line(vSprite);
+
+    if (!vSprite || vSprite->Height <= 0 || words_per_line <= 0)
+        return 0;
+
+    return (ULONG)vSprite->Height * (ULONG)words_per_line * sizeof(WORD);
+}
+
+static ULONG graphics_vsprite_savebuffer_size(CONST struct VSprite *vSprite)
+{
+    ULONG shadow_size = graphics_vsprite_shadow_size(vSprite);
+    WORD depth = graphics_vsprite_mask_depth(vSprite);
+
+    if (shadow_size == 0 || depth <= 0)
+        return 0;
+
+    return shadow_size * (ULONG)depth;
 }
 
 struct BlitWaitQNode
@@ -2921,16 +2956,102 @@ static BOOL _graphics_GetGBuffers ( register struct GfxBase * GfxBase __asm("a6"
                                                         register struct RastPort * rp __asm("a1"),
                                                         register LONG flag __asm("d0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: GetGBuffers() unimplemented STUB called.\n");
-    assert(FALSE);
-    return FALSE;
+    struct AnimComp *current_comp;
+    BOOL double_buffer;
+
+    DPRINTF (LOG_DEBUG, "_graphics: GetGBuffers() anOb=0x%08lx rp=0x%08lx flag=%ld\n",
+             (ULONG)anOb, (ULONG)rp, flag);
+
+    if (!anOb)
+        return FALSE;
+
+    double_buffer = (flag != 0) ? TRUE : FALSE;
+    current_comp = anOb->HeadComp;
+
+    while (current_comp)
+    {
+        struct AnimComp *sequence_comp = current_comp;
+
+        do
+        {
+            struct Bob *bob = sequence_comp->AnimBob;
+            struct VSprite *vSprite = bob ? bob->BobVSprite : NULL;
+            ULONG shadow_size;
+            ULONG savebuffer_size;
+
+            if (!bob || !vSprite)
+                return FALSE;
+
+            shadow_size = graphics_vsprite_shadow_size(vSprite);
+            savebuffer_size = graphics_vsprite_savebuffer_size(vSprite);
+
+            if (shadow_size == 0 || savebuffer_size == 0)
+                return FALSE;
+
+            bob->ImageShadow = (WORD *)AllocMem(shadow_size, MEMF_CHIP | MEMF_CLEAR);
+            if (!bob->ImageShadow)
+                return FALSE;
+
+            vSprite->CollMask = bob->ImageShadow;
+
+            bob->SaveBuffer = (WORD *)AllocMem(savebuffer_size, MEMF_CHIP | MEMF_CLEAR);
+            if (!bob->SaveBuffer)
+                return FALSE;
+
+            vSprite->BorderLine = (WORD *)AllocMem((ULONG)graphics_vsprite_words_per_line(vSprite) * sizeof(WORD),
+                                                   MEMF_CHIP | MEMF_CLEAR);
+            if (!vSprite->BorderLine)
+                return FALSE;
+
+            if (double_buffer)
+            {
+                bob->DBuffer = (struct DBufPacket *)AllocMem(sizeof(struct DBufPacket), MEMF_PUBLIC | MEMF_CLEAR);
+                if (!bob->DBuffer)
+                    return FALSE;
+
+                bob->DBuffer->BufBuffer = (WORD *)AllocMem(savebuffer_size, MEMF_CHIP | MEMF_CLEAR);
+                if (!bob->DBuffer->BufBuffer)
+                    return FALSE;
+            }
+
+            sequence_comp = sequence_comp->NextSeq;
+        }
+        while (sequence_comp && sequence_comp != current_comp);
+
+        current_comp = current_comp->NextComp;
+    }
+
+    (void)GfxBase;
+    (void)rp;
+    return TRUE;
 }
 
 static VOID _graphics_InitGMasks ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct AnimOb * anOb __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: InitGMasks() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct AnimComp *current_comp;
+
+    DPRINTF (LOG_DEBUG, "_graphics: InitGMasks() anOb=0x%08lx\n", (ULONG)anOb);
+
+    if (!anOb)
+        return;
+
+    current_comp = anOb->HeadComp;
+    while (current_comp)
+    {
+        struct AnimComp *sequence_comp = current_comp;
+
+        do
+        {
+            if (sequence_comp->AnimBob && sequence_comp->AnimBob->BobVSprite)
+                _graphics_InitMasks(GfxBase, sequence_comp->AnimBob->BobVSprite);
+
+            sequence_comp = sequence_comp->NextSeq;
+        }
+        while (sequence_comp && sequence_comp != current_comp);
+
+        current_comp = current_comp->NextComp;
+    }
 }
 
 static VOID _graphics_DrawEllipse ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4845,17 +4966,82 @@ static VOID _graphics_InitView ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_CBump ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct UCopList * copList __asm("a1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: CBump() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct CopList *current;
+    struct CopList *next;
+
+    (void)GfxBase;
+
+    DPRINTF (LOG_DEBUG, "_graphics: CBump() copList=0x%08lx\n", (ULONG)copList);
+
+    if (!copList || !copList->CopList)
+        return;
+
+    current = copList->CopList;
+    current->Count++;
+
+    if (current->Count == current->MaxCount)
+    {
+        next = current->Next;
+        if (!next)
+        {
+            next = (struct CopList *)AllocMem(sizeof(struct CopList), MEMF_PUBLIC | MEMF_CLEAR);
+            if (!next)
+                return;
+
+            next->CopIns = (struct CopIns *)AllocMem(10 * sizeof(struct CopIns), MEMF_PUBLIC | MEMF_CLEAR);
+            if (!next->CopIns)
+            {
+                FreeMem(next, sizeof(struct CopList));
+                return;
+            }
+
+            next->CopPtr = next->CopIns;
+            next->MaxCount = 10;
+            current->Next = next;
+        }
+
+        next->CopPtr->OpCode = current->CopPtr->OpCode;
+        next->CopPtr->u3.nxtlist = current->CopPtr->u3.nxtlist;
+
+        current->CopPtr->OpCode = CPRNXTBUF;
+        current->CopPtr->u3.nxtlist = next;
+
+        next->CopPtr++;
+        next->Count++;
+        copList->CopList = next;
+    }
+    else
+    {
+        current->CopPtr++;
+    }
 }
 
-static VOID _graphics_CMove ( register struct GfxBase * GfxBase __asm("a6"),
+static LONG _graphics_CMove ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct UCopList * copList __asm("a1"),
                                                         register APTR destination __asm("d0"),
                                                         register LONG data __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: CMove() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct CopList *current;
+    struct CopIns *cop_ins;
+
+    (void)GfxBase;
+
+    DPRINTF (LOG_DEBUG, "_graphics: CMove() copList=0x%08lx destination=0x%08lx data=%ld\n",
+             (ULONG)copList, (ULONG)destination, data);
+
+    if (!copList || !copList->CopList)
+        return FALSE;
+
+    current = copList->CopList;
+    if (!current->CopIns || !current->CopPtr || current->Count >= current->MaxCount)
+        return FALSE;
+
+    cop_ins = current->CopPtr;
+    cop_ins->OpCode = COPPER_MOVE;
+    cop_ins->u3.u4.u1.DestAddr = (WORD)(ULONG)destination;
+    cop_ins->u3.u4.u2.DestData = (WORD)data;
+
+    return TRUE;
 }
 
 static VOID _graphics_CWait ( register struct GfxBase * GfxBase __asm("a6"),
@@ -4863,8 +5049,25 @@ static VOID _graphics_CWait ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG v __asm("d0"),
                                                         register LONG h __asm("d1"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: CWait() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct CopList *current;
+    struct CopIns *cop_ins;
+
+    (void)GfxBase;
+
+    DPRINTF (LOG_DEBUG, "_graphics: CWait() copList=0x%08lx v=%ld h=%ld\n",
+             (ULONG)copList, v, h);
+
+    if (!copList || !copList->CopList)
+        return;
+
+    current = copList->CopList;
+    if (!current->CopIns || !current->CopPtr || current->Count >= current->MaxCount)
+        return;
+
+    cop_ins = current->CopPtr;
+    cop_ins->OpCode = COPPER_WAIT;
+    cop_ins->u3.u4.u1.VWaitPos = (WORD)v;
+    cop_ins->u3.u4.u2.HWaitPos = (WORD)h;
 }
 
 static LONG _graphics_VBeamPos ( register struct GfxBase * GfxBase __asm("a6"))
@@ -5161,15 +5364,93 @@ static VOID __attribute__((optimize("O0"))) _graphics_UnlockLayerRom ( register 
 static VOID _graphics_SyncSBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: SyncSBitMap() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct ClipRect *cr;
+
+    DPRINTF (LOG_DEBUG, "_graphics: SyncSBitMap() layer=0x%08lx\n", (ULONG)layer);
+
+    if (!layer || !layer->rp || !layer->rp->BitMap)
+        return;
+
+    if (!layer->SuperBitMap || ((layer->Flags & LAYERSUPER) == 0))
+        return;
+
+    ObtainSemaphore(&layer->Lock);
+
+    cr = layer->ClipRect;
+    while (cr)
+    {
+        if (!cr->obscured)
+        {
+            WORD width = cr->bounds.MaxX - cr->bounds.MinX + 1;
+            WORD height = cr->bounds.MaxY - cr->bounds.MinY + 1;
+
+            if (width > 0 && height > 0)
+            {
+                _graphics_BltBitMap(GfxBase,
+                                    layer->rp->BitMap,
+                                    cr->bounds.MinX,
+                                    cr->bounds.MinY,
+                                    layer->SuperBitMap,
+                                    (WORD)(cr->bounds.MinX - layer->bounds.MinX - layer->Scroll_X),
+                                    (WORD)(cr->bounds.MinY - layer->bounds.MinY - layer->Scroll_Y),
+                                    width,
+                                    height,
+                                    0xC0,
+                                    0xFF,
+                                    NULL);
+            }
+        }
+
+        cr = cr->Next;
+    }
+
+    ReleaseSemaphore(&layer->Lock);
 }
 
 static VOID _graphics_CopySBitMap ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct Layer * layer __asm("a0"))
 {
-    DPRINTF (LOG_ERROR, "_graphics: CopySBitMap() unimplemented STUB called.\n");
-    assert(FALSE);
+    struct ClipRect *cr;
+
+    DPRINTF (LOG_DEBUG, "_graphics: CopySBitMap() layer=0x%08lx\n", (ULONG)layer);
+
+    if (!layer || !layer->rp || !layer->rp->BitMap)
+        return;
+
+    if (!layer->SuperBitMap || ((layer->Flags & LAYERSUPER) == 0))
+        return;
+
+    ObtainSemaphore(&layer->Lock);
+
+    cr = layer->ClipRect;
+    while (cr)
+    {
+        if (!cr->obscured)
+        {
+            WORD width = cr->bounds.MaxX - cr->bounds.MinX + 1;
+            WORD height = cr->bounds.MaxY - cr->bounds.MinY + 1;
+
+            if (width > 0 && height > 0)
+            {
+                _graphics_BltBitMap(GfxBase,
+                                    layer->SuperBitMap,
+                                    (WORD)(cr->bounds.MinX - layer->bounds.MinX - layer->Scroll_X),
+                                    (WORD)(cr->bounds.MinY - layer->bounds.MinY - layer->Scroll_Y),
+                                    layer->rp->BitMap,
+                                    cr->bounds.MinX,
+                                    cr->bounds.MinY,
+                                    width,
+                                    height,
+                                    0xC0,
+                                    0xFF,
+                                    NULL);
+            }
+        }
+
+        cr = cr->Next;
+    }
+
+    ReleaseSemaphore(&layer->Lock);
 }
 
 static VOID _graphics_OwnBlitter ( register struct GfxBase * GfxBase __asm("a6"))
@@ -6102,7 +6383,7 @@ static struct CopList * _graphics_UCopperListInit ( register struct GfxBase * Gf
 
     if (uCopList->FirstCopList && uCopList->FirstCopList->MaxCount != 0 && uCopList->FirstCopList->CopIns)
     {
-        uCopList->FirstCopList->Count = uCopList->FirstCopList->MaxCount;
+        uCopList->FirstCopList->Count = 0;
         uCopList->FirstCopList->CopPtr = uCopList->FirstCopList->CopIns;
         return uCopList->FirstCopList;
     }
@@ -6112,7 +6393,7 @@ static struct CopList * _graphics_UCopperListInit ( register struct GfxBase * Gf
         return NULL;
 
     copList->MaxCount = (WORD)n;
-    copList->Count = (WORD)n;
+    copList->Count = 0;
     copList->CopIns = (struct CopIns *)AllocMem((ULONG)n * sizeof(struct CopIns), MEMF_PUBLIC | MEMF_CLEAR);
     if (!copList->CopIns)
     {
