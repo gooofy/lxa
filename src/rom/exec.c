@@ -2776,17 +2776,14 @@ void _exec_RemDevice ( register struct ExecBase * SysBase __asm("a6"),
 
     /* Call the device's expunge vector (similar to RemLibrary) */
     Forbid();
-    
-    /* Get the expunge function from the jump table (LVO -18, offset -3) */
-    APTR *vectors = (APTR *)&___device->dd_Library;
-    APTR expunge_fn = vectors[-3];
-    
+
+    struct JumpVec *jv = &(((struct JumpVec *)(___device))[-3]);
+    libExpungeFn_t expunge_fn = (libExpungeFn_t)jv->vec;
+
     if (expunge_fn)
     {
         DPRINTF (LOG_DEBUG, "_exec: Calling device expunge vector at 0x%08lx\n", (ULONG)expunge_fn);
-        register struct Library *lib_reg __asm("d0") = &___device->dd_Library;
-        BPTR seglist = ((BPTR (*)(void))expunge_fn)();
-        (void)lib_reg;
+        BPTR seglist = expunge_fn(&___device->dd_Library);
         DPRINTF (LOG_DEBUG, "_exec: Expunge returned seglist=0x%08lx\n", (ULONG)seglist);
     }
     else

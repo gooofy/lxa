@@ -437,6 +437,31 @@ static struct Library * __g_lxa_timer_InitDev  ( register struct Library    *dev
     return dev;
 }
 
+static BPTR timer_expunge_if_possible(struct TimerBase *timerbase)
+{
+    if (FindName(&SysBase->DeviceList,
+                 (CONST_STRPTR)timerbase->tb_Device.dd_Library.lib_Node.ln_Name) ==
+        &timerbase->tb_Device.dd_Library.lib_Node)
+    {
+        Remove(&timerbase->tb_Device.dd_Library.lib_Node);
+        DPRINTF(LOG_DEBUG, "_timer: Expunge() removed device from DeviceList\n");
+    }
+
+    if (timerbase->tb_Device.dd_Library.lib_OpenCnt != 0)
+    {
+        timerbase->tb_Device.dd_Library.lib_Flags |= LIBF_DELEXP;
+        DPRINTF(LOG_DEBUG, "_timer: Expunge() deferred, open count=%u\n",
+                (unsigned int)timerbase->tb_Device.dd_Library.lib_OpenCnt);
+        return 0;
+    }
+
+    timerbase->tb_Device.dd_Library.lib_Flags &= ~LIBF_DELEXP;
+
+    DPRINTF(LOG_DEBUG, "_timer: Expunge() finalizing removal\n");
+
+    return timerbase->tb_SegList;
+}
+
 /*
  * Device Open
  */
@@ -497,9 +522,18 @@ static BPTR __g_lxa_timer_Close( register struct Library   *dev   __asm("a6"),
         FreeMem(timer_unit, sizeof(struct TimerUnit));
         ioreq->io_Unit = NULL;
     }
-    
-    timerbase->tb_Device.dd_Library.lib_OpenCnt--;
-    
+
+    if (timerbase->tb_Device.dd_Library.lib_OpenCnt > 0)
+    {
+        timerbase->tb_Device.dd_Library.lib_OpenCnt--;
+    }
+
+    if (timerbase->tb_Device.dd_Library.lib_OpenCnt == 0 &&
+        (timerbase->tb_Device.dd_Library.lib_Flags & LIBF_DELEXP))
+    {
+        return timer_expunge_if_possible(timerbase);
+    }
+
     return 0;
 }
 
@@ -508,8 +542,8 @@ static BPTR __g_lxa_timer_Close( register struct Library   *dev   __asm("a6"),
  */
 static BPTR __g_lxa_timer_Expunge ( register struct Library   *dev   __asm("a6"))
 {
-    DPRINTF (LOG_DEBUG, "_timer: Expunge() called (stub)\n");
-    return 0;
+    DPRINTF(LOG_DEBUG, "_timer: Expunge() called\n");
+    return timer_expunge_if_possible((struct TimerBase *)dev);
 }
 
 /*

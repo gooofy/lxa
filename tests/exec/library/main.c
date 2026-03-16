@@ -15,6 +15,9 @@
 #include <string.h>
 #include <exec/types.h>
 #include <exec/execbase.h>
+#include <exec/devices.h>
+#include <exec/errors.h>
+#include <exec/io.h>
 #include <exec/libraries.h>
 #include <exec/memory.h>
 #include <dos/dos.h>
@@ -22,6 +25,7 @@
 #include <dos/rdargs.h>
 #include <dos/record.h>
 #include <devices/inputevent.h>
+#include <devices/timer.h>
 #include <graphics/copper.h>
 #include <graphics/collide.h>
 #include <graphics/gels.h>
@@ -4475,6 +4479,120 @@ static int test_workbench_phase89_stub_closed(void)
     return errors;
 }
 
+static int test_timer_phase90_stub_closed(void)
+{
+    int errors = 0;
+    struct MsgPort *port = NULL;
+    struct timerequest *req1 = NULL;
+    struct timerequest *req2 = NULL;
+    struct timerequest *reopen = NULL;
+    struct Device *device;
+    struct Node *node;
+    LONG open_error;
+
+    print("--- Test: timer.device Phase 90 entry point ---\n");
+
+    port = CreateMsgPort();
+    req1 = (struct timerequest *)CreateIORequest(port, sizeof(struct timerequest));
+    req2 = (struct timerequest *)CreateIORequest(port, sizeof(struct timerequest));
+    reopen = (struct timerequest *)CreateIORequest(port, sizeof(struct timerequest));
+    if (!port || !req1 || !req2 || !reopen)
+    {
+        print("FAIL: Could not allocate timer.device probe resources\n\n");
+        if (reopen)
+            DeleteIORequest((struct IORequest *)reopen);
+        if (req2)
+            DeleteIORequest((struct IORequest *)req2);
+        if (req1)
+            DeleteIORequest((struct IORequest *)req1);
+        if (port)
+            DeleteMsgPort(port);
+        return 1;
+    }
+
+    if (OpenDevice((CONST_STRPTR)TIMERNAME, UNIT_MICROHZ, (struct IORequest *)req1, 0) != 0 ||
+        OpenDevice((CONST_STRPTR)TIMERNAME, UNIT_WAITUNTIL, (struct IORequest *)req2, 0) != 0)
+    {
+        print("FAIL: OpenDevice() for timer.device probe failed\n\n");
+        if (req2->tr_node.io_Device)
+            CloseDevice((struct IORequest *)req2);
+        if (req1->tr_node.io_Device)
+            CloseDevice((struct IORequest *)req1);
+        DeleteIORequest((struct IORequest *)reopen);
+        DeleteIORequest((struct IORequest *)req2);
+        DeleteIORequest((struct IORequest *)req1);
+        DeleteMsgPort(port);
+        return 1;
+    }
+
+    device = req1->tr_node.io_Device;
+
+    node = FindName(&SysBase->DeviceList, (CONST_STRPTR)TIMERNAME);
+    if (node != &device->dd_Library.lib_Node)
+    {
+        print("FAIL: timer.device missing from DeviceList before Expunge probe\n");
+        errors++;
+    }
+
+    RemDevice(device);
+    if ((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
+        FindName(&SysBase->DeviceList, (CONST_STRPTR)TIMERNAME) == NULL)
+    {
+        print("OK: timer.device Expunge() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: timer.device Expunge() did not defer and unlink as expected\n");
+        errors++;
+    }
+
+    open_error = OpenDevice((CONST_STRPTR)TIMERNAME, UNIT_MICROHZ, (struct IORequest *)reopen, 0);
+    if (open_error == IOERR_OPENFAIL)
+    {
+        print("OK: deferred timer.device Expunge() blocks new opens\n");
+    }
+    else
+    {
+        print("FAIL: deferred timer.device Expunge() still allowed opens\n");
+        errors++;
+        if (open_error == 0)
+            CloseDevice((struct IORequest *)reopen);
+    }
+
+    CloseDevice((struct IORequest *)req2);
+    if (device->dd_Library.lib_OpenCnt == 1 &&
+        (device->dd_Library.lib_Flags & LIBF_DELEXP) != 0)
+    {
+        print("OK: timer.device Close() keeps deferred Expunge pending\n");
+    }
+    else
+    {
+        print("FAIL: timer.device Close() completed deferred Expunge too early\n");
+        errors++;
+    }
+
+    CloseDevice((struct IORequest *)req1);
+    if (FindName(&SysBase->DeviceList, (CONST_STRPTR)TIMERNAME) == NULL &&
+        device->dd_Library.lib_OpenCnt == 0 &&
+        (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
+    {
+        print("OK: timer.device final Close() completes deferred Expunge\n");
+    }
+    else
+    {
+        print("FAIL: timer.device final Close() did not finish deferred Expunge\n");
+        errors++;
+    }
+
+    DeleteIORequest((struct IORequest *)reopen);
+    DeleteIORequest((struct IORequest *)req2);
+    DeleteIORequest((struct IORequest *)req1);
+    DeleteMsgPort(port);
+
+    print("\n");
+    return errors;
+}
+
 int main(void)
 {
     int errors = 0;
@@ -4674,13 +4792,16 @@ int main(void)
     /* Test 54: Verify Intuition no longer hits the stub path */
     errors += test_intuition_entry_point_dispatch();
 
-    /* Test 55: Verify icon.library Phase 87 entry points no longer hit stub paths */
+    /* Test 55: Verify timer.device Phase 90 entry point no longer hits the stub path */
+    errors += test_timer_phase90_stub_closed();
+
+    /* Test 56: Verify icon.library Phase 87 entry points no longer hit stub paths */
     errors += test_icon_phase87_stub_closed();
 
-    /* Test 56: Verify diskfont.library Phase 88 entry points no longer hit stub paths */
+    /* Test 57: Verify diskfont.library Phase 88 entry points no longer hit stub paths */
     errors += test_diskfont_phase88_stub_closed();
 
-    /* Test 57: Verify workbench.library Phase 89 entry points no longer hit stub paths */
+    /* Test 58: Verify workbench.library Phase 89 entry points no longer hit stub paths */
     errors += test_workbench_phase89_stub_closed();
 
     /* ========== Final result ========== */

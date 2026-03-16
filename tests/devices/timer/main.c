@@ -7,6 +7,8 @@
 #include <exec/memory.h>
 #include <exec/ports.h>
 #include <exec/execbase.h>
+#include <exec/errors.h>
+#include <exec/libraries.h>
 #include <devices/timer.h>
 #include <clib/exec_protos.h>
 #include <clib/dos_protos.h>
@@ -58,6 +60,9 @@ int main(void)
     struct MsgPort *timerPort;
     struct timerequest *timerReq;
     struct timerequest *waitUntilReq;
+    struct timerequest *reopenReq;
+    struct Device *timerDevice;
+    struct Node *deviceNode;
     LONG error;
     struct timeval tv_a;
     struct timeval tv_b;
@@ -411,12 +416,80 @@ int main(void)
         return 1;
     }
 
-    /* Close timer.device */
+    timerDevice = timerReq->tr_node.io_Device;
+    deviceNode = FindName(&SysBase->DeviceList, (STRPTR)TIMERNAME);
+    if (deviceNode == &timerDevice->dd_Library.lib_Node) {
+        print("OK: timer.device present in DeviceList before Expunge\n");
+    } else {
+        print("FAIL: timer.device missing from DeviceList before Expunge\n");
+        FreeMem(waitUntilReq, sizeof(struct timerequest));
+        FreeMem(timerReq, sizeof(struct timerequest));
+        FreeMem(timerPort, sizeof(struct MsgPort));
+        return 1;
+    }
+
+    RemDevice(timerDevice);
+    if ((timerDevice->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
+        FindName(&SysBase->DeviceList, (STRPTR)TIMERNAME) == NULL) {
+        print("OK: Expunge() defers while open and unlinks timer.device\n");
+    } else {
+        print("FAIL: Expunge() did not defer/unlink correctly\n");
+        FreeMem(waitUntilReq, sizeof(struct timerequest));
+        FreeMem(timerReq, sizeof(struct timerequest));
+        FreeMem(timerPort, sizeof(struct MsgPort));
+        return 1;
+    }
+
+    reopenReq = (struct timerequest *)AllocMem(sizeof(struct timerequest), MEMF_PUBLIC | MEMF_CLEAR);
+    if (!reopenReq) {
+        print("FAIL: Cannot allocate reopen IO request\n");
+        FreeMem(waitUntilReq, sizeof(struct timerequest));
+        FreeMem(timerReq, sizeof(struct timerequest));
+        FreeMem(timerPort, sizeof(struct MsgPort));
+        return 1;
+    }
+    reopenReq->tr_node.io_Message.mn_ReplyPort = timerPort;
+    reopenReq->tr_node.io_Message.mn_Length = sizeof(struct timerequest);
+    error = OpenDevice((STRPTR)TIMERNAME, UNIT_MICROHZ, (struct IORequest *)reopenReq, 0);
+    if (error == IOERR_OPENFAIL) {
+        print("OK: Expunge() blocks new opens once timer.device is unlinked\n");
+    } else {
+        print("FAIL: OpenDevice succeeded after deferred Expunge\n");
+        if (error == 0) {
+            CloseDevice((struct IORequest *)reopenReq);
+        }
+        FreeMem(reopenReq, sizeof(struct timerequest));
+        FreeMem(waitUntilReq, sizeof(struct timerequest));
+        FreeMem(timerReq, sizeof(struct timerequest));
+        FreeMem(timerPort, sizeof(struct MsgPort));
+        return 1;
+    }
+    FreeMem(reopenReq, sizeof(struct timerequest));
+
     CloseDevice((struct IORequest *)waitUntilReq);
-    print("OK: wait-until unit closed\n");
+    if (timerDevice->dd_Library.lib_OpenCnt == 1 &&
+        (timerDevice->dd_Library.lib_Flags & LIBF_DELEXP) != 0) {
+        print("OK: Close() keeps deferred expunge pending until last opener closes\n");
+    } else {
+        print("FAIL: Close() completed expunge too early\n");
+        FreeMem(waitUntilReq, sizeof(struct timerequest));
+        FreeMem(timerReq, sizeof(struct timerequest));
+        FreeMem(timerPort, sizeof(struct MsgPort));
+        return 1;
+    }
 
     CloseDevice((struct IORequest *)timerReq);
-    print("OK: timer.device closed\n");
+    if (FindName(&SysBase->DeviceList, (STRPTR)TIMERNAME) == NULL &&
+        timerDevice->dd_Library.lib_OpenCnt == 0 &&
+        (timerDevice->dd_Library.lib_Flags & LIBF_DELEXP) == 0) {
+        print("OK: final Close() completes deferred Expunge\n");
+    } else {
+        print("FAIL: final Close() did not complete deferred Expunge\n");
+        FreeMem(waitUntilReq, sizeof(struct timerequest));
+        FreeMem(timerReq, sizeof(struct timerequest));
+        FreeMem(timerPort, sizeof(struct MsgPort));
+        return 1;
+    }
 
     /* Cleanup */
     FreeMem(waitUntilReq, sizeof(struct timerequest));

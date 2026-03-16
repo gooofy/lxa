@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.42** - Phase 89 closes the remaining public `workbench.library` stubs in scope here with hosted implementations for object open/close, control/state queries, drop zones, selection updates, object-hit queries, visibility checks, update notifications, and info requesters, plus direct regression coverage and roadmap notes for the missing AROS public implementations
+**Version 0.8.43** - Phase 90 closes the remaining public `timer.device` stub in scope here with RKRM-aligned expunge handling that unlinks deferred-removal devices, blocks new opens after `RemDevice()`, completes teardown on the final `CloseDevice()`, and adds direct regression coverage plus roadmap notes against the AROS reference behavior
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

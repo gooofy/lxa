@@ -252,12 +252,12 @@ Goal: eliminate the remaining non-private `workbench.library` stubs, match RKRM/
 - [x] Implemented `ChangeWorkbenchSelectionA()`, `MakeWorkbenchObjectVisibleA()`, and `WhichWorkbenchObjectA()` with hosted drawer/path state; selection walks now invoke the caller hook across open drawer entries, visibility checks validate open drawers and contained objects, object-hit queries report hosted drawer or drop-zone hits plus the documented metadata used by the tests, and direct coverage lives in `Tests/Workbench/AppObjects` plus the `exec_gtest` entry-point probe
 - [x] Compared `ChangeWorkbenchSelectionA()`, `MakeWorkbenchObjectVisibleA()`, and `WhichWorkbenchObjectA()` against the available AROS references; the current AROS tree contains only the `MakeWorkbenchObjectVisibleA()` varargs wrapper plus header/docs references and no public implementation bodies for these APIs, so lxa follows the NDK contracts directly while keeping the absence of comparable AROS implementation files explicit
 
-### Phase 90: Close `timer.device` stub surface
+### Phase 90 complete (`0.8.43`): Close `timer.device` stub surface
 
 Goal: eliminate the remaining non-private `timer.device` stubs, match RKRM/NDK behavior, and keep each closure checked against AROS.
 
-- [ ] Implement `Expunge()` per RKRM/NDK device semantics with direct regression coverage
-- [ ] Compare and verify `Expunge()` behavior against the AROS `timer.device` implementation
+- [x] Implemented `Expunge()` per RKRM/NDK device semantics with direct regression coverage; `timer.device` now removes itself from the Exec device list when `RemDevice()` requests expunge, defers teardown with `LIBF_DELEXP` while opens remain, completes the deferred expunge on the final `CloseDevice()`, and adds direct regression coverage in `Tests/Devices/Timer`
+- [x] Compared `Expunge()` behavior against the AROS `timer.device` implementation; AROS wires expunge cleanup through `ADD2EXPUNGELIB()` helpers such as `timervblank.c`'s `vblank_Expunge()` and the NDK device autodocs specify the same public contract that `RemDevice()` unlinks the device before `Expunge()` runs, defers removal while `lib_OpenCnt` is non-zero, and completes once the last close arrives, which the lxa implementation now preserves for the hosted ROM device model
 
 ### Phase 91: Close `clipboard.device` stub surface
 
