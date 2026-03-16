@@ -224,7 +224,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.29** - Phases 83 and 84 close the remaining public `dos.library` and `utility.library` stubs in scope here, including `CliInitNewcli()`, `CliInitRun()`, `SameDevice()`, `SetOwner()`, `PackBoolTags()`, `FilterTagChanges()`, and `ApplyTagChanges()`, with direct regression coverage plus explicit AROS-behavior verification recorded in `roadmap.md`
+**Version 0.8.37** - Phase 85 closes the remaining public `graphics.library` stubs in scope here, including GEL collision/mask helpers, animation-object sequencing, user copper list builders, superbitmap sync/copy, copper-budget calculation, chipset negotiation, and extended sprite allocation/change/free flows, with direct regression coverage plus explicit AROS-behavior verification recorded in `roadmap.md`
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

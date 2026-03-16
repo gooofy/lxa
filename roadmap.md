@@ -153,7 +153,7 @@ Goal: eliminate the remaining non-private `utility.library` stubs, match RKRM/ND
 - [x] Implement `ApplyTagChanges()` per RKRM/NDK semantics with direct regression coverage; `ApplyTagChanges()` now closes the public stub by walking the destination list through `NextTagItem()`, replacing each matched tag's `ti_Data` from the first matching entry found in `changeList`, safely treating either null list as a no-op, and adding direct regression coverage in `tests/utility/tagitems` plus the `Tests/Exec/Library` entry-point probe
 - [x] Compare and verify `ApplyTagChanges()` behavior against the AROS implementation; AROS `rom/utility/applytagchanges.c` walks the destination list inline, handling `TAG_IGNORE`/`TAG_SKIP`/`TAG_MORE` explicitly and replacing each matched tag's `ti_Data` from the first `FindTagItem()` hit in `changeList`, and the lxa path now preserves that public contract by delegating the same control-tag traversal to `NextTagItem()` before applying the first matching replacement, while intentionally keeping the documented null-list no-op behavior instead of inheriting AROS's internal assumption that both pointers are non-NULL; the aligned semantics remain covered by `tests/utility/tagitems` and `Tests/Exec/Library`
 
-### Phase 85: Close `graphics.library` stub surface
+### Phase 85 complete (`0.8.37`): Close `graphics.library` stub surface
 
 Goal: eliminate the remaining non-private `graphics.library` stubs, match RKRM/NDK behavior, and keep each closure checked against AROS.
 
