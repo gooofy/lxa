@@ -13,6 +13,12 @@
 
 using namespace lxa::testing;
 
+namespace {
+constexpr int PEN_GREY = 0;
+constexpr int PEN_BLACK = 1;
+constexpr int PEN_WHITE = 2;
+}
+
 /* Layout constants matching BuildEasyRequestArgs calculation:
  * border_left=4, border_top=11, text_margin=16
  * body: 3 lines * (8+2)px = 30px
@@ -208,6 +214,19 @@ TEST_F(EasyRequestPixelTest, GadgetButtonsVisible) {
     );
     EXPECT_GT(gadget_pixels, 15)
         << "Gadget row should have visible button borders and text";
+}
+
+TEST_F(EasyRequestPixelTest, YesButtonBevelStaysOnBorder) {
+    constexpr int YES_LEFT = GAD_START_X;
+    constexpr int YES_TOP = GAD_ROW_Y;
+    constexpr int YES_WIDTH = 60;
+
+    lxa_flush_display();
+
+    EXPECT_EQ(ReadPixel(window_info.x + YES_LEFT + 46, window_info.y + YES_TOP + 4), PEN_GREY)
+        << "EasyRequest bevel should not draw a diagonal across the upper-right button interior";
+    EXPECT_EQ(ReadPixel(window_info.x + YES_LEFT + 12, window_info.y + YES_TOP + 12), PEN_GREY)
+        << "EasyRequest bevel should not draw a diagonal across the lower-left button interior";
 }
 
 int main(int argc, char **argv) {

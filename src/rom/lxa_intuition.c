@@ -7026,7 +7026,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                     }
                     
                     /* Post IDCMP_MOUSEBUTTONS for general notification */
-                    _post_idcmp_message(window, IDCMP_MOUSEBUTTONS, code, 
+                    _post_idcmp_message(window, IDCMP_MOUSEBUTTONS, code,
                                        qualifier, NULL, relX, relY);
                 }
                 break;
@@ -8636,6 +8636,17 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     else
     {
         _render_window_user_gadgets(window);
+    }
+
+    if ((window->IDCMPFlags & IDCMP_REFRESHWINDOW) &&
+        (window->Flags & (WFLG_SIMPLE_REFRESH | WFLG_SMART_REFRESH)) &&
+        !(window->Flags & WFLG_NOCAREREFRESH))
+    {
+        if (window->WLayer)
+            window->WLayer->Flags |= LAYERREFRESH;
+
+        _post_idcmp_message(window, IDCMP_REFRESHWINDOW, 0, 0, NULL,
+                            window->MouseX, window->MouseY);
     }
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() -> 0x%08lx\n", (ULONG)window);
@@ -11570,35 +11581,34 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
         g->GadgetText = it;
         g->NextGadget = (i < num_gadgets - 1) ? &gadgets[i + 1] : NULL;
 
-        /* Shine border (top-left): pen 2 */
-        /* Points: bottom-left -> top-left -> top-right */
+        /* Shine border (top-left): pen 2.
+         * DrawBorder() connects every point in sequence, so keep this as a
+         * simple L shape; extra points would draw a diagonal across the label.
+         */
         xy_shine[0] = 0;        xy_shine[1] = bh - 1;
         xy_shine[2] = 0;        xy_shine[3] = 0;
         xy_shine[4] = bw - 1;   xy_shine[5] = 0;
-        xy_shine[6] = bw - 1;   xy_shine[7] = 1;
-        xy_shine[8] = 1;        xy_shine[9] = bh - 2;
 
         b_shine->LeftEdge = 0;
         b_shine->TopEdge = 0;
         b_shine->FrontPen = 2; /* SHINEPEN */
         b_shine->DrawMode = JAM1;
-        b_shine->Count = 5;
+        b_shine->Count = 3;
         b_shine->XY = xy_shine;
         b_shine->NextBorder = b_shadow;
 
-        /* Shadow border (bottom-right): pen 1 */
-        /* Points: top-right -> bottom-right -> bottom-left */
+        /* Shadow border (bottom-right): pen 1. Keep this as the matching L
+         * shape so the bevel stays on the frame edges only.
+         */
         xy_shadow[0] = bw - 1;  xy_shadow[1] = 0;
         xy_shadow[2] = bw - 1;  xy_shadow[3] = bh - 1;
         xy_shadow[4] = 0;       xy_shadow[5] = bh - 1;
-        xy_shadow[6] = 0;       xy_shadow[7] = bh - 2;
-        xy_shadow[8] = bw - 2;  xy_shadow[9] = 1;
 
         b_shadow->LeftEdge = 0;
         b_shadow->TopEdge = 0;
         b_shadow->FrontPen = 1; /* SHADOWPEN */
         b_shadow->DrawMode = JAM1;
-        b_shadow->Count = 5;
+        b_shadow->Count = 3;
         b_shadow->XY = xy_shadow;
         b_shadow->NextBorder = NULL;
 
@@ -11609,7 +11619,7 @@ struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase 
             while (*lp) { label_len++; lp++; }
         }
         WORD text_x = (bw - label_len * char_w) / 2;
-        WORD text_y = (bh - char_h) / 2;
+        WORD text_y = (bh - char_h) / 2 + font_baseline;
 
         it->FrontPen = 1;
         it->BackPen = 0;

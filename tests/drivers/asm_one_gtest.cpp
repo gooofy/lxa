@@ -51,6 +51,9 @@ protected:
             << "ASM-One window did not open";
         
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
+        ASSERT_TRUE(WaitForWindowDrawn(0, 5000))
+            << "ASM-One window did not draw";
+        WaitForEventLoop(100, 10000);
         
         /* Let ASM-One fully initialize */
         RunCyclesWithVBlank(100, 50000);
@@ -67,18 +70,47 @@ TEST_F(AsmOneTest, BundledReqToolsLibraryIsAvailableFromDisk) {
         << "ASM-One should bundle reqtools.library under APPS:Asm-One/bin/ASM-One/Libs";
 }
 
-TEST_F(AsmOneTest, BundledReqToolsLibrarySupportsStartupRequesters) {
+TEST_F(AsmOneTest, StartupSkipsAllocateWorkspacePromptAndReachesEditor) {
+    std::string startup_output = GetOutput();
+
     EXPECT_TRUE(lxa_is_running()) << "ASM-One should start with bundled reqtools.library available";
     EXPECT_STRNE(window_info.title, "System Message")
         << "ASM-One should reach its editor window instead of a system requester";
+    EXPECT_EQ(lxa_get_window_count(), 1)
+        << "ASM-One should stay in its main editor window instead of leaving an ALLOCATE/WORKSPACE startup requester open";
+    EXPECT_EQ(startup_output.find("IntuitionBase=0x_timer:"), std::string::npos)
+        << startup_output;
 
     ClearOutput();
     RunCyclesWithVBlank(40, 50000);
 
     EXPECT_TRUE(lxa_is_running()) << "ASM-One should keep running with bundled reqtools.library available";
+    EXPECT_EQ(lxa_get_window_count(), 1)
+        << "ASM-One startup should continue directly into the editor without a follow-up WORKSPACE requester window";
 
     std::string output = GetOutput();
     EXPECT_EQ(output.find("requested library reqtools.library was not found"), std::string::npos)
+        << output;
+}
+
+TEST_F(AsmOneTest, MenuBarInteractionDoesNotLogInvalidRastPortBitmap) {
+    const int menu_bar_x = window_info.x + 32;
+    const int menu_bar_y = window_info.y + 5;
+    const int first_item_y = window_info.y + 18;
+
+    ClearOutput();
+    lxa_inject_drag(menu_bar_x, menu_bar_y,
+                    menu_bar_x, first_item_y,
+                    LXA_MOUSE_RIGHT, 10);
+    RunCyclesWithVBlank(30, 50000);
+
+    EXPECT_TRUE(lxa_is_running()) << "ASM-One should stay running after opening a menu";
+    EXPECT_GE(lxa_get_window_count(), 1) << "ASM-One should keep its main window after menu interaction";
+
+    std::string output = GetOutput();
+    EXPECT_EQ(output.find("_render_menu_bar() invalid RastPort BitMap"), std::string::npos)
+        << output;
+    EXPECT_EQ(output.find("_render_menu_items() invalid RastPort BitMap"), std::string::npos)
         << output;
 }
 

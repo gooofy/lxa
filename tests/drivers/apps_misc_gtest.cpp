@@ -511,6 +511,9 @@ TEST_F(AppsMiscTest, ProWriteOpensWindows) {
         << "ProWrite should still be running after startup\n"
         << GetOutput();
 
+    EXPECT_EQ(GetOutput().find("hotlinks.library"), std::string::npos)
+        << GetOutput();
+
     EXPECT_GT(window_info.width, 0);
     EXPECT_GT(window_info.height, 0);
 }

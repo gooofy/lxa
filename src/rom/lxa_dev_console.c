@@ -130,6 +130,14 @@ struct LxaConUnit {
     char   *visible_text;        /* Visible text cell buffer */
     char   *scrollback_text;     /* Scrollback text cell buffer */
     ULONG  base_idcmp_flags;     /* Window IDCMP flags before console additions */
+    BOOL   auto_page_length;     /* Use geometry-derived page length */
+    BOOL   auto_line_length;     /* Use geometry-derived line length */
+    BOOL   auto_left_offset;     /* Use geometry-derived left offset */
+    BOOL   auto_top_offset;      /* Use geometry-derived top offset */
+    UWORD  page_length;          /* Explicit page length in character rows */
+    UWORD  line_length;          /* Explicit line length in character columns */
+    WORD   left_offset;          /* Explicit left offset in pixels */
+    WORD   top_offset;           /* Explicit top offset in pixels */
     /* Pending async read request (Phase 45) */
     struct IOStdReq *pending_read;  /* Currently pending async read, or NULL */
 };
@@ -257,6 +265,7 @@ static void console_cursor_up(struct LxaConUnit *unit);
 static void console_cursor_down(struct LxaConUnit *unit);
 static void console_init_tab_stops(struct LxaConUnit *unit);
 static void console_try_complete_pending_read(struct LxaConUnit *unit);
+static BOOL console_should_pass_backspace(struct LxaConUnit *unit);
 static void console_update_window_geometry(struct LxaConUnit *unit);
 static void console_sync_text_geometry(struct LxaConUnit *unit);
 static void console_refresh_scrollback_view(struct LxaConUnit *unit);
@@ -301,6 +310,10 @@ static struct LxaConUnit *console_create_unit(struct Window *window)
     
     /* Store the window pointer */
     unit->cu.cu_Window = window;
+    unit->auto_page_length = TRUE;
+    unit->auto_line_length = TRUE;
+    unit->auto_left_offset = TRUE;
+    unit->auto_top_offset = TRUE;
     console_update_window_geometry(unit);
     
     /* Initialize cursor position to top-left */
@@ -404,10 +417,19 @@ static void console_update_window_geometry(struct LxaConUnit *unit)
     struct Window *window;
     struct RastPort *rp;
     struct TextFont *font;
+    struct BitMap *bm;
     WORD width;
     WORD height;
     WORD old_ymax;
     BOOL full_scroll_region;
+    WORD auto_origin_x;
+    WORD auto_origin_y;
+    WORD origin_x;
+    WORD origin_y;
+    WORD raster_width;
+    WORD raster_height;
+    UWORD cols;
+    UWORD rows;
 
     if (!unit || !unit->cu.cu_Window) {
         return;
@@ -415,6 +437,7 @@ static void console_update_window_geometry(struct LxaConUnit *unit)
 
     window = unit->cu.cu_Window;
     rp = window->RPort;
+    bm = rp ? rp->BitMap : NULL;
 
     old_ymax = unit->cu.cu_YMax;
     full_scroll_region = (unit->scroll_top == 0 && unit->scroll_bottom == old_ymax);
@@ -433,10 +456,50 @@ static void console_update_window_geometry(struct LxaConUnit *unit)
         unit->cu.cu_YRSize = 8;
     }
 
-    unit->cu.cu_XROrigin = window->BorderLeft;
-    unit->cu.cu_YROrigin = window->BorderTop;
-    unit->cu.cu_XRExtant = window->Width - window->BorderRight - 1;
-    unit->cu.cu_YRExtant = window->Height - window->BorderBottom - 1;
+    auto_origin_x = window->BorderLeft;
+    auto_origin_y = window->BorderTop;
+
+    raster_width = bm ? (WORD)(bm->BytesPerRow * 8) : window->Width;
+    raster_height = bm ? (WORD)bm->Rows : window->Height;
+
+    origin_x = unit->auto_left_offset ? auto_origin_x : unit->left_offset;
+    origin_y = unit->auto_top_offset ? auto_origin_y : unit->top_offset;
+
+    if (origin_x < 0)
+        origin_x = 0;
+    if (origin_y < 0)
+        origin_y = 0;
+    if (origin_x >= raster_width)
+        origin_x = raster_width > 0 ? raster_width - 1 : 0;
+    if (origin_y >= raster_height)
+        origin_y = raster_height > 0 ? raster_height - 1 : 0;
+
+    unit->cu.cu_XROrigin = origin_x;
+    unit->cu.cu_YROrigin = origin_y;
+
+    if (unit->auto_line_length)
+    {
+        unit->cu.cu_XRExtant = window->Width - window->BorderRight - 1;
+    }
+    else
+    {
+        LONG explicit_extant = (LONG)origin_x + ((LONG)unit->line_length * unit->cu.cu_XRSize) - 1;
+        if (explicit_extant >= raster_width)
+            explicit_extant = raster_width - 1;
+        unit->cu.cu_XRExtant = (WORD)explicit_extant;
+    }
+
+    if (unit->auto_page_length)
+    {
+        unit->cu.cu_YRExtant = window->Height - window->BorderBottom - 1;
+    }
+    else
+    {
+        LONG explicit_extant = (LONG)origin_y + ((LONG)unit->page_length * unit->cu.cu_YRSize) - 1;
+        if (explicit_extant >= raster_height)
+            explicit_extant = raster_height - 1;
+        unit->cu.cu_YRExtant = (WORD)explicit_extant;
+    }
 
     width = unit->cu.cu_XRExtant - unit->cu.cu_XROrigin + 1;
     height = unit->cu.cu_YRExtant - unit->cu.cu_YROrigin + 1;
@@ -448,8 +511,16 @@ static void console_update_window_geometry(struct LxaConUnit *unit)
         height = unit->cu.cu_YRSize;
     }
 
-    unit->cu.cu_XMax = (width / unit->cu.cu_XRSize) - 1;
-    unit->cu.cu_YMax = (height / unit->cu.cu_YRSize) - 1;
+    cols = unit->auto_line_length ? (UWORD)(width / unit->cu.cu_XRSize) : unit->line_length;
+    rows = unit->auto_page_length ? (UWORD)(height / unit->cu.cu_YRSize) : unit->page_length;
+
+    if (cols == 0)
+        cols = 1;
+    if (rows == 0)
+        rows = 1;
+
+    unit->cu.cu_XMax = cols - 1;
+    unit->cu.cu_YMax = rows - 1;
 
     if (unit->cu.cu_XCP > unit->cu.cu_XMax) {
         unit->cu.cu_XCP = unit->cu.cu_XMax;
@@ -1679,6 +1750,8 @@ static void console_process_input(struct LxaConUnit *unit)
                                     console_process_char(unit, '\b');
                                     console_process_char(unit, ' ');
                                     console_process_char(unit, '\b');
+                                } else if (!can_backspace && console_should_pass_backspace(unit)) {
+                                    input_buf_put(unit, c);
                                 }
                             } else {
                                 /* Add character to buffer */
@@ -1770,6 +1843,15 @@ static void console_try_complete_pending_read(struct LxaConUnit *unit)
     
     /* Complete the request via ReplyMsg */
     ReplyMsg(&iostd->io_Message);
+}
+
+static BOOL console_should_pass_backspace(struct LxaConUnit *unit)
+{
+    if (!unit || !unit->pending_read) {
+        return FALSE;
+    }
+
+    return unit->pending_read->io_Length == 1;
 }
 
 /*
@@ -2778,29 +2860,61 @@ static void console_process_csi(struct LxaConUnit *unit, char final)
         
         case 't':  /* Set page length (Amiga-specific) */
         {
-            /* CSI n t - set page length to n lines */
-            /* For now, we ignore this as we use the window size */
+            if (nparams >= 1 && params[0] > 0)
+            {
+                unit->page_length = (UWORD)params[0];
+                unit->auto_page_length = FALSE;
+            }
+            else
+            {
+                unit->auto_page_length = TRUE;
+            }
+            console_update_window_geometry(unit);
             break;
         }
         
         case 'u':  /* Set line length (Amiga-specific) */
         {
-            /* CSI n u - set line length to n characters */
-            /* For now, we ignore this as we use the window size */
+            if (nparams >= 1 && params[0] > 0)
+            {
+                unit->line_length = (UWORD)params[0];
+                unit->auto_line_length = FALSE;
+            }
+            else
+            {
+                unit->auto_line_length = TRUE;
+            }
+            console_update_window_geometry(unit);
             break;
         }
         
         case 'x':  /* Set left offset (Amiga-specific) */
         {
-            /* CSI n x - set left offset to n pixels */
-            /* For now, we ignore this */
+            if (nparams >= 1)
+            {
+                unit->left_offset = (WORD)params[0];
+                unit->auto_left_offset = FALSE;
+            }
+            else
+            {
+                unit->auto_left_offset = TRUE;
+            }
+            console_update_window_geometry(unit);
             break;
         }
         
         case 'y':  /* Set top offset (Amiga-specific) */
         {
-            /* CSI n y - set top offset to n pixels */
-            /* For now, we ignore this */
+            if (nparams >= 1)
+            {
+                unit->top_offset = (WORD)params[0];
+                unit->auto_top_offset = FALSE;
+            }
+            else
+            {
+                unit->auto_top_offset = TRUE;
+            }
+            console_update_window_geometry(unit);
             break;
         }
         

@@ -234,7 +234,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.49** - Phase 96 now bundles `reqtools.library` with the ASM-One app payload in `lxa-apps`, extends the ASM-One driver/debug launch path so `LIBS:` can find that disk-provided copy, and keeps the earlier screenshot-review and rootless rendering fixes in place for ongoing manual UI investigations
+**Version 0.8.50** - Phase 96 now keeps host-side emulator log lines from interleaving across threads, adds a unit regression for serialized logging, and extends ASM-One startup coverage to assert its startup diagnostics stay clean while the editor window reaches steady state
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

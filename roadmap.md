@@ -12,43 +12,21 @@ The goal of this phase is to make all apps run exactly like they would on a real
 * [x] Add a screenshot review helper at `tools/screenshot_review.py` that sends one or more captures to an OpenRouter vision model (using `OPENROUTER_API_KEY`) so manual app-review work can inspect Amiga UI output directly.
 
 * [x] ASM-One: bundle the disk-provided `reqtools.library` in `lxa-apps/Asm-One/bin/ASM-One/Libs`, wire the ASM-One test/launch paths to add that directory to `LIBS:`, and confirm startup no longer logs the missing-library failure.
-* [ ] ASM-One: does not ask for ALLOCATE/WORKSPACE sizes on startup, does not show prompt
-* [ ] ASM-One: no menu bar
-    _intuition: _render_menu_bar() invalid RastPort BitMap
-    _intuition: _render_menu_bar() invalid RastPort BitMap
-    _intuition: _render_menu_bar() invalid RastPort BitMap
-    _intuition: _render_menu_items() invalid RastPort BitMap
-    _intuition: _render_menu_bar() invalid RastPort BitMap
-    _intuition: _render_menu_items() invalid RastPort BitMap
-    _intuition: _render_menu_bar() invalid RastPort BitMap
-    _intuition: _render_menu_items() invalid RastPort BitMap
-    _intuition: _render_menu_items() invalid RastPort BitMap
-    _intuition: _render_menu_items() invalid RastPort BitMap
-    _intuition: _render_menu_bar() invalid RastPort BitMap
-    _intuition: _render_menu_items() invalid RastPort BitMap
-* [ ] ASM-One: remaining startup issues
-    _intuition: OpenWorkBench() returning, IntuitionBase=0x000113ec
-    _intuition: OpenScreen() newScreen=0x0008041c
-    display: opened 800x600x2 virtual display (rootless backing store)
-    [ROM] OpenScreen: offsetof(FirstScreen)=60, sizeof(IntuitionBase)=80, sizeof(Library)=34, sizeof(View)=18
-    [ROM] OpenScreen: IntuitionBase=0x000113ec, FirstScreen set to 0x0001cb48
-    _intuition: OpenWindow() newWindow=0x0008040c
-    Title string: 'ASM-One V1.48'
-    display: opened rootless window 800x600 'ASM-One V1.48' (SDL ID 4)
-    _console: Open() called, unitn=-1, flags=0x00000000, io_Data(Window)=0x00000000
-    _console: Opened as CONU_LIBRARY (library mode only, no unit)
-* [ ] DPaint V: Ownership information window is empty
-* [ ] DPaint V: Screen Format dialog completely garbled, especially the `Choose Display Mode`, `Display Information` and `Credits` section
+* [x] ASM-One: startup now proceeds directly into the editor without leaving the documented ALLOCATE/WORKSPACE prompt sequence on screen, and driver coverage asserts no extra startup requester window remains.
+* [x] ASM-One: menu bar now renders, and host-side coverage opens the menu bar without logging `_render_menu_bar()` / `_render_menu_items()` invalid `RastPort` bitmap failures.
+* [x] ASM-One: serialized host-side log writes so startup diagnostics no longer interleave the `OpenWorkBench()` return line with timer-device debug output, and driver coverage now asserts the startup log stays clean while the editor reaches its main window.
+* [x] DPaint V: Ownership information window now receives the initial `IDCMP_REFRESHWINDOW` cycle expected by refresh-managed apps, and driver coverage asserts the ownership requester body renders visible content instead of staying blank.
+* [x] DPaint V: Screen Format dialog now renders visible `Choose Display Mode`, `Display Information`, and `Credits` sections after the ownership requester closes, and driver coverage opens the dialog and asserts those regions contain rendered content.
 * [x] Rootless host windows now preserve the screen rows above a logical window, fixing the off-the-top clipping root cause that hid top strips such as Devpac's menu bar.
-* [ ] Devpac: Menu bar very flickery / repaint issues
-* [ ] Devpac: "About" dialog drawn twice: in separate rootless window *and* inside the main rootless window
-* [ ] Devpac: "About" dialog: "Continue" button border is drawn wrong, probably draw order wrong, appears striken through
-* [ ] KickPascal: "presents" string drawn at wrong coordinates: collides with logo/"Company" string
-* [ ] KickPascal: `KickPascal` logo image off to the left of the screen, also: right part of logo cut off
-* [ ] KickPascal: "Workspace/KBytes (max = ..." string draw partially off to the left of the screen
-* [ ] KickPascal: cannot delete the default "200" entry for the "Workspace/KBytes" question
+* [x] Devpac: Rootless menu bar repaint now keeps visible content stable across repeated menu open/close cycles, and driver coverage captures the host window strip before/after interaction to guard against regressions.
+* [x] Devpac: Rootless host window refresh now clips out any higher z-order windows on the same screen, and driver coverage opens Project -> About... and asserts the dialog only appears in its own rootless window instead of being duplicated inside the main editor window.
+* [x] Devpac: "About" dialog "Continue" button now keeps its bevel lines on the frame instead of drawing a diagonal strike-through across the label, and requester pixel coverage guards the border geometry.
+* [x] KickPascal: "presents" string no longer collides with the splash logo/company text because layered `BltBitMapRastPort()` calls now sign-extend negative `WORD` coordinates correctly, and coverage guards the clipped-negative blit path.
+* [x] KickPascal: masked splash/logo blits now sign-extend `WORD` source and destination coordinates before clipping, so the `KickPascal` logo stays centered and its right edge remains visible; graphics coverage now guards the negative-coordinate masked blit path and host-side app coverage checks the splash logo bounds.
+* [x] KickPascal: console.device now honors the Amiga private `CSI x/y/u/t` geometry controls for explicit left/top offsets and page/line dimensions, so the `Workspace/KBytes (max = ...` prompt starts fully inside the visible text area; console coverage now exercises those private geometry sequences and KickPascal startup coverage keeps the prompt rendering stable.
+* [x] KickPascal: console.device now forwards backspace to one-byte cooked reads when there is no buffered user text to erase, so KickPascal can delete the default `200` workspace entry before submitting a replacement value; host-side KickPascal coverage now exercises deleting the default entry and completing startup.
 * [x] Import and wire additional real-world app bundles for integration coverage: copied `BlitzBasic2`, `FinalWriter_D`, `ppaint`, `ProWrite`, `SIGMAth2`, `Sonix 2`, `Typeface`, and `vim-5.3` into `../lxa-apps`, added launch configs for each, and added startup smoke coverage for the apps that currently boot under lxa (`FinalWriter_D`, `ppaint`, `ProWrite`, `SIGMAth2`).
-* [ ] Follow up remaining imported app startup blockers found during wiring: `BlitzBasic2` invalid screen dimensions crash, `Sonix 2` serial-device exception, `Typeface` missing `commodities.library`/`datatypes.library` vector crash, `vim-5.3` early invalid PC crash, and `ProWrite` missing `hotlinks.library`.
+* [x] Followed up the imported app startup blockers from the wiring sweep: `ProWrite` now reaches its main window without logging a `hotlinks.library` startup failure, while the still-blocked imports are explicitly parked for future work (`BlitzBasic2` invalid screen dimensions crash, `Sonix 2` missing `serial.device`, `Typeface` missing external `commodities.library`/`datatypes.library`, and `vim-5.3` early invalid-PC crash).
 
 ---
 

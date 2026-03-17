@@ -109,6 +109,19 @@ int main(void)
     }
     print("\n");
 
+    print("Test 4: Negative destination coordinates clip correctly...\n");
+    SetRast(&dst_rp, 0);
+    BltBitMapRastPort(src_bm, 4, 4, &dst_rp, -2, 10, 8, 8, 0xC0);
+    if (ReadPixel(&dst_rp, 0, 10) == 1 &&
+        ReadPixel(&dst_rp, 5, 10) == 1 &&
+        ReadPixel(&dst_rp, 6, 10) == 0) {
+        print("  OK: Negative destination x clipped to the visible bitmap\n");
+    } else {
+        print("  FAIL: Negative destination x did not clip correctly\n");
+        errors++;
+    }
+    print("\n");
+
     if (layer)
         DeleteLayer(0, layer);
     if (li)

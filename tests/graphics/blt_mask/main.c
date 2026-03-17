@@ -158,6 +158,22 @@ int main(void)
         }
     }
     print("\n");
+
+    /* Test 5: Negative destination coordinates clip correctly */
+    print("Test 5: Negative destination x clips masked blits correctly...\n");
+    {
+        SetRast(rp, 0);
+        BltMaskBitMapRastPort(bm_src, 0, 0, rp, -2, 8, 8, 8, 0xC0, NULL);
+        if (ReadPixel(rp, 0, 8) == 1 &&
+            ReadPixel(rp, 5, 8) == 1 &&
+            ReadPixel(rp, 6, 8) == 0) {
+            print("  OK: Negative destination x clipped the masked blit to the visible bitmap\n");
+        } else {
+            print("  FAIL: Negative destination x did not clip the masked blit correctly\n");
+            errors++;
+        }
+    }
+    print("\n");
     
     /* Cleanup */
     FreeMem(rp, sizeof(struct RastPort));

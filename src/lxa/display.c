@@ -103,6 +103,242 @@ static int g_mouse_x = 0;
 static int g_mouse_y = 0;
 static int g_last_buttons = 0;  /* Track button state for inject release detection */
 
+typedef struct display_rect_t
+{
+    int x0;
+    int y0;
+    int x1;
+    int y1;
+} display_rect_t;
+
+#define DISPLAY_MAX_VISIBLE_RECTS 64
+
+#define DISPLAY_NODE_SUCC_OFFSET 0
+#define DISPLAY_SCREEN_FIRSTWINDOW_OFFSET 4
+#define DISPLAY_WINDOW_LEFTEDGE_OFFSET 4
+#define DISPLAY_WINDOW_TOPEDGE_OFFSET 6
+#define DISPLAY_WINDOW_WIDTH_OFFSET 8
+#define DISPLAY_WINDOW_HEIGHT_OFFSET 10
+#define DISPLAY_WINDOW_WSCREEN_OFFSET 46
+
+static bool display_rect_intersection(const display_rect_t *a,
+                                      const display_rect_t *b,
+                                      display_rect_t *out)
+{
+    display_rect_t result;
+
+    if (!a || !b || !out)
+    {
+        return false;
+    }
+
+    result.x0 = (a->x0 > b->x0) ? a->x0 : b->x0;
+    result.y0 = (a->y0 > b->y0) ? a->y0 : b->y0;
+    result.x1 = (a->x1 < b->x1) ? a->x1 : b->x1;
+    result.y1 = (a->y1 < b->y1) ? a->y1 : b->y1;
+
+    if (result.x0 > result.x1 || result.y0 > result.y1)
+    {
+        return false;
+    }
+
+    *out = result;
+    return true;
+}
+
+static bool display_rect_append(display_rect_t *rects,
+                                int *rect_count,
+                                int max_rects,
+                                int x0,
+                                int y0,
+                                int x1,
+                                int y1)
+{
+    if (!rects || !rect_count || x0 > x1 || y0 > y1)
+    {
+        return true;
+    }
+
+    if (*rect_count >= max_rects)
+    {
+        return false;
+    }
+
+    rects[*rect_count].x0 = x0;
+    rects[*rect_count].y0 = y0;
+    rects[*rect_count].x1 = x1;
+    rects[*rect_count].y1 = y1;
+    (*rect_count)++;
+    return true;
+}
+
+static void display_rect_subtract(display_rect_t *rects,
+                                  int *rect_count,
+                                  int max_rects,
+                                  const display_rect_t *obscurer)
+{
+    display_rect_t next_rects[DISPLAY_MAX_VISIBLE_RECTS];
+    int next_count = 0;
+
+    if (!rects || !rect_count || !obscurer)
+    {
+        return;
+    }
+
+    for (int i = 0; i < *rect_count; i++)
+    {
+        display_rect_t intersection;
+        display_rect_t current = rects[i];
+
+        if (!display_rect_intersection(&current, obscurer, &intersection))
+        {
+            if (!display_rect_append(next_rects, &next_count, max_rects,
+                                     current.x0, current.y0, current.x1, current.y1))
+            {
+                return;
+            }
+            continue;
+        }
+
+        if (!display_rect_append(next_rects, &next_count, max_rects,
+                                 current.x0, current.y0,
+                                 current.x1, intersection.y0 - 1) ||
+            !display_rect_append(next_rects, &next_count, max_rects,
+                                 current.x0, intersection.y1 + 1,
+                                 current.x1, current.y1) ||
+            !display_rect_append(next_rects, &next_count, max_rects,
+                                 current.x0, intersection.y0,
+                                 intersection.x0 - 1, intersection.y1) ||
+            !display_rect_append(next_rects, &next_count, max_rects,
+                                 intersection.x1 + 1, intersection.y0,
+                                 current.x1, intersection.y1))
+        {
+            return;
+        }
+    }
+
+    memcpy(rects, next_rects, sizeof(display_rect_t) * (size_t)next_count);
+    *rect_count = next_count;
+}
+
+static void display_window_copy_screen_rect(display_window_t *window,
+                                            const uint8_t *planes[8],
+                                            uint32_t bytes_per_row,
+                                            uint32_t bitmap_depth,
+                                            int src_screen_width,
+                                            int src_screen_height,
+                                            const display_rect_t *rect)
+{
+    display_rect_t clipped;
+
+    if (!window || !window->pixels || !rect)
+    {
+        return;
+    }
+
+    clipped = *rect;
+    if (clipped.x0 < 0)
+    {
+        clipped.x0 = 0;
+    }
+    if (clipped.y0 < 0)
+    {
+        clipped.y0 = 0;
+    }
+    if (clipped.x1 >= src_screen_width)
+    {
+        clipped.x1 = src_screen_width - 1;
+    }
+    if (clipped.y1 >= src_screen_height)
+    {
+        clipped.y1 = src_screen_height - 1;
+    }
+    if (clipped.x0 > clipped.x1 || clipped.y0 > clipped.y1)
+    {
+        return;
+    }
+
+    for (int screen_y = clipped.y0; screen_y <= clipped.y1; screen_y++)
+    {
+        uint8_t *dst = window->pixels + (size_t)(screen_y - window->host_y) * (size_t)window->width;
+        int src_row_offset = screen_y * (int)bytes_per_row;
+
+        for (int screen_x = clipped.x0; screen_x <= clipped.x1; screen_x++)
+        {
+            int dst_x = screen_x - window->host_x;
+            int byte_idx = screen_x / 8;
+            int bit_idx = 7 - (screen_x % 8);
+            uint8_t pixel = 0;
+
+            for (uint32_t plane = 0; plane < bitmap_depth && plane < 8; plane++)
+            {
+                if (planes[plane])
+                {
+                    uint8_t plane_byte = planes[plane][src_row_offset + byte_idx];
+                    if (plane_byte & (1 << bit_idx))
+                    {
+                        pixel |= (1 << plane);
+                    }
+                }
+            }
+
+            dst[dst_x] = pixel;
+        }
+    }
+}
+
+static void display_window_remove_front_window_overlaps(display_window_t *window,
+                                                        display_rect_t *rects,
+                                                        int *rect_count,
+                                                        int max_rects)
+{
+    uint32_t target_window_ptr;
+    uint32_t screen_ptr;
+    uint32_t front_window_ptr;
+
+    if (!window || !rects || !rect_count)
+    {
+        return;
+    }
+
+    target_window_ptr = window->amiga_window_ptr;
+    if (!target_window_ptr)
+    {
+        return;
+    }
+
+    screen_ptr = m68k_read_memory_32(target_window_ptr + DISPLAY_WINDOW_WSCREEN_OFFSET);
+    if (!screen_ptr)
+    {
+        return;
+    }
+
+    front_window_ptr = m68k_read_memory_32(screen_ptr + DISPLAY_SCREEN_FIRSTWINDOW_OFFSET);
+    while (front_window_ptr && front_window_ptr != target_window_ptr)
+    {
+        int obscurer_left = (int16_t)m68k_read_memory_16(front_window_ptr + DISPLAY_WINDOW_LEFTEDGE_OFFSET);
+        int obscurer_top = (int16_t)m68k_read_memory_16(front_window_ptr + DISPLAY_WINDOW_TOPEDGE_OFFSET);
+        int obscurer_width = (int16_t)m68k_read_memory_16(front_window_ptr + DISPLAY_WINDOW_WIDTH_OFFSET);
+        int obscurer_height = (int16_t)m68k_read_memory_16(front_window_ptr + DISPLAY_WINDOW_HEIGHT_OFFSET);
+        display_rect_t obscurer;
+
+        if (obscurer_width > 0 && obscurer_height > 0)
+        {
+            obscurer.x0 = obscurer_left;
+            obscurer.y0 = obscurer_top;
+            obscurer.x1 = obscurer_left + obscurer_width - 1;
+            obscurer.y1 = obscurer_top + obscurer_height - 1;
+            display_rect_subtract(rects, rect_count, max_rects, &obscurer);
+            if (*rect_count == 0)
+            {
+                return;
+            }
+        }
+
+        front_window_ptr = m68k_read_memory_32(front_window_ptr + DISPLAY_NODE_SUCC_OFFSET);
+    }
+}
+
 static void display_event_set_rootless_coords(display_event_t *event,
                                               uint32_t sdl_window_id,
                                               int local_x,
@@ -150,13 +386,9 @@ static void display_window_sync_from_screen(display_window_t *window)
     int screen_width;
     int screen_height;
     int screen_depth;
-    int src_x;
-    int src_y;
-    int dst_x = 0;
-    int dst_y = 0;
-    int copy_width;
-    int copy_height;
     const uint8_t *planes[8] = {0};
+    display_rect_t visible_rects[DISPLAY_MAX_VISIBLE_RECTS];
+    int visible_rect_count = 0;
 
     if (!window || !window->in_use || !window->screen || !window->pixels)
     {
@@ -175,43 +407,6 @@ static void display_window_sync_from_screen(display_window_t *window)
         return;
     }
 
-    src_x = window->host_x;
-    src_y = window->host_y;
-
-    if (src_x < 0)
-    {
-        dst_x = -src_x;
-        src_x = 0;
-    }
-
-    if (src_y < 0)
-    {
-        dst_y = -src_y;
-        src_y = 0;
-    }
-
-    if (src_x >= screen_width || src_y >= screen_height ||
-        dst_x >= window->width || dst_y >= window->height)
-    {
-        memset(window->pixels, 0, (size_t)window->width * (size_t)window->height);
-        window->dirty = true;
-        return;
-    }
-
-    copy_width = screen_width - src_x;
-    if (copy_width > window->width - dst_x)
-    {
-        copy_width = window->width - dst_x;
-    }
-
-    copy_height = screen_height - src_y;
-    if (copy_height > window->height - dst_y)
-    {
-        copy_height = window->height - dst_y;
-    }
-
-    memset(window->pixels, 0, (size_t)window->width * (size_t)window->height);
-
     for (uint32_t plane = 0; plane < depth && plane < 8; plane++)
     {
         uint32_t plane_addr = m68k_read_memory_32(planes_ptr + plane * 4);
@@ -221,32 +416,26 @@ static void display_window_sync_from_screen(display_window_t *window)
         }
     }
 
-    for (int row = 0; row < copy_height; row++)
+    visible_rects[0].x0 = window->host_x;
+    visible_rects[0].y0 = window->host_y;
+    visible_rects[0].x1 = window->host_x + window->width - 1;
+    visible_rects[0].y1 = window->host_y + window->height - 1;
+    visible_rect_count = 1;
+
+    display_window_remove_front_window_overlaps(window,
+                                                visible_rects,
+                                                &visible_rect_count,
+                                                DISPLAY_MAX_VISIBLE_RECTS);
+
+    for (int i = 0; i < visible_rect_count; i++)
     {
-        uint8_t *dst = window->pixels + (dst_y + row) * window->width + dst_x;
-        int src_row_offset = (src_y + row) * (int)bpr;
-
-        for (int col = 0; col < copy_width; col++)
-        {
-            int src_col = src_x + col;
-            int byte_idx = src_col / 8;
-            int bit_idx = 7 - (src_col % 8);
-            uint8_t pixel = 0;
-
-            for (uint32_t plane = 0; plane < depth && plane < 8; plane++)
-            {
-                if (planes[plane])
-                {
-                    uint8_t plane_byte = planes[plane][src_row_offset + byte_idx];
-                    if (plane_byte & (1 << bit_idx))
-                    {
-                        pixel |= (1 << plane);
-                    }
-                }
-            }
-
-            dst[col] = pixel;
-        }
+        display_window_copy_screen_rect(window,
+                                        planes,
+                                        bpr,
+                                        depth,
+                                        screen_width,
+                                        screen_height,
+                                        &visible_rects[i]);
     }
 
     window->dirty = true;

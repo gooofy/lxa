@@ -6646,6 +6646,13 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
                                                         register LONG ySize __asm("d5"),
                                                         register ULONG minterm __asm("d6"))
 {
+    xSrc = (WORD)xSrc;
+    ySrc = (WORD)ySrc;
+    xDest = (WORD)xDest;
+    yDest = (WORD)yDest;
+    xSize = (WORD)xSize;
+    ySize = (WORD)ySize;
+
     DPRINTF (LOG_DEBUG, "_graphics: BltBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld minterm=0x%02lx\n",
              (ULONG)srcBitMap, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm);
 
@@ -6958,6 +6965,13 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                                                         register ULONG minterm __asm("d6"),
                                                         register CONST PLANEPTR bltMask __asm("a2"))
 {
+    xSrc = (WORD)xSrc;
+    ySrc = (WORD)ySrc;
+    xDest = (WORD)xDest;
+    yDest = (WORD)yDest;
+    xSize = (WORD)xSize;
+    ySize = (WORD)ySize;
+
     DPRINTF (LOG_DEBUG, "_graphics: BltMaskBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld mt=0x%02lx mask=0x%08lx\n",
              (ULONG)srcBitMap, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm, (ULONG)bltMask);
 

@@ -8,14 +8,19 @@
 
 #include "lxa_test.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <fstream>
+#include <string>
 #include <vector>
 
 using namespace lxa::testing;
 
 class DevpacTest : public LxaUITest {
 protected:
+    static constexpr int PEN_GREY = 0;
+    static constexpr int PEN_BLACK = 1;
+
     struct PpmImage {
         int width;
         int height;
@@ -77,6 +82,56 @@ protected:
                     image.pixels[pixel_offset + 2] != 0) {
                     count++;
                 }
+            }
+        }
+
+        return count;
+    }
+
+    bool OpenAboutDialog(lxa_window_info_t* about_info = nullptr) {
+        const int menu_bar_x = window_info.x + 32;
+        const int menu_bar_y = std::max(3, window_info.y / 2);
+        const int about_item_y = 128;
+
+        lxa_inject_drag(menu_bar_x, menu_bar_y,
+                        menu_bar_x, about_item_y,
+                        LXA_MOUSE_RIGHT, 10);
+        RunCyclesWithVBlank(40, 50000);
+
+        if (!WaitForWindows(2, 5000)) {
+            return false;
+        }
+
+        if (about_info != nullptr) {
+            if (!GetWindowInfo(1, about_info)) {
+                return false;
+            }
+        }
+
+        return WaitForWindowDrawn(1, 5000);
+    }
+
+    int FindBottomGadgetIndex(int window_index) {
+        auto gadgets = GetGadgets(window_index);
+        int bottom_gadget = -1;
+        int bottom_top = -1;
+
+        for (size_t i = 0; i < gadgets.size(); ++i) {
+            if (gadgets[i].top > bottom_top) {
+                bottom_top = gadgets[i].top;
+                bottom_gadget = static_cast<int>(i);
+            }
+        }
+
+        return bottom_gadget;
+    }
+
+    int CountPenPixelsInRow(int left, int right, int y, int pen) {
+        int count = 0;
+
+        for (int x = left; x <= right; ++x) {
+            if (ReadPixel(x, y) == pen) {
+                count++;
             }
         }
 
@@ -178,6 +233,41 @@ TEST_F(DevpacTest, MenuBarRemainsVisibleAfterRepeatedMenuOpenClose) {
         << "Devpac menu bar strip should still render visible content after repeated menu interaction";
     EXPECT_GE(after_non_black, before_non_black * 2 / 7)
         << "Devpac menu repaint should keep a meaningful amount of menu bar content after repeated menu interaction";
+}
+
+TEST_F(DevpacTest, AboutDialogDoesNotDuplicateInsideMainWindow) {
+    const std::string main_before_path = ram_dir_path + "/devpac-about-main-before.ppm";
+    const std::string main_after_path = ram_dir_path + "/devpac-about-main-after.ppm";
+    PpmImage before_image;
+    PpmImage after_image;
+    int before_main_pixels = 0;
+    int after_main_pixels = 0;
+    lxa_window_info_t about_info;
+
+    ASSERT_TRUE(CaptureWindow(main_before_path.c_str(), 0));
+    before_image = LoadPpm(main_before_path);
+
+    ASSERT_TRUE(OpenAboutDialog(&about_info))
+        << "Devpac About dialog should open as a second window";
+
+    ASSERT_TRUE(CaptureWindow(main_after_path.c_str(), 0));
+    after_image = LoadPpm(main_after_path);
+
+    before_main_pixels = CountNonBlackPixels(before_image,
+                                             0,
+                                             window_info.y,
+                                             before_image.width - 1,
+                                             before_image.height - 1);
+    after_main_pixels = CountNonBlackPixels(after_image,
+                                            0,
+                                            window_info.y,
+                                            after_image.width - 1,
+                                            after_image.height - 1);
+
+    EXPECT_STREQ(about_info.title, "Devpac Amiga")
+        << "The second rootless window should be the Devpac About dialog";
+    EXPECT_EQ(before_main_pixels, after_main_pixels)
+        << "Opening the About dialog should not also redraw its contents into the main Devpac window";
 }
 
 TEST_F(DevpacTest, RespondsToInput) {

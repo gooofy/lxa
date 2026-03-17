@@ -679,6 +679,56 @@ static void test_window_resize_updates_console(void)
     }
 }
 
+static void test_private_geometry_controls(void)
+{
+    struct ConUnit *unit;
+    int rows;
+    int cols;
+
+    con_puts(CSI "2J" CSI "H");
+    con_puts(CSI "5x" CSI "3y" CSI "20u" CSI "4t");
+    con_update();
+    WaitTOF();
+    WaitTOF();
+
+    tests_run++;
+    if (get_window_bounds(&rows, &cols) && rows == 4 && cols == 20) {
+        print("PASS: Private geometry controls update reported bounds\n");
+        tests_passed++;
+    } else {
+        print("FAIL: Private geometry controls did not update reported bounds\n");
+        tests_failed++;
+    }
+
+    unit = get_con_unit();
+    tests_run++;
+    if (unit && unit->cu_XROrigin == 5 && unit->cu_YROrigin == 3) {
+        print("PASS: Private geometry controls update console origin\n");
+        tests_passed++;
+    } else {
+        print("FAIL: Private geometry controls did not update console origin\n");
+        tests_failed++;
+    }
+
+    con_puts("A");
+    assert_cell_has_content(1, 1, "Private left/top offsets move text origin");
+
+    con_puts(CSI "x" CSI "y" CSI "u" CSI "t");
+    con_update();
+    WaitTOF();
+    WaitTOF();
+
+    unit = get_con_unit();
+    tests_run++;
+    if (unit && unit->cu_XROrigin >= 4 && unit->cu_YROrigin >= 11) {
+        print("PASS: Clearing private geometry controls restores auto origin\n");
+        tests_passed++;
+    } else {
+        print("FAIL: Clearing private geometry controls did not restore auto origin\n");
+        tests_failed++;
+    }
+}
+
 /*
  * Open console device on test window
  */
@@ -780,6 +830,7 @@ int main(void)
     test_boundary_left();
     test_esc_bracket_sequences();
     test_window_resize_updates_console();
+    test_private_geometry_controls();
     
     /* Summary */
     print("\n=== Test Summary ===\n");

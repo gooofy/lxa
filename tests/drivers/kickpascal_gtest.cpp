@@ -8,12 +8,65 @@
 
 #include "lxa_test.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <fstream>
+#include <string>
+#include <vector>
 
 using namespace lxa::testing;
 
+#define RAWKEY_BACKSPACE 0x41
+
 class KickPascalTest : public LxaUITest {
 protected:
+    struct PpmImage {
+        int width;
+        int height;
+        std::vector<uint8_t> pixels;
+    };
+
+    PpmImage LoadPpm(const std::string& path) {
+        std::ifstream capture(path, std::ios::binary);
+        std::string magic;
+        int width = 0;
+        int height = 0;
+        int max_value = 0;
+        PpmImage image = {0, 0, {}};
+
+        EXPECT_TRUE(capture.good()) << "Failed to open captured KickPascal window image";
+        if (!capture.good()) {
+            return image;
+        }
+
+        capture >> magic >> width >> height >> max_value;
+        EXPECT_EQ(magic, "P6") << "Captured KickPascal window should use the PPM format";
+        EXPECT_GT(width, 0);
+        EXPECT_GT(height, 0);
+        EXPECT_EQ(max_value, 255);
+        if (magic != "P6" || width <= 0 || height <= 0 || max_value != 255) {
+            return image;
+        }
+
+        capture.get();
+        image.width = width;
+        image.height = height;
+        image.pixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 3U);
+        capture.read(reinterpret_cast<char*>(image.pixels.data()), static_cast<std::streamsize>(image.pixels.size()));
+        EXPECT_EQ(capture.gcount(), static_cast<std::streamsize>(image.pixels.size()));
+
+        return image;
+    }
+
+    bool IsBlackPixel(const PpmImage& image, int x, int y) {
+        size_t pixel_offset = (static_cast<size_t>(y) * static_cast<size_t>(image.width) +
+                               static_cast<size_t>(x)) * 3U;
+
+        return image.pixels[pixel_offset] == 0 &&
+               image.pixels[pixel_offset + 1] == 0 &&
+               image.pixels[pixel_offset + 2] == 0;
+    }
+
     void SetUp() override {
         LxaUITest::SetUp();
         
@@ -76,6 +129,49 @@ TEST_F(KickPascalTest, RootlessHostWindowUsesLandscapeExtent) {
         << "KickPascal should present a landscape host window rather than a portrait one";
 }
 
+TEST_F(KickPascalTest, SplashLogoStaysFullyInsideVisibleArea) {
+    const std::string capture_path = ram_dir_path + "/kickpascal-window.ppm";
+    const int search_x1 = 0;
+    const int search_y1 = 16;
+    const int search_x2 = 240;
+    const int search_y2 = 72;
+    PpmImage image;
+    int min_x = search_x2 + 1;
+    int min_y = search_y2 + 1;
+    int max_x = -1;
+    int max_y = -1;
+
+    ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0))
+        << "KickPascal splash capture should succeed";
+
+    image = LoadPpm(capture_path);
+    ASSERT_GT(image.width, 0);
+    ASSERT_GT(image.height, 0);
+
+    for (int y = search_y1; y <= search_y2; y++) {
+        for (int x = search_x1; x <= search_x2; x++) {
+            if (IsBlackPixel(image, x, y)) {
+                min_x = std::min(min_x, x);
+                min_y = std::min(min_y, y);
+                max_x = std::max(max_x, x);
+                max_y = std::max(max_y, y);
+            }
+        }
+    }
+
+    ASSERT_GE(max_x, min_x) << "KickPascal splash logo should render visible dark pixels";
+    EXPECT_GE(min_x, 90)
+        << "KickPascal splash logo should not be pushed against the left edge";
+    EXPECT_LE(max_x, 190)
+        << "KickPascal splash logo should fit without clipping its right edge";
+    EXPECT_GE(max_x - min_x + 1, 70)
+        << "KickPascal splash logo should retain most of its expected width";
+    EXPECT_GE(min_y, 18)
+        << "KickPascal splash logo should stay within the upper splash band";
+    EXPECT_LE(max_y, 60)
+        << "KickPascal splash logo should stay within the upper splash band";
+}
+
 TEST_F(KickPascalTest, EditorVisible) {
     int content_pixels = CountContentPixels(0, 0, 100, 100, 0);
     EXPECT_GT(content_pixels, 0) << "Editor should be visible";
@@ -120,6 +216,25 @@ TEST_F(KickPascalTest, CursorKeys) {
     
     EXPECT_TRUE(lxa_is_running()) << "KickPascal should still be running after cursor keys";
     EXPECT_GE(lxa_get_window_count(), 1) << "Window should still be open after cursor keys";
+}
+
+TEST_F(KickPascalTest, WorkspacePromptAcceptsDeletingDefaultEntry) {
+    RunCyclesWithVBlank(20, 50000);
+
+    PressKey(RAWKEY_BACKSPACE, 0);
+    RunCyclesWithVBlank(5, 50000);
+    PressKey(RAWKEY_BACKSPACE, 0);
+    RunCyclesWithVBlank(5, 50000);
+    PressKey(RAWKEY_BACKSPACE, 0);
+    RunCyclesWithVBlank(5, 50000);
+
+    TypeString("100");
+    RunCyclesWithVBlank(10, 50000);
+    PressKey(0x44, 0);
+    RunCyclesWithVBlank(80, 50000);
+
+    EXPECT_TRUE(lxa_is_running()) << "KickPascal should stay running after editing workspace size";
+    EXPECT_GE(lxa_get_window_count(), 1) << "KickPascal should keep a window after workspace prompt submission";
 }
 
 int main(int argc, char **argv) {

@@ -8,11 +8,15 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <pthread.h>
 
 /* === util.h stubs === */
 
 FILE *g_logf = NULL;
 bool g_debug = false;
+pthread_mutex_t g_log_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_once_t g_log_mutex_once = PTHREAD_ONCE_INIT;
+__thread bool g_log_line_locked = false;
 
 void lputc(int level, char c)
 {
