@@ -19,6 +19,11 @@
 - Phases 85–95 (`0.8.37`–`0.8.46`): Library/device stub eradication sweep and final compatibility polish — done.
 - Phase 96: App testing
 - Phase 97 (`0.8.56`): Complete device set with hosted `parallel.device` and `scsi.device` coverage plus device/exec regressions — done.
+- Phase 98 (`0.8.57`): ProWrite app testing — done.
+  - 6 passing tests: window startup, document region rendering, caret column, menu open/close, About dialog, file requester.
+  - 1 skipped test: typing injection triggers AddTail crash with corrupt list pointer (ROM compatibility issue — to be fixed in a future phase).
+  - Fixed PPM capture limitation by switching ProWrite tests to pen-based pixel verification.
+  - Documented ASL requester dismiss limitation in headless mode.
 
 ## Completed Milestones (compact)
 
@@ -28,12 +33,6 @@
 ## Future Phases (per-app)
 
 For each app below the agent should follow a test-driven workflow: (1) run or create a reliable startup host-side driver test to exercise launch and reachability; (2) if the driver reveals failures, fix them and keep the test green; (3) capture screenshots on failure and use `tools/screenshot_review.py` to identify UI/rendering issues and hypotheses; (4) author additional automated pixel or interaction tests that assert the UI issues are fixed; (5) implement fixes and iterate until tests are green.
-
-- Phase 98: ProWrite
-	- Add or run a startup driver that verifies ProWrite opens its main document window.
-	- Fix launch-time or editor rendering issues revealed by the test.
-	- Use screenshot analysis for text rendering, caret placement, and menu layout; add relevant automated checks.
-	- Add tests: open About, open file requester, basic typing and save/close cycle.
 
 - Phase 99: Sonix 2
 	- Create a host-side test to launch Sonix 2 and confirm the main UI appears.

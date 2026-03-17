@@ -6560,7 +6560,7 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
  */
 /* Prevent re-entry to event processing (e.g., VBlank firing during WaitTOF) */
 
-VOID _intuition_ProcessInputEvents(struct Screen *screen)
+VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
 {
     ULONG event_type;
     ULONG mouse_pos;
@@ -6569,14 +6569,12 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
     WORD mouseX, mouseY;
     struct Window *window;
     struct InputEvent input_event;
-    
-    if (!screen)
-        return;
+    struct Screen *screen;
     
     /* Prevent re-entry - if already processing events, skip */
     if (g_processing_events)
     {
-        DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents SKIPPED (re-entry)\n");
+        LPRINTF(LOG_WARNING, "_intuition: ProcessInputEvents SKIPPED (re-entry)\n");
         return;
     }
     g_processing_events = TRUE;
@@ -6589,19 +6587,63 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
      */
     
     /* Poll for input events */
+    LONG pie_iteration = 0;
     while (1)
     {
         event_type = emucall0(EMU_CALL_INT_POLL_INPUT);
+        pie_iteration++;
         if (event_type == 0)
+        {
+            if (pie_iteration > 1)
+                LPRINTF(LOG_WARNING, "_intuition: PIE done after %ld events\n", pie_iteration - 1);
             break;  /* No more events */
-        
-        DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: got event type=%ld screen=0x%08lx\n",
-                event_type, (ULONG)screen);
+        }
         
         /* Get mouse position for all events */
         mouse_pos = emucall0(EMU_CALL_INT_GET_MOUSE_POS);
         mouseX = (WORD)(mouse_pos >> 16);
         mouseY = (WORD)(mouse_pos & 0xFFFF);
+        
+        /*
+         * Resolve the correct screen for this event based on mouse
+         * coordinates.  The event queue is global, so we must route
+         * each event to the screen that actually contains the pointer
+         * position — otherwise the first screen in the chain would
+         * consume events intended for other screens.
+         */
+        screen = NULL;
+        if (IntuitionBase)
+        {
+            struct Screen *s;
+            for (s = IntuitionBase->FirstScreen; s; s = s->NextScreen)
+            {
+                if (mouseX >= s->LeftEdge &&
+                    mouseX < s->LeftEdge + s->Width &&
+                    mouseY >= s->TopEdge &&
+                    mouseY < s->TopEdge + s->Height)
+                {
+                    screen = s;
+                    break;
+                }
+            }
+        }
+        /* Fallback to the caller-supplied hint or ActiveScreen */
+        if (!screen)
+            screen = hint_screen;
+        if (!screen && IntuitionBase)
+            screen = IntuitionBase->ActiveScreen;
+        if (!screen && IntuitionBase)
+            screen = IntuitionBase->FirstScreen;
+        if (!screen)
+        {
+            /* No screen at all — discard event */
+            continue;
+        }
+        
+        DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: got event type=%ld screen=0x%08lx\n",
+                event_type, (ULONG)screen);
+        LPRINTF(LOG_WARNING, "_intuition: PIE: type=%ld mouse=(%d,%d) screen=0x%08lx\n",
+                event_type, mouseX, mouseY, (ULONG)screen);
         
         /* Update IntuitionBase with current mouse position and timestamp */
         if (IntuitionBase)
@@ -6982,6 +7024,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                     /* Right mouse button press - enter menu mode */
                     else if (code == MENUDOWN)
                     {
+                        LPRINTF(LOG_WARNING, "_intuition: PIE-MENUDOWN at (%d,%d), win=0x%08lx MS=0x%08lx\n",
+                                mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
                         DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
                                 mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
                         /* 
@@ -7017,6 +7061,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                     /* Right mouse button release - exit menu mode and select item */
                     else if (code == MENUUP)
                     {
+                        LPRINTF(LOG_WARNING, "_intuition: PIE-MENUUP at (%d,%d) mode=%d menu=0x%08lx item=0x%08lx\n",
+                                mouseX, mouseY, g_menu_mode, (ULONG)g_active_menu, (ULONG)g_active_item);
                         DPRINTF(LOG_DEBUG, "_intuition: MENUUP at (%d,%d), g_menu_mode=%d, g_active_menu=0x%08lx, g_active_item=0x%08lx\n",
                                 mouseX, mouseY, g_menu_mode, (ULONG)g_active_menu, (ULONG)g_active_item);
                         if (g_menu_mode && g_menu_window)
@@ -7100,6 +7146,18 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
                             WORD itemX = mouseX - menuLeft;
                             WORD itemY = mouseY - menuTop;
                             struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
+
+                            LPRINTF(LOG_WARNING, "_intuition: PIE-HOVER menuTop=%d menuLeft=%d itemX=%d itemY=%d newItem=0x%08lx\n",
+                                    menuTop, menuLeft, itemX, itemY, (ULONG)newItem);
+                            if (!newItem && g_active_menu && g_active_menu->FirstItem)
+                            {
+                                struct MenuItem *dbg;
+                                for (dbg = g_active_menu->FirstItem; dbg; dbg = dbg->NextItem)
+                                {
+                                    LPRINTF(LOG_WARNING, "_intuition: PIE-ITEM LE=%d TE=%d W=%d H=%d fl=0x%04x\n",
+                                            dbg->LeftEdge, dbg->TopEdge, dbg->Width, dbg->Height, dbg->Flags);
+                                }
+                            }
 
                             if (newItem != g_active_item)
                             {
@@ -7364,10 +7422,18 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
             
             case 5:  /* Quit */
             {
-                /* System quit requested - post close to all windows */
-                for (window = screen->FirstWindow; window; window = window->NextWindow)
+                /* System quit requested - post close to all windows on ALL screens */
+                struct Screen *qs;
+                if (IntuitionBase)
                 {
-                    _post_idcmp_message(window, IDCMP_CLOSEWINDOW, 0, 0, window, 0, 0);
+                    for (qs = IntuitionBase->FirstScreen; qs; qs = qs->NextScreen)
+                    {
+                        struct Window *qw;
+                        for (qw = qs->FirstWindow; qw; qw = qw->NextWindow)
+                        {
+                            _post_idcmp_message(qw, IDCMP_CLOSEWINDOW, 0, 0, qw, 0, 0);
+                        }
+                    }
                 }
                 break;
             }
@@ -7394,8 +7460,6 @@ VOID _intuition_ProcessInputEvents(struct Screen *screen)
 
 VOID _intuition_VBlankInputHook(void)
 {
-    struct Screen *screen;
-    
     /* Use global IntuitionBase - no OpenLibrary calls from interrupt context! */
     if (!IntuitionBase)
     {
@@ -7403,16 +7467,20 @@ VOID _intuition_VBlankInputHook(void)
         return;
     }
     
-    screen = IntuitionBase->FirstScreen;
-    if (!screen)
+    if (!IntuitionBase->FirstScreen)
     {
         /* No screen yet - this is normal during startup */
+        return;
     }
     
-    for (; screen; screen = screen->NextScreen)
-    {
-        _intuition_ProcessInputEvents(screen);
-    }
+    /*
+     * Process all pending input events.  The function resolves the
+     * correct target screen for each event internally using mouse
+     * coordinates, so we only need a single call.  The hint_screen
+     * parameter provides a fallback when the coordinates don't match
+     * any screen viewport.
+     */
+    _intuition_ProcessInputEvents(IntuitionBase->FirstScreen);
 }
 
 /*

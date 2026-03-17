@@ -4320,10 +4320,12 @@ static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
         return;
     }
     
+    /* Process all pending input events.  The function resolves the
+     * correct target screen per event internally. */
+    _intuition_ProcessInputEvents(IntuitionBase->FirstScreen);
+    
     for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
     {
-        _intuition_ProcessInputEvents(screen);
-        
         /* Refresh the screen's display from its planar bitmap */
         ULONG display_handle = (ULONG)screen->ExtData;
         if (display_handle)

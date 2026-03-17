@@ -744,20 +744,37 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
 {
     if (!g_api_initialized) return false;
 
+    LPRINTF(LOG_WARNING, "lxa_api: inject_drag START (%d,%d)->(%d,%d) btn=0x%x steps=%d\n",
+            start_x, start_y, end_x, end_y, button, steps);
+
     /* Move to start position */
     if (!display_inject_mouse(start_x, start_y, 0, DISPLAY_EVENT_MOUSEMOVE))
+    {
+        LPRINTF(LOG_WARNING, "lxa_api: inject_drag FAIL at move-to-start\n");
         return false;
+    }
     
     lxa_trigger_vblank();
-    lxa_run_cycles(500000);  /* Need enough cycles for IRQ handler to complete menu rendering */
+    int rc = lxa_run_cycles(500000);  /* Need enough cycles for IRQ handler to complete menu rendering */
+    if (rc != 0) {
+        LPRINTF(LOG_WARNING, "lxa_api: inject_drag FAIL at move-to-start run_cycles rc=%d g_running=%d\n", rc, g_running);
+        return false;
+    }
 
     /* Press button */
     if (!display_inject_mouse(start_x, start_y, button, DISPLAY_EVENT_MOUSEBUTTON))
+    {
+        LPRINTF(LOG_WARNING, "lxa_api: inject_drag FAIL at button press\n");
         return false;
+    }
     
     for (int i = 0; i < 3; i++) {
         lxa_trigger_vblank();
-        lxa_run_cycles(500000);
+        rc = lxa_run_cycles(500000);
+        if (rc != 0) {
+            LPRINTF(LOG_WARNING, "lxa_api: inject_drag FAIL at post-press run_cycles[%d] rc=%d g_running=%d\n", i, rc, g_running);
+            return false;
+        }
     }
 
     /* Interpolate movement */
@@ -768,21 +785,36 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
         int y = start_y + (end_y - start_y) * step / steps;
         
         if (!display_inject_mouse(x, y, button, DISPLAY_EVENT_MOUSEMOVE))
+        {
+            LPRINTF(LOG_WARNING, "lxa_api: inject_drag FAIL at move step %d\n", step);
             return false;
+        }
         
         lxa_trigger_vblank();
-        lxa_run_cycles(500000);
+        rc = lxa_run_cycles(500000);
+        if (rc != 0) {
+            LPRINTF(LOG_WARNING, "lxa_api: inject_drag FAIL at move step %d run_cycles rc=%d g_running=%d\n", step, rc, g_running);
+            return false;
+        }
     }
 
     /* Release button at end position */
     if (!display_inject_mouse(end_x, end_y, 0, DISPLAY_EVENT_MOUSEBUTTON))
+    {
+        LPRINTF(LOG_WARNING, "lxa_api: inject_drag FAIL at button release\n");
         return false;
+    }
     
     for (int i = 0; i < 3; i++) {
         lxa_trigger_vblank();
-        lxa_run_cycles(500000);
+        rc = lxa_run_cycles(500000);
+        if (rc != 0) {
+            LPRINTF(LOG_WARNING, "lxa_api: inject_drag FAIL at post-release run_cycles[%d] rc=%d g_running=%d\n", i, rc, g_running);
+            return false;
+        }
     }
 
+    LPRINTF(LOG_WARNING, "lxa_api: inject_drag END OK\n");
     return true;
 }
 
