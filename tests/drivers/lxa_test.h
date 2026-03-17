@@ -16,6 +16,7 @@
 #include <cstring>
 #include <unistd.h>
 #include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 namespace lxa {
@@ -162,6 +163,25 @@ inline const char* FindSystemLibsPath() {
 }
 
 /**
+ * Helper function to find an optional third-party libraries path for tests.
+ *
+ * Set LXA_TEST_THIRD_PARTY_LIBS to a directory containing disk-provided
+ * libraries such as reqtools.library when validating app startup flows that
+ * depend on external libraries rather than ROM stubs.
+ */
+inline const char* FindThirdPartyLibsPath() {
+    static std::string third_party_libs_path;
+    const char* env_path = std::getenv("LXA_TEST_THIRD_PARTY_LIBS");
+
+    if (env_path != nullptr && env_path[0] != '\0' && access(env_path, F_OK) == 0) {
+        third_party_libs_path = env_path;
+        return third_party_libs_path.c_str();
+    }
+
+    return nullptr;
+}
+
+/**
  * Helper function to find lxa-apps directory.
  */
 inline const char* FindAppsPath() {
@@ -238,6 +258,11 @@ protected:
         const char* system_base = FindSystemBasePath();
         if (system_base) {
             lxa_add_assign_path("SYS", system_base);
+        }
+
+        const char* third_party_libs_path = FindThirdPartyLibsPath();
+        if (third_party_libs_path) {
+            lxa_add_assign("LIBS", third_party_libs_path);
         }
 
         const char* libs_path = FindSystemLibsPath();

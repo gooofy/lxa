@@ -11,7 +11,7 @@ The goal of this phase is to make all apps run exactly like they would on a real
 
 * [x] Add a screenshot review helper at `tools/screenshot_review.py` that sends one or more captures to an OpenRouter vision model (using `OPENROUTER_API_KEY`) so manual app-review work can inspect Amiga UI output directly.
 
-* [ ] ASM-One: no screen mode requester on startup
+* [ ] ASM-One: no screen mode requester on startup (blocked on providing the disk-only `reqtools.library`; tests now cover both the optional-missing path and the disk-provided path via `LXA_TEST_THIRD_PARTY_LIBS`)
 * [ ] ASM-One: does not ask for ALLOCATE/WORKSPACE sizes on startup, does not show prompt
 * [ ] ASM-One: no menu bar
     _intuition: _render_menu_bar() invalid RastPort BitMap

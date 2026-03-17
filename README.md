@@ -234,14 +234,14 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.47** - Phase 96 starts with an OpenRouter-backed screenshot review helper for manual UI investigations and a rootless host-window fix that preserves screen rows above logical windows so top-of-window UI like Devpac/KickPascal menu or title regions stay visible in captures and hosted rendering
+**Version 0.8.48** - Phase 96 starts with an OpenRouter-backed screenshot review helper for manual UI investigations, a rootless host-window fix that preserves screen rows above logical windows so top-of-window UI like Devpac/KickPascal menu or title regions stay visible in captures and hosted rendering, and app-driver support for injecting optional disk-only third-party libraries such as `reqtools.library` during compatibility tests
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
 ## Known Limitations
 
 - CPU: 68000 only (no 68020+ or FPU)
-- Third-party libraries such as `commodities.library`, `rexxsyslib.library`, `datatypes.library`, `dopus.library`, and `powerpacker.library` are not shipped in ROM and must be installed on disk in `LIBS:`
+- Third-party libraries such as `commodities.library`, `rexxsyslib.library`, `datatypes.library`, `dopus.library`, `powerpacker.library`, and `reqtools.library` are not shipped in ROM and must be installed on disk in `LIBS:`
 - Graphics: Basic screen/window support with drawing primitives
 - Intuition: Screen and window management, basic IDCMP input handling
 - Console: Full CSI escape sequence support, CON:/RAW: handlers

@@ -8,10 +8,28 @@
 
 #include "lxa_test.h"
 
+#include <filesystem>
+
 using namespace lxa::testing;
 
 class AsmOneTest : public LxaUITest {
 protected:
+    bool HasReqToolsLibrary() {
+        const char* third_party_libs = FindThirdPartyLibsPath();
+        if (third_party_libs != nullptr) {
+            return std::filesystem::exists(
+                std::filesystem::path(third_party_libs) / "reqtools.library");
+        }
+
+        const char* system_base = FindSystemBasePath();
+        if (system_base == nullptr) {
+            return false;
+        }
+
+        return std::filesystem::exists(
+            std::filesystem::path(system_base) / "Libs" / "reqtools.library");
+    }
+
     void SetUp() override {
         LxaUITest::SetUp();
         
@@ -38,6 +56,27 @@ protected:
 TEST_F(AsmOneTest, WindowOpens) {
     EXPECT_GT(window_info.width, 0);
     EXPECT_GT(window_info.height, 0);
+}
+
+TEST_F(AsmOneTest, ExternalReqToolsLibraryRemainsOptionalForEditorStartup) {
+    EXPECT_TRUE(lxa_is_running()) << "ASM-One should still start without reqtools.library in ROM";
+    EXPECT_STRNE(window_info.title, "System Message")
+        << "ASM-One should reach its editor window instead of a system requester";
+}
+
+TEST_F(AsmOneTest, DiskReqToolsLibraryCanBeProvidedForStartupRequesters) {
+    if (!HasReqToolsLibrary()) {
+        GTEST_SKIP() << "disk-provided reqtools.library missing; set LXA_TEST_THIRD_PARTY_LIBS to validate requester startup";
+    }
+
+    ClearOutput();
+    RunCyclesWithVBlank(40, 50000);
+
+    EXPECT_TRUE(lxa_is_running()) << "ASM-One should keep running with disk reqtools.library available";
+
+    std::string output = GetOutput();
+    EXPECT_EQ(output.find("requested library reqtools.library was not found"), std::string::npos)
+        << output;
 }
 
 TEST_F(AsmOneTest, ScreenDimensions) {
