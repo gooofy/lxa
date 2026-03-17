@@ -117,6 +117,7 @@ extern struct Resident *__lxa_clipboard_ROMTag;
 extern struct Resident *__lxa_audio_ROMTag;
 extern struct Resident *__lxa_gameport_ROMTag;
 extern struct Resident *__lxa_keyboard_ROMTag;
+extern struct Resident *__lxa_serial_ROMTag;
 extern struct Resident *__lxa_trackdisk_ROMTag;
 
 static struct JumpVec   g_ExecJumpTable[NUM_EXEC_FUNCS];
@@ -267,7 +268,7 @@ static void exec_finish_interrupt_dispatch(struct Interrupt *interrupt)
         interrupt->is_Node.ln_Type = NT_INTERRUPT;
 }
 
-static struct Resident *g_ResidentModules[29];
+static struct Resident *g_ResidentModules[30];
 
 static struct List *exec_get_resident_target_list(struct ExecBase *SysBase,
                                                   UBYTE resident_type)
@@ -330,6 +331,7 @@ struct Library         *DeviceClipboardBase;
 struct Library         *DeviceAudioBase;
 struct Library         *DeviceGameportBase;
 struct Library         *DeviceKeyboardBase;
+struct Library         *DeviceSerialBase;
 struct Library         *DeviceTrackdiskBase;
 
 static struct Custom   *custom            = (struct Custom*)        0xdff000;
@@ -5377,8 +5379,9 @@ void coldstart (void)
     g_ResidentModules[24] = __lxa_audio_ROMTag;
     g_ResidentModules[25] = __lxa_gameport_ROMTag;
     g_ResidentModules[26] = __lxa_keyboard_ROMTag;
-    g_ResidentModules[27] = __lxa_trackdisk_ROMTag;
-    g_ResidentModules[28] = NULL;
+    g_ResidentModules[27] = __lxa_serial_ROMTag;
+    g_ResidentModules[28] = __lxa_trackdisk_ROMTag;
+    g_ResidentModules[29] = NULL;
 
     SysBase->ResModules = g_ResidentModules;
     SysBase->SoftVer = VERSION;
@@ -5473,6 +5476,7 @@ void coldstart (void)
     DeviceAudioBase     = (struct Library *) registerBuiltInDev (sizeof (*DeviceAudioBase)    , __lxa_audio_ROMTag    );
     DeviceGameportBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceGameportBase) , __lxa_gameport_ROMTag );
     DeviceKeyboardBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceKeyboardBase) , __lxa_keyboard_ROMTag );
+    DeviceSerialBase    = (struct Library *) registerBuiltInDev (sizeof (*DeviceSerialBase)   , __lxa_serial_ROMTag   );
     DeviceTrackdiskBase = (struct Library *) registerBuiltInDev (sizeof (*DeviceTrackdiskBase), __lxa_trackdisk_ROMTag);
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in devices\n");
