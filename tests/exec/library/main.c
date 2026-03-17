@@ -23,6 +23,8 @@
 #include <devices/clipboard.h>
 #include <devices/gameport.h>
 #include <devices/newstyle.h>
+#include <devices/parallel.h>
+#include <devices/scsidisk.h>
 #include <devices/trackdisk.h>
 #include <dos/dos.h>
 #include <dos/dosextens.h>
@@ -5073,6 +5075,323 @@ static int test_mathffp_phase94_stub_closed(void)
     return errors;
 }
 
+static int test_parallel_phase97_stub_closed(void)
+{
+    int errors = 0;
+    struct MsgPort *port = NULL;
+    struct IOExtPar *req1 = NULL;
+    struct IOExtPar *req2 = NULL;
+    struct IOExtPar *reopen = NULL;
+    struct Device *device;
+    struct Node *node;
+    UBYTE write_buf[6] = { 'P', 'I', 'N', 'G', '\n', 0 };
+    UBYTE read_buf[6] = { 0 };
+    LONG open_error;
+
+    print("--- Test: parallel.device Phase 97 entry point ---\n");
+
+    port = CreateMsgPort();
+    req1 = (struct IOExtPar *)CreateIORequest(port, sizeof(struct IOExtPar));
+    req2 = (struct IOExtPar *)CreateIORequest(port, sizeof(struct IOExtPar));
+    reopen = (struct IOExtPar *)CreateIORequest(port, sizeof(struct IOExtPar));
+    if (!port || !req1 || !req2 || !reopen)
+    {
+        print("FAIL: Could not allocate parallel.device probe resources\n\n");
+        if (reopen)
+            DeleteIORequest((struct IORequest *)reopen);
+        if (req2)
+            DeleteIORequest((struct IORequest *)req2);
+        if (req1)
+            DeleteIORequest((struct IORequest *)req1);
+        if (port)
+            DeleteMsgPort(port);
+        return 1;
+    }
+
+    req1->io_ParFlags = PARF_SHARED;
+    req2->io_ParFlags = PARF_SHARED;
+    reopen->io_ParFlags = PARF_SHARED;
+    if (OpenDevice((CONST_STRPTR)PARALLELNAME, 0, (struct IORequest *)req1, 0) != 0 ||
+        OpenDevice((CONST_STRPTR)PARALLELNAME, 0, (struct IORequest *)req2, 0) != 0)
+    {
+        print("FAIL: OpenDevice() for parallel.device probe failed\n\n");
+        if (req2->IOPar.io_Device)
+            CloseDevice((struct IORequest *)req2);
+        if (req1->IOPar.io_Device)
+            CloseDevice((struct IORequest *)req1);
+        DeleteIORequest((struct IORequest *)reopen);
+        DeleteIORequest((struct IORequest *)req2);
+        DeleteIORequest((struct IORequest *)req1);
+        DeleteMsgPort(port);
+        return 1;
+    }
+
+    req1->IOPar.io_Command = CMD_WRITE;
+    req1->IOPar.io_Flags = IOF_QUICK;
+    req1->IOPar.io_Data = write_buf;
+    req1->IOPar.io_Length = 5;
+    DoIO((struct IORequest *)req1);
+
+    req2->IOPar.io_Command = CMD_READ;
+    req2->IOPar.io_Flags = IOF_QUICK;
+    req2->IOPar.io_Data = read_buf;
+    req2->IOPar.io_Length = 5;
+    DoIO((struct IORequest *)req2);
+    if (req1->IOPar.io_Error == 0 &&
+        req1->IOPar.io_Actual == 5 &&
+        req2->IOPar.io_Error == 0 &&
+        req2->IOPar.io_Actual == 5 &&
+        memcmp(write_buf, read_buf, 5) == 0)
+    {
+        print("OK: parallel.device loopback I/O no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: parallel.device loopback I/O still behaved like a stub\n");
+        errors++;
+        goto cleanup;
+    }
+
+    device = req1->IOPar.io_Device;
+    node = FindName(&SysBase->DeviceList, (CONST_STRPTR)PARALLELNAME);
+    if (node != &device->dd_Library.lib_Node)
+    {
+        print("FAIL: parallel.device missing from DeviceList before Expunge probe\n");
+        errors++;
+        goto cleanup;
+    }
+
+    RemDevice(device);
+    if ((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
+        FindName(&SysBase->DeviceList, (CONST_STRPTR)PARALLELNAME) == NULL)
+    {
+        print("OK: parallel.device Expunge() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: parallel.device Expunge() did not defer and unlink as expected\n");
+        errors++;
+    }
+
+    open_error = OpenDevice((CONST_STRPTR)PARALLELNAME, 0, (struct IORequest *)reopen, 0);
+    if (open_error == IOERR_OPENFAIL)
+    {
+        print("OK: deferred parallel.device Expunge() blocks new opens\n");
+    }
+    else
+    {
+        print("FAIL: deferred parallel.device Expunge() still allowed opens\n");
+        errors++;
+        if (open_error == 0)
+            CloseDevice((struct IORequest *)reopen);
+    }
+
+    CloseDevice((struct IORequest *)req2);
+    if (device->dd_Library.lib_OpenCnt == 1 &&
+        (device->dd_Library.lib_Flags & LIBF_DELEXP) != 0)
+    {
+        print("OK: parallel.device Close() keeps deferred Expunge pending\n");
+    }
+    else
+    {
+        print("FAIL: parallel.device Close() completed deferred Expunge too early\n");
+        errors++;
+    }
+
+    CloseDevice((struct IORequest *)req1);
+    if (FindName(&SysBase->DeviceList, (CONST_STRPTR)PARALLELNAME) == NULL &&
+        device->dd_Library.lib_OpenCnt == 0 &&
+        (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
+    {
+        print("OK: parallel.device final Close() completes deferred Expunge\n");
+    }
+    else
+    {
+        print("FAIL: parallel.device final Close() did not finish deferred Expunge\n");
+        errors++;
+    }
+
+    DeleteIORequest((struct IORequest *)reopen);
+    DeleteIORequest((struct IORequest *)req2);
+    DeleteIORequest((struct IORequest *)req1);
+    DeleteMsgPort(port);
+
+    print("\n");
+    return errors;
+
+cleanup:
+    if (req2->IOPar.io_Device)
+        CloseDevice((struct IORequest *)req2);
+    if (req1->IOPar.io_Device)
+        CloseDevice((struct IORequest *)req1);
+    DeleteIORequest((struct IORequest *)reopen);
+    DeleteIORequest((struct IORequest *)req2);
+    DeleteIORequest((struct IORequest *)req1);
+    DeleteMsgPort(port);
+
+    print("\n");
+    return errors;
+}
+
+static int test_scsi_phase97_stub_closed(void)
+{
+    int errors = 0;
+    struct MsgPort *port = NULL;
+    struct IOStdReq *req1 = NULL;
+    struct IOStdReq *req2 = NULL;
+    struct IOStdReq *reopen = NULL;
+    struct Device *device;
+    struct Node *node;
+    struct SCSICmd cmd;
+    UBYTE cdb[6] = { 0x12, 0, 0, 0, 36, 0 };
+    UBYTE data[64];
+    UBYTE sense[32];
+    LONG open_error;
+
+    print("--- Test: scsi.device Phase 97 entry point ---\n");
+
+    port = CreateMsgPort();
+    req1 = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
+    req2 = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
+    reopen = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
+    if (!port || !req1 || !req2 || !reopen)
+    {
+        print("FAIL: Could not allocate scsi.device probe resources\n\n");
+        if (reopen)
+            DeleteIORequest((struct IORequest *)reopen);
+        if (req2)
+            DeleteIORequest((struct IORequest *)req2);
+        if (req1)
+            DeleteIORequest((struct IORequest *)req1);
+        if (port)
+            DeleteMsgPort(port);
+        return 1;
+    }
+
+    if (OpenDevice((CONST_STRPTR)"scsi.device", 0, (struct IORequest *)req1, 0) != 0 ||
+        OpenDevice((CONST_STRPTR)"scsi.device", 12, (struct IORequest *)req2, 0) != 0)
+    {
+        print("FAIL: OpenDevice() for scsi.device probe failed\n\n");
+        if (req2->io_Device)
+            CloseDevice((struct IORequest *)req2);
+        if (req1->io_Device)
+            CloseDevice((struct IORequest *)req1);
+        DeleteIORequest((struct IORequest *)reopen);
+        DeleteIORequest((struct IORequest *)req2);
+        DeleteIORequest((struct IORequest *)req1);
+        DeleteMsgPort(port);
+        return 1;
+    }
+
+    cmd.scsi_Data = (UWORD *)data;
+    cmd.scsi_Length = sizeof(data);
+    cmd.scsi_Actual = 0;
+    cmd.scsi_Command = cdb;
+    cmd.scsi_CmdLength = sizeof(cdb);
+    cmd.scsi_CmdActual = 0;
+    cmd.scsi_Flags = SCSIF_AUTOSENSE | SCSIF_READ;
+    cmd.scsi_Status = 0;
+    cmd.scsi_SenseData = sense;
+    cmd.scsi_SenseLength = sizeof(sense);
+    cmd.scsi_SenseActual = 0;
+
+    req1->io_Command = HD_SCSICMD;
+    req1->io_Flags = IOF_QUICK;
+    req1->io_Data = &cmd;
+    req1->io_Length = sizeof(cmd);
+    DoIO((struct IORequest *)req1);
+    if (req1->io_Error == 0 && cmd.scsi_Status == 0 && cmd.scsi_Actual == 36)
+    {
+        print("OK: scsi.device HD_SCSICMD no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: scsi.device HD_SCSICMD still behaved like a stub\n");
+        errors++;
+        goto cleanup;
+    }
+
+    device = req1->io_Device;
+    node = FindName(&SysBase->DeviceList, (CONST_STRPTR)"scsi.device");
+    if (node != &device->dd_Library.lib_Node)
+    {
+        print("FAIL: scsi.device missing from DeviceList before Expunge probe\n");
+        errors++;
+        goto cleanup;
+    }
+
+    RemDevice(device);
+    if ((device->dd_Library.lib_Flags & LIBF_DELEXP) != 0 &&
+        FindName(&SysBase->DeviceList, (CONST_STRPTR)"scsi.device") == NULL)
+    {
+        print("OK: scsi.device Expunge() no longer behaves like a stub\n");
+    }
+    else
+    {
+        print("FAIL: scsi.device Expunge() did not defer and unlink as expected\n");
+        errors++;
+    }
+
+    open_error = OpenDevice((CONST_STRPTR)"scsi.device", 0, (struct IORequest *)reopen, 0);
+    if (open_error == IOERR_OPENFAIL)
+    {
+        print("OK: deferred scsi.device Expunge() blocks new opens\n");
+    }
+    else
+    {
+        print("FAIL: deferred scsi.device Expunge() still allowed opens\n");
+        errors++;
+        if (open_error == 0)
+            CloseDevice((struct IORequest *)reopen);
+    }
+
+    CloseDevice((struct IORequest *)req2);
+    if (device->dd_Library.lib_OpenCnt == 1 &&
+        (device->dd_Library.lib_Flags & LIBF_DELEXP) != 0)
+    {
+        print("OK: scsi.device Close() keeps deferred Expunge pending\n");
+    }
+    else
+    {
+        print("FAIL: scsi.device Close() completed deferred Expunge too early\n");
+        errors++;
+    }
+
+    CloseDevice((struct IORequest *)req1);
+    if (FindName(&SysBase->DeviceList, (CONST_STRPTR)"scsi.device") == NULL &&
+        device->dd_Library.lib_OpenCnt == 0 &&
+        (device->dd_Library.lib_Flags & LIBF_DELEXP) == 0)
+    {
+        print("OK: scsi.device final Close() completes deferred Expunge\n");
+    }
+    else
+    {
+        print("FAIL: scsi.device final Close() did not finish deferred Expunge\n");
+        errors++;
+    }
+
+    DeleteIORequest((struct IORequest *)reopen);
+    DeleteIORequest((struct IORequest *)req2);
+    DeleteIORequest((struct IORequest *)req1);
+    DeleteMsgPort(port);
+
+    print("\n");
+    return errors;
+
+cleanup:
+    if (req2->io_Device)
+        CloseDevice((struct IORequest *)req2);
+    if (req1->io_Device)
+        CloseDevice((struct IORequest *)req1);
+    DeleteIORequest((struct IORequest *)reopen);
+    DeleteIORequest((struct IORequest *)req2);
+    DeleteIORequest((struct IORequest *)req1);
+    DeleteMsgPort(port);
+
+    print("\n");
+    return errors;
+}
+
 static int test_clipboard_phase91_stub_closed(void)
 {
     int errors = 0;
@@ -5495,6 +5814,12 @@ int main(void)
 
     /* Test 62: Verify mathffp.library Phase 94 entry point no longer hits the stub path */
     errors += test_mathffp_phase94_stub_closed();
+
+    /* Test 63: Verify parallel.device Phase 97 entry point no longer hits the stub path */
+    errors += test_parallel_phase97_stub_closed();
+
+    /* Test 64: Verify scsi.device Phase 97 entry point no longer hits the stub path */
+    errors += test_scsi_phase97_stub_closed();
 
     /* ========== Final result ========== */
     print("\n=== Test Results ===\n");

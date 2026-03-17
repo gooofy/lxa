@@ -118,8 +118,10 @@ extern struct Resident *__lxa_audio_ROMTag;
 extern struct Resident *__lxa_gameport_ROMTag;
 extern struct Resident *__lxa_keyboard_ROMTag;
 extern struct Resident *__lxa_narrator_ROMTag;
+extern struct Resident *__lxa_parallel_ROMTag;
 extern struct Resident *__lxa_printer_ROMTag;
 extern struct Resident *__lxa_ramdrive_ROMTag;
+extern struct Resident *__lxa_scsi_ROMTag;
 extern struct Resident *__lxa_serial_ROMTag;
 extern struct Resident *__lxa_trackdisk_ROMTag;
 
@@ -271,7 +273,7 @@ static void exec_finish_interrupt_dispatch(struct Interrupt *interrupt)
         interrupt->is_Node.ln_Type = NT_INTERRUPT;
 }
 
-static struct Resident *g_ResidentModules[33];
+static struct Resident *g_ResidentModules[35];
 
 static struct List *exec_get_resident_target_list(struct ExecBase *SysBase,
                                                   UBYTE resident_type)
@@ -335,8 +337,10 @@ struct Library         *DeviceAudioBase;
 struct Library         *DeviceGameportBase;
 struct Library         *DeviceKeyboardBase;
 struct Library         *DeviceNarratorBase;
+struct Library         *DeviceParallelBase;
 struct Library         *DevicePrinterBase;
 struct Library         *DeviceRamdriveBase;
+struct Library         *DeviceScsiBase;
 struct Library         *DeviceSerialBase;
 struct Library         *DeviceTrackdiskBase;
 
@@ -5386,11 +5390,13 @@ void coldstart (void)
     g_ResidentModules[25] = __lxa_gameport_ROMTag;
     g_ResidentModules[26] = __lxa_keyboard_ROMTag;
     g_ResidentModules[27] = __lxa_narrator_ROMTag;
-    g_ResidentModules[28] = __lxa_printer_ROMTag;
-    g_ResidentModules[29] = __lxa_ramdrive_ROMTag;
-    g_ResidentModules[30] = __lxa_serial_ROMTag;
-    g_ResidentModules[31] = __lxa_trackdisk_ROMTag;
-    g_ResidentModules[32] = NULL;
+    g_ResidentModules[28] = __lxa_parallel_ROMTag;
+    g_ResidentModules[29] = __lxa_printer_ROMTag;
+    g_ResidentModules[30] = __lxa_ramdrive_ROMTag;
+    g_ResidentModules[31] = __lxa_scsi_ROMTag;
+    g_ResidentModules[32] = __lxa_serial_ROMTag;
+    g_ResidentModules[33] = __lxa_trackdisk_ROMTag;
+    g_ResidentModules[34] = NULL;
 
     SysBase->ResModules = g_ResidentModules;
     SysBase->SoftVer = VERSION;
@@ -5486,8 +5492,10 @@ void coldstart (void)
     DeviceGameportBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceGameportBase) , __lxa_gameport_ROMTag );
     DeviceKeyboardBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceKeyboardBase) , __lxa_keyboard_ROMTag );
     DeviceNarratorBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceNarratorBase) , __lxa_narrator_ROMTag );
+    DeviceParallelBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceParallelBase) , __lxa_parallel_ROMTag );
     DevicePrinterBase   = (struct Library *) registerBuiltInDev (sizeof (*DevicePrinterBase)  , __lxa_printer_ROMTag  );
     DeviceRamdriveBase  = (struct Library *) registerBuiltInDev (sizeof (*DeviceRamdriveBase) , __lxa_ramdrive_ROMTag );
+    DeviceScsiBase      = (struct Library *) registerBuiltInDev (sizeof (*DeviceScsiBase)     , __lxa_scsi_ROMTag     );
     DeviceSerialBase    = (struct Library *) registerBuiltInDev (sizeof (*DeviceSerialBase)   , __lxa_serial_ROMTag   );
     DeviceTrackdiskBase = (struct Library *) registerBuiltInDev (sizeof (*DeviceTrackdiskBase), __lxa_trackdisk_ROMTag);
 

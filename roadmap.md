@@ -4,16 +4,7 @@
 
 ## Current Phases
 
-- Phase 97: Complete set of devices
-
-Goal: Complete the implementation of standard devices as far as possible within LXA
-
-- [ ] scsi.device
-- [x] parallel.device
-- [x] serial.device
-- [x] narrator.device
-- [x] ramdrive.device
-- [x] printer.device
+- No active device-completion phase; next queued work is app-focused follow-up coverage.
 
 ---
 
@@ -26,6 +17,7 @@ Goal: Complete the implementation of standard devices as far as possible within 
 - Phase 82: Headless/rootless sizing and app-specific regressions — done.
 - Phases 83–84: `dos.library` and `utility.library` stub closures and verification — done.
 - Phases 85–95 (`0.8.37`–`0.8.46`): Library/device stub eradication sweep and final compatibility polish — done.
+- Phase 97 (`0.8.56`): Complete device set with hosted `parallel.device` and `scsi.device` coverage plus device/exec regressions — done.
 - Phase 96: App testing
 
 ## Completed Milestones (compact)
@@ -37,7 +29,7 @@ Goal: Complete the implementation of standard devices as far as possible within 
 
 For each app below the agent should follow a test-driven workflow: (1) run or create a reliable startup host-side driver test to exercise launch and reachability; (2) if the driver reveals failures, fix them and keep the test green; (3) capture screenshots on failure and use `tools/screenshot_review.py` to identify UI/rendering issues and hypotheses; (4) author additional automated pixel or interaction tests that assert the UI issues are fixed; (5) implement fixes and iterate until tests are green.
 
-- Phase 96: Asm-One
+- Phase 98: Asm-One
 	- Run or create a host-side startup test (GTest driver) that launches Asm-One and asserts the main window opens.
 	- If launch or runtime failures occur, fix them and keep the startup test green.
 	- On visual regressions, capture window artifacts and run `tools/screenshot_review.py` to triage rendering or layout issues; add pixel/introspection tests accordingly and fix the root cause.
@@ -118,7 +110,7 @@ For each app below the agent should follow a test-driven workflow: (1) run or cr
 	- Use `tools/screenshot_review.py` on captures for bitmap/viewport swap issues and add pixel-based assertions for key widgets.
 	- Add interaction tests: About dialog, refresh/stat update, and close behavior.
 
-- Phase P: Typeface
+- Phase 113: Typeface
 	- Add a startup test that opens Typeface and verifies the font preview/render area is visible.
 	- Fix missing-font, scaling, or render bugs uncovered by the driver.
 	- Use screenshot-review for glyph rendering issues and add tests for opening font requesters, About, and preview zoom/close.
