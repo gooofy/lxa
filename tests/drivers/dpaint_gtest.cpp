@@ -262,7 +262,7 @@ TEST_F(DPaintPixelTest, ScreenFormatDialogSectionsContainVisibleContent) {
     lxa_window_info_t dialog_info;
     ASSERT_TRUE(GetWindowInfo(dialog_index, &dialog_info));
 
-    const std::string capture_path = ram_dir_path + "/dpaint-screen-format.ppm";
+    const std::string capture_path = ram_dir_path + "/dpaint-screen-format.png";
     ASSERT_TRUE(CaptureWindow(capture_path.c_str(), dialog_index))
         << "Expected Screen Format capture to succeed";
 

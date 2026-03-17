@@ -12,6 +12,9 @@
 
 #include <gtest/gtest.h>
 #include "lxa_api.h"
+#include <png.h>
+#include <cstdint>
+#include <fstream>
 #include <string>
 #include <cstring>
 #include <unistd.h>
@@ -21,6 +24,118 @@
 
 namespace lxa {
 namespace testing {
+
+struct RgbImage {
+    int width;
+    int height;
+    std::vector<uint8_t> pixels;
+};
+
+inline RgbImage LoadPng(const std::string& path) {
+    std::ifstream capture(path, std::ios::binary);
+    RgbImage image = {0, 0, {}};
+    png_byte header[8];
+
+    EXPECT_TRUE(capture.good()) << "Failed to open captured PNG image at " << path;
+    if (!capture.good()) {
+        return image;
+    }
+
+    capture.read(reinterpret_cast<char*>(header), sizeof(header));
+    EXPECT_EQ(capture.gcount(), static_cast<std::streamsize>(sizeof(header)));
+    if (capture.gcount() != static_cast<std::streamsize>(sizeof(header))) {
+        return image;
+    }
+    EXPECT_EQ(png_sig_cmp(header, 0, sizeof(header)), 0)
+        << "Captured image should use the PNG format";
+    if (png_sig_cmp(header, 0, sizeof(header)) != 0) {
+        return image;
+    }
+
+    png_structp png = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    EXPECT_NE(png, nullptr);
+    if (png == nullptr) {
+        return image;
+    }
+    png_infop info = png_create_info_struct(png);
+    EXPECT_NE(info, nullptr);
+    if (info == nullptr) {
+        png_destroy_read_struct(&png, nullptr, nullptr);
+        return image;
+    }
+
+    if (setjmp(png_jmpbuf(png))) {
+        png_destroy_read_struct(&png, &info, nullptr);
+        ADD_FAILURE() << "Failed to decode PNG image at " << path;
+        return image;
+    }
+
+    png_set_read_fn(
+        png,
+        &capture,
+        [](png_structp png_ptr, png_bytep data, png_size_t length) {
+            std::istream* stream = static_cast<std::istream*>(png_get_io_ptr(png_ptr));
+            stream->read(reinterpret_cast<char*>(data), static_cast<std::streamsize>(length));
+            if (stream->gcount() != static_cast<std::streamsize>(length)) {
+                png_error(png_ptr, "Unexpected end of PNG stream");
+            }
+        });
+    png_set_sig_bytes(png, sizeof(header));
+    png_read_info(png, info);
+
+    if (png_get_bit_depth(png, info) == 16) {
+        png_set_strip_16(png);
+    }
+    if (png_get_color_type(png, info) == PNG_COLOR_TYPE_PALETTE) {
+        png_set_palette_to_rgb(png);
+    }
+    if (png_get_color_type(png, info) == PNG_COLOR_TYPE_GRAY &&
+        png_get_bit_depth(png, info) < 8) {
+        png_set_expand_gray_1_2_4_to_8(png);
+    }
+    if (png_get_valid(png, info, PNG_INFO_tRNS)) {
+        png_set_tRNS_to_alpha(png);
+    }
+    if (png_get_color_type(png, info) == PNG_COLOR_TYPE_GRAY ||
+        png_get_color_type(png, info) == PNG_COLOR_TYPE_GRAY_ALPHA) {
+        png_set_gray_to_rgb(png);
+    }
+    if (png_get_color_type(png, info) & PNG_COLOR_MASK_ALPHA) {
+        png_set_strip_alpha(png);
+    }
+
+    png_read_update_info(png, info);
+
+    image.width = static_cast<int>(png_get_image_width(png, info));
+    image.height = static_cast<int>(png_get_image_height(png, info));
+    EXPECT_GT(image.width, 0);
+    EXPECT_GT(image.height, 0);
+    if (image.width <= 0 || image.height <= 0) {
+        png_destroy_read_struct(&png, &info, nullptr);
+        return image;
+    }
+
+    png_size_t rowbytes = png_get_rowbytes(png, info);
+    EXPECT_EQ(rowbytes, static_cast<png_size_t>(image.width) * 3u)
+        << "Captured PNG should decode to RGB rows";
+    if (rowbytes != static_cast<png_size_t>(image.width) * 3u) {
+        png_destroy_read_struct(&png, &info, nullptr);
+        image = {0, 0, {}};
+        return image;
+    }
+
+    image.pixels.resize(static_cast<size_t>(image.height) * static_cast<size_t>(rowbytes));
+    std::vector<png_bytep> rows(static_cast<size_t>(image.height));
+    for (int y = 0; y < image.height; ++y) {
+        rows[static_cast<size_t>(y)] = image.pixels.data() + static_cast<size_t>(y) * rowbytes;
+    }
+
+    png_read_image(png, rows.data());
+    png_read_end(png, nullptr);
+    png_destroy_read_struct(&png, &info, nullptr);
+
+    return image;
+}
 
 /**
  * Helper function to find ROM path.

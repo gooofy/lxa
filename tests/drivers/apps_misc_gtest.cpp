@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cctype>
-#include <cstdint>
 #include <functional>
 #include <fstream>
 #include <filesystem>
@@ -22,45 +21,7 @@ protected:
     int prowrite_window_index = -1;
     lxa_window_info_t prowrite_menu_window_info = {};
 
-    struct PpmImage {
-        int width;
-        int height;
-        std::vector<uint8_t> pixels;
-    };
-
-    PpmImage LoadPpm(const std::string& path) {
-        std::ifstream capture(path, std::ios::binary);
-        std::string magic;
-        int width = 0;
-        int height = 0;
-        int max_value = 0;
-        PpmImage image = {0, 0, {}};
-
-        EXPECT_TRUE(capture.good()) << "Failed to open captured image at " << path;
-        if (!capture.good()) {
-            return image;
-        }
-
-        capture >> magic >> width >> height >> max_value;
-        EXPECT_EQ(magic, "P6") << "Captured image should use the PPM format";
-        EXPECT_GT(width, 0);
-        EXPECT_GT(height, 0);
-        EXPECT_EQ(max_value, 255);
-        if (magic != "P6" || width <= 0 || height <= 0 || max_value != 255) {
-            return image;
-        }
-
-        capture.get();
-        image.width = width;
-        image.height = height;
-        image.pixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 3U);
-        capture.read(reinterpret_cast<char*>(image.pixels.data()), static_cast<std::streamsize>(image.pixels.size()));
-        EXPECT_EQ(capture.gcount(), static_cast<std::streamsize>(image.pixels.size()));
-
-        return image;
-    }
-
-    bool IsBlackPixel(const PpmImage& image, int x, int y) {
+    bool IsBlackPixel(const RgbImage& image, int x, int y) {
         size_t pixel_offset = (static_cast<size_t>(y) * static_cast<size_t>(image.width) +
                                static_cast<size_t>(x)) * 3U;
 
@@ -69,7 +30,7 @@ protected:
             && image.pixels[pixel_offset + 2] == 0;
     }
 
-    int CountNonBlackPixels(const PpmImage& image, int x1, int y1, int x2, int y2) {
+    int CountNonBlackPixels(const RgbImage& image, int x1, int y1, int x2, int y2) {
         int count = 0;
 
         for (int y = y1; y <= y2; ++y) {
@@ -83,7 +44,7 @@ protected:
         return count;
     }
 
-    int CountBlackPixels(const PpmImage& image, int x1, int y1, int x2, int y2) {
+    int CountBlackPixels(const RgbImage& image, int x1, int y1, int x2, int y2) {
         int count = 0;
 
         for (int y = y1; y <= y2; ++y) {
@@ -97,8 +58,8 @@ protected:
         return count;
     }
 
-    int CountChangedPixels(const PpmImage& before,
-                           const PpmImage& after,
+    int CountChangedPixels(const RgbImage& before,
+                           const RgbImage& after,
                            int x1,
                            int y1,
                            int x2,
@@ -126,10 +87,10 @@ protected:
         return count;
     }
 
-    PpmImage CaptureScreenPpm(const std::string& path) {
+    RgbImage CaptureScreenImage(const std::string& path) {
         EXPECT_TRUE(lxa_capture_screen(path.c_str()))
             << "Failed to capture screen to " << path;
-        return LoadPpm(path);
+        return LoadPng(path);
     }
 
     bool SetupOriginalSystemAssigns(bool add_libs = false,
@@ -938,7 +899,7 @@ TEST_F(AppsMiscScreenTest, DISABLED_DirectoryOpusCopiesFile) {
 
     if (!copied) {
         lxa_flush_display();
-        lxa_capture_screen("/tmp/dopus-copy-failed.ppm");
+        lxa_capture_screen("/tmp/dopus-copy-failed.png");
     }
 
     ASSERT_TRUE(copied)

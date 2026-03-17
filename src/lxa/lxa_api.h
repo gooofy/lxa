@@ -452,7 +452,7 @@ void lxa_clear_output(void);
 /*
  * Capture the screen to a file.
  *
- * @param filename  Output filename (PPM format)
+ * @param filename  Output filename (PNG format)
  * @return true on success
  */
 bool lxa_capture_screen(const char *filename);
@@ -461,7 +461,7 @@ bool lxa_capture_screen(const char *filename);
  * Capture a tracked rootless window to a file.
  *
  * @param window_index  Window index (0-based)
- * @param filename      Output filename (PPM format)
+ * @param filename      Output filename (PNG format)
  * @return true on success
  */
 bool lxa_capture_window(int window_index, const char *filename);

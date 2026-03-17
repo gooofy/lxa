@@ -3,6 +3,7 @@
 
 # Find required packages
 find_package(Threads REQUIRED)
+find_package(PNG REQUIRED)
 
 # Find SDL2 for graphics support
 find_package(PkgConfig)
@@ -101,6 +102,7 @@ target_compile_definitions(liblxa PRIVATE ${LXA_COMPILE_DEFINITIONS} LXA_LIBRARY
 
 target_link_libraries(liblxa PUBLIC
     Threads::Threads
+    PNG::PNG
     ${READLINE_LIBRARY}
     m
 )
@@ -135,6 +137,7 @@ target_compile_definitions(lxa PRIVATE ${LXA_COMPILE_DEFINITIONS})
 
 target_link_libraries(lxa PRIVATE
     Threads::Threads
+    PNG::PNG
     ${READLINE_LIBRARY}
     m
 )

@@ -437,7 +437,7 @@ bool display_capture_window(display_window_t *window, const char *filename);
  * Capture a rootless window by tracked window index.
  *
  * @param index     Window index (0-based)
- * @param filename  Output filename (PPM format)
+ * @param filename  Output filename (PNG format)
  * @return true on success
  */
 bool display_capture_window_by_index(int index, const char *filename);
@@ -531,8 +531,8 @@ bool display_get_window_title(int index, char *title, int title_len);
 bool display_get_window_emulated_pointer(int index, uint32_t *amiga_window_ptr);
 
 /*
- * Compare the active display to a reference PPM file.
- * @param reference_file  Path to reference PPM file
+ * Compare the active display to a reference PNG file.
+ * @param reference_file  Path to reference PNG file
  * @return Similarity percentage (0-100), or -1 on error
  */
 int display_compare_to_reference(const char *reference_file);

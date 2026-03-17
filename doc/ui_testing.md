@@ -9,7 +9,7 @@ This document describes the UI testing infrastructure for LXA, enabling automate
 ### Completed (Phase 21.1)
 - **Host-side emucalls** - All input injection and screen capture emucalls implemented
 - **Event queue injection** - Keyboard and mouse events can be injected programmatically
-- **Screen capture** - Screens and windows can be captured to PPM files
+- **Screen capture** - Screens and windows can be captured to PNG files
 - **Headless mode** - Control flag for future headless rendering support
 
 ### In Progress (Phase 21.2)
@@ -72,8 +72,8 @@ For visual verification:
 ```
 
 New emucalls for screen capture (IMPLEMENTED):
-- `EMU_CALL_TEST_CAPTURE_SCREEN` (4110) - Capture current screen to PPM file
-- `EMU_CALL_TEST_CAPTURE_WINDOW` (4111) - Capture specific window to PPM file
+- `EMU_CALL_TEST_CAPTURE_SCREEN` (4110) - Capture current screen to PNG file
+- `EMU_CALL_TEST_CAPTURE_WINDOW` (4111) - Capture specific window to PNG file
 - `EMU_CALL_TEST_COMPARE_SCREEN` (4112) - Compare screen against reference (stub, returns -1)
 
 ## Console Device Testing
@@ -215,8 +215,8 @@ For visual regression testing:
 - [x] Add `display_inject_key()` function
 - [x] Add `display_inject_string()` with ASCII-to-rawkey mapping
 - [x] Add `display_inject_mouse()` function
-- [x] Add `display_capture_screen()` function (PPM format)
-- [x] Add `display_capture_window()` function (PPM format)
+- [x] Add `display_capture_screen()` function (PNG format)
+- [x] Add `display_capture_window()` function (PNG format)
 
 ### Phase 2: ROM-Side Test Helpers (IN PROGRESS)
 - [ ] Add test helper library for ROM-side injection

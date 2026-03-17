@@ -24,6 +24,10 @@
   - 1 skipped test: typing injection triggers AddTail crash with corrupt list pointer (ROM compatibility issue — to be fixed in a future phase).
   - Fixed PPM capture limitation by switching ProWrite tests to pen-based pixel verification.
   - Documented ASL requester dismiss limitation in headless mode.
+- Phase 99 (`0.8.58`): PNG screenshot artifact migration for hosted integration tests and review tooling — done.
+  - Replaced host screenshot capture output with PNG across `display.c`, `liblxa`, and GTest drivers.
+  - Updated screenshot-review and UI-testing documentation to use PNG examples and expectations.
+  - Kept visual-debugging and reference-comparison paths working while avoiding accidental agent text reads of raw PPM data.
 
 ## Completed Milestones (compact)
 

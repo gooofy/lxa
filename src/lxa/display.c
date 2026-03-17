@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <png.h>
 
 /* SDL2 support is optional - check if available */
 #ifdef SDL2_FOUND
@@ -2225,10 +2226,223 @@ bool display_event_queue_empty(void)
     return g_event_queue_tail == g_event_queue_head;
 }
 
+static bool display_write_png_file(const char *filename,
+                                   int width,
+                                   int height,
+                                   const uint8_t *pixels,
+                                   const uint32_t *palette)
+{
+    FILE *f = NULL;
+    png_structp png = NULL;
+    png_infop info = NULL;
+    png_bytep row = NULL;
+    bool success = false;
+
+    if (!filename || width <= 0 || height <= 0 || !pixels || !palette)
+        return false;
+
+    f = fopen(filename, "wb");
+    if (!f)
+    {
+        LPRINTF(LOG_ERROR, "display: failed to open '%s' for writing\n", filename);
+        return false;
+    }
+
+    png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png)
+    {
+        LPRINTF(LOG_ERROR, "display: failed to create PNG write struct\n");
+        goto cleanup;
+    }
+
+    info = png_create_info_struct(png);
+    if (!info)
+    {
+        LPRINTF(LOG_ERROR, "display: failed to create PNG info struct\n");
+        goto cleanup;
+    }
+
+    if (setjmp(png_jmpbuf(png)))
+    {
+        LPRINTF(LOG_ERROR, "display: PNG write failed for '%s'\n", filename);
+        goto cleanup;
+    }
+
+    row = (png_bytep)malloc((size_t)width * 3u);
+    if (!row)
+    {
+        LPRINTF(LOG_ERROR, "display: failed to allocate PNG row buffer\n");
+        goto cleanup;
+    }
+
+    png_init_io(png, f);
+    png_set_IHDR(png,
+                 info,
+                 width,
+                 height,
+                 8,
+                 PNG_COLOR_TYPE_RGB,
+                 PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_BASE,
+                 PNG_FILTER_TYPE_BASE);
+    png_write_info(png, info);
+
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            size_t pixel_index = (size_t)y * (size_t)width + (size_t)x;
+            uint8_t idx = pixels[pixel_index];
+            uint32_t color = palette[idx];
+            size_t rgb_index = (size_t)x * 3u;
+
+            row[rgb_index] = (uint8_t)((color >> 16) & 0xFF);
+            row[rgb_index + 1] = (uint8_t)((color >> 8) & 0xFF);
+            row[rgb_index + 2] = (uint8_t)(color & 0xFF);
+        }
+
+        png_write_row(png, row);
+    }
+
+    png_write_end(png, NULL);
+    success = true;
+
+cleanup:
+    if (row)
+        free(row);
+    if (png || info)
+        png_destroy_write_struct(&png, &info);
+    if (f)
+        fclose(f);
+    if (!success)
+        remove(filename);
+
+    return success;
+}
+
+static bool display_read_png_file(const char *filename,
+                                  int *width,
+                                  int *height,
+                                  uint8_t **pixels)
+{
+    FILE *f = NULL;
+    png_structp png = NULL;
+    png_infop info = NULL;
+    png_bytep *rows = NULL;
+    uint8_t *data = NULL;
+    png_byte header[8];
+    int image_width;
+    int image_height;
+    png_size_t rowbytes;
+    bool success = false;
+
+    if (!filename || !width || !height || !pixels)
+        return false;
+
+    *width = 0;
+    *height = 0;
+    *pixels = NULL;
+
+    f = fopen(filename, "rb");
+    if (!f)
+    {
+        LPRINTF(LOG_WARNING, "display: cannot open reference file '%s'\n", filename);
+        return false;
+    }
+
+    if (fread(header, 1, sizeof(header), f) != sizeof(header) ||
+        png_sig_cmp(header, 0, sizeof(header)) != 0)
+    {
+        LPRINTF(LOG_WARNING, "display: invalid PNG header in '%s'\n", filename);
+        goto cleanup;
+    }
+
+    png = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png)
+    {
+        LPRINTF(LOG_WARNING, "display: failed to create PNG read struct\n");
+        goto cleanup;
+    }
+
+    info = png_create_info_struct(png);
+    if (!info)
+    {
+        LPRINTF(LOG_WARNING, "display: failed to create PNG info struct\n");
+        goto cleanup;
+    }
+
+    if (setjmp(png_jmpbuf(png)))
+    {
+        LPRINTF(LOG_WARNING, "display: failed to decode PNG file '%s'\n", filename);
+        goto cleanup;
+    }
+
+    png_init_io(png, f);
+    png_set_sig_bytes(png, sizeof(header));
+    png_read_info(png, info);
+
+    image_width = (int)png_get_image_width(png, info);
+    image_height = (int)png_get_image_height(png, info);
+
+    if (png_get_bit_depth(png, info) == 16)
+        png_set_strip_16(png);
+    if (png_get_color_type(png, info) == PNG_COLOR_TYPE_PALETTE)
+        png_set_palette_to_rgb(png);
+    if (png_get_color_type(png, info) == PNG_COLOR_TYPE_GRAY &&
+        png_get_bit_depth(png, info) < 8)
+        png_set_expand_gray_1_2_4_to_8(png);
+    if (png_get_valid(png, info, PNG_INFO_tRNS))
+        png_set_tRNS_to_alpha(png);
+    if (png_get_color_type(png, info) == PNG_COLOR_TYPE_GRAY ||
+        png_get_color_type(png, info) == PNG_COLOR_TYPE_GRAY_ALPHA)
+        png_set_gray_to_rgb(png);
+    if (png_get_color_type(png, info) & PNG_COLOR_MASK_ALPHA)
+        png_set_strip_alpha(png);
+
+    png_read_update_info(png, info);
+
+    rowbytes = png_get_rowbytes(png, info);
+    if (rowbytes != (png_size_t)image_width * 3u)
+    {
+        LPRINTF(LOG_WARNING, "display: unexpected PNG row size in '%s'\n", filename);
+        goto cleanup;
+    }
+
+    data = (uint8_t *)malloc((size_t)image_height * (size_t)rowbytes);
+    rows = (png_bytep *)malloc((size_t)image_height * sizeof(png_bytep));
+    if (!data || !rows)
+    {
+        LPRINTF(LOG_WARNING, "display: failed to allocate PNG decode buffers\n");
+        goto cleanup;
+    }
+
+    for (int y = 0; y < image_height; y++)
+        rows[y] = data + ((size_t)y * (size_t)rowbytes);
+
+    png_read_image(png, rows);
+    png_read_end(png, NULL);
+
+    *width = image_width;
+    *height = image_height;
+    *pixels = data;
+    data = NULL;
+    success = true;
+
+cleanup:
+    if (rows)
+        free(rows);
+    if (data)
+        free(data);
+    if (png || info)
+        png_destroy_read_struct(&png, &info, NULL);
+    if (f)
+        fclose(f);
+
+    return success;
+}
+
 /*
  * Capture the display to a PNG file.
- * Note: This requires lodepng or similar PNG library.
- * For now, we'll implement a simple PPM format which is easier.
  */
 bool display_capture_screen(display_t *display, const char *filename)
 {
@@ -2241,35 +2455,12 @@ bool display_capture_screen(display_t *display, const char *filename)
     
     LPRINTF(LOG_INFO, "display: capturing screen to '%s'\n", filename);
     
-    /* For simplicity, save as PPM format which is easy to write
-     * PPM can be converted to PNG using ImageMagick: convert file.ppm file.png
-     */
-    FILE *f = fopen(filename, "wb");
-    if (!f)
-    {
-        LPRINTF(LOG_ERROR, "display: failed to open '%s' for writing\n", filename);
+    if (!display_write_png_file(filename,
+                                display->width,
+                                display->height,
+                                display->pixels,
+                                display->palette))
         return false;
-    }
-    
-    /* PPM header */
-    fprintf(f, "P6\n%d %d\n255\n", display->width, display->height);
-    
-    /* Write pixels (convert indexed to RGB using palette) */
-    for (int y = 0; y < display->height; y++)
-    {
-        for (int x = 0; x < display->width; x++)
-        {
-            uint8_t idx = display->pixels[y * display->width + x];
-            uint32_t color = display->palette[idx];
-            uint8_t rgb[3];
-            rgb[0] = (color >> 16) & 0xFF;  /* R */
-            rgb[1] = (color >> 8) & 0xFF;   /* G */
-            rgb[2] = color & 0xFF;          /* B */
-            fwrite(rgb, 1, 3, f);
-        }
-    }
-    
-    fclose(f);
     
     LPRINTF(LOG_INFO, "display: captured %dx%d screen to '%s'\n",
             display->width, display->height, filename);
@@ -2298,32 +2489,12 @@ bool display_capture_window(display_window_t *window, const char *filename)
         palette = window->palette;
     }
     
-    FILE *f = fopen(filename, "wb");
-    if (!f)
-    {
-        LPRINTF(LOG_ERROR, "display: failed to open '%s' for writing\n", filename);
+    if (!display_write_png_file(filename,
+                                window->width,
+                                window->height,
+                                window->pixels,
+                                palette))
         return false;
-    }
-    
-    /* PPM header */
-    fprintf(f, "P6\n%d %d\n255\n", window->width, window->height);
-    
-    /* Write pixels */
-    for (int y = 0; y < window->height; y++)
-    {
-        for (int x = 0; x < window->width; x++)
-        {
-            uint8_t idx = window->pixels[y * window->width + x];
-            uint32_t color = palette[idx];
-            uint8_t rgb[3];
-            rgb[0] = (color >> 16) & 0xFF;  /* R */
-            rgb[1] = (color >> 8) & 0xFF;   /* G */
-            rgb[2] = color & 0xFF;          /* B */
-            fwrite(rgb, 1, 3, f);
-        }
-    }
-    
-    fclose(f);
     
     LPRINTF(LOG_INFO, "display: captured %dx%d window to '%s'\n",
             window->width, window->height, filename);
@@ -2577,50 +2748,30 @@ bool display_get_window_emulated_pointer(int index, uint32_t *amiga_window_ptr)
 }
 
 /*
- * Compare the active display to a reference PPM file.
+ * Compare the active display to a reference PNG file.
  * Returns a similarity percentage (0-100), or -1 on error.
  *
- * @param reference_file  Path to reference PPM file
+ * @param reference_file  Path to reference PNG file
  * @return Similarity percentage (0-100), or -1 on error
  */
 int display_compare_to_reference(const char *reference_file)
 {
+    uint8_t *reference_pixels = NULL;
+    int ref_width;
+    int ref_height;
+
     if (!g_active_display || !g_active_display->pixels || !reference_file)
         return -1;
-    
-    FILE *f = fopen(reference_file, "rb");
-    if (!f)
-    {
-        LPRINTF(LOG_WARNING, "display: cannot open reference file '%s'\n", reference_file);
+
+    if (!display_read_png_file(reference_file, &ref_width, &ref_height, &reference_pixels))
         return -1;
-    }
-    
-    /* Read PPM header */
-    char magic[3];
-    int ref_width, ref_height, max_val;
-    if (fscanf(f, "%2s %d %d %d", magic, &ref_width, &ref_height, &max_val) != 4)
-    {
-        LPRINTF(LOG_WARNING, "display: invalid PPM header in '%s'\n", reference_file);
-        fclose(f);
-        return -1;
-    }
-    
-    if (magic[0] != 'P' || magic[1] != '6')
-    {
-        LPRINTF(LOG_WARNING, "display: reference file is not P6 PPM format\n");
-        fclose(f);
-        return -1;
-    }
-    
-    /* Skip single whitespace after header */
-    fgetc(f);
     
     /* Check dimensions match */
     if (ref_width != g_active_display->width || ref_height != g_active_display->height)
     {
         LPRINTF(LOG_WARNING, "display: reference dimensions (%dx%d) don't match display (%dx%d)\n",
                 ref_width, ref_height, g_active_display->width, g_active_display->height);
-        fclose(f);
+        free(reference_pixels);
         return -1;
     }
     
@@ -2632,13 +2783,8 @@ int display_compare_to_reference(const char *reference_file)
     {
         for (int x = 0; x < ref_width; x++)
         {
-            uint8_t ref_rgb[3];
-            if (fread(ref_rgb, 1, 3, f) != 3)
-            {
-                LPRINTF(LOG_WARNING, "display: unexpected end of reference file\n");
-                fclose(f);
-                return -1;
-            }
+            size_t reference_offset = ((size_t)y * (size_t)ref_width + (size_t)x) * 3u;
+            const uint8_t *ref_rgb = reference_pixels + reference_offset;
             
             /* Get current display pixel */
             uint8_t idx = g_active_display->pixels[y * ref_width + x];
@@ -2660,8 +2806,8 @@ int display_compare_to_reference(const char *reference_file)
                 matching_pixels++;
         }
     }
-    
-    fclose(f);
+
+    free(reference_pixels);
     
     int similarity = (matching_pixels * 100) / total_pixels;
     LPRINTF(LOG_INFO, "display: comparison result: %d%% similarity (%d/%d pixels match)\n",

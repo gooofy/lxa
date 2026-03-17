@@ -171,8 +171,8 @@ lxa -d -v myprogram
 ### Screenshot Review Helper
 
 ```bash
-python tools/screenshot_review.py screenshot.ppm
-python tools/screenshot_review.py --model anthropic/claude-sonnet-4.6 shot1.ppm shot2.png
+python tools/screenshot_review.py screenshot.png
+python tools/screenshot_review.py --model anthropic/claude-sonnet-4.6 shot1.png shot2.png
 ```
 
 The helper sends screenshots to OpenRouter using `OPENROUTER_API_KEY` and prints a vision-model review that is useful when comparing `lxa` UI output to a real Amiga.
@@ -238,7 +238,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.56** - Phase 97 now closes out `parallel.device` ROM wiring and regression coverage alongside hosted `scsi.device` SCSI-direct command support and exec/device test integration
+**Version 0.8.57** - Screenshot capture and review now use PNG artifacts across integration workflows, avoiding accidental text reads of raw PPM data while keeping visual-debugging coverage intact
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

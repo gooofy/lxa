@@ -128,34 +128,34 @@ export OPENROUTER_API_KEY=<your-key>
 ### Basic usage
 ```bash
 # Single capture review
-python tools/screenshot_review.py path/to/capture.ppm
+python tools/screenshot_review.py path/to/capture.png
 
 # Side-by-side comparison (e.g. before/after a fix, or lxa vs reference)
-python tools/screenshot_review.py before.ppm after.ppm
+python tools/screenshot_review.py before.png after.png
 
 # Focus the model on a specific subsystem
 python tools/screenshot_review.py \
     --prompt "Describe any clipping or overdraw around the menu separator" \
-    capture.ppm
+    capture.png
 
 # Use a specific vision model
 python tools/screenshot_review.py \
     --model anthropic/claude-sonnet-4.6 \
-    capture.ppm
+    capture.png
 
 # Machine-readable output for scripting or logging
-python tools/screenshot_review.py --output json capture.ppm
+python tools/screenshot_review.py --output json capture.png
 ```
 
 ### Typical debugging workflow
 1. Run the GTest driver to reproduce the visual defect and collect an artifact:
    ```bash
    ./build/tests/drivers/my_app_gtest --gtest_filter="MyTest.BadMenu"
-   # driver calls lxa_capture_window() on failure → saves capture.ppm
+   # driver calls lxa_capture_window() on failure → saves capture.png
    ```
 2. Send the artifact to the vision model:
    ```bash
-   python tools/screenshot_review.py /tmp/lxa_capture_*.ppm
+   python tools/screenshot_review.py /tmp/lxa_capture_*.png
    ```
 3. Use the model's region/coordinate hints to focus a targeted pixel assertion or a narrower code search.
 4. Once the root cause is confirmed in code, write or update the pixel-level GTest regression so the defect is caught automatically in future runs.

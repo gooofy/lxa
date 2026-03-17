@@ -9,10 +9,6 @@
 #include "lxa_test.h"
 
 #include <algorithm>
-#include <cstdint>
-#include <fstream>
-#include <string>
-#include <vector>
 
 using namespace lxa::testing;
 
@@ -20,12 +16,6 @@ class DevpacTest : public LxaUITest {
 protected:
     static constexpr int PEN_GREY = 0;
     static constexpr int PEN_BLACK = 1;
-
-    struct PpmImage {
-        int width;
-        int height;
-        std::vector<uint8_t> pixels;
-    };
 
     void SlowTypeString(const char* str, int settle_vblanks = 3) {
         char ch[2] = {0, 0};
@@ -37,39 +27,7 @@ protected:
         }
     }
 
-    PpmImage LoadPpm(const std::string& path) {
-        std::ifstream capture(path, std::ios::binary);
-        std::string magic;
-        int width = 0;
-        int height = 0;
-        int max_value = 0;
-        PpmImage image = {0, 0, {}};
-
-        EXPECT_TRUE(capture.good()) << "Failed to open captured Devpac window image";
-        if (!capture.good()) {
-            return image;
-        }
-
-        capture >> magic >> width >> height >> max_value;
-        EXPECT_EQ(magic, "P6") << "Captured Devpac window should use the PPM format";
-        EXPECT_GT(width, 0);
-        EXPECT_GT(height, 0);
-        EXPECT_EQ(max_value, 255);
-        if (magic != "P6" || width <= 0 || height <= 0 || max_value != 255) {
-            return image;
-        }
-
-        capture.get();
-        image.width = width;
-        image.height = height;
-        image.pixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 3U);
-        capture.read(reinterpret_cast<char*>(image.pixels.data()), static_cast<std::streamsize>(image.pixels.size()));
-        EXPECT_EQ(capture.gcount(), static_cast<std::streamsize>(image.pixels.size()));
-
-        return image;
-    }
-
-    int CountNonBlackPixels(const PpmImage& image, int x1, int y1, int x2, int y2) {
+    int CountNonBlackPixels(const RgbImage& image, int x1, int y1, int x2, int y2) {
         int count = 0;
 
         for (int y = y1; y <= y2; y++) {
@@ -182,14 +140,14 @@ TEST_F(DevpacTest, EditorVisible) {
 }
 
 TEST_F(DevpacTest, RootlessHostWindowIncludesScreenStripAboveWindow) {
-    const std::string capture_path = ram_dir_path + "/devpac-window.ppm";
-    PpmImage image;
+    const std::string capture_path = ram_dir_path + "/devpac-window.png";
+    RgbImage image;
 
     ASSERT_GT(window_info.y, 0) << "Devpac should open below the screen origin in rootless mode";
     ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0))
         << "Rootless Devpac window capture should succeed";
 
-    image = LoadPpm(capture_path);
+    image = LoadPng(capture_path);
 
     EXPECT_EQ(image.width, window_info.width)
         << "Devpac should preserve its logical width in the host window capture";
@@ -198,19 +156,19 @@ TEST_F(DevpacTest, RootlessHostWindowIncludesScreenStripAboveWindow) {
 }
 
 TEST_F(DevpacTest, MenuBarRemainsVisibleAfterRepeatedMenuOpenClose) {
-    const std::string before_path = ram_dir_path + "/devpac-menu-before.ppm";
-    const std::string after_path = ram_dir_path + "/devpac-menu-after.ppm";
+    const std::string before_path = ram_dir_path + "/devpac-menu-before.png";
+    const std::string after_path = ram_dir_path + "/devpac-menu-after.png";
     const int menu_bar_x = window_info.x + 32;
     const int menu_bar_y = window_info.y / 2;
     const int first_item_y = window_info.y + 18;
-    PpmImage before_image;
-    PpmImage after_image;
+    RgbImage before_image;
+    RgbImage after_image;
     int before_non_black = 0;
     int after_non_black = 0;
 
     ASSERT_GT(window_info.y, 0) << "Devpac should expose the menu bar strip above the window";
     ASSERT_TRUE(CaptureWindow(before_path.c_str(), 0));
-    before_image = LoadPpm(before_path);
+    before_image = LoadPng(before_path);
 
     for (int i = 0; i < 3; i++) {
         lxa_inject_drag(menu_bar_x, menu_bar_y,
@@ -220,7 +178,7 @@ TEST_F(DevpacTest, MenuBarRemainsVisibleAfterRepeatedMenuOpenClose) {
     }
 
     ASSERT_TRUE(CaptureWindow(after_path.c_str(), 0));
-    after_image = LoadPpm(after_path);
+    after_image = LoadPng(after_path);
 
     before_non_black = CountNonBlackPixels(before_image, 0, 0,
                                            before_image.width - 1, window_info.y - 1);
@@ -236,22 +194,22 @@ TEST_F(DevpacTest, MenuBarRemainsVisibleAfterRepeatedMenuOpenClose) {
 }
 
 TEST_F(DevpacTest, AboutDialogDoesNotDuplicateInsideMainWindow) {
-    const std::string main_before_path = ram_dir_path + "/devpac-about-main-before.ppm";
-    const std::string main_after_path = ram_dir_path + "/devpac-about-main-after.ppm";
-    PpmImage before_image;
-    PpmImage after_image;
+    const std::string main_before_path = ram_dir_path + "/devpac-about-main-before.png";
+    const std::string main_after_path = ram_dir_path + "/devpac-about-main-after.png";
+    RgbImage before_image;
+    RgbImage after_image;
     int before_main_pixels = 0;
     int after_main_pixels = 0;
     lxa_window_info_t about_info;
 
     ASSERT_TRUE(CaptureWindow(main_before_path.c_str(), 0));
-    before_image = LoadPpm(main_before_path);
+    before_image = LoadPng(main_before_path);
 
     ASSERT_TRUE(OpenAboutDialog(&about_info))
         << "Devpac About dialog should open as a second window";
 
     ASSERT_TRUE(CaptureWindow(main_after_path.c_str(), 0));
-    after_image = LoadPpm(main_after_path);
+    after_image = LoadPng(main_after_path);
 
     before_main_pixels = CountNonBlackPixels(before_image,
                                              0,

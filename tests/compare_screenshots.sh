@@ -3,14 +3,14 @@
 # Screenshot Comparison Utility for LXA Tests
 # Phase 39b: Enhanced Application Testing Infrastructure
 #
-# This script compares two PPM files and reports similarity.
+# This script compares two PNG files and reports similarity.
 # It can also generate diff images for visual inspection.
 #
-# Usage: compare_screenshots.sh <reference.ppm> <actual.ppm> [threshold] [diff_output.ppm]
+# Usage: compare_screenshots.sh <reference.png> <actual.png> [threshold] [diff_output.png]
 #
 # Arguments:
-#   reference.ppm  - The expected/reference screenshot
-#   actual.ppm     - The actual screenshot from test run
+#   reference.png  - The expected/reference screenshot
+#   actual.png     - The actual screenshot from test run
 #   threshold      - Minimum similarity percentage to pass (default: 95)
 #   diff_output    - Optional file to save visual diff
 #
@@ -27,7 +27,7 @@ DIFF_OUTPUT="${4:-}"
 
 # Check required arguments
 if [ -z "$REFERENCE" ] || [ -z "$ACTUAL" ]; then
-    echo "Usage: compare_screenshots.sh <reference.ppm> <actual.ppm> [threshold] [diff_output.ppm]"
+    echo "Usage: compare_screenshots.sh <reference.png> <actual.png> [threshold] [diff_output.png]"
     exit 2
 fi
 
@@ -104,33 +104,22 @@ elif command -v python3 &> /dev/null; then
 import sys
 
 def read_ppm(filename):
-    """Read a P6 PPM file and return dimensions and pixel data."""
-    with open(filename, 'rb') as f:
-        # Read magic number
-        magic = f.readline().decode('ascii').strip()
-        if magic != 'P6':
-            raise ValueError(f"Not a P6 PPM file: {magic}")
-        
-        # Skip comments and read dimensions
-        line = f.readline().decode('ascii').strip()
-        while line.startswith('#'):
-            line = f.readline().decode('ascii').strip()
-        
-        width, height = map(int, line.split())
-        
-        # Read max value
-        max_val = int(f.readline().decode('ascii').strip())
-        
-        # Read pixel data
-        pixels = f.read()
-        
-        return width, height, max_val, pixels
+    """Read a PNG file and return dimensions and RGB pixel data."""
+    try:
+        from PIL import Image
+    except ImportError as exc:
+        raise RuntimeError("Pillow is required for PNG fallback comparison") from exc
+
+    with Image.open(filename) as image:
+        rgb = image.convert('RGB')
+        width, height = rgb.size
+        return width, height, 255, rgb.tobytes()
 
 try:
     ref_w, ref_h, ref_max, ref_pixels = read_ppm("$REFERENCE")
     act_w, act_h, act_max, act_pixels = read_ppm("$ACTUAL")
 except Exception as e:
-    print(f"ERROR: Failed to read PPM files: {e}")
+    print(f"ERROR: Failed to read PNG files: {e}")
     sys.exit(2)
 
 if (ref_w, ref_h) != (act_w, act_h):

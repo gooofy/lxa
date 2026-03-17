@@ -9,23 +9,25 @@ from tools import screenshot_review
 
 class ScreenshotReviewTest(unittest.TestCase):
     def test_build_user_content_embeds_prompt_and_image(self):
+        image_bytes = None
         with tempfile.TemporaryDirectory() as tmpdir:
-            image_path = Path(tmpdir) / "sample.ppm"
-            image_path.write_bytes(b"P6\n1 1\n255\n\x00\x00\x00")
+            image_path = Path(tmpdir) / "sample.png"
+            image_bytes = base64.b64decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
+            )
+            image_path.write_bytes(image_bytes)
 
             content = screenshot_review.build_user_content([image_path], "Inspect this")
 
         self.assertEqual("text", content[0]["type"])
         self.assertEqual("Inspect this", content[0]["text"])
-        self.assertEqual("Screenshot: sample.ppm", content[1]["text"])
+        self.assertEqual("Screenshot: sample.png", content[1]["text"])
         self.assertTrue(
-            content[2]["image_url"]["url"].startswith(
-                "data:image/x-portable-pixmap;base64,"
-            )
+            content[2]["image_url"]["url"].startswith("data:image/png;base64,")
         )
 
         encoded = content[2]["image_url"]["url"].split(",", 1)[1]
-        self.assertEqual(b"P6\n1 1\n255\n\x00\x00\x00", base64.b64decode(encoded))
+        self.assertEqual(image_bytes, base64.b64decode(encoded))
 
     def test_build_request_payload_uses_model_and_messages(self):
         args = argparse.Namespace(

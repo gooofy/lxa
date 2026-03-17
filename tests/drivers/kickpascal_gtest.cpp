@@ -9,10 +9,7 @@
 #include "lxa_test.h"
 
 #include <algorithm>
-#include <cstdint>
-#include <fstream>
 #include <string>
-#include <vector>
 
 using namespace lxa::testing;
 
@@ -20,45 +17,7 @@ using namespace lxa::testing;
 
 class KickPascalTest : public LxaUITest {
 protected:
-    struct PpmImage {
-        int width;
-        int height;
-        std::vector<uint8_t> pixels;
-    };
-
-    PpmImage LoadPpm(const std::string& path) {
-        std::ifstream capture(path, std::ios::binary);
-        std::string magic;
-        int width = 0;
-        int height = 0;
-        int max_value = 0;
-        PpmImage image = {0, 0, {}};
-
-        EXPECT_TRUE(capture.good()) << "Failed to open captured KickPascal window image";
-        if (!capture.good()) {
-            return image;
-        }
-
-        capture >> magic >> width >> height >> max_value;
-        EXPECT_EQ(magic, "P6") << "Captured KickPascal window should use the PPM format";
-        EXPECT_GT(width, 0);
-        EXPECT_GT(height, 0);
-        EXPECT_EQ(max_value, 255);
-        if (magic != "P6" || width <= 0 || height <= 0 || max_value != 255) {
-            return image;
-        }
-
-        capture.get();
-        image.width = width;
-        image.height = height;
-        image.pixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * 3U);
-        capture.read(reinterpret_cast<char*>(image.pixels.data()), static_cast<std::streamsize>(image.pixels.size()));
-        EXPECT_EQ(capture.gcount(), static_cast<std::streamsize>(image.pixels.size()));
-
-        return image;
-    }
-
-    bool IsBlackPixel(const PpmImage& image, int x, int y) {
+    bool IsBlackPixel(const RgbImage& image, int x, int y) {
         size_t pixel_offset = (static_cast<size_t>(y) * static_cast<size_t>(image.width) +
                                static_cast<size_t>(x)) * 3U;
 
@@ -105,37 +64,31 @@ TEST_F(KickPascalTest, ScreenDimensions) {
 }
 
 TEST_F(KickPascalTest, RootlessHostWindowUsesLandscapeExtent) {
-    const std::string capture_path = ram_dir_path + "/kickpascal-window.ppm";
-    std::ifstream capture;
-    std::string magic;
-    int captured_width = 0;
-    int captured_height = 0;
-    int max_value = 0;
+    const std::string capture_path = ram_dir_path + "/kickpascal-window.png";
+    RgbImage image;
 
     ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0))
         << "Rootless KickPascal window capture should succeed";
 
-    capture.open(capture_path, std::ios::binary);
-    ASSERT_TRUE(capture.good()) << "Failed to open captured KickPascal window image";
+    image = LoadPng(capture_path);
+    ASSERT_GT(image.width, 0);
+    ASSERT_GT(image.height, 0);
 
-    capture >> magic >> captured_width >> captured_height >> max_value;
-
-    ASSERT_EQ(magic, "P6") << "Captured KickPascal window should use the PPM format";
-    EXPECT_GT(captured_width, window_info.width)
+    EXPECT_GT(image.width, window_info.width)
         << "Host-side KickPascal window should widen beyond the logical Amiga width";
-    EXPECT_GT(captured_height, window_info.height)
+    EXPECT_GT(image.height, window_info.height)
         << "Rootless KickPascal capture should include the screen strip above the logical window";
-    EXPECT_GT(captured_width, captured_height)
+    EXPECT_GT(image.width, image.height)
         << "KickPascal should present a landscape host window rather than a portrait one";
 }
 
 TEST_F(KickPascalTest, SplashLogoStaysFullyInsideVisibleArea) {
-    const std::string capture_path = ram_dir_path + "/kickpascal-window.ppm";
+    const std::string capture_path = ram_dir_path + "/kickpascal-window.png";
     const int search_x1 = 0;
     const int search_y1 = 16;
     const int search_x2 = 240;
     const int search_y2 = 72;
-    PpmImage image;
+    RgbImage image;
     int min_x = search_x2 + 1;
     int min_y = search_y2 + 1;
     int max_x = -1;
@@ -144,7 +97,7 @@ TEST_F(KickPascalTest, SplashLogoStaysFullyInsideVisibleArea) {
     ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0))
         << "KickPascal splash capture should succeed";
 
-    image = LoadPpm(capture_path);
+    image = LoadPng(capture_path);
     ASSERT_GT(image.width, 0);
     ASSERT_GT(image.height, 0);
 

@@ -35,19 +35,19 @@ When a captured screenshot shows an unexpected visual result and the root cause 
 
 ```bash
 # Review a single capture
-python tools/screenshot_review.py path/to/capture.ppm
+python tools/screenshot_review.py path/to/capture.png
 
 # Compare multiple shots (before/after, or lxa vs reference)
-python tools/screenshot_review.py before.ppm after.ppm
+python tools/screenshot_review.py before.png after.png
 
 # Override the model when a specific vision model is preferred
 python tools/screenshot_review.py --model anthropic/claude-sonnet-4.6 shot.png
 
 # Supply a focused prompt when investigating a specific known issue
-python tools/screenshot_review.py --prompt "Describe the menu separator rendering" shot.ppm
+python tools/screenshot_review.py --prompt "Describe the menu separator rendering" shot.png
 
 # Machine-readable output for scripting
-python tools/screenshot_review.py --output json shot.ppm
+python tools/screenshot_review.py --output json shot.png
 ```
 
 **Requirements**: set `OPENROUTER_API_KEY` in the environment before calling the tool.
