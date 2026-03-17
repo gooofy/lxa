@@ -14,30 +14,34 @@ using namespace lxa::testing;
 
 class AsmOneTest : public LxaUITest {
 protected:
-    bool HasReqToolsLibrary() {
-        const char* third_party_libs = FindThirdPartyLibsPath();
-        if (third_party_libs != nullptr) {
-            return std::filesystem::exists(
-                std::filesystem::path(third_party_libs) / "reqtools.library");
-        }
+    std::filesystem::path asm_one_base_path;
 
-        const char* system_base = FindSystemBasePath();
-        if (system_base == nullptr) {
+    bool SetupAsmOneAssigns() {
+        const char* apps = FindAppsPath();
+        if (apps == nullptr) {
             return false;
         }
 
-        return std::filesystem::exists(
-            std::filesystem::path(system_base) / "Libs" / "reqtools.library");
+        asm_one_base_path = std::filesystem::path(apps) / "Asm-One" / "bin" / "ASM-One";
+        if (!std::filesystem::exists(asm_one_base_path / "ASM-One_V1.48")) {
+            return false;
+        }
+
+        return lxa_add_assign_path("LIBS", (asm_one_base_path / "Libs").c_str());
+    }
+
+    bool HasReqToolsLibrary() const {
+        return !asm_one_base_path.empty()
+            && std::filesystem::exists(asm_one_base_path / "Libs" / "reqtools.library");
     }
 
     void SetUp() override {
         LxaUITest::SetUp();
-        
-        const char* apps = FindAppsPath();
-        if (!apps) {
+
+        if (!SetupAsmOneAssigns()) {
             GTEST_SKIP() << "lxa-apps directory not found";
         }
-        
+
         /* Load via APPS: assign (mapped to lxa-apps directory in LxaTest::SetUp) */
         ASSERT_EQ(lxa_load_program("APPS:Asm-One/bin/ASM-One/ASM-One_V1.48", ""), 0) 
             << "Failed to load ASM-One via APPS: assign";
@@ -58,21 +62,20 @@ TEST_F(AsmOneTest, WindowOpens) {
     EXPECT_GT(window_info.height, 0);
 }
 
-TEST_F(AsmOneTest, ExternalReqToolsLibraryRemainsOptionalForEditorStartup) {
-    EXPECT_TRUE(lxa_is_running()) << "ASM-One should still start without reqtools.library in ROM";
-    EXPECT_STRNE(window_info.title, "System Message")
-        << "ASM-One should reach its editor window instead of a system requester";
+TEST_F(AsmOneTest, BundledReqToolsLibraryIsAvailableFromDisk) {
+    EXPECT_TRUE(HasReqToolsLibrary())
+        << "ASM-One should bundle reqtools.library under APPS:Asm-One/bin/ASM-One/Libs";
 }
 
-TEST_F(AsmOneTest, DiskReqToolsLibraryCanBeProvidedForStartupRequesters) {
-    if (!HasReqToolsLibrary()) {
-        GTEST_SKIP() << "disk-provided reqtools.library missing; set LXA_TEST_THIRD_PARTY_LIBS to validate requester startup";
-    }
+TEST_F(AsmOneTest, BundledReqToolsLibrarySupportsStartupRequesters) {
+    EXPECT_TRUE(lxa_is_running()) << "ASM-One should start with bundled reqtools.library available";
+    EXPECT_STRNE(window_info.title, "System Message")
+        << "ASM-One should reach its editor window instead of a system requester";
 
     ClearOutput();
     RunCyclesWithVBlank(40, 50000);
 
-    EXPECT_TRUE(lxa_is_running()) << "ASM-One should keep running with disk reqtools.library available";
+    EXPECT_TRUE(lxa_is_running()) << "ASM-One should keep running with bundled reqtools.library available";
 
     std::string output = GetOutput();
     EXPECT_EQ(output.find("requested library reqtools.library was not found"), std::string::npos)

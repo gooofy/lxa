@@ -15,6 +15,112 @@ using namespace lxa::testing;
 
 class AppsMiscTest : public LxaUITest {
 protected:
+    bool SetupOriginalSystemAssigns(bool add_libs = false,
+                                    bool add_fonts = false,
+                                    bool add_devs = false)
+    {
+        const char* home = std::getenv("HOME");
+        if (home == nullptr || home[0] == '\0') {
+            return false;
+        }
+
+        const std::filesystem::path system_base =
+            std::filesystem::path(home) / "media" / "emu" / "amiga" / "FS-UAE" / "hdd" / "system";
+
+        if (!std::filesystem::exists(system_base)) {
+            return false;
+        }
+
+        if (add_libs && !lxa_add_assign_path("LIBS", (system_base / "Libs").c_str())) {
+            return false;
+        }
+
+        if (add_fonts && !lxa_add_assign_path("FONTS", (system_base / "Fonts").c_str())) {
+            return false;
+        }
+
+        if (add_devs && !lxa_add_assign_path("DEVS", (system_base / "Devs").c_str())) {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool SetupBlitzBasic2Assigns() {
+        const char* apps = FindAppsPath();
+        if (apps == nullptr) {
+            return false;
+        }
+
+        const std::filesystem::path blitz_base = std::filesystem::path(apps) / "BlitzBasic2";
+        if (!std::filesystem::exists(blitz_base / "blitz2")) {
+            return false;
+        }
+
+        return lxa_add_assign("Blitz2", blitz_base.c_str())
+            && lxa_add_assign_path("C", (blitz_base / "c").c_str())
+            && lxa_add_assign_path("L", (blitz_base / "l").c_str())
+            && lxa_add_assign_path("S", (blitz_base / "s").c_str());
+    }
+
+    bool SetupFinalWriterAssigns() {
+        const char* apps = FindAppsPath();
+        if (apps == nullptr) {
+            return false;
+        }
+
+        const std::filesystem::path fw_base = std::filesystem::path(apps) / "FinalWriter_D";
+        if (!std::filesystem::exists(fw_base / "FinalWriter")) {
+            return false;
+        }
+
+        return lxa_add_assign("FinalWriter", fw_base.c_str())
+            && lxa_add_assign_path("LIBS", (fw_base / "FWLibs").c_str())
+            && lxa_add_assign_path("FONTS", (fw_base / "FWFonts").c_str());
+    }
+
+    bool SetupSonixAssigns() {
+        const char* apps = FindAppsPath();
+        if (apps == nullptr) {
+            return false;
+        }
+
+        const std::filesystem::path sonix_base = std::filesystem::path(apps) / "Sonix 2";
+        if (!std::filesystem::exists(sonix_base / "Sonix")) {
+            return false;
+        }
+
+        return lxa_add_assign("Sonix", sonix_base.c_str());
+    }
+
+    bool SetupTypefaceAssigns() {
+        const char* apps = FindAppsPath();
+        if (apps == nullptr) {
+            return false;
+        }
+
+        const std::filesystem::path typeface_base = std::filesystem::path(apps) / "Typeface";
+        if (!std::filesystem::exists(typeface_base / "Typeface")) {
+            return false;
+        }
+
+        return lxa_add_assign_path("LIBS", (typeface_base / "Libs").c_str());
+    }
+
+    bool SetupVimAssigns() {
+        const char* apps = FindAppsPath();
+        if (apps == nullptr) {
+            return false;
+        }
+
+        const std::filesystem::path vim_base = std::filesystem::path(apps) / "vim-5.3";
+        if (!std::filesystem::exists(vim_base / "Vim")) {
+            return false;
+        }
+
+        return lxa_add_assign_path("LIBS", (vim_base / "libs").c_str());
+    }
+
     void SetUp() override {
         LxaUITest::SetUp();
     }
@@ -346,6 +452,136 @@ TEST_F(AppsMiscTest, SysInfoRootlessWindowDrawsContent) {
     EXPECT_TRUE(lxa_is_running())
         << "SysInfo should remain running after its main window is drawn\n"
         << GetOutput();
+}
+
+TEST_F(AppsMiscTest, FinalWriterDStartsWithBundledLibraries) {
+    if (!SetupOriginalSystemAssigns(true, true, false) || !SetupFinalWriterAssigns()) {
+        GTEST_SKIP() << "FinalWriter_D app bundle or original system disk not found";
+    }
+
+    ASSERT_EQ(lxa_load_program("APPS:FinalWriter_D/FinalWriter", ""), 0)
+        << "Failed to load FinalWriter_D via APPS: assign";
+
+    RunCyclesWithVBlank(200, 50000);
+
+    EXPECT_TRUE(lxa_is_running())
+        << "FinalWriter_D should still be running after startup\n"
+        << GetOutput();
+
+    EXPECT_EQ(GetOutput().find("Can't find \"swshell.library\""), std::string::npos)
+        << GetOutput();
+}
+
+TEST_F(AppsMiscTest, PPaintStartsWithoutLibraryFailures) {
+    if (!SetupOriginalSystemAssigns(true, true, false) || FindAppsPath() == nullptr) {
+        GTEST_SKIP() << "ppaint app bundle or original system disk not found";
+    }
+
+    ASSERT_EQ(lxa_load_program("APPS:ppaint/ppaint", ""), 0)
+        << "Failed to load ppaint via APPS: assign";
+
+    RunCyclesWithVBlank(160, 50000);
+
+    EXPECT_TRUE(lxa_is_running())
+        << "ppaint should still be running after startup\n"
+        << GetOutput();
+
+    EXPECT_EQ(GetOutput().find("requested library"), std::string::npos)
+        << GetOutput();
+}
+
+TEST_F(AppsMiscTest, ProWriteOpensWindows) {
+    if (!SetupOriginalSystemAssigns(true, true, false) || FindAppsPath() == nullptr) {
+        GTEST_SKIP() << "ProWrite app bundle or original system disk not found";
+    }
+
+    ASSERT_EQ(lxa_load_program("APPS:ProWrite/ProWrite", ""), 0)
+        << "Failed to load ProWrite via APPS: assign";
+
+    ASSERT_TRUE(WaitForWindows(1, 20000))
+        << "ProWrite did not open a window\n"
+        << GetOutput();
+
+    ASSERT_TRUE(GetWindowInfo(0, &window_info));
+    EXPECT_TRUE(WaitForWindowDrawn(0, 5000))
+        << "ProWrite window should expose visible content\n"
+        << GetOutput();
+
+    EXPECT_TRUE(lxa_is_running())
+        << "ProWrite should still be running after startup\n"
+        << GetOutput();
+
+    EXPECT_GT(window_info.width, 0);
+    EXPECT_GT(window_info.height, 0);
+}
+
+TEST_F(AppsMiscTest, SIGMAth2OpensAnalysisWindow) {
+    if (!SetupOriginalSystemAssigns(true, false, false) || FindAppsPath() == nullptr) {
+        GTEST_SKIP() << "SIGMAth2 app bundle or original system disk not found";
+    }
+
+    ASSERT_EQ(lxa_load_program("APPS:SIGMAth2/SIGMAth_2", ""), 0)
+        << "Failed to load SIGMAth2 via APPS: assign";
+
+    ASSERT_TRUE(WaitForWindows(1, 20000))
+        << "SIGMAth2 did not open a window\n"
+        << GetOutput();
+
+    ASSERT_TRUE(GetWindowInfo(0, &window_info));
+    EXPECT_TRUE(WaitForWindowDrawn(0, 5000))
+        << "SIGMAth2 window should expose visible content\n"
+        << GetOutput();
+
+    EXPECT_TRUE(lxa_is_running())
+        << "SIGMAth2 should still be running after startup\n"
+        << GetOutput();
+
+    EXPECT_GT(window_info.width, 0);
+    EXPECT_GT(window_info.height, 0);
+}
+
+TEST_F(AppsMiscTest, DISABLED_BlitzBasic2Starts) {
+    if (!SetupOriginalSystemAssigns(true, true, true) || !SetupBlitzBasic2Assigns()) {
+        GTEST_SKIP() << "BlitzBasic2 app bundle or original system disk not found";
+    }
+
+    ASSERT_EQ(lxa_load_program("APPS:BlitzBasic2/blitz2", ""), 0)
+        << "Failed to load BlitzBasic2 via APPS: assign";
+
+    ASSERT_TRUE(WaitForWindows(1, 20000)) << GetOutput();
+}
+
+TEST_F(AppsMiscTest, DISABLED_Sonix2Starts) {
+    if (!SetupOriginalSystemAssigns(true, false, true) || !SetupSonixAssigns()) {
+        GTEST_SKIP() << "Sonix 2 app bundle or original system disk not found";
+    }
+
+    ASSERT_EQ(lxa_load_program("APPS:Sonix 2/Sonix", ""), 0)
+        << "Failed to load Sonix 2 via APPS: assign";
+
+    ASSERT_TRUE(WaitForWindows(1, 20000)) << GetOutput();
+}
+
+TEST_F(AppsMiscTest, DISABLED_TypefaceStarts) {
+    if (!SetupOriginalSystemAssigns(true, true, false) || !SetupTypefaceAssigns()) {
+        GTEST_SKIP() << "Typeface app bundle or original system disk not found";
+    }
+
+    ASSERT_EQ(lxa_load_program("APPS:Typeface/Typeface", ""), 0)
+        << "Failed to load Typeface via APPS: assign";
+
+    ASSERT_TRUE(WaitForWindows(1, 20000)) << GetOutput();
+}
+
+TEST_F(AppsMiscTest, DISABLED_Vim53Starts) {
+    if (!SetupOriginalSystemAssigns(true, false, false) || !SetupVimAssigns()) {
+        GTEST_SKIP() << "vim-5.3 app bundle or original system disk not found";
+    }
+
+    ASSERT_EQ(lxa_load_program("APPS:vim-5.3/Vim", ""), 0)
+        << "Failed to load vim-5.3 via APPS: assign";
+
+    ASSERT_TRUE(WaitForWindows(1, 20000)) << GetOutput();
 }
 
 int main(int argc, char **argv) {

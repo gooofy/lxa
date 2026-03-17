@@ -167,6 +167,8 @@ struct LXAIntuitionBase {
     struct IntuitionBase ib;
     struct List ClassList;      /* List of public classes */
     struct IClass *RootClass;   /* Pointer to rootclass */
+    struct IClass *ImageClass;  /* Pointer to imageclass */
+    struct IClass *SysIClass;   /* Pointer to sysiclass */
     struct IClass *ICClass;     /* Pointer to icclass */
     struct IClass *ModelClass;  /* Pointer to modelclass */
     struct IClass *GadgetClass; /* Pointer to gadgetclass */
@@ -2816,6 +2818,78 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
         DPRINTF(LOG_DEBUG, "_intuition: rootclass created at 0x%08lx\n", (ULONG)root);
     } else {
         DPRINTF(LOG_ERROR, "_intuition: Failed to allocate rootclass!\n");
+    }
+
+    /* Create imageclass (subclass of rootclass) */
+    {
+        struct IClass *imageclass = AllocMem(sizeof(struct IClass) + sizeof(IMAGECLASS), MEMF_PUBLIC | MEMF_CLEAR);
+        if (imageclass && base->RootClass) {
+            UBYTE *id = (UBYTE *)(imageclass + 1);
+            strcpy((char *)id, IMAGECLASS);
+
+            imageclass->cl_ID = (ClassID)id;
+            imageclass->cl_Super = base->RootClass;
+            imageclass->cl_Dispatcher.h_Entry = (ULONG (*)())rootclass_dispatch;
+            imageclass->cl_Dispatcher.h_Data = NULL;
+            imageclass->cl_Dispatcher.h_SubEntry = NULL;
+            imageclass->cl_Reserved = 0;
+            imageclass->cl_InstOffset = base->RootClass->cl_InstOffset + base->RootClass->cl_InstSize;
+            imageclass->cl_InstSize = sizeof(struct Image);
+
+            base->RootClass->cl_SubclassCount++;
+
+            {
+                struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+                if (node) {
+                    node->class_ptr = imageclass;
+                    node->node.ln_Type = NT_UNKNOWN;
+                    node->node.ln_Name = (char *)id;
+                    AddTail(&base->ClassList, &node->node);
+                    imageclass->cl_Flags |= CLF_INLIST;
+                }
+            }
+
+            base->ImageClass = imageclass;
+            DPRINTF(LOG_DEBUG, "_intuition: imageclass created at 0x%08lx\n", (ULONG)imageclass);
+        } else {
+            DPRINTF(LOG_ERROR, "_intuition: Failed to allocate imageclass!\n");
+        }
+    }
+
+    /* Create sysiclass (subclass of imageclass) */
+    {
+        struct IClass *sysiclass = AllocMem(sizeof(struct IClass) + sizeof(SYSICLASS), MEMF_PUBLIC | MEMF_CLEAR);
+        if (sysiclass && base->ImageClass) {
+            UBYTE *id = (UBYTE *)(sysiclass + 1);
+            strcpy((char *)id, SYSICLASS);
+
+            sysiclass->cl_ID = (ClassID)id;
+            sysiclass->cl_Super = base->ImageClass;
+            sysiclass->cl_Dispatcher.h_Entry = (ULONG (*)())rootclass_dispatch;
+            sysiclass->cl_Dispatcher.h_Data = NULL;
+            sysiclass->cl_Dispatcher.h_SubEntry = NULL;
+            sysiclass->cl_Reserved = 0;
+            sysiclass->cl_InstOffset = base->ImageClass->cl_InstOffset + base->ImageClass->cl_InstSize;
+            sysiclass->cl_InstSize = 0;
+
+            base->ImageClass->cl_SubclassCount++;
+
+            {
+                struct LXAClassNode *node = AllocMem(sizeof(struct LXAClassNode), MEMF_PUBLIC | MEMF_CLEAR);
+                if (node) {
+                    node->class_ptr = sysiclass;
+                    node->node.ln_Type = NT_UNKNOWN;
+                    node->node.ln_Name = (char *)id;
+                    AddTail(&base->ClassList, &node->node);
+                    sysiclass->cl_Flags |= CLF_INLIST;
+                }
+            }
+
+            base->SysIClass = sysiclass;
+            DPRINTF(LOG_DEBUG, "_intuition: sysiclass created at 0x%08lx\n", (ULONG)sysiclass);
+        } else {
+            DPRINTF(LOG_ERROR, "_intuition: Failed to allocate sysiclass!\n");
+        }
     }
 
     /* Create icclass (subclass of rootclass) */
@@ -12473,30 +12547,6 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
     DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() classPtr=0x%08lx classID='%s'\n",
              (ULONG)classPtr, classID ? (const char*)classID : "(null)");
 
-    if (!use_class && classID)
-        use_class = _intuition_find_class(base, classID);
-
-    if (use_class) {
-        size = SIZEOF_INSTANCE(use_class);
-        if (size < sizeof(struct _Object))
-            size = sizeof(struct _Object);
-
-        object_memory = AllocMem(size, MEMF_PUBLIC | MEMF_CLEAR);
-        if (!object_memory)
-            return NULL;
-
-        public_obj = (Object *)(object_memory + sizeof(struct _Object));
-        _OBJECT(public_obj)->o_Class = use_class;
-        use_class->cl_ObjectCount++;
-
-        op.MethodID = OM_NEW;
-        op.ops_AttrList = (struct TagItem *)tagList;
-        op.ops_GInfo = NULL;
-        _intuition_dispatch_method(use_class, public_obj, (Msg)&op);
-
-        return (APTR)public_obj;
-    }
-
     /* Handle sysiclass - system imagery class */
     if (classID && strcmp((const char*)classID, SYSICLASS) == 0) {
         /* Create a minimal Image structure for system imagery */
@@ -12537,6 +12587,30 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
         
         DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() imageclass -> Image at 0x%08lx\n", (ULONG)img);
         return (APTR)img;
+    }
+
+    if (!use_class && classID)
+        use_class = _intuition_find_class(base, classID);
+
+    if (use_class) {
+        size = SIZEOF_INSTANCE(use_class);
+        if (size < sizeof(struct _Object))
+            size = sizeof(struct _Object);
+
+        object_memory = AllocMem(size, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!object_memory)
+            return NULL;
+
+        public_obj = (Object *)(object_memory + sizeof(struct _Object));
+        _OBJECT(public_obj)->o_Class = use_class;
+        use_class->cl_ObjectCount++;
+
+        op.MethodID = OM_NEW;
+        op.ops_AttrList = (struct TagItem *)tagList;
+        op.ops_GInfo = NULL;
+        _intuition_dispatch_method(use_class, public_obj, (Msg)&op);
+
+        return (APTR)public_obj;
     }
     
     /* Unknown class - return NULL */

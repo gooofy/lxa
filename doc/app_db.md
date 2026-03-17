@@ -117,3 +117,19 @@ That run also narrows the remaining startup-time open failures that matter for P
 - `keyboard.device` is no longer a launch blocker; the Phase 79 device work is sufficient for DOpus to reach its main UI
 - `input.device`, `console.device`, `timer.device`, and `audio.device` are present during launch and do not block first frame
 - `commodities.library`, `rexxsyslib.library`, and `inovamusic.library` still fail to open in this environment, but those failures are currently non-fatal for reaching the main DOpus window and should be treated as optional follow-up compatibility work unless later drivers prove otherwise
+
+## ASM-One Runtime Surface Audit
+
+The App-DB copy at `../lxa-apps/Asm-One/bin/ASM-One/` now bundles `reqtools.library` under `Libs/` so the library stays disk-provided while still being available during ASM-One startup.
+
+### Required Assigns And Search Paths
+
+- `LIBS:` must include `APPS:Asm-One/bin/ASM-One/Libs/`
+- The process current directory should remain `APPS:Asm-One/bin/ASM-One/`
+- `APPS:` still points at the sibling `lxa-apps` tree; no ROM integration is required
+
+### Bundled Disk-Provided Dependencies
+
+- `reqtools.library`
+
+The ASM-One driver and debugger launch profile now add that app-local `Libs/` path to `LIBS:` and assert that startup no longer emits the previous missing `reqtools.library` failure.

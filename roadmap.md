@@ -11,7 +11,7 @@ The goal of this phase is to make all apps run exactly like they would on a real
 
 * [x] Add a screenshot review helper at `tools/screenshot_review.py` that sends one or more captures to an OpenRouter vision model (using `OPENROUTER_API_KEY`) so manual app-review work can inspect Amiga UI output directly.
 
-* [ ] ASM-One: no screen mode requester on startup (blocked on providing the disk-only `reqtools.library`; tests now cover both the optional-missing path and the disk-provided path via `LXA_TEST_THIRD_PARTY_LIBS`)
+* [x] ASM-One: bundle the disk-provided `reqtools.library` in `lxa-apps/Asm-One/bin/ASM-One/Libs`, wire the ASM-One test/launch paths to add that directory to `LIBS:`, and confirm startup no longer logs the missing-library failure.
 * [ ] ASM-One: does not ask for ALLOCATE/WORKSPACE sizes on startup, does not show prompt
 * [ ] ASM-One: no menu bar
     _intuition: _render_menu_bar() invalid RastPort BitMap
@@ -26,11 +26,8 @@ The goal of this phase is to make all apps run exactly like they would on a real
     _intuition: _render_menu_items() invalid RastPort BitMap
     _intuition: _render_menu_bar() invalid RastPort BitMap
     _intuition: _render_menu_items() invalid RastPort BitMap
-* [ ] ASM-One: errors on startup
+* [ ] ASM-One: remaining startup issues
     _intuition: OpenWorkBench() returning, IntuitionBase=0x000113ec
-    _dos: LoadSeg() called, name=LIBS:reqtools.library
-    _dos: LoadSeg() Open() for name=LIBS:reqtools.library failed
-    _exec: OpenLibrary: *** ERROR: requested library reqtools.library was not found.
     _intuition: OpenScreen() newScreen=0x0008041c
     display: opened 800x600x2 virtual display (rootless backing store)
     [ROM] OpenScreen: offsetof(FirstScreen)=60, sizeof(IntuitionBase)=80, sizeof(Library)=34, sizeof(View)=18
@@ -50,6 +47,8 @@ The goal of this phase is to make all apps run exactly like they would on a real
 * [ ] KickPascal: `KickPascal` logo image off to the left of the screen, also: right part of logo cut off
 * [ ] KickPascal: "Workspace/KBytes (max = ..." string draw partially off to the left of the screen
 * [ ] KickPascal: cannot delete the default "200" entry for the "Workspace/KBytes" question
+* [x] Import and wire additional real-world app bundles for integration coverage: copied `BlitzBasic2`, `FinalWriter_D`, `ppaint`, `ProWrite`, `SIGMAth2`, `Sonix 2`, `Typeface`, and `vim-5.3` into `../lxa-apps`, added launch configs for each, and added startup smoke coverage for the apps that currently boot under lxa (`FinalWriter_D`, `ppaint`, `ProWrite`, `SIGMAth2`).
+* [ ] Follow up remaining imported app startup blockers found during wiring: `BlitzBasic2` invalid screen dimensions crash, `Sonix 2` serial-device exception, `Typeface` missing `commodities.library`/`datatypes.library` vector crash, `vim-5.3` early invalid PC crash, and `ProWrite` missing `hotlinks.library`.
 
 ---
 

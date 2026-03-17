@@ -225,7 +225,7 @@ GFA Basic now opens a 640x256 screen and window, initializes console, and enters
 
 ### ASM-One v1.48 - ⚠️ PARTIAL
 - **Binary**: `APPS:ASM-One/ASM-One_V1.48`
-- **Status**: Opens Workbench and editor screen, then crashes
+- **Status**: Opens Workbench and editor screen with bundled `reqtools.library`; deeper startup/workspace issues remain
 - **Progress**:
   1. Opens gadtools.library ✓
   2. Opens Workbench screen (640x256) ✓
@@ -233,9 +233,8 @@ GFA Basic now opens a 640x256 screen and window, initializes console, and enters
   4. Crashes accessing invalid ROM address (0x00FBEED1)
 - **Issues**:
   1. iffparse.library not found (non-fatal)
-  2. Third-party requester library not found on disk (non-fatal)
-  3. timer.device not found
-  4. Crash appears to be from unimplemented ROM function
+  2. timer.device not found
+  3. Crash appears to be from unimplemented ROM function
 - **Fix Required**:
   - Identify which ROM function is at 0x00FBE* range
   - Likely a graphics or intuition function returning bad pointer

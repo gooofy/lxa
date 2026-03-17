@@ -2729,6 +2729,8 @@
                 "ENVARC=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
                 "--assign",
                 "APPS=${workspaceFolder}/../lxa-apps",
+                "--assign-add",
+                "LIBS=${workspaceFolder}/../lxa-apps/Asm-One/bin/ASM-One/Libs",
                 "APPS:Asm-One/bin/ASM-One/ASM-One_V1.48"
             ],
             "stopAtEntry": false,
@@ -3042,6 +3044,460 @@
                 "--assign",
                 "APPS=${workspaceFolder}/../lxa-apps",
                 "APPS:MaxonBASIC/bin/MaxonBASIC/MaxonBASIC"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: BlitzBasic2",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-c",
+                "${workspaceFolder}/.vscode/lxa-test-launch.ini",
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "SYS=${workspaceFolder}/build/target/samples/Samples",
+                "--assign-add",
+                "SYS=${workspaceFolder}/build/target/sys",
+                "--assign",
+                "LIBS=${workspaceFolder}/build/target/sys/Libs",
+                "--assign-add",
+                "LIBS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Libs",
+                "--assign",
+                "C=${workspaceFolder}/build/target/sys/C",
+                "--assign-add",
+                "C=${workspaceFolder}/../lxa-apps/BlitzBasic2/c",
+                "--assign",
+                "System=${workspaceFolder}/build/target/sys/System",
+                "--assign-add",
+                "L=${workspaceFolder}/../lxa-apps/BlitzBasic2/l",
+                "--assign-add",
+                "S=${workspaceFolder}/../lxa-apps/BlitzBasic2/s",
+                "--assign-add",
+                "DEVS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Devs",
+                "--assign-add",
+                "FONTS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Fonts",
+                "--assign",
+                "T=${workspaceFolder}/.vscode/lxa-test-runtime/T",
+                "--assign",
+                "ENV=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "ENVARC=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "--assign",
+                "Blitz2=${workspaceFolder}/../lxa-apps/BlitzBasic2",
+                "APPS:BlitzBasic2/blitz2"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: FinalWriter_D",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-c",
+                "${workspaceFolder}/.vscode/lxa-test-launch.ini",
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "SYS=${workspaceFolder}/build/target/samples/Samples",
+                "--assign-add",
+                "SYS=${workspaceFolder}/build/target/sys",
+                "--assign",
+                "LIBS=${workspaceFolder}/build/target/sys/Libs",
+                "--assign-add",
+                "LIBS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Libs",
+                "--assign-add",
+                "LIBS=${workspaceFolder}/../lxa-apps/FinalWriter_D/FWLibs",
+                "--assign",
+                "C=${workspaceFolder}/build/target/sys/C",
+                "--assign",
+                "System=${workspaceFolder}/build/target/sys/System",
+                "--assign-add",
+                "FONTS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Fonts",
+                "--assign-add",
+                "FONTS=${workspaceFolder}/../lxa-apps/FinalWriter_D/FWFonts",
+                "--assign",
+                "T=${workspaceFolder}/.vscode/lxa-test-runtime/T",
+                "--assign",
+                "ENV=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "ENVARC=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "--assign",
+                "FinalWriter=${workspaceFolder}/../lxa-apps/FinalWriter_D",
+                "APPS:FinalWriter_D/FinalWriter"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: ppaint",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-c",
+                "${workspaceFolder}/.vscode/lxa-test-launch.ini",
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "SYS=${workspaceFolder}/build/target/samples/Samples",
+                "--assign-add",
+                "SYS=${workspaceFolder}/build/target/sys",
+                "--assign",
+                "LIBS=${workspaceFolder}/build/target/sys/Libs",
+                "--assign-add",
+                "LIBS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Libs",
+                "--assign",
+                "C=${workspaceFolder}/build/target/sys/C",
+                "--assign",
+                "System=${workspaceFolder}/build/target/sys/System",
+                "--assign-add",
+                "DEVS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Devs",
+                "--assign-add",
+                "FONTS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Fonts",
+                "--assign",
+                "T=${workspaceFolder}/.vscode/lxa-test-runtime/T",
+                "--assign",
+                "ENV=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "ENVARC=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "APPS:ppaint/ppaint"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: ProWrite",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-c",
+                "${workspaceFolder}/.vscode/lxa-test-launch.ini",
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "SYS=${workspaceFolder}/build/target/samples/Samples",
+                "--assign-add",
+                "SYS=${workspaceFolder}/build/target/sys",
+                "--assign",
+                "LIBS=${workspaceFolder}/build/target/sys/Libs",
+                "--assign-add",
+                "LIBS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Libs",
+                "--assign",
+                "C=${workspaceFolder}/build/target/sys/C",
+                "--assign",
+                "System=${workspaceFolder}/build/target/sys/System",
+                "--assign-add",
+                "FONTS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Fonts",
+                "--assign",
+                "T=${workspaceFolder}/.vscode/lxa-test-runtime/T",
+                "--assign",
+                "ENV=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "ENVARC=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "APPS:ProWrite/ProWrite"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: SIGMAth2",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-c",
+                "${workspaceFolder}/.vscode/lxa-test-launch.ini",
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "SYS=${workspaceFolder}/build/target/samples/Samples",
+                "--assign-add",
+                "SYS=${workspaceFolder}/build/target/sys",
+                "--assign",
+                "LIBS=${workspaceFolder}/build/target/sys/Libs",
+                "--assign-add",
+                "LIBS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Libs",
+                "--assign",
+                "C=${workspaceFolder}/build/target/sys/C",
+                "--assign",
+                "System=${workspaceFolder}/build/target/sys/System",
+                "--assign",
+                "T=${workspaceFolder}/.vscode/lxa-test-runtime/T",
+                "--assign",
+                "ENV=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "ENVARC=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "APPS:SIGMAth2/SIGMAth_2"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: Sonix 2",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-c",
+                "${workspaceFolder}/.vscode/lxa-test-launch.ini",
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "SYS=${workspaceFolder}/build/target/samples/Samples",
+                "--assign-add",
+                "SYS=${workspaceFolder}/build/target/sys",
+                "--assign",
+                "LIBS=${workspaceFolder}/build/target/sys/Libs",
+                "--assign-add",
+                "LIBS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Libs",
+                "--assign",
+                "C=${workspaceFolder}/build/target/sys/C",
+                "--assign",
+                "System=${workspaceFolder}/build/target/sys/System",
+                "--assign-add",
+                "DEVS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Devs",
+                "--assign",
+                "T=${workspaceFolder}/.vscode/lxa-test-runtime/T",
+                "--assign",
+                "ENV=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "ENVARC=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "--assign",
+                "Sonix=${workspaceFolder}/../lxa-apps/Sonix 2",
+                "APPS:Sonix 2/Sonix"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: Typeface",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-c",
+                "${workspaceFolder}/.vscode/lxa-test-launch.ini",
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "SYS=${workspaceFolder}/build/target/samples/Samples",
+                "--assign-add",
+                "SYS=${workspaceFolder}/build/target/sys",
+                "--assign",
+                "LIBS=${workspaceFolder}/build/target/sys/Libs",
+                "--assign-add",
+                "LIBS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Libs",
+                "--assign-add",
+                "LIBS=${workspaceFolder}/../lxa-apps/Typeface/Libs",
+                "--assign",
+                "C=${workspaceFolder}/build/target/sys/C",
+                "--assign",
+                "System=${workspaceFolder}/build/target/sys/System",
+                "--assign-add",
+                "DEVS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Devs",
+                "--assign-add",
+                "FONTS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Fonts",
+                "--assign",
+                "T=${workspaceFolder}/.vscode/lxa-test-runtime/T",
+                "--assign",
+                "ENV=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "ENVARC=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "APPS:Typeface/Typeface"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "LXA_PREFIX",
+                    "value": "${workspaceFolder}/../../usr"
+                }
+            ],
+            "externalConsole": false,
+            "preLaunchTask": "Build latest lxa runtime",
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "miDebuggerPath": "/usr/bin/gdb"
+        },
+        {
+            "name": "App: vim-5.3",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/host/bin/lxa",
+            "args": [
+                "-c",
+                "${workspaceFolder}/.vscode/lxa-test-launch.ini",
+                "-r",
+                "${workspaceFolder}/build/target/rom/lxa.rom",
+                "--assign",
+                "SYS=${workspaceFolder}/build/target/samples/Samples",
+                "--assign-add",
+                "SYS=${workspaceFolder}/build/target/sys",
+                "--assign",
+                "LIBS=${workspaceFolder}/build/target/sys/Libs",
+                "--assign-add",
+                "LIBS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Libs",
+                "--assign-add",
+                "LIBS=${workspaceFolder}/../lxa-apps/vim-5.3/libs",
+                "--assign",
+                "C=${workspaceFolder}/build/target/sys/C",
+                "--assign",
+                "System=${workspaceFolder}/build/target/sys/System",
+                "--assign",
+                "T=${workspaceFolder}/.vscode/lxa-test-runtime/T",
+                "--assign",
+                "ENV=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "ENVARC=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
+                "--assign",
+                "APPS=${workspaceFolder}/../lxa-apps",
+                "APPS:vim-5.3/Vim"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

@@ -236,6 +236,21 @@ static void test_public_class_lifecycle(void)
           "FreeClass succeeds after outstanding objects are disposed");
 }
 
+static void test_makeclass_accepts_public_imageclass_superclass(void)
+{
+    Class *image_subclass;
+
+    printf("Test: MakeClass resolves public imageclass superclass\n");
+
+    image_subclass = MakeClass(NULL, IMAGECLASS, NULL, 0, 0);
+    CHECK(image_subclass != NULL, "MakeClass creates subclass from imageclass");
+    if (!image_subclass)
+        return;
+
+    CHECK(image_subclass->cl_Super != NULL, "imageclass subclass has resolved superclass");
+    CHECK(FreeClass(image_subclass) == TRUE, "FreeClass frees imageclass subclass");
+}
+
 static void test_modelclass_members(void)
 {
     Class *member_class;
@@ -397,6 +412,7 @@ int main(void)
     test_makeclass_requires_superclass();
     test_private_class_and_dispatch();
     test_public_class_lifecycle();
+    test_makeclass_accepts_public_imageclass_superclass();
     test_modelclass_members();
     test_nextobject_iteration();
 
