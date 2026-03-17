@@ -29,6 +29,41 @@ The host-side integration stack has grown beyond simple click injection. Future 
 
 Prefer these helpers over brittle coordinate-only scripts whenever the test can identify a real window or gadget.
 
+### Visual Investigation with `tools/screenshot_review.py`
+
+When a captured screenshot shows an unexpected visual result and the root cause is not obvious from code inspection alone, use the OpenRouter-backed screenshot review helper to get a structured visual analysis:
+
+```bash
+# Review a single capture
+python tools/screenshot_review.py path/to/capture.ppm
+
+# Compare multiple shots (before/after, or lxa vs reference)
+python tools/screenshot_review.py before.ppm after.ppm
+
+# Override the model when a specific vision model is preferred
+python tools/screenshot_review.py --model anthropic/claude-sonnet-4.6 shot.png
+
+# Supply a focused prompt when investigating a specific known issue
+python tools/screenshot_review.py --prompt "Describe the menu separator rendering" shot.ppm
+
+# Machine-readable output for scripting
+python tools/screenshot_review.py --output json shot.ppm
+```
+
+**Requirements**: set `OPENROUTER_API_KEY` in the environment before calling the tool.
+
+**When to use it**:
+- A GTest driver captures a failure artifact via `lxa_capture_window()` and the pixel-level assertion message alone does not explain the visual defect.
+- You need to triage a UI regression that involves layout, clipping, text rendering, or menu drawing without a real Amiga for reference comparison.
+- You want a quick second opinion on whether a rendered window looks correct before writing a pixel-level regression test.
+
+**When NOT to use it**:
+- The bug is purely algorithmic (wrong calculation, wrong state) — read the code instead.
+- You have not yet captured a screenshot — run the GTest driver first to produce artifacts.
+- Automated CI paths — the tool requires a live OpenRouter API key and is intended for developer investigations only.
+
+See the `graphics-testing` skill for the full workflow and how to integrate capture + review into a debugging session.
+
 ## 4. Available Skills
 Load the specific skill relevant to your task:
 

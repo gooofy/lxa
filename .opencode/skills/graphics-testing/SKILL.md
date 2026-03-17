@@ -115,3 +115,62 @@ int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0);
 - Use `ClearOutput()` before the section you want to verify.
 - Check for specific strings with `output.find()`, don't compare entire output.
 - If a UI test depends on a third-party helper library, load the real library from disk instead of adding a ROM stub for it.
+
+## 8. Visual Investigation with `tools/screenshot_review.py`
+
+When a captured screenshot needs human-readable visual analysis — especially when a pixel assertion fires but the defect is not obvious from numbers alone — use the OpenRouter vision helper.
+
+### Prerequisites
+```bash
+export OPENROUTER_API_KEY=<your-key>
+```
+
+### Basic usage
+```bash
+# Single capture review
+python tools/screenshot_review.py path/to/capture.ppm
+
+# Side-by-side comparison (e.g. before/after a fix, or lxa vs reference)
+python tools/screenshot_review.py before.ppm after.ppm
+
+# Focus the model on a specific subsystem
+python tools/screenshot_review.py \
+    --prompt "Describe any clipping or overdraw around the menu separator" \
+    capture.ppm
+
+# Use a specific vision model
+python tools/screenshot_review.py \
+    --model anthropic/claude-sonnet-4.6 \
+    capture.ppm
+
+# Machine-readable output for scripting or logging
+python tools/screenshot_review.py --output json capture.ppm
+```
+
+### Typical debugging workflow
+1. Run the GTest driver to reproduce the visual defect and collect an artifact:
+   ```bash
+   ./build/tests/drivers/my_app_gtest --gtest_filter="MyTest.BadMenu"
+   # driver calls lxa_capture_window() on failure → saves capture.ppm
+   ```
+2. Send the artifact to the vision model:
+   ```bash
+   python tools/screenshot_review.py /tmp/lxa_capture_*.ppm
+   ```
+3. Use the model's region/coordinate hints to focus a targeted pixel assertion or a narrower code search.
+4. Once the root cause is confirmed in code, write or update the pixel-level GTest regression so the defect is caught automatically in future runs.
+
+### When to use it
+| Situation | Use the tool? |
+|-----------|---------------|
+| GTest failure artifact needs visual diagnosis | Yes |
+| Comparing lxa output to a real-Amiga reference image | Yes |
+| Triaging a layout/clipping/menu rendering regression | Yes |
+| Bug is purely algorithmic (no visual component) | No |
+| No screenshot has been captured yet | No — capture first |
+| Automated CI path | No — requires live API key |
+
+### Notes
+- The default model is `google/gemini-3-flash-preview`. Override with `--model` when a stronger model is needed for subtle rendering details.
+- The default prompt is tuned for Amiga UI review. Supply `--prompt` only when narrowing to a specific subsystem helps.
+- The tool is for **developer investigation only**; never add API calls to it in automated test code.
