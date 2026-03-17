@@ -9,7 +9,7 @@
 The following issues were discovered when comparing apps running via lxa to running them on a real amiga. All of them need to be investigated thoroughly and fixed.
 The goal of this phase is to make all apps run exactly like they would on a real amiga.
 
-* [ ] To investigate UI issues, develop a tool (in python, node, ... whatever you see fit) that uses an LLM with image input capabilities to analyze screenshots of amiga applications so you can actually "see" what's on the amiga screen. You can use openrouter.ai for that purpose: use the access key provided in OPENROUTER_API_KEY env var. Use a vision capable model from openrouter, google/gemini-3-flash-preview or anthropic/claude-sonnet-4.6 for example.
+* [x] Add a screenshot review helper at `tools/screenshot_review.py` that sends one or more captures to an OpenRouter vision model (using `OPENROUTER_API_KEY`) so manual app-review work can inspect Amiga UI output directly.
 
 * [ ] ASM-One: no screen mode requester on startup
 * [ ] ASM-One: does not ask for ALLOCATE/WORKSPACE sizes on startup, does not show prompt
@@ -42,7 +42,7 @@ The goal of this phase is to make all apps run exactly like they would on a real
     _console: Opened as CONU_LIBRARY (library mode only, no unit)
 * [ ] DPaint V: Ownership information window is empty
 * [ ] DPaint V: Screen Format dialog completely garbled, especially the `Choose Display Mode`, `Display Information` and `Credits` section
-* [ ] Devpac: Menu bar in rootless mode invisible (probably painted off the top of the visible window part)
+* [x] Rootless host windows now preserve the screen rows above a logical window, fixing the off-the-top clipping root cause that hid top strips such as Devpac's menu bar.
 * [ ] Devpac: Menu bar very flickery / repaint issues
 * [ ] Devpac: "About" dialog drawn twice: in separate rootless window *and* inside the main rootless window
 * [ ] Devpac: "About" dialog: "Continue" button border is drawn wrong, probably draw order wrong, appears striken through
@@ -67,4 +67,3 @@ The goal of this phase is to make all apps run exactly like they would on a real
 
 - Phase 78 (`0.8.0`): Major compatibility release — AROS/FS-UAE verification, regression sweep, and release sync.
 - Phases 1–77: Project foundation, host/ROM infrastructure, testing migration, and incremental compatibility groundwork.
-

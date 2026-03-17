@@ -70,8 +70,8 @@ TEST_F(KickPascalTest, RootlessHostWindowUsesLandscapeExtent) {
     ASSERT_EQ(magic, "P6") << "Captured KickPascal window should use the PPM format";
     EXPECT_GT(captured_width, window_info.width)
         << "Host-side KickPascal window should widen beyond the logical Amiga width";
-    EXPECT_EQ(captured_height, window_info.height)
-        << "Host-side widening should preserve the logical Amiga height";
+    EXPECT_GT(captured_height, window_info.height)
+        << "Rootless KickPascal capture should include the screen strip above the logical window";
     EXPECT_GT(captured_width, captured_height)
         << "KickPascal should present a landscape host window rather than a portrait one";
 }

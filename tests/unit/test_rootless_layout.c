@@ -40,10 +40,36 @@ void test_rootless_layout_maps_rootless_local_coords_to_screen_coords(void)
     int screen_x = 0;
     int screen_y = 0;
 
-    rootless_layout_screen_coords(25, 40, 12, 7, &screen_x, &screen_y);
+    rootless_layout_screen_coords(25, 0, 12, 7, &screen_x, &screen_y);
 
     TEST_ASSERT_EQUAL_INT(37, screen_x);
-    TEST_ASSERT_EQUAL_INT(47, screen_y);
+    TEST_ASSERT_EQUAL_INT(7, screen_y);
+}
+
+void test_rootless_layout_expands_host_height_to_include_screen_rows_above_window(void)
+{
+    TEST_ASSERT_EQUAL_INT(256, rootless_layout_host_height(11, 245));
+}
+
+void test_rootless_layout_keeps_host_height_when_window_starts_at_screen_top(void)
+{
+    TEST_ASSERT_EQUAL_INT(245, rootless_layout_host_height(0, 245));
+}
+
+void test_rootless_layout_maps_extra_top_strip_back_to_screen_origin(void)
+{
+    int screen_x = 0;
+    int screen_y = 0;
+
+    rootless_layout_screen_coords(20, 11, 15, 5, &screen_x, &screen_y);
+
+    TEST_ASSERT_EQUAL_INT(35, screen_x);
+    TEST_ASSERT_EQUAL_INT(5, screen_y);
+}
+
+void test_rootless_layout_reports_host_origin_at_screen_top_when_window_is_lower(void)
+{
+    TEST_ASSERT_EQUAL_INT(0, rootless_layout_host_origin_y(11));
 }
 
 int main(void)
@@ -55,5 +81,9 @@ int main(void)
     RUN_TEST(test_rootless_layout_keeps_existing_width_when_already_wide_enough);
     RUN_TEST(test_rootless_layout_ignores_offscreen_left_edges);
     RUN_TEST(test_rootless_layout_maps_rootless_local_coords_to_screen_coords);
+    RUN_TEST(test_rootless_layout_expands_host_height_to_include_screen_rows_above_window);
+    RUN_TEST(test_rootless_layout_keeps_host_height_when_window_starts_at_screen_top);
+    RUN_TEST(test_rootless_layout_maps_extra_top_strip_back_to_screen_origin);
+    RUN_TEST(test_rootless_layout_reports_host_origin_at_screen_top_when_window_is_lower);
     return UNITY_END();
 }

@@ -67,6 +67,8 @@ struct display_window_t
 #endif
     display_t    *screen;         /* Parent screen (for palette) */
     int           x, y;           /* Position on host desktop */
+    int           host_x;
+    int           host_y;
     int           width;
     int           height;
     int           logical_width;
@@ -173,8 +175,8 @@ static void display_window_sync_from_screen(display_window_t *window)
         return;
     }
 
-    src_x = window->x;
-    src_y = window->y;
+    src_x = window->host_x;
+    src_y = window->host_y;
 
     if (src_x < 0)
     {
@@ -1178,19 +1180,29 @@ static int display_window_host_width(display_window_t *window, int logical_width
                                       widen_for_host_menu);
 }
 
+static int display_window_host_height(display_window_t *window, int logical_height)
+{
+    return rootless_layout_host_height(window ? window->y : 0,
+                                       logical_height);
+}
+
 static bool display_window_apply_host_extent(display_window_t *window)
 {
     int host_width;
+    int host_height;
 
     if (!window || !window->in_use)
     {
         return false;
     }
 
+    window->host_x = window->x;
+    window->host_y = rootless_layout_host_origin_y(window->y);
     host_width = display_window_host_width(window, window->logical_width);
+    host_height = display_window_host_height(window, window->logical_height);
     return display_window_reallocate_backing_store(window,
                                                    host_width,
-                                                   window->logical_height);
+                                                   host_height);
 }
 
 /*
@@ -1229,10 +1241,12 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
     win->screen = screen;
     win->x = x;
     win->y = y;
+    win->host_x = x;
+    win->host_y = rootless_layout_host_origin_y(y);
     win->logical_width = width;
     win->logical_height = height;
     win->width = display_window_host_width(win, width);
-    win->height = height;
+    win->height = display_window_host_height(win, height);
     win->depth = depth;
     win->in_use = true;
     win->amiga_window_ptr = 0;
@@ -1284,8 +1298,8 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
 
         win->window = SDL_CreateWindow(
             window_title,
-            (x >= 0) ? x : SDL_WINDOWPOS_CENTERED,
-            (y >= 0) ? y : SDL_WINDOWPOS_CENTERED,
+            (win->host_x >= 0) ? win->host_x : SDL_WINDOWPOS_CENTERED,
+            (win->host_y >= 0) ? win->host_y : SDL_WINDOWPOS_CENTERED,
             win->width, win->height,
             SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE
         );
@@ -1415,7 +1429,7 @@ bool display_window_move(display_window_t *window, int x, int y)
 #if HAS_SDL2
     if (g_sdl_available && window->window)
     {
-        SDL_SetWindowPosition(window->window, x, y);
+        SDL_SetWindowPosition(window->window, window->host_x, window->host_y);
     }
 #endif
 

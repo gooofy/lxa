@@ -8,6 +8,8 @@
 
 #include "lxa_test.h"
 
+#include <fstream>
+
 using namespace lxa::testing;
 
 class DevpacTest : public LxaUITest {
@@ -63,6 +65,30 @@ TEST_F(DevpacTest, EditorVisible) {
     /* Verify Devpac is running and has windows */
     EXPECT_TRUE(lxa_is_running()) << "Devpac should still be running";
     EXPECT_GE(lxa_get_window_count(), 1) << "At least one window should be open";
+}
+
+TEST_F(DevpacTest, RootlessHostWindowIncludesScreenStripAboveWindow) {
+    const std::string capture_path = ram_dir_path + "/devpac-window.ppm";
+    std::ifstream capture;
+    std::string magic;
+    int captured_width = 0;
+    int captured_height = 0;
+    int max_value = 0;
+
+    ASSERT_GT(window_info.y, 0) << "Devpac should open below the screen origin in rootless mode";
+    ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0))
+        << "Rootless Devpac window capture should succeed";
+
+    capture.open(capture_path, std::ios::binary);
+    ASSERT_TRUE(capture.good()) << "Failed to open captured Devpac window image";
+
+    capture >> magic >> captured_width >> captured_height >> max_value;
+
+    ASSERT_EQ(magic, "P6") << "Captured Devpac window should use the PPM format";
+    EXPECT_EQ(captured_width, window_info.width)
+        << "Devpac should preserve its logical width in the host window capture";
+    EXPECT_GT(captured_height, window_info.height)
+        << "Rootless Devpac capture should include the screen strip above the logical window";
 }
 
 TEST_F(DevpacTest, RespondsToInput) {

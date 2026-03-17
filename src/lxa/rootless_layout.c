@@ -31,13 +31,41 @@ int rootless_layout_host_width(int screen_width,
     return logical_width;
 }
 
-void rootless_layout_screen_coords(int window_left,
-                                   int window_top,
-                                   int local_x,
-                                   int local_y,
-                                   int *screen_x,
-                                   int *screen_y)
+int rootless_layout_host_height(int top_edge,
+                                int logical_height)
 {
+    if (logical_height <= 0)
+    {
+        return logical_height;
+    }
+
+    if (top_edge > 0)
+    {
+        return logical_height + top_edge;
+    }
+
+    return logical_height;
+}
+
+int rootless_layout_host_origin_y(int top_edge)
+{
+    if (top_edge > 0)
+    {
+        return 0;
+    }
+
+    return top_edge;
+}
+
+void rootless_layout_screen_coords(int window_left,
+                                    int window_top,
+                                    int local_x,
+                                    int local_y,
+                                    int *screen_x,
+                                    int *screen_y)
+{
+    int host_origin_y = rootless_layout_host_origin_y(window_top);
+
     if (screen_x)
     {
         *screen_x = window_left + local_x;
@@ -45,6 +73,6 @@ void rootless_layout_screen_coords(int window_left,
 
     if (screen_y)
     {
-        *screen_y = window_top + local_y;
+        *screen_y = host_origin_y + local_y;
     }
 }

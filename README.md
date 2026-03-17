@@ -168,6 +168,15 @@ lxa -s /path/to/amiga myprogram
 lxa -d -v myprogram
 ```
 
+### Screenshot Review Helper
+
+```bash
+python tools/screenshot_review.py screenshot.ppm
+python tools/screenshot_review.py --model anthropic/claude-sonnet-4.6 shot1.ppm shot2.png
+```
+
+The helper sends screenshots to OpenRouter using `OPENROUTER_API_KEY` and prints a vision-model review that is useful when comparing `lxa` UI output to a real Amiga.
+
 ## Implemented Features
 
 ### AmigaOS Libraries
@@ -225,7 +234,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.46** - Phases 93-95 close the remaining planned `trackdisk.device` and `mathffp.library` stub paths, add covered raw-track I/O plus deferred-expunge/abort behavior for `trackdisk.device`, and finish the ROM-side stub-eradication sweep by routing reserved/private entry points through explicit `error: private function called` diagnostics
+**Version 0.8.47** - Phase 96 starts with an OpenRouter-backed screenshot review helper for manual UI investigations and a rootless host-window fix that preserves screen rows above logical windows so top-of-window UI like Devpac/KickPascal menu or title regions stay visible in captures and hosted rendering
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

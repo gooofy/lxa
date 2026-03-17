@@ -80,8 +80,8 @@ TEST_F(MenuLayoutTest, RootlessHostWindowWidensForMenus) {
     ASSERT_EQ(magic, "P6") << "Captured rootless window should use the PPM format";
     EXPECT_GT(captured_width, window_info.width)
         << "Host-side rootless window should widen beyond the logical Amiga width so menus remain visible";
-    EXPECT_EQ(captured_height, window_info.height)
-        << "Host-side widening should preserve the logical window height";
+    EXPECT_GT(captured_height, window_info.height)
+        << "Rootless MenuLayout capture should include the screen strip above the logical window";
 }
 
 TEST_F(MenuLayoutTest, StartupOutput) {
