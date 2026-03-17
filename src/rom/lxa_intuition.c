@@ -6480,7 +6480,15 @@ static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
         return FALSE;
     }
 
-    state = _intuition_ensure_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+    state = _intuition_find_window_state((struct LXAIntuitionBase *)IntuitionBase, window);
+    if (!state)
+    {
+        DPRINTF(LOG_DEBUG,
+                "_intuition: skipping IDCMP 0x%08lx for unregistered window 0x%08lx\n",
+                class, (ULONG)window);
+        return FALSE;
+    }
+
     if (class == IDCMP_MOUSEMOVE && state)
     {
         if (state->pending_mousemoves >= state->mouse_queue)
@@ -7375,7 +7383,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 }
                 else if (window)
                 {
-                    struct LXAWindowState *state = _intuition_ensure_window_state(
+                    struct LXAWindowState *state = _intuition_find_window_state(
                         (struct LXAIntuitionBase *)IntuitionBase, window);
                     WORD relX = mouseX - window->LeftEdge;
                     WORD relY = mouseY - window->TopEdge;
