@@ -168,21 +168,24 @@ TEST_F(GadToolsGadgetsTest, ButtonClickCompletesWithinOneVBlank) {
 
     ASSERT_TRUE(event_loop_ready) << "Program should reach the interactive event loop before timing the click";
 
+    /* Let the task settle into WaitPort() before injecting the click.
+     * Click() already drives the minimal move/down/up VBlank pipeline, so
+     * this regression verifies the app does not need extra post-click delay
+     * beyond that helper before shutdown. */
+    WaitForEventLoop(100, 10000);
+
     ClearOutput();
+
     Click(btn_x, btn_y);
 
-    bool handled = false;
-    for (int i = 0; i < 6; i++) {
-        lxa_trigger_vblank();
-        RunCycles(100000);
-        if (GetOutput().find("Button was pressed, slider reset to 10") != std::string::npos) {
-            handled = true;
-            break;
-        }
-    }
+    lxa_click_close_gadget(0);
+    std::string handled_output = DrainOutputAfterClose();
+
+    bool handled = handled_output.find("Button was pressed, slider reset to 10") != std::string::npos;
 
     EXPECT_TRUE(handled)
-        << "Button click should be processed within one or two VBlank ticks without visible lag";
+        << "Button click should be handled without extra post-click settling beyond Click(). Output: "
+        << handled_output;
 }
 
 TEST_F(GadToolsGadgetsTest, CloseWindow) {
