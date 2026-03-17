@@ -15,9 +15,23 @@
 #include <dos/dos.h>
 #include <dos/dosextens.h>
 #include <clib/exec_protos.h>
+#include <clib/cia_protos.h>
 #include <clib/dos_protos.h>
 #include <inline/exec.h>
 #include <inline/dos.h>
+
+#if defined(AddICRVector)
+#undef AddICRVector
+#endif
+#if defined(RemICRVector)
+#undef RemICRVector
+#endif
+#if defined(AbleICR)
+#undef AbleICR
+#endif
+#if defined(SetICR)
+#undef SetICR
+#endif
 
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
@@ -136,6 +150,74 @@ int main(void)
         errors++;
     } else {
         print("OK: blitter.resource opened successfully\n");
+    }
+
+    /* ========== Test 5b: cia.resource callable vectors ========== */
+    print("\n--- Test 5b: cia.resource callable vectors ---\n");
+
+    if (ciaA == NULL) {
+        print("FAIL: ciaa.resource unavailable for vector tests\n");
+        errors++;
+    } else {
+        struct Interrupt irq;
+        WORD oldMask;
+        oldMask = AbleICR((struct Library *)ciaA, 0);
+        if (oldMask != 0) {
+            print("FAIL: AbleICR() should report initial mask 0\n");
+            errors++;
+        } else {
+            print("OK: AbleICR() reports initial mask\n");
+        }
+
+        irq.is_Node.ln_Type = NT_INTERRUPT;
+        irq.is_Node.ln_Pri = 0;
+        irq.is_Node.ln_Name = (char *)"test-cia";
+        irq.is_Data = NULL;
+        irq.is_Code = NULL;
+
+        if (AddICRVector((struct Library *)ciaA, 3, &irq) != NULL) {
+            print("FAIL: AddICRVector() should claim free CIA bit\n");
+            errors++;
+        } else {
+            print("OK: AddICRVector() claims free CIA bit\n");
+        }
+
+        oldMask = AbleICR((struct Library *)ciaA, 0);
+        if ((oldMask & (1 << 3)) == 0) {
+            print("FAIL: AddICRVector() should enable claimed bit\n");
+            errors++;
+        } else {
+            print("OK: AddICRVector() enables claimed bit\n");
+        }
+
+        if (AddICRVector((struct Library *)ciaA, 3, &irq) != &irq) {
+            print("FAIL: AddICRVector() should report current owner\n");
+            errors++;
+        } else {
+            print("OK: AddICRVector() reports current owner\n");
+        }
+
+        if (SetICR((struct Library *)ciaA, 0x80 | 0x08) != 0) {
+            print("FAIL: SetICR() should report previous active mask 0\n");
+            errors++;
+        } else {
+            print("OK: SetICR() reports previous active mask\n");
+        }
+
+        if ((SetICR((struct Library *)ciaA, 0) & 0x08) == 0) {
+            print("FAIL: SetICR() should preserve active bit state\n");
+            errors++;
+        } else {
+            print("OK: SetICR() preserves active bit state\n");
+        }
+
+        RemICRVector((struct Library *)ciaA, 3, &irq);
+        if (AbleICR((struct Library *)ciaA, 0) & (1 << 3)) {
+            print("FAIL: RemICRVector() should disable removed bit\n");
+            errors++;
+        } else {
+            print("OK: RemICRVector() disables removed bit\n");
+        }
     }
 
     /* ========== Test 6: AddResource()/OpenResource()/RemResource() ========== */

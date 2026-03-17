@@ -1230,7 +1230,7 @@ TEST_F(AppsMiscTest, DISABLED_BlitzBasic2Starts) {
     ASSERT_TRUE(WaitForWindows(1, 20000)) << GetOutput();
 }
 
-TEST_F(AppsMiscTest, DISABLED_Sonix2Starts) {
+TEST_F(AppsMiscTest, Sonix2Starts) {
     if (!SetupOriginalSystemAssigns(true, false, true) || !SetupSonixAssigns()) {
         GTEST_SKIP() << "Sonix 2 app bundle or original system disk not found";
     }
@@ -1238,7 +1238,21 @@ TEST_F(AppsMiscTest, DISABLED_Sonix2Starts) {
     ASSERT_EQ(lxa_load_program("APPS:Sonix 2/Sonix", ""), 0)
         << "Failed to load Sonix 2 via APPS: assign";
 
-    ASSERT_TRUE(WaitForWindows(1, 20000)) << GetOutput();
+    ASSERT_TRUE(WaitForWindows(1, 20000))
+        << "Sonix 2 did not open a startup window\n"
+        << GetOutput();
+
+    ASSERT_TRUE(GetWindowInfo(0, &window_info));
+    EXPECT_TRUE(WaitForWindowDrawn(0, 5000))
+        << "Sonix 2 startup window should render visible content\n"
+        << GetOutput();
+
+    EXPECT_TRUE(lxa_is_running())
+        << "Sonix 2 should still be running after startup\n"
+        << GetOutput();
+
+    EXPECT_GE(window_info.width, 320);
+    EXPECT_GE(window_info.height, 100);
 }
 
 TEST_F(AppsMiscTest, DISABLED_TypefaceStarts) {

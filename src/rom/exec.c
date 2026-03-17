@@ -9,6 +9,7 @@
 #include <exec/resident.h>
 #include <exec/initializers.h>
 #include <exec/errors.h>
+#include <exec/interrupts.h>
 #include <exec/semaphores.h>
 
 #include <clib/exec_protos.h>
@@ -138,6 +139,31 @@ struct ExecIntVectorState
 
 static struct ExecIntVectorState g_IntVectorState[16];
 
+struct LxaCIAResource
+{
+    struct Library lib;
+    UBYTE enable_mask;
+    UBYTE active_mask;
+    struct Interrupt *vectors[5];
+};
+
+static struct Interrupt *_cia_AddICRVector(register struct Library *resource __asm("a6"),
+                                           register LONG iCRBit __asm("d0"),
+                                           register struct Interrupt *interrupt __asm("a1"));
+static VOID _cia_RemICRVector(register struct Library *resource __asm("a6"),
+                              register LONG iCRBit __asm("d0"),
+                              register struct Interrupt *interrupt __asm("a1"));
+static WORD _cia_AbleICR(register struct Library *resource __asm("a6"),
+                         register LONG mask __asm("d0"));
+static WORD _cia_SetICR(register struct Library *resource __asm("a6"),
+                        register LONG mask __asm("d0"));
+static struct Library *exec_create_cia_resource(struct ExecBase *SysBase,
+                                                CONST_STRPTR name);
+
+#ifndef JMPINSTR
+#define JMPINSTR 0x4ef9
+#endif
+
 static BOOL exec_interrupt_index_valid(LONG int_number)
 {
     return int_number >= 0 && int_number < 16;
@@ -182,6 +208,135 @@ static BOOL exec_interrupt_server_is_linked(struct List *server_chain,
     }
 
     return FALSE;
+}
+
+static BOOL cia_icr_bit_valid(LONG iCRBit)
+{
+    return iCRBit >= 0 && iCRBit < 5;
+}
+
+static struct Interrupt *_cia_AddICRVector(register struct Library *resource __asm("a6"),
+                                           register LONG iCRBit __asm("d0"),
+                                           register struct Interrupt *interrupt __asm("a1"))
+{
+    struct LxaCIAResource *cia = (struct LxaCIAResource *)resource;
+    struct Interrupt *old;
+
+    if (!cia || !interrupt || !cia_icr_bit_valid(iCRBit))
+    {
+        return interrupt;
+    }
+
+    old = cia->vectors[iCRBit];
+    if (!old)
+    {
+        cia->vectors[iCRBit] = interrupt;
+        cia->enable_mask |= (1U << iCRBit);
+    }
+
+    return old;
+}
+
+static VOID _cia_RemICRVector(register struct Library *resource __asm("a6"),
+                              register LONG iCRBit __asm("d0"),
+                              register struct Interrupt *interrupt __asm("a1"))
+{
+    struct LxaCIAResource *cia = (struct LxaCIAResource *)resource;
+
+    if (!cia || !interrupt || !cia_icr_bit_valid(iCRBit))
+    {
+        return;
+    }
+
+    if (cia->vectors[iCRBit] == interrupt)
+    {
+        cia->vectors[iCRBit] = NULL;
+        cia->enable_mask &= ~(1U << iCRBit);
+    }
+}
+
+static WORD _cia_AbleICR(register struct Library *resource __asm("a6"),
+                         register LONG mask __asm("d0"))
+{
+    struct LxaCIAResource *cia = (struct LxaCIAResource *)resource;
+    UBYTE old_mask;
+
+    if (!cia)
+    {
+        return 0;
+    }
+
+    old_mask = cia->enable_mask;
+    if (mask & 0x80)
+    {
+        cia->enable_mask |= (UBYTE)(mask & 0x1f);
+    }
+    else
+    {
+        cia->enable_mask &= (UBYTE)~mask;
+    }
+
+    return old_mask;
+}
+
+static WORD _cia_SetICR(register struct Library *resource __asm("a6"),
+                        register LONG mask __asm("d0"))
+{
+    struct LxaCIAResource *cia = (struct LxaCIAResource *)resource;
+    UBYTE old_mask;
+
+    if (!cia)
+    {
+        return 0;
+    }
+
+    old_mask = cia->active_mask;
+    if (mask & 0x80)
+    {
+        cia->active_mask |= (UBYTE)(mask & 0x1f);
+    }
+    else
+    {
+        cia->active_mask &= (UBYTE)~mask;
+    }
+
+    return old_mask;
+}
+
+static struct Library *exec_create_cia_resource(struct ExecBase *SysBase,
+                                                CONST_STRPTR name)
+{
+    APTR raw;
+    struct LxaCIAResource *cia;
+    struct JumpVec *jump_table;
+
+    raw = AllocMem(sizeof(struct JumpVec) * 4 + sizeof(*cia), MEMF_CLEAR | MEMF_PUBLIC);
+    if (!raw)
+    {
+        return NULL;
+    }
+
+    jump_table = (struct JumpVec *)raw;
+    cia = (struct LxaCIAResource *)((UBYTE *)raw + sizeof(struct JumpVec) * 4);
+
+    jump_table[0].jmp = JMPINSTR;
+    jump_table[0].vec = _cia_SetICR;
+    jump_table[1].jmp = JMPINSTR;
+    jump_table[1].vec = _cia_AbleICR;
+    jump_table[2].jmp = JMPINSTR;
+    jump_table[2].vec = _cia_RemICRVector;
+    jump_table[3].jmp = JMPINSTR;
+    jump_table[3].vec = _cia_AddICRVector;
+
+    cia->lib.lib_Node.ln_Type = NT_RESOURCE;
+    cia->lib.lib_Node.ln_Pri = 0;
+    cia->lib.lib_Node.ln_Name = (char *)name;
+    cia->lib.lib_Flags = LIBF_SUMUSED | LIBF_CHANGED;
+    cia->lib.lib_NegSize = sizeof(struct JumpVec) * 4;
+    cia->lib.lib_PosSize = sizeof(*cia);
+
+    AddTail(&SysBase->ResourceList, (struct Node *)&cia->lib);
+    return &cia->lib;
 }
 
 static void exec_init_int_vector_state(struct ExecBase *SysBase,
@@ -345,8 +500,6 @@ struct Library         *DeviceSerialBase;
 struct Library         *DeviceTrackdiskBase;
 
 static struct Custom   *custom            = (struct Custom*)        0xdff000;
-
-#define JMPINSTR 0x4ef9
 
 void _exec_unimplemented_call ( register struct ExecBase  *exb __asm("a6") )
 {
@@ -5507,23 +5660,12 @@ void coldstart (void)
     NEWLIST (&SysBase->ResourceList);
     SysBase->ResourceList.lh_Type = NT_RESOURCE;
     
-    /* Create simple stub resources needed by built-in subsystems. */
-    /* Resources are simple Node-based structures here. */
-    struct Node *ciaAResource = AllocVec(sizeof(struct Node), MEMF_CLEAR | MEMF_PUBLIC);
-    if (ciaAResource) {
-        ciaAResource->ln_Type = NT_RESOURCE;
-        ciaAResource->ln_Pri = 0;
-        ciaAResource->ln_Name = "ciaa.resource";
-        AddTail(&SysBase->ResourceList, ciaAResource);
+    /* Create CIA resources with callable vectors for apps that expect cia.resource APIs. */
+    if (exec_create_cia_resource(SysBase, (CONST_STRPTR)"ciaa.resource")) {
         DPRINTF (LOG_DEBUG, "coldstart: registered ciaa.resource\n");
     }
-    
-    struct Node *ciaBResource = AllocVec(sizeof(struct Node), MEMF_CLEAR | MEMF_PUBLIC);
-    if (ciaBResource) {
-        ciaBResource->ln_Type = NT_RESOURCE;
-        ciaBResource->ln_Pri = 0;
-        ciaBResource->ln_Name = "ciab.resource";
-        AddTail(&SysBase->ResourceList, ciaBResource);
+
+    if (exec_create_cia_resource(SysBase, (CONST_STRPTR)"ciab.resource")) {
         DPRINTF (LOG_DEBUG, "coldstart: registered ciab.resource\n");
     }
 

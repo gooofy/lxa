@@ -238,7 +238,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.57** - Screenshot capture and review now use PNG artifacts across integration workflows, avoiding accidental text reads of raw PPM data while keeping visual-debugging coverage intact
+**Version 0.8.60** - Sonix 2 now reaches its startup window because `ciaa.resource`/`ciab.resource` expose callable CIA vectors instead of bare placeholder nodes, with regression coverage for both the resource API and the hosted app launch
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

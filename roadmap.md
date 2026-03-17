@@ -28,6 +28,11 @@
   - Replaced host screenshot capture output with PNG across `display.c`, `liblxa`, and GTest drivers.
   - Updated screenshot-review and UI-testing documentation to use PNG examples and expectations.
   - Kept visual-debugging and reference-comparison paths working while avoiding accidental agent text reads of raw PPM data.
+  - Hardened IDCMP posting so closed windows no longer recreate transient window state during late close/input delivery, fixing the intermittent `GadToolsMenuTest.CloseGadget` `_exec_AddTail` corruption.
+- Phase 99 (`0.8.60`): Sonix 2 startup compatibility and CIA resource callable surface — done.
+  - Added callable `ciaa.resource`/`ciab.resource` vectors (`AddICRVector`, `RemICRVector`, `AbleICR`, `SetICR`) instead of bare resource nodes so hardware-aware apps can complete startup probing.
+  - Extended exec resource coverage to validate the CIA resource callable surface and mask bookkeeping.
+  - Enabled and strengthened the Sonix 2 host-side startup driver to verify the main window opens, draws visible content, and stays running.
 
 ## Completed Milestones (compact)
 
@@ -38,11 +43,6 @@
 
 For each app below the agent should follow a test-driven workflow: (1) run or create a reliable startup host-side driver test to exercise launch and reachability; (2) if the driver reveals failures, fix them and keep the test green; (3) capture screenshots on failure and use `tools/screenshot_review.py` to identify UI/rendering issues and hypotheses; (4) author additional automated pixel or interaction tests that assert the UI issues are fixed; (5) implement fixes and iterate until tests are green.
 
-- Phase 99: Sonix 2
-	- Create a host-side test to launch Sonix 2 and confirm the main UI appears.
-	- Address any audio/device startup interactions or UI rendering problems uncovered.
-	- Use screenshot-review for UI layout/toolbar/icon issues and add pixel/assertion tests.
-	- Add interaction tests for About dialog, basic settings dialog, and simple playback UI controls if applicable.
 
 - Phase 100: vim-5.3
 	- Add a startup test that runs `vim-5.3` under lxa, opens a file, and verifies the editor draws (cursor, mode indicator).
