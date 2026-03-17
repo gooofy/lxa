@@ -264,6 +264,7 @@ set(TESTS_LIST
     "../tests/devices/input|main|Tests/Devices/Input"
     "../tests/devices/keyboard|main|Tests/Devices/Keyboard"
     "../tests/devices/gameport|main|Tests/Devices/Gameport"
+    "../tests/devices/printer|main|Tests/Devices/Printer"
     "../tests/devices/serial|main|Tests/Devices/Serial"
     "../tests/layers/cliprects|main|Tests/Layers/ClipRects"
     "../tests/layers/core_ops|main|Tests/Layers/CoreOps"

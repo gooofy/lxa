@@ -13,7 +13,7 @@ Goal: Complete the implementation of standard devices as far as possible within 
 - [x] serial.device
 - [ ] narrator.device
 - [ ] ramdrive.device
-- [ ] printer.device
+- [x] printer.device
 
 ---
 
