@@ -62,7 +62,9 @@ set(ROM_C_SOURCES
     lxa_dev_audio.c
     lxa_dev_gameport.c
     lxa_dev_keyboard.c
+    lxa_dev_narrator.c
     lxa_dev_printer.c
+    lxa_dev_ramdrive.c
     lxa_dev_serial.c
     lxa_dev_trackdisk.c
     util.c

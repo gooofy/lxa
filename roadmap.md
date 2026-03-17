@@ -11,8 +11,8 @@ Goal: Complete the implementation of standard devices as far as possible within 
 - [ ] scsi.device
 - [x] parallel.device
 - [x] serial.device
-- [ ] narrator.device
-- [ ] ramdrive.device
+- [x] narrator.device
+- [x] ramdrive.device
 - [x] printer.device
 
 ---

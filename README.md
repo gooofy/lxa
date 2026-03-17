@@ -196,6 +196,8 @@ The helper sends screenshots to OpenRouter using `OPENROUTER_API_KEY` and prints
 - **input.device**: Handler-chain management (`IND_ADDHANDLER` / `IND_REMHANDLER`), held-qualifier snapshots via `PeekQualifier()`, transient qualifier-bit preservation on injected events, repeat timing configuration, and direct event injection/dispatch coverage for `IND_WRITEEVENT` / `IND_ADDEVENT`
 - **gameport.device**: Covered init/open/close/expunge lifetime semantics, controller-type and trigger query/set commands, `NSCMD_DEVICEQUERY`, pending `GPD_READEVENT` requests with `AbortIO()`, and hosted mouse-event delivery through the shared input stack
 - **keyboard.device**: Covered `CMD_CLEAR`, `KBD_READEVENT`, `KBD_READMATRIX`, reset-handler registration/acknowledgement, per-open read queues, shared Intuition/raw-key event capture, and current key-matrix snapshots aligned with the hosted input stack
+- **narrator.device**: Hosted speech-request validation with default V37 parameters, phoneme-stream write handling, generated mouth/word/syllable sync events for `CMD_READ`, and flush/reset coverage for translator-driven speech workflows
+- **ramdrive.device**: Hosted in-memory `RAD:`-style block storage with `CMD_READ` / `CMD_WRITE` / `TD_FORMAT`, trackdisk-compatible geometry/status queries, ETD change-count validation, and `KillRAD()` / `KillRAD0()` coverage
 - **console.device**: Terminal I/O with CSI escape sequences, keyboard input, `CONU_LIBRARY` access, and covered keymap command/query support
 - **trackdisk.device**: Hosted `.adf`-backed sector I/O (`TD_READ` / `TD_WRITE` / `TD_FORMAT` / `TD_SEEK`, plus `ETD_*` variants and raw track `TD_RAWREAD` / `TD_RAWWRITE`) with geometry/status support, classic error handling, covered `TD_ADDCHANGEINT`/`TD_REMCHANGEINT` request lifetime semantics, and deferred-expunge plus abort coverage
 - **audio.device**: Channel allocation, timed `CMD_WRITE` playback, `ADCMD_SETPREC` / `ADCMD_PERVOL` / `ADCMD_FINISH` / `ADCMD_WAITCYCLE`, and end-of-sample audio interrupt delivery
@@ -234,7 +236,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.50** - Phase 96 now keeps host-side emulator log lines from interleaving across threads, adds a unit regression for serialized logging, and extends ASM-One startup coverage to assert its startup diagnostics stay clean while the editor window reaches steady state
+**Version 0.8.54** - Phase 97 now adds `narrator.device` with validated speech-request defaults, generated mouth/word/syllable sync events for readback, and a dedicated regression in the device Google Test suite
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
