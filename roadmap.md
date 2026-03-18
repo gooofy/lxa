@@ -54,12 +54,17 @@ For each app below the agent should follow a test-driven workflow: (1) run or cr
 	- [x] Fix the remaining BlitzBasic2 UI issues: malformed second window (`292x32804` host-tracked extent → clamped to valid dimensions), clipped Project-menu width (increased DragMenu cycle budget so all 10 items render completely).
 	- [x] Extend the BlitzBasic2 driver: About dialog (via menu selection), project-open flow, and quit-menu-item coverage with RMBTRAP title-bar bypass for menu activation.
 
-- Phase 102: FinalWriter_D
+- Phase 102: SysInfo
+	- Ensure the existing SysInfo launch test verifies its window draws; fix any rendering regressions.
+	- Use `tools/screenshot_review.py` on captures for bitmap/viewport swap issues and add pixel-based assertions for key widgets.
+	- Add interaction tests: About dialog, refresh/stat update, and close behavior.
+
+- Phase 103-A: FinalWriter_D
 	- Add a startup test for FinalWriter_D, confirming its main document/editor window renders.
 	- Fix font/rendering and dialog issues exposed by the driver.
 	- Use screenshot analysis for text/layout defects and add automated tests for About, open/save requester, and simple typing.
 
-- Phase 103: ppaint
+- Phase 103-B: ppaint
 	- Create a host-side test to start ppaint and assert canvas availability.
 	- Fix palette, brush, or menu rendering problems found.
 	- Use screenshot-review to locate drawing artefacts and add pixel tests for a small draw sequence and requester flows.
@@ -107,11 +112,6 @@ For each app below the agent should follow a test-driven workflow: (1) run or cr
 	- Create/extend a host-side driver to launch DevPac and verify the editor/assembler window appears.
 	- Repair crashes or display failures surfaced by the driver.
 	- Use `tools/screenshot_review.py` for visual triage and add tests for About dialog, open-file requester, and assemble/run basic example.
-
-- Phase 112: SysInfo
-	- Ensure the existing SysInfo launch test verifies its window draws; fix any rendering regressions.
-	- Use `tools/screenshot_review.py` on captures for bitmap/viewport swap issues and add pixel-based assertions for key widgets.
-	- Add interaction tests: About dialog, refresh/stat update, and close behavior.
 
 - Phase 113: Typeface
 	- Add a startup test that opens Typeface and verifies the font preview/render area is visible.
