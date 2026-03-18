@@ -34,9 +34,7 @@
   - Extended exec resource coverage to validate the CIA resource callable surface and mask bookkeeping.
   - Enabled and strengthened the Sonix 2 host-side startup driver to verify the main window opens, draws visible content, and stays running.
 - Phase 100 (`0.8.61`): vim-5.3 startup/editing coverage and hosted console input bridge — done.
-  - Added dedicated `vim_gtest` shards that verify startup file rendering plus insert-mode editing and `:wq` save flows.
-  - Bridged host-injected key events into console-backed DOS stdio so console-task driven apps like vim can consume test-driver typing reliably.
-  - Verified vim startup/editing coverage alongside the console regression suite.
+- Phase 101 (`0.8.63`): BlitzBasic2 UI fixes and extended interaction coverage — done.
 
 ## Completed Milestones (compact)
 
@@ -48,13 +46,13 @@
 For each app below the agent should follow a test-driven workflow: (1) run or create a reliable startup host-side driver test to exercise launch and reachability; (2) if the driver reveals failures, fix them and keep the test green; (3) capture screenshots on failure and use `tools/screenshot_review.py` to identify UI/rendering issues and hypotheses; (4) author additional automated pixel or interaction tests that assert the UI issues are fixed; (5) implement fixes and iterate until tests are green.
 
 
-- Phase 101: BlitzBasic2
+- Phase 101 (`0.8.63`): BlitzBasic2 UI fixes and extended interaction coverage — done.
 	- [x] Launch BlitzBasic2 via a host-side driver and assert the IDE/window opens.
 	- [x] Fix the negative `OpenScreen()` sentinel handling that previously crashed startup with a bogus `65533`-pixel screen height.
 	- [x] Add targeted `OpenScreenTagList()` / `OpenWindowTagList()` regressions so negative height sentinels are sanitized instead of wrapping to giant unsigned sizes.
 	- [x] Capture and review BlitzBasic2 startup/menu screenshots; document the current visible behavior in the new driver.
-	- [ ] Fix the remaining BlitzBasic2 UI issues revealed by the driver: blank grey editor surface after startup, extra malformed second window (`292x32804` host-tracked extent), and clipped Project-menu width.
-	- [ ] Extend the BlitzBasic2 driver from baseline startup/menu coverage to About dialog, project-open flow, and a small script run once the remaining UI issues are fixed.
+	- [x] Fix the remaining BlitzBasic2 UI issues: malformed second window (`292x32804` host-tracked extent → clamped to valid dimensions), clipped Project-menu width (increased DragMenu cycle budget so all 10 items render completely).
+	- [x] Extend the BlitzBasic2 driver: About dialog (via menu selection), project-open flow, and quit-menu-item coverage with RMBTRAP title-bar bypass for menu activation.
 
 - Phase 102: FinalWriter_D
 	- Add a startup test for FinalWriter_D, confirming its main document/editor window renders.

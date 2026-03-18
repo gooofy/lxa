@@ -5,7 +5,9 @@
 
 #include <exec/types.h>
 #include <exec/memory.h>
+#include <graphics/clip.h>
 #include <graphics/gfx.h>
+#include <graphics/layers.h>
 #include <graphics/rastport.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
@@ -37,6 +39,7 @@ int main(void)
 {
     struct NewScreen ns;
     struct NewWindow nw;
+    int i;
     struct Screen *screen;
     struct Window *window;
     struct Window *tag_window;
@@ -362,6 +365,125 @@ int main(void)
         if (tag_window) {
             CloseWindow(tag_window);
             tag_window = NULL;
+        }
+    }
+
+    /* WA_AutoAdjust must keep oversized/off-screen coordinates visible */
+    {
+        struct TagItem tags[] = {
+            { WA_CustomScreen, (ULONG)screen },
+            { WA_Left, 400 },
+            { WA_Top, 300 },
+            { WA_Width, 80 },
+            { WA_Height, 50 },
+            { WA_AutoAdjust, TRUE },
+            { TAG_DONE, 0 }
+        };
+
+        tag_window = OpenWindowTagList(NULL, tags);
+        if (!tag_window) {
+            print("FAIL: OpenWindowTagList() auto-adjust window returned NULL\n");
+            errors++;
+        } else if (tag_window->LeftEdge != (screen->Width - 80) ||
+                   tag_window->TopEdge != (screen->Height - 50)) {
+            print("FAIL: OpenWindowTagList() did not clamp WA_AutoAdjust window onscreen\n");
+            errors++;
+        } else {
+            print("OK: OpenWindowTagList() clamps WA_AutoAdjust windows onscreen\n");
+        }
+
+        if (tag_window) {
+            CloseWindow(tag_window);
+            tag_window = NULL;
+        }
+    }
+
+    /* Bogus NW_EXTENDED tag pointers must be ignored instead of re-parsed */
+    {
+        struct ExtNewWindow ext = {0};
+
+        ext.LeftEdge = 16;
+        ext.TopEdge = 20;
+        ext.Width = 120;
+        ext.Height = 60;
+        ext.DetailPen = 0;
+        ext.BlockPen = 1;
+        ext.Flags = WFLG_NW_EXTENDED | WFLG_CLOSEGADGET;
+        ext.Title = (UBYTE *)"Ext Window";
+        ext.Screen = screen;
+        ext.Type = CUSTOMSCREEN;
+        ext.Extension = (struct TagItem *)1;
+
+        tag_window = OpenWindow((struct NewWindow *)&ext);
+        if (!tag_window) {
+            print("FAIL: OpenWindow() rejected bogus NW_EXTENDED window\n");
+            errors++;
+        } else if (tag_window->LeftEdge != 16 || tag_window->TopEdge != 20 ||
+                   tag_window->Width != 120 || tag_window->Height != 60) {
+            print("FAIL: OpenWindow() misread bogus NW_EXTENDED fields\n");
+            errors++;
+        } else {
+            print("OK: OpenWindow() ignores bogus NW_EXTENDED tag pointers\n");
+        }
+
+        if (tag_window) {
+            CloseWindow(tag_window);
+            tag_window = NULL;
+        }
+    }
+
+    /* SuperBitMap windows must create a SuperBitMap content layer */
+    {
+        struct BitMap super_bitmap;
+        PLANEPTR planes[2] = { NULL, NULL };
+        struct TagItem tags[] = {
+            { WA_CustomScreen, (ULONG)screen },
+            { WA_Left, 24 },
+            { WA_Top, 28 },
+            { WA_GimmeZeroZero, TRUE },
+            { WA_InnerWidth, 96 },
+            { WA_InnerHeight, 40 },
+            { WA_SuperBitMap, (ULONG)&super_bitmap },
+            { TAG_DONE, 0 }
+        };
+
+        InitBitMap(&super_bitmap, screen->BitMap.Depth, 96, 40);
+        for (i = 0; i < screen->BitMap.Depth; i++) {
+            planes[i] = AllocRaster(96, 40);
+            super_bitmap.Planes[i] = planes[i];
+        }
+
+        if (!planes[0] || (screen->BitMap.Depth > 1 && !planes[1])) {
+            print("FAIL: Could not allocate SuperBitMap planes\n");
+            errors++;
+        } else {
+            tag_window = OpenWindowTagList(NULL, tags);
+            if (!tag_window) {
+                print("FAIL: OpenWindowTagList() SuperBitMap window returned NULL\n");
+                errors++;
+            } else if (!(tag_window->Flags & WFLG_SUPER_BITMAP)) {
+                print("FAIL: OpenWindowTagList() did not set WFLG_SUPER_BITMAP\n");
+                errors++;
+            } else if (!tag_window->WLayer || !(tag_window->WLayer->Flags & LAYERSUPER) ||
+                       tag_window->WLayer->SuperBitMap != &super_bitmap) {
+                print("FAIL: OpenWindowTagList() did not create a SuperBitMap layer\n");
+                errors++;
+            } else if (!tag_window->BorderRPort || tag_window->BorderRPort == tag_window->RPort) {
+                print("FAIL: OpenWindowTagList() did not keep separate border/content rastports for GZZ\n");
+                errors++;
+            } else {
+                print("OK: OpenWindowTagList() creates a SuperBitMap GZZ content layer\n");
+            }
+        }
+
+        if (tag_window) {
+            CloseWindow(tag_window);
+            tag_window = NULL;
+        }
+
+        for (i = 0; i < screen->BitMap.Depth; i++) {
+            if (planes[i])
+                FreeRaster(planes[i], 96, 40);
         }
     }
 

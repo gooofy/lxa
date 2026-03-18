@@ -26,6 +26,7 @@
 #include <graphics/view.h>
 #include <graphics/clip.h>
 #include <graphics/layers.h>
+#include <graphics/layersext.h>
 #include <clib/graphics_protos.h>
 #include <inline/graphics.h>
 #include <clib/layers_protos.h>
@@ -74,6 +75,10 @@ extern struct ExecBase *SysBase;
 
 /* Global IntuitionBase (defined in exec.c) - used to avoid OpenLibrary from interrupt context */
 extern struct IntuitionBase *IntuitionBase;
+
+struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                        register const struct NewWindow * newWindow __asm("a0"),
+                                                        register const struct TagItem * tagList __asm("a1"));
 
 /* Helper functions to bypass broken macros */
 static inline void _call_MoveLayer(struct Library *base, struct Layer *layer, LONG dx, LONG dy) {
@@ -3555,6 +3560,7 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
         else if (code == MENUDOWN)
         {
             struct Window *menuWin = NULL;
+            BOOL in_title_bar = (screen && mouseY <= screen->BarHeight);
 
             DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
                     mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
@@ -3563,27 +3569,42 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
             {
                 menuWin = window;
             }
+            else if (in_title_bar)
+            {
+                /* Title bar is system territory — ignore WFLG_RMBTRAP */
+                struct Window *w;
+                for (w = screen->FirstWindow; w; w = w->NextWindow)
+                {
+                    if (w->MenuStrip)
+                    {
+                        menuWin = w;
+                        break;
+                    }
+                }
+            }
             else if (screen)
             {
-                menuWin = screen->FirstWindow;
-                while (menuWin)
+                struct Window *w;
+                for (w = screen->FirstWindow; w; w = w->NextWindow)
                 {
-                    if (menuWin->MenuStrip && !(menuWin->Flags & WFLG_RMBTRAP))
+                    if (w->MenuStrip && !(w->Flags & WFLG_RMBTRAP))
+                    {
+                        menuWin = w;
                         break;
-                    menuWin = menuWin->NextWindow;
+                    }
                 }
             }
 
             if (menuWin && menuWin->MenuStrip && screen)
             {
-                DPRINTF(LOG_DEBUG, "_intuition: Entering menu mode for menuWin=0x%08lx\n", (ULONG)menuWin);
                 _enter_menu_mode(menuWin, screen, mouseX, mouseY);
             }
         }
         else if (code == MENUUP)
         {
-            DPRINTF(LOG_DEBUG, "_intuition: MENUUP at (%d,%d), g_menu_mode=%d, g_active_menu=0x%08lx, g_active_item=0x%08lx\n",
-                    mouseX, mouseY, g_menu_mode, (ULONG)g_active_menu, (ULONG)g_active_item);
+             DPRINTF(LOG_DEBUG, "_intuition: MENUUP at (%d,%d), g_menu_mode=%d, g_active_menu=0x%08lx, g_active_item=0x%08lx\n",
+                     mouseX, mouseY, g_menu_mode, (ULONG)g_active_menu, (ULONG)g_active_item);
+
             if (g_menu_mode && g_menu_window)
             {
                 _exit_menu_mode(g_menu_window, mouseX, mouseY);
@@ -3622,6 +3643,9 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
         BOOL needRedraw = FALSE;
         struct Menu *oldMenu = g_active_menu;
         struct MenuItem *oldItem = g_active_item;
+
+        DPRINTF(LOG_DEBUG, "_intuition: pointerpos in menu_mode: mouse=(%d,%d) BarH=%d g_active_menu=0x%08lx\n",
+                mouseX, mouseY, (int)screen->BarHeight, (ULONG)g_active_menu);
 
         if (mouseY < screen->BarHeight + 1)
         {
@@ -4205,6 +4229,8 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
                                                         register struct Window * window __asm("a0"))
 {
     struct LXAWindowState *state;
+    struct Layer *border_layer = NULL;
+    struct Layer *content_layer = NULL;
     BOOL was_processing_events;
 
     DPRINTF (LOG_DEBUG, "_intuition: CloseWindow() window=0x%08lx\n", (ULONG)window);
@@ -4233,6 +4259,22 @@ VOID _intuition_CloseWindow ( register struct IntuitionBase * IntuitionBase __as
 
     /* Dispose any pending and replied IDCMP messages, then remove both ports. */
     _dispose_window_idcmp_ports(window);
+
+    if (window->BorderRPort)
+        border_layer = window->BorderRPort->Layer;
+    content_layer = window->WLayer;
+
+    if (content_layer)
+    {
+        DeleteLayer(0, content_layer);
+        window->WLayer = NULL;
+    }
+
+    if (border_layer && border_layer != content_layer)
+        DeleteLayer(0, border_layer);
+
+    window->RPort = NULL;
+    window->BorderRPort = NULL;
 
     /* Free system gadgets we created */
     {
@@ -5304,6 +5346,38 @@ static BOOL _is_separator_menu_item(const struct MenuItem *item)
     return it->IText[0] == '-';
 }
 
+static WORD _menu_item_required_width(const struct MenuItem *item)
+{
+    WORD width;
+
+    if (!item)
+        return 0;
+
+    width = item->Width;
+
+    if ((item->Flags & ITEMTEXT) && item->ItemFill)
+    {
+        const struct IntuiText *it = (const struct IntuiText *)item->ItemFill;
+
+        if (it && it->IText)
+        {
+            WORD label_width = (WORD)(strlen((const char *)it->IText) * 8);
+            WORD text_width = (WORD)(4 + it->LeftEdge + label_width + 4);
+
+            if (item->Flags & COMMSEQ)
+                text_width = (WORD)(text_width + 8 + 28);
+
+            if (item->SubItem)
+                text_width = (WORD)(text_width + 12);
+
+            if (text_width > width)
+                width = text_width;
+        }
+    }
+
+    return width;
+}
+
 static void _draw_submenu_indicator(struct RastPort *rp, WORD right, WORD center_y)
 {
     WORD x;
@@ -5369,6 +5443,9 @@ static struct MenuItem * _find_item_at_pos(struct Menu *menu, WORD x, WORD y)
         /* Skip disabled items */
         if (!(item->Flags & ITEMENABLED))
             continue;
+
+        DPRINTF(LOG_DEBUG, "_intuition: _find_item_at_pos: checking item TE=%d H=%d LE=%d-CL=%d W=%d against x=%d y=%d\n",
+                (int)item->TopEdge, (int)item->Height, (int)item->LeftEdge, (int)chain_left, (int)item->Width, (int)x, (int)y);
         
         if (x >= item->LeftEdge - chain_left &&
             x < item->LeftEdge - chain_left + item->Width &&
@@ -5493,7 +5570,7 @@ static void _get_menu_item_chain_box(struct MenuItem *firstItem,
 
     for (item = firstItem; item; item = item->NextItem)
     {
-        WORD width = (item->LeftEdge - chain_left) + item->Width;
+        WORD width = (item->LeftEdge - chain_left) + _menu_item_required_width(item);
         WORD height = item->TopEdge + item->Height;
 
         if (width > max_width)
@@ -5876,18 +5953,21 @@ static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu)
     menuX = screen->BarHBorder + menu->LeftEdge;
     menuY = barHeight;
     
-    /* Calculate menu dimensions from items (same logic as _render_menu_items) */
-    menuWidth = 0;
-    menuHeight = 0;
-    for (item = menu->FirstItem; item; item = item->NextItem)
+    /* Calculate menu dimensions from items, matching _get_menu_item_chain_box logic */
     {
-        WORD w = item->LeftEdge + item->Width;
-        WORD h = item->TopEdge + item->Height;
-        if (w > menuWidth) menuWidth = w;
-        if (h > menuHeight) menuHeight = h;
+        WORD chain_left = menu->FirstItem->LeftEdge;
+        menuWidth = 0;
+        menuHeight = 0;
+        for (item = menu->FirstItem; item; item = item->NextItem)
+        {
+            WORD w = (item->LeftEdge - chain_left) + _menu_item_required_width(item);
+            WORD h = item->TopEdge + item->Height;
+            if (w > menuWidth) menuWidth = w;
+            if (h > menuHeight) menuHeight = h;
+        }
+        menuWidth += 8;    /* padding, matching _get_menu_item_chain_box */
+        menuHeight += 4;
     }
-    menuWidth += 8;    /* padding, matching _render_menu_items */
-    menuHeight += 4;
 
     saveX = menuX;
     saveY = menuY;
@@ -5944,7 +6024,9 @@ static void _render_menu_item_chain(struct RastPort *rp,
     {
         WORD item_box_x = menuX + item->LeftEdge - chain_left;
         WORD itemX = item_box_x + 4;
+        WORD item_width = _menu_item_required_width(item);
 
+        it = (struct IntuiText *)item->ItemFill;
         itemY = menuY + item->TopEdge + 2;
 
         if (item == highlightedItem && (item->Flags & ITEMENABLED))
@@ -5967,7 +6049,7 @@ static void _render_menu_item_chain(struct RastPort *rp,
         {
             WORD separator_y = itemY + (item->Height / 2) - 1;
             WORD separator_left = item_box_x + 6;
-            WORD separator_right = item_box_x + item->Width - 7;
+            WORD separator_right = item_box_x + item_width - 7;
 
             if (separator_right >= separator_left)
             {
@@ -5991,8 +6073,13 @@ static void _render_menu_item_chain(struct RastPort *rp,
                 SetBPen(rp, 1);
             }
 
-            Move(rp, itemX + it->LeftEdge, itemY + it->TopEdge + rp->TxBaseline);
-            Text(rp, (STRPTR)it->IText, strlen((const char *)it->IText));
+            {
+                WORD text_len = (WORD)strlen((const char *)it->IText);
+                WORD text_x = itemX + it->LeftEdge;
+                WORD text_y = itemY + it->TopEdge + rp->TxBaseline;
+                Move(rp, text_x, text_y);
+                Text(rp, (STRPTR)it->IText, text_len);
+            }
 
             if (item->Flags & CHECKED)
             {
@@ -6003,17 +6090,18 @@ static void _render_menu_item_chain(struct RastPort *rp,
             if (item->Flags & COMMSEQ)
             {
                 char cmdStr[4];
+                WORD cmd_width = 24;
                 cmdStr[0] = 'A';
                 cmdStr[1] = '-';
                 cmdStr[2] = item->Command;
                 cmdStr[3] = '\0';
-                Move(rp, menuX + menuWidth - 40, itemY + rp->TxBaseline);
+                Move(rp, item_box_x + item_width - cmd_width - 4, itemY + rp->TxBaseline);
                 Text(rp, (STRPTR)cmdStr, 3);
             }
 
             if (item->SubItem)
             {
-                WORD indicator_right = item_box_x + item->Width - 7;
+                WORD indicator_right = item_box_x + item_width - 7;
                 WORD indicator_center_y = itemY + (item->Height / 2) - 1;
 
                 _draw_submenu_indicator(rp, indicator_right, indicator_center_y);
@@ -6078,9 +6166,14 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
     if (!window || !window->MenuStrip || !screen)
         return;
     
-    /* Check if window has WFLG_RMBTRAP - if so, don't enter menu mode */
-    if (window->Flags & WFLG_RMBTRAP)
-        return;
+    /*
+     * Note: WFLG_RMBTRAP filtering is done by the callers — the
+     * MENUDOWN handler already decides based on whether the mouse
+     * is in the screen title bar (system territory, RMBTRAP ignored)
+     * or over a window (RMBTRAP respected).  We do not re-check it
+     * here so that title-bar menu activation works for programs like
+     * BlitzBasic2 that use RMBTRAP + SetMenuStrip together.
+     */
     
     g_menu_mode = TRUE;
     g_menu_window = window;
@@ -6104,6 +6197,8 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
             _render_menu_items(window);
         }
     }
+    DPRINTF(LOG_DEBUG, "_intuition: _enter_menu_mode completed, g_menu_mode=%d g_active_menu=0x%08lx\n",
+            g_menu_mode, (ULONG)g_active_menu);
 }
 
 /*
@@ -6143,8 +6238,8 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
             menuCode = _encode_menu_selection(menuNum, itemNum, subNum);
             selected_item->NextSelect = MENUNULL;
 
-            DPRINTF(LOG_DEBUG, "_intuition: Menu selection: menu=%d item=%d sub=%d code=0x%04x\n",
-                    (int)menuNum, (int)itemNum, (int)subNum, menuCode);
+            DPRINTF(LOG_DEBUG, "_intuition: Menu selection: menu=%d item=%d sub=%d code=0x%04x enabled=0x%04x\n",
+                    (int)menuNum, (int)itemNum, (int)subNum, menuCode, selected_item->Flags);
         }
     }
     
@@ -6590,7 +6685,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
     /* Prevent re-entry - if already processing events, skip */
     if (g_processing_events)
     {
-        LPRINTF(LOG_WARNING, "_intuition: ProcessInputEvents SKIPPED (re-entry)\n");
+        DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents SKIPPED (re-entry guard)\n");
         return;
     }
     g_processing_events = TRUE;
@@ -6603,15 +6698,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
      */
     
     /* Poll for input events */
-    LONG pie_iteration = 0;
     while (1)
     {
         event_type = emucall0(EMU_CALL_INT_POLL_INPUT);
-        pie_iteration++;
         if (event_type == 0)
         {
-            if (pie_iteration > 1)
-                LPRINTF(LOG_WARNING, "_intuition: PIE done after %ld events\n", pie_iteration - 1);
             break;  /* No more events */
         }
         
@@ -6619,6 +6710,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
         mouse_pos = emucall0(EMU_CALL_INT_GET_MOUSE_POS);
         mouseX = (WORD)(mouse_pos >> 16);
         mouseY = (WORD)(mouse_pos & 0xFFFF);
+
+        DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: event_type=%ld mouse=(%d,%d)\n",
+                event_type, (int)mouseX, (int)mouseY);
         
         /*
          * Resolve the correct screen for this event based on mouse
@@ -6658,8 +6752,6 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
         
         DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: got event type=%ld screen=0x%08lx\n",
                 event_type, (ULONG)screen);
-        LPRINTF(LOG_WARNING, "_intuition: PIE: type=%ld mouse=(%d,%d) screen=0x%08lx\n",
-                event_type, mouseX, mouseY, (ULONG)screen);
         
         /* Update IntuitionBase with current mouse position and timestamp */
         if (IntuitionBase)
@@ -6701,6 +6793,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 button_code = emucall0(EMU_CALL_INT_GET_MOUSE_BTN);
                 UWORD code = (UWORD)(button_code & 0xFF);
                 UWORD qualifier = (UWORD)((button_code >> 8) & 0xFFFF);
+
+                DPRINTF(LOG_DEBUG, "_intuition: PIE MouseButton raw=0x%08lx code=0x%02x qual=0x%04x at (%d,%d) window=0x%08lx\n",
+                        button_code, (int)code, (int)qualifier, (int)mouseX, (int)mouseY, (ULONG)window);
 
                 input_event.ie_Class = IECLASS_RAWMOUSE;
                 input_event.ie_Code = code;
@@ -7045,46 +7140,80 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     /* Right mouse button press - enter menu mode */
                     else if (code == MENUDOWN)
                     {
-                        LPRINTF(LOG_WARNING, "_intuition: PIE-MENUDOWN at (%d,%d), win=0x%08lx MS=0x%08lx\n",
-                                mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
-                        DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
+                        DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN(PIE) at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
                                 mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
                         /* 
-                         * On real AmigaOS, right-clicking ANYWHERE on the screen activates the
-                         * menu bar. The window that receives the menu is the currently active
-                         * window with a menu strip, or the window under the mouse if it has a menu.
+                         * On real AmigaOS, right-clicking activates the menu bar.
+                         * When the mouse is in the screen title bar (above all
+                         * windows), the menu strip of the active window is used
+                         * regardless of WFLG_RMBTRAP, because the title bar is a
+                         * system-level area owned by Intuition, not by any window.
+                         *
+                         * When the mouse is over a window that has WFLG_RMBTRAP,
+                         * the raw MOUSEBUTTONS event is delivered to that window
+                         * and the menu system is NOT activated.
+                         *
+                         * When the mouse is over a window without RMBTRAP and
+                         * with a MenuStrip, that window's menus are shown.
                          */
                         struct Window *menuWin = NULL;
-                        
+                        BOOL in_title_bar = (screen && mouseY <= screen->BarHeight);
+                        DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN in_title_bar=%d BarHeight=%d\n",
+                                (int)in_title_bar, screen ? (int)screen->BarHeight : -1);
+
                         /* First, check the window under the mouse */
                         if (window && window->MenuStrip && !(window->Flags & WFLG_RMBTRAP))
                         {
                             menuWin = window;
                         }
+                        else if (in_title_bar)
+                        {
+                            /*
+                             * Mouse is in the screen title bar — this is system
+                             * territory.  Find the first window with a MenuStrip,
+                             * ignoring WFLG_RMBTRAP.  The title bar click belongs
+                             * to the system, not to any window, so RMBTRAP does
+                             * not suppress menu activation here.
+                             */
+                            struct Window *w;
+                            for (w = screen->FirstWindow; w; w = w->NextWindow)
+                            {
+                                DPRINTF(LOG_DEBUG, "_intuition: title_bar walk: w=0x%08lx MenuStrip=0x%08lx\n",
+                                        (ULONG)w, (ULONG)w->MenuStrip);
+                                if (w->MenuStrip)
+                                {
+                                    menuWin = w;
+                                    break;
+                                }
+                            }
+                            DPRINTF(LOG_DEBUG, "_intuition: title_bar resolved menuWin=0x%08lx\n", (ULONG)menuWin);
+                        }
                         else
                         {
-                            /* Otherwise, find the first window with a menu strip on this screen */
-                            menuWin = screen->FirstWindow;
-                            while (menuWin)
+                            /* Mouse is over a window area but no direct match.
+                             * Walk the window list and respect WFLG_RMBTRAP. */
+                            struct Window *w;
+                            for (w = screen->FirstWindow; w; w = w->NextWindow)
                             {
-                                if (menuWin->MenuStrip && !(menuWin->Flags & WFLG_RMBTRAP))
+                                if (w->MenuStrip && !(w->Flags & WFLG_RMBTRAP))
+                                {
+                                    menuWin = w;
                                     break;
-                                menuWin = menuWin->NextWindow;
+                                }
                             }
                         }
-                        
+
+                        DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN final menuWin=0x%08lx MenuStrip=0x%08lx\n",
+                                (ULONG)menuWin, menuWin ? (ULONG)menuWin->MenuStrip : 0);
                         if (menuWin && menuWin->MenuStrip)
                         {
-                            DPRINTF(LOG_DEBUG, "_intuition: Entering menu mode for menuWin=0x%08lx\n", (ULONG)menuWin);
                             _enter_menu_mode(menuWin, screen, mouseX, mouseY);
                         }
                     }
                     /* Right mouse button release - exit menu mode and select item */
                     else if (code == MENUUP)
                     {
-                        LPRINTF(LOG_WARNING, "_intuition: PIE-MENUUP at (%d,%d) mode=%d menu=0x%08lx item=0x%08lx\n",
-                                mouseX, mouseY, g_menu_mode, (ULONG)g_active_menu, (ULONG)g_active_item);
-                        DPRINTF(LOG_DEBUG, "_intuition: MENUUP at (%d,%d), g_menu_mode=%d, g_active_menu=0x%08lx, g_active_item=0x%08lx\n",
+                        DPRINTF(LOG_DEBUG, "_intuition: MENUUP(PIE) at (%d,%d), g_menu_mode=%d, g_active_menu=0x%08lx, g_active_item=0x%08lx\n",
                                 mouseX, mouseY, g_menu_mode, (ULONG)g_active_menu, (ULONG)g_active_item);
                         if (g_menu_mode && g_menu_window)
                         {
@@ -7167,18 +7296,6 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             WORD itemX = mouseX - menuLeft;
                             WORD itemY = mouseY - menuTop;
                             struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
-
-                            LPRINTF(LOG_WARNING, "_intuition: PIE-HOVER menuTop=%d menuLeft=%d itemX=%d itemY=%d newItem=0x%08lx\n",
-                                    menuTop, menuLeft, itemX, itemY, (ULONG)newItem);
-                            if (!newItem && g_active_menu && g_active_menu->FirstItem)
-                            {
-                                struct MenuItem *dbg;
-                                for (dbg = g_active_menu->FirstItem; dbg; dbg = dbg->NextItem)
-                                {
-                                    LPRINTF(LOG_WARNING, "_intuition: PIE-ITEM LE=%d TE=%d W=%d H=%d fl=0x%04x\n",
-                                            dbg->LeftEdge, dbg->TopEdge, dbg->Width, dbg->Height, dbg->Flags);
-                                }
-                            }
 
                             if (newItem != g_active_item)
                             {
@@ -7986,11 +8103,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     IntuitionBase->FirstScreen = screen;
     _intuition_register_pubscreen(IntuitionBase, screen);
     
-    /* Debug: print offset of FirstScreen */
-    LPRINTF(LOG_INFO, "[ROM] OpenScreen: offsetof(FirstScreen)=%d, sizeof(IntuitionBase)=%d, sizeof(Library)=%d, sizeof(View)=%d\n",
-            (int)((char*)&IntuitionBase->FirstScreen - (char*)IntuitionBase),
-            (int)sizeof(struct IntuitionBase), (int)sizeof(struct Library), (int)sizeof(struct View));
-    LPRINTF(LOG_INFO, "[ROM] OpenScreen: IntuitionBase=0x%08lx, FirstScreen set to 0x%08lx\n",
+    DPRINTF(LOG_DEBUG, "[ROM] OpenScreen: IntuitionBase=0x%08lx, FirstScreen set to 0x%08lx\n",
             (ULONG)IntuitionBase, (ULONG)screen);
     
     /* If this is the first screen, make it the active screen */
@@ -8146,13 +8259,13 @@ static void _render_window_frame(struct Window *window)
     DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() window=0x%08lx RPort=0x%08lx\n", 
             (ULONG)window, window ? (ULONG)window->RPort : 0);
     
-    if (!window || !window->RPort)
+    if (!window || (!window->RPort && !window->BorderRPort))
     {
         LPRINTF(LOG_WARNING, "_intuition: _render_window_frame() aborting - null window or RPort\n");
         return;
     }
     
-    rp = window->RPort;
+    rp = window->BorderRPort ? window->BorderRPort : window->RPort;
     
     /* Get pens - use window pens or defaults */
     detPen = window->DetailPen;
@@ -8407,6 +8520,8 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
 {
     struct Window *window;
     struct Screen *screen;
+    struct Layer *border_layer = NULL;
+    struct Layer *content_layer = NULL;
     WORD width, height;
     WORD requested_width, requested_height;
     ULONG rootless_mode;
@@ -8418,6 +8533,24 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     {
         LPRINTF (LOG_ERROR, "_intuition: OpenWindow() called with NULL newWindow\n");
         return NULL;
+    }
+
+    if ((newWindow->Flags & WFLG_NW_EXTENDED) != 0)
+    {
+        const struct ExtNewWindow *ext_new_window = (const struct ExtNewWindow *)newWindow;
+        const struct TagItem *extension = ext_new_window->Extension;
+
+        if (extension != NULL && (((ULONG)extension & 1) == 0) && TypeOfMem((APTR)extension) != 0)
+            return _intuition_OpenWindowTagList(IntuitionBase,
+                                                newWindow,
+                                                extension);
+
+        if (extension != NULL)
+        {
+            LPRINTF(LOG_WARNING,
+                    "_intuition: OpenWindow() ignoring invalid NW_EXTENDED taglist 0x%08lx\n",
+                    (ULONG)extension);
+        }
     }
 
     /* Debug dump of NewWindow structure for KP2 investigation */
@@ -8528,6 +8661,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
                     (int)newWindow->LeftEdge,
                     (int)newWindow->TopEdge);
         }
+
     }
     
     /*
@@ -8545,10 +8679,15 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         width == screen->Width && height < MIN_USABLE_HEIGHT &&
         screen->Height >= MIN_USABLE_HEIGHT)
     {
-        WORD newHeight = screen->Height - newWindow->TopEdge;
+        LONG expandedHeight = (LONG)screen->Height - (LONG)newWindow->TopEdge;
+
+        /* Guard against overflow and nonsense results */
+        if (expandedHeight <= 0 || expandedHeight > screen->Height)
+            expandedHeight = (LONG)screen->Height;
+
         LPRINTF(LOG_INFO, "_intuition: OpenWindow() window height %d < %d, expanding to %d\n",
-                (int)height, MIN_USABLE_HEIGHT, (int)newHeight);
-        height = newHeight;
+                (int)height, MIN_USABLE_HEIGHT, (int)expandedHeight);
+        height = (WORD)expandedHeight;
     }
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() %dx%d at (%d,%d) flags=0x%08lx\n",
@@ -8563,9 +8702,36 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         return NULL;
     }
 
-    /* Initialize window fields */
-    window->LeftEdge = newWindow->LeftEdge;
-    window->TopEdge = newWindow->TopEdge;
+    /* Initialize window fields — clamp position to screen bounds.
+     * Some apps (e.g. BlitzBasic2) pass garbage sentinel values in
+     * LeftEdge/TopEdge; the host side uses these to compute the tracked
+     * window extent, so out-of-range values cause oversized host windows. */
+    {
+        WORD clampedLeft = newWindow->LeftEdge;
+        WORD clampedTop  = newWindow->TopEdge;
+
+        if (clampedLeft < 0)
+            clampedLeft = 0;
+        else if (clampedLeft >= screen->Width)
+            clampedLeft = screen->Width - 1;
+
+        if (clampedTop < 0)
+            clampedTop = 0;
+        else if (clampedTop >= screen->Height)
+            clampedTop = screen->Height - 1;
+
+        if (clampedLeft != newWindow->LeftEdge || clampedTop != newWindow->TopEdge)
+        {
+            LPRINTF(LOG_INFO,
+                    "_intuition: OpenWindow() clamped position (%d,%d) to (%d,%d) on screen %dx%d\n",
+                    (int)newWindow->LeftEdge, (int)newWindow->TopEdge,
+                    (int)clampedLeft, (int)clampedTop,
+                    (int)screen->Width, (int)screen->Height);
+        }
+
+        window->LeftEdge = clampedLeft;
+        window->TopEdge  = clampedTop;
+    }
     window->Width = width;
     window->Height = height;
     window->MinWidth = newWindow->MinWidth ? newWindow->MinWidth : width;
@@ -8640,28 +8806,90 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         window->GZZHeight = window->Height - window->BorderTop - window->BorderBottom;
     }
 
-    /* Create a Layer for this window so graphics operations use proper coordinate offsets */
+    /* Create the window layer(s). */
     {
-        struct Layer *layer;
-        LONG x0 = newWindow->LeftEdge;
-        LONG y0 = newWindow->TopEdge;
-        LONG x1 = newWindow->LeftEdge + width - 1;
-        LONG y1 = newWindow->TopEdge + height - 1;
-        
-        layer = CreateUpfrontLayer(&screen->LayerInfo, &screen->BitMap,
-                                   x0, y0, x1, y1, LAYERSIMPLE, NULL);
-        if (layer)
+        LONG layer_flags;
+        LONG x0 = window->LeftEdge;
+        LONG y0 = window->TopEdge;
+        LONG x1 = window->LeftEdge + width - 1;
+        LONG y1 = window->TopEdge + height - 1;
+
+        if (window->Flags & WFLG_SIMPLE_REFRESH)
+            layer_flags = LAYERSIMPLE;
+        else if ((window->Flags & WFLG_SUPER_BITMAP) && newWindow->BitMap)
+            layer_flags = LAYERSUPER;
+        else
+            layer_flags = LAYERSMART;
+
+        if (window->Flags & WFLG_BACKDROP)
+            layer_flags |= LAYERBACKDROP;
+
+        if (window->Flags & WFLG_GIMMEZEROZERO)
         {
-            window->WLayer = layer;
-            window->RPort = layer->rp;
-            DPRINTF(LOG_DEBUG, "_intuition: OpenWindow() created layer=0x%08lx rp=0x%08lx bounds=[%ld,%ld]-[%ld,%ld]\n",
-                    (ULONG)layer, (ULONG)layer->rp, x0, y0, x1, y1);
+            struct TagItem content_tags[] = {
+                { LA_BackfillHook, (ULONG)LAYERS_NOBACKFILL },
+                { (layer_flags & LAYERSUPER) ? LA_SuperBitMap : TAG_IGNORE, (ULONG)newWindow->BitMap },
+                { LA_WindowPtr, (ULONG)window },
+                { TAG_DONE, 0 }
+            };
+            LONG inner_x0 = x0 + window->BorderLeft;
+            LONG inner_y0 = y0 + window->BorderTop;
+            LONG inner_x1 = inner_x0 + window->GZZWidth - 1;
+            LONG inner_y1 = inner_y0 + window->GZZHeight - 1;
+
+            border_layer = CreateLayerTagList(&screen->LayerInfo, &screen->BitMap,
+                                              x0, y0, x1, y1,
+                                              LAYERSIMPLE | (layer_flags & LAYERBACKDROP),
+                                              NULL);
+            if (border_layer)
+            {
+                content_layer = CreateLayerTagList(&screen->LayerInfo, &screen->BitMap,
+                                                   inner_x0, inner_y0, inner_x1, inner_y1,
+                                                   layer_flags,
+                                                   content_tags);
+                if (!content_layer)
+                {
+                    DeleteLayer(0, border_layer);
+                    border_layer = NULL;
+                }
+            }
+        }
+        else
+        {
+            struct TagItem content_tags[] = {
+                { LA_BackfillHook, (ULONG)LAYERS_NOBACKFILL },
+                { (layer_flags & LAYERSUPER) ? LA_SuperBitMap : TAG_IGNORE, (ULONG)newWindow->BitMap },
+                { LA_WindowPtr, (ULONG)window },
+                { TAG_DONE, 0 }
+            };
+
+            content_layer = CreateLayerTagList(&screen->LayerInfo, &screen->BitMap,
+                                               x0, y0, x1, y1,
+                                               layer_flags,
+                                               content_tags);
+        }
+
+        if (content_layer)
+        {
+            window->WLayer = content_layer;
+            window->RPort = content_layer->rp;
+            window->BorderRPort = border_layer ? border_layer->rp : content_layer->rp;
+            DPRINTF(LOG_DEBUG,
+                    "_intuition: OpenWindow() created border_layer=0x%08lx content_layer=0x%08lx rp=0x%08lx bounds=[%ld,%ld]-[%ld,%ld]\n",
+                    (ULONG)border_layer,
+                    (ULONG)content_layer,
+                    (ULONG)content_layer->rp,
+                    x0,
+                    y0,
+                    x1,
+                    y1);
         }
         else
         {
             /* Fallback to screen's RastPort if layer creation fails */
             DPRINTF(LOG_WARNING, "_intuition: OpenWindow() layer creation failed, using screen RastPort\n");
             window->RPort = &screen->RastPort;
+            window->BorderRPort = &screen->RastPort;
             window->WLayer = NULL;
         }
     }
@@ -8678,7 +8906,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
 
         window_handle = emucall4(EMU_CALL_INT_OPEN_WINDOW,
                                  screen_handle,
-                                 ((ULONG)(WORD)newWindow->LeftEdge << 16) | ((ULONG)(WORD)newWindow->TopEdge & 0xFFFF),
+                                 ((ULONG)(WORD)window->LeftEdge << 16) | ((ULONG)(WORD)window->TopEdge & 0xFFFF),
                                  ((ULONG)width << 16) | ((ULONG)height & 0xFFFF),
                                  (ULONG)newWindow->Title);
 
@@ -11937,6 +12165,9 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                                                         register const struct NewWindow * newWindow __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
+    BOOL auto_adjust = FALSE;
+    BOOL left_specified = FALSE;
+    BOOL top_specified = FALSE;
     UWORD mouse_queue = DEFAULT_MOUSEQUEUE;
     struct NewWindow nw;
     struct TagItem *tstate;
@@ -11982,9 +12213,11 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
             {
                 case WA_Left:
                     nw.LeftEdge = (WORD)tag->ti_Data;
+                    left_specified = TRUE;
                     break;
                 case WA_Top:
                     nw.TopEdge = (WORD)tag->ti_Data;
+                    top_specified = TRUE;
                     break;
                 case WA_Width:
                     nw.Width = (WORD)tag->ti_Data;
@@ -12013,6 +12246,13 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                 case WA_CustomScreen:
                     nw.Screen = (struct Screen *)tag->ti_Data;
                     nw.Type = CUSTOMSCREEN;
+                    break;
+                case WA_SuperBitMap:
+                    nw.BitMap = (struct BitMap *)tag->ti_Data;
+                    if (tag->ti_Data)
+                        nw.Flags |= WFLG_SUPER_BITMAP;
+                    else
+                        nw.Flags &= ~WFLG_SUPER_BITMAP;
                     break;
                 case WA_MinWidth:
                     nw.MinWidth = (WORD)tag->ti_Data;
@@ -12138,9 +12378,10 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                 case WA_BackFill:
                 case WA_RptQueue:
                 case WA_AutoAdjust:
+                    auto_adjust = (tag->ti_Data != 0);
+                    break;
                 case WA_ScreenTitle:
                 case WA_Checkmark:
-                case WA_SuperBitMap:
                 case WA_MenuHelp:
                 case WA_NewLookMenus:
                 case WA_NotifyDepth:
@@ -12247,6 +12488,61 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
             LPRINTF(LOG_WARNING, "_intuition: OpenWindowTagList() WA_InnerWidth/Height ignored - no screen found\n");
         }
     }
+
+    if (auto_adjust)
+    {
+        struct Screen *adjust_screen = nw.Screen;
+        WORD adjust_width;
+        WORD adjust_height;
+
+        if (!adjust_screen)
+        {
+            adjust_screen = IntuitionBase->FirstScreen;
+            while (adjust_screen)
+            {
+                if ((adjust_screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+                    break;
+                adjust_screen = adjust_screen->NextScreen;
+            }
+
+            if (!adjust_screen && _intuition_OpenWorkBench(IntuitionBase))
+                adjust_screen = _intuition_find_workbench_screen(IntuitionBase);
+        }
+
+        if (adjust_screen)
+        {
+            adjust_width = nw.Width;
+            adjust_height = nw.Height;
+
+            if (adjust_width <= 0 || adjust_width > adjust_screen->Width)
+                adjust_width = adjust_screen->Width;
+            if (adjust_height <= 0 || adjust_height > adjust_screen->Height)
+                adjust_height = adjust_screen->Height;
+
+            if (!left_specified && !top_specified)
+            {
+                nw.LeftEdge = IntuitionBase->MouseX - (adjust_width / 2);
+                nw.TopEdge = IntuitionBase->MouseY;
+            }
+
+            if (nw.LeftEdge < 0)
+                nw.LeftEdge = 0;
+            if (nw.TopEdge < 0)
+                nw.TopEdge = 0;
+
+            if (nw.LeftEdge + adjust_width > adjust_screen->Width)
+                nw.LeftEdge = adjust_screen->Width - adjust_width;
+            if (nw.TopEdge + adjust_height > adjust_screen->Height)
+                nw.TopEdge = adjust_screen->Height - adjust_height;
+
+            if (nw.LeftEdge < 0)
+                nw.LeftEdge = 0;
+            if (nw.TopEdge < 0)
+                nw.TopEdge = 0;
+        }
+    }
+
+    nw.Flags &= ~WFLG_NW_EXTENDED;
 
     /* Call our existing OpenWindow with the assembled NewWindow */
     struct Window *win = _intuition_OpenWindow(IntuitionBase, &nw);

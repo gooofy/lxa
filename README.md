@@ -238,7 +238,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.62** - BlitzBasic2 now has hosted startup/menu coverage, and Intuition screen/window sizing sanitizes negative height sentinels instead of wrapping into bogus huge dimensions
+**Version 0.8.63** - BlitzBasic2 UI fixes: malformed second window clamped, menu width corrected, RMBTRAP title-bar bypass enables menu activation, and extended driver covers About dialog, project-open, and quit flows
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

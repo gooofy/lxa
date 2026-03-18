@@ -941,8 +941,8 @@ static void queue_event(const display_event_t *event)
     {
         g_event_queue[g_event_queue_head] = *event;
         g_event_queue_head = next_head;
-        DPRINTF(LOG_DEBUG, "display: queue_event type=%d, head=%d tail=%d\n", 
-                event->type, g_event_queue_head, g_event_queue_tail);
+        DPRINTF(LOG_DEBUG, "display: queue_event type=%d code=0x%x, head=%d tail=%d\n", 
+                event->type, event->button_code, g_event_queue_head, g_event_queue_tail);
     }
     else
     {
@@ -965,8 +965,9 @@ bool display_get_event(display_event_t *event)
     {
         *event = g_event_queue[g_event_queue_tail];
     }
-    DPRINTF(LOG_DEBUG, "display: get_event type=%d rawkey=0x%02x head=%d tail=%d\n",
+    DPRINTF(LOG_DEBUG, "display: get_event type=%d rawkey=0x%02x btn=0x%02x head=%d tail=%d\n",
             g_event_queue[g_event_queue_tail].type, g_event_queue[g_event_queue_tail].rawkey,
+            g_event_queue[g_event_queue_tail].button_code,
             g_event_queue_head, g_event_queue_tail);
     g_event_queue_tail = (g_event_queue_tail + 1) % EVENT_QUEUE_SIZE;
     return true;
@@ -1438,6 +1439,19 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
     win->width = display_window_host_width(win, width);
     win->height = display_window_host_height(win, height);
     win->depth = depth;
+
+    /* Validate computed host dimensions against bounds.
+     * The logical dimensions have already been checked, but the host
+     * extent may exceed DISPLAY_MAX_WIDTH/HEIGHT after layout expansion. */
+    if (win->width <= 0 || win->width > DISPLAY_MAX_WIDTH ||
+        win->height <= 0 || win->height > DISPLAY_MAX_HEIGHT)
+    {
+        LPRINTF(LOG_ERROR, "display: computed host dimensions %dx%d exceed limits for window '%s'\n",
+                win->width, win->height, title ? title : "(null)");
+        win->in_use = false;
+        return NULL;
+    }
+
     win->in_use = true;
     win->amiga_window_ptr = 0;
     if (title)
@@ -2193,8 +2207,8 @@ bool display_inject_mouse(int x, int y, int buttons, display_event_type_t event_
     g_mouse_x = x;
     g_mouse_y = y;
     
-    LPRINTF(LOG_DEBUG, "display: inject_mouse x=%d y=%d buttons=0x%x type=%d code=0x%x\n",
-            x, y, buttons, event_type, event.button_code);
+    LPRINTF(LOG_DEBUG, "display: inject_mouse x=%d y=%d buttons=0x%x type=%d code=0x%x down=%d\n",
+            x, y, buttons, event_type, event.button_code, event.button_down);
     
     return true;
 }

@@ -6858,7 +6858,7 @@ int op_illg(int level)
                 /* Store event data in static vars for subsequent GET calls */
                 g_last_event = event;
                 m68k_set_reg(M68K_REG_D0, (uint32_t)event.type);
-                DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_POLL_INPUT: got event type=%d rawkey=0x%02x btn=0x%02x pos=(%d,%d)\n", event.type, event.rawkey, event.button_code, event.mouse_x, event.mouse_y);
+                DPRINTF(LOG_DEBUG, "lxa: POLL_INPUT: got event type=%d btn=0x%02x pos=(%d,%d)\n", event.type, event.button_code, event.mouse_x, event.mouse_y);
             }
             else
             {
@@ -6916,10 +6916,9 @@ int op_illg(int level)
             display_t *screen = (display_t *)(uintptr_t)d1;
             int x = (int16_t)((d2 >> 16) & 0xFFFF);
             int y = (int16_t)(d2 & 0xFFFF);
-            int w = (d3 >> 16) & 0xFFFF;
-            int h = d3 & 0xFFFF;
+            int w = (int16_t)((d3 >> 16) & 0xFFFF);
+            int h = (int16_t)(d3 & 0xFFFF);
             uint32_t title_ptr = d4;
-
             char title[128] = "LXA Window";
             if (title_ptr != 0)
             {
@@ -6936,6 +6935,15 @@ int op_illg(int level)
 
             DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_OPEN_WINDOW x=%d, y=%d, w=%d, h=%d '%s'\n",
                     x, y, w, h, title);
+
+            /* Reject negative or zero window dimensions that result from
+             * signed WORD overflow on the ROM side. */
+            if (w <= 0 || h <= 0)
+            {
+                LPRINTF(LOG_WARNING, "lxa: EMU_CALL_INT_OPEN_WINDOW rejected invalid dimensions %dx%d\n", w, h);
+                m68k_set_reg(M68K_REG_D0, 0);
+                break;
+            }
 
             /* Get depth from screen if available */
             int depth = 2;  /* Default */
