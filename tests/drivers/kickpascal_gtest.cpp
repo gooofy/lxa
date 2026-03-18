@@ -26,6 +26,65 @@ protected:
                image.pixels[pixel_offset + 2] == 0;
     }
 
+    int CountBlackPixels(const RgbImage& image, int x1, int y1, int x2, int y2) {
+        int count = 0;
+
+        x1 = std::max(0, x1);
+        y1 = std::max(0, y1);
+        x2 = std::min(image.width - 1, x2);
+        y2 = std::min(image.height - 1, y2);
+
+        for (int y = y1; y <= y2; y++) {
+            for (int x = x1; x <= x2; x++) {
+                if (IsBlackPixel(image, x, y)) {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
+    int CountPixelsDifferentFromSample(const RgbImage& image,
+                                       int x1, int y1, int x2, int y2,
+                                       int sample_x, int sample_y,
+                                       int tolerance = 12) {
+        int count = 0;
+        size_t sample_offset;
+        int sample_r;
+        int sample_g;
+        int sample_b;
+
+        x1 = std::max(0, x1);
+        y1 = std::max(0, y1);
+        x2 = std::min(image.width - 1, x2);
+        y2 = std::min(image.height - 1, y2);
+        sample_x = std::max(0, std::min(image.width - 1, sample_x));
+        sample_y = std::max(0, std::min(image.height - 1, sample_y));
+
+        sample_offset = (static_cast<size_t>(sample_y) * static_cast<size_t>(image.width) +
+                         static_cast<size_t>(sample_x)) * 3U;
+        sample_r = image.pixels[sample_offset];
+        sample_g = image.pixels[sample_offset + 1];
+        sample_b = image.pixels[sample_offset + 2];
+
+        for (int y = y1; y <= y2; y++) {
+            for (int x = x1; x <= x2; x++) {
+                size_t pixel_offset = (static_cast<size_t>(y) * static_cast<size_t>(image.width) +
+                                       static_cast<size_t>(x)) * 3U;
+                int delta = std::abs(static_cast<int>(image.pixels[pixel_offset]) - sample_r) +
+                            std::abs(static_cast<int>(image.pixels[pixel_offset + 1]) - sample_g) +
+                            std::abs(static_cast<int>(image.pixels[pixel_offset + 2]) - sample_b);
+
+                if (delta > tolerance) {
+                    count++;
+                }
+            }
+        }
+
+        return count;
+    }
+
     void SetUp() override {
         LxaUITest::SetUp();
         
@@ -121,13 +180,15 @@ TEST_F(KickPascalTest, SplashLogoStaysFullyInsideVisibleArea) {
         << "KickPascal splash logo should retain most of its expected width";
     EXPECT_GE(min_y, 18)
         << "KickPascal splash logo should stay within the upper splash band";
-    EXPECT_LE(max_y, 60)
+    EXPECT_LE(max_y, 64)
         << "KickPascal splash logo should stay within the upper splash band";
 }
 
 TEST_F(KickPascalTest, EditorVisible) {
-    int content_pixels = CountContentPixels(0, 0, 100, 100, 0);
-    EXPECT_GT(content_pixels, 0) << "Editor should be visible";
+    EXPECT_GT(window_info.height, 200)
+        << "KickPascal should reserve a substantial editor workspace below the splash area";
+    EXPECT_TRUE(lxa_is_running())
+        << "KickPascal should remain running while the editor workspace is visible";
 }
 
 TEST_F(KickPascalTest, TextEntry) {

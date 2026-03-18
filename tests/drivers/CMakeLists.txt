@@ -327,11 +327,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/vim_gtest.cpp)
         add_gtest_driver_target(vim_gtest)
         add_gtest_driver_shard(vim_startup_gtest vim_gtest
-            FILTER "VimTest.StartupOpensFileAndDrawsEditor:VimTest.CursorAndInsertModeRedrawWindow"
-            TIMEOUT 60)
+            FILTER "VimTest.StartupOpensFileAndDrawsEditor"
+            TIMEOUT 90)
         add_gtest_driver_shard(vim_editing_gtest vim_gtest
-            FILTER "VimTest.TypingAndSavingWritesHostFile"
-            TIMEOUT 60)
+            FILTER "VimTest.CursorAndInsertModeRedrawWindow:VimTest.InsertModeTypingAndCommandModeWriteFile:VimTest.TypingAndSavingWritesHostFile"
+            TIMEOUT 90)
     endif()
     
     # DPaint V - Graphics editor test

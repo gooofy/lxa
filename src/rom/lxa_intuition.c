@@ -5364,12 +5364,6 @@ static WORD _menu_item_required_width(const struct MenuItem *item)
             WORD label_width = (WORD)(strlen((const char *)it->IText) * 8);
             WORD text_width = (WORD)(4 + it->LeftEdge + label_width + 4);
 
-            if (item->Flags & COMMSEQ)
-                text_width = (WORD)(text_width + 8 + 28);
-
-            if (item->SubItem)
-                text_width = (WORD)(text_width + 12);
-
             if (text_width > width)
                 width = text_width;
         }
