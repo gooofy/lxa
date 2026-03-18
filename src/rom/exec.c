@@ -37,6 +37,10 @@
 #include "util.h"
 #include "exceptions.h"
 
+extern BOOL lxa_dos_try_handle_special_port(struct MsgPort *port,
+                                            struct Message *message);
+extern struct MsgPort *lxa_dos_host_console_port(void);
+
 #define DEFAULT_SCHED_QUANTUM 4
 
 #define DEFAULT_STACKSIZE 1<<16
@@ -2549,6 +2553,18 @@ void _exec_PutMsg ( register struct ExecBase * SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: PutMsg() called, port=0x%08lx, message=0x%08lx\n", ___port, ___message);
 
+    if (___port == NULL || ___message == NULL)
+    {
+        DPRINTF (LOG_DEBUG, "_exec: PutMsg() ignoring NULL port/message\n");
+        return;
+    }
+
+    if (lxa_dos_try_handle_special_port(___port, ___message))
+    {
+        DPRINTF (LOG_DEBUG, "_exec: PutMsg() handled by special DOS port\n");
+        return;
+    }
+
     /* Set the node type to NT_MESSAGE == sent message. */
     ___message->mn_Node.ln_Type = NT_MESSAGE;
 
@@ -2614,6 +2630,9 @@ void _exec_ReplyMsg ( register struct ExecBase * SysBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_exec: ReplyMsg() called, message=0x%08lx\n", ___message);
 
     struct MsgPort *port;
+
+    if (___message == NULL)
+        return;
 
     /* Get replyport */
     port = ___message->mn_ReplyPort;
@@ -5717,10 +5736,15 @@ void coldstart (void)
     // stdin/stdout
     struct FileHandle *fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
     emucall1 (EMU_CALL_DOS_INPUT, (ULONG) fh);
+    if (fh->fh_Func3 == 23 && !fh->fh_Type)
+        fh->fh_Type = lxa_dos_host_console_port();
     rootProc->pr_CIS = MKBADDR (fh);
+    rootProc->pr_ConsoleTask = fh->fh_Type;
 
     fh = (struct FileHandle *) AllocDosObject (DOS_FILEHANDLE, NULL);
     emucall1 (EMU_CALL_DOS_OUTPUT, (ULONG) fh);
+    if (fh->fh_Func3 == 23 && !fh->fh_Type)
+        fh->fh_Type = lxa_dos_host_console_port();
     rootProc->pr_COS = MKBADDR (fh);
 
     // cli

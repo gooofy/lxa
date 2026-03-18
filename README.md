@@ -238,7 +238,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.60** - Sonix 2 now reaches its startup window because `ciaa.resource`/`ciab.resource` expose callable CIA vectors instead of bare placeholder nodes, with regression coverage for both the resource API and the hosted app launch
+**Version 0.8.61** - vim-5.3 now has dedicated startup/editing coverage, and host-injected test input is bridged into console-backed DOS stdio so console-task driven apps can be exercised reliably
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

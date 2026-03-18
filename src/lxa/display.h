@@ -372,6 +372,8 @@ uint32_t display_window_get_sdl_id(display_window_t *window);
  */
 bool display_inject_key(int rawkey, int qualifier, bool down);
 
+bool lxa_host_console_enqueue_rawkey(int rawkey, int qualifier, bool down);
+
 /*
  * Convert an ASCII character to an Amiga rawkey code.
  * Returns 0xFF if no mapping exists.

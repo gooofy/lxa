@@ -2077,7 +2077,9 @@ bool display_inject_key(int rawkey, int qualifier, bool down)
     
     LPRINTF(LOG_DEBUG, "display: inject_key rawkey=0x%02x qual=0x%04x down=%d\n",
             rawkey, qualifier, down);
-    
+
+    lxa_host_console_enqueue_rawkey(rawkey, qualifier, down);
+
     return true;
 }
 

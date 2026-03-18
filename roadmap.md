@@ -33,6 +33,10 @@
   - Added callable `ciaa.resource`/`ciab.resource` vectors (`AddICRVector`, `RemICRVector`, `AbleICR`, `SetICR`) instead of bare resource nodes so hardware-aware apps can complete startup probing.
   - Extended exec resource coverage to validate the CIA resource callable surface and mask bookkeeping.
   - Enabled and strengthened the Sonix 2 host-side startup driver to verify the main window opens, draws visible content, and stays running.
+- Phase 100 (`0.8.61`): vim-5.3 startup/editing coverage and hosted console input bridge — done.
+  - Added dedicated `vim_gtest` shards that verify startup file rendering plus insert-mode editing and `:wq` save flows.
+  - Bridged host-injected key events into console-backed DOS stdio so console-task driven apps like vim can consume test-driver typing reliably.
+  - Verified vim startup/editing coverage alongside the console regression suite.
 
 ## Completed Milestones (compact)
 
@@ -43,11 +47,6 @@
 
 For each app below the agent should follow a test-driven workflow: (1) run or create a reliable startup host-side driver test to exercise launch and reachability; (2) if the driver reveals failures, fix them and keep the test green; (3) capture screenshots on failure and use `tools/screenshot_review.py` to identify UI/rendering issues and hypotheses; (4) author additional automated pixel or interaction tests that assert the UI issues are fixed; (5) implement fixes and iterate until tests are green.
 
-
-- Phase 100: vim-5.3
-	- Add a startup test that runs `vim-5.3` under lxa, opens a file, and verifies the editor draws (cursor, mode indicator).
-	- Fix keyboard/mode-switch or rendering bugs revealed by the test.
-	- Use screenshot analysis for caret rendering and status-line display; add automated checks for typing and saving a small file.
 
 - Phase 101: BlitzBasic2
 	- Launch BlitzBasic2 via a host-side driver and assert the IDE/window opens.

@@ -311,6 +311,17 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             FILTER "Cluster2Test.CursorKeys:Cluster2Test.RMBMenuAccess"
             TIMEOUT 60)
     endif()
+
+    # Vim 5.3 - startup and editing test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/vim_gtest.cpp)
+        add_gtest_driver_target(vim_gtest)
+        add_gtest_driver_shard(vim_startup_gtest vim_gtest
+            FILTER "VimTest.StartupOpensFileAndDrawsEditor:VimTest.CursorAndInsertModeRedrawWindow"
+            TIMEOUT 60)
+        add_gtest_driver_shard(vim_editing_gtest vim_gtest
+            FILTER "VimTest.TypingAndSavingWritesHostFile"
+            TIMEOUT 60)
+    endif()
     
     # DPaint V - Graphics editor test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dpaint_gtest.cpp)

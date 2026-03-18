@@ -3167,6 +3167,9 @@ static VOID _intuition_update_input_snapshot(struct IntuitionBase *IntuitionBase
     IntuitionBase->Micros = tv.tv_micro;
 }
 
+VOID _intuition_ActivateWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                        register struct Window * window __asm("a0"));
+
 static struct Window *_intuition_resolve_input_window(struct IntuitionBase *IntuitionBase,
                                                       struct Screen *screen,
                                                       WORD mouseX,
@@ -3266,6 +3269,11 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
 
         if (code == SELECTDOWN)
         {
+            if (!(window->Flags & WFLG_WINDOWACTIVE))
+            {
+                _intuition_ActivateWindow(IntuitionBase, window);
+            }
+
             struct Gadget *gad = _find_gadget_at_pos(window, relX, relY);
             DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN relX=%d relY=%d gad=0x%08lx firstGad=0x%08lx type=0x%04x\n",
                     relX, relY, (ULONG)gad, (ULONG)window->FirstGadget,
@@ -6714,6 +6722,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     /* Check for gadget hit on mouse down (SELECTDOWN) */
                     if (code == SELECTDOWN)
                     {
+                        if (!(window->Flags & WFLG_WINDOWACTIVE))
+                        {
+                            _intuition_ActivateWindow(IntuitionBase, window);
+                        }
+
                         struct Gadget *gad = _find_gadget_at_pos(window, relX, relY);
                         DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN relX=%d relY=%d gad=0x%08lx firstGad=0x%08lx type=0x%04x\n",
                                 relX, relY, (ULONG)gad, (ULONG)window->FirstGadget,

@@ -380,6 +380,124 @@ typedef struct notify_entry_s {
 } notify_entry_t;
 
 static notify_entry_t g_notify_requests[MAX_NOTIFY_REQUESTS];
+static char g_console_input_queue[1024];
+static int g_console_input_head = 0;
+static int g_console_input_tail = 0;
+
+static bool lxa_host_console_input_empty(void)
+{
+    return g_console_input_head == g_console_input_tail;
+}
+
+static bool lxa_host_console_input_full(void)
+{
+    return ((g_console_input_head + 1) % (int)sizeof(g_console_input_queue)) == g_console_input_tail;
+}
+
+static bool lxa_host_console_input_push(char ch)
+{
+    if (lxa_host_console_input_full())
+        return false;
+
+    g_console_input_queue[g_console_input_head] = ch;
+    g_console_input_head = (g_console_input_head + 1) % (int)sizeof(g_console_input_queue);
+    return true;
+}
+
+static int lxa_host_console_input_pop(void)
+{
+    int ch;
+
+    if (lxa_host_console_input_empty())
+        return -1;
+
+    ch = (unsigned char)g_console_input_queue[g_console_input_tail];
+    g_console_input_tail = (g_console_input_tail + 1) % (int)sizeof(g_console_input_queue);
+    return ch;
+}
+
+static int lxa_host_console_rawkey_to_char(int rawkey, int qualifier)
+{
+    const bool shift = (qualifier & 0x0003) != 0;
+
+    switch (rawkey & 0x7f)
+    {
+        case 0x00: return shift ? '~' : '`';
+        case 0x01: return shift ? '!' : '1';
+        case 0x02: return shift ? '@' : '2';
+        case 0x03: return shift ? '#' : '3';
+        case 0x04: return shift ? '$' : '4';
+        case 0x05: return shift ? '%' : '5';
+        case 0x06: return shift ? '^' : '6';
+        case 0x07: return shift ? '&' : '7';
+        case 0x08: return shift ? '*' : '8';
+        case 0x09: return shift ? '(' : '9';
+        case 0x0a: return shift ? ')' : '0';
+        case 0x0b: return shift ? '_' : '-';
+        case 0x0c: return shift ? '+' : '=';
+        case 0x0d: return shift ? '|' : '\\';
+        case 0x10: return shift ? 'Q' : 'q';
+        case 0x11: return shift ? 'W' : 'w';
+        case 0x12: return shift ? 'E' : 'e';
+        case 0x13: return shift ? 'R' : 'r';
+        case 0x14: return shift ? 'T' : 't';
+        case 0x15: return shift ? 'Y' : 'y';
+        case 0x16: return shift ? 'U' : 'u';
+        case 0x17: return shift ? 'I' : 'i';
+        case 0x18: return shift ? 'O' : 'o';
+        case 0x19: return shift ? 'P' : 'p';
+        case 0x1a: return shift ? '{' : '[';
+        case 0x1b: return shift ? '}' : ']';
+        case 0x20: return shift ? 'A' : 'a';
+        case 0x21: return shift ? 'S' : 's';
+        case 0x22: return shift ? 'D' : 'd';
+        case 0x23: return shift ? 'F' : 'f';
+        case 0x24: return shift ? 'G' : 'g';
+        case 0x25: return shift ? 'H' : 'h';
+        case 0x26: return shift ? 'J' : 'j';
+        case 0x27: return shift ? 'K' : 'k';
+        case 0x28: return shift ? 'L' : 'l';
+        case 0x29: return shift ? ':' : ';';
+        case 0x2a: return shift ? '"' : '\'';
+        case 0x31: return shift ? 'Z' : 'z';
+        case 0x32: return shift ? 'X' : 'x';
+        case 0x33: return shift ? 'C' : 'c';
+        case 0x34: return shift ? 'V' : 'v';
+        case 0x35: return shift ? 'B' : 'b';
+        case 0x36: return shift ? 'N' : 'n';
+        case 0x37: return shift ? 'M' : 'm';
+        case 0x38: return shift ? '<' : ',';
+        case 0x39: return shift ? '>' : '.';
+        case 0x3a: return shift ? '?' : '/';
+        case 0x40: return ' ';
+        case 0x41: return '\b';
+        case 0x42: return '\t';
+        case 0x44: return '\r';
+        case 0x45: return 0x1b;
+        case 0x46: return 0x7f;
+    }
+
+    return -1;
+}
+
+bool lxa_host_console_enqueue_char(char ch)
+{
+    return lxa_host_console_input_push(ch);
+}
+
+bool lxa_host_console_enqueue_rawkey(int rawkey, int qualifier, bool down)
+{
+    int ch;
+
+    if (!down)
+        return true;
+
+    ch = lxa_host_console_rawkey_to_char(rawkey, qualifier);
+    if (ch < 0)
+        return false;
+
+    return lxa_host_console_input_push((char)ch);
+}
 
 void lxa_reset_host_state(void)
 {
@@ -406,6 +524,9 @@ void lxa_reset_host_state(void)
     memset(g_record_locks, 0, sizeof(g_record_locks));
     memset(g_timer_queue, 0, sizeof(g_timer_queue));
     memset(g_notify_requests, 0, sizeof(g_notify_requests));
+    memset(g_console_input_queue, 0, sizeof(g_console_input_queue));
+    g_console_input_head = 0;
+    g_console_input_tail = 0;
     g_pending_irq = 0;
 #ifdef SDL2_FOUND
     memset(g_audio_channels, 0, sizeof(g_audio_channels));
@@ -2240,9 +2361,30 @@ static int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
     DPRINTF (LOG_DEBUG, "lxa: _dos_read(): fh=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
 
     int fd = m68k_read_memory_32 (fh68k+36);
+    int kind = m68k_read_memory_32 (fh68k+32);
     DPRINTF (LOG_DEBUG, "                  -> fd = %d\n", fd);
 
     void *buf = _mgetstr (buf68k);
+    if (kind == FILE_KIND_CONSOLE && !lxa_host_console_input_empty())
+    {
+        uint8_t *dst = (uint8_t *)buf;
+        uint32_t count = 0;
+
+        while (count < len68k)
+        {
+            int ch = lxa_host_console_input_pop();
+
+            if (ch < 0)
+                break;
+
+            dst[count++] = (uint8_t)ch;
+
+            if (ch == '\r' || ch == '\n')
+                break;
+        }
+
+        return (int)count;
+    }
 
     ssize_t l = read (fd, buf, len68k);
 
@@ -2904,12 +3046,6 @@ static void _csi_process(const char *buf, int len, char final_byte)
 /* Process special C0/C1 control characters */
 static void _console_control_char(uint8_t c)
 {
-    /* Capture output for test drivers */
-    if (g_console_output_hook) {
-        char ch = (char)c;
-        g_console_output_hook(&ch, 1);
-    }
-
     switch (c) {
         case 0x07:  /* BEL - Bell */
             fputc('\a', stdout);
@@ -2982,6 +3118,9 @@ static int _dos_write(uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
             static uint16_t csiBufLen = 0;
 
             l = len68k;
+
+            if (g_console_output_hook && l > 0)
+                g_console_output_hook(buf, (int)l);
 
             for (int i = 0; i < l; i++) {
                 uint8_t uc = (uint8_t)buf[i];
@@ -5031,6 +5170,10 @@ static int _dos_waitforchar(uint32_t fh68k, uint32_t timeout_us)
     DPRINTF(LOG_DEBUG, "lxa: _dos_waitforchar(): fh=0x%08x, timeout=%u us\n", fh68k, timeout_us);
     
     int fd = m68k_read_memory_32(fh68k + 36);   /* fh_Args */
+    int kind = m68k_read_memory_32(fh68k + 32); /* fh_Func3 */
+
+    if (kind == FILE_KIND_CONSOLE && !lxa_host_console_input_empty())
+        return 1;
     
     /* Use select() to check for available input */
     fd_set readfds;

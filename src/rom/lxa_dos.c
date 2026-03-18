@@ -83,6 +83,8 @@ extern struct ExecBase      *SysBase;
 extern struct UtilityBase   *UtilityBase;
 extern struct DosLibrary    *DOSBase;
 
+static struct MsgPort *g_lxa_host_console_port;
+
 LONG _dos_Flush ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"));
 LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -90,9 +92,12 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
                                  register APTR buffer __asm("d2"),
                                  register LONG length __asm("d3"));
 LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
-                                  register BPTR file __asm("d1"),
-                                  register CONST APTR buffer __asm("d2"),
-                                  register LONG length __asm("d3"));
+                                   register BPTR file __asm("d1"),
+                                   register CONST APTR buffer __asm("d2"),
+                                   register LONG length __asm("d3"));
+LONG _dos_WaitForChar ( register struct DosLibrary * DOSBase __asm("a6"),
+                                        register BPTR file __asm("d1"),
+                                        register LONG timeout __asm("d2"));
 LONG _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
                                  register BPTR fh __asm("d1"),
                                  register LONG ch __asm("d2"));
@@ -149,6 +154,11 @@ struct lxa_dos_exit_cleanup
 
 static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data);
 
+struct MsgPort *lxa_dos_host_console_port(void);
+BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *message);
+
+static BPTR lxa_dos_alloc_temp_console_handle(LONG arg1, struct FileHandle **fh_out);
+
 static void lxa_dos_runcommand_exit_cleanup(LONG return_code, LONG exit_data)
 {
     struct lxa_dos_exit_cleanup *cleanup = (struct lxa_dos_exit_cleanup *)exit_data;
@@ -182,6 +192,10 @@ VOID _dos_SendPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct DosPacket * dp __asm("d1"),
                                                         register struct MsgPort * port __asm("d2"),
                                                         register struct MsgPort * replyport __asm("d3"));
+VOID _dos_ReplyPkt ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                         register struct DosPacket * dp __asm("d1"),
+                                                         register LONG res1 __asm("d2"),
+                                                         register LONG res2 __asm("d3"));
 struct DosPacket * _dos_WaitPkt ( register struct DosLibrary * DOSBase __asm("a6"));
 
 static BOOL lxa_dos_is_process(const struct Process *process)
@@ -243,6 +257,137 @@ static VOID lxa_dos_store_packet_result2(struct Process *process,
 {
     if (lxa_dos_is_process(process) && packet)
         process->pr_Result2 = packet->dp_Res2;
+}
+
+struct MsgPort *lxa_dos_host_console_port(void)
+{
+    if (!g_lxa_host_console_port)
+    {
+        g_lxa_host_console_port = (struct MsgPort *)AllocMem(sizeof(struct MsgPort),
+                                                             MEMF_CLEAR | MEMF_PUBLIC);
+        if (!g_lxa_host_console_port)
+            return NULL;
+
+        g_lxa_host_console_port->mp_Node.ln_Type = NT_MSGPORT;
+        g_lxa_host_console_port->mp_Flags = PA_IGNORE;
+        NEWLIST(&g_lxa_host_console_port->mp_MsgList);
+        g_lxa_host_console_port->mp_MsgList.lh_Type = NT_MESSAGE;
+    }
+
+    return g_lxa_host_console_port;
+}
+
+static BPTR lxa_dos_alloc_temp_console_handle(LONG arg1, struct FileHandle **fh_out)
+{
+    struct FileHandle *fh;
+
+    if (fh_out)
+        *fh_out = NULL;
+
+    fh = (struct FileHandle *)AllocDosObject(DOS_FILEHANDLE, NULL);
+    if (!fh)
+        return 0;
+
+    fh->fh_Func3 = FILE_KIND_CONSOLE;
+    fh->fh_Type = lxa_dos_host_console_port();
+    fh->fh_Arg1 = arg1;
+
+    if (fh_out)
+        *fh_out = fh;
+
+    return MKBADDR(fh);
+}
+
+BOOL lxa_dos_try_handle_special_port(struct MsgPort *port, struct Message *message)
+{
+    struct DosPacket *dp;
+    LONG res1 = DOSFALSE;
+    LONG res2 = 0;
+    struct Process *me;
+    struct FileHandle *fh = NULL;
+    BPTR temp_fh = 0;
+
+    if (!port || port != lxa_dos_host_console_port())
+        return FALSE;
+
+    if (!message)
+        return TRUE;
+
+    dp = lxa_dos_packet_from_message(message);
+    if (!dp)
+    {
+        if (message->mn_ReplyPort)
+            ReplyMsg(message);
+        return TRUE;
+    }
+
+    me = U_getCurrentProcess();
+
+    switch (dp->dp_Type)
+    {
+        case ACTION_READ:
+            temp_fh = lxa_dos_alloc_temp_console_handle(dp->dp_Arg1, &fh);
+            if (!temp_fh)
+            {
+                res2 = ERROR_NO_FREE_STORE;
+                break;
+            }
+            res1 = _dos_Read(DOSBase, temp_fh, (APTR)dp->dp_Arg2, dp->dp_Arg3);
+            res2 = me ? me->pr_Result2 : 0;
+            break;
+
+        case ACTION_WRITE:
+            temp_fh = lxa_dos_alloc_temp_console_handle(dp->dp_Arg1, &fh);
+            if (!temp_fh)
+            {
+                res2 = ERROR_NO_FREE_STORE;
+                break;
+            }
+            res1 = _dos_Write(DOSBase, temp_fh, (CONST APTR)dp->dp_Arg2, dp->dp_Arg3);
+            res2 = me ? me->pr_Result2 : 0;
+            break;
+
+        case ACTION_WAIT_CHAR:
+            temp_fh = lxa_dos_alloc_temp_console_handle(dp->dp_Arg1, &fh);
+            if (!temp_fh)
+            {
+                res2 = ERROR_NO_FREE_STORE;
+                break;
+            }
+            res1 = _dos_WaitForChar(DOSBase, temp_fh, dp->dp_Arg2);
+            break;
+
+        case ACTION_SCREEN_MODE:
+        case ACTION_CHANGE_SIGNAL:
+        case ACTION_END:
+            res1 = DOSTRUE;
+            break;
+
+        case ACTION_IS_FILESYSTEM:
+            res1 = DOSFALSE;
+            break;
+
+        case ACTION_SEEK:
+            res1 = DOSTRUE;
+            res2 = ERROR_ACTION_NOT_KNOWN;
+            break;
+
+        case ACTION_PARENT_FH:
+        case ACTION_COPY_DIR_FH:
+            res1 = 0;
+            break;
+
+        default:
+            res1 = DOSFALSE;
+            res2 = ERROR_ACTION_NOT_KNOWN;
+            break;
+    }
+
+    if (fh)
+        FreeDosObject(DOS_FILEHANDLE, fh);
+
+    _dos_ReplyPkt(DOSBase, dp, res1, res2);
+    return TRUE;
 }
 
 /* Forward declaration for variable functions */
@@ -789,6 +934,9 @@ struct DosLibrary * __g_lxa_dos_InitLib    ( register struct DosLibrary *dosb   
     dosb->dl_IntuitionBase = NULL;
 
     if (!initRootNode())
+        return NULL;
+
+    if (!lxa_dos_host_console_port())
         return NULL;
 
     return dosb;
@@ -1680,8 +1828,8 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
         if (!err)
         {
             /* Check if this is a CON:/RAW: window that needs m68k-side setup */
-        if (fh->fh_Func3 == FILE_KIND_CON)
-        {
+            if (fh->fh_Func3 == FILE_KIND_CON)
+            {
                 DPRINTF (LOG_DEBUG, "_dos: Open() FILE_KIND_CON detected, opening window for '%s'\n", ___name);
                 struct ConHandle *ch = open_con_window((const char *)___name);
                 if (!ch)
@@ -1695,6 +1843,9 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
                 fh->fh_Arg1 = (LONG)ch;
                 DPRINTF (LOG_DEBUG, "_dos: Open() CON: window opened, ch=0x%08lx\n", ch);
             }
+
+            if (fh->fh_Func3 == FILE_KIND_CONSOLE && !fh->fh_Type)
+                fh->fh_Type = lxa_dos_host_console_port();
 
             if (lxa_dos_buffer_state_setvbuf(fh, NULL, BUF_FULL, -1) < 0)
             {
@@ -4187,6 +4338,12 @@ LONG _dos_SetMode ( register struct DosLibrary * DOSBase __asm("a6"),
         }
 
         ch->ch_RawMode = (mode == 1) ? TRUE : FALSE;
+        SetIoErr(0);
+        return DOSTRUE;
+    }
+
+    if (fhp->fh_Func3 == FILE_KIND_CONSOLE)
+    {
         SetIoErr(0);
         return DOSTRUE;
     }

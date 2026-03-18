@@ -1722,7 +1722,6 @@ static void console_process_input(struct LxaConUnit *unit)
                     DPRINTF(LOG_DEBUG, "_console: key conversion -> len=%d first=0x%02x\n",
                             mapped_len,
                             mapped_len > 0 ? (unsigned char)mapped[0] : 0);
-
                     if (mapped_len > 0) {
                         redraw_cursor = TRUE;
 
@@ -3461,7 +3460,6 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                 } else {
                     /* No data available yet - queue as async request */
                     DPRINTF(LOG_DEBUG, "_console: CMD_READ queuing async read\n");
-                    
                     /* Only one pending read at a time per unit */
                     if (unit->pending_read != NULL) {
                         LPRINTF(LOG_WARNING, "_console: CMD_READ already has pending read, aborting previous\n");
