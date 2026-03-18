@@ -49,9 +49,12 @@ For each app below the agent should follow a test-driven workflow: (1) run or cr
 
 
 - Phase 101: BlitzBasic2
-	- Launch BlitzBasic2 via a host-side driver and assert the IDE/window opens.
-	- Fix any initialization, input, or UI drawing issues found by the test.
-	- Use screenshot-review to inspect IDE layout and add pixel/interaction tests: About dialog, project open, and a small script run.
+	- [x] Launch BlitzBasic2 via a host-side driver and assert the IDE/window opens.
+	- [x] Fix the negative `OpenScreen()` sentinel handling that previously crashed startup with a bogus `65533`-pixel screen height.
+	- [x] Add targeted `OpenScreenTagList()` / `OpenWindowTagList()` regressions so negative height sentinels are sanitized instead of wrapping to giant unsigned sizes.
+	- [x] Capture and review BlitzBasic2 startup/menu screenshots; document the current visible behavior in the new driver.
+	- [ ] Fix the remaining BlitzBasic2 UI issues revealed by the driver: blank grey editor surface after startup, extra malformed second window (`292x32804` host-tracked extent), and clipped Project-menu width.
+	- [ ] Extend the BlitzBasic2 driver from baseline startup/menu coverage to About dialog, project-open flow, and a small script run once the remaining UI issues are fixed.
 
 - Phase 102: FinalWriter_D
 	- Add a startup test for FinalWriter_D, confirming its main document/editor window renders.

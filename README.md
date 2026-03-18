@@ -238,7 +238,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.61** - vim-5.3 now has dedicated startup/editing coverage, and host-injected test input is bridged into console-backed DOS stdio so console-task driven apps can be exercised reliably
+**Version 0.8.62** - BlitzBasic2 now has hosted startup/menu coverage, and Intuition screen/window sizing sanitizes negative height sentinels instead of wrapping into bogus huge dimensions
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

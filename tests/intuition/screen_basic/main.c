@@ -361,6 +361,37 @@ int main(void)
         default_screen = NULL;
     }
 
+    /* Negative height sentinels must not wrap to huge unsigned sizes */
+    {
+        struct TagItem tags[] = {
+            { SA_Width, 640 },
+            { SA_Height, (ULONG)-3 },
+            { SA_Depth, 2 },
+            { TAG_DONE, 0 }
+        };
+
+        default_screen = OpenScreenTagList(NULL, tags);
+        if (!default_screen) {
+            print("FAIL: OpenScreenTagList(NULL, negative-height tags) returned NULL\n");
+            errors++;
+        } else if (default_screen->Width != 640 ||
+                   default_screen->Height != 256 ||
+                   default_screen->BitMap.Depth != 2) {
+            print("FAIL: OpenScreenTagList(NULL, negative-height tags) did not sanitize height\n");
+            errors++;
+        } else {
+            print("OK: OpenScreenTagList() sanitizes negative height sentinels\n");
+        }
+    }
+
+    if (default_screen) {
+        if (!CloseScreen(default_screen)) {
+            print("FAIL: CloseScreen(default_screen) failed after negative-height test\n");
+            errors++;
+        }
+        default_screen = NULL;
+    }
+
     /* Close the screen */
     if (!CloseScreen(screen)) {
         print("FAIL: CloseScreen() failed after windows were closed\n");

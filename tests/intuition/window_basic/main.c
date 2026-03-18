@@ -337,6 +337,34 @@ int main(void)
         }
     }
 
+    /* Negative WA_Height values must be sanitized rather than wrapped */
+    {
+        struct TagItem tags[] = {
+            { WA_CustomScreen, (ULONG)screen },
+            { WA_Left, 0 },
+            { WA_Top, 12 },
+            { WA_Width, 320 },
+            { WA_Height, (ULONG)-3 },
+            { TAG_DONE, 0 }
+        };
+
+        tag_window = OpenWindowTagList(NULL, tags);
+        if (!tag_window) {
+            print("FAIL: OpenWindowTagList() negative-height window returned NULL\n");
+            errors++;
+        } else if (tag_window->Width != 320 || tag_window->Height != (screen->Height - 12)) {
+            print("FAIL: OpenWindowTagList() did not sanitize negative WA_Height\n");
+            errors++;
+        } else {
+            print("OK: OpenWindowTagList() sanitizes negative WA_Height\n");
+        }
+
+        if (tag_window) {
+            CloseWindow(tag_window);
+            tag_window = NULL;
+        }
+    }
+
     /* WA_Zoom data must drive ZipWindow() toggling */
     {
         WORD zoom_box[4] = { 40, 50, 140, 70 };

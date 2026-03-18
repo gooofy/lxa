@@ -7752,6 +7752,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
 {
     struct Screen *screen;
     ULONG display_handle;
+    WORD requested_width, requested_height;
     UWORD width, height;
     UBYTE depth;
     UBYTE i;
@@ -7765,15 +7766,25 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     }
 
     /* Get screen dimensions */
-    width = newScreen->Width;
-    height = newScreen->Height;
+    requested_width = newScreen->Width;
+    requested_height = newScreen->Height;
     depth = (UBYTE)newScreen->Depth;
 
-    /* Use defaults if width/height are 0 (means use display defaults) */
-    if (width == 0 || width == (UWORD)-1)
+    /*
+     * Width/height are WORDs in NewScreen. Keep them signed until after
+     * validation so sentinel values such as STDSCREENHEIGHT (-1) and other
+     * negative compatibility values do not wrap to huge unsigned sizes.
+     */
+    if (requested_width <= 0)
         width = 640;
-    if (height == 0 || height == (UWORD)-1)
+    else
+        width = (UWORD)requested_width;
+
+    if (requested_height <= 0)
         height = 256;
+    else
+        height = (UWORD)requested_height;
+
     if (depth == 0)
         depth = 2;
     
@@ -8397,6 +8408,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     struct Window *window;
     struct Screen *screen;
     WORD width, height;
+    WORD requested_width, requested_height;
     ULONG rootless_mode;
     ULONG host_window_handle = 0;
 
@@ -8474,14 +8486,49 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     }
 
     /* Calculate window dimensions */
-    width = newWindow->Width;
-    height = newWindow->Height;
+    requested_width = newWindow->Width;
+    requested_height = newWindow->Height;
+    width = requested_width;
+    height = requested_height;
 
-    /* Apply defaults if dimensions are zero or ~0 (sentinel from OpenWindowTagList with NULL newWindow) */
-    if (width == 0 || width == (WORD)~0)
-        width = screen->Width - newWindow->LeftEdge;
-    if (height == 0 || height == (WORD)~0)
-        height = screen->Height - newWindow->TopEdge;
+    /*
+     * Width/height are signed WORDs. Keep them signed while validating so
+     * compatibility sentinels and other negative values do not wrap into huge
+     * unsigned host sizes when the tracking window is created.
+     */
+    {
+        WORD max_width = screen->Width;
+        WORD max_height = screen->Height;
+
+        if (newWindow->LeftEdge > 0 && newWindow->LeftEdge < screen->Width)
+            max_width = screen->Width - newWindow->LeftEdge;
+        if (newWindow->TopEdge > 0 && newWindow->TopEdge < screen->Height)
+            max_height = screen->Height - newWindow->TopEdge;
+
+        if (requested_width <= 0)
+            width = max_width;
+        if (requested_height <= 0)
+            height = max_height;
+
+        if (width <= 0 || width > max_width)
+            width = max_width;
+        if (height <= 0 || height > max_height)
+            height = max_height;
+
+        if (requested_width != width || requested_height != height)
+        {
+            LPRINTF(LOG_INFO,
+                    "_intuition: OpenWindow() sanitized %dx%d to %dx%d on screen %dx%d at (%d,%d)\n",
+                    (int)requested_width,
+                    (int)requested_height,
+                    (int)width,
+                    (int)height,
+                    (int)screen->Width,
+                    (int)screen->Height,
+                    (int)newWindow->LeftEdge,
+                    (int)newWindow->TopEdge);
+        }
+    }
     
     /*
      * Expand windows that appear to be sized for an unreasonably small screen.

@@ -312,6 +312,17 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             TIMEOUT 60)
     endif()
 
+    # BlitzBasic2 - IDE startup and interaction test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/blitzbasic2_gtest.cpp)
+        add_gtest_driver_target(blitzbasic2_gtest)
+        add_gtest_driver_shard(blitzbasic2_startup_gtest blitzbasic2_gtest
+            FILTER "BlitzBasic2Test.StartupOpensVisibleIdeWindow"
+            TIMEOUT 60)
+        add_gtest_driver_shard(blitzbasic2_interaction_gtest blitzbasic2_gtest
+            FILTER "BlitzBasic2Test.ProjectMenuOpensButDropdownIsCurrentlyClipped"
+            TIMEOUT 60)
+    endif()
+
     # Vim 5.3 - startup and editing test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/vim_gtest.cpp)
         add_gtest_driver_target(vim_gtest)
