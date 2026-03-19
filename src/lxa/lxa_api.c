@@ -273,20 +273,13 @@ static void lxa_api_calculate_gadget_box(uint32_t window_ptr,
 
     if (flags & (GFLG_RELRIGHT | GFLG_RELBOTTOM | GFLG_RELWIDTH | GFLG_RELHEIGHT))
     {
-        uint32_t screen_ptr = m68k_read_memory_32(window_ptr + WINDOW_WSCREEN_OFFSET);
         int container_width = (int16_t)m68k_read_memory_16(window_ptr + WINDOW_WIDTH_OFFSET);
         int container_height = (int16_t)m68k_read_memory_16(window_ptr + WINDOW_HEIGHT_OFFSET);
 
-        if (screen_ptr)
-        {
-            container_width = (int16_t)m68k_read_memory_16(screen_ptr + 8);
-            container_height = (int16_t)m68k_read_memory_16(screen_ptr + 10);
-        }
-
         if (flags & GFLG_RELRIGHT)
-            calc_left += container_width;
+            calc_left += container_width - 1;
         if (flags & GFLG_RELBOTTOM)
-            calc_top += container_height;
+            calc_top += container_height - 1;
         if (flags & GFLG_RELWIDTH)
             calc_width += container_width;
         if (flags & GFLG_RELHEIGHT)
@@ -649,6 +642,10 @@ void lxa_flush_display(void)
 
         display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
     }
+
+    /* Also sync rootless windows from their screen bitmaps so that
+     * headless capture (display_capture_window) sees current pixel data. */
+    display_refresh_all();
 }
 
 bool lxa_is_running(void)

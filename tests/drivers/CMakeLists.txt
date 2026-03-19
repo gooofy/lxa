@@ -355,12 +355,15 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             TIMEOUT 90)
     endif()
 
-    # SIGMAth2 - startup and visual smoke coverage
+    # SIGMAth2 - startup, visual smoke, and interaction coverage
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/sigma_gtest.cpp)
         add_gtest_driver_target(sigma_gtest)
         add_gtest_driver_shard(sigma_startup_gtest sigma_gtest
             FILTER "SIGMAth2Test.StartupOpensVisibleAnalysisWindow:SIGMAth2Test.StartupKeepsRunningWithoutResourceFailures:SIGMAth2Test.MainWindowCaptureContainsVisibleUiRegions:SIGMAth2Test.MenuBarRightMouseSmokeKeepsAnalysisWindowAlive"
             TIMEOUT 90)
+        add_gtest_driver_shard(sigma_interaction_gtest sigma_gtest
+            FILTER "SIGMAth2Test.AnalysisWindowGadgetGridLayout:SIGMAth2Test.AboutDialogOpensAndCloses:SIGMAth2Test.ButtonClickInteraction:SIGMAth2Test.StringGadgetAcceptsInput:SIGMAth2Test.ScrollGadgetInteraction:SIGMAth2Test.ButtonAreaGadgetsAreConsistentlyPlaced:SIGMAth2Test.DisplayFrameContainsRenderedContent:SIGMAth2Test.FileMenuOpenSurvivesRequester"
+            TIMEOUT 180)
     endif()
 
     # DPaint V - Graphics editor test

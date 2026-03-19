@@ -1961,17 +1961,19 @@ void display_refresh_all(void)
         display_refresh(g_active_display);
     }
 
-#if HAS_SDL2
-    /* Refresh all rootless windows */
+    /* Sync all rootless windows from their screen bitmaps.
+     * This must happen regardless of SDL2 so that headless capture
+     * (display_capture_window) sees current pixel data. */
     for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
     {
         if (g_windows[i].in_use)
         {
             display_window_sync_from_screen(&g_windows[i]);
+#if HAS_SDL2
             display_window_refresh(&g_windows[i]);
+#endif
         }
     }
-#endif
 }
 
 /*
@@ -2546,7 +2548,11 @@ bool display_capture_window(display_window_t *window, const char *filename)
         return false;
     
     LPRINTF(LOG_INFO, "display: capturing window to '%s'\n", filename);
-    
+
+    /* Sync the window pixel buffer from the screen bitmap so that
+     * headless captures always reflect the current Amiga display state. */
+    display_window_sync_from_screen(window);
+
     /* Get the palette from screen or window */
     const uint32_t *palette;
     if (window->screen)

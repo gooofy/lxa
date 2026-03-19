@@ -541,8 +541,8 @@ int main(void)
         LONG old_x;
         LONG old_y;
 
-        old_x = window->LeftEdge + relative_gadget.LeftEdge + window->Width;
-        old_y = window->TopEdge + relative_gadget.TopEdge + window->Height;
+        old_x = window->LeftEdge + relative_gadget.LeftEdge + window->Width - 1;
+        old_y = window->TopEdge + relative_gadget.TopEdge + window->Height - 1;
 
         if (ReadPixel(&screen->RastPort, old_x, old_y) != 1) {
             print("  FAIL: Relative gadget did not render at its initial anchor\n\n");
@@ -553,8 +553,8 @@ int main(void)
                 LONG new_x;
                 LONG new_y;
 
-                new_x = window->LeftEdge + relative_gadget.LeftEdge + window->Width;
-                new_y = window->TopEdge + relative_gadget.TopEdge + window->Height;
+                new_x = window->LeftEdge + relative_gadget.LeftEdge + window->Width - 1;
+                new_y = window->TopEdge + relative_gadget.TopEdge + window->Height - 1;
 
                 if (ReadPixel(&screen->RastPort, new_x, new_y) != 1) {
                     print("  FAIL: SizeWindow did not redraw the relative gadget at the new anchor\n\n");

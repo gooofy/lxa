@@ -4,7 +4,7 @@
 
 ## Current Phases
 
-- No active device-completion phase; active app work is Phase 104 SIGMAth2 interaction follow-up on top of the dedicated startup/visual driver coverage.
+- No active phase; next app work is Phase 105 (Asm-One).
 
 ## Completed Milestones
 
@@ -43,6 +43,12 @@
   - Added a dedicated `ppaint_gtest` host-side driver with startup, no-missing-library, and right-menu interaction coverage.
   - Verified ppaint reaches its main paint window, stays running after startup, and survives RMB menu interaction without losing the main window.
   - Deeper screenshot/pixel assertions remain deferred until the screenshot API can capture ppaint's app-owned screens.
+- Phase 104 (`0.8.67`): SIGMAth2 interaction follow-up — done.
+  - Fixed 10 ROM/host bugs: REFRESHWINDOW for SMART_REFRESH, GZZ gadget RastPort selection, GZZ relative coordinate calculation, headless rootless window sync, gadget text baseline offset, PrintIText baseline, Topaz 8 font extended to 32-255 (Latin-1 with umlauts), RELRIGHT/RELBOTTOM off-by-one, BOOPSI GM_RENDER resolved gadget box, lxa_api.c gadget box screen-dimension override.
+  - 12 passing tests in `sigma_gtest` (4 startup + 8 interaction): startup visibility, resource failures, UI capture, menu smoke, gadget grid layout, About dialog, button click interaction, string input, scroll gadgets, button row consistency, display frame content, file-requester survival.
+  - Deterministic gadget geometry assertions verify 28 Analysis window gadgets: 20 math buttons (88x14), 2 scroll arrows, 1 prop, 3 string gadgets, 1 display frame, 1 depth gadget.
+  - About-dialog coverage via two-phase RMB menu selection with Y-position probing and dismiss strategy.
+  - File-requester coverage verifies app survives menu-triggered requester flow in headless mode.
 
 ## Completed Milestones (compact)
 
@@ -55,6 +61,7 @@ For each app below the agent should follow a test-driven workflow: (1) run or cr
 
 
 - Phase 104: SIGMAth2
+	- Identify and fix all GUI layout issue (e.g. button borders/labels do not lign up correctly) using the screenshot_review.py tool
 	- Keep the dedicated `sigma_gtest` startup/visual smoke driver green; manual `launch.json` startup now mirrors the driver's original-system LIBS/FONTS setup, the `sigma_startup_gtest` shard matches the current test names again, and menu smoke coverage now asserts that the extra tracked content window opens and draws.
 	- Characterize the SIGMAth2 menu geometry well enough to add deterministic About-dialog coverage instead of the current tracked-window menu smoke assertion.
 	- Add interaction coverage for the main math widgets and convert any visual anomalies into deterministic capture/pixel assertions.

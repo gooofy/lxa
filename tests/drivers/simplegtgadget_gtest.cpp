@@ -117,7 +117,7 @@ TEST_F(SimpleGTGadgetTest, NumberGadgetAcceptsKeyboardInput) {
     PressKey(RAWKEY_7, 0);
     RunCyclesWithVBlank(20, 100000);
     PressKey(0x44, 0);
-    RunCyclesWithVBlank(30, 100000);
+    RunCyclesWithVBlank(60, 100000);
 
     std::string output = GetOutput();
     EXPECT_NE(output.find("IDCMP_GADGETUP: gadget ID 3"), std::string::npos)

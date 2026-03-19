@@ -932,6 +932,10 @@ static void _render_requester(struct Window *window, struct Requester *req);
 static void _calculate_requester_box(struct Window *window, struct Requester *req,
                                      LONG *left, LONG *top,
                                      LONG *width, LONG *height);
+static void _calculate_gadget_box(struct Window *window, struct Requester *req,
+                                  struct Gadget *gad,
+                                  LONG *left, LONG *top,
+                                  LONG *width, LONG *height);
 static void _rerender_requester_stack(struct Window *window);
 static struct Window * _find_window_at_pos(struct Screen *screen, WORD x, WORD y);
 static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WORD relY);
@@ -1794,13 +1798,27 @@ static ULONG buttongclass_dispatch(
             ULONG state = 0;
             
             if (!rp) return 0;
-            
+
+            /* Resolve gadget box through _calculate_gadget_box so that
+             * GFLG_REL* flags are handled correctly. */
+            LONG gbox_left = gadget->LeftEdge;
+            LONG gbox_top  = gadget->TopEdge;
+            LONG gbox_w    = gadget->Width;
+            LONG gbox_h    = gadget->Height;
+            if (gpr->gpr_GInfo && gpr->gpr_GInfo->gi_Window)
+            {
+                _calculate_gadget_box(gpr->gpr_GInfo->gi_Window,
+                                      gpr->gpr_GInfo->gi_Requester,
+                                      gadget,
+                                      &gbox_left, &gbox_top, &gbox_w, &gbox_h);
+            }
+
             /* Determine state for visual feedback */
             if (gadget->Flags & GFLG_SELECTED)
                 state |= IDS_SELECTED;
                 
             /* Draw the button frame */
-            _draw_bevel_box(rp, gadget->LeftEdge, gadget->TopEdge, gadget->Width, gadget->Height, state, dri);
+            _draw_bevel_box(rp, gbox_left, gbox_top, gbox_w, gbox_h, state, dri);
             
             /* Draw Label (GadgetText) */
             if (gadget->GadgetText) {
@@ -1811,7 +1829,7 @@ static ULONG buttongclass_dispatch(
                 
                 /* Simple centering calculation */
                 /* For now, just draw at offsets */
-                Move(rp, gadget->LeftEdge + it->LeftEdge + 4, gadget->TopEdge + it->TopEdge + gadget->Height/2 + 2); // Approximate centering offset
+                Move(rp, gbox_left + it->LeftEdge + 4, gbox_top + it->TopEdge + gbox_h/2 + 2); // Approximate centering offset
                 
                 if (it->IText) {
                    Text(rp, it->IText, strlen((char *)it->IText));
@@ -2079,9 +2097,24 @@ static ULONG propgclass_dispatch(
             struct PropInfo *pi = (struct PropInfo *)gadget->SpecialInfo;
             
             if (!rp) return 0;
-            
+
+            /* Resolve gadget box through _calculate_gadget_box so that
+             * GFLG_RELRIGHT / GFLG_RELBOTTOM / GFLG_RELWIDTH /
+             * GFLG_RELHEIGHT are handled correctly. */
+            LONG gbox_left = gadget->LeftEdge;
+            LONG gbox_top  = gadget->TopEdge;
+            LONG gbox_w    = gadget->Width;
+            LONG gbox_h    = gadget->Height;
+            if (gpr->gpr_GInfo && gpr->gpr_GInfo->gi_Window)
+            {
+                _calculate_gadget_box(gpr->gpr_GInfo->gi_Window,
+                                      gpr->gpr_GInfo->gi_Requester,
+                                      gadget,
+                                      &gbox_left, &gbox_top, &gbox_w, &gbox_h);
+            }
+
             /* Draw container (Recessed) */
-            _draw_bevel_box(rp, gadget->LeftEdge, gadget->TopEdge, gadget->Width, gadget->Height, IDS_SELECTED, dri);
+            _draw_bevel_box(rp, gbox_left, gbox_top, gbox_w, gbox_h, IDS_SELECTED, dri);
             
             /* Draw Knob if we have PropInfo */
             if (pi)
@@ -2089,8 +2122,8 @@ static ULONG propgclass_dispatch(
                 WORD knobW, knobH, knobX, knobY;
                 
                 /* Autoknob */
-                WORD containerW = gadget->Width - 4;
-                WORD containerH = gadget->Height - 4;
+                WORD containerW = gbox_w - 4;
+                WORD containerH = gbox_h - 4;
                 
                 if (pi->Flags & AUTOKNOB)
                 {
@@ -2113,8 +2146,8 @@ static ULONG propgclass_dispatch(
                     WORD maxMoveX = containerW - knobW;
                     WORD maxMoveY = containerH - knobH;
                      
-                    knobX = gadget->LeftEdge + 2 + ((maxMoveX * (ULONG)pi->HorizPot) / 0xFFFF);
-                    knobY = gadget->TopEdge + 2 + ((maxMoveY * (ULONG)pi->VertPot) / 0xFFFF);
+                    knobX = gbox_left + 2 + ((maxMoveX * (ULONG)pi->HorizPot) / 0xFFFF);
+                    knobY = gbox_top + 2 + ((maxMoveY * (ULONG)pi->VertPot) / 0xFFFF);
                      
                     /* Draw Knob (Raised) */
                     _draw_bevel_box(rp, knobX, knobY, knobW, knobH, 0, dri);
@@ -2553,17 +2586,31 @@ static ULONG strgclass_dispatch(
             WORD textY;
             
             if (!rp) return 0;
-            
+
+            /* Resolve gadget box through _calculate_gadget_box so that
+             * GFLG_REL* flags are handled correctly. */
+            LONG gbox_left = gadget->LeftEdge;
+            LONG gbox_top  = gadget->TopEdge;
+            LONG gbox_w    = gadget->Width;
+            LONG gbox_h    = gadget->Height;
+            if (gpr->gpr_GInfo && gpr->gpr_GInfo->gi_Window)
+            {
+                _calculate_gadget_box(gpr->gpr_GInfo->gi_Window,
+                                      gpr->gpr_GInfo->gi_Requester,
+                                      gadget,
+                                      &gbox_left, &gbox_top, &gbox_w, &gbox_h);
+            }
+
             /* Draw container (Recessed) */
-            _draw_bevel_box(rp, gadget->LeftEdge, gadget->TopEdge, gadget->Width, gadget->Height, IDS_SELECTED, dri);
+            _draw_bevel_box(rp, gbox_left, gbox_top, gbox_w, gbox_h, IDS_SELECTED, dri);
             
             /* Clear background inside */
             SetAPen(rp, bgColor);
-            RectFill(rp, gadget->LeftEdge + 2, gadget->TopEdge + 2, 
-                         gadget->LeftEdge + gadget->Width - 3, gadget->TopEdge + gadget->Height - 3);
+            RectFill(rp, gbox_left + 2, gbox_top + 2, 
+                         gbox_left + gbox_w - 3, gbox_top + gbox_h - 3);
             
             /* Calculate text Y position (vertically centered) */
-            textY = gadget->TopEdge + (gadget->Height / 2) + 3;
+            textY = gbox_top + (gbox_h / 2) + 3;
             
             /* Draw Text */
             if (si && si->Buffer)
@@ -2574,7 +2621,7 @@ static ULONG strgclass_dispatch(
                 SetBPen(rp, bgColor);
                 SetDrMd(rp, JAM2);
                 
-                Move(rp, gadget->LeftEdge + 4, textY);
+                Move(rp, gbox_left + 4, textY);
                 if (len > 0)
                 {
                     Text(rp, si->Buffer, len);
@@ -2589,18 +2636,18 @@ static ULONG strgclass_dispatch(
                     /* Calculate cursor X position */
                     if (cursorPos > 0 && rp->Font)
                     {
-                        cursorX = gadget->LeftEdge + 4 + TextLength(rp, si->Buffer, cursorPos);
+                        cursorX = gbox_left + 4 + TextLength(rp, si->Buffer, cursorPos);
                     }
                     else
                     {
-                        cursorX = gadget->LeftEdge + 4;
+                        cursorX = gbox_left + 4;
                     }
                     
                     /* Draw cursor as a vertical bar (XOR mode) */
                     SetAPen(rp, txtColor);
                     SetDrMd(rp, COMPLEMENT);
-                    RectFill(rp, cursorX, gadget->TopEdge + 3, 
-                                 cursorX + 1, gadget->TopEdge + gadget->Height - 4);
+                    RectFill(rp, cursorX, gbox_top + 3, 
+                                 cursorX + 1, gbox_top + gbox_h - 4);
                     SetDrMd(rp, JAM2);
                 }
             }
@@ -4878,25 +4925,53 @@ static void _calculate_gadget_box(struct Window *window, struct Requester *req,
 
     if (gad->Flags & GFLG_RELRIGHT)
     {
-        LONG container_width = req ? req->Width : window->Width;
-        calc_left += container_width;
+        LONG container_width;
+        if (req)
+            container_width = req->Width;
+        else if ((window->Flags & WFLG_GIMMEZEROZERO) &&
+                 !(gad->GadgetType & (GTYP_GZZGADGET | GTYP_SYSGADGET)))
+            container_width = window->GZZWidth;
+        else
+            container_width = window->Width;
+        calc_left += container_width - 1;
     }
 
     if (gad->Flags & GFLG_RELBOTTOM)
     {
-        LONG container_height = req ? req->Height : window->Height;
-        calc_top += container_height;
+        LONG container_height;
+        if (req)
+            container_height = req->Height;
+        else if ((window->Flags & WFLG_GIMMEZEROZERO) &&
+                 !(gad->GadgetType & (GTYP_GZZGADGET | GTYP_SYSGADGET)))
+            container_height = window->GZZHeight;
+        else
+            container_height = window->Height;
+        calc_top += container_height - 1;
     }
 
     if (gad->Flags & GFLG_RELWIDTH)
     {
-        LONG container_width = req ? req->Width : window->Width;
+        LONG container_width;
+        if (req)
+            container_width = req->Width;
+        else if ((window->Flags & WFLG_GIMMEZEROZERO) &&
+                 !(gad->GadgetType & (GTYP_GZZGADGET | GTYP_SYSGADGET)))
+            container_width = window->GZZWidth;
+        else
+            container_width = window->Width;
         calc_width += container_width;
     }
 
     if (gad->Flags & GFLG_RELHEIGHT)
     {
-        LONG container_height = req ? req->Height : window->Height;
+        LONG container_height;
+        if (req)
+            container_height = req->Height;
+        else if ((window->Flags & WFLG_GIMMEZEROZERO) &&
+                 !(gad->GadgetType & (GTYP_GZZGADGET | GTYP_SYSGADGET)))
+            container_height = window->GZZHeight;
+        else
+            container_height = window->Height;
         calc_height += container_height;
     }
 
@@ -9086,8 +9161,12 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         _render_window_user_gadgets(window);
     }
 
+    /* Send initial REFRESHWINDOW for all non-NOCAREREFRESH windows that
+     * requested it.  WFLG_SMART_REFRESH is 0, so the old bit-test against
+     * (WFLG_SIMPLE_REFRESH | WFLG_SMART_REFRESH) never matched SMART
+     * windows.  The correct test is: "not Super-BitMap and not NoCare". */
     if ((window->IDCMPFlags & IDCMP_REFRESHWINDOW) &&
-        (window->Flags & (WFLG_SIMPLE_REFRESH | WFLG_SMART_REFRESH)) &&
+        !(window->Flags & WFLG_SUPER_BITMAP) &&
         !(window->Flags & WFLG_NOCAREREFRESH))
     {
         if (window->WLayer)
@@ -9184,8 +9263,14 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
             /* If a font is specified, try to use it */
             /* For now, just use the rastport's current font */
             
-            /* Move to position and render text */
-            Move(rp, x, y + 6);  /* +6 for baseline adjustment with 8-pixel font */
+            /* Move to position and render text.
+             * TopEdge is the top of the character cell (per RKRM),
+             * but Text() renders at the baseline.  Add tf_Baseline
+             * to convert cell-top to baseline coordinate. */
+            {
+                WORD baseline = rp->Font ? rp->Font->tf_Baseline : 6;
+                Move(rp, x, y + baseline);
+            }
             
             /* Calculate text length and render */
             STRPTR txt = iText->IText;
@@ -10456,7 +10541,16 @@ static void _complement_gadget_area(struct Window *window, struct Requester *req
     
     if (!window || !gad || !window->RPort) return;
     
-    rp = window->RPort;
+    /* For GZZ windows, border/system gadgets use BorderRPort */
+    if ((window->Flags & WFLG_GIMMEZEROZERO) && window->BorderRPort &&
+        (gad->GadgetType & (GTYP_GZZGADGET | GTYP_SYSGADGET)))
+    {
+        rp = window->BorderRPort;
+    }
+    else
+    {
+        rp = window->RPort;
+    }
     
     _calculate_gadget_box(window, req, gad, &left, &top, &width, &height);
     
@@ -10481,7 +10575,17 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     DPRINTF(LOG_DEBUG, "_intuition: _render_gadget() gad=0x%08lx type=0x%04x flags=0x%04x GadgetRender=0x%08lx\n",
             (ULONG)gad, (unsigned)gad->GadgetType, (unsigned)gad->Flags, (ULONG)gad->GadgetRender);
     
-    rp = window->RPort;
+    /* For GZZ windows, gadgets with GTYP_GZZGADGET or GTYP_SYSGADGET
+     * belong to the border layer and must use BorderRPort. */
+    if ((window->Flags & WFLG_GIMMEZEROZERO) && window->BorderRPort &&
+        (gad->GadgetType & (GTYP_GZZGADGET | GTYP_SYSGADGET)))
+    {
+        rp = window->BorderRPort;
+    }
+    else
+    {
+        rp = window->RPort;
+    }
     
     _calculate_gadget_box(window, req, gad, &left, &top, &width, &height);
     
@@ -10531,7 +10635,10 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     }
     
     /* Draw Text — walk the IntuiText chain (NextText) so that
-     * GT_Underscore underline IntuiTexts are rendered too. */
+     * GT_Underscore underline IntuiTexts are rendered too.
+     * Per RKRM: IntuiText.TopEdge is the top edge of the character cell,
+     * not the baseline.  Text() renders at the baseline, so we must add
+     * tf_Baseline to convert from cell-top to baseline coordinates. */
     if (gad->GadgetText)
     {
         struct IntuiText *it = gad->GadgetText;
@@ -10541,6 +10648,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             {
                 LONG tx = left + it->LeftEdge;
                 LONG ty = top + it->TopEdge;
+                WORD baseline = rp->Font ? rp->Font->tf_Baseline : 6;
                 SetAPen(rp, it->FrontPen);
                 SetBPen(rp, it->BackPen);
                 SetDrMd(rp, it->DrawMode);
@@ -10551,7 +10659,7 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
                 }
                 else
                 {
-                    Move(rp, tx, ty);
+                    Move(rp, tx, ty + baseline);
                     Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
                 }
             }
