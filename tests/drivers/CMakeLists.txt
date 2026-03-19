@@ -346,6 +346,14 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             FILTER "FinalWriterTest.StartupOpensVisibleWindow"
             TIMEOUT 90)
     endif()
+
+    # PPaint - paint package startup and canvas test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ppaint_gtest.cpp)
+        add_gtest_driver_target(ppaint_gtest)
+        add_gtest_driver_shard(ppaint_startup_gtest ppaint_gtest
+            FILTER "PPaintTest.StartupOpensVisiblePaintWindow:PPaintTest.StartupKeepsRunningWithoutLibraryFailures:PPaintTest.RightMouseMenuInteractionKeepsWindowVisible"
+            TIMEOUT 90)
+    endif()
     
     # DPaint V - Graphics editor test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dpaint_gtest.cpp)

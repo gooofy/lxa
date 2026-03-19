@@ -4,7 +4,7 @@
 
 ## Current Phases
 
-- No active device-completion phase; next queued work is app-focused follow-up coverage.
+- No active device-completion phase; next queued work is Phase 104 SIGMAth2 app-focused follow-up coverage.
 
 ## Completed Milestones
 
@@ -39,6 +39,10 @@
   - Fixed WA_PubScreen/WA_PubScreenName fall-through, SA_Pens/SA_PubName/SA_DisplayID/SA_Colors32, per-screen DrawInfo/pens, gadgetclass OM_SET, NULL tf_CharLoc glyph rendering, and NEWLIST for pr_MsgPort.
   - 3 passing tests: startup window, editor region capture, accept-dialog-opens-editor.
   - Extended screen_basic test with SA_Pens, DrawInfo, and WA_PubScreen/WA_PubScreenName coverage.
+- Phase 103-B (`0.8.66`): ppaint startup coverage and menu smoke interaction — done.
+  - Added a dedicated `ppaint_gtest` host-side driver with startup, no-missing-library, and right-menu interaction coverage.
+  - Verified ppaint reaches its main paint window, stays running after startup, and survives RMB menu interaction without losing the main window.
+  - Deeper screenshot/pixel assertions remain deferred until the screenshot API can capture ppaint's app-owned screens.
 
 ## Completed Milestones (compact)
 
@@ -49,11 +53,6 @@
 
 For each app below the agent should follow a test-driven workflow: (1) run or create a reliable startup host-side driver test to exercise launch and reachability; (2) if the driver reveals failures, fix them and keep the test green; (3) capture screenshots on failure and use `tools/screenshot_review.py` to identify UI/rendering issues and hypotheses; (4) author additional automated pixel or interaction tests that assert the UI issues are fixed; (5) implement fixes and iterate until tests are green.
 
-
-- Phase 103-B: ppaint
-	- Create a host-side test to start ppaint and assert canvas availability.
-	- Fix palette, brush, or menu rendering problems found.
-	- Use screenshot-review to locate drawing artefacts and add pixel tests for a small draw sequence and requester flows.
 
 - Phase 104: SIGMAth2
 	- Launch SIGMAth2 with a driver that asserts the main UI loads.
