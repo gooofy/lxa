@@ -59,6 +59,40 @@ static const char *get_user_home(void)
     return home;
 }
 
+static bool normalize_host_path(const char *input_path, char *normalized_path, size_t normalized_size)
+{
+    char expanded_path[PATH_MAX];
+    const char *path_to_use = input_path;
+    char *resolved;
+
+    if (!input_path || !normalized_path || normalized_size == 0) {
+        return false;
+    }
+
+    if (input_path[0] == '~') {
+        const char *home = get_user_home();
+
+        if (home) {
+            int written = snprintf(expanded_path, sizeof(expanded_path), "%s%s", home, input_path + 1);
+            if (written > 0 && (size_t)written < sizeof(expanded_path)) {
+                path_to_use = expanded_path;
+            }
+        }
+    }
+
+    resolved = realpath(path_to_use, NULL);
+    if (resolved) {
+        strncpy(normalized_path, resolved, normalized_size - 1);
+        normalized_path[normalized_size - 1] = '\0';
+        free(resolved);
+        return true;
+    }
+
+    strncpy(normalized_path, path_to_use, normalized_size - 1);
+    normalized_path[normalized_size - 1] = '\0';
+    return true;
+}
+
 /* Static buffer for data directory path */
 static char g_data_dir[PATH_MAX] = "";
 
@@ -194,38 +228,19 @@ void vfs_init(void) {
 
 bool vfs_add_drive(const char *amiga_name, const char *linux_path) {
     drive_map_t *map = malloc(sizeof(drive_map_t));
+    char normalized_path[PATH_MAX];
+
     if (!map) return false;
 
     map->amiga_name = strdup(amiga_name);
-    
-    char expanded_path[PATH_MAX];
-    const char *path_to_use = linux_path;
 
-    // Handle tilde expansion
-    if (linux_path[0] == '~') {
-        const char *home = getenv("HOME");
-        if (!home) {
-            struct passwd *pw = getpwuid(getuid());
-            if (pw) home = pw->pw_dir;
-        }
-        if (home) {
-            snprintf(expanded_path, sizeof(expanded_path), "%s%s", home, linux_path + 1);
-            path_to_use = expanded_path;
-        }
+    if (!normalize_host_path(linux_path, normalized_path, sizeof(normalized_path))) {
+        free(map->amiga_name);
+        free(map);
+        return false;
     }
 
-    // Convert to absolute path if needed
-    char abs_path[PATH_MAX];
-    if (path_to_use[0] != '/') {
-        if (!realpath(path_to_use, abs_path)) {
-            // If realpath fails, just use the path as-is
-            map->linux_path = strdup(path_to_use);
-        } else {
-            map->linux_path = strdup(abs_path);
-        }
-    } else {
-        map->linux_path = strdup(path_to_use);
-    }
+    map->linux_path = strdup(normalized_path);
     
     map->next = g_drive_maps;
     g_drive_maps = map;
@@ -324,6 +339,43 @@ static bool resolve_path_from_root(const char *root, const char *relative_path,
     strncpy(linux_path, work_path, maxlen);
     linux_path[maxlen - 1] = '\0';
     return true;
+}
+
+static bool resolve_path_with_duplicate_root_component(const char *root,
+                                                       const char *relative_path,
+                                                       char *linux_path,
+                                                       size_t maxlen)
+{
+    const char *root_leaf;
+    size_t root_leaf_len;
+
+    if (!root || !relative_path || root[0] != '/') {
+        return false;
+    }
+
+    root_leaf = strrchr(root, '/');
+    if (!root_leaf || root_leaf[1] == '\0') {
+        return false;
+    }
+
+    root_leaf++;
+    root_leaf_len = strlen(root_leaf);
+
+    if (strncasecmp(relative_path, root_leaf, root_leaf_len) != 0) {
+        return false;
+    }
+
+    if (relative_path[root_leaf_len] != '\0' && relative_path[root_leaf_len] != '/') {
+        return false;
+    }
+
+    if (relative_path[root_leaf_len] == '\0') {
+        strncpy(linux_path, root, maxlen);
+        linux_path[maxlen - 1] = '\0';
+        return true;
+    }
+
+    return resolve_path_from_root(root, relative_path + root_leaf_len + 1, linux_path, maxlen);
 }
 
 bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
@@ -456,8 +508,11 @@ bool vfs_resolve_path(const char *amiga_path, char *linux_path, size_t maxlen) {
         if (!root) return false;
     }
 
-    // Use the helper to resolve from root
-    return resolve_path_from_root(root, p, linux_path, maxlen);
+    if (resolve_path_from_root(root, p, linux_path, maxlen)) {
+        return true;
+    }
+
+    return resolve_path_with_duplicate_root_component(root, p, linux_path, maxlen);
 }
 
 bool vfs_resolve_case_path(const char *root, const char *relative_path,
@@ -1028,6 +1083,11 @@ static assign_entry_t *find_assign(const char *name)
 bool vfs_assign_add(const char *name, const char *linux_path, assign_type_t type)
 {
     DPRINTF(LOG_DEBUG, "vfs: vfs_assign_add(%s, %s, %d)\n", name, linux_path, type);
+    char normalized_path[PATH_MAX];
+
+    if (!normalize_host_path(linux_path, normalized_path, sizeof(normalized_path))) {
+        return false;
+    }
     
     /* Check if assign already exists */
     assign_entry_t *existing = find_assign(name);
@@ -1045,13 +1105,13 @@ bool vfs_assign_add(const char *name, const char *linux_path, assign_type_t type
         /* Create new path entry */
         assign_path_t *new_path = malloc(sizeof(assign_path_t));
         if (!new_path) return false;
-        new_path->linux_path = strdup(linux_path);
+        new_path->linux_path = strdup(normalized_path);
         new_path->next = NULL;
         
         existing->paths = new_path;
         existing->type = type;
         
-        DPRINTF(LOG_DEBUG, "vfs: replaced assign %s: -> %s\n", name, linux_path);
+        DPRINTF(LOG_DEBUG, "vfs: replaced assign %s: -> %s\n", name, normalized_path);
         return true;
     }
     
@@ -1068,14 +1128,14 @@ bool vfs_assign_add(const char *name, const char *linux_path, assign_type_t type
         free(entry);
         return false;
     }
-    path_entry->linux_path = strdup(linux_path);
+    path_entry->linux_path = strdup(normalized_path);
     path_entry->next = NULL;
     
     entry->paths = path_entry;
     entry->next = g_assigns;
     g_assigns = entry;
     
-    DPRINTF(LOG_DEBUG, "vfs: created assign %s: -> %s\n", name, linux_path);
+    DPRINTF(LOG_DEBUG, "vfs: created assign %s: -> %s\n", name, normalized_path);
     return true;
 }
 
@@ -1116,17 +1176,22 @@ bool vfs_assign_remove(const char *name)
 bool vfs_assign_add_path(const char *name, const char *linux_path)
 {
     DPRINTF(LOG_DEBUG, "vfs: vfs_assign_add_path(%s, %s)\n", name, linux_path);
+    char normalized_path[PATH_MAX];
+
+    if (!normalize_host_path(linux_path, normalized_path, sizeof(normalized_path))) {
+        return false;
+    }
     
     assign_entry_t *entry = find_assign(name);
     if (!entry) {
         /* Create new assign with this path */
-        return vfs_assign_add(name, linux_path, ASSIGN_LOCK);
+        return vfs_assign_add(name, normalized_path, ASSIGN_LOCK);
     }
     
     /* Add path to existing assign (at the end) */
     assign_path_t *new_path = malloc(sizeof(assign_path_t));
     if (!new_path) return false;
-    new_path->linux_path = strdup(linux_path);
+    new_path->linux_path = strdup(normalized_path);
     new_path->next = NULL;
     
     /* Find end of path list */
@@ -1138,7 +1203,7 @@ bool vfs_assign_add_path(const char *name, const char *linux_path)
         last->next = new_path;
     }
     
-    DPRINTF(LOG_DEBUG, "vfs: added path to assign %s: -> %s\n", name, linux_path);
+    DPRINTF(LOG_DEBUG, "vfs: added path to assign %s: -> %s\n", name, normalized_path);
     return true;
 }
 
@@ -1146,21 +1211,26 @@ bool vfs_assign_add_path(const char *name, const char *linux_path)
 bool vfs_assign_prepend_path(const char *name, const char *linux_path)
 {
     DPRINTF(LOG_DEBUG, "vfs: vfs_assign_prepend_path(%s, %s)\n", name, linux_path);
+    char normalized_path[PATH_MAX];
+
+    if (!normalize_host_path(linux_path, normalized_path, sizeof(normalized_path))) {
+        return false;
+    }
     
     assign_entry_t *entry = find_assign(name);
     if (!entry) {
         /* Create new assign with this path */
-        return vfs_assign_add(name, linux_path, ASSIGN_LOCK);
+        return vfs_assign_add(name, normalized_path, ASSIGN_LOCK);
     }
     
     /* Prepend path to existing assign (at the beginning) */
     assign_path_t *new_path = malloc(sizeof(assign_path_t));
     if (!new_path) return false;
-    new_path->linux_path = strdup(linux_path);
+    new_path->linux_path = strdup(normalized_path);
     new_path->next = entry->paths;  /* Link to existing paths */
     entry->paths = new_path;        /* Make this the first path */
     
-    DPRINTF(LOG_DEBUG, "vfs: prepended path to assign %s: -> %s\n", name, linux_path);
+    DPRINTF(LOG_DEBUG, "vfs: prepended path to assign %s: -> %s\n", name, normalized_path);
     return true;
 }
 
@@ -1201,6 +1271,92 @@ int vfs_assign_list(const char **names, const char **paths, int max_count)
         count++;
     }
     return count;
+}
+
+bool vfs_path_to_amiga(const char *linux_path, char *amiga_path, size_t maxlen)
+{
+    char normalized_input[PATH_MAX];
+    const char *path_to_match;
+    size_t best_len = 0;
+    const char *best_name = NULL;
+    const char *best_remainder = NULL;
+    int written;
+
+    if (!linux_path || !amiga_path || maxlen == 0) {
+        return false;
+    }
+
+    if (!normalize_host_path(linux_path, normalized_input, sizeof(normalized_input))) {
+        return false;
+    }
+
+    path_to_match = normalized_input;
+
+    for (assign_entry_t *a = g_assigns; a; a = a->next) {
+        for (assign_path_t *p = a->paths; p; p = p->next) {
+            size_t plen;
+
+            if (!p->linux_path) {
+                continue;
+            }
+
+            plen = strlen(p->linux_path);
+            if (strncmp(path_to_match, p->linux_path, plen) != 0) {
+                continue;
+            }
+
+            if (path_to_match[plen] != '\0' && path_to_match[plen] != '/') {
+                continue;
+            }
+
+            if (plen > best_len) {
+                best_len = plen;
+                best_name = a->name;
+                best_remainder = path_to_match + plen;
+            }
+        }
+    }
+
+    if (!best_name) {
+        for (drive_map_t *drive = g_drive_maps; drive; drive = drive->next) {
+            size_t plen;
+
+            if (!drive->linux_path || !drive->amiga_name) {
+                continue;
+            }
+
+            plen = strlen(drive->linux_path);
+            if (strncmp(path_to_match, drive->linux_path, plen) != 0) {
+                continue;
+            }
+
+            if (path_to_match[plen] != '\0' && path_to_match[plen] != '/') {
+                continue;
+            }
+
+            if (plen > best_len) {
+                best_len = plen;
+                best_name = drive->amiga_name;
+                best_remainder = path_to_match + plen;
+            }
+        }
+    }
+
+    if (!best_name) {
+        return false;
+    }
+
+    if (best_remainder && best_remainder[0] == '/') {
+        best_remainder++;
+    }
+
+    if (!best_remainder || best_remainder[0] == '\0') {
+        written = snprintf(amiga_path, maxlen, "%s:", best_name);
+        return written > 0 && (size_t)written < maxlen;
+    }
+
+    written = snprintf(amiga_path, maxlen, "%s:%s", best_name, best_remainder);
+    return written > 0 && (size_t)written < maxlen;
 }
 
 bool vfs_assign_exists(const char *name)

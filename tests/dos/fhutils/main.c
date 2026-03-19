@@ -80,6 +80,13 @@ int main(int argc, char **argv)
         } else {
             printf("  Path: %s\n", buffer);
         }
+
+        if (strstr((char *)buffer, "/home/") || strstr((char *)buffer, "home:")) {
+            printf("  FAIL: NameFromFH leaked host path: %s\n", buffer);
+            Close(fh);
+            FreeDosObject(DOS_FIB, fib);
+            return 20;
+        }
     } else {
         printf("  Note: NameFromFH returned no path (may be normal)\n");
     }
@@ -130,6 +137,16 @@ int main(int argc, char **argv)
     
     lock = DupLockFromFH(fh);
     if (lock) {
+        if (NameFromLock(lock, (STRPTR)buffer, sizeof(buffer))) {
+            printf("  DupLockFromFH path: %s\n", buffer);
+            if (strstr((char *)buffer, "/home/") || strstr((char *)buffer, "home:")) {
+                printf("  FAIL: DupLockFromFH leaked host path\n");
+                UnLock(lock);
+                Close(fh);
+                FreeDosObject(DOS_FIB, fib);
+                return 20;
+            }
+        }
         printf("  DupLockFromFH succeeded\n");
         UnLock(lock);
     } else {

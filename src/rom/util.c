@@ -871,6 +871,14 @@ void U_prepareProcess (struct Process *process, APTR initPC, APTR finalPC, ULONG
     process->pr_MsgPort.mp_SigBit       = SIGB_DOS;
     process->pr_MsgPort.mp_SigTask      = process;
 
+    /*
+     * Initialize the process MsgPort's message list as a proper empty list.
+     * Without this, the mp_MsgList fields are zero (from MEMF_CLEAR) which
+     * is NOT a valid empty list for AddTail/PutMsg operations.
+     * Per RKRM, a MsgPort's mp_MsgList must be initialized before use.
+     */
+    NEWLIST (&process->pr_MsgPort.mp_MsgList);
+
     process->pr_SegList                 = 0;
     process->pr_StackSize               = stacksize;
     process->pr_GlobVec					= 0; /* unsupported */

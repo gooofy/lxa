@@ -2168,11 +2168,11 @@ static WORD graphics_text_glyph_width(CONST struct TextFont *font, WORD idx)
     if (!font)
         return 0;
 
-    charloc = graphics_text_charloc(font, idx);
-    if (charloc)
-        return (WORD)(charloc & 0xFFFF);
+    if (!font->tf_CharLoc)
+        return font->tf_XSize;
 
-    return font->tf_XSize;
+    charloc = graphics_text_charloc(font, idx);
+    return (WORD)(charloc & 0xFFFF);
 }
 
 static WORD graphics_text_glyph_pos(CONST struct TextFont *font, WORD idx)
@@ -2182,11 +2182,11 @@ static WORD graphics_text_glyph_pos(CONST struct TextFont *font, WORD idx)
     if (!font)
         return 0;
 
-    charloc = graphics_text_charloc(font, idx);
-    if (charloc)
-        return (WORD)(charloc >> 16);
+    if (!font->tf_CharLoc)
+        return 0;
 
-    return 0;
+    charloc = graphics_text_charloc(font, idx);
+    return (WORD)(charloc >> 16);
 }
 
 static UBYTE graphics_text_mono_pen(CONST struct TextFont *font, WORD idx, WORD row, WORD col)

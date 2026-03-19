@@ -4550,6 +4550,7 @@ static int _dos_assign_list(uint32_t buf68k, uint32_t buflen)
     /* Get list of assigns from VFS */
     const char *names[64];
     const char *paths[64];
+    char amiga_paths[64][PATH_MAX];
     int count = vfs_assign_list(names, paths, 64);
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_assign_list(): got %d assigns\n", count);
@@ -4565,7 +4566,16 @@ static int _dos_assign_list(uint32_t buf68k, uint32_t buflen)
     
     for (int i = 0; i < count && offset < buflen - 2; i++) {
         size_t name_len = strlen(names[i]);
-        size_t path_len = paths[i] ? strlen(paths[i]) : 0;
+        const char *path = paths[i];
+        size_t path_len;
+
+        if (path && path[0] != '\0') {
+            if (_linux_path_to_amiga(path, amiga_paths[i], sizeof(amiga_paths[i]))) {
+                path = amiga_paths[i];
+            }
+        }
+
+        path_len = path ? strlen(path) : 0;
         
         if (offset + name_len + 1 + path_len + 1 >= buflen - 1) {
             break; /* No more space */
@@ -4578,9 +4588,9 @@ static int _dos_assign_list(uint32_t buf68k, uint32_t buflen)
         m68k_write_memory_8(buf68k + offset++, '\0');
         
         /* Write path */
-        if (paths[i]) {
+        if (path) {
             for (size_t j = 0; j < path_len; j++) {
-                m68k_write_memory_8(buf68k + offset++, paths[i][j]);
+                m68k_write_memory_8(buf68k + offset++, path[j]);
             }
         }
         m68k_write_memory_8(buf68k + offset++, '\0');
@@ -4865,35 +4875,8 @@ static int _get_path_from_fd(int fd, char *buf, size_t bufsize)
 /* Convert Linux path back to Amiga path (best effort) */
 static int _linux_path_to_amiga(const char *linux_path, char *amiga_buf, size_t bufsize)
 {
-    /* Try to find a matching drive mapping */
-    const char *names[64];
-    const char *paths[64];
-    int count = vfs_assign_list(names, paths, 64);
-    
-    for (int i = 0; i < count; i++) {
-        if (!paths[i]) continue;
-        size_t plen = strlen(paths[i]);
-        
-        /* Check if linux_path starts with this path */
-        if (strncmp(linux_path, paths[i], plen) == 0) {
-            const char *remainder = linux_path + plen;
-            
-            /* Skip leading slash in remainder */
-            if (*remainder == '/') remainder++;
-            
-            /* Build Amiga path: DRIVE:remainder */
-            int written = snprintf(amiga_buf, bufsize, "%s:%s", names[i], remainder);
-            if (written < 0 || (size_t)written >= bufsize) {
-                return 0;
-            }
-            
-            /* Convert slashes to Amiga style */
-            for (char *p = amiga_buf; *p; p++) {
-                if (*p == '/') *p = '/';  /* Actually Amiga uses / too */
-            }
-            
-            return 1;
-        }
+    if (vfs_path_to_amiga(linux_path, amiga_buf, bufsize)) {
+        return 1;
     }
     
     /* No matching assign found - use the Linux path as-is */

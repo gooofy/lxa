@@ -238,7 +238,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.64** - SysInfo rootless coverage now tracks screen-level gadgets, fixes viewport-backed gadget hit testing, and adds hosted assertions for startup drawing, speed refresh, and close behavior
+**Version 0.8.65** - FinalWriter 5.05 startup and editor transition: screen-mode requester dialog opens, accepts display-mode selection, and transitions to the full editor window on a custom screen with per-screen pens and DrawInfo
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

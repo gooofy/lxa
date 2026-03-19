@@ -6,8 +6,6 @@
 
 - No active device-completion phase; next queued work is app-focused follow-up coverage.
 
----
-
 ## Completed Milestones
 
 - Phase 79 (`0.8.1`): Complete `keyboard.device` surface and add targeted keyboard regressions — done.
@@ -35,6 +33,12 @@
   - Enabled and strengthened the Sonix 2 host-side startup driver to verify the main window opens, draws visible content, and stays running.
 - Phase 100 (`0.8.61`): vim-5.3 startup/editing coverage and hosted console input bridge — done.
 - Phase 101 (`0.8.63`): BlitzBasic2 UI fixes and extended interaction coverage — done.
+- Phase 102 (`0.8.64`): SysInfo rootless gadget coverage and viewport-backed interaction fixes — done.
+- Phase 103-A (`0.8.65`): FinalWriter_D app testing and UI fixes — done.
+  - Startup dialog requester opens, accepts "Same as Workbench" selection, and transitions to full editor window.
+  - Fixed WA_PubScreen/WA_PubScreenName fall-through, SA_Pens/SA_PubName/SA_DisplayID/SA_Colors32, per-screen DrawInfo/pens, gadgetclass OM_SET, NULL tf_CharLoc glyph rendering, and NEWLIST for pr_MsgPort.
+  - 3 passing tests: startup window, editor region capture, accept-dialog-opens-editor.
+  - Extended screen_basic test with SA_Pens, DrawInfo, and WA_PubScreen/WA_PubScreenName coverage.
 
 ## Completed Milestones (compact)
 
@@ -45,24 +49,6 @@
 
 For each app below the agent should follow a test-driven workflow: (1) run or create a reliable startup host-side driver test to exercise launch and reachability; (2) if the driver reveals failures, fix them and keep the test green; (3) capture screenshots on failure and use `tools/screenshot_review.py` to identify UI/rendering issues and hypotheses; (4) author additional automated pixel or interaction tests that assert the UI issues are fixed; (5) implement fixes and iterate until tests are green.
 
-
-- Phase 101 (`0.8.63`): BlitzBasic2 UI fixes and extended interaction coverage — done.
-	- [x] Launch BlitzBasic2 via a host-side driver and assert the IDE/window opens.
-	- [x] Fix the negative `OpenScreen()` sentinel handling that previously crashed startup with a bogus `65533`-pixel screen height.
-	- [x] Add targeted `OpenScreenTagList()` / `OpenWindowTagList()` regressions so negative height sentinels are sanitized instead of wrapping to giant unsigned sizes.
-	- [x] Capture and review BlitzBasic2 startup/menu screenshots; document the current visible behavior in the new driver.
-	- [x] Fix the remaining BlitzBasic2 UI issues: malformed second window (`292x32804` host-tracked extent → clamped to valid dimensions), clipped Project-menu width (increased DragMenu cycle budget so all 10 items render completely).
-	- [x] Extend the BlitzBasic2 driver: About dialog (via menu selection), project-open flow, and quit-menu-item coverage with RMBTRAP title-bar bypass for menu activation.
-
-- Phase 102 (`0.8.64`): SysInfo rootless gadget coverage and viewport-backed interaction fixes — done.
-	- [x] Ensure the existing SysInfo launch test verifies its window draws; fix the viewport-backed rootless rendering regression so the custom screen bitmap stays visible.
-	- [x] Use `tools/screenshot_review.py` on captures for bitmap/viewport swap issues and add pixel-based assertions for key widgets.
-	- [x] Add interaction coverage for tracked SysInfo gadgets, speed/stat refresh behavior, and close-gadget behavior.
-
-- Phase 103-A: FinalWriter_D
-	- Add a startup test for FinalWriter_D, confirming its main document/editor window renders.
-	- Fix font/rendering and dialog issues exposed by the driver.
-	- Use screenshot analysis for text/layout defects and add automated tests for About, open/save requester, and simple typing.
 
 - Phase 103-B: ppaint
 	- Create a host-side test to start ppaint and assert canvas availability.

@@ -1710,8 +1710,6 @@ void _exec_AddTail ( register struct ExecBase *SysBase __asm("a6"),
 
     list->lh_TailPred->ln_Succ = node;
     list->lh_TailPred          = node;
-
-    // DPRINTF (LOG_DEBUG, "_exec: AddTail done\n");
 }
 
 void _exec_Remove ( register struct ExecBase * SysBase __asm("a6"),

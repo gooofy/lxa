@@ -338,6 +338,14 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             FILTER "VimTest.CursorAndInsertModeRedrawWindow:VimTest.InsertModeTypingAndCommandModeWriteFile:VimTest.TypingAndSavingWritesHostFile"
             TIMEOUT 90)
     endif()
+
+    # FinalWriter_D - word processor startup and interaction test
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/finalwriter_gtest.cpp)
+        add_gtest_driver_target(finalwriter_gtest)
+        add_gtest_driver_shard(finalwriter_startup_gtest finalwriter_gtest
+            FILTER "FinalWriterTest.StartupOpensVisibleWindow"
+            TIMEOUT 90)
+    endif()
     
     # DPaint V - Graphics editor test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dpaint_gtest.cpp)

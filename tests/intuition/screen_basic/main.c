@@ -392,6 +392,221 @@ int main(void)
         default_screen = NULL;
     }
 
+    /* SA_Pens and GetScreenDrawInfo: verify per-screen pen storage */
+    {
+        static UWORD custom_pens[] = { 3, 2, 1, 0, 3, 2, 1, 0, (UWORD)~0 };
+        struct TagItem pen_tags[] = {
+            { SA_Width, 320 },
+            { SA_Height, 200 },
+            { SA_Depth, 2 },
+            { SA_Pens, (ULONG)custom_pens },
+            { SA_Title, (ULONG)"Pen Screen" },
+            { TAG_DONE, 0 }
+        };
+        struct Screen *pen_screen = OpenScreenTagList(NULL, pen_tags);
+
+        if (!pen_screen) {
+            print("FAIL: OpenScreenTagList(SA_Pens) returned NULL\n");
+            errors++;
+        } else {
+            struct DrawInfo *dri = GetScreenDrawInfo(pen_screen);
+            if (!dri) {
+                print("FAIL: GetScreenDrawInfo() returned NULL for pen screen\n");
+                errors++;
+            } else {
+                if (dri->dri_Version < 1) {
+                    print("FAIL: DrawInfo dri_Version < 1\n");
+                    errors++;
+                } else {
+                    print("OK: DrawInfo dri_Version >= 1\n");
+                }
+
+                if (dri->dri_NumPens < 9) {
+                    print("FAIL: DrawInfo dri_NumPens < 9 for SA_Pens with 8 entries\n");
+                    errors++;
+                } else {
+                    print("OK: DrawInfo dri_NumPens >= 9\n");
+                }
+
+                /* Verify custom pens were stored:
+                 * pens[] = {3,2,1,0,3,2,1,0,~0} maps to:
+                 * DETAILPEN(0)=3, BLOCKPEN(1)=2, TEXTPEN(2)=1,
+                 * SHINEPEN(3)=0, SHADOWPEN(4)=3, FILLPEN(5)=2,
+                 * FILLTEXTPEN(6)=1, BACKGROUNDPEN(7)=0 */
+                if (dri->dri_Pens[DETAILPEN] != 3) {
+                    print("FAIL: DETAILPEN should be 3\n");
+                    errors++;
+                } else if (dri->dri_Pens[BLOCKPEN] != 2) {
+                    print("FAIL: BLOCKPEN should be 2\n");
+                    errors++;
+                } else if (dri->dri_Pens[TEXTPEN] != 1) {
+                    print("FAIL: TEXTPEN should be 1\n");
+                    errors++;
+                } else if (dri->dri_Pens[SHINEPEN] != 0) {
+                    print("FAIL: SHINEPEN should be 0\n");
+                    errors++;
+                } else if (dri->dri_Pens[SHADOWPEN] != 3) {
+                    print("FAIL: SHADOWPEN should be 3\n");
+                    errors++;
+                } else {
+                    print("OK: SA_Pens custom pen values stored correctly\n");
+                }
+
+                if (dri->dri_Depth != 2) {
+                    print("FAIL: DrawInfo dri_Depth != 2\n");
+                    errors++;
+                } else {
+                    print("OK: DrawInfo dri_Depth = 2\n");
+                }
+
+                if (!(dri->dri_Flags & DRIF_NEWLOOK)) {
+                    print("FAIL: DrawInfo DRIF_NEWLOOK not set with SA_Pens\n");
+                    errors++;
+                } else {
+                    print("OK: DrawInfo DRIF_NEWLOOK set\n");
+                }
+
+                FreeScreenDrawInfo(pen_screen, dri);
+            }
+            CloseScreen(pen_screen);
+        }
+    }
+
+    /* GetScreenDrawInfo on a default screen (no SA_Pens) */
+    {
+        struct TagItem def_tags[] = {
+            { SA_Width, 320 },
+            { SA_Height, 200 },
+            { SA_Depth, 2 },
+            { SA_Title, (ULONG)"Default Pen Screen" },
+            { TAG_DONE, 0 }
+        };
+        struct Screen *def_screen = OpenScreenTagList(NULL, def_tags);
+
+        if (!def_screen) {
+            print("FAIL: OpenScreenTagList(no SA_Pens) returned NULL\n");
+            errors++;
+        } else {
+            struct DrawInfo *dri = GetScreenDrawInfo(def_screen);
+            if (!dri) {
+                print("FAIL: GetScreenDrawInfo() returned NULL for default screen\n");
+                errors++;
+            } else {
+                if (dri->dri_NumPens < 1) {
+                    print("FAIL: Default DrawInfo dri_NumPens < 1\n");
+                    errors++;
+                } else {
+                    print("OK: Default DrawInfo has pens\n");
+                }
+
+                if (dri->dri_Font == NULL) {
+                    print("FAIL: Default DrawInfo dri_Font is NULL\n");
+                    errors++;
+                } else {
+                    print("OK: Default DrawInfo dri_Font set\n");
+                }
+
+                /* Resolution should be non-zero */
+                if (dri->dri_Resolution.X == 0 || dri->dri_Resolution.Y == 0) {
+                    print("FAIL: Default DrawInfo resolution has zero component\n");
+                    errors++;
+                } else {
+                    print("OK: Default DrawInfo resolution non-zero\n");
+                }
+
+                FreeScreenDrawInfo(def_screen, dri);
+            }
+            CloseScreen(def_screen);
+        }
+    }
+
+    /* WA_PubScreenName: open a window on a named public screen */
+    {
+        static UBYTE pub_name[] = "WA_PubScreenNameTest";
+        struct TagItem scr_tags[] = {
+            { SA_Width, 320 },
+            { SA_Height, 200 },
+            { SA_Depth, 2 },
+            { SA_Title, (ULONG)"PubScreen for WA test" },
+            { SA_PubName, (ULONG)pub_name },
+            { TAG_DONE, 0 }
+        };
+        struct Screen *pub_scr = OpenScreenTagList(NULL, scr_tags);
+
+        if (!pub_scr) {
+            print("FAIL: OpenScreenTagList(SA_PubName) returned NULL\n");
+            errors++;
+        } else {
+            /* Open a window on it using WA_PubScreenName */
+            struct TagItem win_tags[] = {
+                { WA_Left, 10 },
+                { WA_Top, 20 },
+                { WA_Width, 100 },
+                { WA_Height, 50 },
+                { WA_PubScreenName, (ULONG)pub_name },
+                { WA_Flags, WFLG_BORDERLESS },
+                { TAG_DONE, 0 }
+            };
+            struct Window *pub_win = OpenWindowTagList(NULL, win_tags);
+
+            if (!pub_win) {
+                print("FAIL: OpenWindowTagList(WA_PubScreenName) returned NULL\n");
+                errors++;
+            } else if (pub_win->WScreen != pub_scr) {
+                print("FAIL: WA_PubScreenName did not open on the named screen\n");
+                errors++;
+            } else {
+                print("OK: WA_PubScreenName opens window on correct screen\n");
+            }
+
+            if (pub_win)
+                CloseWindow(pub_win);
+            CloseScreen(pub_scr);
+        }
+    }
+
+    /* WA_PubScreen: open a window on a screen pointer */
+    {
+        struct TagItem scr_tags[] = {
+            { SA_Width, 320 },
+            { SA_Height, 200 },
+            { SA_Depth, 2 },
+            { SA_Title, (ULONG)"PubScreen for WA_PubScreen test" },
+            { TAG_DONE, 0 }
+        };
+        struct Screen *ptr_scr = OpenScreenTagList(NULL, scr_tags);
+
+        if (!ptr_scr) {
+            print("FAIL: OpenScreenTagList for WA_PubScreen test returned NULL\n");
+            errors++;
+        } else {
+            struct TagItem win_tags[] = {
+                { WA_Left, 5 },
+                { WA_Top, 15 },
+                { WA_Width, 80 },
+                { WA_Height, 40 },
+                { WA_PubScreen, (ULONG)ptr_scr },
+                { WA_Flags, WFLG_BORDERLESS },
+                { TAG_DONE, 0 }
+            };
+            struct Window *ptr_win = OpenWindowTagList(NULL, win_tags);
+
+            if (!ptr_win) {
+                print("FAIL: OpenWindowTagList(WA_PubScreen) returned NULL\n");
+                errors++;
+            } else if (ptr_win->WScreen != ptr_scr) {
+                print("FAIL: WA_PubScreen did not open on the specified screen\n");
+                errors++;
+            } else {
+                print("OK: WA_PubScreen opens window on correct screen\n");
+            }
+
+            if (ptr_win)
+                CloseWindow(ptr_win);
+            CloseScreen(ptr_scr);
+        }
+    }
+
     /* Close the screen */
     if (!CloseScreen(screen)) {
         print("FAIL: CloseScreen() failed after windows were closed\n");

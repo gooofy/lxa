@@ -155,40 +155,60 @@ int main(void)
         test_fail("RunCommand", "Could not load LoaderChild");
     }
 
-    print("\nTest 4: CreateProc launches child process with message port\n");
+    print("\nTest 4: CreateNewProc launches child process with message port\n");
     seg = LoadSeg((CONST_STRPTR)"SYS:Tests/Dos/LoaderChild");
     if (seg) {
         struct MsgPort *parent_port = CreateMsgPort();
         if (parent_port) {
+            struct Process *child;
             struct MsgPort *proc_port;
             struct LoaderChildMessage *msg;
 
             parent_port->mp_Node.ln_Name = (char *)TEST_PORT_NAME;
             AddPort(parent_port);
 
-            proc_port = CreateProc((CONST_STRPTR)"LoaderChild", 0, seg, 8192);
+            /*
+             * Use CreateNewProc with NP_Cli so the child is a CLI process.
+             * LoaderChild uses libnix C startup which checks pr_CLI:
+             * if pr_CLI==0, libnix calls WaitPort(&pr_MsgPort) expecting
+             * a WBStartup message (Workbench launch convention).
+             * NP_Cli=TRUE ensures pr_CLI!=0, so libnix takes the CLI path.
+             */
+            {
+                struct TagItem procTags[] = {
+                    { NP_Seglist,     (ULONG)seg },
+                    { NP_Name,        (ULONG)"LoaderChild" },
+                    { NP_Priority,    0 },
+                    { NP_StackSize,   8192 },
+                    { NP_FreeSeglist, FALSE },
+                    { NP_Cli,         TRUE },
+                    { TAG_DONE,       0 }
+                };
+                child = CreateNewProc(procTags);
+            }
+            proc_port = child ? &child->pr_MsgPort : NULL;
             if (proc_port) {
                 WaitPort(parent_port);
                 msg = (struct LoaderChildMessage *)GetMsg(parent_port);
                 if (msg && msg->magic == TEST_MESSAGE_MAGIC && msg->msg.mn_ReplyPort == proc_port)
-                    test_pass("CreateProc returns child message port");
+                    test_pass("CreateNewProc child sends message via port");
                 else
-                    test_fail("CreateProc returns child message port", "Did not receive expected child message");
+                    test_fail("CreateNewProc child sends message via port", "Did not receive expected child message");
                 cleanup_message(msg);
             } else {
-                test_fail("CreateProc", "CreateProc returned NULL");
+                test_fail("CreateNewProc", "CreateNewProc returned NULL");
             }
 
             RemPort(parent_port);
             DeleteMsgPort(parent_port);
         } else {
-            test_fail("CreateProc", "Could not create parent message port");
+            test_fail("CreateNewProc", "Could not create parent message port");
         }
 
         Delay(2);
         UnLoadSeg(seg);
     } else {
-        test_fail("CreateProc", "Could not load LoaderChild");
+        test_fail("CreateNewProc", "Could not load LoaderChild");
     }
 
     print("\n=== Test Summary ===\n");

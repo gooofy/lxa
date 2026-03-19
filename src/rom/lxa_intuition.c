@@ -386,6 +386,9 @@ struct LXAClassNode {
 
 struct LXAPubScreenNode {
     struct PubScreenNode pub;
+    UWORD pens[NUMDRIPENS + 1];  /* Per-screen pen array (terminated with ~0) */
+    struct DrawInfo drawInfo;     /* Pre-built DrawInfo for GetScreenDrawInfo() */
+    BOOL has_custom_pens;         /* TRUE if SA_Pens was provided */
 };
 
 static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST_STRPTR classID);
@@ -774,6 +777,39 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
     entry->pub.psn_VisitorCount = 0;
     entry->pub.psn_SigTask = NULL;
     entry->pub.psn_SigBit = 0;
+
+    /* Initialize default pen array */
+    entry->pens[DETAILPEN]        = 0;
+    entry->pens[BLOCKPEN]         = 1;
+    entry->pens[TEXTPEN]          = 1;
+    entry->pens[SHINEPEN]         = 2;
+    entry->pens[SHADOWPEN]        = 1;
+    entry->pens[FILLPEN]          = 3;
+    entry->pens[FILLTEXTPEN]      = 1;
+    entry->pens[BACKGROUNDPEN]    = 0;
+    entry->pens[HIGHLIGHTTEXTPEN] = 2;
+    entry->pens[BARDETAILPEN]     = 1;
+    entry->pens[BARBLOCKPEN]      = 2;
+    entry->pens[BARTRIMPEN]       = 1;
+    entry->pens[BARCONTOURPEN]    = 1;
+    entry->pens[NUMDRIPENS]       = (UWORD)~0;  /* Terminator */
+    entry->has_custom_pens = FALSE;
+
+    /* Pre-build DrawInfo for GetScreenDrawInfo() */
+    entry->drawInfo.dri_Version    = 2;  /* V39 compatible */
+    entry->drawInfo.dri_NumPens    = NUMDRIPENS;
+    entry->drawInfo.dri_Pens       = entry->pens;
+    entry->drawInfo.dri_Font       = screen->RastPort.Font;
+    entry->drawInfo.dri_Depth      = screen->RastPort.BitMap ? screen->RastPort.BitMap->Depth : 2;
+    entry->drawInfo.dri_Resolution.X = 44;
+    entry->drawInfo.dri_Resolution.Y = 44;
+    /* DRIF_NEWLOOK is set for any screen with depth >= 2, matching OS 3.x
+     * behavior.  SA_Pens merely customizes the pen mapping; the 3D look
+     * is driven by having enough colours available.
+     */
+    entry->drawInfo.dri_Flags      = (entry->drawInfo.dri_Depth >= 2) ? DRIF_NEWLOOK : 0;
+    entry->drawInfo.dri_CheckMark  = NULL;
+    entry->drawInfo.dri_AmigaKey   = NULL;
 
     AddTail(&base->PubScreenList, &entry->pub.psn_Node);
 
@@ -1565,6 +1601,30 @@ static ULONG gadgetclass_dispatch(
             {
                 switch (tag->ti_Tag)
                 {
+                    case GA_Left:
+                        gadget->LeftEdge = (WORD)tag->ti_Data;
+                        changed = 1;
+                        break;
+                    case GA_Top:
+                        gadget->TopEdge = (WORD)tag->ti_Data;
+                        changed = 1;
+                        break;
+                    case GA_Width:
+                        gadget->Width = (WORD)tag->ti_Data;
+                        changed = 1;
+                        break;
+                    case GA_Height:
+                        gadget->Height = (WORD)tag->ti_Data;
+                        changed = 1;
+                        break;
+                    case GA_ID:
+                        gadget->GadgetID = (UWORD)tag->ti_Data;
+                        changed = 1;
+                        break;
+                    case GA_UserData:
+                        gadget->UserData = (APTR)tag->ti_Data;
+                        changed = 1;
+                        break;
                     case GA_Disabled:
                         if (tag->ti_Data)
                             gadget->Flags |= GFLG_DISABLED;
@@ -1577,6 +1637,20 @@ static ULONG gadgetclass_dispatch(
                             gadget->Flags |= GFLG_SELECTED;
                         else
                             gadget->Flags &= ~GFLG_SELECTED;
+                        changed = 1;
+                        break;
+                    case GA_Immediate:
+                        if (tag->ti_Data)
+                            gadget->Activation |= GACT_IMMEDIATE;
+                        else
+                            gadget->Activation &= ~GACT_IMMEDIATE;
+                        changed = 1;
+                        break;
+                    case GA_RelVerify:
+                        if (tag->ti_Data)
+                            gadget->Activation |= GACT_RELVERIFY;
+                        else
+                            gadget->Activation &= ~GACT_RELVERIFY;
                         changed = 1;
                         break;
                 }
@@ -7884,7 +7958,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     UBYTE depth;
     UBYTE i;
 
-    LPRINTF (LOG_INFO, "_intuition: OpenScreen() newScreen=0x%08lx\n", (ULONG)newScreen);
+    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() newScreen=0x%08lx\n", (ULONG)newScreen);
 
     if (!newScreen)
     {
@@ -7945,7 +8019,7 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
             defaultHeight = 256;
         }
         
-        LPRINTF(LOG_INFO, "_intuition: OpenScreen() height %d < %d, expanding to %d based on ViewModes 0x%04x\n",
+        DPRINTF(LOG_DEBUG, "_intuition: OpenScreen() height %d < %d, expanding to %d based on ViewModes 0x%04x\n",
                 (int)height, MIN_USABLE_HEIGHT, (int)defaultHeight, (unsigned)viewModes);
         height = defaultHeight;
     }
@@ -8537,7 +8611,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     ULONG rootless_mode;
     ULONG host_window_handle = 0;
 
-    LPRINTF (LOG_INFO, "_intuition: OpenWindow() newWindow=0x%08lx\n", (ULONG)newWindow);
+    DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() newWindow=0x%08lx\n", (ULONG)newWindow);
 
     if (!newWindow)
     {
@@ -8583,7 +8657,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
              (unsigned)newWindow->Type);
     if (newWindow->Title)
     {
-        LPRINTF (LOG_INFO, "  Title string: '%s'\n", (char *)newWindow->Title);
+        DPRINTF (LOG_DEBUG, "  Title string: '%s'\n", (char *)newWindow->Title);
     }
 
     /* Get the target screen */
@@ -8605,7 +8679,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         /* If no Workbench screen, open one */
         if (!screen)
         {
-            LPRINTF (LOG_INFO, "_intuition: OpenWindow() opening Workbench screen (called from OpenWindow)\n");
+            DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() opening Workbench screen (called from OpenWindow)\n");
             if (!_intuition_OpenWorkBench(IntuitionBase))
             {
                 LPRINTF (LOG_ERROR, "_intuition: OpenWindow() failed to open Workbench screen\n");
@@ -8660,7 +8734,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
 
         if (requested_width != width || requested_height != height)
         {
-            LPRINTF(LOG_INFO,
+            DPRINTF(LOG_DEBUG,
                     "_intuition: OpenWindow() sanitized %dx%d to %dx%d on screen %dx%d at (%d,%d)\n",
                     (int)requested_width,
                     (int)requested_height,
@@ -8695,7 +8769,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         if (expandedHeight <= 0 || expandedHeight > screen->Height)
             expandedHeight = (LONG)screen->Height;
 
-        LPRINTF(LOG_INFO, "_intuition: OpenWindow() window height %d < %d, expanding to %d\n",
+        DPRINTF(LOG_DEBUG, "_intuition: OpenWindow() window height %d < %d, expanding to %d\n",
                 (int)height, MIN_USABLE_HEIGHT, (int)expandedHeight);
         height = (WORD)expandedHeight;
     }
@@ -8732,7 +8806,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
 
         if (clampedLeft != newWindow->LeftEdge || clampedTop != newWindow->TopEdge)
         {
-            LPRINTF(LOG_INFO,
+            DPRINTF(LOG_DEBUG,
                     "_intuition: OpenWindow() clamped position (%d,%d) to (%d,%d) on screen %dx%d\n",
                     (int)newWindow->LeftEdge, (int)newWindow->TopEdge,
                     (int)clampedLeft, (int)clampedTop,
@@ -9033,7 +9107,7 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     struct Screen *wbscreen;
     struct NewScreen ns;
     
-    LPRINTF (LOG_INFO, "_intuition: OpenWorkBench() called, FirstScreen=0x%08lx\n", 
+    DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() called, FirstScreen=0x%08lx\n", 
              (ULONG)IntuitionBase->FirstScreen);
     
     /* Check if Workbench screen already exists */
@@ -9064,23 +9138,8 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     
     if (wbscreen)
     {
-        LPRINTF (LOG_INFO, "_intuition: OpenWorkBench() - opened at 0x%08lx, Width=%d Height=%d\n", 
+        DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - opened at 0x%08lx, Width=%d Height=%d\n", 
                  (ULONG)wbscreen, (int)wbscreen->Width, (int)wbscreen->Height);
-        LPRINTF (LOG_INFO, "_intuition: OpenWorkBench() FirstScreen=0x%08lx, FirstScreen->Width=%d Height=%d\n",
-                 (ULONG)IntuitionBase->FirstScreen,
-                 IntuitionBase->FirstScreen ? (int)IntuitionBase->FirstScreen->Width : -1,
-                 IntuitionBase->FirstScreen ? (int)IntuitionBase->FirstScreen->Height : -1);
-        /* Dump raw bytes at screen structure offsets 8-16 to verify layout */
-        UBYTE *p = (UBYTE *)wbscreen;
-        LPRINTF (LOG_INFO, "_intuition: Screen raw bytes at offset 8-15: %02x %02x %02x %02x %02x %02x %02x %02x\n",
-                 p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15]);
-        /* Also dump IntuitionBase offsets 56-64 to check FirstScreen pointer location */
-        UBYTE *ib = (UBYTE *)IntuitionBase;
-        LPRINTF (LOG_INFO, "_intuition: IntuitionBase raw at offset 56-63: %02x %02x %02x %02x %02x %02x %02x %02x\n",
-                 ib[56], ib[57], ib[58], ib[59], ib[60], ib[61], ib[62], ib[63]);
-        
-        /* Print IntuitionBase address (what a6 should be after this call) */
-        LPRINTF (LOG_INFO, "_intuition: OpenWorkBench() returning, IntuitionBase=0x%08lx\n", (ULONG)IntuitionBase);
         
         return (ULONG)wbscreen;
     }
@@ -12388,12 +12447,81 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                 case WA_MouseQueue:
                     mouse_queue = (UWORD)tag->ti_Data;
                     break;
-                /* Tags we recognize but don't fully implement yet */
                 case WA_PubScreenName:
+                {
+                    /* Look up the named public screen and open on it.
+                     * Per RKRM: WA_PubScreenName provides the name of a
+                     * public screen to open the window on.  We use
+                     * LockPubScreen() to find it; if not found the window
+                     * falls back to the default public screen.
+                     */
+                    const char *pub_name = (const char *)tag->ti_Data;
+                    struct Screen *pub_screen = NULL;
+
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_PubScreenName='%s'\n",
+                            pub_name ? pub_name : "(null)");
+
+                    if (pub_name)
+                    {
+                        pub_screen = _intuition_LockPubScreen(IntuitionBase, (CONST_STRPTR)pub_name);
+                        if (pub_screen)
+                        {
+                            nw.Screen = pub_screen;
+                            nw.Type = CUSTOMSCREEN;
+                            _intuition_UnlockPubScreen(IntuitionBase, NULL, pub_screen);
+                        }
+                    }
+
+                    if (!pub_screen)
+                    {
+                        /* Fall back to default public screen */
+                        pub_screen = _intuition_LockPubScreen(IntuitionBase, NULL);
+                        if (pub_screen)
+                        {
+                            nw.Screen = pub_screen;
+                            nw.Type = CUSTOMSCREEN;
+                            _intuition_UnlockPubScreen(IntuitionBase, NULL, pub_screen);
+                        }
+                    }
+                    break;
+                }
                 case WA_PubScreen:
+                    /* WA_PubScreen provides a direct pointer to a
+                     * Screen obtained from LockPubScreen().  Per RKRM
+                     * this directs the window to open on that screen.
+                     */
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_PubScreen=0x%08lx\n",
+                            (ULONG)tag->ti_Data);
+                    if (tag->ti_Data)
+                    {
+                        nw.Screen = (struct Screen *)tag->ti_Data;
+                        nw.Type = CUSTOMSCREEN;
+                    }
+                    else
+                    {
+                        /* NULL WA_PubScreen means default public screen */
+                        struct Screen *def_screen = _intuition_LockPubScreen(IntuitionBase, NULL);
+                        if (def_screen)
+                        {
+                            nw.Screen = def_screen;
+                            nw.Type = CUSTOMSCREEN;
+                            _intuition_UnlockPubScreen(IntuitionBase, NULL, def_screen);
+                        }
+                    }
+                    break;
                 case WA_PubScreenFallBack:
+                    /* Enable fallback to default public screen if
+                     * WA_PubScreenName cannot be found.  We always
+                     * fall back, so this is a no-op for us. */
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_PubScreenFallBack=%ld\n",
+                            (LONG)tag->ti_Data);
+                    break;
+                /* Tags we recognize but don't fully implement yet */
                 case WA_BackFill:
                 case WA_RptQueue:
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() ignoring tag 0x%08lx (not yet implemented)\n",
+                            tag->ti_Tag);
+                    break;
                 case WA_AutoAdjust:
                     auto_adjust = (tag->ti_Data != 0);
                     break;
@@ -12687,16 +12815,39 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                 case SA_Font:
                     ns.Font = (struct TextAttr *)tag->ti_Data;
                     break;
-                /* Tags we recognize but don't fully implement yet */
                 case SA_DisplayID:
+                    /* Store the display ID; use it to set ViewPort.Modes
+                     * after screen creation.  For now we extract the
+                     * HIRES and LACE bits which affect resolution/height.
+                     */
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_DisplayID=0x%08lx\n",
+                            (ULONG)tag->ti_Data);
+                    ns.ViewModes = (UWORD)(tag->ti_Data & 0xFFFF);
+                    break;
+                case SA_Pens:
+                    /* SA_Pens handled in second pass after screen is open */
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_Pens=0x%08lx\n",
+                            (ULONG)tag->ti_Data);
+                    break;
+                case SA_PubName:
+                    /* SA_PubName handled after screen registration */
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_PubName='%s'\n",
+                            tag->ti_Data ? (const char *)tag->ti_Data : "(null)");
+                    break;
+                case SA_PubSig:
+                case SA_PubTask:
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() storing pub signal tag 0x%08lx\n",
+                            tag->ti_Tag);
+                    break;
+                case SA_Colors32:
+                    /* SA_Colors32 handled after screen is open */
+                    DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_Colors32=0x%08lx\n",
+                            (ULONG)tag->ti_Data);
+                    break;
+                /* Tags we recognize but don't fully implement yet */
                 case SA_DClip:
                 case SA_Overscan:
                 case SA_Colors:
-                case SA_Colors32:
-                case SA_Pens:
-                case SA_PubName:
-                case SA_PubSig:
-                case SA_PubTask:
                 case SA_SysFont:
                 case SA_ErrorCode:
                     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() ignoring tag 0x%08lx (not yet implemented)\n",
@@ -12711,7 +12862,152 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     }
     
     /* Call our existing OpenScreen with the assembled NewScreen */
-    return _intuition_OpenScreen(IntuitionBase, &ns);
+    struct Screen *screen = _intuition_OpenScreen(IntuitionBase, &ns);
+    if (!screen)
+        return NULL;
+
+    /* Second pass: apply tags that require a live screen */
+    if (tagList)
+    {
+        struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+        struct LXAPubScreenNode *lxa_pub = NULL;
+        struct PubScreenNode *pub_node;
+        const UWORD *sa_pens = NULL;
+        const char *sa_pub_name = NULL;
+        const ULONG *sa_colors32 = NULL;
+        APTR sa_pub_task = NULL;
+        BYTE sa_pub_sig = -1;
+
+        pub_node = _intuition_find_pubscreen_by_screen(base, screen);
+        if (pub_node)
+            lxa_pub = (struct LXAPubScreenNode *)pub_node;
+
+        tstate = (struct TagItem *)tagList;
+        while ((tag = NextTagItem(&tstate)))
+        {
+            switch (tag->ti_Tag)
+            {
+                case SA_Pens:
+                    sa_pens = (const UWORD *)tag->ti_Data;
+                    break;
+                case SA_PubName:
+                    sa_pub_name = (const char *)tag->ti_Data;
+                    break;
+                case SA_PubTask:
+                    sa_pub_task = (APTR)tag->ti_Data;
+                    break;
+                case SA_PubSig:
+                    sa_pub_sig = (BYTE)tag->ti_Data;
+                    break;
+                case SA_Colors32:
+                    sa_colors32 = (const ULONG *)tag->ti_Data;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        /* Apply SA_Pens: merge caller's pens with defaults.
+         * Per RKRM: providing SA_Pens (even with just a ~0 terminator)
+         * enables NewLook (DRIF_NEWLOOK).  Each pen in the caller's
+         * array overrides the corresponding default, up to the ~0
+         * terminator.
+         */
+        if (lxa_pub && sa_pens)
+        {
+            UWORD i;
+
+            lxa_pub->has_custom_pens = TRUE;
+            lxa_pub->drawInfo.dri_Flags |= DRIF_NEWLOOK;
+
+            for (i = 0; i < NUMDRIPENS; i++)
+            {
+                if (sa_pens[i] == (UWORD)~0)
+                    break;
+                lxa_pub->pens[i] = sa_pens[i];
+            }
+
+            DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() applied %d custom pens, NEWLOOK=%s\n",
+                    (int)i, (lxa_pub->drawInfo.dri_Flags & DRIF_NEWLOOK) ? "yes" : "no");
+        }
+        else if (lxa_pub)
+        {
+            /* No SA_Pens provided: still set DRIF_NEWLOOK for 2+ plane
+             * screens since most OS 3.x apps expect it.
+             */
+            if (screen->RastPort.BitMap && screen->RastPort.BitMap->Depth >= 2)
+                lxa_pub->drawInfo.dri_Flags |= DRIF_NEWLOOK;
+        }
+
+        /* Apply SA_PubName: re-register the screen with the requested
+         * public name so LockPubScreen() can find it.
+         */
+        if (sa_pub_name && sa_pub_name[0] != '\0' && lxa_pub)
+        {
+            ULONG name_len = strlen(sa_pub_name);
+            char *new_name;
+
+            /* Allocate a separate name buffer and update the node */
+            new_name = (char *)AllocMem(name_len + 1, MEMF_PUBLIC);
+            if (new_name)
+            {
+                strcpy(new_name, sa_pub_name);
+                /* The old name was inline after the struct, we can't free
+                 * it separately, but we can point away from it.
+                 */
+                lxa_pub->pub.psn_Node.ln_Name = new_name;
+
+                DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() registered pub screen name='%s'\n",
+                        sa_pub_name);
+            }
+
+            if (sa_pub_task)
+                lxa_pub->pub.psn_SigTask = (struct Task *)sa_pub_task;
+            if (sa_pub_sig >= 0)
+                lxa_pub->pub.psn_SigBit = (UBYTE)sa_pub_sig;
+        }
+
+        /* Apply SA_Colors32: load a palette from a LoadRGB32-style array.
+         * Format: { numcolors_high16 | first_color_low16,
+         *           r32, g32, b32, r32, g32, b32, ..., 0 }
+         */
+        if (sa_colors32 && screen->ViewPort.ColorMap)
+        {
+            ULONG display_handle = (ULONG)screen->ExtData;
+            const ULONG *ptr = sa_colors32;
+
+            while (*ptr != 0)
+            {
+                UWORD num_colors = (UWORD)(*ptr >> 16);
+                UWORD first_color = (UWORD)(*ptr & 0xFFFF);
+
+                ptr++;  /* skip header word */
+
+                for (UWORD c = 0; c < num_colors; c++)
+                {
+                    UWORD color_index = first_color + c;
+                    UBYTE r8 = (UBYTE)(ptr[0] >> 24);
+                    UBYTE g8 = (UBYTE)(ptr[1] >> 24);
+                    UBYTE b8 = (UBYTE)(ptr[2] >> 24);
+                    ULONG rgb24 = ((ULONG)r8 << 16) | ((ULONG)g8 << 8) | (ULONG)b8;
+                    UBYTE r4 = r8 >> 4;
+                    UBYTE g4 = g8 >> 4;
+                    UBYTE b4 = b8 >> 4;
+
+                    SetRGB4CM(screen->ViewPort.ColorMap, color_index, r4, g4, b4);
+
+                    if (display_handle)
+                        emucall3(EMU_CALL_GFX_SET_COLOR, display_handle, color_index, rgb24);
+
+                    ptr += 3;
+                }
+            }
+
+            DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() applied SA_Colors32 palette\n");
+        }
+    }
+
+    return screen;
 }
 
 /* Helper to check if a pointer is likely a BOOPSI object */
@@ -13348,9 +13644,12 @@ VOID _intuition_AddClass ( register struct IntuitionBase * IntuitionBase __asm("
 struct DrawInfo * _intuition_GetScreenDrawInfo ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
+    struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+    struct PubScreenNode *pub;
+    struct LXAPubScreenNode *lxa_pub;
     struct DrawInfo *drawInfo;
     UWORD *pens;
-    
+
     DPRINTF (LOG_DEBUG, "_intuition: GetScreenDrawInfo() screen=0x%08lx\n", (ULONG)screen);
 
     if (!screen)
@@ -13358,56 +13657,66 @@ struct DrawInfo * _intuition_GetScreenDrawInfo ( register struct IntuitionBase *
 
     /*
      * GetScreenDrawInfo returns information about the screen's drawing pens
-     * and font. We allocate a DrawInfo structure and populate it with
-     * the screen's attributes.
+     * and font.  We allocate a fresh DrawInfo and populate it from the
+     * per-screen pens stored in the LXAPubScreenNode (if one exists).
      */
-    
-    /* Allocate DrawInfo and pens array in RAM (not static - ROM is read-only!) */
+
     drawInfo = AllocMem(sizeof(struct DrawInfo), MEMF_CLEAR | MEMF_PUBLIC);
     if (!drawInfo)
         return NULL;
-    
-    pens = AllocMem((NUMDRIPENS + 2) * sizeof(UWORD), MEMF_PUBLIC);  /* +1 for terminator, +1 for safety */
+
+    pens = AllocMem((NUMDRIPENS + 2) * sizeof(UWORD), MEMF_PUBLIC);
     if (!pens) {
         FreeMem(drawInfo, sizeof(struct DrawInfo));
         return NULL;
     }
-    
-    /* Initialize default pens (0-12, plus terminator at 13) */
-    pens[0] = 0;    /* DETAILPEN */
-    pens[1] = 1;    /* BLOCKPEN */
-    pens[2] = 1;    /* TEXTPEN */
-    pens[3] = 2;    /* SHINEPEN */
-    pens[4] = 1;    /* SHADOWPEN */
-    pens[5] = 3;    /* FILLPEN */
-    pens[6] = 1;    /* FILLTEXTPEN */
-    pens[7] = 0;    /* BACKGROUNDPEN */
-    pens[8] = 2;    /* HIGHLIGHTTEXTPEN */
-    pens[9] = 1;    /* BARDETAILPEN - V39 */
-    pens[10] = 2;   /* BARBLOCKPEN - V39 */
-    pens[11] = 1;   /* BARTRIMPEN - V39 */
-    pens[12] = 1;   /* BARCONTOURPEN - V39 */
-    pens[13] = (UWORD)~0;  /* Terminator */
-    
-    /* Initialize DrawInfo */
-    drawInfo->dri_Version = 2;           /* V39 compatible */
-    drawInfo->dri_NumPens = NUMDRIPENS;
-    drawInfo->dri_Pens = pens;
-    drawInfo->dri_Font = screen->RastPort.Font;
-    drawInfo->dri_Depth = 2;             /* Default 4 colors */
+
+    /* Check if this screen has a PubScreenNode with custom pens */
+    pub = _intuition_find_pubscreen_by_screen(base, screen);
+    if (pub)
+    {
+        UWORD i;
+        lxa_pub = (struct LXAPubScreenNode *)pub;
+
+        /* Copy pens from the per-screen storage */
+        for (i = 0; i < NUMDRIPENS; i++)
+            pens[i] = lxa_pub->pens[i];
+        pens[NUMDRIPENS] = (UWORD)~0;  /* Terminator */
+
+        drawInfo->dri_Flags = lxa_pub->drawInfo.dri_Flags;
+    }
+    else
+    {
+        /* No PubScreenNode: use defaults */
+        pens[DETAILPEN]        = 0;
+        pens[BLOCKPEN]         = 1;
+        pens[TEXTPEN]          = 1;
+        pens[SHINEPEN]         = 2;
+        pens[SHADOWPEN]        = 1;
+        pens[FILLPEN]          = 3;
+        pens[FILLTEXTPEN]      = 1;
+        pens[BACKGROUNDPEN]    = 0;
+        pens[HIGHLIGHTTEXTPEN] = 2;
+        pens[BARDETAILPEN]     = 1;
+        pens[BARBLOCKPEN]      = 2;
+        pens[BARTRIMPEN]       = 1;
+        pens[BARCONTOURPEN]    = 1;
+        pens[NUMDRIPENS]       = (UWORD)~0;
+        drawInfo->dri_Flags = DRIF_NEWLOOK;
+    }
+
+    drawInfo->dri_Version    = 2;
+    drawInfo->dri_NumPens    = NUMDRIPENS;
+    drawInfo->dri_Pens       = pens;
+    drawInfo->dri_Font       = screen->RastPort.Font;
+    drawInfo->dri_Depth      = screen->RastPort.BitMap ? screen->RastPort.BitMap->Depth : 2;
     drawInfo->dri_Resolution.X = 44;
     drawInfo->dri_Resolution.Y = 44;
-    drawInfo->dri_Flags = DRIF_NEWLOOK;
-    drawInfo->dri_CheckMark = NULL;
-    drawInfo->dri_AmigaKey = NULL;
-    
-    /* Set depth from screen bitmap if available */
-    if (screen->RastPort.BitMap) {
-        drawInfo->dri_Depth = screen->RastPort.BitMap->Depth;
-    }
-    
-    DPRINTF (LOG_DEBUG, "_intuition: GetScreenDrawInfo() -> drawInfo=0x%08lx, Version=%d, NumPens=%d, Font=0x%08lx, Depth=%d, Pens=0x%08lx, Flags=0x%lx\n", 
-             (ULONG)drawInfo, drawInfo->dri_Version, drawInfo->dri_NumPens, 
+    drawInfo->dri_CheckMark  = NULL;
+    drawInfo->dri_AmigaKey   = NULL;
+
+    DPRINTF (LOG_DEBUG, "_intuition: GetScreenDrawInfo() -> drawInfo=0x%08lx, Version=%d, NumPens=%d, Font=0x%08lx, Depth=%d, Pens=0x%08lx, Flags=0x%lx\n",
+             (ULONG)drawInfo, drawInfo->dri_Version, drawInfo->dri_NumPens,
              (ULONG)drawInfo->dri_Font, drawInfo->dri_Depth, (ULONG)drawInfo->dri_Pens, drawInfo->dri_Flags);
     return drawInfo;
 }
@@ -13420,6 +13729,7 @@ VOID _intuition_FreeScreenDrawInfo ( register struct IntuitionBase * IntuitionBa
              (ULONG)screen, (ULONG)drawInfo);
     /*
      * FreeScreenDrawInfo releases a DrawInfo obtained from GetScreenDrawInfo.
+     * Since we always allocate a fresh copy, we always free it here.
      */
     if (drawInfo) {
         if (drawInfo->dri_Pens)

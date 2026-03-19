@@ -17,10 +17,15 @@
 #include <fstream>
 #include <string>
 #include <cstring>
+#include <limits.h>
 #include <unistd.h>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
+
+#ifndef LXA_TEST_PREFIX
+#define LXA_TEST_PREFIX "/home/guenter/projects/amiga/lxa/usr"
+#endif
 
 namespace lxa {
 namespace testing {
@@ -301,6 +306,7 @@ inline const char* FindThirdPartyLibsPath() {
  */
 inline const char* FindAppsPath() {
     static std::string apps_path;
+    char resolved[PATH_MAX];
     const char* locations[] = {
         "../lxa-apps",
         "../../lxa-apps",
@@ -313,7 +319,11 @@ inline const char* FindAppsPath() {
     
     for (int i = 0; locations[i]; i++) {
         if (access(locations[i], F_OK) == 0) {
-            apps_path = locations[i];
+            if (realpath(locations[i], resolved) != nullptr) {
+                apps_path = resolved;
+            } else {
+                apps_path = locations[i];
+            }
             return apps_path.c_str();
         }
     }
@@ -349,6 +359,8 @@ protected:
      * LxaTest::SetUp() from your override.
      */
     void SetUp() override {
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
         // Set default paths if not already configured
         if (config.rom_path == nullptr) {
             config.rom_path = FindRomPath();
