@@ -1194,31 +1194,6 @@ TEST_F(ProWriteInteractionTest, TypingChangesDocumentContent) {
                  << "(corrupt list pointer — ROM compatibility issue)";
 }
 
-TEST_F(AppsMiscTest, SIGMAth2OpensAnalysisWindow) {
-    if (!SetupOriginalSystemAssigns(true, false, false) || FindAppsPath() == nullptr) {
-        GTEST_SKIP() << "SIGMAth2 app bundle or original system disk not found";
-    }
-
-    ASSERT_EQ(lxa_load_program("APPS:SIGMAth2/SIGMAth_2", ""), 0)
-        << "Failed to load SIGMAth2 via APPS: assign";
-
-    ASSERT_TRUE(WaitForWindows(1, 20000))
-        << "SIGMAth2 did not open a window\n"
-        << GetOutput();
-
-    ASSERT_TRUE(GetWindowInfo(0, &window_info));
-    EXPECT_TRUE(WaitForWindowDrawn(0, 5000))
-        << "SIGMAth2 window should expose visible content\n"
-        << GetOutput();
-
-    EXPECT_TRUE(lxa_is_running())
-        << "SIGMAth2 should still be running after startup\n"
-        << GetOutput();
-
-    EXPECT_GT(window_info.width, 0);
-    EXPECT_GT(window_info.height, 0);
-}
-
 TEST_F(AppsMiscTest, DISABLED_BlitzBasic2Starts) {
     if (!SetupOriginalSystemAssigns(true, true, true) || !SetupBlitzBasic2Assigns()) {
         GTEST_SKIP() << "BlitzBasic2 app bundle or original system disk not found";

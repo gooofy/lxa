@@ -21,6 +21,8 @@
                 "C=${workspaceFolder}/build/target/sys/C",
                 "--assign",
                 "System=${workspaceFolder}/build/target/sys/System",
+                "--assign-add",
+                "FONTS=${env:HOME}/media/emu/amiga/FS-UAE/hdd/system/Fonts",
                 "--assign",
                 "T=${workspaceFolder}/.vscode/lxa-test-runtime/T",
                 "--assign",

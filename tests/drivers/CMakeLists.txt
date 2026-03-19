@@ -354,7 +354,15 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             FILTER "PPaintTest.StartupOpensVisiblePaintWindow:PPaintTest.StartupKeepsRunningWithoutLibraryFailures:PPaintTest.RightMouseMenuInteractionKeepsWindowVisible"
             TIMEOUT 90)
     endif()
-    
+
+    # SIGMAth2 - startup and visual smoke coverage
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/sigma_gtest.cpp)
+        add_gtest_driver_target(sigma_gtest)
+        add_gtest_driver_shard(sigma_startup_gtest sigma_gtest
+            FILTER "SIGMAth2Test.StartupOpensVisibleAnalysisWindow:SIGMAth2Test.StartupKeepsRunningWithoutResourceFailures:SIGMAth2Test.MainWindowCaptureContainsVisibleUiRegions:SIGMAth2Test.MenuBarRightMouseSmokeKeepsAnalysisWindowAlive"
+            TIMEOUT 90)
+    endif()
+
     # DPaint V - Graphics editor test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dpaint_gtest.cpp)
         add_gtest_driver(dpaint_gtest)

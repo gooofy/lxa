@@ -4,7 +4,7 @@
 
 ## Current Phases
 
-- No active device-completion phase; next queued work is Phase 104 SIGMAth2 app-focused follow-up coverage.
+- No active device-completion phase; active app work is Phase 104 SIGMAth2 interaction follow-up on top of the dedicated startup/visual driver coverage.
 
 ## Completed Milestones
 
@@ -55,10 +55,10 @@ For each app below the agent should follow a test-driven workflow: (1) run or cr
 
 
 - Phase 104: SIGMAth2
-	- Launch SIGMAth2 with a driver that asserts the main UI loads.
-	- Fix any initial rendering, math-widget, or menu issues found.
-	- Use screenshot analysis to capture UI anomalies and add tests for About dialog, input to math widgets, and file requester.
-	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
+	- Keep the dedicated `sigma_gtest` startup/visual smoke driver green; manual `launch.json` startup now mirrors the driver's original-system LIBS/FONTS setup, the `sigma_startup_gtest` shard matches the current test names again, and menu smoke coverage now asserts that the extra tracked content window opens and draws.
+	- Characterize the SIGMAth2 menu geometry well enough to add deterministic About-dialog coverage instead of the current tracked-window menu smoke assertion.
+	- Add interaction coverage for the main math widgets and convert any visual anomalies into deterministic capture/pixel assertions.
+	- Add file-requester coverage once the menu/requester flow is characterized in headless mode.
 
 - Phase 105: Asm-One
 	- Run or create a host-side startup test (GTest driver) that launches Asm-One and asserts the main window opens.
