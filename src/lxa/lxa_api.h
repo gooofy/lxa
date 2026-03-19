@@ -389,6 +389,17 @@ bool lxa_read_pixel(int x, int y, int *pen);
 bool lxa_read_pixel_rgb(int x, int y, uint8_t *r, uint8_t *g, uint8_t *b);
 
 /*
+ * Read a palette entry RGB value by pen index from the active display.
+ *
+ * @param pen    Palette index (0-255)
+ * @param r      Output: red component (0-255)
+ * @param g      Output: green component (0-255)
+ * @param b      Output: blue component (0-255)
+ * @return true on success
+ */
+bool lxa_get_palette_rgb(int pen, uint8_t *r, uint8_t *g, uint8_t *b);
+
+/*
  * Check if the screen has content (non-background pixels).
  *
  * @return Number of non-background pixels, or -1 if no screen

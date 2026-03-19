@@ -568,6 +568,17 @@ bool display_read_pixel(int x, int y, int *pen);
 bool display_read_pixel_rgb(int x, int y, uint8_t *r, uint8_t *g, uint8_t *b);
 
 /*
+ * Read a palette RGB value by pen index from the active display.
+ *
+ * @param pen    Palette index (0-255)
+ * @param r      Output red component
+ * @param g      Output green component
+ * @param b      Output blue component
+ * @return true on success
+ */
+bool display_get_palette_rgb(int pen, uint8_t *r, uint8_t *g, uint8_t *b);
+
+/*
  * Get extended screen information.
  *
  * @param width      Output: screen width (can be NULL)

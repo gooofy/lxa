@@ -114,6 +114,39 @@ typedef struct display_rect_t
 
 #define DISPLAY_MAX_VISIBLE_RECTS 64
 
+static uint32_t display_palette_fallback_argb(uint8_t idx)
+{
+    static const uint32_t fallback_palette[8] = {
+        0xFFAAAAAA,
+        0xFFFFFFFF,
+        0xFF000000,
+        0xFF00AACC,
+        0xFF2244CC,
+        0xFF888888,
+        0xFF666666,
+        0xFFFF0000,
+    };
+
+    if (idx < 8)
+        return fallback_palette[idx];
+
+    return 0xFF000000 | ((uint32_t)idx << 16) | ((uint32_t)idx << 8) | idx;
+}
+
+static uint32_t display_palette_argb(const uint32_t *palette, uint8_t idx)
+{
+    uint32_t argb;
+
+    if (!palette)
+        return display_palette_fallback_argb(idx);
+
+    argb = palette[idx];
+    if (argb == 0)
+        return display_palette_fallback_argb(idx);
+
+    return argb;
+}
+
 #define DISPLAY_NODE_SUCC_OFFSET 0
 #define DISPLAY_SCREEN_FIRSTWINDOW_OFFSET 4
 #define DISPLAY_WINDOW_LEFTEDGE_OFFSET 4
@@ -724,6 +757,18 @@ void display_set_color(display_t *display, int index, uint8_t r, uint8_t g, uint
         return;
     }
 
+    if (index < 8)
+    {
+        LPRINTF(LOG_INFO,
+                "display: set_color display=%p active=%p idx=%d rgb=(%u,%u,%u)\n",
+                (void *)display,
+                (void *)g_active_display,
+                index,
+                (unsigned)r,
+                (unsigned)g,
+                (unsigned)b);
+    }
+
     /* Store as ARGB */
     display->palette[index] = 0xFF000000 | ((uint32_t)r << 16) |
                               ((uint32_t)g << 8) | (uint32_t)b;
@@ -893,7 +938,7 @@ void display_refresh(display_t *display)
 
                 for (int x = 0; x < display->width; x++)
                 {
-                    dst[x] = display->palette[src[x]];
+                    dst[x] = display_palette_argb(display->palette, src[x]);
                 }
             }
 
@@ -1783,7 +1828,7 @@ void display_window_refresh(display_window_t *window)
 
                 for (int x = 0; x < window->width; x++)
                 {
-                    dst[x] = palette[src[x]];
+                    dst[x] = display_palette_argb(palette, src[x]);
                 }
             }
 
@@ -1941,6 +1986,14 @@ void display_set_amiga_bitmap(display_t *display, uint32_t planes_ptr, uint32_t 
 {
     if (!display)
         return;
+
+    LPRINTF(LOG_INFO,
+            "display: set_amiga_bitmap display=%p active=%p planes=0x%08x bpr=%u depth=%u\n",
+            (void *)display,
+            (void *)g_active_display,
+            planes_ptr,
+            (unsigned)((bpr_depth >> 16) & 0xFFFF),
+            (unsigned)(bpr_depth & 0xFFFF));
     
     display->amiga_planes_ptr = planes_ptr;
     display->amiga_bpr = (bpr_depth >> 16) & 0xFFFF;
@@ -2309,7 +2362,7 @@ static bool display_write_png_file(const char *filename,
         {
             size_t pixel_index = (size_t)y * (size_t)width + (size_t)x;
             uint8_t idx = pixels[pixel_index];
-            uint32_t color = palette[idx];
+            uint32_t color = display_palette_argb(palette, idx);
             size_t rgb_index = (size_t)x * 3u;
 
             row[rgb_index] = (uint8_t)((color >> 16) & 0xFF);
@@ -2870,13 +2923,30 @@ bool display_read_pixel_rgb(int x, int y, uint8_t *r, uint8_t *g, uint8_t *b)
         return false;
     
     int idx = g_active_display->pixels[y * g_active_display->width + x];
-    uint32_t argb = g_active_display->palette[idx];
+    uint32_t argb = display_palette_argb(g_active_display->palette, (uint8_t)idx);
     
     /* ARGB format: 0xAARRGGBB */
     *r = (argb >> 16) & 0xFF;
     *g = (argb >> 8) & 0xFF;
     *b = argb & 0xFF;
     
+    return true;
+}
+
+bool display_get_palette_rgb(int pen, uint8_t *r, uint8_t *g, uint8_t *b)
+{
+    uint32_t argb;
+
+    if (!g_active_display || !r || !g || !b)
+        return false;
+
+    if (pen < 0 || pen >= DISPLAY_MAX_COLORS)
+        return false;
+
+    argb = display_palette_argb(g_active_display->palette, (uint8_t)pen);
+    *r = (argb >> 16) & 0xFF;
+    *g = (argb >> 8) & 0xFF;
+    *b = argb & 0xFF;
     return true;
 }
 

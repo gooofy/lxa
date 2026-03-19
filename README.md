@@ -238,7 +238,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.63** - BlitzBasic2 UI fixes: malformed second window clamped, menu width corrected, RMBTRAP title-bar bypass enables menu activation, and extended driver covers About dialog, project-open, and quit flows
+**Version 0.8.64** - SysInfo rootless coverage now tracks screen-level gadgets, fixes viewport-backed gadget hit testing, and adds hosted assertions for startup drawing, speed refresh, and close behavior
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 

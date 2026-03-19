@@ -307,6 +307,7 @@ static uint32_t lxa_api_get_window_gadget(int window_index, int gadget_index)
 {
     uint32_t window_ptr;
     uint32_t gadget_ptr;
+    uint32_t screen_ptr;
     int current_index = 0;
 
     if (gadget_index < 0)
@@ -317,12 +318,18 @@ static uint32_t lxa_api_get_window_gadget(int window_index, int gadget_index)
         return 0;
 
     gadget_ptr = m68k_read_memory_32(window_ptr + WINDOW_FIRSTGADGET_OFFSET);
-    if (gadget_ptr == 0)
+    while (gadget_ptr)
     {
-        uint32_t screen_ptr = m68k_read_memory_32(window_ptr + WINDOW_WSCREEN_OFFSET);
-        if (screen_ptr)
-            gadget_ptr = m68k_read_memory_32(screen_ptr + 326);
+        if (current_index == gadget_index)
+            return gadget_ptr;
+        current_index++;
+        gadget_ptr = m68k_read_memory_32(gadget_ptr + GADGET_NEXT_OFFSET);
     }
+
+    screen_ptr = m68k_read_memory_32(window_ptr + WINDOW_WSCREEN_OFFSET);
+    if (screen_ptr)
+        gadget_ptr = m68k_read_memory_32(screen_ptr + 326);
+
     while (gadget_ptr)
     {
         if (current_index == gadget_index)
@@ -932,6 +939,7 @@ int lxa_get_gadget_count(int window_index)
 {
     uint32_t window_ptr;
     uint32_t gadget_ptr;
+    uint32_t screen_ptr;
     int count = 0;
 
     if (!g_api_initialized)
@@ -942,16 +950,21 @@ int lxa_get_gadget_count(int window_index)
         return -1;
 
     gadget_ptr = m68k_read_memory_32(window_ptr + WINDOW_FIRSTGADGET_OFFSET);
-    if (gadget_ptr == 0)
-    {
-        uint32_t screen_ptr = m68k_read_memory_32(window_ptr + WINDOW_WSCREEN_OFFSET);
-        if (screen_ptr)
-            gadget_ptr = m68k_read_memory_32(screen_ptr + 326);
-    }
     while (gadget_ptr)
     {
         count++;
         gadget_ptr = m68k_read_memory_32(gadget_ptr + GADGET_NEXT_OFFSET);
+    }
+
+    screen_ptr = m68k_read_memory_32(window_ptr + WINDOW_WSCREEN_OFFSET);
+    if (screen_ptr)
+    {
+        gadget_ptr = m68k_read_memory_32(screen_ptr + 326);
+        while (gadget_ptr)
+        {
+            count++;
+            gadget_ptr = m68k_read_memory_32(gadget_ptr + GADGET_NEXT_OFFSET);
+        }
     }
 
     return count;
@@ -1039,6 +1052,12 @@ bool lxa_read_pixel_rgb(int x, int y, uint8_t *r, uint8_t *g, uint8_t *b)
 {
     if (!g_api_initialized) return false;
     return display_read_pixel_rgb(x, y, r, g, b);
+}
+
+bool lxa_get_palette_rgb(int pen, uint8_t *r, uint8_t *g, uint8_t *b)
+{
+    if (!g_api_initialized) return false;
+    return display_get_palette_rgb(pen, r, g, b);
 }
 
 int lxa_get_content_pixels(void)

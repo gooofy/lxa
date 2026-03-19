@@ -54,10 +54,10 @@ For each app below the agent should follow a test-driven workflow: (1) run or cr
 	- [x] Fix the remaining BlitzBasic2 UI issues: malformed second window (`292x32804` host-tracked extent → clamped to valid dimensions), clipped Project-menu width (increased DragMenu cycle budget so all 10 items render completely).
 	- [x] Extend the BlitzBasic2 driver: About dialog (via menu selection), project-open flow, and quit-menu-item coverage with RMBTRAP title-bar bypass for menu activation.
 
-- Phase 102: SysInfo
-	- Ensure the existing SysInfo launch test verifies its window draws; fix any rendering regressions.
-	- Use `tools/screenshot_review.py` on captures for bitmap/viewport swap issues and add pixel-based assertions for key widgets.
-	- Add interaction tests: About dialog, refresh/stat update, and close behavior.
+- Phase 102 (`0.8.64`): SysInfo rootless gadget coverage and viewport-backed interaction fixes — done.
+	- [x] Ensure the existing SysInfo launch test verifies its window draws; fix the viewport-backed rootless rendering regression so the custom screen bitmap stays visible.
+	- [x] Use `tools/screenshot_review.py` on captures for bitmap/viewport swap issues and add pixel-based assertions for key widgets.
+	- [x] Add interaction coverage for tracked SysInfo gadgets, speed/stat refresh behavior, and close-gadget behavior.
 
 - Phase 103-A: FinalWriter_D
 	- Add a startup test for FinalWriter_D, confirming its main document/editor window renders.

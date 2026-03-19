@@ -48,6 +48,7 @@ extern BOOL _gadtools_IsCycle(register struct Gadget *gad __asm("a0"));
 extern UWORD _gadtools_GetCycleState(register struct Gadget *gad __asm("a0"));
 extern UWORD _gadtools_AdvanceCycleState(register struct Gadget *gad __asm("a0"));
 extern STRPTR _gadtools_GetCycleLabel(register struct Gadget *gad __asm("a0"));
+extern VOID graphics_screen_sync_viewport_bitmap(struct Screen *screen);
 
 /*
  * Minimum usable screen/window height threshold.
@@ -4924,18 +4925,16 @@ static void _clear_resized_window_exposed_areas(struct Window *window,
     }
 }
 
-static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WORD relY)
+static struct Gadget *_find_gadget_at_pos_in_list(struct Window *window,
+                                                  struct Gadget *first_gadget,
+                                                  WORD relX,
+                                                  WORD relY)
 {
     struct Gadget *gad;
     LONG gx0, gy0, width, height;
-    
-    if (!window)
-        return NULL;
-    
-    /* Walk through gadget list */
-    for (gad = window->FirstGadget; gad; gad = gad->NextGadget)
+
+    for (gad = first_gadget; gad; gad = gad->NextGadget)
     {
-        /* Skip disabled gadgets */
         if (gad->Flags & GFLG_DISABLED)
             continue;
         
@@ -4954,7 +4953,24 @@ static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WOR
             return gad;
         }
     }
-    
+
+    return NULL;
+}
+
+static struct Gadget * _find_gadget_at_pos(struct Window *window, WORD relX, WORD relY)
+{
+    struct Gadget *gad;
+
+    if (!window)
+        return NULL;
+
+    gad = _find_gadget_at_pos_in_list(window, window->FirstGadget, relX, relY);
+    if (gad)
+        return gad;
+
+    if (window->WScreen && window->WScreen->FirstGadget != window->FirstGadget)
+        return _find_gadget_at_pos_in_list(window, window->WScreen->FirstGadget, relX, relY);
+
     return NULL;
 }
 
@@ -10185,6 +10201,8 @@ LONG _intuition_MakeScreen ( register struct IntuitionBase * IntuitionBase __asm
      * the subsequent RethinkDisplay() or WaitTOF() call.
      */
     
+    graphics_screen_sync_viewport_bitmap(screen);
+
     return 0;  /* Success */
 }
 
@@ -10204,6 +10222,8 @@ LONG _intuition_RemakeDisplay ( register struct IntuitionBase * IntuitionBase __
 
 LONG _intuition_RethinkDisplay ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
+    struct Screen *screen;
+
     DPRINTF (LOG_DEBUG, "_intuition: RethinkDisplay() called\n");
     
     /*
@@ -10214,6 +10234,9 @@ LONG _intuition_RethinkDisplay ( register struct IntuitionBase * IntuitionBase _
      *
      * Per RKRM: "This call also does a WaitTOF()"
      */
+    for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
+        graphics_screen_sync_viewport_bitmap(screen);
+
     WaitTOF();
     
     return 0;  /* Success */

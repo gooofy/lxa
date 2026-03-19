@@ -273,6 +273,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(apps_misc_gtest)
     endif()
 
+    # SysInfo - startup and interaction coverage
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/sysinfo_gtest.cpp)
+        add_gtest_driver(sysinfo_gtest)
+    endif()
+
     # Layers tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/layers_gtest.cpp)
         add_gtest_driver(layers_gtest)

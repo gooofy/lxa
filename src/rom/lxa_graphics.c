@@ -80,6 +80,8 @@ static VOID _graphics_EraseRect(register struct GfxBase *GfxBase __asm("a6"),
                                 register LONG yMin __asm("d1"),
                                 register LONG xMax __asm("d2"),
                                 register LONG yMax __asm("d3"));
+static VOID graphics_screen_adopt_bitmap(struct Screen *screen,
+                                         struct BitMap *bm);
 static VOID _graphics_AddVSprite(register struct GfxBase *GfxBase __asm("a6"),
                                  register struct VSprite *vSprite __asm("a0"),
                                  register struct RastPort *rp __asm("a1"));
@@ -1237,6 +1239,31 @@ static ULONG graphics_viewport_display_handle(struct ViewPort *vp)
     return screen ? (ULONG)screen->ExtData : 0;
 }
 
+VOID graphics_screen_sync_viewport_bitmap(struct Screen *screen)
+{
+    struct BitMap *bitmap;
+
+    if (!screen || !screen->ViewPort.RasInfo)
+        return;
+
+    bitmap = screen->ViewPort.RasInfo->BitMap;
+    if (!bitmap)
+        return;
+
+    if (bitmap != &screen->BitMap)
+    {
+        LPRINTF(LOG_INFO,
+                "_graphics: sync viewport bitmap screen=0x%08lx old=0x%08lx new=0x%08lx rows=%u bpr=%u depth=%u\n",
+                (ULONG)screen,
+                (ULONG)&screen->BitMap,
+                (ULONG)bitmap,
+                (unsigned)bitmap->Rows,
+                (unsigned)bitmap->BytesPerRow,
+                (unsigned)bitmap->Depth);
+        graphics_screen_adopt_bitmap(screen, bitmap);
+    }
+}
+
 static VOID graphics_screen_adopt_bitmap(struct Screen *screen,
                                          struct BitMap *bm)
 {
@@ -1257,6 +1284,15 @@ static VOID graphics_screen_adopt_bitmap(struct Screen *screen,
     {
         bpr_depth = ((ULONG)screen->BitMap.BytesPerRow << 16) |
                     (ULONG)screen->BitMap.Depth;
+        LPRINTF(LOG_INFO,
+                "_graphics: adopt bitmap screen=0x%08lx bitmap=0x%08lx planes0=0x%08lx rows=%u bpr=%u depth=%u handle=0x%08lx\n",
+                (ULONG)screen,
+                (ULONG)bm,
+                (ULONG)screen->BitMap.Planes[0],
+                (unsigned)screen->BitMap.Rows,
+                (unsigned)screen->BitMap.BytesPerRow,
+                (unsigned)screen->BitMap.Depth,
+                handle);
         emucall3(EMU_CALL_INT_SET_SCREEN_BITMAP,
                  handle,
                  (ULONG)&screen->BitMap.Planes[0],
@@ -3369,17 +3405,20 @@ static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
      * Per RKRM: Loads 'count' colors starting from register 0.
      */
     LONG i;
+    UWORD color_count;
     
     DPRINTF (LOG_DEBUG, "_graphics: LoadRGB4() vp=0x%08lx colors=0x%08lx count=%ld\n",
              (ULONG)vp, (ULONG)colors, count);
 
-    if (!vp || !colors || count <= 0)
+    color_count = (UWORD)count;
+
+    if (!vp || !colors || color_count == 0)
         return;
 
     /* Update ColorMap entries */
     if (vp->ColorMap)
     {
-        for (i = 0; i < count && i < vp->ColorMap->Count; i++)
+        for (i = 0; i < color_count && i < vp->ColorMap->Count; i++)
         {
             UWORD c = colors[i];
             ULONG r = (c >> 8) & 0xF;
@@ -3394,7 +3433,7 @@ static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
 
     if (vp->ColorMap)
     {
-        for (i = 0; i < count; i++)
+        for (i = 0; i < color_count; i++)
         {
             UWORD c = colors[i];
             ULONG r8 = ((c >> 8) & 0xF) * 17;
@@ -4326,6 +4365,8 @@ static VOID _graphics_WaitTOF ( register struct GfxBase * GfxBase __asm("a6"))
     
     for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
     {
+        graphics_screen_sync_viewport_bitmap(screen);
+
         /* Refresh the screen's display from its planar bitmap */
         ULONG display_handle = (ULONG)screen->ExtData;
         if (display_handle)
@@ -8606,8 +8647,10 @@ static VOID _graphics_LoadRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
 
     graphics_viewport_attach_colormap(vp);
 
-    /* Parse the table structure */
-    while (*table)
+    /* Parse the table structure.
+     * Per RKRM/NDK, the record terminator is a zero count in the high word.
+     * The low word is not part of the termination test. */
+    while (((*table) >> 16) != 0)
     {
         UWORD count = (UWORD)(*table >> 16);
         UWORD first = (UWORD)(*table & 0xFFFF);
@@ -8721,6 +8764,18 @@ static VOID _graphics_GetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
     
     if (!cm->ColorTable)
         return;
+
+    /*
+     * SysInfo relies on the common Amiga idiom of passing 0 here to mean
+     * "all remaining colors starting at firstcolor".  The NDK autodoc does
+     * not spell this out, but real-world software uses it and otherwise ends
+     * up reading an empty palette and restoring black entries later.
+     */
+    if (firstcolor >= (ULONG)cm->Count)
+        return;
+
+    if (ncolors == 0)
+        ncolors = (ULONG)cm->Count - firstcolor;
     
     for (ULONG i = 0; i < ncolors; i++) {
         ULONG color_index = firstcolor + i;
