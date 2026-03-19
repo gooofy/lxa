@@ -58,49 +58,58 @@ For each app below the agent should follow a test-driven workflow: (1) run or cr
 	- Launch SIGMAth2 with a driver that asserts the main UI loads.
 	- Fix any initial rendering, math-widget, or menu issues found.
 	- Use screenshot analysis to capture UI anomalies and add tests for About dialog, input to math widgets, and file requester.
+	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 - Phase 105: Asm-One
 	- Run or create a host-side startup test (GTest driver) that launches Asm-One and asserts the main window opens.
 	- If launch or runtime failures occur, fix them and keep the startup test green.
 	- On visual regressions, capture window artifacts and run `tools/screenshot_review.py` to triage rendering or layout issues; add pixel/introspection tests accordingly and fix the root cause.
 	- Add interaction tests: open About dialog via menu, verify About renders and closes; test keyboard input in editor buffer; test open-file requester flow.
+	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 - Phase 106: Cluster2
 	- Create or extend a host-side driver to launch Cluster2 and assert its main UI appears.
 	- Fix any startup or resource-load issues discovered by the driver.
 	- Use `lxa_capture_window()` and `tools/screenshot_review.py` for visual triage; convert findings into automated pixel or geometry assertions.
 	- Add tests for About dialog, basic file open, and a simple action (e.g., open a project file and verify expected UI change).
+	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 - Phase 107: DirectoryOpus (follow-up)
 	- Ensure existing DirectoryOpus startup test reaches the main rootless window; fix regressions if any.
 	- Use screenshot review for menu/layout quirks and add pixel assertions for key UI regions (toolbar, main list area).
 	- Add interaction tests: open About, trigger Preferences/requesters, and verify closing behavior.
+	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 - Phase 108: DPaintV
 	- Create a startup test that launches DPaintV and verifies the canvas window appears.
 	- Fix crashes, missing palettes, or widget rendering failures revealed by the driver.
 	- Use screenshot analysis for palette/menu/brush-rendering issues and add pixel checks for a few representative operations (draw a short line, open palette requester).
 	- Add tests for About dialog, Open/Save requester, and simple keyboard shortcuts.
+	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 - Phase 109: kickpascal2
 	- Add a host-side driver that launches KickPascal2 and asserts the IDE window and menus open.
 	- Resolve any rootless-geometry, menu, or keyboard focus problems the driver reveals.
 	- Run `tools/screenshot_review.py` on captures to localize rendering faults and add automated UI tests: open Help/About, type into the editor, open file requester.
+	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 - Phase 110: MaxonBASIC
 	- Create a startup test that ensures MaxonBASIC launches and the editor/console are reachable.
 	- Fix any immediate startup, input, or display problems found by the driver.
 	- Use screenshot-review to identify rendering issues (font/line wrap/menu clipping) and add pixel/geometry assertions.
 	- Add interaction tests: About dialog, run a short BASIC program and assert expected output in console.
+	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 - Phase 111: DevPac
 	- Create/extend a host-side driver to launch DevPac and verify the editor/assembler window appears.
 	- Repair crashes or display failures surfaced by the driver.
 	- Use `tools/screenshot_review.py` for visual triage and add tests for About dialog, open-file requester, and assemble/run basic example.
+	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 - Phase 113: Typeface
 	- Add a startup test that opens Typeface and verifies the font preview/render area is visible.
 	- Fix missing-font, scaling, or render bugs uncovered by the driver.
 	- Use screenshot-review for glyph rendering issues and add tests for opening font requesters, About, and preview zoom/close.
+	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 Each phase must include updated GTest host-side drivers under `tests/drivers/`, regression assertions, and saved failure artifacts used to justify added tests.  Use `tools/screenshot_review.py` interactively during development, then translate findings into deterministic pixel/geometry assertions so CI can detect regressions without the vision model.
