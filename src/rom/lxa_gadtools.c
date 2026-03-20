@@ -608,6 +608,8 @@ VOID _gadtools_UpdateSliderLevelDisplay(register struct Gadget *gad __asm("a0"),
     struct GTGadgetData *data;
     LONG display_level;
 
+    level = (LONG)(WORD)level; /* sign-extend: GCC m68k move.w workaround */
+
     if (!gad)
         return;
 

@@ -531,6 +531,18 @@ bool lxa_add_drive(const char *name, const char *linux_path)
 }
 
 static int s_vblank_count = 0;
+static int s_cycles_since_auto_vblank = 0;
+
+/*
+ * Automatic VBlank cadence based on emulated cycle count.
+ *
+ * On a PAL Amiga at 7.09 MHz, a VBlank fires every ~141,800 cycles
+ * (7,093,790 Hz / 50 Hz). We use a slightly lower threshold to ensure
+ * timer completions and scheduling happen frequently enough even when
+ * LOG_LEVEL suppresses DPRINTF overhead that would otherwise slow down
+ * execution and naturally space out VBlanks.
+ */
+#define AUTO_VBLANK_CYCLES 100000
 
 int lxa_run_cycles(int cycles)
 {
@@ -542,6 +554,7 @@ int lxa_run_cycles(int cycles)
     
     if (g_pending_irq & (1 << 3)) {
         s_vblank_count++;
+        s_cycles_since_auto_vblank = 0;
         /* VBlank - poll events and refresh display */
         if (display_poll_events()) {
             g_running = false;
@@ -590,15 +603,44 @@ int lxa_run_cycles(int cycles)
         #define INTENA_VBLANK 0x0020
         if ((g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK)) {
             g_pending_irq &= ~(1 << 3);
+            /*
+             * Lower the interrupt line first, then raise it again.
+             * Musashi treats same-level interrupts as edge-triggered:
+             * once the CPU acknowledges a level-3 interrupt, it won't
+             * re-trigger at the same level unless the line is lowered
+             * first.  Without this edge, a VBlank triggered while the
+             * previous ISR is still active (IPL=3) would be lost
+             * because the CPU considers it already acknowledged.
+             */
+            m68k_set_irq(0);
             m68k_set_irq(3);
+        } else {
+            DPRINTF(LOG_DEBUG, "lxa_run_cycles: VBlank pending but INTENA blocked, g_intena=0x%04x\n",
+                    g_intena);
         }
     } else {
+        /*
+         * Auto-VBlank: if enough emulated cycles have passed without a
+         * SIGALRM-triggered VBlank, synthesize one.  This ensures that
+         * timer completions, input delivery, and task scheduling happen at
+         * a realistic cadence regardless of host-side wall-clock speed.
+         */
+        s_cycles_since_auto_vblank += cycles;
+        if (s_cycles_since_auto_vblank >= AUTO_VBLANK_CYCLES) {
+            s_cycles_since_auto_vblank = 0;
+            g_pending_irq |= (1 << 3);
+            /* Process will happen on the next lxa_run_cycles call */
+        }
+
         m68k_set_irq(0);
     }
 
     /* Execute CPU cycles */
     m68k_execute(cycles);
 
+    if (!g_running) {
+        DPRINTF(LOG_DEBUG, "lxa_run_cycles: g_running became false during m68k_execute\n");
+    }
     return g_running ? 0 : 1;
 }
 
@@ -764,7 +806,15 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
     if (!display_inject_mouse(start_x, start_y, button, DISPLAY_EVENT_MOUSEBUTTON))
         return false;
     
-    for (int i = 0; i < 3; i++) {
+    /*
+     * After a button press (especially RMB which enters menu mode),
+     * the VBlank ISR may do heavy rendering (menu bar + dropdown items).
+     * The edge-triggered IRQ fix in lxa_run_cycles() ensures that
+     * subsequent VBlanks are delivered even while the CPU is at IPL=3,
+     * so we just need enough settling iterations for the ISR to
+     * complete and the menu system to finish rendering.
+     */
+    for (int i = 0; i < 5; i++) {
         lxa_trigger_vblank();
         rc = lxa_run_cycles(500000);
         if (rc != 0)
@@ -778,7 +828,8 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
         int x = start_x + (end_x - start_x) * step / steps;
         int y = start_y + (end_y - start_y) * step / steps;
         
-        if (!display_inject_mouse(x, y, button, DISPLAY_EVENT_MOUSEMOVE))
+        bool inj = display_inject_mouse(x, y, button, DISPLAY_EVENT_MOUSEMOVE);
+        if (!inj)
             return false;
         
         lxa_trigger_vblank();
@@ -791,7 +842,7 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
     if (!display_inject_mouse(end_x, end_y, 0, DISPLAY_EVENT_MOUSEBUTTON))
         return false;
     
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 5; i++) {
         lxa_trigger_vblank();
         rc = lxa_run_cycles(500000);
         if (rc != 0)
@@ -866,6 +917,7 @@ int lxa_get_window_count(void)
 int lxa_get_window_content(int index)
 {
     if (!g_api_initialized) return -1;
+    lxa_flush_display();  /* sync planar→chunky before pixel query */
     return display_get_window_content(index);
 }
 
@@ -1060,6 +1112,7 @@ bool lxa_get_palette_rgb(int pen, uint8_t *r, uint8_t *g, uint8_t *b)
 int lxa_get_content_pixels(void)
 {
     if (!g_api_initialized) return -1;
+    lxa_flush_display();  /* sync planar→chunky before pixel query */
     return display_get_content_pixels();
 }
 
@@ -1195,3 +1248,15 @@ bool lxa_capture_window(int window_index, const char *filename)
 
     return display_capture_window_by_index(window_index, filename);
 }
+
+uint32_t lxa_peek32(uint32_t addr)
+{
+    return m68k_read_memory_32(addr);
+}
+
+uint8_t lxa_peek8(uint32_t addr)
+{
+    return m68k_read_memory_8(addr);
+}
+
+/* PC sampling is implemented in lxa.c (cpu_instr_callback fast path) */

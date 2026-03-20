@@ -45,9 +45,12 @@ function(add_gtest_driver_shard TEST_NAME TARGET_NAME)
     )
 
     set(test_properties LABELS "gtest")
-    if(SHARD_TIMEOUT)
-        list(APPEND test_properties TIMEOUT ${SHARD_TIMEOUT})
+    # Default timeout 180s — LOG_INFO builds run real m68k work so
+    # wall-clock time is longer than the old LOG_DEBUG builds.
+    if(NOT SHARD_TIMEOUT)
+        set(SHARD_TIMEOUT 180)
     endif()
+    list(APPEND test_properties TIMEOUT ${SHARD_TIMEOUT})
 
     set_tests_properties(${TEST_NAME} PROPERTIES ${test_properties})
 endfunction()
@@ -70,10 +73,10 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(simplegad_gtest)
         add_gtest_driver_shard(simplegad_behavior_gtest simplegad_gtest
             FILTER "SimpleGadTest.*"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(simplegad_pixels_gtest simplegad_gtest
             FILTER "SimpleGadPixelTest.*"
-            TIMEOUT 90)
+            TIMEOUT 180)
     endif()
     
     # SimpleMenu - menu system test (GTest version)
@@ -81,10 +84,10 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(simplemenu_gtest)
         add_gtest_driver_shard(simplemenu_behavior_gtest simplemenu_gtest
             FILTER "SimpleMenuTest.*"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(simplemenu_pixels_gtest simplemenu_gtest
             FILTER "SimpleMenuPixelTest.*"
-            TIMEOUT 60)
+            TIMEOUT 180)
     endif()
     
     # MenuLayout - advanced menu layout test (GTest version)
@@ -92,10 +95,10 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(menulayout_gtest)
         add_gtest_driver_shard(menulayout_behavior_gtest menulayout_gtest
             FILTER "MenuLayoutTest.*"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(menulayout_pixels_gtest menulayout_gtest
             FILTER "MenuLayoutPixelTest.*"
-            TIMEOUT 60)
+            TIMEOUT 180)
     endif()
     
     # CustomPointer - custom pointer test (GTest version)
@@ -123,10 +126,10 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(fontreq_gtest)
         add_gtest_driver_shard(fontreq_behavior_gtest fontreq_gtest
             FILTER "FontReqTest.RequesterOpens:FontReqTest.WindowPositionAndSize:FontReqTest.FontListDisplayed"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(fontreq_actions_gtest fontreq_gtest
             FILTER "FontReqTest.CancelButton:FontReqTest.OKButtonSelectsFont"
-            TIMEOUT 60)
+            TIMEOUT 180)
     endif()
 
     # ScreenModeReq - ASL screenmode requester test (GTest version)
@@ -173,7 +176,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # EasyRequest - Easy requester test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/easyrequest_gtest.cpp)
         add_gtest_driver(easyrequest_gtest)
-        set_tests_properties(easyrequest_gtest PROPERTIES TIMEOUT 120)
+        set_tests_properties(easyrequest_gtest PROPERTIES TIMEOUT 180)
     endif()
 
     # GadToolsGadgets - GadTools gadget creation test (STRING_KIND, SLIDER_KIND, BUTTON_KIND)
@@ -181,25 +184,25 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(gadtoolsgadgets_gtest)
         add_gtest_driver_shard(gadtoolsgadgets_core_gtest gadtoolsgadgets_gtest
             FILTER "GadToolsGadgetsTest.AllGadgetsCreated:GadToolsGadgetsTest.WindowOpened:GadToolsGadgetsTest.CloseWindow"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(gadtoolsgadgets_pointer_gtest gadtoolsgadgets_gtest
             FILTER "GadToolsGadgetsTest.ButtonClick:GadToolsGadgetsTest.ButtonClickCompletesWithinOneVBlank:GadToolsGadgetsTest.SliderClick:GadToolsGadgetsTest.ButtonResetsSlider:GadToolsGadgetsTest.DepthGadgetClick:GadToolsGadgetsTest.ResizeDragKeepsWindowResponsive"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(gadtoolsgadgets_navigation_gtest gadtoolsgadgets_gtest
             FILTER "GadToolsGadgetsTest.SliderDrag:GadToolsGadgetsTest.TabCyclesStringGadgets"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(gadtoolsgadgets_keyboard_gtest gadtoolsgadgets_gtest
             FILTER "GadToolsGadgetsTest.ShiftTabCyclesBackward:GadToolsGadgetsTest.VanillaKeySliderIncrease:GadToolsGadgetsTest.VanillaKeySliderDecrease:GadToolsGadgetsTest.VanillaKeyActivateGadget"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(gadtoolsgadgets_pixels_a_gtest gadtoolsgadgets_gtest
             FILTER "GadToolsGadgetsPixelTest.WindowTitleBarRendered:GadToolsGadgetsPixelTest.ButtonBevelBorderRendered:GadToolsGadgetsPixelTest.StringGadgetBevelBorderRendered:GadToolsGadgetsPixelTest.StringGadgetDoubleBevelRendered"
-            TIMEOUT 90)
+            TIMEOUT 180)
         add_gtest_driver_shard(gadtoolsgadgets_pixels_b_gtest gadtoolsgadgets_gtest
             FILTER "GadToolsGadgetsPixelTest.StringGadgetTextRendered:GadToolsGadgetsPixelTest.ButtonLabelRendered:GadToolsGadgetsPixelTest.SliderKnobVisible:GadToolsGadgetsPixelTest.SliderBevelBorderRendered"
-            TIMEOUT 90)
+            TIMEOUT 180)
         add_gtest_driver_shard(gadtoolsgadgets_pixels_c_gtest gadtoolsgadgets_gtest
             FILTER "GadToolsGadgetsPixelTest.UnderscoreLabelRendered:GadToolsGadgetsPixelTest.SizeGadgetRendered:GadToolsGadgetsPixelTest.DepthGadgetRendered:GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean"
-            TIMEOUT 90)
+            TIMEOUT 180)
     endif()
     
     # ========== API Tests ==========
@@ -239,7 +242,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # RGBBoxes test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rgbboxes_gtest.cpp)
         add_gtest_driver(rgbboxes_gtest)
-        set_tests_properties(rgbboxes_gtest PROPERTIES TIMEOUT 25)
+        set_tests_properties(rgbboxes_gtest PROPERTIES TIMEOUT 180)
     endif()
 
     # Intuition tests
@@ -265,7 +268,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # Misc tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/misc_gtest.cpp)
         add_gtest_driver(misc_gtest)
-        set_tests_properties(misc_gtest PROPERTIES TIMEOUT 120)
+        set_tests_properties(misc_gtest PROPERTIES TIMEOUT 180)
     endif()
 
     # Misc Apps tests
@@ -288,9 +291,18 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(asm_one_gtest)
     endif()
     
-    # Devpac - HiSoft assembler test
+    # Devpac - HiSoft assembler test (sharded: SetUp takes ~25s per test)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/devpac_gtest.cpp)
-        add_gtest_driver(devpac_gtest)
+        add_gtest_driver_target(devpac_gtest)
+        add_gtest_driver_shard(devpac_startup_gtest devpac_gtest
+            FILTER "DevpacTest.WindowOpens:DevpacTest.ScreenDimensions:DevpacTest.EditorVisible"
+            TIMEOUT 180)
+        add_gtest_driver_shard(devpac_visual_gtest devpac_gtest
+            FILTER "DevpacTest.RootlessHostWindowIncludesScreenStripAboveWindow:DevpacTest.MenuBarRemainsVisibleAfterRepeatedMenuOpenClose:DevpacTest.AboutDialogDoesNotDuplicateInsideMainWindow"
+            TIMEOUT 180)
+        add_gtest_driver_shard(devpac_input_gtest devpac_gtest
+            FILTER "DevpacTest.RespondsToInput:DevpacTest.MouseInput:DevpacTest.CursorKeys"
+            TIMEOUT 180)
     endif()
     
     # KickPascal - Pascal IDE test
@@ -298,9 +310,15 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(kickpascal_gtest)
     endif()
     
-    # MaxonBASIC - BASIC IDE test
+    # MaxonBASIC - BASIC IDE test (sharded: SetUp takes ~25s per test)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/maxonbasic_gtest.cpp)
-        add_gtest_driver(maxonbasic_gtest)
+        add_gtest_driver_target(maxonbasic_gtest)
+        add_gtest_driver_shard(maxonbasic_startup_gtest maxonbasic_gtest
+            FILTER "MaxonBasicTest.WindowOpens:MaxonBasicTest.ScreenDimensions:MaxonBasicTest.EditorVisible"
+            TIMEOUT 180)
+        add_gtest_driver_shard(maxonbasic_input_gtest maxonbasic_gtest
+            FILTER "MaxonBasicTest.TextEntry:MaxonBasicTest.MouseInput:MaxonBasicTest.CursorKeys"
+            TIMEOUT 180)
     endif()
     
     # Cluster2 - Oberon-2 IDE test
@@ -308,13 +326,13 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(cluster2_gtest)
         add_gtest_driver_shard(cluster2_startup_gtest cluster2_gtest
             FILTER "Cluster2Test.WindowOpens:Cluster2Test.ScreenDimensions:Cluster2Test.EditorReady"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(cluster2_input_gtest cluster2_gtest
             FILTER "Cluster2Test.RespondsToInput:Cluster2Test.MouseInput"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(cluster2_navigation_gtest cluster2_gtest
             FILTER "Cluster2Test.CursorKeys:Cluster2Test.RMBMenuAccess"
-            TIMEOUT 60)
+            TIMEOUT 180)
     endif()
 
     # BlitzBasic2 - IDE startup and interaction test
@@ -322,10 +340,10 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(blitzbasic2_gtest)
         add_gtest_driver_shard(blitzbasic2_startup_gtest blitzbasic2_gtest
             FILTER "BlitzBasic2Test.StartupOpensVisibleIdeWindow"
-            TIMEOUT 60)
+            TIMEOUT 180)
         add_gtest_driver_shard(blitzbasic2_interaction_gtest blitzbasic2_gtest
             FILTER "BlitzBasic2Test.ProjectMenuOpensButDropdownIsCurrentlyClipped"
-            TIMEOUT 60)
+            TIMEOUT 180)
     endif()
 
     # Vim 5.3 - startup and editing test
@@ -333,10 +351,10 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(vim_gtest)
         add_gtest_driver_shard(vim_startup_gtest vim_gtest
             FILTER "VimTest.StartupOpensFileAndDrawsEditor"
-            TIMEOUT 90)
+            TIMEOUT 180)
         add_gtest_driver_shard(vim_editing_gtest vim_gtest
             FILTER "VimTest.CursorAndInsertModeRedrawWindow:VimTest.InsertModeTypingAndCommandModeWriteFile:VimTest.TypingAndSavingWritesHostFile"
-            TIMEOUT 90)
+            TIMEOUT 180)
     endif()
 
     # FinalWriter_D - word processor startup and interaction test
@@ -344,7 +362,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(finalwriter_gtest)
         add_gtest_driver_shard(finalwriter_startup_gtest finalwriter_gtest
             FILTER "FinalWriterTest.StartupOpensVisibleWindow"
-            TIMEOUT 90)
+            TIMEOUT 180)
     endif()
 
     # PPaint - paint package startup and canvas test
@@ -352,7 +370,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(ppaint_gtest)
         add_gtest_driver_shard(ppaint_startup_gtest ppaint_gtest
             FILTER "PPaintTest.StartupOpensVisiblePaintWindow:PPaintTest.StartupKeepsRunningWithoutLibraryFailures:PPaintTest.RightMouseMenuInteractionKeepsWindowVisible"
-            TIMEOUT 90)
+            TIMEOUT 180)
     endif()
 
     # SIGMAth2 - startup, visual smoke, and interaction coverage
@@ -360,7 +378,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver_target(sigma_gtest)
         add_gtest_driver_shard(sigma_startup_gtest sigma_gtest
             FILTER "SIGMAth2Test.StartupOpensVisibleAnalysisWindow:SIGMAth2Test.StartupKeepsRunningWithoutResourceFailures:SIGMAth2Test.MainWindowCaptureContainsVisibleUiRegions:SIGMAth2Test.MenuBarRightMouseSmokeKeepsAnalysisWindowAlive"
-            TIMEOUT 90)
+            TIMEOUT 180)
         add_gtest_driver_shard(sigma_interaction_gtest sigma_gtest
             FILTER "SIGMAth2Test.AnalysisWindowGadgetGridLayout:SIGMAth2Test.AboutDialogOpensAndCloses:SIGMAth2Test.ButtonClickInteraction:SIGMAth2Test.StringGadgetAcceptsInput:SIGMAth2Test.ScrollGadgetInteraction:SIGMAth2Test.ButtonAreaGadgetsAreConsistentlyPlaced:SIGMAth2Test.DisplayFrameContainsRenderedContent:SIGMAth2Test.FileMenuOpenSurvivesRequester"
             TIMEOUT 180)

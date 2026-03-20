@@ -122,6 +122,8 @@ LONG _commodities_ActivateCxObj ( register struct CommoditiesBase *CxBase __asm(
                                   register CxObj *co __asm("a0"),
                                   register LONG flag __asm("d0") )
 {
+    flag = (LONG)(WORD)flag; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_commodities: ActivateCxObj() co=0x%08lx flag=%ld (stub)\n", (ULONG)co, flag);
     return 0;
 }
@@ -170,6 +172,8 @@ LONG _commodities_SetCxObjPri ( register struct CommoditiesBase *CxBase __asm("a
                                 register CxObj *co __asm("a0"),
                                 register LONG pri __asm("d0") )
 {
+    pri = (LONG)(WORD)pri; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_commodities: SetCxObjPri() co=0x%08lx pri=%ld (stub)\n", (ULONG)co, pri);
     return 0;
 }

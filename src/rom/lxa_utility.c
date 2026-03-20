@@ -902,6 +902,9 @@ static LONG _utility_SMult32 ( register struct UtilityBase * UtilityBase __asm("
                                                         register LONG arg1 __asm("d0"),
                                                         register LONG arg2 __asm("d1"))
 {
+    /* No sign-extension: SMult32 takes genuine 32-bit LONG operands.
+     * Callers pass runtime-computed values via inline stubs which use
+     * move.l for LONG-typed arguments. */
     return arg1 * arg2;
 }
 
@@ -918,6 +921,10 @@ static LONG _utility_SDivMod32 ( register struct UtilityBase * UtilityBase __asm
 {
     LONG quotient;
     LONG remainder;
+
+    /* No sign-extension: SDivMod32 takes genuine 32-bit LONG operands.
+     * Callers pass runtime-computed values via inline stubs which use
+     * move.l for LONG-typed arguments. */
 
     (void)UtilityBase;
 
@@ -990,6 +997,8 @@ static LONG _utility_Strnicmp ( register struct UtilityBase * UtilityBase __asm(
                                 register CONST_STRPTR string2 __asm("a1"),
                                 register LONG length __asm("d0"))
 {
+    length = (LONG)(WORD)length; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_utility: Strnicmp() called, length=%ld\n", length);
 
     if (length <= 0)
@@ -1090,6 +1099,8 @@ static LONG _utility_SMult64 ( register struct UtilityBase * UtilityBase __asm("
                                register LONG arg1 __asm("d0"),
                                register LONG arg2 __asm("d1"))
 {
+    /* No sign-extension: SMult64 takes genuine 32-bit LONG operands. */
+
     DPRINTF (LOG_DEBUG, "_utility: SMult64() called, arg1=%ld, arg2=%ld\n", arg1, arg2);
 
     /* Handle signs */

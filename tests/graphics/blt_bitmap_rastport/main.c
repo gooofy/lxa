@@ -58,6 +58,14 @@ int main(void)
     src_rp.BitMap = src_bm;
     dst_rp.BitMap = dst_bm;
 
+    LayersBase = OpenLibrary((CONST_STRPTR)"layers.library", 0);
+    if (!LayersBase) {
+        print("FAIL: Could not open layers.library\n");
+        FreeBitMap(src_bm);
+        FreeBitMap(dst_bm);
+        return 20;
+    }
+
     SetAPen(&src_rp, 1);
     RectFill(&src_rp, 4, 4, 19, 19);
 
@@ -99,11 +107,15 @@ int main(void)
             SetRast(&dst_rp, 0);
             BltBitMapRastPort(src_bm, 0, 0, &dst_rp, 0, 0, 40, 40, 0xC0);
 
-            if (ReadPixel(&dst_rp, 4, 4) == 1 && ReadPixel(&dst_rp, 39, 4) == 0) {
-                print("  OK: Layer clipping constrained destination blit\n");
-            } else {
-                print("  FAIL: Layer clipping did not constrain destination blit\n");
-                errors++;
+            {
+                LONG p1 = ReadPixel(&dst_rp, 4, 4);
+                LONG p2 = ReadPixel(&dst_rp, 39, 4);
+                if (p1 == 1 && p2 == 0) {
+                    print("  OK: Layer clipping constrained destination blit\n");
+                } else {
+                    print("  FAIL: Layer clipping did not constrain destination blit\n");
+                    errors++;
+                }
             }
         }
     }
@@ -126,6 +138,7 @@ int main(void)
         DeleteLayer(0, layer);
     if (li)
         DisposeLayerInfo(li);
+    CloseLibrary(LayersBase);
     FreeBitMap(src_bm);
     FreeBitMap(dst_bm);
 

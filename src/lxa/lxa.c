@@ -135,6 +135,9 @@ static int errno2Amiga(void);
 #define CUSTOM_REG_POTINP   0x016  /* Pot port read */
 #define CUSTOM_REG_JOY0DAT  0x00a  /* Joystick 0 data */
 #define CUSTOM_REG_JOY1DAT  0x00c  /* Joystick 1 data */
+#define CUSTOM_REG_SERDATR  0x018  /* Serial port data and status read */
+#define CUSTOM_REG_INTENAR  0x01c  /* Interrupt enable bits read */
+#define CUSTOM_REG_INTREQR  0x01e  /* Interrupt request bits read */
 #define CUSTOM_REG_COLOR00  0x180  /* Start of color registers */
 #define CUSTOM_REG_COP1LC   0x080  /* Copper 1 location */
 #define CUSTOM_REG_COP2LC   0x084  /* Copper 2 location */
@@ -191,8 +194,8 @@ static int      g_trace_buf_idx                 = 0;
  * g_debug_active: fast-path gate for cpu_instr_callback().
  * When FALSE, the callback only checks for PC=0 (safety net).
  * When TRUE, full debugging (trace buffer, breakpoints, tracing, stepping).
- * Updated by _update_debug_active() whenever debug state changes.
  */
+
 static bool     g_debug_active                  = FALSE;
 bool     g_running                       = TRUE;
 char    *g_loadfile                      = NULL;
@@ -260,6 +263,21 @@ static pending_bp_t *_g_pending_bps = NULL;
 #define INTENA_VBLANK 0x0020
 
 uint16_t g_intena  = INTENA_MASTER | INTENA_VBLANK;
+uint16_t g_intreq  = 0;
+
+/* DMA control shadow register.
+ * Start with all common DMA channels enabled + master bit:
+ *   DMAF_SETCLR (0x8000) is not stored — it's the set/clear direction flag.
+ *   DMAF_MASTER  = 0x0200  (DMA master enable)
+ *   DMAF_RASTER  = 0x0100  (bitplane DMA)
+ *   DMAF_BLITTER = 0x0040  (blitter DMA)
+ *   DMAF_SPRITE  = 0x0020  (sprite DMA)
+ *   DMAF_DISK    = 0x0010  (disk DMA)
+ *   DMAF_COPPER  = 0x0080  (copper DMA)
+ * Programs read DMACONR to check whether DMA channels are available.
+ * Bit 14 (BLTBUSY) is 0 = blitter is idle (our blitter executes synchronously).
+ */
+uint16_t g_dmacon = 0x03F0;  /* MASTER|RASTER|COPPER|BLITTER|SPRITE|DISK + audio */
 
 /*
  * Phase 6.5: Timer-driven preemptive multitasking
@@ -1427,14 +1445,36 @@ static inline uint8_t mread8 (uint32_t address)
             case CUSTOM_REG_JOY1DAT:  /* Joystick 1 - no movement */
                 result = 0;
                 break;
-            case CUSTOM_REG_DMACONR:  /* DMA control read - return 0 (no DMA) */
-                result = 0;
+            case CUSTOM_REG_DMACONR:  /* DMA control read - return shadow register */
+                /* Bit 14 (BLTBUSY) is always 0 since our blitter executes synchronously */
+                result = (reg & 1) ? (g_dmacon & 0xFF) : ((g_dmacon >> 8) & 0xFF);
                 break;
             case CUSTOM_REG_DENISEID: /* Denise ID - return 0xFC for ECS Denise */
                 result = (reg & 1) ? 0xFC : 0x00;
                 break;
             case CUSTOM_REG_POTINP:   /* Pot port read - return 0xFF (no pots) */
                 result = 0xFF;
+                break;
+            case CUSTOM_REG_SERDATR:  /* Serial port data and status read */
+                /* Bit 13 (TBE) = Transmit Buffer Empty - always set (ready to transmit)
+                 * Bit 12 (TSRE) = Transmit Shift Reg Empty - always set
+                 * Bit 14 (RBF) = Receive Buffer Full - always 0 (no data received)
+                 * Bit 11 (RBF) = not used
+                 * Lower bits = received data byte (0)
+                 */
+                {
+                    uint16_t serdatr = 0x3000;  /* TBE + TSRE set */
+                    result = (reg & 1) ? (serdatr & 0xFF) : ((serdatr >> 8) & 0xFF);
+                }
+                break;
+            case CUSTOM_REG_INTENAR:  /* Interrupt enable bits read */
+                result = (reg & 1) ? (g_intena & 0xFF) : ((g_intena >> 8) & 0xFF);
+                break;
+            case CUSTOM_REG_INTREQR:  /* Interrupt request bits read */
+                result = (reg & 1) ? (g_intreq & 0xFF) : ((g_intreq >> 8) & 0xFF);
+                break;
+            case CUSTOM_REG_ADKCONR:  /* Audio/disk control read - return 0 */
+                result = 0;
                 break;
             default:
                 result = 0;
@@ -1767,11 +1807,37 @@ static void _handle_custom_write (uint16_t reg, uint16_t value)
         }
         case CUSTOM_REG_DMACON:
         {
-            /* DMA control - ignore for now, we don't do hardware DMA */
-            DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: DMACON value=0x%04x (ignored)\n", value);
+            /* DMA control - update shadow register like INTENA (set/clear semantics) */
+            DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: DMACON value=0x%04x\n", value);
+            if (value & 0x8000)
+            {
+                /* Set bits */
+                g_dmacon |= value & 0x7fff;
+            }
+            else
+            {
+                /* Clear bits */
+                g_dmacon &= ~(value & 0x7fff);
+            }
+            DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write -> DMACON=0x%04x\n", g_dmacon);
             break;
         }
         /* Phase 31: Additional custom chip registers (Denise, Agnus, Paula) - log and ignore */
+        case CUSTOM_REG_INTREQ:
+        {
+            /* Interrupt request - update shadow register with set/clear semantics */
+            DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: INTREQ value=0x%04x\n", value);
+            if (value & 0x8000)
+            {
+                g_intreq |= value & 0x7fff;
+            }
+            else
+            {
+                g_intreq &= ~(value & 0x7fff);
+            }
+            DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write -> INTREQ=0x%04x\n", g_intreq);
+            break;
+        }
         case CUSTOM_REG_COPJMP1:
         case CUSTOM_REG_COPJMP2:
         case CUSTOM_REG_ADKCON:
@@ -5304,6 +5370,8 @@ int op_illg(int level)
         case EMU_CALL_STOP:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
+            fprintf(stderr, "EMU_CALL_STOP called, rv=%d, current PC=0x%08x\n", 
+                     g_rv, m68k_get_reg(NULL, M68K_REG_PC));
             DPRINTF (LOG_DEBUG, "EMU_CALL_STOP called, rv=%d, current PC=0x%08x\n", 
                      g_rv, m68k_get_reg(NULL, M68K_REG_PC));
             
@@ -5356,6 +5424,7 @@ int op_illg(int level)
         case EMU_CALL_EXIT:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
+            fprintf(stderr, "EMU_CALL_EXIT called, rv=%d\n", g_rv);
             DPRINTF (LOG_DEBUG, "*** emulator exit via libnix, rv=%d\n", g_rv);
             
             /*
@@ -5477,6 +5546,7 @@ int op_illg(int level)
             if (g_debug || is_trap) {
                 if (is_trap) {
                     LPRINTF (LOG_ERROR, "*** FATAL: Trap #%d - task cannot continue\n", excn - 32);
+                    fprintf(stderr, "*** FATAL: Trap #%d at PC=0x%08x\n", excn - 32, pc);
                 }
                 _debug(pc);
                 m68k_end_timeslice();
@@ -5518,6 +5588,7 @@ int op_illg(int level)
                 
                 if (thisTask == 0)
                 {
+                    fprintf(stderr, "*** EMU_CALL_WAIT: no tasks left, stopping emulator\n");
                     DPRINTF(LOG_DEBUG, "*** EMU_CALL_WAIT: no tasks left, stopping emulator\n");
                     m68k_end_timeslice();
                     g_running = false;
@@ -6977,12 +7048,14 @@ int op_illg(int level)
 
         case EMU_CALL_INT_SIZE_WINDOW:
         {
-            /* d1: window_handle, d2: (w << 16) | h */
+            /* d1: window_handle, d2: width, d3: height
+             * Called from _intuition_SizeWindow via emucall3(). */
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
             display_window_t *win = (display_window_t *)(uintptr_t)d1;
-            int w = (d2 >> 16) & 0xFFFF;
-            int h = d2 & 0xFFFF;
+            int w = (int)d2;
+            int h = (int)d3;
 
             DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_SIZE_WINDOW handle=0x%08x, w=%d, h=%d\n",
                     d1, w, h);

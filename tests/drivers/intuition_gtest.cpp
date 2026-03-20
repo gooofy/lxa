@@ -88,7 +88,7 @@ protected:
             // may take variable amounts of CPU cycles (e.g. creating system gadgets).
             char buffer[16384];
             while (true) {
-                lxa_run_cycles(10000);
+                lxa_run_cycles(500);
                 lxa_get_output(buffer, sizeof(buffer));
                 if (strstr(buffer, "OK: Content rendered")) break;
             }
@@ -149,7 +149,10 @@ protected:
         ASSERT_EQ(lxa_load_program("SYS:Tests/Intuition/DrawingHelpers", ""), 0);
         ASSERT_TRUE(WaitForWindows(1, 5000));
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
-        WaitForEventLoop(100, 10000);
+        /* Do NOT call WaitForEventLoop here — this is a linear program
+         * that draws, pauses, and exits.  With LOG_INFO the program runs
+         * so fast that a large cycle budget causes it to reach CloseScreen
+         * before we can read pixels. */
     }
 };
 

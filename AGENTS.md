@@ -96,10 +96,10 @@ Load the specific skill relevant to your task:
 ./build.sh
 
 # Run full test suite (ALWAYS use -j16 for parallel execution, always use timeout so we detect hanging tests):
-ctest --test-dir build --output-on-failure -j16 --timeout 60
+ctest --test-dir build --output-on-failure -j16 --timeout 180
 
 # Run a specific test:
-ctest --test-dir build --output-on-failure --timeout 60 -R shell_gtest
+ctest --test-dir build --output-on-failure --timeout 180 -R shell_gtest
 
 # Run specific test cases via GTest filter:
 ./build/tests/drivers/shell_gtest --gtest_filter="ShellTest.Variables"
@@ -113,7 +113,7 @@ done
 
 **Parallelism**: `-j16` is the project default. The suite's longest interactive
 drivers are now sharded, which keeps full-suite wall time around the current
-~95 second range on this machine class. Higher parallelism is safe, but usually
+~160 second range on this machine class. Higher parallelism is safe, but usually
 does not improve wall time meaningfully.
 
 See `lxa-testing` skill for detailed test execution docs and

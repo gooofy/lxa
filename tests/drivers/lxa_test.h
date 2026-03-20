@@ -647,6 +647,7 @@ protected:
      * Count non-background pixels in a region.
      */
     int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0) {
+        lxa_flush_display();  /* sync planar→chunky before reading */
         int count = 0;
         for (int y = y1; y <= y2; y++) {
             for (int x = x1; x <= x2; x++) {

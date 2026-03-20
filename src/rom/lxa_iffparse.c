@@ -916,6 +916,8 @@ LONG _iffparse_OpenIFF ( register struct IFFParseBase *IFFParseBase __asm("a6"),
     struct IntIFFHandle *iiff = (struct IntIFFHandle *)iff;
     struct IFFStreamCmd cmd;
     LONG err;
+
+    rwMode = (LONG)(WORD)rwMode;    /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: OpenIFF() iff=0x%08lx rwMode=%ld\n", (ULONG)iff, rwMode);
     
@@ -973,6 +975,8 @@ LONG _iffparse_ParseIFF ( register struct IFFParseBase *IFFParseBase __asm("a6")
     struct ContextNode *cn;
     LONG err;
     BOOL done = FALSE;
+
+    control = (LONG)(WORD)control;  /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: ParseIFF() iff=0x%08lx control=%ld state=%ld\n",
              (ULONG)iff, control, iiff->iff_CurrentState);
@@ -1284,6 +1288,8 @@ LONG _iffparse_ReadChunkBytes ( register struct IFFParseBase *IFFParseBase __asm
     struct IntIFFHandle *iiff = (struct IntIFFHandle *)iff;
     struct IntContextNode *icn;
     LONG available, toRead, bytesRead;
+
+    numBytes = (LONG)(WORD)numBytes;    /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: ReadChunkBytes() iff=0x%08lx numBytes=%ld\n",
              (ULONG)iff, numBytes);
@@ -1324,6 +1330,8 @@ LONG _iffparse_WriteChunkBytes ( register struct IFFParseBase *IFFParseBase __as
     struct IntIFFHandle *iiff = (struct IntIFFHandle *)iff;
     struct IntContextNode *icn;
     LONG bytesWritten;
+
+    numBytes = (LONG)(WORD)numBytes;    /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: WriteChunkBytes() iff=0x%08lx numBytes=%ld\n",
              (ULONG)iff, numBytes);
@@ -1361,6 +1369,9 @@ LONG _iffparse_ReadChunkRecords ( register struct IFFParseBase *IFFParseBase __a
                                   register LONG numRecords __asm("d1") )
 {
     LONG totalBytes, bytesRead, recordsRead;
+
+    bytesPerRecord = (LONG)(WORD)bytesPerRecord;    /* sign-extend: GCC m68k move.w workaround */
+    numRecords = (LONG)(WORD)numRecords;
     
     DPRINTF (LOG_DEBUG, "_iffparse: ReadChunkRecords() iff=0x%08lx bpr=%ld num=%ld\n",
              (ULONG)iff, bytesPerRecord, numRecords);
@@ -1386,6 +1397,9 @@ LONG _iffparse_WriteChunkRecords ( register struct IFFParseBase *IFFParseBase __
                                    register LONG numRecords __asm("d1") )
 {
     LONG totalBytes, bytesWritten, recordsWritten;
+
+    bytesPerRecord = (LONG)(WORD)bytesPerRecord;    /* sign-extend: GCC m68k move.w workaround */
+    numRecords = (LONG)(WORD)numRecords;
     
     DPRINTF (LOG_DEBUG, "_iffparse: WriteChunkRecords() iff=0x%08lx bpr=%ld num=%ld\n",
              (ULONG)iff, bytesPerRecord, numRecords);
@@ -1569,6 +1583,8 @@ LONG _iffparse_EntryHandler ( register struct IFFParseBase *IFFParseBase __asm("
 {
     struct IntLocalContextItem *ilci;
     LONG err;
+
+    position = (LONG)(WORD)position;    /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: EntryHandler() type=0x%08lx id=0x%08lx\n",
              type, id);
@@ -1603,6 +1619,8 @@ LONG _iffparse_ExitHandler ( register struct IFFParseBase *IFFParseBase __asm("a
 {
     struct IntLocalContextItem *ilci;
     LONG err;
+
+    position = (LONG)(WORD)position;    /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: ExitHandler() type=0x%08lx id=0x%08lx\n",
              type, id);
@@ -1650,6 +1668,8 @@ LONG _iffparse_PropChunks ( register struct IFFParseBase *IFFParseBase __asm("a6
                             register LONG numPairs __asm("d0") )
 {
     LONG i, err;
+
+    numPairs = (LONG)(WORD)numPairs;    /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: PropChunks() numPairs=%ld\n", numPairs);
     
@@ -1688,6 +1708,8 @@ LONG _iffparse_StopChunks ( register struct IFFParseBase *IFFParseBase __asm("a6
                             register LONG numPairs __asm("d0") )
 {
     LONG i, err;
+
+    numPairs = (LONG)(WORD)numPairs;    /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: StopChunks() numPairs=%ld\n", numPairs);
     
@@ -1726,6 +1748,8 @@ LONG _iffparse_CollectionChunks ( register struct IFFParseBase *IFFParseBase __a
                                   register LONG numPairs __asm("d0") )
 {
     LONG i, err;
+
+    numPairs = (LONG)(WORD)numPairs;    /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: CollectionChunks() numPairs=%ld\n", numPairs);
     
@@ -1883,6 +1907,8 @@ struct LocalContextItem * _iffparse_AllocLocalItem ( register struct IFFParseBas
 {
     struct IntLocalContextItem *ilci;
     ULONG totalSize;
+
+    dataSize = (LONG)(WORD)dataSize;    /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: AllocLocalItem() type=0x%08lx id=0x%08lx ident=0x%08lx dataSize=%ld\n",
              type, id, ident, dataSize);
@@ -2031,6 +2057,8 @@ LONG _iffparse_StoreLocalItem ( register struct IFFParseBase *IFFParseBase __asm
 {
     struct IntIFFHandle *iiff = (struct IntIFFHandle *)iff;
     struct IntContextNode *icn = NULL;
+
+    position = (LONG)(WORD)position;    /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: StoreLocalItem() iff=0x%08lx item=0x%08lx position=%ld\n",
              (ULONG)iff, (ULONG)localItem, position);
@@ -2097,6 +2125,8 @@ void _iffparse_InitIFF ( register struct IFFParseBase *IFFParseBase __asm("a6"),
                          register struct Hook *streamHook __asm("a1") )
 {
     struct IntIFFHandle *iiff = (struct IntIFFHandle *)iff;
+
+    flags = (LONG)(WORD)flags;  /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_iffparse: InitIFF() iff=0x%08lx flags=0x%lx hook=0x%08lx\n",
              (ULONG)iff, flags, (ULONG)streamHook);
@@ -2132,6 +2162,8 @@ struct ClipboardHandle * _iffparse_OpenClipboard ( register struct IFFParseBase 
 {
     struct IntClipboardHandle *clipHandle;
     struct MsgPort *reply_port;
+
+    unitNumber = (LONG)(WORD)unitNumber;    /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_iffparse: OpenClipboard() unitNumber=%ld\n", unitNumber);
 

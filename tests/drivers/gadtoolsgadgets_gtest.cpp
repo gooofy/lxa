@@ -955,16 +955,40 @@ TEST_F(GadToolsGadgetsPixelTest, DepthGadgetRendered) {
 TEST_F(GadToolsGadgetsPixelTest, ResizeKeepsSizeGadgetBordersClean) {
     constexpr int size_gadget_w = 18;
     constexpr int size_gadget_h = 10;
-    int start_x = window_info.x + window_info.width - (size_gadget_w / 2);
-    int start_y = window_info.y + window_info.height - (size_gadget_h / 2);
+    int orig_w = window_info.width;
+    int orig_h = window_info.height;
+    int start_x = window_info.x + orig_w - (size_gadget_w / 2);
+    int start_y = window_info.y + orig_h - (size_gadget_h / 2);
     int end_x = start_x + 36;
     int end_y = start_y + 20;
+    int expected_w = orig_w + 36;
+    int expected_h = orig_h + 20;
 
     ASSERT_TRUE(lxa_inject_drag(start_x, start_y, end_x, end_y, LXA_MOUSE_LEFT, 5));
-    RunCyclesWithVBlank(40, 100000);
+
+    /* Wait for the window to reach the final resized dimensions.
+     * The drag injects 5 interpolation steps; the last step may still be
+     * pending in the Amiga input queue when lxa_inject_drag returns. */
+    bool resized = false;
+    for (int i = 0; i < 300; i++) {
+        lxa_trigger_vblank();
+        lxa_run_cycles(100000);
+        if (GetWindowInfo(0, &window_info) &&
+            window_info.width == expected_w && window_info.height == expected_h) {
+            resized = true;
+            break;
+        }
+    }
+    /* Give extra time for the frame to render after the final SizeWindow */
+    RunCyclesWithVBlank(20, 100000);
+    lxa_flush_display();
+
+    ASSERT_TRUE(resized)
+        << "Window should reach expected size " << expected_w << "x" << expected_h
+        << " but is " << window_info.width << "x" << window_info.height;
 
     ASSERT_TRUE(GetWindowInfo(0, &window_info))
-        << "Window info should update after resizing";
+        << "Window info should be available after resizing";
 
     int right_border_left = window_info.x + window_info.width - 18;
     int right_border_top = window_info.y + TITLE_BAR_HEIGHT + 2;

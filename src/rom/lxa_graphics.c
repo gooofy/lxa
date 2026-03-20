@@ -1923,34 +1923,44 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
                                                         register LONG xSize __asm("d4"),
                                                         register LONG ySize __asm("d5"))
 {
+    /* GCC m68k inline stubs may use move.w to set d-register args, leaving
+     * the upper 16 bits with residual data.  Sign-extend coordinates. */
+    CONST PLANEPTR _source = source;
+    LONG _xSrc = (LONG)(WORD)xSrc;
+    LONG _srcMod = (LONG)(WORD)srcMod;
+    struct RastPort *_destRP = destRP;
+    LONG _xDest = (LONG)(WORD)xDest;
+    LONG _yDest = (LONG)(WORD)yDest;
+    LONG _xSize = (LONG)(WORD)xSize;
+    LONG _ySize = (LONG)(WORD)ySize;
     struct BitMap *bm;
     LONG row, col, plane;
     UBYTE fgpen, bgpen, drawmode;
 
     DPRINTF (LOG_DEBUG, "_graphics: BltTemplate() source=0x%08lx xSrc=%ld srcMod=%ld dest=(%ld,%ld) size=%ldx%ld\n",
-             (ULONG)source, xSrc, srcMod, xDest, yDest, xSize, ySize);
+             (ULONG)_source, _xSrc, _srcMod, _xDest, _yDest, _xSize, _ySize);
 
-    if (!source || !destRP)
+    if (!_source || !_destRP)
     {
         LPRINTF (LOG_ERROR, "_graphics: BltTemplate() NULL parameter\n");
         return;
     }
 
-    bm = destRP->BitMap;
+    bm = _destRP->BitMap;
     if (!bm)
     {
         LPRINTF (LOG_ERROR, "_graphics: BltTemplate() RastPort has no BitMap\n");
         return;
     }
 
-    if (xSize <= 0 || ySize <= 0)
+    if (_xSize <= 0 || _ySize <= 0)
     {
         return;
     }
 
-    fgpen = (UBYTE)destRP->FgPen;
-    bgpen = (UBYTE)destRP->BgPen;
-    drawmode = destRP->DrawMode;
+    fgpen = (UBYTE)_destRP->FgPen;
+    bgpen = (UBYTE)_destRP->BgPen;
+    drawmode = _destRP->DrawMode;
 
     /* Handle INVERSVID - swap foreground and background colors */
     if (drawmode & INVERSVID)
@@ -1964,19 +1974,19 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
     UBYTE basemode = drawmode & ~INVERSVID;
 
     /* Process each row of the template */
-    for (row = 0; row < ySize; row++)
+    for (row = 0; row < _ySize; row++)
     {
-        LONG destY = yDest + row;
-        const UBYTE *srcRow = (const UBYTE *)source + row * srcMod;
+        LONG destY = _yDest + row;
+        const UBYTE *srcRow = (const UBYTE *)_source + row * _srcMod;
 
         /* Skip if outside bitmap */
         if (destY < 0 || destY >= (LONG)bm->Rows)
             continue;
 
-        for (col = 0; col < xSize; col++)
+        for (col = 0; col < _xSize; col++)
         {
-            LONG destX = xDest + col;
-            LONG srcPixelX = xSrc + col;
+            LONG destX = _xDest + col;
+            LONG srcPixelX = _xSrc + col;
             LONG srcByteOffset = srcPixelX / 8;
             UBYTE srcBitMask = (UBYTE)(0x80 >> (srcPixelX % 8));
             BOOL templateBit = (srcRow[srcByteOffset] & srcBitMask) != 0;
@@ -3147,6 +3157,8 @@ static BOOL _graphics_GetGBuffers ( register struct GfxBase * GfxBase __asm("a6"
     struct AnimComp *current_comp;
     BOOL double_buffer;
 
+    flag = (LONG)(WORD)flag;    /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_graphics: GetGBuffers() anOb=0x%08lx rp=0x%08lx flag=%ld\n",
              (ULONG)anOb, (ULONG)rp, flag);
 
@@ -3406,6 +3418,8 @@ static VOID _graphics_LoadRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
      */
     LONG i;
     UWORD color_count;
+
+    count = (LONG)(WORD)count;  /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_graphics: LoadRGB4() vp=0x%08lx colors=0x%08lx count=%ld\n",
              (ULONG)vp, (ULONG)colors, count);
@@ -3842,8 +3856,13 @@ static LONG _graphics_AreaMove ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG y __asm("d1"))
 {
     struct AreaInfo *areainfo;
-    WORD wx = (WORD)x;
-    WORD wy = (WORD)y;
+    WORD wx, wy;
+
+    x = (LONG)(WORD)x;     /* sign-extend: GCC m68k move.w workaround */
+    y = (LONG)(WORD)y;
+
+    wx = (WORD)x;
+    wy = (WORD)y;
 
     DPRINTF (LOG_DEBUG, "_graphics: AreaMove() rp=0x%08lx, x=%ld, y=%ld\n",
              (ULONG)rp, x, y);
@@ -3918,8 +3937,13 @@ static LONG _graphics_AreaDraw ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG y __asm("d1"))
 {
     struct AreaInfo *areainfo;
-    WORD wx = (WORD)x;
-    WORD wy = (WORD)y;
+    WORD wx, wy;
+
+    x = (LONG)(WORD)x;     /* sign-extend: GCC m68k move.w workaround */
+    y = (LONG)(WORD)y;
+
+    wx = (WORD)x;
+    wy = (WORD)y;
 
     DPRINTF (LOG_DEBUG, "_graphics: AreaDraw() rp=0x%08lx, x=%ld, y=%ld\n",
              (ULONG)rp, x, y);
@@ -4422,6 +4446,9 @@ static VOID _graphics_InitArea ( register struct GfxBase * GfxBase __asm("a6"),
      * The vectorBuffer must be maxVectors*5 bytes (each vertex takes 5 bytes:
      * 2 WORDs for X,Y coords + 1 BYTE for flags).
      */
+
+    maxVectors = (LONG)(WORD)maxVectors;    /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_graphics: InitArea() areaInfo=0x%08lx vectorBuffer=0x%08lx maxVectors=%ld\n",
              areaInfo, vectorBuffer, maxVectors);
 
@@ -4455,6 +4482,11 @@ static VOID _graphics_SetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
      * Colors are 4-bit values (0-15) for OCS/ECS machines.
      * Per RKRM: Updates the ColorMap AND makes the change visible.
      */
+
+    /* GCC m68k inline stubs may use move.w for the index d-register arg,
+     * leaving upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    index = (LONG)(WORD)index;
+
     DPRINTF (LOG_DEBUG, "_graphics: SetRGB4() vp=0x%08lx index=%ld RGB=(%lu,%lu,%lu)\n",
              (ULONG)vp, index, red, green, blue);
 
@@ -4618,44 +4650,55 @@ static VOID _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG yMax __asm("d3"),
                                                         register ULONG maskBPR __asm("d4"))
 {
+    /* GCC m68k inline stubs may use move.w to set d-register args, leaving
+     * the upper 16 bits of the register with residual data.  Sign-extend
+     * the coordinate parameters from WORD to LONG so the values are correct
+     * regardless of how the caller populated the registers. */
+    LONG _xMin = (LONG)(WORD)xMin;
+    LONG _yMin = (LONG)(WORD)yMin;
+    LONG _xMax = (LONG)(WORD)xMax;
+    LONG _yMax = (LONG)(WORD)yMax;
+    ULONG _maskBPR = maskBPR;
+    struct RastPort *_rp = rp;
+    CONST PLANEPTR _mask = mask;
     UBYTE old_drawmode;
-    
+
     DPRINTF (LOG_DEBUG, "_graphics: BltPattern() rp=0x%08lx, mask=0x%08lx, rect=(%ld,%ld)-(%ld,%ld), bpr=%lu\n",
-             (ULONG)rp, (ULONG)mask, xMin, yMin, xMax, yMax, maskBPR);
-    
-    if (!rp)
+             (ULONG)_rp, (ULONG)_mask, _xMin, _yMin, _xMax, _yMax, _maskBPR);
+
+    if (!_rp)
         return;
-    
+
     /* For now, we don't support AreaPtrn patterns - just mask or solid fill */
-    if (rp->AreaPtrn)
+    if (_rp->AreaPtrn)
     {
         DPRINTF(LOG_DEBUG, "_graphics: BltPattern() with AreaPtrn not yet fully supported\n");
         /* Fall through to mask/solid handling */
     }
-    
-    if (mask)
+
+    if (_mask)
     {
         /* Use BltTemplate to blit the mask */
         /* Save and restore draw mode if needed */
-        old_drawmode = (UBYTE)rp->DrawMode;
-        
+        old_drawmode = (UBYTE)_rp->DrawMode;
+
         /* If in JAM2 mode, switch to JAM1 for template blitting */
         if ((old_drawmode & ~INVERSVID) == JAM2)
         {
-            _graphics_SetDrMd(GfxBase, rp, JAM1 | (old_drawmode & INVERSVID));
+            _graphics_SetDrMd(GfxBase, _rp, JAM1 | (old_drawmode & INVERSVID));
         }
-        
+
         /* BltTemplate params: source, xSrc, srcMod, destRP, xDest, yDest, xSize, ySize */
-        _graphics_BltTemplate(GfxBase, (CONST PLANEPTR)mask, 0, maskBPR, rp,
-                             xMin, yMin, xMax - xMin + 1, yMax - yMin + 1);
-        
+        _graphics_BltTemplate(GfxBase, (CONST PLANEPTR)_mask, 0, _maskBPR, _rp,
+                             _xMin, _yMin, _xMax - _xMin + 1, _yMax - _yMin + 1);
+
         /* Restore original draw mode */
-        _graphics_SetDrMd(GfxBase, rp, old_drawmode);
+        _graphics_SetDrMd(GfxBase, _rp, old_drawmode);
     }
     else
     {
         /* No mask - just fill the rectangle */
-        _graphics_RectFill(GfxBase, rp, (WORD)xMin, (WORD)yMin, (WORD)xMax, (WORD)yMax);
+        _graphics_RectFill(GfxBase, _rp, (WORD)_xMin, (WORD)_yMin, (WORD)_xMax, (WORD)_yMax);
     }
 }
 
@@ -4877,7 +4920,14 @@ static BOOL FloodFillScanline(struct FloodFillInfo *fi, LONG start_x, LONG start
     struct FloodStack stack;
     
     FloodInitStack(&stack);
-    
+
+    /* If the initial seed pixel is not fillable, the flood is a no-op.
+     * For mode 0 (outline): seed on outline pen → stop immediately.
+     * For mode 1 (color): seed on a different color → stop immediately.
+     */
+    if (!fi->is_fillable(fi, start_x, start_y))
+        return TRUE;
+
     for (;;)
     {
         /* Scan right */
@@ -4990,13 +5040,17 @@ static BOOL _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
+    /* Sign-extend coordinates — GCC m68k stubs may use move.w */
+    LONG _x = (LONG)(WORD)x;
+    LONG _y = (LONG)(WORD)y;
+    ULONG _mode = mode;
     struct TmpRas *tmpras;
     struct FloodFillInfo fi;
     ULONG bpr, needed_size;
     BOOL success;
     
     DPRINTF (LOG_DEBUG, "_graphics: Flood() rp=0x%08lx, mode=%lu, x=%ld, y=%ld\n", 
-             (ULONG)rp, mode, x, y);
+             (ULONG)rp, _mode, _x, _y);
     
     if (!rp)
         return FALSE;
@@ -5027,7 +5081,7 @@ static BOOL _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
     }
     
     /* Check coordinates */
-    if (x < 0 || y < 0 || x >= fi.rp_width || y >= fi.rp_height)
+    if (_x < 0 || _y < 0 || _x >= fi.rp_width || _y >= fi.rp_height)
     {
         DPRINTF(LOG_DEBUG, "_graphics: Flood() coordinates out of bounds\n");
         return FALSE;
@@ -5054,7 +5108,7 @@ static BOOL _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
     fi.bpr = bpr;
     fi.orig_apen = _graphics_GetAPen(GfxBase, rp);
     
-    if (mode == 0)
+    if (_mode == 0)
     {
         /* Outline mode: fill until we hit outline pen */
         fi.fillpen = _graphics_GetOutlinePen(GfxBase, rp);
@@ -5063,12 +5117,12 @@ static BOOL _graphics_Flood ( register struct GfxBase * GfxBase __asm("a6"),
     else
     {
         /* Color mode: fill while same color */
-        fi.fillpen = _graphics_ReadPixel(GfxBase, rp, x, y);
+        fi.fillpen = _graphics_ReadPixel(GfxBase, rp, _x, _y);
         fi.is_fillable = FloodIsFillable_Color;
     }
     
     /* Do the flood fill */
-    success = FloodFillScanline(&fi, x, y);
+    success = FloodFillScanline(&fi, _x, _y);
     
     /* Restore original APen */
     _graphics_SetAPen(GfxBase, rp, (UBYTE)fi.orig_apen);
@@ -5086,6 +5140,8 @@ static VOID _graphics_PolyDraw ( register struct GfxBase * GfxBase __asm("a6"),
     UWORD i;
     UWORD cnt;
     WORD x, y;
+
+    count = (LONG)(WORD)count;  /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_graphics: PolyDraw() rp=0x%08lx, count=%ld\n", (ULONG)rp, count);
 
@@ -5221,6 +5277,8 @@ static LONG _graphics_CMove ( register struct GfxBase * GfxBase __asm("a6"),
 
     (void)GfxBase;
 
+    data = (LONG)(WORD)data;    /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_graphics: CMove() copList=0x%08lx destination=0x%08lx data=%ld\n",
              (ULONG)copList, (ULONG)destination, data);
 
@@ -5248,6 +5306,9 @@ static VOID _graphics_CWait ( register struct GfxBase * GfxBase __asm("a6"),
     struct CopIns *cop_ins;
 
     (void)GfxBase;
+
+    v = (LONG)(WORD)v;      /* sign-extend: GCC m68k move.w workaround */
+    h = (LONG)(WORD)h;
 
     DPRINTF (LOG_DEBUG, "_graphics: CWait() copList=0x%08lx v=%ld h=%ld\n",
              (ULONG)copList, v, h);
@@ -5320,6 +5381,15 @@ static VOID _graphics_ScrollRaster ( register struct GfxBase * GfxBase __asm("a6
     LONG width, height;
     LONG clearX1, clearY1, clearX2, clearY2;
     UBYTE savedAPen;
+
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    dx   = (LONG)(WORD)dx;
+    dy   = (LONG)(WORD)dy;
+    xMin = (LONG)(WORD)xMin;
+    yMin = (LONG)(WORD)yMin;
+    xMax = (LONG)(WORD)xMax;
+    yMax = (LONG)(WORD)yMax;
     
     DPRINTF (LOG_DEBUG, "_graphics: ScrollRaster() rp=0x%08lx dx=%ld dy=%ld rect=(%ld,%ld)-(%ld,%ld)\n",
              (ULONG)rp, dx, dy, xMin, yMin, xMax, yMax);
@@ -5426,6 +5496,8 @@ static WORD _graphics_GetSprite ( register struct GfxBase * GfxBase __asm("a6"),
     UBYTE search_mask;
     WORD result = -1;
 
+    num = (LONG)(WORD)num;  /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_graphics: GetSprite() sprite=0x%08lx num=%ld\n",
              (ULONG)sprite, num);
 
@@ -5472,6 +5544,8 @@ static WORD _graphics_GetSprite ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_FreeSprite ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG num __asm("d0"))
 {
+    num = (LONG)(WORD)num;  /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_graphics: FreeSprite() num=%ld\n", num);
 
     if (!GfxBase || num < 0 || num > 7)
@@ -5504,6 +5578,11 @@ static VOID _graphics_MoveSprite ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG x __asm("d0"),
                                                         register LONG y __asm("d1"))
 {
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    x = (LONG)(WORD)x;
+    y = (LONG)(WORD)y;
+
     DPRINTF (LOG_DEBUG, "_graphics: MoveSprite() vp=0x%08lx sprite=0x%08lx x=%ld y=%ld\n",
              (ULONG)vp, (ULONG)sprite, x, y);
 
@@ -6246,6 +6325,15 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
     struct Layer *srcLayer;
     struct Layer *destLayer;
 
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    xSrc  = (LONG)(WORD)xSrc;
+    ySrc  = (LONG)(WORD)ySrc;
+    xDest = (LONG)(WORD)xDest;
+    yDest = (LONG)(WORD)yDest;
+    xSize = (LONG)(WORD)xSize;
+    ySize = (LONG)(WORD)ySize;
+
     DPRINTF (LOG_DEBUG, "_graphics: ClipBlit() srcRP=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld mt=0x%02lx\n",
              (ULONG)srcRP, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm);
 
@@ -6351,6 +6439,39 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
                                   NULL,
                                   0);
                 }
+            }
+        }
+    }
+    else if (srcLayer)
+    {
+        /* No destination layer but source has a layer — must check
+         * source visibility pixel-by-pixel so that obscured source
+         * pixels are not copied. */
+        LONG row;
+        LONG col;
+
+        for (row = 0; row < ySize; row++)
+        {
+            for (col = 0; col < xSize; col++)
+            {
+                WORD absX = (WORD)(xSrc + col);
+                WORD absY = (WORD)(ySrc + row);
+
+                if (!PointVisibleInLayer(srcLayer, absX, absY))
+                    continue;
+
+                BltBitMapCore(srcRP->BitMap,
+                              absX,
+                              absY,
+                              destRP->BitMap,
+                              (WORD)(xDest + col),
+                              (WORD)(yDest + row),
+                              1,
+                              1,
+                              (UBYTE)minterm,
+                              0xFF,
+                              NULL,
+                              0);
             }
         }
     }
@@ -6463,6 +6584,8 @@ static struct ColorMap * _graphics_GetColorMap ( register struct GfxBase * GfxBa
      */
     struct ColorMap *cm;
     UWORD *colorTable, *lowColorBits;
+
+    entries = (LONG)(WORD)entries;   /* sign-extend: GCC m68k move.w workaround */
     
     DPRINTF (LOG_DEBUG, "_graphics: GetColorMap(entries=%ld)\n", entries);
     
@@ -6542,6 +6665,10 @@ static ULONG _graphics_GetRGB4 ( register struct GfxBase * GfxBase __asm("a6"),
      * Based on AROS implementation.
      */
     UWORD *ct;
+
+    /* GCC m68k inline stubs may use move.w for the entry d-register arg,
+     * leaving upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    entry = (LONG)(WORD)entry;
     
     /* Validate parameters */
     if (!colorMap || entry < 0 || entry >= colorMap->Count)
@@ -6572,6 +6699,8 @@ static struct CopList * _graphics_UCopperListInit ( register struct GfxBase * Gf
     struct CopList *copList;
 
     (void)GfxBase;
+
+    n = (LONG)(WORD)n;  /* sign-extend: GCC m68k move.w workaround */
 
     if (!uCopList || n < 0)
         return NULL;
@@ -6609,6 +6738,8 @@ static VOID _graphics_FreeGBuffers ( register struct GfxBase * GfxBase __asm("a6
 {
     struct AnimComp *current_comp;
     BOOL double_buffer;
+
+    flag = (LONG)(WORD)flag;    /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_graphics: FreeGBuffers() anOb=0x%08lx rp=0x%08lx flag=%ld\n",
              (ULONG)anOb, (ULONG)rp, flag);
@@ -6689,12 +6820,14 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
                                                         register LONG ySize __asm("d5"),
                                                         register ULONG minterm __asm("d6"))
 {
-    xSrc = (WORD)xSrc;
-    ySrc = (WORD)ySrc;
-    xDest = (WORD)xDest;
-    yDest = (WORD)yDest;
-    xSize = (WORD)xSize;
-    ySize = (WORD)ySize;
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    xSrc  = (LONG)(WORD)xSrc;
+    ySrc  = (LONG)(WORD)ySrc;
+    xDest = (LONG)(WORD)xDest;
+    yDest = (LONG)(WORD)yDest;
+    xSize = (LONG)(WORD)xSize;
+    ySize = (LONG)(WORD)ySize;
 
     DPRINTF (LOG_DEBUG, "_graphics: BltBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld minterm=0x%02lx\n",
              (ULONG)srcBitMap, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm);
@@ -6972,6 +7105,10 @@ static VOID _graphics_SetRGB4CM ( register struct GfxBase * GfxBase __asm("a6"),
      * Red, green, blue should be 0-15 (4-bit values).
      */
     UWORD *ct;
+
+    /* GCC m68k inline stubs may use move.w for the index d-register arg,
+     * leaving upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    index = (LONG)(WORD)index;
     
     DPRINTF(LOG_DEBUG, "_graphics: SetRGB4CM(cm=0x%08lx, index=%ld, r=%ld, g=%ld, b=%ld)\n",
             (ULONG)colorMap, index, red, green, blue);
@@ -7008,12 +7145,14 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                                                         register ULONG minterm __asm("d6"),
                                                         register CONST PLANEPTR bltMask __asm("a2"))
 {
-    xSrc = (WORD)xSrc;
-    ySrc = (WORD)ySrc;
-    xDest = (WORD)xDest;
-    yDest = (WORD)yDest;
-    xSize = (WORD)xSize;
-    ySize = (WORD)ySize;
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    xSrc  = (LONG)(WORD)xSrc;
+    ySrc  = (LONG)(WORD)ySrc;
+    xDest = (LONG)(WORD)xDest;
+    yDest = (LONG)(WORD)yDest;
+    xSize = (LONG)(WORD)xSize;
+    ySize = (LONG)(WORD)ySize;
 
     DPRINTF (LOG_DEBUG, "_graphics: BltMaskBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld mt=0x%02lx mask=0x%08lx\n",
              (ULONG)srcBitMap, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm, (ULONG)bltMask);
@@ -7335,6 +7474,8 @@ static WORD _graphics_TextExtent ( register struct GfxBase * GfxBase __asm("a6")
     struct TextFont *tf;
     WORD width;
 
+    count = (LONG)(WORD)count;  /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_graphics: TextExtent() rp=0x%08lx, string='%s', count=%ld\n",
              (ULONG)rp, string ? (char *)string : "(null)", count);
 
@@ -7449,6 +7590,8 @@ static ULONG _graphics_TextFit ( register struct GfxBase * GfxBase __asm("a6"),
 {
     struct TextFont *tf;
     ULONG retval = 0;
+
+    strDirection = (LONG)(WORD)strDirection; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_graphics: TextFit() rp=0x%08lx, strLen=%lu, dir=%ld, w=%lu, h=%lu\n",
              (ULONG)rp, strLen, strDirection, constrainingBitWidth, constrainingBitHeight);
@@ -8187,6 +8330,13 @@ static VOID _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register LONG yMax __asm("d3"))
 {
     UBYTE oldDrawMode;
+
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    xMin = (LONG)(WORD)xMin;
+    yMin = (LONG)(WORD)yMin;
+    xMax = (LONG)(WORD)xMax;
+    yMax = (LONG)(WORD)yMax;
 
     DPRINTF (LOG_DEBUG, "_graphics: EraseRect() rp=0x%08lx, (%ld,%ld)-(%ld,%ld)\n",
              (ULONG)rp, xMin, yMin, xMax, yMax);
@@ -9093,6 +9243,8 @@ static ULONG _graphics_ObtainPen ( register struct GfxBase * GfxBase __asm("a6")
     ULONG retval = (ULONG)-1;
     BOOL was_shared = FALSE;
 
+    f = (LONG)(WORD)f;  /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_graphics: ObtainPen() cm=0x%08lx n=%lu r=0x%08lx g=0x%08lx b=0x%08lx flags=0x%08lx\n",
              (ULONG)cm, n, r, g, b, (ULONG)f);
 
@@ -9348,6 +9500,15 @@ static VOID _graphics_ScrollRasterBF ( register struct GfxBase * GfxBase __asm("
     LONG srcX, srcY, destX, destY;
     LONG width, height;
     LONG absdx, absdy;
+
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    dx   = (LONG)(WORD)dx;
+    dy   = (LONG)(WORD)dy;
+    xMin = (LONG)(WORD)xMin;
+    yMin = (LONG)(WORD)yMin;
+    xMax = (LONG)(WORD)xMax;
+    yMax = (LONG)(WORD)yMax;
     
     DPRINTF (LOG_DEBUG, "_graphics: ScrollRasterBF() rp=0x%08lx dx=%ld dy=%ld rect=(%ld,%ld)-(%ld,%ld)\n",
              (ULONG)rp, dx, dy, xMin, yMin, xMax, yMax);
@@ -9461,6 +9622,11 @@ static LONG _graphics_FindColor ( register struct GfxBase * GfxBase __asm("a6"),
     ULONG best_distance = (ULONG)-1;
     ULONG limit;
     ULONG i;
+
+    /* GCC m68k inline stubs may use move.w for the maxcolor d-register arg,
+     * leaving upper 16 bits with garbage.  Sign-extend from WORD to LONG.
+     * Note: r/g/b are full 32-bit color values and must NOT be sign-extended. */
+    maxcolor = (LONG)(WORD)maxcolor;
 
     DPRINTF (LOG_DEBUG, "_graphics: FindColor() cm=0x%08lx r=0x%08lx g=0x%08lx b=0x%08lx maxcolor=%ld\n",
              (ULONG)cm, r, g, b, maxcolor);
@@ -10051,6 +10217,15 @@ static VOID _graphics_WriteChunkyPixels ( register struct GfxBase * GfxBase __as
     ULONG x, y;
     CONST UBYTE *src;
     BYTE oldPen;
+
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Mask coordinates to 16 bits and
+     * sign-extend bytesperrow. */
+    xstart      = (ULONG)(UWORD)xstart;
+    ystart      = (ULONG)(UWORD)ystart;
+    xstop       = (ULONG)(UWORD)xstop;
+    ystop       = (ULONG)(UWORD)ystop;
+    bytesperrow = (LONG)(WORD)bytesperrow;
 
     DPRINTF (LOG_DEBUG, "_graphics: WriteChunkyPixels() rp=0x%08lx, (%ld,%ld)-(%ld,%ld), bpr=%ld\n",
              (ULONG)rp, xstart, ystart, xstop, ystop, bytesperrow);

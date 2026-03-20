@@ -226,6 +226,8 @@ static struct Interrupt *_cia_AddICRVector(register struct Library *resource __a
     struct LxaCIAResource *cia = (struct LxaCIAResource *)resource;
     struct Interrupt *old;
 
+    iCRBit = (LONG)(WORD)iCRBit; /* sign-extend: GCC m68k move.w workaround */
+
     if (!cia || !interrupt || !cia_icr_bit_valid(iCRBit))
     {
         return interrupt;
@@ -247,6 +249,8 @@ static VOID _cia_RemICRVector(register struct Library *resource __asm("a6"),
 {
     struct LxaCIAResource *cia = (struct LxaCIAResource *)resource;
 
+    iCRBit = (LONG)(WORD)iCRBit; /* sign-extend: GCC m68k move.w workaround */
+
     if (!cia || !interrupt || !cia_icr_bit_valid(iCRBit))
     {
         return;
@@ -264,6 +268,8 @@ static WORD _cia_AbleICR(register struct Library *resource __asm("a6"),
 {
     struct LxaCIAResource *cia = (struct LxaCIAResource *)resource;
     UBYTE old_mask;
+
+    mask = (LONG)(WORD)mask; /* sign-extend: GCC m68k move.w workaround */
 
     if (!cia)
     {
@@ -288,6 +294,8 @@ static WORD _cia_SetICR(register struct Library *resource __asm("a6"),
 {
     struct LxaCIAResource *cia = (struct LxaCIAResource *)resource;
     UBYTE old_mask;
+
+    mask = (LONG)(WORD)mask; /* sign-extend: GCC m68k move.w workaround */
 
     if (!cia)
     {
@@ -1062,6 +1070,8 @@ struct Interrupt * _exec_SetIntVector ( register struct ExecBase * SysBase __asm
 {
     struct Interrupt *old_interrupt;
 
+    ___intNumber = (LONG)(WORD)___intNumber; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_exec: SetIntVector called, intNumber=%ld interrupt=0x%08lx\n",
              ___intNumber, (ULONG)___interrupt);
 
@@ -1091,6 +1101,8 @@ void _exec_AddIntServer ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
                                                         register struct Interrupt * ___interrupt  __asm("a1"))
 {
+    ___intNumber = (LONG)(WORD)___intNumber; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_exec: AddIntServer() called, intNumber=%ld interrupt=0x%08lx\n",
              ___intNumber, (ULONG)___interrupt);
 
@@ -1111,6 +1123,8 @@ void _exec_RemIntServer ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___intNumber  __asm("d0"),
                                                         register struct Interrupt * ___interrupt  __asm("a1"))
 {
+    ___intNumber = (LONG)(WORD)___intNumber; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_exec: RemIntServer() called, intNumber=%ld interrupt=0x%08lx\n",
              ___intNumber, (ULONG)___interrupt);
 
@@ -1137,6 +1151,12 @@ void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
     if (!exec_begin_interrupt_dispatch(___interrupt))
         return;
 
+    /* Save interrupt pointer before inline asm — the asm block clobbers a0
+     * and a1, which are registers the compiler may use to hold ___interrupt.
+     * Without this explicit save, GCC may keep the pointer in a clobbered
+     * register and exec_finish_interrupt_dispatch() receives garbage. */
+    struct Interrupt *saved_interrupt = ___interrupt;
+
     APTR handler = ___interrupt->is_Code;
     APTR data = ___interrupt->is_Data;
 
@@ -1145,6 +1165,9 @@ void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
         /* Use inline assembly to call the handler with proper register setup.
          * We need to save/restore A5 since the compiler uses it as frame pointer,
          * and the AmigaOS interrupt convention requires A5 = is_Code.
+         *
+         * The clobber list must include a0 because the called handler is a
+         * normal C function that may freely modify a0 (caller-saved).
          */
         __asm volatile (
             "move.l  a5,-(sp)\n\t"      /* save frame pointer */
@@ -1154,11 +1177,11 @@ void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
             "move.l  (sp)+,a5"          /* restore frame pointer */
             :
             : "r" (handler), "r" (data)
-            : "a1", "d0", "d1", "memory"
+            : "a0", "a1", "d0", "d1", "memory"
         );
     }
 
-    exec_finish_interrupt_dispatch(___interrupt);
+    exec_finish_interrupt_dispatch(saved_interrupt);
 }
 
 #ifdef ENABLE_DEBUG
@@ -2063,6 +2086,8 @@ BYTE _exec_SetTaskPri ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Task * ___task  __asm("a1"),
                                                         register LONG ___priority  __asm("d0"))
 {
+    ___priority = (LONG)(WORD)___priority; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_exec: SetTaskPri() called, task=0x%08lx '%s', priority=%ld\n",
              ___task, ___task ? ___task->tc_Node.ln_Name : "NULL", ___priority);
 
@@ -2492,6 +2517,8 @@ void _exec_FreeSignal ( register struct ExecBase *SysBase   __asm("a6"),
 LONG _exec_AllocTrap ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
+    ___trapNum = (LONG)(WORD)___trapNum; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_exec: AllocTrap called, trapNum=%ld\n", ___trapNum);
     
     /* In emulation, we don't support 68k trap vectors */
@@ -2502,6 +2529,8 @@ LONG _exec_AllocTrap ( register struct ExecBase * SysBase __asm("a6"),
 void _exec_FreeTrap ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
+    ___trapNum = (LONG)(WORD)___trapNum; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_exec: FreeTrap called, trapNum=%ld\n", ___trapNum);
     
     /* In emulation, we don't support 68k trap vectors */
@@ -4410,6 +4439,8 @@ void _exec_AddMemList ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___base  __asm("a0"),
                                                         register CONST_STRPTR ___name  __asm("a1"))
 {
+    ___pri = (LONG)(WORD)___pri; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_exec: AddMemList called, size=%ld, attributes=0x%08lx, pri=%ld, base=0x%08lx, name='%s'\n",
              ___size, ___attributes, ___pri, (ULONG)___base, STRORNULL(___name));
 

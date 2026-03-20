@@ -1931,6 +1931,8 @@ STRPTR _locale_GetCatalogStr ( register struct MyLocaleBase   *LocaleBase    __a
     const struct MyCatalog *my_catalog = (const struct MyCatalog *)catalog;
     struct CatalogEntry *entry;
 
+    stringNum = (LONG)(WORD)stringNum; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_locale: GetCatalogStr() called stringNum=%ld\n", stringNum);
 
     (void)LocaleBase;
@@ -2591,6 +2593,8 @@ LONG _locale_StrnCmp ( register struct MyLocaleBase *LocaleBase __asm("a6"),
                        register ULONG                type       __asm("d1"))
 {
     LONG result;
+
+    length = (LONG)(WORD)length; /* sign-extend: GCC m68k move.w workaround */
 
     (void)LocaleBase;
     (void)locale;

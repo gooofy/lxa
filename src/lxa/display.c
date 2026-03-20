@@ -2525,7 +2525,33 @@ bool display_capture_screen(display_t *display, const char *filename)
         return false;
     
     LPRINTF(LOG_INFO, "display: capturing screen to '%s'\n", filename);
-    
+
+    /* Sync display->pixels from the Amiga planar bitmap so that headless
+     * captures reflect the current emulated screen state. */
+    {
+        uint32_t planes_ptr, bpr, depth;
+        if (display_get_amiga_bitmap(display, &planes_ptr, &bpr, &depth))
+        {
+            const uint8_t *planes[8] = {0};
+            int valid_planes = 0;
+            for (uint32_t p = 0; p < depth && p < 8; p++)
+            {
+                uint32_t addr = m68k_read_memory_32(planes_ptr + p * 4);
+                if (addr && addr < LXA_RAM_SIZE)
+                {
+                    planes[p] = &g_ram[addr];
+                    valid_planes++;
+                }
+            }
+            display_update_planar(display, 0, 0, display->width, display->height,
+                                  planes, (int)bpr, (int)depth);
+        }
+        else
+        {
+            LPRINTF(LOG_INFO, "display: screen sync skipped (no amiga bitmap info)\n");
+        }
+    }
+
     if (!display_write_png_file(filename,
                                 display->width,
                                 display->height,

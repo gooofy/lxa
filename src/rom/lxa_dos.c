@@ -1805,6 +1805,8 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
                                  register CONST_STRPTR        ___name        __asm("d1"),
                                  register LONG                ___accessMode  __asm("d2"))
 {
+    ___accessMode = (LONG)(WORD)___accessMode; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: Open() ___name=%s, ___accessMode=%ld\n", ___name ? (char *)___name : "NULL", ___accessMode);
 
     if (!___name) return 0;
@@ -1930,9 +1932,9 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
                                  register LONG                length  __asm("d3"))
 {
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
-    DPRINTF (LOG_DEBUG, "_dos: Read called: file=0x%08lx length=%ld\n", file, length);
-
     int l;
+
+    DPRINTF (LOG_DEBUG, "_dos: Read called: file=0x%08lx length=%ld\n", file, length);
     
     /* Check if this is a CON:/RAW: window */
     if (fh->fh_Func3 == FILE_KIND_CON)
@@ -2043,6 +2045,8 @@ LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
                                  register LONG position  __asm("d2"),
                                  register LONG mode      __asm("d3"))
 {
+    mode = (LONG)(WORD)mode; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: Seek() called file=0x%08lx, position=%d, mode=%d\n", file, position, mode);
 
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
@@ -2119,6 +2123,8 @@ BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
                                                         register CONST_STRPTR ___name  __asm("d1"),
                                                         register LONG ___type  __asm("d2"))
 {
+    ___type = (LONG)(WORD)___type; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: Lock() called, name=%s, type=%ld\n", ___name ? (char *)___name : "NULL", ___type);
 
     if (!___name) {
@@ -2302,7 +2308,9 @@ struct MsgPort * _dos_CreateProc ( register struct DosLibrary * __libBase __asm(
 {
     struct DosLibrary *DOSBase = __libBase;
     (void)DOSBase;
-    
+
+    ___pri = (LONG)(WORD)___pri; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: CreateProc() name='%s' pri=%ld seglist=0x%08lx stackSize=%ld\n",
              ___name ? (const char*)___name : "(null)", ___pri, (ULONG)___segList, ___stackSize);
 
@@ -2355,6 +2363,8 @@ void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
 {
     struct DosLibrary *DOSBase = __libBase;
     (void)DOSBase; /* used by FreeDosObject macro */
+
+    ___returnCode = (LONG)(WORD)___returnCode; /* sign-extend: GCC m68k move.w workaround */
 
     LPRINTF (LOG_INFO, "_dos: Exit() called, returnCode=%ld\n", ___returnCode);
 
@@ -3741,6 +3751,8 @@ LONG _dos_FPutC ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG ch __asm("d2"))
 {
+    ch = (LONG)(WORD)ch; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: FPutC(fh=%08lx, ch=%ld) called.\n", fh, ch);
     
     if (!fh)
@@ -3763,6 +3775,8 @@ LONG _dos_UnGetC ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register BPTR fh __asm("d1"),
                                                         register LONG character __asm("d2"))
 {
+    character = (LONG)(WORD)character; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: UnGetC(fh=%08lx, ch=%ld) called.\n", fh, character);
     
     if (!fh)
@@ -4039,6 +4053,8 @@ LONG _dos_SetVBuf ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     struct FileHandle *fhp = (struct FileHandle *)BADDR(fh);
 
+    type = (LONG)(WORD)type; /* sign-extend: GCC m68k move.w workaround */
+
     if (!fhp)
     {
         SetIoErr(ERROR_INVALID_LOCK);
@@ -4184,6 +4200,8 @@ LONG _dos_NameFromLock ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG len __asm("d3"))
 {
+    len = (LONG)(WORD)len; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: NameFromLock() called, lock=0x%08lx, buffer=0x%08lx, len=%ld\n", lock, buffer, len);
 
     if (!lock || !buffer || len <= 0) {
@@ -4208,6 +4226,8 @@ LONG _dos_NameFromFH ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buffer __asm("d2"),
                                                         register LONG len __asm("d3"))
 {
+    len = (LONG)(WORD)len; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: NameFromFH() called, fh=0x%08lx, buffer=0x%08lx, len=%ld\n", fh, buffer, len);
 
     if (!fh || !buffer || len <= 0) {
@@ -4239,6 +4259,8 @@ WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
     LONG copied = 0;
     LONG available;
     WORD position;
+
+    size = (LONG)(WORD)size; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG,
              "_dos: SplitName() called, name='%s', separator='%c', buf=0x%08lx, oldpos=%d, size=%ld\n",
@@ -4312,6 +4334,8 @@ LONG _dos_SetMode ( register struct DosLibrary * DOSBase __asm("a6"),
 
     (void)DOSBase;
 
+    mode = (LONG)(WORD)mode; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF(LOG_DEBUG, "_dos: SetMode() called, fh=0x%08lx, mode=%ld\n", fh, mode);
 
     fhp = (struct FileHandle *)BADDR(fh);
@@ -4365,6 +4389,8 @@ LONG _dos_ExAll ( register struct DosLibrary * DOSBase __asm("a6"),
     UBYTE *end;
     ULONG fixed_size;
     LONG err = 0;
+
+    data = (LONG)(WORD)data; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF(LOG_DEBUG, "_dos: ExAll() called, lock=0x%08lx, buffer=0x%08lx, size=%ld, data=%ld, control=0x%08lx\n",
             lock, buffer, size, data, control);
@@ -4562,6 +4588,8 @@ LONG _dos_MakeLink ( register struct DosLibrary * DOSBase __asm("a6"),
     LONG ioerr = 0;
     LONG result;
 
+    soft = (LONG)(WORD)soft; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF(LOG_DEBUG, "_dos: MakeLink() called, name=%s, dest=0x%08lx, soft=%ld\n",
             STRORNULL(name), dest, soft);
 
@@ -4607,6 +4635,9 @@ LONG _dos_ChangeMode ( register struct DosLibrary * DOSBase __asm("a6"),
 
     (void)DOSBase;
 
+    type = (LONG)(WORD)type; /* sign-extend: GCC m68k move.w workaround */
+    newmode = (LONG)(WORD)newmode;
+
     DPRINTF(LOG_DEBUG, "_dos: ChangeMode() called, type=%ld, object=0x%08lx, newmode=%ld\n",
             type, fh, newmode);
 
@@ -4627,6 +4658,8 @@ LONG _dos_SetFileSize ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     struct FileHandle *fhp;
     LONG result;
+
+    mode = (LONG)(WORD)mode; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_dos: SetFileSize() called, fh=0x%08lx, pos=%ld, mode=%ld\n",
              fh, pos, mode);
@@ -4682,6 +4715,9 @@ BOOL _dos_Fault ( register struct DosLibrary * DOSBase __asm("a6"),
      * Returns: TRUE on success, FALSE if buffer too small
      */
     
+    code = (LONG)(WORD)code; /* sign-extend: GCC m68k move.w workaround */
+    len = (LONG)(WORD)len;
+
     /* Error message lookup table */
     static const struct {
         LONG code;
@@ -4800,7 +4836,9 @@ BOOL _dos_PrintFault ( register struct DosLibrary * DOSBase __asm("a6"),
      * Returns: TRUE on success, FALSE on I/O error
      */
     UBYTE buffer[128];
-    
+
+    code = (LONG)(WORD)code; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF(LOG_DEBUG, "_dos: PrintFault(code=%ld, header=%s)\n",
             code, header ? (char*)header : "NULL");
     
@@ -4857,6 +4895,9 @@ LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
     BOOL have_device = FALSE;
     UBYTE volume[128];
     UBYTE devname[128];
+
+    code = (LONG)(WORD)code; /* sign-extend: GCC m68k move.w workaround */
+    type = (LONG)(WORD)type;
 
     DPRINTF(LOG_DEBUG,
             "_dos: ErrorReport(code=%ld, type=%ld, arg1=0x%08lx, device=%p) called.\n",
@@ -5305,6 +5346,9 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
         { NP_FreeSeglist, FALSE },
         { TAG_DONE, 0 }
     };
+
+    paramlen = (LONG)(WORD)paramlen; /* sign-extend: GCC m68k move.w workaround */
+
     if (!me || !seg)
     {
         SetIoErr(ERROR_REQUIRED_ARG_MISSING);
@@ -5560,6 +5604,8 @@ BOOL _dos_GetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
     struct Process *pr;
     struct CommandLineInterface *cli;
 
+    len = (LONG)(WORD)len; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: GetCurrentDirName() called.\n");
 
     if (!buf || len <= 0)
@@ -5615,6 +5661,8 @@ BOOL _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register STRPTR buf __asm("d1"),
                                                         register LONG len __asm("d2"))
 {
+    len = (LONG)(WORD)len; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: GetProgramName() called.\n");
 
     struct Process *pr;
@@ -5675,6 +5723,8 @@ BOOL _dos_GetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     struct Process *pr;
     struct CommandLineInterface *cli;
+
+    len = (LONG)(WORD)len; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_dos: GetPrompt() called.\n");
 
@@ -6424,6 +6474,8 @@ struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * DOSBase __asm(
 
     (void)DOSBase;
 
+    type = (LONG)(WORD)type; /* sign-extend: GCC m68k move.w workaround */
+
     dlist = (struct DosList *)AllocVec(sizeof(*dlist), MEMF_PUBLIC | MEMF_CLEAR);
     if (!dlist)
     {
@@ -6700,6 +6752,8 @@ LONG _dos_Inhibit ( register struct DosLibrary * DOSBase __asm("a6"),
     LONG status;
     CONST_STRPTR p;
 
+    onoff = (LONG)(WORD)onoff; /* sign-extend: GCC m68k move.w workaround */
+
     if (!name)
     {
         SetIoErr(ERROR_REQUIRED_ARG_MISSING);
@@ -6757,6 +6811,8 @@ LONG _dos_AddBuffers ( register struct DosLibrary * DOSBase __asm("a6"),
     struct DevProc *dvp;
     LONG status;
     CONST_STRPTR p;
+
+    number = (LONG)(WORD)number; /* sign-extend: GCC m68k move.w workaround */
 
     if (!name)
     {
@@ -7434,6 +7490,8 @@ LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
 
     (void)DOSBase;
 
+    system = (LONG)(WORD)system; /* sign-extend: GCC m68k move.w workaround */
+
     if (!name || !seg)
     {
         SetIoErr(ERROR_REQUIRED_ARG_MISSING);
@@ -7502,6 +7560,8 @@ struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("
                                                         register const struct Segment * seg __asm("d2"),
                                                         register LONG system __asm("d3"))
 {
+    system = (LONG)(WORD)system; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: FindSegment() called, name=%s, seg=0x%08lx, system=%ld\n", 
              name, seg, system);
     /* Return NULL - segment not found. Full implementation would search 
@@ -8051,6 +8111,8 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
     STRPTR cursor = buffer;
     LONG ch;
     BPTR input_fh = 0;
+
+    maxchars = (LONG)(WORD)maxchars; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_dos: ReadItem(buffer=%p, maxchars=%ld, cSource=%p) called.\n",
              buffer, maxchars, cSource);
@@ -8901,6 +8963,8 @@ LONG _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6"),
                                                          register STRPTR buf __asm("d2"),
                                                          register LONG buflen __asm("d3"))
 {
+    buflen = (LONG)(WORD)buflen; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: ParsePattern() called, pat='%s'\n", pat ? pat : (CONST_STRPTR)"NULL");
     
     if (!pat || !buf || buflen <= 0) {
@@ -9235,6 +9299,9 @@ BOOL _dos_SetVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG size __asm("d3"),
                                                         register LONG flags __asm("d4"))
 {
+    size = (LONG)(WORD)size; /* sign-extend: GCC m68k move.w workaround */
+    flags = (LONG)(WORD)flags;
+
     DPRINTF(LOG_DEBUG, "_dos: SetVar() name='%s', buffer=0x%08lx, size=%ld, flags=0x%lx\n", 
             name, buffer, size, flags);
     
@@ -9435,6 +9502,9 @@ LONG _dos_GetVar ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register LONG size __asm("d3"),
                                                         register LONG flags __asm("d4"))
 {
+    size = (LONG)(WORD)size; /* sign-extend: GCC m68k move.w workaround */
+    flags = (LONG)(WORD)flags;
+
     DPRINTF(LOG_DEBUG, "_dos: GetVar() name='%s', buffer=0x%08lx, size=%ld, flags=0x%lx\n", 
             name, buffer, size, flags);
     
@@ -9990,6 +10060,8 @@ LONG _dos_ParsePatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register UBYTE * buf __asm("d2"),
                                                         register LONG buflen __asm("d3"))
 {
+    buflen = (LONG)(WORD)buflen; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_dos: ParsePatternNoCase() called, pat='%s'\n", pat ? pat : (CONST_STRPTR)"NULL");
     
     /* ParsePatternNoCase is identical to ParsePattern - the case-insensitivity
@@ -10067,6 +10139,8 @@ VOID _dos_ExAllEnd ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct ExAllControl * control __asm("d5"))
 {
     struct InternalExAllControl *icontrol = (struct InternalExAllControl *)control;
+
+    data = (LONG)(WORD)data; /* sign-extend: GCC m68k move.w workaround */
 
     (void)DOSBase;
     (void)lock;

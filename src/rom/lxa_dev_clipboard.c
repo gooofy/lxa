@@ -689,6 +689,15 @@ static BPTR __g_lxa_clipboard_BeginIO ( register struct Library   *dev   __asm("
                     (ULONG)hook);
             break;
         }
+
+        case CMD_RESET:
+        case CMD_CLEAR:
+        case CMD_STOP:
+        case CMD_START:
+        case CMD_FLUSH:
+            /* Standard device commands - no-op for clipboard */
+            DPRINTF (LOG_DEBUG, "_clipboard: BeginIO() standard command %u (no-op)\n", command);
+            break;
         
         default:
             DPRINTF (LOG_ERROR, "_clipboard: BeginIO() unknown command %u\n", command);

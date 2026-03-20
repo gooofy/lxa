@@ -477,6 +477,20 @@ bool lxa_capture_screen(const char *filename);
  */
 bool lxa_capture_window(int window_index, const char *filename);
 
+/*
+ * Read a 32-bit value from emulated memory.
+ * @param addr  Address in emulated memory space
+ * @return 32-bit value at address
+ */
+uint32_t lxa_peek32(uint32_t addr);
+
+/*
+ * Read an 8-bit value from emulated memory.
+ * @param addr  Address in emulated memory space
+ * @return 8-bit value at address
+ */
+uint8_t lxa_peek8(uint32_t addr);
+
 #ifdef __cplusplus
 }
 #endif

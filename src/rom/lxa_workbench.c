@@ -814,6 +814,8 @@ void _workbench_UpdateWorkbench ( register struct WorkbenchBase *WorkbenchBase _
 {
     char full_path[512];
 
+    action = (LONG)(WORD)action; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_workbench: UpdateWorkbench() name='%s', action=%ld\n",
              STRORNULL(name), action);
 
@@ -1708,6 +1710,9 @@ ULONG _workbench_WhichWorkbenchObjectA ( register struct WorkbenchBase *Workbenc
     ULONG *is_link_out = (ULONG *)GetTagData(WBOBJA_IsLink, 0, tags);
     ULONG *drawer_flags_out = (ULONG *)GetTagData(WBOBJA_DrawerFlags, 0, tags);
     ULONG *drawer_modes_out = (ULONG *)GetTagData(WBOBJA_DrawerModes, 0, tags);
+
+    mousex = (LONG)(WORD)mousex; /* sign-extend: GCC m68k move.w workaround */
+    mousey = (LONG)(WORD)mousey;
 
     DPRINTF (LOG_DEBUG, "_workbench: WhichWorkbenchObjectA() window=0x%08lx mouse=%ld,%ld\n",
              (ULONG)window, mousex, mousey);

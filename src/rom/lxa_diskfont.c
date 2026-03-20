@@ -1359,6 +1359,8 @@ LONG _diskfont_AvailFonts ( register struct DiskfontBase    *DiskfontBase __asm(
     UWORD num_entries;
     LONG shortage;
 
+    /* bufBytes is a LONG buffer size passed via move.l — do NOT sign-extend */
+
     DPRINTF (LOG_DEBUG, "_diskfont: AvailFonts() called buffer=0x%08lx bufBytes=%ld flags=0x%08lx\n",
              (ULONG)buffer, bufBytes, flags);
 
@@ -1549,6 +1551,8 @@ struct DiskFont * _diskfont_NewScaledDiskFont ( register struct DiskfontBase *Di
 LONG _diskfont_GetDiskFontCtrl ( register struct DiskfontBase *DiskfontBase __asm("a6"),
                                  register LONG                 tagid        __asm("d0"))
 {
+    /* tagid is a 32-bit tag constant (e.g. 0x8B000001) — do NOT sign-extend */
+
     DPRINTF (LOG_DEBUG, "_diskfont: GetDiskFontCtrl(tag=0x%08lx)\n", (ULONG)tagid);
 
     if (!DiskfontBase)

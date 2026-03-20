@@ -1030,7 +1030,7 @@ static struct Layer * CreateLayerInternal ( struct LayersBase  *LayersBase,
 /*
  * CreateUpfrontLayer - Create a layer in front of all others (offset -0x24)
  */
-static struct Layer * _layers_CreateUpfrontLayer ( register struct LayersBase *LayersBase __asm("a6"),
+static struct Layer * __attribute__((optimize("O0"))) _layers_CreateUpfrontLayer ( register struct LayersBase *LayersBase __asm("a6"),
                                                    register struct Layer_Info *li         __asm("a0"),
                                                    register struct BitMap     *bm         __asm("a1"),
                                                    register LONG               x0         __asm("d0"),
@@ -1040,6 +1040,13 @@ static struct Layer * _layers_CreateUpfrontLayer ( register struct LayersBase *L
                                                    register LONG               flags      __asm("d4"),
                                                    register struct BitMap     *bm2        __asm("a2"))
 {
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend coordinates from WORD to LONG. */
+    x0 = (LONG)(WORD)x0;
+    y0 = (LONG)(WORD)y0;
+    x1 = (LONG)(WORD)x1;
+    y1 = (LONG)(WORD)y1;
+
     DPRINTF(LOG_DEBUG, "_layers: CreateUpfrontLayer() called\n");
     return CreateLayerInternal(LayersBase, li, bm, x0, y0, x1, y1, flags, NULL, bm2, TRUE);
 }
@@ -1047,7 +1054,7 @@ static struct Layer * _layers_CreateUpfrontLayer ( register struct LayersBase *L
 /*
  * CreateBehindLayer - Create a layer behind all others (offset -0x2a)
  */
-static struct Layer * _layers_CreateBehindLayer ( register struct LayersBase *LayersBase __asm("a6"),
+static struct Layer * __attribute__((optimize("O0"))) _layers_CreateBehindLayer ( register struct LayersBase *LayersBase __asm("a6"),
                                                   register struct Layer_Info *li         __asm("a0"),
                                                   register struct BitMap     *bm         __asm("a1"),
                                                   register LONG               x0         __asm("d0"),
@@ -1057,6 +1064,13 @@ static struct Layer * _layers_CreateBehindLayer ( register struct LayersBase *La
                                                   register LONG               flags      __asm("d4"),
                                                   register struct BitMap     *bm2        __asm("a2"))
 {
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend coordinates from WORD to LONG. */
+    x0 = (LONG)(WORD)x0;
+    y0 = (LONG)(WORD)y0;
+    x1 = (LONG)(WORD)x1;
+    y1 = (LONG)(WORD)y1;
+
     DPRINTF(LOG_DEBUG, "_layers: CreateBehindLayer() called\n");
     return CreateLayerInternal(LayersBase, li, bm, x0, y0, x1, y1, flags, NULL, bm2, FALSE);
 }
@@ -1221,6 +1235,11 @@ static LONG _layers_MoveLayer ( register struct LayersBase *LayersBase __asm("a6
                                 register LONG               dx         __asm("d0"),
                                 register LONG               dy         __asm("d1"))
 {
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    dx = (LONG)(WORD)dx;
+    dy = (LONG)(WORD)dy;
+
     DPRINTF(LOG_DEBUG, "_layers: MoveLayer() layer=0x%08lx dx=%ld dy=%ld\n", (ULONG)layer, dx, dy);
 
     if (!layer)
@@ -1258,6 +1277,11 @@ static LONG _layers_SizeLayer ( register struct LayersBase *LayersBase __asm("a6
                                 register LONG               dx         __asm("d0"),
                                 register LONG               dy         __asm("d1"))
 {
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    dx = (LONG)(WORD)dx;
+    dy = (LONG)(WORD)dy;
+
     DPRINTF(LOG_DEBUG, "_layers: SizeLayer() layer=0x%08lx dx=%ld dy=%ld\n", (ULONG)layer, dx, dy);
 
     if (!layer)
@@ -1281,7 +1305,7 @@ static LONG _layers_SizeLayer ( register struct LayersBase *LayersBase __asm("a6
 
     RefreshLayerGeometry(layer,
                          (li && (dx < 0 || dy < 0)) ? &old_bounds : NULL,
-                         li ? &layer->bounds : NULL);
+                          li ? &layer->bounds : NULL);
 
     ReleaseSemaphore(&layer->Lock);
 
@@ -1302,6 +1326,11 @@ static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("
                                   register LONG               dx         __asm("d0"),
                                   register LONG               dy         __asm("d1"))
 {
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    dx = (LONG)(WORD)dx;
+    dy = (LONG)(WORD)dy;
+
     DPRINTF(LOG_DEBUG, "_layers: ScrollLayer() layer=0x%08lx dx=%ld dy=%ld\n", (ULONG)layer, dx, dy);
 
     if (!layer)
@@ -1822,6 +1851,13 @@ static LONG _layers_MoveSizeLayer ( register struct LayersBase *LayersBase __asm
                                     register LONG               dw         __asm("d2"),
                                     register LONG               dh         __asm("d3"))
 {
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
+    dx = (LONG)(WORD)dx;
+    dy = (LONG)(WORD)dy;
+    dw = (LONG)(WORD)dw;
+    dh = (LONG)(WORD)dh;
+
     DPRINTF(LOG_DEBUG, "_layers: MoveSizeLayer() layer=0x%08lx dx=%ld dy=%ld dw=%ld dh=%ld\n",
             (ULONG)layer, dx, dy, dw, dh);
 
@@ -1856,7 +1892,7 @@ static LONG _layers_MoveSizeLayer ( register struct LayersBase *LayersBase __asm
 /*
  * CreateUpfrontHookLayer - Create layer with backfill hook (offset -0xba)
  */
-static struct Layer * _layers_CreateUpfrontHookLayer ( register struct LayersBase *LayersBase __asm("a6"),
+static struct Layer * __attribute__((optimize("O0"))) _layers_CreateUpfrontHookLayer ( register struct LayersBase *LayersBase __asm("a6"),
                                                        register struct Layer_Info *li         __asm("a0"),
                                                        register struct BitMap     *bm         __asm("a1"),
                                                        register LONG               x0         __asm("d0"),
@@ -1867,6 +1903,13 @@ static struct Layer * _layers_CreateUpfrontHookLayer ( register struct LayersBas
                                                        register struct Hook        *hook      __asm("a3"),
                                                        register struct BitMap     *bm2        __asm("a2"))
 {
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend coordinates from WORD to LONG. */
+    x0 = (LONG)(WORD)x0;
+    y0 = (LONG)(WORD)y0;
+    x1 = (LONG)(WORD)x1;
+    y1 = (LONG)(WORD)y1;
+
     DPRINTF(LOG_DEBUG, "_layers: CreateUpfrontHookLayer() called\n");
     return CreateLayerInternal(LayersBase, li, bm, x0, y0, x1, y1, flags, hook, bm2, TRUE);
 }
@@ -1874,7 +1917,7 @@ static struct Layer * _layers_CreateUpfrontHookLayer ( register struct LayersBas
 /*
  * CreateBehindHookLayer - Create behind layer with backfill hook (offset -0xc0)
  */
-static struct Layer * _layers_CreateBehindHookLayer ( register struct LayersBase *LayersBase __asm("a6"),
+static struct Layer * __attribute__((optimize("O0"))) _layers_CreateBehindHookLayer ( register struct LayersBase *LayersBase __asm("a6"),
                                                       register struct Layer_Info *li         __asm("a0"),
                                                       register struct BitMap     *bm         __asm("a1"),
                                                       register LONG               x0         __asm("d0"),
@@ -1885,6 +1928,13 @@ static struct Layer * _layers_CreateBehindHookLayer ( register struct LayersBase
                                                       register struct Hook        *hook      __asm("a3"),
                                                       register struct BitMap     *bm2        __asm("a2"))
 {
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend coordinates from WORD to LONG. */
+    x0 = (LONG)(WORD)x0;
+    y0 = (LONG)(WORD)y0;
+    x1 = (LONG)(WORD)x1;
+    y1 = (LONG)(WORD)y1;
+
     DPRINTF(LOG_DEBUG, "_layers: CreateBehindHookLayer() called\n");
     return CreateLayerInternal(LayersBase, li, bm, x0, y0, x1, y1, flags, hook, bm2, FALSE);
 }
@@ -2372,6 +2422,13 @@ static struct Layer * _layers_CreateLayerTagList ( register struct LayersBase *L
                                                    register LONG               flags      __asm("d4"),
                                                    register struct TagItem    *tagList    __asm("a2"))
 {
+    /* GCC m68k inline stubs may use move.w for d-register args, leaving
+     * upper 16 bits with garbage.  Sign-extend coordinates from WORD to LONG. */
+    x0 = (LONG)(WORD)x0;
+    y0 = (LONG)(WORD)y0;
+    x1 = (LONG)(WORD)x1;
+    y1 = (LONG)(WORD)y1;
+
     DPRINTF(LOG_DEBUG, "_layers: CreateLayerTagList() called\n");
     return CreateLayerTagListInternal(LayersBase, li, bm, x0, y0, x1, y1, flags, tagList);
 }

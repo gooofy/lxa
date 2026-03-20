@@ -109,15 +109,15 @@ protected:
         /* Phase 1: open the menu strip */
         lxa_inject_mouse(menu_x, bar_y, 0, LXA_EVENT_MOUSEMOVE);
         lxa_trigger_vblank();
-        lxa_run_cycles(500000);
+        lxa_run_cycles(100000);
         lxa_inject_mouse(menu_x, bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEBUTTON);
-        RunCyclesWithVBlank(100, 50000);
+        RunCyclesWithVBlank(30, 50000);
 
         /* Phase 2: move to the target item and release */
         lxa_inject_mouse(menu_x, item_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEMOVE);
-        RunCyclesWithVBlank(10, 50000);
+        RunCyclesWithVBlank(5, 50000);
         lxa_inject_mouse(menu_x, item_y, 0, LXA_EVENT_MOUSEBUTTON);
-        RunCyclesWithVBlank(200, 50000);
+        RunCyclesWithVBlank(40, 50000);
 
         return lxa_is_running();
     }
@@ -129,7 +129,7 @@ protected:
         /* Try close gadget */
         if (lxa_click_close_gadget(window_index))
         {
-            RunCyclesWithVBlank(60, 50000);
+            RunCyclesWithVBlank(20, 50000);
             FlushAndSettle();
             if (lxa_get_window_count() <= target_count)
                 return true;
@@ -140,7 +140,7 @@ protected:
         if (GetWindowInfo(window_index, &info))
         {
             Click(info.x + info.width / 2, info.y + info.height - 12);
-            RunCyclesWithVBlank(60, 50000);
+            RunCyclesWithVBlank(20, 50000);
             FlushAndSettle();
             if (lxa_get_window_count() <= target_count)
                 return true;
@@ -162,7 +162,7 @@ protected:
         if (best >= 0)
         {
             ClickGadget(best, window_index);
-            RunCyclesWithVBlank(60, 50000);
+            RunCyclesWithVBlank(20, 50000);
             FlushAndSettle();
             if (lxa_get_window_count() <= target_count)
                 return true;
@@ -235,8 +235,11 @@ protected:
             }
         }
 
-        /* Give the RCT library time to draw the analysis UI */
-        RunCyclesWithVBlank(1000, 50000);
+        /* Give the RCT library time to draw the analysis UI.
+         * With LOG_INFO (no DPRINTF overhead) the app renders much faster,
+         * so 200 iterations is ample.  The old 1000 was needed when
+         * LOG_DEBUG slowed every ROM call with DPRINTF I/O. */
+        RunCyclesWithVBlank(200, 50000);
         FlushAndSettle();
 
         /* Re-check window count after RCT drawing — the Analysis window
@@ -486,7 +489,7 @@ TEST_F(SIGMAth2Test, AboutDialogOpensAndCloses)
         const int before = lxa_get_window_count();
 
         SelectMenuItem(menu_x, try_y);
-        RunCyclesWithVBlank(60, 50000);
+        RunCyclesWithVBlank(20, 50000);
         FlushAndSettle();
 
         const int after = lxa_get_window_count();
@@ -779,7 +782,7 @@ TEST_F(SIGMAth2Test, FileMenuOpenSurvivesRequester)
         const int before = lxa_get_window_count();
 
         SelectMenuItem(menu_x, try_y);
-        RunCyclesWithVBlank(100, 50000);
+        RunCyclesWithVBlank(30, 50000);
         FlushAndSettle();
 
         const int after = lxa_get_window_count();

@@ -957,6 +957,7 @@ static void _render_menu_bar(struct Window *window);
 static void _render_menu_items(struct Window *window);
 static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD mouseX, WORD mouseY);
 static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY);
+static UWORD _find_menu_commkey(struct Menu *strip, char key);
 static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadget);
 
 VOID _intuition_SizeWindow(register struct IntuitionBase *IntuitionBase __asm("a6"),
@@ -3719,6 +3720,8 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
 
             if (menuWin && menuWin->MenuStrip && screen)
             {
+                DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN calling _enter_menu_mode at (%d,%d) menuWin=0x%08lx\n",
+                        mouseX, mouseY, (ULONG)menuWin);
                 _enter_menu_mode(menuWin, screen, mouseX, mouseY);
             }
         }
@@ -3766,8 +3769,8 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
         struct Menu *oldMenu = g_active_menu;
         struct MenuItem *oldItem = g_active_item;
 
-        DPRINTF(LOG_DEBUG, "_intuition: pointerpos in menu_mode: mouse=(%d,%d) BarH=%d g_active_menu=0x%08lx\n",
-                mouseX, mouseY, (int)screen->BarHeight, (ULONG)g_active_menu);
+        DPRINTF(LOG_DEBUG, "_intuition: pointerpos in menu_mode: mouse=(%d,%d) BarH=%d g_active_menu=0x%08lx g_active_item=0x%08lx\n",
+                mouseX, mouseY, (int)screen->BarHeight, (ULONG)g_active_menu, (ULONG)g_active_item);
 
         if (mouseY < screen->BarHeight + 1)
         {
@@ -3817,6 +3820,9 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
                 WORD itemX = mouseX - menuLeft;
                 WORD itemY = mouseY - menuTop;
                 struct MenuItem *newItem = _find_item_at_pos(g_active_menu, itemX, itemY);
+
+                DPRINTF(LOG_DEBUG, "_intuition: menu_item_hit: menuTop=%d menuLeft=%d itemX=%d itemY=%d newItem=0x%08lx BarHBorder=%d LeftEdge=%d\n",
+                        (int)menuTop, (int)menuLeft, (int)itemX, (int)itemY, (ULONG)newItem, (int)screen->BarHBorder, (int)g_active_menu->LeftEdge);
 
                 if (newItem != g_active_item)
                 {
@@ -4033,7 +4039,29 @@ static VOID _intuition_handle_rawkey_event(struct IntuitionBase *IntuitionBase,
         WORD relY = mouseY - window->TopEdge;
         BOOL posted = FALSE;
 
-        if (window->IDCMPFlags & IDCMP_VANILLAKEY)
+        /* Menu keyboard shortcuts (CommKey / Right-Amiga + key) */
+        if ((qualifier & IEQUALIFIER_RCOMMAND) &&
+            !(rawkey & IECODE_UP_PREFIX) &&
+            window->MenuStrip &&
+            !(window->Flags & WFLG_RMBTRAP))
+        {
+            char ascii = U_rawkeyToVanilla(rawkey,
+                             qualifier & ~IEQUALIFIER_RCOMMAND);
+            if (ascii)
+            {
+                UWORD menuCode = _find_menu_commkey(window->MenuStrip, ascii);
+                if (menuCode != MENUNULL)
+                {
+                    DPRINTF(LOG_DEBUG,
+                        "_intuition: CommKey '%c' -> menuCode=0x%04x (rawkey handler)\n",
+                        ascii, menuCode);
+                    posted = _post_idcmp_message(window, IDCMP_MENUPICK,
+                                 menuCode, qualifier, NULL, relX, relY);
+                }
+            }
+        }
+
+        if (!posted && (window->IDCMPFlags & IDCMP_VANILLAKEY))
         {
             char ascii = U_rawkeyToVanilla(rawkey, qualifier);
             if (ascii)
@@ -4281,6 +4309,13 @@ BOOL _intuition_CloseScreen ( register struct IntuitionBase * IntuitionBase __as
     g_processing_events = TRUE;
 
     _intuition_clear_screen_runtime_state(IntuitionBase, screen);
+
+    /* Delete the BarLayer before tearing down the rest of the screen */
+    if (screen->BarLayer)
+    {
+        DeleteLayer(0, screen->BarLayer);
+        screen->BarLayer = NULL;
+    }
 
     /* Get the display handle */
     display_handle = (ULONG)screen->ExtData;
@@ -5473,6 +5508,98 @@ static VOID _init_string_gadget_info(struct Gadget *gadget)
                 si->DispPos = len;
         }
     }
+}
+
+/*
+ * Find a menu item with a matching CommKey (command key shortcut).
+ *
+ * Scans the entire menu strip for items/subitems that have the COMMSEQ
+ * flag set and whose Command field matches the given ASCII character
+ * (case-insensitive).  When found, returns the encoded FULLMENUNUM
+ * code.  If no match is found, returns MENUNULL.
+ *
+ * Per AmigaOS convention keyboard shortcuts fire even when the menu or
+ * item is disabled, so MENUENABLED/ITEMENABLED are NOT checked here.
+ * CHECKIT toggle / mutual-exclude handling is applied when a match is
+ * found (matching AROS behaviour).
+ */
+static UWORD _find_menu_commkey(struct Menu *strip, char key)
+{
+    struct Menu     *menu;
+    struct MenuItem *item;
+    struct MenuItem *sub;
+    WORD             menuNum, itemNum, subNum;
+    char             ukey;
+
+    if (!strip || !key)
+        return MENUNULL;
+
+    /* Case-insensitive comparison */
+    ukey = key;
+    if (ukey >= 'a' && ukey <= 'z')
+        ukey -= ('a' - 'A');
+
+    for (menu = strip, menuNum = 0; menu; menu = menu->NextMenu, menuNum++)
+    {
+        for (item = menu->FirstItem, itemNum = 0; item;
+             item = item->NextItem, itemNum++)
+        {
+            /* Check sub-items first (subitems take precedence if any) */
+            if (item->SubItem)
+            {
+                for (sub = item->SubItem, subNum = 0; sub;
+                     sub = sub->NextItem, subNum++)
+                {
+                    if (sub->Flags & COMMSEQ)
+                    {
+                        char cmd = sub->Command;
+                        if (cmd >= 'a' && cmd <= 'z')
+                            cmd -= ('a' - 'A');
+                        if (cmd == ukey)
+                        {
+                            /* Handle CHECKIT toggle */
+                            if (sub->Flags & CHECKIT)
+                            {
+                                if (sub->Flags & MENUTOGGLE)
+                                    sub->Flags ^= CHECKED;
+                                else
+                                    sub->Flags |= CHECKED;
+                            }
+                            sub->NextSelect = MENUNULL;
+                            return (UWORD)((menuNum & 0x1F) |
+                                          ((itemNum & 0x3F) << 5) |
+                                          ((subNum & 0x1F) << 11));
+                        }
+                    }
+                }
+            }
+
+            /* Check the item itself */
+            if (item->Flags & COMMSEQ)
+            {
+                char cmd = item->Command;
+                if (cmd >= 'a' && cmd <= 'z')
+                    cmd -= ('a' - 'A');
+                if (cmd == ukey)
+                {
+                    /* Handle CHECKIT toggle */
+                    if (item->Flags & CHECKIT)
+                    {
+                        if (item->Flags & MENUTOGGLE)
+                            item->Flags ^= CHECKED;
+                        else
+                            item->Flags |= CHECKED;
+                    }
+                    item->NextSelect = MENUNULL;
+                    return (UWORD)((menuNum & 0x1F) |
+                                  ((itemNum & 0x3F) << 5) |
+                                  ((WORD)NOSUB << 11));
+                }
+            }
+        }
+    }
+
+    return MENUNULL;
 }
 
 /*
@@ -6974,6 +7101,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             (ULONG)window, window->LeftEdge, window->TopEdge, window->Width, window->Height, relX, relY);
                     
                     /* Check for gadget hit on mouse down (SELECTDOWN) */
+                    DPRINTF(LOG_DEBUG, "_intuition: MouseButton code=0x%02x at (%d,%d) relXY=(%d,%d) window=0x%08lx\n",
+                            code, mouseX, mouseY, relX, relY, (ULONG)window);
+                    DPRINTF(LOG_DEBUG, "_intuition: MouseButton MENUDOWN=0x%02x SELECTDOWN=0x%02x SELECTUP=0x%02x MENUUP=0x%02x\n",
+                            (UWORD)MENUDOWN, (UWORD)SELECTDOWN, (UWORD)SELECTUP, (UWORD)MENUUP);
                     if (code == SELECTDOWN)
                     {
                         if (!(window->Flags & WFLG_WINDOWACTIVE))
@@ -6982,9 +7113,8 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                         }
 
                         struct Gadget *gad = _find_gadget_at_pos(window, relX, relY);
-                        DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN relX=%d relY=%d gad=0x%08lx firstGad=0x%08lx type=0x%04x\n",
-                                relX, relY, (ULONG)gad, (ULONG)window->FirstGadget,
-                                gad ? gad->GadgetType : 0xFFFF);
+                        DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN relX=%d relY=%d gad=0x%08lx type=0x%04x\n",
+                                relX, relY, (ULONG)gad, gad ? gad->GadgetType : 0xFFFF);
                         if (gad)
                         {
                             DPRINTF(LOG_DEBUG, "_intuition: SELECTDOWN on gadget type=0x%04x\n",
@@ -7004,8 +7134,6 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             if ((gad->GadgetType & GTYP_SYSGADGET) &&
                                 (gad->GadgetType & GTYP_SYSTYPEMASK) == GTYP_SIZING)
                             {
-                                DPRINTF(LOG_DEBUG, "_intuition: Starting window resize: window=0x%08lx size=(%d,%d)\n",
-                                        (ULONG)window, window->Width, window->Height);
                                 g_sizing_window = TRUE;
                                 g_size_window = window;
                                 g_size_start_x = mouseX;
@@ -7299,7 +7427,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     /* Right mouse button press - enter menu mode */
                     else if (code == MENUDOWN)
                     {
-                        DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN(PIE) at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
+                        DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN(PIE) ENTERED at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
                                 mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
                         /* 
                          * On real AmigaOS, right-clicking activates the menu bar.
@@ -7392,6 +7520,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 key_data = emucall0(EMU_CALL_INT_GET_KEY);  /* Get qualifier */
                 UWORD qualifier = (UWORD)(key_data >> 16);
 
+                DPRINTF(LOG_DEBUG, "_intuition: PIE case2 mouse_move at (%d,%d) g_menu_mode=%d\n",
+                        mouseX, mouseY, g_menu_mode);
+
                 input_event.ie_Class = IECLASS_POINTERPOS;
                 input_event.ie_Qualifier = qualifier;
                 _input_device_dispatch_event(&input_event);
@@ -7402,6 +7533,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     BOOL needRedraw = FALSE;
                     struct Menu *oldMenu = g_active_menu;
                     struct MenuItem *oldItem = g_active_item;
+                    
+                    DPRINTF(LOG_DEBUG, "_intuition: menu_track: mouse=(%d,%d) BarHeight=%d activeMenu=0x%08lx activeItem=0x%08lx\n",
+                            mouseX, mouseY, screen ? (int)screen->BarHeight : -1,
+                            (ULONG)g_active_menu, (ULONG)g_active_item);
                     
                     /* Check if mouse is in menu bar area */
                     if (mouseY < screen->BarHeight + 1)
@@ -7551,7 +7686,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     WORD dy = mouseY - g_size_start_y;
                     WORD newW = g_size_orig_w + dx;
                     WORD newH = g_size_orig_h + dy;
-                    
+
                     /* SizeWindow will enforce min/max limits */
                     WORD size_dx = newW - g_size_window->Width;
                     WORD size_dy = newH - g_size_window->Height;
@@ -7678,8 +7813,43 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     WORD relY = mouseY - window->TopEdge;
                     BOOL posted = FALSE;
 
+                    /*
+                     * Menu keyboard shortcuts (CommKey / Right-Amiga + key).
+                     *
+                     * When the Right Amiga qualifier is held and the window
+                     * has a menu strip, convert the raw key to ASCII and
+                     * scan the strip for a matching Command entry.  If found,
+                     * post IDCMP_MENUPICK with the encoded FULLMENUNUM code
+                     * instead of the normal RAWKEY/VANILLAKEY message.
+                     *
+                     * Matches AROS behaviour: shortcuts fire even for
+                     * disabled items, and WFLG_RMBTRAP suppresses them.
+                     */
+                    if ((qualifier & IEQUALIFIER_RCOMMAND) &&
+                        !(rawkey & IECODE_UP_PREFIX) &&
+                        window->MenuStrip &&
+                        !(window->Flags & WFLG_RMBTRAP))
+                    {
+                        char ascii = U_rawkeyToVanilla(rawkey,
+                                         qualifier & ~IEQUALIFIER_RCOMMAND);
+                        if (ascii)
+                        {
+                            UWORD menuCode = _find_menu_commkey(
+                                                 window->MenuStrip, ascii);
+                            if (menuCode != MENUNULL)
+                            {
+                                DPRINTF(LOG_DEBUG,
+                                    "_intuition: CommKey '%c' -> menuCode=0x%04x\n",
+                                    ascii, menuCode);
+                                posted = _post_idcmp_message(window,
+                                             IDCMP_MENUPICK, menuCode,
+                                             qualifier, NULL, relX, relY);
+                            }
+                        }
+                    }
+
                     /* If window wants VANILLAKEY, try to convert rawkey to ASCII */
-                    if (window->IDCMPFlags & IDCMP_VANILLAKEY)
+                    if (!posted && (window->IDCMPFlags & IDCMP_VANILLAKEY))
                     {
                         char ascii = U_rawkeyToVanilla(rawkey, qualifier);
                         if (ascii)
@@ -7769,6 +7939,9 @@ VOID _intuition_VBlankInputHook(void)
         /* No screen yet - this is normal during startup */
         return;
     }
+    
+    DPRINTF(LOG_DEBUG, "_intuition: VBlankInputHook calling PIE, g_processing_events=%d g_menu_mode=%d\n",
+            g_processing_events, g_menu_mode);
     
     /*
      * Process all pending input events.  The function resolves the
@@ -8257,6 +8430,42 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     InitLayers(&screen->LayerInfo);
     screen->LayerInfo.top_layer = NULL;
 
+    /*
+     * Create the BarLayer — a LAYERSIMPLE|LAYERBACKDROP layer that spans
+     * the full screen width and covers the title bar area (0..BarHeight).
+     * Real AmigaOS always creates this; applications (e.g. PPaint) read
+     * screen->BarLayer->rp to obtain a RastPort for the screen bar area.
+     * Without it, BarLayer is NULL and dereferencing ->rp reads garbage
+     * from the exception vector table at address 0x0C.
+     */
+    if (LayersBase)
+    {
+        screen->BarLayer = CreateUpfrontHookLayer(
+            &screen->LayerInfo,
+            &screen->BitMap,
+            0,                            /* x0 */
+            0,                            /* y0 */
+            screen->Width - 1,            /* x1 */
+            screen->BarHeight,            /* y1 (inclusive) */
+            LAYERSIMPLE | LAYERBACKDROP,  /* flags */
+            LAYERS_NOBACKFILL,            /* backfill hook */
+            NULL);                        /* shape hook */
+
+        if (screen->BarLayer)
+        {
+            /* Set the screen's font on the BarLayer RastPort so that
+             * apps reading BarLayer->rp->Font get the correct font. */
+            if (screen->Font)
+            {
+                struct TextFont *tf = OpenFont(screen->Font);
+                if (tf)
+                {
+                    SetFont(screen->BarLayer->rp, tf);
+                }
+            }
+        }
+    }
+
     /* Link screen into IntuitionBase screen list (at front) */
     screen->NextScreen = IntuitionBase->FirstScreen;
     IntuitionBase->FirstScreen = screen;
@@ -8426,6 +8635,18 @@ static void _render_window_frame(struct Window *window)
     
     rp = window->BorderRPort ? window->BorderRPort : window->RPort;
     
+    DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() rp=0x%08lx layer=0x%08lx WinSize=(%d,%d)\n",
+            (ULONG)rp, (ULONG)(rp ? rp->Layer : 0), window->Width, window->Height);
+    if (rp && rp->Layer) {
+        struct Layer *l = rp->Layer;
+        DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() layer bounds [%d,%d]-[%d,%d]\n",
+                l->bounds.MinX, l->bounds.MinY, l->bounds.MaxX, l->bounds.MaxY);
+        struct ClipRect *cr = l->ClipRect;
+        int cnt = 0;
+        while (cr) { cnt++; cr = cr->Next; }
+        DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() %d ClipRects\n", cnt);
+    }
+    
     /* Get pens - use window pens or defaults */
     detPen = window->DetailPen;
     blkPen = window->BlockPen;
@@ -8484,7 +8705,11 @@ static void _render_window_frame(struct Window *window)
             /* Draw title */
             SetAPen(rp, (window->Flags & WFLG_WINDOWACTIVE) ? detPen : blkPen);
             SetBPen(rp, (window->Flags & WFLG_WINDOWACTIVE) ? blkPen : detPen);
+            DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() BEFORE Move/Text rp=0x%08lx Font=0x%08lx\n",
+                    (ULONG)rp, rp ? (ULONG)rp->Font : 0);
             Move(rp, textX, textY + rp->TxBaseline);
+            DPRINTF(LOG_DEBUG, "_intuition: _render_window_frame() AFTER Move rp=0x%08lx Font=0x%08lx\n",
+                    (ULONG)rp, rp ? (ULONG)rp->Font : 0);
             Text(rp, (STRPTR)window->Title, strlen((char *)window->Title));
         }
     }
@@ -9619,7 +9844,6 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
 {
     LONG new_w, new_h;
     WORD old_width, old_height;
-    BOOL rootless_mode;
 
     DPRINTF(LOG_DEBUG, "_intuition: SizeWindow() window=0x%08lx dx=%d dy=%d\n", (ULONG)window, dx, dy);
 
@@ -9659,16 +9883,14 @@ VOID _intuition_SizeWindow ( register struct IntuitionBase * IntuitionBase __asm
         _call_SizeLayer(LayersBase, window->WLayer, dx, dy);
     }
 
-    /* Check for rootless mode */
-    rootless_mode = emucall0(EMU_CALL_INT_GET_ROOTLESS);
-    
-    if (rootless_mode)
+    /* Always notify the host so tracked window dimensions stay up to date.
+     * In rootless mode this also resizes the host-side SDL2 window;
+     * in non-rootless mode it only updates the tracked width/height. */
     {
         ULONG window_handle = _intuition_get_host_window_handle((struct LXAIntuitionBase *)IntuitionBase, window);
 
         if (window_handle)
         {
-            /* Update host window - emucall expects absolute dimensions */
             emucall3(EMU_CALL_INT_SIZE_WINDOW, window_handle, (ULONG)new_w, (ULONG)new_h);
         }
     }
@@ -9829,6 +10051,12 @@ BOOL _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __a
                                                         register ULONG widthMax __asm("d2"),
                                                         register ULONG heightMax __asm("d3"))
 {
+    /* GCC m68k move.w fix: sign-extend LONG params, zero-extend ULONG params */
+    widthMin  = (LONG)(WORD)widthMin;
+    heightMin = (LONG)(WORD)heightMin;
+    widthMax  = (ULONG)(UWORD)widthMax;
+    heightMax = (ULONG)(UWORD)heightMax;
+
     DPRINTF(LOG_DEBUG, "_intuition: WindowLimits() window=0x%08lx min=%ldx%ld max=%ldx%ld\n", 
             (ULONG)window, widthMin, heightMin, widthMax, heightMax);
             
@@ -9852,6 +10080,9 @@ struct Preferences  * _intuition_SetPrefs ( register struct IntuitionBase * Intu
 {
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
     struct Screen *screen;
+
+    /* GCC m68k move.w fix: sign-extend d-register LONG param */
+    size = (LONG)(WORD)size;
 
     DPRINTF (LOG_DEBUG, "_intuition: SetPrefs() preferences=0x%08lx size=%ld inform=%d\n",
              (ULONG)preferences, size, (int)inform);
@@ -10266,6 +10497,9 @@ VOID _intuition_EndRefresh ( register struct IntuitionBase * IntuitionBase __asm
                              register LONG complete __asm("d0"))
 {
     struct Layer *layer;
+
+    /* GCC m68k move.w fix: sign-extend d-register LONG param (boolean) */
+    complete = (LONG)(WORD)complete;
 
     DPRINTF(LOG_DEBUG, "_intuition: EndRefresh() window=0x%08lx complete=%ld\n",
             (ULONG)window, complete);
@@ -11247,6 +11481,12 @@ VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase 
                                                         register LONG width __asm("d2"),
                                                         register LONG height __asm("d3"))
 {
+    /* GCC m68k move.w fix: sign-extend d-register LONG params from 16 bits */
+    left   = (LONG)(WORD)left;
+    top    = (LONG)(WORD)top;
+    width  = (LONG)(WORD)width;
+    height = (LONG)(WORD)height;
+
     DPRINTF(LOG_DEBUG, "_intuition: ChangeWindowBox() window=0x%08lx pos=%ld,%ld size=%ldx%ld\n", 
             (ULONG)window, left, top, width, height);
 
@@ -12297,6 +12537,9 @@ LONG _intuition_SysReqHandler ( register struct IntuitionBase * IntuitionBase __
 {
     struct IntuiMessage *msg;
     LONG result = -2; /* No result yet */
+
+    /* GCC m68k move.w fix: sign-extend d-register LONG param (boolean) */
+    waitInput = (LONG)(WORD)waitInput;
     
     DPRINTF (LOG_DEBUG, "_intuition: SysReqHandler() window=0x%08lx wait=%ld\n", (ULONG)window, waitInput);
 
@@ -14066,6 +14309,12 @@ VOID _intuition_ScreenPosition ( register struct IntuitionBase * IntuitionBase _
                                                         register LONG x2 __asm("d3"),
                                                         register LONG y2 __asm("d4"))
 {
+    /* GCC m68k move.w fix: sign-extend d-register LONG coordinate params */
+    x1 = (LONG)(WORD)x1;
+    y1 = (LONG)(WORD)y1;
+    x2 = (LONG)(WORD)x2;
+    y2 = (LONG)(WORD)y2;
+
     DPRINTF (LOG_DEBUG, "_intuition: ScreenPosition() screen=0x%08lx flags=0x%08lx pos=(%ld,%ld)\n", 
              (ULONG)screen, flags, x1, y1);
              

@@ -287,7 +287,7 @@ static void audio_call_interrupt(APTR handler, APTR data)
         "move.l  (sp)+,a5"
         :
         : "r" (handler), "r" (data)
-        : "a1", "d0", "d1", "memory"
+        : "a0", "a1", "d0", "d1", "memory"
     );
 }
 

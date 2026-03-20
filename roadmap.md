@@ -4,7 +4,7 @@
 
 ## Current Phases
 
-- No active phase; next app work is Phase 105 (Asm-One).
+- No active phase; next app work is Phase 106 (Cluster2).
 
 ## Completed Milestones
 
@@ -44,11 +44,22 @@
   - Verified ppaint reaches its main paint window, stays running after startup, and survives RMB menu interaction without losing the main window.
   - Deeper screenshot/pixel assertions remain deferred until the screenshot API can capture ppaint's app-owned screens.
 - Phase 104 (`0.8.67`): SIGMAth2 interaction follow-up — done.
-  - Fixed 10 ROM/host bugs: REFRESHWINDOW for SMART_REFRESH, GZZ gadget RastPort selection, GZZ relative coordinate calculation, headless rootless window sync, gadget text baseline offset, PrintIText baseline, Topaz 8 font extended to 32-255 (Latin-1 with umlauts), RELRIGHT/RELBOTTOM off-by-one, BOOPSI GM_RENDER resolved gadget box, lxa_api.c gadget box screen-dimension override.
-  - 12 passing tests in `sigma_gtest` (4 startup + 8 interaction): startup visibility, resource failures, UI capture, menu smoke, gadget grid layout, About dialog, button click interaction, string input, scroll gadgets, button row consistency, display frame content, file-requester survival.
-  - Deterministic gadget geometry assertions verify 28 Analysis window gadgets: 20 math buttons (88x14), 2 scroll arrows, 1 prop, 3 string gadgets, 1 display frame, 1 depth gadget.
-  - About-dialog coverage via two-phase RMB menu selection with Y-position probing and dismiss strategy.
-  - File-requester coverage verifies app survives menu-triggered requester flow in headless mode.
+   - Fixed 10 ROM/host bugs: REFRESHWINDOW for SMART_REFRESH, GZZ gadget RastPort selection, GZZ relative coordinate calculation, headless rootless window sync, gadget text baseline offset, PrintIText baseline, Topaz 8 font extended to 32-255 (Latin-1 with umlauts), RELRIGHT/RELBOTTOM off-by-one, BOOPSI GM_RENDER resolved gadget box, lxa_api.c gadget box screen-dimension override.
+   - 12 passing tests in `sigma_gtest` (4 startup + 8 interaction): startup visibility, resource failures, UI capture, menu smoke, gadget grid layout, About dialog, button click interaction, string input, scroll gadgets, button row consistency, display frame content, file-requester survival.
+   - Deterministic gadget geometry assertions verify 28 Analysis window gadgets: 20 math buttons (88x14), 2 scroll arrows, 1 prop, 3 string gadgets, 1 display frame, 1 depth gadget.
+   - About-dialog coverage via two-phase RMB menu selection with Y-position probing and dismiss strategy.
+   - File-requester coverage verifies app survives menu-triggered requester flow in headless mode.
+- Phase 105 (`0.8.68`): Asm-One V1.48 host-side testing and critical IRQ/menu fixes — done.
+   - 12 passing tests in `asm_one_gtest`: WindowOpens, BundledReqToolsLibrary, StartupSkips, MenuBarInteraction, ScreenDimensions, ScreenAndEditorReady, RespondsToInput, MouseInput, CursorKeys, AboutDialogOpensAndCloses, EditorInputProducesVisibleContent, FileRequesterOpensAndCanBeDismissed.
+   - Fixed Musashi edge-triggered IRQ: `lxa_run_cycles()` now lowers IRQ to 0 before re-raising to level 3, ensuring the m68k CPU re-triggers at the same level.
+   - Added auto-VBlank in `lxa_run_cycles()` (AUTO_VBLANK_CYCLES=100000) so long cycle runs keep the display ticking.
+   - Increased `lxa_inject_drag()` settling from 3 to 5 iterations for reliable RMB menu drag.
+   - Added CommKey implementation (`_find_menu_commkey()`) for keyboard-triggered menu items.
+   - Added BarLayer creation in OpenScreen and cleanup in CloseScreen.
+   - Sign-extension sweep across 13 ROM files (92+ functions) to fix GCC m68k `move.w` register argument bug.
+   - Added clipboard CMD_FLUSH no-op handlers, SizeWindow host-side tracking fix, flood fill seed check.
+   - PPaint test rewrite for timing tolerance; test sharding for devpac (3 shards) and maxonbasic (2 shards).
+   - All 67 tests pass, build clean with no warnings.
 
 ## Completed Milestones (compact)
 
@@ -59,20 +70,6 @@
 
 For each app below the agent should follow a test-driven workflow: (1) run or create a reliable startup host-side driver test to exercise launch and reachability; (2) if the driver reveals failures, fix them and keep the test green; (3) capture screenshots on failure and use `tools/screenshot_review.py` to identify UI/rendering issues and hypotheses; (4) author additional automated pixel or interaction tests that assert the UI issues are fixed; (5) implement fixes and iterate until tests are green.
 
-
-- Phase 104: SIGMAth2
-	- Identify and fix all GUI layout issue (e.g. button borders/labels do not lign up correctly) using the screenshot_review.py tool
-	- Keep the dedicated `sigma_gtest` startup/visual smoke driver green; manual `launch.json` startup now mirrors the driver's original-system LIBS/FONTS setup, the `sigma_startup_gtest` shard matches the current test names again, and menu smoke coverage now asserts that the extra tracked content window opens and draws.
-	- Characterize the SIGMAth2 menu geometry well enough to add deterministic About-dialog coverage instead of the current tracked-window menu smoke assertion.
-	- Add interaction coverage for the main math widgets and convert any visual anomalies into deterministic capture/pixel assertions.
-	- Add file-requester coverage once the menu/requester flow is characterized in headless mode.
-
-- Phase 105: Asm-One
-	- Run or create a host-side startup test (GTest driver) that launches Asm-One and asserts the main window opens.
-	- If launch or runtime failures occur, fix them and keep the startup test green.
-	- On visual regressions, capture window artifacts and run `tools/screenshot_review.py` to triage rendering or layout issues; add pixel/introspection tests accordingly and fix the root cause.
-	- Add interaction tests: open About dialog via menu, verify About renders and closes; test keyboard input in editor buffer; test open-file requester flow.
-	- Update launch.json for SIGMAth2 and the other apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 - Phase 106: Cluster2
 	- Create or extend a host-side driver to launch Cluster2 and assert its main UI appears.

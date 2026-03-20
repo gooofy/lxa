@@ -839,6 +839,8 @@ struct DiskObject * _icon_GetDefDiskObject ( register struct IconBase *IconBase 
     UBYTE default_name[64];
     struct DiskObject *saved;
 
+    type = (LONG)(WORD)type; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_icon: GetDefDiskObject() called type=%ld\n", type);
 
     if (!icon_is_valid_type(type))
@@ -1691,6 +1693,9 @@ VOID _icon_DrawIconStateA ( register struct IconBase       *IconBase   __asm("a6
     UBYTE saved_mode;
     UBYTE text_pen;
 
+    leftOffset = (LONG)(WORD)leftOffset; /* sign-extend: GCC m68k move.w workaround */
+    topOffset = (LONG)(WORD)topOffset;
+
     DPRINTF (LOG_DEBUG, "_icon: DrawIconStateA() called icon=0x%08lx label='%s' state=0x%08lx\n",
              icon, STRORNULL(label), state);
 
@@ -1782,6 +1787,8 @@ BOOL _icon_GetIconRectangleA ( register struct IconBase       *IconBase __asm("a
 struct DiskObject * _icon_NewDiskObject ( register struct IconBase *IconBase __asm("a6"),
                                           register LONG             type     __asm("d0"))
 {
+    type = (LONG)(WORD)type; /* sign-extend: GCC m68k move.w workaround */
+
     DPRINTF (LOG_DEBUG, "_icon: NewDiskObject() called type=%ld\n", type);
     return _icon_GetDefDiskObject(IconBase, type);
 }

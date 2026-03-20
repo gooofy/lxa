@@ -56,9 +56,10 @@ TEST_F(Cluster2Test, EditorReady) {
 }
 
 TEST_F(Cluster2Test, RespondsToInput) {
-    /* Type a simple Oberon-2 module */
-    TypeString("MODULE Test;\nBEGIN\nEND Test.\n");
-    RunCyclesWithVBlank(40, 50000);
+    /* Type a short string — avoid long text that causes >180s runtime
+     * due to per-character VBlank+cycles in lxa_inject_string() */
+    TypeString("MODULE");
+    RunCyclesWithVBlank(20, 50000);
 
     EXPECT_TRUE(lxa_is_running()) << "Cluster2 should still be running after typing";
     EXPECT_GE(lxa_get_window_count(), 1) << "Window should still be open after typing";

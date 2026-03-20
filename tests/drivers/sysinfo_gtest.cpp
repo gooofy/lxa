@@ -210,7 +210,7 @@ TEST_F(SysInfoTest, SpeedGadgetRefreshesComparisonArea) {
     before_image = LoadPng(before_path);
 
     ASSERT_TRUE(ClickGadget(gadget_index, 0));
-    RunCyclesWithVBlank(120, 50000);
+    RunCyclesWithVBlank(240, 100000);
 
     ASSERT_TRUE(CaptureWindow(after_path.c_str(), 0));
     after_image = LoadPng(after_path);

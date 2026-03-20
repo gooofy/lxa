@@ -132,22 +132,28 @@ int main(void)
         print("OK: Rectangle filled correctly with mode 1\n");
     }
 
-    /* Test 3: Flood at boundary pixel */
-    print("\n=== Test 3: Flood at filled pixel (boundary) ===\n");
+    /* Test 3: Flood starting on an outline-pen pixel should not fill */
+    print("\n=== Test 3: Flood at outline pen pixel (boundary) ===\n");
     SetRast(&rp, 0);
+    /* Write the outline color (AOlPen, defaults to 255 but we only have
+     * 1 plane, so effective outline pen is 1 for a 1-bit bitmap).
+     * To make a proper test, set the outline pen explicitly to 1 and
+     * write a pixel with that color at the seed point. */
+    SetOutlinePen(&rp, 1);
     SetAPen(&rp, 1);
-    WritePixel(&rp, 32, 32);
-    
-    /* Try to flood from the white pixel itself with mode 0 */
+    WritePixel(&rp, 32, 32);  /* seed pixel has outline color */
+    SetAPen(&rp, 1);  /* fill pen */
+
+    /* Flood mode 0 starting at a pixel that IS the outline pen should
+     * not propagate, because the seed itself is already the boundary. */
     result = Flood(&rp, 0, 32, 32);
-    
-    /* In mode 0, starting at outline pen should not fill */
+
     count = CountAllPixels(&rp, 1);
     if (count > 10) {
-        print("FAIL: Flood at boundary filled too much\n");
+        print("FAIL: Flood at outline pen pixel filled too much\n");
         errors++;
     } else {
-        print("OK: Flood at boundary behaved correctly\n");
+        print("OK: Flood at outline pen pixel behaved correctly\n");
     }
 
     /* Test 4: Flood with no TmpRas (should fail gracefully) */
