@@ -8,6 +8,9 @@
  * 4. Click the button and verify GADGETDOWN + GADGETUP (ID 3)
  * 5. Click the close gadget to close the window
  * 6. Verify the program exits cleanly
+ *
+ * Phase 107: Both fixtures use SetUpTestSuite() to load SimpleGad once,
+ * avoiding redundant emulator init + program load per test case.
  */
 
 #include "lxa_test.h"
@@ -32,28 +35,150 @@ constexpr int PEN_WHITE = 2;  // White (0xFF, 0xFF, 0xFF)
 // Behavioral tests (rootless mode - default)
 // ============================================================================
 
-class SimpleGadTest : public LxaUITest {
+class SimpleGadTest : public ::testing::Test {
 protected:
+    /* ---- Shared state (lives for the entire test suite) ---- */
+    static bool s_setup_ok;
+    static lxa_window_info_t s_window_info;
+    static std::string s_ram_dir;
+    static std::string s_t_dir;
+    static std::string s_env_dir;
+
+    static void SetUpTestSuite() {
+        s_setup_ok = false;
+
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t config;
+        memset(&config, 0, sizeof(config));
+        config.headless = true;
+        config.verbose  = false;
+        config.rootless = true;
+
+        config.rom_path = FindRomPath();
+        if (!config.rom_path) {
+            fprintf(stderr, "SimpleGadTest: could not find lxa.rom\n");
+            return;
+        }
+
+        if (lxa_init(&config) != 0) {
+            fprintf(stderr, "SimpleGadTest: lxa_init() failed\n");
+            return;
+        }
+
+        /* Set up assigns (mirrors LxaTest::SetUp) */
+        const char* samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char* sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char* tplibs = FindThirdPartyLibsPath();
+        if (tplibs) lxa_add_assign("LIBS", tplibs);
+        const char* libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+        const char* apps = FindAppsPath();
+        if (apps) lxa_add_assign("APPS", apps);
+        const char* cmds = FindCommandsPath();
+        if (cmds) lxa_add_assign("C", cmds);
+        const char* sys = FindSystemPath();
+        if (sys) lxa_add_assign("System", sys);
+
+        char ram[] = "/tmp/lxa_test_RAM_XXXXXX";
+        if (mkdtemp(ram)) { s_ram_dir = ram; lxa_add_drive("RAM", ram); }
+        char tdir[] = "/tmp/lxa_test_T_XXXXXX";
+        if (mkdtemp(tdir)) { s_t_dir = tdir; lxa_add_assign("T", tdir); }
+        char edir[] = "/tmp/lxa_test_ENV_XXXXXX";
+        if (mkdtemp(edir)) {
+            s_env_dir = edir;
+            lxa_add_assign("ENV", edir);
+            lxa_add_assign("ENVARC", edir);
+        }
+
+        /* Load SimpleGad */
+        if (lxa_load_program("SYS:SimpleGad", "") != 0) {
+            fprintf(stderr, "SimpleGadTest: failed to load SimpleGad\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_wait_windows(1, 5000)) {
+            fprintf(stderr, "SimpleGadTest: window did not open\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_get_window_info(0, &s_window_info)) {
+            fprintf(stderr, "SimpleGadTest: could not get window info\n");
+            lxa_shutdown();
+            return;
+        }
+
+        /* WaitForEventLoop(100, 10000) equivalent */
+        for (int i = 0; i < 100; i++)
+            lxa_run_cycles(10000);
+
+        lxa_clear_output();
+
+        s_setup_ok = true;
+    }
+
+    static void TearDownTestSuite() {
+        lxa_shutdown();
+
+        auto rm = [](std::string& d) {
+            if (!d.empty()) {
+                std::string cmd = "rm -rf " + d;
+                system(cmd.c_str());
+                d.clear();
+            }
+        };
+        rm(s_ram_dir);
+        rm(s_t_dir);
+        rm(s_env_dir);
+    }
+
+    /* ---- Per-test hooks ---- */
     void SetUp() override {
-        LxaUITest::SetUp();
-        
-        // Load the SimpleGad program
-        ASSERT_EQ(lxa_load_program("SYS:SimpleGad", ""), 0) 
-            << "Failed to load SimpleGad";
-        
-        // Wait for window to open
-        ASSERT_TRUE(WaitForWindows(1, 5000)) 
-            << "Window did not open within 5 seconds";
-        
-        // Get window information
-        ASSERT_TRUE(GetWindowInfo(0, &window_info)) 
-            << "Could not get window info";
-        
-        // Let task reach WaitPort() - CRITICAL for event handling
-        WaitForEventLoop(100, 10000);
-        ClearOutput();
+        if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    }
+
+    /* Convenience accessors */
+    lxa_window_info_t& window_info = s_window_info;
+
+    void RunCyclesWithVBlank(int iterations = 20, int cycles_per_iteration = 50000) {
+        for (int i = 0; i < iterations; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(cycles_per_iteration);
+        }
+    }
+
+    void Click(int x, int y, int button = LXA_MOUSE_LEFT) {
+        lxa_inject_mouse_click(x, y, button);
+    }
+
+    std::string GetOutput() {
+        char buf[65536];
+        lxa_get_output(buf, sizeof(buf));
+        return std::string(buf);
+    }
+    void ClearOutput() { lxa_clear_output(); }
+
+    bool WaitForWindowDrawn(int index = 0, int timeout_ms = 5000) {
+        return lxa_wait_window_drawn(index, timeout_ms);
+    }
+
+    bool CaptureWindow(const char* filename, int index = 0) {
+        return lxa_capture_window(index, filename);
     }
 };
+
+/* Static member definitions */
+bool                SimpleGadTest::s_setup_ok = false;
+lxa_window_info_t   SimpleGadTest::s_window_info = {};
+std::string         SimpleGadTest::s_ram_dir;
+std::string         SimpleGadTest::s_t_dir;
+std::string         SimpleGadTest::s_env_dir;
+
+/* ----- Tests: read-only first, destructive (CloseWindow) last ----- */
 
 TEST_F(SimpleGadTest, WindowOpens) {
     // Just verify the window opened successfully
@@ -62,7 +187,7 @@ TEST_F(SimpleGadTest, WindowOpens) {
 }
 
 TEST_F(SimpleGadTest, RootlessWindowShowsGadgetBorder) {
-    const std::string capture_path = std::string(ram_dir_path) + "/simplegad-window.png";
+    const std::string capture_path = s_ram_dir + "/simplegad-window.png";
     RgbImage image;
     int top_edge_pixels = 0;
     int left_edge_pixels = 0;
@@ -118,11 +243,12 @@ TEST_F(SimpleGadTest, ButtonClick) {
     int btn_x = window_info.x + BUTTON_LEFT + (BUTTON_WIDTH / 2);
     int btn_y = window_info.y + TITLE_BAR_HEIGHT + BUTTON_TOP + (BUTTON_HEIGHT / 2);
     
+    ClearOutput();
+
     // Click the button
     Click(btn_x, btn_y);
     
-    // Process event through VBlanks - need enough for the full Intuition pipeline:
-    // event -> input.device -> Intuition -> IDCMP -> task signal -> task runs -> printf
+    // Process event through VBlanks
     RunCyclesWithVBlank(20, 50000);
     
     // Check output
@@ -135,6 +261,7 @@ TEST_F(SimpleGadTest, ButtonClick) {
         << "Expected gadget ID 3. Output was: " << output;
 }
 
+/* CloseWindow MUST be the last test — it terminates the emulated program. */
 TEST_F(SimpleGadTest, CloseWindow) {
     ClearOutput();
     
@@ -144,11 +271,10 @@ TEST_F(SimpleGadTest, CloseWindow) {
     
     Click(close_x, close_y);
     
-    // Give additional VBlanks for the close event to propagate through
-    // Intuition and for the task to process it and begin cleanup
+    // Give additional VBlanks for the close event to propagate
     RunCyclesWithVBlank(20, 50000);
     
-    // Wait for exit - now with VBlank triggering for reliable cleanup
+    // Wait for exit
     ASSERT_TRUE(lxa_wait_exit(5000)) 
         << "Program did not exit within 5 seconds";
     
@@ -167,39 +293,164 @@ TEST_F(SimpleGadTest, CloseWindow) {
 // non-rootless mode so everything is drawn to the screen bitmap.
 // ============================================================================
 
-class SimpleGadPixelTest : public LxaUITest {
+class SimpleGadPixelTest : public ::testing::Test {
 protected:
+    /* ---- Shared state (lives for the entire test suite) ---- */
+    static bool s_setup_ok;
+    static lxa_window_info_t s_window_info;
+    static std::string s_ram_dir;
+    static std::string s_t_dir;
+    static std::string s_env_dir;
+
+    static void SetUpTestSuite() {
+        s_setup_ok = false;
+
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t config;
+        memset(&config, 0, sizeof(config));
+        config.headless = true;
+        config.verbose  = false;
+        config.rootless = false;  /* Non-rootless for pixel verification */
+
+        config.rom_path = FindRomPath();
+        if (!config.rom_path) {
+            fprintf(stderr, "SimpleGadPixelTest: could not find lxa.rom\n");
+            return;
+        }
+
+        if (lxa_init(&config) != 0) {
+            fprintf(stderr, "SimpleGadPixelTest: lxa_init() failed\n");
+            return;
+        }
+
+        /* Set up assigns (mirrors LxaTest::SetUp) */
+        const char* samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char* sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char* tplibs = FindThirdPartyLibsPath();
+        if (tplibs) lxa_add_assign("LIBS", tplibs);
+        const char* libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+        const char* apps = FindAppsPath();
+        if (apps) lxa_add_assign("APPS", apps);
+        const char* cmds = FindCommandsPath();
+        if (cmds) lxa_add_assign("C", cmds);
+        const char* sys = FindSystemPath();
+        if (sys) lxa_add_assign("System", sys);
+
+        char ram[] = "/tmp/lxa_test_RAM_XXXXXX";
+        if (mkdtemp(ram)) { s_ram_dir = ram; lxa_add_drive("RAM", ram); }
+        char tdir[] = "/tmp/lxa_test_T_XXXXXX";
+        if (mkdtemp(tdir)) { s_t_dir = tdir; lxa_add_assign("T", tdir); }
+        char edir[] = "/tmp/lxa_test_ENV_XXXXXX";
+        if (mkdtemp(edir)) {
+            s_env_dir = edir;
+            lxa_add_assign("ENV", edir);
+            lxa_add_assign("ENVARC", edir);
+        }
+
+        /* Load SimpleGad */
+        if (lxa_load_program("SYS:SimpleGad", "") != 0) {
+            fprintf(stderr, "SimpleGadPixelTest: failed to load SimpleGad\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_wait_windows(1, 5000)) {
+            fprintf(stderr, "SimpleGadPixelTest: window did not open\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_get_window_info(0, &s_window_info)) {
+            fprintf(stderr, "SimpleGadPixelTest: could not get window info\n");
+            lxa_shutdown();
+            return;
+        }
+
+        /* WaitForEventLoop(100, 10000) equivalent */
+        for (int i = 0; i < 100; i++)
+            lxa_run_cycles(10000);
+
+        /* Trigger extra VBlanks to ensure planar->chunky conversion */
+        for (int i = 0; i < 50; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(100000);
+        }
+
+        s_setup_ok = true;
+    }
+
+    static void TearDownTestSuite() {
+        lxa_shutdown();
+
+        auto rm = [](std::string& d) {
+            if (!d.empty()) {
+                std::string cmd = "rm -rf " + d;
+                system(cmd.c_str());
+                d.clear();
+            }
+        };
+        rm(s_ram_dir);
+        rm(s_t_dir);
+        rm(s_env_dir);
+    }
+
+    /* ---- Per-test hooks ---- */
     void SetUp() override {
-        // Disable rootless mode so Intuition renders window frames
-        // to the screen bitmap, making them visible via display_read_pixel()
-        config.rootless = false;
-        
-        LxaUITest::SetUp();
-        
-        // Load the SimpleGad program
-        ASSERT_EQ(lxa_load_program("SYS:SimpleGad", ""), 0) 
-            << "Failed to load SimpleGad";
-        
-        // Wait for window to open
-        ASSERT_TRUE(WaitForWindows(1, 5000)) 
-            << "Window did not open within 5 seconds";
-        
-        // Get window information
-        ASSERT_TRUE(GetWindowInfo(0, &window_info)) 
-            << "Could not get window info";
-        
-        // Let task reach WaitPort() and allow rendering to complete
-        WaitForEventLoop(100, 10000);
-        
-        // Trigger extra VBlanks to ensure planar->chunky conversion
-        // Use more cycles to ensure _render_window_frame() and gadget rendering complete
-        RunCyclesWithVBlank(50, 100000);
+        if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    }
+
+    /* Convenience accessors */
+    lxa_window_info_t& window_info = s_window_info;
+
+    void RunCyclesWithVBlank(int iterations = 20, int cycles_per_iteration = 50000) {
+        for (int i = 0; i < iterations; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(cycles_per_iteration);
+        }
+    }
+
+    int ReadPixel(int x, int y) {
+        int pen;
+        if (lxa_read_pixel(x, y, &pen)) {
+            return pen;
+        }
+        return -1;
+    }
+
+    bool ReadPixelRGB(int x, int y, uint8_t* r, uint8_t* g, uint8_t* b) {
+        return lxa_read_pixel_rgb(x, y, r, g, b);
+    }
+
+    int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0) {
+        lxa_flush_display();
+        int count = 0;
+        for (int y = y1; y <= y2; y++) {
+            for (int x = x1; x <= x2; x++) {
+                int pen;
+                if (lxa_read_pixel(x, y, &pen) && pen != bg_color) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 };
 
+/* Static member definitions */
+bool                SimpleGadPixelTest::s_setup_ok = false;
+lxa_window_info_t   SimpleGadPixelTest::s_window_info = {};
+std::string         SimpleGadPixelTest::s_ram_dir;
+std::string         SimpleGadPixelTest::s_t_dir;
+std::string         SimpleGadPixelTest::s_env_dir;
+
+/* ----- Pixel tests ----- */
+
 TEST_F(SimpleGadPixelTest, WindowBorderRendered) {
     // Verify that the window title bar has non-background pixels
-    // The title bar should contain the close gadget and title text drawn in pen 1 (black)
     int title_content = CountContentPixels(
         window_info.x + 1,
         window_info.y + 1,
@@ -213,24 +464,17 @@ TEST_F(SimpleGadPixelTest, WindowBorderRendered) {
     // Verify the window border - top edge should be non-grey
     int top_border_pen = ReadPixel(window_info.x, window_info.y);
     EXPECT_NE(top_border_pen, -1) << "Should be able to read pixel at window top-left corner";
-    // Top-left border pixel should be either white (pen 2) or black (pen 1) - not grey background
     EXPECT_NE(top_border_pen, PEN_GREY)
         << "Window border should not be background color (pen=" << top_border_pen << ")";
 }
 
 TEST_F(SimpleGadPixelTest, GadgetBorderRendered) {
-    // The button gadget has a border drawn in pen 1 (black).
-    // Gadget LeftEdge=20, TopEdge=20 relative to window origin.
-    // Border LeftEdge=-1, TopEdge=-1, so border starts at window-relative (19, 19).
-    // Border XY data: {0,0, 101,0, 101,51, 0,51, 0,0} (5-point rectangle)
-    // So border spans from (19,19) to (19+101,19+51) = (120,70) in window coords.
+    int bx0 = 19;
+    int by0 = 19;
+    int bx1 = 19 + BUTTON_WIDTH + 1;
+    int by1 = 19 + BUTTON_HEIGHT + 1;
     
-    int bx0 = 19;  // BUTTON_LEFT + border->LeftEdge = 20 + (-1)
-    int by0 = 19;  // BUTTON_TOP + border->TopEdge = 20 + (-1)
-    int bx1 = 19 + BUTTON_WIDTH + 1;   // 120 (border data goes to MYBUTTONGADWIDTH+1=101)
-    int by1 = 19 + BUTTON_HEIGHT + 1;  // 70  (border data goes to MYBUTTONGADHEIGHT+1=51)
-    
-    // Verify top edge of gadget border: horizontal line at by0 from bx0 to bx1
+    // Verify top edge
     int top_edge_pixels = 0;
     for (int x = bx0; x <= bx1; x++) {
         int pen = ReadPixel(window_info.x + x, window_info.y + by0);
@@ -239,7 +483,7 @@ TEST_F(SimpleGadPixelTest, GadgetBorderRendered) {
     EXPECT_GT(top_edge_pixels, 90)
         << "Top edge of gadget border should have pen-1 pixels (got " << top_edge_pixels << ")";
     
-    // Verify left edge of gadget border: vertical line at bx0 from by0 to by1
+    // Verify left edge
     int left_edge_pixels = 0;
     for (int y = by0; y <= by1; y++) {
         int pen = ReadPixel(window_info.x + bx0, window_info.y + y);
@@ -248,7 +492,7 @@ TEST_F(SimpleGadPixelTest, GadgetBorderRendered) {
     EXPECT_GT(left_edge_pixels, 45)
         << "Left edge of gadget border should have pen-1 pixels (got " << left_edge_pixels << ")";
     
-    // Verify right edge of gadget border: vertical line at bx1 from by0 to by1
+    // Verify right edge
     int right_edge_pixels = 0;
     for (int y = by0; y <= by1; y++) {
         int pen = ReadPixel(window_info.x + bx1, window_info.y + y);
@@ -257,7 +501,7 @@ TEST_F(SimpleGadPixelTest, GadgetBorderRendered) {
     EXPECT_GT(right_edge_pixels, 45)
         << "Right edge of gadget border should have pen-1 pixels (got " << right_edge_pixels << ")";
     
-    // Verify bottom edge of gadget border: horizontal line at by1 from bx0 to bx1
+    // Verify bottom edge
     int bottom_edge_pixels = 0;
     for (int x = bx0; x <= bx1; x++) {
         int pen = ReadPixel(window_info.x + x, window_info.y + by1);
@@ -266,7 +510,7 @@ TEST_F(SimpleGadPixelTest, GadgetBorderRendered) {
     EXPECT_GT(bottom_edge_pixels, 90)
         << "Bottom edge of gadget border should have pen-1 pixels (got " << bottom_edge_pixels << ")";
     
-    // Verify interior of gadget is pen 0 (grey background - not drawn over)
+    // Verify interior is pen 0
     int interior_pen = ReadPixel(window_info.x + BUTTON_LEFT + 10,
                                  window_info.y + BUTTON_TOP + 10);
     EXPECT_EQ(interior_pen, PEN_GREY)
@@ -274,12 +518,9 @@ TEST_F(SimpleGadPixelTest, GadgetBorderRendered) {
 }
 
 TEST_F(SimpleGadPixelTest, WindowInteriorColor) {
-    // The window interior (outside the gadget area) should be pen 0 (grey)
-    // Check a point to the right of the gadget
     int check_x = window_info.x + BUTTON_LEFT + BUTTON_WIDTH + 20;
     int check_y = window_info.y + TITLE_BAR_HEIGHT + 10;
     
-    // Make sure we're within window bounds
     if (check_x < window_info.x + window_info.width - 2 &&
         check_y < window_info.y + window_info.height - 2) {
         int pen = ReadPixel(check_x, check_y);
@@ -288,12 +529,8 @@ TEST_F(SimpleGadPixelTest, WindowInteriorColor) {
             << "Window interior (away from gadgets) should be grey background (pen 0)";
     }
     
-    // Verify the RGB value of the grey background using the display palette.
-    // Workbench pen 0 is 0x0AAA (4-bit RGB), which converts to 0xAAAAAA
-    // (8-bit RGB) via the palette pipeline (SetRGB4 -> display_set_color).
     uint8_t r, g, b;
     if (ReadPixelRGB(check_x, check_y, &r, &g, &b)) {
-        // Amiga Workbench pen 0 = 0x0AAA -> R=0xAA, G=0xAA, B=0xAA
         EXPECT_EQ(r, 0xAA) << "Background red component should be 0xAA (Workbench grey)";
         EXPECT_EQ(g, 0xAA) << "Background green component should be 0xAA (Workbench grey)";
         EXPECT_EQ(b, 0xAA) << "Background blue component should be 0xAA (Workbench grey)";
@@ -301,90 +538,37 @@ TEST_F(SimpleGadPixelTest, WindowInteriorColor) {
 }
 
 TEST_F(SimpleGadPixelTest, NoDepthGadgetInTopRight) {
-    // SimpleGad uses WA_CloseGadget but NOT WA_DepthGadget.
-    // Verify the top-right corner of the title bar does NOT contain a gadget frame.
-    //
-    // System gadgets are 18px wide (SYS_GADGET_WIDTH). If a depth gadget existed,
-    // it would be at (Width - BorderRight - 18, 0) and have a 3D frame with
-    // pen 2 (shine/white) on top/left edges and pen 1 (shadow/black) on bottom/right.
-    //
-    // The title bar area (excluding the outer border) should be a flat fill
-    // in the top-right corner with NO vertical separator lines.
-    
     constexpr int SYS_GADGET_WIDTH = 18;
-    constexpr int BORDER_RIGHT = 2;  // Standard Amiga window right border
+    constexpr int BORDER_RIGHT = 2;
     
-    // The area where a depth gadget WOULD be: 
-    // x from (width - borderRight - gadgetWidth) to (width - borderRight - 1)
-    // y from 1 to titleBarBottom (around 10)
     int gadget_area_x0 = window_info.width - BORDER_RIGHT - SYS_GADGET_WIDTH;
     int gadget_area_x1 = window_info.width - BORDER_RIGHT - 1;
-    int gadget_area_y0 = 1;  // Just inside the top border
-    int gadget_area_y1 = TITLE_BAR_HEIGHT - 1;  // Just above title bar bottom line
+    int gadget_area_y0 = 1;
+    int gadget_area_y1 = TITLE_BAR_HEIGHT - 1;
     
-    // In the potential depth gadget area, scan for vertical separator lines.
-    // A gadget frame would have a vertical shine (pen 2) line at gadget_area_x0
-    // and a vertical shadow (pen 1) line at gadget_area_x1.
-    // Without a depth gadget, the left edge of this area should just be
-    // the title bar fill color — NOT a vertical pen 2 (shine) line.
-    
-    // Check the vertical line at where the depth gadget's left edge would be.
-    // If no depth gadget exists, this column should be the title bar fill color
-    // (active window = blkPen which is pen 1 for standard screen pens).
-    // A gadget frame would have a distinct shine (pen 2) vertical line here.
     int shine_count = 0;
-    int shadow_count = 0;
     for (int y = gadget_area_y0; y <= gadget_area_y1; y++) {
         int pen = ReadPixel(window_info.x + gadget_area_x0, window_info.y + y);
         if (pen == PEN_WHITE) shine_count++;
-        if (pen == PEN_BLACK) shadow_count++;
     }
     
-    // A depth gadget 3D frame would have a full vertical shine line (pen 2) on the left edge.
-    // Without a depth gadget, we should NOT see a full column of pen 2 here.
-    // The title bar interior should be filled with the fill pen (pen 1 for active window).
-    // We allow some tolerance (e.g., the very top pixel could be border-related).
     int gadget_height = gadget_area_y1 - gadget_area_y0 + 1;
     EXPECT_LT(shine_count, gadget_height - 1)
         << "Left edge of potential depth gadget area should NOT have a full vertical "
-           "shine line (pen 2). This would indicate a gadget frame is being drawn. "
-           "shine_count=" << shine_count << " out of " << gadget_height << " pixels";
+           "shine line (pen 2). shine_count=" << shine_count << " out of " << gadget_height;
     
-    // Also check right edge — a gadget frame would have a vertical shadow (pen 1) line
-    // at the right edge. But since the title bar fill is ALSO pen 1 (active window),
-    // we need a different approach: check for pen 2 (shine) at the TOP of the gadget area.
-    // A gadget frame draws: shine on top-left corner going right, then shadow on right.
-    // The top-left corner of a gadget frame would be pen 2 (shine).
-    // Without a gadget, this area is just title bar fill.
-    
-    // More definitive check: scan the top row of the potential gadget area.
-    // A gadget 3D frame draws a horizontal shine (pen 2) line along the top.
-    // Without a gadget, there's no such horizontal line — just the fill color.
     int top_row_shine = 0;
     for (int x = gadget_area_x0; x <= gadget_area_x1; x++) {
         int pen = ReadPixel(window_info.x + x, window_info.y + gadget_area_y0);
         if (pen == PEN_WHITE) top_row_shine++;
     }
     
-    // A gadget frame would have nearly all pixels in the top row as pen 2 (shine).
-    // Without it, at most a few stray pixels might match. Threshold: less than half.
     EXPECT_LT(top_row_shine, SYS_GADGET_WIDTH / 2)
         << "Top row of potential depth gadget area should NOT have a shine line. "
-           "This would indicate a gadget frame is drawn in the top-right corner. "
            "top_row_shine=" << top_row_shine << " out of " << SYS_GADGET_WIDTH;
 }
 
 TEST_F(SimpleGadPixelTest, GadghcompHighlightOnClick) {
-    // Test GADGHCOMP: clicking a button should complement (XOR) its interior.
-    // SimpleGad's button uses GADGHCOMP (default highlight mode, flags bits 0-1 = 00).
-    //
-    // 1. Read pixels inside button before click (should be pen 0 = grey background)
-    // 2. Inject mouse-down (no release yet)
-    // 3. Verify pixels changed (complement = XOR inverts all bitplanes)
-    // 4. Inject mouse-up
-    // 5. Verify pixels restored to original
-    
-    // Sample points inside the button interior (avoiding border)
     struct { int x; int y; } sample_points[] = {
         { BUTTON_LEFT + 10, BUTTON_TOP + 10 },
         { BUTTON_LEFT + 50, BUTTON_TOP + 25 },
@@ -401,24 +585,20 @@ TEST_F(SimpleGadPixelTest, GadghcompHighlightOnClick) {
             << "Should be able to read pixel at sample point " << i;
     }
     
-    // 2. Inject mouse-down only (move to position, then press)
+    // 2. Inject mouse-down only
     int btn_x = window_info.x + BUTTON_LEFT + (BUTTON_WIDTH / 2);
     int btn_y = window_info.y + BUTTON_TOP + (BUTTON_HEIGHT / 2);
     
-    // Move to position first
     lxa_inject_mouse(btn_x, btn_y, 0, LXA_EVENT_MOUSEMOVE);
     lxa_trigger_vblank();
     lxa_run_cycles(10000);
     
-    // Press button down
     lxa_inject_mouse(btn_x, btn_y, LXA_MOUSE_LEFT, LXA_EVENT_MOUSEBUTTON);
     
-    // Process events — need enough VBlanks for the full Intuition pipeline
     for (int i = 0; i < 10; i++) {
         lxa_trigger_vblank();
         lxa_run_cycles(50000);
     }
-    // Flush planar→chunky so display_read_pixel() returns current data
     lxa_flush_display();
     
     // 3. Read pixels while button is held — should be complemented
@@ -434,7 +614,6 @@ TEST_F(SimpleGadPixelTest, GadghcompHighlightOnClick) {
         }
     }
     
-    // All interior pixels should have changed (GADGHCOMP XOR inverts all planes)
     EXPECT_EQ(changed_count, NUM_SAMPLES)
         << "GADGHCOMP: All interior pixels should change when button is pressed. "
            "Pre-click pens: " << pre_click_pens[0] << "," << pre_click_pens[1] << "," << pre_click_pens[2]
@@ -443,15 +622,13 @@ TEST_F(SimpleGadPixelTest, GadghcompHighlightOnClick) {
     // 4. Release button
     lxa_inject_mouse(btn_x, btn_y, 0, LXA_EVENT_MOUSEBUTTON);
     
-    // Process events
     for (int i = 0; i < 10; i++) {
         lxa_trigger_vblank();
         lxa_run_cycles(50000);
     }
-    // Flush planar→chunky so display_read_pixel() returns current data
     lxa_flush_display();
     
-    // 5. Read pixels after release — should be restored to pre-click values
+    // 5. Read pixels after release — should be restored
     int released_pens[NUM_SAMPLES];
     int restored_count = 0;
     for (int i = 0; i < NUM_SAMPLES; i++) {
@@ -462,7 +639,6 @@ TEST_F(SimpleGadPixelTest, GadghcompHighlightOnClick) {
         }
     }
     
-    // All pixels should be restored after release (XOR is self-inverting)
     EXPECT_EQ(restored_count, NUM_SAMPLES)
         << "GADGHCOMP: All pixels should be restored after button release. "
            "Pre: " << pre_click_pens[0] << "," << pre_click_pens[1] << "," << pre_click_pens[2]

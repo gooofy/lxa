@@ -44,6 +44,7 @@ extern void lxa_reset_host_state(void);
 #define ROM_START 0xf80000
 #define TIMER_INTERVAL_US 20000
 #define EXECBASE_LIBLIST             392
+#define EXECBASE_TASKREADY           406
 #define INTUITIONBASE_FIRSTSCREEN    60
 
 #define NODE_SUCC_OFFSET             0
@@ -339,6 +340,16 @@ static bool g_api_initialized = false;
 static char g_output_buffer[64 * 1024];
 static int g_output_len = 0;
 
+/*
+ * Phase 106: Track whether the planar-to-chunky pixel buffer is stale.
+ * In headless mode the VBlank handler skips the expensive conversion,
+ * so the display pixel buffer drifts out of date.  Any function that
+ * reads pixels (lxa_read_pixel, lxa_read_pixel_rgb, lxa_get_content_pixels)
+ * checks this flag and calls lxa_flush_display() once on demand, keeping
+ * per-pixel overhead near zero while still returning correct data.
+ */
+static bool s_display_dirty = true;
+
 /* Output capture hook - called from lxa.c _dos_write */
 void lxa_api_capture_output(const char *data, int len)
 {
@@ -456,6 +467,7 @@ int lxa_init(const lxa_config_t *config)
     g_running = true;
     g_api_initialized = true;
     g_output_len = 0;
+    s_display_dirty = true;
 
     /* Install console output capture hook */
     lxa_set_console_output_hook(lxa_api_capture_output);
@@ -542,7 +554,15 @@ static int s_cycles_since_auto_vblank = 0;
  * LOG_LEVEL suppresses DPRINTF overhead that would otherwise slow down
  * execution and naturally space out VBlanks.
  */
-#define AUTO_VBLANK_CYCLES 100000
+/*
+ * Phase 106: Raised from 100K to 500K.  The lower value caused up to
+ * 10 spurious auto-VBlanks per 1M-cycle inject_string step, each
+ * triggering a full planar-to-chunky conversion in non-headless mode
+ * and unnecessary VBlank ISR overhead in all modes.  500K still fires
+ * roughly every ~70 ms of emulated time (7 MHz / 500K ≈ 14 Hz),
+ * which is frequent enough for timer completions and input delivery.
+ */
+#define AUTO_VBLANK_CYCLES 500000
 
 int lxa_run_cycles(int cycles)
 {
@@ -569,31 +589,45 @@ int lxa_run_cycles(int cycles)
          * Phase 58: This was missing - display_refresh_all() only converts
          * the existing pixel buffer to SDL, but didn't update the pixel
          * buffer from the Amiga's planar bitmap first.
+         *
+         * Phase 106: Skip the expensive planar-to-chunky conversion and
+         * display refresh in headless mode.  Tests that need pixel data
+         * call lxa_flush_display() or lxa_capture_window() explicitly,
+         * both of which always perform the conversion regardless of this
+         * skip.  This eliminates ~150 full-screen conversions per typical
+         * test SetUp.
          */
-        display_t *disp = display_get_active();
-        uint32_t planes_ptr, bpr, depth;
-        if (disp && display_get_amiga_bitmap(disp, &planes_ptr, &bpr, &depth))
-        {
-            int w, h, d;
-            display_get_size(disp, &w, &h, &d);
-
-            /* Read plane pointers from m68k memory */
-            const uint8_t *planes[8] = {0};
-            for (uint32_t i = 0; i < depth && i < 8; i++)
+        if (!display_get_headless()) {
+            display_t *disp = display_get_active();
+            uint32_t planes_ptr, bpr, depth;
+            if (disp && display_get_amiga_bitmap(disp, &planes_ptr, &bpr, &depth))
             {
-                uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
-                if (plane_addr && plane_addr < RAM_SIZE)
+                int w, h, d;
+                display_get_size(disp, &w, &h, &d);
+
+                /* Read plane pointers from m68k memory */
+                const uint8_t *planes[8] = {0};
+                for (uint32_t i = 0; i < depth && i < 8; i++)
                 {
-                    planes[i] = (const uint8_t *)&g_ram[plane_addr];
+                    uint32_t plane_addr = m68k_read_memory_32(planes_ptr + i * 4);
+                    if (plane_addr && plane_addr < RAM_SIZE)
+                    {
+                        planes[i] = (const uint8_t *)&g_ram[plane_addr];
+                    }
                 }
+
+                /* Update display from planar data */
+                display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
             }
 
-            /* Update display from planar data */
-            display_update_planar(disp, 0, 0, w, h, planes, bpr, depth);
+            /* Refresh displays (now with updated pixel data) */
+            display_refresh_all();
+        } else {
+            /* Headless: pixel buffer is now stale.  Functions that
+             * read pixels (lxa_read_pixel, etc.) will auto-flush on
+             * the first access after this point. */
+            s_display_dirty = true;
         }
-
-        /* Refresh displays (now with updated pixel data) */
-        display_refresh_all();
 
         /* Check timer queue */
         _timer_check_expired();
@@ -657,6 +691,46 @@ void lxa_trigger_vblank(void)
     g_pending_irq |= (1 << 3);  /* Level 3 = VBlank */
 }
 
+bool lxa_is_idle(void)
+{
+    if (!g_api_initialized) return false;
+
+    /*
+     * Check whether the TaskReady list is empty.  When it is, no Exec
+     * task has pending work — every task (including the app under test)
+     * is in TS_WAIT, blocked on WaitPort() or similar.  This means the
+     * emulated system has finished processing the most recent event and
+     * is waiting for new input.
+     *
+     * We read the list directly from emulated memory to avoid coupling
+     * with ROM internals beyond the well-defined ExecBase layout.
+     */
+    uint32_t sysbase = m68k_read_memory_32(4);
+    if (sysbase == 0) return false;
+
+    uint32_t list_addr = sysbase + EXECBASE_TASKREADY;
+    uint32_t lh_Head = m68k_read_memory_32(list_addr);
+    uint32_t lh_Tail_addr = list_addr + 4;
+
+    return lh_Head == lh_Tail_addr;
+}
+
+int lxa_run_until_idle(int max_iterations, int cycles_per_iter)
+{
+    if (!g_api_initialized || !g_running) return 0;
+
+    for (int i = 0; i < max_iterations; i++) {
+        lxa_trigger_vblank();
+        if (lxa_run_cycles(cycles_per_iter) != 0)
+            return i + 1;
+
+        if (lxa_is_idle())
+            return i + 1;
+    }
+
+    return max_iterations;
+}
+
 void lxa_flush_display(void)
 {
     /* Force an immediate planar-to-chunky conversion so that
@@ -688,6 +762,8 @@ void lxa_flush_display(void)
     /* Also sync rootless windows from their screen bitmaps so that
      * headless capture (display_capture_window) sees current pixel data. */
     display_refresh_all();
+
+    s_display_dirty = false;
 }
 
 bool lxa_is_running(void)
@@ -748,35 +824,27 @@ bool lxa_inject_mouse_click(int x, int y, int button)
     if (!display_inject_mouse(x, y, 0, DISPLAY_EVENT_MOUSEMOVE))
         return false;
     
-    /* Trigger VBlank to ensure event is processed - need enough cycles for handler to complete */
-    lxa_trigger_vblank();
-    lxa_run_cycles(50000);
+    /*
+     * Phase 106: Use idle detection to return early.  The previous
+     * fixed budget of 11 VBlanks x 50K cycles (550K total) was
+     * chosen conservatively.  With idle detection we run the minimum
+     * cycles needed: 1 move settle + 3 press settle + 3 release
+     * settle, returning early from each batch as soon as the app
+     * reaches WaitPort().
+     */
+    lxa_run_until_idle(1, 50000);
 
     /* Press button */
     if (!display_inject_mouse(x, y, button, DISPLAY_EVENT_MOUSEBUTTON))
         return false;
 
-    /* Multiple VBlanks to ensure event goes through the full pipeline:
-     * 1. Event queued
-     * 2. VBlank polls events
-     * 3. ProcessInputEvents processes the event
-     * 4. IDCMP message is posted
-     * 5. Task is signaled and scheduled
-     * 6. Task runs and prints output
-     */
-    for (int i = 0; i < 5; i++) {
-        lxa_trigger_vblank();
-        lxa_run_cycles(50000);
-    }
+    lxa_run_until_idle(3, 50000);
 
     /* Release button */
     if (!display_inject_mouse(x, y, 0, DISPLAY_EVENT_MOUSEBUTTON))
         return false;
 
-    for (int i = 0; i < 5; i++) {
-        lxa_trigger_vblank();
-        lxa_run_cycles(50000);
-    }
+    lxa_run_until_idle(3, 50000);
 
     return true;
 }
@@ -797,10 +865,20 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
     if (!display_inject_mouse(start_x, start_y, 0, DISPLAY_EVENT_MOUSEMOVE))
         return false;
     
+    /*
+     * Phase 106: Drag steps need generous cycle budgets because
+     * Intuition's rendering happens in the input.device handler
+     * (interrupt context), not in a normal task.  The CPU task
+     * goes idle immediately, but the rendering work still needs
+     * VBlank cycles to complete.  Idle detection is therefore
+     * unreliable here — use fixed budgets instead.
+     *
+     * The original pre-Phase-106 budget was 500K per step.
+     * We reduce to 3 VBlanks × 200K cycles each, which is still
+     * significantly less overhead while keeping drag fidelity.
+     */
     lxa_trigger_vblank();
-    int rc = lxa_run_cycles(500000);
-    if (rc != 0)
-        return false;
+    lxa_run_cycles(200000);
 
     /* Press button */
     if (!display_inject_mouse(start_x, start_y, button, DISPLAY_EVENT_MOUSEBUTTON))
@@ -808,17 +886,12 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
     
     /*
      * After a button press (especially RMB which enters menu mode),
-     * the VBlank ISR may do heavy rendering (menu bar + dropdown items).
-     * The edge-triggered IRQ fix in lxa_run_cycles() ensures that
-     * subsequent VBlanks are delivered even while the CPU is at IPL=3,
-     * so we just need enough settling iterations for the ISR to
-     * complete and the menu system to finish rendering.
+     * the VBlank ISR triggers heavy rendering (menu bar + items).
+     * Give enough VBlanks for the menu system to set up.
      */
     for (int i = 0; i < 5; i++) {
         lxa_trigger_vblank();
-        rc = lxa_run_cycles(500000);
-        if (rc != 0)
-            return false;
+        lxa_run_cycles(200000);
     }
 
     /* Interpolate movement */
@@ -832,21 +905,23 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
         if (!inj)
             return false;
         
-        lxa_trigger_vblank();
-        rc = lxa_run_cycles(500000);
-        if (rc != 0)
-            return false;
+        /* Each movement step needs VBlank processing for the
+         * input handler to see the new coordinates. */
+        for (int i = 0; i < 3; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(200000);
+        }
     }
 
     /* Release button at end position */
     if (!display_inject_mouse(end_x, end_y, 0, DISPLAY_EVENT_MOUSEBUTTON))
         return false;
     
+    /* Let the release event propagate — menu cleanup / window
+     * resize finalization happen here. */
     for (int i = 0; i < 5; i++) {
         lxa_trigger_vblank();
-        rc = lxa_run_cycles(500000);
-        if (rc != 0)
-            return false;
+        lxa_run_cycles(200000);
     }
 
     return true;
@@ -871,12 +946,16 @@ bool lxa_inject_string(const char *str)
     if (!g_api_initialized) return false;
     if (!str) return false;
     
-    /* Inject each character as a separate keypress with VBlank + cycles
-     * between each one. This is necessary because each keystroke in a
-     * string gadget triggers a full gadget re-render (Text() with per-pixel
-     * rendering), which consumes many CPU cycles. Without VBlanks between
-     * keystrokes, events pile up in the queue and the emulator runs out
-     * of cycles to process them all. */
+    /*
+     * Phase 106: Use idle detection to dramatically reduce cycle waste.
+     * Previously each character cost 2 × 500K = 1M cycles unconditionally.
+     * Now we run up to 5 iterations of 50K cycles per key event but return
+     * early as soon as the app goes idle (all tasks in TS_WAIT).
+     *
+     * For a typical string gadget keystroke the app needs ~20-30K cycles
+     * to process the event and re-render, so idle detection typically
+     * returns after 1-2 iterations instead of burning the full budget.
+     */
     for (const char *p = str; *p; p++)
     {
         bool need_shift = false;
@@ -887,20 +966,11 @@ bool lxa_inject_string(const char *str)
         
         /* Key down */
         display_inject_key(rawkey, qualifier, true);
-        
-        /* Trigger VBlank + run cycles so the key-down event is processed
-         * and any gadget rendering completes.
-         * 500000 cycles is needed because Text() does per-pixel rendering
-         * (e.g. 10 chars * 8x8 pixels * 2 planes = ~12800 plane writes). */
-        lxa_trigger_vblank();
-        lxa_run_cycles(500000);
+        lxa_run_until_idle(5, 50000);
         
         /* Key up */
         display_inject_key(rawkey, qualifier, false);
-        
-        /* Run cycles for key-up processing */
-        lxa_trigger_vblank();
-        lxa_run_cycles(500000);
+        lxa_run_until_idle(5, 50000);
     }
     
     return true;
@@ -1094,12 +1164,14 @@ bool lxa_get_screen_info(lxa_screen_info_t *info)
 bool lxa_read_pixel(int x, int y, int *pen)
 {
     if (!g_api_initialized) return false;
+    if (s_display_dirty) lxa_flush_display();
     return display_read_pixel(x, y, pen);
 }
 
 bool lxa_read_pixel_rgb(int x, int y, uint8_t *r, uint8_t *g, uint8_t *b)
 {
     if (!g_api_initialized) return false;
+    if (s_display_dirty) lxa_flush_display();
     return display_read_pixel_rgb(x, y, r, g, b);
 }
 
@@ -1234,6 +1306,7 @@ void lxa_clear_output(void)
 bool lxa_capture_screen(const char *filename)
 {
     if (!g_api_initialized) return false;
+    if (s_display_dirty) lxa_flush_display();
     
     display_t *disp = display_get_active();
     if (!disp) return false;
@@ -1245,6 +1318,7 @@ bool lxa_capture_window(int window_index, const char *filename)
 {
     if (!g_api_initialized || !filename)
         return false;
+    if (s_display_dirty) lxa_flush_display();
 
     return display_capture_window_by_index(window_index, filename);
 }

@@ -79,7 +79,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             TIMEOUT 180)
     endif()
     
-    # SimpleMenu - menu system test (GTest version)
+    # SimpleMenu - menu system test (Phase 107: persistent fixture, 2 shards for different configs)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplemenu_gtest.cpp)
         add_gtest_driver_target(simplemenu_gtest)
         add_gtest_driver_shard(simplemenu_behavior_gtest simplemenu_gtest
@@ -149,9 +149,15 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(rawkey_gtest)
     endif()
     
-    # SimpleGTGadget - GadTools gadget test
+    # SimpleGTGadget - GadTools gadget test (Phase 107: persistent fixture, 2 shards for different configs)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simplegtgadget_gtest.cpp)
-        add_gtest_driver(simplegtgadget_gtest)
+        add_gtest_driver_target(simplegtgadget_gtest)
+        add_gtest_driver_shard(simplegtgadget_behavior_gtest simplegtgadget_gtest
+            FILTER "SimpleGTGadgetTest.*"
+            TIMEOUT 180)
+        add_gtest_driver_shard(simplegtgadget_pixels_gtest simplegtgadget_gtest
+            FILTER "SimpleGTGadgetPixelTest.*"
+            TIMEOUT 180)
     endif()
     
     # UpdateStrGad - string gadget test
@@ -291,18 +297,9 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(asm_one_gtest)
     endif()
     
-    # Devpac - HiSoft assembler test (sharded: SetUp takes ~25s per test)
+    # Devpac - HiSoft assembler test (Phase 107: persistent fixture, no sharding needed)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/devpac_gtest.cpp)
-        add_gtest_driver_target(devpac_gtest)
-        add_gtest_driver_shard(devpac_startup_gtest devpac_gtest
-            FILTER "DevpacTest.WindowOpens:DevpacTest.ScreenDimensions:DevpacTest.EditorVisible"
-            TIMEOUT 180)
-        add_gtest_driver_shard(devpac_visual_gtest devpac_gtest
-            FILTER "DevpacTest.RootlessHostWindowIncludesScreenStripAboveWindow:DevpacTest.MenuBarRemainsVisibleAfterRepeatedMenuOpenClose:DevpacTest.AboutDialogDoesNotDuplicateInsideMainWindow"
-            TIMEOUT 180)
-        add_gtest_driver_shard(devpac_input_gtest devpac_gtest
-            FILTER "DevpacTest.RespondsToInput:DevpacTest.MouseInput:DevpacTest.CursorKeys"
-            TIMEOUT 180)
+        add_gtest_driver(devpac_gtest)
     endif()
     
     # KickPascal - Pascal IDE test
@@ -310,29 +307,14 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(kickpascal_gtest)
     endif()
     
-    # MaxonBASIC - BASIC IDE test (sharded: SetUp takes ~25s per test)
+    # MaxonBASIC - BASIC IDE test (Phase 107: persistent fixture, no sharding needed)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/maxonbasic_gtest.cpp)
-        add_gtest_driver_target(maxonbasic_gtest)
-        add_gtest_driver_shard(maxonbasic_startup_gtest maxonbasic_gtest
-            FILTER "MaxonBasicTest.WindowOpens:MaxonBasicTest.ScreenDimensions:MaxonBasicTest.EditorVisible"
-            TIMEOUT 180)
-        add_gtest_driver_shard(maxonbasic_input_gtest maxonbasic_gtest
-            FILTER "MaxonBasicTest.TextEntry:MaxonBasicTest.MouseInput:MaxonBasicTest.CursorKeys"
-            TIMEOUT 180)
+        add_gtest_driver(maxonbasic_gtest)
     endif()
     
-    # Cluster2 - Oberon-2 IDE test
+    # Cluster2 - Oberon-2 IDE test (Phase 107: persistent fixture, no sharding needed)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/cluster2_gtest.cpp)
-        add_gtest_driver_target(cluster2_gtest)
-        add_gtest_driver_shard(cluster2_startup_gtest cluster2_gtest
-            FILTER "Cluster2Test.WindowOpens:Cluster2Test.ScreenDimensions:Cluster2Test.EditorReady"
-            TIMEOUT 180)
-        add_gtest_driver_shard(cluster2_input_gtest cluster2_gtest
-            FILTER "Cluster2Test.RespondsToInput:Cluster2Test.MouseInput"
-            TIMEOUT 180)
-        add_gtest_driver_shard(cluster2_navigation_gtest cluster2_gtest
-            FILTER "Cluster2Test.CursorKeys:Cluster2Test.RMBMenuAccess"
-            TIMEOUT 180)
+        add_gtest_driver(cluster2_gtest)
     endif()
 
     # BlitzBasic2 - IDE startup and interaction test

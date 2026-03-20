@@ -4,29 +4,32 @@
 
 ## Current Phases
 
-- No active phase; next work is Phase 106 (test performance quick wins).
+- Phase 108 is the next active phase (Cluster2 app testing).
+
+## Completed Phases (recent)
+
+- Phase 107: Test performance — persistent fixtures and SetUp deduplication (complete)
+	- Converted 7 multi-test-case drivers to `SetUpTestSuite()` / `TearDownTestSuite()`:
+	  api_gtest (8 tests, 1 shard), cluster2_gtest (7 tests, 3→1 shard),
+	  maxonbasic_gtest (5 tests, 2→1 shard), devpac_gtest (9 tests, 3→1 shard),
+	  simplegad_gtest (8 tests, 2 fixtures/shards), simplemenu_gtest (5 tests, 2 fixtures/shards),
+	  simplegtgadget_gtest (8 tests, 1→2 fixtures/shards).
+	- Pattern: inherit `::testing::Test` directly, replicate `LxaTest` assigns in static `SetUpTestSuite()`, use `s_setup_ok` bool + `GTEST_SKIP()` for per-test guard, place destructive tests (CloseWindow, QuitViaMenu) last.
+	- Two-fixture files (simplegad, simplemenu, simplegtgadget) keep 2 CTest shards since the behavioral (rootless) and pixel (non-rootless) fixtures require different emulator configs.
+	- Removed redundant close+exit from simplegtgadget behavioral tests (ClickButton, ClickCheckbox, ClickCycle, NumberGadgetAcceptsKeyboardInput) so they coexist in a persistent fixture.
+	- Result: 63 CTest shards (down from 67 due to shard consolidation), all passing, wall-time reduced from ~131s to ~112s (14% improvement on top of Phase 106's 38%).
+	- Combined Phase 106+107 improvement: wall-time from ~210s to ~112s (47% total reduction).
+
+- Phase 106: Test performance — headless display skip, idle detection, reduced cycle budgets (complete)
+	- Skipped `display_update_planar()`/`display_refresh_all()` in headless VBlank; added `s_display_dirty` flag so `lxa_read_pixel()`/`lxa_capture_*()` auto-flush on demand.
+	- Raised `AUTO_VBLANK_CYCLES` from 100K to 500K.
+	- Added `lxa_is_idle()` (TaskReady empty check) and `lxa_run_until_idle()`.
+	- Reduced `lxa_inject_mouse_click()` from 11 to 6 settle iterations via idle detection.
+	- Reduced `lxa_inject_string()` per-character budget from 2×500K to 10×50K with idle early-return.
+	- Reduced `lxa_inject_drag()` per-step budget from 500K to 3×200K (fixed VBlank-driven, not idle-detected, because Intuition renders in interrupt context).
+	- Result: all 67 tests pass, wall-time reduced from ~210s to ~131s (38% improvement).
 
 ## Future Phases
-
-### Near-term: Test Performance Quick Wins (before more app phases)
-
-The test suite currently takes ~210 seconds wall-time. Most of that time is
-spent on over-provisioned cycle budgets and redundant per-test app startup,
-not on actual emulation work. These phases address the low-hanging fruit before
-adding more app tests that would compound the slowness.
-
-- Phase 106: Test performance — headless display skip and reduced cycle budgets
-	- Skip `display_update_planar()` and `display_refresh_all()` in headless mode unless `lxa_flush_display()` or `lxa_capture_window()` is explicitly called. This avoids ~150 full planar-to-chunky conversions per test SetUp that produce pixels nobody looks at.
-	- Raise `AUTO_VBLANK_CYCLES` from 100K to 500K to reduce spurious display refreshes during large cycle runs.
-	- Add an `lxa_is_idle()` / task-blocked detection: check whether all Exec tasks are in `TS_WAIT` state (blocked on `WaitPort()`). Expose this to the host so `WaitForEventLoop()` and `RunCyclesWithVBlank()` can return early when the app is idle instead of burning millions of cycles pointlessly.
-	- Once idle detection is proven reliable, reduce `lxa_inject_string()` per-character budget from 1M to ~100K cycles, `lxa_inject_drag()` per-step budget from 500K to ~100K, and `lxa_inject_mouse_click()` settle iterations from 11 to 3-5.
-	- Validate: all 67 existing tests must still pass. Measure wall-time improvement. Target: full suite in <90 seconds (down from ~210).
-
-- Phase 107: Test performance — persistent fixtures and SetUp deduplication
-	- Convert multi-test-case app drivers (maxonbasic, devpac, cluster2, sigma, blitzbasic2, asm_one, vim) from per-test `SetUp()` to `SetUpTestSuite()` / `TearDownTestSuite()` (GTest static fixture). Load the app once per binary, run all test cases against the already-initialized instance.
-	- This requires careful test ordering: tests that modify app state (typing, menu selection) must either restore state afterward or run in a defined sequence. Use `GTEST_SKIP()` if a prior interaction left the app in an unrecoverable state.
-	- Address the GTest limitation that `SetUpTestSuite()` cannot use `ASSERT_*` directly — use a static bool to track initialization success and skip all tests if setup failed.
-	- Validate: same test coverage, same pass rate, dramatically reduced wall-time for multi-case drivers. Target: maxonbasic_input from ~155s to <30s.
 
 ### App Testing Phases (continuing the integration test sweep)
 

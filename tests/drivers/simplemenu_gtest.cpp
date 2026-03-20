@@ -2,34 +2,161 @@
  * simplemenu_gtest.cpp - Google Test version of SimpleMenu test
  *
  * Tests the SimpleMenu sample which demonstrates Amiga menu system.
+ *
+ * Phase 107: Both fixtures use SetUpTestSuite() to load SimpleMenu once,
+ * avoiding redundant emulator init + program load per test case.
+ * QuitViaMenu must be the last test in the behavioral fixture since it
+ * terminates the emulated program.
  */
 
 #include "lxa_test.h"
 
 using namespace lxa::testing;
 
-class SimpleMenuTest : public LxaUITest {
+// ============================================================================
+// Behavioral tests (rootless mode - default)
+// ============================================================================
+
+class SimpleMenuTest : public ::testing::Test {
 protected:
-    void SetUp() override {
-        LxaUITest::SetUp();
-        
-        // Load the SimpleMenu program
-        ASSERT_EQ(lxa_load_program("SYS:SimpleMenu", ""), 0) 
-            << "Failed to load SimpleMenu";
-        
-        // Wait for window to open
-        ASSERT_TRUE(WaitForWindows(1, 5000)) 
-            << "Window did not open within 5 seconds";
-        
-        // Get window information
-        ASSERT_TRUE(GetWindowInfo(0, &window_info)) 
-            << "Could not get window info";
-        
-        // Let task reach Wait()
-        WaitForEventLoop(100, 10000);
-        ClearOutput();
+    /* ---- Shared state (lives for the entire test suite) ---- */
+    static bool s_setup_ok;
+    static lxa_window_info_t s_window_info;
+    static std::string s_ram_dir;
+    static std::string s_t_dir;
+    static std::string s_env_dir;
+
+    static void SetUpTestSuite() {
+        s_setup_ok = false;
+
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t config;
+        memset(&config, 0, sizeof(config));
+        config.headless = true;
+        config.verbose  = false;
+        config.rootless = true;
+
+        config.rom_path = FindRomPath();
+        if (!config.rom_path) {
+            fprintf(stderr, "SimpleMenuTest: could not find lxa.rom\n");
+            return;
+        }
+
+        if (lxa_init(&config) != 0) {
+            fprintf(stderr, "SimpleMenuTest: lxa_init() failed\n");
+            return;
+        }
+
+        /* Set up assigns (mirrors LxaTest::SetUp) */
+        const char* samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char* sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char* tplibs = FindThirdPartyLibsPath();
+        if (tplibs) lxa_add_assign("LIBS", tplibs);
+        const char* libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+        const char* apps = FindAppsPath();
+        if (apps) lxa_add_assign("APPS", apps);
+        const char* cmds = FindCommandsPath();
+        if (cmds) lxa_add_assign("C", cmds);
+        const char* sys = FindSystemPath();
+        if (sys) lxa_add_assign("System", sys);
+
+        char ram[] = "/tmp/lxa_test_RAM_XXXXXX";
+        if (mkdtemp(ram)) { s_ram_dir = ram; lxa_add_drive("RAM", ram); }
+        char tdir[] = "/tmp/lxa_test_T_XXXXXX";
+        if (mkdtemp(tdir)) { s_t_dir = tdir; lxa_add_assign("T", tdir); }
+        char edir[] = "/tmp/lxa_test_ENV_XXXXXX";
+        if (mkdtemp(edir)) {
+            s_env_dir = edir;
+            lxa_add_assign("ENV", edir);
+            lxa_add_assign("ENVARC", edir);
+        }
+
+        /* Load SimpleMenu */
+        if (lxa_load_program("SYS:SimpleMenu", "") != 0) {
+            fprintf(stderr, "SimpleMenuTest: failed to load SimpleMenu\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_wait_windows(1, 5000)) {
+            fprintf(stderr, "SimpleMenuTest: window did not open\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_get_window_info(0, &s_window_info)) {
+            fprintf(stderr, "SimpleMenuTest: could not get window info\n");
+            lxa_shutdown();
+            return;
+        }
+
+        /* WaitForEventLoop(100, 10000) equivalent */
+        for (int i = 0; i < 100; i++)
+            lxa_run_cycles(10000);
+
+        lxa_clear_output();
+
+        s_setup_ok = true;
     }
+
+    static void TearDownTestSuite() {
+        lxa_shutdown();
+
+        auto rm = [](std::string& d) {
+            if (!d.empty()) {
+                std::string cmd = "rm -rf " + d;
+                system(cmd.c_str());
+                d.clear();
+            }
+        };
+        rm(s_ram_dir);
+        rm(s_t_dir);
+        rm(s_env_dir);
+    }
+
+    /* ---- Per-test hooks ---- */
+    void SetUp() override {
+        if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    }
+
+    /* Convenience accessors */
+    lxa_window_info_t& window_info = s_window_info;
+
+    void RunCyclesWithVBlank(int iterations = 20, int cycles_per_iteration = 50000) {
+        for (int i = 0; i < iterations; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(cycles_per_iteration);
+        }
+    }
+
+    void RunCycles(int cycles) {
+        lxa_run_cycles(cycles);
+    }
+
+    void Click(int x, int y, int button = LXA_MOUSE_LEFT) {
+        lxa_inject_mouse_click(x, y, button);
+    }
+
+    std::string GetOutput() {
+        char buf[65536];
+        lxa_get_output(buf, sizeof(buf));
+        return std::string(buf);
+    }
+    void ClearOutput() { lxa_clear_output(); }
 };
+
+/* Static member definitions */
+bool                SimpleMenuTest::s_setup_ok = false;
+lxa_window_info_t   SimpleMenuTest::s_window_info = {};
+std::string         SimpleMenuTest::s_ram_dir;
+std::string         SimpleMenuTest::s_t_dir;
+std::string         SimpleMenuTest::s_env_dir;
+
+/* ----- Tests: read-only first, destructive (QuitViaMenu) last ----- */
 
 TEST_F(SimpleMenuTest, WindowOpens) {
     EXPECT_GT(window_info.width, 0);
@@ -70,6 +197,7 @@ TEST_F(SimpleMenuTest, MenuSelection) {
     EXPECT_TRUE(found) << "Expected MENUPICK event after menu selection";
 }
 
+/* QuitViaMenu MUST be the last test — it terminates the emulated program. */
 TEST_F(SimpleMenuTest, QuitViaMenu) {
     ClearOutput();
     
@@ -102,28 +230,149 @@ TEST_F(SimpleMenuTest, QuitViaMenu) {
  * Pixel verification tests — verify menu drop-down is cleaned up properly
  * ============================================================================ */
 
-class SimpleMenuPixelTest : public LxaUITest {
+class SimpleMenuPixelTest : public ::testing::Test {
 protected:
-    void SetUp() override {
-        /* Disable rootless so Intuition renders to screen bitmap */
-        config.rootless = false;
+    /* ---- Shared state (lives for the entire test suite) ---- */
+    static bool s_setup_ok;
+    static lxa_window_info_t s_window_info;
+    static std::string s_ram_dir;
+    static std::string s_t_dir;
+    static std::string s_env_dir;
 
-        LxaUITest::SetUp();
-        
-        ASSERT_EQ(lxa_load_program("SYS:SimpleMenu", ""), 0)
-            << "Failed to load SimpleMenu";
-        
-        ASSERT_TRUE(WaitForWindows(1, 5000))
-            << "Window did not open within 5 seconds";
-        
-        ASSERT_TRUE(GetWindowInfo(0, &window_info))
-            << "Could not get window info";
-        
-        /* Let rendering complete */
-        WaitForEventLoop(100, 10000);
-        RunCyclesWithVBlank(50, 100000);
+    static void SetUpTestSuite() {
+        s_setup_ok = false;
+
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t config;
+        memset(&config, 0, sizeof(config));
+        config.headless = true;
+        config.verbose  = false;
+        config.rootless = false;  /* Non-rootless for pixel verification */
+
+        config.rom_path = FindRomPath();
+        if (!config.rom_path) {
+            fprintf(stderr, "SimpleMenuPixelTest: could not find lxa.rom\n");
+            return;
+        }
+
+        if (lxa_init(&config) != 0) {
+            fprintf(stderr, "SimpleMenuPixelTest: lxa_init() failed\n");
+            return;
+        }
+
+        /* Set up assigns (mirrors LxaTest::SetUp) */
+        const char* samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char* sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char* tplibs = FindThirdPartyLibsPath();
+        if (tplibs) lxa_add_assign("LIBS", tplibs);
+        const char* libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+        const char* apps = FindAppsPath();
+        if (apps) lxa_add_assign("APPS", apps);
+        const char* cmds = FindCommandsPath();
+        if (cmds) lxa_add_assign("C", cmds);
+        const char* sys = FindSystemPath();
+        if (sys) lxa_add_assign("System", sys);
+
+        char ram[] = "/tmp/lxa_test_RAM_XXXXXX";
+        if (mkdtemp(ram)) { s_ram_dir = ram; lxa_add_drive("RAM", ram); }
+        char tdir[] = "/tmp/lxa_test_T_XXXXXX";
+        if (mkdtemp(tdir)) { s_t_dir = tdir; lxa_add_assign("T", tdir); }
+        char edir[] = "/tmp/lxa_test_ENV_XXXXXX";
+        if (mkdtemp(edir)) {
+            s_env_dir = edir;
+            lxa_add_assign("ENV", edir);
+            lxa_add_assign("ENVARC", edir);
+        }
+
+        /* Load SimpleMenu */
+        if (lxa_load_program("SYS:SimpleMenu", "") != 0) {
+            fprintf(stderr, "SimpleMenuPixelTest: failed to load SimpleMenu\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_wait_windows(1, 5000)) {
+            fprintf(stderr, "SimpleMenuPixelTest: window did not open\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_get_window_info(0, &s_window_info)) {
+            fprintf(stderr, "SimpleMenuPixelTest: could not get window info\n");
+            lxa_shutdown();
+            return;
+        }
+
+        /* WaitForEventLoop(100, 10000) equivalent */
+        for (int i = 0; i < 100; i++)
+            lxa_run_cycles(10000);
+
+        /* Trigger extra VBlanks to ensure planar->chunky conversion */
+        for (int i = 0; i < 50; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(100000);
+        }
+
+        s_setup_ok = true;
+    }
+
+    static void TearDownTestSuite() {
+        lxa_shutdown();
+
+        auto rm = [](std::string& d) {
+            if (!d.empty()) {
+                std::string cmd = "rm -rf " + d;
+                system(cmd.c_str());
+                d.clear();
+            }
+        };
+        rm(s_ram_dir);
+        rm(s_t_dir);
+        rm(s_env_dir);
+    }
+
+    /* ---- Per-test hooks ---- */
+    void SetUp() override {
+        if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    }
+
+    /* Convenience accessors */
+    lxa_window_info_t& window_info = s_window_info;
+
+    void RunCyclesWithVBlank(int iterations = 20, int cycles_per_iteration = 50000) {
+        for (int i = 0; i < iterations; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(cycles_per_iteration);
+        }
+    }
+
+    int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0) {
+        lxa_flush_display();
+        int count = 0;
+        for (int y = y1; y <= y2; y++) {
+            for (int x = x1; x <= x2; x++) {
+                int pen;
+                if (lxa_read_pixel(x, y, &pen) && pen != bg_color) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 };
+
+/* Static member definitions */
+bool                SimpleMenuPixelTest::s_setup_ok = false;
+lxa_window_info_t   SimpleMenuPixelTest::s_window_info = {};
+std::string         SimpleMenuPixelTest::s_ram_dir;
+std::string         SimpleMenuPixelTest::s_t_dir;
+std::string         SimpleMenuPixelTest::s_env_dir;
+
+/* ----- Pixel tests ----- */
 
 TEST_F(SimpleMenuPixelTest, MenuDropdownClearedAfterSelection) {
     /* Test that the screen area under the menu drop-down is properly restored

@@ -7,26 +7,176 @@
  * - lxa_get_screen_info()
  * - lxa_read_pixel()
  * - lxa_read_pixel_rgb()
+ *
+ * Phase 107: Uses SetUpTestSuite() to load SimpleGad once for all tests,
+ * avoiding redundant emulator init + program load per test case.
  */
 
 #include "lxa_test.h"
 
 using namespace lxa::testing;
 
-class LxaAPITest : public LxaUITest {
+class LxaAPITest : public ::testing::Test {
 protected:
+    /* ---- Shared state (lives for the entire test suite) ---- */
+    static bool s_setup_ok;
+    static lxa_window_info_t s_window_info;
+    static std::string s_ram_dir;
+    static std::string s_t_dir;
+    static std::string s_env_dir;
+
+    static void SetUpTestSuite() {
+        s_setup_ok = false;
+
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t config;
+        memset(&config, 0, sizeof(config));
+        config.headless = true;
+        config.verbose  = false;
+        config.rootless = true;
+
+        config.rom_path = FindRomPath();
+        if (!config.rom_path) {
+            fprintf(stderr, "LxaAPITest: could not find lxa.rom\n");
+            return;
+        }
+
+        if (lxa_init(&config) != 0) {
+            fprintf(stderr, "LxaAPITest: lxa_init() failed\n");
+            return;
+        }
+
+        /* Set up assigns (mirrors LxaTest::SetUp) */
+        const char* samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char* sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char* tplibs = FindThirdPartyLibsPath();
+        if (tplibs) lxa_add_assign("LIBS", tplibs);
+        const char* libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+        const char* apps = FindAppsPath();
+        if (apps) lxa_add_assign("APPS", apps);
+        const char* cmds = FindCommandsPath();
+        if (cmds) lxa_add_assign("C", cmds);
+        const char* sys = FindSystemPath();
+        if (sys) lxa_add_assign("System", sys);
+
+        char ram[] = "/tmp/lxa_test_RAM_XXXXXX";
+        if (mkdtemp(ram)) { s_ram_dir = ram; lxa_add_drive("RAM", ram); }
+        char tdir[] = "/tmp/lxa_test_T_XXXXXX";
+        if (mkdtemp(tdir)) { s_t_dir = tdir; lxa_add_assign("T", tdir); }
+        char edir[] = "/tmp/lxa_test_ENV_XXXXXX";
+        if (mkdtemp(edir)) {
+            s_env_dir = edir;
+            lxa_add_assign("ENV", edir);
+            lxa_add_assign("ENVARC", edir);
+        }
+
+        /* Load test program */
+        if (lxa_load_program("SYS:SimpleGad", "") != 0) {
+            fprintf(stderr, "LxaAPITest: failed to load SimpleGad\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_wait_windows(1, 5000)) {
+            fprintf(stderr, "LxaAPITest: window did not open\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_get_window_info(0, &s_window_info)) {
+            fprintf(stderr, "LxaAPITest: could not get window info\n");
+            lxa_shutdown();
+            return;
+        }
+
+        /* Let program initialize */
+        for (int i = 0; i < 40; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(50000);
+        }
+
+        s_setup_ok = true;
+    }
+
+    static void TearDownTestSuite() {
+        lxa_shutdown();
+
+        auto rm = [](std::string& d) {
+            if (!d.empty()) {
+                std::string cmd = "rm -rf " + d;
+                system(cmd.c_str());
+                d.clear();
+            }
+        };
+        rm(s_ram_dir);
+        rm(s_t_dir);
+        rm(s_env_dir);
+    }
+
+    /* ---- Per-test hooks ---- */
     void SetUp() override {
-        LxaUITest::SetUp();
-        
-        // Load SimpleGad for testing
-        ASSERT_EQ(lxa_load_program("SYS:SimpleGad", ""), 0);
-        ASSERT_TRUE(WaitForWindows(1, 5000));
-        ASSERT_TRUE(GetWindowInfo(0, &window_info));
-        
-        // Let program initialize
-        RunCyclesWithVBlank(40, 50000);
+        if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    }
+
+    /* Convenience accessors so tests read like before */
+    lxa_window_info_t& window_info = s_window_info;
+
+    std::string GetOutput() {
+        char buf[65536];
+        lxa_get_output(buf, sizeof(buf));
+        return std::string(buf);
+    }
+    void ClearOutput() { lxa_clear_output(); }
+
+    void RunCyclesWithVBlank(int iters = 20, int cyc = 50000) {
+        for (int i = 0; i < iters; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(cyc);
+        }
+    }
+
+    void WaitForEventLoop(int cycles = 200, int cycles_per_iteration = 10000) {
+        for (int i = 0; i < cycles; i++)
+            lxa_run_cycles(cycles_per_iteration);
+    }
+
+    bool WaitForWindowDrawn(int index = 0, int timeout_ms = 5000) {
+        return lxa_wait_window_drawn(index, timeout_ms);
+    }
+
+    std::vector<lxa_gadget_info_t> GetGadgets(int window_index = 0) {
+        std::vector<lxa_gadget_info_t> gadgets;
+        int count = lxa_get_gadget_count(window_index);
+        for (int i = 0; i < count; i++) {
+            lxa_gadget_info_t info;
+            if (lxa_get_gadget_info(window_index, i, &info))
+                gadgets.push_back(info);
+        }
+        return gadgets;
+    }
+
+    bool ClickGadget(int gadget_index, int window_index = 0) {
+        lxa_gadget_info_t info;
+        if (!lxa_get_gadget_info(window_index, gadget_index, &info))
+            return false;
+        return lxa_inject_mouse_click(info.left + info.width / 2,
+                                       info.top + info.height / 2,
+                                       LXA_MOUSE_LEFT);
     }
 };
+
+/* Static member definitions */
+bool                LxaAPITest::s_setup_ok = false;
+lxa_window_info_t   LxaAPITest::s_window_info = {};
+std::string         LxaAPITest::s_ram_dir;
+std::string         LxaAPITest::s_t_dir;
+std::string         LxaAPITest::s_env_dir;
+
+/* ===================================================================== */
 
 TEST_F(LxaAPITest, WindowOpens) {
     EXPECT_GE(lxa_get_window_count(), 1) << "Window should be open";

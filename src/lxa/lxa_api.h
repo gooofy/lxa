@@ -419,6 +419,36 @@ int lxa_get_content_pixels(void);
 void lxa_trigger_vblank(void);
 
 /*
+ * Check whether all Exec tasks are in TS_WAIT state (idle).
+ *
+ * Returns true when the TaskReady list is empty, meaning every task
+ * (including the currently running one) is blocked on WaitPort() or
+ * Wait() and no task has pending work.  This is the signal that the
+ * emulated system has processed all queued events and is waiting for
+ * new input.
+ *
+ * Used by injection helpers to return early instead of burning
+ * millions of cycles waiting for the app to finish processing.
+ *
+ * @return true if all tasks are idle
+ */
+bool lxa_is_idle(void);
+
+/*
+ * Run cycles with VBlank interrupts until idle or budget exhausted.
+ *
+ * Triggers VBlanks and runs cycles in a loop, returning early if all
+ * Exec tasks enter TS_WAIT.  This replaces fixed-count cycle loops
+ * with an adaptive approach that finishes as soon as the emulated
+ * system has processed the pending event.
+ *
+ * @param max_iterations  Maximum VBlank+cycle iterations
+ * @param cycles_per_iter Cycles to execute per iteration
+ * @return Number of iterations actually executed (0 if already idle)
+ */
+int lxa_run_until_idle(int max_iterations, int cycles_per_iter);
+
+/*
  * Wait until the event queue is empty.
  *
  * @param timeout_ms  Maximum time to wait (0 = don't wait, just check)

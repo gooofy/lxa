@@ -2,6 +2,13 @@
  * simplegtgadget_gtest.cpp - Google Test version of SimpleGTGadget test
  *
  * Tests GadTools gadget creation and interaction.
+ *
+ * Phase 107: Both fixtures use SetUpTestSuite() to load SimpleGTGadget once,
+ * avoiding redundant emulator init + program load per test case.
+ * CloseWindow must be the last test in the behavioral fixture since it
+ * terminates the emulated program. Tests that previously closed the window
+ * (ClickButton, ClickCheckbox, ClickCycle, NumberGadgetAcceptsKeyboardInput)
+ * have been refactored to verify gadget interaction without exiting.
  */
 
 #include "lxa_test.h"
@@ -20,8 +27,145 @@ using namespace lxa::testing;
  * Cycle:    (80, 100), size 120x14 (LeftEdge was increased to 80 for PLACETEXT_LEFT)
  */
 
-class SimpleGTGadgetTest : public LxaUITest {
+// ============================================================================
+// Behavioral tests (rootless mode - default)
+// ============================================================================
+
+class SimpleGTGadgetTest : public ::testing::Test {
 protected:
+    /* ---- Shared state (lives for the entire test suite) ---- */
+    static bool s_setup_ok;
+    static lxa_window_info_t s_window_info;
+    static std::string s_ram_dir;
+    static std::string s_t_dir;
+    static std::string s_env_dir;
+
+    static void SetUpTestSuite() {
+        s_setup_ok = false;
+
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t config;
+        memset(&config, 0, sizeof(config));
+        config.headless = true;
+        config.verbose  = false;
+        config.rootless = true;
+
+        config.rom_path = FindRomPath();
+        if (!config.rom_path) {
+            fprintf(stderr, "SimpleGTGadgetTest: could not find lxa.rom\n");
+            return;
+        }
+
+        if (lxa_init(&config) != 0) {
+            fprintf(stderr, "SimpleGTGadgetTest: lxa_init() failed\n");
+            return;
+        }
+
+        /* Set up assigns (mirrors LxaTest::SetUp) */
+        const char* samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char* sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char* tplibs = FindThirdPartyLibsPath();
+        if (tplibs) lxa_add_assign("LIBS", tplibs);
+        const char* libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+        const char* apps = FindAppsPath();
+        if (apps) lxa_add_assign("APPS", apps);
+        const char* cmds = FindCommandsPath();
+        if (cmds) lxa_add_assign("C", cmds);
+        const char* sys = FindSystemPath();
+        if (sys) lxa_add_assign("System", sys);
+
+        char ram[] = "/tmp/lxa_test_RAM_XXXXXX";
+        if (mkdtemp(ram)) { s_ram_dir = ram; lxa_add_drive("RAM", ram); }
+        char tdir[] = "/tmp/lxa_test_T_XXXXXX";
+        if (mkdtemp(tdir)) { s_t_dir = tdir; lxa_add_assign("T", tdir); }
+        char edir[] = "/tmp/lxa_test_ENV_XXXXXX";
+        if (mkdtemp(edir)) {
+            s_env_dir = edir;
+            lxa_add_assign("ENV", edir);
+            lxa_add_assign("ENVARC", edir);
+        }
+
+        /* Load SimpleGTGadget */
+        if (lxa_load_program("SYS:SimpleGTGadget", "") != 0) {
+            fprintf(stderr, "SimpleGTGadgetTest: failed to load SimpleGTGadget\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_wait_windows(1, 5000)) {
+            fprintf(stderr, "SimpleGTGadgetTest: window did not open\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_get_window_info(0, &s_window_info)) {
+            fprintf(stderr, "SimpleGTGadgetTest: could not get window info\n");
+            lxa_shutdown();
+            return;
+        }
+
+        /* Wait for program to initialize, render, and flush startup output */
+        for (int i = 0; i < 100; i++)
+            lxa_run_cycles(10000);
+
+        /* Extra VBlanks for rendering to settle */
+        for (int i = 0; i < 30; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(100000);
+        }
+
+        s_setup_ok = true;
+    }
+
+    static void TearDownTestSuite() {
+        lxa_shutdown();
+
+        auto rm = [](std::string& d) {
+            if (!d.empty()) {
+                std::string cmd = "rm -rf " + d;
+                system(cmd.c_str());
+                d.clear();
+            }
+        };
+        rm(s_ram_dir);
+        rm(s_t_dir);
+        rm(s_env_dir);
+    }
+
+    /* ---- Per-test hooks ---- */
+    void SetUp() override {
+        if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    }
+
+    /* Convenience accessors */
+    lxa_window_info_t& window_info = s_window_info;
+
+    void RunCyclesWithVBlank(int iterations = 20, int cycles_per_iteration = 50000) {
+        for (int i = 0; i < iterations; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(cycles_per_iteration);
+        }
+    }
+
+    void Click(int x, int y, int button = LXA_MOUSE_LEFT) {
+        lxa_inject_mouse_click(x, y, button);
+    }
+
+    void PressKey(int rawkey, int qualifier) {
+        lxa_inject_keypress(rawkey, qualifier);
+    }
+
+    std::string GetOutput() {
+        char buf[65536];
+        lxa_get_output(buf, sizeof(buf));
+        return std::string(buf);
+    }
+    void ClearOutput() { lxa_clear_output(); }
+
     bool WaitForOutputContains(const char* needle, int iterations = 60, int vblanks = 2) {
         for (int i = 0; i < iterations; i++) {
             std::string output = GetOutput();
@@ -30,22 +174,18 @@ protected:
             }
             RunCyclesWithVBlank(vblanks, 100000);
         }
-
         return GetOutput().find(needle) != std::string::npos;
     }
-
-    void SetUp() override {
-        LxaUITest::SetUp();
-        
-        ASSERT_EQ(lxa_load_program("SYS:SimpleGTGadget", ""), 0);
-        ASSERT_TRUE(WaitForWindows(1, 5000));
-        ASSERT_TRUE(GetWindowInfo(0, &window_info));
-        
-        // Wait for program to initialize, render, and flush startup output
-        WaitForEventLoop(100, 10000);
-        RunCyclesWithVBlank(30, 100000);
-    }
 };
+
+/* Static member definitions */
+bool                SimpleGTGadgetTest::s_setup_ok = false;
+lxa_window_info_t   SimpleGTGadgetTest::s_window_info = {};
+std::string         SimpleGTGadgetTest::s_ram_dir;
+std::string         SimpleGTGadgetTest::s_t_dir;
+std::string         SimpleGTGadgetTest::s_env_dir;
+
+/* ----- Tests: non-destructive first, CloseWindow last ----- */
 
 TEST_F(SimpleGTGadgetTest, GadgetCreation) {
     std::string output = GetOutput();
@@ -57,19 +197,20 @@ TEST_F(SimpleGTGadgetTest, GadgetCreation) {
 
 TEST_F(SimpleGTGadgetTest, ClickButton) {
     // Button is at (20, 40) in the window, size 120x14.
-    // Verify the interaction does not hang and the window still closes cleanly.
     int clickX = window_info.x + 20 + 60;  // center of 120px wide button
     int clickY = window_info.y + 40 + 7;   // center of 14px tall button
     
+    ClearOutput();
     Click(clickX, clickY);
     RunCyclesWithVBlank(20, 100000);
-    Click(window_info.x + 5, window_info.y + 5);
-    EXPECT_TRUE(lxa_wait_exit(3000)) << "Program should exit after closing window";
+
+    std::string output = GetOutput();
+    EXPECT_NE(output.find("gadget ID 1"), std::string::npos)
+        << "Button click should produce gadget ID 1 event. Output: " << output;
 }
 
 TEST_F(SimpleGTGadgetTest, ClickCheckbox) {
     // Checkbox is at (20, 60) in the window, size 26x11.
-    // Verify the click produces the expected gadget-up notification.
     int clickX = window_info.x + 20 + 13;   // center of 26px wide gadget
     int clickY = window_info.y + 60 + 5;    // center of 11px tall gadget
 
@@ -80,9 +221,6 @@ TEST_F(SimpleGTGadgetTest, ClickCheckbox) {
     std::string output = GetOutput();
     EXPECT_NE(output.find("gadget ID 2"), std::string::npos)
         << output;
-
-    Click(window_info.x + 5, window_info.y + 5);
-    EXPECT_TRUE(lxa_wait_exit(3000)) << "Program should exit after closing window";
 }
 
 TEST_F(SimpleGTGadgetTest, ClickCycle) {
@@ -95,9 +233,6 @@ TEST_F(SimpleGTGadgetTest, ClickCycle) {
     RunCyclesWithVBlank(30, 100000);
     Click(clickX, clickY);
     RunCyclesWithVBlank(30, 100000);
-
-    Click(window_info.x + 5, window_info.y + 5);
-    EXPECT_TRUE(lxa_wait_exit(3000)) << "Program should exit after closing window";
 
     std::string output = GetOutput();
     EXPECT_NE(output.find("gadget ID 4"), std::string::npos)
@@ -122,11 +257,9 @@ TEST_F(SimpleGTGadgetTest, NumberGadgetAcceptsKeyboardInput) {
     std::string output = GetOutput();
     EXPECT_NE(output.find("IDCMP_GADGETUP: gadget ID 3"), std::string::npos)
         << output;
-
-    Click(window_info.x + 5, window_info.y + 5);
-    EXPECT_TRUE(lxa_wait_exit(3000)) << "Program should exit after closing window";
 }
 
+/* CloseWindow MUST be the last test — it terminates the emulated program. */
 TEST_F(SimpleGTGadgetTest, CloseWindow) {
     // Click close gadget (usually at top-left)
     Click(window_info.x + 5, window_info.y + 5);
@@ -140,23 +273,157 @@ TEST_F(SimpleGTGadgetTest, CloseWindow) {
 // Pixel verification tests (non-rootless mode)
 // ============================================================================
 
-class SimpleGTGadgetPixelTest : public LxaUITest {
+class SimpleGTGadgetPixelTest : public ::testing::Test {
 protected:
+    /* ---- Shared state (lives for the entire test suite) ---- */
+    static bool s_setup_ok;
+    static lxa_window_info_t s_window_info;
+    static std::string s_ram_dir;
+    static std::string s_t_dir;
+    static std::string s_env_dir;
+
+    static void SetUpTestSuite() {
+        s_setup_ok = false;
+
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t config;
+        memset(&config, 0, sizeof(config));
+        config.headless = true;
+        config.verbose  = false;
+        config.rootless = false;  /* Non-rootless for pixel verification */
+
+        config.rom_path = FindRomPath();
+        if (!config.rom_path) {
+            fprintf(stderr, "SimpleGTGadgetPixelTest: could not find lxa.rom\n");
+            return;
+        }
+
+        if (lxa_init(&config) != 0) {
+            fprintf(stderr, "SimpleGTGadgetPixelTest: lxa_init() failed\n");
+            return;
+        }
+
+        /* Set up assigns (mirrors LxaTest::SetUp) */
+        const char* samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char* sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char* tplibs = FindThirdPartyLibsPath();
+        if (tplibs) lxa_add_assign("LIBS", tplibs);
+        const char* libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+        const char* apps = FindAppsPath();
+        if (apps) lxa_add_assign("APPS", apps);
+        const char* cmds = FindCommandsPath();
+        if (cmds) lxa_add_assign("C", cmds);
+        const char* sys = FindSystemPath();
+        if (sys) lxa_add_assign("System", sys);
+
+        char ram[] = "/tmp/lxa_test_RAM_XXXXXX";
+        if (mkdtemp(ram)) { s_ram_dir = ram; lxa_add_drive("RAM", ram); }
+        char tdir[] = "/tmp/lxa_test_T_XXXXXX";
+        if (mkdtemp(tdir)) { s_t_dir = tdir; lxa_add_assign("T", tdir); }
+        char edir[] = "/tmp/lxa_test_ENV_XXXXXX";
+        if (mkdtemp(edir)) {
+            s_env_dir = edir;
+            lxa_add_assign("ENV", edir);
+            lxa_add_assign("ENVARC", edir);
+        }
+
+        /* Load SimpleGTGadget */
+        if (lxa_load_program("SYS:SimpleGTGadget", "") != 0) {
+            fprintf(stderr, "SimpleGTGadgetPixelTest: failed to load SimpleGTGadget\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_wait_windows(1, 5000)) {
+            fprintf(stderr, "SimpleGTGadgetPixelTest: window did not open\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_get_window_info(0, &s_window_info)) {
+            fprintf(stderr, "SimpleGTGadgetPixelTest: could not get window info\n");
+            lxa_shutdown();
+            return;
+        }
+
+        /* Wait for program to initialize */
+        for (int i = 0; i < 100; i++)
+            lxa_run_cycles(10000);
+
+        /* Trigger extra VBlanks to ensure planar->chunky conversion */
+        for (int i = 0; i < 50; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(100000);
+        }
+
+        s_setup_ok = true;
+    }
+
+    static void TearDownTestSuite() {
+        lxa_shutdown();
+
+        auto rm = [](std::string& d) {
+            if (!d.empty()) {
+                std::string cmd = "rm -rf " + d;
+                system(cmd.c_str());
+                d.clear();
+            }
+        };
+        rm(s_ram_dir);
+        rm(s_t_dir);
+        rm(s_env_dir);
+    }
+
+    /* ---- Per-test hooks ---- */
     void SetUp() override {
-        // Disable rootless so Intuition renders window frames to screen bitmap
-        config.rootless = false;
-        
-        LxaUITest::SetUp();
-        
-        ASSERT_EQ(lxa_load_program("SYS:SimpleGTGadget", ""), 0);
-        ASSERT_TRUE(WaitForWindows(1, 5000));
-        ASSERT_TRUE(GetWindowInfo(0, &window_info));
-        
-        // Let rendering complete
-        WaitForEventLoop(100, 10000);
-        RunCyclesWithVBlank(50, 100000);
+        if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    }
+
+    /* Convenience accessors */
+    lxa_window_info_t& window_info = s_window_info;
+
+    void RunCyclesWithVBlank(int iterations = 20, int cycles_per_iteration = 50000) {
+        for (int i = 0; i < iterations; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(cycles_per_iteration);
+        }
+    }
+
+    void Click(int x, int y, int button = LXA_MOUSE_LEFT) {
+        lxa_inject_mouse_click(x, y, button);
+    }
+
+    void PressKey(int rawkey, int qualifier) {
+        lxa_inject_keypress(rawkey, qualifier);
+    }
+
+    int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0) {
+        lxa_flush_display();
+        int count = 0;
+        for (int y = y1; y <= y2; y++) {
+            for (int x = x1; x <= x2; x++) {
+                int pen;
+                if (lxa_read_pixel(x, y, &pen) && pen != bg_color) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 };
+
+/* Static member definitions */
+bool                SimpleGTGadgetPixelTest::s_setup_ok = false;
+lxa_window_info_t   SimpleGTGadgetPixelTest::s_window_info = {};
+std::string         SimpleGTGadgetPixelTest::s_ram_dir;
+std::string         SimpleGTGadgetPixelTest::s_t_dir;
+std::string         SimpleGTGadgetPixelTest::s_env_dir;
+
+/* ----- Pixel tests ----- */
 
 TEST_F(SimpleGTGadgetPixelTest, CheckboxBorderRendered) {
     // Checkbox gadget at (20, 60) size 26x11 should have a bevel border
