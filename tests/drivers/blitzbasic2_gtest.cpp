@@ -1,3 +1,17 @@
+/**
+ * blitzbasic2_gtest.cpp - Google Test version of BlitzBasic2 test
+ *
+ * Tests BlitzBasic2 IDE startup, menu interaction, dialog handling, and
+ * clean exit.  BB2's "ted" editor overlay uses copper-list DMA and blitter
+ * line mode for rendering, neither of which lxa emulates yet — so the
+ * editor surface stays flat grey (pen 0).
+ *
+ * Phase 107b: Uses SetUpTestSuite() to load BlitzBasic2 once,
+ * avoiding redundant emulator init + program load per test case.
+ * QuitMenuItemClosesApp must be the last test since it terminates the
+ * program.
+ */
+
 #include "lxa_test.h"
 
 #include <algorithm>
@@ -7,49 +21,51 @@
 
 using namespace lxa::testing;
 
-class BlitzBasic2Test : public LxaUITest {
+class BlitzBasic2Test : public ::testing::Test {
 protected:
-    bool SetupOriginalSystemAssigns(bool add_libs = false,
-                                    bool add_fonts = false,
-                                    bool add_devs = false)
+    /* ---- Shared state (lives for the entire test suite) ---- */
+    static bool s_setup_ok;
+    static lxa_window_info_t s_window_info;
+    static std::string s_ram_dir;
+    static std::string s_t_dir;
+    static std::string s_env_dir;
+
+    /* ---- Static helpers used during SetUpTestSuite ---- */
+
+    static bool SetupOriginalSystemAssigns(bool add_libs,
+                                           bool add_fonts,
+                                           bool add_devs)
     {
         const char* home = std::getenv("HOME");
-        if (home == nullptr || home[0] == '\0') {
+        if (home == nullptr || home[0] == '\0')
             return false;
-        }
 
         const std::filesystem::path system_base =
-            std::filesystem::path(home) / "media" / "emu" / "amiga" / "FS-UAE" / "hdd" / "system";
+            std::filesystem::path(home) / "media" / "emu" / "amiga" /
+            "FS-UAE" / "hdd" / "system";
 
-        if (!std::filesystem::exists(system_base)) {
+        if (!std::filesystem::exists(system_base))
             return false;
-        }
 
-        if (add_libs && !lxa_add_assign_path("LIBS", (system_base / "Libs").c_str())) {
+        if (add_libs && !lxa_add_assign_path("LIBS", (system_base / "Libs").c_str()))
             return false;
-        }
-
-        if (add_fonts && !lxa_add_assign_path("FONTS", (system_base / "Fonts").c_str())) {
+        if (add_fonts && !lxa_add_assign_path("FONTS", (system_base / "Fonts").c_str()))
             return false;
-        }
-
-        if (add_devs && !lxa_add_assign_path("DEVS", (system_base / "Devs").c_str())) {
+        if (add_devs && !lxa_add_assign_path("DEVS", (system_base / "Devs").c_str()))
             return false;
-        }
 
         return true;
     }
 
-    bool SetupBlitzBasic2Assigns() {
+    static bool SetupBlitzBasic2Assigns() {
         const char* apps = FindAppsPath();
-        if (apps == nullptr) {
+        if (apps == nullptr)
             return false;
-        }
 
-        const std::filesystem::path blitz_base = std::filesystem::path(apps) / "BlitzBasic2";
-        if (!std::filesystem::exists(blitz_base / "blitz2")) {
+        const std::filesystem::path blitz_base =
+            std::filesystem::path(apps) / "BlitzBasic2";
+        if (!std::filesystem::exists(blitz_base / "blitz2"))
             return false;
-        }
 
         return lxa_add_assign("Blitz2", blitz_base.c_str())
             && lxa_add_assign_path("C", (blitz_base / "c").c_str())
@@ -57,54 +73,218 @@ protected:
             && lxa_add_assign_path("S", (blitz_base / "s").c_str());
     }
 
-    void SetUp() override {
-        config.rootless = false;
-        LxaUITest::SetUp();
+    static void SetUpTestSuite() {
+        s_setup_ok = false;
 
-        if (!SetupOriginalSystemAssigns(true, true, true) || !SetupBlitzBasic2Assigns()) {
-            GTEST_SKIP() << "BlitzBasic2 app bundle or original system disk not found";
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t config;
+        memset(&config, 0, sizeof(config));
+        config.headless = true;
+        config.verbose  = false;
+        config.rootless = false;  /* BB2 needs full screen mode */
+
+        config.rom_path = FindRomPath();
+        if (!config.rom_path) {
+            fprintf(stderr, "BlitzBasic2Test: could not find lxa.rom\n");
+            return;
         }
 
-        ASSERT_EQ(lxa_load_program("APPS:BlitzBasic2/blitz2", ""), 0)
-            << "Failed to load BlitzBasic2 via APPS: assign";
+        if (lxa_init(&config) != 0) {
+            fprintf(stderr, "BlitzBasic2Test: lxa_init() failed\n");
+            return;
+        }
+
+        /* Set up assigns (mirrors LxaTest::SetUp) */
+        const char* samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char* sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char* tplibs = FindThirdPartyLibsPath();
+        if (tplibs) lxa_add_assign("LIBS", tplibs);
+        const char* libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+        const char* apps = FindAppsPath();
+        if (apps) lxa_add_assign("APPS", apps);
+        const char* cmds = FindCommandsPath();
+        if (cmds) lxa_add_assign("C", cmds);
+        const char* sys = FindSystemPath();
+        if (sys) lxa_add_assign("System", sys);
+
+        char ram[] = "/tmp/lxa_test_RAM_XXXXXX";
+        if (mkdtemp(ram)) { s_ram_dir = ram; lxa_add_drive("RAM", ram); }
+        char tdir[] = "/tmp/lxa_test_T_XXXXXX";
+        if (mkdtemp(tdir)) { s_t_dir = tdir; lxa_add_assign("T", tdir); }
+        char edir[] = "/tmp/lxa_test_ENV_XXXXXX";
+        if (mkdtemp(edir)) {
+            s_env_dir = edir;
+            lxa_add_assign("ENV", edir);
+            lxa_add_assign("ENVARC", edir);
+        }
+
+        /* Extra assigns for BB2 */
+        if (!SetupOriginalSystemAssigns(true, true, true) ||
+            !SetupBlitzBasic2Assigns()) {
+            fprintf(stderr, "BlitzBasic2Test: app bundle or original system "
+                            "disk not found — all tests will skip\n");
+            lxa_shutdown();
+            return;
+        }
+
+        /* Load BlitzBasic2 */
+        if (lxa_load_program("APPS:BlitzBasic2/blitz2", "") != 0) {
+            fprintf(stderr, "BlitzBasic2Test: failed to load BlitzBasic2\n");
+            lxa_shutdown();
+            return;
+        }
 
         /* BB2's "ted" overlay opens two windows: the main editor and a
          * secondary control window.  Wait for the first window, then
          * let ted complete its initialization during the cycle budget. */
-        ASSERT_TRUE(WaitForWindows(1, 20000))
-            << "BlitzBasic2 did not open its editor window\n"
-            << GetOutput();
+        if (!lxa_wait_windows(1, 20000)) {
+            fprintf(stderr, "BlitzBasic2Test: editor window did not open\n");
+            lxa_shutdown();
+            return;
+        }
 
-        ASSERT_TRUE(GetWindowInfo(0, &window_info));
-        ASSERT_TRUE(WaitForWindowDrawn(0, 5000))
-            << "BlitzBasic2 editor window should expose visible content\n"
-            << GetOutput();
+        if (!lxa_get_window_info(0, &s_window_info)) {
+            fprintf(stderr, "BlitzBasic2Test: could not get window info\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_wait_window_drawn(0, 5000)) {
+            fprintf(stderr, "BlitzBasic2Test: editor window not drawn\n");
+            lxa_shutdown();
+            return;
+        }
 
         /* Let ted finish its startup sequence (keymap probing, console,
          * menu rebuild, prop gadgets).  Ted builds its menu items
          * incrementally, so we need enough cycles for the full menu
-         * strip to be constructed before any menu interaction.
-         * The editor surface itself stays grey because ted relies on
-         * copper-list DMA and blitter line mode for drawing, neither
-         * of which lxa emulates yet. */
-        WaitForEventLoop(200, 10000);
-        RunCyclesWithVBlank(200, 50000);
+         * strip to be constructed before any menu interaction. */
+        for (int i = 0; i < 200; i++)
+            lxa_run_cycles(10000);
+        for (int i = 0; i < 200; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(50000);
+        }
+
+        lxa_clear_output();
+
+        s_setup_ok = true;
+    }
+
+    static void TearDownTestSuite() {
+        lxa_shutdown();
+
+        auto rm = [](std::string& d) {
+            if (!d.empty()) {
+                std::string cmd = "rm -rf " + d;
+                system(cmd.c_str());
+                d.clear();
+            }
+        };
+        rm(s_ram_dir);
+        rm(s_t_dir);
+        rm(s_env_dir);
+    }
+
+    /* ---- Per-test hooks ---- */
+    void SetUp() override {
+        if (!s_setup_ok)
+            GTEST_SKIP() << "BlitzBasic2 app bundle or original system disk "
+                            "not found (or suite setup failed)";
+    }
+
+    /* Convenience accessors */
+    lxa_window_info_t& window_info = s_window_info;
+
+    void RunCyclesWithVBlank(int iterations = 20, int cycles_per_iteration = 50000) {
+        for (int i = 0; i < iterations; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(cycles_per_iteration);
+        }
+    }
+
+    void Click(int x, int y, int button = LXA_MOUSE_LEFT) {
+        lxa_inject_mouse_click(x, y, button);
+    }
+
+    void PressKey(int rawkey, int qualifier) {
+        lxa_inject_keypress(rawkey, qualifier);
+    }
+
+    std::string GetOutput() {
+        char buf[65536];
+        lxa_get_output(buf, sizeof(buf));
+        return std::string(buf);
+    }
+    void ClearOutput() { lxa_clear_output(); }
+
+    bool CaptureWindow(const char* filename, int index = 0) {
+        return lxa_capture_window(index, filename);
+    }
+
+    bool GetWindowInfo(int index, lxa_window_info_t* info) {
+        return lxa_get_window_info(index, info);
+    }
+
+    int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0) {
+        lxa_flush_display();
+        int count = 0;
+        for (int y = y1; y <= y2; y++) {
+            for (int x = x1; x <= x2; x++) {
+                int pen;
+                if (lxa_read_pixel(x, y, &pen) && pen != bg_color)
+                    count++;
+            }
+        }
+        return count;
+    }
+
+    std::vector<lxa_gadget_info_t> GetGadgets(int win_index) {
+        std::vector<lxa_gadget_info_t> result;
+        int count = lxa_get_gadget_count(win_index);
+        for (int i = 0; i < count; i++) {
+            lxa_gadget_info_t info;
+            if (lxa_get_gadget_info(win_index, i, &info))
+                result.push_back(info);
+        }
+        return result;
+    }
+
+    bool ClickGadget(int gadget_index, int win_index = 0) {
+        lxa_gadget_info_t info;
+        if (!lxa_get_gadget_info(win_index, gadget_index, &info))
+            return false;
+        lxa_window_info_t winfo;
+        if (!lxa_get_window_info(win_index, &winfo))
+            return false;
+        int gx = winfo.x + info.left + info.width / 2;
+        int gy = winfo.y + info.top + info.height / 2;
+        Click(gx, gy);
+        return true;
     }
 
     /* --- Menu helpers -------------------------------------------------- */
 
     int MenuBarY() const {
-        return std::max(4, window_info.y / 2);
+        return std::max(4, s_window_info.y / 2);
     }
 
     /**
-     * Two-phase menu interaction that gives ted enough CPU time to build
-     * all menu items before the mouse moves to the target position.
+     * Two-phase menu interaction that gives ted enough CPU time to process
+     * the menu selection.
      *
-     * Phase 1: Press RMB at menu bar to enter menu mode, then burn lots
-     *          of VBlank cycles so ted's incremental menu builder finishes.
+     * Phase 1: Press RMB at menu bar to enter menu mode, burn VBlank
+     *          cycles so Intuition processes the menu strip.
      * Phase 2: Move mouse to the target item Y, burn cycles for highlight,
      *          then release RMB to trigger the selection.
+     *
+     * Note: In the persistent fixture, ted's menus are already built
+     * during SetUpTestSuite, so we use reduced cycle budgets compared
+     * to the per-test version.
      *
      * If @p release is false, the RMB stays pressed (menu stays open).
      * Use this for screenshot captures.
@@ -112,13 +292,14 @@ protected:
     void DragMenu(int menu_x, int item_y, bool release = true) {
         int bar_y = MenuBarY();
 
-        /* Phase 1: open the menu and let ted build all items */
+        /* Phase 1: open the menu */
         lxa_inject_mouse(menu_x, bar_y, 0, LXA_EVENT_MOUSEMOVE);
         lxa_trigger_vblank();
         lxa_run_cycles(500000);
 
         lxa_inject_mouse(menu_x, bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEBUTTON);
-        /* Burn plenty of VBlanks for ted to add all menu items */
+        /* Ted renders menu item text incrementally over multiple VBlanks.
+         * 100 iterations is the calibrated minimum for full rendering. */
         RunCyclesWithVBlank(100, 50000);
 
         /* Phase 2: move to the target item */
@@ -128,7 +309,7 @@ protected:
         if (release) {
             /* Release to trigger MENUPICK */
             lxa_inject_mouse(menu_x, item_y, 0, LXA_EVENT_MOUSEBUTTON);
-            RunCyclesWithVBlank(200, 50000);
+            RunCyclesWithVBlank(60, 50000);
         }
     }
 
@@ -209,6 +390,13 @@ protected:
     }
 };
 
+/* Static member definitions */
+bool                BlitzBasic2Test::s_setup_ok = false;
+lxa_window_info_t   BlitzBasic2Test::s_window_info = {};
+std::string         BlitzBasic2Test::s_ram_dir;
+std::string         BlitzBasic2Test::s_t_dir;
+std::string         BlitzBasic2Test::s_env_dir;
+
 /* ===================================================================== */
 /* Test: Startup opens visible IDE window                                 */
 /* ===================================================================== */
@@ -251,7 +439,7 @@ TEST_F(BlitzBasic2Test, ProjectMenuRendersFullDropdown) {
     /* Keep menu open (no release) for the screenshot capture */
     DragMenu(40, window_info.y + 80, false);
 
-    const std::string menu_path = ram_dir_path + "/blitzbasic2-project-menu.png";
+    const std::string menu_path = s_ram_dir + "/blitzbasic2-project-menu.png";
     ASSERT_TRUE(lxa_capture_screen(menu_path.c_str()));
 
     RgbImage menu_image = LoadPng(menu_path);
@@ -284,16 +472,16 @@ TEST_F(BlitzBasic2Test, AboutDialogOpensAndCloses) {
     const int baseline_windows = lxa_get_window_count();
 
     /* BB2's Project menu layout (each item H=12, menuTop=11):
-     *   NEW            TopEdge= 0  → abs Y = 11..22
-     *   LOAD           TopEdge=12  → abs Y = 23..34
-     *   SAVE           TopEdge=24  → abs Y = 35..46
-     *   DEFAULTS       TopEdge=36  → abs Y = 47..58
-     *   ABOUT          TopEdge=48  → abs Y = 59..70
-     * Target the centre of the ABOUT item at Y ≈ 65. */
+     *   NEW            TopEdge= 0  -> abs Y = 11..22
+     *   LOAD           TopEdge=12  -> abs Y = 23..34
+     *   SAVE           TopEdge=24  -> abs Y = 35..46
+     *   DEFAULTS       TopEdge=36  -> abs Y = 47..58
+     *   ABOUT          TopEdge=48  -> abs Y = 59..70
+     * Target the centre of the ABOUT item at Y = 65. */
     DragMenu(40, 65);
-    /* BB2's main loop needs cycles to pick up the MENUPICK message and
-     * respond.  Give it a generous budget. */
-    RunCyclesWithVBlank(300, 50000);
+    /* DragMenu() already burns 310 VBlank iterations internally.
+     * Give a modest extra budget for BB2 to process the MENUPICK. */
+    RunCyclesWithVBlank(50, 50000);
 
     const int after_count = lxa_get_window_count();
     if (after_count > baseline_windows) {
@@ -317,7 +505,7 @@ TEST_F(BlitzBasic2Test, AboutDialogOpensAndCloses) {
             << "BlitzBasic2 should still be running after About selection\n"
             << GetOutput();
 
-        const std::string path = ram_dir_path + "/blitzbasic2-about-attempt.png";
+        const std::string path = s_ram_dir + "/blitzbasic2-about-attempt.png";
         lxa_capture_screen(path.c_str());
     }
 
@@ -336,9 +524,9 @@ TEST_F(BlitzBasic2Test, ProjectOpenShowsFileRequester) {
     /* BB2 Project menu: "LOAD" is item 2 at TopEdge=12,
      * absolute Y = menuTop(11) + 12 + 6(centre of H=12) = 29. */
     DragMenu(40, 29);
-    /* BB2's main loop needs cycles to pick up the MENUPICK message and
-     * open the file requester.  Give it a generous budget. */
-    RunCyclesWithVBlank(300, 50000);
+    /* DragMenu() already burns 310 VBlank iterations internally.
+     * Give a modest extra budget for BB2 to process the MENUPICK. */
+    RunCyclesWithVBlank(50, 50000);
 
     const int after_count = lxa_get_window_count();
     if (after_count > baseline_windows) {
@@ -363,7 +551,7 @@ TEST_F(BlitzBasic2Test, ProjectOpenShowsFileRequester) {
             << "BlitzBasic2 should still be running after Open attempt\n"
             << GetOutput();
 
-        const std::string path = ram_dir_path + "/blitzbasic2-open-attempt.png";
+        const std::string path = s_ram_dir + "/blitzbasic2-open-attempt.png";
         lxa_capture_screen(path.c_str());
     }
 
@@ -374,6 +562,8 @@ TEST_F(BlitzBasic2Test, ProjectOpenShowsFileRequester) {
 
 /* ===================================================================== */
 /* Test: Menu interaction does not crash (Quit via keyboard shortcut)      */
+/*                                                                         */
+/* MUST BE LAST — terminates the emulated program.                         */
 /* ===================================================================== */
 
 TEST_F(BlitzBasic2Test, QuitMenuItemClosesApp) {

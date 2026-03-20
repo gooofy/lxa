@@ -165,8 +165,15 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(updatestrgad_gtest)
     endif()
 
+    # Talk2Boopsi - BOOPSI gadget communication test (Phase 107b: persistent fixture, 2 shards for different configs)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/talk2boopsi_gtest.cpp)
-        add_gtest_driver(talk2boopsi_gtest)
+        add_gtest_driver_target(talk2boopsi_gtest)
+        add_gtest_driver_shard(talk2boopsi_behavior_gtest talk2boopsi_gtest
+            FILTER "Talk2BoopsiTest.*"
+            TIMEOUT 180)
+        add_gtest_driver_shard(talk2boopsi_pixels_gtest talk2boopsi_gtest
+            FILTER "Talk2BoopsiPixelTest.*"
+            TIMEOUT 180)
     endif()
 
     # IntuiText - IntuiText rendering test
@@ -317,15 +324,9 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(cluster2_gtest)
     endif()
 
-    # BlitzBasic2 - IDE startup and interaction test
+    # BlitzBasic2 - IDE startup and interaction test (Phase 107b: persistent fixture, single shard)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/blitzbasic2_gtest.cpp)
-        add_gtest_driver_target(blitzbasic2_gtest)
-        add_gtest_driver_shard(blitzbasic2_startup_gtest blitzbasic2_gtest
-            FILTER "BlitzBasic2Test.StartupOpensVisibleIdeWindow"
-            TIMEOUT 180)
-        add_gtest_driver_shard(blitzbasic2_interaction_gtest blitzbasic2_gtest
-            FILTER "BlitzBasic2Test.ProjectMenuOpensButDropdownIsCurrentlyClipped"
-            TIMEOUT 180)
+        add_gtest_driver(blitzbasic2_gtest)
     endif()
 
     # Vim 5.3 - startup and editing test

@@ -9,16 +9,19 @@
 ## Completed Phases (recent)
 
 - Phase 107: Test performance — persistent fixtures and SetUp deduplication (complete)
-	- Converted 7 multi-test-case drivers to `SetUpTestSuite()` / `TearDownTestSuite()`:
+	- **Batch 1** (v0.8.69): Converted 7 multi-test-case drivers to `SetUpTestSuite()` / `TearDownTestSuite()`:
 	  api_gtest (8 tests, 1 shard), cluster2_gtest (7 tests, 3→1 shard),
 	  maxonbasic_gtest (5 tests, 2→1 shard), devpac_gtest (9 tests, 3→1 shard),
 	  simplegad_gtest (8 tests, 2 fixtures/shards), simplemenu_gtest (5 tests, 2 fixtures/shards),
 	  simplegtgadget_gtest (8 tests, 1→2 fixtures/shards).
+	- **Batch 2** (v0.8.70): Converted 3 more drivers:
+	  mousetest_gtest (5 tests, 1 shard), talk2boopsi_gtest (4 tests, 2 fixtures/shards — behavioral rootless + pixel non-rootless), blitzbasic2_gtest (5 tests, 2→1 shard, DragMenu cycle budget tuned).
+	- Deferred apps_misc_gtest ProWrite conversion (5 fixture classes, ~62s but not on critical path).
 	- Pattern: inherit `::testing::Test` directly, replicate `LxaTest` assigns in static `SetUpTestSuite()`, use `s_setup_ok` bool + `GTEST_SKIP()` for per-test guard, place destructive tests (CloseWindow, QuitViaMenu) last.
-	- Two-fixture files (simplegad, simplemenu, simplegtgadget) keep 2 CTest shards since the behavioral (rootless) and pixel (non-rootless) fixtures require different emulator configs.
+	- Two-fixture files (simplegad, simplemenu, simplegtgadget, talk2boopsi) keep 2 CTest shards since the behavioral (rootless) and pixel (non-rootless) fixtures require different emulator configs.
 	- Removed redundant close+exit from simplegtgadget behavioral tests (ClickButton, ClickCheckbox, ClickCycle, NumberGadgetAcceptsKeyboardInput) so they coexist in a persistent fixture.
-	- Result: 63 CTest shards (down from 67 due to shard consolidation), all passing, wall-time reduced from ~131s to ~112s (14% improvement on top of Phase 106's 38%).
-	- Combined Phase 106+107 improvement: wall-time from ~210s to ~112s (47% total reduction).
+	- Result: 63 CTest shards, all passing, wall-time reduced from ~131s to ~108s (18% improvement on top of Phase 106's 38%).
+	- Combined Phase 106+107 improvement: wall-time from ~210s to ~108s (49% total reduction).
 
 - Phase 106: Test performance — headless display skip, idle detection, reduced cycle budgets (complete)
 	- Skipped `display_update_planar()`/`display_refresh_all()` in headless VBlank; added `s_display_dirty` flag so `lxa_read_pixel()`/`lxa_capture_*()` auto-flush on demand.
