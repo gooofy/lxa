@@ -4,7 +4,7 @@
 
 ## Current Phases
 
-- Phase 108 is the next active phase (Cluster2 app testing).
+- Phase 108 is the next active phase (SysInfo and Cluster2 app testing).
 
 ## Completed Phases (recent)
 
@@ -44,7 +44,15 @@ to identify UI/rendering issues and hypotheses; (4) author additional automated
 pixel or interaction tests that assert the UI issues are fixed; (5) implement
 fixes and iterate until tests are green.
 
-- Phase 108: Cluster2
+- Phase 108a: SysInfo
+	- Create or extend a host-side driver to launch SysInfo and assert its main UI appears.
+	- Fix any startup or resource-load issues discovered by the driver.
+	- Use `lxa_capture_window()` and `tools/screenshot_review.py` for visual triage; convert findings into automated pixel or geometry assertions.
+	- Fix application freeze on startup (no buttons react to mouse clicks, libraries are not listed, etc.)
+	- Add tests for a SPEED, MEMORY and BOARDS buttons.
+	- Update launch.json for all apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
+
+- Phase 108b: Cluster2
 	- Create or extend a host-side driver to launch Cluster2 and assert its main UI appears.
 	- Fix any startup or resource-load issues discovered by the driver.
 	- Use `lxa_capture_window()` and `tools/screenshot_review.py` for visual triage; convert findings into automated pixel or geometry assertions.
