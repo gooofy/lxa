@@ -77,3 +77,79 @@ This skill covers the core principles, rules, and conventions for developing Ami
 - Verify address ranges:
   - `0x400-0x20000`: System structures.
   - `0x20000-0x80000`: User memory.
+
+## 10. GCC m68k Cross-Compiler Pitfalls
+
+### 10.1 `move.w` Register Argument Truncation
+GCC's m68k backend may emit `move.w` instead of `move.l` for d-register
+arguments in inline `__asm` stubs when it believes the value fits in 16 bits.
+This silently truncates 32-bit values.
+
+**Pattern**: Any ROM function that receives coordinates, sizes, pen numbers,
+or small counts through the Amiga register-calling convention.
+
+**Fix**: Apply `(LONG)(WORD)val` sign-extension before the inline asm boundary:
+```c
+/* In the ROM function stub: */
+LONG __saveds _lxa_Move(register __a1 struct RastPort *rp __asm("a1"),
+                        register __d0 LONG x __asm("d0"),
+                        register __d1 LONG y __asm("d1"))
+{
+    /* x and y might be truncated to 16-bit by GCC */
+    x = (LONG)(WORD)x;  /* force sign-extension */
+    y = (LONG)(WORD)y;
+    /* ... */
+}
+```
+
+**Do NOT apply** to genuinely 32-bit values: IFF chunk types, DoPkt action
+codes, math operands, tag IDs, memory sizes, APTR/BPTR values.
+
+**Audit rule**: Every new ROM function taking coordinate/size parameters MUST
+be checked for this bug. The Phase 105 sweep fixed 92+ functions across 13
+ROM files — use those as a reference.
+
+### 10.2 `a2` Register Clobber
+GCC's m68k register allocator sometimes clobbers `a2` across function calls in
+complex ROM code (observed in layer-creation functions).
+
+**Symptoms**: A pointer argument suddenly points to garbage after a nested ROM
+function call (via JSR).
+
+**Fix**: Apply `__attribute__((optimize("O0")))` to the affected function.
+
+**Note**: This is a blunt workaround. If you find a more targeted fix (e.g.,
+adding `a2` to the clobber list of specific inline asm), that is preferred.
+
+### 10.3 Inline ASM Best Practices
+- Always list all modified registers in the clobber list.
+- Use `volatile` on asm statements that have side effects.
+- When in doubt, inspect the generated assembly with `m68k-amigaos-objdump -d`.
+
+## 11. Musashi CPU Emulator Notes
+
+### Edge-Triggered IRQs
+Musashi will NOT re-trigger an interrupt at the same level unless the line is
+lowered first. Always pulse:
+```c
+m68k_set_irq(0);
+m68k_set_irq(3);  /* Now the CPU sees a fresh rising edge */
+```
+
+### Cycle Accuracy
+Musashi provides total instruction cycle counts but not per-bus-access timing.
+For lxa's purposes this is sufficient, but be aware that cycle-exact DMA
+contention is not modeled.
+
+## 12. App Compatibility Patterns
+
+### Applications Without COMMSEQ
+Some apps (e.g., ASM-One V1.48) display keyboard shortcuts in menus but do NOT
+set the Intuition `COMMSEQ` flag. They handle shortcuts internally via raw IDCMP
+keyboard events. For these apps, menu items can only be triggered via RMB drag,
+not CommKey delivery.
+
+### In-Place Rendering
+Some apps render command responses in-place (same window) rather than opening a
+new window. Detect success via pixel count change instead of waiting for a new
+window to appear.

@@ -210,3 +210,52 @@ that takes >60 seconds, add an explicit `TIMEOUT` property in CMakeLists.txt.
 4. **Screenshots**: Some drivers capture screenshots on failure.
 5. **Intermittent hangs**: See `doc/test-reliability-report.md` for methodology.
    Use the reliability loop from Section 5.5 to reproduce.
+
+## 8. Performance-Aware Test Writing
+
+### 8.1 Why Tests Are Slow
+The current test suite takes ~210 seconds wall-time with `-j16`. The primary
+causes are:
+
+1. **Per-test-case SetUp repetition**: GTest re-runs `SetUp()` for every
+   `TEST_F`, reloading and reinitializing the same app. A 5-test driver runs
+   app startup 5 times.
+2. **Over-provisioned cycle budgets**: `lxa_inject_string()` uses 1M cycles per
+   character (500× what a real 68000 needs). `lxa_inject_drag()` uses 500K per
+   step. Most tests burn 5-10M cycles "just in case."
+3. **Per-VBlank display refresh**: Even in headless mode, every VBlank triggers
+   full planar-to-chunky conversion of the entire screen bitmap.
+
+### 8.2 Current Cycle Budget Reference
+
+| Operation | Current Budget | Real 68000 Need | Over-Provision |
+|:----------|---------------:|----------------:|---------------:|
+| Key press (inject_string) | 1,000,000 | ~2,000 | 500× |
+| Mouse click | 550,000 | ~10,000 | 55× |
+| Drag step (inject_drag) | 500,000 | ~70,000 | 7× |
+| App startup (typical) | 5-10M | ~1-2M | 5× |
+| Settling after action | 2-5M | ~200K | 10-25× |
+
+### 8.3 Guidelines for New Tests
+- **Prefer event-driven waiting**: Use `WaitForWindowDrawn()`, window count
+  checks, or pixel change detection instead of flat `RunCyclesWithVBlank(200, 50000)`.
+- **Do not inflate cycle budgets to fix flaky tests**: Understand the root cause
+  first. If the test is flaky, the issue is likely a missing synchronization
+  point, not insufficient cycles.
+- **Use `SlowTypeString()` sparingly**: If you only need to type 2-3 characters,
+  the overhead is acceptable. For 30+ characters, consider whether the test
+  really needs to type that much.
+- **Consider test sharding early**: If a driver has >4 test cases and takes
+  >30 seconds, shard it from the start.
+
+### 8.4 Future Optimization Opportunities
+These are planned improvements (see roadmap) that will reduce test times:
+
+- **Persistent test fixtures** (`SetUpTestSuite()`): Load app once per binary
+  instead of once per test case. Saves ~40% of current SetUp overhead.
+- **Headless display skip**: Skip planar-to-chunky in headless mode unless a
+  test explicitly calls `lxa_flush_display()` or `CaptureWindow()`.
+- **Idle detection**: Return from `lxa_run_cycles()` early when all tasks are
+  blocked on `WaitPort()` — no work to do.
+- **Reduced cycle budgets**: Once idle detection is in place, cycle budgets can
+  be reduced dramatically without sacrificing reliability.
