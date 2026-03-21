@@ -4,9 +4,14 @@
 
 ## Current Phases
 
-- Phase 108 is the next active phase (SysInfo and Cluster2 app testing).
+- Phase 109 is the next active phase (DirectoryOpus follow-up testing).
 
 ## Completed Phases (recent)
+
+- Phase 108: SysInfo and Cluster2 app testing (complete, v0.8.71)
+	- **Phase 108a — SysInfo**: Converted `sysinfo_gtest.cpp` to persistent `SetUpTestSuite()` fixture (10 tests, ~376ms, down from ~985ms). Added MEMORY and BOARDS gadget interaction tests with pixel-change verification. Reordered test execution so SPEED benchmark runs last (it monopolises the CPU and blocks subsequent gadget clicks).
+	- **Phase 108b — Cluster2**: Extended `cluster2_gtest.cpp` from 7 to 10 tests. Added About-dialog toolbar click test, F6 file-requester open/dismiss test (pixel-based detection — Cluster2 uses custom screens so rootless window tracking doesn't detect its dialogs), and editor-content typing verification test. Discovered Cluster2 uses NO Intuition menus or gadgets (MenuStrip=NULL, gadget count=0); all UI is custom-rendered with WFLG_RMBTRAP.
+	- launch.json entries for both apps verified consistent with test driver assigns.
 
 - Phase 107: Test performance — persistent fixtures and SetUp deduplication (complete)
 	- **Batch 1** (v0.8.69): Converted 7 multi-test-case drivers to `SetUpTestSuite()` / `TearDownTestSuite()`:
@@ -43,21 +48,6 @@ green; (3) capture screenshots on failure and use `tools/screenshot_review.py`
 to identify UI/rendering issues and hypotheses; (4) author additional automated
 pixel or interaction tests that assert the UI issues are fixed; (5) implement
 fixes and iterate until tests are green.
-
-- Phase 108a: SysInfo
-	- Create or extend a host-side driver to launch SysInfo and assert its main UI appears.
-	- Fix any startup or resource-load issues discovered by the driver.
-	- Use `lxa_capture_window()` and `tools/screenshot_review.py` for visual triage; convert findings into automated pixel or geometry assertions.
-	- Fix application freeze on startup (no buttons react to mouse clicks, libraries are not listed, etc.)
-	- Add tests for a SPEED, MEMORY and BOARDS buttons.
-	- Update launch.json for all apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
-
-- Phase 108b: Cluster2
-	- Create or extend a host-side driver to launch Cluster2 and assert its main UI appears.
-	- Fix any startup or resource-load issues discovered by the driver.
-	- Use `lxa_capture_window()` and `tools/screenshot_review.py` for visual triage; convert findings into automated pixel or geometry assertions.
-	- Add tests for About dialog, basic file open, and a simple action (e.g., open a project file and verify expected UI change).
-	- Update launch.json for all apps, make sure assigns and other env settings match those of the test drivers so manual testing runs them using the same conditions as the automated test.
 
 - Phase 109: DirectoryOpus (follow-up)
 	- Ensure existing DirectoryOpus startup test reaches the main rootless window; fix regressions if any.

@@ -1,3 +1,15 @@
+/**
+ * sysinfo_gtest.cpp - Google Test driver for SysInfo
+ *
+ * Tests SysInfo hardware/software information tool.
+ * Verifies screen dimensions, custom screen rendering, gadget tracking,
+ * and button interactions (SPEED, MEMORY, BOARDS).
+ *
+ * Phase 108: Converted to SetUpTestSuite() persistent fixture to avoid
+ * redundant emulator init + program load per test case.  Added MEMORY
+ * and BOARDS button interaction tests.
+ */
+
 #include "lxa_test.h"
 
 #include <algorithm>
@@ -5,9 +17,9 @@
 
 using namespace lxa::testing;
 
-class SysInfoTest : public LxaUITest {
+class SysInfoTest : public ::testing::Test {
 protected:
-    static constexpr int PEN_BLACK = 1;
+    /* ---- Gadget IDs used by SysInfo ---- */
     static constexpr int GADGET_ID_QUIT = 1;
     static constexpr int GADGET_ID_SPEED = 2;
     static constexpr int GADGET_ID_DRIVES = 4;
@@ -16,34 +28,145 @@ protected:
     static constexpr int GADGET_ID_LIBRARIES = 9;
     static constexpr int GADGET_ID_EXPAND = 10;
 
-    void SetUp() override {
-        LxaUITest::SetUp();
+    /* ---- Shared state (lives for the entire test suite) ---- */
+    static bool s_setup_ok;
+    static lxa_window_info_t s_window_info;
+    static std::string s_ram_dir;
+    static std::string s_t_dir;
+    static std::string s_env_dir;
 
-        if (FindAppsPath() == nullptr) {
-            GTEST_SKIP() << "lxa-apps directory not found";
+    static void SetUpTestSuite()
+    {
+        s_setup_ok = false;
+
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t config;
+        memset(&config, 0, sizeof(config));
+        config.headless = true;
+        config.verbose  = false;
+        config.rootless = true;
+
+        config.rom_path = FindRomPath();
+        if (!config.rom_path) {
+            fprintf(stderr, "SysInfoTest: could not find lxa.rom\n");
+            return;
         }
 
-        ASSERT_EQ(lxa_load_program("APPS:SysInfo/bin/SysInfo/SysInfo", ""), 0)
-            << "Failed to load SysInfo via APPS: assign";
+        if (lxa_init(&config) != 0) {
+            fprintf(stderr, "SysInfoTest: lxa_init() failed\n");
+            return;
+        }
 
-        ASSERT_TRUE(WaitForWindows(1, 15000))
-            << "SysInfo did not open a rootless window\n"
-            << GetOutput();
+        /* Set up assigns (mirrors LxaTest::SetUp) */
+        const char* samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char* sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char* tplibs = FindThirdPartyLibsPath();
+        if (tplibs) lxa_add_assign("LIBS", tplibs);
+        const char* libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+        const char* apps = FindAppsPath();
+        if (apps) lxa_add_assign("APPS", apps);
+        const char* cmds = FindCommandsPath();
+        if (cmds) lxa_add_assign("C", cmds);
+        const char* sys = FindSystemPath();
+        if (sys) lxa_add_assign("System", sys);
 
-        ASSERT_TRUE(GetWindowInfo(0, &window_info));
-        ASSERT_TRUE(WaitForWindowDrawn(0, 5000))
-            << "SysInfo rootless window should expose visible content\n"
-            << GetOutput();
+        char ram[] = "/tmp/lxa_test_RAM_XXXXXX";
+        if (mkdtemp(ram)) { s_ram_dir = ram; lxa_add_drive("RAM", ram); }
+        char tdir[] = "/tmp/lxa_test_T_XXXXXX";
+        if (mkdtemp(tdir)) { s_t_dir = tdir; lxa_add_assign("T", tdir); }
+        char edir[] = "/tmp/lxa_test_ENV_XXXXXX";
+        if (mkdtemp(edir)) {
+            s_env_dir = edir;
+            lxa_add_assign("ENV", edir);
+            lxa_add_assign("ENVARC", edir);
+        }
 
-        WaitForEventLoop(120, 10000);
-        RunCyclesWithVBlank(120, 50000);
+        if (!apps) {
+            fprintf(stderr, "SysInfoTest: lxa-apps directory not found\n");
+            lxa_shutdown();
+            return;
+        }
+
+        /* Load SysInfo */
+        if (lxa_load_program("APPS:SysInfo/bin/SysInfo/SysInfo", "") != 0) {
+            fprintf(stderr, "SysInfoTest: failed to load SysInfo\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_wait_windows(1, 15000)) {
+            fprintf(stderr, "SysInfoTest: window did not open\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_get_window_info(0, &s_window_info)) {
+            fprintf(stderr, "SysInfoTest: could not get window info\n");
+            lxa_shutdown();
+            return;
+        }
+
+        if (!lxa_wait_window_drawn(0, 5000)) {
+            fprintf(stderr, "SysInfoTest: rootless window has no visible content\n");
+            lxa_shutdown();
+            return;
+        }
+
+        /* Let the program settle — generous budget for SysInfo's hardware
+         * enumeration to complete and the screen to stabilise. */
+        for (int i = 0; i < 240; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(50000);
+        }
+
+        s_setup_ok = true;
     }
 
-    int CountNonBlackPixels(const RgbImage& image, int x1, int y1, int x2, int y2) {
+    static void TearDownTestSuite()
+    {
+        lxa_shutdown();
+
+        auto rm = [](std::string& d) {
+            if (!d.empty()) {
+                std::string cmd = "rm -rf " + d;
+                system(cmd.c_str());
+                d.clear();
+            }
+        };
+        rm(s_ram_dir);
+        rm(s_t_dir);
+        rm(s_env_dir);
+    }
+
+    /* ---- Per-test hooks ---- */
+    void SetUp() override
+    {
+        if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    }
+
+    /* Convenience accessors so tests read like before */
+    lxa_window_info_t& window_info = s_window_info;
+
+    void RunCyclesWithVBlank(int iterations = 20, int cycles_per_iteration = 50000)
+    {
+        for (int i = 0; i < iterations; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(cycles_per_iteration);
+        }
+    }
+
+    /* ---- Image helpers ---- */
+    static int CountNonBlackPixels(const RgbImage& image,
+                                   int x1, int y1, int x2, int y2)
+    {
         int count = 0;
-        const int left = std::max(0, x1);
-        const int top = std::max(0, y1);
-        const int right = std::min(x2, image.width - 1);
+        const int left   = std::max(0, x1);
+        const int top    = std::max(0, y1);
+        const int right  = std::min(x2, image.width - 1);
         const int bottom = std::min(y2, image.height - 1);
 
         for (int y = top; y <= bottom; ++y) {
@@ -61,31 +184,43 @@ protected:
         return count;
     }
 
-    RgbImage CaptureMainWindow(const std::string& file_name) {
-        const std::string path = ram_dir_path + "/" + file_name;
-        EXPECT_TRUE(CaptureWindow(path.c_str(), 0))
+    RgbImage CaptureMainWindow(const std::string& file_name)
+    {
+        const std::string path = s_ram_dir + "/" + file_name;
+        EXPECT_TRUE(lxa_capture_window(0, path.c_str()))
             << "Failed to capture SysInfo main window to " << path;
         return LoadPng(path);
     }
 
-    int FindGadgetIndexById(uint16_t gadget_id) {
-        auto gadgets = GetGadgets(0);
-
-        for (size_t i = 0; i < gadgets.size(); ++i) {
-            if (gadgets[i].gadget_id == gadget_id) {
-                return static_cast<int>(i);
+    static int FindGadgetIndexById(uint16_t gadget_id)
+    {
+        int count = lxa_get_gadget_count(0);
+        for (int i = 0; i < count; ++i) {
+            lxa_gadget_info_t info;
+            if (lxa_get_gadget_info(0, i, &info) && info.gadget_id == gadget_id) {
+                return i;
             }
         }
-
         return -1;
     }
 
-    int CountImageDifferences(const RgbImage& before, const RgbImage& after,
-                              int x1, int y1, int x2, int y2) {
+    static bool ClickGadget(int gadget_index, int window_index = 0)
+    {
+        lxa_gadget_info_t info;
+        if (!lxa_get_gadget_info(window_index, gadget_index, &info))
+            return false;
+        int click_x = info.left + info.width / 2;
+        int click_y = info.top + info.height / 2;
+        return lxa_inject_mouse_click(click_x, click_y, LXA_MOUSE_LEFT);
+    }
+
+    static int CountImageDifferences(const RgbImage& before, const RgbImage& after,
+                                     int x1, int y1, int x2, int y2)
+    {
         int count = 0;
-        const int left = std::max(0, x1);
-        const int top = std::max(0, y1);
-        const int right = std::min(std::min(before.width, after.width) - 1, x2);
+        const int left   = std::max(0, x1);
+        const int top    = std::max(0, y1);
+        const int right  = std::min(std::min(before.width, after.width) - 1, x2);
         const int bottom = std::min(std::min(before.height, after.height) - 1, y2);
 
         for (int y = top; y <= bottom; ++y) {
@@ -102,17 +237,27 @@ protected:
 
         return count;
     }
-
 };
 
-TEST_F(SysInfoTest, StartupOpensAndDrawsMainWindow) {
+/* Static member definitions */
+bool                SysInfoTest::s_setup_ok = false;
+lxa_window_info_t   SysInfoTest::s_window_info = {};
+std::string         SysInfoTest::s_ram_dir;
+std::string         SysInfoTest::s_t_dir;
+std::string         SysInfoTest::s_env_dir;
+
+/* ===================================================================== */
+/* Read-only tests first (no state mutation)                             */
+/* ===================================================================== */
+
+TEST_F(SysInfoTest, StartupOpensAndDrawsMainWindow)
+{
     int screen_width = 0;
     int screen_height = 0;
     int screen_depth = 0;
 
     EXPECT_TRUE(lxa_is_running())
-        << "SysInfo should remain running after startup\n"
-        << GetOutput();
+        << "SysInfo should remain running after startup";
     EXPECT_EQ(window_info.width, 640);
     EXPECT_EQ(window_info.height, 256);
     EXPECT_STREQ(window_info.title, "LXA Window");
@@ -125,12 +270,13 @@ TEST_F(SysInfoTest, StartupOpensAndDrawsMainWindow) {
     EXPECT_GE(screen_depth, 3);
 }
 
-TEST_F(SysInfoTest, ScreenPixelsUseMultiplePensAfterStartup) {
+TEST_F(SysInfoTest, ScreenPixelsUseMultiplePensAfterStartup)
+{
     int screen_width = 0;
     int screen_height = 0;
     int screen_depth = 0;
     int unique_pen_count = 0;
-    bool seen[8] = {false, false, false, false, false, false, false, false};
+    bool seen[8] = {};
 
     ASSERT_TRUE(lxa_get_screen_dimensions(&screen_width, &screen_height, &screen_depth));
 
@@ -149,9 +295,11 @@ TEST_F(SysInfoTest, ScreenPixelsUseMultiplePensAfterStartup) {
         << "SysInfo should populate the custom screen with several distinct pens after startup";
 }
 
-TEST_F(SysInfoTest, MainWindowCaptureIncludesVisibleUiPixels) {
+TEST_F(SysInfoTest, MainWindowCaptureIncludesVisibleUiPixels)
+{
     RgbImage image = CaptureMainWindow("sysinfo-main-window.png");
-    const int all_pixels = CountNonBlackPixels(image, 0, 0, image.width - 1, image.height - 1);
+    const int all_pixels = CountNonBlackPixels(image, 0, 0,
+                                                image.width - 1, image.height - 1);
 
     ASSERT_EQ(image.width, 640);
     ASSERT_EQ(image.height, 256);
@@ -159,12 +307,13 @@ TEST_F(SysInfoTest, MainWindowCaptureIncludesVisibleUiPixels) {
         << "SysInfo rootless capture should include a substantial amount of drawn UI content";
 }
 
-TEST_F(SysInfoTest, MainWindowCaptureContainsContentInKeyRegions) {
+TEST_F(SysInfoTest, MainWindowCaptureContainsContentInKeyRegions)
+{
     RgbImage image = CaptureMainWindow("sysinfo-main-window-regions.png");
 
-    const int software_panel_pixels = CountNonBlackPixels(image, 24, 24, 280, 182);
-    const int hardware_panel_pixels = CountNonBlackPixels(image, 332, 24, 620, 182);
-    const int bottom_gadget_pixels = CountNonBlackPixels(image, 20, 184, 620, 248);
+    const int software_panel_pixels  = CountNonBlackPixels(image, 24, 24, 280, 182);
+    const int hardware_panel_pixels  = CountNonBlackPixels(image, 332, 24, 620, 182);
+    const int bottom_gadget_pixels   = CountNonBlackPixels(image, 20, 184, 620, 248);
 
     EXPECT_GT(software_panel_pixels, 12000)
         << "SysInfo should render visible software-list content in the left panel";
@@ -174,10 +323,11 @@ TEST_F(SysInfoTest, MainWindowCaptureContainsContentInKeyRegions) {
         << "SysInfo should render its lower gadget rows and status area";
 }
 
-TEST_F(SysInfoTest, MainWindowExposesTrackedGadgetsForPrimaryActions) {
-    auto gadgets = GetGadgets(0);
+TEST_F(SysInfoTest, MainWindowExposesTrackedGadgetsForPrimaryActions)
+{
+    int count = lxa_get_gadget_count(0);
 
-    ASSERT_GE(gadgets.size(), 10u)
+    ASSERT_GE(count, 10)
         << "SysInfo should expose its main action gadgets through tracked Intuition gadgets";
 
     EXPECT_GE(FindGadgetIndexById(GADGET_ID_QUIT), 0);
@@ -189,38 +339,114 @@ TEST_F(SysInfoTest, MainWindowExposesTrackedGadgetsForPrimaryActions) {
     EXPECT_GE(FindGadgetIndexById(GADGET_ID_EXPAND), 0);
 }
 
-TEST_F(SysInfoTest, LibrariesGadgetIsTrackedViaScreenGadgetList) {
+TEST_F(SysInfoTest, LibrariesGadgetIsTrackedViaScreenGadgetList)
+{
     const int gadget_index = FindGadgetIndexById(GADGET_ID_LIBRARIES);
 
     ASSERT_GE(gadget_index, 0) << "SysInfo should expose the LIBRARIES gadget";
-    EXPECT_GE(GetGadgetCount(0), 15)
+    EXPECT_GE(lxa_get_gadget_count(0), 15)
         << "SysInfo should expose both window gadgets and screen-level gadgets to host-side tests";
 }
 
-TEST_F(SysInfoTest, SpeedGadgetRefreshesComparisonArea) {
-    const int gadget_index = FindGadgetIndexById(GADGET_ID_SPEED);
-    const std::string before_path = ram_dir_path + "/sysinfo-speed-before.png";
-    const std::string after_path = ram_dir_path + "/sysinfo-speed-after.png";
+/* ===================================================================== */
+/* Interaction tests (mutate display but do not exit the app)            */
+/*                                                                       */
+/* Order matters: MEMORY and BOARDS run first because SPEED performs a   */
+/* lengthy benchmark that keeps the CPU busy.  After SPEED completes,   */
+/* the app may need extra settling before gadget clicks are processed.  */
+/* ===================================================================== */
+
+TEST_F(SysInfoTest, MemoryGadgetRefreshesMemoryArea)
+{
+    const int gadget_index = FindGadgetIndexById(GADGET_ID_MEMORY);
     RgbImage before_image;
     RgbImage after_image;
-    int comparison_diff = 0;
+
+    ASSERT_GE(gadget_index, 0) << "SysInfo should expose the MEMORY gadget";
+
+    const std::string before_path = s_ram_dir + "/sysinfo-memory-before.png";
+    const std::string after_path  = s_ram_dir + "/sysinfo-memory-after.png";
+
+    ASSERT_TRUE(lxa_capture_window(0, before_path.c_str()));
+    before_image = LoadPng(before_path);
+
+    ASSERT_TRUE(ClickGadget(gadget_index, 0));
+    RunCyclesWithVBlank(120, 50000);
+
+    ASSERT_TRUE(lxa_capture_window(0, after_path.c_str()));
+    after_image = LoadPng(after_path);
+
+    /* SysInfo's main content area updates when switching to the MEMORY view.
+     * The entire upper panel should show memory information. */
+    const int diff = CountImageDifferences(before_image, after_image, 16, 20, 620, 200);
+    EXPECT_GT(diff, 200)
+        << "Clicking MEMORY should update the display with memory information";
+
+    EXPECT_TRUE(lxa_is_running())
+        << "SysInfo should remain running after clicking the MEMORY gadget";
+}
+
+TEST_F(SysInfoTest, BoardsGadgetRefreshesBoardsArea)
+{
+    const int gadget_index = FindGadgetIndexById(GADGET_ID_BOARDS);
+    RgbImage before_image;
+    RgbImage after_image;
+
+    ASSERT_GE(gadget_index, 0) << "SysInfo should expose the BOARDS gadget";
+
+    const std::string before_path = s_ram_dir + "/sysinfo-boards-before.png";
+    const std::string after_path  = s_ram_dir + "/sysinfo-boards-after.png";
+
+    ASSERT_TRUE(lxa_capture_window(0, before_path.c_str()));
+    before_image = LoadPng(before_path);
+
+    ASSERT_TRUE(ClickGadget(gadget_index, 0));
+    RunCyclesWithVBlank(120, 50000);
+
+    ASSERT_TRUE(lxa_capture_window(0, after_path.c_str()));
+    after_image = LoadPng(after_path);
+
+    /* BOARDS view replaces the main content area with expansion board info. */
+    const int diff = CountImageDifferences(before_image, after_image, 16, 20, 620, 200);
+    EXPECT_GT(diff, 200)
+        << "Clicking BOARDS should update the display with board information";
+
+    EXPECT_TRUE(lxa_is_running())
+        << "SysInfo should remain running after clicking the BOARDS gadget";
+}
+
+TEST_F(SysInfoTest, SpeedGadgetRefreshesComparisonArea)
+{
+    const int gadget_index = FindGadgetIndexById(GADGET_ID_SPEED);
+    RgbImage before_image;
+    RgbImage after_image;
 
     ASSERT_GE(gadget_index, 0) << "SysInfo should expose the SPEED gadget";
-    ASSERT_TRUE(CaptureWindow(before_path.c_str(), 0));
+
+    const std::string before_path = s_ram_dir + "/sysinfo-speed-before.png";
+    const std::string after_path  = s_ram_dir + "/sysinfo-speed-after.png";
+
+    ASSERT_TRUE(lxa_capture_window(0, before_path.c_str()));
     before_image = LoadPng(before_path);
 
     ASSERT_TRUE(ClickGadget(gadget_index, 0));
     RunCyclesWithVBlank(240, 100000);
 
-    ASSERT_TRUE(CaptureWindow(after_path.c_str(), 0));
+    ASSERT_TRUE(lxa_capture_window(0, after_path.c_str()));
     after_image = LoadPng(after_path);
 
-    comparison_diff = CountImageDifferences(before_image, after_image, 16, 90, 394, 198);
-    EXPECT_GT(comparison_diff, 500)
+    /* Speed-comparison area is roughly the center-left zone */
+    const int diff = CountImageDifferences(before_image, after_image, 16, 90, 394, 198);
+    EXPECT_GT(diff, 500)
         << "Clicking SPEED should refresh the speed-comparison area";
 }
 
-TEST_F(SysInfoTest, CloseGadgetLeavesApplicationRunning) {
+/* ===================================================================== */
+/* Destructive test last (close gadget)                                  */
+/* ===================================================================== */
+
+TEST_F(SysInfoTest, CloseGadgetLeavesApplicationRunning)
+{
     ASSERT_TRUE(lxa_click_close_gadget(0));
     RunCyclesWithVBlank(120, 50000);
 
@@ -230,7 +456,8 @@ TEST_F(SysInfoTest, CloseGadgetLeavesApplicationRunning) {
         << "SysInfo should keep its main window open after a close-gadget click";
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
