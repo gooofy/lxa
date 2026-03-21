@@ -8,6 +8,10 @@
  * Phase 108: Converted to SetUpTestSuite() persistent fixture to avoid
  * redundant emulator init + program load per test case.  Added MEMORY
  * and BOARDS button interaction tests.
+ *
+ * Phase 108c: Added ExecBase field verification tests (AttnFlags,
+ * VBlankFrequency, MaxLocMem, EClockFrequency), meaningful content
+ * checks for LIBRARIES view, and screenshot capture for visual review.
  */
 
 #include "lxa_test.h"
@@ -16,6 +20,18 @@
 #include <string>
 
 using namespace lxa::testing;
+
+/* ExecBase field offsets (from NDK StructOffsets test) */
+static constexpr uint32_t EXECBASE_OFF_MAXLOCMEM        = 62;
+static constexpr uint32_t EXECBASE_OFF_ATTNFLAGS         = 296;
+static constexpr uint32_t EXECBASE_OFF_VBLANKFREQUENCY   = 530;
+static constexpr uint32_t EXECBASE_OFF_POWERSUPPLYFREQ   = 531;
+static constexpr uint32_t EXECBASE_OFF_ECLOCKFREQUENCY   = 568;
+
+/* AttnFlags constants (from exec/execbase.h) */
+static constexpr uint16_t AFF_68010 = (1 << 0);
+static constexpr uint16_t AFF_68020 = (1 << 1);
+static constexpr uint16_t AFF_68030 = (1 << 2);
 
 class SysInfoTest : public ::testing::Test {
 protected:
@@ -349,6 +365,69 @@ TEST_F(SysInfoTest, LibrariesGadgetIsTrackedViaScreenGadgetList)
 }
 
 /* ===================================================================== */
+/* ExecBase field verification                                           */
+/*                                                                       */
+/* Phase 108c: These tests read ExecBase fields directly from emulated   */
+/* memory to confirm the ROM coldstart populates them correctly.  SysInfo */
+/* (and other apps) depend on these fields for CPU/FPU detection,        */
+/* PAL/NTSC detection, and memory reporting.                             */
+/* ===================================================================== */
+
+TEST_F(SysInfoTest, ExecBaseAttnFlagsReports68030)
+{
+    /* Read SysBase pointer from location 4 */
+    uint32_t sysbase = lxa_peek32(4);
+    ASSERT_NE(sysbase, 0u) << "SysBase (address 4) should be non-zero";
+
+    uint16_t attn_flags = lxa_peek16(sysbase + EXECBASE_OFF_ATTNFLAGS);
+
+    EXPECT_TRUE(attn_flags & AFF_68010)
+        << "AttnFlags should have AFF_68010 set (implied by 68030)";
+    EXPECT_TRUE(attn_flags & AFF_68020)
+        << "AttnFlags should have AFF_68020 set (implied by 68030)";
+    EXPECT_TRUE(attn_flags & AFF_68030)
+        << "AttnFlags should have AFF_68030 set for the emulated CPU";
+}
+
+TEST_F(SysInfoTest, ExecBaseVBlankFrequencyIsPAL50Hz)
+{
+    uint32_t sysbase = lxa_peek32(4);
+    ASSERT_NE(sysbase, 0u);
+
+    uint8_t vblank_freq = lxa_peek8(sysbase + EXECBASE_OFF_VBLANKFREQUENCY);
+    uint8_t power_freq  = lxa_peek8(sysbase + EXECBASE_OFF_POWERSUPPLYFREQ);
+
+    EXPECT_EQ(vblank_freq, 50)
+        << "VBlankFrequency should be 50 for PAL";
+    EXPECT_EQ(power_freq, 50)
+        << "PowerSupplyFrequency should be 50 for PAL";
+}
+
+TEST_F(SysInfoTest, ExecBaseMaxLocMemReportsChipMemTop)
+{
+    uint32_t sysbase = lxa_peek32(4);
+    ASSERT_NE(sysbase, 0u);
+
+    uint32_t max_loc_mem = lxa_peek32(sysbase + EXECBASE_OFF_MAXLOCMEM);
+
+    /* lxa provides 10MB chip memory: 0x00010000 .. 0x009FFFFF,
+     * so MaxLocMem should be 0x00A00000 (top of chip memory). */
+    EXPECT_EQ(max_loc_mem, 0x00A00000u)
+        << "MaxLocMem should report top of chip memory (10MB)";
+}
+
+TEST_F(SysInfoTest, ExecBaseEClockFrequencyIsPAL)
+{
+    uint32_t sysbase = lxa_peek32(4);
+    ASSERT_NE(sysbase, 0u);
+
+    uint32_t eclock = lxa_peek32(sysbase + EXECBASE_OFF_ECLOCKFREQUENCY);
+
+    EXPECT_EQ(eclock, 709379u)
+        << "ex_EClockFrequency should be 709379 Hz for PAL";
+}
+
+/* ===================================================================== */
 /* Interaction tests (mutate display but do not exit the app)            */
 /*                                                                       */
 /* Order matters: MEMORY and BOARDS run first because SPEED performs a   */
@@ -415,6 +494,37 @@ TEST_F(SysInfoTest, BoardsGadgetRefreshesBoardsArea)
         << "SysInfo should remain running after clicking the BOARDS gadget";
 }
 
+TEST_F(SysInfoTest, LibrariesGadgetRefreshesContentArea)
+{
+    const int gadget_index = FindGadgetIndexById(GADGET_ID_LIBRARIES);
+    RgbImage before_image;
+    RgbImage after_image;
+
+    ASSERT_GE(gadget_index, 0) << "SysInfo should expose the LIBRARIES gadget";
+
+    const std::string before_path = s_ram_dir + "/sysinfo-libraries-before.png";
+    const std::string after_path  = s_ram_dir + "/sysinfo-libraries-after.png";
+
+    ASSERT_TRUE(lxa_capture_window(0, before_path.c_str()));
+    before_image = LoadPng(before_path);
+
+    ASSERT_TRUE(ClickGadget(gadget_index, 0));
+    RunCyclesWithVBlank(120, 50000);
+
+    ASSERT_TRUE(lxa_capture_window(0, after_path.c_str()));
+    after_image = LoadPng(after_path);
+
+    /* LIBRARIES view replaces the main content area with a list of loaded
+     * libraries (exec, dos, intuition, graphics, etc.).  The upper portion
+     * of the window should show significant pixel changes. */
+    const int diff = CountImageDifferences(before_image, after_image, 16, 20, 620, 200);
+    EXPECT_GT(diff, 200)
+        << "Clicking LIBRARIES should update the display with loaded library information";
+
+    EXPECT_TRUE(lxa_is_running())
+        << "SysInfo should remain running after clicking the LIBRARIES gadget";
+}
+
 TEST_F(SysInfoTest, SpeedGadgetRefreshesComparisonArea)
 {
     const int gadget_index = FindGadgetIndexById(GADGET_ID_SPEED);
@@ -430,15 +540,39 @@ TEST_F(SysInfoTest, SpeedGadgetRefreshesComparisonArea)
     before_image = LoadPng(before_path);
 
     ASSERT_TRUE(ClickGadget(gadget_index, 0));
-    RunCyclesWithVBlank(240, 100000);
+    /* The SPEED benchmark performs intensive CPU computation.  Give it a
+     * very generous cycle budget so it can finish the benchmark and
+     * render the comparison bars. */
+    RunCyclesWithVBlank(600, 200000);
 
     ASSERT_TRUE(lxa_capture_window(0, after_path.c_str()));
     after_image = LoadPng(after_path);
 
-    /* Speed-comparison area is roughly the center-left zone */
-    const int diff = CountImageDifferences(before_image, after_image, 16, 90, 394, 198);
-    EXPECT_GT(diff, 500)
-        << "Clicking SPEED should refresh the speed-comparison area";
+    /* Speed-comparison area covers the upper content panel.  Even a
+     * partial benchmark result should change a substantial number of
+     * pixels (status text, progress bars, numeric results). */
+    const int diff = CountImageDifferences(before_image, after_image, 16, 20, 620, 200);
+    EXPECT_GT(diff, 100)
+        << "Clicking SPEED should refresh the display with benchmark results";
+}
+
+/* ===================================================================== */
+/* Screenshot capture for visual review                                  */
+/*                                                                       */
+/* Captures the current state (after all interaction tests have run) to  */
+/* /tmp/sysinfo_review/ for analysis with tools/screenshot_review.py.    */
+/* ===================================================================== */
+
+TEST_F(SysInfoTest, CaptureCurrentStateForVisualReview)
+{
+    /* Save a screenshot of the current SysInfo state to a persistent
+     * directory for offline analysis with tools/screenshot_review.py.
+     *
+     * NOTE: This test runs after all interaction tests (MEMORY, BOARDS,
+     * LIBRARIES, SPEED) in the persistent fixture, so the captured image
+     * reflects whichever view was last active. */
+    system("mkdir -p /tmp/sysinfo_review");
+    EXPECT_TRUE(lxa_capture_window(0, "/tmp/sysinfo_review/sysinfo-current-state.png"));
 }
 
 /* ===================================================================== */

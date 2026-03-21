@@ -1328,6 +1328,11 @@ uint32_t lxa_peek32(uint32_t addr)
     return m68k_read_memory_32(addr);
 }
 
+uint16_t lxa_peek16(uint32_t addr)
+{
+    return m68k_read_memory_16(addr);
+}
+
 uint8_t lxa_peek8(uint32_t addr)
 {
     return m68k_read_memory_8(addr);

@@ -515,6 +515,13 @@ bool lxa_capture_window(int window_index, const char *filename);
 uint32_t lxa_peek32(uint32_t addr);
 
 /*
+ * Read a 16-bit value from emulated memory.
+ * @param addr  Address in emulated memory space
+ * @return 16-bit value at address
+ */
+uint16_t lxa_peek16(uint32_t addr);
+
+/*
  * Read an 8-bit value from emulated memory.
  * @param addr  Address in emulated memory space
  * @return 8-bit value at address

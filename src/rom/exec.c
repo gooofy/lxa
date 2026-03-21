@@ -5758,6 +5758,25 @@ void coldstart (void)
     SysBase->IDNestCnt    = -1;
     SysBase->TDNestCnt    = -1;
 
+    /* Phase 108c: Populate ExecBase hardware description fields.
+     *
+     * AttnFlags: The emulator runs a 68030 CPU (set in lxa.c:
+     * m68k_set_cpu_type(M68K_CPU_TYPE_68030)).  Per the RKRM,
+     * higher-model flags imply all lower ones, so 68030 sets
+     * AFF_68010 | AFF_68020 | AFF_68030.
+     *
+     * VBlankFrequency / PowerSupplyFrequency: PAL = 50 Hz.
+     *
+     * MaxLocMem: Top of chip memory (the MemHeader upper bound).
+     *
+     * ex_EClockFrequency: PAL E-clock = 709379 Hz (per NDK).
+     */
+    SysBase->AttnFlags           = AFF_68010 | AFF_68020 | AFF_68030;
+    SysBase->VBlankFrequency     = 50;
+    SysBase->PowerSupplyFrequency = 50;
+    SysBase->MaxLocMem           = (ULONG)(RAM_END + 1);
+    SysBase->ex_EClockFrequency  = 709379;  /* PAL */
+
     // create a bootstrap process
     struct Process *rootProc = (struct Process *) U_allocTask ((STRPTR)"exec bootstrap", 0, DEFAULT_STACKSIZE, /*isProcess=*/ TRUE);
     U_prepareProcess (rootProc, _bootstrap, 0, DEFAULT_STACKSIZE, /*args=*/NULL);

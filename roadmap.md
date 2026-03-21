@@ -2,42 +2,7 @@
 
 `lxa` keeps the roadmap short, future-focused, and tied to release milestones. All implementation work must follow `AGENTS.md`: no crashes, 100% coverage, RKRM/NDK validation, third-party libraries kept off ROM, and roadmap updates on every completed phase.
 
-## Current Phases
-
-- Phase 109 is the next active phase (DirectoryOpus follow-up testing).
-
-## Completed Phases (recent)
-
-- Phase 108: SysInfo and Cluster2 app testing (complete, v0.8.71)
-	- **Phase 108a — SysInfo**: Converted `sysinfo_gtest.cpp` to persistent `SetUpTestSuite()` fixture (10 tests, ~376ms, down from ~985ms). Added MEMORY and BOARDS gadget interaction tests with pixel-change verification. Reordered test execution so SPEED benchmark runs last (it monopolises the CPU and blocks subsequent gadget clicks).
-	- **Phase 108b — Cluster2**: Extended `cluster2_gtest.cpp` from 7 to 10 tests. Added About-dialog toolbar click test, F6 file-requester open/dismiss test (pixel-based detection — Cluster2 uses custom screens so rootless window tracking doesn't detect its dialogs), and editor-content typing verification test. Discovered Cluster2 uses NO Intuition menus or gadgets (MenuStrip=NULL, gadget count=0); all UI is custom-rendered with WFLG_RMBTRAP.
-	- launch.json entries for both apps verified consistent with test driver assigns.
-
-- Phase 107: Test performance — persistent fixtures and SetUp deduplication (complete)
-	- **Batch 1** (v0.8.69): Converted 7 multi-test-case drivers to `SetUpTestSuite()` / `TearDownTestSuite()`:
-	  api_gtest (8 tests, 1 shard), cluster2_gtest (7 tests, 3→1 shard),
-	  maxonbasic_gtest (5 tests, 2→1 shard), devpac_gtest (9 tests, 3→1 shard),
-	  simplegad_gtest (8 tests, 2 fixtures/shards), simplemenu_gtest (5 tests, 2 fixtures/shards),
-	  simplegtgadget_gtest (8 tests, 1→2 fixtures/shards).
-	- **Batch 2** (v0.8.70): Converted 3 more drivers:
-	  mousetest_gtest (5 tests, 1 shard), talk2boopsi_gtest (4 tests, 2 fixtures/shards — behavioral rootless + pixel non-rootless), blitzbasic2_gtest (5 tests, 2→1 shard, DragMenu cycle budget tuned).
-	- Deferred apps_misc_gtest ProWrite conversion (5 fixture classes, ~62s but not on critical path).
-	- Pattern: inherit `::testing::Test` directly, replicate `LxaTest` assigns in static `SetUpTestSuite()`, use `s_setup_ok` bool + `GTEST_SKIP()` for per-test guard, place destructive tests (CloseWindow, QuitViaMenu) last.
-	- Two-fixture files (simplegad, simplemenu, simplegtgadget, talk2boopsi) keep 2 CTest shards since the behavioral (rootless) and pixel (non-rootless) fixtures require different emulator configs.
-	- Removed redundant close+exit from simplegtgadget behavioral tests (ClickButton, ClickCheckbox, ClickCycle, NumberGadgetAcceptsKeyboardInput) so they coexist in a persistent fixture.
-	- Result: 63 CTest shards, all passing, wall-time reduced from ~131s to ~108s (18% improvement on top of Phase 106's 38%).
-	- Combined Phase 106+107 improvement: wall-time from ~210s to ~108s (49% total reduction).
-
-- Phase 106: Test performance — headless display skip, idle detection, reduced cycle budgets (complete)
-	- Skipped `display_update_planar()`/`display_refresh_all()` in headless VBlank; added `s_display_dirty` flag so `lxa_read_pixel()`/`lxa_capture_*()` auto-flush on demand.
-	- Raised `AUTO_VBLANK_CYCLES` from 100K to 500K.
-	- Added `lxa_is_idle()` (TaskReady empty check) and `lxa_run_until_idle()`.
-	- Reduced `lxa_inject_mouse_click()` from 11 to 6 settle iterations via idle detection.
-	- Reduced `lxa_inject_string()` per-character budget from 2×500K to 10×50K with idle early-return.
-	- Reduced `lxa_inject_drag()` per-step budget from 500K to 3×200K (fixed VBlank-driven, not idle-detected, because Intuition renders in interrupt context).
-	- Result: all 67 tests pass, wall-time reduced from ~210s to ~131s (38% improvement).
-
-## Future Phases
+## Phases
 
 ### App Testing Phases (continuing the integration test sweep)
 
@@ -48,6 +13,15 @@ green; (3) capture screenshots on failure and use `tools/screenshot_review.py`
 to identify UI/rendering issues and hypotheses; (4) author additional automated
 pixel or interaction tests that assert the UI issues are fixed; (5) implement
 fixes and iterate until tests are green.
+
+- Phase 108-c: Make SysInfo fully functional — **DONE** (v0.8.72)
+
+	Resolved all three issues reported during manual testing:
+	- Fixed ROM coldstart to initialise ExecBase fields (AttnFlags=68030, VBlankFrequency=50, MaxLocMem, EClockFrequency) — CPU now reports "68030"
+	- Fixed VBlank IRQ pulse bug in **all four** `m68k_set_irq(3)` call sites (Musashi edge-trigger semantics): main loop, API `lxa_run_cycles()`, INTENA write handler, and `EMU_CALL_WAIT` handler — buttons now respond in SDL interactive mode
+	- Updated launch.json for SysInfo and all other app entries to include FS-UAE third-party LIBS: path
+	- Added `lxa_peek16()` API, ExecBase field verification tests, LIBRARIES interaction test, and screenshot capture test (16 tests total)
+	- Expansion board list remains empty (acceptable — lxa doesn't emulate physical expansion hardware)
 
 - Phase 109: DirectoryOpus (follow-up)
 	- Ensure existing DirectoryOpus startup test reaches the main rootless window; fix regressions if any.
@@ -149,3 +123,34 @@ regression assertions, and saved failure artifacts used to justify added tests.
 Use `tools/screenshot_review.py` interactively during development, then
 translate findings into deterministic pixel/geometry assertions so CI can detect
 regressions without the vision model.
+
+## Completed Phases (recent)
+
+- Phase 108: SysInfo and Cluster2 app testing (complete, v0.8.71)
+	- **Phase 108a — SysInfo**: Converted `sysinfo_gtest.cpp` to persistent `SetUpTestSuite()` fixture (10 tests, ~376ms, down from ~985ms). Added MEMORY and BOARDS gadget interaction tests with pixel-change verification. Reordered test execution so SPEED benchmark runs last (it monopolises the CPU and blocks subsequent gadget clicks).
+	- **Phase 108b — Cluster2**: Extended `cluster2_gtest.cpp` from 7 to 10 tests. Added About-dialog toolbar click test, F6 file-requester open/dismiss test (pixel-based detection — Cluster2 uses custom screens so rootless window tracking doesn't detect its dialogs), and editor-content typing verification test. Discovered Cluster2 uses NO Intuition menus or gadgets (MenuStrip=NULL, gadget count=0); all UI is custom-rendered with WFLG_RMBTRAP.
+	- launch.json entries for both apps verified consistent with test driver assigns.
+
+- Phase 107: Test performance — persistent fixtures and SetUp deduplication (complete)
+	- **Batch 1** (v0.8.69): Converted 7 multi-test-case drivers to `SetUpTestSuite()` / `TearDownTestSuite()`:
+	  api_gtest (8 tests, 1 shard), cluster2_gtest (7 tests, 3→1 shard),
+	  maxonbasic_gtest (5 tests, 2→1 shard), devpac_gtest (9 tests, 3→1 shard),
+	  simplegad_gtest (8 tests, 2 fixtures/shards), simplemenu_gtest (5 tests, 2 fixtures/shards),
+	  simplegtgadget_gtest (8 tests, 1→2 fixtures/shards).
+	- **Batch 2** (v0.8.70): Converted 3 more drivers:
+	  mousetest_gtest (5 tests, 1 shard), talk2boopsi_gtest (4 tests, 2 fixtures/shards — behavioral rootless + pixel non-rootless), blitzbasic2_gtest (5 tests, 2→1 shard, DragMenu cycle budget tuned).
+	- Deferred apps_misc_gtest ProWrite conversion (5 fixture classes, ~62s but not on critical path).
+	- Pattern: inherit `::testing::Test` directly, replicate `LxaTest` assigns in static `SetUpTestSuite()`, use `s_setup_ok` bool + `GTEST_SKIP()` for per-test guard, place destructive tests (CloseWindow, QuitViaMenu) last.
+	- Two-fixture files (simplegad, simplemenu, simplegtgadget, talk2boopsi) keep 2 CTest shards since the behavioral (rootless) and pixel (non-rootless) fixtures require different emulator configs.
+	- Removed redundant close+exit from simplegtgadget behavioral tests (ClickButton, ClickCheckbox, ClickCycle, NumberGadgetAcceptsKeyboardInput) so they coexist in a persistent fixture.
+	- Result: 63 CTest shards, all passing, wall-time reduced from ~131s to ~108s (18% improvement on top of Phase 106's 38%).
+	- Combined Phase 106+107 improvement: wall-time from ~210s to ~108s (49% total reduction).
+
+- Phase 106: Test performance — headless display skip, idle detection, reduced cycle budgets (complete)
+	- Skipped `display_update_planar()`/`display_refresh_all()` in headless VBlank; added `s_display_dirty` flag so `lxa_read_pixel()`/`lxa_capture_*()` auto-flush on demand.
+	- Raised `AUTO_VBLANK_CYCLES` from 100K to 500K.
+	- Added `lxa_is_idle()` (TaskReady empty check) and `lxa_run_until_idle()`.
+	- Reduced `lxa_inject_mouse_click()` from 11 to 6 settle iterations via idle detection.
+	- Reduced `lxa_inject_string()` per-character budget from 2×500K to 10×50K with idle early-return.
+	- Reduced `lxa_inject_drag()` per-step budget from 500K to 3×200K (fixed VBlank-driven, not idle-detected, because Intuition renders in interrupt context).
+	- Result: all 67 tests pass, wall-time reduced from ~210s to ~131s (38% improvement).

@@ -1792,6 +1792,7 @@ static void _handle_custom_write (uint16_t reg, uint16_t value)
                     (g_pending_irq & (1 << 3)))
                 {
                     g_pending_irq &= ~(1 << 3);
+                    m68k_set_irq(0);    /* Musashi edge-trigger: lower first */
                     m68k_set_irq(3);
                 }
             }
@@ -5601,6 +5602,7 @@ int op_illg(int level)
                 (g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK))
             {
                 g_pending_irq &= ~(1 << 3);
+                m68k_set_irq(0);    /* Musashi edge-trigger: lower first */
                 m68k_set_irq(3);
             }
             
@@ -9264,6 +9266,18 @@ int main(int argc, char **argv, char **envp)
     m68k_pulse_reset();
 
     /*
+     * Initialise the display subsystem (SDL2) before the SIGALRM timer is
+     * armed.  SDL_Init() performs X11/Wayland connection setup which involves
+     * blocking system calls (connect, poll).  If SIGALRM fires during those
+     * calls, SA_RESTART *should* be sufficient, but in practice some display
+     * server round-trips fail or hang under repeated signal delivery.
+     * Calling display_init() here — before any signals are armed — avoids
+     * the race entirely and ensures SDL2 is ready by the time the first
+     * EMU_CALL_INT_OPEN_SCREEN arrives.
+     */
+    display_init();
+
+    /*
      * Phase 6.5: Set up timer-driven preemptive multitasking
      *
      * We use setitimer() to generate SIGALRM at ~50Hz (PAL VBlank rate).
@@ -9352,17 +9366,20 @@ int main(int argc, char **argv, char **envp)
 
             if ((g_intena & INTENA_MASTER) && (g_intena & INTENA_VBLANK))
             {
-                /* Clear pending flag and trigger interrupt */
+                /* Clear pending flag and trigger interrupt.
+                 *
+                 * Phase 108c: Pulse the IRQ line (lower then raise) so Musashi
+                 * recognises a fresh edge.  Without this, consecutive VBlanks
+                 * at the same level are silently ignored because Musashi treats
+                 * same-level interrupts as edge-triggered.  This was already
+                 * fixed in lxa_run_cycles() (Phase 105) but the main interactive
+                 * loop was still missing the pulse, causing buttons in apps like
+                 * SysInfo to appear unresponsive in SDL mode. */
                 g_pending_irq &= ~(1 << 3);
+                m68k_set_irq(0);
                 m68k_set_irq(3);
             }
         }
-        /* Note: We intentionally do NOT call m68k_set_irq(0) when there is no
-         * pending VBlank. Musashi's auto-clear (CPU_INT_LEVEL = 0 after interrupt
-         * acknowledgement) handles the normal case. If a previous m68k_set_irq(3)
-         * was not yet taken because the CPU was inside an ISR (FLAG_INT_MASK >= 3),
-         * we must keep CPU_INT_LEVEL armed so the interrupt fires when the ISR
-         * completes its RTE and the mask is lowered. */
 
         /*
          * Execute a batch of instructions. The batch size is chosen to be
