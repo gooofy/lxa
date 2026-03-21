@@ -1495,6 +1495,8 @@ static BOOL do_screenmode_request(struct LXAScreenModeRequester *sm)
     WORD btnWidth = 60, btnHeight = 14;
     WORD margin = 8;
     WORD listTop, listHeight;
+    WORD borderTop = 11;   /* standard Intuition title bar height */
+    WORD borderBottom = 2; /* standard Intuition bottom border */
     WORD selectedIndex = 0;
     WORD display_count = 0;
     ULONG i;
@@ -1539,7 +1541,7 @@ static BOOL do_screenmode_request(struct LXAScreenModeRequester *sm)
     lastGad = gad;
 
     gad->LeftEdge = margin;
-    gad->TopEdge = winHeight - 20 - btnHeight;
+    gad->TopEdge = winHeight - borderBottom - margin - btnHeight;
     gad->Width = btnWidth;
     gad->Height = btnHeight;
     gad->GadgetID = GID_FONT_OK;
@@ -1554,7 +1556,7 @@ static BOOL do_screenmode_request(struct LXAScreenModeRequester *sm)
     lastGad = gad;
 
     gad->LeftEdge = winWidth - margin - btnWidth;
-    gad->TopEdge = winHeight - 20 - btnHeight;
+    gad->TopEdge = winHeight - borderBottom - margin - btnHeight;
     gad->Width = btnWidth;
     gad->Height = btnHeight;
     gad->GadgetID = GID_FONT_CANCEL;
@@ -1586,18 +1588,27 @@ static BOOL do_screenmode_request(struct LXAScreenModeRequester *sm)
         goto cleanup;
 
     rp = win->RPort;
-    listTop = 20 + margin;
-    listHeight = winHeight - listTop - btnHeight - margin * 2 - 20;
+
+    /* Use actual border dimensions from the opened window for layout */
+    borderTop = win->BorderTop;
+    borderBottom = win->BorderBottom;
+
+    listTop = borderTop + margin;
+    listHeight = winHeight - listTop - btnHeight - margin * 2 - borderBottom;
 
     SetAPen(rp, 1);
     Move(rp, margin, listTop - 2);
     Text(rp, (STRPTR)"Modes:", 6);
-    Move(rp, margin + 44, winHeight - 20 - btnHeight + 10);
-    Text(rp, sm->sm_OkText ? sm->sm_OkText : (STRPTR)"OK",
-         sm->sm_OkText ? strlen((char *)sm->sm_OkText) : 2);
-    Move(rp, winWidth - margin - btnWidth + 8, winHeight - 20 - btnHeight + 10);
-    Text(rp, sm->sm_CancelText ? sm->sm_CancelText : (STRPTR)"Cancel",
-         sm->sm_CancelText ? strlen((char *)sm->sm_CancelText) : 6);
+
+    {
+        WORD btnY = winHeight - borderBottom - margin - btnHeight;
+        Move(rp, margin + 44, btnY + 10);
+        Text(rp, sm->sm_OkText ? sm->sm_OkText : (STRPTR)"OK",
+             sm->sm_OkText ? strlen((char *)sm->sm_OkText) : 2);
+        Move(rp, winWidth - margin - btnWidth + 8, btnY + 10);
+        Text(rp, sm->sm_CancelText ? sm->sm_CancelText : (STRPTR)"Cancel",
+             sm->sm_CancelText ? strlen((char *)sm->sm_CancelText) : 6);
+    }
 
     SetAPen(rp, 2);
     Move(rp, margin, listTop);

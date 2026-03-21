@@ -49,6 +49,9 @@ char __aligned _g_layers_Copyright [] = "(C)opyright 2026 by G. Bartsch. License
 
 char __aligned _g_layers_VERSTRING [] = "\0$VER: " EXLIBNAME EXLIBVER;
 
+/* SMART_REFRESH: LAYERSMART set, LAYERSUPER NOT set */
+#define IS_SMARTREFRESH(l) (LAYERSMART == ((l)->Flags & (LAYERSMART | LAYERSUPER)))
+
 extern struct ExecBase *SysBase;
 extern struct GfxBase  *GfxBase;
 extern struct UtilityBase *UtilityBase;
@@ -256,12 +259,14 @@ static void FreeClipRect(struct Layer_Info *li, struct ClipRect *cr)
     if (!cr)
         return;
 
-    /* Free any backing store bitmap */
-    if (cr->BitMap && cr->obscured)
+    /* Free any backing store bitmap (SMART_REFRESH) */
+    if (cr->BitMap)
     {
-        /* Backing store bitmap - would need to free planes here */
-        /* For now, we don't allocate backing store bitmaps */
+        FreeBitMap(cr->BitMap);
+        cr->BitMap = NULL;
     }
+
+    cr->obscured = 0;
 
     if (li)
     {
@@ -607,7 +612,7 @@ static void RebuildClipRects(struct Layer *layer)
     if (!initial)
         return;
 
-    /* Build a list of visible ClipRects by splitting around obscuring layers */
+    /* Build a list of visible ClipRects by splitting around obscuring layers. */
     struct ClipRect *visible = initial;
 
     /* Check each layer in front of this one */
@@ -637,7 +642,7 @@ static void RebuildClipRects(struct Layer *layer)
                 /* Check if fully obscured */
                 if (RectContainsRect(&front_layer->bounds, &cr->bounds))
                 {
-                    /* Completely obscured - remove this cliprect */
+                    /* Free the original visible cliprect */
                     FreeClipRect(li, cr);
                 }
                 else
@@ -689,7 +694,10 @@ static void RebuildClipRects(struct Layer *layer)
         front_layer = front_layer->front;
     }
 
-    layer->ClipRect = ApplyLayerClipRegion(layer, visible);
+    /* Apply clip region to visible ClipRects */
+    visible = ApplyLayerClipRegion(layer, visible);
+
+    layer->ClipRect = visible;
     
     DPRINTF(LOG_DEBUG, "_layers: RebuildClipRects() done, ClipRect=0x%08lx\n", (ULONG)layer->ClipRect);
 }
@@ -773,6 +781,21 @@ static void DamageExposedAreas(struct Layer_Info *li, struct Layer *moved_layer,
     {
         /* Skip the moved layer itself and layers in front of it */
         if (layer == moved_layer)
+        {
+            layer = layer->back;
+            continue;
+        }
+
+        /*
+         * SMART_REFRESH layers: skip damage entirely.  RebuildClipRects()
+         * restores all backing-store pixels to the screen bitmap before
+         * recalculating ClipRects, so exposed areas are already correct.
+         * Adding damage would cause a spurious REFRESHWINDOW message and
+         * potentially an app-driven redraw that overwrites the restored
+         * pixels with garbage (if the app doesn't have its own off-screen
+         * state for that region).
+         */
+        if (IS_SMARTREFRESH(layer))
         {
             layer = layer->back;
             continue;

@@ -6937,8 +6937,12 @@ int op_illg(int level)
 
         case EMU_CALL_INT_GET_MOUSE_BTN:
         {
-            /* Returns button code from last event */
-            m68k_set_reg(M68K_REG_D0, (uint32_t)g_last_event.button_code);
+            /* Returns button_code | (qualifier << 8) from last event.
+             * The ROM extracts: code = result & 0xFF, qualifier = (result >> 8) & 0xFFFF.
+             * This matches the packing used by EMU_CALL_INT_GET_KEY. */
+            uint32_t result = ((uint32_t)g_last_event.qualifier << 8) |
+                             ((uint32_t)g_last_event.button_code & 0xFF);
+            m68k_set_reg(M68K_REG_D0, result);
             break;
         }
 

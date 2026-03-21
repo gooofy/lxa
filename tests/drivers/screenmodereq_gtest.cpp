@@ -26,8 +26,10 @@ TEST_F(ScreenModeReqTest, RequesterOpens) {
 }
 
 TEST_F(ScreenModeReqTest, CancelButton) {
+    /* Cancel button: LeftEdge = winWidth - margin - btnWidth, center offset btnWidth/2
+     * TopEdge = winHeight - borderBottom(2) - margin(8) - btnHeight(14), center offset btnHeight/2 */
     int cancel_x = window_info.x + window_info.width - 8 - 60 + 30;
-    int cancel_y = window_info.y + window_info.height - 20 - 14 + 7;
+    int cancel_y = window_info.y + window_info.height - 2 - 8 - 14 + 7;
 
     Click(cancel_x, cancel_y);
     RunCyclesWithVBlank(20, 50000);
@@ -46,10 +48,13 @@ TEST_F(ScreenModeReqTest, CancelButton) {
 }
 
 TEST_F(ScreenModeReqTest, OKButtonReturnsSelection) {
+    /* List starts at borderTop(11) + margin(8) = 19, first entry offset ~8px */
     int list_x = window_info.x + 24;
-    int list_y = window_info.y + 36;
+    int list_y = window_info.y + 27;
+    /* OK button: LeftEdge = margin(8), center offset btnWidth/2
+     * TopEdge = winHeight - borderBottom(2) - margin(8) - btnHeight(14), center offset btnHeight/2 */
     int ok_x = window_info.x + 8 + 30;
-    int ok_y = window_info.y + window_info.height - 20 - 14 + 7;
+    int ok_y = window_info.y + window_info.height - 2 - 8 - 14 + 7;
 
     Click(list_x, list_y);
     RunCyclesWithVBlank(10, 50000);

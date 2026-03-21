@@ -113,7 +113,7 @@ done
 
 **Parallelism**: `-j16` is the project default. The suite's longest interactive
 drivers are now sharded, which keeps full-suite wall time around the current
-~160 second range on this machine class. Higher parallelism is safe, but usually
+~145 second range on this machine class. Higher parallelism is safe, but usually
 does not improve wall time meaningfully.
 
 See `lxa-testing` skill for detailed test execution docs and
@@ -121,7 +121,7 @@ See `lxa-testing` skill for detailed test execution docs and
 
 ## 6. Lessons Learned (Accumulated Knowledge)
 
-These are hard-won debugging insights from Phases 98–105 that future agents
+These are hard-won debugging insights from Phases 98–108 that future agents
 **must** know. Each item cost hours of investigation; reading them costs seconds.
 
 ### 6.1 GCC m68k Cross-Compiler Bugs
@@ -232,6 +232,133 @@ Current sharded drivers: `simplegad` (behavior/pixels), `simplemenu`
 (startup/input), `cluster2` (startup/input/navigation), `sigma`
 (startup/interaction), `blitzbasic2` (startup/interaction), `vim`
 (startup/editing).
+
+### 6.8 SMART_REFRESH Default Behavior
+
+`WFLG_SMART_REFRESH` has value **0**. This means every window that does not
+explicitly set `WFLG_SIMPLE_REFRESH` or `WFLG_SUPER_BITMAP` is SMART_REFRESH
+by default. This is architecturally significant: the vast majority of Amiga
+windows expect backing-store behavior.
+
+- **Current state**: Backing store is not fully implemented. The
+  `DamageExposedAreas()` skip for SMART_REFRESH layers prevents spurious
+  REFRESHWINDOW messages (which caused "dialog stamping" artifacts), but
+  obscured content is still lost when covered by another layer.
+- **Symptom of incomplete backing store**: When a dialog is opened over a
+  window and then closed, the area behind it shows garbage or the dialog's
+  content is "stamped" into the window.
+- **Detection macro**: `IS_SMARTREFRESH(layer)` in `lxa_layers.c` line ~53.
+- **Previous attempt**: A full backing store implementation was written,
+  tested, and reverted because it caused regressions (SIGMAth2 Analysis
+  window, requester test timeouts). The incremental approach in Phase 111
+  addresses this.
+
+### 6.9 Disk Library Pattern
+
+Third-party libraries must NOT be in ROM. They are compiled as disk libraries
+using `add_disk_library()` in `sys/CMakeLists.txt` and installed to
+`share/lxa/System/Libs/`.
+
+**How to create a new stub library**:
+1. Create source in `src/rom/lxa_<name>.c` (the source lives in `src/rom/`
+   but is compiled separately, not linked into ROM).
+2. Follow the pattern in `lxa_amigaguide.c` or `lxa_rexxsyslib.c`:
+   - Init function that sets up the Library node.
+   - Function table with all public vectors (use NDK Autodocs for the list).
+   - Each function returns a safe failure value (NULL, 0, FALSE).
+3. Add `add_disk_library(<target> lxa_<name>.c <name>.library <version>)`
+   to `sys/CMakeLists.txt`.
+4. Add a startup test that verifies `OpenLibrary("<name>.library", 0)` succeeds
+   and key functions return clean failure values.
+
+**Key principle**: Stubs exist so apps get a clean "library not available" code
+path rather than crashing on OpenLibrary failure. If an app truly needs the
+library's functionality, that's a deeper problem.
+
+### 6.10 Event Queue Sizing and Coalescing
+
+SDL mouse motion events can flood the input event queue. At 60 FPS with
+continuous mouse movement, SDL generates hundreds of MOUSEMOVE events per
+second, which overwhelmed the original 32-slot queue.
+
+- **Fix applied**: Queue enlarged to 256 slots (`EVENT_QUEUE_SIZE` in
+  `display.c`). Added coalescing: consecutive MOUSEMOVE events are merged
+  when no mouse buttons are held.
+- **Design rule**: When adding new event types or input sources, consider
+  whether they can generate bursts. If so, add coalescing logic.
+- **Coalescing exception**: Do NOT coalesce mouse moves when buttons are held,
+  because that would break drag operations (menu drag, gadget drag, etc.).
+
+### 6.11 GfxBase Initialization Requirements
+
+Many Amiga apps check `GfxBase` fields at startup and fail silently (immediate
+exit, rv=26, or missing functionality) when they find zeros.
+
+**Fields that must be initialized** (in `exec.c` coldstart):
+- `DisplayFlags = PAL | REALLY_PAL` — apps use this to detect PAL vs NTSC
+- `VBlank = 50` — PAL VBlank frequency
+- `ChipRevBits0 = SETCHIPREV_ECS` — chipset revision detection
+- `NormalDisplayRows/Columns`, `MaxDisplayRow/Column` — screen dimensions
+
+**Symptom of missing initialization**: App opens and immediately closes, or
+opens but shows no UI content. PPaint had rv=26 until DisplayFlags was set.
+
+### 6.12 Custom UI Apps (No Intuition Gadgets)
+
+Some apps use zero Intuition gadgets and render their entire UI with direct
+graphics calls. Cluster2 is the prime example: gadget count is 0, MenuStrip
+is NULL, `WFLG_RMBTRAP` is set. The entire toolbar, file list, and button
+bar are custom-rendered.
+
+- **Implication for testing**: `GetGadgetCount()`, `GetGadgetInfo()`, and
+  `ClickGadget()` are useless for these apps. Tests must use raw coordinate
+  clicks and pixel-change verification.
+- **Detection**: If `GetGadgetCount()` returns 0 on a window that visually has
+  buttons, the app is custom-rendering.
+- **IDCMP pattern**: These apps typically request `IDCMP_MOUSEBUTTONS |
+  IDCMP_RAWKEY` (and sometimes `IDCMP_INTUITICKS`) and do their own hit
+  testing internally.
+
+### 6.13 Deallocate Overlap Protection
+
+Production Amiga apps sometimes perform double-frees or free with wrong sizes,
+causing the memory free list to become corrupt. This manifests as an assertion
+failure on `p1 != p1->mc_Next` (circular free list) or mysterious crashes later.
+
+- **Fix applied**: `_exec_Deallocate()` now detects overlapping frees and
+  silently skips them instead of corrupting the free list.
+- **Design principle**: The emulator should be more tolerant than real hardware
+  for memory management errors, because debugging these in emulation is
+  extremely difficult and many commercial apps have these bugs.
+- **DPaint V** was the app that triggered this — it crashed with a free-list
+  corruption assertion.
+
+### 6.14 GadTools Layout and Double-Baseline Bug
+
+When GadTools creates labels for gadgets, it calculates the Y position of the
+text. The bug was that `gt_create_label()` added `GT_FONT_BASELINE` (6) into
+`IntuiText.TopEdge`, and then `_render_gadget()` in `lxa_intuition.c` added
+`tf_Baseline` (also 6) again when rendering. This caused all GadTools labels
+to be offset 6 pixels too low.
+
+- **Fix**: Removed `GT_FONT_BASELINE` from all TopEdge calculations in
+  `gt_create_label()` (5 sites), `gt_position_slider_level_text()` (4 sites),
+  and the CYCLE_KIND inline label path.
+- **Lesson**: When both GadTools and Intuition touch the same rendering
+  pipeline, baseline/offset calculations must be audited end-to-end. A value
+  that looks correct in isolation may be applied twice.
+
+### 6.15 IDCMP_INTUITICKS and Qualifier Propagation
+
+INTUITICKS fires every ~200ms (every 10th VBlank at 50 Hz PAL) to all windows
+that have `IDCMP_INTUITICKS` in their IDCMPFlags. Some apps (Cluster2) toggle
+this flag dynamically via `ModifyIDCMP()`.
+
+- **Qualifier propagation**: INTUITICKS messages must carry the current input
+  qualifier (shift/ctrl/alt state). This is tracked via `g_current_qualifier`
+  which is updated from every mouse button, mouse move, and keyboard event.
+- **Without qualifiers**: Apps that check qualifier state in INTUITICKS handlers
+  (e.g., for auto-repeat while a button is held) will malfunction.
 
 ## 7. Quick Start
 1. Check `roadmap.md`.

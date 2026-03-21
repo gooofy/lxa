@@ -1330,6 +1330,41 @@ void _exec_Deallocate ( register struct ExecBase  *SysBase     __asm("a6"),
     DPRINTF (LOG_DEBUG, "       will insert, pPrev=0x%08lx, pNext=0x%08lx, pCurStart=0x%08lx, pCurEnd=0x%08lx\n",
                         pPrev, pNext, pCurStart, pCurEnd);
 
+    /*
+     * Overlap / double-free detection.
+     *
+     * On real AmigaOS hardware a double-free silently corrupts the free list.
+     * Applications like DPaint V occasionally free memory with incorrect sizes
+     * or free the same block twice.  Rather than crashing (which real hardware
+     * would not do), we detect the overlap and silently skip the request.
+     * This matches the behaviour of the original Kickstart allocator, which
+     * has no overlap validation at all.
+     */
+    if (pPrev != (struct MemChunk *)&freeList->mh_First)
+    {
+        UBYTE *prevEnd = (UBYTE *)pPrev + pPrev->mc_Bytes;
+        if (prevEnd > (UBYTE *)pCurStart)
+        {
+            /* The block being freed overlaps with the previous free chunk.
+             * This is a double-free or wrong-size free by the application. */
+            LPRINTF (LOG_WARNING, "_exec: Deallocate overlap with prev free chunk "
+                     "(prev=0x%08lx end=0x%08lx, block=0x%08lx size=%ld) — skipping\n",
+                     (ULONG)pPrev, (ULONG)prevEnd, (ULONG)pCurStart, byteSize);
+            return;
+        }
+    }
+    if (pNext)
+    {
+        if ((UBYTE *)pCurEnd > (UBYTE *)pNext)
+        {
+            /* The block being freed overlaps with the next free chunk. */
+            LPRINTF (LOG_WARNING, "_exec: Deallocate overlap with next free chunk "
+                     "(block=0x%08lx end=0x%08lx, next=0x%08lx) — skipping\n",
+                     (ULONG)pCurStart, (ULONG)pCurEnd, (ULONG)pNext);
+            return;
+        }
+    }
+
     // if we found a prev block, see if we can merge
     if (pPrev != (struct MemChunk *)&freeList->mh_First)
     {
@@ -5657,6 +5692,9 @@ void coldstart (void)
     GfxBase->NormalDisplayColumns = 640;
     GfxBase->MaxDisplayRow = 312;     /* PAL max */
     GfxBase->MaxDisplayColumn = 640;
+    GfxBase->DisplayFlags = PAL | REALLY_PAL;  /* PAL crystal (matches VBlankFrequency=50) */
+    GfxBase->VBlank = 50;                      /* PAL VBlank rate */
+    GfxBase->ChipRevBits0 = SETCHIPREV_ECS;   /* ECS chipset (HR_AGNUS + HR_DENISE) */
     
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
     /* Debug: print offset of FirstScreen from exec.c perspective */

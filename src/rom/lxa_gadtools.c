@@ -583,22 +583,22 @@ static void gt_position_slider_level_text(struct GTGadgetData *data,
     if (place & PLACETEXT_LEFT)
     {
         level_text->LeftEdge = -((WORD)data->max_pixel_len) - GT_INTERWIDTH + text_left;
-        level_text->TopEdge  = (gadHeight - GT_FONT_HEIGHT) / 2 + GT_FONT_BASELINE;
+        level_text->TopEdge  = (gadHeight - GT_FONT_HEIGHT) / 2;
     }
     else if (place & PLACETEXT_RIGHT)
     {
         level_text->LeftEdge = gadWidth + GT_INTERWIDTH + text_left;
-        level_text->TopEdge  = (gadHeight - GT_FONT_HEIGHT) / 2 + GT_FONT_BASELINE;
+        level_text->TopEdge  = (gadHeight - GT_FONT_HEIGHT) / 2;
     }
     else if (place & PLACETEXT_ABOVE)
     {
         level_text->LeftEdge = (gadWidth - (WORD)data->max_pixel_len) / 2 + text_left;
-        level_text->TopEdge  = -GT_FONT_HEIGHT - 2 + GT_FONT_BASELINE;
+        level_text->TopEdge  = -GT_FONT_HEIGHT - 2;
     }
     else
     {
         level_text->LeftEdge = (gadWidth - (WORD)data->max_pixel_len) / 2 + text_left;
-        level_text->TopEdge  = gadHeight + 3 + GT_FONT_BASELINE;
+        level_text->TopEdge  = gadHeight + 3;
     }
 }
 
@@ -796,30 +796,36 @@ static struct IntuiText * gt_create_label(CONST_STRPTR text, ULONG flags,
     textWidth  = gt_label_width(text, us);
     textHeight = GT_FONT_HEIGHT;
 
+    /*
+     * IntuiText.TopEdge is the top edge of the character cell, NOT the
+     * baseline.  The renderer (_render_gadget in lxa_intuition.c) adds
+     * tf_Baseline before calling Move()/Text().  Therefore we must NOT
+     * add GT_FONT_BASELINE here — doing so would double-offset the text.
+     */
     if (place & PLACETEXT_LEFT)
     {
         it->LeftEdge = -textWidth - GT_INTERWIDTH;
-        it->TopEdge  = (gadHeight - textHeight) / 2 + GT_FONT_BASELINE;
+        it->TopEdge  = (gadHeight - textHeight) / 2;
     }
     else if (place & PLACETEXT_RIGHT)
     {
         it->LeftEdge = gadWidth + GT_INTERWIDTH;
-        it->TopEdge  = (gadHeight - textHeight) / 2 + GT_FONT_BASELINE;
+        it->TopEdge  = (gadHeight - textHeight) / 2;
     }
     else if (place & PLACETEXT_ABOVE)
     {
         it->LeftEdge = (gadWidth - textWidth) / 2;
-        it->TopEdge  = -textHeight - 2 + GT_FONT_BASELINE;
+        it->TopEdge  = -textHeight - 2;
     }
     else if (place & PLACETEXT_BELOW)
     {
         it->LeftEdge = (gadWidth - textWidth) / 2;
-        it->TopEdge  = gadHeight + 3 + GT_FONT_BASELINE;
+        it->TopEdge  = gadHeight + 3;
     }
     else /* PLACETEXT_IN */
     {
         it->LeftEdge = (gadWidth - textWidth) / 2;
-        it->TopEdge  = (gadHeight - textHeight) / 2 + GT_FONT_BASELINE;
+        it->TopEdge  = (gadHeight - textHeight) / 2;
     }
 
     /* If we have an underline position, create a second IntuiText linked via
@@ -1431,7 +1437,7 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
                 FreeMem(cycle_text->IText, gt_strlen(cycle_text->IText) + 1);
             cycle_text->IText = data->level_buffer;
             cycle_text->LeftEdge = 4;
-            cycle_text->TopEdge = (ng->ng_Height - GT_FONT_HEIGHT) / 2 + GT_FONT_BASELINE;
+            cycle_text->TopEdge = (ng->ng_Height - GT_FONT_HEIGHT) / 2;
             data->level_text = cycle_text;
 
             label_tail = gt_label_chain_tail(newgad->GadgetText);
@@ -1442,11 +1448,9 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             break;
         }
         case MX_KIND:
-        case SCROLLER_KIND:
         case LISTVIEW_KIND:
         case PALETTE_KIND:
             data->kind = (kind == MX_KIND) ? GT_KIND_MX :
-                         (kind == SCROLLER_KIND) ? GT_KIND_SCROLLER :
                          (kind == LISTVIEW_KIND) ? GT_KIND_LISTVIEW : GT_KIND_PALETTE;
             newgad->GadgetType = GTYP_PROPGADGET;
             newgad->Activation = GACT_RELVERIFY;
@@ -1457,6 +1461,97 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
                                                   PLACETEXT_LEFT,
                                                   ng->ng_Width, ng->ng_Height, us);
             break;
+        case SCROLLER_KIND:
+        {
+            struct PropInfo *pi;
+            LONG sc_top, sc_total, sc_visible;
+            UWORD freedom;
+            UWORD pot, body;
+
+            data->kind = GT_KIND_SCROLLER;
+            newgad->GadgetType = GTYP_PROPGADGET;
+            newgad->Activation = GACT_RELVERIFY | GACT_IMMEDIATE;
+            newgad->Flags = GFLG_GADGHCOMP;
+
+            /* Read SCROLLER tags */
+            sc_top     = (LONG)GetTagData(GTSC_Top,     0,  taglist);
+            sc_total   = (LONG)GetTagData(GTSC_Total,   0,  taglist);
+            sc_visible = (LONG)GetTagData(GTSC_Visible, 2,  taglist);
+            freedom    = (UWORD)GetTagData(PGA_Freedom, LORIENT_HORIZ, taglist);
+
+            /* Store scroller parameters:
+             * value = Top, min = 0 (unused), max = Total */
+            data->value = sc_top;
+            data->min   = sc_visible;  /* store Visible in min for GT_SetGadgetAttrs */
+            data->max   = sc_total;
+
+            /* Clamp top to valid range */
+            if (sc_total > sc_visible)
+            {
+                if (sc_top > sc_total - sc_visible)
+                    sc_top = sc_total - sc_visible;
+            }
+            else
+            {
+                sc_top = 0;
+            }
+            if (sc_top < 0) sc_top = 0;
+            data->value = sc_top;
+
+            /* Compute Pot and Body from Top/Total/Visible:
+             *   Body = (Visible * MAXBODY) / Total
+             *   Pot  = (Top * MAXPOT) / (Total - Visible)
+             */
+            if (sc_total > 0 && sc_visible > 0)
+                body = (UWORD)(((LONG)sc_visible * 0xFFFF) / sc_total);
+            else
+                body = 0xFFFF;
+
+            if (sc_total > sc_visible && sc_total > 0)
+                pot = (UWORD)(((LONG)sc_top * 0xFFFF) / (sc_total - sc_visible));
+            else
+                pot = 0;
+
+            /* Allocate PropInfo */
+            pi = (struct PropInfo *)AllocMem(sizeof(struct PropInfo), MEMF_CLEAR | MEMF_PUBLIC);
+            if (!pi)
+            {
+                FreeMem(data, sizeof(struct GTGadgetData));
+                FreeMem(newgad, sizeof(struct Gadget));
+                return NULL;
+            }
+
+            if (freedom == LORIENT_VERT)
+            {
+                pi->Flags    = AUTOKNOB | FREEVERT | PROPNEWLOOK;
+                pi->HorizPot = 0;
+                pi->VertPot  = pot;
+                pi->HorizBody = 0xFFFF;
+                pi->VertBody  = body;
+            }
+            else
+            {
+                pi->Flags    = AUTOKNOB | FREEHORIZ | PROPNEWLOOK;
+                pi->HorizPot = pot;
+                pi->VertPot  = 0;
+                pi->HorizBody = body;
+                pi->VertBody  = 0xFFFF;
+            }
+
+            newgad->SpecialInfo = (APTR)pi;
+
+            /* Create recessed bevel box border around the scroller container */
+            newgad->GadgetRender = (APTR)gt_create_bevel(ng->ng_Width, ng->ng_Height, TRUE);
+
+            /* Create text label — default placement is PLACETEXT_LEFT */
+            newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
+                                                  PLACETEXT_LEFT,
+                                                  ng->ng_Width, ng->ng_Height, us);
+
+            DPRINTF(LOG_DEBUG, "_gadtools: CreateGadgetA() SCROLLER: pi=0x%08lx top=%ld total=%ld visible=%ld freedom=%d pot=%u body=%u\n",
+                    (ULONG)pi, sc_top, sc_total, sc_visible, freedom, pot, body);
+            break;
+        }
         case TEXT_KIND:
         case NUMBER_KIND:
             data->kind = (kind == TEXT_KIND) ? GT_KIND_TEXT : GT_KIND_NUMBER;
@@ -1677,6 +1772,72 @@ void _gadtools_GT_SetGadgetAttrsA ( register struct GadToolsBase *GadToolsBase _
 
                 DPRINTF (LOG_DEBUG, "_gadtools: GT_SetGadgetAttrsA() SLIDER level=%ld -> pot=%u\n",
                          level, pi->HorizPot);
+                needs_refresh = TRUE;
+            }
+        }
+    }
+
+    /* Handle SCROLLER_KIND:  accepts GTSC_Top, GTSC_Total, GTSC_Visible */
+    if (data && data->kind == GT_KIND_SCROLLER && (gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
+    {
+        struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+        if (pi)
+        {
+            LONG sc_top     = data->value;
+            LONG sc_total   = data->max;
+            LONG sc_visible = data->min;
+            BOOL changed = FALSE;
+
+            tag = gt_find_tagitem(GTSC_Total, taglist);
+            if (tag) { sc_total = (LONG)tag->ti_Data; data->max = sc_total; changed = TRUE; }
+
+            tag = gt_find_tagitem(GTSC_Visible, taglist);
+            if (tag) { sc_visible = (LONG)tag->ti_Data; data->min = sc_visible; changed = TRUE; }
+
+            tag = gt_find_tagitem(GTSC_Top, taglist);
+            if (tag) { sc_top = (LONG)tag->ti_Data; changed = TRUE; }
+
+            if (changed)
+            {
+                UWORD pot, body;
+
+                /* Clamp top */
+                if (sc_total > sc_visible)
+                {
+                    if (sc_top > sc_total - sc_visible)
+                        sc_top = sc_total - sc_visible;
+                }
+                else
+                {
+                    sc_top = 0;
+                }
+                if (sc_top < 0) sc_top = 0;
+                data->value = sc_top;
+
+                /* Recompute Pot and Body */
+                if (sc_total > 0 && sc_visible > 0)
+                    body = (UWORD)(((LONG)sc_visible * 0xFFFF) / sc_total);
+                else
+                    body = 0xFFFF;
+
+                if (sc_total > sc_visible && sc_total > 0)
+                    pot = (UWORD)(((LONG)sc_top * 0xFFFF) / (sc_total - sc_visible));
+                else
+                    pot = 0;
+
+                if (pi->Flags & FREEVERT)
+                {
+                    pi->VertPot  = pot;
+                    pi->VertBody = body;
+                }
+                else
+                {
+                    pi->HorizPot  = pot;
+                    pi->HorizBody = body;
+                }
+
+                DPRINTF(LOG_DEBUG, "_gadtools: GT_SetGadgetAttrsA() SCROLLER top=%ld total=%ld visible=%ld pot=%u body=%u\n",
+                        sc_top, sc_total, sc_visible, pot, body);
                 needs_refresh = TRUE;
             }
         }

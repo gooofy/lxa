@@ -968,6 +968,8 @@ VOID _intuition_SizeWindow(register struct IntuitionBase *IntuitionBase __asm("a
 static struct Gadget *g_active_gadget;
 static struct Window *g_active_window;
 static WORD g_prop_click_offset;
+static UWORD g_intuitick_counter;   /* VBlank counter for IDCMP_INTUITICKS (fires every 10th VBlank) */
+static UWORD g_current_qualifier;   /* last known input qualifier (for INTUITICKS messages) */
 static BOOL g_menu_mode;
 static struct Window *g_menu_window;
 static struct Menu *g_active_menu;
@@ -7079,6 +7081,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 button_code = emucall0(EMU_CALL_INT_GET_MOUSE_BTN);
                 UWORD code = (UWORD)(button_code & 0xFF);
                 UWORD qualifier = (UWORD)((button_code >> 8) & 0xFFFF);
+                g_current_qualifier = qualifier;
 
                 DPRINTF(LOG_DEBUG, "_intuition: PIE MouseButton raw=0x%08lx code=0x%02x qual=0x%04x at (%d,%d) window=0x%08lx\n",
                         button_code, (int)code, (int)qualifier, (int)mouseX, (int)mouseY, (ULONG)window);
@@ -7519,6 +7522,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
             {
                 key_data = emucall0(EMU_CALL_INT_GET_KEY);  /* Get qualifier */
                 UWORD qualifier = (UWORD)(key_data >> 16);
+                g_current_qualifier = qualifier;
 
                 DPRINTF(LOG_DEBUG, "_intuition: PIE case2 mouse_move at (%d,%d) g_menu_mode=%d\n",
                         mouseX, mouseY, g_menu_mode);
@@ -7784,6 +7788,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 key_data = emucall0(EMU_CALL_INT_GET_KEY);
                 UWORD rawkey = (UWORD)(key_data & 0xFFFF);
                 UWORD qualifier = (UWORD)(key_data >> 16);
+                g_current_qualifier = qualifier;
 
                 input_event.ie_Class = IECLASS_RAWKEY;
                 input_event.ie_Code = rawkey;
@@ -7951,6 +7956,33 @@ VOID _intuition_VBlankInputHook(void)
      * any screen viewport.
      */
     _intuition_ProcessInputEvents(IntuitionBase->FirstScreen);
+
+    /*
+     * IDCMP_INTUITICKS: fire approximately every 10th VBlank (~5 Hz on PAL).
+     * Per RKRM, INTUITICKS are sent to every open window whose IDCMPFlags
+     * include IDCMP_INTUITICKS.  The message carries the current mouse
+     * position relative to the window.
+     */
+    g_intuitick_counter++;
+    if (g_intuitick_counter >= 10)
+    {
+        struct Screen *scr;
+        struct Window *win;
+
+        g_intuitick_counter = 0;
+        for (scr = IntuitionBase->FirstScreen; scr; scr = scr->NextScreen)
+        {
+            for (win = scr->FirstWindow; win; win = win->NextWindow)
+            {
+                if (win->IDCMPFlags & IDCMP_INTUITICKS)
+                {
+                    _post_idcmp_message(win, IDCMP_INTUITICKS, 0,
+                                        g_current_qualifier,
+                                        NULL, win->MouseX, win->MouseY);
+                }
+            }
+        }
+    }
 }
 
 /*
@@ -10888,8 +10920,9 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
                 SetDrMd(rp, it->DrawMode);
                 if (it->IText[0] == '_' && it->IText[1] == '\0')
                 {
-                    Move(rp, tx, ty + 1);
-                    Draw(rp, tx + 7, ty + 1);
+                    /* Underline: draw 1 pixel below the baseline */
+                    Move(rp, tx, ty + baseline + 1);
+                    Draw(rp, tx + 7, ty + baseline + 1);
                 }
                 else
                 {

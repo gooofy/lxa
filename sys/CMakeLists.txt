@@ -75,6 +75,11 @@ add_disk_library(rexxsyslib_disklib rexxsyslib.library
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_rexxsyslib.c
 )
 
+add_disk_library(amigaguide_disklib amigaguide.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_amigaguide.c
+)
+
 # === SYS:C Commands ===
 set(C_COMMANDS
     assign

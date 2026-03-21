@@ -96,7 +96,7 @@ static bool g_display_initialized = false;
 static bool g_sdl_available = false;
 static bool g_headless_mode = false;  /* Skip SDL window creation for automated testing */
 static display_t *g_active_display = NULL;  /* Forward declaration for event routing */
-#define EVENT_QUEUE_SIZE 32
+#define EVENT_QUEUE_SIZE 256
 static display_event_t g_event_queue[EVENT_QUEUE_SIZE];
 static int g_event_queue_head = 0;
 static int g_event_queue_tail = 0;
@@ -981,6 +981,33 @@ void display_get_size(display_t *display, int *width, int *height, int *depth)
  */
 static void queue_event(const display_event_t *event)
 {
+    /* Coalesce consecutive mouse move events when no button is held down.
+     *
+     * During normal pointer movement the host SDL side generates far more
+     * MOUSEMOVE events than the emulated 68000 can consume.  Coalescing
+     * replaces the tail MOUSEMOVE with the latest position so the queue
+     * does not overflow.
+     *
+     * IMPORTANT: Do NOT coalesce when any mouse button qualifier is set
+     * (IEQUALIFIER_LEFTBUTTON, _RBUTTON, _MIDBUTTON = bits 13-15).
+     * During button-held drags (e.g., RMB menu selection) the Intuition
+     * menu tracker needs to see each intermediate position to correctly
+     * highlight menu items. */
+    if (event->type == DISPLAY_EVENT_MOUSEMOVE &&
+        (event->qualifier & 0xE000) == 0 &&
+        g_event_queue_head != g_event_queue_tail)
+    {
+        int prev = (g_event_queue_head - 1 + EVENT_QUEUE_SIZE) % EVENT_QUEUE_SIZE;
+        if (g_event_queue[prev].type == DISPLAY_EVENT_MOUSEMOVE &&
+            (g_event_queue[prev].qualifier & 0xE000) == 0)
+        {
+            g_event_queue[prev] = *event;
+            DPRINTF(LOG_DEBUG, "display: queue_event COALESCED mousemove pos=(%d,%d)\n",
+                    event->mouse_x, event->mouse_y);
+            return;
+        }
+    }
+
     int next_head = (g_event_queue_head + 1) % EVENT_QUEUE_SIZE;
     if (next_head != g_event_queue_tail)  /* Don't overflow */
     {
@@ -2256,14 +2283,24 @@ bool display_inject_mouse(int x, int y, int buttons, display_event_type_t event_
         g_last_buttons = buttons;
     }
     
+    /* For MOUSEMOVE events, propagate qualifier bits for currently held
+     * buttons so that the event coalescing logic in queue_event() can
+     * distinguish idle pointer movement from button-held drags. */
+    if (event_type == DISPLAY_EVENT_MOUSEMOVE)
+    {
+        if (g_last_buttons & 0x01) event.qualifier |= 0x8000;  /* IEQUALIFIER_LEFTBUTTON */
+        if (g_last_buttons & 0x02) event.qualifier |= 0x4000;  /* IEQUALIFIER_RBUTTON */
+        if (g_last_buttons & 0x04) event.qualifier |= 0x2000;  /* IEQUALIFIER_MIDBUTTON */
+    }
+
     queue_event(&event);
     
     /* Update internal mouse position */
     g_mouse_x = x;
     g_mouse_y = y;
     
-    LPRINTF(LOG_DEBUG, "display: inject_mouse x=%d y=%d buttons=0x%x type=%d code=0x%x down=%d\n",
-            x, y, buttons, event_type, event.button_code, event.button_down);
+    LPRINTF(LOG_DEBUG, "display: inject_mouse x=%d y=%d buttons=0x%x type=%d code=0x%x down=%d qual=0x%x\n",
+            x, y, buttons, event_type, event.button_code, event.button_down, event.qualifier);
     
     return true;
 }
