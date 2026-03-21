@@ -5695,6 +5695,19 @@ void coldstart (void)
     GfxBase->DisplayFlags = PAL | REALLY_PAL;  /* PAL crystal (matches VBlankFrequency=50) */
     GfxBase->VBlank = 50;                      /* PAL VBlank rate */
     GfxBase->ChipRevBits0 = SETCHIPREV_ECS;   /* ECS chipset (HR_AGNUS + HR_DENISE) */
+
+    /* Additional GfxBase fields that some apps read directly.
+     * Per Phase 109 audit — apps may check these at startup and fail silently
+     * if they find zeros. */
+    GfxBase->NormalDPMX = 22;                  /* ~22 dots per mm (horizontal) for PAL hi-res */
+    GfxBase->NormalDPMY = 22;                  /* ~22 dots per mm (vertical) for PAL non-lace */
+    GfxBase->MicrosPerLine = 64;               /* ~64 microseconds per raster line (PAL) */
+    GfxBase->MinDisplayColumn = 0x71;          /* Standard left edge of display (ECS) */
+    GfxBase->monitor_id = 0;                   /* Default (PAL) monitor */
+    GfxBase->TopLine = 0;                      /* Top visible line offset */
+    /* copinit, SimpleSprites, ActiView left NULL — they require actual data
+     * structures. NULL is the correct initial value (no copper list, no sprites,
+     * no view loaded yet). ActiView is set when LoadView() is called. */
     
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
     /* Debug: print offset of FirstScreen from exec.c perspective */

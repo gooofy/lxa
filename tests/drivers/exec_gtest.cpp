@@ -117,6 +117,10 @@ TEST_F(ExecTest, ExecMisc) {
     RunExecTest("ExecMisc");
 }
 
+TEST_F(ExecTest, DisklibStubs) {
+    RunExecTest("DisklibStubs", 10000);
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

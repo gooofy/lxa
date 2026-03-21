@@ -235,7 +235,12 @@ set(TESTS_LIST
     "../tests/intuition/gadget_refresh|main|Tests/Intuition/GadgetRefresh"
     "../tests/intuition/gadgetclass|main|Tests/Intuition/GadgetClass"
     "../tests/intuition/idcmp|main|Tests/Intuition/IDCMP"
+    "../tests/intuition/idcmp_deltamove|main|Tests/Intuition/IDCMPDeltaMove"
+    "../tests/intuition/idcmp_gfxbase_fields|main|Tests/Intuition/GfxBaseFields"
     "../tests/intuition/idcmp_input|main|Tests/Intuition/IDCMPInput"
+    "../tests/intuition/idcmp_menuverify|main|Tests/Intuition/IDCMPMenuVerify"
+    "../tests/intuition/idcmp_reqset|main|Tests/Intuition/IDCMPReqSet"
+    "../tests/intuition/idcmp_sizeverify|main|Tests/Intuition/IDCMPSizeVerify"
     "../tests/intuition/menu_select|main|Tests/Intuition/MenuSelect"
     "../tests/intuition/menu_strip|main|Tests/Intuition/MenuStrip"
     "../tests/intuition/pointer_input|main|Tests/Intuition/PointerInput"
@@ -305,6 +310,7 @@ set(TESTS_LIST
     "../tests/expansion/configdev_chain|main|Tests/Expansion/ConfigDevChain"
     "../tests/expansion/mem_config|main|Tests/Expansion/MemConfig"
     "../tests/expansion/dos_binding|main|Tests/Expansion/DosBinding"
+    "../tests/exec/disklib_stubs|main|Tests/Exec/DisklibStubs"
 )
 
 # === Copy Test Data Files ===

@@ -185,7 +185,7 @@ The helper sends screenshots to OpenRouter using `OPENROUTER_API_KEY` and prints
 - **dos.library**: File I/O, locks, directories, processes, pattern matching (including `(a|b)` alternation), `SetFileSize`, `SetFileDate`, `ExAll`, `MakeLink`, `ReadLink`, `InternalLoadSeg`, `NewLoadSeg`, `RunCommand`, `GetSegListInfo`, CON:/RAW: handler, assign-backed `DeviceProc()`/`GetDeviceProc()` coverage
 - **utility.library**: Tag lists, hooks, utility functions including direct regression coverage for tag-list cloning/filtering/mapping, pack/unpack helpers, named-object namespaces, date conversion helpers, 32-bit math helpers, `HookEntry`-driven hook dispatch, and unique ID generation
 - **graphics.library**: BitMap, RastPort, drawing primitives (WritePixel, Draw, RectFill, ScrollRaster, AreaFill, pixel arrays), palette/pen matching coverage via `ObtainPen()`/`ObtainBestPenA()` regressions
-- **intuition.library**: Screen/window management, IDCMP input, gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
+- **intuition.library**: Screen/window management, IDCMP input (SIZEVERIFY, MENUVERIFY, REQSET/REQCLEAR, DELTAMOVE), gadgets, menus, EasyRequest, BOOPSI (icclass/modelclass/gadgetclass, ICA_TARGET/ICA_MAP inter-object communication)
 - **gadtools.library**: GadTools gadgets (buttons, strings, checkboxes, cycles, sliders with rendered live level values, MX), menu layout helpers, and IDCMP/refresh wrapper coverage
 - **asl.library**: File, font, and screen mode requesters, including public `AllocAslRequestTags()`/`AslRequestTags()` varargs entry-point coverage
 - **locale.library**: Locale management, `.catalog` loading and lookup, character classification/case conversion, `StrConvert`/`StrnCmp`, FormatDate, FormatString, ParseDate
@@ -238,14 +238,14 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.71** - SysInfo and Cluster2 app testing: persistent test fixtures, MEMORY/BOARDS/SPEED gadget tests for SysInfo, About dialog/file requester/editor typing tests for Cluster2
+**Version 0.8.75** - Third-party library stubs: disk-loadable stub libraries for req.library, reqtools.library, powerpacker.library, and arp.library so apps get clean failure returns instead of crashing on OpenLibrary
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
 ## Known Limitations
 
 - CPU: 68000 only (no 68020+ or FPU)
-- Third-party libraries such as `commodities.library`, `rexxsyslib.library`, `datatypes.library`, `dopus.library`, `powerpacker.library`, and `reqtools.library` are not shipped in ROM and must be installed on disk in `LIBS:` (for example, ASM-One now bundles `reqtools.library` under its app-local `Libs/` directory)
+- Third-party libraries such as `commodities.library`, `rexxsyslib.library`, `datatypes.library`, and `dopus.library` are not shipped in ROM and must be installed on disk in `LIBS:`. Stub disk libraries are provided for `amigaguide.library`, `req.library`, `reqtools.library`, `powerpacker.library`, and `arp.library` (apps can OpenLibrary them but all functions return safe failure values).
 - Graphics: Basic screen/window support with drawing primitives
 - Intuition: Screen and window management, basic IDCMP input handling
 - Console: Full CSI escape sequence support, CON:/RAW: handlers

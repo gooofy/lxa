@@ -959,6 +959,9 @@ static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD 
 static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY);
 static UWORD _find_menu_commkey(struct Menu *strip, char key);
 static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadget);
+static void _compute_idcmp_mouse_coords(struct Window *window, ULONG class,
+                                         WORD absX, WORD absY,
+                                         WORD *outX, WORD *outY);
 
 VOID _intuition_SizeWindow(register struct IntuitionBase *IntuitionBase __asm("a6"),
                            register struct Window *window __asm("a0"),
@@ -987,6 +990,8 @@ static WORD g_size_start_x;
 static WORD g_size_start_y;
 static WORD g_size_orig_w;
 static WORD g_size_orig_h;
+static WORD g_prev_abs_mouse_x;  /* previous absolute mouse X for IDCMP_DELTAMOVE */
+static WORD g_prev_abs_mouse_y;  /* previous absolute mouse Y for IDCMP_DELTAMOVE */
 
 /* Forward declarations for EasyRequest infrastructure */
 struct Window * _intuition_BuildEasyRequestArgs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -3426,6 +3431,15 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
                 {
                     DPRINTF(LOG_DEBUG, "_intuition: Starting window resize: window=0x%08lx size=(%d,%d)\n",
                             (ULONG)window, window->Width, window->Height);
+
+                    /* Per RKRM: Post IDCMP_SIZEVERIFY before allowing the resize
+                     * to proceed.  In the real Amiga, Intuition would block until
+                     * the app replies.  In lxa's cooperative emulator the app gets
+                     * the notification and can process it on the next event-loop
+                     * iteration (before the first SizeWindow() call during drag). */
+                    _post_idcmp_message(window, IDCMP_SIZEVERIFY, 0, qualifier,
+                                        NULL, relX, relY);
+
                     g_sizing_window = TRUE;
                     g_size_window = window;
                     g_size_start_x = mouseX;
@@ -3724,6 +3738,31 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
             {
                 DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN calling _enter_menu_mode at (%d,%d) menuWin=0x%08lx\n",
                         mouseX, mouseY, (ULONG)menuWin);
+
+                /* Per RKRM: Post IDCMP_MENUVERIFY with MENUHOT to the active
+                 * window before activating menus.  The app can set Code to
+                 * MENUCANCEL before replying to suppress menu activation.
+                 * In lxa's cooperative emulator we cannot block for the reply,
+                 * so we post the notification and proceed immediately. */
+                _post_idcmp_message(menuWin, IDCMP_MENUVERIFY, MENUHOT,
+                                    qualifier, NULL, relX, relY);
+
+                /* Post MENUWAITING to all other MENUVERIFY-interested windows */
+                if (screen)
+                {
+                    struct Window *w;
+                    for (w = screen->FirstWindow; w; w = w->NextWindow)
+                    {
+                        if (w != menuWin && (w->IDCMPFlags & IDCMP_MENUVERIFY))
+                        {
+                            WORD wRelX = mouseX - w->LeftEdge;
+                            WORD wRelY = mouseY - w->TopEdge;
+                            _post_idcmp_message(w, IDCMP_MENUVERIFY, MENUWAITING,
+                                                qualifier, NULL, wRelX, wRelY);
+                        }
+                    }
+                }
+
                 _enter_menu_mode(menuWin, screen, mouseX, mouseY);
             }
         }
@@ -3738,8 +3777,12 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
             }
         }
 
-        _post_idcmp_message(window, IDCMP_MOUSEBUTTONS, code,
-                           qualifier, NULL, relX, relY);
+        {
+            WORD btnMsgX, btnMsgY;
+            _compute_idcmp_mouse_coords(window, IDCMP_MOUSEBUTTONS, mouseX, mouseY, &btnMsgX, &btnMsgY);
+            _post_idcmp_message(window, IDCMP_MOUSEBUTTONS, code,
+                               qualifier, NULL, btnMsgX, btnMsgY);
+        }
     }
 }
 
@@ -3990,13 +4033,19 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
     {
         WORD relX = mouseX - window->LeftEdge;
         WORD relY = mouseY - window->TopEdge;
+        WORD msgX, msgY;
 
         window->MouseX = relX;
         window->MouseY = relY;
 
+        _compute_idcmp_mouse_coords(window, IDCMP_MOUSEMOVE, mouseX, mouseY, &msgX, &msgY);
         _post_idcmp_message(window, IDCMP_MOUSEMOVE, 0,
-                           qualifier, NULL, relX, relY);
+                           qualifier, NULL, msgX, msgY);
     }
+
+    /* Update previous absolute position for DELTAMOVE calculations */
+    g_prev_abs_mouse_x = mouseX;
+    g_prev_abs_mouse_y = mouseY;
 }
 
 static VOID _intuition_handle_rawkey_event(struct IntuitionBase *IntuitionBase,
@@ -4737,6 +4786,11 @@ VOID _intuition_EndRequest ( register struct IntuitionBase * IntuitionBase __asm
         RectFill(window->RPort, left, top, left + width - 1, top + height - 1);
         _rerender_requester_stack(window);
     }
+
+    /* Post IDCMP_REQCLEAR to notify the window that a requester was removed.
+     * Per RKRM: one REQCLEAR is sent for each requester closed in the window. */
+    _post_idcmp_message(window, IDCMP_REQCLEAR, 0, 0, NULL,
+                        window->MouseX, window->MouseY);
 }
 
 struct Preferences * _intuition_GetDefPrefs ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -6851,6 +6905,32 @@ static BOOL _handle_string_gadget_key(struct Gadget *gad, struct Window *window,
 }
 
 /*
+ * Compute mouse coordinates for IDCMP messages, respecting IDCMP_DELTAMOVE.
+ * When IDCMP_DELTAMOVE is set on the window, MOUSEMOVE and MOUSEBUTTONS
+ * messages carry relative dx/dy instead of absolute window-relative coords.
+ * Per RKRM: "IDCMP_DELTAMOVE is not a message type" -- it modifies how
+ * MOUSEMOVE/MOUSEBUTTONS report coordinates.
+ */
+static void _compute_idcmp_mouse_coords(struct Window *window, ULONG class,
+                                         WORD absX, WORD absY,
+                                         WORD *outX, WORD *outY)
+{
+    if ((class == IDCMP_MOUSEMOVE || class == IDCMP_MOUSEBUTTONS) &&
+        (window->IDCMPFlags & IDCMP_DELTAMOVE))
+    {
+        /* Delta mode: report change from previous absolute position */
+        *outX = absX - g_prev_abs_mouse_x;
+        *outY = absY - g_prev_abs_mouse_y;
+    }
+    else
+    {
+        /* Normal mode: window-relative coordinates */
+        *outX = absX - window->LeftEdge;
+        *outY = absY - window->TopEdge;
+    }
+}
+
+/*
  * Internal function to post an IDCMP message to a window
  * Returns TRUE if message was posted, FALSE if window not interested
  */
@@ -7137,6 +7217,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                             if ((gad->GadgetType & GTYP_SYSGADGET) &&
                                 (gad->GadgetType & GTYP_SYSTYPEMASK) == GTYP_SIZING)
                             {
+                                /* Per RKRM: Post IDCMP_SIZEVERIFY before allowing the resize */
+                                _post_idcmp_message(window, IDCMP_SIZEVERIFY, 0, qualifier,
+                                                    NULL, relX, relY);
+
                                 g_sizing_window = TRUE;
                                 g_size_window = window;
                                 g_size_start_x = mouseX;
@@ -7497,6 +7581,26 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                 (ULONG)menuWin, menuWin ? (ULONG)menuWin->MenuStrip : 0);
                         if (menuWin && menuWin->MenuStrip)
                         {
+                            /* Per RKRM: Post IDCMP_MENUVERIFY with MENUHOT to the
+                             * active window and MENUWAITING to others before
+                             * activating menus.  See non-PIE handler for full comment. */
+                            _post_idcmp_message(menuWin, IDCMP_MENUVERIFY, MENUHOT,
+                                                qualifier, NULL, relX, relY);
+                            if (screen)
+                            {
+                                struct Window *w;
+                                for (w = screen->FirstWindow; w; w = w->NextWindow)
+                                {
+                                    if (w != menuWin && (w->IDCMPFlags & IDCMP_MENUVERIFY))
+                                    {
+                                        WORD wRelX = mouseX - w->LeftEdge;
+                                        WORD wRelY = mouseY - w->TopEdge;
+                                        _post_idcmp_message(w, IDCMP_MENUVERIFY, MENUWAITING,
+                                                            qualifier, NULL, wRelX, wRelY);
+                                    }
+                                }
+                            }
+
                             _enter_menu_mode(menuWin, screen, mouseX, mouseY);
                         }
                     }
@@ -7511,9 +7615,13 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                         }
                     }
                     
-                    /* Post IDCMP_MOUSEBUTTONS for general notification */
-                    _post_idcmp_message(window, IDCMP_MOUSEBUTTONS, code,
-                                       qualifier, NULL, relX, relY);
+                    /* Post IDCMP_MOUSEBUTTONS for general notification (respects DELTAMOVE) */
+                    {
+                        WORD btnMsgX, btnMsgY;
+                        _compute_idcmp_mouse_coords(window, IDCMP_MOUSEBUTTONS, mouseX, mouseY, &btnMsgX, &btnMsgY);
+                        _post_idcmp_message(window, IDCMP_MOUSEBUTTONS, code,
+                                           qualifier, NULL, btnMsgX, btnMsgY);
+                    }
                 }
                 break;
             }
@@ -7770,16 +7878,22 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 
                 if (window)
                 {
-                    /* Update window mouse position */
+                    /* Update window mouse position (always absolute) */
                     WORD relX = mouseX - window->LeftEdge;
                     WORD relY = mouseY - window->TopEdge;
+                    WORD msgX, msgY;
                     window->MouseX = relX;
                     window->MouseY = relY;
                     
-                    /* Post IDCMP_MOUSEMOVE if requested */
+                    /* Post IDCMP_MOUSEMOVE if requested (respects DELTAMOVE) */
+                    _compute_idcmp_mouse_coords(window, IDCMP_MOUSEMOVE, mouseX, mouseY, &msgX, &msgY);
                     _post_idcmp_message(window, IDCMP_MOUSEMOVE, 0, 
-                                       qualifier, NULL, relX, relY);
+                                       qualifier, NULL, msgX, msgY);
                 }
+
+                /* Update previous absolute position for DELTAMOVE calculations */
+                g_prev_abs_mouse_x = mouseX;
+                g_prev_abs_mouse_y = mouseY;
                 break;
             }
             
@@ -9670,7 +9784,12 @@ BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a
     
     /* Render */
     _render_requester(window, requester);
-    
+
+    /* Post IDCMP_REQSET to notify the window that a requester was opened.
+     * Per RKRM: one REQSET is sent for each requester opened in the window. */
+    _post_idcmp_message(window, IDCMP_REQSET, 0, 0, NULL,
+                        window->MouseX, window->MouseY);
+
     return TRUE;
 }
 

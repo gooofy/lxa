@@ -114,6 +114,105 @@ protected:
             int move_y = window_info.y + 40;
             lxa_inject_mouse(move_x, move_y, 0, LXA_EVENT_MOUSEMOVE);
             RunCyclesWithVBlank(10, 50000);
+        } else if (strcmp(name, "IDCMPDeltaMove") == 0) {
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+            ASSERT_TRUE(GetWindowInfo(0, &window_info));
+
+            /* Wait for the m68k program to be ready for mouse injection */
+            char buffer[16384];
+            while (true) {
+                lxa_run_cycles(10000);
+                lxa_get_output(buffer, sizeof(buffer));
+                if (strstr(buffer, "READY: inject mouse moves")) break;
+            }
+
+            /* First establish a baseline position so the delta calculation
+             * has a valid "previous" reference */
+            int baseX = window_info.x + 100;
+            int baseY = window_info.y + 50;
+            lxa_inject_mouse(baseX, baseY, 0, LXA_EVENT_MOUSEMOVE);
+            RunCyclesWithVBlank(10, 50000);
+
+            /* Now move by a known delta (+10, +5) */
+            lxa_inject_mouse(baseX + 10, baseY + 5, 0, LXA_EVENT_MOUSEMOVE);
+            RunCyclesWithVBlank(20, 50000);
+
+            /* Wait for "READY: inject absolute moves" for Test 2 */
+            while (true) {
+                lxa_run_cycles(10000);
+                lxa_get_output(buffer, sizeof(buffer));
+                if (strstr(buffer, "READY: inject absolute moves")) break;
+            }
+
+            /* Inject another move for absolute mode */
+            lxa_inject_mouse(baseX + 30, baseY + 20, 0, LXA_EVENT_MOUSEMOVE);
+            RunCyclesWithVBlank(20, 50000);
+        } else if (strcmp(name, "IDCMPSizeVerify") == 0) {
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+            ASSERT_TRUE(GetWindowInfo(0, &window_info));
+
+            /* Wait for the m68k program to be ready */
+            char buffer[16384];
+            while (true) {
+                lxa_run_cycles(10000);
+                lxa_get_output(buffer, sizeof(buffer));
+                if (strstr(buffer, "READY: click sizing gadget")) break;
+            }
+
+            /* Click+drag the sizing gadget (bottom-right corner).
+             * SIZEBBOTTOM means the gadget is at the bottom edge. */
+            int sizeX = window_info.x + window_info.width - 5;
+            int sizeY = window_info.y + window_info.height - 5;
+
+            /* LMB down on the size gadget triggers SIZEVERIFY */
+            lxa_inject_mouse(sizeX, sizeY, LXA_MOUSE_LEFT, LXA_EVENT_MOUSEBUTTON);
+            RunCyclesWithVBlank(20, 50000);
+
+            /* Drag slightly to trigger the resize */
+            lxa_inject_mouse(sizeX + 10, sizeY + 10, LXA_MOUSE_LEFT, LXA_EVENT_MOUSEMOVE);
+            RunCyclesWithVBlank(10, 50000);
+
+            /* Release */
+            lxa_inject_mouse(sizeX + 10, sizeY + 10, 0, LXA_EVENT_MOUSEBUTTON);
+            RunCyclesWithVBlank(20, 50000);
+
+            /* Wait for Test 2 ready */
+            while (true) {
+                lxa_run_cycles(10000);
+                lxa_get_output(buffer, sizeof(buffer));
+                if (strstr(buffer, "READY: click sizing gadget again")) break;
+            }
+
+            /* Click size gadget again — should NOT produce SIZEVERIFY */
+            sizeX = window_info.x + window_info.width - 5;
+            sizeY = window_info.y + window_info.height - 5;
+            lxa_inject_mouse(sizeX, sizeY, LXA_MOUSE_LEFT, LXA_EVENT_MOUSEBUTTON);
+            RunCyclesWithVBlank(20, 50000);
+            lxa_inject_mouse(sizeX + 5, sizeY + 5, LXA_MOUSE_LEFT, LXA_EVENT_MOUSEMOVE);
+            RunCyclesWithVBlank(10, 50000);
+            lxa_inject_mouse(sizeX + 5, sizeY + 5, 0, LXA_EVENT_MOUSEBUTTON);
+            RunCyclesWithVBlank(20, 50000);
+        } else if (strcmp(name, "IDCMPMenuVerify") == 0) {
+            ASSERT_TRUE(WaitForWindows(1, 5000));
+            ASSERT_TRUE(GetWindowInfo(0, &window_info));
+
+            /* Wait for the m68k program to be ready */
+            char buffer[16384];
+            while (true) {
+                lxa_run_cycles(10000);
+                lxa_get_output(buffer, sizeof(buffer));
+                if (strstr(buffer, "READY: press RMB")) break;
+            }
+
+            /* RMB press at the menu bar area to trigger MENUVERIFY */
+            int menuX = window_info.x + 30;
+            int menuY = 5;  /* menu bar is at top of screen */
+            lxa_inject_mouse(menuX, menuY, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEBUTTON);
+            RunCyclesWithVBlank(20, 50000);
+
+            /* Release RMB to dismiss menu */
+            lxa_inject_mouse(menuX, menuY, 0, LXA_EVENT_MOUSEBUTTON);
+            RunCyclesWithVBlank(20, 50000);
         } else if (strcmp(name, "ScreenManipulation") == 0) {
             timeout_ms = 10000;
         } else if (strcmp(name, "WindowManipulation") == 0) {
@@ -172,8 +271,13 @@ TEST_F(IntuitionTest, DrawingHelpers) { RunIntuitionTest("DrawingHelpers"); }
 TEST_F(IntuitionTest, GadgetClick) { RunIntuitionTest("GadgetClick"); }
 TEST_F(IntuitionTest, GadgetRefresh) { RunIntuitionTest("GadgetRefresh"); }
 TEST_F(IntuitionTest, GadgetClass) { RunIntuitionTest("GadgetClass"); }
+TEST_F(IntuitionTest, GfxBaseFields) { RunIntuitionTest("GfxBaseFields"); }
 TEST_F(IntuitionTest, IDCMP) { RunIntuitionTest("IDCMP"); }
+TEST_F(IntuitionTest, IDCMPDeltaMove) { RunIntuitionTest("IDCMPDeltaMove"); }
 TEST_F(IntuitionTest, IDCMPInput) { RunIntuitionTest("IDCMPInput"); }
+TEST_F(IntuitionTest, IDCMPMenuVerify) { RunIntuitionTest("IDCMPMenuVerify"); }
+TEST_F(IntuitionTest, IDCMPReqSet) { RunIntuitionTest("IDCMPReqSet"); }
+TEST_F(IntuitionTest, IDCMPSizeVerify) { RunIntuitionTest("IDCMPSizeVerify"); }
 TEST_F(IntuitionTest, MenuSelect) { RunIntuitionTest("MenuSelect"); }
 TEST_F(IntuitionTest, MenuStrip) { RunIntuitionTest("MenuStrip"); }
 TEST_F(IntuitionTest, PointerInput) { RunIntuitionTest("PointerInput"); }

@@ -46,43 +46,31 @@ Phase 108-d's manual testing sweep uncovered systemic gaps that affect many apps
 Fixing these *before* the next app testing round avoids re-discovering the same
 issues in every driver. Ordered by dependency and effort (low-hanging fruit first).
 
-- Phase 109: Missing IDCMP types and GfxBase completeness
-	- **IDCMP_SIZEVERIFY**: Post to window before SizeWindow() so apps can
-	  prepare for resize. Check RKRM for exact semantics (app must ReplyMsg
-	  within a timeout or Intuition proceeds anyway).
-	- **IDCMP_MENUVERIFY**: Post before menu activation so apps with
-	  `WFLG_RMBTRAP` that also request MENUVERIFY can cancel. Check RKRM for
-	  the MENUHOT/MENUCANCEL/MENUWAITING protocol.
-	- **IDCMP_REQSET / IDCMP_REQCLEAR**: Post when a requester is added to or
-	  removed from a window. Straightforward — the add/remove points already
-	  exist in the requester code.
-	- **IDCMP_DELTAMOVE**: When a window has this flag and IDCMP_MOUSEMOVE,
-	  MOUSEMOVE messages should carry relative dx/dy instead of absolute coords.
-	  Some drawing apps (DPaint) may use this.
-	- **GfxBase field audit**: Ensure `copinit`, `ActiView`, `SimpleSprites`,
-	  `monitor_id`, `TopLine` have sane values (NULL or plausible defaults).
-	  Some apps read GfxBase fields directly to detect hardware configuration.
-	- Add integration tests for each new IDCMP type using RKRM sample patterns.
-	- Verify no regressions in existing app test suite.
+- Phase 109: Missing IDCMP types and GfxBase completeness (complete, v0.8.74)
 
-- Phase 110: Third-party library stubs
-	- **req.library**: File/font requester library used by many older apps
-	  (KickPascal, older tools). Create disk stub following the amigaguide.library
-	  pattern. Key functions: `FileRequester()`, `FontRequester()`,
-	  `SimpleRequest()`. Stubs should return failure (NULL/0) so apps get a clean
-	  "no requester" path rather than crashing on OpenLibrary failure.
-	- **reqtools.library**: Enhanced requesters used by many apps from the late
-	  Amiga era. Key functions: `rtFileRequest()`, `rtFontRequest()`,
-	  `rtEZRequest()`, `rtGetString()`. Same stub-with-failure approach.
-	- **powerpacker.library**: Decompression library. Very common — many apps
-	  ship PowerPacked executables. Key function: `ppLoadData()`. Stub returns
-	  failure so apps fall back to uncompressed loading.
-	- **arp.library**: Predecessor to dos.library enhancements, used by very old
-	  apps. Key functions: file requesters, pattern matching, string formatting.
-	  Stub returns failure.
-	- Each stub gets a startup test verifying it can be OpenLibrary'd and that
-	  key functions return clean failure values without crashing.
-	- Update `sys/CMakeLists.txt` with `add_disk_library()` entries.
+	Implemented five missing IDCMP message types and completed GfxBase field
+	audit. All new IDCMP types tested with dedicated m68k integration tests
+	and host-side GTest drivers (interactive injection for SIZEVERIFY,
+	MENUVERIFY, DELTAMOVE). 63/63 tests pass, zero regressions.
+
+	- [x] IDCMP_REQSET/REQCLEAR: posted in Request()/EndRequest(), gated by window IDCMPFlags
+	- [x] IDCMP_SIZEVERIFY: posted before sizing drag in both PIE and non-PIE input paths
+	- [x] IDCMP_MENUVERIFY: MENUHOT to active window, MENUWAITING to other interested windows
+	- [x] IDCMP_DELTAMOVE: modifier flag — MOUSEMOVE/MOUSEBUTTONS carry dx/dy via `_compute_idcmp_mouse_coords()`
+	- [x] GfxBase audit: NormalDPMX/Y=22, MicrosPerLine=64, MinDisplayColumn=0x71, monitor_id=0, TopLine=0
+	- [x] Integration tests: IDCMPReqSet, IDCMPDeltaMove, IDCMPSizeVerify, IDCMPMenuVerify, GfxBaseFields
+
+- Phase 110: Third-party library stubs (complete, v0.8.75)
+
+	Created four disk library stubs so apps that depend on third-party libraries
+	get clean failure returns instead of crashing on OpenLibrary.
+
+	- [x] req.library: 8 function vectors (FileRequester, FontRequester, SimpleRequest, etc.) — all return FALSE/NULL
+	- [x] reqtools.library: 23 function vectors (rtFileRequest, rtFontRequest, rtEZRequest, etc.) — all return failure
+	- [x] powerpacker.library: 11 function vectors (ppLoadData returns PP_OPENERR, etc.) — version 36.10
+	- [x] arp.library: 106 function vectors (33 reserved + 73 public) — largest stub, version 40.1
+	- [x] Integration test (disklib_stubs): opens all 4 libraries, verifies versions, calls key functions, tests refcounting, confirms not ROM-resident
+	- [x] All 63 tests pass, zero regressions
 
 - Phase 111: SMART_REFRESH full backing store
 	- This is the most impactful single fix for window rendering correctness.

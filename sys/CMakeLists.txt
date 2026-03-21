@@ -80,6 +80,26 @@ add_disk_library(amigaguide_disklib amigaguide.library
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_amigaguide.c
 )
 
+add_disk_library(reqlib_disklib req.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_reqlib.c
+)
+
+add_disk_library(reqtools_disklib reqtools.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_reqtools.c
+)
+
+add_disk_library(powerpacker_disklib powerpacker.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_powerpacker.c
+)
+
+add_disk_library(arp_disklib arp.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_arp.c
+)
+
 # === SYS:C Commands ===
 set(C_COMMANDS
     assign
