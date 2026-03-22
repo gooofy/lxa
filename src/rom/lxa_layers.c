@@ -583,37 +583,178 @@ static void RefreshLayerGeometry(struct Layer *layer,
 }
 
 /*
+ * Restore backing store content from old obscured ClipRects to the screen.
+ * For each old obscured CR with a BitMap, blit its content back to the
+ * screen bitmap at the CR's bounds position.  This is called BEFORE the
+ * new CR list is installed so that the screen bitmap is up-to-date for
+ * any subsequent save operations.
+ */
+static void RestoreBackingStore(struct Layer *layer, struct ClipRect *old_list)
+{
+    struct ClipRect *cr;
+    struct BitMap *screen_bm;
+
+    if (!layer || !old_list)
+        return;
+
+    screen_bm = NULL;
+
+    /* Get screen bitmap from the layer's rastport */
+    if (layer->rp && layer->rp->BitMap)
+        screen_bm = layer->rp->BitMap;
+
+    if (!screen_bm)
+        return;
+
+    for (cr = old_list; cr; cr = cr->Next)
+    {
+        if (cr->obscured && cr->BitMap)
+        {
+            WORD w = cr->bounds.MaxX - cr->bounds.MinX + 1;
+            WORD h = cr->bounds.MaxY - cr->bounds.MinY + 1;
+
+            DPRINTF(LOG_DEBUG, "_layers: RestoreBackingStore() restoring [%d,%d]-[%d,%d]\n",
+                    cr->bounds.MinX, cr->bounds.MinY,
+                    cr->bounds.MaxX, cr->bounds.MaxY);
+
+            /* backing store (0,0) -> screen (cr->bounds.MinX, cr->bounds.MinY) */
+            BltBitMap(cr->BitMap, 0, 0,
+                      screen_bm, cr->bounds.MinX, cr->bounds.MinY,
+                      w, h, 0xC0, 0xFF, NULL);
+        }
+    }
+}
+
+/*
+ * Save screen content into backing store for newly obscured ClipRects.
+ * Each CR in 'obscured_list' must already have cr->BitMap allocated.
+ */
+static void SaveToBackingStore(struct Layer *layer, struct ClipRect *obscured_list)
+{
+    struct ClipRect *cr;
+    struct BitMap *screen_bm;
+
+    if (!layer || !obscured_list)
+        return;
+
+    screen_bm = NULL;
+    if (layer->rp && layer->rp->BitMap)
+        screen_bm = layer->rp->BitMap;
+
+    if (!screen_bm)
+        return;
+
+    for (cr = obscured_list; cr; cr = cr->Next)
+    {
+        if (cr->obscured && cr->BitMap)
+        {
+            WORD w = cr->bounds.MaxX - cr->bounds.MinX + 1;
+            WORD h = cr->bounds.MaxY - cr->bounds.MinY + 1;
+
+            DPRINTF(LOG_DEBUG, "_layers: SaveToBackingStore() saving [%d,%d]-[%d,%d]\n",
+                    cr->bounds.MinX, cr->bounds.MinY,
+                    cr->bounds.MaxX, cr->bounds.MaxY);
+
+            /* screen (cr->bounds.MinX, cr->bounds.MinY) -> backing store (0,0) */
+            BltBitMap(screen_bm, cr->bounds.MinX, cr->bounds.MinY,
+                      cr->BitMap, 0, 0,
+                      w, h, 0xC0, 0xFF, NULL);
+        }
+    }
+}
+
+/*
+ * Create an obscured ClipRect with an allocated backing store bitmap.
+ * The bitmap has the same depth as the screen bitmap and is sized to
+ * cover the given bounds rectangle.
+ */
+static struct ClipRect *CreateObscuredClipRect(struct Layer_Info *li,
+                                                struct BitMap *screen_bm,
+                                                const struct Rectangle *bounds)
+{
+    struct ClipRect *cr;
+    WORD w, h;
+
+    cr = AllocClipRect(li);
+    if (!cr)
+        return NULL;
+
+    w = bounds->MaxX - bounds->MinX + 1;
+    h = bounds->MaxY - bounds->MinY + 1;
+
+    cr->bounds = *bounds;
+    cr->obscured = 1;
+    cr->BitMap = AllocBitMap(w, h, screen_bm->Depth, BMF_CLEAR, NULL);
+    cr->Next = NULL;
+
+    if (!cr->BitMap)
+    {
+        /* Allocation failed — fall back to no backing store */
+        cr->obscured = 0;
+        FreeClipRect(li, cr);
+        return NULL;
+    }
+
+    return cr;
+}
+
+/*
  * Rebuild ClipRects for a layer based on overlapping layers.
  * This creates ClipRects for visible portions of the layer,
  * split around any layers that are in front of this one.
+ *
+ * For SMART_REFRESH layers, obscured areas get ClipRects with
+ * allocated backing store bitmaps.  Screen content is saved into
+ * backing store when an area becomes obscured, and restored from
+ * backing store when an area becomes visible again.
  */
 static void RebuildClipRects(struct Layer *layer)
 {
     struct Layer_Info *li;
+    struct ClipRect *old_list;
+    BOOL is_smart;
 
     if (!layer)
         return;
 
     li = layer->LayerInfo;
+    is_smart = IS_SMARTREFRESH(layer);
 
-    /* Free existing ClipRects */
-    FreeClipRectList(li, layer->ClipRect);
+    /* Save old ClipRect list — we need it for backing store restore/save decisions */
+    old_list = layer->ClipRect;
     layer->ClipRect = NULL;
 
-    DPRINTF(LOG_DEBUG, "_layers: RebuildClipRects() layer bounds [%d,%d]-[%d,%d]\n",
+    DPRINTF(LOG_DEBUG, "_layers: RebuildClipRects() layer bounds [%d,%d]-[%d,%d] smart=%d\n",
             layer->bounds.MinX, layer->bounds.MinY,
-            layer->bounds.MaxX, layer->bounds.MaxY);
+            layer->bounds.MaxX, layer->bounds.MaxY, is_smart);
 
     if (layer->Flags & LAYERHIDDEN)
+    {
+        FreeClipRectList(li, old_list);
         return;
+    }
+
+    /*
+     * SMART_REFRESH: Restore all old backing store to the screen FIRST,
+     * so the screen bitmap is fully up-to-date before we compute the new
+     * visible/obscured split and save newly-obscured areas.
+     */
+    if (is_smart)
+        RestoreBackingStore(layer, old_list);
+
+    /* Free old ClipRects (this also frees their backing store bitmaps) */
+    FreeClipRectList(li, old_list);
+    old_list = NULL;
 
     /* Start with a single ClipRect covering the whole layer */
     struct ClipRect *initial = CreateSimpleClipRect(li, layer);
     if (!initial)
         return;
 
-    /* Build a list of visible ClipRects by splitting around obscuring layers. */
+    /* Build visible and obscured ClipRect lists by splitting around obscuring layers. */
     struct ClipRect *visible = initial;
+    struct ClipRect *obscured_head = NULL;
+    struct ClipRect *obscured_tail = NULL;
 
     /* Check each layer in front of this one */
     struct Layer *front_layer = layer->front;
@@ -638,10 +779,23 @@ static void RebuildClipRects(struct Layer *layer)
             if (RectsOverlap(&cr->bounds, &front_layer->bounds))
             {
                 /* This cliprect is partially or fully obscured */
-                
-                /* Check if fully obscured */
+
                 if (RectContainsRect(&front_layer->bounds, &cr->bounds))
                 {
+                    /* Fully obscured */
+                    if (is_smart && layer->rp && layer->rp->BitMap)
+                    {
+                        /* Create an obscured CR with backing store */
+                        struct ClipRect *obs = CreateObscuredClipRect(li, layer->rp->BitMap, &cr->bounds);
+                        if (obs)
+                        {
+                            if (obscured_tail)
+                                obscured_tail->Next = obs;
+                            else
+                                obscured_head = obs;
+                            obscured_tail = obs;
+                        }
+                    }
                     /* Free the original visible cliprect */
                     FreeClipRect(li, cr);
                 }
@@ -649,10 +803,28 @@ static void RebuildClipRects(struct Layer *layer)
                 {
                     /* Partially obscured - split around the obscurer */
                     struct ClipRect *split = SplitRectAroundObscurer(li, &cr->bounds, &front_layer->bounds);
-                    
+
+                    /* Create obscured CR for the intersection area */
+                    if (is_smart && layer->rp && layer->rp->BitMap)
+                    {
+                        struct Rectangle isect;
+                        if (IntersectRectangles(&cr->bounds, &front_layer->bounds, &isect))
+                        {
+                            struct ClipRect *obs = CreateObscuredClipRect(li, layer->rp->BitMap, &isect);
+                            if (obs)
+                            {
+                                if (obscured_tail)
+                                    obscured_tail->Next = obs;
+                                else
+                                    obscured_head = obs;
+                                obscured_tail = obs;
+                            }
+                        }
+                    }
+
                     /* Free the original cliprect */
                     FreeClipRect(li, cr);
-                    
+
                     /* Add split pieces to new_visible */
                     if (split)
                     {
@@ -697,8 +869,28 @@ static void RebuildClipRects(struct Layer *layer)
     /* Apply clip region to visible ClipRects */
     visible = ApplyLayerClipRegion(layer, visible);
 
-    layer->ClipRect = visible;
-    
+    /*
+     * SMART_REFRESH: Save screen content into newly-obscured CRs.
+     * The screen bitmap still has the correct content because we
+     * restored from old backing store at the top of this function.
+     */
+    if (is_smart)
+        SaveToBackingStore(layer, obscured_head);
+
+    /* Build final ClipRect list: visible first, then obscured */
+    if (visible)
+    {
+        struct ClipRect *last = visible;
+        while (last->Next)
+            last = last->Next;
+        last->Next = obscured_head;
+        layer->ClipRect = visible;
+    }
+    else
+    {
+        layer->ClipRect = obscured_head;
+    }
+
     DPRINTF(LOG_DEBUG, "_layers: RebuildClipRects() done, ClipRect=0x%08lx\n", (ULONG)layer->ClipRect);
 }
 

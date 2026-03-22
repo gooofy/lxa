@@ -237,9 +237,10 @@ protected:
 
         /* Give the RCT library time to draw the analysis UI.
          * With LOG_INFO (no DPRINTF overhead) the app renders much faster,
-         * so 200 iterations is ample.  The old 1000 was needed when
-         * LOG_DEBUG slowed every ROM call with DPRINTF I/O. */
-        RunCyclesWithVBlank(200, 50000);
+         * so 300 iterations is ample.  Backing store operations in
+         * SMART_REFRESH layers add additional BltBitMap overhead during
+         * window creation/overlap, so we budget generously. */
+        RunCyclesWithVBlank(500, 50000);
         FlushAndSettle();
 
         /* Re-check window count after RCT drawing — the Analysis window

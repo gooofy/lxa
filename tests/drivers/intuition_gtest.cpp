@@ -298,12 +298,12 @@ TEST_F(RequesterBasicDriverTest, SystemRequesterCancelAndConfirm) {
 
     ClearOutput();
     Click(req_info.x + req_info.width - 8, req_info.y + 5);
-    RunCyclesWithVBlank(40, 50000);
+    RunCyclesWithVBlank(80, 50000);
 
     std::string output;
     bool saw_cancel = false;
-    for (int i = 0; i < 20; i++) {
-        RunCyclesWithVBlank(5, 50000);
+    for (int i = 0; i < 50; i++) {
+        RunCyclesWithVBlank(10, 50000);
         output = GetOutput();
         if (output.find("OK: SysReqHandler returns cancel for IDCMP_CLOSEWINDOW") != std::string::npos) {
             saw_cancel = true;

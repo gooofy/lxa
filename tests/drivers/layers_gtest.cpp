@@ -40,6 +40,7 @@ TEST_F(LayerTest, Locking) { RunLayerTest("Locking"); }
 TEST_F(LayerTest, ScrollLayer) { RunLayerTest("ScrollLayer"); }
 TEST_F(LayerTest, TagLayers) { RunLayerTest("TagLayers"); }
 TEST_F(LayerTest, Visibility) { RunLayerTest("Visibility"); }
+TEST_F(LayerTest, SmartRefresh) { RunLayerTest("SmartRefresh", 10000); }
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

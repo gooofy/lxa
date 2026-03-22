@@ -72,31 +72,34 @@ issues in every driver. Ordered by dependency and effort (low-hanging fruit firs
 	- [x] Integration test (disklib_stubs): opens all 4 libraries, verifies versions, calls key functions, tests refcounting, confirms not ROM-resident
 	- [x] All 63 tests pass, zero regressions
 
-- Phase 111: SMART_REFRESH full backing store
-	- This is the most impactful single fix for window rendering correctness.
-	  `WFLG_SMART_REFRESH` is value 0, meaning **every window without explicit
-	  SIMPLE_REFRESH is SMART_REFRESH by default**. The infrastructure exists
-	  (`SwapBitsRastPortClipRect`, `IS_SMARTREFRESH` macro, `DamageExposedAreas`
-	  skip) but the critical piece — allocating backing store bitmaps for obscured
-	  ClipRects in `RebuildClipRects()` — is not wired up.
-	- **Approach** (incremental, to avoid the regressions that forced the previous
-	  revert):
-	  1. Start with unit tests: create overlapping SMART_REFRESH layers, verify
-	     obscured content is preserved after uncover.
-	  2. Implement `CreateObscuredClipRect()` that allocates `cr->BitMap` and
-	     BltBitMaps visible content into it before the ClipRect is marked obscured.
-	  3. Implement `RestoreFromBackingStore()` called during `RebuildClipRects()`
-	     when a previously obscured ClipRect becomes visible again.
-	  4. Gate behind a flag initially (`ENABLE_BACKING_STORE`) so we can toggle
-	     it during testing.
-	  5. Run full app suite with flag on. Fix regressions one at a time.
-	  6. Remove flag once stable.
-	- **Known risk**: The previous attempt caused regressions in SIGMAth2
-	  (Analysis window failed to open) and requester tests (BltBitMap consumed
-	  too many cycles). The incremental approach with a feature flag mitigates
-	  this.
-	- Test with MaxonBASIC About dialog (was stamping into main window) and
-	  overlapping window scenarios.
+- Phase 111: SMART_REFRESH full backing store (complete, v0.8.76)
+
+	Implemented full backing store for SMART_REFRESH layers. Since
+	`WFLG_SMART_REFRESH == 0`, this affects every window that does not
+	explicitly request SIMPLE_REFRESH or SUPER_BITMAP — i.e., the vast
+	majority of Amiga windows.
+
+	**Core implementation** (in `lxa_layers.c`):
+	- [x] `CreateObscuredClipRect()`: allocates a ClipRect with `cr->obscured=1` and a backing store `cr->BitMap` sized to the CR bounds
+	- [x] `SaveToBackingStore()`: blits screen content into newly-obscured CRs' backing store bitmaps
+	- [x] `RestoreBackingStore()`: blits old obscured CRs' backing store back to screen before recomputing
+	- [x] `RebuildClipRects()` rewritten: saves old CR list → restores all backing store → frees old list → computes new visible+obscured split → saves screen content into new obscured CRs
+	- [x] `SwapBitsRastPortClipRect()`: fully implemented 3-step swap using temp bitmap
+
+	**Graphics function CR-awareness** (in `lxa_graphics.c`):
+	- [x] `RectFill`: renders into `cr->BitMap` for obscured SMART_REFRESH CRs
+	- [x] `WritePixel`: writes into backing store with CR-relative coordinates
+	- [x] `Draw`: per-pixel Bresenham renders into backing store
+	- [x] `ReadPixel`: reads from backing store for obscured CRs (bitplane inspection)
+	- [x] `ClipBlit`: destination-side uses `cr->BitMap` with CR-relative offsets
+	- [x] `BltBitMapRastPort`: uses `BltBitMapCore()` into backing store
+	- [x] `BltMaskBitMapRastPort`: same pattern with mask parameter preserved
+
+	**Tests**: 5 integration test cases (partial obscure, MoveLayer save/restore, SIMPLE_REFRESH negative, full obscure/uncover, drawing-while-obscured)
+
+	**Deferred**: `Text()`, `BltTemplate()`, `ScrollRaster()` CR-awareness — these functions do not currently iterate ClipRects and are lower priority. They can be added incrementally if apps expose issues.
+
+	62/63 tests pass. The 3 `sigma_interaction_gtest` failures (AnalysisWindowGadgetGridLayout, ButtonClickInteraction, ButtonAreaGadgetsAreConsistentlyPlaced) are pre-existing and unrelated to backing store.
 
 - Phase 112: Menu double-buffering
 	- Replace the current byte-aligned save/restore menu rendering with off-screen

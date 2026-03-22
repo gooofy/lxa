@@ -3740,14 +3740,25 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
                 struct ClipRect *cr;
                 for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
                 {
-                    if (cr->obscured)
+                    if (cr->obscured && !cr->BitMap)
                         continue;
 
                     if (x0 >= cr->bounds.MinX && x0 <= cr->bounds.MaxX &&
                         y0 >= cr->bounds.MinY && y0 <= cr->bounds.MaxY)
                     {
-                        /* Pixel is visible - draw it */
-                        SetPixelDirect(bm, x0, y0, pen, rp->DrawMode);
+                        if (cr->obscured && cr->BitMap)
+                        {
+                            /* SMART_REFRESH: draw pixel into backing store */
+                            SetPixelDirect(cr->BitMap,
+                                           (WORD)(x0 - cr->bounds.MinX),
+                                           (WORD)(y0 - cr->bounds.MinY),
+                                           pen, rp->DrawMode);
+                        }
+                        else
+                        {
+                            /* Visible: draw directly on screen */
+                            SetPixelDirect(bm, x0, y0, pen, rp->DrawMode);
+                        }
                         break;
                     }
                 }
@@ -4620,8 +4631,8 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
         {
             WORD clipXMin, clipYMin, clipXMax, clipYMax;
 
-            /* Skip obscured ClipRects (for LAYERSIMPLE) */
-            if (cr->obscured)
+            /* Skip obscured ClipRects without backing store (SIMPLE_REFRESH) */
+            if (cr->obscured && !cr->BitMap)
                 continue;
 
             /* Calculate intersection between fill rect and ClipRect */
@@ -4630,8 +4641,22 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                                    cr->bounds.MaxX, cr->bounds.MaxY,
                                    &clipXMin, &clipYMin, &clipXMax, &clipYMax))
             {
-                /* Fill this clipped portion */
-                FillRectDirect(bm, clipXMin, clipYMin, clipXMax, clipYMax, pen, drawmode);
+                if (cr->obscured && cr->BitMap)
+                {
+                    /* SMART_REFRESH: fill into backing store bitmap
+                     * Translate from screen-absolute to CR-relative coords */
+                    FillRectDirect(cr->BitMap,
+                                   (WORD)(clipXMin - cr->bounds.MinX),
+                                   (WORD)(clipYMin - cr->bounds.MinY),
+                                   (WORD)(clipXMax - cr->bounds.MinX),
+                                   (WORD)(clipYMax - cr->bounds.MinY),
+                                   pen, drawmode);
+                }
+                else
+                {
+                    /* Visible: fill directly on screen */
+                    FillRectDirect(bm, clipXMin, clipYMin, clipXMax, clipYMax, pen, drawmode);
+                }
             }
         }
         return;
@@ -4716,12 +4741,45 @@ static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6")
     WORD absX = x;
     WORD absY = y;
 
-    /* If RastPort has a Layer, translate coordinates */
+    /* If RastPort has a Layer, translate coordinates and check ClipRects */
     if (rp->Layer)
     {
         struct Layer *layer = rp->Layer;
+        struct ClipRect *cr;
         absX = x + layer->bounds.MinX;
         absY = y + layer->bounds.MinY;
+
+        /* Check ClipRects for SMART_REFRESH backing store reads */
+        for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
+        {
+            if (absX >= cr->bounds.MinX && absX <= cr->bounds.MaxX &&
+                absY >= cr->bounds.MinY && absY <= cr->bounds.MaxY)
+            {
+                if (cr->obscured && cr->BitMap)
+                {
+                    /* SMART_REFRESH: read from backing store */
+                    WORD relX = absX - cr->bounds.MinX;
+                    WORD relY = absY - cr->bounds.MinY;
+                    UWORD off = relY * cr->BitMap->BytesPerRow + (relX >> 3);
+                    UBYTE mask = 0x80 >> (relX & 7);
+                    ULONG color = 0;
+                    UBYTE p;
+
+                    for (p = 0; p < cr->BitMap->Depth; p++)
+                    {
+                        if (cr->BitMap->Planes[p] && (cr->BitMap->Planes[p][off] & mask))
+                            color |= (1 << p);
+                    }
+                    return color;
+                }
+                else if (!cr->obscured)
+                {
+                    /* Visible CR: read from screen bitmap below */
+                    break;
+                }
+                /* obscured but no BitMap (SIMPLE_REFRESH): fall through to screen read */
+            }
+        }
     }
 
     /* Bounds check */
@@ -4784,16 +4842,27 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
         /* Check each ClipRect to see if the pixel is visible */
         for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
         {
-            /* Skip obscured ClipRects (for LAYERSIMPLE) */
-            if (cr->obscured)
+            /* Skip obscured ClipRects without backing store (SIMPLE_REFRESH) */
+            if (cr->obscured && !cr->BitMap)
                 continue;
 
             /* Check if pixel falls within this ClipRect */
             if (absX >= cr->bounds.MinX && absX <= cr->bounds.MaxX &&
                 absY >= cr->bounds.MinY && absY <= cr->bounds.MaxY)
             {
-                /* Pixel is visible - draw it */
-                SetPixelDirect(bm, absX, absY, pen, drawmode);
+                if (cr->obscured && cr->BitMap)
+                {
+                    /* SMART_REFRESH: write to backing store bitmap */
+                    SetPixelDirect(cr->BitMap,
+                                   (WORD)(absX - cr->bounds.MinX),
+                                   (WORD)(absY - cr->bounds.MinY),
+                                   pen, drawmode);
+                }
+                else
+                {
+                    /* Visible: draw directly on screen */
+                    SetPixelDirect(bm, absX, absY, pen, drawmode);
+                }
                 return 0;  /* Success */
             }
         }
@@ -6378,7 +6447,7 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
             WORD clipXMax;
             WORD clipYMax;
 
-            if (cr->obscured)
+            if (cr->obscured && !cr->BitMap)
                 continue;
 
             if (ClipIntersectRects((WORD)xDest, (WORD)yDest,
@@ -6391,6 +6460,18 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
                 LONG clipHeight = clipYMax - clipYMin + 1;
                 LONG srcClipX = xSrc + (clipXMin - xDest);
                 LONG srcClipY = ySrc + (clipYMin - yDest);
+
+                struct BitMap *dest_bm = destRP->BitMap;
+                WORD dest_x = clipXMin;
+                WORD dest_y = clipYMin;
+
+                if (cr->obscured && cr->BitMap)
+                {
+                    /* SMART_REFRESH: blit into backing store */
+                    dest_bm = cr->BitMap;
+                    dest_x = (WORD)(clipXMin - cr->bounds.MinX);
+                    dest_y = (WORD)(clipYMin - cr->bounds.MinY);
+                }
 
                 if (srcLayer)
                 {
@@ -6412,9 +6493,9 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
                             BltBitMapCore(srcRP->BitMap,
                                           (WORD)absX,
                                           (WORD)absY,
-                                          destRP->BitMap,
-                                          (WORD)(clipXMin + col),
-                                          (WORD)(clipYMin + row),
+                                          dest_bm,
+                                          (WORD)(dest_x + col),
+                                          (WORD)(dest_y + row),
                                           1,
                                           1,
                                           (UBYTE)minterm,
@@ -6429,9 +6510,9 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
                     BltBitMapCore(srcRP->BitMap,
                                   (WORD)srcClipX,
                                   (WORD)srcClipY,
-                                  destRP->BitMap,
-                                  clipXMin,
-                                  clipYMin,
+                                  dest_bm,
+                                  dest_x,
+                                  dest_y,
                                   (WORD)clipWidth,
                                   (WORD)clipHeight,
                                   (UBYTE)minterm,
@@ -6855,7 +6936,7 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
             WORD clipXMax;
             WORD clipYMax;
 
-            if (cr->obscured)
+            if (cr->obscured && !cr->BitMap)
                 continue;
 
             if (ClipIntersectRects(absXMin, absYMin, absXMax, absYMax,
@@ -6863,18 +6944,38 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
                                    cr->bounds.MaxX, cr->bounds.MaxY,
                                    &clipXMin, &clipYMin, &clipXMax, &clipYMax))
             {
-                BltBitMapCore(srcBitMap,
-                              (WORD)(xSrc + (clipXMin - absXMin)),
-                              (WORD)(ySrc + (clipYMin - absYMin)),
-                              destRP->BitMap,
-                              clipXMin,
-                              clipYMin,
-                              (WORD)(clipXMax - clipXMin + 1),
-                              (WORD)(clipYMax - clipYMin + 1),
-                              (UBYTE)minterm,
-                              0xFF,
-                              NULL,
-                              0);
+                if (cr->obscured && cr->BitMap)
+                {
+                    /* SMART_REFRESH: blit into backing store */
+                    BltBitMapCore(srcBitMap,
+                                  (WORD)(xSrc + (clipXMin - absXMin)),
+                                  (WORD)(ySrc + (clipYMin - absYMin)),
+                                  cr->BitMap,
+                                  (WORD)(clipXMin - cr->bounds.MinX),
+                                  (WORD)(clipYMin - cr->bounds.MinY),
+                                  (WORD)(clipXMax - clipXMin + 1),
+                                  (WORD)(clipYMax - clipYMin + 1),
+                                  (UBYTE)minterm,
+                                  0xFF,
+                                  NULL,
+                                  0);
+                }
+                else
+                {
+                    /* Visible: blit directly to screen */
+                    BltBitMapCore(srcBitMap,
+                                  (WORD)(xSrc + (clipXMin - absXMin)),
+                                  (WORD)(ySrc + (clipYMin - absYMin)),
+                                  destRP->BitMap,
+                                  clipXMin,
+                                  clipYMin,
+                                  (WORD)(clipXMax - clipXMin + 1),
+                                  (WORD)(clipYMax - clipYMin + 1),
+                                  (UBYTE)minterm,
+                                  0xFF,
+                                  NULL,
+                                  0);
+                }
             }
         }
         return;
@@ -7180,7 +7281,7 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
             WORD clipXMax;
             WORD clipYMax;
 
-            if (cr->obscured)
+            if (cr->obscured && !cr->BitMap)
                 continue;
 
             if (ClipIntersectRects(absXMin, absYMin, absXMax, absYMax,
@@ -7188,18 +7289,38 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
                                    cr->bounds.MaxX, cr->bounds.MaxY,
                                    &clipXMin, &clipYMin, &clipXMax, &clipYMax))
             {
-                BltBitMapCore(srcBitMap,
-                              (WORD)(xSrc + (clipXMin - absXMin)),
-                              (WORD)(ySrc + (clipYMin - absYMin)),
-                              destRP->BitMap,
-                              clipXMin,
-                              clipYMin,
-                              (WORD)(clipXMax - clipXMin + 1),
-                              (WORD)(clipYMax - clipYMin + 1),
-                              (UBYTE)minterm,
-                              0xFF,
-                              bltMask,
-                              srcBitMap->BytesPerRow);
+                if (cr->obscured && cr->BitMap)
+                {
+                    /* SMART_REFRESH: blit into backing store */
+                    BltBitMapCore(srcBitMap,
+                                  (WORD)(xSrc + (clipXMin - absXMin)),
+                                  (WORD)(ySrc + (clipYMin - absYMin)),
+                                  cr->BitMap,
+                                  (WORD)(clipXMin - cr->bounds.MinX),
+                                  (WORD)(clipYMin - cr->bounds.MinY),
+                                  (WORD)(clipXMax - clipXMin + 1),
+                                  (WORD)(clipYMax - clipYMin + 1),
+                                  (UBYTE)minterm,
+                                  0xFF,
+                                  bltMask,
+                                  srcBitMap->BytesPerRow);
+                }
+                else
+                {
+                    /* Visible: blit directly to screen */
+                    BltBitMapCore(srcBitMap,
+                                  (WORD)(xSrc + (clipXMin - absXMin)),
+                                  (WORD)(ySrc + (clipYMin - absYMin)),
+                                  destRP->BitMap,
+                                  clipXMin,
+                                  clipYMin,
+                                  (WORD)(clipXMax - clipXMin + 1),
+                                  (WORD)(clipYMax - clipYMin + 1),
+                                  (UBYTE)minterm,
+                                  0xFF,
+                                  bltMask,
+                                  srcBitMap->BytesPerRow);
+                }
             }
         }
         return;

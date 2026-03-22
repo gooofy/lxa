@@ -238,7 +238,7 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.75** - Third-party library stubs: disk-loadable stub libraries for req.library, reqtools.library, powerpacker.library, and arp.library so apps get clean failure returns instead of crashing on OpenLibrary
+**Version 0.8.76** - SMART_REFRESH full backing store: obscured window content is now saved and restored when layers overlap and uncover, with CR-aware rendering for RectFill, WritePixel, Draw, ReadPixel, ClipBlit, BltBitMapRastPort, and BltMaskBitMapRastPort
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
