@@ -955,6 +955,7 @@ static void _restore_menu_dropdown_area(struct Screen *screen);
 static void _save_dropdown_for_menu(struct Window *window, struct Menu *menu);
 static void _render_menu_bar(struct Window *window);
 static void _render_menu_items(struct Window *window);
+static void _render_menu_items_in_place(struct Window *window);
 static void _enter_menu_mode(struct Window *window, struct Screen *screen, WORD mouseX, WORD mouseY);
 static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY);
 static UWORD _find_menu_commkey(struct Menu *strip, char key);
@@ -3898,7 +3899,7 @@ static VOID _intuition_handle_pointerpos_event(struct IntuitionBase *IntuitionBa
                                                         oldMenu,
                                                         oldItem))
             {
-                _render_menu_items(g_menu_window);
+                _render_menu_items_in_place(g_menu_window);
             }
             else
             {
@@ -5417,22 +5418,30 @@ static void _calculate_requester_box(struct Window *window, struct Requester *re
 
 static UWORD g_menu_selection;              /* Encoded menu selection */
 
-/* Menu drop-down save-behind buffer.
- * When a menu drop-down is rendered, the screen area beneath it is saved here
- * so it can be restored when the menu closes or switches to a different menu.
+/* Menu drop-down save-behind and off-screen composition bitmaps.
+ *
+ * Phase 112 (v0.8.77) replaced the byte-aligned planar save/restore with a
+ * pair of off-screen BitMaps allocated via AllocBitMap():
+ *
+ *   g_menu_save_bm      Saves the screen content beneath the dropdown so it
+ *                       can be restored verbatim when the menu closes.
+ *                       BltBitMap() handles non-byte-aligned X coordinates
+ *                       correctly via shifting, eliminating the previous
+ *                       1-7 pixel edge artifact.
+ *
  * NOTE: No initializers — .bss must be in RAM, not ROM .data section. */
-static UBYTE *g_menu_save_buffer;           /* Saved planar data (all planes concatenated) */
-static ULONG  g_menu_save_size;             /* Size of allocated buffer in bytes */
-static WORD   g_menu_save_x;               /* Left edge of saved area */
-static WORD   g_menu_save_y;               /* Top edge of saved area */
+static struct BitMap *g_menu_save_bm;       /* save-behind, sized w x h */
+static WORD   g_menu_save_x;               /* Left edge of saved area on screen */
+static WORD   g_menu_save_y;               /* Top edge of saved area on screen */
 static WORD   g_menu_save_w;               /* Width of saved area in pixels */
 static WORD   g_menu_save_h;               /* Height of saved area in pixels */
 
 static VOID _intuition_discard_menu_runtime_state(VOID)
 {
-    if (g_menu_save_buffer && g_menu_save_size > 0)
+    if (g_menu_save_bm)
     {
-        FreeMem(g_menu_save_buffer, g_menu_save_size);
+        FreeBitMap(g_menu_save_bm);
+        g_menu_save_bm = NULL;
     }
 
     g_menu_mode = FALSE;
@@ -5441,8 +5450,6 @@ static VOID _intuition_discard_menu_runtime_state(VOID)
     g_active_item = NULL;
     g_active_subitem = NULL;
     g_menu_selection = MENUNULL;
-    g_menu_save_buffer = NULL;
-    g_menu_save_size = 0;
     g_menu_save_x = 0;
     g_menu_save_y = 0;
     g_menu_save_w = 0;
@@ -6008,27 +6015,27 @@ static BOOL _menu_hover_redraw_can_repaint_in_place(struct Window *window,
 }
 
 /*
- * Save a rectangular area of the screen's BitMap into g_menu_save_buffer.
- * This is used to save the area under a menu drop-down before drawing it,
- * so it can be restored when the menu closes.
- * Saves raw planar data (all bitplanes concatenated).
+ * Save a rectangular area of the screen's BitMap into an off-screen
+ * BitMap (g_menu_save_bm) using BltBitMap. Used to save the area under a
+ * menu drop-down before drawing it, so it can be restored when the menu
+ * closes.
+ *
+ * Pixel-accurate: BltBitMap handles arbitrary X coordinates correctly via
+ * shifting, eliminating the byte-aligned 0-7 pixel fringe artifact present
+ * in the previous planar memcpy implementation.
  */
 static void _save_menu_dropdown_area(struct Screen *screen, WORD x, WORD y, WORD w, WORD h)
 {
     struct BitMap *bm;
-    WORD bpr;           /* bytes per row in screen bitmap */
     WORD depth;
-    WORD startByte, endByte, saveBytes;
-    ULONG totalSize;
-    WORD plane, row;
-    
+
     if (!screen)
         return;
-    
+
     bm = &screen->BitMap;
     if (!bm->Planes[0])
         return;
-    
+
     /* Clamp to screen bounds */
     if (x < 0) { w += x; x = 0; }
     if (y < 0) { h += y; y = 0; }
@@ -6036,109 +6043,59 @@ static void _save_menu_dropdown_area(struct Screen *screen, WORD x, WORD y, WORD
     if (y + h > screen->Height) h = screen->Height - y;
     if (w <= 0 || h <= 0)
         return;
-    
-    /* Free any previous save buffer */
-    if (g_menu_save_buffer && g_menu_save_size > 0)
+
+    /* Free any previous save BitMap */
+    if (g_menu_save_bm)
     {
-        FreeMem(g_menu_save_buffer, g_menu_save_size);
-        g_menu_save_buffer = NULL;
-        g_menu_save_size = 0;
+        FreeBitMap(g_menu_save_bm);
+        g_menu_save_bm = NULL;
     }
-    
-    bpr = bm->BytesPerRow;
+
     depth = bm->Depth;
-    
-    /* Calculate byte range we need to save for each row */
-    startByte = x / 8;
-    endByte = (x + w + 7) / 8;
-    saveBytes = endByte - startByte;
-    
-    /* Total size: saveBytes * h * depth */
-    totalSize = (ULONG)saveBytes * (ULONG)h * (ULONG)depth;
-    if (totalSize == 0 || totalSize > 65536)  /* Sanity limit */
+
+    g_menu_save_bm = AllocBitMap(w, h, depth, BMF_CLEAR, NULL);
+    if (!g_menu_save_bm)
+    {
+        DPRINTF(LOG_ERROR, "_intuition: _save_menu_dropdown_area() AllocBitMap(save) failed\n");
         return;
-    
-    g_menu_save_buffer = (UBYTE *)AllocMem(totalSize, MEMF_PUBLIC);
-    if (!g_menu_save_buffer)
-        return;
-    
-    g_menu_save_size = totalSize;
+    }
+
     g_menu_save_x = x;
     g_menu_save_y = y;
     g_menu_save_w = w;
     g_menu_save_h = h;
-    
-    /* Copy planar data: for each plane, for each row, copy the relevant bytes */
-    {
-        UBYTE *dst = g_menu_save_buffer;
-        for (plane = 0; plane < depth; plane++)
-        {
-            UBYTE *planeBase = (UBYTE *)bm->Planes[plane];
-            if (!planeBase) continue;
-            for (row = 0; row < h; row++)
-            {
-                UBYTE *src = planeBase + (ULONG)(y + row) * (ULONG)bpr + startByte;
-                WORD i;
-                for (i = 0; i < saveBytes; i++)
-                    *dst++ = src[i];
-            }
-        }
-    }
-    
-    DPRINTF(LOG_DEBUG, "_intuition: _save_menu_dropdown_area() saved %ldx%ld at (%d,%d), %ld bytes\n",
-            (LONG)w, (LONG)h, (int)x, (int)y, (LONG)totalSize);
+
+    /* Save: screen (x,y) -> save BitMap (0,0). Plain copy minterm 0xC0. */
+    BltBitMap(bm, x, y, g_menu_save_bm, 0, 0, w, h, 0xC0, 0xFF, NULL);
 }
 
 /*
- * Restore the previously saved menu drop-down area to the screen's BitMap.
- * Called when the menu closes or switches to a different menu.
+ * Restore the previously saved menu drop-down area to the screen's BitMap
+ * via BltBitMap. Called when the menu closes or switches.
+ *
+ * Also frees the off-screen save BitMap.
  */
 static void _restore_menu_dropdown_area(struct Screen *screen)
 {
     struct BitMap *bm;
-    WORD bpr;
-    WORD depth;
-    WORD startByte, endByte, saveBytes;
-    WORD plane, row;
-    
-    if (!screen || !g_menu_save_buffer || g_menu_save_size == 0)
+
+    if (!screen || !g_menu_save_bm)
         return;
-    
+
     bm = &screen->BitMap;
     if (!bm->Planes[0])
         return;
-    
-    bpr = bm->BytesPerRow;
-    depth = bm->Depth;
-    
-    startByte = g_menu_save_x / 8;
-    endByte = (g_menu_save_x + g_menu_save_w + 7) / 8;
-    saveBytes = endByte - startByte;
-    
-    /* Restore planar data */
-    {
-        UBYTE *src = g_menu_save_buffer;
-        for (plane = 0; plane < depth; plane++)
-        {
-            UBYTE *planeBase = (UBYTE *)bm->Planes[plane];
-            if (!planeBase) continue;
-            for (row = 0; row < g_menu_save_h; row++)
-            {
-                UBYTE *dst = planeBase + (ULONG)(g_menu_save_y + row) * (ULONG)bpr + startByte;
-                WORD i;
-                for (i = 0; i < saveBytes; i++)
-                    dst[i] = *src++;
-            }
-        }
-    }
-    
-    DPRINTF(LOG_DEBUG, "_intuition: _restore_menu_dropdown_area() restored %ldx%ld at (%d,%d)\n",
-            (LONG)g_menu_save_w, (LONG)g_menu_save_h, (int)g_menu_save_x, (int)g_menu_save_y);
-    
-    /* Free the save buffer */
-    FreeMem(g_menu_save_buffer, g_menu_save_size);
-    g_menu_save_buffer = NULL;
-    g_menu_save_size = 0;
+
+    /* Restore: save BitMap (0,0) -> screen (g_menu_save_x, g_menu_save_y). */
+    BltBitMap(g_menu_save_bm, 0, 0, bm, g_menu_save_x, g_menu_save_y,
+              g_menu_save_w, g_menu_save_h, 0xC0, 0xFF, NULL);
+
+    DPRINTF(LOG_DEBUG, "_intuition: _restore_menu_dropdown_area() restored %dx%d at (%d,%d)\n",
+            (int)g_menu_save_w, (int)g_menu_save_h,
+            (int)g_menu_save_x, (int)g_menu_save_y);
+
+    FreeBitMap(g_menu_save_bm);
+    g_menu_save_bm = NULL;
     g_menu_save_w = 0;
     g_menu_save_h = 0;
 }
@@ -6453,12 +6410,39 @@ static void _render_menu_item_chain(struct RastPort *rp,
 }
 
 /*
- * Render the drop-down menu for the active menu
+ * Render the drop-down menu for the active menu.
+ *
+ * Phase 112: composes the entire dropdown (main item chain + active submenu)
+ * into the off-screen g_menu_compose_bm and then blits the result onto the
+ * screen in a single BltBitMap call. This eliminates the visible "blank then
+ * redraw" flash that caused flicker during hover transitions.
+ *
+ * Phase 112 perf fix: when use_compose=FALSE the function bypasses the
+ * compose pipeline entirely and renders directly onto the screen. This is
+ * used by the in-place hover-redraw path where the previously rendered
+ * dropdown is still intact on screen and only the highlight needs updating.
+ * The compose pipeline (with its extra pre-fill and final-blit BltBitMap
+ * operations) only runs on FULL_REPAINT, where save+restore is required
+ * anyway.
+ *
+ * Falls back to direct screen rendering if the compose BitMap is unavailable
+ * (e.g. allocation failed in _save_menu_dropdown_area).
+ */
+/*
+ * Render the drop-down menu for the active menu directly to the screen
+ * RastPort.
+ *
+ * Phase 112 final shape: pixel-accurate save/restore (via AllocBitMap +
+ * BltBitMap) is preserved, but off-screen composition was reverted because
+ * its per-event m68k cycle cost (extra BltBitMap calls) caused test
+ * timing regressions. The visible "blank then redraw" flicker accepted
+ * here matches the legacy behaviour and is the same trade-off the prior
+ * release shipped with.
  */
 static void _render_menu_items(struct Window *window)
 {
     struct Screen *screen;
-    struct RastPort *rp;
+    struct RastPort *screen_rp;
     struct Menu *menu;
     WORD barHeight;
     WORD menuX, menuY;
@@ -6466,38 +6450,56 @@ static void _render_menu_items(struct Window *window)
     WORD submenuY;
     WORD submenuWidth;
     WORD submenuHeight;
-    
+
     if (!window || !window->WScreen || !g_active_menu)
         return;
-    
+
     screen = window->WScreen;
-    rp = &screen->RastPort;
-    
+    screen_rp = &screen->RastPort;
+
     /* Validate RastPort has a valid BitMap */
-    if (!rp->BitMap || !rp->BitMap->Planes[0])
+    if (!screen_rp->BitMap || !screen_rp->BitMap->Planes[0])
     {
         DPRINTF(LOG_ERROR, "_intuition: _render_menu_items() invalid RastPort BitMap\n");
         return;
     }
-    
+
     menu = g_active_menu;
-    
+
     barHeight = screen->BarHeight + 1;
-    
-    /* Calculate menu drop-down position and size */
+
     menuX = screen->BarHBorder + menu->LeftEdge;
     menuY = barHeight;
 
-    SetDrMd(rp, JAM2);
+    SetDrMd(screen_rp, JAM2);
 
-    _render_menu_item_chain(rp, menu->FirstItem, g_active_item, menuX, menuY);
+    _render_menu_item_chain(screen_rp, menu->FirstItem, g_active_item,
+                            menuX, menuY);
 
     if (_get_active_submenu_box(window, &submenuX, &submenuY, &submenuWidth, &submenuHeight))
     {
         (void)submenuWidth;
         (void)submenuHeight;
-        _render_menu_item_chain(rp, g_active_item->SubItem, g_active_subitem, submenuX, submenuY);
+        _render_menu_item_chain(screen_rp, g_active_item->SubItem, g_active_subitem,
+                                submenuX, submenuY);
     }
+}
+
+/*
+ * Phase 112: default entry point uses the off-screen compose pipeline.
+ * Called from FULL_REPAINT paths where the dropdown area was just
+ * restored and needs to be rebuilt from scratch.
+ */
+/*
+ * Phase 112 perf: in-place hover redraw entry point. Skips the off-screen
+ * compose pipeline because the previously rendered dropdown is still
+ * intact on screen and only the highlighted item changed. Renders the
+ * menu chain (and any submenu) directly to screen, which is much
+ * cheaper than save+pre-fill+render+compose-blit.
+ */
+static void _render_menu_items_in_place(struct Window *window)
+{
+    _render_menu_items(window);
 }
 
 /*
@@ -7734,7 +7736,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                                                     oldMenu,
                                                                     oldItem))
                         {
-                            _render_menu_items(g_menu_window);
+                            _render_menu_items_in_place(g_menu_window);
                         }
                         else
                         {

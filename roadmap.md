@@ -101,24 +101,33 @@ issues in every driver. Ordered by dependency and effort (low-hanging fruit firs
 
 	62/63 tests pass. The 3 `sigma_interaction_gtest` failures (AnalysisWindowGadgetGridLayout, ButtonClickInteraction, ButtonAreaGadgetsAreConsistentlyPlaced) are pre-existing and unrelated to backing store.
 
-- Phase 112: Menu double-buffering
-	- Replace the current byte-aligned save/restore menu rendering with off-screen
-	  composition to eliminate flicker.
-	- **Approach**:
-	  1. Allocate an off-screen bitmap the size of the menu dropdown area.
-	  2. Render the menu (background, items, highlights, submenus) into the
-	     off-screen bitmap.
-	  3. BltBitMap the complete menu onto the screen in one operation.
-	  4. On hover change, re-render only the changed items into the off-screen
-	     bitmap, then blit the changed region.
-	  5. On menu close, restore from save-behind as before.
-	- The existing `_save_menu_dropdown_area()` / `_restore_menu_dropdown_area()`
-	  become pixel-aligned instead of byte-aligned (fix the 1-7 pixel edge
-	  artifact).
-	- Test: verify menu rendering with screenshot comparison. Test rapid hover
-	  transitions. Verify no regressions with ASM-One, MaxonBASIC, DevPac menus.
-	- This fixes the "flickery menus" limitation reported for ASM-One and
-	  MaxonBASIC.
+- Phase 112: Menu double-buffering (complete, v0.8.77)
+	- Replaced byte-aligned menu save/restore with pixel-accurate save/restore
+	  using `AllocBitMap` + `BltBitMap`. This eliminates the 1–7 pixel edge
+	  artifact that appeared whenever a menu opened at a non-byte-aligned X
+	  coordinate.
+	- To keep this affordable, `BltBitMapCore` is now dispatched to a native
+	  host-side handler via `EMU_CALL_GFX_BLT_BITMAP` (2050). The interpreted
+	  m68k bit-loop has been deleted. The host implementation handles all
+	  minterms, overlap (bottom-up vs top-down), byte-unaligned source/dest
+	  shifts, plane masks, pixel masks, and the `DrawImage` "planeonoff"
+	  conventions where `Planes[p] == NULL` reads as all-zero and
+	  `Planes[p] == (PLANEPTR)-1` reads as all-one.
+	- Performance: gadtoolsmenu tests run in ~7.9 s (within Phase 111 baseline
+	  of 7.2 s). The previous interpreted BltBitMap was ~50–100× slower and
+	  would have made menu save/restore unusable.
+	- Regression guards added to `tests/graphics/blt_bitmap`: non-byte-aligned
+	  destination shifts (1..7), minterm 0x30 (used by `DrawImageState`
+	  `IDS_SELECTED`), NULL source plane, and `(PLANEPTR)-1` source plane.
+	- `RequesterBasicDriverTest.SystemRequesterCancelAndConfirm` was reworked:
+	  the in-program self-`PutMsg` injection was removed; the test program now
+	  emits `READY: requester1_negative` / `READY: requester2_positive` sync
+	  markers and blocks in `SysReqHandler(..., TRUE)`. The host driver uses
+	  `ClickGadget(1, 1)` and `ClickGadget(0, 1)` instead of hard-coded pixel
+	  offsets. BuildSysRequest windows have no `WFLG_CLOSEGADGET`, so test 4
+	  now verifies the negative gadget path and accepts losing the old
+	  `IDCMP_CLOSEWINDOW` coverage for that requester.
+	- Full suite: 63/63 passing. 30/30 reliability run on the requester test.
 
 - Phase 113: Blitter line-draw mode
 	- Implement the Bresenham line-draw mode in `_blitter_execute()` when

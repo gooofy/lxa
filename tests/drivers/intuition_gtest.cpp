@@ -289,20 +289,32 @@ TEST_F(IntuitionTest, WindowBasic) { RunIntuitionTest("WindowBasic"); }
 TEST_F(IntuitionTest, WindowManipulation) { RunIntuitionTest("WindowManipulation"); }
 
 TEST_F(RequesterBasicDriverTest, SystemRequesterCancelAndConfirm) {
-    ASSERT_TRUE(WaitForWindows(2, 10000));
-
-    lxa_window_info_t parent_info;
-    lxa_window_info_t req_info;
-    ASSERT_TRUE(GetWindowInfo(0, &parent_info));
-    ASSERT_TRUE(GetWindowInfo(1, &req_info));
-
-    ClearOutput();
-    Click(req_info.x + req_info.width - 8, req_info.y + 5);
-    RunCyclesWithVBlank(80, 50000);
-
+    /* Test 4 sync point: wait for READY: requester1_negative. SysReqHandler is
+     * blocking on Wait() for a GADGETUP on the negative ("Cancel") gadget.
+     *
+     * Note: BuildSysRequest windows do NOT have WFLG_CLOSEGADGET, so we must
+     * click the negative gadget rather than a close gadget. The requester has
+     * exactly two gadgets: FirstGadget (positive/"Retry", index 0) and
+     * FirstGadget->NextGadget (negative/"Cancel", index 1). */
     std::string output;
+    bool saw_ready1 = false;
+    for (int i = 0; i < 200; i++) {
+        RunCyclesWithVBlank(5, 50000);
+        output = GetOutput();
+        if (output.find("READY: requester1_negative") != std::string::npos) {
+            saw_ready1 = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(saw_ready1) << output;
+
+    ASSERT_TRUE(WaitForWindows(2, 5000));
+
+    /* Click the negative gadget (index 1) in the requester (window index 1). */
+    ASSERT_TRUE(ClickGadget(1, 1)) << "Failed to click negative gadget in requester 1";
+
     bool saw_cancel = false;
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < 100; i++) {
         RunCyclesWithVBlank(10, 50000);
         output = GetOutput();
         if (output.find("OK: SysReqHandler returns cancel for IDCMP_CLOSEWINDOW") != std::string::npos) {
@@ -310,16 +322,24 @@ TEST_F(RequesterBasicDriverTest, SystemRequesterCancelAndConfirm) {
             break;
         }
     }
+    EXPECT_TRUE(saw_cancel) << output;
 
-    EXPECT_TRUE(saw_cancel)
-        << output;
+    /* Test 5 sync point: wait for READY: requester2_positive. */
+    bool saw_ready2 = false;
+    for (int i = 0; i < 200; i++) {
+        RunCyclesWithVBlank(5, 50000);
+        output = GetOutput();
+        if (output.find("READY: requester2_positive") != std::string::npos) {
+            saw_ready2 = true;
+            break;
+        }
+    }
+    ASSERT_TRUE(saw_ready2) << output;
 
-    ASSERT_TRUE(WaitForWindows(2, 10000));
-    ASSERT_TRUE(GetWindowInfo(1, &req_info));
+    ASSERT_TRUE(WaitForWindows(2, 5000));
 
-    ClearOutput();
-    Click(req_info.x + 40, req_info.y + req_info.height - 18);
-    RunCyclesWithVBlank(40, 50000);
+    /* Click the positive gadget (index 0) in the requester (window index 1). */
+    ASSERT_TRUE(ClickGadget(0, 1)) << "Failed to click positive gadget in requester 2";
 
     EXPECT_TRUE(lxa_wait_exit(10000));
 

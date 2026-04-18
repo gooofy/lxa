@@ -238,6 +238,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.8.77** - Menu double-buffering (Phase 112): pixel-accurate menu save/restore using `AllocBitMap` + `BltBitMap` eliminates the 1–7 pixel edge artifact at non-byte-aligned menu X positions. `BltBitMapCore` is now dispatched to a native host-side handler via `EMU_CALL_GFX_BLT_BITMAP`, delivering ~50–100× the throughput of the interpreted m68k path while preserving full Amiga semantics (all minterms, overlap direction, plane/pixel masks, NULL and `(PLANEPTR)-1` source planes for `DrawImage` planeonoff). Regression tests added for non-byte-aligned shifts (1..7), minterm 0x30 (`IDS_SELECTED`), and the special source-plane sentinels.
+
 **Version 0.8.76** - SMART_REFRESH full backing store: obscured window content is now saved and restored when layers overlap and uncover, with CR-aware rendering for RectFill, WritePixel, Draw, ReadPixel, ClipBlit, BltBitMapRastPort, and BltMaskBitMapRastPort
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.

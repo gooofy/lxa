@@ -241,46 +241,53 @@ int main(void)
         }
     }
 
-    /* Test 4: BuildSysRequest and SysReqHandler cancel path */
-    print("Test 4: BuildSysRequest() / SysReqHandler(IDCMP_CLOSEWINDOW)...\n");
+    /* Test 4: BuildSysRequest and SysReqHandler cancel path (negative gadget).
+     *
+     * The host-side driver clicks the requester's negative gadget (e.g.
+     * "Cancel") after seeing the READY: marker. SysReqHandler blocks via
+     * Wait() until the IDCMP_GADGETUP for that gadget arrives. The test
+     * then checks that SysReqHandler reported the negative gadget's ID. */
+    print("Test 4: BuildSysRequest() / SysReqHandler(negative gadget)...\n");
     sys_window = BuildSysRequest(window, &sys_body_1, &sys_pos, &sys_neg,
                                  IDCMP_CLOSEWINDOW, 0, 0);
     if (!sys_window || sys_window == (struct Window *)1) {
         print("  FAIL: BuildSysRequest did not open requester window\n\n");
     } else {
-        if (sys_window->UserPort != NULL && sys_window->FirstGadget != NULL) {
+        struct Gadget *first_gad = sys_window->FirstGadget;
+        struct Gadget *neg_gad = NULL;
+        if (first_gad && first_gad->NextGadget)
+            neg_gad = first_gad->NextGadget;
+
+        if (sys_window->UserPort != NULL && first_gad != NULL && neg_gad != NULL) {
             print("  OK: BuildSysRequest opened a requester window\n");
         } else {
             print("  FAIL: BuildSysRequest window missing IDCMP/gadget setup\n");
         }
 
+        /* Drain any startup messages */
         while ((msg = (struct IntuiMessage *)GetMsg(sys_window->UserPort)) != NULL) {
             ReplyMsg((struct Message *)msg);
         }
 
-        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
-        if (!msg) {
-            print("  FAIL: Could not allocate close message\n");
-            FreeSysRequest(sys_window);
-        } else {
-            msg->ExecMessage.mn_Length = sizeof(struct IntuiMessage);
-            msg->ExecMessage.mn_ReplyPort = sys_window->WindowPort;
-            msg->Class = IDCMP_CLOSEWINDOW;
-            PutMsg(sys_window->UserPort, (struct Message *)msg);
+        /* Sync point: tell host driver the requester is ready for a click */
+        print("READY: requester1_negative\n");
 
-            idcmp_class = 0;
-            sys_result = SysReqHandler(sys_window, &idcmp_class, FALSE);
-            if (sys_result == 0 && idcmp_class == IDCMP_CLOSEWINDOW) {
-                print("  OK: SysReqHandler returns cancel for IDCMP_CLOSEWINDOW\n");
-            } else {
-                print("  FAIL: SysReqHandler did not report IDCMP_CLOSEWINDOW correctly\n");
-            }
-            FreeSysRequest(sys_window);
+        idcmp_class = 0;
+        sys_result = SysReqHandler(sys_window, &idcmp_class, TRUE);
+        if (idcmp_class == IDCMP_GADGETUP && neg_gad &&
+            sys_result == neg_gad->GadgetID) {
+            print("  OK: SysReqHandler returns cancel for IDCMP_CLOSEWINDOW\n");
+        } else {
+            print("  FAIL: SysReqHandler did not report IDCMP_CLOSEWINDOW correctly\n");
         }
+        FreeSysRequest(sys_window);
         print("\n");
     }
 
-    /* Test 5: BuildSysRequest and SysReqHandler gadget path */
+    /* Test 5: BuildSysRequest and SysReqHandler positive gadget path.
+     *
+     * Host driver clicks the positive gadget ("Retry") after the READY:
+     * marker. SysReqHandler blocks until IDCMP_GADGETUP arrives. */
     print("Test 5: BuildSysRequest() / SysReqHandler(IDCMP_GADGETUP)...\n");
     sys_window = BuildSysRequest(window, &sys_body_1, &sys_pos, &sys_neg,
                                  IDCMP_CLOSEWINDOW, 0, 0);
@@ -295,33 +302,25 @@ int main(void)
             print("  FAIL: BuildSysRequest did not create response gadgets\n");
         }
 
+        /* Drain any startup messages */
         while ((msg = (struct IntuiMessage *)GetMsg(sys_window->UserPort)) != NULL) {
             ReplyMsg((struct Message *)msg);
         }
 
-        msg = (struct IntuiMessage *)AllocMem(sizeof(struct IntuiMessage), MEMF_PUBLIC | MEMF_CLEAR);
-        if (!msg || !gad) {
-            print("  FAIL: Could not stage gadget reply message\n");
-            if (msg) FreeMem(msg, sizeof(struct IntuiMessage));
-            FreeSysRequest(sys_window);
+        /* Sync point: tell host driver the requester is ready for a gadget click */
+        print("READY: requester2_positive\n");
+
+        idcmp_class = 0;
+        sys_result = SysReqHandler(sys_window, &idcmp_class, TRUE);
+        if (idcmp_class == IDCMP_GADGETUP && gad &&
+            sys_result == gad->GadgetID) {
+            print("  OK: SysReqHandler returns the gadget ID\n");
         } else {
-            msg->ExecMessage.mn_Length = sizeof(struct IntuiMessage);
-            msg->ExecMessage.mn_ReplyPort = sys_window->WindowPort;
-            msg->Class = IDCMP_GADGETUP;
-            msg->IAddress = gad;
-            PutMsg(sys_window->UserPort, (struct Message *)msg);
-
-            idcmp_class = 0;
-            sys_result = SysReqHandler(sys_window, &idcmp_class, FALSE);
-            if (sys_result == gad->GadgetID && idcmp_class == IDCMP_GADGETUP) {
-                print("  OK: SysReqHandler returns the gadget ID\n");
-            } else {
-                print("  FAIL: SysReqHandler did not return the gadget ID\n");
-            }
-
-            FreeSysRequest(sys_window);
-            print("  OK: FreeSysRequest closed the system requester\n\n");
+            print("  FAIL: SysReqHandler did not return the gadget ID\n");
         }
+
+        FreeSysRequest(sys_window);
+        print("  OK: FreeSysRequest closed the system requester\n\n");
     }
     
     /* Cleanup */

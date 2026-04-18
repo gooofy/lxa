@@ -108,6 +108,18 @@
 #define EMU_CALL_GFX_UPDATE_PLANAR 2030  /* Update from planar: (handle, x, y, w, h, planes_ptr, bpr, depth) */
 #define EMU_CALL_GFX_UPDATE_CHUNKY 2031  /* Update from chunky: (handle, x, y, w, h, pixels_ptr, pitch) */
 
+/* Bitmap-to-bitmap blit (Phase 112)
+ *
+ * Host-side native-C implementation of graphics.library BltBitMap().
+ * D1 points to a packed argument struct in m68k memory (see
+ * struct LxaBltBitMapArgs in src/rom/lxa_graphics.c). Returns the
+ * planesAffected mask in D0.
+ *
+ * Mirrors the AROS hosted-port architecture: BltBitMap dispatches to
+ * native host code, never to interpreted m68k. All 256 minterms supported.
+ */
+#define EMU_CALL_GFX_BLT_BITMAP    2050  /* Native BltBitMap: (args_ptr) -> planesAffected */
+
 /* Query Functions */
 #define EMU_CALL_GFX_GET_SIZE      2040  /* Get display size: (handle) -> packed w/h/d */
 #define EMU_CALL_GFX_AVAILABLE     2041  /* Check if SDL2 available: () -> bool */

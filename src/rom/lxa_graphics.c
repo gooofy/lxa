@@ -1591,22 +1591,6 @@ static void SetPlaneBit(PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y, UBYTE
         plane[byteOffset] &= ~bitMask;
 }
 
-static UBYTE ApplyBltMinterm(UBYTE sourceBit, UBYTE destBit, UBYTE minterm)
-{
-    UBYTE result = 0;
-
-    if ((minterm & 0x10) && !sourceBit && !destBit)
-        result = 1;
-    if ((minterm & 0x20) && !sourceBit && destBit)
-        result = 1;
-    if ((minterm & 0x40) && sourceBit && !destBit)
-        result = 1;
-    if ((minterm & 0x80) && sourceBit && destBit)
-        result = 1;
-
-    return result;
-}
-
 static BOOL PointVisibleInLayer(const struct Layer *layer, WORD x, WORD y)
 {
     const struct ClipRect *cr;
@@ -1629,6 +1613,37 @@ static BOOL PointVisibleInLayer(const struct Layer *layer, WORD x, WORD y)
     return FALSE;
 }
 
+/*
+ * Argument struct for the EMU_CALL_GFX_BLT_BITMAP host emucall.
+ *
+ * Phase 112: rather than executing the per-bit blit loop in interpreted
+ * m68k (very slow under Musashi - a single 146x56 plain-copy blit cost
+ * enough cycles to throw test timing off), we marshal the parameters
+ * into this packed struct on the m68k stack and dispatch to a native-C
+ * implementation in src/lxa/lxa.c. This mirrors AROS's hosted-port
+ * architecture (BltBitMap -> SDL_BlitSurface or memcpy via HIDD layer)
+ * and FS-UAE's "fast blit" mode (BLTSIZE write -> entire blit on host
+ * CPU in one shot).
+ *
+ * Layout MUST match the field offsets read in lxa.c
+ * (case EMU_CALL_GFX_BLT_BITMAP). Total size: 28 bytes.
+ */
+struct LxaBltBitMapArgs
+{
+    struct BitMap       *srcBM;     /* +0  */
+    WORD                 xSrc;      /* +4  */
+    WORD                 ySrc;      /* +6  */
+    struct BitMap       *destBM;    /* +8  */
+    WORD                 xDest;     /* +12 */
+    WORD                 yDest;     /* +14 */
+    WORD                 xSize;     /* +16 */
+    WORD                 ySize;     /* +18 */
+    UBYTE                minterm;   /* +20 */
+    UBYTE                planeMask; /* +21 */
+    UWORD                pixelMaskBpr; /* +22 */
+    PLANEPTR             pixelMask; /* +24 */
+};
+
 static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
                           WORD xSrc,
                           WORD ySrc,
@@ -1642,159 +1657,28 @@ static LONG BltBitMapCore(CONST struct BitMap *srcBitMap,
                           CONST PLANEPTR pixelMask,
                           UWORD pixelMaskBpr)
 {
-    LONG srcWidth;
-    LONG srcHeight;
-    LONG destWidth;
-    LONG destHeight;
-    LONG actualWidth;
-    LONG actualHeight;
-    LONG depth;
-    LONG plane;
-    WORD sx = xSrc;
-    WORD sy = ySrc;
-    WORD dx = xDest;
-    WORD dy = yDest;
-    LONG planesAffected = 0;
+    /*
+     * Phase 112: dispatch to host-side native-C implementation.
+     * Allocates the args struct on the stack so it lives in chip RAM
+     * accessible by the emulator.
+     */
+    struct LxaBltBitMapArgs args;
+    args.srcBM        = (struct BitMap *)srcBitMap;
+    args.xSrc         = xSrc;
+    args.ySrc         = ySrc;
+    args.destBM       = destBitMap;
+    args.xDest        = xDest;
+    args.yDest        = yDest;
+    args.xSize        = xSize;
+    args.ySize        = ySize;
+    args.minterm      = minterm;
+    args.planeMask    = planeMask;
+    args.pixelMaskBpr = pixelMaskBpr;
+    args.pixelMask    = (PLANEPTR)pixelMask;
 
-    if (!srcBitMap || !destBitMap || xSize <= 0 || ySize <= 0 || planeMask == 0)
-        return 0;
-
-    srcWidth = srcBitMap->BytesPerRow * 8;
-    srcHeight = srcBitMap->Rows;
-    destWidth = destBitMap->BytesPerRow * 8;
-    destHeight = destBitMap->Rows;
-    actualWidth = xSize;
-    actualHeight = ySize;
-
-    if (sx < 0)
-    {
-        dx -= sx;
-        actualWidth += sx;
-        sx = 0;
-    }
-
-    if (sy < 0)
-    {
-        dy -= sy;
-        actualHeight += sy;
-        sy = 0;
-    }
-
-    if (dx < 0)
-    {
-        sx -= dx;
-        actualWidth += dx;
-        dx = 0;
-    }
-
-    if (dy < 0)
-    {
-        sy -= dy;
-        actualHeight += dy;
-        dy = 0;
-    }
-
-    if (sx + actualWidth > srcWidth)
-        actualWidth = srcWidth - sx;
-    if (sy + actualHeight > srcHeight)
-        actualHeight = srcHeight - sy;
-    if (dx + actualWidth > destWidth)
-        actualWidth = destWidth - dx;
-    if (dy + actualHeight > destHeight)
-        actualHeight = destHeight - dy;
-
-    if (actualWidth <= 0 || actualHeight <= 0)
-        return 0;
-
-    depth = srcBitMap->Depth;
-    if (destBitMap->Depth < depth)
-        depth = destBitMap->Depth;
-
-    for (plane = 0; plane < depth; plane++)
-    {
-        CONST PLANEPTR srcPlane = srcBitMap->Planes[plane];
-        PLANEPTR destPlane;
-        BOOL overlap;
-        LONG rowStart;
-        LONG rowEnd;
-        LONG rowStep;
-        LONG row;
-
-        if (!(planeMask & (1U << plane)))
-            continue;
-
-        destPlane = destBitMap->Planes[plane];
-
-        if (!destPlane || destPlane == (PLANEPTR)-1)
-            continue;
-
-        planesAffected++;
-
-        overlap = FALSE;
-        if (srcPlane && srcPlane != (PLANEPTR)-1 && srcPlane == destPlane)
-        {
-            WORD tmpMinX;
-            WORD tmpMinY;
-            WORD tmpMaxX;
-            WORD tmpMaxY;
-
-            overlap = ClipIntersectRects(sx, sy,
-                                         sx + actualWidth - 1, sy + actualHeight - 1,
-                                         dx, dy,
-                                         dx + actualWidth - 1, dy + actualHeight - 1,
-                                         &tmpMinX, &tmpMinY, &tmpMaxX, &tmpMaxY);
-        }
-
-        if (overlap && dy > sy)
-        {
-            rowStart = actualHeight - 1;
-            rowEnd = -1;
-            rowStep = -1;
-        }
-        else
-        {
-            rowStart = 0;
-            rowEnd = actualHeight;
-            rowStep = 1;
-        }
-
-        for (row = rowStart; row != rowEnd; row += rowStep)
-        {
-            LONG colStart = 0;
-            LONG colEnd = actualWidth;
-            LONG colStep = 1;
-            LONG col;
-            WORD srcY = sy + row;
-            WORD destY = dy + row;
-
-            if (overlap && destY == srcY && dx > sx)
-            {
-                colStart = actualWidth - 1;
-                colEnd = -1;
-                colStep = -1;
-            }
-
-            for (col = colStart; col != colEnd; col += colStep)
-            {
-                WORD srcX = sx + col;
-                WORD destX = dx + col;
-
-                if (pixelMask && !GetPlaneBit(pixelMask, pixelMaskBpr, srcX, srcY))
-                    continue;
-
-                SetPlaneBit(destPlane,
-                            destBitMap->BytesPerRow,
-                            destX,
-                            destY,
-                            ApplyBltMinterm(GetPlaneBit(srcPlane, srcBitMap->BytesPerRow, srcX, srcY),
-                                            GetPlaneBit(destPlane, destBitMap->BytesPerRow, destX, destY),
-                                            minterm));
-            }
-        }
-    }
-
-    return planesAffected;
+    return (LONG)emucall1(EMU_CALL_GFX_BLT_BITMAP, (ULONG)&args);
 }
+
 
 #define VERSION    40
 #define REVISION   1

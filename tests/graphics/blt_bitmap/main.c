@@ -255,6 +255,154 @@ int main(void)
     srcPlane = NULL;
     destPlane = NULL;
 
+    /* Test 9: Non-byte-aligned destination X shift (Phase 112 regression guard).
+     * Verifies that a BltBitMap to an odd X offset correctly shifts source
+     * bits and does not leave garbage in the leading/trailing sub-byte. */
+    print("Test 9: Non-byte-aligned destination shift...\n");
+    {
+        PLANEPTR s = AllocRaster(32, 4);
+        PLANEPTR d = AllocRaster(32, 4);
+        struct BitMap sbm, dbm;
+        int shift;
+        int shift_errors = 0;
+
+        if (!s || !d) {
+            print("FAIL: alloc for shift test\n");
+            errors++;
+        } else {
+            InitBitMap(&sbm, 1, 32, 4);
+            InitBitMap(&dbm, 1, 32, 4);
+            sbm.Planes[0] = s;
+            dbm.Planes[0] = d;
+
+            /* Source: all-ones in a known rectangle */
+            for (i = 0; i < 16; i++) s[i] = 0xFF;
+
+            for (shift = 1; shift < 8; shift++) {
+                int x, y;
+                int ok = 1;
+                for (i = 0; i < 16; i++) d[i] = 0x00;
+                /* Blit 8x4 rect from (0,0) to (shift, 0) */
+                BltBitMap(&sbm, 0, 0, &dbm, shift, 0, 8, 4,
+                          MINTERM_COPY_SOURCE, 0x01, NULL);
+                /* Verify: pixels [shift..shift+7] in each row should be 1,
+                 * all others 0. */
+                for (y = 0; y < 4; y++) {
+                    for (x = 0; x < 32; x++) {
+                        ULONG expected = (x >= shift && x < shift + 8) ? 1 : 0;
+                        if (read_plane_pixel(&dbm, x, y) != expected) {
+                            ok = 0;
+                        }
+                    }
+                }
+                if (!ok) shift_errors++;
+            }
+
+            if (shift_errors) {
+                print("FAIL: Non-byte-aligned shift produced wrong pixels (");
+                print_num(shift_errors);
+                print(" of 7)\n");
+                errors++;
+            } else {
+                print("OK: Non-byte-aligned shifts (1..7) work correctly\n");
+            }
+        }
+        if (s) FreeRaster(s, 32, 4);
+        if (d) FreeRaster(d, 32, 4);
+    }
+
+    /* Test 10: Minterm 0x30 (NOT source) — used by DrawImageState IDS_SELECTED */
+    print("Test 10: Minterm 0x30 (NOT source)...\n");
+    {
+        PLANEPTR s = AllocRaster(16, 4);
+        PLANEPTR d = AllocRaster(16, 4);
+        struct BitMap sbm, dbm;
+        if (!s || !d) {
+            print("FAIL: alloc for minterm 0x30\n");
+            errors++;
+        } else {
+            InitBitMap(&sbm, 1, 16, 4);
+            InitBitMap(&dbm, 1, 16, 4);
+            sbm.Planes[0] = s;
+            dbm.Planes[0] = d;
+            for (i = 0; i < 8; i++) {
+                s[i] = 0xAA;
+                d[i] = 0x00;
+            }
+            BltBitMap(&sbm, 0, 0, &dbm, 0, 0, 8, 4, 0x30, 0x01, NULL);
+            /* Dest = NOT source = 0x55 */
+            if (d[0] != 0x55) {
+                print("FAIL: minterm 0x30 got ");
+                print_num(d[0]);
+                print(" expected 85 (0x55)\n");
+                errors++;
+            } else {
+                print("OK: Minterm 0x30 produces NOT(source)\n");
+            }
+        }
+        if (s) FreeRaster(s, 16, 4);
+        if (d) FreeRaster(d, 16, 4);
+    }
+
+    /* Test 11: NULL source plane treated as all-zero (DrawImage planeonoff).
+     * Per lxa_graphics.c:GetPlaneBit, a NULL plane reads as 0. With
+     * minterm 0x30 (NOT src), dest should become all-ones. */
+    print("Test 11: NULL source plane behaves as all-zero...\n");
+    {
+        struct BitMap sbm, dbm;
+        PLANEPTR d = AllocRaster(16, 4);
+        if (!d) {
+            print("FAIL: alloc for NULL plane\n");
+            errors++;
+        } else {
+            InitBitMap(&sbm, 1, 16, 4);
+            InitBitMap(&dbm, 1, 16, 4);
+            sbm.Planes[0] = NULL;  /* all-zero source */
+            dbm.Planes[0] = d;
+            for (i = 0; i < 8; i++) d[i] = 0x00;
+            BltBitMap(&sbm, 0, 0, &dbm, 0, 0, 8, 4, 0x30, 0x01, NULL);
+            if (d[0] != 0xFF) {
+                print("FAIL: NULL source + 0x30 got ");
+                print_num(d[0]);
+                print(" expected 255\n");
+                errors++;
+            } else {
+                print("OK: NULL source plane behaves as all-zero\n");
+            }
+        }
+        if (d) FreeRaster(d, 16, 4);
+    }
+
+    /* Test 12: (PLANEPTR)-1 source plane treated as all-one
+     * (DrawImage planeonoff bit set). With minterm 0xC0 (copy source),
+     * dest should become all-ones. */
+    print("Test 12: (PLANEPTR)-1 source plane behaves as all-one...\n");
+    {
+        struct BitMap sbm, dbm;
+        PLANEPTR d = AllocRaster(16, 4);
+        if (!d) {
+            print("FAIL: alloc for -1 plane\n");
+            errors++;
+        } else {
+            InitBitMap(&sbm, 1, 16, 4);
+            InitBitMap(&dbm, 1, 16, 4);
+            sbm.Planes[0] = (PLANEPTR)-1;  /* all-one source */
+            dbm.Planes[0] = d;
+            for (i = 0; i < 8; i++) d[i] = 0x00;
+            BltBitMap(&sbm, 0, 0, &dbm, 0, 0, 8, 4,
+                      MINTERM_COPY_SOURCE, 0x01, NULL);
+            if (d[0] != 0xFF) {
+                print("FAIL: -1 source + 0xC0 got ");
+                print_num(d[0]);
+                print(" expected 255\n");
+                errors++;
+            } else {
+                print("OK: (PLANEPTR)-1 source plane behaves as all-one\n");
+            }
+        }
+        if (d) FreeRaster(d, 16, 4);
+    }
+
     /* Final result */
     if (errors == 0)
     {
