@@ -238,6 +238,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.8.78** - Blitter line-draw mode (Phase 113): hardware blitter now implements Bresenham line-draw mode when `BLTCON1` bit 0 (LINE) is set, including all four octant-quadrant combinations via the SUD/SUL/AUL bits, single-bit-per-row mode (SING), cross-word ASH wrapping, and pattern replication via BLTBDAT rotation. Implementation matches e-uae's `blitter_line_proc()`. 9 new sub-tests in `tests/graphics/hw_blitter` cover horizontal, vertical, all four diagonal directions, steep/shallow dominant axes, cross-word lines, and patterned lines. Apps must set `BLTADAT = 0x8000` for a single-pixel mask, per HRM convention.
+
 **Version 0.8.77** - Menu double-buffering (Phase 112): pixel-accurate menu save/restore using `AllocBitMap` + `BltBitMap` eliminates the 1–7 pixel edge artifact at non-byte-aligned menu X positions. `BltBitMapCore` is now dispatched to a native host-side handler via `EMU_CALL_GFX_BLT_BITMAP`, delivering ~50–100× the throughput of the interpreted m68k path while preserving full Amiga semantics (all minterms, overlap direction, plane/pixel masks, NULL and `(PLANEPTR)-1` source planes for `DrawImage` planeonoff). Regression tests added for non-byte-aligned shifts (1..7), minterm 0x30 (`IDS_SELECTED`), and the special source-plane sentinels.
 
 **Version 0.8.76** - SMART_REFRESH full backing store: obscured window content is now saved and restored when layers overlap and uncover, with CR-aware rendering for RectFill, WritePixel, Draw, ReadPixel, ClipBlit, BltBitMapRastPort, and BltMaskBitMapRastPort

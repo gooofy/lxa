@@ -129,29 +129,39 @@ issues in every driver. Ordered by dependency and effort (low-hanging fruit firs
 	  `IDCMP_CLOSEWINDOW` coverage for that requester.
 	- Full suite: 63/63 passing. 30/30 reliability run on the requester test.
 
-- Phase 113: Blitter line-draw mode
-	- Implement the Bresenham line-draw mode in `_blitter_execute()` when
-	  BLTCON1 bit 0 (LINE) is set.
-	- The Amiga blitter line mode uses:
-	  - BLTCON0: minterm (usually 0xCA for XOR or 0x4A for JAM1) and ASH for
-	    octant-dependent starting position.
-	  - BLTCON1: LINE bit, SIGN bit (Bresenham error sign), octant code (bits
-	    2-4), OVF bit, optional single-bit-per-row mode (ONEDOT).
-	  - BLTAPT: Bresenham error accumulator (2 * min(dx,dy) - max(dx,dy)).
-	  - BLTAMOD: 4 * min(dx,dy) - 2 * max(dx,dy) (error adjustment when sign
-	    changes).
-	  - BLTBMOD: 4 * min(dx,dy) (error adjustment when sign doesn't change).
-	  - BLTCPT/BLTDPT: destination bitmap.
-	  - BLTSIZE height: max(dx,dy) + 1 (number of pixels).
-	- Reference: RKRM Hardware Reference Manual, Chapter 6 (Blitter), "Line
-	  Drawing Mode" section. Also HRM Appendix C for the octant table.
-	- Test with a dedicated integration test that draws lines at all 8 octants
-	  and compares with expected bitmaps.
-	- After implementing, test BlitzBasic2 to see if its "ted" editor renders
-	  (it uses blitter line mode for UI chrome). If it also needs copper, that
-	  is Phase 114.
-	- This is a prerequisite for apps that call graphics.library `Draw()` which
-	  falls through to hardware blitter line mode on real Amigas.
+- Phase 113: Blitter line-draw mode (complete, v0.8.78)
+	- Implemented Bresenham line-draw mode in `_blitter_execute()` for
+	  BLTCON1 bit 0 (LINE). Branch is taken at the top of the function after
+	  register decode, before the standard area-mode copy/fill path.
+	- BLTCON1 bit decoding (per fs-uae/e-uae, authoritative — the original
+	  roadmap text described the octant bits incorrectly):
+	  - bit 0 (0x01): LINE
+	  - bit 1 (0x02): SING (ONEDOT — at most one pixel per row)
+	  - bit 2 (0x04): AUL (sign of the always-step on the dominant axis)
+	  - bit 3 (0x08): SUL (sign of the conditional step on the minor axis)
+	  - bit 4 (0x10): SUD (1 = X dominant, 0 = Y dominant)
+	  - bit 6 (0x40): SIGN (initial Bresenham error sign)
+	- Per-pixel: read C-word, compute `a_word = bltadat >> cur_ash`, replicate
+	  BLTBDAT LSB to a 16-bit b_word, apply minterm via existing 256-entry
+	  table, write D-word. Apps must set `BLTADAT = 0x8000` for a single-bit
+	  pixel mask (matches HRM/e-uae convention).
+	- Bresenham step matches e-uae's `blitter_line_proc()`:
+	  - When `!sign`: BLTAPT += BLTAMOD (sign-extended s16) and step both
+	    dominant and minor axes.
+	  - When `sign`: BLTAPT += BLTBMOD (sign-extended s16) and step only the
+	    dominant axis. New sign = (acc < 0).
+	- Cross-word ASH wrapping: when stepping X, cur_ash wraps 0↔15 and the
+	  CPT/DPT pointers advance/retreat by 2 bytes.
+	- SING (ONEDOT) suppresses subsequent pixels in the same row by gating
+	  the D-write until the dominant Y advances (or always, when X-dominant).
+	- After completion, the final cpt/dpt/apt/sign/bshift values are written
+	  back to `g_blitter` (per HRM, the line blit leaves these in a defined
+	  post-line state).
+	- 9 new sub-tests added to `tests/graphics/hw_blitter/main.c` (Tests
+	  8–16) covering: horizontal, vertical, +X+Y diagonal, +X-dominant +Y
+	  shallow, +X-Y, -X+Y, +Y-dominant steep, cross-word horizontal
+	  (verifies ASH wrap), and patterned (BLTBDAT=0xAAAA) lines.
+	- Full suite: 63/63 passing in 139 s wall time. No regressions.
 
 - Phase 114: Copper list interpreter (basic)
 	- Implement a minimal copper list interpreter for the subset of copper

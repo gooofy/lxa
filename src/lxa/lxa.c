@@ -1548,9 +1548,7 @@ unsigned int m68k_read_memory_32 (unsigned int address)
  *   - Ascending and descending (reverse) blit direction
  *   - Inclusive-OR and exclusive-OR fill modes
  *   - Per-channel signed modulo
- *
- * Not supported (not needed for current apps):
- *   - Line draw mode (BLTCON1 bit 0)
+ *   - Line draw mode (BLTCON1 bit 0): Bresenham line drawing (Phase 113)
  */
 static void _blitter_execute (uint16_t width_words, uint16_t height)
 {
@@ -1571,6 +1569,209 @@ static void _blitter_execute (uint16_t width_words, uint16_t height)
     bool     fill_or  = (con1 & 0x08) != 0;
     bool     fill_xor = (con1 & 0x10) != 0;
     bool     fill_carry_in = (con1 & 0x04) != 0;
+
+    /* ------------------------------------------------------------------
+     * LINE MODE (BLTCON1 bit 0): Bresenham line drawing.
+     *
+     * Register usage in line mode (per HRM Ch. 6 + Appendix C):
+     *   BLTCON0 ASH (bits 15:12)  = starting bit position within first word
+     *                                 (15 = leftmost pixel of word).
+     *   BLTCON0 minterm (7:0)     = logic op, typically 0xCA = (B & A) | (~B & C)
+     *                                 for opaque, 0x4A for transparent overlay.
+     *   BLTCON0 channel enables   = A always on, C and D normally on.
+     *
+     *   BLTCON1 bit 0 = LINE
+     *   BLTCON1 bit 1 = SING (ONEDOT — write at most one pixel per row)
+     *   BLTCON1 bit 2 = AUL  (direction of dominant-axis step: 0=incr, 1=decr)
+     *   BLTCON1 bit 3 = SUL  (direction of minor-axis step: 0=incr, 1=decr)
+     *   BLTCON1 bit 4 = SUD  (1: dominant=X minor=Y; 0: dominant=Y minor=X)
+     *   BLTCON1 bit 6 = SIGN (initial sign of Bresenham accumulator)
+     *
+     *   BLTAPT  = Bresenham accumulator: 4*dy - 2*dx (signed 16-bit, sign-extended)
+     *   BLTAMOD = 4 * (dy - dx)   (added when sign clear)
+     *   BLTBMOD = 4 * dy          (added when sign set)
+     *   BLTADAT = pixel mask, normally 0x8000 (single bit at MSB)
+     *   BLTBDAT = pattern (texture) — rotated right one bit per pixel
+     *   BLTCPT  = BLTDPT = base address of the destination word containing the
+     *                       starting pixel
+     *   BLTCMOD = BLTDMOD = bytes per row
+     *
+     *   BLTSIZE: width-words MUST be 2 (one A word + one C/D word per "step"),
+     *            height = number of pixels to draw = max(dx,dy) + 1.
+     *
+     * Per-pixel: read C, compute D = minterm(A,B,C), write D, then advance
+     * (cpt, ash) along the chosen octant using the Bresenham accumulator
+     * stored in apt; rotate B by one bit for textured lines.
+     * ------------------------------------------------------------------ */
+    if (con1 & 0x0001)
+    {
+        bool sing = (con1 & 0x02) != 0;
+        bool sud  = (con1 & 0x10) != 0;
+        bool sul  = (con1 & 0x08) != 0;
+        bool aul  = (con1 & 0x04) != 0;
+        bool sign = (con1 & 0x40) != 0;
+
+        uint16_t pixel_mask = g_blitter.adat;       /* normally 0x8000 */
+        uint16_t pattern    = g_blitter.bdat;       /* texture pattern */
+        uint16_t bshift     = bsh;                  /* current rotation of pattern */
+
+        uint32_t cpt = g_blitter.cpt;
+        uint32_t dpt = g_blitter.dpt;
+        int32_t  acc = (int16_t)g_blitter.apt;      /* sign-extend low 16 bits */
+        int16_t  amod_l = g_blitter.amod;           /* error step when !sign */
+        int16_t  bmod_l = g_blitter.bmod;           /* error step when sign */
+        int16_t  cmod_l = g_blitter.cmod;           /* bytes per row */
+        uint16_t cur_ash = ash;
+        bool     onedot_drawn = false;
+
+        DPRINTF (LOG_DEBUG, "lxa: BLITTER LINE: con0=0x%04x con1=0x%04x "
+                 "pixels=%d ash=%d bshift=%d sud=%d sul=%d aul=%d sign=%d "
+                 "sing=%d apt=0x%08x amod=%d bmod=%d cmod=%d minterm=0x%02x\n",
+                 con0, con1, height, ash, bshift, sud, sul, aul, sign, sing,
+                 g_blitter.apt, amod_l, bmod_l, cmod_l, minterm);
+
+        if (width_words != 2)
+        {
+            DPRINTF (LOG_INFO, "lxa: BLITTER LINE: unusual width_words=%d "
+                     "(expected 2)\n", width_words);
+        }
+
+        /* Number of pixels to draw = height field of BLTSIZE. */
+        for (uint16_t step = 0; step < height; step++)
+        {
+            /* --- Read C (destination word) --- */
+            uint16_t c_data = 0;
+            if (use_c && cpt < RAM_SIZE - 1)
+                c_data = (g_ram[cpt] << 8) | g_ram[cpt + 1];
+
+            /* --- A is a single-bit mask shifted to current pixel column.
+             *     pixel_mask is normally 0x8000 (MSB), then shifted right
+             *     by cur_ash to land on the pixel inside the word. --- */
+            uint16_t a_word = (uint16_t)(pixel_mask >> cur_ash);
+
+            /* --- B is the texture pattern. blineb starts as bdat rotated
+             *     right by bshift; per-pixel we rotate one more bit and
+             *     replicate the LSB across the whole word (HRM behavior). --- */
+            uint16_t b_rot;
+            if (bshift == 0)
+                b_rot = pattern;
+            else
+                b_rot = (uint16_t)((pattern >> bshift) |
+                                   (pattern << (16 - bshift)));
+            uint16_t b_word = (b_rot & 1) ? 0xFFFF : 0x0000;
+
+            /* --- ONEDOT (SING): suppress writes after the first pixel of
+             *     a "step group". onedot_drawn is reset whenever Y advances. --- */
+            if (sing && onedot_drawn)
+                a_word = 0;
+
+            /* --- Minterm logic: bitwise composition of A, B, C --- */
+            uint16_t result = 0;
+            for (int bit = 15; bit >= 0; bit--)
+            {
+                uint16_t mask = (uint16_t)(1 << bit);
+                int a_bit = (a_word & mask) ? 1 : 0;
+                int b_bit = (b_word & mask) ? 1 : 0;
+                int c_bit = (c_data & mask) ? 1 : 0;
+                int idx = (a_bit << 2) | (b_bit << 1) | c_bit;
+                if (minterm & (1 << idx))
+                    result |= mask;
+            }
+
+            /* --- Write D --- */
+            if (use_d && dpt < RAM_SIZE - 1)
+            {
+                g_ram[dpt]     = (uint8_t)((result >> 8) & 0xff);
+                g_ram[dpt + 1] = (uint8_t)(result & 0xff);
+            }
+
+            if (a_word != 0)
+                onedot_drawn = true;
+
+            /* --- Bresenham step.
+             *     Per HRM/UAE: the SUD bit selects which axis steps only on
+             *     a sign flip ("minor" axis, when !sign), and which axis
+             *     steps every pixel ("dominant" axis). SUL controls the
+             *     direction of the minor step; AUL controls the dominant.
+             *
+             *       SUD = 1: minor = Y (SUL), dominant = X (AUL)
+             *       SUD = 0: minor = X (SUL), dominant = Y (AUL)
+             *
+             *     The error accumulator is updated with amod when !sign
+             *     (a minor step was taken) and with bmod when sign is set. */
+            if (!sign)
+            {
+                /* Minor step */
+                if (sud)
+                {
+                    /* Minor = Y */
+                    if (sul) { cpt -= cmod_l; dpt -= cmod_l; }
+                    else     { cpt += cmod_l; dpt += cmod_l; }
+                    onedot_drawn = false;   /* SING resets per Y step */
+                }
+                else
+                {
+                    /* Minor = X (advance one pixel column) */
+                    if (sul)
+                    {
+                        if (cur_ash == 0) { cur_ash = 15; cpt -= 2; dpt -= 2; }
+                        else              { cur_ash--; }
+                    }
+                    else
+                    {
+                        if (cur_ash == 15) { cur_ash = 0; cpt += 2; dpt += 2; }
+                        else               { cur_ash++; }
+                    }
+                }
+            }
+            /* Dominant step (every pixel) */
+            if (sud)
+            {
+                /* Dominant = X */
+                if (aul)
+                {
+                    if (cur_ash == 0) { cur_ash = 15; cpt -= 2; dpt -= 2; }
+                    else              { cur_ash--; }
+                }
+                else
+                {
+                    if (cur_ash == 15) { cur_ash = 0; cpt += 2; dpt += 2; }
+                    else               { cur_ash++; }
+                }
+            }
+            else
+            {
+                /* Dominant = Y */
+                if (aul) { cpt -= cmod_l; dpt -= cmod_l; }
+                else     { cpt += cmod_l; dpt += cmod_l; }
+                onedot_drawn = false;
+            }
+
+            /* --- Update Bresenham accumulator and sign flag.
+             *     amod = 4*(dy - dx) is added when current sign is clear,
+             *     bmod = 4*dy is added when sign is set.
+             *     Then sign is recomputed from the new accumulator. --- */
+            if (!sign)
+                acc += amod_l;
+            else
+                acc += bmod_l;
+            sign = (acc < 0);
+
+            /* --- Rotate B pattern by one bit (HRM: rotated right). --- */
+            bshift = (bshift - 1) & 15;
+        }
+
+        /* --- Write back final state to blitter registers (HRM: pointers
+         *     and BLTCON1 reflect the final position after the blit). --- */
+        g_blitter.cpt = cpt;
+        g_blitter.dpt = dpt;
+        g_blitter.apt = (uint32_t)(int32_t)acc;
+        g_blitter.con1 = (uint16_t)((con1 & ~0x40) | (sign ? 0x40 : 0));
+        g_blitter.con1 = (uint16_t)((g_blitter.con1 & 0x0fff) | (bshift << 12));
+
+        DPRINTF (LOG_DEBUG, "lxa: BLITTER LINE: done (%d pixels)\n", height);
+        return;
+    }
 
     uint32_t apt = g_blitter.apt;
     uint32_t bpt = g_blitter.bpt;
