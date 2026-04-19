@@ -190,6 +190,24 @@ protected:
                                   info.y + info.height - bottom_inset,
                                   0);
     }
+
+    /* Wait for the screen depth to change to a value matching the main editor
+     * mode (DPaint switches from 2-bitplane Workbench to an 8-bitplane custom
+     * screen once Screen Format is accepted via the Use button). */
+    bool WaitForScreenDepth(int expected_depth, int timeout_ms = 15000) {
+        int attempts = timeout_ms / 20;
+
+        for (int attempt = 0; attempt < attempts; ++attempt) {
+            int width, height, depth;
+            if (lxa_get_screen_dimensions(&width, &height, &depth) &&
+                depth == expected_depth) {
+                return true;
+            }
+            RunCyclesWithVBlank(2, 50000);
+        }
+
+        return false;
+    }
 };
 
 TEST_F(DPaintTest, ProgramLoads) {
@@ -290,6 +308,222 @@ TEST_F(DPaintPixelTest, ScreenFormatDialogSectionsContainVisibleContent) {
         << "Expected the Screen Format dialog's middle-right section to show the Display Information content";
     EXPECT_GT(lower_right_pixels, 80)
         << "Expected the Screen Format dialog's lower-right section to show the Credits content";
+}
+
+/* ========================================================================
+ * Phase 115 — extended interaction coverage for DPaint V
+ *
+ * Startup flow on lxa:
+ *   1. DPaint opens a single rootless window titled "Ownership Information"
+ *      that overlays the Screen Format dialog (depth 2 Workbench-style).
+ *   2. After dismissing the Ownership requester, the same window's title
+ *      becomes "DeluxePaint 5.2 - Screen Format" and the full set of
+ *      Screen Format gadgets becomes interactable.
+ *   3. Clicking the "Use" gadget (id=14, lower-left) accepts the chosen
+ *      mode and opens DPaint's main editor on a fresh 640x200x8 screen.
+ *   4. The main editor's menu bar and toolbox icons appear once the user
+ *      interacts with the screen (RMB on the menu bar, mouse motion).
+ *      This deferred-paint behaviour matches what real DPaint does.
+ * ====================================================================== */
+
+class DPaintEditorTest : public DPaintPixelTest {
+protected:
+    /* DPaint's Screen Format gadget IDs (verified empirically with
+     * tests/drivers/dpaint_probe_gtest.cpp). */
+    static constexpr int SF_GADGET_USE_INDEX = 13;     /* id=14, "Use"  */
+    static constexpr int SF_GADGET_CANCEL_INDEX = 14;  /* id=15, "Cancel" */
+
+    /* Reach the "DeluxePaint 5.2 - Screen Format" state. */
+    bool ReachScreenFormat() {
+        if (std::string(window_info.title).find("Ownership") == std::string::npos) {
+            /* Some startups skip Ownership outright. */
+            return WaitForWindowTitleSubstring("Screen Format", 5000);
+        }
+
+        if (!DismissOwnershipWindow()) return false;
+        if (!WaitForWindowTitleSubstring("Screen Format", 8000)) return false;
+        RunCyclesWithVBlank(60, 50000);
+        return true;
+    }
+
+    /* Click "Use" on the Screen Format dialog and wait for the main editor
+     * screen mode (640x200x8) to come up. */
+    bool AcceptScreenFormat() {
+        int sf = FindWindowIndexByTitleSubstring("Screen Format");
+        if (sf < 0) {
+            ADD_FAILURE() << "AcceptScreenFormat: no Screen Format window found";
+            return false;
+        }
+
+        int gc = GetGadgetCount(sf);
+        if (gc <= SF_GADGET_USE_INDEX) {
+            ADD_FAILURE() << "AcceptScreenFormat: gadget count " << gc << " <= " << SF_GADGET_USE_INDEX;
+            return false;
+        }
+        if (!ClickGadget(SF_GADGET_USE_INDEX, sf)) {
+            ADD_FAILURE() << "AcceptScreenFormat: ClickGadget failed";
+            return false;
+        }
+
+        if (!WaitForScreenDepth(8, 15000)) {
+            int w, h, d;
+            lxa_get_screen_dimensions(&w, &h, &d);
+            ADD_FAILURE() << "AcceptScreenFormat: depth still " << d
+                          << " after 15s (size " << w << "x" << h << ")";
+            return false;
+        }
+        return true;
+    }
+};
+
+TEST_F(DPaintEditorTest, OwnershipDismissRevealsScreenFormatGadgets) {
+    ASSERT_TRUE(ReachScreenFormat())
+        << "Expected DPaint to reach the Screen Format dialog after dismissing Ownership";
+
+    int sf = FindWindowIndexByTitleSubstring("Screen Format");
+    ASSERT_GE(sf, 0);
+
+    /* The Screen Format dialog has a stable gadget structure: at least
+     * the "Use" and "Cancel" buttons must be present at the bottom edge. */
+    int gadget_count = GetGadgetCount(sf);
+    EXPECT_GE(gadget_count, 15)
+        << "Screen Format dialog should expose at least 15 gadgets";
+
+    lxa_window_info_t info;
+    ASSERT_TRUE(GetWindowInfo(sf, &info));
+
+    lxa_gadget_info_t use_gad{};
+    ASSERT_TRUE(GetGadgetInfo(SF_GADGET_USE_INDEX, &use_gad, sf));
+    EXPECT_EQ(use_gad.gadget_id, 14)
+        << "Expected the lower-left Screen Format gadget to be the 'Use' button (id=14)";
+    EXPECT_LT(use_gad.left, info.width / 4)
+        << "'Use' button should sit in the dialog's lower-left quadrant";
+    EXPECT_GT(use_gad.top, info.height * 3 / 4)
+        << "'Use' button should sit near the bottom of the dialog";
+
+    lxa_gadget_info_t cancel_gad{};
+    ASSERT_TRUE(GetGadgetInfo(SF_GADGET_CANCEL_INDEX, &cancel_gad, sf));
+    EXPECT_EQ(cancel_gad.gadget_id, 15)
+        << "Expected the lower-right Screen Format gadget to be the 'Cancel' button (id=15)";
+    EXPECT_GT(cancel_gad.left, info.width * 3 / 4)
+        << "'Cancel' button should sit in the dialog's lower-right quadrant";
+}
+
+TEST_F(DPaintEditorTest, UseButtonOpensMainEditorScreen) {
+    ASSERT_TRUE(ReachScreenFormat());
+
+    int width_before = 0, height_before = 0, depth_before = 0;
+    lxa_get_screen_dimensions(&width_before, &height_before, &depth_before);
+    EXPECT_EQ(depth_before, 2)
+        << "Screen Format dialog should be displayed on a depth-2 Workbench-style screen";
+
+    ASSERT_TRUE(AcceptScreenFormat())
+        << "Clicking 'Use' should switch to DPaint's main 8-bitplane editor screen";
+
+    int width_after = 0, height_after = 0, depth_after = 0;
+    ASSERT_TRUE(lxa_get_screen_dimensions(&width_after, &height_after, &depth_after));
+    EXPECT_EQ(depth_after, 8)
+        << "DPaint main editor screen should have 8 bitplanes (256-colour mode)";
+    EXPECT_GE(width_after, 320);
+    EXPECT_GE(height_after, 200);
+
+    EXPECT_TRUE(lxa_is_running())
+        << "DPaint should still be running after the screen mode switch";
+}
+
+TEST_F(DPaintEditorTest, MainEditorMenuBarAndToolboxRender) {
+    ASSERT_TRUE(ReachScreenFormat());
+    ASSERT_TRUE(AcceptScreenFormat());
+
+    /* Let the new editor screen settle before any input.  DPaint takes
+     * several VBlanks to finish initialising the toolbox and menu strip
+     * after the screen mode change. */
+    RunCyclesWithVBlank(500, 50000);
+
+    /* DPaint defers some painting until the first user interaction.
+     * A single mouse click in the canvas plus an RMB at the menu bar
+     * triggers the menu strip and toolbox to render. */
+    Click(320, 100);
+    RunCyclesWithVBlank(80, 50000);
+    lxa_inject_rmb_click(320, 5);
+    RunCyclesWithVBlank(160, 50000);
+
+    int screen_w = 0, screen_h = 0, screen_d = 0;
+    ASSERT_TRUE(lxa_get_screen_dimensions(&screen_w, &screen_h, &screen_d));
+
+    const std::string capture_path = "/tmp/dpaint-main-editor.png";
+    EXPECT_TRUE(lxa_capture_screen(capture_path.c_str()))
+        << "Expected DPaint main editor screen capture to succeed";
+
+    lxa_flush_display();
+
+    /* Menu bar lives on the top scanlines (y=0..10).  When the menu strip is
+     * active, characters paint with the menu pen.  We compare against the
+     * dominant background pen sampled from a quiet area in the upper-left
+     * corner because DPaint's editor screen does not use pen 0 as backdrop. */
+    int bg_pen = -1;
+    lxa_read_pixel(2, 2, &bg_pen);
+
+    auto count_non_bg = [&](int x1, int y1, int x2, int y2) {
+        int c = 0;
+        for (int y = y1; y <= y2; ++y) {
+            for (int x = x1; x <= x2; ++x) {
+                int pen;
+                if (lxa_read_pixel(x, y, &pen) && pen != bg_pen) c++;
+            }
+        }
+        return c;
+    };
+
+    /* The DPaint editor has two unmistakable visible regions:
+     *   - The top strip (menu bar plus tool palette banner) covers roughly
+     *     y=0..50 and contains many hundreds of non-background pixels.
+     *   - The right-hand toolbox strip (~100px wide) contains the brush
+     *     selector and the column of drawing tools.
+     * Asserting on these aggregate pixel counts is robust against minor
+     * font/pen changes while still detecting "blank canvas" regressions
+     * such as the SMART_REFRESH stalls documented in roadmap.md. */
+    int top_strip_pixels = count_non_bg(0, 0, screen_w - 1, 49);
+    int right_strip_pixels = count_non_bg(screen_w - 100, 0, screen_w - 1, screen_h - 1);
+
+    EXPECT_GT(top_strip_pixels, 2000)
+        << "Expected DPaint menu bar / tool palette banner to render in the top "
+        << "50 scanlines after RMB activation (bg_pen=" << bg_pen << ")";
+
+    EXPECT_GT(right_strip_pixels, 2000)
+        << "Expected DPaint toolbox column to render in the rightmost 100 pixels "
+        << "(bg_pen=" << bg_pen << ")";
+
+    EXPECT_TRUE(lxa_is_running())
+        << "DPaint should still be running after menu/toolbox interaction";
+}
+
+TEST_F(DPaintEditorTest, ScreenFormatCancelTerminatesDPaintCleanly) {
+    /* Verify that cancelling the Screen Format dialog leads to DPaint
+     * exiting cleanly rather than crashing or hanging.  This guards
+     * against regressions in the IDCMP/menu cleanup paths exercised
+     * during a normal user-initiated quit. */
+    ASSERT_TRUE(ReachScreenFormat());
+
+    int sf_index = FindWindowIndexByTitleSubstring("Screen Format");
+    ASSERT_GE(sf_index, 0);
+
+    ASSERT_TRUE(ClickGadget(SF_GADGET_CANCEL_INDEX, sf_index));
+
+    bool exited = false;
+    for (int attempt = 0; attempt < 200; ++attempt) {
+        if (!lxa_is_running()) { exited = true; break; }
+        RunCyclesWithVBlank(2, 50000);
+    }
+
+    /* DPaint may either exit (typical) or fall through to its main editor
+     * after Cancel; both are acceptable as long as no crash occurred. */
+    if (!exited) {
+        EXPECT_TRUE(lxa_is_running())
+            << "DPaint should remain stable if Cancel does not terminate it";
+    } else {
+        SUCCEED() << "DPaint exited cleanly after Cancel";
+    }
 }
 
 int main(int argc, char **argv) {

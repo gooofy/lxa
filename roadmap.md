@@ -18,6 +18,7 @@
 | 112 | Menu double-buffering: pixel-accurate save/restore; native BltBitMapCore via EMU_CALL | v0.8.77 |
 | 113 | Blitter line-draw mode: Bresenham, all octants, SING/ONEDOT, ASH cross-word wrap | v0.8.78 |
 | 114 | Copper list interpreter: MOVE/WAIT/SKIP, VBlank execution, CDANG, color register shadow | v0.8.79 |
+| 115 | DPaint V driver expansion: Screen Format gadgets, depth-2→8 transition, main editor render | v0.8.80 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering
@@ -25,6 +26,8 @@
 - KickPascal layout/menus — depends on deeper arp/req library functionality
 - SysInfo hardware fields (BattClock, CIA timing) — requires hardware detection
 - Cluster2 EXIT button — coordinate mapping mismatch in custom toolbar
+- DPaint V main editor defers menu bar / toolbox / palette rendering until first mouse interaction; canvas remains blank-pen until tool/palette state is exercised. Palette/pencil/fill interaction tests deferred — require either the deferred-paint trigger to be reverse-engineered or a new "force full redraw" capability.
+- DPaint V Ctrl-P (Screen Format reopen) only works on the depth-2 startup dialog, not from the depth-8 main editor. About dialog and File→Open requester not yet exercised — depends on resolving deferred-paint to make menu bar interactable.
 
 ---
 
@@ -75,24 +78,6 @@ These gaps make it hard to write reliable tests and to understand *why* an app l
 > 4. Write interaction tests that exercise core workflows — not just "does it open."
 > 5. Any new infrastructure gap encountered goes into the list above *and* gets a concrete ticket.
 > 6. End each phase with pixel/geometry regression assertions so CI catches future regressions.
-
----
-
-### Phase 115: DPaint V — drawing and palette
-> Existing driver: `dpaint_gtest.cpp`
-
-**Goal**: Verify that the primary drawing application works end-to-end. DPaint V is the most complex app in the suite and a key correctness signal for blitter, copper, and graphics primitives.
-
-- [ ] Audit current driver: what states does it reach, what does it assert?
-- [ ] Startup: verify main canvas window opens, toolbox and palette bar are visible (screenshot review)
-- [ ] Palette bar: click a color, verify ForeColor changes (pixel read from palette indicator)
-- [ ] Pencil tool: draw a short line on canvas, verify pixels appear at expected coordinates
-- [ ] Filled rectangle: draw filled box, verify region fill (pixel-count or region sample)
-- [ ] About dialog: open via menu, verify text present (screenshot review + close)
-- [ ] Open requester: File → Open, verify file requester appears (window count or pixel change)
-- [ ] Screen format requester: verify BorderTop/BorderBottom layout fix holds (pixel check on dialog)
-- [ ] Keyboard shortcut: test at least one key shortcut (e.g., `d` for draw mode toggle)
-- [ ] Identify any remaining visual gaps; document in known limitations or file new infrastructure gap
 
 ---
 
