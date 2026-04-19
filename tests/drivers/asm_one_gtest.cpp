@@ -448,6 +448,128 @@ TEST_F(AsmOneTest, FileRequesterOpensAndCanBeDismissed) {
         << "Main window should still be open after requester dismiss";
 }
 
+/* ----------------------------------------------------------------------
+ * Phase 118 Z-tests: deeper interaction coverage.
+ * Named Z* so they run after existing tests alphabetically.
+ * ---------------------------------------------------------------------- */
+
+TEST_F(AsmOneTest, ZMenuFlickerCheck) {
+    /* Opening and cancelling a menu must not destroy existing editor
+     * content.  ASM-One (like DPaint) uses deferred rendering: the
+     * first user interaction may trigger substantial additional paint,
+     * so we cannot assert pixel-count equality.  Instead we guard
+     * against the flicker/repaint regression that would *lose* content:
+     * the after count must not collapse to near-zero, and the app must
+     * stay alive. */
+    FlushAndSettle();
+    const int before_pixels = lxa_get_content_pixels();
+
+    /* RMB drag on the menu bar: open Project menu and release outside
+     * any item to cancel the selection. */
+    const int menu_x = window_info.x + 35;
+    const int bar_y  = MenuBarY();
+    lxa_inject_drag(menu_x, bar_y,
+                    menu_x + 200, bar_y,
+                    LXA_MOUSE_RIGHT, 8);
+    RunCyclesWithVBlank(30, 50000);
+    FlushAndSettle();
+
+    const int after_pixels = lxa_get_content_pixels();
+    printf("MenuFlicker: before=%d after=%d\n",
+           before_pixels, after_pixels);
+
+    /* Regression guard: after cancelling the menu, the visible content
+     * must not have been wiped (catastrophic flicker would drive this
+     * toward zero).  We accept any increase (deferred paint) and any
+     * minor decrease, but reject a collapse to <= 10% of before. */
+    const int floor_pixels = std::max(50, before_pixels / 10);
+    EXPECT_GE(after_pixels, floor_pixels)
+        << "Cancelling a menu should not wipe editor content "
+           "(before=" << before_pixels
+        << ", after=" << after_pixels << ")";
+
+    EXPECT_TRUE(lxa_is_running())
+        << "ASM-One should survive menu open/cancel cycle";
+    EXPECT_GE(lxa_get_window_count(), 1)
+        << "Main window should remain after menu cancel";
+}
+
+TEST_F(AsmOneTest, ZEventQueueSurvivesRapidMouseMoves) {
+    /* Regression guard for Phase 108-d: SDL mouse motion bursts used to
+     * overflow the 32-slot input event queue.  Inject hundreds of rapid
+     * moves and verify the app stays alive and responsive. */
+    const int baseline_windows = lxa_get_window_count();
+
+    const int cx = window_info.x + window_info.width / 2;
+    const int cy = window_info.y + window_info.height / 2;
+
+    /* 300 rapid mouse moves in a circle around the editor centre. */
+    for (int i = 0; i < 300; i++) {
+        const double a = (i * 6.28318) / 30.0;
+        const int dx = static_cast<int>(20.0 * std::cos(a));
+        const int dy = static_cast<int>(20.0 * std::sin(a));
+        lxa_inject_mouse(cx + dx, cy + dy, 0, LXA_EVENT_MOUSEMOVE);
+        if ((i % 25) == 24) {
+            /* Occasional VBlank to let the app drain its IDCMP queue. */
+            lxa_trigger_vblank();
+            lxa_run_cycles(20000);
+        }
+    }
+    RunCyclesWithVBlank(20, 50000);
+
+    EXPECT_TRUE(lxa_is_running())
+        << "ASM-One should survive a burst of rapid mouse motion";
+    EXPECT_EQ(lxa_get_window_count(), baseline_windows)
+        << "Rapid mouse motion should not spawn or kill windows";
+
+    /* Verify the app still responds to input after the burst. */
+    ClearOutput();
+    TypeString("x");
+    RunCyclesWithVBlank(10, 50000);
+    EXPECT_TRUE(lxa_is_running())
+        << "ASM-One should still accept keyboard input after motion burst";
+}
+
+TEST_F(AsmOneTest, ZQualifierPropagationShiftedKeys) {
+    /* Verify that keypresses with qualifier bits do not crash the app
+     * and that plain keys still work afterwards (qualifier state must
+     * not leak).  We can't easily read back the qualifier in IDCMP
+     * messages from the host side, but survival + continued
+     * responsiveness guards the qualifier-propagation plumbing
+     * (see AGENTS.md §6.15). */
+    const int baseline_windows = lxa_get_window_count();
+
+    /* Click in editor to ensure focus. */
+    const int cx = window_info.x + window_info.width / 2;
+    const int cy = window_info.y + window_info.height / 3;
+    Click(cx, cy);
+    RunCyclesWithVBlank(10, 50000);
+
+    ClearOutput();
+
+    /* IEQUALIFIER_LSHIFT = 0x0001.  Send a shifted 'A' keypress. */
+    lxa_inject_keypress(0x20, 0x0001);   /* 'A' rawkey with LSHIFT */
+    RunCyclesWithVBlank(6, 50000);
+
+    /* IEQUALIFIER_CONTROL = 0x0008.  Send a ctrl-modified keypress. */
+    lxa_inject_keypress(0x20, 0x0008);
+    RunCyclesWithVBlank(6, 50000);
+
+    EXPECT_TRUE(lxa_is_running())
+        << "ASM-One should survive keypresses with qualifier bits set";
+    EXPECT_EQ(lxa_get_window_count(), baseline_windows)
+        << "Shifted keypresses should not change window topology";
+
+    /* A plain keypress afterwards should still be processed. */
+    lxa_inject_keypress(0x20, 0x0000);
+    RunCyclesWithVBlank(10, 50000);
+
+    EXPECT_TRUE(lxa_is_running())
+        << "ASM-One should still be responsive after qualifier sequence";
+    EXPECT_EQ(lxa_get_window_count(), baseline_windows)
+        << "Main window should remain after qualifier sequence";
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
