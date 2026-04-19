@@ -24,6 +24,7 @@
 | 118 | ASM-One driver expansion: menu flicker guard, event-queue rapid-motion stress, qualifier-key propagation survival | v0.8.83 |
 | 119 | BlitzBasic 2 driver expansion: editor-paint regression bounds, secondary-window tracking, multi-menu stability, editor keyboard survival | v0.8.84 |
 | 120 | PPaint driver expansion: probe-window geometry bounds, GfxBase regression guards, null-BitMap probe guards, capture-pipeline survival; ROM path helper fix | v0.8.85 |
+| 121 | DirectoryOpus driver creation: 10 tests covering startup, bundled-library resolution, geometry, content rendering, gadget enumeration safety, capture pipeline, menu-probe survival, idle-time stability; PPaint sharding bug fix (orphaned Z-tests) | v0.8.86 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering
@@ -38,6 +39,8 @@
 - ASM-One Assemble/Run workflow not exercised (Phase 118) — same external-process constraint as DevPac; deferred until external-process emulation exists. Menu pixel-flicker verification uses a content-floor guard (before→after cannot collapse to <10% of before) because ASM-One defers editor repaint until first interaction, so pixel counts legitimately *grow* after the first menu drag. Host-side observation of IDCMP qualifier bits is not currently possible; qualifier propagation is guarded via survival + subsequent-input responsiveness only.
 - PPaint exits early with rv=26 from CloantoScreenManager screen-mode probing — Phase 120 vision-model review confirmed the probe windows are empty 320×200 (and one 640×256) buffers with no UI content drawn before exit. Real PPaint editing UI (palette, canvas, toolbox) is never reached, so all menu/palette/drawing-tool tests in the original Phase 120 plan are infeasible. Coverage instead guards what works: probe-window geometry bounds, no missing-library/null-BitMap/PANIC log entries, and probe-window capture pipeline (capture taken in SetUp before exit). Root cause is deeper screen-mode emulation that the probe expects but lxa does not yet provide.
 - Menu pixel introspection during a drag: `lxa_inject_drag` performs press → drag → release atomically, so we cannot capture screen state while a menu is open. Tests verify menu interaction via side effects (window count, app survival) instead. A future infrastructure improvement would be a non-releasing drag API or a "capture during drag" hook.
+- DirectoryOpus 4 renders a skeleton UI in lxa: window opens at 640×245, dual file-lister frames + scroll gadgets + small button cluster (B/R/S/A) + bottom toolbar (?/E/F/C/I/Q) all draw correctly, but text labels, the title-bar version/memory string, and the famous main button bank (Copy/Move/Delete/etc.) are absent. Vision-model review (Phase 121) attributed this to font/path resolution or `dopus.config` parsing not completing. DOpus also requests `commodities.library` and `inovamusic.library`, which lxa does not ship as stubs; both are tolerated by DOpus itself but logged as missing-library errors. File-list navigation, button-bank workflows, and Preferences interaction tests deferred until the skeleton is filled in.
+- CMake test sharding with hardcoded GTest filters can silently orphan newly added tests. Phase 121 fixed the PPaint shard (its filter listed only the original 3 names — including a non-existent one — so the 4 Phase 120 Z-tests never ran via ctest). Future test additions to *any* sharded driver (`simplegad`, `simplemenu`, `menulayout`, `fontreq`, `simplegtgadget`, `talk2boopsi`, `gadtoolsgadgets`, `vim`, `finalwriter`, `sigma`) MUST update the corresponding `add_gtest_driver_shard` FILTER strings in `tests/drivers/CMakeLists.txt`. Verified Phase 121: SIGMAth2 shards are currently complete; remaining sharded drivers were not re-audited.
 
 ---
 
@@ -139,19 +142,24 @@ These gaps make it hard to write reliable tests and to understand *why* an app l
 
 ---
 
-### Phase 121: DirectoryOpus — file manager
-> Existing driver: startup test only (or none)
+### Phase 121: DirectoryOpus — file manager ✅
+> New driver: `dopus_gtest.cpp` (10 tests, v0.8.86)
 
-**Goal**: Test the most-used file manager on the Amiga. DOpus has a complex gadget-driven UI.
+**Goal**: Establish a startup-and-rendering baseline for Directory Opus 4 — the most-used third-party file manager on the Amiga — and exercise its custom-rendered UI without depending on libraries lxa does not ship.
 
-- [ ] Create or audit startup driver; verify both file list panes open (screenshot review)
-- [ ] File list: verify directory entries appear in at least one pane
-- [ ] Toolbar buttons: enumerate gadgets via `GetGadgetInfo()`; click each button, verify response
-- [ ] Path entry: type a path into the location gadget, verify navigation
-- [ ] About dialog: Help → About, verify dialog opens and closes
-- [ ] Preferences: open Preferences window, verify gadgets present, cancel cleanly
-- [ ] Identify any custom-rendered UI (like Cluster2); document coordinate-based fallback if needed
-- [ ] Screenshot review all states; regression guards
+**Outcome**: DOpus reaches an interactive state and renders a skeleton UI (file-lister frames, scroll gadgets, mini-button cluster, bottom toolbar) but text labels and the main button bank do not paint (vision-model attribution: font/path resolution or `dopus.config` parsing). Bundled disk libraries (`dopus`, `arp`, `iff`, `powerpacker`, `Explode.Library`, `Icon.Library`) all resolve via lxa's automatic PROGDIR libs/ prepend — no stubs needed in ROM. `commodities.library` and `inovamusic.library` are absent and tolerated by DOpus. Coverage focuses on what works:
+
+- [x] **Driver created from scratch** (no prior coverage); `dopus_gtest.cpp` with 10 tests, all passing.
+- [x] **Startup**: `StartupOpensVisibleMainWindow` asserts a tracked window with plausible PAL geometry (320..1280 × 180..800).
+- [x] **Bundled-library resolution**: `StartupBundledLibrariesLoad` verifies each of the 6 shipped DOpus libraries does *not* appear in a missing-library log line; commodities/inovamusic deliberately excluded.
+- [x] **Stability**: `StartupHasNoPanicOrBitmapErrors` and `StartupRemainsRunning` guard against PANIC, null-BitMap rendering paths, and premature exits.
+- [x] **Rendering proof**: `MainWindowContainsRenderedContent` requires >500 non-grey pixels in the content region — confirms DOpus actually paints something, not just opens an empty window.
+- [x] **Custom-UI safety**: `GadgetEnumerationIsSafe` calls `GetGadgetCount(0)` and asserts a non-negative result; DOpus draws most controls by hand so a low gadget count is expected.
+- [x] **Capture pipeline**: `StartupCaptureProducesArtifact` saves `/tmp/dopus_startup.png` and validates the PNG is non-trivial — used for vision-model triage.
+- [x] **Menu probe survival**: `ZRightMouseMenuProbeKeepsWindowAlive` performs an RMB drag in the menu-bar band; verifies window survives without resizing.
+- [x] **Idle stability**: `ZWindowGeometryStableAcrossSettle` and `ZContentPixelCountSurvivesIdlePeriod` confirm the UI persists across an idle period (catches INTUITICKS / refresh corruption regressions).
+- [x] **Sharding bug fix**: PPaint test target was sharded with a hardcoded filter that excluded the 4 Phase 120 Z-tests (and referenced a non-existent test name). Replaced with `add_gtest_driver(ppaint_gtest)` so all 7 PPaint tests run via ctest. SIGMAth2 shards audited and confirmed complete.
+- [ ] File-list navigation, button-bank workflows, About dialog, Preferences — **deferred** (require text rendering and main button bank to paint; documented in known limitations).
 
 ---
 

@@ -348,12 +348,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             TIMEOUT 180)
     endif()
 
-    # PPaint - paint package startup and canvas test
+    # PPaint - paint package startup, probe-window geometry, and canvas tests.
+    # Unsharded: per-test fixture restart keeps each case under the timeout, and
+    # a hardcoded filter previously caused new Z-tests to be silently skipped.
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ppaint_gtest.cpp)
-        add_gtest_driver_target(ppaint_gtest)
-        add_gtest_driver_shard(ppaint_startup_gtest ppaint_gtest
-            FILTER "PPaintTest.StartupOpensVisiblePaintWindow:PPaintTest.StartupKeepsRunningWithoutLibraryFailures:PPaintTest.RightMouseMenuInteractionKeepsWindowVisible"
-            TIMEOUT 180)
+        add_gtest_driver(ppaint_gtest)
     endif()
 
     # SIGMAth2 - startup, visual smoke, and interaction coverage
@@ -370,6 +369,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     # DPaint V - Graphics editor test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dpaint_gtest.cpp)
         add_gtest_driver(dpaint_gtest)
+    endif()
+
+    # Directory Opus 4 - file manager startup and interaction test (Phase 121)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dopus_gtest.cpp)
+        add_gtest_driver(dopus_gtest)
     endif()
     
     message(STATUS "Google Test drivers configured")
