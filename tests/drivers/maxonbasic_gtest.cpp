@@ -243,6 +243,109 @@ TEST_F(MaxonBasicTest, CursorKeys) {
     EXPECT_GE(lxa_get_window_count(), 1) << "Window should still be open after cursor keys";
 }
 
+/* ===================================================================== */
+/* Phase 116: visual & menu interaction tests.
+ * These tests share the persistent fixture and run in alphabetical order
+ * after the basic ones above. They count pixels to verify rendering and
+ * menu behavior without depending on exact glyph layout. */
+
+/* Helper: count non-background pixels in a screen rectangle, taking the
+ * background pen from a quiet sample point. */
+static int CountScreenContent(int x1, int y1, int x2, int y2, int bg_x, int bg_y) {
+    lxa_flush_display();
+    int bg = -1;
+    if (!lxa_read_pixel(bg_x, bg_y, &bg)) {
+        bg = 0;
+    }
+    int count = 0;
+    for (int y = y1; y <= y2; y++) {
+        for (int x = x1; x <= x2; x++) {
+            int pen;
+            if (lxa_read_pixel(x, y, &pen) && pen != bg) {
+                count++;
+            }
+        }
+    }
+    return count;
+}
+
+TEST_F(MaxonBasicTest, ZEditorRendersTypedText) {
+    /* Verify that typing actually produces visible glyphs in the editor area.
+     * Click to focus, then type a distinctive string and assert pixel content
+     * appears anywhere in the editor body. We scan a wide area because
+     * earlier tests in this suite may have moved the cursor far from (0,0). */
+    Click(window_info.x + 100, window_info.y + 100);
+    RunCyclesWithVBlank(20, 50000);
+
+    /* Quiet sample: bottom-right corner area unlikely to have text. */
+    int before = CountScreenContent(10, 20, 600, 230, 610, 250);
+
+    SlowTypeString("\nABCDEFGHIJ\n", 4);
+    RunCyclesWithVBlank(40, 50000);
+
+    int after = CountScreenContent(10, 20, 600, 230, 610, 250);
+
+    /* Typing 10 distinct letters + newlines should add at least ~50 pixels
+     * across the editor body. Use a small but nonzero threshold so a
+     * stuck-cursor or no-op rendering regression fails this test. */
+    EXPECT_GT(after, before + 20)
+        << "Typed text should add visible pixels somewhere in the editor "
+        << "(before=" << before << " after=" << after << ")";
+    EXPECT_TRUE(lxa_is_running());
+}
+
+TEST_F(MaxonBasicTest, ZMenuBarAppearsOnRMB) {
+    /* RMB click on the screen menu bar area should reveal MaxonBASIC's
+     * menu titles. We assert by counting pixels in the top menu strip
+     * before and after the RMB click. The menu strip lives at y=0..9. */
+    RunCyclesWithVBlank(20, 50000);
+
+    /* Quiet sample: middle-right of editor area, well below menu bar. */
+    int before = CountScreenContent(0, 0, 400, 9, 500, 100);
+
+    /* RMB click on menu bar area. */
+    lxa_inject_rmb_click(100, 5);
+    RunCyclesWithVBlank(30, 50000);
+
+    int after = CountScreenContent(0, 0, 400, 9, 500, 100);
+
+    EXPECT_GT(after, before + 50)
+        << "RMB on menu bar should reveal menu titles (before=" << before
+        << " after=" << after << ")";
+    EXPECT_TRUE(lxa_is_running());
+
+    /* Capture artifact for failure inspection. */
+    lxa_capture_screen("/tmp/maxon-menu.png");
+}
+
+TEST_F(MaxonBasicTest, ZScrollbarColumnRenders) {
+    /* The vertical scrollbar (PROPGADGET id=0 at x=626 width=10) plus arrow
+     * buttons should produce visible non-bg pixels in the rightmost screen
+     * column band. This guards against future graphics regressions that
+     * blank out gadget rendering. */
+    RunCyclesWithVBlank(10, 50000);
+
+    /* Sample bg from middle of editor. */
+    int content = CountScreenContent(620, 20, 639, 240, 300, 100);
+
+    EXPECT_GT(content, 100)
+        << "Scrollbar column should contain visible gadget pixels (count="
+        << content << ")";
+}
+
+TEST_F(MaxonBasicTest, ZWindowStaysOpenAfterStress) {
+    /* Final stress check: after all interactive tests above, the app must
+     * still be alive with its primary window intact. */
+    RunCyclesWithVBlank(20, 50000);
+    EXPECT_TRUE(lxa_is_running()) << "MaxonBASIC must survive full test sequence";
+    EXPECT_GE(lxa_get_window_count(), 1) << "Primary window must remain open";
+
+    lxa_window_info_t wi;
+    ASSERT_TRUE(lxa_get_window_info(0, &wi));
+    EXPECT_GT(wi.width, 0);
+    EXPECT_GT(wi.height, 0);
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

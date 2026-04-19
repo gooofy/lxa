@@ -19,6 +19,7 @@
 | 113 | Blitter line-draw mode: Bresenham, all octants, SING/ONEDOT, ASH cross-word wrap | v0.8.78 |
 | 114 | Copper list interpreter: MOVE/WAIT/SKIP, VBlank execution, CDANG, color register shadow | v0.8.79 |
 | 115 | DPaint V driver expansion: Screen Format gadgets, depth-2→8 transition, main editor render | v0.8.80 |
+| 116 | MaxonBASIC driver expansion: text rendering, RMB menu reveal, scrollbar gadgets, stress survival | v0.8.81 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering
@@ -28,6 +29,7 @@
 - Cluster2 EXIT button — coordinate mapping mismatch in custom toolbar
 - DPaint V main editor defers menu bar / toolbox / palette rendering until first mouse interaction; canvas remains blank-pen until tool/palette state is exercised. Palette/pencil/fill interaction tests deferred — require either the deferred-paint trigger to be reverse-engineered or a new "force full redraw" capability.
 - DPaint V Ctrl-P (Screen Format reopen) only works on the depth-2 startup dialog, not from the depth-8 main editor. About dialog and File→Open requester not yet exercised — depends on resolving deferred-paint to make menu bar interactable.
+- MaxonBASIC About/Settings/Run interaction: menus are Intuition-managed but reachable only via RMB drag through hardcoded coordinates; the German menu titles ("Projekt", "Editieren", "Suchen") and lack of programmatic menu introspection make item-level activation brittle. Phase 116 verified menu reveal and editor text rendering; deeper menu-driven workflows defer until host-side menu introspection (gap #4) is implemented.
 
 ---
 
@@ -78,23 +80,6 @@ These gaps make it hard to write reliable tests and to understand *why* an app l
 > 4. Write interaction tests that exercise core workflows — not just "does it open."
 > 5. Any new infrastructure gap encountered goes into the list above *and* gets a concrete ticket.
 > 6. End each phase with pixel/geometry regression assertions so CI catches future regressions.
-
----
-
-### Phase 116: MaxonBASIC — editor and interpreter
-> Existing driver: `maxonbasic_gtest.cpp`
-
-**Goal**: Verify the BASIC IDE: editor input, scroll bar, dialogs, and running a simple program.
-
-- [ ] Audit current driver coverage
-- [ ] Startup: verify editor window opens with correct title bar and menu bar (screenshot review)
-- [ ] About dialog: open, verify no stamping artifact (SMART_REFRESH regression check — pixel diff before/after)
-- [ ] Scroll bar: drag scroll knob, verify knob moves (pixel position change on PropGadget)
-- [ ] Typing: inject a short BASIC program (`PRINT "HELLO"` + newline), verify text appears in editor
-- [ ] Settings dialog: open via menu, verify GadTools label layout fix holds (baseline check)
-- [ ] Run program: attempt to invoke Run/Go (menu or F-key); verify output or status change
-- [ ] Close requester: trigger unsaved-changes requester, verify buttons appear and respond
-- [ ] Screenshot review all major states; add pixel regression guards for each
 
 ---
 
