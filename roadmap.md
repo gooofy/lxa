@@ -22,10 +22,10 @@
 | 116 | MaxonBASIC driver expansion: text rendering, RMB menu reveal, scrollbar gadgets, stress survival | v0.8.81 |
 | 117 | DevPac driver expansion: Amiga-key shortcut survival, full menu bar sweep, req.library stub validation | v0.8.82 |
 | 118 | ASM-One driver expansion: menu flicker guard, event-queue rapid-motion stress, qualifier-key propagation survival | v0.8.83 |
+| 119 | BlitzBasic 2 driver expansion: editor-paint regression bounds, secondary-window tracking, multi-menu stability, editor keyboard survival | v0.8.84 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering
-- BlitzBasic2 empty editor windows — copper/blitter-dependent rendering beyond basic interpreter
 - KickPascal layout/menus — depends on deeper arp/req library functionality
 - SysInfo hardware fields (BattClock, CIA timing) — requires hardware detection
 - Cluster2 EXIT button — coordinate mapping mismatch in custom toolbar
@@ -33,6 +33,7 @@
 - DPaint V Ctrl-P (Screen Format reopen) only works on the depth-2 startup dialog, not from the depth-8 main editor. About dialog and File→Open requester not yet exercised — depends on resolving deferred-paint to make menu bar interactable.
 - MaxonBASIC About/Settings/Run interaction: menus are Intuition-managed but reachable only via RMB drag through hardcoded coordinates; the German menu titles ("Projekt", "Editieren", "Suchen") and lack of programmatic menu introspection make item-level activation brittle. Phase 116 verified menu reveal and editor text rendering; deeper menu-driven workflows defer until host-side menu introspection (gap #4) is implemented.
 - DevPac File→Open requester: Phase 117 verified Amiga-O does not crash, but req.library stub returns failure cleanly so no requester appears. Real file requester behavior requires a non-stub req.library implementation (out of scope per AGENTS.md "do not re-implement third-party libraries in ROM"). Assemble/Run workflow not exercised — would require a loaded valid m68k source and external assembler invocation, both of which need external-process emulation.
+- BlitzBasic2 ted editor — copper/blitter improvements (Phase 113/114) reach the surface (~13% of editor body fills with paint after menu interaction) but ted still does not render real editable text content. Phase 119 captured vision-model analysis: menu bar and dropdowns render correctly (PROJECT/EDIT/SOURCE/SEARCH/COMPILER), but the editor body remains a flat surface with only menu-residue and status overlay paint. Root cause is deeper than line-mode blitter and copper colour cycling — likely involves blitter copy modes, sprite hardware, or specific copper waits that ted uses for its custom overlay. Test bounds: editor body must show >100 non-grey pixels (proves paint reaches the surface) but <50% fill (catches the day ted finally renders content).
 - ASM-One Assemble/Run workflow not exercised (Phase 118) — same external-process constraint as DevPac; deferred until external-process emulation exists. Menu pixel-flicker verification uses a content-floor guard (before→after cannot collapse to <10% of before) because ASM-One defers editor repaint until first interaction, so pixel counts legitimately *grow* after the first menu drag. Host-side observation of IDCMP qualifier bits is not currently possible; qualifier propagation is guarded via survival + subsequent-input responsiveness only.
 - Menu pixel introspection during a drag: `lxa_inject_drag` performs press → drag → release atomically, so we cannot capture screen state while a menu is open. Tests verify menu interaction via side effects (window count, app survival) instead. A future infrastructure improvement would be a non-releasing drag API or a "capture during drag" hook.
 
@@ -104,17 +105,18 @@ These gaps make it hard to write reliable tests and to understand *why* an app l
 
 ---
 
-### Phase 119: BlitzBasic 2 — editor rendering
-> Existing driver: `blitzbasic2_gtest.cpp`
+### Phase 119: BlitzBasic 2 — editor rendering ✅
+> Existing driver: `blitzbasic2_gtest.cpp` (9 tests, v0.8.84)
 
 **Goal**: Re-test after blitter line mode (Phase 113) and copper interpreter (Phase 114). Determine whether the "ted" editor now renders correctly.
 
-- [ ] Startup: screenshot review — does the editor window now show text content?
-- [ ] If editor renders: inject text, verify it appears; test cursor movement
-- [ ] If editor still blank: capture + vision model analysis; identify which rendering primitive is missing; update infrastructure gap list
-- [ ] Menu interaction: verify menus open and close cleanly
-- [ ] Run a trivial BlitzBasic program if editor is functional
-- [ ] Document exactly which features remain broken and why; update known limitations
+- [x] Startup screenshot review — vision model confirmed editor body remains flat grey at startup; menu bar and dropdowns render correctly
+- [x] Menu interaction: `YMultipleMenuOpensRemainStable` opens and cancels all 5 top-level menus (PROJECT/EDIT/SOURCE/SEARCH/COMPILER); none crash, hang, or spawn extra windows
+- [x] Editor still does not render real text content — Phase 113/114 paint DOES reach the surface (~13% fill after interaction) but is menu-residue and status overlay, not editable text. Bounds checked by `YEditorSurfaceShowsContentAfterMenuInteraction` (>100 pixels prove paint, <50% catches the day it fills)
+- [x] Editor keyboard input survival: `YEditorAcceptsKeyboardInputWithoutCrash` types into the editor, app stays alive, no PANIC
+- [x] Secondary window tracking: `YSecondaryWindowIsTracked` confirms both main (640x244) and ted control overlay (292x75) are enumerated
+- [ ] Run a trivial BlitzBasic program — **deferred** (depends on functional editor; same external-process constraint as DevPac/ASM-One Assemble)
+- [x] Known limitations updated (see top of roadmap): documented exact paint percentage, vision-model findings, and test bounds for future regression detection
 
 ---
 

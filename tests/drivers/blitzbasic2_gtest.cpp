@@ -561,6 +561,136 @@ TEST_F(BlitzBasic2Test, ProjectOpenShowsFileRequester) {
 }
 
 /* ===================================================================== */
+/* Phase 119 Y-tests: deeper interaction coverage.                        */
+/* Inserted in source order BEFORE QuitMenuItemClosesApp so they run      */
+/* against the live IDE (Quit terminates the program and must stay last). */
+/* ===================================================================== */
+
+TEST_F(BlitzBasic2Test, YEditorSurfaceShowsContentAfterMenuInteraction) {
+    /* The existing StartupOpensVisibleIdeWindow asserts < 10 non-grey
+     * pixels at startup (deferred-paint pattern: ted does not draw the
+     * editor surface until first user interaction).  After the earlier
+     * Y/About/Open menu tests have interacted with the IDE, the editor
+     * surface DOES accumulate paint — primarily menu-residue and ted's
+     * status overlay, NOT actual editable text content.
+     *
+     * This test guards two things:
+     *   1. Interaction does cause SOME repaint (proves Phase 113/114
+     *      blitter+copper plumbing reaches ted at all).
+     *   2. The paint volume is "moderate" — if it suddenly explodes
+     *      to a near-full screen of pixels, ted may have started
+     *      rendering real text content and the known-limitation
+     *      should be re-evaluated.
+     */
+    int sw = 0, sh = 0, sd = 0;
+    ASSERT_TRUE(lxa_get_screen_dimensions(&sw, &sh, &sd));
+
+    const int x1 = 8;
+    const int y1 = 16;
+    const int x2 = sw - 8;
+    const int y2 = sh - 24;
+
+    const int non_grey = CountContentPixels(x1, y1, x2, y2, 0);
+    const int region_pixels = (x2 - x1 + 1) * (y2 - y1 + 1);
+    printf("BB2 editor body non-grey pixels: %d / %d (%.1f%%)\n",
+           non_grey, region_pixels,
+           100.0 * non_grey / region_pixels);
+
+    /* Lower bound: prove Phase 113/114 blitter+copper paint reaches the
+     * surface after interaction (would be 0 if completely broken). */
+    EXPECT_GT(non_grey, 100)
+        << "Expected SOME paint on the editor body after menu interaction";
+
+    /* Upper bound: if ted starts rendering real text content (filling
+     * most of the editor body), this assertion will fail and we should
+     * tighten the test + remove the known-limitation entry. */
+    EXPECT_LT(non_grey, region_pixels / 2)
+        << "BB2 editor body unexpectedly filled — ted may now be rendering "
+           "real content. Update roadmap and tighten this test.";
+}
+
+TEST_F(BlitzBasic2Test, YSecondaryWindowIsTracked) {
+    /* BB2's "ted" overlay opens a secondary window alongside the main
+     * IDE window.  Verify both are tracked so future changes to window
+     * enumeration don't drop one.  Observed sizes:
+     *   main:      640x244 ("LXA Window" title — Intuition default)
+     *   secondary: 292x75  (ted control overlay)
+     */
+    const int wc = lxa_get_window_count();
+    EXPECT_GE(wc, 2)
+        << "BB2 should have at least 2 tracked windows (main + secondary)";
+
+    bool saw_main = false;
+    bool saw_secondary = false;
+    for (int i = 0; i < wc; i++) {
+        lxa_window_info_t wi = {};
+        if (!GetWindowInfo(i, &wi)) continue;
+        printf("BB2 window %d: title='%s' %dx%d\n",
+               i, wi.title, wi.width, wi.height);
+        if (wi.width >= 600) saw_main = true;
+        else if (wi.width < 400) saw_secondary = true;
+    }
+    EXPECT_TRUE(saw_main) << "Main IDE window should be tracked";
+    EXPECT_TRUE(saw_secondary) << "Secondary ted control window should be tracked";
+}
+
+TEST_F(BlitzBasic2Test, YMultipleMenuOpensRemainStable) {
+    /* Open and cancel each top-level menu (Project, Edit, Source,
+     * Search, Compiler) in turn.  None should crash, hang, or spawn
+     * extra windows.  Approximate menu-bar X positions taken from the
+     * vision-model review (PROJECT≈40, EDIT≈110, SOURCE≈170,
+     * SEARCH≈240, COMPILER≈320). */
+    const int baseline_windows = lxa_get_window_count();
+    const int menu_xs[] = {40, 110, 170, 240, 320};
+
+    for (int i = 0; i < 5; i++) {
+        const int mx = menu_xs[i];
+        const int bar_y = MenuBarY();
+
+        /* Open menu, drag well past any item, release outside dropdown
+         * to cancel without selecting. */
+        lxa_inject_drag(mx, bar_y,
+                        mx + 200, bar_y,
+                        LXA_MOUSE_RIGHT, 8);
+        RunCyclesWithVBlank(20, 50000);
+
+        ASSERT_TRUE(lxa_is_running())
+            << "BB2 should survive opening menu at x=" << mx;
+        EXPECT_EQ(lxa_get_window_count(), baseline_windows)
+            << "Cancelling menu at x=" << mx
+            << " should not change window topology";
+    }
+}
+
+TEST_F(BlitzBasic2Test, YEditorAcceptsKeyboardInputWithoutCrash) {
+    /* Even though ted does not render text on the editor surface,
+     * the IDE must still accept keyboard input without crashing.
+     * Click in the editor area to ensure focus, then type a short
+     * burst of characters. */
+    Click(window_info.x + window_info.width / 2,
+          window_info.y + window_info.height / 2);
+    RunCyclesWithVBlank(10, 50000);
+
+    const int baseline_windows = lxa_get_window_count();
+    ClearOutput();
+
+    PressKey(0x21, 0);   /* 'S' */
+    RunCyclesWithVBlank(4, 50000);
+    PressKey(0x12, 0);   /* 'E' */
+    RunCyclesWithVBlank(4, 50000);
+    PressKey(0x33, 0);   /* '.' or similar */
+    RunCyclesWithVBlank(4, 50000);
+
+    EXPECT_TRUE(lxa_is_running())
+        << "BB2 should survive editor keyboard input";
+    EXPECT_EQ(lxa_get_window_count(), baseline_windows)
+        << "Editor input should not change window topology";
+
+    const std::string out = GetOutput();
+    EXPECT_EQ(out.find("PANIC"), std::string::npos) << out;
+}
+
+/* ===================================================================== */
 /* Test: Menu interaction does not crash (Quit via keyboard shortcut)      */
 /*                                                                         */
 /* MUST BE LAST — terminates the emulated program.                         */
