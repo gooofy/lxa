@@ -25,6 +25,7 @@
 | 119 | BlitzBasic 2 driver expansion: editor-paint regression bounds, secondary-window tracking, multi-menu stability, editor keyboard survival | v0.8.84 |
 | 120 | PPaint driver expansion: probe-window geometry bounds, GfxBase regression guards, null-BitMap probe guards, capture-pipeline survival; ROM path helper fix | v0.8.85 |
 | 121 | DirectoryOpus driver creation: 10 tests covering startup, bundled-library resolution, geometry, content rendering, gadget enumeration safety, capture pipeline, menu-probe survival, idle-time stability; PPaint sharding bug fix (orphaned Z-tests) | v0.8.86 |
+| 122 | KickPascal 2 driver expansion: default-workspace acceptance reaches EDITOR mode (status-bar pixel proof), RMB menu drag survival + geometry stability, splash content stability across idle, missing-library/PANIC log guards | v0.8.87 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering
@@ -41,6 +42,7 @@
 - Menu pixel introspection during a drag: `lxa_inject_drag` performs press → drag → release atomically, so we cannot capture screen state while a menu is open. Tests verify menu interaction via side effects (window count, app survival) instead. A future infrastructure improvement would be a non-releasing drag API or a "capture during drag" hook.
 - DirectoryOpus 4 renders a skeleton UI in lxa: window opens at 640×245, dual file-lister frames + scroll gadgets + small button cluster (B/R/S/A) + bottom toolbar (?/E/F/C/I/Q) all draw correctly, but text labels, the title-bar version/memory string, and the famous main button bank (Copy/Move/Delete/etc.) are absent. Vision-model review (Phase 121) attributed this to font/path resolution or `dopus.config` parsing not completing. DOpus also requests `commodities.library` and `inovamusic.library`, which lxa does not ship as stubs; both are tolerated by DOpus itself but logged as missing-library errors. File-list navigation, button-bank workflows, and Preferences interaction tests deferred until the skeleton is filled in.
 - CMake test sharding with hardcoded GTest filters can silently orphan newly added tests. Phase 121 fixed the PPaint shard (its filter listed only the original 3 names — including a non-existent one — so the 4 Phase 120 Z-tests never ran via ctest). Future test additions to *any* sharded driver (`simplegad`, `simplemenu`, `menulayout`, `fontreq`, `simplegtgadget`, `talk2boopsi`, `gadtoolsgadgets`, `vim`, `finalwriter`, `sigma`) MUST update the corresponding `add_gtest_driver_shard` FILTER strings in `tests/drivers/CMakeLists.txt`. Verified Phase 121: SIGMAth2 shards are currently complete; remaining sharded drivers were not re-audited.
+- KickPascal 2 (Phase 122): the IDE reaches EDITOR mode cleanly when the workspace prompt is accepted with the default value (Return). Once in EDITOR mode the status bar ("EDITOR" / "Insert") and Intuition menu bar (Project / Edit / Execute / Options / Info) render correctly and RMB menu drag opens the dropdowns without crashing. Two limitations remain: (1) the editor body never clears the splash screen (HiS logo + "Pascal" graphic) so typed Pascal source is overlaid on stale pixels and is not human-readable in captures; (2) the existing `WorkspacePromptAcceptsDeletingDefaultEntry` test types "100" which triggers KickPascal's own "Illegal size" validation — the test only asserts survival, not prompt acceptance. The new `ZAcceptDefaultWorkspaceReachesEditor` Z-test exercises the successful acceptance path. Compile/run workflows are not exercised (same external-process constraint as DevPac/ASM-One). Editor-body splash-clear is deferred until either KickPascal's own deferred-paint trigger is reverse-engineered or a forced full redraw can be issued from the host side.
 
 ---
 
@@ -163,19 +165,17 @@ These gaps make it hard to write reliable tests and to understand *why* an app l
 
 ---
 
-### Phase 122: KickPascal 2 — Pascal IDE
-> Existing driver: startup test only (or none)
+### Phase 122: KickPascal 2 — Pascal IDE ✅ Complete (v0.8.87)
+> Driver expanded from 9 → 13 tests; vision-model review used to discover EDITOR-mode entry path
 
-**Goal**: Verify the Pascal IDE opens correctly with req.library stub in place (Phase 110).
+**Outcome**: Existing 9 KickPascal tests continued to pass. Added 4 Z-tests after vision-model probe of startup, workspace-prompt, post-Return, and post-menu-drag captures:
 
-- [ ] Startup: verify editor window opens without crash; screenshot review
-- [ ] Menu bar: verify all menus present and navigate cleanly via RMB drag
-- [ ] Editor: inject a short Pascal program; verify text appears
-- [ ] Compile: invoke compile action; verify output window or error dialog (even if compile fails gracefully)
-- [ ] req.library: verify any file requester triggered by the app fails gracefully (not crashes)
-- [ ] arp.library: same check for any arp-dependent paths
-- [ ] Screenshot review; pixel/interaction regression guards
-- [ ] Document remaining limitations (deep library functionality)
+- [x] **EDITOR mode entry**: `ZAcceptDefaultWorkspaceReachesEditor` presses Return at the workspace prompt to accept the default 200-byte size, then captures the host window and counts non-grey pixels in the y=8..40 band — the white-on-grey "EDITOR" / "Insert" status bar produces hundreds of non-grey pixels (vision-confirmed via `tools/screenshot_review.py`).
+- [x] **Menu bar drag survival**: `ZMenuBarRMBDragSurvivesWithoutPanic` accepts the default workspace, performs an RMB drag in the Intuition menu band (Project menu opens correctly per vision review), and asserts process survival + window geometry stability across the drag.
+- [x] **Splash content stability**: `ZSplashContentRendersStably` captures the splash logo region (x=4..240, y=18..64), counts black pixels, runs additional settle cycles, re-captures, and requires ≥50% retention — guards against blitter / clip-rect regressions that would corrupt the bitmap-loaded splash imagery.
+- [x] **Library/PANIC log guard**: `ZNoMissingLibraryOrPanicDuringStartup` scans the captured output for "requested library", "PANIC", and "invalid RastPort BitMap" — confirms KickPascal's bundled `libs/` resolves cleanly via lxa's PROGDIR auto-prepend (no third-party stubs required).
+- [ ] Compile/Run workflow — **deferred** (external-process constraint, same as DevPac/ASM-One).
+- [ ] Typed-source visibility in the editor body — **deferred** (splash overlay is never cleared; root cause documented in known limitations).
 
 ---
 

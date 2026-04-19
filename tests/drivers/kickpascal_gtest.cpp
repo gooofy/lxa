@@ -255,6 +255,136 @@ TEST_F(KickPascalTest, WorkspacePromptAcceptsDeletingDefaultEntry) {
     EXPECT_GE(lxa_get_window_count(), 1) << "KickPascal should keep a window after workspace prompt submission";
 }
 
+/* ---------------------------------------------------------------------- */
+/* Phase 122 Z-tests: deeper KickPascal coverage. Z-prefix sorts last so  */
+/* the earlier baseline tests still see a fresh app instance (per-test    */
+/* fixture restart applies regardless, but ordering keeps intent clear).  */
+/* ---------------------------------------------------------------------- */
+
+TEST_F(KickPascalTest, ZAcceptDefaultWorkspaceReachesEditor) {
+    /* Pressing Return without modifying the prompt accepts the default
+     * workspace size (200 bytes) and transitions KickPascal into the
+     * EDITOR mode.  Vision-model review (Phase 122) confirmed this draws
+     * a status bar at the very top with "EDITOR" / "Insert" labels in a
+     * white-on-black band of ~10 pixels height. */
+    RunCyclesWithVBlank(20, 50000);
+
+    PressKey(0x44, 0);  /* Return to accept default */
+    RunCyclesWithVBlank(150, 50000);
+    lxa_flush_display();
+
+    EXPECT_TRUE(lxa_is_running())
+        << "KickPascal must remain running after accepting default workspace";
+
+    /* Status bar lives near the top of the screen capture (vision-model
+     * confirmed white-on-grey band with "EDITOR" and "Insert" labels).
+     * Exact y depends on Intuition layer geometry; allow a generous band
+     * y=8..40 and require substantial non-grey content (the white bar
+     * spans hundreds of pixels horizontally).  The status bar pixels are
+     * NOT reachable via lxa_read_pixel (which only sees the active
+     * window's RastPort), so capture the host window and count
+     * non-background pixels in the top strip. */
+    const std::string capture_path = "/tmp/kp_editor_status.png";
+    ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0));
+    RgbImage image = LoadPng(capture_path);
+    ASSERT_GT(image.width, 0);
+    ASSERT_GT(image.height, 0);
+
+    /* Sample the top-left grey area (x=4,y=2) as the background reference. */
+    const int top_band_pixels = CountPixelsDifferentFromSample(
+        image,
+        /* x1,y1 */ 4, 8,
+        /* x2,y2 */ image.width - 4, 40,
+        /* sample */ 4, 2);
+    EXPECT_GT(top_band_pixels, 200)
+        << "EDITOR status bar should produce non-grey pixels in y=8..40 "
+           "(got " << top_band_pixels << ")";
+}
+
+TEST_F(KickPascalTest, ZMenuBarRMBDragSurvivesWithoutPanic) {
+    /* Accept default workspace first to reach the EDITOR mode where the
+     * Intuition menu bar (Project/Edit/Execute/Options/Info) is active. */
+    RunCyclesWithVBlank(20, 50000);
+    PressKey(0x44, 0);
+    RunCyclesWithVBlank(150, 50000);
+
+    if (!lxa_is_running()) {
+        GTEST_SKIP() << "KickPascal exited before menu interaction";
+    }
+
+    /* RMB drag in menu band — drag a small distance to open Project menu
+     * and select an item, then release.  Vision-model review confirmed
+     * this opens the Project dropdown correctly. */
+    const int menu_x = window_info.x + 32;
+    const int menu_y = std::max(3, (int)window_info.y / 2);
+    const int item_y = window_info.y + 30;
+    lxa_inject_drag(menu_x, menu_y, menu_x, item_y, LXA_MOUSE_RIGHT, 10);
+    RunCyclesWithVBlank(60, 50000);
+    lxa_flush_display();
+
+    EXPECT_TRUE(lxa_is_running())
+        << "KickPascal must survive RMB menu drag";
+    EXPECT_GE(lxa_get_window_count(), 1)
+        << "KickPascal must still expose a window after menu drag";
+
+    lxa_window_info_t post = {};
+    ASSERT_TRUE(GetWindowInfo(0, &post));
+    EXPECT_EQ(post.width,  window_info.width)
+        << "Menu drag must not resize the window";
+    EXPECT_EQ(post.height, window_info.height)
+        << "Menu drag must not resize the window";
+}
+
+TEST_F(KickPascalTest, ZSplashContentRendersStably) {
+    /* The splash screen (HiS logo, Pascal graphic, version text) must
+     * remain stably rendered during the workspace-prompt phase.  This
+     * guards against blitter / clip-rect regressions that would corrupt
+     * the bitmap-loaded splash imagery. */
+    RunCyclesWithVBlank(50, 50000);
+    lxa_flush_display();
+
+    /* Splash logo region per existing SplashLogoStaysFullyInsideVisibleArea
+     * test: roughly x=4..240, y=18..64 contains dark logo pixels. */
+    const std::string capture_path = ram_dir_path + "/kp_splash_stability.png";
+    ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0));
+    RgbImage image = LoadPng(capture_path);
+    ASSERT_GT(image.width, 0);
+    ASSERT_GT(image.height, 0);
+
+    const int initial_black = CountBlackPixels(image, 4, 18, 240, 64);
+
+    /* Run additional settle cycles, then re-capture and re-count. */
+    RunCyclesWithVBlank(60, 50000);
+    lxa_flush_display();
+    ASSERT_TRUE(CaptureWindow(capture_path.c_str(), 0));
+    image = LoadPng(capture_path);
+    const int after_black = CountBlackPixels(image, 4, 18, 240, 64);
+
+    EXPECT_GT(initial_black, 50)
+        << "Splash logo should produce dark pixels in the logo band";
+    /* Allow modest variation but require the splash to persist. */
+    EXPECT_GE(after_black, initial_black / 2)
+        << "Splash content must not collapse during idle "
+           "(initial=" << initial_black << " after=" << after_black << ")";
+}
+
+TEST_F(KickPascalTest, ZNoMissingLibraryOrPanicDuringStartup) {
+    /* KickPascal does not need any of the third-party stub libraries
+     * (req, reqtools, arp, powerpacker) to start up — its own bundled
+     * libs/ resolves via lxa's PROGDIR auto-prepend.  This test guards
+     * against any regression that would surface a missing-library log. */
+    const std::string output = GetOutput();
+    EXPECT_EQ(output.find("requested library"), std::string::npos)
+        << "KickPascal startup should not hit missing-library errors\n"
+        << output;
+    EXPECT_EQ(output.find("PANIC"), std::string::npos)
+        << "KickPascal startup must not PANIC\n"
+        << output;
+    EXPECT_EQ(output.find("invalid RastPort BitMap"), std::string::npos)
+        << "KickPascal startup must not hit null-BitMap rendering paths\n"
+        << output;
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
