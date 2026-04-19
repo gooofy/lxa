@@ -340,11 +340,19 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             TIMEOUT 180)
     endif()
 
-    # FinalWriter_D - word processor startup and interaction test
+    # FinalWriter_D - word processor startup and interaction test.
+    # Sharded into two groups (each ~90s); a single binary cannot fit all
+    # 8 enabled tests under the 180s default timeout because each test
+    # requires a full FinalWriter_D startup (~19s).  IMPORTANT: when
+    # adding a new test, update the appropriate FILTER below or it will
+    # be silently orphaned (PPaint Phase 121 / FW Phase 124 lesson).
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/finalwriter_gtest.cpp)
         add_gtest_driver_target(finalwriter_gtest)
         add_gtest_driver_shard(finalwriter_startup_gtest finalwriter_gtest
-            FILTER "FinalWriterTest.StartupOpensVisibleWindow"
+            FILTER "FinalWriterTest.StartupOpensVisibleWindow:FinalWriterTest.MainWindowCaptureShowsEditorRegions:FinalWriterTest.ZStartupDialogTitleIsFinalWriterVersion:FinalWriterTest.ZStartupDialogExposesExpectedGadgetCount"
+            TIMEOUT 180)
+        add_gtest_driver_shard(finalwriter_dialog_gtest finalwriter_gtest
+            FILTER "FinalWriterTest.ZBottomButtonsResolveToValidGadgets:FinalWriterTest.ZDisplayOptionsListIsLocatable:FinalWriterTest.ZNoMissingLibraryOrPanicAtStartup:FinalWriterTest.ZStartupDialogContentSurvivesIdle"
             TIMEOUT 180)
     endif()
 
