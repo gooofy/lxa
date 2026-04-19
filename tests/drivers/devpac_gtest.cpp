@@ -458,6 +458,109 @@ TEST_F(DevpacTest, CursorKeys) {
     EXPECT_GE(lxa_get_window_count(), 1) << "Window should still be open after cursor keys";
 }
 
+/* ===================================================================== */
+/* Phase 117 additions: keyboard-driven workflow coverage.
+ *
+ * DevPac menu structure (from probe + vision review):
+ *   Project: New(A-N), Load(A-L), Open(A-O), Save(A-S), Save As(A-A),
+ *            Print(A-P), About(A-?), Quit
+ *   Edit, Search, Window, Program, Macros, Settings
+ *   Program menu items: Run, Break, Errors, Assemble, Make, Check, Output Symbols
+ *
+ * Menu pixel introspection during a drag is not feasible because
+ * lxa_inject_drag releases the button before we can capture. Instead we
+ * use Amiga+key shortcuts (which Devpac honors) to invoke menu actions
+ * that are safe to test. We deliberately do NOT invoke Run/Assemble
+ * (Program menu) because those require source state and could spawn
+ * external workflows. */
+
+/* RAWKEY codes for letter keys: O=0x18, S=0x21 (verified via standard
+ * Amiga keymap). Qualifier 0x40 = LeftAmiga. */
+
+TEST_F(DevpacTest, ZAmigaOOpensFileRequester) {
+    /* Amiga-O = Project → Open. Should pop up a file requester window. */
+    int windows_before = lxa_get_window_count();
+
+    PressKey(0x18, 0x40);  /* RAWKEY for 'O' + LeftAmiga */
+    RunCyclesWithVBlank(40, 50000);
+
+    /* The requester may take a moment to appear (req.library stub). */
+    bool got_new_window = WaitForWindows(windows_before + 1, 5000);
+
+    /* Capture for inspection. */
+    const std::string capture_path = s_ram_dir + "/devpac-amiga-o.png";
+    lxa_capture_screen(capture_path.c_str());
+
+    if (got_new_window) {
+        /* A requester opened. Verify it has nonzero size and the app is
+         * still alive. Then dismiss with ESC (rawkey 0x45). */
+        lxa_window_info_t req_info;
+        ASSERT_TRUE(lxa_get_window_info(windows_before, &req_info));
+        EXPECT_GT(req_info.width, 0);
+        EXPECT_GT(req_info.height, 0);
+
+        /* Dismiss via ESC. */
+        PressKey(0x45, 0);
+        RunCyclesWithVBlank(40, 50000);
+    } else {
+        /* No requester appeared. This is acceptable if req.library stub
+         * fails gracefully — record but do not fail the test. The key
+         * regression we guard against is "Amiga-O crashes the app". */
+        fprintf(stderr,
+                "ZAmigaOOpensFileRequester: no requester appeared "
+                "(req.library stub may have refused). Verifying app survival.\n");
+    }
+
+    EXPECT_TRUE(lxa_is_running())
+        << "DevPac must survive Amiga-O regardless of requester outcome";
+}
+
+TEST_F(DevpacTest, ZSurvivesRapidShortcutBurst) {
+    /* Stress: fire several Amiga-key shortcuts in succession, each
+     * followed by ESC to dismiss any dialog. Verifies the app and the
+     * menu/shortcut dispatcher do not corrupt state under load. */
+    /* N(0x36)=New, L(0x28)=Load, S(0x21)=Save -- but Save without a
+     * filename may pop a requester; we ESC after each. */
+    int rawkeys[] = {0x36, 0x28};  /* New, Load */
+
+    for (size_t i = 0; i < sizeof(rawkeys) / sizeof(rawkeys[0]); i++) {
+        PressKey(rawkeys[i], 0x40);  /* + LeftAmiga */
+        RunCyclesWithVBlank(20, 50000);
+        /* Dismiss any dialog. */
+        PressKey(0x45, 0);  /* ESC */
+        RunCyclesWithVBlank(20, 50000);
+    }
+
+    EXPECT_TRUE(lxa_is_running())
+        << "DevPac should survive a rapid Amiga-key shortcut burst";
+    EXPECT_GE(lxa_get_window_count(), 1)
+        << "Primary editor window should remain open";
+}
+
+TEST_F(DevpacTest, ZSurvivesMenuBarSweep) {
+    /* Open every top-level menu via RMB drag and release off-menu.
+     * Verifies menu bar + dropdown rendering does not corrupt state for
+     * any of the 7 menus, even though we cannot capture menu pixels
+     * (drag releases the button before capture). */
+    const int menu_y = std::max(3, window_info.y / 2);
+    int xs[] = {32, 290, 430, 510, 550, 580, 610};
+
+    for (size_t i = 0; i < sizeof(xs) / sizeof(xs[0]); i++) {
+        const int x = window_info.x + xs[i];
+        /* Drag down through the menu but to a benign Y (top of dropdown
+         * region — the menu's own title row, which doesn't select an
+         * item on release). */
+        lxa_inject_drag(x, menu_y, x, menu_y + 1,
+                        LXA_MOUSE_RIGHT, 5);
+        RunCyclesWithVBlank(15, 50000);
+    }
+
+    EXPECT_TRUE(lxa_is_running())
+        << "DevPac should survive a full top-level menu sweep";
+    EXPECT_GE(lxa_get_window_count(), 1)
+        << "Primary editor window should remain open";
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

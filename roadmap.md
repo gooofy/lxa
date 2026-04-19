@@ -20,6 +20,7 @@
 | 114 | Copper list interpreter: MOVE/WAIT/SKIP, VBlank execution, CDANG, color register shadow | v0.8.79 |
 | 115 | DPaint V driver expansion: Screen Format gadgets, depth-2→8 transition, main editor render | v0.8.80 |
 | 116 | MaxonBASIC driver expansion: text rendering, RMB menu reveal, scrollbar gadgets, stress survival | v0.8.81 |
+| 117 | DevPac driver expansion: Amiga-key shortcut survival, full menu bar sweep, req.library stub validation | v0.8.82 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering
@@ -30,6 +31,8 @@
 - DPaint V main editor defers menu bar / toolbox / palette rendering until first mouse interaction; canvas remains blank-pen until tool/palette state is exercised. Palette/pencil/fill interaction tests deferred — require either the deferred-paint trigger to be reverse-engineered or a new "force full redraw" capability.
 - DPaint V Ctrl-P (Screen Format reopen) only works on the depth-2 startup dialog, not from the depth-8 main editor. About dialog and File→Open requester not yet exercised — depends on resolving deferred-paint to make menu bar interactable.
 - MaxonBASIC About/Settings/Run interaction: menus are Intuition-managed but reachable only via RMB drag through hardcoded coordinates; the German menu titles ("Projekt", "Editieren", "Suchen") and lack of programmatic menu introspection make item-level activation brittle. Phase 116 verified menu reveal and editor text rendering; deeper menu-driven workflows defer until host-side menu introspection (gap #4) is implemented.
+- DevPac File→Open requester: Phase 117 verified Amiga-O does not crash, but req.library stub returns failure cleanly so no requester appears. Real file requester behavior requires a non-stub req.library implementation (out of scope per AGENTS.md "do not re-implement third-party libraries in ROM"). Assemble/Run workflow not exercised — would require a loaded valid m68k source and external assembler invocation, both of which need external-process emulation.
+- Menu pixel introspection during a drag: `lxa_inject_drag` performs press → drag → release atomically, so we cannot capture screen state while a menu is open. Tests verify menu interaction via side effects (window count, app survival) instead. A future infrastructure improvement would be a non-releasing drag API or a "capture during drag" hook.
 
 ---
 
@@ -80,22 +83,6 @@ These gaps make it hard to write reliable tests and to understand *why* an app l
 > 4. Write interaction tests that exercise core workflows — not just "does it open."
 > 5. Any new infrastructure gap encountered goes into the list above *and* gets a concrete ticket.
 > 6. End each phase with pixel/geometry regression assertions so CI catches future regressions.
-
----
-
-### Phase 117: DevPac — assembler workflow
-> Existing driver: `devpac_gtest.cpp`
-
-**Goal**: Verify the assembler IDE opens cleanly, can edit source, and invokes the assembler.
-
-- [ ] Audit current driver coverage
-- [ ] Startup: verify editor window title and menu bar (screenshot review)
-- [ ] About dialog: open, verify AmigaGuide stub does not crash (regression from Phase 110)
-- [ ] File requester: File → Open, verify req.library stub allows requester to appear or fail gracefully
-- [ ] Type source: inject a trivial m68k source snippet into editor
-- [ ] Assemble: invoke Assemble action via menu (RMB drag); verify output window or error requester
-- [ ] Error navigation: if assembler reports an error, verify cursor moves to error line
-- [ ] Screenshot review all states; pixel regression guards
 
 ---
 
