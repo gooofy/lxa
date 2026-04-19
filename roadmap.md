@@ -23,6 +23,7 @@
 | 117 | DevPac driver expansion: Amiga-key shortcut survival, full menu bar sweep, req.library stub validation | v0.8.82 |
 | 118 | ASM-One driver expansion: menu flicker guard, event-queue rapid-motion stress, qualifier-key propagation survival | v0.8.83 |
 | 119 | BlitzBasic 2 driver expansion: editor-paint regression bounds, secondary-window tracking, multi-menu stability, editor keyboard survival | v0.8.84 |
+| 120 | PPaint driver expansion: probe-window geometry bounds, GfxBase regression guards, null-BitMap probe guards, capture-pipeline survival; ROM path helper fix | v0.8.85 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering
@@ -35,6 +36,7 @@
 - DevPac File→Open requester: Phase 117 verified Amiga-O does not crash, but req.library stub returns failure cleanly so no requester appears. Real file requester behavior requires a non-stub req.library implementation (out of scope per AGENTS.md "do not re-implement third-party libraries in ROM"). Assemble/Run workflow not exercised — would require a loaded valid m68k source and external assembler invocation, both of which need external-process emulation.
 - BlitzBasic2 ted editor — copper/blitter improvements (Phase 113/114) reach the surface (~13% of editor body fills with paint after menu interaction) but ted still does not render real editable text content. Phase 119 captured vision-model analysis: menu bar and dropdowns render correctly (PROJECT/EDIT/SOURCE/SEARCH/COMPILER), but the editor body remains a flat surface with only menu-residue and status overlay paint. Root cause is deeper than line-mode blitter and copper colour cycling — likely involves blitter copy modes, sprite hardware, or specific copper waits that ted uses for its custom overlay. Test bounds: editor body must show >100 non-grey pixels (proves paint reaches the surface) but <50% fill (catches the day ted finally renders content).
 - ASM-One Assemble/Run workflow not exercised (Phase 118) — same external-process constraint as DevPac; deferred until external-process emulation exists. Menu pixel-flicker verification uses a content-floor guard (before→after cannot collapse to <10% of before) because ASM-One defers editor repaint until first interaction, so pixel counts legitimately *grow* after the first menu drag. Host-side observation of IDCMP qualifier bits is not currently possible; qualifier propagation is guarded via survival + subsequent-input responsiveness only.
+- PPaint exits early with rv=26 from CloantoScreenManager screen-mode probing — Phase 120 vision-model review confirmed the probe windows are empty 320×200 (and one 640×256) buffers with no UI content drawn before exit. Real PPaint editing UI (palette, canvas, toolbox) is never reached, so all menu/palette/drawing-tool tests in the original Phase 120 plan are infeasible. Coverage instead guards what works: probe-window geometry bounds, no missing-library/null-BitMap/PANIC log entries, and probe-window capture pipeline (capture taken in SetUp before exit). Root cause is deeper screen-mode emulation that the probe expects but lxa does not yet provide.
 - Menu pixel introspection during a drag: `lxa_inject_drag` performs press → drag → release atomically, so we cannot capture screen state while a menu is open. Tests verify menu interaction via side effects (window count, app survival) instead. A future infrastructure improvement would be a non-releasing drag API or a "capture during drag" hook.
 
 ---
@@ -120,19 +122,20 @@ These gaps make it hard to write reliable tests and to understand *why* an app l
 
 ---
 
-### Phase 120: PPaint — pixel painting
-> Existing driver: startup test only
+### Phase 120: PPaint — pixel painting ✅
+> Existing driver: `ppaint_gtest.cpp` (7 tests, v0.8.85)
 
-**Goal**: Extend beyond startup to verify PPaint's drawing tools and palette work correctly.
+**Goal**: Extend beyond startup to verify PPaint behaviour given the well-documented CloantoScreenManager rv=26 early-exit pattern.
 
-- [ ] Audit startup test; screenshot review of initial state
-- [ ] Palette: verify 32-color palette bar renders; click a color, verify selection indicator changes
-- [ ] Drawing tools: test pencil/line tool on canvas; verify pixels placed correctly
-- [ ] Screen format: verify PAL screen opens at correct resolution (DisplayFlags regression check)
-- [ ] File requester: File → Open via menu, verify reqtools stub allows graceful handling
-- [ ] About dialog: open and close cleanly
-- [ ] Zoom view: if accessible via menu, test zoom in/out; verify canvas scales
-- [ ] Screenshot review all states; pixel regression guards
+**Outcome**: Vision-model review confirmed PPaint's probe windows are empty (no palette / canvas / toolbox / menu bar drawn before rv=26). Real editing UI is never reached, so palette / drawing-tool / file-requester / About / zoom tests are infeasible without deeper screen-mode emulation. Coverage instead guards what works:
+
+- [x] Audited startup test; vision-model review of probe-window capture
+- [x] **Probe geometry bounds**: `ZScreenModeProbeProducesValidGeometry` asserts probe windows are 320..1280 × 200..1024
+- [x] **GfxBase regression guard**: `ZGfxBaseDisplayFlagsSetForPalDetection` ensures no `DisplayFlags=0` or missing-library log lines (AGENTS.md §6.11 root cause for an earlier rv=26)
+- [x] **Null-BitMap probe guard**: `ZNoBitmapNullDereferenceDuringProbe` checks the rapid screen-open/close sequence does not trigger `invalid RastPort BitMap` errors or PANIC
+- [x] **Capture-pipeline survival**: `ZProbeWindowCanBeCapturedAsArtifact` captures the probe window in SetUp (before rv=26) so failure-triage artifacts are always available
+- [x] Fixed hardcoded ROM path in driver (now uses `FindRomPath()` helper) — driver now portable across developer machines and CI
+- [ ] Palette / drawing tools / About / zoom — **deferred** (require UI that PPaint never reaches; documented in known limitations)
 
 ---
 

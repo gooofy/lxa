@@ -11,7 +11,9 @@ class PPaintTest : public LxaUITest {
 protected:
     const char* ResolveBuiltRomPath()
     {
-        return "/home/guenter/projects/amiga/lxa/src/lxa/build/target/rom/lxa.rom";
+        /* Use the standard helper instead of a hardcoded absolute path
+         * so the driver works on any developer machine and in CI. */
+        return FindRomPath();
     }
 
     bool SetupOriginalSystemAssigns(bool add_libs = false,
@@ -63,6 +65,8 @@ protected:
     bool saw_window = false;
     int  captured_width  = 0;
     int  captured_height = 0;
+    bool capture_succeeded = false;
+    std::string capture_path;
 
     void SetUp() override
     {
@@ -98,6 +102,11 @@ protected:
             saw_window = true;
             captured_width  = window_info.width;
             captured_height = window_info.height;
+
+            /* Capture the probe window immediately so the artifact is
+             * available even after PPaint exits with rv=26. */
+            capture_path = "/tmp/ppaint_probe_window_setup.png";
+            capture_succeeded = lxa_capture_window(0, capture_path.c_str());
         }
 
         WaitForWindowDrawn(0, 5000);
@@ -180,6 +189,83 @@ TEST_F(PPaintTest, RightMouseMenuInteractionKeepsWindowVisible)
     ASSERT_TRUE(GetWindowInfo(0, &post_info));
     EXPECT_GT(post_info.width, 300);
     EXPECT_GT(post_info.height, 150);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Phase 120 Z-tests: deeper PPaint coverage that survives the            */
+/* CloantoScreenManager early-exit pattern.  Z-prefix sorts last.         */
+/* ---------------------------------------------------------------------- */
+
+TEST_F(PPaintTest, ZScreenModeProbeProducesValidGeometry)
+{
+    /* PPaint's CloantoScreenManager probes screen modes by opening
+     * windows of various sizes.  Whichever window we captured during
+     * SetUp must have valid Amiga-style dimensions (not zero, not a
+     * negative or absurd value). */
+    EXPECT_TRUE(saw_window)
+        << "ppaint must produce at least one tracked window during probing";
+    EXPECT_GE(captured_width, 320)
+        << "ppaint probe windows should be at least 320 pixels wide";
+    EXPECT_LE(captured_width, 1280)
+        << "ppaint probe windows should not exceed reasonable max width";
+    EXPECT_GE(captured_height, 200)
+        << "ppaint probe windows should be at least 200 pixels tall";
+    EXPECT_LE(captured_height, 1024)
+        << "ppaint probe windows should not exceed reasonable max height";
+}
+
+TEST_F(PPaintTest, ZGfxBaseDisplayFlagsSetForPalDetection)
+{
+    /* PPaint's earlier rv=26 root cause was missing GfxBase.DisplayFlags
+     * (AGENTS.md §6.11).  Verify that whatever startup state PPaint
+     * reaches, no missing-DisplayFlags-style log emerged. */
+    const std::string output = GetOutput();
+    EXPECT_EQ(output.find("DisplayFlags=0"), std::string::npos)
+        << "GfxBase.DisplayFlags must be set for PPaint PAL detection\n"
+        << output;
+    /* Also ensure no library-open failures crept in. */
+    EXPECT_EQ(output.find("requested library"), std::string::npos) << output;
+}
+
+TEST_F(PPaintTest, ZNoBitmapNullDereferenceDuringProbe)
+{
+    /* The screen-mode probe rapidly opens and closes screens.  This
+     * historically exposed null-RastPort BitMap bugs (see ASM-One menu
+     * test).  Ensure no such error appears in the log during probing. */
+    const std::string output = GetOutput();
+    EXPECT_EQ(output.find("invalid RastPort BitMap"), std::string::npos)
+        << "ppaint screen-mode probe must not trigger null-BitMap rendering errors\n"
+        << output;
+    EXPECT_EQ(output.find("PANIC"), std::string::npos)
+        << "ppaint should not panic during screen-mode probe\n"
+        << output;
+}
+
+TEST_F(PPaintTest, ZProbeWindowCanBeCapturedAsArtifact)
+{
+    /* Even when PPaint exits early, the probe-window state must be
+     * capturable for failure-triage / vision-model review.  The capture
+     * is taken in SetUp (right after the first window is detected) so
+     * it succeeds even if PPaint exits with rv=26 milliseconds later. */
+    if (!saw_window) {
+        GTEST_SKIP() << "no window was tracked during probing";
+    }
+
+    EXPECT_TRUE(capture_succeeded)
+        << "ppaint probe-window capture pipeline must work even when "
+           "the app exits with rv=26 immediately afterwards "
+           "(target: " << capture_path << ")";
+
+    /* If the capture file exists, verify it is a non-trivial PNG. */
+    if (capture_succeeded) {
+        std::error_code ec;
+        const auto sz = std::filesystem::file_size(capture_path, ec);
+        EXPECT_FALSE(ec) << "capture file should be readable: " << ec.message();
+        if (!ec) {
+            EXPECT_GT(static_cast<unsigned long long>(sz), 100ULL)
+                << "capture PNG should contain some data";
+        }
+    }
 }
 
 int main(int argc, char **argv)
