@@ -11,6 +11,7 @@
 #include "config.h"
 #include "m68k.h"
 #include "util.h"
+#include "lxa_copper.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -580,6 +581,9 @@ int lxa_run_cycles(int cycles)
             g_running = false;
             return 1;
         }
+
+        /* Phase 114: Run one pass of the copper list per VBlank. */
+        copper_run_frame();
 
         /* 
          * Update display from Amiga's planar bitmap if configured.

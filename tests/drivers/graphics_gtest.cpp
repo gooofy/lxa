@@ -45,6 +45,7 @@ TEST_F(GraphicsTest, BitMapUtils) { RunGraphicsTest("BitMapUtils"); }
 TEST_F(GraphicsTest, BltPattern) { RunGraphicsTest("BltPattern"); }
 TEST_F(GraphicsTest, ClipBlit) { RunGraphicsTest("ClipBlit"); }
 TEST_F(GraphicsTest, ColorsPens) { RunGraphicsTest("ColorsPens"); }
+TEST_F(GraphicsTest, Copper) { RunGraphicsTest("Copper"); }
 TEST_F(GraphicsTest, DisplayViewPort) { RunGraphicsTest("DisplayViewPort"); }
 TEST_F(GraphicsTest, DiskfontContents) { RunGraphicsTest("DiskfontContents"); }
 TEST_F(GraphicsTest, DrawEllipse) { RunGraphicsTest("DrawEllipse"); }

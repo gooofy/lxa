@@ -163,26 +163,42 @@ issues in every driver. Ordered by dependency and effort (low-hanging fruit firs
 	  (verifies ASH wrap), and patterned (BLTBDAT=0xAAAA) lines.
 	- Full suite: 63/63 passing in 139 s wall time. No regressions.
 
-- Phase 114: Copper list interpreter (basic)
-	- Implement a minimal copper list interpreter for the subset of copper
-	  operations that productivity apps use.
-	- **Scope** (deliberately limited):
-	  - MOVE: write a value to a custom chip register. This is 95% of what apps
-	    need — they use copper to set color registers per scanline for gradient
-	    backgrounds.
-	  - WAIT: wait for a specific beam position. Needed for per-scanline color
-	    changes.
-	  - SKIP: conditional skip (lower priority, rarely used by apps).
-	  - Execute copper list once per VBlank from `COP1LC`.
-	- **Out of scope for this phase**: copper DMA timing, interlaced mode copper
-	  lists, copper interrupts, cycle-exact beam position tracking. These are
-	  needed for demos but not for productivity apps.
-	- Prerequisite: Phase 118 (`lxa.c` decomposition) should ideally happen first
-	  so copper code lives in `lxa_custom.c`. If not yet done, copper code can
-	  go in a new `lxa_copper.c` module.
-	- Test with a simple custom copper list that creates a color gradient, verify
-	  with pixel assertions.
-	- Test BlitzBasic2 to assess impact.
+- Phase 114: Copper list interpreter (basic) — complete (v0.8.79)
+	- New module `src/lxa/lxa_copper.c` / `lxa_copper.h` implements a
+	  minimal copper interpreter (MOVE / WAIT / SKIP) executed once per
+	  VBlank.
+	- MOVE writes go through the existing `_handle_custom_write_ext()`
+	  dispatcher so all side effects (DMACON/INTENA/blitter triggers,
+	  color register tracking) are honored exactly as if the m68k had
+	  performed the write itself.
+	- WAIT is treated as immediately satisfied (no beam emulation —
+	  by the time the next VBlank fires, the beam has been everywhere).
+	  CWAIT(0xFFFF, 0xFFFE) is recognised as the canonical end-of-list
+	  terminator.
+	- SKIP is treated as never-skipping. With no beam tracking the
+	  comparison cannot be evaluated meaningfully; the conservative
+	  behaviour matches what most apps depend on (the fall-through
+	  instruction always executes).
+	- CDANG (COPCON bit 1) protects custom registers below 0x40 from
+	  copper writes when CDANG=0; CDANG=1 unlocks the full register
+	  space.
+	- Wired up in two VBlank sites: the `lxa.c` interactive main loop
+	  and `lxa_api.c::lxa_run_cycles()` (used by the test drivers).
+	  Custom register handlers added for COP1LC (0x080/0x082), COP2LC
+	  (0x084/0x086), COPJMP1 (0x088), COPJMP2 (0x08a), and COPCON (0x02e).
+	- Color registers (COLOR00..COLOR31, 0xDFF180..0xDFF1BE) are now
+	  shadowed in `g_color_regs[32]` and reads return the shadow value
+	  (write-only on real HW; exposing the shadow eases testing).
+	- Coldstart hook: `lxa_reset_host_state()` now clears `g_dmacon`,
+	  the color shadow, and copper state so successive in-process
+	  coldstarts do not inherit a stale COP1LC pointer into freed chip
+	  RAM (which would crash on the next VBlank).
+	- New integration test `tests/graphics/copper/main.c` (registered as
+	  `Tests/Graphics/Copper`) covers single-MOVE, gradient, mid-list
+	  WAIT pass-through, CDANG protection, end-of-list halt, and SKIP
+	  fall-through. 6/6 sub-tests pass.
+	- Runaway protection: 8192-instruction cap per copper run.
+	- Full suite: 63/63 passing in ~140 s wall time. No regressions.
 
 ### App Testing Sweep (post-infrastructure)
 

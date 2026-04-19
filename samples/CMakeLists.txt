@@ -203,6 +203,7 @@ set(TESTS_LIST
     "../tests/graphics/bltpattern|main|Tests/Graphics/BltPattern"
     "../tests/graphics/clipblit|main|Tests/Graphics/ClipBlit"
     "../tests/graphics/colors_pens|main|Tests/Graphics/ColorsPens"
+    "../tests/graphics/copper|main|Tests/Graphics/Copper"
     "../tests/graphics/draw_ellipse|main|Tests/Graphics/DrawEllipse"
     "../tests/graphics/display_viewport|main|Tests/Graphics/DisplayViewPort"
     "../tests/graphics/diskfont_contents|main|Tests/Graphics/DiskfontContents"

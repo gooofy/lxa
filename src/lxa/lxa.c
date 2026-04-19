@@ -31,6 +31,7 @@
 #include "vfs.h"
 #include "config.h"
 #include "display.h"
+#include "lxa_copper.h"
 
 static float ffp_to_host_float(uint32_t raw);
 static uint32_t host_float_to_ffp(float value);
@@ -143,6 +144,7 @@ static int errno2Amiga(void);
 #define CUSTOM_REG_COP2LC   0x084  /* Copper 2 location */
 #define CUSTOM_REG_COPJMP1  0x088  /* Copper jump 1 */
 #define CUSTOM_REG_COPJMP2  0x08a  /* Copper jump 2 */
+#define CUSTOM_REG_COPCON   0x02e  /* Copper control (CDANG bit) */
 
 /* Default SYS: drive - use sys/ subdirectory if present, otherwise current directory */
 #define DEFAULT_AMIGA_SYSROOT "sys"
@@ -235,6 +237,14 @@ static struct {
     uint16_t adat;       /* Channel A data register */
     uint16_t sizv;       /* ECS: vertical size (for BLTSIZH trigger) */
 } g_blitter = {0};
+
+/*
+ * Custom-chip color register shadow (COLOR00..COLOR31).
+ * Updated by direct CPU writes to 0xDFF180..0xDFF1BE *and* by the
+ * copper interpreter (Phase 114). Apps and tests can observe the
+ * current palette via lxa_get_color() / EMU_CALL_GFX_GET_COLOR.
+ */
+uint16_t g_color_regs[32] = {0};
 
 typedef struct map_sym_s map_sym_t;
 
@@ -546,6 +556,16 @@ void lxa_reset_host_state(void)
     g_console_input_head = 0;
     g_console_input_tail = 0;
     g_pending_irq = 0;
+
+    /* Reset chipset shadow state so a previous in-process run does not
+     * leak custom-register values (DMACON, COP1LC, palette) into the
+     * next coldstart. Without this, the next test would inherit a
+     * stale copper pointer into freed chip RAM and crash on the next
+     * VBlank. */
+    g_dmacon = 0x03F0;
+    memset(g_color_regs, 0, sizeof(g_color_regs));
+    copper_reset();
+
 #ifdef SDL2_FOUND
     memset(g_audio_channels, 0, sizeof(g_audio_channels));
     g_audio_device = 0;
@@ -1477,7 +1497,20 @@ static inline uint8_t mread8 (uint32_t address)
                 result = 0;
                 break;
             default:
-                result = 0;
+                if ((reg & ~1) >= CUSTOM_REG_COLOR00 &&
+                    (reg & ~1) <  CUSTOM_REG_COLOR00 + 64)
+                {
+                    /* Color registers are write-only on real hardware (reads
+                     * return undefined), but exposing the shadow makes
+                     * automated tests trivial. */
+                    uint32_t idx = ((reg & ~1) - CUSTOM_REG_COLOR00) >> 1;
+                    uint16_t v = g_color_regs[idx];
+                    result = (reg & 1) ? (v & 0xFF) : ((v >> 8) & 0xFF);
+                }
+                else
+                {
+                    result = 0;
+                }
                 break;
         }
         
@@ -1962,6 +1995,12 @@ static void _blitter_execute (uint16_t width_words, uint16_t height)
              width_words, height, width_words * height);
 }
 
+static void _handle_custom_write (uint16_t reg, uint16_t value);
+void _handle_custom_write_ext (uint16_t reg, uint16_t value)
+{
+    _handle_custom_write(reg, value);
+}
+
 static void _handle_custom_write (uint16_t reg, uint16_t value)
 {
 
@@ -2041,7 +2080,29 @@ static void _handle_custom_write (uint16_t reg, uint16_t value)
             break;
         }
         case CUSTOM_REG_COPJMP1:
+            DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: COPJMP1 (strobe)\n");
+            copper_jump(1);
+            break;
         case CUSTOM_REG_COPJMP2:
+            DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: COPJMP2 (strobe)\n");
+            copper_jump(2);
+            break;
+        case CUSTOM_REG_COP1LC:
+            /* Long pointer at 0x080: high word. Low word lives at 0x082. */
+            copper_set_cop1lc((copper_get_cop1lc() & 0x0000FFFF) | ((uint32_t)value << 16));
+            break;
+        case 0x082:
+            copper_set_cop1lc((copper_get_cop1lc() & 0xFFFF0000) | value);
+            break;
+        case CUSTOM_REG_COP2LC:
+            copper_set_cop2lc((copper_get_cop2lc() & 0x0000FFFF) | ((uint32_t)value << 16));
+            break;
+        case 0x086:
+            copper_set_cop2lc((copper_get_cop2lc() & 0xFFFF0000) | value);
+            break;
+        case CUSTOM_REG_COPCON:
+            copper_set_copcon(value);
+            break;
         case CUSTOM_REG_ADKCON:
         case CUSTOM_REG_POTGO:
             DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: %s value=0x%04x (ignored)\n",
@@ -2130,9 +2191,15 @@ static void _handle_custom_write (uint16_t reg, uint16_t value)
         default:
             /* Many apps write to custom chip registers - just log and ignore */
             if (reg >= CUSTOM_REG_COLOR00 && reg < CUSTOM_REG_COLOR00 + 64) {
-                /* Color register write - ignore for now */
-                DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: COLOR%02x value=0x%04x (ignored)\n",
-                        (reg - CUSTOM_REG_COLOR00) / 2, value);
+                /* Color register write — store in the shadow palette so the
+                 * copper interpreter and host-side queries can observe it.
+                 * Each color is one 16-bit register (RGB4: 0x0RGB), stride 2. */
+                uint32_t idx = (reg - CUSTOM_REG_COLOR00) >> 1;
+                if (idx < 32) {
+                    g_color_regs[idx] = value & 0x0FFF;
+                }
+                DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: COLOR%02u value=0x%04x\n",
+                        idx, value);
             } else {
                 DPRINTF (LOG_DEBUG, "lxa: _handle_custom_write: %s (0x%03x) value=0x%04x (ignored)\n",
                         _custom_reg_name(reg), reg, value);
@@ -9813,6 +9880,14 @@ int main(int argc, char **argv, char **envp)
             }
 
             (void)_dos_notify_poll();
+
+            /*
+             * Run one pass of the copper list (Phase 114).
+             * Done per VBlank, before the planar→chunky conversion, so
+             * any palette changes the copper performs take effect in
+             * the frame currently being presented.
+             */
+            copper_run_frame();
 
             /*
              * Update display from Amiga's planar bitmap if configured.

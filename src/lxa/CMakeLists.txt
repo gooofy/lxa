@@ -42,6 +42,7 @@ set(LXA_CORE_SOURCES
     config.c
     display.c
     rootless_layout.c
+    lxa_copper.c
 )
 
 # Common compile options
