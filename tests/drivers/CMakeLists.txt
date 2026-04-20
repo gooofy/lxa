@@ -196,7 +196,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsgadgets_gtest.cpp)
         add_gtest_driver_target(gadtoolsgadgets_gtest)
         add_gtest_driver_shard(gadtoolsgadgets_core_gtest gadtoolsgadgets_gtest
-            FILTER "GadToolsGadgetsTest.AllGadgetsCreated:GadToolsGadgetsTest.WindowOpened:GadToolsGadgetsTest.CloseWindow"
+            FILTER "GadToolsGadgetsTest.AllGadgetsCreated:GadToolsGadgetsTest.WindowOpened:GadToolsGadgetsTest.RootlessWindowShowsContent:GadToolsGadgetsTest.GadgetsRefreshed:GadToolsGadgetsTest.EventLoopEntered:GadToolsGadgetsTest.CloseWindow"
             TIMEOUT 180)
         add_gtest_driver_shard(gadtoolsgadgets_pointer_gtest gadtoolsgadgets_gtest
             FILTER "GadToolsGadgetsTest.ButtonClick:GadToolsGadgetsTest.ButtonClickCompletesWithinOneVBlank:GadToolsGadgetsTest.SliderClick:GadToolsGadgetsTest.ButtonResetsSlider:GadToolsGadgetsTest.DepthGadgetClick:GadToolsGadgetsTest.ResizeDragKeepsWindowResponsive"
@@ -214,7 +214,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             FILTER "GadToolsGadgetsPixelTest.StringGadgetTextRendered:GadToolsGadgetsPixelTest.ButtonLabelRendered:GadToolsGadgetsPixelTest.SliderKnobVisible:GadToolsGadgetsPixelTest.SliderBevelBorderRendered"
             TIMEOUT 180)
         add_gtest_driver_shard(gadtoolsgadgets_pixels_c_gtest gadtoolsgadgets_gtest
-            FILTER "GadToolsGadgetsPixelTest.UnderscoreLabelRendered:GadToolsGadgetsPixelTest.SizeGadgetRendered:GadToolsGadgetsPixelTest.DepthGadgetRendered:GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean"
+            FILTER "GadToolsGadgetsPixelTest.UnderscoreLabelRendered:GadToolsGadgetsPixelTest.SliderLevelValueRendered:GadToolsGadgetsPixelTest.SizeGadgetRendered:GadToolsGadgetsPixelTest.DepthGadgetRendered:GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean"
             TIMEOUT 180)
     endif()
     
@@ -385,4 +385,23 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     endif()
     
     message(STATUS "Google Test drivers configured")
+
+    # Shard coverage check — fails immediately if a TEST_F in a sharded driver
+    # is not listed in any FILTER string.  Run with: ctest -R shard_coverage_check
+    find_package(Python3 QUIET COMPONENTS Interpreter)
+    if(Python3_FOUND)
+        add_test(
+            NAME shard_coverage_check
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/check_shard_coverage.py
+                --drivers-dir ${CMAKE_CURRENT_SOURCE_DIR}
+                --cmake ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt
+        )
+        set_tests_properties(shard_coverage_check PROPERTIES
+            TIMEOUT 30
+            LABELS "meta"
+        )
+    else()
+        message(WARNING "Python3 not found; shard_coverage_check test will not be registered")
+    endif()
 endif()

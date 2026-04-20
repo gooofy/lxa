@@ -28,6 +28,7 @@
 | 122 | KickPascal 2 driver expansion: default-workspace acceptance reaches EDITOR mode (status-bar pixel proof), RMB menu drag survival + geometry stability, splash content stability across idle, missing-library/PANIC log guards | v0.8.87 |
 | 123 | Typeface deferred — bgui.library v39+ required; real binary now available at `others/bgui`, installed to `share/lxa/System/Libs/bgui.library`; full driver deferred to Phase 136 | — |
 | 124 | FinalWriter driver expansion: dialog-state coverage (title regression, gadget count, OK/Cancel button discovery, display-options list discovery, missing-library/PANIC log guards, idle-time content stability); FinalWriter sharding bug fix (orphaned tests); broken `AcceptDialogOpensEditorWindow` quarantined as DISABLED_ | v0.8.88 |
+| 0 | CMake shard coverage safety: audit all sharded drivers (4 orphaned GadTools tests fixed), `tools/check_shard_coverage.py` written and registered as `shard_coverage_check` CTest meta-test | v0.8.89 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering (Phase 133)
@@ -43,7 +44,7 @@
 - PPaint exits early with rv=26 from CloantoScreenManager screen-mode probing — Phase 120 vision-model review confirmed the probe windows are empty 320×200 (and one 640×256) buffers with no UI content drawn before exit. Real PPaint editing UI (palette, canvas, toolbox) is never reached. Root cause is the limited screen-mode database (Phase 129): only 6 known display IDs, MinRaster==MaxRaster in DimensionInfo, and BestModeIDA ignoring DIPF flags. The `DISABLED_AcceptDialogOpensEditorWindow` test in FinalWriter will be re-enabled once Phase 129 lands.
 - Menu pixel introspection during a drag: `lxa_inject_drag` performs press → drag → release atomically, so we cannot capture screen state while a menu is open. Tests verify menu interaction via side effects (window count, app survival) instead. A future infrastructure improvement would be a non-releasing drag API or a "capture during drag" hook.
 - DirectoryOpus 4 renders a skeleton UI in lxa: window opens at 640×245, dual file-lister frames + scroll gadgets + small button cluster (B/R/S/A) + bottom toolbar (?/E/F/C/I/Q) all draw correctly, but text labels, the title-bar version/memory string, and the famous main button bank (Copy/Move/Delete/etc.) are absent. Vision-model review (Phase 121) attributed this to font/path resolution or `dopus.config` parsing not completing (Phase 134). DOpus also requests `commodities.library` and `inovamusic.library`, which lxa does not ship as stubs; both are tolerated by DOpus itself but logged as missing-library errors. File-list navigation, button-bank workflows, and Preferences interaction tests deferred until Phase 134.
-- CMake test sharding with hardcoded GTest filters can silently orphan newly added tests. Phase 121 fixed the PPaint shard and Phase 124 fixed FinalWriter shards. **Any future test additions to a sharded driver MUST update the corresponding FILTER strings** — and the Phase 0 shard-coverage script will catch this automatically once landed.
+- CMake test sharding with hardcoded GTest filters can silently orphan newly added tests. Phase 0 audited all sharded drivers (fixing 4 orphaned GadTools tests) and added `tools/check_shard_coverage.py` as a `shard_coverage_check` CTest meta-test. **Any future test additions to a sharded driver MUST update the corresponding FILTER strings** — CI will now catch violations automatically.
 - KickPascal 2 (Phase 122): editor body never clears the splash screen (HiS logo + "Pascal" graphic) so typed Pascal source is overlaid on stale pixels. Compile/run workflows are not exercised (same external-process constraint as DevPac/ASM-One; Phase 137+). Editor-body splash-clear deferred until KickPascal's deferred-paint trigger is reverse-engineered or a forced full redraw can be issued.
 - Typeface (Phase 123, deferred): the font previewer requires `bgui.library` v39+. The real binary is now available at `others/bgui/bgui/libs/bgui.library` and is installed to `share/lxa/System/Libs/bgui.library` (picked up by the static install rule). Typeface should now pass the `OpenLibrary` version check; full font-list / preview / Text() rendering coverage from Typeface deferred to Phase 136.
 - FinalWriter (Phase 124): clicking OK in the startup dialog causes FW to attempt opening a new screen mode; the two child processes spawn and immediately Exit(0), and FinalWriter terminates without ever opening the editor window. The `DISABLED_AcceptDialogOpensEditorWindow` test is preserved in source for the day Phase 129 screen-mode emulation makes the editor reachable. All editor-mode workflows deferred.
@@ -51,18 +52,6 @@
 ---
 
 ## Active Development
-
-### Phase 0 (Immediate): CMake Shard Coverage Safety
-
-> **Priority: Do this before writing any new tests.**
-
-The CMake sharding mechanism can silently orphan test cases: when a new `TEST_F` is added to a sharded driver's `.cpp` file, the hardcoded `FILTER` string in `CMakeLists.txt` must also be updated, or the test never runs via `ctest`. This has already burned PPaint (Phase 121) and FinalWriter (Phase 124).
-
-- [ ] Audit all currently-sharded drivers for orphaned tests: `simplegad`, `simplemenu`, `menulayout`, `fontreq`, `simplegtgadget`, `talk2boopsi`, `gadtoolsgadgets`, `vim`, `sigma` — verify every `TEST_F` name in each `.cpp` appears in its corresponding FILTER string.
-- [ ] Write `tools/check_shard_coverage.py`: parse all `*_gtest.cpp` files for `TEST_F` names, cross-check against `tests/drivers/CMakeLists.txt` FILTER strings, exit non-zero on mismatch.
-- [ ] Register it as a CTest test (`add_test(NAME shard_coverage_check ...)`) so CI fails immediately when a filter falls out of sync.
-
----
 
 ### Observability and Test Infrastructure
 
@@ -314,7 +303,7 @@ Musashi (MIT, C89, interpreter) is adequate for correctness but limits throughpu
 ## Dependency Graph (Critical Path)
 
 ```
-Phase 0 (shard audit) ──► Phase 125 (decompose lxa.c) ──► Phase 126 (profiling)
+Phase 125 (decompose lxa.c) ──► Phase 126 (profiling)
                                                                 │
                                                ┌────────────────┤
                                                ▼                ▼
