@@ -26,7 +26,7 @@
 | 120 | PPaint driver expansion: probe-window geometry bounds, GfxBase regression guards, null-BitMap probe guards, capture-pipeline survival; ROM path helper fix | v0.8.85 |
 | 121 | DirectoryOpus driver creation: 10 tests covering startup, bundled-library resolution, geometry, content rendering, gadget enumeration safety, capture pipeline, menu-probe survival, idle-time stability; PPaint sharding bug fix (orphaned Z-tests) | v0.8.86 |
 | 122 | KickPascal 2 driver expansion: default-workspace acceptance reaches EDITOR mode (status-bar pixel proof), RMB menu drag survival + geometry stability, splash content stability across idle, missing-library/PANIC log guards | v0.8.87 |
-| 123 | Typeface skipped — bgui.library v39+ required, app exits at startup with error dialog (documented in known limitations) | — |
+| 123 | Typeface deferred — bgui.library v39+ required; real binary now available at `others/bgui`, installed to `share/lxa/System/Libs/bgui.library`; full driver deferred to Phase 136 | — |
 | 124 | FinalWriter driver expansion: dialog-state coverage (title regression, gadget count, OK/Cancel button discovery, display-options list discovery, missing-library/PANIC log guards, idle-time content stability); FinalWriter sharding bug fix (orphaned tests); broken `AcceptDialogOpensEditorWindow` quarantined as DISABLED_ | v0.8.88 |
 
 **Known open limitations** (not yet addressed):
@@ -45,7 +45,7 @@
 - DirectoryOpus 4 renders a skeleton UI in lxa: window opens at 640×245, dual file-lister frames + scroll gadgets + small button cluster (B/R/S/A) + bottom toolbar (?/E/F/C/I/Q) all draw correctly, but text labels, the title-bar version/memory string, and the famous main button bank (Copy/Move/Delete/etc.) are absent. Vision-model review (Phase 121) attributed this to font/path resolution or `dopus.config` parsing not completing (Phase 134). DOpus also requests `commodities.library` and `inovamusic.library`, which lxa does not ship as stubs; both are tolerated by DOpus itself but logged as missing-library errors. File-list navigation, button-bank workflows, and Preferences interaction tests deferred until Phase 134.
 - CMake test sharding with hardcoded GTest filters can silently orphan newly added tests. Phase 121 fixed the PPaint shard and Phase 124 fixed FinalWriter shards. **Any future test additions to a sharded driver MUST update the corresponding FILTER strings** — and the Phase 0 shard-coverage script will catch this automatically once landed.
 - KickPascal 2 (Phase 122): editor body never clears the splash screen (HiS logo + "Pascal" graphic) so typed Pascal source is overlaid on stale pixels. Compile/run workflows are not exercised (same external-process constraint as DevPac/ASM-One; Phase 137+). Editor-body splash-clear deferred until KickPascal's deferred-paint trigger is reverse-engineered or a forced full redraw can be issued.
-- Typeface (Phase 123, deferred): the font previewer requires `bgui.library` v39+ which lxa does not ship. The app exits at startup with a "Cannot open bgui.library v39+" error dialog. Per AGENTS.md, bgui must come from disk. Real font-list / preview / Text() rendering coverage from Typeface deferred until Phase 136.
+- Typeface (Phase 123, deferred): the font previewer requires `bgui.library` v39+. The real binary is now available at `others/bgui/bgui/libs/bgui.library` and is installed to `share/lxa/System/Libs/bgui.library` (picked up by the static install rule). Typeface should now pass the `OpenLibrary` version check; full font-list / preview / Text() rendering coverage from Typeface deferred to Phase 136.
 - FinalWriter (Phase 124): clicking OK in the startup dialog causes FW to attempt opening a new screen mode; the two child processes spawn and immediately Exit(0), and FinalWriter terminates without ever opening the editor window. The `DISABLED_AcceptDialogOpensEditorWindow` test is preserved in source for the day Phase 129 screen-mode emulation makes the editor reachable. All editor-mode workflows deferred.
 
 ---
@@ -279,14 +279,14 @@ With Phase 126's profiling data and Phase 125's clean modules, the investigation
 
 ---
 
-### Phase 136: bgui.library stub → Typeface
+### Phase 136: bgui.library → Typeface
 
-Per AGENTS.md, bgui must come from disk — it cannot be re-implemented in ROM. A stub that returns the library at the correct version (v39) but with all functions returning safe failures would let Typeface pass the `OpenLibrary` version check and expose what UI it tries to construct. This is worth attempting after Phase 130 (text hook) so we can observe what `Text()` calls Typeface makes before it fails.
+The real `bgui.library` v41 binary is available at `others/bgui/bgui/libs/bgui.library` and is already installed to `share/lxa/System/Libs/bgui.library` via the static install rule. No stub required — Typeface should pass the `OpenLibrary("bgui.library", 39)` check and load the real library. Also present: `gadgets/bgui_bar.gadget`, `bgui_layoutgroup.gadget`, `bgui_palette.gadget`, `bgui_popbutton.gadget`, `bgui_treeview.gadget` in `others/bgui/bgui/libs/gadgets/`.
 
-- [ ] Create `lxa_bgui.c` disk-library stub returning version 39, all vectors returning safe failures
-- [ ] Add to `sys/CMakeLists.txt` via `add_disk_library()`
-- [ ] Add `typeface_gtest.cpp` driver: assert Typeface reaches a non-exit state (even if the font list is empty)
-- [ ] Use text hook to observe what the font preview area renders
+- [ ] Verify `bgui.library` loads cleanly under lxa: add a startup test that asserts `OpenLibrary` returns non-NULL and Typeface does not exit with an error dialog
+- [ ] Copy the gadget binaries from `others/bgui/bgui/libs/gadgets/` to the appropriate `share/lxa` location (likely `share/lxa/System/Libs/gadgets/`) so BGUI gadget classes are also available
+- [ ] Add `typeface_gtest.cpp` driver: assert Typeface reaches a non-exit state (font list window visible or >0 fonts enumerated)
+- [ ] Use text hook (Phase 130) to observe what the font preview area renders
 
 ---
 
