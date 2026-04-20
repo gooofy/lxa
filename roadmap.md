@@ -30,27 +30,39 @@
 | 124 | FinalWriter driver expansion: dialog-state coverage (title regression, gadget count, OK/Cancel button discovery, display-options list discovery, missing-library/PANIC log guards, idle-time content stability); FinalWriter sharding bug fix (orphaned tests); broken `AcceptDialogOpensEditorWindow` quarantined as DISABLED_ | v0.8.88 |
 
 **Known open limitations** (not yet addressed):
-- ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering
+- ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering (Phase 133)
 - KickPascal layout/menus — depends on deeper arp/req library functionality
 - SysInfo hardware fields (BattClock, CIA timing) — requires hardware detection
 - Cluster2 EXIT button — coordinate mapping mismatch in custom toolbar
 - DPaint V main editor defers menu bar / toolbox / palette rendering until first mouse interaction; canvas remains blank-pen until tool/palette state is exercised. Palette/pencil/fill interaction tests deferred — require either the deferred-paint trigger to be reverse-engineered or a new "force full redraw" capability.
 - DPaint V Ctrl-P (Screen Format reopen) only works on the depth-2 startup dialog, not from the depth-8 main editor. About dialog and File→Open requester not yet exercised — depends on resolving deferred-paint to make menu bar interactable.
-- MaxonBASIC About/Settings/Run interaction: menus are Intuition-managed but reachable only via RMB drag through hardcoded coordinates; the German menu titles ("Projekt", "Editieren", "Suchen") and lack of programmatic menu introspection make item-level activation brittle. Phase 116 verified menu reveal and editor text rendering; deeper menu-driven workflows defer until host-side menu introspection (gap #4) is implemented.
-- DevPac File→Open requester: Phase 117 verified Amiga-O does not crash, but req.library stub returns failure cleanly so no requester appears. Real file requester behavior requires a non-stub req.library implementation (out of scope per AGENTS.md "do not re-implement third-party libraries in ROM"). Assemble/Run workflow not exercised — would require a loaded valid m68k source and external assembler invocation, both of which need external-process emulation.
-- BlitzBasic2 ted editor — copper/blitter improvements (Phase 113/114) reach the surface (~13% of editor body fills with paint after menu interaction) but ted still does not render real editable text content. Phase 119 captured vision-model analysis: menu bar and dropdowns render correctly (PROJECT/EDIT/SOURCE/SEARCH/COMPILER), but the editor body remains a flat surface with only menu-residue and status overlay paint. Root cause is deeper than line-mode blitter and copper colour cycling — likely involves blitter copy modes, sprite hardware, or specific copper waits that ted uses for its custom overlay. Test bounds: editor body must show >100 non-grey pixels (proves paint reaches the surface) but <50% fill (catches the day ted finally renders content).
-- ASM-One Assemble/Run workflow not exercised (Phase 118) — same external-process constraint as DevPac; deferred until external-process emulation exists. Menu pixel-flicker verification uses a content-floor guard (before→after cannot collapse to <10% of before) because ASM-One defers editor repaint until first interaction, so pixel counts legitimately *grow* after the first menu drag. Host-side observation of IDCMP qualifier bits is not currently possible; qualifier propagation is guarded via survival + subsequent-input responsiveness only.
-- PPaint exits early with rv=26 from CloantoScreenManager screen-mode probing — Phase 120 vision-model review confirmed the probe windows are empty 320×200 (and one 640×256) buffers with no UI content drawn before exit. Real PPaint editing UI (palette, canvas, toolbox) is never reached, so all menu/palette/drawing-tool tests in the original Phase 120 plan are infeasible. Coverage instead guards what works: probe-window geometry bounds, no missing-library/null-BitMap/PANIC log entries, and probe-window capture pipeline (capture taken in SetUp before exit). Root cause is deeper screen-mode emulation that the probe expects but lxa does not yet provide.
+- MaxonBASIC About/Settings/Run interaction: menus are Intuition-managed but reachable only via RMB drag through hardcoded coordinates; the German menu titles ("Projekt", "Editieren", "Suchen") and lack of programmatic menu introspection make item-level activation brittle. Phase 116 verified menu reveal and editor text rendering; deeper menu-driven workflows defer until host-side menu introspection (Phase 131 gap #4) is implemented.
+- DevPac File→Open requester: Phase 117 verified Amiga-O does not crash, but req.library stub returns failure cleanly so no requester appears. Real file requester behavior requires a non-stub req.library implementation (out of scope per AGENTS.md "do not re-implement third-party libraries in ROM"). Assemble/Run workflow not exercised — would require a loaded valid m68k source and external assembler invocation, both of which need external-process emulation (Phase 137+).
+- BlitzBasic2 ted editor — copper/blitter improvements (Phase 113/114) reach the surface (~13% of editor body fills with paint after menu interaction) but ted still does not render real editable text content. Phase 119 captured vision-model analysis: menu bar and dropdowns render correctly (PROJECT/EDIT/SOURCE/SEARCH/COMPILER), but the editor body remains a flat surface with only menu-residue and status overlay paint. Root cause is deeper than line-mode blitter and copper colour cycling — likely involves blitter copy modes, sprite hardware, or specific copper waits that ted uses for its custom overlay (Phase 135).
+- ASM-One Assemble/Run workflow not exercised (Phase 118) — same external-process constraint as DevPac; deferred until Phase 137+. Menu pixel-flicker verification uses a content-floor guard (before→after cannot collapse to <10% of before) because ASM-One defers editor repaint until first interaction, so pixel counts legitimately *grow* after the first menu drag. Host-side observation of IDCMP qualifier bits is not currently possible; qualifier propagation is guarded via survival + subsequent-input responsiveness only.
+- PPaint exits early with rv=26 from CloantoScreenManager screen-mode probing — Phase 120 vision-model review confirmed the probe windows are empty 320×200 (and one 640×256) buffers with no UI content drawn before exit. Real PPaint editing UI (palette, canvas, toolbox) is never reached. Root cause is the limited screen-mode database (Phase 129): only 6 known display IDs, MinRaster==MaxRaster in DimensionInfo, and BestModeIDA ignoring DIPF flags. The `DISABLED_AcceptDialogOpensEditorWindow` test in FinalWriter will be re-enabled once Phase 129 lands.
 - Menu pixel introspection during a drag: `lxa_inject_drag` performs press → drag → release atomically, so we cannot capture screen state while a menu is open. Tests verify menu interaction via side effects (window count, app survival) instead. A future infrastructure improvement would be a non-releasing drag API or a "capture during drag" hook.
-- DirectoryOpus 4 renders a skeleton UI in lxa: window opens at 640×245, dual file-lister frames + scroll gadgets + small button cluster (B/R/S/A) + bottom toolbar (?/E/F/C/I/Q) all draw correctly, but text labels, the title-bar version/memory string, and the famous main button bank (Copy/Move/Delete/etc.) are absent. Vision-model review (Phase 121) attributed this to font/path resolution or `dopus.config` parsing not completing. DOpus also requests `commodities.library` and `inovamusic.library`, which lxa does not ship as stubs; both are tolerated by DOpus itself but logged as missing-library errors. File-list navigation, button-bank workflows, and Preferences interaction tests deferred until the skeleton is filled in.
-- CMake test sharding with hardcoded GTest filters can silently orphan newly added tests. Phase 121 fixed the PPaint shard (its filter listed only the original 3 names — including a non-existent one — so the 4 Phase 120 Z-tests never ran via ctest). Future test additions to *any* sharded driver (`simplegad`, `simplemenu`, `menulayout`, `fontreq`, `simplegtgadget`, `talk2boopsi`, `gadtoolsgadgets`, `vim`, `finalwriter`, `sigma`) MUST update the corresponding `add_gtest_driver_shard` FILTER strings in `tests/drivers/CMakeLists.txt`. Verified Phase 121: SIGMAth2 shards are currently complete; remaining sharded drivers were not re-audited.
-- KickPascal 2 (Phase 122): the IDE reaches EDITOR mode cleanly when the workspace prompt is accepted with the default value (Return). Once in EDITOR mode the status bar ("EDITOR" / "Insert") and Intuition menu bar (Project / Edit / Execute / Options / Info) render correctly and RMB menu drag opens the dropdowns without crashing. Two limitations remain: (1) the editor body never clears the splash screen (HiS logo + "Pascal" graphic) so typed Pascal source is overlaid on stale pixels and is not human-readable in captures; (2) the existing `WorkspacePromptAcceptsDeletingDefaultEntry` test types "100" which triggers KickPascal's own "Illegal size" validation — the test only asserts survival, not prompt acceptance. The new `ZAcceptDefaultWorkspaceReachesEditor` Z-test exercises the successful acceptance path. Compile/run workflows are not exercised (same external-process constraint as DevPac/ASM-One). Editor-body splash-clear is deferred until either KickPascal's own deferred-paint trigger is reverse-engineered or a forced full redraw can be issued from the host side.
-- Typeface (Phase 123, deferred): the font previewer requires `bgui.library` v39+ (the BOOPSI GUI toolkit) which lxa does not ship. The app exits at startup with a "Cannot open bgui.library v39+" error dialog (vision-confirmed). Per AGENTS.md ("do not re-implement third-party libraries in ROM"), bgui must come from disk. A bgui disk-stub returning failure cleanly would still produce the same dialog (Open succeeds but version check fails, vs. Open fails). Real font-list / preview / Text() rendering coverage from Typeface deferred until either a real bgui.library is available or a different `Text()` regression-guard app is identified.
-- FinalWriter (Phase 124): the German startup dialog ("Final Writer - Version 5.05") opens correctly and exposes 22 gadgets (radio pair, color slider, display-options list, OK/Abbruch buttons). Vision-model probe confirmed correct rendering. However, clicking OK to accept the dialog causes FW to attempt opening a new screen mode; the two child processes spawn and immediately Exit(0), and FinalWriter terminates without ever opening the editor window. The `AcceptDialogOpensEditorWindow` test that targeted this workflow is now `DISABLED_` (Google Test convention) — preserved in source for the day screen-mode emulation makes the editor reachable. All editor-mode workflows (document editing, menu interaction, font dialog, file requesters, scroll, print) deferred. The new `Z*` tests cover what is reachable: dialog title, gadget enumeration, button/list discovery, missing-library/PANIC guards, and idle-time UI stability. Sharded `finalwriter_startup_gtest` + `finalwriter_dialog_gtest` (each ~75–110s); the previous single-shard FILTER had silently orphaned `MainWindowCaptureShowsEditorRegions` and `AcceptDialogOpensEditorWindow` since Phase 103.
+- DirectoryOpus 4 renders a skeleton UI in lxa: window opens at 640×245, dual file-lister frames + scroll gadgets + small button cluster (B/R/S/A) + bottom toolbar (?/E/F/C/I/Q) all draw correctly, but text labels, the title-bar version/memory string, and the famous main button bank (Copy/Move/Delete/etc.) are absent. Vision-model review (Phase 121) attributed this to font/path resolution or `dopus.config` parsing not completing (Phase 134). DOpus also requests `commodities.library` and `inovamusic.library`, which lxa does not ship as stubs; both are tolerated by DOpus itself but logged as missing-library errors. File-list navigation, button-bank workflows, and Preferences interaction tests deferred until Phase 134.
+- CMake test sharding with hardcoded GTest filters can silently orphan newly added tests. Phase 121 fixed the PPaint shard and Phase 124 fixed FinalWriter shards. **Any future test additions to a sharded driver MUST update the corresponding FILTER strings** — and the Phase 0 shard-coverage script will catch this automatically once landed.
+- KickPascal 2 (Phase 122): editor body never clears the splash screen (HiS logo + "Pascal" graphic) so typed Pascal source is overlaid on stale pixels. Compile/run workflows are not exercised (same external-process constraint as DevPac/ASM-One; Phase 137+). Editor-body splash-clear deferred until KickPascal's deferred-paint trigger is reverse-engineered or a forced full redraw can be issued.
+- Typeface (Phase 123, deferred): the font previewer requires `bgui.library` v39+ which lxa does not ship. The app exits at startup with a "Cannot open bgui.library v39+" error dialog. Per AGENTS.md, bgui must come from disk. Real font-list / preview / Text() rendering coverage from Typeface deferred until Phase 136.
+- FinalWriter (Phase 124): clicking OK in the startup dialog causes FW to attempt opening a new screen mode; the two child processes spawn and immediately Exit(0), and FinalWriter terminates without ever opening the editor window. The `DISABLED_AcceptDialogOpensEditorWindow` test is preserved in source for the day Phase 129 screen-mode emulation makes the editor reachable. All editor-mode workflows deferred.
 
 ---
 
 ## Active Development
+
+### Phase 0 (Immediate): CMake Shard Coverage Safety
+
+> **Priority: Do this before writing any new tests.**
+
+The CMake sharding mechanism can silently orphan test cases: when a new `TEST_F` is added to a sharded driver's `.cpp` file, the hardcoded `FILTER` string in `CMakeLists.txt` must also be updated, or the test never runs via `ctest`. This has already burned PPaint (Phase 121) and FinalWriter (Phase 124).
+
+- [ ] Audit all currently-sharded drivers for orphaned tests: `simplegad`, `simplemenu`, `menulayout`, `fontreq`, `simplegtgadget`, `talk2boopsi`, `gadtoolsgadgets`, `vim`, `sigma` — verify every `TEST_F` name in each `.cpp` appears in its corresponding FILTER string.
+- [ ] Write `tools/check_shard_coverage.py`: parse all `*_gtest.cpp` files for `TEST_F` names, cross-check against `tests/drivers/CMakeLists.txt` FILTER strings, exit non-zero on mismatch.
+- [ ] Register it as a CTest test (`add_test(NAME shard_coverage_check ...)`) so CI fails immediately when a filter falls out of sync.
+
+---
 
 ### Observability and Test Infrastructure
 
@@ -64,188 +76,270 @@
 - `tools/screenshot_review.py` — OpenRouter-backed vision model analysis for failure artifacts
 - `lxa_inject_string()`, `lxa_inject_drag()`, `lxa_inject_mouse_click()` — input injection
 
-#### Infrastructure Gaps (address opportunistically during app sweep)
+#### Infrastructure Gaps (with phase assignments)
 
-These gaps make it hard to write reliable tests and to understand *why* an app looks or behaves wrong:
+1. **No screen-content diffing** (Phase 132+): No way to assert "this region looks like a text label" or "this area changed between two states." A reference-image diff tool would let us write layout regression tests that survive minor color changes but catch structural regressions.
 
-1. **No screen-content diffing**: Tests compare individual pixels or pixel counts. There is no way to assert "this region looks like a text label" or "this area changed between two states." A reference-image diff tool (host-side, deterministic, no vision model) would let us write layout regression tests that survive minor color changes but catch structural regressions.
+2. **No text extraction from screen** → **Phase 130**: Apps render text via ROM `Text()` calls. Adding a host-side `lxa_set_text_hook()` callback in `_graphics_Text()` would let tests assert `"About MaxonBASIC"` appeared without pixel-exact matching. The hook already has a `DPRINTF` log at that call site — the infrastructure change is small.
 
-2. **No text extraction from screen**: We cannot assert that a specific string is visible anywhere in a window. Apps render text via ROM `Text()` calls — if we intercept and log those calls (position, string, font), tests could assert `"About MaxonBASIC"` appeared at roughly the right location without pixel-exact matching.
+3. **No window/screen event log** → **Phase 131**: No structured log of Intuition events (OpenWindow, CloseWindow, OpenScreen, requester open/close). Tests infer these from window counts or pixel changes. A circular event buffer exposed via `lxa_drain_events()` would make assertions semantic and fragile-free.
 
-3. **No window/screen event log**: There is no structured log of Intuition events (OpenWindow, CloseWindow, OpenScreen, requester open/close). Tests infer these from window counts or pixel changes. An event log would make test assertions more semantic and less fragile.
+4. **No menu-state introspection** → **Phase 131**: Cannot query which menus/items exist, their names, or enabled/disabled state from the host side. Menu testing relies on RMB drag by hardcoded coordinates. `lxa_get_menu_strip()` traversing the Intuition `MenuStrip` linked list would unblock MaxonBASIC and DevPac deeper workflows.
 
-4. **No menu-state introspection**: We cannot query which menus/items exist, their names, enabled/disabled state, or checkmark state from the host side. Menu testing currently relies on RMB drag by hardcoded coordinates.
+5. **No clipboard / string output capture** (Phase 137+): Apps writing to AmigaDOS stdout or the clipboard have no way to expose output to the host test. A `lxa_capture_dos_output()` API would allow asserting compiler output, BASIC program results, etc.
 
-5. **No clipboard / string output capture**: Apps that write to AmigaDOS stdout or use the clipboard have no way to expose output to the host test. A `lxa_capture_dos_output()` API would allow asserting compiler output, BASIC program results, etc.
+6. **Vision model loop not automated**: `screenshot_review.py` is a manual tool. No test-phase hook automatically invokes it when a pixel assertion fails. Remains a developer investigation tool; automation deferred.
 
-6. **Vision model loop not automated**: `screenshot_review.py` is a manual tool. There is no test-phase hook that automatically invokes it when a pixel assertion fails and attaches the structured analysis to the test report.
+7. **No audio state introspection**: Apps using audio.device have no observable test output. No tests require this yet.
 
-7. **No audio state introspection**: Apps that use audio.device have no observable output in tests.
-
-8. **No timing/performance baseline per app**: We know total suite wall time but not per-app startup latency. Regressions in emulation speed are invisible until the whole suite slows down.
-
-**Priority for app sweep**: Address gaps 1–5 incrementally as specific app tests expose the need. Do not pre-build infrastructure that no test requires yet.
+8. **No per-app timing baselines** → **Phase 126**: We know total suite wall time but not per-app startup latency. Regressions in emulation speed are invisible until the whole suite slows down. Per-app baseline tests added during profiling phase.
 
 ---
 
-## App Testing Sweep (Phases 115–124)
+## Short-Term: Architecture + Observability (Phases 125–131)
 
-> **Ground rules for every app phase:**
-> 1. Run (or create) a startup driver — verify the app reaches an interactive state.
-> 2. Capture a screenshot; use `tools/screenshot_review.py` to audit the visual state.
-> 3. Identify what the app *should* do on a real Amiga (consult RKRM, app manuals, existing knowledge).
-> 4. Write interaction tests that exercise core workflows — not just "does it open."
-> 5. Any new infrastructure gap encountered goes into the list above *and* gets a concrete ticket.
-> 6. End each phase with pixel/geometry regression assertions so CI catches future regressions.
+### Phase 125: `lxa.c` decomposition
 
----
+Split the ~9,960-line monolith into focused modules. Refactoring only — all tests must pass before and after. Suggested split:
 
-### Phase 118: ASM-One — assembler and monitor ✅
-> Existing driver: `asm_one_gtest.cpp` (15 tests, v0.8.83)
+- `lxa_memory.c` — RAM allocation, chip/fast/slow memory regions, read/write dispatch
+- `lxa_custom.c` — custom chip registers (Blitter state, Copper, DMA, audio, sprites)
+- `lxa_dispatch.c` — CPU read/write memory callbacks, bus fault handling
+- `lxa_dos_host.c` — host filesystem bridge, VFS, path resolution
 
-**Goal**: Verify ASM-One's monitor/editor, menu system, and assemble workflow. ASM-One uses raw IDCMP keyboard events (no COMMSEQ) — all menu interaction must use RMB drag.
+**Why now**: Every subsequent phase (profiling, screen-mode, text hook) benefits from clean module boundaries. Profiling a monolith is opaque.
 
-- [x] Audit current driver coverage (11 pre-existing tests covered startup, menu bar RMB, About dialog, file requester, editor input, cursor keys)
-- [x] Startup: monitor window, prompt visible (pre-existing `StartupSkipsAllocateWorkspacePromptAndReachesEditor`)
-- [x] Menu system: RMB drag opens Project menu without hang (pre-existing `MenuBarInteractionDoesNotLogInvalidRastPortBitmap` + About/FileRequester paths)
-- [x] Flicker check: `ZMenuFlickerCheck` — before/after menu-cancel pixel counts; content must not collapse
-- [x] Event queue: `ZEventQueueSurvivesRapidMouseMoves` — 300 rapid motion events, app stays alive and responsive
-- [x] Qualifier propagation: `ZQualifierPropagationShiftedKeys` — shifted/ctrl keypresses plus plain-key follow-up survive cleanly
-- [ ] Assemble a trivial snippet — **deferred** (external-process constraint, see Known Limitations)
-- [x] Screenshot review and pixel/interaction regression guards (captures on About/FileRequester paths)
+**Test gate**: Full `ctest -j16` passes before and after with zero behavior changes.
 
 ---
 
-### Phase 119: BlitzBasic 2 — editor rendering ✅
-> Existing driver: `blitzbasic2_gtest.cpp` (9 tests, v0.8.84)
+### Phase 126: Profiling infrastructure
 
-**Goal**: Re-test after blitter line mode (Phase 113) and copper interpreter (Phase 114). Determine whether the "ted" editor now renders correctly.
+- `--profile` flag: per-ROM-function call counts and cycle costs, written as JSON on exit.
+- `perf`-friendly build config (`-fno-omit-frame-pointer`, debug symbols, `-DPROFILE_BUILD` CMake option).
+- `tools/profile_report.py`: reads JSON, prints top-10 hotspots by call count and by cumulative cycles.
+- **Per-app startup latency baselines**: add a `ZStartupLatency` timing test to each major app driver (SysInfo, Vim, DOpus, FinalWriter, etc.) that asserts startup completes within a cycle budget. These become performance regression sentinels.
 
-- [x] Startup screenshot review — vision model confirmed editor body remains flat grey at startup; menu bar and dropdowns render correctly
-- [x] Menu interaction: `YMultipleMenuOpensRemainStable` opens and cancels all 5 top-level menus (PROJECT/EDIT/SOURCE/SEARCH/COMPILER); none crash, hang, or spawn extra windows
-- [x] Editor still does not render real text content — Phase 113/114 paint DOES reach the surface (~13% fill after interaction) but is menu-residue and status overlay, not editable text. Bounds checked by `YEditorSurfaceShowsContentAfterMenuInteraction` (>100 pixels prove paint, <50% catches the day it fills)
-- [x] Editor keyboard input survival: `YEditorAcceptsKeyboardInputWithoutCrash` types into the editor, app stays alive, no PANIC
-- [x] Secondary window tracking: `YSecondaryWindowIsTracked` confirms both main (640x244) and ted control overlay (292x75) are enumerated
-- [ ] Run a trivial BlitzBasic program — **deferred** (depends on functional editor; same external-process constraint as DevPac/ASM-One Assemble)
-- [x] Known limitations updated (see top of roadmap): documented exact paint percentage, vision-model findings, and test bounds for future regression detection
+**Why before optimizing**: The roadmap estimate ("host-side overhead ~95% of wall time") is a rough number. Profile data determines which of Phase 127/128 to do first and how much to expect from each.
 
 ---
 
-### Phase 120: PPaint — pixel painting ✅
-> Existing driver: `ppaint_gtest.cpp` (7 tests, v0.8.85)
+### Phase 127: Memory access fast paths
 
-**Goal**: Extend beyond startup to verify PPaint behaviour given the well-documented CloantoScreenManager rv=26 early-exit pattern.
+Direct word/long-aligned loads in `m68k_read/write_memory_16/32` for the common RAM/ROM case; `__builtin_expect()` hints on the hot path; eliminate redundant range checks for addresses already validated in the dispatch table.
 
-**Outcome**: Vision-model review confirmed PPaint's probe windows are empty (no palette / canvas / toolbox / menu bar drawn before rv=26). Real editing UI is never reached, so palette / drawing-tool / file-requester / About / zoom tests are infeasible without deeper screen-mode emulation. Coverage instead guards what works:
+**Target**: 2× reduction in per-instruction host overhead (to be verified against Phase 126 baseline).
 
-- [x] Audited startup test; vision-model review of probe-window capture
-- [x] **Probe geometry bounds**: `ZScreenModeProbeProducesValidGeometry` asserts probe windows are 320..1280 × 200..1024
-- [x] **GfxBase regression guard**: `ZGfxBaseDisplayFlagsSetForPalDetection` ensures no `DisplayFlags=0` or missing-library log lines (AGENTS.md §6.11 root cause for an earlier rv=26)
-- [x] **Null-BitMap probe guard**: `ZNoBitmapNullDereferenceDuringProbe` checks the rapid screen-open/close sequence does not trigger `invalid RastPort BitMap` errors or PANIC
-- [x] **Capture-pipeline survival**: `ZProbeWindowCanBeCapturedAsArtifact` captures the probe window in SetUp (before rv=26) so failure-triage artifacts are always available
-- [x] Fixed hardcoded ROM path in driver (now uses `FindRomPath()` helper) — driver now portable across developer machines and CI
-- [ ] Palette / drawing tools / About / zoom — **deferred** (require UI that PPaint never reaches; documented in known limitations)
+**Test gate**: Phase 126 latency baselines must not regress; full suite passes.
 
 ---
 
-### Phase 121: DirectoryOpus — file manager ✅
-> New driver: `dopus_gtest.cpp` (10 tests, v0.8.86)
+### Phase 128: Display pipeline optimization
 
-**Goal**: Establish a startup-and-rendering baseline for Directory Opus 4 — the most-used third-party file manager on the Amiga — and exercise its custom-rendered UI without depending on libraries lxa does not ship.
+- Dirty-region tracking: skip unchanged scanlines in `display_update_planar()`.
+- SIMD planar-to-chunky: use SSE2 for the inner loop of the bit-plane interleave.
+- Eliminate redundant SDL texture uploads: batch multiple `display_refresh_all()` calls within a single VBlank.
 
-**Outcome**: DOpus reaches an interactive state and renders a skeleton UI (file-lister frames, scroll gadgets, mini-button cluster, bottom toolbar) but text labels and the main button bank do not paint (vision-model attribution: font/path resolution or `dopus.config` parsing). Bundled disk libraries (`dopus`, `arp`, `iff`, `powerpacker`, `Explode.Library`, `Icon.Library`) all resolve via lxa's automatic PROGDIR libs/ prepend — no stubs needed in ROM. `commodities.library` and `inovamusic.library` are absent and tolerated by DOpus. Coverage focuses on what works:
-
-- [x] **Driver created from scratch** (no prior coverage); `dopus_gtest.cpp` with 10 tests, all passing.
-- [x] **Startup**: `StartupOpensVisibleMainWindow` asserts a tracked window with plausible PAL geometry (320..1280 × 180..800).
-- [x] **Bundled-library resolution**: `StartupBundledLibrariesLoad` verifies each of the 6 shipped DOpus libraries does *not* appear in a missing-library log line; commodities/inovamusic deliberately excluded.
-- [x] **Stability**: `StartupHasNoPanicOrBitmapErrors` and `StartupRemainsRunning` guard against PANIC, null-BitMap rendering paths, and premature exits.
-- [x] **Rendering proof**: `MainWindowContainsRenderedContent` requires >500 non-grey pixels in the content region — confirms DOpus actually paints something, not just opens an empty window.
-- [x] **Custom-UI safety**: `GadgetEnumerationIsSafe` calls `GetGadgetCount(0)` and asserts a non-negative result; DOpus draws most controls by hand so a low gadget count is expected.
-- [x] **Capture pipeline**: `StartupCaptureProducesArtifact` saves `/tmp/dopus_startup.png` and validates the PNG is non-trivial — used for vision-model triage.
-- [x] **Menu probe survival**: `ZRightMouseMenuProbeKeepsWindowAlive` performs an RMB drag in the menu-bar band; verifies window survives without resizing.
-- [x] **Idle stability**: `ZWindowGeometryStableAcrossSettle` and `ZContentPixelCountSurvivesIdlePeriod` confirm the UI persists across an idle period (catches INTUITICKS / refresh corruption regressions).
-- [x] **Sharding bug fix**: PPaint test target was sharded with a hardcoded filter that excluded the 4 Phase 120 Z-tests (and referenced a non-existent test name). Replaced with `add_gtest_driver(ppaint_gtest)` so all 7 PPaint tests run via ctest. SIGMAth2 shards audited and confirmed complete.
-- [ ] File-list navigation, button-bank workflows, About dialog, Preferences — **deferred** (require text rendering and main button bank to paint; documented in known limitations).
+**Test gate**: Same as Phase 127. Visual regression tests (pixel-level) must not change output.
 
 ---
 
-### Phase 122: KickPascal 2 — Pascal IDE ✅ Complete (v0.8.87)
-> Driver expanded from 9 → 13 tests; vision-model review used to discover EDITOR-mode entry path
+### Phase 129: Screen-mode emulation — critical app unblock
 
-**Outcome**: Existing 9 KickPascal tests continued to pass. Added 4 Z-tests after vision-model probe of startup, workspace-prompt, post-Return, and post-menu-drag captures:
+> **Highest-value architectural improvement. Directly unblocks PPaint editing UI, FinalWriter editor, and any future app that probes display modes.**
 
-- [x] **EDITOR mode entry**: `ZAcceptDefaultWorkspaceReachesEditor` presses Return at the workspace prompt to accept the default 200-byte size, then captures the host window and counts non-grey pixels in the y=8..40 band — the white-on-grey "EDITOR" / "Insert" status bar produces hundreds of non-grey pixels (vision-confirmed via `tools/screenshot_review.py`).
-- [x] **Menu bar drag survival**: `ZMenuBarRMBDragSurvivesWithoutPanic` accepts the default workspace, performs an RMB drag in the Intuition menu band (Project menu opens correctly per vision review), and asserts process survival + window geometry stability across the drag.
-- [x] **Splash content stability**: `ZSplashContentRendersStably` captures the splash logo region (x=4..240, y=18..64), counts black pixels, runs additional settle cycles, re-captures, and requires ≥50% retention — guards against blitter / clip-rect regressions that would corrupt the bitmap-loaded splash imagery.
-- [x] **Library/PANIC log guard**: `ZNoMissingLibraryOrPanicDuringStartup` scans the captured output for "requested library", "PANIC", and "invalid RastPort BitMap" — confirms KickPascal's bundled `libs/` resolves cleanly via lxa's PROGDIR auto-prepend (no third-party stubs required).
-- [ ] Compile/Run workflow — **deferred** (external-process constraint, same as DevPac/ASM-One).
-- [ ] Typed-source visibility in the editor body — **deferred** (splash overlay is never cleared; root cause documented in known limitations).
+**Root cause identified**: `g_known_display_ids[]` contains only 6 entries (bare LORES/HIRES + NTSC/PAL variants). `GetDisplayInfoData(DTAG_DIMS)` returns `MinRasterWidth == MaxRasterWidth` (no size range), causing screen-mode probes like CloantoScreenManager to conclude the mode is unsuitable. `BestModeIDA()` ignores `BIDTAG_DIPFMustHave`/`MustNotHave` flags entirely.
 
----
+**What to fix**:
+1. Extend `g_known_display_ids[]` with the full ECS/AGA standard mode set from `<graphics/displayinfo.h>`: LACE variants, SUPER_HIRES, HAM, EHB, EXTRAHALFBRITE — at minimum the modes that real ECS software probes for.
+2. `GetDisplayInfoData(DTAG_DIMS)`: return proper `MinRasterWidth`/`MaxRasterWidth` ranges (e.g., 320–1280 for HIRES), not pinned equal values.
+3. `BestModeIDA()`: respect `BIDTAG_DIPFMustHave`/`MustNotHave` flags before returning a mode ID.
+4. `OpenScreenTagList()` with `SA_DisplayID`: when an app requests a valid mode that maps to our physical LORES/HIRES display, accept and virtualize it (same strategy Wine uses for DirectX surface requests).
+5. Add `screenmode_gtest.cpp` driver asserting: PPaint reaches its main editing window (>500 non-grey pixels in canvas area); FinalWriter's `DISABLED_AcceptDialogOpensEditorWindow` can be re-enabled and passes.
 
-### Phase 123: Typeface — font previewer ⏭️ Deferred
-> Typeface requires `bgui.library` v39+; documented in known limitations.
-
-The app exits at startup with a "Cannot open bgui.library v39+" error dialog (vision-confirmed via `tools/screenshot_review.py`). Per AGENTS.md, third-party libraries cannot be re-implemented in ROM, and a disk stub returning failure cleanly would produce the same end-user behavior. No real font-list / preview / `Text()` rendering coverage is reachable from this app.
-
-A future `Text()` regression-guard could come from another app (vim renders text, FinalWriter dialog text already covered) or from a real bgui.library if one becomes available.
+**Test gate**: PPaint no longer exits rv=26; FinalWriter editor opens after OK; `DISABLED_AcceptDialogOpensEditorWindow` renamed back to active.
 
 ---
 
-### Phase 124: FinalWriter — word processor ✅ Complete (v0.8.88)
-> Driver expanded from 3 → 8 enabled tests + 1 quarantined; sharding bug fixed.
+### Phase 130: Text() interception — semantic test assertions
 
-**Outcome**: The original FinalWriter driver had three problems: (1) sharded with a hardcoded FILTER that listed only `StartupOpensVisibleWindow`, silently orphaning `MainWindowCaptureShowsEditorRegions` and `AcceptDialogOpensEditorWindow` since Phase 103 (same bug as PPaint Phase 121); (2) `AcceptDialogOpensEditorWindow` actually fails because clicking OK causes FW to attempt opening a new screen mode, spawn two child processes that immediately `Exit(0)`, and the application terminates; (3) no coverage of the rich startup-dialog state (title, gadget set, list/button discovery).
+> **Unlocks: DOpus label verification, KickPascal editor content, FinalWriter document area, any app whose UI is text-heavy.**
 
-- [x] **Sharding fix**: Replaced single-shard FILTER with two shards (`finalwriter_startup_gtest`, `finalwriter_dialog_gtest`) covering all enabled tests; each shard fits under the 180s default timeout.
-- [x] **Quarantine the broken test**: `AcceptDialogOpensEditorWindow` renamed to `DISABLED_AcceptDialogOpensEditorWindow` so the failure mode is preserved in source for the day screen-mode emulation matures, but does not block CI.
-- [x] **Z-tests** (vision-model probe of the German startup dialog informed all 5):
-  - `ZStartupDialogTitleIsFinalWriterVersion` — title regression guard
-  - `ZStartupDialogExposesExpectedGadgetCount` — 18 ≤ gadget count ≤ 40
-  - `ZBottomButtonsResolveToValidGadgets` — `FindBottomButtonGadget(true/false)` finds OK and Abbruch with OK left of Abbruch
-  - `ZDisplayOptionsListIsLocatable` — `FindDisplayOptionsListGadget()` finds the LORES / "Wie Workbench" list
-  - `ZNoMissingLibraryOrPanicAtStartup` — no PANIC / null-BitMap entries (FinalWriter pulls swshell, cachemap, qfont, type1.loader from bundled FWLibs plus host FS-UAE system disk)
-  - `ZStartupDialogContentSurvivesIdle` — pixel count must retain ≥50% across an idle period
-- [ ] Editor-mode coverage (document editing, menus, font dialog, file requesters, scroll, print) — **deferred** (editor never opens; documented in known limitations).
+`_graphics_Text()` in `lxa_graphics.c` already has a `DPRINTF` that logs the string, position, and font. The infrastructure change is small:
 
----
+```c
+/* lxa_api.h addition */
+typedef void (*lxa_text_hook_t)(const char *str, int len, int x, int y, void *userdata);
+void lxa_set_text_hook(lxa_text_hook_t hook, void *userdata);
 
-### Phase 124: FinalWriter — word processor
-> Existing driver: `finalwriter_gtest.cpp` (startup + basic interaction)
+/* _graphics_Text() addition (before rendering) */
+if (g_text_hook)
+    g_text_hook((const char *)string, count, rp->cp_x, rp->cp_y, g_text_hook_userdata);
+```
 
-**Goal**: Extend to document editing, menu interaction, and requester dialogs.
+In tests:
+```cpp
+std::vector<std::string> text_log;
+lxa_set_text_hook([](const char *s, int n, int, int, void *ud) {
+    ((std::vector<std::string>*)ud)->push_back(std::string(s, n));
+}, &text_log);
+// ... run app ...
+EXPECT_TRUE(std::any_of(text_log.begin(), text_log.end(),
+    [](const auto &s){ return s.find("Copy") != std::string::npos; }));
+```
 
-- [ ] Audit current driver coverage; screenshot review of startup state
-- [ ] Document editing: inject text into the document area; verify it appears
-- [ ] Menu bar: test Format, View, and File menus via RMB drag
-- [ ] Font dialog: open font chooser (reqtools-based); verify graceful handling with stub
-- [ ] File → New / File → Open: verify requesters appear or fail gracefully
-- [ ] Scroll: inject cursor-down keypresses on a multi-line document; verify scroll
-- [ ] Print requester: trigger print dialog; verify it opens and can be cancelled
-- [ ] Screenshot review all states; pixel regression guards
-
----
-
-## Mid-term: Architecture and Performance
-
-- **Phase 125**: `lxa.c` decomposition — split the ~9,400-line monolith into `lxa_memory.c`, `lxa_custom.c`, `lxa_dispatch.c`, `lxa_dos_host.c`. Refactoring only; all tests must pass before and after.
-
-- **Phase 126**: Profiling infrastructure — `--profile` flag with per-ROM-function call counts and cycle costs; `perf`-friendly build config; top-10 hotspot report.
-
-- **Phase 127**: Memory access fast paths — direct word/long-aligned loads in `m68k_read/write_memory_16/32` for RAM/ROM; `__builtin_expect()` hints. Target: 2× reduction in per-instruction host overhead.
-
-- **Phase 128**: Display pipeline optimization — dirty-region tracking; SIMD planar-to-chunky; eliminate redundant SDL texture uploads.
+- [ ] Add `lxa_set_text_hook()` / `lxa_clear_text_hook()` to `lxa_api.c` / `lxa_api.h`
+- [ ] Add unit tests in `api_gtest.cpp` for hook registration and invocation
+- [ ] Update `dopus_gtest.cpp`: assert "Copy", "Move", "Delete" appear (or confirm absence pinpoints font-resolution bug)
+- [ ] Update `kickpascal_gtest.cpp`: assert "EDITOR" / "Insert" appear in text log after workspace accept
+- [ ] Update `finalwriter_gtest.cpp` (once editor opens via Phase 129): assert document area renders text
 
 ---
 
-## Long-term: CPU Emulation Evolution
+### Phase 131: Window/screen event log + menu introspection
+
+> **Combines infrastructure gaps 3 and 4. Replaces brittle window-count polling with semantic assertions. Unblocks MaxonBASIC and DevPac deeper menu workflows.**
+
+**Event log**: Add a circular event buffer (256 entries) on the host side. ROM Intuition's `OpenWindow`, `CloseWindow`, `OpenScreen`, `CloseScreen`, requester open/close all call through `lxa_api.c`. Add `lxa_push_event()` there and expose `lxa_drain_events()` to tests.
+
+**Menu introspection**: The Intuition `MenuStrip` is already a linked list in emulated memory. Add:
+```c
+/* lxa_api.h */
+lxa_menu_strip_t *lxa_get_menu_strip(int window_index);
+int lxa_get_menu_count(lxa_menu_strip_t *strip);
+lxa_menu_info_t lxa_get_menu_info(lxa_menu_strip_t *strip, int menu_idx, int item_idx);
+/* lxa_menu_info_t: { char name[64]; bool enabled; bool checked; int x, y, w, h; } */
+```
+
+- [ ] Implement event log in `lxa_api.c`; add `LxaTest::DrainEvents()` helper
+- [ ] Update `simplemenu_gtest.cpp`: replace window-count polling with event log assertions
+- [ ] Implement `lxa_get_menu_strip()` via emulated memory traversal
+- [ ] Add menu introspection tests in `maxonbasic_gtest.cpp`: assert German menu titles exist before coordinate-based drag
+- [ ] Add `devpac_gtest.cpp` menu introspection: assert Project/Edit/Assemble menus present
+
+---
+
+## Mid-Term: Rendering Fidelity (Phases 132–136)
+
+### Phase 132: SMART_REFRESH full backing store (second attempt)
+
+The first attempt (Phase 111) was reverted due to regressions (SIGMAth2 Analysis window, requester test timeouts). By Phase 132 the following tools exist that make this tractable:
+
+- Text interception (Phase 130): assert dialog content before and after
+- Window event log (Phase 131): detect open/close cycles precisely
+- Screen-mode fixes (Phase 129): fewer spurious failures from unrelated mode issues
+- Clean lxa.c modules (Phase 125): easier to isolate the backing store code path
+
+**Approach**:
+1. Write regression tests for the *known* failure cases from the first attempt *before* touching backing store code.
+2. Implement layer-level backing store for `WFLG_SMART_REFRESH` windows.
+3. Verify Phase 111's `DamageExposedAreas()` skip for SMART_REFRESH remains as a fallback for the edge cases.
+
+**Test gate**: Dialog-over-window scenarios don't stamp content; SIGMAth2 and requester tests pass.
+
+---
+
+### Phase 133: Menu double-buffering (ASM-One / MaxonBASIC flickering)
+
+ASM-One and MaxonBASIC exhibit pixel flicker during menu drags (documented in known limitations since Phase 118/116). Root cause: the menu bitmap is drawn and blit to screen without atomic compositing. Fix: render menu frame to an off-screen BitMap, then blit the completed frame in one operation.
+
+- [ ] Identify the menu render path in `lxa_intuition.c` / `lxa_layers.c`
+- [ ] Add off-screen buffer; render menu items to it; atomic blit to display
+- [ ] Update `ZMenuFlickerCheck` in `asm_one_gtest.cpp` from a content-floor guard to a pixel-stability assertion (before→after pixel count must be within 5%)
+- [ ] Verify MaxonBASIC menu drag no longer shows residue artifacts
+
+---
+
+### Phase 134: DirectoryOpus font/path resolution
+
+DOpus skeleton UI is correct (Phase 121), but text labels and the main button bank are absent. With Phase 130's text hook, the root cause is now diagnosable without pixel guessing:
+
+1. Enable text hook; run DOpus; inspect what (if anything) is logged.
+2. If nothing is logged, the drawing code is never reached — suspect `dopus.config` parse failure or a `MatchFirst()`/`ReadArgs()` call returning early.
+3. If the font name is logged but no bitmap appears, suspect `FONTS:` assign resolution.
+
+- [ ] Diagnose with text hook + Phase 131 event log
+- [ ] Implement the missing call or assign that blocks config/font loading
+- [ ] Update `dopus_gtest.cpp`: upgrade `MainWindowContainsRenderedContent` to assert specific button-bank labels appear
+
+---
+
+### Phase 135: BlitzBasic 2 ted editor deep dive
+
+Phase 119 established that ~13% of the editor surface fills with paint after menu interaction (menu-residue and status overlay), but the real editable text content never appears. The roadmap's current hypothesis: blitter copy modes, sprite hardware, or specific copper waits.
+
+With Phase 126's profiling data and Phase 125's clean modules, the investigation path is:
+
+1. Add blitter operation logging (mode, source, dest, size) for the ted render phase.
+2. Compare against the known ted behavior (BlitzBasic source/community docs).
+3. Identify unimplemented blitter copy modes (specifically `ABC` + `NABC` combinations used for text background clearing).
+4. Implement the missing modes; re-run vision-model review to confirm text renders.
+
+**Test gate**: `YEditorSurfaceShowsContentAfterMenuInteraction` in `blitzbasic2_gtest.cpp` upper bound (<50% fill) is replaced by a lower bound proving real text pixel density (>30% fill in the editor body).
+
+---
+
+### Phase 136: bgui.library stub → Typeface
+
+Per AGENTS.md, bgui must come from disk — it cannot be re-implemented in ROM. A stub that returns the library at the correct version (v39) but with all functions returning safe failures would let Typeface pass the `OpenLibrary` version check and expose what UI it tries to construct. This is worth attempting after Phase 130 (text hook) so we can observe what `Text()` calls Typeface makes before it fails.
+
+- [ ] Create `lxa_bgui.c` disk-library stub returning version 39, all vectors returning safe failures
+- [ ] Add to `sys/CMakeLists.txt` via `add_disk_library()`
+- [ ] Add `typeface_gtest.cpp` driver: assert Typeface reaches a non-exit state (even if the font list is empty)
+- [ ] Use text hook to observe what the font preview area renders
+
+---
+
+## Long-Term: Extended Coverage (Phase 137+)
+
+### Phase 137: External process emulation
+
+DevPac Assemble, ASM-One Assemble, BlitzBasic Run, KickPascal Compile/Run all require this. Needed: AmigaDOS `CreateProc()` / `Execute()` launching a real m68k subprocess within the emulated environment, with stdout piped back to the host.
+
+This is the deepest deferred item. Prerequisites: Phase 131 (event log to detect process lifetime), Phase 130 (capture output), and a stable foundation from all prior phases.
+
+---
+
+## Far Future: CPU Emulation Evolution
 
 Musashi (MIT, C89, interpreter) is adequate for correctness but limits throughput. No clean permissively-licensed x86-64 68k JIT exists today. Options assessed: Moira (MIT, no 68030 yet), UAE JIT (GPL, framework-entangled), Emu68 (MPL-2.0, ARM-only), Unicorn/QEMU (GPL).
 
-**Recommendation**: Stay on Musashi. Host-side overhead dominates (~95% of wall time). Revisit when Moira adds 68030 support or host optimizations are exhausted.
+**Recommendation**: Stay on Musashi. Host-side overhead dominates (~95% of wall time per Phase 126 estimate). Revisit when Moira adds 68030 support or host optimizations (Phases 127/128) are exhausted.
 
-- **Phase 129** (tentative): CPU core evaluation — re-evaluate Moira 68030 support; prototype if available; assess whether 68020 mode suffices for all tested apps.
-- **Phase 130** (tentative): Production readiness assessment — define use-case targets; set performance baselines; decide on JIT investment.
+- **Phase 138** (tentative): CPU core evaluation — re-evaluate Moira 68030 support; prototype if available; assess whether 68020 mode suffices for all tested apps.
+- **Phase 139** (tentative): Production readiness assessment — define use-case targets; set performance baselines; decide on JIT investment.
+
+---
+
+## Dependency Graph (Critical Path)
+
+```
+Phase 0 (shard audit) ──► Phase 125 (decompose lxa.c) ──► Phase 126 (profiling)
+                                                                │
+                                               ┌────────────────┤
+                                               ▼                ▼
+                                        Phase 127/128      Phase 129
+                                        (perf opts)    (screen-mode emulation)
+                                                            │
+                                                    ┌───────┴────────┐
+                                                    ▼                ▼
+                                            Phase 130            Phase 131
+                                          (Text hook)        (event log +
+                                                             menu introspect)
+                                                │                    │
+                                         ┌──────┴──────┐            │
+                                         ▼             ▼            ▼
+                                   Phase 132      Phase 134    Phase 133
+                                 (SMART_REFRESH)  (DOpus)     (menu dbl-buf)
+                                                      │
+                                               Phase 135 (BlitzBasic ted)
+                                                      │
+                                               Phase 136 (bgui/Typeface)
+                                                      │
+                                               Phase 137 (ext processes)
+                                                      │
+                                             Phase 138/139 (CPU evolution)
+```
 
 ---
 

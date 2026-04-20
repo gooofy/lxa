@@ -360,6 +360,51 @@ this flag dynamically via `ModifyIDCMP()`.
 - **Without qualifiers**: Apps that check qualifier state in INTUITICKS handlers
   (e.g., for auto-repeat while a button is held) will malfunction.
 
+### 6.16 Screen-Mode Emulation Architecture
+
+Many apps probe available display modes at startup using `GetDisplayInfoData()`, `BestModeIDA()`, and `NextDisplayInfo()`. lxa's display mode database is intentionally minimal (ECS LORES/HIRES + PAL/NTSC variants only). Apps like PPaint's CloantoScreenManager and FinalWriter exit early when the probe yields unexpected results.
+
+**Key constraints**:
+- `g_known_display_ids[]` in `lxa_graphics.c`: the authoritative list of what lxa will claim to support. Adding a mode ID here alone is not enough — `GetDisplayInfoData(DTAG_DIMS)` must also return plausible `MinRaster`/`MaxRaster` ranges for it.
+- `GetDisplayInfoData(DTAG_DIMS)` currently returns `MinRasterWidth == MaxRasterWidth` (pinned values). Apps that check whether a mode can render at a target size will reject all modes. The fix is to return realistic ranges (e.g., 320–1280 for HIRES).
+- `BestModeIDA()` currently ignores `BIDTAG_DIPFMustHave`/`MustNotHave` flags. Apps that require `DIPF_IS_WB` or exclude `DIPF_IS_LACE` get wrong results.
+- The `FindDisplayInfo()` → `NextDisplayInfo()` iteration returns a fake handle sequence. Iteration-based probes (like CloantoScreenManager) may behave differently from single-query probes.
+
+**Symptom pattern**: App opens and immediately exits with a return code ≥ 26, or opens probe windows briefly then terminates. Often preceded by a flood of `FindDisplayInfo()`/`GetDisplayInfoData()` log entries.
+
+**Fix philosophy**: Accept and virtualize any mode request that maps to our physical LORES/HIRES display — same as Wine accepting DirectX surface requests regardless of the exact format requested.
+
+### 6.17 CMake Shard Coverage — Safety Rule
+
+**Hardcoded `--gtest_filter` strings in `CMakeLists.txt` silently orphan newly added tests.** When a new `TEST_F` is added to a sharded driver's `.cpp` file but the FILTER string in `CMakeLists.txt` is not updated, `ctest` will run the shard binary but skip the new test entirely — no error, no warning.
+
+This has already caused orphaned tests in PPaint (Phase 121) and FinalWriter (Phase 124).
+
+**Rule**: After adding any `TEST_F` to a sharded driver, immediately update the corresponding `add_gtest_driver_shard` FILTER string in `tests/drivers/CMakeLists.txt`. The Phase 0 `tools/check_shard_coverage.py` script will catch violations in CI, but do not rely on CI to catch what you can prevent in the same commit.
+
+**Sharded drivers** (as of Phase 124): `simplegad`, `simplemenu`, `menulayout`, `fontreq`, `simplegtgadget`, `talk2boopsi`, `gadtoolsgadgets`, `vim`, `sigma`, `blitzbasic2`, `finalwriter`. Any new driver taking >60 seconds should be sharded from the start — see §6.7.
+
+### 6.18 Text Hook Architecture (Phase 130)
+
+`_graphics_Text()` in `lxa_graphics.c` is the single choke point for all ROM text rendering. Once Phase 130 adds `lxa_set_text_hook()`, tests can assert text content semantically instead of pixel-counting.
+
+**Pattern for new drivers** (after Phase 130 lands):
+```cpp
+// In SetUp():
+lxa_set_text_hook([](const char *s, int n, int /*x*/, int /*y*/, void *ud) {
+    ((std::vector<std::string>*)ud)->push_back(std::string(s, n));
+}, &text_log_);
+
+// In TearDown():
+lxa_clear_text_hook();
+
+// In tests:
+EXPECT_TRUE(std::any_of(text_log_.begin(), text_log_.end(),
+    [](const auto &s){ return s.find("EDITOR") != std::string::npos; }));
+```
+
+Until Phase 130 lands, use pixel-region counting (the existing approach) or DPRINTF log scanning as a proxy. Do not attempt to implement text extraction via ad-hoc DPRINTF log parsing — wait for the hook.
+
 ## 7. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.

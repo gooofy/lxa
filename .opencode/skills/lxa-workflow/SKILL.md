@@ -19,6 +19,7 @@ This skill guides you through the project management, versioning, and build proc
    - **Always** strive towards completing the phase you're working on. Create elaborate TODO lists to achieve that, do **not** stop early.
 3. **Finish**:
    - Validate (Tests + Coverage).
+   - **If you added tests to a sharded driver**: verify you updated the corresponding FILTER string in `tests/drivers/CMakeLists.txt`. Run `tools/check_shard_coverage.py` if available.
    - Update `roadmap.md` (`[x]`), compact/summarize done tasks, keep it clean and focused on the future.
    - If you intentionally defer unfinished work, rewrite the roadmap entry so the deferral is explicit and the phase status remains unambiguous.
    - Remove or rewrite roadmap items that would incorrectly re-implement third-party libraries; document that those libraries must be loaded from disk instead.
@@ -48,7 +49,7 @@ This skill guides you through the project management, versioning, and build proc
 ### Commands
 - **Full Build**: `./build.sh`
 - **Install**: `make -C build install`
-- **Run Tests**: `ctest --test-dir build --output-on-failure --timeout 60 -j16`
+- **Run Tests**: `ctest --test-dir build --output-on-failure --timeout 180 -j16`
 
 ### Artifacts
 - Host: `build/host/bin/lxa`

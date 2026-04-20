@@ -110,11 +110,71 @@ int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0);
 ```
 
 ## 7. Notes
-- Tests must run in < 30 seconds.
+- Tests must run in < 30 seconds per shard (interactive apps may need sharding — see lxa-testing §8.3).
 - Always clean up resources (close screens/windows).
 - Use `ClearOutput()` before the section you want to verify.
 - Check for specific strings with `output.find()`, don't compare entire output.
 - If a UI test depends on a third-party helper library, load the real library from disk instead of adding a ROM stub for it.
+
+## 9. Screen-Mode–Aware Testing
+
+Apps that probe display modes at startup (e.g., PPaint's CloantoScreenManager, FinalWriter) may exit early with rv=26 or open probe windows that are immediately discarded. Before writing tests that assume these apps reach their main UI, verify Phase 129 has landed.
+
+**Symptoms that screen-mode emulation is the blocker**:
+- App exits immediately (rv ≥ 26) with no UI visible
+- App opens and closes small windows in rapid succession
+- `lxa.log` shows a flood of `FindDisplayInfo()`/`GetDisplayInfoData()` calls followed by an exit
+
+**Test pattern for apps that probe modes**:
+```cpp
+// Guard at the top of a test that requires the full UI
+if (!lxa_screen_mode_full_emulation_available()) {
+    GTEST_SKIP() << "Requires Phase 129 screen-mode emulation";
+}
+```
+
+Until Phase 129, tests for these apps must focus on what is reachable: probe-window geometry bounds, log guards (no PANIC / null-BitMap), and capture-pipeline survival.
+
+## 10. Text Extraction (Phase 130+)
+
+After Phase 130 lands, prefer `lxa_set_text_hook()` over pixel-counting for content assertions. The hook fires on every `Text()` call in the ROM, regardless of which app or window is active.
+
+**Typical driver pattern**:
+```cpp
+class MyAppTest : public LxaUITest {
+    std::vector<std::string> text_log_;
+protected:
+    void SetUp() override {
+        LxaUITest::SetUp();
+        lxa_set_text_hook([](const char *s, int n, int, int, void *ud) {
+            static_cast<std::vector<std::string>*>(ud)->push_back({s, (size_t)n});
+        }, &text_log_);
+        // ... load app ...
+    }
+    void TearDown() override {
+        lxa_clear_text_hook();
+        LxaUITest::TearDown();
+    }
+    bool TextSeen(const char *needle) const {
+        return std::any_of(text_log_.begin(), text_log_.end(),
+            [&](const auto &s){ return s.find(needle) != std::string::npos; });
+    }
+};
+
+TEST_F(MyAppTest, EditorStatusBarRenders) {
+    // ... accept workspace prompt ...
+    EXPECT_TRUE(TextSeen("EDITOR"));
+}
+```
+
+**When to prefer text hook over pixel counting**:
+| Assertion | Prefer |
+|-----------|--------|
+| "Some text appears in this region" | Text hook |
+| "At least N non-grey pixels in this band" | Pixel count |
+| "UI hasn't changed after idle period" | Pixel count (stability) |
+| "This specific label renders" | Text hook |
+| "Menu title is correct" | Menu introspection (Phase 131) |
 
 ## 8. Visual Investigation with `tools/screenshot_review.py`
 

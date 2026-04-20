@@ -105,11 +105,11 @@ Before completing a task:
 
 ### 5.2 Full Test Suite
 ```bash
-# ALWAYS use -j16 for parallel execution
-cd build && ctest --output-on-failure --timeout 60 -j16
+# ALWAYS use -j16 for parallel execution, ALWAYS use --timeout 180 to detect hangs
+cd build && ctest --output-on-failure --timeout 180 -j16
 
 # Equivalent from project root:
-ctest --test-dir build --output-on-failure --timeout 60 -j16
+ctest --test-dir build --output-on-failure --timeout 180 -j16
 ```
 
 ### 5.3 Parallelism Guidelines
@@ -135,7 +135,7 @@ is safe.
 ### 5.4 Running Specific Tests
 ```bash
 # By test name (via ctest):
-ctest --test-dir build --output-on-failure  --timeout 60 -R shell_gtest
+ctest --test-dir build --output-on-failure --timeout 180 -R shell_gtest
 
 # By GTest filter (direct binary execution):
 ./build/tests/drivers/shell_gtest --gtest_filter="ShellTest.Variables"
@@ -159,7 +159,7 @@ done
 # Full suite reliability (N consecutive runs):
 for run in $(seq 1 5); do
     echo "=== Run $run ==="
-    ctest --test-dir build --output-on-failure --timeout 60 -j16 2>&1 | grep "tests passed"
+    ctest --test-dir build --output-on-failure --timeout 180 -j16 2>&1 | grep "tests passed"
 done
 ```
 
@@ -251,9 +251,47 @@ optimizations (Phases 106-107) reduced this from ~210s through:
   `simplegad_gtest.cpp` or `cluster2_gtest.cpp`.
 - **Consider test sharding early**: If a driver has >4 test cases and takes
   >30 seconds, shard it from the start.
+- **Shard filter safety**: When adding a `TEST_F` to a sharded driver, you MUST
+  update the corresponding `add_gtest_driver_shard` FILTER string in
+  `tests/drivers/CMakeLists.txt`. Missing this silently orphans the test — ctest
+  runs the binary but the new test is never executed. The `tools/check_shard_coverage.py`
+  CI check (Phase 0) will catch violations, but update FILTER in the same commit.
 - **Custom UI apps**: Some apps (Cluster2) use zero Intuition gadgets and
   render everything custom. `GetGadgetCount()` returns 0 for these. Tests
   must use raw coordinate clicks and pixel-change verification instead of
   gadget introspection.
 - **Place destructive tests last**: Tests that close windows or quit the app
   must be the last test in a persistent fixture suite.
+
+## 9. Upcoming API Extensions (Phase 130+)
+
+These APIs are planned but not yet implemented. Do not use until the corresponding phase lands.
+
+### 9.1 Text Hook (Phase 130)
+```cpp
+// After Phase 130: semantic text assertions without pixel-counting
+std::vector<std::string> text_log;
+lxa_set_text_hook([](const char *s, int n, int, int, void *ud) {
+    ((std::vector<std::string>*)ud)->push_back(std::string(s, n));
+}, &text_log);
+// ... run app ...
+lxa_clear_text_hook();
+EXPECT_TRUE(std::any_of(text_log.begin(), text_log.end(),
+    [](const auto &s){ return s.find("EDITOR") != std::string::npos; }));
+```
+
+### 9.2 Window/Screen Event Log (Phase 131)
+```cpp
+// After Phase 131: detect open/close cycles without window-count polling
+lxa_drain_events(events, &count);
+// events[] contains LXA_EVENT_OPEN_WINDOW, LXA_EVENT_CLOSE_WINDOW, etc.
+```
+
+### 9.3 Menu Introspection (Phase 131)
+```cpp
+// After Phase 131: assert menu structure without hardcoded coordinates
+lxa_menu_strip_t *strip = lxa_get_menu_strip(0);
+lxa_menu_info_t info = lxa_get_menu_info(strip, 0, -1); // menu 0, no item
+EXPECT_STREQ(info.name, "Project");
+EXPECT_TRUE(info.enabled);
+```
