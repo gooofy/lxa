@@ -5,6 +5,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <time.h>
 
 using namespace lxa::testing;
 
@@ -12,6 +13,7 @@ class SIGMAth2Test : public LxaUITest {
 protected:
     int analysis_window_index = 0;
     int outer_window_index = 0;
+    long startup_ms_ = -1;  /* Phase 126: latency baseline */
 
     bool SetupOriginalSystemAssigns(bool add_libs = false,
                                     bool add_fonts = false,
@@ -182,6 +184,8 @@ protected:
         ASSERT_EQ(lxa_load_program("APPS:SIGMAth2/SIGMAth_2", ""), 0)
             << "Failed to load SIGMAth2 via APPS: assign";
 
+        struct timespec _t0, _t1;
+        clock_gettime(CLOCK_MONOTONIC, &_t0);
         /* SIGMAth2 lifecycle:
          * 1. Opens first window (640x256) on a custom 3-bitplane screen
          * 2. Creates subprocess via CreateNewProc()
@@ -194,6 +198,9 @@ protected:
         ASSERT_TRUE(WaitForWindows(1, 20000))
             << "SIGMAth2 did not open initial tracked window\n"
             << GetOutput();
+        clock_gettime(CLOCK_MONOTONIC, &_t1);
+        startup_ms_ = (_t1.tv_sec - _t0.tv_sec) * 1000L +
+                      (_t1.tv_nsec - _t0.tv_nsec) / 1000000L;
 
         /* Let the app settle through its startup sequence */
         WaitForEventLoop(60, 10000);
@@ -824,6 +831,15 @@ TEST_F(SIGMAth2Test, FileMenuOpenSurvivesRequester)
     /* Verify the original windows are still present */
     EXPECT_GE(lxa_get_window_count(), baseline_windows - 1)
         << "SIGMAth2 should keep most windows after file-requester flow";
+}
+
+/* Phase 126: startup latency baseline sentinel */
+TEST_F(SIGMAth2Test, ZStartupLatency)
+{
+    ASSERT_GE(startup_ms_, 0) << "Startup time was not recorded";
+    EXPECT_LE(startup_ms_, 20000L)
+        << "SIGMAth2 startup latency " << startup_ms_ << " ms exceeds 20 s baseline";
+    fprintf(stderr, "[LATENCY] SIGMAth2 startup: %ld ms\n", startup_ms_);
 }
 
 int main(int argc, char **argv)

@@ -333,7 +333,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/vim_gtest.cpp)
         add_gtest_driver_target(vim_gtest)
         add_gtest_driver_shard(vim_startup_gtest vim_gtest
-            FILTER "VimTest.StartupOpensFileAndDrawsEditor"
+            FILTER "VimTest.StartupOpensFileAndDrawsEditor:VimTest.ZStartupLatency"
             TIMEOUT 180)
         add_gtest_driver_shard(vim_editing_gtest vim_gtest
             FILTER "VimTest.CursorAndInsertModeRedrawWindow:VimTest.InsertModeTypingAndCommandModeWriteFile:VimTest.TypingAndSavingWritesHostFile"
@@ -349,7 +349,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/finalwriter_gtest.cpp)
         add_gtest_driver_target(finalwriter_gtest)
         add_gtest_driver_shard(finalwriter_startup_gtest finalwriter_gtest
-            FILTER "FinalWriterTest.StartupOpensVisibleWindow:FinalWriterTest.MainWindowCaptureShowsEditorRegions:FinalWriterTest.ZStartupDialogTitleIsFinalWriterVersion:FinalWriterTest.ZStartupDialogExposesExpectedGadgetCount"
+            FILTER "FinalWriterTest.StartupOpensVisibleWindow:FinalWriterTest.MainWindowCaptureShowsEditorRegions:FinalWriterTest.ZStartupDialogTitleIsFinalWriterVersion:FinalWriterTest.ZStartupDialogExposesExpectedGadgetCount:FinalWriterTest.ZStartupLatency"
             TIMEOUT 180)
         add_gtest_driver_shard(finalwriter_dialog_gtest finalwriter_gtest
             FILTER "FinalWriterTest.ZBottomButtonsResolveToValidGadgets:FinalWriterTest.ZDisplayOptionsListIsLocatable:FinalWriterTest.ZNoMissingLibraryOrPanicAtStartup:FinalWriterTest.ZStartupDialogContentSurvivesIdle"
@@ -367,7 +367,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/sigma_gtest.cpp)
         add_gtest_driver_target(sigma_gtest)
         add_gtest_driver_shard(sigma_startup_gtest sigma_gtest
-            FILTER "SIGMAth2Test.StartupOpensVisibleAnalysisWindow:SIGMAth2Test.StartupKeepsRunningWithoutResourceFailures:SIGMAth2Test.MainWindowCaptureContainsVisibleUiRegions:SIGMAth2Test.MenuBarRightMouseSmokeKeepsAnalysisWindowAlive"
+            FILTER "SIGMAth2Test.StartupOpensVisibleAnalysisWindow:SIGMAth2Test.StartupKeepsRunningWithoutResourceFailures:SIGMAth2Test.MainWindowCaptureContainsVisibleUiRegions:SIGMAth2Test.MenuBarRightMouseSmokeKeepsAnalysisWindowAlive:SIGMAth2Test.ZStartupLatency"
             TIMEOUT 180)
         add_gtest_driver_shard(sigma_interaction_gtest sigma_gtest
             FILTER "SIGMAth2Test.AnalysisWindowGadgetGridLayout:SIGMAth2Test.AboutDialogOpensAndCloses:SIGMAth2Test.ButtonClickInteraction:SIGMAth2Test.StringGadgetAcceptsInput:SIGMAth2Test.ScrollGadgetInteraction:SIGMAth2Test.ButtonAreaGadgetsAreConsistentlyPlaced:SIGMAth2Test.DisplayFrameContainsRenderedContent:SIGMAth2Test.FileMenuOpenSurvivesRequester"

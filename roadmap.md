@@ -30,6 +30,8 @@
 | 124 | FinalWriter driver expansion: dialog-state coverage (title regression, gadget count, OK/Cancel button discovery, display-options list discovery, missing-library/PANIC log guards, idle-time content stability); FinalWriter sharding bug fix (orphaned tests); broken `AcceptDialogOpensEditorWindow` quarantined as DISABLED_ | v0.8.88 |
 | 0 | CMake shard coverage safety: audit all sharded drivers (4 orphaned GadTools tests fixed), `tools/check_shard_coverage.py` written and registered as `shard_coverage_check` CTest meta-test | v0.8.89 |
 | 125 | `lxa.c` decomposition: split 9,960-line monolith into `lxa_custom.c`, `lxa_dispatch.c`, `lxa_dos_host.c`, `lxa_internal.h`, `lxa_memory.h`; `lxa.c` reduced to ~1,658 lines | v0.8.90 |
+| 126 | Profiling infrastructure: `lxa_profile.c` with per-EMU_CALL counters + timing; `--profile <path>` flag on lxa binary; `tools/profile_report.py` analysis tool; `ZStartupLatency` baseline tests in SysInfo, DOpus, FinalWriter, SIGMAth2, Cluster2, BlitzBasic2, Vim drivers; profiling API unit tests in `api_gtest.cpp` | v0.9.0 |
+| 127 | Memory access fast paths: direct bswap-based 16/32-bit RAM and ROM reads/writes in `m68k_read/write_memory_16/32`; `__builtin_expect` hints on hot paths in `mread8`/`mwrite8`; 4 byte-order correctness unit tests in `api_gtest.cpp` | v0.9.1 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering (Phase 133)
@@ -82,32 +84,9 @@
 
 7. **No audio state introspection**: Apps using audio.device have no observable test output. No tests require this yet.
 
-8. **No per-app timing baselines** → **Phase 126**: We know total suite wall time but not per-app startup latency. Regressions in emulation speed are invisible until the whole suite slows down. Per-app baseline tests added during profiling phase.
-
 ---
 
-## Short-Term: Architecture + Observability (Phases 125–131)
-
-### Phase 126: Profiling infrastructure
-
-- `--profile` flag: per-ROM-function call counts and cycle costs, written as JSON on exit.
-- `perf`-friendly build config (`-fno-omit-frame-pointer`, debug symbols, `-DPROFILE_BUILD` CMake option).
-- `tools/profile_report.py`: reads JSON, prints top-10 hotspots by call count and by cumulative cycles.
-- **Per-app startup latency baselines**: add a `ZStartupLatency` timing test to each major app driver (SysInfo, Vim, DOpus, FinalWriter, etc.) that asserts startup completes within a cycle budget. These become performance regression sentinels.
-
-**Why before optimizing**: The roadmap estimate ("host-side overhead ~95% of wall time") is a rough number. Profile data determines which of Phase 127/128 to do first and how much to expect from each.
-
----
-
-### Phase 127: Memory access fast paths
-
-Direct word/long-aligned loads in `m68k_read/write_memory_16/32` for the common RAM/ROM case; `__builtin_expect()` hints on the hot path; eliminate redundant range checks for addresses already validated in the dispatch table.
-
-**Target**: 2× reduction in per-instruction host overhead (to be verified against Phase 126 baseline).
-
-**Test gate**: Phase 126 latency baselines must not regress; full suite passes.
-
----
+## Short-Term: Architecture + Observability (Phases 128–131)
 
 ### Phase 128: Display pipeline optimization
 

@@ -18,6 +18,8 @@
 #include <string.h>
 #include <signal.h>
 #include <sys/time.h>
+#include <time.h>
+#include <inttypes.h>
 #include <linux/limits.h>
 
 /* External declarations for lxa.c globals and functions */
@@ -375,6 +377,9 @@ int lxa_init(const lxa_config_t *config)
         return -1;
     }
 
+    /* Reset profiling counters for fresh run */
+    lxa_profile_reset();
+
     /* Set verbose mode */
     g_verbose = config->verbose;
 
@@ -491,6 +496,7 @@ void lxa_shutdown(void)
     vfs_reset();
     util_shutdown();
     lxa_reset_host_state();
+    lxa_profile_reset();
 
     g_api_initialized = false;
 }
@@ -1342,4 +1348,3 @@ uint8_t lxa_peek8(uint32_t addr)
     return m68k_read_memory_8(addr);
 }
 
-/* PC sampling is implemented in lxa.c (cpu_instr_callback fast path) */

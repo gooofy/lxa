@@ -528,6 +528,59 @@ uint16_t lxa_peek16(uint32_t addr);
  */
 uint8_t lxa_peek8(uint32_t addr);
 
+/* ========== Profiling API ========== */
+
+/*
+ * Maximum number of distinct EMU_CALL IDs tracked by the profiler.
+ * Covers the full range 0–5999 used in emucalls.h.
+ */
+#define LXA_PROFILE_MAX_EMUCALL  6000
+
+/*
+ * Per-call profiling record.
+ */
+typedef struct lxa_profile_entry {
+    int      emucall_id;        /* EMU_CALL_* constant */
+    uint64_t call_count;        /* Number of invocations */
+    uint64_t total_ns;          /* Total wall-clock nanoseconds spent */
+} lxa_profile_entry_t;
+
+/*
+ * Reset all profiling counters.
+ * Safe to call at any time (including before lxa_init).
+ */
+void lxa_profile_reset(void);
+
+/*
+ * Get profiling data for all EMU_CALL IDs that were called at least once.
+ *
+ * @param entries   Caller-supplied array of lxa_profile_entry_t
+ * @param max_count Size of the entries array
+ * @return Number of entries filled (entries with call_count > 0)
+ */
+int lxa_profile_get(lxa_profile_entry_t *entries, int max_count);
+
+/*
+ * Write profiling data as JSON to a file.
+ * The JSON is an array of objects:
+ *   [{"id": 1000, "name": "EMU_CALL_DOS_OPEN", "calls": 42, "total_ns": 12345}, ...]
+ * sorted by total_ns descending.
+ *
+ * @param path  Output file path (creates or truncates)
+ * @return true on success
+ */
+bool lxa_profile_write_json(const char *path);
+
+/*
+ * Return the canonical name string for an EMU_CALL_* constant, or
+ * "EMU_CALL_UNKNOWN_<id>" if the id is not recognized.
+ *
+ * @param emucall_id  EMU_CALL_* constant
+ * @param buf         Caller-supplied buffer
+ * @param buf_size    Size of buf
+ */
+void lxa_profile_emucall_name(int emucall_id, char *buf, int buf_size);
+
 #ifdef __cplusplus
 }
 #endif

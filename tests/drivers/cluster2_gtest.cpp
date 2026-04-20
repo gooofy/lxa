@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <chrono>
 #include <string>
+#include <time.h>
 
 using namespace lxa::testing;
 
@@ -29,6 +30,7 @@ protected:
     static std::string s_ram_dir;
     static std::string s_t_dir;
     static std::string s_env_dir;
+    static long s_startup_ms;   /* Phase 126: startup latency baseline */
 
     static void SetUpTestSuite()
     {
@@ -90,6 +92,8 @@ protected:
         lxa_add_assign("Cluster", cluster_base.c_str());
 
         /* Load Cluster2 */
+        struct timespec _t0, _t1;
+        clock_gettime(CLOCK_MONOTONIC, &_t0);
         if (lxa_load_program("APPS:Cluster2/bin/Cluster2/Editor", "") != 0) {
             fprintf(stderr, "Cluster2Test: failed to load Cluster2\n");
             lxa_shutdown();
@@ -101,6 +105,9 @@ protected:
             lxa_shutdown();
             return;
         }
+        clock_gettime(CLOCK_MONOTONIC, &_t1);
+        s_startup_ms = (_t1.tv_sec - _t0.tv_sec) * 1000L +
+                       (_t1.tv_nsec - _t0.tv_nsec) / 1000000L;
 
         if (!lxa_get_window_info(0, &s_window_info)) {
             fprintf(stderr, "Cluster2Test: could not get window info\n");
@@ -287,6 +294,7 @@ lxa_window_info_t   Cluster2Test::s_window_info = {};
 std::string         Cluster2Test::s_ram_dir;
 std::string         Cluster2Test::s_t_dir;
 std::string         Cluster2Test::s_env_dir;
+long                Cluster2Test::s_startup_ms = -1;
 
 /* ===================================================================== */
 /* Read-only tests first (no state mutation)                             */
@@ -526,6 +534,16 @@ TEST_F(Cluster2Test, ExitButtonResponds)
     EXPECT_TRUE(lxa_is_running())
         << "Cluster2 should survive EXIT button click "
            "(EXIT may not respond due to custom toolbar coordinate mapping)";
+}
+
+/* Phase 126: startup latency baseline sentinel */
+TEST_F(Cluster2Test, ZStartupLatency)
+{
+    if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    ASSERT_GE(s_startup_ms, 0) << "Startup time was not recorded";
+    EXPECT_LE(s_startup_ms, 20000L)
+        << "Cluster2 startup latency " << s_startup_ms << " ms exceeds 20 s baseline";
+    fprintf(stderr, "[LATENCY] Cluster2 startup: %ld ms\n", s_startup_ms);
 }
 
 int main(int argc, char **argv)

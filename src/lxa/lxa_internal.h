@@ -447,6 +447,11 @@ bool lxa_host_console_enqueue_rawkey(int rawkey, int qualifier, bool down);
 /* From lxa_dispatch.c */
 int op_illg(int level);
 
+/* Phase 126: Profiling counters (defined in lxa_api.c, updated in lxa_dispatch.c) */
+#define LXA_PROFILE_MAX_EMUCALL 6000
+extern uint64_t g_profile_calls[LXA_PROFILE_MAX_EMUCALL];
+extern uint64_t g_profile_ns[LXA_PROFILE_MAX_EMUCALL];
+
 /* Debugger jitter tolerance when matching symbol names to PC */
 #define MAX_JITTER 1024
 

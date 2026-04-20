@@ -6,12 +6,61 @@
  * lxa_internal.h) in every file that calls these functions directly.
  *
  * Phase 125: lxa.c decomposition.
+ * Phase 127: fast-path 16/32-bit helpers for RAM and ROM using bswap.
  */
 
 #ifndef LXA_MEMORY_H
 #define LXA_MEMORY_H
 
 #include "lxa_internal.h"
+#include <string.h>  /* memcpy */
+
+/*
+ * Fast-path helpers: read/write 16 or 32 bits from g_ram[] (big-endian m68k
+ * to little-endian host) without going through four mread8() calls.
+ * memcpy is used instead of a raw pointer cast to handle unaligned accesses
+ * safely (the compiler will emit a single load instruction on x86-64).
+ */
+
+static inline uint16_t mread16_ram(uint32_t addr)
+{
+    uint16_t v;
+    memcpy(&v, &g_ram[addr], 2);
+    return __builtin_bswap16(v);
+}
+
+static inline uint32_t mread32_ram(uint32_t addr)
+{
+    uint32_t v;
+    memcpy(&v, &g_ram[addr], 4);
+    return __builtin_bswap32(v);
+}
+
+static inline void mwrite16_ram(uint32_t addr, uint16_t value)
+{
+    uint16_t v = __builtin_bswap16(value);
+    memcpy(&g_ram[addr], &v, 2);
+}
+
+static inline void mwrite32_ram(uint32_t addr, uint32_t value)
+{
+    uint32_t v = __builtin_bswap32(value);
+    memcpy(&g_ram[addr], &v, 4);
+}
+
+static inline uint16_t mread16_rom(uint32_t addr)
+{
+    uint16_t v;
+    memcpy(&v, &g_rom[addr], 2);
+    return __builtin_bswap16(v);
+}
+
+static inline uint32_t mread32_rom(uint32_t addr)
+{
+    uint32_t v;
+    memcpy(&v, &g_rom[addr], 4);
+    return __builtin_bswap32(v);
+}
 
 static inline uint8_t mread8(uint32_t address)
 {
@@ -20,12 +69,12 @@ static inline uint8_t mread8(uint32_t address)
      * positives with applications that legitimately read from low memory.
      */
 
-    if ((address >= RAM_START) && (address <= RAM_END))
+    if (__builtin_expect((address >= RAM_START) && (address <= RAM_END), 1))
     {
         uint32_t addr = address - RAM_START;
         return g_ram[addr];
     }
-    else if ((address >= ROM_START) && (address <= ROM_END))
+    else if (__builtin_expect((address >= ROM_START) && (address <= ROM_END), 0))
     {
         uint32_t addr = address - ROM_START;
         return g_rom[addr];
@@ -175,7 +224,7 @@ static inline uint8_t mread8(uint32_t address)
 
 static inline void mwrite8(uint32_t address, uint8_t value)
 {
-    if ((address >= RAM_START) && (address <= RAM_END))
+    if (__builtin_expect((address >= RAM_START) && (address <= RAM_END), 1))
     {
         uint32_t addr = address - RAM_START;
         g_ram[addr] = value;

@@ -18,6 +18,7 @@
 
 #include <algorithm>
 #include <string>
+#include <time.h>
 
 using namespace lxa::testing;
 
@@ -50,6 +51,7 @@ protected:
     static std::string s_ram_dir;
     static std::string s_t_dir;
     static std::string s_env_dir;
+    static long s_startup_ms;   /* Phase 126: startup latency baseline */
 
     static void SetUpTestSuite()
     {
@@ -108,6 +110,8 @@ protected:
         }
 
         /* Load SysInfo */
+        struct timespec _t0, _t1;
+        clock_gettime(CLOCK_MONOTONIC, &_t0);
         if (lxa_load_program("APPS:SysInfo/bin/SysInfo/SysInfo", "") != 0) {
             fprintf(stderr, "SysInfoTest: failed to load SysInfo\n");
             lxa_shutdown();
@@ -119,6 +123,9 @@ protected:
             lxa_shutdown();
             return;
         }
+        clock_gettime(CLOCK_MONOTONIC, &_t1);
+        s_startup_ms = (_t1.tv_sec - _t0.tv_sec) * 1000L +
+                       (_t1.tv_nsec - _t0.tv_nsec) / 1000000L;
 
         if (!lxa_get_window_info(0, &s_window_info)) {
             fprintf(stderr, "SysInfoTest: could not get window info\n");
@@ -261,6 +268,7 @@ lxa_window_info_t   SysInfoTest::s_window_info = {};
 std::string         SysInfoTest::s_ram_dir;
 std::string         SysInfoTest::s_t_dir;
 std::string         SysInfoTest::s_env_dir;
+long                SysInfoTest::s_startup_ms = -1;
 
 /* ===================================================================== */
 /* Read-only tests first (no state mutation)                             */
@@ -588,6 +596,18 @@ TEST_F(SysInfoTest, CloseGadgetLeavesApplicationRunning)
         << "SysInfo should ignore the close gadget and keep its custom screen running";
     EXPECT_EQ(lxa_get_window_count(), 1)
         << "SysInfo should keep its main window open after a close-gadget click";
+}
+
+/* Phase 126: startup latency baseline sentinel */
+TEST_F(SysInfoTest, ZStartupLatency)
+{
+    if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    ASSERT_GE(s_startup_ms, 0) << "Startup time was not recorded";
+    /* Baseline: SysInfo must open its main window within 15 seconds of wall time */
+    EXPECT_LE(s_startup_ms, 15000L)
+        << "SysInfo startup latency " << s_startup_ms
+        << " ms exceeds 15 s baseline";
+    fprintf(stderr, "[LATENCY] SysInfo startup: %ld ms\n", s_startup_ms);
 }
 
 int main(int argc, char **argv)

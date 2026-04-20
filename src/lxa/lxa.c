@@ -1,5 +1,6 @@
 #include "lxa_internal.h"
 #include "lxa_memory.h"
+#include "lxa_api.h"
 
 
 #define RAM_START   0x000000
@@ -1158,6 +1159,7 @@ static void print_usage(char *argv[])
     fprintf(stderr, "    -c <config>    use config file (default: ~/.lxa/config.ini)\n");
     fprintf(stderr, "    -d             enable debug output\n");
     fprintf(stderr, "    -h, --help     display this help and exit\n");
+    fprintf(stderr, "    --profile <path>  write profiling JSON to path on exit\n");
     fprintf(stderr, "    -r <rom>       use kickstart ROM (auto-detected if not specified)\n");
     fprintf(stderr, "    -v             verbose mode\n");
     fprintf(stderr, "    -t             trace mode\n");
@@ -1251,6 +1253,7 @@ int main(int argc, char **argv, char **envp)
 {
     char *rom_path = NULL;
     char *config_path = NULL;
+    char *profile_path = NULL;
     int optind=0;
 
     /* Pending assigns from command line flags (applied after config is loaded) */
@@ -1294,6 +1297,18 @@ int main(int argc, char **argv, char **envp)
 
             queue_pending_assign(pending_assigns, &num_pending_assigns, spec,
                                  PENDING_ASSIGN_REPLACE, "--assign");
+            continue;
+        }
+
+        if (strcmp(argv[optind], "--profile") == 0)
+        {
+            const char *val = get_option_value(argc, argv, &optind, argv[optind], "--profile");
+            if (!val)
+            {
+                print_usage(argv);
+                exit(EXIT_FAILURE);
+            }
+            profile_path = (char *)val;
             continue;
         }
 
@@ -1650,6 +1665,9 @@ int main(int argc, char **argv, char **envp)
     setitimer(ITIMER_REAL, &timer, NULL);
 
     _audio_shutdown();
+
+    if (profile_path)
+        lxa_profile_write_json(profile_path);
 
     return g_rv;
 }

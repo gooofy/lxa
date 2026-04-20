@@ -38,6 +38,13 @@ void m68k_write_memory_8(unsigned int address, unsigned int value)
 
 void m68k_write_memory_16(unsigned int address, unsigned int value)
 {
+    /* Fast path: RAM write (most common case) */
+    if (__builtin_expect((address >= RAM_START) && (address + 1 <= RAM_END), 1))
+    {
+        mwrite16_ram(address - RAM_START, (uint16_t)value);
+        return;
+    }
+
     if ((address >= CUSTOM_START) && (address <= CUSTOM_END))
     {
         _handle_custom_write (address & 0xfff, value);
@@ -53,6 +60,13 @@ void m68k_write_memory_16(unsigned int address, unsigned int value)
 
 void m68k_write_memory_32(unsigned int address, unsigned int value)
 {
+    /* Fast path: RAM write (most common case) */
+    if (__builtin_expect((address >= RAM_START) && (address + 3 <= RAM_END), 1))
+    {
+        mwrite32_ram(address - RAM_START, value);
+        return;
+    }
+
     // if (g_trace)
     //     DPRINTF("WRITE32 at 0x%08x -> 0x%08x\n", address, value);
 
@@ -86,6 +100,14 @@ unsigned int m68k_read_memory_8(unsigned int address)
 
 unsigned int m68k_read_memory_16(unsigned int address)
 {
+    /* Fast path: RAM read (most common case) */
+    if (__builtin_expect((address >= RAM_START) && (address + 1 <= RAM_END), 1))
+        return mread16_ram(address - RAM_START);
+
+    /* Fast path: ROM read (second most common) */
+    if (__builtin_expect((address >= ROM_START) && (address + 1 <= ROM_END), 0))
+        return mread16_rom(address - ROM_START);
+
     // if (g_trace)
     //     DPRINTF("READ16 at 0x%08x\n", address);
     unsigned int result = (unsigned int)mread8 (address) << 8;
@@ -95,6 +117,14 @@ unsigned int m68k_read_memory_16(unsigned int address)
 
 unsigned int m68k_read_memory_32(unsigned int address)
 {
+    /* Fast path: RAM read (most common case) */
+    if (__builtin_expect((address >= RAM_START) && (address + 3 <= RAM_END), 1))
+        return mread32_ram(address - RAM_START);
+
+    /* Fast path: ROM read (second most common) */
+    if (__builtin_expect((address >= ROM_START) && (address + 3 <= ROM_END), 0))
+        return mread32_rom(address - ROM_START);
+
     // if (g_trace)
     //     DPRINTF("READ32 at 0x%08x\n", address);
     unsigned int result = (unsigned int)mread8 (address)     << 24;
@@ -133,6 +163,11 @@ int op_illg(int level)
 {
     uint32_t d0 = m68k_get_reg(NULL, M68K_REG_D0);
     //DPRINTF (LOG_INFO, "ILLEGAL, d=%d\n", d0);
+
+#ifdef PROFILE_BUILD
+    struct timespec _prof_start, _prof_end;
+    clock_gettime(CLOCK_MONOTONIC, &_prof_start);
+#endif
 
     switch (d0)
     {
@@ -3426,6 +3461,16 @@ int op_illg(int level)
             break;
         }
     }
+
+#ifdef PROFILE_BUILD
+    clock_gettime(CLOCK_MONOTONIC, &_prof_end);
+    if (d0 < LXA_PROFILE_MAX_EMUCALL)
+    {
+        g_profile_calls[d0]++;
+        g_profile_ns[d0] += (uint64_t)(_prof_end.tv_sec  - _prof_start.tv_sec)  * 1000000000ULL
+                           + (uint64_t)(_prof_end.tv_nsec - _prof_start.tv_nsec);
+    }
+#endif
 
     return M68K_INT_ACK_AUTOVECTOR;
 }

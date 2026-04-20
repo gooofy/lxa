@@ -34,6 +34,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <time.h>
 
 using namespace lxa::testing;
 
@@ -47,6 +48,7 @@ protected:
     int         gadget_count       = -1;
     int         content_pixels     = 0;
     std::string startup_output;
+    long        startup_ms_        = -1;  /* Phase 126: latency baseline */
 
     void FlushAndSettle()
     {
@@ -79,12 +81,17 @@ protected:
 
         /* DOpus' libs/, s/, c/, l/ are auto-prepended to the matching
          * assigns by lxa when the program is loaded from its own dir. */
+        struct timespec _t0, _t1;
+        clock_gettime(CLOCK_MONOTONIC, &_t0);
         ASSERT_EQ(lxa_load_program("APPS:DirectoryOpus/bin/DOPUS/DirectoryOpus", ""), 0)
             << "Failed to load DirectoryOpus via APPS: assign";
 
         ASSERT_TRUE(WaitForWindows(1, 15000))
             << "DirectoryOpus did not open a tracked window\n"
             << GetOutput();
+        clock_gettime(CLOCK_MONOTONIC, &_t1);
+        startup_ms_ = (_t1.tv_sec - _t0.tv_sec) * 1000L +
+                      (_t1.tv_nsec - _t0.tv_nsec) / 1000000L;
 
         if (GetWindowInfo(0, &window_info)) {
             saw_window      = true;
@@ -314,6 +321,15 @@ TEST_F(DOpusTest, ZContentPixelCountSurvivesIdlePeriod)
         << "DOpus UI content collapsed during idle period "
            "(before=" << content_pixels << ", after=" << after << ")\n"
         << GetOutput();
+}
+
+/* Phase 126: startup latency baseline sentinel */
+TEST_F(DOpusTest, ZStartupLatency)
+{
+    ASSERT_GE(startup_ms_, 0) << "Startup time was not recorded";
+    EXPECT_LE(startup_ms_, 15000L)
+        << "DOpus startup latency " << startup_ms_ << " ms exceeds 15 s baseline";
+    fprintf(stderr, "[LATENCY] DOpus startup: %ld ms\n", startup_ms_);
 }
 
 int main(int argc, char** argv)

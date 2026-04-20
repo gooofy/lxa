@@ -4,11 +4,14 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <time.h>
 
 using namespace lxa::testing;
 
 class FinalWriterTest : public LxaUITest {
 protected:
+    long startup_ms_ = -1;  /* Phase 126: latency baseline */
+
     int CountNonBlackPixels(const RgbImage& image, int x1, int y1, int x2, int y2)
     {
         int count = 0;
@@ -156,12 +159,17 @@ protected:
             GTEST_SKIP() << "FinalWriter_D app bundle or original system disk not found";
         }
 
+        struct timespec _t0, _t1;
+        clock_gettime(CLOCK_MONOTONIC, &_t0);
         ASSERT_EQ(lxa_load_program("APPS:FinalWriter_D/FinalWriter", ""), 0)
             << "Failed to load FinalWriter_D via APPS: assign";
 
         ASSERT_TRUE(WaitForWindows(1, 20000))
             << "FinalWriter_D did not open a tracked window\n"
             << GetOutput();
+        clock_gettime(CLOCK_MONOTONIC, &_t1);
+        startup_ms_ = (_t1.tv_sec - _t0.tv_sec) * 1000L +
+                      (_t1.tv_nsec - _t0.tv_nsec) / 1000000L;
 
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
         ASSERT_TRUE(WaitForWindowDrawn(0, 5000))
@@ -370,6 +378,15 @@ TEST_F(FinalWriterTest, ZStartupDialogContentSurvivesIdle)
         << "(initial=" << initial_pixels << " after=" << after_pixels << ")";
     EXPECT_TRUE(lxa_is_running())
         << "FinalWriter must still be running after idle period";
+}
+
+/* Phase 126: startup latency baseline sentinel */
+TEST_F(FinalWriterTest, ZStartupLatency)
+{
+    ASSERT_GE(startup_ms_, 0) << "Startup time was not recorded";
+    EXPECT_LE(startup_ms_, 20000L)
+        << "FinalWriter startup latency " << startup_ms_ << " ms exceeds 20 s baseline";
+    fprintf(stderr, "[LATENCY] FinalWriter startup: %ld ms\n", startup_ms_);
 }
 
 int main(int argc, char **argv)

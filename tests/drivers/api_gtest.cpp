@@ -291,6 +291,133 @@ TEST_F(LxaAPITest, InjectDrag) {
     EXPECT_TRUE(lxa_is_running()) << "Program should still be running";
 }
 
+/* =========================================================
+ * Phase 127: Memory fast-path unit tests
+ * These tests use the running emulator to verify that the
+ * fast-path 16/32-bit read helpers produce correct results
+ * consistent with individual byte reads (i.e., big-endian
+ * byte order is preserved by the bswap-based fast paths).
+ * ========================================================= */
+
+TEST_F(LxaAPITest, MemoryFastPathRead16ConsistentWithRead8) {
+    ASSERT_TRUE(s_setup_ok) << "Emulator not initialized";
+
+    /*
+     * Pick an address in low RAM (the vector table area).  Address 0 holds
+     * the initial SP as a 32-bit big-endian value, so bytes 0..1 form a
+     * meaningful 16-bit value we can check.
+     */
+    const uint32_t addr = 0x0000;
+    uint8_t  b0 = lxa_peek8(addr);
+    uint8_t  b1 = lxa_peek8(addr + 1);
+    uint16_t w  = lxa_peek16(addr);
+
+    uint16_t expected = ((uint16_t)b0 << 8) | b1;
+    EXPECT_EQ(w, expected)
+        << "lxa_peek16() must equal (peek8[addr]<<8)|peek8[addr+1]";
+}
+
+TEST_F(LxaAPITest, MemoryFastPathRead32ConsistentWithRead8) {
+    ASSERT_TRUE(s_setup_ok) << "Emulator not initialized";
+
+    const uint32_t addr = 0x0000;
+    uint8_t  b0 = lxa_peek8(addr);
+    uint8_t  b1 = lxa_peek8(addr + 1);
+    uint8_t  b2 = lxa_peek8(addr + 2);
+    uint8_t  b3 = lxa_peek8(addr + 3);
+    uint32_t l  = lxa_peek32(addr);
+
+    uint32_t expected = ((uint32_t)b0 << 24) | ((uint32_t)b1 << 16)
+                      | ((uint32_t)b2 <<  8) |  (uint32_t)b3;
+    EXPECT_EQ(l, expected)
+        << "lxa_peek32() must equal big-endian assembly of four peek8 bytes";
+}
+
+TEST_F(LxaAPITest, MemoryFastPathRead16AtMultipleOffsets) {
+    ASSERT_TRUE(s_setup_ok) << "Emulator not initialized";
+
+    /* Spot-check a range of 16-bit words in the vector table (0x0000-0x00FF) */
+    for (uint32_t addr = 0; addr < 0x100; addr += 2) {
+        uint8_t  b0 = lxa_peek8(addr);
+        uint8_t  b1 = lxa_peek8(addr + 1);
+        uint16_t w  = lxa_peek16(addr);
+        uint16_t expected = ((uint16_t)b0 << 8) | b1;
+        EXPECT_EQ(w, expected)
+            << "lxa_peek16 mismatch at addr 0x" << std::hex << addr;
+    }
+}
+
+TEST_F(LxaAPITest, MemoryFastPathRead32AtMultipleOffsets) {
+    ASSERT_TRUE(s_setup_ok) << "Emulator not initialized";
+
+    /* Spot-check 32-bit longs across the first 256 bytes */
+    for (uint32_t addr = 0; addr < 0x100; addr += 4) {
+        uint8_t  b0 = lxa_peek8(addr);
+        uint8_t  b1 = lxa_peek8(addr + 1);
+        uint8_t  b2 = lxa_peek8(addr + 2);
+        uint8_t  b3 = lxa_peek8(addr + 3);
+        uint32_t l  = lxa_peek32(addr);
+        uint32_t expected = ((uint32_t)b0 << 24) | ((uint32_t)b1 << 16)
+                          | ((uint32_t)b2 <<  8) |  (uint32_t)b3;
+        EXPECT_EQ(l, expected)
+            << "lxa_peek32 mismatch at addr 0x" << std::hex << addr;
+    }
+}
+
+
+
+TEST(ProfileAPITest, ResetClearsCounters) {
+    /* After reset, lxa_profile_get() should return 0 entries */
+    lxa_profile_reset();
+    lxa_profile_entry_t entries[16];
+    int n = lxa_profile_get(entries, 16);
+    EXPECT_EQ(n, 0) << "After reset, no profile entries should exist";
+}
+
+TEST(ProfileAPITest, GetWithNullOrZeroReturnsZero) {
+    lxa_profile_reset();
+    EXPECT_EQ(lxa_profile_get(nullptr, 16), 0);
+    lxa_profile_entry_t entries[4];
+    EXPECT_EQ(lxa_profile_get(entries, 0), 0);
+}
+
+TEST(ProfileAPITest, EmucallNameKnown) {
+    char buf[64];
+    lxa_profile_emucall_name(2, buf, (int)sizeof(buf));
+    EXPECT_STREQ(buf, "EMU_CALL_STOP");
+}
+
+TEST(ProfileAPITest, EmucallNameUnknown) {
+    char buf[64];
+    lxa_profile_emucall_name(9999, buf, (int)sizeof(buf));
+    EXPECT_STREQ(buf, "EMU_CALL_UNKNOWN_9999");
+}
+
+TEST(ProfileAPITest, WriteJsonEmpty) {
+    lxa_profile_reset();
+    char path[] = "/tmp/lxa_profile_test_XXXXXX";
+    int fd = mkstemp(path);
+    ASSERT_GE(fd, 0);
+    close(fd);
+
+    bool ok = lxa_profile_write_json(path);
+    EXPECT_TRUE(ok) << "lxa_profile_write_json should succeed for empty profile";
+
+    FILE *f = fopen(path, "r");
+    ASSERT_NE(f, nullptr);
+    char line[64];
+    ASSERT_NE(fgets(line, (int)sizeof(line), f), nullptr);
+    fclose(f);
+    unlink(path);
+
+    /* Empty profile should write [] */
+    EXPECT_STREQ(line, "[]\n");
+}
+
+TEST(ProfileAPITest, WriteJsonNullPathReturnsFalse) {
+    EXPECT_FALSE(lxa_profile_write_json(nullptr));
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

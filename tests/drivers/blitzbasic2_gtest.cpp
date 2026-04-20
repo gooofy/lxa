@@ -29,6 +29,7 @@ protected:
     static std::string s_ram_dir;
     static std::string s_t_dir;
     static std::string s_env_dir;
+    static long s_startup_ms;   /* Phase 126: startup latency baseline */
 
     /* ---- Static helpers used during SetUpTestSuite ---- */
 
@@ -132,6 +133,8 @@ protected:
         }
 
         /* Load BlitzBasic2 */
+        struct timespec _t0, _t1;
+        clock_gettime(CLOCK_MONOTONIC, &_t0);
         if (lxa_load_program("APPS:BlitzBasic2/blitz2", "") != 0) {
             fprintf(stderr, "BlitzBasic2Test: failed to load BlitzBasic2\n");
             lxa_shutdown();
@@ -146,6 +149,9 @@ protected:
             lxa_shutdown();
             return;
         }
+        clock_gettime(CLOCK_MONOTONIC, &_t1);
+        s_startup_ms = (_t1.tv_sec - _t0.tv_sec) * 1000L +
+                       (_t1.tv_nsec - _t0.tv_nsec) / 1000000L;
 
         if (!lxa_get_window_info(0, &s_window_info)) {
             fprintf(stderr, "BlitzBasic2Test: could not get window info\n");
@@ -396,6 +402,7 @@ lxa_window_info_t   BlitzBasic2Test::s_window_info = {};
 std::string         BlitzBasic2Test::s_ram_dir;
 std::string         BlitzBasic2Test::s_t_dir;
 std::string         BlitzBasic2Test::s_env_dir;
+long                BlitzBasic2Test::s_startup_ms = -1;
 
 /* ===================================================================== */
 /* Test: Startup opens visible IDE window                                 */
@@ -736,6 +743,15 @@ TEST_F(BlitzBasic2Test, DISABLED_CaptureMenuItemPositions) {
     /* Single capture at the ABOUT item position (Y=65 absolute) */
     DragMenu(40, 65, false);
     lxa_capture_screen("/tmp/bb2-about-drag.png");
+}
+
+/* Phase 126: startup latency baseline sentinel */
+TEST_F(BlitzBasic2Test, ZStartupLatency) {
+    if (!s_setup_ok) GTEST_SKIP() << "Suite setup failed";
+    ASSERT_GE(s_startup_ms, 0) << "Startup time was not recorded";
+    EXPECT_LE(s_startup_ms, 20000L)
+        << "BlitzBasic2 startup latency " << s_startup_ms << " ms exceeds 20 s baseline";
+    fprintf(stderr, "[LATENCY] BlitzBasic2 startup: %ld ms\n", s_startup_ms);
 }
 
 int main(int argc, char **argv) {

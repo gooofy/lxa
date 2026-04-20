@@ -9,12 +9,14 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <time.h>
 
 using namespace lxa::testing;
 
 class VimTest : public LxaUITest {
 protected:
     static constexpr int RAWKEY_ESCAPE = 0x45;
+    long startup_ms_ = -1;  /* Phase 126: latency baseline */
 
     std::filesystem::path vim_base_path;
     std::filesystem::path vim_home_path;
@@ -139,12 +141,17 @@ protected:
     }
 
     void LaunchVim(const std::string& args, const std::string& ready_marker) {
+        struct timespec _t0, _t1;
+        clock_gettime(CLOCK_MONOTONIC, &_t0);
         ASSERT_EQ(lxa_load_program("APPS:vim-5.3/Vim", args.c_str()), 0)
             << "Failed to load vim-5.3 via APPS: assign";
 
         ASSERT_TRUE(WaitForOutputContains(ready_marker, 20000))
             << "vim-5.3 did not render expected startup text\n"
             << GetOutput();
+        clock_gettime(CLOCK_MONOTONIC, &_t1);
+        startup_ms_ = (_t1.tv_sec - _t0.tv_sec) * 1000L +
+                      (_t1.tv_nsec - _t0.tv_nsec) / 1000000L;
 
         WaitForEventLoop(100, 10000);
         RunCyclesWithVBlank(40, 50000);
@@ -256,6 +263,15 @@ TEST_F(VimTest, TypingAndSavingWritesHostFile) {
 
     EXPECT_NE(saved.find("hi"), std::string::npos)
         << "Saved file should contain the typed buffer contents";
+}
+
+/* Phase 126: startup latency baseline sentinel */
+TEST_F(VimTest, ZStartupLatency) {
+    LaunchVim("-n -u NONE -i NONE -f RAM:vim-latency.txt", "[New File]");
+    ASSERT_GE(startup_ms_, 0) << "Startup time was not recorded";
+    EXPECT_LE(startup_ms_, 20000L)
+        << "Vim startup latency " << startup_ms_ << " ms exceeds 20 s baseline";
+    fprintf(stderr, "[LATENCY] Vim startup: %ld ms\n", startup_ms_);
 }
 
 int main(int argc, char **argv) {

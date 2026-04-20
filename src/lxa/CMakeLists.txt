@@ -46,6 +46,7 @@ set(LXA_CORE_SOURCES
     display.c
     rootless_layout.c
     lxa_copper.c
+    lxa_profile.c
 )
 
 # Common compile options
@@ -59,6 +60,14 @@ set(LXA_COMPILE_OPTIONS
     -Wno-format-overflow
     -Wno-return-type
 )
+
+# Phase 126: Optional profiling build
+option(PROFILE_BUILD "Enable per-ROM-function profiling instrumentation" OFF)
+if(PROFILE_BUILD)
+    message(STATUS "PROFILE_BUILD enabled: adding profiling flags")
+    list(APPEND LXA_COMPILE_OPTIONS -fno-omit-frame-pointer)
+    list(APPEND LXA_COMPILE_DEFINITIONS PROFILE_BUILD)
+endif()
 
 # Common compile definitions
 set(LXA_COMPILE_DEFINITIONS
