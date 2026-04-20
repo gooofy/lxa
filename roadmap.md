@@ -29,6 +29,7 @@
 | 123 | Typeface deferred — bgui.library v39+ required; real binary now available at `others/bgui`, installed to `share/lxa/System/Libs/bgui.library`; full driver deferred to Phase 136 | — |
 | 124 | FinalWriter driver expansion: dialog-state coverage (title regression, gadget count, OK/Cancel button discovery, display-options list discovery, missing-library/PANIC log guards, idle-time content stability); FinalWriter sharding bug fix (orphaned tests); broken `AcceptDialogOpensEditorWindow` quarantined as DISABLED_ | v0.8.88 |
 | 0 | CMake shard coverage safety: audit all sharded drivers (4 orphaned GadTools tests fixed), `tools/check_shard_coverage.py` written and registered as `shard_coverage_check` CTest meta-test | v0.8.89 |
+| 125 | `lxa.c` decomposition: split 9,960-line monolith into `lxa_custom.c`, `lxa_dispatch.c`, `lxa_dos_host.c`, `lxa_internal.h`, `lxa_memory.h`; `lxa.c` reduced to ~1,658 lines | v0.8.90 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering (Phase 133)
@@ -86,21 +87,6 @@
 ---
 
 ## Short-Term: Architecture + Observability (Phases 125–131)
-
-### Phase 125: `lxa.c` decomposition
-
-Split the ~9,960-line monolith into focused modules. Refactoring only — all tests must pass before and after. Suggested split:
-
-- `lxa_memory.c` — RAM allocation, chip/fast/slow memory regions, read/write dispatch
-- `lxa_custom.c` — custom chip registers (Blitter state, Copper, DMA, audio, sprites)
-- `lxa_dispatch.c` — CPU read/write memory callbacks, bus fault handling
-- `lxa_dos_host.c` — host filesystem bridge, VFS, path resolution
-
-**Why now**: Every subsequent phase (profiling, screen-mode, text hook) benefits from clean module boundaries. Profiling a monolith is opaque.
-
-**Test gate**: Full `ctest -j16` passes before and after with zero behavior changes.
-
----
 
 ### Phase 126: Profiling infrastructure
 
