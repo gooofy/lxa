@@ -491,6 +491,39 @@ int lxa_get_output(char *buffer, int size);
 void lxa_clear_output(void);
 
 /*
+ * Phase 130: Text() interception hook.
+ *
+ * Register a callback that is invoked by _graphics_Text() before each string
+ * is rendered.  The callback receives a copy of the raw string bytes, the
+ * character count, the RastPort pen position (cp_x / cp_y) at the time of
+ * the call, and the opaque userdata pointer supplied here.
+ *
+ * The hook is called from within the emulator's main dispatch loop, so it must
+ * not call any lxa_run_* or lxa_inject_* functions.  It may safely append to
+ * a host-side container (std::vector, std::string, etc.).
+ *
+ * Call lxa_clear_text_hook() in TearDown() to avoid dangling pointers.
+ *
+ * Example (C++):
+ *   std::vector<std::string> log;
+ *   lxa_set_text_hook([](const char *s, int n, int, int, void *ud) {
+ *       ((std::vector<std::string>*)ud)->push_back(std::string(s, n));
+ *   }, &log);
+ *   // ... run emulator ...
+ *   lxa_clear_text_hook();
+ *
+ * @param hook      Callback function (NULL disables the hook)
+ * @param userdata  Opaque pointer forwarded to the callback
+ */
+typedef void (*lxa_text_hook_t)(const char *str, int len, int x, int y, void *userdata);
+void lxa_set_text_hook(lxa_text_hook_t hook, void *userdata);
+
+/*
+ * Unregister the text interception hook (equivalent to lxa_set_text_hook(NULL, NULL)).
+ */
+void lxa_clear_text_hook(void);
+
+/*
  * Capture the screen to a file.
  *
  * @param filename  Output filename (PNG format)

@@ -366,6 +366,145 @@ TEST_F(LxaAPITest, MemoryFastPathRead32AtMultipleOffsets) {
 
 
 
+
+
+/*
+ * Phase 130: Text() interception hook tests.
+ *
+ * These tests verify that lxa_set_text_hook() / lxa_clear_text_hook() correctly
+ * intercept all _graphics_Text() calls while the emulator is running.
+ *
+ * TextHookTest is a self-contained fixture that initialises the emulator fresh,
+ * installs the hook BEFORE the program draws its initial window, and verifies
+ * that hook invocations are received during the initial render.  This is more
+ * reliable than trying to force redraws via mouse clicks into an already-idle app.
+ */
+
+class TextHookTest : public ::testing::Test {
+protected:
+    void SetUp() override {
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t config;
+        memset(&config, 0, sizeof(config));
+        config.headless = true;
+        config.verbose  = false;
+        config.rootless = true;
+        config.rom_path = FindRomPath();
+        ASSERT_NE(config.rom_path, nullptr) << "Could not find lxa.rom";
+        ASSERT_EQ(lxa_init(&config), 0) << "lxa_init() failed";
+
+        const char* samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char* sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char* tplibs = FindThirdPartyLibsPath();
+        if (tplibs) lxa_add_assign("LIBS", tplibs);
+        const char* libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+        const char* apps = FindAppsPath();
+        if (apps) lxa_add_assign("APPS", apps);
+    }
+
+    void TearDown() override {
+        lxa_clear_text_hook();
+        lxa_shutdown();
+    }
+
+    /* Load IntuiText and run until its window is drawn, with the text hook
+     * already installed so initial rendering is captured.
+     * IntuiText calls PrintIText() → _graphics_Text(), guaranteeing hook fires. */
+    void LoadAndDraw(lxa_text_hook_t hook, void *userdata) {
+        lxa_set_text_hook(hook, userdata);
+        ASSERT_EQ(lxa_load_program("SYS:IntuiText", ""), 0) << "Failed to load IntuiText";
+        ASSERT_TRUE(lxa_wait_windows(1, 5000)) << "Window did not open";
+        /* Let the initial draw settle */
+        for (int i = 0; i < 40; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(50000);
+        }
+    }
+};
+
+TEST_F(TextHookTest, TextHookRegistrationAndInvocation) {
+    /* Hook must fire at least once during SimpleGad's initial window draw. */
+    std::vector<std::string> text_log;
+    LoadAndDraw([](const char *s, int n, int, int, void *ud) {
+        ((std::vector<std::string>*)ud)->push_back(std::string(s, n));
+    }, &text_log);
+
+    EXPECT_FALSE(text_log.empty())
+        << "Text hook should have captured at least one Text() call during initial draw";
+}
+
+TEST_F(TextHookTest, TextHookCapturesNonEmptyStrings) {
+    /* Every string delivered to the hook must be non-empty (n > 0). */
+    std::vector<std::string> text_log;
+    LoadAndDraw([](const char *s, int n, int, int, void *ud) {
+        if (n > 0)
+            ((std::vector<std::string>*)ud)->push_back(std::string(s, n));
+    }, &text_log);
+
+    ASSERT_FALSE(text_log.empty()) << "No Text() calls intercepted during initial draw";
+    for (const auto &s : text_log)
+        EXPECT_GT(s.size(), 0u) << "Hook received empty string";
+}
+
+TEST_F(TextHookTest, TextHookClearedAfterClearCall) {
+    /* After lxa_clear_text_hook(), subsequent rendering must NOT invoke the hook. */
+    int call_count = 0;
+    LoadAndDraw([](const char *, int, int, int, void *ud) {
+        (*(int *)ud)++;
+    }, &call_count);
+
+    int count_before_clear = call_count;
+    EXPECT_GT(count_before_clear, 0) << "Hook should have fired during initial draw";
+
+    lxa_clear_text_hook();
+    call_count = 0;
+
+    /* Run more cycles (idle app) — hook must NOT fire. */
+    for (int i = 0; i < 20; i++) {
+        lxa_trigger_vblank();
+        lxa_run_cycles(50000);
+    }
+
+    EXPECT_EQ(call_count, 0) << "Hook must not fire after lxa_clear_text_hook()";
+}
+
+TEST_F(TextHookTest, TextHookPositionCoordinatesAreValid) {
+    /* x and y coordinates must be plausible screen values. */
+    struct Entry { int x, y; };
+    std::vector<Entry> entries;
+    LoadAndDraw([](const char *, int n, int x, int y, void *ud) {
+        if (n > 0)
+            ((std::vector<Entry>*)ud)->push_back({x, y});
+    }, &entries);
+
+    ASSERT_FALSE(entries.empty()) << "Expected at least one Text() call during initial draw";
+    for (const auto &e : entries) {
+        EXPECT_GE(e.x, -64)  << "x coordinate looks implausible: " << e.x;
+        EXPECT_LE(e.x, 4096) << "x coordinate looks implausible: " << e.x;
+        EXPECT_GE(e.y, -64)  << "y coordinate looks implausible: " << e.y;
+        EXPECT_LE(e.y, 4096) << "y coordinate looks implausible: " << e.y;
+    }
+}
+
+TEST(TextHookUnitTest, SetAndClearWithoutEmulator) {
+    /* Verify the API is safe to call even when no emulator session is active.
+     * lxa_clear_text_hook() must not crash with a NULL hook. */
+    lxa_clear_text_hook();  /* idempotent; must not crash */
+
+    int dummy = 0;
+    lxa_set_text_hook([](const char *, int, int, int, void *ud) {
+        (*(int *)ud)++;
+    }, &dummy);
+
+    /* Immediately clear — the hook was never invoked but the API must be stable. */
+    lxa_clear_text_hook();
+    EXPECT_EQ(dummy, 0) << "Hook must not be invoked by set/clear alone";
+}
+
 TEST(ProfileAPITest, ResetClearsCounters) {
     /* After reset, lxa_profile_get() should return 0 entries */
     lxa_profile_reset();

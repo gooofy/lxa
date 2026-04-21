@@ -2322,6 +2322,14 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
         return 0;
     }
 
+    /* Phase 130: notify host-side text interception hook (if registered).
+     * Pass the raw string pointer, count, and RastPort pen position.
+     * D1=string ptr, D2=count, D3=cp_x (raw), D4=cp_y (raw). */
+    emucall4(EMU_CALL_GFX_TEXT_HOOK,
+             (ULONG)string, (ULONG)count,
+             (ULONG)(LONG)(WORD)rp->cp_x,
+             (ULONG)(LONG)(WORD)rp->cp_y);
+
     bm = rp->BitMap;
     if (!bm)
     {

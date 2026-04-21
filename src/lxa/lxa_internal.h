@@ -332,6 +332,8 @@ extern volatile sig_atomic_t g_pending_irq;
 extern bool     g_trace;
 extern display_event_t g_last_event;
 extern void   (*g_console_output_hook)(const char *data, int len);
+extern void   (*g_text_hook)(const char *str, int len, int x, int y, void *userdata);
+extern void    *g_text_hook_userdata;
 extern char    *g_sysroot;
 
 /* Globals defined in lxa_dos_host.c */

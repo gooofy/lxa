@@ -1862,6 +1862,41 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_GFX_TEXT_HOOK:
+        {
+            /*
+             * Phase 130: Text() interception hook.
+             * Called from _graphics_Text() before rendering each string.
+             * D1 = emulated pointer to raw string bytes (CONST_STRPTR)
+             * D2 = character count (UWORD)
+             * D3 = x position after layer/baseline adjustment (WORD)
+             * D4 = y position after layer/baseline adjustment (WORD)
+             *
+             * Reads the string bytes from emulated memory and forwards them
+             * to the host-side g_text_hook callback if one is registered.
+             */
+            LPRINTF(LOG_DEBUG, "lxa_dispatch: EMU_CALL_GFX_TEXT_HOOK hook=%p\n", (void*)g_text_hook);
+            if (g_text_hook)
+            {
+                uint32_t str_ptr = m68k_get_reg(NULL, M68K_REG_D1);
+                uint32_t count   = m68k_get_reg(NULL, M68K_REG_D2);
+                int      x       = (int)(int16_t)m68k_get_reg(NULL, M68K_REG_D3);
+                int      y       = (int)(int16_t)m68k_get_reg(NULL, M68K_REG_D4);
+
+                /* Copy string bytes from emulated memory to a host buffer */
+                if (str_ptr && count > 0 && count <= 4096)
+                {
+                    char buf[4097];
+                    uint32_t i;
+                    for (i = 0; i < count; i++)
+                        buf[i] = (char)m68k_read_memory_8(str_ptr + i);
+                    buf[count] = '\0';
+                    g_text_hook(buf, (int)count, x, y, g_text_hook_userdata);
+                }
+            }
+            break;
+        }
+
         /*
          * Intuition Library emucalls (3000-3999)
          * Phase 13.5: Screen Management

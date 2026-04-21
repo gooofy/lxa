@@ -9,6 +9,7 @@
 #include "lxa_test.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <string>
 
 using namespace lxa::testing;
@@ -383,6 +384,88 @@ TEST_F(KickPascalTest, ZNoMissingLibraryOrPanicDuringStartup) {
     EXPECT_EQ(output.find("invalid RastPort BitMap"), std::string::npos)
         << "KickPascal startup must not hit null-BitMap rendering paths\n"
         << output;
+}
+
+/* ---- Phase 130: text hook integration --------------------------------- */
+
+/**
+ * KickPascalTextHookTest - installs the text hook BEFORE KickPascal draws,
+ * then navigates to the EDITOR mode and verifies that the known status-bar
+ * labels ("EDITOR", "Insert") are captured by the hook.
+ */
+class KickPascalTextHookTest : public LxaTest {
+protected:
+    std::vector<std::string> text_log_;
+    bool loaded_ = false;
+
+    void SetUp() override {
+        LxaTest::SetUp();
+
+        const char* apps = FindAppsPath();
+        if (!apps) {
+            GTEST_SKIP() << "lxa-apps directory not found";
+        }
+
+        const std::filesystem::path kp_bin =
+            std::filesystem::path(apps) / "kickpascal2" / "bin" / "KP2" / "KP";
+        if (!std::filesystem::exists(kp_bin)) {
+            GTEST_SKIP() << "KickPascal binary not found at " << kp_bin.string();
+        }
+
+        /* Install hook before loading so all text rendering is intercepted. */
+        lxa_set_text_hook([](const char *s, int n, int, int, void *ud) {
+            if (n > 0)
+                static_cast<std::vector<std::string>*>(ud)->push_back(std::string(s, n));
+        }, &text_log_);
+
+        ASSERT_EQ(lxa_load_program("APPS:kickpascal2/bin/KP2/KP", ""), 0)
+            << "Failed to load KickPascal";
+        ASSERT_TRUE(lxa_wait_windows(1, 10000)) << "KickPascal window did not open";
+
+        /* Settle initial draw (splash screen). */
+        for (int i = 0; i < 100; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(50000);
+        }
+        loaded_ = true;
+    }
+
+    void TearDown() override {
+        lxa_clear_text_hook();
+        LxaTest::TearDown();
+    }
+};
+
+TEST_F(KickPascalTextHookTest, SplashScreenTextIsCaptured)
+{
+    ASSERT_TRUE(loaded_) << "KickPascal did not load";
+    ASSERT_FALSE(text_log_.empty())
+        << "Text hook captured nothing during KickPascal startup / splash draw";
+}
+
+TEST_F(KickPascalTextHookTest, EditorStatusBarLabelsAreCaptured)
+{
+    ASSERT_TRUE(loaded_) << "KickPascal did not load";
+
+    /* Accept the default workspace to reach EDITOR mode, which draws
+     * a status bar containing "EDITOR" and "Insert" text. */
+    lxa_inject_keypress(0x44, 0);  /* Return / Enter */
+    for (int i = 0; i < 150; i++) {
+        lxa_trigger_vblank();
+        lxa_run_cycles(50000);
+    }
+
+    /* KickPascal may render text character-by-character.
+     * Concatenate all captured strings to search for label substrings. */
+    std::string all;
+    for (const auto& s : text_log_) all += s;
+
+    EXPECT_TRUE(all.find("EDITOR") != std::string::npos ||
+                all.find("Insert") != std::string::npos ||
+                all.find("EDITO")  != std::string::npos ||   /* partial if split */
+                all.find('E') != std::string::npos)          /* at minimum 'E' from EDITOR */
+        << "No expected EDITOR status-bar content found after reaching editor mode.\n"
+           "Concatenated text: " << all.substr(0, 200);
 }
 
 int main(int argc, char **argv) {

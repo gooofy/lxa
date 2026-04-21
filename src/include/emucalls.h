@@ -108,6 +108,17 @@
 #define EMU_CALL_GFX_UPDATE_PLANAR 2030  /* Update from planar: (handle, x, y, w, h, planes_ptr, bpr, depth) */
 #define EMU_CALL_GFX_UPDATE_CHUNKY 2031  /* Update from chunky: (handle, x, y, w, h, pixels_ptr, pitch) */
 
+/* Text() interception hook (Phase 130)
+ *
+ * Called from _graphics_Text() before rendering each text string.
+ * D1 = emulated pointer to string (CONST_STRPTR)
+ * D2 = character count (UWORD)
+ * D3 = x position (WORD, after baseline/layer adjustment)
+ * D4 = y position (WORD, after baseline/layer adjustment)
+ * Returns nothing.
+ */
+#define EMU_CALL_GFX_TEXT_HOOK     2051
+
 /* Bitmap-to-bitmap blit (Phase 112)
  *
  * Host-side native-C implementation of graphics.library BltBitMap().

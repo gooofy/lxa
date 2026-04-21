@@ -40,6 +40,8 @@ extern void sigalrm_handler(int sig);
 extern int _timer_check_expired(void);
 extern void lxa_set_console_output_hook(void (*hook)(const char *data, int len));
 extern void lxa_reset_host_state(void);
+extern void (*g_text_hook)(const char *str, int len, int x, int y, void *userdata);
+extern void *g_text_hook_userdata;
 
 /* Configuration constants from lxa.c */
 #define RAM_SIZE (10 * 1024 * 1024)

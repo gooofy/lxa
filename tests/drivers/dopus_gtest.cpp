@@ -332,6 +332,95 @@ TEST_F(DOpusTest, ZStartupLatency)
     fprintf(stderr, "[LATENCY] DOpus startup: %ld ms\n", startup_ms_);
 }
 
+/* ---- Phase 130: text hook integration --------------------------------- */
+
+/**
+ * DOpusTextHookTest - self-contained fixture that installs the text hook
+ * BEFORE DOpus starts drawing, so initial UI text (button labels, file
+ * pane headers) is intercepted.
+ *
+ * Extends LxaTest to inherit lxa_init() + assign setup, but loads DOpus
+ * manually after installing the hook.
+ */
+class DOpusTextHookTest : public LxaTest {
+protected:
+    std::vector<std::string> text_log_;
+    bool loaded_ = false;
+
+    void SetUp() override {
+        LxaTest::SetUp();  /* lxa_init() + assigns */
+
+        const char* apps = FindAppsPath();
+        if (apps == nullptr) {
+            GTEST_SKIP() << "lxa-apps directory not found";
+        }
+
+        const std::filesystem::path dopus_bin =
+            std::filesystem::path(apps) / "DirectoryOpus" / "bin" / "DOPUS" / "DirectoryOpus";
+        if (!std::filesystem::exists(dopus_bin)) {
+            GTEST_SKIP() << "DirectoryOpus binary not found at " << dopus_bin.string();
+        }
+
+        /* Install hook before loading so we capture the initial draw. */
+        lxa_set_text_hook([](const char *s, int n, int, int, void *ud) {
+            if (n > 0)
+                static_cast<std::vector<std::string>*>(ud)->push_back(std::string(s, n));
+        }, &text_log_);
+
+        ASSERT_EQ(lxa_load_program(
+            "APPS:DirectoryOpus/bin/DOPUS/DirectoryOpus", ""), 0)
+            << "Failed to load DirectoryOpus";
+
+        ASSERT_TRUE(lxa_wait_windows(1, 15000))
+            << "DirectoryOpus did not open a tracked window";
+
+        /* Let the UI settle so button labels are drawn. */
+        for (int i = 0; i < 150; i++) {
+            lxa_trigger_vblank();
+            lxa_run_cycles(50000);
+        }
+
+        loaded_ = true;
+    }
+
+    void TearDown() override {
+        lxa_clear_text_hook();
+        LxaTest::TearDown();
+    }
+};
+
+TEST_F(DOpusTextHookTest, TextHookCapturesKnownDOpusLabels)
+{
+    ASSERT_TRUE(loaded_) << "DOpus did not load correctly";
+    ASSERT_FALSE(text_log_.empty())
+        << "Text hook captured no strings during DOpus startup";
+
+    /* DOpus renders its button-bar labels.  Because DOpus may render text
+     * character-by-character, we concatenate all captured strings and check
+     * for individual characters that are unambiguously part of DOpus labels:
+     * 'C' (Copy), 'M' (Move), 'D' (Delete), 'R' (Rename). */
+    std::string all;
+    for (const auto &s : text_log_) all += s;
+
+    bool has_label_chars =
+        all.find('C') != std::string::npos ||
+        all.find('M') != std::string::npos ||
+        all.find('D') != std::string::npos;
+
+    EXPECT_TRUE(has_label_chars)
+        << "Expected DOpus label characters not found in captured text stream.\n"
+           "Captured (" << text_log_.size() << " strings): "
+        << [&]() {
+               std::string out;
+               int n = 0;
+               for (const auto &s : text_log_) {
+                   if (++n > 20) { out += "..."; break; }
+                   out += '"'; out += s; out += "\" ";
+               }
+               return out;
+           }();
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

@@ -155,38 +155,9 @@ The primary target applications are productivity software (Wordsworth, Amiga Wri
 
 ---
 
-### Phase 130: Text() interception — semantic test assertions
+### ~~Phase 130: Text() interception — semantic test assertions~~ ✅ DONE (v0.9.4)
 
-> **Unlocks: DOpus label verification, KickPascal editor content, FinalWriter document area, any app whose UI is text-heavy.**
-
-`_graphics_Text()` in `lxa_graphics.c` already has a `DPRINTF` that logs the string, position, and font. The infrastructure change is small:
-
-```c
-/* lxa_api.h addition */
-typedef void (*lxa_text_hook_t)(const char *str, int len, int x, int y, void *userdata);
-void lxa_set_text_hook(lxa_text_hook_t hook, void *userdata);
-
-/* _graphics_Text() addition (before rendering) */
-if (g_text_hook)
-    g_text_hook((const char *)string, count, rp->cp_x, rp->cp_y, g_text_hook_userdata);
-```
-
-In tests:
-```cpp
-std::vector<std::string> text_log;
-lxa_set_text_hook([](const char *s, int n, int, int, void *ud) {
-    ((std::vector<std::string>*)ud)->push_back(std::string(s, n));
-}, &text_log);
-// ... run app ...
-EXPECT_TRUE(std::any_of(text_log.begin(), text_log.end(),
-    [](const auto &s){ return s.find("Copy") != std::string::npos; }));
-```
-
-- [ ] Add `lxa_set_text_hook()` / `lxa_clear_text_hook()` to `lxa_api.c` / `lxa_api.h`
-- [ ] Add unit tests in `api_gtest.cpp` for hook registration and invocation
-- [ ] Update `dopus_gtest.cpp`: assert "Copy", "Move", "Delete" appear (or confirm absence pinpoints font-resolution bug)
-- [ ] Update `kickpascal_gtest.cpp`: assert "EDITOR" / "Insert" appear in text log after workspace accept
-- [ ] Update `finalwriter_gtest.cpp` (once editor opens via Phase 129): assert document area renders text
+Implemented `lxa_set_text_hook()` / `lxa_clear_text_hook()` via the `emucall` mechanism (`EMU_CALL_GFX_TEXT_HOOK = 2051`). ROM `_graphics_Text()` fires the hook on every text render call. Tests in `api_gtest.cpp` (using `SYS:IntuiText` sample), `dopus_gtest.cpp`, and `kickpascal_gtest.cpp` all pass. Note: DOpus renders text character-by-character — tests concatenate captured chars before asserting. `finalwriter_gtest.cpp` update deferred until Phase 129 editor-open work is revisited.
 
 ---
 

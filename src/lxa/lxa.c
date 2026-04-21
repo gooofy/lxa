@@ -152,6 +152,10 @@ char    *g_loadfile                      = NULL;
 /* Output capture callback for test drivers */
 void (*g_console_output_hook)(const char *data, int len) = NULL;
 
+/* Text() interception hook for test drivers (Phase 130) */
+void (*g_text_hook)(const char *str, int len, int x, int y, void *userdata) = NULL;
+void *g_text_hook_userdata = NULL;
+
 #define MAX_ARGS_LEN 4096
 char     g_args[MAX_ARGS_LEN]            = {0};
 int      g_args_len                      = 0;
@@ -386,6 +390,8 @@ void lxa_reset_host_state(void)
     g_running = TRUE;
     g_loadfile = NULL;
     g_console_output_hook = NULL;
+    g_text_hook           = NULL;
+    g_text_hook_userdata  = NULL;
     memset(g_args, 0, sizeof(g_args));
     g_args_len = 0;
     memset(g_breakpoints, 0, sizeof(g_breakpoints));
@@ -1142,6 +1148,24 @@ bool _load_rom_map (const char *rom_path)
 void lxa_set_console_output_hook(void (*hook)(const char *data, int len))
 {
     g_console_output_hook = hook;
+}
+
+/*
+ * Set text interception hook for test drivers (Phase 130).
+ * The hook is called from _graphics_Text() before each string is rendered,
+ * with the raw string bytes, character count, and screen position.
+ */
+void lxa_set_text_hook(void (*hook)(const char *str, int len, int x, int y, void *userdata),
+                       void *userdata)
+{
+    g_text_hook          = hook;
+    g_text_hook_userdata = userdata;
+}
+
+void lxa_clear_text_hook(void)
+{
+    g_text_hook          = NULL;
+    g_text_hook_userdata = NULL;
 }
 
 /* When building liblxa as a library, we don't include main() or print_usage() */
