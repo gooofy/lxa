@@ -4,6 +4,16 @@
 
 ---
 
+## Project Vision
+
+lxa is the foundation for a modern Amiga on commodity hardware (Linux PC, Raspberry Pi). By targeting OS-compliant applications only, lxa can bypass chip-register emulation entirely and go straight to RTG (Retargetable Graphics), enabling full true-color displays at arbitrary resolutions on any SDL2-capable host.
+
+The primary target applications are productivity software (Wordsworth, Amiga Writer, PageStream) and IDEs (Storm C, BlitzBasic 3). MUI and ReAction are important GUI toolkit goals. The long-term goal is for lxa to become a **viable development platform for Amiga software on Linux** — enabling Amiga developers to write, test, and run their applications directly on commodity hardware without needing real Amiga hardware.
+
+**RTG strategy**: Implement Picasso96 (`Picasso96API.library`) as the RTG system. This gives all P96-aware apps a clean, standard interface and the broadest compatibility with modern AmigaOS productivity software. PPaint is the flagship RTG validation target. A thin `cybergraphics.library` compatibility shim is included so apps that probe for CGX also work.
+
+---
+
 ## Completed Phases (Summary)
 
 | Phase | Description | Version |
@@ -43,15 +53,15 @@
 - DPaint V main editor defers menu bar / toolbox / palette rendering until first mouse interaction; canvas remains blank-pen until tool/palette state is exercised. Palette/pencil/fill interaction tests deferred — require either the deferred-paint trigger to be reverse-engineered or a new "force full redraw" capability.
 - DPaint V Ctrl-P (Screen Format reopen) only works on the depth-2 startup dialog, not from the depth-8 main editor. About dialog and File→Open requester not yet exercised — depends on resolving deferred-paint to make menu bar interactable.
 - MaxonBASIC About/Settings/Run interaction: menus are Intuition-managed but reachable only via RMB drag through hardcoded coordinates; the German menu titles ("Projekt", "Editieren", "Suchen") and lack of programmatic menu introspection make item-level activation brittle. Phase 116 verified menu reveal and editor text rendering; deeper menu-driven workflows defer until host-side menu introspection (Phase 131 gap #4) is implemented.
-- DevPac File→Open requester: Phase 117 verified Amiga-O does not crash, but req.library stub returns failure cleanly so no requester appears. Real file requester behavior requires a non-stub req.library implementation (out of scope per AGENTS.md "do not re-implement third-party libraries in ROM"). Assemble/Run workflow not exercised — would require a loaded valid m68k source and external assembler invocation, both of which need external-process emulation (Phase 137+).
+- DevPac File→Open requester: Phase 117 verified Amiga-O does not crash, but req.library stub returns failure cleanly so no requester appears. Real file requester behavior requires a non-stub req.library implementation (out of scope per AGENTS.md "do not re-implement third-party libraries in ROM"). Assemble/Run workflow not exercised — would require a loaded valid m68k source and external assembler invocation, both of which need external-process emulation (Phase 140+).
 - BlitzBasic2 ted editor — copper/blitter improvements (Phase 113/114) reach the surface (~13% of editor body fills with paint after menu interaction) but ted still does not render real editable text content. Phase 119 captured vision-model analysis: menu bar and dropdowns render correctly (PROJECT/EDIT/SOURCE/SEARCH/COMPILER), but the editor body remains a flat surface with only menu-residue and status overlay paint. Root cause is deeper than line-mode blitter and copper colour cycling — likely involves blitter copy modes, sprite hardware, or specific copper waits that ted uses for its custom overlay (Phase 135).
-- ASM-One Assemble/Run workflow not exercised (Phase 118) — same external-process constraint as DevPac; deferred until Phase 137+. Menu pixel-flicker verification uses a content-floor guard (before→after cannot collapse to <10% of before) because ASM-One defers editor repaint until first interaction, so pixel counts legitimately *grow* after the first menu drag. Host-side observation of IDCMP qualifier bits is not currently possible; qualifier propagation is guarded via survival + subsequent-input responsiveness only.
-- PPaint still exits early with rv=26 even after the Phase 129 ROM improvements (v0.9.3). Deep-dive tracing identified the precise block: PPaint's internal mode-scan loop at PC `$0x26d78` iterates 40 entries of a table at `A4+$34f0` (count stored at `A4-$1cdc`). Each 8-byte entry's fourth byte is tested with `tst.b`; in every iteration the byte is zero, the `beq` at `$0x26d9c` is taken, and no entry ever succeeds. The loop falls through to cleanup at `$0x26c44` → CloseLibrary loop at `$0x26ca2` → ILLEGAL opcode → bootstrap returns rv=26. The 4th-byte field is not a DisplayID LSB (mode IDs like 0x8000, 0x11000, 0x29000 all have low byte 0x00 anyway); it appears to be a depth/flag/pointer field that PPaint's probe subtask was supposed to populate from `GetDisplayInfoData` results but never does. Next debugging steps (deferred): (a) disassemble the PPaint binary around `$0x26d78` with `m68k-amigaos-objdump` to identify the table-population routine and learn the 4th-byte's semantics; (b) set a memory-write watchpoint on `A4+$34f0 .. A4+$34f0+320` via `m68k_write_memory_*` hooks; (c) investigate PAL/NTSC mismatch — PPaint probes NTSC_HIRES (0x11000) but GfxBase reports PAL. The `DISABLED_AcceptDialogOpensEditorWindow` test in FinalWriter remains disabled.
-- PPaint and FinalWriter visual regression: CloantoScreenManager and FinalWriter launch sequences probe screen modes in ways that require either full PPaint/FW mode-table reverse engineering (per above) or broader virtualization work. Deferred.
+- ASM-One Assemble/Run workflow not exercised (Phase 118) — same external-process constraint as DevPac; deferred until Phase 140+. Menu pixel-flicker verification uses a content-floor guard (before→after cannot collapse to <10% of before) because ASM-One defers editor repaint until first interaction, so pixel counts legitimately *grow* after the first menu drag. Host-side observation of IDCMP qualifier bits is not currently possible; qualifier propagation is guarded via survival + subsequent-input responsiveness only.
+- PPaint is an RTG application — its internal mode-scan loop targets P96 display IDs, not ECS modes. The ECS-path investigation (`$0x26d78`, `A4+$34f0` table) is abandoned. PPaint validation is deferred to Phase 139 (RTG app validation), where it is the flagship target.
+- FinalWriter `DISABLED_AcceptDialogOpensEditorWindow` remains disabled pending Phase 139 RTG validation (FW probes screen modes in a way that requires RTG to succeed).
 - Menu pixel introspection during a drag: `lxa_inject_drag` performs press → drag → release atomically, so we cannot capture screen state while a menu is open. Tests verify menu interaction via side effects (window count, app survival) instead. A future infrastructure improvement would be a non-releasing drag API or a "capture during drag" hook.
 - DirectoryOpus 4 renders a skeleton UI in lxa: window opens at 640×245, dual file-lister frames + scroll gadgets + small button cluster (B/R/S/A) + bottom toolbar (?/E/F/C/I/Q) all draw correctly, but text labels, the title-bar version/memory string, and the famous main button bank (Copy/Move/Delete/etc.) are absent. Vision-model review (Phase 121) attributed this to font/path resolution or `dopus.config` parsing not completing (Phase 134). DOpus also requests `commodities.library` and `inovamusic.library`, which lxa does not ship as stubs; both are tolerated by DOpus itself but logged as missing-library errors. File-list navigation, button-bank workflows, and Preferences interaction tests deferred until Phase 134.
 - CMake test sharding with hardcoded GTest filters can silently orphan newly added tests. Phase 0 audited all sharded drivers (fixing 4 orphaned GadTools tests) and added `tools/check_shard_coverage.py` as a `shard_coverage_check` CTest meta-test. **Any future test additions to a sharded driver MUST update the corresponding FILTER strings** — CI will now catch violations automatically.
-- KickPascal 2 (Phase 122): editor body never clears the splash screen (HiS logo + "Pascal" graphic) so typed Pascal source is overlaid on stale pixels. Compile/run workflows are not exercised (same external-process constraint as DevPac/ASM-One; Phase 137+). Editor-body splash-clear deferred until KickPascal's deferred-paint trigger is reverse-engineered or a forced full redraw can be issued.
+- KickPascal 2 (Phase 122): editor body never clears the splash screen (HiS logo + "Pascal" graphic) so typed Pascal source is overlaid on stale pixels. Compile/run workflows are not exercised (same external-process constraint as DevPac/ASM-One; Phase 140+). Editor-body splash-clear deferred until KickPascal's deferred-paint trigger is reverse-engineered or a forced full redraw can be issued.
 - Typeface (Phase 123, deferred): the font previewer requires `bgui.library` v39+. The real binary is now available at `others/bgui/bgui/libs/bgui.library` and is installed to `share/lxa/System/Libs/bgui.library` (picked up by the static install rule). Typeface should now pass the `OpenLibrary` version check; full font-list / preview / Text() rendering coverage from Typeface deferred to Phase 136.
 - FinalWriter (Phase 124): clicking OK in the startup dialog causes FW to attempt opening a new screen mode; the two child processes spawn and immediately Exit(0), and FinalWriter terminates without ever opening the editor window. The `DISABLED_AcceptDialogOpensEditorWindow` test is preserved in source for the day Phase 129 screen-mode emulation makes the editor reachable. All editor-mode workflows deferred.
 
@@ -81,7 +91,7 @@
 
 4. **No menu-state introspection** → **Phase 131**: Cannot query which menus/items exist, their names, or enabled/disabled state from the host side. Menu testing relies on RMB drag by hardcoded coordinates. `lxa_get_menu_strip()` traversing the Intuition `MenuStrip` linked list would unblock MaxonBASIC and DevPac deeper workflows.
 
-5. **No clipboard / string output capture** (Phase 137+): Apps writing to AmigaDOS stdout or the clipboard have no way to expose output to the host test. A `lxa_capture_dos_output()` API would allow asserting compiler output, BASIC program results, etc.
+5. **No clipboard / string output capture** (Phase 140+): Apps writing to AmigaDOS stdout or the clipboard have no way to expose output to the host test. A `lxa_capture_dos_output()` API would allow asserting compiler output, BASIC program results, etc.
 
 6. **Vision model loop not automated**: `screenshot_review.py` is a manual tool. No test-phase hook automatically invokes it when a pixel assertion fails. Remains a developer investigation tool; automation deferred.
 
@@ -119,10 +129,10 @@
 
 **Test gate** (met): All 66 test drivers pass. No warnings. `graphics_gtest` includes new Phase 129 coverage.
 
-**Deferred** (to a future phase when the PPaint block is investigated):
-- PPaint mode-scan loop reverse-engineering (see Known Limitations).
-- FinalWriter `AcceptDialogOpensEditorWindow` re-enablement.
-- Visual regression tests that require PPaint's editor canvas to be reachable.
+**Deferred** (to Phase 139 — RTG app validation):
+- PPaint validation: PPaint is an RTG application; its mode-scan loop targets P96 display IDs. Deferred to Phase 139 where RTG infrastructure is in place.
+- FinalWriter `AcceptDialogOpensEditorWindow` re-enablement: depends on RTG screen-mode support landing in Phase 137–138.
+- Visual regression tests that require PPaint's or FinalWriter's editor canvas to be reachable.
 
 ---
 
@@ -274,9 +284,92 @@ The real `bgui.library` v41 binary is available at `others/bgui/bgui/libs/bgui.l
 
 ---
 
-## Long-Term: Extended Coverage (Phase 137+)
+## RTG: Retargetable Graphics (Phases 137–139)
 
-### Phase 137: External process emulation
+> **Strategic pivot**: lxa's display strategy moves from ECS-era planar modes to RTG via Picasso96. Phases 137–139 deliver the full RTG stack — display backend, P96 library, and app validation. All three phases must complete before the next long-term block.
+
+### Phase 137: RTG display foundation
+
+> **Unlocks: RTG screen opening, true-color BitMaps, SDL2 32-bit rendering pipeline.**
+
+**Sub-problem 1 — `AllocBitMap` depth extension** (`lxa_graphics.c`):
+Remove the depth 1–8 clamp. For depths > 8, allocate a single contiguous chunky buffer (width × height × bytes-per-pixel) instead of separate bit-planes. Mark such bitmaps with a new `BMF_RTG` internal flag so the rest of the pipeline can distinguish planar from chunky. `GetBitMapAttr(BMA_DEPTH)` must return the real depth.
+
+**Sub-problem 2 — SDL2 backend extension** (`display.c`):
+`display_open()` and `display_update_*` currently assume paletted planar. Add `display_update_rtg()` accepting a raw 32-bit RGBA buffer uploaded directly to an `SDL_PIXELFORMAT_RGBA32` texture. Existing planar pipeline is untouched.
+
+**Sub-problem 3 — RTG display IDs in the mode database** (`lxa_graphics.c`):
+Add P96 monitor/mode IDs to `g_known_display_ids[]`: at minimum a `P96_MONITOR_ID` base with `RGBFB_R8G8B8A8` (32-bit) and `RGBFB_R5G6B5` (16-bit) variants. `GetDisplayInfoData(DTAG_DIMS)` returns host-resolution ranges for RTG IDs. `OpenScreenTagList()` with an RTG depth allocates a chunky screen bitmap and calls `display_open()` with the RTG depth.
+
+- [ ] Extend `AllocBitMap` to support depth > 8; add `BMF_RTG` internal flag
+- [ ] `GetBitMapAttr(BMA_DEPTH/WIDTH/HEIGHT/BYTESPERROW)` correct for RTG bitmaps
+- [ ] `display_update_rtg()` in `display.c` / `display.h`; `SDL_PIXELFORMAT_RGBA32` texture path
+- [ ] P96 monitor/mode IDs in `g_known_display_ids[]`; `GetDisplayInfoData` returns RTG ranges
+- [ ] `OpenScreenTagList()` with RTG depth allocates chunky screen bitmap
+- [ ] New `rtg_gtest.cpp`: `AllocBitMap(640,480,32,BMF_CLEAR,NULL)` + `GetBitMapAttr` returns 32; `OpenScreenTagList` with P96 mode ID does not crash
+
+**Test gate**: `rtg_gtest` passes; all 66 existing drivers unchanged.
+
+---
+
+### Phase 138: Picasso96API.library core
+
+> **Unlocks: P96-aware apps can open the library and call core pixel operations.**
+
+New disk library (`src/rom/lxa_p96.c`, installed to `share/lxa/System/Libs/Picasso96API.library`) following the pattern in §6.9 of AGENTS.md.
+
+**Core functions**:
+
+| Function | Purpose |
+|---|---|
+| `p96AllocBitMap(w,h,depth,flags,friend,rgbformat)` | Allocate RTG bitmap in a specific pixel format |
+| `p96FreeBitMap(bm)` | Free it |
+| `p96GetBitMapAttr(bm,attr)` | Query RGBFORMAT, WIDTH, HEIGHT, BYTESPERROW, etc. |
+| `p96WritePixelArray(ri,sx,sy,bm,dx,dy,w,h)` | Blit pixels from a RenderInfo to a BitMap |
+| `p96ReadPixelArray(ri,dx,dy,bm,sx,sy,w,h)` | Read pixels back |
+| `p96LockBitMap(bm,tags)` | Lock for direct access; returns RenderInfo |
+| `p96UnlockBitMap(bm,ri)` | Unlock |
+| `p96GetModeInfo(id,info)` | Query mode properties (resolution, depth, pixel format) |
+| `p96BestModeIDA(tags)` | Find best matching RTG mode |
+| `p96RequestModeID(tags)` | Mode requester (stub: returns best mode, no UI) |
+
+Also: thin `cybergraphics.library` compatibility shim wrapping the above under CGX names (`GetCyberMapAttr`, `LockBitMapTags`, `WriteLUTPixelArray`, etc.) for apps that probe for CGX first.
+
+**RenderInfo** (`struct RenderInfo { APTR Memory; WORD BytesPerRow; WORD pad; RGBFTYPE RGBFormat; }`) maps directly onto the Phase 137 chunky BitMap representation.
+
+- [ ] `src/rom/lxa_p96.c` with all ten core functions
+- [ ] `cybergraphics.library` shim disk library
+- [ ] Register both in `sys/CMakeLists.txt` via `add_disk_library()`
+- [ ] `p96_gtest.cpp`: unit tests for each function; startup test confirms `OpenLibrary("Picasso96API.library",0)` returns non-NULL
+
+**Test gate**: `p96_gtest` passes; at least one target app opens the library without exiting early.
+
+---
+
+### Phase 139: RTG app validation
+
+> **Unlocks: PPaint editing canvas reachable; FinalWriter editor reachable; first productivity app fully validated.**
+
+Three targets — fixes discovered during validation are committed as part of this phase (matching Phase 108-d convention):
+
+**PPaint** — flagship. PPaint's mode-scan loop should now be populated via P96 mode enumeration. Extend `ppaint_gtest.cpp` with a test asserting the editor canvas is reachable.
+
+**FinalWriter** — re-enable `DISABLED_AcceptDialogOpensEditorWindow`; test gate: clicking OK opens the editor window.
+
+**One new productivity app** — add `wordsworth_gtest.cpp` (or Amiga Writer): app reaches main editor window; Phase 130 text hook confirms editor content renders.
+
+- [ ] Diagnose PPaint's P96 probe path; implement any missing P96 functions or mode IDs
+- [ ] Re-enable `DISABLED_AcceptDialogOpensEditorWindow` in `finalwriter_gtest.cpp`
+- [ ] Add new productivity app driver (Wordsworth or Amiga Writer)
+- [ ] All 66 existing drivers continue to pass
+
+**Test gate**: PPaint editor reachable; FinalWriter editor reachable; new productivity app reaches main UI.
+
+---
+
+## Long-Term: Extended Coverage (Phase 140+)
+
+### Phase 140: External process emulation
 
 DevPac Assemble, ASM-One Assemble, BlitzBasic Run, KickPascal Compile/Run all require this. Needed: AmigaDOS `CreateProc()` / `Execute()` launching a real m68k subprocess within the emulated environment, with stdout piped back to the host.
 
@@ -284,14 +377,24 @@ This is the deepest deferred item. Prerequisites: Phase 131 (event log to detect
 
 ---
 
-## Far Future: CPU Emulation Evolution
+## Far Future: GUI Toolkits + CPU Evolution
+
+### Phase 141 (tentative): MUI library stubs
+
+MUI (`MUI:Libs/muimaster.library`) is a disk library — not reimplemented in ROM. The phase work is ensuring lxa's BOOPSI infrastructure (icclass/modelclass/gadgetclass, utility.library tag machinery) is solid enough that a real `muimaster.library` binary can open and function. Test gate: at least one MUI-based app opens its main window.
+
+### Phase 142 (tentative): ReAction / ClassAct stubs
+
+ReAction (AmigaOS 3.5/3.9 GUI toolkit) runs as disk-provided class files (`SYS:Classes/reaction/`). The phase ensures lxa's BOOPSI layer and Intuition class dispatch are complete enough to host ReAction classes. This directly serves the development-platform vision: once Phase 142 lands, lxa becomes a viable host for developing and testing ReAction-based Amiga software on Linux. Test gate: at least one ReAction app opens its main window.
+
+### CPU Emulation Evolution
 
 Musashi (MIT, C89, interpreter) is adequate for correctness but limits throughput. No clean permissively-licensed x86-64 68k JIT exists today. Options assessed: Moira (MIT, no 68030 yet), UAE JIT (GPL, framework-entangled), Emu68 (MPL-2.0, ARM-only), Unicorn/QEMU (GPL).
 
 **Recommendation**: Stay on Musashi. Host-side overhead dominates (~95% of wall time per Phase 126 estimate). Revisit when Moira adds 68030 support or host optimizations (Phases 127/128) are exhausted.
 
-- **Phase 138** (tentative): CPU core evaluation — re-evaluate Moira 68030 support; prototype if available; assess whether 68020 mode suffices for all tested apps.
-- **Phase 139** (tentative): Production readiness assessment — define use-case targets; set performance baselines; decide on JIT investment.
+- **Phase 143** (tentative): CPU core evaluation — re-evaluate Moira 68030 support; prototype if available; assess whether 68020 mode suffices for all tested apps.
+- **Phase 144** (tentative): Production readiness assessment — define use-case targets; set performance baselines; decide on JIT investment.
 
 ---
 
@@ -320,9 +423,22 @@ Phase 125 (decompose lxa.c) ──► Phase 126 (profiling)
                                                       │
                                                Phase 136 (bgui/Typeface)
                                                       │
-                                               Phase 137 (ext processes)
-                                                      │
-                                             Phase 138/139 (CPU evolution)
+                                    ┌─────────────────┴──────────────────┐
+                                    ▼                                     ▼
+                             Phase 137                             Phase 140
+                          (RTG display foundation)            (ext processes)
+                                    │
+                             Phase 138
+                          (Picasso96API.library)
+                                    │
+                             Phase 139
+                          (RTG app validation)
+                                    │
+                          Phase 141/142
+                        (MUI / ReAction stubs)
+                                    │
+                          Phase 143/144
+                         (CPU eval / prod ready)
 ```
 
 ---

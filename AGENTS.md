@@ -362,17 +362,16 @@ this flag dynamically via `ModifyIDCMP()`.
 
 ### 6.16 Screen-Mode Emulation Architecture
 
-Many apps probe available display modes at startup using `GetDisplayInfoData()`, `BestModeIDA()`, and `NextDisplayInfo()`. lxa's display mode database is intentionally minimal (ECS LORES/HIRES + PAL/NTSC variants only). Apps like PPaint's CloantoScreenManager and FinalWriter exit early when the probe yields unexpected results.
+Many apps probe available display modes at startup using `GetDisplayInfoData()`, `BestModeIDA()`, and `NextDisplayInfo()`. As of Phase 129 (v0.9.3), lxa's ECS mode database covers 36 entries (DEFAULT/NTSC/PAL × 12 ECS modes) with realistic raster ranges and virtualisation of unknown IDs. The ECS emulation is considered complete.
 
-**Key constraints**:
-- `g_known_display_ids[]` in `lxa_graphics.c`: the authoritative list of what lxa will claim to support. Adding a mode ID here alone is not enough — `GetDisplayInfoData(DTAG_DIMS)` must also return plausible `MinRaster`/`MaxRaster` ranges for it.
-- `GetDisplayInfoData(DTAG_DIMS)` currently returns `MinRasterWidth == MaxRasterWidth` (pinned values). Apps that check whether a mode can render at a target size will reject all modes. The fix is to return realistic ranges (e.g., 320–1280 for HIRES).
-- `BestModeIDA()` currently ignores `BIDTAG_DIPFMustHave`/`MustNotHave` flags. Apps that require `DIPF_IS_WB` or exclude `DIPF_IS_LACE` get wrong results.
-- The `FindDisplayInfo()` → `NextDisplayInfo()` iteration returns a fake handle sequence. Iteration-based probes (like CloantoScreenManager) may behave differently from single-query probes.
+**RTG supersedes ECS for modern apps**: PPaint, FinalWriter, and other productivity apps probe for P96 display IDs, not ECS modes. Their ECS-path failures are not investigated further. These apps are validation targets for Phase 139 (RTG app validation) after Phases 137–138 deliver the RTG infrastructure.
 
-**Symptom pattern**: App opens and immediately exits with a return code ≥ 26, or opens probe windows briefly then terminates. Often preceded by a flood of `FindDisplayInfo()`/`GetDisplayInfoData()` log entries.
+**ECS key constraints** (still relevant for legacy apps):
+- `g_known_display_ids[]` in `lxa_graphics.c`: the authoritative list. Adding an ID requires `GetDisplayInfoData(DTAG_DIMS)` to also return plausible `MinRaster`/`MaxRaster` ranges.
+- `graphics_virtualize_display_id()` maps unknown-but-plausible IDs to the closest physical mode (Wine strategy).
+- `BestModeIDA()` honours `BIDTAG_DIPFMustHave`/`MustNotHave` flags (landed Phase 129).
 
-**Fix philosophy**: Accept and virtualize any mode request that maps to our physical LORES/HIRES display — same as Wine accepting DirectX surface requests regardless of the exact format requested.
+**Symptom pattern**: App exits immediately (rv ≥ 26) with a flood of `FindDisplayInfo()`/`GetDisplayInfoData()` log entries — suspect RTG probe if the app is a modern productivity tool, ECS virtualisation gap if the app is an older ECS-era tool.
 
 ### 6.17 CMake Shard Coverage — Safety Rule
 
@@ -404,6 +403,22 @@ EXPECT_TRUE(std::any_of(text_log_.begin(), text_log_.end(),
 ```
 
 Until Phase 130 lands, use pixel-region counting (the existing approach) or DPRINTF log scanning as a proxy. Do not attempt to implement text extraction via ad-hoc DPRINTF log parsing — wait for the hook.
+
+### 6.19 RTG / Picasso96 Architecture (Phases 137–139)
+
+lxa's display strategy is RTG-first via Picasso96 (`Picasso96API.library`). Agents working on Phases 137–139 need these orientation points:
+
+**Chunky BitMap flag**: Phase 137 introduces `BMF_RTG` (or an equivalent internal flag) in `BitMap.Flags` to distinguish chunky RTG bitmaps from classic planar bitmaps. Before touching any graphics code that iterates `bm->Planes[]`, check this flag — RTG bitmaps store all pixels in `bm->Planes[0]` as a contiguous RGBA buffer.
+
+**SDL2 RTG path**: `display_update_rtg()` in `display.c` accepts a raw 32-bit RGBA buffer and uploads it to an `SDL_PIXELFORMAT_RGBA32` texture. The planar path (`display_update_planar()`) is unchanged. Do not mix the two paths for the same display handle.
+
+**P96 disk library pattern**: `Picasso96API.library` is a disk library (`src/rom/lxa_p96.c`, compiled via `add_disk_library()` in `sys/CMakeLists.txt`). It follows the same pattern as `lxa_amigaguide.c` — init function, function table, stub returns for unimplemented functions. The `RenderInfo` struct (`Memory`, `BytesPerRow`, `RGBFormat`) is the primary pixel-buffer descriptor used by all P96 pixel-transfer functions.
+
+**cybergraphics shim**: Many apps probe `cybergraphics.library` before `Picasso96API.library`. The CGX shim is a thin disk library that maps CGX function names (`GetCyberMapAttr`, `LockBitMapTags`, `WriteLUTPixelArray`, etc.) to their P96 equivalents. Implement it as a separate `add_disk_library()` target — do not merge it into `lxa_p96.c`.
+
+**RTG display IDs**: P96 mode IDs live in a different monitor-ID namespace from ECS IDs. Add them to `g_known_display_ids[]` in `lxa_graphics.c` and ensure `GetDisplayInfoData(DTAG_DIMS)` returns host-resolution ranges (up to 1920×1200) for them. Do not set `DIPF_IS_ECS` or `DIPF_IS_HAM` flags on RTG mode descriptors.
+
+**Symptom of missing P96**: App opens and immediately exits; `lxa.log` shows `OpenLibrary("Picasso96API.library", ...)` returning NULL followed by an exit. Check that the library is installed in `share/lxa/System/Libs/` and that `add_disk_library()` is in `sys/CMakeLists.txt`.
 
 ## 7. Quick Start
 1. Check `roadmap.md`.

@@ -3,6 +3,8 @@
 
 lxa runs AmigaOS executables natively on Linux, similar to how WINE runs Windows programs. It combines a 68000 CPU emulator with AmigaOS library implementations, bridging system calls to Linux I/O and filesystem operations.
 
+The long-term goal is for lxa to become a **viable development platform for Amiga software on Linux** — enabling Amiga developers to write, test, and run productivity applications and IDEs directly on commodity hardware (Linux PC, Raspberry Pi) without needing real Amiga hardware. RTG (Retargetable Graphics) via Picasso96 is the primary display strategy, targeting full true-color screens at arbitrary resolutions.
+
 ## Features
 
 - ✨ **Direct execution** of Amiga programs on Linux
@@ -238,13 +240,13 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.8.79** - Copper list interpreter (Phase 114): minimal copper interpreter (`src/lxa/lxa_copper.c`) supporting MOVE/WAIT/SKIP, executed once per VBlank from `COP1LC`. MOVE writes flow through the existing custom-register dispatcher so all side effects (DMACON, INTENA, blitter triggers, color tracking) are honored. WAIT is treated as immediately satisfied, SKIP as never-skipping (no beam emulation); end-of-list `CWAIT(0xFFFF, 0xFFFE)` halts execution. CDANG (COPCON) gates writes to protected registers below 0x40. Color registers (COLOR00..COLOR31) are now shadowed and readable. New `tests/graphics/copper` integration test exercises single MOVE, gradient, mid-list WAIT, CDANG protection, end-of-list halt, and SKIP fall-through.
+**Version 0.9.3** - Screen-mode emulation (Phase 128 + Phase 129 partial): display pipeline optimization with dirty-region scanline tracking and SSE2 planar-to-chunky acceleration; ROM-side screen-mode virtualization complete — `g_known_display_ids[]` expanded to 36 ECS entries, `GetDisplayInfoData(DTAG_DIMS)` returns realistic raster ranges, `BestModeIDA()` honours `DIPFMustHave`/`MustNotHave`, `OpenScreenTagList()` accepts RTG-depth requests and maps unknown display IDs to the closest physical mode (Wine strategy). PPaint and FinalWriter validation deferred to Phase 139 (RTG app validation via Picasso96).
 
-**Version 0.8.78** - Blitter line-draw mode (Phase 113): hardware blitter now implements Bresenham line-draw mode when `BLTCON1` bit 0 (LINE) is set, including all four octant-quadrant combinations via the SUD/SUL/AUL bits, single-bit-per-row mode (SING), cross-word ASH wrapping, and pattern replication via BLTBDAT rotation. Implementation matches e-uae's `blitter_line_proc()`. 9 new sub-tests in `tests/graphics/hw_blitter` cover horizontal, vertical, all four diagonal directions, steep/shallow dominant axes, cross-word lines, and patterned lines. Apps must set `BLTADAT = 0x8000` for a single-pixel mask, per HRM convention.
+**Version 0.9.1** - Memory access fast paths (Phase 127): direct bswap-based 16/32-bit RAM and ROM reads/writes; `__builtin_expect` hints on hot paths.
 
-**Version 0.8.77** - Menu double-buffering (Phase 112): pixel-accurate menu save/restore using `AllocBitMap` + `BltBitMap` eliminates the 1–7 pixel edge artifact at non-byte-aligned menu X positions. `BltBitMapCore` is now dispatched to a native host-side handler via `EMU_CALL_GFX_BLT_BITMAP`, delivering ~50–100× the throughput of the interpreted m68k path while preserving full Amiga semantics (all minterms, overlap direction, plane/pixel masks, NULL and `(PLANEPTR)-1` source planes for `DrawImage` planeonoff). Regression tests added for non-byte-aligned shifts (1..7), minterm 0x30 (`IDS_SELECTED`), and the special source-plane sentinels.
+**Version 0.9.0** - Profiling infrastructure (Phase 126): per-EMU_CALL counters + timing; `--profile` flag; `tools/profile_report.py`; baseline latency tests across six app drivers.
 
-**Version 0.8.76** - SMART_REFRESH full backing store: obscured window content is now saved and restored when layers overlap and uncover, with CR-aware rendering for RectFill, WritePixel, Draw, ReadPixel, ClipBlit, BltBitMapRastPort, and BltMaskBitMapRastPort
+**Version 0.8.90** - `lxa.c` decomposition (Phase 125): 9,960-line monolith split into `lxa_custom.c`, `lxa_dispatch.c`, `lxa_dos_host.c`, `lxa_internal.h`, `lxa_memory.h`; `lxa.c` reduced to ~1,658 lines.
 
 See [roadmap.md](roadmap.md) for detailed status and future plans.
 
@@ -252,12 +254,10 @@ See [roadmap.md](roadmap.md) for detailed status and future plans.
 
 - CPU: 68000 only (no 68020+ or FPU)
 - Third-party libraries such as `commodities.library`, `rexxsyslib.library`, `datatypes.library`, and `dopus.library` are not shipped in ROM and must be installed on disk in `LIBS:`. Stub disk libraries are provided for `amigaguide.library`, `req.library`, `reqtools.library`, `powerpacker.library`, and `arp.library` (apps can OpenLibrary them but all functions return safe failure values).
-- Graphics: Basic screen/window support with drawing primitives
-- Intuition: Screen and window management, basic IDCMP input handling
-- Console: Full CSI escape sequence support, CON:/RAW: handlers
-- GUI Apps: Run but graphical output goes to SDL window
-- Networking: Not implemented
-- Audio: Hosted `audio.device` playback is available, but Paula chip-level DMA timing/mixing remains approximate rather than cycle-exact
+- RTG: Picasso96 (`Picasso96API.library`) and `cybergraphics.library` are not yet implemented — this is the active development focus (Phases 137–139). ECS screen modes (LORES/HIRES, PAL/NTSC) are supported; RTG true-color modes are not yet available.
+- GUI Apps: SDL2 window display works for ECS-depth apps; RTG true-color display pending Phase 137.
+- Networking: Not implemented.
+- Audio: Hosted `audio.device` playback is available, but Paula chip-level DMA timing/mixing remains approximate rather than cycle-exact.
 
 ## Troubleshooting
 
@@ -320,20 +320,24 @@ Contributions welcome! Please:
 
 ### What is lxa?
 
-lxa (Linux Amiga) is an emulation layer that runs AmigaOS programs on Linux without requiring a full Amiga system. Think of it as **WINE for Amiga** - it translates AmigaOS system calls to Linux equivalents on-the-fly.
+lxa (Linux Amiga) is an emulation layer that runs AmigaOS programs on Linux without requiring a full Amiga system. Think of it as **WINE for Amiga** — it translates AmigaOS system calls to Linux equivalents on-the-fly.
+
+The strategic goal is to become a **development platform for Amiga software on Linux**: productivity apps (Wordsworth, Amiga Writer, PageStream), IDEs (Storm C, BlitzBasic 3), and GUI toolkit applications (MUI, ReAction) should all run and be testable on commodity hardware. Because lxa targets OS-compliant applications only, it can use RTG (Retargetable Graphics) via Picasso96 rather than emulating ECS/AGA chip registers — enabling full true-color displays at any resolution.
 
 **How it works:**
 - Emulates the Motorola 68000 CPU (via Musashi)
-- Implements AmigaOS libraries (exec.library, dos.library, etc.)
+- Implements AmigaOS libraries (exec.library, dos.library, graphics.library, intuition.library, etc.)
 - Maps Amiga filesystem calls directly to Linux (WINE-like approach)
 - Provides preemptive multitasking and message passing
+- RTG display via Picasso96 (`Picasso96API.library`) on SDL2 — no chip-register emulation needed
 
 ### Architecture Highlights
 
-- **No hardware emulation** - Direct Linux I/O, no floppy/hard drive emulation
-- **Case-insensitive VFS** - Amiga paths work on Linux filesystem
-- **Native performance** - Most operations run at native speed
-- **Fully preemptive** - Timer-driven task switching at 50Hz
+- **No hardware emulation** — Direct Linux I/O, no floppy/hard drive emulation
+- **RTG-first display** — Picasso96 for true-color at arbitrary resolution; ECS planar modes supported for legacy apps
+- **Case-insensitive VFS** — Amiga paths work on Linux filesystem
+- **Native performance** — Most operations run at native speed
+- **Fully preemptive** — Timer-driven task switching at 50Hz
 
 See [doc/architecture.md](doc/architecture.md) for technical details.
 
@@ -343,13 +347,13 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 ## Contribution Areas
 
-We welcome contributions! Areas of interest:
-- Additional AmigaOS library implementations
+We welcome contributions! Priority areas:
+- **RTG / Picasso96**: `Picasso96API.library` and `cybergraphics.library` implementation (Phases 137–139)
+- **GUI toolkits**: MUI and ReAction/ClassAct hosting support (Phases 141–142)
+- **Productivity app coverage**: Wordsworth, Amiga Writer, PageStream, Storm C, BlitzBasic 3 drivers
+- **AmigaOS library completeness**: filling gaps in existing exec/dos/graphics/intuition implementations
+- **Test coverage**: new host-side GTest drivers for untested apps
 - Command-line tool enhancements
-- Graphics/Intuition support
-- 68020/68030/68040 CPU support
-- FPU emulation
-- Test coverage improvements
 
 Please read [doc/developer-guide.md](doc/developer-guide.md) before contributing.
 

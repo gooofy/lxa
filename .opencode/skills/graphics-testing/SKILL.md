@@ -118,22 +118,19 @@ int CountContentPixels(int x1, int y1, int x2, int y2, int bg_color = 0);
 
 ## 9. Screen-Mode–Aware Testing
 
-Apps that probe display modes at startup (e.g., PPaint's CloantoScreenManager, FinalWriter) may exit early with rv=26 or open probe windows that are immediately discarded. Before writing tests that assume these apps reach their main UI, verify Phase 129 has landed.
+Apps that probe display modes at startup may exit early with rv=26 or open probe windows that are immediately discarded. As of Phase 129 (v0.9.3), ECS mode emulation is complete. Modern productivity apps (PPaint, FinalWriter) probe for **RTG / P96 display IDs** — they will remain blocked until Phases 137–139 land.
 
-**Symptoms that screen-mode emulation is the blocker**:
-- App exits immediately (rv ≥ 26) with no UI visible
-- App opens and closes small windows in rapid succession
-- `lxa.log` shows a flood of `FindDisplayInfo()`/`GetDisplayInfoData()` calls followed by an exit
+**Symptom diagnosis**:
 
-**Test pattern for apps that probe modes**:
-```cpp
-// Guard at the top of a test that requires the full UI
-if (!lxa_screen_mode_full_emulation_available()) {
-    GTEST_SKIP() << "Requires Phase 129 screen-mode emulation";
-}
-```
+| Symptom | Likely cause |
+|---|---|
+| App exits (rv ≥ 26), flood of `FindDisplayInfo`/`GetDisplayInfoData` in log | RTG mode probe — app needs P96 (Phase 137+) |
+| App exits but no display-info flood | Different root cause; check OpenLibrary failures first |
+| App opens probe windows briefly then exits | RTG screen-open attempt fails (Phase 137+) |
 
-Until Phase 129, tests for these apps must focus on what is reachable: probe-window geometry bounds, log guards (no PANIC / null-BitMap), and capture-pipeline survival.
+**ECS-era apps** (DPaint, DevPac, ASM-One, etc.): Phase 129 ECS virtualisation covers these. If an ECS app still exits early, check `g_known_display_ids[]` and `GetDisplayInfoData(DTAG_DIMS)` ranges.
+
+**RTG apps** (PPaint, FinalWriter, productivity/IDE apps): do not attempt ECS workarounds. Write survival-only tests until Phase 139 lands; then upgrade to full UI assertions.
 
 ## 10. Text Extraction (Phase 130+)
 
@@ -234,3 +231,26 @@ python tools/screenshot_review.py --output json capture.png
 - The default model is `google/gemini-3-flash-preview`. Override with `--model` when a stronger model is needed for subtle rendering details.
 - The default prompt is tuned for Amiga UI review. Supply `--prompt` only when narrowing to a specific subsystem helps.
 - The tool is for **developer investigation only**; never add API calls to it in automated test code.
+
+## 11. RTG / Picasso96 Testing (Phase 137+)
+
+After Phase 137 lands, RTG bitmaps and screens become testable. Key patterns:
+
+**Detecting RTG bitmaps in tests** — RTG bitmaps have `GetBitMapAttr(bm, BMA_DEPTH)` returning 15, 16, 24, or 32. The `BMF_RTG` internal flag distinguishes them from planar bitmaps. Never call `ReadPixel()` (which goes through planar rendering) on an RTG bitmap — use `p96ReadPixelArray()` instead.
+
+**P96 pixel verification pattern**:
+```cpp
+// After Phase 138 lands:
+struct RenderInfo ri;
+p96LockBitMap(bm, (struct TagItem *)nullptr);  // returns ri
+uint32_t *pixels = (uint32_t *)ri.Memory;
+uint32_t pixel = pixels[y * (ri.BytesPerRow / 4) + x];
+EXPECT_EQ(pixel & 0x00FFFFFF, 0x00FF0000u);  // red pixel at (x,y)
+p96UnlockBitMap(bm, &ri);
+```
+
+**RTG screen test structure** — follow `rtg_gtest.cpp` (added in Phase 137) as the reference driver. Use `LxaUITest` base class; open screen with `SA_Depth=32` and a P96 mode ID; assert screen opens without crash; use `p96GetBitMapAttr` to verify depth.
+
+**cybergraphics shim testing** — add a `cgx_gtest.cpp` companion that opens `cybergraphics.library` and calls the same functions via CGX names. Both libraries must return identical results for the same underlying RTG bitmap.
+
+**Symptom of missing RTG infrastructure**: `OpenLibrary("Picasso96API.library", 0)` returns NULL in the test log — check that `lxa_p96.c` is compiled and `sys/CMakeLists.txt` has the `add_disk_library()` entry.

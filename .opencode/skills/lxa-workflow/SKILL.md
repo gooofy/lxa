@@ -23,6 +23,7 @@ This skill guides you through the project management, versioning, and build proc
    - Update `roadmap.md` (`[x]`), compact/summarize done tasks, keep it clean and focused on the future.
    - If you intentionally defer unfinished work, rewrite the roadmap entry so the deferral is explicit and the phase status remains unambiguous.
    - Remove or rewrite roadmap items that would incorrectly re-implement third-party libraries; document that those libraries must be loaded from disk instead.
+   - **RTG phases (137–139)**: `Picasso96API.library` and `cybergraphics.library` are disk libraries — never add P96/CGX ROM stubs. They are compiled via `add_disk_library()` in `sys/CMakeLists.txt`. New RTG bitmap code goes in `lxa_graphics.c` (the `BMF_RTG` chunky path); new P96 API code goes in `lxa_p96.c`.
    - Update `README.md`.
    - Update Version Number.
 
