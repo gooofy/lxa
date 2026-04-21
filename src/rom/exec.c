@@ -2171,6 +2171,8 @@ ULONG _exec_SetSignal ( register struct ExecBase *SysBase     __asm("a6"),
                                         register ULONG            signalSet   __asm("d1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: SetSignal called, newSignals=0x%08lx, signalSet=0x%08lx\n", newSignals, signalSet);
+    LPRINTF (LOG_INFO, "_exec: SetSignal(new=0x%08lx mask=0x%08lx) task='%s'\n", newSignals, signalSet,
+             SysBase->ThisTask ? SysBase->ThisTask->tc_Node.ln_Name : "?");
 
     struct Task *me = SysBase->ThisTask;
     ULONG oldsigs = 0;
@@ -2307,6 +2309,8 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___signalSet  __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: Wait() called, signalSet=0x%08lx\n", ___signalSet);
+    LPRINTF (LOG_INFO, "_exec: Wait() sigs=0x%08lx task='%s'\n", ___signalSet,
+             SysBase->ThisTask ? SysBase->ThisTask->tc_Node.ln_Name : "?");
 
     struct Task *thisTask = SysBase->ThisTask;
     ULONG rcvd;
@@ -2380,6 +2384,8 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: Signal() called, task=0x%08lx '%s', signalSet=0x%08lx\n",
              ___task, ___task ? ___task->tc_Node.ln_Name : "(null)", ___signalSet);
+    LPRINTF (LOG_INFO, "_exec: Signal() task=0x%08lx name='%s' sigs=0x%08lx\n",
+             (ULONG)___task, ___task ? ___task->tc_Node.ln_Name : "(null)", ___signalSet);
 
     /* Validate task pointer before doing anything */
     if (!___task || (ULONG)___task < 0x400)
@@ -2497,6 +2503,7 @@ BYTE _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
                                          register BYTE              signalNum  __asm("d0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: AllocSignal called, signalNum=%d\n", signalNum);
+    LPRINTF (LOG_INFO, "_exec: AllocSignal(%d)\n", signalNum);
 
     struct Task *me = SysBase->ThisTask;
     ULONG newmask;
@@ -2515,6 +2522,7 @@ BYTE _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
             signalNum++;
 
         DPRINTF (LOG_DEBUG, "_exec: AllocSignal -> auto selected signalNum=%d\n", signalNum);
+        LPRINTF (LOG_INFO, "_exec: AllocSignal -> bit %d\n", signalNum);
     }
     else if (signalNum > 31)
     {
@@ -2577,6 +2585,8 @@ void _exec_AddPort ( register struct ExecBase * SysBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_exec: AddPort() called, port=0x%08lx, name=%s\n",
              ___port, ___port->mp_Node.ln_Name ? ___port->mp_Node.ln_Name : "NULL");
+    LPRINTF (LOG_INFO, "_exec: AddPort() port=0x%08lx name=%s\n",
+             (ULONG)___port, ___port->mp_Node.ln_Name ? ___port->mp_Node.ln_Name : "NULL");
 
     /* Arbitrate for the list of messageports. */
     Forbid();
@@ -2614,6 +2624,7 @@ void _exec_PutMsg ( register struct ExecBase * SysBase __asm("a6"),
                                                         register struct Message * ___message  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: PutMsg() called, port=0x%08lx, message=0x%08lx\n", ___port, ___message);
+    LPRINTF (LOG_INFO, "_exec: PutMsg() port=0x%08lx msg=0x%08lx\n", (ULONG)___port, (ULONG)___message);
 
     if (___port == NULL || ___message == NULL)
     {
@@ -2742,6 +2753,8 @@ struct Message * _exec_WaitPort ( register struct ExecBase * SysBase __asm("a6")
                                                   register struct MsgPort * ___port  __asm("a0"))
 {
     DPRINTF (LOG_DEBUG, "_exec: WaitPort() called, port=0x%08lx\n", ___port);
+    LPRINTF (LOG_INFO, "_exec: WaitPort(port=0x%08lx) task='%s'\n", (ULONG)___port,
+             SysBase->ThisTask ? SysBase->ThisTask->tc_Node.ln_Name : "?");
 
     /*
      * On uniprocessor systems, Disable() is not necessary since emptiness
@@ -2774,11 +2787,13 @@ struct MsgPort * _exec_FindPort ( register struct ExecBase * SysBase __asm("a6")
                                                         register CONST_STRPTR ___name  __asm("a1"))
 {
     DPRINTF (LOG_DEBUG, "_exec: FindPort() called, name=%s\n", ___name ? (char *)___name : "NULL");
+    LPRINTF (LOG_INFO, "_exec: FindPort() name=%s\n", ___name ? (char *)___name : "NULL");
 
     /* Nothing spectacular - just look for that name. */
     struct MsgPort *retVal = (struct MsgPort *)FindName(&SysBase->PortList, ___name);
 
     DPRINTF (LOG_DEBUG, "_exec: FindPort() returning 0x%08lx\n", retVal);
+    LPRINTF (LOG_INFO, "_exec: FindPort() returning 0x%08lx\n", (ULONG)retVal);
 
     return retVal;
 }
@@ -5710,11 +5725,7 @@ void coldstart (void)
      * no view loaded yet). ActiView is set when LoadView() is called. */
     
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
-    /* Debug: print offset of FirstScreen from exec.c perspective */
-    LPRINTF(LOG_INFO, "[DEBUG-exec] IntuitionBase=0x%08lx, offsetof(FirstScreen)=%d, sizeof(IntuitionBase)=%d, sizeof(Library)=%d, sizeof(View)=%d\n",
-            (ULONG)IntuitionBase,
-            (int)((char*)&IntuitionBase->FirstScreen - (char*)IntuitionBase),
-            (int)sizeof(struct IntuitionBase), (int)sizeof(struct Library), (int)sizeof(struct View));
+    DPRINTF(LOG_DEBUG, "[exec] IntuitionBase=0x%08lx\n", (ULONG)IntuitionBase);
     LayersBase    = (struct Library       *) registerBuiltInLib (sizeof(*LayersBase)    , __lxa_layers_ROMTag    );
     ExpansionBase = (struct ExpansionBase *) registerBuiltInLib (sizeof(*ExpansionBase) , __lxa_expansion_ROMTag );
     IconBase      = (struct Library       *) registerBuiltInLib (sizeof(*IconBase)      , __lxa_icon_ROMTag      );

@@ -2955,6 +2955,7 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
      * and allows other tasks to run via the scheduler.
      */
     DPRINTF (LOG_DEBUG, "_dos: Delay(%ld) called.\n", ticks);
+    LPRINTF (LOG_INFO, "_dos: Delay(%ld) called.\n", ticks);
 
     if (ticks == 0)
         return;
@@ -5313,6 +5314,37 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     Enqueue (&SysBase->TaskReady, &process->pr_Task.tc_Node);
 
     Enable();
+
+    /*
+     * Yield CPU to allow the newly created process to run its initialisation
+     * (e.g. AddPort, library init) before the calling task continues.
+     *
+     * On a real Amiga the process would eventually get a timeslice when the
+     * calling task calls Delay() or Wait().  Many apps rely on the child
+     * having had at least one timeslice before the parent queries ports
+     * created by the child.  We force one round-trip through the scheduler
+     * by temporarily putting the current task at the back of TaskReady and
+     * switching away.
+     */
+    {
+        struct Task *me = FindTask(NULL);
+        if (me)
+        {
+            Disable();
+            me->tc_State = TS_READY;
+            /* Put ourselves at the *back* so higher/equal priority tasks run first */
+            Enqueue(&SysBase->TaskReady, &me->tc_Node);
+            asm volatile (
+                "   move.l  a5, -(a7)               \n"
+                "   move.l  4, a6                   \n"
+                "   move.l  #_exec_Switch, a5       \n"
+                "   jsr     -30(a6)                 \n"   /* Supervisor() */
+                "   move.l  (a7)+, a5               \n"
+                : : : "a6", "memory"
+            );
+            Enable();
+        }
+    }
 
     DPRINTF (LOG_INFO, "_dos: CreateNewProc() done, process=0x%08lx\n", process);
 

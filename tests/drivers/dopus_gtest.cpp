@@ -101,7 +101,11 @@ protected:
 
         WaitForWindowDrawn(0, 5000);
         WaitForEventLoop(150, 10000);
-        RunCyclesWithVBlank(150, 50000);
+        /* DOpus renders its button bank via a VBlank-driven timer event that
+         * fires around VBlank 400 after startup.  Run 600 VBlank iterations
+         * to ensure the full button bank is rendered before taking the
+         * content-pixel snapshot. */
+        RunCyclesWithVBlank(600, 50000);
         FlushAndSettle();
 
         /* Re-fetch geometry in case DOpus resized the window after init. */
@@ -362,9 +366,12 @@ protected:
         }
 
         /* Install hook before loading so we capture the initial draw. */
-        lxa_set_text_hook([](const char *s, int n, int, int, void *ud) {
-            if (n > 0)
-                static_cast<std::vector<std::string>*>(ud)->push_back(std::string(s, n));
+        lxa_set_text_hook([](const char *s, int n, int x, int y, void *ud) {
+            if (n > 0) {
+                std::string str(s, n);
+                fprintf(stderr, "[TEXT-HOOK] x=%d y=%d n=%d str='%s'\n", x, y, n, str.c_str());
+                static_cast<std::vector<std::string>*>(ud)->push_back(str);
+            }
         }, &text_log_);
 
         ASSERT_EQ(lxa_load_program(
@@ -374,8 +381,13 @@ protected:
         ASSERT_TRUE(lxa_wait_windows(1, 15000))
             << "DirectoryOpus did not open a tracked window";
 
-        /* Let the UI settle so button labels are drawn. */
-        for (int i = 0; i < 150; i++) {
+        /* Let the UI settle so button labels are drawn.
+         * DOpus renders its button bank in response to a VBlank-driven timer
+         * event after completing the initial UI skeleton.  The button bank
+         * render starts around VBlank 400 after startup.  Run 600 VBlank
+         * iterations (30M cycles, ~600ms on a real 50 Hz PAL Amiga) to give
+         * dopus_task time to reach and complete the full button bank render. */
+        for (int i = 0; i < 600; i++) {
             lxa_trigger_vblank();
             lxa_run_cycles(50000);
         }
@@ -392,29 +404,48 @@ protected:
 TEST_F(DOpusTextHookTest, TextHookCapturesKnownDOpusLabels)
 {
     ASSERT_TRUE(loaded_) << "DOpus did not load correctly";
+
+    /* Dump all captured text to stderr for diagnostic purposes. */
+    std::string all;
+    for (const auto &s : text_log_) all += s;
+    fprintf(stderr, "[DOPUS-TEXT] %zu strings captured, combined: \"%s\"\n",
+            text_log_.size(), all.c_str());
+
     ASSERT_FALSE(text_log_.empty())
         << "Text hook captured no strings during DOpus startup";
 
-    /* DOpus renders its button-bar labels.  Because DOpus may render text
-     * character-by-character, we concatenate all captured strings and check
-     * for individual characters that are unambiguously part of DOpus labels:
-     * 'C' (Copy), 'M' (Move), 'D' (Delete), 'R' (Rename). */
-    std::string all;
-    for (const auto &s : text_log_) all += s;
+    /* Phase 134 goal: assert button-bank label words appear.
+     * DOpus renders: Copy, Move, Rename, Makedir (main button bank rows)
+     * plus the fixed clusters B/R/S/A and ?/E/F/C/I/Q.
+     * Note: DOpus renders text character-by-character for the small
+     * clusters, but multi-char strings for the main button bank. */
+    bool has_multi_char = false;
+    for (const auto &s : text_log_) {
+        if (s.size() > 1) { has_multi_char = true; break; }
+    }
 
-    bool has_label_chars =
-        all.find('C') != std::string::npos ||
-        all.find('M') != std::string::npos ||
-        all.find('D') != std::string::npos;
+    bool has_copy   = all.find("Copy")   != std::string::npos;
+    bool has_move   = all.find("Move")   != std::string::npos;
+    bool has_rename = all.find("Rename") != std::string::npos;
 
-    EXPECT_TRUE(has_label_chars)
-        << "Expected DOpus label characters not found in captured text stream.\n"
+    fprintf(stderr, "[DOPUS-TEXT] has_multi_char=%d has_Copy=%d has_Move=%d has_Rename=%d\n",
+            (int)has_multi_char, (int)has_copy, (int)has_move, (int)has_rename);
+
+    /* Phase 134: button bank labels must be present. */
+    EXPECT_TRUE(has_multi_char)
+        << "DOpus should render multi-character button labels, not just single chars";
+    EXPECT_TRUE(has_copy)
+        << "DOpus button bank 'Copy' label missing from rendered text";
+    EXPECT_TRUE(has_move)
+        << "DOpus button bank 'Move' label missing from rendered text";
+    EXPECT_TRUE(has_rename)
+        << "DOpus button bank 'Rename' label missing from rendered text.\n"
            "Captured (" << text_log_.size() << " strings): "
         << [&]() {
                std::string out;
                int n = 0;
                for (const auto &s : text_log_) {
-                   if (++n > 20) { out += "..."; break; }
+                   if (++n > 30) { out += "..."; break; }
                    out += '"'; out += s; out += "\" ";
                }
                return out;

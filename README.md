@@ -240,6 +240,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.9.8** - DirectoryOpus button bank rendering (Phase 134): root cause diagnosed via Phase 130 text hook — DOpus renders its main button bank (Copy/Move/Rename/Makedir/Hunt/Run/Comment etc.) via a VBlank-driven timer event that fires ~400 VBlanks after startup, beyond the previous 150-iteration settle window. Fixed by bumping settle to 600 VBlank iterations. `TextHookCapturesKnownDOpusLabels` now asserts specific button-bank label words. All diagnostic LPRINTFs from the previous investigation session cleaned up.
+
 **Version 0.9.7** - Menu double-buffering (Phase 133): `_render_menu_bar()` and `_render_menu_items()` in `lxa_intuition.c` now render into a persistent off-screen compose BitMap and atomic-`BltBitMap` the completed frame to the screen, eliminating pixel flicker during menu drags on ASM-One and MaxonBASIC. `ZMenuFlickerCheck` upgraded to a ±5% pixel-stability assertion; new `ZMenuDragPixelStability` test guards the MaxonBASIC editor area against menu residue. Full suite 67/67 pass.
 
 **Version 0.9.6** - SMART_REFRESH backing store validation (Phase 132): new `BackingStoreTest` sample (`samples/intuition/backingstoretest.c`) drives a dialog-over-window obscure/uncover cycle through three deterministic stages; new `backingstore_gtest.cpp` driver (4 tests) probes pixels in the formerly-obscured region and proves Phase 111's backing store correctly restores SMART_REFRESH content on uncover. Defensive `IS_SMARTREFRESH` skip in `DamageExposedAreas()` removed; apps now receive correct IDCMP_REFRESHWINDOW messages on uncover (matching real Amiga behaviour) without losing pixels. Full suite 67/67 pass.

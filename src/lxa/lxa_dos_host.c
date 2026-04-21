@@ -755,6 +755,7 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
     char lxpath[PATH_MAX];
 
     DPRINTF (LOG_DEBUG, "lxa: _dos_open(): amiga_path=%s\n", amiga_path);
+    LPRINTF (LOG_INFO, "lxa: _dos_open(): amiga_path=%s\n", amiga_path);
 
     if (!strncasecmp (amiga_path, "CONSOLE:", 8) || (amiga_path[0]=='*'))
     {
@@ -850,6 +851,7 @@ int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 
     if (l<0)
         m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+    DPRINTF(LOG_DEBUG, "lxa: _dos_read(): fd=%d len=%d result=%zd\n", fd, len68k, l);
 
     return l;
 }
@@ -857,6 +859,7 @@ int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
 {
     DPRINTF (LOG_DEBUG, "lxa: _dos_seek(): fh=0x%08x, position=0x%08x, mode=%d\n", fh68k, position, mode);
+    LPRINTF (LOG_INFO, "lxa: _dos_seek(): fd=%d position=%d mode=%d\n", m68k_read_memory_32(fh68k+36), position, mode);
 
     int fd   = m68k_read_memory_32 (fh68k+36);
 
@@ -1770,6 +1773,7 @@ uint32_t _dos_lock(uint32_t name68k, int32_t mode)
     char linux_path[PATH_MAX];
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_lock: amiga_path='%s'\n", amiga_path);
+
     
     /* Resolve the Amiga path to Linux path */
     if (!vfs_resolve_path(amiga_path, linux_path, sizeof(linux_path))) {
@@ -1783,8 +1787,10 @@ uint32_t _dos_lock(uint32_t name68k, int32_t mode)
     struct stat st;
     if (stat(linux_path, &st) != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_lock: stat failed: %s\n", strerror(errno));
+        DPRINTF(LOG_DEBUG, "lxa: _dos_lock: FAILED '%s' -> '%s'\n", amiga_path, linux_path);
         return 0; /* ERROR_OBJECT_NOT_FOUND will be set by caller */
     }
+    DPRINTF(LOG_DEBUG, "lxa: _dos_lock: OK '%s' -> '%s'\n", amiga_path, linux_path);
     
     /* Allocate a lock entry */
     int lock_id = _lock_alloc();

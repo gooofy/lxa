@@ -1324,7 +1324,7 @@ VOID graphics_screen_sync_viewport_bitmap(struct Screen *screen)
 
     if (bitmap != &screen->BitMap)
     {
-        LPRINTF(LOG_INFO,
+        DPRINTF(LOG_DEBUG,
                 "_graphics: sync viewport bitmap screen=0x%08lx old=0x%08lx new=0x%08lx rows=%u bpr=%u depth=%u\n",
                 (ULONG)screen,
                 (ULONG)&screen->BitMap,
@@ -1356,7 +1356,7 @@ static VOID graphics_screen_adopt_bitmap(struct Screen *screen,
     {
         bpr_depth = ((ULONG)screen->BitMap.BytesPerRow << 16) |
                     (ULONG)screen->BitMap.Depth;
-        LPRINTF(LOG_INFO,
+        DPRINTF(LOG_DEBUG,
                 "_graphics: adopt bitmap screen=0x%08lx bitmap=0x%08lx planes0=0x%08lx rows=%u bpr=%u depth=%u handle=0x%08lx\n",
                 (ULONG)screen,
                 (ULONG)bm,
@@ -1895,6 +1895,8 @@ static VOID _graphics_BltTemplate ( register struct GfxBase * GfxBase __asm("a6"
 
     DPRINTF (LOG_DEBUG, "_graphics: BltTemplate() source=0x%08lx xSrc=%ld srcMod=%ld dest=(%ld,%ld) size=%ldx%ld\n",
              (ULONG)_source, _xSrc, _srcMod, _xDest, _yDest, _xSize, _ySize);
+    LPRINTF (LOG_INFO, "_graphics: BltTemplate() dest=(%ld,%ld) size=%ldx%ld\n",
+             _xDest, _yDest, _xSize, _ySize);
 
     if (!_source || !_destRP)
     {
@@ -2521,6 +2523,9 @@ static struct TextFont * _graphics_OpenFont ( register struct GfxBase * GfxBase 
     }
 
     DPRINTF (LOG_DEBUG, "_graphics: OpenFont() name='%s', size=%d\n",
+             textAttr->ta_Name ? (char *)textAttr->ta_Name : "(null)",
+             (int)textAttr->ta_YSize);
+    LPRINTF (LOG_INFO, "_graphics: OpenFont() name='%s', size=%d\n",
              textAttr->ta_Name ? (char *)textAttr->ta_Name : "(null)",
              (int)textAttr->ta_YSize);
 
@@ -3656,6 +3661,7 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_graphics: Draw() rp=0x%08lx, from (%d,%d) to (%d,%d)\n",
              (ULONG)rp, rp ? rp->cp_x : 0, rp ? rp->cp_y : 0, (int)x, (int)y);
+    LPRINTF (LOG_INFO, "_graphics: Draw() to (%d,%d)\n", (int)x, (int)y);
 
     if (!rp || !rp->BitMap)
     {
@@ -4563,7 +4569,6 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_graphics: RectFill() rp=0x%08lx, (%d,%d)-(%d,%d)\n",
              (ULONG)rp, (int)xMin, (int)yMin, (int)xMax, (int)yMax);
-
     if (!rp || !rp->BitMap)
         return;
 
@@ -6876,6 +6881,8 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
 
     DPRINTF (LOG_DEBUG, "_graphics: BltBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=0x%08lx (%ld,%ld) size=%ldx%ld minterm=0x%02lx\n",
              (ULONG)srcBitMap, xSrc, ySrc, (ULONG)destRP, xDest, yDest, xSize, ySize, minterm);
+    LPRINTF (LOG_INFO, "_graphics: BltBitMapRastPort() src=0x%08lx (%ld,%ld) destRP=(%ld,%ld) size=%ldx%ld minterm=0x%02lx\n",
+             (ULONG)srcBitMap, xSrc, ySrc, xDest, yDest, xSize, ySize, minterm);
 
     if (!srcBitMap || !destRP || !destRP->BitMap)
     {
