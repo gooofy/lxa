@@ -192,6 +192,12 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         set_tests_properties(easyrequest_gtest PROPERTIES TIMEOUT 180)
     endif()
 
+    # BackingStore - SMART_REFRESH backing store test (Phase 132)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/backingstore_gtest.cpp)
+        add_gtest_driver(backingstore_gtest)
+        set_tests_properties(backingstore_gtest PROPERTIES TIMEOUT 180)
+    endif()
+
     # GadToolsGadgets - GadTools gadget creation test (STRING_KIND, SLIDER_KIND, BUTTON_KIND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsgadgets_gtest.cpp)
         add_gtest_driver_target(gadtoolsgadgets_gtest)

@@ -44,6 +44,7 @@ The primary target applications are productivity software (Wordsworth, Amiga Wri
 | 127 | Memory access fast paths: direct bswap-based 16/32-bit RAM and ROM reads/writes in `m68k_read/write_memory_16/32`; `__builtin_expect` hints on hot paths in `mread8`/`mwrite8`; 4 byte-order correctness unit tests in `api_gtest.cpp` | v0.9.1 |
 | 128 | Display pipeline optimization: dirty-region scanline tracking (min/max dirty row → partial SDL texture upload); SSE2 planar-to-chunky acceleration (8 pixels/iter via byte broadcast + mullo); coalesced VBlank uploads; all visual regression tests pass unchanged | v0.9.2 |
 | 129 (partial) | Screen-mode emulation ROM improvements: `g_known_display_ids[]` expanded from 6 to 36 entries (DEFAULT/NTSC/PAL monitors × 12 ECS modes incl. LORESLACE, HIRESLACE, SUPER, HAM, HAMLACE, HIRESHAM, EHB, EHBLACE); `graphics_virtualize_display_id()` maps unknown IDs to closest physical mode (Wine strategy); `GetDisplayInfoData(DTAG_DIMS)` returns realistic raster ranges (HIRES 320–1280, LORES 160–640); `DIPF_IS_HAM`/`EXTRAHALFBRITE`/`LACE`/`ECS` advertised in `DTAG_DISP`; `BestModeIDA()` honors `BIDTAG_DIPFMustHave`/`MustNotHave`; `FindDisplayInfo(INVALID_ID)` correctly rejects; `LockIBase()` returns 0; `OpenScreen` accepts WBENCHSCREEN via CUSTOMSCREEN + flag; VPModeID set from SA_DisplayID; OpenFont loads screen font; `OpenWorkBench` uses CUSTOMSCREEN trick; diskfont registers fonts by basename; GfxBase DisplayFlags/VBlankFrequency/PowerSupplyFrequency populated; display_viewport test expanded with virtualization + HAM/EHB/LACE property-flag + BestModeIDA MustNotHave coverage. **PPaint launch-path still blocked** — see Known Limitations | v0.9.3 |
+| 132 | SMART_REFRESH backing store validation + workaround removal: new `BackingStoreTest` sample + `backingstore_gtest.cpp` driver (4 tests) prove Phase 111's backing store correctly saves/restores SMART_REFRESH pixels through dialog-over-window obscure/uncover cycles; defensive `IS_SMARTREFRESH` skip in `DamageExposedAreas()` removed since backing store is no longer in danger of being overpainted; full suite 67/67 pass | v0.9.6 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering (Phase 133)
@@ -169,21 +170,21 @@ Implemented circular event log (256 entries) in new `lxa_events.c` (compiled int
 
 ## Mid-Term: Rendering Fidelity (Phases 132–136)
 
-### Phase 132: SMART_REFRESH full backing store (second attempt)
+### Phase 132: SMART_REFRESH full backing store (second attempt) ✅ COMPLETE
 
-The first attempt (Phase 111) was reverted due to regressions (SIGMAth2 Analysis window, requester test timeouts). By Phase 132 the following tools exist that make this tractable:
+The first attempt (Phase 111) was not actually reverted — the backing-store implementation in `lxa_layers.c` (`SaveToBackingStore`, `RestoreBackingStore`, `CreateObscuredClipRect`, `RebuildClipRects` restore→free→recompute→save flow) and the CR-aware rendering primitives in `lxa_graphics.c` were left in place. The "regression" was masked by a defensive workaround in `DamageExposedAreas()` that skipped damage for `IS_SMARTREFRESH(layer)` to suppress spurious REFRESHWINDOW messages.
 
-- Text interception (Phase 130): assert dialog content before and after
-- Window event log (Phase 131): detect open/close cycles precisely
-- Screen-mode fixes (Phase 129): fewer spurious failures from unrelated mode issues
-- Clean lxa.c modules (Phase 125): easier to isolate the backing store code path
+**Approach taken**:
+1. Wrote `samples/intuition/backingstoretest.c` driving the dialog-over-window stamping scenario through three deterministic stages (pattern → dialog open → dialog close).
+2. Wrote `tests/drivers/backingstore_gtest.cpp` with 4 tests: `Stage0PatternRenders`, `Stage1DialogObscuresPattern`, `Stage2BackingStoreRestoresPattern`, `Stage2RestoredAreaSweep` — verifying via `lxa_get_window_count()` and `ReadPixel()` that obscured pen-2 pixels are restored to the correct colour after the dialog closes.
+3. Confirmed all 4 tests pass with Phase 111's implementation: backing store correctly saves and restores SMART_REFRESH pixels.
+4. Removed the `IS_SMARTREFRESH` skip in `DamageExposedAreas()` (around line 990 of `lxa_layers.c`). Full suite re-run: **67/67 tests pass** in ~133 sec wall time, including the previously-fragile SIGMAth2 and requester tests.
 
-**Approach**:
-1. Write regression tests for the *known* failure cases from the first attempt *before* touching backing store code.
-2. Implement layer-level backing store for `WFLG_SMART_REFRESH` windows.
-3. Verify Phase 111's `DamageExposedAreas()` skip for SMART_REFRESH remains as a fallback for the edge cases.
+**Result**: SMART_REFRESH backing store is fully functional. Apps now receive the correct IDCMP_REFRESHWINDOW messages on uncover (matching real Amiga behaviour) without losing pixels, because backing store has already restored the visible content. The "dialog stamping" known limitation is resolved.
 
-**Test gate**: Dialog-over-window scenarios don't stamp content; SIGMAth2 and requester tests pass.
+- [x] Regression tests for backing store written *before* touching ROM code
+- [x] Layer-level backing store for `WFLG_SMART_REFRESH` validated end-to-end
+- [x] Phase 111 `DamageExposedAreas()` skip removed; full suite still green
 
 ---
 

@@ -80,6 +80,7 @@ set(SAMPLES_LIST
     "intuition|winpubscreen|WinPubScreen"
     "intuition|talk2boopsi|Talk2Boopsi"
     "intuition|doublebuffer|DoubleBuffer"
+    "intuition|backingstoretest|BackingStoreTest"
     "devices|simpletimer|SimpleTimer"
     "devices|askkeymap|AskKeymap"
     "utility|tag1|Tag1"

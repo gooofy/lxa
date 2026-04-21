@@ -979,20 +979,21 @@ static void DamageExposedAreas(struct Layer_Info *li, struct Layer *moved_layer,
         }
 
         /*
-         * SMART_REFRESH layers: skip damage entirely.  RebuildClipRects()
-         * restores all backing-store pixels to the screen bitmap before
-         * recalculating ClipRects, so exposed areas are already correct.
-         * Adding damage would cause a spurious REFRESHWINDOW message and
-         * potentially an app-driven redraw that overwrites the restored
-         * pixels with garbage (if the app doesn't have its own off-screen
-         * state for that region).
+         * Phase 132: Backing store is fully functional for SMART_REFRESH.
+         * RebuildClipRects() restores all backing-store pixels to the
+         * screen bitmap before recalculating ClipRects, so exposed areas
+         * are already correct.  We still mark damage and emit
+         * IDCMP_REFRESHWINDOW for app-driven refresh paths (apps using
+         * SetDrMd / SuperBitMap layers depend on it), but the visible
+         * pixels are already restored from backing store at this point,
+         * so a slow / absent app refresh no longer causes garbage.
+         *
+         * The earlier Phase 111 workaround (skip damage entirely for
+         * SMART_REFRESH layers) was removed once tests/drivers/
+         * backingstore_gtest.cpp validated that backing store correctly
+         * restores pixels on uncover, and the full test suite passed
+         * without the skip.
          */
-        if (IS_SMARTREFRESH(layer))
-        {
-            layer = layer->back;
-            continue;
-        }
-
         /* Check if this layer's bounds intersect with the old position */
         struct Rectangle intersection;
         if (IntersectRectangles(&layer->bounds, old_bounds, &intersection))

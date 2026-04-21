@@ -240,18 +240,23 @@ explicitly set `WFLG_SIMPLE_REFRESH` or `WFLG_SUPER_BITMAP` is SMART_REFRESH
 by default. This is architecturally significant: the vast majority of Amiga
 windows expect backing-store behavior.
 
-- **Current state**: Backing store is not fully implemented. The
-  `DamageExposedAreas()` skip for SMART_REFRESH layers prevents spurious
-  REFRESHWINDOW messages (which caused "dialog stamping" artifacts), but
-  obscured content is still lost when covered by another layer.
-- **Symptom of incomplete backing store**: When a dialog is opened over a
-  window and then closed, the area behind it shows garbage or the dialog's
-  content is "stamped" into the window.
+- **Current state (Phase 132, v0.9.6)**: Backing store is fully functional.
+  Phase 111 implemented the layer-level save/restore (`SaveToBackingStore`,
+  `RestoreBackingStore`, `CreateObscuredClipRect`, `RebuildClipRects` with
+  restore→free→recompute→save flow in `lxa_layers.c`, plus CR-aware
+  rendering primitives in `lxa_graphics.c`). Phase 132 added the
+  `BackingStoreTest` sample + `backingstore_gtest.cpp` driver (4 tests)
+  that prove the dialog-over-window obscure/uncover cycle restores pixels
+  correctly. The defensive `IS_SMARTREFRESH` skip that Phase 111 added to
+  `DamageExposedAreas()` was removed in Phase 132; the full suite passes
+  67/67 with apps receiving the correct IDCMP_REFRESHWINDOW messages on
+  uncover (matching real Amiga behaviour) while backing store keeps the
+  visible content intact.
 - **Detection macro**: `IS_SMARTREFRESH(layer)` in `lxa_layers.c` line ~53.
-- **Previous attempt**: A full backing store implementation was written,
-  tested, and reverted because it caused regressions (SIGMAth2 Analysis
-  window, requester test timeouts). The incremental approach in Phase 111
-  addresses this.
+- **If you suspect a regression**: run `./build/tests/drivers/backingstore_gtest`
+  in isolation. All four tests must pass. If any fails, do NOT re-add the
+  `IS_SMARTREFRESH` skip in `DamageExposedAreas()` as a workaround — fix
+  the actual save/restore path instead.
 
 ### 6.9 Disk Library Pattern
 

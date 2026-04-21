@@ -240,6 +240,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.9.6** - SMART_REFRESH backing store validation (Phase 132): new `BackingStoreTest` sample (`samples/intuition/backingstoretest.c`) drives a dialog-over-window obscure/uncover cycle through three deterministic stages; new `backingstore_gtest.cpp` driver (4 tests) probes pixels in the formerly-obscured region and proves Phase 111's backing store correctly restores SMART_REFRESH content on uncover. Defensive `IS_SMARTREFRESH` skip in `DamageExposedAreas()` removed; apps now receive correct IDCMP_REFRESHWINDOW messages on uncover (matching real Amiga behaviour) without losing pixels. Full suite 67/67 pass.
+
 **Version 0.9.5** - Intuition event log + menu introspection (Phase 131): circular 256-entry event log (`lxa_push_intui_event`, `lxa_drain_intui_events`) records `OpenWindow`/`CloseWindow`/`OpenScreen`/`CloseScreen` events from `lxa_dispatch.c`; `lxa_get_menu_strip()` traverses the emulated Intuition `MenuStrip` linked list to expose menu titles, item names, enabled/checked state, and geometry; `LxaTest::DrainEvents()`, `GetMenuStrip()`, `GetMenuNames()` helpers added to the test framework. Tests in simplemenu, maxonbasic, devpac, and api drivers.
 
 **Version 0.9.4** - Text() interception (Phase 130): `lxa_set_text_hook()` / `lxa_clear_text_hook()` via `EMU_CALL_GFX_TEXT_HOOK`; ROM `_graphics_Text()` fires the hook on every render call; semantic text assertions in api, dopus, and kickpascal drivers.
