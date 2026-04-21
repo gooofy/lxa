@@ -36,6 +36,7 @@ set(LXA_CORE_SOURCES
     lxa_custom.c
     lxa_dos_host.c
     lxa_dispatch.c
+    lxa_events.c
     m68kcpu.c
     m68kdasm.c
     m68kops.c

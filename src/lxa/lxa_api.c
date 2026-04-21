@@ -95,8 +95,13 @@ extern void *g_text_hook_userdata;
 #define GFLG_EXTENDED               0x8000
 #define GMORE_BOUNDS                0x00000001UL
 
-static bool lxa_api_memory_string_equals(uint32_t addr, const char *str)
-{
+/* Phase 131: event log state — defined in lxa_events.c, shared with lxa_dispatch.c */
+extern lxa_intui_event_t g_event_log[];
+extern int               g_event_log_head;
+extern int               g_event_log_count;
+void lxa_reset_intui_events(void); /* defined in lxa_events.c */
+
+static bool lxa_api_memory_string_equals(uint32_t addr, const char *str){
     size_t i;
 
     if (!addr || !str)
@@ -524,6 +529,10 @@ int lxa_load_program(const char *program, const char *args)
     }
 
     g_running = true;
+
+    /* Reset event log so each program run starts with a clean log */
+    lxa_reset_intui_events();
+
     return 0;
 }
 
@@ -1348,5 +1357,275 @@ uint16_t lxa_peek16(uint32_t addr)
 uint8_t lxa_peek8(uint32_t addr)
 {
     return m68k_read_memory_8(addr);
+}
+
+/* ========== Phase 131: Window/Screen Event Log ========== */
+
+/* Intuition struct offsets used for menu traversal */
+#define MENU_NEXTMENU_OFFSET    0   /* struct Menu *NextMenu */
+#define MENU_LEFTEDGE_OFFSET    4   /* WORD LeftEdge */
+#define MENU_TOPEDGE_OFFSET     6   /* WORD TopEdge */
+#define MENU_WIDTH_OFFSET       8   /* WORD Width */
+#define MENU_HEIGHT_OFFSET      10  /* WORD Height */
+#define MENU_FLAGS_OFFSET       12  /* UWORD Flags */
+#define MENU_MENUNAME_OFFSET    14  /* BYTE *MenuName */
+#define MENU_FIRSTITEM_OFFSET   18  /* struct MenuItem *FirstItem */
+
+#define MENUITEM_NEXTITEM_OFFSET   0   /* struct MenuItem *NextItem */
+#define MENUITEM_LEFTEDGE_OFFSET   4   /* WORD LeftEdge */
+#define MENUITEM_TOPEDGE_OFFSET    6   /* WORD TopEdge */
+#define MENUITEM_WIDTH_OFFSET      8   /* WORD Width */
+#define MENUITEM_HEIGHT_OFFSET     10  /* WORD Height */
+#define MENUITEM_FLAGS_OFFSET      12  /* UWORD Flags */
+#define MENUITEM_EXCLUSION_OFFSET  14  /* LONG MutualExclude */
+#define MENUITEM_ITEMFILL_OFFSET   18  /* APTR ItemFill */
+#define MENUITEM_SELECTFILL_OFFSET 22  /* APTR SelectFill */
+#define MENUITEM_COMMAND_OFFSET    26  /* BYTE Command */
+#define MENUITEM_SUBITEM_OFFSET    28  /* struct MenuItem *SubItem */
+#define MENUITEM_NEXTSELECT_OFFSET 32  /* UWORD NextSelect */
+
+/* Amiga MenuItem Flags */
+#define MENUITEM_FLAG_ITEMENABLED  0x0010  /* ITEMENABLED = bit 4 */
+#define MENUITEM_FLAG_ITEMTEXT     0x0002
+#define MENUITEM_FLAG_COMMSEQ      0x0004
+#define MENUITEM_FLAG_MENUTOGGLE   0x0008
+#define MENUITEM_FLAG_CHECKIT      0x0001
+#define MENUITEM_FLAG_CHECKED      0x0100
+#define MENUITEM_FLAG_HIGHCOMP     0x0040
+
+/* IntuiText offsets (for reading item label when ITEMTEXT is set) */
+#define INTUITEXT_ITEXT_OFFSET     12 /* UBYTE *IText within IntuiText struct */
+
+/* lxa_push_intui_event and lxa_reset_intui_events are defined in lxa_events.c */
+
+int lxa_drain_intui_events(lxa_intui_event_t *events, int max_count)
+{
+    if (!events || max_count <= 0)
+        return 0;
+
+    int n = g_event_log_count;
+    if (n > max_count)
+        n = max_count;
+
+    /* Oldest entry is at (head - count + LXA_EVENT_LOG_SIZE) % LXA_EVENT_LOG_SIZE */
+    int tail = (g_event_log_head - g_event_log_count + LXA_EVENT_LOG_SIZE * 2) % LXA_EVENT_LOG_SIZE;
+    for (int i = 0; i < n; i++)
+    {
+        events[i] = g_event_log[(tail + i) % LXA_EVENT_LOG_SIZE];
+    }
+
+    g_event_log_count = 0;
+    g_event_log_head  = 0;
+    return n;
+}
+
+int lxa_intui_event_count(void)
+{
+    return g_event_log_count;
+}
+
+/* ========== Phase 131: Menu Introspection ========== */
+
+/*
+ * We snapshot the entire menu strip at query time and store an array
+ * of (menu_ptr, item_ptr[], subitem_ptr[][]) 32-bit emulated addresses.
+ * The strip handle owns this heap snapshot so the caller can query it
+ * freely without worrying about concurrent ROM activity.
+ */
+
+#define MAX_MENUS     32
+#define MAX_ITEMS     64
+#define MAX_SUBITEMS  32
+
+typedef struct
+{
+    uint32_t menu_ptr;                       /* emulated address of struct Menu */
+    int      item_count;
+    uint32_t item_ptrs[MAX_ITEMS];           /* emulated addresses of struct MenuItem */
+    int      subitem_counts[MAX_ITEMS];
+    uint32_t subitem_ptrs[MAX_ITEMS][MAX_SUBITEMS]; /* emulated addresses of sub MenuItem */
+} lxa_menu_snapshot_t;
+
+struct lxa_menu_strip
+{
+    int                  menu_count;
+    lxa_menu_snapshot_t  menus[MAX_MENUS];
+    int                  screen_x;  /* Screen LeftEdge for menu x offset */
+};
+
+/* Read a NUL-terminated string from emulated RAM into buf (max buf_len). */
+static void lxa_read_emu_string(uint32_t addr, char *buf, int buf_len)
+{
+    buf[0] = '\0';
+    if (!addr || buf_len <= 0)
+        return;
+    for (int i = 0; i + 1 < buf_len; i++)
+    {
+        char c = (char)m68k_read_memory_8(addr + i);
+        buf[i] = c;
+        if (!c)
+            return;
+    }
+    buf[buf_len - 1] = '\0';
+}
+
+lxa_menu_strip_t *lxa_get_menu_strip(int window_index)
+{
+    if (!g_api_initialized)
+        return NULL;
+
+    /* Locate the emulated Window* for this host window index */
+    uint32_t window_ptr = lxa_api_get_window_pointer(window_index);
+    if (!window_ptr)
+        return NULL;
+
+    /* Window->MenuStrip is at offset 28 (standard Amiga struct, verified from NDK/AROS) */
+    uint32_t strip_ptr = m68k_read_memory_32(window_ptr + 28);
+    if (!strip_ptr)
+        return NULL;
+
+    lxa_menu_strip_t *handle = (lxa_menu_strip_t *)calloc(1, sizeof(lxa_menu_strip_t));
+    if (!handle)
+        return NULL;
+
+    /* Walk the linked list of struct Menu */
+    uint32_t menu_ptr = strip_ptr;
+    int mi = 0;
+    while (menu_ptr && mi < MAX_MENUS)
+    {
+        lxa_menu_snapshot_t *ms = &handle->menus[mi];
+        ms->menu_ptr = menu_ptr;
+        ms->item_count = 0;
+
+        /* Walk FirstItem chain */
+        uint32_t item_ptr = m68k_read_memory_32(menu_ptr + MENU_FIRSTITEM_OFFSET);
+        int ii = 0;
+        while (item_ptr && ii < MAX_ITEMS)
+        {
+            ms->item_ptrs[ii] = item_ptr;
+            ms->subitem_counts[ii] = 0;
+
+            /* Walk SubItem chain */
+            uint32_t sub_ptr = m68k_read_memory_32(item_ptr + MENUITEM_SUBITEM_OFFSET);
+            int si = 0;
+            while (sub_ptr && si < MAX_SUBITEMS)
+            {
+                ms->subitem_ptrs[ii][si] = sub_ptr;
+                si++;
+                sub_ptr = m68k_read_memory_32(sub_ptr + MENUITEM_NEXTITEM_OFFSET);
+            }
+            ms->subitem_counts[ii] = si;
+
+            ii++;
+            item_ptr = m68k_read_memory_32(item_ptr + MENUITEM_NEXTITEM_OFFSET);
+        }
+        ms->item_count = ii;
+
+        mi++;
+        menu_ptr = m68k_read_memory_32(menu_ptr + MENU_NEXTMENU_OFFSET);
+    }
+    handle->menu_count = mi;
+
+    return handle;
+}
+
+int lxa_get_menu_count(lxa_menu_strip_t *strip)
+{
+    if (!strip) return 0;
+    return strip->menu_count;
+}
+
+int lxa_get_item_count(lxa_menu_strip_t *strip, int menu_idx)
+{
+    if (!strip || menu_idx < 0 || menu_idx >= strip->menu_count)
+        return 0;
+    return strip->menus[menu_idx].item_count;
+}
+
+bool lxa_get_menu_info(lxa_menu_strip_t *strip,
+                       int menu_idx, int item_idx, int sub_idx,
+                       lxa_menu_info_t *out)
+{
+    if (!strip || !out)
+        return false;
+    if (menu_idx < 0 || menu_idx >= strip->menu_count)
+        return false;
+
+    lxa_menu_snapshot_t *ms = &strip->menus[menu_idx];
+    memset(out, 0, sizeof(*out));
+    out->enabled = true;  /* menus are always enabled at top level */
+
+    if (item_idx == -1)
+    {
+        /* Top-level menu title */
+        uint32_t name_ptr = m68k_read_memory_32(ms->menu_ptr + MENU_MENUNAME_OFFSET);
+        lxa_read_emu_string(name_ptr, out->name, sizeof(out->name));
+        out->x      = (int16_t)m68k_read_memory_16(ms->menu_ptr + MENU_LEFTEDGE_OFFSET);
+        out->y      = (int16_t)m68k_read_memory_16(ms->menu_ptr + MENU_TOPEDGE_OFFSET);
+        out->width  = (int16_t)m68k_read_memory_16(ms->menu_ptr + MENU_WIDTH_OFFSET);
+        out->height = (int16_t)m68k_read_memory_16(ms->menu_ptr + MENU_HEIGHT_OFFSET);
+        return true;
+    }
+
+    if (item_idx < 0 || item_idx >= ms->item_count)
+        return false;
+
+    uint32_t item_ptr = ms->item_ptrs[item_idx];
+
+    if (sub_idx == -1)
+    {
+        /* Menu item */
+        uint16_t flags = m68k_read_memory_16(item_ptr + MENUITEM_FLAGS_OFFSET);
+        out->enabled = (flags & MENUITEM_FLAG_ITEMENABLED) != 0;
+        out->checked = (flags & MENUITEM_FLAG_CHECKED) != 0;
+        out->has_submenu = (ms->subitem_counts[item_idx] > 0);
+        out->x      = (int16_t)m68k_read_memory_16(item_ptr + MENUITEM_LEFTEDGE_OFFSET);
+        out->y      = (int16_t)m68k_read_memory_16(item_ptr + MENUITEM_TOPEDGE_OFFSET);
+        out->width  = (int16_t)m68k_read_memory_16(item_ptr + MENUITEM_WIDTH_OFFSET);
+        out->height = (int16_t)m68k_read_memory_16(item_ptr + MENUITEM_HEIGHT_OFFSET);
+
+        /* Read the item label — it may be an IntuiText or an image.
+         * Only ITEMTEXT items have a readable string. */
+        if (flags & MENUITEM_FLAG_ITEMTEXT)
+        {
+            uint32_t fill_ptr = m68k_read_memory_32(item_ptr + MENUITEM_ITEMFILL_OFFSET);
+            if (fill_ptr)
+            {
+                uint32_t text_ptr = m68k_read_memory_32(fill_ptr + INTUITEXT_ITEXT_OFFSET);
+                lxa_read_emu_string(text_ptr, out->name, sizeof(out->name));
+            }
+        }
+        return true;
+    }
+
+    /* Sub-item */
+    if (sub_idx < 0 || sub_idx >= ms->subitem_counts[item_idx])
+        return false;
+
+    uint32_t sub_ptr = ms->subitem_ptrs[item_idx][sub_idx];
+    uint16_t flags = m68k_read_memory_16(sub_ptr + MENUITEM_FLAGS_OFFSET);
+    out->enabled = (flags & MENUITEM_FLAG_ITEMENABLED) != 0;
+    out->checked = (flags & MENUITEM_FLAG_CHECKED) != 0;
+    out->has_submenu = false;
+    out->x      = (int16_t)m68k_read_memory_16(sub_ptr + MENUITEM_LEFTEDGE_OFFSET);
+    out->y      = (int16_t)m68k_read_memory_16(sub_ptr + MENUITEM_TOPEDGE_OFFSET);
+    out->width  = (int16_t)m68k_read_memory_16(sub_ptr + MENUITEM_WIDTH_OFFSET);
+    out->height = (int16_t)m68k_read_memory_16(sub_ptr + MENUITEM_HEIGHT_OFFSET);
+
+    if (flags & MENUITEM_FLAG_ITEMTEXT)
+    {
+        uint32_t fill_ptr = m68k_read_memory_32(sub_ptr + MENUITEM_ITEMFILL_OFFSET);
+        if (fill_ptr)
+        {
+            uint32_t text_ptr = m68k_read_memory_32(fill_ptr + INTUITEXT_ITEXT_OFFSET);
+            lxa_read_emu_string(text_ptr, out->name, sizeof(out->name));
+        }
+    }
+    return true;
+}
+
+void lxa_free_menu_strip(lxa_menu_strip_t *strip)
+{
+    free(strip);
 }
 

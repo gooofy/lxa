@@ -1937,6 +1937,11 @@ int op_illg(int level)
             /* Open the display window */
             display_t *disp = display_open(width, height, depth, title);
 
+            /* Phase 131: log screen open event */
+            if (disp)
+                lxa_push_intui_event(LXA_INTUI_EVENT_OPEN_SCREEN, -1, title,
+                                     0, 0, (int)width, (int)height);
+
             /* Return display handle (pointer cast to uint32_t) */
             m68k_set_reg(M68K_REG_D0, (uint32_t)(uintptr_t)disp);
             break;
@@ -1953,6 +1958,8 @@ int op_illg(int level)
             if (disp)
             {
                 display_close(disp);
+                /* Phase 131: log screen close event */
+                lxa_push_intui_event(LXA_INTUI_EVENT_CLOSE_SCREEN, -1, NULL, 0, 0, 0, 0);
             }
 
             m68k_set_reg(M68K_REG_D0, 1);  /* Success */
@@ -2156,6 +2163,12 @@ int op_illg(int level)
             }
 
             display_window_t *win = display_window_open(screen, x, y, w, h, depth, title);
+            /* Phase 131: log window open event */
+            if (win)
+            {
+                int win_idx = display_get_window_count() - 1;
+                lxa_push_intui_event(LXA_INTUI_EVENT_OPEN_WINDOW, win_idx, title, x, y, w, h);
+            }
             m68k_set_reg(M68K_REG_D0, (uint32_t)(uintptr_t)win);
             break;
         }
@@ -2171,6 +2184,8 @@ int op_illg(int level)
             if (win)
             {
                 display_window_close(win);
+                /* Phase 131: log window close event */
+                lxa_push_intui_event(LXA_INTUI_EVENT_CLOSE_WINDOW, -1, NULL, 0, 0, 0, 0);
             }
             m68k_set_reg(M68K_REG_D0, 1);  /* Success */
             break;

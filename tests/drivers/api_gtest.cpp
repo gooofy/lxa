@@ -557,6 +557,149 @@ TEST(ProfileAPITest, WriteJsonNullPathReturnsFalse) {
     EXPECT_FALSE(lxa_profile_write_json(nullptr));
 }
 
+/* ===== Phase 131: Event Log unit tests (no emulator required) ===== */
+
+TEST(EventLogUnitTest, InitialStateIsEmpty) {
+    /* After the pre-test load the log may have events; drain first. */
+    lxa_intui_event_t buf[LXA_EVENT_LOG_SIZE];
+    lxa_drain_intui_events(buf, LXA_EVENT_LOG_SIZE);
+    EXPECT_EQ(lxa_intui_event_count(), 0);
+}
+
+TEST(EventLogUnitTest, PushAndDrainOneEvent) {
+    /* Drain any prior state */
+    lxa_intui_event_t buf[LXA_EVENT_LOG_SIZE];
+    lxa_drain_intui_events(buf, LXA_EVENT_LOG_SIZE);
+
+    lxa_push_intui_event(LXA_INTUI_EVENT_OPEN_WINDOW, 0, "TestWin", 10, 20, 640, 400);
+
+    EXPECT_EQ(lxa_intui_event_count(), 1);
+    int n = lxa_drain_intui_events(buf, LXA_EVENT_LOG_SIZE);
+    EXPECT_EQ(n, 1);
+    EXPECT_EQ(buf[0].type, LXA_INTUI_EVENT_OPEN_WINDOW);
+    EXPECT_EQ(buf[0].window_index, 0);
+    EXPECT_STREQ(buf[0].title, "TestWin");
+    EXPECT_EQ(buf[0].x, 10);
+    EXPECT_EQ(buf[0].y, 20);
+    EXPECT_EQ(buf[0].width, 640);
+    EXPECT_EQ(buf[0].height, 400);
+    /* After drain the count must be zero */
+    EXPECT_EQ(lxa_intui_event_count(), 0);
+}
+
+TEST(EventLogUnitTest, DrainWithNullOrZeroIsSafe) {
+    lxa_push_intui_event(LXA_INTUI_EVENT_OPEN_SCREEN, -1, NULL, 0, 0, 320, 256);
+    EXPECT_EQ(lxa_drain_intui_events(nullptr, LXA_EVENT_LOG_SIZE), 0);
+    EXPECT_EQ(lxa_drain_intui_events(nullptr, 0), 0);
+    /* Event still in log */
+    EXPECT_GE(lxa_intui_event_count(), 1);
+    lxa_intui_event_t buf[LXA_EVENT_LOG_SIZE];
+    lxa_drain_intui_events(buf, LXA_EVENT_LOG_SIZE);
+}
+
+TEST(EventLogUnitTest, CircularWrapOverwritesOldest) {
+    /* Fill the log beyond LXA_EVENT_LOG_SIZE — oldest should be silently lost */
+    lxa_intui_event_t buf[LXA_EVENT_LOG_SIZE];
+    lxa_drain_intui_events(buf, LXA_EVENT_LOG_SIZE);
+
+    for (int i = 0; i < LXA_EVENT_LOG_SIZE + 10; i++) {
+        lxa_push_intui_event(LXA_INTUI_EVENT_OPEN_WINDOW, i, "W", 0, 0, 1, 1);
+    }
+    /* Count must be clamped at LXA_EVENT_LOG_SIZE */
+    EXPECT_EQ(lxa_intui_event_count(), LXA_EVENT_LOG_SIZE);
+    int n = lxa_drain_intui_events(buf, LXA_EVENT_LOG_SIZE);
+    EXPECT_EQ(n, LXA_EVENT_LOG_SIZE);
+}
+
+/* ===== Phase 131: Menu introspection unit tests (no strip) ===== */
+
+TEST(MenuIntrospectionUnitTest, NullStripIsSafe) {
+    EXPECT_EQ(lxa_get_menu_count(nullptr), 0);
+    EXPECT_EQ(lxa_get_item_count(nullptr, 0), 0);
+    lxa_menu_info_t info;
+    EXPECT_FALSE(lxa_get_menu_info(nullptr, 0, -1, -1, &info));
+    /* free(NULL) must not crash */
+    lxa_free_menu_strip(nullptr);
+}
+
+/* ===== Phase 131: Event log with live emulator (SimpleMenu) ===== */
+
+class EventLogLiveTest : public ::testing::Test {
+protected:
+    static bool s_ok;
+    static std::vector<lxa_intui_event_t> s_events;
+
+    static void SetUpTestSuite() {
+        s_ok = false;
+        setenv("LXA_PREFIX", LXA_TEST_PREFIX, 1);
+
+        lxa_config_t cfg;
+        memset(&cfg, 0, sizeof(cfg));
+        cfg.headless = true;
+        cfg.rootless = true;
+        cfg.rom_path = FindRomPath();
+        if (!cfg.rom_path) return;
+        if (lxa_init(&cfg) != 0) return;
+
+        const char *samples = FindSamplesPath();
+        if (samples) lxa_add_assign("SYS", samples);
+        const char *sysbase = FindSystemBasePath();
+        if (sysbase) lxa_add_assign_path("SYS", sysbase);
+        const char *libs = FindSystemLibsPath();
+        if (libs) lxa_add_assign_path("LIBS", libs);
+
+        /* load_program resets the event log */
+        if (lxa_load_program("SYS:SimpleMenu", "") != 0) { lxa_shutdown(); return; }
+
+        /* wait for window to open */
+        if (!lxa_wait_windows(1, 5000)) { lxa_shutdown(); return; }
+
+        /* drain all events the startup produced */
+        lxa_intui_event_t buf[LXA_EVENT_LOG_SIZE];
+        int n = lxa_drain_intui_events(buf, LXA_EVENT_LOG_SIZE);
+        s_events.assign(buf, buf + n);
+        s_ok = true;
+    }
+
+    static void TearDownTestSuite() {
+        lxa_shutdown();
+    }
+
+    void SetUp() override {
+        if (!s_ok) GTEST_SKIP() << "EventLogLiveTest suite setup failed";
+    }
+};
+
+bool EventLogLiveTest::s_ok = false;
+std::vector<lxa_intui_event_t> EventLogLiveTest::s_events;
+
+TEST_F(EventLogLiveTest, StartupProducesOpenScreenEvent) {
+    bool found_screen = false;
+    for (const auto &ev : s_events) {
+        if (ev.type == LXA_INTUI_EVENT_OPEN_SCREEN) {
+            found_screen = true;
+            EXPECT_GT(ev.width, 0);
+            EXPECT_GT(ev.height, 0);
+        }
+    }
+    EXPECT_TRUE(found_screen)
+        << "At least one OPEN_SCREEN event expected during SimpleMenu startup";
+}
+
+TEST_F(EventLogLiveTest, StartupProducesOpenWindowEvent) {
+    bool found_window = false;
+    for (const auto &ev : s_events) {
+        if (ev.type == LXA_INTUI_EVENT_OPEN_WINDOW) {
+            found_window = true;
+            EXPECT_GE(ev.window_index, 0);
+            EXPECT_GT(ev.width,  0);
+            EXPECT_GT(ev.height, 0);
+        }
+    }
+    EXPECT_TRUE(found_window)
+        << "At least one OPEN_WINDOW event expected during SimpleMenu startup";
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

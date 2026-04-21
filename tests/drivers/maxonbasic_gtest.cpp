@@ -346,6 +346,38 @@ TEST_F(MaxonBasicTest, ZWindowStaysOpenAfterStress) {
     EXPECT_GT(wi.height, 0);
 }
 
+/* Phase 131: menu introspection — verify MaxonBASIC has German menu titles */
+TEST_F(MaxonBasicTest, ZMenuIntrospectionShowsGermanMenuTitles) {
+    /* MaxonBASIC V3.5 uses German menus: "Projekt", "Editieren", "Suchen"
+     * (plus possibly more).  This replaces the brittle hardcoded-coordinate
+     * approach: we can now assert the menu title before targeting it. */
+    RunCyclesWithVBlank(20, 50000);
+
+    lxa_menu_strip_t *strip = lxa_get_menu_strip(0);
+    if (!strip) {
+        GTEST_SKIP() << "No menu strip on window 0 — MaxonBASIC may not have called SetMenuStrip yet";
+    }
+
+    int menu_count = lxa_get_menu_count(strip);
+    EXPECT_GE(menu_count, 1) << "MaxonBASIC should have at least one top-level menu";
+
+    /* Collect titles */
+    bool found_projekt = false;
+    for (int i = 0; i < menu_count; i++) {
+        lxa_menu_info_t info;
+        if (lxa_get_menu_info(strip, i, -1, -1, &info)) {
+            if (strcmp(info.name, "Projekt") == 0)
+                found_projekt = true;
+        }
+    }
+
+    lxa_free_menu_strip(strip);
+
+    EXPECT_TRUE(found_projekt)
+        << "MaxonBASIC should have a 'Projekt' top-level menu; got "
+        << menu_count << " menus";
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

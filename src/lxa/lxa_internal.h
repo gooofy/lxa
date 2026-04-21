@@ -336,6 +336,19 @@ extern void   (*g_text_hook)(const char *str, int len, int x, int y, void *userd
 extern void    *g_text_hook_userdata;
 extern char    *g_sysroot;
 
+/* Phase 131: event log — declared in lxa_api.c, called from lxa_dispatch.c */
+#ifndef LXA_INTUI_EVENT_OPEN_WINDOW
+#define LXA_INTUI_EVENT_OPEN_WINDOW    1
+#define LXA_INTUI_EVENT_CLOSE_WINDOW   2
+#define LXA_INTUI_EVENT_OPEN_SCREEN    3
+#define LXA_INTUI_EVENT_CLOSE_SCREEN   4
+#define LXA_INTUI_EVENT_OPEN_REQUESTER 5
+#define LXA_INTUI_EVENT_CLOSE_REQUESTER 6
+#endif
+void lxa_push_intui_event(int type, int window_index, const char *title,
+                          int x, int y, int w, int h);
+void lxa_reset_intui_events(void);
+
 /* Globals defined in lxa_dos_host.c */
 extern lock_entry_t        g_locks[];
 extern record_lock_entry_t g_record_locks[];

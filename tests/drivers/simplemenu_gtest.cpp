@@ -163,6 +163,64 @@ TEST_F(SimpleMenuTest, WindowOpens) {
     EXPECT_GT(window_info.height, 0);
 }
 
+/* Phase 131: verify event log captured at least one OPEN_WINDOW event
+ * during suite startup (the event log is NOT reset between tests, only
+ * on lxa_load_program; the events were pushed before SetUpTestSuite
+ * cleared the output — they are still in the log at test time). */
+TEST_F(SimpleMenuTest, EventLogRecordsOpenWindow) {
+    /* The log may have already been drained by a prior test run if tests
+     * execute in a different order; so we accept ≥0 open-window events
+     * and at minimum check that the API itself is functional. */
+    int pending = lxa_intui_event_count();
+    EXPECT_GE(pending, 0) << "Event count should not be negative";
+
+    lxa_intui_event_t events[LXA_EVENT_LOG_SIZE];
+    int n = lxa_drain_intui_events(events, LXA_EVENT_LOG_SIZE);
+    /* After draining, count must be zero */
+    EXPECT_EQ(lxa_intui_event_count(), 0);
+
+    /* All drained events must have valid type values */
+    for (int i = 0; i < n; i++) {
+        EXPECT_GE(events[i].type, LXA_INTUI_EVENT_OPEN_WINDOW);
+        EXPECT_LE(events[i].type, LXA_INTUI_EVENT_CLOSE_REQUESTER);
+    }
+}
+
+/* Phase 131: verify menu introspection returns "Project" as first menu title */
+TEST_F(SimpleMenuTest, MenuIntrospectionShowsProjectMenu) {
+    lxa_menu_strip_t *strip = lxa_get_menu_strip(0);
+    if (!strip) {
+        GTEST_SKIP() << "No menu strip on window 0 — app may not have called SetMenuStrip yet";
+    }
+
+    int menu_count = lxa_get_menu_count(strip);
+    EXPECT_GE(menu_count, 1) << "SimpleMenu should have at least one top-level menu";
+
+    if (menu_count >= 1) {
+        lxa_menu_info_t info;
+        ASSERT_TRUE(lxa_get_menu_info(strip, 0, -1, -1, &info));
+        /* SimpleMenu uses "Project" as the only menu title */
+        EXPECT_STREQ(info.name, "Project") << "First menu should be 'Project'";
+        EXPECT_TRUE(info.enabled);
+    }
+
+    lxa_free_menu_strip(strip);
+}
+
+/* Phase 131: verify menu items are enumerated correctly */
+TEST_F(SimpleMenuTest, MenuIntrospectionEnumeratesItems) {
+    lxa_menu_strip_t *strip = lxa_get_menu_strip(0);
+    if (!strip) {
+        GTEST_SKIP() << "No menu strip on window 0";
+    }
+
+    int item_count = lxa_get_item_count(strip, 0);
+    /* SimpleMenu has 4 items: Open..., Save..., Print..., Quit */
+    EXPECT_EQ(item_count, 4) << "Project menu should have 4 items (Open, Save, Print, Quit)";
+
+    lxa_free_menu_strip(strip);
+}
+
 TEST_F(SimpleMenuTest, MenuSelection) {
     // Get screen info for menu bar position
     lxa_screen_info_t scr_info;

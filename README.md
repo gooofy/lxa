@@ -240,6 +240,10 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.9.5** - Intuition event log + menu introspection (Phase 131): circular 256-entry event log (`lxa_push_intui_event`, `lxa_drain_intui_events`) records `OpenWindow`/`CloseWindow`/`OpenScreen`/`CloseScreen` events from `lxa_dispatch.c`; `lxa_get_menu_strip()` traverses the emulated Intuition `MenuStrip` linked list to expose menu titles, item names, enabled/checked state, and geometry; `LxaTest::DrainEvents()`, `GetMenuStrip()`, `GetMenuNames()` helpers added to the test framework. Tests in simplemenu, maxonbasic, devpac, and api drivers.
+
+**Version 0.9.4** - Text() interception (Phase 130): `lxa_set_text_hook()` / `lxa_clear_text_hook()` via `EMU_CALL_GFX_TEXT_HOOK`; ROM `_graphics_Text()` fires the hook on every render call; semantic text assertions in api, dopus, and kickpascal drivers.
+
 **Version 0.9.3** - Screen-mode emulation (Phase 128 + Phase 129 partial): display pipeline optimization with dirty-region scanline tracking and SSE2 planar-to-chunky acceleration; ROM-side screen-mode virtualization complete — `g_known_display_ids[]` expanded to 36 ECS entries, `GetDisplayInfoData(DTAG_DIMS)` returns realistic raster ranges, `BestModeIDA()` honours `DIPFMustHave`/`MustNotHave`, `OpenScreenTagList()` accepts RTG-depth requests and maps unknown display IDs to the closest physical mode (Wine strategy). PPaint and FinalWriter validation deferred to Phase 139 (RTG app validation via Picasso96).
 
 **Version 0.9.1** - Memory access fast paths (Phase 127): direct bswap-based 16/32-bit RAM and ROM reads/writes; `__builtin_expect` hints on hot paths.

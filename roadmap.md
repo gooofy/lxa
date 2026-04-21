@@ -87,9 +87,9 @@ The primary target applications are productivity software (Wordsworth, Amiga Wri
 
 2. **No text extraction from screen** → **Phase 130**: Apps render text via ROM `Text()` calls. Adding a host-side `lxa_set_text_hook()` callback in `_graphics_Text()` would let tests assert `"About MaxonBASIC"` appeared without pixel-exact matching. The hook already has a `DPRINTF` log at that call site — the infrastructure change is small.
 
-3. **No window/screen event log** → **Phase 131**: No structured log of Intuition events (OpenWindow, CloseWindow, OpenScreen, requester open/close). Tests infer these from window counts or pixel changes. A circular event buffer exposed via `lxa_drain_events()` would make assertions semantic and fragile-free.
+3. ~~**No window/screen event log** → **Phase 131**~~ **DONE (v0.9.5)**: Circular event buffer with `lxa_drain_intui_events()` implemented.
 
-4. **No menu-state introspection** → **Phase 131**: Cannot query which menus/items exist, their names, or enabled/disabled state from the host side. Menu testing relies on RMB drag by hardcoded coordinates. `lxa_get_menu_strip()` traversing the Intuition `MenuStrip` linked list would unblock MaxonBASIC and DevPac deeper workflows.
+4. ~~**No menu-state introspection** → **Phase 131**~~ **DONE (v0.9.5)**: `lxa_get_menu_strip()` traverses the emulated `MenuStrip` linked list; menu names, enabled/checked state, and geometry exposed to tests.
 
 5. **No clipboard / string output capture** (Phase 140+): Apps writing to AmigaDOS stdout or the clipboard have no way to expose output to the host test. A `lxa_capture_dos_output()` API would allow asserting compiler output, BASIC program results, etc.
 
@@ -99,7 +99,7 @@ The primary target applications are productivity software (Wordsworth, Amiga Wri
 
 ---
 
-## Short-Term: Architecture + Observability (Phases 128–131)
+## Short-Term: Architecture + Observability (Phases 128–131 ✅ → Phases 132+)
 
 ### Phase 128: Display pipeline optimization
 
@@ -161,26 +161,9 @@ Implemented `lxa_set_text_hook()` / `lxa_clear_text_hook()` via the `emucall` me
 
 ---
 
-### Phase 131: Window/screen event log + menu introspection
+### ~~Phase 131: Window/screen event log + menu introspection~~ ✅ DONE (v0.9.5)
 
-> **Combines infrastructure gaps 3 and 4. Replaces brittle window-count polling with semantic assertions. Unblocks MaxonBASIC and DevPac deeper menu workflows.**
-
-**Event log**: Add a circular event buffer (256 entries) on the host side. ROM Intuition's `OpenWindow`, `CloseWindow`, `OpenScreen`, `CloseScreen`, requester open/close all call through `lxa_api.c`. Add `lxa_push_event()` there and expose `lxa_drain_events()` to tests.
-
-**Menu introspection**: The Intuition `MenuStrip` is already a linked list in emulated memory. Add:
-```c
-/* lxa_api.h */
-lxa_menu_strip_t *lxa_get_menu_strip(int window_index);
-int lxa_get_menu_count(lxa_menu_strip_t *strip);
-lxa_menu_info_t lxa_get_menu_info(lxa_menu_strip_t *strip, int menu_idx, int item_idx);
-/* lxa_menu_info_t: { char name[64]; bool enabled; bool checked; int x, y, w, h; } */
-```
-
-- [ ] Implement event log in `lxa_api.c`; add `LxaTest::DrainEvents()` helper
-- [ ] Update `simplemenu_gtest.cpp`: replace window-count polling with event log assertions
-- [ ] Implement `lxa_get_menu_strip()` via emulated memory traversal
-- [ ] Add menu introspection tests in `maxonbasic_gtest.cpp`: assert German menu titles exist before coordinate-based drag
-- [ ] Add `devpac_gtest.cpp` menu introspection: assert Project/Edit/Assemble menus present
+Implemented circular event log (256 entries) in new `lxa_events.c` (compiled into both `lxa` binary and `liblxa`). `lxa_push_intui_event()` is called from `lxa_dispatch.c` at `OpenWindow`, `CloseWindow`, `OpenScreen`, `CloseScreen` sites. `lxa_drain_intui_events()`, `lxa_intui_event_count()`, and `lxa_reset_intui_events()` exposed in `lxa_api.h`. Menu introspection via `lxa_get_menu_strip()` / `lxa_get_menu_info()` traverses emulated Intuition `MenuStrip` linked list using correct NDK struct offsets (`Window.MenuStrip` at offset 28, `Menu.FirstItem` at offset 18, `MenuItem.Flags` ITEMENABLED = 0x0010). Tests in `simplemenu_gtest.cpp` (event log + Project menu + 4 items), `maxonbasic_gtest.cpp` (German menu titles), `devpac_gtest.cpp` (Project/Edit/Program menus), and `api_gtest.cpp` (unit + live tests) all pass. 66/66 tests pass.
 
 ---
 

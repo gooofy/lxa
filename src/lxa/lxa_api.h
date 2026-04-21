@@ -490,6 +490,134 @@ int lxa_get_output(char *buffer, int size);
  */
 void lxa_clear_output(void);
 
+/* ========== Phase 131: Window/Screen Event Log API ========== */
+
+/*
+ * Intuition event types recorded in the circular event log.
+ */
+#define LXA_INTUI_EVENT_OPEN_WINDOW    1
+#define LXA_INTUI_EVENT_CLOSE_WINDOW   2
+#define LXA_INTUI_EVENT_OPEN_SCREEN    3
+#define LXA_INTUI_EVENT_CLOSE_SCREEN   4
+#define LXA_INTUI_EVENT_OPEN_REQUESTER 5
+#define LXA_INTUI_EVENT_CLOSE_REQUESTER 6
+
+/*
+ * Single Intuition event record.
+ */
+typedef struct lxa_intui_event {
+    int      type;          /* LXA_INTUI_EVENT_* constant */
+    int      window_index;  /* For window events: host window index; -1 if unknown */
+    char     title[128];    /* Window/screen title (may be empty) */
+    int      x, y;         /* Position (window events) */
+    int      width, height; /* Dimensions (window events) */
+} lxa_intui_event_t;
+
+/*
+ * Maximum events stored before the oldest is overwritten.
+ */
+#define LXA_EVENT_LOG_SIZE 256
+
+/*
+ * Push one event into the circular log.
+ * Called internally from the dispatch layer; safe to call from any context.
+ */
+void lxa_push_intui_event(int type, int window_index, const char *title,
+                          int x, int y, int w, int h);
+
+/*
+ * Drain all pending events from the log.
+ * Copies up to max_count events into the caller-supplied array and
+ * returns the number of events copied.  Draining clears the log.
+ *
+ * @param events     Caller-supplied output array
+ * @param max_count  Size of the array
+ * @return Number of events copied (0 if log is empty)
+ */
+int lxa_drain_intui_events(lxa_intui_event_t *events, int max_count);
+
+/*
+ * Return the number of events currently pending in the log
+ * (without draining them).
+ */
+int lxa_intui_event_count(void);
+
+/* ========== Phase 131: Menu Introspection API ========== */
+
+/*
+ * Opaque handle for a menu strip traversal context.
+ * Obtained via lxa_get_menu_strip(); freed via lxa_free_menu_strip().
+ */
+typedef struct lxa_menu_strip lxa_menu_strip_t;
+
+/*
+ * Per-menu-item information returned by lxa_get_menu_info().
+ */
+typedef struct lxa_menu_info {
+    char     name[64];      /* Menu or item title (NUL-terminated) */
+    bool     enabled;       /* True if ITEMENABLED is set (or it is a top-level menu) */
+    bool     checked;       /* True if CHECKED flag is set */
+    bool     has_submenu;   /* True if item has a sub-item chain */
+    int      x, y;         /* Screen-relative position of the bounding box */
+    int      width, height; /* Bounding box dimensions */
+} lxa_menu_info_t;
+
+/*
+ * Obtain a snapshot of the MenuStrip attached to a tracked window.
+ *
+ * The returned handle is valid until lxa_free_menu_strip() is called or
+ * lxa_shutdown() is called.  It is safe to call from the host side at
+ * any point after the app has opened its menus via SetMenuStrip().
+ *
+ * @param window_index  Index into the tracked rootless window list (0-based)
+ * @return Opaque handle, or NULL if the window has no menu strip.
+ */
+lxa_menu_strip_t *lxa_get_menu_strip(int window_index);
+
+/*
+ * Return the number of top-level menus in a strip.
+ *
+ * @param strip  Handle from lxa_get_menu_strip()
+ * @return Number of menus, or 0 if strip is NULL.
+ */
+int lxa_get_menu_count(lxa_menu_strip_t *strip);
+
+/*
+ * Return the number of items under a top-level menu.
+ *
+ * @param strip     Handle from lxa_get_menu_strip()
+ * @param menu_idx  0-based menu index
+ * @return Number of items, or 0 on error.
+ */
+int lxa_get_item_count(lxa_menu_strip_t *strip, int menu_idx);
+
+/*
+ * Return information about a menu or item.
+ *
+ * Pass item_idx = -1 to query a top-level menu title.
+ * Pass sub_idx  = -1 (or omit) to query an item (not a sub-item).
+ *
+ * @param strip     Handle from lxa_get_menu_strip()
+ * @param menu_idx  0-based menu index
+ * @param item_idx  0-based item index, or -1 for the menu title itself
+ * @param sub_idx   0-based sub-item index, or -1 for the item itself
+ * @param out       Output structure
+ * @return true on success, false if indices are out of range.
+ */
+bool lxa_get_menu_info(lxa_menu_strip_t *strip,
+                       int menu_idx, int item_idx, int sub_idx,
+                       lxa_menu_info_t *out);
+
+/*
+ * Release the menu strip handle.
+ * Must be called when finished with the handle to avoid leaking memory.
+ *
+ * @param strip  Handle from lxa_get_menu_strip() (may be NULL)
+ */
+void lxa_free_menu_strip(lxa_menu_strip_t *strip);
+
+/* ========== Phase 130: Text() interception hook. ========== */
+
 /*
  * Phase 130: Text() interception hook.
  *

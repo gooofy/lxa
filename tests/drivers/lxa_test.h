@@ -594,6 +594,39 @@ protected:
         int click_y = info.top + info.height / 2;
         return lxa_inject_mouse_click(click_x, click_y, button);
     }
+
+    /* Phase 131: drain all pending Intuition events from the circular log */
+    std::vector<lxa_intui_event_t> DrainEvents() {
+        lxa_intui_event_t buf[LXA_EVENT_LOG_SIZE];
+        int n = lxa_drain_intui_events(buf, LXA_EVENT_LOG_SIZE);
+        return std::vector<lxa_intui_event_t>(buf, buf + n);
+    }
+
+    /* Phase 131: return number of pending events without draining */
+    int PendingEventCount() {
+        return lxa_intui_event_count();
+    }
+
+    /* Phase 131: obtain a snapshot of the MenuStrip attached to a window */
+    lxa_menu_strip_t *GetMenuStrip(int window_index = 0) {
+        return lxa_get_menu_strip(window_index);
+    }
+
+    /* Phase 131: convenience — return top-level menu names for a window */
+    std::vector<std::string> GetMenuNames(int window_index = 0) {
+        std::vector<std::string> names;
+        lxa_menu_strip_t *strip = lxa_get_menu_strip(window_index);
+        if (!strip) return names;
+        int count = lxa_get_menu_count(strip);
+        for (int i = 0; i < count; i++) {
+            lxa_menu_info_t info;
+            if (lxa_get_menu_info(strip, i, -1, -1, &info)) {
+                names.push_back(std::string(info.name));
+            }
+        }
+        lxa_free_menu_strip(strip);
+        return names;
+    }
 };
 
 /**

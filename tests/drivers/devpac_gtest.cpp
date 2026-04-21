@@ -561,6 +561,39 @@ TEST_F(DevpacTest, ZSurvivesMenuBarSweep) {
         << "Primary editor window should remain open";
 }
 
+/* Phase 131: menu introspection — assert Project/Edit/Program menus exist */
+TEST_F(DevpacTest, ZMenuIntrospectionEnumeratesMenus) {
+    /* DevPac 3 has menus: Project, Edit, Search, Window, Program, Macros, Settings */
+    RunCyclesWithVBlank(10, 50000);
+
+    lxa_menu_strip_t *strip = lxa_get_menu_strip(0);
+    if (!strip) {
+        GTEST_SKIP() << "No menu strip on window 0 — DevPac may not have called SetMenuStrip yet";
+    }
+
+    int menu_count = lxa_get_menu_count(strip);
+    EXPECT_GE(menu_count, 3) << "DevPac should have at least 3 top-level menus";
+
+    bool found_project = false;
+    bool found_edit    = false;
+    bool found_program = false;
+
+    for (int i = 0; i < menu_count; i++) {
+        lxa_menu_info_t info;
+        if (!lxa_get_menu_info(strip, i, -1, -1, &info))
+            continue;
+        if (strcmp(info.name, "Project") == 0) found_project = true;
+        if (strcmp(info.name, "Edit")    == 0) found_edit    = true;
+        if (strcmp(info.name, "Program") == 0) found_program = true;
+    }
+
+    lxa_free_menu_strip(strip);
+
+    EXPECT_TRUE(found_project) << "DevPac should have a 'Project' menu";
+    EXPECT_TRUE(found_edit)    << "DevPac should have an 'Edit' menu";
+    EXPECT_TRUE(found_program) << "DevPac should have a 'Program' menu";
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
