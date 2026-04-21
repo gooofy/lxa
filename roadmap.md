@@ -45,9 +45,9 @@ The primary target applications are productivity software (Wordsworth, Amiga Wri
 | 128 | Display pipeline optimization: dirty-region scanline tracking (min/max dirty row → partial SDL texture upload); SSE2 planar-to-chunky acceleration (8 pixels/iter via byte broadcast + mullo); coalesced VBlank uploads; all visual regression tests pass unchanged | v0.9.2 |
 | 129 (partial) | Screen-mode emulation ROM improvements: `g_known_display_ids[]` expanded from 6 to 36 entries (DEFAULT/NTSC/PAL monitors × 12 ECS modes incl. LORESLACE, HIRESLACE, SUPER, HAM, HAMLACE, HIRESHAM, EHB, EHBLACE); `graphics_virtualize_display_id()` maps unknown IDs to closest physical mode (Wine strategy); `GetDisplayInfoData(DTAG_DIMS)` returns realistic raster ranges (HIRES 320–1280, LORES 160–640); `DIPF_IS_HAM`/`EXTRAHALFBRITE`/`LACE`/`ECS` advertised in `DTAG_DISP`; `BestModeIDA()` honors `BIDTAG_DIPFMustHave`/`MustNotHave`; `FindDisplayInfo(INVALID_ID)` correctly rejects; `LockIBase()` returns 0; `OpenScreen` accepts WBENCHSCREEN via CUSTOMSCREEN + flag; VPModeID set from SA_DisplayID; OpenFont loads screen font; `OpenWorkBench` uses CUSTOMSCREEN trick; diskfont registers fonts by basename; GfxBase DisplayFlags/VBlankFrequency/PowerSupplyFrequency populated; display_viewport test expanded with virtualization + HAM/EHB/LACE property-flag + BestModeIDA MustNotHave coverage. **PPaint launch-path still blocked** — see Known Limitations | v0.9.3 |
 | 132 | SMART_REFRESH backing store validation + workaround removal: new `BackingStoreTest` sample + `backingstore_gtest.cpp` driver (4 tests) prove Phase 111's backing store correctly saves/restores SMART_REFRESH pixels through dialog-over-window obscure/uncover cycles; defensive `IS_SMARTREFRESH` skip in `DamageExposedAreas()` removed since backing store is no longer in danger of being overpainted; full suite 67/67 pass | v0.9.6 |
+| 133 | Menu double-buffering: `_render_menu_bar()` and `_render_menu_items()` in `lxa_intuition.c` now render into a persistent off-screen compose BitMap and atomic-BltBitMap the completed frame to the screen, eliminating pixel flicker during menu drags on ASM-One and MaxonBASIC. `ZMenuFlickerCheck` upgraded to ±5% pixel-stability assertion with throwaway first drag; new `ZMenuDragPixelStability` test in `maxonbasic_gtest.cpp` guards the editor area against menu residue. Cycle budgets bumped in `maxonbasic`, `gadtoolsmenu`, `blitzbasic2` drivers to account for the compose→blit double traversal cost. `YEditorSurfaceShowsContentAfterMenuInteraction` rewritten: its lower bound relied on flicker residue bleeding into the editor area, which no longer happens (correct Amiga behaviour). Full suite 67/67 pass in ~163s | v0.9.7 |
 
 **Known open limitations** (not yet addressed):
-- ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering (Phase 133)
 - KickPascal layout/menus — depends on deeper arp/req library functionality
 - SysInfo hardware fields (BattClock, CIA timing) — requires hardware detection
 - Cluster2 EXIT button — coordinate mapping mismatch in custom toolbar
@@ -56,7 +56,7 @@ The primary target applications are productivity software (Wordsworth, Amiga Wri
 - MaxonBASIC About/Settings/Run interaction: menus are Intuition-managed but reachable only via RMB drag through hardcoded coordinates; the German menu titles ("Projekt", "Editieren", "Suchen") and lack of programmatic menu introspection make item-level activation brittle. Phase 116 verified menu reveal and editor text rendering; deeper menu-driven workflows defer until host-side menu introspection (Phase 131 gap #4) is implemented.
 - DevPac File→Open requester: Phase 117 verified Amiga-O does not crash, but req.library stub returns failure cleanly so no requester appears. Real file requester behavior requires a non-stub req.library implementation (out of scope per AGENTS.md "do not re-implement third-party libraries in ROM"). Assemble/Run workflow not exercised — would require a loaded valid m68k source and external assembler invocation, both of which need external-process emulation (Phase 140+).
 - BlitzBasic2 ted editor — copper/blitter improvements (Phase 113/114) reach the surface (~13% of editor body fills with paint after menu interaction) but ted still does not render real editable text content. Phase 119 captured vision-model analysis: menu bar and dropdowns render correctly (PROJECT/EDIT/SOURCE/SEARCH/COMPILER), but the editor body remains a flat surface with only menu-residue and status overlay paint. Root cause is deeper than line-mode blitter and copper colour cycling — likely involves blitter copy modes, sprite hardware, or specific copper waits that ted uses for its custom overlay (Phase 135).
-- ASM-One Assemble/Run workflow not exercised (Phase 118) — same external-process constraint as DevPac; deferred until Phase 140+. Menu pixel-flicker verification uses a content-floor guard (before→after cannot collapse to <10% of before) because ASM-One defers editor repaint until first interaction, so pixel counts legitimately *grow* after the first menu drag. Host-side observation of IDCMP qualifier bits is not currently possible; qualifier propagation is guarded via survival + subsequent-input responsiveness only.
+- ASM-One Assemble/Run workflow not exercised (Phase 118) — same external-process constraint as DevPac; deferred until Phase 140+. Host-side observation of IDCMP qualifier bits is not currently possible; qualifier propagation is guarded via survival + subsequent-input responsiveness only.
 - PPaint is an RTG application — its internal mode-scan loop targets P96 display IDs, not ECS modes. The ECS-path investigation (`$0x26d78`, `A4+$34f0` table) is abandoned. PPaint validation is deferred to Phase 139 (RTG app validation), where it is the flagship target.
 - FinalWriter `DISABLED_AcceptDialogOpensEditorWindow` remains disabled pending Phase 139 RTG validation (FW probes screen modes in a way that requires RTG to succeed).
 - Menu pixel introspection during a drag: `lxa_inject_drag` performs press → drag → release atomically, so we cannot capture screen state while a menu is open. Tests verify menu interaction via side effects (window count, app survival) instead. A future infrastructure improvement would be a non-releasing drag API or a "capture during drag" hook.
@@ -188,14 +188,26 @@ The first attempt (Phase 111) was not actually reverted — the backing-store im
 
 ---
 
-### Phase 133: Menu double-buffering (ASM-One / MaxonBASIC flickering)
+### Phase 133: Menu double-buffering (ASM-One / MaxonBASIC flickering) ✅ COMPLETE
 
-ASM-One and MaxonBASIC exhibit pixel flicker during menu drags (documented in known limitations since Phase 118/116). Root cause: the menu bitmap is drawn and blit to screen without atomic compositing. Fix: render menu frame to an off-screen BitMap, then blit the completed frame in one operation.
+ASM-One and MaxonBASIC exhibited pixel flicker during menu drags (documented in known limitations since Phase 118/116). Root cause confirmed: the menu bitmap was drawn and blit to screen without atomic compositing — each character cell, separator, and highlight update immediately propagated to the screen, producing visible in-progress frames during drag.
 
-- [ ] Identify the menu render path in `lxa_intuition.c` / `lxa_layers.c`
-- [ ] Add off-screen buffer; render menu items to it; atomic blit to display
-- [ ] Update `ZMenuFlickerCheck` in `asm_one_gtest.cpp` from a content-floor guard to a pixel-stability assertion (before→after pixel count must be within 5%)
-- [ ] Verify MaxonBASIC menu drag no longer shows residue artifacts
+**Approach taken**:
+1. Added persistent compose state (`g_menu_compose_bm`, `g_menu_compose_w/h/depth`) in `lxa_intuition.c` with `_menu_ensure_compose_bitmap()` sizing + `_menu_init_compose_rp()` helpers.
+2. Refactored `_render_menu_bar()` to render the entire menu bar into the compose BitMap at origin (0,0), then `BltBitMap()` the completed frame to the screen RastPort.
+3. Refactored `_render_menu_items()` identically: main menu chain + optional sub-menu each rendered at compose origin and BltBitMap'd to their final screen positions.
+4. Cleanup hooks in `_intuition_discard_menu_runtime_state()` and `_exit_menu_mode()` free the compose BitMap when menu mode ends.
+5. Upgraded `ZMenuFlickerCheck` in `asm_one_gtest.cpp` from the old content-floor guard to a ±5% pixel-stability assertion with a throwaway first drag (ASM-One defers editor repaint until first interaction, so the first drag legitimately grows pixel count).
+6. Added `ZMenuDragPixelStability` test in `maxonbasic_gtest.cpp` guarding the editor area against menu residue (observed: 297 → 297 pixels, exact).
+7. Cycle budgets bumped in `maxonbasic_gtest.cpp`, `gadtoolsmenu_gtest.cpp`, `blitzbasic2_gtest.cpp` to accommodate the ~2× traversal cost of compose→blit (each byte now passes through m68k memory hooks twice).
+8. Rewrote `YEditorSurfaceShowsContentAfterMenuInteraction` in `blitzbasic2_gtest.cpp`: its lower bound (non_grey > 100) relied on flicker residue bleeding into the editor area, which no longer occurs (this is correct Amiga behaviour).
+
+**Result**: ASM-One observed flicker 7978 → 7954 (0.3%) post-fix; MaxonBASIC editor area exact-stable across drag. Full suite 67/67 pass in ~163s wall time.
+
+- [x] Identify the menu render path in `lxa_intuition.c`
+- [x] Add off-screen buffer; render menu items to it; atomic blit to display
+- [x] Update `ZMenuFlickerCheck` in `asm_one_gtest.cpp` to pixel-stability ±5% assertion with throwaway first drag
+- [x] Verify MaxonBASIC menu drag no longer shows residue artifacts (new `ZMenuDragPixelStability` test)
 
 ---
 

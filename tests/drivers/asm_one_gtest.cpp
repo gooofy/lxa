@@ -454,39 +454,54 @@ TEST_F(AsmOneTest, FileRequesterOpensAndCanBeDismissed) {
  * ---------------------------------------------------------------------- */
 
 TEST_F(AsmOneTest, ZMenuFlickerCheck) {
-    /* Opening and cancelling a menu must not destroy existing editor
-     * content.  ASM-One (like DPaint) uses deferred rendering: the
-     * first user interaction may trigger substantial additional paint,
-     * so we cannot assert pixel-count equality.  Instead we guard
-     * against the flicker/repaint regression that would *lose* content:
-     * the after count must not collapse to near-zero, and the app must
-     * stay alive. */
+    /* Phase 133: with the menu compose-then-blit pipeline, opening and
+     * cancelling a menu must produce stable pixel counts: an unrelated
+     * editor area must look the same before and after.
+     *
+     * ASM-One uses deferred rendering, so the *first* menu open after
+     * startup may trigger substantial latent paint.  We perform one
+     * throwaway drag to flush that paint, then capture the baseline,
+     * then drag again and assert pixel-count stability within 5%. */
     FlushAndSettle();
-    const int before_pixels = lxa_get_content_pixels();
 
-    /* RMB drag on the menu bar: open Project menu and release outside
-     * any item to cancel the selection. */
     const int menu_x = window_info.x + 35;
     const int bar_y  = MenuBarY();
+
+    /* Throwaway drag: open and cancel Project menu to flush any
+     * one-shot deferred paint that the first menu interaction
+     * triggers in ASM-One. */
     lxa_inject_drag(menu_x, bar_y,
                     menu_x + 200, bar_y,
                     LXA_MOUSE_RIGHT, 8);
-    RunCyclesWithVBlank(30, 50000);
+    RunCyclesWithVBlank(150, 50000);
+    FlushAndSettle();
+
+    const int before_pixels = lxa_get_content_pixels();
+
+    /* Real measurement drag: same path, must not change overall content. */
+    lxa_inject_drag(menu_x, bar_y,
+                    menu_x + 200, bar_y,
+                    LXA_MOUSE_RIGHT, 8);
+    RunCyclesWithVBlank(150, 50000);
     FlushAndSettle();
 
     const int after_pixels = lxa_get_content_pixels();
     printf("MenuFlicker: before=%d after=%d\n",
            before_pixels, after_pixels);
 
-    /* Regression guard: after cancelling the menu, the visible content
-     * must not have been wiped (catastrophic flicker would drive this
-     * toward zero).  We accept any increase (deferred paint) and any
-     * minor decrease, but reject a collapse to <= 10% of before. */
-    const int floor_pixels = std::max(50, before_pixels / 10);
-    EXPECT_GE(after_pixels, floor_pixels)
-        << "Cancelling a menu should not wipe editor content "
+    /* With Phase 133 menu compose-then-blit, opening and cancelling a
+     * menu must leave the rest of the screen pixel-stable: post must be
+     * within +/-5% of pre.  This is the explicit flicker regression
+     * guard that supersedes the earlier 10%-floor heuristic. */
+    ASSERT_GT(before_pixels, 100)
+        << "Baseline pixel count too low to assert stability "
+           "(before=" << before_pixels << ")";
+    const int tolerance = std::max(50, before_pixels / 20);  /* 5% or 50px */
+    EXPECT_NEAR(after_pixels, before_pixels, tolerance)
+        << "Menu open/cancel must be pixel-stable within 5% "
            "(before=" << before_pixels
-        << ", after=" << after_pixels << ")";
+        << ", after=" << after_pixels
+        << ", tol=" << tolerance << ")";
 
     EXPECT_TRUE(lxa_is_running())
         << "ASM-One should survive menu open/cancel cycle";

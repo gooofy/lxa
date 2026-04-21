@@ -5436,6 +5436,24 @@ static WORD   g_menu_save_y;               /* Top edge of saved area on screen *
 static WORD   g_menu_save_w;               /* Width of saved area in pixels */
 static WORD   g_menu_save_h;               /* Height of saved area in pixels */
 
+/* Phase 133: off-screen compose BitMap for atomic menu rendering.
+ *
+ * Menu bar and drop-down chains are rendered into this off-screen
+ * BitMap with origin (0,0); the result is BltBitMap'd onto the screen
+ * in a single operation, eliminating the visible "blank then redraw"
+ * flicker that direct-to-screen rendering produced.
+ *
+ * The bitmap is allocated lazily on first menu activation and grown
+ * (re-allocated) when a render request exceeds its current size. It
+ * is freed when menu mode exits via _intuition_discard_menu_runtime_state()
+ * or _exit_menu_mode().
+ *
+ * .bss must be in RAM, not ROM .data section — no initializers. */
+static struct BitMap *g_menu_compose_bm;
+static WORD   g_menu_compose_w;
+static WORD   g_menu_compose_h;
+static WORD   g_menu_compose_depth;
+
 static VOID _intuition_discard_menu_runtime_state(VOID)
 {
     if (g_menu_save_bm)
@@ -5443,6 +5461,15 @@ static VOID _intuition_discard_menu_runtime_state(VOID)
         FreeBitMap(g_menu_save_bm);
         g_menu_save_bm = NULL;
     }
+
+    if (g_menu_compose_bm)
+    {
+        FreeBitMap(g_menu_compose_bm);
+        g_menu_compose_bm = NULL;
+    }
+    g_menu_compose_w = 0;
+    g_menu_compose_h = 0;
+    g_menu_compose_depth = 0;
 
     g_menu_mode = FALSE;
     g_menu_window = NULL;
@@ -6147,62 +6174,155 @@ static void _render_screen_title_bar(struct Screen *screen)
 }
 
 /*
+ * Phase 133: ensure the off-screen menu compose BitMap is at least
+ * (w x h) at the screen's depth. Reuses the existing allocation when
+ * possible; otherwise frees and re-allocates. Returns the compose
+ * BitMap or NULL on failure (caller should fall back to direct
+ * screen rendering in that case).
+ */
+static struct BitMap *_menu_ensure_compose_bitmap(struct Screen *screen,
+                                                  WORD w, WORD h)
+{
+    WORD depth;
+
+    if (!screen || w <= 0 || h <= 0)
+        return NULL;
+    if (!screen->BitMap.Planes[0])
+        return NULL;
+
+    depth = screen->BitMap.Depth;
+    if (depth <= 0)
+        return NULL;
+
+    if (g_menu_compose_bm
+        && g_menu_compose_w >= w
+        && g_menu_compose_h >= h
+        && g_menu_compose_depth == depth)
+    {
+        return g_menu_compose_bm;
+    }
+
+    if (g_menu_compose_bm)
+    {
+        FreeBitMap(g_menu_compose_bm);
+        g_menu_compose_bm = NULL;
+    }
+
+    /* Round width up to byte boundary so blits don't overshoot. */
+    g_menu_compose_bm = AllocBitMap(w, h, depth, BMF_CLEAR, NULL);
+    if (!g_menu_compose_bm)
+    {
+        DPRINTF(LOG_ERROR, "_intuition: _menu_ensure_compose_bitmap() AllocBitMap(%d,%d,%d) failed\n",
+                (int)w, (int)h, (int)depth);
+        g_menu_compose_w = 0;
+        g_menu_compose_h = 0;
+        g_menu_compose_depth = 0;
+        return NULL;
+    }
+
+    g_menu_compose_w = w;
+    g_menu_compose_h = h;
+    g_menu_compose_depth = depth;
+    return g_menu_compose_bm;
+}
+
+/*
+ * Phase 133: initialise a temporary RastPort over the compose BitMap,
+ * inheriting font/draw-mode settings from the screen RastPort so that
+ * Text() renders identically.
+ */
+static void _menu_init_compose_rp(struct RastPort *compose_rp,
+                                  struct BitMap *compose_bm,
+                                  struct RastPort *screen_rp)
+{
+    InitRastPort(compose_rp);
+    compose_rp->BitMap = compose_bm;
+    if (screen_rp)
+    {
+        compose_rp->Font = screen_rp->Font;
+        compose_rp->TxBaseline = screen_rp->TxBaseline;
+        compose_rp->TxHeight = screen_rp->TxHeight;
+        compose_rp->TxWidth = screen_rp->TxWidth;
+        compose_rp->TxSpacing = screen_rp->TxSpacing;
+    }
+    SetDrMd(compose_rp, JAM2);
+}
+
+/*
  * Render the menu bar background on the screen's title bar area
  */
 static void _render_menu_bar(struct Window *window)
 {
     struct Screen *screen;
+    struct RastPort *screen_rp;
+    struct RastPort compose_rp;
     struct RastPort *rp;
+    struct BitMap *compose_bm;
     struct Menu *menu;
     WORD barHeight, barHBorder, barVBorder;
     WORD x, y;
-    
+
     if (!window || !window->WScreen)
         return;
-    
+
     screen = window->WScreen;
-    rp = &screen->RastPort;
-    
+    screen_rp = &screen->RastPort;
+
     /* Validate RastPort has a valid BitMap */
-    if (!rp->BitMap || !rp->BitMap->Planes[0])
+    if (!screen_rp->BitMap || !screen_rp->BitMap->Planes[0])
     {
         DPRINTF(LOG_ERROR, "_intuition: _render_menu_bar() invalid RastPort BitMap\n");
         return;
     }
-    
+
     DPRINTF(LOG_DEBUG, "_intuition: _render_menu_bar() screen=%08lx rp=%08lx bm=%08lx planes[0]=%08lx\n",
-            (ULONG)screen, (ULONG)rp, (ULONG)rp->BitMap, (ULONG)rp->BitMap->Planes[0]);
+            (ULONG)screen, (ULONG)screen_rp, (ULONG)screen_rp->BitMap, (ULONG)screen_rp->BitMap->Planes[0]);
     DPRINTF(LOG_DEBUG, "_intuition: _render_menu_bar() width=%d height=%d barHeight=%d\n",
             screen->Width, screen->Height, screen->BarHeight + 1);
-    
+
     barHeight = screen->BarHeight + 1;  /* BarHeight is one less than actual */
     barHBorder = screen->BarHBorder;
     barVBorder = screen->BarVBorder;
-    
+
+    /* Phase 133: render into off-screen compose BitMap, then atomic-blit
+     * to the screen, eliminating the visible blank-then-redraw flash. */
+    compose_bm = _menu_ensure_compose_bitmap(screen, screen->Width, barHeight);
+    if (compose_bm)
+    {
+        _menu_init_compose_rp(&compose_rp, compose_bm, screen_rp);
+        rp = &compose_rp;
+    }
+    else
+    {
+        /* Fallback: direct screen rendering (visible flicker, but
+         * correctness preserved when AllocBitMap fails). */
+        rp = screen_rp;
+    }
+
     /* Fill menu bar background with pen 1 (standard Amiga look) */
     SetAPen(rp, 1);
     RectFill(rp, 0, 0, screen->Width - 1, barHeight - 1);
-    
+
     /* Draw bottom border line */
     SetAPen(rp, 0);
     Move(rp, 0, barHeight - 1);
     Draw(rp, screen->Width - 1, barHeight - 1);
-    
+
     /* Render menu titles */
     if (window->MenuStrip)
     {
         SetAPen(rp, 0);    /* Text in black */
         SetBPen(rp, 1);    /* Background */
         SetDrMd(rp, JAM2);
-        
+
         for (menu = window->MenuStrip; menu; menu = menu->NextMenu)
         {
             if (!menu->MenuName)
                 continue;
-            
+
             x = barHBorder + menu->LeftEdge;
             y = barVBorder;
-            
+
             /* Highlight active menu */
             if (menu == g_active_menu)
             {
@@ -6217,11 +6337,20 @@ static void _render_menu_bar(struct Window *window)
                 SetAPen(rp, 0);
                 SetBPen(rp, 1);
             }
-            
+
             /* Draw menu title text */
             Move(rp, x, y + rp->TxBaseline);
             Text(rp, (STRPTR)menu->MenuName, strlen((const char *)menu->MenuName));
         }
+    }
+
+    /* Atomic compose -> screen blit. */
+    if (compose_bm)
+    {
+        BltBitMap(compose_bm, 0, 0,
+                  &screen->BitMap, 0, 0,
+                  screen->Width, barHeight,
+                  0xC0, 0xFF, NULL);
     }
 }
 
@@ -6412,44 +6541,38 @@ static void _render_menu_item_chain(struct RastPort *rp,
 /*
  * Render the drop-down menu for the active menu.
  *
- * Phase 112: composes the entire dropdown (main item chain + active submenu)
- * into the off-screen g_menu_compose_bm and then blits the result onto the
- * screen in a single BltBitMap call. This eliminates the visible "blank then
- * redraw" flash that caused flicker during hover transitions.
+ * Phase 133 (v0.9.7): off-screen composition. Each item chain (main +
+ * optional submenu) is rendered into a shared off-screen compose BitMap
+ * (allocated lazily by _menu_ensure_compose_bitmap()), then BltBitMap'd
+ * onto the screen in a single operation. This eliminates the visible
+ * "blank then redraw" flash that direct-to-screen rendering produced
+ * on every hover transition (the symptom previously documented for
+ * ASM-One and MaxonBASIC).
  *
- * Phase 112 perf fix: when use_compose=FALSE the function bypasses the
- * compose pipeline entirely and renders directly onto the screen. This is
- * used by the in-place hover-redraw path where the previously rendered
- * dropdown is still intact on screen and only the highlight needs updating.
- * The compose pipeline (with its extra pre-fill and final-blit BltBitMap
- * operations) only runs on FULL_REPAINT, where save+restore is required
- * anyway.
+ * Earlier history: Phase 112 (v0.8.77) attempted compose but reverted
+ * due to per-event cycle cost concerns; Phase 133 keeps the BitMap
+ * allocated for the lifetime of the menu session so the only per-event
+ * cost is the BltBitMap itself, which is acceptable.
  *
- * Falls back to direct screen rendering if the compose BitMap is unavailable
- * (e.g. allocation failed in _save_menu_dropdown_area).
- */
-/*
- * Render the drop-down menu for the active menu directly to the screen
- * RastPort.
- *
- * Phase 112 final shape: pixel-accurate save/restore (via AllocBitMap +
- * BltBitMap) is preserved, but off-screen composition was reverted because
- * its per-event m68k cycle cost (extra BltBitMap calls) caused test
- * timing regressions. The visible "blank then redraw" flicker accepted
- * here matches the legacy behaviour and is the same trade-off the prior
- * release shipped with.
+ * Falls back to direct screen rendering if the compose BitMap cannot
+ * be allocated.
  */
 static void _render_menu_items(struct Window *window)
 {
     struct Screen *screen;
     struct RastPort *screen_rp;
+    struct RastPort compose_rp;
+    struct BitMap *compose_bm;
     struct Menu *menu;
     WORD barHeight;
     WORD menuX, menuY;
+    WORD mainW, mainH;
     WORD submenuX;
     WORD submenuY;
     WORD submenuWidth;
     WORD submenuHeight;
+    BOOL haveSubmenu;
+    WORD composeNeedW, composeNeedH;
 
     if (!window || !window->WScreen || !g_active_menu)
         return;
@@ -6473,29 +6596,85 @@ static void _render_menu_items(struct Window *window)
 
     SetDrMd(screen_rp, JAM2);
 
-    _render_menu_item_chain(screen_rp, menu->FirstItem, g_active_item,
-                            menuX, menuY);
+    /* Compute bounding box of the main item chain (and submenu, if any)
+     * to size the compose BitMap. */
+    _get_menu_item_chain_box(menu->FirstItem, 0, 0, NULL, NULL, &mainW, &mainH);
 
-    if (_get_active_submenu_box(window, &submenuX, &submenuY, &submenuWidth, &submenuHeight))
+    haveSubmenu = _get_active_submenu_box(window, &submenuX, &submenuY,
+                                          &submenuWidth, &submenuHeight);
+    if (!haveSubmenu)
     {
-        (void)submenuWidth;
-        (void)submenuHeight;
-        _render_menu_item_chain(screen_rp, g_active_item->SubItem, g_active_subitem,
-                                submenuX, submenuY);
+        submenuWidth = 0;
+        submenuHeight = 0;
+    }
+
+    composeNeedW = mainW;
+    if (haveSubmenu && submenuWidth > composeNeedW)
+        composeNeedW = submenuWidth;
+    composeNeedH = mainH;
+    if (haveSubmenu && submenuHeight > composeNeedH)
+        composeNeedH = submenuHeight;
+
+    /* Phase 133: render each chain off-screen, then atomic-blit to screen,
+     * eliminating the visible blank-then-redraw flash. The two chains
+     * (main + submenu) share the compose BitMap because they are blitted
+     * one after the other; the second compose render overwrites the
+     * first inside the compose BM, but it has already been blitted to
+     * screen at its own destination. */
+    compose_bm = _menu_ensure_compose_bitmap(screen, composeNeedW, composeNeedH);
+
+    if (compose_bm)
+    {
+        _menu_init_compose_rp(&compose_rp, compose_bm, screen_rp);
+
+        /* Main chain: render at compose origin, blit to (menuX, menuY). */
+        _render_menu_item_chain(&compose_rp, menu->FirstItem, g_active_item,
+                                0, 0);
+        BltBitMap(compose_bm, 0, 0,
+                  &screen->BitMap, menuX, menuY,
+                  mainW, mainH,
+                  0xC0, 0xFF, NULL);
+
+        if (haveSubmenu)
+        {
+            _render_menu_item_chain(&compose_rp, g_active_item->SubItem,
+                                    g_active_subitem, 0, 0);
+            BltBitMap(compose_bm, 0, 0,
+                      &screen->BitMap, submenuX, submenuY,
+                      submenuWidth, submenuHeight,
+                      0xC0, 0xFF, NULL);
+        }
+    }
+    else
+    {
+        /* Fallback: direct screen rendering if compose alloc failed. */
+        _render_menu_item_chain(screen_rp, menu->FirstItem, g_active_item,
+                                menuX, menuY);
+        if (haveSubmenu)
+        {
+            _render_menu_item_chain(screen_rp, g_active_item->SubItem,
+                                    g_active_subitem, submenuX, submenuY);
+        }
     }
 }
 
 /*
- * Phase 112: default entry point uses the off-screen compose pipeline.
- * Called from FULL_REPAINT paths where the dropdown area was just
- * restored and needs to be rebuilt from scratch.
- */
-/*
- * Phase 112 perf: in-place hover redraw entry point. Skips the off-screen
- * compose pipeline because the previously rendered dropdown is still
- * intact on screen and only the highlighted item changed. Renders the
- * menu chain (and any submenu) directly to screen, which is much
- * cheaper than save+pre-fill+render+compose-blit.
+ * Render the drop-down menu for the active menu.
+ *
+ * Phase 133 (v0.9.7): off-screen composition restored. Each item chain
+ * (main + optional submenu) is rendered into a shared off-screen
+ * compose BitMap (allocated lazily by _menu_ensure_compose_bitmap()),
+ * then BltBitMap'd onto the screen in a single operation. This
+ * eliminates the visible "blank then redraw" flash that direct-to-
+ * screen rendering produced on every hover transition.
+ *
+ * Falls back to direct screen rendering if the compose BitMap cannot
+ * be allocated.
+ *
+ * The hover-redraw fast path (_render_menu_items_in_place) and the
+ * full-repaint path both come through here; with composition active
+ * the cost difference is small enough that no separate fast path is
+ * needed.
  */
 static void _render_menu_items_in_place(struct Window *window)
 {
@@ -6613,6 +6792,17 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
     else
     {
         LPRINTF(LOG_WARNING, "_intuition: NO screen to restore menu area!\n");
+    }
+
+    /* Phase 133: free the off-screen compose BitMap; it will be lazily
+     * re-allocated next time menu mode is entered. */
+    if (g_menu_compose_bm)
+    {
+        FreeBitMap(g_menu_compose_bm);
+        g_menu_compose_bm = NULL;
+        g_menu_compose_w = 0;
+        g_menu_compose_h = 0;
+        g_menu_compose_depth = 0;
     }
 }
 

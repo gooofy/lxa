@@ -1825,6 +1825,12 @@ int op_illg(int level)
             }
 
             m68k_set_reg(M68K_REG_D0, (uint32_t)planesAffected);
+            DPRINTF(LOG_DEBUG, "lxa_dispatch: BltBitMap srcBM=%08x destBM=%08x src=(%d,%d) dst=(%d,%d) size=%dx%d minterm=%02x mask=%02x srcBpr=%d srcRows=%d srcDepth=%d dstBpr=%d dstRows=%d dstDepth=%d aw=%d ah=%d planesAffected=%d\n",
+                srcBM, destBM, xSrc, ySrc, xDest, yDest, xSize, ySize,
+                (unsigned)minterm, (unsigned)planeMask,
+                (int)srcBpr, (int)srcRows, (int)srcDepth,
+                (int)dstBpr, (int)dstRows, (int)dstDepth,
+                aw, ah, planesAffected);
             break;
         }
 

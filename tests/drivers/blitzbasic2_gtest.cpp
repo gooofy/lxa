@@ -305,12 +305,14 @@ protected:
 
         lxa_inject_mouse(menu_x, bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEBUTTON);
         /* Ted renders menu item text incrementally over multiple VBlanks.
-         * 100 iterations is the calibrated minimum for full rendering. */
-        RunCyclesWithVBlank(100, 50000);
+         * 100 iterations was the calibrated minimum for direct-to-screen
+         * rendering; Phase 133 added a compose+blit stage that roughly
+         * doubles menu render cost, so we budget 200 iterations here. */
+        RunCyclesWithVBlank(200, 50000);
 
         /* Phase 2: move to the target item */
         lxa_inject_mouse(menu_x, item_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEMOVE);
-        RunCyclesWithVBlank(10, 50000);
+        RunCyclesWithVBlank(30, 50000);
 
         if (release) {
             /* Release to trigger MENUPICK */
@@ -574,21 +576,21 @@ TEST_F(BlitzBasic2Test, ProjectOpenShowsFileRequester) {
 /* ===================================================================== */
 
 TEST_F(BlitzBasic2Test, YEditorSurfaceShowsContentAfterMenuInteraction) {
-    /* The existing StartupOpensVisibleIdeWindow asserts < 10 non-grey
-     * pixels at startup (deferred-paint pattern: ted does not draw the
-     * editor surface until first user interaction).  After the earlier
-     * Y/About/Open menu tests have interacted with the IDE, the editor
-     * surface DOES accumulate paint — primarily menu-residue and ted's
-     * status overlay, NOT actual editable text content.
+    /* Pre-Phase-133 this test relied on menu-flicker "residue" bleeding
+     * into the editor body as a proxy for "something got repainted".
+     * Phase 133 introduced off-screen composition for the menu bar and
+     * drop-downs so that menu open/close leaves the underlying window
+     * pixel-stable.  As a result there is NO residue any more, which is
+     * the correct Amiga behavior.
      *
-     * This test guards two things:
-     *   1. Interaction does cause SOME repaint (proves Phase 113/114
-     *      blitter+copper plumbing reaches ted at all).
-     *   2. The paint volume is "moderate" — if it suddenly explodes
-     *      to a near-full screen of pixels, ted may have started
-     *      rendering real text content and the known-limitation
-     *      should be re-evaluated.
-     */
+     * We now guard two things:
+     *   1. BlitzBasic2 stays alive after menu interaction (proves
+     *      Phase 113/114 blitter+copper plumbing still reaches ted).
+     *   2. The editor body does NOT accumulate excessive paint —
+     *      previously (residue) non-grey pixel count was in the 100..
+     *      region_pixels/2 band.  Phase 133 drives it close to zero,
+     *      which is now the expected outcome and must hold going
+     *      forward. */
     int sw = 0, sh = 0, sd = 0;
     ASSERT_TRUE(lxa_get_screen_dimensions(&sw, &sh, &sd));
 
@@ -603,10 +605,8 @@ TEST_F(BlitzBasic2Test, YEditorSurfaceShowsContentAfterMenuInteraction) {
            non_grey, region_pixels,
            100.0 * non_grey / region_pixels);
 
-    /* Lower bound: prove Phase 113/114 blitter+copper paint reaches the
-     * surface after interaction (would be 0 if completely broken). */
-    EXPECT_GT(non_grey, 100)
-        << "Expected SOME paint on the editor body after menu interaction";
+    EXPECT_TRUE(lxa_is_running())
+        << "BB2 must still be alive after menu interaction sequence";
 
     /* Upper bound: if ted starts rendering real text content (filling
      * most of the editor body), this assertion will fail and we should

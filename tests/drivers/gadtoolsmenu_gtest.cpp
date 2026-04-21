@@ -72,14 +72,17 @@ protected:
         for (int attempt = 0; attempt < 20; ++attempt) {
             lxa_inject_mouse(menu_bar_x, menu_bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEBUTTON);
             lxa_inject_mouse(menu_bar_x, menu_bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEMOVE);
-            RunCyclesWithVBlank(10, 100000);
+            /* Phase 133: compose+blit menu render path needs more cycles
+             * than direct render.  Use a generous budget to let the
+             * dropdown paint fully before we poll its pixel count. */
+            RunCyclesWithVBlank(50, 100000);
             lxa_flush_display();
 
             if (CountContentPixels(0, 12, 120, 60, 0) > dropdown_before + 20)
                 return true;
 
             lxa_inject_mouse(menu_bar_x, menu_bar_y, 0, LXA_EVENT_MOUSEBUTTON);
-            RunCyclesWithVBlank(5, 100000);
+            RunCyclesWithVBlank(10, 100000);
             lxa_flush_display();
             RunCyclesWithVBlank(10, 100000);
         }
@@ -169,7 +172,10 @@ TEST_F(GadToolsMenuPixelTest, SeparatorStaysInsideMenuBounds) {
     for (int attempt = 0; attempt < 20 && !menu_open; ++attempt) {
         lxa_inject_mouse(menu_bar_x, menu_bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEBUTTON);
         lxa_inject_mouse(menu_bar_x, menu_bar_y, LXA_MOUSE_RIGHT, LXA_EVENT_MOUSEMOVE);
-        RunCyclesWithVBlank(10, 100000);
+        /* Phase 133: compose+blit menu render path needs more cycles than
+         * direct render.  Use a generous budget to let the dropdown paint
+         * fully before we poll its pixel count. */
+        RunCyclesWithVBlank(50, 100000);
         lxa_flush_display();
 
         if (CountContentPixels(0, 12, 120, 60, 0) > dropdown_before + 20) {
@@ -178,7 +184,7 @@ TEST_F(GadToolsMenuPixelTest, SeparatorStaysInsideMenuBounds) {
         }
 
         lxa_inject_mouse(menu_bar_x, menu_bar_y, 0, LXA_EVENT_MOUSEBUTTON);
-        RunCyclesWithVBlank(5, 100000);
+        RunCyclesWithVBlank(10, 100000);
         lxa_flush_display();
         RunCyclesWithVBlank(10, 100000);
     }

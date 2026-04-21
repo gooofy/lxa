@@ -303,9 +303,16 @@ TEST_F(MaxonBasicTest, ZMenuBarAppearsOnRMB) {
     /* Quiet sample: middle-right of editor area, well below menu bar. */
     int before = CountScreenContent(0, 0, 400, 9, 500, 100);
 
-    /* RMB click on menu bar area. */
+    /* RMB click on menu bar area.
+     *
+     * Phase 133 note: post-RMB cycle budget was raised from 30x50k to 150x50k
+     * because the compose-then-blit menu-bar render path (introduced to fix
+     * flicker) now performs Text() into an off-screen BitMap followed by a
+     * full-width BltBitMap to the screen, both of which traverse m68k memory
+     * hooks per byte (lessons section 6.6). 150x50k = 7.5M cycles gives ~25%
+     * headroom over observed completion (~6M cycles for 8 menu titles). */
     lxa_inject_rmb_click(100, 5);
-    RunCyclesWithVBlank(30, 50000);
+    RunCyclesWithVBlank(150, 50000);
 
     int after = CountScreenContent(0, 0, 400, 9, 500, 100);
 
@@ -316,6 +323,45 @@ TEST_F(MaxonBasicTest, ZMenuBarAppearsOnRMB) {
 
     /* Capture artifact for failure inspection. */
     lxa_capture_screen("/tmp/maxon-menu.png");
+}
+
+TEST_F(MaxonBasicTest, ZMenuDragPixelStability) {
+    /* Phase 133 regression guard: the compose-then-blit menu pipeline
+     * must not corrupt or leave residue in the editor area when the
+     * user opens and cancels a menu via RMB drag.
+     *
+     * We sample editor content (well below the menu bar), perform a
+     * throwaway drag to flush any first-time deferred paint, then
+     * baseline + drag + measure and assert pixel-count stability
+     * within 5%. */
+    RunCyclesWithVBlank(20, 50000);
+
+    /* Throwaway drag across the menu bar to flush deferred paint. */
+    lxa_inject_drag(80, 5, 320, 5, LXA_MOUSE_RIGHT, 8);
+    RunCyclesWithVBlank(150, 50000);
+
+    /* Baseline of the editor area below the menu bar. */
+    const int before = CountScreenContent(10, 30, 600, 230, 610, 250);
+
+    /* Real measurement drag. */
+    lxa_inject_drag(80, 5, 320, 5, LXA_MOUSE_RIGHT, 8);
+    RunCyclesWithVBlank(150, 50000);
+
+    const int after = CountScreenContent(10, 30, 600, 230, 610, 250);
+    printf("MaxonBasic MenuDragPixelStability: before=%d after=%d\n",
+           before, after);
+
+    ASSERT_GT(before, 100)
+        << "Baseline editor pixel count too low to assert stability "
+           "(before=" << before << ")";
+    const int tolerance = std::max(50, before / 20);
+    EXPECT_NEAR(after, before, tolerance)
+        << "Menu drag must not disturb editor area beyond 5% "
+           "(before=" << before << ", after=" << after
+        << ", tol=" << tolerance << ")";
+
+    EXPECT_TRUE(lxa_is_running());
+    EXPECT_GE(lxa_get_window_count(), 1);
 }
 
 TEST_F(MaxonBasicTest, ZScrollbarColumnRenders) {
