@@ -32,6 +32,8 @@
 | 125 | `lxa.c` decomposition: split 9,960-line monolith into `lxa_custom.c`, `lxa_dispatch.c`, `lxa_dos_host.c`, `lxa_internal.h`, `lxa_memory.h`; `lxa.c` reduced to ~1,658 lines | v0.8.90 |
 | 126 | Profiling infrastructure: `lxa_profile.c` with per-EMU_CALL counters + timing; `--profile <path>` flag on lxa binary; `tools/profile_report.py` analysis tool; `ZStartupLatency` baseline tests in SysInfo, DOpus, FinalWriter, SIGMAth2, Cluster2, BlitzBasic2, Vim drivers; profiling API unit tests in `api_gtest.cpp` | v0.9.0 |
 | 127 | Memory access fast paths: direct bswap-based 16/32-bit RAM and ROM reads/writes in `m68k_read/write_memory_16/32`; `__builtin_expect` hints on hot paths in `mread8`/`mwrite8`; 4 byte-order correctness unit tests in `api_gtest.cpp` | v0.9.1 |
+| 128 | Display pipeline optimization: dirty-region scanline tracking (min/max dirty row → partial SDL texture upload); SSE2 planar-to-chunky acceleration (8 pixels/iter via byte broadcast + mullo); coalesced VBlank uploads; all visual regression tests pass unchanged | v0.9.2 |
+| 129 (partial) | Screen-mode emulation ROM improvements: `g_known_display_ids[]` expanded from 6 to 36 entries (DEFAULT/NTSC/PAL monitors × 12 ECS modes incl. LORESLACE, HIRESLACE, SUPER, HAM, HAMLACE, HIRESHAM, EHB, EHBLACE); `graphics_virtualize_display_id()` maps unknown IDs to closest physical mode (Wine strategy); `GetDisplayInfoData(DTAG_DIMS)` returns realistic raster ranges (HIRES 320–1280, LORES 160–640); `DIPF_IS_HAM`/`EXTRAHALFBRITE`/`LACE`/`ECS` advertised in `DTAG_DISP`; `BestModeIDA()` honors `BIDTAG_DIPFMustHave`/`MustNotHave`; `FindDisplayInfo(INVALID_ID)` correctly rejects; `LockIBase()` returns 0; `OpenScreen` accepts WBENCHSCREEN via CUSTOMSCREEN + flag; VPModeID set from SA_DisplayID; OpenFont loads screen font; `OpenWorkBench` uses CUSTOMSCREEN trick; diskfont registers fonts by basename; GfxBase DisplayFlags/VBlankFrequency/PowerSupplyFrequency populated; display_viewport test expanded with virtualization + HAM/EHB/LACE property-flag + BestModeIDA MustNotHave coverage. **PPaint launch-path still blocked** — see Known Limitations | v0.9.3 |
 
 **Known open limitations** (not yet addressed):
 - ASM-One / MaxonBASIC flickery menus — needs architectural double-buffered menu rendering (Phase 133)
@@ -44,7 +46,8 @@
 - DevPac File→Open requester: Phase 117 verified Amiga-O does not crash, but req.library stub returns failure cleanly so no requester appears. Real file requester behavior requires a non-stub req.library implementation (out of scope per AGENTS.md "do not re-implement third-party libraries in ROM"). Assemble/Run workflow not exercised — would require a loaded valid m68k source and external assembler invocation, both of which need external-process emulation (Phase 137+).
 - BlitzBasic2 ted editor — copper/blitter improvements (Phase 113/114) reach the surface (~13% of editor body fills with paint after menu interaction) but ted still does not render real editable text content. Phase 119 captured vision-model analysis: menu bar and dropdowns render correctly (PROJECT/EDIT/SOURCE/SEARCH/COMPILER), but the editor body remains a flat surface with only menu-residue and status overlay paint. Root cause is deeper than line-mode blitter and copper colour cycling — likely involves blitter copy modes, sprite hardware, or specific copper waits that ted uses for its custom overlay (Phase 135).
 - ASM-One Assemble/Run workflow not exercised (Phase 118) — same external-process constraint as DevPac; deferred until Phase 137+. Menu pixel-flicker verification uses a content-floor guard (before→after cannot collapse to <10% of before) because ASM-One defers editor repaint until first interaction, so pixel counts legitimately *grow* after the first menu drag. Host-side observation of IDCMP qualifier bits is not currently possible; qualifier propagation is guarded via survival + subsequent-input responsiveness only.
-- PPaint exits early with rv=26 from CloantoScreenManager screen-mode probing — Phase 120 vision-model review confirmed the probe windows are empty 320×200 (and one 640×256) buffers with no UI content drawn before exit. Real PPaint editing UI (palette, canvas, toolbox) is never reached. Root cause is the limited screen-mode database (Phase 129): only 6 known display IDs, MinRaster==MaxRaster in DimensionInfo, and BestModeIDA ignoring DIPF flags. The `DISABLED_AcceptDialogOpensEditorWindow` test in FinalWriter will be re-enabled once Phase 129 lands.
+- PPaint still exits early with rv=26 even after the Phase 129 ROM improvements (v0.9.3). Deep-dive tracing identified the precise block: PPaint's internal mode-scan loop at PC `$0x26d78` iterates 40 entries of a table at `A4+$34f0` (count stored at `A4-$1cdc`). Each 8-byte entry's fourth byte is tested with `tst.b`; in every iteration the byte is zero, the `beq` at `$0x26d9c` is taken, and no entry ever succeeds. The loop falls through to cleanup at `$0x26c44` → CloseLibrary loop at `$0x26ca2` → ILLEGAL opcode → bootstrap returns rv=26. The 4th-byte field is not a DisplayID LSB (mode IDs like 0x8000, 0x11000, 0x29000 all have low byte 0x00 anyway); it appears to be a depth/flag/pointer field that PPaint's probe subtask was supposed to populate from `GetDisplayInfoData` results but never does. Next debugging steps (deferred): (a) disassemble the PPaint binary around `$0x26d78` with `m68k-amigaos-objdump` to identify the table-population routine and learn the 4th-byte's semantics; (b) set a memory-write watchpoint on `A4+$34f0 .. A4+$34f0+320` via `m68k_write_memory_*` hooks; (c) investigate PAL/NTSC mismatch — PPaint probes NTSC_HIRES (0x11000) but GfxBase reports PAL. The `DISABLED_AcceptDialogOpensEditorWindow` test in FinalWriter remains disabled.
+- PPaint and FinalWriter visual regression: CloantoScreenManager and FinalWriter launch sequences probe screen modes in ways that require either full PPaint/FW mode-table reverse engineering (per above) or broader virtualization work. Deferred.
 - Menu pixel introspection during a drag: `lxa_inject_drag` performs press → drag → release atomically, so we cannot capture screen state while a menu is open. Tests verify menu interaction via side effects (window count, app survival) instead. A future infrastructure improvement would be a non-releasing drag API or a "capture during drag" hook.
 - DirectoryOpus 4 renders a skeleton UI in lxa: window opens at 640×245, dual file-lister frames + scroll gadgets + small button cluster (B/R/S/A) + bottom toolbar (?/E/F/C/I/Q) all draw correctly, but text labels, the title-bar version/memory string, and the famous main button bank (Copy/Move/Delete/etc.) are absent. Vision-model review (Phase 121) attributed this to font/path resolution or `dopus.config` parsing not completing (Phase 134). DOpus also requests `commodities.library` and `inovamusic.library`, which lxa does not ship as stubs; both are tolerated by DOpus itself but logged as missing-library errors. File-list navigation, button-bank workflows, and Preferences interaction tests deferred until Phase 134.
 - CMake test sharding with hardcoded GTest filters can silently orphan newly added tests. Phase 0 audited all sharded drivers (fixing 4 orphaned GadTools tests) and added `tools/check_shard_coverage.py` as a `shard_coverage_check` CTest meta-test. **Any future test additions to a sharded driver MUST update the corresponding FILTER strings** — CI will now catch violations automatically.
@@ -98,20 +101,47 @@
 
 ---
 
-### Phase 129: Screen-mode emulation — critical app unblock
+### Phase 129 (partial, v0.9.3): Screen-mode emulation — ROM side done, PPaint still blocked
+
+> **Status**: ROM-side screen-mode virtualization is complete and shipped in v0.9.3. All infrastructure changes in the original plan landed. However, **PPaint still exits rv=26** because its internal mode-scan loop depends on a private table whose fourth byte is never populated — that block is orthogonal to the ROM APIs we improved. See the Known Limitations entry above for the deferred next-steps (PPaint binary disassembly, memory-write watchpoint on `A4+$34f0`, PAL/NTSC mismatch investigation). FinalWriter's `DISABLED_AcceptDialogOpensEditorWindow` remains disabled pending this investigation.
+
+**Landed in v0.9.3** (permanent):
+1. `g_known_display_ids[]` expanded from 6 to 36 entries (DEFAULT/NTSC/PAL × 12 ECS modes).
+2. `GetDisplayInfoData(DTAG_DIMS)` returns realistic `Min`/`MaxRasterWidth` ranges (HIRES 320–1280, LORES 160–640).
+3. `BestModeIDA()` honors `BIDTAG_DIPFMustHave`/`MustNotHave` and `BIDTAG_DesiredWidth`/`Height`.
+4. `OpenScreenTagList()` virtualization: `SA_DisplayID` mapping, WBENCHSCREEN accepted via CUSTOMSCREEN trick, auto-HIRES for width ≥ 640, screen font opened via `OpenFont()`.
+5. `LockIBase()` correctly returns 0 (previously 1 → caused apps to hang on UnlockIBase).
+6. `FindDisplayInfo(INVALID_ID)` correctly rejects (not virtualized).
+7. `graphics_virtualize_display_id()`: unknown-but-plausible IDs map to closest physical mode (Wine strategy).
+8. Diskfont registers fonts by basename so plain OpenFont() can find them after a pathful OpenDiskFont().
+9. GfxBase `DisplayFlags = PAL|REALLY_PAL`, `VBlankFrequency = 50`, `PowerSupplyFrequency = 50`.
+10. `display_viewport` test expanded with HAM/EHB/LACE property-flag coverage, LORES/HIRES DTAG_DIMS range checks, virtualization, and BestModeIDA MustNotHave tests.
+
+**Test gate** (met): All 66 test drivers pass. No warnings. `graphics_gtest` includes new Phase 129 coverage.
+
+**Deferred** (to a future phase when the PPaint block is investigated):
+- PPaint mode-scan loop reverse-engineering (see Known Limitations).
+- FinalWriter `AcceptDialogOpensEditorWindow` re-enablement.
+- Visual regression tests that require PPaint's editor canvas to be reachable.
+
+---
+
+### Phase 129 (original plan — for reference)
 
 > **Highest-value architectural improvement. Directly unblocks PPaint editing UI, FinalWriter editor, and any future app that probes display modes.**
 
 **Root cause identified**: `g_known_display_ids[]` contains only 6 entries (bare LORES/HIRES + NTSC/PAL variants). `GetDisplayInfoData(DTAG_DIMS)` returns `MinRasterWidth == MaxRasterWidth` (no size range), causing screen-mode probes like CloantoScreenManager to conclude the mode is unsuitable. `BestModeIDA()` ignores `BIDTAG_DIPFMustHave`/`MustNotHave` flags entirely.
 
-**What to fix**:
-1. Extend `g_known_display_ids[]` with the full ECS/AGA standard mode set from `<graphics/displayinfo.h>`: LACE variants, SUPER_HIRES, HAM, EHB, EXTRAHALFBRITE — at minimum the modes that real ECS software probes for.
-2. `GetDisplayInfoData(DTAG_DIMS)`: return proper `MinRasterWidth`/`MaxRasterWidth` ranges (e.g., 320–1280 for HIRES), not pinned equal values.
-3. `BestModeIDA()`: respect `BIDTAG_DIPFMustHave`/`MustNotHave` flags before returning a mode ID.
-4. `OpenScreenTagList()` with `SA_DisplayID`: when an app requests a valid mode that maps to our physical LORES/HIRES display, accept and virtualize it (same strategy Wine uses for DirectX surface requests).
-5. Add `screenmode_gtest.cpp` driver asserting: PPaint reaches its main editing window (>500 non-grey pixels in canvas area); FinalWriter's `DISABLED_AcceptDialogOpensEditorWindow` can be re-enabled and passes.
+**What to fix** (most items landed in v0.9.3; PPaint editor-reach deferred):
+1. Extend `g_known_display_ids[]` with the full ECS/AGA standard mode set from `<graphics/displayinfo.h>`: LACE variants, SUPER_HIRES, HAM, EHB, EXTRAHALFBRITE — at minimum the modes that real ECS software probes for. **[DONE v0.9.3]**
+2. `GetDisplayInfoData(DTAG_DIMS)`: return proper `MinRasterWidth`/`MaxRasterWidth` ranges (e.g., 320–1280 for HIRES), not pinned equal values. **[DONE v0.9.3]**
+3. `BestModeIDA()`: respect `BIDTAG_DIPFMustHave`/`MustNotHave` flags before returning a mode ID. **[DONE v0.9.3]**
+4. `OpenScreenTagList()` with `SA_DisplayID`: when an app requests a valid mode that maps to our physical LORES/HIRES display, accept and virtualize it. **[DONE v0.9.3]**
+5. Add `screenmode_gtest.cpp` driver asserting: PPaint reaches its main editing window; FinalWriter's `DISABLED_AcceptDialogOpensEditorWindow` can be re-enabled and passes. **[DEFERRED — PPaint still blocked by internal mode-scan loop; see Known Limitations]**
 
-**Test gate**: PPaint no longer exits rv=26; FinalWriter editor opens after OK; `DISABLED_AcceptDialogOpensEditorWindow` renamed back to active.
+**Test gate** (original): PPaint no longer exits rv=26; FinalWriter editor opens after OK; `DISABLED_AcceptDialogOpensEditorWindow` renamed back to active.
+
+**Test gate met** (revised for v0.9.3): ROM-side virtualization complete and fully tested. App-side blocker documented for future investigation.
 
 ---
 

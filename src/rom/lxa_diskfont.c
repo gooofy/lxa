@@ -1247,12 +1247,39 @@ static struct TextFont * _df_load_from_disk(struct TextAttr *textAttr)
      * already be relocated to absolute addresses. We can use them directly.
      */
 
-    if (strlen((const char *)textAttr->ta_Name) < sizeof(dfh->dfh_Name))
+    /* Determine the registration name for this font.
+     *
+     * Real AmigaOS stores the plain font name (e.g. "Personal.font") in
+     * dfh_Name inside the bitmap file.  Some commercial fonts embed only a
+     * short token (e.g. "Personal8") without the ".font" suffix.  When the
+     * caller supplied a full Amiga path ("PPaint:fonts/Personal.font") we
+     * extract the basename from ta_Name so the font is registered under
+     * "Personal.font" — the name that subsequent plain OpenFont() calls will
+     * use.  When ta_Name is already a plain name we copy it as-is; if
+     * dfh_Name lacks ".font" we append the suffix. */
+    if (_df_has_path((const char *)textAttr->ta_Name))
+    {
+        /* Extract the last path component (after the last '/' or ':') as the
+         * registration name. */
+        const UBYTE *p = textAttr->ta_Name;
+        const UBYTE *base = p;
+        while (*p)
+        {
+            if (*p == '/' || *p == ':')
+                base = p + 1;
+            p++;
+        }
+        if (strlen((const char *)base) < sizeof(dfh->dfh_Name))
+            strcpy((char *)dfh->dfh_Name, (const char *)base);
+    }
+    else if (strlen((const char *)textAttr->ta_Name) < sizeof(dfh->dfh_Name))
     {
         strcpy((char *)dfh->dfh_Name, (const char *)textAttr->ta_Name);
     }
-    else if (!_df_endswith((const char *)dfh->dfh_Name, ".font") &&
-             (strlen((const char *)dfh->dfh_Name) + 5) < sizeof(dfh->dfh_Name))
+
+    /* Ensure the registration name ends with ".font". */
+    if (!_df_endswith((const char *)dfh->dfh_Name, ".font") &&
+        (strlen((const char *)dfh->dfh_Name) + 5) < sizeof(dfh->dfh_Name))
     {
         strcat((char *)dfh->dfh_Name, ".font");
     }

@@ -8362,6 +8362,15 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         return NULL;
     }
 
+    /* Per RKRM: apps must not call OpenScreen() with Type=WBENCHSCREEN.
+     * Only Intuition itself opens the Workbench screen via OpenWorkbench().
+     * Return NULL as real Intuition does when an app tries this. */
+    if ((newScreen->Type & SCREENTYPE) == WBENCHSCREEN)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() rejecting WBENCHSCREEN request (use LockPubScreen instead)\n");
+        return NULL;
+    }
+
     /* Get screen dimensions */
     requested_width = newScreen->Width;
     requested_height = newScreen->Height;
@@ -8420,8 +8429,8 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
         height = defaultHeight;
     }
 
-    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() %dx%dx%d\n",
-             (int)width, (int)height, (int)depth);
+    DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() %dx%dx%d ViewModes=0x%04x\n",
+             (int)width, (int)height, (int)depth, (UWORD)newScreen->ViewModes);
 
     /* Allocate Screen structure */
     screen = (struct Screen *)AllocMem(sizeof(struct Screen), MEMF_PUBLIC | MEMF_CLEAR);
@@ -8496,6 +8505,20 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Initialize ViewPort (minimal) */
     screen->ViewPort.DWidth = width;
     screen->ViewPort.DHeight = height;
+    {
+        /* On real Amiga, a 640-wide screen requires HIRES (ViewModes & HIRES).
+         * Some apps (e.g. PPaint) open a 640-wide screen with ViewModes=0x0000
+         * and then read screen->ViewPort.Modes to determine the display class.
+         * Apply the same auto-correction that real Intuition performs: if the
+         * physical width is >= 640, set the HIRES bit. */
+        UWORD adjModes = newScreen->ViewModes;
+        if (width >= 640 && !(adjModes & HIRES))
+        {
+            adjModes |= HIRES;
+            DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() auto-setting HIRES for width=%d\n", (int)width);
+        }
+        screen->ViewPort.Modes = adjModes;
+    }
     
     /* Allocate and initialize RasInfo for the ViewPort.
      * This is required for double-buffering and other ViewPort operations.
@@ -8520,6 +8543,15 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     screen->ViewPort.ColorMap = GetColorMap(num_colors);
     if (screen->ViewPort.ColorMap)
     {
+        /* Phase 129: Set VPModeID so GetVPModeID() returns the correct mode.
+         * Use a proper PAL display ID (PAL_MONITOR_ID | key), not just raw
+         * ViewModes bits, because apps like PPaint's CloantoScreenManager
+         * read ColorMap->VPModeID directly and check for a valid monitor ID. */
+        {
+            ULONG modeKey = (width >= 640) ? 0x00008000UL /* HIRES_KEY */
+                                           : 0x00000000UL /* LORES_KEY */;
+            screen->ViewPort.ColorMap->VPModeID = 0x00021000UL | modeKey; /* PAL_MONITOR_ID | key */
+        }
         /* Initialize default Workbench colors for first 4 entries */
         /* These are the standard Amiga 2.0+ colors */
         SetRGB4CM(screen->ViewPort.ColorMap, 0, 0xA, 0xA, 0xA);  /* Gray background */
@@ -8573,6 +8605,33 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
 
     /* Clear the screen to color 0 */
     SetRast(&screen->RastPort, 0);
+
+    /* Open the screen font and set it on the screen's RastPort.
+     * On real Amiga, OpenScreen always sets screen->RastPort.Font to an
+     * opened TextFont. Apps like PPaint check RastPort.Font != NULL as a
+     * screen validity check and exit if it is NULL. */
+    {
+        struct TextFont *screenFont = NULL;
+        if (screen->Font)
+        {
+            screenFont = OpenFont(screen->Font);
+        }
+        if (!screenFont)
+        {
+            /* Fall back to topaz.font if no font specified or open failed */
+            struct TextAttr ta;
+            ta.ta_Name  = (STRPTR)"topaz.font";
+            ta.ta_YSize = 8;
+            ta.ta_Style = 0;
+            ta.ta_Flags = 0;
+            screenFont = OpenFont(&ta);
+        }
+        if (screenFont)
+        {
+            SetFont(&screen->RastPort, screenFont);
+        }
+    }
+
 
     /* Initialize Layer_Info for this screen */
     InitLayers(&screen->LayerInfo);
@@ -9574,7 +9633,11 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
         wbscreen = wbscreen->NextScreen;
     }
     
-    /* Create a new Workbench screen */
+    /* Create a new Workbench screen.
+     * Note: We use CUSTOMSCREEN here as the internal type because
+     * OpenScreen() rejects WBENCHSCREEN from public callers.
+     * We set Flags to WBENCHSCREEN after creation so the screen
+     * is properly identified as the Workbench screen. */
     memset(&ns, 0, sizeof(ns));
     ns.LeftEdge = 0;
     ns.TopEdge = 0;
@@ -9583,16 +9646,19 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     ns.Depth = 2;
     ns.DetailPen = 0;
     ns.BlockPen = 1;
-    ns.Type = WBENCHSCREEN;
+    ns.Type = CUSTOMSCREEN;
     ns.DefaultTitle = (UBYTE *)"Workbench Screen";
     
     wbscreen = _intuition_OpenScreen(IntuitionBase, &ns);
     
     if (wbscreen)
     {
+        /* Mark as Workbench screen */
+        wbscreen->Flags = (wbscreen->Flags & ~SCREENTYPE) | WBENCHSCREEN;
+
         DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - opened at 0x%08lx, Width=%d Height=%d\n", 
                  (ULONG)wbscreen, (int)wbscreen->Width, (int)wbscreen->Height);
-        
+
         return (ULONG)wbscreen;
     }
     
@@ -10854,10 +10920,15 @@ ULONG _intuition_LockIBase ( register struct IntuitionBase * IntuitionBase __asm
 {
     /*
      * LockIBase() locks access to IntuitionBase for safe reading.
-     * Since we're single-threaded, we just return a dummy lock value.
+     * Per RKRM: The return value is a ULONG lock token that must be
+     * passed to UnlockIBase().  On real AmigaOS 2.0+, this value is
+     * used internally but the convention is that 0 is returned when
+     * there is no contention.  Many applications (e.g. PPaint) check
+     * the return value with tst.w/bne and treat non-zero as an error.
+     * We therefore return 0 to stay compatible.
      */
     DPRINTF (LOG_DEBUG, "_intuition: LockIBase() dontknow=0x%08lx\n", dontknow);
-    return 1;  /* Return non-zero "lock" value */
+    return 0;  /* Return 0 — apps treat non-zero as failure */
 }
 
 VOID _intuition_UnlockIBase ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -13228,6 +13299,7 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     struct NewScreen ns;
     struct TagItem *tstate;
     struct TagItem *tag;
+    ULONG sa_display_id = (ULONG)INVALID_ID;  /* Track SA_DisplayID for VPModeID override */
     
     DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() called, newScreen=0x%08lx, tagList=0x%08lx\n",
             (ULONG)newScreen, (ULONG)tagList);
@@ -13324,9 +13396,11 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                     /* Store the display ID; use it to set ViewPort.Modes
                      * after screen creation.  For now we extract the
                      * HIRES and LACE bits which affect resolution/height.
+                     * We also preserve the full ID for VPModeID so that
+                     * apps like PPaint that read VPModeID directly get
+                     * back exactly what they requested.
                      */
-                    DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() SA_DisplayID=0x%08lx\n",
-                            (ULONG)tag->ti_Data);
+                    sa_display_id = (ULONG)tag->ti_Data;
                     ns.ViewModes = (UWORD)(tag->ti_Data & 0xFFFF);
                     break;
                 case SA_Pens:
@@ -13370,6 +13444,20 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
     struct Screen *screen = _intuition_OpenScreen(IntuitionBase, &ns);
     if (!screen)
         return NULL;
+
+    /* If SA_DisplayID was provided, override VPModeID in the ColorMap with the
+     * exact requested display ID.  Apps like PPaint's CloantoScreenManager read
+     * VPModeID back after OpenScreen and compare it to what they requested.
+     * OpenScreen sets VPModeID from width (PAL_MONITOR_ID|key), but apps may
+     * have requested just the raw key (e.g. 0x8000 for HIRES) without a monitor
+     * prefix.  Storing back the requested ID preserves that expectation.
+     */
+    if (sa_display_id != (ULONG)INVALID_ID && screen->ViewPort.ColorMap)
+    {
+        DPRINTF(LOG_DEBUG, "_intuition: OpenScreenTagList() overriding VPModeID 0x%08lx -> 0x%08lx\n",
+                (ULONG)screen->ViewPort.ColorMap->VPModeID, sa_display_id);
+        screen->ViewPort.ColorMap->VPModeID = sa_display_id;
+    }
 
     /* Second pass: apply tags that require a live screen */
     if (tagList)

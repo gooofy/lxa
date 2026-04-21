@@ -89,6 +89,10 @@ protected:
         }
         lxa_add_assign("PPaint", ppaint_base.c_str());
 
+        /* PPaint's Personal.font lives in PPaint:fonts/ — add that directory
+         * to the FONTS: multi-assign so OpenFont("Personal.font",...) finds it. */
+        lxa_add_assign_path("FONTS", (ppaint_base / "fonts").c_str());
+
         ASSERT_EQ(lxa_load_program("APPS:ppaint/ppaint", ""), 0)
             << "Failed to load ppaint via APPS: assign";
 

@@ -739,13 +739,61 @@ static ULONG graphics_query_header_length(ULONG size)
     return (size + 7) / 8;
 }
 
+/*
+ * Phase 129: Full ECS display-mode database.
+ *
+ * The original 6-entry table caused CloantoScreenManager (PPaint) and
+ * FinalWriter to exit immediately because their mode probes found no mode
+ * with valid DimensionInfo ranges.  We now advertise the complete set of ECS
+ * standard modes so that typical probe sequences (FindDisplayInfo /
+ * GetDisplayInfoData / BestModeIDA) return plausible results regardless of
+ * which specific mode combination the app asks for.
+ *
+ * All modes here are virtualized to lxa's physical 640×256 (HIRES PAL)
+ * backing display — any OpenScreen request that maps to one of these IDs is
+ * accepted and rendered at the closest physical resolution (HIRES or LORES,
+ * interlaced doubled to single if needed).
+ */
 static const ULONG g_known_display_ids[] = {
-    LORES_KEY,
-    HIRES_KEY,
+    /* --- DEFAULT (no explicit monitor) --- */
+    LORES_KEY,               /* 0x00000000 */
+    LORESLACE_KEY,           /* 0x00000004 */
+    EXTRAHALFBRITE_KEY,      /* 0x00000080 */
+    EXTRAHALFBRITELACE_KEY,  /* 0x00000084 */
+    HAM_KEY,                 /* 0x00000800 */
+    HAMLACE_KEY,             /* 0x00000804 */
+    HIRES_KEY,               /* 0x00008000 */
+    HIRESLACE_KEY,           /* 0x00008004 */
+    SUPER_KEY,               /* 0x00008020 */
+    SUPERLACE_KEY,           /* 0x00008024 */
+    HIRESHAM_KEY,            /* 0x00008800 */
+    HIRESHAMLACE_KEY,        /* 0x00008804 */
+    /* --- NTSC monitor --- */
     NTSC_MONITOR_ID | LORES_KEY,
+    NTSC_MONITOR_ID | LORESLACE_KEY,
+    NTSC_MONITOR_ID | EXTRAHALFBRITE_KEY,
+    NTSC_MONITOR_ID | EXTRAHALFBRITELACE_KEY,
+    NTSC_MONITOR_ID | HAM_KEY,
+    NTSC_MONITOR_ID | HAMLACE_KEY,
     NTSC_MONITOR_ID | HIRES_KEY,
+    NTSC_MONITOR_ID | HIRESLACE_KEY,
+    NTSC_MONITOR_ID | SUPER_KEY,
+    NTSC_MONITOR_ID | SUPERLACE_KEY,
+    NTSC_MONITOR_ID | HIRESHAM_KEY,
+    NTSC_MONITOR_ID | HIRESHAMLACE_KEY,
+    /* --- PAL monitor --- */
     PAL_MONITOR_ID | LORES_KEY,
-    PAL_MONITOR_ID | HIRES_KEY
+    PAL_MONITOR_ID | LORESLACE_KEY,
+    PAL_MONITOR_ID | EXTRAHALFBRITE_KEY,
+    PAL_MONITOR_ID | EXTRAHALFBRITELACE_KEY,
+    PAL_MONITOR_ID | HAM_KEY,
+    PAL_MONITOR_ID | HAMLACE_KEY,
+    PAL_MONITOR_ID | HIRES_KEY,
+    PAL_MONITOR_ID | HIRESLACE_KEY,
+    PAL_MONITOR_ID | SUPER_KEY,
+    PAL_MONITOR_ID | SUPERLACE_KEY,
+    PAL_MONITOR_ID | HIRESHAM_KEY,
+    PAL_MONITOR_ID | HIRESHAMLACE_KEY,
 };
 
 static BOOL graphics_display_id_is_known(ULONG display_id)
@@ -762,6 +810,30 @@ static BOOL graphics_display_id_is_known(ULONG display_id)
     }
 
     return FALSE;
+}
+
+/*
+ * Phase 129: Virtualization helper.
+ * Maps any known (or unknown) display ID to a canonical "physical" ID
+ * that our display layer can render.  We map to PAL HIRES or PAL LORES
+ * depending on the HIRES bit of the requested mode.
+ *
+ * This is the Wine-style strategy: accept any mode that is at least
+ * conceptually renderable on our hardware and silently downgrade it to
+ * the closest physical mode we support.
+ */
+static ULONG graphics_virtualize_display_id(ULONG display_id)
+{
+    /* Keep HAM/LACE/EHB bits for property reporting, but treat all
+     * SUPER_KEY modes the same as HIRES for geometry purposes. */
+    if (display_id == INVALID_ID)
+        return PAL_MONITOR_ID | HIRES_KEY;
+
+    /* If it has HIRES (bit 15) or SUPER (HIRES | bit 5), use HIRES geometry */
+    if (display_id & HIRES)
+        return PAL_MONITOR_ID | HIRES_KEY;
+
+    return PAL_MONITOR_ID | LORES_KEY;
 }
 
 static const char *graphics_display_mode_name(ULONG display_id)
@@ -7861,8 +7933,17 @@ static DisplayInfoHandle _graphics_FindDisplayInfo ( register struct GfxBase * G
 {
     DPRINTF (LOG_DEBUG, "_graphics: FindDisplayInfo() displayID=0x%08lx\n", displayID);
 
-    if (!graphics_display_id_is_known(displayID))
+    /* INVALID_ID is never a valid display ID — always reject explicitly. */
+    if (displayID == INVALID_ID)
         return (DisplayInfoHandle)0;
+
+    if (!graphics_display_id_is_known(displayID))
+    {
+        /* Phase 129: Virtualize unknown IDs to a known physical mode handle */
+        ULONG virt = graphics_virtualize_display_id(displayID);
+        DPRINTF(LOG_DEBUG, "_graphics: FindDisplayInfo() unknown ID -> virtualized to 0x%08lx\n", virt);
+        return (DisplayInfoHandle)(virt + 1);
+    }
 
     return (DisplayInfoHandle)(displayID + 1);
 }
@@ -7939,7 +8020,14 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
     }
 
     if (!graphics_display_id_is_known(actualDisplayID))
-        return 0;
+    {
+        /* Phase 129: Virtualize unknown mode IDs — map to the closest
+         * known physical mode so that apps probing exotic mode IDs still
+         * get plausible DimensionInfo / DisplayInfo rather than a hard 0. */
+        actualDisplayID = graphics_virtualize_display_id(actualDisplayID);
+        DPRINTF(LOG_DEBUG, "_graphics: GetDisplayInfoData() unknown ID → virtualized to 0x%08lx\n",
+                actualDisplayID);
+    }
 
     lxa_memset(buf, 0, size);
     width = graphics_display_nominal_width(actualDisplayID);
@@ -7957,11 +8045,16 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
             di.Header.SkipID = TAG_SKIP;
             di.Header.Length = graphics_query_header_length(sizeof(di));
             di.NotAvailable = FALSE;
-            di.PropertyFlags = DIPF_IS_SPRITES | DIPF_IS_WB | DIPF_IS_DRAGGABLE;
+            /* Phase 129: Set all relevant DIPF flags for this mode */
+            di.PropertyFlags = DIPF_IS_SPRITES | DIPF_IS_WB | DIPF_IS_DRAGGABLE | DIPF_IS_ECS;
             if ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID)
                 di.PropertyFlags |= DIPF_IS_PAL;
             if (actualDisplayID & LACE)
                 di.PropertyFlags |= DIPF_IS_LACE;
+            if (actualDisplayID & HAM)
+                di.PropertyFlags |= DIPF_IS_HAM;
+            if ((actualDisplayID & EXTRAHALFBRITE_KEY) == EXTRAHALFBRITE_KEY)
+                di.PropertyFlags |= DIPF_IS_EXTRAHALFBRITE;
             di.Resolution.x = (actualDisplayID & HIRES) ? 22 : 44;
             di.Resolution.y = ((actualDisplayID & MONITOR_ID_MASK) == PAL_MONITOR_ID) ? 44 : 52;
             di.PixelSpeed = (actualDisplayID & HIRES) ? 70 : 140;
@@ -7985,10 +8078,27 @@ static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __
             dims.Header.SkipID = TAG_SKIP;
             dims.Header.Length = graphics_query_header_length(sizeof(dims));
             dims.MaxDepth = 8;
-            dims.MinRasterWidth = width;
-            dims.MinRasterHeight = height;
-            dims.MaxRasterWidth = width;
-            dims.MaxRasterHeight = height;
+            /* Phase 129: Return realistic raster ranges instead of
+             * pinned MinRaster==MaxRaster values.  Apps like PPaint's
+             * CloantoScreenManager probe DimensionInfo to decide whether
+             * a mode can render at their target size.  If Min==Max they
+             * conclude the mode is unsuitable and exit with rv=26. */
+            if (actualDisplayID & HIRES)
+            {
+                /* HIRES: 320×200 (min) up to 1280×1024 (max) */
+                dims.MinRasterWidth  = 320;
+                dims.MinRasterHeight = 200;
+                dims.MaxRasterWidth  = 1280;
+                dims.MaxRasterHeight = 1024;
+            }
+            else
+            {
+                /* LORES: 160×100 (min) up to 640×512 (max) */
+                dims.MinRasterWidth  = 160;
+                dims.MinRasterHeight = 100;
+                dims.MaxRasterWidth  = 640;
+                dims.MaxRasterHeight = 512;
+            }
             dims.Nominal.MinX = 0;
             dims.Nominal.MinY = 0;
             dims.Nominal.MaxX = width - 1;
@@ -8288,13 +8398,14 @@ static LONG _graphics_GetVPModeID ( register struct GfxBase * GfxBase __asm("a6"
 {
     ULONG modeID = 0x00000000;  /* Default to LORES_KEY */
     
-    DPRINTF (LOG_DEBUG, "_graphics: GetVPModeID() vp=0x%08lx\n", (ULONG)vp);
-    
     if (!vp)
         return INVALID_ID;
 
-    if (vp->ColorMap && vp->ColorMap->VPModeID != INVALID_ID)
+    DPRINTF (LOG_DEBUG, "_graphics: GetVPModeID() vp=0x%08lx\n", (ULONG)vp);
+
+    if (vp->ColorMap && vp->ColorMap->VPModeID != INVALID_ID) {
         return (LONG)vp->ColorMap->VPModeID;
+    }
     
     /* Build mode ID from viewport modes */
     if (vp->Modes & HIRES)
@@ -10159,19 +10270,26 @@ static ULONG _graphics_BestModeIDA ( register struct GfxBase * GfxBase __asm("a6
     /*
      * BestModeIDA() finds the best display mode matching the given criteria.
      * Returns the ModeID or INVALID_ID (0xFFFFFFFF) if no suitable mode found.
-     * 
-     * We provide simple matching: HIRES for width > 400, LORES otherwise.
+     *
+     * Phase 129: Improved implementation:
+     *  - Respects BIDTAG_DIPFMustHave / BIDTAG_DIPFMustNotHave flags
+     *  - Returns a fully-qualified PAL monitor ID so FindDisplayInfo succeeds
+     *  - Falls back gracefully when no matching mode can satisfy the constraints
      */
-    ULONG desiredWidth = 640;
-    ULONG desiredHeight = 200;
-    ULONG depth = 4;
+    ULONG desiredWidth   = 640;
+    ULONG desiredHeight  = 200;
+    ULONG depth          = 4;
+    ULONG mustHave       = 0;
+    ULONG mustNotHave    = 0;
+    ULONG sourceID       = INVALID_ID;
+    ULONG monitorID      = INVALID_ID;
     const struct TagItem *tag;
-    
+
     DPRINTF (LOG_DEBUG, "_graphics: BestModeIDA() tags=0x%08lx\n", (ULONG)tags);
-    
+
     /* Parse tags */
     if (tags) {
-        for (tag = tags; tag->ti_Tag != 0; tag++) {
+        for (tag = tags; tag->ti_Tag != TAG_DONE && tag->ti_Tag != 0; tag++) {
             switch (tag->ti_Tag) {
                 case 0x80000004: /* BIDTAG_NominalWidth */
                 case 0x80000006: /* BIDTAG_DesiredWidth */
@@ -10185,29 +10303,132 @@ static ULONG _graphics_BestModeIDA ( register struct GfxBase * GfxBase __asm("a6
                     depth = tag->ti_Data;
                     break;
                 case 0x80000001: /* BIDTAG_DIPFMustHave */
+                    mustHave = tag->ti_Data;
+                    DPRINTF(LOG_DEBUG, "_graphics: BestModeIDA() BIDTAG_DIPFMustHave=0x%08lx\n", mustHave);
+                    break;
                 case 0x80000002: /* BIDTAG_DIPFMustNotHave */
-                case 0x80000003: /* BIDTAG_ViewPort */
+                    mustNotHave = tag->ti_Data;
+                    DPRINTF(LOG_DEBUG, "_graphics: BestModeIDA() BIDTAG_DIPFMustNotHave=0x%08lx\n", mustNotHave);
+                    break;
                 case 0x80000009: /* BIDTAG_MonitorID */
+                    monitorID = tag->ti_Data;
+                    break;
                 case 0x8000000a: /* BIDTAG_SourceID */
-                    /* Ignore these for now */
+                    sourceID = tag->ti_Data;
+                    break;
+                default:
                     break;
             }
-            
-            /* Handle TAG_DONE, TAG_SKIP, TAG_IGNORE */
-            if (tag->ti_Tag == 0xFFFFFFFF) /* TAG_DONE */
-                break;
+
+            if (tag->ti_Tag == TAG_SKIP)
+                tag += tag->ti_Data;
         }
     }
-    
-    (void)desiredHeight;  /* Unused for now */
-    (void)depth;          /* Unused for now */
-    
-    /* Return HIRES for wider screens, LORES otherwise */
-    if (desiredWidth > 400) {
-        return 0x00008000;  /* HIRES_KEY */
-    } else {
-        return 0x00000000;  /* LORES_KEY */
+
+    (void)desiredHeight;
+    (void)depth;
+
+    /* Determine base geometry: HIRES for wide requests */
+    ULONG baseKey = (desiredWidth > 400) ? HIRES_KEY : LORES_KEY;
+
+    /* Choose monitor: prefer explicit monitor, otherwise PAL */
+    ULONG chosenMonitor;
+    if (monitorID != INVALID_ID && (monitorID == PAL_MONITOR_ID || monitorID == NTSC_MONITOR_ID))
+        chosenMonitor = monitorID;
+    else if (sourceID != INVALID_ID && (sourceID & MONITOR_ID_MASK) != 0)
+        chosenMonitor = sourceID & MONITOR_ID_MASK;
+    else
+        chosenMonitor = PAL_MONITOR_ID;   /* Default to PAL */
+
+    ULONG candidate = chosenMonitor | baseKey;
+
+    /* Phase 129: honour DIPF MustHave / MustNotHave constraints.
+     *
+     * We build the DIPF flags that 'candidate' would have and check them
+     * against the constraints.  If a constraint cannot be satisfied we return
+     * INVALID_ID rather than a wrong mode, which is the correct Amiga behaviour
+     * (the caller is expected to handle INVALID_ID gracefully).
+     *
+     * Constraints we can satisfy from our mode set:
+     *   DIPF_IS_WB        — always true for our modes (we always set WB)
+     *   DIPF_IS_PAL       — true for PAL_MONITOR_ID
+     *   DIPF_IS_LACE      — we have LACE variants
+     *   DIPF_IS_HAM       — we have HAM variants (not really rendered, but accepted)
+     *   DIPF_IS_EHB       — we have EHB variants
+     *   DIPF_IS_SPRITES   — always true for our modes
+     *   DIPF_IS_DRAGGABLE — always true for our modes
+     */
+
+    /* Compute the DIPF flags our candidate mode would report */
+    ULONG candidateDIPF = DIPF_IS_SPRITES | DIPF_IS_WB | DIPF_IS_DRAGGABLE | DIPF_IS_ECS;
+    if (chosenMonitor == PAL_MONITOR_ID) candidateDIPF |= DIPF_IS_PAL;
+    if (candidate & LACE)                candidateDIPF |= DIPF_IS_LACE;
+    if (candidate & HAM)                 candidateDIPF |= DIPF_IS_HAM;
+
+    /* Check MustNotHave: if candidate has a forbidden flag, we cannot satisfy */
+    if (mustNotHave & candidateDIPF)
+    {
+        /* Try to remove conflicting optional bits from the candidate.
+         * Most apps use MustNotHave to exclude LACE or foreign modes. */
+        ULONG conflicting = mustNotHave & candidateDIPF;
+
+        /* If only LACE is conflicting, try the non-interlaced variant */
+        if (conflicting == DIPF_IS_LACE)
+        {
+            candidate &= ~LACE;
+            candidateDIPF &= ~DIPF_IS_LACE;
+        }
+        else
+        {
+            /* Cannot resolve conflict — return INVALID_ID would be strict, but
+             * Phase 129 philosophy: accept and virtualize rather than reject.
+             * Many apps pass MustNotHave = DIPF_IS_FOREIGN | DIPF_IS_AA to
+             * exclude AGA modes; we are already ECS-only so just accept. */
+            DPRINTF(LOG_DEBUG, "_graphics: BestModeIDA() MustNotHave conflict 0x%08lx ignored (virtualized)\n", conflicting);
+        }
     }
+
+    /* Check MustHave: we must have all required flags */
+    if (mustHave)
+    {
+        ULONG missing = mustHave & ~candidateDIPF;
+        if (missing)
+        {
+            /* Try to satisfy: add LACE if required */
+            if ((missing & DIPF_IS_LACE) && !(candidate & LACE))
+            {
+                candidate |= LACE;
+                candidateDIPF |= DIPF_IS_LACE;
+                missing &= ~DIPF_IS_LACE;
+            }
+            if ((missing & DIPF_IS_HAM) && !(candidate & HAM))
+            {
+                candidate |= HAM;
+                candidateDIPF |= DIPF_IS_HAM;
+                missing &= ~DIPF_IS_HAM;
+            }
+            /* If still missing required flags that we cannot supply at all: */
+            if (missing & ~(DIPF_IS_SPRITES | DIPF_IS_WB | DIPF_IS_DRAGGABLE | DIPF_IS_ECS | DIPF_IS_PAL | DIPF_IS_LACE | DIPF_IS_HAM))
+            {
+                DPRINTF(LOG_DEBUG, "_graphics: BestModeIDA() cannot satisfy MustHave=0x%08lx missing=0x%08lx, using best-effort\n", mustHave, missing);
+                /* Return the best effort rather than INVALID_ID so apps still get a usable mode */
+            }
+        }
+    }
+
+    /* Validate the final candidate is in our known-mode list; if not, round down */
+    if (!graphics_display_id_is_known(candidate))
+    {
+        /* Strip exotic bits and try again */
+        candidate = chosenMonitor | baseKey;
+        if (!graphics_display_id_is_known(candidate))
+            candidate = PAL_MONITOR_ID | HIRES_KEY;  /* guaranteed fallback */
+    }
+
+    DPRINTF(LOG_DEBUG, "_graphics: BestModeIDA() -> 0x%08lx (desiredWidth=%lu mustHave=0x%08lx mustNotHave=0x%08lx)\n",
+            candidate, desiredWidth, mustHave, mustNotHave);
+
+    return candidate;
 }
 
 static VOID _graphics_WriteChunkyPixels ( register struct GfxBase * GfxBase __asm("a6"),

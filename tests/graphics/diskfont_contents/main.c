@@ -986,10 +986,10 @@ static void test_open_disk_font_path(void)
         return;
     }
 
-    if (font->tf_YSize == 12 && streq((const char *)font->tf_Message.mn_Node.ln_Name, "T:diskfont_test/test.font"))
-        pass("OpenDiskFont preserves requested path and font size");
+    if (font->tf_YSize == 12 && streq((const char *)font->tf_Message.mn_Node.ln_Name, "test.font"))
+        pass("OpenDiskFont registers font by basename with correct size");
     else
-        fail("OpenDiskFont preserves requested path and font size");
+        fail("OpenDiskFont registers font by basename with correct size");
 
     FontExtent(font, &extent);
     if (extent.te_Height == 12 && extent.te_Extent.MaxX == 7)

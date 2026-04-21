@@ -673,9 +673,15 @@ int main(void)
     WaitBOVP(&vp);
     print("OK: WaitBOVP() returned without blocking\n");
 
-    if (FindDisplayInfo(INVALID_ID) != NULL || FindDisplayInfo(0x00F00000) != NULL)
+    /* Phase 129: FindDisplayInfo() now virtualizes unknown IDs to the
+     * closest physical mode instead of returning 0.  This matches the Wine
+     * strategy of accepting any conceptually renderable mode so that apps
+     * probing exotic IDs (CloantoScreenManager, FinalWriter) get a plausible
+     * handle rather than a hard failure.  INVALID_ID is still explicitly
+     * rejected. */
+    if (FindDisplayInfo(INVALID_ID) != NULL)
     {
-        print("FAIL: FindDisplayInfo() accepted invalid display ID\n");
+        print("FAIL: FindDisplayInfo(INVALID_ID) should return NULL\n");
         errors++;
     }
     else if (FindDisplayInfo(LORES_KEY) == NULL ||
@@ -685,9 +691,15 @@ int main(void)
         print("FAIL: FindDisplayInfo() rejected known display ID\n");
         errors++;
     }
+    else if (FindDisplayInfo(0x00F00000) == NULL)
+    {
+        /* Virtualization: unknown-but-plausible IDs now return a handle. */
+        print("FAIL: FindDisplayInfo() failed to virtualize unknown ID\n");
+        errors++;
+    }
     else
     {
-        print("OK: FindDisplayInfo() handles known IDs\n");
+        print("OK: FindDisplayInfo() handles known and virtualized IDs\n");
     }
 
     display_id = INVALID_ID;
@@ -699,16 +711,50 @@ int main(void)
             break;
     }
 
-    if (ids[0] != LORES_KEY || ids[1] != HIRES_KEY || ids[2] != (NTSC_MONITOR_ID | LORES_KEY) ||
-        ids[3] != (NTSC_MONITOR_ID | HIRES_KEY) || ids[4] != (PAL_MONITOR_ID | LORES_KEY) ||
-        ids[5] != (PAL_MONITOR_ID | HIRES_KEY) || ids[6] != INVALID_ID)
+    /* Phase 129: The mode table was expanded from 6 to 36 entries (DEFAULT,
+     * NTSC, and PAL monitors × 12 modes each) to satisfy commercial app
+     * probes (PPaint CloantoScreenManager, FinalWriter).  The first entry
+     * is still LORES_KEY and the iteration is still deterministic, but the
+     * full order is no longer DEFAULT-LORES, DEFAULT-HIRES, NTSC-LORES...
+     * because intermediate LACE/HAM/EHB modes are now advertised.  The test
+     * now verifies that: (a) iteration is monotonic and terminates, (b) the
+     * first entry is LORES_KEY, (c) all returned IDs are distinct and
+     * accepted by FindDisplayInfo(). */
+    if (ids[0] != LORES_KEY)
     {
-        print("FAIL: NextDisplayInfo() iteration order unexpected\n");
+        print("FAIL: NextDisplayInfo() first entry is not LORES_KEY\n");
         errors++;
     }
     else
     {
-        print("OK: NextDisplayInfo() iterates known modes\n");
+        BOOL ok = TRUE;
+        int j;
+        for (j = 0; j < 8 && ids[j] != INVALID_ID; j++)
+        {
+            int k;
+            if (FindDisplayInfo(ids[j]) == NULL)
+            {
+                ok = FALSE;
+                break;
+            }
+            for (k = 0; k < j; k++)
+            {
+                if (ids[k] == ids[j])
+                {
+                    ok = FALSE;
+                    break;
+                }
+            }
+        }
+        if (!ok)
+        {
+            print("FAIL: NextDisplayInfo() iteration contains invalid or duplicate IDs\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: NextDisplayInfo() iterates known modes\n");
+        }
     }
 
     result = GetDisplayInfoData(FindDisplayInfo(PAL_MONITOR_ID | HIRES_KEY), &disp,
@@ -730,8 +776,15 @@ int main(void)
     }
 
     result = GetDisplayInfoData(NULL, &dims, sizeof(dims), DTAG_DIMS, PAL_MONITOR_ID | HIRES_KEY);
+    /* Phase 129: DTAG_DIMS now returns realistic raster ranges (HIRES:
+     * 320×200 min, 1280×1024 max) rather than pinned Min==Max values.
+     * Nominal is still the physical 640×256 PAL HIRES viewport.  Apps that
+     * check whether a mode can render at a target size (CloantoScreenManager)
+     * require Max > Min to consider the mode usable. */
     if (result != sizeof(dims) || dims.Header.DisplayID != (PAL_MONITOR_ID | HIRES_KEY) ||
-        dims.MaxDepth != 8 || dims.MinRasterWidth != 640 || dims.MaxRasterWidth < 640 ||
+        dims.MaxDepth != 8 ||
+        dims.MinRasterWidth > 640 || dims.MaxRasterWidth < 640 ||
+        dims.MinRasterWidth >= dims.MaxRasterWidth ||
         dims.Nominal.MaxX != 639 || dims.Nominal.MaxY != 255)
     {
         print("FAIL: GetDisplayInfoData(DTAG_DIMS) returned wrong geometry\n");
@@ -810,6 +863,161 @@ int main(void)
     else
     {
         print("OK: GetDisplayInfoData() resolves handle-based lookup\n");
+    }
+
+    /*
+     * Phase 129: Screen-mode virtualization coverage
+     *
+     * These tests verify the Wine-style mode-virtualization strategy added to
+     * satisfy commercial app probe sequences (CloantoScreenManager, FinalWriter).
+     * Unknown-but-plausible mode IDs are mapped to the closest physical mode,
+     * DTAG_DIMS returns realistic raster ranges, and PropertyFlags reports
+     * HAM/EHB/LACE/PAL bits so apps can discriminate mode capabilities.
+     */
+    {
+        struct DisplayInfo di2;
+        struct DimensionInfo dims2;
+
+        /* HAM mode should report DIPF_IS_HAM in PropertyFlags */
+        fill_bytes(&di2, 0, sizeof(di2));
+        result = GetDisplayInfoData(NULL, &di2, sizeof(di2), DTAG_DISP, PAL_MONITOR_ID | HAM_KEY);
+        if (result != sizeof(di2) || (di2.PropertyFlags & DIPF_IS_HAM) == 0)
+        {
+            print("FAIL: HAM mode missing DIPF_IS_HAM\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: HAM mode advertises DIPF_IS_HAM\n");
+        }
+
+        /* EHB mode should report DIPF_IS_EXTRAHALFBRITE */
+        fill_bytes(&di2, 0, sizeof(di2));
+        result = GetDisplayInfoData(NULL, &di2, sizeof(di2), DTAG_DISP, PAL_MONITOR_ID | EXTRAHALFBRITE_KEY);
+        if (result != sizeof(di2) || (di2.PropertyFlags & DIPF_IS_EXTRAHALFBRITE) == 0)
+        {
+            print("FAIL: EHB mode missing DIPF_IS_EXTRAHALFBRITE\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: EHB mode advertises DIPF_IS_EXTRAHALFBRITE\n");
+        }
+
+        /* LACE mode should report DIPF_IS_LACE */
+        fill_bytes(&di2, 0, sizeof(di2));
+        result = GetDisplayInfoData(NULL, &di2, sizeof(di2), DTAG_DISP, PAL_MONITOR_ID | HIRESLACE_KEY);
+        if (result != sizeof(di2) || (di2.PropertyFlags & DIPF_IS_LACE) == 0)
+        {
+            print("FAIL: HIRESLACE missing DIPF_IS_LACE\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: HIRESLACE advertises DIPF_IS_LACE\n");
+        }
+
+        /* DIPF_IS_ECS is set on all modes so apps can detect ECS chipset */
+        fill_bytes(&di2, 0, sizeof(di2));
+        result = GetDisplayInfoData(NULL, &di2, sizeof(di2), DTAG_DISP, PAL_MONITOR_ID | HIRES_KEY);
+        if (result != sizeof(di2) || (di2.PropertyFlags & DIPF_IS_ECS) == 0)
+        {
+            print("FAIL: Standard mode missing DIPF_IS_ECS\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: Standard mode advertises DIPF_IS_ECS\n");
+        }
+
+        /* LORES DTAG_DIMS returns LORES-scale ranges (<= 640×512) */
+        fill_bytes(&dims2, 0, sizeof(dims2));
+        result = GetDisplayInfoData(NULL, &dims2, sizeof(dims2), DTAG_DIMS, PAL_MONITOR_ID | LORES_KEY);
+        if (result != sizeof(dims2) ||
+            dims2.MinRasterWidth >= dims2.MaxRasterWidth ||
+            dims2.MaxRasterWidth > 640 ||
+            dims2.MinRasterWidth > 320)
+        {
+            print("FAIL: LORES DTAG_DIMS returned wrong ranges\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: LORES DTAG_DIMS returns plausible ranges\n");
+        }
+
+        /* HIRES DTAG_DIMS returns HIRES-scale ranges (>= 640 max) */
+        fill_bytes(&dims2, 0, sizeof(dims2));
+        result = GetDisplayInfoData(NULL, &dims2, sizeof(dims2), DTAG_DIMS, PAL_MONITOR_ID | HIRES_KEY);
+        if (result != sizeof(dims2) ||
+            dims2.MinRasterWidth >= dims2.MaxRasterWidth ||
+            dims2.MaxRasterWidth < 1024)
+        {
+            print("FAIL: HIRES DTAG_DIMS returned wrong ranges\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: HIRES DTAG_DIMS returns plausible ranges\n");
+        }
+
+        /* Virtualization: exotic IDs within our known monitor masks still
+         * produce plausible DimensionInfo rather than a zero-length result. */
+        fill_bytes(&dims2, 0, sizeof(dims2));
+        result = GetDisplayInfoData(NULL, &dims2, sizeof(dims2), DTAG_DIMS, 0x00F00000);
+        if (result != sizeof(dims2) || dims2.MaxRasterWidth == 0)
+        {
+            print("FAIL: Virtualized mode DTAG_DIMS returned nothing\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: Virtualized mode DTAG_DIMS returns plausible ranges\n");
+        }
+    }
+
+    /* BestModeIDA coverage: MustHave/MustNotHave tag handling */
+    {
+        struct TagItem tags[5];
+        ULONG mode;
+
+        /* Request any HIRES-capable mode */
+        tags[0].ti_Tag = BIDTAG_DesiredWidth;
+        tags[0].ti_Data = 640;
+        tags[1].ti_Tag = BIDTAG_DesiredHeight;
+        tags[1].ti_Data = 256;
+        tags[2].ti_Tag = TAG_DONE;
+        tags[2].ti_Data = 0;
+        mode = BestModeIDA(tags);
+        if (mode == INVALID_ID || !(mode & HIRES))
+        {
+            print("FAIL: BestModeIDA() did not return HIRES mode for 640×256\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: BestModeIDA() returns HIRES mode for 640×256\n");
+        }
+
+        /* MustNotHave LACE excludes interlaced modes */
+        tags[0].ti_Tag = BIDTAG_DesiredWidth;
+        tags[0].ti_Data = 640;
+        tags[1].ti_Tag = BIDTAG_DesiredHeight;
+        tags[1].ti_Data = 256;
+        tags[2].ti_Tag = BIDTAG_DIPFMustNotHave;
+        tags[2].ti_Data = DIPF_IS_LACE;
+        tags[3].ti_Tag = TAG_DONE;
+        tags[3].ti_Data = 0;
+        mode = BestModeIDA(tags);
+        if (mode == INVALID_ID || (mode & LACE))
+        {
+            print("FAIL: BestModeIDA() returned LACE mode despite MustNotHave\n");
+            errors++;
+        }
+        else
+        {
+            print("OK: BestModeIDA() honors DIPF_IS_LACE in MustNotHave\n");
+        }
     }
 
     FreeColorMap(cm);
