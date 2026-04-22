@@ -47,6 +47,10 @@ The primary target applications are productivity software (Wordsworth, Amiga Wri
 | 132 | SMART_REFRESH backing store validation + workaround removal: new `BackingStoreTest` sample + `backingstore_gtest.cpp` driver (4 tests) prove Phase 111's backing store correctly saves/restores SMART_REFRESH pixels through dialog-over-window obscure/uncover cycles; defensive `IS_SMARTREFRESH` skip in `DamageExposedAreas()` removed since backing store is no longer in danger of being overpainted; full suite 67/67 pass | v0.9.6 |
 | 133 | Menu double-buffering: `_render_menu_bar()` and `_render_menu_items()` in `lxa_intuition.c` now render into a persistent off-screen compose BitMap and atomic-BltBitMap the completed frame to the screen, eliminating pixel flicker during menu drags on ASM-One and MaxonBASIC. `ZMenuFlickerCheck` upgraded to ±5% pixel-stability assertion with throwaway first drag; new `ZMenuDragPixelStability` test in `maxonbasic_gtest.cpp` guards the editor area against menu residue. Cycle budgets bumped in `maxonbasic`, `gadtoolsmenu`, `blitzbasic2` drivers to account for the compose→blit double traversal cost. `YEditorSurfaceShowsContentAfterMenuInteraction` rewritten: its lower bound relied on flicker residue bleeding into the editor area, which no longer happens (correct Amiga behaviour). Full suite 67/67 pass in ~163s | v0.9.7 |
 | 134 | DirectoryOpus button bank rendering: diagnosed via Phase 130 text hook that DOpus renders its main button bank (Copy/Move/Rename/Makedir/etc.) via a VBlank-driven timer event that fires ~400 VBlanks after startup; the Phase 121 test settle budget (150 iters) was insufficient. Fixed by bumping the `DOpusTextHookTest` and `DOpusTest` settle loops to 600 VBlank iterations (30M cycles). Upgraded `TextHookCapturesKnownDOpusLabels` assertion to verify Copy/Move/Rename labels appear. Cleaned up all diagnostic LPRINTFs from the previous investigation session (exec.c, lxa_dos_host.c, lxa_graphics.c). Yield added to `_dos_CreateNewProc` (give new processes a timeslice, matches real Amiga scheduler behaviour) retained as a correctness improvement. | v0.9.8 |
+| 135 | BlitzBasic 2 ted editor deep dive: original blitter/copper hypothesis invalidated (BB2 emits zero blitter/copper writes at startup). Real root cause: off-screen-clamped About requester blocks all editor activity via `WaitPort()`. Fixed `_intuition_OpenWindow` to recentre off-screen windows instead of clipping to edge; fixed RAWKEY routing to `ActiveWindow`. `StartupOpensVisibleIdeWindow` flipped from upper-bound to lower-bound assertion. All 10 BB2 tests pass. | v0.9.9 |
+| 136 | bgui.library → Typeface: BGUI gadgets (`bgui_bar`, `bgui_layoutgroup`, `bgui_palette`, `bgui_popbutton`, `bgui_treeview`) copied to `share/lxa/System/Libs/gadgets/`. Typeface binary at `lxa-apps/Typeface/Typeface`; bundles its own `bgui.library` in `Libs/`. New `typeface_gtest.cpp` driver (5 tests): `StartupOpensWindow`, `NoPanicDuringStartup`, `TextHookCapturesSomeText`, `WindowGeometryIsPlausible`, `IdleTimeStability`, `ZStartupLatencyBaseline`. All 5 tests pass (83 s). Full suite: 63/68 pass (4 pre-existing failures unrelated to Phase 136). | v0.9.10 |
+| 136-h | datatypes.library hotfix: `lxa_datatypes.c` existed in `src/rom/` but was never wired into the build, causing `OpenLibrary("datatypes.library",…)` to return NULL and any subsequent `jsr (-$f0,A6)` to crash at PC=0xFFFFFF10. Rewrote `lxa_datatypes.c` as a clean minimal stub (all public API functions return safe failure values); registered it via `add_disk_library(datatypes_disklib datatypes.library …)` in `sys/CMakeLists.txt`. Typeface now opens cleanly. | v0.9.11 |
+| 136-h2 | commodities.library missing from ROM: `lxa_commodities.c` existed in `src/rom/` but was never added to the ROM `CMakeLists.txt` or registered in `exec.c`. bgui.library tries to open `commodities.library` at init time; with it absent, bgui failed to initialise and Typeface complained "missing bgui.library v39+". Fixed by adding `lxa_commodities.c` to the ROM build, declaring its `ROMTag` in `exec.c`, and registering it in `g_ResidentModules[]`. Added `FindGadgetsPath()` to `lxa_test.h` so `GADGETS:` is set up in all tests (needed for gadget-class loading). Added `GADGETS:` assign to the `App: Typeface` launch.json entry. | v0.9.12 |
 
 **Known open limitations** (not yet addressed):
 - KickPascal layout/menus — depends on deeper arp/req library functionality
@@ -64,12 +68,87 @@ The primary target applications are productivity software (Wordsworth, Amiga Wri
 - DirectoryOpus 4 button bank now renders correctly (Phase 134). The remaining gaps: file-list navigation (requires directory reading in the lister panes), button-bank click workflows (require dopus.library command dispatch), Preferences panel interaction, and the title-bar version/memory string (rendered by DOpusRT, which is not launched in the current test setup). `commodities.library` and `inovamusic.library` are absent but tolerated by DOpus.
 - CMake test sharding with hardcoded GTest filters can silently orphan newly added tests. Phase 0 audited all sharded drivers (fixing 4 orphaned GadTools tests) and added `tools/check_shard_coverage.py` as a `shard_coverage_check` CTest meta-test. **Any future test additions to a sharded driver MUST update the corresponding FILTER strings** — CI will now catch violations automatically.
 - KickPascal 2 (Phase 122): editor body never clears the splash screen (HiS logo + "Pascal" graphic) so typed Pascal source is overlaid on stale pixels. Compile/run workflows are not exercised (same external-process constraint as DevPac/ASM-One; Phase 140+). Editor-body splash-clear deferred until KickPascal's deferred-paint trigger is reverse-engineered or a forced full redraw can be issued.
-- Typeface (Phase 123, deferred): the font previewer requires `bgui.library` v39+. The real binary is now available at `others/bgui/bgui/libs/bgui.library` and is installed to `share/lxa/System/Libs/bgui.library` (picked up by the static install rule). Typeface should now pass the `OpenLibrary` version check; full font-list / preview / Text() rendering coverage from Typeface deferred to Phase 136.
+- Typeface (Phase 123, deferred Phase 136): font list interaction (clicking font names), preview pane rendering, and the text-entry preview widget (requires `gadgets/textfield.gadget` via `GADGETS:` assign) deferred. The startup + BGUI layout rendering is now validated (Phase 136). Deeper font-browser workflows depend on BGUI gadget class dispatch being fully functional.
 - FinalWriter (Phase 124): clicking OK in the startup dialog causes FW to attempt opening a new screen mode; the two child processes spawn and immediately Exit(0), and FinalWriter terminates without ever opening the editor window. The `DISABLED_AcceptDialogOpensEditorWindow` test is preserved in source for the day Phase 129 screen-mode emulation makes the editor reachable. All editor-mode workflows deferred.
 
 ---
 
 ## Active Development
+
+### Library Policy Cleanup (Phases 141–143)
+
+These phases correct a longstanding policy violation: several third-party library
+stubs (`req.library`, `reqtools.library`, `powerpacker.library`) were implemented
+in lxa in Phase 110. This was wrong — these are not AmigaOS system libraries and
+must never be implemented or emulated by lxa. Real binaries must be supplied by
+the user. Similarly, `datatypes.library` is a genuine AmigaOS system library that
+deserves a full, correct implementation rather than the minimal stub introduced
+in Phase 136-h.
+
+#### Phase 141: Remove third-party library stubs; wire in real binaries
+
+**Goal**: Expunge `req.library`, `reqtools.library`, and `powerpacker.library`
+stubs from the build entirely. Replace them with real binaries supplied by the
+user (the same way `bgui.library` is already handled).
+
+- Delete `src/rom/lxa_reqlib.c`, `src/rom/lxa_reqtools.c`, `src/rom/lxa_powerpacker.c`.
+- Remove the corresponding `add_disk_library()` entries from `sys/CMakeLists.txt`.
+- Locate or request real `req.library`, `reqtools.library`, `powerpacker.library`
+  binaries and install them to `share/lxa/System/Libs/` (same pattern as bgui.library
+  in `share/lxa/System/Libs/bgui.library`).
+- Update all tests that previously validated "stub returns failure cleanly" to instead
+  validate real library functionality (or skip if the binary is not present).
+- Update `roadmap.md` Known Limitations entries that referenced stub behaviour.
+- **Note**: `arp.library` is ambiguous — it straddles system and third-party territory.
+  Treat it as third-party (CBM did not ship it with AmigaOS); apply the same removal
+  pattern once the real binary is available.
+
+**Test gate**: Full suite passes. No app that previously worked should regress. Apps
+that depended on stub-returned failures (DevPac File→Open) should still not crash —
+the real library handles the "no file selected" path natively.
+
+#### Phase 142: datatypes.library — full implementation
+
+**Goal**: Replace the Phase 136-h stub with a complete, RKRM-correct implementation
+of `datatypes.library` per the AmigaOS 3.x NDK and RKRM: Libraries.
+
+Key areas to implement:
+- `ObtainDataType()` / `ReleaseDataType()` — type detection via magic bytes
+- `NewDTObject()` / `DisposeDTObject()` — DataTypes object lifecycle
+- `GetDTAttrs()` / `SetDTAttrs()` — attribute access on DT objects
+- `DoDTMethod()` — method dispatch to DataTypes classes
+- `DrawDTObject()` — render a DataTypes object into a RastPort
+- `FindToolNode()` / `AddDTObject()` / `RemoveDTObject()` — gadget management
+- `GetDTMethods()` / `GetDTTriggerMethods()` — method introspection
+- DataTypes class loading: scan `SYS:Classes/DataTypes/` for `.datatype` descriptors
+- Built-in type detection for common IFF formats (ILBM, 8SVX, FTXT, ANIM)
+
+**Test gate**: Apps that use `datatypes.library` (picture viewers, sound players,
+Workbench icon loading) must open DataTypes objects without crashing. Add a
+`datatypes_gtest.cpp` driver covering the core lifecycle and at least one IFF type.
+
+#### Phase 143: Startup smoke test suite
+
+**Goal**: Catch "app crashes on startup" regressions automatically, before a
+dedicated driver is written. The Typeface crash (datatypes.library NULL pointer)
+went undetected because no test existed yet for Typeface.
+
+- Add `smoke_gtest.cpp` in `tests/drivers/`: a parameterised test that, for each
+  known app binary in `lxa-apps/`, loads the app, runs 100 VBlank settle iterations,
+  and asserts:
+  1. lxa did not abort/SIGABRT.
+  2. No `PANIC` string appears in the output.
+  3. No `rv=26` (immediate exit with error code) appears unless the app is known to
+     do this legitimately.
+- The test must be self-contained: if a particular app binary is missing, that
+  parameterised case is `GTEST_SKIP()` rather than a failure.
+- This gives every new app binary an automatic crash-guard the moment it is added
+  to `lxa-apps/`, without waiting for a full driver phase.
+
+**Test gate**: All currently known apps that open windows pass the smoke test. Apps
+that are known to exit immediately (e.g., command-line tools) are allowlisted.
+
+---
 
 ### Observability and Test Infrastructure
 
@@ -252,14 +331,14 @@ BB2 then `WaitPort()`s on the requester's UserPort, blocking all editor activity
 
 ---
 
-### Phase 136: bgui.library → Typeface
+### Phase 136: bgui.library → Typeface ✅ COMPLETE (v0.9.10)
 
-The real `bgui.library` v41 binary is available at `others/bgui/bgui/libs/bgui.library` and is already installed to `share/lxa/System/Libs/bgui.library` via the static install rule. No stub required — Typeface should pass the `OpenLibrary("bgui.library", 39)` check and load the real library. Also present: `gadgets/bgui_bar.gadget`, `bgui_layoutgroup.gadget`, `bgui_palette.gadget`, `bgui_popbutton.gadget`, `bgui_treeview.gadget` in `others/bgui/bgui/libs/gadgets/`.
+The real `bgui.library` v41 binary is available at `others/bgui/bgui/libs/bgui.library` and is already installed to `share/lxa/System/Libs/bgui.library` via the static install rule. Typeface bundles its own `bgui.library` in `Typeface/Libs/`; lxa's auto-prepend of the program-local `Libs/` directory to `LIBS:` means it is found without any extra assign. BGUI gadget binaries (`bgui_bar.gadget`, `bgui_layoutgroup.gadget`, `bgui_palette.gadget`, `bgui_popbutton.gadget`, `bgui_treeview.gadget`) copied to `share/lxa/System/Libs/gadgets/`.
 
-- [ ] Verify `bgui.library` loads cleanly under lxa: add a startup test that asserts `OpenLibrary` returns non-NULL and Typeface does not exit with an error dialog
-- [ ] Copy the gadget binaries from `others/bgui/bgui/libs/gadgets/` to the appropriate `share/lxa` location (likely `share/lxa/System/Libs/gadgets/`) so BGUI gadget classes are also available
-- [ ] Add `typeface_gtest.cpp` driver: assert Typeface reaches a non-exit state (font list window visible or >0 fonts enumerated)
-- [ ] Use text hook (Phase 130) to observe what the font preview area renders
+- [x] Verify `bgui.library` loads cleanly under lxa: `NoPanicDuringStartup` asserts no PANIC or rv=26 exit
+- [x] Copy gadget binaries from `others/bgui/bgui/libs/gadgets/` to `share/lxa/System/Libs/gadgets/`
+- [x] Add `typeface_gtest.cpp` driver: `StartupOpensWindow` asserts Typeface reaches a non-exit state (window visible); `WindowGeometryIsPlausible` guards geometry; `IdleTimeStability` guards survival
+- [x] Use text hook (Phase 130) to observe rendering: `TextHookCapturesSomeText` asserts BGUI layout rendered at least some text labels through `_graphics_Text()`
 
 ---
 

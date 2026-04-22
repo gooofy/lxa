@@ -6,7 +6,8 @@ This document is the entry point for AI agents working on the `lxa` codebase. Tr
 - **Stability**: Zero tolerance for crashes.
 - **Coverage**: 100% test coverage required.
 - **Reference**: ALWAYS consult RKRM and NDK.
-- **Third-Party Libraries**: Do not re-implement third-party libraries in ROM. They must be supplied on disk and opened through the normal Amiga library search path.
+- **System Libraries Must Be Fully Implemented**: AmigaOS system libraries (dos.library, exec.library, graphics.library, intuition.library, datatypes.library, etc.) must have complete, correct implementations — not stubs. Stub implementations of system libraries are never acceptable; they mask bugs and break app compatibility. If a system library function is missing or incomplete, implement it properly.
+- **Third-Party Libraries: STOP and Notify the User**: Do NOT implement or stub third-party (non-Commodore-OS) libraries (e.g., req.library, reqtools.library, powerpacker.library, bgui.library, MUI, etc.). These must be supplied as real binaries on disk. If a required third-party library binary is missing, **STOP immediately and notify the user** — do not write a stub and do not proceed. The user must provide the real library binary.
 - **Complete Phases if possible**: When working on a phase of the roadmap, plan ahead and make sure you create all the TODO items needed to **successfully complete** the phase. Do not stop early, but strive towards reaching the goal of finishing a phase.
 - **Keep the roadmap.md file updated**: Whenever you complete, defer, or re-scope work, update `roadmap.md` so it stays clean, current, and future-focused. If you intentionally park unfinished work, document that decision explicitly instead of leaving ambiguous unchecked items behind.
 - **Host-Side Test Drivers for UI Tests**: All interactive UI tests (gadget clicks, menu selection, keyboard input) MUST use the host-side driver infrastructure (`tests/drivers/` with liblxa) and Google Test. The legacy `test_inject.h` approach has been removed. All tests are integrated into the unified GTest suite.
@@ -14,7 +15,7 @@ This document is the entry point for AI agents working on the `lxa` codebase. Tr
 ## 2. Standard Workflow
 1. Read `roadmap.md` and identify the active phase or the follow-up you are explicitly parking.
 2. Load the relevant skills before editing code or documentation.
-3. Preserve the boundary between ROM functionality and disk-provided third-party components.
+3. For system libraries: implement fully per RKRM/NDK. For third-party libraries: STOP and notify the user to supply the real binary.
 4. Add or update automated coverage for the changed behavior.
 5. Run the appropriate build/tests, then update roadmap/docs/version together.
 
@@ -258,27 +259,24 @@ windows expect backing-store behavior.
   `IS_SMARTREFRESH` skip in `DamageExposedAreas()` as a workaround — fix
   the actual save/restore path instead.
 
-### 6.9 Disk Library Pattern
+### 6.9 Library Classification: System vs Third-Party
 
-Third-party libraries must NOT be in ROM. They are compiled as disk libraries
-using `add_disk_library()` in `sys/CMakeLists.txt` and installed to
-`share/lxa/System/Libs/`.
+**System libraries** (shipped with Commodore/AmigaOS): dos.library, exec.library, graphics.library, intuition.library, layers.library, utility.library, diskfont.library, datatypes.library, asl.library, gadtools.library, icon.library, workbench.library, commodities.library, iffparse.library, locale.library, keymap.library, mathffp.library, mathieeedoubbas.library, mathieeedoubtrans.library, mathieeesingbas.library, mathieeesingtrans.library, rexxsyslib.library, expansion.library, etc.
+- These **must be fully implemented** in lxa. Stubs are never acceptable.
+- Source lives in `src/rom/lxa_<name>.c`.
+- If a function is missing or incomplete, implement it correctly per RKRM/NDK.
 
-**How to create a new stub library**:
-1. Create source in `src/rom/lxa_<name>.c` (the source lives in `src/rom/`
-   but is compiled separately, not linked into ROM).
-2. Follow the pattern in `lxa_amigaguide.c` or `lxa_rexxsyslib.c`:
-   - Init function that sets up the Library node.
-   - Function table with all public vectors (use NDK Autodocs for the list).
-   - Each function returns a safe failure value (NULL, 0, FALSE).
-3. Add `add_disk_library(<target> lxa_<name>.c <name>.library <version>)`
-   to `sys/CMakeLists.txt`.
-4. Add a startup test that verifies `OpenLibrary("<name>.library", 0)` succeeds
-   and key functions return clean failure values.
+**Third-party libraries** (not shipped with AmigaOS): req.library, reqtools.library, powerpacker.library, bgui.library, MUI, ReAction, magic user interface, etc.
+- These must **never** be implemented or stubbed in lxa.
+- If an app requires one and the binary is not already in `share/lxa/System/Libs/` or the app's own `Libs/`, **STOP immediately and notify the user**.
+- The user must supply the real binary. Do not proceed without it.
 
-**Key principle**: Stubs exist so apps get a clean "library not available" code
-path rather than crashing on OpenLibrary failure. If an app truly needs the
-library's functionality, that's a deeper problem.
+**Disk library build pattern** (for system libraries that are not part of ROM):
+Some system libraries are disk-loaded rather than ROM-resident. Use `add_disk_library()` in `sys/CMakeLists.txt`:
+1. Create source in `src/rom/lxa_<name>.c`.
+2. Implement all public API vectors correctly per RKRM/NDK — no stub returns.
+3. Add `add_disk_library(<target> <name>.library …)` to `sys/CMakeLists.txt`.
+4. Add tests that verify correct behaviour, not just "opens without crashing".
 
 ### 6.10 Event Queue Sizing and Coalescing
 
