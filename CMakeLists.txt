@@ -52,6 +52,9 @@ if(M68K_GCC)
     # Add system commands (cross-compiled)
     add_subdirectory(sys target/sys)
     
+    # Add bgui.library (cross-compiled, m68k library)
+    add_subdirectory(src/bgui target/bgui)
+    
     # Add samples (cross-compiled)
     add_subdirectory(samples target/samples)
 else()
