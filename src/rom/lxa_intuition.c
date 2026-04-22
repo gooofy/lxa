@@ -9901,8 +9901,27 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     
     if (wbscreen)
     {
+        struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
+        struct PubScreenNode *stale_pub;
+
         /* Mark as Workbench screen */
         wbscreen->Flags = (wbscreen->Flags & ~SCREENTYPE) | WBENCHSCREEN;
+
+        /* OpenScreen registered the pubscreen entry while the screen was
+         * still flagged CUSTOMSCREEN, so the entry was named after the
+         * DefaultTitle ("Workbench Screen") instead of the canonical
+         * "Workbench" required by LockPubScreen("Workbench"). Drop the
+         * stale entry and re-register so the WBENCHSCREEN flag drives
+         * the name. */
+        stale_pub = _intuition_find_pubscreen_by_screen(base, wbscreen);
+        if (stale_pub)
+        {
+            Remove(&stale_pub->psn_Node);
+            FreeMem(stale_pub, stale_pub->psn_Size);
+            if (base->DefaultPubScreen == wbscreen)
+                base->DefaultPubScreen = NULL;
+        }
+        _intuition_register_pubscreen(IntuitionBase, wbscreen);
 
         DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - opened at 0x%08lx, Width=%d Height=%d\n", 
                  (ULONG)wbscreen, (int)wbscreen->Width, (int)wbscreen->Height);
@@ -11280,6 +11299,48 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     
     DPRINTF(LOG_DEBUG, "_intuition: _render_gadget() gad=0x%08lx type=0x%04x flags=0x%04x GadgetRender=0x%08lx\n",
             (ULONG)gad, (unsigned)gad->GadgetType, (unsigned)gad->Flags, (ULONG)gad->GadgetRender);
+
+    /* BOOPSI custom gadget: dispatch GM_RENDER on its class.
+     * The gadget object was created by NewObjectA() with a proper _Object
+     * header preceding it, so OCLASS() is valid.
+     */
+    if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_CUSTOMGADGET)
+    {
+        struct IClass *cl = OCLASS((Object *)gad);
+        if (cl)
+        {
+            /* For GZZ windows, route system/gzz gadgets to the border RastPort. */
+            struct RastPort *brp = window->RPort;
+            if ((window->Flags & WFLG_GIMMEZEROZERO) && window->BorderRPort &&
+                (gad->GadgetType & (GTYP_GZZGADGET | GTYP_SYSGADGET)))
+                brp = window->BorderRPort;
+
+            struct GadgetInfo gi;
+            memset(&gi, 0, sizeof(gi));
+            gi.gi_Screen = window->WScreen;
+            gi.gi_Window = window;
+            gi.gi_Requester = req;
+            gi.gi_RastPort = brp;
+            gi.gi_Layer = brp ? brp->Layer : NULL;
+            gi.gi_Domain.Left = window->BorderLeft;
+            gi.gi_Domain.Top = window->BorderTop;
+            gi.gi_Domain.Width = window->Width - window->BorderLeft - window->BorderRight;
+            gi.gi_Domain.Height = window->Height - window->BorderTop - window->BorderBottom;
+            gi.gi_DrInfo = _intuition_GetScreenDrawInfo((struct IntuitionBase *)NULL, window->WScreen);
+
+            struct gpRender gpr;
+            gpr.MethodID = GM_RENDER;
+            gpr.gpr_GInfo = &gi;
+            gpr.gpr_RPort = brp;
+            gpr.gpr_Redraw = GREDRAW_REDRAW;
+
+            _intuition_dispatch_method(cl, (Object *)gad, (Msg)&gpr);
+
+            if (gi.gi_DrInfo)
+                _intuition_FreeScreenDrawInfo((struct IntuitionBase *)NULL, window->WScreen, gi.gi_DrInfo);
+        }
+        return;
+    }
     
     /* For GZZ windows, gadgets with GTYP_GZZGADGET or GTYP_SYSGADGET
      * belong to the border layer and must use BorderRPort. */
@@ -14110,8 +14171,9 @@ static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST
 
 static ULONG _intuition_dispatch_method(struct IClass *cl, Object *obj, Msg msg)
 {
-    if (!cl || !cl->cl_Dispatcher.h_Entry)
+    if (!cl || !cl->cl_Dispatcher.h_Entry) {
         return 0;
+    }
 
     {
         typedef ULONG (*DispatchEntry)(register struct IClass *cl __asm("a0"),
@@ -14145,11 +14207,17 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
 
     /* Handle sysiclass - system imagery class */
     if (classID && strcmp((const char*)classID, SYSICLASS) == 0) {
-        /* Create a minimal Image structure for system imagery */
-        struct Image *img = AllocMem(sizeof(struct Image), MEMF_CLEAR | MEMF_PUBLIC);
-        if (!img)
+        /* We must allocate space for the _Object header BEFORE the Image
+         * so that DisposeObject's _OBJECT() macro can find o_Class.
+         * Setting o_Class = NULL signals our stub-image disposal path. */
+        ULONG total = sizeof(struct _Object) + sizeof(struct Image);
+        UBYTE *mem = AllocMem(total, MEMF_CLEAR | MEMF_PUBLIC);
+        if (!mem)
             return NULL;
-        
+        struct _Object *hdr = (struct _Object *)mem;
+        hdr->o_Class = NULL;  /* sentinel: stub image, not a real BOOPSI object */
+        struct Image *img = (struct Image *)(mem + sizeof(struct _Object));
+
         /* Initialize with minimal data - a 1x1 transparent image */
         img->LeftEdge = 0;
         img->TopEdge = 0;
@@ -14160,17 +14228,22 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
         img->PlanePick = 0;     /* Don't pick any planes - essentially invisible */
         img->PlaneOnOff = 0;
         img->NextImage = NULL;
-        
-        DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() sysiclass -> Image at 0x%08lx\n", (ULONG)img);
+
+        DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() sysiclass -> Image at 0x%08lx (hdr=0x%08lx)\n",
+                 (ULONG)img, (ULONG)hdr);
         return (APTR)img;
     }
     
     /* Handle imageclass - generic image class */
     if (classID && strcmp((const char*)classID, IMAGECLASS) == 0) {
-        struct Image *img = AllocMem(sizeof(struct Image), MEMF_CLEAR | MEMF_PUBLIC);
-        if (!img)
+        ULONG total = sizeof(struct _Object) + sizeof(struct Image);
+        UBYTE *mem = AllocMem(total, MEMF_CLEAR | MEMF_PUBLIC);
+        if (!mem)
             return NULL;
-        
+        struct _Object *hdr = (struct _Object *)mem;
+        hdr->o_Class = NULL;
+        struct Image *img = (struct Image *)(mem + sizeof(struct _Object));
+
         img->LeftEdge = 0;
         img->TopEdge = 0;
         img->Width = 1;
@@ -14180,8 +14253,9 @@ APTR _intuition_NewObjectA ( register struct IntuitionBase * IntuitionBase __asm
         img->PlanePick = 0;
         img->PlaneOnOff = 0;
         img->NextImage = NULL;
-        
-        DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() imageclass -> Image at 0x%08lx\n", (ULONG)img);
+
+        DPRINTF (LOG_DEBUG, "_intuition: NewObjectA() imageclass -> Image at 0x%08lx (hdr=0x%08lx)\n",
+                 (ULONG)img, (ULONG)hdr);
         return (APTR)img;
     }
 
@@ -14244,8 +14318,12 @@ VOID _intuition_DisposeObject ( register struct IntuitionBase * IntuitionBase __
         }
     }
 
-    /* Assume it's an Image structure from our sysiclass/imageclass stub */
-    FreeMem(object, sizeof(struct Image));
+    /* Stub-image disposal: o_Class==NULL means our sysiclass/imageclass stub.
+     * We allocated sizeof(_Object) + sizeof(Image), so free that block. */
+    {
+        struct _Object *hdr = _OBJECT(object);
+        FreeMem(hdr, sizeof(struct _Object) + sizeof(struct Image));
+    }
 }
 
 ULONG _intuition_SetAttrsA ( register struct IntuitionBase * IntuitionBase __asm("a6"),

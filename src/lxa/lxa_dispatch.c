@@ -539,6 +539,13 @@ int op_illg(int level)
                         {"S", "S"},
                         {"libs", "LIBS"},
                         {"Libs", "LIBS"},
+                        /* Bundled BOOPSI gadget classes — exposed via
+                         * the GADGETS: assign. Apps typically open them
+                         * with OpenLibrary("gadgets/foo.gadget"); the
+                         * ROM falls back to GADGETS:foo.gadget when
+                         * LIBS:gadgets/... is not found. */
+                        {"gadgets", "GADGETS"},
+                        {"Gadgets", "GADGETS"},
                         {"c", "C"},
                         {"C", "C"},
                         {"devs", "DEVS"},

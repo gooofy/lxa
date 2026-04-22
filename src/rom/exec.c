@@ -115,6 +115,7 @@ extern struct Resident *__lxa_gadtools_ROMTag;
 extern struct Resident *__lxa_workbench_ROMTag;
 extern struct Resident *__lxa_asl_ROMTag;
 extern struct Resident *__lxa_iffparse_ROMTag;
+extern struct Resident *__lxa_commodities_ROMTag;
 extern struct Resident *__lxa_input_ROMTag;
 extern struct Resident *__lxa_console_ROMTag;
 extern struct Resident *__lxa_timer_ROMTag;
@@ -440,7 +441,7 @@ static void exec_finish_interrupt_dispatch(struct Interrupt *interrupt)
         interrupt->is_Node.ln_Type = NT_INTERRUPT;
 }
 
-static struct Resident *g_ResidentModules[35];
+static struct Resident *g_ResidentModules[36];
 
 static struct List *exec_get_resident_target_list(struct ExecBase *SysBase,
                                                   UBYTE resident_type)
@@ -471,7 +472,23 @@ static struct Library *exec_register_resident_node(struct ExecBase *SysBase,
                                            seg_list);
 
     if (lib_base)
+    {
+        /*
+         * Copy standard fields from the Resident structure into the
+         * Library node. Real AmigaOS / AROS does this in InitResident
+         * regardless of whether the InitLibFn already touched them.
+         * The library's own InitLibFn may have set some of these via
+         * its DataTable, but the Resident is the canonical source for
+         * Type, Pri, Name, IdString, and Version.
+         */
+        lib_base->lib_Node.ln_Type = resident->rt_Type;
+        lib_base->lib_Node.ln_Pri  = resident->rt_Pri;
+        lib_base->lib_Node.ln_Name = resident->rt_Name;
+        lib_base->lib_IdString     = (APTR)resident->rt_IdString;
+        lib_base->lib_Version      = resident->rt_Version;
+
         AddTail(target_list, (struct Node *)lib_base);
+    }
 
     return lib_base;
 }
@@ -4014,6 +4031,35 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
                 segList = LoadSeg((STRPTR)libPath);
             }
         }
+
+        /*
+         * BOOPSI gadget class fallback: when an app calls
+         * OpenLibrary("gadgets/foo.gadget") (the conventional path on
+         * AmigaOS), the LIBS: lookups above will fail unless LIBS:
+         * actually contains a "gadgets" subdirectory. As a fallback,
+         * also try the GADGETS: assign with just the basename. This
+         * matches both system-installed gadget classes (under
+         * share/lxa/System/Libs/gadgets) and program-local Gadgets/
+         * directories that lxa exposes via the GADGETS: assign.
+         */
+        if (!segList && !hasPath)
+        {
+            const char *name = (const char *)libName;
+            if ((name[0] == 'g' || name[0] == 'G') &&
+                (name[1] == 'a' || name[1] == 'A') &&
+                (name[2] == 'd' || name[2] == 'D') &&
+                (name[3] == 'g' || name[3] == 'G') &&
+                (name[4] == 'e' || name[4] == 'E') &&
+                (name[5] == 't' || name[5] == 'T') &&
+                (name[6] == 's' || name[6] == 'S') &&
+                (name[7] == '/'))
+            {
+                strcpy(libPath, "GADGETS:");
+                strcat(libPath, (const char *)(name + 8));
+                DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: gadgets fallback, trying %s\n", libPath);
+                segList = LoadSeg((STRPTR)libPath);
+            }
+        }
         
         if (segList)
         {
@@ -4057,19 +4103,19 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
             {
                 /* Initialize the library using InitResident */
                 lib = (struct Library *)InitResident(res, segList);
-                
+
                 if (lib && lib->lib_Version >= version)
                 {
                     /* Call the library's Open function */
                     struct JumpVec *jv = &(((struct JumpVec *)(lib))[-1]);
                     libOpenFn_t openfn = (libOpenFn_t)jv->vec;
                     lib = openfn(version, lib);
-                    
+
                     DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: successfully loaded %s from disk, lib=0x%08lx\n", libName, lib);
                 }
                 else if (lib && lib->lib_Version < version)
                 {
-                    DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: loaded library version %ld < requested %ld\n", 
+                    DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: loaded library version %ld < requested %ld\n",
                              lib->lib_Version, version);
                     RemLibrary(lib);
                     lib = NULL;
@@ -5647,7 +5693,8 @@ void coldstart (void)
     g_ResidentModules[31] = __lxa_scsi_ROMTag;
     g_ResidentModules[32] = __lxa_serial_ROMTag;
     g_ResidentModules[33] = __lxa_trackdisk_ROMTag;
-    g_ResidentModules[34] = NULL;
+    g_ResidentModules[34] = __lxa_commodities_ROMTag;
+    g_ResidentModules[35] = NULL;
 
     SysBase->ResModules = g_ResidentModules;
     SysBase->SoftVer = VERSION;
@@ -5737,6 +5784,7 @@ void coldstart (void)
     WorkbenchBase = (struct Library       *) registerBuiltInLib (sizeof(*WorkbenchBase) , __lxa_workbench_ROMTag );
     AslBase       = (struct Library       *) registerBuiltInLib (sizeof(*AslBase)       , __lxa_asl_ROMTag       );
     		      registerBuiltInLib (sizeof(struct Library), __lxa_iffparse_ROMTag  );
+    		      registerBuiltInLib (sizeof(struct Library), __lxa_commodities_ROMTag);
 
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in libraries\n");
 

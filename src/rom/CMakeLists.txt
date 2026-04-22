@@ -56,6 +56,7 @@ set(ROM_C_SOURCES
     lxa_workbench.c
     lxa_asl.c
     lxa_iffparse.c
+    lxa_commodities.c
     lxa_dev_console.c
     lxa_dev_timer.c
     lxa_dev_clipboard.c

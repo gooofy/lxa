@@ -697,7 +697,6 @@ static int test_exec_library_helpers(void)
 static int test_external_library_scope(void)
 {
     static const char *external_libs[] = {
-        "commodities.library",
         "rexxsyslib.library",
         "datatypes.library",
         "dopus.library",
