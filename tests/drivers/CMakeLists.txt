@@ -386,9 +386,13 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     endif()
 
     # Directory Opus 4 - file manager startup and interaction test (Phase 121)
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dopus_gtest.cpp)
-        add_gtest_driver(dopus_gtest)
-    endif()
+     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/dopus_gtest.cpp)
+         add_gtest_driver(dopus_gtest)
+     endif()
+
+     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/typeface_gtest.cpp)
+         add_gtest_driver(typeface_gtest)
+     endif()
     
     message(STATUS "Google Test drivers configured")
 

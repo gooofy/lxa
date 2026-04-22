@@ -283,6 +283,49 @@ inline const char* FindSystemLibsPath() {
 }
 
 /**
+ * Helper function to find the gadgets path (Libs/gadgets/).
+ *
+ * This is used to set up the GADGETS: assign so apps that load
+ * gadget classes (e.g., BGUI gadgets, textfield.gadget) can find them.
+ * The gadgets directory lives alongside the disk libraries in Libs/gadgets/.
+ *
+ * The installed location (share/lxa/System/Libs/gadgets/) is checked in
+ * addition to the build-tree location.
+ */
+inline const char* FindGadgetsPath() {
+    static std::string gadgets_path;
+
+    /* Check share/lxa/System/Libs/gadgets (installed location, used by CI) */
+    const char* candidates[] = {
+        "share/lxa/System/Libs/gadgets",
+        "../share/lxa/System/Libs/gadgets",
+        "../../share/lxa/System/Libs/gadgets",
+        nullptr
+    };
+    for (int i = 0; candidates[i]; i++) {
+        if (access(candidates[i], F_OK) == 0) {
+            char resolved[PATH_MAX];
+            if (realpath(candidates[i], resolved)) {
+                gadgets_path = resolved;
+                return gadgets_path.c_str();
+            }
+        }
+    }
+
+    /* Fall back to build-tree sys/Libs/gadgets */
+    const char* base = FindSystemLibsPath();
+    if (base != nullptr) {
+        std::string candidate = std::string(base) + "/gadgets";
+        if (access(candidate.c_str(), F_OK) == 0) {
+            gadgets_path = candidate;
+            return gadgets_path.c_str();
+        }
+    }
+
+    return nullptr;
+}
+
+/**
  * Helper function to find an optional third-party libraries path for tests.
  *
  * Set LXA_TEST_THIRD_PARTY_LIBS to a directory containing disk-provided
@@ -408,6 +451,12 @@ protected:
         const char* apps_path = FindAppsPath();
         if (apps_path) {
             lxa_add_assign("APPS", apps_path);
+        }
+
+        // Map GADGETS: to the gadget classes directory if found
+        const char* gadgets_path = FindGadgetsPath();
+        if (gadgets_path) {
+            lxa_add_assign("GADGETS", gadgets_path);
         }
 
         // Map C: to system commands if found

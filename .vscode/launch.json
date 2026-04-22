@@ -3463,6 +3463,8 @@
                 "ENVARC=${workspaceFolder}/.vscode/lxa-test-runtime/ENV",
                 "--assign",
                 "APPS=${workspaceFolder}/../lxa-apps",
+                "--assign",
+                "GADGETS=${workspaceFolder}/share/lxa/System/Libs/gadgets",
                 "APPS:Typeface/Typeface"
             ],
             "stopAtEntry": false,
