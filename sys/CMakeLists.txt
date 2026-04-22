@@ -100,6 +100,11 @@ add_disk_library(arp_disklib arp.library
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_arp.c
 )
 
+add_disk_library(datatypes_disklib datatypes.library
+    SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_datatypes.c
+)
+
 # === SYS:C Commands ===
 set(C_COMMANDS
     assign
