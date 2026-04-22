@@ -371,6 +371,48 @@ typedef ULONG IPTR;
  * with bebbo gcc, varargs-on-stack are accessed as a contiguous array
  * of LONG-sized cells, which `IPTR *` models cleanly. */
 typedef IPTR *RAWARG;
+
+/* lxa: getreg()/putreg() are used by listclass.c et al. to grab the
+ * global-data pointer from A4.  On bebbo m68k with -fbaserel A4 holds
+ * the small-data base, which is BGUI's library global pointer at
+ * dispatch time.  We expose just enough to make the call sites compile;
+ * the only register actually needed is A4. */
+#define REG_A4 4
+static inline IPTR getreg(int reg)
+{
+    register IPTR _v __asm("a4");
+    (void)reg;
+    return _v;
+}
+static inline VOID putreg(int reg, IPTR val) { (void)reg; (void)val; }
+static inline VOID geta4(void) { }
+
+/* lxa: AROS SLOWSTACKTAGS / SLOWSTACKMETHODS macros.
+ *
+ * On classic m68k the C calling convention places `Tag tag, ...` args
+ * contiguously on the stack as ULONG cells, so `&first_tag` IS the
+ * TagItem array that the corresponding *A() function expects.  This is
+ * the same trick that the NDK's <inline/...> stubs use for tag varargs.
+ *
+ * The macros declare `retval`, take the address of the first variadic
+ * arg as the array pointer, and bracket the wrapper body. */
+#define AROS_SLOWSTACKTAGS_PRE(firstarg) \
+    ULONG retval; \
+    struct TagItem *_bgui_taglist = (struct TagItem *)&firstarg;
+#define AROS_SLOWSTACKTAGS_PRE_AS(firstarg, rtype) \
+    rtype retval; \
+    struct TagItem *_bgui_taglist = (struct TagItem *)&firstarg;
+#define AROS_SLOWSTACKTAGS_ARG(firstarg)    _bgui_taglist
+#define AROS_SLOWSTACKTAGS_POST             return retval;
+
+#define AROS_SLOWSTACKMETHODS_PRE(firstarg) \
+    ULONG retval; \
+    Msg _bgui_msg = (Msg)&firstarg;
+#define AROS_SLOWSTACKMETHODS_PRE_AS(firstarg, rtype) \
+    rtype retval; \
+    Msg _bgui_msg = (Msg)&firstarg;
+#define AROS_SLOWSTACKMETHODS_ARG(firstarg) _bgui_msg
+#define AROS_SLOWSTACKMETHODS_POST          return retval;
 #endif
 
 /*** Disable these macros when not building on AROS *****************/

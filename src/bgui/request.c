@@ -50,6 +50,9 @@
  */
 
 #include "include/classdefs.h"
+/* lxa: request.c uses VGroupObject/WindowObject/NormalHOffset/etc.
+ * which are convenience macros from bgui_macros.h. */
+#include <bgui/bgui_macros.h>
 
 /*
  * IDCMPHook data.

@@ -114,7 +114,12 @@
 
 #ifdef __AROS__
 #else
+#if defined(__GNUC__) && defined(__mc68000__)
+/* lxa: bebbo m68k-amigaos-gcc has no SAS/C-style <dos.h>; classdefs.h
+ * already pulls in the correct <proto/dos.h>. */
+#else
 #include <dos.h>
+#endif
 #endif
 
 typedef FUNCPTR ClassMethodDispatcher;
