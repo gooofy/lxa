@@ -1,0 +1,20 @@
+# $Id$
+#
+# Makefile to make BGUI Prefs program.
+
+include $(SRCDIR)/config/aros-contrib.cfg
+include $(SRCDIR)/$(CURDIR)/../make.cfg
+
+FILES := BGUIPrefs
+
+EXEDIR := $(BGUIPREFSDIR)
+
+USER_CFLAGS := $(PARANOIA_CFLAGS)
+
+#MM bgui-prefs : includes linklibs
+
+%build_prog mmake=bgui-prefs \
+    progname=BGUI targetdir=$(BGUIPREFSDIR) \
+    files=$(FILES) uselibs="bgui"
+
+%common

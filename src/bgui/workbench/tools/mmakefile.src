@@ -1,0 +1,19 @@
+#   $Id$
+
+include $(SRCDIR)/config/aros-contrib.cfg
+
+USER_CFLAGS := $(PARANOIA_CFLAGS)
+
+FILES	:= \
+    calculator_bgui
+
+EXEDIR := $(AROS_CONTRIB)/BGUI/Examples
+
+#MM- contrib-bgui : contrib-bgui-workbench-tools
+#MM contrib-bgui-workbench-tools : includes linklibs contrib-bgui
+
+%build_progs mmake=contrib-bgui-workbench-tools \
+    files=$(FILES) targetdir=$(EXEDIR) \
+    uselibs="bgui"
+
+%common

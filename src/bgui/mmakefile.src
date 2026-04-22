@@ -1,0 +1,223 @@
+
+include $(SRCDIR)/config/aros-contrib.cfg
+include $(SRCDIR)/$(CURDIR)/make.cfg
+
+USER_CFLAGS := -DENHANCED $(PARANOIA_CFLAGS)
+USER_LDFLAGS := -static
+
+OS_INCLUDES_DIR := $(AROS_INCLUDES)
+INCLUDES_DIR    := $(AROS_INCLUDES)
+
+OS_INCLUDES     := -I$(AROS_INCLUDES)
+
+USER_INCLUDES   := -I$(SRCDIR)/$(CURDIR) -I$(INCLUDES_DIR)
+
+INCLUDES        := $(USER_INCLUDES) $(OS_INCLUDES)
+
+INCLUDE_FILES = \
+	$(OBJDIR)/bgui.library_rev.h \
+	$(INCLUDES_DIR)/libraries/bgui.h \
+	$(INCLUDES_DIR)/libraries/bgui_macros.h \
+	$(INCLUDES_DIR)/bgui/bgui_compilerspecific.h \
+	$(INCLUDES_DIR)/bgui/bgui.h \
+	$(INCLUDES_DIR)/bgui/bgui_image.h \
+	$(INCLUDES_DIR)/bgui/bgui_locale.h \
+	$(INCLUDES_DIR)/bgui/bgui_asl.h \
+	$(INCLUDES_DIR)/bgui/bgui_arexx.h \
+	$(INCLUDES_DIR)/bgui/bgui_cx.h \
+	$(INCLUDES_DIR)/bgui/bgui_obsolete.h \
+	$(INCLUDES_DIR)/bgui/bgui_macros.h \
+	$(INCLUDES_DIR)/bgui/bgui_proto.h \
+	$(INCLUDES_DIR)/bgui/bgui_pragmas.h \
+	$(INCLUDES_DIR)/pragma/bgui_lib.h \
+	$(INCLUDES_DIR)/bgui/bgui_lib.fd \
+	$(INCLUDES_DIR)/clib/bgui_protos.h \
+	$(INCLUDES_DIR)/defines/bgui.h \
+	$(INCLUDES_DIR)/proto/bgui.h \
+	$(INCLUDES_DIR)/bgui/bgui_bar.h \
+	$(INCLUDES_DIR)/libraries/bgui_bar.h \
+	$(INCLUDES_DIR)/bgui/bgui_treeview.h \
+	$(INCLUDES_DIR)/libraries/bgui_treeview.h \
+	$(INCLUDES_DIR)/bgui/bgui_layoutgroup.h \
+	$(INCLUDES_DIR)/libraries/bgui_layoutgroup.h \
+	$(INCLUDES_DIR)/bgui/bgui_prefs.h
+
+#MM- contrib-bgui : contrib-bgui-setup linklib-bgui bgui-library bgui-gadgets bgui-prefs bgui-test bgui-examples
+
+#MM- contrib-bgui-setup : includes linklibs bgui-setup bgui-includes-copy
+
+#MM- bgui-gadgets : bgui-gadgets-bar bgui-gadgets-layoutgroup bgui-gadgets-palette bgui-gadgets-popbutton bgui-gadgets-treeview
+
+## Tools
+
+gadget_directories = \
+gadgets/PopButton \
+gadgets/Palette \
+gadgets/TreeView \
+gadgets/Bar \
+gadgets/LayoutGroup
+
+#MM bgui-setup
+bgui-setup : makedirs
+	@$(CP) $(SRCDIR)/$(CURDIR)/s/Package-Startup $(BGUISDIR)
+	@$(CP) $(SRCDIR)/$(CURDIR)/s/Package-Shutdown $(BGUISDIR)
+	$(MKDIR) $(AROS_PACKAGES)
+	$(ECHO) "Extras:BGUI" >$(AROS_PACKAGES)/BGUI
+        
+#MM
+bgui-includes-copy : $(INCLUDE_FILES)
+bgui-includes-copy : $(INCLUDE_FILES)
+
+makedirs : 
+	@$(MKDIR) $(GENDIR)/$(CURDIR)/bin
+	@$(MKDIR) $(INCLUDES_DIR)
+	@$(MKDIR) $(INCLUDES_DIR)/libraries
+	@$(MKDIR) $(INCLUDES_DIR)/bgui
+	@$(MKDIR) $(INCLUDES_DIR)/pragma
+	@$(MKDIR) $(BGUIDIR)
+	@$(MKDIR) $(BGUILIBSDIR)
+	@$(MKDIR) $(BGUIEXAMPLESDIR)
+	@$(MKDIR) $(BGUITESTSDIR)
+	@$(MKDIR) $(BGUISDIR)
+	@$(MKDIR) $(BGUIPREFSDIR)
+	@$(MKDIR) $(BGUICLASSESDIR)
+	@$(MKDIR) $(BGUIGADGETSDIR)
+
+        
+$(OBJDIR)/bgui.library_rev.h: bgui.library_rev.rev
+	@$(CP) $< $(OBJDIR)/bgui.library_rev.h
+
+$(INCLUDES_DIR)/libraries/bgui.h : include/libraries_bgui.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/libraries/bgui_macros.h : include/libraries_bgui_macros.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_compilerspecific.h : include/bgui_compilerspecific.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui.h : include/bgui.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_image.h : include/bgui_image.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_locale.h : include/bgui_locale.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_asl.h : include/bgui_asl.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_arexx.h : include/bgui_arexx.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_cx.h : include/bgui_cx.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_obsolete.h : include/bgui_obsolete.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_macros.h : include/bgui_macros.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_proto.h : include/bgui_proto.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_pragmas.h : include/bgui_pragmas.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/pragma/bgui_lib.h : include/pragma/bgui_lib.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/bgui/bgui_lib.fd : include/bgui_lib.fd
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/clib/bgui_protos.h : include/aros/bgui_protos_clib.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/defines/bgui.h : include/aros/bgui_defines.h
+	@$(CP) $< $@
+
+$(INCLUDES_DIR)/proto/bgui.h : include/bgui_proto_aros.h
+	@$(CP) $^ $@
+
+##Gadgets includes
+
+$(INCLUDES_DIR)/bgui/bgui_bar.h : gadgets/Bar/include/BarClass.h
+	@$(CP) $^ $@
+
+$(INCLUDES_DIR)/libraries/bgui_bar.h : include/libraries_bgui_bar.h
+	@$(CP) $^ $@
+
+$(INCLUDES_DIR)/bgui/bgui_treeview.h : gadgets/TreeView/include/TreeViewClass.h
+	@$(CP) $^ $@
+
+$(INCLUDES_DIR)/libraries/bgui_treeview.h : include/libraries_bgui_treeview.h
+	@$(CP) $^ $@
+
+$(INCLUDES_DIR)/bgui/bgui_layoutgroup.h : gadgets/LayoutGroup/include/LayoutGroupClass.h
+	@$(CP) $^ $@
+
+$(INCLUDES_DIR)/libraries/bgui_layoutgroup.h : include/libraries_bgui_layoutgroup.h
+	@$(CP) $^ $@
+
+$(INCLUDES_DIR)/bgui/bgui_prefs.h : include/bgui_prefs.h
+	@$(CP) $^ $@
+
+FILES := libtag \
+	 ver \
+	 lib \
+	 libfunc \
+	 bgui_locale \
+	 blitter \
+	 classes \
+	 dgm \
+	 gfx \
+	 misc \
+	 miscc \
+	 request \
+	 stkext \
+	 task \
+	 rootclass \
+	 areaclass \
+	 aslreqclass \
+	 baseclass \
+	 buttonclass \
+	 checkboxclass \
+	 commodityclass \
+	 cycleclass \
+	 externalclass \
+	 filereqclass \
+	 fontreqclass \
+	 frameclass \
+	 groupclass \
+	 indicatorclass \
+	 infoclass \
+	 labelclass \
+	 listclass \
+	 mxclass \
+	 pageclass \
+	 progressclass \
+	 propclass \
+	 radiobuttonclass \
+	 screenreqclass \
+	 separatorclass \
+	 sliderclass \
+	 spacingclass \
+	 strformat \
+	 stringclass \
+	 systemiclass \
+	 textclass \
+	 vectorclass \
+	 viewclass \
+	 windowclass \
+	 endtag
+ 
+#MM- bgui-library : bgui-test bgui-examples
+
+%build_module_simple mmake=bgui-library \
+	modname=bgui modtype=library \
+	moduledir=$(AROS_CONTRIB)/BGUI/Libs \
+	files="$(FILES)"
+
+%common

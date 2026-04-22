@@ -1,0 +1,9 @@
+# $Id$
+
+include $(SRCDIR)/config/aros-contrib.cfg
+
+FILES		:= bgui_newobject \
+                   bgui_dogadgetmethod \
+		   bgui_makeclass
+
+%build_linklib mmake=linklib-bgui libname=bgui files=$(FILES)
