@@ -8101,7 +8101,41 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 input_event.ie_Qualifier = qualifier;
                 _input_device_dispatch_event(&input_event);
                 _keyboard_device_record_event(rawkey, qualifier);
-                
+
+                /*
+                 * Phase 135: Keyboard events go to the ACTIVE window, not
+                 * the window under the mouse pointer.  This matches real
+                 * Amiga behaviour and is required by apps like BlitzBasic 2
+                 * whose IDE waits on a different window's UserPort than the
+                 * one the cursor happens to hover over.
+                 *
+                 * Resolution order:
+                 *   1. IntuitionBase->ActiveWindow (canonical)
+                 *   2. g_active_window (string-gadget/menu activation tracker)
+                 *   3. window under mouse (legacy fallback)
+                 *   4. screen->FirstWindow (last resort)
+                 */
+                struct Window *kbd_window = NULL;
+                if (IntuitionBase && IntuitionBase->ActiveWindow &&
+                    IntuitionBase->ActiveWindow->WScreen == screen)
+                {
+                    kbd_window = IntuitionBase->ActiveWindow;
+                }
+                if (!kbd_window && g_active_window &&
+                    g_active_window->WScreen == screen)
+                {
+                    kbd_window = g_active_window;
+                }
+                if (!kbd_window)
+                    kbd_window = window;
+                if (!kbd_window && screen)
+                    kbd_window = screen->FirstWindow;
+
+                DPRINTF(LOG_DEBUG, "RAWKEY route: rawkey=0x%04x qual=0x%04x active=0x%08lx mouse_win=0x%08lx chosen=0x%08lx\n",
+                        rawkey, qualifier,
+                        IntuitionBase ? (ULONG)IntuitionBase->ActiveWindow : 0,
+                        (ULONG)window, (ULONG)kbd_window);
+
                 /* Check if there's an active string gadget that should receive keyboard input */
                 if (g_active_gadget && g_active_window &&
                     (g_active_gadget->GadgetType & GTYP_GTYPEMASK) == GTYP_STRGADGET)
@@ -8116,8 +8150,9 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                         g_active_window = NULL;
                     }
                 }
-                else if (window)
+                else if (kbd_window)
                 {
+                    struct Window *window = kbd_window;  /* shadow for existing code below */
                     struct LXAWindowState *state = _intuition_find_window_state(
                         (struct LXAIntuitionBase *)IntuitionBase, window);
                     WORD relX = mouseX - window->LeftEdge;
@@ -9486,28 +9521,51 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     /* Initialize window fields — clamp position to screen bounds.
      * Some apps (e.g. BlitzBasic2) pass garbage sentinel values in
      * LeftEdge/TopEdge; the host side uses these to compute the tracked
-     * window extent, so out-of-range values cause oversized host windows. */
+     * window extent, so out-of-range values cause oversized host windows.
+     *
+     * Phase 135: When the requested position would place the window
+     * largely off-screen, CENTER the window instead of clipping it to a
+     * single pixel at the screen corner.  Old apps (BlitzBasic2 in
+     * particular) hand us garbage LE/TE for popup-style windows and
+     * expect Intuition to "do something reasonable" — clipping the
+     * window to (639,255) on a 640x256 screen meant the user could
+     * never click it and the app's main loop, which waits on that
+     * window's UserPort, hung forever.
+     */
     {
         WORD clampedLeft = newWindow->LeftEdge;
         WORD clampedTop  = newWindow->TopEdge;
+        BOOL recenter = FALSE;
 
-        if (clampedLeft < 0)
-            clampedLeft = 0;
-        else if (clampedLeft >= screen->Width)
-            clampedLeft = screen->Width - 1;
+        /* If the requested position would put the window mostly or fully
+         * off the visible screen area, recentre it. */
+        if (clampedLeft < 0 || clampedLeft + (WORD)width > screen->Width ||
+            clampedTop  < 0 || clampedTop  + (WORD)height > screen->Height)
+        {
+            recenter = TRUE;
+        }
 
-        if (clampedTop < 0)
-            clampedTop = 0;
-        else if (clampedTop >= screen->Height)
-            clampedTop = screen->Height - 1;
+        if (recenter)
+        {
+            if ((WORD)width  < screen->Width)
+                clampedLeft = (screen->Width  - (WORD)width)  / 2;
+            else
+                clampedLeft = 0;
+            if ((WORD)height < screen->Height)
+                clampedTop  = (screen->Height - (WORD)height) / 2;
+            else
+                clampedTop  = 0;
+        }
 
         if (clampedLeft != newWindow->LeftEdge || clampedTop != newWindow->TopEdge)
         {
             DPRINTF(LOG_DEBUG,
-                    "_intuition: OpenWindow() clamped position (%d,%d) to (%d,%d) on screen %dx%d\n",
+                    "_intuition: OpenWindow() repositioned (%d,%d) to (%d,%d) for %dx%d on screen %dx%d (recenter=%d)\n",
                     (int)newWindow->LeftEdge, (int)newWindow->TopEdge,
                     (int)clampedLeft, (int)clampedTop,
-                    (int)screen->Width, (int)screen->Height);
+                    (int)width, (int)height,
+                    (int)screen->Width, (int)screen->Height,
+                    (int)recenter);
         }
 
         window->LeftEdge = clampedLeft;

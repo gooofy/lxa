@@ -428,15 +428,25 @@ TEST_F(BlitzBasic2Test, StartupOpensVisibleIdeWindow) {
     EXPECT_EQ(active_height, 256);
     EXPECT_EQ(active_depth, 2);
 
-    /* BB2's editor surface is drawn by its "ted" overlay using copper-list
-     * DMA and blitter line mode, neither of which lxa emulates yet.  The
-     * surface therefore stays flat grey (pen 0).  We assert fewer than 10
-     * non-grey pixels so the test documents this known limitation while
-     * staying robust against tiny rendering artefacts. */
+    /* Phase 135: BlitzBasic 2 opens an "About" requester window at startup
+     * with garbage LeftEdge/TopEdge values (uninitialised stack data ≈
+     * 32614, 32729). Previously lxa clamped this to (639, 255) — a single
+     * pixel at the screen's bottom-right corner — which left BB2 hung on
+     * a WaitPort() the user could never interact with.
+     *
+     * The fix recentres windows whose requested position would place them
+     * mostly off-screen.  As a result the About requester is now visible
+     * in the middle of the screen and renders real content (border, title
+     * text, "OKEE DOKEE" button), so the editor surface area is no longer
+     * uniformly grey.
+     *
+     * We assert that BB2 now draws meaningful content into the screen,
+     * proving the previously-hung "ted" startup pipeline can now reach
+     * its initial render. */
     const int screen_pixels = CountContentPixels(0, 0, active_width - 1, active_height - 1, 0);
-    EXPECT_LT(screen_pixels, 10)
-        << "BlitzBasic2 editor surface is mostly grey (pen 0) because ted "
-           "relies on copper/blitter hardware that lxa does not yet emulate";
+    EXPECT_GT(screen_pixels, 1000)
+        << "BlitzBasic2 should now render its About requester and menu bar "
+           "with real content (Phase 135 recentre fix)";
 }
 
 /* ===================================================================== */

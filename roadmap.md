@@ -227,18 +227,28 @@ Root cause: the Phase 121 test settle budget (150 VBlank iterations / 7.5M cycle
 
 ---
 
-### Phase 135: BlitzBasic 2 ted editor deep dive
+### Phase 135: BlitzBasic 2 ted editor deep dive ✅ (v0.9.9)
 
-Phase 119 established that ~13% of the editor surface fills with paint after menu interaction (menu-residue and status overlay), but the real editable text content never appears. The roadmap's current hypothesis: blitter copy modes, sprite hardware, or specific copper waits.
+**Original hypothesis (invalidated)**: blitter copy modes, sprite hardware, or copper waits were missing. Instrumentation proved BB2 emits **zero** blitter and zero copper writes during startup — the hypothesis was wrong.
 
-With Phase 126's profiling data and Phase 125's clean modules, the investigation path is:
+**Actual root cause**: BB2 opens two windows on its custom 640x256x2 screen:
+1. The main editor window (BORDERLESS, full screen).
+2. An "About BlitzBasic 2" requester with garbage requested coords (LE=32614, TE=32729, 292x75) containing the only "OKEE DOKEE" button the user can click to dismiss it.
 
-1. Add blitter operation logging (mode, source, dest, size) for the ted render phase.
-2. Compare against the known ted behavior (BlitzBasic source/community docs).
-3. Identify unimplemented blitter copy modes (specifically `ABC` + `NABC` combinations used for text background clearing).
-4. Implement the missing modes; re-run vision-model review to confirm text renders.
+BB2 then `WaitPort()`s on the requester's UserPort, blocking all editor activity until the user dismisses the requester. The pre-existing off-screen clamp in `_intuition_OpenWindow` clipped the requester to a single pixel at (639,255), making the dismiss button unreachable. BB2 hung waiting forever, and the editor stayed blank.
 
-**Test gate**: `YEditorSurfaceShowsContentAfterMenuInteraction` in `blitzbasic2_gtest.cpp` upper bound (<50% fill) is replaced by a lower bound proving real text pixel density (>30% fill in the editor body).
+**Fixes applied**:
+1. `src/rom/lxa_intuition.c` `_intuition_OpenWindow` (~lines 9555-9605): when requested window position would place the window mostly off-screen, **recentre** on the screen instead of clipping to the edge. After fix, the About requester appears centered at (174,90) with full border, version text and visible "OKEE DOKEE" button (verified via `tools/screenshot_review.py`).
+2. `src/rom/lxa_intuition.c` `_intuition_ProcessInputEvents` case 3 (~line 8106): RAWKEY events now route to `IntuitionBase->ActiveWindow` (or the global active window) instead of the window under the mouse pointer, matching real Amiga semantics. BB2 expects keyboard input at the active window once the requester is dismissed.
+
+**Test gate**: `tests/drivers/blitzbasic2_gtest.cpp` `StartupOpensVisibleIdeWindow` flipped from upper-bound (`<10` non-grey pixels = "documented as broken") to lower-bound (`>1000`) proving real UI renders. All 10 BB2 driver tests pass.
+
+- [x] Confirmed via instrumentation that BB2 emits zero blitter/copper activity (original hypothesis invalidated)
+- [x] Identified the About-requester WaitPort hang as the real cause
+- [x] Implemented "recenter when off-screen" in `_intuition_OpenWindow`
+- [x] Implemented Amiga-correct RAWKEY routing to ActiveWindow
+- [x] Flipped `StartupOpensVisibleIdeWindow` from upper-bound to lower-bound assertion
+- [x] All BB2 driver tests pass; About requester + PROJECT menu render correctly
 
 ---
 
