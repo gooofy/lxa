@@ -210,8 +210,46 @@ static inline uint8_t mread8(uint32_t address)
          */
         static int invalid_read_count = 0;
         if (invalid_read_count < 10) {
+            uint32_t pc = m68k_get_reg(NULL, M68K_REG_PC);
             printf("WARNING: mread8 at invalid address 0x%08x (PC=0x%08x)\n", 
-                   address, m68k_get_reg(NULL, M68K_REG_PC));
+                   address, pc);
+            printf("  D0=%08x D1=%08x D2=%08x D3=%08x D4=%08x D5=%08x D6=%08x D7=%08x\n",
+                   m68k_get_reg(NULL, M68K_REG_D0), m68k_get_reg(NULL, M68K_REG_D1),
+                   m68k_get_reg(NULL, M68K_REG_D2), m68k_get_reg(NULL, M68K_REG_D3),
+                   m68k_get_reg(NULL, M68K_REG_D4), m68k_get_reg(NULL, M68K_REG_D5),
+                   m68k_get_reg(NULL, M68K_REG_D6), m68k_get_reg(NULL, M68K_REG_D7));
+            printf("  A0=%08x A1=%08x A2=%08x A3=%08x A4=%08x A5=%08x A6=%08x A7=%08x\n",
+                   m68k_get_reg(NULL, M68K_REG_A0), m68k_get_reg(NULL, M68K_REG_A1),
+                   m68k_get_reg(NULL, M68K_REG_A2), m68k_get_reg(NULL, M68K_REG_A3),
+                   m68k_get_reg(NULL, M68K_REG_A4), m68k_get_reg(NULL, M68K_REG_A5),
+                   m68k_get_reg(NULL, M68K_REG_A6), m68k_get_reg(NULL, M68K_REG_A7));
+            /* Raw instruction bytes around PC */
+            {
+                uint32_t p;
+                printf("    bytes near PC:");
+                for (p = pc - 4; p < pc + 12; p++) {
+                    if (p >= RAM_START && p <= RAM_END) {
+                        printf(" %s%02x", (p == pc) ? "[" : "", g_ram[p - RAM_START]);
+                    }
+                }
+                printf("\n");
+            }
+            /* Stack trace - try to walk return addresses on stack */
+            {
+                uint32_t a7 = m68k_get_reg(NULL, M68K_REG_A7);
+                int i;
+                printf("  Stack (A7=%08x):", a7);
+                for (i = 0; i < 8; i++) {
+                    if (a7 + i*4 + 3 <= RAM_END && a7 + i*4 >= RAM_START) {
+                        uint32_t v = (g_ram[a7 + i*4 - RAM_START] << 24) |
+                                     (g_ram[a7 + i*4 - RAM_START + 1] << 16) |
+                                     (g_ram[a7 + i*4 - RAM_START + 2] << 8) |
+                                     (g_ram[a7 + i*4 - RAM_START + 3]);
+                        printf(" %08x", v);
+                    }
+                }
+                printf("\n");
+            }
             invalid_read_count++;
             if (invalid_read_count == 10) {
                 printf("WARNING: suppressing further invalid read warnings\n");
