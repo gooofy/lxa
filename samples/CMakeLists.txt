@@ -314,6 +314,7 @@ set(TESTS_LIST
     "../tests/expansion/mem_config|main|Tests/Expansion/MemConfig"
     "../tests/expansion/dos_binding|main|Tests/Expansion/DosBinding"
     "../tests/exec/disklib_stubs|main|Tests/Exec/DisklibStubs"
+    "../tests/datatypes/test_basic|main|Tests/Datatypes/Basic"
 )
 
 # === Copy Test Data Files ===

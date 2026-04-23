@@ -393,7 +393,12 @@ if(BUILD_GTESTS AND GTEST_FOUND)
      if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/typeface_gtest.cpp)
          add_gtest_driver(typeface_gtest)
      endif()
-    
+
+    # DataTypes library tests (Phase 143)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/datatypes_gtest.cpp)
+        add_gtest_driver(datatypes_gtest)
+    endif()
+
     message(STATUS "Google Test drivers configured")
 
     # Shard coverage check — fails immediately if a TEST_F in a sharded driver

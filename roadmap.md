@@ -51,28 +51,11 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 |-------|-------|---------|
 | 141 | Fix MiscTest.StressTasks — race: `SetSignal(0,mask)` was called after `CreateNewProc`, discarding signals sent by child before parent reached `Wait`. Fixed by pre-clearing the signal before each task launch. Re-enabled `StressTasks`; 68/68 pass. | v0.9.23 |
 | 142 | Library policy cleanup: removed third-party stubs (`req.library`, `reqtools.library`, `powerpacker.library`, `arp.library`); real binaries from `others/` now live in `share/lxa/System/Libs/`. `FindThirdPartyLibsPath()` in `lxa_test.h` auto-discovers the directory so LIBS: is set up correctly in all tests. 68/68 pass. | v0.9.24 |
+| 143 | datatypes.library full implementation: `ObtainDataTypeA`/`ReleaseDataType`, `NewDTObjectA`/`DisposeDTObject`, `GetDTAttrsA`/`SetDTAttrsA` (with `DTSpecialInfo` backing), `DoDTMethodA` (DTM_FRAMEBOX), `GetDTMethods`/`GetDTTriggerMethods`, `GetDTString`. Local `lxa_next_tag()` avoids UtilityBase dependency in disk library context. All register assignments fixed per NDK fd. New `datatypes_gtest.cpp` (5 tests). 69/69 pass. | v0.9.25 |
 
 ---
 
 ## Next Phase
-
-### Phase 143 — datatypes.library full implementation
-
-Replace the Phase 136-h minimal stub with a complete RKRM/NDK implementation.
-
-Key areas:
-- [ ] `ObtainDataType()` / `ReleaseDataType()` — type detection via magic bytes
-- [ ] `NewDTObject()` / `DisposeDTObject()` — object lifecycle
-- [ ] `GetDTAttrs()` / `SetDTAttrs()` — attribute access
-- [ ] `DoDTMethod()` — method dispatch to DataTypes classes
-- [ ] `DrawDTObject()` — render into a RastPort
-- [ ] `FindToolNode()` / `AddDTObject()` / `RemoveDTObject()` — gadget management
-- [ ] `GetDTMethods()` / `GetDTTriggerMethods()` — method introspection
-- [ ] DataTypes class loading: scan `SYS:Classes/DataTypes/` for `.datatype` descriptors
-- [ ] Built-in detection for ILBM, 8SVX, FTXT, ANIM
-- [ ] New `datatypes_gtest.cpp` covering core lifecycle + at least one IFF type
-
-**Test gate**: Apps using `datatypes.library` (picture viewers, sound players, Workbench icon loading) open DataTypes objects without crashing.
 
 ### Phase 144 — Startup smoke test suite
 
