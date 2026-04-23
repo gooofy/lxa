@@ -52,20 +52,11 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 141 | Fix MiscTest.StressTasks — race: `SetSignal(0,mask)` was called after `CreateNewProc`, discarding signals sent by child before parent reached `Wait`. Fixed by pre-clearing the signal before each task launch. Re-enabled `StressTasks`; 68/68 pass. | v0.9.23 |
 | 142 | Library policy cleanup: removed third-party stubs (`req.library`, `reqtools.library`, `powerpacker.library`, `arp.library`); real binaries from `others/` now live in `share/lxa/System/Libs/`. `FindThirdPartyLibsPath()` in `lxa_test.h` auto-discovers the directory so LIBS: is set up correctly in all tests. 68/68 pass. | v0.9.24 |
 | 143 | datatypes.library full implementation: `ObtainDataTypeA`/`ReleaseDataType`, `NewDTObjectA`/`DisposeDTObject`, `GetDTAttrsA`/`SetDTAttrsA` (with `DTSpecialInfo` backing), `DoDTMethodA` (DTM_FRAMEBOX), `GetDTMethods`/`GetDTTriggerMethods`, `GetDTString`. Local `lxa_next_tag()` avoids UtilityBase dependency in disk library context. All register assignments fixed per NDK fd. New `datatypes_gtest.cpp` (5 tests). 69/69 pass. | v0.9.25 |
+| 144 | Startup smoke test suite: `smoke_gtest.cpp` parameterised over all 16 known app binaries (SysInfo, DevPac, ASM-One, KickPascal2, MaxonBASIC, BlitzBasic2, Cluster2, DPaintV, DirectoryOpus, SIGMAth2, Vim, FinalWriter, PPaint, Typeface, ProWrite, Sonix). Each test loads the app, runs 100 VBlank settle iterations, and asserts no PANIC and no rv≥20. PPaint allowlisted for rv=26 (RTG probe path). Missing binary → GTEST_SKIP(). 70/70 pass. | v0.9.26 |
 
 ---
 
 ## Next Phase
-
-### Phase 144 — Startup smoke test suite
-
-Catch "app crashes on startup" regressions automatically. The Typeface crash (datatypes.library NULL pointer) went undetected because no test existed for Typeface yet.
-
-- [ ] Add `smoke_gtest.cpp` in `tests/drivers/`: parameterised test that, for each known app binary in `lxa-apps/`, loads the app, runs 100 VBlank settle iterations, and asserts (1) no SIGABRT, (2) no `PANIC` in output, (3) no `rv=26` unless allowlisted
-- [ ] Self-contained: missing app binary → `GTEST_SKIP()` rather than failure
-- [ ] Allowlist apps that legitimately exit immediately (command-line tools)
-
-**Test gate**: All currently known apps that open windows pass the smoke test.
 
 ### Phase 145 — Intuition window border scrollbar rendering (Devpac editor)
 
@@ -125,7 +116,7 @@ The most likely issues are:
 
 **Test gate**: `DevpacTest.SettingsWindow` passes; settings window looks correct when compared to screenshot.
 
-
+### Phase 147 — Typeface window chrome
 
 Typeface currently renders a 194×138 character grid; the real app shows 280×195 with a window border, title bar, and vertical scrollbar. The grid (BGUI primary content) is correct; the surrounding chrome is missing.
 
@@ -139,9 +130,9 @@ Typeface currently renders a 194×138 character grid; the real app shows 280×19
 
 **Test gate**: Typeface window matches target geometry; full suite green.
 
-### Phase 146 — Typeface deeper workflows
+### Phase 148 — Typeface deeper workflows
 
-After Phase 145 gives Typeface a correct window, exercise the actual font-browser interactions.
+After Phase 147 gives Typeface a correct window, exercise the actual font-browser interactions.
 
 - [ ] `gadgets/textfield.gadget` integration: ensure `GADGETS:` assign resolves, gadget loads, text-entry preview widget renders
 - [ ] Font-list interaction: click a font name; assert preview pane updates (text hook captures the chosen font name)
@@ -150,7 +141,7 @@ After Phase 145 gives Typeface a correct window, exercise the actual font-browse
 
 **Test gate**: 3 new Typeface tests pass.
 
-### Phase 147 — Deferred-paint trigger / forced full redraw
+### Phase 149 — Deferred-paint trigger / forced full redraw
 
 Several apps defer rendering of menu bars, toolbars, palettes, and editor backgrounds until the first mouse interaction. This makes interaction tests brittle: the first click triggers paint, subsequent clicks see the painted state, and the test must be carefully ordered.
 
@@ -169,7 +160,7 @@ Affected apps: DPaint V (main editor menu/toolbox/palette + Ctrl-P from depth-8)
 
 **Test gate**: DPaint V and KickPascal 2 deeper workflows reachable from tests.
 
-### Phase 148 — DirectoryOpus deeper workflows
+### Phase 150 — DirectoryOpus deeper workflows
 
 Phase 134 fixed the button-bank rendering. Remaining gaps:
 
@@ -180,7 +171,7 @@ Phase 134 fixed the button-bank rendering. Remaining gaps:
 
 **Test gate**: At least 4 new DOpus tests covering the four areas above.
 
-### Phase 149 — BlitzBasic 2 ted editor real text rendering
+### Phase 151 — BlitzBasic 2 ted editor real text rendering
 
 Phase 119 captured: editor body remains a flat surface with only menu-residue and status overlay paint, even after Phase 113/114 blitter/copper improvements and Phase 135 requester unblocking. ted does not render real editable text content.
 
@@ -198,7 +189,7 @@ Phase 119 captured: editor body remains a flat surface with only menu-residue an
 
 **Test gate**: ted editor area shows real text content under tests.
 
-### Phase 150 — Menu introspection upgrade + non-releasing drag API
+### Phase 152 — Menu introspection upgrade + non-releasing drag API
 
 Several brittle interactions share the same root cause: lack of programmatic menu item activation and lack of in-drag observability.
 
@@ -217,7 +208,7 @@ Affected apps and gaps:
 
 **Test gate**: New APIs covered; migrated tests pass; no regressions in existing menu tests.
 
-### Phase 151 — SysInfo hardware fields + Cluster2 EXIT button
+### Phase 153 — SysInfo hardware fields + Cluster2 EXIT button
 
 Two small per-app correctness gaps grouped because they are both isolated coordinate/data-source issues.
 
@@ -232,7 +223,7 @@ Two small per-app correctness gaps grouped because they are both isolated coordi
 
 ## Performance (Phase 152)
 
-### Phase 152 — Performance follow-up (placeholder, scheduled when needed)
+### Phase 154 — Performance follow-up (placeholder, scheduled when needed)
 
 No specific performance work is currently scheduled. When a measurable regression appears (test wall time, memory, CPU profile from `--profile` flag), open this phase with concrete objectives. Until then, this slot is reserved.
 
@@ -246,7 +237,7 @@ The standing performance baseline:
 
 > Strategic pivot: lxa's display strategy moves from ECS-era planar modes to RTG via Picasso96. Phases 153–155 deliver the full RTG stack — display backend, P96 library, and app validation. Scheduled after the quality + Amiga-compatibility blocks per the priority order.
 
-### Phase 153 — RTG display foundation
+### Phase 155 — RTG display foundation
 
 Land the chunky-bitmap and SDL2 RGBA pipeline that all subsequent RTG work depends on.
 
@@ -264,7 +255,7 @@ Land the chunky-bitmap and SDL2 RGBA pipeline that all subsequent RTG work depen
 
 **Test gate**: `rtg_gtest` passes; full suite remains green.
 
-### Phase 154 — Picasso96API.library core
+### Phase 156 — Picasso96API.library core
 
 New disk library (`src/rom/lxa_p96.c`, installed to `share/lxa/System/Libs/Picasso96API.library`).
 
@@ -290,7 +281,7 @@ Plus a thin `cybergraphics.library` compatibility shim (`GetCyberMapAttr`, `Lock
 
 **Test gate**: `p96_gtest` and `cgx_gtest` pass; at least one target app opens the library without exiting early.
 
-### Phase 155 — RTG app validation
+### Phase 157 — RTG app validation
 
 - [ ] **PPaint** (flagship): mode-scan loop populated via P96 enumeration; assert editor canvas reachable. ECS-path investigation remains abandoned (PPaint is RTG-only in practice).
 - [ ] **FinalWriter**: re-enable `DISABLED_AcceptDialogOpensEditorWindow` in `finalwriter_gtest.cpp`; clicking OK opens editor window
@@ -303,7 +294,7 @@ Plus a thin `cybergraphics.library` compatibility shim (`GetCyberMapAttr`, `Lock
 
 ## Long-Term: External Process Emulation + Observability (Phases 156–158)
 
-### Phase 156 — External process emulation + DOS stdout/clipboard capture
+### Phase 158 — External process emulation + DOS stdout/clipboard capture
 
 DevPac Assemble, ASM-One Assemble, BlitzBasic Run, KickPascal Compile/Run, BlitzBasic2 Compile all require this.
 
@@ -315,7 +306,7 @@ DevPac Assemble, ASM-One Assemble, BlitzBasic Run, KickPascal Compile/Run, Blitz
 
 **Test gate**: At least 4 compile/run workflow tests pass.
 
-### Phase 157 — Screen-content diffing infrastructure
+### Phase 159 — Screen-content diffing infrastructure
 
 Currently no way to assert "this region looks like a text label" or "this area changed structurally between two states." A reference-image diff tool would let us write layout regression tests that survive minor color changes but catch structural regressions.
 
@@ -326,7 +317,7 @@ Currently no way to assert "this region looks like a text label" or "this area c
 
 **Test gate**: New diff API has unit tests; one migrated test passes.
 
-### Phase 158 — Audio device introspection
+### Phase 160 — Audio device introspection
 
 No tests currently require this. Open this phase only when the first audio-using app needs validation.
 
@@ -340,7 +331,7 @@ No tests currently require this. Open this phase only when the first audio-using
 
 ## Far Future: GUI Toolkits + CPU Evolution
 
-### Phase 159 (tentative) — MUI library hosting
+### Phase 161 (tentative) — MUI library hosting
 
 MUI (`MUI:Libs/muimaster.library`) is a disk library — never reimplemented in ROM. This phase ensures lxa's BOOPSI infrastructure (icclass/modelclass/gadgetclass, utility.library tag machinery) is solid enough that a real `muimaster.library` binary opens and functions.
 
@@ -348,7 +339,7 @@ MUI (`MUI:Libs/muimaster.library`) is a disk library — never reimplemented in 
 - [ ] Install user-supplied `muimaster.library` binary
 - [ ] Test gate: at least one MUI-based app opens its main window
 
-### Phase 160 (tentative) — ReAction / ClassAct hosting
+### Phase 162 (tentative) — ReAction / ClassAct hosting
 
 ReAction (AmigaOS 3.5/3.9 GUI toolkit) runs as disk-provided class files (`SYS:Classes/reaction/`). This phase ensures lxa's BOOPSI layer and Intuition class dispatch are complete enough to host ReAction classes.
 
@@ -356,7 +347,7 @@ ReAction (AmigaOS 3.5/3.9 GUI toolkit) runs as disk-provided class files (`SYS:C
 - [ ] Install user-supplied ReAction classes
 - [ ] Test gate: at least one ReAction app opens its main window
 
-### Phase 161 (tentative) — CPU core evaluation
+### Phase 163 (tentative) — CPU core evaluation
 
 Musashi (MIT, C89, interpreter) is adequate for correctness but limits throughput. Host-side overhead currently dominates (~95% of wall time per Phase 126 estimate), so CPU evaluation is deferred until host optimisations are exhausted.
 
@@ -380,7 +371,7 @@ These are not phases but ongoing rules captured in `AGENTS.md` lessons learned. 
 ## Dependency Graph (Critical Path)
 
 ```
-Phase 142-144 (Library policy + datatypes + smoke)
+Phase 142-144 (Library policy + datatypes + smoke) ✓
         │
         ▼
 Phase 145-146 (Devpac scrollbar + Settings window)
@@ -389,14 +380,14 @@ Phase 145-146 (Devpac scrollbar + Settings window)
 Phase 147-153 (App-specific compatibility)
         │
         ▼
-Phase 152 (Performance — placeholder)
+Phase 154 (Performance — placeholder)
         │
         ▼
-Phase 153-155 (RTG: foundation → P96 → app validation)
+Phase 155-157 (RTG: foundation → P96 → app validation)
         │
         ▼
-Phase 156-158 (External processes, diffing, audio)
+Phase 158-160 (External processes, diffing, audio)
         │
         ▼
-Phase 159-161 (MUI, ReAction, CPU eval)
+Phase 161-163 (MUI, ReAction, CPU eval)
 ```

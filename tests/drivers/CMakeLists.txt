@@ -399,6 +399,12 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(datatypes_gtest)
     endif()
 
+    # Startup smoke tests (Phase 144) — parameterised per-app startup check
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/smoke_gtest.cpp)
+        add_gtest_driver(smoke_gtest)
+        set_tests_properties(smoke_gtest PROPERTIES TIMEOUT 300)
+    endif()
+
     message(STATUS "Google Test drivers configured")
 
     # Shard coverage check — fails immediately if a TEST_F in a sharded driver
