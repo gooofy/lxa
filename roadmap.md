@@ -84,7 +84,65 @@ Catch "app crashes on startup" regressions automatically. The Typeface crash (da
 
 **Test gate**: All currently known apps that open windows pass the smoke test.
 
-### Phase 145 — Typeface window chrome rendering
+### Phase 145 — Intuition window border scrollbar rendering (Devpac editor)
+
+**Root cause** (confirmed via FS-UAE screenshots vs lxa captures):
+
+The Devpac 3 editor window has a **right border PropGadget** (vertical scrollbar) and **up/down arrow system gadgets** in the bottom-right corner of the right border. In lxa these are not rendered — the right border appears as a plain filled rectangle with no knob, no arrows.
+
+Two distinct sub-problems:
+
+**Sub-problem A — Up/Down arrow system gadgets missing**
+
+`_create_window_sys_gadgets()` only creates CLOSE, DEPTH, and SIZING system gadgets. It does not create scroll-arrow gadgets even when an app adds them to the window's gadget list as `GTYP_SYSGADGET | GTYP_WDRAGGING`-style gadgets. On a real Amiga, apps that request scroll arrows receive `GTYP_SYSGADGET | 0x0060` (up-arrow) and `GTYP_SYSGADGET | 0x0070` (down-arrow) gadgets from Intuition's internal gadget creation, **not** by calling `AddGadget()` themselves. lxa does not create or render these. The render switch in `_render_window_frame()` (line 9219) has no cases for up/down arrow types.
+
+**Sub-problem B — PropGadget in right border not rendered**
+
+The Devpac editor window uses a user-supplied `GTYP_PROPGADGET` placed in the right border (x = WindowWidth - BorderRight, full height). `_render_window_frame()` renders system gadgets (lxa-created GTYP_SYSGADGET ones), then calls `_render_window_user_gadgets()` which iterates all non-SYSGADGET gadgets. The prop gadget is a user gadget, so it *should* be rendered — but `_calculate_gadget_box()` may be computing wrong coordinates for border-placed prop gadgets, or the knob body/pot values cause the knob to vanish. Additionally, the `PROPNEWLOOK` rendering path does not draw the container outline and the arrow imagery.
+
+**Sub-problem C — WZOOM gadget has no render imagery**
+
+`_render_window_frame()` switch (line 9219) has no `case GTYP_WZOOM:` — the zoom gadget is allocated and tracked but draws as a plain blank frame. The FS-UAE reference shows it as a small rectangle in the top-right title bar (next to the depth gadget).
+
+**TODOs**:
+- [ ] Investigate why Devpac's right-border PropGadget does not render its knob (enable DPRINTF for prop rendering, capture lxa log during startup)
+- [ ] Add `case GTYP_WZOOM:` to `_render_window_frame()` switch with correct imagery (two arrows or filled box per real Amiga look)
+- [ ] Verify `_calculate_gadget_box()` handles border-placed gadgets with `GACT_RIGHTBORDER` correctly
+- [ ] Add `devpac_scrollbar_gtest.cpp` (or extend `devpac_gtest.cpp`) with pixel assertions: right border has non-background pixels in the knob area; bottom of right border has arrow glyphs
+- [ ] Check whether Devpac adds scroll-arrow gadgets itself (via `AddGadget`) or expects Intuition to create them — inspect lxa log for `AddGadget` calls with GTYP_SYSGADGET types at startup
+
+**Test gate**: Devpac editor window right border shows prop knob and up/down arrows; zoom gadget icon visible in title bar; devpac_gtest scrollbar assertions pass.
+
+### Phase 146 — Devpac Settings window (req.library requester layout)
+
+**Root cause** (confirmed via FS-UAE screenshot devpac2.png):
+
+The Settings window is opened by DevPac via `req.library`'s `DoRequest()` / `BuildSysRequest()` — now using the real binary (Phase 142). The FS-UAE reference shows:
+- A properly positioned sub-window (centered on screen, ~480×140 px)
+- Cycle gadgets (`[<]` button + current-value text) for: End of Line, Word Qualifier, Save Before Run, Program Window
+- A string gadget for Public Screen
+- Four checkboxes on the right (Auto-Indent, Make Backups, Stack New Projects, Shift-Backspace, IBM Keypad)
+- Three push-buttons at the bottom: Save, Use, Cancel
+
+This window was previously never reachable (Phase 142 had the req.library stub silently failing). Now that the real binary loads, we need to:
+1. Navigate to Settings→Settings in lxa's devpac test and capture the result
+2. Compare visually to the FS-UAE reference
+3. Identify specific rendering defects (missing gadgets, wrong positions, truncated text, wrong colors)
+
+The most likely issues are:
+- **Cycle gadget arrow rendering**: The `[<]` button is a cycle gadget using req.library's own internal gadget imagery — lxa's gadget renderer may not know about req.library's custom image format
+- **String gadget border**: req.library string gadgets may use a non-standard border style
+- **Layout/positioning**: req.library computes its own layout from font metrics; if `tf_XSize`/`tf_YSize` differ from what req.library expects, all gadget positions shift
+
+**TODOs**:
+- [ ] Add a `DevpacTest.SettingsWindow` test: navigate Settings→Settings via RMB drag, wait for a new window, capture it
+- [ ] Attach capture PNG and compare to FS-UAE reference (devpac2.png in `screenshots/`)
+- [ ] Identify and fix any rendering defects found
+- [ ] Assert: window opens (count goes from 1 to 2), window contains at least 3 push-buttons, cycle gadget for "End of Line" is visible
+
+**Test gate**: `DevpacTest.SettingsWindow` passes; settings window looks correct when compared to screenshot.
+
+
 
 Typeface currently renders a 194×138 character grid; the real app shows 280×195 with a window border, title bar, and vertical scrollbar. The grid (BGUI primary content) is correct; the surrounding chrome is missing.
 
@@ -342,7 +400,10 @@ These are not phases but ongoing rules captured in `AGENTS.md` lessons learned. 
 Phase 142-144 (Library policy + datatypes + smoke)
         │
         ▼
-Phase 145-151 (App-specific compatibility)
+Phase 145-146 (Devpac scrollbar + Settings window)
+        │
+        ▼
+Phase 147-153 (App-specific compatibility)
         │
         ▼
 Phase 152 (Performance — placeholder)
