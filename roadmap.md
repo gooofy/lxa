@@ -47,24 +47,24 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 
 ## Next Phase
 
-### Phase 138 — Fix GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean
+### Phase 139 — Fix GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems
 
-**Priority**: Quality. Currently `DISABLED_ResizeKeepsSizeGadgetBordersClean` in `tests/drivers/gadtoolsgadgets_gtest.cpp:962`.
+**Priority**: Quality. Currently `DISABLED_SubmenuHoverDoesNotCorruptLowerMainItems` in `tests/drivers/gadtoolsmenu_gtest.cpp:320`. Hangs indefinitely (timeout).
 
-**Root cause hypothesis**: After `_intuition_SizeWindow` fires, the layer-rebuild path does not invalidate gadget borders. The size-gadget chrome region ends up with zero non-background pixels because `_render_gadget` is not re-invoked (or its damage region is not propagated).
+**Root cause hypothesis**: Event-injection deadlock between `menu_drag` step processing and submenu redraw. The previous test (`HoverRedrawReturnsToSamePixels`) passes in ~69 s, so the fixture is sound; the specific submenu hover sequence triggers the hang.
 
 **Sub-problems**:
-1. Trace the SIZEWINDOW IDCMP path in `lxa_intuition.c`: when the user drags the size-gadget, what gadget-rerender hooks fire?
-2. Compare against the WINDOWREFRESH path on regular interior damage — gadget borders should follow the same pattern.
-3. Verify that the size-gadget is repositioned (its `LeftEdge`/`TopEdge` follow the window resize) before being rerendered.
+1. Add a per-step iteration cap in the test fixture so the hang produces a useful failure message rather than a timeout.
+2. Instrument `_render_menu_items()` and `_intuition_ProcessInputEvents()` with diagnostic LPRINTFs (revert before commit per AGENTS §6.3) to identify which side is starved.
+3. Likely candidates: the submenu redraw path enters a wait-state that the injected event never satisfies, or the input queue is drained synchronously inside the redraw.
 
-- [ ] Reproduce in isolation
-- [ ] Identify missing rerender call
-- [ ] Fix and re-enable test
-- [ ] Add a regression assertion that any `IDCMP_NEWSIZE` followed by `WaitTOF` shows non-zero gadget chrome
-- [ ] Full suite green; update CMakeLists FILTER to include the re-enabled test name
+- [ ] Add iteration cap to bound the failure
+- [ ] Identify the deadlock party
+- [ ] Fix the wait-state or queue-drain issue
+- [ ] Re-enable test
+- [ ] Full suite green
 
-**Test gate**: `GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean` passes; full suite green.
+**Test gate**: `GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems` passes; full suite green.
 
 ---
 
@@ -116,6 +116,7 @@ Detailed write-ups live in the git commit messages. This table is the single ind
 | 136-c | Roadmap overhaul; screenshot_review retired to attic; 5 failing tests quarantined as DISABLED_ | v0.9.17 |
 | 136-d | Roadmap+AGENTS policy: priority order, no pooling sections, every DISABLED_ test gets a phase | v0.9.18 |
 | 137 | RunCommand exit-code propagation: NP_ExitCode/NP_ExitData honoured in CreateNewProc; LoadSegRuntime re-enabled | v0.9.19 |
+| 138 | GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean re-enabled (test-side readiness fix; SizeWindow updates Width/Height before render — wait for size-gadget pixels, not just dims) | v0.9.20 |
 
 ---
 
@@ -123,7 +124,7 @@ Detailed write-ups live in the git commit messages. This table is the single ind
 
 Re-enable each `DISABLED_` GTest. Done in priority order by user impact (DOS API correctness first, GadTools rendering next, app-interaction last).
 
-### Phase 138 — see Next Phase above.
+### Phase 138 — see Completed Phases (v0.9.20).
 
 ### Phase 139 — Fix GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems
 

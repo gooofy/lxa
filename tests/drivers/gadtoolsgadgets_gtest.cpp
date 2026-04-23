@@ -952,17 +952,13 @@ TEST_F(GadToolsGadgetsPixelTest, DepthGadgetRendered) {
         << "Depth gadget should have background (pen 0) pixels in margins/back rect";
 }
 
-// DISABLED (Phase 136-c, v0.9.17): real rendering bug — after window resize,
-// the size-gadget border has zero non-background pixels (assertion at line ~1024
-// expects size_content > 3, actual 0). Indicates the size-gadget chrome is not
-// re-rendered after a resize event. Likely related to the layer-rebuild path in
-// _intuition_SizeWindow not invalidating gadget borders. Needs dedicated phase.
-// See roadmap.md "Deferred Test Failures" section.
-TEST_F(GadToolsGadgetsPixelTest, DISABLED_ResizeKeepsSizeGadgetBordersClean) {
+// Phase 138: ensure size-gadget chrome is re-rendered after a resize event.
+TEST_F(GadToolsGadgetsPixelTest, ResizeKeepsSizeGadgetBordersClean) {
     constexpr int size_gadget_w = 18;
     constexpr int size_gadget_h = 10;
     int orig_w = window_info.width;
     int orig_h = window_info.height;
+
     int start_x = window_info.x + orig_w - (size_gadget_w / 2);
     int start_y = window_info.y + orig_h - (size_gadget_h / 2);
     int end_x = start_x + 36;
@@ -985,8 +981,26 @@ TEST_F(GadToolsGadgetsPixelTest, DISABLED_ResizeKeepsSizeGadgetBordersClean) {
             break;
         }
     }
-    /* Give extra time for the frame to render after the final SizeWindow */
-    RunCyclesWithVBlank(20, 100000);
+    /* Give extra time for the frame to render after the final SizeWindow.
+     * SizeWindow updates Window->Width/Height BEFORE _render_window_frame
+     * runs, so seeing the final dimensions is not proof of rendering
+     * completion. Wait until the size-gadget area actually receives
+     * non-background pixels (proof that _render_gadget for GTYP_SIZING
+     * has executed). */
+    int settle_size_content = 0;
+    for (int i = 0; i < 200; i++) {
+        lxa_trigger_vblank();
+        lxa_run_cycles(100000);
+        lxa_flush_display();
+        settle_size_content = CountContentPixels(
+            window_info.x + expected_w - 16,
+            window_info.y + expected_h - 8,
+            window_info.x + expected_w - 3,
+            window_info.y + expected_h - 3,
+            PEN_GREY
+        );
+        if (settle_size_content > 3) break;
+    }
     lxa_flush_display();
 
     ASSERT_TRUE(resized)

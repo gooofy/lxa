@@ -3661,7 +3661,6 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_graphics: Draw() rp=0x%08lx, from (%d,%d) to (%d,%d)\n",
              (ULONG)rp, rp ? rp->cp_x : 0, rp ? rp->cp_y : 0, (int)x, (int)y);
-    LPRINTF (LOG_INFO, "_graphics: Draw() to (%d,%d)\n", (int)x, (int)y);
 
     if (!rp || !rp->BitMap)
     {
