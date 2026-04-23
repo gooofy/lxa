@@ -224,6 +224,8 @@ VOID _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __a
                                                         register struct Screen * screen __asm("a0"));
 VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                          register struct Screen * screen __asm("a0"));
+VOID _intuition_ZipWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                        register struct Window * window __asm("a0"));
 
 static ULONG _idcmp_update_payload_size(APTR payload)
 {
@@ -5347,8 +5349,9 @@ static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadg
             break;
         
         case GTYP_WZOOM:
-            /* Zoom gadget - TODO: implement ZipWindow behavior */
-            DPRINTF(LOG_DEBUG, "_intuition: Zoom gadget clicked - TODO: ZipWindow\n");
+            /* Zoom gadget — toggle window between normal and zoomed size */
+            DPRINTF(LOG_DEBUG, "_intuition: Zoom gadget clicked - ZipWindow\n");
+            _intuition_ZipWindow(IntuitionBase, window);
             break;
     }
 }
@@ -9035,6 +9038,26 @@ static void _create_window_sys_gadgets(struct Window *window)
         }
     }
     
+    /* Create Zoom gadget (to the left of depth gadget) if requested.
+     * Per NDK/RKRM: WFLG_HASZOOM enables a zoom gadget in the title bar.
+     * It is positioned immediately to the left of the depth gadget.
+     * At this point rightX has already been decremented by gadWidth after
+     * depth gadget creation, so rightX points to the zoom gadget slot. */
+    if (window->Flags & WFLG_HASZOOM)
+    {
+        gad = _create_sys_gadget(window, GTYP_WZOOM,
+                                  rightX, 0,
+                                  gadWidth, gadHeight);
+        if (gad)
+        {
+            *lastPtr = gad;
+            lastPtr = &gad->NextGadget;
+            DPRINTF(LOG_DEBUG, "_intuition: Created ZOOM gadget at (%d,%d) %dx%d\n",
+                    (int)gad->LeftEdge, (int)gad->TopEdge, (int)gad->Width, (int)gad->Height);
+            rightX -= gadWidth;
+        }
+    }
+
     /* Drag bar is handled via WFLG_DRAGBAR flag, not as a separate gadget */
     /* It uses the entire title bar area not covered by other gadgets */
 }
@@ -9308,6 +9331,36 @@ static void _render_window_frame(struct Window *window)
                 SetAPen(rp, shaPen);
                 Move(rp, gx1 - 3, gy1 - 1);
                 Draw(rp, gx1 - 1, gy1 - 3);
+                break;
+            }
+
+            case GTYP_WZOOM:
+            {
+                /* Draw zoom gadget icon: a small open rectangle in the center.
+                 * Classic Amiga look: an outlined box representing a window
+                 * toggling between zoomed and normal size. */
+                WORD il = gx0 + 2;
+                WORD it = gy0 + 2;
+                WORD ir = gx1 - 2;
+                WORD ib = gy1 - 2;
+
+                /* Fill gadget interior with background */
+                SetAPen(rp, 0);
+                RectFill(rp, gx0 + 1, gy0 + 1, gx1 - 1, gy1 - 1);
+
+                /* Draw inner rectangle outline */
+                if (il <= ir && it <= ib)
+                {
+                    /* Top-left (shine) edges */
+                    SetAPen(rp, shiPen);
+                    Move(rp, il, ib);
+                    Draw(rp, il, it);
+                    Draw(rp, ir, it);
+                    /* Bottom-right (shadow) edges */
+                    SetAPen(rp, shaPen);
+                    Draw(rp, ir, ib);
+                    Draw(rp, il, ib);
+                }
                 break;
             }
         }
@@ -13328,6 +13381,7 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                     break;
                 case WA_Zoom:
                     zoom_coords = (WORD *)tag->ti_Data;
+                    nw.Flags |= WFLG_HASZOOM;
                     break;
                 case WA_MouseQueue:
                     mouse_queue = (UWORD)tag->ti_Data;

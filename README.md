@@ -231,7 +231,9 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.9.22** - ProWrite About dialog re-enabled (Phase 140): fixed View-menu drag coordinates (was using Project-menu x+240, now correctly targets View menu at x+396; item y was y+150 hitting Quit, now y+15 for the About item). `DismissWindow` now iterates gadgets in reverse order and clicks the first non-zero-size gadget, correctly targeting ProWrite's OK button (gadget[0], size 60×15). Diagnostic helper tests removed. Full suite 68/68.
+**Version 0.9.27** - Intuition WZOOM gadget and Devpac border rendering (Phase 145): added `case GTYP_WZOOM:` to `_render_window_frame()` with outlined-rectangle imagery; WZOOM gadget created in `_create_window_sys_gadgets()` when `WFLG_HASZOOM` is set; `WA_Zoom` tag now sets `WFLG_HASZOOM`; `ZipWindow` behavior wired in `_handle_sys_gadget_verify`. New `ZoomWindow` sample. New `devpac_scrollbar_gtest.cpp` (3 tests). 71/71 pass.
+
+**Version 0.9.26** - ProWrite About dialog re-enabled (Phase 140): fixed View-menu drag coordinates (was using Project-menu x+240, now correctly targets View menu at x+396; item y was y+150 hitting Quit, now y+15 for the About item). `DismissWindow` now iterates gadgets in reverse order and clicks the first non-zero-size gadget, correctly targeting ProWrite's OK button (gadget[0], size 60×15). Diagnostic helper tests removed. Full suite 68/68.
 
 **Version 0.9.21** - GadTools submenu pixel test re-enabled (Phase 139): `GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems` re-enabled with no code change required; the hang was already resolved by the Phase 132/133 menu compose + backing-store work. Verified stable across 5 consecutive runs. Full suite 68/68.
 

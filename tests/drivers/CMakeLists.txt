@@ -314,6 +314,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/devpac_gtest.cpp)
         add_gtest_driver(devpac_gtest)
     endif()
+
+    # Devpac scrollbar / zoom gadget rendering tests (Phase 145)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/devpac_scrollbar_gtest.cpp)
+        add_gtest_driver(devpac_scrollbar_gtest)
+    endif()
     
     # KickPascal - Pascal IDE test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/kickpascal_gtest.cpp)

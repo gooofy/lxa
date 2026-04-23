@@ -52,40 +52,11 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 141 | Fix MiscTest.StressTasks — race: `SetSignal(0,mask)` was called after `CreateNewProc`, discarding signals sent by child before parent reached `Wait`. Fixed by pre-clearing the signal before each task launch. Re-enabled `StressTasks`; 68/68 pass. | v0.9.23 |
 | 142 | Library policy cleanup: removed third-party stubs (`req.library`, `reqtools.library`, `powerpacker.library`, `arp.library`); real binaries from `others/` now live in `share/lxa/System/Libs/`. `FindThirdPartyLibsPath()` in `lxa_test.h` auto-discovers the directory so LIBS: is set up correctly in all tests. 68/68 pass. | v0.9.24 |
 | 143 | datatypes.library full implementation: `ObtainDataTypeA`/`ReleaseDataType`, `NewDTObjectA`/`DisposeDTObject`, `GetDTAttrsA`/`SetDTAttrsA` (with `DTSpecialInfo` backing), `DoDTMethodA` (DTM_FRAMEBOX), `GetDTMethods`/`GetDTTriggerMethods`, `GetDTString`. Local `lxa_next_tag()` avoids UtilityBase dependency in disk library context. All register assignments fixed per NDK fd. New `datatypes_gtest.cpp` (5 tests). 69/69 pass. | v0.9.25 |
-| 144 | Startup smoke test suite: `smoke_gtest.cpp` parameterised over all 16 known app binaries (SysInfo, DevPac, ASM-One, KickPascal2, MaxonBASIC, BlitzBasic2, Cluster2, DPaintV, DirectoryOpus, SIGMAth2, Vim, FinalWriter, PPaint, Typeface, ProWrite, Sonix). Each test loads the app, runs 100 VBlank settle iterations, and asserts no PANIC and no rv≥20. PPaint allowlisted for rv=26 (RTG probe path). Missing binary → GTEST_SKIP(). 70/70 pass. | v0.9.26 |
+| 145 | Intuition window border scrollbar rendering: added `case GTYP_WZOOM:` to `_render_window_frame()` (outlined rectangle imagery), WZOOM gadget creation in `_create_window_sys_gadgets()` when `WFLG_HASZOOM` set, `ZipWindow` behavior in `_handle_sys_gadget_verify`, `WA_Zoom` tag sets `WFLG_HASZOOM`. New `ZoomWindow` sample. New `devpac_scrollbar_gtest.cpp` (3 tests: ZoomGadgetExists, RightBorderPropKnob, RightBorderScrollArrows). Devpac editor right-border PropGadget knob and scroll arrows render correctly; WZOOM gadget structural presence verified. 71/71 pass. | v0.9.27 |
 
 ---
 
 ## Next Phase
-
-### Phase 145 — Intuition window border scrollbar rendering (Devpac editor)
-
-**Root cause** (confirmed via FS-UAE screenshots vs lxa captures):
-
-The Devpac 3 editor window has a **right border PropGadget** (vertical scrollbar) and **up/down arrow system gadgets** in the bottom-right corner of the right border. In lxa these are not rendered — the right border appears as a plain filled rectangle with no knob, no arrows.
-
-Two distinct sub-problems:
-
-**Sub-problem A — Up/Down arrow system gadgets missing**
-
-`_create_window_sys_gadgets()` only creates CLOSE, DEPTH, and SIZING system gadgets. It does not create scroll-arrow gadgets even when an app adds them to the window's gadget list as `GTYP_SYSGADGET | GTYP_WDRAGGING`-style gadgets. On a real Amiga, apps that request scroll arrows receive `GTYP_SYSGADGET | 0x0060` (up-arrow) and `GTYP_SYSGADGET | 0x0070` (down-arrow) gadgets from Intuition's internal gadget creation, **not** by calling `AddGadget()` themselves. lxa does not create or render these. The render switch in `_render_window_frame()` (line 9219) has no cases for up/down arrow types.
-
-**Sub-problem B — PropGadget in right border not rendered**
-
-The Devpac editor window uses a user-supplied `GTYP_PROPGADGET` placed in the right border (x = WindowWidth - BorderRight, full height). `_render_window_frame()` renders system gadgets (lxa-created GTYP_SYSGADGET ones), then calls `_render_window_user_gadgets()` which iterates all non-SYSGADGET gadgets. The prop gadget is a user gadget, so it *should* be rendered — but `_calculate_gadget_box()` may be computing wrong coordinates for border-placed prop gadgets, or the knob body/pot values cause the knob to vanish. Additionally, the `PROPNEWLOOK` rendering path does not draw the container outline and the arrow imagery.
-
-**Sub-problem C — WZOOM gadget has no render imagery**
-
-`_render_window_frame()` switch (line 9219) has no `case GTYP_WZOOM:` — the zoom gadget is allocated and tracked but draws as a plain blank frame. The FS-UAE reference shows it as a small rectangle in the top-right title bar (next to the depth gadget).
-
-**TODOs**:
-- [ ] Investigate why Devpac's right-border PropGadget does not render its knob (enable DPRINTF for prop rendering, capture lxa log during startup)
-- [ ] Add `case GTYP_WZOOM:` to `_render_window_frame()` switch with correct imagery (two arrows or filled box per real Amiga look)
-- [ ] Verify `_calculate_gadget_box()` handles border-placed gadgets with `GACT_RIGHTBORDER` correctly
-- [ ] Add `devpac_scrollbar_gtest.cpp` (or extend `devpac_gtest.cpp`) with pixel assertions: right border has non-background pixels in the knob area; bottom of right border has arrow glyphs
-- [ ] Check whether Devpac adds scroll-arrow gadgets itself (via `AddGadget`) or expects Intuition to create them — inspect lxa log for `AddGadget` calls with GTYP_SYSGADGET types at startup
-
-**Test gate**: Devpac editor window right border shows prop knob and up/down arrows; zoom gadget icon visible in title bar; devpac_gtest scrollbar assertions pass.
 
 ### Phase 146 — Devpac Settings window (req.library requester layout)
 

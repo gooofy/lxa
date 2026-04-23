@@ -81,6 +81,7 @@ set(SAMPLES_LIST
     "intuition|talk2boopsi|Talk2Boopsi"
     "intuition|doublebuffer|DoubleBuffer"
     "intuition|backingstoretest|BackingStoreTest"
+    "intuition|zoomwindow|ZoomWindow"
     "devices|simpletimer|SimpleTimer"
     "devices|askkeymap|AskKeymap"
     "utility|tag1|Tag1"
