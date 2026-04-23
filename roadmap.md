@@ -172,7 +172,7 @@ Correct the longstanding policy violation from Phase 110: third-party stubs (`re
 
 - [ ] Delete `src/rom/lxa_reqlib.c`, `src/rom/lxa_reqtools.c`, `src/rom/lxa_powerpacker.c`
 - [ ] Remove the corresponding `add_disk_library()` entries from `sys/CMakeLists.txt`
-- [ ] **STOP and notify the user** to supply real `req.library`, `reqtools.library`, `powerpacker.library` binaries before proceeding
+- [ ] real `req.library`, `reqtools.library`, `powerpacker.library` binaries are in others/ directory
 - [ ] Install supplied binaries to `share/lxa/System/Libs/` (same pattern as `bgui.library`)
 - [ ] Update tests that previously validated "stub returns failure cleanly" to validate real library functionality (or skip if binary missing)
 - [ ] `arp.library`: treat as third-party (CBM did not ship with AmigaOS); apply same removal pattern
