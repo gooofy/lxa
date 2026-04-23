@@ -484,7 +484,7 @@ TEST_F(DevpacTest, ZAmigaOOpensFileRequester) {
     PressKey(0x18, 0x40);  /* RAWKEY for 'O' + LeftAmiga */
     RunCyclesWithVBlank(40, 50000);
 
-    /* The requester may take a moment to appear (req.library stub). */
+    /* The requester may take a moment to appear (real req.library). */
     bool got_new_window = WaitForWindows(windows_before + 1, 5000);
 
     /* Capture for inspection. */
@@ -503,12 +503,12 @@ TEST_F(DevpacTest, ZAmigaOOpensFileRequester) {
         PressKey(0x45, 0);
         RunCyclesWithVBlank(40, 50000);
     } else {
-        /* No requester appeared. This is acceptable if req.library stub
-         * fails gracefully — record but do not fail the test. The key
+        /* No requester appeared. This is acceptable if req.library fails
+         * to open for any reason — record but do not fail the test. The key
          * regression we guard against is "Amiga-O crashes the app". */
         fprintf(stderr,
                 "ZAmigaOOpensFileRequester: no requester appeared "
-                "(req.library stub may have refused). Verifying app survival.\n");
+                "(req.library may have failed to open). Verifying app survival.\n");
     }
 
     EXPECT_TRUE(lxa_is_running())

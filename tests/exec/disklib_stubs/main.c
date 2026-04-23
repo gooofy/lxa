@@ -1,17 +1,15 @@
 /*
- * Test: exec/disklib_stubs
+ * Test: exec/disklib_stubs (renamed: third-party library loading)
  *
- * Phase 110: Third-party library stubs
- *
- * Tests that all four third-party disk library stubs can be opened
- * via OpenLibrary() and that their key functions return the expected
- * safe failure values.
+ * Phase 142: Third-party libraries use real binaries from share/lxa/System/Libs/.
+ * Stubs have been removed; this test validates that the real libraries can be
+ * loaded from disk and have the expected version numbers.
  *
  * Libraries tested:
- *   - req.library        (Colin Fox / Bruce Dawson)
- *   - reqtools.library   (Nico Francois)
- *   - powerpacker.library (Nico Francois)
- *   - arp.library         (AmigaDOS Replacement Project)
+ *   - req.library        v2  (Colin Fox / Bruce Dawson)
+ *   - reqtools.library   v38 (Nico Francois)
+ *   - powerpacker.library v37 (Nico Francois)
+ *   - arp.library        v40 (AmigaDOS Replacement Project)
  */
 
 #include <exec/types.h>
@@ -89,787 +87,109 @@ static void print_hex(ULONG v)
 }
 
 /* ========================================================================
- * req.library tests
- *
- * All functions are called through their library jump table offsets.
- * Since there are no system headers for req.library, we call through
- * the base pointer + offset manually.
+ * Test: Libraries are NOT resident in ROM (they are real disk libraries)
  * ======================================================================== */
 
-/* req.library function offsets */
-#define REQLIB_FileRequester   (-30)
-#define REQLIB_ColorRequester  (-36)
-#define REQLIB_GetLong         (-42)
-#define REQLIB_GetString       (-48)
-#define REQLIB_TextRequest     (-54)
-#define REQLIB_TwoGadRequest   (-66)
-
-/* Calling convention helpers using inline asm */
-static BOOL reqlib_FileRequester(struct Library *base, APTR freq)
+static int test_not_in_rom(void)
 {
-    register struct Library *a6 __asm("a6") = base;
-    register APTR a0 __asm("a0") = freq;
-    register BOOL d0 __asm("d0");
-    __asm volatile ("jsr -30(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static LONG reqlib_ColorRequester(struct Library *base, LONG initialColor)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register LONG d0_in __asm("d0") = initialColor;
-    register LONG d0 __asm("d0");
-    __asm volatile ("jsr -36(%%a6)" : "=r"(d0) : "r"(a6), "0"(d0_in) : "a0", "a1", "d1", "memory");
-    return d0;
-}
-
-static BOOL reqlib_GetLong(struct Library *base, APTR gls)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register APTR a0 __asm("a0") = gls;
-    register BOOL d0 __asm("d0");
-    __asm volatile ("jsr -42(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static BOOL reqlib_GetString(struct Library *base, APTR gss)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register APTR a0 __asm("a0") = gss;
-    register BOOL d0 __asm("d0");
-    __asm volatile ("jsr -48(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static LONG reqlib_TextRequest(struct Library *base, APTR tr)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register APTR a0 __asm("a0") = tr;
-    register LONG d0 __asm("d0");
-    __asm volatile ("jsr -54(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static BOOL reqlib_TwoGadRequest(struct Library *base, APTR tr)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register APTR a0 __asm("a0") = tr;
-    register BOOL d0 __asm("d0");
-    __asm volatile ("jsr -66(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static int test_req_library(void)
-{
+    static const char *lib_names[] = {
+        "req.library",
+        "reqtools.library",
+        "powerpacker.library",
+        "arp.library"
+    };
     int errors = 0;
-    struct Library *base;
+    ULONG i;
 
-    print("--- Test: req.library ---\n");
+    print("--- Test: Libraries not resident in ROM ---\n");
 
-    base = OpenLibrary((CONST_STRPTR)"req.library", 0);
-    if (base == NULL)
+    for (i = 0; i < 4; i++)
     {
-        print("FAIL: OpenLibrary(\"req.library\", 0) returned NULL\n");
-        return 1;
+        struct Resident *resident = FindResident((CONST_STRPTR)lib_names[i]);
+
+        print("Checking ");
+        print(lib_names[i]);
+        print("... ");
+
+        if (resident != NULL)
+        {
+            print("FAIL: found as ROM resident (should be disk library)\n");
+            errors++;
+        }
+        else
+        {
+            print("OK (not ROM resident)\n");
+        }
     }
-    print("OK: OpenLibrary(\"req.library\") returned ");
-    print_hex((ULONG)base);
+
     print("\n");
-
-    /* Verify version/revision */
-    if (base->lib_Version != 1)
-    {
-        print("FAIL: lib_Version is ");
-        print_num(base->lib_Version);
-        print(" expected 1\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: lib_Version == 1\n");
-    }
-
-    /* FileRequester(NULL) should return FALSE */
-    {
-        BOOL result = reqlib_FileRequester(base, NULL);
-        if (result != FALSE)
-        {
-            print("FAIL: FileRequester(NULL) returned ");
-            print_num(result);
-            print(" expected FALSE\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: FileRequester(NULL) returned FALSE\n");
-        }
-    }
-
-    /* ColorRequester(5) should return -1 */
-    {
-        LONG result = reqlib_ColorRequester(base, 5);
-        if (result != -1)
-        {
-            print("FAIL: ColorRequester(5) returned ");
-            print_num(result);
-            print(" expected -1\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ColorRequester(5) returned -1\n");
-        }
-    }
-
-    /* GetLong(NULL) should return FALSE */
-    {
-        BOOL result = reqlib_GetLong(base, NULL);
-        if (result != FALSE)
-        {
-            print("FAIL: GetLong(NULL) returned ");
-            print_num(result);
-            print(" expected FALSE\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: GetLong(NULL) returned FALSE\n");
-        }
-    }
-
-    /* GetString(NULL) should return FALSE */
-    {
-        BOOL result = reqlib_GetString(base, NULL);
-        if (result != FALSE)
-        {
-            print("FAIL: GetString(NULL) returned ");
-            print_num(result);
-            print(" expected FALSE\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: GetString(NULL) returned FALSE\n");
-        }
-    }
-
-    /* TextRequest(NULL) should return 0 */
-    {
-        LONG result = reqlib_TextRequest(base, NULL);
-        if (result != 0)
-        {
-            print("FAIL: TextRequest(NULL) returned ");
-            print_num(result);
-            print(" expected 0\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: TextRequest(NULL) returned 0\n");
-        }
-    }
-
-    /* TwoGadRequest(NULL) should return FALSE */
-    {
-        BOOL result = reqlib_TwoGadRequest(base, NULL);
-        if (result != FALSE)
-        {
-            print("FAIL: TwoGadRequest(NULL) returned ");
-            print_num(result);
-            print(" expected FALSE\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: TwoGadRequest(NULL) returned FALSE\n");
-        }
-    }
-
-    CloseLibrary(base);
-    print("OK: CloseLibrary(req.library) succeeded\n\n");
     return errors;
 }
 
 /* ========================================================================
- * powerpacker.library tests
+ * Test: Real libraries open and have correct versions
  * ======================================================================== */
 
-#define PP_OPENERR 1
+typedef struct {
+    const char *name;
+    UWORD       expected_version;
+} LibSpec;
 
-static ULONG pplib_ppLoadData(struct Library *base, STRPTR fileName, ULONG colorType,
-                               ULONG memType, UBYTE **buffer, ULONG *length, APTR callback)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register STRPTR a0 __asm("a0") = fileName;
-    register ULONG d0_in __asm("d0") = colorType;
-    register ULONG d1 __asm("d1") = memType;
-    register UBYTE **a1 __asm("a1") = buffer;
-    register ULONG *a2 __asm("a2") = length;
-    register APTR a3 __asm("a3") = callback;
-    register ULONG d0 __asm("d0");
-    __asm volatile ("jsr -30(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0), "0"(d0_in), "r"(d1), "r"(a1), "r"(a2), "r"(a3) : "memory");
-    return d0;
-}
-
-static UWORD pplib_ppCalcChecksum(struct Library *base, UBYTE *buffer)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register UBYTE *a0 __asm("a0") = buffer;
-    register UWORD d0 __asm("d0");
-    __asm volatile ("jsr -42(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static ULONG pplib_ppCalcPasskey(struct Library *base, STRPTR password)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register STRPTR a0 __asm("a0") = password;
-    register ULONG d0 __asm("d0");
-    __asm volatile ("jsr -48(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static APTR pplib_ppAllocCrunchInfo(struct Library *base, ULONG efficiency, ULONG speedup,
-                                     APTR callback, ULONG memType)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register ULONG d0_in __asm("d0") = efficiency;
-    register ULONG d1 __asm("d1") = speedup;
-    register APTR a0 __asm("a0") = callback;
-    register ULONG d2 __asm("d2") = memType;
-    register APTR d0 __asm("d0");
-    __asm volatile ("jsr -60(%%a6)" : "=r"(d0) : "r"(a6), "0"(d0_in), "r"(d1), "r"(a0), "r"(d2) : "a1", "memory");
-    return d0;
-}
-
-static STRPTR pplib_ppErrorMessage(struct Library *base, ULONG errorCode)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register ULONG d0_in __asm("d0") = errorCode;
-    register STRPTR d0 __asm("d0");
-    __asm volatile ("jsr -90(%%a6)" : "=r"(d0) : "r"(a6), "0"(d0_in) : "a0", "a1", "d1", "memory");
-    return d0;
-}
-
-static int test_powerpacker_library(void)
+static int test_open_and_version(void)
 {
     int errors = 0;
-    struct Library *base;
+    ULONG i;
 
-    print("--- Test: powerpacker.library ---\n");
+    static const LibSpec libs[] = {
+        { "req.library",          2  },
+        { "reqtools.library",     38 },
+        { "powerpacker.library",  37 },
+        { "arp.library",          40 },
+    };
+    const ULONG count = sizeof(libs) / sizeof(libs[0]);
 
-    base = OpenLibrary((CONST_STRPTR)"powerpacker.library", 0);
-    if (base == NULL)
+    print("--- Test: Open real libraries and check version ---\n");
+
+    for (i = 0; i < count; i++)
     {
-        print("FAIL: OpenLibrary(\"powerpacker.library\", 0) returned NULL\n");
-        return 1;
-    }
-    print("OK: OpenLibrary(\"powerpacker.library\") returned ");
-    print_hex((ULONG)base);
-    print("\n");
+        struct Library *base = OpenLibrary((CONST_STRPTR)libs[i].name, 0);
 
-    /* Verify version */
-    if (base->lib_Version != 36)
-    {
-        print("FAIL: lib_Version is ");
+        print(libs[i].name);
+        print(": ");
+
+        if (base == NULL)
+        {
+            print("FAIL: OpenLibrary() returned NULL\n");
+            errors++;
+            continue;
+        }
+
+        print("opened at ");
+        print_hex((ULONG)base);
+        print(", version=");
         print_num(base->lib_Version);
-        print(" expected 36\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: lib_Version == 36\n");
+
+        if (base->lib_Version != libs[i].expected_version)
+        {
+            print(" FAIL: expected ");
+            print_num(libs[i].expected_version);
+            print("\n");
+            errors++;
+        }
+        else
+        {
+            print(" OK\n");
+        }
+
+        CloseLibrary(base);
     }
 
-    /* ppLoadData should return PP_OPENERR (1) */
-    {
-        UBYTE *buffer = (UBYTE *)0xdeadbeef;
-        ULONG length = 0xdeadbeef;
-        ULONG result = pplib_ppLoadData(base, (STRPTR)"test.pp", 0, 0, &buffer, &length, NULL);
-        if (result != PP_OPENERR)
-        {
-            print("FAIL: ppLoadData() returned ");
-            print_num((LONG)result);
-            print(" expected PP_OPENERR (1)\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ppLoadData() returned PP_OPENERR\n");
-        }
-        if (buffer != NULL)
-        {
-            print("FAIL: ppLoadData() buffer was not set to NULL\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ppLoadData() buffer set to NULL\n");
-        }
-        if (length != 0)
-        {
-            print("FAIL: ppLoadData() length was not set to 0\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ppLoadData() length set to 0\n");
-        }
-    }
-
-    /* ppCalcChecksum(NULL) should return 0 */
-    {
-        UWORD result = pplib_ppCalcChecksum(base, NULL);
-        if (result != 0)
-        {
-            print("FAIL: ppCalcChecksum(NULL) returned ");
-            print_num((LONG)result);
-            print(" expected 0\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ppCalcChecksum(NULL) returned 0\n");
-        }
-    }
-
-    /* ppCalcPasskey(NULL) should return 0 */
-    {
-        ULONG result = pplib_ppCalcPasskey(base, NULL);
-        if (result != 0)
-        {
-            print("FAIL: ppCalcPasskey(NULL) returned ");
-            print_num((LONG)result);
-            print(" expected 0\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ppCalcPasskey(NULL) returned 0\n");
-        }
-    }
-
-    /* ppAllocCrunchInfo should return NULL */
-    {
-        APTR result = pplib_ppAllocCrunchInfo(base, 1, 0, NULL, 0);
-        if (result != NULL)
-        {
-            print("FAIL: ppAllocCrunchInfo() returned non-NULL\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ppAllocCrunchInfo() returned NULL\n");
-        }
-    }
-
-    /* ppErrorMessage should return NULL */
-    {
-        STRPTR result = pplib_ppErrorMessage(base, PP_OPENERR);
-        if (result != NULL)
-        {
-            print("FAIL: ppErrorMessage(PP_OPENERR) returned non-NULL\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ppErrorMessage(PP_OPENERR) returned NULL\n");
-        }
-    }
-
-    CloseLibrary(base);
-    print("OK: CloseLibrary(powerpacker.library) succeeded\n\n");
+    print("\n");
     return errors;
 }
 
 /* ========================================================================
- * reqtools.library tests
- * ======================================================================== */
-
-static APTR rtlib_rtAllocRequestA(struct Library *base, ULONG type, APTR taglist)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register ULONG d0_in __asm("d0") = type;
-    register APTR a0 __asm("a0") = taglist;
-    register APTR d0 __asm("d0");
-    __asm volatile ("jsr -30(%%a6)" : "=r"(d0) : "r"(a6), "0"(d0_in), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static ULONG rtlib_rtEZRequestA(struct Library *base, STRPTR bodyfmt, STRPTR gadfmt,
-                                 APTR reqinfo, APTR argarray, APTR taglist)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register STRPTR a1 __asm("a1") = bodyfmt;
-    register STRPTR a2 __asm("a2") = gadfmt;
-    register APTR a3 __asm("a3") = reqinfo;
-    register APTR a4 __asm("a4") = argarray;
-    register APTR a0 __asm("a0") = taglist;
-    register ULONG d0 __asm("d0");
-    __asm volatile ("jsr -66(%%a6)" : "=r"(d0) : "r"(a6), "r"(a1), "r"(a2), "r"(a3), "r"(a4), "r"(a0) : "d1", "memory");
-    return d0;
-}
-
-static APTR rtlib_rtFileRequestA(struct Library *base, APTR filereq, STRPTR file,
-                                  STRPTR title, APTR taglist)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register APTR a1 __asm("a1") = filereq;
-    register STRPTR a2 __asm("a2") = file;
-    register STRPTR a3 __asm("a3") = title;
-    register APTR a0 __asm("a0") = taglist;
-    register APTR d0 __asm("d0");
-    __asm volatile ("jsr -54(%%a6)" : "=r"(d0) : "r"(a6), "r"(a1), "r"(a2), "r"(a3), "r"(a0) : "d1", "memory");
-    return d0;
-}
-
-static ULONG rtlib_rtGetStringA(struct Library *base, UBYTE *buffer, ULONG maxchars,
-                                 STRPTR title, APTR reqinfo, APTR taglist)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register UBYTE *a1 __asm("a1") = buffer;
-    register ULONG d0_in __asm("d0") = maxchars;
-    register STRPTR a2 __asm("a2") = title;
-    register APTR a3 __asm("a3") = reqinfo;
-    register APTR a0 __asm("a0") = taglist;
-    register ULONG d0 __asm("d0");
-    __asm volatile ("jsr -72(%%a6)" : "=r"(d0) : "r"(a6), "r"(a1), "0"(d0_in), "r"(a2), "r"(a3), "r"(a0) : "d1", "memory");
-    return d0;
-}
-
-static LONG rtlib_rtPaletteRequestA(struct Library *base, STRPTR title, APTR reqinfo, APTR taglist)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register STRPTR a2 __asm("a2") = title;
-    register APTR a3 __asm("a3") = reqinfo;
-    register APTR a0 __asm("a0") = taglist;
-    register LONG d0 __asm("d0");
-    __asm volatile ("jsr -102(%%a6)" : "=r"(d0) : "r"(a6), "r"(a2), "r"(a3), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static APTR rtlib_rtLockWindow(struct Library *base, APTR win)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register APTR a0 __asm("a0") = win;
-    register APTR d0 __asm("d0");
-    __asm volatile ("jsr -156(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static int test_reqtools_library(void)
-{
-    int errors = 0;
-    struct Library *base;
-
-    print("--- Test: reqtools.library ---\n");
-
-    base = OpenLibrary((CONST_STRPTR)"reqtools.library", 0);
-    if (base == NULL)
-    {
-        print("FAIL: OpenLibrary(\"reqtools.library\", 0) returned NULL\n");
-        return 1;
-    }
-    print("OK: OpenLibrary(\"reqtools.library\") returned ");
-    print_hex((ULONG)base);
-    print("\n");
-
-    /* Verify version */
-    if (base->lib_Version != 38)
-    {
-        print("FAIL: lib_Version is ");
-        print_num(base->lib_Version);
-        print(" expected 38\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: lib_Version == 38\n");
-    }
-
-    /* rtAllocRequestA(0, NULL) should return NULL */
-    {
-        APTR result = rtlib_rtAllocRequestA(base, 0, NULL);
-        if (result != NULL)
-        {
-            print("FAIL: rtAllocRequestA(0, NULL) returned non-NULL\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: rtAllocRequestA(0, NULL) returned NULL\n");
-        }
-    }
-
-    /* rtEZRequestA should return 0 */
-    {
-        ULONG result = rtlib_rtEZRequestA(base, (STRPTR)"Test", (STRPTR)"OK", NULL, NULL, NULL);
-        if (result != 0)
-        {
-            print("FAIL: rtEZRequestA() returned ");
-            print_num((LONG)result);
-            print(" expected 0\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: rtEZRequestA() returned 0\n");
-        }
-    }
-
-    /* rtFileRequestA should return NULL */
-    {
-        APTR result = rtlib_rtFileRequestA(base, NULL, NULL, (STRPTR)"Select File", NULL);
-        if (result != NULL)
-        {
-            print("FAIL: rtFileRequestA() returned non-NULL\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: rtFileRequestA() returned NULL\n");
-        }
-    }
-
-    /* rtGetStringA should return 0 */
-    {
-        UBYTE buf[64];
-        ULONG result = rtlib_rtGetStringA(base, buf, 64, (STRPTR)"Enter text", NULL, NULL);
-        if (result != 0)
-        {
-            print("FAIL: rtGetStringA() returned ");
-            print_num((LONG)result);
-            print(" expected 0\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: rtGetStringA() returned 0\n");
-        }
-    }
-
-    /* rtPaletteRequestA should return -1 */
-    {
-        LONG result = rtlib_rtPaletteRequestA(base, (STRPTR)"Select Color", NULL, NULL);
-        if (result != -1)
-        {
-            print("FAIL: rtPaletteRequestA() returned ");
-            print_num(result);
-            print(" expected -1\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: rtPaletteRequestA() returned -1\n");
-        }
-    }
-
-    /* rtLockWindow(NULL) should return NULL */
-    {
-        APTR result = rtlib_rtLockWindow(base, NULL);
-        if (result != NULL)
-        {
-            print("FAIL: rtLockWindow(NULL) returned non-NULL\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: rtLockWindow(NULL) returned NULL\n");
-        }
-    }
-
-    CloseLibrary(base);
-    print("OK: CloseLibrary(reqtools.library) succeeded\n\n");
-    return errors;
-}
-
-/* ========================================================================
- * arp.library tests
- * ======================================================================== */
-
-/* ARP public functions start at -228. We test a representative sample. */
-
-static LONG arplib_Printf(struct Library *base, STRPTR string, APTR stream)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register STRPTR a0 __asm("a0") = string;
-    register APTR a1 __asm("a1") = stream;
-    register LONG d0 __asm("d0");
-    __asm volatile ("jsr -228(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0), "r"(a1) : "d1", "memory");
-    return d0;
-}
-
-static STRPTR arplib_FileRequest(struct Library *base, APTR filerequester)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register APTR a0 __asm("a0") = filerequester;
-    register STRPTR d0 __asm("d0");
-    __asm volatile ("jsr -294(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0) : "a1", "d1", "memory");
-    return d0;
-}
-
-static APTR arplib_DosAllocMem(struct Library *base, LONG size)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register LONG d0_in __asm("d0") = size;
-    register APTR d0 __asm("d0");
-    __asm volatile ("jsr -342(%%a6)" : "=r"(d0) : "r"(a6), "0"(d0_in) : "a0", "a1", "d1", "memory");
-    return d0;
-}
-
-static BOOL arplib_PatternMatch(struct Library *base, STRPTR pattern, STRPTR string)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register STRPTR a0 __asm("a0") = pattern;
-    register STRPTR a1 __asm("a1") = string;
-    register BOOL d0 __asm("d0");
-    __asm volatile ("jsr -432(%%a6)" : "=r"(d0) : "r"(a6), "r"(a0), "r"(a1) : "d1", "memory");
-    return d0;
-}
-
-static struct Library * arplib_ArpOpenLibrary(struct Library *base, STRPTR name, LONG vers)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register STRPTR a1 __asm("a1") = name;
-    register LONG d0_in __asm("d0") = vers;
-    register struct Library *d0 __asm("d0");
-    __asm volatile ("jsr -654(%%a6)" : "=r"(d0) : "r"(a6), "r"(a1), "0"(d0_in) : "a0", "memory");
-    return d0;
-}
-
-static APTR arplib_ArpAllocFreq(struct Library *base)
-{
-    register struct Library *a6 __asm("a6") = base;
-    register APTR d0 __asm("d0");
-    __asm volatile ("jsr -660(%%a6)" : "=r"(d0) : "r"(a6) : "a0", "a1", "d1", "memory");
-    return d0;
-}
-
-static int test_arp_library(void)
-{
-    int errors = 0;
-    struct Library *base;
-
-    print("--- Test: arp.library ---\n");
-
-    base = OpenLibrary((CONST_STRPTR)"arp.library", 0);
-    if (base == NULL)
-    {
-        print("FAIL: OpenLibrary(\"arp.library\", 0) returned NULL\n");
-        return 1;
-    }
-    print("OK: OpenLibrary(\"arp.library\") returned ");
-    print_hex((ULONG)base);
-    print("\n");
-
-    /* Verify version */
-    if (base->lib_Version != 40)
-    {
-        print("FAIL: lib_Version is ");
-        print_num(base->lib_Version);
-        print(" expected 40\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: lib_Version == 40\n");
-    }
-
-    /* Printf should return 0 */
-    {
-        LONG result = arplib_Printf(base, NULL, NULL);
-        if (result != 0)
-        {
-            print("FAIL: Printf() returned ");
-            print_num(result);
-            print(" expected 0\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: Printf() returned 0\n");
-        }
-    }
-
-    /* FileRequest(NULL) should return NULL */
-    {
-        STRPTR result = arplib_FileRequest(base, NULL);
-        if (result != NULL)
-        {
-            print("FAIL: FileRequest(NULL) returned non-NULL\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: FileRequest(NULL) returned NULL\n");
-        }
-    }
-
-    /* DosAllocMem(100) should return NULL */
-    {
-        APTR result = arplib_DosAllocMem(base, 100);
-        if (result != NULL)
-        {
-            print("FAIL: DosAllocMem(100) returned non-NULL\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: DosAllocMem(100) returned NULL\n");
-        }
-    }
-
-    /* PatternMatch should return FALSE */
-    {
-        BOOL result = arplib_PatternMatch(base, (STRPTR)"#?", (STRPTR)"test");
-        if (result != FALSE)
-        {
-            print("FAIL: PatternMatch() returned ");
-            print_num(result);
-            print(" expected FALSE\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: PatternMatch() returned FALSE\n");
-        }
-    }
-
-    /* ArpOpenLibrary should return NULL */
-    {
-        struct Library *result = arplib_ArpOpenLibrary(base, (STRPTR)"fake.library", 0);
-        if (result != NULL)
-        {
-            print("FAIL: ArpOpenLibrary() returned non-NULL\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ArpOpenLibrary() returned NULL\n");
-        }
-    }
-
-    /* ArpAllocFreq should return NULL */
-    {
-        APTR result = arplib_ArpAllocFreq(base);
-        if (result != NULL)
-        {
-            print("FAIL: ArpAllocFreq() returned non-NULL\n");
-            errors++;
-        }
-        else
-        {
-            print("OK: ArpAllocFreq() returned NULL\n");
-        }
-    }
-
-    CloseLibrary(base);
-    print("OK: CloseLibrary(arp.library) succeeded\n\n");
-    return errors;
-}
-
-/* ========================================================================
- * Additional tests: open/close reference counting
+ * Test: Reference counting with one of the real libraries
  * ======================================================================== */
 
 static int test_refcounting(void)
@@ -878,21 +198,18 @@ static int test_refcounting(void)
     struct Library *base;
     struct Library *base2;
     UWORD cnt_after_open;
-    UWORD cnt_after_close;
 
-    print("--- Test: Reference counting ---\n");
+    print("--- Test: Reference counting (req.library) ---\n");
 
-    /* Test with powerpacker.library as representative */
-    base = OpenLibrary((CONST_STRPTR)"powerpacker.library", 0);
+    base = OpenLibrary((CONST_STRPTR)"req.library", 0);
     if (base == NULL)
     {
-        print("FAIL: OpenLibrary(\"powerpacker.library\") returned NULL\n");
+        print("FAIL: OpenLibrary(\"req.library\") returned NULL\n");
         return 1;
     }
     cnt_after_open = base->lib_OpenCnt;
 
-    /* Open again */
-    base2 = OpenLibrary((CONST_STRPTR)"powerpacker.library", 0);
+    base2 = OpenLibrary((CONST_STRPTR)"req.library", 0);
     if (base2 == NULL)
     {
         print("FAIL: Second OpenLibrary() returned NULL\n");
@@ -925,11 +242,11 @@ static int test_refcounting(void)
     }
 
     CloseLibrary(base2);
-    cnt_after_close = base->lib_OpenCnt;
-    if (cnt_after_close != cnt_after_open)
+
+    if (base->lib_OpenCnt != cnt_after_open)
     {
-        print("FAIL: lib_OpenCnt after close is ");
-        print_num(cnt_after_close);
+        print("FAIL: lib_OpenCnt after CloseLibrary is ");
+        print_num(base->lib_OpenCnt);
         print(" expected ");
         print_num(cnt_after_open);
         print("\n");
@@ -937,52 +254,11 @@ static int test_refcounting(void)
     }
     else
     {
-        print("OK: lib_OpenCnt decremented correctly after CloseLibrary()\n");
+        print("OK: lib_OpenCnt decremented correctly\n");
     }
 
     CloseLibrary(base);
     print("OK: Reference counting test complete\n\n");
-    return errors;
-}
-
-/* ========================================================================
- * Test: Libraries are NOT resident in ROM (they're disk libraries)
- * ======================================================================== */
-
-static int test_not_in_rom(void)
-{
-    static const char *lib_names[] = {
-        "req.library",
-        "reqtools.library",
-        "powerpacker.library",
-        "arp.library"
-    };
-    int errors = 0;
-    ULONG i;
-
-    print("--- Test: Libraries not resident in ROM ---\n");
-
-    for (i = 0; i < 4; i++)
-    {
-        struct Resident *resident = FindResident((CONST_STRPTR)lib_names[i]);
-        struct Node *node;
-
-        print("Checking ");
-        print(lib_names[i]);
-        print("... ");
-
-        if (resident != NULL)
-        {
-            print("FAIL: found as ROM resident\n");
-            errors++;
-        }
-        else
-        {
-            print("OK (not ROM resident)\n");
-        }
-    }
-
-    print("\n");
     return errors;
 }
 
@@ -994,27 +270,17 @@ int main(void)
 {
     int errors = 0;
 
-    print("=== exec/disklib_stubs Test ===\n\n");
+    print("=== Third-party library loading test ===\n\n");
 
-    /* Test 1: Libraries are not resident in ROM */
+    /* Test 1: Not ROM resident */
     errors += test_not_in_rom();
 
-    /* Test 2: req.library */
-    errors += test_req_library();
+    /* Test 2: Open + version check */
+    errors += test_open_and_version();
 
-    /* Test 3: powerpacker.library */
-    errors += test_powerpacker_library();
-
-    /* Test 4: reqtools.library */
-    errors += test_reqtools_library();
-
-    /* Test 5: arp.library */
-    errors += test_arp_library();
-
-    /* Test 6: Reference counting */
+    /* Test 3: Reference counting */
     errors += test_refcounting();
 
-    /* ========== Final result ========== */
     print("=== Test Results ===\n");
     if (errors == 0)
     {

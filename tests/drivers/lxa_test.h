@@ -328,17 +328,39 @@ inline const char* FindGadgetsPath() {
 /**
  * Helper function to find an optional third-party libraries path for tests.
  *
- * Set LXA_TEST_THIRD_PARTY_LIBS to a directory containing disk-provided
- * libraries such as reqtools.library when validating app startup flows that
- * depend on external libraries rather than ROM stubs.
+ * Third-party library binaries (req.library, reqtools.library, etc.) live in
+ * share/lxa/System/Libs/ in the source tree.  This function auto-discovers
+ * that directory so the LIBS: assign is set up correctly without requiring an
+ * environment variable.
+ *
+ * The LXA_TEST_THIRD_PARTY_LIBS environment variable can still be used to
+ * override the auto-detected path.
  */
 inline const char* FindThirdPartyLibsPath() {
     static std::string third_party_libs_path;
-    const char* env_path = std::getenv("LXA_TEST_THIRD_PARTY_LIBS");
 
+    /* Explicit override via environment variable */
+    const char* env_path = std::getenv("LXA_TEST_THIRD_PARTY_LIBS");
     if (env_path != nullptr && env_path[0] != '\0' && access(env_path, F_OK) == 0) {
         third_party_libs_path = env_path;
         return third_party_libs_path.c_str();
+    }
+
+    /* Auto-discover share/lxa/System/Libs relative to CWD (build tree) */
+    const char* candidates[] = {
+        "share/lxa/System/Libs",
+        "../share/lxa/System/Libs",
+        "../../share/lxa/System/Libs",
+        nullptr
+    };
+    for (int i = 0; candidates[i]; i++) {
+        if (access(candidates[i], F_OK) == 0) {
+            char resolved[PATH_MAX];
+            if (realpath(candidates[i], resolved)) {
+                third_party_libs_path = resolved;
+                return third_party_libs_path.c_str();
+            }
+        }
     }
 
     return nullptr;

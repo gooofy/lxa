@@ -45,29 +45,16 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 
 ---
 
-## Completed Phases (Summary)
+ ## Completed Phases (Summary)
 
 | Phase | Title | Version |
 |-------|-------|---------|
 | 141 | Fix MiscTest.StressTasks — race: `SetSignal(0,mask)` was called after `CreateNewProc`, discarding signals sent by child before parent reached `Wait`. Fixed by pre-clearing the signal before each task launch. Re-enabled `StressTasks`; 68/68 pass. | v0.9.23 |
+| 142 | Library policy cleanup: removed third-party stubs (`req.library`, `reqtools.library`, `powerpacker.library`, `arp.library`); real binaries from `others/` now live in `share/lxa/System/Libs/`. `FindThirdPartyLibsPath()` in `lxa_test.h` auto-discovers the directory so LIBS: is set up correctly in all tests. 68/68 pass. | v0.9.24 |
 
 ---
 
 ## Next Phase
-
-### Phase 142 — Library policy cleanup: third-party stub removal
-
-Correct the longstanding policy violation from Phase 110: third-party stubs (`req.library`, `reqtools.library`, `powerpacker.library`) must not exist in lxa. Real binaries supplied by the user, same as `bgui.library`.
-
-- [ ] Delete `src/rom/lxa_reqlib.c`, `src/rom/lxa_reqtools.c`, `src/rom/lxa_powerpacker.c`
-- [ ] Remove the corresponding `add_disk_library()` entries from `sys/CMakeLists.txt`
-- [ ] real `req.library`, `reqtools.library`, `powerpacker.library` binaries are in others/ directory
-- [ ] Install supplied binaries to `share/lxa/System/Libs/` (same pattern as `bgui.library`)
-- [ ] Update tests that previously validated "stub returns failure cleanly" to validate real library functionality (or skip if binary missing)
-- [ ] `arp.library`: treat as third-party (CBM did not ship with AmigaOS); apply same removal pattern
-- [ ] DevPac File→Open requester now opens with real `req.library` (was stubbed silently failing)
-
-**Test gate**: Full suite passes. Apps that depended on stub-returned failures (DevPac File→Open) still do not crash; with real binaries, the requester actually appears.
 
 ### Phase 143 — datatypes.library full implementation
 

@@ -80,25 +80,10 @@ add_disk_library(amigaguide_disklib amigaguide.library
         ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_amigaguide.c
 )
 
-add_disk_library(reqlib_disklib req.library
-    SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_reqlib.c
-)
-
-add_disk_library(reqtools_disklib reqtools.library
-    SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_reqtools.c
-)
-
-add_disk_library(powerpacker_disklib powerpacker.library
-    SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_powerpacker.c
-)
-
-add_disk_library(arp_disklib arp.library
-    SOURCES
-        ${CMAKE_CURRENT_SOURCE_DIR}/../src/rom/lxa_arp.c
-)
+# req.library, reqtools.library, powerpacker.library, arp.library are
+# third-party libraries (not shipped with AmigaOS by Commodore).
+# Real binaries are installed to share/lxa/System/Libs/ from others/.
+# DO NOT add stub implementations here — see AGENTS.md §1 and roadmap Phase 142.
 
 add_disk_library(datatypes_disklib datatypes.library
     SOURCES
