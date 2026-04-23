@@ -5,6 +5,7 @@ This document is the entry point for AI agents working on the `lxa` codebase. Tr
 ## 1. Core Mandates
 - **Stability**: Zero tolerance for crashes.
 - **Coverage**: 100% test coverage required.
+- **Zero failing tests at phase completion**: The full test suite (`ctest --test-dir build -j16 --timeout 180`) must report **zero failures and zero timeouts** before any phase is declared done. Failures inherited from earlier phases are NOT acceptable as "pre-existing" — fix them, or formally quarantine them with a `DISABLED_` GTest prefix AND a roadmap entry justifying the deferral. Hand-waving "5 pre-existing failures, unrelated to my phase" is forbidden.
 - **Reference**: ALWAYS consult RKRM and NDK.
 - **System Libraries Must Be Fully Implemented**: AmigaOS system libraries (dos.library, exec.library, graphics.library, intuition.library, datatypes.library, etc.) must have complete, correct implementations — not stubs. Stub implementations of system libraries are never acceptable; they mask bugs and break app compatibility. If a system library function is missing or incomplete, implement it properly.
 - **Third-Party Libraries: STOP and Notify the User**: Do NOT implement or stub third-party (non-Commodore-OS) libraries (e.g., req.library, reqtools.library, powerpacker.library, bgui.library, MUI, etc.). These must be supplied as real binaries on disk. If a required third-party library binary is missing, **STOP immediately and notify the user** — do not write a stub and do not proceed. The user must provide the real library binary.
@@ -30,40 +31,11 @@ The host-side integration stack has grown beyond simple click injection. Future 
 
 Prefer these helpers over brittle coordinate-only scripts whenever the test can identify a real window or gadget.
 
-### Visual Investigation with `tools/screenshot_review.py`
+### Visual Investigation of Failure Artifacts
 
-When a captured screenshot shows an unexpected visual result and the root cause is not obvious from code inspection alone, use the OpenRouter-backed screenshot review helper to get a structured visual analysis:
+When a GTest driver captures a failure artifact via `lxa_capture_window()` or `lxa_capture_screen()` and the pixel-level assertion message alone does not explain the visual defect, attach the captured PNG directly to your assistant message. The current OpenCode coding harness supports image input natively — no external tool or API key is required. Ask the assistant to describe layout, clipping, text rendering, or menu artifacts, then translate the findings into a deterministic pixel/geometry assertion so the defect is caught automatically in future runs.
 
-```bash
-# Review a single capture
-python tools/screenshot_review.py path/to/capture.png
-
-# Compare multiple shots (before/after, or lxa vs reference)
-python tools/screenshot_review.py before.png after.png
-
-# Override the model when a specific vision model is preferred
-python tools/screenshot_review.py --model anthropic/claude-sonnet-4.6 shot.png
-
-# Supply a focused prompt when investigating a specific known issue
-python tools/screenshot_review.py --prompt "Describe the menu separator rendering" shot.png
-
-# Machine-readable output for scripting
-python tools/screenshot_review.py --output json shot.png
-```
-
-**Requirements**: set `OPENROUTER_API_KEY` in the environment before calling the tool.
-
-**When to use it**:
-- A GTest driver captures a failure artifact via `lxa_capture_window()` and the pixel-level assertion message alone does not explain the visual defect.
-- You need to triage a UI regression that involves layout, clipping, text rendering, or menu drawing without a real Amiga for reference comparison.
-- You want a quick second opinion on whether a rendered window looks correct before writing a pixel-level regression test.
-
-**When NOT to use it**:
-- The bug is purely algorithmic (wrong calculation, wrong state) — read the code instead.
-- You have not yet captured a screenshot — run the GTest driver first to produce artifacts.
-- Automated CI paths — the tool requires a live OpenRouter API key and is intended for developer investigations only.
-
-See the `graphics-testing` skill for the full workflow and how to integrate capture + review into a debugging session.
+See the `graphics-testing` skill for the full capture-and-review workflow.
 
 ## 4. Available Skills
 Load the specific skill relevant to your task:

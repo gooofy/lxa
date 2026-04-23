@@ -170,15 +170,6 @@ lxa -s /path/to/amiga myprogram
 lxa -d -v myprogram
 ```
 
-### Screenshot Review Helper
-
-```bash
-python tools/screenshot_review.py screenshot.png
-python tools/screenshot_review.py --model anthropic/claude-sonnet-4.6 shot1.png shot2.png
-```
-
-The helper sends screenshots to OpenRouter using `OPENROUTER_API_KEY` and prints a vision-model review that is useful when comparing `lxa` UI output to a real Amiga.
-
 ## Implemented Features
 
 ### AmigaOS Libraries

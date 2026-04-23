@@ -173,64 +173,33 @@ TEST_F(MyAppTest, EditorStatusBarRenders) {
 | "This specific label renders" | Text hook |
 | "Menu title is correct" | Menu introspection (Phase 131) |
 
-## 8. Visual Investigation with `tools/screenshot_review.py`
+## 8. Visual Investigation of Failure Artifacts
 
-When a captured screenshot needs human-readable visual analysis — especially when a pixel assertion fires but the defect is not obvious from numbers alone — use the OpenRouter vision helper.
-
-### Prerequisites
-```bash
-export OPENROUTER_API_KEY=<your-key>
-```
-
-### Basic usage
-```bash
-# Single capture review
-python tools/screenshot_review.py path/to/capture.png
-
-# Side-by-side comparison (e.g. before/after a fix, or lxa vs reference)
-python tools/screenshot_review.py before.png after.png
-
-# Focus the model on a specific subsystem
-python tools/screenshot_review.py \
-    --prompt "Describe any clipping or overdraw around the menu separator" \
-    capture.png
-
-# Use a specific vision model
-python tools/screenshot_review.py \
-    --model anthropic/claude-sonnet-4.6 \
-    capture.png
-
-# Machine-readable output for scripting or logging
-python tools/screenshot_review.py --output json capture.png
-```
+When a captured screenshot needs human-readable visual analysis — especially when a pixel assertion fires but the defect is not obvious from numbers alone — attach the captured PNG directly to your assistant message. The current OpenCode coding harness supports image input natively; no external CLI tool, model selection, or API key is required.
 
 ### Typical debugging workflow
 1. Run the GTest driver to reproduce the visual defect and collect an artifact:
    ```bash
    ./build/tests/drivers/my_app_gtest --gtest_filter="MyTest.BadMenu"
-   # driver calls lxa_capture_window() on failure → saves capture.png
+   # driver calls lxa_capture_window() on failure → saves capture.png to /tmp/
    ```
-2. Send the artifact to the vision model:
-   ```bash
-   python tools/screenshot_review.py /tmp/lxa_capture_*.png
-   ```
-3. Use the model's region/coordinate hints to focus a targeted pixel assertion or a narrower code search.
+2. Attach the artifact (e.g. `/tmp/lxa_capture_*.png`) directly in your next assistant message and ask for a description of the visible defect (clipping, overdraw, missing chrome, wrong colours, etc.).
+3. Use the visual description to focus a targeted pixel assertion or a narrower code search.
 4. Once the root cause is confirmed in code, write or update the pixel-level GTest regression so the defect is caught automatically in future runs.
 
 ### When to use it
-| Situation | Use the tool? |
-|-----------|---------------|
+| Situation | Attach a screenshot? |
+|-----------|----------------------|
 | GTest failure artifact needs visual diagnosis | Yes |
-| Comparing lxa output to a real-Amiga reference image | Yes |
+| Comparing lxa output to a real-Amiga reference image | Yes — attach both |
 | Triaging a layout/clipping/menu rendering regression | Yes |
 | Bug is purely algorithmic (no visual component) | No |
 | No screenshot has been captured yet | No — capture first |
-| Automated CI path | No — requires live API key |
+| Automated CI path | No — this is a developer-investigation workflow only |
 
 ### Notes
-- The default model is `google/gemini-3-flash-preview`. Override with `--model` when a stronger model is needed for subtle rendering details.
-- The default prompt is tuned for Amiga UI review. Supply `--prompt` only when narrowing to a specific subsystem helps.
-- The tool is for **developer investigation only**; never add API calls to it in automated test code.
+- The retired CLI helper (`tools/screenshot_review.py`) has been moved to `attic/`. Do not invoke it; use the native image-input capability instead.
+- Never embed image-analysis API calls in test code; visual triage is for developer investigation only.
 
 ## 11. RTG / Picasso96 Testing (Phase 137+)
 

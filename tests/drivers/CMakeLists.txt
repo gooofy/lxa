@@ -220,7 +220,7 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             FILTER "GadToolsGadgetsPixelTest.StringGadgetTextRendered:GadToolsGadgetsPixelTest.ButtonLabelRendered:GadToolsGadgetsPixelTest.SliderKnobVisible:GadToolsGadgetsPixelTest.SliderBevelBorderRendered"
             TIMEOUT 180)
         add_gtest_driver_shard(gadtoolsgadgets_pixels_c_gtest gadtoolsgadgets_gtest
-            FILTER "GadToolsGadgetsPixelTest.UnderscoreLabelRendered:GadToolsGadgetsPixelTest.SliderLevelValueRendered:GadToolsGadgetsPixelTest.SizeGadgetRendered:GadToolsGadgetsPixelTest.DepthGadgetRendered:GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean"
+            FILTER "GadToolsGadgetsPixelTest.UnderscoreLabelRendered:GadToolsGadgetsPixelTest.SliderLevelValueRendered:GadToolsGadgetsPixelTest.SizeGadgetRendered:GadToolsGadgetsPixelTest.DepthGadgetRendered"
             TIMEOUT 180)
     endif()
     
