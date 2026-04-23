@@ -586,6 +586,16 @@ bool display_available(void)
  */
 display_t *display_open(int width, int height, int depth, const char *title)
 {
+    /* Legacy entry point: caller has not declared its intent. Default
+     * to wanting a host window in non-rootless mode and (per Phase 147a)
+     * also in rootless mode for back-compat with any caller that has
+     * not been updated. New callers should use display_open_ex(). */
+    return display_open_ex(width, height, depth, title, true);
+}
+
+display_t *display_open_ex(int width, int height, int depth,
+                           const char *title, bool wants_host_window)
+{
     display_t *display;
 
     if (!g_display_initialized)
@@ -644,7 +654,13 @@ display_t *display_open(int width, int height, int depth, const char *title)
     }
 
 #if HAS_SDL2
-    if (g_sdl_available && !g_headless_mode && !g_rootless_mode)
+    /* Phase 147a: A screen owns an SDL host window only when the caller
+     * explicitly wants one. In rootless mode the Workbench/public screen
+     * does NOT get a host window — each Workbench window becomes its own
+     * native host window via display_window_open_ex(). Custom screens
+     * (like Typeface's) DO get a host window and render chrome + child
+     * windows into it. Non-rootless mode always wants a host window. */
+    if (g_sdl_available && !g_headless_mode && wants_host_window)
     {
         const char *window_title = title ? title : "LXA Display";
 
@@ -1678,10 +1694,34 @@ static bool display_window_apply_host_extent(display_window_t *window)
 
 /*
  * Open a rootless window.
+ *
+ * Legacy entry point: behaves as if the window is to be presented as a
+ * native host window whenever rootless mode is enabled. Internal callers
+ * should use display_window_open_ex() to make the decision explicit.
  */
 display_window_t *display_window_open(display_t *screen, int x, int y,
                                        int width, int height, int depth,
                                        const char *title)
+{
+    return display_window_open_ex(screen, x, y, width, height, depth,
+                                   title, g_rootless_mode);
+}
+
+/*
+ * Phase 147a: Explicit-control window open.
+ *
+ * When uses_native_host is true the window is presented as a separate
+ * native host (SDL) window — this is the rootless-mode behaviour for
+ * Workbench/public-screen windows, where the host WM provides chrome.
+ *
+ * When uses_native_host is false only a tracking slot + pixel buffer
+ * is allocated. The window is rendered into its parent screen's host
+ * display (the screen owns the SDL window via display_open()).
+ */
+display_window_t *display_window_open_ex(display_t *screen, int x, int y,
+                                          int width, int height, int depth,
+                                          const char *title,
+                                          bool uses_native_host)
 {
     display_window_t *win;
 
@@ -1712,12 +1752,29 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
     win->screen = screen;
     win->x = x;
     win->y = y;
-    win->host_x = x;
-    win->host_y = rootless_layout_host_origin_y(y);
     win->logical_width = width;
     win->logical_height = height;
-    win->width = display_window_host_width(win, width);
-    win->height = display_window_host_height(win, height);
+
+    if (uses_native_host)
+    {
+        /* Workbench/public-screen rootless window: widen for host menu bar
+         * and clamp host origin to the desktop. */
+        win->host_x = x;
+        win->host_y = rootless_layout_host_origin_y(y);
+        win->width = display_window_host_width(win, width);
+        win->height = display_window_host_height(win, height);
+    }
+    else
+    {
+        /* Custom-screen window (or non-rootless mode): the window lives
+         * inside its parent screen's bitmap. Do NOT widen — the screen's
+         * own host display is responsible for presenting these pixels. */
+        win->host_x = x;
+        win->host_y = y;
+        win->width = width;
+        win->height = height;
+    }
+
     win->depth = depth;
 
     /* Validate computed host dimensions against bounds.
@@ -1776,7 +1833,7 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
     }
 
 #if HAS_SDL2
-    if (g_sdl_available && !g_headless_mode)
+    if (uses_native_host && g_sdl_available && !g_headless_mode)
     {
         const char *window_title = title ? title : "LXA Window";
 
@@ -1847,10 +1904,12 @@ display_window_t *display_window_open(display_t *screen, int x, int y,
     }
     else
     {
-        LPRINTF(LOG_INFO, "display: opened virtual window %dx%d (no SDL2)\n",
-                win->width, win->height);
+        LPRINTF(LOG_INFO, "display: opened %s window %dx%d '%s' (no native host)\n",
+                uses_native_host ? "virtual" : "in-screen",
+                win->width, win->height, title ? title : "(null)");
     }
 #else
+    (void)uses_native_host;
     LPRINTF(LOG_INFO, "display: opened virtual window %dx%d (no SDL2)\n",
             win->width, win->height);
 #endif

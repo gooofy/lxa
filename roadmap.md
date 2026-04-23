@@ -55,28 +55,27 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 145 | Intuition window border scrollbar rendering: added `case GTYP_WZOOM:` to `_render_window_frame()` (outlined rectangle imagery), WZOOM gadget creation in `_create_window_sys_gadgets()` when `WFLG_HASZOOM` set, `ZipWindow` behavior in `_handle_sys_gadget_verify`, `WA_Zoom` tag sets `WFLG_HASZOOM`. New `ZoomWindow` sample. New `devpac_scrollbar_gtest.cpp` (3 tests: ZoomGadgetExists, RightBorderPropKnob, RightBorderScrollArrows). Devpac editor right-border PropGadget knob and scroll arrows render correctly; WZOOM gadget structural presence verified. 71/71 pass. | v0.9.27 |
 | 146 | Devpac Settings window (req.library): navigates Settings→Settings... via RMB drag using exact menu coordinates (Settings menu left=384, "Settings..." item screen y=42, verified via lxa_get_menu_info). Window opens correctly at 489×137 with 18 gadgets (cycle gadgets, checkboxes, string gadget, Save/Use/Cancel buttons). Rendering requires ~500 VBlanks; test uses lxa_wait_window_drawn(1) for event-driven waiting. New devpac_settings_gtest.cpp (4 tests: SettingsWindowOpens, SettingsWindowRendersContent, SettingsWindowHasThreeButtons, ZDismissSettingsWindow). 72/72 pass. | v0.9.28 |
 | 148 | Devpac visual fixes — SIMPLE_REFRESH overdraw and PropGadget PROPNEWLOOK stipple: (1) `lxa_layers.c`: added `NotifyDamagedWindows()` called from `DeleteLayer` after `ReleaseSemaphore`; posts `IDCMP_REFRESHWINDOW` only to SIMPLE_REFRESH windows, preventing overdraw artifacts after req.library settings window closes. (2) `lxa_graphics.c`: added `FillRectPattern()` helper; `_graphics_RectFill` now respects `rp->AreaPtrn` for stipple fills via both layered and non-layered paths; removed BltPattern stub. (3) `lxa_intuition.c`: added `#include <graphics/gfxmacros.h>` and `lxa_notify_window_refresh()` helper; PropGadget PROPNEWLOOK container now renders stipple via `SetAfPt`+`RectFill`. (4) `devpac_scrollbar_gtest.cpp`: replaced fragile adjacent-pair stipple check with semantically correct pen-0/pen-1 presence check (works on narrow 6px gadget). `ZDismissSettingsWindow` asserts non-background pixels in editor area after settings close. 70/72 pass (2 pre-existing failures: gadtoolsgadgets_pixels_c_gtest, apps_misc_gtest). | v0.9.29 |
+| 147a | Custom-screen window chrome + per-screen-type host-window architecture (rootless fix): two architectural defects — (a) coarse `if (!rootless_mode)` skip in `_intuition_OpenWindow` bypassed `_render_window_frame()` for ALL rootless windows including custom-screen windows where chrome MUST be drawn into the screen bitmap; (b) `display_open()` always created an SDL window for the screen, so in rootless mode the Workbench screen got a host window AND each Workbench window got its own native host window — two SDL windows showing the same content. Architectural rules now enforced: rootless+Workbench screen → no host window for screen, each child window is its own X11 window; rootless+custom screen → screen owns ONE host window, chrome+children render into screen bitmap; non-rootless → screen owns host window, everything inside. Fix: (1) `_window_uses_native_host(screen, rootless_mode)` helper in `lxa_intuition.c` returns TRUE only for rootless windows on a `WBENCHSCREEN`-flagged screen; window-render skip and per-window emucall5 flag both use it. (2) `g_opening_workbench_screen` static flag in `lxa_intuition.c` set by `OpenWorkBench()` around the `_intuition_OpenScreen()` call so the EMU_CALL site can tell host whether this screen is the Workbench (since `WBENCHSCREEN` is set on `screen->Flags` only AFTER OpenScreen returns). (3) `EMU_CALL_INT_OPEN_SCREEN` extended to 4 args (`emucall4`, bit 0 of d4 = is_workbench); `EMU_CALL_INT_OPEN_WINDOW` extended to 5 args (`emucall5`, bit 0 of d5 = uses_native_host). (4) `display.c`: `display_open_ex(... wants_host_window)` skips `SDL_CreateWindow` when `wants_host_window=false`; dispatcher computes `wants_host_window = !(is_workbench && rootless_mode)`. (5) `display_window_open_ex(... uses_native_host)` skips per-window SDL when `uses_native_host=false`. (6) `typeface_gtest.cpp`: new `WindowChromeIsRendered` test sampling title-bar (dark), left border (white highlight), right/bottom borders (dark shadow), interior (gray fill). Typeface shows full Amiga chrome inside its 194×138 custom-screen host window. 72/72 pass in 163s. | v0.9.30 |
 
 ---
 
 ## Next Phase
 
-### Phase 147 — Typeface window chrome
+### Phase 147b — Typeface window geometry (BGUI-side)
 
-Typeface currently renders a 194×138 character grid; the real app shows 280×195 with a window border, title bar, and vertical scrollbar. The grid (BGUI primary content) is correct; the surrounding chrome is missing.
+After Phase 147a, Typeface's window has chrome but is sized 194×138 (BGUI request); the real Amiga app shows 280×195. The geometry mismatch is BGUI-side — BGUI's `OpenWindowTagList` arrives with these dimensions. Likely cause: a font-metric or screen-attribute query returning a smaller value in lxa than on real Amiga.
 
-**Root cause hypothesis**: Either BGUI's window-frame layout is computing the wrong client area, or the lxa Intuition window-decoration code is not rendering Typeface's requested borders/scrollbar gadgets. Determine which side.
+- [ ] Capture FS-UAE Typeface window for pixel-perfect target reference
+- [ ] Trace BGUI library calls during Typeface startup (font opens, screen-attribute queries, GetDefaultPubScreen, GetScreenData)
+- [ ] Identify the value that drives BGUI to compute 194×138 instead of 280×195
+- [ ] Fix lxa's response to that query
+- [ ] `WindowGeometryMatchesTarget` test asserting Typeface window is 280×195 ±a few pixels
 
-- [ ] Capture window via `lxa_capture_window()` and attach PNG to assistant for visual diagnosis (per `graphics-testing` SKILL §8)
-- [ ] Compare BGUI-requested geometry vs lxa-rendered geometry (Phase 131 `lxa_get_window_info`)
-- [ ] If BGUI side: inspect `WindowObject` tags Typeface passes
-- [ ] If lxa side: audit `_intuition_OpenWindow` border/title-bar/scrollbar paths
-- [ ] Fix and add `WindowChromeMatchesTarget` test in `typeface_gtest.cpp` asserting target dimensions ±a few pixels
+**Test gate**: Typeface window matches FS-UAE reference geometry; full suite green.
 
-**Test gate**: Typeface window matches target geometry; full suite green.
+### Phase 147c — Typeface deeper workflows
 
-### Phase 148 — Typeface deeper workflows
-
-After Phase 147 gives Typeface a correct window, exercise the actual font-browser interactions.
+After Phases 147a/b give Typeface a correctly-chromed and correctly-sized window, exercise the actual font-browser interactions.
 
 - [ ] `gadgets/textfield.gadget` integration: ensure `GADGETS:` assign resolves, gadget loads, text-entry preview widget renders
 - [ ] Font-list interaction: click a font name; assert preview pane updates (text hook captures the chosen font name)

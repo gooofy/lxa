@@ -50,6 +50,21 @@ void display_shutdown(void);
 display_t *display_open(int width, int height, int depth, const char *title);
 
 /*
+ * Phase 147a — Open a display with explicit control over whether the
+ * screen receives its own SDL host window. In rootless mode the
+ * Workbench/public screen does NOT get a host window (its windows
+ * become native host windows individually); custom screens DO get a
+ * host window and render their full bitmap (chrome + child windows)
+ * into it. Non-rootless mode always creates an SDL window.
+ *
+ * @param wants_host_window  TRUE for custom screens or non-rootless;
+ *                           FALSE for the Workbench screen in rootless
+ *                           mode.
+ */
+display_t *display_open_ex(int width, int height, int depth,
+                           const char *title, bool wants_host_window);
+
+/*
  * Close a display window.
  * @param display  Display handle from display_open()
  */
@@ -256,6 +271,23 @@ bool display_get_rootless_mode(void);
 display_window_t *display_window_open(display_t *screen, int x, int y,
                                        int width, int height, int depth,
                                        const char *title);
+
+/*
+ * Phase 147a: Open a window with explicit native-host control.
+ *
+ * @param uses_native_host  When true, behaves like rootless mode and may
+ *                          create a separate native host (SDL) window for
+ *                          this Amiga window. When false, only a tracking
+ *                          slot is allocated; the window is presented
+ *                          inside its parent screen's host display.
+ *
+ * `display_window_open()` is equivalent to passing the global rootless
+ * flag (legacy behaviour for callers outside the Intuition Open path).
+ */
+display_window_t *display_window_open_ex(display_t *screen, int x, int y,
+                                          int width, int height, int depth,
+                                          const char *title,
+                                          bool uses_native_host);
 
 /*
  * Close a rootless window.

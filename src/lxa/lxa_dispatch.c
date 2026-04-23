@@ -9,6 +9,7 @@
 
 #include "lxa_internal.h"
 #include "lxa_memory.h"
+#include "config.h"
 
 /* Forward declarations for float/double helpers defined later in this file */
 static float ffp_to_host_float(uint32_t raw);
@@ -1917,14 +1918,17 @@ int op_illg(int level)
 
         case EMU_CALL_INT_OPEN_SCREEN:
         {
-            /* d1: (width << 16) | height, d2: depth, d3: title_ptr */
+            /* d1: (width << 16) | height, d2: depth, d3: title_ptr,
+             * d4: flags (Phase 147a: bit 0 = is_workbench_screen) */
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
             uint32_t width = (d1 >> 16) & 0xFFFF;
             uint32_t height = d1 & 0xFFFF;
             uint32_t depth = d2;
             uint32_t title_ptr = d3;
+            bool is_workbench_screen = (d4 & 1u) != 0;
 
             char title[128] = "LXA Screen";
             if (title_ptr != 0)
@@ -1941,14 +1945,21 @@ int op_illg(int level)
                 title[i] = 0;
             }
 
-            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INT_OPEN_SCREEN %dx%dx%d '%s'\n",
-                    width, height, depth, title);
+            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_INT_OPEN_SCREEN %dx%dx%d '%s' workbench=%d\n",
+                    width, height, depth, title, (int)is_workbench_screen);
 
             /* Initialize display subsystem if not already done */
             display_init();
 
-            /* Open the display window */
-            display_t *disp = display_open(width, height, depth, title);
+            /* Phase 147a: in rootless mode the Workbench screen does NOT
+             * get its own SDL host window — its windows become native
+             * host windows individually (see _window_uses_native_host()
+             * in lxa_intuition.c). Custom screens always own a host
+             * window in rootless mode. Non-rootless mode always wants
+             * a host window. */
+            bool wants_host_window = !(is_workbench_screen && config_get_rootless_mode());
+            display_t *disp = display_open_ex((int)width, (int)height, (int)depth,
+                                              title, wants_host_window);
 
             /* Phase 131: log screen open event */
             if (disp)
@@ -2129,17 +2140,20 @@ int op_illg(int level)
 
         case EMU_CALL_INT_OPEN_WINDOW:
         {
-            /* d1: screen_handle, d2: (x << 16) | y, d3: (w << 16) | h, d4: title_ptr */
+            /* d1: screen_handle, d2: (x << 16) | y, d3: (w << 16) | h, d4: title_ptr,
+             * d5: flags (bit 0 = uses_native_host) */
             uint32_t d1 = m68k_get_reg(NULL, M68K_REG_D1);
             uint32_t d2 = m68k_get_reg(NULL, M68K_REG_D2);
             uint32_t d3 = m68k_get_reg(NULL, M68K_REG_D3);
             uint32_t d4 = m68k_get_reg(NULL, M68K_REG_D4);
+            uint32_t d5 = m68k_get_reg(NULL, M68K_REG_D5);
             display_t *screen = (display_t *)(uintptr_t)d1;
             int x = (int16_t)((d2 >> 16) & 0xFFFF);
             int y = (int16_t)(d2 & 0xFFFF);
             int w = (int16_t)((d3 >> 16) & 0xFFFF);
             int h = (int16_t)(d3 & 0xFFFF);
             uint32_t title_ptr = d4;
+            bool uses_native_host = (d5 & 1u) != 0;
             char title[128] = "LXA Window";
             if (title_ptr != 0)
             {
@@ -2154,8 +2168,8 @@ int op_illg(int level)
                 title[i] = 0;
             }
 
-            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_OPEN_WINDOW x=%d, y=%d, w=%d, h=%d '%s'\n",
-                    x, y, w, h, title);
+            DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_OPEN_WINDOW x=%d, y=%d, w=%d, h=%d native_host=%d '%s'\n",
+                    x, y, w, h, (int)uses_native_host, title);
 
             /* Reject negative or zero window dimensions that result from
              * signed WORD overflow on the ROM side. */
@@ -2175,7 +2189,8 @@ int op_illg(int level)
                 depth = sd;
             }
 
-            display_window_t *win = display_window_open(screen, x, y, w, h, depth, title);
+            display_window_t *win = display_window_open_ex(screen, x, y, w, h, depth, title,
+                                                           uses_native_host);
             /* Phase 131: log window open event */
             if (win)
             {

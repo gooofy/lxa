@@ -259,6 +259,92 @@ TEST_F(TypefaceTest, WindowIsNotBlank)
         << "Window appears all-white/uniform (mean=" << mean << ") in " << path;
 }
 
+/* Phase 147a: verify Amiga window chrome (title bar, borders, system
+ * gadgets) is rendered into the window bitmap.
+ *
+ * Typeface runs on a custom screen, so chrome MUST be drawn into the
+ * screen bitmap (it cannot be delegated to the host WM the way Workbench
+ * windows are in rootless mode). Before Phase 147a, the rootless-mode
+ * code path skipped _render_window_frame() unconditionally, leaving
+ * Typeface windows borderless and gadget-less.
+ *
+ * Pixel signature on the 4-color Typeface screen
+ * (gray=170,170,170 / black=0 / white=255 / blue):
+ *   - Title bar row (y=2..6): black background
+ *   - Just below title bar (y=15): gray interior fill
+ *   - Left border outer column (x=0): white highlight
+ *   - Right border outer column (x=width-1): black shadow
+ *   - Bottom border (y=height-1): black shadow
+ *
+ * Without chrome, every one of these positions would be the gray
+ * interior fill — so any single mismatched expectation here proves the
+ * chrome rendering regressed.
+ */
+TEST_F(TypefaceTest, WindowChromeIsRendered)
+{
+    if (lxa_get_window_count() < 1) {
+        GTEST_SKIP() << "No window opened";
+    }
+
+    lxa_window_info_t wi;
+    ASSERT_TRUE(lxa_get_window_info(0, &wi));
+
+    const char *path = "/tmp/typeface_chrome.png";
+    ASSERT_TRUE(CaptureWindow(path, 0)) << "Failed to capture window";
+
+    auto sample = [&](int x, int y, int *r, int *g, int *b) -> bool {
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd),
+                 "convert '%s' -format '%%[fx:int(255*p{%d,%d}.r)] "
+                 "%%[fx:int(255*p{%d,%d}.g)] %%[fx:int(255*p{%d,%d}.b)]' info: 2>/dev/null",
+                 path, x, y, x, y, x, y);
+        FILE *fp = popen(cmd, "r");
+        if (!fp) return false;
+        bool ok = (fscanf(fp, "%d %d %d", r, g, b) == 3);
+        pclose(fp);
+        return ok;
+    };
+
+    int r, g, b;
+
+    /* Title bar row should be dark (black on this palette).
+     * Sample mid-bar to avoid the close gadget on the left and depth
+     * gadget on the right. */
+    int title_x = wi.width / 2;
+    ASSERT_TRUE(sample(title_x, 4, &r, &g, &b));
+    EXPECT_LT(r + g + b, 150)
+        << "Title bar at (" << title_x << ",4) is not dark: "
+        << "rgb=(" << r << "," << g << "," << b << ") — chrome missing?";
+
+    /* Left border outer column should be the white highlight. */
+    ASSERT_TRUE(sample(0, wi.height / 2, &r, &g, &b));
+    EXPECT_GT(r + g + b, 600)
+        << "Left border at (0," << wi.height/2 << ") is not bright: "
+        << "rgb=(" << r << "," << g << "," << b << ") — left border missing?";
+
+    /* Right border outer column should be the black shadow. */
+    ASSERT_TRUE(sample(wi.width - 1, wi.height / 2, &r, &g, &b));
+    EXPECT_LT(r + g + b, 150)
+        << "Right border at (" << wi.width-1 << "," << wi.height/2
+        << ") is not dark: rgb=(" << r << "," << g << "," << b
+        << ") — right border missing?";
+
+    /* Bottom border should be the dark shadow. */
+    ASSERT_TRUE(sample(wi.width / 2, wi.height - 1, &r, &g, &b));
+    EXPECT_LT(r + g + b, 150)
+        << "Bottom border at (" << wi.width/2 << "," << wi.height-1
+        << ") is not dark: rgb=(" << r << "," << g << "," << b
+        << ") — bottom border missing?";
+
+    /* Interior just below title bar should be the gray fill, proving
+     * we are not just looking at an all-black image. */
+    ASSERT_TRUE(sample(wi.width / 2, 15, &r, &g, &b));
+    EXPECT_GT(r + g + b, 300)
+        << "Interior at (" << wi.width/2 << ",15) is too dark: "
+        << "rgb=(" << r << "," << g << "," << b
+        << ") — interior fill missing or window collapsed?";
+}
+
 /* ------------------------------------------------------------------ */
 /* Test entry point                                                     */
 /* ------------------------------------------------------------------ */

@@ -8603,6 +8603,16 @@ VOID _intuition_OnMenu ( register struct IntuitionBase * IntuitionBase __asm("a6
         item->Flags |= ITEMENABLED;
 }
 
+/*
+ * Phase 147a — Set TRUE while OpenWorkBench() is calling
+ * _intuition_OpenScreen() to create the Workbench screen, so the
+ * EMU_CALL_INT_OPEN_SCREEN site below can tell the host this is the
+ * Workbench screen (and therefore must NOT receive its own SDL host
+ * window in rootless mode — its windows become native host windows
+ * individually instead).
+ */
+static BOOL g_opening_workbench_screen = FALSE;
+
 struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewScreen * newScreen __asm("a0"))
 {
@@ -8700,11 +8710,16 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     }
 
     /* Open host display via emucall */
-    /* Pack width/height into d1, depth into d2, title into d3 */
-    display_handle = emucall3(EMU_CALL_INT_OPEN_SCREEN,
-                              ((ULONG)width << 16) | (ULONG)height,
-                              (ULONG)depth,
-                              (ULONG)newScreen->DefaultTitle);
+    /* Pack width/height into d1, depth into d2, title into d3,
+     * flags into d4 (Phase 147a: bit 0 = is_workbench_screen). */
+    {
+        ULONG screen_flags = g_opening_workbench_screen ? 1UL : 0UL;
+        display_handle = emucall4(EMU_CALL_INT_OPEN_SCREEN,
+                                  ((ULONG)width << 16) | (ULONG)height,
+                                  (ULONG)depth,
+                                  (ULONG)newScreen->DefaultTitle,
+                                  screen_flags);
+    }
 
     if (display_handle == 0)
     {
@@ -9415,6 +9430,23 @@ static void _render_window_user_gadgets(struct Window *window)
     }
 }
 
+/* Phase 147a: Decide whether a window should get its own native host SDL
+ * window, or render into its screen's bitmap.
+ *
+ *  - rootless mode + window opens on Workbench screen: native host (no host
+ *    window for the WB screen itself, each window is its own X11 window).
+ *  - rootless mode + window opens on a custom screen: NO native host (the
+ *    custom screen owns one host window; the child window renders inside).
+ *  - non-rootless mode: NO native host (everything renders into the screen
+ *    host window).
+ */
+static BOOL _window_uses_native_host(struct Screen *screen, BOOL rootless_mode)
+{
+    if (!rootless_mode || !screen)
+        return FALSE;
+    return ((screen->Flags & SCREENTYPE) == WBENCHSCREEN);
+}
+
 struct Window * _intuition_OpenWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewWindow * newWindow __asm("a0"))
 {
@@ -9826,12 +9858,14 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
          * In non-rootless mode the slot is used for tracking only. */
         ULONG window_handle;
         ULONG screen_handle = (ULONG)screen->ExtData;
+        ULONG window_flags = _window_uses_native_host(screen, rootless_mode) ? 1UL : 0UL;
 
-        window_handle = emucall4(EMU_CALL_INT_OPEN_WINDOW,
+        window_handle = emucall5(EMU_CALL_INT_OPEN_WINDOW,
                                  screen_handle,
                                  ((ULONG)(WORD)window->LeftEdge << 16) | ((ULONG)(WORD)window->TopEdge & 0xFFFF),
                                  ((ULONG)width << 16) | ((ULONG)height & 0xFFFF),
-                                 (ULONG)newWindow->Title);
+                                 (ULONG)newWindow->Title,
+                                 window_flags);
 
         if (window_handle == 0)
         {
@@ -9914,9 +9948,11 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
     }
     
     /* Render initial visuals.
-     * Rootless windows still need user gadgets drawn into the backing bitmap,
-     * even though the host window manager supplies the outer frame. */
-    if (!rootless_mode)
+     * Windows that use a native host SDL window let the host render the
+     * outer frame; we still draw user gadgets into the backing bitmap.
+     * All other windows (custom screens, non-rootless) need the full
+     * Amiga chrome rendered into the screen bitmap. */
+    if (!_window_uses_native_host(screen, rootless_mode))
     {
         _render_window_frame(window);
     }
@@ -9981,7 +10017,12 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
     ns.Type = CUSTOMSCREEN;
     ns.DefaultTitle = (UBYTE *)"Workbench Screen";
     
+    /* Phase 147a: tell the EMU_CALL_INT_OPEN_SCREEN site that this is
+     * the Workbench screen so the host can suppress the screen's own
+     * SDL window in rootless mode. */
+    g_opening_workbench_screen = TRUE;
     wbscreen = _intuition_OpenScreen(IntuitionBase, &ns);
+    g_opening_workbench_screen = FALSE;
     
     if (wbscreen)
     {
