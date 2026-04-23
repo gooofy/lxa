@@ -159,13 +159,30 @@ static struct Process *create_stress_task(APTR entry, const char *name)
     return CreateNewProc(tags);
 }
 
+/*
+ * Pre-clear the done signal.  Must be called BEFORE creating the child task
+ * to avoid the following race:
+ *
+ *   parent: CreateNewProc() → child immediately runs and signals parent
+ *   parent: SetSignal(0, mask) → silently discards the already-received signal
+ *   parent: Wait(mask)         → hangs forever
+ *
+ * By clearing the signal first we guarantee that any signal arriving after
+ * the call has actually come from the child we are about to launch.
+ */
+static void pre_clear_done_signal(void)
+{
+    if (g_done_signal_mask) {
+        SetSignal(0, g_done_signal_mask);
+    }
+}
+
 static BOOL wait_for_task_completion(void)
 {
     if (!g_done_signal_mask) {
         return FALSE;
     }
 
-    SetSignal(0, g_done_signal_mask);
     return (Wait(g_done_signal_mask) & g_done_signal_mask) != 0;
 }
 
@@ -221,6 +238,7 @@ int main(void)
     completed = 0;
     
     for (i = 0; i < SEQUENTIAL_TASK_COUNT; i++) {
+        pre_clear_done_signal();
         struct Process *child = create_stress_task((APTR)SimpleTask, "SimpleTask");
         if (!child) {
             failed++;
@@ -276,6 +294,7 @@ int main(void)
     completed = 0;
 
     for (i = 0; i < COUNTER_TASK_COUNT; i++) {
+        pre_clear_done_signal();
         struct Process *child = create_stress_task((APTR)CounterTask, "CounterTask");
         if (!child) {
             failed++;
@@ -310,6 +329,7 @@ int main(void)
     int tasks_started = 0;
 
     for (i = 0; i < SIGNAL_TASK_COUNT; i++) {
+        pre_clear_done_signal();
         struct Process *child = create_stress_task((APTR)SimpleTask, "SignalTask");
         if (!child) {
             continue;
@@ -377,6 +397,7 @@ int main(void)
     mem_before = get_free_mem();
     
     for (i = 0; i < CLEANUP_TASK_COUNT; i++) {
+        pre_clear_done_signal();
         struct Process *child = create_stress_task((APTR)SimpleTask, "CleanupTask");
         if (child) {
             wait_for_task_completion();
@@ -415,6 +436,7 @@ int main(void)
     g_counter = 0;
     
     for (i = 0; i < FINAL_TASK_COUNT; i++) {
+        pre_clear_done_signal();
         struct Process *child = create_stress_task((APTR)CounterTask, "FinalTask");
         if (child) {
             wait_for_task_completion();

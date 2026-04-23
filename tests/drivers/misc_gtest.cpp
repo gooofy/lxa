@@ -135,12 +135,9 @@ TEST_F(MiscTest, StressMemory) {
     RunMiscTest("Stress", "Memory", 30000);
 }
 
-// DISABLED (Phase 136-c, v0.9.17): two assertion failures (Stress sample
-// lines 33 and 41) during a 60-second task-stress workload. Likely an exec.c
-// scheduler/signal-delivery race that only manifests under sustained
-// AddTask/RemoveTask churn. Needs dedicated investigation.
-// See roadmap.md "Deferred Test Failures" section.
-TEST_F(MiscTest, DISABLED_StressTasks) {
+// Phase 141 (v0.9.x): Race fixed — SetSignal(0,mask) moved before CreateNewProc
+// so the pre-clear cannot discard a signal already sent by the child.
+TEST_F(MiscTest, StressTasks) {
     RunMiscTest("Stress", "Tasks", 60000);
 }
 

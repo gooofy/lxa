@@ -45,29 +45,15 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 
 ---
 
-## Next Phase
+## Completed Phases (Summary)
 
-### Phase 141 — Fix MiscTest.StressTasks
-
-**Priority**: Quality. Currently `DISABLED_StressTasks` in `tests/drivers/misc_gtest.cpp:144`. Two assertion failures in the Stress sample (lines 33, 41) under sustained AddTask/RemoveTask churn over 60 s.
-
-**Root cause hypothesis**: `exec.c` scheduler / signal-delivery race that only manifests under sustained task churn.
-
-**Sub-problems**:
-1. Reduce the stress-test workload until the failure is deterministic, then bisect to identify the minimal repro.
-2. Audit `_exec_AddTask`, `_exec_RemoveTask`, signal delivery (`Signal`/`Wait`), and the ready-list manipulation for non-atomic sequences.
-3. Cross-check Forbid/Permit nesting around task-list edits.
-
-- [ ] Reduce repro
-- [ ] Identify race
-- [ ] Fix and re-enable
-- [ ] Full suite green over 50 consecutive runs (reliability loop per `lxa-testing` skill)
+| Phase | Title | Version |
+|-------|-------|---------|
+| 141 | Fix MiscTest.StressTasks — race: `SetSignal(0,mask)` was called after `CreateNewProc`, discarding signals sent by child before parent reached `Wait`. Fixed by pre-clearing the signal before each task launch. Re-enabled `StressTasks`; 68/68 pass. | v0.9.23 |
 
 ---
 
-## Amiga Compatibility (Phases 142–151)
-
-Real-Amiga behaviour gaps. Each phase has explicit objectives derived from the formerly-pooled "Known Limitations" list.
+## Next Phase
 
 ### Phase 142 — Library policy cleanup: third-party stub removal
 
@@ -366,9 +352,6 @@ These are not phases but ongoing rules captured in `AGENTS.md` lessons learned. 
 ## Dependency Graph (Critical Path)
 
 ```
-Phase 141 (Quality: re-enable DISABLED_ StressTasks)
-        │
-        ▼
 Phase 142-144 (Library policy + datatypes + smoke)
         │
         ▼
