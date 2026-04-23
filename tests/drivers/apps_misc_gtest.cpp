@@ -354,7 +354,8 @@ protected:
     }
 
     int GetProWriteViewMenuX() const {
-        return prowrite_menu_window_info.x + 240;
+        /* View menu starts at x=368 (width=56). Target the centre: 368+28=396. */
+        return prowrite_menu_window_info.x + 396;
     }
 
     int GetProWriteOpenItemY() const {
@@ -364,9 +365,10 @@ protected:
     }
 
     int GetProWriteAboutItemY() const {
-        /* About is item #16 (TE=135, H=9).  Hit area = menuTop + TE = 11 + 135 = 146.
-         * Target the centre of the hit band: 146 + 4 = 150. */
-        return prowrite_menu_window_info.y + 150;
+        /* About ProWrite... is item #0 in the View menu (menu 5).
+         * TE=0, H=9.  Dropdown starts at menuTop=11.
+         * Target the centre of the hit band: 11 + 0 + 4 = 15. */
+        return prowrite_menu_window_info.y + 15;
     }
 
     void OpenProWriteMenu() {
@@ -516,21 +518,6 @@ protected:
         return -1;
     }
 
-    int FindBottomGadgetIndex(int window_index) {
-        auto gadgets = GetGadgets(window_index);
-        int bottom_gadget = -1;
-        int bottom_top = -1;
-
-        for (size_t i = 0; i < gadgets.size(); ++i) {
-            if (gadgets[i].top > bottom_top) {
-                bottom_top = gadgets[i].top;
-                bottom_gadget = static_cast<int>(i);
-            }
-        }
-
-        return bottom_gadget;
-    }
-
     int FindProWriteDocumentWindowIndex() {
         const int window_count = lxa_get_window_count();
         int best_index = -1;
@@ -634,14 +621,14 @@ protected:
     bool OpenProWriteAboutDialog(lxa_window_info_t* about_info = nullptr,
                                  int* about_index_out = nullptr)
     {
-        const std::vector<int> project_menu_x_candidates = {
-            GetProWriteProjectMenuX(),
+        const std::vector<int> view_menu_x_candidates = {
+            GetProWriteViewMenuX(),
         };
         const std::vector<int> about_item_y_candidates = {
             GetProWriteAboutItemY(),
         };
 
-        return TryOpenProWriteWindow(project_menu_x_candidates,
+        return TryOpenProWriteWindow(view_menu_x_candidates,
                                      about_item_y_candidates,
                                      [&](const lxa_window_info_t& info, int) {
                                          /* ProWrite's re-opened About dialog
@@ -702,11 +689,19 @@ protected:
             }
         }
 
-        const int bottom_gadget = FindBottomGadgetIndex(window_index);
-        if (bottom_gadget >= 0 && ClickGadget(bottom_gadget, window_index)) {
-            RunCyclesWithVBlank(30, 50000);
-            if (WaitForWindowCountAtMost(remaining_window_count, 3000)) {
-                return true;
+        /* Try every gadget with non-zero size (e.g. an "OK" button).
+         * Some dialogs (ProWrite About) have only one real gadget that is
+         * not the bottom-most by screen coordinate. */
+        {
+            auto gadgets = GetGadgets(window_index);
+            for (int i = static_cast<int>(gadgets.size()) - 1; i >= 0; --i) {
+                if (gadgets[i].width > 0 && gadgets[i].height > 0) {
+                    ClickGadget(i, window_index);
+                    RunCyclesWithVBlank(30, 50000);
+                    if (WaitForWindowCountAtMost(remaining_window_count, 3000)) {
+                        return true;
+                    }
+                }
             }
         }
 
@@ -1065,13 +1060,7 @@ TEST_F(ProWriteScreenTest, MenuOpenAddsDropdownPixelsAndLeavesMenuBarVisible) {
     CloseProWriteMenu();
 }
 
-// DISABLED (Phase 136-c, v0.9.17): About-dialog dismiss assertion fails at
-// line ~1117 after ~13 s. The About requester opens but the OK-button click /
-// IDCMP_CLOSEWINDOW handling does not return ProWrite to the editor state the
-// test expects. Likely related to requester-vs-editor active-window tracking;
-// candidate area is the Phase 135 ActiveWindow routing change. Needs dedicated
-// investigation. See roadmap.md "Deferred Test Failures" section.
-TEST_F(ProWriteInteractionTest, DISABLED_AboutDialogOpensAndCanBeDismissed) {
+TEST_F(ProWriteInteractionTest, AboutDialogOpensAndCanBeDismissed) {
     lxa_window_info_t about_info;
     int about_index = -1;
 
@@ -1094,8 +1083,8 @@ TEST_F(ProWriteInteractionTest, DISABLED_AboutDialogOpensAndCanBeDismissed) {
         window_info.x + window_info.width - 1,
         window_info.y + window_info.height - 1, 0);
 
-    /* Select About from the menu. */
-    SelectProWriteMenuItemAt(GetProWriteProjectMenuX(), GetProWriteAboutItemY());
+    /* Select About from the View menu. */
+    SelectProWriteMenuItemAt(GetProWriteViewMenuX(), GetProWriteAboutItemY());
     RunCyclesWithVBlank(200, 100000);
     lxa_flush_display();
 

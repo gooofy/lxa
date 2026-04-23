@@ -47,103 +47,6 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 
 ## Next Phase
 
-### Phase 140 — Fix ProWriteInteractionTest.AboutDialogOpensAndCanBeDismissed
-
-**Priority**: Quality. Currently `DISABLED_AboutDialogOpensAndCanBeDismissed` in `tests/drivers/apps_misc_gtest.cpp:1075`.
-
-**Root cause hypothesis**: About requester opens, but the OK-button click / `IDCMP_CLOSEWINDOW` handling does not return ProWrite to the editor state the test expects. Candidate area: Phase 135 ActiveWindow routing change (RAWKEY routes to `IntuitionBase->ActiveWindow`) may have shifted requester-vs-editor active-window tracking.
-
-**Sub-problems**:
-1. Capture the IDCMP event log around the dismiss (Phase 131 `lxa_drain_intui_events()`).
-2. Verify `ActiveWindow` is correctly restored to ProWrite's editor when the requester closes.
-3. Cross-check against RKRM: requester close should restore the previously-active window of the same screen.
-
-- [ ] Capture event log diagnostic
-- [ ] Identify ActiveWindow state at dismiss time
-- [ ] Fix routing if needed
-- [ ] Re-enable test
-- [ ] Full suite green
-
-**Test gate**: `ProWriteInteractionTest.AboutDialogOpensAndCanBeDismissed` passes; full suite green.
-
----
-
-## Completed Phases (Summary)
-
-Detailed write-ups live in the git commit messages. This table is the single index.
-
-| Phase | Description | Version |
-|-------|-------------|---------|
-| 106 | Test perf: headless display skip, idle detection (−38% wall time) | v0.8.68 |
-| 107 | Test perf: persistent fixtures, SetUp dedup (−49% combined) | v0.8.69–70 |
-| 108 | App testing: SysInfo + Cluster2; Musashi IRQ pulse fix; ExecBase fields | v0.8.71–72 |
-| 108-d | Manual sweep: 13 fixes / 7 apps; GfxBase, GadTools, SMART_REFRESH, INTUITICKS | v0.8.73 |
-| 109 | Missing IDCMP types (REQSET/REQCLEAR, SIZEVERIFY, MENUVERIFY, DELTAMOVE) | v0.8.74 |
-| 110 | Third-party disk-library stubs: req, reqtools, powerpacker, arp | v0.8.75 |
-| 111 | SMART_REFRESH backing store; CR-aware graphics; Save/RestoreBackingStore | v0.8.76 |
-| 112 | Menu double-buffering: pixel-accurate save/restore via EMU_CALL | v0.8.77 |
-| 113 | Blitter line-draw mode: Bresenham, all octants, ASH cross-word wrap | v0.8.78 |
-| 114 | Copper list interpreter: MOVE/WAIT/SKIP, VBlank exec, color shadow | v0.8.79 |
-| 115 | DPaint V driver: Screen Format gadgets, depth-2→8 transition | v0.8.80 |
-| 116 | MaxonBASIC driver: text rendering, RMB menu, scrollbar, stress survival | v0.8.81 |
-| 117 | DevPac driver: Amiga-key shortcut survival, full menu sweep | v0.8.82 |
-| 118 | ASM-One driver: menu flicker guard, qualifier propagation survival | v0.8.83 |
-| 119 | BlitzBasic 2 driver: editor-paint regression bounds, multi-menu stability | v0.8.84 |
-| 120 | PPaint driver: probe-window geometry, GfxBase guards, capture survival | v0.8.85 |
-| 121 | DirectoryOpus driver (10 tests); PPaint sharding bug fix | v0.8.86 |
-| 122 | KickPascal 2 driver: EDITOR-mode reach, missing-library/PANIC guards | v0.8.87 |
-| 123 | Typeface deferred — bgui.library v39+ required (lifted in 136) | — |
-| 124 | FinalWriter driver: dialog coverage, sharding fix, broken accept disabled | v0.8.88 |
-| 0 | CMake shard coverage audit; `tools/check_shard_coverage.py` registered | v0.8.89 |
-| 125 | `lxa.c` decomposition: 9,960 → ~1,658 lines + new module files | v0.8.90 |
-| 126 | Profiling: per-EMU_CALL counters/timing; `--profile` flag; report tool | v0.9.0 |
-| 127 | Memory access fast paths: bswap RAM/ROM 16/32-bit; `__builtin_expect` | v0.9.1 |
-| 128 | Display pipeline: dirty-region tracking, SSE2 planar→chunky, coalesced VBlank | v0.9.2 |
-| 129 (partial) | Screen-mode emulation: 36 ECS modes, virtualization, BestModeIDA flags | v0.9.3 |
-| 130 | Text hook: `lxa_set_text_hook()` via EMU_CALL; tests in api/dopus/kickpascal | v0.9.4 |
-| 131 | Event log + menu introspection: `lxa_drain_intui_events()`, `lxa_get_menu_strip()` | v0.9.5 |
-| 132 | SMART_REFRESH backing store validation; defensive workaround removed | v0.9.6 |
-| 133 | Menu double-buffering: persistent compose BitMap; ASM-One/MaxonBASIC stable | v0.9.7 |
-| 134 | DirectoryOpus button bank: settle budget 150 → 600 VBlank; text-hook label assertions | v0.9.8 |
-| 135 | BlitzBasic 2 ted: off-screen requester recentre + RAWKEY → ActiveWindow | v0.9.9 |
-| 136 | bgui.library / Typeface driver: 5 tests pass; gadget binaries staged | v0.9.10 |
-| 136-h | datatypes.library hotfix: wired into ROM build (was orphan source) | v0.9.11 |
-| 136-h2 | commodities.library wired into ROM; GADGETS: assign added | v0.9.12 |
-| 136-b1 | bgui source build foundation: 44/49 BGUI files compile under bebbo | v0.9.13 |
-| 136-b2 | bgui source build: all 49 files compile (varargs/baserel/getreg shims) | v0.9.14 |
-| 136-b3 | lxa-built bgui.library replaces SAS/C prebuilt; `src/bgui/lxa_shims.c` | v0.9.15 |
-| 136-b4 | bgui calling-convention fixes (R5/R6/R7); Typeface renders character grid | v0.9.16 |
-| 136-c | Roadmap overhaul; screenshot_review retired to attic; 5 failing tests quarantined as DISABLED_ | v0.9.17 |
-| 136-d | Roadmap+AGENTS policy: priority order, no pooling sections, every DISABLED_ test gets a phase | v0.9.18 |
-| 137 | RunCommand exit-code propagation: NP_ExitCode/NP_ExitData honoured in CreateNewProc; LoadSegRuntime re-enabled | v0.9.19 |
-| 138 | GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean re-enabled (test-side readiness fix; SizeWindow updates Width/Height before render — wait for size-gadget pixels, not just dims) | v0.9.20 |
-| 139 | GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems re-enabled (no code change required; hang resolved by Phases 132/133 menu compose+backing-store work; verified stable across 5 consecutive runs) | v0.9.21 |
-
----
-
-## Quality (Phases 138–141)
-
-Re-enable each `DISABLED_` GTest. Done in priority order by user impact (DOS API correctness first, GadTools rendering next, app-interaction last).
-
-### Phase 138 — see Completed Phases (v0.9.20).
-
-### Phase 139 — see Completed Phases (v0.9.21).### Phase 140 — Fix ProWriteInteractionTest.AboutDialogOpensAndCanBeDismissed
-
-**Priority**: Quality. Currently `DISABLED_AboutDialogOpensAndCanBeDismissed` in `tests/drivers/apps_misc_gtest.cpp:1075`.
-
-**Root cause hypothesis**: About requester opens, but the OK-button click / `IDCMP_CLOSEWINDOW` handling does not return ProWrite to the editor state the test expects. Candidate area: Phase 135 ActiveWindow routing change (RAWKEY routes to `IntuitionBase->ActiveWindow`) may have shifted requester-vs-editor active-window tracking.
-
-**Sub-problems**:
-1. Capture the IDCMP event log around the dismiss (Phase 131 `lxa_drain_intui_events()`).
-2. Verify `ActiveWindow` is correctly restored to ProWrite's editor when the requester closes.
-3. Cross-check against RKRM: requester close should restore the previously-active window of the same screen.
-
-- [ ] Capture event log diagnostic
-- [ ] Identify ActiveWindow state at dismiss time
-- [ ] Fix routing if needed
-- [ ] Re-enable test
-- [ ] Full suite green
-
 ### Phase 141 — Fix MiscTest.StressTasks
 
 **Priority**: Quality. Currently `DISABLED_StressTasks` in `tests/drivers/misc_gtest.cpp:144`. Two assertion failures in the Stress sample (lines 33, 41) under sustained AddTask/RemoveTask churn over 60 s.
@@ -463,7 +366,7 @@ These are not phases but ongoing rules captured in `AGENTS.md` lessons learned. 
 ## Dependency Graph (Critical Path)
 
 ```
-Phase 137-141 (Quality: re-enable DISABLED_ tests)
+Phase 141 (Quality: re-enable DISABLED_ StressTasks)
         │
         ▼
 Phase 142-144 (Library policy + datatypes + smoke)
