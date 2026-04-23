@@ -1629,6 +1629,114 @@ static void FillRectDirect(struct BitMap *bm, WORD xMin, WORD yMin, WORD xMax, W
     }
 }
 
+/*
+ * FillRectPattern - like FillRectDirect but applies a repeating UWORD area
+ * pattern from the RastPort (rp->AreaPtrn / rp->AreaPtSz).
+ *
+ * The pattern height is 2^AreaPtSz rows.  For each scanline y the pattern
+ * row is pattern[(y - yMin) % patHeight].  Bits within each UWORD select
+ * between FgPen and BgPen (JAM2) or FgPen/transparent (JAM1).
+ */
+static void FillRectPattern(struct RastPort *rp, struct BitMap *bm,
+                            WORD xMin, WORD yMin, WORD xMax, WORD yMax)
+{
+    UWORD *pat;
+    WORD   patHeight;
+    WORD   y;
+    WORD   bmMaxX = bm->BytesPerRow * 8;
+    WORD   bmMaxY = bm->Rows;
+    UWORD  bpr    = bm->BytesPerRow;
+    UBYTE  fgPen  = (UBYTE)rp->FgPen;
+    UBYTE  bgPen  = (UBYTE)rp->BgPen;
+    UBYTE  dm     = rp->DrawMode & ~INVERSVID;
+    UBYTE  plane;
+
+    if (!rp->AreaPtrn)
+        return;
+
+    pat       = rp->AreaPtrn;
+    patHeight = (WORD)(1 << rp->AreaPtSz);
+
+    /* Clamp to bitmap bounds */
+    if (xMin < 0) xMin = 0;
+    if (yMin < 0) yMin = 0;
+    if (xMax >= bmMaxX) xMax = bmMaxX - 1;
+    if (yMax >= bmMaxY) yMax = bmMaxY - 1;
+    if (xMin > xMax || yMin > yMax)
+        return;
+
+    {
+        WORD  firstByte = xMin >> 3;
+        WORD  lastByte  = xMax >> 3;
+        UBYTE leftMask  = 0xFF >> (xMin & 7);
+        UBYTE rightMask = (UBYTE)(0xFF << (7 - (xMax & 7)));
+
+        for (y = yMin; y <= yMax; y++)
+        {
+            /* Which pattern row applies to this scanline? */
+            UWORD patRow = pat[(y - yMin) % patHeight];
+            UWORD rowOffset = (UWORD)y * bpr;
+
+            for (plane = 0; plane < bm->Depth; plane++)
+            {
+                UBYTE *planeData;
+                WORD   bx;
+
+                if (!bm->Planes[plane])
+                    continue;
+
+                planeData = bm->Planes[plane];
+
+                for (bx = firstByte; bx <= lastByte; bx++)
+                {
+                    /* Map byte column bx to pattern bits.
+                     * Pattern UWORD has bit15=leftmost pixel.
+                     * Each byte covers 8 pixels; bx*8 is the leftmost pixel of this byte. */
+                    UBYTE pxStart = (UBYTE)((bx * 8) & 15); /* position within 16-pixel repeat */
+                    UBYTE bytePat = (UBYTE)((patRow >> (8 - pxStart)) & 0xFF);
+
+                    /* Edge masks */
+                    UBYTE edgeMask = 0xFF;
+                    if (bx == firstByte) edgeMask &= leftMask;
+                    if (bx == lastByte)  edgeMask &= rightMask;
+
+                    {
+                        UBYTE fgBit    = (fgPen & (1 << plane)) ? 1 : 0;
+                        UBYTE bgBit    = (bgPen & (1 << plane)) ? 1 : 0;
+                        UBYTE *dest    = planeData + rowOffset + bx;
+                        UBYTE setMask  = bytePat & edgeMask;
+                        UBYTE clrMask  = ((UBYTE)~bytePat) & edgeMask;
+
+                        if (dm == COMPLEMENT)
+                        {
+                            *dest ^= setMask;
+                        }
+                        else if (dm == JAM1)
+                        {
+                            if (fgBit)
+                                *dest |= setMask;
+                            else
+                                *dest &= ~setMask;
+                        }
+                        else /* JAM2 */
+                        {
+                            if (fgBit)
+                                *dest |= setMask;
+                            else
+                                *dest &= ~setMask;
+
+                            if (bgBit)
+                                *dest |= clrMask;
+                            else
+                                *dest &= ~clrMask;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 static UBYTE GetPlaneBit(CONST PLANEPTR plane, UWORD bytesPerRow, WORD x, WORD y)
 {
     UWORD byteOffset;
@@ -4613,17 +4721,27 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
                 {
                     /* SMART_REFRESH: fill into backing store bitmap
                      * Translate from screen-absolute to CR-relative coords */
-                    FillRectDirect(cr->BitMap,
-                                   (WORD)(clipXMin - cr->bounds.MinX),
-                                   (WORD)(clipYMin - cr->bounds.MinY),
-                                   (WORD)(clipXMax - cr->bounds.MinX),
-                                   (WORD)(clipYMax - cr->bounds.MinY),
-                                   pen, drawmode);
+                    if (rp->AreaPtrn)
+                        FillRectPattern(rp, cr->BitMap,
+                                        (WORD)(clipXMin - cr->bounds.MinX),
+                                        (WORD)(clipYMin - cr->bounds.MinY),
+                                        (WORD)(clipXMax - cr->bounds.MinX),
+                                        (WORD)(clipYMax - cr->bounds.MinY));
+                    else
+                        FillRectDirect(cr->BitMap,
+                                       (WORD)(clipXMin - cr->bounds.MinX),
+                                       (WORD)(clipYMin - cr->bounds.MinY),
+                                       (WORD)(clipXMax - cr->bounds.MinX),
+                                       (WORD)(clipYMax - cr->bounds.MinY),
+                                       pen, drawmode);
                 }
                 else
                 {
                     /* Visible: fill directly on screen */
-                    FillRectDirect(bm, clipXMin, clipYMin, clipXMax, clipYMax, pen, drawmode);
+                    if (rp->AreaPtrn)
+                        FillRectPattern(rp, bm, clipXMin, clipYMin, clipXMax, clipYMax);
+                    else
+                        FillRectDirect(bm, clipXMin, clipYMin, clipXMax, clipYMax, pen, drawmode);
                 }
             }
         }
@@ -4631,7 +4749,10 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
     }
 
     /* No layer - simple drawing with just bitmap bounds check */
-    FillRectDirect(bm, xMin, yMin, xMax, yMax, pen, drawmode);
+    if (rp->AreaPtrn)
+        FillRectPattern(rp, bm, xMin, yMin, xMax, yMax);
+    else
+        FillRectDirect(bm, xMin, yMin, xMax, yMax, pen, drawmode);
 }
 
 static VOID _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6"),

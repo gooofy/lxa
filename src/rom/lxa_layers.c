@@ -57,6 +57,12 @@ extern struct GfxBase  *GfxBase;
 extern struct UtilityBase *UtilityBase;
 
 /*
+ * Forward declaration for Intuition IDCMP_REFRESHWINDOW notification.
+ * Defined in lxa_intuition.c.
+ */
+extern void lxa_notify_window_refresh(APTR window);
+
+/*
  * LayersBase structure - library base for layers.library
  */
 struct LayersBase
@@ -1292,6 +1298,35 @@ static struct Layer * __attribute__((optimize("O0"))) _layers_CreateBehindLayer 
 }
 
 /*
+ * NotifyDamagedWindows - Send IDCMP_REFRESHWINDOW to windows whose
+ * SIMPLE_REFRESH layers have LAYERREFRESH set.
+ *
+ * Must be called AFTER releasing the LayerInfo semaphore to avoid
+ * deadlocks with Intuition message ports.
+ *
+ * SMART_REFRESH windows are intentionally skipped: their backing store has
+ * already restored the visible pixels by the time this is called, so they
+ * do not need an app-driven redraw.  SIMPLE_REFRESH windows have no backing
+ * store and must redraw when their content is damaged.
+ */
+static void NotifyDamagedWindows(struct Layer_Info *li)
+{
+    struct Layer *layer;
+    if (!li)
+        return;
+
+    for (layer = li->top_layer; layer; layer = layer->back)
+    {
+        /* Skip SMART_REFRESH layers (backing store already restored pixels) */
+        if (IS_SMARTREFRESH(layer))
+            continue;
+
+        if ((layer->Flags & LAYERREFRESH) && layer->Window)
+            lxa_notify_window_refresh(layer->Window);
+    }
+}
+
+/*
  * DeleteLayer - Delete a layer (offset -0x5a)
  *
  * Returns TRUE on success, FALSE on failure.
@@ -1326,6 +1361,10 @@ static LONG _layers_DeleteLayer ( register struct LayersBase *LayersBase __asm("
     RebuildAllClipRects(li);
 
     ReleaseSemaphore(&li->Lock);
+
+    /* Notify windows that need refresh — MUST be after ReleaseSemaphore
+     * to avoid deadlocks with Intuition message-port locking. */
+    NotifyDamagedWindows(li);
 
     /* Free DamageList if any */
     if (layer->DamageList)

@@ -23,6 +23,7 @@
 
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
+#include <graphics/gfxmacros.h>
 #include <graphics/view.h>
 #include <graphics/clip.h>
 #include <graphics/layers.h>
@@ -7126,10 +7127,40 @@ static void _compute_idcmp_mouse_coords(struct Window *window, ULONG class,
 }
 
 /*
+ * lxa_notify_window_refresh - Send IDCMP_REFRESHWINDOW to a window.
+ *
+ * Called from lxa_layers.c when a layer is damaged (e.g. after a covering
+ * window is deleted).  Mirrors AROS WindowNeedsRefresh() in
+ * inputhandler_support.c.  'win' is APTR to avoid a circular include
+ * dependency between layers.c and intuition.c.
+ */
+void lxa_notify_window_refresh(APTR win)
+{
+    struct Window *window = (struct Window *)win;
+
+    if (!window)
+        return;
+
+    /* Only send if the app asked for REFRESHWINDOW events */
+    if (!(window->IDCMPFlags & IDCMP_REFRESHWINDOW))
+        return;
+
+    /* Do not send for SuperBitMap or NoCareRefresh windows */
+    if (window->Flags & (WFLG_SUPER_BITMAP | WFLG_NOCAREREFRESH))
+        return;
+
+    DPRINTF(LOG_DEBUG, "_intuition: lxa_notify_window_refresh() window=0x%08lx\n",
+            (ULONG)window);
+
+    _post_idcmp_message(window, IDCMP_REFRESHWINDOW, 0, 0, NULL,
+                        window->MouseX, window->MouseY);
+}
+
+/*
  * Internal function to post an IDCMP message to a window
  * Returns TRUE if message was posted, FALSE if window not interested
  */
-static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code, 
+static BOOL _post_idcmp_message(struct Window *window, ULONG class, UWORD code,
                                  UWORD qualifier, APTR iaddress, WORD mouseX, WORD mouseY)
 {
     struct LXAWindowState *state;
@@ -11501,9 +11532,29 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             WORD containerH = height - 2;
             WORD knobW, knobH, knobX, knobY;
 
-            SetAPen(rp, 0);  /* Background pen */
-            RectFill(rp, containerL, containerT,
-                     containerL + containerW - 1, containerT + containerH - 1);
+            /*
+             * PROPNEWLOOK: fill the container with a stipple pattern
+             * (alternating SHADOWPEN/BACKGROUNDPEN rows, 0x5555/0xAAAA).
+             * Without PROPNEWLOOK, fill plain with pen 0 (background).
+             */
+            if (pi->Flags & PROPNEWLOOK)
+            {
+                static const UWORD stipple[2] = { 0x5555, 0xAAAA };
+                SetDrMd(rp, JAM2);
+                SetAfPt(rp, (UWORD *)stipple, 1);
+                SetAPen(rp, 1);  /* SHADOWPEN */
+                SetBPen(rp, 0);  /* BACKGROUNDPEN */
+                RectFill(rp, containerL, containerT,
+                         containerL + containerW - 1, containerT + containerH - 1);
+                SetAfPt(rp, NULL, 0);
+                SetDrMd(rp, JAM2);
+            }
+            else
+            {
+                SetAPen(rp, 0);  /* Background pen */
+                RectFill(rp, containerL, containerT,
+                         containerL + containerW - 1, containerT + containerH - 1);
+            }
 
             /* Calculate knob size from Body */
             if (pi->Flags & FREEHORIZ)
@@ -11533,22 +11584,39 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
                 knobY = containerT + (WORD)(((ULONG)maxMoveY * (ULONG)pi->VertPot) / 0xFFFF);
             }
 
-            /* Draw knob as raised bevel box */
-            /* Knob interior */
-            SetAPen(rp, 0);  /* Grey background for knob interior */
-            RectFill(rp, knobX, knobY, knobX + knobW - 1, knobY + knobH - 1);
+            /* Draw knob: shadow border lines + shine interior (AROS/OS3 style) */
+            {
+                WORD kx0 = knobX;
+                WORD ky0 = knobY;
+                WORD kx1 = knobX + knobW - 1;
+                WORD ky1 = knobY + knobH - 1;
 
-            /* Knob top/left edge = shine (pen 2) */
-            SetAPen(rp, 2);
-            Move(rp, knobX, knobY + knobH - 2);
-            Draw(rp, knobX, knobY);
-            Draw(rp, knobX + knobW - 2, knobY);
+                /* Shadow lines on the outside edges of the knob */
+                SetAPen(rp, 1);  /* SHADOWPEN */
+                if (pi->Flags & FREEVERT)
+                {
+                    /* Top and bottom shadow lines */
+                    RectFill(rp, kx0, ky0, kx1, ky0);
+                    RectFill(rp, kx0, ky1, kx1, ky1);
+                    ky0++;
+                    ky1--;
+                }
+                if (pi->Flags & FREEHORIZ)
+                {
+                    /* Left and right shadow lines */
+                    RectFill(rp, kx0, ky0, kx0, ky1);
+                    RectFill(rp, kx1, ky0, kx1, ky1);
+                    kx0++;
+                    kx1--;
+                }
 
-            /* Knob bottom/right edge = shadow (pen 1) */
-            SetAPen(rp, 1);
-            Move(rp, knobX + knobW - 1, knobY);
-            Draw(rp, knobX + knobW - 1, knobY + knobH - 1);
-            Draw(rp, knobX, knobY + knobH - 1);
+                /* Fill knob interior with SHINEPEN (white) */
+                if (kx0 <= kx1 && ky0 <= ky1)
+                {
+                    SetAPen(rp, 2);  /* SHINEPEN */
+                    RectFill(rp, kx0, ky0, kx1, ky1);
+                }
+            }
 
             DPRINTF(LOG_DEBUG, "_render_gadget: prop knob at (%d,%d) size %dx%d pot=%u body=%u\n",
                     knobX, knobY, knobW, knobH, pi->HorizPot, pi->HorizBody);

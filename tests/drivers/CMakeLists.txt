@@ -319,6 +319,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/devpac_scrollbar_gtest.cpp)
         add_gtest_driver(devpac_scrollbar_gtest)
     endif()
+
+    # Devpac Settings window tests (Phase 146)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/devpac_settings_gtest.cpp)
+        add_gtest_driver(devpac_settings_gtest)
+    endif()
     
     # KickPascal - Pascal IDE test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/kickpascal_gtest.cpp)

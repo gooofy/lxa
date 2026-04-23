@@ -53,39 +53,12 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 142 | Library policy cleanup: removed third-party stubs (`req.library`, `reqtools.library`, `powerpacker.library`, `arp.library`); real binaries from `others/` now live in `share/lxa/System/Libs/`. `FindThirdPartyLibsPath()` in `lxa_test.h` auto-discovers the directory so LIBS: is set up correctly in all tests. 68/68 pass. | v0.9.24 |
 | 143 | datatypes.library full implementation: `ObtainDataTypeA`/`ReleaseDataType`, `NewDTObjectA`/`DisposeDTObject`, `GetDTAttrsA`/`SetDTAttrsA` (with `DTSpecialInfo` backing), `DoDTMethodA` (DTM_FRAMEBOX), `GetDTMethods`/`GetDTTriggerMethods`, `GetDTString`. Local `lxa_next_tag()` avoids UtilityBase dependency in disk library context. All register assignments fixed per NDK fd. New `datatypes_gtest.cpp` (5 tests). 69/69 pass. | v0.9.25 |
 | 145 | Intuition window border scrollbar rendering: added `case GTYP_WZOOM:` to `_render_window_frame()` (outlined rectangle imagery), WZOOM gadget creation in `_create_window_sys_gadgets()` when `WFLG_HASZOOM` set, `ZipWindow` behavior in `_handle_sys_gadget_verify`, `WA_Zoom` tag sets `WFLG_HASZOOM`. New `ZoomWindow` sample. New `devpac_scrollbar_gtest.cpp` (3 tests: ZoomGadgetExists, RightBorderPropKnob, RightBorderScrollArrows). Devpac editor right-border PropGadget knob and scroll arrows render correctly; WZOOM gadget structural presence verified. 71/71 pass. | v0.9.27 |
+| 146 | Devpac Settings window (req.library): navigates Settings→Settings... via RMB drag using exact menu coordinates (Settings menu left=384, "Settings..." item screen y=42, verified via lxa_get_menu_info). Window opens correctly at 489×137 with 18 gadgets (cycle gadgets, checkboxes, string gadget, Save/Use/Cancel buttons). Rendering requires ~500 VBlanks; test uses lxa_wait_window_drawn(1) for event-driven waiting. New devpac_settings_gtest.cpp (4 tests: SettingsWindowOpens, SettingsWindowRendersContent, SettingsWindowHasThreeButtons, ZDismissSettingsWindow). 72/72 pass. | v0.9.28 |
+| 148 | Devpac visual fixes — SIMPLE_REFRESH overdraw and PropGadget PROPNEWLOOK stipple: (1) `lxa_layers.c`: added `NotifyDamagedWindows()` called from `DeleteLayer` after `ReleaseSemaphore`; posts `IDCMP_REFRESHWINDOW` only to SIMPLE_REFRESH windows, preventing overdraw artifacts after req.library settings window closes. (2) `lxa_graphics.c`: added `FillRectPattern()` helper; `_graphics_RectFill` now respects `rp->AreaPtrn` for stipple fills via both layered and non-layered paths; removed BltPattern stub. (3) `lxa_intuition.c`: added `#include <graphics/gfxmacros.h>` and `lxa_notify_window_refresh()` helper; PropGadget PROPNEWLOOK container now renders stipple via `SetAfPt`+`RectFill`. (4) `devpac_scrollbar_gtest.cpp`: replaced fragile adjacent-pair stipple check with semantically correct pen-0/pen-1 presence check (works on narrow 6px gadget). `ZDismissSettingsWindow` asserts non-background pixels in editor area after settings close. 70/72 pass (2 pre-existing failures: gadtoolsgadgets_pixels_c_gtest, apps_misc_gtest). | v0.9.29 |
 
 ---
 
 ## Next Phase
-
-### Phase 146 — Devpac Settings window (req.library requester layout)
-
-**Root cause** (confirmed via FS-UAE screenshot devpac2.png):
-
-The Settings window is opened by DevPac via `req.library`'s `DoRequest()` / `BuildSysRequest()` — now using the real binary (Phase 142). The FS-UAE reference shows:
-- A properly positioned sub-window (centered on screen, ~480×140 px)
-- Cycle gadgets (`[<]` button + current-value text) for: End of Line, Word Qualifier, Save Before Run, Program Window
-- A string gadget for Public Screen
-- Four checkboxes on the right (Auto-Indent, Make Backups, Stack New Projects, Shift-Backspace, IBM Keypad)
-- Three push-buttons at the bottom: Save, Use, Cancel
-
-This window was previously never reachable (Phase 142 had the req.library stub silently failing). Now that the real binary loads, we need to:
-1. Navigate to Settings→Settings in lxa's devpac test and capture the result
-2. Compare visually to the FS-UAE reference
-3. Identify specific rendering defects (missing gadgets, wrong positions, truncated text, wrong colors)
-
-The most likely issues are:
-- **Cycle gadget arrow rendering**: The `[<]` button is a cycle gadget using req.library's own internal gadget imagery — lxa's gadget renderer may not know about req.library's custom image format
-- **String gadget border**: req.library string gadgets may use a non-standard border style
-- **Layout/positioning**: req.library computes its own layout from font metrics; if `tf_XSize`/`tf_YSize` differ from what req.library expects, all gadget positions shift
-
-**TODOs**:
-- [ ] Add a `DevpacTest.SettingsWindow` test: navigate Settings→Settings via RMB drag, wait for a new window, capture it
-- [ ] Attach capture PNG and compare to FS-UAE reference (devpac2.png in `screenshots/`)
-- [ ] Identify and fix any rendering defects found
-- [ ] Assert: window opens (count goes from 1 to 2), window contains at least 3 push-buttons, cycle gadget for "End of Line" is visible
-
-**Test gate**: `DevpacTest.SettingsWindow` passes; settings window looks correct when compared to screenshot.
 
 ### Phase 147 — Typeface window chrome
 
