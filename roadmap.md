@@ -14,25 +14,57 @@ The primary target applications are productivity software (Wordsworth, Amiga Wri
 
 ---
 
+## Roadmap Policy
+
+These rules govern how this file evolves. Read them before adding, removing, or reordering phases.
+
+### Priority Order
+Work is scheduled in this strict order. A lower-priority phase may not be promoted ahead of a higher-priority phase that is ready to start.
+
+1. **Quality** — failing tests, flaky tests, infrastructure gaps, regressions. Always first.
+2. **Amiga compatibility** — real-Amiga behaviour gaps in implemented APIs, missing system-library functionality, app-specific correctness issues (within the lxa approach: OS-compliant apps only, no chip-register emulation).
+3. **Performance** — measured wall-time, memory, or CPU regressions; optimisation phases.
+4. **New features** — RTG, MUI, ReAction, external process emulation, etc. Last.
+
+### No Pooling Sections
+This roadmap does **not** contain catch-all lists like "Deferred Test Failures", "Known Limitations", "TODO", or "Backlog". Such sections accumulate forever and signal that work has been parked rather than scheduled.
+
+When a new issue, gap, or follow-up appears it must be either:
+
+- **Added as a TODO bullet inside an existing scheduled phase** if the same root cause is already covered, OR
+- **Promoted into a new phase**, numbered, scheduled at the appropriate priority slot, with explicit objectives, sub-problems, TODO checkboxes, and a test gate.
+
+The only retrospective section is the `## Completed Phases (Summary)` table — one line per phase, full detail in the git commit message.
+
+### Maintenance Rules
+1. **Completed phases** collapse to a single one-line row in the summary table — no verbose write-ups remain in the roadmap.
+2. **Promote the next phase**: whenever a phase finishes, surface the next one under `## Next Phase` so the next agent sees it immediately.
+3. **Length budget**: keep `roadmap.md` under ~600 lines. The explicit-phase rule (every issue → its own phase with sub-problems and TODOs) inflates length deliberately; compact only by collapsing completed phases into the summary table or moving deep detail to the relevant skill.
+4. **No stale "next phase" pointer**: never leave the roadmap with an unclear "what comes next".
+5. **`DISABLED_` GTests** must each be the explicit objective of a scheduled phase. A test may not stay disabled without a phase that will re-enable it.
+
+---
+
 ## Next Phase
 
-### Phase 137 — RTG display foundation
+### Phase 137 — Fix DosTest.LoadSegRuntime (RunCommand exit-code propagation)
 
-**Goal**: Land the chunky-bitmap and SDL2 RGBA pipeline that all subsequent RTG work depends on. This is the gateway to PPaint, FinalWriter, and modern productivity-app validation.
+**Priority**: Quality. Currently `DISABLED_LoadSegRuntime` in `tests/drivers/dos_gtest.cpp:283`.
+
+**Root cause hypothesis**: `_dos_RunCommand` in `src/rom/lxa_dos.c` returns its own status code rather than the spawned child's exit value. Test 3 of the `LoadSegRuntime` sample asserts the child's return code and observes the wrong value.
 
 **Sub-problems**:
-1. **`AllocBitMap` depth extension** (`lxa_graphics.c`): remove the depth 1–8 clamp. For depths > 8, allocate a single contiguous chunky buffer (width × height × bytes-per-pixel) instead of separate bit-planes. Mark such bitmaps with a new `BMF_RTG` internal flag. `GetBitMapAttr(BMA_DEPTH)` must return the real depth.
-2. **SDL2 backend extension** (`display.c`): add `display_update_rtg()` accepting a raw 32-bit RGBA buffer uploaded directly to an `SDL_PIXELFORMAT_RGBA32` texture. Existing planar pipeline untouched.
-3. **RTG display IDs** (`lxa_graphics.c`): add P96 monitor/mode IDs to `g_known_display_ids[]` (at minimum `P96_MONITOR_ID` base with `RGBFB_R8G8B8A8` and `RGBFB_R5G6B5` variants). `GetDisplayInfoData(DTAG_DIMS)` returns host-resolution ranges. `OpenScreenTagList()` with an RTG depth allocates a chunky screen bitmap and calls `display_open()` with the RTG depth.
+1. Locate `_dos_RunCommand` and trace how the child seglist is invoked. Identify where the child's `Exit(rc)` value should be captured.
+2. Verify the child-process lifecycle: does `RunCommand` synchronously wait for the child? If yes, the exit code must be threaded back. If no, document the AmigaDOS-spec semantics and adjust the test.
+3. Cross-check against RKRM: dos.library / `RunCommand()` documented behaviour and the contract of the `pr_Result2` field.
 
-- [ ] Extend `AllocBitMap` to support depth > 8; add `BMF_RTG` internal flag
-- [ ] `GetBitMapAttr(BMA_DEPTH/WIDTH/HEIGHT/BYTESPERROW)` correct for RTG bitmaps
-- [ ] `display_update_rtg()` in `display.c` / `display.h`; `SDL_PIXELFORMAT_RGBA32` texture path
-- [ ] P96 monitor/mode IDs in `g_known_display_ids[]`; `GetDisplayInfoData` returns RTG ranges
-- [ ] `OpenScreenTagList()` with RTG depth allocates chunky screen bitmap
-- [ ] New `rtg_gtest.cpp`: `AllocBitMap(640,480,32,BMF_CLEAR,NULL)` + `GetBitMapAttr` returns 32; `OpenScreenTagList` with P96 mode ID does not crash
+- [ ] Reproduce the failure in isolation: `./build/tests/drivers/dos_gtest --gtest_filter="DosTest.DISABLED_LoadSegRuntime" --gtest_also_run_disabled_tests`
+- [ ] Identify the exit-code capture point in `_dos_RunCommand`
+- [ ] Fix the propagation
+- [ ] Re-enable the test (remove `DISABLED_` prefix and inline comment)
+- [ ] Full suite green
 
-**Test gate**: `rtg_gtest` passes; full suite remains green (zero failures, zero timeouts).
+**Test gate**: `DosTest.LoadSegRuntime` passes; full suite 68/68 + this test = 69/69 (or shard count if it grows).
 
 ---
 
@@ -82,46 +114,272 @@ Detailed write-ups live in the git commit messages. This table is the single ind
 | 136-b3 | lxa-built bgui.library replaces SAS/C prebuilt; `src/bgui/lxa_shims.c` | v0.9.15 |
 | 136-b4 | bgui calling-convention fixes (R5/R6/R7); Typeface renders character grid | v0.9.16 |
 | 136-c | Roadmap overhaul; screenshot_review retired to attic; 5 failing tests quarantined as DISABLED_ | v0.9.17 |
+| 136-d | Roadmap+AGENTS policy: priority order, no pooling sections, every DISABLED_ test gets a phase | v0.9.18 |
 
 ---
 
-## Planned Work
+## Quality (Phases 137–141)
 
-### Library Policy Cleanup (Phases 141–143)
+Re-enable each `DISABLED_` GTest. Done in priority order by user impact (DOS API correctness first, GadTools rendering next, app-interaction last).
 
-These phases correct a longstanding policy violation: several third-party library stubs (`req.library`, `reqtools.library`, `powerpacker.library`) were implemented in lxa in Phase 110. This was wrong — these are not AmigaOS system libraries and must never be implemented or emulated by lxa. Real binaries must be supplied by the user. Similarly, `datatypes.library` is a genuine AmigaOS system library that deserves a full, correct implementation rather than the minimal stub introduced in Phase 136-h.
+### Phase 137 — see Next Phase above.
 
-#### Phase 141 — Remove third-party library stubs; wire in real binaries
-- Delete `src/rom/lxa_reqlib.c`, `src/rom/lxa_reqtools.c`, `src/rom/lxa_powerpacker.c`.
-- Remove the corresponding `add_disk_library()` entries from `sys/CMakeLists.txt`.
-- Locate or request real binaries; install to `share/lxa/System/Libs/` (same pattern as `bgui.library`).
-- Update tests that previously validated "stub returns failure cleanly" to validate real library functionality (or skip if binary missing).
-- `arp.library` is ambiguous — treat as third-party (CBM did not ship it with AmigaOS); apply the same removal pattern.
+### Phase 138 — Fix GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean
 
-**Test gate**: Full suite passes. Apps that depended on stub-returned failures (DevPac File→Open) should still not crash.
+**Priority**: Quality. Currently `DISABLED_ResizeKeepsSizeGadgetBordersClean` in `tests/drivers/gadtoolsgadgets_gtest.cpp:962`.
 
-#### Phase 142 — datatypes.library full implementation
-Replace the Phase 136-h stub with a complete, RKRM-correct implementation per the AmigaOS 3.x NDK and RKRM: Libraries.
+**Root cause hypothesis**: After `_intuition_SizeWindow` fires, the layer-rebuild path does not invalidate gadget borders. The size-gadget chrome region ends up with zero non-background pixels because `_render_gadget` is not re-invoked (or its damage region is not propagated).
 
-Key areas: `ObtainDataType()`/`ReleaseDataType()`, `NewDTObject()`/`DisposeDTObject()`, `GetDTAttrs()`/`SetDTAttrs()`, `DoDTMethod()`, `DrawDTObject()`, `FindToolNode()`, `GetDTMethods()`, DataTypes class loading from `SYS:Classes/DataTypes/`, built-in detection for ILBM/8SVX/FTXT/ANIM.
+**Sub-problems**:
+1. Trace the SIZEWINDOW IDCMP path in `lxa_intuition.c`: when the user drags the size-gadget, what gadget-rerender hooks fire?
+2. Compare against the WINDOWREFRESH path on regular interior damage — gadget borders should follow the same pattern.
+3. Verify that the size-gadget is repositioned (its `LeftEdge`/`TopEdge` follow the window resize) before being rerendered.
 
-**Test gate**: Apps using `datatypes.library` (picture viewers, sound players, Workbench icon loading) open DataTypes objects without crashing. New `datatypes_gtest.cpp` covering core lifecycle + at least one IFF type.
+- [ ] Reproduce in isolation
+- [ ] Identify missing rerender call
+- [ ] Fix and re-enable test
+- [ ] Add a regression assertion that any `IDCMP_NEWSIZE` followed by `WaitTOF` shows non-zero gadget chrome
+- [ ] Full suite green; update CMakeLists FILTER to include the re-enabled test name
 
-#### Phase 143 — Startup smoke test suite
-Catch "app crashes on startup" regressions automatically, before a dedicated driver is written. The Typeface crash (datatypes.library NULL pointer) went undetected because no test existed yet for Typeface.
+### Phase 139 — Fix GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems
 
-- Add `smoke_gtest.cpp`: parameterised test that, for each known app binary in `lxa-apps/`, loads the app, runs 100 VBlank settle iterations, and asserts: (1) no SIGABRT, (2) no `PANIC` in output, (3) no `rv=26` unless allowlisted.
-- Self-contained: missing app binary → `GTEST_SKIP()` rather than failure.
+**Priority**: Quality. Currently `DISABLED_SubmenuHoverDoesNotCorruptLowerMainItems` in `tests/drivers/gadtoolsmenu_gtest.cpp:320`. Hangs indefinitely (timeout).
+
+**Root cause hypothesis**: Event-injection deadlock between `menu_drag` step processing and submenu redraw. The previous test (`HoverRedrawReturnsToSamePixels`) passes in ~69 s, so the fixture is sound; the specific submenu hover sequence triggers the hang.
+
+**Sub-problems**:
+1. Add a per-step iteration cap in the test fixture so the hang produces a useful failure message rather than a timeout.
+2. Instrument `_render_menu_items()` and `_intuition_ProcessInputEvents()` with diagnostic LPRINTFs (revert before commit per AGENTS §6.3) to identify which side is starved.
+3. Likely candidates: the submenu redraw path enters a wait-state that the injected event never satisfies, or the input queue is drained synchronously inside the redraw.
+
+- [ ] Add iteration cap to bound the failure
+- [ ] Identify the deadlock party
+- [ ] Fix the wait-state or queue-drain issue
+- [ ] Re-enable test
+- [ ] Full suite green
+
+### Phase 140 — Fix ProWriteInteractionTest.AboutDialogOpensAndCanBeDismissed
+
+**Priority**: Quality. Currently `DISABLED_AboutDialogOpensAndCanBeDismissed` in `tests/drivers/apps_misc_gtest.cpp:1075`.
+
+**Root cause hypothesis**: About requester opens, but the OK-button click / `IDCMP_CLOSEWINDOW` handling does not return ProWrite to the editor state the test expects. Candidate area: Phase 135 ActiveWindow routing change (RAWKEY routes to `IntuitionBase->ActiveWindow`) may have shifted requester-vs-editor active-window tracking.
+
+**Sub-problems**:
+1. Capture the IDCMP event log around the dismiss (Phase 131 `lxa_drain_intui_events()`).
+2. Verify `ActiveWindow` is correctly restored to ProWrite's editor when the requester closes.
+3. Cross-check against RKRM: requester close should restore the previously-active window of the same screen.
+
+- [ ] Capture event log diagnostic
+- [ ] Identify ActiveWindow state at dismiss time
+- [ ] Fix routing if needed
+- [ ] Re-enable test
+- [ ] Full suite green
+
+### Phase 141 — Fix MiscTest.StressTasks
+
+**Priority**: Quality. Currently `DISABLED_StressTasks` in `tests/drivers/misc_gtest.cpp:144`. Two assertion failures in the Stress sample (lines 33, 41) under sustained AddTask/RemoveTask churn over 60 s.
+
+**Root cause hypothesis**: `exec.c` scheduler / signal-delivery race that only manifests under sustained task churn.
+
+**Sub-problems**:
+1. Reduce the stress-test workload until the failure is deterministic, then bisect to identify the minimal repro.
+2. Audit `_exec_AddTask`, `_exec_RemoveTask`, signal delivery (`Signal`/`Wait`), and the ready-list manipulation for non-atomic sequences.
+3. Cross-check Forbid/Permit nesting around task-list edits.
+
+- [ ] Reduce repro
+- [ ] Identify race
+- [ ] Fix and re-enable
+- [ ] Full suite green over 50 consecutive runs (reliability loop per `lxa-testing` skill)
+
+---
+
+## Amiga Compatibility (Phases 142–151)
+
+Real-Amiga behaviour gaps. Each phase has explicit objectives derived from the formerly-pooled "Known Limitations" list.
+
+### Phase 142 — Library policy cleanup: third-party stub removal
+
+Correct the longstanding policy violation from Phase 110: third-party stubs (`req.library`, `reqtools.library`, `powerpacker.library`) must not exist in lxa. Real binaries supplied by the user, same as `bgui.library`.
+
+- [ ] Delete `src/rom/lxa_reqlib.c`, `src/rom/lxa_reqtools.c`, `src/rom/lxa_powerpacker.c`
+- [ ] Remove the corresponding `add_disk_library()` entries from `sys/CMakeLists.txt`
+- [ ] **STOP and notify the user** to supply real `req.library`, `reqtools.library`, `powerpacker.library` binaries before proceeding
+- [ ] Install supplied binaries to `share/lxa/System/Libs/` (same pattern as `bgui.library`)
+- [ ] Update tests that previously validated "stub returns failure cleanly" to validate real library functionality (or skip if binary missing)
+- [ ] `arp.library`: treat as third-party (CBM did not ship with AmigaOS); apply same removal pattern
+- [ ] DevPac File→Open requester now opens with real `req.library` (was stubbed silently failing)
+
+**Test gate**: Full suite passes. Apps that depended on stub-returned failures (DevPac File→Open) still do not crash; with real binaries, the requester actually appears.
+
+### Phase 143 — datatypes.library full implementation
+
+Replace the Phase 136-h minimal stub with a complete RKRM/NDK implementation.
+
+Key areas:
+- [ ] `ObtainDataType()` / `ReleaseDataType()` — type detection via magic bytes
+- [ ] `NewDTObject()` / `DisposeDTObject()` — object lifecycle
+- [ ] `GetDTAttrs()` / `SetDTAttrs()` — attribute access
+- [ ] `DoDTMethod()` — method dispatch to DataTypes classes
+- [ ] `DrawDTObject()` — render into a RastPort
+- [ ] `FindToolNode()` / `AddDTObject()` / `RemoveDTObject()` — gadget management
+- [ ] `GetDTMethods()` / `GetDTTriggerMethods()` — method introspection
+- [ ] DataTypes class loading: scan `SYS:Classes/DataTypes/` for `.datatype` descriptors
+- [ ] Built-in detection for ILBM, 8SVX, FTXT, ANIM
+- [ ] New `datatypes_gtest.cpp` covering core lifecycle + at least one IFF type
+
+**Test gate**: Apps using `datatypes.library` (picture viewers, sound players, Workbench icon loading) open DataTypes objects without crashing.
+
+### Phase 144 — Startup smoke test suite
+
+Catch "app crashes on startup" regressions automatically. The Typeface crash (datatypes.library NULL pointer) went undetected because no test existed for Typeface yet.
+
+- [ ] Add `smoke_gtest.cpp` in `tests/drivers/`: parameterised test that, for each known app binary in `lxa-apps/`, loads the app, runs 100 VBlank settle iterations, and asserts (1) no SIGABRT, (2) no `PANIC` in output, (3) no `rv=26` unless allowlisted
+- [ ] Self-contained: missing app binary → `GTEST_SKIP()` rather than failure
+- [ ] Allowlist apps that legitimately exit immediately (command-line tools)
 
 **Test gate**: All currently known apps that open windows pass the smoke test.
 
+### Phase 145 — Typeface window chrome rendering
+
+Typeface currently renders a 194×138 character grid; the real app shows 280×195 with a window border, title bar, and vertical scrollbar. The grid (BGUI primary content) is correct; the surrounding chrome is missing.
+
+**Root cause hypothesis**: Either BGUI's window-frame layout is computing the wrong client area, or the lxa Intuition window-decoration code is not rendering Typeface's requested borders/scrollbar gadgets. Determine which side.
+
+- [ ] Capture window via `lxa_capture_window()` and attach PNG to assistant for visual diagnosis (per `graphics-testing` SKILL §8)
+- [ ] Compare BGUI-requested geometry vs lxa-rendered geometry (Phase 131 `lxa_get_window_info`)
+- [ ] If BGUI side: inspect `WindowObject` tags Typeface passes
+- [ ] If lxa side: audit `_intuition_OpenWindow` border/title-bar/scrollbar paths
+- [ ] Fix and add `WindowChromeMatchesTarget` test in `typeface_gtest.cpp` asserting target dimensions ±a few pixels
+
+**Test gate**: Typeface window matches target geometry; full suite green.
+
+### Phase 146 — Typeface deeper workflows
+
+After Phase 145 gives Typeface a correct window, exercise the actual font-browser interactions.
+
+- [ ] `gadgets/textfield.gadget` integration: ensure `GADGETS:` assign resolves, gadget loads, text-entry preview widget renders
+- [ ] Font-list interaction: click a font name; assert preview pane updates (text hook captures the chosen font name)
+- [ ] Preview pane rendering: pixel-region assertion that the preview area shows non-background content after font selection
+- [ ] At least one font is installed via lxa-apps test fixture (or test skips with `GTEST_SKIP()` if no fonts present)
+
+**Test gate**: 3 new Typeface tests pass.
+
+### Phase 147 — Deferred-paint trigger / forced full redraw
+
+Several apps defer rendering of menu bars, toolbars, palettes, and editor backgrounds until the first mouse interaction. This makes interaction tests brittle: the first click triggers paint, subsequent clicks see the painted state, and the test must be carefully ordered.
+
+Affected apps: DPaint V (main editor menu/toolbox/palette + Ctrl-P from depth-8), KickPascal 2 (editor-body splash-clear).
+
+**Two complementary approaches** — implement both:
+1. **Investigate the deferred-paint trigger** in each affected app (likely an IDCMP_INTUITICKS or first-IDCMP_MOUSEMOVE handler) and understand why lxa is not delivering the trigger event when expected.
+2. **Add a "force full redraw" host capability** so tests can demand a full repaint without faking input.
+
+- [ ] Add `lxa_force_full_redraw()` host API + EMU_CALL that walks all open windows and damages their full client areas (triggering `IDCMP_REFRESHWINDOW`)
+- [ ] DPaint V: identify why first-mouse-interaction is needed; fix or document
+- [ ] KickPascal 2: editor body clears splash screen on first key press (or forced redraw)
+- [ ] DPaint V Ctrl-P: works from depth-8 main editor (not only depth-2 startup dialog)
+- [ ] Re-enable any DPaint V About dialog / File→Open requester tests that were blocked
+- [ ] New tests in `dpaint_gtest.cpp` and `kickpascal_gtest.cpp` covering the unblocked workflows
+
+**Test gate**: DPaint V and KickPascal 2 deeper workflows reachable from tests.
+
+### Phase 148 — DirectoryOpus deeper workflows
+
+Phase 134 fixed the button-bank rendering. Remaining gaps:
+
+- [ ] File-list navigation in lister panes (requires directory reading)
+- [ ] Button-bank click workflows (requires `dopus.library` command dispatch — verify the library is supplied or stubbed correctly per Phase 142 policy; if third-party, **STOP and notify user**)
+- [ ] Preferences panel interaction
+- [ ] Title-bar version/memory string rendered by DOpusRT (which is currently not launched in the test fixture) — either launch DOpusRT or document why the title-bar string is intentionally absent
+
+**Test gate**: At least 4 new DOpus tests covering the four areas above.
+
+### Phase 149 — BlitzBasic 2 ted editor real text rendering
+
+Phase 119 captured: editor body remains a flat surface with only menu-residue and status overlay paint, even after Phase 113/114 blitter/copper improvements and Phase 135 requester unblocking. ted does not render real editable text content.
+
+**Root cause unknown** — needs new investigation. Hypotheses:
+- Custom text renderer that uses an as-yet-unimplemented blitter copy mode
+- Sprite hardware used for cursor/selection
+- Specific copper waits that ted uses for its custom overlay
+- Direct chip-RAM writes that bypass the lxa graphics path
+
+- [ ] Instrument blitter operations during BB2 idle to identify what ted *does* emit (Phase 135 confirmed it's not the originally-hypothesised line-mode/copper-color cycling)
+- [ ] Capture BB2 editor area pixel state at multiple intervals to identify the rendering trigger
+- [ ] Attach captured PNGs to assistant for visual diagnosis of what should be there but isn't
+- [ ] Implement missing path
+- [ ] `EditorRendersText` test in `blitzbasic2_gtest.cpp` asserting non-trivial text-area pixel content
+
+**Test gate**: ted editor area shows real text content under tests.
+
+### Phase 150 — Menu introspection upgrade + non-releasing drag API
+
+Several brittle interactions share the same root cause: lack of programmatic menu item activation and lack of in-drag observability.
+
+Affected apps and gaps:
+- MaxonBASIC: item-level menu activation brittle (German titles, no introspection)
+- KickPascal: layout/menus depend on deeper req library + no introspection (Phase 142 covers req side; this phase covers introspection)
+- ASM-One: qualifier observability not possible from host
+- All apps: menu-state cannot be captured during a drag (`lxa_inject_drag` is atomic press→drag→release)
+
+- [ ] Add `lxa_select_menu_item(menu_idx, item_idx, sub_idx)` host API that activates a specific menu item by index without coordinate-based dragging
+- [ ] Add `lxa_inject_drag_begin()` / `lxa_inject_drag_step()` / `lxa_inject_drag_end()` non-atomic drag API so tests can capture pixel state mid-drag
+- [ ] Add `lxa_get_qualifier_state()` host API exposing the current input qualifier bits
+- [ ] Update `LxaTest` C++ helpers to wrap all three
+- [ ] Migrate at least one MaxonBASIC menu-item test, one KickPascal menu test, and one ASM-One qualifier test to the new APIs
+- [ ] Add `MenuPixelStateDuringDrag` test in `gadtoolsmenu_gtest.cpp` exercising the non-atomic drag API
+
+**Test gate**: New APIs covered; migrated tests pass; no regressions in existing menu tests.
+
+### Phase 151 — SysInfo hardware fields + Cluster2 EXIT button
+
+Two small per-app correctness gaps grouped because they are both isolated coordinate/data-source issues.
+
+- [ ] **SysInfo hardware fields**: `BattClock` and CIA timing fields that SysInfo reads — populate plausible values in the relevant ROM data (not real hardware detection; lxa reports a synthetic baseline machine)
+- [ ] **Cluster2 EXIT button**: coordinate mapping mismatch in custom toolbar — Cluster2 renders its toolbar with custom coordinates; the EXIT button click coordinate calculation in `cluster2_gtest.cpp` does not match. Either the test coordinates are wrong, or lxa's IDCMP_MOUSEBUTTONS coordinate mapping is off for windows on a custom screen.
+- [ ] New SysInfo test asserting BattClock/CIA fields are non-zero
+- [ ] New Cluster2 test asserting EXIT button click terminates the app cleanly
+
+**Test gate**: Both new tests pass.
+
 ---
 
-### RTG: Retargetable Graphics (Phases 137–139)
+## Performance (Phase 152)
 
-Phase 137 is the **Next Phase** above. The follow-up phases:
+### Phase 152 — Performance follow-up (placeholder, scheduled when needed)
 
-#### Phase 138 — Picasso96API.library core
+No specific performance work is currently scheduled. When a measurable regression appears (test wall time, memory, CPU profile from `--profile` flag), open this phase with concrete objectives. Until then, this slot is reserved.
+
+The standing performance baseline:
+- Full test suite ~145–175 s wall time at `-j16`
+- Per-EMU_CALL profiling available via `--profile <path>` + `tools/profile_report.py`
+
+---
+
+## New Features: RTG Retargetable Graphics (Phases 153–155)
+
+> Strategic pivot: lxa's display strategy moves from ECS-era planar modes to RTG via Picasso96. Phases 153–155 deliver the full RTG stack — display backend, P96 library, and app validation. Scheduled after the quality + Amiga-compatibility blocks per the priority order.
+
+### Phase 153 — RTG display foundation
+
+Land the chunky-bitmap and SDL2 RGBA pipeline that all subsequent RTG work depends on.
+
+**Sub-problems**:
+1. **`AllocBitMap` depth extension** (`lxa_graphics.c`): remove the depth 1–8 clamp. For depths > 8, allocate a single contiguous chunky buffer (width × height × bytes-per-pixel) instead of separate bit-planes. Mark such bitmaps with a new `BMF_RTG` internal flag. `GetBitMapAttr(BMA_DEPTH)` must return the real depth.
+2. **SDL2 backend extension** (`display.c`): add `display_update_rtg()` accepting a raw 32-bit RGBA buffer uploaded directly to an `SDL_PIXELFORMAT_RGBA32` texture. Existing planar pipeline untouched.
+3. **RTG display IDs** (`lxa_graphics.c`): add P96 monitor/mode IDs to `g_known_display_ids[]` (at minimum `P96_MONITOR_ID` base with `RGBFB_R8G8B8A8` and `RGBFB_R5G6B5` variants). `GetDisplayInfoData(DTAG_DIMS)` returns host-resolution ranges. `OpenScreenTagList()` with an RTG depth allocates a chunky screen bitmap and calls `display_open()` with the RTG depth.
+
+- [ ] Extend `AllocBitMap` to support depth > 8; add `BMF_RTG` internal flag
+- [ ] `GetBitMapAttr(BMA_DEPTH/WIDTH/HEIGHT/BYTESPERROW)` correct for RTG bitmaps
+- [ ] `display_update_rtg()` in `display.c` / `display.h`; `SDL_PIXELFORMAT_RGBA32` texture path
+- [ ] P96 monitor/mode IDs in `g_known_display_ids[]`; `GetDisplayInfoData` returns RTG ranges
+- [ ] `OpenScreenTagList()` with RTG depth allocates chunky screen bitmap
+- [ ] New `rtg_gtest.cpp`: `AllocBitMap(640,480,32,BMF_CLEAR,NULL)` + `GetBitMapAttr` returns 32; `OpenScreenTagList` with P96 mode ID does not crash
+
+**Test gate**: `rtg_gtest` passes; full suite remains green.
+
+### Phase 154 — Picasso96API.library core
+
 New disk library (`src/rom/lxa_p96.c`, installed to `share/lxa/System/Libs/Picasso96API.library`).
 
 | Function | Purpose |
@@ -138,107 +396,121 @@ New disk library (`src/rom/lxa_p96.c`, installed to `share/lxa/System/Libs/Picas
 
 Plus a thin `cybergraphics.library` compatibility shim (`GetCyberMapAttr`, `LockBitMapTags`, `WriteLUTPixelArray`, etc.).
 
-`RenderInfo { APTR Memory; WORD BytesPerRow; WORD pad; RGBFTYPE RGBFormat; }` maps onto the Phase 137 chunky BitMap representation.
+- [ ] `src/rom/lxa_p96.c` with all ten core functions
+- [ ] `cybergraphics.library` shim disk library
+- [ ] Register both in `sys/CMakeLists.txt` via `add_disk_library()`
+- [ ] `p96_gtest.cpp`: unit tests for each function; startup test confirms `OpenLibrary("Picasso96API.library", 0)` returns non-NULL
+- [ ] `cgx_gtest.cpp`: companion that opens `cybergraphics.library` and calls equivalents via CGX names; both libraries return identical results
 
-**Test gate**: `p96_gtest` passes; at least one target app opens the library without exiting early.
+**Test gate**: `p96_gtest` and `cgx_gtest` pass; at least one target app opens the library without exiting early.
 
-#### Phase 139 — RTG app validation
-- **PPaint** (flagship): mode-scan loop populated via P96 enumeration; assert editor canvas reachable.
-- **FinalWriter**: re-enable `DISABLED_AcceptDialogOpensEditorWindow`; clicking OK opens editor window.
-- **One new productivity app** (Wordsworth or Amiga Writer): reaches main editor; text hook confirms content renders.
-- **Typeface chrome gap** (carryover from Phase 136-b4): window currently renders 194×138 vs target 280×195 — missing window border, title bar, and vertical scrollbar. Investigate whether this is RTG-related or a BGUI layout issue; fix during the validation pass.
+### Phase 155 — RTG app validation
+
+- [ ] **PPaint** (flagship): mode-scan loop populated via P96 enumeration; assert editor canvas reachable. ECS-path investigation remains abandoned (PPaint is RTG-only in practice).
+- [ ] **FinalWriter**: re-enable `DISABLED_AcceptDialogOpensEditorWindow` in `finalwriter_gtest.cpp`; clicking OK opens editor window
+- [ ] **One new productivity app** (Wordsworth or Amiga Writer): reaches main editor; text hook confirms content renders
+- [ ] All existing drivers continue to pass
 
 **Test gate**: PPaint editor reachable; FinalWriter editor reachable; new productivity app reaches main UI.
 
 ---
 
-### Long-Term: Extended Coverage (Phase 140+)
+## Long-Term: External Process Emulation + Observability (Phases 156–158)
 
-#### Phase 140 — External process emulation
-DevPac Assemble, ASM-One Assemble, BlitzBasic Run, KickPascal Compile/Run all require this. Needed: AmigaDOS `CreateProc()` / `Execute()` launching a real m68k subprocess within the emulated environment, with stdout piped back to the host. Prerequisites: Phase 131 (event log), Phase 130 (capture output), and a stable foundation from all prior phases.
+### Phase 156 — External process emulation + DOS stdout/clipboard capture
 
-#### Far Future: GUI Toolkits + CPU Evolution
-- **MUI library stubs** (tentative): MUI runs as a disk library. Goal: BOOPSI infrastructure (icclass/modelclass/gadgetclass) solid enough that real `muimaster.library` opens and functions. Test gate: at least one MUI app opens its main window.
-- **ReAction / ClassAct stubs** (tentative): runs as disk-provided class files (`SYS:Classes/reaction/`). Goal: BOOPSI + Intuition class dispatch complete enough to host ReAction classes.
-- **CPU core evaluation**: stay on Musashi (host overhead dominates per Phase 126). Re-evaluate Moira if 68030 support lands; assess JIT investment when host optimizations are exhausted.
+DevPac Assemble, ASM-One Assemble, BlitzBasic Run, KickPascal Compile/Run, BlitzBasic2 Compile all require this.
 
----
+- [ ] AmigaDOS `CreateProc()` / `Execute()` launching real m68k subprocesses within the emulated environment, with stdout piped back to the host
+- [ ] `lxa_capture_dos_output()` host API exposing AmigaDOS stdout to tests
+- [ ] Clipboard capture API (clipboard.device hook)
+- [ ] DevPac Assemble + ASM-One Assemble + BlitzBasic Run + KickPascal Compile each get a test asserting compiler output appears on captured stdout
+- [ ] Update existing app drivers (DevPac, ASM-One, BlitzBasic 2, KickPascal) to exercise their compile/run workflows
 
-## Observability and Test Infrastructure
+**Test gate**: At least 4 compile/run workflow tests pass.
 
-> **Philosophy**: Before sweeping through apps, ensure we can truly *see* and *experience* how they behave — both in automated CI runs and in AI-driven investigation sessions. Every gap in observability is a gap in correctness confidence.
+### Phase 157 — Screen-content diffing infrastructure
 
-### Current Capabilities
-- `lxa_capture_window()` / `lxa_capture_screen()` — PNG artifact capture; attach the PNG directly to assistant messages for visual triage (the OpenCode harness handles image input natively; see `graphics-testing` skill §8).
-- `lxa_read_pixel()` / pixel-count change detection — basic visual regression.
-- `lxa_get_gadget_count()` / `lxa_get_gadget_info()` / `LxaTest::ClickGadget()` — Intuition gadget introspection.
-- `lxa_wait_window_drawn()` / `LxaTest::WaitForWindowDrawn()` — event-driven UI readiness.
-- `lxa_set_text_hook()` (Phase 130) — semantic text-render assertions.
-- `lxa_drain_intui_events()` / `lxa_get_menu_strip()` (Phase 131) — window/menu introspection.
-- `lxa_inject_string()` / `lxa_inject_drag()` / `lxa_inject_mouse_click()` — input injection.
+Currently no way to assert "this region looks like a text label" or "this area changed structurally between two states." A reference-image diff tool would let us write layout regression tests that survive minor color changes but catch structural regressions.
 
-### Open Infrastructure Gaps
-1. **No screen-content diffing**: no way to assert "this region looks like a text label" or "this area changed between two states." A reference-image diff tool would let us write layout regression tests that survive minor color changes but catch structural regressions.
-2. **No clipboard / DOS stdout capture** (Phase 140+ adjacency): apps writing to AmigaDOS stdout or the clipboard have no host-test exposure. A `lxa_capture_dos_output()` API would let us assert compiler output, BASIC program results, etc.
-3. **No menu-state capture during a drag**: `lxa_inject_drag` performs press → drag → release atomically. Tests verify menu interaction via side effects (window count, app survival). A non-releasing drag API or "capture during drag" hook would close this gap.
-4. **No audio state introspection**: apps using `audio.device` produce no observable test output. No tests require this yet.
+- [ ] Add `lxa_diff_capture(reference_png, captured_png, threshold)` host API
+- [ ] Define a structural-similarity metric (SSIM or simple block-hash)
+- [ ] Reference-image storage convention under `tests/references/`
+- [ ] Migrate at least one existing pixel-count test to a structural-diff test
 
----
+**Test gate**: New diff API has unit tests; one migrated test passes.
 
-## Deferred Test Failures
+### Phase 158 — Audio device introspection
 
-These tests are quarantined as `DISABLED_<TestName>` and must be fixed in dedicated phases. Listed in priority order.
+No tests currently require this. Open this phase only when the first audio-using app needs validation.
 
-1. **`DosTest.LoadSegRuntime`** (`tests/drivers/dos_gtest.cpp:283`) — real implementation bug: `_dos_RunCommand` in `src/rom/lxa_dos.c` does not propagate the spawned child's exit code back to the caller. Test 3 of the LoadSegRuntime sample asserts the wrong return code. **Priority**: high (correctness bug in a DOS API).
-2. **`GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean`** (`tests/drivers/gadtoolsgadgets_gtest.cpp:962`) — real rendering bug: after a window resize, the size-gadget border has zero non-background pixels. Likely the layer-rebuild path in `_intuition_SizeWindow` does not invalidate gadget borders. **Priority**: high (visible regression in standard GadTools UI).
-3. **`GadToolsMenuPixelTest.DISABLED_SubmenuHoverDoesNotCorruptLowerMainItems`** (`tests/drivers/gadtoolsmenu_gtest.cpp:320`) — hangs indefinitely (timeout). The previous test (`HoverRedrawReturnsToSamePixels`) passes in ~69 s; the fixture itself is fine. The submenu hover sequence triggers an event-injection deadlock between menu_drag step processing and submenu redraw. **Priority**: medium (test-only deadlock; production menus work).
-4. **`ProWriteInteractionTest.DISABLED_AboutDialogOpensAndCanBeDismissed`** (`tests/drivers/apps_misc_gtest.cpp:1075`) — About requester opens but OK-button click / IDCMP_CLOSEWINDOW handling does not return ProWrite to the editor state the test expects. Candidate area: Phase 135 ActiveWindow routing change. **Priority**: medium.
-5. **`MiscTest.DISABLED_StressTasks`** (`tests/drivers/misc_gtest.cpp:144`) — two assertion failures (Stress sample lines 33, 41) during a 60 s task-stress workload. Likely an `exec.c` scheduler/signal-delivery race that only manifests under sustained AddTask/RemoveTask churn. **Priority**: low (stress test only; nothing in the wild has hit this).
+- [ ] Define what "observable audio output" means for tests (e.g. captured sample buffer, frequency analysis)
+- [ ] Implement audio.device tap
+- [ ] Add a test for an audio-using app
+
+**Test gate**: First audio app validated.
 
 ---
 
-## Known Open Limitations
+## Far Future: GUI Toolkits + CPU Evolution
 
-- **KickPascal layout/menus** — depends on deeper arp/req library functionality.
-- **SysInfo hardware fields** (BattClock, CIA timing) — requires hardware detection.
-- **Cluster2 EXIT button** — coordinate mapping mismatch in custom toolbar.
-- **DPaint V main editor** — defers menu/toolbox/palette rendering until first mouse interaction; canvas remains blank-pen until tool/palette state is exercised. Palette/pencil/fill interaction tests deferred (require deferred-paint trigger or "force full redraw" capability).
-- **DPaint V Ctrl-P** — only works on depth-2 startup dialog, not from the depth-8 main editor. About dialog and File→Open requester not yet exercised.
-- **MaxonBASIC About/Settings/Run** — menus reachable only via RMB drag through hardcoded coordinates; German titles + lack of programmatic menu introspection make item-level activation brittle.
-- **DevPac File→Open requester** — req.library stub returns failure cleanly, so no requester appears. Real file-requester behaviour requires non-stub req.library (Phase 141).
-- **BlitzBasic2 ted editor** — ted does not render real editable text content even after Phase 113/114 blitter/copper improvements. Phase 119 vision-model analysis: menu bar and dropdowns render correctly; editor body remains a flat surface with menu-residue and status overlay paint only.
-- **ASM-One Assemble/Run workflow** — same external-process constraint as DevPac; Phase 140+.
-- **PPaint** — RTG application; ECS-path investigation abandoned. Validation deferred to Phase 139.
-- **FinalWriter `DISABLED_AcceptDialogOpensEditorWindow`** — disabled pending Phase 139 RTG validation.
-- **DirectoryOpus 4 deeper workflows** — file-list navigation requires directory reading in lister panes; button-bank click workflows require dopus.library command dispatch; Preferences panel interaction; title-bar version/memory string (rendered by DOpusRT, not launched in current tests).
-- **CMake shard FILTER drift** — Phase 0 added `tools/check_shard_coverage.py` and registered it as the `shard_coverage_check` CTest meta-test. Any new test added to a sharded driver MUST update the corresponding FILTER strings in `tests/drivers/CMakeLists.txt`.
-- **KickPascal 2** — editor body never clears the splash screen (HiS logo + "Pascal" graphic), so typed source overlays stale pixels. Same external-process constraint for Compile/Run.
-- **Typeface deeper workflows** — font-list interaction (clicking font names), preview pane, and text-entry preview widget (requires `gadgets/textfield.gadget`) deferred. Window-chrome gap (194×138 vs 280×195) tracked in Phase 139.
+### Phase 159 (tentative) — MUI library hosting
+
+MUI (`MUI:Libs/muimaster.library`) is a disk library — never reimplemented in ROM. This phase ensures lxa's BOOPSI infrastructure (icclass/modelclass/gadgetclass, utility.library tag machinery) is solid enough that a real `muimaster.library` binary opens and functions.
+
+- [ ] Audit BOOPSI completeness against MUI's requirements
+- [ ] Install user-supplied `muimaster.library` binary
+- [ ] Test gate: at least one MUI-based app opens its main window
+
+### Phase 160 (tentative) — ReAction / ClassAct hosting
+
+ReAction (AmigaOS 3.5/3.9 GUI toolkit) runs as disk-provided class files (`SYS:Classes/reaction/`). This phase ensures lxa's BOOPSI layer and Intuition class dispatch are complete enough to host ReAction classes.
+
+- [ ] Audit BOOPSI + Intuition class dispatch completeness
+- [ ] Install user-supplied ReAction classes
+- [ ] Test gate: at least one ReAction app opens its main window
+
+### Phase 161 (tentative) — CPU core evaluation
+
+Musashi (MIT, C89, interpreter) is adequate for correctness but limits throughput. Host-side overhead currently dominates (~95% of wall time per Phase 126 estimate), so CPU evaluation is deferred until host optimisations are exhausted.
+
+- [ ] Re-evaluate Moira if 68030 support has landed
+- [ ] Prototype Moira integration if viable
+- [ ] Assess whether 68020 mode suffices for all tested apps
+- [ ] Decide on JIT investment if needed
+
+---
+
+## Standing Infrastructure Notes
+
+These are not phases but ongoing rules captured in `AGENTS.md` lessons learned. Repeated here so they are visible from the roadmap.
+
+- **CMake shard FILTER drift**: any new test added to a sharded driver MUST update the corresponding FILTER strings in `tests/drivers/CMakeLists.txt`. The `shard_coverage_check` CTest meta-test (Phase 0) catches violations automatically.
+- **Visual investigation**: attach captured PNGs (`lxa_capture_window()` / `lxa_capture_screen()`) directly to assistant messages — the OpenCode harness supports image input natively. The retired `tools/screenshot_review.py` lives in `attic/`.
+- **System libraries are fully implemented; third-party libraries STOP and notify the user** (per AGENTS §1).
 
 ---
 
 ## Dependency Graph (Critical Path)
 
 ```
-Phase 125 ──► Phase 126 ──► 127/128 ──► 129 ──► 130/131 ──► 132/133/134 ──► 135 ──► 136
-                                                                                       │
-                                                                                       ▼
-                                                                            Phase 137 (RTG foundation, NEXT)
-                                                                                       │
-                                                                                       ▼
-                                                                            Phase 138 (Picasso96API)
-                                                                                       │
-                                                              ┌────────────────────────┤
-                                                              ▼                        ▼
-                                                     Phase 139 (RTG apps)     Phase 141/142 (lib policy)
-                                                              │
-                                                              ▼
-                                                     Phase 140 (ext processes)
-                                                              │
-                                                              ▼
-                                                     MUI / ReAction / CPU eval
+Phase 137-141 (Quality: re-enable DISABLED_ tests)
+        │
+        ▼
+Phase 142-144 (Library policy + datatypes + smoke)
+        │
+        ▼
+Phase 145-151 (App-specific compatibility)
+        │
+        ▼
+Phase 152 (Performance — placeholder)
+        │
+        ▼
+Phase 153-155 (RTG: foundation → P96 → app validation)
+        │
+        ▼
+Phase 156-158 (External processes, diffing, audio)
+        │
+        ▼
+Phase 159-161 (MUI, ReAction, CPU eval)
 ```
-
----
-
-*Each phase must include updated GTest host-side drivers under `tests/drivers/` and regression assertions. For visual investigation of failure artifacts, attach captured PNGs directly to assistant messages (the harness supports image input natively); the retired `tools/screenshot_review.py` helper now lives in `attic/`.*
