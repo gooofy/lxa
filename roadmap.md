@@ -47,24 +47,24 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 
 ## Next Phase
 
-### Phase 139 — Fix GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems
+### Phase 140 — Fix ProWriteInteractionTest.AboutDialogOpensAndCanBeDismissed
 
-**Priority**: Quality. Currently `DISABLED_SubmenuHoverDoesNotCorruptLowerMainItems` in `tests/drivers/gadtoolsmenu_gtest.cpp:320`. Hangs indefinitely (timeout).
+**Priority**: Quality. Currently `DISABLED_AboutDialogOpensAndCanBeDismissed` in `tests/drivers/apps_misc_gtest.cpp:1075`.
 
-**Root cause hypothesis**: Event-injection deadlock between `menu_drag` step processing and submenu redraw. The previous test (`HoverRedrawReturnsToSamePixels`) passes in ~69 s, so the fixture is sound; the specific submenu hover sequence triggers the hang.
+**Root cause hypothesis**: About requester opens, but the OK-button click / `IDCMP_CLOSEWINDOW` handling does not return ProWrite to the editor state the test expects. Candidate area: Phase 135 ActiveWindow routing change (RAWKEY routes to `IntuitionBase->ActiveWindow`) may have shifted requester-vs-editor active-window tracking.
 
 **Sub-problems**:
-1. Add a per-step iteration cap in the test fixture so the hang produces a useful failure message rather than a timeout.
-2. Instrument `_render_menu_items()` and `_intuition_ProcessInputEvents()` with diagnostic LPRINTFs (revert before commit per AGENTS §6.3) to identify which side is starved.
-3. Likely candidates: the submenu redraw path enters a wait-state that the injected event never satisfies, or the input queue is drained synchronously inside the redraw.
+1. Capture the IDCMP event log around the dismiss (Phase 131 `lxa_drain_intui_events()`).
+2. Verify `ActiveWindow` is correctly restored to ProWrite's editor when the requester closes.
+3. Cross-check against RKRM: requester close should restore the previously-active window of the same screen.
 
-- [ ] Add iteration cap to bound the failure
-- [ ] Identify the deadlock party
-- [ ] Fix the wait-state or queue-drain issue
+- [ ] Capture event log diagnostic
+- [ ] Identify ActiveWindow state at dismiss time
+- [ ] Fix routing if needed
 - [ ] Re-enable test
 - [ ] Full suite green
 
-**Test gate**: `GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems` passes; full suite green.
+**Test gate**: `ProWriteInteractionTest.AboutDialogOpensAndCanBeDismissed` passes; full suite green.
 
 ---
 
@@ -117,6 +117,7 @@ Detailed write-ups live in the git commit messages. This table is the single ind
 | 136-d | Roadmap+AGENTS policy: priority order, no pooling sections, every DISABLED_ test gets a phase | v0.9.18 |
 | 137 | RunCommand exit-code propagation: NP_ExitCode/NP_ExitData honoured in CreateNewProc; LoadSegRuntime re-enabled | v0.9.19 |
 | 138 | GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean re-enabled (test-side readiness fix; SizeWindow updates Width/Height before render — wait for size-gadget pixels, not just dims) | v0.9.20 |
+| 139 | GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems re-enabled (no code change required; hang resolved by Phases 132/133 menu compose+backing-store work; verified stable across 5 consecutive runs) | v0.9.21 |
 
 ---
 
@@ -126,24 +127,7 @@ Re-enable each `DISABLED_` GTest. Done in priority order by user impact (DOS API
 
 ### Phase 138 — see Completed Phases (v0.9.20).
 
-### Phase 139 — Fix GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems
-
-**Priority**: Quality. Currently `DISABLED_SubmenuHoverDoesNotCorruptLowerMainItems` in `tests/drivers/gadtoolsmenu_gtest.cpp:320`. Hangs indefinitely (timeout).
-
-**Root cause hypothesis**: Event-injection deadlock between `menu_drag` step processing and submenu redraw. The previous test (`HoverRedrawReturnsToSamePixels`) passes in ~69 s, so the fixture is sound; the specific submenu hover sequence triggers the hang.
-
-**Sub-problems**:
-1. Add a per-step iteration cap in the test fixture so the hang produces a useful failure message rather than a timeout.
-2. Instrument `_render_menu_items()` and `_intuition_ProcessInputEvents()` with diagnostic LPRINTFs (revert before commit per AGENTS §6.3) to identify which side is starved.
-3. Likely candidates: the submenu redraw path enters a wait-state that the injected event never satisfies, or the input queue is drained synchronously inside the redraw.
-
-- [ ] Add iteration cap to bound the failure
-- [ ] Identify the deadlock party
-- [ ] Fix the wait-state or queue-drain issue
-- [ ] Re-enable test
-- [ ] Full suite green
-
-### Phase 140 — Fix ProWriteInteractionTest.AboutDialogOpensAndCanBeDismissed
+### Phase 139 — see Completed Phases (v0.9.21).### Phase 140 — Fix ProWriteInteractionTest.AboutDialogOpensAndCanBeDismissed
 
 **Priority**: Quality. Currently `DISABLED_AboutDialogOpensAndCanBeDismissed` in `tests/drivers/apps_misc_gtest.cpp:1075`.
 
