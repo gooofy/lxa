@@ -150,6 +150,17 @@ struct lxa_dos_exit_cleanup
     BPTR close_input;
     BPTR close_output;
     LONG *result_ptr;
+    /* Optional user-supplied NP_ExitCode/NP_ExitData chained after our
+     * internal cleanup runs. NULL when no user callback was requested. */
+    APTR user_exit_code;
+    LONG user_exit_data;
+};
+
+/* Block passed as NP_ExitData to lxa_dos_runcommand_exit_cleanup. Allocated
+ * by _dos_RunCommand and freed by lxa_dos_runcommand_exit_cleanup. */
+struct lxa_dos_runcommand_block
+{
+    LONG *result_ptr;
 };
 
 static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data);
@@ -161,12 +172,15 @@ static BPTR lxa_dos_alloc_temp_console_handle(LONG arg1, struct FileHandle **fh_
 
 static void lxa_dos_runcommand_exit_cleanup(LONG return_code, LONG exit_data)
 {
-    struct lxa_dos_exit_cleanup *cleanup = (struct lxa_dos_exit_cleanup *)exit_data;
+    struct lxa_dos_runcommand_block *blk =
+        (struct lxa_dos_runcommand_block *)exit_data;
 
-    if (cleanup && cleanup->result_ptr)
-        *cleanup->result_ptr = return_code;
-
-    lxa_dos_process_exit_cleanup(return_code, exit_data);
+    if (blk)
+    {
+        if (blk->result_ptr)
+            *blk->result_ptr = return_code;
+        FreeVec(blk);
+    }
 }
 
 #define GSLI_68KHUNK_TAG (TAG_USER + 4005)
@@ -5175,6 +5189,8 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     char  *args      = (char*)  GetTagData(NP_Arguments, (ULONG)NULL          , tags);
     BPTR   curdir    =          GetTagData(NP_CurrentDir, 0                   , tags);
     BOOL   hasWindowPtrTag = tag_exists(NP_WindowPtr, tags);
+    APTR   userExitCode = (APTR)GetTagData(NP_ExitCode, (ULONG)NULL            , tags);
+    LONG   userExitData =       GetTagData(NP_ExitData, 0                      , tags);
     struct lxa_dos_exit_cleanup *cleanup = NULL;
 
     // Enforce minimum stack size
@@ -5207,7 +5223,7 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
         args = nargs;
     }
 
-    if (freeSeglist || args || closeInput || closeOutput)
+    if (freeSeglist || args || closeInput || closeOutput || userExitCode)
     {
         cleanup = (struct lxa_dos_exit_cleanup *)AllocVec(sizeof(*cleanup), MEMF_CLEAR | MEMF_PUBLIC);
         if (!cleanup)
@@ -5222,6 +5238,8 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
         cleanup->args = args;
         cleanup->close_input = closeInput ? inp : 0;
         cleanup->close_output = closeOutput ? outp : 0;
+        cleanup->user_exit_code = userExitCode;
+        cleanup->user_exit_data = userExitData;
     }
 
     // create process
@@ -5365,7 +5383,6 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
     struct RootNode *root;
     struct MsgPort *childPort;
     LONG taskNum;
-    struct lxa_dos_exit_cleanup *cleanup;
     struct TagItem procTags[] = {
         { NP_Seglist, 0 },
         { NP_Name, (ULONG)"RunCommand" },
@@ -5376,6 +5393,8 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
         { NP_Arguments, 0 },
         { NP_CurrentDir, 0 },
         { NP_FreeSeglist, FALSE },
+        { NP_ExitCode, 0 },
+        { NP_ExitData, 0 },
         { TAG_DONE, 0 }
     };
 
@@ -5393,38 +5412,47 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
     if (me->pr_CurrentDir)
         curDir = DupLock(me->pr_CurrentDir);
 
-    procTags[0].ti_Data = seg;
-    procTags[2].ti_Data = (ULONG)stack;
-    procTags[4].ti_Data = me->pr_CIS;
-    procTags[5].ti_Data = me->pr_COS;
-    procTags[6].ti_Data = (ULONG)paramptr;
-    procTags[7].ti_Data = (ULONG)curDir;
-
-    cleanup = (struct lxa_dos_exit_cleanup *)AllocVec(sizeof(*cleanup), MEMF_CLEAR | MEMF_PUBLIC);
-    if (!cleanup)
+    /*
+     * Allocate the result-bearing block first so we can pass it as
+     * NP_ExitData. _dos_CreateNewProc() yields to the child after
+     * enqueuing it, so pr_ExitCode/pr_ExitData MUST be installed
+     * atomically as part of process construction — not patched in
+     * afterwards (which races with an early Exit() in the child).
+     *
+     * The block is freed by lxa_dos_process_exit_cleanup() when it runs
+     * the chained user_exit_code (i.e. our runcommand cleanup).
+     */
     {
-        if (curDir)
-            UnLock(curDir);
-        SetIoErr(ERROR_NO_FREE_STORE);
-        return -1;
-    }
+        struct lxa_dos_runcommand_block *blk =
+            (struct lxa_dos_runcommand_block *)AllocVec(sizeof(*blk),
+                                                       MEMF_CLEAR | MEMF_PUBLIC);
+        if (!blk)
+        {
+            if (curDir)
+                UnLock(curDir);
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return -1;
+        }
+        blk->result_ptr = &result;
 
-    child = _dos_CreateNewProc(DOSBase, procTags);
-    if (!child)
-    {
-        FreeVec(cleanup);
-        if (curDir)
-            UnLock(curDir);
-        return -1;
-    }
+        procTags[0].ti_Data = seg;
+        procTags[2].ti_Data = (ULONG)stack;
+        procTags[4].ti_Data = me->pr_CIS;
+        procTags[5].ti_Data = me->pr_COS;
+        procTags[6].ti_Data = (ULONG)paramptr;
+        procTags[7].ti_Data = (ULONG)curDir;
+        procTags[9].ti_Data = (ULONG)lxa_dos_runcommand_exit_cleanup;
+        procTags[10].ti_Data = (ULONG)blk;
 
-    cleanup->seglist = 0;
-    cleanup->args = NULL;
-    cleanup->close_input = 0;
-    cleanup->close_output = 0;
-    cleanup->result_ptr = &result;
-    child->pr_ExitCode = (APTR)lxa_dos_runcommand_exit_cleanup;
-    child->pr_ExitData = (LONG)cleanup;
+        child = _dos_CreateNewProc(DOSBase, procTags);
+        if (!child)
+        {
+            FreeVec(blk);
+            if (curDir)
+                UnLock(curDir);
+            return -1;
+        }
+    }
 
     taskNum = child->pr_TaskNum;
     root = DOSBase->dl_Root;
@@ -7485,8 +7513,8 @@ ULONG _dos_GetSegListInfo ( register struct DosLibrary * DOSBase __asm("a6"),
 static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data)
 {
     struct lxa_dos_exit_cleanup *cleanup = (struct lxa_dos_exit_cleanup *)exit_data;
-
-    (void)return_code;
+    APTR  user_exit_code;
+    LONG  user_exit_data;
 
     if (!cleanup)
         return;
@@ -7503,7 +7531,20 @@ static void lxa_dos_process_exit_cleanup(LONG return_code, LONG exit_data)
     if (cleanup->seglist)
         _dos_UnLoadSeg(DOSBase, cleanup->seglist);
 
+    /* Snapshot user callback before freeing the cleanup struct. */
+    user_exit_code = cleanup->user_exit_code;
+    user_exit_data = cleanup->user_exit_data;
+
     FreeVec(cleanup);
+
+    /* Chain to user-supplied NP_ExitCode last (per RKRM semantics: the
+     * user callback runs at process exit, after the process has done its
+     * own teardown). */
+    if (user_exit_code)
+    {
+        typedef void (*exitFn_t)(LONG, LONG);
+        ((exitFn_t)user_exit_code)(return_code, user_exit_data);
+    }
 }
 
 LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),

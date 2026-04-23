@@ -47,24 +47,24 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 
 ## Next Phase
 
-### Phase 137 — Fix DosTest.LoadSegRuntime (RunCommand exit-code propagation)
+### Phase 138 — Fix GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean
 
-**Priority**: Quality. Currently `DISABLED_LoadSegRuntime` in `tests/drivers/dos_gtest.cpp:283`.
+**Priority**: Quality. Currently `DISABLED_ResizeKeepsSizeGadgetBordersClean` in `tests/drivers/gadtoolsgadgets_gtest.cpp:962`.
 
-**Root cause hypothesis**: `_dos_RunCommand` in `src/rom/lxa_dos.c` returns its own status code rather than the spawned child's exit value. Test 3 of the `LoadSegRuntime` sample asserts the child's return code and observes the wrong value.
+**Root cause hypothesis**: After `_intuition_SizeWindow` fires, the layer-rebuild path does not invalidate gadget borders. The size-gadget chrome region ends up with zero non-background pixels because `_render_gadget` is not re-invoked (or its damage region is not propagated).
 
 **Sub-problems**:
-1. Locate `_dos_RunCommand` and trace how the child seglist is invoked. Identify where the child's `Exit(rc)` value should be captured.
-2. Verify the child-process lifecycle: does `RunCommand` synchronously wait for the child? If yes, the exit code must be threaded back. If no, document the AmigaDOS-spec semantics and adjust the test.
-3. Cross-check against RKRM: dos.library / `RunCommand()` documented behaviour and the contract of the `pr_Result2` field.
+1. Trace the SIZEWINDOW IDCMP path in `lxa_intuition.c`: when the user drags the size-gadget, what gadget-rerender hooks fire?
+2. Compare against the WINDOWREFRESH path on regular interior damage — gadget borders should follow the same pattern.
+3. Verify that the size-gadget is repositioned (its `LeftEdge`/`TopEdge` follow the window resize) before being rerendered.
 
-- [ ] Reproduce the failure in isolation: `./build/tests/drivers/dos_gtest --gtest_filter="DosTest.DISABLED_LoadSegRuntime" --gtest_also_run_disabled_tests`
-- [ ] Identify the exit-code capture point in `_dos_RunCommand`
-- [ ] Fix the propagation
-- [ ] Re-enable the test (remove `DISABLED_` prefix and inline comment)
-- [ ] Full suite green
+- [ ] Reproduce in isolation
+- [ ] Identify missing rerender call
+- [ ] Fix and re-enable test
+- [ ] Add a regression assertion that any `IDCMP_NEWSIZE` followed by `WaitTOF` shows non-zero gadget chrome
+- [ ] Full suite green; update CMakeLists FILTER to include the re-enabled test name
 
-**Test gate**: `DosTest.LoadSegRuntime` passes; full suite 68/68 + this test = 69/69 (or shard count if it grows).
+**Test gate**: `GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean` passes; full suite green.
 
 ---
 
@@ -115,31 +115,15 @@ Detailed write-ups live in the git commit messages. This table is the single ind
 | 136-b4 | bgui calling-convention fixes (R5/R6/R7); Typeface renders character grid | v0.9.16 |
 | 136-c | Roadmap overhaul; screenshot_review retired to attic; 5 failing tests quarantined as DISABLED_ | v0.9.17 |
 | 136-d | Roadmap+AGENTS policy: priority order, no pooling sections, every DISABLED_ test gets a phase | v0.9.18 |
+| 137 | RunCommand exit-code propagation: NP_ExitCode/NP_ExitData honoured in CreateNewProc; LoadSegRuntime re-enabled | v0.9.19 |
 
 ---
 
-## Quality (Phases 137–141)
+## Quality (Phases 138–141)
 
 Re-enable each `DISABLED_` GTest. Done in priority order by user impact (DOS API correctness first, GadTools rendering next, app-interaction last).
 
-### Phase 137 — see Next Phase above.
-
-### Phase 138 — Fix GadToolsGadgetsPixelTest.ResizeKeepsSizeGadgetBordersClean
-
-**Priority**: Quality. Currently `DISABLED_ResizeKeepsSizeGadgetBordersClean` in `tests/drivers/gadtoolsgadgets_gtest.cpp:962`.
-
-**Root cause hypothesis**: After `_intuition_SizeWindow` fires, the layer-rebuild path does not invalidate gadget borders. The size-gadget chrome region ends up with zero non-background pixels because `_render_gadget` is not re-invoked (or its damage region is not propagated).
-
-**Sub-problems**:
-1. Trace the SIZEWINDOW IDCMP path in `lxa_intuition.c`: when the user drags the size-gadget, what gadget-rerender hooks fire?
-2. Compare against the WINDOWREFRESH path on regular interior damage — gadget borders should follow the same pattern.
-3. Verify that the size-gadget is repositioned (its `LeftEdge`/`TopEdge` follow the window resize) before being rerendered.
-
-- [ ] Reproduce in isolation
-- [ ] Identify missing rerender call
-- [ ] Fix and re-enable test
-- [ ] Add a regression assertion that any `IDCMP_NEWSIZE` followed by `WaitTOF` shows non-zero gadget chrome
-- [ ] Full suite green; update CMakeLists FILTER to include the re-enabled test name
+### Phase 138 — see Next Phase above.
 
 ### Phase 139 — Fix GadToolsMenuPixelTest.SubmenuHoverDoesNotCorruptLowerMainItems
 

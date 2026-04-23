@@ -273,13 +273,7 @@ TEST_F(DosTest, BufferedIO) {
     RunDosTest("BufferedIO", 10000);
 }
 
-// DISABLED (Phase 136-c, v0.9.17): real implementation bug — RunCommand() does
-// not propagate the spawned child's exit code back to the caller (Test 3 of the
-// LoadSegRuntime sample asserts the wrong return code). Fix belongs in
-// _dos_RunCommand in src/rom/lxa_dos.c, which currently returns its own status
-// rather than threading the child process's exit value through.
-// See roadmap.md "Deferred Test Failures" section.
-TEST_F(DosTest, DISABLED_LoadSegRuntime) {
+TEST_F(DosTest, LoadSegRuntime) {
     RunDosTest("LoadSegRuntime", 10000);
 }
 
