@@ -70,29 +70,29 @@
  * Functions from TVLVHandlers:
  */
 
-//extern ASM SAVEDS ULONG TV_LVRsrcHandler(REG(a0) struct Hook *hook,
-//	REG(a2) Object *obj, REG(a1) struct lvResource *lvr);
+//extern ASM SAVEDS ULONG TV_LVRsrcHandler(struct Hook * hook __asm("a0"),
+//	Object * obj __asm("a2"), struct lvResource * lvr __asm("a1"));
 extern ASM SAVEDS REGFUNCPROTO3(ULONG, TV_LVRsrcHandler,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
 	REGPARAM(A1, struct lvResource *, lvr));
 
-//extern ASM SAVEDS ULONG TV_LVDispHandler(REG(a0) struct Hook *hook,
-//	REG(a2) Object *obj, REG(a1) struct lvRender *lvr);
+//extern ASM SAVEDS ULONG TV_LVDispHandler(struct Hook * hook __asm("a0"),
+//	Object * obj __asm("a2"), struct lvRender * lvr __asm("a1"));
 extern ASM SAVEDS REGFUNCPROTO3(ULONG, TV_LVDispHandler,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
 	REGPARAM(A1, struct lvRender *, lvr));
 
-//extern ASM SAVEDS ULONG TV_LVCompHandler(REG(a0) struct Hook *hook,
-//	REG(a2) Object *obj, REG(a1) struct lvCompare *lvc);
+//extern ASM SAVEDS ULONG TV_LVCompHandler(struct Hook * hook __asm("a0"),
+//	Object * obj __asm("a2"), struct lvCompare * lvc __asm("a1"));
 extern ASM SAVEDS REGFUNCPROTO3(ULONG, TV_LVCompHandler,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
 	REGPARAM(A1, struct lvCompare *, lvc));
 
-//extern ASM SAVEDS ULONG TV_LVNotifyHandler(REG(a0) struct Hook *hook,
-//	REG(a2) Object *obj, REG(a1) struct opUpdate *opu);
+//extern ASM SAVEDS ULONG TV_LVNotifyHandler(struct Hook * hook __asm("a0"),
+//	Object * obj __asm("a2"), struct opUpdate * opu __asm("a1"));
 extern ASM SAVEDS REGFUNCPROTO3(ULONG, TV_LVNotifyHandler,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),

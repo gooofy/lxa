@@ -43,22 +43,22 @@ quit
 /*
 **      Protos for the arexx command functions.
 **/
-//ASM VOID rx_Name( REG(a0) REXXARGS *, REG(a1) struct RexxMsg * );
+//ASM VOID rx_Name( REXXARGS * __asm("a0"), struct RexxMsg * __asm("a1"));
 ASM REGFUNC2(VOID, rx_Name,
 	REGPARAM(A0, REXXARGS *, ra),
 	REGPARAM(A1, struct RexxMsg *, rm));
 
-//ASM VOID rx_Version( REG(a0) REXXARGS *, REG(a1) struct RexxMsg * );
+//ASM VOID rx_Version( REXXARGS * __asm("a0"), struct RexxMsg * __asm("a1"));
 ASM REGFUNC2(VOID, rx_Version,
 	REGPARAM(A0, REXXARGS *, ra),
 	REGPARAM(A1, struct RexxMsg *, rm));
 
-//ASM VOID rx_Author( REG(a0) REXXARGS *, REG(a1) struct RexxMsg * );
+//ASM VOID rx_Author( REXXARGS * __asm("a0"), struct RexxMsg * __asm("a1"));
 ASM REGFUNC2(VOID, rx_Author,
 	REGPARAM(A0, REXXARGS *, ra),
 	REGPARAM(A1, struct RexxMsg *, rm));
 
-//ASM VOID rx_Date( REG(a0) REXXARGS *, REG(a1) struct RexxMsg * );
+//ASM VOID rx_Date( REXXARGS * __asm("a0"), struct RexxMsg * __asm("a1"));
 ASM REGFUNC2(VOID, rx_Date,
 	REGPARAM(A0, REXXARGS *, ra),
 	REGPARAM(A1, struct RexxMsg *, rm));
@@ -84,7 +84,7 @@ VOID SAVEDS ASM
 #else
 SAVEDS ASM VOID
 #endif
-//rx_Name( REG(a0) REXXARGS *ra, REG(a1) struct RexxMsg *rxm )
+//rx_Name( REXXARGS * ra __asm("a0"), struct RexxMsg * rxm __asm("a1"))
 REGFUNC2(,rx_Name,
 	REGPARAM(A0, REXXARGS *, ra),
 	REGPARAM(A1, struct RexxMsg *, rxm))
@@ -103,7 +103,7 @@ VOID SAVEDS ASM
 #else
 SAVEDS ASM VOID
 #endif
-//rx_Version( REG(a0) REXXARGS *ra, REG(a1) struct RexxMsg *rxm )
+//rx_Version( REXXARGS * ra __asm("a0"), struct RexxMsg * rxm __asm("a1"))
 REGFUNC2(,rx_Version,
 	REGPARAM(A0, REXXARGS *, ra),
 	REGPARAM(A1, struct RexxMsg *, rxm))
@@ -122,7 +122,7 @@ VOID SAVEDS ASM
 #else
 SAVEDS ASM VOID
 #endif
-//rx_Author( REG(a0) REXXARGS *ra, REG(a1) struct RexxMsg *rxm )
+//rx_Author( REXXARGS * ra __asm("a0"), struct RexxMsg * rxm __asm("a1"))
 REGFUNC2(,rx_Author,
 	REGPARAM(A0, REXXARGS *, ra),
 	REGPARAM(A1, struct RexxMsg *, rxm))
@@ -146,7 +146,7 @@ VOID SAVEDS ASM
 #else
 SAVEDS ASM VOID
 #endif
-//rx_Date( REG(a0) REXXARGS *ra, REG(a1) struct RexxMsg *rxm )
+//rx_Date( REXXARGS * ra __asm("a0"), struct RexxMsg * rxm __asm("a1"))
 REGFUNC2(,rx_Date,
 	REGPARAM(A0, REXXARGS *, ra),
 	REGPARAM(A1, struct RexxMsg *, rxm))

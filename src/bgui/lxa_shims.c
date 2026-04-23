@@ -41,6 +41,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <stdarg.h>
+#include <string.h>
 
 /* ----- 1. __restore_a4 -------------------------------------------------- */
 
@@ -89,12 +91,231 @@ LONG stcu_d(char *buf, ULONG val)
     return n;
 }
 
-/* ----- 3. kprintf stub -------------------------------------------------- */
+/* ----- 3. kprintf — route to host log via EMU_CALL_LPUTS --------------- *
+ * BGUI's WW(kprintf(...)) macro is per-file no-op'd, but we can flip it to
+ * an active macro at debug time (see windowclass.c top-of-file).
+ *
+ * Strategy: format the string into a static buffer using exec's RawDoFmt,
+ * then ship the formatted text to the host log via EMU_CALL_LPUTS at
+ * LOG_INFO so it always shows up in lxa.log without bumping ROM debug
+ * level (which floods the log and times tests out).
+ *
+ * Argument marshalling: AmigaOS RawDoFmt expects word-packed args (%d / %x
+ * are WORD, %ld / %lx / %s are LONG).  C va_list passes everything as
+ * long.  We scan the format string and pack a UWORD[] array accordingly.
+ */
+
+#define LXA_LOG_INFO 1
+#define LXA_EMU_CALL_LPUTC 1
+#define LXA_EMU_CALL_LPUTS 4
+
+/* Single-char trap: matches what ROM lputc uses; known to fire op_illg. */
+static void lxa_emu_lputc(char c)
+{
+    register unsigned long d0 __asm("d0") = LXA_EMU_CALL_LPUTC;
+    register unsigned long d1 __asm("d1") = LXA_LOG_INFO;
+    register unsigned long d2 __asm("d2") = (unsigned char)c;
+    __asm__ volatile (
+        "illegal"
+        : "+d"(d0), "+d"(d1), "+d"(d2)
+        :
+        : "cc", "memory"
+    );
+}
+
+static void lxa_emu_lputs(const char *s)
+{
+    register unsigned long d0 __asm("d0") = LXA_EMU_CALL_LPUTS;
+    register unsigned long d1 __asm("d1") = LXA_LOG_INFO;
+    register const char    *d2 __asm("d2") = s;
+    __asm__ volatile (
+        "illegal"
+        : "+d"(d0), "+d"(d1), "+d"(d2)
+        :
+        : "cc", "memory"
+    );
+}
+
+static UBYTE s_kp_emit_buf[1024];
+static int   s_kp_emit_pos;
+
+static void s_kp_putc_buffer(register UBYTE ch __asm("d0"),
+                             register APTR data __asm("a3"))
+{
+    (void)data;
+    if (s_kp_emit_pos < (int)sizeof(s_kp_emit_buf) - 1) {
+        s_kp_emit_buf[s_kp_emit_pos++] = ch;
+    }
+}
+
+static void s_kp_emit_dec(unsigned long v)
+{
+    /* Avoid 32-bit /,% which pull in libgcc's __udivsi3/__umodsi3 — those
+     * are baserel and crash because we built BGUI without -fbaserel.
+     * Instead build the digits via repeated subtraction of powers of 10. */
+    static const unsigned long pow10[] = {
+        1000000000UL, 100000000UL, 10000000UL, 1000000UL,
+        100000UL, 10000UL, 1000UL, 100UL, 10UL, 1UL
+    };
+    int started = 0;
+    int i;
+    for (i = 0; i < 10; i++) {
+        unsigned long p = pow10[i];
+        int d = 0;
+        while (v >= p) { v -= p; d++; }
+        if (d || started || i == 9) {
+            lxa_emu_lputc((char)('0' + d));
+            started = 1;
+        }
+    }
+}
 
 void kprintf(const char *fmt, ...)
 {
-    (void)fmt;
+    /* Minimal format support: %s, %d, %u, %x, %lx, %ld, %lu, %p, %c, %% */
+    va_list ap;
+    va_start(ap, fmt);
+
+    lxa_emu_lputc('K');
+    lxa_emu_lputc('P');
+    lxa_emu_lputc(':');
+    lxa_emu_lputc(' ');
+
+    if (!fmt) { lxa_emu_lputc('\n'); va_end(ap); return; }
+
+    const char *p = fmt;
+    while (*p) {
+        if (*p != '%') { lxa_emu_lputc(*p++); continue; }
+        p++;
+        /* skip flags/width/precision */
+        while (*p == '-' || *p == '+' || *p == ' ' || *p == '#' || *p == '0') p++;
+        while (*p >= '0' && *p <= '9') p++;
+        if (*p == '.') { p++; while (*p >= '0' && *p <= '9') p++; }
+        int is_long = 0;
+        if (*p == 'l') { is_long = 1; p++; if (*p == 'l') p++; }
+        if (*p == 'z' || *p == 'h') p++;
+        char conv = *p ? *p++ : 0;
+        switch (conv) {
+            case 'd': case 'i': {
+                long v = is_long ? va_arg(ap, long) : (long)va_arg(ap, int);
+                if (v < 0) { lxa_emu_lputc('-'); v = -v; }
+                s_kp_emit_dec((unsigned long)v);
+                break;
+            }
+            case 'u': {
+                unsigned long v = is_long ? va_arg(ap, unsigned long) : (unsigned long)va_arg(ap, unsigned int);
+                s_kp_emit_dec(v);
+                break;
+            }
+            case 'x': case 'X': case 'p': {
+                unsigned long v;
+                if (conv == 'p') v = (unsigned long)va_arg(ap, void*);
+                else v = is_long ? va_arg(ap, unsigned long) : (unsigned long)va_arg(ap, unsigned int);
+                char buf[16]; int n = 0;
+                const char *digs = (conv == 'X') ? "0123456789ABCDEF" : "0123456789abcdef";
+                if (v == 0) buf[n++] = '0';
+                while (v) { buf[n++] = digs[v & 0xf]; v >>= 4; }
+                while (n--) lxa_emu_lputc(buf[n]);
+                break;
+            }
+            case 's': {
+                const char *s = va_arg(ap, const char *);
+                if (!s) s = "(null)";
+                while (*s) lxa_emu_lputc(*s++);
+                break;
+            }
+            case 'c': {
+                int v = va_arg(ap, int);
+                lxa_emu_lputc((char)v);
+                break;
+            }
+            case '%': lxa_emu_lputc('%'); break;
+            default: lxa_emu_lputc('%'); if (conv) lxa_emu_lputc(conv); break;
+        }
+    }
+    /* Ensure trailing newline */
+    if (p > fmt && p[-1] != '\n') lxa_emu_lputc('\n');
+    va_end(ap);
 }
+#if 0
+void kprintf_full(const char *fmt, ...)
+{
+    va_list ap;
+    UWORD   args[64];
+    int     ai = 0;
+    const char *p;
+
+    /* PROBE: fire a known-working d0=1 LPUTC trap immediately on entry,
+     * before touching SysBase or RawDoFmt.  If this shows up in lxa.log
+     * but the d0=4 LPUTS trap below does not, the body is reached but
+     * something in the LPUTS path is broken.  If neither shows up,
+     * kprintf is never being called. */
+    lxa_emu_lputc('K');
+    lxa_emu_lputc('P');
+    lxa_emu_lputc('\n');
+
+    va_start(ap, fmt);
+
+    /* Walk the format string and pack args. */
+    for (p = fmt; *p && ai < (int)(sizeof(args)/sizeof(args[0])) - 4; p++) {
+        if (*p != '%') continue;
+        p++;
+        /* Skip flags / width / precision. */
+        while (*p && (*p == '-' || *p == '+' || *p == ' ' || *p == '#' || *p == '0')) p++;
+        while (*p && isdigit((unsigned char)*p)) p++;
+        if (*p == '.') {
+            p++;
+            while (*p && isdigit((unsigned char)*p)) p++;
+        }
+        /* Length modifier. */
+        int is_long = 0;
+        if (*p == 'l') { is_long = 1; p++; if (*p == 'l') p++; }
+        /* Conversion. */
+        switch (*p) {
+            case 'd': case 'i': case 'u': case 'x': case 'X': case 'o':
+                if (is_long) {
+                    unsigned long v = va_arg(ap, unsigned long);
+                    args[ai++] = (UWORD)((v >> 16) & 0xFFFF);
+                    args[ai++] = (UWORD)(v & 0xFFFF);
+                } else {
+                    int v = va_arg(ap, int);
+                    args[ai++] = (UWORD)(v & 0xFFFF);
+                }
+                break;
+            case 's': case 'p': {
+                void *v = va_arg(ap, void *);
+                unsigned long uv = (unsigned long)v;
+                args[ai++] = (UWORD)((uv >> 16) & 0xFFFF);
+                args[ai++] = (UWORD)(uv & 0xFFFF);
+                break;
+            }
+            case 'c': {
+                int v = va_arg(ap, int);
+                args[ai++] = (UWORD)(v & 0xFFFF);
+                break;
+            }
+            case '%':
+            default:
+                break;
+        }
+    }
+    va_end(ap);
+
+    s_kp_emit_pos = 0;
+    RawDoFmt((CONST_STRPTR)fmt, args, (void(*)())s_kp_putc_buffer, NULL);
+    s_kp_emit_buf[s_kp_emit_pos] = '\0';
+
+    /* Strip trailing newline so host log line stays single-line. */
+    while (s_kp_emit_pos > 0 &&
+           (s_kp_emit_buf[s_kp_emit_pos-1] == '\n' ||
+            s_kp_emit_buf[s_kp_emit_pos-1] == '\r')) {
+        s_kp_emit_buf[--s_kp_emit_pos] = '\0';
+    }
+
+    lxa_emu_lputs((const char *)s_kp_emit_buf);
+    lxa_emu_lputs("\n");
+}
+#endif
 
 /* ----- 3b. exit stub ---------------------------------------------------- *
  * Pulled in transitively by libnix's raise.o / __initstdio.o.  A real
@@ -114,27 +335,29 @@ void exit(int code)
  * inside <proto/exec.h> inlines, so we can ignore the trailing SysBase
  * register argument that BGUI passes by convention.                        */
 
-APTR AsmCreatePool(ULONG memFlags, ULONG puddleSize, ULONG threshSize,
-                   struct ExecBase *SysBase_unused)
+APTR AsmCreatePool(ULONG memFlags __asm("d0"), ULONG puddleSize __asm("d1"),
+                   ULONG threshSize __asm("d2"),
+                   struct ExecBase *SysBase_unused __asm("a6"))
 {
     (void)SysBase_unused;
     return CreatePool(memFlags, puddleSize, threshSize);
 }
 
-void AsmDeletePool(APTR pool, struct ExecBase *SysBase_unused)
+void AsmDeletePool(APTR pool __asm("a0"), struct ExecBase *SysBase_unused __asm("a6"))
 {
     (void)SysBase_unused;
     DeletePool(pool);
 }
 
-APTR AsmAllocPooled(APTR pool, ULONG size, struct ExecBase *SysBase_unused)
+APTR AsmAllocPooled(APTR pool __asm("a0"), ULONG size __asm("d0"),
+                    struct ExecBase *SysBase_unused __asm("a6"))
 {
     (void)SysBase_unused;
     return AllocPooled(pool, size);
 }
 
-void AsmFreePooled(APTR pool, APTR mem, ULONG size,
-                   struct ExecBase *SysBase_unused)
+void AsmFreePooled(APTR pool __asm("a0"), APTR mem __asm("a1"), ULONG size __asm("d0"),
+                   struct ExecBase *SysBase_unused __asm("a6"))
 {
     (void)SysBase_unused;
     FreePooled(pool, mem, size);

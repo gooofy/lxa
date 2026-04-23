@@ -58,7 +58,7 @@ VOID SAVEDS ASM
 #else
 SAVEDS ASM VOID
 #endif
-//hookFunc( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct IntuiMessage *imsg )
+//hookFunc( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct IntuiMessage * imsg __asm("a1"))
 REGFUNC3(,hookFunc,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),

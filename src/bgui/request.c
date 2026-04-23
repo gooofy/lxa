@@ -66,7 +66,7 @@ typedef struct {
 /*
  * Parse a button label.
  */
-STATIC ASM UBYTE *GetButtonName( REG(a0) UBYTE *source, REG(a1) UBYTE *uc, REG(d0) ULONG uchar )
+STATIC ASM UBYTE *GetButtonName( UBYTE * source __asm("a0"), UBYTE * uc __asm("a1"), ULONG uchar __asm("d0"))
 {
    uc[0] = uc[1] = 0;
 
@@ -226,7 +226,7 @@ STATIC Object *CreateButtonGroup( UBYTE *gstring, ULONG xen, UBYTE uchar, ULONG 
 /*
  * Requester IDCMP hook.
  */
-//STATIC SAVEDS ASM VOID ReqHookFunc(REG(a0) struct Hook *hook, REG(a2) Object *window, REG(a1) struct IntuiMessage *msg)
+//STATIC SAVEDS ASM VOID ReqHookFunc(struct Hook * hook __asm("a0"), Object * window __asm("a2"), struct IntuiMessage * msg __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(IPTR, ReqHookFunc,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, window),
@@ -291,7 +291,7 @@ AROS_LH3(ULONG, BGUI_RequestA,
     AROS_LHA(IPTR *, args, A2),
     struct Library *, BGUIBase, 7, BGUI)
 #else
-makeproto SAVEDS ASM ULONG BGUI_RequestA(REG(a0) struct Window *win, REG(a1) struct bguiRequest *es, REG(a2) IPTR *args)
+makeproto SAVEDS ASM ULONG BGUI_RequestA(struct Window * win __asm("a0"), struct bguiRequest * es __asm("a1"), IPTR * args __asm("a2"))
 #endif
 {
    AROS_LIBFUNC_INIT

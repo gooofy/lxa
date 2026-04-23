@@ -173,9 +173,9 @@ struct fmBackfill {
  *
  *      The hook is called as follows:
  *
- *              rc = hookFunc( REG(A0) struct Hook         *hook,
- *                             REG(A2) Object              *image_object,
- *                             REG(A1) struct FrameDrawMsg *fdraw );
+ *              rc = hookFunc( struct Hook         * hook __asm("a0"),
+ *                             Object              * image_object __asm("a2"),
+ *                             struct FrameDrawMsg * fdraw __asm("a1"));
  */
 #define FRM_RENDER              (1L) /* Render yourself           */
 
@@ -200,9 +200,9 @@ struct FrameDrawMsg
  *
  *      The hook is called as follows:
  *
- *      rc = hookFunc( REG(A0) struct Hook              *hook,
- *                     REG(A2) Object                   *image_object,
- *                     REG(A1) struct ThicknessMsg      *thick );
+ *      rc = hookFunc( struct Hook              * hook __asm("a0"),
+ *                     Object                   * image_object __asm("a2"),
+ *                     struct ThicknessMsg      * thick __asm("a1"));
  */
 #define FRM_THICKNESS           (2L) /* Give the default frame thickness. */
 

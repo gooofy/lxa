@@ -91,8 +91,8 @@ LOCAL UWORD DefDriPens[ 12 ] = { 0, 1, 1, 2, 1, 3, 1, 0, 2, 1, 2, 1 };
 *
 *************************************************************************/
 
-//ASM SAVEDS ULONG TV_LVRsrcHandler(REG(a0) struct Hook *hook,
-//	REG(a2) Object *obj, REG(a1) struct lvResource *lvr)
+//ASM SAVEDS ULONG TV_LVRsrcHandler(struct Hook * hook __asm("a0"),
+//	Object * obj __asm("a2"), struct lvResource * lvr __asm("a1"))
 ASM SAVEDS REGFUNC3(ULONG, TV_LVRsrcHandler,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -119,8 +119,8 @@ REGFUNC_END
 *
 *************************************************************************/
 
-//ASM SAVEDS ULONG TV_LVDispHandler(REG(a0) struct Hook *hook,
-//	REG(a2) Object *obj, REG(a1) struct lvRender *lvr)
+//ASM SAVEDS ULONG TV_LVDispHandler(struct Hook * hook __asm("a0"),
+//	Object * obj __asm("a2"), struct lvRender * lvr __asm("a1"))
 ASM SAVEDS REGFUNC3(ULONG, TV_LVDispHandler,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -387,8 +387,8 @@ REGFUNC_END
 *
 *************************************************************************/
 
-//ASM SAVEDS ULONG TV_LVCompHandler(REG(a0) struct Hook *hook,
-//	REG(a2) Object *obj, REG(a1) struct lvCompare *lvc)
+//ASM SAVEDS ULONG TV_LVCompHandler(struct Hook * hook __asm("a0"),
+//	Object * obj __asm("a2"), struct lvCompare * lvc __asm("a1"))
 ASM SAVEDS REGFUNC3(ULONG, TV_LVCompHandler,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -434,8 +434,8 @@ REGFUNC_END
 *
 *************************************************************************/
 
-//ASM SAVEDS ULONG TV_LVNotifyHandler(REG(a0) struct Hook *hook,
-//	REG(a2) Object *obj, REG(a1) struct opUpdate *opu)
+//ASM SAVEDS ULONG TV_LVNotifyHandler(struct Hook * hook __asm("a0"),
+//	Object * obj __asm("a2"), struct opUpdate * opu __asm("a1"))
 ASM SAVEDS REGFUNC3(ULONG, TV_LVNotifyHandler,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),

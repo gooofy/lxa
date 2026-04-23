@@ -65,7 +65,7 @@
 
 #include "include/classdefs.h"
 
-makeproto VOID ASM EraseBMO(REG(a0) BMO *bmo)
+makeproto VOID ASM EraseBMO(BMO * bmo __asm("a0"))
 {
    struct Screen *s = bmo->bmo_Screen;
 
@@ -90,7 +90,7 @@ makeproto VOID ASM EraseBMO(REG(a0) BMO *bmo)
    ReleaseSemaphore(&bmo->bmo_Lock);
 }
 
-//STATIC VOID ASM SAVEDS backfill_func(REG(a0) struct Hook *hook, REG(a2) struct RastPort *rp, REG(a1) BFINFO *bf)
+//STATIC VOID ASM SAVEDS backfill_func(struct Hook * hook __asm("a0"), struct RastPort * rp __asm("a2"), BFINFO * bf __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(VOID, backfill_func,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, struct RastPort *, rp),
@@ -109,7 +109,7 @@ REGFUNC_END
 
 static struct Hook bf_hook = { {NULL, NULL}, (HOOKFUNC)backfill_func, NULL, NULL };
 
-makeproto VOID ASM LayerBMO(REG(a0) BMO *bmo)
+makeproto VOID ASM LayerBMO(BMO * bmo __asm("a0"))
 {
    if (!bmo->bmo_BMWindow)
    {
@@ -123,7 +123,7 @@ makeproto VOID ASM LayerBMO(REG(a0) BMO *bmo)
    };
 }
 
-makeproto VOID ASM DrawBMO(REG(a0) BMO *bmo)
+makeproto VOID ASM DrawBMO(BMO * bmo __asm("a0"))
 {
    struct Screen     *s  = bmo->bmo_Screen;
    struct BitMap     *bm = bmo->bmo_ObjectBuffer;
@@ -364,7 +364,7 @@ __saveds void Mover(void)
  * around on the screen.
  */
 
-makeproto ASM BMO *CreateBMO(REG(a0) Object *obj, REG(a1) struct GadgetInfo * gi)
+makeproto ASM BMO *CreateBMO(Object * obj __asm("a0"), struct GadgetInfo * gi __asm("a1"))
 {
    struct Screen     *scr = gi->gi_Screen;
    struct Window     *win = gi->gi_Window;
@@ -428,7 +428,7 @@ makeproto ASM BMO *CreateBMO(REG(a0) Object *obj, REG(a1) struct GadgetInfo * gi
 /*
  * Cleanup the mess we made.
  */
-makeproto ASM VOID DeleteBMO(REG(a0) BMO *bmo)
+makeproto ASM VOID DeleteBMO(BMO * bmo __asm("a0"))
 {
    /*
     * Signal termination.
@@ -440,7 +440,7 @@ makeproto ASM VOID DeleteBMO(REG(a0) BMO *bmo)
  * Move the chunk to a new location.
  */
 
-makeproto ASM VOID MoveBMO(REG(a0) BMO *bmo, REG(D0) WORD x, REG(D1) WORD y)
+makeproto ASM VOID MoveBMO(BMO * bmo __asm("a0"), WORD x __asm("d0"), WORD y __asm("d1"))
 {
    /*
     * Make sure we stay inside the

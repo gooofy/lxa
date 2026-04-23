@@ -73,16 +73,16 @@ makeproto struct TextAttr Topaz80 =
    FPF_ROMFONT
 };
 
-makeproto ASM LONG max(REG(d0) LONG a, REG(d1) LONG b)
+makeproto ASM LONG max(LONG a __asm("d0"), LONG b __asm("d1"))
 { return (a > b) ? a : b; }
 
-makeproto ASM LONG min(REG(d0) LONG a, REG(d1) LONG b)
+makeproto ASM LONG min(LONG a __asm("d0"), LONG b __asm("d1"))
 { return (a < b) ? a : b; }
 
-makeproto ASM LONG abs(REG(d0) LONG a)
+makeproto ASM LONG abs(LONG a __asm("d0"))
 { return (a > 0) ? a :-a; }
 
-makeproto ASM LONG range(REG(d0) LONG c, REG(d1) LONG a, REG(d2) LONG b)
+makeproto ASM LONG range(LONG c __asm("d0"), LONG a __asm("d1"), LONG b __asm("d2"))
 {
    if (c < a) return a;
    if (c > b) return b;
@@ -92,7 +92,7 @@ makeproto ASM LONG range(REG(d0) LONG c, REG(d1) LONG a, REG(d2) LONG b)
 /*
  * Count the number of labels in an array.
  */
-makeproto ASM ULONG CountLabels(REG(a0) UBYTE **labels)
+makeproto ASM ULONG CountLabels(UBYTE ** labels __asm("a0"))
 {
    int n = 0;
 
@@ -104,7 +104,7 @@ makeproto ASM ULONG CountLabels(REG(a0) UBYTE **labels)
 /*
  * See if a point is in a box.
  */
-makeproto ASM BOOL PointInBox(REG(a0) struct IBox *box, REG(d0) WORD x, REG(d1) WORD y)
+makeproto ASM BOOL PointInBox(struct IBox * box __asm("a0"), WORD x __asm("d0"), WORD y __asm("d1"))
 {
    x -= box->Left;
    y -= box->Top;
@@ -181,7 +181,7 @@ makeproto WORD MapKey(UWORD code, UWORD qualifier, APTR *iaddress)
 /*
  * Show online-help requester.
  */
-makeproto ASM VOID ShowHelpReq( REG(a0) struct Window *win, REG(a1) UBYTE *text )
+makeproto ASM VOID ShowHelpReq( struct Window * win __asm("a0"), UBYTE * text __asm("a1"))
 {
    struct bguiRequest      req = { };
 
@@ -199,7 +199,7 @@ makeproto ASM VOID ShowHelpReq( REG(a0) struct Window *win, REG(a1) UBYTE *text 
 /*
  * Re-allocate and format a buffer.
  */
-makeproto ASM UBYTE *DoBuffer(REG(a0) UBYTE *text, REG(a1) UBYTE **buf_ptr, REG(a2) ULONG *buf_len, REG(a3) RAWARG args)
+makeproto ASM UBYTE *DoBuffer(UBYTE * text __asm("a0"), UBYTE ** buf_ptr __asm("a1"), ULONG * buf_len __asm("a2"), RAWARG args __asm("a3"))
 {
    ULONG       len;
 
@@ -260,7 +260,7 @@ makeproto VOID DoMultiSet(Tag tag, IPTR data, ULONG count, Object *obj1, ...)
 /*
  * Set a gadget's bounds.
  */
-makeproto ASM VOID SetGadgetBounds(REG(a0) Object *obj, REG(a1) struct IBox *bounds)
+makeproto ASM VOID SetGadgetBounds(Object * obj __asm("a0"), struct IBox * bounds __asm("a1"))
 {
    DoSetMethodNG(obj, GA_Left,   bounds->Left,    GA_Top,    bounds->Top,
                       GA_Width,  bounds->Width,   GA_Height, bounds->Height, TAG_DONE);
@@ -269,7 +269,7 @@ makeproto ASM VOID SetGadgetBounds(REG(a0) Object *obj, REG(a1) struct IBox *bou
 /*
  * Set an image's bounds.
  */
-makeproto ASM VOID SetImageBounds(REG(a0) Object *obj, REG(a1) struct IBox *bounds)
+makeproto ASM VOID SetImageBounds(Object * obj __asm("a0"), struct IBox * bounds __asm("a1"))
 {
    DoSetMethodNG(obj, IA_Left,   bounds->Left,    IA_Top,    bounds->Top,
                       IA_Width,  bounds->Width,   IA_Height, bounds->Height, TAG_DONE);
@@ -279,7 +279,7 @@ makeproto ASM VOID SetImageBounds(REG(a0) Object *obj, REG(a1) struct IBox *boun
 /*
  * Un-map a mapped tag-list.
  */
-makeproto ASM VOID UnmapTags(REG(a0) struct TagItem *tags, REG(a1) struct TagItem *map)
+makeproto ASM VOID UnmapTags(struct TagItem * tags __asm("a0"), struct TagItem * map __asm("a1"))
 {
    struct TagItem *tag, *tag1;
    struct TagItem *at = map;
@@ -303,7 +303,7 @@ makeproto ASM VOID UnmapTags(REG(a0) struct TagItem *tags, REG(a1) struct TagIte
 /*
  * Create a vector image.
  */
-makeproto ASM Object *CreateVector(REG(a0) struct TagItem *attr)
+makeproto ASM Object *CreateVector(struct TagItem * attr __asm("a0"))
 {
    struct TagItem    *tag;
    struct TagItem *tstate = attr;
@@ -319,7 +319,7 @@ makeproto ASM Object *CreateVector(REG(a0) struct TagItem *attr)
 /*
  * Fix the tag pointer.
  */
-makeproto ASM struct TagItem *BGUI_NextTagItem(REG(a0) struct TagItem **t)
+makeproto ASM struct TagItem *BGUI_NextTagItem(struct TagItem ** t __asm("a0"))
 {
    struct TagItem *rt, *tag, *tag2;
    struct TagItem *tstate;

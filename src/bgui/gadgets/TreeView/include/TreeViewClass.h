@@ -297,9 +297,9 @@ struct tvCommand {
 /*
  * The TV_ResourceHook is called as follows:
  *
- * rc = hookFunc( REG(A0) struct Hook *hook,
- *				  REG(A2) Object *tv_object,
- *				  REG(A1) struct tvResource *message );
+ * rc = hookFunc( struct Hook * hook __asm("a0"),
+ *				  Object * tv_object __asm("a2"),
+ *				  struct tvResource * message __asm("a1"));
  *
  * On make, return a pointer to the entry to be added, or NULL.
  * On kill, return 0.
@@ -320,9 +320,9 @@ struct tvResource {
 /*
  * The TV_DisplayHook is called as follows:
  *
- * rc = hookFunc( REG(A0) struct Hook *hook,
- *				  REG(A2) Object *tv_object,
- *				  REG(A1) struct tvRender *message );
+ * rc = hookFunc( struct Hook * hook __asm("a0"),
+ *				  Object * tv_object __asm("a2"),
+ *				  struct tvRender * message __asm("a1"));
  *
  * If your hook completes all rendering, return 0. If you wish
  * the treeview to render a string, return the string, which
@@ -356,9 +356,9 @@ struct tvRender {
 /*
  * The TV_CompareHook is called as follows:
  *
- * rc = hookFunc( REG(A0) struct Hook *hook,
- *				  REG(A2) Object *tv_object,
- *				  REG(A1) struct tvCompare *message );
+ * rc = hookFunc( struct Hook * hook __asm("a0"),
+ *				  Object * tv_object __asm("a2"),
+ *				  struct tvCompare * message __asm("a1"));
  *
  * Your hook must return -1 when entry A should come before entry B, 0 when
  * entry A is equal to entry B and 1 when entry A should come after entry B.
@@ -372,9 +372,9 @@ struct tvCompare {
 /*
  * The TV_ExpandHook is called as follows:
  *
- * rc = hookFunc( REG(A0) struct Hook *hook,
- *				  REG(A2) Object *tv_object,
- *				  REG(A1) struct tvExpand *message );
+ * rc = hookFunc( struct Hook * hook __asm("a0"),
+ *				  Object * tv_object __asm("a2"),
+ *				  struct tvExpand * message __asm("a1"));
  *
  * Your hook should return non-zero if the expansion or contraction
  * is to go ahead, zero if it should be cancelled.

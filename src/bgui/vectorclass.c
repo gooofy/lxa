@@ -470,7 +470,7 @@ static struct VectorItem *BuiltIn[] =
 /*
  * Deallocate the AreaFill() stuff.
  */
-STATIC ASM VOID CleanUpArea( REG(a0) struct RastPort *rp, REG(a1) VD *vd )
+STATIC ASM VOID CleanUpArea( struct RastPort * rp __asm("a0"), VD * vd __asm("a1"))
 {
    if (vd->vd_Flags & VDATF_AREA)
    {

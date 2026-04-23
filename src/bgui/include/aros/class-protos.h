@@ -25,9 +25,9 @@ extern Class *InitAslReqClass(void);
 
 /* strformat.c                                */
 
-extern ASM ULONG CompStrlenF(REG(a0) UBYTE *, REG(a1) RAWARG args);
+extern ASM ULONG CompStrlenF(UBYTE * __asm("a0"), RAWARG args __asm("a1"));
 
-extern ASM VOID DoSPrintF(REG(a0) UBYTE *, REG(a1) UBYTE *, REG(a2) RAWARG args);
+extern ASM VOID DoSPrintF(UBYTE * __asm("a0"), UBYTE * __asm("a1"), RAWARG args __asm("a2"));
 #ifdef __AROS__
 #else
 /* lxa: upstream declared `void sprintf(char *, char *, ...)` here, which
@@ -42,42 +42,42 @@ extern void tprintf(char *, ...);
 
 extern struct TextAttr Topaz80;
 
-extern ASM LONG max(REG(d0) LONG, REG(d1) LONG);
+extern ASM LONG max(LONG __asm("d0"), LONG __asm("d1"));
 
-extern ASM LONG min(REG(d0) LONG, REG(d1) LONG);
+extern ASM LONG min(LONG __asm("d0"), LONG __asm("d1"));
 
-extern ASM LONG abs(REG(d0) LONG);
+extern ASM LONG abs(LONG __asm("d0"));
 
-extern ASM LONG range(REG(d0) LONG, REG(d1) LONG, REG(d2) LONG);
+extern ASM LONG range(LONG __asm("d0"), LONG __asm("d1"), LONG __asm("d2"));
 
-extern ASM ULONG CountLabels(REG(a0) UBYTE **);
+extern ASM ULONG CountLabels(UBYTE ** __asm("a0"));
 
-extern ASM BOOL PointInBox(REG(a0) struct IBox *, REG(d0) WORD, REG(d1) WORD);
+extern ASM BOOL PointInBox(struct IBox * __asm("a0"), WORD __asm("d0"), WORD __asm("d1"));
 
 extern VOID Scale(struct RastPort *, UWORD *, UWORD *, UWORD, UWORD, struct TextAttr *);
 extern WORD MapKey(UWORD, UWORD, APTR *);
 
-extern ASM VOID ShowHelpReq( REG(a0) struct Window *, REG(a1) UBYTE *);
+extern ASM VOID ShowHelpReq( struct Window * __asm("a0"), UBYTE * __asm("a1"));
 
-extern ASM UBYTE *DoBuffer(REG(a0) UBYTE *, REG(a1) UBYTE **, REG(a2) ULONG *, REG(a3) RAWARG args);
+extern ASM UBYTE *DoBuffer(UBYTE * __asm("a0"), UBYTE ** __asm("a1"), ULONG * __asm("a2"), RAWARG args __asm("a3"));
 
 extern VOID DoMultiSet(Tag, IPTR, ULONG, Object *, ...);
 
-extern ASM VOID SetGadgetBounds(REG(a0) Object *, REG(a1) struct IBox *);
+extern ASM VOID SetGadgetBounds(Object * __asm("a0"), struct IBox * __asm("a1"));
 
-extern ASM VOID SetImageBounds(REG(a0) Object *, REG(a1) struct IBox *);
+extern ASM VOID SetImageBounds(Object * __asm("a0"), struct IBox * __asm("a1"));
 
-extern ASM VOID UnmapTags(REG(a0) struct TagItem *, REG(a1) struct TagItem *);
+extern ASM VOID UnmapTags(struct TagItem * __asm("a0"), struct TagItem * __asm("a1"));
 
-extern ASM Object *CreateVector(REG(a0) struct TagItem *);
+extern ASM Object *CreateVector(struct TagItem * __asm("a0"));
 
-extern ASM struct TagItem *BGUI_NextTagItem(REG(a0) struct TagItem **);
+extern ASM struct TagItem *BGUI_NextTagItem(struct TagItem ** __asm("a0"));
 
 /* baseclass.c                                */
 
 extern ULONG CalcDimensions(Class *, Object *, struct bmDimensions *, UWORD, UWORD);
 #ifndef __AROS__
-extern SAVEDS ASM VOID BGUI_PostRender(REG(a0) Class *, REG(a2) Object *, REG(a1) struct gpRender *);
+extern SAVEDS ASM VOID BGUI_PostRender(Class * __asm("a0"), Object * __asm("a2"), struct gpRender * __asm("a1"));
 #endif
 
 extern Class *BaseClass;
@@ -90,7 +90,7 @@ extern Class *InitBaseClass(void);
 /* request.c                                  */
 
 #ifndef __AROS__
-extern SAVEDS ASM ULONG BGUI_RequestA(REG(a0) struct Window *, REG(a1) struct bguiRequest *, REG(a2) ULONG *);
+extern SAVEDS ASM ULONG BGUI_RequestA(struct Window * __asm("a0"), struct bguiRequest * __asm("a1"), ULONG * __asm("a2"));
 #endif
 
 /* cycleclass.c                               */
@@ -113,38 +113,38 @@ extern BOOL GetWindowBounds(ULONG, struct IBox *);
 extern VOID SetWindowBounds(ULONG, struct IBox *);
 
 #ifndef __AROS__
-extern SAVEDS ASM APTR BGUI_AllocPoolMemDebug(REG(d0) ULONG, REG(a0) STRPTR, REG(d1) ULONG);
-extern SAVEDS ASM APTR BGUI_AllocPoolMem(REG(d0) ULONG);
-extern SAVEDS ASM VOID BGUI_FreePoolMemDebug(REG(a0) APTR, REG(a1) STRPTR, REG(d0) ULONG);
-extern SAVEDS ASM VOID BGUI_FreePoolMem(REG(a0) APTR);
+extern SAVEDS ASM APTR BGUI_AllocPoolMemDebug(ULONG __asm("d0"), STRPTR __asm("a0"), ULONG __asm("d1"));
+extern SAVEDS ASM APTR BGUI_AllocPoolMem(ULONG __asm("d0"));
+extern SAVEDS ASM VOID BGUI_FreePoolMemDebug(APTR __asm("a0"), STRPTR __asm("a1"), ULONG __asm("d0"));
+extern SAVEDS ASM VOID BGUI_FreePoolMem(APTR __asm("a0"));
 #endif
 
-extern ASM BOOL AddIDReport(REG(a0) struct Window *, REG(d0) ULONG, REG(a1) struct Task *);
+extern ASM BOOL AddIDReport(struct Window * __asm("a0"), ULONG __asm("d0"), struct Task * __asm("a1"));
 
-extern ASM ULONG GetIDReport(REG(a0) struct Window *);
+extern ASM ULONG GetIDReport(struct Window * __asm("a0"));
 
 extern struct Window *GetFirstIDReportWindow(void);
 
-extern ASM VOID RemoveIDReport(REG(a0) struct Window *);
+extern ASM VOID RemoveIDReport(struct Window * __asm("a0"));
 
-extern ASM VOID AddWindow(REG(a0) Object *, REG(a1) struct Window *);
+extern ASM VOID AddWindow(Object * __asm("a0"), struct Window * __asm("a1"));
 
-extern ASM VOID RemWindow(REG(a0) Object *);
+extern ASM VOID RemWindow(Object * __asm("a0"));
 
-extern ASM Object *WhichWindow(REG(a0) struct Screen *);
+extern ASM Object *WhichWindow(struct Screen * __asm("a0"));
 
 extern struct TagItem *DefTagList(ULONG, struct TagItem *);
 
-extern SAVEDS ASM ULONG BGUI_CountTagItems(REG(a0) struct TagItem *);
+extern SAVEDS ASM ULONG BGUI_CountTagItems(struct TagItem * __asm("a0"));
 
-extern SAVEDS ASM struct TagItem *BGUI_MergeTagItems(REG(a0) struct TagItem *, REG(a1) struct TagItem *);
+extern SAVEDS ASM struct TagItem *BGUI_MergeTagItems(struct TagItem * __asm("a0"), struct TagItem * __asm("a1"));
 
-extern SAVEDS ASM struct TagItem *BGUI_CleanTagItems(REG(a0) struct TagItem *, REG(d0) LONG);
+extern SAVEDS ASM struct TagItem *BGUI_CleanTagItems(struct TagItem * __asm("a0"), LONG __asm("d0"));
 
 #ifndef __AROS__
-extern SAVEDS ASM struct TagItem *BGUI_GetDefaultTags(REG(d0) ULONG);
+extern SAVEDS ASM struct TagItem *BGUI_GetDefaultTags(ULONG __asm("d0"));
 extern SAVEDS ASM VOID BGUI_DefaultPrefs(VOID);
-extern SAVEDS ASM VOID BGUI_LoadPrefs(REG(a0) UBYTE *);
+extern SAVEDS ASM VOID BGUI_LoadPrefs(UBYTE * __asm("a0"));
 #endif
 
 /* arexxclass.c                               */
@@ -170,25 +170,25 @@ extern UBYTE *StrGClass;
 extern Class *BGUI_MakeClass(Tag, ...);
 
 #ifndef __AROS__
-extern ASM Class *BGUI_MakeClassA(REG(a0) struct TagItem *);
-extern SAVEDS ASM BOOL BGUI_FreeClass(REG(a0) Class *);
+extern ASM Class *BGUI_MakeClassA(struct TagItem * __asm("a0"));
+extern SAVEDS ASM BOOL BGUI_FreeClass(Class * __asm("a0"));
 #endif
 
-extern ULONG ASM BGUI_GetAttrChart(REG(a0) Class *, REG(a2) Object *, REG(a1) struct rmAttr *);
+extern ULONG ASM BGUI_GetAttrChart(Class * __asm("a0"), Object * __asm("a2"), struct rmAttr * __asm("a1"));
 
-extern ULONG ASM BGUI_SetAttrChart(REG(a0) Class *, REG(a2) Object *, REG(a1) struct rmAttr *);
+extern ULONG ASM BGUI_SetAttrChart(Class * __asm("a0"), Object * __asm("a2"), struct rmAttr * __asm("a1"));
 
 extern ULONG BGUI_PackStructureTag(UBYTE *, ULONG *, Tag tag, IPTR data);
 extern ULONG BGUI_UnpackStructureTag(UBYTE *, ULONG *, Tag tag, IPTR *dataptr);
 
 #ifndef __AROS__
-extern SAVEDS ULONG ASM BGUI_PackStructureTags(REG(a0) APTR, REG(a1) ULONG *, REG(a2) struct TagItem *);
-extern SAVEDS ULONG ASM BGUI_UnpackStructureTags(REG(a0) APTR, REG(a1) ULONG *, REG(a2) struct TagItem *);
+extern SAVEDS ULONG ASM BGUI_PackStructureTags(APTR __asm("a0"), ULONG * __asm("a1"), struct TagItem * __asm("a2"));
+extern SAVEDS ULONG ASM BGUI_UnpackStructureTags(APTR __asm("a0"), ULONG * __asm("a1"), struct TagItem * __asm("a2"));
 #endif
 
-extern ASM ULONG Get_Attr(REG(a0) Object *, REG(d0) ULONG, REG(a1) IPTR *);
+extern ASM ULONG Get_Attr(Object * __asm("a0"), ULONG __asm("d0"), IPTR * __asm("a1"));
 
-extern ASM ULONG Get_SuperAttr(REG(a2) Class *, REG(a0) Object *, REG(d0) ULONG, REG(a1) IPTR *);
+extern ASM ULONG Get_SuperAttr(Class * __asm("a2"), Object * __asm("a0"), ULONG __asm("d0"), IPTR * __asm("a1"));
 
 extern IPTR  NewSuperObject(Class *, Object *, struct TagItem *);
 extern ULONG DoSetMethodNG(Object *, Tag, ...);
@@ -198,16 +198,16 @@ extern ULONG DoSuperSetMethod(Class *, Object *, struct GadgetInfo *, Tag, ...);
 extern ULONG DoUpdateMethod(Object *, struct GadgetInfo *, ULONG, Tag, ...);
 extern ULONG DoNotifyMethod(Object *, struct GadgetInfo *, ULONG, Tag, ...);
 
-extern ASM IPTR  DoRenderMethod(REG(a0) Object *, REG(a1) struct GadgetInfo *, REG(d0) ULONG);
+extern ASM IPTR  DoRenderMethod(Object * __asm("a0"), struct GadgetInfo * __asm("a1"), ULONG __asm("d0"));
 
-extern ASM IPTR  ForwardMsg(REG(a0) Object *, REG(a1) Object *, REG(a2) Msg);
+extern ASM IPTR  ForwardMsg(Object * __asm("a0"), Object * __asm("a1"), Msg __asm("a2"));
 
 extern struct BaseInfo *AllocBaseInfoDebug(STRPTR, ULONG,Tag, ...);
 extern struct BaseInfo *AllocBaseInfo(Tag, ...);
 
-extern SAVEDS ASM struct BaseInfo *BGUI_AllocBaseInfoDebugA(REG(a0) struct TagItem *,REG(a1) STRPTR, REG(d0) ULONG);
+extern SAVEDS ASM struct BaseInfo *BGUI_AllocBaseInfoDebugA(struct TagItem * __asm("a0"),STRPTR __asm("a1"), ULONG __asm("d0"));
 
-extern SAVEDS ASM struct BaseInfo *BGUI_AllocBaseInfoA(REG(a0) struct TagItem *);
+extern SAVEDS ASM struct BaseInfo *BGUI_AllocBaseInfoA(struct TagItem * __asm("a0"));
 
 extern void FreeBaseInfoDebug(struct BaseInfo *, STRPTR, ULONG);
 extern void FreeBaseInfo(struct BaseInfo *);
@@ -274,7 +274,7 @@ extern Class *InitWindowClass(void);
 extern ULONG myDoGadgetMethod(Object *, struct Window *, struct Requester *, STACKULONG MethodID, ...);
 
 #ifndef __AROS__
-extern SAVEDS ASM ULONG BGUI_DoGadgetMethodA( REG(a0) Object *, REG(a1) struct Window *, REG(a2) struct Requester *, REG(a3) Msg);
+extern SAVEDS ASM ULONG BGUI_DoGadgetMethodA( Object * __asm("a0"), struct Window * __asm("a1"), struct Requester * __asm("a2"), Msg __asm("a3"));
 #endif
 
 extern Class *InitDGMClass(void);
@@ -283,7 +283,7 @@ extern Class *InitDGMClass(void);
 
 extern Class *InitGroupNodeClass(void);
 
-extern ASM ULONG RelayoutGroup(REG(a0) Object *);
+extern ASM ULONG RelayoutGroup(Object * __asm("a0"));
 
 extern Class *InitGroupClass(void);
 
@@ -303,25 +303,25 @@ extern BOOL TrackDisposedObject(Object *);
 extern void MarkFreedClass(Class *);
 
 #ifndef __AROS__
-extern SAVEDS ASM Class *BGUI_GetClassPtr(REG(d0) ULONG);
+extern SAVEDS ASM Class *BGUI_GetClassPtr(ULONG __asm("d0"));
 #endif
 
 extern Object *BGUI_NewObject(ULONG, Tag, ...);
 
 #ifndef __AROS__
-extern SAVEDS ASM Object *BGUI_NewObjectA(REG(d0) ULONG, REG(a0) struct TagItem *);
-extern SAVEDS ASM struct BitMap *BGUI_AllocBitMap(REG(d0) ULONG, REG(d1) ULONG, REG(d2) ULONG, REG(d3) ULONG, REG(a0) struct BitMap *);
-extern SAVEDS ASM VOID BGUI_FreeBitMap(REG(a0) struct BitMap *);
-extern SAVEDS ASM struct RastPort *BGUI_CreateRPortBitMap(REG(a0) struct RastPort *, REG(d0) ULONG, REG(d1) ULONG, REG(d2) ULONG);
-extern SAVEDS ASM VOID BGUI_FreeRPortBitMap(REG(a0) struct RastPort *);
-extern SAVEDS ASM BOOL BGUI_Help(REG(a0) struct Window *, REG(a1) UBYTE *, REG(a2) UBYTE *, REG(d0) ULONG);
-extern SAVEDS ASM APTR BGUI_LockWindow( REG(a0) struct Window *);
-extern SAVEDS ASM VOID BGUI_UnlockWindow( REG(a0) APTR);
-extern SAVEDS ASM STRPTR BGUI_GetLocaleStr(REG(a0) struct bguiLocale *, REG(d0) ULONG);
-extern SAVEDS ASM CONST_STRPTR BGUI_GetCatalogStr(REG(a0) struct bguiLocale *, REG(d0) ULONG, REG(a1) CONST_STRPTR);
+extern SAVEDS ASM Object *BGUI_NewObjectA(ULONG __asm("d0"), struct TagItem * __asm("a0"));
+extern SAVEDS ASM struct BitMap *BGUI_AllocBitMap(ULONG __asm("d0"), ULONG __asm("d1"), ULONG __asm("d2"), ULONG __asm("d3"), struct BitMap * __asm("a0"));
+extern SAVEDS ASM VOID BGUI_FreeBitMap(struct BitMap * __asm("a0"));
+extern SAVEDS ASM struct RastPort *BGUI_CreateRPortBitMap(struct RastPort * __asm("a0"), ULONG __asm("d0"), ULONG __asm("d1"), ULONG __asm("d2"));
+extern SAVEDS ASM VOID BGUI_FreeRPortBitMap(struct RastPort * __asm("a0"));
+extern SAVEDS ASM BOOL BGUI_Help(struct Window * __asm("a0"), UBYTE * __asm("a1"), UBYTE * __asm("a2"), ULONG __asm("d0"));
+extern SAVEDS ASM APTR BGUI_LockWindow( struct Window * __asm("a0"));
+extern SAVEDS ASM VOID BGUI_UnlockWindow( APTR __asm("a0"));
+extern SAVEDS ASM STRPTR BGUI_GetLocaleStr(struct bguiLocale * __asm("a0"), ULONG __asm("d0"));
+extern SAVEDS ASM CONST_STRPTR BGUI_GetCatalogStr(struct bguiLocale * __asm("a0"), ULONG __asm("d0"), CONST_STRPTR __asm("a1"));
 #endif
 
-extern SAVEDS ASM IPTR BGUI_CallHookPkt(REG(a0) struct Hook *,REG(a2) APTR,REG(a1) APTR);
+extern SAVEDS ASM IPTR BGUI_CallHookPkt(struct Hook * __asm("a0"),APTR __asm("a2"),APTR __asm("a1"));
 
 /* filereqclass.c                             */
 
@@ -363,13 +363,13 @@ extern Class *InitInfoClass( void);
 
 extern Class *InitTextClass(void);
 #ifndef __AROS__
-extern SAVEDS ASM VOID BGUI_InfoTextSize(REG(a0) struct RastPort *, REG(a1) UBYTE *, REG(a2) UWORD *, REG(a3) UWORD *);
-extern SAVEDS ASM VOID BGUI_InfoText( REG(a0) struct RastPort *, REG(a1) UBYTE *, REG(a2) struct IBox *, REG(a3) struct DrawInfo *);
+extern SAVEDS ASM VOID BGUI_InfoTextSize(struct RastPort * __asm("a0"), UBYTE * __asm("a1"), UWORD * __asm("a2"), UWORD * __asm("a3"));
+extern SAVEDS ASM VOID BGUI_InfoText( struct RastPort * __asm("a0"), UBYTE * __asm("a1"), struct IBox * __asm("a2"), struct DrawInfo * __asm("a3"));
 #endif
 
-extern UWORD ASM TotalHeight( REG(a0) struct RastPort *, REG(a1) UBYTE *);
+extern UWORD ASM TotalHeight( struct RastPort * __asm("a0"), UBYTE * __asm("a1"));
 
-extern UWORD ASM TotalWidth(REG(a0) struct RastPort *, REG(a1) UBYTE *);
+extern UWORD ASM TotalWidth(struct RastPort * __asm("a0"), UBYTE * __asm("a1"));
 
 extern void RenderInfoText(struct RastPort *, UBYTE *, UWORD *, struct IBox *, UWORD);
 extern void RenderText(struct BaseInfo *, UBYTE *, struct IBox *);
@@ -383,11 +383,20 @@ extern VOID InitLocale(void);
 /* lxa: lib.c defines LibInit with 3 args (D0 dummy, A0 seg, A6 sysbase).
  * Phase 42.13 of lib.c notes the D0 param "may not leave out, even if
  * unused, otherwise it crashes on machines where all arguments are passed
- * on stack."  AROS's MakeProto generated a 2-arg signature here. */
-extern SAVEDS ASM struct Library *LibInit(REG(d0) ULONG, REG(a0) BPTR, REG(a6) struct ExecBase *);
-extern SAVEDS ASM struct Library *LibOpen(REG(a6) struct Library *, REG(d0) ULONG);
-extern SAVEDS ASM BPTR LibClose(REG(a6) struct Library *);
-extern SAVEDS ASM BPTR LibExpunge(REG(a6) struct Library *);
+ * on stack."  AROS's MakeProto generated a 2-arg signature here.
+ *
+ * lxa: For bebbo we need explicit __asm("dN")/("aN") clauses on each
+ * argument so GCC actually passes them in registers (the empty REG()
+ * fallback degrades to plain stack-passed C).  Use REGPARAM consistently
+ * so prototype and definition agree.
+ */
+extern SAVEDS ASM struct Library *LibInit(REGPARAM(D0, ULONG, dummy),
+                                          REGPARAM(A0, BPTR, segment),
+                                          REGPARAM(A6, struct ExecBase *, syslib));
+extern SAVEDS ASM struct Library *LibOpen(REGPARAM(A6, struct Library *, lib),
+                                          REGPARAM(D0, ULONG, version));
+extern SAVEDS ASM BPTR LibClose(REGPARAM(A6, struct Library *, lib));
+extern SAVEDS ASM BPTR LibExpunge(REGPARAM(A6, struct Library *, lib));
 extern SAVEDS LONG LibVoid(void);
 #endif
 
@@ -395,87 +404,87 @@ extern SAVEDS LONG LibVoid(void);
 
 extern UWORD DefDriPens[12];
 
-extern ASM ULONG TextWidth(REG(a1) struct RastPort *, REG(a0) UBYTE *);
+extern ASM ULONG TextWidth(struct RastPort * __asm("a1"), UBYTE * __asm("a0"));
 
-extern ASM ULONG TextWidthNum(REG(a1) struct RastPort *, REG(a0) UBYTE *, REG(d0) ULONG);
+extern ASM ULONG TextWidthNum(struct RastPort * __asm("a1"), UBYTE * __asm("a0"), ULONG __asm("d0"));
 
-extern ASM VOID BDisableBox(REG(a0) struct BaseInfo *, REG(a1) struct IBox *);
+extern ASM VOID BDisableBox(struct BaseInfo * __asm("a0"), struct IBox * __asm("a1"));
 
 extern VOID RenderTitle(Object *, struct BaseInfo *, WORD, WORD, WORD, BOOL, BOOL, UWORD);
 
-extern VOID ASM SetDashedLine(REG(a0) struct BaseInfo *, REG(d0) UWORD);
+extern VOID ASM SetDashedLine(struct BaseInfo * __asm("a0"), UWORD __asm("d0"));
 
 extern VOID RenderBevelBox(struct BaseInfo *, WORD, WORD, WORD, WORD, UWORD, BOOL, BOOL);
 
-extern ASM VOID SRectFillDebug(REG(a0) struct RastPort *, REG(d0) LONG, REG(d1) LONG, REG(d2) LONG, REG(d3) LONG,REG(a1) STRPTR,REG(d4) ULONG);
+extern ASM VOID SRectFillDebug(struct RastPort * __asm("a0"), LONG __asm("d0"), LONG __asm("d1"), LONG __asm("d2"), LONG __asm("d3"),STRPTR __asm("a1"),ULONG __asm("d4"));
         
-extern ASM VOID BRectFillDebug(REG(a0) struct BaseInfo *, REG(d0) LONG, REG(d1) LONG, REG(d2) LONG, REG(d3) LONG,REG(a1) STRPTR,REG(d4) ULONG);
+extern ASM VOID BRectFillDebug(struct BaseInfo * __asm("a0"), LONG __asm("d0"), LONG __asm("d1"), LONG __asm("d2"), LONG __asm("d3"),STRPTR __asm("a1"),ULONG __asm("d4"));
 
-extern ASM VOID BRectFillA(REG(a0) struct BaseInfo *, REG(a1) struct Rectangle *);
+extern ASM VOID BRectFillA(struct BaseInfo * __asm("a0"), struct Rectangle * __asm("a1"));
 
-extern ASM VOID BBoxFill(REG(a0) struct BaseInfo *, REG(d0) LONG, REG(d1) LONG, REG(d2) LONG, REG(d3) LONG);
+extern ASM VOID BBoxFill(struct BaseInfo * __asm("a0"), LONG __asm("d0"), LONG __asm("d1"), LONG __asm("d2"), LONG __asm("d3"));
 
-extern ASM VOID BBoxFillA(REG(a0) struct BaseInfo *, REG(a1) struct IBox *);
+extern ASM VOID BBoxFillA(struct BaseInfo * __asm("a0"), struct IBox * __asm("a1"));
 
-extern ASM VOID RenderBackFill(REG(a0) struct RastPort *, REG(a1) struct IBox *, REG(a2) UWORD *, REG(d0) ULONG);
+extern ASM VOID RenderBackFill(struct RastPort * __asm("a0"), struct IBox * __asm("a1"), UWORD * __asm("a2"), ULONG __asm("d0"));
 
-extern ASM VOID RenderBackFillRasterDebug(REG(a0) struct RastPort *, REG(a1) struct IBox *, REG(d0) UWORD, REG(d1) UWORD,REG(a2) STRPTR, REG(d2) ULONG);
+extern ASM VOID RenderBackFillRasterDebug(struct RastPort * __asm("a0"), struct IBox * __asm("a1"), UWORD __asm("d0"), UWORD __asm("d1"),STRPTR __asm("a2"), ULONG __asm("d2"));
         
-extern ASM VOID DottedBox(REG(a0) struct BaseInfo *, REG(a1) struct IBox *);
+extern ASM VOID DottedBox(struct BaseInfo * __asm("a0"), struct IBox * __asm("a1"));
 
-extern ASM ULONG GadgetState(REG(a0) struct BaseInfo *, REG(a1) Object *, REG(d0) BOOL);
+extern ASM ULONG GadgetState(struct BaseInfo * __asm("a0"), Object * __asm("a1"), BOOL __asm("d0"));
 
 #ifndef __AROS__
-extern SAVEDS ASM VOID BGUI_FillRectPattern(REG(a1) struct RastPort *, REG(a0) struct bguiPattern *, REG(d0) ULONG, REG(d1) ULONG, REG(d2) ULONG, REG(d3) ULONG);
+extern SAVEDS ASM VOID BGUI_FillRectPattern(struct RastPort * __asm("a1"), struct bguiPattern * __asm("a0"), ULONG __asm("d0"), ULONG __asm("d1"), ULONG __asm("d2"), ULONG __asm("d3"));
 #endif
 
-extern VOID ASM HLine(REG(a1) struct RastPort *, REG(d0) UWORD, REG(d1) UWORD, REG(d2) UWORD);
+extern VOID ASM HLine(struct RastPort * __asm("a1"), UWORD __asm("d0"), UWORD __asm("d1"), UWORD __asm("d2"));
 
-extern VOID ASM VLine(REG(a1) struct RastPort *, REG(d0) UWORD, REG(d1) UWORD, REG(d2) UWORD);
+extern VOID ASM VLine(struct RastPort * __asm("a1"), UWORD __asm("d0"), UWORD __asm("d1"), UWORD __asm("d2"));
 
-extern ASM ULONG FGetAPen(REG(a1) struct RastPort *);
+extern ASM ULONG FGetAPen(struct RastPort * __asm("a1"));
 
-extern ASM ULONG FGetBPen(REG(a1) struct RastPort *);
+extern ASM ULONG FGetBPen(struct RastPort * __asm("a1"));
         
-extern ASM ULONG FGetDrMd(REG(a1) struct RastPort *);
+extern ASM ULONG FGetDrMd(struct RastPort * __asm("a1"));
 
-extern ASM ULONG FGetDepth(REG(a1) struct RastPort *);
+extern ASM ULONG FGetDepth(struct RastPort * __asm("a1"));
 
-extern ASM VOID FSetAPen(REG(a1) struct RastPort *, REG(d0) ULONG);
+extern ASM VOID FSetAPen(struct RastPort * __asm("a1"), ULONG __asm("d0"));
 
-extern ASM VOID FSetBPen(REG(a1) struct RastPort *, REG(d0) ULONG);
+extern ASM VOID FSetBPen(struct RastPort * __asm("a1"), ULONG __asm("d0"));
 
-extern ASM VOID FSetDrMd(REG(a1) struct RastPort *, REG(d0) ULONG);
+extern ASM VOID FSetDrMd(struct RastPort * __asm("a1"), ULONG __asm("d0"));
 
-extern ASM VOID FSetABPenDrMd(REG(a1) struct RastPort *, REG(d0) ULONG, REG(d1) ULONG, REG(d2) ULONG);
+extern ASM VOID FSetABPenDrMd(struct RastPort * __asm("a1"), ULONG __asm("d0"), ULONG __asm("d1"), ULONG __asm("d2"));
 
-extern ASM VOID FSetFont(REG(a1) struct RastPort *, REG(a0) struct TextFont *);
+extern ASM VOID FSetFont(struct RastPort * __asm("a1"), struct TextFont * __asm("a0"));
 
-extern ASM VOID FSetFontStyle(REG(a1) struct RastPort *, REG(d0) ULONG);
+extern ASM VOID FSetFontStyle(struct RastPort * __asm("a1"), ULONG __asm("d0"));
 
-extern ASM VOID FClearAfPt(REG(a1) struct RastPort *);
+extern ASM VOID FClearAfPt(struct RastPort * __asm("a1"));
 
-extern ASM VOID BSetDPenA(REG(a0) struct BaseInfo *, REG(d0) LONG);
+extern ASM VOID BSetDPenA(struct BaseInfo * __asm("a0"), LONG __asm("d0"));
 
-extern ASM VOID BSetPenA(REG(a0) struct BaseInfo *, REG(d0) ULONG);
+extern ASM VOID BSetPenA(struct BaseInfo * __asm("a0"), ULONG __asm("d0"));
 
-extern ASM VOID BSetDPenB(REG(a0) struct BaseInfo *, REG(d0) LONG);
+extern ASM VOID BSetDPenB(struct BaseInfo * __asm("a0"), LONG __asm("d0"));
 
-extern ASM VOID BSetPenB(REG(a0) struct BaseInfo *, REG(d0) ULONG);
+extern ASM VOID BSetPenB(struct BaseInfo * __asm("a0"), ULONG __asm("d0"));
 
-extern ASM VOID BSetDrMd(REG(a0) struct BaseInfo *, REG(d0) ULONG);
+extern ASM VOID BSetDrMd(struct BaseInfo * __asm("a0"), ULONG __asm("d0"));
 
-extern ASM VOID BSetFont(REG(a0) struct BaseInfo *, REG(a1) struct TextFont *);
+extern ASM VOID BSetFont(struct BaseInfo * __asm("a0"), struct TextFont * __asm("a1"));
 
-extern ASM VOID BSetFontStyle(REG(a0) struct BaseInfo *, REG(d0) ULONG);
+extern ASM VOID BSetFontStyle(struct BaseInfo * __asm("a0"), ULONG __asm("d0"));
 
-extern ASM VOID BSetAfPt(REG(a0) struct BaseInfo *, REG(a1) UWORD *, REG(d0) ULONG);
+extern ASM VOID BSetAfPt(struct BaseInfo * __asm("a0"), UWORD * __asm("a1"), ULONG __asm("d0"));
 
-extern ASM VOID BClearAfPt(REG(a0) struct BaseInfo *);
+extern ASM VOID BClearAfPt(struct BaseInfo * __asm("a0"));
 
-extern ASM VOID BSetDrPt(REG(a0) struct BaseInfo *, REG(d0) ULONG);
+extern ASM VOID BSetDrPt(struct BaseInfo * __asm("a0"), ULONG __asm("d0"));
 
-extern ASM VOID BDrawImageState(REG(a0) struct BaseInfo *, REG(a1) Object *, REG(d0) ULONG, REG(d1) ULONG, REG(d2) ULONG);
+extern ASM VOID BDrawImageState(struct BaseInfo * __asm("a0"), Object * __asm("a1"), ULONG __asm("d0"), ULONG __asm("d1"), ULONG __asm("d2"));
 
 /* progressclass.c                            */
 
@@ -483,53 +492,53 @@ extern Class *InitProgressClass(void);
 
 /* blitter.c                                  */
 
-extern VOID ASM EraseBMO(REG(a0) BMO *);
+extern VOID ASM EraseBMO(BMO * __asm("a0"));
 
-extern VOID ASM LayerBMO(REG(a0) BMO *);
+extern VOID ASM LayerBMO(BMO * __asm("a0"));
 
-extern VOID ASM DrawBMO(REG(a0) BMO *);
+extern VOID ASM DrawBMO(BMO * __asm("a0"));
 
-extern ASM BMO *CreateBMO(REG(a0) Object *, REG(a1) struct GadgetInfo *);
+extern ASM BMO *CreateBMO(Object * __asm("a0"), struct GadgetInfo * __asm("a1"));
 
-extern ASM VOID DeleteBMO(REG(a0) BMO *);
+extern ASM VOID DeleteBMO(BMO * __asm("a0"));
 
-extern ASM VOID MoveBMO(REG(a0) BMO *, REG(d0) WORD, REG(d1) WORD);
+extern ASM VOID MoveBMO(BMO * __asm("a0"), WORD __asm("d0"), WORD __asm("d1"));
 
 /* miscasm.asm                                */
 
 struct NewAmigaGuide;
 extern BOOL DisplayAGuideInfo(struct NewAmigaGuide *, Tag, ...);
 
-extern ASM ULONG ScaleWeight(REG(d2) ULONG e, REG(d3) ULONG f, REG(d4) ULONG a);
+extern ASM ULONG ScaleWeight(ULONG e __asm("d2"), ULONG f __asm("d3"), ULONG a __asm("d4"));
 
-extern /*__stdargs*/ ASM ULONG StrLenfA(REG(a0) UBYTE *, REG(a1) RAWARG args);
+extern /*__stdargs*/ ASM ULONG StrLenfA(UBYTE * __asm("a0"), RAWARG args __asm("a1"));
 
-extern /*__stdargs*/ ASM VOID SPrintfA(REG(a3) UBYTE *, REG(a0) UBYTE *, REG(a1) RAWARG args);
+extern /*__stdargs*/ ASM VOID SPrintfA(UBYTE * __asm("a3"), UBYTE * __asm("a0"), RAWARG args __asm("a1"));
 
-//extern ASM VOID LHook_Count(REG(a0) struct Hook *hook, REG(a1) ULONG chr, REG(a2) struct Locale *loc);
+//extern ASM VOID LHook_Count(struct Hook * hook __asm("a0"), ULONG chr __asm("a1"), struct Locale * loc __asm("a2"));
 extern REGFUNCPROTO3(VOID, LHook_Count,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, struct Locale *, loc),
 	REGPARAM(A1, ULONG, chr));
 
-//extern ASM VOID LHook_Format(REG(a0) struct Hook *hook, REG(a1) ULONG chr, REG(a2) struct Locale *loc);
+//extern ASM VOID LHook_Format(struct Hook * hook __asm("a0"), ULONG chr __asm("a1"), struct Locale * loc __asm("a2"));
 extern REGFUNCPROTO3(VOID, LHook_Format,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, struct Locale *, loc),
 	REGPARAM(A1, ULONG, chr));
 
-extern ASM struct RastPort *BGUI_ObtainGIRPort( REG(a0) struct GadgetInfo * );
+extern ASM struct RastPort *BGUI_ObtainGIRPort( struct GadgetInfo * __asm("a0"));
 
 extern IPTR AsmDoMethod( Object *, STACKULONG MethodID, ... );
 
 extern IPTR AsmDoSuperMethod( Class *, Object *, STACKULONG MethodID, ... );
 extern IPTR AsmCoerceMethod( Class *, Object *, STACKULONG MethodID, ... );
 
-extern ASM IPTR AsmDoMethodA( REG(a2) Object *, REG(a1) Msg );
+extern ASM IPTR AsmDoMethodA( Object * __asm("a2"), Msg __asm("a1"));
 
-extern ASM IPTR AsmDoSuperMethodA( REG(a0) Class *, REG(a2) Object *, REG(a1) Msg );
+extern ASM IPTR AsmDoSuperMethodA( Class * __asm("a0"), Object * __asm("a2"), Msg __asm("a1"));
 
-extern ASM IPTR AsmCoerceMethodA( REG(a0) Class *, REG(a2) Object *, REG(a1) Msg );
+extern ASM IPTR AsmCoerceMethodA( Class * __asm("a0"), Object * __asm("a2"), Msg __asm("a1"));
 
 /* libtag.asm                                 */
 
@@ -539,7 +548,7 @@ extern ASM IPTR AsmCoerceMethodA( REG(a0) Class *, REG(a2) Object *, REG(a1) Msg
 
 extern ASM APTR EnsureStack(VOID);
 
-extern ASM VOID RevertStack( REG(a0) APTR);
+extern ASM VOID RevertStack( APTR __asm("a0"));
 
 extern VOID InitInputStack(VOID);
 extern VOID FreeInputStack(VOID);

@@ -169,7 +169,7 @@ typedef struct {
 typedef struct {
         UBYTE                   *rc_Name;         /* Command name. */
         UBYTE                   *rc_ArgTemplate;  /* DOS-style argument template. */
-//        ASM VOID                (*rc_Func)( REG(a0) REXXARGS *, REG(a1) struct RexxMsg * );
+//        ASM VOID                (*rc_Func)( REXXARGS * __asm("a0"), struct RexxMsg * __asm("a1"));
         ASM REGFUNCPROTO2(VOID, (*rc_Func),
                 REGPARAM(A0, REXXARGS *,),
                 REGPARAM(A1, struct RexxMsg *, ));

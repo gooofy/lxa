@@ -713,7 +713,7 @@ METHOD(PropClassHitTest, struct gpHitTest *, gph)
 METHOD_END
 ///
 
-STATIC ASM VOID NotifyChange(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct gpInput *gpi, REG(d0) ULONG flags)
+STATIC ASM VOID NotifyChange(Class * cl __asm("a0"), Object * obj __asm("a2"), struct gpInput * gpi __asm("a1"), ULONG flags __asm("d0"))
 {
    PD          *pd = INST_DATA(cl, obj);
    ULONG        type;
@@ -755,7 +755,7 @@ STATIC ASM VOID NotifyChange(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) str
  * Adjust knob position in
  * whatever direction necessary.
  */
-STATIC ASM VOID AdjustKnob(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct gpInput *gpi)
+STATIC ASM VOID AdjustKnob(Class * cl __asm("a0"), Object * obj __asm("a2"), struct gpInput * gpi __asm("a1"))
 {
    PD        *pd = INST_DATA(cl, obj);
    LONG       top, total = max(pd->pd_Total - pd->pd_Visible, 0);

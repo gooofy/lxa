@@ -87,7 +87,7 @@ typedef struct {
  * Obtain the LongVal and TextVal
  * values from the strgclass object.
  */
-STATIC ASM VOID GetValues(REG(a0) SD *sd)
+STATIC ASM VOID GetValues(SD * sd __asm("a0"))
 {
    IPTR tmp;
    Get_Attr(sd->sd_StrGad, STRINGA_TextVal, (IPTR *)&sd->sd_TextContents);
@@ -124,7 +124,7 @@ METHOD_END
 /*
  * Allocate buffers. (Only when maxchars > 128)
  */
-STATIC ASM BOOL StringClassBuffers( REG(a0) SD *sd, REG(a1) struct TagItem *tags, REG(d0) ULONG max )
+STATIC ASM BOOL StringClassBuffers( SD * sd __asm("a0"), struct TagItem * tags __asm("a1"), ULONG max __asm("d0"))
 {
    /*
     * We only allocate buffer when:

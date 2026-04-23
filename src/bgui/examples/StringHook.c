@@ -57,7 +57,7 @@ UBYTE  *WinInfo = ISEQ_C "This demo shows you how to include a\n"
 **      String object edit hook. Copied from the
 **      RKM-Manual Libraries. Page 162-166.
 **/
-//SAVEDS ASM ULONG HexHookFunc( REG(a0) struct Hook *hook, REG(a2) struct SGWork *sgw, REG(a1) ULONG *msg )
+//SAVEDS ASM ULONG HexHookFunc( struct Hook * hook __asm("a0"), struct SGWork * sgw __asm("a2"), ULONG * msg __asm("a1"))
 SAVEDS ASM REGFUNC3(ULONG, HexHookFunc,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, struct SGWork *, sgw),

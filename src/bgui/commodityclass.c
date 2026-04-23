@@ -267,7 +267,7 @@ METHOD_END
 /*
  * Search for a key by it's ID.
  */
-STATIC ASM KEY *FindKey( REG(a0) KEYLIST *kl, REG(d0) ULONG keyID )
+STATIC ASM KEY *FindKey( KEYLIST * kl __asm("a0"), ULONG keyID __asm("d0"))
 {
    KEY         *key;
 

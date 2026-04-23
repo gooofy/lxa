@@ -450,7 +450,7 @@ METHOD_END
 /*
  * Open the popup-window.
  */
-STATIC ASM IPTR OpenPopupWindow(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct gpInput *gpi)
+STATIC ASM IPTR OpenPopupWindow(Class * cl __asm("a0"), Object * obj __asm("a2"), struct gpInput * gpi __asm("a1"))
 {
    CD                   *cd = INST_DATA(cl, obj);
    BC                   *bc = BASE_DATA(obj);
@@ -631,7 +631,7 @@ METHOD_END
 /*
  * Which entry is selected?
  */
-STATIC ASM UWORD Selected(REG(a0) CD *cd, REG(a1) struct RastPort *rp)
+STATIC ASM UWORD Selected(CD * cd __asm("a0"), struct RastPort * rp __asm("a1"))
 {
    WORD        mx = cd->cd_PopWindow->MouseX, my = cd->cd_PopWindow->MouseY;
    LONG        item = ~0;

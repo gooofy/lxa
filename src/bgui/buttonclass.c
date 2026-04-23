@@ -79,7 +79,7 @@ typedef struct {
 /*
  * Change the object's attributes.
  */
-STATIC ASM IPTR ButtonSetAttrs(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct opSet *ops)
+STATIC ASM IPTR ButtonSetAttrs(Class * cl __asm("a0"), Object * obj __asm("a2"), struct opSet * ops __asm("a1"))
 {
    BD              *bd = INST_DATA(cl, obj);
    BC              *bc = BASE_DATA(obj);

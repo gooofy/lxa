@@ -385,7 +385,7 @@ AROS_LH4(VOID, BGUI_InfoTextSize,
     AROS_LHA(UWORD *, wh, A3),
     struct Library *, BGUIBase, 18, BGUI)
 #else
-makeproto SAVEDS ASM VOID BGUI_InfoTextSize(REG(a0) struct RastPort *rp, REG(a1) UBYTE *text, REG(a2) UWORD *wi, REG(a3) UWORD *wh)
+makeproto SAVEDS ASM VOID BGUI_InfoTextSize(struct RastPort * rp __asm("a0"), UBYTE * text __asm("a1"), UWORD * wi __asm("a2"), UWORD * wh __asm("a3"))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -410,7 +410,7 @@ AROS_LH4(VOID, BGUI_InfoText,
     AROS_LHA(struct DrawInfo *, dri, A3),
     struct Library *, BGUIBase, 19, BGUI)
 #else
-makeproto SAVEDS ASM VOID BGUI_InfoText( REG(a0) struct RastPort *rp, REG(a1) UBYTE *text, REG(a2) struct IBox *bounds, REG(a3) struct DrawInfo *dri )
+makeproto SAVEDS ASM VOID BGUI_InfoText( struct RastPort * rp __asm("a0"), UBYTE * text __asm("a1"), struct IBox * bounds __asm("a2"), struct DrawInfo * dri __asm("a3"))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -674,7 +674,7 @@ STATIC WORD XPos(struct BaseInfo *bi, UBYTE *text, UWORD *old_style, struct IBox
 /*
  * Determine the total height of the text.
  */
-makeproto UWORD ASM TotalHeight( REG(a0) struct RastPort *rp, REG(a1) UBYTE *text )
+makeproto UWORD ASM TotalHeight( struct RastPort * rp __asm("a0"), UBYTE * text __asm("a1"))
 {
    UWORD    nl = 1;
    UBYTE    c;
@@ -699,7 +699,7 @@ makeproto UWORD ASM TotalHeight( REG(a0) struct RastPort *rp, REG(a1) UBYTE *tex
  * Determine the total width
  * of the information text.
  */
-makeproto UWORD ASM TotalWidth(REG(a0) struct RastPort *rp, REG(a1) UBYTE *text)
+makeproto UWORD ASM TotalWidth(struct RastPort * rp __asm("a0"), UBYTE * text __asm("a1"))
 {
    struct RastPort rport = *rp;
    ULONG           line_len = 0, len = 0;

@@ -64,10 +64,10 @@ AROS_LD1(BPTR, LibExpunge,
 AROS_LD0(LONG, LibVoid,
      struct Library *, lib, 4, BGUIGadget);
 #else
-SAVEDS ASM struct Library *LibInit(REG(d0) struct Library *lib, REG(a0) BPTR segment, REG(a6) struct ExecBase *syslib);
-SAVEDS ASM struct Library *LibOpen(REG(a6) struct Library *lib, REG(d0) ULONG libver);
-SAVEDS ASM BPTR LibClose(REG(a6) struct Library *lib);
-SAVEDS ASM BPTR LibExpunge(REG(a6) struct Library *lib);
+SAVEDS ASM struct Library *LibInit(struct Library * lib __asm("d0"), BPTR segment __asm("a0"), struct ExecBase * syslib __asm("a6"));
+SAVEDS ASM struct Library *LibOpen(struct Library * lib __asm("a6"), ULONG libver __asm("d0"));
+SAVEDS ASM BPTR LibClose(struct Library * lib __asm("a6"));
+SAVEDS ASM BPTR LibExpunge(struct Library * lib __asm("a6"));
 SAVEDS LONG LibVoid(void);
 #endif
 
@@ -121,7 +121,7 @@ IPTR _LibInit[4] =
 /*
  * Library initialization.
  */
-//SAVEDS ASM struct Library *LibInit(REG(d0) struct Library *lib, REG(a0) BPTR segment, REG(a6) struct ExecBase *syslib)
+//SAVEDS ASM struct Library *LibInit(struct Library * lib __asm("d0"), BPTR segment __asm("a0"), struct ExecBase * syslib __asm("a6"))
 SAVEDS ASM REGFUNC3(struct Library *, LibInit,
 		    REGPARAM(D0, struct Library *, lib),
 		    REGPARAM(A0, BPTR, segment),
@@ -180,7 +180,7 @@ AROS_LH1(struct Library *, LibOpen,
     AROS_LHA(ULONG, version, D0),
     struct Library *, lib, 1, BGUIGadget)
 #else
-SAVEDS ASM struct Library *LibOpen(REG(a6) struct Library *lib, REG(d0) ULONG libver)
+SAVEDS ASM struct Library *LibOpen(struct Library * lib __asm("a6"), ULONG libver __asm("d0"))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -209,7 +209,7 @@ SAVEDS ASM struct Library *LibOpen(REG(a6) struct Library *lib, REG(d0) ULONG li
 AROS_LH0(BPTR, LibClose,
          struct Library *, lib, 2, BGUIGadget)
 #else
-SAVEDS ASM BPTR LibClose(REG(a6) struct Library *lib)
+SAVEDS ASM BPTR LibClose(struct Library * lib __asm("a6"))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -248,7 +248,7 @@ AROS_LH1(BPTR, LibExpunge,
     AROS_LHA(struct Library *, lib, D0),
     struct ExecBase *, sysBase, 3, BGUIGadget)
 #else
-SAVEDS ASM BPTR LibExpunge(REG(a6) struct Library *lib)
+SAVEDS ASM BPTR LibExpunge(struct Library * lib __asm("a6"))
 #endif
 {
    AROS_LIBFUNC_INIT

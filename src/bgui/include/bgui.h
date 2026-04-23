@@ -1254,9 +1254,9 @@ struct gmReleaseMembers {
 /*
  *      The LISTV_ResourceHook is called as follows:
  *
- *      rc = hookFunc( REG(A0) struct Hook              *hook,
- *                     REG(A2) Object                   *lv_object,
- *                     REG(A1) struct lvResource        *message );
+ *      rc = hookFunc( struct Hook              * hook __asm("a0"),
+ *                     Object                   * lv_object __asm("a2"),
+ *                     struct lvResource        * message __asm("a1"));
  */
 struct lvResource {
         UWORD                   lvr_Command;
@@ -1270,9 +1270,9 @@ struct lvResource {
 /*
  *      The LISTV_DisplayHook and the LISTV_TitleHook are called as follows:
  *
- *      rc = hookFunc( REG(A0) struct Hook             *hook,
- *                     REG(A2) Object                  *lv_object,
- *                     REG(A1) struct lvRender         *message );
+ *      rc = hookFunc( struct Hook             * hook __asm("a0"),
+ *                     Object                  * lv_object __asm("a2"),
+ *                     struct lvRender         * message __asm("a1"));
  */
 struct lvRender {
         struct RastPort        *lvr_RPort;      /* RastPort to render in.  */
@@ -1293,9 +1293,9 @@ struct lvRender {
 /*
  *      The LISTV_CompareHook is called as follows:
  *
- *      rc = hookFunc( REG(A0) struct Hook              *hook,
- *                     REG(A2) Object                   *lv_object,
- *                     REG(A1) struct lvCompare         *message );
+ *      rc = hookFunc( struct Hook              * hook __asm("a0"),
+ *                     Object                   * lv_object __asm("a2"),
+ *                     struct lvCompare         * message __asm("a1"));
  */
 struct lvCompare {
         APTR                    lvc_EntryA;     /* First entry.  */

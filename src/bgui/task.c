@@ -161,9 +161,9 @@ union TypesUnion
 
 #define TrashMemory(memory,size,character) memset(memory,character,size)
 
-static ASM VOID FreeVecMemDebug(REG(a0) APTR pool, REG(a1) APTR memptr, REG(a2) STRPTR file, REG(d0) ULONG line);
+static ASM VOID FreeVecMemDebug(APTR pool __asm("a0"), APTR memptr __asm("a1"), STRPTR file __asm("a2"), ULONG line __asm("d0"));
 
-static ASM APTR AllocVecMemDebug(REG(a0) APTR mempool, REG(d0) ULONG size,REG(a1) STRPTR file, REG(d1) ULONG line);
+static ASM APTR AllocVecMemDebug(APTR mempool __asm("a0"), ULONG size __asm("d0"),STRPTR file __asm("a1"), ULONG line __asm("d1"));
 
 #define AllocVecMem(mempool,size) AllocVecMemDebug(mempool,size,__FILE__,__LINE__)
 #define FreeVecMem(pool,memptr) FreeVecMemDebug(pool,memptr,__FILE__,__LINE__)
@@ -181,14 +181,14 @@ static BOOL VerifyMemoryWall(char *memory)
 }
 
 #else
-static ASM APTR AllocVecMem(REG(a0) APTR mempool, REG(d0) ULONG size);
+static ASM APTR AllocVecMem(APTR mempool __asm("a0"), ULONG size __asm("d0"));
 
-static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr);
+static ASM VOID FreeVecMem(APTR pool __asm("a0"), APTR memptr __asm("a1"));
 #endif
 
-static SAVEDS ASM APTR BGUI_CreatePool(REG(d0) ULONG memFlags, REG(d1) ULONG puddleSize, REG(d2) ULONG threshSize);
+static SAVEDS ASM APTR BGUI_CreatePool(ULONG memFlags __asm("d0"), ULONG puddleSize __asm("d1"), ULONG threshSize __asm("d2"));
 
-static SAVEDS ASM VOID BGUI_DeletePool(REG(a0) APTR poolHeader);
+static SAVEDS ASM VOID BGUI_DeletePool(APTR poolHeader __asm("a0"));
 
 /*
  * Initialize task list.
@@ -411,7 +411,7 @@ makeproto UWORD AddTaskMember(void)
 	 STRPTR command_name,insert;
 	 size_t offset;
 	 UWORD command_len;
-	 
+
 	 command_name=BADDR(Cli()->cli_CommandName);
 	 strcpy(buffer,"ENV:BGUI/");
 	 insert=buffer+sizeof("ENV:BGUI/")-1;
@@ -633,18 +633,18 @@ makeproto VOID SetWindowBounds(ULONG windowID, struct IBox *set)
 /*
  * Asm stubs for the pool routines.
  */
-extern ASM APTR AsmCreatePool  ( REG(d0) ULONG, REG(d1) ULONG, REG(d2) ULONG, REG(a6) struct ExecBase * );
+extern ASM APTR AsmCreatePool  ( ULONG __asm("d0"), ULONG __asm("d1"), ULONG __asm("d2"), struct ExecBase * __asm("a6"));
 
-extern ASM APTR AsmAllocPooled ( REG(a0) APTR,  REG(d0) ULONG,                REG(a6) struct ExecBase * );
+extern ASM APTR AsmAllocPooled ( APTR __asm("a0"),  ULONG __asm("d0"),                struct ExecBase * __asm("a6"));
 
-extern ASM APTR AsmFreePooled  ( REG(a0) APTR,  REG(a1) APTR,  REG(d0) ULONG, REG(a6) struct ExecBase * );
+extern ASM APTR AsmFreePooled  ( APTR __asm("a0"),  APTR __asm("a1"),  ULONG __asm("d0"), struct ExecBase * __asm("a6"));
 
-extern ASM APTR AsmDeletePool  ( REG(a0) APTR,                                REG(a6) struct ExecBase * );
+extern ASM APTR AsmDeletePool  ( APTR __asm("a0"),                                struct ExecBase * __asm("a6"));
 
 /*
  * Create a memory pool.
  */
-static SAVEDS ASM APTR BGUI_CreatePool(REG(d0) ULONG memFlags, REG(d1) ULONG puddleSize, REG(d2) ULONG threshSize)
+static SAVEDS ASM APTR BGUI_CreatePool(ULONG memFlags __asm("d0"), ULONG puddleSize __asm("d1"), ULONG threshSize __asm("d2"))
 {
    #ifdef ENHANCED
    /*
@@ -664,7 +664,7 @@ static SAVEDS ASM APTR BGUI_CreatePool(REG(d0) ULONG memFlags, REG(d1) ULONG pud
 /*
  * Delete a memory pool.
  */
-static SAVEDS ASM VOID BGUI_DeletePool(REG(a0) APTR poolHeader)
+static SAVEDS ASM VOID BGUI_DeletePool(APTR poolHeader __asm("a0"))
 {
 #ifdef DEBUG_BGUI
    struct BlockHeader **header;
@@ -700,9 +700,9 @@ static SAVEDS ASM VOID BGUI_DeletePool(REG(a0) APTR poolHeader)
  */
 
 #ifdef DEBUG_BGUI
-static SAVEDS ASM APTR BGUI_AllocPooledDebug(REG(a0) APTR poolHeader, REG(d0) ULONG memSize,REG(a1) STRPTR file,REG(d1) ULONG line)
+static SAVEDS ASM APTR BGUI_AllocPooledDebug(APTR poolHeader __asm("a0"), ULONG memSize __asm("d0"),STRPTR file __asm("a1"),ULONG line __asm("d1"))
 #else
-static SAVEDS ASM APTR BGUI_AllocPooled(REG(a0) APTR poolHeader, REG(d0) ULONG memSize)
+static SAVEDS ASM APTR BGUI_AllocPooled(APTR poolHeader __asm("a0"), ULONG memSize __asm("d0"))
 #endif
 {
    APTR memory;
@@ -750,9 +750,9 @@ static SAVEDS ASM APTR BGUI_AllocPooled(REG(a0) APTR poolHeader, REG(d0) ULONG m
  * Free pooled memory.
  */
 #ifdef DEBUG_BGUI
-static SAVEDS ASM VOID BGUI_FreePooledDebug(REG(a0) APTR poolHeader, REG(a1) APTR memory, REG(d1) ULONG memSize,REG(a2) STRPTR file,REG(d2) ULONG line)
+static SAVEDS ASM VOID BGUI_FreePooledDebug(APTR poolHeader __asm("a0"), APTR memory __asm("a1"), ULONG memSize __asm("d1"),STRPTR file __asm("a2"),ULONG line __asm("d2"))
 #else
-static SAVEDS ASM VOID BGUI_FreePooled(REG(a0) APTR poolHeader, REG(a1) APTR memory, REG(d1) ULONG memSize)
+static SAVEDS ASM VOID BGUI_FreePooled(APTR poolHeader __asm("a0"), APTR memory __asm("a1"), ULONG memSize __asm("d1"))
 #endif
 {
 #ifdef DEBUG_BGUI
@@ -814,9 +814,9 @@ static SAVEDS ASM VOID BGUI_FreePooled(REG(a0) APTR poolHeader, REG(a1) APTR mem
  * Allocate memory.
  */
 #ifdef DEBUG_BGUI
-static ASM APTR AllocVecMemDebug(REG(a0) APTR mempool, REG(d0) ULONG size,REG(a1) STRPTR file, REG(d1) ULONG line)
+static ASM APTR AllocVecMemDebug(APTR mempool __asm("a0"), ULONG size __asm("d0"),STRPTR file __asm("a1"), ULONG line __asm("d1"))
 #else
-static ASM APTR AllocVecMem(REG(a0) APTR mempool, REG(d0) ULONG size)
+static ASM APTR AllocVecMem(APTR mempool __asm("a0"), ULONG size __asm("d0"))
 #endif
 {
    ULONG    *mem;
@@ -833,7 +833,8 @@ static ASM APTR AllocVecMem(REG(a0) APTR mempool, REG(d0) ULONG size)
 #ifdef DEBUG_BGUI
       if ((mem = (ULONG *)BGUI_AllocPooledDebug(mempool, size,file,line)))
 #else
-      if ((mem = (ULONG *)BGUI_AllocPooled(mempool, size)))
+      mem = (ULONG *)BGUI_AllocPooled(mempool, size);
+      if (mem)
 #endif
       {
 	 /*
@@ -854,9 +855,9 @@ static ASM APTR AllocVecMem(REG(a0) APTR mempool, REG(d0) ULONG size)
  * Free memory.
  */
 #ifdef DEBUG_BGUI
-static ASM VOID FreeVecMemDebug(REG(a0) APTR pool, REG(a1) APTR memptr, REG(a2) STRPTR file, REG(d0) ULONG line)
+static ASM VOID FreeVecMemDebug(APTR pool __asm("a0"), APTR memptr __asm("a1"), STRPTR file __asm("a2"), ULONG line __asm("d0"))
 #else
-static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr)
+static ASM VOID FreeVecMem(APTR pool __asm("a0"), APTR memptr __asm("a1"))
 #endif
 {
    ULONG    *mem = (ULONG *)memptr;
@@ -891,7 +892,7 @@ static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr)
        AROS_LHA(ULONG, size, D0),
        struct Library *, BGUIBase, 12, BGUI)
    #else
-   SAVEDS ASM APTR BGUI_AllocPoolMem(REG(d0) ULONG size)
+   SAVEDS ASM APTR BGUI_AllocPoolMem(ULONG size __asm("d0"))
    #endif
    {
       AROS_LIBFUNC_INIT
@@ -910,7 +911,7 @@ static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr)
        AROS_LHA(ULONG, line, D1),
        struct Library *BGUIBase, 31, BGUI)
    #else
-   makeproto SAVEDS ASM APTR BGUI_AllocPoolMemDebug(REG(d0) ULONG size, REG(a0) STRPTR file, REG(d1) ULONG line)
+   makeproto SAVEDS ASM APTR BGUI_AllocPoolMemDebug(ULONG size __asm("d0"), STRPTR file __asm("a0"), ULONG line __asm("d1"))
    #endif
 
 #else
@@ -923,7 +924,7 @@ static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr)
        AROS_LHA(ULONG, line, D1),
        struct Library *, BGUIBase, 31, BGUI)
    #else
-   SAVEDS ASM APTR BGUI_AllocPoolMemDebug(REG(d0) ULONG size, REG(a0) STRPTR file, REG(d1) ULONG line)
+   SAVEDS ASM APTR BGUI_AllocPoolMemDebug(ULONG size __asm("d0"), STRPTR file __asm("a0"), ULONG line __asm("d1"))
    #endif
    {
       AROS_LIBFUNC_INIT
@@ -940,7 +941,7 @@ static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr)
        AROS_LHA(ULONG, size, D0),
        struct Library *, BGUIBase, 12, BGUI)
    #else
-   makeproto SAVEDS ASM APTR BGUI_AllocPoolMem(REG(d0) ULONG size)
+   makeproto SAVEDS ASM APTR BGUI_AllocPoolMem(ULONG size __asm("d0"))
    #endif
 #endif
 
@@ -982,7 +983,7 @@ static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr)
        AROS_LHA(APTR, memPtr, A0),
        struct Library *, BGUIBase, 13, BGUI)
    #else
-   SAVEDS ASM VOID BGUI_FreePoolMem(REG(a0) APTR memPtr)
+   SAVEDS ASM VOID BGUI_FreePoolMem(APTR memPtr __asm("a0"))
    #endif
    {
       AROS_LIBFUNC_INIT
@@ -1001,7 +1002,7 @@ static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr)
        AROS_LHA(ULONG, line, D0),
        struct Library *, BGUIBase, 32, BGUI)
    #else
-   makeproto SAVEDS ASM VOID BGUI_FreePoolMemDebug(REG(a0) APTR memPtr, REG(a1) STRPTR file, REG(d0) ULONG line)
+   makeproto SAVEDS ASM VOID BGUI_FreePoolMemDebug(APTR memPtr __asm("a0"), STRPTR file __asm("a1"), ULONG line __asm("d0"))
    #endif
     
 #else
@@ -1014,7 +1015,7 @@ static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr)
        AROS_LHA(ULONG, line, D0),
        struct Library *, BGUIBase, 32, BGUI)
    #else
-   makeproto SAVEDS ASM VOID BGUI_FreePoolMemDebug(REG(a0) APTR memPtr, REG(a1) STRPTR file, REG(d0) ULONG line)
+   makeproto SAVEDS ASM VOID BGUI_FreePoolMemDebug(APTR memPtr __asm("a0"), STRPTR file __asm("a1"), ULONG line __asm("d0"))
    #endif
    {
       AROS_LIBFUNC_INIT
@@ -1031,7 +1032,7 @@ static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr)
        AROS_LHA(APTR, memPtr, A0),
        struct Library *, BGUIBase, 13, BGUI)
    #else
-   makeproto SAVEDS ASM VOID BGUI_FreePoolMem(REG(a0) APTR memPtr)
+   makeproto SAVEDS ASM VOID BGUI_FreePoolMem(APTR memPtr __asm("a0"))
    #endif
 
 #endif
@@ -1077,7 +1078,7 @@ static ASM VOID FreeVecMem(REG(a0) APTR pool, REG(a1) APTR memptr)
  *  - Uses InternalFindTaskMember to find destination task.
  */
 
-makeproto ASM BOOL AddIDReport(REG(a0) struct Window *window, REG(d0) ULONG id, REG(a1) struct Task *task)
+makeproto ASM BOOL AddIDReport(struct Window * window __asm("a0"), ULONG id __asm("d0"), struct Task * task __asm("a1"))
 {
    RID         *rid;
    TM          *tm;
@@ -1119,7 +1120,7 @@ makeproto ASM BOOL AddIDReport(REG(a0) struct Window *window, REG(d0) ULONG id, 
 /*
  * Get next ID for the window.
  */
-makeproto ASM ULONG GetIDReport(REG(a0) struct Window *window)
+makeproto ASM ULONG GetIDReport(struct Window * window __asm("a0"))
 {
    RID         *rid;
    TM          *tm;
@@ -1202,7 +1203,7 @@ makeproto struct Window *GetFirstIDReportWindow(void)
 /*
  * Remove all ID's of this window.
  */
-makeproto ASM VOID RemoveIDReport(REG(a0) struct Window *window)
+makeproto ASM VOID RemoveIDReport(struct Window * window __asm("a0"))
 {
    RID      *rid, *succ;
    TM       *tm;
@@ -1238,7 +1239,7 @@ makeproto ASM VOID RemoveIDReport(REG(a0) struct Window *window)
 /*
  * Add an open window to the list.
  */
-makeproto ASM VOID AddWindow(REG(a0) Object *wo, REG(a1) struct Window *win)
+makeproto ASM VOID AddWindow(Object * wo __asm("a0"), struct Window * win __asm("a1"))
 {
    WNODE       *wn;
 
@@ -1273,7 +1274,7 @@ makeproto ASM VOID AddWindow(REG(a0) Object *wo, REG(a1) struct Window *win)
 /*
  * Remove a window from the list.
  */
-makeproto ASM VOID RemWindow(REG(a0) Object *wo)
+makeproto ASM VOID RemWindow(Object * wo __asm("a0"))
 {
    WNODE       *wn;
 
@@ -1314,7 +1315,7 @@ makeproto ASM VOID RemWindow(REG(a0) Object *wo)
 /*
  * Find the window located under the mouse.
  */
-makeproto ASM Object *WhichWindow(REG(a0) struct Screen *screen)
+makeproto ASM Object *WhichWindow(struct Screen * screen __asm("a0"))
 {
    Object         *win = NULL;
    struct Layer   *layer;
@@ -1621,7 +1622,7 @@ makeproto struct TagItem *DefTagList(ULONG id, struct TagItem *tags)
    return CloneTagItems(tags);
 }
 
-makeproto SAVEDS ASM ULONG BGUI_CountTagItems(REG(a0) struct TagItem *tags)
+makeproto SAVEDS ASM ULONG BGUI_CountTagItems(struct TagItem * tags __asm("a0"))
 {
    struct TagItem *tstate = tags;
    ULONG n = 0;
@@ -1631,7 +1632,7 @@ makeproto SAVEDS ASM ULONG BGUI_CountTagItems(REG(a0) struct TagItem *tags)
    return n;
 }
 
-makeproto SAVEDS ASM struct TagItem *BGUI_MergeTagItems(REG(a0) struct TagItem *tags1, REG(a1) struct TagItem *tags2)
+makeproto SAVEDS ASM struct TagItem *BGUI_MergeTagItems(struct TagItem * tags1 __asm("a0"), struct TagItem * tags2 __asm("a1"))
 {
    struct TagItem *tags, *t, *tag;
    struct TagItem *tstate1 = tags1, *tstate2 = tags2;
@@ -1656,7 +1657,7 @@ makeproto SAVEDS ASM struct TagItem *BGUI_MergeTagItems(REG(a0) struct TagItem *
    return NULL;
 }
 
-makeproto SAVEDS ASM struct TagItem *BGUI_CleanTagItems(REG(a0) struct TagItem *tags, REG(d0) LONG dir)
+makeproto SAVEDS ASM struct TagItem *BGUI_CleanTagItems(struct TagItem * tags __asm("a0"), LONG dir __asm("d0"))
 {
    struct TagItem *tag, *tag2;
    struct TagItem *tstate = tags;
@@ -1690,7 +1691,7 @@ AROS_LH1(struct TagItem *, BGUI_GetDefaultTags,
     AROS_LHA(ULONG, id, D0),
     struct Library *, BGUIBase, 28, BGUI)
 #else
-makeproto SAVEDS ASM struct TagItem *BGUI_GetDefaultTags(REG(d0) ULONG id)
+makeproto SAVEDS ASM struct TagItem *BGUI_GetDefaultTags(ULONG id __asm("d0"))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -1752,7 +1753,7 @@ AROS_LH1(VOID, BGUI_LoadPrefs,
     AROS_LHA(UBYTE *, name, A0),
     struct Library *, BGUIBase, 30, BGUI)
 #else
-makeproto SAVEDS ASM VOID BGUI_LoadPrefs(REG(a0) UBYTE *name)
+makeproto SAVEDS ASM VOID BGUI_LoadPrefs(UBYTE * name __asm("a0"))
 #endif
 {
    AROS_LIBFUNC_INIT

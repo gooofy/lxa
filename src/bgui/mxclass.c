@@ -89,7 +89,7 @@ STATIC struct TagItem id2act[] = {
 /*
  * Add MX objects.
  */
-STATIC ASM BOOL AddMXObjects(REG(a0) Object *target, REG(a1) MD *md)
+STATIC ASM BOOL AddMXObjects(Object * target __asm("a0"), MD * md __asm("a1"))
 {
    UBYTE       **labels = md->md_LabelStrings;
    ULONG         i = 0;

@@ -186,7 +186,7 @@ AROS_LH4(ULONG, BGUI_DoGadgetMethodA,
     AROS_LHA(Msg, msg, A3),
     struct Library *, BGUIBase, 11, BGUI)
 #else
-makeproto SAVEDS ASM ULONG BGUI_DoGadgetMethodA( REG(a0) Object *obj, REG(a1) struct Window *win, REG(a2) struct Requester *req, REG(a3) Msg msg )
+makeproto SAVEDS ASM ULONG BGUI_DoGadgetMethodA( Object * obj __asm("a0"), struct Window * win __asm("a1"), struct Requester * req __asm("a2"), Msg msg __asm("a3"))
 #endif
 {
    AROS_LIBFUNC_INIT

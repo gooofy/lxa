@@ -102,7 +102,7 @@ typedef struct {
 /*
  * Get the member 'num'.
  */
-STATIC ASM PM *GetMember(REG(a0) PML *l, REG(d0) ULONG mnum)
+STATIC ASM PM *GetMember(PML * l __asm("a0"), ULONG mnum __asm("d0"))
 {
    PM          *pm;
    ULONG        num = 0;
@@ -118,7 +118,7 @@ STATIC ASM PM *GetMember(REG(a0) PML *l, REG(d0) ULONG mnum)
 /*
  * Add members.
  */
-STATIC ASM VOID AddMembers( REG(a0) Class *cl, REG(a1) Object *obj, REG(a2) struct TagItem *attr)
+STATIC ASM VOID AddMembers( Class * cl __asm("a0"), Object * obj __asm("a1"), struct TagItem * attr __asm("a2"))
 {
    PD                *pd = INST_DATA(cl, obj);
    PM                *pm;
@@ -169,7 +169,7 @@ STATIC ASM VOID AddMembers( REG(a0) Class *cl, REG(a1) Object *obj, REG(a2) stru
 /*
  * Set members active/deactive.
  */
-STATIC ASM VOID DoMembers(REG(a0) PD *pd)
+STATIC ASM VOID DoMembers(PD * pd __asm("a0"))
 {
    PM       *pm, *active = pd->pd_Active;
    BOOL      inhibit = pd->pd_Flags & PDF_INHIBIT;

@@ -214,7 +214,7 @@ AROS_LH3(VOID, BGUI_PostRender,
     AROS_LHA(struct gpRender *, gpr, A1),
     struct Library *, BGUIBase, 23, BGUI)
 #else
-makeproto SAVEDS ASM VOID BGUI_PostRender(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct gpRender *gpr)
+makeproto SAVEDS ASM VOID BGUI_PostRender(Class * cl __asm("a0"), Object * obj __asm("a2"), struct gpRender * gpr __asm("a1"))
 #endif
 {
    AROS_LIBFUNC_INIT

@@ -78,7 +78,7 @@ typedef struct {
 /*
  *	Set attributes.
  */
-STATIC ASM VOID SetFLAttr( REG(a0) FLD *fld, REG(a1) struct TagItem *attr )
+STATIC ASM VOID SetFLAttr( FLD * fld __asm("a0"), struct TagItem * attr __asm("a1"))
 {
 	struct TagItem		*tag;
 	struct TagItem *tstate = attr;

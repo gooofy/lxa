@@ -123,7 +123,7 @@ typedef struct {
 
 /// SetGroupNodeAttrs
 
-STATIC IPTR ASM SetGroupNodeAttrs(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct opSet *ops)
+STATIC IPTR ASM SetGroupNodeAttrs(Class * cl __asm("a0"), Object * obj __asm("a2"), struct opSet * ops __asm("a1"))
 {
    MD              *md = INST_DATA(cl, obj);
    IPTR             data;
@@ -421,7 +421,7 @@ typedef struct {
 
 /// NextGroupNode
 
-STATIC ASM MD *NextGroupNode(REG(a0) GD *gd, REG(a1) Object **node, REG(d0) ULONG flags)
+STATIC ASM MD *NextGroupNode(GD * gd __asm("a0"), Object ** node __asm("a1"), ULONG flags __asm("d0"))
 {
    Object    *next;
    MD        *md;
@@ -442,7 +442,7 @@ STATIC ASM MD *NextGroupNode(REG(a0) GD *gd, REG(a1) Object **node, REG(d0) ULON
 ///
 /// GroupNode
 
-STATIC ASM Object *GroupNode(REG(a0) GD *gd, REG(d0) int i, REG(d1) int j)
+STATIC ASM Object *GroupNode(GD * gd __asm("a0"), int i __asm("d0"), int j __asm("d1"))
 {
    switch (gd->gd_Style)
    {
@@ -493,7 +493,7 @@ static UWORD HSpace(UWORD space)
 ///
 /// FindObNode
 
-STATIC ASM Object *FindObNode(REG(a0) GD *gd, REG(a1) Object *find)
+STATIC ASM Object *FindObNode(GD * gd __asm("a0"), Object * find __asm("a1"))
 {
    Object         *m = NULL;
    MD             *md;
@@ -557,7 +557,7 @@ STATIC Object *NewSpaceObject(Object *obj, ULONG weight)
 /*
  * Pass an attribute on to the members.
  */
-STATIC ASM void PassAttr(REG(a0) GD *gd, REG(a1) struct TagItem *tag, REG(a2) struct GadgetInfo *gi)
+STATIC ASM void PassAttr(GD * gd __asm("a0"), struct TagItem * tag __asm("a1"), struct GadgetInfo * gi __asm("a2"))
 {
    Object         *m;
    MD             *md;
@@ -580,7 +580,7 @@ STATIC ASM void PassAttr(REG(a0) GD *gd, REG(a1) struct TagItem *tag, REG(a2) st
 /*
  * Set one or more attributes.
  */
-IPTR ASM GroupSetAttrs(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct opSet *ops)
+IPTR ASM GroupSetAttrs(Class * cl __asm("a0"), Object * obj __asm("a2"), struct opSet * ops __asm("a1"))
 {
    GD                *gd = INST_DATA(cl, obj);
    BC                *bc = BASE_DATA(obj);
@@ -1710,7 +1710,7 @@ METHOD_END
 ///
 /// RelayoutGroup
 
-makeproto ASM ULONG RelayoutGroup(REG(a0) Object *obj)
+makeproto ASM ULONG RelayoutGroup(Object * obj __asm("a0"))
 {
    BC                 *bc = BASE_DATA(obj);
    struct Window      *w = NULL;
@@ -1742,7 +1742,7 @@ WW(kprintf("** GroupClass_RelayoutGrop: has WINDOW_Window --> sending BASE_RELAY
 /*
  * Calculate the minimum size of a group.
  */
-STATIC ASM BOOL MemberDimensions(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct bmDimensions *bmd)
+STATIC ASM BOOL MemberDimensions(Class * cl __asm("a0"), Object * obj __asm("a2"), struct bmDimensions * bmd __asm("a1"))
 {
    GD                *gd = INST_DATA(cl, obj);
    Object            *m;

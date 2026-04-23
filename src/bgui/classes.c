@@ -203,7 +203,7 @@ struct CallData
    APTR global_data;
 };
 
-static IPTR ASM CallMethod(REG(a3) struct CallData *call_data)
+static IPTR ASM CallMethod(struct CallData * call_data __asm("a3"))
 {
    register APTR stack;
    register IPTR result;
@@ -247,7 +247,7 @@ static SortedMethod *LookupMethod(BGUIClassData *class_data,ULONG method)
    return(NULL);
 }
 
-//makeproto SAVEDS ASM ULONG __GCD( REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) Msg msg)
+//makeproto SAVEDS ASM ULONG __GCD( Class * cl __asm("a0"), Object * obj __asm("a2"), Msg msg __asm("a1"))
 makeproto SAVEDS ASM REGFUNC3(IPTR, __GCD,
 	REGPARAM(A0, Class *, cl),
 	REGPARAM(A2, Object *, obj),
@@ -302,7 +302,7 @@ AROS_LH1(Class *, BGUI_MakeClassA,
     AROS_LHA(struct TagItem *, tags, A0),
     struct Library *, BGUIBase, 24, BGUI)
 #else
-makeproto ASM Class *BGUI_MakeClassA(REG(a0) struct TagItem *tags)
+makeproto ASM Class *BGUI_MakeClassA(struct TagItem * tags __asm("a0"))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -473,7 +473,7 @@ AROS_LH1(BOOL, BGUI_FreeClass,
     AROS_LHA(Class *, cl, A0),
     struct Library *, BGUIBase, 25, BGUI)
 #else
-makeproto SAVEDS ASM BOOL BGUI_FreeClass(REG(a0) Class *cl)
+makeproto SAVEDS ASM BOOL BGUI_FreeClass(Class * cl __asm("a0"))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -512,7 +512,7 @@ makeproto SAVEDS ASM BOOL BGUI_FreeClass(REG(a0) Class *cl)
    AROS_LIBFUNC_EXIT
 }
 
-makeproto ULONG ASM BGUI_GetAttrChart(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct rmAttr *ra)
+makeproto ULONG ASM BGUI_GetAttrChart(Class * cl __asm("a0"), Object * obj __asm("a2"), struct rmAttr * ra __asm("a1"))
 {
    ULONG           flags = ra->ra_Flags;
    struct TagItem *attr  = ra->ra_Attr;
@@ -587,7 +587,7 @@ makeproto ULONG ASM BGUI_GetAttrChart(REG(a0) Class *cl, REG(a2) Object *obj, RE
    return rc;
 }
 
-makeproto ULONG ASM BGUI_SetAttrChart(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct rmAttr *ra)
+makeproto ULONG ASM BGUI_SetAttrChart(Class * cl __asm("a0"), Object * obj __asm("a2"), struct rmAttr * ra __asm("a1"))
 {
    ULONG           flags = ra->ra_Flags;
    struct TagItem *attr  = ra->ra_Attr;
@@ -791,7 +791,7 @@ AROS_LH3(ULONG, BGUI_PackStructureTags,
     AROS_LHA(struct TagItem *, tagList, A2),
     struct Library *, BGUIBase, 26, BGUI)
 #else
-makeproto SAVEDS ULONG ASM BGUI_PackStructureTags(REG(a0) APTR pack, REG(a1) ULONG *packTable, REG(a2) struct TagItem *tagList)
+makeproto SAVEDS ULONG ASM BGUI_PackStructureTags(APTR pack __asm("a0"), ULONG * packTable __asm("a1"), struct TagItem * tagList __asm("a2"))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -824,7 +824,7 @@ AROS_LH3(ULONG, BGUI_UnpackStructureTags,
     AROS_LHA(struct TagItem *, tagList, A2),
     struct Library *, BGUIBase, 27, BGUI)
 #else
-makeproto SAVEDS ULONG ASM BGUI_UnpackStructureTags(REG(a0) APTR pack, REG(a1) ULONG *packTable, REG(a2) struct TagItem *tagList)
+makeproto SAVEDS ULONG ASM BGUI_UnpackStructureTags(APTR pack __asm("a0"), ULONG * packTable __asm("a1"), struct TagItem * tagList __asm("a2"))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -852,12 +852,12 @@ makeproto SAVEDS ULONG ASM BGUI_UnpackStructureTags(REG(a0) APTR pack, REG(a1) U
 /*
  * Quick GetAttr();
  */
-makeproto ASM ULONG Get_Attr(REG(a0) Object *obj, REG(d0) ULONG attr, REG(a1) IPTR *storage)
+makeproto ASM ULONG Get_Attr(Object * obj __asm("a0"), ULONG attr __asm("d0"), IPTR * storage __asm("a1"))
 {
    return (ULONG)AsmDoMethod(obj, OM_GET, attr, storage);
 }
 
-makeproto ASM ULONG Get_SuperAttr(REG(a2) Class *cl, REG(a0) Object *obj, REG(d0) ULONG attr, REG(a1) IPTR *storage)
+makeproto ASM ULONG Get_SuperAttr(Class * cl __asm("a2"), Object * obj __asm("a0"), ULONG attr __asm("d0"), IPTR * storage __asm("a1"))
 {
    return (ULONG)AsmDoSuperMethod(cl, obj, OM_GET, attr, storage);
 }
@@ -937,7 +937,7 @@ makeproto ULONG DoNotifyMethod(Object *obj, struct GadgetInfo *ginfo, ULONG flag
  * Call the GM_RENDER method.
  */
 
-makeproto ASM IPTR  DoRenderMethod(REG(a0) Object *obj, REG(a1) struct GadgetInfo *ginfo, REG(d0) ULONG redraw)
+makeproto ASM IPTR  DoRenderMethod(Object * obj __asm("a0"), struct GadgetInfo * ginfo __asm("a1"), ULONG redraw __asm("d0"))
 {
    struct RastPort   *rp;
    IPTR               rc = 0;
@@ -953,7 +953,7 @@ makeproto ASM IPTR  DoRenderMethod(REG(a0) Object *obj, REG(a1) struct GadgetInf
 /*
  * Forward certain types of messages with modifications.
  */
-makeproto ASM IPTR ForwardMsg(REG(a0) Object *s, REG(a1) Object *d, REG(a2) Msg msg)
+makeproto ASM IPTR ForwardMsg(Object * s __asm("a0"), Object * d __asm("a1"), Msg msg __asm("a2"))
 {
 #ifdef __AROS__
    #define MOUSEWORD STACKED WORD
@@ -1032,9 +1032,9 @@ makeproto struct BaseInfo *AllocBaseInfo(Tag tag1, ...)
 #endif
 
 #ifdef DEBUG_BGUI
-makeproto SAVEDS ASM struct BaseInfo *BGUI_AllocBaseInfoDebugA(REG(a0) struct TagItem *tags,REG(a1) STRPTR file, REG(d0) ULONG line)
+makeproto SAVEDS ASM struct BaseInfo *BGUI_AllocBaseInfoDebugA(struct TagItem * tags __asm("a0"),STRPTR file __asm("a1"), ULONG line __asm("d0"))
 #else
-makeproto SAVEDS ASM struct BaseInfo *BGUI_AllocBaseInfoA(REG(a0) struct TagItem *tags)
+makeproto SAVEDS ASM struct BaseInfo *BGUI_AllocBaseInfoA(struct TagItem * tags __asm("a0"))
 #endif
 {
    struct BaseInfo   *bi, *bi2;

@@ -73,12 +73,12 @@ STATIC UWORD DisPat[2] = { 0x2222, 0x8888 };
 /*
  * Calculate the text width.
  */
-makeproto ASM ULONG TextWidth(REG(a1) struct RastPort *rp, REG(a0) UBYTE *text)
+makeproto ASM ULONG TextWidth(struct RastPort * rp __asm("a1"), UBYTE * text __asm("a0"))
 {
    return TextWidthNum(rp, text, strlen(text));
 }
 
-makeproto ASM ULONG TextWidthNum(REG(a1) struct RastPort *rp, REG(a0) UBYTE *text, REG(d0) ULONG len)
+makeproto ASM ULONG TextWidthNum(struct RastPort * rp __asm("a1"), UBYTE * text __asm("a0"), ULONG len __asm("d0"))
 {
    struct TextExtent te;
    ULONG             extent;
@@ -102,7 +102,7 @@ makeproto ASM ULONG TextWidthNum(REG(a1) struct RastPort *rp, REG(a0) UBYTE *tex
 /*
  * Disable the given area.
  */
-makeproto ASM VOID BDisableBox(REG(a0) struct BaseInfo *bi, REG(a1) struct IBox *area)
+makeproto ASM VOID BDisableBox(struct BaseInfo * bi __asm("a0"), struct IBox * area __asm("a1"))
 {
    BSetAfPt(bi, DisPat, 1);
    BSetDrMd(bi, JAM1);
@@ -112,9 +112,9 @@ makeproto ASM VOID BDisableBox(REG(a0) struct BaseInfo *bi, REG(a1) struct IBox 
 }
 
 #ifdef DEBUG_BGUI
-makeproto ASM VOID SRectFillDebug(REG(a0) struct RastPort *rp, REG(d0) LONG l, REG(d1) LONG t, REG(d2) LONG r, REG(d3) LONG b,REG(a1) STRPTR file,REG(d4) ULONG line)
+makeproto ASM VOID SRectFillDebug(struct RastPort * rp __asm("a0"), LONG l __asm("d0"), LONG t __asm("d1"), LONG r __asm("d2"), LONG b __asm("d3"),STRPTR file __asm("a1"),ULONG line __asm("d4"))
 #else
-ASM VOID SRectFill(REG(a0) struct RastPort *rp, REG(d0) LONG l, REG(d1) LONG t, REG(d2) LONG r, REG(d3) LONG b)
+ASM VOID SRectFill(struct RastPort * rp __asm("a0"), LONG l __asm("d0"), LONG t __asm("d1"), LONG r __asm("d2"), LONG b __asm("d3"))
 #endif
 {
    if ((r >= l) && (b >= t))
@@ -129,12 +129,12 @@ ASM VOID SRectFill(REG(a0) struct RastPort *rp, REG(d0) LONG l, REG(d1) LONG t, 
  * Do a safe rect-fill.
  */
 #ifdef DEBUG_BGUI
-  makeproto ASM VOID BRectFillDebug(REG(a0) struct BaseInfo *bi, REG(d0) LONG l, REG(d1) LONG t, REG(d2) LONG r, REG(d3) LONG b,REG(a1) STRPTR file,REG(d4) ULONG line)
+  makeproto ASM VOID BRectFillDebug(struct BaseInfo * bi __asm("a0"), LONG l __asm("d0"), LONG t __asm("d1"), LONG r __asm("d2"), LONG b __asm("d3"),STRPTR file __asm("a1"),ULONG line __asm("d4"))
   {
      SRectFillDebug(bi->bi_RPort, l, t, r, b,file,line);
   }
 #else
-  ASM VOID BRectFill(REG(a0) struct BaseInfo *bi, REG(d0) LONG l, REG(d1) LONG t, REG(d2) LONG r, REG(d3) LONG b)
+  ASM VOID BRectFill(struct BaseInfo * bi __asm("a0"), LONG l __asm("d0"), LONG t __asm("d1"), LONG r __asm("d2"), LONG b __asm("d3"))
   {
      SRectFill(bi->bi_RPort, l, t, r, b);
   }
@@ -197,7 +197,7 @@ makeproto VOID RenderTitle(Object *title, struct BaseInfo *bi, WORD l, WORD t, W
    };
 }
 
-makeproto VOID ASM SetDashedLine(REG(a0) struct BaseInfo *bi, REG(d0) UWORD offset)
+makeproto VOID ASM SetDashedLine(struct BaseInfo * bi __asm("a0"), UWORD offset __asm("d0"))
 {
    /*
     * Render a SHINE/SHADOW pen, dotted box or,
@@ -247,17 +247,17 @@ makeproto VOID RenderBevelBox(struct BaseInfo *bi, WORD l, WORD t, WORD r, WORD 
    if (!thin) VLine(rp, r - 1, t + 1, b - 1);
 }
 
-makeproto ASM VOID BRectFillA(REG(a0) struct BaseInfo *bi, REG(a1) struct Rectangle *rect)
+makeproto ASM VOID BRectFillA(struct BaseInfo * bi __asm("a0"), struct Rectangle * rect __asm("a1"))
 {
    BRectFill(bi, rect->MinX, rect->MinY, rect->MaxX, rect->MaxY);
 }
 
-makeproto ASM VOID BBoxFill(REG(a0) struct BaseInfo *bi, REG(d0) LONG l, REG(d1) LONG t, REG(d2) LONG w, REG(d3) LONG h)
+makeproto ASM VOID BBoxFill(struct BaseInfo * bi __asm("a0"), LONG l __asm("d0"), LONG t __asm("d1"), LONG w __asm("d2"), LONG h __asm("d3"))
 {
    SRectFill(bi->bi_RPort, l, t, l + w - 1, t + h - 1);
 }
 
-makeproto ASM VOID BBoxFillA(REG(a0) struct BaseInfo *bi, REG(a1) struct IBox *box)
+makeproto ASM VOID BBoxFillA(struct BaseInfo * bi __asm("a0"), struct IBox * box __asm("a1"))
 {
    BBoxFill(bi, box->Left, box->Top, box->Width, box->Height);
 }
@@ -266,9 +266,9 @@ makeproto ASM VOID BBoxFillA(REG(a0) struct BaseInfo *bi, REG(a1) struct IBox *b
  * Background filling.
  */
 #ifdef DEBUG_BGUI
-makeproto ASM VOID RenderBackFillRasterDebug(REG(a0) struct RastPort *rp, REG(a1) struct IBox *ib, REG(d0) UWORD apen, REG(d1) UWORD bpen,REG(a2) STRPTR file, REG(d2) ULONG line)
+makeproto ASM VOID RenderBackFillRasterDebug(struct RastPort * rp __asm("a0"), struct IBox * ib __asm("a1"), UWORD apen __asm("d0"), UWORD bpen __asm("d1"),STRPTR file __asm("a2"), ULONG line __asm("d2"))
 #else
-ASM VOID RenderBackFillRaster(REG(a0) struct RastPort *rp, REG(a1) struct IBox *ib, REG(d0) UWORD apen, REG(d1) UWORD bpen)
+ASM VOID RenderBackFillRaster(struct RastPort * rp __asm("a0"), struct IBox * ib __asm("a1"), UWORD apen __asm("d0"), UWORD bpen __asm("d1"))
 #endif
 {
    static UWORD pat[] = { 0x5555, 0xAAAA };
@@ -304,7 +304,7 @@ ASM VOID RenderBackFillRaster(REG(a0) struct RastPort *rp, REG(a1) struct IBox *
 }
 
 
-makeproto ASM VOID RenderBackFill(REG(a0) struct RastPort *rp, REG(a1) struct IBox *ib, REG(a2) UWORD *pens, REG(d0) ULONG type)
+makeproto ASM VOID RenderBackFill(struct RastPort * rp __asm("a0"), struct IBox * ib __asm("a1"), UWORD * pens __asm("a2"), ULONG type __asm("d0"))
 {
    int apen, bpen;
 
@@ -366,7 +366,7 @@ makeproto ASM VOID RenderBackFill(REG(a0) struct RastPort *rp, REG(a1) struct IB
 /*
  * Draw a dotted box.
  */
-makeproto ASM VOID DottedBox(REG(a0) struct BaseInfo *bi, REG(a1) struct IBox *ibx)
+makeproto ASM VOID DottedBox(struct BaseInfo * bi __asm("a0"), struct IBox * ibx __asm("a1"))
 {
    int x1 = ibx->Left;
    int x2 = ibx->Left + ibx->Width - 1;
@@ -405,7 +405,7 @@ makeproto ASM VOID DottedBox(REG(a0) struct BaseInfo *bi, REG(a1) struct IBox *i
 /*
  * Find out rendering state.
  */
-makeproto ASM ULONG GadgetState(REG(a0) struct BaseInfo *bi, REG(a1) Object *obj, REG(d0) BOOL norec)
+makeproto ASM ULONG GadgetState(struct BaseInfo * bi __asm("a0"), Object * obj __asm("a1"), BOOL norec __asm("d0"))
 {
    BOOL active = !(GADGET(obj)->Activation & BORDERMASK) || (bi->bi_IWindow->Flags & WFLG_WINDOWACTIVE);
    BOOL normal = !(GADGET(obj)->Flags & GFLG_SELECTED) || norec;
@@ -425,8 +425,8 @@ AROS_LH6(VOID, BGUI_FillRectPattern,
     AROS_LHA(ULONG, y2, D3),
     struct Library *, BGUIBase, 22, BGUI)
 #else
-makeproto SAVEDS ASM VOID BGUI_FillRectPattern(REG(a1) struct RastPort *r, REG(a0) struct bguiPattern *bp,
-   REG(d0) ULONG x1, REG(d1) ULONG y1, REG(d2) ULONG x2, REG(d3) ULONG y2)
+makeproto SAVEDS ASM VOID BGUI_FillRectPattern(struct RastPort * r __asm("a1"), struct bguiPattern * bp __asm("a0"),
+   ULONG x1 __asm("d0"), ULONG y1 __asm("d1"), ULONG x2 __asm("d2"), ULONG y2 __asm("d3"))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -503,19 +503,19 @@ makeproto SAVEDS ASM VOID BGUI_FillRectPattern(REG(a1) struct RastPort *r, REG(a
    AROS_LIBFUNC_EXIT
 }
 
-makeproto VOID ASM HLine(REG(a1) struct RastPort *rp, REG(d0) UWORD l, REG(d1) UWORD t, REG(d2) UWORD r)
+makeproto VOID ASM HLine(struct RastPort * rp __asm("a1"), UWORD l __asm("d0"), UWORD t __asm("d1"), UWORD r __asm("d2"))
 {
    Move(rp, l, t);
    Draw(rp, r, t);
 }
 
-makeproto VOID ASM VLine(REG(a1) struct RastPort *rp, REG(d0) UWORD l, REG(d1) UWORD t, REG(d2) UWORD b)
+makeproto VOID ASM VLine(struct RastPort * rp __asm("a1"), UWORD l __asm("d0"), UWORD t __asm("d1"), UWORD b __asm("d2"))
 {
    Move(rp, l, t);
    Draw(rp, l, b);
 }
 
-makeproto ASM ULONG FGetAPen(REG(a1) struct RastPort *rp)
+makeproto ASM ULONG FGetAPen(struct RastPort * rp __asm("a1"))
 {
    #ifdef ENHANCED
    return GetAPen(rp);
@@ -525,7 +525,7 @@ makeproto ASM ULONG FGetAPen(REG(a1) struct RastPort *rp)
    #endif
 }
 
-makeproto ASM ULONG FGetBPen(REG(a1) struct RastPort *rp)
+makeproto ASM ULONG FGetBPen(struct RastPort * rp __asm("a1"))
 {
    #ifdef ENHANCED
    return GetBPen(rp);
@@ -535,7 +535,7 @@ makeproto ASM ULONG FGetBPen(REG(a1) struct RastPort *rp)
    #endif
 }
 
-makeproto ASM ULONG FGetDrMd(REG(a1) struct RastPort *rp)
+makeproto ASM ULONG FGetDrMd(struct RastPort * rp __asm("a1"))
 {
    #ifdef ENHANCED
    return GetDrMd(rp);
@@ -545,7 +545,7 @@ makeproto ASM ULONG FGetDrMd(REG(a1) struct RastPort *rp)
    #endif
 }
 
-makeproto ASM ULONG FGetDepth(REG(a1) struct RastPort *rp)
+makeproto ASM ULONG FGetDepth(struct RastPort * rp __asm("a1"))
 {
    #ifdef ENHANCED
    return (ULONG)GetBitMapAttr(rp->BitMap, BMA_DEPTH);
@@ -555,7 +555,7 @@ makeproto ASM ULONG FGetDepth(REG(a1) struct RastPort *rp)
    #endif
 }
 
-makeproto ASM VOID FSetAPen(REG(a1) struct RastPort *rp, REG(d0) ULONG pen)
+makeproto ASM VOID FSetAPen(struct RastPort * rp __asm("a1"), ULONG pen __asm("d0"))
 {
    #ifdef ENHANCED
    SetRPAttrs(rp, RPTAG_APen, pen, TAG_END);
@@ -565,7 +565,7 @@ makeproto ASM VOID FSetAPen(REG(a1) struct RastPort *rp, REG(d0) ULONG pen)
    #endif
 }
 
-makeproto ASM VOID FSetBPen(REG(a1) struct RastPort *rp, REG(d0) ULONG pen)
+makeproto ASM VOID FSetBPen(struct RastPort * rp __asm("a1"), ULONG pen __asm("d0"))
 {
    #ifdef ENHANCED
    SetRPAttrs(rp, RPTAG_BPen, pen, TAG_END);
@@ -575,7 +575,7 @@ makeproto ASM VOID FSetBPen(REG(a1) struct RastPort *rp, REG(d0) ULONG pen)
    #endif
 }
 
-makeproto ASM VOID FSetDrMd(REG(a1) struct RastPort *rp, REG(d0) ULONG drmd)
+makeproto ASM VOID FSetDrMd(struct RastPort * rp __asm("a1"), ULONG drmd __asm("d0"))
 {
    #ifdef ENHANCED
    SetRPAttrs(rp, RPTAG_DrMd, drmd, TAG_END);
@@ -585,7 +585,7 @@ makeproto ASM VOID FSetDrMd(REG(a1) struct RastPort *rp, REG(d0) ULONG drmd)
    #endif
 }
 
-makeproto ASM VOID FSetABPenDrMd(REG(a1) struct RastPort *rp, REG(d0) ULONG apen, REG(d1) ULONG bpen, REG(d2) ULONG mode)
+makeproto ASM VOID FSetABPenDrMd(struct RastPort * rp __asm("a1"), ULONG apen __asm("d0"), ULONG bpen __asm("d1"), ULONG mode __asm("d2"))
 {
    #ifdef ENHANCED
    SetABPenDrMd(rp, apen, bpen, mode);
@@ -600,7 +600,7 @@ makeproto ASM VOID FSetABPenDrMd(REG(a1) struct RastPort *rp, REG(d0) ULONG apen
    #endif
 }
 
-makeproto ASM VOID FSetFont(REG(a1) struct RastPort *rp, REG(a0) struct TextFont *tf)
+makeproto ASM VOID FSetFont(struct RastPort * rp __asm("a1"), struct TextFont * tf __asm("a0"))
 {
    #ifdef ENHANCED
    SetRPAttrs(rp, RPTAG_Font, tf, TAG_END);
@@ -613,68 +613,68 @@ makeproto ASM VOID FSetFont(REG(a1) struct RastPort *rp, REG(a0) struct TextFont
    #endif
 }
 
-makeproto ASM VOID FSetFontStyle(REG(a1) struct RastPort *rp, REG(d0) ULONG style)
+makeproto ASM VOID FSetFontStyle(struct RastPort * rp __asm("a1"), ULONG style __asm("d0"))
 {
    SetSoftStyle(rp, style, AskSoftStyle(rp));
 }
 
-makeproto ASM VOID FClearAfPt(REG(a1) struct RastPort *rp)
+makeproto ASM VOID FClearAfPt(struct RastPort * rp __asm("a1"))
 {
    SetAfPt(rp, NULL, 0);
 }
 
-makeproto ASM VOID BSetDPenA(REG(a0) struct BaseInfo *bi, REG(d0) LONG pen)
+makeproto ASM VOID BSetDPenA(struct BaseInfo * bi __asm("a0"), LONG pen __asm("d0"))
 {
    FSetAPen(bi->bi_RPort, bi->bi_Pens[pen]);
 }
 
-makeproto ASM VOID BSetPenA(REG(a0) struct BaseInfo *bi, REG(d0) ULONG pen)
+makeproto ASM VOID BSetPenA(struct BaseInfo * bi __asm("a0"), ULONG pen __asm("d0"))
 {
    FSetAPen(bi->bi_RPort, pen);
 }
 
-makeproto ASM VOID BSetDPenB(REG(a0) struct BaseInfo *bi, REG(d0) LONG pen)
+makeproto ASM VOID BSetDPenB(struct BaseInfo * bi __asm("a0"), LONG pen __asm("d0"))
 {
    FSetBPen(bi->bi_RPort, bi->bi_Pens[pen]);
 }
 
-makeproto ASM VOID BSetPenB(REG(a0) struct BaseInfo *bi, REG(d0) ULONG pen)
+makeproto ASM VOID BSetPenB(struct BaseInfo * bi __asm("a0"), ULONG pen __asm("d0"))
 {
    FSetBPen(bi->bi_RPort, pen);
 }
 
-makeproto ASM VOID BSetDrMd(REG(a0) struct BaseInfo *bi, REG(d0) ULONG drmd)
+makeproto ASM VOID BSetDrMd(struct BaseInfo * bi __asm("a0"), ULONG drmd __asm("d0"))
 {
    FSetDrMd(bi->bi_RPort, drmd);
 }
 
-makeproto ASM VOID BSetFont(REG(a0) struct BaseInfo *bi, REG(a1) struct TextFont *tf)
+makeproto ASM VOID BSetFont(struct BaseInfo * bi __asm("a0"), struct TextFont * tf __asm("a1"))
 {
    FSetFont(bi->bi_RPort, tf);
 }
 
-makeproto ASM VOID BSetFontStyle(REG(a0) struct BaseInfo *bi, REG(d0) ULONG style)
+makeproto ASM VOID BSetFontStyle(struct BaseInfo * bi __asm("a0"), ULONG style __asm("d0"))
 {
    SetSoftStyle(bi->bi_RPort, style, AskSoftStyle(bi->bi_RPort));
 }
 
-makeproto ASM VOID BSetAfPt(REG(a0) struct BaseInfo *bi, REG(a1) UWORD *pat, REG(d0) ULONG size)
+makeproto ASM VOID BSetAfPt(struct BaseInfo * bi __asm("a0"), UWORD * pat __asm("a1"), ULONG size __asm("d0"))
 {
    SetAfPt(bi->bi_RPort, pat, size);
 }
 
-makeproto ASM VOID BClearAfPt(REG(a0) struct BaseInfo *bi)
+makeproto ASM VOID BClearAfPt(struct BaseInfo * bi __asm("a0"))
 {
    SetAfPt(bi->bi_RPort, NULL, 0);
 }
 
-makeproto ASM VOID BSetDrPt(REG(a0) struct BaseInfo *bi, REG(d0) ULONG pat)
+makeproto ASM VOID BSetDrPt(struct BaseInfo * bi __asm("a0"), ULONG pat __asm("d0"))
 {
    SetDrPt(bi->bi_RPort, pat & 0xFFFF);
 }
 
-makeproto ASM VOID BDrawImageState(REG(a0) struct BaseInfo *bi, REG(a1) Object *image,
-   REG(d0) ULONG x, REG(d1) ULONG y, REG(d2) ULONG state)
+makeproto ASM VOID BDrawImageState(struct BaseInfo * bi __asm("a0"), Object * image __asm("a1"),
+   ULONG x __asm("d0"), ULONG y __asm("d1"), ULONG state __asm("d2"))
 {
    //tprintf("%08lx %08lx %ld %ld %04lx %08lx\n", /4*
    DrawImageState(bi->bi_RPort, IMAGE(image), x, y, state, bi->bi_DrInfo);

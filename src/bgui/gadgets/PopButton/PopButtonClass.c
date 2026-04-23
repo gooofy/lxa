@@ -181,7 +181,7 @@ STATIC Tag VectorAttrs[] = {   VIT_VectorArray,
 /*
 ** See if we should create a vector image.
 **/
-STATIC ASM Object *CreateVectorImage( REG(a1) struct TagItem *attrs )
+STATIC ASM Object *CreateVectorImage( struct TagItem * attrs __asm("a1"))
 {
    Class       *class;
    struct TagItem    *clones;
@@ -228,7 +228,7 @@ STATIC ULONG NotifyAttrChange( Object *obj, struct GadgetInfo *gi, ULONG flags, 
 /*
 ** Copy the menu array.
 **/
-STATIC ASM BOOL CopyArray( REG(a0) PMD *pmd, REG(a1) struct PopMenu *pm )
+STATIC ASM BOOL CopyArray( PMD * pmd __asm("a0"), struct PopMenu * pm __asm("a1"))
 {
    struct PopMenu *tmp = pm;
    ULONG     size;
@@ -279,7 +279,7 @@ STATIC ASM BOOL CopyArray( REG(a0) PMD *pmd, REG(a1) struct PopMenu *pm )
 /*
 ** Scale the checkmark.
 **/
-STATIC ASM VOID ScaleCheckMark( REG(a0) PMD *pmd, REG(a1) struct RastPort *rp )
+STATIC ASM VOID ScaleCheckMark( PMD * pmd __asm("a0"), struct RastPort * rp __asm("a1"))
 {
    UBYTE        *refstr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,_:";
 
@@ -297,7 +297,7 @@ STATIC ASM VOID ScaleCheckMark( REG(a0) PMD *pmd, REG(a1) struct RastPort *rp )
 /*
 ** Re-compute the size of the popup window.
 **/
-STATIC ASM VOID ComputePopWindowSize( REG(a0) PMD *pmd, REG(a1) struct TextFont *tf )
+STATIC ASM VOID ComputePopWindowSize( PMD * pmd __asm("a0"), struct TextFont * tf __asm("a1"))
 {
    struct RastPort         rp;
    UWORD       width = 0, height = 0, tlen;
@@ -346,7 +346,7 @@ STATIC ASM VOID ComputePopWindowSize( REG(a0) PMD *pmd, REG(a1) struct TextFont 
 /*
 ** Render a bar-label.
 **/
-STATIC ASM VOID RenderBarLabel( REG(a0) struct RastPort *rp, REG(d0) UWORD top, REG(d1) UWORD width )
+STATIC ASM VOID RenderBarLabel( struct RastPort * rp __asm("a0"), UWORD top __asm("d0"), UWORD width __asm("d1"))
 {
    /*
    ** Render first line.
@@ -369,7 +369,7 @@ STATIC ASM VOID RenderBarLabel( REG(a0) struct RastPort *rp, REG(d0) UWORD top, 
 ** Get the y-position of the item
 ** number "entry".
 **/
-STATIC ASM UWORD GetYPos( REG(a0) struct RastPort *rp, REG(a1) struct PopMenu *labels, REG(d0) ULONG entry )
+STATIC ASM UWORD GetYPos( struct RastPort * rp __asm("a0"), struct PopMenu * labels __asm("a1"), ULONG entry __asm("d0"))
 {
    UWORD       num = 0, ypos = 2;
 
@@ -496,7 +496,7 @@ STATIC VOID RenderMenuEntry( struct RastPort *rp, PMD *pmd, UWORD *pens, ULONG n
 ** there will fit on the screen the list is clipped
 ** off at the bottom.
 **/
-STATIC ASM ULONG OpenPopupWindow( REG(a0) PMD *pmd, REG(a1) Object *obj, REG(a2) struct gpInput *gpi, REG(d0) BOOL mouse )
+STATIC ASM ULONG OpenPopupWindow( PMD * pmd __asm("a0"), Object * obj __asm("a1"), struct gpInput * gpi __asm("a2"), BOOL mouse __asm("d0"))
 {
    struct Screen     *screen = gpi->gpi_GInfo->gi_Screen;
    struct RastPort          rpt;
@@ -653,7 +653,7 @@ STATIC ASM ULONG OpenPopupWindow( REG(a0) PMD *pmd, REG(a1) Object *obj, REG(a2)
 ** Return the menu number under the mouse
 **      or ~0 if mouse not over selectable item. (NMC:added)
 **/
-STATIC ASM LONG Selected( REG(a0) PMD *pmd, REG(a1) struct RastPort *rp )
+STATIC ASM LONG Selected( PMD * pmd __asm("a0"), struct RastPort * rp __asm("a1"))
 {
    WORD        mx = pmd->pmd_PopWindow->MouseX, my = pmd->pmd_PopWindow->MouseY, ypos = 2;
    struct PopMenu        *labels = pmd->pmd_MenuLabels;
@@ -718,7 +718,7 @@ STATIC ASM LONG Selected( REG(a0) PMD *pmd, REG(a1) struct RastPort *rp )
 ** returning TRUE or FALSE. (NMC:Added)
 **/
 
-STATIC ASM BOOL ItemSelectable( REG(a0) PMD *pmd, REG(d0) ULONG num )
+STATIC ASM BOOL ItemSelectable( PMD * pmd __asm("a0"), ULONG num __asm("d0"))
 {
    if ( ( pmd->pmd_MenuLabels[ num ].pm_Label == PMB_BARLABEL ) ||
       ( pmd->pmd_MenuLabels[ num ].pm_Flags & PMF_DISABLED ) )
@@ -731,7 +731,7 @@ STATIC ASM BOOL ItemSelectable( REG(a0) PMD *pmd, REG(d0) ULONG num )
 ** Return current selection if no previous
 ** found or no item selected to begin with. (NMC:Added)
 **/
-STATIC ASM ULONG PrevItem( REG(a0) PMD *pmd )
+STATIC ASM ULONG PrevItem( PMD * pmd __asm("a0"))
 {
    ULONG    prev = pmd->pmd_Selected - 1;
 
@@ -758,7 +758,7 @@ STATIC ASM ULONG PrevItem( REG(a0) PMD *pmd )
 ** Find the next selectable item.
 ** Return current selection if no next found. (NMC:Added)
 **/
-STATIC ASM ULONG NextItem( REG(a0) PMD *pmd )
+STATIC ASM ULONG NextItem( PMD * pmd __asm("a0"))
 {
    ULONG    next = pmd->pmd_Selected + 1;
 
@@ -785,7 +785,7 @@ STATIC ASM ULONG NextItem( REG(a0) PMD *pmd )
 /*
 ** Mutually exclude other items.
 **/
-STATIC ASM VOID MutEx( REG(a0) PMD *pmd )
+STATIC ASM VOID MutEx( PMD * pmd __asm("a0"))
 {
    struct PopMenu        *labels = pmd->pmd_MenuLabels, *the_one = &pmd->pmd_MenuLabels[ pmd->pmd_Selected ];
    UWORD       i;
@@ -830,7 +830,7 @@ STATIC ASM VOID MutEx( REG(a0) PMD *pmd )
 /*
 ** Compute minimum object dimensions.
 **/
-STATIC ASM VOID SetDimensions( REG(a0) Object *obj, REG(a1) struct grmDimensions *dim, REG(d0) UWORD mx, REG(d1) UWORD my )
+STATIC ASM VOID SetDimensions( Object * obj __asm("a0"), struct grmDimensions * dim __asm("a1"), UWORD mx __asm("d0"), UWORD my __asm("d1"))
 {
    Object            *label = NULL, *frame = NULL;
    ULONG              place;

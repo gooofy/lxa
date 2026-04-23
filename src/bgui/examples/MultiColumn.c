@@ -74,7 +74,7 @@ typedef struct {
 **      at create time. At delete time the FILEINFO
 **      structure is simply deallocated.
 **/
-//SAVEDS ASM APTR ResourceHookFunc( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct lvResource *lvr )
+//SAVEDS ASM APTR ResourceHookFunc( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct lvResource * lvr __asm("a1"))
 SAVEDS ASM REGFUNC3(APTR, ResourceHookFunc,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -286,7 +286,7 @@ UWORD   DefDriPens[] = {
 /*
 **      Listview rendering hook. Here's where the magic starts ;)
 **/
-//SAVEDS ASM UBYTE *DisplayHookFunc( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct lvRender *lvr )
+//SAVEDS ASM UBYTE *DisplayHookFunc( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct lvRender * lvr __asm("a1"))
 SAVEDS ASM REGFUNC3(UBYTE *, DisplayHookFunc,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -474,7 +474,7 @@ REGFUNC_END
 **      The comparrison hook. We do a simple name, dir/file
 **      comparrison here.
 **/
-//SAVEDS ASM LONG CompareHookFunc( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct lvCompare *lvc )
+//SAVEDS ASM LONG CompareHookFunc( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct lvCompare * lvc __asm("a1"))
 SAVEDS ASM REGFUNC3(LONG, CompareHookFunc,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -502,7 +502,7 @@ REGFUNC_END
 **      A IDCMP hook for the window which allows us
 **      to control the listview from the keyboard.
 **/
-//SAVEDS ASM VOID ScrollHookFunc( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct IntuiMessage *msg )
+//SAVEDS ASM VOID ScrollHookFunc( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct IntuiMessage * msg __asm("a1"))
 SAVEDS ASM REGFUNC3(VOID, ScrollHookFunc,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),

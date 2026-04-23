@@ -646,11 +646,11 @@ extern const UBYTE LibID[];
 #define BRectFill(bi,l,t,r,b) BRectFillDebug(bi,l,t,r,b,__FILE__,__LINE__)
 #define RenderBackFillRaster(rp,ib,apen,bpen) RenderBackFillRasterDebug(rp,ib,apen,bpen,__FILE__,__LINE__)
 #else
-ASM VOID SRectFill(REG(a0) struct RastPort *rp, REG(d0) LONG l, REG(d1) LONG t, REG(d2) LONG r, REG(d3) LONG b);
+ASM VOID SRectFill(struct RastPort * rp __asm("a0"), LONG l __asm("d0"), LONG t __asm("d1"), LONG r __asm("d2"), LONG b __asm("d3"));
 
-ASM VOID BRectFill(REG(a0) struct BaseInfo *bi, REG(d0) LONG l, REG(d1) LONG t, REG(d2) LONG r, REG(d3) LONG b);
+ASM VOID BRectFill(struct BaseInfo * bi __asm("a0"), LONG l __asm("d0"), LONG t __asm("d1"), LONG r __asm("d2"), LONG b __asm("d3"));
 
-ASM VOID RenderBackFillRaster(REG(a0) struct RastPort *rp, REG(a1) struct IBox *ib, REG(d0) UWORD apen, REG(d1) UWORD bpen);
+ASM VOID RenderBackFillRaster(struct RastPort * rp __asm("a0"), struct IBox * ib __asm("a1"), UWORD apen __asm("d0"), UWORD bpen __asm("d1"));
 #endif
 
 #endif

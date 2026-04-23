@@ -145,7 +145,7 @@ static ULONG FramePackTable[] =
  * care of the backfilling rasters and the special
  * backfilling pens.
  */
-//STATIC SAVEDS ASM BuiltInBack(REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct FrameDrawMsg *fdm)
+//STATIC SAVEDS ASM BuiltInBack(struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct FrameDrawMsg * fdm __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(IPTR, BuiltInBack,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -544,7 +544,7 @@ STATIC VOID RenderXenFrame(struct bmRender *bmr, WORD l, WORD t, WORD r, WORD b,
 /*
  * Pass on the frame thickness.
  */
-STATIC ASM VOID FrameThickness(REG(a0) Class *cl, REG(a2) Object *obj)
+STATIC ASM VOID FrameThickness(Class * cl __asm("a0"), Object * obj __asm("a2"))
 {
    FD                  *fd = INST_DATA(cl, obj);
    struct ThicknessMsg  tm;
@@ -619,7 +619,7 @@ STATIC ASM VOID FrameThickness(REG(a0) Class *cl, REG(a2) Object *obj)
 /*
  * Setup frame attributes.
  */
-STATIC ASM VOID SetFrameAttrs(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct TagItem *attr)
+STATIC ASM VOID SetFrameAttrs(Class * cl __asm("a0"), Object * obj __asm("a2"), struct TagItem * attr __asm("a1"))
 {
    FD                *fd = INST_DATA(cl, obj);
    struct TextFont   *tf;

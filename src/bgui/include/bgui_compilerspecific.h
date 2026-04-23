@@ -163,9 +163,9 @@
 
 #else
 	/* lxa: m68k-amigaos-gcc (bebbo) cross-compiler path.
-	 * SAS/C used register declarations like  REG(d0) ULONG x  in
+	 * SAS/C used register declarations like  ULONG x  in
 	 * function definitions to mean "argument passed in d0".
-	 * GCC bebbo expresses the same via  ULONG x __asm("d0").
+	 * GCC bebbo expresses the same via  ULONG x __asm("d0" __asm("d0")).
 	 *
 	 * METHOD()/REGFUNCn()/REGPARAM() macros mirror the SAS/C path
 	 * (line ~378 in this file) but use GCC-friendly attributes.
@@ -183,7 +183,7 @@
 	#define ALIGNED         __attribute__((aligned(4)))
 	#define UNUSED(var)     var __attribute__((unused))
 	#define CHIP            __attribute__((chip))
-	/* SAS uses REG(reg) as a prefix-only macro (e.g. "REG(d0) ULONG x").
+	/* SAS uses REG(reg) as a prefix-only macro (e.g. "ULONG x" __asm("d0")).
 	 * GCC bebbo wants the register clause AFTER the variable name.
 	 * We can't fully express that in a prefix-only macro, so we fall back
 	 * to an empty REG() and rely on the compiler's m68k calling convention
@@ -456,9 +456,9 @@ static inline VOID geta4(void) { }
   #define METHOD_END }
   #define METHOD_CALL(f,cl,obj,m,g) f(cl, obj, (Msg)m, (APTR)g)
 #else
-  #define METHOD(f,mtype,m) SAVEDS ASM IPTR f(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) Msg _msg, REG(a4) APTR _global) \
+  #define METHOD(f,mtype,m) SAVEDS ASM IPTR f(Class * cl __asm("a0"), Object * obj __asm("a2"), Msg _msg __asm("a1"), APTR _global __asm("a4")) \
 	{ mtype __attribute__((unused)) m = (mtype)_msg;
-  #define METHODPROTO(f,mtype,m) SAVEDS ASM IPTR f(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) Msg m, REG(a4) APTR _global)
+  #define METHODPROTO(f,mtype,m) SAVEDS ASM IPTR f(Class * cl __asm("a0"), Object * obj __asm("a2"), Msg m __asm("a1"), APTR _global __asm("a4"))
   #define METHOD_END }
   #define METHOD_CALL(f,cl,obj,m,g) f(cl, obj, (Msg)m, (APTR)g)
 #endif
@@ -493,7 +493,34 @@ static inline VOID geta4(void) { }
 #else
 
   #ifndef REGPARAM
-    #define REGPARAM(reg,type,name) REG(reg) type name
+    /* lxa: bebbo (m68k-amigaos-gcc) needs per-argument __asm("dN")/("aN")
+     * clauses to actually pass arguments in the named registers.  The
+     * empty REG() fallback above silently degrades to plain stack-passed
+     * C calling convention, which corrupts SysBase in LibInit and crashes
+     * during OpenLibrary("dos.library", ...).  Override REGPARAM/REGFUNCn
+     * here so that BGUI's REGFUNC3(...) at lib.c expands to a proper
+     * register-args function.
+     */
+    #if defined(__GNUC__) && !defined(__AROS__) && !defined(__SASC) && !defined(__STORM__)
+      #define _LXA_REGSTR_D0 "d0"
+      #define _LXA_REGSTR_D1 "d1"
+      #define _LXA_REGSTR_D2 "d2"
+      #define _LXA_REGSTR_D3 "d3"
+      #define _LXA_REGSTR_D4 "d4"
+      #define _LXA_REGSTR_D5 "d5"
+      #define _LXA_REGSTR_D6 "d6"
+      #define _LXA_REGSTR_D7 "d7"
+      #define _LXA_REGSTR_A0 "a0"
+      #define _LXA_REGSTR_A1 "a1"
+      #define _LXA_REGSTR_A2 "a2"
+      #define _LXA_REGSTR_A3 "a3"
+      #define _LXA_REGSTR_A4 "a4"
+      #define _LXA_REGSTR_A5 "a5"
+      #define _LXA_REGSTR_A6 "a6"
+      #define REGPARAM(reg,type,name) type name __asm(_LXA_REGSTR_##reg)
+    #else
+      #define REGPARAM(reg,type,name) REG(reg) type name
+    #endif
     #define REGVALUE(reg,type,name) name
 
     #define REGFUNC2(r,n,a1,a2) r n(a1,a2)

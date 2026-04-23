@@ -33,13 +33,13 @@ BOOL DisplayAGuideInfo(struct NewAmigaGuide *nag, Tag tag, ...)
   AROS_SLOWSTACKTAGS_POST
 }
 
-ASM ULONG ScaleWeight(REG(d2) ULONG e, REG(d3) ULONG f, REG(d4) ULONG a)
+ASM ULONG ScaleWeight(ULONG e __asm("d2"), ULONG f __asm("d3"), ULONG a __asm("d4"))
 {
   ULONG r = UMult32(a,e);
   return UDivMod32((f >> 1) + r, f);
 }
 
-//void MyPutChProc_StrLenfA(REG(d0) BYTE c, REG(a3) ULONG * putChData)
+//void MyPutChProc_StrLenfA(BYTE c __asm("d0"), ULONG * putChData __asm("a3"))
 REGFUNC2(void, MyPutChProc_StrLenfA,
         REGPARAM(D0, BYTE, c),
         REGPARAM(A3, ULONG *, putChData))
@@ -48,14 +48,14 @@ REGFUNC2(void, MyPutChProc_StrLenfA,
 }
 REGFUNC_END
 
-ASM ULONG StrLenfA(REG(a0) UBYTE * FormatString, REG(a1) RAWARG DataStream)
+ASM ULONG StrLenfA(UBYTE * FormatString __asm("a0"), RAWARG DataStream __asm("a1"))
 {
   ULONG c = 0;
   RawDoFmt(FormatString, DataStream, ((APTR)MyPutChProc_StrLenfA), &c);
   return c;
 }
 
-//void MyPutChProc_SPrintfA(REG(d0) char c, REG(a3) char **PutChData)
+//void MyPutChProc_SPrintfA(char c __asm("d0"), char ** PutChData __asm("a3"))
 REGFUNC2(void, MyPutChProc_SPrintfA,
         REGPARAM(D0, char, c),
         REGPARAM(A3, char **, PutChData))
@@ -65,7 +65,7 @@ REGFUNC2(void, MyPutChProc_SPrintfA,
 }
 REGFUNC_END
 
-ASM VOID SPrintfA(REG(a3) UBYTE * buffer, REG(a0) UBYTE * format, REG(a1) RAWARG args)
+ASM VOID SPrintfA(UBYTE * buffer __asm("a3"), UBYTE * format __asm("a0"), RAWARG args __asm("a1"))
 {
   RawDoFmt(format, args, ((APTR)MyPutChProc_SPrintfA), &buffer);
 }
@@ -92,7 +92,7 @@ ASM REGFUNC3(VOID, LHook_Format,
 REGFUNC_END
 
 
-ASM struct RastPort *BGUI_ObtainGIRPort(REG(a0) struct GadgetInfo * gi)
+ASM struct RastPort *BGUI_ObtainGIRPort(struct GadgetInfo * gi __asm("a0"))
 {
   struct RastPort * rp;
   BYTE * userdata = NULL;
@@ -129,7 +129,7 @@ IPTR AsmDoMethod(Object * obj, STACKULONG MethodID, ...)
      AROS_SLOWSTACKMETHODS_POST
 }
 
-IPTR AsmDoMethodA(REG(a2) Object * obj, REG(a1) Msg message)
+IPTR AsmDoMethodA(Object * obj __asm("a2"), Msg message __asm("a1"))
 {
   return DoMethodA(obj, message);
 }
@@ -147,7 +147,7 @@ IPTR AsmDoSuperMethod( Class * cl, Object * obj, STACKULONG MethodID, ...)
    AROS_SLOWSTACKMETHODS_POST
 }
 
-IPTR AsmDoSuperMethodA( REG(a0) Class * cl, REG(a2) Object * obj, REG(a1) Msg message)
+IPTR AsmDoSuperMethodA( Class * cl __asm("a0"), Object * obj __asm("a2"), Msg message __asm("a1"))
 {
   return DoSuperMethodA(cl,obj,message);
 }
@@ -165,7 +165,7 @@ IPTR AsmCoerceMethod( Class * cl, Object * obj, STACKULONG MethodID, ...)
     AROS_SLOWSTACKMETHODS_POST
 }
 
-IPTR AsmCoerceMethodA( REG(a0) Class * cl, REG(a2) Object * obj, REG(a1) Msg message)
+IPTR AsmCoerceMethodA( Class * cl __asm("a0"), Object * obj __asm("a2"), Msg message __asm("a1"))
 {
   return CoerceMethodA(cl, obj, message);
 }

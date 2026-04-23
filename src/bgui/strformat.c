@@ -72,7 +72,7 @@
 extern struct LocaleBase *LocaleBase;
 
 
-makeproto ASM ULONG CompStrlenF(REG(a0) UBYTE *fstring, REG(a1) RAWARG args)
+makeproto ASM ULONG CompStrlenF(UBYTE * fstring __asm("a0"), RAWARG args __asm("a1"))
 {
    struct Hook    hook = { { NULL, NULL}, (HOOKFUNC)LHook_Count, NULL, (APTR)0 };
    struct Locale *loc;
@@ -97,7 +97,7 @@ makeproto ASM ULONG CompStrlenF(REG(a0) UBYTE *fstring, REG(a1) RAWARG args)
    return StrLenfA(fstring, args);
 }
 
-makeproto ASM VOID DoSPrintF(REG(a0) UBYTE *buffer, REG(a1) UBYTE *fstring, REG(a2) RAWARG args)
+makeproto ASM VOID DoSPrintF(UBYTE * buffer __asm("a0"), UBYTE * fstring __asm("a1"), RAWARG args __asm("a2"))
 {
    struct Hook    hook = { {NULL, NULL}, (HOOKFUNC)LHook_Format, NULL, NULL };
    struct Locale *loc;

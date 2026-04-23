@@ -343,7 +343,7 @@ makeproto VOID InitLocale(void)
 /*
  * Library initialization.
  */
-//makeproto SAVEDS ASM struct Library *LibInit(REG(a0) BPTR segment, REG(a6) struct ExecBase *syslib)
+//makeproto SAVEDS ASM struct Library *LibInit(BPTR segment __asm("a0"), struct ExecBase * syslib __asm("a6"))
 #ifndef __AROS__
 makeproto SAVEDS
 #else
@@ -462,7 +462,7 @@ AROS_LH1(struct Library *, LibOpen,
     AROS_LHA(ULONG, version, D0),
     struct Library *, lib, 1, BGUI)
 #else
-makeproto SAVEDS ASM struct Library *LibOpen(REG(a6) struct Library *lib, REG(d0) ULONG libver)
+makeproto SAVEDS ASM struct Library *LibOpen(REGPARAM(A6, struct Library *, lib), REGPARAM(D0, ULONG, libver))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -504,7 +504,7 @@ makeproto SAVEDS ASM struct Library *LibOpen(REG(a6) struct Library *lib, REG(d0
 AROS_LH0(BPTR, LibClose,
          struct Library *, lib, 2, BGUI)
 #else
-makeproto SAVEDS ASM BPTR LibClose(REG(a6) struct Library *lib)
+makeproto SAVEDS ASM BPTR LibClose(REGPARAM(A6, struct Library *, lib))
 #endif
 {
    AROS_LIBFUNC_INIT
@@ -549,7 +549,7 @@ AROS_LH1(BPTR, LibExpunge,
     AROS_LHA(struct Library *, lib, D0),
     struct ExecBase *, sysBase, 3, BGUI)
 #else
-makeproto SAVEDS ASM BPTR LibExpunge(REG(a6) struct Library *lib)
+makeproto SAVEDS ASM BPTR LibExpunge(REGPARAM(A6, struct Library *, lib))
 #endif
 {
    AROS_LIBFUNC_INIT

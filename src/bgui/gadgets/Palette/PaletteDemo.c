@@ -114,7 +114,7 @@ UBYTE          *InfoTxt = ISEQ_C "As you can see the colors of the below button\
  *      dispatchers, hook routines or anything else which may get
  *      called by a task other than your own.
  */
-//SAVEDS ASM ULONG myButtonDispatch( REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) Msg msg )
+//SAVEDS ASM ULONG myButtonDispatch( Class * cl __asm("a0"), Object * obj __asm("a2"), Msg msg __asm("a1"))
 ASM REGFUNC3(ULONG, myButtonDispatch,
 	     REGPARAM(A0, Class *, cl),
 	     REGPARAM(A2, Object *, obj),

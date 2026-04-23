@@ -119,6 +119,7 @@
  */
 
 #define WW(x)
+extern void kprintf(const char *fmt, ...);
 
 #include "include/classdefs.h"
 
@@ -395,7 +396,7 @@ STATIC IPTR GroupDimensions(WD *wd, Object *master, struct TextAttr *font, UWORD
  * because of a re-size and the right and bottom border of the window in it's
  * previous position if the size has grown.
  */
-//STATIC SAVEDS ASM VOID BackFill_func(REG(a0) struct Hook *hook, REG(a2) struct RastPort *rp, REG(a1) BFINFO *info)
+//STATIC SAVEDS ASM VOID BackFill_func(struct Hook * hook __asm("a0"), struct RastPort * rp __asm("a2"), BFINFO * info __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(VOID, BackFill_func,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, struct RastPort *, rp),
@@ -934,7 +935,7 @@ METHOD_END
 /*
  * Setup the menu strip.
  */
-STATIC ASM BOOL DoMenuStrip( REG(a0) WD *wd, REG(a1) struct Screen *scr )
+STATIC ASM BOOL DoMenuStrip( WD * wd __asm("a0"), struct Screen * scr __asm("a1"))
 {
    /*
     * Get the visual info. (We use
@@ -965,7 +966,7 @@ STATIC ASM BOOL DoMenuStrip( REG(a0) WD *wd, REG(a1) struct Screen *scr )
 /*
  * Kill the AppWindow stuff.
  */
-STATIC ASM VOID KillAppWindow(REG(a0) WD *wd)
+STATIC ASM VOID KillAppWindow(WD * wd __asm("a0"))
 {
    struct Message       *msg;
 
@@ -997,7 +998,7 @@ STATIC ASM VOID KillAppWindow(REG(a0) WD *wd)
 /*
  * Make it an AppWindow.
  */
-STATIC ASM BOOL MakeAppWindow(REG(a0) WD *wd)
+STATIC ASM BOOL MakeAppWindow(WD * wd __asm("a0"))
 {
    /*
     * Create a message port.
@@ -1019,7 +1020,7 @@ STATIC ASM BOOL MakeAppWindow(REG(a0) WD *wd)
  * Compute width and height of the
  * system gadgets.
  */
-STATIC ASM VOID SystemSize(REG(a1) WD *wd)
+STATIC ASM VOID SystemSize(WD * wd __asm("a1"))
 {
    struct TagItem   tags[4];
    Object          *image;
@@ -1091,7 +1092,7 @@ STATIC ASM VOID SystemSize(REG(a1) WD *wd)
 /*
  * Query border sizes.
  */
-STATIC ASM void WBorderSize(REG(a0) WD *wd, REG(a1) struct Screen *scr, REG(a2) struct TextAttr *at)
+STATIC ASM void WBorderSize(WD * wd __asm("a0"), struct Screen * scr __asm("a1"), struct TextAttr * at __asm("a2"))
 {
    UWORD    wl, wt, wr, wb;
 
@@ -1250,6 +1251,8 @@ BOOL WinSize(WD *wd, UWORD *win_w, UWORD *win_h)
        * Compute border sizes.
        */
       WBorderSize(wd, scr, font);
+      WW(kprintf("WinSize: after WBorderSize wd_L=%d wd_T=%d wd_R=%d wd_B=%d  master gmw=%d gmh=%d\n",
+              wd->wd_Left, wd->wd_Top, wd->wd_Right, wd->wd_Bottom, gmw, gmh));
 
       /*
        * Compute totals of border gadgets.
@@ -1417,6 +1420,8 @@ BOOL WinSize(WD *wd, UWORD *win_w, UWORD *win_h)
    {
       *win_w = gmw;
       *win_h = gmh;
+      WW(kprintf("WinSize: RETURN gmw=%d gmh=%d (vw=%d vh=%d sw=%d sh=%d)\n",
+              gmw, gmh, vw, vh, sw, sh));
 
       return TRUE;
    };
@@ -1442,6 +1447,8 @@ STATIC METHOD(WindowClassOpen, Msg, msg)
    int                borders = 0;
    struct Window     *w;
    struct Message    *imsg;
+
+   WW(kprintf("WM_OPEN: ENTRY\n"));
 
    /*
     * If the window is already opened we
@@ -1570,6 +1577,8 @@ STATIC METHOD(WindowClassOpen, Msg, msg)
    
    if (!WinSize(wd, (UWORD *)&width, (UWORD *)&height))
       goto failure;
+   WW(kprintf("WM_OPEN: WinSize returned width=%d height=%d (vw=%d vh=%d scale W=%d H=%d)\n",
+           width, height, vw, vh, wd->wd_WidthScale, wd->wd_HeightScale));
 
    /*
     * Backdrop window?
@@ -1605,6 +1614,8 @@ STATIC METHOD(WindowClassOpen, Msg, msg)
     */
    if (wd->wd_WidthScale)  width  += ((vw - width)  * wd->wd_WidthScale)  / 100;
    if (wd->wd_HeightScale) height += ((vh - height) * wd->wd_HeightScale) / 100;
+   WW(kprintf("WM_OPEN: after scale width=%d height=%d (mw=%d mh=%d)\n",
+           width, height, mw, mh));
 
    /*
     * When the window was opened before and the size is known or there
@@ -1612,6 +1623,8 @@ STATIC METHOD(WindowClassOpen, Msg, msg)
     */
    if (wd->wd_Flags & WDF_CHANGE_VALID || GetWindowBounds(wd->wd_ID, &wd->wd_FixedPos))
    {
+      WW(kprintf("WM_OPEN: WDF_CHANGE_VALID/GetWindowBounds branch: keepw=%d keeph=%d FixedPos W=%d H=%d\n",
+              keepw, keeph, wd->wd_FixedPos.Width, wd->wd_FixedPos.Height));
       /*
        * If the width or height of the window
        * is fixed then we reuse the previous
@@ -1739,6 +1752,9 @@ STATIC METHOD(WindowClassOpen, Msg, msg)
 
    if (wd->wd_Flags & WDF_PREBUFFER) AsmDoMethod(wd->wd_Gadgets, BASE_RENDERBUFFER, pubscreen, width, height);
 
+   WW(kprintf("WM_OPEN: about to OpenWindow L=%d T=%d W=%d H=%d (mw=%d mh=%d)\n",
+           wleft, wtop, width, height, mw, mh));
+
    /*
     * Open the window (finally :))
     */
@@ -1859,7 +1875,7 @@ METHOD_END
  * the port which belong to
  * the window.
  */
-STATIC ASM VOID ClearMsgPort( REG(a0) WD *wd )
+STATIC ASM VOID ClearMsgPort( WD * wd __asm("a0"))
 {
    struct IntuiMessage     *imsg;
    struct Node       *succ;
@@ -2066,7 +2082,7 @@ METHOD_END
 /*
  * Keep track of window bound changes.
  */
-STATIC ASM ULONG WindowClassChange( REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) Msg msg )
+STATIC ASM ULONG WindowClassChange( Class * cl __asm("a0"), Object * obj __asm("a2"), Msg msg __asm("a1"))
 {
    WD            *wd = INST_DATA(cl, obj);
    ULONG          rc = 0;
@@ -2201,7 +2217,7 @@ METHOD_END
 /*
  * Put out a help-request.
  */
-STATIC ASM ULONG WindowClassHelp(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) Msg msg)
+STATIC ASM ULONG WindowClassHelp(Class * cl __asm("a0"), Object * obj __asm("a2"), Msg msg __asm("a1"))
 {
    WD                   *wd = INST_DATA( cl, obj );
    struct bmShowHelp     bsh;
@@ -2275,7 +2291,7 @@ STATIC ASM ULONG WindowClassHelp(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1)
  * Fill up an InputEvent structure
  * with RAWKEY information.
  */
-STATIC ASM VOID FillIE(REG(a0) struct InputEvent *ie, REG(a1) struct IntuiMessage *imsg)
+STATIC ASM VOID FillIE(struct InputEvent * ie __asm("a0"), struct IntuiMessage * imsg __asm("a1"))
 {
    ie->ie_Class              = IECLASS_RAWKEY;
    ie->ie_Code               = imsg->Code;
@@ -2289,7 +2305,7 @@ STATIC ASM VOID FillIE(REG(a0) struct InputEvent *ie, REG(a1) struct IntuiMessag
  * Get the first message from the
  * window port which belongs to the window.
  */
-STATIC ASM struct IntuiMessage *GetIMsg( REG(a0) WD *wd )
+STATIC ASM struct IntuiMessage *GetIMsg( WD * wd __asm("a0"))
 {
    struct IntuiMessage     *imsg;
    struct MsgPort       *mp = wd->wd_UserPort;
@@ -2526,7 +2542,7 @@ STATIC ULONG KeyGadget(Class *cl, Object *obj, struct IntuiMessage *imsg)
 /*
  * Find tab-cycle entry.
  */
-STATIC ASM TABCYCLE *GetCycleNode( REG(a0) WD *wd, REG(a1) Object *obj )
+STATIC ASM TABCYCLE *GetCycleNode( WD * wd __asm("a0"), Object * obj __asm("a1"))
 {
    TABCYCLE    *tc;
 
@@ -2540,7 +2556,7 @@ STATIC ASM TABCYCLE *GetCycleNode( REG(a0) WD *wd, REG(a1) Object *obj )
 /*
  * Perform update notification.
  */
-STATIC ASM VOID UpdateNotification( REG(a0) WD *wd, REG(a1) struct TagItem *attr, REG(d0) ULONG id )
+STATIC ASM VOID UpdateNotification( WD * wd __asm("a0"), struct TagItem * attr __asm("a1"), ULONG id __asm("d0"))
 {
    struct TagItem       *clones;
    UPN            *up;
@@ -2585,7 +2601,7 @@ STATIC ASM VOID UpdateNotification( REG(a0) WD *wd, REG(a1) struct TagItem *attr
 /*
  * Default tool tip hook.
  */
-//STATIC ASM IPTR ToolTip_func(REG(a0) struct Hook *h, REG(a2) Object *obj, REG(a1) struct ttCommand *ttc)
+//STATIC ASM IPTR ToolTip_func(struct Hook * h __asm("a0"), Object * obj __asm("a2"), struct ttCommand * ttc __asm("a1"))
 STATIC ASM REGFUNC3(IPTR, ToolTip_func,
 	REGPARAM(A0, struct Hook *, h),
 	REGPARAM(A2, Object *, obj),
@@ -3305,7 +3321,7 @@ METHOD_END
 /*
  * Find a menu by it's ID.
  */
-STATIC ASM struct Menu *FindMenu( REG(a0) struct Menu *ptr, REG(d0) IPTR id )
+STATIC ASM struct Menu *FindMenu( struct Menu * ptr __asm("a0"), IPTR id __asm("d0"))
 {
    struct Menu    *tmp;
 
@@ -3322,7 +3338,7 @@ STATIC ASM struct Menu *FindMenu( REG(a0) struct Menu *ptr, REG(d0) IPTR id )
 /*
  * Find a (sub)item by it's ID.
  */
-STATIC ASM struct MenuItem *FindItem( REG(a0) struct Menu *ptr, REG(d0) IPTR id )
+STATIC ASM struct MenuItem *FindItem( struct Menu * ptr __asm("a0"), IPTR id __asm("d0"))
 {
    struct Menu    *tmp;
    struct MenuItem         *item, *sub;
@@ -3351,7 +3367,7 @@ STATIC ASM struct MenuItem *FindItem( REG(a0) struct Menu *ptr, REG(d0) IPTR id 
 /*
  * Find a NewMenu by it's ID.
  */
-STATIC ASM struct NewMenu *FindNewMenu( REG(a0) struct NewMenu *nm, REG(d0) IPTR id )
+STATIC ASM struct NewMenu *FindNewMenu( struct NewMenu * nm __asm("a0"), IPTR id __asm("d0"))
 {
    while ( nm->nm_Type != NM_END ) {
       if ( id == ( IPTR )nm->nm_UserData ) return( nm );

@@ -106,8 +106,8 @@
 
 int main(int argc,char **argv);
 
-//ASM SAVEDS ULONG WindowHandler(REG(a0) struct Hook *hook,
-//      REG(a2) Object *obj, REG(a1) struct IntuiMessage *imsg);
+//ASM SAVEDS ULONG WindowHandler(struct Hook * hook __asm("a0"),
+//      Object * obj __asm("a2"), struct IntuiMessage * imsg __asm("a1"));
 ASM SAVEDS REGFUNCPROTO3(ULONG, WindowHandler,
         REGPARAM(A0, struct Hook *, hook),
         REGPARAM(A2, Object *, obj),
@@ -331,8 +331,8 @@ return(0);
 *
 *************************************************************************/
 
-//ASM SAVEDS ULONG WindowHandler(REG(a0) struct Hook *hook,
-//      REG(a2) Object *obj, REG(a1) struct IntuiMessage *imsg)
+//ASM SAVEDS ULONG WindowHandler(struct Hook * hook __asm("a0"),
+//      Object * obj __asm("a2"), struct IntuiMessage * imsg __asm("a1"))
 ASM SAVEDS REGFUNC3(ULONG, WindowHandler,
         REGPARAM(A0, struct Hook *, hook),
         REGPARAM(A2, Object *, obj),

@@ -130,7 +130,7 @@
 *
 *************************************************************************/
 
-//ASM ULONG TV_Expand(REG(a0) Class *cl,REG(a2) Object *obj,REG(a1) struct tvEntry *tve)
+//ASM ULONG TV_Expand(Class * cl __asm("a0"),Object * obj __asm("a2"),struct tvEntry * tve __asm("a1"))
 METHOD(TV_Expand, struct tvEntry *, tve)
 {
 struct tvExpand	tvexp;

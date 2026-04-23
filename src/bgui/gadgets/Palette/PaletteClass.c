@@ -140,7 +140,7 @@ typedef struct {
  * pen number in the colors which are displayed
  * in the palette object.
  */
-STATIC ASM UWORD ValidateColor( REG(a0) PD *pd, REG(d0) ULONG pen )
+STATIC ASM UWORD ValidateColor( PD * pd __asm("a0"), ULONG pen __asm("d0"))
 {
    UWORD       *tab = pd->pd_PenTable, i;
 
@@ -367,7 +367,7 @@ METHOD_END
  * inside the palette object it's
  * color box.
  */
-STATIC ASM VOID RenderColorRects( REG(a0) PD *pd, REG(a1) struct RastPort *rp, REG(a2) struct IBox *area, REG(a3) struct DrawInfo *dri )
+STATIC ASM VOID RenderColorRects( PD * pd __asm("a0"), struct RastPort * rp __asm("a1"), struct IBox * area __asm("a2"), struct DrawInfo * dri __asm("a3"))
 {
    UWORD    colorwidth, colorheight, columns = 1, rows = 1, depth = pd->pd_Depth;
    UWORD    hadjust, vadjust, left, top, colsize, rowsize, c, r, color;
@@ -579,7 +579,7 @@ METHOD_END
  * Get the pen number of
  * ordinal color number "num".
  */
-STATIC ASM ULONG GetPenNumber( REG(a0) PD *pd, REG(d0) ULONG num )
+STATIC ASM ULONG GetPenNumber( PD * pd __asm("a0"), ULONG num __asm("d0"))
 {
    /*
     * Return the pen number
@@ -597,7 +597,7 @@ STATIC ASM ULONG GetPenNumber( REG(a0) PD *pd, REG(d0) ULONG num )
  * Determine the ordinal number
  * of the pen in the object.
  */
-STATIC ASM ULONG GetOrdinalNumber( REG(a0) PD *pd, REG(d0) ULONG pen )
+STATIC ASM ULONG GetOrdinalNumber( PD * pd __asm("a0"), ULONG pen __asm("d0"))
 {
    UWORD       *tab = pd->pd_PenTable, i;
 
@@ -627,7 +627,7 @@ STATIC ASM ULONG GetOrdinalNumber( REG(a0) PD *pd, REG(d0) ULONG pen )
  * Determine which color rectangle
  * the coordinates are in.
  */
-STATIC ASM UWORD GetColor( REG(a0) PD *pd, REG(d0) ULONG x, REG(d1) ULONG y )
+STATIC ASM UWORD GetColor( PD * pd __asm("a0"), ULONG x __asm("d0"), ULONG y __asm("d1"))
 {
    UWORD    col, row;
 
@@ -650,7 +650,7 @@ STATIC ASM UWORD GetColor( REG(a0) PD *pd, REG(d0) ULONG x, REG(d1) ULONG y )
  * Get the top-left position of
  * a color in the color box.
  */
-STATIC ASM VOID GetTopLeft( REG(a0) PD *pd, REG(d0) UWORD color, REG(a1) UWORD *x, REG(a2) UWORD *y )
+STATIC ASM VOID GetTopLeft( PD * pd __asm("a0"), UWORD color __asm("d0"), UWORD * x __asm("a1"), UWORD * y __asm("a2"))
 {
    UWORD       row, col;
 
@@ -683,7 +683,7 @@ STATIC ULONG NotifyAttrChange( Object *obj, struct GadgetInfo *gi, ULONG flags, 
 /*
  * Change the currently selected color.
  */
-STATIC ASM VOID ChangeSelectedColor( REG(a0) PD *pd, REG(a1) struct GadgetInfo *gi, REG(d0) ULONG newcolor )
+STATIC ASM VOID ChangeSelectedColor( PD * pd __asm("a0"), struct GadgetInfo * gi __asm("a1"), ULONG newcolor __asm("d0"))
 {
    struct RastPort         *rp;
    UWORD        l, t;

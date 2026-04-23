@@ -90,7 +90,7 @@ struct TagItem Cyc2Page[] = { { MX_Active, PAGE_Active, }, { TAG_END }  };
 /*
 ** Tabs-key control of the tabs gadget.
 **/
-//SAVEDS ASM VOID TabHookFunc( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct IntuiMessage *msg )
+//SAVEDS ASM VOID TabHookFunc( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct IntuiMessage * msg __asm("a1"))
 SAVEDS ASM REGFUNC3(VOID, TabHookFunc,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),

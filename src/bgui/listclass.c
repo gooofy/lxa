@@ -285,7 +285,7 @@ STATIC VOID RenderEntry(Object *obj, LD *ld, struct BaseInfo *bi, LVE *lve, ULON
 #define REL_ZERO (0x80000000)
 
 
-STATIC VOID ASM ColumnSeparators(REG(a0) LD *ld, REG(a1) struct BaseInfo *bi, REG(d0) ULONG x, REG(d1) ULONG y, REG(d2) ULONG h)
+STATIC VOID ASM ColumnSeparators(LD * ld __asm("a0"), struct BaseInfo * bi __asm("a1"), ULONG x __asm("d0"), ULONG y __asm("d1"), ULONG h __asm("d2"))
 {
    int col, pena, penb, x2, y2;
 
@@ -327,7 +327,7 @@ STATIC VOID ASM ColumnSeparators(REG(a0) LD *ld, REG(a1) struct BaseInfo *bi, RE
 /*
  * Find a node by it's number (slow!).
  */
-STATIC ASM LVE *FindNode( REG(a0) LD *ld, REG(d0) ULONG num )
+STATIC ASM LVE *FindNode( LD * ld __asm("a0"), ULONG num __asm("d0"))
 {
    LVE         *lve;
    ULONG        lnum = 0L;
@@ -353,7 +353,7 @@ STATIC ASM LVE *FindNode( REG(a0) LD *ld, REG(d0) ULONG num )
 /*
  * Find a node by it's number (quickly).
  */
-STATIC ASM LVE *FindNodeQuick( REG(a0) LD *ld, REG(d0) ULONG num )
+STATIC ASM LVE *FindNodeQuick( LD * ld __asm("a0"), ULONG num __asm("d0"))
 {
    LVE         *lve = ld->ld_TopEntry;
    ULONG        top = ld->ld_Top;
@@ -387,7 +387,7 @@ STATIC ASM LVE *FindNodeQuick( REG(a0) LD *ld, REG(d0) ULONG num )
  * Add an entry in the list. Ugly code with
  * lotsa goto's :)
  */
-STATIC ASM VOID AddEntryInList( REG(a0) LD *ld, REG(a1) Object *obj, REG(a2) LVE *lve, REG(d0) ULONG how )
+STATIC ASM VOID AddEntryInList( LD * ld __asm("a0"), Object * obj __asm("a1"), LVE * lve __asm("a2"), ULONG how __asm("d0"))
 {
    LVE                *tmp;
    struct lvCompare    lvc;
@@ -474,7 +474,7 @@ STATIC ASM VOID AddEntryInList( REG(a0) LD *ld, REG(a1) Object *obj, REG(a2) LVE
 /*
  * Add entries to the list.
  */
-STATIC ASM BOOL AddEntries(REG(a0) LD *ld, REG(a1) APTR *entries, REG(a2) Object *obj, REG(d0) ULONG how, REG(a3) LVE *pred)
+STATIC ASM BOOL AddEntries(LD * ld __asm("a0"), APTR * entries __asm("a1"), Object * obj __asm("a2"), ULONG how __asm("d0"), LVE * pred __asm("a3"))
 {
    LVE               *lve;
    struct lvResource  lvr;
@@ -554,7 +554,7 @@ STATIC ASM BOOL AddEntries(REG(a0) LD *ld, REG(a1) APTR *entries, REG(a2) Object
 /*
  * Make an entry visible.
  */
-STATIC ASM ULONG MakeVisible(REG(a0) LD *ld, REG(d0) ULONG entry)
+STATIC ASM ULONG MakeVisible(LD * ld __asm("a0"), ULONG entry __asm("d0"))
 {
    ULONG       new_top;
 
@@ -579,7 +579,7 @@ STATIC ASM ULONG MakeVisible(REG(a0) LD *ld, REG(d0) ULONG entry)
 /*
  * De-select node list (slow!).
  */
-STATIC ASM VOID DeSelect(REG(a0) LD *ld)
+STATIC ASM VOID DeSelect(LD * ld __asm("a0"))
 {
    LVE         *lve;
 
@@ -596,7 +596,7 @@ STATIC ASM VOID DeSelect(REG(a0) LD *ld)
 /*
  * Select node list (slow!).
  */
-STATIC ASM VOID Select(REG(a0) LD *ld)
+STATIC ASM VOID Select(LD * ld __asm("a0"))
 {
    LVE         *lve;
 
@@ -609,7 +609,7 @@ STATIC ASM VOID Select(REG(a0) LD *ld)
 /*
  * Setup a new top-value.
  */
-STATIC ASM VOID NewTop(REG(a0) LD *ld, REG(a1) struct GadgetInfo *gi, REG(a2) Object *obj, REG(d0) ULONG new_top)
+STATIC ASM VOID NewTop(LD * ld __asm("a0"), struct GadgetInfo * gi __asm("a1"), Object * obj __asm("a2"), ULONG new_top __asm("d0"))
 {
    struct BaseInfo   *bi;
    int                i;
@@ -831,7 +831,7 @@ STATIC BOOL GetColumnPositions(Object *obj, LD *ld)
 *
 *************************************************************************/
 
-STATIC ASM VOID DrawDragLine(REG(a0) LD *ld, REG(a1) struct GadgetInfo *gi)
+STATIC ASM VOID DrawDragLine(LD * ld __asm("a0"), struct GadgetInfo * gi __asm("a1"))
 {
    WORD x1 = ld->ld_InnerBox.Left + ld->ld_DragXLine - 2;
    WORD x2 = x1 + 1;
@@ -1524,7 +1524,7 @@ METHOD_END
 /*
  * Setup the list area bounds.
  */
-STATIC ASM VOID ListAreaBounds(REG(a0) Object *obj, REG(a1) LD *ld)
+STATIC ASM VOID ListAreaBounds(Object * obj __asm("a0"), LD * ld __asm("a1"))
 {
    int          fh = ld->ld_EntryHeight;
    int          overhead;
@@ -1597,7 +1597,7 @@ STATIC ASM VOID ListAreaBounds(REG(a0) Object *obj, REG(a1) LD *ld)
 ///
 /// RenderColumn
 
-STATIC ASM SAVEDS VOID RenderColumn(REG(a0) char *text, REG(a2) Object *obj, REG(a1) struct lvRender *lvr)
+STATIC ASM SAVEDS VOID RenderColumn(char * text __asm("a0"), Object * obj __asm("a2"), struct lvRender * lvr __asm("a1"))
 {
    int                col  = lvr->lvr_Column;   
    struct BaseInfo   *bi;
@@ -2022,7 +2022,7 @@ METHOD_END
 /*
  * Find out over which entry the mouse is located.
  */
-STATIC ASM LONG MouseOverEntry(REG(a0) LD *ld, REG(d0) LONG t)
+STATIC ASM LONG MouseOverEntry(LD * ld __asm("a0"), LONG t __asm("d0"))
 {
    t -= ld->ld_ListArea.Top;
    if (t < 0) return -1;
@@ -2037,7 +2037,7 @@ STATIC ASM LONG MouseOverEntry(REG(a0) LD *ld, REG(d0) LONG t)
 /*
  * Perform multi-(de)selection.
  */
-STATIC ASM BOOL MultiSelect( REG(a0) LD *ld, REG(d0) ULONG active )
+STATIC ASM BOOL MultiSelect( LD * ld __asm("a0"), ULONG active __asm("d0"))
 {
    LVE         *node = FindNodeQuick( ld, ld->ld_MultiStart ), *anode = FindNodeQuick( ld, active );
    BOOL         rc = FALSE;
@@ -2931,7 +2931,7 @@ METHOD_END
 /*
  * Get entry predecessor, position and add method.
  */
-STATIC ASM VOID EntryPosHow( REG(a0) LD *ld, REG(a1) LVE **lve, REG(d0) ULONG pos, REG(a2) ULONG *how )
+STATIC ASM VOID EntryPosHow( LD * ld __asm("a0"), LVE ** lve __asm("a1"), ULONG pos __asm("d0"), ULONG * how __asm("a2"))
 {
    if ( ! pos ) {
       /*
@@ -2960,7 +2960,7 @@ STATIC ASM VOID EntryPosHow( REG(a0) LD *ld, REG(a1) LVE **lve, REG(d0) ULONG po
 /*
  * (Multi)Select entry and/or make it visible.
  */
-STATIC SAVEDS ASM VOID DoEntry(REG(a0) struct GadgetInfo *gi, REG(a1) Object *obj, REG(a2) LD *ld, REG(d0) ULONG flags, REG(d1) ULONG number)
+STATIC SAVEDS ASM VOID DoEntry(struct GadgetInfo * gi __asm("a0"), Object * obj __asm("a1"), LD * ld __asm("a2"), ULONG flags __asm("d0"), ULONG number __asm("d1"))
 {
    ULONG       tag;
 
@@ -3251,7 +3251,7 @@ METHOD_END
 /*
  * Find a node by it's entry data (slow!).
  */
-STATIC ASM LVE *FindEntryData(REG(a0) LD *ld, REG(a1) APTR data, REG(a2) ULONG *number)
+STATIC ASM LVE *FindEntryData(LD * ld __asm("a0"), APTR data __asm("a1"), ULONG * number __asm("a2"))
 {
    LVE         *lve;
    ULONG        num = 0;
@@ -3270,7 +3270,7 @@ STATIC ASM LVE *FindEntryData(REG(a0) LD *ld, REG(a1) APTR data, REG(a2) ULONG *
 /*
  * Find a node by it's entry data (can be fast!).
  */
-STATIC ASM LVE *FindEntryDataF(REG(a0) LD *ld, REG(a1) APTR data)
+STATIC ASM LVE *FindEntryDataF(LD * ld __asm("a0"), APTR data __asm("a1"))
 {
    LVE         *lve;
 

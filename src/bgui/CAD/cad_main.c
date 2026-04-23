@@ -184,7 +184,7 @@ struct NewMenu     Menus[] = {
  * A IDCMP hook for the window which allows us
  * to control the listview from the keyboard.
  */
-//STATIC SAVEDS ASM VOID Win_IDCMP_Func( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct IntuiMessage *msg )
+//STATIC SAVEDS ASM VOID Win_IDCMP_Func( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct IntuiMessage * msg __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(VOID, Win_IDCMP_Func,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -248,7 +248,7 @@ STATIC struct Hook Win_IDCMP = { NULL, NULL, (HOOKFUNC)Win_IDCMP_Func, NULL, NUL
  ** Listview hooks. **
  *********************/
 
-//STATIC SAVEDS ASM APTR LV_List_Resource_Func( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct lvResource *lvr )
+//STATIC SAVEDS ASM APTR LV_List_Resource_Func( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct lvResource * lvr __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(APTR, LV_List_Resource_Func,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -272,7 +272,7 @@ STATIC SAVEDS ASM REGFUNC3(APTR, LV_List_Resource_Func,
 
    return( rc );
 }
-//STATIC SAVEDS ASM UBYTE *LV_List_Display_Func( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct lvRender *lvr )
+//STATIC SAVEDS ASM UBYTE *LV_List_Display_Func( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct lvRender * lvr __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(UBYTE *, LV_List_Display_Func,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -285,7 +285,7 @@ STATIC SAVEDS ASM REGFUNC3(UBYTE *, LV_List_Display_Func,
    return( &(( CADNODE * )lvr->lvr_Entry )->cn_Name[ 0 ] );
 }
 
-//STATIC SAVEDS ASM LONG LV_List_Compare_Func( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct lvCompare *lvc )
+//STATIC SAVEDS ASM LONG LV_List_Compare_Func( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct lvCompare * lvc __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(LONG, LV_List_Compare_Func,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -306,7 +306,7 @@ STATIC struct Hook LV_List_Compare  = { NULL, NULL, (HOOKFUNC)LV_List_Compare_Fu
 /*********************************
  ** Listview notification hook. **
  *********************************/
-//STATIC SAVEDS ASM ULONG LV_List_Func( REG(a0) struct Hook *hook, REG(a2) Object *obj, REG(a1) struct opUpdate *opu )
+//STATIC SAVEDS ASM ULONG LV_List_Func( struct Hook * hook __asm("a0"), Object * obj __asm("a2"), struct opUpdate * opu __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(ULONG, LV_List_Func,
 	REGPARAM(A0, struct Hook *, hook),
 	REGPARAM(A2, Object *, obj),
@@ -349,7 +349,7 @@ STATIC struct Hook LV_List_Hook = { NULL, NULL, (HOOKFUNC)LV_List_Func, NULL, NU
  ** Add button notification hook. **
  ***********************************/
 
-//STATIC SAVEDS ASM BT_Add_Func( REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct opUpdate *opu )
+//STATIC SAVEDS ASM BT_Add_Func( Class * cl __asm("a0"), Object * obj __asm("a2"), struct opUpdate * opu __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(int, BT_Add_Func,
 	REGPARAM(A0, Class *, cl),
 	REGPARAM(A2, Object *, obj),
@@ -396,7 +396,7 @@ STATIC struct Hook BT_Add_Hook = { NULL, NULL, (HOOKFUNC)BT_Add_Func, NULL, NULL
  ** Remove button notification hook. **
  **************************************/
 
-//STATIC SAVEDS ASM BT_Remove_Func( REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct opUpdate *opu )
+//STATIC SAVEDS ASM BT_Remove_Func( Class * cl __asm("a0"), Object * obj __asm("a2"), struct opUpdate * opu __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(int, BT_Remove_Func,
 	REGPARAM(A0, Class *, cl),
 	REGPARAM(A2, Object *, obj),
@@ -433,7 +433,7 @@ STATIC struct Hook BT_Remove_Hook = { NULL, NULL, (HOOKFUNC)BT_Remove_Func, NULL
 /***********************************
  ** Edit string notification hook. **
  ***********************************/
-//STATIC SAVEDS ASM ST_Edit_Func( REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct opUpdate *opu )
+//STATIC SAVEDS ASM ST_Edit_Func( Class * cl __asm("a0"), Object * obj __asm("a2"), struct opUpdate * opu __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(int, ST_Edit_Func,
 	REGPARAM(A0, Class *, cl),
 	REGPARAM(A2, Object *, obj),
@@ -493,7 +493,7 @@ STATIC struct Hook ST_Edit_Hook = { NULL, NULL, (HOOKFUNC)ST_Edit_Func, NULL, NU
  ** Sort button notification hook.   **
  **************************************/
 
-//STATIC SAVEDS ASM BT_Sort_Func(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct opUpdate *opu)
+//STATIC SAVEDS ASM BT_Sort_Func(Class * cl __asm("a0"), Object * obj __asm("a2"), struct opUpdate * opu __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(int, BT_Sort_Func,
 	REGPARAM(A0, Class *, cl),
 	REGPARAM(A2, Object *, obj),
@@ -518,7 +518,7 @@ STATIC struct Hook BT_Sort_Hook = { NULL, NULL, (HOOKFUNC)BT_Sort_Func, NULL, NU
 /*****************************************
  ** Base name string notification hook. **
  *****************************************/
-//STATIC SAVEDS ASM ST_Base_Func( REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) struct opUpdate *opu )
+//STATIC SAVEDS ASM ST_Base_Func( Class * cl __asm("a0"), Object * obj __asm("a2"), struct opUpdate * opu __asm("a1"))
 STATIC SAVEDS ASM REGFUNC3(int, ST_Base_Func,
 	REGPARAM(A0, Class *, cl),
 	REGPARAM(A2, Object *, obj),

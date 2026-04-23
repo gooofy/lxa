@@ -81,7 +81,7 @@ typedef struct {
 /*
  * Build the create tags and tracked tags.
  */
-STATIC ASM BOOL SetupAttrList(REG(a0) ED *ed, REG(a1) struct TagItem *attr)
+STATIC ASM BOOL SetupAttrList(ED * ed __asm("a0"), struct TagItem * attr __asm("a1"))
 {
    struct TagItem *tstate;
    struct TagItem *tag;
@@ -125,7 +125,7 @@ STATIC ASM BOOL SetupAttrList(REG(a0) ED *ed, REG(a1) struct TagItem *attr)
 /*
  * Set the track changes.
  */
-STATIC ASM VOID GetTrackChanges( REG(a0) ED *ed )
+STATIC ASM VOID GetTrackChanges( ED * ed __asm("a0"))
 {
    struct TagItem    *tstate = ed->ed_TrackList;
    struct TagItem *tag;
@@ -142,7 +142,7 @@ STATIC ASM VOID GetTrackChanges( REG(a0) ED *ed )
 /*
  * Setup object size.
  */
-STATIC ASM VOID SetupSize(REG(a0) Class *cl, REG(a1) Object *obj)
+STATIC ASM VOID SetupSize(Class * cl __asm("a0"), Object * obj __asm("a1"))
 {
    ED                 *ed = INST_DATA(cl, obj);
    BC                 *bc = BASE_DATA(obj);
@@ -169,7 +169,7 @@ STATIC ASM VOID SetupSize(REG(a0) Class *cl, REG(a1) Object *obj)
 ///
 
 /// OM_NEW
-STATIC ASM IPTR ExtClassNew(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1)  struct opSet * ops)
+STATIC ASM IPTR ExtClassNew(Class * cl __asm("a0"), Object * obj __asm("a2"), struct opSet * ops __asm("a1"))
 {
     ED              *ed;
     IPTR            rc;
@@ -233,7 +233,7 @@ STATIC ASM IPTR ExtClassNew(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1)  str
 }
 ///
 /// OM_DISPOSE
-STATIC ASM IPTR ExtClassDispose(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1)  Msg msg)
+STATIC ASM IPTR ExtClassDispose(Class * cl __asm("a0"), Object * obj __asm("a2"), Msg msg __asm("a1"))
 {
     ED              *ed = INST_DATA(cl,obj);
     IPTR            rc;
@@ -266,7 +266,7 @@ STATIC ASM IPTR ExtClassDispose(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) 
 }
 ///
 /// OM_GET
-STATIC ASM IPTR ExtClassGet(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1)  struct opGet * opg )
+STATIC ASM IPTR ExtClassGet(Class * cl __asm("a0"), Object * obj __asm("a2"), struct opGet * opg __asm("a1"))
 {
     ED              *ed = INST_DATA(cl,obj);
     IPTR            rc;
@@ -294,7 +294,7 @@ STATIC ASM IPTR ExtClassGet(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1)  str
 }
 ///
 ///BASE_DIMENSIONS
-STATIC ASM IPTR ExtClassDimensions(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1)  struct bmDimensions * msg)
+STATIC ASM IPTR ExtClassDimensions(Class * cl __asm("a0"), Object * obj __asm("a2"), struct bmDimensions * msg __asm("a1"))
 {
     ED              *ed = INST_DATA(cl,obj);
     IPTR            rc;
@@ -308,7 +308,7 @@ STATIC ASM IPTR ExtClassDimensions(REG(a0) Class *cl, REG(a2) Object *obj, REG(a
 }
 ///
 ///GM_HITTEST
-STATIC ASM IPTR ExtClassHitTest(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1)  Msg msg)
+STATIC ASM IPTR ExtClassHitTest(Class * cl __asm("a0"), Object * obj __asm("a2"), Msg msg __asm("a1"))
 {
     ED              *ed = INST_DATA(cl,obj);
     IPTR            rc;
@@ -328,7 +328,7 @@ STATIC ASM IPTR ExtClassHitTest(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1) 
 }
 ///
 ///GM_HANDLEINPUT,GM_GOACTIVE
-STATIC ASM IPTR ExtClassHandleInput(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1)  Msg msg)
+STATIC ASM IPTR ExtClassHandleInput(Class * cl __asm("a0"), Object * obj __asm("a2"), Msg msg __asm("a1"))
 {
     ED              *ed = INST_DATA(cl,obj);
     IPTR            rc = GMR_NOREUSE;
@@ -342,7 +342,7 @@ STATIC ASM IPTR ExtClassHandleInput(REG(a0) Class *cl, REG(a2) Object *obj, REG(
 }
 ///
 /// BASE_RENDER
-STATIC ASM IPTR ExtClassRender(REG(a0) Class *cl, REG(a2) Object *obj, REG(a1)  struct bmRender * bmr)
+STATIC ASM IPTR ExtClassRender(Class * cl __asm("a0"), Object * obj __asm("a2"), struct bmRender * bmr __asm("a1"))
 {
     ED              *ed = INST_DATA(cl,obj);
     BC              *bc;
