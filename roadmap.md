@@ -64,6 +64,357 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 
 ## Next Phase
 
+> The Phase 164–172 block was scheduled after a visual review of DPaint V's
+> "Screen Format" requester (see `tests/drivers/dpaint_gtest.cpp`,
+> `DPaintPixelTest.ScreenFormatDialogSectionsContainVisibleContent`) against an
+> FS-UAE reference capture. The dialog exposed nine distinct cross-app
+> rendering / refresh defects. Each one is its own numbered phase because the
+> root causes are independent and each will gain its own regression test, in
+> line with the "no pooling sections" policy.
+
+### Phase 164 — Layer creation BackFill (ghost-pixel elimination)
+
+**Class**: Quality (cross-app rendering correctness).
+
+`CreateLayerInternal()` in `src/rom/lxa_layers.c` stores the supplied BackFill
+hook on the new layer (`layer->BackFill = hook;`) but never invokes it for the
+newly-created region. AROS (`rom/intuition/openwindow.c`,
+`rom/layers/createlayer.c`) installs `LAYERS_BACKFILL` (default = clear with
+pen 0) and the layers system calls the hook for every newly-uncovered region
+on layer creation. Without this, a window opening on top of another window
+inherits the previous window's pixels in any area the app does not
+explicitly paint. The DPaint V "Ownership Information" → "Screen Format"
+transition is the visible symptom: dismissing Ownership and opening Screen
+Format leaves Ownership's title bar and body text inside the Screen Format
+listview area, because DPaint's listview content is custom-drawn lazily and
+the freshly-allocated layer was never cleared.
+
+**Sub-problems**:
+1. Define a default backfill behaviour that matches AROS: `RectFill(rp, ..., 0)`
+   over the new layer's bounds when no explicit hook is provided.
+2. Honour an explicit `BackFill` hook when one IS provided (call the hook for
+   each new ClipRect region, supplying a `LayerMsg` per the layers.library
+   contract).
+3. Apply the same fill to **every newly-exposed ClipRect** when an existing
+   layer enlarges or moves (currently `RebuildClipRects` restores from
+   backing store but new geometry may extend beyond the snapshot).
+4. Audit `_intuition_OpenWindow` / `_intuition_OpenWindowTagList` to confirm
+   they propagate a sensible default hook (NULL → use layers default).
+
+- [ ] Implement default backfill (pen 0) inside `CreateLayerInternal()` after
+      `RebuildClipRects(layer)` — iterate the layer's ClipRects and RectFill
+      each rectangle with pen 0 (or invoke the BackFill hook if non-NULL)
+- [ ] Confirm `BackFill` hook ABI matches `<graphics/layers.h>` (LayerMsg
+      structure) and add a guarded path that calls the hook
+- [ ] Add `LayerBackFillTest` driver in `tests/drivers/layer_backfill_gtest.cpp`:
+      open Window A with text drawn into its body, open Window B that fully
+      overlaps A, assert Window B's body samples to pen 0 (not A's pixels)
+- [ ] Add a second test variant: open Window A, dismiss it, then open Window B
+      at the same coordinates; assert Window B body is clean (this is the
+      DPaint scenario)
+- [ ] Add a regression assertion to `dpaint_gtest.cpp`
+      `ScreenFormatDialogSectionsContainVisibleContent` that the rectangle
+      `[80..400, 11..30]` (where Ownership's title used to be) does NOT
+      contain any non-background pixels matching Ownership's title-bar
+      glyph signature
+
+**Test gate**: New `layer_backfill_gtest` (≥2 tests) passes; DPaint Screen
+Format dialog capture no longer shows Ownership chrome ghosts.
+
+### Phase 165 — Listview / custom-drawn panel refresh trigger
+
+**Class**: Amiga compatibility (gadget-class behaviour).
+
+DPaint's "Choose Display Mode" list, "Display Information" panel, and "Credits"
+panel all expose a PROPGADGET (gadget_type=3) for the scrollbar but the actual
+text rows are custom-drawn by DPaint into the gadget rectangle. After Phase 164
+removes the ghost pixels, these panels will be empty (background pen) instead
+of showing PAL mode rows / mode info / credit lines. DPaint draws them in
+response to an event lxa is failing to deliver. Candidates:
+- `IDCMP_REFRESHWINDOW` after the layer-creation backfill (Intuition normally
+  posts one when a SMART_REFRESH window is first made visible **and** the app
+  requested `IDCMP_REFRESHWINDOW`)
+- `IDCMP_GADGETUP` from the prop gadget on initial scroll-position set
+- `IDCMP_NEWSIZE` after the implicit size-fit on open
+- `IDCMP_INTUITICKS` (DPaint may use the tick to drive its own paint loop)
+
+**Sub-problems**:
+1. Capture the IDCMPFlags DPaint requests for the Screen Format window
+   (instrument `_intuition_OpenWindow` to log requested IDCMP bits for any
+   window whose title contains "Screen Format").
+2. Compare the messages DPaint actually receives in lxa to the AROS / RKRM
+   contract — identify the missing message type.
+3. Implement the missing post: most likely a single `IDCMP_REFRESHWINDOW`
+   right after the new layer is filled and ClipRects are stable, gated on
+   the window's IDCMPFlags including `IDCMP_REFRESHWINDOW`.
+4. Verify the same fix unblocks any other custom-drawn panel that depends on
+   this initial paint trigger (audit DOpus, FinalWriter, PPaint requesters).
+
+- [ ] Instrumentation: log DPaint Screen Format IDCMPFlags + every IDCMP
+      message it receives in the first 500ms post-OpenWindow
+- [ ] Identify and implement the missing message-post site
+- [ ] Re-tighten the test: extend `dpaint_gtest.cpp`
+      `ScreenFormatDialogSectionsContainVisibleContent` so the upper-left
+      Choose Display Mode rectangle (gadget id=1, xy=8,34, wh=350x107)
+      contains > 200 non-background pixels (proves real text rendered)
+- [ ] Add equivalent assertions for the Display Information panel (gadget id=3)
+      and Credits panel (gadget id=13)
+- [ ] Remove instrumentation logging before commit (per AGENTS §6.3)
+
+**Test gate**: All three Screen Format panels show > 200 non-background pixels
+each; no other app driver regresses.
+
+### Phase 166 — Listview scrollbar imagery
+
+**Class**: Amiga compatibility (gadget rendering).
+
+DPaint's three custom-drawn panels (gadgets id=1, id=3, id=13 — all
+GTYP_PROPGADGET) are rendered with the prop knob alone — no surrounding
+"track" / arrow imagery. On real Amiga + Intuition the prop gadget has a
+visible recessed track with shine/shadow edges, and apps that wrap a prop
+gadget for scrolling expect this chrome. The Phase 145 work added scrollbar
+imagery for the WZOOM border gadget but did not extend to standalone
+PROPGADGETs in app windows.
+
+**Sub-problems**:
+1. `_render_propgadget()` (or wherever PROPGADGET imagery is drawn in
+   `lxa_intuition.c`) must render the recessed track frame (shine/shadow
+   3D edge) around the knob area, not just the knob itself.
+2. Honour `PROPNEWLOOK` (drawn with stipple per Phase 148) vs classic look.
+3. The track must respect `FREEHORIZ` / `FREEVERT` flags to draw
+   horizontal- vs vertical-scrollbar chrome.
+
+- [ ] Audit `_render_propgadget` (or equivalent) and add track-frame
+      rendering with shine (pen 2) / shadow (pen 1) edges
+- [ ] Honour `AUTOKNOB`, `FREEHORIZ`, `FREEVERT`, `PROPBORDERLESS`
+- [ ] Extend `simplegad_pixels_gtest.cpp` (or add a new
+      `propgadget_chrome_gtest.cpp`) with a vertical and a horizontal prop
+      gadget, asserting the track frame's shine and shadow pixels are
+      present at the expected edges
+- [ ] Add a DPaint regression: assert the right edge of gadget id=1
+      (xy=8,34 wh=350x107) contains shadow-pen pixels (track frame)
+- [ ] Verify Devpac's existing border PropGadget still renders (regression
+      check on `devpac_scrollbar_gtest`)
+
+**Test gate**: New propgadget chrome tests pass; Devpac scrollbar test stays
+green; DPaint listview track frames visible in capture.
+
+### Phase 167 — Cycle gadget rendering (Amiga look, not pop-up arrow)
+
+**Class**: Amiga compatibility (gadget rendering).
+
+GadTools `CYCLE_KIND` gadgets in DPaint's Screen Format dialog (gadgets id=4
+"Standard", id=5 "Keep Same") render with a drop-down style arrow on the
+right edge, similar to a Windows/Mac combo box. Real Amiga GadTools renders a
+cycle gadget as a **recessed button** with a small **circular-arrow icon** on
+the left, the current label centred, and no drop-down indicator (clicking
+cycles to the next value, no pop-up list). The current lxa rendering misleads
+users into expecting a drop-down list.
+
+**Sub-problems**:
+1. Locate the GadTools `CYCLE_KIND` rendering code (likely in
+   `src/rom/lxa_gadtools.c` `gt_render_cycle()` or similar).
+2. Replace the down-arrow imagery with the Amiga-correct circular-arrow
+   icon (two small arrows arranged in a circle) on the left side.
+3. Render the recessed button frame: top-left shadow, bottom-right shine
+   (inverse of the normal raised button — cycle gadgets are visually
+   recessed when not pressed).
+4. Centre the label between the icon and the right edge.
+
+- [ ] Implement the new rendering in the cycle gadget render function
+- [ ] Add `cycle_gadget_render_gtest.cpp` (or extend
+      `gadtoolsgadgets_pixels_c_gtest.cpp`) with a CYCLE_KIND gadget and
+      assertions on the icon region (left edge), the recessed-frame pen
+      pattern, and the absence of a down-arrow on the right edge
+- [ ] DPaint regression: assert gadget id=4 (Standard) at xy=33,164 wh=160x14
+      shows the circular-arrow icon glyph in its left ~12 pixels
+- [ ] Remove any remaining references to drop-down / popup-style cycle
+      rendering in the codebase
+
+**Test gate**: New cycle-gadget render tests pass; DPaint Screen Format cycle
+gadgets visually match the FS-UAE reference (arrow on left, no drop-down arrow
+on right).
+
+### Phase 168 — String gadget border style
+
+**Class**: Amiga compatibility (gadget rendering).
+
+DPaint's Screen Size and Page Size string gadgets (id=6, 7, 8, 9 — small
+4-digit numeric entry boxes) render with a thin single-line border in lxa.
+Real Amiga + GadTools renders a string gadget with a **recessed 3D frame**
+(shadow on top/left, shine on bottom/right) plus a 1-pixel inner padding.
+The current single-line look makes the gadgets appear flat / non-interactive.
+
+**Sub-problems**:
+1. Locate `_render_strgadget()` (or the equivalent in `lxa_intuition.c` /
+   `lxa_gadtools.c`).
+2. Replace the single-line border with a proper recessed 3D frame using
+   shine (pen 2) on bottom/right and shadow (pen 1) on top/left, matching
+   the BOOPSI string-gadget look.
+3. Maintain the existing inner editable area dimensions (the 3D frame must
+   sit just outside the editable rectangle, not eat into it).
+
+- [ ] Implement the recessed 3D frame in the string-gadget render function
+- [ ] Add a unit test in `simplegad_pixels_gtest.cpp` (or a new
+      `stringgad_render_gtest.cpp`) asserting the frame's shine/shadow pen
+      placement on a 100x14 string gadget
+- [ ] DPaint regression: assert string gadget id=6 (xy=213,166 wh=44x10) has
+      shadow pixels along its top edge and shine pixels along its bottom edge
+- [ ] Verify other apps using string gadgets (DOpus rename dialog, Devpac
+      Settings string entry) still render correctly
+
+**Test gate**: New string-gadget render test passes; DPaint string gadgets
+match the FS-UAE recessed look; no regressions in apps that use string
+gadgets.
+
+### Phase 169 — Checkbox + label gadget sizing
+
+**Class**: Amiga compatibility (GadTools layout).
+
+The "Retain Picture" gadget (DPaint Screen Format, gadget id=16, xy=209,220
+wh=135x14) renders with the checkbox-plus-label region spanning **135 pixels
+wide** in lxa. The FS-UAE reference shows the checkbox as a small
+~26-pixel-wide checkbox with the "Retain Picture" label as a separate text
+element to the right, and the clickable hit-area is just the checkbox plus
+the label text — not a 135-pixel horizontal stripe. The current lxa
+implementation over-sizes the checkbox gadget (probably extending the
+gadget's width to span the whole row), which is visually wrong AND makes
+the click hit-target too large.
+
+**Sub-problems**:
+1. Identify where the checkbox gadget's width is computed in
+   `src/rom/lxa_gadtools.c` (likely `gt_create_checkbox()` or `gt_layout_*`).
+2. The checkbox imagery itself should be the standard 26x11 (or 22x11) box;
+   the label is a separate `IntuiText` rendered to the right with the
+   correct baseline (per Phase 148-style label work).
+3. The gadget's `Width` field should be the checkbox width only; the label
+   width is independent.
+
+- [ ] Fix the checkbox gadget width to match the visible checkbox imagery
+      (26 or 22 px depending on `GTCB_Scaled`)
+- [ ] Ensure the label `IntuiText` is rendered to the right of the checkbox
+      with correct spacing (not overlapping)
+- [ ] Add `checkbox_render_gtest.cpp` asserting: checkbox box is at
+      (gadget.left, gadget.top), label text starts at gadget.left + box_width
+      + small gap, both render correctly
+- [ ] DPaint regression: assert gadget id=16 width is in range [22, 32] (not
+      135), and that the label "Retain Picture" renders adjacent to the box
+
+**Test gate**: New checkbox render test passes; DPaint Retain Picture matches
+the FS-UAE checkbox-plus-label visual.
+
+### Phase 170 — GADGDISABLED visual ghosting
+
+**Class**: Amiga compatibility (gadget state rendering).
+
+Two visible defects in DPaint's Screen Format dialog:
+1. The **Retain Picture** checkbox is fully solid in lxa but ghosted (stipple
+   overlay) in the FS-UAE reference because Retain Picture is only meaningful
+   when an image is currently loaded — DPaint sets `GADGDISABLED` on the
+   gadget at startup.
+2. The **Screen Size text-entry boxes** (id=6, 7) similarly should be ghosted
+   when "Standard" is the selected Screen Size cycle value (the values are
+   forced by the cycle choice, so the entry fields are read-only / disabled).
+
+lxa renders gadgets identically regardless of the `GFLG_DISABLED` flag.
+Real Amiga + Intuition overlays a stipple pattern (alternating-pixel mask) on
+top of any gadget with `GFLG_DISABLED` set, dimming the visible imagery.
+
+**Sub-problems**:
+1. Add a generic post-render stipple-overlay step in `_render_gadget()` (or
+   the central gadget paint dispatcher) that applies a stipple mask in pen 1
+   over the gadget's bounding rectangle when `gad->Flags & GFLG_DISABLED`.
+2. The stipple should match the AROS/Amiga `GHOSTPATTERN` (0x5555 / 0xAAAA
+   alternating).
+3. The overlay must clip to the gadget's visible region (don't paint outside
+   the gadget's `Width`/`Height`).
+
+- [ ] Implement the stipple overlay in `_render_gadget()` (apply after the
+      gadget's normal imagery is drawn)
+- [ ] Add `gadget_disabled_gtest.cpp`: render a normal and a disabled
+      checkbox / button / cycle gadget, assert the disabled one has
+      stipple pixels in expected positions (every-other pixel pen-1 overlay)
+- [ ] DPaint regression: assert gadget id=16 (Retain Picture) renders with
+      stipple pixels when DPaint sets it disabled
+- [ ] Verify that `OnGadget()` / `OffGadget()` already correctly toggle
+      `GFLG_DISABLED` and trigger a re-render (extend tests if not)
+
+**Test gate**: New disabled-gadget test passes; DPaint Retain Picture and
+Screen Size string gadgets render ghosted in the captured screen format dialog.
+
+### Phase 171 — Button / menu accelerator underline
+
+**Class**: Amiga compatibility (text rendering).
+
+DPaint's Screen Format buttons show their keyboard accelerator letter
+underlined: "**U**se", "**Cancel**", "**R**etain Picture". The real
+mechanism is `IntuiText` with an embedded `STYLE_UNDERLINED` byte (or, for
+GadTools, an `&` prefix in the label string — the GadTools code translates
+this into a SetSoftStyle + Move + Draw underline). lxa currently ignores
+the underline marker and renders the label as plain text.
+
+**Sub-problems**:
+1. GadTools label rendering: parse the `&` prefix in label strings and
+   render the following character with a 1-pixel underline.
+2. `IntuiText` rendering: honour `STYLE_UNDERLINED` in the `ITextFont` /
+   `IText.FrontPen` style bits when calling Text().
+3. Both code paths converge in `_graphics_Text()` — likely the cleanest fix
+   is to honour `RastPort.AlgoStyle & FSF_UNDERLINED` set by `SetSoftStyle()`
+   and have GadTools / IntuiText set it before each affected draw.
+4. Apply to menu items too (per RKRM, menu accelerator characters are
+   underlined when COMMSEQ flag is set or via the `&` convention).
+
+- [ ] Implement underline rendering in `_graphics_Text()` (a horizontal line
+      one pixel below the baseline for the styled run)
+- [ ] Have GadTools button/checkbox/cycle label code parse `&char` and
+      bracket the underlined character with `SetSoftStyle(FSF_UNDERLINED)`
+      / `SetSoftStyle(0)` calls
+- [ ] Have menu item rendering apply the same convention
+- [ ] Add `text_underline_gtest.cpp` covering: plain text, underlined text via
+      `SetSoftStyle`, GadTools button label with `&` accelerator
+- [ ] DPaint regression: assert the row of pixels just below the "U" of
+      "Use" (gadget id=14, xy=12,238 wh=50x14) has continuous shine pixels
+      forming the underline
+
+**Test gate**: New underline render test passes; DPaint button accelerators
+visibly underlined; menu accelerator letters underlined where present.
+
+### Phase 172 — `SetWindowTitles()` repaints title bar
+
+**Class**: Quality (existing TODO at `src/rom/lxa_intuition.c:10489`).
+
+`_intuition_SetWindowTitles()` currently updates `window->Title` in memory
+but does not redraw the window's title bar — the comment on line 10489 says
+`/* TODO: actually redraw the title bar */`. Apps that change a window
+title at runtime (DPaint switches its single window from "Ownership
+Information" → "DeluxePaint 5.2 - Screen Format" → ...) appear to keep the
+old title until the user moves or refreshes the window. Real Amiga repaints
+the title bar immediately on `SetWindowTitles()`.
+
+**Sub-problems**:
+1. After updating `window->Title`, call `_render_window_frame(window)` (or a
+   narrower `_render_window_titlebar(window)` helper) so the bar is repainted
+   with the new text.
+2. After updating `window->WScreen->Title` for the screen, the existing
+   `_render_screen_title_bar()` call already handles that — but only when
+   the active window's screen title is shown; if the screen title bar is
+   currently obscured by another screen-title source (e.g. the active
+   window has a custom screen title), the right behaviour is "repaint when
+   visible." Audit the active-window vs. screen-title interaction.
+3. Remove the `TODO` comment.
+
+- [ ] Implement the title-bar repaint in `_intuition_SetWindowTitles()`
+- [ ] Add `setwindowtitles_gtest.cpp`: open a window with title "Before",
+      capture title-bar pixels, call `SetWindowTitles(window, "After", -1)`,
+      capture again, assert the pixels differ in the title-bar region
+- [ ] Add a screen-title variant of the same test
+- [ ] DPaint regression: after Ownership dismiss, the rendered title bar of
+      the (now-retitled) window contains text matching "DeluxePaint" — not
+      "Ownership Information"
+
+**Test gate**: New `setwindowtitles_gtest` passes; DPaint Screen Format
+window's title bar pixels match its current title (`window->Title`).
+
 ### Phase 150 — DirectoryOpus deeper workflows
 
 Phase 134 fixed the button-bank rendering. Remaining gaps:
