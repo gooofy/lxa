@@ -64,7 +64,7 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 
 ## Next Phase
 
-> The Phase 164–172 block was scheduled after a visual review of DPaint V's
+> The Phase 150–158 block was scheduled after a visual review of DPaint V's
 > "Screen Format" requester (see `tests/drivers/dpaint_gtest.cpp`,
 > `DPaintPixelTest.ScreenFormatDialogSectionsContainVisibleContent`) against an
 > FS-UAE reference capture. The dialog exposed nine distinct cross-app
@@ -72,7 +72,7 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 > root causes are independent and each will gain its own regression test, in
 > line with the "no pooling sections" policy.
 
-### Phase 164 — Layer creation BackFill (ghost-pixel elimination)
+### Phase 150 — Layer creation BackFill (ghost-pixel elimination)
 
 **Class**: Quality (cross-app rendering correctness).
 
@@ -121,7 +121,7 @@ the freshly-allocated layer was never cleared.
 **Test gate**: New `layer_backfill_gtest` (≥2 tests) passes; DPaint Screen
 Format dialog capture no longer shows Ownership chrome ghosts.
 
-### Phase 165 — Listview / custom-drawn panel refresh trigger
+### Phase 151 — Listview / custom-drawn panel refresh trigger
 
 **Class**: Amiga compatibility (gadget-class behaviour).
 
@@ -164,7 +164,7 @@ response to an event lxa is failing to deliver. Candidates:
 **Test gate**: All three Screen Format panels show > 200 non-background pixels
 each; no other app driver regresses.
 
-### Phase 166 — Listview scrollbar imagery
+### Phase 152 — Listview scrollbar imagery
 
 **Class**: Amiga compatibility (gadget rendering).
 
@@ -199,7 +199,7 @@ PROPGADGETs in app windows.
 **Test gate**: New propgadget chrome tests pass; Devpac scrollbar test stays
 green; DPaint listview track frames visible in capture.
 
-### Phase 167 — Cycle gadget rendering (Amiga look, not pop-up arrow)
+### Phase 153a — Cycle gadget rendering (Amiga look, not pop-up arrow)
 
 **Class**: Amiga compatibility (gadget rendering).
 
@@ -235,7 +235,7 @@ users into expecting a drop-down list.
 gadgets visually match the FS-UAE reference (arrow on left, no drop-down arrow
 on right).
 
-### Phase 168 — String gadget border style
+### Phase 153b — String gadget border style
 
 **Class**: Amiga compatibility (gadget rendering).
 
@@ -267,7 +267,7 @@ The current single-line look makes the gadgets appear flat / non-interactive.
 match the FS-UAE recessed look; no regressions in apps that use string
 gadgets.
 
-### Phase 169 — Checkbox + label gadget sizing
+### Phase 155 — Checkbox + label gadget sizing
 
 **Class**: Amiga compatibility (GadTools layout).
 
@@ -303,7 +303,7 @@ the click hit-target too large.
 **Test gate**: New checkbox render test passes; DPaint Retain Picture matches
 the FS-UAE checkbox-plus-label visual.
 
-### Phase 170 — GADGDISABLED visual ghosting
+### Phase 156 — GADGDISABLED visual ghosting
 
 **Class**: Amiga compatibility (gadget state rendering).
 
@@ -342,7 +342,7 @@ top of any gadget with `GFLG_DISABLED` set, dimming the visible imagery.
 **Test gate**: New disabled-gadget test passes; DPaint Retain Picture and
 Screen Size string gadgets render ghosted in the captured screen format dialog.
 
-### Phase 171 — Button / menu accelerator underline
+### Phase 157 — Button / menu accelerator underline
 
 **Class**: Amiga compatibility (text rendering).
 
@@ -379,7 +379,7 @@ the underline marker and renders the label as plain text.
 **Test gate**: New underline render test passes; DPaint button accelerators
 visibly underlined; menu accelerator letters underlined where present.
 
-### Phase 172 — `SetWindowTitles()` repaints title bar
+### Phase 158 — `SetWindowTitles()` repaints title bar
 
 **Class**: Quality (existing TODO at `src/rom/lxa_intuition.c:10489`).
 
@@ -415,7 +415,7 @@ the title bar immediately on `SetWindowTitles()`.
 **Test gate**: New `setwindowtitles_gtest` passes; DPaint Screen Format
 window's title bar pixels match its current title (`window->Title`).
 
-### Phase 150 — DirectoryOpus deeper workflows
+### Phase 159 — DirectoryOpus deeper workflows
 
 Phase 134 fixed the button-bank rendering. Remaining gaps:
 
@@ -427,7 +427,7 @@ Phase 134 fixed the button-bank rendering. Remaining gaps:
 
 **Test gate**: At least 4 new DOpus tests covering the four areas above; `TextHookCapturesKnownDOpusLabels` re-enabled and passing.
 
-### Phase 151 — BlitzBasic 2 ted editor real text rendering
+### Phase 160 — BlitzBasic 2 ted editor real text rendering
 
 Phase 119 captured: editor body remains a flat surface with only menu-residue and status overlay paint, even after Phase 113/114 blitter/copper improvements and Phase 135 requester unblocking. ted does not render real editable text content.
 
@@ -445,7 +445,7 @@ Phase 119 captured: editor body remains a flat surface with only menu-residue an
 
 **Test gate**: ted editor area shows real text content under tests.
 
-### Phase 152 — Menu introspection upgrade + non-releasing drag API
+### Phase 161 — Menu introspection upgrade + non-releasing drag API
 
 Several brittle interactions share the same root cause: lack of programmatic menu item activation and lack of in-drag observability.
 
@@ -464,7 +464,7 @@ Affected apps and gaps:
 
 **Test gate**: New APIs covered; migrated tests pass; no regressions in existing menu tests.
 
-### Phase 153 — SysInfo hardware fields + Cluster2 EXIT button
+### Phase 162 — SysInfo hardware fields + Cluster2 EXIT button
 
 Two small per-app correctness gaps grouped because they are both isolated coordinate/data-source issues.
 
@@ -477,9 +477,9 @@ Two small per-app correctness gaps grouped because they are both isolated coordi
 
 ---
 
-## Performance (Phase 152)
+## Performance (Phase 163)
 
-### Phase 154 — Performance follow-up (placeholder, scheduled when needed)
+### Phase 163 — Performance follow-up (placeholder, scheduled when needed)
 
 No specific performance work is currently scheduled. When a measurable regression appears (test wall time, memory, CPU profile from `--profile` flag), open this phase with concrete objectives. Until then, this slot is reserved.
 
@@ -489,11 +489,11 @@ The standing performance baseline:
 
 ---
 
-## New Features: RTG Retargetable Graphics (Phases 153–155)
+## New Features: RTG Retargetable Graphics (Phases 164–166)
 
-> Strategic pivot: lxa's display strategy moves from ECS-era planar modes to RTG via Picasso96. Phases 153–155 deliver the full RTG stack — display backend, P96 library, and app validation. Scheduled after the quality + Amiga-compatibility blocks per the priority order.
+> Strategic pivot: lxa's display strategy moves from ECS-era planar modes to RTG via Picasso96. Phases 164–166 deliver the full RTG stack — display backend, P96 library, and app validation. Scheduled after the quality + Amiga-compatibility blocks per the priority order.
 
-### Phase 155 — RTG display foundation
+### Phase 164 — RTG display foundation
 
 Land the chunky-bitmap and SDL2 RGBA pipeline that all subsequent RTG work depends on.
 
@@ -511,7 +511,7 @@ Land the chunky-bitmap and SDL2 RGBA pipeline that all subsequent RTG work depen
 
 **Test gate**: `rtg_gtest` passes; full suite remains green.
 
-### Phase 156 — Picasso96API.library core
+### Phase 165 — Picasso96API.library core
 
 New disk library (`src/rom/lxa_p96.c`, installed to `share/lxa/System/Libs/Picasso96API.library`).
 
@@ -537,7 +537,7 @@ Plus a thin `cybergraphics.library` compatibility shim (`GetCyberMapAttr`, `Lock
 
 **Test gate**: `p96_gtest` and `cgx_gtest` pass; at least one target app opens the library without exiting early.
 
-### Phase 157 — RTG app validation
+### Phase 166 — RTG app validation
 
 - [ ] **PPaint** (flagship): mode-scan loop populated via P96 enumeration; assert editor canvas reachable. ECS-path investigation remains abandoned (PPaint is RTG-only in practice).
 - [ ] **FinalWriter**: re-enable `DISABLED_AcceptDialogOpensEditorWindow` in `finalwriter_gtest.cpp`; clicking OK opens editor window
@@ -548,9 +548,9 @@ Plus a thin `cybergraphics.library` compatibility shim (`GetCyberMapAttr`, `Lock
 
 ---
 
-## Long-Term: External Process Emulation + Observability (Phases 156–158)
+## Long-Term: External Process Emulation + Observability (Phases 167–169)
 
-### Phase 158 — External process emulation + DOS stdout/clipboard capture
+### Phase 167 — External process emulation + DOS stdout/clipboard capture
 
 DevPac Assemble, ASM-One Assemble, BlitzBasic Run, KickPascal Compile/Run, BlitzBasic2 Compile all require this.
 
@@ -562,7 +562,7 @@ DevPac Assemble, ASM-One Assemble, BlitzBasic Run, KickPascal Compile/Run, Blitz
 
 **Test gate**: At least 4 compile/run workflow tests pass.
 
-### Phase 159 — Screen-content diffing infrastructure
+### Phase 168 — Screen-content diffing infrastructure
 
 Currently no way to assert "this region looks like a text label" or "this area changed structurally between two states." A reference-image diff tool would let us write layout regression tests that survive minor color changes but catch structural regressions.
 
@@ -573,7 +573,7 @@ Currently no way to assert "this region looks like a text label" or "this area c
 
 **Test gate**: New diff API has unit tests; one migrated test passes.
 
-### Phase 160 — Audio device introspection
+### Phase 169 — Audio device introspection
 
 No tests currently require this. Open this phase only when the first audio-using app needs validation.
 
@@ -587,7 +587,7 @@ No tests currently require this. Open this phase only when the first audio-using
 
 ## Far Future: GUI Toolkits + CPU Evolution
 
-### Phase 161 (tentative) — MUI library hosting
+### Phase 170 (tentative) — MUI library hosting
 
 MUI (`MUI:Libs/muimaster.library`) is a disk library — never reimplemented in ROM. This phase ensures lxa's BOOPSI infrastructure (icclass/modelclass/gadgetclass, utility.library tag machinery) is solid enough that a real `muimaster.library` binary opens and functions.
 
@@ -595,7 +595,7 @@ MUI (`MUI:Libs/muimaster.library`) is a disk library — never reimplemented in 
 - [ ] Install user-supplied `muimaster.library` binary
 - [ ] Test gate: at least one MUI-based app opens its main window
 
-### Phase 162 (tentative) — ReAction / ClassAct hosting
+### Phase 171 (tentative) — ReAction / ClassAct hosting
 
 ReAction (AmigaOS 3.5/3.9 GUI toolkit) runs as disk-provided class files (`SYS:Classes/reaction/`). This phase ensures lxa's BOOPSI layer and Intuition class dispatch are complete enough to host ReAction classes.
 
@@ -603,7 +603,7 @@ ReAction (AmigaOS 3.5/3.9 GUI toolkit) runs as disk-provided class files (`SYS:C
 - [ ] Install user-supplied ReAction classes
 - [ ] Test gate: at least one ReAction app opens its main window
 
-### Phase 163 (tentative) — CPU core evaluation
+### Phase 172 (tentative) — CPU core evaluation
 
 Musashi (MIT, C89, interpreter) is adequate for correctness but limits throughput. Host-side overhead currently dominates (~95% of wall time per Phase 126 estimate), so CPU evaluation is deferred until host optimisations are exhausted.
 
@@ -633,17 +633,17 @@ Phase 142-144 (Library policy + datatypes + smoke) ✓
 Phase 145-146 (Devpac scrollbar + Settings window)
         │
         ▼
-Phase 147-153 (App-specific compatibility)
+Phase 159-162 (App-specific compatibility)
         │
         ▼
-Phase 154 (Performance — placeholder)
+Phase 163 (Performance — placeholder)
         │
         ▼
-Phase 155-157 (RTG: foundation → P96 → app validation)
+Phase 164-166 (RTG: foundation → P96 → app validation)
         │
         ▼
-Phase 158-160 (External processes, diffing, audio)
+Phase 167-169 (External processes, diffing, audio)
         │
         ▼
-Phase 161-163 (MUI, ReAction, CPU eval)
+Phase 170-172 (MUI, ReAction, CPU eval)
 ```
