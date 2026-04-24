@@ -82,6 +82,7 @@ set(SAMPLES_LIST
     "intuition|doublebuffer|DoubleBuffer"
     "intuition|backingstoretest|BackingStoreTest"
     "intuition|zoomwindow|ZoomWindow"
+    "intuition|layerbackfilltest|LayerBackFillTest"
     "devices|simpletimer|SimpleTimer"
     "devices|askkeymap|AskKeymap"
     "utility|tag1|Tag1"

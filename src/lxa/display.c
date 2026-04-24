@@ -3284,6 +3284,22 @@ bool display_read_pixel(int x, int y, int *pen)
 
     /* Rootless fallback: read from the first in-use window.
      * If display_set_active_by_index() was called, prefer that slot. */
+    {
+        int start = g_active_rootless_window;
+        /* First try the explicitly-selected window slot */
+        if (start >= 0 && start < MAX_ROOTLESS_WINDOWS &&
+            g_windows[start].in_use && g_windows[start].pixels)
+        {
+            int wx = x - g_windows[start].host_x;
+            int wy = y - g_windows[start].host_y;
+            if (wx >= 0 && wx < g_windows[start].width &&
+                wy >= 0 && wy < g_windows[start].height)
+            {
+                *pen = g_windows[start].pixels[wy * g_windows[start].width + wx];
+                return true;
+            }
+        }
+    }
     for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
     {
         if (!g_windows[i].in_use || !g_windows[i].pixels)

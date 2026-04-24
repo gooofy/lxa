@@ -10019,6 +10019,21 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         }
     }
     
+    /* Clear the window interior to pen 0 before rendering gadgets/chrome.
+     * Real AmigaOS Intuition always clears a new window's background — this
+     * prevents ghost pixels from previously-rendered content at the same
+     * screen coordinates from showing through (Phase 150 backfill fix).
+     * We use RectFill on the full window area (including borders) at pen 0
+     * so even the border region starts clean; _render_window_frame will
+     * overdraw it correctly afterwards. */
+    if (window->RPort)
+    {
+        SetAPen(window->RPort, 0);
+        RectFill(window->RPort, window->LeftEdge, window->TopEdge,
+                 window->LeftEdge + window->Width - 1,
+                 window->TopEdge  + window->Height - 1);
+    }
+
     /* Render initial visuals.
      * Windows that use a native host SDL window let the host render the
      * outer frame; we still draw user gadgets into the backing bitmap.

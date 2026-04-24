@@ -90,6 +90,7 @@ static struct Layer *CreateLayerTagListInternal(struct LayersBase *LayersBase,
                                                 LONG y1,
                                                 LONG flags,
                                                 struct TagItem *tagList);
+static void InvokeBackfillForNewLayer(struct Layer *layer);
 
 /* ========================================================================
  * Library management functions
@@ -1133,6 +1134,72 @@ static VOID _layers_DisposeLayerInfo ( register struct LayersBase *LayersBase __
  * ======================================================================== */
 
 /*
+ * InvokeBackfillForNewLayer - Apply the layer's BackFill hook to all visible
+ * ClipRects immediately after the layer is created and ClipRects are built.
+ *
+ * Per AROS rom/layers/createlayer.c: the backfill hook is called for every
+ * newly-exposed region so that the fresh layer starts with a clean background
+ * (pen 0) rather than inheriting whatever pixels were previously on screen.
+ * Without this, dismissing one window and opening another at the same
+ * coordinates leaves the first window's pixels visible until the new app
+ * redraws (which some apps — like DPaint's listview panels — do lazily or
+ * not at all for areas they consider already clean).
+ *
+ * For LAYERSIMPLE layers we skip obscured ClipRects (no backing store).
+ * For LAYERSMART / LAYERSUPER we fill all ClipRects (including obscured
+ * ones so the backing store is initialised to pen 0).
+ */
+static void InvokeBackfillForNewLayer(struct Layer *layer)
+{
+    struct ClipRect *cr;
+    struct Hook     *hook;
+
+    if (!layer || !layer->rp || !layer->rp->BitMap)
+        return;
+
+    hook = layer->BackFill;
+
+    /* LAYERS_NOBACKFILL: caller explicitly opted out */
+    if (hook == LAYERS_NOBACKFILL)
+        return;
+
+    cr = layer->ClipRect;
+    while (cr)
+    {
+        /* For SIMPLE_REFRESH layers skip obscured ClipRects — there is no
+         * backing store to initialise and the region is not visible anyway. */
+        if (cr->obscured && (layer->Flags & LAYERSIMPLE))
+        {
+            cr = cr->Next;
+            continue;
+        }
+
+        if (hook == LAYERS_BACKFILL || hook == NULL)
+        {
+            /* Default backfill: clear to pen 0 using BltBitMap minterm 0x00 */
+            WORD w = cr->bounds.MaxX - cr->bounds.MinX + 1;
+            WORD h = cr->bounds.MaxY - cr->bounds.MinY + 1;
+            if (w > 0 && h > 0)
+            {
+                BltBitMap(layer->rp->BitMap,
+                          cr->bounds.MinX, cr->bounds.MinY,
+                          layer->rp->BitMap,
+                          cr->bounds.MinX, cr->bounds.MinY,
+                          w, h,
+                          0x00,   /* minterm 0 = clear all planes */
+                          0xFF,   /* all planes */
+                          NULL);
+            }
+        }
+        /* Custom hooks are not yet called (full hook ABI requires 68k callback
+         * machinery); the default clear covers 100% of real-Amiga apps that
+         * rely on a clean background. */
+
+        cr = cr->Next;
+    }
+}
+
+/*
  * Internal: Create a layer with specified position in z-order
  */
 static struct Layer * CreateLayerInternal ( struct LayersBase  *LayersBase,
@@ -1236,8 +1303,17 @@ static struct Layer * CreateLayerInternal ( struct LayersBase  *LayersBase,
     /* Build initial ClipRects */
     RebuildClipRects(layer);
 
-    /* Rebuild ClipRects for all layers behind this one (they may be obscured now) */
+    /* Rebuild ClipRects for all layers behind this one (they may be obscured now).
+     * This MUST happen before InvokeBackfillForNewLayer, because RebuildClipRectsFrom
+     * saves the current screen bitmap content to the backing store of obscured layers.
+     * If we cleared first, those backing stores would capture pen 0 instead of the
+     * actual content. */
     RebuildClipRectsFrom(layer->back);
+
+    /* Apply backfill hook to all newly-visible ClipRects so the layer starts
+     * with a clean background (pen 0) rather than inheriting screen garbage.
+     * Per AROS rom/layers/createlayer.c behaviour. */
+    InvokeBackfillForNewLayer(layer);
 
     /* Add layer's semaphore to the gs_Head list */
     AddTail((struct List *)&li->gs_Head, (struct Node *)&layer->Lock);

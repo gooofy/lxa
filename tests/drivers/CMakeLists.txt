@@ -198,6 +198,12 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         set_tests_properties(backingstore_gtest PROPERTIES TIMEOUT 180)
     endif()
 
+    # LayerBackFill - Phase 150 layer creation backfill regression
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/layer_backfill_gtest.cpp)
+        add_gtest_driver(layer_backfill_gtest)
+        set_tests_properties(layer_backfill_gtest PROPERTIES TIMEOUT 180)
+    endif()
+
     # GadToolsGadgets - GadTools gadget creation test (STRING_KIND, SLIDER_KIND, BUTTON_KIND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsgadgets_gtest.cpp)
         add_gtest_driver_target(gadtoolsgadgets_gtest)

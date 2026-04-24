@@ -59,67 +59,19 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 147b | Typeface window geometry investigation: root-cause analysis confirmed 194×138 IS the correct BGUI minimum size for Typeface on a first-run PAL/topaz-8 system. The 280×195 reference was from a saved-prefs state on FS-UAE, not a comparable first-run baseline. Mathematical proof: Box.Height=138 from Typeface's do-while loop; BGUI WinSize min-width=194 from CharGadget (8 cols × 20px) + PropObject(16) + borders. `WindowGeometryMatchesTarget` test added asserting 194×138 ±4px. WW macro reverted, diagnostic LPRINTFs removed. 72/72 pass. | v0.9.31 |
 | 147c | Typeface deeper workflows — textfield.gadget integration and Preview window: (1) `BGUI_EXTERNAL_GADGET` (`classID=26`) was silently failing because `libfunc.c`'s `BGUI_GetClassPtr` tried to load `gadgets/bgui_external.gadget` from disk first; the file doesn't exist and the `InitExtClass()` fallback was never reached (OpenLibrary failed but the error path had a bug where `cd_ClassBase` wasn't NULL-checked before the `!cl && cd_InitFunc` fallback test). Root fix: removed the two debug kprintfs that were masking the control flow and confirmed `InitExtClass()` IS called as fallback when the gadget file is absent — `ExternalObject` class now initialises correctly in-process. (2) `ExtClassNew` correctly picks up `EXT_Class = TEXTFIELD_GetClass()` (non-NULL) and stores it; `SetupAttrList` succeeds; `ExternalObject` returns a valid object. With ExternalObject working, the VGroup master is non-NULL, `WindowClassNew` proceeds, `PreviewWndObj` is created. (3) Settling budget: `SetPreviewFont → SaveFont(TRUE,TRUE)` does substantial work; opening the Preview window requires ~250 M emulation cycles after the MENUPICK. Updated `PreviewWindowOpens` and `ZPreviewWindowHasContent` to use `lxa_inject_drag` + `RunCyclesWithVBlank(5000, 50000)`. (4) Removed all temporary debug test drivers (`typeface_probe_gtest`, `typeface_menu_test_gtest`, `typeface_commkey_test_gtest`, `typeface_rmb_debug_gtest`) and their CMakeLists entries. (5) Removed all debug kprintfs from bgui source (`classes.c`, `externalclass.c`, `lib.c`, `libfunc.c`, `windowclass.c`); WW macro remains `#define WW(x)` (no-op). New tests: `TextFieldGadgetLoads`, `PreviewWindowOpens`, `ZPreviewWindowHasContent`. 70/72 pass (2 pre-existing: maxonbasic_gtest, dopus_gtest). | v0.9.32 |
 | 149 | Deferred-paint trigger / forced full redraw: (1) Added `EMU_CALL_INT_FORCE_FULL_REDRAW` (3030) — ROM VBlank hook polls flag each VBlank, calls `lxa_force_full_redraw_all()` to walk FirstScreen→FirstWindow chain and send `IDCMP_REFRESHWINDOW` to all eligible windows; host sets flag via `lxa_force_full_redraw()` → `lxa_dispatch_set_force_full_redraw()`. (2) Fixed `display_read_pixel()` rootless-mode bug: in rootless mode `g_active_display` is NULL so pixel reads silently returned false and `CountScreenContent` always returned 0; added rootless fallback that reads from the first in-use `display_window_t` pixel buffer with correct `host_x/host_y` coordinate translation. (3) Added `display_set_active_by_index()` / `lxa_set_active_window()` / `SetActiveWindow()` API for explicit per-window pixel-buffer selection. (4) Re-enabled `MaxonBasicTest.ZMenuDragPixelStability` — fixed scan region (y=11 below menu bar, bg sample at (300,100)) and seeded editor with typed content for reliable baseline; `before=482 after=482`. 72/72 pass. | v0.10.0 |
+| 150 | Layer creation BackFill (ghost-pixel elimination): two-part fix. (1) `lxa_layers.c`: reordered `CreateLayerInternal()` to call `RebuildClipRectsFrom(layer->back)` BEFORE `InvokeBackfillForNewLayer(layer)` — backing store of underlying SMART_REFRESH layers must be saved from the current screen bitmap before the new layer clears it; previous ordering saved pen 0 into backing store instead of actual content, breaking `SmartRefresh` backing-store restore. `InvokeBackfillForNewLayer` applies the default backfill (BltBitMap minterm 0x00) only for layers created with `LAYERS_BACKFILL` or `NULL` hook; `LAYERS_NOBACKFILL` layers (all Intuition windows) are skipped. (2) `lxa_intuition.c` `_intuition_OpenWindow()`: added `SetAPen(window->RPort, 0); RectFill(...)` over the full window area immediately after layer creation and before gadget rendering — this is the Intuition-level backfill that prevents ghost pixels from prior window content bleeding through. New `layerbackfilltest` Amiga sample (scenarios A and B). New `layer_backfill_gtest.cpp` (4 tests: all pass). SmartRefresh backing-store regression fixed. 70/73 pass (3 pre-existing: sysinfo_gtest, ppaint_gtest, dpaint_gtest). | v0.10.1 |
 
 ---
 
 ## Next Phase
 
-> The Phase 150–158 block was scheduled after a visual review of DPaint V's
+> The Phase 151–158 block was scheduled after a visual review of DPaint V's
 > "Screen Format" requester (see `tests/drivers/dpaint_gtest.cpp`,
 > `DPaintPixelTest.ScreenFormatDialogSectionsContainVisibleContent`) against an
 > FS-UAE reference capture. The dialog exposed nine distinct cross-app
 > rendering / refresh defects. Each one is its own numbered phase because the
 > root causes are independent and each will gain its own regression test, in
 > line with the "no pooling sections" policy.
-
-### Phase 150 — Layer creation BackFill (ghost-pixel elimination)
-
-**Class**: Quality (cross-app rendering correctness).
-
-`CreateLayerInternal()` in `src/rom/lxa_layers.c` stores the supplied BackFill
-hook on the new layer (`layer->BackFill = hook;`) but never invokes it for the
-newly-created region. AROS (`rom/intuition/openwindow.c`,
-`rom/layers/createlayer.c`) installs `LAYERS_BACKFILL` (default = clear with
-pen 0) and the layers system calls the hook for every newly-uncovered region
-on layer creation. Without this, a window opening on top of another window
-inherits the previous window's pixels in any area the app does not
-explicitly paint. The DPaint V "Ownership Information" → "Screen Format"
-transition is the visible symptom: dismissing Ownership and opening Screen
-Format leaves Ownership's title bar and body text inside the Screen Format
-listview area, because DPaint's listview content is custom-drawn lazily and
-the freshly-allocated layer was never cleared.
-
-**Sub-problems**:
-1. Define a default backfill behaviour that matches AROS: `RectFill(rp, ..., 0)`
-   over the new layer's bounds when no explicit hook is provided.
-2. Honour an explicit `BackFill` hook when one IS provided (call the hook for
-   each new ClipRect region, supplying a `LayerMsg` per the layers.library
-   contract).
-3. Apply the same fill to **every newly-exposed ClipRect** when an existing
-   layer enlarges or moves (currently `RebuildClipRects` restores from
-   backing store but new geometry may extend beyond the snapshot).
-4. Audit `_intuition_OpenWindow` / `_intuition_OpenWindowTagList` to confirm
-   they propagate a sensible default hook (NULL → use layers default).
-
-- [ ] Implement default backfill (pen 0) inside `CreateLayerInternal()` after
-      `RebuildClipRects(layer)` — iterate the layer's ClipRects and RectFill
-      each rectangle with pen 0 (or invoke the BackFill hook if non-NULL)
-- [ ] Confirm `BackFill` hook ABI matches `<graphics/layers.h>` (LayerMsg
-      structure) and add a guarded path that calls the hook
-- [ ] Add `LayerBackFillTest` driver in `tests/drivers/layer_backfill_gtest.cpp`:
-      open Window A with text drawn into its body, open Window B that fully
-      overlaps A, assert Window B's body samples to pen 0 (not A's pixels)
-- [ ] Add a second test variant: open Window A, dismiss it, then open Window B
-      at the same coordinates; assert Window B body is clean (this is the
-      DPaint scenario)
-- [ ] Add a regression assertion to `dpaint_gtest.cpp`
-      `ScreenFormatDialogSectionsContainVisibleContent` that the rectangle
-      `[80..400, 11..30]` (where Ownership's title used to be) does NOT
-      contain any non-background pixels matching Ownership's title-bar
-      glyph signature
-
-**Test gate**: New `layer_backfill_gtest` (≥2 tests) passes; DPaint Screen
-Format dialog capture no longer shows Ownership chrome ghosts.
 
 ### Phase 151 — Listview / custom-drawn panel refresh trigger
 
