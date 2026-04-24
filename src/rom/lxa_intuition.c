@@ -11447,10 +11447,27 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             gi.gi_Requester = req;
             gi.gi_RastPort = brp;
             gi.gi_Layer = brp ? brp->Layer : NULL;
-            gi.gi_Domain.Left = window->BorderLeft;
-            gi.gi_Domain.Top = window->BorderTop;
-            gi.gi_Domain.Width = window->Width - window->BorderLeft - window->BorderRight;
-            gi.gi_Domain.Height = window->Height - window->BorderTop - window->BorderBottom;
+            /* gi_Domain is the coordinate domain for GFLG_REL* gadget geometry.
+             * Per AROS/Intuition: for normal window gadgets (non-GZZ), the domain
+             * is {0, 0, window->Width, window->Height}.  The GZZ inner-layer case
+             * (WFLG_GIMMEZEROZERO) uses the inner dimensions instead.
+             * Using the inner dimensions for non-GZZ windows causes BGUI to
+             * double-subtract the border widths when resolving GA_RelWidth /
+             * GA_RelHeight on the master group gadget, resulting in collapsed layout. */
+            if (window->Flags & WFLG_GIMMEZEROZERO)
+            {
+                gi.gi_Domain.Left   = window->BorderLeft;
+                gi.gi_Domain.Top    = window->BorderTop;
+                gi.gi_Domain.Width  = window->Width  - window->BorderLeft - window->BorderRight;
+                gi.gi_Domain.Height = window->Height - window->BorderTop  - window->BorderBottom;
+            }
+            else
+            {
+                gi.gi_Domain.Left   = 0;
+                gi.gi_Domain.Top    = 0;
+                gi.gi_Domain.Width  = window->Width;
+                gi.gi_Domain.Height = window->Height;
+            }
             gi.gi_DrInfo = _intuition_GetScreenDrawInfo((struct IntuitionBase *)NULL, window->WScreen);
 
             struct gpRender gpr;
@@ -12087,9 +12104,6 @@ LONG _intuition_QueryOverscan ( register struct IntuitionBase * IntuitionBase __
                                                         register struct Rectangle * rect __asm("a1"),
                                                         register WORD oScanType __asm("d0"))
 {
-    DPRINTF (LOG_DEBUG, "_intuition: QueryOverscan() displayID=0x%08lx oScanType=%d\n", 
-             displayID, oScanType);
-    
     if (!rect)
         return FALSE;
     
@@ -13736,6 +13750,8 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
     }
 
     nw.Flags &= ~WFLG_NW_EXTENDED;
+
+
 
     /* Call our existing OpenWindow with the assembled NewWindow */
     struct Window *win = _intuition_OpenWindow(IntuitionBase, &nw);

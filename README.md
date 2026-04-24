@@ -231,6 +231,10 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.9.31** - Typeface window geometry investigation (Phase 147b): root-cause analysis confirmed that 194×138 is the correct BGUI minimum window size for Typeface on a first-run PAL/topaz-8 system. The 280×195 reference came from a saved-prefs state on FS-UAE, not a comparable baseline. Mathematical proof: `Box.Height=138` from Typeface's do-while loop; BGUI WinSize min-width=194 from CharGadget (8 cols × 20px) + PropObject(16) + borders. `WindowGeometryMatchesTarget` test asserts 194×138 ±4px. 72/72 pass.
+
+**Version 0.9.30** - Typeface custom-screen window chrome (Phase 147a): fixed per-screen-type host-window architecture; rootless+Workbench → each child window is its own X11 window; rootless+custom-screen → screen owns one host window with chrome rendered into the screen bitmap. New `WindowChromeIsRendered` test. 72/72 pass.
+
 **Version 0.9.27** - Intuition WZOOM gadget and Devpac border rendering (Phase 145): added `case GTYP_WZOOM:` to `_render_window_frame()` with outlined-rectangle imagery; WZOOM gadget created in `_create_window_sys_gadgets()` when `WFLG_HASZOOM` is set; `WA_Zoom` tag now sets `WFLG_HASZOOM`; `ZipWindow` behavior wired in `_handle_sys_gadget_verify`. New `ZoomWindow` sample. New `devpac_scrollbar_gtest.cpp` (3 tests). 71/71 pass.
 
 **Version 0.9.26** - ProWrite About dialog re-enabled (Phase 140): fixed View-menu drag coordinates (was using Project-menu x+240, now correctly targets View menu at x+396; item y was y+150 hitting Quit, now y+15 for the About item). `DismissWindow` now iterates gadgets in reverse order and clicks the first non-zero-size gadget, correctly targeting ProWrite's OK button (gadget[0], size 60×15). Diagnostic helper tests removed. Full suite 68/68.

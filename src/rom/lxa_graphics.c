@@ -3952,7 +3952,7 @@ static LONG _graphics_AreaMove ( register struct GfxBase * GfxBase __asm("a6"),
     wx = (WORD)x;
     wy = (WORD)y;
 
-    DPRINTF (LOG_DEBUG, "_graphics: AreaMove() rp=0x%08lx, x=%ld, y=%ld\n",
+     DPRINTF (LOG_DEBUG, "_graphics: AreaMove() rp=0x%08lx, x=%ld, y=%ld\n",
              (ULONG)rp, x, y);
 
     if (!rp || !rp->AreaInfo)
@@ -4283,6 +4283,8 @@ static LONG _graphics_AreaEnd ( register struct GfxBase * GfxBase __asm("a6"),
     }
 
     areainfo = rp->AreaInfo;
+
+    DPRINTF (LOG_DEBUG, "_graphics: AreaEnd() count=%d tmpras=%p\n", (int)areainfo->Count, (void*)rp->TmpRas);
 
     /* Check if there's anything to draw and we have TmpRas */
     if (areainfo->Count == 0 || !rp->TmpRas)

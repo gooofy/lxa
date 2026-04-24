@@ -113,6 +113,18 @@ STATIC VOID CalcPropMuck(Class *cl, Object *obj, struct BaseInfo *bi)
    ULONG            kw, kh;
    struct IBox      arrow1, arrow2;
 
+   /* If arrow size hasn't been calculated yet by BASE_MINDIMENSIONS,
+    * fall back to the same default values used there. */
+   if (!size && (pd->pd_Flags & PDF_ARROWS))
+   {
+      BOOL vborder = GADGET(obj)->Activation & (GACT_LEFTBORDER|GACT_RIGHTBORDER);
+      BOOL hborder = GADGET(obj)->Activation & (GACT_TOPBORDER|GACT_BOTTOMBORDER);
+      BOOL horiz   = pd->pd_Flags & PDF_PROPHORIZ;
+      if      (vborder) size = 11;
+      else if (hborder) size = 16;
+      else              size = horiz ? 10 : 9;
+   }
+
    /*
     * Check for arrows and where they are placed.
     */
@@ -140,8 +152,8 @@ STATIC VOID CalcPropMuck(Class *cl, Object *obj, struct BaseInfo *bi)
 	 arrow2.Top    = arrow1.Top + size;
 	 arrow1.Height = arrow2.Height = size;
       }
-      SetGadgetBounds(pd->pd_Arrow1, &arrow1);
-      SetGadgetBounds(pd->pd_Arrow2, &arrow2);
+       SetGadgetBounds(pd->pd_Arrow1, &arrow1);
+       SetGadgetBounds(pd->pd_Arrow2, &arrow2);
    }
 
    /*

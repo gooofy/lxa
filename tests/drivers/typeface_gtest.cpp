@@ -186,6 +186,44 @@ TEST_F(TypefaceTest, WindowGeometryIsPlausible)
     EXPECT_LE(wi.height, 800) << "Window too tall: " << wi.height;
 }
 
+/* Phase 147b: Typeface first-run window geometry target is 194×138.
+ *
+ * This is the correct BGUI minimum size computed from:
+ *   - CharGadget: 8 columns × (topaz8 XSize=8 + 2×CG_XOFFSET=12) = 8×20 = 160px wide
+ *   - PropObject: FixWidth(16)
+ *   - HOffset(4)×2 + Spacing(2) + WBorLeft(4) + WBorRight(4) = 22px overhead
+ *   Total width = 160 + 16 + 22 = ~194px (exact depends on BGUI frame borders)
+ *
+ *   - CharGadget: 8 rows × (topaz8 YSize=8 + 2×CG_YOFFSET=6) = 8×14 = 112px tall
+ *   - Box.Height from Typeface: 112 + 4 + WBorTop(11) + 1 + Font->ta_YSize(8) + WBorBottom(2) = 138
+ *   Total height = max(BGUI_min, Box.Height=138) = 138px
+ *
+ * ±4px tolerance accommodates minor BGUI frame/border rounding differences.
+ */
+TEST_F(TypefaceTest, WindowGeometryMatchesTarget)
+{
+    if (lxa_get_window_count() < 1) {
+        GTEST_SKIP() << "No window opened";
+    }
+
+    lxa_window_info_t wi;
+    ASSERT_TRUE(lxa_get_window_info(0, &wi));
+
+    /* Expected: 194×138 for first-run with topaz.font/8 on PAL 640×256 Workbench */
+    const int target_w = 194;
+    const int target_h = 138;
+    const int tolerance = 4;
+
+    EXPECT_GE(wi.width,  target_w - tolerance)
+        << "Window narrower than expected: " << wi.width << " (target " << target_w << ")";
+    EXPECT_LE(wi.width,  target_w + tolerance)
+        << "Window wider than expected: " << wi.width << " (target " << target_w << ")";
+    EXPECT_GE(wi.height, target_h - tolerance)
+        << "Window shorter than expected: " << wi.height << " (target " << target_h << ")";
+    EXPECT_LE(wi.height, target_h + tolerance)
+        << "Window taller than expected: " << wi.height << " (target " << target_h << ")";
+}
+
 /* Idle-time stability: run a further 200 VBlank iterations and confirm
  * the emulator has not crashed (window count unchanged). */
 TEST_F(TypefaceTest, IdleTimeStability)
