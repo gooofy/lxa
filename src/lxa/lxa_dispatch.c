@@ -151,6 +151,16 @@ unsigned int m68k_read_disassembler_32(unsigned int address)
 
 static const int16_t _DAYS_BEFORE_MONTH[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
 
+/* Phase 149: host-side flag set by lxa_force_full_redraw().
+ * Polled (and cleared) by the ROM VBlank hook via EMU_CALL_INT_FORCE_FULL_REDRAW. */
+static volatile bool s_force_full_redraw_pending = false;
+
+/* Called by lxa_api.c: lxa_force_full_redraw() */
+void lxa_dispatch_set_force_full_redraw(void)
+{
+    s_force_full_redraw_pending = true;
+}
+
 #define _DAYS_IN_YEAR(year) (isleap(year+YEAR_BASE) ? 366 : 365)
 
 static inline int isleap (int y)
@@ -2371,6 +2381,21 @@ int op_illg(int level)
 
             m68k_set_reg(M68K_REG_D0,
                          display_window_attach_amiga_window(win, d2) ? 1 : 0);
+            break;
+        }
+
+        case EMU_CALL_INT_FORCE_FULL_REDRAW:
+        {
+            /* Phase 149: ROM VBlank hook polls this once per VBlank.
+             * Returns 1 if the host has requested a full redraw, 0 otherwise.
+             * Automatically clears the flag after returning 1. */
+            if (s_force_full_redraw_pending) {
+                s_force_full_redraw_pending = false;
+                DPRINTF(LOG_DEBUG, "lxa: EMU_CALL_INT_FORCE_FULL_REDRAW: returning 1\n");
+                m68k_set_reg(M68K_REG_D0, 1);
+            } else {
+                m68k_set_reg(M68K_REG_D0, 0);
+            }
             break;
         }
 

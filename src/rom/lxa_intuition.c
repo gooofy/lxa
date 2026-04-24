@@ -7170,6 +7170,36 @@ void lxa_notify_window_refresh(APTR win)
 }
 
 /*
+ * lxa_force_full_redraw_all - Send IDCMP_REFRESHWINDOW to every open window.
+ *
+ * Called from the host side via EMU_CALL_INT_FORCE_FULL_REDRAW to trigger
+ * deferred-paint apps that wait for an IDCMP_REFRESHWINDOW before doing their
+ * initial render.  Iterates all screens and all windows on each screen.
+ * Returns the number of windows notified.
+ */
+LONG lxa_force_full_redraw_all(void)
+{
+    struct Screen *screen;
+    struct Window *window;
+    LONG count = 0;
+
+    if (!IntuitionBase)
+        return 0;
+
+    for (screen = IntuitionBase->FirstScreen; screen; screen = screen->NextScreen)
+    {
+        for (window = screen->FirstWindow; window; window = window->NextWindow)
+        {
+            lxa_notify_window_refresh(window);
+            count++;
+        }
+    }
+
+    DPRINTF(LOG_DEBUG, "_intuition: lxa_force_full_redraw_all() notified %ld windows\n", count);
+    return count;
+}
+
+/*
  * Internal function to post an IDCMP message to a window
  * Returns TRUE if message was posted, FALSE if window not interested
  */
@@ -8364,6 +8394,15 @@ VOID _intuition_VBlankInputHook(void)
      * any screen viewport.
      */
     _intuition_ProcessInputEvents(IntuitionBase->FirstScreen);
+
+    /* Phase 149: deferred-paint trigger.  Poll the host flag once per VBlank.
+     * If set, the host has called lxa_force_full_redraw() — send
+     * IDCMP_REFRESHWINDOW to all open windows so deferred-paint apps finally
+     * render.  The EMU_CALL clears the host flag atomically. */
+    if (emucall0(EMU_CALL_INT_FORCE_FULL_REDRAW))
+    {
+        lxa_force_full_redraw_all();
+    }
 
     /*
      * IDCMP_INTUITICKS: fire approximately every 10th VBlank (~5 Hz on PAL).

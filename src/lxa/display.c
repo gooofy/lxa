@@ -108,6 +108,9 @@ struct display_window_t
 /* Rootless window tracking */
 static display_window_t g_windows[MAX_ROOTLESS_WINDOWS];
 static bool g_rootless_mode = false;
+/* -1 = use first in-use window; >= 0 = index into g_windows (set by
+ * display_set_active_by_index for explicit per-test window selection). */
+static int g_active_rootless_window = -1;
 
 extern uint8_t g_ram[];
 
@@ -2929,6 +2932,36 @@ bool display_capture_window_by_index(int index, const char *filename)
 }
 
 /*
+ * Set the active display by window index (0-based, in order of g_windows slots
+ * that are in_use).  Returns true if the index was valid, false otherwise.
+ * After a successful call, lxa_read_pixel() / lxa_read_pixel_rgb() etc. will
+ * read from the selected window's pixel buffer.
+ */
+bool display_set_active_by_index(int index)
+{
+    int found = 0;
+
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (!g_windows[i].in_use)
+            continue;
+
+        if (found == index)
+        {
+            /* In rootless mode, windows own their own pixel buffers rather
+             * than a shared display_t.  Record the slot index so that
+             * display_read_pixel() can find the right buffer. */
+            g_active_rootless_window = i;
+            return true;
+        }
+
+        found++;
+    }
+
+    return false;
+}
+
+/*
  * ============================================================================
  * Phase 39b: Enhanced Application Testing Infrastructure
  * ============================================================================
@@ -3231,18 +3264,46 @@ int display_compare_to_reference(const char *reference_file)
 /*
  * Read a pixel at screen coordinates.
  * Returns the palette index (pen) at the given position.
+ * In rootless mode g_active_display may be NULL; falls back to the first
+ * active rootless window's pixel buffer.
  */
 bool display_read_pixel(int x, int y, int *pen)
 {
-    if (!g_active_display || !g_active_display->pixels || !pen)
+    if (!pen)
         return false;
-    
-    if (x < 0 || x >= g_active_display->width ||
-        y < 0 || y >= g_active_display->height)
-        return false;
-    
-    *pen = g_active_display->pixels[y * g_active_display->width + x];
-    return true;
+
+    /* Primary path: screen display */
+    if (g_active_display && g_active_display->pixels)
+    {
+        if (x < 0 || x >= g_active_display->width ||
+            y < 0 || y >= g_active_display->height)
+            return false;
+        *pen = g_active_display->pixels[y * g_active_display->width + x];
+        return true;
+    }
+
+    /* Rootless fallback: read from the first in-use window.
+     * If display_set_active_by_index() was called, prefer that slot. */
+    for (int i = 0; i < MAX_ROOTLESS_WINDOWS; i++)
+    {
+        if (!g_windows[i].in_use || !g_windows[i].pixels)
+            continue;
+
+        /* Convert screen-absolute coordinates to window-local coordinates.
+         * window->pixels[wy * width + wx] holds the pixel at screen pos
+         * (host_x + wx, host_y + wy). */
+        int wx = x - g_windows[i].host_x;
+        int wy = y - g_windows[i].host_y;
+
+        if (wx < 0 || wx >= g_windows[i].width ||
+            wy < 0 || wy >= g_windows[i].height)
+            continue;   /* coordinate falls outside this window; try next */
+
+        *pen = g_windows[i].pixels[wy * g_windows[i].width + wx];
+        return true;
+    }
+
+    return false;
 }
 
 /*

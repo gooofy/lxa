@@ -106,6 +106,18 @@ int lxa_run_cycles(int cycles);
 void lxa_flush_display(void);
 
 /*
+ * Force a full-redraw notification to all open Intuition windows.
+ *
+ * Sets a flag that causes the next VBlank handler to send
+ * IDCMP_REFRESHWINDOW to every window that has requested it.  Useful for
+ * apps that defer their initial render until the first REFRESHWINDOW event.
+ *
+ * The flag is consumed on the next VBlank; call lxa_run_cycles() (or a
+ * RunCyclesWithVBlank variant) after this to let the redraw happen.
+ */
+void lxa_force_full_redraw(void);
+
+/*
  * Check if the emulator is still running a program.
  *
  * @return true if a program is running, false if exited
@@ -667,6 +679,18 @@ bool lxa_capture_screen(const char *filename);
  * @return true on success
  */
 bool lxa_capture_window(int window_index, const char *filename);
+
+/*
+ * Select which rootless window's pixel buffer lxa_read_pixel() / CountScreenContent()
+ * reads from.  In rootless mode every window has its own display; after menu
+ * operations the active display may have shifted away from the editor window.
+ * Call this with index=0 (the first/only main window) before any pixel
+ * sampling that must target a specific window.
+ *
+ * @param window_index  0-based index into the list of live rootless windows
+ * @return true if the index was valid and the active display was switched
+ */
+bool lxa_set_active_window(int window_index);
 
 /*
  * Read a 32-bit value from emulated memory.

@@ -787,6 +787,18 @@ void lxa_flush_display(void)
     s_display_dirty = false;
 }
 
+void lxa_force_full_redraw(void)
+{
+    /* Phase 149: signal the ROM VBlank handler to send IDCMP_REFRESHWINDOW
+     * to all open windows.  The flag is polled and consumed in
+     * _intuition_VBlankInputHook() via EMU_CALL_INT_FORCE_FULL_REDRAW.
+     * The caller must run at least one VBlank cycle after this call. */
+    if (!g_api_initialized) return;
+
+    extern void lxa_dispatch_set_force_full_redraw(void);
+    lxa_dispatch_set_force_full_redraw();
+}
+
 bool lxa_is_running(void)
 {
     return g_api_initialized && g_running;
@@ -1346,6 +1358,14 @@ bool lxa_capture_window(int window_index, const char *filename)
     if (s_display_dirty) lxa_flush_display();
 
     return display_capture_window_by_index(window_index, filename);
+}
+
+bool lxa_set_active_window(int window_index)
+{
+    if (!g_api_initialized)
+        return false;
+    if (s_display_dirty) lxa_flush_display();
+    return display_set_active_by_index(window_index);
 }
 
 uint32_t lxa_peek32(uint32_t addr)

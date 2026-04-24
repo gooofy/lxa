@@ -239,6 +239,14 @@ void display_get_mouse_pos(int *x, int *y);
 void display_set_active(display_t *display);
 
 /*
+ * Set the active display by window index (0-based, in order of in-use
+ * rootless-window slots).  Returns true on success.
+ * After this call, lxa_read_pixel() / lxa_read_pixel_rgb() read from the
+ * chosen window's pixel buffer.
+ */
+bool display_set_active_by_index(int index);
+
+/*
  * Phase 15: Rootless Windowing Support
  *
  * In rootless mode, each Amiga window gets its own SDL window instead

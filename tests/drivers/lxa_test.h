@@ -570,7 +570,19 @@ protected:
     void ClearOutput() {
         lxa_clear_output();
     }
-    
+
+    /**
+     * Force IDCMP_REFRESHWINDOW to all open windows.
+     *
+     * Sets a flag that the next VBlank handler will consume; triggers
+     * deferred-paint apps that wait for a REFRESHWINDOW before drawing.
+     * Always follow this call with RunCyclesWithVBlank() to let the
+     * redraw happen.
+     */
+    void ForceFullRedraw() {
+        lxa_force_full_redraw();
+    }
+
     /**
      * Run CPU cycles without triggering VBlank.
      * Useful for letting tasks reach WaitPort().
@@ -610,6 +622,16 @@ protected:
 
     bool CaptureWindow(const char* filename, int index = 0) {
         return lxa_capture_window(index, filename);
+    }
+
+    /**
+     * Switch lxa_read_pixel() / CountScreenContent() to read from the given
+     * rootless window (0 = first/main window).  In rootless mode each window
+     * has its own pixel buffer; after menu operations the active display may
+     * have shifted away from the editor window — call this before pixel sampling.
+     */
+    bool SetActiveWindow(int index = 0) {
+        return lxa_set_active_window(index);
     }
     
     /**
