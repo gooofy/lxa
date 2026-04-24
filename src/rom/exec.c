@@ -1004,6 +1004,7 @@ APTR _exec_InitResident ( register struct ExecBase * SysBase __asm("a6"),
         
         DPRINTF (LOG_DEBUG, "_exec: InitResident: calling init function at 0x%08lx\n", initFn);
         result = initFn((BPTR)___segList);
+        DPRINTF (LOG_DEBUG, "_exec: InitResident: init returned 0x%08lx\n", result);
     }
     
     DPRINTF (LOG_DEBUG, "_exec: InitResident: done, result=0x%08lx\n", result);
@@ -2390,6 +2391,8 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
     Enable();
 
     DPRINTF (LOG_DEBUG, "_exec: Wait() returning rcvd=0x%08lx\n", rcvd);
+    LPRINTF (LOG_INFO, "_exec: Wait() returning rcvd=0x%08lx task='%s'\n", rcvd,
+             thisTask ? thisTask->tc_Node.ln_Name : "?");
 
     /* All done. */
     return rcvd;
@@ -2468,11 +2471,14 @@ void _exec_Signal ( register struct ExecBase * SysBase __asm("a6"),
     }
 
     /* Does the target task have signals to process? */
+    LPRINTF(LOG_INFO, "_exec: Signal() check: SigRecvd=0x%08lx SigWait=0x%08lx SigExcept=0x%08lx State=%d\n",
+            ___task->tc_SigRecvd, ___task->tc_SigWait, ___task->tc_SigExcept, ___task->tc_State);
     if (___task->tc_SigRecvd & (___task->tc_SigWait | ___task->tc_SigExcept))
     {
         if (___task->tc_State == TS_WAIT)
         {
-            DPRINTF (LOG_DEBUG, "_exec: Signal() waking up WAIT task '%s'\n", ___task->tc_Node.ln_Name);
+            LPRINTF (LOG_INFO, "_exec: Signal() waking up WAIT task '%s' SigRecvd=0x%08lx SigWait=0x%08lx\n",
+                     ___task->tc_Node.ln_Name, ___task->tc_SigRecvd, ___task->tc_SigWait);
 
             /* Yes. Move it to the ready list. */
             Remove(&___task->tc_Node);
@@ -3998,15 +4004,15 @@ struct Library * _exec_OpenLibrary ( register struct ExecBase *SysBase __asm("a6
             DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s (absolute path)\n", libPath);
             segList = LoadSeg((STRPTR)libPath);
         }
-        else
-        {
-            /* Try LIBS: directory first */
-            strcpy(libPath, "LIBS:");
-            strcat(libPath, (const char *)libName);
-            
-            DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s\n", libPath);
-            segList = LoadSeg((STRPTR)libPath);
-        }
+         else
+         {
+             /* Try LIBS: directory first */
+             strcpy(libPath, "LIBS:");
+             strcat(libPath, (const char *)libName);
+             
+             DPRINTF (LOG_DEBUG, "_exec: OpenLibrary: trying to load %s\n", libPath);
+             segList = LoadSeg((STRPTR)libPath);
+         }
         
         if (!segList)
         {

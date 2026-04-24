@@ -1,14 +1,15 @@
 /**
  * typeface_gtest.cpp - Google Test driver for Typeface font previewer
  *
- * Phase 136 of the lxa roadmap.
+ * Phase 136 / Phase 147c of the lxa roadmap.
  *
- * Typeface is a BGUI-based font previewer for AmigaOS.  It requires
- * bgui.library v39+ and (optionally) gadgets/textfield.gadget for its
- * preview text-entry widget.  The app ships with its own bundled
- * bgui.library in Typeface/Libs/ — lxa automatically prepends the
- * program-local Libs/ directory to LIBS: when the program is loaded, so
- * no explicit extra assign is needed for bgui.library.
+ * Typeface is a BGUI-based font editor for AmigaOS.  It requires
+ * bgui.library v39+ and gadgets/textfield.gadget for its preview
+ * text-entry widget.  The app ships with its own bundled bgui.library
+ * in Typeface/Libs/ — lxa automatically prepends the program-local
+ * Libs/ directory to LIBS: when the program is loaded, so no explicit
+ * extra assign is needed for bgui.library.  textfield.gadget is loaded
+ * from Typeface/Gadgets/ via the GADGETS: assign.
  *
  * Coverage focus (Phase 136):
  *   - bgui.library opens cleanly (no PANIC log, no rv=26 exit).
@@ -18,6 +19,16 @@
  *     BGUI layout rendered labels or font names into the window).
  *   - No PANIC log entries appear during startup.
  *   - The window survives a settle period without crashing (idle-time stability).
+ *
+ * Coverage focus (Phase 147c):
+ *   - textfield.gadget loads from GADGETS: assign (no "NoTextFieldGadget" error).
+ *   - Project→Preview menu opens the Preview window (second window appears).
+ *   - Preview window has the expected BGUI gadgets (4 buttons + PropGadget).
+ *   - Preview window renders non-blank content (textfield + button labels).
+ *
+ * Menu coordinates (verified via typeface_probe_gtest):
+ *   Project menu (Menu[0]): left=0, width=72 → centre x=36
+ *   "Preview..." item (Item[3]): y=30 in dropdown → screen y = 11+30+5 = 46
  */
 
 #include "lxa_test.h"
@@ -381,6 +392,120 @@ TEST_F(TypefaceTest, WindowChromeIsRendered)
         << "Interior at (" << wi.width/2 << ",15) is too dark: "
         << "rgb=(" << r << "," << g << "," << b
         << ") — interior fill missing or window collapsed?";
+}
+
+/* ------------------------------------------------------------------ */
+/* Phase 147c tests                                                     */
+/* ------------------------------------------------------------------ */
+
+/* Phase 147c: textfield.gadget must load from GADGETS: without error.
+ *
+ * Typeface calls OpenLibrary("gadgets/textfield.gadget",3) at startup.
+ * If it falls back to GADGETS:textfield.gadget and succeeds, the output
+ * will contain the LoadSeg success message but NOT "NoTextFieldGadget".
+ * The output should also not contain rv=26 (which would indicate Typeface
+ * exited early due to the missing library). */
+TEST_F(TypefaceTest, TextFieldGadgetLoads)
+{
+    const std::string output = GetOutput();
+    EXPECT_EQ(output.find("NoTextFieldGadget"), std::string::npos)
+        << "textfield.gadget failed to load (NoTextFieldGadget in output)";
+    EXPECT_EQ(output.find("rv=26"), std::string::npos)
+        << "Typeface exited early (rv=26 in output) — textfield.gadget missing?";
+    /* The app must have an open window — proof that textfield.gadget loading
+     * did not prevent the main window from opening. */
+    EXPECT_GE(lxa_get_window_count(), 1)
+        << "No window opened — textfield.gadget may have blocked startup";
+}
+
+/* Phase 147c: Project→Preview menu must open the Preview window.
+ *
+ * Menu layout (verified by typeface_probe_gtest):
+ *   Project menu (Menu[0]): centre x ≈ 36
+ *   "Preview..." item (Item[3]): top=30 in dropdown → screen y ≈ 46
+ *
+ * After the RMB drag the window count should increase from 1 to 2. */
+TEST_F(TypefaceTest, PreviewWindowOpens)
+{
+    if (lxa_get_window_count() < 1) {
+        GTEST_SKIP() << "Main window not open — cannot test Preview";
+    }
+
+    const int wcount_before = lxa_get_window_count();
+
+    /* Two-phase RMB drag to open Project→Preview.
+     * Menu[0] (Project): centre x=36, menu bar y=5.
+     * Item[3] (Preview...): screen y = menu_bar_height(11) + item_top(30) + 5 = 46. */
+    const int menu_x    = 36;  /* Project menu centre */
+    const int bar_y     = 5;   /* Menu bar mid-point */
+    const int item_y    = 46;  /* "Preview..." screen y */
+
+    /* Use lxa_inject_drag which is reliable per lesson 6.5 */
+    lxa_inject_drag(menu_x, bar_y, menu_x, item_y, LXA_MOUSE_RIGHT, 20);
+
+    /* Give the app time to open the Preview window (BGUI WindowOpen +
+     * SetPreviewFont/SaveFont which does significant work). */
+    RunCyclesWithVBlank(5000, 50000);
+    lxa_flush_display();
+
+    const int wcount_after = lxa_get_window_count();
+    EXPECT_GT(wcount_after, wcount_before)
+        << "Preview window did not open after Project→Preview menu selection "
+        << "(windows before=" << wcount_before << " after=" << wcount_after << ")";
+}
+
+/* Phase 147c: Preview window must have gadgets (Update/All/Clear/Cancel
+ * buttons + PropGadget scroll bar) and render non-blank content.
+ *
+ * This test depends on PreviewWindowOpens succeeding.  If only 1 window
+ * is present we skip rather than fail. */
+TEST_F(TypefaceTest, ZPreviewWindowHasContent)
+{
+    if (lxa_get_window_count() < 1) {
+        GTEST_SKIP() << "Main window not open";
+    }
+
+    /* Open the preview window (same two-phase RMB drag as PreviewWindowOpens). */
+    const int menu_x = 36;
+    const int bar_y  = 5;
+    const int item_y = 46;
+    lxa_inject_drag(menu_x, bar_y, menu_x, item_y, LXA_MOUSE_RIGHT, 20);
+    RunCyclesWithVBlank(5000, 50000);
+    lxa_flush_display();
+
+    if (lxa_get_window_count() < 2) {
+        GTEST_SKIP() << "Preview window did not open — skipping content check";
+    }
+
+    /* The preview window is the second tracked window (index 1). */
+    lxa_window_info_t wi;
+    ASSERT_TRUE(lxa_get_window_info(1, &wi));
+    EXPECT_GT(wi.width,  50)  << "Preview window too narrow: " << wi.width;
+    EXPECT_GT(wi.height, 30)  << "Preview window too short: "  << wi.height;
+
+    /* Verify the window has gadgets (buttons + prop). */
+    const int gc = lxa_get_gadget_count(1);
+    EXPECT_GE(gc, 4)
+        << "Preview window has fewer than 4 gadgets (expected 4 buttons + prop): " << gc;
+
+    /* Capture and verify the preview window renders non-blank content. */
+    const char *path = "/tmp/typeface_preview.png";
+    ASSERT_TRUE(CaptureWindow(path, 1)) << "Failed to capture Preview window";
+
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd),
+             "identify -format '%%[fx:mean]' '%s' 2>/dev/null", path);
+    FILE *fp = popen(cmd, "r");
+    ASSERT_NE(fp, nullptr);
+    double mean = -1.0;
+    if (fscanf(fp, "%lf", &mean) != 1) mean = -1.0;
+    pclose(fp);
+
+    ASSERT_GE(mean, 0.0) << "Failed to read mean intensity from " << path;
+    EXPECT_GT(mean, 0.05)
+        << "Preview window appears all-black (mean=" << mean << ")";
+    EXPECT_LT(mean, 0.95)
+        << "Preview window appears all-uniform (mean=" << mean << ")";
 }
 
 /* ------------------------------------------------------------------ */

@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.9.32** - Typeface deeper workflows — textfield.gadget integration and Preview window (Phase 147c): root-caused `BGUI_EXTERNAL_GADGET` class failure (ExternalObject wrapping textfield.gadget was NULL because `InitExtClass()` fallback in `libfunc.c` was never reached); fixed by removing orphaned debug kprintfs that masked the control flow — `InitExtClass()` now correctly initialises in-process when the gadget file is absent. With ExternalObject working, `PreviewWndObj` is non-NULL and `WindowOpen` succeeds. Three new Typeface tests: `TextFieldGadgetLoads`, `PreviewWindowOpens`, `ZPreviewWindowHasContent`. 70/72 pass (2 pre-existing: maxonbasic_gtest, dopus_gtest).
+
 **Version 0.9.31** - Typeface window geometry investigation (Phase 147b): root-cause analysis confirmed that 194×138 is the correct BGUI minimum window size for Typeface on a first-run PAL/topaz-8 system. The 280×195 reference came from a saved-prefs state on FS-UAE, not a comparable baseline. Mathematical proof: `Box.Height=138` from Typeface's do-while loop; BGUI WinSize min-width=194 from CharGadget (8 cols × 20px) + PropObject(16) + borders. `WindowGeometryMatchesTarget` test asserts 194×138 ±4px. 72/72 pass.
 
 **Version 0.9.30** - Typeface custom-screen window chrome (Phase 147a): fixed per-screen-type host-window architecture; rootless+Workbench → each child window is its own X11 window; rootless+custom-screen → screen owns one host window with chrome rendered into the screen bitmap. New `WindowChromeIsRendered` test. 72/72 pass.

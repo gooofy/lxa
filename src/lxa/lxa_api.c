@@ -927,8 +927,12 @@ bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button,
             return false;
         
         /* Each movement step needs VBlank processing for the
-         * input handler to see the new coordinates. */
-        for (int i = 0; i < 3; i++) {
+         * input handler to see the new coordinates.  Menu-mode
+         * steps trigger _render_menu_item_chain (RectFill + Text
+         * per item) inside ProcessInputEvents.  Give 10 VBlanks ×
+         * 200K cycles (2M total) so the render completes before
+         * the next event is injected. */
+        for (int i = 0; i < 10; i++) {
             lxa_trigger_vblank();
             lxa_run_cycles(200000);
         }

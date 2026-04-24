@@ -1237,7 +1237,7 @@ static void queue_event(const display_event_t *event)
     {
         g_event_queue[g_event_queue_head] = *event;
         g_event_queue_head = next_head;
-        DPRINTF(LOG_DEBUG, "display: queue_event type=%d code=0x%x, head=%d tail=%d\n", 
+        LPRINTF(LOG_INFO, "display: queue_event type=%d code=0x%x, head=%d tail=%d\n", 
                 event->type, event->button_code, g_event_queue_head, g_event_queue_tail);
     }
     else
@@ -1254,6 +1254,7 @@ bool display_get_event(display_event_t *event)
 {
     if (g_event_queue_tail == g_event_queue_head)
     {
+        LPRINTF(LOG_INFO, "display: get_event EMPTY head=%d tail=%d\n", g_event_queue_head, g_event_queue_tail);
         return false;  /* Queue empty */
     }
     
@@ -2490,6 +2491,8 @@ bool display_inject_mouse(int x, int y, int buttons, display_event_type_t event_
 {
     display_event_t event = {0};
     
+    LPRINTF(LOG_INFO, "display: inject_mouse ENTER x=%d y=%d buttons=0x%x type=%d\n", x, y, buttons, event_type);
+
     event.type = event_type;
     event.mouse_x = x;
     event.mouse_y = y;

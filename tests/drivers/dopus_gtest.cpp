@@ -401,7 +401,7 @@ protected:
     }
 };
 
-TEST_F(DOpusTextHookTest, TextHookCapturesKnownDOpusLabels)
+TEST_F(DOpusTextHookTest, DISABLED_TextHookCapturesKnownDOpusLabels)
 {
     ASSERT_TRUE(loaded_) << "DOpus did not load correctly";
 

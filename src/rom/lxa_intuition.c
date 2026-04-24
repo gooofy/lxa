@@ -3705,8 +3705,8 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
             struct Window *menuWin = NULL;
             BOOL in_title_bar = (screen && mouseY <= screen->BarHeight);
 
-            DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
-                    mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
+            LPRINTF(LOG_INFO, "_intuition: MENUDOWN at (%d,%d), window=0x%08lx MenuStrip=0x%08lx in_title_bar=%d BarHeight=%d\n",
+                    mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0, (int)in_title_bar, screen ? (int)screen->BarHeight : -1);
 
             if (window && window->MenuStrip && !(window->Flags & WFLG_RMBTRAP))
             {
@@ -6563,6 +6563,7 @@ static void _render_menu_item_chain(struct RastPort *rp,
  */
 static void _render_menu_items(struct Window *window)
 {
+    LPRINTF(LOG_INFO, "_intuition: _render_menu_items ENTER window=0x%08lx\n", (ULONG)window);
     struct Screen *screen;
     struct RastPort *screen_rp;
     struct RastPort compose_rp;
@@ -6626,18 +6627,22 @@ static void _render_menu_items(struct Window *window)
      * first inside the compose BM, but it has already been blitted to
      * screen at its own destination. */
     compose_bm = _menu_ensure_compose_bitmap(screen, composeNeedW, composeNeedH);
+    LPRINTF(LOG_INFO, "_intuition: _render_menu_items compose_bm=0x%08lx mainW=%d mainH=%d\n", (ULONG)compose_bm, (int)mainW, (int)mainH);
 
     if (compose_bm)
     {
         _menu_init_compose_rp(&compose_rp, compose_bm, screen_rp);
 
         /* Main chain: render at compose origin, blit to (menuX, menuY). */
+        LPRINTF(LOG_INFO, "_intuition: _render_menu_items calling _render_menu_item_chain\n");
         _render_menu_item_chain(&compose_rp, menu->FirstItem, g_active_item,
                                 0, 0);
+        LPRINTF(LOG_INFO, "_intuition: _render_menu_items calling BltBitMap menuX=%d menuY=%d w=%d h=%d\n", (int)menuX, (int)menuY, (int)mainW, (int)mainH);
         BltBitMap(compose_bm, 0, 0,
                   &screen->BitMap, menuX, menuY,
                   mainW, mainH,
                   0xC0, 0xFF, NULL);
+        LPRINTF(LOG_INFO, "_intuition: _render_menu_items BltBitMap done\n");
 
         if (haveSubmenu)
         {
@@ -6743,8 +6748,8 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
     if (g_menu_window)
         screen = g_menu_window->WScreen;
     
-    DPRINTF(LOG_DEBUG, "_intuition: Exiting menu mode, active_menu=0x%08lx active_item=0x%08lx\n",
-            (ULONG)g_active_menu, (ULONG)g_active_item);
+    LPRINTF(LOG_INFO, "_intuition: Exiting menu mode, active_menu=0x%08lx active_item=0x%08lx mouseXY=(%d,%d)\n",
+            (ULONG)g_active_menu, (ULONG)g_active_item, (int)mouseX, (int)mouseY);
     
     /* Calculate menu selection code if we have a valid selection */
     if (g_active_menu && g_active_item)
@@ -6765,8 +6770,12 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
             menuCode = _encode_menu_selection(menuNum, itemNum, subNum);
             selected_item->NextSelect = MENUNULL;
 
-            DPRINTF(LOG_DEBUG, "_intuition: Menu selection: menu=%d item=%d sub=%d code=0x%04x enabled=0x%04x\n",
+            LPRINTF(LOG_INFO, "_intuition: Menu selection: menu=%d item=%d sub=%d code=0x%04x enabled=0x%04x\n",
                     (int)menuNum, (int)itemNum, (int)subNum, menuCode, selected_item->Flags);
+        }
+        else
+        {
+            LPRINTF(LOG_INFO, "_intuition: Menu item NOT enabled: flags=0x%04x\n", selected_item->Flags);
         }
     }
     
@@ -6775,6 +6784,10 @@ static void _exit_menu_mode(struct Window *window, WORD mouseX, WORD mouseY)
     {
         WORD relX = mouseX - g_menu_window->LeftEdge;
         WORD relY = mouseY - g_menu_window->TopEdge;
+        LPRINTF(LOG_INFO, "_intuition: posting MENUPICK code=0x%04x to window 0x%08lx IDCMPFlags=0x%08lx UserPort=0x%08lx SigBit=%d\n",
+                menuCode, (ULONG)g_menu_window, g_menu_window->IDCMPFlags,
+                (ULONG)g_menu_window->UserPort,
+                g_menu_window->UserPort ? (int)g_menu_window->UserPort->mp_SigBit : -1);
         _post_idcmp_message(g_menu_window, IDCMP_MENUPICK, menuCode,
                            IEQUALIFIER_RBUTTON, NULL, relX, relY);
     }
@@ -7273,6 +7286,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
     ULONG key_data;
     WORD mouseX, mouseY;
     struct Window *window;
+    LPRINTF(LOG_INFO, "_intuition: ProcessInputEvents called hint_screen=0x%08lx\n", (ULONG)hint_screen);
     struct InputEvent input_event;
     struct Screen *screen;
     
@@ -7297,6 +7311,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
         event_type = emucall0(EMU_CALL_INT_POLL_INPUT);
         if (event_type == 0)
         {
+            LPRINTF(LOG_INFO, "_intuition: ProcessInputEvents: no more events, breaking\n");
             break;  /* No more events */
         }
         
@@ -7305,7 +7320,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
         mouseX = (WORD)(mouse_pos >> 16);
         mouseY = (WORD)(mouse_pos & 0xFFFF);
 
-        DPRINTF(LOG_DEBUG, "_intuition: ProcessInputEvents: event_type=%ld mouse=(%d,%d)\n",
+        LPRINTF(LOG_INFO, "_intuition: ProcessInputEvents: event_type=%ld mouse=(%d,%d)\n",
                 event_type, (int)mouseX, (int)mouseY);
         
         /*
@@ -7389,7 +7404,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 UWORD qualifier = (UWORD)((button_code >> 8) & 0xFFFF);
                 g_current_qualifier = qualifier;
 
-                DPRINTF(LOG_DEBUG, "_intuition: PIE MouseButton raw=0x%08lx code=0x%02x qual=0x%04x at (%d,%d) window=0x%08lx\n",
+                LPRINTF(LOG_INFO, "_intuition: PIE MouseButton raw=0x%08lx code=0x%02x qual=0x%04x at (%d,%d) window=0x%08lx\n",
                         button_code, (int)code, (int)qualifier, (int)mouseX, (int)mouseY, (ULONG)window);
 
                 input_event.ie_Class = IECLASS_RAWMOUSE;
@@ -7740,7 +7755,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     /* Right mouse button press - enter menu mode */
                     else if (code == MENUDOWN)
                     {
-                        DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN(PIE) ENTERED at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
+                        LPRINTF(LOG_INFO, "_intuition: MENUDOWN(PIE) ENTERED at (%d,%d), window=0x%08lx MenuStrip=0x%08lx\n",
                                 mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0);
                         /* 
                          * On real AmigaOS, right-clicking activates the menu bar.
@@ -7841,7 +7856,17 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                         }
                     }
                     
-                    /* Post IDCMP_MOUSEBUTTONS for general notification (respects DELTAMOVE) */
+                    /* Post IDCMP_MOUSEBUTTONS for general notification.
+                     * Per RKRM: do NOT post for RMB when menus are being
+                     * activated (MENUDOWN) or released (MENUUP), unless
+                     * WFLG_RMBTRAP. The menu system consumes these events. */
+                    BOOL postMouseBtn = TRUE;
+                    if ((code == MENUDOWN || code == MENUUP) &&
+                        !(window && (window->Flags & WFLG_RMBTRAP)))
+                    {
+                        postMouseBtn = FALSE;
+                    }
+                    if (postMouseBtn)
                     {
                         WORD btnMsgX, btnMsgY;
                         _compute_idcmp_mouse_coords(window, IDCMP_MOUSEBUTTONS, mouseX, mouseY, &btnMsgX, &btnMsgY);
@@ -8102,7 +8127,7 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                     }
                 }
                 
-                if (window)
+                if (window && !g_menu_mode)
                 {
                     /* Update window mouse position (always absolute) */
                     WORD relX = mouseX - window->LeftEdge;
@@ -8117,10 +8142,11 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                        qualifier, NULL, msgX, msgY);
                 }
 
-                /* Update previous absolute position for DELTAMOVE calculations */
-                g_prev_abs_mouse_x = mouseX;
-                g_prev_abs_mouse_y = mouseY;
-                break;
+        /* Update previous absolute position for DELTAMOVE calculations */
+        g_prev_abs_mouse_x = mouseX;
+        g_prev_abs_mouse_y = mouseY;
+        LPRINTF(LOG_INFO, "_intuition: PIE case2 DONE at (%d,%d), looping\n", (int)mouseX, (int)mouseY);
+        break;
             }
             
             case 3:  /* Key */
@@ -8320,8 +8346,15 @@ VOID _intuition_VBlankInputHook(void)
         return;
     }
     
-    DPRINTF(LOG_DEBUG, "_intuition: VBlankInputHook calling PIE, g_processing_events=%d g_menu_mode=%d\n",
+    LPRINTF(LOG_INFO, "_intuition: VBlankInputHook calling PIE, g_processing_events=%d g_menu_mode=%d\n",
             g_processing_events, g_menu_mode);
+    
+    /* Reset re-entry guard here rather than relying on ProcessInputEvents
+     * to clear it. If the previous cycle budget expired mid-loop, the flag
+     * would remain set and block all future VBlank processing. Resetting
+     * at the top of the VBlank hook is safe because VBlankInputHook is
+     * the sole caller of ProcessInputEvents from interrupt context. */
+    g_processing_events = FALSE;
     
     /*
      * Process all pending input events.  The function resolves the

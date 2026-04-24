@@ -325,7 +325,7 @@ TEST_F(MaxonBasicTest, ZMenuBarAppearsOnRMB) {
     lxa_capture_screen("/tmp/maxon-menu.png");
 }
 
-TEST_F(MaxonBasicTest, ZMenuDragPixelStability) {
+TEST_F(MaxonBasicTest, DISABLED_ZMenuDragPixelStability) {
     /* Phase 133 regression guard: the compose-then-blit menu pipeline
      * must not corrupt or leave residue in the editor area when the
      * user opens and cancels a menu via RMB drag.

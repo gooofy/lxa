@@ -257,6 +257,7 @@ makeproto SAVEDS ASM REGFUNC3(IPTR, __GCD,
    BGUIClassData *class_data;
    SortedMethod *method_found;
 
+
    if(cl==NULL
    || (class_data=((BGUIClassData *)cl->cl_UserData))==NULL
    || ((--class_data)->MethodFunctions)==NULL)

@@ -163,7 +163,7 @@ static inline int isleap (int y)
 int op_illg(int level)
 {
     uint32_t d0 = m68k_get_reg(NULL, M68K_REG_D0);
-    //DPRINTF (LOG_INFO, "ILLEGAL, d=%d\n", d0);
+    DPRINTF (LOG_INFO, "ILLEGAL, d=%d\n", d0);
 
 #ifdef PROFILE_BUILD
     struct timespec _prof_start, _prof_end;
