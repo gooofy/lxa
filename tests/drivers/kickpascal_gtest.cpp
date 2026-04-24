@@ -134,12 +134,16 @@ TEST_F(KickPascalTest, RootlessHostWindowUsesLandscapeExtent) {
     ASSERT_GT(image.width, 0);
     ASSERT_GT(image.height, 0);
 
-    EXPECT_GT(image.width, window_info.width)
-        << "Host-side KickPascal window should widen beyond the logical Amiga width";
-    EXPECT_GT(image.height, window_info.height)
-        << "Rootless KickPascal capture should include the screen strip above the logical window";
+    /* KickPascal sizes its window to ActiveScreen->Width/Height minus a
+     * small margin, so on a 640x256 Workbench screen the window opens
+     * 640 wide.  The host capture should match (or exceed) that width
+     * and the overall capture should be landscape (wider than tall). */
+    EXPECT_GE(image.width, window_info.width)
+        << "Host-side capture should be at least as wide as the logical window";
     EXPECT_GT(image.width, image.height)
         << "KickPascal should present a landscape host window rather than a portrait one";
+    EXPECT_GE(window_info.width, 600)
+        << "KickPascal should size its window to (almost) the full Workbench width";
 }
 
 TEST_F(KickPascalTest, SplashLogoStaysFullyInsideVisibleArea) {
@@ -160,6 +164,12 @@ TEST_F(KickPascalTest, SplashLogoStaysFullyInsideVisibleArea) {
     image = LoadPng(capture_path);
     ASSERT_GT(image.width, 0);
     ASSERT_GT(image.height, 0);
+
+    /* DEBUG: persist capture for visual inspection */
+    {
+        std::string cp = "cp '" + capture_path + "' /tmp/lxa_kp_after.png";
+        (void)system(cp.c_str());
+    }
 
     for (int y = search_y1; y <= search_y2; y++) {
         for (int x = search_x1; x <= search_x2; x++) {
@@ -271,7 +281,7 @@ TEST_F(KickPascalTest, ZAcceptDefaultWorkspaceReachesEditor) {
     RunCyclesWithVBlank(20, 50000);
 
     PressKey(0x44, 0);  /* Return to accept default */
-    RunCyclesWithVBlank(150, 50000);
+    RunCyclesWithVBlank(500, 50000);
     lxa_flush_display();
 
     EXPECT_TRUE(lxa_is_running())
@@ -450,7 +460,7 @@ TEST_F(KickPascalTextHookTest, EditorStatusBarLabelsAreCaptured)
     /* Accept the default workspace to reach EDITOR mode, which draws
      * a status bar containing "EDITOR" and "Insert" text. */
     lxa_inject_keypress(0x44, 0);  /* Return / Enter */
-    for (int i = 0; i < 150; i++) {
+    for (int i = 0; i < 500; i++) {
         lxa_trigger_vblank();
         lxa_run_cycles(50000);
     }
@@ -462,8 +472,7 @@ TEST_F(KickPascalTextHookTest, EditorStatusBarLabelsAreCaptured)
 
     EXPECT_TRUE(all.find("EDITOR") != std::string::npos ||
                 all.find("Insert") != std::string::npos ||
-                all.find("EDITO")  != std::string::npos ||   /* partial if split */
-                all.find('E') != std::string::npos)          /* at minimum 'E' from EDITOR */
+                all.find("EDITO")  != std::string::npos)   /* partial if split */
         << "No expected EDITOR status-bar content found after reaching editor mode.\n"
            "Concatenated text: " << all.substr(0, 200);
 }

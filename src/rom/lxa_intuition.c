@@ -10771,7 +10771,19 @@ BOOL _intuition_WBenchToFront ( register struct IntuitionBase * IntuitionBase __
     
     wbscreen = _intuition_find_workbench_screen(IntuitionBase);
     if (!wbscreen)
-        return FALSE;
+    {
+        /* Lazily open the Workbench screen.  Apps such as KickPascal 2
+         * call WBenchToFront() (or just expect WB to exist) before
+         * directly dereferencing IntuitionBase->ActiveScreen->Width/
+         * Height to size their own windows.  On real Amiga, WB is
+         * always open by the time apps run; in lxa it is opened
+         * lazily, so do it here when first requested. */
+        DPRINTF (LOG_DEBUG, "_intuition: WBenchToFront() lazy-opening Workbench screen.\n");
+        (void)_intuition_OpenWorkBench(IntuitionBase);
+        wbscreen = _intuition_find_workbench_screen(IntuitionBase);
+        if (!wbscreen)
+            return FALSE;
+    }
 
     _intuition_ScreenToFront(IntuitionBase, wbscreen);
     return TRUE;
@@ -11320,6 +11332,11 @@ ULONG _intuition_LockIBase ( register struct IntuitionBase * IntuitionBase __asm
      * We therefore return 0 to stay compatible.
      */
     DPRINTF (LOG_DEBUG, "_intuition: LockIBase() dontknow=0x%08lx\n", dontknow);
+    if (!IntuitionBase->ActiveScreen)
+    {
+        DPRINTF (LOG_DEBUG, "_intuition: LockIBase() opening Workbench (ActiveScreen was NULL)\n");
+        (void)_intuition_OpenWorkBench(IntuitionBase);
+    }
     return 0;  /* Return 0 — apps treat non-zero as failure */
 }
 
