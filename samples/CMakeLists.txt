@@ -83,6 +83,7 @@ set(SAMPLES_LIST
     "intuition|backingstoretest|BackingStoreTest"
     "intuition|zoomwindow|ZoomWindow"
     "intuition|layerbackfilltest|LayerBackFillTest"
+    "intuition|propgadget|PropGadget"
     "devices|simpletimer|SimpleTimer"
     "devices|askkeymap|AskKeymap"
     "utility|tag1|Tag1"

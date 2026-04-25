@@ -11685,6 +11685,42 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     if ((gad->GadgetType & GTYP_GTYPEMASK) == GTYP_PROPGADGET)
     {
         struct PropInfo *pi = (struct PropInfo *)gad->SpecialInfo;
+
+        /* Phase 152: Render the recessed track frame around the prop
+         * gadget area, unless the app explicitly opted out via
+         * PROPBORDERLESS.  Real Amiga + Intuition draws prop gadgets with a
+         * recessed 3D edge: shadow (pen 1) on the top and left, shine (pen 2)
+         * on the bottom and right.  Apps wrapping a prop gadget for scrolling
+         * (DPaint listview, BGUI scroll-area) expect this chrome.
+         *
+         * We draw the frame independently of AUTOKNOB so that prop gadgets
+         * with custom knob imagery still get the standard track chrome.
+         * Frame is drawn at the outer perimeter; the existing container
+         * inset (left+1, top+1, width-2, height-2) leaves the frame intact.
+         */
+        if (pi && !(pi->Flags & PROPBORDERLESS) && width >= 2 && height >= 2)
+        {
+            WORD fx0 = (WORD)left;
+            WORD fy0 = (WORD)top;
+            WORD fx1 = (WORD)(left + width - 1);
+            WORD fy1 = (WORD)(top + height - 1);
+
+            /* Top edge (shadow) */
+            SetAPen(rp, 1);  /* SHADOWPEN */
+            Move(rp, fx0, fy0);
+            Draw(rp, fx1, fy0);
+            /* Left edge (shadow) */
+            Move(rp, fx0, fy0);
+            Draw(rp, fx0, fy1);
+            /* Bottom edge (shine) */
+            SetAPen(rp, 2);  /* SHINEPEN */
+            Move(rp, fx0, fy1);
+            Draw(rp, fx1, fy1);
+            /* Right edge (shine) */
+            Move(rp, fx1, fy0);
+            Draw(rp, fx1, fy1);
+        }
+
         if (pi && (pi->Flags & AUTOKNOB))
         {
             /* Clear the interior of the prop container */

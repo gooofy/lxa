@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.10.4** - PROPGADGET recessed track-frame rendering (Phase 152): `_render_gadget()` PROPGADGET branch now draws a 3D recessed frame (shadow pen on top/left, shine pen on bottom/right) on the outer perimeter of every prop gadget that does not opt out via `PROPBORDERLESS`. Frame applies independently of `AUTOKNOB` so custom-knob prop gadgets also receive standard chrome. New `samples/intuition/propgadget.c` and `tests/drivers/propgadget_chrome_gtest.cpp` (7 tests) plus full-suite regression check (74/74 pass).
+
 **Version 0.10.3** - DPaint Screen Format custom-panel refresh validation (Phase 151): tightened `ScreenFormatDialogSectionsContainVisibleContent` to assert the Choose Display Mode custom list contains >200 non-background pixels, the Display Information and Credits headings are visible, and the text hook captures all three semantic headings. This confirms the existing initial `IDCMP_REFRESHWINDOW` path in `OpenWindow()` triggers DPaint's custom panel paint. Targeted DPaint regression passes.
 
 **Version 0.10.2** - `OpenMonitor()` / `CloseMonitor()` + `GfxBase->MonitorList` real implementation (Phase 150b): implemented monitor list initialization and lookup for default/PAL/NTSC monitor specs, added monitor-list coverage, and fixed DPaint Screen Format capture timing after window creation.

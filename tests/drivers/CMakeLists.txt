@@ -204,6 +204,12 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         set_tests_properties(layer_backfill_gtest PROPERTIES TIMEOUT 180)
     endif()
 
+    # PropGadget chrome - Phase 152 PROPGADGET track-frame regression
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/propgadget_chrome_gtest.cpp)
+        add_gtest_driver(propgadget_chrome_gtest)
+        set_tests_properties(propgadget_chrome_gtest PROPERTIES TIMEOUT 180)
+    endif()
+
     # GadToolsGadgets - GadTools gadget creation test (STRING_KIND, SLIDER_KIND, BUTTON_KIND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsgadgets_gtest.cpp)
         add_gtest_driver_target(gadtoolsgadgets_gtest)

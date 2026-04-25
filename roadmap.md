@@ -63,53 +63,19 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 150b | `OpenMonitor()` / `CloseMonitor()` + `GfxBase->MonitorList` real implementation (latent stub-NULL bug per AGENTS.md §6.21) + DPaint Screen Format dialog capture-timing fix. (1) `src/rom/lxa_graphics.c`: added `graphics_init_monitor_list(struct GfxBase*)` called from `exec.c` coldstart. Allocates 3 `MonitorSpec` nodes (default/pal/ntsc) via `AllocMem(MEMF_PUBLIC\|MEMF_CLEAR)`, fills `xln_Type=NT_USER`, `xln_Subsystem=SS_GRAPHICS`, `xln_Subtype=MONITOR_SPEC_TYPE`, `xln_Name`, `ms_Flags`, `ratioh/v=0x10000`, `total_rows=STANDARD_PAL_ROWS/NTSC_ROWS`, `total_colorclocks=STANDARD_COLORCLOCKS`, `DeniseMin/MaxDisplayColumn`, `BeamCon0=DISPLAYPAL` for PAL, `min_row=MIN_PAL_ROW/NTSC_ROW`, `NEWLIST(&DisplayInfoDataBase)`. (2) `_graphics_OpenMonitor()`: real lookup — name-based via `strcmp` against ms_Node names; displayID-based via `MONITOR_ID_MASK` matching against PAL_MONITOR_ID/NTSC_MONITOR_ID; `OpenMonitor(NULL,0)` returns list head; bumps `ms_OpenCount`. (3) `_graphics_CloseMonitor()`: decrements `ms_OpenCount`, never removes node, returns TRUE. (4) `tests/drivers/dpaint_gtest.cpp` `OpenScreenFormatDialog()`: added 500-vblank settling loop after `WaitForWindowTitleSubstring("Screen Format")` because previous return-on-window-appear missed DPaint's `GT_AddGadgetList` pass; pre-existing Phase 150 `title_ghost_pixels` regression incidentally cleared (1506→<300). `upper_right_pixels` assertion relaxed to `>0` with TODO comment for the still-missing "Choose Display Mode" listview (deferred — see Next Phase). (5) New `tests/graphics/monitor_list/{main.c,Makefile}` + `samples/CMakeLists.txt` registration + `graphics_gtest.cpp` `TEST_F(GraphicsTest, MonitorList)` covering 16 sub-checks: list initialisation, walk, presence of all three system monitors, `OpenMonitor(NULL,0)` head return, name lookup, displayID lookup, `xln_Subsystem`/`xln_Subtype` field correctness, `total_rows=STANDARD_PAL_ROWS`. Disassembly of DPaint binary (m68k-amigaos-objdump, see AGENTS.md §6.20) confirmed the dialog routine at `0x157c8` does NOT call OpenMonitor/NextDisplayInfo during this requester open — fix is a real latent-bug correction but NOT the root cause of the still-missing Choose Display Mode listview. | v0.10.2 |
 
 | 151 | DPaint Screen Format custom-panel refresh validation: tightened `ScreenFormatDialogSectionsContainVisibleContent` to assert the Choose Display Mode custom list contains >200 non-background pixels, the Display Information and Credits headings are visible, and the text hook captures all three semantic headings. Existing `OpenWindow()` initial `IDCMP_REFRESHWINDOW` delivery is confirmed sufficient; no diagnostic logging left behind. Targeted DPaint regression passes. | v0.10.3 |
+| 152 | PROPGADGET recessed track-frame rendering: `_render_gadget()` PROPGADGET branch in `lxa_intuition.c` now draws a 3D recessed frame (shadow pen 1 on top/left, shine pen 2 on bottom/right) on the outer perimeter, gated by `pi && !(pi->Flags & PROPBORDERLESS) && width>=2 && height>=2`. Frame applies independently of AUTOKNOB so custom-knob prop gadgets also receive standard chrome; container inset (left+1, top+1, width-2, height-2) leaves the frame intact so existing knob layout is unchanged. New `samples/intuition/propgadget.c` (one FREEVERT + one FREEHORIZ AUTOKNOB|PROPNEWLOOK gadget) and `tests/drivers/propgadget_chrome_gtest.cpp` (7 tests covering all four edges of the vertical gadget, top/bottom of horizontal, and knob still rendering inside the framed container). Devpac scrollbar regression unaffected (interior scan unchanged). DPaint regression bullet from the Phase 152 spec deferred — investigation showed DPaint's id=1/3/13 panels are NOT GTYP_PROPGADGET (DPaint draws only one PROPGADGET, id=10, in the Screen Format dialog); the listview panels are app-rendered custom widgets, not Intuition prop gadgets, so a track-frame regression on them is out of scope for the rendering layer. 74/74 pass. | v0.10.4 |
 
 ---
 
 ## Next Phase
 
-> The Phase 151–158 block was scheduled after a visual review of DPaint V's
+> The Phase 153–158 block was scheduled after a visual review of DPaint V's
 > "Screen Format" requester (see `tests/drivers/dpaint_gtest.cpp`,
 > `DPaintPixelTest.ScreenFormatDialogSectionsContainVisibleContent`) against an
-> FS-UAE reference capture. The dialog exposed nine distinct cross-app
+> FS-UAE reference capture. The dialog exposed several distinct cross-app
 > rendering / refresh defects. Each one is its own numbered phase because the
 > root causes are independent and each will gain its own regression test, in
 > line with the "no pooling sections" policy.
-
-### Phase 152 — Listview scrollbar imagery
-
-**Class**: Amiga compatibility (gadget rendering).
-
-DPaint's three custom-drawn panels (gadgets id=1, id=3, id=13 — all
-GTYP_PROPGADGET) are rendered with the prop knob alone — no surrounding
-"track" / arrow imagery. On real Amiga + Intuition the prop gadget has a
-visible recessed track with shine/shadow edges, and apps that wrap a prop
-gadget for scrolling expect this chrome. The Phase 145 work added scrollbar
-imagery for the WZOOM border gadget but did not extend to standalone
-PROPGADGETs in app windows.
-
-**Sub-problems**:
-1. `_render_propgadget()` (or wherever PROPGADGET imagery is drawn in
-   `lxa_intuition.c`) must render the recessed track frame (shine/shadow
-   3D edge) around the knob area, not just the knob itself.
-2. Honour `PROPNEWLOOK` (drawn with stipple per Phase 148) vs classic look.
-3. The track must respect `FREEHORIZ` / `FREEVERT` flags to draw
-   horizontal- vs vertical-scrollbar chrome.
-
-- [ ] Audit `_render_propgadget` (or equivalent) and add track-frame
-      rendering with shine (pen 2) / shadow (pen 1) edges
-- [ ] Honour `AUTOKNOB`, `FREEHORIZ`, `FREEVERT`, `PROPBORDERLESS`
-- [ ] Extend `simplegad_pixels_gtest.cpp` (or add a new
-      `propgadget_chrome_gtest.cpp`) with a vertical and a horizontal prop
-      gadget, asserting the track frame's shine and shadow pixels are
-      present at the expected edges
-- [ ] Add a DPaint regression: assert the right edge of gadget id=1
-      (xy=8,34 wh=350x107) contains shadow-pen pixels (track frame)
-- [ ] Verify Devpac's existing border PropGadget still renders (regression
-      check on `devpac_scrollbar_gtest`)
-
-**Test gate**: New propgadget chrome tests pass; Devpac scrollbar test stays
-green; DPaint listview track frames visible in capture.
 
 ### Phase 153a — Cycle gadget rendering (Amiga look, not pop-up arrow)
 
