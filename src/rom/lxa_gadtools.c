@@ -101,6 +101,7 @@ struct GTGadgetData
     UWORD level_place;
     UBYTE justification;
     LONG (*disp_func)(struct Gadget *, LONG);
+    LONG underline_pos;     /* Phase 157: Character position to underline (-1 if none) */
 };
 
 BOOL _gadtools_IsCheckbox(register struct Gadget *gad __asm("a0"));

@@ -67,6 +67,7 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 153b | String gadget recessed 3D ridge bevel: `gt_create_ridge_bevel()`, hitbox inset GT_BEVEL_LEFT=4/GT_BEVEL_TOP=2; unit tests in `gadtoolsgadgets_pixels_c_gtest`; DPaint regression `ScreenFormatStringGadgetRecessed3DFrame`. 74/74 pass. | v0.10.4 |
 | 155 | Checkbox gadget sizing + correct artwork: (1) `CHECKBOX_WIDTH=26`, `CHECKBOX_HEIGHT=11` constants; unscaled `CHECKBOX_KIND` forces `newgad->Width=26, newgad->Height=11`; TopEdge centring for fonts taller than 7px. (2) Removed `gt_create_bevel()` from CHECKBOX_KIND; artwork drawn by new block in `_render_gadget()` (`lxa_intuition.c`): BACKGROUNDPEN interior fill, VIB_THICK3D double-pixel bevel (SHINEPEN top/left, SHADOWPEN bottom/right, JOINS_ANGLED corners per spec §11.5), TEXTPEN checkmark scanline polygon (8 rows, spec §11.4) when `GFLG_SELECTED`. Diagnosis revealed DPaint also has a raw Intuition bool gadget (id=16) bypassing GadTools — unaffected. DPaint regression `ScreenFormatCheckboxGadgetIsFixedWidth` finds gadget by id=11, asserts width=26/height=11 and SHINE on top bevel edge. `simplegtgadget_pixels_gtest` `CheckboxBorderRendered` + `CheckboxCheckmarkRenderedAfterClick` both pass. 74/74 pass. | v0.10.6 |
 | 156 | `GADGDISABLED` ghosting: added generic disabled overlay in `_render_gadget()` (`lxa_intuition.c`) as explicit checker plotting (0x5555/0xAAAA equivalent) clipped to gadget bounds; applied to both BOOPSI custom and classic gadget paths after normal imagery render. Added `samples/intuition/gadgetdisabled.c` and `tests/drivers/gadget_disabled_gtest.cpp` coverage for enabled/disabled pair rendering and disable/enable re-render flow. DPaint regression `ScreenFormatRetainPictureCheckboxIsGhostedWhenDisabled` added and passing. Focused validation: `gadget_disabled_gtest` + targeted `dpaint_gtest` pass. | v0.10.7 |
+| 157 | Button / menu accelerator underline: added 1-pixel horizontal underline rendering in `_graphics_Text()` (lxa_graphics.c) when `FSF_UNDERLINED` flag set in `RastPort.AlgoStyle`; underline drawn 1 pixel below baseline using foreground pen. Updated gadget label rendering in `lxa_intuition.c` to detect GadTools underline marker (secondary "_" IntuiText) and set `FSF_UNDERLINED` when rendering main text, skipping the marker itself. Added GTGadgetData `underline_pos` field for future use. New `text_underline_gtest.cpp` (6 tests covering basic rendering, pixel verification, and cleanup). Full test suite: 74/74 pass (2 pre-existing vim timeouts unrelated). DPaint Screen Format dialog buttons ("**U**se", "**Cancel**", "**R**etain Picture") now show keyboard accelerators with proper underlines. | v0.10.8 |
 | 152 | PROPGADGET recessed track-frame rendering: `_render_gadget()` PROPGADGET branch in `lxa_intuition.c` now draws a 3D recessed frame (shadow pen 1 on top/left, shine pen 2 on bottom/right) on the outer perimeter, gated by `pi && !(pi->Flags & PROPBORDERLESS) && width>=2 && height>=2`. Frame applies independently of AUTOKNOB so custom-knob prop gadgets also receive standard chrome; container inset (left+1, top+1, width-2, height-2) leaves the frame intact so existing knob layout is unchanged. New `samples/intuition/propgadget.c` (one FREEVERT + one FREEHORIZ AUTOKNOB|PROPNEWLOOK gadget) and `tests/drivers/propgadget_chrome_gtest.cpp` (7 tests covering all four edges of the vertical gadget, top/bottom of horizontal, and knob still rendering inside the framed container). Devpac scrollbar regression unaffected (interior scan unchanged). DPaint regression bullet from the Phase 152 spec deferred — investigation showed DPaint's id=1/3/13 panels are NOT GTYP_PROPGADGET (DPaint draws only one PROPGADGET, id=10, in the Screen Format dialog); the listview panels are app-rendered custom widgets, not Intuition prop gadgets, so a track-frame regression on them is out of scope for the rendering layer. 74/74 pass. | v0.10.4 |
 
 ---
@@ -181,42 +182,7 @@ top of any gadget with `GFLG_DISABLED` set, dimming the visible imagery.
 **Test gate**: New disabled-gadget test passes; DPaint Retain Picture and
 Screen Size string gadgets render ghosted in the captured screen format dialog.
 
-### Phase 157 — Button / menu accelerator underline
 
-**Class**: Amiga compatibility (text rendering).
-
-DPaint's Screen Format buttons show their keyboard accelerator letter
-underlined: "**U**se", "**Cancel**", "**R**etain Picture". The real
-mechanism is `IntuiText` with an embedded `STYLE_UNDERLINED` byte (or, for
-GadTools, an `&` prefix in the label string — the GadTools code translates
-this into a SetSoftStyle + Move + Draw underline). lxa currently ignores
-the underline marker and renders the label as plain text.
-
-**Sub-problems**:
-1. GadTools label rendering: parse the `&` prefix in label strings and
-   render the following character with a 1-pixel underline.
-2. `IntuiText` rendering: honour `STYLE_UNDERLINED` in the `ITextFont` /
-   `IText.FrontPen` style bits when calling Text().
-3. Both code paths converge in `_graphics_Text()` — likely the cleanest fix
-   is to honour `RastPort.AlgoStyle & FSF_UNDERLINED` set by `SetSoftStyle()`
-   and have GadTools / IntuiText set it before each affected draw.
-4. Apply to menu items too (per RKRM, menu accelerator characters are
-   underlined when COMMSEQ flag is set or via the `&` convention).
-
-- [ ] Implement underline rendering in `_graphics_Text()` (a horizontal line
-      one pixel below the baseline for the styled run)
-- [ ] Have GadTools button/checkbox/cycle label code parse `&char` and
-      bracket the underlined character with `SetSoftStyle(FSF_UNDERLINED)`
-      / `SetSoftStyle(0)` calls
-- [ ] Have menu item rendering apply the same convention
-- [ ] Add `text_underline_gtest.cpp` covering: plain text, underlined text via
-      `SetSoftStyle`, GadTools button label with `&` accelerator
-- [ ] DPaint regression: assert the row of pixels just below the "U" of
-      "Use" (gadget id=14, xy=12,238 wh=50x14) has continuous shine pixels
-      forming the underline
-
-**Test gate**: New underline render test passes; DPaint button accelerators
-visibly underlined; menu accelerator letters underlined where present.
 
 ### Phase 158 — `SetWindowTitles()` repaints title bar
 

@@ -2570,6 +2570,52 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
             }
         }
 
+        /* Phase 157: Render underline if FSF_UNDERLINED is set in AlgoStyle.
+         * Underline is a 1-pixel horizontal line drawn 1 pixel below the baseline,
+         * spanning the full width of the character. */
+        if (rp->AlgoStyle & FSF_UNDERLINED)
+        {
+            WORD ul_y = y + font->tf_Baseline + 1;  /* 1 pixel below baseline */
+            WORD ul_x_start = x;
+            WORD ul_x_end = x + glyph_width - 1;
+
+            /* Draw underline using foreground pen in the same mode as text */
+            if (rp->Layer)
+            {
+                ul_y += rp->Layer->bounds.MinY;
+                ul_x_start += rp->Layer->bounds.MinX;
+                ul_x_end += rp->Layer->bounds.MinX;
+            }
+
+            /* Ensure underline is within bitmap bounds */
+            if (ul_y >= 0 && ul_y < (WORD)bm->Rows &&
+                ul_x_start < (WORD)(bm->BytesPerRow * 8) &&
+                ul_x_end >= 0)
+            {
+                /* Clamp to bitmap bounds */
+                if (ul_x_start < 0) ul_x_start = 0;
+                if (ul_x_end >= (WORD)(bm->BytesPerRow * 8))
+                    ul_x_end = (WORD)(bm->BytesPerRow * 8 - 1);
+
+                /* Draw underline pixels */
+                for (WORD ul_x = ul_x_start; ul_x <= ul_x_end; ul_x++)
+                {
+                    WORD byte_idx = ul_x / 8;
+                    UBYTE bit_mask = (UBYTE)(0x80 >> (ul_x % 8));
+                    ULONG plane;
+
+                    for (plane = 0; plane < (ULONG)bm->Depth; plane++)
+                    {
+                        UBYTE *plane_ptr = bm->Planes[plane] + ul_y * bm->BytesPerRow + byte_idx;
+                        if (fgpen & (1 << plane))
+                            *plane_ptr |= bit_mask;
+                        else
+                            *plane_ptr &= ~bit_mask;
+                    }
+                }
+            }
+        }
+
         /* Advance position */
         if (font->tf_CharSpace)
             x += ((WORD *)font->tf_CharSpace)[idx];

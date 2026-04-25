@@ -181,6 +181,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(intuitext_gtest)
     endif()
     
+    # TextUnderline - Text underline rendering test (Phase 157)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/text_underline_gtest.cpp)
+        add_gtest_driver(text_underline_gtest)
+    endif()
+    
     # SimpleImage - Image rendering test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simpleimage_gtest.cpp)
         add_gtest_driver(simpleimage_gtest)

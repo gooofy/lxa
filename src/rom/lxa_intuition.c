@@ -11871,25 +11871,43 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
     if (gad->GadgetText)
     {
         struct IntuiText *it = gad->GadgetText;
+        BOOL has_underline = FALSE;
+        
+        /* Phase 157: Check if there's an underline marker (secondary IntuiText with "_") */
+        if (it && it->NextText && it->NextText->IText && 
+            it->NextText->IText[0] == '_' && it->NextText->IText[1] == '\0')
+        {
+            has_underline = TRUE;
+        }
+        
         while (it)
         {
             if (it->IText)
             {
+                /* Skip the underscore marker IntuiText */
+                if (it->IText[0] == '_' && it->IText[1] == '\0')
+                {
+                    it = it->NextText;
+                    continue;
+                }
+                
                 LONG tx = left + it->LeftEdge;
                 LONG ty = top + it->TopEdge;
                 WORD baseline = rp->Font ? rp->Font->tf_Baseline : 6;
                 SetAPen(rp, it->FrontPen);
                 SetBPen(rp, it->BackPen);
                 SetDrMd(rp, it->DrawMode);
-                if (it->IText[0] == '_' && it->IText[1] == '\0')
+                Move(rp, tx, ty + baseline);
+                
+                /* Phase 157: Set FSF_UNDERLINED if this text should be underlined */
+                if (has_underline && it == gad->GadgetText)
                 {
-                    /* Underline: draw 1 pixel below the baseline */
-                    Move(rp, tx, ty + baseline + 1);
-                    Draw(rp, tx + 7, ty + baseline + 1);
+                    SetSoftStyle(rp, FSF_UNDERLINED, 1);
+                    Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
+                    SetSoftStyle(rp, 0, 0);
                 }
                 else
                 {
-                    Move(rp, tx, ty + baseline);
                     Text(rp, (STRPTR)it->IText, strlen((char *)it->IText));
                 }
             }
