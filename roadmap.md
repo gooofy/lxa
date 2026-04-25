@@ -293,6 +293,14 @@ the title bar immediately on `SetWindowTitles()`.
 **Test gate**: New `setwindowtitles_gtest` passes; DPaint Screen Format
 window's title bar pixels match its current title (`window->Title`).
 
+### Phase 158a - DPaint Screen Format Dialog Review
+
+at this point DPaint V's Screen Format Dialog should render **perfectly** in lxa. 
+Compare it to `screenshots/dpaint_screen_format.png` which is a screenshot produced running 
+real AmigaOS in FS-UAE. If there are **any** differences, create new Phases addressing
+each and every one of them, schedule them right here after Phase 158, postpone (renumber)
+all following phases accordingly - we want to get this one right before we move on.
+
 ### Phase 159 — DirectoryOpus deeper workflows
 
 Phase 134 fixed the button-bank rendering. Remaining gaps:
