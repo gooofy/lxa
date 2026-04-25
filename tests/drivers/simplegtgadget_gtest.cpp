@@ -494,6 +494,74 @@ TEST_F(SimpleGTGadgetPixelTest, NumberGadgetShowsCursorAndTypedDigitImmediately)
         << "Typed digit should be rendered before the number gadget loses focus";
 }
 
+/* ---- Phase 153a: Cycle gadget rendering tests (spec-correct geometry) ---- */
+
+/* Cycle gadget layout in SimpleGTGadget:
+ *   left=80, top=100 (relative to window inner area), size=120x14
+ *   Per cycle_gadget_spec.md:
+ *     CYCLEGLYPHWIDTH = 20 px
+ *     Glyph border: LeftEdge = LEFTTRIM+2 = 6 (glyph polygon x=6..16, height=max(9,14-5)=9)
+ *     Glyph vertical centre: top + (14-9)/2 = top+2
+ *     Divider shadow: x=20, y=2..11 (gadHeight-3 = 11)
+ *     Divider shine:  x=21, y=2..11
+ *     Label centred in [22, gadWidth-1] = [22, 119]
+ *     Right edge (x=108..119): text only, no dropdown arrow
+ */
+TEST_F(SimpleGTGadgetPixelTest, CycleGadgetIconRegionHasPixels)
+{
+    /* The glyph polygon occupies x=6..16 relative to gadget left (LeftEdge=6, glyph spans 11px).
+     * We check x=left+6..left+16 has non-background pixels. */
+    int gad_left = window_info.x + 80;
+    int gad_top  = window_info.y + 100;
+
+    int icon_x1 = gad_left + 6;
+    int icon_y1 = gad_top  + 2;
+    int icon_x2 = gad_left + 16;
+    int icon_y2 = gad_top  + 11;
+
+    lxa_flush_display();
+    int icon_pixels = CountContentPixels(icon_x1, icon_y1, icon_x2, icon_y2, 0);
+    EXPECT_GT(icon_pixels, 4)
+        << "Cycle gadget glyph region (left+6..left+16) should contain arrow polyline pixels";
+}
+
+TEST_F(SimpleGTGadgetPixelTest, CycleGadgetDividerIsPresent)
+{
+    /* Per spec: divider shadow at x=CYCLEGLYPHWIDTH=20, shine at x=21,
+     * both from y=2 to y=gadHeight-3=11. */
+    int gad_left = window_info.x + 80;
+    int gad_top  = window_info.y + 100;
+
+    int div_x1 = gad_left + 20;
+    int div_y1 = gad_top  + 2;
+    int div_x2 = gad_left + 21;
+    int div_y2 = gad_top  + 11;
+
+    lxa_flush_display();
+    int div_pixels = CountContentPixels(div_x1, div_y1, div_x2, div_y2, 0);
+    EXPECT_GT(div_pixels, 3)
+        << "Cycle gadget divider (left+20..21) should have visible pixels";
+}
+
+TEST_F(SimpleGTGadgetPixelTest, CycleGadgetNoDropDownArrowOnRightEdge)
+{
+    /* The rightmost inner region (last 12 pixels) should contain only
+     * label text pixels (sparse), not a filled drop-down arrow block.
+     * A drop-down arrow would fill a dense rectangle; text is sparse. */
+    int gad_left = window_info.x + 80;
+    int gad_top  = window_info.y + 100;
+
+    int right_x1 = gad_left + 120 - 12;
+    int right_y1 = gad_top  + 3;
+    int right_x2 = gad_left + 120 - 2;
+    int right_y2 = gad_top  + 10;
+
+    lxa_flush_display();
+    int right_pixels = CountContentPixels(right_x1, right_y1, right_x2, right_y2, 0);
+    EXPECT_LE(right_pixels, 4)
+        << "Cycle gadget right edge should not have a drop-down arrow (Amiga style = no dropdown)";
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

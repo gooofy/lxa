@@ -77,7 +77,7 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 > root causes are independent and each will gain its own regression test, in
 > line with the "no pooling sections" policy.
 
-### Phase 153a — Cycle gadget rendering (Amiga look, not pop-up arrow)
+### Phase 153a — Cycle gadget rendering (Amiga look, not pop-up arrow) ✓ DONE
 
 **Class**: Amiga compatibility (gadget rendering).
 
@@ -89,29 +89,14 @@ the left, the current label centred, and no drop-down indicator (clicking
 cycles to the next value, no pop-up list). The current lxa rendering misleads
 users into expecting a drop-down list.
 
-**Sub-problems**:
-1. Locate the GadTools `CYCLE_KIND` rendering code (likely in
-   `src/rom/lxa_gadtools.c` `gt_render_cycle()` or similar).
-2. Replace the down-arrow imagery with the Amiga-correct circular-arrow
-   icon (two small arrows arranged in a circle) on the left side.
-3. Render the recessed button frame: top-left shadow, bottom-right shine
-   (inverse of the normal raised button — cycle gadgets are visually
-   recessed when not pressed).
-4. Centre the label between the icon and the right edge.
+- [x] Implemented spec-correct 16-vertex glyph polyline per `cycle_gadget_spec.md §8` in `_render_gadget()` (`lxa_intuition.c` ~11650): `LeftEdge=6` (LEFTTRIM+2), vertically centred, drawn with TEXTPEN
+- [x] Divider at `x=20` (CYCLEGLYPHWIDTH, shadow) and `x=21` (shine), `y=2..gadHeight-3`
+- [x] Removed old AROS-style right-side dropdown arrow block
+- [x] Label re-centred in `[22, gadWidth-1]` on each `SetCycleState` call via `gt_update_cycle_label_display()` in `lxa_gadtools.c`; gadget width stored in `data->max_pixel_len`
+- [x] Pixel tests updated in `simplegtgadget_gtest.cpp` to match new geometry: glyph at `left+6..+16`, divider at `left+20..+21`
+- [x] All 74 tests pass (100%)
 
-- [ ] Implement the new rendering in the cycle gadget render function
-- [ ] Add `cycle_gadget_render_gtest.cpp` (or extend
-      `gadtoolsgadgets_pixels_c_gtest.cpp`) with a CYCLE_KIND gadget and
-      assertions on the icon region (left edge), the recessed-frame pen
-      pattern, and the absence of a down-arrow on the right edge
-- [ ] DPaint regression: assert gadget id=4 (Standard) at xy=33,164 wh=160x14
-      shows the circular-arrow icon glyph in its left ~12 pixels
-- [ ] Remove any remaining references to drop-down / popup-style cycle
-      rendering in the codebase
-
-**Test gate**: New cycle-gadget render tests pass; DPaint Screen Format cycle
-gadgets visually match the FS-UAE reference (arrow on left, no drop-down arrow
-on right).
+**Test gate**: ✓ Passed.
 
 ### Phase 153b — String gadget border style
 

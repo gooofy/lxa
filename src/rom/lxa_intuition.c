@@ -11647,6 +11647,105 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
         }
     }
     
+    /* Cycle gadget chrome: spec-correct implementation per cycle_gadget_spec.md.
+     *
+     * Layout (all offsets relative to gadget left/top):
+     *   CYCLEGLYPHWIDTH = 20 px: glyph occupies left section
+     *   Glyph border: LeftEdge = LEFTTRIM+2 = 6, vertically centred
+     *   Divider: shadow at x=20, shine at x=21, from y=2 to y=height-3
+     *   Label text: centred in [x=22 .. width-1, y=0 .. height-1]
+     *
+     * Glyph polygon (16 vertices, §8 of spec):
+     *   height_g = max(gadHeight-5, 9)
+     *   Vertices (relative to glyph LeftEdge/TopEdge):
+     *     (7,0)(7,5)(5,3)(10,3)(8,5)(8,1)(7,0)
+     *     (1,0)(0,1)(0,h-2)(1,h-1)(1,1)(1,h-1)(7,h-1)(7,h-2)(8,h-2)
+     *   where h = height_g
+     *
+     * Pen: TEXTPEN (pen 1) for the glyph (DESIGNTEXT);
+     *      SHADOWPEN (pen 1) for dark stroke, SHINEPEN (pen 2) for light stroke.
+     *
+     * Note: lxa pen map — pen 0 = BACKGROUNDPEN, pen 1 = TEXTPEN/SHADOWPEN,
+     *       pen 2 = SHINEPEN. On standard 4-colour Workbench these differ, but
+     *       for the glyph the spec uses DESIGNTEXT which maps to TEXTPEN = pen 1.
+     */
+    if (_gadtools_IsCycle(gad) && width >= 22 && height >= 6)
+    {
+        /* Glyph geometry */
+        WORD gh     = (WORD)(height - 5);
+        if (gh < 9) gh = 9;
+        WORD g_left = (WORD)(left + 6);                        /* LEFTTRIM+2 */
+        WORD g_top  = (WORD)(top  + (height - gh) / 2);       /* vertically centred */
+
+        /* Divider geometry */
+        WORD div_dark  = (WORD)(left + 20);   /* CYCLEGLYPHWIDTH */
+        WORD div_light = (WORD)(left + 21);
+        WORD div_y1    = (WORD)(top  + 2);
+        WORD div_y2    = (WORD)(top  + height - 3);
+
+        /* Clear glyph+divider region */
+        SetAPen(rp, 0);
+        SetDrMd(rp, JAM1);
+        RectFill(rp, (WORD)(left + 1), (WORD)(top + 1),
+                     div_light, (WORD)(top + height - 2));
+
+        /* --- Draw glyph polyline (15 segments, 16 vertices) --- */
+        /* All coordinates are relative to (g_left, g_top). */
+        SetAPen(rp, 1);   /* TEXTPEN (DESIGNTEXT) */
+
+#define GX(dx) ((WORD)(g_left + (dx)))
+#define GY(dy) ((WORD)(g_top  + (dy)))
+
+        /* Vertex 0: (7,0) */
+        Move(rp, GX(7), GY(0));
+        /* Segment 0→1: stem down */
+        Draw(rp, GX(7), GY(5));
+        /* Segment 1→2: left barb */
+        Draw(rp, GX(5), GY(3));
+        /* Segment 2→3: horizontal body to right tip */
+        Draw(rp, GX(10), GY(3));
+        /* Segment 3→4: right shoulder */
+        Draw(rp, GX(8), GY(5));
+        /* Segment 4→5: right side back up */
+        Draw(rp, GX(8), GY(1));
+        /* Segment 5→6: close arrow back to top */
+        Draw(rp, GX(7), GY(0));
+        /* Segment 6→7: top edge leftward */
+        Draw(rp, GX(1), GY(0));
+        /* Segment 7→8: top-left bevel */
+        Draw(rp, GX(0), GY(1));
+        /* Segment 8→9: full left edge down */
+        Draw(rp, GX(0), GY(gh - 2));
+        /* Segment 9→10: bottom-left bevel */
+        Draw(rp, GX(1), GY(gh - 1));
+        /* Segment 10→11: inner left up (double-thickness border) */
+        Draw(rp, GX(1), GY(1));
+        /* Segment 11→12: inner left back down */
+        Draw(rp, GX(1), GY(gh - 1));
+        /* Segment 12→13: bottom edge rightward */
+        Draw(rp, GX(7), GY(gh - 1));
+        /* Segment 13→14: partial right side */
+        Draw(rp, GX(7), GY(gh - 2));
+        /* Segment 14→15: end of glyph outline */
+        Draw(rp, GX(8), GY(gh - 2));
+
+#undef GX
+#undef GY
+
+        /* --- Vertical divider: shadow (left line) then shine (right line) --- */
+        SetAPen(rp, 1);   /* SHADOWPEN */
+        Move(rp, div_dark, div_y1);
+        Draw(rp, div_dark, div_y2);
+
+        SetAPen(rp, 2);   /* SHINEPEN */
+        Move(rp, div_light, div_y1);
+        Draw(rp, div_light, div_y2);
+    }
+
+    /* Cycle gadget right-side dropdown arrow removed.
+     * RKRM specifies the icon+divider on the LEFT (drawn above).
+     * The old AROS-style right-side dropdown is not correct for AmigaOS. */
+
     /* Draw Text — walk the IntuiText chain (NextText) so that
      * GT_Underscore underline IntuiTexts are rendered too.
      * Per RKRM: IntuiText.TopEdge is the top edge of the character cell,
@@ -11845,32 +11944,9 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
         }
     }
 
-    if (_gadtools_IsCycle(gad))
-    {
-        WORD inner_top = top + 2;
-        WORD inner_right = left + width - 3;
-        WORD inner_bottom = top + height - 3;
-        WORD arrow_left = inner_right - 11;
-        WORD arrow_center_x = inner_right - 6;
-        WORD arrow_center_y = top + (height / 2);
-
-        if (inner_top <= inner_bottom)
-        {
-            if (arrow_left < left + width - 2)
-            {
-                SetAPen(rp, 0);
-                RectFill(rp, arrow_left + 1, inner_top, inner_right, inner_bottom);
-
-                SetAPen(rp, 1);
-                Move(rp, arrow_left, inner_top);
-                Draw(rp, arrow_left, inner_bottom);
-
-                Move(rp, arrow_center_x - 3, arrow_center_y - 1);
-                Draw(rp, arrow_center_x, arrow_center_y + 2);
-                Draw(rp, arrow_center_x + 3, arrow_center_y - 1);
-            }
-        }
-    }
+    /* Cycle gadget right-side dropdown arrow removed.
+     * RKRM specifies the icon+divider on the LEFT (drawn above at line ~11659).
+     * The old AROS-style right-side dropdown is not correct for AmigaOS. */
 
     /* Render string gadget buffer contents.
      * Per RKRM, Intuition renders the string contents inside the gadget area.

@@ -300,6 +300,7 @@ static VOID gt_update_cycle_label_display(struct GTGadgetData *data)
     UWORD active;
     STRPTR label;
     UWORD i;
+    WORD textWidth;
 
     if (!data || data->kind != GT_KIND_CYCLE || !data->level_buffer)
         return;
@@ -335,6 +336,24 @@ static VOID gt_update_cycle_label_display(struct GTGadgetData *data)
     for (i = 0; label[i] != '\0' && i < data->max_level_len; i++)
         data->level_buffer[i] = label[i];
     data->level_buffer[i] = '\0';
+
+    /* Re-centre the label text in the right sub-region [22, gadWidth-1].
+     * Per spec §10: CYCLEGLYPHWIDTH=20, divider occupies x=20..21,
+     * so the label area starts at x=22.
+     * textWidth uses 8px/char (topaz 8 default).
+     * If level_text is available, update its LeftEdge now. */
+    if (data->level_text && data->max_pixel_len > 0)
+    {
+        WORD gadWidth = (WORD)data->max_pixel_len; /* stored as gadget width in cycle */
+        WORD rightRegionWidth = gadWidth - 22;
+        textWidth = (WORD)(gt_strlen(data->level_buffer) * 8);
+        if (rightRegionWidth > 0)
+        {
+            WORD le = 22 + (rightRegionWidth - textWidth) / 2;
+            if (le < 22) le = 22;
+            data->level_text->LeftEdge = le;
+        }
+    }
 }
 
 BOOL _gadtools_IsCycle(register struct Gadget *gad __asm("a0"))
@@ -1396,6 +1415,9 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             data->kind = GT_KIND_CYCLE;
             data->aux = (APTR)GetTagData(GTCY_Labels, 0, taglist);
             data->value = (LONG)GetTagData(GTCY_Active, 0, taglist);
+            /* Store gadget width in max_pixel_len so gt_update_cycle_label_display
+             * can re-centre the label in the right sub-region [22, gadWidth-1]. */
+            data->max_pixel_len = (ULONG)ng->ng_Width;
             newgad->GadgetType = GTYP_BOOLGADGET;
             newgad->Activation = GACT_RELVERIFY;
             newgad->Flags = GFLG_GADGHCOMP;
@@ -1412,12 +1434,12 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
                 return NULL;
             }
 
-            _gadtools_SetCycleState(newgad, (UWORD)data->value);
-
             newgad->GadgetRender = (APTR)gt_create_bevel(ng->ng_Width, ng->ng_Height, TRUE);
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,
                                                   ng->ng_Width, ng->ng_Height, us);
+            /* Create cycle value text; LeftEdge will be set by gt_update_cycle_label_display
+             * to centre in the right sub-region [22, gadWidth-1] per spec §10. */
             cycle_text = gt_create_label(data->level_buffer, 0, PLACETEXT_IN,
                                          ng->ng_Width, ng->ng_Height, 0);
             if (!newgad->GadgetRender || !newgad->GadgetText || !cycle_text)
@@ -1436,9 +1458,11 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             if (cycle_text->IText)
                 FreeMem(cycle_text->IText, gt_strlen(cycle_text->IText) + 1);
             cycle_text->IText = data->level_buffer;
-            cycle_text->LeftEdge = 4;
             cycle_text->TopEdge = (ng->ng_Height - GT_FONT_HEIGHT) / 2;
             data->level_text = cycle_text;
+
+            /* Set initial active state and compute initial LeftEdge */
+            _gadtools_SetCycleState(newgad, (UWORD)data->value);
 
             label_tail = gt_label_chain_tail(newgad->GadgetText);
             if (label_tail)
