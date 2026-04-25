@@ -380,6 +380,161 @@ TEST_F(DPaintPixelTest, ScreenFormatDialogSectionsContainVisibleContent) {
 }
 
 /* ========================================================================
+ * Phase 153b — String gadget recessed 3D frame regression
+ *
+ * DPaint's Screen Format dialog contains small numeric STRING_KIND gadgets
+ * (Screen Size / Page Size entry boxes, id=6..9).  On a real Amiga + GadTools
+ * these render with a double-bevel (ridge) frame:
+ *   Outer bevel (recessed): shadow(pen 1) on top/left, shine(pen 2) on bot/right
+ *   Inner bevel (raised):   shine(pen 2) on top/left, shadow(pen 1) on bot/right
+ *
+ * Gadget id=6 (first Screen Size width box) is at window-relative
+ * xy=(213,166) wh=(44,10) per the DPaint gadget layout (empirically confirmed).
+ * ====================================================================== */
+
+TEST_F(DPaintPixelTest, ScreenFormatStringGadgetRecessed3DFrame) {
+    ASSERT_STREQ(window_info.title, "Ownership Information")
+        << "Expected DPaint to start at its ownership window";
+    ASSERT_TRUE(DismissOwnershipWindow())
+        << "Expected ownership window to dismiss";
+
+    ASSERT_TRUE(WaitForWindows(1, 10000));
+    RunCyclesWithVBlank(120, 50000);
+
+    ASSERT_TRUE(OpenScreenFormatDialog())
+        << "Expected Ctrl-P to open DPaint's Screen Format dialog";
+
+    int dialog_index = FindWindowIndexByTitleSubstring("Screen Format");
+    ASSERT_GE(dialog_index, 0) << "Expected the Screen Format dialog window to be present";
+
+    lxa_window_info_t dialog_info;
+    ASSERT_TRUE(GetWindowInfo(dialog_index, &dialog_info));
+
+    lxa_flush_display();
+
+    /* String gadget id=6 (Screen Size width): this is gadget index 4, screen
+     * position (213,166) wh=(44,10).  These are the HITBOX coordinates; the
+     * GadTools bevel border sits outside the hitbox at offsets (-GT_BEVEL_LEFT,
+     * -GT_BEVEL_TOP) = (-4,-2), covering the full ng_Width x ng_Height area.
+     *
+     * Bevel outer top edge:  screen y = 166 - 2 = 164
+     * Bevel outer left:      screen x = 213 - 4 = 209
+     * Bevel full width:      44 + 2*4 = 52
+     * Bevel full height:     10 + 2*2 = 14
+     *
+     * Outer bevel top edge should have shadow (pen 1) — recessed outer bevel.
+     * Outer bevel bottom edge (y=164+14-1=177) should have shine (pen 2).
+     */
+    const int bevel_left = 209;    /* hitbox_left - GT_BEVEL_LEFT */
+    const int bevel_top  = 164;    /* hitbox_top  - GT_BEVEL_TOP  */
+    const int bevel_w    = 52;     /* ng_Width  = hitbox_w + 2*GT_BEVEL_LEFT */
+    const int bevel_h    = 14;     /* ng_Height = hitbox_h + 2*GT_BEVEL_TOP  */
+
+    int shadow_top = 0;
+    for (int x = bevel_left; x < bevel_left + bevel_w; x++) {
+        int pen = -1;
+        lxa_read_pixel(dialog_info.x + x, dialog_info.y + bevel_top, &pen);
+        if (pen == 1) shadow_top++;
+    }
+    EXPECT_GT(shadow_top, bevel_w / 2)
+        << "Phase 153b: Screen Format string gadget id=6 top edge should have "
+           "shadow (pen 1) pixels for recessed outer bevel, got " << shadow_top;
+
+    int shine_bottom = 0;
+    for (int x = bevel_left; x < bevel_left + bevel_w; x++) {
+        int pen = -1;
+        lxa_read_pixel(dialog_info.x + x, dialog_info.y + bevel_top + bevel_h - 1, &pen);
+        if (pen == 2) shine_bottom++;
+    }
+    EXPECT_GT(shine_bottom, bevel_w / 2)
+        << "Phase 153b: Screen Format string gadget id=6 bottom edge should have "
+           "shine (pen 2) pixels for recessed outer bevel, got " << shine_bottom;
+}
+
+TEST_F(DPaintPixelTest, ScreenFormatCheckboxGadgetIsFixedWidth) {
+    ASSERT_STREQ(window_info.title, "Ownership Information")
+        << "Expected DPaint to start at its ownership window";
+    ASSERT_TRUE(DismissOwnershipWindow())
+        << "Expected ownership window to dismiss";
+
+    ASSERT_TRUE(WaitForWindows(1, 10000));
+    RunCyclesWithVBlank(120, 50000);
+
+    ASSERT_TRUE(OpenScreenFormatDialog())
+        << "Expected Ctrl-P to open DPaint's Screen Format dialog";
+
+    int dialog_index = FindWindowIndexByTitleSubstring("Screen Format");
+    ASSERT_GE(dialog_index, 0) << "Expected the Screen Format dialog window to be present";
+
+    lxa_window_info_t dialog_info;
+    ASSERT_TRUE(GetWindowInfo(dialog_index, &dialog_info));
+
+    lxa_flush_display();
+
+    /* Phase 155: Checkbox "Retain Picture" is gadget index 9.
+     * Query its actual on-screen position to handle TopEdge adjustments.
+     * After the CHECKBOX_KIND fix the gadget Dimensions should be 26×11,
+     * regardless of ng_Width=135/ng_Height=14 supplied by DPaint. */
+    auto gadgets = GetGadgets(dialog_index);
+    ASSERT_GE((int)gadgets.size(), 12)
+        << "Expected at least 12 gadgets in Screen Format dialog";
+
+    /* Find the GadTools CHECKBOX_KIND gadget by id=11 (the one our fix applies to).
+     * DPaint also has a raw Intuition bool gadget (id=16) at a different position —
+     * that one is not a GadTools gadget and is not affected by the CHECKBOX_KIND fix. */
+    int cb_idx = -1;
+    for (int i = 0; i < (int)gadgets.size(); i++) {
+        if (gadgets[i].gadget_id == 11) { cb_idx = i; break; }
+    }
+    ASSERT_GE(cb_idx, 0) << "Could not find GadTools checkbox gadget (id=11) in dialog";
+
+    /* Gadget index cb_idx = GadTools CHECKBOX_KIND gadget */
+    const lxa_gadget_info_t &cb_gad = gadgets[cb_idx];
+
+    /* Width must be 26 (CHECKBOX_WIDTH), not ng_Width=135 */
+    EXPECT_EQ(cb_gad.width, 26)
+        << "Phase 155: 'Retain Picture' checkbox width should be 26 (CHECKBOX_WIDTH), got "
+        << cb_gad.width;
+
+    /* Height must be 11 (CHECKBOX_HEIGHT), not ng_Height=14 */
+    EXPECT_EQ(cb_gad.height, 11)
+        << "Phase 155: 'Retain Picture' checkbox height should be 11 (CHECKBOX_HEIGHT), got "
+        << cb_gad.height;
+
+    /* Bevel top edge: VIB_THICK3D spec §11.5 — SHINEPEN (pen 2) on top/left,
+     * SHADOWPEN (pen 1) on bottom/right. */
+    const int bev_x = cb_gad.left;   /* screen coords */
+    const int bev_y = cb_gad.top;
+    const int cb_w  = cb_gad.width;  /* should be 26 */
+    const int cb_h  = cb_gad.height; /* should be 11 */
+
+    int shine_top = 0;
+    for (int x = bev_x; x < bev_x + cb_w - 1; x++) {   /* top row x=0..w-2 = SHINE */
+        int pen = -1;
+        lxa_read_pixel(dialog_info.x + x, dialog_info.y + bev_y, &pen);
+        if (pen == 2) shine_top++;
+    }
+    EXPECT_GT(shine_top, cb_w / 2)
+        << "Phase 155: checkbox top bevel edge at y=" << bev_y
+        << " should have shine (pen 2) pixels (VIB_THICK3D); got " << shine_top;
+
+    /* Bevel bottom edge: SHADOWPEN (pen 1) at y+h-1.
+     * Only verify if within dialog window height. */
+    const int bevel_bottom_screen_y = bev_y + cb_h - 1;
+    if (bevel_bottom_screen_y < dialog_info.height) {
+        int shadow_bottom = 0;
+        for (int x = bev_x + 1; x < bev_x + cb_w; x++) {   /* x=1..w-1 = SHADOW */
+            int pen = -1;
+            lxa_read_pixel(dialog_info.x + x, dialog_info.y + bevel_bottom_screen_y, &pen);
+            if (pen == 1) shadow_bottom++;
+        }
+        EXPECT_GT(shadow_bottom, cb_w / 2)
+            << "Phase 155: checkbox bottom bevel edge at y=" << bevel_bottom_screen_y
+            << " should have shadow (pen 1) pixels (VIB_THICK3D); got " << shadow_bottom;
+    }
+}
+
+/* ========================================================================
  * Phase 115 — extended interaction coverage for DPaint V
  *
  * Startup flow on lxa:

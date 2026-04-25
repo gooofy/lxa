@@ -102,6 +102,7 @@ protected:
     }
 
     static void TearDownTestSuite() {
+        lxa_capture_screen("/home/guenter/projects/amiga/lxa/src/lxa/screenshots/lxa-tests/mousetest.png");
         lxa_shutdown();
 
         auto rm = [](std::string& d) {

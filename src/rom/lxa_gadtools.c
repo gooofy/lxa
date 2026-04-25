@@ -201,6 +201,8 @@ ULONG __g_lxa_gadtools_ExtFuncLib ( void )
 #define GT_INTERWIDTH   4  /* Horizontal space between gadget and text label */
 #define GT_FONT_HEIGHT  8  /* topaz 8 height */
 #define GT_FONT_BASELINE 6 /* topaz 8 baseline */
+#define CHECKBOX_WIDTH  26 /* Fixed width for unscaled checkbox gadget */
+#define CHECKBOX_HEIGHT 11 /* Fixed height for unscaled checkbox gadget */
 
 /* Helper: compute length of a string (we cannot use strlen in ROM code) */
 static WORD gt_strlen(CONST_STRPTR s)
@@ -1242,7 +1244,11 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
                      (ULONG)si, STRORNULL(buf), maxchars, (ULONG)newgad->GadgetRender, (ULONG)newgad->GadgetText);
             break;
         }
-        case CHECKBOX_KIND:
+         case CHECKBOX_KIND:
+        {
+            BOOL cb_scaled = (BOOL)GetTagData(GTCB_Scaled, FALSE, taglist);
+            WORD cb_w, cb_h;
+
             data->kind = GT_KIND_CHECKBOX;
             newgad->GadgetType = GTYP_BOOLGADGET;
             newgad->Activation = GACT_RELVERIFY | GACT_TOGGLESELECT;
@@ -1251,14 +1257,54 @@ struct Gadget * _gadtools_CreateGadgetA ( register struct GadToolsBase *GadTools
             if (GetTagData(GTCB_Checked, FALSE, taglist))
                 data->value = TRUE;
 
-            /* Create recessed bevel box border for the checkbox frame */
-            newgad->GadgetRender = (APTR)gt_create_bevel(ng->ng_Width, ng->ng_Height, TRUE);
+             if (cb_scaled)
+            {
+                /* Scaled mode: use caller-supplied dimensions as-is */
+                cb_w = ng->ng_Width;
+                cb_h = ng->ng_Height;
+            }
+            else
+            {
+                /* Unscaled mode: force standard 26×11 size */
+                cb_w = CHECKBOX_WIDTH;
+                cb_h = CHECKBOX_HEIGHT;
+                newgad->Width  = cb_w;
+                newgad->Height = cb_h;
+
+                /* Vertically centre the checkbox box against left/right labels
+                 * for fonts taller than 8 pixels (spec §8).
+                 * Condition: PLACETEXT_LEFT, PLACETEXT_RIGHT, or no placement
+                 * flag, AND a label text is present. */
+                if (ng->ng_GadgetText)
+                {
+                    ULONG place_mask = ng->ng_Flags &
+                        (PLACETEXT_LEFT | PLACETEXT_RIGHT | PLACETEXT_ABOVE |
+                         PLACETEXT_BELOW | PLACETEXT_IN);
+                    /* place_mask == 0 defaults to PLACETEXT_LEFT */
+                    if (place_mask == 0 ||
+                        place_mask == PLACETEXT_LEFT ||
+                        place_mask == PLACETEXT_RIGHT)
+                    {
+                        WORD ta_ysize = (ng->ng_TextAttr != NULL)
+                                            ? (WORD)ng->ng_TextAttr->ta_YSize
+                                            : (WORD)GT_FONT_HEIGHT;
+                        WORD adj = (ta_ysize - 7) / 2;
+                        if (adj > 0)
+                            newgad->TopEdge += adj;
+                    }
+                }
+            }
+
+            /* Checkbox artwork is drawn entirely by _render_gadget() in lxa_intuition.c
+             * (VIB_THICK3D bevel + checkmark polygon, spec §11.4/§11.5).
+             * No Border/Image needed here; GadgetRender stays NULL. */
 
             /* Create text label — default placement is PLACETEXT_LEFT */
             newgad->GadgetText = gt_create_label(ng->ng_GadgetText, ng->ng_Flags,
                                                   PLACETEXT_LEFT,
-                                                  ng->ng_Width, ng->ng_Height, us);
+                                                  cb_w, cb_h, us);
             break;
+        }
         case SLIDER_KIND:
         {
             struct PropInfo *pi;

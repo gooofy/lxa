@@ -116,6 +116,7 @@ protected:
     }
 
     static void TearDownTestSuite() {
+        lxa_capture_screen("/home/guenter/projects/amiga/lxa/src/lxa/screenshots/lxa-tests/devpac-scrollbar-ZoomWindow.png");
         lxa_shutdown();
         if (!s_tmp_dir.empty()) {
             std::string cmd = "rm -rf " + s_tmp_dir;
@@ -239,6 +240,7 @@ protected:
     }
 
     static void TearDownTestSuite() {
+        lxa_capture_screen("/home/guenter/projects/amiga/lxa/src/lxa/screenshots/lxa-tests/devpac-scrollbar-Border.png");
         lxa_shutdown();
         auto rm = [](std::string& d) {
             if (!d.empty()) {

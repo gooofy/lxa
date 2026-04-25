@@ -11746,6 +11746,85 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
      * RKRM specifies the icon+divider on the LEFT (drawn above).
      * The old AROS-style right-side dropdown is not correct for AmigaOS. */
 
+    /* GadTools CHECKBOX_KIND artwork — spec §11.4/§11.5.
+     *
+     * The checkbox image is drawn as:
+     *   1. Interior fill (BACKGROUNDPEN, pen 0): x=2..w-3, y=1..h-2
+     *   2. VIB_THICK3D double-pixel bevel (JOINS_ANGLED):
+     *        SHINEPEN  (pen 2): top row y=0 x=0..w-2, left cols x=0..1 y=1..h-2
+     *        SHADOWPEN (pen 1): right cols x=w-2..w-1 y=0..h-2, bottom row y=h-1 x=1..w-1
+     *        Angled corners: top-right (w-1,0) = SHADOW; bottom-left (0,h-1) = SHINE
+     *   3. Checkmark polygon (TEXTPEN, pen 1) if GFLG_SELECTED (§11.4)
+     *      Vertices on 26×11 design grid; scale linearly for other sizes.
+     */
+    if (_gadtools_IsCheckbox(gad))
+    {
+        WORD bx = (WORD)left;    /* absolute screen coords of checkbox top-left */
+        WORD by = (WORD)top;
+        WORD bw = (WORD)width;   /* should be 26 (CHECKBOX_WIDTH) */
+        WORD bh = (WORD)height;  /* should be 11 (CHECKBOX_HEIGHT) */
+
+        /* 1. Interior clear */
+        SetAPen(rp, 0);   /* BACKGROUNDPEN */
+        SetDrMd(rp, JAM1);
+        RectFill(rp, (WORD)(bx + 2), (WORD)(by + 1),
+                     (WORD)(bx + bw - 3), (WORD)(by + bh - 2));
+
+        /* 2a. SHINE (pen 2): top row + left two columns */
+        SetAPen(rp, 2);   /* SHINEPEN */
+        /* top row: x = 0..w-2  (top-right corner belongs to SHADOW) */
+        Move(rp, bx,               by);
+        Draw(rp, (WORD)(bx + bw - 2), by);
+        /* left col 0: y = 1..h-1  (bottom-left corner belongs to SHINE) */
+        Move(rp, bx, (WORD)(by + 1));
+        Draw(rp, bx, (WORD)(by + bh - 1));
+        /* left col 1: y = 1..h-2 */
+        Move(rp, (WORD)(bx + 1), (WORD)(by + 1));
+        Draw(rp, (WORD)(bx + 1), (WORD)(by + bh - 2));
+
+        /* 2b. SHADOW (pen 1): right two columns + bottom row */
+        SetAPen(rp, 1);   /* SHADOWPEN */
+        /* right col w-1: y = 0..h-2 (top-right corner = SHADOW) */
+        Move(rp, (WORD)(bx + bw - 1), by);
+        Draw(rp, (WORD)(bx + bw - 1), (WORD)(by + bh - 2));
+        /* right col w-2: y = 1..h-2 */
+        Move(rp, (WORD)(bx + bw - 2), (WORD)(by + 1));
+        Draw(rp, (WORD)(bx + bw - 2), (WORD)(by + bh - 2));
+        /* bottom row: x = 1..w-1 (bottom-left corner = SHINE, covered above) */
+        Move(rp, (WORD)(bx + 1),      (WORD)(by + bh - 1));
+        Draw(rp, (WORD)(bx + bw - 1), (WORD)(by + bh - 1));
+
+        /* 3. Checkmark polygon — only when GFLG_SELECTED */
+        if (gad->Flags & GFLG_SELECTED)
+        {
+            /* Scale factors: design grid is 26 wide × 11 tall.
+             * For the standard 26×11 size the scale is 1:1.
+             * For scaled mode use linear interpolation per spec §11.4. */
+#define CBX(cx) ((WORD)(bx + (bw <= 1 ? 0 : ((LONG)(cx) * (bw - 1) + 12) / 25)))
+#define CBY(cy) ((WORD)(by + (bh <= 1 ? 0 : ((LONG)(cy) * (bh - 1) +  5) / 10)))
+            SetAPen(rp, 1);   /* TEXTPEN */
+            /* Scanline fill per spec §11.4 scanline table: */
+            /* Row y=2: x=17..18  (2 px, top of right arm) */
+            Move(rp, CBX(17), CBY(2)); Draw(rp, CBX(18), CBY(2));
+            /* Row y=3: x=16..17 */
+            Move(rp, CBX(16), CBY(3)); Draw(rp, CBX(17), CBY(3));
+            /* Row y=4: x=15..16 */
+            Move(rp, CBX(15), CBY(4)); Draw(rp, CBX(16), CBY(4));
+            /* Row y=5: x=7..9 (left arm) and x=14..15 (right arm) */
+            Move(rp, CBX(7), CBY(5)); Draw(rp, CBX(9), CBY(5));
+            Move(rp, CBX(14), CBY(5)); Draw(rp, CBX(15), CBY(5));
+            /* Row y=6: x=8..10, x=13..14 */
+            Move(rp, CBX(8), CBY(6)); Draw(rp, CBX(10), CBY(6));
+            Move(rp, CBX(13), CBY(6)); Draw(rp, CBX(14), CBY(6));
+            /* Row y=7: x=9..13 (arms merge) */
+            Move(rp, CBX(9), CBY(7)); Draw(rp, CBX(13), CBY(7));
+            /* Row y=8: x=10..12 (bottom apex) */
+            Move(rp, CBX(10), CBY(8)); Draw(rp, CBX(12), CBY(8));
+#undef CBX
+#undef CBY
+        }
+    }
+
     /* Draw Text — walk the IntuiText chain (NextText) so that
      * GT_Underscore underline IntuiTexts are rendered too.
      * Per RKRM: IntuiText.TopEdge is the top edge of the character cell,

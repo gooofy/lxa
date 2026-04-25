@@ -122,6 +122,7 @@ protected:
     }
 
     static void TearDownTestSuite() {
+        lxa_capture_screen("/home/guenter/projects/amiga/lxa/src/lxa/screenshots/lxa-tests/simplegad-behavior.png");
         lxa_shutdown();
 
         auto rm = [](std::string& d) {
@@ -384,6 +385,7 @@ protected:
     }
 
     static void TearDownTestSuite() {
+        lxa_capture_screen("/home/guenter/projects/amiga/lxa/src/lxa/screenshots/lxa-tests/simplegad-pixels.png");
         lxa_shutdown();
 
         auto rm = [](std::string& d) {

@@ -27,8 +27,30 @@
 #define LXA_TEST_PREFIX "/home/guenter/projects/amiga/lxa/usr"
 #endif
 
+#ifndef LXA_SCREENSHOTS_DIR
+#define LXA_SCREENSHOTS_DIR "/home/guenter/projects/amiga/lxa/src/lxa/screenshots/lxa-tests"
+#endif
+
 namespace lxa {
 namespace testing {
+
+/**
+ * Save a screenshot to screenshots/lxa-tests/<name>.png.
+ * Creates the directory if it does not exist.
+ * Always overwrites any existing file with the same name so the folder
+ * always reflects the most recent test run.
+ *
+ * Uses lxa_capture_screen() which flushes the display before saving.
+ * Returns true on success.
+ */
+inline bool SaveScreenshot(const std::string& name)
+{
+    std::string dir = LXA_SCREENSHOTS_DIR;
+    std::string cmd = "mkdir -p " + dir;
+    system(cmd.c_str());
+    std::string path = dir + "/" + name + ".png";
+    return lxa_capture_screen(path.c_str());
+}
 
 struct RgbImage {
     int width;
@@ -733,6 +755,28 @@ protected:
     void SetUp() override {
         LxaTest::SetUp();
         // Subclasses should load their program and wait for windows
+    }
+
+    /**
+     * Auto-capture the current screen state after every test.
+     * The file is named <TestSuite>-<TestName>.png and written to
+     * LXA_SCREENSHOTS_DIR.  It always overwrites the previous run so
+     * the folder stays current.
+     */
+    void TearDown() override {
+        if (initialized) {
+            const ::testing::TestInfo* ti =
+                ::testing::UnitTest::GetInstance()->current_test_info();
+            if (ti) {
+                std::string suite = ti->test_suite_name();
+                std::string test  = ti->name();
+                // Replace characters that are awkward in file names
+                for (char& c : suite) if (c == '/' || c == ' ') c = '_';
+                for (char& c : test)  if (c == '/' || c == ' ') c = '_';
+                SaveScreenshot(suite + "-" + test);
+            }
+        }
+        LxaTest::TearDown();
     }
 };
 
