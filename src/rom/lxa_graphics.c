@@ -16,6 +16,7 @@
 #include <graphics/videocontrol.h>
 #include <graphics/gfxbase.h>
 #include <graphics/gfxnodes.h>
+#include <graphics/monitor.h>
 #include <graphics/rastport.h>
 #include <graphics/gfx.h>
 #include <graphics/regions.h>
@@ -8039,29 +8040,211 @@ static BOOL _graphics_VideoControl ( register struct GfxBase * GfxBase __asm("a6
     return result;
 }
 
+/*
+ * graphics_init_monitor_list() — populate GfxBase->MonitorList with the
+ * standard system MonitorSpec nodes (default/pal/ntsc).
+ *
+ * Called once at coldstart from exec.c after GfxBase is allocated.
+ *
+ * Apps such as DPaint V's "Screen Format" dialog enumerate this list to
+ * build their available-mode panels.  Without populated entries, those
+ * panels render empty.  Per RKRM (Libraries, Graphics chapter, "Monitors"),
+ * the default monitor is the head of the list and represents whichever
+ * physical monitor is the system default at boot.  pal.monitor and
+ * ntsc.monitor are always present on every system.
+ *
+ * The MonitorSpec function vectors (ms_transform, ms_translate, ms_scale,
+ * ms_MrgCop, ms_LoadView, ms_KillView) are NULL — they're internal helpers
+ * not exposed to applications, and apps that probe MonitorList for display
+ * mode discovery never invoke them.  Geometry fields (total_rows,
+ * total_colorclocks, etc.) are set per the STANDARD_* constants in
+ * graphics/monitor.h so apps that read them get plausible PAL/NTSC values.
+ */
+static const char _g_default_monitor_name[] = DEFAULT_MONITOR_NAME;
+static const char _g_pal_monitor_name[]     = PAL_MONITOR_NAME;
+static const char _g_ntsc_monitor_name[]    = NTSC_MONITOR_NAME;
+
+static void _init_monitor_spec(struct MonitorSpec *ms, const char *name,
+                               UWORD flags, UWORD totalRows, UWORD beamCon0)
+{
+    /* Zero the whole struct first — many fields are intentionally NULL/0. */
+    {
+        UBYTE *p = (UBYTE *)ms;
+        UBYTE *e = p + sizeof(struct MonitorSpec);
+        while (p < e) *p++ = 0;
+    }
+    ms->ms_Node.xln_Type      = NT_USER;             /* MonitorSpec is NT_USER on real AmigaOS */
+    ms->ms_Node.xln_Name      = (char *)name;
+    ms->ms_Node.xln_Subsystem = SS_GRAPHICS;
+    ms->ms_Node.xln_Subtype   = MONITOR_SPEC_TYPE;
+    ms->ms_Flags              = flags;
+    ms->ratioh                = 0x00010000;          /* 1.0 fixed-point */
+    ms->ratiov                = 0x00010000;
+    ms->total_rows            = totalRows;
+    ms->total_colorclocks     = STANDARD_COLORCLOCKS;
+    ms->DeniseMaxDisplayColumn= STANDARD_DENISE_MAX;
+    ms->DeniseMinDisplayColumn= STANDARD_DENISE_MIN;
+    ms->BeamCon0              = beamCon0;
+    ms->min_row               = (totalRows == STANDARD_PAL_ROWS) ? MIN_PAL_ROW : MIN_NTSC_ROW;
+    ms->ms_OpenCount          = 0;
+    /* Initialize the per-monitor DisplayInfoDataBase as an empty list so
+     * code that walks it doesn't crash.  Real AmigaOS populates it lazily. */
+    NEWLIST(&ms->DisplayInfoDataBase);
+}
+
+void graphics_init_monitor_list(struct GfxBase *gfxBase)
+{
+    struct MonitorSpec *ms_default;
+    struct MonitorSpec *ms_pal;
+    struct MonitorSpec *ms_ntsc;
+
+    if (gfxBase == NULL)
+    {
+        DPRINTF(LOG_ERROR, "graphics_init_monitor_list: NULL GfxBase\n");
+        return;
+    }
+
+    NEWLIST(&gfxBase->MonitorList);
+
+    /* Allocate the three system MonitorSpec nodes from MEMF_PUBLIC|MEMF_CLEAR. */
+    ms_default = (struct MonitorSpec *)AllocMem(sizeof(struct MonitorSpec),
+                                                MEMF_PUBLIC | MEMF_CLEAR);
+    ms_pal     = (struct MonitorSpec *)AllocMem(sizeof(struct MonitorSpec),
+                                                MEMF_PUBLIC | MEMF_CLEAR);
+    ms_ntsc    = (struct MonitorSpec *)AllocMem(sizeof(struct MonitorSpec),
+                                                MEMF_PUBLIC | MEMF_CLEAR);
+
+    if (!ms_default || !ms_pal || !ms_ntsc)
+    {
+        DPRINTF(LOG_ERROR, "graphics_init_monitor_list: AllocMem failed\n");
+        if (ms_default) FreeMem(ms_default, sizeof(struct MonitorSpec));
+        if (ms_pal)     FreeMem(ms_pal,     sizeof(struct MonitorSpec));
+        if (ms_ntsc)    FreeMem(ms_ntsc,    sizeof(struct MonitorSpec));
+        return;
+    }
+
+    /* default.monitor — head of the list, represents the system default. */
+    _init_monitor_spec(ms_default, _g_default_monitor_name,
+                       MSF_REQUEST_PAL,        /* PAL is the lxa default */
+                       STANDARD_PAL_ROWS,
+                       STANDARD_PAL_BEAMCON);
+    AddTail(&gfxBase->MonitorList, (struct Node *)ms_default);
+
+    /* pal.monitor */
+    _init_monitor_spec(ms_pal, _g_pal_monitor_name,
+                       MSF_REQUEST_PAL,
+                       STANDARD_PAL_ROWS,
+                       STANDARD_PAL_BEAMCON);
+    AddTail(&gfxBase->MonitorList, (struct Node *)ms_pal);
+
+    /* ntsc.monitor */
+    _init_monitor_spec(ms_ntsc, _g_ntsc_monitor_name,
+                       MSF_REQUEST_NTSC,
+                       STANDARD_NTSC_ROWS,
+                       STANDARD_NTSC_BEAMCON);
+    AddTail(&gfxBase->MonitorList, (struct Node *)ms_ntsc);
+
+    DPRINTF(LOG_INFO, "graphics_init_monitor_list: 3 system MonitorSpecs registered\n");
+}
+
 static struct MonitorSpec * _graphics_OpenMonitor ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register CONST_STRPTR monitorName __asm("a1"),
                                                         register ULONG displayID __asm("d0"))
 {
-    /* 
-     * OpenMonitor() opens a MonitorSpec for a given display mode.
-     * In lxa emulation, we don't have real hardware monitors, so we return NULL
-     * indicating the requested monitor is not available.
-     * Apps should handle NULL return gracefully.
+    /*
+     * OpenMonitor() returns the MonitorSpec for a given monitor name or
+     * display mode ID.  Per RKRM (Libraries, Graphics chapter):
+     *   - OpenMonitor(NULL, 0)        -> returns the head MonitorSpec
+     *                                    (used by apps that walk MonitorList)
+     *   - OpenMonitor(name, 0)        -> looks up by ms_Node.ln_Name
+     *   - OpenMonitor(NULL, displayID) -> looks up by monitor compatibility
+     *                                    bits in displayID (PAL/NTSC bits)
+     *
+     * GfxBase->MonitorList is populated at coldstart with the standard
+     * default/pal/ntsc MonitorSpec nodes (see graphics_init_monitor_list()
+     * in exec.c).  We don't refcount here — these are static system nodes.
      */
-    DPRINTF (LOG_DEBUG, "_graphics: OpenMonitor() monitorName='%s' displayID=0x%08lx - returning NULL (not available)\n",
-             monitorName ? (char *)monitorName : "(null)", displayID);
-    return NULL;
+    struct MonitorSpec *result = NULL;
+    struct Node *n;
+
+    if (GfxBase == NULL)
+    {
+        DPRINTF(LOG_ERROR, "_graphics: OpenMonitor() called with NULL GfxBase\n");
+        return NULL;
+    }
+
+    if (monitorName == NULL && displayID == 0)
+    {
+        /* Return the first (head) MonitorSpec — apps walk ms_Node.ln_Succ
+         * from here to enumerate the system monitor list. */
+        if (!IsListEmpty(&GfxBase->MonitorList))
+        {
+            result = (struct MonitorSpec *)GfxBase->MonitorList.lh_Head;
+        }
+    }
+    else if (monitorName != NULL)
+    {
+        /* Name-based lookup */
+        for (n = GfxBase->MonitorList.lh_Head; n && n->ln_Succ; n = n->ln_Succ)
+        {
+            if (n->ln_Name && strcmp((char *)n->ln_Name, (char *)monitorName) == 0)
+            {
+                result = (struct MonitorSpec *)n;
+                break;
+            }
+        }
+    }
+    else
+    {
+        /* DisplayID-based lookup: check the monitor compatibility bits
+         * (ModeID >> 28).  PAL_MONITOR_ID = 0x21, NTSC_MONITOR_ID = 0x11,
+         * DEFAULT_MONITOR_ID = 0x00.  See graphics/modeid.h. */
+        ULONG monitorBits = displayID & MONITOR_ID_MASK;
+        const char *want = NULL;
+        if (monitorBits == PAL_MONITOR_ID)         want = PAL_MONITOR_NAME;
+        else if (monitorBits == NTSC_MONITOR_ID)   want = NTSC_MONITOR_NAME;
+        else                                       want = DEFAULT_MONITOR_NAME;
+
+        for (n = GfxBase->MonitorList.lh_Head; n && n->ln_Succ; n = n->ln_Succ)
+        {
+            if (n->ln_Name && strcmp((char *)n->ln_Name, want) == 0)
+            {
+                result = (struct MonitorSpec *)n;
+                break;
+            }
+        }
+    }
+
+    if (result)
+    {
+        /* Bump open count so CloseMonitor() can match (for diagnostics).
+         * System monitors are persistent — we never actually free them. */
+        result->ms_OpenCount++;
+    }
+
+    LPRINTF(LOG_DEBUG, "_graphics: OpenMonitor(name='%s', id=0x%08lx) = 0x%08lx\n",
+            monitorName ? (char *)monitorName : "(null)", displayID, (ULONG)result);
+    return result;
 }
 
 static BOOL _graphics_CloseMonitor ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct MonitorSpec * monitorSpec __asm("a0"))
 {
     /*
-     * CloseMonitor() closes a MonitorSpec opened by OpenMonitor().
-     * Since we never return real MonitorSpecs, just return TRUE.
+     * CloseMonitor() releases a MonitorSpec opened by OpenMonitor().
+     * The system monitor specs (default/pal/ntsc) are persistent — we never
+     * remove them from MonitorList.  We just decrement the open count so
+     * RKRM-conformant apps see balanced Open/Close behaviour.
+     * Per RKRM: returns TRUE on success, FALSE if the spec was still in use
+     * (open count > 0 after decrement).  Since we never refuse a close,
+     * always return TRUE.
      */
-    DPRINTF (LOG_DEBUG, "_graphics: CloseMonitor() monitorSpec=0x%08lx\n", (ULONG)monitorSpec);
+    if (monitorSpec && monitorSpec->ms_OpenCount > 0)
+    {
+        monitorSpec->ms_OpenCount--;
+    }
+    DPRINTF (LOG_DEBUG, "_graphics: CloseMonitor() monitorSpec=0x%08lx newCount=%d\n",
+             (ULONG)monitorSpec, monitorSpec ? monitorSpec->ms_OpenCount : -1);
     return TRUE;
 }
 

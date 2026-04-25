@@ -5776,6 +5776,14 @@ void coldstart (void)
     /* copinit, SimpleSprites, ActiView left NULL — they require actual data
      * structures. NULL is the correct initial value (no copper list, no sprites,
      * no view loaded yet). ActiView is set when LoadView() is called. */
+
+    /* Phase 151: populate GfxBase->MonitorList with default/pal/ntsc system
+     * MonitorSpec nodes so apps that enumerate the list (DPaint Screen Format
+     * dialog, etc.) see the standard monitors instead of an empty list. */
+    {
+        extern void graphics_init_monitor_list(struct GfxBase *gfxBase);
+        graphics_init_monitor_list(GfxBase);
+    }
     
     IntuitionBase = (struct IntuitionBase *) registerBuiltInLib (sizeof(*IntuitionBase) , __lxa_intuition_ROMTag );
     DPRINTF(LOG_DEBUG, "[exec] IntuitionBase=0x%08lx\n", (ULONG)IntuitionBase);

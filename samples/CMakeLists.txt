@@ -216,6 +216,7 @@ set(TESTS_LIST
     "../tests/graphics/init_rastport|main|Tests/Graphics/InitRastPort"
     "../tests/graphics/layer_clipping|main|Tests/Graphics/LayerClipping"
     "../tests/graphics/line_draw|main|Tests/Graphics/LineDraw"
+    "../tests/graphics/monitor_list|main|Tests/Graphics/MonitorList"
     "../tests/graphics/pen_state|main|Tests/Graphics/PenState"
     "../tests/graphics/pixel_array8|main|Tests/Graphics/PixelArray8"
     "../tests/graphics/pixel_ops|main|Tests/Graphics/PixelOps"

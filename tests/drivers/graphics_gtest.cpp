@@ -55,6 +55,7 @@ TEST_F(GraphicsTest, InitBitMap) { RunGraphicsTest("InitBitMap"); }
 TEST_F(GraphicsTest, InitRastPort) { RunGraphicsTest("InitRastPort"); }
 TEST_F(GraphicsTest, LayerClipping) { RunGraphicsTest("LayerClipping"); }
 TEST_F(GraphicsTest, LineDraw) { RunGraphicsTest("LineDraw"); }
+TEST_F(GraphicsTest, MonitorList) { RunGraphicsTest("MonitorList"); }
 TEST_F(GraphicsTest, PenState) { RunGraphicsTest("PenState"); }
 TEST_F(GraphicsTest, PixelArray8) { RunGraphicsTest("PixelArray8"); }
 TEST_F(GraphicsTest, PixelOps) { RunGraphicsTest("PixelOps"); }
