@@ -398,6 +398,61 @@ lxa's display strategy is RTG-first via Picasso96 (`Picasso96API.library`). Agen
 
 **Symptom of missing P96**: App opens and immediately exits; `lxa.log` shows `OpenLibrary("Picasso96API.library", ...)` returning NULL followed by an exit. Check that the library is installed in `share/lxa/System/Libs/` and that `add_disk_library()` is in `sys/CMakeLists.txt`.
 
+### 6.20 Disassembling Amiga App Binaries (Phase 151)
+
+When an app misbehaves in lxa but its source is unavailable, **disassemble the binary** instead of guessing. This often pinpoints the exact ROM API call sequence the app expects, saving hours of speculation. Load the `develop-amiga` skill §13 for the full workflow; the short version:
+
+```bash
+export PATH=/opt/amiga/bin:$PATH
+m68k-amigaos-objdump -D /path/to/AppBinary > /tmp/app.dis     # full disasm
+m68k-amigaos-strings -t x /path/to/AppBinary > /tmp/app.str    # all strings + offsets
+m68k-amigaos-nm /path/to/AppBinary                              # symbols if present
+```
+
+`m68k-amigaos-objdump` works directly on AmigaOS hunk-format executables (no need to extract sections first). Strings and string xrefs are the fastest way to locate the routine that opens a specific dialog, requester, or window.
+
+**When to disassemble** (in priority order):
+1. App opens a window but the body is blank → find what the app does immediately after `OpenWindow*` returns (it usually calls `GT_RefreshWindow`, walks `GfxBase->MonitorList`, enumerates `NextDisplayInfo`, etc.). The empty body almost always traces back to one of these enumerator calls returning empty in lxa.
+2. App exits silently with rv ≥ 26 → find the OpenLibrary chain and the first probe-and-bail check.
+3. App calls a documented ROM function with unexpected arguments → confirm the calling convention by reading the surrounding asm.
+
+**For full-task disassembly** (sweeping a 600+ KB binary for a specific feature), launch a `general` subagent with a focused prompt — the disassembly output is too large to inspect in the main context. Phase 151 used this pattern successfully to locate DPaint's mode-list populator at `0x16aac` from a 2-line clue ("Screen Format dialog body is blank").
+
+### 6.21 "Stub Returning NULL" is the Single Most Common Root Cause
+
+When an Amiga system library function in `src/rom/lxa_<libname>.c` is implemented as a **stub returning NULL** (often with a comment like *"apps should handle NULL gracefully"*), it almost certainly breaks one or more apps that the comment author did not test against. Real AmigaOS never returns NULL from these functions for documented well-formed inputs. Examples found in the wild:
+
+- `OpenMonitor(NULL, 0)` returning NULL → DPaint Screen Format dialog mode-list panel is blank (Phase 151).
+- (Add future findings here as they surface.)
+
+**Audit pattern**: Before adding new functionality, grep the relevant ROM file for `returning NULL`, `not available`, `not implemented`, or `apps should handle` comments. Each hit is a latent compatibility bug. Per AGENTS.md §1, system libraries must be fully implemented — these are not acceptable end states.
+
+**Detection from outside**: A symptom that *looks* like an Intuition rendering bug (blank panels, missing widgets) is frequently a graphics/exec stub returning NULL one layer down. Before instrumenting Intuition rendering paths, list every system call the app makes between `OpenWindow` and the first `WaitPort`/`Wait` and check each one for stub status.
+
+### 6.22 LPRINTF Stderr Interleaving — Diagnostic Logging Pitfall
+
+When ROM code calls `LPRINTF()`/`DPRINTF()` from inside a high-frequency hook (e.g., the VBlank IRQ handler `VBlankInputHook`, the per-pixel `WritePixel`, the inner mouse-event loop), the host stderr stream interleaves at byte boundaries because Musashi may dispatch the next CPU cycle that triggers another `EMU_CALL_LPUTS` mid-line. Multi-line dumps from a single function become **shredded** in `lxa.log`, with `_intuition: VBlankInputHook…` snippets injected mid-`%08lx`.
+
+**Symptoms**: `grep "MyLog: bounds=(0,0)-"` finds the prefix but the rest of the line is garbage; `grep -c MyLog` returns 1 when you expected 16.
+
+**Workarounds** (in order of preference):
+1. **Make each LPRINTF a single short line** with a unique stable prefix (e.g., `P151_GAD %d t=%x f=%x p=%d,%d s=%dx%d R=%lx T=%lx S=%lx`). Then `grep -aoE "P151_GAD [^_]+"` extracts only well-formed lines.
+2. **Suppress the interleaving source temporarily**: lower the offending high-frequency LPRINTF (e.g., `VBlankInputHook calling PIE`) to `DPRINTF(LOG_DEBUG, …)` only for the duration of the diagnostic session — but **revert before commit** (see §6.3).
+3. **Do NOT try to write to a host file from ROM via `fopen`/`fprintf`**: those symbols don't exist in the m68k ROM environment (linker error: `undefined reference to fopen`). The only viable host-bridge from ROM is `lputc`/`lputs`/`lprintf` via the `EMU_CALL_LPUTS` illegal-instruction trap.
+4. **Removing a frequently-called LPRINTF can change test timing**: Phase 151 observed that lowering `VBlankInputHook calling PIE` from `LPRINTF(LOG_INFO)` to `DPRINTF(LOG_DEBUG)` caused a previously-passing dismiss flow in `dpaint_gtest` to fail. The host-side `lputs` syscall implicitly burns wall-clock time and acts as a soft throttle. Either keep the LPRINTF (and use workaround #1) or compensate with explicit settling cycles in the test.
+
+**Rule for new instrumentation**: Always design the LPRINTF format to be **one line, ≤120 chars, with a unique prefix grep can anchor on**. Multi-line dumps via consecutive LPRINTFs are unsafe in any code path that runs more than ~10 times per second.
+
+### 6.23 ROM Code Cannot Use Host stdio
+
+ROM code (`src/rom/`) is cross-compiled to m68k and linked against a tiny ROM-only runtime. **Standard C library headers are not usable**:
+
+- `<stdio.h>`: declarations conflict with `src/rom/util.h` (both declare `strlen`, `memcpy`, etc. with slightly different signatures). Including it triggers `error: conflicting types for 'strlen'`.
+- `fopen`, `fprintf`, `fclose`, `printf`, `puts`, etc.: not provided by the ROM linker. Forward-declaring them manually compiles but fails at link time with `undefined reference to fopen`.
+- `malloc`/`free`: do not exist in ROM. Use `AllocVec`/`FreeVec` or `AllocMem`/`FreeMem`.
+
+**The only host-side I/O bridge available from ROM is the `lputc`/`lputs`/`lprintf` family** in `src/rom/util.c`, which uses `EMU_CALL_LPUTC`/`EMU_CALL_LPUTS` illegal-instruction traps to call back into the host emulator. All ROM diagnostic output must go through these. To send arbitrary binary data to the host, add a new `EMU_CALL_*` opcode and a host-side handler in `src/lxa/emu.c`.
+
 ## 7. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.
