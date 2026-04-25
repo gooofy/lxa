@@ -11518,6 +11518,38 @@ static void _complement_gadget_area(struct Window *window, struct Requester *req
     SetDrMd(rp, JAM2);  /* Restore normal draw mode */
 }
 
+/* Draw Intuition-style disabled ghosting over an already-rendered gadget.
+ * Pattern matches the classic 0x5555/0xAAAA checker mask. */
+static void _render_gadget_disabled_overlay(struct RastPort *rp,
+                                            LONG left,
+                                            LONG top,
+                                            LONG width,
+                                            LONG height)
+{
+    WORD x0, y0, x1, y1, x, y;
+
+    if (!rp || width <= 0 || height <= 0)
+        return;
+
+    x0 = (WORD)left;
+    y0 = (WORD)top;
+    x1 = (WORD)(left + width - 1);
+    y1 = (WORD)(top + height - 1);
+
+    SetDrMd(rp, JAM1);
+    SetAPen(rp, 1);
+
+    /* Classic ghosting checker: draw pen 1 on every other pixel. */
+    for (y = y0; y <= y1; y++)
+    {
+        WORD parity = (WORD)(y & 1);
+        for (x = (WORD)(x0 + parity); x <= x1; x += 2)
+            WritePixel(rp, x, y);
+    }
+
+    SetDrMd(rp, JAM2);
+}
+
 /* Helper to render a single gadget */
 static void _render_gadget(struct Window *window, struct Requester *req, struct Gadget *gad)
 {
@@ -11581,6 +11613,12 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             gpr.gpr_Redraw = GREDRAW_REDRAW;
 
             _intuition_dispatch_method(cl, (Object *)gad, (Msg)&gpr);
+
+            if (gad->Flags & GFLG_DISABLED)
+            {
+                _calculate_gadget_box(window, req, gad, &left, &top, &width, &height);
+                _render_gadget_disabled_overlay(brp, left, top, width, height);
+            }
 
             if (gi.gi_DrInfo)
                 _intuition_FreeScreenDrawInfo((struct IntuitionBase *)NULL, window->WScreen, gi.gi_DrInfo);
@@ -12119,6 +12157,11 @@ static void _render_gadget(struct Window *window, struct Requester *req, struct 
             }
             DPRINTF(LOG_DEBUG, "_render_gadget: strgad rendering complete\n");
         }
+    }
+
+    if (gad->Flags & GFLG_DISABLED)
+    {
+        _render_gadget_disabled_overlay(rp, left, top, width, height);
     }
     
 }

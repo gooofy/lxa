@@ -84,6 +84,7 @@ set(SAMPLES_LIST
     "intuition|zoomwindow|ZoomWindow"
     "intuition|layerbackfilltest|LayerBackFillTest"
     "intuition|propgadget|PropGadget"
+    "intuition|gadgetdisabled|GadgetDisabled"
     "devices|simpletimer|SimpleTimer"
     "devices|askkeymap|AskKeymap"
     "utility|tag1|Tag1"

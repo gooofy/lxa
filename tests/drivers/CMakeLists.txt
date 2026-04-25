@@ -210,6 +210,12 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         set_tests_properties(propgadget_chrome_gtest PROPERTIES TIMEOUT 180)
     endif()
 
+    # Gadget disabled ghosting - Phase 156 regression
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadget_disabled_gtest.cpp)
+        add_gtest_driver(gadget_disabled_gtest)
+        set_tests_properties(gadget_disabled_gtest PROPERTIES TIMEOUT 180)
+    endif()
+
     # GadToolsGadgets - GadTools gadget creation test (STRING_KIND, SLIDER_KIND, BUTTON_KIND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/gadtoolsgadgets_gtest.cpp)
         add_gtest_driver_target(gadtoolsgadgets_gtest)

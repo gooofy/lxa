@@ -534,6 +534,68 @@ TEST_F(DPaintPixelTest, ScreenFormatCheckboxGadgetIsFixedWidth) {
     }
 }
 
+TEST_F(DPaintPixelTest, ScreenFormatRetainPictureCheckboxIsGhostedWhenDisabled) {
+    ASSERT_STREQ(window_info.title, "Ownership Information")
+        << "Expected DPaint to start at its ownership window";
+    ASSERT_TRUE(DismissOwnershipWindow())
+        << "Expected ownership window to dismiss";
+
+    ASSERT_TRUE(WaitForWindows(1, 10000));
+    RunCyclesWithVBlank(120, 50000);
+
+    ASSERT_TRUE(OpenScreenFormatDialog())
+        << "Expected Ctrl-P to open DPaint's Screen Format dialog";
+
+    int dialog_index = FindWindowIndexByTitleSubstring("Screen Format");
+    ASSERT_GE(dialog_index, 0) << "Expected the Screen Format dialog window to be present";
+
+    lxa_window_info_t dialog_info;
+    ASSERT_TRUE(GetWindowInfo(dialog_index, &dialog_info));
+
+    auto gadgets = GetGadgets(dialog_index);
+    ASSERT_GE((int)gadgets.size(), 12)
+        << "Expected Screen Format dialog gadgets to be enumerated";
+
+    int retain_idx = -1;
+    for (int i = 0; i < (int)gadgets.size(); i++) {
+        if (gadgets[i].gadget_id == 16) {
+            retain_idx = i;
+            break;
+        }
+    }
+    ASSERT_GE(retain_idx, 0)
+        << "Expected to find DPaint's raw Intuition Retain Picture checkbox (id=16)";
+
+    const lxa_gadget_info_t &retain = gadgets[retain_idx];
+    ASSERT_GT(retain.width, 8);
+    ASSERT_GT(retain.height, 4);
+
+    lxa_flush_display();
+
+    const int patch_left = retain.left + 3;
+    const int patch_top = retain.top + 2;
+    const int patch_w = retain.width - 6;
+    const int patch_h = retain.height - 4;
+
+    int pen1 = 0;
+    int pen0 = 0;
+    for (int y = patch_top; y < patch_top + patch_h; y++) {
+        for (int x = patch_left; x < patch_left + patch_w; x++) {
+            int pixel = -1;
+            lxa_read_pixel(x, y, &pixel);
+            if (pixel == 1) pen1++;
+            if (pixel == 0) pen0++;
+        }
+    }
+
+    const int area = patch_w * patch_h;
+    EXPECT_GT(area, 0);
+    EXPECT_GT(pen1, area / 12)
+        << "Phase 156: disabled Retain Picture gadget should contain stipple pen-1 pixels";
+    EXPECT_GT(pen0, area / 12)
+        << "Phase 156: ghost pattern should preserve alternating background pixels";
+}
+
 /* ========================================================================
  * Phase 115 — extended interaction coverage for DPaint V
  *

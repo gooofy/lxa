@@ -66,6 +66,7 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 153a | Cycle gadget rendering: 16-vertex circular-arrow glyph at LeftEdge=6, divider at x=20/21, label re-centred in [22, gadWidth-1]; old AROS dropdown arrow removed; pixel tests updated in `simplegtgadget_gtest.cpp`. 74/74 pass. | v0.10.4 |
 | 153b | String gadget recessed 3D ridge bevel: `gt_create_ridge_bevel()`, hitbox inset GT_BEVEL_LEFT=4/GT_BEVEL_TOP=2; unit tests in `gadtoolsgadgets_pixels_c_gtest`; DPaint regression `ScreenFormatStringGadgetRecessed3DFrame`. 74/74 pass. | v0.10.4 |
 | 155 | Checkbox gadget sizing + correct artwork: (1) `CHECKBOX_WIDTH=26`, `CHECKBOX_HEIGHT=11` constants; unscaled `CHECKBOX_KIND` forces `newgad->Width=26, newgad->Height=11`; TopEdge centring for fonts taller than 7px. (2) Removed `gt_create_bevel()` from CHECKBOX_KIND; artwork drawn by new block in `_render_gadget()` (`lxa_intuition.c`): BACKGROUNDPEN interior fill, VIB_THICK3D double-pixel bevel (SHINEPEN top/left, SHADOWPEN bottom/right, JOINS_ANGLED corners per spec §11.5), TEXTPEN checkmark scanline polygon (8 rows, spec §11.4) when `GFLG_SELECTED`. Diagnosis revealed DPaint also has a raw Intuition bool gadget (id=16) bypassing GadTools — unaffected. DPaint regression `ScreenFormatCheckboxGadgetIsFixedWidth` finds gadget by id=11, asserts width=26/height=11 and SHINE on top bevel edge. `simplegtgadget_pixels_gtest` `CheckboxBorderRendered` + `CheckboxCheckmarkRenderedAfterClick` both pass. 74/74 pass. | v0.10.6 |
+| 156 | `GADGDISABLED` ghosting: added generic disabled overlay in `_render_gadget()` (`lxa_intuition.c`) as explicit checker plotting (0x5555/0xAAAA equivalent) clipped to gadget bounds; applied to both BOOPSI custom and classic gadget paths after normal imagery render. Added `samples/intuition/gadgetdisabled.c` and `tests/drivers/gadget_disabled_gtest.cpp` coverage for enabled/disabled pair rendering and disable/enable re-render flow. DPaint regression `ScreenFormatRetainPictureCheckboxIsGhostedWhenDisabled` added and passing. Focused validation: `gadget_disabled_gtest` + targeted `dpaint_gtest` pass. | v0.10.7 |
 | 152 | PROPGADGET recessed track-frame rendering: `_render_gadget()` PROPGADGET branch in `lxa_intuition.c` now draws a 3D recessed frame (shadow pen 1 on top/left, shine pen 2 on bottom/right) on the outer perimeter, gated by `pi && !(pi->Flags & PROPBORDERLESS) && width>=2 && height>=2`. Frame applies independently of AUTOKNOB so custom-knob prop gadgets also receive standard chrome; container inset (left+1, top+1, width-2, height-2) leaves the frame intact so existing knob layout is unchanged. New `samples/intuition/propgadget.c` (one FREEVERT + one FREEHORIZ AUTOKNOB|PROPNEWLOOK gadget) and `tests/drivers/propgadget_chrome_gtest.cpp` (7 tests covering all four edges of the vertical gadget, top/bottom of horizontal, and knob still rendering inside the framed container). Devpac scrollbar regression unaffected (interior scan unchanged). DPaint regression bullet from the Phase 152 spec deferred — investigation showed DPaint's id=1/3/13 panels are NOT GTYP_PROPGADGET (DPaint draws only one PROPGADGET, id=10, in the Screen Format dialog); the listview panels are app-rendered custom widgets, not Intuition prop gadgets, so a track-frame regression on them is out of scope for the rendering layer. 74/74 pass. | v0.10.4 |
 
 ---
@@ -141,7 +142,7 @@ The current single-line look makes the gadgets appear flat / non-interactive.
 
 See completed phases summary for details.
 
-### Phase 156 — GADGDISABLED visual ghosting
+### Phase 156 — GADGDISABLED visual ghosting ✓ DONE
 
 **Class**: Amiga compatibility (gadget state rendering).
 
@@ -167,14 +168,14 @@ top of any gadget with `GFLG_DISABLED` set, dimming the visible imagery.
 3. The overlay must clip to the gadget's visible region (don't paint outside
    the gadget's `Width`/`Height`).
 
-- [ ] Implement the stipple overlay in `_render_gadget()` (apply after the
+- [x] Implement the stipple overlay in `_render_gadget()` (apply after the
       gadget's normal imagery is drawn)
-- [ ] Add `gadget_disabled_gtest.cpp`: render a normal and a disabled
+- [x] Add `gadget_disabled_gtest.cpp`: render a normal and a disabled
       checkbox / button / cycle gadget, assert the disabled one has
       stipple pixels in expected positions (every-other pixel pen-1 overlay)
-- [ ] DPaint regression: assert gadget id=16 (Retain Picture) renders with
+- [x] DPaint regression: assert gadget id=16 (Retain Picture) renders with
       stipple pixels when DPaint sets it disabled
-- [ ] Verify that `OnGadget()` / `OffGadget()` already correctly toggle
+- [x] Verify that `OnGadget()` / `OffGadget()` already correctly toggle
       `GFLG_DISABLED` and trigger a re-render (extend tests if not)
 
 **Test gate**: New disabled-gadget test passes; DPaint Retain Picture and
