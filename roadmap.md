@@ -134,6 +134,8 @@ gadgets.
 
 **Class**: Amiga compatibility (GadTools layout).
 
+specification: `checkbox_gadget_spec.md`
+
 The "Retain Picture" gadget (DPaint Screen Format, gadget id=16, xy=209,220
 wh=135x14) renders with the checkbox-plus-label region spanning **135 pixels
 wide** in lxa. The FS-UAE reference shows the checkbox as a small
