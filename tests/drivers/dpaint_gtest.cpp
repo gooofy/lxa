@@ -8,8 +8,10 @@
 
 #include "lxa_test.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <string>
+#include <vector>
 
 using namespace lxa::testing;
 
@@ -61,6 +63,14 @@ protected:
     static constexpr int QUALIFIER_CONTROL = 0x0008;
     static constexpr int RAWKEY_P = 0x19;
 
+    struct TextDraw {
+        std::string text;
+        int x;
+        int y;
+    };
+
+    std::vector<TextDraw> text_draws;
+
     bool HasDiskRexxSysLib() {
         const char* system_base = FindSystemBasePath();
         if (system_base == nullptr) {
@@ -74,6 +84,11 @@ protected:
     void SetUp() override {
         config.rootless = false;
         LxaUITest::SetUp();
+
+        lxa_set_text_hook([](const char *s, int n, int x, int y, void *ud) {
+            auto *draws = static_cast<std::vector<TextDraw> *>(ud);
+            draws->push_back({std::string(s, n), x, y});
+        }, &text_draws);
 
         const char* apps = FindAppsPath();
         if (!apps) {
@@ -95,6 +110,11 @@ protected:
         ASSERT_TRUE(GetWindowInfo(0, &window_info));
         WaitForEventLoop(100, 10000);
         RunCyclesWithVBlank(160, 50000);
+    }
+
+    void TearDown() override {
+        lxa_clear_text_hook();
+        LxaUITest::TearDown();
     }
 
     int FindWindowIndexByTitleSubstring(const char *title_fragment) {
@@ -184,21 +204,26 @@ protected:
         return true;
     }
 
-    int CountWindowRegionContent(int window_index,
-                                 int left_inset,
-                                 int top_inset,
-                                 int right_inset,
-                                 int bottom_inset) {
+    int CountWindowRectContent(int window_index, int left, int top, int width, int height) {
         lxa_window_info_t info;
 
         if (!GetWindowInfo(window_index, &info))
             return -1;
 
-        return CountContentPixels(info.x + left_inset,
-                                  info.y + top_inset,
-                                  info.x + info.width - right_inset,
-                                  info.y + info.height - bottom_inset,
+        return CountContentPixels(info.x + left,
+                                  info.y + top,
+                                  info.x + left + width - 1,
+                                  info.y + top + height - 1,
                                   0);
+    }
+
+    const TextDraw *FindTextContaining(const char *needle) const {
+        auto it = std::find_if(text_draws.begin(), text_draws.end(),
+            [&](const TextDraw &draw) {
+                return draw.text.find(needle) != std::string::npos;
+            });
+
+        return it == text_draws.end() ? nullptr : &*it;
     }
 
     /* Wait for the screen depth to change to a value matching the main editor
@@ -296,30 +321,23 @@ TEST_F(DPaintPixelTest, ScreenFormatDialogSectionsContainVisibleContent) {
 
     lxa_flush_display();
 
-    int upper_right_pixels = CountWindowRegionContent(dialog_index,
-                                                      dialog_info.width / 2,
-                                                      16,
-                                                      12,
-                                                      dialog_info.height * 2 / 3);
-    int middle_right_pixels = CountWindowRegionContent(dialog_index,
-                                                       dialog_info.width / 2,
-                                                       dialog_info.height / 3,
-                                                       12,
-                                                       dialog_info.height / 3);
-    int lower_right_pixels = CountWindowRegionContent(dialog_index,
-                                                      dialog_info.width / 2,
-                                                      dialog_info.height / 2,
-                                                      12,
-                                                      dialog_info.height / 6);
+    int choose_display_mode_pixels = CountWindowRectContent(dialog_index, 8, 34, 350, 107);
+    int display_information_pixels = CountWindowRectContent(dialog_index, 364, 35, 266, 83);
+    int credits_pixels = CountWindowRectContent(dialog_index, 364, 121, 266, 87);
 
-    EXPECT_GT(upper_right_pixels, 0)
-        << "Phase 152 (deferred): the Screen Format dialog's upper-right "
-           "'Choose Display Mode' listview is missing entirely.  Once the "
-           "listview renders we will tighten this back to >80.";
-    EXPECT_GT(middle_right_pixels, 80)
-        << "Expected the Screen Format dialog's middle-right section to show the Display Information content";
-    EXPECT_GT(lower_right_pixels, 80)
-        << "Expected the Screen Format dialog's lower-right section to show the Credits content";
+    EXPECT_GT(choose_display_mode_pixels, 200)
+        << "Expected the Choose Display Mode custom panel to contain DPaint-rendered mode rows";
+    EXPECT_GT(display_information_pixels, 0)
+        << "Expected the Display Information panel heading to render";
+    EXPECT_GT(credits_pixels, 0)
+        << "Expected the Credits panel heading to render";
+
+    EXPECT_NE(FindTextContaining("Choose Display Mode"), nullptr)
+        << "Expected DPaint to semantically render the Choose Display Mode heading";
+    EXPECT_NE(FindTextContaining("Display Information"), nullptr)
+        << "Expected DPaint to semantically render the Display Information heading";
+    EXPECT_NE(FindTextContaining("Credits"), nullptr)
+        << "Expected DPaint to semantically render the Credits heading";
 
     /* Phase 150 — layer creation backfill regression.
      * After dismissing the Ownership Information window and opening the

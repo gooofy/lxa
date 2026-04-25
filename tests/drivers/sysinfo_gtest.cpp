@@ -446,13 +446,20 @@ TEST_F(SysInfoTest, ExecBaseEClockFrequencyIsPAL)
 TEST_F(SysInfoTest, MemoryGadgetRefreshesMemoryArea)
 {
     const int gadget_index = FindGadgetIndexById(GADGET_ID_MEMORY);
+    const int boards_gadget_index = FindGadgetIndexById(GADGET_ID_BOARDS);
     RgbImage before_image;
     RgbImage after_image;
 
     ASSERT_GE(gadget_index, 0) << "SysInfo should expose the MEMORY gadget";
+    ASSERT_GE(boards_gadget_index, 0) << "SysInfo should expose the BOARDS gadget";
 
     const std::string before_path = s_ram_dir + "/sysinfo-memory-before.png";
     const std::string after_path  = s_ram_dir + "/sysinfo-memory-after.png";
+
+    /* The startup view can already be close to MEMORY, so first switch to a
+     * different content page and then verify MEMORY causes a real repaint. */
+    ASSERT_TRUE(ClickGadget(boards_gadget_index, 0));
+    RunCyclesWithVBlank(120, 50000);
 
     ASSERT_TRUE(lxa_capture_window(0, before_path.c_str()));
     before_image = LoadPng(before_path);
