@@ -70,6 +70,7 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 157 | Button / menu accelerator underline: added 1-pixel horizontal underline rendering in `_graphics_Text()` (lxa_graphics.c) when `FSF_UNDERLINED` flag set in `RastPort.AlgoStyle`; underline drawn 1 pixel below baseline using foreground pen. Updated gadget label rendering in `lxa_intuition.c` to detect GadTools underline marker (secondary "_" IntuiText) and set `FSF_UNDERLINED` when rendering main text, skipping the marker itself. Added GTGadgetData `underline_pos` field for future use. New `text_underline_gtest.cpp` (6 tests covering basic rendering, pixel verification, and cleanup). Full test suite: 74/74 pass (2 pre-existing vim timeouts unrelated). DPaint Screen Format dialog buttons ("**U**se", "**Cancel**", "**R**etain Picture") now show keyboard accelerators with proper underlines. | v0.10.8 |
 | 152 | PROPGADGET recessed track-frame rendering: `_render_gadget()` PROPGADGET branch in `lxa_intuition.c` now draws a 3D recessed frame (shadow pen 1 on top/left, shine pen 2 on bottom/right) on the outer perimeter, gated by `pi && !(pi->Flags & PROPBORDERLESS) && width>=2 && height>=2`. Frame applies independently of AUTOKNOB so custom-knob prop gadgets also receive standard chrome; container inset (left+1, top+1, width-2, height-2) leaves the frame intact so existing knob layout is unchanged. New `samples/intuition/propgadget.c` (one FREEVERT + one FREEHORIZ AUTOKNOB|PROPNEWLOOK gadget) and `tests/drivers/propgadget_chrome_gtest.cpp` (7 tests covering all four edges of the vertical gadget, top/bottom of horizontal, and knob still rendering inside the framed container). Devpac scrollbar regression unaffected (interior scan unchanged). DPaint regression bullet from the Phase 152 spec deferred — investigation showed DPaint's id=1/3/13 panels are NOT GTYP_PROPGADGET (DPaint draws only one PROPGADGET, id=10, in the Screen Format dialog); the listview panels are app-rendered custom widgets, not Intuition prop gadgets, so a track-frame regression on them is out of scope for the rendering layer. 74/74 pass. | v0.10.4 |
 | 158 | `SetWindowTitles()` title-bar repaint: `_intuition_SetWindowTitles()` now calls `_render_window_frame()` immediately after updating `window->Title`, removing the stale TODO. Added `samples/intuition/setwindowtitles.c` and `setwindowtitles_gtest.cpp` covering window-title pixel change plus semantic window/screen title text rendering. Added DPaint regression `ScreenFormatTitleBarRepaintsAfterOwnershipDismiss` verifying the retitled Screen Format window title metadata and title-bar pixels change after the Ownership requester closes. Focused validation: `setwindowtitles_gtest` + `dpaint_gtest` pass. | v0.10.9 |
+| 158a | DPaint Screen Format dialog visual review: compared lxa capture to the FS-UAE reference, persisted `screenshots/lxa-tests/dpaint-screen-format-window.png`, and scheduled remaining custom-panel coordinate/rootless-height defects as Phases 158b/158c with owning disabled regression `DISABLED_ScreenFormatMatchesFSUAEReferenceLayout`. | v0.10.10 |
 
 ---
 
@@ -185,13 +186,51 @@ Screen Size string gadgets render ghosted in the captured screen format dialog.
 
 
 
-### Phase 158a - DPaint Screen Format Dialog Review
+### Phase 158a — DPaint Screen Format Dialog Review ✓ DONE
 
-at this point DPaint V's Screen Format Dialog should render **perfectly** in lxa. 
-Compare it to `screenshots/dpaint_screen_format.png` which is a screenshot produced running 
-real AmigaOS in FS-UAE. If there are **any** differences, create new Phases addressing
-each and every one of them, schedule them right here after Phase 158, postpone (renumber)
-all following phases accordingly - we want to get this one right before we move on.
+Visual review against `screenshots/dpaint_screen_format.png` found that Phase
+158 did not complete the Screen Format dialog: lxa still draws the custom panel
+headings/list content at the wrong coordinates and the Workbench/rootless capture
+height differs from the FS-UAE PAL reference. The review artifact is persisted
+at `screenshots/lxa-tests/dpaint-screen-format-window.png`.
+
+### Phase 158b — DPaint Screen Format custom graphics coordinate origin
+
+**Class**: Amiga compatibility (graphics/window RastPort coordinate handling).
+
+DPaint's custom-rendered Screen Format panels are still visibly wrong compared
+with the FS-UAE reference: `Choose Display Mode`, `Display Information`, and
+`Credits` text is drawn far too low/left, leaving the upper framed panels mostly
+blank. GadTools gadget positions are mostly sane, so the defect appears specific
+to direct graphics rendering through the window/screen RastPort path or the
+window-to-screen synchronization path, not to GadTools layout.
+
+- [ ] Diagnose whether direct `Move`/`Text`/`Blt*` calls use the wrong layer/window origin after the Ownership requester is dismissed
+- [ ] Fix the coordinate origin so custom panel headings and mode-list rows land in the same panels as the FS-UAE reference
+- [ ] Re-enable `DPaintPixelTest.DISABLED_ScreenFormatMatchesFSUAEReferenceLayout`
+- [ ] Keep/update the persistent review capture at `screenshots/lxa-tests/dpaint-screen-format-window.png`
+
+**Test gate**: DPaint Screen Format custom panel text coordinates match the
+reference-region expectations and the full suite passes.
+
+### Phase 158c — PAL Workbench visible height / rootless capture semantics
+
+**Class**: Amiga compatibility (screen geometry / host presentation).
+
+The FS-UAE Screen Format reference is 639×290, while lxa's default Workbench
+screen capture is 640×256 and clips the lower part of DPaint's window. A quick
+experiment with a 290-line Workbench host screen proved this only fixes capture
+height and does not fix the custom-panel coordinate bug, so it remains a separate
+screen-geometry issue.
+
+- [ ] Verify RKRM/NDK expectations for Workbench public screen height versus `GfxBase->NormalDisplayRows`/PAL overscan fields
+- [ ] Decide whether lxa's Workbench should expose 256 logical rows, 290 visible host rows, or explicit overscan metadata for apps/captures
+- [ ] Update screen/capture tests that currently hard-code 256 only if the compatibility decision requires it
+- [ ] Add DPaint/reference coverage that prevents lower-dialog clipping without papering over Phase 158b's coordinate bug
+
+**Test gate**: DPaint Screen Format capture no longer clips the bottom dialog
+area, existing 256-row app assumptions are either preserved or intentionally
+updated with passing tests, and the full suite passes.
 
 ### Phase 159 — DirectoryOpus deeper workflows
 

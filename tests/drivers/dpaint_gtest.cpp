@@ -345,6 +345,10 @@ TEST_F(DPaintPixelTest, ScreenFormatDialogSectionsContainVisibleContent) {
     const std::string capture_path = ram_dir_path + "/dpaint-screen-format.png";
     ASSERT_TRUE(CaptureWindow(capture_path.c_str(), dialog_index))
         << "Expected Screen Format capture to succeed";
+    ASSERT_TRUE(CaptureWindow(
+        "/home/guenter/projects/amiga/lxa/src/lxa/screenshots/lxa-tests/dpaint-screen-format-window.png",
+        dialog_index))
+        << "Expected persistent Screen Format capture to succeed";
 
     lxa_flush_display();
 
@@ -404,6 +408,52 @@ TEST_F(DPaintPixelTest, ScreenFormatDialogSectionsContainVisibleContent) {
     EXPECT_LT(title_ghost_pixels, 300)
         << "Phase 150 regression: title bar area contains too many non-background "
            "pixels, suggesting Ownership ghost pixels were not cleared by backfill";
+}
+
+TEST_F(DPaintPixelTest, DISABLED_ScreenFormatMatchesFSUAEReferenceLayout) {
+    ASSERT_STREQ(window_info.title, "Ownership Information")
+        << "Expected DPaint to begin at its ownership window before opening the main editor";
+    ASSERT_TRUE(DismissOwnershipWindow())
+        << "Expected the ownership window to dismiss so the main editor can continue loading";
+
+    ASSERT_TRUE(WaitForWindows(1, 10000));
+    RunCyclesWithVBlank(120, 50000);
+
+    ASSERT_TRUE(OpenScreenFormatDialog())
+        << "Expected Ctrl-P to open DPaint's Screen Format dialog";
+
+    int dialog_index = FindWindowIndexByTitleSubstring("Screen Format");
+    ASSERT_GE(dialog_index, 0) << "Expected the Screen Format dialog window to be present";
+
+    const std::string capture_path = ram_dir_path + "/dpaint-screen-format-layout.png";
+    ASSERT_TRUE(CaptureWindow(capture_path.c_str(), dialog_index))
+        << "Expected Screen Format capture to succeed";
+
+    RgbImage image = LoadPng(capture_path);
+    RgbImage reference = LoadPng("/home/guenter/projects/amiga/lxa/src/lxa/screenshots/dpaint_screen_format.png");
+
+    ASSERT_EQ(reference.width, 639);
+    ASSERT_EQ(reference.height, 290);
+    EXPECT_NEAR(image.width, reference.width, 2)
+        << "DPaint Screen Format width should match the FS-UAE reference";
+    EXPECT_NEAR(image.height, reference.height, 2)
+        << "DPaint Screen Format height should match the FS-UAE reference";
+
+    /* In the reference, the custom-rendered panel headings sit near the top
+     * of their framed panels. lxa currently draws them much lower/left of
+     * target, leaving the upper custom panels mostly blank. */
+    const TextDraw *choose = FindTextContaining("Choose Display Mode");
+    const TextDraw *info = FindTextContaining("Display Information");
+    const TextDraw *credits = FindTextContaining("Credits");
+
+    ASSERT_NE(choose, nullptr);
+    ASSERT_NE(info, nullptr);
+    ASSERT_NE(credits, nullptr);
+    EXPECT_LT(choose->y, 35);
+    EXPECT_GT(info->x, 360);
+    EXPECT_LT(info->y, 35);
+    EXPECT_GT(credits->x, 430);
+    EXPECT_GT(credits->y, 120);
 }
 
 TEST_F(DPaintPixelTest, ScreenFormatTitleBarRepaintsAfterOwnershipDismiss) {

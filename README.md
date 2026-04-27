@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.10.10** - DPaint Screen Format visual review (Phase 158a): compared the current lxa dialog capture against the FS-UAE reference and promoted the remaining mismatches into scheduled follow-up phases. Added persistent capture output at `screenshots/lxa-tests/dpaint-screen-format-window.png` and quarantined regression `DPaintPixelTest.DISABLED_ScreenFormatMatchesFSUAEReferenceLayout` to own the custom-panel coordinate/rootless-height defects.
+
 **Version 0.10.9** - `SetWindowTitles()` title-bar repaint (Phase 158): `_intuition_SetWindowTitles()` now redraws the window frame immediately after changing `window->Title`, so runtime title changes are visible without moving or refreshing the window. New `SetWindowTitles` sample, `setwindowtitles_gtest.cpp`, and DPaint Screen Format title-bar regression coverage.
 
 **Version 0.10.8** - Button / menu accelerator underline (Phase 157): `_graphics_Text()` renders `FSF_UNDERLINED` text with a 1-pixel underline, and GadTools labels now translate accelerator markers into underlined button/menu text. New `text_underline_gtest.cpp` coverage.
