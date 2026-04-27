@@ -185,6 +185,11 @@ if(BUILD_GTESTS AND GTEST_FOUND)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/text_underline_gtest.cpp)
         add_gtest_driver(text_underline_gtest)
     endif()
+
+    # SetWindowTitles - title-bar repaint regression (Phase 158)
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/setwindowtitles_gtest.cpp)
+        add_gtest_driver(setwindowtitles_gtest)
+    endif()
     
     # SimpleImage - Image rendering test
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/simpleimage_gtest.cpp)

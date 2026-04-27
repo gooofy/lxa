@@ -10491,7 +10491,6 @@ VOID _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase 
     /*
      * SetWindowTitles() changes the window and/or screen title.
      * A value of (UBYTE *)-1 means "don't change this title".
-     * For now we just log the request.
      */
     DPRINTF (LOG_DEBUG, "_intuition: SetWindowTitles() window=0x%08lx\n", (ULONG)window);
 
@@ -10501,7 +10500,7 @@ VOID _intuition_SetWindowTitles ( register struct IntuitionBase * IntuitionBase 
     /* Update window title if requested */
     if (windowTitle != (CONST_STRPTR)-1) {
         window->Title = (UBYTE *)windowTitle;
-        /* TODO: actually redraw the title bar */
+        _render_window_frame(window);
     }
 
     /* Update screen title if requested */

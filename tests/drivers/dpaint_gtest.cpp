@@ -243,6 +243,33 @@ protected:
 
         return false;
     }
+
+    std::vector<int> ReadTitleBarPatch(const lxa_window_info_t& info) {
+        std::vector<int> pixels;
+
+        for (int y = info.y + 2; y <= info.y + 12; y++) {
+            for (int x = info.x + 36; x <= info.x + 260; x++) {
+                int value = -1;
+                lxa_read_pixel(x, y, &value);
+                pixels.push_back(value);
+            }
+        }
+
+        return pixels;
+    }
+
+    int CountDifferentPixels(const std::vector<int>& a, const std::vector<int>& b) const {
+        int count = 0;
+        size_t n = std::min(a.size(), b.size());
+
+        for (size_t i = 0; i < n; i++) {
+            if (a[i] != b[i]) {
+                count++;
+            }
+        }
+
+        return count;
+    }
 };
 
 TEST_F(DPaintTest, ProgramLoads) {
@@ -377,6 +404,37 @@ TEST_F(DPaintPixelTest, ScreenFormatDialogSectionsContainVisibleContent) {
     EXPECT_LT(title_ghost_pixels, 300)
         << "Phase 150 regression: title bar area contains too many non-background "
            "pixels, suggesting Ownership ghost pixels were not cleared by backfill";
+}
+
+TEST_F(DPaintPixelTest, ScreenFormatTitleBarRepaintsAfterOwnershipDismiss) {
+    ASSERT_STREQ(window_info.title, "Ownership Information")
+        << "Expected DPaint to start at its ownership window";
+
+    lxa_flush_display();
+    auto ownership_patch = ReadTitleBarPatch(window_info);
+
+    text_draws.clear();
+    ASSERT_TRUE(DismissOwnershipWindow())
+        << "Expected ownership window to dismiss";
+
+    ASSERT_TRUE(WaitForWindowTitleSubstring("Screen Format", 8000))
+        << "Expected DPaint to retitle the window after ownership dismiss";
+    RunCyclesWithVBlank(60, 50000);
+    lxa_flush_display();
+
+    int sf = FindWindowIndexByTitleSubstring("Screen Format");
+    ASSERT_GE(sf, 0) << "Expected the Screen Format window to be present";
+
+    lxa_window_info_t screen_format_info;
+    ASSERT_TRUE(GetWindowInfo(sf, &screen_format_info));
+    EXPECT_NE(std::string(screen_format_info.title).find("DeluxePaint"), std::string::npos)
+        << "DPaint's live window title should be the retitled DeluxePaint Screen Format title";
+
+    auto screen_format_patch = ReadTitleBarPatch(screen_format_info);
+    EXPECT_GT(CountDifferentPixels(ownership_patch, screen_format_patch), 20)
+        << "DPaint's title-bar pixels should change after the Ownership title is replaced";
+    EXPECT_EQ(FindTextContaining("Ownership Information"), nullptr)
+        << "Ownership title text should not be redrawn after DPaint retitles the window";
 }
 
 /* ========================================================================

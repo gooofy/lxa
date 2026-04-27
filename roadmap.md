@@ -69,6 +69,7 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 156 | `GADGDISABLED` ghosting: added generic disabled overlay in `_render_gadget()` (`lxa_intuition.c`) as explicit checker plotting (0x5555/0xAAAA equivalent) clipped to gadget bounds; applied to both BOOPSI custom and classic gadget paths after normal imagery render. Added `samples/intuition/gadgetdisabled.c` and `tests/drivers/gadget_disabled_gtest.cpp` coverage for enabled/disabled pair rendering and disable/enable re-render flow. DPaint regression `ScreenFormatRetainPictureCheckboxIsGhostedWhenDisabled` added and passing. Focused validation: `gadget_disabled_gtest` + targeted `dpaint_gtest` pass. | v0.10.7 |
 | 157 | Button / menu accelerator underline: added 1-pixel horizontal underline rendering in `_graphics_Text()` (lxa_graphics.c) when `FSF_UNDERLINED` flag set in `RastPort.AlgoStyle`; underline drawn 1 pixel below baseline using foreground pen. Updated gadget label rendering in `lxa_intuition.c` to detect GadTools underline marker (secondary "_" IntuiText) and set `FSF_UNDERLINED` when rendering main text, skipping the marker itself. Added GTGadgetData `underline_pos` field for future use. New `text_underline_gtest.cpp` (6 tests covering basic rendering, pixel verification, and cleanup). Full test suite: 74/74 pass (2 pre-existing vim timeouts unrelated). DPaint Screen Format dialog buttons ("**U**se", "**Cancel**", "**R**etain Picture") now show keyboard accelerators with proper underlines. | v0.10.8 |
 | 152 | PROPGADGET recessed track-frame rendering: `_render_gadget()` PROPGADGET branch in `lxa_intuition.c` now draws a 3D recessed frame (shadow pen 1 on top/left, shine pen 2 on bottom/right) on the outer perimeter, gated by `pi && !(pi->Flags & PROPBORDERLESS) && width>=2 && height>=2`. Frame applies independently of AUTOKNOB so custom-knob prop gadgets also receive standard chrome; container inset (left+1, top+1, width-2, height-2) leaves the frame intact so existing knob layout is unchanged. New `samples/intuition/propgadget.c` (one FREEVERT + one FREEHORIZ AUTOKNOB|PROPNEWLOOK gadget) and `tests/drivers/propgadget_chrome_gtest.cpp` (7 tests covering all four edges of the vertical gadget, top/bottom of horizontal, and knob still rendering inside the framed container). Devpac scrollbar regression unaffected (interior scan unchanged). DPaint regression bullet from the Phase 152 spec deferred — investigation showed DPaint's id=1/3/13 panels are NOT GTYP_PROPGADGET (DPaint draws only one PROPGADGET, id=10, in the Screen Format dialog); the listview panels are app-rendered custom widgets, not Intuition prop gadgets, so a track-frame regression on them is out of scope for the rendering layer. 74/74 pass. | v0.10.4 |
+| 158 | `SetWindowTitles()` title-bar repaint: `_intuition_SetWindowTitles()` now calls `_render_window_frame()` immediately after updating `window->Title`, removing the stale TODO. Added `samples/intuition/setwindowtitles.c` and `setwindowtitles_gtest.cpp` covering window-title pixel change plus semantic window/screen title text rendering. Added DPaint regression `ScreenFormatTitleBarRepaintsAfterOwnershipDismiss` verifying the retitled Screen Format window title metadata and title-bar pixels change after the Ownership requester closes. Focused validation: `setwindowtitles_gtest` + `dpaint_gtest` pass. | v0.10.9 |
 
 ---
 
@@ -183,42 +184,6 @@ top of any gadget with `GFLG_DISABLED` set, dimming the visible imagery.
 Screen Size string gadgets render ghosted in the captured screen format dialog.
 
 
-
-### Phase 158 — `SetWindowTitles()` repaints title bar
-
-**Class**: Quality (existing TODO at `src/rom/lxa_intuition.c:10489`).
-
-`_intuition_SetWindowTitles()` currently updates `window->Title` in memory
-but does not redraw the window's title bar — the comment on line 10489 says
-`/* TODO: actually redraw the title bar */`. Apps that change a window
-title at runtime (DPaint switches its single window from "Ownership
-Information" → "DeluxePaint 5.2 - Screen Format" → ...) appear to keep the
-old title until the user moves or refreshes the window. Real Amiga repaints
-the title bar immediately on `SetWindowTitles()`.
-
-**Sub-problems**:
-1. After updating `window->Title`, call `_render_window_frame(window)` (or a
-   narrower `_render_window_titlebar(window)` helper) so the bar is repainted
-   with the new text.
-2. After updating `window->WScreen->Title` for the screen, the existing
-   `_render_screen_title_bar()` call already handles that — but only when
-   the active window's screen title is shown; if the screen title bar is
-   currently obscured by another screen-title source (e.g. the active
-   window has a custom screen title), the right behaviour is "repaint when
-   visible." Audit the active-window vs. screen-title interaction.
-3. Remove the `TODO` comment.
-
-- [ ] Implement the title-bar repaint in `_intuition_SetWindowTitles()`
-- [ ] Add `setwindowtitles_gtest.cpp`: open a window with title "Before",
-      capture title-bar pixels, call `SetWindowTitles(window, "After", -1)`,
-      capture again, assert the pixels differ in the title-bar region
-- [ ] Add a screen-title variant of the same test
-- [ ] DPaint regression: after Ownership dismiss, the rendered title bar of
-      the (now-retitled) window contains text matching "DeluxePaint" — not
-      "Ownership Information"
-
-**Test gate**: New `setwindowtitles_gtest` passes; DPaint Screen Format
-window's title bar pixels match its current title (`window->Title`).
 
 ### Phase 158a - DPaint Screen Format Dialog Review
 

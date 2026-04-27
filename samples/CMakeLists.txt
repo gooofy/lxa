@@ -85,6 +85,7 @@ set(SAMPLES_LIST
     "intuition|layerbackfilltest|LayerBackFillTest"
     "intuition|propgadget|PropGadget"
     "intuition|gadgetdisabled|GadgetDisabled"
+    "intuition|setwindowtitles|SetWindowTitles"
     "devices|simpletimer|SimpleTimer"
     "devices|askkeymap|AskKeymap"
     "utility|tag1|Tag1"

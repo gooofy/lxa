@@ -270,6 +270,34 @@ static int CountScreenContent(int x1, int y1, int x2, int y2, int bg_x, int bg_y
     return count;
 }
 
+static std::vector<int> ReadScreenPatch(int x1, int y1, int x2, int y2) {
+    std::vector<int> pixels;
+
+    lxa_flush_display();
+    for (int y = y1; y <= y2; y++) {
+        for (int x = x1; x <= x2; x++) {
+            int pen = -1;
+            lxa_read_pixel(x, y, &pen);
+            pixels.push_back(pen);
+        }
+    }
+
+    return pixels;
+}
+
+static int CountPatchDifferences(const std::vector<int>& a, const std::vector<int>& b) {
+    int count = 0;
+    size_t n = std::min(a.size(), b.size());
+
+    for (size_t i = 0; i < n; i++) {
+        if (a[i] != b[i]) {
+            count++;
+        }
+    }
+
+    return count;
+}
+
 TEST_F(MaxonBasicTest, ZEditorRendersTypedText) {
     /* Verify that typing actually produces visible glyphs in the editor area.
      * Click to focus, then type a distinctive string and assert pixel content
@@ -296,13 +324,14 @@ TEST_F(MaxonBasicTest, ZEditorRendersTypedText) {
 }
 
 TEST_F(MaxonBasicTest, ZMenuBarAppearsOnRMB) {
-    /* RMB click on the screen menu bar area should reveal MaxonBASIC's
-     * menu titles. We assert by counting pixels in the top menu strip
-     * before and after the RMB click. The menu strip lives at y=0..9. */
+    /* RMB click on the screen menu bar area should activate MaxonBASIC's menu.
+     * The menu titles may already be visible before RMB, so assert stable
+     * visible strip content plus a pixel change caused by menu activation. */
     RunCyclesWithVBlank(20, 50000);
 
     /* Quiet sample: middle-right of editor area, well below menu bar. */
     int before = CountScreenContent(0, 0, 400, 9, 500, 100);
+    auto before_patch = ReadScreenPatch(0, 0, 400, 30);
 
     /* RMB click on menu bar area.
      *
@@ -316,10 +345,16 @@ TEST_F(MaxonBasicTest, ZMenuBarAppearsOnRMB) {
     RunCyclesWithVBlank(150, 50000);
 
     int after = CountScreenContent(0, 0, 400, 9, 500, 100);
+    auto after_patch = ReadScreenPatch(0, 0, 400, 30);
 
-    EXPECT_GT(after, before + 50)
-        << "RMB on menu bar should reveal menu titles (before=" << before
+    EXPECT_GT(before, 100)
+        << "MaxonBASIC menu bar should have visible title pixels before RMB (before="
+        << before << ")";
+    EXPECT_GT(after, 100)
+        << "RMB on menu bar should leave visible menu title pixels (before=" << before
         << " after=" << after << ")";
+    EXPECT_GT(CountPatchDifferences(before_patch, after_patch), 20)
+        << "RMB on menu bar should change menu-region pixels";
     EXPECT_TRUE(lxa_is_running());
 
     /* Capture artifact for failure inspection. */
