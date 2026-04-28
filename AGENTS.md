@@ -453,6 +453,20 @@ ROM code (`src/rom/`) is cross-compiled to m68k and linked against a tiny ROM-on
 
 **The only host-side I/O bridge available from ROM is the `lputc`/`lputs`/`lprintf` family** in `src/rom/util.c`, which uses `EMU_CALL_LPUTC`/`EMU_CALL_LPUTS` illegal-instruction traps to call back into the host emulator. All ROM diagnostic output must go through these. To send arbitrary binary data to the host, add a new `EMU_CALL_*` opcode and a host-side handler in `src/lxa/emu.c`.
 
+### 6.24 FS-UAE Reference Captures vs Canonical Amiga Geometry
+
+Reference screenshots taken from FS-UAE (or any other emulator) often include **non-default overscan** that does not match real Amiga canonical geometry. Before using a reference image as ground truth for a pixel/layout test, verify what overscan and screenmode were active when the capture was taken. The canonical PAL Workbench is **640×256** (RKRM, `GfxBase->NormalDisplayRows == 256`); the canonical NTSC Workbench is **640×200**. OSCAN_STANDARD/MAX captures (e.g. 704×284, 720×284, 640×290) are *valid* Amiga configurations but are **not** what apps see by default on a freshly-booted system.
+
+**Symptom**: A test asserts `image.height == reference.height ± 2`, the lxa capture is 247 px tall, the reference is 290 px tall, and the difference of 43 px tempts you to "fix" lxa's Workbench height. **Don't.** First check:
+
+1. Does `lxa.log` show `OpenWorkBench` opening at 640×256? If yes, lxa is correct per RKRM.
+2. Does `GfxBase->NormalDisplayRows` return 256? If yes, lxa is correct.
+3. Was the FS-UAE reference taken with `Settings → Hardware → Amiga Model → Overscan` set to anything other than "Standard"? If yes, the reference is from an overscan configuration.
+
+**Phase 158b/c (DPaint Screen Format)** was originally framed as a "coordinate origin bug" and a "PAL height clipping bug" because the lxa dialog (640×247) was visibly smaller than the FS-UAE reference (639×290). Disassembly proved DPaint sizes its dialog from `Screen.Height − 13`, so the smaller canonical Workbench yields a proportionally smaller dialog and GadTools auto-layout places panel headings further down within the upper framed panels — **this is correct rendering of correct geometry**. The phases were re-framed (no code change) and the test (`ScreenFormatLayoutOnCanonicalPALWorkbench`) re-enabled with assertions for canonical-PAL geometry instead of FS-UAE-overscan geometry.
+
+**Rule**: Re-capture references on lxa (or on a real Amiga at the documented default mode) before asserting pixel-accurate equality. Do not change Workbench/screen geometry to match an overscan-captured reference image.
+
 ## 7. Quick Start
 1. Check `roadmap.md`.
 2. Load `lxa-workflow` to understand the process.

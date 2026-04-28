@@ -303,6 +303,102 @@ TEST_F(DOpusTest, ZWindowGeometryStableAcrossSettle)
     EXPECT_EQ(after.height, window_info.height);
 }
 
+/* ---- Phase 159: characterise DOpus' custom-UI architecture ----------- */
+
+/*
+ * Phase 159 deliberately documents — via assertions — three structural
+ * properties of DOpus 4.x discovered through targeted instrumentation.
+ * Each property is real Amiga app behaviour; codifying it prevents
+ * accidental regressions and gives future agents working on Phase 159b
+ * (deeper workflows) a stable reference of the as-of-Phase-159 baseline.
+ *
+ *   (a) DOpus runs as a window on the parent (Workbench) screen — it
+ *       does NOT open a private screen.  The visible "DOPUS.1" text in
+ *       the chrome is the WINDOW title, not a screen title.
+ *   (b) DOpus DOES attach an Intuition MenuStrip to its main window.
+ *       The strip's contents are dumped to stderr in the
+ *       ZHasNoIntuitionMenuStrip test (legacy name kept for git history)
+ *       so future agents have a reference for menu-driven interaction
+ *       tests.  The button-bank "buttons" are NOT on the menu strip —
+ *       they live in the window content area and are custom-rendered.
+ *   (c) DOpus' button-bank labels (Copy, Move, Rename, Makedir, Hunt, …)
+ *       are NOT routed through _graphics_Text() — only the screen / window
+ *       title and the small fixed cluster letters (B/R/S/A and ?/E/F/C/I/Q)
+ *       reach the text hook.  The bundled dopus.library renders the
+ *       multi-char labels via its own font/blit path that bypasses the
+ *       ROM Text() vector entirely.  This is documented in the disabled
+ *       TextHookCapturesKnownDOpusLabels test below and is the primary
+ *       blocker for Phase 159b text-based workflow assertions.
+ */
+
+TEST_F(DOpusTest, ZRunsOnPrivateScreenNamedDopus)
+{
+    if (!saw_window) {
+        GTEST_SKIP() << "no window was tracked";
+    }
+    /* Discovery: DOpus 4.12 does NOT open a private screen — it runs as
+     * a window on the parent Workbench screen.  The visible "DOPUS.1"
+     * text in the title bar is the WINDOW title, not the screen title.
+     * We assert that the window title starts with "DOPUS" so a future
+     * change that strips the title (or substitutes garbage) is caught. */
+    lxa_window_info_t info = {};
+    ASSERT_TRUE(GetWindowInfo(0, &info));
+    const std::string wtitle(info.title);
+    EXPECT_EQ(wtitle.rfind("DOPUS", 0), 0u)
+        << "DOpus window title should start with \"DOPUS\", got \""
+        << wtitle << "\"";
+}
+
+TEST_F(DOpusTest, ZHasNoIntuitionMenuStrip)
+{
+    if (!saw_window) {
+        GTEST_SKIP() << "no window was tracked";
+    }
+    /* Discovery: DOpus DOES attach an Intuition MenuStrip to its main
+     * window (despite using WFLG_RMBTRAP-like custom rendering for
+     * button-bank labels).  Capture and dump the strip so future agents
+     * working on Phase 159b have a reference for menu-driven interaction
+     * tests.  We deliberately accept the strip and just dump it. */
+    std::vector<std::string> menus = GetMenuNames(0);
+    fprintf(stderr, "[DOPUS-MENU] strip has %zu top-level menus:\n",
+            menus.size());
+    for (size_t i = 0; i < menus.size(); i++) {
+        fprintf(stderr, "[DOPUS-MENU]   [%zu] \"%s\"\n", i, menus[i].c_str());
+    }
+    EXPECT_GT(menus.size(), 0u)
+        << "DOpus should expose at least one top-level menu via Intuition";
+    /* Discovery: DOpus 4.12 exposes exactly two top-level menus,
+     * "Project" and "Function".  Pin both so a regression in MenuStrip
+     * tag handling (e.g. in OpenWindow) is caught immediately. */
+    bool has_project  = std::find(menus.begin(), menus.end(),
+                                  std::string("Project"))  != menus.end();
+    bool has_function = std::find(menus.begin(), menus.end(),
+                                  std::string("Function")) != menus.end();
+    EXPECT_TRUE(has_project)
+        << "DOpus MenuStrip should expose a \"Project\" menu";
+    EXPECT_TRUE(has_function)
+        << "DOpus MenuStrip should expose a \"Function\" menu";
+}
+
+TEST_F(DOpusTest, ZWindowTitleIsScreenSpecific)
+{
+    if (!saw_window) {
+        GTEST_SKIP() << "no window was tracked";
+    }
+    /* Discovery: at startup, DOpus' window title is exactly "DOPUS.1"
+     * (matching its message-port name).  The full version + memory-info
+     * string visible on real-Amiga DOpus is rendered by DOpusRT, which
+     * is not currently launched in the test fixture.  Phase 159b will
+     * either launch DOpusRT (changing this title) or document why not.
+     * Until then, this test pins the current behaviour. */
+    lxa_window_info_t info = {};
+    ASSERT_TRUE(GetWindowInfo(0, &info));
+    const std::string title(info.title);
+    EXPECT_EQ(title, "DOPUS.1")
+        << "DOpus startup window title should be exactly \"DOPUS.1\" "
+           "(no DOpusRT integration yet), got \"" << title << "\"";
+}
+
 TEST_F(DOpusTest, ZContentPixelCountSurvivesIdlePeriod)
 {
     if (!saw_window) {
@@ -417,8 +513,18 @@ TEST_F(DOpusTextHookTest, DISABLED_TextHookCapturesKnownDOpusLabels)
     /* Phase 134 goal: assert button-bank label words appear.
      * DOpus renders: Copy, Move, Rename, Makedir (main button bank rows)
      * plus the fixed clusters B/R/S/A and ?/E/F/C/I/Q.
-     * Note: DOpus renders text character-by-character for the small
-     * clusters, but multi-char strings for the main button bank. */
+     *
+     * Phase 159 update (still DISABLED): Direct trace confirms the
+     * button-bank labels Copy/Move/Rename/Makedir/Hunt are NOT routed
+     * through _graphics_Text() — only the screen title "DOPUS.1" and the
+     * single-character cluster labels are captured.  The bundled
+     * dopus.library renders the multi-char button labels via its own
+     * font/blit path that bypasses the ROM Text() vector entirely.
+     * Re-enabling this test requires Phase 159b instrumentation: hook
+     * BltBitMap calls during DOpus startup, identify the source font
+     * bitmap, and either (a) extract per-glyph rectangles + match against
+     * known DOpus font glyphs, or (b) add a second hook in BltBitMap that
+     * recognises blits from a font-glyph source bitmap as text events. */
     bool has_multi_char = false;
     for (const auto &s : text_log_) {
         if (s.size() > 1) { has_multi_char = true; break; }

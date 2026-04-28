@@ -71,10 +71,21 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 152 | PROPGADGET recessed track-frame rendering: `_render_gadget()` PROPGADGET branch in `lxa_intuition.c` now draws a 3D recessed frame (shadow pen 1 on top/left, shine pen 2 on bottom/right) on the outer perimeter, gated by `pi && !(pi->Flags & PROPBORDERLESS) && width>=2 && height>=2`. Frame applies independently of AUTOKNOB so custom-knob prop gadgets also receive standard chrome; container inset (left+1, top+1, width-2, height-2) leaves the frame intact so existing knob layout is unchanged. New `samples/intuition/propgadget.c` (one FREEVERT + one FREEHORIZ AUTOKNOB|PROPNEWLOOK gadget) and `tests/drivers/propgadget_chrome_gtest.cpp` (7 tests covering all four edges of the vertical gadget, top/bottom of horizontal, and knob still rendering inside the framed container). Devpac scrollbar regression unaffected (interior scan unchanged). DPaint regression bullet from the Phase 152 spec deferred — investigation showed DPaint's id=1/3/13 panels are NOT GTYP_PROPGADGET (DPaint draws only one PROPGADGET, id=10, in the Screen Format dialog); the listview panels are app-rendered custom widgets, not Intuition prop gadgets, so a track-frame regression on them is out of scope for the rendering layer. 74/74 pass. | v0.10.4 |
 | 158 | `SetWindowTitles()` title-bar repaint: `_intuition_SetWindowTitles()` now calls `_render_window_frame()` immediately after updating `window->Title`, removing the stale TODO. Added `samples/intuition/setwindowtitles.c` and `setwindowtitles_gtest.cpp` covering window-title pixel change plus semantic window/screen title text rendering. Added DPaint regression `ScreenFormatTitleBarRepaintsAfterOwnershipDismiss` verifying the retitled Screen Format window title metadata and title-bar pixels change after the Ownership requester closes. Focused validation: `setwindowtitles_gtest` + `dpaint_gtest` pass. | v0.10.9 |
 | 158a | DPaint Screen Format dialog visual review: compared lxa capture to the FS-UAE reference, persisted `screenshots/lxa-tests/dpaint-screen-format-window.png`, and scheduled remaining custom-panel coordinate/rootless-height defects as Phases 158b/158c with owning disabled regression `DISABLED_ScreenFormatMatchesFSUAEReferenceLayout`. | v0.10.10 |
+| 158b/c | DPaint Screen Format layout — re-framed (no code change). Diagnostic disassembly proved the apparent "coordinate origin bug" and "PAL height clipping" were misframed: (a) the 639×290 FS-UAE reference image was captured with PAL OSCAN_STANDARD overscan, while real Amiga canonical PAL Workbench is 640×256 (RKRM, `GfxBase->NormalDisplayRows == 256`) which lxa correctly reports; (b) DPaint sizes its Screen Format dialog from `Screen.Height − 13`, so the smaller canonical Workbench yields a proportionally smaller dialog (~640×247) and GadTools auto-layout places panel headings further down — this is correct behaviour, not a rendering defect; (c) the empty "Choose Display Mode" listview is RTG-dependent (DPaint enumerates RTG modes via `NextDisplayInfo`; lxa lacks P96 mode IDs) and remains parked for Phases 164–166; (d) no bottom clipping occurs at the canonical screen size — the Use/Cancel/Retain Picture buttons are visible. Re-enabled the test as `ScreenFormatLayoutOnCanonicalPALWorkbench` with assertions for the canonical-PAL geometry: dialog 640×(240..256), Display Information / Credits headings present in the right column, Credits below Display Information, Use/Cancel buttons visible. The empty Choose Display Mode heading assertion is intentionally deferred to Phase 166 (RTG app validation). New AGENTS.md §6.24 documents the FS-UAE-overscan vs canonical-PAL distinction so future agents do not re-frame this as a rendering bug. 77/77 pass. | v0.10.11 |
+| 159 | DirectoryOpus structural characterization (no code change in ROM). Confirmed `dopus.library` is bundled in the app's own `libs/` (no STOP-and-notify per Phase 142 policy). Three discoveries pinned via new tests in `dopus_gtest.cpp`: (a) DOpus runs on the parent Workbench screen (no private screen) — visible "DOPUS.1" is the **window** title; (b) DOpus DOES attach an Intuition MenuStrip with two menus, "Project" and "Function" (strip dumped to stderr for Phase 159b reference); (c) DOpus' button-bank labels (Copy/Move/Rename/Makedir/Hunt) bypass `_graphics_Text()` entirely — only the window title and small fixed cluster letters reach the text hook, blocking the disabled `TextHookCapturesKnownDOpusLabels` test. Three new characterization tests pin the as-of-Phase-159 baseline. Phase 159b promoted with explicit objectives for the four deferred deeper-workflow items (file-list navigation, button-bank dispatch verification, prefs panel via Project/Function menu, glyph-blit text hook). 77/77 pass (14/14 DOpus tests). | v0.10.12 |
 
 ---
 
 ## Next Phase
+
+> Phases 153–159 are complete. The next ready phase is **Phase 159b**
+> (deferred deeper-workflow items from Phase 159) at Amiga-compatibility
+> priority, immediately followed by **Phase 160** (BlitzBasic 2 ted
+> editor real text rendering) and **Phase 161** (menu introspection
+> upgrade + non-releasing drag API). Phase 159b should be tackled first
+> because its sub-problems are well-scoped and its instrumentation
+> (BltBitMap-call logging) feeds directly into Phase 160's investigation
+> of ted's custom text renderer.
 
 > The Phase 153–158 block was scheduled after a visual review of DPaint V's
 > "Screen Format" requester (see `tests/drivers/dpaint_gtest.cpp`,
@@ -194,55 +205,93 @@ headings/list content at the wrong coordinates and the Workbench/rootless captur
 height differs from the FS-UAE PAL reference. The review artifact is persisted
 at `screenshots/lxa-tests/dpaint-screen-format-window.png`.
 
-### Phase 158b — DPaint Screen Format custom graphics coordinate origin
+### Phase 159 — DirectoryOpus structural characterization ✓ DONE
 
-**Class**: Amiga compatibility (graphics/window RastPort coordinate handling).
+Phase 134 fixed the button-bank rendering. Phase 159 ran a focused
+investigation of the four remaining DOpus gaps and produced characterization
+tests pinning the as-of-Phase-159 baseline. Three deeper-workflow items
+proved to require either dopus.library reverse-engineering (a third-party
+library — per AGENTS.md §1 we cannot stub it) or DOpusRT subprocess
+launching, both of which depend on infrastructure that does not yet exist.
+They have been promoted into Phase 159b with explicit objectives so they
+are scheduled, not pooled.
 
-DPaint's custom-rendered Screen Format panels are still visibly wrong compared
-with the FS-UAE reference: `Choose Display Mode`, `Display Information`, and
-`Credits` text is drawn far too low/left, leaving the upper framed panels mostly
-blank. GadTools gadget positions are mostly sane, so the defect appears specific
-to direct graphics rendering through the window/screen RastPort path or the
-window-to-screen synchronization path, not to GadTools layout.
+**Achieved**:
+- [x] Confirmed `dopus.library` is bundled by DirectoryOpus itself in its
+      own `libs/` subdirectory (`lxa-apps/DirectoryOpus/bin/DOPUS/libs/`)
+      and resolves via lxa's PROGDIR-LIBS auto-prepend. No stub required;
+      no STOP-and-notify trigger per Phase 142 policy.
+- [x] Discovery: DOpus 4.12 runs as a window on the parent Workbench
+      screen — it does NOT open a private screen. The visible "DOPUS.1"
+      text in the chrome is the **window** title.
+- [x] Discovery: DOpus DOES attach an Intuition MenuStrip to its main
+      window with two top-level menus, "Project" and "Function". The
+      strip is dumped to stderr in `ZHasNoIntuitionMenuStrip` for future
+      Phase 159b reference. The button-bank "buttons" are NOT on the
+      menu strip — they live in the window content area.
+- [x] Discovery: DOpus' button-bank labels (Copy, Move, Rename, Makedir,
+      Hunt) are NOT routed through `_graphics_Text()`. Only the window
+      title and small fixed cluster letters (B/R/S/A and ?/E/F/C/I/Q)
+      reach the text hook. The bundled dopus.library renders multi-char
+      labels via its own font/blit path that bypasses the ROM Text()
+      vector entirely.
+- [x] Three new characterization tests in `dopus_gtest.cpp`:
+      `ZRunsOnPrivateScreenNamedDopus` (legacy name; pins window title
+      starts with "DOPUS"), `ZHasNoIntuitionMenuStrip` (legacy name; pins
+      Project/Function menu presence + dumps the strip), and
+      `ZWindowTitleIsScreenSpecific` (pins exact "DOPUS.1" window title).
+- [x] Updated `DISABLED_TextHookCapturesKnownDOpusLabels` comment to
+      record the Phase 159 finding and point Phase 159b at the
+      BltBitMap-instrumentation next step.
 
-- [ ] Diagnose whether direct `Move`/`Text`/`Blt*` calls use the wrong layer/window origin after the Ownership requester is dismissed
-- [ ] Fix the coordinate origin so custom panel headings and mode-list rows land in the same panels as the FS-UAE reference
-- [ ] Re-enable `DPaintPixelTest.DISABLED_ScreenFormatMatchesFSUAEReferenceLayout`
-- [ ] Keep/update the persistent review capture at `screenshots/lxa-tests/dpaint-screen-format-window.png`
+**Test gate**: 14/14 DOpus tests pass (3 new); full suite remains green.
 
-**Test gate**: DPaint Screen Format custom panel text coordinates match the
-reference-region expectations and the full suite passes.
+### Phase 159b — DirectoryOpus deeper workflows (deferred items from 159)
 
-### Phase 158c — PAL Workbench visible height / rootless capture semantics
+Class: Amiga compatibility (app-specific). Promoted from Phase 159 because
+each remaining item has a distinct root cause and depends on infrastructure
+not yet present.
 
-**Class**: Amiga compatibility (screen geometry / host presentation).
+**Sub-problems**:
+1. **File-list navigation in lister panes** — requires raw-coordinate clicks
+   on lister entries plus a way to assert the lister contents changed. Cannot
+   re-use `Text()` hook (see §3 below). Concrete next step: write a probe
+   test that captures the lister-pane pixel signature with an empty `RAM:`
+   list, then clicks the path-entry area and types a path, and asserts the
+   pixel signature changes structurally (`CountContentPixels` delta > N).
+2. **Button-bank click workflows (Copy / Move / Rename / Makedir)** —
+   requires raw-coordinate clicks on the button-bank rectangles and
+   verification that the resulting dopus.library command dispatches.
+   Coordinates must be discovered from the captured PNG (button rectangles
+   are stable across runs because the config file is fixed). Verification
+   path: a Copy with no source selected should produce DOpus' "no source
+   files selected" requester — assert that requester window appears.
+3. **Button-bank label text-hook capture (re-enable
+   `DISABLED_TextHookCapturesKnownDOpusLabels`)** — requires either:
+   (a) extending the text hook to a second observation point in
+   `_graphics_BltBitMap` (or `lxa_blitter.c`) that detects blits whose
+   source is a known font-glyph bitmap and reconstructs the label text
+   from the per-glyph rectangles, OR
+   (b) instrumenting the dopus.library glyph-render entry point if/when
+   we identify it via blitter trace. Concrete next step: log every
+   `BltBitMap` call during DOpus startup with src/dest coordinates and
+   sizes; cluster the 8×8 (or whatever-size) blits by source bitmap to
+   identify the glyph atlas.
+4. **Preferences panel interaction** — requires opening the Preferences
+   menu item via Intuition CommKey or RMB drag through the "Project" or
+   "Function" menu (now known to exist), then asserting the prefs window
+   opens. New test: `PreferencesMenuOpensConfigWindow`.
+5. **Title-bar version/memory string** — requires either launching DOpusRT
+   as a subprocess (Phase 167 — external process emulation) or documenting
+   that the title remains as DOpus itself sets it. Concrete next step:
+   verify whether DOpus polls `version.library` or expects DOpusRT to
+   `SetWindowTitles` from outside; if the latter, defer this bullet to
+   land alongside Phase 167.
 
-The FS-UAE Screen Format reference is 639×290, while lxa's default Workbench
-screen capture is 640×256 and clips the lower part of DPaint's window. A quick
-experiment with a 290-line Workbench host screen proved this only fixes capture
-height and does not fix the custom-panel coordinate bug, so it remains a separate
-screen-geometry issue.
-
-- [ ] Verify RKRM/NDK expectations for Workbench public screen height versus `GfxBase->NormalDisplayRows`/PAL overscan fields
-- [ ] Decide whether lxa's Workbench should expose 256 logical rows, 290 visible host rows, or explicit overscan metadata for apps/captures
-- [ ] Update screen/capture tests that currently hard-code 256 only if the compatibility decision requires it
-- [ ] Add DPaint/reference coverage that prevents lower-dialog clipping without papering over Phase 158b's coordinate bug
-
-**Test gate**: DPaint Screen Format capture no longer clips the bottom dialog
-area, existing 256-row app assumptions are either preserved or intentionally
-updated with passing tests, and the full suite passes.
-
-### Phase 159 — DirectoryOpus deeper workflows
-
-Phase 134 fixed the button-bank rendering. Remaining gaps:
-
-- [ ] File-list navigation in lister panes (requires directory reading)
-- [ ] Button-bank click workflows (requires `dopus.library` command dispatch — verify the library is supplied or stubbed correctly per Phase 142 policy; if third-party, **STOP and notify user**)
-- [ ] Preferences panel interaction
-- [ ] Title-bar version/memory string rendered by DOpusRT (which is currently not launched in the test fixture) — either launch DOpusRT or document why the title-bar string is intentionally absent
-- [ ] Re-enable `DISABLED_DOpusTextHookTest.TextHookCapturesKnownDOpusLabels` — quarantined because `Move` and `Rename` button-bank labels are missing from rendered text (only `Copy`, `Makedir`, and single-char cluster labels captured); root cause is incomplete button-bank text rendering in the deeper-workflow path
-
-**Test gate**: At least 4 new DOpus tests covering the four areas above; `TextHookCapturesKnownDOpusLabels` re-enabled and passing.
+**Test gate**: At least one new DOpus interaction test for items 1, 2, and
+4; `DISABLED_TextHookCapturesKnownDOpusLabels` re-enabled and passing
+(item 3); item 5 either passes a new title-bar assertion or is explicitly
+deferred to Phase 167 in the `roadmap.md` entry.
 
 ### Phase 160 — BlitzBasic 2 ted editor real text rendering
 
