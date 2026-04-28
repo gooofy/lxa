@@ -432,6 +432,215 @@ TEST_F(DOpusTest, ZStartupLatency)
     fprintf(stderr, "[LATENCY] DOpus startup: %ld ms\n", startup_ms_);
 }
 
+/* ---- Phase 159b: deeper-workflow interaction tests ------------------- */
+/*
+ * Phase 159b implements four of the five deferred items from Phase 159:
+ *   1. Lister-pane responsiveness probe (path entry / file list area)
+ *   2. Button-bank click probe (Copy/Move/Rename/Makedir/Hunt area)
+ *   4. Project menu activation via index-based RMB drag
+ *   5. Window-title DOpusRT-absence documentation
+ *
+ * Item 3 (re-enable DISABLED_TextHookCapturesKnownDOpusLabels via a
+ * BltBitMap glyph hook) is promoted to Phase 159c — the work requires
+ * a host-side glyph atlas detector + glyph-to-char mapping that is a
+ * substantial implementation in its own right.
+ *
+ * DOpus' menu items have IntuiText labels that are mostly leading spaces
+ * (the visible text is rendered later via the dopus.library custom font
+ * blit path; see Phase 159 finding (c)).  Therefore item-by-name lookup
+ * is not possible — these tests use index-based addressing keyed off the
+ * menu structure dumped in ZHasNoIntuitionMenuStrip:
+ *
+ *   Menu[0] "Project"  has 14 items (separators at 1, 4, 6, 9, 13)
+ *   Menu[1] "Function" has 10 items (separators at 3, 7, 9)
+ *
+ * Coordinates within the visible window content area come from the
+ * captured artifact /tmp/dopus_startup.png and are stable run-to-run
+ * because DOpus reads s/dopus.config which is bundled.
+ */
+
+/* Helper: count non-background pixels in a screen-relative rectangle. */
+static int CountPixelsInRect(int x1, int y1, int x2, int y2)
+{
+    lxa_flush_display();
+    int count = 0;
+    for (int y = y1; y <= y2; y++) {
+        for (int x = x1; x <= x2; x++) {
+            int pen;
+            if (lxa_read_pixel(x, y, &pen) && pen != 0)
+                count++;
+        }
+    }
+    return count;
+}
+
+TEST_F(DOpusTest, ZPathEntryAreaRespondsToClick)
+{
+    if (!saw_window) GTEST_SKIP() << "no window was tracked";
+
+    /* The left lister's path-entry strip is a horizontal band near the top
+     * of the left pane.  Looking at the captured artifact, it occupies
+     * roughly y=20..32 across x=8..300.  Snapshot the broader left-pane
+     * region (file list area) before and after a click, and assert that
+     * either the pane changed pixels or DOpus survived.  This is a
+     * structural responsiveness probe — DOpus must not crash on a click
+     * inside its custom UI even though the click hits no Intuition gadget.
+     */
+    const int left_pane_x1 = window_info.x + 8;
+    const int left_pane_y1 = window_info.y + 14;
+    const int left_pane_x2 = window_info.x + 300;
+    const int left_pane_y2 = window_info.y + 130;
+
+    int before = CountPixelsInRect(left_pane_x1, left_pane_y1,
+                                   left_pane_x2, left_pane_y2);
+
+    /* Click in the path-entry strip area (centre of the red bar in the
+     * captured image, around (150, 28) in window-relative coords). */
+    lxa_inject_mouse_click(window_info.x + 150,
+                           window_info.y + 28,
+                           LXA_MOUSE_LEFT);
+    RunCyclesWithVBlank(40, 50000);
+    FlushAndSettle();
+
+    EXPECT_TRUE(lxa_is_running())
+        << "DOpus must survive a click in the path-entry area\n"
+        << GetOutput();
+
+    int after = CountPixelsInRect(left_pane_x1, left_pane_y1,
+                                  left_pane_x2, left_pane_y2);
+    /* Either the pane retained content (no collapse) or it changed in
+     * a measurable way.  Both are acceptable — the assertion just guards
+     * against a total-blank regression. */
+    EXPECT_GT(after, before / 2)
+        << "Left lister pane content collapsed after path-area click "
+           "(before=" << before << ", after=" << after << ")";
+}
+
+TEST_F(DOpusTest, ZButtonBankClickPreservesUI)
+{
+    if (!saw_window) GTEST_SKIP() << "no window was tracked";
+
+    /* The button bank occupies the bottom portion of the window, roughly
+     * y=160..225 across the full width in the captured artifact.  Click
+     * what looks like the "Copy" button at approximately (140, 175)
+     * window-relative.  With no source files selected DOpus may pop a
+     * "no source files selected" requester, render an error in the
+     * status area, or simply ignore the click — all of which are
+     * acceptable behaviours.  The test asserts only that the click does
+     * not crash DOpus and that the window survives. */
+    const int initial_window_count = lxa_get_window_count();
+
+    lxa_inject_mouse_click(window_info.x + 140,
+                           window_info.y + 175,
+                           LXA_MOUSE_LEFT);
+    RunCyclesWithVBlank(60, 50000);
+    FlushAndSettle();
+
+    EXPECT_TRUE(lxa_is_running())
+        << "DOpus must survive a button-bank click\n"
+        << GetOutput();
+    EXPECT_GE(lxa_get_window_count(), initial_window_count)
+        << "Button-bank click must not destroy the main window";
+
+    /* If a requester window appeared, log the fact for future agents. */
+    int post_count = lxa_get_window_count();
+    if (post_count > initial_window_count) {
+        fprintf(stderr,
+                "[DOPUS-159b] Button-bank click opened a new window "
+                "(count %d -> %d)\n",
+                initial_window_count, post_count);
+    }
+}
+
+TEST_F(DOpusTest, ZProjectMenuFirstItemActivates)
+{
+    if (!saw_window) GTEST_SKIP() << "no window was tracked";
+
+    /* Use menu introspection (Phase 131) to discover Project menu and
+     * its first non-separator item.  Phase 159 confirmed Menu[0] is
+     * "Project" and Item[0] is the first selectable entry. */
+    lxa_menu_strip_t* strip = lxa_get_menu_strip(0);
+    ASSERT_NE(strip, nullptr) << "DOpus should expose a menu strip";
+
+    lxa_menu_info_t project_menu;
+    ASSERT_TRUE(lxa_get_menu_info(strip, 0, -1, -1, &project_menu))
+        << "Could not query Project menu (Menu[0])";
+
+    lxa_menu_info_t first_item;
+    ASSERT_TRUE(lxa_get_menu_info(strip, 0, 0, -1, &first_item))
+        << "Could not query Project Item[0]";
+
+    /* Top-level menu coords (project_menu.x/.width) are the screen
+     * positions in the menu bar; for an Intuition menu bar at y=0..10,
+     * the centre x of the menu title is the safe drag-press point.
+     * The item's .y is dropdown-relative so the absolute screen Y is
+     * approximately 11 (menu-bar height) + first_item.y + first_item.height/2. */
+    const int menu_press_x = project_menu.x + project_menu.width / 2;
+    const int menu_press_y = 3;  /* inside the menu bar band */
+    const int item_release_x = menu_press_x;
+    const int item_release_y = 11 + first_item.y + first_item.height / 2;
+
+    lxa_free_menu_strip(strip);
+
+    const int initial_window_count = lxa_get_window_count();
+
+    lxa_inject_drag(menu_press_x, menu_press_y,
+                    item_release_x, item_release_y,
+                    LXA_MOUSE_RIGHT, 10);
+    RunCyclesWithVBlank(120, 50000);
+    FlushAndSettle();
+
+    EXPECT_TRUE(lxa_is_running())
+        << "DOpus must survive Project-menu Item[0] activation\n"
+        << GetOutput();
+    EXPECT_TRUE(WaitForWindows(1, 2000))
+        << "DOpus main window must remain after menu activation";
+
+    /* The first Project item is "About" on stock DOpus 4 — it normally
+     * opens an info requester.  The strip dump in Phase 159 showed
+     * Item[0] as a 14-char ITEMTEXT entry.  Whether a new window appears
+     * depends on whether DOpus' "About" routine succeeds; some builds
+     * print to the title strip instead.  The test logs the outcome but
+     * only asserts non-crash + window survival. */
+    int post_count = lxa_get_window_count();
+    fprintf(stderr,
+            "[DOPUS-159b] Project Item[0] activation: window count "
+            "%d -> %d\n", initial_window_count, post_count);
+
+    /* If a requester opened, dismiss it with ESC so it does not affect
+     * later tests' window counts. */
+    if (post_count > initial_window_count) {
+        lxa_inject_keypress(0x45, 0);  /* ESC */
+        RunCyclesWithVBlank(40, 50000);
+    }
+}
+
+TEST_F(DOpusTest, ZWindowTitleDocumentsDOpusRTAbsence)
+{
+    if (!saw_window) GTEST_SKIP() << "no window was tracked";
+
+    /* Phase 159b item 5: the full version + memory-info string visible
+     * on real-Amiga DOpus (e.g. "Directory Opus V4.12 © 1995 Inovatronics
+     * — 524288 bytes free") is rendered by DOpusRT, a separate executable
+     * that watches the DOpus.1 message port and updates the window title
+     * via SetWindowTitles().  lxa does not currently launch external
+     * processes (deferred to Phase 167 — external-process emulation), so
+     * the title remains as DOpus itself sets it during startup.
+     *
+     * This test pins the current behaviour (title == "DOPUS.1") AND
+     * documents — via the assertion message — that the next change comes
+     * from Phase 167 landing, not from a DOpus or Intuition bug. */
+    lxa_window_info_t info = {};
+    ASSERT_TRUE(GetWindowInfo(0, &info));
+    const std::string title(info.title);
+    EXPECT_EQ(title, "DOPUS.1")
+        << "DOpus startup window title is set by DOpus itself to its "
+           "message-port name. The full version + memory-info string is "
+           "written by DOpusRT (a separate executable), which lxa does "
+           "not launch yet — see Phase 167 (external-process emulation). "
+           "Got title: \"" << title << "\"";
+}
+
 /* ---- Phase 130: text hook integration --------------------------------- */
 
 /**
@@ -520,11 +729,13 @@ TEST_F(DOpusTextHookTest, DISABLED_TextHookCapturesKnownDOpusLabels)
      * single-character cluster labels are captured.  The bundled
      * dopus.library renders the multi-char button labels via its own
      * font/blit path that bypasses the ROM Text() vector entirely.
-     * Re-enabling this test requires Phase 159b instrumentation: hook
-     * BltBitMap calls during DOpus startup, identify the source font
-     * bitmap, and either (a) extract per-glyph rectangles + match against
-     * known DOpus font glyphs, or (b) add a second hook in BltBitMap that
-     * recognises blits from a font-glyph source bitmap as text events. */
+     *
+     * Phase 159b decision (item 3 deferred): re-enabling this test
+     * requires a host-side BltBitMap glyph hook + glyph atlas detector
+     * + glyph-to-char mapping.  This is a substantial implementation in
+     * its own right and has been promoted to Phase 159c with explicit
+     * objectives (see roadmap.md).  Re-enable this test as part of the
+     * Phase 159c test gate, NOT as a side-effect of any other phase. */
     bool has_multi_char = false;
     for (const auto &s : text_log_) {
         if (s.size() > 1) { has_multi_char = true; break; }

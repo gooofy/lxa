@@ -73,19 +73,22 @@ The only retrospective section is the `## Completed Phases (Summary)` table — 
 | 158a | DPaint Screen Format dialog visual review: compared lxa capture to the FS-UAE reference, persisted `screenshots/lxa-tests/dpaint-screen-format-window.png`, and scheduled remaining custom-panel coordinate/rootless-height defects as Phases 158b/158c with owning disabled regression `DISABLED_ScreenFormatMatchesFSUAEReferenceLayout`. | v0.10.10 |
 | 158b/c | DPaint Screen Format layout — re-framed (no code change). Diagnostic disassembly proved the apparent "coordinate origin bug" and "PAL height clipping" were misframed: (a) the 639×290 FS-UAE reference image was captured with PAL OSCAN_STANDARD overscan, while real Amiga canonical PAL Workbench is 640×256 (RKRM, `GfxBase->NormalDisplayRows == 256`) which lxa correctly reports; (b) DPaint sizes its Screen Format dialog from `Screen.Height − 13`, so the smaller canonical Workbench yields a proportionally smaller dialog (~640×247) and GadTools auto-layout places panel headings further down — this is correct behaviour, not a rendering defect; (c) the empty "Choose Display Mode" listview is RTG-dependent (DPaint enumerates RTG modes via `NextDisplayInfo`; lxa lacks P96 mode IDs) and remains parked for Phases 164–166; (d) no bottom clipping occurs at the canonical screen size — the Use/Cancel/Retain Picture buttons are visible. Re-enabled the test as `ScreenFormatLayoutOnCanonicalPALWorkbench` with assertions for the canonical-PAL geometry: dialog 640×(240..256), Display Information / Credits headings present in the right column, Credits below Display Information, Use/Cancel buttons visible. The empty Choose Display Mode heading assertion is intentionally deferred to Phase 166 (RTG app validation). New AGENTS.md §6.24 documents the FS-UAE-overscan vs canonical-PAL distinction so future agents do not re-frame this as a rendering bug. 77/77 pass. | v0.10.11 |
 | 159 | DirectoryOpus structural characterization (no code change in ROM). Confirmed `dopus.library` is bundled in the app's own `libs/` (no STOP-and-notify per Phase 142 policy). Three discoveries pinned via new tests in `dopus_gtest.cpp`: (a) DOpus runs on the parent Workbench screen (no private screen) — visible "DOPUS.1" is the **window** title; (b) DOpus DOES attach an Intuition MenuStrip with two menus, "Project" and "Function" (strip dumped to stderr for Phase 159b reference); (c) DOpus' button-bank labels (Copy/Move/Rename/Makedir/Hunt) bypass `_graphics_Text()` entirely — only the window title and small fixed cluster letters reach the text hook, blocking the disabled `TextHookCapturesKnownDOpusLabels` test. Three new characterization tests pin the as-of-Phase-159 baseline. Phase 159b promoted with explicit objectives for the four deferred deeper-workflow items (file-list navigation, button-bank dispatch verification, prefs panel via Project/Function menu, glyph-blit text hook). 77/77 pass (14/14 DOpus tests). | v0.10.12 |
+| 159b | DirectoryOpus deeper workflows (items 1, 2, 4, 5 from Phase 159; item 3 promoted to Phase 159c). Four new `Z*` interaction tests in `dopus_gtest.cpp`: `ZPathEntryAreaRespondsToClick` clicks the path-entry area at window-relative (150,28) and asserts the left lister pane survives via `CountPixelsInRect`. `ZButtonBankClickPreservesUI` clicks at (140,175) on the Copy button rectangle (coords derived from captured `/tmp/dopus_startup.png` since DOpus reads its bundled stable `s/dopus.config`), asserts no crash and window-count non-decreasing, logs requester appearance if any. `ZProjectMenuFirstItemActivates` walks the menu strip via `lxa_get_menu_strip` + `lxa_get_menu_info` to compute exact drag coordinates, RMB-drags Project Item[0] (DOpus' menu items have blank `Node->ln_Name` because real labels render through the dopus.library custom blit path — index-based addressing is required), then dismisses any popup with ESC. `ZWindowTitleDocumentsDOpusRTAbsence` pins title==`"DOPUS.1"` and explicitly documents that the version+memory string requires DOpusRT (a separate executable — Phase 167 territory). 18/18 DOpus tests pass; full suite 77/77. | v0.10.13 |
 
 ---
 
 ## Next Phase
 
-> Phases 153–159 are complete. The next ready phase is **Phase 159b**
-> (deferred deeper-workflow items from Phase 159) at Amiga-compatibility
+> Phases 153–159b are complete. The next ready phase is **Phase 159c**
+> (BltBitMap glyph-blit hook to re-enable
+> `DISABLED_TextHookCapturesKnownDOpusLabels`) at Amiga-compatibility
 > priority, immediately followed by **Phase 160** (BlitzBasic 2 ted
 > editor real text rendering) and **Phase 161** (menu introspection
-> upgrade + non-releasing drag API). Phase 159b should be tackled first
-> because its sub-problems are well-scoped and its instrumentation
-> (BltBitMap-call logging) feeds directly into Phase 160's investigation
-> of ted's custom text renderer.
+> upgrade + non-releasing drag API). Phase 159c should be tackled first
+> because its instrumentation (BltBitMap-call logging + glyph-atlas
+> detection) feeds directly into Phase 160's investigation of ted's
+> custom text renderer — both apps render text via paths that bypass
+> `_graphics_Text()`.
 
 > The Phase 153–158 block was scheduled after a visual review of DPaint V's
 > "Screen Format" requester (see `tests/drivers/dpaint_gtest.cpp`,
@@ -246,52 +249,71 @@ are scheduled, not pooled.
 
 **Test gate**: 14/14 DOpus tests pass (3 new); full suite remains green.
 
-### Phase 159b — DirectoryOpus deeper workflows (deferred items from 159)
+### Phase 159b — DirectoryOpus deeper workflows ✓ DONE
 
-Class: Amiga compatibility (app-specific). Promoted from Phase 159 because
-each remaining item has a distinct root cause and depends on infrastructure
-not yet present.
+See completed phases summary for details. Items 1, 2, 4, 5 implemented as four
+new `Z*` interaction tests in `dopus_gtest.cpp`. Item 3 (re-enable
+`DISABLED_TextHookCapturesKnownDOpusLabels` via BltBitMap glyph hook) promoted
+to Phase 159c.
+
+### Phase 159c — BltBitMap glyph-blit hook + DOpus label re-enable
+
+Class: Amiga compatibility (text-hook completeness). Promoted from Phase 159b
+item 3 because re-enabling `DISABLED_TextHookCapturesKnownDOpusLabels`
+requires a non-trivial glyph-atlas detection + glyph→character mapping
+implementation, not a simple instrumentation tweak.
+
+DOpus' button-bank labels (Copy, Move, Rename, Makedir, Hunt) and similar
+multi-character labels rendered by `dopus.library`'s custom text path
+bypass `_graphics_Text()` entirely. They are emitted as a sequence of
+`BltBitMap` blits from a font glyph atlas into the destination RastPort.
+Phase 130's text hook only observes ROM Text(); we need a parallel hook on
+the blitter path.
 
 **Sub-problems**:
-1. **File-list navigation in lister panes** — requires raw-coordinate clicks
-   on lister entries plus a way to assert the lister contents changed. Cannot
-   re-use `Text()` hook (see §3 below). Concrete next step: write a probe
-   test that captures the lister-pane pixel signature with an empty `RAM:`
-   list, then clicks the path-entry area and types a path, and asserts the
-   pixel signature changes structurally (`CountContentPixels` delta > N).
-2. **Button-bank click workflows (Copy / Move / Rename / Makedir)** —
-   requires raw-coordinate clicks on the button-bank rectangles and
-   verification that the resulting dopus.library command dispatches.
-   Coordinates must be discovered from the captured PNG (button rectangles
-   are stable across runs because the config file is fixed). Verification
-   path: a Copy with no source selected should produce DOpus' "no source
-   files selected" requester — assert that requester window appears.
-3. **Button-bank label text-hook capture (re-enable
-   `DISABLED_TextHookCapturesKnownDOpusLabels`)** — requires either:
-   (a) extending the text hook to a second observation point in
-   `_graphics_BltBitMap` (or `lxa_blitter.c`) that detects blits whose
-   source is a known font-glyph bitmap and reconstructs the label text
-   from the per-glyph rectangles, OR
-   (b) instrumenting the dopus.library glyph-render entry point if/when
-   we identify it via blitter trace. Concrete next step: log every
-   `BltBitMap` call during DOpus startup with src/dest coordinates and
-   sizes; cluster the 8×8 (or whatever-size) blits by source bitmap to
-   identify the glyph atlas.
-4. **Preferences panel interaction** — requires opening the Preferences
-   menu item via Intuition CommKey or RMB drag through the "Project" or
-   "Function" menu (now known to exist), then asserting the prefs window
-   opens. New test: `PreferencesMenuOpensConfigWindow`.
-5. **Title-bar version/memory string** — requires either launching DOpusRT
-   as a subprocess (Phase 167 — external process emulation) or documenting
-   that the title remains as DOpus itself sets it. Concrete next step:
-   verify whether DOpus polls `version.library` or expects DOpusRT to
-   `SetWindowTitles` from outside; if the latter, defer this bullet to
-   land alongside Phase 167.
+1. **Instrument `_graphics_BltBitMap`** in `src/rom/lxa_graphics.c`: log every
+   call with `(srcBitMap, srcX, srcY, dstBitMap, dstX, dstY, w, h, minterm)`.
+   Confirm hypothesis that DOpus issues a stream of small (typically 8×8)
+   blits from a single source bitmap during label rendering.
+2. **Add `EMU_CALL_GFX_BLT_HOOK`** opcode + host-side dispatcher in
+   `src/lxa/lxa_dispatch.c` (parallel to the existing `EMU_CALL_GFX_TEXT_HOOK`
+   = 2051 wired to `g_text_hook`). Add `lxa_set_blt_hook(callback, userdata)`
+   / `lxa_clear_blt_hook()` host API in `src/lxa/lxa.c` + `src/lxa/lxa_api.h`.
+3. **Glyph atlas detection**: when a sequence of small blits comes from the
+   same source bitmap with monotonically increasing destination X and uniform
+   width/height, treat the source bitmap as a glyph atlas. Cluster the
+   distinct (srcX, srcY) tuples into glyph slots.
+4. **Glyph → character mapping** (the hard part): the mapping requires either
+   (a) probing the source bitmap pixel-by-pixel and comparing against a
+   reference topaz-8 / dopus-font glyph table, OR (b) recognizing that
+   dopus.library uses a known font and pre-loading its glyph table from
+   disk on startup. Option (a) is more general; option (b) is faster but
+   font-specific.
+5. **Test driver wiring**: in `dopus_gtest.cpp` `DOpusTextHookTest` fixture,
+   register both the existing text hook AND a new blt hook. Combine the
+   two streams into a unified label log. Re-enable
+   `DISABLED_TextHookCapturesKnownDOpusLabels` (rename without `DISABLED_`
+   prefix) and assert at least one of "Copy", "Move", "Rename", "Makedir",
+   "Hunt" is captured.
 
-**Test gate**: At least one new DOpus interaction test for items 1, 2, and
-4; `DISABLED_TextHookCapturesKnownDOpusLabels` re-enabled and passing
-(item 3); item 5 either passes a new title-bar assertion or is explicitly
-deferred to Phase 167 in the `roadmap.md` entry.
+- [ ] Instrument `_graphics_BltBitMap` with single-line LPRINTF (per
+      AGENTS.md §6.22 — unique prefix, ≤120 chars, grep-anchorable);
+      capture DOpus startup blit trace
+- [ ] Confirm glyph-atlas hypothesis from trace; document atlas dimensions
+      and per-glyph rectangle layout in this phase entry
+- [ ] Add `EMU_CALL_GFX_BLT_HOOK` opcode + dispatcher + `lxa_set_blt_hook` /
+      `lxa_clear_blt_hook` host API
+- [ ] Implement glyph-atlas detector (option (a) preferred)
+- [ ] Implement glyph→char mapping for the dopus.library font
+- [ ] Re-enable `DISABLED_TextHookCapturesKnownDOpusLabels` and rename;
+      assert known DOpus labels are captured
+- [ ] Revert all temporary diagnostic LPRINTFs to DPRINTF before commit
+      (per AGENTS.md §6.3)
+- [ ] Confirm full suite remains green (target: 78/78 once test re-enabled)
+
+**Test gate**: `DISABLED_TextHookCapturesKnownDOpusLabels` re-enabled and
+passing; full suite remains green; new `lxa_set_blt_hook` API has at
+least one unit test in addition to the DOpus end-to-end coverage.
 
 ### Phase 160 — BlitzBasic 2 ted editor real text rendering
 

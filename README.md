@@ -231,7 +231,9 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
-**Version 0.10.10** - DPaint Screen Format visual review (Phase 158a): compared the current lxa dialog capture against the FS-UAE reference and promoted the remaining mismatches into scheduled follow-up phases. Added persistent capture output at `screenshots/lxa-tests/dpaint-screen-format-window.png` and quarantined regression `DPaintPixelTest.DISABLED_ScreenFormatMatchesFSUAEReferenceLayout` to own the custom-panel coordinate/rootless-height defects.
+**Version 0.10.13** - DirectoryOpus deeper workflows (Phase 159b): four new `dopus_gtest.cpp` interaction tests landed — `ZPathEntryAreaRespondsToClick` (lister-pane click survives without window loss), `ZButtonBankClickPreservesUI` (button-bank click does not crash; window count non-decreasing), `ZProjectMenuFirstItemActivates` (RMB-drag through Project menu Item[0] using `lxa_get_menu_info` for coordinates, ESC-dismiss any popup), and `ZWindowTitleDocumentsDOpusRTAbsence` (pins the "DOPUS.1" title and documents the DOpusRT/Phase 167 dependency for the version+memory string). Phase 159b item 3 (BltBitMap glyph hook to re-enable `DISABLED_TextHookCapturesKnownDOpusLabels`) promoted to its own **Phase 159c** because the implementation requires a glyph atlas detector + glyph→char mapping infrastructure that is multi-day work in its own right. 18/18 DOpus tests pass; full suite 77/77.
+
+**Version 0.10.12** - DirectoryOpus structural characterization (Phase 159).
 
 **Version 0.10.9** - `SetWindowTitles()` title-bar repaint (Phase 158): `_intuition_SetWindowTitles()` now redraws the window frame immediately after changing `window->Title`, so runtime title changes are visible without moving or refreshing the window. New `SetWindowTitles` sample, `setwindowtitles_gtest.cpp`, and DPaint Screen Format title-bar regression coverage.
 
