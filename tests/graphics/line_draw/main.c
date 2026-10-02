@@ -203,19 +203,31 @@ int main(void)
         print("OK: COMPLEMENT Draw toggles pixels on second pass\n");
     }
 
-    /* Test INVERSVID uses background pen */
+    /* JAM1|INVERSVID: the inverted solid line pattern draws nothing */
     SetDrMd(&rp, JAM1 | INVERSVID);
     SetRast(&rp, 0);
-    SetAPen(&rp, 0);
+    SetAPen(&rp, 2);
     SetBPen(&rp, 1);
     Move(&rp, 5, 45);
     Draw(&rp, 7, 45);
 
-    if (ReadPixel(&rp, 6, 45) != 1) {
-        print("FAIL: INVERSVID Draw did not use background pen\n");
+    if (ReadPixel(&rp, 6, 45) != 0) {
+        print("FAIL: JAM1|INVERSVID Draw drew pixels\n");
         errors++;
     } else {
-        print("OK: INVERSVID Draw uses background pen\n");
+        print("OK: JAM1|INVERSVID Draw draws nothing\n");
+    }
+
+    /* JAM2|INVERSVID draws with the background pen */
+    SetDrMd(&rp, JAM2 | INVERSVID);
+    Move(&rp, 5, 46);
+    Draw(&rp, 7, 46);
+
+    if (ReadPixel(&rp, 6, 46) != 1) {
+        print("FAIL: JAM2|INVERSVID Draw did not use background pen\n");
+        errors++;
+    } else {
+        print("OK: JAM2|INVERSVID Draw uses background pen\n");
     }
 
     SetDrMd(&rp, JAM1);

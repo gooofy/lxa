@@ -3081,32 +3081,18 @@ static int test_graphics_setchiprev_stub_closed(void)
 
     print("--- Test: graphics SetChipRev entry point ---\n");
 
-    if (SetChipRev(SETCHIPREV_A) != SETCHIPREV_A ||
-        GfxBase->ChipRevBits0 != SETCHIPREV_A)
+    /* AmigaOS 3.1 (reference machine): SetChipRev() only enables chip
+     * features; SETCHIPREV_BEST returns the new ChipRevBits0, any other
+     * request the enabled bits masked to SETCHIPREV_AA. */
+    if (SetChipRev(SETCHIPREV_A) != (ULONG)(original_bits & SETCHIPREV_AA) ||
+        GfxBase->ChipRevBits0 != original_bits)
     {
-        print("FAIL: SetChipRev() did not switch to OCS/ECS Agnus bits\n");
+        print("FAIL: SetChipRev(SETCHIPREV_A) lowered the chip revision\n");
         errors++;
     }
-    else if (SetChipRev(SETCHIPREV_ECS) != SETCHIPREV_ECS ||
-             GfxBase->ChipRevBits0 != SETCHIPREV_ECS)
-    {
-        print("FAIL: SetChipRev() did not switch to ECS bits\n");
-        errors++;
-    }
-    else if (SetChipRev(SETCHIPREV_AA) != SETCHIPREV_AA ||
-             GfxBase->ChipRevBits0 != SETCHIPREV_AA)
-    {
-        print("FAIL: SetChipRev() did not switch to AGA bits\n");
-        errors++;
-    }
-    else if (SetChipRev(0x13579BDFUL) != SETCHIPREV_AA ||
-             GfxBase->ChipRevBits0 != SETCHIPREV_AA)
-    {
-        print("FAIL: SetChipRev() changed state for unsupported chip request\n");
-        errors++;
-    }
-    else if (SetChipRev(SETCHIPREV_BEST) != SETCHIPREV_AA ||
-             GfxBase->ChipRevBits0 != SETCHIPREV_AA)
+    else if (SetChipRev(SETCHIPREV_BEST) != GfxBase->ChipRevBits0 ||
+             (GfxBase->ChipRevBits0 & original_bits) != original_bits ||
+             (GfxBase->ChipRevBits0 & SETCHIPREV_ECS) != SETCHIPREV_ECS)
     {
         print("FAIL: SetChipRev() did not report best available chip set\n");
         errors++;

@@ -133,44 +133,9 @@ int main(void)
         print("OK: Source unchanged\n");
     }
 
-    /* Test 3: NULL bitmap handling */
-    print("Test 3: NULL bitmap handling...\n");
-    blitted = BltBitMap(NULL, 0, 0, &destBm, 0, 0, 8, 8, MINTERM_COPY_SOURCE, 0xFF, NULL);
-    if (blitted != 0)
-    {
-        print("FAIL: BltBitMap with NULL src should return 0\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: NULL src returns 0\n");
-    }
-
-    /* Test 4: Zero size blit */
-    print("Test 4: Zero size blit...\n");
-    blitted = BltBitMap(&srcBm, 0, 0, &destBm, 0, 0, 0, 0, MINTERM_COPY_SOURCE, 0xFF, NULL);
-    if (blitted != 0)
-    {
-        print("FAIL: Zero size blit should return 0\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: Zero size blit returns 0\n");
-    }
-
-    /* Test 5: Negative size blit */
-    print("Test 5: Negative size blit...\n");
-    blitted = BltBitMap(&srcBm, 0, 0, &destBm, 0, 0, -8, 8, MINTERM_COPY_SOURCE, 0xFF, NULL);
-    if (blitted != 0)
-    {
-        print("FAIL: Negative size blit should return 0\n");
-        errors++;
-    }
-    else
-    {
-        print("OK: Negative size blit returns 0\n");
-    }
+    /* NULL bitmaps and zero/negative sizes are invalid input on AmigaOS
+     * (the blitter is programmed with them; a NULL source hangs the
+     * reference machine), so they are not tested here. */
 
     /* Test 6: Overlapping copy within the same bitmap */
     print("Test 6: Overlapping self-copy shifts data correctly...\n");

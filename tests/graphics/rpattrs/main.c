@@ -80,6 +80,7 @@ int main(void)
 {
     struct Library *DiskfontBase;
     struct RastPort *rp;
+    int errors = 0;
     struct BitMap *bm;
     struct TextFont *font1, *font2;
     struct TextAttr ta;
@@ -158,6 +159,7 @@ int main(void)
             print("  OK: Font set and retrieved correctly\n");
         } else {
             print("  FAIL: Font mismatch\n");
+            errors++;
         }
     }
     print("\n");
@@ -184,6 +186,7 @@ int main(void)
             print("  OK\n");
         } else {
             print("  FAIL\n");
+            errors++;
         }
     }
     print("\n");
@@ -210,6 +213,7 @@ int main(void)
             print("  OK\n");
         } else {
             print("  FAIL\n");
+            errors++;
         }
     }
     print("\n");
@@ -238,6 +242,7 @@ int main(void)
             print("  OK\n");
         } else {
             print("  FAIL\n");
+            errors++;
         }
     }
     print("\n");
@@ -264,6 +269,7 @@ int main(void)
             print("  OK\n");
         } else {
             print("  FAIL\n");
+            errors++;
         }
     }
     print("\n");
@@ -290,6 +296,7 @@ int main(void)
             print("  OK\n");
         } else {
             print("  FAIL\n");
+            errors++;
         }
     }
     print("\n");
@@ -316,34 +323,36 @@ int main(void)
             print("  OK\n");
         } else {
             print("  FAIL\n");
+            errors++;
         }
     }
     print("\n");
     
-    /* Test 8: Get DrawBounds (not implemented, should return zeros) */
-    print("Test 8: Get DrawBounds (not implemented)...\n");
+    /* Test 8: Get DrawBounds: the drawable area (the whole BitMap here) */
+    print("Test 8: Get DrawBounds...\n");
     {
         struct TagItem tags_get[] = {
             {RPTAG_DrawBounds, (ULONG)&result_rect},
             {TAG_DONE, 0}
         };
-        
+
         result_rect.MinX = 99;
         result_rect.MinY = 99;
         result_rect.MaxX = 99;
         result_rect.MaxY = 99;
-        
+
         GetRPAttrsA(rp, tags_get);
-        
+
         if (result_rect.MinX == 0 && result_rect.MinY == 0 &&
-            result_rect.MaxX == 0 && result_rect.MaxY == 0) {
-            print("  OK: DrawBounds returns zero rectangle\n");
+            result_rect.MaxX == 319 && result_rect.MaxY == 199) {
+            print("  OK: DrawBounds returns the BitMap bounds\n");
         } else {
-            print("  FAIL: DrawBounds not zero\n");
+            print("  FAIL: DrawBounds not the BitMap bounds\n");
+            errors++;
         }
     }
     print("\n");
-    
+
     /* Test 9: Multiple attributes in one call */
     print("Test 9: Set multiple attributes in one call...\n");
     {
@@ -375,6 +384,7 @@ int main(void)
             print("  OK: All attributes set correctly\n");
         } else {
             print("  FAIL: One or more attributes incorrect\n");
+            errors++;
         }
     }
     print("\n");
@@ -406,6 +416,7 @@ int main(void)
             print("  OK: TAG_IGNORE handled correctly\n");
         } else {
             print("  FAIL: TAG_IGNORE not handled correctly\n");
+            errors++;
         }
     }
     print("\n");
@@ -446,6 +457,7 @@ int main(void)
             print("  OK: TAG_SKIP handled correctly\n");
         } else {
             print("  FAIL: TAG_SKIP not handled correctly\n");
+            errors++;
         }
     }
     print("\n");
@@ -457,6 +469,11 @@ int main(void)
     CloseFont(font2);
     CloseLibrary(DiskfontBase);
     
+    if (errors != 0) {
+        print("FAIL: rpattrs had errors\n");
+        return 20;
+    }
+
     print("PASS: rpattrs all tests passed\n");
     return 0;
 }

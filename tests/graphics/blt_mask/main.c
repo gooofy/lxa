@@ -116,65 +116,78 @@ int main(void)
     }
     print("\n");
     
-    /* Test 2: Masked blit with NULL mask (should copy all) */
-    print("Test 2: Masked blit with NULL mask...\n");
+    /* Test 2: the documented "copy through mask" minterm 0xE0 */
+    print("Test 2: Masked blit with minterm 0xE0 (copy through mask)...\n");
     {
         SetRast(rp, 0);
-        BltMaskBitMapRastPort(bm_src, 0, 0, rp, 0, 0, 16, 16, 0xC0, NULL);
-        if (ReadPixel(rp, 5, 5) == 1 && ReadPixel(rp, 20, 20) == 0) {
-            print("  OK: NULL mask copied the full requested rectangle\n");
+        /* the mask is aligned with the source: mask row 8 is 0xAA at x 8..15 */
+        BltMaskBitMapRastPort(bm_src, 8, 8, rp, 4, 4, 16, 16, 0xE0, mask_plane);
+        if (ReadPixel(rp, 4, 4) == 1 && ReadPixel(rp, 5, 4) == 0 &&
+            ReadPixel(rp, 6, 4) == 1 && ReadPixel(rp, 3, 4) == 0 && ReadPixel(rp, 20, 4) == 0) {
+            print("  OK: Minterm 0xE0 copied the source where the mask is set\n");
         } else {
-            print("  FAIL: NULL mask did not copy the expected area\n");
+            print("  FAIL: Minterm 0xE0 did not copy through the mask\n");
             errors++;
         }
-    }
-    print("\n");
-    
-    /* Test 3: Masked blit with different minterm */
-    print("Test 3: Masked blit with minterm 0x50...\n");
-    {
-        SetAPen(rp, 1);
         SetRast(rp, 1);
-        BltMaskBitMapRastPort(bm_src, 8, 8, rp, 24, 24, 16, 16, 0x50, mask_plane);
-        if (ReadPixel(rp, 24, 24) == 0 && ReadPixel(rp, 25, 24) == 1) {
-            print("  OK: Minterm 0x50 preserved destination through masked blit\n");
+        BltMaskBitMapRastPort(bm_src, 8, 8, rp, 4, 4, 16, 16, 0xE0, mask_plane);
+        if (ReadPixel(rp, 4, 4) == 1 && ReadPixel(rp, 5, 4) == 1) {
+            print("  OK: Minterm 0xE0 preserved the destination outside the mask\n");
         } else {
-            print("  FAIL: Minterm 0x50 changed masked destination unexpectedly\n");
-            errors++;
-        }
-    }
-    print("\n");
-    
-    /* Test 4: Partial blit at edge */
-    print("Test 4: Partial blit at destination edge...\n");
-    {
-        SetRast(rp, 0);
-        BltMaskBitMapRastPort(bm_src, 0, 0, rp, 56, 56, 16, 16, 0xC0, mask_plane);
-        if (ReadPixel(rp, 56, 56) == 0 && ReadPixel(rp, 57, 56) == 1 && ReadPixel(rp, 63, 63) == 1) {
-            print("  OK: Edge masked blit stayed within destination bounds\n");
-        } else {
-            print("  FAIL: Edge masked blit wrote unexpected pixels\n");
+            print("  FAIL: Minterm 0xE0 changed the destination outside the mask\n");
             errors++;
         }
     }
     print("\n");
 
-    /* Test 5: Negative destination coordinates clip correctly */
-    print("Test 5: Negative destination x clips masked blits correctly...\n");
+    /* Test 3: minterm 0x50 (NOT destination) */
+    print("Test 3: Masked blit with minterm 0x50...\n");
     {
-        SetRast(rp, 0);
-        BltMaskBitMapRastPort(bm_src, 0, 0, rp, -2, 8, 8, 8, 0xC0, NULL);
-        if (ReadPixel(rp, 0, 8) == 1 &&
-            ReadPixel(rp, 5, 8) == 1 &&
-            ReadPixel(rp, 6, 8) == 0) {
-            print("  OK: Negative destination x clipped the masked blit to the visible bitmap\n");
+        SetAPen(rp, 1);
+        SetRast(rp, 1);
+        BltMaskBitMapRastPort(bm_src, 8, 8, rp, 24, 24, 16, 16, 0x50, mask_plane);
+        /* AmigaOS 3.1 inverts the whole destination rectangle for 0x50,
+         * inside and outside the mask */
+        if (ReadPixel(rp, 24, 24) == 0 && ReadPixel(rp, 25, 24) == 0 &&
+            ReadPixel(rp, 39, 39) == 0 && ReadPixel(rp, 23, 24) == 1 && ReadPixel(rp, 40, 39) == 1) {
+            print("  OK: Minterm 0x50 inverted the destination rectangle\n");
         } else {
-            print("  FAIL: Negative destination x did not clip the masked blit correctly\n");
+            print("  FAIL: Minterm 0x50 did not invert the destination rectangle\n");
             errors++;
         }
     }
     print("\n");
-    
+
+    /* Test 4: minterm 0x20 (inverted source through mask) */
+    print("Test 4: Masked blit with minterm 0x20 (inverted source through mask)...\n");
+    {
+        struct RastPort temp_rp;
+        InitRastPort(&temp_rp);
+        temp_rp.BitMap = bm_src;
+        SetRast(&temp_rp, 0);
+        SetAPen(&temp_rp, 1);
+        RectFill(&temp_rp, 0, 0, 7, 31);      /* left 8 columns set */
+
+        SetRast(rp, 0);
+        BltMaskBitMapRastPort(bm_src, 0, 1, rp, 0, 0, 16, 1, 0x20, mask_plane);
+        /* mask row 1: 0x55 (x 0..7), 0xAA (x 8..15) */
+        if (ReadPixel(rp, 0, 0) == 0 && ReadPixel(rp, 8, 0) == 1 &&
+            ReadPixel(rp, 1, 0) == 0 && ReadPixel(rp, 9, 0) == 0) {
+            print("  OK: Minterm 0x20 wrote the inverted source through the mask\n");
+        } else {
+            print("  FAIL: Minterm 0x20 result incorrect\n");
+            errors++;
+        }
+
+        SetRast(&temp_rp, 0);
+        RectFill(&temp_rp, 0, 0, 31, 31);
+    }
+    print("\n");
+
+    /* NULL masks and blits that leave the destination BitMap are invalid
+     * input on a RastPort without a Layer (AmigaOS does not clip them), so
+     * they are not tested here. */
+
     /* Cleanup */
     FreeMem(rp, sizeof(struct RastPort));
     FreeBitMap(bm_src);

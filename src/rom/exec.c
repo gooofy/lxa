@@ -5821,9 +5821,10 @@ void coldstart (void)
      * structures. NULL is the correct initial value (no copper list, no sprites,
      * no view loaded yet). ActiView is set when LoadView() is called. */
 
-    /* Phase 151: populate GfxBase->MonitorList with default/pal/ntsc system
-     * MonitorSpec nodes so apps that enumerate the list (DPaint Screen Format
-     * dialog, etc.) see the standard monitors instead of an empty list. */
+    /* Phase 151/220: populate GfxBase->MonitorList with the native
+     * pal.monitor (as AmigaOS 3.1 does on a PAL machine without
+     * DEVS:Monitors) so apps that enumerate the list (DPaint Screen Format
+     * dialog, etc.) see the system monitor instead of an empty list. */
     {
         extern void graphics_init_monitor_list(struct GfxBase *gfxBase);
         graphics_init_monitor_list(GfxBase);

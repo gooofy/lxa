@@ -228,6 +228,7 @@ set(TESTS_LIST
     "../tests/graphics/polydraw|main|Tests/Graphics/PolyDraw"
     "../tests/graphics/rect_fill|main|Tests/Graphics/RectFill"
     "../tests/graphics/regions|main|Tests/Graphics/Regions"
+    "../tests/graphics/regions_ext|main|Tests/Graphics/RegionsExt"
     "../tests/graphics/sprites_gels|main|Tests/Graphics/SpritesGels"
     "../tests/graphics/rpattrs|main|Tests/Graphics/RPAttrs"
     "../tests/graphics/set_rast|main|Tests/Graphics/SetRast"

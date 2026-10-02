@@ -62,6 +62,7 @@ TEST_F(GraphicsTest, PixelOps) { RunGraphicsTest("PixelOps"); }
 TEST_F(GraphicsTest, PolyDraw) { RunGraphicsTest("PolyDraw"); }
 TEST_F(GraphicsTest, RectFill) { RunGraphicsTest("RectFill"); }
 TEST_F(GraphicsTest, Regions) { RunGraphicsTest("Regions"); }
+TEST_F(GraphicsTest, RegionsExt) { RunGraphicsTest("RegionsExt"); }
 TEST_F(GraphicsTest, SpritesGels) { RunGraphicsTest("SpritesGels"); }
 TEST_F(GraphicsTest, RPAttrs) { RunGraphicsTest("RPAttrs"); }
 TEST_F(GraphicsTest, SetRast) { RunGraphicsTest("SetRast"); }
