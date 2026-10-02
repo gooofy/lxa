@@ -12657,7 +12657,22 @@ VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase 
     if (!window) return;
 
     _intuition_MoveWindow(IntuitionBase, window, left - window->LeftEdge, top - window->TopEdge);
-    _intuition_SizeWindow(IntuitionBase, window, width - window->Width, height - window->Height);
+    {
+        /* ChangeWindowBox() (and ZipWindow() through it) is not bound by the
+         * window's size limits, unlike SizeWindow() (AmigaOS 3.1, Phase 220) */
+        WORD min_w = window->MinWidth, min_h = window->MinHeight;
+        UWORD max_w = window->MaxWidth, max_h = window->MaxHeight;
+
+        window->MinWidth = 1;
+        window->MinHeight = 1;
+        window->MaxWidth = (UWORD)-1;
+        window->MaxHeight = (UWORD)-1;
+        _intuition_SizeWindow(IntuitionBase, window, width - window->Width, height - window->Height);
+        window->MinWidth = min_w;
+        window->MinHeight = min_h;
+        window->MaxWidth = max_w;
+        window->MaxHeight = max_h;
+    }
 }
 
 struct Hook * _intuition_SetEditHook ( register struct IntuitionBase * IntuitionBase __asm("a6"),
