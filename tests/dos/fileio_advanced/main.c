@@ -197,12 +197,12 @@ int main(void)
     print_num(result);
     print(" bytes\n");
     
-    if (result == 0) {
-        test_pass("Read at EOF returns 0");
-    } else if (result == -1) {
-        test_pass("Read past EOF returns error");
+    /* AmigaOS 3.1 refuses the seek (-1, position unchanged), so the
+     * whole 10-byte file is read from the start */
+    if (result == 10) {
+        test_pass("Failed seek left the position at 0");
     } else {
-        test_fail("Read past EOF", "Unexpected result");
+        test_fail("Read after failed seek", "Unexpected result");
     }
     
     Close(fh);

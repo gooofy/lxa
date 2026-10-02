@@ -285,9 +285,9 @@ int main(int argc, char **argv)
         
         /* Check for end of file */
         if (len == 0) {
-            LONG pos = Seek(fh_in, 0, OFFSET_CURRENT);
-            LONG end = Seek(fh_in, 0, OFFSET_END);
-            Seek(fh_in, pos, OFFSET_BEGINNING);
+            /* Seek() returns the previous position */
+            LONG pos = Seek(fh_in, 0, OFFSET_END);
+            LONG end = Seek(fh_in, pos, OFFSET_BEGINNING);
             if (pos >= end) break;
         }
         

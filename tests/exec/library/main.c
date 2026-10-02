@@ -1867,14 +1867,15 @@ static int test_dos_setowner_stub_closed(void)
     }
     Close(fh);
 
+    /* AmigaOS 3.1 filesystems do not know ACTION_SET_OWNER */
     ok = SetOwner((CONST_STRPTR)"T:lib_setowner_probe", 0x12345678);
-    if (ok == DOSTRUE)
+    if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
     {
-        print("OK: SetOwner() no longer behaves like a stub\n");
+        print("OK: SetOwner() reports ERROR_ACTION_NOT_KNOWN like AmigaOS 3.1\n");
     }
     else
     {
-        print("FAIL: SetOwner() unexpectedly failed\n");
+        print("FAIL: SetOwner() did not report ERROR_ACTION_NOT_KNOWN\n");
         errors++;
     }
 

@@ -2150,12 +2150,13 @@ BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
     char resolved_path[256];
     const char *path_to_use = resolve_amiga_path((const char *)___name, resolved_path);
 
-    ULONG lock_id = emucall2(EMU_CALL_DOS_LOCK, (ULONG)path_to_use, (ULONG)___type);
+    LONG ioerr = ERROR_OBJECT_NOT_FOUND;
+    ULONG lock_id = emucall3(EMU_CALL_DOS_LOCK, (ULONG)path_to_use, (ULONG)___type, (ULONG)&ioerr);
 
     DPRINTF (LOG_DEBUG, "_dos: Lock() result: lock_id=%lu\n", lock_id);
 
     if (lock_id == 0) {
-        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        SetIoErr(ioerr ? ioerr : ERROR_OBJECT_NOT_FOUND);
         return 0;
     }
 
@@ -2180,9 +2181,13 @@ BPTR _dos_DupLock ( register struct DosLibrary * __libBase __asm("a6"),
 
     if (!___lock) return 0;
 
-    ULONG lock_id = emucall1(EMU_CALL_DOS_DUPLOCK, (ULONG)___lock);
+    LONG ioerr = 0;
+    ULONG lock_id = emucall2(EMU_CALL_DOS_DUPLOCK, (ULONG)___lock, (ULONG)&ioerr);
 
     DPRINTF (LOG_DEBUG, "_dos: DupLock() result: lock_id=%lu\n", lock_id);
+
+    if (!lock_id && ioerr)
+        SetIoErr(ioerr);
 
     return (BPTR)lock_id;
 }
@@ -4916,6 +4921,23 @@ LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
             "_dos: ErrorReport(code=%ld, type=%ld, arg1=0x%08lx, device=%p) called.\n",
             code, type, arg1, (void *)device);
 
+    /* Codes ErrorReport() does not handle return DOSTRUE at once and leave
+     * IoErr() untouched (verified on AmigaOS 3.1). */
+    switch (code)
+    {
+        case ERROR_DISK_NOT_VALIDATED:
+        case ERROR_DISK_WRITE_PROTECTED:
+        case ERROR_DEVICE_NOT_MOUNTED:
+        case ERROR_DISK_FULL:
+        case ERROR_NOT_A_DOS_DISK:
+        case ERROR_NO_DISK:
+        case ABORT_BUSY:
+        case ABORT_DISK_ERROR:
+            break;
+        default:
+            return DOSTRUE;
+    }
+
     me = (struct Process *)FindTask(NULL);
     if (!IS_PROCESS(me))
     {
@@ -4971,7 +4993,6 @@ LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
             break;
 
         default:
-            SetIoErr(code);
             return DOSTRUE;
     }
 
@@ -6550,11 +6571,25 @@ struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * DOSBase __asm(
         return NULL;
     }
 
-    dlist->dol_Name = lxa_dos_alloc_name_bstr(name);
-    if (dlist->dol_Name == 0)
     {
-        FreeVec(dlist);
-        return NULL;
+        /* AmigaOS 3.1 copies the whole name; the BCPL length byte simply
+         * wraps for names longer than 255 characters (verified on 3.1). */
+        ULONG len = 0;
+        UBYTE *buf;
+
+        while (name[len])
+            len++;
+
+        buf = (UBYTE *)AllocVec(len + 2, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!buf)
+        {
+            FreeVec(dlist);
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return NULL;
+        }
+        buf[0] = (UBYTE)len;
+        CopyMem((APTR)name, buf + 1, len);
+        dlist->dol_Name = MKBADDR(buf);
     }
 
     dlist->dol_Type = type;
@@ -6684,15 +6719,6 @@ BOOL _dos_Format ( register struct DosLibrary * DOSBase __asm("a6"),
         return DOSFALSE;
     }
 
-    for (p = volumename; *p != '\0'; p++)
-    {
-        if (*p == ':')
-        {
-            SetIoErr(ERROR_INVALID_COMPONENT_NAME);
-            return DOSFALSE;
-        }
-    }
-
     dvp = _dos_GetDeviceProc(DOSBase, filesystem, NULL);
     if (!dvp)
         return DOSFALSE;
@@ -6702,6 +6728,18 @@ BOOL _dos_Format ( register struct DosLibrary * DOSBase __asm("a6"),
         _dos_FreeDeviceProc(DOSBase, dvp);
         SetIoErr(ERROR_DEVICE_NOT_MOUNTED);
         return DOSFALSE;
+    }
+
+    /* the device is resolved first: AmigaOS 3.1 reports an unknown device
+     * (ERROR_DEVICE_NOT_MOUNTED) before looking at the new name */
+    for (p = volumename; *p != '\0'; p++)
+    {
+        if (*p == ':')
+        {
+            _dos_FreeDeviceProc(DOSBase, dvp);
+            SetIoErr(ERROR_INVALID_COMPONENT_NAME);
+            return DOSFALSE;
+        }
     }
 
     volume_bstr = lxa_dos_alloc_name_bstr(volumename);
@@ -6761,15 +6799,6 @@ LONG _dos_Relabel ( register struct DosLibrary * DOSBase __asm("a6"),
         return DOSFALSE;
     }
 
-    for (p = newname; *p != '\0'; p++)
-    {
-        if (*p == ':')
-        {
-            SetIoErr(ERROR_INVALID_COMPONENT_NAME);
-            return DOSFALSE;
-        }
-    }
-
     dvp = _dos_GetDeviceProc(DOSBase, drive, NULL);
     if (!dvp)
         return DOSFALSE;
@@ -6779,6 +6808,18 @@ LONG _dos_Relabel ( register struct DosLibrary * DOSBase __asm("a6"),
         _dos_FreeDeviceProc(DOSBase, dvp);
         SetIoErr(ERROR_DEVICE_NOT_MOUNTED);
         return DOSFALSE;
+    }
+
+    /* the device is resolved first: AmigaOS 3.1 reports an unknown device
+     * (ERROR_DEVICE_NOT_MOUNTED) before looking at the new name */
+    for (p = newname; *p != '\0'; p++)
+    {
+        if (*p == ':')
+        {
+            _dos_FreeDeviceProc(DOSBase, dvp);
+            SetIoErr(ERROR_INVALID_COMPONENT_NAME);
+            return DOSFALSE;
+        }
     }
 
     newname_bstr = lxa_dos_alloc_name_bstr(newname);
@@ -7561,12 +7602,10 @@ LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     struct RootNode *root;
     struct DosInfo *dos_info;
-    struct Segment *current;
     struct Segment *segment;
     ULONG name_len = 0;
     ULONG copy_len;
     ULONG alloc_size;
-    BOOL want_system;
 
     (void)DOSBase;
 
@@ -7594,23 +7633,11 @@ LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
         copy_len = 255;
 
     alloc_size = offsetof(struct Segment, seg_Name) + copy_len + 2;
-    want_system = (system < 0);
 
+    /* AmigaOS 3.1 neither checks for duplicates nor interprets 'system':
+     * it becomes seg_UC as given (0/1 user, CMD_SYSTEM, CMD_INTERNAL) and
+     * the entry is prepended to the resident list in di_NetHand. */
     Forbid();
-
-    current = (struct Segment *)BADDR(dos_info->di_ResList);
-    while (current)
-    {
-        if (((want_system && current->seg_UC < 0) || (!want_system && current->seg_UC >= 0)) &&
-            lxa_dos_bstr_cstr_case_equal(current->seg_Name, name))
-        {
-            Permit();
-            SetIoErr(ERROR_OBJECT_EXISTS);
-            return DOSFALSE;
-        }
-
-        current = (struct Segment *)BADDR(current->seg_Next);
-    }
 
     segment = (struct Segment *)AllocVec(alloc_size, MEMF_PUBLIC | MEMF_CLEAR);
     if (!segment)
@@ -7627,12 +7654,19 @@ LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
         CopyMem((APTR)name, &segment->seg_Name[1], copy_len);
     segment->seg_Name[copy_len + 1] = '\0';
 
-    segment->seg_Next = dos_info->di_ResList;
-    dos_info->di_ResList = MKBADDR(segment);
+    segment->seg_Next = (BPTR)dos_info->di_NetHand;
+    dos_info->di_NetHand = (APTR)MKBADDR(segment);
 
     Permit();
     SetIoErr(0);
     return DOSTRUE;
+}
+
+static struct DosInfo *lxa_dos_info(void)
+{
+    struct RootNode *root = initRootNode();
+
+    return root ? (struct DosInfo *)BADDR(root->rn_Info) : NULL;
 }
 
 struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -7640,26 +7674,93 @@ struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("
                                                         register const struct Segment * seg __asm("d2"),
                                                         register LONG system __asm("d3"))
 {
-    LXA_UNIMPLEMENTED("dos", "FindSegment", "stub: resident segment list not implemented (Phase 255)");
+    /*
+     * Resident list search (behaviour verified on AmigaOS 3.1):
+     *  - starts after 'seg' (or at the head of the list in di_NetHand),
+     *  - names compare case-insensitively,
+     *  - system == FALSE matches user segments (seg_UC > 0; an entry with
+     *    seg_UC == 0 is not found), system != FALSE matches seg_UC < 0
+     *    (CMD_SYSTEM and CMD_INTERNAL),
+     *  - the use count is not changed.
+     */
+    struct DosInfo *dos_info;
+    struct Segment *current;
 
-    system = (LONG)(WORD)system; /* sign-extend: GCC m68k move.w workaround */
+    (void)DOSBase;
 
-    DPRINTF (LOG_DEBUG, "_dos: FindSegment() called, name=%s, seg=0x%08lx, system=%ld\n", 
-             name, seg, system);
-    /* Return NULL - segment not found. Full implementation would search 
-     * the resident segment list maintained by dos.library. */
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_dos: FindSegment() called, name=%s, seg=0x%08lx, system=%ld\n",
+             STRORNULL(name), seg, system);
+
+    if (!name)
+        return NULL;
+
+    dos_info = lxa_dos_info();
+    if (!dos_info)
+        return NULL;
+
+    Forbid();
+    current = seg ? (struct Segment *)BADDR(seg->seg_Next)
+                  : (struct Segment *)BADDR((BPTR)dos_info->di_NetHand);
+    while (current)
+    {
+        if ((system ? current->seg_UC < 0 : current->seg_UC > 0) &&
+            lxa_dos_bstr_cstr_case_equal(current->seg_Name, name))
+            break;
+        current = (struct Segment *)BADDR(current->seg_Next);
+    }
+    Permit();
+
+    return current;
 }
 
 LONG _dos_RemSegment ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct Segment * seg __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("dos", "RemSegment", "stub: resident segment list not implemented (Phase 255)");
+    /*
+     * Removes an unused resident segment (seg_UC 0 or 1) from the list and
+     * unloads it.  Segments in use (seg_UC > 1) and system/internal
+     * segments (seg_UC < 0) fail with ERROR_OBJECT_IN_USE (AmigaOS 3.1).
+     */
+    struct DosInfo *dos_info;
+    BPTR *link;
 
     DPRINTF (LOG_DEBUG, "_dos: RemSegment() called, seg=0x%08lx\n", seg);
-    /* Return 0 (FALSE) - segment not removed. Full implementation would
-     * remove segment from the resident list. */
-    return 0;
+
+    if (!seg)
+        return DOSFALSE;
+
+    dos_info = lxa_dos_info();
+    if (!dos_info)
+        return DOSFALSE;
+
+    Forbid();
+    if (seg->seg_UC != 0 && seg->seg_UC != 1)
+    {
+        Permit();
+        SetIoErr(ERROR_OBJECT_IN_USE);
+        return DOSFALSE;
+    }
+
+    /* the NDK declares di_NetHand as APTR; AmigaOS 3.1 keeps the BPTR to
+     * the resident segment list there */
+    link = (BPTR *)&dos_info->di_NetHand;
+    while (*link && (struct Segment *)BADDR(*link) != seg)
+        link = &((struct Segment *)BADDR(*link))->seg_Next;
+
+    if (!*link)
+    {
+        Permit();
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    *link = seg->seg_Next;
+    Permit();
+
+    if (seg->seg_Seg)
+        UnLoadSeg(seg->seg_Seg);
+    FreeVec(seg);
+    return DOSTRUE;
 }
 
 LONG _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -8204,12 +8305,8 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
     if (!buffer)
         return ITEM_NOTHING;
 
-    if (maxchars == 0)
-    {
-        *cursor = '\0';
-        return ITEM_NOTHING;
-    }
-
+    /* maxchars == 0 is not special-cased: AmigaOS 3.1 consumes the first
+     * character of an item and reports ITEM_ERROR with an empty buffer. */
     if (!cSource)
         input_fh = Input();
 
@@ -8261,7 +8358,7 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
         {
             if (!maxchars)
             {
-                cursor[-1] = '\0';
+                if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
                 return ITEM_NOTHING;
             }
 
@@ -8305,7 +8402,7 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
     {
         if (!maxchars)
         {
-            cursor[-1] = '\0';
+            if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
             return ITEM_ERROR;
         }
 
@@ -8316,7 +8413,7 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
         {
             if (!maxchars)
             {
-                cursor[-1] = '\0';
+                if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
                 return ITEM_ERROR;
             }
 
@@ -10244,11 +10341,6 @@ BOOL _dos_SetOwner ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG owner_info __asm("d2"))
 {
-    char resolved_path[256];
-    const char *path_to_use;
-    LONG ioerr = 0;
-    LONG result;
-
     DPRINTF (LOG_DEBUG, "_dos: SetOwner() called, name=%s, owner_info=0x%08lx\n",
              STRORNULL(name), (ULONG)owner_info);
 
@@ -10258,16 +10350,12 @@ BOOL _dos_SetOwner ( register struct DosLibrary * DOSBase __asm("a6"),
         return DOSFALSE;
     }
 
-    path_to_use = resolve_amiga_path((const char *)name, resolved_path);
-    result = emucall3(EMU_CALL_DOS_SETOWNER, (ULONG)path_to_use, (ULONG)owner_info, (ULONG)&ioerr);
-
-    if (!result)
-    {
-        SetIoErr(ioerr ? ioerr : ERROR_OBJECT_NOT_FOUND);
-        return DOSFALSE;
-    }
-
-    return DOSTRUE;
+    /* SetOwner() sends ACTION_SET_OWNER, which the AmigaOS 3.1 filesystems
+     * (FFS, ram-handler) do not know -- lxa's hosted filesystem behaves
+     * the same (verified on the reference: always ERROR_ACTION_NOT_KNOWN). */
+    (void)owner_info;
+    SetIoErr(ERROR_ACTION_NOT_KNOWN);
+    return DOSFALSE;
 }
 
 struct MyDataInit

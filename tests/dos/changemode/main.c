@@ -91,9 +91,12 @@ int main(void)
 
     lock1 = Lock((CONST_STRPTR)"changemode_test.dat", SHARED_LOCK);
     lock2 = Lock((CONST_STRPTR)"changemode_test.dat", SHARED_LOCK);
-    fh = Open((CONST_STRPTR)"changemode_test.dat", MODE_READWRITE);
+    /* the filehandle is opened after Test 3: an open MODE_READWRITE
+     * handle holds a shared lock, which blocks the exclusive upgrade of
+     * Test 1 on AmigaOS 3.1 */
+    fh = 0;
 
-    if (!lock1 || !lock2 || !fh)
+    if (!lock1 || !lock2)
     {
         test_fail("Open objects", "Could not open required lock/filehandle");
         if (lock1)
@@ -151,6 +154,7 @@ int main(void)
         UnLock(lock2);
         lock2 = 0;
     }
+    fh = Open((CONST_STRPTR)"changemode_test.dat", MODE_READWRITE);
     ok = ChangeMode(CHANGE_FH, fh, SHARED_LOCK);
     if (ok)
         test_pass("Filehandle shared mode");
@@ -235,7 +239,8 @@ int main(void)
     if (lock2)
         UnLock(lock2);
     UnLock(lock1);
-    Close(fh);
+    if (fh)
+        Close(fh);
     DeleteFile((CONST_STRPTR)"changemode_test.dat");
 
     print("\nFailed: ");

@@ -78,6 +78,7 @@ int main(void)
 {
     BPTR fh;
     LONG result;
+    LONG err;
     
     print("Seek on File Handles Test\n");
     print("=========================\n\n");
@@ -102,10 +103,8 @@ int main(void)
     
     if (result == 10) {
         test_pass("Seek(BEGIN) returns previous position");
-    } else if (result >= 0) {
-        test_pass("Seek(BEGIN) works");
     } else {
-        test_fail("Seek(BEGIN)", "Failed");
+        test_fail("Seek(BEGIN)", "Expected previous position 10");
     }
     
     Close(fh);
@@ -127,10 +126,18 @@ int main(void)
     if (result == 0) {
         /* Position before seek was 0 */
         test_pass("Seek(END) from start returns 0");
-    } else if (result >= 0) {
-        test_pass("Seek(END) works");
     } else {
-        test_fail("Seek(END)", "Failed");
+        test_fail("Seek(END)", "Expected previous position 0");
+    }
+
+    result = Seek(fh, 0, OFFSET_CURRENT);
+    print("  Position after Seek(END): ");
+    print_num(result);
+    print("\n");
+    if (result == 10) {
+        test_pass("Seek(END) moved to end of file");
+    } else {
+        test_fail("Seek(END)", "Expected position 10");
     }
     
     Close(fh);
@@ -158,10 +165,8 @@ int main(void)
     
     if (result == 5) {
         test_pass("Seek(CURRENT) returns previous position");
-    } else if (result >= 0) {
-        test_pass("Seek(CURRENT) works");
     } else {
-        test_fail("Seek(CURRENT)", "Failed");
+        test_fail("Seek(CURRENT)", "Expected previous position 5");
     }
     
     /* Get current position */
@@ -172,10 +177,8 @@ int main(void)
     
     if (result == 3) {
         test_pass("Position is 3 after seek back 2 from 5");
-    } else if (result >= 0) {
-        test_pass("Position query works");
     } else {
-        test_fail("Position query", "Failed");
+        test_fail("Position query", "Expected position 3");
     }
     
     Close(fh);
@@ -194,11 +197,35 @@ int main(void)
     print_num(result);
     print("\n");
     
-    /* Seeking beyond EOF is usually allowed */
-    if (result >= 0) {
-        test_pass("Seek beyond EOF allowed");
+    /* AmigaOS refuses to seek beyond EOF: -1, ERROR_SEEK_ERROR */
+    err = IoErr();
+    print("  IoErr: ");
+    print_num(err);
+    print("\n");
+    if (result == -1 && err == ERROR_SEEK_ERROR) {
+        test_pass("Seek beyond EOF returned ERROR_SEEK_ERROR");
     } else {
-        test_pass("Seek beyond EOF returned error");
+        test_fail("Seek beyond EOF", "Expected -1 / ERROR_SEEK_ERROR");
+    }
+
+    result = Seek(fh, 0, OFFSET_CURRENT);
+    if (result == 0) {
+        test_pass("Failed seek left the position unchanged");
+    } else {
+        test_fail("Failed seek", "Position changed");
+    }
+
+    result = Seek(fh, -1, OFFSET_BEGINNING);
+    err = IoErr();
+    print("  Seek(-1) returned: ");
+    print_num(result);
+    print(", IoErr: ");
+    print_num(err);
+    print("\n");
+    if (result == -1 && err == ERROR_SEEK_ERROR) {
+        test_pass("Seek before start returned ERROR_SEEK_ERROR");
+    } else {
+        test_fail("Seek before start", "Expected -1 / ERROR_SEEK_ERROR");
     }
     
     Close(fh);

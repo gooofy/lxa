@@ -106,6 +106,21 @@ static LONG bstr_equals(struct DosList *node, const char *expected)
     return buffer[len + 1] == '\0';
 }
 
+static BOOL long_name_copied(struct DosList *node, const char *name, ULONG len)
+{
+    UBYTE *buffer = (UBYTE *)BADDR(node->dol_Name);
+    ULONG i;
+
+    if (!buffer || buffer[0] != (UBYTE)len)
+        return FALSE;
+    for (i = 0; i < len; i++)
+    {
+        if (buffer[i + 1] != (UBYTE)name[i])
+            return FALSE;
+    }
+    return buffer[len + 1] == '\0';
+}
+
 int main(void)
 {
     struct DosList *node;
@@ -135,20 +150,17 @@ int main(void)
         test_fail("Create assign entry", "Assign entry was not initialized correctly");
     free_makedosentry_result(node);
 
-    print("\nTest 3: Truncates names longer than 255 characters to BCPL length\n");
+    print("\nTest 3: Names longer than 255 characters are copied whole, the length byte wraps\n");
     for (i = 0; i < 300; i++)
         long_name[i] = 'A' + (i % 26);
     long_name[300] = '\0';
 
     node = MakeDosEntry((CONST_STRPTR)long_name, DLT_VOLUME);
     err = IoErr();
-    print("  PROBE node="); print_num(node ? 1 : 0); print(" err="); print_num(err);
-    if (node && node->dol_Name) { UBYTE *bb = (UBYTE *)BADDR(node->dol_Name); print(" len="); print_num(bb[0]); print(" c1="); print_num(bb[1]); print(" c255="); print_num(bb[255]); print(" c256="); print_num(bb[256]); }
-    print("\n");
-    if (node && err == 0 && node->dol_Type == DLT_VOLUME && bstr_equals(node, long_name))
-        test_pass("Truncate long name");
+    if (node && err == 0 && node->dol_Type == DLT_VOLUME && long_name_copied(node, long_name, 300))
+        test_pass("Long name copied");
     else
-        test_fail("Truncate long name", "Long-name handling did not produce a valid BCPL string");
+        test_fail("Long name copied", "Long-name handling did not match AmigaOS");
     free_makedosentry_result(node);
 
     print("\nFailed: ");

@@ -67,32 +67,6 @@ static void test_fail(const char *name, const char *reason)
     tests_failed++;
 }
 
-static void cleanup_segment(struct Segment *segment)
-{
-    if (!segment)
-        return;
-
-    if (segment->seg_Seg)
-        UnLoadSeg(segment->seg_Seg);
-
-    FreeVec(segment);
-}
-
-static void restore_reslist(struct DosInfo *dos_info, BPTR old_head)
-{
-    struct Segment *current = (struct Segment *)BADDR(dos_info->di_ResList);
-
-    while (current && dos_info->di_ResList != old_head)
-    {
-        struct Segment *next = (struct Segment *)BADDR(current->seg_Next);
-        cleanup_segment(current);
-        current = next;
-        dos_info->di_ResList = current ? MKBADDR(current) : 0;
-    }
-
-    dos_info->di_ResList = old_head;
-}
-
 static BOOL bstr_equals_cstr(const UBYTE *bstr, const char *str)
 {
     ULONG len = bstr ? bstr[0] : 0;
@@ -110,36 +84,38 @@ static BOOL bstr_equals_cstr(const UBYTE *bstr, const char *str)
     return str[len] == '\0';
 }
 
+static BPTR seg1, seg2, seg3;
+
+static LONG which(const struct Segment *s)
+{
+    if (!s)
+        return 0;
+    if (s->seg_Seg == seg1)
+        return 1;
+    if (s->seg_Seg == seg2)
+        return 2;
+    if (s->seg_Seg == seg3)
+        return 3;
+    return 9;
+}
+
+static void check(BOOL cond, const char *name, const char *reason)
+{
+    if (cond)
+        test_pass(name);
+    else
+        test_fail(name, reason);
+}
+
 int main(void)
 {
-    struct RootNode *root;
-    struct DosInfo *dos_info;
-    BPTR old_head;
-    BPTR seg1;
-    BPTR seg2;
-    BPTR seg3;
+    struct Segment *a;
+    struct Segment *b;
     LONG ok;
-    LONG err;
-    struct Segment *entry = NULL;
 
     print("AddSegment Test\n");
     print("===============\n\n");
 
-    if (!DOSBase || !DOSBase->dl_Root)
-    {
-        print("FAIL: DOS root node is not initialized\n");
-        return 20;
-    }
-
-    root = DOSBase->dl_Root;
-    dos_info = (struct DosInfo *)BADDR(root->rn_Info);
-    if (!dos_info)
-    {
-        print("FAIL: DOS info is not initialized\n");
-        return 20;
-    }
-
-    old_head = dos_info->di_ResList;
     seg1 = LoadSeg((CONST_STRPTR)"SYS:Tests/Dos/HelloWorld");
     seg2 = LoadSeg((CONST_STRPTR)"SYS:Tests/Dos/HelloWorld");
     seg3 = LoadSeg((CONST_STRPTR)"SYS:Tests/Dos/HelloWorld");
@@ -155,62 +131,60 @@ int main(void)
         return 20;
     }
 
-    SetIoErr(0);
-    print("Test 3: Prepends a user segment and copies its name\n");
-    ok = AddSegment((CONST_STRPTR)"AddSegmentUser", seg1, 0);
-    err = IoErr();
-    print("  PROBE ok="); print_num(ok); print(" err="); print_num(err);
-    { struct Segment *h = (struct Segment *)BADDR(dos_info->di_ResList);
-      print(" head1="); print_num(h == entry); print(" uc="); print_num(h ? h->seg_UC : 99);
-      print(" seg="); print_num(h ? (h->seg_Seg == seg1 ? 1 : h->seg_Seg == seg2 ? 2 : h->seg_Seg == seg3 ? 3 : 0) : -1);
-      print(" nextold="); print_num(h ? h->seg_Next == old_head : -1);
-      print(" name="); if (h) { char nb[64]; int k; int l = h->seg_Name[0]; if (l > 60) l = 60; for (k = 0; k < l; k++) nb[k] = h->seg_Name[k+1]; nb[l] = 0; print(nb);} print("\n"); }
-    entry = (struct Segment *)BADDR(dos_info->di_ResList);
-    if (ok == DOSTRUE && err == 0 && entry && entry->seg_Seg == seg1 && entry->seg_UC == 0 &&
-        bstr_equals_cstr(entry->seg_Name, "AddSegmentUser") && entry->seg_Next == old_head)
-        test_pass("Add user segment");
-    else
-        test_fail("Add user segment", "Resident list head was not initialized correctly");
+    print("Test 1: A user segment (use count 1) is found by FindSegment()\n");
+    ok = AddSegment((CONST_STRPTR)"AddSegmentUser", seg1, 1);
+    check(ok == DOSTRUE, "AddSegment succeeds", "AddSegment returned FALSE");
+    a = FindSegment((CONST_STRPTR)"AddSegmentUser", NULL, FALSE);
+    check(which(a) == 1 && a->seg_UC == 1 && bstr_equals_cstr(a->seg_Name, "AddSegmentUser"),
+          "FindSegment returns the new entry", "Entry not found or wrong fields");
+    a = FindSegment((CONST_STRPTR)"addsegmentuser", NULL, FALSE);
+    check(which(a) == 1, "FindSegment compares case-insensitively", "Lower-case lookup failed");
+    a = FindSegment((CONST_STRPTR)"AddSegmentUser", NULL, TRUE);
+    check(a == NULL, "User segments are not system segments", "Found as a system segment");
 
-    print("\nTest 4: Rejects same-type duplicates case-insensitively\n");
-    ok = AddSegment((CONST_STRPTR)"addsegmentuser", seg2, 0);
-    err = IoErr();
-    print("  PROBE ok="); print_num(ok); print(" err="); print_num(err);
-    { struct Segment *h = (struct Segment *)BADDR(dos_info->di_ResList);
-      print(" head1="); print_num(h == entry); print(" uc="); print_num(h ? h->seg_UC : 99);
-      print(" seg="); print_num(h ? (h->seg_Seg == seg1 ? 1 : h->seg_Seg == seg2 ? 2 : h->seg_Seg == seg3 ? 3 : 0) : -1);
-      print(" nextold="); print_num(h ? h->seg_Next == old_head : -1);
-      print(" name="); if (h) { char nb[64]; int k; int l = h->seg_Name[0]; if (l > 60) l = 60; for (k = 0; k < l; k++) nb[k] = h->seg_Name[k+1]; nb[l] = 0; print(nb);} print("\n"); }
-    if (ok == DOSFALSE && err == ERROR_OBJECT_EXISTS && (struct Segment *)BADDR(dos_info->di_ResList) == entry)
-        test_pass("Reject duplicate user segment");
-    else
-        test_fail("Reject duplicate user segment", "Duplicate user-name handling behaved incorrectly");
+    print("\nTest 2: Duplicate names are allowed and prepended\n");
+    ok = AddSegment((CONST_STRPTR)"addsegmentuser", seg2, 1);
+    check(ok == DOSTRUE, "Duplicate AddSegment succeeds", "AddSegment returned FALSE");
+    a = FindSegment((CONST_STRPTR)"AddSegmentUser", NULL, FALSE);
+    b = a ? FindSegment((CONST_STRPTR)"AddSegmentUser", a, FALSE) : NULL;
+    check(which(a) == 2 && which(b) == 1, "Newest entry first, search continues after 'seg'",
+          "Wrong search order");
 
-    print("\nTest 5: Allows the same name in the separate system segment namespace\n");
+    print("\nTest 3: Use count 0 entries are not found as user segments\n");
+    a = FindSegment((CONST_STRPTR)"AddSegmentUser", NULL, FALSE);
+    a->seg_UC = 0;
+    b = FindSegment((CONST_STRPTR)"AddSegmentUser", NULL, FALSE);
+    check(which(b) == 1, "seg_UC == 0 is skipped", "Use count 0 entry was returned");
+    a->seg_UC = 1;
+
+    print("\nTest 4: CMD_SYSTEM segments live in the system namespace\n");
     ok = AddSegment((CONST_STRPTR)"ADDSEGMENTUSER", seg3, CMD_SYSTEM);
-    err = IoErr();
-    print("  PROBE ok="); print_num(ok); print(" err="); print_num(err);
-    { struct Segment *h = (struct Segment *)BADDR(dos_info->di_ResList);
-      print(" head1="); print_num(h == entry); print(" uc="); print_num(h ? h->seg_UC : 99);
-      print(" seg="); print_num(h ? (h->seg_Seg == seg1 ? 1 : h->seg_Seg == seg2 ? 2 : h->seg_Seg == seg3 ? 3 : 0) : -1);
-      print(" nextold="); print_num(h ? h->seg_Next == old_head : -1);
-      print(" name="); if (h) { char nb[64]; int k; int l = h->seg_Name[0]; if (l > 60) l = 60; for (k = 0; k < l; k++) nb[k] = h->seg_Name[k+1]; nb[l] = 0; print(nb);} print("\n"); }
-    if (ok == DOSTRUE && err == 0)
-    {
-        struct Segment *system_entry = (struct Segment *)BADDR(dos_info->di_ResList);
-        if (system_entry && system_entry->seg_Seg == seg3 && system_entry->seg_UC == CMD_SYSTEM &&
-            bstr_equals_cstr(system_entry->seg_Name, "ADDSEGMENTUSER") &&
-            BADDR(system_entry->seg_Next) == entry)
-            test_pass("Separate user/system namespaces");
-        else
-            test_fail("Separate user/system namespaces", "System segment entry was not linked correctly");
-    }
-    else
-    {
-        test_fail("Separate user/system namespaces", "System segment insertion unexpectedly failed");
-    }
+    check(ok == DOSTRUE, "System AddSegment succeeds", "AddSegment returned FALSE");
+    a = FindSegment((CONST_STRPTR)"AddSegmentUser", NULL, TRUE);
+    check(which(a) == 3 && a->seg_UC == CMD_SYSTEM, "FindSegment(system) finds it",
+          "System entry not found");
+    a = FindSegment((CONST_STRPTR)"AddSegmentUser", NULL, FALSE);
+    check(which(a) == 2, "FindSegment(user) skips it", "User search returned the system entry");
 
-    restore_reslist(dos_info, old_head);
+    print("\nTest 5: RemSegment\n");
+    a = FindSegment((CONST_STRPTR)"AddSegmentUser", NULL, FALSE);
+    a->seg_UC = 2;
+    ok = RemSegment(a);
+    check(ok == DOSFALSE && IoErr() == ERROR_OBJECT_IN_USE, "Segment in use is not removed",
+          "Expected ERROR_OBJECT_IN_USE");
+    a->seg_UC = 1;
+    ok = RemSegment(a);
+    check(ok == DOSTRUE, "Unused segment is removed", "RemSegment failed");
+    a = FindSegment((CONST_STRPTR)"AddSegmentUser", NULL, FALSE);
+    check(which(a) == 1, "Removed entry is gone", "Removed entry still found");
+    a->seg_UC = 0;
+    ok = RemSegment(a);
+    check(ok == DOSTRUE, "Use count 0 segment is removed", "RemSegment failed");
+    a = FindSegment((CONST_STRPTR)"AddSegmentUser", NULL, TRUE);
+    ok = RemSegment(a);
+    check(ok == DOSFALSE && IoErr() == ERROR_OBJECT_IN_USE, "System segment is not removed",
+          "Expected ERROR_OBJECT_IN_USE");
+    /* the CMD_SYSTEM entry (seg3) stays resident, as it would on AmigaOS */
 
     print("\nFailed: ");
     print_num(tests_failed);

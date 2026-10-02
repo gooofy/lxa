@@ -413,9 +413,9 @@ int _dos_write(uint32_t fh68k, uint32_t buf68k, uint32_t len68k);
 int _dos_flush(uint32_t fh68k);
 int _dos_close(uint32_t fh68k);
 
-uint32_t _dos_lock(uint32_t name68k, int32_t mode);
+uint32_t _dos_lock(uint32_t name68k, int32_t mode, uint32_t err68k);
 void _dos_unlock(uint32_t lock_id);
-uint32_t _dos_duplock(uint32_t lock_id);
+uint32_t _dos_duplock(uint32_t lock_id, uint32_t err68k);
 uint32_t _dos_lockrecord(uint32_t fh68k, uint32_t offset, uint32_t length,
                           uint32_t timeout, uint32_t mode);
 uint32_t _dos_unlockrecord(uint32_t fh68k, uint32_t offset, uint32_t length);
@@ -430,7 +430,6 @@ int _dos_rename(uint32_t old68k, uint32_t new68k);
 int _dos_namefromlock(uint32_t lock_id, uint32_t buf68k, uint32_t buflen);
 int _dos_setprotection(uint32_t name68k, uint32_t protect);
 int _dos_setcomment(uint32_t name68k, uint32_t comment68k);
-int _dos_setowner(uint32_t name68k, uint32_t owner68k, uint32_t err68k);
 int _dos_setfiledate(uint32_t name68k, uint32_t date68k, uint32_t err68k);
 int _dos_readlink(uint32_t path68k, uint32_t buffer68k, uint32_t size, uint32_t err68k);
 int _dos_makelink(uint32_t name68k, uint32_t dest_param, int32_t soft, uint32_t err68k);

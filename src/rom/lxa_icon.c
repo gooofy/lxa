@@ -184,7 +184,9 @@ static void icon_ensure_default_directory(void)
         return;
     }
 
-    CreateDir((CONST_STRPTR)"ENV:Sys");
+    lock = CreateDir((CONST_STRPTR)"ENV:Sys");
+    if (lock)
+        UnLock(lock);
 }
 
 static struct IconPrivateState *icon_find_private_state(struct IconBase *IconBase,
