@@ -1,5 +1,13 @@
 /*
  * Test for input.device handler ordering, event dispatch, and qualifier state.
+ *
+ * Validated against AmigaOS 3.1 (Phase 220): both handlers sit above
+ * Intuition (pri 50) and the second one swallows every event, so the
+ * injected keys and clicks never reach Intuition or the active window.
+ * On 3.1, IND_WRITEEVENT passes the event's own qualifier to the handlers
+ * but does not change PeekQualifier() (that reflects the real keyboard and
+ * mouse), IND_SETTHRESH/IND_SETPERIOD leave the request untouched and
+ * IND_ADDEVENT (V47) is an unknown command.
  */
 
 #include <exec/types.h>
@@ -122,7 +130,8 @@ static struct InputEvent *second_handler(register struct InputEvent *events __as
         event->ie_Qualifier |= mark;
     }
 
-    return events;
+    /* last handler of the test: swallow the event */
+    return NULL;
 }
 
 static void reset_counters(void)
@@ -189,13 +198,13 @@ int main(void)
     }
 
     first_interrupt.is_Node.ln_Type = NT_INTERRUPT;
-    first_interrupt.is_Node.ln_Pri = 10;
+    first_interrupt.is_Node.ln_Pri = 100;
     first_interrupt.is_Node.ln_Name = (STRPTR)"input-first";
     first_interrupt.is_Data = (APTR)0x0100;
     first_interrupt.is_Code = (VOID (*)())first_handler;
 
     second_interrupt.is_Node.ln_Type = NT_INTERRUPT;
-    second_interrupt.is_Node.ln_Pri = 5;
+    second_interrupt.is_Node.ln_Pri = 90;
     second_interrupt.is_Node.ln_Name = (STRPTR)"input-second";
     second_interrupt.is_Data = (APTR)0x0200;
     second_interrupt.is_Code = (VOID (*)())second_handler;
@@ -272,10 +281,10 @@ int main(void)
         test_fail("Event coordinates mismatch");
     }
 
-    if (PeekQualifier() == IEQUALIFIER_LSHIFT) {
-        test_ok("PeekQualifier tracks rawkey qualifier state");
+    if (PeekQualifier() == 0) {
+        test_ok("IND_WRITEEVENT rawkey does not change PeekQualifier");
     } else {
-        test_fail("PeekQualifier rawkey state mismatch");
+        test_fail("PeekQualifier changed by written rawkey event");
     }
 
     reset_counters();
@@ -315,14 +324,10 @@ int main(void)
         test_fail("Transient key qualifier bits not delivered");
     }
 
-    if (PeekQualifier() == (IEQUALIFIER_LSHIFT | IEQUALIFIER_RSHIFT |
-                            IEQUALIFIER_CAPSLOCK | IEQUALIFIER_CONTROL |
-                            IEQUALIFIER_LALT | IEQUALIFIER_RALT |
-                            IEQUALIFIER_LCOMMAND | IEQUALIFIER_RCOMMAND |
-                            IEQUALIFIER_NUMERICPAD)) {
-        test_ok("PeekQualifier keeps only held key qualifiers");
+    if (PeekQualifier() == 0) {
+        test_ok("PeekQualifier ignores written key qualifiers");
     } else {
-        test_fail("PeekQualifier latched transient key qualifiers");
+        test_fail("PeekQualifier latched written key qualifiers");
     }
 
     event.ie_Code = 0x21 | IECODE_UP_PREFIX;
@@ -361,16 +366,10 @@ int main(void)
     input_req->io_Flags = IOF_QUICK;
     DoIO((struct IORequest *)input_req);
 
-    if (input_req->io_Error == 0) {
-        test_ok("IND_ADDEVENT succeeded");
+    if (input_req->io_Error == IOERR_NOCMD && g_first_count == 0 && g_second_count == 0) {
+        test_ok("IND_ADDEVENT (V47) is an unknown command on V40");
     } else {
-        test_fail("IND_ADDEVENT failed");
-    }
-
-    if (g_first_count == 1 && g_second_count == 1) {
-        test_ok("IND_ADDEVENT filters unsupported classes");
-    } else {
-        test_fail("IND_ADDEVENT class filtering mismatch");
+        test_fail("IND_ADDEVENT was not rejected");
     }
 
     mouse_value = 1;
@@ -405,10 +404,10 @@ int main(void)
     DoIO((struct IORequest *)time_req);
     if (time_req->tr_node.io_Error == 0) {
         test_ok("IND_SETTHRESH accepted timeval");
-        if (time_req->tr_time.tv_secs == 1 && time_req->tr_time.tv_micro == 250000) {
-            test_ok("IND_SETTHRESH normalized timeval payload");
+        if (time_req->tr_time.tv_secs == 0 && time_req->tr_time.tv_micro == 1250000) {
+            test_ok("IND_SETTHRESH left the request timeval unchanged");
         } else {
-            test_fail("IND_SETTHRESH did not normalize timeval payload");
+            test_fail("IND_SETTHRESH modified the request timeval");
         }
     } else {
         test_fail("IND_SETTHRESH failed");
@@ -421,35 +420,13 @@ int main(void)
     DoIO((struct IORequest *)time_req);
     if (time_req->tr_node.io_Error == 0) {
         test_ok("IND_SETPERIOD accepted timeval");
-        if (time_req->tr_time.tv_secs == 2 && time_req->tr_time.tv_micro == 30000) {
-            test_ok("IND_SETPERIOD normalized timeval payload");
+        if (time_req->tr_time.tv_secs == 0 && time_req->tr_time.tv_micro == 2030000) {
+            test_ok("IND_SETPERIOD left the request timeval unchanged");
         } else {
-            test_fail("IND_SETPERIOD did not normalize timeval payload");
+            test_fail("IND_SETPERIOD modified the request timeval");
         }
     } else {
         test_fail("IND_SETPERIOD failed");
-    }
-
-    input_req->io_Command = IND_SETMPORT;
-    input_req->io_Data = NULL;
-    input_req->io_Length = 1;
-    input_req->io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)input_req);
-    if (input_req->io_Error == IOERR_BADADDRESS) {
-        test_ok("IND_SETMPORT rejects NULL data");
-    } else {
-        test_fail("IND_SETMPORT NULL-data error mismatch");
-    }
-
-    input_req->io_Command = IND_ADDEVENT;
-    input_req->io_Data = add_events;
-    input_req->io_Length = sizeof(struct InputEvent) + 1;
-    input_req->io_Flags = IOF_QUICK;
-    DoIO((struct IORequest *)input_req);
-    if (input_req->io_Error == IOERR_BADLENGTH) {
-        test_ok("IND_ADDEVENT rejects bad length");
-    } else {
-        test_fail("IND_ADDEVENT bad-length error mismatch");
     }
 
     input_req->io_Command = IND_REMHANDLER;
@@ -490,10 +467,10 @@ int main(void)
         test_fail("Removed handlers still received events");
     }
 
-    if (PeekQualifier() == IEQUALIFIER_LEFTBUTTON) {
-        test_ok("PeekQualifier tracks mouse qualifier state");
+    if (PeekQualifier() == 0) {
+        test_ok("IND_WRITEEVENT mouse button does not change PeekQualifier");
     } else {
-        test_fail("PeekQualifier mouse state mismatch");
+        test_fail("PeekQualifier changed by written mouse event");
     }
 
     event.ie_Code = IECODE_MBUTTON;
@@ -513,15 +490,10 @@ int main(void)
         test_fail("IND_WRITEEVENT transient mouse qualifiers failed");
     }
 
-    if ((PeekQualifier() & (IEQUALIFIER_LEFTBUTTON | IEQUALIFIER_RBUTTON |
-                            IEQUALIFIER_MIDBUTTON)) ==
-        (IEQUALIFIER_LEFTBUTTON | IEQUALIFIER_RBUTTON |
-         IEQUALIFIER_MIDBUTTON) &&
-        (PeekQualifier() & (IEQUALIFIER_REPEAT | IEQUALIFIER_INTERRUPT |
-                            IEQUALIFIER_MULTIBROADCAST)) == 0) {
-        test_ok("PeekQualifier keeps only held mouse qualifiers");
+    if (PeekQualifier() == 0) {
+        test_ok("PeekQualifier ignores written mouse qualifiers");
     } else {
-        test_fail("PeekQualifier latched transient mouse qualifiers");
+        test_fail("PeekQualifier latched written mouse qualifiers");
     }
 
     event.ie_Code = IECODE_MBUTTON | IECODE_UP_PREFIX;

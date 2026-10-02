@@ -9,7 +9,8 @@
  *
  * The tolerances are those of a real Amiga, so the program also passes on
  * the reference system.  It prints the boot DateStamp day so the host-side
- * driver can verify the deterministic epoch.
+ * driver can verify the deterministic epoch.  Measured values are printed
+ * only on failure, so the output is identical on lxa and the reference.
  */
 
 #include <exec/types.h>
@@ -33,7 +34,7 @@ static int failures = 0;
 static void check(const char *what, LONG value, LONG lo, LONG hi)
 {
     if (value >= lo && value <= hi)
-        printf("OK: %s = %ld\n", what, value);
+        printf("OK: %s in %ld..%ld\n", what, lo, hi);
     else
     {
         printf("FAIL: %s = %ld (expected %ld..%ld)\n", what, value, lo, hi);
