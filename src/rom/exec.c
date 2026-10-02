@@ -3393,8 +3393,8 @@ APTR _exec_OpenResource ( register struct ExecBase * SysBase __asm("a6"),
  * Format string specifiers:
  *   %[-][0][width][.precision][l]d - signed decimal
  *   %[-][0][width][.precision][l]u - unsigned decimal
- *   %[-][0][width][.precision][l]x - lowercase hex
- *   %[-][0][width][.precision][l]X - uppercase hex
+ *   %[-][0][width][.precision][l]x - upper-case hex (sic, AmigaOS 3.1)
+ *   %[-][0][width][.precision][l]X - lower-case hex (sic, AmigaOS 3.1)
  *   %[-][width]s - string
  *   %[-][width]c - character
  *   %b - BSTR (BCPL string with length byte)
@@ -3658,8 +3658,10 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                     value = *args++;
                 }
 
-                /* AmigaOS RawDoFmt always uses uppercase hex for both %x and %X */
-                const char *hexDigits = "0123456789ABCDEF";
+                /* AmigaOS 3.1 RawDoFmt (verified on the reference machine):
+                 * %x prints upper-case digits, %X lower-case ones. */
+                const char *hexDigits = (specifier == 'X') ? "0123456789abcdef"
+                                                           : "0123456789ABCDEF";
 
                 char buf[9];
                 char *p = buf + sizeof(buf) - 1;
@@ -3785,8 +3787,17 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
             case 'c':
             case 'C':
             {
-                /* Character */
-                char ch = (char)*args++;
+                /* Character: %c takes a WORD, %lc a LONG (low byte printed) */
+                char ch;
+                if (isLong)
+                {
+                    ch = (char)*(ULONG *)args;
+                    args += 2;
+                }
+                else
+                {
+                    ch = (char)*args++;
+                }
 
                 if (!leftAlign)
                 {

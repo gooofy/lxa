@@ -712,6 +712,16 @@ static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_l
     DPRINTF (LOG_DEBUG, "lxa: _dos_path2linux: legacy resolved %s -> %s\n", amiga_path, linux_path);
 }
 
+/* AmigaDOS error code of the last failed name-based host operation
+ * (Lock, CreateDir, DeleteFile, Rename, ParentDir), read back by the ROM via
+ * EMU_CALL_DOS_LASTERROR so IoErr() reports what the handler would. */
+static uint32_t g_dos_last_error;
+
+uint32_t _dos_last_error(void)
+{
+    return g_dos_last_error;
+}
+
 int errno2Amiga (void)
 {
     switch (errno)
@@ -786,7 +796,10 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
                 flags = O_CREAT | O_TRUNC | O_RDWR;
                 break;
             case MODE_OLDFILE:
-                flags = O_RDONLY;  // Read-only for existing files
+                /* MODE_OLDFILE opens an existing file for reading AND
+                 * writing (RKRM; verified on AmigaOS 3.1).  Fall back to
+                 * read-only when the host denies write access. */
+                flags = O_RDWR;
                 break;
             case MODE_READWRITE:
                 flags = O_CREAT | O_RDWR;
@@ -796,6 +809,9 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
         }
 
         int fd = open (lxpath, flags, mode);
+        if (fd < 0 && accessMode == MODE_OLDFILE &&
+            (errno == EACCES || errno == EROFS || errno == ETXTBSY || errno == EISDIR || errno == EPERM))
+            fd = open (lxpath, O_RDONLY, mode);
         int err = errno;
 
         LPRINTF (LOG_DEBUG, "lxa: _dos_open(): open() result: fd=%d, err=%d\n", fd, err);
@@ -1797,7 +1813,8 @@ uint32_t _dos_lock(uint32_t name68k, int32_t mode)
     if (stat(linux_path, &st) != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_lock: stat failed: %s\n", strerror(errno));
         DPRINTF(LOG_DEBUG, "lxa: _dos_lock: FAILED '%s' -> '%s'\n", amiga_path, linux_path);
-        return 0; /* ERROR_OBJECT_NOT_FOUND will be set by caller */
+        g_dos_last_error = (errno == ENOTDIR) ? ERROR_OBJECT_WRONG_TYPE : errno2Amiga();
+        return 0;
     }
     DPRINTF(LOG_DEBUG, "lxa: _dos_lock: OK '%s' -> '%s'\n", amiga_path, linux_path);
     
@@ -2340,7 +2357,16 @@ uint32_t _dos_parentdir(uint32_t lock_id)
     DPRINTF(LOG_DEBUG, "lxa: _dos_parentdir(): lock_id=%d\n", lock_id);
     
     lock_entry_t *lock = _lock_get(lock_id);
-    if (!lock) return 0;
+    g_dos_last_error = 0;
+    if (!lock) {
+        g_dos_last_error = ERROR_INVALID_LOCK;
+        return 0;
+    }
+
+    /* The root of a volume has no parent: ParentDir() returns 0 */
+    if (vfs_is_drive_root(lock->linux_path)) {
+        return 0;
+    }
     
     /* Find parent path (linux) */
     char parent_path[PATH_MAX];
@@ -2365,6 +2391,9 @@ uint32_t _dos_parentdir(uint32_t lock_id)
     } else if (colon && colon[1] != '\0') {
         /* Path is like "SYS:dir" - parent is "SYS:" */
         colon[1] = '\0';
+    } else if (!vfs_path_to_amiga(parent_path, parent_amiga, sizeof(parent_amiga))) {
+        /* "ASSIGN:" itself: name the parent by its host location */
+        strncpy(parent_amiga, lock->amiga_path, sizeof(parent_amiga) - 1);
     }
     
     /* Create lock for parent */
@@ -2396,6 +2425,9 @@ uint32_t _dos_createdir(uint32_t name68k)
     
     if (mkdir(linux_path, 0755) != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_createdir(): mkdir failed: %s\n", strerror(errno));
+        /* A plain file in the parent position: the handler reports
+         * ERROR_OBJECT_WRONG_TYPE (verified on AmigaOS 3.1). */
+        g_dos_last_error = (errno == ENOTDIR) ? ERROR_OBJECT_WRONG_TYPE : errno2Amiga();
         return 0;
     }
     
@@ -2429,6 +2461,7 @@ int _dos_deletefile(uint32_t name68k)
     struct stat st;
     if (lstat(linux_path, &st) != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_deletefile(): stat failed: %s\n", strerror(errno));
+        g_dos_last_error = (errno == ENOTDIR) ? ERROR_OBJECT_WRONG_TYPE : errno2Amiga();
         return 0;
     }
     
@@ -2441,6 +2474,8 @@ int _dos_deletefile(uint32_t name68k)
     
     if (result != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_deletefile(): delete failed: %s\n", strerror(errno));
+        /* Linux may report EEXIST for a non-empty directory */
+        g_dos_last_error = (errno == EEXIST) ? ERROR_DIRECTORY_NOT_EMPTY : errno2Amiga();
         return 0;
     }
 
@@ -2473,6 +2508,7 @@ int _dos_rename(uint32_t old68k, uint32_t new68k)
     
     if (rename(old_linux, new_linux) != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_rename(): rename failed: %s\n", strerror(errno));
+        g_dos_last_error = errno2Amiga();
         return 0;
     }
     
@@ -3389,12 +3425,8 @@ uint32_t _dos_duplockfromfh(uint32_t fh68k)
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_duplockfromfh(): linux_path='%s'\n", linux_path);
     
-    /* Get the directory part of the path */
-    char *last_slash = strrchr(linux_path, '/');
-    if (last_slash && last_slash != linux_path) {
-        *last_slash = '\0';  /* Truncate to directory */
-    }
-    
+    /* The lock refers to the open object itself (RKRM: DupLockFromFH
+     * returns a shared lock on the file the handle is open on). */
     /* Check if the path exists */
     struct stat st;
     if (stat(linux_path, &st) != 0) {

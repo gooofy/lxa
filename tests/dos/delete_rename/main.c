@@ -185,8 +185,10 @@ int main(void)
         print("  IoErr = ");
         print_num(err);
         print("\n");
-        /* Directory is not empty error is typically ERROR_DIRECTORY_NOT_EMPTY (216) */
-        test_pass("DeleteFile non-empty dir (correctly failed)");
+        if (err == ERROR_DIRECTORY_NOT_EMPTY)
+            test_pass("DeleteFile non-empty dir (correctly failed)");
+        else
+            test_fail("DeleteFile non-empty dir", "Expected ERROR_DIRECTORY_NOT_EMPTY");
     } else {
         test_fail("DeleteFile non-empty dir", "Should have failed");
     }

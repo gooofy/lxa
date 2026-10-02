@@ -13,6 +13,14 @@
 #include <stdio.h>
 #include <string.h>
 
+/* The volume name differs between lxa and AmigaOS ("SYS" vs "System"):
+ * compare paths relative to the volume root. */
+static const char *path_after_volume(const char *path)
+{
+    const char *colon = strchr(path, ':');
+    return colon ? colon + 1 : path;
+}
+
 int main(int argc, char **argv)
 {
     BPTR fh;
@@ -138,7 +146,7 @@ int main(int argc, char **argv)
     lock = DupLockFromFH(fh);
     if (lock) {
         if (NameFromLock(lock, (STRPTR)buffer, sizeof(buffer))) {
-            printf("  DupLockFromFH path: %s\n", buffer);
+            printf("  DupLockFromFH path: %s\n", path_after_volume((char *)buffer));
             if (strstr((char *)buffer, "/home/") || strstr((char *)buffer, "home:")) {
                 printf("  FAIL: DupLockFromFH leaked host path\n");
                 UnLock(lock);

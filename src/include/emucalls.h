@@ -72,6 +72,8 @@
 #define EMU_CALL_DOS_UNLOCKRECORD  1055  /* UnLockRecord(fh, offset, length) -> success */
 #define EMU_CALL_DOS_CHANGEMODE    1056  /* ChangeMode(type, object, newmode, errptr) -> success */
 #define EMU_CALL_DOS_SETOWNER      1057  /* SetOwner(name, owner_info, errptr) -> success */
+#define EMU_CALL_DOS_LASTERROR     1069  /* () -> AmigaDOS error code of the last failed
+                                              * Lock/CreateDir/DeleteFile/Rename/ParentDir */
 
 /* Phase 78-P: trackdisk.device hosted image I/O */
 #define EMU_CALL_TRACKDISK_READ    1050  /* TrackdiskRead(unit, data, len, offset, ext) -> ioerr */

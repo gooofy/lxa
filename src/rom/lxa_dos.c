@@ -1949,6 +1949,13 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
     int l;
 
     DPRINTF (LOG_DEBUG, "_dos: Read called: file=0x%08lx length=%ld\n", file, length);
+
+    /* A NULL handle fails with ERROR_INVALID_LOCK (verified on AmigaOS 3.1) */
+    if (!file)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
     
     /* Check if this is a CON:/RAW: window */
     if (fh->fh_Func3 == FILE_KIND_CON)
@@ -1989,6 +1996,13 @@ LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
                                   register LONG                length  __asm("d3"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Write called, file=0x%08lx buffer=0x%08lx length=%ld\n\n", file, buffer, length);
+
+    /* A NULL handle fails with ERROR_INVALID_LOCK (verified on AmigaOS 3.1) */
+    if (!file)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
 
     // U_hexdump (LOG_INFO, buffer, length);
 
@@ -2063,6 +2077,13 @@ LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_dos: Seek() called file=0x%08lx, position=%d, mode=%d\n", file, position, mode);
 
+    /* A NULL handle fails with ERROR_INVALID_LOCK (verified on AmigaOS 3.1) */
+    if (!file)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
     int l = emucall3 (EMU_CALL_DOS_SEEK, (ULONG) fh, (ULONG) position, (ULONG) mode);
 
@@ -2096,7 +2117,7 @@ LONG _dos_DeleteFile ( register struct DosLibrary * __libBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_dos: DeleteFile() result: %ld\n", result);
 
     if (!result) {
-        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
         return DOSFALSE;
     }
 
@@ -2126,7 +2147,7 @@ LONG _dos_Rename ( register struct DosLibrary * __libBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_dos: Rename() result: %ld\n", result);
 
     if (!result) {
-        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
         return DOSFALSE;
     }
 
@@ -2155,7 +2176,7 @@ BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_dos: Lock() result: lock_id=%lu\n", lock_id);
 
     if (lock_id == 0) {
-        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
         return 0;
     }
 
@@ -2275,7 +2296,7 @@ BPTR _dos_CreateDir ( register struct DosLibrary * __libBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_dos: CreateDir() result: lock_id=%lu\n", lock_id);
 
     if (lock_id == 0) {
-        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
         return 0;
     }
 
@@ -2941,7 +2962,9 @@ BPTR _dos_ParentDir ( register struct DosLibrary * __libBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_dos: ParentDir() result: lock_id=%lu\n", lock_id);
 
-    /* A return of 0 is valid - means we're at root */
+    /* A return of 0 is valid - means we're at root (IoErr() == 0) */
+    if (!lock_id)
+        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
     return (BPTR)lock_id;
 }
 

@@ -1287,6 +1287,20 @@ int vfs_assign_list(const char **names, const char **paths, int max_count)
     return count;
 }
 
+bool vfs_is_drive_root(const char *linux_path)
+{
+    char normalized[PATH_MAX];
+
+    if (!linux_path || !normalize_host_path(linux_path, normalized, sizeof(normalized)))
+        return false;
+
+    for (drive_map_t *drive = g_drive_maps; drive; drive = drive->next) {
+        if (drive->linux_path && strcmp(drive->linux_path, normalized) == 0)
+            return true;
+    }
+    return false;
+}
+
 bool vfs_path_to_amiga(const char *linux_path, char *amiga_path, size_t maxlen)
 {
     char normalized_input[PATH_MAX];
