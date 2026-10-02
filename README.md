@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.7** - Comparator and report (Phase 214): `python3 -m rdd report` diffs lxa against the reference (Intuition tree, pen-index pixels, palette, text, output) and renders side-by-side composites; reviews are recorded as `findings.yaml` (first review: `doc/findings/`).
+
 **Version 0.11.6** - Twin runner (Phase 213): one YAML scenario (`tests/scenarios/`) runs unchanged on lxa and on real AmigaOS 3.1 (`cd tools && python3 -m rdd run ../tests/scenarios/*.yaml`), producing comparable snapshot bundles from both. The first runs already exposed divergences in Directory Opus and Deluxe Paint V startup.
 
 **Version 0.11.5** - Snapshot bundles (Phase 212): lxa and the real-AmigaOS reference now emit identical artefacts (Intuition tree JSON, pen-index snapshots, Text() logs; format in `doc/rdd-snapshot.md`). `tools/rdd/pylxa.py` drives lxa from Python through the new `liblxa.so`.

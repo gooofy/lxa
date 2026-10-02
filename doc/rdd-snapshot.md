@@ -47,6 +47,15 @@ screen's `FirstWindow` chain) crops the window rectangle out of the screen. Pen
 indices make the comparison independent of colour depth and RGB rounding;
 the palette is compared separately.
 
+## Text log (`text.jsonl`)
+
+One `{"text","x","y"}` per `Text()` call (`x`, `y` = RastPort pen position,
+layer-relative). The reference hooks `Text()` with `SetFunction`, so it sees
+only calls made through the graphics.library vector (application code and
+libraries calling through `GfxBase`); ROM-internal calls (e.g. Intuition
+drawing gadget labels) bypass it. lxa sees every call. Compare in the
+direction "strings the reference drew that lxa did not" (`missing_in_lxa`).
+
 ## Intuition tree (`lxa-tree/1`)
 
 JSON Schema: `tools/rdd/schemas/tree.schema.json`. All values are the raw

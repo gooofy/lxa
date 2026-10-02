@@ -1,0 +1,79 @@
+# rdd-review dry run (Phase 214) over the Phase 213 starter scenarios.
+# Source: python3 -m rdd run ../tests/scenarios/*.yaml; python3 -m rdd report
+scenario: starter-scenarios
+snapshot: startup
+run: build/rdd
+reviewed: 2026-10-02
+findings:
+  - id: starter-1
+    category: layout
+    description: >
+      Window content of GadTools apps sits ~9 px lower than on AmigaOS 3.1.
+      Apps place gadgets at Screen->WBorTop + font height + 1; lxa reports
+      WBorTop = 11 (title bar height) instead of 2.
+    evidence:
+      - "tree screen[Workbench Screen].wbor: lxa [4,11,4,2] ref [4,2,4,2] (simplegtgadget, dpaintv-startup)"
+      - "tree screen[DOPUS.1].wbor: lxa [4,11,4,2] ref [4,2,4,2] (dopus-startup)"
+      - "tree gadget tops: lxa = ref + 9 for every content gadget (all three scenarios)"
+    suspect: {library: intuition, function: OpenScreen}
+    action: {phase: 223, assertion: "tree: screens[*].wbor == reference"}
+  - id: starter-2
+    category: colour
+    description: Workbench pen 3 differs from the WB 3.1 default palette.
+    evidence:
+      - "palette pen 3: lxa [0,85,170] ref [102,136,187] (simplegtgadget)"
+    suspect: {library: intuition, function: OpenWorkBench default palette}
+    action: {phase: 223, assertion: "palette.json == reference for the Workbench screen"}
+  - id: starter-3
+    category: chrome
+    description: >
+      Active window title bar drawn black with white text; WB 3.1 fills it
+      with FILLPEN (blue) and draws the title in FILLTEXTPEN. Right/bottom
+      window border lines missing, close gadget imagery differs.
+    region: {x: 0, y: 0, w: 304, h: 12}
+    evidence:
+      - "pixel region x=0 y=0 w=304 h=144 (simplegtgadget, 6778 pens differ)"
+    suspect: {library: intuition, function: _render_window_frame}
+    action: {phase: 223, assertion: "window chrome gallery page pixel diff = 0"}
+  - id: starter-4
+    category: gadget-imagery
+    description: >
+      GadTools gadgets lack the GadTools type bits (GTYP_GADTOOLS 0x0100) and
+      GadTools' zero-size context gadget, so gadget lists differ in count and
+      type.
+    evidence:
+      - "tree gadget[0 id=8].type: lxa 1 ref 256 (dpaintv-startup)"
+      - "tree window gadget count: lxa 6 ref 8 (simplegtgadget)"
+    suspect: {library: gadtools, function: CreateContext / CreateGadgetA}
+    action: {phase: 222, assertion: "tree: gadget types/count == reference (222e probes)"}
+  - id: starter-5
+    category: other
+    description: >
+      Screens report display ID 0x29000 (PAL_MONITOR_ID|HIRES_KEY) where
+      AmigaOS 3.1 reports 0x8000 (default monitor, HIRES_KEY), and
+      MenuVBorder/MenuHBorder are 0 instead of 2/4.
+    evidence:
+      - "tree screen.display_id: lxa 167936 ref 32768 (all GUI scenarios)"
+      - "tree screen.menu_vborder/menu_hborder: lxa 0/0 ref 2/4"
+    suspect: {library: intuition, function: OpenScreen / OpenWorkBench}
+    action: {phase: 223, assertion: "tree: screens[*].display_id, menu_*border == reference"}
+  - id: starter-6
+    category: missing-content
+    description: >
+      Directory Opus shows "Directory not available" in both listers, no "OK"
+      message line and no CHIP/FAST/TOTAL/date status line; the reference
+      lists SYS: on the right.
+    evidence:
+      - "pixel diff ratio 0.39 (dopus-startup)"
+      - "Text() missing in lxa: status line and directory entries (dopus-startup)"
+    suspect: {library: dos, function: directory scan used by dopus.library}
+    action: {phase: 224}
+  - id: starter-7
+    category: behaviour
+    description: >
+      Deluxe Paint V stays in the "Ownership Information" registration dialog
+      on lxa; on the reference it continues to "Choose Display Mode".
+    evidence:
+      - "Text() missing in lxa: Choose Display Mode and Credits strings (dpaintv-startup)"
+    suspect: {library: dos, function: reading the program's own executable (GetProgramName/Open)}
+    action: {phase: 224}

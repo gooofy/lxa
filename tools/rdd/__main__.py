@@ -2,6 +2,7 @@
 
     cd tools && python3 -m rdd run <scenario.yaml>... [--backend lxa|ref|both]
                                    [--out DIR] [-j N] [--no-cache]
+               python3 -m rdd report [DIR] [--html FILE]
 
 (or tools/rdd.sh run ...). Each scenario runs once per backend in its own
 process; reference runs are cached (see rdd.backend_ref).  Output:
@@ -67,6 +68,16 @@ def cmd_run(a):
     return 0 if all(r.get("ok") for r in results) else 1
 
 
+def cmd_report(a):
+    from rdd import report
+    rows = report.build(a.out, a.html)
+    for r in rows:
+        print("%-28s %-12s %-9s tree=%-3d pixels=%s" % (r["scenario"], r["snapshot"], r["verdict"],
+                                                         r["tree_diffs"], r["diff_pixels"]))
+    print("report: %s" % (a.html or os.path.join(a.out, "report.html")))
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(prog="rdd")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -78,6 +89,10 @@ def main():
     p.add_argument("-j", "--jobs", type=int, default=8)
     p.add_argument("--no-cache", action="store_true")
     p.set_defaults(fn=cmd_run)
+    p = sub.add_parser("report", help="compare lxa and reference bundles of a run")
+    p.add_argument("out", nargs="?", default=os.path.join(ROOT, "build", "rdd"))
+    p.add_argument("--html")
+    p.set_defaults(fn=cmd_report)
     a = ap.parse_args()
     a.scenarios = [os.path.abspath(s) for s in getattr(a, "scenarios", [])]
     a.out = os.path.abspath(a.out)

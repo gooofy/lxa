@@ -78,7 +78,7 @@ Load the specific skill relevant to your task:
 
 - **`rdd-reference`**: operating the FS-UAE reference system (`tools/refsys/`), the `lxaprobe` guest agent and the twin runner (`tools/rdd/`).
 
-- **`rdd-review`**: protocol for comparing lxa vs reference snapshot bundles (tree diff → pen-index diff → vision triage) and writing `findings.yaml`.
+- **`rdd-review`** (`.claude/skills/rdd-review`): protocol for comparing lxa vs reference snapshot bundles (tree diff → pen-index diff → vision triage) and writing `findings.yaml`.
 
 - **`compat-sweep`**: running app sweeps, clustering divergences by root cause, maintaining `apps/compat.yaml`.
 
