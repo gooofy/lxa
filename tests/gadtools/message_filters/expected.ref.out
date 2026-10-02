@@ -1,0 +1,5 @@
+Testing GadTools message wrappers...
+OK: GT_GetIMsg returned a copy of the queued IntuiMessage
+OK: GT_ReplyIMsg replied the original IntuiMessage
+OK: GT_FilterIMsg/GT_PostFilterIMsg map a copy back to the original
+PASS: message wrapper test complete

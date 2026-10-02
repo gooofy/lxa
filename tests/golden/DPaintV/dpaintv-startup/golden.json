@@ -1,7 +1,7 @@
 {
  "app": "DPaintV",
  "disabled": null,
- "lxa_version": "0.11.7",
+ "lxa_version": "0.11.11",
  "promoted": "2026-10-02",
  "reference": "AmigaOS 3.1 (KS 40.70), profile aga",
  "requires_apps": true,
@@ -86,18 +86,10 @@
     {
      "field": "count",
      "kind": "gadget",
-     "lxa": 8,
+     "lxa": 9,
      "phase": 224,
      "ref": 10,
      "where": "screen[Workbench Screen]/window[Ownership Information]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 256,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[0 id=8]"
     },
     {
      "field": "flags",
@@ -116,14 +108,6 @@
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[0 id=8]"
     },
     {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 256,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[1 id=8]"
-    },
-    {
      "field": "flags",
      "kind": "gadget",
      "lxa": 3,
@@ -138,14 +122,6 @@
      "phase": 224,
      "ref": 31,
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[1 id=8]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 256,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[2 id=4]"
     },
     {
      "field": "flags",
@@ -164,14 +140,6 @@
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[2 id=4]"
     },
     {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 256,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[3 id=5]"
-    },
-    {
      "field": "flags",
      "kind": "gadget",
      "lxa": 3,
@@ -186,14 +154,6 @@
      "phase": 224,
      "ref": 96,
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[3 id=5]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 256,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[4 id=6]"
     },
     {
      "field": "flags",
@@ -212,14 +172,6 @@
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[4 id=6]"
     },
     {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 256,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[5 id=7]"
-    },
-    {
      "field": "flags",
      "kind": "gadget",
      "lxa": 3,
@@ -234,14 +186,6 @@
      "phase": 224,
      "ref": 156,
      "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[5 id=7]"
-    },
-    {
-     "field": "type",
-     "kind": "gadget",
-     "lxa": 1,
-     "phase": 224,
-     "ref": 257,
-     "where": "screen[Workbench Screen]/window[Ownership Information]/gadget[6 id=1]"
     },
     {
      "field": "flags",
@@ -295,7 +239,7 @@
      "where": "screen[Workbench Screen]/window[Ownership Information]/sysgadget[0x8025]"
     }
    ],
-   "pixel_budget": 38701,
+   "pixel_budget": 38361,
    "pixel_phase": 224,
    "stdout_known_diff": null
   }
