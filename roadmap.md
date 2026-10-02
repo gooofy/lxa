@@ -174,6 +174,7 @@ Complete (Phases 210–216, v0.11.9); see the summary table.
 **Class**: Quality.
 - [ ] Re-express the strongest existing app assertions (DPaint, Devpac, DOpus, Typeface…) as scenarios with reference goldens.
 - [ ] Retire pixel-count heuristics that the goldens make redundant.
+- [ ] Re-express the `interactive` test programs in `tests/ref_suite.yaml` (console key input, IDCMP mouse/menu/size verify, requester clicks, keyboard.device) as reference scenarios that inject the same input through `lxaprobe`, so they are validated on AmigaOS 3.1 like the unattended programs (Phase 220).
 - [ ] First twin-run findings (Phase 213 starter scenarios, `tests/scenarios/`):
   - `dopus-startup`: lxa shows "Directory not available" in both panes (the reference lists `SYS:` on the right), and lacks the "OK" message line and the CHIP/FAST/TOTAL/date status line.
   - `dpaintv-startup`: lxa opens the "Ownership Information" registration dialog; the reference goes straight to "Choose Display Mode" (DPaint reads its personalisation from its own executable via the CLI command name).

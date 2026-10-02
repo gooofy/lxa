@@ -6,6 +6,7 @@
                python3 -m rdd promote <scenario.yaml>... --phase N [--run DIR]
                python3 -m rdd golden <golden-dir>... | --all | --lint
                python3 -m rdd cluster [DIR] [--findings F.yaml...]
+               python3 -m rdd suite-ref [--filter RX] [--capture]
                python3 -m rdd loop [scenario.yaml...] [--out DIR] [--report FILE]
 
 (or tools/rdd.sh run ...). Each scenario runs once per backend in its own
@@ -152,6 +153,9 @@ def cmd_loop(a):
 
 
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "suite-ref":
+        from rdd import suite_ref
+        return suite_ref.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "cluster":
         from rdd import cluster
         return cluster.main(sys.argv[2:])

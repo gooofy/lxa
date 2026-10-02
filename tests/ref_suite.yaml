@@ -1,0 +1,18 @@
+# Phase 220: test programs that cannot run unattended on the AmigaOS 3.1
+# reference (`python3 -m rdd suite-ref`).  Exactly one of
+#   interactive: <why>   needs host-side input injection (a GTest driver);
+#                        `phase` owns re-expressing it as a reference scenario
+#   lxa_only: <why>      depends on lxa-only behaviour (justify it)
+# `python3 -m rdd suite-ref --lint` checks this file.
+
+Tests/Console/con_handler:      {interactive: "reads keys injected by console_gtest", phase: 224}
+Tests/Console/input_console:    {interactive: "reads keys injected by console_gtest", phase: 224}
+Tests/Console/input_inject:     {interactive: "waits for RAWKEY events injected by console_gtest", phase: 224}
+Tests/Console/kp2_test:         {interactive: "reads keys injected by console_gtest", phase: 224}
+Tests/Console/raw_events_unit:  {interactive: "waits for special-key reports injected by console_gtest", phase: 224}
+Tests/Console/setmode:          {interactive: "reads RAW input injected by console_gtest", phase: 224}
+Tests/Devices/Keyboard:         {interactive: "waits for a SHIFT key press injected by devices_gtest", phase: 224}
+Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by intuition_gtest", phase: 224}
+Tests/Intuition/IDCMPMenuVerify: {interactive: "waits for an RMB press injected by intuition_gtest", phase: 224}
+Tests/Intuition/IDCMPSizeVerify: {interactive: "waits for a sizing-gadget drag injected by intuition_gtest", phase: 224}
+Tests/Intuition/RequesterBasic: {interactive: "waits for requester clicks injected by intuition_gtest", phase: 224}

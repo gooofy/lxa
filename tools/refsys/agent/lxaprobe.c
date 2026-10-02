@@ -26,6 +26,9 @@
  *   TEXT_START | TEXT_STOP | TEXT_DUMP <file>   Text() hook log
  *   TRACE <lib> <lvo,lvo,...> | TRACE_DUMP <file> | TRACE_STOP
  *   MODES <file>                 display mode database as JSON
+ *   WAIT_EXIT [ms]               wait until the program started by RUN ends
+ *                                -> RC <return code>; ERR held when a System
+ *                                Request appeared (crash), ERR timeout otherwise
  *   QUIT [ms]                    close the program's windows, CTRL-C its
  *                                process, report survivors + memory delta
  *   SETCLOCK <unix-seconds>      set the system time (lxa's deterministic
@@ -254,6 +257,17 @@ static void out_close(void)
 /* ------------------------------------------------------------------ */
 
 static struct Process *app_proc;
+static volatile LONG app_rc;
+static volatile BOOL app_exited;
+
+/* NP_ExitCode: called in the dying process with the return code in d0 */
+static LONG exit_hook(LONG rc __asm("d0"), LONG data __asm("d1"))
+{
+    (void)data;
+    app_rc = rc;
+    app_exited = TRUE;
+    return rc;
+}
 static ULONG mem_before;
 static struct Window *known_windows[64];
 static int known_count;
@@ -385,6 +399,8 @@ static void cmd_run(char *args)
     else
         outfh = Open((STRPTR)"NIL:", MODE_NEWFILE);
 
+    app_exited = FALSE;
+    app_rc = -1;
     {
         static char argline[512];
         snprintf(argline, sizeof(argline), "%s\n", p);
@@ -403,6 +419,7 @@ static void cmd_run(char *args)
                                      NP_CommandName, (ULONG)prog,
                                      NP_Arguments, (ULONG)argline,
                                      NP_StackSize, 32768,
+                                     NP_ExitCode, (ULONG)exit_hook,
                                      TAG_DONE);
     }
     if (!app_proc)
@@ -1326,6 +1343,42 @@ static void cmd_modes(char *file)
 /* QUIT                                                                */
 /* ------------------------------------------------------------------ */
 
+static void cmd_wait_exit(char *args)
+{
+    LONG ms = (args && *args) ? atol(args) : 10000, waited = 0;
+
+    if (!app_proc)
+    {
+        reply("ERR nothing running");
+        return;
+    }
+    while (!app_exited && waited < ms)
+    {
+        delay_ticks(1);
+        waited += 20;
+    }
+    if (!app_exited)
+    {
+        /* a crashed task is held by the "Software Failure" system requester */
+        struct Screen *s;
+        struct Window *w;
+        BOOL held = FALSE;
+        ULONG lock = LockIBase(0);
+        for (s = IntuitionBase->FirstScreen; s; s = s->NextScreen)
+            for (w = s->FirstWindow; w; w = w->NextWindow)
+                if (w->Title && !strcmp((char *)w->Title, "System Request") && is_app_window(w))
+                    held = TRUE;
+        UnlockIBase(lock);
+        reply(held ? "ERR held" : "ERR timeout");
+        return;
+    }
+    while (task_alive(&app_proc->pr_Task))
+        delay_ticks(1);
+    app_proc = NULL;
+    reply("RC %ld", app_rc);
+    reply("OK");
+}
+
 static void cmd_quit(char *args)
 {
     LONG ms = (args && *args) ? atol(args) : 5000, waited = 0;
@@ -1478,6 +1531,8 @@ int main(void)
         }
         else if (!strcmp(cmd, "RUN"))
             cmd_run(args);
+        else if (!strcmp(cmd, "WAIT_EXIT"))
+            cmd_wait_exit(args);
         else if (!strcmp(cmd, "WAIT_WINDOW"))
             cmd_wait_window(args);
         else if (!strcmp(cmd, "WAIT_IDLE"))
