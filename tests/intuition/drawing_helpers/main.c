@@ -1,4 +1,5 @@
 #include <exec/types.h>
+#include <exec/memory.h>
 
 #include <graphics/gfx.h>
 #include <graphics/rastport.h>
@@ -33,6 +34,24 @@ static void print(const char *s)
 
     Write(out, (CONST APTR)s, len);
 }
+
+static void print_pens(struct RastPort *rp, const WORD *xy, int n)
+{
+    char buf[8];
+    int i;
+    print("  pens");
+    for (i = 0; i < n; i++) {
+        LONG v = ReadPixel(rp, xy[2 * i], xy[2 * i + 1]);
+        buf[0] = ' ';
+        buf[1] = v < 0 ? '-' : '0' + (v % 10);
+        buf[2] = 0;
+        print(buf);
+    }
+    print("\n");
+}
+
+static const WORD probe3[] = { 60, 20, 61, 21, 67, 20, 72, 22, 75, 25, 76, 26 };
+static const WORD probe4[] = { 90, 20, 91, 21, 93, 23, 94, 24 };
 
 static UWORD image_data[] = {
     0xFF00,
@@ -73,8 +92,20 @@ int main(void)
     UBYTE background_pen = 0;
     LONG text_length;
     int errors = 0;
+    UWORD *chip_image;
+    UWORD *chip_selected;
 
     print("Testing Intuition drawing helpers...\n\n");
+
+    /* image data is read by the blitter: it must be in chip memory */
+    chip_image = (UWORD *)AllocMem(sizeof(image_data), MEMF_CHIP);
+    chip_selected = (UWORD *)AllocMem(sizeof(selected_image_data), MEMF_CHIP);
+    if (!chip_image || !chip_selected) {
+        print("FAIL: Could not allocate chip memory\n");
+        return 20;
+    }
+    CopyMem(image_data, chip_image, sizeof(image_data));
+    CopyMem(selected_image_data, chip_selected, sizeof(selected_image_data));
 
     ns.LeftEdge = 0;
     ns.TopEdge = 0;
@@ -202,7 +233,7 @@ int main(void)
     image.Width = 8;
     image.Height = 8;
     image.Depth = 1;
-    image.ImageData = image_data;
+    image.ImageData = chip_image;
     image.PlanePick = 1;
     image.PlaneOnOff = 0;
     image.NextImage = &chain_fill;
@@ -218,6 +249,7 @@ int main(void)
     chain_fill.NextImage = NULL;
 
     DrawImage(window->RPort, &image, 60, 20);
+    print_pens(window->RPort, probe3, 6);
     if (ReadPixel(window->RPort, 60, 20) == 1 &&
         ReadPixel(window->RPort, 72, 22) == 2) {
         print("  OK: DrawImage renders linked image chains\n\n");
@@ -226,23 +258,26 @@ int main(void)
         errors++;
     }
 
-    print("Test 4: DrawImageState() selected-state semantics...\n");
+    print("Test 4: DrawImageState() with a standard image...\n");
     selected_image.LeftEdge = 0;
     selected_image.TopEdge = 0;
     selected_image.Width = 4;
     selected_image.Height = 4;
     selected_image.Depth = 1;
-    selected_image.ImageData = selected_image_data;
+    selected_image.ImageData = chip_selected;
     selected_image.PlanePick = 1;
     selected_image.PlaneOnOff = 0;
     selected_image.NextImage = NULL;
 
     DrawImageState(window->RPort, &selected_image, 90, 20, IDS_SELECTED, draw_info);
-    if (ReadPixel(window->RPort, 90, 20) == 2 &&
-        ReadPixel(window->RPort, 91, 21) == 3) {
-        print("  OK: DrawImageState applies IDS_SELECTED to standard images\n");
+    print_pens(window->RPort, probe4, 4);
+    /* AmigaOS 3.1 reference: the state only matters for BOOPSI images; a
+     * standard image is drawn as by DrawImage() */
+    if (ReadPixel(window->RPort, 90, 20) == 1 &&
+        ReadPixel(window->RPort, 91, 21) == 0) {
+        print("  OK: DrawImageState draws standard images like DrawImage\n");
     } else {
-        print("  FAIL: DrawImageState did not apply selected-state rendering\n");
+        print("  FAIL: DrawImageState did not draw the standard image\n");
         errors++;
     }
 
@@ -252,9 +287,11 @@ int main(void)
     Delay(50);
 
     EraseImage(window->RPort, &image, 60, 20);
+    print_pens(window->RPort, probe3, 6);
+    /* AmigaOS 3.1 reference: the whole NextImage chain is erased */
     if (ReadPixel(window->RPort, 60, 20) == 0 &&
-        ReadPixel(window->RPort, 72, 22) == 2) {
-        print("  OK: EraseImage clears only the erased image bounds\n");
+        ReadPixel(window->RPort, 72, 22) == 0) {
+        print("  OK: EraseImage clears the image chain\n");
     } else {
         print("  FAIL: EraseImage did not clear the image bounds correctly\n");
         errors++;
@@ -266,6 +303,8 @@ int main(void)
     FreeScreenDrawInfo(screen, draw_info);
     CloseWindow(window);
     CloseScreen(screen);
+    FreeMem(chip_image, sizeof(image_data));
+    FreeMem(chip_selected, sizeof(selected_image_data));
 
     if (errors == 0) {
         print("PASS: drawing_helpers all tests completed\n");

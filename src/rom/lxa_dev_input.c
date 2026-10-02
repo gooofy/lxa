@@ -182,6 +182,8 @@ static void input_prepare_event(struct InputBase *inputbase,
     U_getSysTime(&event->ie_TimeStamp);
 }
 
+extern VOID _intuition_input_device_events(struct InputEvent *iEvent);
+
 static LONG input_dispatch_single_event(struct InputBase *inputbase,
                                         struct InputEvent *event)
 {
@@ -192,6 +194,27 @@ static LONG input_dispatch_single_event(struct InputBase *inputbase,
 
     input_prepare_event(inputbase, event);
     input_forward_handlers(inputbase, event);
+    return 0;
+}
+
+/* IND_WRITEEVENT / IND_ADDEVENT: application-written events pass the
+ * handler chain and then Intuition's input handler. */
+static LONG input_write_event(struct InputBase *inputbase,
+                              struct InputEvent *event)
+{
+    struct InputEvent *rest;
+
+    if (!inputbase || !event)
+    {
+        return IOERR_BADADDRESS;
+    }
+
+    input_prepare_event(inputbase, event);
+    rest = input_forward_handlers(inputbase, event);
+    if (rest)
+    {
+        _intuition_input_device_events(rest);
+    }
     return 0;
 }
 
@@ -216,8 +239,16 @@ static LONG input_dispatch_event_chain(struct InputBase *inputbase,
             continue;
         }
 
-        input_prepare_event(inputbase, event);
-        input_forward_handlers(inputbase, event);
+        if (filter_classes)
+        {
+            /* IND_ADDEVENT: written by an application or driver */
+            input_write_event(inputbase, event);
+        }
+        else
+        {
+            input_prepare_event(inputbase, event);
+            input_forward_handlers(inputbase, event);
+        }
     }
 
     return 0;
@@ -417,7 +448,7 @@ static BPTR __g_lxa_input_BeginIO(register struct Library *dev __asm("a6"),
             break;
 
         case IND_WRITEEVENT:
-            error = input_dispatch_single_event(inputbase, (struct InputEvent *)io->io_Data);
+            error = input_write_event(inputbase, (struct InputEvent *)io->io_Data);
             break;
 
         case IND_ADDEVENT:

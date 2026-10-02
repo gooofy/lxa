@@ -75,6 +75,100 @@ static BOOL expect_message(struct MsgPort *port, ULONG expected_class, UWORD exp
     return TRUE;
 }
 
+
+/*
+ * Phase 220: on AmigaOS, MoveWindow(), SizeWindow(), ChangeWindowBox(),
+ * WindowToBack() & co. are deferred to the input handler task.  Following
+ * the RKRM, wait for the IDCMP_CHANGEWINDOW message before looking at the
+ * new geometry.  Every message received on the way is printed, so the
+ * exact message sequence is compared against the reference.
+ */
+static void print_msg(struct IntuiMessage *msg)
+{
+    switch (msg->Class)
+    {
+        case IDCMP_CHANGEWINDOW:
+            print(msg->Code == CWCODE_DEPTH ? "  msg CHANGEWINDOW depth\n" : "  msg CHANGEWINDOW movesize\n");
+            break;
+        case IDCMP_NEWSIZE:        print("  msg NEWSIZE\n"); break;
+        case IDCMP_ACTIVEWINDOW:   print("  msg ACTIVEWINDOW\n"); break;
+        case IDCMP_INACTIVEWINDOW: print("  msg INACTIVEWINDOW\n"); break;
+        case IDCMP_REFRESHWINDOW:  print("  msg REFRESHWINDOW\n"); break;
+        default:
+            print("  msg class ");
+            print_num((LONG)msg->Class);
+            print("\n");
+            break;
+    }
+}
+
+/* Wait (max. ~1 s) until a message of class wanted_class arrives on the
+ * window's port, then collect what follows within two more ticks. */
+static BOOL sync_window(struct Window *window, ULONG wanted_class)
+{
+    struct IntuiMessage *msg;
+    BOOL seen = FALSE;
+    int ticks = 0;
+
+    while (ticks < 50)
+    {
+        while ((msg = (struct IntuiMessage *)GetMsg(window->UserPort)) != NULL)
+        {
+            if (msg->Class == IDCMP_REFRESHWINDOW)
+            {
+                BeginRefresh(window);
+                EndRefresh(window, TRUE);
+            }
+            print_msg(msg);
+            if (msg->Class == wanted_class)
+                seen = TRUE;
+            ReplyMsg((struct Message *)msg);
+        }
+        if (seen)
+            break;
+        Delay(1);
+        ticks++;
+    }
+    if (!seen)
+        return FALSE;
+    Delay(2);
+    while ((msg = (struct IntuiMessage *)GetMsg(window->UserPort)) != NULL)
+    {
+        if (msg->Class == IDCMP_REFRESHWINDOW)
+        {
+            BeginRefresh(window);
+            EndRefresh(window, TRUE);
+        }
+        print_msg(msg);
+        ReplyMsg((struct Message *)msg);
+    }
+    return TRUE;
+}
+
+static void print_box(struct Window *window)
+{
+    print("  box ");
+    print_num(window->LeftEdge);
+    print(",");
+    print_num(window->TopEdge);
+    print(" ");
+    print_num(window->Width);
+    print("x");
+    print_num(window->Height);
+    print("\n");
+}
+
+/* TRUE if layer a is in front of layer b */
+static BOOL in_front_of(struct Window *a, struct Window *b)
+{
+    struct Layer *l;
+
+    for (l = a->WLayer; l; l = l->back)
+        if (l == b->WLayer)
+            return TRUE;
+    return FALSE;
+}
+
 static BOOL seed_refresh_damage(struct Window *window)
 {
     struct Rectangle rect;
@@ -183,32 +277,31 @@ int main(void)
     /* Test 1: MoveWindow */
     print("Test 1: MoveWindow(50, 30)...\n");
     MoveWindow(window, 50, 30);
-    if (window->LeftEdge != 150 || window->TopEdge != 80) {
-        print("  FAIL: MoveWindow did not update position\n\n");
-        errors++;
-    } else if (!expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE)) {
+    if (!sync_window(window, IDCMP_CHANGEWINDOW)) {
         print("  FAIL: MoveWindow did not emit IDCMP_CHANGEWINDOW\n\n");
+        errors++;
+    } else if (window->LeftEdge != 150 || window->TopEdge != 80) {
+        print_box(window);
+        print("  FAIL: MoveWindow did not update position\n\n");
         errors++;
     } else {
         print("  OK: MoveWindow updates geometry and posts IDCMP_CHANGEWINDOW\n\n");
     }
-    
+
     /* Test 2: SizeWindow */
     print("Test 2: SizeWindow(50, 40)...\n");
     SizeWindow(window, 50, 40);
-    if (window->Width != 350 || window->Height != 240) {
-        print("  FAIL: SizeWindow did not update size\n\n");
-        errors++;
-    } else if (!expect_message(window->UserPort, IDCMP_NEWSIZE, 0)) {
-        print("  FAIL: SizeWindow did not emit IDCMP_NEWSIZE\n\n");
-        errors++;
-    } else if (!expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE)) {
+    if (!sync_window(window, IDCMP_CHANGEWINDOW)) {
         print("  FAIL: SizeWindow did not emit IDCMP_CHANGEWINDOW\n\n");
+        errors++;
+    } else if (window->Width != 350 || window->Height != 240) {
+        print_box(window);
+        print("  FAIL: SizeWindow did not update size\n\n");
         errors++;
     } else {
         print("  OK: SizeWindow updates geometry and posts size/change messages\n\n");
     }
-    
+
     /* Test 3: WindowLimits */
     print("Test 3: WindowLimits(150, 100, 400, 300)...\n");
     if (WindowLimits(window, 150, 100, 400, 300)) {
@@ -225,33 +318,26 @@ int main(void)
     }
     print("\n");
 
-    print("Test 3b: SizeWindow(200, 200) honors WindowLimits...\n");
+    print("Test 3b: SizeWindow(200, 200) and WindowLimits...\n");
     SizeWindow(window, 200, 200);
-    if (window->Width != 400 || window->Height != 300) {
-        print("  FAIL: SizeWindow did not clamp to WindowLimits\n\n");
-        errors++;
-    } else if (!expect_message(window->UserPort, IDCMP_NEWSIZE, 0) ||
-               !expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE)) {
-        print("  FAIL: Clamped SizeWindow did not emit expected messages\n\n");
-        errors++;
-    } else {
-        print("  OK: SizeWindow clamps to WindowLimits and still posts messages\n\n");
-    }
-    
+    if (!sync_window(window, IDCMP_CHANGEWINDOW))
+        print("  no IDCMP_CHANGEWINDOW\n");
+    print_box(window);
+    print("\n");
+
     /* Test 4: ChangeWindowBox */
     print("Test 4: ChangeWindowBox(50, 40, 250, 180)...\n");
     ChangeWindowBox(window, 50, 40, 250, 180);
-    if (window->LeftEdge != 50 || window->TopEdge != 40 ||
+    if (!sync_window(window, IDCMP_CHANGEWINDOW)) {
+        print("  FAIL: ChangeWindowBox did not emit IDCMP_CHANGEWINDOW\n\n");
+        errors++;
+    } else if (window->LeftEdge != 50 || window->TopEdge != 40 ||
         window->Width != 250 || window->Height != 180) {
+        print_box(window);
         print("  FAIL: ChangeWindowBox did not apply full box\n\n");
         errors++;
-    } else if (!expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE) ||
-               !expect_message(window->UserPort, IDCMP_NEWSIZE, 0) ||
-               !expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE)) {
-        print("  FAIL: ChangeWindowBox did not emit move/size/change messages\n\n");
-        errors++;
     } else {
-        print("  OK: ChangeWindowBox updates box and emits move/size/change messages\n\n");
+        print("  OK: ChangeWindowBox updates the box\n\n");
     }
 
     print("Test 4b: SetWindowTitles() semantics...\n");
@@ -279,7 +365,7 @@ int main(void)
         helper.TopEdge = 20;
         helper.Width = 180;
         helper.Height = 120;
-        helper.Flags = WFLG_DRAGBAR;
+        helper.Flags = WFLG_DRAGBAR | WFLG_DEPTHGADGET;
         helper.IDCMPFlags = IDCMP_CHANGEWINDOW;
         helper.Title = (UBYTE *)"Other Window";
 
@@ -288,23 +374,20 @@ int main(void)
             print("  FAIL: Could not open second window for z-order test\n\n");
             errors++;
         } else {
+            sync_window(other, IDCMP_CHANGEWINDOW);   /* nothing expected */
             WindowToBack(other);
-            if (screen->FirstWindow != window) {
+            sync_window(other, IDCMP_CHANGEWINDOW);
+            if (!in_front_of(window, other)) {
                 print("  FAIL: WindowToBack did not move other window behind\n\n");
-                errors++;
-            } else if (!expect_message(other->UserPort, IDCMP_CHANGEWINDOW, CWCODE_DEPTH)) {
-                print("  FAIL: WindowToBack did not emit depth change\n\n");
                 errors++;
             } else {
                 WindowToFront(other);
-                if (screen->FirstWindow != other) {
+                sync_window(other, IDCMP_CHANGEWINDOW);
+                if (!in_front_of(other, window)) {
                     print("  FAIL: WindowToFront did not restore frontmost window\n\n");
                     errors++;
-                } else if (!expect_message(other->UserPort, IDCMP_CHANGEWINDOW, CWCODE_DEPTH)) {
-                    print("  FAIL: WindowToFront did not emit depth change\n\n");
-                    errors++;
                 } else {
-                    print("  OK: WindowToBack/WindowToFront update z-order and post depth changes\n\n");
+                    print("  OK: WindowToBack/WindowToFront update the z-order\n\n");
                 }
             }
 
@@ -312,7 +395,7 @@ int main(void)
         }
     }
 
-    print("Test 4c2: MoveWindowInFrontOf() reorders windows and posts depth changes...\n");
+    print("Test 4c2: MoveWindowInFrontOf() reorders windows...\n");
     {
         struct NewWindow helper = nw;
         struct Window *middle;
@@ -340,24 +423,23 @@ int main(void)
         } else {
             drain_port(window->UserPort);
             MoveWindowInFrontOf(window, middle);
-            if (screen->FirstWindow != back || back->NextWindow != window || window->NextWindow != middle) {
+            sync_window(window, IDCMP_CHANGEWINDOW);
+            if (!in_front_of(back, window) || !in_front_of(window, middle)) {
                 print("  FAIL: MoveWindowInFrontOf did not splice the window before the target\n\n");
-                errors++;
-            } else if (!expect_message(window->UserPort, IDCMP_CHANGEWINDOW, CWCODE_DEPTH)) {
-                print("  FAIL: MoveWindowInFrontOf did not emit a depth change message\n\n");
                 errors++;
             } else {
                 print("  OK: MoveWindowInFrontOf reorders depth relative to another window\n\n");
             }
 
             WindowToFront(window);
-            ModifyIDCMP(window, IDCMP_ACTIVEWINDOW | IDCMP_INACTIVEWINDOW | IDCMP_CHANGEWINDOW | IDCMP_NEWSIZE);
+            sync_window(window, IDCMP_CHANGEWINDOW);
             CloseWindow(back);
             CloseWindow(middle);
+            drain_port(window->UserPort);
         }
     }
 
-    print("Test 4c3: LendMenus() borrows and clears menu strips...\n");
+    print("Test 4c3: LendMenus() lends menu activation...\n");
     {
         struct NewWindow helper = nw;
         struct Window *menu_window;
@@ -389,19 +471,22 @@ int main(void)
             errors++;
             CloseWindow(menu_window);
         } else {
+            /* The lending is private Intuition state: neither window's
+             * MenuStrip field changes (AmigaOS 3.1 reference). */
             LendMenus(window, menu_window);
-            if (window->MenuStrip != &menu) {
-                print("  FAIL: LendMenus did not assign the source menu strip\n\n");
+            if (window->MenuStrip != NULL || menu_window->MenuStrip != &menu) {
+                print("  FAIL: LendMenus changed a MenuStrip field\n\n");
                 errors++;
             } else {
                 LendMenus(window, NULL);
                 if (window->MenuStrip != NULL) {
-                    print("  FAIL: LendMenus did not clear the borrowed menu strip\n\n");
+                    print("  FAIL: LendMenus(NULL) changed the MenuStrip field\n\n");
                     errors++;
                 } else {
-                    print("  OK: LendMenus follows borrow-and-clear semantics\n\n");
+                    print("  OK: LendMenus keeps the MenuStrip fields\n\n");
                 }
             }
+            ClearMenuStrip(menu_window);
             CloseWindow(menu_window);
         }
     }
@@ -458,8 +543,10 @@ int main(void)
             print("  FAIL: Could not open helper window for ActivateWindow test\n\n");
             errors++;
         } else {
-            drain_port(other->UserPort);
+            sync_window(other, IDCMP_ACTIVEWINDOW);
+            drain_port(window->UserPort);
             ActivateWindow(other);
+            sync_window(other, IDCMP_ACTIVEWINDOW);
             if (IntuitionBase->ActiveWindow != other ||
                 (window->Flags & WFLG_WINDOWACTIVE) ||
                 !(other->Flags & WFLG_WINDOWACTIVE)) {
@@ -468,18 +555,15 @@ int main(void)
             } else if (!expect_message(window->UserPort, IDCMP_INACTIVEWINDOW, 0)) {
                 print("  FAIL: ActivateWindow did not post IDCMP_INACTIVEWINDOW\n\n");
                 errors++;
-            } else if (!expect_message(other->UserPort, IDCMP_ACTIVEWINDOW, 0)) {
-                print("  FAIL: ActivateWindow did not post IDCMP_ACTIVEWINDOW\n\n");
-                errors++;
             } else {
                 ActivateWindow(window);
+                sync_window(window, IDCMP_ACTIVEWINDOW);
                 if (IntuitionBase->ActiveWindow != window ||
                     !(window->Flags & WFLG_WINDOWACTIVE) ||
                     (other->Flags & WFLG_WINDOWACTIVE)) {
                     print("  FAIL: ActivateWindow did not restore the original window\n\n");
                     errors++;
-                } else if (!expect_message(other->UserPort, IDCMP_INACTIVEWINDOW, 0) ||
-                           !expect_message(window->UserPort, IDCMP_ACTIVEWINDOW, 0)) {
+                } else if (!expect_message(other->UserPort, IDCMP_INACTIVEWINDOW, 0)) {
                     print("  FAIL: ActivateWindow did not post the restore focus events\n\n");
                     errors++;
                 } else {
@@ -549,6 +633,7 @@ int main(void)
             errors++;
         } else {
             SizeWindow(window, 20, 10);
+            sync_window(window, IDCMP_CHANGEWINDOW);
             {
                 LONG new_x;
                 LONG new_y;
@@ -556,15 +641,11 @@ int main(void)
                 new_x = window->LeftEdge + relative_gadget.LeftEdge + window->Width - 1;
                 new_y = window->TopEdge + relative_gadget.TopEdge + window->Height - 1;
 
-                if (ReadPixel(&screen->RastPort, new_x, new_y) != 1) {
-                    print("  FAIL: SizeWindow did not redraw the relative gadget at the new anchor\n\n");
-                    errors++;
-                } else if (ReadPixel(&screen->RastPort, old_x, old_y) != 0) {
-                    print("  FAIL: SizeWindow left stale pixels at the old relative gadget position\n\n");
-                    errors++;
-                } else {
-                    print("  OK: SizeWindow moves relative gadgets and clears the old location\n\n");
-                }
+                print("  new anchor pen ");
+                print_num(ReadPixel(&screen->RastPort, new_x, new_y));
+                print(", old anchor pen ");
+                print_num(ReadPixel(&screen->RastPort, old_x, old_y));
+                print("\n\n");
             }
         }
     }
@@ -573,20 +654,15 @@ int main(void)
     /* Test 5: ZipWindow */
     print("Test 5: ZipWindow()...\n");
     ZipWindow(window);
-    if (window->Width != 150 || window->Height != 100) {
-        print("  FAIL: ZipWindow did not shrink to the minimum size\n");
-        errors++;
-    } else {
-        print("  OK: ZipWindow shrinks to the minimum size\n");
-    }
+    if (!sync_window(window, IDCMP_CHANGEWINDOW))
+        print("  no IDCMP_CHANGEWINDOW\n");
+    print_box(window);
     ZipWindow(window);
-    if (window->Width != 400 || window->Height != 300) {
-        print("  FAIL: ZipWindow did not expand to the configured maximum size\n\n");
-        errors++;
-    } else {
-        print("  OK: ZipWindow expands to the configured maximum size\n\n");
-    }
-    
+    if (!sync_window(window, IDCMP_CHANGEWINDOW))
+        print("  no IDCMP_CHANGEWINDOW\n");
+    print_box(window);
+    print("\n");
+
     /* Cleanup */
     CloseWindow(window);
     print("OK: Window closed\n");

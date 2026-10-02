@@ -57,7 +57,6 @@ extern VOID graphics_screen_sync_viewport_bitmap(struct Screen *screen);
  * we expand them to the display mode's default height. This handles older
  * apps that relied on ViewModes-based height expansion (e.g., GFA Basic).
  */
-#define MIN_USABLE_HEIGHT 50
 
 /* LACE flag for interlaced display modes */
 #define LACE_FLAG 0x0004
@@ -158,6 +157,10 @@ struct LXAWindowState {
     UBYTE prev1_down_qual;
     UBYTE prev2_down_code;
     UBYTE prev2_down_qual;
+    struct Window *lend_menus_to; /* LendMenus(): menus of this window are used */
+    WORD open_left, open_top;     /* position at OpenWindow() time */
+    WORD zip_box[4];              /* ZipWindow() alternate box (no WA_Zoom) */
+    BOOL zip_valid;
 };
 
 struct LXAIntuiMessage {
@@ -188,6 +191,7 @@ struct LXAIntuitionBase {
     struct Preferences DefaultPrefs;
     struct Preferences ActivePrefs;
     struct Hook *EditHook;
+    struct MinList ScreenDataList; /* per-screen records (LXAPubScreenNode.all_node) */
 };
 
 /* Forward declarations */
@@ -387,12 +391,23 @@ struct LXAClassNode {
     struct IClass *class_ptr;
 };
 
+/*
+ * Per-screen record.  Every screen has one (linked through all_node into
+ * ScreenDataList); only public screens (Workbench, SA_PubName screens) are
+ * also linked through pub.psn_Node into the public screen list that
+ * LockPubScreenList() exposes.
+ */
 struct LXAPubScreenNode {
     struct PubScreenNode pub;
     UWORD pens[NUMDRIPENS + 1];  /* Per-screen pen array (terminated with ~0) */
     struct DrawInfo drawInfo;     /* Pre-built DrawInfo for GetScreenDrawInfo() */
     BOOL has_custom_pens;         /* TRUE if SA_Pens was provided */
+    struct MinNode all_node;      /* ScreenDataList link */
+    BOOL is_public;               /* pub.psn_Node is in PubScreenList */
 };
+
+#define LXA_PUB_FROM_ALL_NODE(n) \
+    ((struct LXAPubScreenNode *)((UBYTE *)(n) - (ULONG)&((struct LXAPubScreenNode *)0)->all_node))
 
 static struct IClass *_intuition_find_class(struct LXAIntuitionBase *base, CONST_STRPTR classID);
 static ULONG _intuition_dispatch_method(struct IClass *cl, Object *obj, Msg msg);
@@ -482,9 +497,30 @@ static struct LXAWindowState *_intuition_ensure_window_state(struct LXAIntuition
     return state;
 }
 
+/*
+ * LendMenus(): when the menu button is pressed in a window that lends its
+ * menu activation to another window, that other window's menu strip is used.
+ */
+static struct Window *_intuition_menu_window(struct LXAIntuitionBase *base, struct Window *window)
+{
+    struct LXAWindowState *state = _intuition_find_window_state(base, window);
+
+    if (state && state->lend_menus_to)
+        return state->lend_menus_to;
+    return window;
+}
+
 static VOID _intuition_remove_window_state(struct LXAIntuitionBase *base, const struct Window *window)
 {
     struct LXAWindowState *state;
+    struct Node *node;
+
+    /* nobody may keep lending menus to a window that goes away */
+    for (node = base->WindowStateList.lh_Head; node && node->ln_Succ; node = node->ln_Succ)
+    {
+        if (((struct LXAWindowState *)node)->lend_menus_to == window)
+            ((struct LXAWindowState *)node)->lend_menus_to = NULL;
+    }
 
     state = _intuition_find_window_state(base, window);
     if (!state)
@@ -685,21 +721,33 @@ static struct Screen *_intuition_find_workbench_screen(struct IntuitionBase *Int
     return NULL;
 }
 
+/* per-screen record of any screen (public or not) */
 static struct PubScreenNode *_intuition_find_pubscreen_by_screen(struct LXAIntuitionBase *base,
                                                                   const struct Screen *screen)
 {
-    struct Node *node;
+    struct MinNode *node;
 
     if (!base || !screen)
         return NULL;
 
-    for (node = base->PubScreenList.lh_Head; node && node->ln_Succ; node = node->ln_Succ)
+    for (node = base->ScreenDataList.mlh_Head; node && node->mln_Succ; node = node->mln_Succ)
     {
-        struct PubScreenNode *pub = (struct PubScreenNode *)node;
-        if (pub->psn_Screen == screen)
-            return pub;
+        struct LXAPubScreenNode *entry = LXA_PUB_FROM_ALL_NODE(node);
+        if (entry->pub.psn_Screen == screen)
+            return &entry->pub;
     }
 
+    return NULL;
+}
+
+/* record of a screen that is in the public screen list */
+static struct PubScreenNode *_intuition_find_public_screen(struct LXAIntuitionBase *base,
+                                                           const struct Screen *screen)
+{
+    struct PubScreenNode *pub = _intuition_find_pubscreen_by_screen(base, screen);
+
+    if (pub && ((struct LXAPubScreenNode *)pub)->is_public)
+        return pub;
     return NULL;
 }
 
@@ -731,7 +779,7 @@ static struct PubScreenNode *_intuition_default_pubscreen_node(struct LXAIntuiti
 
     if (base->DefaultPubScreen)
     {
-        pub = _intuition_find_pubscreen_by_screen(base, base->DefaultPubScreen);
+        pub = _intuition_find_public_screen(base, base->DefaultPubScreen);
         if (pub && !(pub->psn_Flags & PSNF_PRIVATE))
             return pub;
     }
@@ -814,10 +862,27 @@ static VOID _intuition_register_pubscreen(struct IntuitionBase *IntuitionBase, s
     entry->drawInfo.dri_CheckMark  = NULL;
     entry->drawInfo.dri_AmigaKey   = NULL;
 
-    AddTail(&base->PubScreenList, &entry->pub.psn_Node);
+    AddTail((struct List *)&base->ScreenDataList, (struct Node *)&entry->all_node);
 
-    if (!base->DefaultPubScreen || ((base->DefaultPubScreen->Flags & SCREENTYPE) == WBENCHSCREEN))
-        base->DefaultPubScreen = screen;
+    /* Only the Workbench screen is public by itself; a custom screen becomes
+     * public through SA_PubName (AmigaOS 3.1 reference). */
+    if ((screen->Flags & SCREENTYPE) == WBENCHSCREEN)
+    {
+        AddTail(&base->PubScreenList, &entry->pub.psn_Node);
+        entry->is_public = TRUE;
+    }
+}
+
+/* SA_PubName: enter the screen into the public screen list, private until
+ * PubScreenStatus() makes it public. */
+static VOID _intuition_publish_screen(struct LXAIntuitionBase *base, struct LXAPubScreenNode *entry)
+{
+    if (!base || !entry || entry->is_public)
+        return;
+
+    entry->pub.psn_Flags = PSNF_PRIVATE;
+    AddTail(&base->PubScreenList, &entry->pub.psn_Node);
+    entry->is_public = TRUE;
 }
 
 static VOID _intuition_unregister_pubscreen(struct IntuitionBase *IntuitionBase, struct Screen *screen)
@@ -832,7 +897,9 @@ static VOID _intuition_unregister_pubscreen(struct IntuitionBase *IntuitionBase,
     if (!pub)
         return;
 
-    Remove(&pub->psn_Node);
+    Remove((struct Node *)&((struct LXAPubScreenNode *)pub)->all_node);
+    if (((struct LXAPubScreenNode *)pub)->is_public)
+        Remove(&pub->psn_Node);
 
     if (base->DefaultPubScreen == screen)
         base->DefaultPubScreen = NULL;
@@ -1408,7 +1475,8 @@ static ULONG modelclass_dispatch(
                 at.opat_List = (struct List *)&md->memberlist;
                 struct _Object *mobj = _OBJECT(opm->opam_Object);
                 if (mobj && mobj->o_Class) {
-                    _intuition_dispatch_method(mobj->o_Class, opm->opam_Object, (Msg)&at);
+                    /* AmigaOS 3.1 reference: returns the OM_ADDTAIL result (1) */
+                    return _intuition_dispatch_method(mobj->o_Class, opm->opam_Object, (Msg)&at);
                 }
             }
             return 0;
@@ -1422,7 +1490,8 @@ static ULONG modelclass_dispatch(
                 rm.MethodID = OM_REMOVE;
                 struct _Object *mobj = _OBJECT(opm->opam_Object);
                 if (mobj && mobj->o_Class) {
-                    _intuition_dispatch_method(mobj->o_Class, opm->opam_Object, (Msg)&rm);
+                    /* AmigaOS 3.1 reference: returns the OM_REMOVE result (1) */
+                    return _intuition_dispatch_method(mobj->o_Class, opm->opam_Object, (Msg)&rm);
                 }
             }
             return 0;
@@ -1458,10 +1527,11 @@ static ULONG modelclass_dispatch(
                                                     register Object *obj __asm("a2"),
                                                     register Msg msg __asm("a1"));
                     DispatchEntry entry = (DispatchEntry)super->cl_Dispatcher.h_Entry;
-                    return entry(super, obj, msg);
+                    entry(super, obj, msg);
                 }
             }
-            return 0;
+            /* AmigaOS 3.1 reference: the broadcast returns 1 */
+            return 1;
         }
     }
     
@@ -1677,20 +1747,11 @@ static ULONG gadgetclass_dispatch(
         case OM_GET:
         {
             struct opGet *opg = (struct opGet *)msg;
+            /* AmigaOS 3.1 reference: gadgetclass OM_GET does not support the
+             * GA_* attributes (GA_Left/Top/Width/Height, GA_ID, GA_UserData,
+             * GA_Disabled, GA_Selected all fail). */
             switch (opg->opg_AttrID)
             {
-                case GA_ID:
-                    *(opg->opg_Storage) = gadget->GadgetID;
-                    return 1;
-                case GA_UserData:
-                    *(opg->opg_Storage) = (ULONG)gadget->UserData;
-                    return 1;
-                case GA_Disabled:
-                    *(opg->opg_Storage) = (gadget->Flags & GFLG_DISABLED) ? TRUE : FALSE;
-                    return 1;
-                case GA_Selected:
-                    *(opg->opg_Storage) = (gadget->Flags & GFLG_SELECTED) ? TRUE : FALSE;
-                    return 1;
                 case ICA_TARGET:
                 {
                     struct ICData *ic = GADGET_ICDATA(obj);
@@ -2075,14 +2136,13 @@ static ULONG propgclass_dispatch(
             struct opGet *opg = (struct opGet *)msg;
             switch (opg->opg_AttrID)
             {
+                /* AmigaOS 3.1 reference: PGA_Top and PGA_Freedom are gettable,
+                 * PGA_Visible and PGA_Total are not. */
                 case PGA_Top:
                     *(opg->opg_Storage) = data->top;
                     return 1;
-                case PGA_Visible:
-                    *(opg->opg_Storage) = data->visible;
-                    return 1;
-                case PGA_Total:
-                    *(opg->opg_Storage) = data->total;
+                case PGA_Freedom:
+                    *(opg->opg_Storage) = data->propinfo.Flags & (FREEHORIZ | FREEVERT);
                     return 1;
                 default:
                 {
@@ -2921,6 +2981,7 @@ struct IntuitionBase * __g_lxa_intuition_InitLib    ( register struct IntuitionB
     /* Initialize ClassList (NewList inline) */
     NewList(&base->ClassList);
     NewList(&base->PubScreenList);
+    NewList((struct List *)&base->ScreenDataList);
     NewList(&base->WindowStateList);
     base->DefaultPubScreen = NULL;
     _intuition_init_preferences(&base->DefaultPrefs);
@@ -3708,9 +3769,10 @@ static VOID _intuition_handle_mouse_button_event(struct IntuitionBase *Intuition
             DPRINTF(LOG_DEBUG, "_intuition: MENUDOWN at (%d,%d), window=0x%08lx MenuStrip=0x%08lx in_title_bar=%d BarHeight=%d\n",
                     mouseX, mouseY, (ULONG)window, window ? (ULONG)window->MenuStrip : 0, (int)in_title_bar, screen ? (int)screen->BarHeight : -1);
 
-            if (window && window->MenuStrip && !(window->Flags & WFLG_RMBTRAP))
+            if (window && !(window->Flags & WFLG_RMBTRAP) &&
+                _intuition_menu_window((struct LXAIntuitionBase *)IntuitionBase, window)->MenuStrip)
             {
-                menuWin = window;
+                menuWin = _intuition_menu_window((struct LXAIntuitionBase *)IntuitionBase, window);
             }
             else if (in_title_bar)
             {
@@ -4166,11 +4228,10 @@ static VOID _intuition_handle_event_class_event(struct IntuitionBase *IntuitionB
     }
 }
 
-VOID _intuition_Intuition ( register struct IntuitionBase * IntuitionBase __asm("a6"),
-                                                        register struct InputEvent * iEvent __asm("a0"))
+static VOID _intuition_process_input_events(struct IntuitionBase *IntuitionBase,
+                                            struct InputEvent *iEvent,
+                                            BOOL dispatch_input_device)
 {
-    DPRINTF (LOG_DEBUG, "_intuition: Intuition() called iEvent=0x%08lx\n", (ULONG)iEvent);
-
     while (IntuitionBase && iEvent)
     {
         struct InputEvent current_event = *iEvent;
@@ -4182,8 +4243,15 @@ VOID _intuition_Intuition ( register struct IntuitionBase * IntuitionBase __asm(
 
         current_event.ie_NextEvent = NULL;
 
-        if (current_event.ie_Class == IECLASS_RAWMOUSE ||
-            current_event.ie_Class == IECLASS_POINTERPOS)
+        if (current_event.ie_Class == IECLASS_RAWMOUSE &&
+            (current_event.ie_Qualifier & IEQUALIFIER_RELATIVEMOUSE))
+        {
+            /* mouse driver events carry deltas */
+            mouseX = IntuitionBase->MouseX + current_event.ie_X;
+            mouseY = IntuitionBase->MouseY + current_event.ie_Y;
+        }
+        else if (current_event.ie_Class == IECLASS_RAWMOUSE ||
+                 current_event.ie_Class == IECLASS_POINTERPOS)
         {
             mouseX = current_event.ie_X;
             mouseY = current_event.ie_Y;
@@ -4201,18 +4269,29 @@ VOID _intuition_Intuition ( register struct IntuitionBase * IntuitionBase __asm(
         switch (current_event.ie_Class)
         {
             case IECLASS_RAWMOUSE:
-                _intuition_handle_mouse_button_event(IntuitionBase, screen, window,
-                                                     mouseX, mouseY,
-                                                     current_event.ie_Code,
-                                                     current_event.ie_Qualifier,
-                                                     TRUE);
+                if (current_event.ie_Code == IECODE_NOBUTTON)
+                {
+                    /* pure mouse motion */
+                    _intuition_handle_pointerpos_event(IntuitionBase, screen, window,
+                                                       mouseX, mouseY,
+                                                       current_event.ie_Qualifier,
+                                                       dispatch_input_device);
+                }
+                else
+                {
+                    _intuition_handle_mouse_button_event(IntuitionBase, screen, window,
+                                                         mouseX, mouseY,
+                                                         current_event.ie_Code,
+                                                         current_event.ie_Qualifier,
+                                                         dispatch_input_device);
+                }
                 break;
 
             case IECLASS_POINTERPOS:
                 _intuition_handle_pointerpos_event(IntuitionBase, screen, window,
                                                    mouseX, mouseY,
                                                    current_event.ie_Qualifier,
-                                                   TRUE);
+                                                   dispatch_input_device);
                 break;
 
             case IECLASS_RAWKEY:
@@ -4220,7 +4299,7 @@ VOID _intuition_Intuition ( register struct IntuitionBase * IntuitionBase __asm(
                                                mouseX, mouseY,
                                                current_event.ie_Code,
                                                current_event.ie_Qualifier,
-                                               TRUE);
+                                               dispatch_input_device);
                 break;
 
             case IECLASS_EVENT:
@@ -4229,7 +4308,7 @@ VOID _intuition_Intuition ( register struct IntuitionBase * IntuitionBase __asm(
                     _intuition_handle_event_class_event(IntuitionBase, window,
                                                         mouseX, mouseY,
                                                         current_event.ie_Code,
-                                                        TRUE);
+                                                        dispatch_input_device);
                 }
                 break;
 
@@ -4239,6 +4318,25 @@ VOID _intuition_Intuition ( register struct IntuitionBase * IntuitionBase __asm(
 
         iEvent = next_event;
     }
+}
+
+VOID _intuition_Intuition ( register struct IntuitionBase * IntuitionBase __asm("a6"),
+                                                        register struct InputEvent * iEvent __asm("a0"))
+{
+    DPRINTF (LOG_DEBUG, "_intuition: Intuition() called iEvent=0x%08lx\n", (ULONG)iEvent);
+
+    _intuition_process_input_events(IntuitionBase, iEvent, TRUE);
+}
+
+/*
+ * Events written to input.device (IND_WRITEEVENT / IND_ADDEVENT) by
+ * applications or mouse/keyboard drivers reach Intuition's input handler
+ * after the input.device handler chain has seen them (as on AmigaOS, where
+ * Intuition is a handler in that chain).
+ */
+VOID _intuition_input_device_events(struct InputEvent *iEvent)
+{
+    _intuition_process_input_events(IntuitionBase, iEvent, FALSE);
 }
 
 UWORD _intuition_AddGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -5316,6 +5414,8 @@ static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadg
                 window->NextWindow = NULL;
 
                 _intuition_WindowToBack(IntuitionBase, window);
+                _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_DEPTH, 0,
+                                    window, window->MouseX, window->MouseY);
                 DPRINTF(LOG_DEBUG, "_intuition: Depth gadget - WindowToBack()\n");
             }
             else if (scr)
@@ -5338,6 +5438,8 @@ static void _handle_sys_gadget_verify(struct Window *window, struct Gadget *gadg
                 scr->FirstWindow = window;
 
                 _intuition_WindowToFront(IntuitionBase, window);
+                _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_DEPTH, 0,
+                                    window, window->MouseX, window->MouseY);
                 DPRINTF(LOG_DEBUG, "_intuition: Depth gadget - WindowToFront()\n");
             }
             break;
@@ -7852,9 +7954,10 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                                 (int)in_title_bar, screen ? (int)screen->BarHeight : -1);
 
                         /* First, check the window under the mouse */
-                        if (window && window->MenuStrip && !(window->Flags & WFLG_RMBTRAP))
+                        if (window && !(window->Flags & WFLG_RMBTRAP) &&
+                            _intuition_menu_window((struct LXAIntuitionBase *)IntuitionBase, window)->MenuStrip)
                         {
-                            menuWin = window;
+                            menuWin = _intuition_menu_window((struct LXAIntuitionBase *)IntuitionBase, window);
                         }
                         else if (in_title_bar)
                         {
@@ -8556,21 +8659,32 @@ VOID _intuition_MoveScreen ( register struct IntuitionBase * IntuitionBase __asm
     
     if (!screen) return;
     
-    screen->LeftEdge += dx;
+    /* AmigaOS 3.1 reference: screens move vertically; a horizontal delta
+     * leaves LeftEdge unchanged (no autoscroll/overscan model yet). */
+    (void)dx;
     screen->TopEdge += dy;
     
     /* TODO: Update display hardware/host window if applicable */
 }
+
+static VOID _intuition_move_window_impl(struct IntuitionBase *IntuitionBase, struct Window *window,
+                                        WORD dx, WORD dy, BOOL notify);
 
 VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Window * window __asm("a0"),
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"))
 {
+    DPRINTF(LOG_DEBUG, "_intuition: MoveWindow() window=0x%08lx dx=%d dy=%d\n", (ULONG)window, dx, dy);
+
+    _intuition_move_window_impl(IntuitionBase, window, dx, dy, TRUE);
+}
+
+static VOID _intuition_move_window_impl(struct IntuitionBase *IntuitionBase, struct Window *window,
+                                        WORD dx, WORD dy, BOOL notify)
+{
     LONG new_x, new_y;
     BOOL rootless_mode;
-
-    DPRINTF(LOG_DEBUG, "_intuition: MoveWindow() window=0x%08lx dx=%d dy=%d\n", (ULONG)window, dx, dy);
 
     if (!window) return;
 
@@ -8602,8 +8716,9 @@ VOID _intuition_MoveWindow ( register struct IntuitionBase * IntuitionBase __asm
         }
     }
 
-    _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE, 0,
-                        window, window->MouseX, window->MouseY);
+    if (notify)
+        _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_MOVESIZE, 0,
+                            window, window->MouseX, window->MouseY);
 }
 
 VOID _intuition_OffGadget ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -8786,40 +8901,8 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     if (depth == 0)
         depth = 2;
     
-    /*
-     * Handle ViewModes-based height expansion.
-     * 
-     * On real Amigas, when ViewModes specifies a display mode but the height
-     * is suspiciously small (less than MIN_USABLE_HEIGHT), the system would use
-     * the display mode's standard height instead.
-     * 
-     * Standard heights (PAL):
-     * - Non-interlaced: 256 lines
-     * - Interlaced (LACE): 512 lines
-     * 
-     * Many older applications relied on this behavior (e.g., GFA Basic).
-     */
-    if (height < MIN_USABLE_HEIGHT)
-    {
-        UWORD viewModes = newScreen->ViewModes;
-        UWORD defaultHeight;
-        
-        /* Determine standard height based on ViewModes */
-        if (viewModes & LACE_FLAG)
-        {
-            /* Interlaced mode: 512 lines (PAL) */
-            defaultHeight = 512;
-        }
-        else
-        {
-            /* Non-interlaced: 256 lines (PAL) */
-            defaultHeight = 256;
-        }
-        
-        DPRINTF(LOG_DEBUG, "_intuition: OpenScreen() height %d < %d, expanding to %d based on ViewModes 0x%04x\n",
-                (int)height, MIN_USABLE_HEIGHT, (int)defaultHeight, (unsigned)viewModes);
-        height = defaultHeight;
-    }
+    /* Small heights are kept as requested (AmigaOS 3.1 reference: a 40 line
+     * screen opens 40 lines high; no expansion to the display height). */
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenScreen() %dx%dx%d ViewModes=0x%04x\n",
              (int)width, (int)height, (int)depth, (UWORD)newScreen->ViewModes);
@@ -8969,7 +9052,8 @@ struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * Intuitio
     /* Set bar heights (simplified) */
     screen->BarHeight = 10;
     screen->BarVBorder = 1;
-    screen->BarHBorder = 5;
+    /* AmigaOS 3.1 reference: 5 on hires screens, 2 on lores screens */
+    screen->BarHBorder = ((screen->ViewPort.Modes & (HIRES | SUPERHIRES)) || width >= 640) ? 5 : 2;
     screen->WBorTop = 11;
     screen->WBorLeft = 4;
     screen->WBorRight = 4;
@@ -9721,31 +9805,6 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
 
     }
     
-    /*
-     * Expand windows that appear to be sized for an unreasonably small screen.
-     * 
-     * When a screen's height was expanded (see OpenScreen height expansion logic),
-     * windows that were sized to fill that small screen should also be expanded.
-     * This handles cases where apps like GFA Basic used very small NewScreen heights
-     * that got expanded, but the window dimensions still reference the old values.
-     *
-     * Heuristic: If the window is positioned at (0,y) and its height is very small
-     * while the screen height is normal, expand the window to fill the screen vertically.
-     */
-    if (newWindow->LeftEdge == 0 && 
-        width == screen->Width && height < MIN_USABLE_HEIGHT &&
-        screen->Height >= MIN_USABLE_HEIGHT)
-    {
-        LONG expandedHeight = (LONG)screen->Height - (LONG)newWindow->TopEdge;
-
-        /* Guard against overflow and nonsense results */
-        if (expandedHeight <= 0 || expandedHeight > screen->Height)
-            expandedHeight = (LONG)screen->Height;
-
-        DPRINTF(LOG_DEBUG, "_intuition: OpenWindow() window height %d < %d, expanding to %d\n",
-                (int)height, MIN_USABLE_HEIGHT, (int)expandedHeight);
-        height = (WORD)expandedHeight;
-    }
 
     DPRINTF (LOG_DEBUG, "_intuition: OpenWindow() %dx%d at (%d,%d) flags=0x%08lx\n",
              (int)width, (int)height, (int)newWindow->LeftEdge, (int)newWindow->TopEdge,
@@ -10009,6 +10068,8 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
         }
 
         state->host_window_handle = window_handle;
+        state->open_left = window->LeftEdge;
+        state->open_top = window->TopEdge;
         host_window_handle = window_handle;
 
         if (window_handle)
@@ -10048,6 +10109,7 @@ struct Window * _intuition_OpenWindow ( register struct IntuitionBase * Intuitio
                                 prevActive, 0, 0);
         }
         IntuitionBase->ActiveWindow = window;
+        IntuitionBase->ActiveScreen = window->WScreen;  /* screen of the active window */
         window->Flags |= WFLG_WINDOWACTIVE;
 
         if (window->IDCMPFlags & IDCMP_ACTIVEWINDOW)
@@ -10180,12 +10242,7 @@ ULONG _intuition_OpenWorkBench ( register struct IntuitionBase * IntuitionBase _
          * the name. */
         stale_pub = _intuition_find_pubscreen_by_screen(base, wbscreen);
         if (stale_pub)
-        {
-            Remove(&stale_pub->psn_Node);
-            FreeMem(stale_pub, stale_pub->psn_Size);
-            if (base->DefaultPubScreen == wbscreen)
-                base->DefaultPubScreen = NULL;
-        }
+            _intuition_unregister_pubscreen(IntuitionBase, wbscreen);
         _intuition_register_pubscreen(IntuitionBase, wbscreen);
 
         DPRINTF (LOG_DEBUG, "_intuition: OpenWorkBench() - opened at 0x%08lx, Width=%d Height=%d\n", 
@@ -10509,10 +10566,36 @@ BOOL _intuition_SetMenuStrip ( register struct IntuitionBase * IntuitionBase __a
         return FALSE;
     }
 
-    /* Store the menu pointer for the window
-     * NOTE: Actual menu rendering/interaction not yet implemented
-     */
     window->MenuStrip = menu;
+
+    /* Intuition computes each menu's drop-down box (JazzX/JazzY - BeatX/
+     * BeatY, relative to the items' coordinate origin): the items' bounding
+     * box extended by 4 pixels left/up and 3 pixels right/down (AmigaOS 3.1
+     * reference). */
+    for (; menu; menu = menu->NextMenu)
+    {
+        struct MenuItem *item = menu->FirstItem;
+        WORD minx, miny, maxx, maxy;
+
+        if (!item)
+            continue;
+
+        minx = item->LeftEdge;
+        miny = item->TopEdge;
+        maxx = item->LeftEdge + item->Width;
+        maxy = item->TopEdge + item->Height;
+        for (item = item->NextItem; item; item = item->NextItem)
+        {
+            if (item->LeftEdge < minx) minx = item->LeftEdge;
+            if (item->TopEdge < miny) miny = item->TopEdge;
+            if (item->LeftEdge + item->Width > maxx) maxx = item->LeftEdge + item->Width;
+            if (item->TopEdge + item->Height > maxy) maxy = item->TopEdge + item->Height;
+        }
+        menu->JazzX = minx - 4;
+        menu->JazzY = miny - 4;
+        menu->BeatX = maxx + 3;
+        menu->BeatY = maxy + 3;
+    }
 
     return TRUE;
 }
@@ -10751,8 +10834,8 @@ VOID _intuition_WindowToBack ( register struct IntuitionBase * IntuitionBase __a
             emucall1(EMU_CALL_INT_WINDOW_TOBACK, window_handle);
     }
 
-    _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_DEPTH, 0,
-                        window, window->MouseX, window->MouseY);
+    /* AmigaOS 3.1 reference: no IDCMP_CHANGEWINDOW for programmatic depth
+     * changes (the depth gadget handler posts CWCODE_DEPTH itself) */
 }
 
 VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -10796,8 +10879,8 @@ VOID _intuition_WindowToFront ( register struct IntuitionBase * IntuitionBase __
             emucall1(EMU_CALL_INT_WINDOW_TOFRONT, window_handle);
     }
 
-    _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_DEPTH, 0,
-                        window, window->MouseX, window->MouseY);
+    /* AmigaOS 3.1 reference: no IDCMP_CHANGEWINDOW for programmatic depth
+     * changes (the depth gadget handler posts CWCODE_DEPTH itself) */
 }
 
 BOOL _intuition_WindowLimits ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -12453,8 +12536,11 @@ BOOL _intuition_ActivateGadget ( register struct IntuitionBase * IntuitionBase _
         return FALSE;
 
     gadget_type = gadget->GadgetType & GTYP_GTYPEMASK;
+    /* AmigaOS 3.1 reference: ActivateGadget() on a boolean gadget succeeds
+     * (returns TRUE) but does not select it; only string and custom gadgets
+     * become the active input gadget. */
     if (gadget_type != GTYP_STRGADGET && gadget_type != GTYP_CUSTOMGADGET)
-        return FALSE;
+        return TRUE;
 
     if (gadget_type == GTYP_CUSTOMGADGET && (gadget->Activation & GACT_ACTIVEGADGET))
         return FALSE;
@@ -12598,8 +12684,8 @@ VOID _intuition_MoveWindowInFrontOf ( register struct IntuitionBase * IntuitionB
     if (window->WLayer && behindWindow->WLayer && LayersBase)
         _call_MoveLayerInFrontOf(LayersBase, window->WLayer, behindWindow->WLayer);
 
-    _post_idcmp_message(window, IDCMP_CHANGEWINDOW, CWCODE_DEPTH, 0,
-                        window, window->MouseX, window->MouseY);
+    /* AmigaOS 3.1 reference: no IDCMP_CHANGEWINDOW for programmatic depth
+     * changes */
 }
 
 VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -12620,8 +12706,23 @@ VOID _intuition_ChangeWindowBox ( register struct IntuitionBase * IntuitionBase 
 
     if (!window) return;
 
-    _intuition_MoveWindow(IntuitionBase, window, left - window->LeftEdge, top - window->TopEdge);
-    _intuition_SizeWindow(IntuitionBase, window, width - window->Width, height - window->Height);
+    /* clamp the size like SizeWindow() does */
+    if (width < window->MinWidth) width = window->MinWidth;
+    if (width > window->MaxWidth) width = window->MaxWidth;
+    if (height < window->MinHeight) height = window->MinHeight;
+    if (height > window->MaxHeight) height = window->MaxHeight;
+
+    /* AmigaOS 3.1 reference: one IDCMP_NEWSIZE + IDCMP_CHANGEWINDOW for a
+     * box change (no separate CHANGEWINDOW for the move part) */
+    if (width != window->Width || height != window->Height)
+    {
+        _intuition_move_window_impl(IntuitionBase, window, left - window->LeftEdge, top - window->TopEdge, FALSE);
+        _intuition_SizeWindow(IntuitionBase, window, width - window->Width, height - window->Height);
+    }
+    else if (left != window->LeftEdge || top != window->TopEdge)
+    {
+        _intuition_move_window_impl(IntuitionBase, window, left - window->LeftEdge, top - window->TopEdge, TRUE);
+    }
 }
 
 struct Hook * _intuition_SetEditHook ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -12694,35 +12795,40 @@ VOID _intuition_ZipWindow ( register struct IntuitionBase * IntuitionBase __asm(
     else
     {
         /*
-         * No WA_Zoom data — use simple heuristic:
-         * If currently at or below min size, expand to max.
-         * Otherwise, shrink to min.
+         * No WA_Zoom data.  AmigaOS 3.1 reference: the alternate box starts
+         * as the window's open position with its current minimum size;
+         * every ZipWindow() swaps the current box with the alternate one.
          */
-        WORD target_w, target_h;
-        WORD screen_w = 640, screen_h = 256;
+        struct LXAWindowState *state = _intuition_ensure_window_state(
+            (struct LXAIntuitionBase *)IntuitionBase, window);
+        WORD alt_left, alt_top, alt_width, alt_height;
 
-        if (window->WScreen)
-        {
-            screen_w = window->WScreen->Width;
-            screen_h = window->WScreen->Height;
-        }
+        if (!state)
+            return;
 
-        if (window->Width <= window->MinWidth && window->Height <= window->MinHeight)
+        if (state->zip_valid)
         {
-            target_w = (window->MaxWidth != (UWORD)-1) ? window->MaxWidth : screen_w;
-            target_h = (window->MaxHeight != (UWORD)-1) ? window->MaxHeight : screen_h;
-            if (target_w > screen_w) target_w = screen_w;
-            if (target_h > screen_h) target_h = screen_h;
+            alt_left   = state->zip_box[0];
+            alt_top    = state->zip_box[1];
+            alt_width  = state->zip_box[2];
+            alt_height = state->zip_box[3];
         }
         else
         {
-            target_w = window->MinWidth;
-            target_h = window->MinHeight;
+            alt_left   = state->open_left;
+            alt_top    = state->open_top;
+            alt_width  = window->MinWidth;
+            alt_height = window->MinHeight;
         }
 
+        state->zip_box[0] = window->LeftEdge;
+        state->zip_box[1] = window->TopEdge;
+        state->zip_box[2] = window->Width;
+        state->zip_box[3] = window->Height;
+        state->zip_valid = TRUE;
+
         _intuition_ChangeWindowBox(IntuitionBase, window,
-                                    window->LeftEdge, window->TopEdge,
-                                    target_w, target_h);
+                                    alt_left, alt_top, alt_width, alt_height);
     }
 }
 
@@ -12911,23 +13017,24 @@ UWORD _intuition_PubScreenStatus ( register struct IntuitionBase * IntuitionBase
     if (!screen)
         return 0;
 
-    pub = _intuition_find_pubscreen_by_screen(base, screen);
+    pub = _intuition_find_public_screen(base, screen);
     if (!pub)
-        return 0;
+        return 0;               /* not a public screen */
 
     oldFlags = pub->psn_Flags;
+    (void)oldFlags;
 
     if ((statusFlags & PSNF_PRIVATE) && pub->psn_VisitorCount > 0)
-        return 0;
+        return 0;               /* cannot privatize a locked screen */
 
     pub->psn_Flags = statusFlags & PSNF_PRIVATE;
 
     if ((pub->psn_Flags & PSNF_PRIVATE) && base->DefaultPubScreen == screen)
         base->DefaultPubScreen = NULL;
-    else if (!(pub->psn_Flags & PSNF_PRIVATE) && !base->DefaultPubScreen)
-        base->DefaultPubScreen = screen;
 
-    return oldFlags;
+    /* AmigaOS 3.1 reference: bit 0 of the result is set when the change
+     * succeeded (both for making a screen private and public). */
+    return PSNF_PRIVATE;
 }
 
 struct RastPort	* _intuition_ObtainGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -13734,6 +13841,8 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
     LXA_UNIMPLEMENTED("intuition", "OpenWindowTagList", "partial: ignores WA_BackFill, WA_RptQueue, WA_Pointer, WA_BusyPointer, WA_Checkmark, WA_HelpGroup (Phase 256)");
 
     BOOL auto_adjust = FALSE;
+    BOOL pubname_missing = FALSE;   /* WA_PubScreenName not found / private */
+    BOOL pubname_fallback = FALSE;  /* WA_PubScreenFallBack */
     BOOL left_specified = FALSE;
     BOOL top_specified = FALSE;
     UWORD mouse_queue = DEFAULT_MOUSEQUEUE;
@@ -13967,7 +14076,9 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
 
                     if (!pub_screen)
                     {
-                        /* Fall back to default public screen */
+                        /* Only with WA_PubScreenFallBack (checked after
+                         * the tag loop) the default public screen is used */
+                        pubname_missing = TRUE;
                         pub_screen = _intuition_LockPubScreen(IntuitionBase, NULL);
                         if (pub_screen)
                         {
@@ -14003,11 +14114,11 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                     }
                     break;
                 case WA_PubScreenFallBack:
-                    /* Enable fallback to default public screen if
-                     * WA_PubScreenName cannot be found.  We always
-                     * fall back, so this is a no-op for us. */
+                    /* Fall back to the default public screen if the
+                     * WA_PubScreenName screen cannot be locked. */
                     DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_PubScreenFallBack=%ld\n",
                             (LONG)tag->ti_Data);
+                    pubname_fallback = (tag->ti_Data != 0);
                     break;
                 /* Tags we recognize but don't fully implement yet */
                 case WA_BackFill:
@@ -14125,6 +14236,14 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
         {
             LPRINTF(LOG_WARNING, "_intuition: OpenWindowTagList() WA_InnerWidth/Height ignored - no screen found\n");
         }
+    }
+
+    if (pubname_missing && !pubname_fallback)
+    {
+        /* AmigaOS 3.1 reference: a missing or private WA_PubScreenName
+         * screen makes OpenWindowTagList() fail */
+        DPRINTF(LOG_DEBUG, "_intuition: OpenWindowTagList() WA_PubScreenName screen not available\n");
+        return NULL;
     }
 
     if (auto_adjust)
@@ -14475,6 +14594,8 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                         sa_pub_name);
             }
 
+            _intuition_publish_screen(base, lxa_pub);
+
             if (sa_pub_task)
                 lxa_pub->pub.psn_SigTask = (struct Task *)sa_pub_task;
             if (sa_pub_sig >= 0)
@@ -14693,7 +14814,7 @@ VOID _intuition_DrawImageState ( register struct IntuitionBase * IntuitionBase _
                                   topOffset + image->TopEdge,
                                   image->Width,
                                   image->Height,
-                                  (state == IDS_SELECTED) ? 0x30 : 0xC0);
+                                  0xC0);   /* AmigaOS 3.1: state is ignored for standard images */
             }
         }
 
@@ -14753,13 +14874,18 @@ VOID _intuition_EraseImage ( register struct IntuitionBase * IntuitionBase __asm
          
         _intuition_dispatch_method(_OBJECT(image)->o_Class, (Object *)image, (Msg)&imp);
     } else {
-        /* Standard Image - Erase bounding box */
-        /* Use background pen 0 */
-        SetAPen(rp, 0);
-        RectFill(rp, leftOffset + image->LeftEdge, 
-                     topOffset + image->TopEdge,
-                     leftOffset + image->LeftEdge + image->Width - 1,
-                     topOffset + image->TopEdge + image->Height - 1);
+        /* Standard Image: erase the box of every image in the NextImage
+         * chain (AmigaOS 3.1 reference) through the layer backfill,
+         * without touching the RastPort's pens. */
+        for (; image; image = image->NextImage)
+        {
+            if (image->Width <= 0 || image->Height <= 0)
+                continue;
+            EraseRect(rp, leftOffset + image->LeftEdge,
+                          topOffset + image->TopEdge,
+                          leftOffset + image->LeftEdge + image->Width - 1,
+                          topOffset + image->TopEdge + image->Height - 1);
+        }
     }
 }
 
@@ -15031,8 +15157,11 @@ ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase
         return 0;
     
     ULONG result = _intuition_dispatch_method(cl, (Object *)gadget, (Msg)&ops);
-    
-    /* Re-render the gadget if attrs changed and we have a window */
+
+    /* Re-render the gadget if attrs changed and we have a window.  The
+     * gadget is then up to date, so (like the AmigaOS 3.1 classes, which
+     * render themselves when they get a GadgetInfo) report no further
+     * refresh need to the caller. */
     if (result && window)
     {
         struct RastPort *rp = window->RPort;
@@ -15044,6 +15173,7 @@ ULONG _intuition_SetGadgetAttrsA ( register struct IntuitionBase * IntuitionBase
             gpr.gpr_RPort = rp;
             gpr.gpr_Redraw = GREDRAW_UPDATE;
             _intuition_dispatch_method(cl, (Object *)gadget, (Msg)&gpr);
+            result = 0;
         }
     }
     
@@ -15110,10 +15240,14 @@ struct IClass * _intuition_MakeClass ( register struct IntuitionBase * Intuition
      * private classes must be provided explicitly via superClassPtr.
      */
     if (superClassID)
+    {
         superClass = _intuition_find_class(base, superClassID);
+        if (!superClass)
+            return NULL;
+    }
 
-    if (!superClass)
-        return NULL;
+    /* AmigaOS 3.1 reference: without any superclass MakeClass() still
+     * creates a (root) class; cl_Super stays NULL. */
 
     if (classID && _intuition_find_class(base, classID))
         return NULL;
@@ -15497,18 +15631,19 @@ VOID _intuition_ScreenPosition ( register struct IntuitionBase * IntuitionBase _
              
     if (!screen) return;
     
+    /* AmigaOS 3.1 reference: only the vertical position changes (see
+     * MoveScreen()). */
     if (flags & SPOS_ABSOLUTE)
     {
         /* x1, y1 are new coordinates */
-        screen->LeftEdge = x1;
         screen->TopEdge = y1;
     }
     else /* SPOS_RELATIVE (default) */
     {
         /* x1, y1 are deltas */
-        screen->LeftEdge += x1;
         screen->TopEdge += y1;
     }
+
     
     /* TODO: SPOS_MAKEVISIBLE logic */
     /* TODO: Update display */
@@ -15546,10 +15681,16 @@ VOID _intuition_LendMenus ( register struct IntuitionBase * IntuitionBase __asm(
     DPRINTF (LOG_DEBUG, "_intuition: LendMenus() from=0x%08lx to=0x%08lx\n",
              (ULONG)fromwindow, (ULONG)towindow);
 
+    struct LXAWindowState *state;
+
     if (!fromwindow)
         return;
 
-    fromwindow->MenuStrip = towindow ? towindow->MenuStrip : NULL;
+    /* The lending is private window state: fromwindow->MenuStrip is not
+     * touched (AmigaOS 3.1 reference). */
+    state = _intuition_ensure_window_state((struct LXAIntuitionBase *)IntuitionBase, fromwindow);
+    if (state)
+        state->lend_menus_to = (towindow == fromwindow) ? NULL : towindow;
 }
 
 ULONG _intuition_DoGadgetMethodA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -15571,8 +15712,49 @@ ULONG _intuition_DoGadgetMethodA ( register struct IntuitionBase * IntuitionBase
     struct IClass *cl = OCLASS((Object *)gad);
     if (!cl)
         return 0;
-    
-    return _intuition_dispatch_method(cl, (Object *)gad, message);
+
+    {
+        struct GadgetInfo gi;
+        ULONG result;
+
+        memset(&gi, 0, sizeof(gi));
+        if (win)
+        {
+            gi.gi_Screen = win->WScreen;
+            gi.gi_Window = win;
+            gi.gi_Requester = req;
+            gi.gi_RastPort = win->RPort;
+            gi.gi_Layer = win->WLayer;
+            gi.gi_Domain.Left = win->BorderLeft;
+            gi.gi_Domain.Top = win->BorderTop;
+            gi.gi_Domain.Width = win->Width - win->BorderLeft - win->BorderRight;
+            gi.gi_Domain.Height = win->Height - win->BorderTop - win->BorderBottom;
+            gi.gi_DrInfo = _intuition_GetScreenDrawInfo(IntuitionBase, win->WScreen);
+        }
+
+        /* The GadgetInfo goes into the message: ops_GInfo for OM_NEW/OM_SET/
+         * OM_NOTIFY/OM_UPDATE, the first parameter (gpX_GInfo) for every
+         * other method.  (So an OM_GET message loses its opg_AttrID, as on
+         * AmigaOS 3.1, where DoGadgetMethodA(OM_GET) fails.) */
+        switch (message->MethodID)
+        {
+            case OM_NEW:
+            case OM_SET:
+            case OM_NOTIFY:
+            case OM_UPDATE:
+                ((struct opSet *)message)->ops_GInfo = &gi;
+                break;
+            default:
+                ((struct gpRender *)message)->gpr_GInfo = &gi;
+                break;
+        }
+
+        result = _intuition_dispatch_method(cl, (Object *)gad, message);
+
+        if (win && gi.gi_DrInfo)
+            _intuition_FreeScreenDrawInfo(IntuitionBase, win->WScreen, gi.gi_DrInfo);
+        return result;
+    }
 }
 
 VOID _intuition_SetWindowPointerA ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -15628,7 +15810,10 @@ BOOL _intuition_TimedDisplayAlert ( register struct IntuitionBase * IntuitionBas
 {
     DPRINTF (LOG_DEBUG, "_intuition: TimedDisplayAlert() alert=0x%08lx height=%u time=%lu\n",
              alertNumber, (unsigned)height, time);
-    return _intuition_DisplayAlert(IntuitionBase, alertNumber, string, height);
+    (void)string;
+    /* Headless lxa has no user who could click before the timeout expires:
+     * like AmigaOS 3.1 without input, the alert times out and returns FALSE. */
+    return FALSE;
 }
 
 VOID _intuition_HelpControl ( register struct IntuitionBase * IntuitionBase __asm("a6"),

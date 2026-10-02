@@ -1,0 +1,23 @@
+Testing Intuition drawing helpers...
+
+Test 1: DrawBorder()...
+  OK: DrawBorder renders both shine and shadow chains
+
+Test 2: PrintIText() / IntuiTextLength()...
+  OK: IntuiTextLength matches Topaz 8 metrics
+  OK: PrintIText completed
+
+Test 3: DrawImage() chain rendering...
+  pens 1 0 1 2 2 0
+  OK: DrawImage renders linked image chains
+
+Test 4: DrawImageState() with a standard image...
+  pens 1 0 1 0
+  OK: DrawImageState draws standard images like DrawImage
+Test 5: EraseImage()...
+READY: before erase
+  pens 0 0 0 0 0 0
+  OK: EraseImage clears the image chain
+READY: after erase
+
+PASS: drawing_helpers all tests completed

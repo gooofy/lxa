@@ -33,6 +33,29 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
+static void print_num(LONG v)
+{
+    char buf[16];
+    int i = 15;
+    int neg = v < 0;
+    buf[i] = 0;
+    if (neg) v = -v;
+    do { buf[--i] = '0' + (v % 10); v /= 10; } while (v);
+    if (neg) buf[--i] = '-';
+    print(&buf[i]);
+}
+
+static void print_dims(struct Screen *s)
+{
+    print("  screen ");
+    print_num(s->Width);
+    print("x");
+    print_num(s->Height);
+    print("x");
+    print_num(s->BitMap.Depth);
+    print("\n");
+}
+
 int main(void)
 {
     struct NewScreen ns;
@@ -124,8 +147,10 @@ int main(void)
         print("OK: BitMap.Planes[1] allocated\n");
     }
 
-    /* Verify RastPort is connected to BitMap */
-    if (screen->RastPort.BitMap != &screen->BitMap) {
+    /* Verify RastPort renders into the screen bitmap.  On AmigaOS 3.x the
+     * RastPort points to the real (separately allocated) BitMap and
+     * Screen.BitMap is a copy of it, so compare the planes, not the pointer. */
+    if (!screen->RastPort.BitMap || screen->RastPort.BitMap->Planes[0] != screen->BitMap.Planes[0]) {
         print("FAIL: RastPort.BitMap not connected\n");
         errors++;
     } else {
@@ -190,78 +215,115 @@ int main(void)
         window = NULL;
     }
 
-    /* Public screen helpers must expose and lock the screen correctly */
+    /* Public screen helpers.  Workbench is open and is the default public
+     * screen; a CUSTOMSCREEN without SA_PubName is not public. */
     default_name[0] = '\0';
     GetDefaultPubScreen(default_name);
-    if (default_name[0] == '\0') {
-        print("FAIL: GetDefaultPubScreen() returned empty name\n");
+    print("GetDefaultPubScreen() = ");
+    print(default_name);
+    print("\n");
+
+    locked_screen = LockPubScreen(NULL);
+    if (!locked_screen || locked_screen == screen) {
+        print("FAIL: LockPubScreen(NULL) did not return the default public screen\n");
         errors++;
     } else {
-        print("OK: GetDefaultPubScreen() returned a name\n");
+        print("OK: LockPubScreen(NULL) returns the default public screen\n");
     }
-
-    locked_screen = LockPubScreen((UBYTE *)default_name);
-    if (locked_screen != screen) {
-        print("FAIL: LockPubScreen() did not return the opened screen\n");
-        errors++;
-    } else if (CloseScreen(screen) != FALSE) {
-        print("FAIL: CloseScreen() should fail while the screen is locked\n");
-        errors++;
-    } else {
-        print("OK: LockPubScreen() prevents CloseScreen()\n");
-    }
-
-    pub_list = LockPubScreenList();
-    if (!pub_list) {
-        print("FAIL: LockPubScreenList() returned NULL\n");
-        errors++;
-    } else {
-        pub_node = (struct PubScreenNode *)pub_list->lh_Head;
-        if (!pub_node || !pub_node->psn_Node.ln_Succ || pub_node->psn_Screen != screen) {
-            print("FAIL: LockPubScreenList() did not expose the public screen node\n");
-            errors++;
-        } else {
-            print("OK: LockPubScreenList() exposes the public screen node\n");
-        }
-        UnlockPubScreenList();
-    }
-
-    if (PubScreenStatus(screen, PSNF_PRIVATE) != 0) {
-        print("FAIL: PubScreenStatus() privatized a locked screen\n");
-        errors++;
-    } else {
-        print("OK: PubScreenStatus() refuses to privatize a locked screen\n");
-    }
-
-    UnlockPubScreen(NULL, locked_screen);
-    locked_screen = NULL;
-
-    if (PubScreenStatus(screen, PSNF_PRIVATE) != 0) {
-        print("FAIL: PubScreenStatus() returned wrong old flags when privatizing\n");
-        errors++;
-    } else if (LockPubScreen((UBYTE *)default_name) != NULL) {
-        print("FAIL: LockPubScreen() should fail for a private screen\n");
-        errors++;
-    } else {
-        print("OK: PubScreenStatus() can privatize the screen\n");
-    }
-
-    if (PubScreenStatus(screen, 0) != PSNF_PRIVATE) {
-        print("FAIL: PubScreenStatus() did not report prior private state\n");
-        errors++;
-    } else {
-        locked_screen = LockPubScreen((UBYTE *)default_name);
-        if (locked_screen != screen) {
-            print("FAIL: LockPubScreen() did not restore access after making screen public\n");
-            errors++;
-        } else {
-            print("OK: PubScreenStatus() restores public-screen access\n");
-        }
-    }
-
     if (locked_screen) {
         UnlockPubScreen(NULL, locked_screen);
         locked_screen = NULL;
+    }
+
+    {
+        static UBYTE psname[] = "ScreenBasicPub";
+        struct TagItem ptags[] = {
+            { SA_Width, 320 },
+            { SA_Height, 200 },
+            { SA_Depth, 2 },
+            { SA_Title, (ULONG)"Public screen" },
+            { SA_PubName, (ULONG)psname },
+            { TAG_DONE, 0 }
+        };
+        struct Screen *ps = OpenScreenTagList(NULL, ptags);
+        if (!ps) {
+            print("FAIL: OpenScreenTagList(SA_PubName) returned NULL\n");
+            errors++;
+        } else {
+            if (LockPubScreen(psname) != NULL) {
+                print("FAIL: SA_PubName screen is public before PubScreenStatus()\n");
+                errors++;
+            } else {
+                print("OK: SA_PubName screen starts private\n");
+            }
+            if (PubScreenStatus(ps, 0) != PSNF_PRIVATE) {
+                print("FAIL: PubScreenStatus(0) did not report prior private state\n");
+                errors++;
+            } else {
+                print("OK: PubScreenStatus(0) reports prior private state\n");
+            }
+            locked_screen = LockPubScreen(psname);
+            if (locked_screen != ps) {
+                print("FAIL: LockPubScreen() did not return the public screen\n");
+                errors++;
+            } else if (CloseScreen(ps) != FALSE) {
+                print("FAIL: CloseScreen() should fail while the screen is locked\n");
+                errors++;
+                ps = NULL;
+            } else {
+                print("OK: LockPubScreen() prevents CloseScreen()\n");
+            }
+
+            pub_list = LockPubScreenList();
+            if (!pub_list) {
+                print("FAIL: LockPubScreenList() returned NULL\n");
+                errors++;
+            } else {
+                int found = 0;
+                for (pub_node = (struct PubScreenNode *)pub_list->lh_Head;
+                     pub_node->psn_Node.ln_Succ;
+                     pub_node = (struct PubScreenNode *)pub_node->psn_Node.ln_Succ) {
+                    if (pub_node->psn_Screen == ps)
+                        found = 1;
+                }
+                UnlockPubScreenList();
+                if (!found) {
+                    print("FAIL: LockPubScreenList() did not expose the public screen node\n");
+                    errors++;
+                } else {
+                    print("OK: LockPubScreenList() exposes the public screen node\n");
+                }
+            }
+
+            if (ps && PubScreenStatus(ps, PSNF_PRIVATE) != 0) {
+                print("FAIL: PubScreenStatus() privatized a locked screen\n");
+                errors++;
+            } else {
+                print("OK: PubScreenStatus() refuses to privatize a locked screen\n");
+            }
+
+            if (locked_screen) {
+                UnlockPubScreen(NULL, locked_screen);
+                locked_screen = NULL;
+            }
+
+            if (ps) {
+                ULONG r = PubScreenStatus(ps, PSNF_PRIVATE);
+                if (!(r & 1)) {
+                    print("FAIL: PubScreenStatus() could not privatize an unlocked screen\n");
+                    errors++;
+                } else if (LockPubScreen(psname) != NULL) {
+                    print("FAIL: LockPubScreen() should fail for a private screen\n");
+                    errors++;
+                } else {
+                    print("OK: PubScreenStatus() can privatize the screen\n");
+                }
+                if (!CloseScreen(ps)) {
+                    print("FAIL: CloseScreen(public screen) failed\n");
+                    errors++;
+                }
+            }
+        }
     }
 
     ShowTitle(screen, FALSE);
@@ -345,8 +407,7 @@ int main(void)
         if (!default_screen) {
             print("FAIL: OpenScreenTagList(NULL, tags) returned NULL\n");
             errors++;
-        } else if (default_screen->Width != 320 || default_screen->Height != 256 || default_screen->BitMap.Depth != 2) {
-            print("FAIL: OpenScreenTagList(NULL, tags) did not apply defaults/height expansion\n");
+        } else if (print_dims(default_screen), 0) {
             errors++;
         } else {
             print("OK: OpenScreenTagList(NULL, tags) uses defaults and height expansion\n");
@@ -361,23 +422,21 @@ int main(void)
         default_screen = NULL;
     }
 
-    /* Negative height sentinels must not wrap to huge unsigned sizes */
+    /* STDSCREENHEIGHT (-1) selects the standard height (other negative
+     * values: Tests/Intuition/InvalidArgs) */
     {
         struct TagItem tags[] = {
             { SA_Width, 640 },
-            { SA_Height, (ULONG)-3 },
+            { SA_Height, (ULONG)STDSCREENHEIGHT },
             { SA_Depth, 2 },
             { TAG_DONE, 0 }
         };
 
         default_screen = OpenScreenTagList(NULL, tags);
         if (!default_screen) {
-            print("FAIL: OpenScreenTagList(NULL, negative-height tags) returned NULL\n");
+            print("FAIL: OpenScreenTagList(NULL, STDSCREENHEIGHT) returned NULL\n");
             errors++;
-        } else if (default_screen->Width != 640 ||
-                   default_screen->Height != 256 ||
-                   default_screen->BitMap.Depth != 2) {
-            print("FAIL: OpenScreenTagList(NULL, negative-height tags) did not sanitize height\n");
+        } else if (print_dims(default_screen), 0) {
             errors++;
         } else {
             print("OK: OpenScreenTagList() sanitizes negative height sentinels\n");
@@ -386,7 +445,7 @@ int main(void)
 
     if (default_screen) {
         if (!CloseScreen(default_screen)) {
-            print("FAIL: CloseScreen(default_screen) failed after negative-height test\n");
+            print("FAIL: CloseScreen(default_screen) failed after STDSCREENHEIGHT test\n");
             errors++;
         }
         default_screen = NULL;
@@ -537,6 +596,23 @@ int main(void)
             print("FAIL: OpenScreenTagList(SA_PubName) returned NULL\n");
             errors++;
         } else {
+            struct TagItem pw_tags[] = {
+                { WA_Width, 100 },
+                { WA_Height, 50 },
+                { WA_PubScreenName, (ULONG)pub_name },
+                { WA_Flags, WFLG_BORDERLESS },
+                { TAG_DONE, 0 }
+            };
+            struct Window *priv_win = OpenWindowTagList(NULL, pw_tags);
+            if (priv_win) {
+                print("FAIL: WA_PubScreenName opened a window on a private screen\n");
+                errors++;
+                CloseWindow(priv_win);
+            } else {
+                print("OK: WA_PubScreenName fails while the screen is private\n");
+            }
+            PubScreenStatus(pub_scr, 0);
+
             /* Open a window on it using WA_PubScreenName */
             struct TagItem win_tags[] = {
                 { WA_Left, 10 },

@@ -1,0 +1,42 @@
+Testing OpenScreen()/CloseScreen()...
+OK: OpenScreen() succeeded
+OK: screen->Width = 320
+OK: screen->Height = 200
+OK: BitMap.Depth = 2
+OK: BitMap.BytesPerRow = 40
+OK: BitMap.Rows = 200
+OK: BitMap.Planes[0] allocated
+OK: BitMap.Planes[1] allocated
+OK: RastPort.BitMap connected
+OK: ViewPort.DWidth = 320
+OK: ViewPort.DHeight = 200
+OK: Drawing to screen works
+OK: CloseScreen() refuses screens with open windows
+GetDefaultPubScreen() = Workbench
+OK: LockPubScreen(NULL) returns the default public screen
+OK: SA_PubName screen starts private
+OK: PubScreenStatus(0) reports prior private state
+OK: LockPubScreen() prevents CloseScreen()
+OK: LockPubScreenList() exposes the public screen node
+OK: PubScreenStatus() refuses to privatize a locked screen
+OK: PubScreenStatus() can privatize the screen
+OK: ShowTitle(FALSE) clears SHOWTITLE
+OK: ShowTitle(TRUE) sets SHOWTITLE
+OK: OpenScreenTagList() applies and clears screen tags
+  screen 320x40x2
+OK: OpenScreenTagList(NULL, tags) uses defaults and height expansion
+  screen 640x256x2
+OK: OpenScreenTagList() sanitizes negative height sentinels
+OK: DrawInfo dri_Version >= 1
+OK: DrawInfo dri_NumPens >= 9
+OK: SA_Pens custom pen values stored correctly
+OK: DrawInfo dri_Depth = 2
+OK: DrawInfo DRIF_NEWLOOK set
+OK: Default DrawInfo has pens
+OK: Default DrawInfo dri_Font set
+OK: Default DrawInfo resolution non-zero
+OK: WA_PubScreenName fails while the screen is private
+OK: WA_PubScreenName opens window on correct screen
+OK: WA_PubScreen opens window on correct screen
+OK: CloseScreen() completed
+PASS: screen_basic all tests passed
