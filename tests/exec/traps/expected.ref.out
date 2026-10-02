@@ -1,0 +1,11 @@
+Test 1: tc_TrapCode catches divide by zero
+  traps: 1, number: 5
+Test 2: TRAP #5
+  traps: 2, number: 37
+Test 3: CHK out of bounds
+  traps: 3, number: 6
+Test 4: a faulting process without handler is held
+  child started: yes
+  child continued after the fault: no
+  parent still runs: yes
+PASS: traps
