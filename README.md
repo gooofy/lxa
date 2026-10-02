@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.9** - RDD loop (Phase 216): `python3 -m rdd loop` twin-runs all scenarios, replays the goldens, clusters divergences by root cause and writes a sweep report (`doc/sweeps/`); skills `rdd-reference` and `compat-sweep`. Milestone M1 (reference oracle) is complete.
+
 **Version 0.11.8** - Reference goldens (Phase 215): `tests/golden/` holds AmigaOS 3.1 snapshot bundles for 6 scenarios; `ctest -L golden` replays them on lxa and fails on any new divergence from the reference.
 
 **Version 0.11.7** - Comparator and report (Phase 214): `python3 -m rdd report` diffs lxa against the reference (Intuition tree, pen-index pixels, palette, text, output) and renders side-by-side composites; reviews are recorded as `findings.yaml` (first review: `doc/findings/`).

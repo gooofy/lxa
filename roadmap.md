@@ -115,7 +115,7 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 216 — RDD skills & autonomous loop**.
+> **Phase 220 — Run all m68k test programs on real AmigaOS**.
 
 ---
 
@@ -127,13 +127,7 @@ Complete (Phases 200–204, v0.11.3); see the summary table.
 
 ## M1 — The Reference Oracle
 
-### Phase 216 — RDD skills & autonomous loop
-**Class**: Quality (process).
-- [ ] Skills: `rdd-reference` (operating the refsys), `rdd-review` (from Phase 214), `compat-sweep` (Phase 231 procedure).
-- [ ] Document parallel triage: one subagent per app, each in its own worktree, each returning `findings.yaml`. A coordinator clusters the findings by root cause before any phase is opened.
-- [ ] Add a nightly or `/loop` sweep that refreshes the compat DB (Phase 230) and opens or updates phases whenever a rating drops.
-
-**Test gate**: one end-to-end loop run: sweep, cluster, phase stub generated, reviewed by the user.
+Complete (Phases 210–216, v0.11.9); see the summary table.
 
 ---
 
@@ -195,6 +189,7 @@ Complete (Phases 200–204, v0.11.3); see the summary table.
 - [ ] Write `app.json` manifests for all 19 apps in `../lxa-apps`, then add apps already present on the reference machine: ProWrite, EdWordPro, GadToolsBox3, Redit, FontView, AmigaBasic, GFABasic, Oberon, Scout, SnoopDos, MCPP, AmiBlitz3, BTII, Aztec C, ACE, AQB, and others.
 - [ ] `apps/compat.yaml` records per app: rating, the scenarios behind it, the last tested lxa version, and open divergences, each linked to a phase number. There is no free-text "known issues" list.
 - [ ] `rdd dashboard` renders the DB as HTML.
+- [ ] `python3 -m rdd loop` (Phase 216) refreshes `apps/compat.yaml` from its run and fails when a rating drops.
 
 **Test gate**: ≥35 apps catalogued, each with a rating derived automatically from its scenarios.
 
@@ -410,3 +405,4 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 213 | Scenario DSL & twin runner: `tools/rdd` (`python3 -m rdd run … --backend lxa\|ref\|both`), YAML steps launch/wait_window/wait_idle/frames/click/menu/type/key/snapshot/quit, gadget clicks resolved from each backend's own tree, reference instance pool + result cache, manifests moved into `apps/<App>.json`; starter scenarios cli-helloworld, simplegtgadget, dpaintv-startup, dopus-startup on both backends. Fixes found on the way: lxa idle detection ignored the running task, `ActiveScreen` not updated by `ActivateWindow`, agent RUN command name, TRACE string arguments. | v0.11.6 |
 | 214 | Comparator, report & vision review: `tools/rdd/compare.py` (tree diff with ignore list and GadgetID pairing, pen-index pixel diff with 16 px heat-map regions, palette/Text()/stdout), `python3 -m rdd report` (composite lxa \| reference \| diff ×2 with grid, HTML, `compare-summary.json`), `findings.yaml` format + validator, skill `rdd-review`; dry run `doc/findings/2026-10-02-starter.yaml` (7 findings, routed to Phases 222–224). | v0.11.7 |
 | 215 | Golden promotion: `python3 -m rdd promote <scenario> --phase N` copies reference bundles to `tests/golden/<app>/<scenario>/` with a ratchet (known tree diffs + pixel budget + known size, each owned by a phase); `rdd golden` replays on lxa (fail on new divergence, `tighten` on improvement); one CTest per golden (label `golden`, DISABLED only via `golden.json`, `golden_lint` checks owning phases). 6 goldens (HelloWorld, SimpleGad, SimpleGTGadget, GadToolsGadgets, DOpus, DPaint V); an injected 1 px GadTools label shift fails `gadtoolsgadgets`. Python goldens instead of generated GTests: the scenario replay lives in pylxa. | v0.11.8 |
+| 216 | RDD skills & loop: skills `rdd-reference`, `compat-sweep` (parallel per-app triage in worktrees, coordinator clustering); `python3 -m rdd cluster` (mechanical tree-diff clusters with bit-level flag signatures and folded geometry + reviewed findings; owners from golden ratchets, findings and roadmap text; phase stubs for unowned clusters in ≥ 2 scenarios); `python3 -m rdd loop` (run → report → goldens → cluster → sweep report, non-zero on golden regression or unowned cluster). First loop: `doc/sweeps/2026-10-02-loop.md`, 6 scenarios, 6/6 goldens pass, 0 unowned multi-app clusters (no stubs). Compat-DB refresh moved to Phase 230. | v0.11.9 |
