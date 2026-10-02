@@ -81,6 +81,7 @@ int main(void)
     SetIoErr(7);
     ok = ErrorReport(9999, REPORT_STREAM, 0, NULL);
     err = IoErr();
+    print("  PROBE ok="); print_num(ok); print(" err="); print_num(err); print("\n");
     if (ok == DOSTRUE && err == 9999)
         test_pass("Unknown code immediate return");
     else

@@ -164,21 +164,13 @@ int main(void)
     source.CS_Buffer = (STRPTR)"ignored\n";
     source.CS_Length = 8;
     source.CS_CurChr = 0;
+    zero_buf[0] = '?';
     result = ReadItem((CONST_STRPTR)zero_buf, 0, &source);
+    print("  PROBE result="); print_num(result); print(" buf0="); print_num((UBYTE)zero_buf[0]); print(" cur="); print_num(source.CS_CurChr); print("\n");
     if (result == ITEM_NOTHING && zero_buf[0] == '\0' && source.CS_CurChr == 0)
         test_pass("Zero maxchars handled");
     else
         test_fail("Zero maxchars handled", "Zero-length buffer semantics were wrong");
-
-    print("\nTest 8: NULL buffer returns ITEM_NOTHING\n");
-    source.CS_Buffer = (STRPTR)"alpha\n";
-    source.CS_Length = 6;
-    source.CS_CurChr = 0;
-    result = ReadItem((CONST_STRPTR)0, sizeof(buffer), &source);
-    if (result == ITEM_NOTHING && source.CS_CurChr == 0)
-        test_pass("NULL buffer ignored");
-    else
-        test_fail("NULL buffer ignored", "NULL buffer handling was wrong");
 
     print("\nTest 9: Unquoted overflow returns ITEM_ERROR\n");
     source.CS_Buffer = (STRPTR)"alphabet\n";

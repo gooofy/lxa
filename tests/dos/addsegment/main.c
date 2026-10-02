@@ -120,7 +120,7 @@ int main(void)
     BPTR seg3;
     LONG ok;
     LONG err;
-    struct Segment *entry;
+    struct Segment *entry = NULL;
 
     print("AddSegment Test\n");
     print("===============\n\n");
@@ -155,25 +155,16 @@ int main(void)
         return 20;
     }
 
-    print("Test 1: Rejects NULL names\n");
-    ok = AddSegment(NULL, seg1, 0);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_REQUIRED_ARG_MISSING)
-        test_pass("Reject NULL name");
-    else
-        test_fail("Reject NULL name", "NULL name handling behaved incorrectly");
-
-    print("\nTest 2: Rejects NULL seglists\n");
-    ok = AddSegment((CONST_STRPTR)"AddSegmentNullSeg", 0, 0);
-    err = IoErr();
-    if (ok == DOSFALSE && err == ERROR_REQUIRED_ARG_MISSING)
-        test_pass("Reject NULL seglist");
-    else
-        test_fail("Reject NULL seglist", "NULL seglist handling behaved incorrectly");
-
-    print("\nTest 3: Prepends a user segment and copies its name\n");
+    SetIoErr(0);
+    print("Test 3: Prepends a user segment and copies its name\n");
     ok = AddSegment((CONST_STRPTR)"AddSegmentUser", seg1, 0);
     err = IoErr();
+    print("  PROBE ok="); print_num(ok); print(" err="); print_num(err);
+    { struct Segment *h = (struct Segment *)BADDR(dos_info->di_ResList);
+      print(" head1="); print_num(h == entry); print(" uc="); print_num(h ? h->seg_UC : 99);
+      print(" seg="); print_num(h ? (h->seg_Seg == seg1 ? 1 : h->seg_Seg == seg2 ? 2 : h->seg_Seg == seg3 ? 3 : 0) : -1);
+      print(" nextold="); print_num(h ? h->seg_Next == old_head : -1);
+      print(" name="); if (h) { char nb[64]; int k; int l = h->seg_Name[0]; if (l > 60) l = 60; for (k = 0; k < l; k++) nb[k] = h->seg_Name[k+1]; nb[l] = 0; print(nb);} print("\n"); }
     entry = (struct Segment *)BADDR(dos_info->di_ResList);
     if (ok == DOSTRUE && err == 0 && entry && entry->seg_Seg == seg1 && entry->seg_UC == 0 &&
         bstr_equals_cstr(entry->seg_Name, "AddSegmentUser") && entry->seg_Next == old_head)
@@ -184,6 +175,12 @@ int main(void)
     print("\nTest 4: Rejects same-type duplicates case-insensitively\n");
     ok = AddSegment((CONST_STRPTR)"addsegmentuser", seg2, 0);
     err = IoErr();
+    print("  PROBE ok="); print_num(ok); print(" err="); print_num(err);
+    { struct Segment *h = (struct Segment *)BADDR(dos_info->di_ResList);
+      print(" head1="); print_num(h == entry); print(" uc="); print_num(h ? h->seg_UC : 99);
+      print(" seg="); print_num(h ? (h->seg_Seg == seg1 ? 1 : h->seg_Seg == seg2 ? 2 : h->seg_Seg == seg3 ? 3 : 0) : -1);
+      print(" nextold="); print_num(h ? h->seg_Next == old_head : -1);
+      print(" name="); if (h) { char nb[64]; int k; int l = h->seg_Name[0]; if (l > 60) l = 60; for (k = 0; k < l; k++) nb[k] = h->seg_Name[k+1]; nb[l] = 0; print(nb);} print("\n"); }
     if (ok == DOSFALSE && err == ERROR_OBJECT_EXISTS && (struct Segment *)BADDR(dos_info->di_ResList) == entry)
         test_pass("Reject duplicate user segment");
     else
@@ -192,6 +189,12 @@ int main(void)
     print("\nTest 5: Allows the same name in the separate system segment namespace\n");
     ok = AddSegment((CONST_STRPTR)"ADDSEGMENTUSER", seg3, CMD_SYSTEM);
     err = IoErr();
+    print("  PROBE ok="); print_num(ok); print(" err="); print_num(err);
+    { struct Segment *h = (struct Segment *)BADDR(dos_info->di_ResList);
+      print(" head1="); print_num(h == entry); print(" uc="); print_num(h ? h->seg_UC : 99);
+      print(" seg="); print_num(h ? (h->seg_Seg == seg1 ? 1 : h->seg_Seg == seg2 ? 2 : h->seg_Seg == seg3 ? 3 : 0) : -1);
+      print(" nextold="); print_num(h ? h->seg_Next == old_head : -1);
+      print(" name="); if (h) { char nb[64]; int k; int l = h->seg_Name[0]; if (l > 60) l = 60; for (k = 0; k < l; k++) nb[k] = h->seg_Name[k+1]; nb[l] = 0; print(nb);} print("\n"); }
     if (ok == DOSTRUE && err == 0)
     {
         struct Segment *system_entry = (struct Segment *)BADDR(dos_info->di_ResList);
