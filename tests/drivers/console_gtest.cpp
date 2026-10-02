@@ -173,7 +173,7 @@ TEST_F(ConsoleTest, CSIUnit) { RunConsoleTest("csi_unit"); }
 TEST_F(ConsoleTest, SGRUnit) { RunConsoleTest("sgr_unit"); }
 TEST_F(ConsoleTest, RawEventsUnit) { RunConsoleTest("raw_events_unit"); }
 TEST_F(ConsoleTest, ScrollbackUnit) { RunConsoleTest("scrollback_unit"); }
-TEST_F(ConsoleTest, DISABLED_KeymapUnit) { RunConsoleTest("keymap_unit"); }
+TEST_F(ConsoleTest, KeymapUnit) { RunConsoleTest("keymap_unit"); }
 TEST_F(ConsoleTest, ConsoleAsync) {
     int result = RunProgram("SYS:Tests/Devices/ConsoleAsync");
     EXPECT_EQ(result, 0);

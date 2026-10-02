@@ -21,6 +21,8 @@
 #include <graphics/text.h>
 #include <clib/graphics_protos.h>
 #include <inline/graphics.h>
+#include <clib/keymap_protos.h>
+#include <inline/keymap.h>
 
 #include "util.h"
 
@@ -145,6 +147,10 @@ struct LxaConUnit {
 /* lxa_graphics.c: non-blocking display refresh (also safe in interrupts) */
 extern VOID _graphics_RefreshAllScreens(void);
 
+/* CONU_LIBRARY requests carry io_Unit == -1: no console unit */
+#define CONSOLE_UNIT(io) ((((struct IORequest *)(io))->io_Unit == (struct Unit *)-1) ? NULL : \
+                          (struct LxaConUnit *)((struct IORequest *)(io))->io_Unit)
+
 static void console_copy_keymap(struct KeyMap *dest, const struct KeyMap *src)
 {
     if (!dest || !src) {
@@ -161,18 +167,16 @@ static void console_copy_keymap(struct KeyMap *dest, const struct KeyMap *src)
     dest->km_HiRepeatable = src->km_HiRepeatable;
 }
 
-static struct KeyMap *console_ask_keymap_default(struct Library *keymap_base)
+/* keymap.library calls through the proper inline stubs: the former
+ * hand-made a6 calls corrupted the frame pointer (Phase 222f / 220) */
+static struct KeyMap *console_ask_keymap_default(struct Library *KeymapBase)
 {
-    register char *base __asm("a6") = (char *)keymap_base;
-
-    return ((struct KeyMap *(*)(char * __asm("a6")))(base - 36))(base);
+    return AskKeyMapDefault();
 }
 
-static void console_set_keymap_default(struct Library *keymap_base, struct KeyMap *map)
+static void console_set_keymap_default(struct Library *KeymapBase, struct KeyMap *map)
 {
-    register char *base __asm("a6") = (char *)keymap_base;
-
-    ((VOID (*)(char * __asm("a6"), struct KeyMap * __asm("a0")))(base - 30))(base, map);
+    SetKeyMapDefault(map);
 }
 
 static BOOL console_load_default_keymap(struct KeyMap *dest)
@@ -213,31 +217,21 @@ static WORD console_map_rawkey(struct LxaConUnit *unit, UWORD rawkey, UWORD qual
 
     KeymapBase = OpenLibrary((STRPTR)"keymap.library", 0);
     if (KeymapBase) {
-        register WORD _result __asm("d0");
-        register struct Library *_a6 __asm("a6") = KeymapBase;
-        register struct InputEvent *_a0 __asm("a0") = &event;
-        register STRPTR _a1 __asm("a1") = buffer;
-        register LONG _d1 __asm("d1") = length;
+        WORD result;
+
         if (unit && unit->use_keymap) {
             map = &unit->cu.cu_KeyMapStruct;
         }
-        register struct KeyMap *_a2 __asm("a2") = map;
 
         event.ie_Class = IECLASS_RAWKEY;
         event.ie_Code = rawkey;
         event.ie_Qualifier = qualifier;
 
-        __asm volatile (
-            "jsr %1@(-42)"
-            : "=r" (_result)
-            : "a" (_a6), "r" (_a0), "r" (_a1), "r" (_d1), "r" (_a2)
-            : "cc", "memory"
-        );
-
+        result = MapRawKey(&event, buffer, length, map);
         CloseLibrary(KeymapBase);
 
-        if (_result > 0) {
-            return _result;
+        if (result > 0) {
+            return result;
         }
     }
 
@@ -621,7 +615,7 @@ LONG _console_SetMode(struct IOStdReq *iostd, LONG mode)
         return FALSE;
     }
 
-    unit = (struct LxaConUnit *)iostd->io_Unit;
+    unit = CONSOLE_UNIT(iostd);
     if (!unit) {
         return FALSE;
     }
@@ -3305,13 +3299,19 @@ static void __g_lxa_console_Open ( register struct Library   *dev   __asm("a6"),
         LPRINTF(LOG_INFO, "_console: Opened as CONU_LIBRARY (library mode only, no unit)\n");
         ioreq->io_Error = 0;
         ioreq->io_Device = (struct Device *)dev;
-        ioreq->io_Unit = NULL;
+        ioreq->io_Unit = (struct Unit *)-1;   /* as AmigaOS 3.1 */
         dev->lib_OpenCnt++;
         dev->lib_Flags &= ~LIBF_DELEXP;
         return;
     }
     
-    /* Create a ConUnit for this console if a window was provided */
+    /* a console unit needs a window (AmigaOS 3.1 fails the open) */
+    if (window == NULL) {
+        ioreq->io_Error = IOERR_OPENFAIL;
+        return;
+    }
+
+    /* Create a ConUnit for this console */
     if (window != NULL) {
         unit = console_create_unit(window);
         if (!unit) {
@@ -3377,7 +3377,7 @@ static BPTR __g_lxa_console_Close( register struct Library   *dev   __asm("a6"),
                                           register struct IORequest *ioreq __asm("a1"))
 {
     struct ConsoleDevBase *cdb = (struct ConsoleDevBase *)dev;
-    struct LxaConUnit *unit = (struct LxaConUnit *)ioreq->io_Unit;
+    struct LxaConUnit *unit = CONSOLE_UNIT(ioreq);
     int i;
     
     DPRINTF (LOG_DEBUG, "_console: Close() called, unit=0x%08lx\n", (ULONG)unit);
@@ -3410,7 +3410,7 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
                                              register struct IORequest *ioreq __asm("a1"))
 {
     struct IOStdReq *iostd = (struct IOStdReq *)ioreq;
-    struct LxaConUnit *unit = (struct LxaConUnit *)ioreq->io_Unit;
+    struct LxaConUnit *unit = CONSOLE_UNIT(ioreq);
     
     DPRINTF (LOG_DEBUG, "_console: BeginIO() cmd=%d, len=%ld, data=0x%08lx, unit=0x%08lx\n", 
              ioreq->io_Command, iostd->io_Length, (ULONG)iostd->io_Data, (ULONG)unit);
@@ -3693,7 +3693,7 @@ static ULONG __g_lxa_console_AbortIO ( register struct Library   *dev   __asm("a
                                               register struct IORequest *ioreq __asm("a1"))
 {
     struct IOStdReq *iostd = (struct IOStdReq *)ioreq;
-    struct LxaConUnit *unit = (struct LxaConUnit *)ioreq->io_Unit;
+    struct LxaConUnit *unit = CONSOLE_UNIT(ioreq);
     
     DPRINTF (LOG_DEBUG, "_console: AbortIO() called, ioreq=0x%08lx, unit=0x%08lx\n", (ULONG)ioreq, (ULONG)unit);
     
