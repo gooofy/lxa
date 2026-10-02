@@ -358,8 +358,9 @@ foreach(sample_info ${SAMPLES_LIST})
     
     add_custom_command(
         OUTPUT ${output}
-        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -o ${output} ${src}
+        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -MD -MF ${output}.d -o ${output} ${src}
         DEPENDS ${src}
+        DEPFILE ${output}.d
         COMMENT "Building Sample: ${output_name}"
     )
     
@@ -387,8 +388,9 @@ foreach(test_info ${TESTS_LIST})
 
     add_custom_command(
         OUTPUT ${output}
-        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -o ${output} ${src}
+        COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} ${SAMPLES_LDFLAGS} -MD -MF ${output}.d -o ${output} ${src}
         DEPENDS ${src}
+        DEPFILE ${output}.d
         COMMENT "Building Test: ${output_name}"
     )
     
@@ -415,8 +417,9 @@ foreach(src ${PROBE_SOURCES})
     add_custom_command(
         OUTPUT ${output}
         COMMAND ${M68K_GCC_BIN} ${SAMPLES_CFLAGS} -I${CMAKE_CURRENT_SOURCE_DIR}/../tests/probes
-                ${SAMPLES_LDFLAGS} -o ${output} ${src}
+                ${SAMPLES_LDFLAGS} -MD -MF ${output}.d -o ${output} ${src}
         DEPENDS ${src} ${CMAKE_CURRENT_SOURCE_DIR}/../tests/probes/probe.h
+        DEPFILE ${output}.d
         COMMENT "Building Probe: ${lib}/${name}"
     )
     list(APPEND ALL_SAMPLES ${output})

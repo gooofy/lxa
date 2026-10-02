@@ -14,6 +14,8 @@
 #include "lxa_unimpl.h"
 #include "lxa_override.h"
 
+bool g_program_exited = false;   /* Phase 220: lxa_program_exited() */
+
 /* Forward declarations for float/double helpers defined later in this file */
 static float ffp_to_host_float(uint32_t raw);
 static uint32_t host_float_to_ffp(float value);
@@ -239,6 +241,7 @@ int op_illg(int level)
         case EMU_CALL_STOP:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
+            g_program_exited = true;   /* the launched program returned */
             fprintf(stderr, "EMU_CALL_STOP called, rv=%d, current PC=0x%08x\n", 
                      g_rv, m68k_get_reg(NULL, M68K_REG_PC));
             DPRINTF (LOG_DEBUG, "EMU_CALL_STOP called, rv=%d, current PC=0x%08x\n", 
@@ -293,6 +296,7 @@ int op_illg(int level)
         case EMU_CALL_EXIT:
         {
             g_rv = m68k_get_reg(NULL, M68K_REG_D1);
+            g_program_exited = true;   /* the launched program returned */
             fprintf(stderr, "EMU_CALL_EXIT called, rv=%d\n", g_rv);
             DPRINTF (LOG_DEBUG, "*** emulator exit via libnix, rv=%d\n", g_rv);
             
