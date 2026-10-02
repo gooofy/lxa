@@ -1466,6 +1466,19 @@ static LONG lxa_dos_read_single_byte(struct DosLibrary *DOSBase, BPTR fh, struct
     return (LONG)ch;
 }
 
+/* Buffered output (FPutC/FWrite/FPuts/VFPrintf/PutStr/WriteChars) goes
+ * through dos buffers on AmigaOS 3.1 and sends no packet per call, so a
+ * successful call leaves IoErr() alone (unlike a plain Write(), whose
+ * packet resets it).  lxa writes through immediately: keep IoErr(). */
+static LONG lxa_dos_buffered_write(struct DosLibrary *DOSBase, BPTR fh, CONST APTR buf, LONG len)
+{
+    LONG saved = IoErr();
+    LONG result = _dos_Write(DOSBase, fh, buf, len);
+    if (result >= 0)
+        SetIoErr(saved);
+    return result;
+}
+
 static LONG lxa_dos_fputc_internal(struct DosLibrary *DOSBase, struct FileHandle *fhp, BPTR fh, LONG ch)
 {
     struct lxa_dos_buffer_state *state;
@@ -1484,7 +1497,7 @@ static LONG lxa_dos_fputc_internal(struct DosLibrary *DOSBase, struct FileHandle
 
     if ((state->flags & LXA_DOS_BF_NOBUF) || !state->buffer)
     {
-        result = _dos_Write(DOSBase, fh, &c, 1);
+        result = lxa_dos_buffered_write(DOSBase, fh, &c, 1);
         if (result <= 0)
         {
             if (result == 0)
@@ -1495,7 +1508,7 @@ static LONG lxa_dos_fputc_internal(struct DosLibrary *DOSBase, struct FileHandle
     }
 
     state->buffer[0] = c;
-    result = _dos_Write(DOSBase, fh, state->buffer, 1);
+    result = lxa_dos_buffered_write(DOSBase, fh, state->buffer, 1);
     if (result <= 0)
     {
         if (result == 0)
@@ -10320,7 +10333,7 @@ LONG _dos_WriteChars ( register struct DosLibrary * DOSBase __asm("a6"),
     }
     
     /* Write the specified number of characters */
-    LONG result = _dos_Write(DOSBase, out, (CONST APTR)buf, buflen);
+    LONG result = lxa_dos_buffered_write(DOSBase, out, (CONST APTR)buf, buflen);
     
     if (result < 0)
         return -1;
