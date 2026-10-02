@@ -313,7 +313,8 @@ static struct ClipRect *CreateSimpleClipRect(struct Layer_Info *li, struct Layer
         return NULL;
 
     bounds = layer->bounds;
-    if (li)
+    /* empty Layer_Info bounds (the default) mean "no clipping" */
+    if (li && (li->bounds.MaxX > li->bounds.MinX || li->bounds.MaxY > li->bounds.MinY))
     {
         if (!IntersectRectangles(&bounds, &li->bounds, &clipped))
         {
@@ -1065,11 +1066,8 @@ static VOID _layers_InitLayers ( register struct LayersBase *LayersBase __asm("a
     li->top_layer = NULL;
     li->FreeClipRects = NULL;
 
-    /* Initialize bounds to maximum - no clipping by default */
-    li->bounds.MinX = 0;
-    li->bounds.MinY = 0;
-    li->bounds.MaxX = 32767;  /* Maximum screen size */
-    li->bounds.MaxY = 32767;
+    /* AmigaOS 3.1 leaves the bounds empty (all 0): no clipping until
+     * bounds are installed (verified, Phase 220) */
 
     /* Initialize the semaphore */
     InitSemaphore(&li->Lock);
@@ -1079,7 +1077,8 @@ static VOID _layers_InitLayers ( register struct LayersBase *LayersBase __asm("a
     li->gs_Head.mlh_Tail = NULL;
     li->gs_Head.mlh_TailPred = (struct MinNode *)&li->gs_Head.mlh_Head;
 
-    li->Flags = NEWLAYERINFO_CALLED;
+    /* only NewLayerInfo() sets NEWLAYERINFO_CALLED (AmigaOS 3.1) */
+    li->Flags = 0;
     li->LockLayersCount = 0;
     li->BlankHook = LAYERS_BACKFILL;
 }
@@ -1099,6 +1098,7 @@ static struct Layer_Info * _layers_NewLayerInfo ( register struct LayersBase *La
         return NULL;
 
     _layers_InitLayers(LayersBase, li);
+    li->Flags = NEWLAYERINFO_CALLED;
 
     return li;
 }
@@ -1646,10 +1646,9 @@ static LONG _layers_SizeLayer ( register struct LayersBase *LayersBase __asm("a6
 /*
  * ScrollLayer - Scroll layer contents (offset -0x48)
  *
- * Per AROS/RKRM: For non-SuperBitMap layers, the scroll offsets are
- * accumulated and the bitmap contents are scrolled via ScrollRaster
- * so the visible content moves. For SuperBitMap layers, we'd need
- * SyncSBitMap/CopySBitMap which we don't implement yet.
+ * For non-SuperBitMap layers the scroll offsets are accumulated and only
+ * shift the layer's coordinate origin, as on AmigaOS 3.1.  For SuperBitMap
+ * layers, we'd need SyncSBitMap/CopySBitMap which we don't implement yet.
  */
 static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("a6"),
                                   register LONG               dummy      __asm("a0"),
@@ -1684,16 +1683,9 @@ static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("
     }
     else
     {
-        /* Simple/Smart refresh layer:
-         * Scroll the visible bitmap contents via ScrollRaster,
-         * then update the scroll offsets */
-        if (layer->rp && GfxBase)
-        {
-            ScrollRaster(layer->rp, dx, dy,
-                         layer->bounds.MinX, layer->bounds.MinY,
-                         layer->bounds.MaxX, layer->bounds.MaxY);
-        }
-
+        /* Simple/Smart refresh layer: AmigaOS 3.1 only moves the layer's
+         * coordinate origin (rendering uses x + MinX - Scroll_X); the
+         * pixels already on screen stay where they are (Phase 220). */
         layer->Scroll_X += dx;
         layer->Scroll_Y += dy;
     }

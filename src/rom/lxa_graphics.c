@@ -48,6 +48,13 @@ extern struct UtilityBase *UtilityBase;
 static struct TextFont g_topaz8_font;
 static void init_topaz8_font(void);
 
+/* Screen position of a layer's coordinate origin: rendering honours the
+ * layer's scroll offset (AmigaOS 3.1: x_screen = x + MinX - Scroll_X,
+ * verified with ScrollLayer() in Phase 220).  SuperBitMap layers keep
+ * their own Sync/CopySBitMap based scrolling. */
+#define LAYER_ORIGIN_X(l) ((l)->bounds.MinX - (((l)->Flags & LAYERSUPER) ? 0 : (l)->Scroll_X))
+#define LAYER_ORIGIN_Y(l) ((l)->bounds.MinY - (((l)->Flags & LAYERSUPER) ? 0 : (l)->Scroll_Y))
+
 #define GFXASSOCIATE_HASHSIZE 8
 #define GRAPHICS_TFE_MATCHWORD 0xDFE7
 
@@ -2441,8 +2448,8 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
     /* If RastPort has a Layer, add layer offset for coordinate translation */
     if (rp->Layer)
     {
-        x += rp->Layer->bounds.MinX;
-        y += rp->Layer->bounds.MinY;
+        x += LAYER_ORIGIN_X(rp->Layer);
+        y += LAYER_ORIGIN_Y(rp->Layer);
     }
 
     /* Handle INVERSVID - swap foreground and background colors */
@@ -2591,9 +2598,9 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
             /* Draw underline using foreground pen in the same mode as text */
             if (rp->Layer)
             {
-                ul_y += rp->Layer->bounds.MinY;
-                ul_x_start += rp->Layer->bounds.MinX;
-                ul_x_end += rp->Layer->bounds.MinX;
+                ul_y += LAYER_ORIGIN_Y(rp->Layer);
+                ul_x_start += LAYER_ORIGIN_X(rp->Layer);
+                ul_x_end += LAYER_ORIGIN_X(rp->Layer);
             }
 
             /* Ensure underline is within bitmap bounds */
@@ -2639,7 +2646,7 @@ static LONG _graphics_Text ( register struct GfxBase * GfxBase __asm("a6"),
      * remains in layer-relative coordinates. Otherwise subsequent
      * Text() calls would double-apply the offset. */
     if (rp->Layer)
-        rp->cp_x = x - rp->Layer->bounds.MinX;
+        rp->cp_x = x - LAYER_ORIGIN_X(rp->Layer);
     else
         rp->cp_x = x;
 
@@ -3858,8 +3865,8 @@ static VOID _graphics_Draw ( register struct GfxBase * GfxBase __asm("a6"),
     if (rp->Layer)
     {
         struct Layer *layer = rp->Layer;
-        WORD layerOffX = layer->bounds.MinX;
-        WORD layerOffY = layer->bounds.MinY;
+        WORD layerOffX = LAYER_ORIGIN_X(layer);
+        WORD layerOffY = LAYER_ORIGIN_Y(layer);
 
         /* Software line drawing using Bresenham's algorithm */
         x0 = rp->cp_x + layerOffX;
@@ -4166,8 +4173,8 @@ static void AreaFillPolygon(struct GfxBase *GfxBase, struct RastPort *rp,
 
         if (rp->Layer)
         {
-            offsetY = rp->Layer->bounds.MinY;
-            offsetX = rp->Layer->bounds.MinX;
+            offsetY = LAYER_ORIGIN_Y(rp->Layer);
+            offsetX = LAYER_ORIGIN_X(rp->Layer);
         }
 
         if (yMin + offsetY < 0) yMin = -offsetY;
@@ -4797,10 +4804,10 @@ static VOID _graphics_RectFill ( register struct GfxBase * GfxBase __asm("a6"),
         WORD absXMin, absYMin, absXMax, absYMax;
 
         /* Convert to absolute screen coordinates */
-        absXMin = xMin + layer->bounds.MinX;
-        absYMin = yMin + layer->bounds.MinY;
-        absXMax = xMax + layer->bounds.MinX;
-        absYMax = yMax + layer->bounds.MinY;
+        absXMin = xMin + LAYER_ORIGIN_X(layer);
+        absYMin = yMin + LAYER_ORIGIN_Y(layer);
+        absXMax = xMax + LAYER_ORIGIN_X(layer);
+        absYMax = yMax + LAYER_ORIGIN_Y(layer);
 
         /* For each ClipRect, fill the intersection */
         for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
@@ -4937,8 +4944,8 @@ static ULONG _graphics_ReadPixel ( register struct GfxBase * GfxBase __asm("a6")
     {
         struct Layer *layer = rp->Layer;
         struct ClipRect *cr;
-        absX = x + layer->bounds.MinX;
-        absY = y + layer->bounds.MinY;
+        absX = x + LAYER_ORIGIN_X(layer);
+        absY = y + LAYER_ORIGIN_Y(layer);
 
         /* Check ClipRects for SMART_REFRESH backing store reads */
         for (cr = layer->ClipRect; cr != NULL; cr = cr->Next)
@@ -5023,8 +5030,8 @@ static LONG _graphics_WritePixel ( register struct GfxBase * GfxBase __asm("a6")
         struct ClipRect *cr;
 
         /* Convert to absolute screen coordinates */
-        absX = x + layer->bounds.MinX;
-        absY = y + layer->bounds.MinY;
+        absX = x + LAYER_ORIGIN_X(layer);
+        absY = y + LAYER_ORIGIN_Y(layer);
 
         /* Bounds check against bitmap */
         if (absX < 0 || absY < 0 || absX >= (bm->BytesPerRow * 8) || absY >= bm->Rows)
@@ -6625,13 +6632,13 @@ static VOID _graphics_ClipBlit ( register struct GfxBase * GfxBase __asm("a6"),
     /* Adjust coordinates for layers if present */
     if (srcLayer)
     {
-        xSrc += srcLayer->bounds.MinX;
-        ySrc += srcLayer->bounds.MinY;
+        xSrc += LAYER_ORIGIN_X(srcLayer);
+        ySrc += LAYER_ORIGIN_Y(srcLayer);
     }
     if (destLayer)
     {
-        xDest += destLayer->bounds.MinX;
-        yDest += destLayer->bounds.MinY;
+        xDest += LAYER_ORIGIN_X(destLayer);
+        yDest += LAYER_ORIGIN_Y(destLayer);
     }
 
     if (destLayer)
@@ -7124,8 +7131,8 @@ static VOID _graphics_BltBitMapRastPort ( register struct GfxBase * GfxBase __as
     {
         struct Layer *layer = destRP->Layer;
         struct ClipRect *cr;
-        WORD absXMin = xDest + layer->bounds.MinX;
-        WORD absYMin = yDest + layer->bounds.MinY;
+        WORD absXMin = xDest + LAYER_ORIGIN_X(layer);
+        WORD absYMin = yDest + LAYER_ORIGIN_Y(layer);
         WORD absXMax = absXMin + xSize - 1;
         WORD absYMax = absYMin + ySize - 1;
 
@@ -7469,8 +7476,8 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
     {
         struct Layer *layer = destRP->Layer;
         struct ClipRect *cr;
-        WORD absXMin = xDest + layer->bounds.MinX;
-        WORD absYMin = yDest + layer->bounds.MinY;
+        WORD absXMin = xDest + LAYER_ORIGIN_X(layer);
+        WORD absYMin = yDest + LAYER_ORIGIN_Y(layer);
         WORD absXMax = absXMin + xSize - 1;
         WORD absYMax = absYMin + ySize - 1;
 

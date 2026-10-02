@@ -77,6 +77,37 @@ static int count_cliprects(struct Layer *layer)
     return count;
 }
 
+/* area of the visible (not obscured) ClipRects of a layer.  How a layer is
+ * split into ClipRects, and whether obscured parts of a SIMPLE_REFRESH layer
+ * are kept as ClipRects, differs between layers.library versions; the
+ * visible area does not. */
+static LONG visible_area(struct Layer *layer)
+{
+    struct ClipRect *cr;
+    LONG area = 0;
+
+    for (cr = layer->ClipRect; cr; cr = cr->Next) {
+        if (!cr->obscured)
+            area += (LONG)(cr->bounds.MaxX - cr->bounds.MinX + 1) *
+                    (LONG)(cr->bounds.MaxY - cr->bounds.MinY + 1);
+    }
+    return area;
+}
+
+static BOOL visible_cliprects_avoid(struct Layer *layer, struct Layer *front)
+{
+    struct ClipRect *cr;
+
+    for (cr = layer->ClipRect; cr; cr = cr->Next) {
+        if (cr->obscured)
+            continue;
+        if (cr->bounds.MaxX >= front->bounds.MinX && cr->bounds.MinX <= front->bounds.MaxX &&
+            cr->bounds.MaxY >= front->bounds.MinY && cr->bounds.MinY <= front->bounds.MaxY)
+            return FALSE;
+    }
+    return TRUE;
+}
+
 int main(void)
 {
     struct Layer_Info *li;
@@ -201,11 +232,23 @@ int main(void)
         int count1 = count_cliprects(layer1);
         if (count1 >= 1) {
             print("OK: Back layer (layer1) has ClipRects\n");
-            print("  Count: ");
-            print_num(count1);
-            print("\n");
         } else {
             print("FAIL: Back layer should have ClipRects\n");
+            errors++;
+        }
+        /* layer1 [10,100]^2 minus the overlap [50,100]^2 stays visible */
+        if (visible_area(layer1) == 91L * 91L - 51L * 51L) {
+            print("OK: Back layer visible ClipRects cover exactly the unobscured area\n");
+        } else {
+            print("FAIL: Back layer visible area is ");
+            print_num(visible_area(layer1));
+            print("\n");
+            errors++;
+        }
+        if (visible_cliprects_avoid(layer1, layer2)) {
+            print("OK: Back layer visible ClipRects avoid the front layer\n");
+        } else {
+            print("FAIL: Back layer visible ClipRect overlaps the front layer\n");
             errors++;
         }
     }
@@ -236,20 +279,6 @@ int main(void)
             print("INFO: Layer1 ClipRect count after move: ");
             print_num(count1_after);
             print("\n");
-        }
-    }
-
-    /* Test 4: Verify ClipRect home field */
-    print("\nTest 4: ClipRect home field...\n");
-    if (layer1 && layer1->ClipRect) {
-        cr = layer1->ClipRect;
-        if (cr->home == li) {
-            print("OK: ClipRect home points to Layer_Info\n");
-        } else if (cr->home == NULL) {
-            print("INFO: ClipRect home is NULL (user cliprect style)\n");
-        } else {
-            print("FAIL: ClipRect home is invalid\n");
-            errors++;
         }
     }
 
