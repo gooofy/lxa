@@ -16,6 +16,8 @@ liblxa keeps global state: one Lxa instance at a time per process
 
 import ctypes
 import os
+import shutil
+import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -89,6 +91,20 @@ class Lxa:
         apps = apps or os.path.normpath(os.path.join(ROOT, "..", "lxa-apps"))
         if os.path.isdir(apps):
             self.assign("APPS", apps)
+        gadgets = os.path.join(system, "Libs", "gadgets")
+        if os.path.isdir(gadgets):
+            self.assign("GADGETS", gadgets)
+        sysbin = os.path.join(self.build, "target", "sys", "System")
+        if os.path.isdir(sysbin):
+            self.assign("System", sysbin)
+        # RAM:, T:, ENV:/ENVARC: on fresh temp dirs, as in the GTest fixture
+        self._tmp = tempfile.mkdtemp(prefix="pylxa-")
+        for d in ("RAM", "T", "ENV"):
+            os.makedirs(os.path.join(self._tmp, d))
+        self.drive("RAM", os.path.join(self._tmp, "RAM"))
+        self.assign("T", os.path.join(self._tmp, "T"))
+        self.assign("ENV", os.path.join(self._tmp, "ENV"))
+        self.assign("ENVARC", os.path.join(self._tmp, "ENV"))
         for name, path in (extra_assigns or {}).items():
             self.assign(name, path)
         self._text_cb = None
@@ -142,6 +158,7 @@ class Lxa:
         if self._open:
             self.lib.lxa_shutdown()
             self._open = False
+            shutil.rmtree(self._tmp, ignore_errors=True)
 
     def __enter__(self):
         return self

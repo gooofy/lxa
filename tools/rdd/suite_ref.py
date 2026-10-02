@@ -21,7 +21,9 @@ Classification per program (doc: roadmap Phase 220):
   lxa-only     depends on lxa-only behaviour (tests/ref_suite.yaml, reason)
   lxa-fail     reference passes, lxa does not
 
-`--capture` writes tests/<area>/<test>/expected.ref.out from the
+API conformance probes (tests/probes/<lib>/<name>.c, Phase 222) are
+included; `--capture-ref` writes their <name>.ref.out from the reference
+alone.  `--capture` writes tests/<area>/<test>/expected.ref.out from the
 **reference** output of every program classified pass/output whose output is
 deterministic (identical on two reference runs).
 """
@@ -52,7 +54,21 @@ def programs(build):
             src, rel = m.group(1), m.group(2)
             host = os.path.join(build, "target", "samples", "Samples", rel)
             if os.path.exists(host):
-                out.append({"name": rel, "src": src, "host": host})
+                out.append({"name": rel, "src": src, "host": host,
+                            "expected": os.path.join(ROOT, src, "expected.ref.out")})
+    # API conformance probes (Phase 222): tests/probes/<lib>/<name>.c
+    pdir = os.path.join(ROOT, "tests", "probes")
+    for lib in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
+        if not os.path.isdir(os.path.join(pdir, lib)):
+            continue
+        for fn in sorted(os.listdir(os.path.join(pdir, lib))):
+            if fn.endswith(".c"):
+                name = fn[:-2]
+                rel = "Tests/Probes/%s/%s" % (lib, name)
+                host = os.path.join(build, "target", "samples", "Samples", rel)
+                if os.path.exists(host):
+                    out.append({"name": rel, "src": "tests/probes/%s" % lib, "host": host, "probe": True,
+                                "expected": os.path.join(pdir, lib, name + ".ref.out")})
     return out
 
 
@@ -72,8 +88,9 @@ NORMALISE = [
 ]
 
 
-def normalise(text):
-    for rx, rep in NORMALISE:
+def normalise(text, probe=False):
+    """Probes print values, never pointers: only line endings are normalised."""
+    for rx, rep in NORMALISE[2:] if probe else NORMALISE:
         text = rx.sub(rep, text)
     return text.rstrip() + "\n" if text.strip() else ""
 
@@ -261,11 +278,12 @@ def classify(ref, lxa, cfg_entry=None):
         return "ref-fail"
     if lxa["status"] != "exit" or lxa.get("rc"):
         return "lxa-fail"
-    return "pass" if normalise(ref["stdout"]) == normalise(lxa["stdout"]) else "output"
+    probe = ref.get("name", "").startswith("Tests/Probes/")
+    return "pass" if normalise(ref["stdout"], probe) == normalise(lxa["stdout"], probe) else "output"
 
 
 def expected_path(p):
-    return os.path.join(ROOT, p["src"], "expected.ref.out")
+    return p["expected"]
 
 
 def lxa_check(a):
@@ -282,8 +300,8 @@ def lxa_check(a):
     for p in progs:
         x = res[p["name"]]
         with open(expected_path(p), encoding="latin-1") as f:
-            want = normalise(f.read())
-        got = normalise(x["stdout"])
+            want = normalise(f.read(), p.get("probe"))
+        got = normalise(x["stdout"], p.get("probe"))
         if x["status"] != "exit" or x.get("rc") or got != want:
             bad += 1
             print("FAIL %s: status=%s rc=%s" % (p["name"], x["status"], x.get("rc")))
@@ -304,6 +322,9 @@ def main(argv=None):
     ap.add_argument("--timeout", type=int, default=20000)
     ap.add_argument("--no-cache", action="store_true")
     ap.add_argument("--capture", action="store_true")
+    ap.add_argument("--capture-ref", action="store_true",
+                    help="probes: write <name>.ref.out from the reference whenever it exits 0 "
+                         "(lxa must then be fixed to match)")
     ap.add_argument("--lxa-one")
     ap.add_argument("--lint", action="store_true", help="check tests/ref_suite.yaml")
     ap.add_argument("--ref-only", action="store_true", help="skip the lxa runs")
@@ -342,13 +363,15 @@ def main(argv=None):
         exp = expected_path(p)
         if os.path.exists(exp):
             with open(exp, encoding="latin-1") as f:
-                row["expected_matches_lxa"] = normalise(f.read()) == normalise(x["stdout"])
+                row["expected_matches_lxa"] = normalise(f.read(), p.get("probe")) == normalise(x["stdout"], p.get("probe"))
         rows.append(row)
         with open(os.path.join(a.out, _flat(p["name"]) + ".json"), "w") as f:
             json.dump({"ref": r, "lxa": x, "class": cls}, f, indent=1)
-        if a.capture and cls == "pass" and r["stdout"].strip():
+        capture = (a.capture and cls == "pass") or \
+            (a.capture_ref and p.get("probe") and r["status"] == "exit" and not r.get("rc"))
+        if capture and r["stdout"].strip():
             with open(exp, "w", encoding="latin-1") as f:
-                f.write(normalise(r["stdout"]))
+                f.write(normalise(r["stdout"], p.get("probe")))
     with open(os.path.join(a.out, "summary.json"), "w") as f:
         json.dump(rows, f, indent=1)
     counts = {}
