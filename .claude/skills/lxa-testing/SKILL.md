@@ -191,6 +191,9 @@ that takes >60 seconds, add an explicit `TIMEOUT` property in CMakeLists.txt.
 - `WaitForWindowDrawn(index, timeout_ms)` - Wait for non-empty visible window content
 
 **Event Injection**:
+- `lxa_select_menu_path(win, "Project/Save As...")` - select a menu entry by path (Phase 204)
+- `lxa_get_menu_rect()` / `lxa_find_menu_path()` - menu geometry from the live MenuStrip
+- `lxa_inject_drag_begin/_step/_end()` - non-atomic drags; `lxa_get_qualifier_state()`
 - `Click(x, y, button)` - Click at position
 - `PressKey(rawkey, qualifier)` - Key press
 - `TypeString(str)` - Type string

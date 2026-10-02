@@ -690,6 +690,50 @@ bool lxa_get_menu_info(lxa_menu_strip_t *strip,
                        int menu_idx, int item_idx, int sub_idx,
                        lxa_menu_info_t *out);
 
+/* ========== Phase 204: menu selection by path, drags, qualifiers ========== */
+
+/*
+ * Screen-relative rectangle of a menu title (item_idx = -1), an item
+ * (sub_idx = -1) or a sub-item of the MenuStrip of a tracked window, computed
+ * from the live MenuStrip exactly the way Intuition lays out the drop-down
+ * (BarHBorder + Menu.LeftEdge, BarHeight + 1 + MenuItem.TopEdge, sub-items to
+ * the right of their parent item).  No hard-coded coordinates.
+ */
+bool lxa_get_menu_rect(int window_index, int menu_idx, int item_idx, int sub_idx,
+                       int *x, int *y, int *width, int *height);
+
+/*
+ * Resolve a path like "Project/Save As..." or "Edit/Paste" (or
+ * "Project/Print/NLQ" for a sub-item) to indices.  Matching is
+ * case-insensitive and ignores leading/trailing blanks and a trailing "..."
+ * or "…".  Returns true and fills the indices (sub = -1 when absent).
+ */
+bool lxa_find_menu_path(int window_index, const char *path,
+                        int *menu_idx, int *item_idx, int *sub_idx);
+
+/*
+ * Select a menu entry the way a user does: press the right mouse button on
+ * the menu title, move to the item (and sub-item), release.  Each step waits
+ * until Intuition has rendered it (lxa_run_until_idle).
+ */
+bool lxa_select_menu(int window_index, int menu_idx, int item_idx, int sub_idx);
+bool lxa_select_menu_path(int window_index, const char *path);
+
+/*
+ * Non-atomic drag: press `button` at (x, y), then move in any number of
+ * steps, then release.  Each call settles before returning, so tests can
+ * inspect state (e.g. menu pixels) in the middle of a drag.
+ */
+bool lxa_inject_drag_begin(int x, int y, int button);
+bool lxa_inject_drag_step(int x, int y);
+bool lxa_inject_drag_end(int x, int y);
+
+/*
+ * Qualifier (IEQUALIFIER_*) of the last input event delivered to the
+ * emulated system - the value Intuition puts in IntuiMessage->Qualifier.
+ */
+int lxa_get_qualifier_state(void);
+
 /*
  * Release the menu strip handle.
  * Must be called when finished with the handle to avoid leaking memory.

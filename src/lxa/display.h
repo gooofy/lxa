@@ -225,6 +225,9 @@ typedef struct {
  */
 bool display_get_event(display_event_t *event);
 
+/* Phase 204: qualifier of the last event delivered to the emulated system */
+int display_get_delivered_qualifier(void);
+
 /*
  * Get current mouse position.
  * @param x   Output: mouse X (can be NULL)

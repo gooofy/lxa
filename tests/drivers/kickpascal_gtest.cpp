@@ -323,14 +323,18 @@ TEST_F(KickPascalTest, ZMenuBarRMBDragSurvivesWithoutPanic) {
         GTEST_SKIP() << "KickPascal exited before menu interaction";
     }
 
-    /* RMB drag in menu band — drag a small distance to open Project menu
-     * and select an item, then release.  Vision-model review confirmed
-     * this opens the Project dropdown correctly. */
-    const int menu_x = window_info.x + 32;
-    const int menu_y = std::max(3, (int)window_info.y / 2);
-    const int item_y = window_info.y + 30;
-    lxa_inject_drag(menu_x, menu_y, menu_x, item_y, LXA_MOUSE_RIGHT, 10);
-    RunCyclesWithVBlank(60, 50000);
+    /* Phase 204: open the first menu and hover its first item using the
+     * live MenuStrip geometry (no hard-coded coordinates), then release on
+     * the menu bar so that nothing is selected. */
+    int tx, ty, tw, th, ix, iy, iw, ih;
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, -1, -1, &tx, &ty, &tw, &th))
+        << "KickPascal should expose its menu strip in editor mode";
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, 0, -1, &ix, &iy, &iw, &ih));
+    ASSERT_TRUE(lxa_inject_drag_begin(tx + tw / 2, ty + th / 2, LXA_MOUSE_RIGHT));
+    ASSERT_TRUE(lxa_inject_drag_step(ix + iw / 2, iy + ih / 2));
+    EXPECT_NE(lxa_get_qualifier_state() & 0x4000, 0) << "menu button held during the drag";
+    ASSERT_TRUE(lxa_inject_drag_end(tx + tw / 2, ty + th / 2));
+    RunFrames(10);
     lxa_flush_display();
 
     EXPECT_TRUE(lxa_is_running())

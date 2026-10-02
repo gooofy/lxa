@@ -105,7 +105,7 @@ def render(sites, missing=None):
         out.append("## %s" % lib)
         out.append("")
         for s in sorted(by_lib[lib], key=lambda x: (x["kind"], x["function"])):
-            out.append("- `%s` — %s (`%s:%d`)" % (s["function"], s["detail"], s["file"], s["line"]))
+            out.append("- `%s` — %s (`%s`)" % (s["function"], s["detail"], s["file"]))
         out.append("")
     if missing:
         out.append("## LVOs without any implementation")
@@ -141,7 +141,7 @@ def main():
     with open(md_path, "w") as f:
         f.write(md + "\n")
     with open(os.path.join(ROOT, "doc", "stub-inventory.json"), "w") as f:
-        json.dump(sites, f, indent=1)
+        json.dump([{k: v for k, v in s.items() if k != "line"} for s in sites], f, indent=1)
     kinds = defaultdict(int)
     for s in sites:
         kinds[s["kind"]] += 1

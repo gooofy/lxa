@@ -201,15 +201,17 @@ TEST_F(AsmOneTest, StartupSkipsAllocateWorkspacePromptAndReachesEditor) {
 }
 
 TEST_F(AsmOneTest, MenuBarInteractionDoesNotLogInvalidRastPortBitmap) {
-    const int menu_bar_x = window_info.x + 32;
-    const int menu_bar_y = window_info.y + 5;
-    const int first_item_y = window_info.y + 18;
+    /* Phase 204: ASM-One has no COMMSEQ items (AGENTS.md 6.4), so menus are
+     * driven by RMB drag; positions come from the live MenuStrip. */
+    int tx, ty, tw, th, ix, iy, iw, ih;
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, -1, -1, &tx, &ty, &tw, &th));
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, 0, -1, &ix, &iy, &iw, &ih));
 
     ClearOutput();
-    lxa_inject_drag(menu_bar_x, menu_bar_y,
-                    menu_bar_x, first_item_y,
-                    LXA_MOUSE_RIGHT, 10);
-    RunCyclesWithVBlank(30, 50000);
+    ASSERT_TRUE(lxa_inject_drag_begin(tx + tw / 2, ty + th / 2, LXA_MOUSE_RIGHT));
+    ASSERT_TRUE(lxa_inject_drag_step(ix + iw / 2, iy + ih / 2));
+    ASSERT_TRUE(lxa_inject_drag_end(tx + tw / 2, ty + th / 2));   /* cancel */
+    RunFrames(10);
 
     EXPECT_TRUE(lxa_is_running()) << "ASM-One should stay running after opening a menu";
     EXPECT_GE(lxa_get_window_count(), 1) << "ASM-One should keep its main window after menu interaction";

@@ -476,6 +476,41 @@ TEST_F(MaxonBasicTest, ZMenuIntrospectionShowsGermanMenuTitles) {
         << menu_count << " menus";
 }
 
+TEST_F(MaxonBasicTest, ZProjektMenuOpensByPathGeometry) {
+    /* Phase 204: locate "Projekt" and its first item through the path API
+     * and open the drop-down by RMB drag on the computed title position. */
+    RunCyclesWithVBlank(20, 50000);
+
+    lxa_menu_strip_t *strip = lxa_get_menu_strip(0);
+    if (!strip)
+        GTEST_SKIP() << "No menu strip on window 0";
+    lxa_menu_info_t first = {};
+    ASSERT_TRUE(lxa_get_menu_info(strip, 0, 0, -1, &first));
+    lxa_free_menu_strip(strip);
+
+    int m = -1, i = -1, k = -1;
+    ASSERT_NE(first.name[0], 0);
+    std::string path = std::string("Projekt/") + first.name;
+    ASSERT_TRUE(lxa_find_menu_path(0, path.c_str(), &m, &i, &k)) << path;
+    EXPECT_EQ(m, 0);
+    EXPECT_EQ(i, 0);
+
+    int tx, ty, tw, th, ix, iy, iw, ih;
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, -1, -1, &tx, &ty, &tw, &th));
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, 0, -1, &ix, &iy, &iw, &ih));
+
+    auto before = ReadScreenPatch(ix, iy, ix + iw, iy + ih);
+    ASSERT_TRUE(lxa_inject_drag_begin(tx + tw / 2, ty + th / 2, LXA_MOUSE_RIGHT));
+    lxa_flush_display();
+    auto during = ReadScreenPatch(ix, iy, ix + iw, iy + ih);
+    ASSERT_TRUE(lxa_inject_drag_end(tx + tw / 2, ty + th / 2));
+    lxa_run_frames(10);
+
+    EXPECT_GT(CountPatchDifferences(before, during), 10)
+        << "the Projekt drop-down covers the first item's rectangle during the drag";
+    EXPECT_TRUE(lxa_is_running());
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

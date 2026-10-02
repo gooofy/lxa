@@ -176,29 +176,30 @@ set the Intuition `COMMSEQ` flag on menu items. Instead, they handle shortcuts
 internally via raw IDCMP keyboard events. ASM-One V1.48 is one such app.
 
 - **Implication**: `CommKey` delivery (Amiga+key → menu item selection) will not
-  work for these apps. The only reliable way to trigger their menu items from
-  host-side tests is via **RMB menu drag** using `SelectMenuItem()` or
-  `lxa_inject_drag()`.
+  work for these apps. Trigger their menu items by RMB drag with
+  `lxa_select_menu_path()` (§6.5).
 - **Detection**: Check whether the menu item's `Flags` field has `COMMSEQ` set.
   If not, do not attempt CommKey-based activation.
 
-### 6.5 Menu Interaction via RMB Drag
+### 6.5 Menu Interaction (Phase 204 API)
 
-RMB drag menu selection is the most reliable way to interact with app menus
-in host-side tests. The pattern:
+Never hard-code menu coordinates. Use the live MenuStrip:
 
-1. Move mouse to menu bar area (y < 11 for screen menu bar).
-2. Inject RMB down.
-3. Drag through menu title → menu item → sub-item.
-4. Release RMB on the target item.
-5. Run settling cycles to let the app process the selection.
+- `lxa_select_menu_path(win, "Project/Save As...")` (or `lxa_select_menu(win, m, i, sub)`)
+  selects an entry by RMB drag: press on the title, move to the item (and
+  sub-item), release. Matching is case-insensitive; a trailing `...` is optional.
+- `lxa_find_menu_path()` resolves a path to indices; `lxa_get_menu_rect()`
+  returns the screen rectangle of a title/item/sub-item, computed exactly as
+  Intuition lays out the drop-down.
+- `lxa_inject_drag_begin()` / `_step()` / `_end()` split a drag so tests can
+  inspect state mid-drag (see `MenuPixelStateDuringDrag`). Release on the menu
+  bar to cancel without selecting.
+- `lxa_get_qualifier_state()` returns the qualifier of the last delivered
+  event (e.g. `IEQUALIFIER_RBUTTON` while the menu button is held).
 
-**Key parameters**:
-- `lxa_inject_drag()` uses 500K cycles per step with 5 settling iterations.
-  These values were calibrated through trial and error; reducing them causes
-  intermittent failures on slower-starting apps.
-- For apps that render responses in-place (not in a new window), verify the
-  effect via pixel count change rather than waiting for a new window.
+Each drag phase waits until rendering has finished (no task ready, no
+interrupt in progress). Opening a large drop-down currently costs several
+frames of emulated time (pixel-based ROM rendering, Phase 274).
 
 ### 6.6 Test Timing: the Deterministic Virtual Clock (Phase 201)
 

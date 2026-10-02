@@ -115,20 +115,13 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 204 — Fix menu/input introspection for scripting**, then **Phase 211 — `lxaprobe` guest agent** (the reference system from Phase 210 is ready).
+> **Phase 211 — `lxaprobe` guest agent** (M0 is complete; the reference system from Phase 210 is ready).
 
 ---
 
 ## M0 — Foundations
 
-### Phase 204 — Fix menu/input introspection for scripting (was legacy Phase 161)
-**Class**: Quality (infrastructure). The M1 scenario DSL needs it.
-- [ ] `lxa_select_menu_path("Project/Save As...")` and an index-based variant, computed from the live MenuStrip with no hard-coded coordinates.
-- [ ] Non-atomic drag: `lxa_inject_drag_begin` / `_step` / `_end`.
-- [ ] `lxa_get_qualifier_state()`.
-- [ ] Migrate one MaxonBASIC, one KickPascal and one ASM-One test to the new API. Add `MenuPixelStateDuringDrag`.
-
-**Test gate**: migrated tests pass; no menu-test regressions.
+Complete (Phases 200–204, v0.11.3); see the summary table.
 
 ---
 
@@ -459,4 +452,5 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 201 | Deterministic virtual time: cycle-derived VBlank/timer/DateStamp (`lxa_vclock.c`, 25 MHz virtual CPU, idle skipping), emulated-time timeouts (`EmuDeadline`), real `WaitTOF`, ReadEClock overflow fix, host stdin detached under liblxa, 38 hot-path LPRINTFs demoted, ROM built for 68020, faster `Text`/`memset`/`CopyMem`. Suite 110 s → 22 s, 20/20 runs under load green. | v0.11.0 |
 | 202 | Measurable coverage: ROM PC-bitmap coverage + disk-library vector coverage (`LXA_ROM_COVERAGE`), host gcov (`-DLXA_COVERAGE=ON`), `make coverage` → merged lcov + HTML, per-LVO table `doc/coverage/lvo-coverage.md`. Baseline: ROM 77.3 %, host 32.6 %, 787 LVOs tested. | v0.11.0 |
 | 203 | Stub telemetry: `LXA_UNIMPLEMENTED` → EMU_CALL_UNIMPLEMENTED for every stub/partial/private slot/empty exec vector (173 sites), `lxa_get_unimplemented_log()`, `lxa.log` summary, `--strict-unimplemented` (exit 125, stubs only), `tools/stub_inventory.py` → `doc/stub-inventory.md` (+117 LVOs without implementation); empty vectors/private slots no longer halt the emulator; console unknown commands return IOERR_NOCMD. | v0.11.1 |
+| 204 | Menu/input scripting API: `lxa_select_menu_path()`, `lxa_find_menu_path()`, `lxa_get_menu_rect()` (live MenuStrip geometry), non-atomic `lxa_inject_drag_begin/_step/_end`, `lxa_get_qualifier_state()`; Intuition now opens menus on a menu-button press over the screen bar with no window under the pointer; MaxonBASIC/KickPascal/ASM-One menu tests migrated; `MenuPixelStateDuringDrag`. | v0.11.3 |
 | 210 | Reference system builder: `tools/refsys/` (`build_refsys.sh` fresh WB 3.1 + 68040.library, profiles `aga`/`rtg` with Picasso96 2.0 + uaegfx; `refctl` boot/ping/shot/stop with per-instance Xvfb, TCP serial, fresh SYS copy). Boot to Workbench 1.6 s, 10/10 boot+ping, 8 parallel instances. | v0.11.2 |

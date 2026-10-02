@@ -17,6 +17,7 @@
 #include "lxa_unimpl.h"
 
 #include <stdio.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
@@ -1081,66 +1082,86 @@ bool lxa_inject_rmb_click(int x, int y)
     return lxa_inject_mouse_click(x, y, LXA_MOUSE_RIGHT);
 }
 
-bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button, int steps)
+/*
+ * Phase 204: non-atomic drag.  Intuition's drag/menu rendering happens in
+ * the VBlank input handler (interrupt context); lxa_is_idle() requires that
+ * no interrupt is in progress, so each phase returns as soon as the system
+ * has settled (the budgets are upper bounds, in emulated cycles).
+ */
+static int s_drag_button = 0;
+
+/* Intuition handles a mouse event in the VBlank input handler; rendering a
+ * drop-down can take several frames of emulated time (Phase 274: ROM
+ * rendering is still pixel based).  Every drag phase lets `min_frames`
+ * frames pass, then runs until no task is ready and no interrupt is in
+ * progress (up to `max_iterations` x `cycles`). */
+static void api_settle(int min_frames, int max_iterations, int cycles)
+{
+    lxa_run_frames(min_frames);
+    lxa_run_until_idle(max_iterations, cycles);
+}
+
+bool lxa_inject_drag_begin(int x, int y, int button)
 {
     if (!g_api_initialized) return false;
 
+    /* Move to the start position, then press */
+    if (!display_inject_mouse(x, y, 0, DISPLAY_EVENT_MOUSEMOVE))
+        return false;
+    lxa_run_until_idle(2, 100000);
+
+    if (!display_inject_mouse(x, y, button, DISPLAY_EVENT_MOUSEBUTTON))
+        return false;
+    s_drag_button = button;
+
+    /* A right-button press enters menu mode: the menu bar is rendered */
+    api_settle(2, 60, 200000);
+    return true;
+}
+
+bool lxa_inject_drag_step(int x, int y)
+{
+    if (!g_api_initialized) return false;
+
+    if (!display_inject_mouse(x, y, s_drag_button, DISPLAY_EVENT_MOUSEMOVE))
+        return false;
+
+    /* In menu mode each move may render a drop-down or sub-menu
+     * (RectFill + Text per item); wait until that has completed. */
+    api_settle(2, 60, 200000);
+    return true;
+}
+
+bool lxa_inject_drag_end(int x, int y)
+{
+    if (!g_api_initialized) return false;
+
+    if (!display_inject_mouse(x, y, 0, DISPLAY_EVENT_MOUSEBUTTON))
+        return false;
+    s_drag_button = 0;
+
+    /* Menu cleanup / window resize finalisation happen here */
+    api_settle(2, 60, 200000);
+    return true;
+}
+
+bool lxa_inject_drag(int start_x, int start_y, int end_x, int end_y, int button, int steps)
+{
     DPRINTF(LOG_DEBUG, "lxa_api: inject_drag (%d,%d)->(%d,%d) btn=0x%x steps=%d\n",
             start_x, start_y, end_x, end_y, button, steps);
 
-    /* Move to start position */
-    if (!display_inject_mouse(start_x, start_y, 0, DISPLAY_EVENT_MOUSEMOVE))
+    if (!lxa_inject_drag_begin(start_x, start_y, button))
         return false;
-    
-    /*
-     * Intuition's drag/menu rendering happens in the VBlank input handler
-     * (interrupt context).  Since Phase 201 lxa_is_idle() also requires
-     * that no interrupt is in progress or pending, so idle detection is
-     * reliable here and each phase of the drag returns as soon as the
-     * system settles (budgets are upper bounds, in emulated cycles).
-     */
-    lxa_run_until_idle(2, 100000);
 
-    /* Press button */
-    if (!display_inject_mouse(start_x, start_y, button, DISPLAY_EVENT_MOUSEBUTTON))
-        return false;
-    
-    /*
-     * After a button press (especially RMB which enters menu mode),
-     * the VBlank ISR triggers heavy rendering (menu bar + items).
-     * Give enough VBlanks for the menu system to set up.
-     */
-    lxa_run_until_idle(5, 200000);
-
-    /* Interpolate movement */
     if (steps < 1) steps = 1;
-    
     for (int step = 1; step <= steps; step++) {
         int x = start_x + (end_x - start_x) * step / steps;
         int y = start_y + (end_y - start_y) * step / steps;
-        
-        bool inj = display_inject_mouse(x, y, button, DISPLAY_EVENT_MOUSEMOVE);
-        if (!inj)
+        if (!lxa_inject_drag_step(x, y))
             return false;
-        
-        /* Each movement step needs VBlank processing for the
-         * input handler to see the new coordinates.  Menu-mode
-         * steps trigger _render_menu_item_chain (RectFill + Text
-         * per item) inside ProcessInputEvents; wait until that
-         * render has completed before injecting the next event. */
-        { int mn = getenv("DRAG_MIN") ? atoi(getenv("DRAG_MIN")) : 0; for (int i=0;i<mn;i++){ lxa_trigger_vblank(); lxa_run_cycles(200000);} }
-        lxa_run_until_idle(10, 200000);
     }
 
-    /* Release button at end position */
-    if (!display_inject_mouse(end_x, end_y, 0, DISPLAY_EVENT_MOUSEBUTTON))
-        return false;
-    
-    /* Let the release event propagate — menu cleanup / window
-     * resize finalization happen here. */
-    lxa_run_until_idle(5, 200000);
-
-    return true;
+    return lxa_inject_drag_end(end_x, end_y);
 }
 
 bool lxa_inject_key(int rawkey, int qualifier, bool down)
@@ -1809,5 +1830,212 @@ bool lxa_get_menu_info(lxa_menu_strip_t *strip,
 void lxa_free_menu_strip(lxa_menu_strip_t *strip)
 {
     free(strip);
+}
+
+/* ========== Phase 204: menu selection by path ========== */
+
+#define SCREEN_BARHEIGHT_OFFSET   30   /* BYTE BarHeight */
+#define SCREEN_BARHBORDER_OFFSET  32   /* BYTE BarHBorder */
+
+/* Mirrors Intuition's drop-down geometry (lxa_intuition.c:
+ * _find_menu_at_x, _find_item_at_pos, _get_menu_submenu_box). */
+bool lxa_get_menu_rect(int window_index, int menu_idx, int item_idx, int sub_idx,
+                       int *x, int *y, int *width, int *height)
+{
+    lxa_menu_strip_t *strip;
+    uint32_t window_ptr, screen_ptr;
+    int bar_h, bar_hb, rx, ry, rw, rh;
+    bool ok = false;
+
+    if (!g_api_initialized)
+        return false;
+    window_ptr = lxa_api_get_window_pointer(window_index);
+    if (!window_ptr)
+        return false;
+    screen_ptr = m68k_read_memory_32(window_ptr + WINDOW_WSCREEN_OFFSET);
+    if (!screen_ptr)
+        return false;
+    bar_h  = (int8_t)m68k_read_memory_8(screen_ptr + SCREEN_BARHEIGHT_OFFSET);
+    bar_hb = (int8_t)m68k_read_memory_8(screen_ptr + SCREEN_BARHBORDER_OFFSET);
+
+    strip = lxa_get_menu_strip(window_index);
+    if (!strip || menu_idx < 0 || menu_idx >= strip->menu_count)
+        goto out;
+
+    {
+        lxa_menu_snapshot_t *ms = &strip->menus[menu_idx];
+        int menu_left = bar_hb + (int16_t)m68k_read_memory_16(ms->menu_ptr + MENU_LEFTEDGE_OFFSET);
+        int menu_top  = bar_h + 1;
+
+        if (item_idx < 0) {
+            rx = menu_left;
+            ry = 0;
+            rw = (int16_t)m68k_read_memory_16(ms->menu_ptr + MENU_WIDTH_OFFSET);
+            rh = bar_h + 1;
+        } else {
+            uint32_t item, first_item;
+            int chain_left;
+
+            if (item_idx >= ms->item_count)
+                goto out;
+            item = ms->item_ptrs[item_idx];
+            first_item = ms->item_ptrs[0];
+            chain_left = (int16_t)m68k_read_memory_16(first_item + MENUITEM_LEFTEDGE_OFFSET);
+            rx = menu_left + (int16_t)m68k_read_memory_16(item + MENUITEM_LEFTEDGE_OFFSET) - chain_left;
+            ry = menu_top + (int16_t)m68k_read_memory_16(item + MENUITEM_TOPEDGE_OFFSET);
+            rw = (int16_t)m68k_read_memory_16(item + MENUITEM_WIDTH_OFFSET);
+            rh = (int16_t)m68k_read_memory_16(item + MENUITEM_HEIGHT_OFFSET);
+
+            if (sub_idx >= 0) {
+                uint32_t sub, first_sub;
+                int sub_left, base_x, base_y;
+
+                if (sub_idx >= ms->subitem_counts[item_idx])
+                    goto out;
+                sub = ms->subitem_ptrs[item_idx][sub_idx];
+                first_sub = ms->subitem_ptrs[item_idx][0];
+                sub_left = (int16_t)m68k_read_memory_16(first_sub + MENUITEM_LEFTEDGE_OFFSET);
+                base_x = menu_left + (int16_t)m68k_read_memory_16(item + MENUITEM_LEFTEDGE_OFFSET) + rw;
+                base_y = ry;
+                rx = base_x + (int16_t)m68k_read_memory_16(sub + MENUITEM_LEFTEDGE_OFFSET) - sub_left;
+                ry = base_y + (int16_t)m68k_read_memory_16(sub + MENUITEM_TOPEDGE_OFFSET);
+                rw = (int16_t)m68k_read_memory_16(sub + MENUITEM_WIDTH_OFFSET);
+                rh = (int16_t)m68k_read_memory_16(sub + MENUITEM_HEIGHT_OFFSET);
+            }
+        }
+        if (x) *x = rx;
+        if (y) *y = ry;
+        if (width) *width = rw;
+        if (height) *height = rh;
+        ok = true;
+    }
+out:
+    lxa_free_menu_strip(strip);
+    return ok;
+}
+
+/* Normalise a menu label for matching: lower case, trimmed, without a
+ * trailing "..." / "…" ellipsis. */
+static void menu_label_norm(const char *in, size_t n, char *out, size_t outlen)
+{
+    size_t i, j = 0;
+
+    while (n && (*in == ' ' || *in == '\t')) { in++; n--; }
+    while (n && (in[n - 1] == ' ' || in[n - 1] == '\t')) n--;
+    if (n >= 3 && strncmp(in + n - 3, "...", 3) == 0) n -= 3;
+    else if (n >= 3 && (unsigned char)in[n - 3] == 0xE2 && (unsigned char)in[n - 2] == 0x80 &&
+             (unsigned char)in[n - 1] == 0xA6) n -= 3;          /* UTF-8 ellipsis */
+    else if (n >= 1 && (unsigned char)in[n - 1] == 0x85) n -= 1; /* Latin-1 ellipsis */
+    while (n && in[n - 1] == ' ') n--;
+    for (i = 0; i < n && j + 1 < outlen; i++)
+        out[j++] = (char)tolower((unsigned char)in[i]);
+    out[j] = 0;
+}
+
+static bool menu_label_matches(const char *label, const char *want, size_t want_len)
+{
+    char a[80], b[80];
+    menu_label_norm(label, strlen(label), a, sizeof(a));
+    menu_label_norm(want, want_len, b, sizeof(b));
+    return a[0] && strcmp(a, b) == 0;
+}
+
+bool lxa_find_menu_path(int window_index, const char *path,
+                        int *menu_idx, int *item_idx, int *sub_idx)
+{
+    const char *seg[3];
+    size_t len[3];
+    int nseg = 0, m, i, k;
+    const char *p = path;
+    lxa_menu_strip_t *strip;
+    lxa_menu_info_t info;
+    bool found = false;
+
+    if (!path || !*path)
+        return false;
+    while (nseg < 3) {
+        const char *slash = strchr(p, '/');
+        seg[nseg] = p;
+        len[nseg] = slash ? (size_t)(slash - p) : strlen(p);
+        nseg++;
+        if (!slash)
+            break;
+        p = slash + 1;
+    }
+    if (nseg < 2)
+        return false;
+
+    strip = lxa_get_menu_strip(window_index);
+    if (!strip)
+        return false;
+
+    for (m = 0; m < strip->menu_count && !found; m++) {
+        if (!lxa_get_menu_info(strip, m, -1, -1, &info) || !menu_label_matches(info.name, seg[0], len[0]))
+            continue;
+        for (i = 0; i < strip->menus[m].item_count && !found; i++) {
+            if (!lxa_get_menu_info(strip, m, i, -1, &info) || !menu_label_matches(info.name, seg[1], len[1]))
+                continue;
+            if (nseg == 2) {
+                if (menu_idx) *menu_idx = m;
+                if (item_idx) *item_idx = i;
+                if (sub_idx) *sub_idx = -1;
+                found = true;
+                break;
+            }
+            for (k = 0; k < strip->menus[m].subitem_counts[i]; k++) {
+                if (lxa_get_menu_info(strip, m, i, k, &info) && menu_label_matches(info.name, seg[2], len[2])) {
+                    if (menu_idx) *menu_idx = m;
+                    if (item_idx) *item_idx = i;
+                    if (sub_idx) *sub_idx = k;
+                    found = true;
+                    break;
+                }
+            }
+        }
+    }
+    lxa_free_menu_strip(strip);
+    return found;
+}
+
+bool lxa_select_menu(int window_index, int menu_idx, int item_idx, int sub_idx)
+{
+    int tx, ty, tw, th, ix, iy, iw, ih;
+
+    if (!lxa_get_menu_rect(window_index, menu_idx, -1, -1, &tx, &ty, &tw, &th) ||
+        !lxa_get_menu_rect(window_index, menu_idx, item_idx, -1, &ix, &iy, &iw, &ih))
+        return false;
+
+    /* press on the title, enter the drop-down, move to the item */
+    if (!lxa_inject_drag_begin(tx + tw / 2, ty + th / 2, LXA_MOUSE_RIGHT))
+        return false;
+    lxa_inject_drag_step(ix + iw / 2, iy);                 /* top edge: enter the item list */
+    lxa_inject_drag_step(ix + iw / 2, iy + ih / 2);
+
+    if (sub_idx >= 0) {
+        int sx, sy, sw, sh;
+        if (!lxa_get_menu_rect(window_index, menu_idx, item_idx, sub_idx, &sx, &sy, &sw, &sh)) {
+            lxa_inject_drag_end(tx + tw / 2, ty + th / 2);  /* cancel on the bar */
+            return false;
+        }
+        /* move horizontally out of the item into the sub-menu */
+        lxa_inject_drag_step(ix + iw - 2, iy + ih / 2);
+        lxa_inject_drag_step(sx + sw / 2, iy + ih / 2);
+        lxa_inject_drag_step(sx + sw / 2, sy + sh / 2);
+        return lxa_inject_drag_end(sx + sw / 2, sy + sh / 2);
+    }
+    return lxa_inject_drag_end(ix + iw / 2, iy + ih / 2);
+}
+
+bool lxa_select_menu_path(int window_index, const char *path)
+{
+    int m, i, k;
+    if (!lxa_find_menu_path(window_index, path, &m, &i, &k))
+        return false;
+    return lxa_select_menu(window_index, m, i, k);
+}
+
+int lxa_get_qualifier_state(void)
+{
+    return display_get_delivered_qualifier();
 }
 

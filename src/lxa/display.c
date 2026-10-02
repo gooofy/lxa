@@ -1253,6 +1253,15 @@ static void queue_event(const display_event_t *event)
 /*
  * Get the next event from the queue
  */
+/* Phase 204: qualifier of the last input event delivered to the emulated
+ * system (what Intuition reports in IntuiMessage->Qualifier). */
+static int g_delivered_qualifier = 0;
+
+int display_get_delivered_qualifier(void)
+{
+    return g_delivered_qualifier;
+}
+
 bool display_get_event(display_event_t *event)
 {
     if (g_event_queue_tail == g_event_queue_head)
@@ -1269,6 +1278,7 @@ bool display_get_event(display_event_t *event)
             g_event_queue[g_event_queue_tail].type, g_event_queue[g_event_queue_tail].rawkey,
             g_event_queue[g_event_queue_tail].button_code,
             g_event_queue_head, g_event_queue_tail);
+    g_delivered_qualifier = g_event_queue[g_event_queue_tail].qualifier;
     g_event_queue_tail = (g_event_queue_tail + 1) % EVENT_QUEUE_SIZE;
     return true;
 }

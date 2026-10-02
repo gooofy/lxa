@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.3** - Menu/input scripting (Phase 204): tests select menu entries by path (`lxa_select_menu_path(0, "Project/Save As...")`) using the live MenuStrip geometry, split drags into begin/step/end to inspect state mid-drag, and read the current input qualifier. Completes milestone M0.
+
 **Version 0.11.2** - Reference system builder (Phase 210): `tools/refsys/` builds a fresh AmigaOS 3.1 hard-disk system from the user's Workbench ADFs and boots headless FS-UAE reference instances (A4000/040, warp mode) in about 1.6 s, as the oracle for reference-driven development.
 
 **Version 0.11.1** - Stub telemetry (Phase 203): every stub, partial implementation and empty library vector reports through `LXA_UNIMPLEMENTED`; `lxa.log` summarises which ones a run hit, `lxa --strict-unimplemented` stops at the first stub, and `doc/stub-inventory.md` is the generated work list for the remaining system-library gaps.

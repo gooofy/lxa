@@ -7446,6 +7446,49 @@ VOID _intuition_ProcessInputEvents(struct Screen *hint_screen)
                 
                 DPRINTF(LOG_DEBUG, "_intuition: MouseButton code=0x%02x qual=0x%04x at (%d,%d)\n",
                         code, qualifier, mouseX, mouseY);
+
+                /*
+                 * The menu button pressed or released with no window under
+                 * the pointer (e.g. on the screen's title bar): the menus of
+                 * the active window (else the first window with a strip) are
+                 * shown at once, including the drop-down of the title under
+                 * the pointer; releasing ends menu mode.
+                 */
+                if (!window && code == MENUDOWN && screen && mouseY <= screen->BarHeight)
+                {
+                    struct Window *menuWin = IntuitionBase->ActiveWindow;
+                    struct Window *w;
+
+                    if (!menuWin || menuWin->WScreen != screen || !menuWin->MenuStrip)
+                    {
+                        menuWin = NULL;
+                        for (w = screen->FirstWindow; w; w = w->NextWindow)
+                        {
+                            if (w->MenuStrip)
+                            {
+                                menuWin = w;
+                                break;
+                            }
+                        }
+                    }
+
+                    if (menuWin)
+                    {
+                        _post_idcmp_message(menuWin, IDCMP_MENUVERIFY, MENUHOT, qualifier, NULL,
+                                            mouseX - menuWin->LeftEdge, mouseY - menuWin->TopEdge);
+                        for (w = screen->FirstWindow; w; w = w->NextWindow)
+                        {
+                            if (w != menuWin && (w->IDCMPFlags & IDCMP_MENUVERIFY))
+                                _post_idcmp_message(w, IDCMP_MENUVERIFY, MENUWAITING, qualifier, NULL,
+                                                    mouseX - w->LeftEdge, mouseY - w->TopEdge);
+                        }
+                        _enter_menu_mode(menuWin, screen, mouseX, mouseY);
+                    }
+                }
+                else if (!window && code == MENUUP && g_menu_mode && g_menu_window)
+                {
+                    _exit_menu_mode(g_menu_window, mouseX, mouseY);
+                }
                 
                 if (window)
                 {

@@ -351,6 +351,101 @@ TEST_F(GadToolsMenuPixelTest, SubmenuHoverDoesNotCorruptLowerMainItems) {
     CloseProjectMenu();
 }
 
+/* ===================================================================== */
+/* Phase 204: menu selection by path, non-atomic drag, qualifier state     */
+/* ===================================================================== */
+
+TEST_F(GadToolsMenuPixelTest, FindMenuPathResolvesItemsAndSubItems) {
+    int m = -9, i = -9, k = -9;
+
+    ASSERT_TRUE(lxa_find_menu_path(0, "Project/Quit", &m, &i, &k));
+    EXPECT_EQ(m, 0);
+    EXPECT_EQ(i, 5) << "bar labels count as items: Open, Save, ---, Print, ---, Quit";
+    EXPECT_EQ(k, -1);
+
+    ASSERT_TRUE(lxa_find_menu_path(0, "project/print/NLQ", &m, &i, &k))
+        << "matching is case-insensitive";
+    EXPECT_EQ(m, 0);
+    EXPECT_EQ(i, 3);
+    EXPECT_EQ(k, 1);
+
+    ASSERT_TRUE(lxa_find_menu_path(0, "Edit/Paste", &m, &i, &k));
+    EXPECT_EQ(m, 1);
+    EXPECT_EQ(i, 2);
+
+    EXPECT_TRUE(lxa_find_menu_path(0, "Project/Open", &m, &i, &k))
+        << "a trailing ellipsis is optional";
+    EXPECT_FALSE(lxa_find_menu_path(0, "Project/Nonexistent", &m, &i, &k));
+    EXPECT_FALSE(lxa_find_menu_path(0, "Nope/Open...", &m, &i, &k));
+    EXPECT_FALSE(lxa_find_menu_path(0, "Project", &m, &i, &k));
+}
+
+TEST_F(GadToolsMenuPixelTest, MenuRectsFollowIntuitionLayout) {
+    int tx, ty, tw, th, ix, iy, iw, ih, sx, sy, sw, sh;
+
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, -1, -1, &tx, &ty, &tw, &th));
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, 3, -1, &ix, &iy, &iw, &ih));
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, 3, 1, &sx, &sy, &sw, &sh));
+
+    EXPECT_EQ(ty, 0);
+    EXPECT_GT(th, 8) << "title box spans the screen bar";
+    EXPECT_GE(iy, th) << "items start below the screen bar";
+    EXPECT_GE(ix, tx) << "the drop-down starts at the menu title";
+    EXPECT_GE(sx, ix + iw) << "sub-items open to the right of their parent";
+    EXPECT_GT(sy, iy - 1);
+    EXPECT_FALSE(lxa_get_menu_rect(0, 0, 99, -1, &ix, &iy, &iw, &ih));
+}
+
+TEST_F(GadToolsMenuPixelTest, SelectMenuPathQuitExitsProgram) {
+    ASSERT_TRUE(lxa_select_menu_path(0, "Project/Quit..."));
+    EXPECT_TRUE(lxa_wait_exit(2000))
+        << "selecting Project/Quit... must end the program (MENUPICK 0/5)";
+}
+
+TEST_F(GadToolsMenuPixelTest, SelectSubItemKeepsProgramRunning) {
+    ASSERT_TRUE(lxa_select_menu_path(0, "Project/Print/Draft"));
+    RunFrames(10);
+    EXPECT_TRUE(lxa_is_running()) << "Print/Draft is not Quit";
+    lxa_flush_display();
+    EXPECT_LT(CountContentPixels(0, 12, 220, 75, 0), 200)
+        << "menus are closed again after the selection";
+}
+
+TEST_F(GadToolsMenuPixelTest, MenuPixelStateDuringDrag) {
+    int tx, ty, tw, th, ix, iy, iw, ih;
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, -1, -1, &tx, &ty, &tw, &th));
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, 3, -1, &ix, &iy, &iw, &ih));
+
+    lxa_flush_display();
+    const int closed = CountContentPixels(0, 12, 220, 75, 0);
+
+    /* press on the title: the drop-down opens at once and stays open
+     * while the button is held */
+    ASSERT_TRUE(lxa_inject_drag_begin(tx + tw / 2, ty + th / 2, LXA_MOUSE_RIGHT));
+    lxa_flush_display();
+    const int dropdown = CountContentPixels(0, 12, 220, 75, 0);
+    EXPECT_GT(dropdown, closed + 100) << "drop-down visible right after the press";
+    EXPECT_NE(lxa_get_qualifier_state() & 0x4000, 0)
+        << "IEQUALIFIER_RBUTTON set while the right button is held";
+
+    /* hover Print: its sub-menu appears to the right of the drop-down */
+    int sx, sy, sw, sh;
+    ASSERT_TRUE(lxa_get_menu_rect(0, 0, 3, 0, &sx, &sy, &sw, &sh));
+    const int sub_before = CountContentPixels(sx, sy, sx + sw, sy + sh, 0);
+    ASSERT_TRUE(lxa_inject_drag_step(ix + iw / 2, iy + ih / 2));
+    lxa_flush_display();
+    const int sub_after = CountContentPixels(sx, sy, sx + sw, sy + sh, 0);
+    EXPECT_GT(sub_after, sub_before + 20) << "sub-menu drawn while hovering Print";
+
+    /* release on the bar: nothing selected, menus close */
+    ASSERT_TRUE(lxa_inject_drag_end(tx + tw / 2, ty + th / 2));
+    RunFrames(5);
+    lxa_flush_display();
+    EXPECT_LE(CountContentPixels(0, 12, 220, 75, 0), closed + 20);
+    EXPECT_EQ(lxa_get_qualifier_state() & 0x4000, 0) << "button released";
+    EXPECT_TRUE(lxa_is_running());
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
