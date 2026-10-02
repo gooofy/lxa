@@ -19,7 +19,7 @@ implementing the function, never by deleting the macro.
 | datatypes | 5 | 0 | 0 |
 | dos | 5 | 1 | 10 |
 | exec | 7 | 4 | 0 |
-| gadtools | 0 | 3 | 6 |
+| gadtools | 0 | 2 | 6 |
 | graphics | 0 | 10 | 8 |
 | icon | 0 | 2 | 0 |
 | intuition | 3 | 17 | 11 |
@@ -28,7 +28,7 @@ implementing the function, never by deleting the macro.
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **83** | **39** | **49** |
+| **total** | **83** | **38** | **49** |
 
 ## amigaguide
 
@@ -136,8 +136,7 @@ implementing the function, never by deleting the macro.
 ## gadtools
 
 - `DrawBevelBoxA` — partial: BBFT_ICONDROPBOX drawn as a plain recessed box (Phase 256) (`src/rom/lxa_gadtools.c`)
-- `GT_FilterIMsg` — partial: returns the message unfiltered (Phase 256) (`src/rom/lxa_gadtools.c`)
-- `GT_PostFilterIMsg` — partial: returns the message unfiltered (Phase 256) (`src/rom/lxa_gadtools.c`)
+- `GT_FilterIMsg` — partial: hands out a private copy but never consumes GadTools-internal gadget events (Phase 256) (`src/rom/lxa_gadtools.c`)
 - `Private1` — private/reserved slot (`src/rom/lxa_gadtools.c`)
 - `Private2` — private/reserved slot (`src/rom/lxa_gadtools.c`)
 - `Private3` — private/reserved slot (`src/rom/lxa_gadtools.c`)

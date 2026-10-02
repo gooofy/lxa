@@ -51,6 +51,7 @@ set(LXA_CORE_SOURCES
     lxa_vclock.c
     lxa_coverage.c
     lxa_relay.c
+    lxa_override.c
     lxa_unimpl.c
 )
 

@@ -189,6 +189,8 @@ static void lxa_dos_runcommand_exit_cleanup(LONG return_code, LONG exit_data)
 LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register CONST_STRPTR command  __asm("d1"),
                                     register const struct TagItem * tags __asm("d2"));
+static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
+                           const struct TagItem *tags, BOOL shell);
 
 struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
@@ -615,14 +617,24 @@ static LONG bstr_to_cstr(BPTR bstr, STRPTR buf, LONG len)
     return TRUE;
 }
 
+/* GetProgramName()/GetPrompt()/GetCurrentDirName() (AmigaOS 3.1, verified on
+ * the reference): copy at most len-1 characters, set ERROR_LINE_TOO_LONG when
+ * the string does not fit with room to spare (strlen >= len-1), and return
+ * DOSTRUE either way.  A zero-length buffer is left untouched. */
 static LONG bstr_copy_to_cstr(BPTR bstr, STRPTR buf, LONG len)
 {
     UBYTE *src;
     LONG src_len;
     LONG copy_len;
 
-    if (!buf || len <= 0)
+    if (!buf)
         return FALSE;
+
+    if (len <= 0)
+    {
+        SetIoErr(ERROR_LINE_TOO_LONG);
+        return DOSTRUE;
+    }
 
     buf[0] = '\0';
 
@@ -635,21 +647,20 @@ static LONG bstr_copy_to_cstr(BPTR bstr, STRPTR buf, LONG len)
 
     src_len = src[0];
     copy_len = src_len;
-    if (copy_len >= len)
+    if (copy_len > len - 1)
         copy_len = len - 1;
 
     CopyMem(src + 1, buf, (ULONG)copy_len);
     buf[copy_len] = '\0';
 
-    if (src_len >= len)
-    {
+    if (src_len >= len - 1)
         SetIoErr(ERROR_LINE_TOO_LONG);
-        return FALSE;
-    }
 
-    return TRUE;
+    return DOSTRUE;
 }
 
+/* SetProgramName()/SetPrompt()/SetCurrentDirName(): the string is truncated to
+ * the capacity of the CLI buffer; the call always succeeds (AmigaOS 3.1). */
 static LONG bstr_set_from_cstr(BPTR bstr, CONST_STRPTR src)
 {
     UBYTE *dst;
@@ -667,31 +678,23 @@ static LONG bstr_set_from_cstr(BPTR bstr, CONST_STRPTR src)
     if (!dst)
         return FALSE;
 
-    while (src[len] != '\0' && len < 256)
-        len++;
-
-    if (src[len] != '\0')
-    {
-        SetIoErr(ERROR_LINE_TOO_LONG);
-        return FALSE;
-    }
-
+    /* buffers come from AllocVec(capacity + 2): the size is stored in front */
     alloc_size = *(((ULONG *)dst) - 1);
     if (alloc_size < 6)
         return FALSE;
 
     max_len = (LONG)alloc_size - 6;
-    if (len > max_len)
-    {
-        SetIoErr(ERROR_LINE_TOO_LONG);
-        return FALSE;
-    }
+    if (max_len > 255)
+        max_len = 255;
+
+    while (src[len] != '\0' && len < max_len)
+        len++;
 
     dst[0] = (UBYTE)len;
     CopyMem((APTR)src, dst + 1, (ULONG)len);
     dst[len + 1] = '\0';
 
-    return TRUE;
+    return DOSTRUE;
 }
 
 static void lxa_dos_clear_bstr(BPTR bstr)
@@ -1464,6 +1467,19 @@ static LONG lxa_dos_read_single_byte(struct DosLibrary *DOSBase, BPTR fh, struct
     return (LONG)ch;
 }
 
+/* Buffered output (FPutC/FWrite/FPuts/VFPrintf/PutStr/WriteChars) goes
+ * through dos buffers on AmigaOS 3.1 and sends no packet per call, so a
+ * successful call leaves IoErr() alone (unlike a plain Write(), whose
+ * packet resets it).  lxa writes through immediately: keep IoErr(). */
+static LONG lxa_dos_buffered_write(struct DosLibrary *DOSBase, BPTR fh, CONST APTR buf, LONG len)
+{
+    LONG saved = IoErr();
+    LONG result = _dos_Write(DOSBase, fh, buf, len);
+    if (result >= 0)
+        SetIoErr(saved);
+    return result;
+}
+
 static LONG lxa_dos_fputc_internal(struct DosLibrary *DOSBase, struct FileHandle *fhp, BPTR fh, LONG ch)
 {
     struct lxa_dos_buffer_state *state;
@@ -1482,7 +1498,7 @@ static LONG lxa_dos_fputc_internal(struct DosLibrary *DOSBase, struct FileHandle
 
     if ((state->flags & LXA_DOS_BF_NOBUF) || !state->buffer)
     {
-        result = _dos_Write(DOSBase, fh, &c, 1);
+        result = lxa_dos_buffered_write(DOSBase, fh, &c, 1);
         if (result <= 0)
         {
             if (result == 0)
@@ -1493,7 +1509,7 @@ static LONG lxa_dos_fputc_internal(struct DosLibrary *DOSBase, struct FileHandle
     }
 
     state->buffer[0] = c;
-    result = _dos_Write(DOSBase, fh, state->buffer, 1);
+    result = lxa_dos_buffered_write(DOSBase, fh, state->buffer, 1);
     if (result <= 0)
     {
         if (result == 0)
@@ -1877,6 +1893,8 @@ BPTR _dos_Open ( register struct DosLibrary * DOSBase        __asm("a6"),
             }
             
             BPTR f = MKBADDR (fh);
+            /* a successful packet leaves IoErr() == 0 (AmigaOS 3.1) */
+            SetIoErr(0);
             DPRINTF (LOG_DEBUG, "_dos: Open() ___name=%s, ___accessMode=%ld -> BPTR 0x%08lx (APTR 0x%08lx)\n",
                      ___name ? (char *)___name : "NULL", ___accessMode, f, fh);
             return f;
@@ -1952,6 +1970,13 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
     int l;
 
     DPRINTF (LOG_DEBUG, "_dos: Read called: file=0x%08lx length=%ld\n", file, length);
+
+    /* A NULL handle fails with ERROR_INVALID_LOCK (verified on AmigaOS 3.1) */
+    if (!file)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
     
     /* Check if this is a CON:/RAW: window */
     if (fh->fh_Func3 == FILE_KIND_CON)
@@ -1981,12 +2006,11 @@ LONG _dos_Read ( register struct DosLibrary * DOSBase __asm("a6"),
             struct Process *me = U_getCurrentProcess();
             me->pr_Result2 = fh->fh_Arg2;
         }
+        else
+        {
+            SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
+        }
     }
-
-    /* like a packet's dp_Res2, a successful transfer leaves IoErr() == 0
-     * (AmigaOS 3.1) */
-    if (l >= 0)
-        SetIoErr(0);
 
     return l;
 }
@@ -1997,6 +2021,13 @@ LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
                                   register LONG                length  __asm("d3"))
 {
     DPRINTF (LOG_DEBUG, "_dos: Write called, file=0x%08lx buffer=0x%08lx length=%ld\n\n", file, buffer, length);
+
+    /* A NULL handle fails with ERROR_INVALID_LOCK (verified on AmigaOS 3.1) */
+    if (!file)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
 
     // U_hexdump (LOG_INFO, buffer, length);
 
@@ -2031,12 +2062,11 @@ LONG _dos_Write ( register struct DosLibrary * DOSBase __asm("a6"),
             struct Process *me = U_getCurrentProcess();
             me->pr_Result2 = fh->fh_Arg2;
         }
+        else
+        {
+            SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
+        }
     }
-
-    /* like a packet's dp_Res2, a successful transfer leaves IoErr() == 0
-     * (AmigaOS 3.1) */
-    if (l >= 0)
-        SetIoErr(0);
 
     return l;
 }
@@ -2076,6 +2106,13 @@ LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_dos: Seek() called file=0x%08lx, position=%d, mode=%d\n", file, position, mode);
 
+    /* A NULL handle fails with ERROR_INVALID_LOCK (verified on AmigaOS 3.1) */
+    if (!file)
+    {
+        SetIoErr(ERROR_INVALID_LOCK);
+        return -1;
+    }
+
     struct FileHandle *fh = (struct FileHandle *) BADDR(file);
     int l = emucall3 (EMU_CALL_DOS_SEEK, (ULONG) fh, (ULONG) position, (ULONG) mode);
 
@@ -2088,7 +2125,7 @@ LONG _dos_Seek ( register struct DosLibrary * __libBase __asm("a6"),
     }
     else
     {
-        SetIoErr(0);    /* dp_Res2 of a successful ACTION_SEEK */
+        SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     }
 
     return l;
@@ -2113,11 +2150,11 @@ LONG _dos_DeleteFile ( register struct DosLibrary * __libBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_dos: DeleteFile() result: %ld\n", result);
 
     if (!result) {
-        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
         return DOSFALSE;
     }
 
-    SetIoErr(0);
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     return DOSTRUE;
 }
 
@@ -2139,17 +2176,16 @@ LONG _dos_Rename ( register struct DosLibrary * __libBase __asm("a6"),
     const char *old_to_use = resolve_amiga_path((const char *)___oldName, resolved_old);
     const char *new_to_use = resolve_amiga_path((const char *)___newName, resolved_new);
     
-    LONG ioerr = ERROR_OBJECT_NOT_FOUND;
-    LONG result = emucall3(EMU_CALL_DOS_RENAME, (ULONG)old_to_use, (ULONG)new_to_use, (ULONG)&ioerr);
+    LONG result = emucall2(EMU_CALL_DOS_RENAME, (ULONG)old_to_use, (ULONG)new_to_use);
 
     DPRINTF (LOG_DEBUG, "_dos: Rename() result: %ld\n", result);
 
     if (!result) {
-        SetIoErr(ioerr ? ioerr : ERROR_OBJECT_NOT_FOUND);
+        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
         return DOSFALSE;
     }
 
-    SetIoErr(0);
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     return DOSTRUE;
 }
 
@@ -2170,19 +2206,17 @@ BPTR _dos_Lock ( register struct DosLibrary * __libBase __asm("a6"),
     char resolved_path[256];
     const char *path_to_use = resolve_amiga_path((const char *)___name, resolved_path);
 
-    LONG ioerr = ERROR_OBJECT_NOT_FOUND;
-    ULONG lock_id = emucall3(EMU_CALL_DOS_LOCK, (ULONG)path_to_use, (ULONG)___type, (ULONG)&ioerr);
+    ULONG lock_id = emucall2(EMU_CALL_DOS_LOCK, (ULONG)path_to_use, (ULONG)___type);
 
     DPRINTF (LOG_DEBUG, "_dos: Lock() result: lock_id=%lu\n", lock_id);
 
     if (lock_id == 0) {
-        SetIoErr(ioerr ? ioerr : ERROR_OBJECT_NOT_FOUND);
+        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
         return 0;
     }
 
-    SetIoErr(0);
-
     /* The lock_id from host is used directly as BPTR */
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     return (BPTR)lock_id;
 }
 
@@ -2203,13 +2237,16 @@ BPTR _dos_DupLock ( register struct DosLibrary * __libBase __asm("a6"),
 
     if (!___lock) return 0;
 
-    LONG ioerr = 0;
-    ULONG lock_id = emucall2(EMU_CALL_DOS_DUPLOCK, (ULONG)___lock, (ULONG)&ioerr);
+    ULONG lock_id = emucall1(EMU_CALL_DOS_DUPLOCK, (ULONG)___lock);
 
     DPRINTF (LOG_DEBUG, "_dos: DupLock() result: lock_id=%lu\n", lock_id);
 
-    if (!lock_id && ioerr)
-        SetIoErr(ioerr);
+    if (!lock_id)
+    {
+        LONG err = emucall1(EMU_CALL_DOS_LASTERROR, 0);
+        if (err)
+            SetIoErr(err);
+    }
 
     return (BPTR)lock_id;
 }
@@ -2234,7 +2271,7 @@ LONG _dos_Examine ( register struct DosLibrary * __libBase __asm("a6"),
         return DOSFALSE;
     }
 
-    SetIoErr(0);
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     return DOSTRUE;
 }
 
@@ -2303,10 +2340,11 @@ BPTR _dos_CreateDir ( register struct DosLibrary * __libBase __asm("a6"),
     DPRINTF (LOG_DEBUG, "_dos: CreateDir() result: lock_id=%lu\n", lock_id);
 
     if (lock_id == 0) {
-        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
         return 0;
     }
 
+    SetIoErr(0);    /* successful packet (AmigaOS 3.1) */
     return (BPTR)lock_id;
 }
 
@@ -3066,7 +3104,9 @@ BPTR _dos_ParentDir ( register struct DosLibrary * __libBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_dos: ParentDir() result: lock_id=%lu\n", lock_id);
 
-    /* A return of 0 is valid - means we're at root */
+    /* A return of 0 is valid - means we're at root (IoErr() == 0) */
+    if (!lock_id)
+        SetIoErr(emucall1(EMU_CALL_DOS_LASTERROR, 0));
     return (BPTR)lock_id;
 }
 
@@ -3182,28 +3222,7 @@ LONG _dos_Execute ( register struct DosLibrary * DOSBase __asm("a6"),
 
     if (___string && *___string)
     {
-        LONG sysrc = _dos_SystemTagList(DOSBase, ___string, tags);
-
-        if (sysrc == -1)
-        {
-            /* report like the shell does */
-            char name[64];
-            int n = 0;
-            CONST_STRPTR p = ___string;
-
-            while (*p == ' ')
-                p++;
-            while (*p && *p != ' ' && *p != '\n' && n < (int)sizeof(name) - 1)
-                name[n++] = *p++;
-            name[n] = '\0';
-
-            FPuts(out, (CONST_STRPTR)name);
-            FPuts(out, (CONST_STRPTR)": Unknown command\n");
-            FPuts(out, (CONST_STRPTR)name);
-            FPuts(out, (CONST_STRPTR)" failed returncode 10\n");
-            Flush(out);
-            SetIoErr(ERROR_OBJECT_NOT_FOUND);
-        }
+        lxa_dos_system(DOSBase, ___string, tags, TRUE);
     }
 
     if (___file)
@@ -3222,7 +3241,7 @@ LONG _dos_Execute ( register struct DosLibrary * DOSBase __asm("a6"),
         tags[2].ti_Tag = TAG_DONE;
         tags[2].ti_Data = 0;
 
-        if (_dos_SystemTagList(DOSBase, shell, tags) == -1)
+        if (lxa_dos_system(DOSBase, shell, tags, FALSE) == -1)
             return DOSFALSE;
     }
 
@@ -4345,6 +4364,7 @@ WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
     LONG copied = 0;
     LONG available;
     WORD position;
+    BOOL truncated = FALSE;
 
     size = (LONG)(WORD)size; /* sign-extend: GCC m68k move.w workaround */
 
@@ -4358,12 +4378,17 @@ WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
         return -1;
     }
 
-    if (size <= 0 || oldpos < 0)
+    if (oldpos < 0)
     {
         SetIoErr(ERROR_BAD_NUMBER);
         return -1;
     }
 
+    /* AmigaOS 3.1 (verified on the reference): at most size-1 characters are
+     * copied and the buffer is always terminated (even for size 0).  When
+     * the component filled the buffer (truncated or exactly size-1 long),
+     * the position returned is that of the separator itself rather than
+     * the character after it. */
     cursor = name;
     position = 0;
     available = size - 1;
@@ -4377,23 +4402,18 @@ WORD _dos_SplitName ( register struct DosLibrary * DOSBase __asm("a6"),
     while (*cursor && *cursor != separator)
     {
         if (copied < available)
-        {
             buf[copied++] = *cursor;
-        }
+        else
+            truncated = TRUE;
 
         cursor++;
         position++;
     }
 
-    if (size > 0)
-    {
-        buf[copied] = '\0';
-    }
+    buf[copied] = '\0';
 
     if (*cursor == separator)
-    {
-        return position + 1;
-    }
+        return (truncated || copied >= available) ? position : position + 1;
 
     return -1;
 }
@@ -5403,10 +5423,14 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     process->pr_ExitCode = cleanup ? (APTR)lxa_dos_process_exit_cleanup : NULL;
     process->pr_ExitData = (LONG)cleanup;
 
+    /* Without NP_WindowPtr the child gets NULL, unless the parent has
+     * requesters disabled (-1), which is inherited (AmigaOS 3.1). */
     if (hasWindowPtrTag)
         process->pr_WindowPtr = windowPtr;
-    else if (IS_PROCESS(me))
-        process->pr_WindowPtr = me->pr_WindowPtr;
+    else if (IS_PROCESS(me) && me->pr_WindowPtr == (APTR)-1)
+        process->pr_WindowPtr = (APTR)-1;
+    else
+        process->pr_WindowPtr = NULL;
 
     if (process->pr_CLI && curdir)
     {
@@ -5760,15 +5784,12 @@ BOOL _dos_GetCurrentDirName ( register struct DosLibrary * DOSBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_dos: GetCurrentDirName() called.\n");
 
-    if (!buf || len <= 0)
+    if (!buf)
         return FALSE;
 
     pr = (struct Process *)FindTask(NULL);
     if (!pr)
-    {
-        buf[0] = '\0';
         return FALSE;
-    }
 
     cli = pr->pr_CLI ? (struct CommandLineInterface *)BADDR(pr->pr_CLI) : NULL;
     if (!cli)
@@ -5820,13 +5841,13 @@ BOOL _dos_GetProgramName ( register struct DosLibrary * DOSBase __asm("a6"),
     struct Process *pr;
     struct CommandLineInterface *cli;
 
-    if (!buf || len <= 0)
+    if (!buf)
         return FALSE;
 
     pr = (struct Process *)FindTask(NULL);
     if (!pr || !pr->pr_CLI)
     {
-        if (buf && len > 0)
+        if (len > 0)
             buf[0] = '\0';
         SetIoErr(ERROR_OBJECT_WRONG_TYPE);
         return FALSE;
@@ -5880,7 +5901,7 @@ BOOL _dos_GetPrompt ( register struct DosLibrary * DOSBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_dos: GetPrompt() called.\n");
 
-    if (!buf || len <= 0)
+    if (!buf)
         return FALSE;
 
     pr = (struct Process *)FindTask(NULL);
@@ -5926,33 +5947,45 @@ BPTR _dos_GetProgramDir ( register struct DosLibrary * DOSBase __asm("a6"))
     return pr->pr_HomeDir;
 }
 
-LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
-                                                        register CONST_STRPTR command __asm("d1"),
-                                                        register const struct TagItem * tags __asm("d2"))
+/* System() core.  'shell' selects what the AmigaOS shell started by
+ * SystemTagList() does: report an unknown command ("Unknown command",
+ * RETURN_ERROR) and return codes >= the fail level.  Without it an unknown
+ * command returns -1 silently (Execute() then tries the line as a script). */
+static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
+                           const struct TagItem *tags, BOOL shell)
 {
-    DPRINTF (LOG_INFO, "_dos: SystemTagList() called command='%s'\n", command);
-    
+    DPRINTF (LOG_DEBUG, "_dos: SystemTagList() called command='%s'\n", command);
+
     char bin_name[256];
     char *args = NULL;
     int i = 0;
-    
+
     /* Skip leading spaces */
-    while (*command == ' ') command++;
-    
-    //const char *start = command;
-    while (*command && *command != ' ' && *command != '\n' && i < 255) {
-        bin_name[i++] = *command++;
+    while (*command == ' ' || *command == '\t') command++;
+
+    /* The command name may be quoted ("name with spaces" args) */
+    if (*command == '"') {
+        command++;
+        while (*command && *command != '"' && *command != '\n' && i < 255) {
+            bin_name[i++] = *command++;
+        }
+        if (*command == '"')
+            command++;
+    } else {
+        while (*command && *command != ' ' && *command != '\t' && *command != '\n' && i < 255) {
+            bin_name[i++] = *command++;
+        }
     }
     bin_name[i] = '\0';
-    
+
     /* Args start after the space/command */
     if (*command) args = (char *)command; // Points to space or rest of string
-    
+
     /* If no args, provide at least a newline (Amiga startup convention) */
     if (!args || !*args) {
         args = "\n";
     }
-    
+
     /* Try to load */
     BPTR seglist = _dos_LoadSeg(DOSBase, (STRPTR)bin_name);
     if (!seglist) {
@@ -5963,7 +5996,7 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
             if(bin_name[j] == ':') has_colon=1;
             if(bin_name[j] == '/') has_slash=1;
         }
-        
+
          if (!has_colon && !has_slash) {
               char tmp[256];
               // Simple strcpy/cat
@@ -5973,19 +6006,37 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
               char *n = bin_name;
               while(*n) *d++ = *n++;
               *d = 0;
-              
+
               seglist = _dos_LoadSeg(DOSBase, (STRPTR)tmp);
          }
 
     }
-    
+
     if (!seglist) {
-        LPRINTF(LOG_ERROR, "_dos: SystemTagList() failed to load '%s'\n", bin_name);
-        return -1; // ERROR_OBJECT_NOT_FOUND
+        /* The shell System() runs reports an unknown command and fails with
+         * RETURN_ERROR (verified on AmigaOS 3.1). */
+        BPTR err_out = GetTagData(SYS_Output, 0, tags);
+        struct Process *self = U_getCurrentProcess();
+        LONG fmt_args[3];
+
+        DPRINTF(LOG_DEBUG, "_dos: SystemTagList() failed to load '%s'\n", bin_name);
+        if (!shell)
+            return -1;
+        if (!err_out && IS_PROCESS(self))
+            err_out = self->pr_COS;
+        if (err_out) {
+            fmt_args[0] = (LONG)bin_name;
+            fmt_args[1] = (LONG)bin_name;
+            fmt_args[2] = RETURN_ERROR;
+            VFPrintf(err_out, (CONST_STRPTR)"%s: Unknown command\n%s failed returncode %ld\n", fmt_args);
+            Flush(err_out);
+        }
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return RETURN_ERROR;
     }
-    
+
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList() loaded '%s', seglist=0x%08lx\n", bin_name, seglist);
-    
+
     /* Create Process */
     BPTR input = GetTagData(SYS_Input, 0, tags);
     BPTR output = GetTagData(SYS_Output, 0, tags);
@@ -5993,7 +6044,7 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
     BPTR curDir = 0;
     BOOL asynch = GetTagData(SYS_Asynch, FALSE, tags);
     APTR childWindowPtr = NULL;
-    
+
     struct Process *me = U_getCurrentProcess();
     if (IS_PROCESS(me)) {
         if (!input) input = me->pr_CIS;
@@ -6005,7 +6056,17 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
 
         childWindowPtr = asynch ? NULL : me->pr_WindowPtr;
     }
-    
+
+    /* Synchronous runs collect the command's return code through the same
+     * exit hook RunCommand() uses. */
+    LONG result = 0;
+    struct lxa_dos_runcommand_block *blk = NULL;
+    if (!asynch) {
+        blk = (struct lxa_dos_runcommand_block *)AllocVec(sizeof(*blk), MEMF_CLEAR | MEMF_PUBLIC);
+        if (blk)
+            blk->result_ptr = &result;
+    }
+
     struct TagItem procTags[] = {
         { NP_Seglist, (ULONG)seglist },
         { NP_Name, (ULONG)bin_name },
@@ -6018,24 +6079,28 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
         { NP_Arguments, (ULONG)args },
         { NP_CurrentDir, (ULONG)curDir },
         { NP_WindowPtr, (ULONG)childWindowPtr },
+        { blk ? NP_ExitCode : TAG_IGNORE, (ULONG)lxa_dos_runcommand_exit_cleanup },
+        { blk ? NP_ExitData : TAG_IGNORE, (ULONG)blk },
         { TAG_DONE, 0 }
     };
-    
+
     struct Process *proc = _dos_CreateNewProc(DOSBase, procTags);
     if (!proc) {
         LPRINTF(LOG_ERROR, "_dos: SystemTagList() failed to create process\n");
+        if (blk)
+            FreeVec(blk);
         _dos_UnLoadSeg(DOSBase, seglist);
         return -1;
     }
-    
+
     /* Enable instruction tracing for DPaint debugging */
     /* Check if bin_name contains "DPaint" */
     {
         /* DPaint trace removed - was causing slowdown */
     }
-    
+
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList() created process 0x%08lx, taskNum=%ld\n", proc, proc->pr_TaskNum);
-    
+
     /* Check for asynchronous execution */
     if (asynch) {
         /* SYS_Asynch: Don't wait for the child to complete, return immediately.
@@ -6045,52 +6110,52 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
         DPRINTF(LOG_INFO, "_dos: SystemTagList() running '%s' asynchronously\n", bin_name);
         return 0;  /* Success - child launched but not waited for */
     }
-    
+
     /* Wait for completion - Poll TaskArray */
     LONG taskNum = proc->pr_TaskNum;
     struct RootNode *root = DOSBase->dl_Root;
-    
+
     /*
      * IMPORTANT: Save the child's MsgPort address NOW, before starting the wait loop.
      * Once the child calls Exit() and RemTask(), the proc pointer becomes invalid
      * (the memory is freed). We must not access proc after the child might have exited.
      */
     struct MsgPort *childPort = &proc->pr_MsgPort;
-    
+
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList waiting for task %ld (proc 0x%08lx, port 0x%08lx)\n", 
             taskNum, proc, childPort);
-    
+
     /* Wait for the child task to complete by polling TaskArray.
      * When Exit() is called, freeTaskNum() clears the slot to 0. */
-    
+
     ULONG oldSig = me->pr_Task.tc_SigWait;
     int loopCount = 0;
-    
+
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop starting, taskNum=%ld\n", taskNum);
-    
+
     while (1) {
         ULONG *taskArray = (ULONG *)BADDR(root->rn_TaskArray);
         if (!taskArray) {
             DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait: taskArray is NULL\n");
             break;
         }
-        
+
         /* TaskArray[taskNum] contains the pr_MsgPort pointer (as ULONG) */
         ULONG storedValue = taskArray[taskNum];
-        
+
         if (storedValue == 0) {
             /* Slot cleared - task has exited and called freeTaskNum() */
             DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait: task slot cleared (exited)\n");
             break;
         }
-        
+
         if (storedValue != (ULONG)childPort) {
             /* Slot reused by another task - original task must have exited */
             DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait: slot reused (stored=0x%08lx, expected=0x%08lx)\n", 
                     storedValue, (ULONG)childPort);
             break;
         }
-        
+
         loopCount++;
         /* 
          * No iteration limit - real AmigaDOS System() waits forever for the child.
@@ -6103,10 +6168,10 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
         if ((loopCount % 1000) == 0) {
             DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop iteration %d (still waiting)\n", loopCount);
         }
-        
+
         DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop iteration %d, stored=0x%08lx\n", 
                 loopCount, storedValue);
-        
+
         /*
          * Yield to the host/event loop without creating timer.device traffic.
          * Using Delay(1) here causes heavy allocation churn while polling for
@@ -6116,15 +6181,33 @@ LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
          */
         emucall0(EMU_CALL_WAIT);
     }
-    
+
     DPRINTF(LOG_DEBUG, "_dos: SystemTagList wait loop finished after %d iterations\n", loopCount);
-    
+
     me->pr_Task.tc_SigWait = oldSig;
-    
+
     DPRINTF(LOG_INFO, "_dos: SystemTagList task %ld finished\n", taskNum);
-    
+
     _dos_UnLoadSeg(DOSBase, seglist);
-    return 0; // Success
+
+    /* Like the shell: a return code at or above the fail level (10) is
+     * reported (verified on AmigaOS 3.1). */
+    if (shell && result >= RETURN_ERROR && output) {
+        LONG fmt_args[2];
+        fmt_args[0] = (LONG)bin_name;
+        fmt_args[1] = result;
+        VFPrintf(output, (CONST_STRPTR)"%s failed returncode %ld\n", fmt_args);
+        Flush(output);
+    }
+
+    return result;
+}
+
+LONG _dos_SystemTagList ( register struct DosLibrary * DOSBase __asm("a6"),
+                                                        register CONST_STRPTR command __asm("d1"),
+                                                        register const struct TagItem * tags __asm("d2"))
+{
+    return lxa_dos_system(DOSBase, command, tags, TRUE);
 }
 
 /*
@@ -8020,11 +8103,41 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
         return NULL;
     }
 
-    /* Get argument string from process - NULL is treated as empty string */
-    STRPTR arg_str = me->pr_Arguments;
-    if (!arg_str) {
-        arg_str = (STRPTR)"";
+    /* Character source: the RDArgs' CSource buffer if one is given, else the
+     * command line (lxa keeps it in pr_Arguments; AmigaOS has the shell put
+     * it into Input()'s buffer).  The source is never modified: parse a
+     * private copy (up to the end of the line) that lives until FreeArgs(). */
+    CONST_STRPTR src_str;
+    LONG src_len;
+    if (args && args->RDA_Source.CS_Buffer) {
+        LONG cur = args->RDA_Source.CS_CurChr;
+        if (cur < 0 || cur > args->RDA_Source.CS_Length)
+            cur = args->RDA_Source.CS_Length;
+        src_str = (CONST_STRPTR)args->RDA_Source.CS_Buffer + cur;
+        src_len = args->RDA_Source.CS_Length - cur;
+    } else {
+        src_str = me->pr_Arguments ? (CONST_STRPTR)me->pr_Arguments : (CONST_STRPTR)"";
+        src_len = strlen((const char *)src_str);
     }
+    {
+        LONG n;
+        for (n = 0; n < src_len && src_str[n] && src_str[n] != '\n'; n++)
+            ;
+        src_len = n;
+    }
+    DANode *src_node = (DANode *)AllocVec(sizeof(DANode), MEMF_ANY | MEMF_CLEAR);
+    STRPTR arg_str = (STRPTR)AllocVec(src_len + 1, MEMF_ANY);
+    if (!src_node || !arg_str) {
+        if (src_node) FreeVec(src_node);
+        if (arg_str) FreeVec(arg_str);
+        SetIoErr(ERROR_NO_FREE_STORE);
+        return NULL;
+    }
+    CopyMem((APTR)src_str, arg_str, src_len);
+    arg_str[src_len] = '\0';
+    src_node->memory = arg_str;
+    if (args && args->RDA_Source.CS_Buffer)
+        args->RDA_Source.CS_CurChr = args->RDA_Source.CS_Length;
 
     /* Initialize array to 0/FALSE */
     for (LONG i = 0; i < num_items; i++) {
@@ -8048,6 +8161,8 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
         if (multi_values_flat) FreeVec(multi_values_flat);
         if (multi_counts) FreeVec(multi_counts);
         if (numeric_storage) FreeVec(numeric_storage);
+        FreeVec(arg_str);
+        FreeVec(src_node);
         SetIoErr(ERROR_NO_FREE_STORE);
         return NULL;
     }
@@ -8231,7 +8346,7 @@ struct RDArgs * _dos_ReadArgs ( register struct DosLibrary * DOSBase __asm("a6")
 
     /* Now allocate arrays for /M items and copy the collected pointers */
     /* Store them in a temporary list that will be added to RDA_DAList after result is created */
-    DANode *multi_alloc_list = NULL;
+    DANode *multi_alloc_list = src_node;   /* the parse buffer */
     
     for (LONG i = 0; i < num_items; i++) {
         if (items[i].flags & TEMPLATE_MULTIPLE) {
@@ -8760,21 +8875,6 @@ static UBYTE _to_lower(UBYTE c)
 static BOOL _match_pattern_internal(const UBYTE *pat, const UBYTE *str);
 static BOOL _match_pattern_internal_nocase(const UBYTE *pat, const UBYTE *str);
 
-static BOOL _pattern_has_wildcards(CONST_STRPTR pat)
-{
-    const UBYTE *p = (const UBYTE *)pat;
-
-    while (*p)
-    {
-        if (*p == '?' || *p == '#' || *p == '*' || *p == '%' ||
-            *p == '[' || *p == '(' || *p == '|' || *p == '~')
-            return TRUE;
-        p++;
-    }
-
-    return FALSE;
-}
-
 static const UBYTE *_find_group_end(const UBYTE *p)
 {
     LONG depth = 0;
@@ -8784,7 +8884,7 @@ static const UBYTE *_find_group_end(const UBYTE *p)
 
     while (*p)
     {
-        if (*p == '%')
+        if (*p == '\'')
         {
             if (*(p + 1) == '\0')
                 return NULL;
@@ -8797,7 +8897,7 @@ static const UBYTE *_find_group_end(const UBYTE *p)
             p++;
             while (*p && *p != ']')
             {
-                if (*p == '%' && *(p + 1) != '\0')
+                if (*p == '\'' && *(p + 1) != '\0')
                     p += 2;
                 else
                     p++;
@@ -8848,7 +8948,7 @@ static BOOL _match_group_alternatives(const UBYTE *group_start,
 
         if (!at_end)
         {
-            if (*scan == '%')
+            if (*scan == '\'')
             {
                 if (*(scan + 1) == '\0')
                     return FALSE;
@@ -8861,7 +8961,7 @@ static BOOL _match_group_alternatives(const UBYTE *group_start,
                 scan++;
                 while (*scan && *scan != ']')
                 {
-                    if (*scan == '%' && *(scan + 1) != '\0')
+                    if (*scan == '\'' && *(scan + 1) != '\0')
                         scan += 2;
                     else
                         scan++;
@@ -9035,10 +9135,14 @@ static BOOL _match_pattern_internal(const UBYTE *pat, const UBYTE *str)
                 break;
                 
             case '%':
-                /* Escape character - match literally */
+                /* % matches the empty string */
                 p++;
-                if (*p == '\0')
-                    return FALSE; /* % at end is an error */
+                break;
+
+            case '\'':
+                /* ' escapes the next character - match literally */
+                if (p[1] != '\0')
+                    p++;    /* a trailing ' is an ordinary character */
                 if (*s != *p)
                     return FALSE;
                 p++;
@@ -9152,10 +9256,14 @@ static BOOL _match_pattern_internal_nocase(const UBYTE *pat, const UBYTE *str)
                 break;
                 
             case '%':
-                /* Escape character - match literally (case-insensitive) */
+                /* % matches the empty string */
                 p++;
-                if (*p == '\0')
-                    return FALSE; /* % at end is an error */
+                break;
+
+            case '\'':
+                /* ' escapes the next character - match literally (case-insensitive) */
+                if (p[1] != '\0')
+                    p++;    /* a trailing ' is an ordinary character */
                 if (_to_lower(*s) != _to_lower(*p))
                     return FALSE;
                 p++;
@@ -9217,38 +9325,138 @@ static BOOL _match_pattern_internal_nocase(const UBYTE *pat, const UBYTE *str)
     return (*s == '\0');
 }
 
+/*
+ * ParsePattern()/ParsePatternNoCase() (AmigaOS 3.1 semantics, verified on the
+ * reference machine):
+ *   returns 1 if the pattern contains wildcards, 0 if not, -1 on error
+ *   (IoErr ERROR_LINE_TOO_LONG: buffer too small, ERROR_BAD_TEMPLATE:
+ *   unbalanced parentheses, '|' outside a group, unterminated '[').
+ *   '*' is a wildcard only when RNF_WILDSTAR is set in the RootNode;
+ *   "'" escapes the next character (and counts as "wild"); '%' (the empty
+ *   string) does not.
+ * The parsed form lxa stores is the source pattern with a literal '*'
+ * escaped, which the internal matcher understands.
+ */
+static LONG lxa_dos_parse_pattern(struct DosLibrary *DOSBase, CONST_STRPTR pat,
+                                  UBYTE *buf, LONG buflen)
+{
+    const UBYTE *p = (const UBYTE *)pat;
+    BOOL wildstar = FALSE;
+    BOOL wild = FALSE;
+    LONG depth = 0;
+    LONG tokens = 0;
+    LONG out = 0;
+
+    if (!pat || !buf || buflen <= 0)
+    {
+        SetIoErr(ERROR_LINE_TOO_LONG);
+        return -1;
+    }
+
+    if (DOSBase && DOSBase->dl_Root &&
+        (((struct RootNode *)DOSBase->dl_Root)->rn_Flags & RNF_WILDSTAR))
+        wildstar = TRUE;
+
+    /* syntax check and size of the token form */
+    while (*p)
+    {
+        switch (*p)
+        {
+            case '\'':
+                wild = TRUE;
+                if (p[1])
+                    p++;
+                break;
+            case '#':
+                wild = TRUE;
+                if (p[1] == '?')
+                    p++;
+                break;
+            case '?':
+            case '~':
+                wild = TRUE;
+                break;
+            case '*':
+                if (wildstar)
+                    wild = TRUE;
+                break;
+            case '(':
+                wild = TRUE;
+                depth++;
+                break;
+            case ')':
+                if (--depth < 0)
+                {
+                    SetIoErr(ERROR_BAD_TEMPLATE);
+                    return -1;
+                }
+                break;
+            case '|':
+                if (depth == 0)
+                {
+                    SetIoErr(ERROR_BAD_TEMPLATE);
+                    return -1;
+                }
+                break;
+            case '[':
+                wild = TRUE;
+                while (*p && *p != ']')
+                    p++;
+                if (!*p)
+                {
+                    SetIoErr(ERROR_BAD_TEMPLATE);
+                    return -1;
+                }
+                break;
+        }
+        tokens++;
+        p++;
+    }
+
+    if (depth != 0)
+    {
+        SetIoErr(ERROR_BAD_TEMPLATE);
+        return -1;
+    }
+
+    /* token form + end marker + terminator */
+    if (tokens + 2 > buflen)
+    {
+        SetIoErr(ERROR_LINE_TOO_LONG);
+        return -1;
+    }
+
+    for (p = (const UBYTE *)pat; *p; p++)
+    {
+        if (*p == '*' && !wildstar)
+        {
+            if (out + 2 >= buflen)
+            {
+                SetIoErr(ERROR_LINE_TOO_LONG);
+                return -1;
+            }
+            buf[out++] = '\'';
+        }
+        if (out + 1 >= buflen)
+        {
+            SetIoErr(ERROR_LINE_TOO_LONG);
+            return -1;
+        }
+        buf[out++] = *p;
+    }
+    buf[out] = '\0';
+
+    return wild ? 1 : 0;
+}
+
 LONG _dos_ParsePattern ( register struct DosLibrary * DOSBase __asm("a6"),
                                                          register CONST_STRPTR pat __asm("d1"),
                                                          register STRPTR buf __asm("d2"),
                                                          register LONG buflen __asm("d3"))
 {
-    buflen = (LONG)(WORD)buflen; /* sign-extend: GCC m68k move.w workaround */
-
     DPRINTF (LOG_DEBUG, "_dos: ParsePattern() called, pat='%s'\n", pat ? pat : (CONST_STRPTR)"NULL");
-    
-    if (!pat || !buf || buflen <= 0) {
-        SetIoErr(ERROR_BAD_NUMBER);
-        return 0;
-    }
-    
-    BOOL has_wildcard = _pattern_has_wildcards(pat);
-    
-    /* Copy pattern to buffer (ParsePattern just copies it for our simple implementation) */
-    LONG len = 0;
-    while (pat[len] != '\0') len++;
-    
-    if (len >= buflen) {
-        SetIoErr(ERROR_LINE_TOO_LONG);
-        return 0;
-    }
-    
-    /* Copy manually to avoid strcpy type issues */
-    for (LONG i = 0; i <= len; i++) {
-        buf[i] = pat[i];
-    }
-    
-    /* Return -1 for literal string, positive for wildcard pattern */
-    return has_wildcard ? len : -1;
+
+    return lxa_dos_parse_pattern(DOSBase, pat, (UBYTE *)buf, buflen);
 }
 
 BOOL _dos_MatchPattern ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -10259,7 +10467,7 @@ LONG _dos_WriteChars ( register struct DosLibrary * DOSBase __asm("a6"),
     }
     
     /* Write the specified number of characters */
-    LONG result = _dos_Write(DOSBase, out, (CONST APTR)buf, buflen);
+    LONG result = lxa_dos_buffered_write(DOSBase, out, (CONST APTR)buf, buflen);
     
     if (result < 0)
         return -1;
@@ -10315,36 +10523,10 @@ LONG _dos_ParsePatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register UBYTE * buf __asm("d2"),
                                                         register LONG buflen __asm("d3"))
 {
-    buflen = (LONG)(WORD)buflen; /* sign-extend: GCC m68k move.w workaround */
-
     DPRINTF (LOG_DEBUG, "_dos: ParsePatternNoCase() called, pat='%s'\n", pat ? pat : (CONST_STRPTR)"NULL");
-    
-    /* ParsePatternNoCase is identical to ParsePattern - the case-insensitivity
-     * is handled by MatchPatternNoCase. We just need to copy the pattern. */
-    
-    if (!pat || !buf || buflen <= 0) {
-        SetIoErr(ERROR_BAD_NUMBER);
-        return 0;
-    }
-    
-    BOOL has_wildcard = _pattern_has_wildcards(pat);
-    
-    /* Copy pattern to buffer */
-    LONG len = 0;
-    while (pat[len] != '\0') len++;
-    
-    if (len >= buflen) {
-        SetIoErr(ERROR_LINE_TOO_LONG);
-        return 0;
-    }
-    
-    /* Copy manually to avoid strcpy type issues */
-    for (LONG i = 0; i <= len; i++) {
-        buf[i] = pat[i];
-    }
-    
-    /* Return -1 for literal string, positive for wildcard pattern */
-    return has_wildcard ? len : -1;
+
+    /* Same token form: case-insensitivity is applied by MatchPatternNoCase */
+    return lxa_dos_parse_pattern(DOSBase, pat, buf, buflen);
 }
 
 BOOL _dos_MatchPatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),

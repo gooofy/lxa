@@ -113,12 +113,17 @@ void test_putstr_writechars(void)
 {
     printf("\n=== PutStr/WriteChars Tests ===\n");
     
+    /* PutStr/WriteChars use dos.library's buffered Output(); printf uses
+     * its own stdio buffer.  Flush both so the order is deterministic. */
+    fflush(stdout);
+
     /* PutStr writes to Output() */
     PutStr((CONST_STRPTR)"PutStr output line\n");
     
     /* WriteChars writes specified number of chars to Output() */
     WriteChars((CONST_STRPTR)"WriteChars: ", 12);
     WriteChars((CONST_STRPTR)"Hello World!\n", 13);
+    Flush(Output());
     
     printf("PutStr/WriteChars test PASSED\n");
 }

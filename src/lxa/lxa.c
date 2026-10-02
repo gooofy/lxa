@@ -4,6 +4,7 @@
 #include "lxa_vclock.h"
 #include "lxa_coverage.h"
 #include "lxa_relay.h"
+#include "lxa_override.h"
 #include "lxa_unimpl.h"
 
 
@@ -1592,6 +1593,7 @@ int main(int argc, char **argv, char **envp)
     vclock_init(&vcfg);
     lxa_coverage_init();
     lxa_relay_init_from_env();
+    lxa_override_init();
 
     /*
      * Phase 6.5: Set up timer-driven preemptive multitasking

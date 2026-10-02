@@ -73,6 +73,13 @@ static void init_record(struct RecordLock *record, BPTR fh, ULONG offset,
     record->rec_Mode = mode;
 }
 
+/*
+ * Record locking is implemented by the handler.  The test file lives on RAM:
+ * so the reference run exercises AmigaOS' own ram-handler.  Only well-formed
+ * record arrays are passed (no NULL array, no invalid modes).
+ */
+#define TEST_FILE "RAM:lockrecords_test.dat"
+
 int main(void)
 {
     BPTR fh1;
@@ -82,30 +89,27 @@ int main(void)
     LONG err;
     struct RecordLock records[3];
     struct RecordLock blocked[3];
-    struct RecordLock invalid[3];
 
     print("LockRecords Test\n");
     print("================\n\n");
 
-    fh1 = Open((CONST_STRPTR)"lockrecords_test.dat", MODE_NEWFILE);
+    fh1 = Open((CONST_STRPTR)TEST_FILE, MODE_NEWFILE);
     if (!fh1)
     {
         test_fail("Open writer handle", "Open failed");
         return 1;
     }
-
     if (Write(fh1, (CONST APTR)"0123456789abcdef", 16) != 16)
     {
         test_fail("Seed file", "Write failed");
         Close(fh1);
         return 1;
     }
-
     Close(fh1);
 
-    fh1 = Open((CONST_STRPTR)"lockrecords_test.dat", MODE_READWRITE);
-    fh2 = Open((CONST_STRPTR)"lockrecords_test.dat", MODE_READWRITE);
-    fh3 = Open((CONST_STRPTR)"lockrecords_test.dat", MODE_READWRITE);
+    fh1 = Open((CONST_STRPTR)TEST_FILE, MODE_READWRITE);
+    fh2 = Open((CONST_STRPTR)TEST_FILE, MODE_READWRITE);
+    fh3 = Open((CONST_STRPTR)TEST_FILE, MODE_READWRITE);
     if (!fh1 || !fh2 || !fh3)
     {
         test_fail("Open readwrite handles", "Open failed");
@@ -124,10 +128,14 @@ int main(void)
 
     print("Test 1: Multiple records lock successfully\n");
     ok = LockRecords(records, 77);
-    if (ok)
-        test_pass("LockRecords success");
-    else
+    if (!ok)
         test_fail("LockRecords success", "LockRecords failed");
+    else if (LockRecord(fh2, 0, 2, REC_EXCLUSIVE_IMMED, 0))
+        test_fail("LockRecords success", "First record not held");
+    else if (LockRecord(fh2, 4, 2, REC_EXCLUSIVE_IMMED, 0))
+        test_fail("LockRecords success", "Second record not held");
+    else
+        test_pass("LockRecords success");
 
     print("\nTest 2: Conflicting later entry rolls back earlier locks\n");
     if (!LockRecord(fh2, 8, 2, REC_EXCLUSIVE_IMMED, 0))
@@ -159,73 +167,20 @@ int main(void)
             else
             {
                 test_pass("Rollback on failure");
-                Close(fh3);
-                fh3 = Open((CONST_STRPTR)"lockrecords_test.dat", MODE_READWRITE);
-                if (!fh3)
-                {
-                    test_fail("Reopen fh3 after rollback probe", "Open failed");
-                }
+                UnLockRecord(fh3, 12, 2);
             }
         }
-
-        Close(fh2);
-        fh2 = Open((CONST_STRPTR)"lockrecords_test.dat", MODE_READWRITE);
-        if (!fh2)
-        {
-            test_fail("Reopen fh2 after conflict probe", "Open failed");
-        }
+        UnLockRecord(fh2, 8, 2);
     }
 
-    print("\nTest 3: Invalid mode aborts and rolls back earlier locks\n");
-    init_record(&invalid[0], fh1, 14, 1, REC_SHARED_IMMED);
-    init_record(&invalid[1], fh1, 15, 1, 99);
-    init_record(&invalid[2], 0, 0, 0, 0);
-
-    ok = LockRecords(invalid, 0);
-    if (ok)
-    {
-        test_fail("Invalid mode rollback", "Unexpected success");
-    }
-    else
-    {
-        err = IoErr();
-        if (err != ERROR_BAD_NUMBER)
-        {
-            test_fail("Invalid mode rollback", "Wrong IoErr");
-        }
-        else if (!LockRecord(fh2, 14, 1, REC_EXCLUSIVE_IMMED, 0))
-        {
-            test_fail("Invalid mode rollback", "Earlier lock remained held");
-        }
-        else
-        {
-            test_pass("Invalid mode rollback");
-        }
-    }
-
-    print("\nTest 4: Null array is rejected\n");
-    ok = LockRecords((struct RecordLock *)0, 0);
-    if (!ok)
-    {
-        err = IoErr();
-        if (err == ERROR_INVALID_LOCK)
-            test_pass("Null array error");
-        else
-            test_fail("Null array error", "Wrong IoErr");
-    }
-    else
-    {
-        test_fail("Null array error", "Unexpected success");
-    }
-
+    UnLockRecords(records);
     Close(fh1);
     Close(fh2);
     Close(fh3);
-    DeleteFile((CONST_STRPTR)"lockrecords_test.dat");
+    DeleteFile((CONST_STRPTR)TEST_FILE);
 
     print("\nFailed: ");
     print_num(tests_failed);
     print("\n");
-
     return tests_failed ? 20 : 0;
 }

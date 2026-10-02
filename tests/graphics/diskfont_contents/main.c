@@ -244,10 +244,9 @@ static void ensure_dir(const char *path)
         return;
     }
 
-    /* CreateDir() returns an exclusive lock: release it */
     lock = CreateDir((CONST_STRPTR)path);
     if (lock)
-        UnLock(lock);
+        UnLock(lock);   /* CreateDir() returns an exclusive lock */
 }
 
 static BOOL create_font_contents_file(const char *path)

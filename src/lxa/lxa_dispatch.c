@@ -12,6 +12,7 @@
 #include "config.h"
 #include "lxa_vclock.h"
 #include "lxa_unimpl.h"
+#include "lxa_override.h"
 
 /* Forward declarations for float/double helpers defined later in this file */
 static float ffp_to_host_float(uint32_t raw);
@@ -225,6 +226,13 @@ int op_illg(int level)
                 vclock_end_timeslice();
                 g_running = FALSE;
             }
+            break;
+        }
+
+        case EMU_CALL_LIB_OVERRIDDEN:
+        {
+            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
+            m68k_set_reg(M68K_REG_D0, name && lxa_override_lookup(_mgetstr(name), NULL, 0) ? 1 : 0);
             break;
         }
 
@@ -772,9 +780,7 @@ int op_illg(int level)
 
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_LOCK name=0x%08x, mode=%d\n", name, mode);
 
-            uint32_t err = m68k_get_reg(NULL, M68K_REG_D3);
-
-            uint32_t res = _dos_lock(name, mode, err);
+            uint32_t res = _dos_lock(name, mode);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }
@@ -795,9 +801,7 @@ int op_illg(int level)
 
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_DUPLOCK lock_id=%d\n", lock_id);
 
-            uint32_t err = m68k_get_reg(NULL, M68K_REG_D2);
-
-            uint32_t res = _dos_duplock(lock_id, err);
+            uint32_t res = _dos_duplock(lock_id);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }
@@ -861,6 +865,12 @@ int op_illg(int level)
             break;
         }
 
+        case EMU_CALL_DOS_LASTERROR:
+        {
+            m68k_set_reg(M68K_REG_D0, _dos_last_error());
+            break;
+        }
+
         case EMU_CALL_DOS_CREATEDIR:
         {
             uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
@@ -890,9 +900,7 @@ int op_illg(int level)
 
             DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_RENAME old=0x%08x, new=0x%08x\n", old_name, new_name);
 
-            uint32_t err = m68k_get_reg(NULL, M68K_REG_D3);
-
-            uint32_t res = _dos_rename(old_name, new_name, err);
+            uint32_t res = _dos_rename(old_name, new_name);
             m68k_set_reg(M68K_REG_D0, res);
             break;
         }

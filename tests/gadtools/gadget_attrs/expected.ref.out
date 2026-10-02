@@ -1,0 +1,14 @@
+Testing GadTools gadget attrs...
+OK: CreateContext returned invisible sentinel gadget
+OK: CreateGadget supports all current gadget kinds
+OK: checkbox initial checked state read back
+OK: slider initial min/max/level read back
+OK: string initial text read back
+OK: integer initial value read back
+OK: cycle initial active item read back
+OK: checkbox checked state updated
+OK: slider level updated
+OK: string text updated
+OK: integer value updated
+OK: cycle active item updated
+PASS: gadget attrs test complete

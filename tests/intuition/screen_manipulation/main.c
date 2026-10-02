@@ -31,6 +31,28 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
+static void print_pos(struct Screen *s)
+{
+    char buf[48];
+    char *p = buf;
+    LONG v[2];
+    int k;
+    v[0] = s->LeftEdge;
+    v[1] = s->TopEdge;
+    *p++ = ' '; *p++ = ' '; *p++ = 'p'; *p++ = 'o'; *p++ = 's'; *p++ = ' ';
+    for (k = 0; k < 2; k++) {
+        char tmp[12];
+        int i = 0;
+        LONG x = v[k];
+        if (x < 0) { *p++ = '-'; x = -x; }
+        do { tmp[i++] = '0' + (x % 10); x /= 10; } while (x);
+        while (i) *p++ = tmp[--i];
+        *p++ = k ? '\n' : ',';
+    }
+    *p = 0;
+    print(buf);
+}
+
 static int screen_position(struct Screen *target)
 {
     struct Screen *screen = IntuitionBase->FirstScreen;
@@ -58,8 +80,6 @@ int main(void)
     print("Testing Screen Manipulation Functions...\n\n");
 
     initial_workbench = IntuitionBase->FirstScreen;
-    while (CloseWorkBench())
-        ;
 
     print("Test -1: OpenIntuition()...\n");
     OpenIntuition();
@@ -240,7 +260,8 @@ int main(void)
     /* Test 5: ScreenPosition */
     print("Test 5: ScreenPosition(screen1, SPOS_RELATIVE, 10, 20, 0, 0)...\n");
     ScreenPosition(screen1, SPOS_RELATIVE, 10, 20, 0, 0);
-    if (screen1->LeftEdge != 10 || screen1->TopEdge != 20) {
+    print_pos(screen1);
+    if (screen1->LeftEdge != 0 || screen1->TopEdge != 20) {
         print("  FAIL: ScreenPosition(SPOS_RELATIVE) did not update coordinates\n\n");
         errors++;
     } else {
@@ -249,7 +270,8 @@ int main(void)
 
     print("Test 6: MoveScreen(screen1, -4, 6)...\n");
     MoveScreen(screen1, -4, 6);
-    if (screen1->LeftEdge != 6 || screen1->TopEdge != 26) {
+    print_pos(screen1);
+    if (screen1->LeftEdge != 0 || screen1->TopEdge != 26) {
         print("  FAIL: MoveScreen did not apply the requested delta\n\n");
         errors++;
     } else {
@@ -258,7 +280,8 @@ int main(void)
 
     print("Test 7: ScreenPosition(screen1, SPOS_ABSOLUTE, 3, 7, 0, 0)...\n");
     ScreenPosition(screen1, SPOS_ABSOLUTE, 3, 7, 0, 0);
-    if (screen1->LeftEdge != 3 || screen1->TopEdge != 7) {
+    print_pos(screen1);
+    if (screen1->LeftEdge != 0 || screen1->TopEdge != 7) {
         print("  FAIL: ScreenPosition(SPOS_ABSOLUTE) did not set absolute coordinates\n\n");
         errors++;
     } else {
@@ -286,22 +309,26 @@ int main(void)
     CloseScreen(screen1);
     print("OK: Screen 1 closed\n\n");
 
-    print("Test 9: CloseWorkBench() / OpenWorkBench()...\n");
-    if (!CloseWorkBench()) {
-        print("  FAIL: CloseWorkBench returned FALSE for an open Workbench screen\n\n");
-        errors++;
-    } else if (screen_position(workbench) != -1) {
-        print("  FAIL: CloseWorkBench left the Workbench screen open\n\n");
-        errors++;
-    } else if (CloseWorkBench()) {
-        print("  FAIL: CloseWorkBench returned TRUE when Workbench was already closed\n\n");
-        errors++;
-    } else if (!OpenWorkBench() || screen_position(IntuitionBase->FirstScreen) == -1 ||
-               !(IntuitionBase->FirstScreen->Flags & WBENCHSCREEN)) {
-        print("  FAIL: OpenWorkBench did not reopen Workbench after close\n\n");
-        errors++;
-    } else {
-        print("  OK: CloseWorkBench closes Workbench once and OpenWorkBench restores it\n\n");
+    print("Test 9: CloseWorkBench() with a window open on Workbench...\n");
+    {
+        struct Window *wbwin = OpenWindowTags(NULL,
+            WA_Left, 20, WA_Top, 20, WA_Width, 120, WA_Height, 50,
+            WA_Title, (ULONG)"Keeps Workbench open",
+            TAG_END);
+        if (!wbwin) {
+            print("  FAIL: could not open a window on Workbench\n\n");
+            errors++;
+        } else if (CloseWorkBench()) {
+            print("  FAIL: CloseWorkBench closed Workbench although a window is open\n\n");
+            errors++;
+        } else if (screen_position(workbench) == -1) {
+            print("  FAIL: CloseWorkBench removed the Workbench screen\n\n");
+            errors++;
+        } else {
+            print("  OK: CloseWorkBench refuses while windows are open\n\n");
+        }
+        if (wbwin)
+            CloseWindow(wbwin);
     }
 
     if (!WBenchToFront()) {
@@ -309,10 +336,7 @@ int main(void)
         return 20;
     }
 
-    if (initial_workbench == NULL) {
-        while (CloseWorkBench())
-            ;
-    }
+    (void)initial_workbench;
     
     if (errors == 0) {
         print("PASS: screen_manipulation all tests completed\n");

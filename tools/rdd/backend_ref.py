@@ -137,6 +137,31 @@ def run(scn, out_dir, build=None, use_cache=True):
             with open(os.path.join(exch, "rdd-tree.json")) as f:
                 return json.load(f)
 
+        def snapshot(snap_name, args, t):
+            window = None
+            cmd = "SNAP rdd-snap.bin"
+            if "window" in args:
+                found = geometry.find_window(t, args["window"])
+                if not found:
+                    raise AgentError("no window %r" % args["window"])
+                window = found[1]
+                cmd += " WINDOW %d" % window
+            snap = None
+            if args.get("screen", True):
+                agent.cmd(cmd)
+                with open(os.path.join(exch, "rdd-snap.bin"), "rb") as f:
+                    snap = f.read()
+            agent.cmd("TEXT_DUMP rdd-text.jsonl")
+            stdout_path = os.path.join(exch, "rdd-stdout.txt")
+            stdout = open(stdout_path, encoding="latin-1").read() if os.path.exists(stdout_path) else ""
+            bundle.write_bundle(os.path.join(out_dir, snap_name), "ref", scn.name, snap_name,
+                                snap, os.path.join(exch, "rdd-tree.json"),
+                                text_path=os.path.join(exch, "rdd-text.jsonl"),
+                                stdout=stdout, window=window,
+                                extra_meta={"profile": scn.profile,
+                                            "refsys_checksum": refsys_fingerprint(scn.profile)})
+            result["snapshots"].append(snap_name)
+
         for kind, args in scn.steps:
             step = {"step": kind, "args": args, "ok": True}
             try:
@@ -177,31 +202,18 @@ def run(scn, out_dir, build=None, use_cache=True):
                     agent.cmd("KEY %x %x" % (args["rawkey"], args.get("qualifier", 0)))
                     agent.cmd("WAIT_IDLE 5000")
                 elif kind == "snapshot":
-                    snap_name = args["name"]
-                    t = tree()
-                    window = None
-                    cmd = "SNAP rdd-snap.bin"
-                    if "window" in args:
-                        found = geometry.find_window(t, args["window"])
-                        if not found:
-                            raise AgentError("no window %r" % args["window"])
-                        window = found[1]
-                        cmd += " WINDOW %d" % window
-                    snap = None
-                    if args.get("screen", True):
-                        agent.cmd(cmd)
-                        with open(os.path.join(exch, "rdd-snap.bin"), "rb") as f:
-                            snap = f.read()
-                    agent.cmd("TEXT_DUMP rdd-text.jsonl")
-                    stdout_path = os.path.join(exch, "rdd-stdout.txt")
-                    stdout = open(stdout_path, encoding="latin-1").read() if os.path.exists(stdout_path) else ""
-                    bundle.write_bundle(os.path.join(out_dir, snap_name), "ref", scn.name, snap_name,
-                                        snap, os.path.join(exch, "rdd-tree.json"),
-                                        text_path=os.path.join(exch, "rdd-text.jsonl"),
-                                        stdout=stdout, window=window,
-                                        extra_meta={"profile": scn.profile,
-                                                    "refsys_checksum": refsys_fingerprint(scn.profile)})
-                    result["snapshots"].append(snap_name)
+                    snapshot(args["name"], args, tree())
+                elif kind == "menus":
+                    t = tree()      # dumped before the menu opens (no LockIBase while it is held)
+                    pts = geometry.menu_title_points(t, args.get("window"))
+                    step["menus"] = [p[0] for p in pts]
+                    for i, (_, x, y) in enumerate(pts):
+                        agent.cmd("PRESS %d %d R" % (x, y))
+                        agent.cmd("DELAY 10")
+                        snapshot("menu%d" % i, {"screen": True}, t)
+                        agent.cmd("RELEASE %d %d R" % (x, y))
+                        agent.cmd("DELAY 10")     # MENUPICK(MENUNULL) handling; not WAIT_IDLE
+                                                  # (apps polling input never look idle)
                 elif kind == "quit":
                     lines = agent.cmd("QUIT %d" % args.get("timeout", 5000), timeout=60)
                     step["survivor"] = "SURVIVOR yes" in lines

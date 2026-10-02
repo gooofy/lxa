@@ -7,6 +7,7 @@
                python3 -m rdd golden <golden-dir>... | --all | --lint
                python3 -m rdd cluster [DIR] [--findings F.yaml...]
                python3 -m rdd suite-ref [--filter RX] [--capture]
+               python3 -m rdd sweep gen|run|rank [--md FILE]
                python3 -m rdd massrun crawl|lxa|ref|report [...]
                python3 -m rdd tracediff <run>/<scenario> | <lxa.jsonl> <ref.jsonl>
                python3 -m rdd loop [scenario.yaml...] [--out DIR] [--report FILE] [--no-compat]
@@ -228,6 +229,9 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "suite-ref":
         from rdd import suite_ref
         return suite_ref.main(sys.argv[2:])
+    if len(sys.argv) > 1 and sys.argv[1] == "sweep":
+        from rdd import sweep
+        return sweep.main(sys.argv[2:])
     if len(sys.argv) > 1 and sys.argv[1] == "massrun":
         from rdd import massrun
         return massrun.main(sys.argv[2:])

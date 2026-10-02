@@ -19,6 +19,9 @@ A scenario is one YAML file, executed unchanged on both backends:
       - type: "hello"
       - key: {rawkey: 0x44, qualifier: 0}
       - snapshot: startup               # or {name: x, window: "title"}
+      - menus                           # open every menu of the window (RMB held on
+                                        # its title), snapshot "menu<N>", cancel
+                                        # (or {window: "title"}) - Phase 231
       - quit                            # or {timeout: ms}
       # - trace: "graphics.library:Text,Move;dos.library:*"
       #   relay trace from here on (may precede launch) -> <bundle dir>/../trace.jsonl,
@@ -40,7 +43,7 @@ APPS_META = os.path.join(ROOT, "apps")
 APPS_DIR = os.environ.get("LXA_APPS", os.path.normpath(os.path.join(ROOT, "..", "lxa-apps")))
 
 STEP_KINDS = {"launch", "wait_window", "wait_idle", "frames", "click", "menu", "type",
-              "key", "snapshot", "quit", "trace"}
+              "key", "snapshot", "quit", "trace", "menus"}
 
 # assigns that exist on a stock system and are extended, not replaced
 SYSTEM_ASSIGNS = {"LIBS", "FONTS", "DEVS", "S", "L", "C", "KEYMAPS", "LOCALE", "HELP",

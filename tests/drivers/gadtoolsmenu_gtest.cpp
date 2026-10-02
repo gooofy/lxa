@@ -431,11 +431,28 @@ TEST_F(GadToolsMenuPixelTest, MenuPixelStateDuringDrag) {
     /* hover Print: its sub-menu appears to the right of the drop-down */
     int sx, sy, sw, sh;
     ASSERT_TRUE(lxa_get_menu_rect(0, 0, 3, 0, &sx, &sy, &sw, &sh));
-    const int sub_before = CountContentPixels(sx, sy, sx + sw, sy + sh, 0);
+    /* The sub-menu overlaps its parent drop-down (GadTools places it at
+     * parent width - width/4, as on AmigaOS), so compare pixels instead
+     * of counting non-background ones. */
+    auto read_rect = [&]() {
+        std::vector<int> px;
+        lxa_flush_display();
+        for (int y = sy; y <= sy + sh; y++)
+            for (int x = sx; x <= sx + sw; x++) {
+                int pen = -1;
+                lxa_read_pixel(x, y, &pen);
+                px.push_back(pen);
+            }
+        return px;
+    };
+    const std::vector<int> sub_before = read_rect();
     ASSERT_TRUE(lxa_inject_drag_step(ix + iw / 2, iy + ih / 2));
-    lxa_flush_display();
-    const int sub_after = CountContentPixels(sx, sy, sx + sw, sy + sh, 0);
-    EXPECT_GT(sub_after, sub_before + 20) << "sub-menu drawn while hovering Print";
+    const std::vector<int> sub_after_px = read_rect();
+    int sub_changed = 0;
+    for (size_t k = 0; k < sub_before.size(); k++)
+        if (sub_before[k] != sub_after_px[k])
+            sub_changed++;
+    EXPECT_GT(sub_changed, 20) << "sub-menu drawn while hovering Print";
 
     /* release on the bar: nothing selected, menus close */
     ASSERT_TRUE(lxa_inject_drag_end(tx + tw / 2, ty + th / 2));

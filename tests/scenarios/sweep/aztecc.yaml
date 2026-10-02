@@ -1,0 +1,10 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/aztecc.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-aztecc
+app: {manifest: AztecC}
+steps:
+  - launch
+  - frames: 100
+  - snapshot: {name: startup, screen: false}
+  - menus
+  - quit

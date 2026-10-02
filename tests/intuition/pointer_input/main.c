@@ -6,6 +6,9 @@
 #include <exec/types.h>
 #include <exec/memory.h>
 #include <exec/ports.h>
+#include <exec/io.h>
+#include <devices/input.h>
+#include <devices/inputevent.h>
 #include <graphics/gfx.h>
 #include <intuition/intuition.h>
 #include <intuition/screens.h>
@@ -57,10 +60,48 @@ static UWORD busy_pointer[] = {
 };
 
 static UBYTE alert_text[] = {
-    0x00,
+    0x00, 0x20, 0x10,   /* x (WORD), y (BYTE) */
     'T', 'e', 's', 't', ' ', 'a', 'l', 'e', 'r', 't', 0,
     0
 };
+
+static BOOL send_mouse_moves(int count)
+{
+    struct MsgPort *port = CreateMsgPort();
+    struct IOStdReq *io = NULL;
+    struct InputEvent ev;
+    BOOL ok = FALSE;
+    int i;
+
+    if (!port)
+        return FALSE;
+    io = (struct IOStdReq *)CreateIORequest(port, sizeof(struct IOStdReq));
+    if (io && OpenDevice((CONST_STRPTR)"input.device", 0, (struct IORequest *)io, 0) == 0) {
+        ok = TRUE;
+        for (i = 0; i < count; i++) {
+            ev.ie_NextEvent = NULL;
+            ev.ie_Class = IECLASS_RAWMOUSE;
+            ev.ie_SubClass = 0;
+            ev.ie_Code = IECODE_NOBUTTON;
+            ev.ie_Qualifier = IEQUALIFIER_RELATIVEMOUSE;
+            ev.ie_X = 2;
+            ev.ie_Y = 1;
+            ev.ie_TimeStamp.tv_secs = 0;
+            ev.ie_TimeStamp.tv_micro = 0;
+            io->io_Command = IND_WRITEEVENT;
+            io->io_Data = (APTR)&ev;
+            io->io_Length = sizeof(ev);
+            io->io_Flags = 0;
+            if (DoIO((struct IORequest *)io) != 0)
+                ok = FALSE;
+        }
+        CloseDevice((struct IORequest *)io);
+    }
+    if (io)
+        DeleteIORequest((struct IORequest *)io);
+    DeleteMsgPort(port);
+    return ok;
+}
 
 int main(void)
 {
@@ -166,66 +207,59 @@ int main(void)
         errors++;
     }
 
+    /* the window must be active to receive mouse moves (asynchronous) */
+    for (i = 0; i < 100 && !(window->Flags & WFLG_WINDOWACTIVE); i++)
+        Delay(1);
+
     while ((msg = (struct IntuiMessage *)GetMsg(window->UserPort)) != NULL)
         ReplyMsg((struct Message *)msg);
 
-    print("  READY: queue test\n");
-
-    first_move = NULL;
-    for (i = 0; i < 100; i++) {
-        WaitTOF();
-        first_move = (struct IntuiMessage *)GetMsg(window->UserPort);
-        if (first_move != NULL)
-            break;
-    }
-
-    if (first_move != NULL && first_move->Class == IDCMP_MOUSEMOVE) {
-        print("  OK: One mouse move message queued\n");
-
-        for (i = 0; i < 10; i++)
+    /* Feed three relative mouse moves through input.device, as a mouse
+     * driver would.  With a mouse queue of 1, only one IDCMP_MOUSEMOVE may
+     * be outstanding until it is replied. */
+    if (!send_mouse_moves(3)) {
+        print("  FAIL: could not write events to input.device\n\n");
+        errors++;
+    } else {
+        first_move = NULL;
+        for (i = 0; i < 100; i++) {
             WaitTOF();
-
-        second_move = (struct IntuiMessage *)GetMsg(window->UserPort);
-        if (second_move == NULL) {
-            print("  OK: SetMouseQueue limits outstanding mouse moves\n\n");
-        } else {
-            print("  FAIL: SetMouseQueue allowed too many mouse moves\n\n");
-            ReplyMsg((struct Message *)second_move);
-            errors++;
+            first_move = (struct IntuiMessage *)GetMsg(window->UserPort);
+            if (first_move != NULL)
+                break;
         }
 
-        ReplyMsg((struct Message *)first_move);
-    } else {
-        print("  FAIL: No mouse move message was queued\n\n");
-        errors++;
+        if (first_move != NULL && first_move->Class == IDCMP_MOUSEMOVE) {
+            print("  OK: One mouse move message queued\n");
+
+            for (i = 0; i < 10; i++)
+                WaitTOF();
+
+            second_move = (struct IntuiMessage *)GetMsg(window->UserPort);
+            if (second_move == NULL) {
+                print("  OK: SetMouseQueue limits outstanding mouse moves\n\n");
+            } else {
+                print("  FAIL: SetMouseQueue allowed too many mouse moves\n\n");
+                ReplyMsg((struct Message *)second_move);
+                errors++;
+            }
+
+            ReplyMsg((struct Message *)first_move);
+        } else {
+            print("  FAIL: No mouse move message was queued\n\n");
+            errors++;
+            if (first_move)
+                ReplyMsg((struct Message *)first_move);
+        }
     }
 
-    print("Test 4: DisplayAlert() / DisplayBeep()...\n");
-    alert_result = DisplayAlert(RECOVERY_ALERT, alert_text, 20);
-    if (alert_result == TRUE) {
-        print("  OK: DisplayAlert returns continue for recovery alerts\n");
-    } else {
-        print("  FAIL: DisplayAlert did not return continue for recovery alerts\n");
-        errors++;
-    }
-
-    alert_result = DisplayAlert(DEADEND_ALERT, alert_text, 20);
-    if (alert_result == FALSE) {
-        print("  OK: DisplayAlert returns FALSE for dead-end alerts\n");
-    } else {
-        print("  FAIL: DisplayAlert did not return FALSE for dead-end alerts\n");
-        errors++;
-    }
-
+    /* DisplayAlert() blocks until the user clicks: see Tests/Intuition/DisplayAlert */
+    print("Test 4: DisplayBeep() / TimedDisplayAlert()...\n");
     DisplayBeep(screen);
     DisplayBeep(NULL);
     alert_result = TimedDisplayAlert(RECOVERY_ALERT, alert_text, 20, 5);
-    if (alert_result != TRUE) {
-        print("  FAIL: TimedDisplayAlert did not match recovery alert semantics\n\n");
-        errors++;
-    } else {
-        print("  OK: DisplayBeep and TimedDisplayAlert accept compatibility calls\n\n");
-    }
+    print(alert_result ? "  TimedDisplayAlert without a click returned TRUE\n\n"
+                       : "  TimedDisplayAlert without a click returned FALSE\n\n");
 
     CloseWindow(window);
     CloseScreen(screen);

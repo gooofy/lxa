@@ -1,0 +1,78 @@
+SystemTagList Advanced Features Test
+=====================================
+
+Test 1: Output redirection to NIL:
+  Return value: 0
+  PASS: Output redirected to NIL:
+
+Test 2: Input redirection from NIL:
+  Return value: 0
+  PASS: Input redirected from NIL:
+
+Test 3: Exit code handling
+  Successful command return: 0
+  PASS: Successful command returns 0
+nonexistent_xyz_12345: Unknown command
+nonexistent_xyz_12345 failed returncode 10
+  Non-existent command return: 10
+  PASS: Non-existent command returns RETURN_ERROR
+
+Test 4: Both input and output redirected
+  Return value: 0
+  PASS: Both I/O streams redirected
+
+Test 5: Sequential commands verify resource cleanup
+  Commands succeeded: 5/5
+  PASS: All sequential commands succeeded
+
+Test 6: Current directory handling
+  Current dir exists: yes
+  PASS: Process has current directory
+
+Test 7: CLI metadata helpers
+  PASS: GetProgramName initial
+  Program name: SYS:Tests/Dos/ProcessAdvanced
+  PASS: SetProgramName custom
+  PASS: GetProgramName custom
+  PASS: GetPrompt initial
+  Prompt: %N> 
+  PASS: SetPrompt custom
+  PASS: GetPrompt custom
+  PASS: GetCurrentDirName initial
+  Current dir name: :Tests/Dos
+  PASS: SetCurrentDirName custom
+  PASS: GetCurrentDirName custom
+  PASS: GetProgramName tiny buffer
+  PASS: GetPrompt tiny buffer
+  PASS: GetCurrentDirName tiny buffer
+  PASS: GetPrompt len-1 buffer
+  PASS: GetPrompt roomy buffer
+  PASS: SetProgramName too long
+  Program name length after SetProgramName(255 chars): 102
+  PASS: SetPrompt max length accepted
+  PASS: SetCurrentDirName max length accepted
+  PASS: FindCliProc current
+  PASS: FindCliProc missing
+  PASS: MaxCli valid
+  PASS: SetPrompt restore short value
+  PASS: SetCurrentDirName restore short value
+
+Test 7b: Variable helpers
+  PASS: SetVar local
+  PASS: GetVar local
+  PASS: DeleteVar local
+  PASS: GetVar local after delete
+  PASS: SetVar global
+  PASS: GetVar global
+  PASS: DeleteVar global
+  PASS: GetVar global after delete
+
+Test 8: CreateNewProc window pointer semantics
+  PASS: CreateNewProc does not inherit a window pointer
+  PASS: CreateNewProc CLI child gets task number
+  PASS: CreateNewProc honors explicit NULL pr_WindowPtr
+  PASS: CreateNewProc inherits pr_WindowPtr -1
+
+=== Test Summary ===
+Passed: 41
+Failed: 0

@@ -406,11 +406,10 @@ int main(void)
     print("\nTest 5: Directory enumeration (50 files)\n");
     
     /* Create 50 files in a test directory */
-    /* CreateDir() returns an exclusive lock: release it before Lock() */
     {
         BPTR dir_lock = CreateDir((CONST_STRPTR)"RAM:dir_stress");
         if (dir_lock)
-            UnLock(dir_lock);
+            UnLock(dir_lock);   /* CreateDir() returns an exclusive lock */
     }
     
     for (i = 0; i < 50; i++) {

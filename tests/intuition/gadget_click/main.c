@@ -65,8 +65,6 @@ int main(void)
     struct Window *window;
     struct Gadget *gad;
     int errors = 0;
-    BOOL has_close_gadget = FALSE;
-    BOOL has_depth_gadget = FALSE;
 
     print("Testing gadget hit testing and interaction...\n");
 
@@ -123,61 +121,58 @@ int main(void)
     }
     print("OK: Window opened\n");
 
-    /* Verify system gadgets were created */
-    for (gad = window->FirstGadget; gad; gad = gad->NextGadget) {
-        if (gad->GadgetType & GTYP_SYSGADGET) {
-            UWORD sysType = gad->GadgetType & GTYP_SYSTYPEMASK;
-            if (sysType == GTYP_CLOSE) {
-                has_close_gadget = TRUE;
-                print("OK: Found CLOSE gadget at ");
-                print_hex("  LeftEdge=", gad->LeftEdge);
-            } else if (sysType == GTYP_WDEPTH) {
-                has_depth_gadget = TRUE;
-                print("OK: Found DEPTH gadget at ");
-                print_hex("  LeftEdge=", gad->LeftEdge);
+    /* Verify system gadgets were created.  The order of the system gadgets
+     * in the list and their exact geometry differ between Intuition
+     * versions (Phase 223 owns lxa's divergence), so only the visible
+     * placement is checked: GFLG_RELRIGHT gadgets are relative to the right
+     * window edge. */
+    {
+        struct Gadget *close_gad = NULL, *depth_gad = NULL;
+
+        for (gad = window->FirstGadget; gad; gad = gad->NextGadget) {
+            if (gad->GadgetType & GTYP_SYSGADGET) {
+                UWORD sysType = gad->GadgetType & GTYP_SYSTYPEMASK;
+                if (sysType == GTYP_CLOSE)
+                    close_gad = gad;
+                else if (sysType == GTYP_WDEPTH)
+                    depth_gad = gad;
             }
         }
-    }
 
-    if (!has_close_gadget) {
-        print("FAIL: No CLOSE gadget created\n");
-        errors++;
-    }
-    if (!has_depth_gadget) {
-        print("FAIL: No DEPTH gadget created\n");
-        errors++;
-    }
-
-    /* ========== Test 2: Verify gadget positions ========== */
-    print("\n--- Test 2: Verify gadget geometry ---\n");
-
-    for (gad = window->FirstGadget; gad; gad = gad->NextGadget) {
-        if (!(gad->GadgetType & GTYP_SYSGADGET))
-            continue;
-        
-        UWORD sysType = gad->GadgetType & GTYP_SYSTYPEMASK;
-        
-        /* Gadgets should have reasonable dimensions */
-        if (gad->Width <= 0 || gad->Height <= 0) {
-            print("FAIL: Gadget has invalid dimensions\n");
-            errors++;
+        if (close_gad) {
+            print("OK: Found CLOSE gadget\n");
         } else {
-            print("OK: Gadget has valid dimensions\n");
+            print("FAIL: No CLOSE gadget created\n");
+            errors++;
         }
-        
-        /* Close gadget should be in top-left area */
-        if (sysType == GTYP_CLOSE) {
-            if (gad->LeftEdge > 20) {
+        if (depth_gad) {
+            print("OK: Found DEPTH gadget\n");
+        } else {
+            print("FAIL: No DEPTH gadget created\n");
+            errors++;
+        }
+
+        /* ========== Test 2: Verify gadget positions ========== */
+        print("\n--- Test 2: Verify gadget geometry ---\n");
+
+        if (close_gad) {
+            WORD x = close_gad->LeftEdge + ((close_gad->Flags & GFLG_RELRIGHT) ? window->Width - 1 : 0);
+            if (close_gad->Width <= 0 || close_gad->Height <= 0) {
+                print("FAIL: Close gadget has invalid dimensions\n");
+                errors++;
+            } else if (x > 20) {
                 print("FAIL: Close gadget not in left area\n");
                 errors++;
             } else {
                 print("OK: Close gadget positioned in left area\n");
             }
         }
-        
-        /* Depth gadget should be in top-right area */
-        if (sysType == GTYP_WDEPTH) {
-            if (gad->LeftEdge < window->Width - 50) {
+        if (depth_gad) {
+            WORD x = depth_gad->LeftEdge + ((depth_gad->Flags & GFLG_RELRIGHT) ? window->Width - 1 : 0);
+            if (depth_gad->Width <= 0 || depth_gad->Height <= 0) {
+                print("FAIL: Depth gadget has invalid dimensions\n");
+                errors++;
+            } else if (x < window->Width - 50) {
                 print("FAIL: Depth gadget not in right area\n");
                 errors++;
             } else {
@@ -186,57 +181,24 @@ int main(void)
         }
     }
 
-    /* ========== Test 3: Test close gadget click ========== */
-    print("\n--- Test 3: Close gadget click via mouse injection ---\n");
-
-    /* Find the close gadget position */
-    WORD closeX = 0, closeY = 0;
-    for (gad = window->FirstGadget; gad; gad = gad->NextGadget) {
-        if ((gad->GadgetType & GTYP_SYSGADGET) && 
-            ((gad->GadgetType & GTYP_SYSTYPEMASK) == GTYP_CLOSE)) {
-            /* Calculate screen coordinates of gadget center */
-            closeX = window->LeftEdge + gad->LeftEdge + (gad->Width / 2);
-            closeY = window->TopEdge + gad->TopEdge + (gad->Height / 2);
-            break;
-        }
-    }
-
-    if (closeX == 0 && closeY == 0) {
-        print("Skip: Could not find close gadget position\n");
-    } else {
-        print_hex("  Clicking at screen X=", closeX);
-        print_hex("  Clicking at screen Y=", closeY);
-        
-        /* Inject mouse move to the gadget position */
-        
-        
-        /* Inject mouse button down */
-        
-        
-        /* Process events by calling WaitTOF */
-        WaitTOF();
-        
-        /* Inject mouse button up */
-        
-        
-        /* Process events */
-        WaitTOF();
-        WaitTOF();
-        
-        /* Check for IDCMP_CLOSEWINDOW message */
+    /* ========== Test 3: no input: no IDCMP_CLOSEWINDOW ========== */
+    print("\n--- Test 3: No spurious IDCMP_CLOSEWINDOW ---\n");
+    {
         struct IntuiMessage *imsg;
         BOOL got_close = FALSE;
-        
+
+        WaitTOF();
+        WaitTOF();
         while ((imsg = (struct IntuiMessage *)GetMsg(window->UserPort)) != NULL) {
-            if (imsg->Class == IDCMP_CLOSEWINDOW) {
+            if (imsg->Class == IDCMP_CLOSEWINDOW)
                 got_close = TRUE;
-                print("OK: Received IDCMP_CLOSEWINDOW\n");
-            }
             ReplyMsg((struct Message *)imsg);
         }
-        
-        if (!got_close) {
-            print("Note: IDCMP_CLOSEWINDOW not received (may require actual event processing)\n");
+        if (got_close) {
+            print("FAIL: IDCMP_CLOSEWINDOW received without a click\n");
+            errors++;
+        } else {
+            print("OK: No IDCMP_CLOSEWINDOW without a click\n");
         }
     }
 

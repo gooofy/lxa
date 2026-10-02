@@ -89,7 +89,8 @@ int main(int argc, char **argv) {
  *
  * Covers:
  *  - OpenLibrary("datatypes.library")
- *  - ObtainDataTypeA / ReleaseDataType
+ *  - ObtainDataTypeA / ReleaseDataType (DTST_RAM, IFF/binary/directory files)
+ *  - NewDTObjectA error paths (unknown type, missing file)
  *  - NewDTObjectA (with DTA_SourceType=DTST_RAM, DTA_GroupID=GID_PICTURE)
  *  - GetDTAttrsA  (DTA_TopVert, DTA_TotalVert)
  *  - SetDTAttrsA  (DTA_TopVert=10, DTA_TotalVert=100)
@@ -103,9 +104,8 @@ TEST_F(DataTypesTest, BasicLifecycle) {
 }
 
 /**
- * Verify that ObtainDataTypeA for DTST_RAM returns a DataType with a
- * non-NULL header whose GroupID is GID_SYSTEM (binary / RAM).
- * Uses the output of the Basic test program as a proxy.
+ * Verify that ObtainDataTypeA for a file returns a DataType with a
+ * non-NULL header. Uses the output of the Basic test program as a proxy.
  */
 TEST_F(DataTypesTest, ObtainDataTypeReturnsHeader) {
     int result = RunProgram("SYS:Tests/Datatypes/Basic", "", 8000);
@@ -136,16 +136,28 @@ TEST_F(DataTypesTest, SetGetAttrsRoundTrip) {
 }
 
 /**
- * Verify that GetDTString returns a non-empty string for DTERROR_UNKNOWN_DATATYPE.
+ * Verify that GetDTString returns the AmigaOS 3.1 text for DTERROR_UNKNOWN_DATATYPE.
  */
 TEST_F(DataTypesTest, GetDTStringReturnsErrorString) {
     int result = RunProgram("SYS:Tests/Datatypes/Basic", "", 8000);
     std::string output = GetOutput();
 
-    EXPECT_NE(output.find("PASS: GetDTString succeeded"), std::string::npos)
-        << "GetDTString failed.\nOutput:\n" << output;
-    EXPECT_NE(output.find("DTERROR_UNKNOWN_DATATYPE:"), std::string::npos)
-        << "GetDTString did not print error string.\nOutput:\n" << output;
+    EXPECT_NE(output.find("2000: Unknown data type for %s"), std::string::npos)
+        << "GetDTString did not return the error string.\nOutput:\n" << output;
+    (void)result;
+}
+
+/**
+ * Verify descriptor detection: IFF ILBM file and the built-in binary type.
+ */
+TEST_F(DataTypesTest, ObtainDataTypeDetectsFileTypes) {
+    int result = RunProgram("SYS:Tests/Datatypes/Basic", "", 8000);
+    std::string output = GetOutput();
+
+    EXPECT_NE(output.find("Name=ILBM BaseName=ilbm Pattern=#?"), std::string::npos) << output;
+    EXPECT_NE(output.find("Name=binary BaseName=binary Pattern=(null)"), std::string::npos) << output;
+    EXPECT_NE(output.find("Name=directory BaseName=directory"), std::string::npos) << output;
+    EXPECT_NE(output.find("PASS: IoErr() is DTERROR_COULDNT_OPEN"), std::string::npos) << output;
     (void)result;
 }
 

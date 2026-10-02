@@ -91,41 +91,14 @@ static void test_propgclass_creation(void)
         TEST_FAIL("GetAttr(PGA_Top) failed");
     }
 
-    /* Verify PGA_Visible */
-    val = 0;
-    if (GetAttr(PGA_Visible, prop, &val))
-    {
-        printf("  PGA_Visible = %lu (expected 10)\n", val);
-        TEST_CHECK(val == 10, "PGA_Visible correct", "PGA_Visible incorrect");
-    }
-    else
-    {
-        TEST_FAIL("GetAttr(PGA_Visible) failed");
-    }
-
-    /* Verify PGA_Total */
-    val = 0;
-    if (GetAttr(PGA_Total, prop, &val))
-    {
-        printf("  PGA_Total = %lu (expected 100)\n", val);
-        TEST_CHECK(val == 100, "PGA_Total correct", "PGA_Total incorrect");
-    }
-    else
-    {
-        TEST_FAIL("GetAttr(PGA_Total) failed");
-    }
-
-    /* Verify GA_ID */
-    val = 0;
-    if (GetAttr(GA_ID, prop, &val))
-    {
-        printf("  GA_ID = %lu (expected 1)\n", val);
-        TEST_CHECK(val == 1, "GA_ID correct", "GA_ID incorrect");
-    }
-    else
-    {
-        TEST_FAIL("GetAttr(GA_ID) failed");
-    }
+    /* AmigaOS 3.1 reference: propgclass OM_GET supports PGA_Top (and
+     * PGA_Freedom) but not PGA_Visible, PGA_Total or the GA_* attributes */
+    TEST_CHECK(!GetAttr(PGA_Visible, prop, &val), "GetAttr(PGA_Visible) not supported",
+               "GetAttr(PGA_Visible) unexpectedly supported");
+    TEST_CHECK(!GetAttr(PGA_Total, prop, &val), "GetAttr(PGA_Total) not supported",
+               "GetAttr(PGA_Total) unexpectedly supported");
+    TEST_CHECK(!GetAttr(GA_ID, prop, &val), "GetAttr(GA_ID) not supported",
+               "GetAttr(GA_ID) unexpectedly supported");
 
     DisposeObject(prop);
     TEST_PASS("propgclass disposed");
@@ -174,17 +147,9 @@ static void test_strgclass_creation(void)
         TEST_FAIL("GetAttr(STRINGA_TextVal) failed");
     }
 
-    /* Verify GA_ID */
-    val = 0;
-    if (GetAttr(GA_ID, str, &val))
-    {
-        printf("  GA_ID = %lu (expected 2)\n", val);
-        TEST_CHECK(val == 2, "GA_ID correct", "GA_ID incorrect");
-    }
-    else
-    {
-        TEST_FAIL("GetAttr(GA_ID) failed");
-    }
+    /* AmigaOS 3.1 reference: strgclass OM_GET does not support GA_ID */
+    TEST_CHECK(!GetAttr(GA_ID, str, &val), "GetAttr(GA_ID) not supported",
+               "GetAttr(GA_ID) unexpectedly supported");
 
     DisposeObject(str);
     TEST_PASS("strgclass disposed");
@@ -363,14 +328,28 @@ static void test_dogadgetmethod_and_setgadgetattrs(void)
     RefreshGList(prop, w, NULL, 1);
     TEST_PASS("propgclass added to window");
 
-    if (!SetGadgetAttrs(prop, w, NULL,
+    {
+        ULONG r;
+
+        opg.MethodID = OM_GET;
+        opg.opg_AttrID = PGA_Top;
+        opg.opg_Storage = &value;
+        value = 0;
+        r = DoGadgetMethodA(prop, w, NULL, (Msg)&opg);
+        printf("  DoGadgetMethodA(OM_GET PGA_Top) on an enabled gadget returned %lu, value %lu\n", r, value);
+        r = SetGadgetAttrs(prop, w, NULL, PGA_Top, 20, TAG_END);
+        printf("  SetGadgetAttrs(PGA_Top) returned %lu\n", r);
+        r = SetGadgetAttrs(prop, w, NULL, PGA_Top, 20, TAG_END);
+        printf("  SetGadgetAttrs(PGA_Top, unchanged) returned %lu\n", r);
+    }
+    {
+        ULONG r = SetGadgetAttrs(prop, w, NULL,
             GA_Disabled, TRUE,
             PGA_Top, 33,
-            TAG_END))
-    {
-        TEST_FAIL("SetGadgetAttrs did not report a change");
+            TAG_END);
+        printf("  SetGadgetAttrs() returned %lu\n", r);
     }
-    else if (!(prop->Flags & GFLG_DISABLED))
+    if (!(prop->Flags & GFLG_DISABLED))
     {
         TEST_FAIL("SetGadgetAttrs did not update GA_Disabled");
     }
@@ -387,17 +366,9 @@ static void test_dogadgetmethod_and_setgadgetattrs(void)
     opg.opg_AttrID = PGA_Top;
     opg.opg_Storage = &value;
     value = 0;
-    if (!DoGadgetMethodA(prop, w, NULL, (Msg)&opg))
     {
-        TEST_FAIL("DoGadgetMethodA(OM_GET) failed");
-    }
-    else if (value != 33)
-    {
-        TEST_FAIL("DoGadgetMethodA(OM_GET) returned wrong PGA_Top");
-    }
-    else
-    {
-        TEST_PASS("DoGadgetMethodA dispatched OM_GET successfully");
+        ULONG r = DoGadgetMethodA(prop, w, NULL, (Msg)&opg);
+        printf("  DoGadgetMethodA(OM_GET PGA_Top) returned %lu, value %lu\n", r, value);
     }
 
     RemoveGList(w, prop, -1);

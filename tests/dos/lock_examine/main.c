@@ -47,11 +47,11 @@ int main(void)
         return 1;
     }
     
-    /* Test 1: Lock the current directory (.) */
-    print("Test 1: Lock(\".\")\n");
-    lock = Lock((CONST_STRPTR)".", SHARED_LOCK);
+    /* Test 1: Lock the current directory ("" - "." is an ordinary name in AmigaDOS) */
+    print("Test 1: Lock(\"\") - the current directory\n");
+    lock = Lock((CONST_STRPTR)"", SHARED_LOCK);
     if (!lock) {
-        print("ERROR: Lock(\".\") failed\n");
+        print("ERROR: Lock(\"\") failed\n");
         FreeMem(fib, sizeof(struct FileInfoBlock));
         return 1;
     }

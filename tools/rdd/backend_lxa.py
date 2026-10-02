@@ -15,7 +15,7 @@ import tempfile
 import time
 
 from rdd import bundle, fd, geometry
-from rdd.pylxa import Lxa, MOUSE_LEFT
+from rdd.pylxa import Lxa, MOUSE_LEFT, MOUSE_RIGHT
 from rdd.scenario import Scenario
 
 RAWKEY_MAP = {}
@@ -38,6 +38,31 @@ def run(scn, out_dir, build=None):
             lxa.dump_tree(p)
             with open(p) as f:
                 return json.load(f)
+
+        def snapshot(snap_name, args, t=None):
+            t = t or tree()
+            window = None
+            if "window" in args:
+                found = geometry.find_window(t, args["window"])
+                if not found:
+                    raise RuntimeError("no window %r" % args["window"])
+                window = found[1]
+            tp = os.path.join(tmp, "tree-snap.json")
+            with open(tp, "w") as f:
+                json.dump(t, f)
+            sp = os.path.join(tmp, "snap.bin")
+            xp = os.path.join(tmp, "text.jsonl")
+            snap = None
+            if args.get("screen", True):
+                lxa.snap(sp, window)
+                with open(sp, "rb") as f:
+                    snap = f.read()
+            lxa.text_dump(xp)
+            bundle.write_bundle(os.path.join(out_dir, snap_name), "lxa", scn.name, snap_name,
+                                snap, tp, text_path=xp, stdout=lxa.output(),
+                                unimplemented=lxa.unimplemented(), window=window,
+                                extra_meta={"profile": scn.profile})
+            result["snapshots"].append(snap_name)
 
         for kind, args in scn.steps:
             step = {"step": kind, "args": args, "ok": True}
@@ -72,28 +97,17 @@ def run(scn, out_dir, build=None):
                     lxa.key(args["rawkey"], args.get("qualifier", 0))
                     lxa.wait_idle()
                 elif kind == "snapshot":
-                    snap_name = args["name"]
+                    snapshot(args["name"], args)
+                elif kind == "menus":
                     t = tree()
-                    window = None
-                    if "window" in args:
-                        found = geometry.find_window(t, args["window"])
-                        if not found:
-                            raise RuntimeError("no window %r" % args["window"])
-                        window = found[1]
-                    tp = os.path.join(tmp, "tree.json")
-                    sp = os.path.join(tmp, "snap.bin")
-                    xp = os.path.join(tmp, "text.jsonl")
-                    snap = None
-                    if args.get("screen", True):
-                        lxa.snap(sp, window)
-                        with open(sp, "rb") as f:
-                            snap = f.read()
-                    lxa.text_dump(xp)
-                    bundle.write_bundle(os.path.join(out_dir, snap_name), "lxa", scn.name, snap_name,
-                                        snap, tp, text_path=xp, stdout=lxa.output(),
-                                        unimplemented=lxa.unimplemented(), window=window,
-                                        extra_meta={"profile": scn.profile})
-                    result["snapshots"].append(snap_name)
+                    pts = geometry.menu_title_points(t, args.get("window"))
+                    step["menus"] = [p[0] for p in pts]
+                    for i, (_, x, y) in enumerate(pts):
+                        lxa.lib.lxa_inject_drag_begin(x, y, MOUSE_RIGHT)
+                        lxa.wait_idle()
+                        snapshot("menu%d" % i, {"screen": True}, t)
+                        lxa.lib.lxa_inject_drag_end(x, y)
+                        lxa.wait_idle()
                 elif kind == "quit":
                     t = tree()
                     found = geometry.find_window(t)

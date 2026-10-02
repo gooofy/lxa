@@ -659,17 +659,9 @@
   "lib": "gadtools",
   "function": "GT_FilterIMsg",
   "kind": "partial",
-  "detail": "partial: returns the message unfiltered (Phase 256)",
+  "detail": "partial: hands out a private copy but never consumes GadTools-internal gadget events (Phase 256)",
   "file": "src/rom/lxa_gadtools.c",
   "symbol": "_gadtools_GT_FilterIMsg"
- },
- {
-  "lib": "gadtools",
-  "function": "GT_PostFilterIMsg",
-  "kind": "partial",
-  "detail": "partial: returns the message unfiltered (Phase 256)",
-  "file": "src/rom/lxa_gadtools.c",
-  "symbol": "_gadtools_GT_PostFilterIMsg"
  },
  {
   "lib": "gadtools",

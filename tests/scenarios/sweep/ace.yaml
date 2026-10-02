@@ -1,0 +1,12 @@
+# Phase 231 sweep scenario, generated from tests/scenarios/apps/ace.yaml
+# by `python3 -m rdd sweep gen` - edit the app scenario, not this file.
+name: sweep-ace
+app: {manifest: ACE}
+steps:
+  - launch
+  - wait_window: {title: "AIDE Alert Request", timeout: 30000}
+  - wait_idle: {timeout: 20000}
+  - frames: 100
+  - snapshot: startup
+  - menus
+  - quit

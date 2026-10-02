@@ -1,0 +1,18 @@
+Testing icon.library DiskObject functions...
+Test 1: PutDiskObject/GetDiskObject round-trip...
+OK: PutDiskObject succeeded
+OK: DiskObject header round-trips
+OK: DiskObject type and stack round-trip
+OK: do_DefaultTool round-trips
+OK: do_ToolTypes round-trip
+OK: DeleteDiskObject removed .info file
+Test 2: GetDiskObject(NULL)...
+OK: GetDiskObject(NULL) allocates a blank object
+Test 3: GetDiskObjectNew fallback for drawers/tools/projects...
+OK: executable fallback yields WBTOOL
+OK: non-executable fallback yields WBPROJECT
+OK: drawer fallback yields WBDRAWER
+Test 4: PutDefDiskObject/GetDefDiskObject round-trip...
+OK: PutDefDiskObject succeeded
+OK: default icon contents round-trip
+PASS: icon/diskobject all tests passed

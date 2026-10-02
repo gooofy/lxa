@@ -195,8 +195,9 @@ int main(void)
     }
 
     print("\nTest 5: StartNotify/EndNotify message delivery\n");
-    if (!CreateDir((CONST_STRPTR)"notifytest")) {
-        BPTR notify_lock = Lock((CONST_STRPTR)"notifytest", SHARED_LOCK);
+    {
+        /* CreateDir() returns an exclusive lock: release it */
+        BPTR notify_lock = CreateDir((CONST_STRPTR)"notifytest");
         if (notify_lock) UnLock(notify_lock);
     }
     port = CreateMsgPort();

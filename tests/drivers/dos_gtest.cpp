@@ -121,6 +121,10 @@ TEST_F(DosTest, FileIOAdvanced) {
     RunDosTest("FileIOAdvanced");
 }
 
+TEST_F(DosTest, SoftLink) {
+    RunDosTest("SoftLink");
+}
+
 TEST_F(DosTest, FileIOErrors) {
     RunDosTest("FileIOErrors");
 }

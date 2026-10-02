@@ -214,13 +214,11 @@ int main(void)
     print_num(result);
     print("\n");
     
-    if (result == -1) {
-        test_pass("Non-existent command returns -1");
-    } else if (result == 20) {
-        test_pass("Non-existent command returns error 20");
+    /* The shell reports "Unknown command" and fails with RETURN_ERROR */
+    if (result == RETURN_ERROR) {
+        test_pass("Non-existent command returns RETURN_ERROR");
     } else {
-        /* Document actual behavior */
-        test_pass("Non-existent command handled");
+        test_fail("Non-existent command", "Expected RETURN_ERROR");
     }
     
     /* Test 4: Both I/O redirected */
@@ -319,8 +317,10 @@ int main(void)
 
     test_bool("GetCurrentDirName initial", GetCurrentDirName((STRPTR)buf, sizeof(buf)), "GetCurrentDirName failed");
     if (GetCurrentDirName((STRPTR)buf, sizeof(buf))) {
+        /* relative to the volume: SYS: is "SYS" on lxa, "System" on AmigaOS */
+        char *rel = strchr(buf, ':');
         print("  Current dir name: ");
-        print(buf);
+        print(rel ? rel : buf);
         print("\n");
     }
 
@@ -328,22 +328,46 @@ int main(void)
     test_bool("GetCurrentDirName custom", GetCurrentDirName((STRPTR)buf, sizeof(buf)) && strcmp(buf, "RAM:ManualDir") == 0,
               "Current dir name mismatch after SetCurrentDirName");
 
-    oldErr = SetIoErr(0);
-    (void)oldErr;
-    test_bool("GetProgramName tiny buffer", !GetProgramName((STRPTR)buf, 4) && IoErr() == ERROR_LINE_TOO_LONG,
-              "Expected ERROR_LINE_TOO_LONG for tiny program buffer");
+    /* Too small buffers: the string is truncated to len-1 characters,
+     * IoErr() is ERROR_LINE_TOO_LONG and the call still returns DOSTRUE
+     * (AmigaOS 3.1). */
+    SetProgramName((CONST_STRPTR)"ProcessAdvanced");
+    SetIoErr(0);
+    test_bool("GetProgramName tiny buffer", GetProgramName((STRPTR)buf, 4) == DOSTRUE &&
+              IoErr() == ERROR_LINE_TOO_LONG && strcmp(buf, "Pro") == 0,
+              "Expected truncation and ERROR_LINE_TOO_LONG for tiny program buffer");
 
-    test_bool("GetPrompt tiny buffer", !GetPrompt((STRPTR)buf, 3) && IoErr() == ERROR_LINE_TOO_LONG,
-              "Expected ERROR_LINE_TOO_LONG for tiny prompt buffer");
+    SetIoErr(0);
+    test_bool("GetPrompt tiny buffer", GetPrompt((STRPTR)buf, 3) == DOSTRUE &&
+              IoErr() == ERROR_LINE_TOO_LONG && strcmp(buf, "AD") == 0,
+              "Expected truncation and ERROR_LINE_TOO_LONG for tiny prompt buffer");
 
-    test_bool("GetCurrentDirName tiny buffer", !GetCurrentDirName((STRPTR)buf, 5) && IoErr() == ERROR_LINE_TOO_LONG,
-              "Expected ERROR_LINE_TOO_LONG for tiny current-dir buffer");
+    SetIoErr(0);
+    test_bool("GetCurrentDirName tiny buffer", GetCurrentDirName((STRPTR)buf, 5) == DOSTRUE &&
+              IoErr() == ERROR_LINE_TOO_LONG && strcmp(buf, "RAM:") == 0,
+              "Expected truncation and ERROR_LINE_TOO_LONG for tiny current-dir buffer");
 
-    test_bool("SetProgramName too long", !SetProgramName((CONST_STRPTR)
+    /* exactly len-1 characters still counts as too long */
+    SetIoErr(0);
+    test_bool("GetPrompt len-1 buffer", GetPrompt((STRPTR)buf, 6) == DOSTRUE &&
+              IoErr() == ERROR_LINE_TOO_LONG && strcmp(buf, "ADV> ") == 0,
+              "Expected ERROR_LINE_TOO_LONG when the prompt fills the buffer");
+
+    SetIoErr(0);
+    test_bool("GetPrompt roomy buffer", GetPrompt((STRPTR)buf, 7) == DOSTRUE && IoErr() == 0,
+              "Expected no error when the buffer has room to spare");
+
+    /* Long names are truncated to the CLI buffer, not rejected */
+    test_bool("SetProgramName too long", SetProgramName((CONST_STRPTR)
               "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
               "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
-              "ABCDEFGHIJKLMNO"),
-              "SetProgramName should reject names >255 chars");
+              "ABCDEFGHIJKLMNO") == DOSTRUE,
+              "SetProgramName should truncate names >255 chars");
+    GetProgramName((STRPTR)buf, sizeof(buf));
+    print("  Program name length after SetProgramName(255 chars): ");
+    print_num(strlen(buf));
+    print("\n");
+    SetProgramName((CONST_STRPTR)"ProcessAdvanced");
 
     test_bool("SetPrompt max length accepted", SetPrompt((CONST_STRPTR)
               "ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -418,14 +442,15 @@ int main(void)
 
                 child = CreateNewProc(inheritTags);
                 if (!child) {
-                    test_fail("CreateNewProc inherits pr_WindowPtr", "CreateNewProc failed");
+                    test_fail("CreateNewProc does not inherit a window pointer", "CreateNewProc failed");
                 } else {
                     WaitPort(windowPort);
                     msg = (struct WindowPtrMessage *)GetMsg(windowPort);
-                    if (msg && msg->window_ptr == inheritedWindowPtr) {
-                        test_pass("CreateNewProc inherits pr_WindowPtr");
+                    /* A window pointer is not inherited: the child starts with NULL */
+                    if (msg && msg->window_ptr == NULL) {
+                        test_pass("CreateNewProc does not inherit a window pointer");
                     } else {
-                        test_fail("CreateNewProc inherits pr_WindowPtr", "Child did not inherit parent window pointer");
+                        test_fail("CreateNewProc does not inherit a window pointer", "Child got a non-NULL pr_WindowPtr");
                     }
 
                     if (msg && msg->task_num > 0) {
@@ -459,6 +484,34 @@ int main(void)
                         test_pass("CreateNewProc honors explicit NULL pr_WindowPtr");
                     } else {
                         test_fail("CreateNewProc honors explicit NULL pr_WindowPtr", "Child did not honor explicit NULL override");
+                    }
+
+                    if (msg)
+                        FreeMem(msg, sizeof(*msg));
+                }
+            }
+
+            /* ...but "no requesters" (-1) is inherited */
+            me->pr_WindowPtr = (APTR)-1;
+            {
+                struct TagItem minusTags[] = {
+                    { NP_Entry, (ULONG)WindowPtrChild },
+                    { NP_Name, (ULONG)"ProcessAdvanced.WinMinus" },
+                    { NP_StackSize, 8192 },
+                    { NP_Cli, TRUE },
+                    { TAG_DONE, 0 }
+                };
+
+                child = CreateNewProc(minusTags);
+                if (!child) {
+                    test_fail("CreateNewProc inherits pr_WindowPtr -1", "CreateNewProc failed");
+                } else {
+                    WaitPort(windowPort);
+                    msg = (struct WindowPtrMessage *)GetMsg(windowPort);
+                    if (msg && msg->window_ptr == (APTR)-1) {
+                        test_pass("CreateNewProc inherits pr_WindowPtr -1");
+                    } else {
+                        test_fail("CreateNewProc inherits pr_WindowPtr -1", "Child did not inherit -1");
                     }
 
                     if (msg)
