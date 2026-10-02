@@ -1,0 +1,1559 @@
+[
+ {
+  "lib": "exec",
+  "function": "<lvo_name>",
+  "kind": "stub",
+  "detail": "stub: empty exec.library vector (Phase 255)",
+  "file": "src/rom/exec.c",
+  "line": 558,
+  "symbol": "_exec_unimplemented_call"
+ },
+ {
+  "lib": "exec",
+  "function": "Alert",
+  "kind": "stub",
+  "detail": "stub: no alert display or recovery (Phase 255)",
+  "file": "src/rom/exec.c",
+  "line": 1018,
+  "symbol": "_exec_Alert"
+ },
+ {
+  "lib": "exec",
+  "function": "Debug",
+  "kind": "stub",
+  "detail": "stub: no ROM debugger",
+  "file": "src/rom/exec.c",
+  "line": 1039,
+  "symbol": "_exec_Debug"
+ },
+ {
+  "lib": "exec",
+  "function": "SuperState",
+  "kind": "stub",
+  "detail": "stub: does not enter supervisor mode, returns NULL",
+  "file": "src/rom/exec.c",
+  "line": 1077,
+  "symbol": "_exec_SuperState"
+ },
+ {
+  "lib": "exec",
+  "function": "UserState",
+  "kind": "stub",
+  "detail": "stub: does not return to user mode",
+  "file": "src/rom/exec.c",
+  "line": 1088,
+  "symbol": "_exec_UserState"
+ },
+ {
+  "lib": "exec",
+  "function": "Cause",
+  "kind": "partial",
+  "detail": "partial: runs the handler immediately in caller context, no softint queue/priority (Phase 255)",
+  "file": "src/rom/exec.c",
+  "line": 1171,
+  "symbol": "_exec_Cause"
+ },
+ {
+  "lib": "exec",
+  "function": "SetExcept",
+  "kind": "partial",
+  "detail": "partial: pending exception deferred to next task switch instead of immediate (Phase 255)",
+  "file": "src/rom/exec.c",
+  "line": 2221,
+  "symbol": "_exec_SetExcept"
+ },
+ {
+  "lib": "exec",
+  "function": "AllocTrap",
+  "kind": "stub",
+  "detail": "stub: always fails",
+  "file": "src/rom/exec.c",
+  "line": 2594,
+  "symbol": "_exec_AllocTrap"
+ },
+ {
+  "lib": "exec",
+  "function": "FreeTrap",
+  "kind": "stub",
+  "detail": "stub: trap allocation not tracked",
+  "file": "src/rom/exec.c",
+  "line": 2608,
+  "symbol": "_exec_FreeTrap"
+ },
+ {
+  "lib": "exec",
+  "function": "CacheControl",
+  "kind": "partial",
+  "detail": "partial: reports all caches disabled, ignores changes",
+  "file": "src/rom/exec.c",
+  "line": 4699,
+  "symbol": "_exec_CacheControl"
+ },
+ {
+  "lib": "exec",
+  "function": "FreePooled",
+  "kind": "partial",
+  "detail": "partial: memory returns to the system only in DeletePool",
+  "file": "src/rom/exec.c",
+  "line": 5041,
+  "symbol": "_exec_FreePooled"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "LockAmigaGuideBase",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 126,
+  "symbol": "_amigaguide_LockAmigaGuideBase"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "UnlockAmigaGuideBase",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 136,
+  "symbol": "_amigaguide_UnlockAmigaGuideBase"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "OpenAmigaGuideA",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 146,
+  "symbol": "_amigaguide_OpenAmigaGuideA"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "OpenAmigaGuideAsyncA",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 157,
+  "symbol": "_amigaguide_OpenAmigaGuideAsyncA"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "CloseAmigaGuide",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 167,
+  "symbol": "_amigaguide_CloseAmigaGuide"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "AmigaGuideSignal",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 176,
+  "symbol": "_amigaguide_AmigaGuideSignal"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "GetAmigaGuideMsg",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 186,
+  "symbol": "_amigaguide_GetAmigaGuideMsg"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "ReplyAmigaGuideMsg",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 196,
+  "symbol": "_amigaguide_ReplyAmigaGuideMsg"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "SetAmigaGuideContextA",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 207,
+  "symbol": "_amigaguide_SetAmigaGuideContextA"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "SendAmigaGuideContextA",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 219,
+  "symbol": "_amigaguide_SendAmigaGuideContextA"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "SendAmigaGuideCmdA",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 231,
+  "symbol": "_amigaguide_SendAmigaGuideCmdA"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "SetAmigaGuideAttrsA",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 243,
+  "symbol": "_amigaguide_SetAmigaGuideAttrsA"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "GetAmigaGuideAttr",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 255,
+  "symbol": "_amigaguide_GetAmigaGuideAttr"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "LoadXRef",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 269,
+  "symbol": "_amigaguide_LoadXRef"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "ExpungeXRef",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 278,
+  "symbol": "_amigaguide_ExpungeXRef"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "AddAmigaGuideHostA",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 289,
+  "symbol": "_amigaguide_AddAmigaGuideHostA"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "RemoveAmigaGuideHostA",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 300,
+  "symbol": "_amigaguide_RemoveAmigaGuideHostA"
+ },
+ {
+  "lib": "amigaguide",
+  "function": "GetAmigaGuideString",
+  "kind": "stub",
+  "detail": "stub: amigaguide.library not implemented (Phase 254)",
+  "file": "src/rom/lxa_amigaguide.c",
+  "line": 310,
+  "symbol": "_amigaguide_GetAmigaGuideString"
+ },
+ {
+  "lib": "commodities",
+  "function": "CreateCxObj",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 95,
+  "symbol": "_commodities_CreateCxObj"
+ },
+ {
+  "lib": "commodities",
+  "function": "CxBroker",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 108,
+  "symbol": "_commodities_CxBroker"
+ },
+ {
+  "lib": "commodities",
+  "function": "ActivateCxObj",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 129,
+  "symbol": "_commodities_ActivateCxObj"
+ },
+ {
+  "lib": "commodities",
+  "function": "DeleteCxObj",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 141,
+  "symbol": "_commodities_DeleteCxObj"
+ },
+ {
+  "lib": "commodities",
+  "function": "DeleteCxObjAll",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 151,
+  "symbol": "_commodities_DeleteCxObjAll"
+ },
+ {
+  "lib": "commodities",
+  "function": "CxObjType",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 161,
+  "symbol": "_commodities_CxObjType"
+ },
+ {
+  "lib": "commodities",
+  "function": "CxObjError",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 171,
+  "symbol": "_commodities_CxObjError"
+ },
+ {
+  "lib": "commodities",
+  "function": "ClearCxObjError",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 181,
+  "symbol": "_commodities_ClearCxObjError"
+ },
+ {
+  "lib": "commodities",
+  "function": "SetCxObjPri",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 191,
+  "symbol": "_commodities_SetCxObjPri"
+ },
+ {
+  "lib": "commodities",
+  "function": "AttachCxObj",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 204,
+  "symbol": "_commodities_AttachCxObj"
+ },
+ {
+  "lib": "commodities",
+  "function": "EnqueueCxObj",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 215,
+  "symbol": "_commodities_EnqueueCxObj"
+ },
+ {
+  "lib": "commodities",
+  "function": "InsertCxObj",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 227,
+  "symbol": "_commodities_InsertCxObj"
+ },
+ {
+  "lib": "commodities",
+  "function": "RemoveCxObj",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 237,
+  "symbol": "_commodities_RemoveCxObj"
+ },
+ {
+  "lib": "commodities",
+  "function": "SetTranslate",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 254,
+  "symbol": "_commodities_SetTranslate"
+ },
+ {
+  "lib": "commodities",
+  "function": "SetFilter",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 265,
+  "symbol": "_commodities_SetFilter"
+ },
+ {
+  "lib": "commodities",
+  "function": "SetFilterIX",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 276,
+  "symbol": "_commodities_SetFilterIX"
+ },
+ {
+  "lib": "commodities",
+  "function": "ParseIX",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 287,
+  "symbol": "_commodities_ParseIX"
+ },
+ {
+  "lib": "commodities",
+  "function": "CxMsgType",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 299,
+  "symbol": "_commodities_CxMsgType"
+ },
+ {
+  "lib": "commodities",
+  "function": "CxMsgData",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 309,
+  "symbol": "_commodities_CxMsgData"
+ },
+ {
+  "lib": "commodities",
+  "function": "CxMsgID",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 319,
+  "symbol": "_commodities_CxMsgID"
+ },
+ {
+  "lib": "commodities",
+  "function": "DivertCxMsg",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 331,
+  "symbol": "_commodities_DivertCxMsg"
+ },
+ {
+  "lib": "commodities",
+  "function": "RouteCxMsg",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 342,
+  "symbol": "_commodities_RouteCxMsg"
+ },
+ {
+  "lib": "commodities",
+  "function": "DisposeCxMsg",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 352,
+  "symbol": "_commodities_DisposeCxMsg"
+ },
+ {
+  "lib": "commodities",
+  "function": "InvertKeyMap",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 363,
+  "symbol": "_commodities_InvertKeyMap"
+ },
+ {
+  "lib": "commodities",
+  "function": "AddIEvents",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 374,
+  "symbol": "_commodities_AddIEvents"
+ },
+ {
+  "lib": "commodities",
+  "function": "MatchIX",
+  "kind": "stub",
+  "detail": "stub: commodities.library not implemented (Phase 251)",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 403,
+  "symbol": "_commodities_MatchIX"
+ },
+ {
+  "lib": "commodities",
+  "function": "Private1",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 245,
+  "symbol": "_commodities_Private1"
+ },
+ {
+  "lib": "commodities",
+  "function": "Private2",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 382,
+  "symbol": "_commodities_Private2"
+ },
+ {
+  "lib": "commodities",
+  "function": "Private3",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 388,
+  "symbol": "_commodities_Private3"
+ },
+ {
+  "lib": "commodities",
+  "function": "Private4",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_commodities.c",
+  "line": 394,
+  "symbol": "_commodities_Private4"
+ },
+ {
+  "lib": "datatypes",
+  "function": "AddDTObject",
+  "kind": "stub",
+  "detail": "stub: object not added to the window (Phase 253)",
+  "file": "src/rom/lxa_datatypes.c",
+  "line": 639,
+  "symbol": "_datatypes_AddDTObject"
+ },
+ {
+  "lib": "datatypes",
+  "function": "RefreshDTObjectA",
+  "kind": "stub",
+  "detail": "stub: no refresh (Phase 253)",
+  "file": "src/rom/lxa_datatypes.c",
+  "line": 656,
+  "symbol": "_datatypes_RefreshDTObjectA"
+ },
+ {
+  "lib": "datatypes",
+  "function": "DoAsyncLayout",
+  "kind": "stub",
+  "detail": "stub: no layout (Phase 253)",
+  "file": "src/rom/lxa_datatypes.c",
+  "line": 669,
+  "symbol": "_datatypes_DoAsyncLayout"
+ },
+ {
+  "lib": "datatypes",
+  "function": "RemoveDTObject",
+  "kind": "stub",
+  "detail": "stub (Phase 253)",
+  "file": "src/rom/lxa_datatypes.c",
+  "line": 742,
+  "symbol": "_datatypes_RemoveDTObject"
+ },
+ {
+  "lib": "datatypes",
+  "function": "PrintDTObjectA",
+  "kind": "stub",
+  "detail": "stub: no printing (Phase 253)",
+  "file": "src/rom/lxa_datatypes.c",
+  "line": 810,
+  "symbol": "_datatypes_PrintDTObjectA"
+ },
+ {
+  "lib": "clipboard",
+  "function": "Open",
+  "kind": "partial",
+  "detail": "partial: only unit 0 (PRIMARY_CLIP) can be opened (Phase 255)",
+  "file": "src/rom/lxa_dev_clipboard.c",
+  "line": 406,
+  "symbol": "__g_lxa_clipboard_Open"
+ },
+ {
+  "lib": "console",
+  "function": "CDInputHandler",
+  "kind": "stub",
+  "detail": "stub: returns events unmodified (Phase 255)",
+  "file": "src/rom/lxa_dev_console.c",
+  "line": 3715,
+  "symbol": "__g_lxa_console_CDInputHandler"
+ },
+ {
+  "lib": "dos",
+  "function": "AbortPkt",
+  "kind": "stub",
+  "detail": "stub: packet not aborted (Phase 255)",
+  "file": "src/rom/lxa_dos.c",
+  "line": 3530,
+  "symbol": "_dos_AbortPkt"
+ },
+ {
+  "lib": "dos",
+  "function": "LockDosList",
+  "kind": "stub",
+  "detail": "stub: returns a dummy marker, no real DosList or locking (Phase 255)",
+  "file": "src/rom/lxa_dos.c",
+  "line": 6280,
+  "symbol": "_dos_LockDosList"
+ },
+ {
+  "lib": "dos",
+  "function": "UnLockDosList",
+  "kind": "partial",
+  "detail": "partial: DosList locking is simulated (Phase 255)",
+  "file": "src/rom/lxa_dos.c",
+  "line": 6314,
+  "symbol": "_dos_UnLockDosList"
+ },
+ {
+  "lib": "dos",
+  "function": "AttemptLockDosList",
+  "kind": "stub",
+  "detail": "stub: returns a dummy marker, no real DosList or locking (Phase 255)",
+  "file": "src/rom/lxa_dos.c",
+  "line": 6329,
+  "symbol": "_dos_AttemptLockDosList"
+ },
+ {
+  "lib": "dos",
+  "function": "FindDosEntry",
+  "kind": "stub",
+  "detail": "stub: always returns NULL (Phase 255)",
+  "file": "src/rom/lxa_dos.c",
+  "line": 6443,
+  "symbol": "_dos_FindDosEntry"
+ },
+ {
+  "lib": "dos",
+  "function": "NextDosEntry",
+  "kind": "stub",
+  "detail": "stub: always returns NULL (Phase 255)",
+  "file": "src/rom/lxa_dos.c",
+  "line": 6512,
+  "symbol": "_dos_NextDosEntry"
+ },
+ {
+  "lib": "dos",
+  "function": "FindSegment",
+  "kind": "stub",
+  "detail": "stub: resident segment list not implemented (Phase 255)",
+  "file": "src/rom/lxa_dos.c",
+  "line": 7643,
+  "symbol": "_dos_FindSegment"
+ },
+ {
+  "lib": "dos",
+  "function": "RemSegment",
+  "kind": "stub",
+  "detail": "stub: resident segment list not implemented (Phase 255)",
+  "file": "src/rom/lxa_dos.c",
+  "line": 7657,
+  "symbol": "_dos_RemSegment"
+ },
+ {
+  "lib": "dos",
+  "function": "private0",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_dos.c",
+  "line": 2775,
+  "symbol": "_dos_private0"
+ },
+ {
+  "lib": "dos",
+  "function": "private1",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_dos.c",
+  "line": 2780,
+  "symbol": "_dos_private1"
+ },
+ {
+  "lib": "dos",
+  "function": "ClearVec",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_dos.c",
+  "line": 2787,
+  "symbol": "_dos_ClearVec"
+ },
+ {
+  "lib": "dos",
+  "function": "NoReqLoadSeg",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_dos.c",
+  "line": 2793,
+  "symbol": "_dos_NoReqLoadSeg"
+ },
+ {
+  "lib": "dos",
+  "function": "private2",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_dos.c",
+  "line": 5128,
+  "symbol": "_dos_private2"
+ },
+ {
+  "lib": "dos",
+  "function": "private3",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_dos.c",
+  "line": 9098,
+  "symbol": "_dos_private3"
+ },
+ {
+  "lib": "dos",
+  "function": "private4",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_dos.c",
+  "line": 9129,
+  "symbol": "_dos_private4"
+ },
+ {
+  "lib": "dos",
+  "function": "private5",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_dos.c",
+  "line": 9837,
+  "symbol": "_dos_private5"
+ },
+ {
+  "lib": "dos",
+  "function": "private6",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_dos.c",
+  "line": 10135,
+  "symbol": "_dos_private6"
+ },
+ {
+  "lib": "dos",
+  "function": "private7",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_dos.c",
+  "line": 10194,
+  "symbol": "_dos_private7"
+ },
+ {
+  "lib": "gadtools",
+  "function": "GT_FilterIMsg",
+  "kind": "partial",
+  "detail": "partial: returns the message unfiltered (Phase 256)",
+  "file": "src/rom/lxa_gadtools.c",
+  "line": 2603,
+  "symbol": "_gadtools_GT_FilterIMsg"
+ },
+ {
+  "lib": "gadtools",
+  "function": "GT_PostFilterIMsg",
+  "kind": "partial",
+  "detail": "partial: returns the message unfiltered (Phase 256)",
+  "file": "src/rom/lxa_gadtools.c",
+  "line": 2613,
+  "symbol": "_gadtools_GT_PostFilterIMsg"
+ },
+ {
+  "lib": "gadtools",
+  "function": "DrawBevelBoxA",
+  "kind": "partial",
+  "detail": "partial: BBFT_ICONDROPBOX drawn as a plain recessed box (Phase 256)",
+  "file": "src/rom/lxa_gadtools.c",
+  "line": 2676,
+  "symbol": "_gadtools_DrawBevelBoxA"
+ },
+ {
+  "lib": "gadtools",
+  "function": "Private1",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_gadtools.c",
+  "line": 2834,
+  "symbol": "_gadtools_Private1"
+ },
+ {
+  "lib": "gadtools",
+  "function": "Private2",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_gadtools.c",
+  "line": 2835,
+  "symbol": "_gadtools_Private2"
+ },
+ {
+  "lib": "gadtools",
+  "function": "Private3",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_gadtools.c",
+  "line": 2836,
+  "symbol": "_gadtools_Private3"
+ },
+ {
+  "lib": "gadtools",
+  "function": "Private4",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_gadtools.c",
+  "line": 2837,
+  "symbol": "_gadtools_Private4"
+ },
+ {
+  "lib": "gadtools",
+  "function": "Private5",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_gadtools.c",
+  "line": 2838,
+  "symbol": "_gadtools_Private5"
+ },
+ {
+  "lib": "gadtools",
+  "function": "Private6",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_gadtools.c",
+  "line": 2839,
+  "symbol": "_gadtools_Private6"
+ },
+ {
+  "lib": "graphics",
+  "function": "AskSoftStyle",
+  "kind": "partial",
+  "detail": "partial: reports all styles regardless of font (Phase 256)",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 2758,
+  "symbol": "_graphics_AskSoftStyle"
+ },
+ {
+  "lib": "graphics",
+  "function": "MrgCop",
+  "kind": "partial",
+  "detail": "partial: builds empty placeholder copper lists, UCopLists ignored (Phase 256)",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 3672,
+  "symbol": "_graphics_MrgCop"
+ },
+ {
+  "lib": "graphics",
+  "function": "MakeVPort",
+  "kind": "partial",
+  "detail": "partial: builds empty placeholder copper list, UCopIns ignored (Phase 256)",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 3708,
+  "symbol": "_graphics_MakeVPort"
+ },
+ {
+  "lib": "graphics",
+  "function": "LoadView",
+  "kind": "partial",
+  "detail": "partial: only updates GfxBase->ActiView (Phase 256)",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 3732,
+  "symbol": "_graphics_LoadView"
+ },
+ {
+  "lib": "graphics",
+  "function": "BltPattern",
+  "kind": "partial",
+  "detail": "partial: ignores RastPort AreaPtrn (Phase 256)",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 4867,
+  "symbol": "_graphics_BltPattern"
+ },
+ {
+  "lib": "graphics",
+  "function": "LockLayerRom",
+  "kind": "partial",
+  "detail": "partial: no-op, layer is not locked (Phase 256)",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 5876,
+  "symbol": "__attribute__"
+ },
+ {
+  "lib": "graphics",
+  "function": "UnlockLayerRom",
+  "kind": "partial",
+  "detail": "partial: no-op, layer is not locked (Phase 256)",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 5892,
+  "symbol": "__attribute__"
+ },
+ {
+  "lib": "graphics",
+  "function": "AttemptLockLayerRom",
+  "kind": "partial",
+  "detail": "partial: always succeeds, layer is not locked (Phase 256)",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 7546,
+  "symbol": "__attribute__"
+ },
+ {
+  "lib": "graphics",
+  "function": "ModeNotAvailable",
+  "kind": "partial",
+  "detail": "partial: every mode reported available (Phase 240)",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 8852,
+  "symbol": "_graphics_ModeNotAvailable"
+ },
+ {
+  "lib": "graphics",
+  "function": "GetRPAttrsA",
+  "kind": "partial",
+  "detail": "partial: RPTAG_DrawBounds returns empty bounds (Phase 256)",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 10607,
+  "symbol": "_graphics_GetRPAttrsA"
+ },
+ {
+  "lib": "graphics",
+  "function": "private2",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 8404,
+  "symbol": "_graphics_private2"
+ },
+ {
+  "lib": "graphics",
+  "function": "private3",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 8409,
+  "symbol": "_graphics_private3"
+ },
+ {
+  "lib": "graphics",
+  "function": "private4",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 8414,
+  "symbol": "_graphics_private4"
+ },
+ {
+  "lib": "graphics",
+  "function": "private5",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 8864,
+  "symbol": "_graphics_private5"
+ },
+ {
+  "lib": "graphics",
+  "function": "private6",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 9247,
+  "symbol": "_graphics_private6"
+ },
+ {
+  "lib": "graphics",
+  "function": "private7",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 9494,
+  "symbol": "_graphics_private7"
+ },
+ {
+  "lib": "graphics",
+  "function": "private8",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 9499,
+  "symbol": "_graphics_private8"
+ },
+ {
+  "lib": "graphics",
+  "function": "private9",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_graphics.c",
+  "line": 10209,
+  "symbol": "_graphics_private9"
+ },
+ {
+  "lib": "icon",
+  "function": "GetIconTagList",
+  "kind": "partial",
+  "detail": "partial: ignores all ICONGETA_* tags, behaves like GetDiskObjectNew",
+  "file": "src/rom/lxa_icon.c",
+  "line": 1800,
+  "symbol": "_icon_GetIconTagList"
+ },
+ {
+  "lib": "icon",
+  "function": "PutIconTagList",
+  "kind": "partial",
+  "detail": "partial: ignores all ICONPUTA_* tags, behaves like PutDiskObject",
+  "file": "src/rom/lxa_icon.c",
+  "line": 1812,
+  "symbol": "_icon_PutIconTagList"
+ },
+ {
+  "lib": "intuition",
+  "function": "DisplayBeep",
+  "kind": "stub",
+  "detail": "stub: no screen flash or bell (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 4608,
+  "symbol": "_intuition_DisplayBeep"
+ },
+ {
+  "lib": "intuition",
+  "function": "ModifyProp",
+  "kind": "partial",
+  "detail": "partial: updates PropInfo but does not re-render the gadget (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 8473,
+  "symbol": "_intuition_ModifyProp"
+ },
+ {
+  "lib": "intuition",
+  "function": "MoveScreen",
+  "kind": "partial",
+  "detail": "partial: screen position changes, display does not (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 8510,
+  "symbol": "_intuition_MoveScreen"
+ },
+ {
+  "lib": "intuition",
+  "function": "OpenScreen",
+  "kind": "partial",
+  "detail": "partial: fixed bar/border sizes, screen font height ignored (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 8697,
+  "symbol": "_intuition_OpenScreen"
+ },
+ {
+  "lib": "intuition",
+  "function": "OpenWindow",
+  "kind": "partial",
+  "detail": "partial: title bar height ignores screen font height (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 9533,
+  "symbol": "_intuition_OpenWindow"
+ },
+ {
+  "lib": "intuition",
+  "function": "PrintIText",
+  "kind": "partial",
+  "detail": "partial: ignores IntuiText ITextFont, uses RastPort font (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 10164,
+  "symbol": "_intuition_PrintIText"
+ },
+ {
+  "lib": "intuition",
+  "function": "ScreenToBack",
+  "kind": "partial",
+  "detail": "partial: reorders screen list, display not updated (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 10358,
+  "symbol": "_intuition_ScreenToBack"
+ },
+ {
+  "lib": "intuition",
+  "function": "ScreenToFront",
+  "kind": "partial",
+  "detail": "partial: reorders screen list, display not updated (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 10406,
+  "symbol": "_intuition_ScreenToFront"
+ },
+ {
+  "lib": "intuition",
+  "function": "IntuiTextLength",
+  "kind": "partial",
+  "detail": "partial: assumes 8 pixel Topaz width, ignores ITextFont (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 10830,
+  "symbol": "_intuition_IntuiTextLength"
+ },
+ {
+  "lib": "intuition",
+  "function": "LockPubScreenList",
+  "kind": "partial",
+  "detail": "partial: list is returned without locking (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 12772,
+  "symbol": "_intuition_LockPubScreenList"
+ },
+ {
+  "lib": "intuition",
+  "function": "UnlockPubScreenList",
+  "kind": "partial",
+  "detail": "partial: no-op, list is never locked (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 12782,
+  "symbol": "_intuition_UnlockPubScreenList"
+ },
+ {
+  "lib": "intuition",
+  "function": "NextPubScreen",
+  "kind": "partial",
+  "detail": "partial: only ever reports Workbench (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 12796,
+  "symbol": "_intuition_NextPubScreen"
+ },
+ {
+  "lib": "intuition",
+  "function": "SetDefaultPubScreen",
+  "kind": "stub",
+  "detail": "stub: default public screen not changed (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 12823,
+  "symbol": "_intuition_SetDefaultPubScreen"
+ },
+ {
+  "lib": "intuition",
+  "function": "SetPubScreenModes",
+  "kind": "partial",
+  "detail": "partial: modes stored but SHANGHAI/POPPUBSCREEN ignored (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 12838,
+  "symbol": "_intuition_SetPubScreenModes"
+ },
+ {
+  "lib": "intuition",
+  "function": "ObtainGIRPort",
+  "kind": "partial",
+  "detail": "partial: returns the shared gadget RastPort instead of a clone (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 12890,
+  "symbol": "_intuition_PubScreenStatus"
+ },
+ {
+  "lib": "intuition",
+  "function": "OpenWindowTagList",
+  "kind": "partial",
+  "detail": "partial: ignores WA_BackFill, WA_RptQueue, WA_Pointer, WA_BusyPointer, WA_Checkmark, WA_HelpGroup (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 13688,
+  "symbol": "_intuition_OpenWindowTagList"
+ },
+ {
+  "lib": "intuition",
+  "function": "OpenScreenTagList",
+  "kind": "partial",
+  "detail": "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont, SA_ErrorCode (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 14172,
+  "symbol": "_intuition_OpenScreenTagList"
+ },
+ {
+  "lib": "intuition",
+  "function": "PointInImage",
+  "kind": "stub",
+  "detail": "stub: always TRUE (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 14669,
+  "symbol": "_intuition_PointInImage"
+ },
+ {
+  "lib": "intuition",
+  "function": "AllocScreenBuffer",
+  "kind": "partial",
+  "detail": "partial: sb_DBufInfo is NULL, no double-buffer sync messages (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15339,
+  "symbol": "_intuition_AllocScreenBuffer"
+ },
+ {
+  "lib": "intuition",
+  "function": "ScreenPosition",
+  "kind": "partial",
+  "detail": "partial: SPOS_MAKEVISIBLE ignored, display not updated (Phase 256)",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15441,
+  "symbol": "_intuition_ScreenPosition"
+ },
+ {
+  "lib": "intuition",
+  "function": "private0",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 11391,
+  "symbol": "_intuition_private0"
+ },
+ {
+  "lib": "intuition",
+  "function": "private1",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 12978,
+  "symbol": "_intuition_private1"
+ },
+ {
+  "lib": "intuition",
+  "function": "private2",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15042,
+  "symbol": "_intuition_private2"
+ },
+ {
+  "lib": "intuition",
+  "function": "private3",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15296,
+  "symbol": "_intuition_private3"
+ },
+ {
+  "lib": "intuition",
+  "function": "private4",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15301,
+  "symbol": "_intuition_private4"
+ },
+ {
+  "lib": "intuition",
+  "function": "private5",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15306,
+  "symbol": "_intuition_private5"
+ },
+ {
+  "lib": "intuition",
+  "function": "private6",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15311,
+  "symbol": "_intuition_private6"
+ },
+ {
+  "lib": "intuition",
+  "function": "private7",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15316,
+  "symbol": "_intuition_private7"
+ },
+ {
+  "lib": "intuition",
+  "function": "private8",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15321,
+  "symbol": "_intuition_private8"
+ },
+ {
+  "lib": "intuition",
+  "function": "private9",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15326,
+  "symbol": "_intuition_private9"
+ },
+ {
+  "lib": "intuition",
+  "function": "private10",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_intuition.c",
+  "line": 15331,
+  "symbol": "_intuition_private10"
+ },
+ {
+  "lib": "layers",
+  "function": "ScrollLayer",
+  "kind": "partial",
+  "detail": "partial: SuperBitMap layers only update scroll offsets, no SyncSBitMap/CopySBitMap (Phase 256)",
+  "file": "src/rom/lxa_layers.c",
+  "line": 1660,
+  "symbol": "_layers_ScrollLayer"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "CreateArgstring",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 94,
+  "symbol": "_rexxsyslib_CreateArgstring"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "DeleteArgstring",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 106,
+  "symbol": "_rexxsyslib_DeleteArgstring"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "LengthArgstring",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 115,
+  "symbol": "_rexxsyslib_LengthArgstring"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "CreateRexxMsg",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 127,
+  "symbol": "_rexxsyslib_CreateRexxMsg"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "DeleteRexxMsg",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 138,
+  "symbol": "_rexxsyslib_DeleteRexxMsg"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "ClearRexxMsg",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 148,
+  "symbol": "_rexxsyslib_ClearRexxMsg"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "FillRexxMsg",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 160,
+  "symbol": "_rexxsyslib_FillRexxMsg"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "IsRexxMsg",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 171,
+  "symbol": "_rexxsyslib_IsRexxMsg"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "LockRexxBase",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 181,
+  "symbol": "_rexxsyslib_LockRexxBase"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "UnlockRexxBase",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 190,
+  "symbol": "_rexxsyslib_UnlockRexxBase"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "CreateRexxHostPort",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 199,
+  "symbol": "_rexxsyslib_CreateRexxHostPort"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "DeleteRexxHostPort",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 210,
+  "symbol": "_rexxsyslib_DeleteRexxHostPort"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "GetRexxVarFromMsg",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 221,
+  "symbol": "_rexxsyslib_GetRexxVarFromMsg"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "SetRexxVarFromMsg",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 234,
+  "symbol": "_rexxsyslib_SetRexxVarFromMsg"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "LaunchRexxScript",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 249,
+  "symbol": "_rexxsyslib_LaunchRexxScript"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "FreeRexxMsg",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 260,
+  "symbol": "_rexxsyslib_FreeRexxMsg"
+ },
+ {
+  "lib": "rexxsyslib",
+  "function": "GetRexxBufferFromMsg",
+  "kind": "stub",
+  "detail": "stub: rexxsyslib.library not implemented (Phase 250)",
+  "file": "src/rom/lxa_rexxsyslib.c",
+  "line": 272,
+  "symbol": "_rexxsyslib_GetRexxBufferFromMsg"
+ },
+ {
+  "lib": "translator",
+  "function": "Translate",
+  "kind": "stub",
+  "detail": "stub: copies the English text unchanged instead of producing phonemes",
+  "file": "src/rom/lxa_translator.c",
+  "line": 100,
+  "symbol": "_translator_Translate"
+ },
+ {
+  "lib": "utility",
+  "function": "private0",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_utility.c",
+  "line": 707,
+  "symbol": "_utility_private0"
+ },
+ {
+  "lib": "utility",
+  "function": "private1",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_utility.c",
+  "line": 712,
+  "symbol": "_utility_private1"
+ },
+ {
+  "lib": "utility",
+  "function": "private2",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_utility.c",
+  "line": 1084,
+  "symbol": "_utility_private2"
+ },
+ {
+  "lib": "utility",
+  "function": "private3",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_utility.c",
+  "line": 1694,
+  "symbol": "_utility_private3"
+ },
+ {
+  "lib": "utility",
+  "function": "private4",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_utility.c",
+  "line": 1699,
+  "symbol": "_utility_private4"
+ },
+ {
+  "lib": "utility",
+  "function": "private5",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_utility.c",
+  "line": 1704,
+  "symbol": "_utility_private5"
+ },
+ {
+  "lib": "utility",
+  "function": "private6",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_utility.c",
+  "line": 1709,
+  "symbol": "_utility_private6"
+ },
+ {
+  "lib": "workbench",
+  "function": "Private1",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_workbench.c",
+  "line": 1781,
+  "symbol": "_workbench_Private1"
+ },
+ {
+  "lib": "workbench",
+  "function": "Private2",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_workbench.c",
+  "line": 1782,
+  "symbol": "_workbench_Private2"
+ },
+ {
+  "lib": "workbench",
+  "function": "Private3",
+  "kind": "private",
+  "detail": "private/reserved slot",
+  "file": "src/rom/lxa_workbench.c",
+  "line": 1783,
+  "symbol": "_workbench_Private3"
+ }
+]

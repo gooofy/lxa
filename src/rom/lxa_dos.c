@@ -2773,13 +2773,11 @@ void _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
 VOID _dos_private0 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private0");
-    assert(FALSE);
 }
 
 VOID _dos_private1 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private1");
-    assert(FALSE);
 }
 
 void  _dos_ClearVec (register struct DosLibrary * __libBase __asm("a6"),
@@ -2787,14 +2785,12 @@ void  _dos_ClearVec (register struct DosLibrary * __libBase __asm("a6"),
                                      register BPTR ___upb      __asm("d2"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "ClearVec");
-    assert(FALSE);
 }
 
 void _dos_NoReqLoadSeg (register struct DosLibrary * __libBase __asm("a6"),
                                         register BPTR ___bFileName             __asm("d1"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "NoReqLoadSeg");
-    assert(FALSE);
 }
 
 struct MsgPort * _dos_DeviceProc ( register struct DosLibrary * __libBase __asm("a6"),
@@ -3531,6 +3527,8 @@ VOID _dos_AbortPkt ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct MsgPort * port __asm("d1"),
                                                         register struct DosPacket * pkt __asm("d2"))
 {
+    LXA_UNIMPLEMENTED("dos", "AbortPkt", "stub: packet not aborted (Phase 255)");
+
     (void)DOSBase;
     (void)port;
     (void)pkt;
@@ -5128,7 +5126,6 @@ LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
 VOID _dos_private2 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private2");
-    assert(FALSE);
 }
 
 struct CommandLineInterface * _dos_Cli ( register struct DosLibrary * DOSBase __asm("a6"))
@@ -6280,6 +6277,8 @@ VOID _dos_FreeDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
 struct DosList * _dos_LockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("dos", "LockDosList", "stub: returns a dummy marker, no real DosList or locking (Phase 255)");
+
     /*
      * LockDosList - Lock the DosList for read or write access
      *
@@ -6312,6 +6311,8 @@ struct DosList * _dos_LockDosList ( register struct DosLibrary * DOSBase __asm("
 VOID _dos_UnLockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("dos", "UnLockDosList", "partial: DosList locking is simulated (Phase 255)");
+
     /*
      * UnLockDosList - Release DosList lock
      *
@@ -6325,6 +6326,8 @@ VOID _dos_UnLockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
 struct DosList * _dos_AttemptLockDosList ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register ULONG flags __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("dos", "AttemptLockDosList", "stub: returns a dummy marker, no real DosList or locking (Phase 255)");
+
     /*
      * AttemptLockDosList - Try to lock DosList without blocking
      *
@@ -6437,6 +6440,8 @@ struct DosList * _dos_FindDosEntry ( register struct DosLibrary * DOSBase __asm(
                                                         register CONST_STRPTR name __asm("d2"),
                                                         register ULONG flags __asm("d3"))
 {
+    LXA_UNIMPLEMENTED("dos", "FindDosEntry", "stub: always returns NULL (Phase 255)");
+
     /*
      * FindDosEntry - Find a specific entry in the DosList by name
      *
@@ -6504,6 +6509,8 @@ struct DosList * _dos_NextDosEntry ( register struct DosLibrary * DOSBase __asm(
                                                         register const struct DosList * dlist __asm("d1"),
                                                         register ULONG flags __asm("d2"))
 {
+    LXA_UNIMPLEMENTED("dos", "NextDosEntry", "stub: always returns NULL (Phase 255)");
+
     /*
      * NextDosEntry - Get next entry in DosList
      *
@@ -7633,6 +7640,8 @@ struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("
                                                         register const struct Segment * seg __asm("d2"),
                                                         register LONG system __asm("d3"))
 {
+    LXA_UNIMPLEMENTED("dos", "FindSegment", "stub: resident segment list not implemented (Phase 255)");
+
     system = (LONG)(WORD)system; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_dos: FindSegment() called, name=%s, seg=0x%08lx, system=%ld\n", 
@@ -7645,6 +7654,8 @@ struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("
 LONG _dos_RemSegment ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct Segment * seg __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("dos", "RemSegment", "stub: resident segment list not implemented (Phase 255)");
+
     DPRINTF (LOG_DEBUG, "_dos: RemSegment() called, seg=0x%08lx\n", seg);
     /* Return 0 (FALSE) - segment not removed. Full implementation would
      * remove segment from the resident list. */
@@ -9085,7 +9096,6 @@ BOOL _dos_MatchPattern ( register struct DosLibrary * DOSBase __asm("a6"),
 VOID _dos_private3 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private3");
-    assert(FALSE);
 }
 
 VOID _dos_FreeArgs ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -9117,7 +9127,6 @@ VOID _dos_FreeArgs ( register struct DosLibrary * DOSBase __asm("a6"),
 VOID _dos_private4 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private4");
-    assert(FALSE);
 }
 
 STRPTR _dos_FilePart ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -9826,7 +9835,6 @@ struct LocalVar * _dos_FindVar ( register struct DosLibrary * DOSBase __asm("a6"
 VOID _dos_private5 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private5");
-    assert(FALSE);
 }
 
 LONG _dos_CliInitNewcli ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -10125,7 +10133,6 @@ LONG _dos_VPrintf ( register struct DosLibrary * DOSBase __asm("a6"),
 VOID _dos_private6 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private6");
-    assert(FALSE);
 }
 
 LONG _dos_ParsePatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -10185,7 +10192,6 @@ BOOL _dos_MatchPatternNoCase ( register struct DosLibrary * DOSBase __asm("a6"),
 VOID _dos_private7 ( register struct DosLibrary * DOSBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_dos", "private7");
-    assert(FALSE);
 }
 
 BOOL _dos_SameDevice ( register struct DosLibrary * DOSBase __asm("a6"),

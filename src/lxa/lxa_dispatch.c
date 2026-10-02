@@ -11,6 +11,7 @@
 #include "lxa_memory.h"
 #include "config.h"
 #include "lxa_vclock.h"
+#include "lxa_unimpl.h"
 
 /* Forward declarations for float/double helpers defined later in this file */
 static float ffp_to_host_float(uint32_t raw);
@@ -202,6 +203,28 @@ int op_illg(int level)
 
             lputs (lvl, s);
 
+            break;
+        }
+
+        case EMU_CALL_UNIMPLEMENTED:
+        {
+            /* Phase 203: stub telemetry */
+            uint32_t lib68k = m68k_get_reg(NULL, M68K_REG_D1);
+            uint32_t fn68k = m68k_get_reg(NULL, M68K_REG_D2);
+            uint32_t det68k = m68k_get_reg(NULL, M68K_REG_D3);
+            uint32_t sysbase = m68k_read_memory_32(4);
+            uint32_t task = sysbase ? m68k_read_memory_32(sysbase + EXECBASE_THISTASK) : 0;
+            uint32_t tname = task ? m68k_read_memory_32(task + 10) : 0;
+
+            if (lxa_unimpl_record(lib68k ? _mgetstr(lib68k) : "?",
+                                  fn68k ? _mgetstr(fn68k) : "?",
+                                  det68k ? _mgetstr(det68k) : "",
+                                  tname ? _mgetstr(tname) : ""))
+            {
+                g_rv = LXA_EXIT_UNIMPLEMENTED;
+                vclock_end_timeslice();
+                g_running = FALSE;
+            }
             break;
         }
 

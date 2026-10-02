@@ -3,6 +3,7 @@
 #include "lxa_api.h"
 #include "lxa_vclock.h"
 #include "lxa_coverage.h"
+#include "lxa_unimpl.h"
 
 
 #define RAM_START   0x000000
@@ -1187,6 +1188,8 @@ static void print_usage(char *argv[])
     fprintf(stderr, "    -b <addr|sym>  add breakpoint, examples: -b _start\n");
     fprintf(stderr, "    -c <config>    use config file (default: ~/.lxa/config.ini)\n");
     fprintf(stderr, "    -d             enable debug output\n");
+    fprintf(stderr, "    --strict-unimplemented  stop (exit 125) when a stub or unimplemented\n");
+    fprintf(stderr, "                      system-library function is called\n");
     fprintf(stderr, "    --deterministic   run on the virtual clock (time derived from emulated\n");
     fprintf(stderr, "                      cycles, idle time skipped; reproducible runs)\n");
     fprintf(stderr, "    -h, --help     display this help and exit\n");
@@ -1335,6 +1338,12 @@ int main(int argc, char **argv, char **envp)
         if (strcmp(argv[optind], "--deterministic") == 0)
         {
             deterministic = true;
+            continue;
+        }
+
+        if (strcmp(argv[optind], "--strict-unimplemented") == 0)
+        {
+            lxa_unimpl_set_strict(true);
             continue;
         }
 
@@ -1726,6 +1735,7 @@ int main(int argc, char **argv, char **envp)
 
     _audio_shutdown();
     lxa_coverage_flush();
+    lxa_unimpl_summary();
 
     if (profile_path)
         lxa_profile_write_json(profile_path);

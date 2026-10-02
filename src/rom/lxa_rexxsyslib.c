@@ -91,6 +91,8 @@ UBYTE * _rexxsyslib_CreateArgstring ( register struct RxsLib *RexxBase __asm("a6
                                       register STRPTR string __asm("a0"),
                                       register ULONG length __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "CreateArgstring", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: CreateArgstring() string=%s length=%ld (stub, returns NULL)\n",
              STRORNULL(string), length);
     /* Return NULL - we don't support ARexx */
@@ -101,6 +103,8 @@ UBYTE * _rexxsyslib_CreateArgstring ( register struct RxsLib *RexxBase __asm("a6
 void _rexxsyslib_DeleteArgstring ( register struct RxsLib *RexxBase __asm("a6"),
                                    register UBYTE *argstring __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "DeleteArgstring", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: DeleteArgstring() argstring=0x%08lx (stub)\n", (ULONG)argstring);
 }
 
@@ -108,6 +112,8 @@ void _rexxsyslib_DeleteArgstring ( register struct RxsLib *RexxBase __asm("a6"),
 ULONG _rexxsyslib_LengthArgstring ( register struct RxsLib *RexxBase __asm("a6"),
                                     register UBYTE *argstring __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "LengthArgstring", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: LengthArgstring() argstring=0x%08lx (stub, returns 0)\n", (ULONG)argstring);
     return 0;
 }
@@ -118,6 +124,8 @@ struct RexxMsg * _rexxsyslib_CreateRexxMsg ( register struct RxsLib *RexxBase __
                                              register STRPTR extension __asm("a1"),
                                              register STRPTR host __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "CreateRexxMsg", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: CreateRexxMsg() port=0x%08lx extension=%s host=%s (stub, returns NULL)\n",
              (ULONG)port, STRORNULL(extension), STRORNULL(host));
     return NULL;
@@ -127,6 +135,8 @@ struct RexxMsg * _rexxsyslib_CreateRexxMsg ( register struct RxsLib *RexxBase __
 void _rexxsyslib_DeleteRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
                                  register struct RexxMsg *packet __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "DeleteRexxMsg", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: DeleteRexxMsg() packet=0x%08lx (stub)\n", (ULONG)packet);
 }
 
@@ -135,6 +145,8 @@ void _rexxsyslib_ClearRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
                                 register struct RexxMsg *msgptr __asm("a0"),
                                 register ULONG count __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "ClearRexxMsg", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: ClearRexxMsg() msgptr=0x%08lx count=%ld (stub)\n",
              (ULONG)msgptr, count);
 }
@@ -145,6 +157,8 @@ BOOL _rexxsyslib_FillRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
                                register ULONG count __asm("d0"),
                                register ULONG mask __asm("d1") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "FillRexxMsg", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: FillRexxMsg() msgptr=0x%08lx count=%ld mask=0x%lx (stub, returns FALSE)\n",
              (ULONG)msgptr, count, mask);
     return FALSE;
@@ -154,6 +168,8 @@ BOOL _rexxsyslib_FillRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
 BOOL _rexxsyslib_IsRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
                              register struct RexxMsg *msgptr __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "IsRexxMsg", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: IsRexxMsg() msgptr=0x%08lx (stub, returns FALSE)\n", (ULONG)msgptr);
     return FALSE;
 }
@@ -162,6 +178,8 @@ BOOL _rexxsyslib_IsRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
 void _rexxsyslib_LockRexxBase ( register struct RxsLib *RexxBase __asm("a6"),
                                 register ULONG resource __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "LockRexxBase", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: LockRexxBase() resource=%ld (stub)\n", resource);
 }
 
@@ -169,6 +187,8 @@ void _rexxsyslib_LockRexxBase ( register struct RxsLib *RexxBase __asm("a6"),
 void _rexxsyslib_UnlockRexxBase ( register struct RxsLib *RexxBase __asm("a6"),
                                   register ULONG resource __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "UnlockRexxBase", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: UnlockRexxBase() resource=%ld (stub)\n", resource);
 }
 
@@ -176,6 +196,8 @@ void _rexxsyslib_UnlockRexxBase ( register struct RxsLib *RexxBase __asm("a6"),
 struct MsgPort * _rexxsyslib_CreateRexxHostPort ( register struct RxsLib *RexxBase __asm("a6"),
                                                   register STRPTR basename __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "CreateRexxHostPort", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: CreateRexxHostPort() basename=%s (stub, returns NULL)\n",
              STRORNULL(basename));
     return NULL;
@@ -185,6 +207,8 @@ struct MsgPort * _rexxsyslib_CreateRexxHostPort ( register struct RxsLib *RexxBa
 void _rexxsyslib_DeleteRexxHostPort ( register struct RxsLib *RexxBase __asm("a6"),
                                       register struct MsgPort *port __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "DeleteRexxHostPort", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: DeleteRexxHostPort() port=0x%08lx (stub)\n", (ULONG)port);
 }
 
@@ -194,6 +218,8 @@ LONG _rexxsyslib_GetRexxVarFromMsg ( register struct RxsLib *RexxBase __asm("a6"
                                      register struct RexxMsg *msgptr __asm("a2"),
                                      register STRPTR value __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "GetRexxVarFromMsg", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: GetRexxVarFromMsg() var=%s msgptr=0x%08lx (stub, returns -1)\n",
              STRORNULL(var), (ULONG)msgptr);
     return -1;
@@ -205,6 +231,8 @@ LONG _rexxsyslib_SetRexxVarFromMsg ( register struct RxsLib *RexxBase __asm("a6"
                                      register struct RexxMsg *msgptr __asm("a2"),
                                      register STRPTR value __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "SetRexxVarFromMsg", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: SetRexxVarFromMsg() var=%s msgptr=0x%08lx value=%s (stub, returns -1)\n",
              STRORNULL(var), (ULONG)msgptr, STRORNULL(value));
     return -1;
@@ -218,6 +246,8 @@ struct RexxMsg * _rexxsyslib_LaunchRexxScript ( register struct RxsLib *RexxBase
                                                 register BPTR input __asm("d1"),
                                                 register BPTR output __asm("d2") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "LaunchRexxScript", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: LaunchRexxScript() script=%s (stub, returns NULL)\n",
              STRORNULL(script));
     return NULL;
@@ -227,6 +257,8 @@ struct RexxMsg * _rexxsyslib_LaunchRexxScript ( register struct RxsLib *RexxBase
 void _rexxsyslib_FreeRexxMsg ( register struct RxsLib *RexxBase __asm("a6"),
                                register struct RexxMsg *msgptr __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "FreeRexxMsg", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: FreeRexxMsg() msgptr=0x%08lx (stub)\n", (ULONG)msgptr);
 }
 
@@ -237,6 +269,8 @@ LONG _rexxsyslib_GetRexxBufferFromMsg ( register struct RxsLib *RexxBase __asm("
                                         register STRPTR buffer __asm("a1"),
                                         register ULONG buffer_size __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("rexxsyslib", "GetRexxBufferFromMsg", "stub: rexxsyslib.library not implemented (Phase 250)");
+
     DPRINTF (LOG_DEBUG, "_rexxsyslib: GetRexxBufferFromMsg() var=%s msgptr=0x%08lx (stub, returns -1)\n",
              STRORNULL(var), (ULONG)msgptr);
     return -1;

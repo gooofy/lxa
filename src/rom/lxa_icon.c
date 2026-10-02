@@ -1797,6 +1797,8 @@ struct DiskObject * _icon_GetIconTagList ( register struct IconBase      *IconBa
                                            register CONST_STRPTR          name     __asm("a0"),
                                            register CONST struct TagItem *tags     __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("icon", "GetIconTagList", "partial: ignores all ICONGETA_* tags, behaves like GetDiskObjectNew");
+
     DPRINTF (LOG_DEBUG, "_icon: GetIconTagList() called name='%s'\n", STRORNULL(name));
     /* For now, just call GetDiskObjectNew */
     return _icon_GetDiskObjectNew(IconBase, name);
@@ -1807,6 +1809,8 @@ BOOL _icon_PutIconTagList ( register struct IconBase       *IconBase __asm("a6")
                             register CONST struct DiskObject *icon   __asm("a1"),
                             register CONST struct TagItem   *tags    __asm("a2"))
 {
+    LXA_UNIMPLEMENTED("icon", "PutIconTagList", "partial: ignores all ICONPUTA_* tags, behaves like PutDiskObject");
+
     DPRINTF (LOG_DEBUG, "_icon: PutIconTagList() called\n");
     return _icon_PutDiskObject(IconBase, name, icon);
 }

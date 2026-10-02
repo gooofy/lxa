@@ -530,13 +530,34 @@ struct Library         *DeviceTrackdiskBase;
 
 static struct Custom   *custom            = (struct Custom*)        0xdff000;
 
-void _exec_unimplemented_call ( register struct ExecBase  *exb __asm("a6") )
+ULONG _exec_unimplemented_call ( register struct ExecBase  *exb __asm("a6") )
 {
-    /* Get stack pointer to dump context */
-    ULONG *sp;
-    __asm__ __volatile__ ("move.l %%sp, %0" : "=r" (sp));
-    ULONG ret_addr = sp[0];  /* Return address is at top of stack after jsr */
+    /* The jump table JMPs here, so our return address is the caller's
+     * instruction after its "jsr -LVO(a6)". */
+    ULONG ret_addr = (ULONG)__builtin_return_address(0);
     
+    /* Phase 203: identify the slot from the caller's "jsr -LVO(a6)"
+     * (opcode 0x4EAE followed by the 16-bit displacement). */
+    {
+        static char lvo_name[16];
+        UWORD *call = (UWORD *)(ret_addr - 4);
+        LONG lvo = (ret_addr > 4 && call[0] == 0x4EAE) ? (LONG)(WORD)call[1] : 0;
+        if (lvo)
+        {
+            LONG n = -lvo, d = 100000;
+            char *p = lvo_name;
+            *p++ = 'L'; *p++ = 'V'; *p++ = 'O'; *p++ = ' '; *p++ = '-';
+            while (d > n && d > 1) d /= 10;
+            for (; d; d /= 10) *p++ = (char)('0' + (n / d) % 10);
+            *p = 0;
+        }
+        else
+        {
+            strcpy(lvo_name, "LVO unknown");
+        }
+        LXA_UNIMPLEMENTED("exec", lvo_name, "stub: empty exec.library vector (Phase 255)");
+    }
+
     /* Get current task info */
     struct Task *me = SysBase->ThisTask;
     LPRINTF (LOG_ERROR, "_exec: UNIMPLEMENTED exec.library call!\n");
@@ -544,30 +565,10 @@ void _exec_unimplemented_call ( register struct ExecBase  *exb __asm("a6") )
              (ULONG)me, me ? (me->tc_Node.ln_Name ? me->tc_Node.ln_Name : "(no name)") : "(NULL)");
     LPRINTF (LOG_ERROR, "_exec:   A6 (SysBase?) = 0x%08lx\n", (ULONG)exb);
     LPRINTF (LOG_ERROR, "_exec:   return addr   = 0x%08lx\n", ret_addr);
-    LPRINTF (LOG_ERROR, "_exec:   stack dump:\n");
-    for (int i = 0; i < 8; i++) {
-        LPRINTF (LOG_ERROR, "_exec:     [SP+%d] = 0x%08lx\n", i*4, sp[i]);
-    }
     
-    /* Try to figure out which LVO by looking at instruction before return addr */
-    /* The caller did: jsr -xxx(a6), which is 4 bytes (0x4eae xxxx) */
-    /* So at ret_addr-4 we should see the jsr instruction */
-    if (ret_addr >= 0x1000 && ret_addr < 0x01000000) {
-        UWORD *caller_insn = (UWORD *)(ret_addr - 4);
-        if (caller_insn[0] == 0x4eae) {
-            /* This is "jsr d16(a6)" - the offset is a signed 16-bit value */
-            WORD lvo_offset = (WORD)caller_insn[1];
-            LPRINTF (LOG_ERROR, "_exec:   LVO offset = %d (from jsr instruction at 0x%08lx)\n", 
-                     lvo_offset, (ULONG)caller_insn);
-        } else {
-            LPRINTF (LOG_ERROR, "_exec:   caller insn at 0x%08lx = 0x%04x (not jsr d16(a6))\n",
-                     (ULONG)caller_insn, caller_insn[0]);
-        }
-    } else {
-        LPRINTF (LOG_ERROR, "_exec:   return address 0x%08lx is invalid (can't check caller)\n", ret_addr);
-    }
-    
-    assert (FALSE);
+    /* Phase 203: no halt - the call is recorded (and stops the run in
+     * --strict-unimplemented mode); the caller sees D0 = 0. */
+    return 0;
 }
 
 void _exec_InitCode ( register struct ExecBase * SysBase __asm("a6"),
@@ -1014,6 +1015,8 @@ APTR _exec_InitResident ( register struct ExecBase * SysBase __asm("a6"),
 void _exec_Alert ( register struct ExecBase *SysBase   __asm("a6"),
                             register ULONG            alertNum  __asm("d7"))
 {
+    LXA_UNIMPLEMENTED("exec", "Alert", "stub: no alert display or recovery (Phase 255)");
+
     /*
      * Alert number encoding (from exec/alerts.h):
      *   Bit 31:     AT_DeadEnd (1) or AT_Recovery (0)
@@ -1033,6 +1036,8 @@ void _exec_Alert ( register struct ExecBase *SysBase   __asm("a6"),
 void _exec_Debug ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___flags  __asm("d0"))
 {
+    LXA_UNIMPLEMENTED("exec", "Debug", "stub: no ROM debugger");
+
     DPRINTF (LOG_DEBUG, "_exec: Debug called, flags=0x%08lx\n", ___flags);
 }
 
@@ -1069,6 +1074,8 @@ void _exec_Permit ( register struct ExecBase * SysBase __asm("a6"))
 
 APTR _exec_SuperState ( register struct ExecBase * SysBase __asm("a6"))
 {
+    LXA_UNIMPLEMENTED("exec", "SuperState", "stub: does not enter supervisor mode, returns NULL");
+
     DPRINTF (LOG_DEBUG, "_exec: SuperState() called.\n");
     /* In emulation, we're always in "supervisor" mode effectively.
      * Return NULL to indicate we're already in supervisor state. */
@@ -1078,6 +1085,8 @@ APTR _exec_SuperState ( register struct ExecBase * SysBase __asm("a6"))
 void _exec_UserState ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___sysStack  __asm("d0"))
 {
+    LXA_UNIMPLEMENTED("exec", "UserState", "stub: does not return to user mode");
+
     DPRINTF (LOG_DEBUG, "_exec: UserState() called, sysStack=0x%08lx\n", ___sysStack);
     /* In emulation, state switching is a no-op. */
 }
@@ -1159,6 +1168,8 @@ void _exec_RemIntServer ( register struct ExecBase * SysBase __asm("a6"),
 void _exec_Cause ( register struct ExecBase * SysBase __asm("a6"),
                    register struct Interrupt * ___interrupt  __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("exec", "Cause", "partial: runs the handler immediately in caller context, no softint queue/priority (Phase 255)");
+
     DPRINTF (LOG_DEBUG, "_exec: Cause called, interrupt=0x%08lx\n", ___interrupt);
 
     if (!exec_begin_interrupt_dispatch(___interrupt))
@@ -2207,6 +2218,8 @@ ULONG _exec_SetExcept ( register struct ExecBase * SysBase    __asm("a6"),
                                         register ULONG             newSignals __asm("d0"),
                                         register ULONG             signalSet  __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("exec", "SetExcept", "partial: pending exception deferred to next task switch instead of immediate (Phase 255)");
+
     DPRINTF (LOG_DEBUG, "_exec: SetExcept called, newSignals=0x%08lx, signalSet=0x%08lx\n", newSignals, signalSet);
 
     struct Task *me = SysBase->ThisTask;
@@ -2578,6 +2591,8 @@ void _exec_FreeSignal ( register struct ExecBase *SysBase   __asm("a6"),
 LONG _exec_AllocTrap ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
+    LXA_UNIMPLEMENTED("exec", "AllocTrap", "stub: always fails");
+
     ___trapNum = (LONG)(WORD)___trapNum; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_exec: AllocTrap called, trapNum=%ld\n", ___trapNum);
@@ -2590,6 +2605,8 @@ LONG _exec_AllocTrap ( register struct ExecBase * SysBase __asm("a6"),
 void _exec_FreeTrap ( register struct ExecBase * SysBase __asm("a6"),
                                                         register LONG ___trapNum  __asm("d0"))
 {
+    LXA_UNIMPLEMENTED("exec", "FreeTrap", "stub: trap allocation not tracked");
+
     ___trapNum = (LONG)(WORD)___trapNum; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_exec: FreeTrap called, trapNum=%ld\n", ___trapNum);
@@ -4679,6 +4696,8 @@ ULONG _exec_CacheControl ( register struct ExecBase * SysBase __asm("a6"),
                                                         register ULONG ___cacheBits  __asm("d0"),
                                                         register ULONG ___cacheMask  __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("exec", "CacheControl", "partial: reports all caches disabled, ignores changes");
+
     /*
      * CacheControl() sets CPU cache control bits.
      * On lxa, there's no hardware cache, so we just return 0 (all caches disabled).
@@ -5019,6 +5038,8 @@ void _exec_FreePooled ( register struct ExecBase * SysBase __asm("a6"),
                                                         register APTR ___memory  __asm("a1"),
                                                         register ULONG ___memSize  __asm("d0"))
 {
+    LXA_UNIMPLEMENTED("exec", "FreePooled", "partial: memory returns to the system only in DeletePool");
+
     DPRINTF (LOG_DEBUG, "_exec: FreePooled called, poolHeader=0x%08lx, memory=0x%08lx, memSize=%ld\n",
              ___poolHeader, ___memory, ___memSize);
 

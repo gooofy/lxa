@@ -115,19 +115,11 @@ M0 and M1 are on the critical path: nothing in M2 and later is efficient without
 
 ## Next Phase
 
-> **Phase 203 — Stub telemetry**, then 204. Phase 210 (reference system builder) has no code dependency on M0 and may run in parallel in a separate worktree.
+> **Phase 204 — Fix menu/input introspection for scripting**. Phase 210 (reference system builder) has no code dependency on M0 and may run in parallel in a separate worktree.
 
 ---
 
 ## M0 — Foundations
-
-### Phase 203 — Stub telemetry
-**Class**: Quality (makes facades visible).
-- [ ] Route every stub, partial implementation and unfilled LVO slot through one macro, `LXA_UNIMPLEMENTED(lib, fn, detail)`. Include the `_exec_unimplemented_call` slots (`exec.c:533`) and the `_dos_privateN` `assert(FALSE)` paths. The macro emits a structured `EMU_CALL` event.
-- [ ] Host side: an `lxa_get_unimplemented_log()` API, a `--strict-unimplemented` mode that fails the run, and a per-run summary in `lxa.log`.
-- [ ] Add `tools/stub_inventory.py`, which statically lists every macro site. Its output is the authoritative work list for M5.
-
-**Test gate**: the inventory matches the audit (commodities, rexxsyslib and amigaguide fully listed). A GTest proves the strict mode trips.
 
 ### Phase 204 — Fix menu/input introspection for scripting (was legacy Phase 161)
 **Class**: Quality (infrastructure). The M1 scenario DSL needs it.
@@ -458,7 +450,7 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | Apps catalogued / rated Gold+ | 19 / unrated | 19 / measured | 40 / 25 |
 | Scenarios with reference goldens | 0 | 4 | 300+ |
 | Test programs validated on real OS | 0 / 225 | — | 225 / 225 |
-| Stubbed system-library LVOs (Phase 203 inventory) | ~90 (audit estimate) | measured | 0 used by the corpus |
+| Stubbed system-library LVOs (Phase 203 inventory) | 85 stub + 39 partial + 117 without implementation (v0.11.1) | measured | 0 used by the corpus |
 | Line coverage (host + ROM) | ROM 77.3 % / host 32.6 % (v0.11.0) | measured | never decreasing |
 | Flaky-test rate (20× runs) | 0 / 20 under load (v0.11.0) | 0 | 0 |
 | Full-suite wall time `-j16` | 22 s (v0.11.0; was 110 s) | ≤145 s | ≤120 s |
@@ -484,3 +476,4 @@ The order below is provisional. After Phase 231/232 it is re-sorted by how often
 | 200 | Roadmap & agent-docs reset: AGENTS.md for Claude Code + RDD/clean-room rules, workflow skill de-pooled, stale stub comments removed, `apps/README.md` manifest rule. | v0.10.15 |
 | 201 | Deterministic virtual time: cycle-derived VBlank/timer/DateStamp (`lxa_vclock.c`, 25 MHz virtual CPU, idle skipping), emulated-time timeouts (`EmuDeadline`), real `WaitTOF`, ReadEClock overflow fix, host stdin detached under liblxa, 38 hot-path LPRINTFs demoted, ROM built for 68020, faster `Text`/`memset`/`CopyMem`. Suite 110 s → 22 s, 20/20 runs under load green. | v0.11.0 |
 | 202 | Measurable coverage: ROM PC-bitmap coverage + disk-library vector coverage (`LXA_ROM_COVERAGE`), host gcov (`-DLXA_COVERAGE=ON`), `make coverage` → merged lcov + HTML, per-LVO table `doc/coverage/lvo-coverage.md`. Baseline: ROM 77.3 %, host 32.6 %, 787 LVOs tested. | v0.11.0 |
+| 203 | Stub telemetry: `LXA_UNIMPLEMENTED` → EMU_CALL_UNIMPLEMENTED for every stub/partial/private slot/empty exec vector (173 sites), `lxa_get_unimplemented_log()`, `lxa.log` summary, `--strict-unimplemented` (exit 125, stubs only), `tools/stub_inventory.py` → `doc/stub-inventory.md` (+117 LVOs without implementation); empty vectors/private slots no longer halt the emulator; console unknown commands return IOERR_NOCMD. | v0.11.1 |

@@ -119,6 +119,7 @@ set(TESTS_LIST
     "../tests/exec/library|main|Tests/Exec/Library"
     "../tests/exec/exec_verify|main|Tests/Exec/ExecVerify"
     "../tests/exec/interrupts|main|Tests/Exec/Interrupts"
+    "../tests/exec/stub_probe|main|Tests/Exec/StubProbe"
     "../tests/dos/chario|main|Tests/Dos/CharIO"
     "../tests/dos/stdin_eof|main|Tests/Dos/StdinEOF"
     "../tests/dos/createdir|main|Tests/Dos/CreateDir"

@@ -14,6 +14,7 @@
 #include "lxa_copper.h"
 #include "lxa_vclock.h"
 #include "lxa_coverage.h"
+#include "lxa_unimpl.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -477,6 +478,10 @@ int lxa_init(const lxa_config_t *config)
 
     extern bool g_console_stdin_detached;
     g_console_stdin_detached = true;
+
+    /* Phase 203: stub telemetry */
+    lxa_unimpl_reset();
+    lxa_unimpl_set_strict(config->strict_unimplemented);
     s_vblank_count = 0;
     s_cycles_since_auto_vblank = 0;
 
@@ -524,6 +529,7 @@ void lxa_shutdown(void)
     }
 
     lxa_coverage_flush();
+    lxa_unimpl_summary();
 
     /* Shutdown display */
     display_shutdown();
@@ -790,6 +796,26 @@ int lxa_run_frames(int frames)
 uint64_t lxa_get_emulated_cycles(void)
 {
     return vclock_cycles();
+}
+
+int lxa_get_unimplemented_log(lxa_unimplemented_t *entries, int max)
+{
+    static lxa_unimpl_entry_t all[512];
+    int total = lxa_unimpl_get(all, 512);
+
+    for (int i = 0; entries && i < total && i < max && i < 512; i++) {
+        snprintf(entries[i].lib, sizeof(entries[i].lib), "%s", all[i].lib);
+        snprintf(entries[i].function, sizeof(entries[i].function), "%s", all[i].function);
+        snprintf(entries[i].detail, sizeof(entries[i].detail), "%s", all[i].detail);
+        snprintf(entries[i].first_task, sizeof(entries[i].first_task), "%s", all[i].first_task);
+        entries[i].count = all[i].count;
+    }
+    return total;
+}
+
+void lxa_clear_unimplemented_log(void)
+{
+    lxa_unimpl_reset();
 }
 
 uint64_t lxa_get_time_us(void)

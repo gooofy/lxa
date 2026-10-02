@@ -1657,6 +1657,8 @@ static VOID _layers_ScrollLayer ( register struct LayersBase *LayersBase __asm("
                                   register LONG               dx         __asm("d0"),
                                   register LONG               dy         __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("layers", "ScrollLayer", "partial: SuperBitMap layers only update scroll offsets, no SyncSBitMap/CopySBitMap (Phase 256)");
+
     /* GCC m68k inline stubs may use move.w for d-register args, leaving
      * upper 16 bits with garbage.  Sign-extend from WORD to LONG. */
     dx = (LONG)(WORD)dx;

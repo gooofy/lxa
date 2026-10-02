@@ -314,7 +314,7 @@ APTR _datatypes_ObtainDataTypeA ( register struct Library *DataTypesBase __asm("
     ldt->ldt_DT.dtn_FunctionName    = NULL;
     ldt->ldt_DT.dtn_AttrList        = NULL;
     ldt->ldt_DT.dtn_Length          = sizeof(struct LXADataType);
-    NewList(&ldt->ldt_DT.dtn_ToolList);
+    NEWLIST(&ldt->ldt_DT.dtn_ToolList);
 
     DPRINTF (LOG_DEBUG, "_datatypes: ObtainDataTypeA: returns 0x%08lx (%s)\n",
              (ULONG)&ldt->ldt_DT, src_hdr->dth_Name);
@@ -413,7 +413,7 @@ APTR _datatypes_NewDTObjectA ( register struct Library *DataTypesBase __asm("a6"
     ldt->ldt_HdrPtr  = &ldt->ldt_HdrCopy;
     ldt->ldt_DT.dtn_Header  = ldt->ldt_HdrPtr;
     ldt->ldt_DT.dtn_Length  = sizeof(struct LXADataType);
-    NewList(&ldt->ldt_DT.dtn_ToolList);
+    NEWLIST(&ldt->ldt_DT.dtn_ToolList);
 
     /* Initialise DTSpecialInfo — MEMF_CLEAR already zeroed the semaphore fields */
     /* InitSemaphore not called here: semaphore is unused in this implementation */
@@ -636,6 +636,8 @@ ULONG _datatypes_AddDTObject ( register struct Library *DataTypesBase __asm("a6"
                                register APTR object __asm("a2"),
                                register LONG position __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("datatypes", "AddDTObject", "stub: object not added to the window (Phase 253)");
+
     DPRINTF (LOG_DEBUG, "_datatypes: AddDTObject() object=0x%08lx position=%ld\n",
              (ULONG)object, position);
     /* Without a real gadget list to insert into, return position unchanged */
@@ -651,6 +653,8 @@ void _datatypes_RefreshDTObjectA ( register struct Library *DataTypesBase __asm(
                                    register APTR requester __asm("a2"),
                                    register struct TagItem *tags __asm("a3") )
 {
+    LXA_UNIMPLEMENTED("datatypes", "RefreshDTObjectA", "stub: no refresh (Phase 253)");
+
     DPRINTF (LOG_DEBUG, "_datatypes: RefreshDTObjectA() object=0x%08lx\n", (ULONG)object);
     /* No display to refresh in headless mode */
 }
@@ -662,6 +666,8 @@ ULONG _datatypes_DoAsyncLayout ( register struct Library *DataTypesBase __asm("a
                                  register APTR object __asm("a0"),
                                  register APTR gpl __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("datatypes", "DoAsyncLayout", "stub: no layout (Phase 253)");
+
     DPRINTF (LOG_DEBUG, "_datatypes: DoAsyncLayout() object=0x%08lx\n", (ULONG)object);
     return 0;
 }
@@ -733,6 +739,8 @@ ULONG _datatypes_RemoveDTObject ( register struct Library *DataTypesBase __asm("
                                   register APTR window __asm("a0"),
                                   register APTR object __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("datatypes", "RemoveDTObject", "stub (Phase 253)");
+
     DPRINTF (LOG_DEBUG, "_datatypes: RemoveDTObject() object=0x%08lx\n", (ULONG)object);
     return 0;
 }
@@ -799,6 +807,8 @@ ULONG _datatypes_PrintDTObjectA ( register struct Library *DataTypesBase __asm("
                                   register APTR requester __asm("a2"),
                                   register struct TagItem *tags __asm("a3") )
 {
+    LXA_UNIMPLEMENTED("datatypes", "PrintDTObjectA", "stub: no printing (Phase 253)");
+
     DPRINTF (LOG_DEBUG, "_datatypes: PrintDTObjectA() object=0x%08lx\n", (ULONG)object);
     return 0;
 }

@@ -50,6 +50,7 @@ set(LXA_CORE_SOURCES
     lxa_profile.c
     lxa_vclock.c
     lxa_coverage.c
+    lxa_unimpl.c
 )
 
 # Common compile options

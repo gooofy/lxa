@@ -307,4 +307,8 @@
 #define EMU_CALL_FFP_FLOOR           5137  /* SPFloor:  d1=ffp -> d0=ffp */
 #define EMU_CALL_FFP_CEIL            5138  /* SPCeil:   d1=ffp -> d0=ffp */
 
+/* Phase 203: stub telemetry.  d1=lib name, d2=function name, d3=detail
+ * (all C strings in emulated memory).  Reported by LXA_UNIMPLEMENTED(). */
+#define EMU_CALL_UNIMPLEMENTED       5200
+
 #endif

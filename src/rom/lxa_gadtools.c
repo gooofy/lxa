@@ -2600,6 +2600,8 @@ void _gadtools_GT_EndRefresh ( register struct GadToolsBase *GadToolsBase __asm(
 struct IntuiMessage * _gadtools_GT_FilterIMsg ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                                 register struct IntuiMessage *imsg __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("gadtools", "GT_FilterIMsg", "partial: returns the message unfiltered (Phase 256)");
+
     DPRINTF (LOG_DEBUG, "_gadtools: GT_FilterIMsg() imsg=0x%08lx\n", (ULONG)imsg);
     return imsg;  /* No filtering in stub */
 }
@@ -2608,6 +2610,8 @@ struct IntuiMessage * _gadtools_GT_FilterIMsg ( register struct GadToolsBase *Ga
 struct IntuiMessage * _gadtools_GT_PostFilterIMsg ( register struct GadToolsBase *GadToolsBase __asm("a6"),
                                                     register struct IntuiMessage *imsg __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("gadtools", "GT_PostFilterIMsg", "partial: returns the message unfiltered (Phase 256)");
+
     DPRINTF (LOG_DEBUG, "_gadtools: GT_PostFilterIMsg() imsg=0x%08lx\n", (ULONG)imsg);
     return imsg;  /* No filtering in stub */
 }
@@ -2669,6 +2673,8 @@ void _gadtools_DrawBevelBoxA ( register struct GadToolsBase *GadToolsBase __asm(
                                register WORD height __asm("d3"),
                                register struct TagItem *taglist __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("gadtools", "DrawBevelBoxA", "partial: BBFT_ICONDROPBOX drawn as a plain recessed box (Phase 256)");
+
     struct VisualInfo *vi = NULL;
     BOOL recessed = FALSE;
     ULONG frameType = BBFT_BUTTON;

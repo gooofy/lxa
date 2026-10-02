@@ -123,6 +123,8 @@ ULONG _amigaguide_Reserved ( void )
 LONG _amigaguide_LockAmigaGuideBase ( register struct Library *AmigaGuideBase __asm("a6"),
                                       register APTR handle __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "LockAmigaGuideBase", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: LockAmigaGuideBase() handle=0x%08lx (stub, returns 0)\n", (ULONG)handle);
     return 0;
 }
@@ -131,6 +133,8 @@ LONG _amigaguide_LockAmigaGuideBase ( register struct Library *AmigaGuideBase __
 void _amigaguide_UnlockAmigaGuideBase ( register struct Library *AmigaGuideBase __asm("a6"),
                                         register LONG key __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "UnlockAmigaGuideBase", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: UnlockAmigaGuideBase() key=%ld (stub)\n", key);
 }
 
@@ -139,6 +143,8 @@ APTR _amigaguide_OpenAmigaGuideA ( register struct Library *AmigaGuideBase __asm
                                    register struct NewAmigaGuide *nag __asm("a0"),
                                    register struct TagItem *tags __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "OpenAmigaGuideA", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: OpenAmigaGuideA() nag=0x%08lx (stub, returns NULL)\n", (ULONG)nag);
     return NULL;
 }
@@ -148,6 +154,8 @@ APTR _amigaguide_OpenAmigaGuideAsyncA ( register struct Library *AmigaGuideBase 
                                         register struct NewAmigaGuide *nag __asm("a0"),
                                         register ULONG attrs __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "OpenAmigaGuideAsyncA", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: OpenAmigaGuideAsyncA() nag=0x%08lx (stub, returns NULL)\n", (ULONG)nag);
     return NULL;
 }
@@ -156,6 +164,8 @@ APTR _amigaguide_OpenAmigaGuideAsyncA ( register struct Library *AmigaGuideBase 
 void _amigaguide_CloseAmigaGuide ( register struct Library *AmigaGuideBase __asm("a6"),
                                    register APTR handle __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "CloseAmigaGuide", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: CloseAmigaGuide() handle=0x%08lx (stub)\n", (ULONG)handle);
 }
 
@@ -163,6 +173,8 @@ void _amigaguide_CloseAmigaGuide ( register struct Library *AmigaGuideBase __asm
 ULONG _amigaguide_AmigaGuideSignal ( register struct Library *AmigaGuideBase __asm("a6"),
                                      register APTR handle __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "AmigaGuideSignal", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: AmigaGuideSignal() handle=0x%08lx (stub, returns 0)\n", (ULONG)handle);
     return 0;
 }
@@ -171,6 +183,8 @@ ULONG _amigaguide_AmigaGuideSignal ( register struct Library *AmigaGuideBase __a
 struct AmigaGuideMsg * _amigaguide_GetAmigaGuideMsg ( register struct Library *AmigaGuideBase __asm("a6"),
                                                        register APTR handle __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "GetAmigaGuideMsg", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: GetAmigaGuideMsg() handle=0x%08lx (stub, returns NULL)\n", (ULONG)handle);
     return NULL;
 }
@@ -179,6 +193,8 @@ struct AmigaGuideMsg * _amigaguide_GetAmigaGuideMsg ( register struct Library *A
 void _amigaguide_ReplyAmigaGuideMsg ( register struct Library *AmigaGuideBase __asm("a6"),
                                       register struct AmigaGuideMsg *msg __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "ReplyAmigaGuideMsg", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: ReplyAmigaGuideMsg() msg=0x%08lx (stub)\n", (ULONG)msg);
 }
 
@@ -188,6 +204,8 @@ LONG _amigaguide_SetAmigaGuideContextA ( register struct Library *AmigaGuideBase
                                          register ULONG context __asm("d0"),
                                          register ULONG attrs __asm("d1") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "SetAmigaGuideContextA", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: SetAmigaGuideContextA() handle=0x%08lx context=%ld (stub, returns 0)\n",
              (ULONG)handle, context);
     return 0;
@@ -198,6 +216,8 @@ LONG _amigaguide_SendAmigaGuideContextA ( register struct Library *AmigaGuideBas
                                           register APTR handle __asm("a0"),
                                           register ULONG attrs __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "SendAmigaGuideContextA", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: SendAmigaGuideContextA() handle=0x%08lx (stub, returns 0)\n", (ULONG)handle);
     return 0;
 }
@@ -208,6 +228,8 @@ LONG _amigaguide_SendAmigaGuideCmdA ( register struct Library *AmigaGuideBase __
                                       register STRPTR cmd __asm("d0"),
                                       register ULONG attrs __asm("d1") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "SendAmigaGuideCmdA", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: SendAmigaGuideCmdA() handle=0x%08lx cmd=%s (stub, returns 0)\n",
              (ULONG)handle, STRORNULL((char *)(ULONG)cmd));
     return 0;
@@ -218,6 +240,8 @@ LONG _amigaguide_SetAmigaGuideAttrsA ( register struct Library *AmigaGuideBase _
                                        register APTR handle __asm("a0"),
                                        register struct TagItem *tags __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "SetAmigaGuideAttrsA", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: SetAmigaGuideAttrsA() handle=0x%08lx (stub, returns 0)\n", (ULONG)handle);
     return 0;
 }
@@ -228,6 +252,8 @@ LONG _amigaguide_GetAmigaGuideAttr ( register struct Library *AmigaGuideBase __a
                                      register APTR handle __asm("a0"),
                                      register ULONG *storage __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "GetAmigaGuideAttr", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: GetAmigaGuideAttr() tag=0x%08lx handle=0x%08lx (stub, returns 0)\n",
              tag, (ULONG)handle);
     if (storage)
@@ -240,6 +266,8 @@ LONG _amigaguide_LoadXRef ( register struct Library *AmigaGuideBase __asm("a6"),
                             register BPTR lock __asm("a0"),
                             register STRPTR name __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "LoadXRef", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: LoadXRef() name=%s (stub, returns 0)\n", STRORNULL(name));
     return 0;
 }
@@ -247,6 +275,8 @@ LONG _amigaguide_LoadXRef ( register struct Library *AmigaGuideBase __asm("a6"),
 /* -132: ExpungeXRef */
 void _amigaguide_ExpungeXRef ( register struct Library *AmigaGuideBase __asm("a6") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "ExpungeXRef", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: ExpungeXRef() (stub)\n");
 }
 
@@ -256,6 +286,8 @@ APTR _amigaguide_AddAmigaGuideHostA ( register struct Library *AmigaGuideBase __
                                       register ULONG name __asm("d0"),
                                       register struct TagItem *tags __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "AddAmigaGuideHostA", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: AddAmigaGuideHostA() hook=0x%08lx (stub, returns NULL)\n", (ULONG)hook);
     return NULL;
 }
@@ -265,6 +297,8 @@ LONG _amigaguide_RemoveAmigaGuideHostA ( register struct Library *AmigaGuideBase
                                          register APTR handle __asm("a0"),
                                          register struct TagItem *tags __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "RemoveAmigaGuideHostA", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: RemoveAmigaGuideHostA() handle=0x%08lx (stub, returns 0)\n", (ULONG)handle);
     return 0;
 }
@@ -273,6 +307,8 @@ LONG _amigaguide_RemoveAmigaGuideHostA ( register struct Library *AmigaGuideBase
 STRPTR _amigaguide_GetAmigaGuideString ( register struct Library *AmigaGuideBase __asm("a6"),
                                          register ULONG id __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("amigaguide", "GetAmigaGuideString", "stub: amigaguide.library not implemented (Phase 254)");
+
     DPRINTF (LOG_DEBUG, "_amigaguide: GetAmigaGuideString() id=%ld (stub, returns NULL)\n", id);
     return NULL;
 }

@@ -66,6 +66,12 @@ typedef struct lxa_config {
     uint32_t cpu_hz;            /* deterministic: emulated CPU clock (0 = 25 MHz) */
     uint32_t cycles_per_frame;  /* deterministic: cycles per VBlank (0 = cpu_hz/50) */
     uint64_t epoch_secs;        /* deterministic: Unix time at boot (0 = 2024-01-01) */
+    /*
+     * Phase 203: stop the run (exit code LXA_EXIT_UNIMPLEMENTED = 125) the
+     * first time a stub, private slot or empty vector of a system library
+     * is called ("partial:" implementations are only recorded).
+     */
+    bool strict_unimplemented;
 } lxa_config_t;
 
 /*
@@ -130,6 +136,26 @@ uint64_t lxa_get_idle_cycles(void);
  * test timeouts so they do not depend on host load.
  */
 uint64_t lxa_get_time_us(void);
+
+/* ========== Stub telemetry (Phase 203) ========== */
+
+#define LXA_EXIT_UNIMPLEMENTED 125
+
+typedef struct lxa_unimplemented {
+    char lib[32];          /* library without ".library", e.g. "commodities" */
+    char function[48];     /* function name, or "LVO -NNN" for an empty slot */
+    char detail[128];      /* "stub: ..." or "partial: ..." */
+    char first_task[64];   /* task that made the first call */
+    int  count;            /* number of calls */
+} lxa_unimplemented_t;
+
+/*
+ * Copy up to `max` records of unimplemented functions called since
+ * lxa_init() (or the last clear).  Returns the number of distinct records,
+ * which may exceed `max`.  `entries` may be NULL to just count.
+ */
+int lxa_get_unimplemented_log(lxa_unimplemented_t *entries, int max);
+void lxa_clear_unimplemented_log(void);
 
 /* Current m68k program counter (diagnostics: where is a busy task spinning?) */
 uint32_t lxa_get_pc(void);

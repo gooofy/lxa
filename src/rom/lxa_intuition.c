@@ -4605,6 +4605,8 @@ BOOL _intuition_DisplayAlert ( register struct IntuitionBase * IntuitionBase __a
 VOID _intuition_DisplayBeep ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "DisplayBeep", "stub: no screen flash or bell (Phase 256)");
+
     /*
      * DisplayBeep() flashes the screen colors as an audio/visual alert.
      * We just log it as a no-op.
@@ -8468,6 +8470,8 @@ VOID _intuition_ModifyProp ( register struct IntuitionBase * IntuitionBase __asm
                                                         register UWORD horizBody __asm("d3"),
                                                         register UWORD vertBody __asm("d4"))
 {
+    LXA_UNIMPLEMENTED("intuition", "ModifyProp", "partial: updates PropInfo but does not re-render the gadget (Phase 256)");
+
     DPRINTF (LOG_DEBUG, "_intuition: ModifyProp() called, gadget=0x%08lx window=0x%08lx\n",
              (ULONG)gadget, (ULONG)window);
 
@@ -8503,6 +8507,8 @@ VOID _intuition_MoveScreen ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD dx __asm("d0"),
                                                         register WORD dy __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("intuition", "MoveScreen", "partial: screen position changes, display does not (Phase 256)");
+
     DPRINTF (LOG_DEBUG, "_intuition: MoveScreen() screen=0x%08lx dx=%d dy=%d\n", (ULONG)screen, dx, dy);
     
     if (!screen) return;
@@ -8688,6 +8694,8 @@ static BOOL g_opening_workbench_screen = FALSE;
 struct Screen * _intuition_OpenScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewScreen * newScreen __asm("a0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "OpenScreen", "partial: fixed bar/border sizes, screen font height ignored (Phase 256)");
+
     struct Screen *screen;
     ULONG display_handle;
     WORD requested_width, requested_height;
@@ -9522,6 +9530,8 @@ static BOOL _window_uses_native_host(struct Screen *screen, BOOL rootless_mode)
 struct Window * _intuition_OpenWindow ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct NewWindow * newWindow __asm("a0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "OpenWindow", "partial: title bar height ignores screen font height (Phase 256)");
+
     struct Window *window;
     struct Screen *screen;
     struct Layer *border_layer = NULL;
@@ -10151,6 +10161,8 @@ VOID _intuition_PrintIText ( register struct IntuitionBase * IntuitionBase __asm
                                                         register WORD left __asm("d0"),
                                                         register WORD top __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("intuition", "PrintIText", "partial: ignores IntuiText ITextFont, uses RastPort font (Phase 256)");
+
     DPRINTF (LOG_DEBUG, "_intuition: PrintIText() rp=0x%08lx iText=0x%08lx at %d,%d\n",
              (ULONG)rp, (ULONG)iText, (int)left, (int)top);
     
@@ -10343,6 +10355,8 @@ BOOL _intuition_Request ( register struct IntuitionBase * IntuitionBase __asm("a
 VOID _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "ScreenToBack", "partial: reorders screen list, display not updated (Phase 256)");
+
     struct Screen *curr, *prev = NULL;
     
     DPRINTF (LOG_DEBUG, "_intuition: ScreenToBack() screen=0x%08lx\n", (ULONG)screen);
@@ -10389,6 +10403,8 @@ VOID _intuition_ScreenToBack ( register struct IntuitionBase * IntuitionBase __a
 VOID _intuition_ScreenToFront ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct Screen * screen __asm("a0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "ScreenToFront", "partial: reorders screen list, display not updated (Phase 256)");
+
     struct Screen *curr, *prev = NULL;
 
     DPRINTF (LOG_DEBUG, "_intuition: ScreenToFront() screen=0x%08lx\n", (ULONG)screen);
@@ -10811,6 +10827,8 @@ struct Preferences  * _intuition_SetPrefs ( register struct IntuitionBase * Intu
 LONG _intuition_IntuiTextLength ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register const struct IntuiText * iText __asm("a0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "IntuiTextLength", "partial: assumes 8 pixel Topaz width, ignores ITextFont (Phase 256)");
+
     /*
      * IntuiTextLength() returns the pixel width of an IntuiText string.
      * This is used for layout calculations before rendering.
@@ -11371,7 +11389,6 @@ APTR _intuition_AllocRemember ( register struct IntuitionBase * IntuitionBase __
 VOID _intuition_private0 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private0");
-    assert(FALSE);
 }
 
 VOID _intuition_FreeRemember ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -12752,6 +12769,8 @@ VOID _intuition_UnlockPubScreen ( register struct IntuitionBase * IntuitionBase 
 
 struct List * _intuition_LockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
+    LXA_UNIMPLEMENTED("intuition", "LockPubScreenList", "partial: list is returned without locking (Phase 256)");
+
     struct LXAIntuitionBase *base = (struct LXAIntuitionBase *)IntuitionBase;
 
     DPRINTF (LOG_DEBUG, "_intuition: LockPubScreenList() -> 0x%08lx\n", (ULONG)&base->PubScreenList);
@@ -12760,6 +12779,8 @@ struct List * _intuition_LockPubScreenList ( register struct IntuitionBase * Int
 
 VOID _intuition_UnlockPubScreenList ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
+    LXA_UNIMPLEMENTED("intuition", "UnlockPubScreenList", "partial: no-op, list is never locked (Phase 256)");
+
     /* Unlock the public screen list after LockPubScreenList.
      * In our simplified implementation, this is a no-op.
      */
@@ -12772,6 +12793,8 @@ STRPTR _intuition_NextPubScreen ( register struct IntuitionBase * IntuitionBase 
                                                         register const struct Screen * screen __asm("a0"),
                                                         register STRPTR namebuf __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("intuition", "NextPubScreen", "partial: only ever reports Workbench (Phase 256)");
+
     /* Return the name of the next public screen.
      * If screen is NULL, returns the first public screen name.
      * Returns NULL if there are no more public screens.
@@ -12797,6 +12820,8 @@ STRPTR _intuition_NextPubScreen ( register struct IntuitionBase * IntuitionBase 
 VOID _intuition_SetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("a0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "SetDefaultPubScreen", "stub: default public screen not changed (Phase 256)");
+
     /* Set the default public screen.
      * If name is NULL, Workbench becomes the default.
      * In our simplified implementation, this is a no-op since Workbench is always default.
@@ -12810,6 +12835,8 @@ VOID _intuition_SetDefaultPubScreen ( register struct IntuitionBase * IntuitionB
 UWORD _intuition_SetPubScreenModes ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register UWORD modes __asm("d0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "SetPubScreenModes", "partial: modes stored but SHANGHAI/POPPUBSCREEN ignored (Phase 256)");
+
     /* Set the public screen modes.
      * Returns the old modes value.
      * In our simplified implementation, we store but largely ignore modes.
@@ -12860,6 +12887,8 @@ UWORD _intuition_PubScreenStatus ( register struct IntuitionBase * IntuitionBase
 struct RastPort	* _intuition_ObtainGIRPort ( register struct IntuitionBase * IntuitionBase __asm("a6"),
                                                         register struct GadgetInfo * gInfo __asm("a0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "ObtainGIRPort", "partial: returns the shared gadget RastPort instead of a clone (Phase 256)");
+
     /* Obtain a RastPort for rendering a gadget.
      * Returns NULL if unsuccessful.
      * The GadgetInfo contains screen/window/layer info.
@@ -12947,7 +12976,6 @@ VOID _intuition_GadgetMouse ( register struct IntuitionBase * IntuitionBase __as
 VOID _intuition_private1 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private1");
-    assert(FALSE);
 }
 
 VOID _intuition_GetDefaultPubScreen ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -13657,6 +13685,8 @@ struct Window * _intuition_OpenWindowTagList ( register struct IntuitionBase * I
                                                         register const struct NewWindow * newWindow __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("intuition", "OpenWindowTagList", "partial: ignores WA_BackFill, WA_RptQueue, WA_Pointer, WA_BusyPointer, WA_Checkmark, WA_HelpGroup (Phase 256)");
+
     BOOL auto_adjust = FALSE;
     BOOL left_specified = FALSE;
     BOOL top_specified = FALSE;
@@ -14139,6 +14169,8 @@ struct Screen * _intuition_OpenScreenTagList ( register struct IntuitionBase * I
                                                         register const struct NewScreen * newScreen __asm("a0"),
                                                         register const struct TagItem * tagList __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("intuition", "OpenScreenTagList", "partial: ignores SA_DClip, SA_Overscan, SA_Colors, SA_SysFont, SA_ErrorCode (Phase 256)");
+
     struct NewScreen ns;
     struct TagItem *tstate;
     struct TagItem *tag;
@@ -14634,6 +14666,8 @@ BOOL _intuition_PointInImage ( register struct IntuitionBase * IntuitionBase __a
                                                         register ULONG point __asm("d0"),
                                                         register struct Image * image __asm("a0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "PointInImage", "stub: always TRUE (Phase 256)");
+
     /* point is packed Y | X<<16 ? No, Amiga Point is struct { WORD x, y }.
      * But passed in d0? D0 is 32-bit. Usually "point" args are passed as separate registers or a pointer.
      * Stub says "ULONG point".
@@ -15006,7 +15040,6 @@ APTR _intuition_NextObject ( register struct IntuitionBase * IntuitionBase __asm
 VOID _intuition_private2 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private2");
-    assert(FALSE);
 }
 
 struct IClass * _intuition_MakeClass ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -15261,49 +15294,41 @@ BOOL _intuition_FreeClass ( register struct IntuitionBase * IntuitionBase __asm(
 VOID _intuition_private3 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private3");
-    assert(FALSE);
 }
 
 VOID _intuition_private4 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private4");
-    assert(FALSE);
 }
 
 VOID _intuition_private5 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private5");
-    assert(FALSE);
 }
 
 VOID _intuition_private6 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private6");
-    assert(FALSE);
 }
 
 VOID _intuition_private7 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private7");
-    assert(FALSE);
 }
 
 VOID _intuition_private8 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private8");
-    assert(FALSE);
 }
 
 VOID _intuition_private9 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private9");
-    assert(FALSE);
 }
 
 VOID _intuition_private10 ( register struct IntuitionBase * IntuitionBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_intuition", "private10");
-    assert(FALSE);
 }
 
 struct ScreenBuffer * _intuition_AllocScreenBuffer ( register struct IntuitionBase * IntuitionBase __asm("a6"),
@@ -15311,6 +15336,8 @@ struct ScreenBuffer * _intuition_AllocScreenBuffer ( register struct IntuitionBa
                                                         register struct BitMap * bm __asm("a1"),
                                                         register ULONG flags __asm("d0"))
 {
+    LXA_UNIMPLEMENTED("intuition", "AllocScreenBuffer", "partial: sb_DBufInfo is NULL, no double-buffer sync messages (Phase 256)");
+
     struct ScreenBuffer *sb;
 
     DPRINTF (LOG_DEBUG, "_intuition: AllocScreenBuffer() sc=0x%08lx bm=0x%08lx flags=0x%08lx\n", 
@@ -15411,6 +15438,8 @@ VOID _intuition_ScreenPosition ( register struct IntuitionBase * IntuitionBase _
                                                         register LONG x2 __asm("d3"),
                                                         register LONG y2 __asm("d4"))
 {
+    LXA_UNIMPLEMENTED("intuition", "ScreenPosition", "partial: SPOS_MAKEVISIBLE ignored, display not updated (Phase 256)");
+
     /* GCC m68k move.w fix: sign-extend d-register LONG coordinate params */
     x1 = (LONG)(WORD)x1;
     y1 = (LONG)(WORD)y1;

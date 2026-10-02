@@ -43,8 +43,22 @@ void  lprintf  (int level, const char *format, ...);
  */
 #define STRORNULL(s) ((s) ? (const char*)(s) : "(null)")
 
+/*
+ * Phase 203: stub telemetry.  EVERY stub, partial implementation and
+ * unfilled LVO slot in a system library must report through this macro,
+ * so the host can count hits, fail runs in --strict-unimplemented mode and
+ * tools/stub_inventory.py can list all sites.  `detail` starts with
+ * "stub:" (does nothing useful) or "partial:" (works, but incompletely).
+ * lib/fn/detail are C strings (normally literals).
+ */
+#define LXA_UNIMPLEMENTED(lib, fn, detail) \
+    emucall3(EMU_CALL_UNIMPLEMENTED, (ULONG)(lib), (ULONG)(fn), (ULONG)(detail))
+
 #define PRIVATE_FUNCTION_ERROR(lib, func) \
-    LPRINTF(LOG_ERROR, lib ": " func "() error: private function called.\n")
+    do { \
+        LPRINTF(LOG_ERROR, lib ": " func "() error: private function called.\n"); \
+        LXA_UNIMPLEMENTED(lib, func, "stub: private/reserved library slot called"); \
+    } while (0)
 
 #define ENABLE_DEBUG
 

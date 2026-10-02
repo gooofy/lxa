@@ -97,6 +97,8 @@ LONG _translator_Translate ( register struct TranslatorBase *TranslatorBase __as
                              register STRPTR                 outputBuffer   __asm("a1"),
                              register LONG                   bufferSize     __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("translator", "Translate", "stub: copies the English text unchanged instead of producing phonemes");
+
     DPRINTF (LOG_DEBUG, "_translator: Translate() called inputLen=%ld bufSize=%ld\n",
              inputLength, bufferSize);
     

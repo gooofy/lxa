@@ -3656,9 +3656,9 @@ static BPTR __g_lxa_console_BeginIO ( register struct Library   *dev   __asm("a6
             break;
              
         default:
-            /* Unknown or unimplemented command */
+            /* Unknown command: per the device conventions (exec/errors.h) */
             DPRINTF (LOG_DEBUG, "_console: BeginIO unknown cmd=%d\n", ioreq->io_Command);
-            ioreq->io_Error = 0;
+            ioreq->io_Error = IOERR_NOCMD;
             break;
     }
     
@@ -3712,6 +3712,8 @@ static struct InputEvent *__g_lxa_console_CDInputHandler (
     register struct InputEvent    *events __asm("a0"),
     register struct Library       *cdihdata __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("console", "CDInputHandler", "stub: returns events unmodified (Phase 255)");
+
     DPRINTF(LOG_DEBUG, "_console: CDInputHandler() called\n");
     /* For now, just pass through events unmodified */
     /* In a full implementation, this would handle console-specific input processing */

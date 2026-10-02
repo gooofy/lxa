@@ -403,6 +403,8 @@ static void __g_lxa_clipboard_Open ( register struct Library   *dev   __asm("a6"
                                       register ULONG             unit  __asm("d0"),
                                       register ULONG             flags __asm("d1"))
 {
+    LXA_UNIMPLEMENTED("clipboard", "Open", "partial: only unit 0 (PRIMARY_CLIP) can be opened (Phase 255)");
+
     struct ClipboardBase *clipbase = (struct ClipboardBase *)dev;
     struct ClipboardUnit *clip_unit;
     

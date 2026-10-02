@@ -306,6 +306,10 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         add_gtest_driver(determinism_gtest)
     endif()
 
+    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/stub_telemetry_gtest.cpp)
+        add_gtest_driver(stub_telemetry_gtest)
+    endif()
+
     # Console tests
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/console_gtest.cpp)
         add_gtest_driver(console_gtest)
@@ -462,6 +466,19 @@ if(BUILD_GTESTS AND GTEST_FOUND)
         )
         set_tests_properties(shard_coverage_check PROPERTIES
             TIMEOUT 30
+            LABELS "meta"
+        )
+
+        # Phase 203: doc/stub-inventory.md must list every LXA_UNIMPLEMENTED
+        # site; regenerate with tools/stub_inventory.py.
+        add_test(
+            NAME stub_inventory_check
+            COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/tools/stub_inventory.py --check
+                --build ${CMAKE_BINARY_DIR}
+        )
+        set_tests_properties(stub_inventory_check PROPERTIES
+            TIMEOUT 60
             LABELS "meta"
         )
     else()

@@ -92,6 +92,8 @@ CxObj * _commodities_CreateCxObj ( register struct CommoditiesBase *CxBase __asm
                                    register LONG  arg1 __asm("a0"),
                                    register LONG  arg2 __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("commodities", "CreateCxObj", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: CreateCxObj() type=%ld arg1=%ld arg2=%ld (stub, returns NULL)\n",
              type, arg1, arg2);
     /* Return NULL - we don't support commodities objects */
@@ -103,6 +105,8 @@ CxObj * _commodities_CxBroker ( register struct CommoditiesBase *CxBase __asm("a
                                 register struct NewBroker *nb __asm("a0"),
                                 register LONG *error __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "CxBroker", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: CxBroker() nb=0x%08lx (stub, returns NULL)\n", (ULONG)nb);
     if (nb)
     {
@@ -122,6 +126,8 @@ LONG _commodities_ActivateCxObj ( register struct CommoditiesBase *CxBase __asm(
                                   register CxObj *co __asm("a0"),
                                   register LONG flag __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "ActivateCxObj", "stub: commodities.library not implemented (Phase 251)");
+
     flag = (LONG)(WORD)flag; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_commodities: ActivateCxObj() co=0x%08lx flag=%ld (stub)\n", (ULONG)co, flag);
@@ -132,6 +138,8 @@ LONG _commodities_ActivateCxObj ( register struct CommoditiesBase *CxBase __asm(
 void _commodities_DeleteCxObj ( register struct CommoditiesBase *CxBase __asm("a6"),
                                 register CxObj *co __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "DeleteCxObj", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: DeleteCxObj() co=0x%08lx (stub)\n", (ULONG)co);
     /* Nothing to do - we never allocate anything */
 }
@@ -140,6 +148,8 @@ void _commodities_DeleteCxObj ( register struct CommoditiesBase *CxBase __asm("a
 void _commodities_DeleteCxObjAll ( register struct CommoditiesBase *CxBase __asm("a6"),
                                    register CxObj *co __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "DeleteCxObjAll", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: DeleteCxObjAll() co=0x%08lx (stub)\n", (ULONG)co);
     /* Nothing to do - we never allocate anything */
 }
@@ -148,6 +158,8 @@ void _commodities_DeleteCxObjAll ( register struct CommoditiesBase *CxBase __asm
 ULONG _commodities_CxObjType ( register struct CommoditiesBase *CxBase __asm("a6"),
                                register CxObj *co __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "CxObjType", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: CxObjType() co=0x%08lx (stub, returns CX_INVALID)\n", (ULONG)co);
     return CX_INVALID;
 }
@@ -156,6 +168,8 @@ ULONG _commodities_CxObjType ( register struct CommoditiesBase *CxBase __asm("a6
 LONG _commodities_CxObjError ( register struct CommoditiesBase *CxBase __asm("a6"),
                                register CxObj *co __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "CxObjError", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: CxObjError() co=0x%08lx (stub, returns COERR_ISNULL)\n", (ULONG)co);
     return COERR_ISNULL;
 }
@@ -164,6 +178,8 @@ LONG _commodities_CxObjError ( register struct CommoditiesBase *CxBase __asm("a6
 void _commodities_ClearCxObjError ( register struct CommoditiesBase *CxBase __asm("a6"),
                                     register CxObj *co __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "ClearCxObjError", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: ClearCxObjError() co=0x%08lx (stub)\n", (ULONG)co);
 }
 
@@ -172,6 +188,8 @@ LONG _commodities_SetCxObjPri ( register struct CommoditiesBase *CxBase __asm("a
                                 register CxObj *co __asm("a0"),
                                 register LONG pri __asm("d0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "SetCxObjPri", "stub: commodities.library not implemented (Phase 251)");
+
     pri = (LONG)(WORD)pri; /* sign-extend: GCC m68k move.w workaround */
 
     DPRINTF (LOG_DEBUG, "_commodities: SetCxObjPri() co=0x%08lx pri=%ld (stub)\n", (ULONG)co, pri);
@@ -183,6 +201,8 @@ void _commodities_AttachCxObj ( register struct CommoditiesBase *CxBase __asm("a
                                 register CxObj *headObj __asm("a0"),
                                 register CxObj *co __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("commodities", "AttachCxObj", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: AttachCxObj() headObj=0x%08lx co=0x%08lx (stub)\n",
              (ULONG)headObj, (ULONG)co);
 }
@@ -192,6 +212,8 @@ void _commodities_EnqueueCxObj ( register struct CommoditiesBase *CxBase __asm("
                                  register CxObj *headObj __asm("a0"),
                                  register CxObj *co __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("commodities", "EnqueueCxObj", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: EnqueueCxObj() headObj=0x%08lx co=0x%08lx (stub)\n",
              (ULONG)headObj, (ULONG)co);
 }
@@ -202,6 +224,8 @@ void _commodities_InsertCxObj ( register struct CommoditiesBase *CxBase __asm("a
                                 register CxObj *co __asm("a1"),
                                 register CxObj *pred __asm("a2") )
 {
+    LXA_UNIMPLEMENTED("commodities", "InsertCxObj", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: InsertCxObj() headObj=0x%08lx co=0x%08lx pred=0x%08lx (stub)\n",
              (ULONG)headObj, (ULONG)co, (ULONG)pred);
 }
@@ -210,6 +234,8 @@ void _commodities_InsertCxObj ( register struct CommoditiesBase *CxBase __asm("a
 void _commodities_RemoveCxObj ( register struct CommoditiesBase *CxBase __asm("a6"),
                                 register CxObj *co __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "RemoveCxObj", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: RemoveCxObj() co=0x%08lx (stub)\n", (ULONG)co);
 }
 
@@ -225,6 +251,8 @@ void _commodities_SetTranslate ( register struct CommoditiesBase *CxBase __asm("
                                  register CxObj *translator __asm("a0"),
                                  register struct InputEvent *events __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("commodities", "SetTranslate", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: SetTranslate() translator=0x%08lx events=0x%08lx (stub)\n",
              (ULONG)translator, (ULONG)events);
 }
@@ -234,6 +262,8 @@ void _commodities_SetFilter ( register struct CommoditiesBase *CxBase __asm("a6"
                               register CxObj *filter __asm("a0"),
                               register STRPTR text __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("commodities", "SetFilter", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: SetFilter() filter=0x%08lx text=%s (stub)\n",
              (ULONG)filter, STRORNULL(text));
 }
@@ -243,6 +273,8 @@ void _commodities_SetFilterIX ( register struct CommoditiesBase *CxBase __asm("a
                                 register CxObj *filter __asm("a0"),
                                 register IX *ix __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("commodities", "SetFilterIX", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: SetFilterIX() filter=0x%08lx ix=0x%08lx (stub)\n",
              (ULONG)filter, (ULONG)ix);
 }
@@ -252,6 +284,8 @@ LONG _commodities_ParseIX ( register struct CommoditiesBase *CxBase __asm("a6"),
                             register STRPTR description __asm("a0"),
                             register IX *ix __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("commodities", "ParseIX", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: ParseIX() description=%s ix=0x%08lx (stub, returns -1)\n",
              STRORNULL(description), (ULONG)ix);
     /* Return -1 to indicate failure */
@@ -262,6 +296,8 @@ LONG _commodities_ParseIX ( register struct CommoditiesBase *CxBase __asm("a6"),
 ULONG _commodities_CxMsgType ( register struct CommoditiesBase *CxBase __asm("a6"),
                                register CxMsg *cxm __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "CxMsgType", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: CxMsgType() cxm=0x%08lx (stub, returns 0)\n", (ULONG)cxm);
     return 0;
 }
@@ -270,6 +306,8 @@ ULONG _commodities_CxMsgType ( register struct CommoditiesBase *CxBase __asm("a6
 APTR _commodities_CxMsgData ( register struct CommoditiesBase *CxBase __asm("a6"),
                               register CxMsg *cxm __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "CxMsgData", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: CxMsgData() cxm=0x%08lx (stub, returns NULL)\n", (ULONG)cxm);
     return NULL;
 }
@@ -278,6 +316,8 @@ APTR _commodities_CxMsgData ( register struct CommoditiesBase *CxBase __asm("a6"
 LONG _commodities_CxMsgID ( register struct CommoditiesBase *CxBase __asm("a6"),
                             register CxMsg *cxm __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "CxMsgID", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: CxMsgID() cxm=0x%08lx (stub, returns 0)\n", (ULONG)cxm);
     return 0;
 }
@@ -288,6 +328,8 @@ void _commodities_DivertCxMsg ( register struct CommoditiesBase *CxBase __asm("a
                                 register CxObj *headObj __asm("a1"),
                                 register CxObj *returnObj __asm("a2") )
 {
+    LXA_UNIMPLEMENTED("commodities", "DivertCxMsg", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: DivertCxMsg() cxm=0x%08lx headObj=0x%08lx returnObj=0x%08lx (stub)\n",
              (ULONG)cxm, (ULONG)headObj, (ULONG)returnObj);
 }
@@ -297,6 +339,8 @@ void _commodities_RouteCxMsg ( register struct CommoditiesBase *CxBase __asm("a6
                                register CxMsg *cxm __asm("a0"),
                                register CxObj *co __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("commodities", "RouteCxMsg", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: RouteCxMsg() cxm=0x%08lx co=0x%08lx (stub)\n",
              (ULONG)cxm, (ULONG)co);
 }
@@ -305,6 +349,8 @@ void _commodities_RouteCxMsg ( register struct CommoditiesBase *CxBase __asm("a6
 void _commodities_DisposeCxMsg ( register struct CommoditiesBase *CxBase __asm("a6"),
                                  register CxMsg *cxm __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "DisposeCxMsg", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: DisposeCxMsg() cxm=0x%08lx (stub)\n", (ULONG)cxm);
 }
 
@@ -314,6 +360,8 @@ BOOL _commodities_InvertKeyMap ( register struct CommoditiesBase *CxBase __asm("
                                  register struct InputEvent *event __asm("a0"),
                                  register struct KeyMap *km __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("commodities", "InvertKeyMap", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: InvertKeyMap() ansiCode=0x%lx event=0x%08lx km=0x%08lx (stub, returns FALSE)\n",
              ansiCode, (ULONG)event, (ULONG)km);
     return FALSE;
@@ -323,6 +371,8 @@ BOOL _commodities_InvertKeyMap ( register struct CommoditiesBase *CxBase __asm("
 void _commodities_AddIEvents ( register struct CommoditiesBase *CxBase __asm("a6"),
                                register struct InputEvent *events __asm("a0") )
 {
+    LXA_UNIMPLEMENTED("commodities", "AddIEvents", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: AddIEvents() events=0x%08lx (stub)\n", (ULONG)events);
 }
 
@@ -350,6 +400,8 @@ BOOL _commodities_MatchIX ( register struct CommoditiesBase *CxBase __asm("a6"),
                             register struct InputEvent *event __asm("a0"),
                             register IX *ix __asm("a1") )
 {
+    LXA_UNIMPLEMENTED("commodities", "MatchIX", "stub: commodities.library not implemented (Phase 251)");
+
     DPRINTF (LOG_DEBUG, "_commodities: MatchIX() event=0x%08lx ix=0x%08lx (stub, returns FALSE)\n",
              (ULONG)event, (ULONG)ix);
     return FALSE;

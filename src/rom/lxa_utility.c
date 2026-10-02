@@ -705,13 +705,11 @@ static ULONG _utility_CallHookPkt ( register struct UtilityBase * UtilityBase __
 static VOID _utility_private0 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_utility", "private0");
-    assert(FALSE);
 }
 
 static VOID _utility_private1 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_utility", "private1");
-    assert(FALSE);
 }
 
 static VOID _utility_Amiga2Date ( register struct UtilityBase *UtilityBase __asm("a6"),
@@ -1084,7 +1082,6 @@ static VOID _utility_ApplyTagChanges ( register struct UtilityBase * UtilityBase
 static VOID _utility_private2 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_utility", "private2");
-    assert(FALSE);
 }
 
 /*
@@ -1695,25 +1692,21 @@ static ULONG _utility_GetUniqueID ( register struct UtilityBase * UtilityBase __
 static VOID _utility_private3 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_utility", "private3");
-    assert(FALSE);
 }
 
 static VOID _utility_private4 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_utility", "private4");
-    assert(FALSE);
 }
 
 static VOID _utility_private5 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_utility", "private5");
-    assert(FALSE);
 }
 
 static VOID _utility_private6 ( register struct UtilityBase * UtilityBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_utility", "private6");
-    assert(FALSE);
 }
 
 struct MyDataInit

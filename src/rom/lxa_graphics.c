@@ -2755,6 +2755,8 @@ static VOID _graphics_CloseFont ( register struct GfxBase * GfxBase __asm("a6"),
 static ULONG _graphics_AskSoftStyle ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct RastPort * rp __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("graphics", "AskSoftStyle", "partial: reports all styles regardless of font (Phase 256)");
+
     /*
      * AskSoftStyle() returns a mask of font styles that can be algorithmically
      * generated for the current font. Styles include:
@@ -3667,6 +3669,8 @@ static VOID _graphics_InitVPort ( register struct GfxBase * GfxBase __asm("a6"),
 static ULONG _graphics_MrgCop ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("graphics", "MrgCop", "partial: builds empty placeholder copper lists, UCopLists ignored (Phase 256)");
+
     struct cprlist *lof_list;
     struct cprlist *shf_list = NULL;
 
@@ -3701,6 +3705,8 @@ static ULONG _graphics_MakeVPort ( register struct GfxBase * GfxBase __asm("a6")
                                                         register struct View * view __asm("a0"),
                                                         register struct ViewPort * vp __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("graphics", "MakeVPort", "partial: builds empty placeholder copper list, UCopIns ignored (Phase 256)");
+
     struct CopList *dsp_list;
 
     DPRINTF (LOG_DEBUG, "_graphics: MakeVPort() view=0x%08lx, vp=0x%08lx\n", (ULONG)view, (ULONG)vp);
@@ -3723,6 +3729,8 @@ static ULONG _graphics_MakeVPort ( register struct GfxBase * GfxBase __asm("a6")
 static VOID _graphics_LoadView ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register struct View * view __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("graphics", "LoadView", "partial: only updates GfxBase->ActiView (Phase 256)");
+
     /* LoadView() loads the View's copper list into the hardware.
      * In lxa, we use SDL-based rendering through Intuition screens/windows.
      * For direct View manipulation (like RGBBoxes sample), we update GfxBase->ActiView
@@ -4856,6 +4864,8 @@ static VOID _graphics_BltPattern ( register struct GfxBase * GfxBase __asm("a6")
                                                         register LONG yMax __asm("d3"),
                                                         register ULONG maskBPR __asm("d4"))
 {
+    LXA_UNIMPLEMENTED("graphics", "BltPattern", "partial: ignores RastPort AreaPtrn (Phase 256)");
+
     /* GCC m68k inline stubs may use move.w to set d-register args, leaving
      * the upper 16 bits of the register with residual data.  Sign-extend
      * the coordinate parameters from WORD to LONG so the values are correct
@@ -5863,6 +5873,8 @@ static VOID _graphics_MoveSprite ( register struct GfxBase * GfxBase __asm("a6")
 static VOID __attribute__((optimize("O0"))) _graphics_LockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                                          register struct Layer * layer __asm("a5"))
 {
+    LXA_UNIMPLEMENTED("graphics", "LockLayerRom", "partial: no-op, layer is not locked (Phase 256)");
+
     DPRINTF (LOG_DEBUG, "_graphics: LockLayerRom() layer=0x%08lx\n", (ULONG)layer);
 
     /* LockLayerRom is a compatibility wrapper that calls layers.library LockLayer().
@@ -5877,6 +5889,8 @@ static VOID __attribute__((optimize("O0"))) _graphics_LockLayerRom ( register st
 static VOID __attribute__((optimize("O0"))) _graphics_UnlockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                                          register struct Layer * layer __asm("a5"))
 {
+    LXA_UNIMPLEMENTED("graphics", "UnlockLayerRom", "partial: no-op, layer is not locked (Phase 256)");
+
     DPRINTF (LOG_DEBUG, "_graphics: UnlockLayerRom() layer=0x%08lx\n", (ULONG)layer);
 
     /* UnlockLayerRom is a compatibility wrapper that calls layers.library UnlockLayer().
@@ -7529,6 +7543,8 @@ static VOID _graphics_BltMaskBitMapRastPort ( register struct GfxBase * GfxBase 
 static BOOL __attribute__((optimize("O0"))) _graphics_AttemptLockLayerRom ( register struct GfxBase * GfxBase __asm("a6"),
                                                          register struct Layer * layer __asm("a5"))
 {
+    LXA_UNIMPLEMENTED("graphics", "AttemptLockLayerRom", "partial: always succeeds, layer is not locked (Phase 256)");
+
     /* Attempt to lock a layer without blocking.
      * In our single-threaded emulation, this always succeeds.
      * Based on LockLayerRom which is already a no-op.
@@ -8386,19 +8402,16 @@ static ULONG _graphics_NextDisplayInfo ( register struct GfxBase * GfxBase __asm
 static VOID _graphics_private2 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_graphics", "private2");
-    assert(FALSE);
 }
 
 static VOID _graphics_private3 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_graphics", "private3");
-    assert(FALSE);
 }
 
 static VOID _graphics_private4 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_graphics", "private4");
-    assert(FALSE);
 }
 
 static ULONG _graphics_GetDisplayInfoData ( register struct GfxBase * GfxBase __asm("a6"),
@@ -8836,6 +8849,8 @@ static LONG _graphics_GetVPModeID ( register struct GfxBase * GfxBase __asm("a6"
 static LONG _graphics_ModeNotAvailable ( register struct GfxBase * GfxBase __asm("a6"),
                                                         register ULONG modeID __asm("d0"))
 {
+    LXA_UNIMPLEMENTED("graphics", "ModeNotAvailable", "partial: every mode reported available (Phase 240)");
+
     DPRINTF (LOG_DEBUG, "_graphics: ModeNotAvailable() modeID=0x%08lx -> 0 (available)\n", modeID);
     /* Return 0 = mode IS available (no error flags)
      * Non-zero returns would be DI_AVAIL_* flags indicating why mode is not available.
@@ -8847,7 +8862,6 @@ static LONG _graphics_ModeNotAvailable ( register struct GfxBase * GfxBase __asm
 static VOID _graphics_private5 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_graphics", "private5");
-    assert(FALSE);
 }
 
 static VOID _graphics_EraseRect ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9231,7 +9245,6 @@ static LONG _graphics_ObtainBestPenA ( register struct GfxBase * GfxBase __asm("
 static VOID _graphics_private6 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_graphics", "private6");
-    assert(FALSE);
 }
 
 static VOID _graphics_SetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
@@ -9479,13 +9492,11 @@ static VOID _graphics_GetRGB32 ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_private7 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_graphics", "private7");
-    assert(FALSE);
 }
 
 static VOID _graphics_private8 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_graphics", "private8");
-    assert(FALSE);
 }
 
 static struct BitMap * _graphics_AllocBitMap ( register struct GfxBase * GfxBase __asm("a6"),
@@ -10196,7 +10207,6 @@ static LONG _graphics_FindColor ( register struct GfxBase * GfxBase __asm("a6"),
 static VOID _graphics_private9 ( register struct GfxBase * GfxBase __asm("a6"))
 {
     PRIVATE_FUNCTION_ERROR("_graphics", "private9");
-    assert(FALSE);
 }
 
 static struct ExtSprite * _graphics_AllocSpriteDataA ( register struct GfxBase * GfxBase __asm("a6"),
@@ -10594,6 +10604,8 @@ static VOID _graphics_GetRPAttrsA ( register struct GfxBase * GfxBase __asm("a6"
                                                         register CONST struct RastPort * rp __asm("a0"),
                                                         register CONST struct TagItem * tags __asm("a1"))
 {
+    LXA_UNIMPLEMENTED("graphics", "GetRPAttrsA", "partial: RPTAG_DrawBounds returns empty bounds (Phase 256)");
+
     CONST struct TagItem *tag;
     ULONG MaxPen, z;
 
