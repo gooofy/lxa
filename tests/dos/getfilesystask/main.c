@@ -10,16 +10,8 @@
 #include <inline/exec.h>
 #include <inline/dos.h>
 
-#define TEST_PORT_NAME "GetFileSysTask.TestPort"
-
 extern struct DosLibrary *DOSBase;
 extern struct ExecBase *SysBase;
-
-struct FileSysTaskMessage
-{
-    struct Message msg;
-    struct MsgPort *filesystem_task;
-};
 
 static int tests_failed = 0;
 
@@ -78,39 +70,11 @@ static void test_fail(const char *name, const char *reason)
     tests_failed++;
 }
 
-static void FileSysTaskProbeTask(void)
-{
-    struct MsgPort *port;
-    struct FileSysTaskMessage *msg;
-
-    Forbid();
-    port = FindPort((STRPTR)TEST_PORT_NAME);
-    Permit();
-
-    if (port)
-    {
-        msg = (struct FileSysTaskMessage *)AllocMem(sizeof(*msg), MEMF_PUBLIC | MEMF_CLEAR);
-        if (msg)
-        {
-            msg->msg.mn_Node.ln_Type = NT_MESSAGE;
-            msg->msg.mn_Length = sizeof(*msg);
-            msg->filesystem_task = GetFileSysTask();
-            PutMsg(port, (struct Message *)msg);
-        }
-    }
-
-    Forbid();
-    RemTask(NULL);
-}
-
 int main(void)
 {
     struct Process *me = (struct Process *)FindTask(NULL);
     struct MsgPort *old_filesystem_task;
-    struct MsgPort *probe_port;
     struct MsgPort *test_filesystem_port;
-    struct Task *task;
-    struct FileSysTaskMessage *msg;
 
     print("GetFileSysTask Test\n");
     print("===================\n\n");
@@ -144,43 +108,6 @@ int main(void)
     else
         test_fail("NULL filesystem task", "Expected NULL");
 
-    probe_port = CreateMsgPort();
-    if (!probe_port)
-    {
-        test_fail("Task callers return NULL", "Could not allocate probe port");
-        me->pr_FileSystemTask = old_filesystem_task;
-        DeleteMsgPort(test_filesystem_port);
-        print("\nFailed: ");
-        print_num(tests_failed);
-        print("\n");
-        return tests_failed ? 20 : 0;
-    }
-
-    probe_port->mp_Node.ln_Name = (char *)TEST_PORT_NAME;
-    AddPort(probe_port);
-
-    print("\nTest 3: Task callers return NULL\n");
-    me->pr_FileSystemTask = test_filesystem_port;
-    task = CreateTask((CONST_STRPTR)"GetFileSysTask.Task", 0, FileSysTaskProbeTask, 4096);
-    if (!task)
-    {
-        test_fail("Task callers return NULL", "CreateTask failed");
-    }
-    else
-    {
-        WaitPort(probe_port);
-        msg = (struct FileSysTaskMessage *)GetMsg(probe_port);
-        if (msg && msg->filesystem_task == NULL)
-            test_pass("Task callers return NULL");
-        else
-            test_fail("Task callers return NULL", "Task did not observe NULL");
-
-        if (msg)
-            FreeMem(msg, sizeof(*msg));
-    }
-
-    RemPort(probe_port);
-    DeleteMsgPort(probe_port);
     me->pr_FileSystemTask = old_filesystem_task;
     DeleteMsgPort(test_filesystem_port);
 

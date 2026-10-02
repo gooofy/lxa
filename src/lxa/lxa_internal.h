@@ -433,7 +433,6 @@ int _dos_rename(uint32_t old68k, uint32_t new68k);
 int _dos_namefromlock(uint32_t lock_id, uint32_t buf68k, uint32_t buflen);
 int _dos_setprotection(uint32_t name68k, uint32_t protect);
 int _dos_setcomment(uint32_t name68k, uint32_t comment68k);
-int _dos_setowner(uint32_t name68k, uint32_t owner68k, uint32_t err68k);
 int _dos_setfiledate(uint32_t name68k, uint32_t date68k, uint32_t err68k);
 int _dos_readlink(uint32_t path68k, uint32_t buffer68k, uint32_t size, uint32_t err68k);
 int _dos_makelink(uint32_t name68k, uint32_t dest_param, int32_t soft, uint32_t err68k);

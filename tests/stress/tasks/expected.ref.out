@@ -1,0 +1,34 @@
+Task Stress Test
+================
+
+Test 1: Sequential task creation
+  Created 20 tasks, 20 completed
+  PASS: Sequential task creation
+
+Test 2: Counter increment
+  Tasks completed: 12
+  Counter value: 12
+  PASS: Counter increment
+
+Test 3: Signal delivery stress
+  Tasks started: 10
+  Signals received: 10
+  PASS: Signal delivery under load
+
+Test 4: Message port stress
+  Tasks created: 12
+  Messages received: 12
+  PASS: Message port stress
+
+Test 5: Memory cleanup after task termination
+  PASS: Memory cleanup after task termination
+
+Test 6: Basic scheduler operation
+  Final counter: 4 (expected 4)
+  PASS: Basic scheduler operation
+
+=== Task Stress Test Summary ===
+Passed: 6
+Failed: 0
+
+PASS: All task stress tests passed

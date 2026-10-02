@@ -942,20 +942,6 @@ int op_illg(int level)
             break;
         }
 
-        case EMU_CALL_DOS_SETOWNER:
-        {
-            uint32_t name = m68k_get_reg(NULL, M68K_REG_D1);
-            uint32_t owner = m68k_get_reg(NULL, M68K_REG_D2);
-            uint32_t err = m68k_get_reg(NULL, M68K_REG_D3);
-
-            DPRINTF(LOG_DEBUG, "lxa: op_illg(): EMU_CALL_DOS_SETOWNER name=0x%08x, owner=0x%08x, err=0x%08x\n",
-                    name, owner, err);
-
-            uint32_t res = _dos_setowner(name, owner, err);
-            m68k_set_reg(M68K_REG_D0, res);
-            break;
-        }
-
         case EMU_CALL_DOS_FLUSH:
         {
             uint32_t fh = m68k_get_reg(NULL, M68K_REG_D1);

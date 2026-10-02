@@ -1,0 +1,14 @@
+Format Test
+===========
+
+Test 1: Unknown devices are not mounted
+  Format NODEV:: result=0 IoErr=218  PASS
+  Format NODEV: BAD:NAME: result=0 IoErr=218  PASS
+
+Test 2: NIL: has no handler
+  Format NIL:: result=0 IoErr=218  PASS
+
+Test 3: The RAM: handler does not know ACTION_FORMAT
+  Format RAM:: result=0 IoErr=209  PASS
+
+Failed: 0

@@ -141,7 +141,8 @@ static BOOL lxa_dos_errorreport_context(struct DosLibrary *DOSBase,
 static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                                    BPTR fh,
                                    CONST_STRPTR debug_name,
-                                   BOOL close_handle);
+                                   BOOL close_handle,
+                                   const LONG *funcs);
 
 struct lxa_dos_exit_cleanup
 {
@@ -2240,6 +2241,13 @@ BPTR _dos_DupLock ( register struct DosLibrary * __libBase __asm("a6"),
 
     DPRINTF (LOG_DEBUG, "_dos: DupLock() result: lock_id=%lu\n", lock_id);
 
+    if (!lock_id)
+    {
+        LONG err = emucall1(EMU_CALL_DOS_LASTERROR, 0);
+        if (err)
+            SetIoErr(err);
+    }
+
     return (BPTR)lock_id;
 }
 
@@ -2503,24 +2511,108 @@ void _dos_Exit ( register struct DosLibrary * __libBase __asm("a6"),
     assert(FALSE);
 }
 
-BOOL _read_string (register struct DosLibrary * DOSBase __asm("a6"), BPTR f, char **res)
+static BOOL lxa_ld_read_string(struct DosLibrary *DOSBase, const LONG *funcs, BPTR f, char **res);
+
+/*
+ * Hunk loader I/O.  Without a function array the loader uses Read() and
+ * AllocMem()/FreeMem(); InternalLoadSeg() passes the caller's array:
+ *   funcs[0] ReadFunc(readhandle, buffer, length)(d1/d2/d3)
+ *   funcs[1] AllocFunc(size, flags)(d0/d1)
+ *   funcs[2] FreeFunc(memory, size)(a1/d0)
+ * all called with a6 = DOSBase.  Every hunk is one allocation: the first
+ * longword holds the allocation size, the seglist BPTR points at the second
+ * (the link to the next hunk) - the AmigaOS segment layout.
+ */
+static LONG lxa_ld_read(struct DosLibrary *DOSBase, const LONG *funcs, BPTR fh, APTR buf, LONG len)
+{
+    if (!funcs)
+        return Read(fh, buf, len);
+
+    {
+        register LONG d0 __asm("d0");
+        register LONG d1 __asm("d1") = (LONG)fh;
+        register LONG d2 __asm("d2") = (LONG)buf;
+        register LONG d3 __asm("d3") = len;
+        register APTR a0 __asm("a0") = (APTR)funcs[0];
+        register struct DosLibrary *a6 __asm("a6") = DOSBase;
+
+        __asm volatile ("jsr (%%a0)"
+                        : "=r" (d0), "+r" (d1), "+r" (a0)
+                        : "r" (d2), "r" (d3), "r" (a6)
+                        : "a1", "cc", "memory");
+        return d0;
+    }
+}
+
+static ULONG *lxa_ld_alloc(struct DosLibrary *DOSBase, const LONG *funcs, ULONG size, ULONG flags)
+{
+    ULONG *mem;
+
+    if (!funcs)
+    {
+        mem = (ULONG *)AllocMem(size, flags);
+    }
+    else
+    {
+        register LONG d0 __asm("d0") = (LONG)size;
+        register LONG d1 __asm("d1") = (LONG)flags;
+        register APTR a0 __asm("a0") = (APTR)funcs[1];
+        register struct DosLibrary *a6 __asm("a6") = DOSBase;
+
+        __asm volatile ("jsr (%%a0)"
+                        : "+r" (d0), "+r" (d1), "+r" (a0)
+                        : "r" (a6)
+                        : "a1", "cc", "memory");
+        mem = (ULONG *)d0;
+    }
+
+    if (mem)
+        mem[0] = size;
+    return mem;
+}
+
+static void lxa_ld_free(struct DosLibrary *DOSBase, const LONG *funcs, ULONG *mem)
+{
+    if (!mem)
+        return;
+
+    if (!funcs)
+    {
+        FreeMem(mem, mem[0]);
+    }
+    else
+    {
+        register LONG d0 __asm("d0") = (LONG)mem[0];
+        register LONG d1 __asm("d1");
+        register APTR a1 __asm("a1") = mem;
+        register APTR a0 __asm("a0") = (APTR)funcs[2];
+        register struct DosLibrary *a6 __asm("a6") = DOSBase;
+
+        __asm volatile ("jsr (%%a0)"
+                        : "+r" (d0), "=r" (d1), "+r" (a1), "+r" (a0)
+                        : "r" (a6)
+                        : "cc", "memory");
+    }
+}
+
+static BOOL lxa_ld_read_string(struct DosLibrary *DOSBase, const LONG *funcs, BPTR f, char **res)
 {
     ULONG num_longs;
+    ULONG l;
+    char *str;
 
-    if (Read(f, &num_longs, 4) != 4)
+    if (lxa_ld_read(DOSBase, funcs, f, &num_longs, 4) != 4)
         return FALSE;
 
-    DPRINTF (LOG_DEBUG, "_dos: _read_string() num_longs=%d\n", num_longs);
-    if (num_longs==0)
+    if (num_longs == 0)
     {
         *res = NULL;
         return TRUE;
     }
 
-    ULONG l = num_longs*4;
-    char *str = AllocVec (l, MEMF_CLEAR);
-    DPRINTF (LOG_DEBUG, "_dos: _read_string() l=%d -> str=0x%08lx\n", l, str);
-    if (Read(f, str, l) != l)
+    l = num_longs * 4;
+    str = AllocVec(l + 1, MEMF_CLEAR);
+    if (!str || lxa_ld_read(DOSBase, funcs, f, str, l) != (LONG)l)
         return FALSE;
 
     *res = str;
@@ -2530,7 +2622,8 @@ BOOL _read_string (register struct DosLibrary * DOSBase __asm("a6"), BPTR f, cha
 static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                                    BPTR fh,
                                    CONST_STRPTR debug_name,
-                                   BOOL close_handle)
+                                   BOOL close_handle,
+                                   const LONG *funcs)
 {
     BOOL success = FALSE;
     ULONG table_size = 0;
@@ -2546,12 +2639,9 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
         return 0;
     }
 
-    if (Seek(fh, 0, OFFSET_BEGINNING) < 0)
-        goto finish;
-
     {
         ULONG ht;
-        if (Read(fh, &ht, 4) != 4)
+        if (lxa_ld_read(DOSBase, funcs, fh, &ht, 4) != 4)
         {
             DPRINTF(LOG_DEBUG, "_dos: LoadSeg() failed to read header hunk type\n");
             goto finish;
@@ -2566,7 +2656,7 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
 
     {
         ULONG num_longs;
-        if (Read(fh, &num_longs, 4) != 4)
+        if (lxa_ld_read(DOSBase, funcs, fh, &num_longs, 4) != 4)
             goto finish;
         if (num_longs)
         {
@@ -2575,22 +2665,30 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
         }
     }
 
-    if (Read(fh, &table_size, 4) != 4)
+    if (lxa_ld_read(DOSBase, funcs, fh, &table_size, 4) != 4)
         goto finish;
-    if (Read(fh, &hunk_first_slot, 4) != 4)
+    if (lxa_ld_read(DOSBase, funcs, fh, &hunk_first_slot, 4) != 4)
         goto finish;
-    if (Read(fh, &last_hunk_slot, 4) != 4)
+    if (lxa_ld_read(DOSBase, funcs, fh, &last_hunk_slot, 4) != 4)
         goto finish;
 
     DPRINTF(LOG_DEBUG,
             "_dos: LoadSeg() reading hunk header, table_size=%ld, hunk_first_slot=%ld, last_hunk_slot=%ld\n",
             table_size, hunk_first_slot, last_hunk_slot);
 
-    hunk_table = AllocVec((table_size + 2) * 4, MEMF_CLEAR);
+    /* the hunk table is allocated (and freed) through the loader's
+     * AllocFunc/FreeFunc too, as on AmigaOS 3.1 */
+    hunk_table = lxa_ld_alloc(DOSBase, funcs, (table_size + 2) * 4, MEMF_PUBLIC | MEMF_CLEAR);
     if (!hunk_table)
     {
         SetIoErr(ERROR_NO_FREE_STORE);
         goto finish;
+    }
+    hunk_table++;
+    {
+        ULONG k;
+        for (k = 0; k <= table_size; k++)
+            hunk_table[k] = 0;
     }
 
     {
@@ -2603,9 +2701,9 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
             ULONG mem_flags;
             ULONG mem_size;
             ULONG req = MEMF_CLEAR | MEMF_PUBLIC;
-            void *hunk_ptr;
+            ULONG *hunk_ptr;
 
-            if (Read(fh, &cnt, 4) != 4)
+            if (lxa_ld_read(DOSBase, funcs, fh, &cnt, 4) != 4)
                 goto finish;
 
             mem_flags = (cnt & 0xC0000000) >> 29;
@@ -2613,7 +2711,7 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
 
             if (mem_flags == (MEMF_FAST | MEMF_CHIP))
             {
-                if (Read(fh, &req, 4) != 4)
+                if (lxa_ld_read(DOSBase, funcs, fh, &req, 4) != 4)
                     goto finish;
             }
             else
@@ -2621,13 +2719,15 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                 req |= mem_flags;
             }
 
+            /* size longword + link + hunk data */
             mem_size += 8;
-            hunk_ptr = AllocVec(mem_size, req);
+            hunk_ptr = lxa_ld_alloc(DOSBase, funcs, mem_size, req);
             if (!hunk_ptr)
             {
                 SetIoErr(ERROR_NO_FREE_STORE);
                 goto finish;
             }
+            hunk_ptr = (ULONG *)hunk_ptr + 1;
 
             hunk_table[i] = MKBADDR(hunk_ptr);
             if (!hunk_first)
@@ -2643,7 +2743,7 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
         ULONG hunk_cur = hunk_first_slot;
         ULONG hunk_last = 0;
 
-        while (Read(fh, &hunk_type, 4) == 4)
+        while (lxa_ld_read(DOSBase, funcs, fh, &hunk_type, 4) == 4)
         {
             hunk_type &= 0x3FFFFFFF;
 
@@ -2654,14 +2754,14 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                 case HUNK_TYPE_BSS:
                 {
                     ULONG cnt;
-                    if (Read(fh, &cnt, 4) != 4)
+                    if (lxa_ld_read(DOSBase, funcs, fh, &cnt, 4) != 4)
                         goto finish;
 
                     if (hunk_type != HUNK_TYPE_BSS)
                     {
                         APTR hunk_mem = BADDR(hunk_table[hunk_cur] + 1);
                         ULONG hunk_size = cnt * 4;
-                        if (Read(fh, hunk_mem, hunk_size) != hunk_size)
+                        if (lxa_ld_read(DOSBase, funcs, fh, hunk_mem, hunk_size) != hunk_size)
                             goto finish;
                     }
 
@@ -2677,11 +2777,11 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                         ULONG cnt;
                         ULONG hunk_id;
 
-                        if (Read(fh, &cnt, 4) != 4)
+                        if (lxa_ld_read(DOSBase, funcs, fh, &cnt, 4) != 4)
                             goto finish;
                         if (!cnt)
                             break;
-                        if (Read(fh, &hunk_id, 4) != 4)
+                        if (lxa_ld_read(DOSBase, funcs, fh, &hunk_id, 4) != 4)
                             goto finish;
 
                         while (cnt > 0)
@@ -2689,7 +2789,7 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                             ULONG offset;
                             ULONG *addr;
 
-                            if (Read(fh, &offset, 4) != 4)
+                            if (lxa_ld_read(DOSBase, funcs, fh, &offset, 4) != 4)
                                 goto finish;
                             addr = (ULONG *)(BADDR(hunk_table[hunk_last] + 1) + offset);
                             *addr += (ULONG)BADDR(hunk_table[hunk_id] + 1);
@@ -2707,11 +2807,11 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                         ULONG offset;
                         ULONG hunk_base;
 
-                        if (!_read_string(DOSBase, fh, &name))
+                        if (!lxa_ld_read_string(DOSBase, funcs, fh, &name))
                             goto finish;
                         if (!name)
                             break;
-                        if (Read(fh, &offset, 4) != 4)
+                        if (lxa_ld_read(DOSBase, funcs, fh, &offset, 4) != 4)
                             goto finish;
 
                         hunk_base = (ULONG)BADDR(hunk_table[hunk_last] + 1);
@@ -2726,10 +2826,15 @@ static BPTR lxa_dos_loadseg_handle(struct DosLibrary *DOSBase,
                 case HUNK_TYPE_DEBUG:
                 {
                     ULONG cnt;
-                    if (Read(fh, &cnt, 4) != 4)
+                    ULONG skip;
+                    if (lxa_ld_read(DOSBase, funcs, fh, &cnt, 4) != 4)
                         goto finish;
-                    if (Seek(fh, cnt * 4, OFFSET_CURRENT) < 0)
-                        goto finish;
+                    /* read and discard: a custom ReadFunc cannot seek */
+                    while (cnt--)
+                    {
+                        if (lxa_ld_read(DOSBase, funcs, fh, &skip, 4) != 4)
+                            goto finish;
+                    }
                     break;
                 }
 
@@ -2760,15 +2865,15 @@ finish:
                 for (i = hunk_first_slot; i <= last_hunk_slot; i++)
                 {
                     if (hunk_table[i])
-                        FreeVec(BADDR(hunk_table[i]));
+                        lxa_ld_free(DOSBase, funcs, (ULONG *)BADDR(hunk_table[i]) - 1);
                 }
-                FreeVec(hunk_table);
+                lxa_ld_free(DOSBase, funcs, hunk_table - 1);
             }
             hunk_first = 0;
         }
         else if (hunk_table)
         {
-            FreeVec(hunk_table);
+            lxa_ld_free(DOSBase, funcs, hunk_table - 1);
         }
     }
 
@@ -2789,7 +2894,7 @@ BPTR _dos_LoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
         return 0;
     }
 
-    return lxa_dos_loadseg_handle(DOSBase, f, ___name, TRUE);
+    return lxa_dos_loadseg_handle(DOSBase, f, ___name, TRUE, NULL);
 }
 
 void _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
@@ -2818,7 +2923,7 @@ void _dos_UnLoadSeg ( register struct DosLibrary * __libBase __asm("a6"),
         DPRINTF (LOG_DEBUG, "_dos: UnLoadSeg() freeing segment %d at 0x%08lx (next=0x%08lx)\n",
                  count, seg_ptr, next);
 
-        FreeVec(seg_ptr);
+        FreeMem(seg_ptr - 1, seg_ptr[-1]);
 
         seg = next;
         count++;
@@ -3075,148 +3180,72 @@ void _dos_Delay ( register struct DosLibrary * __libBase __asm("a6"),
     DeleteMsgPort(port);
 }
 
+static CONST_STRPTR lxa_dos_shell_path(struct DosLibrary *DOSBase)
+{
+    static const char * const candidates[] = { "SYS:System/Shell", "System:Shell", NULL };
+    int i;
+
+    for (i = 0; candidates[i]; i++)
+    {
+        BPTR lock = Lock((CONST_STRPTR)candidates[i], SHARED_LOCK);
+        if (lock)
+        {
+            UnLock(lock);
+            return (CONST_STRPTR)candidates[i];
+        }
+    }
+    return NULL;
+}
+
 LONG _dos_Execute ( register struct DosLibrary * DOSBase __asm("a6"),
                                     register CONST_STRPTR ___string  __asm("d1"),
                                     register BPTR ___file  __asm("d2"),
                                     register BPTR ___file2  __asm("d3"))
 {
-    DPRINTF (LOG_DEBUG, "_dos: Execute('%s', input=0x%08lx, output=0x%08lx) called.\n", 
-             ___string ? ___string : (CONST_STRPTR)"NULL", ___file, ___file2);
-    
-    /* 
-     * Execute(command, input, output)
-     * 
-     * If command is not empty: execute it as a command line
-     * If input is non-zero: read additional commands from that file handle
-     *   (commands are executed one per line until EOF)
-     * Output is used for any output from the commands
-     *
-     * Returns:
-     *   For compatibility with existing tests, we return SystemTagList's result:
-     *   -1 if the command could not be loaded
-     *   0  if execution completed (command's return code is not propagated)
-     *
-     * Note: True AmigaDOS Execute returns DOSTRUE (-1) on success, DOSFALSE (0) on failure,
-     * but our tests expect the old behavior.
+    /*
+     * Execute(command, input, output) - AmigaOS 3.1 semantics (verified on
+     * the reference): a shell runs 'command' and then reads further
+     * commands from 'input' until EOF.  The result is DOSTRUE once the
+     * shell could be started - the commands' return codes are not
+     * returned (an unknown command is reported by the shell).
      */
-    
-    LONG rc = 0;  /* Success by default (old behavior) */
-    
-    /* First, execute the command string if provided */
-    if (___string && *___string) {
-        struct TagItem tags[3];
-        tags[0].ti_Tag = SYS_Output;
-        tags[0].ti_Data = ___file2 ? (ULONG)___file2 : (ULONG)Output();
-        tags[1].ti_Tag = TAG_DONE;
-        tags[1].ti_Data = 0;
-        
-        LONG sysrc = lxa_dos_system(DOSBase, ___string, tags, FALSE);
-        
-        if (sysrc == -1) {
-            /* System failed to load - try as script via Shell */
-            STRPTR shellName = (STRPTR)"SYS:System/Shell";
-            
-            /* Allocate buffer for "Shell script args" */
-            ULONG cmdLen = strlen((char *)shellName) + 1 + strlen((char *)___string) + 1;
-            STRPTR cmdBuf = AllocVec(cmdLen, MEMF_PUBLIC);
-            
-            if (cmdBuf) {
-                strcpy((char *)cmdBuf, (char *)shellName);
-                strcat((char *)cmdBuf, " ");
-                strcat((char *)cmdBuf, (char *)___string);
-                
-                DPRINTF(LOG_DEBUG, "_dos: Execute: System failed, trying as script: '%s'\n", cmdBuf);
-                
-                sysrc = lxa_dos_system(DOSBase, cmdBuf, tags, FALSE);
-                
-                FreeVec(cmdBuf);
-            } else {
-                SetIoErr(ERROR_NO_FREE_STORE);
-                return -1;  /* Failed to allocate */
-            }
-        }
-        
-        if (sysrc == -1) {
-            return -1;  /* Command could not be loaded */
-        }
+    BPTR out = ___file2 ? ___file2 : Output();
+    struct TagItem tags[3];
+
+    DPRINTF (LOG_DEBUG, "_dos: Execute('%s', input=0x%08lx, output=0x%08lx) called.\n",
+             ___string ? ___string : (CONST_STRPTR)"NULL", ___file, ___file2);
+
+    tags[0].ti_Tag = SYS_Output;
+    tags[0].ti_Data = (ULONG)out;
+    tags[1].ti_Tag = TAG_DONE;
+    tags[1].ti_Data = 0;
+
+    if (___string && *___string)
+    {
+        lxa_dos_system(DOSBase, ___string, tags, TRUE);
     }
-    
-    /* If input file handle is provided, read and execute commands from it */
-    if (___file) {
-        /* Read commands line by line from input */
-        #define EXEC_LINE_BUF_SIZE 512
-        STRPTR lineBuf = AllocVec(EXEC_LINE_BUF_SIZE, MEMF_PUBLIC);
-        
-        if (!lineBuf) {
-            SetIoErr(ERROR_NO_FREE_STORE);
-            return -1;
+
+    if (___file)
+    {
+        CONST_STRPTR shell = lxa_dos_shell_path(DOSBase);
+
+        if (!shell)
+        {
+            SetIoErr(ERROR_OBJECT_NOT_FOUND);
+            return DOSFALSE;
         }
-        
-        while (1) {
-            /* Read a line from input */
-            STRPTR line = FGets(___file, lineBuf, EXEC_LINE_BUF_SIZE - 1);
-            
-            if (!line) {
-                /* EOF or error */
-                break;
-            }
-            
-            /* Strip trailing newline */
-            LONG len = 0;
-            while (line[len]) len++;
-            if (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
-                line[len-1] = '\0';
-                len--;
-            }
-            if (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
-                line[len-1] = '\0';
-                len--;
-            }
-            
-            /* Skip empty lines and comments */
-            if (len == 0 || line[0] == ';') {
-                continue;
-            }
-            
-            DPRINTF(LOG_DEBUG, "_dos: Execute: Running line from file: '%s'\n", line);
-            
-            /* Execute this line */
-            struct TagItem tags[3];
-            tags[0].ti_Tag = SYS_Output;
-            tags[0].ti_Data = ___file2 ? (ULONG)___file2 : (ULONG)Output();
-            tags[1].ti_Tag = TAG_DONE;
-            tags[1].ti_Data = 0;
-            
-            LONG sysrc = lxa_dos_system(DOSBase, line, tags, FALSE);
-            
-            if (sysrc == -1) {
-                /* Try as script via Shell */
-                STRPTR shellName = (STRPTR)"SYS:System/Shell";
-                ULONG cmdLen = strlen((char *)shellName) + 1 + strlen((char *)line) + 1;
-                STRPTR cmdBuf = AllocVec(cmdLen, MEMF_PUBLIC);
-                
-                if (cmdBuf) {
-                    strcpy((char *)cmdBuf, (char *)shellName);
-                    strcat((char *)cmdBuf, " ");
-                    strcat((char *)cmdBuf, (char *)line);
-                    
-                    sysrc = lxa_dos_system(DOSBase, cmdBuf, tags, FALSE);
-                    FreeVec(cmdBuf);
-                }
-            }
-            
-            /* Note: Execute continues even if individual commands fail */
-            /* but we track if any command failed to load */
-            if (sysrc == -1) {
-                rc = -1;
-            }
-        }
-        
-        FreeVec(lineBuf);
-        #undef EXEC_LINE_BUF_SIZE
+
+        /* the shell reads its commands from the (non-interactive) input */
+        tags[1].ti_Tag = SYS_Input;
+        tags[1].ti_Data = (ULONG)___file;
+        tags[2].ti_Tag = TAG_DONE;
+        tags[2].ti_Data = 0;
+
+        if (lxa_dos_system(DOSBase, shell, tags, FALSE) == -1)
+            return DOSFALSE;
     }
-    
-    return rc;
+
+    return DOSTRUE;
 }
 
 void *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
@@ -3233,11 +3262,10 @@ void *_dos_AllocDosObject (register struct DosLibrary *DOSBase __asm("a6"),
 
             if (m)
             {
-                /* AllocVec with MEMF_CLEAR already zeroes all fields.
-                 * fh_Pos = 0 is correct: our FGetC uses negative fh_Pos
-                 * to store ungotten chars, so 0 means "no ungotten char".
-                 * Note: RKRM says fh_Pos/fh_End are for buffered I/O,
-                 * but we don't use buffering, so leave them at 0. */
+                /* AmigaOS 3.1 starts with an empty buffer: fh_Pos and
+                 * fh_End are -1 (lxa keeps its buffer state elsewhere) */
+                ((struct FileHandle *)m)->fh_Pos = -1;
+                ((struct FileHandle *)m)->fh_End = -1;
             }
             DPRINTF (LOG_DEBUG, "_dos: AllocDosObject() allocated new DOS_FILEHANDLE object: 0x%08lx\n", m);
             return m;
@@ -3342,7 +3370,9 @@ OOM:
             sp->sp_Pkt.dp_Link = &sp->sp_Msg;
 
             DPRINTF(LOG_DEBUG, "_dos: AllocDosObject() allocated new DOS_STDPKT object: 0x%08lx\n", sp);
-            return sp;
+            /* AmigaOS 3.1 returns the struct DosPacket; the linked
+             * struct Message sits in front of it (verified on 3.1) */
+            return &sp->sp_Pkt;
         }
 
         case DOS_RDARGS:
@@ -3361,12 +3391,10 @@ OOM:
         }
 
         default:
-            LPRINTF (LOG_ERROR, "_dos: AllocDosObject() type=%ld not implemented\n", type);
-            SetIoErr (ERROR_BAD_NUMBER);
+            /* unknown types: NULL, IoErr() untouched (AmigaOS 3.1) */
+            DPRINTF (LOG_DEBUG, "_dos: AllocDosObject() unknown type=%ld\n", type);
             return NULL;
     }
-
-    SetIoErr (ERROR_BAD_NUMBER);
 
     return NULL;
 }
@@ -3439,8 +3467,8 @@ void _dos_FreeDosObject (register struct DosLibrary *DOSBase __asm("a6"),
 
         case DOS_STDPKT:
         {
-            /* Free StandardPacket structure */
-            FreeVec(ptr);
+            /* ptr is the DosPacket returned by AllocDosObject() */
+            FreeVec((UBYTE *)ptr - offsetof(struct StandardPacket, sp_Pkt));
             break;
         }
 
@@ -3474,9 +3502,13 @@ LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
         return DOSFALSE;
     }
 
-    sp = (struct StandardPacket *)AllocDosObject(DOS_STDPKT, NULL);
-    if (!sp)
-        return DOSFALSE;
+    {
+        struct DosPacket *pkt = (struct DosPacket *)AllocDosObject(DOS_STDPKT, NULL);
+
+        if (!pkt)
+            return DOSFALSE;
+        sp = (struct StandardPacket *)((UBYTE *)pkt - offsetof(struct StandardPacket, sp_Pkt));
+    }
 
     use_process_port = lxa_dos_is_process(me);
 
@@ -3489,7 +3521,7 @@ LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
         replyport = CreateMsgPort();
         if (!replyport)
         {
-            FreeDosObject(DOS_STDPKT, sp);
+            FreeDosObject(DOS_STDPKT, &sp->sp_Pkt);
             SetIoErr(ERROR_NO_FREE_STORE);
             return DOSFALSE;
         }
@@ -3511,7 +3543,7 @@ LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     {
         if (!use_process_port)
             DeleteMsgPort(replyport);
-        FreeDosObject(DOS_STDPKT, sp);
+        FreeDosObject(DOS_STDPKT, &sp->sp_Pkt);
         return DOSFALSE;
     }
 
@@ -3526,7 +3558,7 @@ LONG _dos_DoPkt ( register struct DosLibrary * DOSBase __asm("a6"),
     else
         replyport = NULL;
 
-    FreeDosObject(DOS_STDPKT, sp);
+    FreeDosObject(DOS_STDPKT, &sp->sp_Pkt);
     return res;
 }
 
@@ -4977,6 +5009,23 @@ LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
             "_dos: ErrorReport(code=%ld, type=%ld, arg1=0x%08lx, device=%p) called.\n",
             code, type, arg1, (void *)device);
 
+    /* Codes ErrorReport() does not handle return DOSTRUE at once and leave
+     * IoErr() untouched (verified on AmigaOS 3.1). */
+    switch (code)
+    {
+        case ERROR_DISK_NOT_VALIDATED:
+        case ERROR_DISK_WRITE_PROTECTED:
+        case ERROR_DEVICE_NOT_MOUNTED:
+        case ERROR_DISK_FULL:
+        case ERROR_NOT_A_DOS_DISK:
+        case ERROR_NO_DISK:
+        case ABORT_BUSY:
+        case ABORT_DISK_ERROR:
+            break;
+        default:
+            return DOSTRUE;
+    }
+
     me = (struct Process *)FindTask(NULL);
     if (!IS_PROCESS(me))
     {
@@ -5032,7 +5081,6 @@ LONG _dos_ErrorReport ( register struct DosLibrary * DOSBase __asm("a6"),
             break;
 
         default:
-            SetIoErr(code);
             return DOSTRUE;
     }
 
@@ -5240,8 +5288,12 @@ struct Process * _dos_CreateNewProc ( register struct DosLibrary * DOSBase __asm
     BOOL   do_cli    =          GetTagData(NP_Cli      , 0                    , tags);
     APTR   windowPtr = (APTR)   GetTagData(NP_WindowPtr, 0                    , tags);
     BOOL   freeSeglist =        GetTagData(NP_FreeSeglist, FALSE              , tags);
-    BOOL   closeInput  =        GetTagData(NP_CloseInput, FALSE               , tags);
-    BOOL   closeOutput =        GetTagData(NP_CloseOutput, FALSE              , tags);
+    /* dos/dostags.h: NP_CloseInput/NP_CloseOutput default to TRUE - an
+     * explicitly passed NP_Input/NP_Output is closed when the process
+     * exits (AmigaOS 3.1).  lxa's implicit default streams are inherited
+     * from the parent and therefore never closed. */
+    BOOL   closeInput  =        GetTagData(NP_CloseInput, tag_exists(NP_Input, tags), tags);
+    BOOL   closeOutput =        GetTagData(NP_CloseOutput, tag_exists(NP_Output, tags), tags);
            inp       =          GetTagData(NP_Input    , inp                  , tags);
            outp      =          GetTagData(NP_Output   , outp                 , tags);
     char  *args      = (char*)  GetTagData(NP_Arguments, (ULONG)NULL          , tags);
@@ -5452,6 +5504,8 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
         { NP_Cli, TRUE },
         { NP_Input, 0 },
         { NP_Output, 0 },
+        { NP_CloseInput, FALSE },
+        { NP_CloseOutput, FALSE },
         { NP_Arguments, 0 },
         { NP_CurrentDir, 0 },
         { NP_FreeSeglist, FALSE },
@@ -5501,10 +5555,10 @@ LONG _dos_RunCommand ( register struct DosLibrary * DOSBase __asm("a6"),
         procTags[2].ti_Data = (ULONG)stack;
         procTags[4].ti_Data = me->pr_CIS;
         procTags[5].ti_Data = me->pr_COS;
-        procTags[6].ti_Data = (ULONG)paramptr;
-        procTags[7].ti_Data = (ULONG)curDir;
-        procTags[9].ti_Data = (ULONG)lxa_dos_runcommand_exit_cleanup;
-        procTags[10].ti_Data = (ULONG)blk;
+        procTags[8].ti_Data = (ULONG)paramptr;
+        procTags[9].ti_Data = (ULONG)curDir;
+        procTags[11].ti_Data = (ULONG)lxa_dos_runcommand_exit_cleanup;
+        procTags[12].ti_Data = (ULONG)blk;
 
         child = _dos_CreateNewProc(DOSBase, procTags);
         if (!child)
@@ -6020,6 +6074,8 @@ static LONG lxa_dos_system(struct DosLibrary *DOSBase, CONST_STRPTR command,
         { NP_Cli, TRUE },
         { NP_Input, input },
         { NP_Output, output },
+        { NP_CloseInput, FALSE },
+        { NP_CloseOutput, FALSE },
         { NP_Arguments, (ULONG)args },
         { NP_CurrentDir, (ULONG)curDir },
         { NP_WindowPtr, (ULONG)childWindowPtr },
@@ -6173,13 +6229,21 @@ LONG _dos_AssignLock ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_dos: AssignLock() called, name=%s, lock=0x%08lx\n",
              name ? (char *)name : "NULL", lock);
-    
-    if (!name || !lock)
+
+    if (!name)
     {
         SetIoErr(ERROR_REQUIRED_ARG_MISSING);
         return DOSFALSE;
     }
-    
+
+    /* AssignLock(name, 0) removes the assign; AmigaOS 3.1 returns DOSTRUE
+     * whether or not it existed */
+    if (!lock)
+    {
+        emucall1(EMU_CALL_DOS_ASSIGN_REMOVE, (ULONG)name);
+        return DOSTRUE;
+    }
+
     /* Get path from lock using NameFromLock */
     char path[256];
     if (!_dos_NameFromLock(DOSBase, lock, (STRPTR)path, sizeof(path)))
@@ -6187,19 +6251,19 @@ LONG _dos_AssignLock ( register struct DosLibrary * DOSBase __asm("a6"),
         SetIoErr(ERROR_OBJECT_NOT_FOUND);
         return DOSFALSE;
     }
-    
+
     DPRINTF (LOG_DEBUG, "_dos: AssignLock() path from lock: %s\n", path);
-    
+
     /* Call host to create the assign (type 0 = ASSIGN_LOCK) */
     LONG result = emucall3(EMU_CALL_DOS_ASSIGN_ADD, (ULONG)name, (ULONG)path, ASSIGN_TYPE_LOCK);
-    
+
     if (result)
     {
         /* On success, we consume the lock (AmigaOS behavior) */
         _dos_UnLock(DOSBase, lock);
         return DOSTRUE;
     }
-    
+
     SetIoErr(ERROR_OBJECT_EXISTS);
     return DOSFALSE;
 }
@@ -6291,7 +6355,7 @@ BOOL _dos_AssignAdd ( register struct DosLibrary * DOSBase __asm("a6"),
     {
         /* On success, we consume the lock (AmigaOS behavior) */
         _dos_UnLock(DOSBase, lock);
-        return TRUE;
+        return DOSTRUE;
     }
     
     SetIoErr(ERROR_OBJECT_EXISTS);
@@ -6304,43 +6368,31 @@ LONG _dos_RemAssignList ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     DPRINTF (LOG_DEBUG, "_dos: RemAssignList() called, name=%s, lock=0x%08lx\n",
              name ? (char *)name : "NULL", lock);
-    
+
     if (!name)
     {
         SetIoErr(ERROR_REQUIRED_ARG_MISSING);
         return DOSFALSE;
     }
-    
+
     LONG result;
+    char path[256];
 
-    if (lock)
-    {
-        char path[256];
+    /*
+     * AmigaOS 3.1 (verified): only the directory matching 'lock' is removed
+     * (the assign goes away with its last directory); the caller keeps the
+     * lock.  A NULL lock matches nothing.  Failures leave IoErr() alone.
+     * Use AssignLock(name, 0) to remove a whole assign.
+     */
+    if (!lock)
+        return DOSFALSE;
 
-        if (!_dos_NameFromLock(DOSBase, lock, (STRPTR)path, sizeof(path)))
-        {
-            SetIoErr(ERROR_OBJECT_NOT_FOUND);
-            return DOSFALSE;
-        }
+    if (!_dos_NameFromLock(DOSBase, lock, (STRPTR)path, sizeof(path)))
+        return DOSFALSE;
 
-        result = emucall2(EMU_CALL_DOS_ASSIGN_REMOVE_PATH, (ULONG)name, (ULONG)path);
-    }
-    else
-    {
-        result = emucall1(EMU_CALL_DOS_ASSIGN_REMOVE, (ULONG)name);
-    }
-    
-    if (result)
-    {
-        if (lock)
-        {
-            _dos_UnLock(DOSBase, lock);
-        }
-        return DOSTRUE;
-    }
-    
-    SetIoErr(ERROR_OBJECT_NOT_FOUND);
-    return DOSFALSE;
+    result = emucall2(EMU_CALL_DOS_ASSIGN_REMOVE_PATH, (ULONG)name, (ULONG)path);
+
+    return result ? DOSTRUE : DOSFALSE;
 }
 
 struct DevProc * _dos_GetDeviceProc ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -6674,11 +6726,25 @@ struct DosList * _dos_MakeDosEntry ( register struct DosLibrary * DOSBase __asm(
         return NULL;
     }
 
-    dlist->dol_Name = lxa_dos_alloc_name_bstr(name);
-    if (dlist->dol_Name == 0)
     {
-        FreeVec(dlist);
-        return NULL;
+        /* AmigaOS 3.1 copies the whole name; the BCPL length byte simply
+         * wraps for names longer than 255 characters (verified on 3.1). */
+        ULONG len = 0;
+        UBYTE *buf;
+
+        while (name[len])
+            len++;
+
+        buf = (UBYTE *)AllocVec(len + 2, MEMF_PUBLIC | MEMF_CLEAR);
+        if (!buf)
+        {
+            FreeVec(dlist);
+            SetIoErr(ERROR_NO_FREE_STORE);
+            return NULL;
+        }
+        buf[0] = (UBYTE)len;
+        CopyMem((APTR)name, buf + 1, len);
+        dlist->dol_Name = MKBADDR(buf);
     }
 
     dlist->dol_Type = type;
@@ -6808,15 +6874,6 @@ BOOL _dos_Format ( register struct DosLibrary * DOSBase __asm("a6"),
         return DOSFALSE;
     }
 
-    for (p = volumename; *p != '\0'; p++)
-    {
-        if (*p == ':')
-        {
-            SetIoErr(ERROR_INVALID_COMPONENT_NAME);
-            return DOSFALSE;
-        }
-    }
-
     dvp = _dos_GetDeviceProc(DOSBase, filesystem, NULL);
     if (!dvp)
         return DOSFALSE;
@@ -6826,6 +6883,18 @@ BOOL _dos_Format ( register struct DosLibrary * DOSBase __asm("a6"),
         _dos_FreeDeviceProc(DOSBase, dvp);
         SetIoErr(ERROR_DEVICE_NOT_MOUNTED);
         return DOSFALSE;
+    }
+
+    /* the device is resolved first: AmigaOS 3.1 reports an unknown device
+     * (ERROR_DEVICE_NOT_MOUNTED) before looking at the new name */
+    for (p = volumename; *p != '\0'; p++)
+    {
+        if (*p == ':')
+        {
+            _dos_FreeDeviceProc(DOSBase, dvp);
+            SetIoErr(ERROR_INVALID_COMPONENT_NAME);
+            return DOSFALSE;
+        }
     }
 
     volume_bstr = lxa_dos_alloc_name_bstr(volumename);
@@ -6885,15 +6954,6 @@ LONG _dos_Relabel ( register struct DosLibrary * DOSBase __asm("a6"),
         return DOSFALSE;
     }
 
-    for (p = newname; *p != '\0'; p++)
-    {
-        if (*p == ':')
-        {
-            SetIoErr(ERROR_INVALID_COMPONENT_NAME);
-            return DOSFALSE;
-        }
-    }
-
     dvp = _dos_GetDeviceProc(DOSBase, drive, NULL);
     if (!dvp)
         return DOSFALSE;
@@ -6903,6 +6963,18 @@ LONG _dos_Relabel ( register struct DosLibrary * DOSBase __asm("a6"),
         _dos_FreeDeviceProc(DOSBase, dvp);
         SetIoErr(ERROR_DEVICE_NOT_MOUNTED);
         return DOSFALSE;
+    }
+
+    /* the device is resolved first: AmigaOS 3.1 reports an unknown device
+     * (ERROR_DEVICE_NOT_MOUNTED) before looking at the new name */
+    for (p = newname; *p != '\0'; p++)
+    {
+        if (*p == ':')
+        {
+            _dos_FreeDeviceProc(DOSBase, dvp);
+            SetIoErr(ERROR_INVALID_COMPONENT_NAME);
+            return DOSFALSE;
+        }
     }
 
     newname_bstr = lxa_dos_alloc_name_bstr(newname);
@@ -7550,11 +7622,16 @@ BPTR _dos_InternalLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register const LONG * funcarray __asm("a1"),
                                                         register LONG * stack __asm("a2"))
 {
-    (void)table;
-    (void)funcarray;
+    (void)table;    /* overlay table: overlays are not supported by the loader */
     (void)stack;
 
-    return lxa_dos_loadseg_handle(DOSBase, fh, (CONST_STRPTR)"<InternalLoadSeg>", FALSE);
+    if (!funcarray)
+    {
+        SetIoErr(ERROR_REQUIRED_ARG_MISSING);
+        return 0;
+    }
+
+    return lxa_dos_loadseg_handle(DOSBase, fh, (CONST_STRPTR)"<InternalLoadSeg>", FALSE, funcarray);
 }
 
 BOOL _dos_InternalUnLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -7582,15 +7659,16 @@ BOOL _dos_InternalUnLoadSeg ( register struct DosLibrary * DOSBase __asm("a6"),
 
         if (freefunc)
         {
-            /* Custom free function - call with pointer and size.
-             * Note: We don't know the exact size, so we pass 0.
-             * In practice, callers using InternalUnLoadSeg typically
-             * use their own memory tracking. */
-            freefunc(seg_ptr, 0);
+            /* FreeFunc(memory, size)(a1/d0): the hunk's allocation starts
+             * with its size longword */
+            LONG funcs[3];
+
+            funcs[2] = (LONG)freefunc;
+            lxa_ld_free(DOSBase, funcs, (ULONG *)(seg_ptr - 1));
         }
         else
         {
-            FreeVec(seg_ptr);
+            FreeMem(seg_ptr - 1, seg_ptr[-1]);
         }
 
         seg = next;
@@ -7685,12 +7763,10 @@ LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
 {
     struct RootNode *root;
     struct DosInfo *dos_info;
-    struct Segment *current;
     struct Segment *segment;
     ULONG name_len = 0;
     ULONG copy_len;
     ULONG alloc_size;
-    BOOL want_system;
 
     (void)DOSBase;
 
@@ -7718,23 +7794,11 @@ LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
         copy_len = 255;
 
     alloc_size = offsetof(struct Segment, seg_Name) + copy_len + 2;
-    want_system = (system < 0);
 
+    /* AmigaOS 3.1 neither checks for duplicates nor interprets 'system':
+     * it becomes seg_UC as given (0/1 user, CMD_SYSTEM, CMD_INTERNAL) and
+     * the entry is prepended to the resident list in di_NetHand. */
     Forbid();
-
-    current = (struct Segment *)BADDR(dos_info->di_ResList);
-    while (current)
-    {
-        if (((want_system && current->seg_UC < 0) || (!want_system && current->seg_UC >= 0)) &&
-            lxa_dos_bstr_cstr_case_equal(current->seg_Name, name))
-        {
-            Permit();
-            SetIoErr(ERROR_OBJECT_EXISTS);
-            return DOSFALSE;
-        }
-
-        current = (struct Segment *)BADDR(current->seg_Next);
-    }
 
     segment = (struct Segment *)AllocVec(alloc_size, MEMF_PUBLIC | MEMF_CLEAR);
     if (!segment)
@@ -7751,12 +7815,19 @@ LONG _dos_AddSegment ( register struct DosLibrary * DOSBase __asm("a6"),
         CopyMem((APTR)name, &segment->seg_Name[1], copy_len);
     segment->seg_Name[copy_len + 1] = '\0';
 
-    segment->seg_Next = dos_info->di_ResList;
-    dos_info->di_ResList = MKBADDR(segment);
+    segment->seg_Next = (BPTR)dos_info->di_NetHand;
+    dos_info->di_NetHand = (APTR)MKBADDR(segment);
 
     Permit();
     SetIoErr(0);
     return DOSTRUE;
+}
+
+static struct DosInfo *lxa_dos_info(void)
+{
+    struct RootNode *root = initRootNode();
+
+    return root ? (struct DosInfo *)BADDR(root->rn_Info) : NULL;
 }
 
 struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -7764,26 +7835,93 @@ struct Segment * _dos_FindSegment ( register struct DosLibrary * DOSBase __asm("
                                                         register const struct Segment * seg __asm("d2"),
                                                         register LONG system __asm("d3"))
 {
-    LXA_UNIMPLEMENTED("dos", "FindSegment", "stub: resident segment list not implemented (Phase 255)");
+    /*
+     * Resident list search (behaviour verified on AmigaOS 3.1):
+     *  - starts after 'seg' (or at the head of the list in di_NetHand),
+     *  - names compare case-insensitively,
+     *  - system == FALSE matches user segments (seg_UC > 0; an entry with
+     *    seg_UC == 0 is not found), system != FALSE matches seg_UC < 0
+     *    (CMD_SYSTEM and CMD_INTERNAL),
+     *  - the use count is not changed.
+     */
+    struct DosInfo *dos_info;
+    struct Segment *current;
 
-    system = (LONG)(WORD)system; /* sign-extend: GCC m68k move.w workaround */
+    (void)DOSBase;
 
-    DPRINTF (LOG_DEBUG, "_dos: FindSegment() called, name=%s, seg=0x%08lx, system=%ld\n", 
-             name, seg, system);
-    /* Return NULL - segment not found. Full implementation would search 
-     * the resident segment list maintained by dos.library. */
-    return NULL;
+    DPRINTF (LOG_DEBUG, "_dos: FindSegment() called, name=%s, seg=0x%08lx, system=%ld\n",
+             STRORNULL(name), seg, system);
+
+    if (!name)
+        return NULL;
+
+    dos_info = lxa_dos_info();
+    if (!dos_info)
+        return NULL;
+
+    Forbid();
+    current = seg ? (struct Segment *)BADDR(seg->seg_Next)
+                  : (struct Segment *)BADDR((BPTR)dos_info->di_NetHand);
+    while (current)
+    {
+        if ((system ? current->seg_UC < 0 : current->seg_UC > 0) &&
+            lxa_dos_bstr_cstr_case_equal(current->seg_Name, name))
+            break;
+        current = (struct Segment *)BADDR(current->seg_Next);
+    }
+    Permit();
+
+    return current;
 }
 
 LONG _dos_RemSegment ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register struct Segment * seg __asm("d1"))
 {
-    LXA_UNIMPLEMENTED("dos", "RemSegment", "stub: resident segment list not implemented (Phase 255)");
+    /*
+     * Removes an unused resident segment (seg_UC 0 or 1) from the list and
+     * unloads it.  Segments in use (seg_UC > 1) and system/internal
+     * segments (seg_UC < 0) fail with ERROR_OBJECT_IN_USE (AmigaOS 3.1).
+     */
+    struct DosInfo *dos_info;
+    BPTR *link;
 
     DPRINTF (LOG_DEBUG, "_dos: RemSegment() called, seg=0x%08lx\n", seg);
-    /* Return 0 (FALSE) - segment not removed. Full implementation would
-     * remove segment from the resident list. */
-    return 0;
+
+    if (!seg)
+        return DOSFALSE;
+
+    dos_info = lxa_dos_info();
+    if (!dos_info)
+        return DOSFALSE;
+
+    Forbid();
+    if (seg->seg_UC != 0 && seg->seg_UC != 1)
+    {
+        Permit();
+        SetIoErr(ERROR_OBJECT_IN_USE);
+        return DOSFALSE;
+    }
+
+    /* the NDK declares di_NetHand as APTR; AmigaOS 3.1 keeps the BPTR to
+     * the resident segment list there */
+    link = (BPTR *)&dos_info->di_NetHand;
+    while (*link && (struct Segment *)BADDR(*link) != seg)
+        link = &((struct Segment *)BADDR(*link))->seg_Next;
+
+    if (!*link)
+    {
+        Permit();
+        SetIoErr(ERROR_OBJECT_NOT_FOUND);
+        return DOSFALSE;
+    }
+
+    *link = seg->seg_Next;
+    Permit();
+
+    if (seg->seg_Seg)
+        UnLoadSeg(seg->seg_Seg);
+    FreeVec(seg);
+    return DOSTRUE;
 }
 
 LONG _dos_CheckSignal ( register struct DosLibrary * DOSBase __asm("a6"),
@@ -8360,12 +8498,8 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
     if (!buffer)
         return ITEM_NOTHING;
 
-    if (maxchars == 0)
-    {
-        *cursor = '\0';
-        return ITEM_NOTHING;
-    }
-
+    /* maxchars == 0 is not special-cased: AmigaOS 3.1 consumes the first
+     * character of an item and reports ITEM_ERROR with an empty buffer. */
     if (!cSource)
         input_fh = Input();
 
@@ -8417,7 +8551,7 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
         {
             if (!maxchars)
             {
-                cursor[-1] = '\0';
+                if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
                 return ITEM_NOTHING;
             }
 
@@ -8461,7 +8595,7 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
     {
         if (!maxchars)
         {
-            cursor[-1] = '\0';
+            if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
             return ITEM_ERROR;
         }
 
@@ -8472,7 +8606,7 @@ LONG _dos_ReadItem ( register struct DosLibrary * DOSBase __asm("a6"),
         {
             if (!maxchars)
             {
-                cursor[-1] = '\0';
+                if (cursor > buffer) cursor[-1] = '\0'; else *cursor = '\0';
                 return ITEM_ERROR;
             }
 
@@ -10467,11 +10601,6 @@ BOOL _dos_SetOwner ( register struct DosLibrary * DOSBase __asm("a6"),
                                                         register CONST_STRPTR name __asm("d1"),
                                                         register LONG owner_info __asm("d2"))
 {
-    char resolved_path[256];
-    const char *path_to_use;
-    LONG ioerr = 0;
-    LONG result;
-
     DPRINTF (LOG_DEBUG, "_dos: SetOwner() called, name=%s, owner_info=0x%08lx\n",
              STRORNULL(name), (ULONG)owner_info);
 
@@ -10481,16 +10610,12 @@ BOOL _dos_SetOwner ( register struct DosLibrary * DOSBase __asm("a6"),
         return DOSFALSE;
     }
 
-    path_to_use = resolve_amiga_path((const char *)name, resolved_path);
-    result = emucall3(EMU_CALL_DOS_SETOWNER, (ULONG)path_to_use, (ULONG)owner_info, (ULONG)&ioerr);
-
-    if (!result)
-    {
-        SetIoErr(ioerr ? ioerr : ERROR_OBJECT_NOT_FOUND);
-        return DOSFALSE;
-    }
-
-    return DOSTRUE;
+    /* SetOwner() sends ACTION_SET_OWNER, which the AmigaOS 3.1 filesystems
+     * (FFS, ram-handler) do not know -- lxa's hosted filesystem behaves
+     * the same (verified on the reference: always ERROR_ACTION_NOT_KNOWN). */
+    (void)owner_info;
+    SetIoErr(ERROR_ACTION_NOT_KNOWN);
+    return DOSFALSE;
 }
 
 struct MyDataInit

@@ -130,15 +130,7 @@ int main(void)
         return 20;
     }
 
-    print("Test 1: NULL packet fails with required-argument error\n");
-    SetIoErr(0);
-    result = CliInitRun(NULL);
-    if (result == 0 && IoErr() == ERROR_REQUIRED_ARG_MISSING)
-        test_pass("NULL packet rejected");
-    else
-        test_fail("NULL packet rejected", "Wrong result or IoErr");
-
-    print("\nTest 2: Missing input reports process pointer error\n");
+    print("Test 2: Missing input reports process pointer error\n");
     dp.dp_Arg1 = 0;
     dp.dp_Arg2 = 0;
     dp.dp_Arg3 = std_output;

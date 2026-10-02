@@ -48,8 +48,8 @@ extern struct MsgPort *lxa_dos_host_console_port(void);
 
 #define EXEC_FUNCTABLE_ENTRY(___off) (NUM_EXEC_FUNCS+(___off/6))
 
-#define VERSION  1
-#define REVISION 1
+#define VERSION  40     /* exec.library 40.10 = Kickstart 3.1 (as on the reference) */
+#define REVISION 10
 
 /* Library init calling convention per RKRM:
  * D0 = Library pointer

@@ -1,15 +1,15 @@
-ECHO Starting test
+ECHO "Starting test"
 IF WARN
-  ECHO First IF passed
+  ECHO "First IF passed"
 ELSE
-  ECHO First IF failed
+  ECHO "First IF failed"
 ENDIF
 
-ECHO Before second test
+ECHO "Before second test"
 IF ERROR
-  ECHO Second IF passed (should not show)
+  ECHO "Second IF passed (should not show)"
 ELSE
-  ECHO Second IF failed (this should show)
+  ECHO "Second IF failed (this should show)"
 ENDIF
 
-ECHO Done
+ECHO "Done"

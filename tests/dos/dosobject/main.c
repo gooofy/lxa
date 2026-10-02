@@ -111,14 +111,16 @@ int main(void)
             print_hex((ULONG)fh);
             print("\n");
 
-            /* Verify fh_Pos is 0 (not -1) — our FGetC uses negative for ungotten char */
-            if (fh->fh_Pos == 0) {
-                test_pass("fh_Pos initialized to 0");
+            /* AmigaOS 3.1: empty buffer, fh_Pos == fh_End == -1 */
+            if (fh->fh_Pos == -1 && fh->fh_End == -1) {
+                test_pass("fh_Pos/fh_End initialized to -1");
             } else {
                 print("  fh_Pos = ");
                 print_num(fh->fh_Pos);
+                print(", fh_End = ");
+                print_num(fh->fh_End);
                 print("\n");
-                test_fail("fh_Pos init", "Expected 0");
+                test_fail("fh_Pos/fh_End init", "Expected -1");
             }
 
             FreeDosObject(DOS_FILEHANDLE, fh);
@@ -181,40 +183,31 @@ int main(void)
         }
     }
 
-    /* Test 4: DOS_STDPKT */
+    /* Test 4: DOS_STDPKT -- AmigaOS returns the struct DosPacket, the
+     * linked struct Message sits directly in front of it */
     print("\nTest 4: DOS_STDPKT (type 3)\n");
     {
-        struct StandardPacket *sp = (struct StandardPacket *)AllocDosObject(DOS_STDPKT, NULL);
-        if (sp) {
+        struct DosPacket *dp = (struct DosPacket *)AllocDosObject(DOS_STDPKT, NULL);
+        if (dp) {
+            struct Message *msg = (struct Message *)((UBYTE *)dp - sizeof(struct Message));
+
             print("  Allocated at ");
-            print_hex((ULONG)sp);
+            print_hex((ULONG)dp);
             print("\n");
 
-            /* Verify linkage: sp_Msg.mn_Node.ln_Name should point to sp_Pkt */
-            if (sp->sp_Msg.mn_Node.ln_Name == (char *)&sp->sp_Pkt) {
-                test_pass("sp_Msg.ln_Name -> sp_Pkt linkage");
+            if (dp->dp_Link == msg) {
+                test_pass("dp_Link -> preceding Message");
             } else {
-                print("  sp_Msg.ln_Name = ");
-                print_hex((ULONG)sp->sp_Msg.mn_Node.ln_Name);
-                print(", &sp_Pkt = ");
-                print_hex((ULONG)&sp->sp_Pkt);
-                print("\n");
-                test_fail("sp_Msg->sp_Pkt linkage", "Pointers don't match");
+                test_fail("dp_Link linkage", "dp_Link does not point to the preceding Message");
             }
 
-            /* Verify linkage: sp_Pkt.dp_Link should point to sp_Msg */
-            if (sp->sp_Pkt.dp_Link == &sp->sp_Msg) {
-                test_pass("sp_Pkt.dp_Link -> sp_Msg linkage");
+            if (msg->mn_Node.ln_Name == (char *)dp) {
+                test_pass("Message ln_Name -> DosPacket");
             } else {
-                print("  sp_Pkt.dp_Link = ");
-                print_hex((ULONG)sp->sp_Pkt.dp_Link);
-                print(", &sp_Msg = ");
-                print_hex((ULONG)&sp->sp_Msg);
-                print("\n");
-                test_fail("sp_Pkt->sp_Msg linkage", "Pointers don't match");
+                test_fail("ln_Name linkage", "ln_Name does not point to the DosPacket");
             }
 
-            FreeDosObject(DOS_STDPKT, sp);
+            FreeDosObject(DOS_STDPKT, dp);
             test_pass("DOS_STDPKT alloc/free");
         } else {
             test_fail("DOS_STDPKT", "AllocDosObject returned NULL");
@@ -240,30 +233,41 @@ int main(void)
     /* Test 5b: DOS_STDPKT packet helpers */
     print("\nTest 5b: DOS packet helper compatibility\n");
     {
-        struct StandardPacket *sp = (struct StandardPacket *)AllocDosObject(DOS_STDPKT, NULL);
+        struct DosPacket *dp = (struct DosPacket *)AllocDosObject(DOS_STDPKT, NULL);
         struct MsgPort *port = CreateMsgPort();
-        struct Process *me = (struct Process *)FindTask(NULL);
-        if (sp && port) {
-            sp->sp_Pkt.dp_Type = ACTION_NIL;
-            SendPkt(&sp->sp_Pkt, port, &me->pr_MsgPort);
-            if (sp->sp_Pkt.dp_Port == &me->pr_MsgPort) {
+        struct MsgPort *reply = CreateMsgPort();
+        if (dp && port && reply) {
+            struct Message *msg;
+
+            dp->dp_Type = ACTION_NIL;
+            SendPkt(dp, port, reply);
+            if (dp->dp_Port == reply) {
                 test_pass("SendPkt stores reply port");
             } else {
                 test_fail("SendPkt", "reply port mismatch");
             }
-            ReplyPkt(&sp->sp_Pkt, 11, 22);
-            if (sp->sp_Pkt.dp_Res1 == 11 && sp->sp_Pkt.dp_Res2 == 22) {
-                test_pass("ReplyPkt stores result fields");
+            msg = GetMsg(port);
+            if (msg == dp->dp_Link && msg->mn_ReplyPort == reply) {
+                test_pass("SendPkt queues the linked message");
             } else {
-                test_fail("ReplyPkt", "result fields mismatch");
+                test_fail("SendPkt", "message not queued at the destination port");
+            }
+            ReplyPkt(dp, 11, 22);
+            msg = GetMsg(reply);
+            if (msg == dp->dp_Link && dp->dp_Res1 == 11 && dp->dp_Res2 == 22) {
+                test_pass("ReplyPkt returns the packet with result fields");
+            } else {
+                test_fail("ReplyPkt", "reply or result fields mismatch");
             }
         } else {
             test_fail("DOS packet helpers", "setup failed");
         }
+        if (reply)
+            DeleteMsgPort(reply);
         if (port)
             DeleteMsgPort(port);
-        if (sp)
-            FreeDosObject(DOS_STDPKT, sp);
+        if (dp)
+            FreeDosObject(DOS_STDPKT, dp);
     }
 
     /* Test 6: DOS_RDARGS */

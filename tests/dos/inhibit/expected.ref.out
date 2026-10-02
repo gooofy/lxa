@@ -1,0 +1,16 @@
+Inhibit Test
+============
+
+Test 1: Unknown devices are not mounted
+  Inhibit NODEV: on: result=0 IoErr=218  PASS
+  Inhibit NODEV:x on: result=0 IoErr=218  PASS
+
+Test 2: NIL: has no handler
+  Inhibit NIL: on: result=0 IoErr=218  PASS
+
+Test 3: The RAM: handler does not know ACTION_INHIBIT
+  Inhibit RAM: on: result=0 IoErr=209  PASS
+  Inhibit RAM: off: result=0 IoErr=209  PASS
+  Inhibit RAM:x/y on: result=0 IoErr=209  PASS
+
+Failed: 0

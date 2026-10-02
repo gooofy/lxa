@@ -96,8 +96,8 @@ static void print_ioerr(const char *label)
 
 static void cleanup(void)
 {
-    RemAssignList((STRPTR)"MULTIASSIGN", 0);
-    RemAssignList((STRPTR)"LATEASSIGN", 0);
+    AssignLock((STRPTR)"MULTIASSIGN", 0);
+    AssignLock((STRPTR)"LATEASSIGN", 0);
     DeleteFile((CONST_STRPTR)"notifytest/file.txt");
     DeleteFile((CONST_STRPTR)"notifytest");
     DeleteFile((CONST_STRPTR)"assign_a/file_a.txt");

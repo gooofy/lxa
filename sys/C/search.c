@@ -166,9 +166,14 @@ static BOOL search_file(const char *filename, const char *search_str,
     
     while (!check_break()) {
         LONG len = read_line(fh, line, sizeof(line));
-        if (len == 0 && Seek(fh, 0, OFFSET_CURRENT) == Seek(fh, 0, OFFSET_END)) {
-            /* End of file */
-            break;
+        if (len == 0) {
+            /* Seek() returns the previous position */
+            LONG pos = Seek(fh, 0, OFFSET_END);
+            LONG end = Seek(fh, pos, OFFSET_BEGINNING);
+            if (pos >= end) {
+                /* End of file */
+                break;
+            }
         }
         
         line_num++;

@@ -1,0 +1,13 @@
+GetArgStr Test
+==============
+
+Test 1: Current process returns pr_Arguments pointer
+  PASS: Current process argument string
+
+Test 2: NULL pr_Arguments returns NULL
+  PASS: NULL argument string
+
+Test 3: Updated pr_Arguments value is observed immediately
+  PASS: Updated argument string
+
+Failed: 0

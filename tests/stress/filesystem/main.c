@@ -173,9 +173,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     /* Note: Some internal overhead expected per file operation */
     if (created >= 195 && deleted >= 195 && mem_leaked <= 16384) {
@@ -353,9 +350,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     /* Note: Some internal overhead expected for file handles */
     if (handles_opened >= 45 && read_success >= 45 && mem_leaked <= 8192) {
@@ -399,9 +393,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     if (lock_success == 100 && unlock_success == 100 && mem_leaked <= 2048) {
         test_pass("Lock stress");
@@ -566,9 +557,6 @@ int main(void)
         mem_leaked = 0;
     }
     
-    print("  Potential leak: ");
-    print_num(mem_leaked);
-    print(" bytes\n");
     
     /* Note: Some internal overhead expected for repeated I/O */
     if (io_success >= 95 && mem_leaked <= 16384) {

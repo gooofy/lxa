@@ -283,6 +283,7 @@ uint32_t _timer_get_expired(void)
 #define ERROR_RENAME_ACROSS_DEVICES 215
 #define ERROR_DIRECTORY_NOT_EMPTY 216
 #define ERROR_TOO_MANY_LEVELS    217
+#define ERROR_DEVICE_NOT_MOUNTED 218
 #define ERROR_SEEK_ERROR         219
 #define ERROR_DISK_FULL          221
 #define ERROR_DELETE_PROTECTED   222
@@ -476,6 +477,108 @@ static bool _record_lock_remove(dev_t dev, ino_t ino, uint32_t owner_fh68k,
     return false;
 }
 
+/*
+ * AmigaDOS lock semantics: an exclusive (ACCESS_WRITE) lock conflicts with
+ * every other lock on the same object, shared locks coexist.  Returns true
+ * when a new lock of 'mode' on (dev, ino) would collide (ERROR_OBJECT_IN_USE).
+ */
+/*
+ * Open regular files take part in the same scheme (verified on AmigaOS 3.1):
+ * MODE_NEWFILE holds an exclusive lock, MODE_OLDFILE/MODE_READWRITE and
+ * OpenFromLock() of a shared lock hold a shared one.
+ */
+#define MAX_OPEN_FILES 256
+
+typedef struct
+{
+    bool     in_use;
+    uint32_t fh68k;
+    dev_t    dev;
+    ino_t    ino;
+    bool     exclusive;
+} open_file_entry_t;
+
+static open_file_entry_t g_open_files[MAX_OPEN_FILES];
+
+static void _open_file_register(uint32_t fh68k, int fd, bool exclusive)
+{
+    struct stat st;
+
+    if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode))
+        return;
+
+    for (int i = 0; i < MAX_OPEN_FILES; i++)
+    {
+        if (!g_open_files[i].in_use)
+        {
+            g_open_files[i].in_use = true;
+            g_open_files[i].fh68k = fh68k;
+            g_open_files[i].dev = st.st_dev;
+            g_open_files[i].ino = st.st_ino;
+            g_open_files[i].exclusive = exclusive;
+            return;
+        }
+    }
+}
+
+static open_file_entry_t *_open_file_find(uint32_t fh68k)
+{
+    for (int i = 0; i < MAX_OPEN_FILES; i++)
+    {
+        if (g_open_files[i].in_use && g_open_files[i].fh68k == fh68k)
+            return &g_open_files[i];
+    }
+    return NULL;
+}
+
+static void _open_file_unregister(uint32_t fh68k)
+{
+    open_file_entry_t *entry = _open_file_find(fh68k);
+
+    if (entry)
+        entry->in_use = false;
+}
+
+/* true when an access of the given kind to (dev, ino) collides with an
+ * existing lock or open file; skip_lock / skip_fh exclude the object
+ * whose own mode is being changed */
+static bool _object_in_use(dev_t dev, ino_t ino, bool exclusive, uint32_t skip_lock, uint32_t skip_fh)
+{
+    for (int i = 1; i < MAX_LOCKS; i++)
+    {
+        lock_entry_t *entry = &g_locks[i];
+        struct stat st;
+
+        if (!entry->in_use || (uint32_t)i == skip_lock)
+            continue;
+        if (!exclusive && entry->access_mode != EXCLUSIVE_LOCK)
+            continue;
+        if (stat(entry->linux_path, &st) != 0)
+            continue;
+        if (st.st_dev == dev && st.st_ino == ino)
+            return true;
+    }
+
+    for (int i = 0; i < MAX_OPEN_FILES; i++)
+    {
+        open_file_entry_t *entry = &g_open_files[i];
+
+        if (!entry->in_use || entry->fh68k == skip_fh)
+            continue;
+        if (!exclusive && !entry->exclusive)
+            continue;
+        if (entry->dev == dev && entry->ino == ino)
+            return true;
+    }
+
+    return false;
+}
+
+static bool _lock_collides(dev_t dev, ino_t ino, int32_t mode)
+{
+    return _object_in_use(dev, ino, mode == EXCLUSIVE_LOCK, 0, 0);
+}
+
 static bool _dos_lock_info_from_fh(uint32_t fh68k, dev_t *dev_out, ino_t *ino_out)
 {
     int fd;
@@ -503,58 +606,6 @@ static bool _dos_lock_info_from_fh(uint32_t fh68k, dev_t *dev_out, ino_t *ino_ou
     *dev_out = st.st_dev;
     *ino_out = st.st_ino;
     return true;
-}
-
-/*
- * Object-level lock conflicts (AmigaOS 3.1, verified on the reference):
- *   - an EXCLUSIVE_LOCK is refused (ERROR_OBJECT_IN_USE) while any other
- *     lock or an open file handle refers to the object;
- *   - a SHARED_LOCK (and Open()) is refused while an exclusive lock exists.
- * Open file handles are found through the host descriptors of this process.
- */
-static bool _dos_object_has_open_fh(dev_t dev, ino_t ino, int exclude_fd)
-{
-    DIR *d = opendir("/proc/self/fd");
-    struct dirent *de;
-    bool found = false;
-
-    if (!d)
-        return false;
-
-    while (!found && (de = readdir(d)) != NULL)
-    {
-        struct stat st;
-        int fd;
-
-        if (de->d_name[0] < '0' || de->d_name[0] > '9')
-            continue;
-        fd = atoi(de->d_name);
-        if (fd == exclude_fd || fd == dirfd(d) || fd <= 2)
-            continue;
-        if (fstat(fd, &st) == 0 && S_ISREG(st.st_mode) && st.st_dev == dev && st.st_ino == ino)
-            found = true;
-    }
-    closedir(d);
-    return found;
-}
-
-static bool _dos_object_lock_conflict(dev_t dev, ino_t ino, int exclude_lock_id, bool want_exclusive)
-{
-    for (int i = 0; i < MAX_LOCKS; i++)
-    {
-        lock_entry_t *entry = &g_locks[i];
-        struct stat st;
-
-        if (!entry->in_use || i == exclude_lock_id)
-            continue;
-        if (!want_exclusive && entry->access_mode != EXCLUSIVE_LOCK)
-            continue;
-        if (stat(entry->linux_path, &st) != 0)
-            continue;
-        if (st.st_dev == dev && st.st_ino == ino)
-            return true;
-    }
-    return false;
 }
 
 bool _dos_change_mode(uint32_t type, uint32_t object, int32_t new_mode, uint32_t err68k)
@@ -613,20 +664,21 @@ bool _dos_change_mode(uint32_t type, uint32_t object, int32_t new_mode, uint32_t
         }
     }
 
-    if (new_mode == EXCLUSIVE_LOCK)
+    if (new_mode == EXCLUSIVE_LOCK &&
+        _object_in_use(dev, ino, true,
+                       type == CHANGE_LOCK ? object : 0,
+                       type == CHANGE_FH ? fh68k : 0))
     {
-        int own_fd = (type == CHANGE_FH) ? (int)m68k_read_memory_32(fh68k + 36) : -1;
-
-        if (_dos_object_lock_conflict(dev, ino, type == CHANGE_LOCK ? (int)object : -1, true) ||
-            (type == CHANGE_LOCK && _dos_object_has_open_fh(dev, ino, own_fd)))
-        {
-            err = ERROR_OBJECT_IN_USE;
-            goto fail;
-        }
+        err = ERROR_OBJECT_IN_USE;
+        goto fail;
     }
 
     if (type == CHANGE_FH)
     {
+        open_file_entry_t *entry = _open_file_find(fh68k);
+
+        if (entry)
+            entry->exclusive = (new_mode == EXCLUSIVE_LOCK);
         DPRINTF(LOG_DEBUG, "lxa: _dos_change_mode(): fh change accepted\n");
     }
     else
@@ -762,8 +814,15 @@ char *_mgetstr (uint32_t address)
     return NULL;
 }
 
+/* set by _dos_path2linux() when the path names a device/assign the VFS
+ * does not know: the host operation then fails and errno2Amiga() reports
+ * ERROR_DEVICE_NOT_MOUNTED, as AmigaOS does */
+static bool g_path_unknown_device = false;
+
 static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_len)
 {
+    g_path_unknown_device = false;
+
     // First try VFS resolution
     if (vfs_resolve_path (amiga_path, linux_path, buf_len))
     {
@@ -777,7 +836,40 @@ static void _dos_path2linux (const char *amiga_path, char *linux_path, int buf_l
     else if (g_sysroot && !vfs_resolve_case_path (g_sysroot, amiga_path, linux_path, buf_len))
         snprintf (linux_path, buf_len, "%s/%s", g_sysroot, amiga_path);
     else if (!g_sysroot)
-        snprintf (linux_path, buf_len, "%s", amiga_path);
+    {
+        const char *colon = strchr (amiga_path, ':');
+
+        if (colon && colon != amiga_path)
+        {
+            /* never touch the host's current directory: a known device or
+             * assign maps below its own directory (the object just does
+             * not exist), an unknown one fails like on AmigaOS */
+            char dev[64];
+            size_t dlen = (size_t)(colon - amiga_path);
+            const char *base = NULL;
+
+            if (dlen >= sizeof(dev))
+                dlen = sizeof(dev) - 1;
+            memcpy (dev, amiga_path, dlen);
+            dev[dlen] = '\0';
+
+            base = vfs_get_drive_path (dev);
+            if (!base && vfs_assign_exists (dev))
+                base = vfs_assign_get_path (dev);
+            if (!base && !strcasecmp (dev, "PROGDIR"))
+                base = vfs_get_progdir ();
+
+            if (base)
+                snprintf (linux_path, buf_len, "%s/%s", base, colon + 1);
+            else
+            {
+                g_path_unknown_device = true;
+                linux_path[0] = '\0';
+            }
+        }
+        else
+            snprintf (linux_path, buf_len, "%s", amiga_path);
+    }
     
     DPRINTF (LOG_DEBUG, "lxa: _dos_path2linux: legacy resolved %s -> %s\n", amiga_path, linux_path);
 }
@@ -794,6 +886,13 @@ uint32_t _dos_last_error(void)
 
 int errno2Amiga (void)
 {
+    if (g_path_unknown_device)
+    {
+        g_path_unknown_device = false;
+        if (errno == ENOENT)
+            return ERROR_DEVICE_NOT_MOUNTED;
+    }
+
     switch (errno)
     {
         case 0:         return 0;
@@ -879,11 +978,12 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
         }
 
         {
-            struct stat lst;
-            if (stat(lxpath, &lst) == 0 && S_ISREG(lst.st_mode) &&
-                _dos_object_lock_conflict(lst.st_dev, lst.st_ino, -1, false))
+            struct stat st;
+
+            if (stat (lxpath, &st) == 0 && S_ISREG (st.st_mode) &&
+                _object_in_use (st.st_dev, st.st_ino, accessMode == MODE_NEWFILE, 0, 0))
             {
-                m68k_write_memory_32 (fh68k+40, ERROR_OBJECT_IN_USE);  // fh_Arg2 = error code
+                m68k_write_memory_32 (fh68k+40, ERROR_OBJECT_IN_USE);  // fh_Arg2
                 return ERROR_OBJECT_IN_USE;
             }
         }
@@ -900,6 +1000,7 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
         {
             m68k_write_memory_32 (fh68k+36, fd);                // fh_Args
             m68k_write_memory_32 (fh68k+32, FILE_KIND_REGULAR); // fh_Func3
+            _open_file_register (fh68k, fd, accessMode == MODE_NEWFILE);
             return 0;  // Success
         }
         else
@@ -1842,6 +1943,7 @@ int _dos_close (uint32_t fh68k)
     int fd = m68k_read_memory_32 (fh68k+36);
 
     _record_lock_release_all(fh68k);
+    _open_file_unregister(fh68k);
 
     close(fd);
 
@@ -1950,6 +2052,7 @@ uint32_t _dos_lock(uint32_t name68k, int32_t mode)
 {
     char *amiga_path = _mgetstr(name68k);
     char linux_path[PATH_MAX];
+
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_lock: amiga_path='%s'\n", amiga_path);
 
@@ -1977,9 +2080,7 @@ uint32_t _dos_lock(uint32_t name68k, int32_t mode)
     }
     DPRINTF(LOG_DEBUG, "lxa: _dos_lock: OK '%s' -> '%s'\n", amiga_path, linux_path);
 
-    if (_dos_object_lock_conflict(st.st_dev, st.st_ino, -1, mode == EXCLUSIVE_LOCK) ||
-        (mode == EXCLUSIVE_LOCK && S_ISREG(st.st_mode) && _dos_object_has_open_fh(st.st_dev, st.st_ino, -1)))
-    {
+    if (_lock_collides(st.st_dev, st.st_ino, mode)) {
         g_dos_last_error = ERROR_OBJECT_IN_USE;
         return 0;
     }
@@ -2026,6 +2127,12 @@ uint32_t _dos_duplock(uint32_t lock_id)
     
     lock_entry_t *lock = _lock_get(lock_id);
     if (!lock) return 0;
+
+    /* AmigaOS 3.1: DupLock() of an exclusive lock fails (ERROR_OBJECT_IN_USE) */
+    if (lock->access_mode == EXCLUSIVE_LOCK) {
+        g_dos_last_error = ERROR_OBJECT_IN_USE;
+        return 0;
+    }
     
     /* Create a new lock with the same path */
     int new_lock_id = _lock_alloc();
@@ -2036,7 +2143,7 @@ uint32_t _dos_duplock(uint32_t lock_id)
     strncpy(new_lock->amiga_path, lock->amiga_path, sizeof(new_lock->amiga_path) - 1);
     new_lock->is_dir = lock->is_dir;
     new_lock->dir = NULL;
-    new_lock->access_mode = lock->access_mode;
+    new_lock->access_mode = SHARED_LOCK;
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_duplock(): new_lock_id=%d\n", new_lock_id);
     return new_lock_id;
@@ -2186,62 +2293,13 @@ uint32_t _dos_unlockrecord(uint32_t fh68k, uint32_t offset, uint32_t length)
 #define FIB_fib_Reserved     228 /* char[32] */
 #define FIB_SIZE             260
 
-static uint32_t _default_owner_info_from_stat(const struct stat *st)
-{
-    return (((uint32_t)st->st_uid & 0xffffU) << 16) | ((uint32_t)st->st_gid & 0xffffU);
-}
-
+/* The AmigaOS 3.1 filesystems (FFS, ram-handler) keep no owner information:
+ * Examine() reports fib_OwnerUID/GID = 0 and SetOwner() fails with
+ * ERROR_ACTION_NOT_KNOWN (verified on the reference). */
 static void _write_owner_info(uint32_t fib68k, uint32_t owner_info)
 {
     m68k_write_memory_16(fib68k + FIB_fib_OwnerUID, (owner_info >> 16) & 0xffffU);
     m68k_write_memory_16(fib68k + FIB_fib_OwnerGID, owner_info & 0xffffU);
-}
-
-static uint32_t _read_owner_info(const char *linux_path, const struct stat *st)
-{
-    char owner_buf[32];
-    char *end = NULL;
-    unsigned long owner_info;
-
-    memset(owner_buf, 0, sizeof(owner_buf));
-
-#ifdef HAVE_XATTR
-    {
-        ssize_t len = getxattr(linux_path, "user.amiga.owner", owner_buf, sizeof(owner_buf) - 1);
-
-        if (len > 0)
-        {
-            owner_buf[len] = '\0';
-            owner_info = strtoul(owner_buf, &end, 16);
-            if (end != owner_buf)
-                return (uint32_t)owner_info;
-        }
-    }
-#endif
-
-    {
-        char sidecar_path[PATH_MAX + 8];
-        FILE *f;
-
-        snprintf(sidecar_path, sizeof(sidecar_path), "%s.owner", linux_path);
-        f = fopen(sidecar_path, "r");
-        if (f)
-        {
-            if (fgets(owner_buf, sizeof(owner_buf), f))
-            {
-                owner_info = strtoul(owner_buf, &end, 16);
-                fclose(f);
-                if (end != owner_buf)
-                    return (uint32_t)owner_info;
-            }
-            else
-            {
-                fclose(f);
-            }
-        }
-    }
-
-    return _default_owner_info_from_stat(st);
 }
 
 /* Read file comment from xattr or sidecar file */
@@ -2344,7 +2402,7 @@ int _dos_examine(uint32_t lock_id, uint32_t fib68k)
     /* Read file comment from xattr or sidecar */
     _read_file_comment(lock->linux_path, fib68k);
     
-    _write_owner_info(fib68k, _read_owner_info(lock->linux_path, &st));
+    _write_owner_info(fib68k, 0);
     
     /* If this is a directory, open it for ExNext iteration */
     if (S_ISDIR(st.st_mode) && !lock->dir) {
@@ -2441,7 +2499,7 @@ int _dos_exnext(uint32_t lock_id, uint32_t fib68k)
     /* Read file comment from xattr or sidecar */
     _read_file_comment(fullpath, fib68k);
     
-    _write_owner_info(fib68k, _read_owner_info(fullpath, &st));
+    _write_owner_info(fib68k, 0);
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_exnext(): success, name=%s, type=%d\n", de->d_name, type);
     return 1;
@@ -2678,6 +2736,27 @@ int _dos_rename(uint32_t old68k, uint32_t new68k)
         _dos_path2linux(new_amiga, new_linux, sizeof(new_linux));
     }
     
+    {
+        /* AmigaOS 3.1 semantics: the source must exist and must not be held
+         * exclusively (exclusive lock or MODE_NEWFILE handle), and an
+         * existing target is never replaced (ERROR_OBJECT_EXISTS) */
+        struct stat st_old, st_new;
+        uint32_t err = 0;
+
+        if (stat(old_linux, &st_old) != 0)
+            err = ERROR_OBJECT_NOT_FOUND;
+        else if (_object_in_use(st_old.st_dev, st_old.st_ino, false, 0, 0))
+            err = ERROR_OBJECT_IN_USE;
+        else if (stat(new_linux, &st_new) == 0 &&
+                 !(st_new.st_dev == st_old.st_dev && st_new.st_ino == st_old.st_ino))
+            err = ERROR_OBJECT_EXISTS;
+
+        if (err) {
+            g_dos_last_error = err;
+            return 0;
+        }
+    }
+
     if (rename(old_linux, new_linux) != 0) {
         DPRINTF(LOG_DEBUG, "lxa: _dos_rename(): rename failed: %s\n", strerror(errno));
         g_dos_last_error = errno2Amiga();
@@ -2840,64 +2919,6 @@ int _dos_setcomment(uint32_t name68k, uint32_t comment68k)
         unlink(sidecar_path);
     }
     
-    return 1;
-}
-
-int _dos_setowner(uint32_t name68k, uint32_t owner68k, uint32_t err68k)
-{
-    char *amiga_path = _mgetstr(name68k);
-    char linux_path[PATH_MAX];
-    struct stat st;
-    char owner_buf[32];
-
-    DPRINTF(LOG_DEBUG, "lxa: _dos_setowner(): amiga_path=%s, owner=0x%08x\n",
-            amiga_path ? amiga_path : "NULL", owner68k);
-
-    if (!amiga_path)
-    {
-        m68k_write_memory_32(err68k, ERROR_REQUIRED_ARG_MISSING);
-        return 0;
-    }
-
-    if (!_resolve_amiga_path_host(amiga_path, linux_path, sizeof(linux_path)))
-    {
-        m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
-        return 0;
-    }
-
-    if (stat(linux_path, &st) != 0)
-    {
-        m68k_write_memory_32(err68k, errno2Amiga());
-        return 0;
-    }
-
-#ifdef HAVE_XATTR
-    snprintf(owner_buf, sizeof(owner_buf), "%08x", owner68k);
-    if (setxattr(linux_path, "user.amiga.owner", owner_buf, strlen(owner_buf), 0) == 0)
-    {
-        m68k_write_memory_32(err68k, 0);
-        return 1;
-    }
-#endif
-
-    {
-        char sidecar_path[PATH_MAX + 8];
-        FILE *f;
-
-        snprintf(sidecar_path, sizeof(sidecar_path), "%s.owner", linux_path);
-        f = fopen(sidecar_path, "w");
-        if (!f)
-        {
-            m68k_write_memory_32(err68k, errno2Amiga());
-            return 0;
-        }
-
-        snprintf(owner_buf, sizeof(owner_buf), "%08x", owner68k);
-        fprintf(f, "%s", owner_buf);
-        fclose(f);
-    }
-
-    m68k_write_memory_32(err68k, 0);
     return 1;
 }
 
@@ -3410,6 +3431,14 @@ int _dos_getdevproc(uint32_t name68k, uint32_t dp68k, uint32_t err68k)
             return 0;
         }
 
+        /* NIL: has no handler process: AmigaOS 3.1 GetDeviceProc() fails */
+        if (colon && !strcasecmp(volume, "NIL")) {
+            if (err68k) {
+                m68k_write_memory_32(err68k, ERROR_DEVICE_NOT_MOUNTED);
+            }
+            return 0;
+        }
+
         snprintf(amiga_root, sizeof(amiga_root), "%s:", volume);
         _dos_path2linux(amiga_root, linux_path, sizeof(linux_path));
         lock_id = _dos_make_lock_for_path(linux_path, amiga_root);
@@ -3417,8 +3446,9 @@ int _dos_getdevproc(uint32_t name68k, uint32_t dp68k, uint32_t err68k)
     }
 
     if (!lock_id) {
+        /* an unknown device or volume name: ERROR_DEVICE_NOT_MOUNTED (3.1) */
         if (err68k) {
-            m68k_write_memory_32(err68k, ERROR_OBJECT_NOT_FOUND);
+            m68k_write_memory_32(err68k, colon ? ERROR_DEVICE_NOT_MOUNTED : ERROR_OBJECT_NOT_FOUND);
         }
         return 0;
     }
@@ -3683,7 +3713,7 @@ int _dos_examinefh(uint32_t fh68k, uint32_t fib68k)
         _read_file_comment(linux_path, fib68k);
     }
     
-    _write_owner_info(fib68k, _read_owner_info(linux_path, &st));
+    _write_owner_info(fib68k, 0);
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_examinefh(): success, type=%d, size=%ld\n", type, (long)st.st_size);
     return 1;
@@ -3824,7 +3854,8 @@ int _dos_openfromlock(uint32_t lock_id, uint32_t fh68k)
     /* Set up the file handle */
     m68k_write_memory_32(fh68k + 36, fd);                /* fh_Args */
     m68k_write_memory_32(fh68k + 32, FILE_KIND_REGULAR); /* fh_Func3 */
-    
+    _open_file_register(fh68k, fd, lock->access_mode == EXCLUSIVE_LOCK);
+
     /* Free the lock - it's consumed */
     _lock_free(lock_id);
     
