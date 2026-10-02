@@ -59,6 +59,11 @@ def _find(build, *parts):
     return p if os.path.exists(p) else None
 
 
+class LxaException(ctypes.Structure):
+    _fields_ = [("vector", ctypes.c_int), ("pc", ctypes.c_uint32), ("task", ctypes.c_char * 64),
+                ("count", ctypes.c_int)]
+
+
 class Lxa:
     """One emulator session."""
 
@@ -119,6 +124,7 @@ class Lxa:
             "lxa_add_assign": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_add_assign_path": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_add_drive": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
+            "lxa_get_exception_log": (ctypes.c_int, [ctypes.c_void_p, ctypes.c_int]),
             "lxa_trace_start": (ctypes.c_bool, [ctypes.c_char_p, ctypes.c_char_p]),
             "lxa_trace_stop": (None, []),
             "lxa_run_cycles": (ctypes.c_int, [ctypes.c_int]),
@@ -270,6 +276,14 @@ class Lxa:
 
     def text_dump(self, path):
         return self.lib.lxa_text_log_dump(path.encode())
+
+    def exceptions(self):
+        """CPU exceptions raised by emulated tasks (Phase 232)"""
+        n = self.lib.lxa_get_exception_log(None, 0)
+        arr = (LxaException * max(n, 1))()
+        n = self.lib.lxa_get_exception_log(arr, n)
+        return [{"vector": e.vector, "pc": e.pc, "task": e.task.decode("latin-1"), "count": e.count}
+                for e in arr[:n]]
 
     def unimplemented(self):
         n = self.lib.lxa_get_unimplemented_log(None, 0)

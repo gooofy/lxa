@@ -352,6 +352,12 @@ int op_illg(int level)
             m68k_set_reg (M68K_REG_D1, d1);
 
             LPRINTF (LOG_WARNING, "*** EXCEPTION CAUGHT: pc=0x%08x #%2d ", pc, excn);
+            {
+                uint32_t sysbase = m68k_read_memory_32(4);
+                uint32_t task = sysbase ? m68k_read_memory_32(sysbase + EXECBASE_THISTASK) : 0;
+                uint32_t tname = task ? m68k_read_memory_32(task + 10) : 0;
+                lxa_exception_log_add((int)excn, pc, tname ? _mgetstr(tname) : "");
+            }
 
             switch (excn)
             {

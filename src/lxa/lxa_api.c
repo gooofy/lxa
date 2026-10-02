@@ -828,6 +828,15 @@ int lxa_get_unimplemented_log(lxa_unimplemented_t *entries, int max)
     return total;
 }
 
+int lxa_get_exception_log(lxa_exception_t *entries, int max)
+{
+    int total = lxa_exception_log_count();
+    for (int i = 0; entries && i < total && i < max; i++)
+        lxa_exception_log_get(i, &entries[i].vector, &entries[i].pc, entries[i].task,
+                              sizeof(entries[i].task), &entries[i].count);
+    return total;
+}
+
 void lxa_clear_unimplemented_log(void)
 {
     lxa_unimpl_reset();
