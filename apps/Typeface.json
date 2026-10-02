@@ -1,0 +1,28 @@
+{
+    "dir": "Typeface",
+    "name": "Typeface",
+    "version": "1.24",
+    "description": "Bitmap font editor (BGUI)",
+    "executable": "Typeface",
+    "kind": "gui",
+    "assigns": {
+        "LIBS": "Libs"
+    },
+    "libraries": [
+        "bgui.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "bgui.library is bundled in Libs/"
+    ]
+}

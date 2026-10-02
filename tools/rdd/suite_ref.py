@@ -37,6 +37,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 from rdd.backend_ref import (CACHE as REF_CACHE, EPOCH, REFCTL, REFSYS, Agent, AgentError,
@@ -224,16 +225,23 @@ def run_lxa(progs, build, jobs, timeout_ms):
     env = dict(os.environ, PYTHONPATH=os.path.join(ROOT, "tools"))
 
     def one(p):
+        fd_, tmp = tempfile.mkstemp(prefix="suite-ref-", suffix=".json")
+        os.close(fd_)
         try:
             r = subprocess.run([sys.executable, "-m", "rdd.suite_ref", "--lxa-one", p["name"], "--build", build,
-                                "--timeout", str(timeout_ms)], capture_output=True, encoding="latin-1",
-                               env=env, cwd=ROOT, timeout=timeout_ms / 1000 * 10 + 60)
+                                "--timeout", str(timeout_ms), "--result", tmp], capture_output=True,
+                               encoding="latin-1", env=env, cwd=ROOT, timeout=timeout_ms / 1000 * 10 + 60)
         except subprocess.TimeoutExpired:
+            os.unlink(tmp)
             return {"name": p["name"], "status": "hang", "stdout": "", "error": "wall-clock timeout"}
         try:
-            return json.loads(r.stdout.strip().split("\n")[-1])
-        except (ValueError, IndexError):
+            with open(tmp) as f:
+                return json.load(f)
+        except (OSError, ValueError):
             return {"name": p["name"], "status": "crash", "stdout": "", "error": r.stderr[-500:]}
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as ex:
         return {r["name"]: r for r in ex.map(one, progs)}
@@ -326,6 +334,7 @@ def main(argv=None):
                     help="probes: write <name>.ref.out from the reference whenever it exits 0 "
                          "(lxa must then be fixed to match)")
     ap.add_argument("--lxa-one")
+    ap.add_argument("--result", help="--lxa-one: write the result JSON here")
     ap.add_argument("--lint", action="store_true", help="check tests/ref_suite.yaml")
     ap.add_argument("--ref-only", action="store_true", help="skip the lxa runs")
     ap.add_argument("--lxa-check", action="store_true",
@@ -342,7 +351,12 @@ def main(argv=None):
     if a.lxa_check:
         return lxa_check(a)
     if a.lxa_one:
-        sys.stdout.write(json.dumps(run_lxa_one(a.lxa_one, a.build, a.timeout), ensure_ascii=True) + "\n")
+        res = run_lxa_one(a.lxa_one, a.build, a.timeout)
+        if a.result:                 # not stdout: the program writes there too
+            with open(a.result, "w") as f:
+                json.dump(res, f)
+        else:
+            sys.stdout.write(json.dumps(res, ensure_ascii=True) + "\n")
         return 0
     progs = programs(a.build)
     if a.filter:

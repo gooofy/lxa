@@ -1,0 +1,94 @@
+{"lib":"dos.library","lvo":-30,"task":"Background CLI","d":[21,126191768,1006,1,126192261,126153875,31483519,31502321],"a":[126152965,126191788,31502321,126169104],"str":{"d1":"LXAREF:rdd-stdout.txt","d2":null,"a0":null,"a1":"t"}}
+{"lib":"dos.library","lvo":-30,"task":"Background CLI","ret":31459611}
+{"lib":"dos.library","lvo":-30,"task":"Background CLI","d":[31502203,126155866,1005,31459611,126192261,126153875,31483519,31502321],"a":[126148228,126148172,31502321,126191812],"str":{"d1":"NIL:","d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-30,"task":"Background CLI","ret":31459625}
+{"lib":"dos.library","lvo":-132,"task":"FileIO","d":[4294967295,125894655,256,256,125839645,88,31459625,125934076],"a":[125838710,125889429,125876588,125938408],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-132,"task":"FileIO","ret":0}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934496,14,4294967246,4294967172,31459625,125934076],"a":[125934511,125889429,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":14}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934511,15,4294967246,4294967172,31459625,125934076],"a":[125934527,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":15}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934527,35,4294967246,4294967172,31459625,125934076],"a":[125934563,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":35}
+{"lib":"dos.library","lvo":-30,"task":"FileIO","d":[35,125934798,1006,35,4294967246,4294967172,31459625,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":"test_fileio_tmp.txt","d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-30,"task":"FileIO","ret":31472419}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934599,30,31472419,4294967172,31459625,125934076],"a":[125934630,125882584,125938400,125938428],"str":{"d1":null,"d2":null,"a0":"  ERROR: Write returned ","a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":30}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[30,31472419,125934482,13,31472419,4294967172,31459625,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":null,"d2":"Hello, Amiga!","a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":13}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934655,21,31472419,13,31459625,125934076],"a":[125934677,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":21}
+{"lib":"dos.library","lvo":-36,"task":"FileIO","d":[21,31472419,125934655,21,31472419,13,31459625,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-36,"task":"FileIO","ret":4294967295}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934677,18,31472419,13,31459625,125934076],"a":[125934696,125889672,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":18}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934696,34,31472419,13,31459625,125934076],"a":[125934731,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":34}
+{"lib":"dos.library","lvo":-30,"task":"FileIO","d":[34,125934798,1005,34,31472419,13,31459625,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":"test_fileio_tmp.txt","d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-30,"task":"FileIO","ret":31472419}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934767,30,31472419,13,31459625,125934076],"a":[125934798,125882584,125938400,125938428],"str":{"d1":null,"d2":null,"a0":"test_fileio_tmp.txt","a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":30}
+{"lib":"dos.library","lvo":-42,"task":"FileIO","d":[65535,31472419,127615368,13,31472419,13,31459625,125934076],"a":[127615432,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-42,"task":"FileIO","ret":13}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934844,20,31472419,13,13,125934076],"a":[125934844,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":20}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934865,19,31472419,13,13,125934076],"a":[125934865,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":19}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934885,25,31472419,13,13,125934076],"a":[125934885,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":25}
+{"lib":"dos.library","lvo":-66,"task":"FileIO","d":[25,31472419,0,4294967295,31472419,13,13,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-66,"task":"FileIO","ret":13}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125934968,24,31472419,0,13,125934076],"a":[125934968,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":24}
+{"lib":"dos.library","lvo":-42,"task":"FileIO","d":[24,31472419,127615368,5,31472419,0,13,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":null,"d2":"Hello, Amiga!","a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-42,"task":"FileIO","ret":5}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125935026,8,31472419,0,13,125934076],"a":[125935026,127549772,125938400,125938428],"str":{"d1":null,"d2":"  Read '","a0":"  Read '","a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":8}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,127615368,5,31472419,0,13,125934076],"a":[0,127549772,125938400,125938428],"str":{"d1":null,"d2":"Hello","a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":5}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125935035,6,31472419,0,13,125934076],"a":[125935035,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":6}
+{"lib":"dos.library","lvo":-66,"task":"FileIO","d":[6,31472419,0,1,31472419,0,13,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-66,"task":"FileIO","ret":5}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125935069,18,31472419,0,13,125934076],"a":[125935069,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":18}
+{"lib":"dos.library","lvo":-42,"task":"FileIO","d":[18,31472419,127615368,5,31472419,0,13,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":null,"d2":"Hello","a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-42,"task":"FileIO","ret":0}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125935119,28,31472419,0,13,125934076],"a":[125935119,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":28}
+{"lib":"dos.library","lvo":-36,"task":"FileIO","d":[28,31472419,125935119,28,31472419,0,13,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-36,"task":"FileIO","ret":4294967295}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125935148,47,31472419,0,13,125934076],"a":[125935148,125889672,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":47}
+{"lib":"dos.library","lvo":-30,"task":"FileIO","d":[47,125935196,1005,47,31472419,0,13,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":"nonexistent_xyz123.txt","d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-30,"task":"FileIO","ret":0}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125935265,28,0,0,13,125934076],"a":[125935265,125882584,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":28}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125935294,26,0,0,13,125934076],"a":[125935294,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":26}
+{"lib":"dos.library","lvo":-72,"task":"FileIO","d":[26,125934798,125935294,26,0,0,13,125934076],"a":[127549828,127549772,125938400,125938428],"str":{"d1":"test_fileio_tmp.txt","d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-72,"task":"FileIO","ret":4294967295}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125935361,19,0,0,13,125934076],"a":[125935361,125876600,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":19}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","d":[31459611,31459611,125935381,19,0,0,13,125934076],"a":[125935381,127549772,125938400,125938428],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"FileIO","ret":19}
+{"lib":"dos.library","lvo":-30,"task":"Background CLI","d":[20,126191236,1006,4294967282,4294967281,126153875,31483519,31502321],"a":[126152965,126191255,4294967277,126192234],"str":{"d1":"LXAREF:rdd-tree.json","d2":null,"a0":null,"a1":"n"}}
+{"lib":"dos.library","lvo":-30,"task":"Background CLI","ret":31459611}
+{"lib":"dos.library","lvo":-48,"task":"Background CLI","d":[126185313,31459611,126181272,4096,37,126190951,0,126181272],"a":[126190951,126185368,126169068,126153190],"str":{"d1":null,"d2":"{\"schema\":\"lxa-tree/1\",\"backend\":\"ref\",","a0":"mutualexclude\":0,\"command\":73,\"text\":","a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"Background CLI","ret":4096}
+{"lib":"dos.library","lvo":-48,"task":"Background CLI","d":[0,31459611,126181272,1159,126153282,126153875,640,245],"a":[125872462,126182431,126153190,0],"str":{"d1":null,"d2":"mutualexclude\":0,\"command\":73,\"text\":\"I","a0":null,"a1":":82,\"mutualexclude\":0,\"command\":0,\"text"}}
+{"lib":"dos.library","lvo":-48,"task":"Background CLI","ret":1159}
+{"lib":"dos.library","lvo":-36,"task":"Background CLI","d":[1159,31459611,126181272,1159,126153282,126153875,640,245],"a":[126148228,126148172,126153190,0],"str":{"d1":null,"d2":"mutualexclude\":0,\"command\":73,\"text\":\"I","a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-36,"task":"Background CLI","ret":4294967295}
+{"lib":"dos.library","lvo":-30,"task":"Background CLI","d":[21,126191236,1006,2,1,126153875,640,245],"a":[126152965,126191256,4294967293,126192234],"str":{"d1":"LXAREF:rdd-text.jsonl","d2":null,"a0":null,"a1":"l"}}
+{"lib":"dos.library","lvo":-30,"task":"Background CLI","ret":31459611}
+{"lib":"dos.library","lvo":-36,"task":"Background CLI","d":[0,31459611,7,0,1,126153875,640,245],"a":[125829120,125838496,4294967293,126192234],"str":{"d1":null,"d2":null,"a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-36,"task":"Background CLI","ret":4294967295}
+{"lib":"dos.library","lvo":-30,"task":"Background CLI","d":[22,126191236,1006,2,1,126153875,640,245],"a":[126152965,126191257,4294967293,126192235],"str":{"d1":"LXAREF:rdd-trace.jsonl","d2":null,"a0":null,"a1":"l"}}
+{"lib":"dos.library","lvo":-30,"task":"Background CLI","ret":31459611}
+{"lib":"dos.library","lvo":-48,"task":"Background CLI","d":[126185366,31459611,126181272,4096,3,126190978,0,126181272],"a":[126190978,126185368,126169068,126360070],"str":{"d1":null,"d2":"{\"lib\":\"dos.library\",\"lvo\":-30,\"task\":\"","a0":"2\":","a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"Background CLI","ret":4096}
+{"lib":"dos.library","lvo":-48,"task":"Background CLI","d":[126185308,31459611,126181272,4096,55,126190992,0,126181272],"a":[126190992,126185368,126169068,126367196],"str":{"d1":null,"d2":"2\":null,\"a0\":\"test_fileio_tmp.txt\",\"a1\"","a0":"],\"a\":[125935148,125889672,125938400,12","a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"Background CLI","ret":4096}
+{"lib":"dos.library","lvo":-48,"task":"Background CLI","d":[126185367,31459611,126181272,4096,0,126153273,0,126181272],"a":[126153273,126185368,126169068,126153052],"str":{"d1":null,"d2":"],\"a\":[125935148,125889672,125938400,12","a0":null,"a1":null}}
+{"lib":"dos.library","lvo":-48,"task":"Background CLI","ret":4096}

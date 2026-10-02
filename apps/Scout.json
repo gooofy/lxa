@@ -1,0 +1,30 @@
+{
+    "dir": "Scout",
+    "name": "Scout",
+    "version": "37.290",
+    "description": "System monitor (MUI)",
+    "executable": "Scout.os3",
+    "kind": "gui",
+    "assigns": {
+        "LIBS": "libs"
+    },
+    "libraries": [
+        "muimaster.library",
+        "identify.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 39,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 30,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/Scout)",
+    "notes": [
+        "MUI 3.8 libraries and classes (user's Apps/MUI install) + NList classes + identify.library copied into libs/"
+    ]
+}

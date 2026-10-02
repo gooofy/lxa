@@ -240,7 +240,7 @@ static inline uint8_t mread8(uint32_t address)
                 int i;
                 printf("  Stack (A7=%08x):", a7);
                 for (i = 0; i < 8; i++) {
-                    if (a7 + i*4 + 3 <= RAM_END && a7 + i*4 >= RAM_START) {
+                    if (a7 + i*4 >= RAM_START && a7 + i*4 <= RAM_END - 3) {
                         uint32_t v = (g_ram[a7 + i*4 - RAM_START] << 24) |
                                      (g_ram[a7 + i*4 - RAM_START + 1] << 16) |
                                      (g_ram[a7 + i*4 - RAM_START + 2] << 8) |

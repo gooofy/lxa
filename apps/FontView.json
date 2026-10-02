@@ -1,0 +1,29 @@
+{
+    "dir": "FontView",
+    "name": "FontView",
+    "version": "3.1",
+    "description": "Font viewer",
+    "executable": "FontView",
+    "kind": "gui",
+    "assigns": {
+        "LIBS": "Libs"
+    },
+    "libraries": [
+        "reqtools.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/FontView)",
+    "notes": [
+        "reqtools.library copied into Libs/"
+    ]
+}

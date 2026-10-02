@@ -1,0 +1,11 @@
+# Relay-trace scenario (Phase 233): dos.library file I/O of a test program,
+# traced on lxa and on AmigaOS 3.1.  tests/rdd/test_tracediff.py injects a
+# return-value bug (LXA_TRACE_INJECT) and expects tracediff to name the call.
+name: trace-fileio
+app:
+  sample: Tests/Dos/FileIO
+steps:
+  - trace: "dos.library:Open,Close,Read,Write,Seek,DeleteFile,IoErr"
+  - launch
+  - frames: 50
+  - snapshot: {name: end, screen: false}

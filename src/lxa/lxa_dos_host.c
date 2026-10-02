@@ -653,12 +653,48 @@ bool is_list_empty(uint32_t list_addr)
  * Check if there are other tasks running besides the current one.
  * Returns true if there are tasks in TaskReady or TaskWait.
  */
+/* Tasks held by exec's default trap handler (Software Failure) are dead:
+ * they never run again and must not keep the emulation alive. */
+#define MAX_HELD_TASKS 32
+static uint32_t g_held_tasks[MAX_HELD_TASKS];
+static int g_num_held_tasks;
+
+void lxa_note_held_task(uint32_t task)
+{
+    if (task && g_num_held_tasks < MAX_HELD_TASKS)
+        g_held_tasks[g_num_held_tasks++] = task;
+}
+
+void lxa_reset_held_tasks(void)
+{
+    g_num_held_tasks = 0;
+}
+
+static bool is_held(uint32_t task)
+{
+    for (int i = 0; i < g_num_held_tasks; i++)
+        if (g_held_tasks[i] == task)
+            return true;
+    return false;
+}
+
+/* true if the list holds a task that is not held */
+static bool list_has_live_task(uint32_t list)
+{
+    int guard = 0;
+    for (uint32_t n = m68k_read_memory_32(list); n && m68k_read_memory_32(n) && guard < 1024;
+         n = m68k_read_memory_32(n), guard++)
+        if (!is_held(n))
+            return true;
+    return false;
+}
+
 bool other_tasks_running(void)
 {
     uint32_t sysbase = m68k_read_memory_32(4);  // SysBase at address 4
     
-    bool ready_empty = is_list_empty(sysbase + EXECBASE_TASKREADY);
-    bool wait_empty = is_list_empty(sysbase + EXECBASE_TASKWAIT);
+    bool ready_empty = !list_has_live_task(sysbase + EXECBASE_TASKREADY);
+    bool wait_empty = !list_has_live_task(sysbase + EXECBASE_TASKWAIT);
     
     DPRINTF(LOG_DEBUG, "*** other_tasks_running: sysbase=0x%08x, TaskReady empty=%d, TaskWait empty=%d\n",
             sysbase, ready_empty, wait_empty);
@@ -867,27 +903,53 @@ int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 
 int _dos_seek (uint32_t fh68k, int32_t position, int32_t mode)
 {
+    /* dos.library Seek(): returns the position *before* the seek, or -1
+     * with IoErr() ERROR_SEEK_ERROR for an invalid mode or a target outside
+     * the file (seeking past the end is an error on AmigaOS, unlike lseek) */
     DPRINTF (LOG_DEBUG, "lxa: _dos_seek(): fh=0x%08x, position=0x%08x, mode=%d\n", fh68k, position, mode);
-    LPRINTF (LOG_INFO, "lxa: _dos_seek(): fd=%d position=%d mode=%d\n", m68k_read_memory_32(fh68k+36), position, mode);
 
-    int fd   = m68k_read_memory_32 (fh68k+36);
+    int fd = m68k_read_memory_32 (fh68k+36);
+    off_t old = lseek (fd, 0, SEEK_CUR);
+    off_t base;
+    struct stat st;
 
-    int whence = 0;
-    switch (mode)
+    if (old < 0)
     {
-        case OFFSET_BEGINNING: whence = SEEK_SET; break;
-        case OFFSET_CURRENT  : whence = SEEK_CUR; break;
-        case OFFSET_END      : whence = SEEK_END; break;
-        default:
-            assert(FALSE);
+        m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+        return -1;
     }
 
-    off_t o = lseek (fd, position, whence);
+    switch (mode)
+    {
+        case OFFSET_BEGINNING: base = 0; break;
+        case OFFSET_CURRENT  : base = old; break;
+        case OFFSET_END      :
+            if (fstat (fd, &st) < 0)
+            {
+                m68k_write_memory_32 (fh68k+40, errno2Amiga());
+                return -1;
+            }
+            base = st.st_size;
+            break;
+        default:
+            m68k_write_memory_32 (fh68k+40, ERROR_SEEK_ERROR);
+            return -1;
+    }
 
-    if (o<0)
-        m68k_write_memory_32 (fh68k+40, errno2Amiga()); // fh_Arg2
+    off_t target = base + position;
+    if (target < 0 || (fstat (fd, &st) == 0 && S_ISREG (st.st_mode) && target > st.st_size))
+    {
+        m68k_write_memory_32 (fh68k+40, ERROR_SEEK_ERROR);
+        return -1;
+    }
 
-    return o;
+    if (lseek (fd, target, SEEK_SET) < 0)
+    {
+        m68k_write_memory_32 (fh68k+40, errno2Amiga());
+        return -1;
+    }
+
+    return old;
 }
 
 int _dos_setfilesize(uint32_t fh68k, int32_t offset, int32_t mode)

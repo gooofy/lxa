@@ -1,0 +1,27 @@
+{
+    "dir": "DevPac",
+    "name": "Devpac",
+    "version": "3.18",
+    "description": "HiSoft 68000 assembler IDE",
+    "executable": "bin/Devpac/Devpac",
+    "kind": "gui",
+    "assigns": {},
+    "libraries": [
+        "amigaguide.library"
+    ],
+    "env": {
+        "WORKDIR": "bin/Devpac"
+    },
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": []
+}

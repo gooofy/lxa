@@ -34,6 +34,7 @@ static void copy_name(char *dst, size_t len, const char *src)
 
 void lxa_unimpl_reset(void)
 {
+    lxa_exception_log_reset();
     s_count = 0;
     s_dropped = 0;
     s_tripped = false;
@@ -126,4 +127,53 @@ void lxa_unimpl_summary(void)
                 s_entries[i].lib, s_entries[i].function, s_entries[i].detail);
     if (s_dropped)
         LPRINTF(LOG_INFO, "lxa:   (%d further records dropped)\n", s_dropped);
+}
+
+/* ------------------------------------------------------------------ */
+/* Phase 232: CPU exception log                                        */
+/* ------------------------------------------------------------------ */
+
+#define MAX_EXCEPTIONS 64
+
+static struct {
+    int      vector;
+    uint32_t pc;
+    char     task[64];
+    int      count;
+} s_exc[MAX_EXCEPTIONS];
+static int s_nexc;
+
+void lxa_exception_log_add(int vector, uint32_t pc, const char *task)
+{
+    for (int i = 0; i < s_nexc; i++) {
+        if (s_exc[i].vector == vector && s_exc[i].pc == pc) {
+            s_exc[i].count++;
+            return;
+        }
+    }
+    if (s_nexc < MAX_EXCEPTIONS) {
+        s_exc[s_nexc].vector = vector;
+        s_exc[s_nexc].pc = pc;
+        snprintf(s_exc[s_nexc].task, sizeof(s_exc[s_nexc].task), "%s", task ? task : "");
+        s_exc[s_nexc].count = 1;
+        s_nexc++;
+    }
+}
+
+int lxa_exception_log_count(void)
+{
+    return s_nexc;
+}
+
+void lxa_exception_log_get(int i, int *vector, uint32_t *pc, char *task, int tasklen, int *count)
+{
+    *vector = s_exc[i].vector;
+    *pc = s_exc[i].pc;
+    snprintf(task, tasklen, "%s", s_exc[i].task);
+    *count = s_exc[i].count;
+}
+
+void lxa_exception_log_reset(void)
+{
+    s_nexc = 0;
 }
