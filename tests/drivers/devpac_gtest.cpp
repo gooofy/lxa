@@ -229,13 +229,11 @@ protected:
     }
 
     bool OpenAboutDialog(lxa_window_info_t* about_info = nullptr) {
-        const int menu_bar_x = window_info.x + 32;
-        const int menu_bar_y = std::max(3, window_info.y / 2);
-        const int about_item_y = 128;
-
-        lxa_inject_drag(menu_bar_x, menu_bar_y,
-                        menu_bar_x, about_item_y,
-                        LXA_MOUSE_RIGHT, 10);
+        /* Select through the live MenuStrip (AGENTS.md 6.5), not by
+         * coordinates: item heights come from GadTools' layout. */
+        if (!lxa_select_menu_path(0, "Project/About")) {
+            return false;
+        }
         RunCyclesWithVBlank(40, 50000);
 
         if (!WaitForWindows(2, 5000)) {

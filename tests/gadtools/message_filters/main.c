@@ -42,24 +42,34 @@ int main(void)
     msg->Code = 123;
     PutMsg(user_port, (struct Message *)msg);
 
+    /* GadTools hands out its own copy of the message (AmigaOS 3.1). */
     result = GT_GetIMsg(user_port);
-    if (result != msg)
+    if (!result)
         return fail("GT_GetIMsg did not return the queued IntuiMessage");
+    if (result == msg)
+        return fail("GT_GetIMsg should return GadTools' copy, not the original message");
+    if (result->Class != IDCMP_GADGETUP || result->Code != 123)
+        return fail("GT_GetIMsg copy does not carry the message contents");
     if (GetMsg(user_port) != NULL)
         return fail("GT_GetIMsg should remove the message from the user port");
-    printf("OK: GT_GetIMsg returned the queued IntuiMessage\n");
-
-    filtered = *msg;
-    if (GT_FilterIMsg(&filtered) != &filtered)
-        return fail("GT_FilterIMsg should return the original message pointer");
-    if (GT_PostFilterIMsg(&filtered) != &filtered)
-        return fail("GT_PostFilterIMsg should return the original message pointer");
-    printf("OK: GT_FilterIMsg and GT_PostFilterIMsg preserve the message pointer\n");
+    if (GetMsg(reply_port) != NULL)
+        return fail("GT_GetIMsg must not reply the original before GT_ReplyIMsg");
+    printf("OK: GT_GetIMsg returned a copy of the queued IntuiMessage\n");
 
     GT_ReplyIMsg(result);
     if ((struct IntuiMessage *)GetMsg(reply_port) != msg)
-        return fail("GT_ReplyIMsg did not reply the message to the reply port");
-    printf("OK: GT_ReplyIMsg replied the IntuiMessage\n");
+        return fail("GT_ReplyIMsg did not reply the original message to the reply port");
+    printf("OK: GT_ReplyIMsg replied the original IntuiMessage\n");
+
+    filtered = *msg;
+    result = GT_FilterIMsg(&filtered);
+    if (!result || result == &filtered)
+        return fail("GT_FilterIMsg should return GadTools' copy of the message");
+    if (result->Class != IDCMP_GADGETUP || result->Code != 123)
+        return fail("GT_FilterIMsg copy does not carry the message contents");
+    if (GT_PostFilterIMsg(result) != &filtered)
+        return fail("GT_PostFilterIMsg should return the original message pointer");
+    printf("OK: GT_FilterIMsg/GT_PostFilterIMsg map a copy back to the original\n");
 
     FreeMem(msg, sizeof(struct IntuiMessage));
     DeleteMsgPort(reply_port);

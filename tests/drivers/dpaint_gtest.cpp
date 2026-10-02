@@ -771,9 +771,21 @@ TEST_F(DPaintPixelTest, ScreenFormatRetainPictureCheckboxIsGhostedWhenDisabled) 
 class DPaintEditorTest : public DPaintPixelTest {
 protected:
     /* DPaint's Screen Format gadget IDs (verified empirically with
-     * tests/drivers/dpaint_probe_gtest.cpp). */
-    static constexpr int SF_GADGET_USE_INDEX = 13;     /* id=14, "Use"  */
-    static constexpr int SF_GADGET_CANCEL_INDEX = 14;  /* id=15, "Cancel" */
+     * tests/drivers/dpaint_probe_gtest.cpp).  Looked up by ID: the list
+     * also holds the GadTools context gadget (and, like on AmigaOS, may
+     * hold system gadgets), so list positions are not stable. */
+    static constexpr int SF_GADGET_USE_ID = 14;     /* "Use"  */
+    static constexpr int SF_GADGET_CANCEL_ID = 15;  /* "Cancel" */
+
+    int SfGadgetIndex(int sf, int id) {
+        int gc = GetGadgetCount(sf);
+        for (int i = 0; i < gc; ++i) {
+            lxa_gadget_info_t g{};
+            if (GetGadgetInfo(i, &g, sf) && g.gadget_id == id)
+                return i;
+        }
+        return -1;
+    }
 
     /* Reach the "DeluxePaint 5.2 - Screen Format" state. */
     bool ReachScreenFormat() {
@@ -797,12 +809,12 @@ protected:
             return false;
         }
 
-        int gc = GetGadgetCount(sf);
-        if (gc <= SF_GADGET_USE_INDEX) {
-            ADD_FAILURE() << "AcceptScreenFormat: gadget count " << gc << " <= " << SF_GADGET_USE_INDEX;
+        int use = SfGadgetIndex(sf, SF_GADGET_USE_ID);
+        if (use < 0) {
+            ADD_FAILURE() << "AcceptScreenFormat: no 'Use' gadget (id " << SF_GADGET_USE_ID << ")";
             return false;
         }
-        if (!ClickGadget(SF_GADGET_USE_INDEX, sf)) {
+        if (!ClickGadget(use, sf)) {
             ADD_FAILURE() << "AcceptScreenFormat: ClickGadget failed";
             return false;
         }
@@ -835,7 +847,7 @@ TEST_F(DPaintEditorTest, OwnershipDismissRevealsScreenFormatGadgets) {
     ASSERT_TRUE(GetWindowInfo(sf, &info));
 
     lxa_gadget_info_t use_gad{};
-    ASSERT_TRUE(GetGadgetInfo(SF_GADGET_USE_INDEX, &use_gad, sf));
+    ASSERT_TRUE(GetGadgetInfo(SfGadgetIndex(sf, SF_GADGET_USE_ID), &use_gad, sf));
     EXPECT_EQ(use_gad.gadget_id, 14)
         << "Expected the lower-left Screen Format gadget to be the 'Use' button (id=14)";
     EXPECT_LT(use_gad.left, info.width / 4)
@@ -844,7 +856,7 @@ TEST_F(DPaintEditorTest, OwnershipDismissRevealsScreenFormatGadgets) {
         << "'Use' button should sit near the bottom of the dialog";
 
     lxa_gadget_info_t cancel_gad{};
-    ASSERT_TRUE(GetGadgetInfo(SF_GADGET_CANCEL_INDEX, &cancel_gad, sf));
+    ASSERT_TRUE(GetGadgetInfo(SfGadgetIndex(sf, SF_GADGET_CANCEL_ID), &cancel_gad, sf));
     EXPECT_EQ(cancel_gad.gadget_id, 15)
         << "Expected the lower-right Screen Format gadget to be the 'Cancel' button (id=15)";
     EXPECT_GT(cancel_gad.left, info.width * 3 / 4)
@@ -950,7 +962,7 @@ TEST_F(DPaintEditorTest, ScreenFormatCancelTerminatesDPaintCleanly) {
     int sf_index = FindWindowIndexByTitleSubstring("Screen Format");
     ASSERT_GE(sf_index, 0);
 
-    ASSERT_TRUE(ClickGadget(SF_GADGET_CANCEL_INDEX, sf_index));
+    ASSERT_TRUE(ClickGadget(SfGadgetIndex(sf_index, SF_GADGET_CANCEL_ID), sf_index));
 
     bool exited = false;
     for (int attempt = 0; attempt < 200; ++attempt) {
