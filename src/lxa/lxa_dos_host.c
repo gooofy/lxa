@@ -915,6 +915,18 @@ int _dos_open (uint32_t path68k, uint32_t accessMode, uint32_t fh68k)
 
 bool g_console_stdin_detached = false;
 
+/* Number of bytes of [addr, addr+len) that lie in emulated RAM (or ROM when
+ * only reading): Read()/Write() buffers come from the emulated program and
+ * must never make the host access memory outside g_ram/g_rom. */
+static uint32_t _dos_buffer_span(uint32_t addr, uint32_t len, bool for_write_into)
+{
+    if (addr >= RAM_START && addr <= RAM_END)
+        return len < (uint32_t)(RAM_END - addr + 1) ? len : (uint32_t)(RAM_END - addr + 1);
+    if (!for_write_into && addr >= ROM_START && addr <= ROM_END)
+        return len < (uint32_t)(ROM_END - addr + 1) ? len : (uint32_t)(ROM_END - addr + 1);
+    return 0;
+}
+
 int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
 {
     DPRINTF (LOG_DEBUG, "lxa: _dos_read(): fh=0x%08x, buf68k=0x%08x, len68k=%d\n", fh68k, buf68k, len68k);
@@ -923,7 +935,14 @@ int _dos_read (uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
     int kind = m68k_read_memory_32 (fh68k+32);
     DPRINTF (LOG_DEBUG, "                  -> fd = %d\n", fd);
 
-    void *buf = _mgetstr (buf68k);
+    if ((int32_t)len68k < 0)
+        len68k = 0;
+    if (len68k && !(len68k = _dos_buffer_span(buf68k, len68k, true)))
+    {
+        m68k_write_memory_32 (fh68k + 40, ERROR_BAD_NUMBER);   /* fh_Arg2 */
+        return -1;
+    }
+    void *buf = len68k ? _mgetstr (buf68k) : NULL;
     if (kind == FILE_KIND_CONSOLE && !lxa_host_console_input_empty())
     {
         uint8_t *dst = (uint8_t *)buf;
@@ -1688,7 +1707,14 @@ int _dos_write(uint32_t fh68k, uint32_t buf68k, uint32_t len68k)
     int kind = m68k_read_memory_32(fh68k + 32);
     DPRINTF(LOG_DEBUG, "                  -> fd=%d, kind=%d\n", fd, kind);
 
-    char *buf = _mgetstr(buf68k);
+    if ((int32_t)len68k < 0)
+        len68k = 0;
+    if (len68k && !(len68k = _dos_buffer_span(buf68k, len68k, false)))
+    {
+        m68k_write_memory_32(fh68k + 40, ERROR_BAD_NUMBER);   /* fh_Arg2 */
+        return -1;
+    }
+    char *buf = len68k ? _mgetstr(buf68k) : (char *)"";
     ssize_t l = 0;
 
     switch (kind) {
