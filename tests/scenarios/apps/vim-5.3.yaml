@@ -1,0 +1,10 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of vim-5.3 from it.  Window title from the discovery twin run.
+name: app-vim-53
+app: {manifest: vim-5.3}
+steps:
+  - launch
+  - frames: 150
+  - frames: 100
+  - snapshot: startup
+  - quit

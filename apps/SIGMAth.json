@@ -1,0 +1,29 @@
+{
+    "dir": "SIGMAth",
+    "name": "SIGMAth (demo)",
+    "version": "2.2",
+    "description": "Mathematics package demo (German)",
+    "executable": "SIGMAth",
+    "kind": "gui",
+    "assigns": {
+        "LIBS": "Libs"
+    },
+    "libraries": [
+        "rct.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/SIGMath)",
+    "notes": [
+        "rct.library copied into Libs/"
+    ]
+}

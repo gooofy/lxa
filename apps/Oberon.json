@@ -1,0 +1,32 @@
+{
+    "dir": "Oberon",
+    "name": "AmigaOberon (OEd)",
+    "version": "3.10",
+    "description": "Oberon-2 compiler with the OEd editor",
+    "executable": "OEd",
+    "kind": "gui",
+    "assigns": {
+        "OBERON": "",
+        "LIBS": "libs"
+    },
+    "libraries": [
+        "arp.library",
+        "garbagecollector.library",
+        "oberonsupport.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/Oberon)",
+    "notes": [
+        "Libraries bundled in libs/"
+    ]
+}

@@ -1,0 +1,7 @@
+{
+    "dir": "SYSINFO",
+    "alias_of": "SysInfo",
+    "notes": [
+        "Symlink in ../lxa-apps duplicating SysInfo (case variant); safe to delete"
+    ]
+}

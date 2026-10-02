@@ -14,7 +14,7 @@ import sys
 import tempfile
 import time
 
-from rdd import bundle, geometry
+from rdd import bundle, fd, geometry
 from rdd.pylxa import Lxa, MOUSE_LEFT
 from rdd.scenario import Scenario
 
@@ -42,7 +42,10 @@ def run(scn, out_dir, build=None):
         for kind, args in scn.steps:
             step = {"step": kind, "args": args, "ok": True}
             try:
-                if kind == "launch":
+                if kind == "trace":
+                    if not lxa.trace_start(fd.lxa_spec(args["spec"]), os.path.join(out_dir, "trace.jsonl")):
+                        raise RuntimeError("cannot start the relay trace")
+                elif kind == "launch":
                     lxa.run(scn.lxa_program(), scn.args)
                     lxa.frames(1)
                 elif kind == "wait_window":
@@ -107,6 +110,7 @@ def run(scn, out_dir, build=None):
             result["steps"].append(step)
             if not step["ok"]:
                 break
+        lxa.trace_stop()
         result["exit_code"] = lxa.exit_code() if not lxa.running() else None
         result["unimplemented"] = lxa.unimplemented()
     finally:

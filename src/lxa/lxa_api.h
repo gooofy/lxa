@@ -87,6 +87,13 @@ int lxa_init(const lxa_config_t *config);
  * Shutdown the lxa emulator.
  * Frees all resources and closes displays.
  */
+/**
+ * Phase 233: relay trace of library calls (JSON lines, same format as the
+ * reference agent's TRACE_DUMP).  spec: "graphics.library:-60,-66;dos:*".
+ */
+bool lxa_trace_start(const char *spec, const char *path);
+void lxa_trace_stop(void);
+
 void lxa_shutdown(void);
 
 /*
@@ -174,6 +181,22 @@ typedef struct lxa_unimplemented {
  * which may exceed `max`.  `entries` may be NULL to just count.
  */
 int lxa_get_unimplemented_log(lxa_unimplemented_t *entries, int max);
+
+/* ========== CPU exception log (Phase 232) ========== */
+
+typedef struct lxa_exception {
+    int      vector;        /* 2 bus error, 3 address error, 4 illegal, 5 div0, ... 32+ trap */
+    uint32_t pc;            /* faulting PC */
+    char     task[64];      /* task that raised it */
+    int      count;         /* repetitions of this (vector, pc) */
+} lxa_exception_t;
+
+/*
+ * CPU exceptions raised by emulated tasks since lxa_init() (a crash on a
+ * real Amiga: "Software Failure").  Same contract as
+ * lxa_get_unimplemented_log(): returns the number of distinct records.
+ */
+int lxa_get_exception_log(lxa_exception_t *entries, int max);
 void lxa_clear_unimplemented_log(void);
 
 /* Current m68k program counter (diagnostics: where is a busy task spinning?) */

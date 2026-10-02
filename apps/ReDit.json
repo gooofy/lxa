@@ -1,0 +1,23 @@
+{
+    "dir": "ReDit",
+    "name": "ReDit",
+    "version": "2.0",
+    "description": "Resource / GUI editor",
+    "executable": "Redit",
+    "kind": "gui",
+    "assigns": {},
+    "libraries": [],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 39,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/Redit2.0)",
+    "notes": []
+}

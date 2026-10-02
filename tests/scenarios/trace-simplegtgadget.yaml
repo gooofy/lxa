@@ -1,0 +1,12 @@
+# Relay-trace scenario (Phase 233): the library calls SimpleGTGadget makes
+# while building its window, traced on lxa and on AmigaOS 3.1.
+name: trace-simplegtgadget
+app:
+  sample: SimpleGTGadget
+steps:
+  - trace: "gadtools.library:CreateContext,CreateGadgetA,GetVisualInfoA,GT_RefreshWindow,FreeGadgets,FreeVisualInfo;graphics.library:TextLength,OpenFont,CloseFont;intuition.library:OpenWindowTagList,LockPubScreen,UnlockPubScreen,CloseWindow"
+  - launch
+  - wait_window: "GadTools Gadget Demo"
+  - wait_idle
+  - snapshot: {name: startup, window: "GadTools Gadget Demo", screen: false}
+  - quit
