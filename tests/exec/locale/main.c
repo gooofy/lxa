@@ -250,16 +250,21 @@ static void test_locale_basics(void)
 
     print("--- OpenLocale / class tests ---\n");
 
+    /* without locale prefs AmigaOS 3.1 uses the built-in US/English
+     * locale (reference-verified) */
     locale = OpenLocale(NULL);
-    if (locale && str_eq((const char *)locale->loc_LocaleName, "english"))
+    if (locale && str_eq((const char *)locale->loc_LocaleName, "united_states.country") &&
+        str_eq((const char *)locale->loc_LanguageName, "english.language") &&
+        locale->loc_PrefLanguages[0] && str_eq((const char *)locale->loc_PrefLanguages[0], "english"))
         test_ok("OpenLocale NULL returns default locale");
     else
         test_fail_msg("OpenLocale NULL returns default locale");
 
-    if (OpenLocale((STRPTR)"english") != NULL)
-        test_ok("OpenLocale english");
+    /* the name is a locale prefs file, not a language */
+    if (OpenLocale((STRPTR)"english") == NULL)
+        test_ok("OpenLocale english (no such prefs file) fails");
     else
-        test_fail_msg("OpenLocale english");
+        test_fail_msg("OpenLocale english (no such prefs file) fails");
 
     if (OpenLocale((STRPTR)"missing") == NULL)
         test_ok("OpenLocale missing fails");
@@ -411,17 +416,19 @@ static void test_strcmp_convert(void)
     else
         test_fail_msg("StrnCmp NULL handling");
 
-    if (StrConvert(locale, (STRPTR)"TeSt", buf, sizeof(buf), SC_ASCII) == 4 && str_eq(buf, "TEST"))
+    /* StrConvert() counts the terminating NUL (AmigaOS 3.1,
+     * reference-verified) */
+    if (StrConvert(locale, (STRPTR)"TeSt", buf, sizeof(buf), SC_ASCII) == 5 && str_eq(buf, "TEST"))
         test_ok("StrConvert SC_ASCII");
     else
         test_fail_msg("StrConvert SC_ASCII");
 
-    if (StrConvert(locale, (STRPTR)"TeSt", buf, sizeof(buf), SC_COLLATE2) == 6 && str_eq(buf, "TESTet"))
+    if (StrConvert(locale, (STRPTR)"TeSt", buf, sizeof(buf), SC_COLLATE2) == 7 && str_eq(buf, "TESTet"))
         test_ok("StrConvert SC_COLLATE2");
     else
         test_fail_msg("StrConvert SC_COLLATE2");
 
-    if (StrConvert(locale, (STRPTR)"abcdef", buf, 4, SC_ASCII) == 3 && str_eq(buf, "ABC"))
+    if (StrConvert(locale, (STRPTR)"abcdef", buf, 4, SC_ASCII) == 4 && str_eq(buf, "ABC"))
         test_ok("StrConvert truncation");
     else
         test_fail_msg("StrConvert truncation");
@@ -813,14 +820,9 @@ static void test_parse_date(void)
         test_fail_msg("ParseDate date+time format");
     }
 
-    /* Test: Parse with NULL date (validation only) */
-    sr.str = "2020-01-01";
-    sr.pos = 0;
-    result = ParseDate(locale, NULL, (STRPTR)"%Y-%m-%d", &hook);
-    if (result)
-        test_ok("ParseDate with NULL date (validation)");
-    else
-        test_fail_msg("ParseDate with NULL date");
+    /* ParseDate(locale, NULL, ...) - "validate only" - is documented, but
+     * AmigaOS 3.1's locale.library (V38-40) writes through the NULL pointer
+     * and hangs the machine (reference-verified): not tested here. */
 
     CloseLocale(locale);
 }

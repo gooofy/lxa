@@ -1,6 +1,7 @@
 
 #include <inttypes.h>
 #include <hardware/custom.h>
+#include <hardware/intbits.h>
 
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -164,6 +165,8 @@ static WORD _cia_SetICR(register struct Library *resource __asm("a6"),
                         register LONG mask __asm("d0"));
 static struct Library *exec_create_cia_resource(struct ExecBase *SysBase,
                                                 CONST_STRPTR name);
+struct LxaCIAResource;
+static void cia_service(struct LxaCIAResource *cia);
 
 #ifndef JMPINSTR
 #define JMPINSTR 0x4ef9
@@ -281,6 +284,7 @@ static WORD _cia_AbleICR(register struct Library *resource __asm("a6"),
     if (mask & 0x80)
     {
         cia->enable_mask |= (UBYTE)(mask & 0x1f);
+        cia_service(cia);   /* enabling a pending request interrupts at once */
     }
     else
     {
@@ -288,6 +292,48 @@ static WORD _cia_AbleICR(register struct Library *resource __asm("a6"),
     }
 
     return old_mask;
+}
+
+/*
+ * Service pending CIA requests the way the CIA interrupt server does: every
+ * bit that is both requested and enabled runs its handler (A1 = is_Data,
+ * A5 = is_Code, A6 = SysBase) and is acknowledged.  While interrupts are
+ * disabled the request stays pending, as on the hardware.
+ */
+static void cia_service(struct LxaCIAResource *cia)
+{
+    struct ExecBase *SysBase = *(struct ExecBase **)4;
+    LONG bit;
+
+    if (SysBase->IDNestCnt >= 0)
+        return;
+
+    for (bit = 0; bit < 5; bit++)
+    {
+        UBYTE m = (UBYTE)(1U << bit);
+        struct Interrupt *irq = cia->vectors[bit];
+
+        if (!(cia->active_mask & cia->enable_mask & m))
+            continue;
+        cia->active_mask &= (UBYTE)~m;
+        if (irq && irq->is_Code)
+        {
+            APTR code = (APTR)irq->is_Code;
+            APTR data = irq->is_Data;
+
+            __asm volatile (
+                "movem.l a5/a6,-(sp)\n\t"
+                "move.l  %0,a5\n\t"
+                "move.l  %1,a1\n\t"
+                "move.l  %2,a6\n\t"
+                "jsr     (a5)\n\t"
+                "movem.l (sp)+,a5/a6"
+                :
+                : "r" (code), "r" (data), "r" (SysBase)
+                : "a0", "a1", "d0", "d1", "memory"
+            );
+        }
+    }
 }
 
 static WORD _cia_SetICR(register struct Library *resource __asm("a6"),
@@ -307,6 +353,7 @@ static WORD _cia_SetICR(register struct Library *resource __asm("a6"),
     if (mask & 0x80)
     {
         cia->active_mask |= (UBYTE)(mask & 0x1f);
+        cia_service(cia);
     }
     else
     {
@@ -397,6 +444,12 @@ static struct Interrupt *exec_set_int_vector_state(struct ExecBase *SysBase,
         SysBase->IntVects[int_number].iv_Code = (APTR)~0;
     }
 
+    /* handler vectors carry the handler's is_Data in iv_Data (AmigaOS
+     * 3.1, reference-verified); server-chain vectors keep their list */
+    if (exec_interrupt_uses_handler_node(int_number))
+        SysBase->IntVects[int_number].iv_Data = interrupt ? interrupt->is_Data
+                                                          : (APTR)&state->server_list;
+
     return old_interrupt;
 }
 
@@ -410,6 +463,47 @@ static void exec_add_interrupt_server(struct ExecBase *SysBase,
         return;
 
     Enqueue(server_chain, &interrupt->is_Node);
+}
+
+/*
+ * Run the INTB_VERTB server chain; called from the level-3 interrupt
+ * handler once per frame.  Servers are called the AmigaOS way (A0 = custom
+ * chip base, A1 = is_Data, A5 = is_Code, A6 = SysBase, D1 = interrupt
+ * bits) in priority order; a server returning non-zero (Z flag clear) ends
+ * the chain.
+ */
+VOID _exec_VBlankServers(void)
+{
+    struct List *chain = &g_IntVectorState[INTB_VERTB].server_list;
+    struct Node *node;
+    struct Node *next;
+    struct ExecBase *sysbase = *(struct ExecBase **)4;
+
+    for (node = chain->lh_Head; node && (next = node->ln_Succ); node = next)
+    {
+        struct Interrupt *irq = (struct Interrupt *)node;
+        register ULONG result __asm("d0");
+
+        if (!irq->is_Code)
+            continue;
+
+        __asm volatile (
+            "movem.l a5/a6,-(sp)\n\t"
+            "move.l  %1,a5\n\t"
+            "move.l  %2,a1\n\t"
+            "move.l  %3,a6\n\t"
+            "move.l  #0xdff000,a0\n\t"
+            "moveq   #0x20,d1\n\t"
+            "jsr     (a5)\n\t"
+            "movem.l (sp)+,a5/a6"
+            : "=r" (result)
+            : "r" (irq->is_Code), "r" (irq->is_Data), "r" (sysbase)
+            : "a0", "a1", "d1", "memory", "cc"
+        );
+
+        if (result)
+            break;
+    }
 }
 
 static void exec_remove_interrupt_server(struct ExecBase *SysBase,
@@ -850,7 +944,9 @@ struct Library * _exec_MakeLibrary ( register struct ExecBase * SysBase __asm("a
     }
     DPRINTF (LOG_DEBUG, "_exec: MakeLibrary count=%d\n", count);
 
-    negsize = count * 6;
+    /* the jump table is rounded up to a longword multiple so the base stays
+     * longword aligned (AmigaOS 3.1: 5 vectors -> lib_NegSize 32) */
+    negsize = (count * 6 + 3) & ~3UL;
 
     char *mem = AllocMem (___dataSize+negsize, MEMF_PUBLIC|MEMF_CLEAR);
 
@@ -2343,11 +2439,14 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
 
     Disable();
 
+    /* AmigaOS 3.1 records the wait mask even when a signal is already
+     * pending and leaves it in tc_SigWait after Wait() returns
+     * (reference-verified, Phase 220). */
+    thisTask->tc_SigWait = ___signalSet;
+
     /* If at least one of the signals is already set do not wait. */
     while (!(thisTask->tc_SigRecvd & ___signalSet))
     {
-        /* Set the wait signal mask */
-        thisTask->tc_SigWait = ___signalSet;
 
         DPRINTF (LOG_DEBUG, "_exec: Wait() moving task '%s' @ 0x%08lx to TaskWait, SigWait=0x%08lx\n",
                  thisTask->tc_Node.ln_Name, thisTask, thisTask->tc_SigWait);
@@ -2392,9 +2491,6 @@ ULONG _exec_Wait ( register struct ExecBase * SysBase __asm("a6"),
 
     /* And clear them. */
     thisTask->tc_SigRecvd &= ~___signalSet;
-
-    /* Wait() must leave no stale wait mask behind once it returns. */
-    thisTask->tc_SigWait = 0;
 
     Enable();
 
@@ -2543,14 +2639,15 @@ BYTE _exec_AllocSignal ( register struct ExecBase * SysBase    __asm("a6"),
 
     if (signalNum < 0)
     {
-        ULONG mask1 = ~oldmask & -~oldmask;
-
-        if (mask1 == 0)
+        /* AmigaOS 3.1 hands out the highest free signal first: the first
+         * AllocSignal(-1) of a fresh process returns 31 (reference-verified,
+         * Phase 220). */
+        if (oldmask == 0xFFFFFFFFUL)
             return -1;
 
-        signalNum = 0;
-        while (((mask1 >> signalNum) & 1) == 0)
-            signalNum++;
+        signalNum = 31;
+        while ((oldmask >> signalNum) & 1)
+            signalNum--;
 
         DPRINTF (LOG_DEBUG, "_exec: AllocSignal -> auto selected signalNum=%d\n", signalNum);
         DPRINTF(LOG_DEBUG, "_exec: AllocSignal -> bit %d\n", signalNum);
@@ -3337,9 +3434,7 @@ void _exec_AddResource ( register struct ExecBase * SysBase __asm("a6"),
     if (!___resource)
         return;
 
-    /* Set resource type */
-    res_node->ln_Type = NT_RESOURCE;
-
+    /* AmigaOS 3.1 leaves ln_Type to the caller (reference-verified). */
     /* Add the resource to the system list (Enqueue sorts by priority) */
     Forbid();
     Enqueue(&SysBase->ResourceList, res_node);
@@ -3658,8 +3753,10 @@ APTR _exec_RawDoFmt ( register struct ExecBase * SysBase __asm("a6"),
                     value = *args++;
                 }
 
-                /* AmigaOS RawDoFmt always uses uppercase hex for both %x and %X */
-                const char *hexDigits = "0123456789ABCDEF";
+                /* AmigaOS 3.1 RawDoFmt: %x prints uppercase digits, %X
+                 * lowercase ones (reference-verified, Phase 220). */
+                const char *hexDigits = (specifier == 'X') ? "0123456789abcdef"
+                                                            : "0123456789ABCDEF";
 
                 char buf[9];
                 char *p = buf + sizeof(buf) - 1;
@@ -4494,7 +4591,6 @@ void _exec_RemSemaphore ( register struct ExecBase * SysBase __asm("a6"),
 ULONG _exec_SumKickData ( register struct ExecBase * SysBase __asm("a6"))
 {
     ULONG checksum = 0;
-    BOOL has_data = FALSE;
 
     DPRINTF (LOG_DEBUG, "_exec: SumKickData called, KickTagPtr=0x%08lx KickMemPtr=0x%08lx\n",
              (ULONG)SysBase->KickTagPtr, (ULONG)SysBase->KickMemPtr);
@@ -4518,7 +4614,6 @@ ULONG _exec_SumKickData ( register struct ExecBase * SysBase __asm("a6"))
             }
 
             list++;
-            has_data = TRUE;
         }
     }
 
@@ -4528,19 +4623,21 @@ ULONG _exec_SumKickData ( register struct ExecBase * SysBase __asm("a6"))
 
         while (mem_list)
         {
-            UBYTE i;
+            /* the 16-byte header (node + ml_NumEntries) and every MemEntry */
+            ULONG n = 4 + 2 * (ULONG)mem_list->ml_NumEntries;
             ULONG *p = (ULONG *)mem_list;
+            ULONG i;
 
-            for (i = 0; i < sizeof(struct MemList) / sizeof(ULONG); i++)
+            for (i = 0; i < n; i++)
                 checksum += p[i];
 
             mem_list = (struct MemList *)mem_list->ml_Node.ln_Succ;
-            has_data = TRUE;
         }
     }
 
-    if (has_data && !checksum)
-        checksum--;
+    /* AmigaOS 3.1 starts the sum at -1: an empty KickTag/KickMem state
+     * yields 0xFFFFFFFF (reference-verified, Phase 220) */
+    checksum--;
 
     DPRINTF (LOG_DEBUG, "_exec: SumKickData returning 0x%08lx\n", checksum);
     return checksum;
@@ -5885,15 +5982,6 @@ void coldstart (void)
         DPRINTF (LOG_DEBUG, "coldstart: registered ciab.resource\n");
     }
 
-    struct Node *blitterResource = AllocVec(sizeof(struct Node), MEMF_CLEAR | MEMF_PUBLIC);
-    if (blitterResource) {
-        blitterResource->ln_Type = NT_RESOURCE;
-        blitterResource->ln_Pri = 0;
-        blitterResource->ln_Name = "blitter.resource";
-        AddTail(&SysBase->ResourceList, blitterResource);
-        DPRINTF (LOG_DEBUG, "coldstart: registered blitter.resource\n");
-    }
-    
     DPRINTF (LOG_DEBUG, "coldstart: done registering built-in resources\n");
 
     // init multitasking

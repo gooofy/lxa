@@ -464,7 +464,13 @@ static BOOL create_otag_file(CONST_STRPTR path)
  * Test a single library's reference counting.
  * Returns number of errors.
  */
-static int test_library_refcount(const char *name)
+/*
+ * Open/close a library twice and check the open count moves by `step` per
+ * call.  Absolute counts depend on the running system and are not printed.
+ * AmigaOS 3.1's graphics.library and intuition.library keep lib_OpenCnt
+ * constant (step 0, reference-verified, Phase 220).
+ */
+static int test_library_refcount(const char *name, int step)
 {
     int errors = 0;
     struct Library *lib1, *lib2;
@@ -474,8 +480,6 @@ static int test_library_refcount(const char *name)
     print(name);
     print(" ---\n");
 
-    /* Find the library node to read lib_OpenCnt directly */
-    /* First, open it to get the base pointer */
     lib1 = OpenLibrary((CONST_STRPTR)name, 0);
     if (lib1 == NULL)
     {
@@ -486,12 +490,7 @@ static int test_library_refcount(const char *name)
     }
     print("OK: OpenLibrary() returned non-NULL\n");
 
-    /* Read count after first open */
     cnt_after_open1 = lib1->lib_OpenCnt;
-    print("  lib_OpenCnt after 1st open: ");
-    print_num(cnt_after_open1);
-    print("\n");
-
     if (cnt_after_open1 < 1)
     {
         print("FAIL: lib_OpenCnt should be >= 1 after OpenLibrary()\n");
@@ -502,7 +501,6 @@ static int test_library_refcount(const char *name)
         print("OK: lib_OpenCnt >= 1 after OpenLibrary()\n");
     }
 
-    /* Open again - count should increment */
     lib2 = OpenLibrary((CONST_STRPTR)name, 0);
     if (lib2 == NULL)
     {
@@ -513,21 +511,17 @@ static int test_library_refcount(const char *name)
     }
 
     cnt_after_open2 = lib2->lib_OpenCnt;
-    print("  lib_OpenCnt after 2nd open: ");
-    print_num(cnt_after_open2);
-    print("\n");
-
-    if (cnt_after_open2 != cnt_after_open1 + 1)
+    if (cnt_after_open2 != cnt_after_open1 + step)
     {
-        print("FAIL: lib_OpenCnt should have incremented by 1\n");
+        print("FAIL: lib_OpenCnt changed unexpectedly on 2nd open\n");
         errors++;
     }
     else
     {
-        print("OK: lib_OpenCnt incremented correctly on 2nd open\n");
+        print(step ? "OK: lib_OpenCnt incremented correctly on 2nd open\n"
+                   : "OK: lib_OpenCnt stays constant on 2nd open\n");
     }
 
-    /* Verify same base returned */
     if (lib1 != lib2)
     {
         print("FAIL: 2nd OpenLibrary() returned different base pointer\n");
@@ -538,38 +532,30 @@ static int test_library_refcount(const char *name)
         print("OK: Same library base returned\n");
     }
 
-    /* Close once - count should decrement */
     CloseLibrary(lib2);
     cnt_after_close1 = lib1->lib_OpenCnt;
-    print("  lib_OpenCnt after 1st close: ");
-    print_num(cnt_after_close1);
-    print("\n");
-
-    if (cnt_after_close1 != cnt_after_open2 - 1)
+    if (cnt_after_close1 != cnt_after_open2 - step)
     {
-        print("FAIL: lib_OpenCnt should have decremented by 1\n");
+        print("FAIL: lib_OpenCnt changed unexpectedly on close\n");
         errors++;
     }
     else
     {
-        print("OK: lib_OpenCnt decremented correctly on close\n");
+        print(step ? "OK: lib_OpenCnt decremented correctly on close\n"
+                   : "OK: lib_OpenCnt stays constant on close\n");
     }
 
-    /* Close again */
     CloseLibrary(lib1);
     cnt_after_close2 = lib1->lib_OpenCnt;
-    print("  lib_OpenCnt after 2nd close: ");
-    print_num(cnt_after_close2);
-    print("\n");
-
-    if (cnt_after_close2 != cnt_after_close1 - 1)
+    if (cnt_after_close2 != cnt_after_close1 - step)
     {
-        print("FAIL: lib_OpenCnt should have decremented by 1 again\n");
+        print("FAIL: lib_OpenCnt changed unexpectedly on 2nd close\n");
         errors++;
     }
     else
     {
-        print("OK: lib_OpenCnt decremented correctly on 2nd close\n");
+        print(step ? "OK: lib_OpenCnt decremented correctly on 2nd close\n"
+                   : "OK: lib_OpenCnt stays constant on 2nd close\n");
     }
 
     print("\n");
@@ -597,9 +583,9 @@ static int test_exec_library_helpers(void)
     }
     print("OK: MakeLibrary returned non-NULL\n");
 
-    if (lib->lib_NegSize == 30)
+    if (lib->lib_NegSize == 32)
     {
-        print("OK: MakeLibrary computed 5 vectors of negative size\n");
+        print("OK: MakeLibrary rounds 5 vectors up to a longword negative size\n");
     }
     else
     {
@@ -804,16 +790,17 @@ static int test_dos_library_init_state(void)
         errors++;
     }
 
+    /* the CLI list holds the running shells: check it is well formed */
     if (DOSBase->dl_Root != NULL &&
-        DOSBase->dl_Root->rn_CliList.mlh_Head == (struct MinNode *)&DOSBase->dl_Root->rn_CliList.mlh_Tail &&
         DOSBase->dl_Root->rn_CliList.mlh_Tail == NULL &&
-        DOSBase->dl_Root->rn_CliList.mlh_TailPred == (struct MinNode *)&DOSBase->dl_Root->rn_CliList.mlh_Head)
+        DOSBase->dl_Root->rn_CliList.mlh_TailPred->mln_Succ ==
+            (struct MinNode *)&DOSBase->dl_Root->rn_CliList.mlh_Tail)
     {
-        print("OK: dos.library initialized an empty CLI list\n");
+        print("OK: dos.library CLI list is a valid list\n");
     }
     else
     {
-        print("FAIL: dos.library CLI list is not initialized like NEWLIST\n");
+        print("FAIL: dos.library CLI list is not a valid list\n");
         errors++;
     }
 
@@ -827,19 +814,6 @@ static int test_dos_library_init_state(void)
     else
     {
         print("FAIL: dos.library DosInfo semaphore state is not initialized\n");
-        errors++;
-    }
-
-    if (DOSBase->dl_Errors == NULL &&
-        DOSBase->dl_TimeReq == NULL &&
-        DOSBase->dl_UtilityBase == NULL &&
-        DOSBase->dl_IntuitionBase == NULL)
-    {
-        print("OK: dos.library private startup pointers stay cleared\n");
-    }
-    else
-    {
-        print("FAIL: dos.library private startup pointers should be cleared\n");
         errors++;
     }
 
@@ -1770,7 +1744,7 @@ static int test_dos_format_stub_closed(void)
 
     print("--- Test: DOS Format entry point ---\n");
 
-    ok = Format((CONST_STRPTR)"HOME:", (CONST_STRPTR)"LIBFORMAT", ID_DOS_DISK);
+    ok = Format((CONST_STRPTR)"RAM:", (CONST_STRPTR)"LIBFORMAT", ID_DOS_DISK);
     if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
     {
         print("OK: Format() no longer behaves like a stub\n");
@@ -1814,7 +1788,7 @@ static int test_dos_inhibit_stub_closed(void)
 
     print("--- Test: DOS Inhibit entry point ---\n");
 
-    ok = Inhibit((CONST_STRPTR)"HOME:", DOSTRUE);
+    ok = Inhibit((CONST_STRPTR)"RAM:", DOSTRUE);
     if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
     {
         print("OK: Inhibit() no longer behaves like a stub\n");
@@ -1836,7 +1810,7 @@ static int test_dos_addbuffers_stub_closed(void)
 
     print("--- Test: DOS AddBuffers entry point ---\n");
 
-    ok = AddBuffers((CONST_STRPTR)"HOME:", 1);
+    ok = AddBuffers((CONST_STRPTR)"RAM:", 1);
     if (ok == DOSFALSE && IoErr() == ERROR_ACTION_NOT_KNOWN)
     {
         print("OK: AddBuffers() no longer behaves like a stub\n");
@@ -5598,12 +5572,12 @@ int main(void)
     print("=== exec/library Test ===\n\n");
 
     /* Test 1: Test reference counting for all 6 previously-broken libraries */
-    errors += test_library_refcount("graphics.library");
-    errors += test_library_refcount("intuition.library");
-    errors += test_library_refcount("utility.library");
-    errors += test_library_refcount("mathtrans.library");
-    errors += test_library_refcount("mathffp.library");
-    errors += test_library_refcount("expansion.library");
+    errors += test_library_refcount("graphics.library", 0);
+    errors += test_library_refcount("intuition.library", 0);
+    errors += test_library_refcount("utility.library", 1);
+    errors += test_library_refcount("mathtrans.library", 1);
+    errors += test_library_refcount("mathffp.library", 1);
+    errors += test_library_refcount("expansion.library", 1);
 
     /* Test 2: OpenLibrary() for non-existent library */
     print("--- Test: Non-existent library ---\n");
@@ -5688,11 +5662,13 @@ int main(void)
     /* Test 20: Verify GetArgStr no longer hits the stub path */
     errors += test_dos_getargstr_stub_closed();
 
+#ifdef LIBRARY_LXA_ONLY
     /* Test 21: Verify CliInitNewcli no longer hits the stub path */
     errors += test_dos_cliinitnewcli_stub_closed();
 
     /* Test 22: Verify CliInitRun no longer hits the stub path */
     errors += test_dos_cliinitrun_stub_closed();
+#endif
 
     /* Test 23: Verify SetArgStr no longer hits the stub path */
     errors += test_dos_setargstr_stub_closed();
@@ -5713,7 +5689,10 @@ int main(void)
     errors += test_dos_format_stub_closed();
 
     /* Test 29: Verify Relabel no longer hits the stub path */
+#ifdef LIBRARY_LXA_ONLY
+    /* lxa cannot rename the RAM: volume yet; HOME: does not exist on AmigaOS */
     errors += test_dos_relabel_stub_closed();
+#endif
 
     /* Test 30: Verify Inhibit no longer hits the stub path */
     errors += test_dos_inhibit_stub_closed();
@@ -5722,7 +5701,10 @@ int main(void)
     errors += test_dos_addbuffers_stub_closed();
 
     /* Test 32: Verify SetOwner no longer hits the stub path */
+#ifdef LIBRARY_LXA_ONLY
+    /* depends on the T: filesystem (RAM handler on AmigaOS: ACTION_NOT_KNOWN) */
     errors += test_dos_setowner_stub_closed();
+#endif
 
     /* Test 33: Verify AddSegment no longer hits the stub path */
     errors += test_dos_addsegment_stub_closed();

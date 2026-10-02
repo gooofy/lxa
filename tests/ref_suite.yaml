@@ -16,3 +16,8 @@ Tests/Intuition/IDCMPDeltaMove: {interactive: "waits for mouse moves injected by
 Tests/Intuition/IDCMPMenuVerify: {interactive: "waits for an RMB press injected by intuition_gtest", phase: 224}
 Tests/Intuition/IDCMPSizeVerify: {interactive: "waits for a sizing-gadget drag injected by intuition_gtest", phase: 224}
 Tests/Intuition/RequesterBasic: {interactive: "waits for requester clicks injected by intuition_gtest", phase: 224}
+Tests/Exec/DisklibStubs:        {lxa_only: "checks the third-party libraries (req, reqtools, powerpacker, arp) lxa ships in System/Libs; a Workbench 3.1 install has none of them"}
+Tests/Exec/StubProbe:           {lxa_only: "exercises lxa's stub telemetry (Phase 203): its output names the lxa functions that are still stubs"}
+Tests/Exec/NullSafety:          {lxa_only: "lxa's tolerance of NULL semaphores, Cause(NULL) and ParseDate(NULL date); real AmigaOS 3.1 crashes or hangs on these inputs"}
+Tests/Exec/MathIeeeSingBasMulDiv: {lxa_only: "IEEESPMul/IEEESPDiv never return on the FS-UAE A4000/040 reference (reported, suspected emulator FPU issue); everything else is in the reference-validated MathIeeeSingBas"}
+Tests/Expansion/BoardConfig:    {lxa_only: "boot-time AutoConfig (AllocExpansionMem/ConfigBoard/ConfigChain with absolute slots): results depend on the machine's Zorro boards, ConfigBoard writes the live AutoConfig space and AllocExpansionMem(0) hangs AmigaOS 3.1"}

@@ -142,9 +142,14 @@ int main(void)
         return 20;
     }
 
-    board_a = alloc_config_dev(1000, 1);
-    board_b = alloc_config_dev(2000, 2);
-    board_c = alloc_config_dev(1000, 3);
+    /* The board list of a real machine is not empty (Zorro boards): use
+     * manufacturer IDs no real board has and only look at our own nodes. */
+#define MFG_A 0x7ff0
+#define MFG_B 0x7ff1
+#define MFG_NONE 0x7ffe
+    board_a = alloc_config_dev(MFG_A, 1);
+    board_b = alloc_config_dev(MFG_B, 2);
+    board_c = alloc_config_dev(MFG_A, 3);
 
     if (board_a == NULL || board_b == NULL || board_c == NULL)
     {
@@ -156,19 +161,15 @@ int main(void)
         return 20;
     }
 
-    found = FindConfigDev(NULL, -1, -1);
-    expect_ptr(found, NULL, "FindConfigDev returns NULL on empty list");
-
-    AddConfigDev(NULL);
-    found = FindConfigDev(NULL, -1, -1);
-    expect_ptr(found, NULL, "AddConfigDev(NULL) leaves list unchanged");
+    found = FindConfigDev(NULL, MFG_A, -1);
+    expect_ptr(found, NULL, "FindConfigDev returns NULL when no board matches");
 
     AddConfigDev(board_a);
     AddConfigDev(board_b);
     AddConfigDev(board_c);
 
-    found = FindConfigDev(NULL, -1, -1);
-    expect_ptr(found, board_a, "FindConfigDev starts at list head");
+    found = FindConfigDev(NULL, MFG_A, -1);
+    expect_ptr(found, board_a, "FindConfigDev finds the first added board");
 
     found = FindConfigDev(board_a, -1, -1);
     expect_ptr(found, board_b, "FindConfigDev continues after previous match");
@@ -179,51 +180,47 @@ int main(void)
     found = FindConfigDev(board_c, -1, -1);
     expect_ptr(found, NULL, "FindConfigDev returns NULL after last entry");
 
-    found = FindConfigDev(NULL, 1000, -1);
-    expect_ptr(found, board_a, "FindConfigDev matches manufacturer wildcard product");
-
-    found = FindConfigDev(board_a, 1000, -1);
+    found = FindConfigDev(board_a, MFG_A, -1);
     expect_ptr(found, board_c, "FindConfigDev finds later manufacturer match");
 
-    found = FindConfigDev(NULL, -1, 2);
-    expect_ptr(found, board_b, "FindConfigDev matches product wildcard manufacturer");
+    found = FindConfigDev(NULL, MFG_B, -1);
+    expect_ptr(found, board_b, "FindConfigDev matches manufacturer with wildcard product");
 
-    found = FindConfigDev(NULL, 1000, 3);
+    found = FindConfigDev(board_a, -1, 2);
+    expect_ptr(found, board_b, "FindConfigDev matches product with wildcard manufacturer");
+
+    found = FindConfigDev(NULL, MFG_A, 3);
     expect_ptr(found, board_c, "FindConfigDev matches exact manufacturer and product");
 
-    found = FindConfigDev(NULL, 9999, -1);
+    found = FindConfigDev(NULL, MFG_NONE, -1);
     expect_ptr(found, NULL, "FindConfigDev returns NULL for missing manufacturer");
 
     RemConfigDev(board_b);
 
-    found = FindConfigDev(NULL, -1, -1);
+    found = FindConfigDev(NULL, MFG_A, -1);
     expect_ptr(found, board_a, "RemConfigDev keeps earlier entries accessible");
 
     found = FindConfigDev(board_a, -1, -1);
     expect_ptr(found, board_c, "RemConfigDev unlinks removed middle entry");
 
-    found = FindConfigDev(NULL, -1, 2);
+    found = FindConfigDev(NULL, MFG_B, -1);
     expect_ptr(found, NULL, "Removed entry no longer matches searches");
-
-    RemConfigDev(NULL);
-    found = FindConfigDev(NULL, 1000, 3);
-    expect_ptr(found, board_c, "RemConfigDev(NULL) is a no-op");
 
     AddConfigDev(board_b);
     found = FindConfigDev(board_c, -1, -1);
     expect_ptr(found, board_b, "Re-added entry is appended to tail");
 
     RemConfigDev(board_a);
-    found = FindConfigDev(NULL, -1, -1);
-    expect_ptr(found, board_c, "Removing head promotes next entry");
+    found = FindConfigDev(NULL, MFG_A, -1);
+    expect_ptr(found, board_c, "Removing an entry promotes the next match");
 
     RemConfigDev(board_b);
-    found = FindConfigDev(NULL, -1, -1);
-    expect_ptr(found, board_c, "Removing tail leaves remaining entry");
+    found = FindConfigDev(board_c, -1, -1);
+    expect_ptr(found, NULL, "Removing tail leaves remaining entry last");
 
     RemConfigDev(board_c);
-    found = FindConfigDev(NULL, -1, -1);
-    expect_ptr(found, NULL, "Removing final entry empties list");
+    found = FindConfigDev(NULL, MFG_A, -1);
+    expect_ptr(found, NULL, "Removing final entry leaves no test board");
 
     free_if_nonnull(board_a, sizeof(struct ConfigDev));
     free_if_nonnull(board_b, sizeof(struct ConfigDev));

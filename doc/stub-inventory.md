@@ -24,11 +24,12 @@ implementing the function, never by deleting the macro.
 | icon | 0 | 2 | 0 |
 | intuition | 3 | 17 | 11 |
 | layers | 0 | 1 | 0 |
+| locale | 0 | 1 | 0 |
 | rexxsyslib | 17 | 0 | 0 |
 | translator | 1 | 0 | 0 |
 | utility | 0 | 0 | 7 |
 | workbench | 0 | 0 | 3 |
-| **total** | **85** | **39** | **49** |
+| **total** | **85** | **40** | **49** |
 
 ## amigaguide
 
@@ -210,6 +211,10 @@ implementing the function, never by deleting the macro.
 ## layers
 
 - `ScrollLayer` — partial: SuperBitMap layers only update scroll offsets, no SyncSBitMap/CopySBitMap (Phase 256) (`src/rom/lxa_layers.c`)
+
+## locale
+
+- `OpenLocale` — partial: locale prefs files are not parsed, the default locale is returned (`src/rom/lxa_locale.c`)
 
 ## rexxsyslib
 

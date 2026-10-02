@@ -548,42 +548,6 @@ int main(void)
         }
     }
     
-    /* Test 12: InitSemaphore(NULL) should not crash */
-    print("\nTest 12: InitSemaphore(NULL) safety\n");
-    InitSemaphore(NULL);
-    test_ok("InitSemaphore(NULL) did not crash");
-    
-    /* Test 13: ObtainSemaphore(NULL) should not crash */
-    print("\nTest 13: ObtainSemaphore(NULL) safety\n");
-    ObtainSemaphore(NULL);
-    test_ok("ObtainSemaphore(NULL) did not crash");
-    
-    /* Test 14: ReleaseSemaphore(NULL) should not crash */
-    print("\nTest 14: ReleaseSemaphore(NULL) safety\n");
-    ReleaseSemaphore(NULL);
-    test_ok("ReleaseSemaphore(NULL) did not crash");
-    
-    /* Test 15: Shared semaphore NULL safety */
-    print("\nTest 15: Shared semaphore NULL safety\n");
-    ObtainSemaphoreShared(NULL);
-    test_ok("ObtainSemaphoreShared(NULL) did not crash");
-
-    result = AttemptSemaphoreShared(NULL);
-    if (result == 0) {
-        test_ok("AttemptSemaphoreShared(NULL) returns FALSE");
-    } else {
-        test_fail_msg("AttemptSemaphoreShared(NULL) should return FALSE");
-    }
-
-    /* Test 16: AttemptSemaphore(NULL) should return FALSE */
-    print("\nTest 16: AttemptSemaphore(NULL)\n");
-    result = AttemptSemaphore(NULL);
-    if (result == 0) {
-        test_ok("AttemptSemaphore(NULL) returns FALSE");
-    } else {
-        test_fail_msg("AttemptSemaphore(NULL) should return FALSE");
-    }
-    
     /* Cleanup */
     FreeMem(sem, sizeof(struct SignalSemaphore));
     

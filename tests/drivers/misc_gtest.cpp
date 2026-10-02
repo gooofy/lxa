@@ -87,6 +87,10 @@ TEST_F(MiscTest, ExpansionMemConfig) {
     RunMiscTest("Expansion", "MemConfig");
 }
 
+TEST_F(MiscTest, ExpansionBoardConfig) {
+    RunMiscTest("Expansion", "BoardConfig");
+}
+
 TEST_F(MiscTest, ExpansionDosBinding) {
     RunMiscTest("Expansion", "DosBinding");
 }

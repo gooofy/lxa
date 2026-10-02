@@ -19,7 +19,7 @@
  * 1. Loads SysInfo binary and verifies it's valid
  * 2. Launches SysInfo as a background process
  * 3. Waits and verifies a window opens
- * 4. Reports success and exits (bg process is abandoned)
+ * 4. Closes the app again (IDCMP_CLOSEWINDOW) and waits for it to exit
  */
 
 #include <exec/types.h>
@@ -84,6 +84,8 @@ static void print_num(const char *prefix, LONG val, const char *suffix)
     print(buf);
 }
 
+#include "../app_close.h"
+
 /*
  * Count total windows across all screens.
  */
@@ -144,7 +146,6 @@ int main(void)
     print("\n--- Test 2: Launch SysInfo as background process ---\n");
     
     initial_windows = count_windows();
-    print_num("  Initial window count: ", initial_windows, "\n");
 
     {
         BPTR nilIn = Open((STRPTR)"NIL:", MODE_OLDFILE);
@@ -205,10 +206,11 @@ int main(void)
     }
 
     windows_after = count_windows();
-    print_num("  Window count after launch: ", windows_after, "\n");
 
     if (windows_after > initial_windows) {
         print("OK: SysInfo window opened\n");
+        if (!close_app(proc))
+            errors++;
     } else {
         print("FAIL: No SysInfo window opened\n");
         errors++;

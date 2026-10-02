@@ -1160,6 +1160,14 @@
   "symbol": "_layers_ScrollLayer"
  },
  {
+  "lib": "locale",
+  "function": "OpenLocale",
+  "kind": "partial",
+  "detail": "partial: locale prefs files are not parsed, the default locale is returned",
+  "file": "src/rom/lxa_locale.c",
+  "symbol": "_locale_OpenLocale"
+ },
+ {
   "lib": "rexxsyslib",
   "function": "CreateArgstring",
   "kind": "stub",
