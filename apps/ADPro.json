@@ -1,0 +1,33 @@
+{
+    "dir": "ADPro",
+    "name": "Art Department Professional",
+    "version": "2.5.1",
+    "description": "ASDG image processing",
+    "executable": "ADPro",
+    "kind": "gui",
+    "assigns": {
+        "ADPRO": "",
+        "ADP_FRED": "",
+        "ADPROSCRIPTS": "Commands2",
+        "FREDSCRIPTS": "FREDScripts",
+        "LIBS": ""
+    },
+    "libraries": [
+        "adpro.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 30,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/ADPro)",
+    "notes": [
+        "adpro.library ships in the app directory (LIBS: ADD)"
+    ]
+}

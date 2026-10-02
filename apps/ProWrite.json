@@ -1,0 +1,26 @@
+{
+    "dir": "ProWrite",
+    "name": "ProWrite",
+    "version": "3.3",
+    "description": "New Horizons word processor",
+    "executable": "ProWrite",
+    "kind": "gui",
+    "assigns": {},
+    "libraries": [
+        "hotlinks.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "hotlinks.library is optional (HotLinks publish/subscribe)"
+    ]
+}

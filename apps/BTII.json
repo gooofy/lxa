@@ -1,0 +1,27 @@
+{
+    "dir": "BTII",
+    "name": "BeckerText II",
+    "version": "2.x",
+    "description": "Data Becker word processor (German)",
+    "executable": "BT-II",
+    "kind": "gui",
+    "assigns": {
+        "FONTS": "fonts"
+    },
+    "libraries": [],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 34,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/BTII)",
+    "notes": [
+        "Bundled Commodore math libraries and Topaz font were not copied"
+    ]
+}

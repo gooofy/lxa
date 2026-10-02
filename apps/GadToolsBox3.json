@@ -1,0 +1,31 @@
+{
+    "dir": "GadToolsBox3",
+    "name": "GadToolsBox",
+    "version": "3.0",
+    "description": "GadTools GUI designer / source generator",
+    "executable": "GadToolsBox",
+    "kind": "gui",
+    "assigns": {
+        "LIBS": "Libs"
+    },
+    "libraries": [
+        "popupmenu.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 39,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/GadToolsBox3)",
+    "notes": [
+        "popupmenu.library copied into Libs/, the third-party page/progress/listview/textfield gadgets into Libs/gadgets/ and smartbitmap.image into Libs/images/ from the user's FS-UAE system (Libs, Classes)",
+        "Also needs the AmigaOS 3.1 classes colorwheel.gadget, gradientslider.gadget and tapedeck.gadget",
+        "Asks for a screen mode at first start (no prefs)"
+    ]
+}

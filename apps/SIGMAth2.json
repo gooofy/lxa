@@ -1,0 +1,28 @@
+{
+    "dir": "SIGMAth2",
+    "name": "SIGMAth 2",
+    "version": "2.0",
+    "description": "Mathematics package (German)",
+    "executable": "SIGMAth_2",
+    "kind": "gui",
+    "assigns": {
+        "LIBS": "Libs"
+    },
+    "libraries": [
+        "rct.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "rct.library copied into Libs/ from the user's FS-UAE system Libs (Phase 230)"
+    ]
+}

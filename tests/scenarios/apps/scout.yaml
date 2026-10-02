@@ -1,0 +1,10 @@
+# Phase 230 launch scenario: the compat DB (apps/compat.yaml) derives the
+# rating of Scout from it.  Window title from the discovery twin run.
+name: app-scout
+app: {manifest: Scout}
+steps:
+  - launch
+  - wait_window: {title: "SCOUT", timeout: 30000}
+  - frames: 100
+  - snapshot: startup
+  - quit

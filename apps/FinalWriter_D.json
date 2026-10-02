@@ -1,0 +1,36 @@
+{
+    "dir": "FinalWriter_D",
+    "name": "Final Writer (German)",
+    "version": "4.x",
+    "description": "SoftWood word processor",
+    "executable": "FinalWriter",
+    "kind": "gui",
+    "assigns": {
+        "FinalWriter": "",
+        "LIBS": "FWLibs",
+        "FONTS": "FWFonts"
+    },
+    "libraries": [
+        "cachemap.library",
+        "downloader.library",
+        "fwarexx.library",
+        "fwfiltertype.library",
+        "qfont.library",
+        "swpost.library",
+        "swshell.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 30,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "notes": [
+        "All SoftWood libraries are bundled in FWLibs"
+    ]
+}

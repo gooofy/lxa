@@ -1,0 +1,30 @@
+{
+    "dir": "EdWordPro",
+    "name": "EdWord Professional",
+    "version": "6.0",
+    "description": "Text editor",
+    "executable": "EdWordPro",
+    "kind": "gui",
+    "assigns": {
+        "LIBS": "Libs"
+    },
+    "libraries": [
+        "reqtools.library",
+        "rexxhost.library"
+    ],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 37,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/EdWordPro)",
+    "notes": [
+        "reqtools.library copied into Libs/; rexxhost.library is not available (optional ARexx host)"
+    ]
+}

@@ -1,0 +1,25 @@
+{
+    "dir": "AmigaBasic",
+    "name": "AmigaBASIC",
+    "version": "1.2",
+    "description": "Microsoft BASIC interpreter for the Amiga",
+    "executable": "AmigaBASIC",
+    "kind": "gui",
+    "assigns": {},
+    "libraries": [],
+    "requirements": {
+        "graphics": true,
+        "intuition": true,
+        "kickstart_version": 33,
+        "profile": "aga"
+    },
+    "test": {
+        "timeout": 20,
+        "expected_returncode": 0,
+        "args": ""
+    },
+    "source": "user's FS-UAE system disk (~/media/emu/amiga/FS-UAE/hdd/system/Apps/AmigaBasic)",
+    "notes": [
+        "Commodore Extras files (Say, Tools, PCUtil, devs) were not copied"
+    ]
+}

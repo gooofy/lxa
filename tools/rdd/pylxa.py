@@ -93,7 +93,7 @@ class Lxa:
         if os.path.isdir(disklibs):
             self.assign_add("LIBS", disklibs)
         self.assign("C", os.path.join(self.build, "target", "sys", "C"))
-        apps = apps or os.path.normpath(os.path.join(ROOT, "..", "lxa-apps"))
+        apps = apps or os.environ.get("LXA_APPS") or os.path.normpath(os.path.join(ROOT, "..", "lxa-apps"))
         if os.path.isdir(apps):
             self.assign("APPS", apps)
         gadgets = os.path.join(system, "Libs", "gadgets")
@@ -212,15 +212,38 @@ class Lxa:
         """Like lxaprobe WAIT_WINDOW: index of the first window whose title
         contains substr, or -1."""
         start = self.lib.lxa_get_time_us()
+        polls = 0
         while self.lib.lxa_get_time_us() - start < timeout_ms * 1000:
             for i in range(self.lib.lxa_get_window_count()):
                 info = LxaWindowInfo()
                 if self.lib.lxa_get_window_info(i, ctypes.byref(info)) and substr.encode() in info.title:
                     return i
+            # the tracked title is the one passed to OpenWindow; a title set
+            # later (SetWindowTitles) is only visible in the Intuition tree,
+            # which is also what lxaprobe's WAIT_WINDOW searches
+            if polls % 5 == 0 and self._tree_has_title(substr):
+                return 0
+            polls += 1
             if not self.running():
                 break
             self.frames(2)
-        return -1
+        return 0 if self._tree_has_title(substr) else -1
+
+    def _tree_has_title(self, substr):
+        import json
+        import tempfile
+        fd, p = tempfile.mkstemp(suffix=".json", prefix="pylxa-tree-")
+        os.close(fd)
+        try:
+            self.dump_tree(p)
+            with open(p, encoding="utf-8", errors="replace") as f:
+                tree = json.load(f)
+        except (RuntimeError, OSError, ValueError):
+            return False
+        finally:
+            os.unlink(p)
+        return any(substr in (w.get("title") or "") for s in tree.get("screens", []) for w in s.get("windows", [])
+                   if w.get("title") is not None)
 
     def wait_idle(self, iterations=50):
         self.lib.lxa_run_until_idle(iterations, 100000)
