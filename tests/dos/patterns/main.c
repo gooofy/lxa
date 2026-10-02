@@ -5,6 +5,7 @@
 
 #include <exec/types.h>
 #include <dos/dos.h>
+#include <dos/dosextens.h>
 #include <clib/dos_protos.h>
 #include <inline/dos.h>
 
@@ -56,7 +57,7 @@ static void test_match(const char *pattern, const char *str, BOOL expected, cons
     /* Parse the pattern */
     pat_result = ParsePattern((CONST_STRPTR)pattern, pat_buf, sizeof(pat_buf));
     
-    if (pat_result == 0) {
+    if (pat_result < 0) {
         print("FAIL [");
         print(desc);
         print("]: ParsePattern failed for '");
@@ -104,7 +105,7 @@ static void test_match_nocase(const char *pattern, const char *str, BOOL expecte
 
     pat_result = ParsePatternNoCase((CONST_STRPTR)pattern, pat_buf, sizeof(pat_buf));
 
-    if (pat_result == 0) {
+    if (pat_result < 0) {
         print("FAIL [");
         print(desc);
         print("]: ParsePatternNoCase failed for '");
@@ -143,71 +144,44 @@ static void test_match_nocase(const char *pattern, const char *str, BOOL expecte
     }
 }
 
-static void test_parse_pattern(const char *pattern, LONG expected_type, const char *desc)
+/* ParsePattern() returns 1 for a wildcard pattern, 0 for a literal one and
+ * -1 on error (AmigaOS 3.1). */
+static void test_parse_pattern(const char *pattern, LONG expected, const char *desc)
 {
     UBYTE pat_buf[256];
     LONG result;
-    
+
     result = ParsePattern((CONST_STRPTR)pattern, pat_buf, sizeof(pat_buf));
-    
-    if (expected_type < 0) {
-        /* Expecting literal (no wildcards) */
-        if (result < 0) {
-            print("PASS [");
-            print(desc);
-            print("]: '");
-            print(pattern);
-            print("' parsed as literal\n");
-            tests_passed++;
-        } else {
-            print("FAIL [");
-            print(desc);
-            print("]: '");
-            print(pattern);
-            print("' expected literal, got ");
-            print_num(result);
-            print("\n");
-            tests_failed++;
-        }
-    } else if (expected_type == 0) {
-        /* Expecting error */
-        if (result == 0) {
-            print("PASS [");
-            print(desc);
-            print("]: '");
-            print(pattern);
-            print("' returned error as expected\n");
-            tests_passed++;
-        } else {
-            print("FAIL [");
-            print(desc);
-            print("]: '");
-            print(pattern);
-            print("' expected error, got ");
-            print_num(result);
-            print("\n");
-            tests_failed++;
-        }
+
+    if (result == expected) {
+        print("PASS [");
+        print(desc);
+        print("]: '");
+        print(pattern);
+        print(expected > 0 ? "' parsed as wildcard pattern\n" :
+              expected == 0 ? "' parsed as literal\n" : "' returned error as expected\n");
+        tests_passed++;
     } else {
-        /* Expecting wildcard pattern */
-        if (result > 0) {
-            print("PASS [");
-            print(desc);
-            print("]: '");
-            print(pattern);
-            print("' parsed as wildcard pattern\n");
-            tests_passed++;
-        } else {
-            print("FAIL [");
-            print(desc);
-            print("]: '");
-            print(pattern);
-            print("' expected wildcard, got ");
-            print_num(result);
-            print("\n");
-            tests_failed++;
-        }
+        print("FAIL [");
+        print(desc);
+        print("]: '");
+        print(pattern);
+        print("' expected ");
+        print_num(expected);
+        print(", got ");
+        print_num(result);
+        print("\n");
+        tests_failed++;
     }
+}
+
+static void set_wildstar(BOOL on)
+{
+    struct RootNode *rn = (struct RootNode *)DOSBase->dl_Root;
+    if (on)
+        rn->rn_Flags |= RNF_WILDSTAR;
+    else
+        rn->rn_Flags &= ~RNF_WILDSTAR;
 }
 
 int main(void)
@@ -216,10 +190,18 @@ int main(void)
     
     /* Test 1: ParsePattern return values */
     print("--- ParsePattern Return Values ---\n");
-    test_parse_pattern("hello", -1, "literal string");
-    test_parse_pattern("hello.txt", -1, "literal with dot");
+    test_parse_pattern("hello", 0, "literal string");
+    test_parse_pattern("hello.txt", 0, "literal with dot");
     test_parse_pattern("#?", 1, "any string wildcard");
-    test_parse_pattern("*.c", 1, "star wildcard");
+    test_parse_pattern("*.c", 0, "star is literal by default");
+    test_parse_pattern("a%b", 0, "percent is not a wildcard");
+    test_parse_pattern("a'?b", 1, "escaped wildcard");
+    test_parse_pattern("~a", 1, "negation");
+    test_parse_pattern("[ab]", 1, "character class");
+    test_parse_pattern("a|b", -1, "bar outside group is an error");
+    test_parse_pattern("(a|b", -1, "unclosed group is an error");
+    test_parse_pattern("a)", -1, "unopened group is an error");
+    test_parse_pattern("[a-", -1, "unclosed class is an error");
     test_parse_pattern("test?", 1, "single char wildcard");
     test_parse_pattern("file#?", 1, "hash question wildcard");
     test_parse_pattern("(foo|bar)", 1, "alternation group");
@@ -258,15 +240,22 @@ int main(void)
     test_match("#?.c", "test.txt", FALSE, "#? respects suffix");
     print("\n");
     
-    /* Test 5: Star wildcard (*) - treated like #? */
-    print("--- Star Wildcard (*) ---\n");
-    test_match("*", "", TRUE, "* matches empty");
-    test_match("*", "hello", TRUE, "* matches word");
-    test_match("*.c", "test.c", TRUE, "*.c matches");
-    test_match("test*", "test", TRUE, "test* matches test");
-    test_match("test*", "testing", TRUE, "test* matches testing");
-    test_match("test*.c", "test.c", TRUE, "test*.c matches test.c");
-    test_match("test*.c", "test123.c", TRUE, "test*.c matches test123.c");
+    /* Test 5: Star (*) - a literal character unless RNF_WILDSTAR is set */
+    print("--- Star (*) ---\n");
+    test_match("*", "*", TRUE, "* matches a literal star");
+    test_match("*", "", FALSE, "* does not match empty");
+    test_match("*", "hello", FALSE, "* does not match word");
+    test_match("*.c", "test.c", FALSE, "*.c does not match test.c");
+    test_match("*.c", "*.c", TRUE, "*.c matches literal *.c");
+    set_wildstar(TRUE);
+    test_parse_pattern("*.c", 1, "star is a wildcard with RNF_WILDSTAR");
+    test_match("*", "", TRUE, "WILDSTAR * matches empty");
+    test_match("*", "hello", TRUE, "WILDSTAR * matches word");
+    test_match("test*", "testing", TRUE, "WILDSTAR test* matches testing");
+    test_match("test*.c", "test123.c", TRUE, "WILDSTAR test*.c matches test123.c");
+    test_match("a'*", "a*", TRUE, "WILDSTAR escaped star is literal");
+    test_match("a'*", "ab", FALSE, "WILDSTAR escaped star rejects others");
+    set_wildstar(FALSE);
     print("\n");
     
     /* Test 6: Repeated character wildcard (#c) */
@@ -324,6 +313,10 @@ int main(void)
     test_match("#?#?", "hello", TRUE, "double #? pattern");
     test_match("[~a-z]", "7", TRUE, "negated class matches digit");
     test_match("[~a-z]", "g", FALSE, "negated class rejects range");
+    test_match("a%b", "ab", TRUE, "percent matches the empty string");
+    test_match("a'?b", "a?b", TRUE, "escaped ? matches literal ?");
+    test_match("a'?b", "axb", FALSE, "escaped ? is not a wildcard");
+    test_match("'", "'", TRUE, "lone quote is literal");
     print("\n");
     
     /* Summary */

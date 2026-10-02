@@ -30,6 +30,15 @@ static void print(const char *s)
     Write(out, (CONST APTR)s, len);
 }
 
+/* The SYS: volume is called "SYS" on lxa and "System" on AmigaOS: print
+ * NameFromLock() results relative to the volume root (":dir/sub"). */
+static void print_path(const char *path)
+{
+    const char *p = path;
+    while (*p && *p != ':') p++;
+    print(*p ? p : path);
+}
+
 /* Helper to get and print current directory path */
 static void print_curdir(const char *prefix)
 {
@@ -41,7 +50,7 @@ static void print_curdir(const char *prefix)
     if (lock) {
         char buf[256];
         if (NameFromLock(lock, (STRPTR)buf, sizeof(buf))) {
-            print(buf);
+            print_path(buf);
         } else {
             print("(NameFromLock failed)");
         }
@@ -142,7 +151,7 @@ int main(void)
     if (lock) {
         if (NameFromLock(lock, (STRPTR)buf, sizeof(buf))) {
             print("  Lock(\"/\") => ");
-            print(buf);
+            print_path(buf);
             print("\n");
             
             /* Verify it has a colon (absolute path) */
@@ -173,7 +182,7 @@ int main(void)
         if (lock) {
             if (NameFromLock(lock, (STRPTR)buf, sizeof(buf))) {
                 print("  Lock(\"//\") => ");
-                print(buf);
+                print_path(buf);
                 print("\n");
                 
                 /* Should be at SYS: (root) */
@@ -233,7 +242,7 @@ int main(void)
         if (lock) {
             if (NameFromLock(lock, (STRPTR)buf, sizeof(buf))) {
                 print("  Lock(\"/SiblingDir\") => ");
-                print(buf);
+                print_path(buf);
                 print("\n");
                 print("  PASS: Combined parent + relative path works\n");
             }

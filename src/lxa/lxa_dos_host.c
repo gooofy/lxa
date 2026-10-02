@@ -1791,6 +1791,28 @@ static bool _resolve_amiga_path_host(const char *amiga_path, char *linux_path, s
     return linux_path[0] != '\0';
 }
 
+/* "." and ".." are ordinary (normally nonexistent) names in AmigaDOS, not
+ * the current/parent directory as on the host. */
+static bool _amiga_path_has_dot_component(const char *amiga_path)
+{
+    const char *p = amiga_path;
+
+    while (p && *p)
+    {
+        const char *start = p;
+        size_t len;
+
+        while (*p && *p != '/' && *p != ':')
+            p++;
+        len = (size_t)(p - start);
+        if ((len == 1 && start[0] == '.') || (len == 2 && start[0] == '.' && start[1] == '.'))
+            return *p != ':';
+        if (*p)
+            p++;
+    }
+    return false;
+}
+
 /* Lock a file or directory */
 uint32_t _dos_lock(uint32_t name68k, int32_t mode)
 {
@@ -1798,6 +1820,11 @@ uint32_t _dos_lock(uint32_t name68k, int32_t mode)
     char linux_path[PATH_MAX];
     
     DPRINTF(LOG_DEBUG, "lxa: _dos_lock: amiga_path='%s'\n", amiga_path);
+
+    if (_amiga_path_has_dot_component(amiga_path)) {
+        g_dos_last_error = ERROR_OBJECT_NOT_FOUND;
+        return 0;
+    }
 
     
     /* Resolve the Amiga path to Linux path */
@@ -2364,7 +2391,7 @@ uint32_t _dos_parentdir(uint32_t lock_id)
     }
 
     /* The root of a volume has no parent: ParentDir() returns 0 */
-    if (vfs_is_drive_root(lock->linux_path)) {
+    if (vfs_is_volume_root(lock->linux_path)) {
         return 0;
     }
     
@@ -2378,6 +2405,7 @@ uint32_t _dos_parentdir(uint32_t lock_id)
         return 0;
     }
     *last_slash = '\0';
+
     
     /* Find parent path (amiga) */
     char parent_amiga[PATH_MAX];

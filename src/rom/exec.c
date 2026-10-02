@@ -5405,7 +5405,8 @@ void _bootstrap(void)
             BPTR dirLock = Lock((STRPTR)dirbuf, ACCESS_READ);
             if (dirLock) {
                 struct Process *me = U_getCurrentProcess();
-                me->pr_CurrentDir = dirLock;
+                /* CurrentDir() also records the name in cli_SetName */
+                CurrentDir(dirLock);
                 me->pr_HomeDir = DupLock(dirLock);  /* Also set HomeDir for PROGDIR: */
                 DPRINTF (LOG_INFO, "_exec: _bootstrap(): current dir lock=0x%08lx\n", dirLock);
             } else {
@@ -5979,28 +5980,40 @@ void coldstart (void)
 
     //BPTR oldpath = 0;
 
-    struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, (struct TagItem *)NULL);
-    cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
-
-    /* cli_CommandDir is left at 0 (NULL) — command path is managed by the shell
+    /* cli_CommandDir is left at 0 (NULL) - command path is managed by the shell
      * via the Path command and DOS path list. The initial bootstrap process
      * doesn't need a pre-populated command directory path. */
     char *binfn = AllocVec (1024, MEMF_CLEAR);
     emucall1 (EMU_CALL_LOADFILE, (ULONG) binfn);
+    LONG binlen = strlen(binfn);
+    if (binlen > 255)
+        binlen = 255;
+
+    /* Buffer sizes of a CLI started by the AmigaOS 3.1 shell (verified on
+     * the reference: SetCurrentDirName/SetProgramName/SetPrompt keep at
+     * most 78/102/58 characters).  A longer host program path is kept. */
+    struct TagItem cli_tags[] = {
+        { ADO_DirLen,      78 },
+        { ADO_CommNameLen, binlen > 102 ? binlen : 102 },
+        { ADO_PromptLen,   58 },
+        { TAG_DONE,        0 }
+    };
+    struct CommandLineInterface *cli = (struct CommandLineInterface *) AllocDosObject (DOS_CLI, cli_tags);
+    cli->cli_DefaultStack = (rootProc->pr_StackSize + 3) / 4;
+
     {
-        LONG binlen = strlen(binfn);
-        UBYTE *binbstr = AllocVec((ULONG)binlen + 2, MEMF_PUBLIC | MEMF_CLEAR);
-        if (binbstr)
-        {
-            binbstr[0] = (UBYTE)binlen;
-            CopyMem(binfn, binbstr + 1, (ULONG)binlen);
-            FreeVec(binfn);
-            cli->cli_CommandName = MKBADDR(binbstr);
-        }
-        else
-        {
-            cli->cli_CommandName = MKBADDR(binfn);
-        }
+        UBYTE *namebstr = (UBYTE *)BADDR(cli->cli_CommandName);
+        UBYTE *promptbstr = (UBYTE *)BADDR(cli->cli_Prompt);
+
+        namebstr[0] = (UBYTE)binlen;
+        CopyMem(binfn, namebstr + 1, (ULONG)binlen);
+        namebstr[binlen + 1] = '\0';
+        FreeVec(binfn);
+
+        /* the default shell prompt */
+        promptbstr[0] = 4;
+        CopyMem((APTR)"%N> ", promptbstr + 1, 4);
+        promptbstr[5] = '\0';
     }
 
     // Get command line arguments
