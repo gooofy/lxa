@@ -1,0 +1,10 @@
+# Starter scenario (Phase 213): the GadTools gadget sample.
+name: simplegtgadget
+app:
+  sample: SimpleGTGadget
+steps:
+  - launch
+  - wait_window: "GadTools Gadget Demo"
+  - wait_idle
+  - snapshot: {name: startup, window: "GadTools Gadget Demo"}
+  - quit

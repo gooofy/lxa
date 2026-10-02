@@ -1,0 +1,21 @@
+{
+ "backend": "ref",
+ "files": [
+  "screen.png",
+  "palette.json",
+  "tree.json",
+  "text.jsonl",
+  "stdout.txt"
+ ],
+ "profile": "aga",
+ "refsys_checksum": "cedc3c4e23f62f51-c010031f6b2d",
+ "scenario": "dopus-startup",
+ "schema": "lxa-bundle/1",
+ "screen": {
+  "depth": 3,
+  "height": 256,
+  "width": 640
+ },
+ "snapshot": "startup",
+ "window": null
+}

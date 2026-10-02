@@ -493,6 +493,40 @@ if(BUILD_GTESTS AND GTEST_FOUND)
             ENVIRONMENT "LXA_BUILD=${CMAKE_BINARY_DIR}"
         )
 
+        # Phase 215: reference goldens (tests/golden/<app>/<scenario>), one
+        # test per golden.  Picked up at configure time; a golden is
+        # quarantined via "disabled": {"phase": N} in its golden.json.
+        file(GLOB _golden_jsons CONFIGURE_DEPENDS
+            ${CMAKE_SOURCE_DIR}/tests/golden/*/*/golden.json)
+        foreach(_gj ${_golden_jsons})
+            get_filename_component(_gdir ${_gj} DIRECTORY)
+            get_filename_component(_gscn ${_gdir} NAME)
+            get_filename_component(_gapp_dir ${_gdir} DIRECTORY)
+            get_filename_component(_gapp ${_gapp_dir} NAME)
+            file(READ ${_gj} _gjson)
+            string(JSON _gdisabled ERROR_VARIABLE _gerr GET ${_gjson} disabled)
+            add_test(
+                NAME golden_${_gapp}_${_gscn}
+                COMMAND ${Python3_EXECUTABLE} -m rdd golden ${_gdir}
+                    --build ${CMAKE_BINARY_DIR}
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools
+            )
+            set_tests_properties(golden_${_gapp}_${_gscn} PROPERTIES
+                TIMEOUT 180
+                LABELS "golden"
+                SKIP_RETURN_CODE 77
+            )
+            if(NOT _gerr AND NOT _gdisabled STREQUAL "null" AND NOT _gdisabled STREQUAL "")
+                set_tests_properties(golden_${_gapp}_${_gscn} PROPERTIES DISABLED TRUE)
+            endif()
+        endforeach()
+        add_test(
+            NAME golden_lint
+            COMMAND ${Python3_EXECUTABLE} -m rdd golden --lint
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools
+        )
+        set_tests_properties(golden_lint PROPERTIES TIMEOUT 60 LABELS "golden;meta")
+
         # Phase 211: the RDD reference machine (real AmigaOS 3.1 under
         # FS-UAE) with the lxaprobe agent.  Skipped (exit 77) when the
         # user's AmigaOS media or FS-UAE are not installed.

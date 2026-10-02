@@ -1,0 +1,10 @@
+# Starter scenario (Phase 213): Deluxe Paint V startup.
+name: dpaintv-startup
+app:
+  manifest: DPaintV
+steps:
+  - launch
+  - wait_window: {title: "", timeout: 30000}
+  - wait_idle: {timeout: 20000}
+  - frames: 50
+  - snapshot: startup

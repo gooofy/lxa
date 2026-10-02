@@ -1,0 +1,15 @@
+{
+ "backend": "ref",
+ "files": [
+  "tree.json",
+  "text.jsonl",
+  "stdout.txt"
+ ],
+ "profile": "aga",
+ "refsys_checksum": "cedc3c4e23f62f51-c010031f6b2d",
+ "scenario": "cli-helloworld",
+ "schema": "lxa-bundle/1",
+ "screen": null,
+ "snapshot": "end",
+ "window": null
+}

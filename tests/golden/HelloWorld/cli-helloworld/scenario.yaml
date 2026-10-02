@@ -1,0 +1,8 @@
+# Starter scenario (Phase 213): a CLI program - output only, no screen.
+name: cli-helloworld
+app:
+  sample: Tests/Dos/HelloWorld
+steps:
+  - launch
+  - frames: 25
+  - snapshot: {name: end, screen: false}

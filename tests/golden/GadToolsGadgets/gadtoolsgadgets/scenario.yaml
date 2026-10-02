@@ -1,0 +1,10 @@
+# Golden scenario (Phase 215): every GadTools kind from the RKM sample.
+name: gadtoolsgadgets
+app:
+  sample: GadToolsGadgets
+steps:
+  - launch
+  - wait_window: "GadTools Gadget Demo"
+  - wait_idle
+  - snapshot: {name: startup, window: "GadTools Gadget Demo"}
+  - quit

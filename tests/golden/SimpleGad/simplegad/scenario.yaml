@@ -1,0 +1,10 @@
+# Golden scenario (Phase 215): an untitled window with one boolean gadget.
+name: simplegad
+app:
+  sample: SimpleGad
+steps:
+  - launch
+  - frames: 10
+  - wait_idle
+  - snapshot: startup
+  - quit

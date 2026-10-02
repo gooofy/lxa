@@ -231,6 +231,8 @@ Built-in C: commands with full AmigaDOS template support:
 
 ## Current Status
 
+**Version 0.11.8** - Reference goldens (Phase 215): `tests/golden/` holds AmigaOS 3.1 snapshot bundles for 6 scenarios; `ctest -L golden` replays them on lxa and fails on any new divergence from the reference.
+
 **Version 0.11.7** - Comparator and report (Phase 214): `python3 -m rdd report` diffs lxa against the reference (Intuition tree, pen-index pixels, palette, text, output) and renders side-by-side composites; reviews are recorded as `findings.yaml` (first review: `doc/findings/`).
 
 **Version 0.11.6** - Twin runner (Phase 213): one YAML scenario (`tests/scenarios/`) runs unchanged on lxa and on real AmigaOS 3.1 (`cd tools && python3 -m rdd run ../tests/scenarios/*.yaml`), producing comparable snapshot bundles from both. The first runs already exposed divergences in Directory Opus and Deluxe Paint V startup.

@@ -1,0 +1,101 @@
+{"text":"Workbench Screen","x":5,"y":7}
+{"text":"Ownership Information","x":4,"y":7}
+{"text":"Ok","x":141,"y":183}
+{"text":"O","x":141,"y":183}
+{"text":"Registration #","x":93,"y":120}
+{"text":"Company","x":121,"y":90}
+{"text":"Name","x":133,"y":60}
+{"text":"This copy of DeluxePaint","x":53,"y":30}
+{"text":"is registered to:","x":81,"y":40}
+{"text":"Pass the word...not the disk!","x":33,"y":165}
+{"text":"Ian Cogings","x":105,"y":75}
+{"text":"12642205EA574637","x":84,"y":135}
+{"text":"Copyright © 1985-1993 Commodore-Amiga, Inc. All Rights Reser","x":5,"y":7}
+{"text":"Workbench Screen","x":5,"y":7}
+{"text":"DeluxePaint 5.2 - Screen Format","x":30,"y":7}
+{"text":"Cancel","x":567,"y":247}
+{"text":"C","x":567,"y":247}
+{"text":"Use","x":25,"y":247}
+{"text":"U","x":25,"y":247}
+{"text":"Credits","x":475,"y":154}
+{"text":"Retain Picture","x":242,"y":248}
+{"text":"R","x":242,"y":248}
+{"text":"None","x":271,"y":229}
+{"text":"Backing Store","x":225,"y":214}
+{"text":"Palette Size","x":75,"y":214}
+{"text":"0","x":290,"y":201}
+{"text":"0","x":215,"y":201}
+{"text":"Keep Same","x":87,"y":201}
+{"text":"  Page Size","x":69,"y":186}
+{"text":"0","x":290,"y":173}
+{"text":"0","x":215,"y":173}
+{"text":"Standard","x":91,"y":173}
+{"text":"  Screen Size","x":61,"y":158}
+{"text":"Display Information","x":427,"y":19}
+{"text":"Choose Display Mode","x":107,"y":19}
+{"text":"PAL:AA-HalfBrite+                640x256","x":12,"y":34}
+{"text":"PAL:AA-HalfBrite+               1280x256","x":12,"y":43}
+{"text":"PAL:AA-HalfBrite-Laced+          640x512","x":12,"y":52}
+{"text":"PAL:AA-HalfBrite-Laced+         1280x512","x":12,"y":61}
+{"text":"PAL:AA-HAM+                      640x256","x":12,"y":70}
+{"text":"PAL:AA-HAM+                     1280x256","x":12,"y":79}
+{"text":"PAL:AA-HAM-Laced+                640x512","x":12,"y":88}
+{"text":"PAL:AA-HAM-Laced+               1280x512","x":12,"y":97}
+{"text":"PAL:ECS+                        1280x256","x":12,"y":106}
+{"text":"PAL:ECS-Laced+                  1280x512","x":12,"y":115}
+{"text":"Type = AA HalfBr","x":378,"y":34}
+{"text":"Max Colours = 64 of 16777216","x":378,"y":43}
+{"text":"Max Size = 736x290","x":378,"y":52}
+{"text":"Supports genlock","x":378,"y":61}
+{"text":"Supports double-buffering","x":378,"y":70}
+{"text":"« Advanced Information »","x":378,"y":88}
+{"text":"Mode ID = 29080H","x":378,"y":97}
+{"text":"Max Depth = 6","x":378,"y":106}
+{"text":"Aspect Ratio = 22x44","x":378,"y":115}
+{"text":"Pixel Speed = 70nS","x":378,"y":124}
+{"text":"Bits Per RGB = [8:8:8]","x":378,"y":133}
+{"text":"  2","x":21,"y":229}
+{"text":"       Programmed by:","x":382,"y":168}
+{"text":"          Lee Ozer","x":382,"y":176}
+{"text":"      Dallas J. Hodgson","x":382,"y":184}
+{"text":"    ARexx Extensions By:","x":382,"y":200}
+{"text":"         Chuck Swan","x":382,"y":208}
+{"text":"  Original Design and Code:","x":382,"y":224}
+{"text":"        Daniel Silva","x":382,"y":232}
+{"text":"Standard","x":91,"y":173}
+{"text":"  Screen Size","x":61,"y":158}
+{"text":"Screen","x":99,"y":201}
+{"text":"  Page Size","x":69,"y":186}
+{"text":"640","x":215,"y":173}
+{"text":"256","x":290,"y":173}
+{"text":"640","x":215,"y":201}
+{"text":"256","x":290,"y":201}
+{"text":"PAL:ECS+                        1280x256","x":12,"y":34}
+{"text":"PAL:ECS-Laced+                  1280x512","x":12,"y":43}
+{"text":"PAL:HalfBrite+                   320x256","x":12,"y":52}
+{"text":"PAL:HalfBrite-Laced+             320x512","x":12,"y":61}
+{"text":"PAL:HAM+                         320x256","x":12,"y":70}
+{"text":"PAL:HAM-Laced+                   320x512","x":12,"y":79}
+{"text":"PAL:Laced+                       320x512","x":12,"y":88}
+{"text":"PAL:Laced+                       640x512","x":12,"y":97}
+{"text":"PAL:Standard+                    320x256","x":12,"y":106}
+{"text":"PAL:Standard+                    640x256","x":12,"y":115}
+{"text":"PAL:Standard+                    640x256","x":14,"y":128}
+{"text":"256","x":21,"y":229}
+{"text":"Retain Picture","x":242,"y":248}
+{"text":"R","x":242,"y":248}
+{"text":"Type = Std","x":378,"y":34}
+{"text":"Max Colours = 256 of 16777216","x":378,"y":43}
+{"text":"Max Size = 736x290","x":378,"y":52}
+{"text":"Supports genlock","x":378,"y":61}
+{"text":"Supports double-buffering","x":378,"y":70}
+{"text":"« Advanced Information »","x":378,"y":88}
+{"text":"Mode ID = 29000H","x":378,"y":97}
+{"text":"Max Depth = 8","x":378,"y":106}
+{"text":"Aspect Ratio = 22x44","x":378,"y":115}
+{"text":"Pixel Speed = 70nS","x":378,"y":124}
+{"text":"Bits Per RGB = [8:8:8]","x":378,"y":133}
+{"text":"Ram Disk","x":5,"y":34}
+{"text":"LXAREF","x":13,"y":69}
+{"text":"APPS","x":21,"y":104}
+{"text":"System","x":13,"y":139}

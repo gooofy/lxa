@@ -58,8 +58,12 @@ Format and validator: `tools/rdd/findings.py`
 ## 5. Close the loop
 
 - Each finding becomes a TODO in its phase (or a new numbered phase — no
-  pooling sections) and, when fixed, an assertion in a golden test
-  (Phase 215: `rdd promote`).
+  pooling sections) and is pinned by a golden:
+  `python3 -m rdd promote ../tests/scenarios/<s>.yaml --phase N` copies the
+  reference bundles to `tests/golden/<app>/<s>/` and records the current lxa
+  divergence (known tree diffs, pixel budget) as a ratchet owned by phase N.
+  `python3 -m rdd golden --all --build ../build` replays every golden; after a
+  fix it prints `tighten …` — re-promote so the improvement cannot regress.
 - Never "fix" a golden to match lxa (principle 4); if the reference result
   looks wrong, re-capture it.
 - Findings across several apps with one root cause are clustered by the

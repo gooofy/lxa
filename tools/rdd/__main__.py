@@ -3,6 +3,8 @@
     cd tools && python3 -m rdd run <scenario.yaml>... [--backend lxa|ref|both]
                                    [--out DIR] [-j N] [--no-cache]
                python3 -m rdd report [DIR] [--html FILE]
+               python3 -m rdd promote <scenario.yaml>... --phase N [--run DIR]
+               python3 -m rdd golden <golden-dir>... | --all | --lint
 
 (or tools/rdd.sh run ...). Each scenario runs once per backend in its own
 process; reference runs are cached (see rdd.backend_ref).  Output:
@@ -78,6 +80,27 @@ def cmd_report(a):
     return 0
 
 
+def cmd_promote(a):
+    from rdd import golden
+    for s in a.scenarios:
+        print("promoted %s" % os.path.relpath(golden.promote(s, a.run, a.phase, reason=a.note), ROOT))
+    return 0
+
+
+def cmd_golden(a):
+    from rdd import golden
+    if a.lint:
+        probs = golden.lint()
+        for p in probs:
+            print(p)
+        print("%d goldens, %d problems" % (len(golden.all_goldens()), len(probs)))
+        return 1 if probs else 0
+    dirs = golden.all_goldens() if a.all else [os.path.abspath(d) for d in a.dirs]
+    build = os.path.abspath(a.build) if a.build else None
+    rcs = [golden.check(d, build, a.keep) for d in dirs]
+    return 1 if 1 in rcs else (77 if rcs and all(rc == 77 for rc in rcs) else 0)
+
+
 def main():
     ap = argparse.ArgumentParser(prog="rdd")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -93,9 +116,25 @@ def main():
     p.add_argument("out", nargs="?", default=os.path.join(ROOT, "build", "rdd"))
     p.add_argument("--html")
     p.set_defaults(fn=cmd_report)
+    p = sub.add_parser("promote", help="turn reference bundles of a run into goldens")
+    p.add_argument("scenarios", nargs="+")
+    p.add_argument("--run", default=os.path.join(ROOT, "build", "rdd"))
+    p.add_argument("--phase", type=int, required=True, help="phase owning the current divergence")
+    p.add_argument("--note")
+    p.set_defaults(fn=cmd_promote)
+    p = sub.add_parser("golden", help="replay goldens on lxa")
+    p.add_argument("dirs", nargs="*")
+    p.add_argument("--all", action="store_true")
+    p.add_argument("--lint", action="store_true")
+    p.add_argument("--build")
+    p.add_argument("--keep", help="keep the lxa bundles in this directory")
+    p.set_defaults(fn=cmd_golden)
     a = ap.parse_args()
     a.scenarios = [os.path.abspath(s) for s in getattr(a, "scenarios", [])]
-    a.out = os.path.abspath(a.out)
+    if hasattr(a, "out"):
+        a.out = os.path.abspath(a.out)
+    if hasattr(a, "run"):
+        a.run = os.path.abspath(a.run)
     return a.fn(a)
 
 
